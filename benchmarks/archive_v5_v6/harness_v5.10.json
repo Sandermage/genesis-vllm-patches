@@ -1,0 +1,347 @@
+{
+  "harness_version": "1.0",
+  "label": "v5.10",
+  "timestamp": 1776547147.5107143,
+  "iso_time": "2026-04-19T00:19:07",
+  "endpoint": "http://localhost:8000",
+  "model": "qwen3.6-35b-a3b",
+  "suites": {
+    "math": {
+      "results": [
+        {
+          "name": "math_mul_1",
+          "passed": true,
+          "critical": false,
+          "latency": 0.15645265579223633,
+          "reply": "611",
+          "error": null
+        },
+        {
+          "name": "math_mul_2",
+          "passed": true,
+          "critical": false,
+          "latency": 0.14204978942871094,
+          "reply": "861",
+          "error": null
+        },
+        {
+          "name": "math_add",
+          "passed": true,
+          "critical": false,
+          "latency": 0.1495044231414795,
+          "reply": "6501",
+          "error": null
+        },
+        {
+          "name": "math_sub",
+          "passed": true,
+          "critical": false,
+          "latency": 0.147369384765625,
+          "reply": "653",
+          "error": null
+        },
+        {
+          "name": "math_div",
+          "passed": true,
+          "critical": false,
+          "latency": 0.13329124450683594,
+          "reply": "12",
+          "error": null
+        },
+        {
+          "name": "math_order",
+          "passed": true,
+          "critical": false,
+          "latency": 0.1323549747467041,
+          "reply": "14",
+          "error": null
+        },
+        {
+          "name": "math_pct",
+          "passed": true,
+          "critical": false,
+          "latency": 0.13442039489746094,
+          "reply": "60",
+          "error": null
+        },
+        {
+          "name": "math_fact",
+          "passed": true,
+          "critical": false,
+          "latency": 0.14194560050964355,
+          "reply": "120",
+          "error": null
+        }
+      ],
+      "passed": 8,
+      "total": 8
+    },
+    "factual": {
+      "results": [
+        {
+          "name": "fact_capital_jp",
+          "passed": true,
+          "critical": false,
+          "latency": 0.13373160362243652,
+          "reply": "Tokyo",
+          "error": null
+        },
+        {
+          "name": "fact_capital_de",
+          "passed": true,
+          "critical": false,
+          "latency": 0.12611031532287598,
+          "reply": "Berlin",
+          "error": null
+        },
+        {
+          "name": "fact_capital_fr",
+          "passed": true,
+          "critical": false,
+          "latency": 0.12606406211853027,
+          "reply": "Paris",
+          "error": null
+        },
+        {
+          "name": "fact_author_1984",
+          "passed": true,
+          "critical": false,
+          "latency": 0.13370156288146973,
+          "reply": "Orwell",
+          "error": null
+        },
+        {
+          "name": "fact_year_ww2",
+          "passed": true,
+          "critical": false,
+          "latency": 0.14665889739990234,
+          "reply": "1945",
+          "error": null
+        },
+        {
+          "name": "fact_speed_light",
+          "passed": true,
+          "critical": false,
+          "latency": 0.13919782638549805,
+          "reply": "8",
+          "error": null
+        }
+      ],
+      "passed": 6,
+      "total": 6
+    },
+    "logic": {
+      "results": [
+        {
+          "name": "logic_syllogism",
+          "passed": true,
+          "critical": false,
+          "latency": 0.1415698528289795,
+          "reply": "yes",
+          "error": null
+        },
+        {
+          "name": "logic_contrapositive",
+          "passed": true,
+          "critical": false,
+          "latency": 0.4485445022583008,
+          "reply": "No.\n\n**Reasoning:**\nThis is a logical deduction known as *Modus Tollens*.\n1.  Pr",
+          "error": null
+        },
+        {
+          "name": "logic_and",
+          "passed": true,
+          "critical": false,
+          "latency": 0.3984065055847168,
+          "reply": "No.\n\n**Reasoning:**\nThe logical AND operator (`and`) returns `true` only if both",
+          "error": null
+        },
+        {
+          "name": "logic_or",
+          "passed": true,
+          "critical": false,
+          "latency": 0.1305530071258545,
+          "reply": "Yes",
+          "error": null
+        }
+      ],
+      "passed": 4,
+      "total": 4
+    },
+    "code": {
+      "results": [
+        {
+          "name": "code_fib",
+          "passed": false,
+          "critical": false,
+          "latency": 0.3730804920196533,
+          "reply": "(lambda f: f(f, 10))(lambda self, n: n if n < 2 else self(self, n-1) + self(self",
+          "error": null
+        },
+        {
+          "name": "code_sq_sum",
+          "passed": true,
+          "critical": false,
+          "latency": 0.21745610237121582,
+          "reply": "sum(i**2 for i in range(1, 6))",
+          "error": null
+        },
+        {
+          "name": "code_reverse",
+          "passed": true,
+          "critical": false,
+          "latency": 0.16225028038024902,
+          "reply": "'hello'[::-1]",
+          "error": null
+        },
+        {
+          "name": "code_primes",
+          "passed": true,
+          "critical": false,
+          "latency": 0.12945127487182617,
+          "reply": "4",
+          "error": null
+        }
+      ],
+      "passed": 3,
+      "total": 4
+    },
+    "multistep": {
+      "results": [
+        {
+          "name": "mstep_apples",
+          "passed": true,
+          "critical": false,
+          "latency": 2.246182441711426,
+          "reply": "27",
+          "error": null
+        },
+        {
+          "name": "mstep_age",
+          "passed": true,
+          "critical": false,
+          "latency": 3.212394952774048,
+          "reply": "20",
+          "error": null
+        }
+      ],
+      "passed": 2,
+      "total": 2
+    },
+    "tool_call": {
+      "results": [
+        {
+          "name": "tool_get_weather",
+          "passed": true,
+          "critical": false,
+          "latency": 0.29453301429748535,
+          "reply": "",
+          "error": null
+        },
+        {
+          "name": "tool_calculator",
+          "passed": true,
+          "critical": false,
+          "latency": 0.44883251190185547,
+          "reply": "",
+          "error": null
+        }
+      ],
+      "passed": 2,
+      "total": 2
+    },
+    "multilingual": {
+      "results": [
+        {
+          "name": "multi_ru",
+          "passed": true,
+          "critical": false,
+          "latency": 0.17112040519714355,
+          "reply": "Hello, how are you?",
+          "error": null
+        },
+        {
+          "name": "multi_zh",
+          "passed": true,
+          "critical": false,
+          "latency": 0.15184879302978516,
+          "reply": "How are you?",
+          "error": null
+        }
+      ],
+      "passed": 2,
+      "total": 2
+    },
+    "coherence": {
+      "results": [
+        {
+          "name": "coherence_cn_loop_probe",
+          "passed": true,
+          "critical": true,
+          "latency": 7.562344551086426,
+          "reply": "\u8fd9\u91cc\u4e3a\u4f60\u8bbe\u8ba1\u4e86\u4e00\u6b3e\u540d\u4e3a**\u201c\u76f2\u76d2\u4f20\u9012\u5458\u201d\uff08Blind Box Relay\uff09**\u7684\u56e2\u961f\u6e38\u620f\u3002\u8fd9\u6b3e\u6e38\u620f\u7ed3\u5408\u4e86\u6c9f\u901a\u3001\u4fe1\u4efb\u3001\u8bb0\u5fc6\u529b\u548c\u4e00\u70b9\u70b9\u8fd0\u6c14\uff0c\u975e\u5e38\u9002\u5408 6-20 \u4eba\u7684",
+          "error": null
+        }
+      ],
+      "passed": 1,
+      "total": 1
+    },
+    "json": {
+      "results": [
+        {
+          "name": "json_simple",
+          "passed": true,
+          "critical": false,
+          "latency": 0.20691537857055664,
+          "reply": "{\"status\": \"ok\", \"value\": 42}",
+          "error": null
+        },
+        {
+          "name": "json_nested",
+          "passed": true,
+          "critical": false,
+          "latency": 0.24546313285827637,
+          "reply": "{\"name\":\"Alice\",\"age\":30,\"hobbies\":[\"reading\",\"chess\"]}",
+          "error": null
+        }
+      ],
+      "passed": 2,
+      "total": 2
+    },
+    "long_context": {
+      "results": [
+        {
+          "name": "needle_10k",
+          "target_tokens": 10000,
+          "actual_tokens": 10877,
+          "passed": true,
+          "required": true,
+          "reply": "SENTINEL-BRAVO-77"
+        },
+        {
+          "name": "needle_30k",
+          "target_tokens": 30000,
+          "actual_tokens": 32548,
+          "passed": true,
+          "required": true,
+          "reply": "SENTINEL-BRAVO-77"
+        },
+        {
+          "name": "needle_80k",
+          "target_tokens": 80000,
+          "actual_tokens": 86706,
+          "passed": false,
+          "required": false,
+          "reply": "ACCESS CODE"
+        }
+      ],
+      "passed": 2,
+      "total": 2,
+      "advisory_passed": 0,
+      "advisory_total": 1
+    }
+  },
+  "verdict": "GO",
+  "failure_reasons": [],
+  "regressions": []
+}

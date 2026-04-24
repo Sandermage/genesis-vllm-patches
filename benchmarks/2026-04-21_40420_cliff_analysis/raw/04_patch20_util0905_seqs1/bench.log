@@ -1,0 +1,57 @@
+============================================================
+Genesis Ultimate Benchmark v3.0 — exp_B_util0905_maxseq1
+Server: http://SERVER_IP:8000
+Time: 2026-04-21T20:08:57.981316
+Config: speed_runs=3, stability_n=30
+        stress=5×5
+        sweep=228k→250k step 2k (×3)
+============================================================
+
+── Model Info ────────────────────────────────────────────
+  Model: qwen3.6-35b-a3b
+  Owner: vllm
+
+── Sanity Check ──────────────────────────────────────────
+  OK — 64 tokens (64r + 0c)
+  TTFT: 0.5496s, Speed: 142.18 tok/s
+
+── Context Sweep (228k → 250k, step 2k) ──────────────────
+  ~228k: OK(TTFT=Nones/0t/s) FAIL(500 Server Error: Internal Server Error ) FAIL(500 Server Error: Internal Server Error ) 
+    PARTIAL — 1/3 passed, TTFT=Nones, 0 tok/s
+  ~230k: FAIL(500 Server Error: Internal Server Error ) FAIL(500 Server Error: Internal Server Error ) FAIL(500 Server Error: Internal Server Error ) 
+    FAILED — 0/3 passed
+  ~232k: FAIL(500 Server Error: Internal Server Error ) FAIL(500 Server Error: Internal Server Error ) FAIL(500 Server Error: Internal Server Error ) 
+    FAILED — 0/3 passed
+  ↳ Two consecutive failures, stopping sweep at 232k
+
+  Max fully stable: ~0k tokens (all runs OK)
+  Max partial:      ~228k tokens (at least 1 run OK)
+
+── Server Metrics ────────────────────────────────────────
+  Failed: HTTPConnectionPool(host='SERVER_IP', port=8000): Max retries exceeded with url: /metrics (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7ae79e393170>: Failed to establish a new connection: [Errno 111] Connection refused'))
+
+Results saved to: genesis_bench_exp_B_util0905_maxseq1_20260421_200857.json
+
+============================================================
+FULL REPORT
+============================================================
+Model:        qwen3.6-35b-a3b
+Benchmark:    Genesis Ultimate v3.0
+Label:        exp_B_util0905_maxseq1
+Time:         2026-04-21T20:08:57.981316
+
+◆ CONTEXT SWEEP (228k → 250k, step 2k):
+  Max fully stable: ~0k
+  Max partial:      ~228k
+    size      TTFT     speed    pass    status
+  ──────  ────────  ────────  ──────  ────────
+    228k         ─         ─  1/  3   PARTIAL
+    230k         ─         ─  0/  3    FAILED
+    232k         ─         ─  0/  3    FAILED
+
+============================================================
+VERDICT
+============================================================
+  ⚠️  Issues detected:
+    • Context: max stable=0k < target 250k
+============================================================

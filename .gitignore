@@ -1,0 +1,23 @@
+__pycache__/
+*.pyc
+.DS_Store
+._*
+.env
+
+# Private upstream-comment drafts — must NEVER be committed.
+# These contain internal review notes ("draft", "tone self-check",
+# "what we will say to <user>") that should stay local.
+docs/UPSTREAM_COMMENT_*.md
+docs/UPSTREAM_REPLY_*.md
+docs/UPSTREAM_*_DRAFT*.md
+
+# Transient runtime caches (do NOT gitignore validation bench output)
+*.log
+!benchmarks/**/*.log
+!benchmarks/**/apply_all.log
+
+# Root-level tool output (bench JSONs / JSONLs live in benchmarks/)
+/harness_*.json
+/bench_*.json
+/sweep_*.jsonl
+/longbench_*.jsonl

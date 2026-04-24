@@ -1,0 +1,133 @@
+============================================================
+Genesis Ultimate Benchmark v3.0 — sweep_160k_mml163840
+Server: http://SERVER_IP:8000
+Time: 2026-04-21T17:50:55.290632
+Config: speed_runs=3, stability_n=10
+        stress=2×3
+        sweep=148k→160k step 2k (×3)
+============================================================
+
+── Model Info ────────────────────────────────────────────
+  Model: qwen3.6-35b-a3b
+  Owner: vllm
+
+── Sanity Check ──────────────────────────────────────────
+  OK — 64 tokens (64r + 0c)
+  TTFT: 0.1561s, Speed: 140.1 tok/s
+
+── Speed Test ────────────────────────────────────────────
+  max_tokens=64: 143.79t/s 143.29t/s 143.23t/s 
+    AVG: 143.44 tok/s (min=143.23, max=143.79), TTFT=0.1305s, 64 tok, 0.576s total
+  max_tokens=128: 142.08t/s 142.24t/s 142.11t/s 
+    AVG: 142.14 tok/s (min=142.08, max=142.24), TTFT=0.1245s, 128 tok, 1.025s total
+  max_tokens=256: 141.71t/s 141.64t/s 141.61t/s 
+    AVG: 141.65 tok/s (min=141.61, max=141.71), TTFT=0.1275s, 256 tok, 1.935s total
+  max_tokens=512: 140.88t/s 140.59t/s 140.61t/s 
+    AVG: 140.69 tok/s (min=140.59, max=140.88), TTFT=0.1255s, 512 tok, 3.765s total
+  max_tokens=1024: 139.86t/s 139.49t/s 139.47t/s 
+    AVG: 139.61 tok/s (min=139.47, max=139.86), TTFT=0.1341s, 1024 tok, 7.469s total
+  max_tokens=2048: 138.13t/s 138.05t/s 137.63t/s 
+    AVG: 137.94 tok/s (min=137.63, max=138.13), TTFT=0.1255s, 2047.3 tok, 14.968s total
+
+── Context Window Test ───────────────────────────────────
+  ~4k context: TTFT=0.6435s/137.7t/s TTFT=0.138s/137.8t/s 
+    AVG: TTFT=0.3907s, 137.75 tok/s
+  ~8k context: TTFT=0.6417s/132.17t/s TTFT=0.1603s/132.75t/s 
+    AVG: TTFT=0.401s, 132.46 tok/s
+  ~16k context: TTFT=1.2777s/122.46t/s TTFT=0.2883s/122.78t/s 
+    AVG: TTFT=0.783s, 122.62 tok/s
+  ~32k context: TTFT=2.6474s/106.64t/s TTFT=0.565s/106.26t/s 
+    AVG: TTFT=1.6062s, 106.45 tok/s
+  ~64k context: TTFT=5.8118s/81.1t/s TTFT=0.6503s/81.43t/s 
+    AVG: TTFT=3.231s, 81.27 tok/s
+  ~96k context: TTFT=6.5822s/67.28t/s TTFT=0.7002s/68.11t/s 
+    AVG: TTFT=3.6412s, 67.69 tok/s
+  ~128k context: TTFT=7.4072s/56.29t/s TTFT=0.7883s/56.1t/s 
+    AVG: TTFT=4.0977s, 56.2 tok/s
+  ~148k context: TTFT=5.3155s/51.47t/s TTFT=0.5218s/51.47t/s 
+    AVG: TTFT=2.9186s, 51.47 tok/s
+
+  Max working context: ~148k tokens
+
+── Stability Test (10 requests) ──────────────────────────
+  [ 1/10] OK — 141.0 t/s, TTFT=0.1337s, 128 tok (128r+0c)
+  [ 2/10] OK — 140.7 t/s, TTFT=0.135s, 128 tok (128r+0c)
+  [ 3/10] OK — 140.8 t/s, TTFT=0.1279s, 128 tok (128r+0c)
+  [ 4/10] OK — 140.8 t/s, TTFT=0.128s, 128 tok (128r+0c)
+  [ 5/10] OK — 140.9 t/s, TTFT=0.1327s, 128 tok (128r+0c)
+  [ 6/10] OK — 141.0 t/s, TTFT=0.1323s, 128 tok (128r+0c)
+  [ 7/10] OK — 140.9 t/s, TTFT=0.1264s, 128 tok (128r+0c)
+  [ 8/10] OK — 141.1 t/s, TTFT=0.1282s, 128 tok (128r+0c)
+  [ 9/10] OK — 140.9 t/s, TTFT=0.1271s, 128 tok (128r+0c)
+  [10/10] OK — 140.8 t/s, TTFT=0.1292s, 128 tok (128r+0c)
+
+  Result: 10/10 OK, 0 errors
+  Speed: avg=140.89 tok/s, min=140.74, max=141.11, stdev=0.1158
+  TTFT:  avg=0.13s, min=0.1264, max=0.135
+  Drift: first_half=140.9 → second_half=140.9 (+0.1%)
+
+── Stress Test (2 bursts × 3 = 6 requests) ───────────────
+  Burst 1/2: 142 142 142  → avg=142.04 t/s, 0 err
+  Burst 2/2: 142 142 142  → avg=141.96 t/s, 0 err
+
+  Total: 6/6 OK, 0 errors
+  Speed: avg=141.9983 tok/s, min=141.89, max=142.13, stdev=0.0954
+  Burst drift: first=142.0 → last=142.0 (-0.1%)
+
+── Long Generation Test ──────────────────────────────────
+  max_tokens=1024: 138.86 t/s, 1024 tok, TTFT=0.1326s, total=7.507s
+  max_tokens=2048: 137.68 t/s, 2048 tok, TTFT=0.1301s, total=15.006s
+
+── Server Metrics ────────────────────────────────────────
+
+Results saved to: genesis_bench_sweep_160k_mml163840_20260421_175055.json
+
+============================================================
+FULL REPORT
+============================================================
+Model:        qwen3.6-35b-a3b
+Benchmark:    Genesis Ultimate v3.0
+Label:        sweep_160k_mml163840
+Time:         2026-04-21T17:50:55.290632
+
+◆ SPEED TEST:
+   max_tok   avg t/s     min     max     TTFT  tokens     time
+  ────────  ────────  ──────  ──────  ───────  ──────  ───────
+        64     143.4   143.2   143.8  0.1305s      64     0.6s
+       128     142.1   142.1   142.2  0.1245s     128     1.0s
+       256     141.7   141.6   141.7  0.1275s     256     1.9s
+       512     140.7   140.6   140.9  0.1255s     512     3.8s
+      1024     139.6   139.5   139.9  0.1341s    1024     7.5s
+      2048     137.9   137.6   138.1  0.1255s    2047    15.0s
+
+◆ CONTEXT WINDOW (standard):
+  Max working: ~148k tokens
+    size      TTFT     speed    status
+  ──────  ────────  ────────  ────────
+      4k   0.3907s    137.8        OK
+      8k   0.4010s    132.5        OK
+     16k   0.7830s    122.6        OK
+     32k   1.6062s    106.5        OK
+     64k   3.2310s     81.3        OK
+     96k   3.6412s     67.7        OK
+    128k   4.0977s     56.2        OK
+    148k   2.9186s     51.5        OK
+
+◆ STABILITY TEST (10 requests):
+  Success rate: 10/10 (100.0%)
+  Speed: avg=140.89 tok/s, min=140.74, max=141.11, stdev=0.1158
+  TTFT:  avg=0.13s, min=0.1264, max=0.135
+
+◆ STRESS TEST (6 rapid-fire requests):
+  Success rate: 6/6 (100.0%)
+  Speed: avg=141.9983 tok/s, min=141.89, max=142.13, stdev=0.0954
+
+◆ LONG GENERATION:
+  1024 tokens: 138.86 t/s, 1024 tok, TTFT=0.1326s, total=7.507s
+  2048 tokens: 137.68 t/s, 2048 tok, TTFT=0.1301s, total=15.006s
+
+============================================================
+VERDICT
+============================================================
+  ✅ ALL TESTS PASSED — build is STABLE
+============================================================

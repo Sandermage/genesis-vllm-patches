@@ -1,0 +1,81 @@
+============================================================
+Genesis Ultimate Benchmark v3.0 — exp_A_util085_maxseq2
+Server: http://SERVER_IP:8000
+Time: 2026-04-21T20:02:24.002086
+Config: speed_runs=3, stability_n=30
+        stress=5×5
+        sweep=228k→250k step 2k (×3)
+============================================================
+
+── Model Info ────────────────────────────────────────────
+  Model: qwen3.6-35b-a3b
+  Owner: vllm
+
+── Sanity Check ──────────────────────────────────────────
+  OK — 64 tokens (64r + 0c)
+  TTFT: 0.5727s, Speed: 141.14 tok/s
+
+── Context Sweep (228k → 250k, step 2k) ──────────────────
+  ~228k: OK(TTFT=47.1372s/38.43t/s) OK(TTFT=0.9725s/38.49t/s) OK(TTFT=0.9558s/38.49t/s) 
+    OK — 3/3 passed, TTFT=16.3552s, 38.47 tok/s
+  ~230k: OK(TTFT=1.4856s/38.02t/s) OK(TTFT=1.4822s/38.24t/s) OK(TTFT=1.4954s/37.96t/s) 
+    OK — 3/3 passed, TTFT=1.4877s, 38.07 tok/s
+  ~232k: OK(TTFT=2.136s/37.55t/s) OK(TTFT=1.099s/37.83t/s) OK(TTFT=1.0901s/37.69t/s) 
+    OK — 3/3 passed, TTFT=1.4417s, 37.69 tok/s
+  ~234k: OK(TTFT=2.7777s/37.25t/s) OK(TTFT=1.7456s/37.21t/s) OK(TTFT=1.7641s/37.22t/s) 
+    OK — 3/3 passed, TTFT=2.0958s, 37.23 tok/s
+  ~236k: OK(TTFT=1.2546s/37.2t/s) OK(TTFT=1.2614s/37.53t/s) OK(TTFT=1.2481s/37.1t/s) 
+    OK — 3/3 passed, TTFT=1.2547s, 37.28 tok/s
+  ~238k: OK(TTFT=1.8307s/37.02t/s) OK(TTFT=0.7668s/36.74t/s) OK(TTFT=0.7746s/36.87t/s) 
+    OK — 3/3 passed, TTFT=1.124s, 36.88 tok/s
+  ~240k: OK(TTFT=1.3132s/36.53t/s) OK(TTFT=1.3183s/36.58t/s) OK(TTFT=1.369s/36.97t/s) 
+    OK — 3/3 passed, TTFT=1.3335s, 36.69 tok/s
+  ~242k: OK(TTFT=1.9751s/36.42t/s) OK(TTFT=0.9153s/36.15t/s) OK(TTFT=0.9263s/36.97t/s) 
+    OK — 3/3 passed, TTFT=1.2722s, 36.51 tok/s
+  ~244k: OK(TTFT=1.4736s/36.12t/s) OK(TTFT=1.4905s/36.23t/s) OK(TTFT=1.4677s/36.08t/s) 
+    OK — 3/3 passed, TTFT=1.4773s, 36.14 tok/s
+  ~246k: OK(TTFT=2.0696s/35.94t/s) OK(TTFT=1.0057s/35.9t/s) OK(TTFT=0.9936s/35.94t/s) 
+    OK — 3/3 passed, TTFT=1.3563s, 35.93 tok/s
+  ~248k: OK(TTFT=1.5418s/35.62t/s) OK(TTFT=1.5632s/35.45t/s) OK(TTFT=1.5557s/36.51t/s) 
+    OK — 3/3 passed, TTFT=1.5536s, 35.86 tok/s
+  ~250k: OK(TTFT=2.2453s/35.42t/s) OK(TTFT=1.172s/35.44t/s) OK(TTFT=1.1614s/35.46t/s) 
+    OK — 3/3 passed, TTFT=1.5262s, 35.44 tok/s
+
+  Max fully stable: ~250k tokens (all runs OK)
+  Max partial:      ~250k tokens (at least 1 run OK)
+
+── Server Metrics ────────────────────────────────────────
+
+Results saved to: genesis_bench_exp_A_util085_maxseq2_20260421_200224.json
+
+============================================================
+FULL REPORT
+============================================================
+Model:        qwen3.6-35b-a3b
+Benchmark:    Genesis Ultimate v3.0
+Label:        exp_A_util085_maxseq2
+Time:         2026-04-21T20:02:24.002086
+
+◆ CONTEXT SWEEP (228k → 250k, step 2k):
+  Max fully stable: ~250k
+  Max partial:      ~250k
+    size      TTFT     speed    pass    status
+  ──────  ────────  ────────  ──────  ────────
+    228k  16.3552s      38.5  3/  3        OK
+    230k   1.4877s      38.1  3/  3        OK
+    232k   1.4417s      37.7  3/  3        OK
+    234k   2.0958s      37.2  3/  3        OK
+    236k   1.2547s      37.3  3/  3        OK
+    238k   1.1240s      36.9  3/  3        OK
+    240k   1.3335s      36.7  3/  3        OK
+    242k   1.2722s      36.5  3/  3        OK
+    244k   1.4773s      36.1  3/  3        OK
+    246k   1.3563s      35.9  3/  3        OK
+    248k   1.5536s      35.9  3/  3        OK
+    250k   1.5262s      35.4  3/  3        OK
+
+============================================================
+VERDICT
+============================================================
+  ✅ ALL TESTS PASSED — build is STABLE
+============================================================

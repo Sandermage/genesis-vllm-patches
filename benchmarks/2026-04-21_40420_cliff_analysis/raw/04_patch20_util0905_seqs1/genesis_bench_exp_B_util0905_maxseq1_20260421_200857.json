@@ -1,0 +1,136 @@
+{
+  "benchmark_version": "3.0",
+  "label": "exp_B_util0905_maxseq1",
+  "timestamp": "20260421_200857",
+  "iso_time": "2026-04-21T20:08:57.981316",
+  "server": "http://SERVER_IP:8000",
+  "model": {
+    "id": "qwen3.6-35b-a3b",
+    "owned_by": "vllm"
+  },
+  "config": {
+    "speed_runs": 3,
+    "stability_n": 30,
+    "stress_bursts": 5,
+    "stress_per_burst": 5,
+    "sweep_from_k": 228,
+    "sweep_to_k": 250,
+    "sweep_step_k": 2,
+    "sweep_runs": 3,
+    "max_context_k": 160
+  },
+  "sanity": {
+    "ttft_s": 0.5496,
+    "total_time_s": 1.0,
+    "gen_time_s": 0.45,
+    "tokens_generated": 64,
+    "reasoning_tokens": 64,
+    "content_tokens": 0,
+    "tokens_per_sec": 142.18,
+    "finish_reason": "length",
+    "content_preview": "",
+    "reasoning_preview": "Here's a thinking process:\n\n1.  **Analyze User Input:** The user said \"Say 'hello world'\". This is a",
+    "prompt_chars": 17,
+    "max_tokens": 64,
+    "server_completion_tokens": 64,
+    "server_prompt_tokens": 15
+  },
+  "context_sweep": {
+    "from_k": 228,
+    "to_k": 250,
+    "step_k": 2,
+    "max_fully_stable_k": 0,
+    "max_partial_k": 228,
+    "details": [
+      {
+        "target_k": 228,
+        "status": "partial",
+        "successes": 1,
+        "total_runs": 3,
+        "avg_ttft_s": null,
+        "avg_tokens_per_sec": 0,
+        "runs": [
+          {
+            "ttft_s": null,
+            "total_time_s": 45.259,
+            "gen_time_s": 45.259,
+            "tokens_generated": 0,
+            "reasoning_tokens": 0,
+            "content_tokens": 0,
+            "tokens_per_sec": 0,
+            "finish_reason": null,
+            "content_preview": "",
+            "reasoning_preview": "",
+            "prompt_chars": 1052304,
+            "max_tokens": 32,
+            "server_completion_tokens": null,
+            "server_prompt_tokens": null
+          },
+          {
+            "error": "500 Server Error: Internal Server Error for url: http://SERVER_IP:8000/v1/chat/completions",
+            "prompt_chars": 1052304,
+            "max_tokens": 32
+          },
+          {
+            "error": "500 Server Error: Internal Server Error for url: http://SERVER_IP:8000/v1/chat/completions",
+            "prompt_chars": 1052304,
+            "max_tokens": 32
+          }
+        ]
+      },
+      {
+        "target_k": 230,
+        "status": "failed",
+        "successes": 0,
+        "total_runs": 3,
+        "avg_ttft_s": null,
+        "avg_tokens_per_sec": null,
+        "runs": [
+          {
+            "error": "500 Server Error: Internal Server Error for url: http://SERVER_IP:8000/v1/chat/completions",
+            "prompt_chars": 1061538,
+            "max_tokens": 32
+          },
+          {
+            "error": "500 Server Error: Internal Server Error for url: http://SERVER_IP:8000/v1/chat/completions",
+            "prompt_chars": 1061538,
+            "max_tokens": 32
+          },
+          {
+            "error": "500 Server Error: Internal Server Error for url: http://SERVER_IP:8000/v1/chat/completions",
+            "prompt_chars": 1061538,
+            "max_tokens": 32
+          }
+        ]
+      },
+      {
+        "target_k": 232,
+        "status": "failed",
+        "successes": 0,
+        "total_runs": 3,
+        "avg_ttft_s": null,
+        "avg_tokens_per_sec": null,
+        "runs": [
+          {
+            "error": "500 Server Error: Internal Server Error for url: http://SERVER_IP:8000/v1/chat/completions",
+            "prompt_chars": 1070766,
+            "max_tokens": 32
+          },
+          {
+            "error": "500 Server Error: Internal Server Error for url: http://SERVER_IP:8000/v1/chat/completions",
+            "prompt_chars": 1070766,
+            "max_tokens": 32
+          },
+          {
+            "error": "500 Server Error: Internal Server Error for url: http://SERVER_IP:8000/v1/chat/completions",
+            "prompt_chars": 1070766,
+            "max_tokens": 32
+          }
+        ]
+      }
+    ]
+  },
+  "metrics": {
+    "error": "HTTPConnectionPool(host='SERVER_IP', port=8000): Max retries exceeded with url: /metrics (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7ae79e393170>: Failed to establish a new connection: [Errno 111] Connection refused'))"
+  }
+}

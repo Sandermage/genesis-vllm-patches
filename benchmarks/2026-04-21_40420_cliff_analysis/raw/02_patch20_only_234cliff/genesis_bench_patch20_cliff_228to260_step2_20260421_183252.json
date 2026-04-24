@@ -1,0 +1,310 @@
+{
+  "benchmark_version": "3.0",
+  "label": "patch20_cliff_228to260_step2",
+  "timestamp": "20260421_183252",
+  "iso_time": "2026-04-21T18:32:52.309813",
+  "server": "http://SERVER_IP:8000",
+  "model": {
+    "id": "qwen3.6-35b-a3b",
+    "owned_by": "vllm"
+  },
+  "config": {
+    "speed_runs": 3,
+    "stability_n": 30,
+    "stress_bursts": 5,
+    "stress_per_burst": 5,
+    "sweep_from_k": 228,
+    "sweep_to_k": 260,
+    "sweep_step_k": 2,
+    "sweep_runs": 3,
+    "max_context_k": 160
+  },
+  "sanity": {
+    "ttft_s": 0.2364,
+    "total_time_s": 0.691,
+    "gen_time_s": 0.455,
+    "tokens_generated": 64,
+    "reasoning_tokens": 64,
+    "content_tokens": 0,
+    "tokens_per_sec": 140.73,
+    "finish_reason": "length",
+    "content_preview": "",
+    "reasoning_preview": "Here's a thinking process:\n\n1.  **Analyze User Input:** The user said \"Say 'hello world'\". This is a",
+    "prompt_chars": 17,
+    "max_tokens": 64,
+    "server_completion_tokens": 64,
+    "server_prompt_tokens": 15
+  },
+  "context_sweep": {
+    "from_k": 228,
+    "to_k": 260,
+    "step_k": 2,
+    "max_fully_stable_k": 232,
+    "max_partial_k": 234,
+    "details": [
+      {
+        "target_k": 228,
+        "status": "ok",
+        "successes": 3,
+        "total_runs": 3,
+        "avg_ttft_s": 16.362,
+        "avg_tokens_per_sec": 38.21,
+        "runs": [
+          {
+            "ttft_s": 47.1612,
+            "total_time_s": 47.917,
+            "gen_time_s": 0.756,
+            "tokens_generated": 29,
+            "reasoning_tokens": 29,
+            "content_tokens": 0,
+            "tokens_per_sec": 38.36,
+            "finish_reason": "length",
+            "content_preview": "",
+            "reasoning_preview": "Here's a thinking process:\n\n1.  **Analyze User Input:**\n   - The user has pasted a massive block of ",
+            "prompt_chars": 1052304,
+            "max_tokens": 32,
+            "server_completion_tokens": 32,
+            "server_prompt_tokens": 175394
+          },
+          {
+            "ttft_s": 0.9749,
+            "total_time_s": 1.73,
+            "gen_time_s": 0.755,
+            "tokens_generated": 29,
+            "reasoning_tokens": 29,
+            "content_tokens": 0,
+            "tokens_per_sec": 38.42,
+            "finish_reason": "length",
+            "content_preview": "",
+            "reasoning_preview": "Here's a thinking process:\n\n1.  **Analyze User Input:** The user has pasted a massive block of text ",
+            "prompt_chars": 1052304,
+            "max_tokens": 32,
+            "server_completion_tokens": 32,
+            "server_prompt_tokens": 175394
+          },
+          {
+            "ttft_s": 0.9498,
+            "total_time_s": 1.716,
+            "gen_time_s": 0.766,
+            "tokens_generated": 29,
+            "reasoning_tokens": 29,
+            "content_tokens": 0,
+            "tokens_per_sec": 37.84,
+            "finish_reason": "length",
+            "content_preview": "",
+            "reasoning_preview": "Here's a thinking process:\n\n1.  **Analyze User Input:** The user has pasted an extremely long string",
+            "prompt_chars": 1052304,
+            "max_tokens": 32,
+            "server_completion_tokens": 32,
+            "server_prompt_tokens": 175394
+          }
+        ]
+      },
+      {
+        "target_k": 230,
+        "status": "ok",
+        "successes": 3,
+        "total_runs": 3,
+        "avg_ttft_s": 1.5187,
+        "avg_tokens_per_sec": 38.5,
+        "runs": [
+          {
+            "ttft_s": 1.5229,
+            "total_time_s": 2.294,
+            "gen_time_s": 0.772,
+            "tokens_generated": 30,
+            "reasoning_tokens": 30,
+            "content_tokens": 0,
+            "tokens_per_sec": 38.88,
+            "finish_reason": "length",
+            "content_preview": "",
+            "reasoning_preview": "Here's a thinking process:\n\n1.  **Analyze User Input:** The user has pasted an extremely long, repet",
+            "prompt_chars": 1061538,
+            "max_tokens": 32,
+            "server_completion_tokens": 32,
+            "server_prompt_tokens": 176933
+          },
+          {
+            "ttft_s": 1.5212,
+            "total_time_s": 2.292,
+            "gen_time_s": 0.771,
+            "tokens_generated": 30,
+            "reasoning_tokens": 30,
+            "content_tokens": 0,
+            "tokens_per_sec": 38.9,
+            "finish_reason": "length",
+            "content_preview": "",
+            "reasoning_preview": "Here's a thinking process:\n\n1.  **Analyze User Input:** The user has pasted an extremely long string",
+            "prompt_chars": 1061538,
+            "max_tokens": 32,
+            "server_completion_tokens": 32,
+            "server_prompt_tokens": 176933
+          },
+          {
+            "ttft_s": 1.512,
+            "total_time_s": 2.281,
+            "gen_time_s": 0.769,
+            "tokens_generated": 29,
+            "reasoning_tokens": 29,
+            "content_tokens": 0,
+            "tokens_per_sec": 37.72,
+            "finish_reason": "length",
+            "content_preview": "",
+            "reasoning_preview": "Here's a thinking process:\n\n1.  **Analyze User Input:**\n   - The user has pasted a massive block of ",
+            "prompt_chars": 1061538,
+            "max_tokens": 32,
+            "server_completion_tokens": 32,
+            "server_prompt_tokens": 176933
+          }
+        ]
+      },
+      {
+        "target_k": 232,
+        "status": "ok",
+        "successes": 3,
+        "total_runs": 3,
+        "avg_ttft_s": 1.4592,
+        "avg_tokens_per_sec": 37.56,
+        "runs": [
+          {
+            "ttft_s": 2.1756,
+            "total_time_s": 2.949,
+            "gen_time_s": 0.774,
+            "tokens_generated": 29,
+            "reasoning_tokens": 29,
+            "content_tokens": 0,
+            "tokens_per_sec": 37.48,
+            "finish_reason": "length",
+            "content_preview": "",
+            "reasoning_preview": "Here's a thinking process:\n\n1.  **Analyze User Input:** The user has pasted an enormous amount of re",
+            "prompt_chars": 1070766,
+            "max_tokens": 32,
+            "server_completion_tokens": 32,
+            "server_prompt_tokens": 178471
+          },
+          {
+            "ttft_s": 1.0963,
+            "total_time_s": 1.871,
+            "gen_time_s": 0.775,
+            "tokens_generated": 29,
+            "reasoning_tokens": 29,
+            "content_tokens": 0,
+            "tokens_per_sec": 37.43,
+            "finish_reason": "length",
+            "content_preview": "",
+            "reasoning_preview": "Here's a thinking process:\n\n1.  **Analyze User Input:** The user has pasted an extremely long, repet",
+            "prompt_chars": 1070766,
+            "max_tokens": 32,
+            "server_completion_tokens": 32,
+            "server_prompt_tokens": 178471
+          },
+          {
+            "ttft_s": 1.1056,
+            "total_time_s": 1.873,
+            "gen_time_s": 0.768,
+            "tokens_generated": 29,
+            "reasoning_tokens": 29,
+            "content_tokens": 0,
+            "tokens_per_sec": 37.77,
+            "finish_reason": "length",
+            "content_preview": "",
+            "reasoning_preview": "Here's a thinking process:\n\n1.  **Analyze User Input:**\n   - The user has pasted a massive block of ",
+            "prompt_chars": 1070766,
+            "max_tokens": 32,
+            "server_completion_tokens": 32,
+            "server_prompt_tokens": 178471
+          }
+        ]
+      },
+      {
+        "target_k": 234,
+        "status": "partial",
+        "successes": 1,
+        "total_runs": 3,
+        "avg_ttft_s": null,
+        "avg_tokens_per_sec": 0,
+        "runs": [
+          {
+            "ttft_s": null,
+            "total_time_s": 0.52,
+            "gen_time_s": 0.52,
+            "tokens_generated": 0,
+            "reasoning_tokens": 0,
+            "content_tokens": 0,
+            "tokens_per_sec": 0,
+            "finish_reason": null,
+            "content_preview": "",
+            "reasoning_preview": "",
+            "prompt_chars": 1080000,
+            "max_tokens": 32,
+            "server_completion_tokens": null,
+            "server_prompt_tokens": null
+          },
+          {
+            "error": "500 Server Error: Internal Server Error for url: http://SERVER_IP:8000/v1/chat/completions",
+            "prompt_chars": 1080000,
+            "max_tokens": 32
+          },
+          {
+            "error": "500 Server Error: Internal Server Error for url: http://SERVER_IP:8000/v1/chat/completions",
+            "prompt_chars": 1080000,
+            "max_tokens": 32
+          }
+        ]
+      },
+      {
+        "target_k": 236,
+        "status": "failed",
+        "successes": 0,
+        "total_runs": 3,
+        "avg_ttft_s": null,
+        "avg_tokens_per_sec": null,
+        "runs": [
+          {
+            "error": "500 Server Error: Internal Server Error for url: http://SERVER_IP:8000/v1/chat/completions",
+            "prompt_chars": 1089228,
+            "max_tokens": 32
+          },
+          {
+            "error": "HTTPConnectionPool(host='SERVER_IP', port=8000): Max retries exceeded with url: /v1/chat/completions (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x79e11b8234d0>: Failed to establish a new connection: [Errno 111] Connection refused'))",
+            "prompt_chars": 1089228,
+            "max_tokens": 32
+          },
+          {
+            "error": "HTTPConnectionPool(host='SERVER_IP', port=8000): Max retries exceeded with url: /v1/chat/completions (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x79e11b823260>: Failed to establish a new connection: [Errno 111] Connection refused'))",
+            "prompt_chars": 1089228,
+            "max_tokens": 32
+          }
+        ]
+      },
+      {
+        "target_k": 238,
+        "status": "failed",
+        "successes": 0,
+        "total_runs": 3,
+        "avg_ttft_s": null,
+        "avg_tokens_per_sec": null,
+        "runs": [
+          {
+            "error": "HTTPConnectionPool(host='SERVER_IP', port=8000): Max retries exceeded with url: /v1/chat/completions (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x79e11b823e90>: Failed to establish a new connection: [Errno 111] Connection refused'))",
+            "prompt_chars": 1098456,
+            "max_tokens": 32
+          },
+          {
+            "error": "HTTPConnectionPool(host='SERVER_IP', port=8000): Max retries exceeded with url: /v1/chat/completions (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x79e11b6607d0>: Failed to establish a new connection: [Errno 111] Connection refused'))",
+            "prompt_chars": 1098456,
+            "max_tokens": 32
+          },
+          {
+            "error": "HTTPConnectionPool(host='SERVER_IP', port=8000): Max retries exceeded with url: /v1/chat/completions (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x79e11b6610d0>: Failed to establish a new connection: [Errno 111] Connection refused'))",
+            "prompt_chars": 1098456,
+            "max_tokens": 32
+          }
+        ]
+      }
+    ]
+  },
+  "metrics": {
+    "error": "HTTPConnectionPool(host='SERVER_IP', port=8000): Max retries exceeded with url: /metrics (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x79e11b8239e0>: Failed to establish a new connection: [Errno 111] Connection refused'))"
+  }
+}

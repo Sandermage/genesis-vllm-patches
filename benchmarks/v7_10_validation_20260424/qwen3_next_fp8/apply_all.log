@@ -1,0 +1,238 @@
+[INFO:genesis.apply_all] [Genesis] applied: P8 KV hybrid reporting (per-token capacity) — kv_cache_utils=applied(ok), scheduler=applied(ok)
+[INFO:genesis.apply_all] [Genesis] applied: P3 TurboQuant BF16->FP8 cast (Ampere fix) — BF16->FP8 cast guard inserted
+[INFO:genesis.apply_all] [Genesis] applied: P6 TurboQuant-aware attention page size — TQ-aware page-size branch inserted
+[INFO:genesis.apply_all] [Genesis] applied: P15 Qwen3 None/null tool arg parser — None/none mapping added to tool param parser
+[INFO:genesis.apply_all] [Genesis] applied: P12 Qwen3 <tool_call> implicit reasoning end — tool_call tokens + serving-layer hooks added
+[INFO:genesis.apply_all] [Genesis] applied: P27 Qwen3 BEFORE-THINK fallback — BEFORE-THINK fallback wired (non-stream + stream)
+[INFO:genesis.apply_all] [Genesis] applied: P34 Mamba zero-collapse deadlock guard — zero-collapse deadlock guard inserted (fixes #40707 for hybrid Mamba + multimodal)
+[INFO:genesis.apply_all] [Genesis] applied: P29 tool parser IndexError guard — upstream already contains bounded-index guards (no-op)
+[INFO:genesis.marlin_fp32_reduce] [Genesis P23] Marlin FP32_REDUCE: disabled=True on SM=(8, 6) (auto-from-platform)
+[INFO:genesis.apply_all] [Genesis] applied: P23 Marlin FP32_REDUCE env override — decision: fp32_reduce disabled=True (requires upstream wire into Marlin launcher to take effect)
+[INFO:genesis.apply_all] [Genesis] applied: P4 TurboQuant hybrid model support — text-patch succeeded
+[INFO:genesis.apply_all] [Genesis] applied: P5 KV cache page size unification — text-patch v2 succeeded (pad-smaller-to-max)
+[INFO:genesis.apply_all] [Genesis] skipped: P5b KV page-size pad-smaller-to-max (env-opt-in) — opt-in: set GENESIS_ENABLE_P5B=1 to enable pad-smaller-to-max KV page-size strategy (saves ~34% per-block VRAM on Qwen3.6 hybrid vs P5 v1 LCM-pad-up; BLAST-RADIUS is KV allocator → benchmark on VM 100 before enabling in prod)
+[INFO:genesis.wiring.p31_router_softmax] [Genesis P31] wrapped grouped_topk_router.grouped_topk (fp32 upcast active for grouped-MoE models)
+[INFO:genesis.apply_all] [Genesis] applied: P31 MoE router fp32 softmax — grouped_topk wrapped (effective in this process)
+[INFO:genesis.wiring.p22_tq_prealloc] [Genesis P22] rebound TurboQuantAttentionImpl._ensure_on_device (prealloc helper will fire during profile_run warmup)
+[INFO:genesis.apply_all] [Genesis] applied: P22 TurboQuant shared dequant prealloc — class method wrapped (effective in this process)
+[INFO:genesis.apply_all] [Genesis] applied: P26 TurboQuant prefill output prealloc — prefill output + cu_2 rewired through shared pool
+[INFO:genesis.apply_all] [Genesis] applied: P44 TQ mixed-batch attn_out pool — text-patch applied — mixed-batch attn_out routed through TurboQuantBufferManager pool (~80 MB zero-init eliminated per mixed-batch forward in multi-user serving)
+[INFO:genesis.apply_all] [Genesis] applied: P46 GDN gating buffer pool — text-patch applied — fused_gdn_gating now uses GdnGatingBufferManager pool (eliminates ~24k allocs/sec on Qwen3.6-35B-A3B decode)
+[INFO:genesis.apply_all] [Genesis] skipped: P7b GDN dual-stream via torch.library.custom_op (opt-in) — opt-in: set GENESIS_ENABLE_P7B=1 to enable GDN dual-stream via torch.library.custom_op (graph-safe alternative to P7; validates numeric equiv + compile-cache freshness before prod)
+[INFO:genesis.apply_all] [Genesis] skipped: P40 TurboQuant GQA-grouped decode stage1 (opt-in) — opt-in: set GENESIS_ENABLE_P40=1 to enable GQA-grouped decode stage1 (port of upstream PR #40792)
+[INFO:genesis.wiring.p39a_fla_kkt] [Genesis P39b] vllm_config fetch failed (Current vLLM config is not set. This typically means get_current_vllm_config() was called outside of a set_current_vllm_config() context, or a CustomOp was instantiated at module import time or model forward time when config is not set. For tests that directly test custom ops/modules, use the 'default_vllm_config' pytest fixture from tests/conftest.py.); defaults used
+[INFO:genesis.wiring.p39a_fla_kkt] [Genesis P39a] rebound vllm.model_executor.layers.fla.ops.chunk_scaled_dot_kkt.chunk_scaled_dot_kkt_fwd (+1 caller mods: ['vllm.model_executor.layers.fla.ops.chunk'])
+[INFO:genesis.apply_all] [Genesis] applied: P39a FLA chunk_scaled_dot_kkt persistent A pool — module-level fn replaced (1 caller module(s) also rebound — pool shared across GDN layers)
+[INFO:genesis.wiring.p38_tq_continuation_memory] [Genesis P38] rebound TurboQuantAttentionImpl._continuation_prefill (persistent K_full/V_full buffers replace torch.cat peak)
+[INFO:genesis.apply_all] [Genesis] applied: P38 TQ _continuation_prefill persistent workspace — class method replaced (persistent K_full/V_full workspace, no .contiguous()/torch.cat transient peaks)
+[INFO:genesis.apply_all] [Genesis] applied: P37 MoE intermediate cache pool (opt-in) — intermediate_cache13 + cache2 rewired to shared pool (saves allocator churn across N_moe_layers per step)
+[INFO:genesis.apply_all] [Genesis] applied: P36 TurboQuant shared decode buffers — decode mid_o + output + lse buffers shared across TQ attention layers
+[INFO:genesis.apply_all] [Genesis] applied: P32/P33 TurboQuant cu_2 + synth_seq_lens preallocs — cu_2 + synth_seq_lens preallocs registered (invoked from ensure_turboquant_buffers, fires during profile_run)
+[INFO:genesis.wiring.p28_gdn_core_attn] [Genesis P28] wrapped GatedDeltaNetAttention.__init__ to attach _genesis_gdn_core_attn_buf on each instance
+[INFO:genesis.apply_all] [Genesis] applied: P28 GDN core_attn_out prealloc — forward_cuda patched + __init__ wrapped
+[INFO:genesis.apply_all] [Genesis P7] dispatcher ready (parallel path)
+[INFO:genesis.apply_all] [Genesis] skipped: P7 GDN dual-stream in_proj parallelism — deferred — incompatible with torch.compile fullgraph (CUDA streams not SymPy-graphable); custom op implementation required. Re-enable with GENESIS_ENABLE_P7=1 + --enforce-eager.
+[INFO:genesis.apply_all] [Genesis P17/P18] Marlin tuning ready: SM=(8, 6) bsm=8 num_warps=4 num_stages=3
+[INFO:genesis.apply_all] [Genesis] applied: P17/P18 Marlin MoE per-SM tuning — SM=(8, 6) bsm=8
+[INFO:genesis.apply_all] [Genesis] applied: P24 fused_moe num_warps/num_stages overlay — num_warps / num_stages overlay wired into get_default_config (active only on Triton fused_moe path; Marlin unaffected)
+[INFO:genesis.wiring.p14_block_table] [Genesis P14] rebound BlockTable.append_row + move_row (tail-zero-fill active for concurrent-request safety)
+[INFO:genesis.apply_all] [Genesis] applied: P14 block_table tail zero-fill — BlockTable.append_row + move_row wrapped (effective in this process)
+[INFO:genesis.tq_decode_tune] [Genesis P18b] TQ decode stage1 using upstream defaults (BLOCK_KV=4 num_warps=1 num_stages=1)
+[INFO:genesis.apply_all] [Genesis] applied: P18b TurboQuant decode stage1 tune — no env override — using upstream defaults (4/1/1)
+[INFO:genesis.apply_all] [Genesis P20] TQ _continuation_prefill FP16 helpers ready for TurboQuantAttentionImpl hook
+[INFO:genesis.apply_all] [Genesis] applied: P20 TurboQuant continuation-prefill FP16 rotate — fp16-rotation helper ready for _continuation_prefill hook
+[INFO:genesis.fp8_dispatcher] [Genesis FP8 dispatcher] SM (8, 6) → Marlin fallback required (Triton block FP8 unsupported on Ampere)
+[INFO:genesis.apply_all] [Genesis] applied: P1/P2 FP8 kernel dispatcher — SM=(8, 6) → Marlin fallback path selected
+[INFO:genesis.apply_all] Genesis Results: 28 applied, 4 skipped, 0 failed
+[INFO:genesis.apply_all] [Genesis] Post-register rebind verification:
+[INFO:genesis.apply_all] [Genesis] applied: P8 KV hybrid reporting (per-token capacity) — kv_cache_utils=applied(idempotent), scheduler=applied(idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P3 TurboQuant BF16->FP8 cast (Ampere fix) — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P6 TurboQuant-aware attention page size — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P15 Qwen3 None/null tool arg parser — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P12 Qwen3 <tool_call> implicit reasoning end — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P27 Qwen3 BEFORE-THINK fallback — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P34 Mamba zero-collapse deadlock guard — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P29 tool parser IndexError guard — upstream already contains bounded-index guards (no-op)
+[INFO:genesis.marlin_fp32_reduce] [Genesis P23] Marlin FP32_REDUCE: disabled=True on SM=(8, 6) (auto-from-platform)
+[INFO:genesis.apply_all] [Genesis] applied: P23 Marlin FP32_REDUCE env override — decision: fp32_reduce disabled=True (requires upstream wire into Marlin launcher to take effect)
+[INFO:genesis.apply_all] [Genesis] applied: P4 TurboQuant hybrid model support — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P5 KV cache page size unification — v2 already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] skipped: P5b KV page-size pad-smaller-to-max (env-opt-in) — opt-in: set GENESIS_ENABLE_P5B=1 to enable pad-smaller-to-max KV page-size strategy (saves ~34% per-block VRAM on Qwen3.6 hybrid vs P5 v1 LCM-pad-up; BLAST-RADIUS is KV allocator → benchmark on VM 100 before enabling in prod)
+[INFO:genesis.wiring.p31_router_softmax] [Genesis P31] wrapped grouped_topk_router.grouped_topk (fp32 upcast active for grouped-MoE models)
+[INFO:genesis.apply_all] [Genesis] applied: P31 MoE router fp32 softmax — grouped_topk wrapped (effective in this process)
+[INFO:genesis.wiring.p22_tq_prealloc] [Genesis P22] rebound TurboQuantAttentionImpl._ensure_on_device (prealloc helper will fire during profile_run warmup)
+[INFO:genesis.apply_all] [Genesis] applied: P22 TurboQuant shared dequant prealloc — class method wrapped (effective in this process)
+[INFO:genesis.apply_all] [Genesis] applied: P26 TurboQuant prefill output prealloc — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P44 TQ mixed-batch attn_out pool — already patched this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P46 GDN gating buffer pool — already patched this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] skipped: P7b GDN dual-stream via torch.library.custom_op (opt-in) — opt-in: set GENESIS_ENABLE_P7B=1 to enable GDN dual-stream via torch.library.custom_op (graph-safe alternative to P7; validates numeric equiv + compile-cache freshness before prod)
+[INFO:genesis.apply_all] [Genesis] skipped: P40 TurboQuant GQA-grouped decode stage1 (opt-in) — opt-in: set GENESIS_ENABLE_P40=1 to enable GQA-grouped decode stage1 (port of upstream PR #40792)
+[INFO:genesis.wiring.p39a_fla_kkt] [Genesis P39b] vllm_config fetch failed (Current vLLM config is not set. This typically means get_current_vllm_config() was called outside of a set_current_vllm_config() context, or a CustomOp was instantiated at module import time or model forward time when config is not set. For tests that directly test custom ops/modules, use the 'default_vllm_config' pytest fixture from tests/conftest.py.); defaults used
+[INFO:genesis.wiring.p39a_fla_kkt] [Genesis P39a] rebound vllm.model_executor.layers.fla.ops.chunk_scaled_dot_kkt.chunk_scaled_dot_kkt_fwd (+1 caller mods: ['vllm.model_executor.layers.fla.ops.chunk'])
+[INFO:genesis.apply_all] [Genesis] applied: P39a FLA chunk_scaled_dot_kkt persistent A pool — module-level fn replaced (1 caller module(s) also rebound — pool shared across GDN layers)
+[INFO:genesis.wiring.p38_tq_continuation_memory] [Genesis P38] rebound TurboQuantAttentionImpl._continuation_prefill (persistent K_full/V_full buffers replace torch.cat peak)
+[INFO:genesis.apply_all] [Genesis] applied: P38 TQ _continuation_prefill persistent workspace — class method replaced (persistent K_full/V_full workspace, no .contiguous()/torch.cat transient peaks)
+[INFO:genesis.apply_all] [Genesis] applied: P37 MoE intermediate cache pool (opt-in) — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P36 TurboQuant shared decode buffers — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P32/P33 TurboQuant cu_2 + synth_seq_lens preallocs — cu_2 + synth_seq_lens preallocs registered (invoked from ensure_turboquant_buffers, fires during profile_run)
+[INFO:genesis.wiring.p28_gdn_core_attn] [Genesis P28] wrapped GatedDeltaNetAttention.__init__ to attach _genesis_gdn_core_attn_buf on each instance
+[INFO:genesis.apply_all] [Genesis] applied: P28 GDN core_attn_out prealloc — already applied (idempotent)
+[INFO:genesis.apply_all] [Genesis P7] dispatcher ready (parallel path)
+[INFO:genesis.apply_all] [Genesis] skipped: P7 GDN dual-stream in_proj parallelism — deferred — incompatible with torch.compile fullgraph (CUDA streams not SymPy-graphable); custom op implementation required. Re-enable with GENESIS_ENABLE_P7=1 + --enforce-eager.
+[INFO:genesis.apply_all] [Genesis P17/P18] Marlin tuning ready: SM=(8, 6) bsm=8 num_warps=4 num_stages=3
+[INFO:genesis.apply_all] [Genesis] applied: P17/P18 Marlin MoE per-SM tuning — SM=(8, 6) bsm=8
+[INFO:genesis.apply_all] [Genesis] applied: P24 fused_moe num_warps/num_stages overlay — already applied this image layer (idempotent)
+[INFO:genesis.wiring.p14_block_table] [Genesis P14] rebound BlockTable.append_row + move_row (tail-zero-fill active for concurrent-request safety)
+[INFO:genesis.apply_all] [Genesis] applied: P14 block_table tail zero-fill — BlockTable.append_row + move_row wrapped (effective in this process)
+[INFO:genesis.tq_decode_tune] [Genesis P18b] TQ decode stage1 using upstream defaults (BLOCK_KV=4 num_warps=1 num_stages=1)
+[INFO:genesis.apply_all] [Genesis] applied: P18b TurboQuant decode stage1 tune — no env override — using upstream defaults (4/1/1)
+[INFO:genesis.apply_all] [Genesis P20] TQ _continuation_prefill FP16 helpers ready for TurboQuantAttentionImpl hook
+[INFO:genesis.apply_all] [Genesis] applied: P20 TurboQuant continuation-prefill FP16 rotate — fp16-rotation helper ready for _continuation_prefill hook
+[INFO:genesis.fp8_dispatcher] [Genesis FP8 dispatcher] SM (8, 6) → Marlin fallback required (Triton block FP8 unsupported on Ampere)
+[INFO:genesis.apply_all] [Genesis] applied: P1/P2 FP8 kernel dispatcher — SM=(8, 6) → Marlin fallback path selected
+[INFO:genesis.apply_all] Genesis Results: 28 applied, 4 skipped, 0 failed
+[INFO:genesis.plugin] [Genesis plugin] register() complete: 28 applied / 4 skipped / 0 failed (apply=True)
+(APIServer pid=1) INFO 04-24 20:14:58 [arg_utils.py:1702] [Genesis P4] TQ hybrid: full-attention layers [3, 7, 11, 15, 19, 23, 27, 31, 35, 39] (total layers=40)
+(EngineCore pid=210) [INFO:genesis.apply_all] [Genesis] applied: P8 KV hybrid reporting (per-token capacity) — kv_cache_utils=applied(idempotent), scheduler=applied(idempotent)
+(EngineCore pid=210) [INFO:genesis.apply_all] [Genesis] applied: P3 TurboQuant BF16->FP8 cast (Ampere fix) — already applied this image layer (idempotent)
+(EngineCore pid=210) [INFO:genesis.apply_all] [Genesis] applied: P6 TurboQuant-aware attention page size — already applied this image layer (idempotent)
+(EngineCore pid=210) [INFO:genesis.apply_all] [Genesis] applied: P15 Qwen3 None/null tool arg parser — already applied this image layer (idempotent)
+(EngineCore pid=210) [INFO:genesis.apply_all] [Genesis] applied: P12 Qwen3 <tool_call> implicit reasoning end — already applied this image layer (idempotent)
+(EngineCore pid=210) [INFO:genesis.apply_all] [Genesis] applied: P27 Qwen3 BEFORE-THINK fallback — already applied this image layer (idempotent)
+(EngineCore pid=210) [INFO:genesis.apply_all] [Genesis] applied: P34 Mamba zero-collapse deadlock guard — already applied this image layer (idempotent)
+(EngineCore pid=210) [INFO:genesis.apply_all] [Genesis] applied: P29 tool parser IndexError guard — upstream already contains bounded-index guards (no-op)
+(EngineCore pid=210) [INFO:genesis.marlin_fp32_reduce] [Genesis P23] Marlin FP32_REDUCE: disabled=True on SM=(8, 6) (auto-from-platform)
+(EngineCore pid=210) [INFO:genesis.apply_all] [Genesis] applied: P23 Marlin FP32_REDUCE env override — decision: fp32_reduce disabled=True (requires upstream wire into Marlin launcher to take effect)
+(EngineCore pid=210) [INFO:genesis.apply_all] [Genesis] applied: P4 TurboQuant hybrid model support — already applied this image layer (idempotent)
+(EngineCore pid=210) [INFO:genesis.apply_all] [Genesis] applied: P5 KV cache page size unification — v2 already applied this image layer (idempotent)
+(EngineCore pid=210) [INFO:genesis.apply_all] [Genesis] skipped: P5b KV page-size pad-smaller-to-max (env-opt-in) — opt-in: set GENESIS_ENABLE_P5B=1 to enable pad-smaller-to-max KV page-size strategy (saves ~34% per-block VRAM on Qwen3.6 hybrid vs P5 v1 LCM-pad-up; BLAST-RADIUS is KV allocator → benchmark on VM 100 before enabling in prod)
+(EngineCore pid=210) [INFO:genesis.wiring.p31_router_softmax] [Genesis P31] wrapped grouped_topk_router.grouped_topk (fp32 upcast active for grouped-MoE models)
+(EngineCore pid=210) [INFO:genesis.apply_all] [Genesis] applied: P31 MoE router fp32 softmax — grouped_topk wrapped (effective in this process)
+(EngineCore pid=210) [INFO:genesis.wiring.p22_tq_prealloc] [Genesis P22] rebound TurboQuantAttentionImpl._ensure_on_device (prealloc helper will fire during profile_run warmup)
+(EngineCore pid=210) [INFO:genesis.apply_all] [Genesis] applied: P22 TurboQuant shared dequant prealloc — class method wrapped (effective in this process)
+(EngineCore pid=210) [INFO:genesis.apply_all] [Genesis] applied: P26 TurboQuant prefill output prealloc — already applied this image layer (idempotent)
+(EngineCore pid=210) [INFO:genesis.apply_all] [Genesis] applied: P44 TQ mixed-batch attn_out pool — already patched this image layer (idempotent)
+(EngineCore pid=210) [INFO:genesis.apply_all] [Genesis] applied: P46 GDN gating buffer pool — already patched this image layer (idempotent)
+(EngineCore pid=210) [INFO:genesis.apply_all] [Genesis] skipped: P7b GDN dual-stream via torch.library.custom_op (opt-in) — opt-in: set GENESIS_ENABLE_P7B=1 to enable GDN dual-stream via torch.library.custom_op (graph-safe alternative to P7; validates numeric equiv + compile-cache freshness before prod)
+(EngineCore pid=210) [INFO:genesis.apply_all] [Genesis] skipped: P40 TurboQuant GQA-grouped decode stage1 (opt-in) — opt-in: set GENESIS_ENABLE_P40=1 to enable GQA-grouped decode stage1 (port of upstream PR #40792)
+(EngineCore pid=210) [INFO:genesis.wiring.p39a_fla_kkt] [Genesis P39b] vllm_config fetch failed (Current vLLM config is not set. This typically means get_current_vllm_config() was called outside of a set_current_vllm_config() context, or a CustomOp was instantiated at module import time or model forward time when config is not set. For tests that directly test custom ops/modules, use the 'default_vllm_config' pytest fixture from tests/conftest.py.); defaults used
+(EngineCore pid=210) [INFO:genesis.wiring.p39a_fla_kkt] [Genesis P39a] rebound vllm.model_executor.layers.fla.ops.chunk_scaled_dot_kkt.chunk_scaled_dot_kkt_fwd (+1 caller mods: ['vllm.model_executor.layers.fla.ops.chunk'])
+(EngineCore pid=210) [INFO:genesis.apply_all] [Genesis] applied: P39a FLA chunk_scaled_dot_kkt persistent A pool — module-level fn replaced (1 caller module(s) also rebound — pool shared across GDN layers)
+(EngineCore pid=210) [INFO:genesis.wiring.p38_tq_continuation_memory] [Genesis P38] rebound TurboQuantAttentionImpl._continuation_prefill (persistent K_full/V_full buffers replace torch.cat peak)
+(EngineCore pid=210) [INFO:genesis.apply_all] [Genesis] applied: P38 TQ _continuation_prefill persistent workspace — class method replaced (persistent K_full/V_full workspace, no .contiguous()/torch.cat transient peaks)
+(EngineCore pid=210) [INFO:genesis.apply_all] [Genesis] applied: P37 MoE intermediate cache pool (opt-in) — already applied this image layer (idempotent)
+(EngineCore pid=210) [INFO:genesis.apply_all] [Genesis] applied: P36 TurboQuant shared decode buffers — already applied this image layer (idempotent)
+(EngineCore pid=210) [INFO:genesis.apply_all] [Genesis] applied: P32/P33 TurboQuant cu_2 + synth_seq_lens preallocs — cu_2 + synth_seq_lens preallocs registered (invoked from ensure_turboquant_buffers, fires during profile_run)
+(EngineCore pid=210) [INFO:genesis.wiring.p28_gdn_core_attn] [Genesis P28] wrapped GatedDeltaNetAttention.__init__ to attach _genesis_gdn_core_attn_buf on each instance
+(EngineCore pid=210) [INFO:genesis.apply_all] [Genesis] applied: P28 GDN core_attn_out prealloc — already applied (idempotent)
+(EngineCore pid=210) [INFO:genesis.apply_all] [Genesis P7] dispatcher ready (parallel path)
+(EngineCore pid=210) [INFO:genesis.apply_all] [Genesis] skipped: P7 GDN dual-stream in_proj parallelism — deferred — incompatible with torch.compile fullgraph (CUDA streams not SymPy-graphable); custom op implementation required. Re-enable with GENESIS_ENABLE_P7=1 + --enforce-eager.
+(EngineCore pid=210) [INFO:genesis.apply_all] [Genesis P17/P18] Marlin tuning ready: SM=(8, 6) bsm=8 num_warps=4 num_stages=3
+(EngineCore pid=210) [INFO:genesis.apply_all] [Genesis] applied: P17/P18 Marlin MoE per-SM tuning — SM=(8, 6) bsm=8
+(EngineCore pid=210) [INFO:genesis.apply_all] [Genesis] applied: P24 fused_moe num_warps/num_stages overlay — already applied this image layer (idempotent)
+(EngineCore pid=210) [INFO:genesis.wiring.p14_block_table] [Genesis P14] rebound BlockTable.append_row + move_row (tail-zero-fill active for concurrent-request safety)
+(EngineCore pid=210) [INFO:genesis.apply_all] [Genesis] applied: P14 block_table tail zero-fill — BlockTable.append_row + move_row wrapped (effective in this process)
+(EngineCore pid=210) [INFO:genesis.tq_decode_tune] [Genesis P18b] TQ decode stage1 using upstream defaults (BLOCK_KV=4 num_warps=1 num_stages=1)
+(EngineCore pid=210) [INFO:genesis.apply_all] [Genesis] applied: P18b TurboQuant decode stage1 tune — no env override — using upstream defaults (4/1/1)
+(EngineCore pid=210) [INFO:genesis.apply_all] [Genesis P20] TQ _continuation_prefill FP16 helpers ready for TurboQuantAttentionImpl hook
+(EngineCore pid=210) [INFO:genesis.apply_all] [Genesis] applied: P20 TurboQuant continuation-prefill FP16 rotate — fp16-rotation helper ready for _continuation_prefill hook
+(EngineCore pid=210) [INFO:genesis.fp8_dispatcher] [Genesis FP8 dispatcher] SM (8, 6) → Marlin fallback required (Triton block FP8 unsupported on Ampere)
+(EngineCore pid=210) [INFO:genesis.apply_all] [Genesis] applied: P1/P2 FP8 kernel dispatcher — SM=(8, 6) → Marlin fallback path selected
+(EngineCore pid=210) [INFO:genesis.apply_all] Genesis Results: 28 applied, 4 skipped, 0 failed
+(EngineCore pid=210) [INFO:genesis.plugin] [Genesis plugin] register() complete: 28 applied / 4 skipped / 0 failed (apply=True)
+[INFO:genesis.apply_all] [Genesis] applied: P8 KV hybrid reporting (per-token capacity) — kv_cache_utils=applied(idempotent), scheduler=applied(idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P3 TurboQuant BF16->FP8 cast (Ampere fix) — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P6 TurboQuant-aware attention page size — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P15 Qwen3 None/null tool arg parser — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P12 Qwen3 <tool_call> implicit reasoning end — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P27 Qwen3 BEFORE-THINK fallback — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P34 Mamba zero-collapse deadlock guard — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P29 tool parser IndexError guard — upstream already contains bounded-index guards (no-op)
+[INFO:genesis.marlin_fp32_reduce] [Genesis P23] Marlin FP32_REDUCE: disabled=True on SM=(8, 6) (auto-from-platform)
+[INFO:genesis.apply_all] [Genesis] applied: P23 Marlin FP32_REDUCE env override — decision: fp32_reduce disabled=True (requires upstream wire into Marlin launcher to take effect)
+[INFO:genesis.apply_all] [Genesis] applied: P4 TurboQuant hybrid model support — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P5 KV cache page size unification — v2 already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] skipped: P5b KV page-size pad-smaller-to-max (env-opt-in) — opt-in: set GENESIS_ENABLE_P5B=1 to enable pad-smaller-to-max KV page-size strategy (saves ~34% per-block VRAM on Qwen3.6 hybrid vs P5 v1 LCM-pad-up; BLAST-RADIUS is KV allocator → benchmark on VM 100 before enabling in prod)
+[INFO:genesis.wiring.p31_router_softmax] [Genesis P31] wrapped grouped_topk_router.grouped_topk (fp32 upcast active for grouped-MoE models)
+[INFO:genesis.apply_all] [Genesis] applied: P31 MoE router fp32 softmax — grouped_topk wrapped (effective in this process)
+[INFO:genesis.apply_all] [Genesis] applied: P8 KV hybrid reporting (per-token capacity) — kv_cache_utils=applied(idempotent), scheduler=applied(idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P3 TurboQuant BF16->FP8 cast (Ampere fix) — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P6 TurboQuant-aware attention page size — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P15 Qwen3 None/null tool arg parser — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P12 Qwen3 <tool_call> implicit reasoning end — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P27 Qwen3 BEFORE-THINK fallback — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P34 Mamba zero-collapse deadlock guard — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P29 tool parser IndexError guard — upstream already contains bounded-index guards (no-op)
+[INFO:genesis.marlin_fp32_reduce] [Genesis P23] Marlin FP32_REDUCE: disabled=True on SM=(8, 6) (auto-from-platform)
+[INFO:genesis.apply_all] [Genesis] applied: P23 Marlin FP32_REDUCE env override — decision: fp32_reduce disabled=True (requires upstream wire into Marlin launcher to take effect)
+[INFO:genesis.apply_all] [Genesis] applied: P4 TurboQuant hybrid model support — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P5 KV cache page size unification — v2 already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] skipped: P5b KV page-size pad-smaller-to-max (env-opt-in) — opt-in: set GENESIS_ENABLE_P5B=1 to enable pad-smaller-to-max KV page-size strategy (saves ~34% per-block VRAM on Qwen3.6 hybrid vs P5 v1 LCM-pad-up; BLAST-RADIUS is KV allocator → benchmark on VM 100 before enabling in prod)
+[INFO:genesis.wiring.p31_router_softmax] [Genesis P31] wrapped grouped_topk_router.grouped_topk (fp32 upcast active for grouped-MoE models)
+[INFO:genesis.apply_all] [Genesis] applied: P31 MoE router fp32 softmax — grouped_topk wrapped (effective in this process)
+[INFO:genesis.wiring.p22_tq_prealloc] [Genesis P22] rebound TurboQuantAttentionImpl._ensure_on_device (prealloc helper will fire during profile_run warmup)
+[INFO:genesis.apply_all] [Genesis] applied: P22 TurboQuant shared dequant prealloc — class method wrapped (effective in this process)
+[INFO:genesis.apply_all] [Genesis] applied: P26 TurboQuant prefill output prealloc — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P44 TQ mixed-batch attn_out pool — already patched this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P46 GDN gating buffer pool — already patched this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] skipped: P7b GDN dual-stream via torch.library.custom_op (opt-in) — opt-in: set GENESIS_ENABLE_P7B=1 to enable GDN dual-stream via torch.library.custom_op (graph-safe alternative to P7; validates numeric equiv + compile-cache freshness before prod)
+[INFO:genesis.apply_all] [Genesis] skipped: P40 TurboQuant GQA-grouped decode stage1 (opt-in) — opt-in: set GENESIS_ENABLE_P40=1 to enable GQA-grouped decode stage1 (port of upstream PR #40792)
+[INFO:genesis.wiring.p22_tq_prealloc] [Genesis P22] rebound TurboQuantAttentionImpl._ensure_on_device (prealloc helper will fire during profile_run warmup)
+[INFO:genesis.apply_all] [Genesis] applied: P22 TurboQuant shared dequant prealloc — class method wrapped (effective in this process)
+[INFO:genesis.apply_all] [Genesis] applied: P26 TurboQuant prefill output prealloc — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P44 TQ mixed-batch attn_out pool — already patched this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P46 GDN gating buffer pool — already patched this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] skipped: P7b GDN dual-stream via torch.library.custom_op (opt-in) — opt-in: set GENESIS_ENABLE_P7B=1 to enable GDN dual-stream via torch.library.custom_op (graph-safe alternative to P7; validates numeric equiv + compile-cache freshness before prod)
+[INFO:genesis.apply_all] [Genesis] skipped: P40 TurboQuant GQA-grouped decode stage1 (opt-in) — opt-in: set GENESIS_ENABLE_P40=1 to enable GQA-grouped decode stage1 (port of upstream PR #40792)
+[INFO:genesis.wiring.p39a_fla_kkt] [Genesis P39b] vllm_config fetch failed (Current vLLM config is not set. This typically means get_current_vllm_config() was called outside of a set_current_vllm_config() context, or a CustomOp was instantiated at module import time or model forward time when config is not set. For tests that directly test custom ops/modules, use the 'default_vllm_config' pytest fixture from tests/conftest.py.); defaults used
+[INFO:genesis.wiring.p39a_fla_kkt] [Genesis P39a] rebound vllm.model_executor.layers.fla.ops.chunk_scaled_dot_kkt.chunk_scaled_dot_kkt_fwd (+1 caller mods: ['vllm.model_executor.layers.fla.ops.chunk'])
+[INFO:genesis.apply_all] [Genesis] applied: P39a FLA chunk_scaled_dot_kkt persistent A pool — module-level fn replaced (1 caller module(s) also rebound — pool shared across GDN layers)
+[INFO:genesis.wiring.p38_tq_continuation_memory] [Genesis P38] rebound TurboQuantAttentionImpl._continuation_prefill (persistent K_full/V_full buffers replace torch.cat peak)
+[INFO:genesis.apply_all] [Genesis] applied: P38 TQ _continuation_prefill persistent workspace — class method replaced (persistent K_full/V_full workspace, no .contiguous()/torch.cat transient peaks)
+[INFO:genesis.apply_all] [Genesis] applied: P37 MoE intermediate cache pool (opt-in) — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P36 TurboQuant shared decode buffers — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P32/P33 TurboQuant cu_2 + synth_seq_lens preallocs — cu_2 + synth_seq_lens preallocs registered (invoked from ensure_turboquant_buffers, fires during profile_run)
+[INFO:genesis.wiring.p39a_fla_kkt] [Genesis P39b] vllm_config fetch failed (Current vLLM config is not set. This typically means get_current_vllm_config() was called outside of a set_current_vllm_config() context, or a CustomOp was instantiated at module import time or model forward time when config is not set. For tests that directly test custom ops/modules, use the 'default_vllm_config' pytest fixture from tests/conftest.py.); defaults used
+[INFO:genesis.wiring.p39a_fla_kkt] [Genesis P39a] rebound vllm.model_executor.layers.fla.ops.chunk_scaled_dot_kkt.chunk_scaled_dot_kkt_fwd (+1 caller mods: ['vllm.model_executor.layers.fla.ops.chunk'])
+[INFO:genesis.apply_all] [Genesis] applied: P39a FLA chunk_scaled_dot_kkt persistent A pool — module-level fn replaced (1 caller module(s) also rebound — pool shared across GDN layers)
+[INFO:genesis.wiring.p38_tq_continuation_memory] [Genesis P38] rebound TurboQuantAttentionImpl._continuation_prefill (persistent K_full/V_full buffers replace torch.cat peak)
+[INFO:genesis.apply_all] [Genesis] applied: P38 TQ _continuation_prefill persistent workspace — class method replaced (persistent K_full/V_full workspace, no .contiguous()/torch.cat transient peaks)
+[INFO:genesis.apply_all] [Genesis] applied: P37 MoE intermediate cache pool (opt-in) — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P36 TurboQuant shared decode buffers — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P32/P33 TurboQuant cu_2 + synth_seq_lens preallocs — cu_2 + synth_seq_lens preallocs registered (invoked from ensure_turboquant_buffers, fires during profile_run)
+[INFO:genesis.wiring.p28_gdn_core_attn] [Genesis P28] wrapped GatedDeltaNetAttention.__init__ to attach _genesis_gdn_core_attn_buf on each instance
+[INFO:genesis.apply_all] [Genesis] applied: P28 GDN core_attn_out prealloc — already applied (idempotent)
+[INFO:genesis.wiring.p28_gdn_core_attn] [Genesis P28] wrapped GatedDeltaNetAttention.__init__ to attach _genesis_gdn_core_attn_buf on each instance
+[INFO:genesis.apply_all] [Genesis] applied: P28 GDN core_attn_out prealloc — already applied (idempotent)
+[INFO:genesis.apply_all] [Genesis P7] dispatcher ready (parallel path)
+[INFO:genesis.apply_all] [Genesis] skipped: P7 GDN dual-stream in_proj parallelism — deferred — incompatible with torch.compile fullgraph (CUDA streams not SymPy-graphable); custom op implementation required. Re-enable with GENESIS_ENABLE_P7=1 + --enforce-eager.
+[INFO:genesis.apply_all] [Genesis P17/P18] Marlin tuning ready: SM=(8, 6) bsm=8 num_warps=4 num_stages=3
+[INFO:genesis.apply_all] [Genesis] applied: P17/P18 Marlin MoE per-SM tuning — SM=(8, 6) bsm=8
+[INFO:genesis.apply_all] [Genesis] applied: P24 fused_moe num_warps/num_stages overlay — already applied this image layer (idempotent)
+[INFO:genesis.wiring.p14_block_table] [Genesis P14] rebound BlockTable.append_row + move_row (tail-zero-fill active for concurrent-request safety)
+[INFO:genesis.apply_all] [Genesis] applied: P14 block_table tail zero-fill — BlockTable.append_row + move_row wrapped (effective in this process)
+[INFO:genesis.tq_decode_tune] [Genesis P18b] TQ decode stage1 using upstream defaults (BLOCK_KV=4 num_warps=1 num_stages=1)
+[INFO:genesis.apply_all] [Genesis] applied: P18b TurboQuant decode stage1 tune — no env override — using upstream defaults (4/1/1)
+[INFO:genesis.apply_all] [Genesis P20] TQ _continuation_prefill FP16 helpers ready for TurboQuantAttentionImpl hook
+[INFO:genesis.apply_all] [Genesis] applied: P20 TurboQuant continuation-prefill FP16 rotate — fp16-rotation helper ready for _continuation_prefill hook
+[INFO:genesis.fp8_dispatcher] [Genesis FP8 dispatcher] SM (8, 6) → Marlin fallback required (Triton block FP8 unsupported on Ampere)
+[INFO:genesis.apply_all] [Genesis] applied: P1/P2 FP8 kernel dispatcher — SM=(8, 6) → Marlin fallback path selected
+[INFO:genesis.apply_all] Genesis Results: 28 applied, 4 skipped, 0 failed
+[INFO:genesis.plugin] [Genesis plugin] register() complete: 28 applied / 4 skipped / 0 failed (apply=True)
+[INFO:genesis.apply_all] [Genesis P7] dispatcher ready (parallel path)
+[INFO:genesis.apply_all] [Genesis] skipped: P7 GDN dual-stream in_proj parallelism — deferred — incompatible with torch.compile fullgraph (CUDA streams not SymPy-graphable); custom op implementation required. Re-enable with GENESIS_ENABLE_P7=1 + --enforce-eager.
+[INFO:genesis.apply_all] [Genesis P17/P18] Marlin tuning ready: SM=(8, 6) bsm=8 num_warps=4 num_stages=3
+[INFO:genesis.apply_all] [Genesis] applied: P17/P18 Marlin MoE per-SM tuning — SM=(8, 6) bsm=8
+[INFO:genesis.apply_all] [Genesis] applied: P24 fused_moe num_warps/num_stages overlay — already applied this image layer (idempotent)
+[INFO:genesis.wiring.p14_block_table] [Genesis P14] rebound BlockTable.append_row + move_row (tail-zero-fill active for concurrent-request safety)
+[INFO:genesis.apply_all] [Genesis] applied: P14 block_table tail zero-fill — BlockTable.append_row + move_row wrapped (effective in this process)
+[INFO:genesis.tq_decode_tune] [Genesis P18b] TQ decode stage1 using upstream defaults (BLOCK_KV=4 num_warps=1 num_stages=1)
+[INFO:genesis.apply_all] [Genesis] applied: P18b TurboQuant decode stage1 tune — no env override — using upstream defaults (4/1/1)
+[INFO:genesis.apply_all] [Genesis P20] TQ _continuation_prefill FP16 helpers ready for TurboQuantAttentionImpl hook
+[INFO:genesis.apply_all] [Genesis] applied: P20 TurboQuant continuation-prefill FP16 rotate — fp16-rotation helper ready for _continuation_prefill hook
+[INFO:genesis.fp8_dispatcher] [Genesis FP8 dispatcher] SM (8, 6) → Marlin fallback required (Triton block FP8 unsupported on Ampere)
+[INFO:genesis.apply_all] [Genesis] applied: P1/P2 FP8 kernel dispatcher — SM=(8, 6) → Marlin fallback path selected
+[INFO:genesis.apply_all] Genesis Results: 28 applied, 4 skipped, 0 failed
+[INFO:genesis.plugin] [Genesis plugin] register() complete: 28 applied / 4 skipped / 0 failed (apply=True)
+(Worker_TP1 pid=236) [INFO:genesis.gdn_core_attn_manager] [Genesis P28] GDN core_attn_out prealloc: max_num_tokens=4096 Hv=16 Hv_dim=128 device=cuda:1 dtype=torch.float16 bytes=16777216
+(Worker_TP0 pid=235) [INFO:genesis.gdn_core_attn_manager] [Genesis P28] GDN core_attn_out prealloc: max_num_tokens=4096 Hv=16 Hv_dim=128 device=cuda:0 dtype=torch.float16 bytes=16777216

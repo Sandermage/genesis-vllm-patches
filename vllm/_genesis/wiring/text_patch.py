@@ -1,0 +1,223 @@
+# SPDX-License-Identifier: Apache-2.0
+"""Text-patch primitives for Phase 3 wiring.
+
+Why text-patches (vs pure monkey-patch)
+----------------------------------------
+Some upstream code sites are not cleanly monkey-patchable:
+
+  - Raises inside a method body (e.g. arg_utils.py `if model_config.is_hybrid:
+    raise NotImplementedError(...)`) — the whole method body would have to be
+    re-defined in Python to bypass the raise, which would duplicate ~50 lines
+    of upstream logic that might drift between vLLM versions.
+
+  - Compile-time Triton kernel literals (e.g. `BLOCK_KV=4, num_warps=1` as
+    immediate arguments to `@triton.jit`) — these are baked into kernel
+    compilation and cannot be overridden at call site.
+
+  - Control-flow that depends on local variable state only available inside
+    the original function (no clean rebind point).
+
+For those, a surgical text-replacement at plugin-register time is pragmatic:
+small, targeted, verifiable, and far less invasive than a full method rewrite.
+
+Why not the v5.14.1 monolith approach directly
+-----------------------------------------------
+The monolith had real-world issues that this module addresses:
+
+  1. **Anchor drift = hard crash.** If upstream changed a single line, the
+     patch returned False and the whole patcher `sys.exit(1)`, leading to
+     container restart-loops (observed on prod 2026-04-24).
+
+  2. **Interlocking sub-patches.** Multiple sub-patches of one feature shared
+     state via sequential `_c = _c.replace(...)`; if one sub-patch's anchor
+     was already modified by a prior container run, the rest silently failed
+     in confusing ways.
+
+  3. **No post-write verification.** Monolith wrote the new content back
+     without re-reading to confirm the intended change persisted.
+
+This module's contract
+----------------------
+- Each `TextPatcher` instance represents ONE coherent rewrite of ONE file.
+- Anchor mismatch → returns TextPatchResult.SKIPPED with reason (never raises).
+- Already-applied (marker present) → returns APPLIED (idempotency win).
+- File missing / permission denied → returns SKIPPED.
+- Write succeeds → re-reads and verifies marker is present, else FAILED.
+
+Author: Sandermage(Sander)-Barzov Aleksandr, Ukraine, Odessa
+"""
+from __future__ import annotations
+
+import logging
+import os
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Optional
+
+log = logging.getLogger("genesis.wiring.text_patch")
+
+
+class TextPatchResult(Enum):
+    APPLIED = "applied"        # File modified in this call
+    IDEMPOTENT = "idempotent"  # Marker already present, nothing to do
+    SKIPPED = "skipped"        # Anchor drift / not applicable — not an error
+    FAILED = "failed"          # Unexpected condition, patch safety violated
+
+
+@dataclass(frozen=True)
+class TextPatchFailure:
+    """Why a patch ended in non-APPLIED/IDEMPOTENT state."""
+    reason: str
+    detail: str = ""
+
+
+@dataclass
+class TextPatch:
+    """A single anchor→replacement edit.
+
+    Attributes:
+      name: Short identifier for logs.
+      anchor: Exact substring that must appear in the file (pre-patch).
+      replacement: What to substitute for `anchor`.
+      required: If True, failure of this sub-patch aborts the parent group.
+                If False (default), sibling sub-patches still run.
+    """
+    name: str
+    anchor: str
+    replacement: str
+    required: bool = False
+
+
+@dataclass
+class TextPatcher:
+    """Apply a sequence of anchor→replacement edits to one target file.
+
+    Attributes:
+      patch_name: Stable human-readable identifier (e.g. "P4 TQ hybrid").
+      target_file: Absolute path to file to patch.
+      marker: Unique string that, once present in the file, indicates this
+              patch has been applied. Used for idempotency.
+      sub_patches: Ordered list of TextPatch edits. Applied in sequence.
+      upstream_drift_markers: If any of these strings are present in the
+              file, consider this patch OBSOLETE (upstream merged a fix).
+              Returns SKIPPED with a clear message.
+    """
+    patch_name: str
+    target_file: str
+    marker: str
+    sub_patches: list[TextPatch]
+    upstream_drift_markers: list[str] = field(default_factory=list)
+
+    def apply(self) -> tuple[TextPatchResult, Optional[TextPatchFailure]]:
+        """Execute the patch. Returns (result, failure_info_if_not_ok).
+
+        NEVER raises — returns SKIPPED/FAILED on any issue.
+        """
+        # Layer 1: file must exist and be readable.
+        if not os.path.isfile(self.target_file):
+            return TextPatchResult.SKIPPED, TextPatchFailure(
+                reason="target_file_missing",
+                detail=f"{self.target_file} not found",
+            )
+
+        try:
+            with open(self.target_file) as f:
+                content = f.read()
+        except (OSError, PermissionError) as e:
+            return TextPatchResult.SKIPPED, TextPatchFailure(
+                reason="read_error", detail=str(e),
+            )
+
+        # Layer 2: idempotency — already applied?
+        if self.marker in content:
+            log.debug(
+                "[%s] marker %r already present — idempotent skip",
+                self.patch_name, self.marker,
+            )
+            return TextPatchResult.IDEMPOTENT, None
+
+        # Layer 3: upstream merged?
+        for m in self.upstream_drift_markers:
+            if m in content:
+                log.info(
+                    "[%s] upstream marker %r detected — patch obsolete, skip",
+                    self.patch_name, m,
+                )
+                return TextPatchResult.SKIPPED, TextPatchFailure(
+                    reason="upstream_merged",
+                    detail=f"marker {m!r} present",
+                )
+
+        # Layer 4: validate ALL anchors before applying ANY. If any required
+        # anchor is missing, abort without writing.
+        modified = content
+        applied_patches: list[str] = []
+
+        for sp in self.sub_patches:
+            if sp.anchor not in modified:
+                # Anchor drift: not a crash, but we must decide whether to abort.
+                if sp.required:
+                    return TextPatchResult.SKIPPED, TextPatchFailure(
+                        reason="required_anchor_missing",
+                        detail=f"sub-patch {sp.name!r}: anchor not found in file",
+                    )
+                log.info(
+                    "[%s/%s] anchor not found — soft skip (sibling patches continue)",
+                    self.patch_name, sp.name,
+                )
+                continue
+
+            if modified.count(sp.anchor) != 1:
+                return TextPatchResult.SKIPPED, TextPatchFailure(
+                    reason="ambiguous_anchor",
+                    detail=(
+                        f"sub-patch {sp.name!r}: anchor appears "
+                        f"{modified.count(sp.anchor)} times (expected 1)"
+                    ),
+                )
+
+            modified = modified.replace(sp.anchor, sp.replacement, 1)
+            applied_patches.append(sp.name)
+
+        if not applied_patches:
+            # All sub-patches missed — treat as skip, not failure.
+            return TextPatchResult.SKIPPED, TextPatchFailure(
+                reason="no_applicable_sub_patches",
+                detail="every sub-patch anchor absent — file may be post-upstream-fix",
+            )
+
+        # Layer 5: prepend marker comment so future runs see IDEMPOTENT.
+        # Use a Python-safe comment that never gets confused with module code.
+        marker_line = f"# [Genesis wiring marker: {self.marker}]\n"
+        if not modified.startswith(marker_line):
+            modified = marker_line + modified
+
+        # Layer 6: write + verify.
+        try:
+            with open(self.target_file, "w") as f:
+                f.write(modified)
+        except (OSError, PermissionError) as e:
+            return TextPatchResult.FAILED, TextPatchFailure(
+                reason="write_error", detail=str(e),
+            )
+
+        # Re-read to confirm.
+        try:
+            with open(self.target_file) as f:
+                reread = f.read()
+        except (OSError, PermissionError) as e:
+            return TextPatchResult.FAILED, TextPatchFailure(
+                reason="reread_error", detail=str(e),
+            )
+
+        if self.marker not in reread:
+            return TextPatchResult.FAILED, TextPatchFailure(
+                reason="marker_not_persisted",
+                detail="file write succeeded but marker absent on re-read",
+            )
+
+        log.info(
+            "[%s] applied %d sub-patches: %s",
+            self.patch_name, len(applied_patches), ", ".join(applied_patches),
+        )
+        return TextPatchResult.APPLIED, None

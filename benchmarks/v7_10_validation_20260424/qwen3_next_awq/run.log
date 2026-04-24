@@ -1,0 +1,77 @@
+[23:23:43] ════════════════════════════════════════════════════════════════════
+[23:23:43] Genesis v7.10 validation — qwen3_next_awq
+[23:23:43] Container: vllm-integration-awq  |  Model: qwen3.6-35b-a3b-awq  |  Max ctx: 262144
+[23:23:43] Output: benchmarks/v7_10_validation_20260424/qwen3_next_awq/
+[23:23:43] ════════════════════════════════════════════════════════════════════
+[23:23:43] 
+[23:23:43] === 1. Boot log capture ===
+[23:23:43]   Genesis summary: [INFO:genesis.apply_all] Genesis Results: 28 applied, 4 skipped, 0 failed
+[23:23:43] 
+[23:23:43] === 2. Dispatch profile (model_detect) ===
+[23:23:50]   Profile saved (see benchmarks/v7_10_validation_20260424/qwen3_next_awq/dispatch_profile.json)
+[23:23:50] 
+[23:23:50] === 3. Smoke test (10 requests @ 4k ctx) ===
+[23:23:50]   Smoke: 0
+0/10 OK
+[23:23:50] 
+[23:23:50] === 4. Context sweep (50k..250k step 50k) ===
+[23:23:50] 
+[23:23:50] === 5. Stress / Probe M (150k..180k 3× each) ===
+[23:23:50] 
+[23:23:50] === 6. Speed bench @ 100k ===
+[23:23:51] 
+[23:23:51] === 7. Memory profile ===
+[23:23:51]   VRAM before stress: 23839 MiB
+[23:23:51]   VRAM after 50 reqs: 23839 MiB
+[23:23:51] 
+[23:23:51] === 8. Dispatch correctness ===
+[23:23:51]   P51 TQ-active fired: 0
+0 times (expected fires=true)
+[23:23:51]   P52 MoE-active skips: 0
+0 (expected on dense model only)
+[23:23:51]   P53 Hybrid-active skips: 0
+0 (expected on pure-attention model only)
+[23:23:51] 
+[23:23:51] === 9. Summary ===
+[23:23:51] 
+[23:23:51] ✅ Validation suite finished for qwen3_next_awq
+[23:23:51]    Summary: benchmarks/v7_10_validation_20260424/qwen3_next_awq/summary.md
+[23:23:51]    Raw: benchmarks/v7_10_validation_20260424/qwen3_next_awq/
+[23:24:14] ════════════════════════════════════════════════════════════════════
+[23:24:14] Genesis v7.10 validation — qwen3_next_awq
+[23:24:14] Container: vllm-integration-awq  |  Model: qwen3.6-35b-a3b-awq-integration  |  Max ctx: 262144
+[23:24:14] Output: benchmarks/v7_10_validation_20260424/qwen3_next_awq/
+[23:24:14] ════════════════════════════════════════════════════════════════════
+[23:24:14] 
+[23:24:14] === 1. Boot log capture ===
+[23:24:14]   Genesis summary: [INFO:genesis.apply_all] Genesis Results: 28 applied, 4 skipped, 0 failed
+[23:24:14] 
+[23:24:14] === 2. Dispatch profile (model_detect) ===
+[23:24:20]   Profile saved (see benchmarks/v7_10_validation_20260424/qwen3_next_awq/dispatch_profile.json)
+[23:24:20] 
+[23:24:20] === 3. Smoke test (10 requests @ 4k ctx) ===
+[23:24:27]   Smoke: 10/10 OK
+[23:24:27] 
+[23:24:27] === 4. Context sweep (50k..250k step 50k) ===
+[23:25:19] 
+[23:25:19] === 5. Stress / Probe M (150k..180k 3× each) ===
+[23:25:32] 
+[23:25:32] === 6. Speed bench @ 100k ===
+[23:25:36] 
+[23:25:36] === 7. Memory profile ===
+[23:25:36]   VRAM before stress: 24025 MiB
+[23:25:44]   VRAM after 50 reqs: 24025 MiB
+[23:25:44] 
+[23:25:44] === 8. Dispatch correctness ===
+[23:25:44]   P51 TQ-active fired: 0
+0 times (expected fires=true)
+[23:25:44]   P52 MoE-active skips: 0
+0 (expected on dense model only)
+[23:25:44]   P53 Hybrid-active skips: 0
+0 (expected on pure-attention model only)
+[23:25:44] 
+[23:25:44] === 9. Summary ===
+[23:25:44] 
+[23:25:44] ✅ Validation suite finished for qwen3_next_awq
+[23:25:44]    Summary: benchmarks/v7_10_validation_20260424/qwen3_next_awq/summary.md
+[23:25:44]    Raw: benchmarks/v7_10_validation_20260424/qwen3_next_awq/

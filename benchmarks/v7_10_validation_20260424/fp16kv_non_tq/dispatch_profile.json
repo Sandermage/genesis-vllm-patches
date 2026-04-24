@@ -1,0 +1,11 @@
+{
+  "resolved": false,
+  "moe": true,
+  "hybrid": true,
+  "turboquant": true,
+  "kv_cache_dtype": "",
+  "model_type": "",
+  "architectures": [],
+  "moe_details": {},
+  "hybrid_details": {}
+}

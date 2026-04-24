@@ -1,0 +1,6 @@
+{
+  "model_tag": "qwen3_next_awq",
+  "vram_before_mib": "24025",
+  "vram_after_50_reqs_mib": "24025",
+  "delta_mib": "0 (may be N/A if nvidia-smi unavailable)"
+}

@@ -1,0 +1,143 @@
+SWEEP START at Tue Apr 21 05:36:50 PM EEST 2026
+Points: 9
+
+==================================================
+Point 1/9: max_model_len=131072 (128k)  @ Tue Apr 21 05:36:50 PM EEST 2026
+==================================================
+ Container vllm-server Starting 
+ Container vllm-server Started 
+Waiting for health...
+Healthy at Tue Apr 21 05:39:48 PM EEST 2026 after 35 × 5s
+Warmup...
+Bench with --max-context-k=120
+Point 1/9 done at Tue Apr 21 05:42:21 PM EEST 2026
+
+==================================================
+Point 2/9: max_model_len=151552 (148k)  @ Tue Apr 21 05:42:21 PM EEST 2026
+==================================================
+ Container vllm-server Starting 
+ Container vllm-server Started 
+Waiting for health...
+Healthy at Tue Apr 21 05:45:14 PM EEST 2026 after 34 × 5s
+Warmup...
+Bench with --max-context-k=140
+Point 2/9 done at Tue Apr 21 05:47:58 PM EEST 2026
+
+==================================================
+Point 3/9: max_model_len=163840 (160k)  @ Tue Apr 21 05:47:58 PM EEST 2026
+==================================================
+ Container vllm-server Starting 
+ Container vllm-server Started 
+Waiting for health...
+Healthy at Tue Apr 21 05:50:50 PM EEST 2026 after 34 × 5s
+Warmup...
+Bench with --max-context-k=152
+Point 3/9 done at Tue Apr 21 05:53:41 PM EEST 2026
+
+==================================================
+Point 4/9: max_model_len=176128 (172k)  @ Tue Apr 21 05:53:41 PM EEST 2026
+==================================================
+ Container vllm-server Starting 
+ Container vllm-server Started 
+Waiting for health...
+Healthy at Tue Apr 21 05:56:39 PM EEST 2026 after 35 × 5s
+Warmup...
+Bench with --max-context-k=164
+Point 4/9 done at Tue Apr 21 05:59:35 PM EEST 2026
+
+==================================================
+Point 5/9: max_model_len=192512 (188k)  @ Tue Apr 21 05:59:35 PM EEST 2026
+==================================================
+ Container vllm-server Starting 
+ Container vllm-server Started 
+Waiting for health...
+Healthy at Tue Apr 21 06:02:27 PM EEST 2026 after 34 × 5s
+Warmup...
+Bench with --max-context-k=180
+Point 5/9 done at Tue Apr 21 06:05:23 PM EEST 2026
+
+==================================================
+Point 6/9: max_model_len=208896 (204k)  @ Tue Apr 21 06:05:23 PM EEST 2026
+==================================================
+ Container vllm-server Starting 
+ Container vllm-server Started 
+Waiting for health...
+Healthy at Tue Apr 21 06:08:25 PM EEST 2026 after 36 × 5s
+Warmup...
+Bench with --max-context-k=196
+Point 6/9 done at Tue Apr 21 06:11:21 PM EEST 2026
+
+==================================================
+Point 7/9: max_model_len=231424 (226k)  @ Tue Apr 21 06:11:21 PM EEST 2026
+==================================================
+ Container vllm-server Starting 
+ Container vllm-server Started 
+Waiting for health...
+Healthy at Tue Apr 21 06:14:23 PM EEST 2026 after 36 × 5s
+Warmup...
+Bench with --max-context-k=218
+Point 7/9 done at Tue Apr 21 06:17:20 PM EEST 2026
+
+==================================================
+Point 8/9: max_model_len=250880 (245k)  @ Tue Apr 21 06:17:20 PM EEST 2026
+==================================================
+ Container vllm-server Starting 
+ Container vllm-server Started 
+Waiting for health...
+Healthy at Tue Apr 21 06:20:22 PM EEST 2026 after 36 × 5s
+Warmup...
+Bench with --max-context-k=220
+Point 8/9 done at Tue Apr 21 06:23:18 PM EEST 2026
+
+==================================================
+Point 9/9: max_model_len=262144 (256k)  @ Tue Apr 21 06:23:18 PM EEST 2026
+==================================================
+ Container vllm-server Starting 
+ Container vllm-server Started 
+Waiting for health...
+Healthy at Tue Apr 21 06:25:25 PM EEST 2026 after 25 × 5s
+Warmup...
+Bench with --max-context-k=220
+Point 9/9 done at Tue Apr 21 06:28:21 PM EEST 2026
+
+SWEEP COMPLETE at Tue Apr 21 06:28:21 PM EEST 2026
+total 508
+drwxrwxr-x 2 sander sander  4096 Apr 21 18:28 .
+drwxrwxr-x 8 sander sander  4096 Apr 21 18:28 ..
+-rw-rw-r-- 1 sander sander  6212 Apr 21 17:42 128k_mml131072_bench.log
+-rw-rw-r-- 1 sander sander   187 Apr 21 17:42 128k_mml131072_nvidia-smi.csv
+-rw-rw-r-- 1 sander sander   175 Apr 21 17:39 128k_mml131072_startup.txt
+-rw-rw-r-- 1 sander sander  6346 Apr 21 17:47 148k_mml151552_bench.log
+-rw-rw-r-- 1 sander sander   187 Apr 21 17:47 148k_mml151552_nvidia-smi.csv
+-rw-rw-r-- 1 sander sander   175 Apr 21 17:45 148k_mml151552_startup.txt
+-rw-rw-r-- 1 sander sander  6470 Apr 21 17:53 160k_mml163840_bench.log
+-rw-rw-r-- 1 sander sander   187 Apr 21 17:53 160k_mml163840_nvidia-smi.csv
+-rw-rw-r-- 1 sander sander   175 Apr 21 17:50 160k_mml163840_startup.txt
+-rw-rw-r-- 1 sander sander  6616 Apr 21 17:59 172k_mml176128_bench.log
+-rw-rw-r-- 1 sander sander   187 Apr 21 17:59 172k_mml176128_nvidia-smi.csv
+-rw-rw-r-- 1 sander sander   175 Apr 21 17:56 172k_mml176128_startup.txt
+-rw-rw-r-- 1 sander sander  6607 Apr 21 18:05 188k_mml192512_bench.log
+-rw-rw-r-- 1 sander sander   187 Apr 21 18:05 188k_mml192512_nvidia-smi.csv
+-rw-rw-r-- 1 sander sander   175 Apr 21 18:02 188k_mml192512_startup.txt
+-rw-rw-r-- 1 sander sander  6608 Apr 21 18:11 204k_mml208896_bench.log
+-rw-rw-r-- 1 sander sander   187 Apr 21 18:11 204k_mml208896_nvidia-smi.csv
+-rw-rw-r-- 1 sander sander   175 Apr 21 18:08 204k_mml208896_startup.txt
+-rw-rw-r-- 1 sander sander  6612 Apr 21 18:17 226k_mml231424_bench.log
+-rw-rw-r-- 1 sander sander   187 Apr 21 18:17 226k_mml231424_nvidia-smi.csv
+-rw-rw-r-- 1 sander sander   175 Apr 21 18:14 226k_mml231424_startup.txt
+-rw-rw-r-- 1 sander sander  6606 Apr 21 18:23 245k_mml250880_bench.log
+-rw-rw-r-- 1 sander sander   187 Apr 21 18:23 245k_mml250880_nvidia-smi.csv
+-rw-rw-r-- 1 sander sander   175 Apr 21 18:20 245k_mml250880_startup.txt
+-rw-rw-r-- 1 sander sander  6612 Apr 21 18:28 256k_mml262144_bench.log
+-rw-rw-r-- 1 sander sander   187 Apr 21 18:28 256k_mml262144_nvidia-smi.csv
+-rw-rw-r-- 1 sander sander   175 Apr 21 18:25 256k_mml262144_startup.txt
+-rw-rw-r-- 1 sander sander 34109 Apr 21 17:42 genesis_bench_sweep_128k_mml131072_20260421_173953.json
+-rw-rw-r-- 1 sander sander 35533 Apr 21 17:47 genesis_bench_sweep_148k_mml151552_20260421_174518.json
+-rw-rw-r-- 1 sander sander 36948 Apr 21 17:53 genesis_bench_sweep_160k_mml163840_20260421_175055.json
+-rw-rw-r-- 1 sander sander 38386 Apr 21 17:59 genesis_bench_sweep_172k_mml176128_20260421_175643.json
+-rw-rw-r-- 1 sander sander 38366 Apr 21 18:05 genesis_bench_sweep_188k_mml192512_20260421_180232.json
+-rw-rw-r-- 1 sander sander 38382 Apr 21 18:11 genesis_bench_sweep_204k_mml208896_20260421_180830.json
+-rw-rw-r-- 1 sander sander 38373 Apr 21 18:17 genesis_bench_sweep_226k_mml231424_20260421_181428.json
+-rw-rw-r-- 1 sander sander 38575 Apr 21 18:23 genesis_bench_sweep_245k_mml250880_20260421_182027.json
+-rw-rw-r-- 1 sander sander 38576 Apr 21 18:28 genesis_bench_sweep_256k_mml262144_20260421_182530.json
+-rw-rw-r-- 1 sander sander  3854 Apr 21 18:28 master.log

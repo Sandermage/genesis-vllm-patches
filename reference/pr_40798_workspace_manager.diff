@@ -1,0 +1,342 @@
+diff --git a/tests/quantization/test_turboquant.py b/tests/quantization/test_turboquant.py
+index 90beb64a474c..fcd7bbe18333 100644
+--- a/tests/quantization/test_turboquant.py
++++ b/tests/quantization/test_turboquant.py
+@@ -6,6 +6,7 @@
+ """
+ 
+ import math
++from types import SimpleNamespace
+ 
+ import pytest
+ import torch
+@@ -198,6 +199,138 @@ def test_boundary_skip_layers_cap_at_half(self):
+         assert len(layers) == 8
+ 
+ 
++class _FakeTurboQuantAttentionInit:
++    def __init__(self, num_heads: int):
++        self.num_heads = num_heads
++
++    def register_buffer(
++        self, name: str, tensor: torch.Tensor, persistent: bool = True
++    ) -> None:
++        setattr(self, name, tensor)
++
++
++class TestTurboQuantDecodeWorkspace:
++    def test_init_turboquant_keeps_centroids_without_per_layer_scratch(
++        self, default_vllm_config
++    ):
++        from vllm.model_executor.layers.attention.attention import Attention
++
++        fake_attn = _FakeTurboQuantAttentionInit(num_heads=8)
++        Attention._init_turboquant_buffers(
++            fake_attn, "turboquant_3bit_nc", 128, "layers.0.attn"
++        )
++
++        assert hasattr(fake_attn, "_tq_centroids")
++        assert hasattr(fake_attn, "_tq_config")
++        assert not hasattr(fake_attn, "_tq_mid_o_buf")
++        assert not hasattr(fake_attn, "_tq_output_buf")
++        assert not hasattr(fake_attn, "_tq_lse_buf")
++
++    def test_decode_acquires_workspace_when_manager_is_initialized(self, monkeypatch):
++        from vllm.v1.attention.ops import triton_turboquant_decode as decode
++
++        captured = {}
++
++        class FakeWorkspaceManager:
++            def get_simultaneous(self, *shapes_and_dtypes):
++                captured["shapes_and_dtypes"] = shapes_and_dtypes
++                return (
++                    torch.empty(2, 8, 4, 129),
++                    torch.empty(2, 8, 128),
++                    torch.empty(2, 8),
++                )
++
++        monkeypatch.setattr(decode, "_get_layout", lambda *args: {"unused": True})
++        monkeypatch.setattr(
++            "vllm.v1.worker.workspace.is_workspace_manager_initialized",
++            lambda: True,
++        )
++        monkeypatch.setattr(
++            "vllm.v1.worker.workspace.current_workspace_manager",
++            lambda: FakeWorkspaceManager(),
++        )
++
++        def stop_after_workspace(*args, **kwargs):
++            raise RuntimeError("workspace acquired")
++
++        monkeypatch.setattr(decode, "_use_fp8_e4b15", stop_after_workspace)
++
++        with pytest.raises(RuntimeError, match="workspace acquired"):
++            decode.triton_turboquant_decode_attention(
++                query=torch.empty(2, 8, 128),
++                kv_cache=torch.empty(1, 16, 8, 102, dtype=torch.uint8),
++                block_table=torch.zeros(2, 1, dtype=torch.int32),
++                seq_lens=torch.ones(2, dtype=torch.int32),
++                Pi=torch.empty(128, 128),
++                centroids=torch.empty(8),
++                scale=1.0,
++                mse_bits=3,
++                key_packed_size=50,
++                value_quant_bits=3,
++                PiT=torch.empty(128, 128),
++                max_num_kv_splits=4,
++            )
++
++        assert captured["shapes_and_dtypes"] == (
++            ((2, 8, 4, 129), torch.float32),
++            ((2, 8, 128), torch.float32),
++            ((2, 8), torch.float32),
++        )
++
++    def test_capture_model_reserves_turboquant_workspace_before_early_return(self):
++        from vllm.config import CUDAGraphMode
++        from vllm.v1.worker.gpu_model_runner import GPUModelRunner
++
++        calls = []
++        runner = GPUModelRunner.__new__(GPUModelRunner)
++        runner.compilation_config = SimpleNamespace(cudagraph_mode=CUDAGraphMode.NONE)
++        runner._reserve_turboquant_decode_workspace = lambda: calls.append("reserve")
++
++        assert runner.capture_model() == 0
++        assert calls == ["reserve"]
++
++    def test_reserve_turboquant_workspace_checks_all_attention_groups(
++        self, monkeypatch
++    ):
++        from vllm.v1.worker.gpu_model_runner import GPUModelRunner
++
++        captured = {}
++
++        class FakeWorkspaceManager:
++            def get_simultaneous(self, *shapes_and_dtypes):
++                captured["shapes_and_dtypes"] = shapes_and_dtypes
++
++        runner = GPUModelRunner.__new__(GPUModelRunner)
++        runner.cache_config = SimpleNamespace(cache_dtype="turboquant_3bit_nc")
++        runner.scheduler_config = SimpleNamespace(max_num_seqs=16)
++        runner.parallel_config = SimpleNamespace(tensor_parallel_size=2)
++        runner.model_config = SimpleNamespace(
++            get_num_attention_heads=lambda parallel_config: 8,
++            get_head_size=lambda: 128,
++        )
++        runner.vllm_config = SimpleNamespace(
++            attention_config=SimpleNamespace(tq_max_kv_splits_for_cuda_graph=4)
++        )
++        flash_group = SimpleNamespace(
++            backend=SimpleNamespace(get_name=lambda: "FLASH_ATTN")
++        )
++        tq_group = SimpleNamespace(backend=SimpleNamespace(get_name=lambda: "TURBOQUANT"))
++        runner.attn_groups = [[flash_group], [tq_group]]
++
++        monkeypatch.setattr(
++            "vllm.v1.worker.gpu_model_runner.current_workspace_manager",
++            lambda: FakeWorkspaceManager(),
++        )
++
++        runner._reserve_turboquant_decode_workspace()
++
++        assert captured["shapes_and_dtypes"] == (
++            ((16, 8, 4, 129), torch.float32),
++            ((16, 8, 128), torch.float32),
++            ((16, 8), torch.float32),
++        )
++
++
+ # ============================================================================
+ # Centroids tests (CPU-only)
+ # ============================================================================
+diff --git a/vllm/model_executor/layers/attention/attention.py b/vllm/model_executor/layers/attention/attention.py
+index 61fb687e4637..82c66c85d6d1 100644
+--- a/vllm/model_executor/layers/attention/attention.py
++++ b/vllm/model_executor/layers/attention/attention.py
+@@ -429,30 +429,10 @@ def _init_turboquant_buffers(
+         )
+         self._tq_config = tq_config
+ 
+-        # Pre-allocate decode intermediate buffers so model.to(device) moves
+-        # them to GPU *before* the memory profiler runs.  Without this the
+-        # profiler gives all free memory to KV cache blocks and the first
+-        # decode OOMs when these buffers are lazily allocated.
+-        _vllm_cfg = get_current_vllm_config()
+-        B = _vllm_cfg.scheduler_config.max_num_seqs
+-        Hq = self.num_heads
+-        S = _vllm_cfg.attention_config.tq_max_kv_splits_for_cuda_graph
+-        D = head_size
+-        self.register_buffer(
+-            "_tq_mid_o_buf",
+-            torch.empty(B, Hq, S, D + 1, dtype=torch.float32),
+-            persistent=False,
+-        )
+-        self.register_buffer(
+-            "_tq_output_buf",
+-            torch.empty(B, Hq, D, dtype=torch.float32),
+-            persistent=False,
+-        )
+-        self.register_buffer(
+-            "_tq_lse_buf",
+-            torch.empty(B, Hq, dtype=torch.float32),
+-            persistent=False,
+-        )
++        # TQ decode scratch space is allocated through the v1 workspace manager
++        # at runtime. It is shared across layers, rather than registered once
++        # per attention layer, so large max_num_seqs values do not multiply the
++        # scratch memory by num_layers.
+ 
+     def forward(
+         self,
+diff --git a/vllm/v1/attention/backends/turboquant_attn.py b/vllm/v1/attention/backends/turboquant_attn.py
+index a0bcc252d857..a1c0f1668b2a 100644
+--- a/vllm/v1/attention/backends/turboquant_attn.py
++++ b/vllm/v1/attention/backends/turboquant_attn.py
+@@ -805,13 +805,6 @@ def _decode_attention(
+         PiT: torch.Tensor | None = None,
+         layer: torch.nn.Module | None = None,
+     ) -> torch.Tensor:
+-        # Grab cached decode buffers from the layer (lazily allocated).
+-        mid_o_buf = output_buf = lse_buf = None
+-        if layer is not None:
+-            mid_o_buf = getattr(layer, "_tq_mid_o_buf", None)
+-            output_buf = getattr(layer, "_tq_output_buf", None)
+-            lse_buf = getattr(layer, "_tq_lse_buf", None)
+-
+         result = triton_turboquant_decode_attention(
+             query=query,
+             kv_cache=kv_cache,
+@@ -826,10 +819,6 @@ def _decode_attention(
+             key_fp8=self.tq_config.key_fp8,
+             norm_correction=self.tq_config.norm_correction,
+             PiT=PiT,
+-            mid_o_buf=mid_o_buf,
+-            output_buf=output_buf,
+-            lse_buf=lse_buf,
+-            buf_holder=layer,
+             max_num_kv_splits=self.max_num_kv_splits,
+         )
+         return result
+diff --git a/vllm/v1/attention/ops/triton_turboquant_decode.py b/vllm/v1/attention/ops/triton_turboquant_decode.py
+index a789f9be7bb2..cd1ea64113a9 100644
+--- a/vllm/v1/attention/ops/triton_turboquant_decode.py
++++ b/vllm/v1/attention/ops/triton_turboquant_decode.py
+@@ -9,7 +9,6 @@
+ """
+ 
+ import math
+-from typing import Any
+ 
+ import torch
+ 
+@@ -501,7 +500,6 @@ def triton_turboquant_decode_attention(
+     mid_o_buf: torch.Tensor | None = None,
+     output_buf: torch.Tensor | None = None,
+     lse_buf: torch.Tensor | None = None,
+-    buf_holder: Any = None,
+     max_num_kv_splits: int = 32,  # fixed split count (must be constant for cudagraph)
+ ) -> torch.Tensor:
+     """Launch fused TQ decode attention (Triton stage1 + stage2).
+@@ -529,6 +527,21 @@ def triton_turboquant_decode_attention(
+ 
+     NUM_KV_SPLITS = max_num_kv_splits
+ 
++    if mid_o_buf is None or output_buf is None or lse_buf is None:
++        from vllm.v1.worker.workspace import (
++            current_workspace_manager,
++            is_workspace_manager_initialized,
++        )
++
++        if is_workspace_manager_initialized():
++            mid_o_buf, output_buf, lse_buf = (
++                current_workspace_manager().get_simultaneous(
++                    ((B, Hq, NUM_KV_SPLITS, D + 1), torch.float32),
++                    ((B, Hq, D), torch.float32),
++                    ((B, Hq), torch.float32),
++                )
++            )
++
+     if (
+         mid_o_buf is not None
+         and mid_o_buf.shape[0] >= B
+@@ -544,8 +557,6 @@ def triton_turboquant_decode_attention(
+             dtype=torch.float32,
+             device=device,
+         )
+-        if buf_holder is not None:
+-            buf_holder._tq_mid_o_buf = mid_o
+ 
+     # Stage 1: split-KV tiled attention scoring + value accumulation
+     fp8_e4b15 = _use_fp8_e4b15(device.index or 0)
+@@ -592,14 +603,10 @@ def triton_turboquant_decode_attention(
+         output = output_buf[:B, :Hq, :D]
+     else:
+         output = torch.empty(B, Hq, D, dtype=torch.float32, device=device)
+-        if buf_holder is not None:
+-            buf_holder._tq_output_buf = output
+     if lse_buf is not None and lse_buf.shape[0] >= B:
+         lse = lse_buf[:B, :Hq]
+     else:
+         lse = torch.empty(B, Hq, dtype=torch.float32, device=device)
+-        if buf_holder is not None:
+-            buf_holder._tq_lse_buf = lse
+ 
+     grid2 = (B, Hq)
+     _fwd_kernel_stage2[grid2](
+diff --git a/vllm/v1/worker/gpu_model_runner.py b/vllm/v1/worker/gpu_model_runner.py
+index 0362011a6e6d..03ef67bc27d5 100644
+--- a/vllm/v1/worker/gpu_model_runner.py
++++ b/vllm/v1/worker/gpu_model_runner.py
+@@ -200,7 +200,7 @@
+     split_attn_metadata,
+ )
+ from vllm.v1.worker.utils import is_residual_scattered_for_sp
+-from vllm.v1.worker.workspace import lock_workspace
++from vllm.v1.worker.workspace import current_workspace_manager, lock_workspace
+ 
+ from .utils import (
+     AttentionGroup,
+@@ -6026,6 +6026,8 @@ def profile_cudagraph_memory(self) -> int:
+ 
+     @instrument(span_name="Capture model")
+     def capture_model(self) -> int:
++        self._reserve_turboquant_decode_workspace()
++
+         if self.compilation_config.cudagraph_mode == CUDAGraphMode.NONE:
+             logger.warning(
+                 "Skipping CUDA graph capture. To turn on CUDA graph capture, "
+@@ -6115,6 +6117,34 @@ def capture_model(self) -> int:
+         )
+         return cuda_graph_size
+ 
++    def _reserve_turboquant_decode_workspace(self) -> None:
++        if not self.cache_config.cache_dtype.startswith("turboquant_"):
++            return
++        if not self.attn_groups:
++            return
++
++        max_num_reqs = self.scheduler_config.max_num_seqs
++        num_heads = self.model_config.get_num_attention_heads(self.parallel_config)
++        head_size = self.model_config.get_head_size()
++        max_num_splits = (
++            self.vllm_config.attention_config.tq_max_kv_splits_for_cuda_graph
++        )
++
++        for groups in self.attn_groups:
++            for group in groups:
++                if group.backend.get_name() != "TURBOQUANT":
++                    continue
++
++                current_workspace_manager().get_simultaneous(
++                    (
++                        (max_num_reqs, num_heads, max_num_splits, head_size + 1),
++                        torch.float32,
++                    ),
++                    ((max_num_reqs, num_heads, head_size), torch.float32),
++                    ((max_num_reqs, num_heads), torch.float32),
++                )
++                return
++
+     def _warmup_and_capture(
+         self,
+         desc: BatchDescriptor,

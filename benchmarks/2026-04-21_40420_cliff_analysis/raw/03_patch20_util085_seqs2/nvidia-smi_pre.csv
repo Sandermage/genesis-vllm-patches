@@ -1,0 +1,3 @@
+index, memory.used [MiB], memory.total [MiB], temperature.gpu, power.draw [W]
+0, 20660 MiB, 24564 MiB, 39, 12.66 W
+1, 20660 MiB, 24564 MiB, 38, 18.31 W

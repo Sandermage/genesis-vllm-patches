@@ -1,0 +1,617 @@
+=== Genesis v7.0-dev INTEGRATION container (PROD-MIRROR config) ===
+Python: Python 3.12.13
+vLLM: 0.19.2rc1.dev134+gfe9c3d6c5
+PyTorch: 2.11.0+cu129
+CUDA: 12.9
+
+=== Install prod-equivalent runtime deps + Genesis plugin ===
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+Registered plugins: [('genesis_v7', 'genesis_v7:register'), ('lora_filesystem_resolver', 'vllm.plugins.lora_resolvers.filesystem_resolver:register_filesystem_resolver'), ('lora_hf_hub_resolver', 'vllm.plugins.lora_resolvers.hf_hub_resolver:register_hf_hub_resolver')]
+
+=== Genesis platform check ===
+Genesis 7.0.0-dev by Sandermage(Sander)-Barzov Aleksandr
+
+=== Apply Genesis wiring (text-patches + rebinds, BEFORE vllm serve) ===
+[INFO:genesis.apply_all] Genesis platform: {"vendor": {"is_nvidia_cuda": true, "is_amd_rocm": false, "is_intel_xpu": false, "is_cpu_only": false}, "nvidia": {"compute_capability": [8, 6], "is_ampere_datacenter": false, "is_ampere_consumer": true, "is_ada_lovelace": false, "is_hopper": false, "is_blackwell": false, "has_native_fp8": false}, "amd": {}, "versions": {"torch": [2, 11], "transformers": [5, 6, 0], "vllm": [0, 19, 2], "flash_attn_major": 2}, "paths": {"vllm_install_root": "/usr/local/lib/python3.12/dist-packages/vllm"}}
+[INFO:genesis.apply_all] Genesis Unified Patch v7.0 — Ampere FP8 + TQ + MoE + Hybrid + bugfixes. Philosophy: МЫ ЧИНИМ, НЕ ЛОМАЕМ.
+[INFO:genesis.wiring.text_patch] [P8 KV hybrid reporting (kv_cache_utils)] applied 3 sub-patches: p8_kv_imports, p8_kv_helper_injection, p8_kv_callsite
+[INFO:genesis.wiring.text_patch] [P8 KV hybrid reporting (scheduler)] applied 2 sub-patches: p8_sched_import, p8_sched_callsite
+[INFO:genesis.apply_all] [Genesis] applied: P8 KV hybrid reporting (per-token capacity) — kv_cache_utils=applied(ok), scheduler=applied(ok)
+[INFO:genesis.wiring.text_patch] [P3 TurboQuant BF16->FP8 cast (Ampere fix)] applied 1 sub-patches: p3_bf16_fp8_cast
+[INFO:genesis.apply_all] [Genesis] applied: P3 TurboQuant BF16->FP8 cast (Ampere fix) — BF16->FP8 cast guard inserted
+[INFO:genesis.wiring.text_patch] [P6 TQ-aware block size alignment] applied 2 sub-patches: p6_import_tqspec, p6_tq_branch
+[INFO:genesis.apply_all] [Genesis] applied: P6 TurboQuant-aware attention page size — TQ-aware page-size branch inserted
+[INFO:genesis.wiring.text_patch] [P15 Qwen3 None/null tool arg] applied 1 sub-patches: p15_none_null
+[INFO:genesis.apply_all] [Genesis] applied: P15 Qwen3 None/null tool arg parser — None/none mapping added to tool param parser
+[INFO:genesis.wiring.text_patch] [P12 Qwen3 <tool_call> implicit reasoning end] applied 2 sub-patches: p12_init_tool_call_tokens, p12_serving_layer_hooks
+[INFO:genesis.apply_all] [Genesis] applied: P12 Qwen3 <tool_call> implicit reasoning end — tool_call tokens + serving-layer hooks added
+[INFO:genesis.wiring.text_patch] [P27 Qwen3 BEFORE-THINK fallback/p27_nonstream_return_pr35687] anchor not found — soft skip (sibling patches continue)
+[INFO:genesis.wiring.text_patch] [P27 Qwen3 BEFORE-THINK fallback] applied 3 sub-patches: p27_nonstream_capture, p27_nonstream_return_baseline, p27_stream_start
+[INFO:genesis.apply_all] [Genesis] applied: P27 Qwen3 BEFORE-THINK fallback — BEFORE-THINK fallback wired (non-stream + stream)
+[INFO:genesis.wiring.text_patch] [P34 Mamba zero-collapse deadlock guard] applied 1 sub-patches: p34_deadlock_guard
+[INFO:genesis.apply_all] [Genesis] applied: P34 Mamba zero-collapse deadlock guard — zero-collapse deadlock guard inserted (fixes #40707 for hybrid Mamba + multimodal)
+[INFO:genesis.apply_all] [Genesis] applied: P29 tool parser IndexError guard — upstream already contains bounded-index guards (no-op)
+[INFO:genesis.marlin_fp32_reduce] [Genesis P23] Marlin FP32_REDUCE: disabled=True on SM=(8, 6) (auto-from-platform)
+[INFO:genesis.apply_all] [Genesis] applied: P23 Marlin FP32_REDUCE env override — decision: fp32_reduce disabled=True (requires upstream wire into Marlin launcher to take effect)
+[INFO:genesis.wiring.text_patch] [P4 TurboQuant hybrid model support] applied 2 sub-patches: p4_helper_fn, p4_tq_block
+[INFO:genesis.apply_all] [Genesis] applied: P4 TurboQuant hybrid model support — text-patch succeeded
+[INFO:genesis.wiring.text_patch] [P5 KV cache page size unification (v1_lcm_pad_max)] applied 2 sub-patches: p5_import_math, p5_v1_lcm_pad_max_from_baseline
+[INFO:genesis.apply_all] [Genesis] applied: P5 KV cache page size unification — text-patch v2 succeeded (pad-smaller-to-max)
+[INFO:genesis.apply_all] [Genesis] skipped: P5b KV page-size pad-smaller-to-max (env-opt-in) — opt-in: set GENESIS_ENABLE_P5B=1 to enable pad-smaller-to-max KV page-size strategy (saves ~34% per-block VRAM on Qwen3.6 hybrid vs P5 v1 LCM-pad-up; BLAST-RADIUS is KV allocator → benchmark on VM 100 before enabling in prod)
+INFO 04-24 20:20:49 [nixl_utils.py:20] Setting UCX_RCACHE_MAX_UNRELEASED to '1024' to avoid a rare memory leak in UCX when using NIXL.
+INFO 04-24 20:20:49 [nixl_utils.py:32] NIXL is available
+[INFO:genesis.wiring.p31_router_softmax] [Genesis P31] wrapped grouped_topk_router.grouped_topk (fp32 upcast active for grouped-MoE models)
+[INFO:genesis.apply_all] [Genesis] applied: P31 MoE router fp32 softmax — grouped_topk wrapped (effective in this process)
+[INFO:genesis.wiring.p22_tq_prealloc] [Genesis P22] rebound TurboQuantAttentionImpl._ensure_on_device (prealloc helper will fire during profile_run warmup)
+[INFO:genesis.apply_all] [Genesis] applied: P22 TurboQuant shared dequant prealloc — class method wrapped (effective in this process)
+[INFO:genesis.wiring.text_patch] [P26 TQ prefill output prealloc] applied 2 sub-patches: p26_output_alloc, p26_cu_2_alloc
+[INFO:genesis.apply_all] [Genesis] applied: P26 TurboQuant prefill output prealloc — prefill output + cu_2 rewired through shared pool
+[INFO:genesis.wiring.text_patch] [P44 TQ mixed-batch attn_out pool] applied 1 sub-patches: p44_mixed_attn_out_alloc
+[INFO:genesis.apply_all] [Genesis] applied: P44 TQ mixed-batch attn_out pool — text-patch applied — mixed-batch attn_out routed through TurboQuantBufferManager pool (~80 MB zero-init eliminated per mixed-batch forward in multi-user serving)
+[INFO:genesis.wiring.text_patch] [P46 GDN gating buffer pool] applied 2 sub-patches: p46_g_buffer, p46_beta_buffer
+[INFO:genesis.apply_all] [Genesis] applied: P46 GDN gating buffer pool — text-patch applied — fused_gdn_gating now uses GdnGatingBufferManager pool (eliminates ~24k allocs/sec on Qwen3.6-35B-A3B decode)
+[INFO:genesis.apply_all] [Genesis] skipped: P7b GDN dual-stream via torch.library.custom_op (opt-in) — opt-in: set GENESIS_ENABLE_P7B=1 to enable GDN dual-stream via torch.library.custom_op (graph-safe alternative to P7; validates numeric equiv + compile-cache freshness before prod)
+[INFO:genesis.apply_all] [Genesis] skipped: P40 TurboQuant GQA-grouped decode stage1 (opt-in) — opt-in: set GENESIS_ENABLE_P40=1 to enable GQA-grouped decode stage1 (port of upstream PR #40792)
+[INFO:genesis.wiring.p39a_fla_kkt] [Genesis P39b] vllm_config fetch failed (Current vLLM config is not set. This typically means get_current_vllm_config() was called outside of a set_current_vllm_config() context, or a CustomOp was instantiated at module import time or model forward time when config is not set. For tests that directly test custom ops/modules, use the 'default_vllm_config' pytest fixture from tests/conftest.py.); defaults used
+[INFO:genesis.wiring.p39a_fla_kkt] [Genesis P39a] rebound vllm.model_executor.layers.fla.ops.chunk_scaled_dot_kkt.chunk_scaled_dot_kkt_fwd (+1 caller mods: ['vllm.model_executor.layers.fla.ops.chunk'])
+[INFO:genesis.apply_all] [Genesis] applied: P39a FLA chunk_scaled_dot_kkt persistent A pool — module-level fn replaced (1 caller module(s) also rebound — pool shared across GDN layers)
+[INFO:genesis.wiring.p38_tq_continuation_memory] [Genesis P38] rebound TurboQuantAttentionImpl._continuation_prefill (persistent K_full/V_full buffers replace torch.cat peak)
+[INFO:genesis.apply_all] [Genesis] applied: P38 TQ _continuation_prefill persistent workspace — class method replaced (persistent K_full/V_full workspace, no .contiguous()/torch.cat transient peaks)
+[INFO:genesis.wiring.text_patch] [P37 MoE intermediate cache pool] applied 1 sub-patches: p37_moe_intermediate_pool
+[INFO:genesis.apply_all] [Genesis] applied: P37 MoE intermediate cache pool (opt-in) — intermediate_cache13 + cache2 rewired to shared pool (saves allocator churn across N_moe_layers per step)
+[INFO:genesis.wiring.text_patch] [P36 TQ shared decode buffers] applied 1 sub-patches: p36_shared_decode_bufs
+[INFO:genesis.apply_all] [Genesis] applied: P36 TurboQuant shared decode buffers — decode mid_o + output + lse buffers shared across TQ attention layers
+[INFO:genesis.apply_all] [Genesis] applied: P32/P33 TurboQuant cu_2 + synth_seq_lens preallocs — cu_2 + synth_seq_lens preallocs registered (invoked from ensure_turboquant_buffers, fires during profile_run)
+[INFO:genesis.wiring.text_patch] [P28 GDN core_attn_out prealloc] applied 1 sub-patches: p28_core_attn_out_alloc
+[INFO:genesis.wiring.p28_gdn_core_attn] [Genesis P28] wrapped GatedDeltaNetAttention.__init__ to attach _genesis_gdn_core_attn_buf on each instance
+[INFO:genesis.apply_all] [Genesis] applied: P28 GDN core_attn_out prealloc — forward_cuda patched + __init__ wrapped
+[INFO:genesis.gdn_dual_stream] [GDN dual-stream] CUDA aux stream initialized
+[INFO:genesis.apply_all] [Genesis P7] dispatcher ready (parallel path)
+[INFO:genesis.apply_all] [Genesis] skipped: P7 GDN dual-stream in_proj parallelism — deferred — incompatible with torch.compile fullgraph (CUDA streams not SymPy-graphable); custom op implementation required. Re-enable with GENESIS_ENABLE_P7=1 + --enforce-eager.
+[INFO:genesis.apply_all] [Genesis P17/P18] Marlin tuning ready: SM=(8, 6) bsm=8 num_warps=4 num_stages=3
+[INFO:genesis.apply_all] [Genesis] applied: P17/P18 Marlin MoE per-SM tuning — SM=(8, 6) bsm=8
+[INFO:genesis.wiring.text_patch] [P24 fused_moe num_warps/num_stages overlay] applied 2 sub-patches: p24_fp8_cfg_overlay, p24_general_cfg_overlay
+[INFO:genesis.apply_all] [Genesis] applied: P24 fused_moe num_warps/num_stages overlay — num_warps / num_stages overlay wired into get_default_config (active only on Triton fused_moe path; Marlin unaffected)
+[INFO:genesis.wiring.p14_block_table] [Genesis P14] rebound BlockTable.append_row + move_row (tail-zero-fill active for concurrent-request safety)
+[INFO:genesis.apply_all] [Genesis] applied: P14 block_table tail zero-fill — BlockTable.append_row + move_row wrapped (effective in this process)
+[INFO:genesis.tq_decode_tune] [Genesis P18b] TQ decode stage1 using upstream defaults (BLOCK_KV=4 num_warps=1 num_stages=1)
+[INFO:genesis.apply_all] [Genesis] applied: P18b TurboQuant decode stage1 tune — no env override — using upstream defaults (4/1/1)
+[INFO:genesis.apply_all] [Genesis P20] TQ _continuation_prefill FP16 helpers ready for TurboQuantAttentionImpl hook
+[INFO:genesis.apply_all] [Genesis] applied: P20 TurboQuant continuation-prefill FP16 rotate — fp16-rotation helper ready for _continuation_prefill hook
+[INFO:genesis.fp8_dispatcher] [Genesis FP8 dispatcher] SM (8, 6) → Marlin fallback required (Triton block FP8 unsupported on Ampere)
+[INFO:genesis.apply_all] [Genesis] applied: P1/P2 FP8 kernel dispatcher — SM=(8, 6) → Marlin fallback path selected
+[INFO:genesis.apply_all] Genesis Results: 28 applied, 4 skipped, 0 failed
+[INFO:genesis.apply_all] [Genesis] Post-register rebind verification:
+[INFO:genesis.apply_all]   ✓ P22 expected=True actual=True 
+[INFO:genesis.apply_all]   ✓ P31 expected=True actual=True 
+[INFO:genesis.apply_all]   ✓ P14 expected=True actual=True 
+[INFO:genesis.apply_all]   ✓ P28 expected=True actual=True 
+[INFO:genesis.apply_all]   ✓ P38 expected=True actual=True 
+[INFO:genesis.apply_all]   ✓ P39a expected=True actual=True 
+
+=== Start vLLM server (PROD-MIRROR args + 262144 max-model-len) ===
+[INFO:genesis.apply_all] Genesis platform: {"vendor": {"is_nvidia_cuda": true, "is_amd_rocm": false, "is_intel_xpu": false, "is_cpu_only": false}, "nvidia": {"compute_capability": [8, 6], "is_ampere_datacenter": false, "is_ampere_consumer": true, "is_ada_lovelace": false, "is_hopper": false, "is_blackwell": false, "has_native_fp8": false}, "amd": {}, "versions": {"torch": [2, 11], "transformers": [5, 6, 0], "vllm": [0, 19, 2], "flash_attn_major": 2}, "paths": {"vllm_install_root": "/usr/local/lib/python3.12/dist-packages/vllm"}}
+[INFO:genesis.apply_all] Genesis Unified Patch v7.0 — Ampere FP8 + TQ + MoE + Hybrid + bugfixes. Philosophy: МЫ ЧИНИМ, НЕ ЛОМАЕМ.
+[INFO:genesis.apply_all] [Genesis] applied: P8 KV hybrid reporting (per-token capacity) — kv_cache_utils=applied(idempotent), scheduler=applied(idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P3 TurboQuant BF16->FP8 cast (Ampere fix) — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P6 TurboQuant-aware attention page size — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P15 Qwen3 None/null tool arg parser — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P12 Qwen3 <tool_call> implicit reasoning end — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P27 Qwen3 BEFORE-THINK fallback — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P34 Mamba zero-collapse deadlock guard — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P29 tool parser IndexError guard — upstream already contains bounded-index guards (no-op)
+[INFO:genesis.marlin_fp32_reduce] [Genesis P23] Marlin FP32_REDUCE: disabled=True on SM=(8, 6) (auto-from-platform)
+[INFO:genesis.apply_all] [Genesis] applied: P23 Marlin FP32_REDUCE env override — decision: fp32_reduce disabled=True (requires upstream wire into Marlin launcher to take effect)
+[INFO:genesis.apply_all] [Genesis] applied: P4 TurboQuant hybrid model support — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P5 KV cache page size unification — v2 already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] skipped: P5b KV page-size pad-smaller-to-max (env-opt-in) — opt-in: set GENESIS_ENABLE_P5B=1 to enable pad-smaller-to-max KV page-size strategy (saves ~34% per-block VRAM on Qwen3.6 hybrid vs P5 v1 LCM-pad-up; BLAST-RADIUS is KV allocator → benchmark on VM 100 before enabling in prod)
+INFO 04-24 20:21:02 [nixl_utils.py:20] Setting UCX_RCACHE_MAX_UNRELEASED to '1024' to avoid a rare memory leak in UCX when using NIXL.
+INFO 04-24 20:21:02 [nixl_utils.py:32] NIXL is available
+[INFO:genesis.wiring.p31_router_softmax] [Genesis P31] wrapped grouped_topk_router.grouped_topk (fp32 upcast active for grouped-MoE models)
+[INFO:genesis.apply_all] [Genesis] applied: P31 MoE router fp32 softmax — grouped_topk wrapped (effective in this process)
+[INFO:genesis.wiring.p22_tq_prealloc] [Genesis P22] rebound TurboQuantAttentionImpl._ensure_on_device (prealloc helper will fire during profile_run warmup)
+[INFO:genesis.apply_all] [Genesis] applied: P22 TurboQuant shared dequant prealloc — class method wrapped (effective in this process)
+[INFO:genesis.apply_all] [Genesis] applied: P26 TurboQuant prefill output prealloc — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P44 TQ mixed-batch attn_out pool — already patched this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P46 GDN gating buffer pool — already patched this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] skipped: P7b GDN dual-stream via torch.library.custom_op (opt-in) — opt-in: set GENESIS_ENABLE_P7B=1 to enable GDN dual-stream via torch.library.custom_op (graph-safe alternative to P7; validates numeric equiv + compile-cache freshness before prod)
+[INFO:genesis.apply_all] [Genesis] skipped: P40 TurboQuant GQA-grouped decode stage1 (opt-in) — opt-in: set GENESIS_ENABLE_P40=1 to enable GQA-grouped decode stage1 (port of upstream PR #40792)
+[INFO:genesis.wiring.p39a_fla_kkt] [Genesis P39b] vllm_config fetch failed (Current vLLM config is not set. This typically means get_current_vllm_config() was called outside of a set_current_vllm_config() context, or a CustomOp was instantiated at module import time or model forward time when config is not set. For tests that directly test custom ops/modules, use the 'default_vllm_config' pytest fixture from tests/conftest.py.); defaults used
+[INFO:genesis.wiring.p39a_fla_kkt] [Genesis P39a] rebound vllm.model_executor.layers.fla.ops.chunk_scaled_dot_kkt.chunk_scaled_dot_kkt_fwd (+1 caller mods: ['vllm.model_executor.layers.fla.ops.chunk'])
+[INFO:genesis.apply_all] [Genesis] applied: P39a FLA chunk_scaled_dot_kkt persistent A pool — module-level fn replaced (1 caller module(s) also rebound — pool shared across GDN layers)
+[INFO:genesis.wiring.p38_tq_continuation_memory] [Genesis P38] rebound TurboQuantAttentionImpl._continuation_prefill (persistent K_full/V_full buffers replace torch.cat peak)
+[INFO:genesis.apply_all] [Genesis] applied: P38 TQ _continuation_prefill persistent workspace — class method replaced (persistent K_full/V_full workspace, no .contiguous()/torch.cat transient peaks)
+[INFO:genesis.apply_all] [Genesis] applied: P37 MoE intermediate cache pool (opt-in) — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P36 TurboQuant shared decode buffers — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P32/P33 TurboQuant cu_2 + synth_seq_lens preallocs — cu_2 + synth_seq_lens preallocs registered (invoked from ensure_turboquant_buffers, fires during profile_run)
+[INFO:genesis.wiring.p28_gdn_core_attn] [Genesis P28] wrapped GatedDeltaNetAttention.__init__ to attach _genesis_gdn_core_attn_buf on each instance
+[INFO:genesis.apply_all] [Genesis] applied: P28 GDN core_attn_out prealloc — already applied (idempotent)
+[INFO:genesis.gdn_dual_stream] [GDN dual-stream] CUDA aux stream initialized
+[INFO:genesis.apply_all] [Genesis P7] dispatcher ready (parallel path)
+[INFO:genesis.apply_all] [Genesis] skipped: P7 GDN dual-stream in_proj parallelism — deferred — incompatible with torch.compile fullgraph (CUDA streams not SymPy-graphable); custom op implementation required. Re-enable with GENESIS_ENABLE_P7=1 + --enforce-eager.
+[INFO:genesis.apply_all] [Genesis P17/P18] Marlin tuning ready: SM=(8, 6) bsm=8 num_warps=4 num_stages=3
+[INFO:genesis.apply_all] [Genesis] applied: P17/P18 Marlin MoE per-SM tuning — SM=(8, 6) bsm=8
+[INFO:genesis.apply_all] [Genesis] applied: P24 fused_moe num_warps/num_stages overlay — already applied this image layer (idempotent)
+[INFO:genesis.wiring.p14_block_table] [Genesis P14] rebound BlockTable.append_row + move_row (tail-zero-fill active for concurrent-request safety)
+[INFO:genesis.apply_all] [Genesis] applied: P14 block_table tail zero-fill — BlockTable.append_row + move_row wrapped (effective in this process)
+[INFO:genesis.tq_decode_tune] [Genesis P18b] TQ decode stage1 using upstream defaults (BLOCK_KV=4 num_warps=1 num_stages=1)
+[INFO:genesis.apply_all] [Genesis] applied: P18b TurboQuant decode stage1 tune — no env override — using upstream defaults (4/1/1)
+[INFO:genesis.apply_all] [Genesis P20] TQ _continuation_prefill FP16 helpers ready for TurboQuantAttentionImpl hook
+[INFO:genesis.apply_all] [Genesis] applied: P20 TurboQuant continuation-prefill FP16 rotate — fp16-rotation helper ready for _continuation_prefill hook
+[INFO:genesis.fp8_dispatcher] [Genesis FP8 dispatcher] SM (8, 6) → Marlin fallback required (Triton block FP8 unsupported on Ampere)
+[INFO:genesis.apply_all] [Genesis] applied: P1/P2 FP8 kernel dispatcher — SM=(8, 6) → Marlin fallback path selected
+[INFO:genesis.apply_all] Genesis Results: 28 applied, 4 skipped, 0 failed
+[INFO:genesis.plugin] [Genesis plugin] register() complete: 28 applied / 4 skipped / 0 failed (apply=True)
+WARNING 04-24 20:21:03 [argparse_utils.py:191] With `vllm serve`, you should provide the model as a positional argument or in a config file instead of via the `--model` option. The `--model` option will be removed in a future version.
+(APIServer pid=1) INFO 04-24 20:21:03 [utils.py:299] 
+(APIServer pid=1) INFO 04-24 20:21:03 [utils.py:299]        █     █     █▄   ▄█
+(APIServer pid=1) INFO 04-24 20:21:03 [utils.py:299]  ▄▄ ▄█ █     █     █ ▀▄▀ █  version 0.19.2rc1.dev134+gfe9c3d6c5
+(APIServer pid=1) INFO 04-24 20:21:03 [utils.py:299]   █▄█▀ █     █     █     █  model   /models/Qwen3.6-35B-A3B-AWQ
+(APIServer pid=1) INFO 04-24 20:21:03 [utils.py:299]    ▀▀  ▀▀▀▀▀ ▀▀▀▀▀ ▀     ▀
+(APIServer pid=1) INFO 04-24 20:21:03 [utils.py:299] 
+(APIServer pid=1) INFO 04-24 20:21:03 [utils.py:233] non-default args: {'model_tag': '/models/Qwen3.6-35B-A3B-AWQ', 'enable_auto_tool_choice': True, 'tool_call_parser': 'qwen3_coder', 'host': '0.0.0.0', 'api_key': ['genesis-local'], 'model': '/models/Qwen3.6-35B-A3B-AWQ', 'trust_remote_code': True, 'dtype': 'float16', 'max_model_len': 262144, 'served_model_name': ['qwen3.6-35b-a3b-awq-integration'], 'reasoning_parser': 'qwen3', 'tensor_parallel_size': 2, 'disable_custom_all_reduce': True, 'kv_cache_dtype': 'turboquant_k8v4', 'enable_prefix_caching': True, 'prefix_caching_hash_algo': 'xxhash', 'language_model_only': True, 'max_num_batched_tokens': 4096, 'max_num_seqs': 2, 'enable_chunked_prefill': True, 'scheduler_reserve_full_isl': False, 'async_scheduling': True, 'attention_config': AttentionConfig(backend=None, flash_attn_version=2, use_prefill_decode_attention=False, flash_attn_max_num_splits_for_cuda_graph=32, tq_max_kv_splits_for_cuda_graph=32, use_cudnn_prefill=False, use_trtllm_ragged_deepseek_prefill=False, use_trtllm_attention=None, disable_flashinfer_prefill=True, disable_flashinfer_q_quantization=False, use_prefill_query_quantization=False), 'performance_mode': 'interactivity', 'disable_log_stats': True}
+(APIServer pid=1) WARNING 04-24 20:21:03 [envs.py:1786] Unknown vLLM environment variable detected: VLLM_MARLIN_MOE_BLOCK_SIZE_M
+(APIServer pid=1) INFO 04-24 20:21:13 [model.py:554] Resolved architecture: Qwen3_5MoeForConditionalGeneration
+(APIServer pid=1) INFO 04-24 20:21:13 [model.py:1685] Using max model len 262144
+(APIServer pid=1) INFO 04-24 20:21:13 [awq_marlin.py:252] The model is convertible to awq_marlin during runtime. Using awq_marlin kernel.
+(APIServer pid=1) INFO 04-24 20:21:13 [arg_utils.py:1702] [Genesis P4] TQ hybrid: full-attention layers [3, 7, 11, 15, 19, 23, 27, 31, 35, 39] (total layers=40)
+(APIServer pid=1) INFO 04-24 20:21:13 [arg_utils.py:1713] TQ: skipping layers [] for boundary protection (num_layers=40, hybrid=True)
+(APIServer pid=1) INFO 04-24 20:21:13 [scheduler.py:239] Chunked prefill is enabled with max_num_batched_tokens=4096.
+(APIServer pid=1) INFO 04-24 20:21:13 [vllm.py:719] Performance mode set to 'interactivity'.
+(APIServer pid=1) WARNING 04-24 20:21:13 [config.py:342] Mamba cache mode is set to 'align' for Qwen3_5MoeForConditionalGeneration by default when prefix caching is enabled
+(APIServer pid=1) INFO 04-24 20:21:13 [config.py:362] Warning: Prefix caching in Mamba cache 'align' mode is currently enabled. Its support for Mamba layers is experimental. Please report any issues you may observe.
+(APIServer pid=1) INFO 04-24 20:21:13 [vllm.py:840] Asynchronous scheduling is enabled.
+(APIServer pid=1) INFO 04-24 20:21:13 [kernel.py:203] Final IR op priority after setting platform defaults: IrOpPriorityConfig(rms_norm=['native'])
+(APIServer pid=1) [transformers] `Qwen2VLImageProcessorFast` is deprecated. The `Fast` suffix for image processors has been removed; use `Qwen2VLImageProcessor` instead.
+(APIServer pid=1) INFO 04-24 20:21:14 [registry.py:126] All limits of multimodal modalities supported by the model are set to 0, running in text-only mode.
+INFO 04-24 20:21:24 [nixl_utils.py:32] NIXL is available
+(EngineCore pid=209) [INFO:genesis.apply_all] Genesis platform: {"vendor": {"is_nvidia_cuda": true, "is_amd_rocm": false, "is_intel_xpu": false, "is_cpu_only": false}, "nvidia": {"compute_capability": [8, 6], "is_ampere_datacenter": false, "is_ampere_consumer": true, "is_ada_lovelace": false, "is_hopper": false, "is_blackwell": false, "has_native_fp8": false}, "amd": {}, "versions": {"torch": [2, 11], "transformers": [5, 6, 0], "vllm": [0, 19, 2], "flash_attn_major": 2}, "paths": {"vllm_install_root": "/usr/local/lib/python3.12/dist-packages/vllm"}}
+(EngineCore pid=209) [INFO:genesis.apply_all] Genesis Unified Patch v7.0 — Ampere FP8 + TQ + MoE + Hybrid + bugfixes. Philosophy: МЫ ЧИНИМ, НЕ ЛОМАЕМ.
+(EngineCore pid=209) [INFO:genesis.apply_all] [Genesis] applied: P8 KV hybrid reporting (per-token capacity) — kv_cache_utils=applied(idempotent), scheduler=applied(idempotent)
+(EngineCore pid=209) [INFO:genesis.apply_all] [Genesis] applied: P3 TurboQuant BF16->FP8 cast (Ampere fix) — already applied this image layer (idempotent)
+(EngineCore pid=209) [INFO:genesis.apply_all] [Genesis] applied: P6 TurboQuant-aware attention page size — already applied this image layer (idempotent)
+(EngineCore pid=209) [INFO:genesis.apply_all] [Genesis] applied: P15 Qwen3 None/null tool arg parser — already applied this image layer (idempotent)
+(EngineCore pid=209) [INFO:genesis.apply_all] [Genesis] applied: P12 Qwen3 <tool_call> implicit reasoning end — already applied this image layer (idempotent)
+(EngineCore pid=209) [INFO:genesis.apply_all] [Genesis] applied: P27 Qwen3 BEFORE-THINK fallback — already applied this image layer (idempotent)
+(EngineCore pid=209) [INFO:genesis.apply_all] [Genesis] applied: P34 Mamba zero-collapse deadlock guard — already applied this image layer (idempotent)
+(EngineCore pid=209) [INFO:genesis.apply_all] [Genesis] applied: P29 tool parser IndexError guard — upstream already contains bounded-index guards (no-op)
+(EngineCore pid=209) [INFO:genesis.marlin_fp32_reduce] [Genesis P23] Marlin FP32_REDUCE: disabled=True on SM=(8, 6) (auto-from-platform)
+(EngineCore pid=209) [INFO:genesis.apply_all] [Genesis] applied: P23 Marlin FP32_REDUCE env override — decision: fp32_reduce disabled=True (requires upstream wire into Marlin launcher to take effect)
+(EngineCore pid=209) [INFO:genesis.apply_all] [Genesis] applied: P4 TurboQuant hybrid model support — already applied this image layer (idempotent)
+(EngineCore pid=209) [INFO:genesis.apply_all] [Genesis] applied: P5 KV cache page size unification — v2 already applied this image layer (idempotent)
+(EngineCore pid=209) [INFO:genesis.apply_all] [Genesis] skipped: P5b KV page-size pad-smaller-to-max (env-opt-in) — opt-in: set GENESIS_ENABLE_P5B=1 to enable pad-smaller-to-max KV page-size strategy (saves ~34% per-block VRAM on Qwen3.6 hybrid vs P5 v1 LCM-pad-up; BLAST-RADIUS is KV allocator → benchmark on VM 100 before enabling in prod)
+(EngineCore pid=209) [INFO:genesis.wiring.p31_router_softmax] [Genesis P31] wrapped grouped_topk_router.grouped_topk (fp32 upcast active for grouped-MoE models)
+(EngineCore pid=209) [INFO:genesis.apply_all] [Genesis] applied: P31 MoE router fp32 softmax — grouped_topk wrapped (effective in this process)
+(EngineCore pid=209) [INFO:genesis.wiring.p22_tq_prealloc] [Genesis P22] rebound TurboQuantAttentionImpl._ensure_on_device (prealloc helper will fire during profile_run warmup)
+(EngineCore pid=209) [INFO:genesis.apply_all] [Genesis] applied: P22 TurboQuant shared dequant prealloc — class method wrapped (effective in this process)
+(EngineCore pid=209) [INFO:genesis.apply_all] [Genesis] applied: P26 TurboQuant prefill output prealloc — already applied this image layer (idempotent)
+(EngineCore pid=209) [INFO:genesis.apply_all] [Genesis] applied: P44 TQ mixed-batch attn_out pool — already patched this image layer (idempotent)
+(EngineCore pid=209) [INFO:genesis.apply_all] [Genesis] applied: P46 GDN gating buffer pool — already patched this image layer (idempotent)
+(EngineCore pid=209) [INFO:genesis.apply_all] [Genesis] skipped: P7b GDN dual-stream via torch.library.custom_op (opt-in) — opt-in: set GENESIS_ENABLE_P7B=1 to enable GDN dual-stream via torch.library.custom_op (graph-safe alternative to P7; validates numeric equiv + compile-cache freshness before prod)
+(EngineCore pid=209) [INFO:genesis.apply_all] [Genesis] skipped: P40 TurboQuant GQA-grouped decode stage1 (opt-in) — opt-in: set GENESIS_ENABLE_P40=1 to enable GQA-grouped decode stage1 (port of upstream PR #40792)
+(EngineCore pid=209) [INFO:genesis.wiring.p39a_fla_kkt] [Genesis P39b] vllm_config fetch failed (Current vLLM config is not set. This typically means get_current_vllm_config() was called outside of a set_current_vllm_config() context, or a CustomOp was instantiated at module import time or model forward time when config is not set. For tests that directly test custom ops/modules, use the 'default_vllm_config' pytest fixture from tests/conftest.py.); defaults used
+(EngineCore pid=209) [INFO:genesis.wiring.p39a_fla_kkt] [Genesis P39a] rebound vllm.model_executor.layers.fla.ops.chunk_scaled_dot_kkt.chunk_scaled_dot_kkt_fwd (+1 caller mods: ['vllm.model_executor.layers.fla.ops.chunk'])
+(EngineCore pid=209) [INFO:genesis.apply_all] [Genesis] applied: P39a FLA chunk_scaled_dot_kkt persistent A pool — module-level fn replaced (1 caller module(s) also rebound — pool shared across GDN layers)
+(EngineCore pid=209) [INFO:genesis.wiring.p38_tq_continuation_memory] [Genesis P38] rebound TurboQuantAttentionImpl._continuation_prefill (persistent K_full/V_full buffers replace torch.cat peak)
+(EngineCore pid=209) [INFO:genesis.apply_all] [Genesis] applied: P38 TQ _continuation_prefill persistent workspace — class method replaced (persistent K_full/V_full workspace, no .contiguous()/torch.cat transient peaks)
+(EngineCore pid=209) [INFO:genesis.apply_all] [Genesis] applied: P37 MoE intermediate cache pool (opt-in) — already applied this image layer (idempotent)
+(EngineCore pid=209) [INFO:genesis.apply_all] [Genesis] applied: P36 TurboQuant shared decode buffers — already applied this image layer (idempotent)
+(EngineCore pid=209) [INFO:genesis.apply_all] [Genesis] applied: P32/P33 TurboQuant cu_2 + synth_seq_lens preallocs — cu_2 + synth_seq_lens preallocs registered (invoked from ensure_turboquant_buffers, fires during profile_run)
+(EngineCore pid=209) [INFO:genesis.wiring.p28_gdn_core_attn] [Genesis P28] wrapped GatedDeltaNetAttention.__init__ to attach _genesis_gdn_core_attn_buf on each instance
+(EngineCore pid=209) [INFO:genesis.apply_all] [Genesis] applied: P28 GDN core_attn_out prealloc — already applied (idempotent)
+(EngineCore pid=209) [INFO:genesis.gdn_dual_stream] [GDN dual-stream] CUDA aux stream initialized
+(EngineCore pid=209) [INFO:genesis.apply_all] [Genesis P7] dispatcher ready (parallel path)
+(EngineCore pid=209) [INFO:genesis.apply_all] [Genesis] skipped: P7 GDN dual-stream in_proj parallelism — deferred — incompatible with torch.compile fullgraph (CUDA streams not SymPy-graphable); custom op implementation required. Re-enable with GENESIS_ENABLE_P7=1 + --enforce-eager.
+(EngineCore pid=209) [INFO:genesis.apply_all] [Genesis P17/P18] Marlin tuning ready: SM=(8, 6) bsm=8 num_warps=4 num_stages=3
+(EngineCore pid=209) [INFO:genesis.apply_all] [Genesis] applied: P17/P18 Marlin MoE per-SM tuning — SM=(8, 6) bsm=8
+(EngineCore pid=209) [INFO:genesis.apply_all] [Genesis] applied: P24 fused_moe num_warps/num_stages overlay — already applied this image layer (idempotent)
+(EngineCore pid=209) [INFO:genesis.wiring.p14_block_table] [Genesis P14] rebound BlockTable.append_row + move_row (tail-zero-fill active for concurrent-request safety)
+(EngineCore pid=209) [INFO:genesis.apply_all] [Genesis] applied: P14 block_table tail zero-fill — BlockTable.append_row + move_row wrapped (effective in this process)
+(EngineCore pid=209) [INFO:genesis.tq_decode_tune] [Genesis P18b] TQ decode stage1 using upstream defaults (BLOCK_KV=4 num_warps=1 num_stages=1)
+(EngineCore pid=209) [INFO:genesis.apply_all] [Genesis] applied: P18b TurboQuant decode stage1 tune — no env override — using upstream defaults (4/1/1)
+(EngineCore pid=209) [INFO:genesis.apply_all] [Genesis P20] TQ _continuation_prefill FP16 helpers ready for TurboQuantAttentionImpl hook
+(EngineCore pid=209) [INFO:genesis.apply_all] [Genesis] applied: P20 TurboQuant continuation-prefill FP16 rotate — fp16-rotation helper ready for _continuation_prefill hook
+(EngineCore pid=209) [INFO:genesis.fp8_dispatcher] [Genesis FP8 dispatcher] SM (8, 6) → Marlin fallback required (Triton block FP8 unsupported on Ampere)
+(EngineCore pid=209) [INFO:genesis.apply_all] [Genesis] applied: P1/P2 FP8 kernel dispatcher — SM=(8, 6) → Marlin fallback path selected
+(EngineCore pid=209) [INFO:genesis.apply_all] Genesis Results: 28 applied, 4 skipped, 0 failed
+(EngineCore pid=209) [INFO:genesis.plugin] [Genesis plugin] register() complete: 28 applied / 4 skipped / 0 failed (apply=True)
+(EngineCore pid=209) INFO 04-24 20:21:24 [core.py:107] Initializing a V1 LLM engine (v0.19.2rc1.dev134+gfe9c3d6c5) with config: model='/models/Qwen3.6-35B-A3B-AWQ', speculative_config=None, tokenizer='/models/Qwen3.6-35B-A3B-AWQ', skip_tokenizer_init=False, tokenizer_mode=auto, revision=None, tokenizer_revision=None, trust_remote_code=True, dtype=torch.float16, max_seq_len=262144, download_dir=None, load_format=auto, tensor_parallel_size=2, pipeline_parallel_size=1, data_parallel_size=1, decode_context_parallel_size=1, dcp_comm_backend=ag_rs, disable_custom_all_reduce=True, quantization=awq_marlin, quantization_config=None, enforce_eager=False, enable_return_routed_experts=False, kv_cache_dtype=turboquant_k8v4, device_config=cuda, structured_outputs_config=StructuredOutputsConfig(backend='auto', disable_any_whitespace=False, disable_additional_properties=False, reasoning_parser='qwen3', reasoning_parser_plugin='', enable_in_reasoning=False), observability_config=ObservabilityConfig(show_hidden_metrics_for_version=None, otlp_traces_endpoint=None, collect_detailed_traces=None, kv_cache_metrics=False, kv_cache_metrics_sample=0.01, cudagraph_metrics=False, enable_layerwise_nvtx_tracing=False, enable_mfu_metrics=False, enable_mm_processor_stats=False, enable_logging_iteration_details=False), seed=0, served_model_name=qwen3.6-35b-a3b-awq-integration, enable_prefix_caching=True, enable_chunked_prefill=True, pooler_config=None, compilation_config={'mode': <CompilationMode.VLLM_COMPILE: 3>, 'debug_dump_path': None, 'cache_dir': '', 'compile_cache_save_format': 'binary', 'backend': 'inductor', 'custom_ops': ['none'], 'ir_enable_torch_wrap': True, 'splitting_ops': ['vllm::unified_attention_with_output', 'vllm::unified_mla_attention_with_output', 'vllm::mamba_mixer2', 'vllm::mamba_mixer', 'vllm::short_conv', 'vllm::linear_attention', 'vllm::plamo2_mamba_mixer', 'vllm::gdn_attention_core', 'vllm::olmo_hybrid_gdn_full_forward', 'vllm::kda_attention', 'vllm::sparse_attn_indexer', 'vllm::rocm_aiter_sparse_attn_indexer', 'vllm::unified_kv_cache_update', 'vllm::unified_mla_kv_cache_update'], 'compile_mm_encoder': False, 'cudagraph_mm_encoder': False, 'encoder_cudagraph_token_budgets': [], 'encoder_cudagraph_max_vision_items_per_batch': 0, 'encoder_cudagraph_max_frames_per_batch': None, 'compile_sizes': [], 'compile_ranges_endpoints': [4096], 'inductor_compile_config': {'enable_auto_functionalized_v2': False, 'size_asserts': False, 'alignment_asserts': False, 'scalar_asserts': False, 'combo_kernels': True, 'benchmark_combo_kernel': True}, 'inductor_passes': {}, 'cudagraph_mode': <CUDAGraphMode.FULL_AND_PIECEWISE: (2, 1)>, 'cudagraph_num_of_warmups': 1, 'cudagraph_capture_sizes': [1, 2, 3, 4], 'cudagraph_copy_inputs': False, 'cudagraph_specialize_lora': True, 'use_inductor_graph_partition': False, 'pass_config': {'fuse_norm_quant': False, 'fuse_act_quant': False, 'fuse_attn_quant': False, 'enable_sp': False, 'fuse_gemm_comms': False, 'fuse_allreduce_rms': False}, 'max_cudagraph_capture_size': 4, 'dynamic_shapes_config': {'type': <DynamicShapesType.BACKED: 'backed'>, 'evaluate_guards': False, 'assume_32_bit_indexing': False}, 'local_cache_dir': None, 'fast_moe_cold_start': False, 'static_all_moe_layers': []}, kernel_config=KernelConfig(ir_op_priority=IrOpPriorityConfig(rms_norm=['native']), enable_flashinfer_autotune=True, moe_backend='auto')
+(EngineCore pid=209) INFO 04-24 20:21:24 [multiproc_executor.py:139] DP group leader: node_rank=0, node_rank_within_dp=0, master_addr=127.0.0.1, mq_connect_ip=172.30.0.2 (local), world_size=2, local_world_size=2
+INFO 04-24 20:21:32 [nixl_utils.py:32] NIXL is available
+INFO 04-24 20:21:32 [nixl_utils.py:32] NIXL is available
+[INFO:genesis.apply_all] Genesis platform: {"vendor": {"is_nvidia_cuda": true, "is_amd_rocm": false, "is_intel_xpu": false, "is_cpu_only": false}, "nvidia": {"compute_capability": [8, 6], "is_ampere_datacenter": false, "is_ampere_consumer": true, "is_ada_lovelace": false, "is_hopper": false, "is_blackwell": false, "has_native_fp8": false}, "amd": {}, "versions": {"torch": [2, 11], "transformers": [5, 6, 0], "vllm": [0, 19, 2], "flash_attn_major": 2}, "paths": {"vllm_install_root": "/usr/local/lib/python3.12/dist-packages/vllm"}}
+[INFO:genesis.apply_all] Genesis Unified Patch v7.0 — Ampere FP8 + TQ + MoE + Hybrid + bugfixes. Philosophy: МЫ ЧИНИМ, НЕ ЛОМАЕМ.
+[INFO:genesis.apply_all] Genesis platform: {"vendor": {"is_nvidia_cuda": true, "is_amd_rocm": false, "is_intel_xpu": false, "is_cpu_only": false}, "nvidia": {"compute_capability": [8, 6], "is_ampere_datacenter": false, "is_ampere_consumer": true, "is_ada_lovelace": false, "is_hopper": false, "is_blackwell": false, "has_native_fp8": false}, "amd": {}, "versions": {"torch": [2, 11], "transformers": [5, 6, 0], "vllm": [0, 19, 2], "flash_attn_major": 2}, "paths": {"vllm_install_root": "/usr/local/lib/python3.12/dist-packages/vllm"}}
+[INFO:genesis.apply_all] Genesis Unified Patch v7.0 — Ampere FP8 + TQ + MoE + Hybrid + bugfixes. Philosophy: МЫ ЧИНИМ, НЕ ЛОМАЕМ.
+[INFO:genesis.apply_all] [Genesis] applied: P8 KV hybrid reporting (per-token capacity) — kv_cache_utils=applied(idempotent), scheduler=applied(idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P8 KV hybrid reporting (per-token capacity) — kv_cache_utils=applied(idempotent), scheduler=applied(idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P3 TurboQuant BF16->FP8 cast (Ampere fix) — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P3 TurboQuant BF16->FP8 cast (Ampere fix) — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P6 TurboQuant-aware attention page size — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P6 TurboQuant-aware attention page size — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P15 Qwen3 None/null tool arg parser — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P15 Qwen3 None/null tool arg parser — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P12 Qwen3 <tool_call> implicit reasoning end — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P12 Qwen3 <tool_call> implicit reasoning end — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P27 Qwen3 BEFORE-THINK fallback — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P27 Qwen3 BEFORE-THINK fallback — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P34 Mamba zero-collapse deadlock guard — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P29 tool parser IndexError guard — upstream already contains bounded-index guards (no-op)
+[INFO:genesis.apply_all] [Genesis] applied: P34 Mamba zero-collapse deadlock guard — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P29 tool parser IndexError guard — upstream already contains bounded-index guards (no-op)
+[INFO:genesis.marlin_fp32_reduce] [Genesis P23] Marlin FP32_REDUCE: disabled=True on SM=(8, 6) (auto-from-platform)
+[INFO:genesis.apply_all] [Genesis] applied: P23 Marlin FP32_REDUCE env override — decision: fp32_reduce disabled=True (requires upstream wire into Marlin launcher to take effect)
+[INFO:genesis.marlin_fp32_reduce] [Genesis P23] Marlin FP32_REDUCE: disabled=True on SM=(8, 6) (auto-from-platform)
+[INFO:genesis.apply_all] [Genesis] applied: P23 Marlin FP32_REDUCE env override — decision: fp32_reduce disabled=True (requires upstream wire into Marlin launcher to take effect)
+[INFO:genesis.apply_all] [Genesis] applied: P4 TurboQuant hybrid model support — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P4 TurboQuant hybrid model support — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P5 KV cache page size unification — v2 already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] skipped: P5b KV page-size pad-smaller-to-max (env-opt-in) — opt-in: set GENESIS_ENABLE_P5B=1 to enable pad-smaller-to-max KV page-size strategy (saves ~34% per-block VRAM on Qwen3.6 hybrid vs P5 v1 LCM-pad-up; BLAST-RADIUS is KV allocator → benchmark on VM 100 before enabling in prod)
+[INFO:genesis.wiring.p31_router_softmax] [Genesis P31] wrapped grouped_topk_router.grouped_topk (fp32 upcast active for grouped-MoE models)
+[INFO:genesis.apply_all] [Genesis] applied: P31 MoE router fp32 softmax — grouped_topk wrapped (effective in this process)
+[INFO:genesis.apply_all] [Genesis] applied: P5 KV cache page size unification — v2 already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] skipped: P5b KV page-size pad-smaller-to-max (env-opt-in) — opt-in: set GENESIS_ENABLE_P5B=1 to enable pad-smaller-to-max KV page-size strategy (saves ~34% per-block VRAM on Qwen3.6 hybrid vs P5 v1 LCM-pad-up; BLAST-RADIUS is KV allocator → benchmark on VM 100 before enabling in prod)
+[INFO:genesis.wiring.p31_router_softmax] [Genesis P31] wrapped grouped_topk_router.grouped_topk (fp32 upcast active for grouped-MoE models)
+[INFO:genesis.apply_all] [Genesis] applied: P31 MoE router fp32 softmax — grouped_topk wrapped (effective in this process)
+[INFO:genesis.wiring.p22_tq_prealloc] [Genesis P22] rebound TurboQuantAttentionImpl._ensure_on_device (prealloc helper will fire during profile_run warmup)
+[INFO:genesis.apply_all] [Genesis] applied: P22 TurboQuant shared dequant prealloc — class method wrapped (effective in this process)
+[INFO:genesis.apply_all] [Genesis] applied: P26 TurboQuant prefill output prealloc — already applied this image layer (idempotent)
+[INFO:genesis.wiring.p22_tq_prealloc] [Genesis P22] rebound TurboQuantAttentionImpl._ensure_on_device (prealloc helper will fire during profile_run warmup)
+[INFO:genesis.apply_all] [Genesis] applied: P22 TurboQuant shared dequant prealloc — class method wrapped (effective in this process)
+[INFO:genesis.apply_all] [Genesis] applied: P44 TQ mixed-batch attn_out pool — already patched this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P26 TurboQuant prefill output prealloc — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P46 GDN gating buffer pool — already patched this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P44 TQ mixed-batch attn_out pool — already patched this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P46 GDN gating buffer pool — already patched this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] skipped: P7b GDN dual-stream via torch.library.custom_op (opt-in) — opt-in: set GENESIS_ENABLE_P7B=1 to enable GDN dual-stream via torch.library.custom_op (graph-safe alternative to P7; validates numeric equiv + compile-cache freshness before prod)
+[INFO:genesis.apply_all] [Genesis] skipped: P7b GDN dual-stream via torch.library.custom_op (opt-in) — opt-in: set GENESIS_ENABLE_P7B=1 to enable GDN dual-stream via torch.library.custom_op (graph-safe alternative to P7; validates numeric equiv + compile-cache freshness before prod)
+[INFO:genesis.apply_all] [Genesis] skipped: P40 TurboQuant GQA-grouped decode stage1 (opt-in) — opt-in: set GENESIS_ENABLE_P40=1 to enable GQA-grouped decode stage1 (port of upstream PR #40792)
+[INFO:genesis.apply_all] [Genesis] skipped: P40 TurboQuant GQA-grouped decode stage1 (opt-in) — opt-in: set GENESIS_ENABLE_P40=1 to enable GQA-grouped decode stage1 (port of upstream PR #40792)
+[INFO:genesis.wiring.p39a_fla_kkt] [Genesis P39b] vllm_config fetch failed (Current vLLM config is not set. This typically means get_current_vllm_config() was called outside of a set_current_vllm_config() context, or a CustomOp was instantiated at module import time or model forward time when config is not set. For tests that directly test custom ops/modules, use the 'default_vllm_config' pytest fixture from tests/conftest.py.); defaults used
+[INFO:genesis.wiring.p39a_fla_kkt] [Genesis P39a] rebound vllm.model_executor.layers.fla.ops.chunk_scaled_dot_kkt.chunk_scaled_dot_kkt_fwd (+1 caller mods: ['vllm.model_executor.layers.fla.ops.chunk'])
+[INFO:genesis.apply_all] [Genesis] applied: P39a FLA chunk_scaled_dot_kkt persistent A pool — module-level fn replaced (1 caller module(s) also rebound — pool shared across GDN layers)
+[INFO:genesis.wiring.p38_tq_continuation_memory] [Genesis P38] rebound TurboQuantAttentionImpl._continuation_prefill (persistent K_full/V_full buffers replace torch.cat peak)
+[INFO:genesis.apply_all] [Genesis] applied: P38 TQ _continuation_prefill persistent workspace — class method replaced (persistent K_full/V_full workspace, no .contiguous()/torch.cat transient peaks)
+[INFO:genesis.apply_all] [Genesis] applied: P37 MoE intermediate cache pool (opt-in) — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P36 TurboQuant shared decode buffers — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P32/P33 TurboQuant cu_2 + synth_seq_lens preallocs — cu_2 + synth_seq_lens preallocs registered (invoked from ensure_turboquant_buffers, fires during profile_run)
+[INFO:genesis.wiring.p39a_fla_kkt] [Genesis P39b] vllm_config fetch failed (Current vLLM config is not set. This typically means get_current_vllm_config() was called outside of a set_current_vllm_config() context, or a CustomOp was instantiated at module import time or model forward time when config is not set. For tests that directly test custom ops/modules, use the 'default_vllm_config' pytest fixture from tests/conftest.py.); defaults used
+[INFO:genesis.wiring.p39a_fla_kkt] [Genesis P39a] rebound vllm.model_executor.layers.fla.ops.chunk_scaled_dot_kkt.chunk_scaled_dot_kkt_fwd (+1 caller mods: ['vllm.model_executor.layers.fla.ops.chunk'])
+[INFO:genesis.apply_all] [Genesis] applied: P39a FLA chunk_scaled_dot_kkt persistent A pool — module-level fn replaced (1 caller module(s) also rebound — pool shared across GDN layers)
+[INFO:genesis.wiring.p38_tq_continuation_memory] [Genesis P38] rebound TurboQuantAttentionImpl._continuation_prefill (persistent K_full/V_full buffers replace torch.cat peak)
+[INFO:genesis.apply_all] [Genesis] applied: P38 TQ _continuation_prefill persistent workspace — class method replaced (persistent K_full/V_full workspace, no .contiguous()/torch.cat transient peaks)
+[INFO:genesis.apply_all] [Genesis] applied: P37 MoE intermediate cache pool (opt-in) — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P36 TurboQuant shared decode buffers — already applied this image layer (idempotent)
+[INFO:genesis.apply_all] [Genesis] applied: P32/P33 TurboQuant cu_2 + synth_seq_lens preallocs — cu_2 + synth_seq_lens preallocs registered (invoked from ensure_turboquant_buffers, fires during profile_run)
+[INFO:genesis.wiring.p28_gdn_core_attn] [Genesis P28] wrapped GatedDeltaNetAttention.__init__ to attach _genesis_gdn_core_attn_buf on each instance
+[INFO:genesis.apply_all] [Genesis] applied: P28 GDN core_attn_out prealloc — already applied (idempotent)
+[INFO:genesis.wiring.p28_gdn_core_attn] [Genesis P28] wrapped GatedDeltaNetAttention.__init__ to attach _genesis_gdn_core_attn_buf on each instance
+[INFO:genesis.apply_all] [Genesis] applied: P28 GDN core_attn_out prealloc — already applied (idempotent)
+[INFO:genesis.gdn_dual_stream] [GDN dual-stream] CUDA aux stream initialized
+[INFO:genesis.apply_all] [Genesis P7] dispatcher ready (parallel path)
+[INFO:genesis.apply_all] [Genesis] skipped: P7 GDN dual-stream in_proj parallelism — deferred — incompatible with torch.compile fullgraph (CUDA streams not SymPy-graphable); custom op implementation required. Re-enable with GENESIS_ENABLE_P7=1 + --enforce-eager.
+[INFO:genesis.apply_all] [Genesis P17/P18] Marlin tuning ready: SM=(8, 6) bsm=8 num_warps=4 num_stages=3
+[INFO:genesis.apply_all] [Genesis] applied: P17/P18 Marlin MoE per-SM tuning — SM=(8, 6) bsm=8
+[INFO:genesis.apply_all] [Genesis] applied: P24 fused_moe num_warps/num_stages overlay — already applied this image layer (idempotent)
+[INFO:genesis.gdn_dual_stream] [GDN dual-stream] CUDA aux stream initialized
+[INFO:genesis.apply_all] [Genesis P7] dispatcher ready (parallel path)
+[INFO:genesis.apply_all] [Genesis] skipped: P7 GDN dual-stream in_proj parallelism — deferred — incompatible with torch.compile fullgraph (CUDA streams not SymPy-graphable); custom op implementation required. Re-enable with GENESIS_ENABLE_P7=1 + --enforce-eager.
+[INFO:genesis.apply_all] [Genesis P17/P18] Marlin tuning ready: SM=(8, 6) bsm=8 num_warps=4 num_stages=3
+[INFO:genesis.apply_all] [Genesis] applied: P17/P18 Marlin MoE per-SM tuning — SM=(8, 6) bsm=8
+[INFO:genesis.wiring.p14_block_table] [Genesis P14] rebound BlockTable.append_row + move_row (tail-zero-fill active for concurrent-request safety)
+[INFO:genesis.apply_all] [Genesis] applied: P14 block_table tail zero-fill — BlockTable.append_row + move_row wrapped (effective in this process)
+[INFO:genesis.apply_all] [Genesis] applied: P24 fused_moe num_warps/num_stages overlay — already applied this image layer (idempotent)
+[INFO:genesis.tq_decode_tune] [Genesis P18b] TQ decode stage1 using upstream defaults (BLOCK_KV=4 num_warps=1 num_stages=1)
+[INFO:genesis.apply_all] [Genesis] applied: P18b TurboQuant decode stage1 tune — no env override — using upstream defaults (4/1/1)
+[INFO:genesis.apply_all] [Genesis P20] TQ _continuation_prefill FP16 helpers ready for TurboQuantAttentionImpl hook
+[INFO:genesis.apply_all] [Genesis] applied: P20 TurboQuant continuation-prefill FP16 rotate — fp16-rotation helper ready for _continuation_prefill hook
+[INFO:genesis.fp8_dispatcher] [Genesis FP8 dispatcher] SM (8, 6) → Marlin fallback required (Triton block FP8 unsupported on Ampere)
+[INFO:genesis.apply_all] [Genesis] applied: P1/P2 FP8 kernel dispatcher — SM=(8, 6) → Marlin fallback path selected
+[INFO:genesis.apply_all] Genesis Results: 28 applied, 4 skipped, 0 failed
+[INFO:genesis.plugin] [Genesis plugin] register() complete: 28 applied / 4 skipped / 0 failed (apply=True)
+[INFO:genesis.wiring.p14_block_table] [Genesis P14] rebound BlockTable.append_row + move_row (tail-zero-fill active for concurrent-request safety)
+[INFO:genesis.apply_all] [Genesis] applied: P14 block_table tail zero-fill — BlockTable.append_row + move_row wrapped (effective in this process)
+[INFO:genesis.tq_decode_tune] [Genesis P18b] TQ decode stage1 using upstream defaults (BLOCK_KV=4 num_warps=1 num_stages=1)
+[INFO:genesis.apply_all] [Genesis] applied: P18b TurboQuant decode stage1 tune — no env override — using upstream defaults (4/1/1)
+[INFO:genesis.apply_all] [Genesis P20] TQ _continuation_prefill FP16 helpers ready for TurboQuantAttentionImpl hook
+[INFO:genesis.apply_all] [Genesis] applied: P20 TurboQuant continuation-prefill FP16 rotate — fp16-rotation helper ready for _continuation_prefill hook
+[INFO:genesis.fp8_dispatcher] [Genesis FP8 dispatcher] SM (8, 6) → Marlin fallback required (Triton block FP8 unsupported on Ampere)
+[INFO:genesis.apply_all] [Genesis] applied: P1/P2 FP8 kernel dispatcher — SM=(8, 6) → Marlin fallback path selected
+[INFO:genesis.apply_all] Genesis Results: 28 applied, 4 skipped, 0 failed
+[INFO:genesis.plugin] [Genesis plugin] register() complete: 28 applied / 4 skipped / 0 failed (apply=True)
+[transformers] `Qwen2VLImageProcessorFast` is deprecated. The `Fast` suffix for image processors has been removed; use `Qwen2VLImageProcessor` instead.
+[transformers] `Qwen2VLImageProcessorFast` is deprecated. The `Fast` suffix for image processors has been removed; use `Qwen2VLImageProcessor` instead.
+INFO 04-24 20:21:34 [registry.py:126] All limits of multimodal modalities supported by the model are set to 0, running in text-only mode.
+INFO 04-24 20:21:34 [registry.py:126] All limits of multimodal modalities supported by the model are set to 0, running in text-only mode.
+(Worker pid=228) INFO 04-24 20:21:34 [parallel_state.py:1402] world_size=2 rank=0 local_rank=0 distributed_init_method=tcp://127.0.0.1:56619 backend=nccl
+(Worker pid=229) INFO 04-24 20:21:34 [parallel_state.py:1402] world_size=2 rank=1 local_rank=1 distributed_init_method=tcp://127.0.0.1:56619 backend=nccl
+(Worker pid=228) <frozen importlib._bootstrap_external>:1301: FutureWarning: The cuda.cudart module is deprecated and will be removed in a future release, please switch to use the cuda.bindings.runtime module instead.
+(Worker pid=229) <frozen importlib._bootstrap_external>:1301: FutureWarning: The cuda.cudart module is deprecated and will be removed in a future release, please switch to use the cuda.bindings.runtime module instead.
+(Worker pid=228) <frozen importlib._bootstrap_external>:1301: FutureWarning: The cuda.nvrtc module is deprecated and will be removed in a future release, please switch to use the cuda.bindings.nvrtc module instead.
+(Worker pid=229) <frozen importlib._bootstrap_external>:1301: FutureWarning: The cuda.nvrtc module is deprecated and will be removed in a future release, please switch to use the cuda.bindings.nvrtc module instead.
+(Worker pid=228) INFO 04-24 20:21:35 [pynccl.py:111] vLLM is using nccl==2.28.9
+(Worker pid=228) WARNING 04-24 20:21:35 [symm_mem.py:66] SymmMemCommunicator: Device capability 8.6 not supported, communicator is not available.
+(Worker pid=229) WARNING 04-24 20:21:35 [symm_mem.py:66] SymmMemCommunicator: Device capability 8.6 not supported, communicator is not available.
+(Worker pid=228) INFO 04-24 20:21:35 [parallel_state.py:1715] rank 0 in world size 2 is assigned as DP rank 0, PP rank 0, PCP rank 0, TP rank 0, EP rank 0, EPLB rank N/A
+(Worker pid=228) INFO 04-24 20:21:36 [topk_topp_sampler.py:51] Using FlashInfer for top-p & top-k sampling.
+(Worker_TP0 pid=228) INFO 04-24 20:21:36 [gpu_model_runner.py:4752] Starting to load model /models/Qwen3.6-35B-A3B-AWQ...
+(Worker_TP0 pid=228) INFO 04-24 20:21:36 [cuda.py:423] Using backend AttentionBackendEnum.FLASH_ATTN for vit attention
+(Worker_TP0 pid=228) INFO 04-24 20:21:36 [mm_encoder_attention.py:230] Using AttentionBackendEnum.FLASH_ATTN for MMEncoderAttention.
+(Worker_TP1 pid=229) [INFO:genesis.gdn_core_attn_manager] [Genesis P28] GDN core_attn_out prealloc: max_num_tokens=4096 Hv=16 Hv_dim=128 device=cuda:1 dtype=torch.float16 bytes=16777216
+(Worker_TP0 pid=228) INFO 04-24 20:21:36 [gdn_linear_attn.py:155] Using Triton/FLA GDN prefill kernel
+(Worker_TP0 pid=228) [INFO:genesis.gdn_core_attn_manager] [Genesis P28] GDN core_attn_out prealloc: max_num_tokens=4096 Hv=16 Hv_dim=128 device=cuda:0 dtype=torch.float16 bytes=16777216
+(Worker_TP0 pid=228) INFO 04-24 20:21:36 [unquantized.py:299] Using TRITON Unquantized MoE backend out of potential backends: ['FlashInfer TRTLLM', 'FlashInfer CUTLASS', 'TRITON', 'BATCHED_TRITON'].
+(Worker_TP0 pid=228) INFO 04-24 20:21:36 [cuda.py:368] Using TURBOQUANT attention backend out of potential backends: ['TURBOQUANT'].
+(Worker_TP0 pid=228) INFO 04-24 20:21:37 [weight_utils.py:904] Filesystem type for checkpoints: EXT4. Checkpoint size: 23.71 GiB. Available RAM: 53.07 GiB.
+(Worker_TP0 pid=228) INFO 04-24 20:21:37 [weight_utils.py:927] Auto-prefetch is disabled because the filesystem (EXT4) is not a recognized network FS (NFS/Lustre). If you want to force prefetching, start vLLM with --safetensors-load-strategy=prefetch.
+(Worker_TP0 pid=228) Loading safetensors checkpoint shards:   0% Completed | 0/9 [00:00<?, ?it/s]
+(Worker_TP0 pid=228) Loading safetensors checkpoint shards:  11% Completed | 1/9 [00:03<00:26,  3.33s/it]
+(Worker_TP0 pid=228) Loading safetensors checkpoint shards:  22% Completed | 2/9 [00:10<00:37,  5.33s/it]
+(Worker_TP0 pid=228) Loading safetensors checkpoint shards:  33% Completed | 3/9 [00:16<00:34,  5.83s/it]
+(Worker_TP0 pid=228) Loading safetensors checkpoint shards:  44% Completed | 4/9 [00:23<00:31,  6.25s/it]
+(Worker_TP0 pid=228) Loading safetensors checkpoint shards:  56% Completed | 5/9 [00:29<00:25,  6.34s/it]
+(Worker_TP0 pid=228) Loading safetensors checkpoint shards:  67% Completed | 6/9 [00:36<00:19,  6.45s/it]
+(Worker_TP0 pid=228) Loading safetensors checkpoint shards:  78% Completed | 7/9 [00:43<00:13,  6.59s/it]
+(Worker_TP0 pid=228) Loading safetensors checkpoint shards:  89% Completed | 8/9 [00:45<00:05,  5.12s/it]
+(Worker_TP0 pid=228) Loading safetensors checkpoint shards: 100% Completed | 9/9 [00:46<00:00,  3.79s/it]
+(Worker_TP0 pid=228) Loading safetensors checkpoint shards: 100% Completed | 9/9 [00:46<00:00,  5.14s/it]
+(Worker_TP0 pid=228) 
+(Worker_TP0 pid=228) INFO 04-24 20:22:23 [default_loader.py:384] Loading weights took 46.25 seconds
+(Worker_TP0 pid=228) INFO 04-24 20:22:23 [unquantized.py:356] Using MoEPrepareAndFinalizeNoDPEPModular
+(Worker_TP0 pid=228) INFO 04-24 20:22:32 [gpu_model_runner.py:4854] Model loading took 10.79 GiB memory and 55.546953 seconds
+(Worker_TP0 pid=228) INFO 04-24 20:22:32 [interface.py:639] Setting attention block size to 2768 tokens to ensure that attention page size is >= mamba page size.
+(Worker_TP0 pid=228) INFO 04-24 20:22:32 [interface.py:663] Padding mamba page size by 0.08% to ensure that mamba page size and attention page size are exactly equal.
+(Worker_TP1 pid=229) INFO 04-24 20:22:33 [interface.py:639] Setting attention block size to 2768 tokens to ensure that attention page size is >= mamba page size.
+(Worker_TP1 pid=229) INFO 04-24 20:22:33 [interface.py:663] Padding mamba page size by 0.08% to ensure that mamba page size and attention page size are exactly equal.
+(Worker_TP0 pid=228) INFO 04-24 20:22:36 [backends.py:1065] Using cache directory: /root/.cache/vllm/torch_compile_cache/d8b0f078d1/rank_0_0/backbone for vLLM's torch.compile
+(Worker_TP0 pid=228) INFO 04-24 20:22:36 [backends.py:1124] Dynamo bytecode transform time: 3.27 s
+(Worker_TP0 pid=228) INFO 04-24 20:22:39 [backends.py:286] Directly load the compiled graph(s) for compile range (1, 4096) from the cache, took 2.510 s
+(Worker_TP0 pid=228) INFO 04-24 20:22:39 [decorators.py:305] Directly load AOT compilation from path /root/.cache/vllm/torch_compile_cache/torch_aot_compile/0b2a4ce33dc5f94e67b1a8b09cd2ad076bc9e32e8fe601357578a2a9392e729f/rank_0_0/model
+(Worker_TP0 pid=228) INFO 04-24 20:22:39 [monitor.py:53] torch.compile took 6.13 s in total
+(Worker_TP1 pid=229) INFO 04-24 20:22:39 [decorators.py:305] Directly load AOT compilation from path /root/.cache/vllm/torch_compile_cache/torch_aot_compile/0b2a4ce33dc5f94e67b1a8b09cd2ad076bc9e32e8fe601357578a2a9392e729f/rank_1_0/model
+(Worker_TP1 pid=229) [INFO:genesis.fla_kkt_buffer] [P39a FLA KKT] grew A pool → [2, 4096, 16, 64] (32.00 MiB) on cuda:1
+(Worker_TP0 pid=228) [INFO:genesis.fla_kkt_buffer] [P39a FLA KKT] grew A pool → [2, 4096, 16, 64] (32.00 MiB) on cuda:0
+(Worker_TP0 pid=228) WARNING 04-24 20:22:40 [fused_moe.py:1091] Using default MoE config. Performance might be sub-optimal! Config file not found at /usr/local/lib/python3.12/dist-packages/vllm/model_executor/layers/fused_moe/configs/E=256,N=256,device_name=NVIDIA_RTX_A5000.json
+(Worker_TP0 pid=228) INFO 04-24 20:22:41 [monitor.py:81] Initial profiling/warmup run took 1.60 s
+(Worker_TP0 pid=228) INFO 04-24 20:22:41 [gpu_model_runner.py:5924] Profiling CUDA graph memory: PIECEWISE=4 (largest=4), FULL=2 (largest=2)
+(Worker_TP1 pid=229) INFO 04-24 20:22:41 [gpu_model_runner.py:5924] Profiling CUDA graph memory: PIECEWISE=4 (largest=4), FULL=2 (largest=2)
+(Worker_TP1 pid=229) [WARNING:genesis.dequant_buffer] [TQ buffer] impl._max_model_len unset AND get_current_vllm_config() returned unusable AND no GENESIS_TQ_MAX_MODEL_LEN env AND no layer.max_model_len attr. Falling back to 262144 (prod default). Set GENESIS_TQ_MAX_MODEL_LEN to override if your deployment uses a different size.
+(Worker_TP0 pid=228) [WARNING:genesis.dequant_buffer] [TQ buffer] impl._max_model_len unset AND get_current_vllm_config() returned unusable AND no GENESIS_TQ_MAX_MODEL_LEN env AND no layer.max_model_len attr. Falling back to 262144 (prod default). Set GENESIS_TQ_MAX_MODEL_LEN to override if your deployment uses a different size.
+(Worker_TP1 pid=229) [INFO:genesis.dequant_buffer] [P38 dequant 4D] allocated K+V buffers (1,1,262144,256) 256.00 MiB on cuda:1
+(Worker_TP0 pid=228) [INFO:genesis.dequant_buffer] [P38 dequant 4D] allocated K+V buffers (1,1,262144,256) 256.00 MiB on cuda:0
+(Worker_TP1 pid=229) [INFO:genesis.dequant_buffer] [P38 full] allocated K_full+V_full (266240,1,256) 260.00 MiB on cuda:1
+(Worker_TP0 pid=228) [INFO:genesis.dequant_buffer] [P38 full] allocated K_full+V_full (266240,1,256) 260.00 MiB on cuda:0
+(Worker_TP0 pid=228) [WARNING:genesis.dequant_buffer] [TQ buffer] impl._max_model_len unset AND get_current_vllm_config() returned unusable AND no GENESIS_TQ_MAX_MODEL_LEN env AND no layer.max_model_len attr. Falling back to 262144 (prod default). Set GENESIS_TQ_MAX_MODEL_LEN to override if your deployment uses a different size.
+(Worker_TP1 pid=229) [WARNING:genesis.dequant_buffer] [TQ buffer] impl._max_model_len unset AND get_current_vllm_config() returned unusable AND no GENESIS_TQ_MAX_MODEL_LEN env AND no layer.max_model_len attr. Falling back to 262144 (prod default). Set GENESIS_TQ_MAX_MODEL_LEN to override if your deployment uses a different size.
+(Worker_TP0 pid=228) [WARNING:genesis.dequant_buffer] [TQ buffer] impl._max_model_len unset AND get_current_vllm_config() returned unusable AND no GENESIS_TQ_MAX_MODEL_LEN env AND no layer.max_model_len attr. Falling back to 262144 (prod default). Set GENESIS_TQ_MAX_MODEL_LEN to override if your deployment uses a different size.
+(Worker_TP1 pid=229) [WARNING:genesis.dequant_buffer] [TQ buffer] impl._max_model_len unset AND get_current_vllm_config() returned unusable AND no GENESIS_TQ_MAX_MODEL_LEN env AND no layer.max_model_len attr. Falling back to 262144 (prod default). Set GENESIS_TQ_MAX_MODEL_LEN to override if your deployment uses a different size.
+(Worker_TP0 pid=228) [WARNING:genesis.dequant_buffer] [TQ buffer] impl._max_model_len unset AND get_current_vllm_config() returned unusable AND no GENESIS_TQ_MAX_MODEL_LEN env AND no layer.max_model_len attr. Falling back to 262144 (prod default). Set GENESIS_TQ_MAX_MODEL_LEN to override if your deployment uses a different size.
+(Worker_TP1 pid=229) [WARNING:genesis.dequant_buffer] [TQ buffer] impl._max_model_len unset AND get_current_vllm_config() returned unusable AND no GENESIS_TQ_MAX_MODEL_LEN env AND no layer.max_model_len attr. Falling back to 262144 (prod default). Set GENESIS_TQ_MAX_MODEL_LEN to override if your deployment uses a different size.
+(Worker_TP0 pid=228) [WARNING:genesis.dequant_buffer] [TQ buffer] impl._max_model_len unset AND get_current_vllm_config() returned unusable AND no GENESIS_TQ_MAX_MODEL_LEN env AND no layer.max_model_len attr. Falling back to 262144 (prod default). Set GENESIS_TQ_MAX_MODEL_LEN to override if your deployment uses a different size.
+(Worker_TP1 pid=229) [WARNING:genesis.dequant_buffer] [TQ buffer] impl._max_model_len unset AND get_current_vllm_config() returned unusable AND no GENESIS_TQ_MAX_MODEL_LEN env AND no layer.max_model_len attr. Falling back to 262144 (prod default). Set GENESIS_TQ_MAX_MODEL_LEN to override if your deployment uses a different size.
+(Worker_TP0 pid=228) [WARNING:genesis.dequant_buffer] [TQ buffer] impl._max_model_len unset AND get_current_vllm_config() returned unusable AND no GENESIS_TQ_MAX_MODEL_LEN env AND no layer.max_model_len attr. Falling back to 262144 (prod default). Set GENESIS_TQ_MAX_MODEL_LEN to override if your deployment uses a different size.
+(Worker_TP1 pid=229) [WARNING:genesis.dequant_buffer] [TQ buffer] impl._max_model_len unset AND get_current_vllm_config() returned unusable AND no GENESIS_TQ_MAX_MODEL_LEN env AND no layer.max_model_len attr. Falling back to 262144 (prod default). Set GENESIS_TQ_MAX_MODEL_LEN to override if your deployment uses a different size.
+(Worker_TP0 pid=228) [WARNING:genesis.dequant_buffer] [TQ buffer] impl._max_model_len unset AND get_current_vllm_config() returned unusable AND no GENESIS_TQ_MAX_MODEL_LEN env AND no layer.max_model_len attr. Falling back to 262144 (prod default). Set GENESIS_TQ_MAX_MODEL_LEN to override if your deployment uses a different size.
+(Worker_TP1 pid=229) [WARNING:genesis.dequant_buffer] [TQ buffer] impl._max_model_len unset AND get_current_vllm_config() returned unusable AND no GENESIS_TQ_MAX_MODEL_LEN env AND no layer.max_model_len attr. Falling back to 262144 (prod default). Set GENESIS_TQ_MAX_MODEL_LEN to override if your deployment uses a different size.
+(Worker_TP0 pid=228) [WARNING:genesis.dequant_buffer] [TQ buffer] impl._max_model_len unset AND get_current_vllm_config() returned unusable AND no GENESIS_TQ_MAX_MODEL_LEN env AND no layer.max_model_len attr. Falling back to 262144 (prod default). Set GENESIS_TQ_MAX_MODEL_LEN to override if your deployment uses a different size.
+(Worker_TP1 pid=229) [WARNING:genesis.dequant_buffer] [TQ buffer] impl._max_model_len unset AND get_current_vllm_config() returned unusable AND no GENESIS_TQ_MAX_MODEL_LEN env AND no layer.max_model_len attr. Falling back to 262144 (prod default). Set GENESIS_TQ_MAX_MODEL_LEN to override if your deployment uses a different size.
+(Worker_TP0 pid=228) [WARNING:genesis.dequant_buffer] [TQ buffer] impl._max_model_len unset AND get_current_vllm_config() returned unusable AND no GENESIS_TQ_MAX_MODEL_LEN env AND no layer.max_model_len attr. Falling back to 262144 (prod default). Set GENESIS_TQ_MAX_MODEL_LEN to override if your deployment uses a different size.
+(Worker_TP1 pid=229) [WARNING:genesis.dequant_buffer] [TQ buffer] impl._max_model_len unset AND get_current_vllm_config() returned unusable AND no GENESIS_TQ_MAX_MODEL_LEN env AND no layer.max_model_len attr. Falling back to 262144 (prod default). Set GENESIS_TQ_MAX_MODEL_LEN to override if your deployment uses a different size.
+(Worker_TP0 pid=228) [WARNING:genesis.dequant_buffer] [TQ buffer] impl._max_model_len unset AND get_current_vllm_config() returned unusable AND no GENESIS_TQ_MAX_MODEL_LEN env AND no layer.max_model_len attr. Falling back to 262144 (prod default). Set GENESIS_TQ_MAX_MODEL_LEN to override if your deployment uses a different size.
+(Worker_TP1 pid=229) [WARNING:genesis.dequant_buffer] [TQ buffer] impl._max_model_len unset AND get_current_vllm_config() returned unusable AND no GENESIS_TQ_MAX_MODEL_LEN env AND no layer.max_model_len attr. Falling back to 262144 (prod default). Set GENESIS_TQ_MAX_MODEL_LEN to override if your deployment uses a different size.
+(Worker_TP0 pid=228) INFO 04-24 20:22:44 [gpu_model_runner.py:6003] Estimated CUDA graph memory: 0.72 GiB total
+(Worker_TP1 pid=229) INFO 04-24 20:22:44 [gpu_model_runner.py:6003] Estimated CUDA graph memory: 0.72 GiB total
+(Worker_TP0 pid=228) INFO 04-24 20:22:44 [gpu_worker.py:440] Available KV cache memory: 10.08 GiB
+(Worker_TP0 pid=228) WARNING 04-24 20:22:44 [gpu_worker.py:472] CUDA graph memory profiling is disabled (VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS=0). Without it, CUDA graph memory is not accounted for during KV cache allocation, which may require lowering --gpu-memory-utilization to avoid OOM. Consider re-enabling it (the default as of v0.21.0) and increasing --gpu-memory-utilization from 0.9200 to 0.9508.
+(Worker_TP1 pid=229) WARNING 04-24 20:22:44 [gpu_worker.py:472] CUDA graph memory profiling is disabled (VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS=0). Without it, CUDA graph memory is not accounted for during KV cache allocation, which may require lowering --gpu-memory-utilization to avoid OOM. Consider re-enabling it (the default as of v0.21.0) and increasing --gpu-memory-utilization from 0.9200 to 0.9508.
+(EngineCore pid=209) INFO 04-24 20:22:44 [kv_cache_utils.py:1404] GPU KV cache size: 2,787,376 tokens
+(EngineCore pid=209) INFO 04-24 20:22:44 [kv_cache_utils.py:1409] Maximum concurrency for 262,144 tokens per request: 9.97x
+(Worker_TP0 pid=228) Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):   0%|          | 0/4 [00:00<?, ?it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):  25%|██▌       | 1/4 [00:00<00:00,  5.98it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):  50%|█████     | 2/4 [00:00<00:00,  6.27it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):  75%|███████▌  | 3/4 [00:00<00:00,  6.32it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE): 100%|██████████| 4/4 [00:00<00:00,  6.45it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE): 100%|██████████| 4/4 [00:00<00:00,  6.36it/s]
+(Worker_TP0 pid=228) Capturing CUDA graphs (decode, FULL):   0%|          | 0/2 [00:00<?, ?it/s]Capturing CUDA graphs (decode, FULL):  50%|█████     | 1/2 [00:00<00:00,  6.21it/s]Capturing CUDA graphs (decode, FULL): 100%|██████████| 2/2 [00:00<00:00,  6.21it/s]Capturing CUDA graphs (decode, FULL): 100%|██████████| 2/2 [00:00<00:00,  6.21it/s]
+(Worker_TP0 pid=228) INFO 04-24 20:22:46 [gpu_model_runner.py:6094] Graph capturing finished in 2 secs, took 0.10 GiB
+(Worker_TP0 pid=228) INFO 04-24 20:22:46 [gpu_worker.py:599] CUDA graph pool memory: 0.1 GiB (actual), 0.72 GiB (estimated), difference: 0.62 GiB (600.0%).
+(Worker_TP1 pid=229) INFO 04-24 20:22:46 [gpu_worker.py:599] CUDA graph pool memory: 0.1 GiB (actual), 0.72 GiB (estimated), difference: 0.62 GiB (600.0%).
+(EngineCore pid=209) INFO 04-24 20:22:46 [core.py:298] init engine (profile, create kv cache, warmup model) took 13.58 s (compilation: 6.14 s)
+(EngineCore pid=209) [transformers] `Qwen2VLImageProcessorFast` is deprecated. The `Fast` suffix for image processors has been removed; use `Qwen2VLImageProcessor` instead.
+(EngineCore pid=209) INFO 04-24 20:22:47 [registry.py:126] All limits of multimodal modalities supported by the model are set to 0, running in text-only mode.
+(EngineCore pid=209) INFO 04-24 20:22:47 [vllm.py:719] Performance mode set to 'interactivity'.
+(EngineCore pid=209) INFO 04-24 20:22:47 [vllm.py:840] Asynchronous scheduling is enabled.
+(EngineCore pid=209) INFO 04-24 20:22:47 [kernel.py:203] Final IR op priority after setting platform defaults: IrOpPriorityConfig(rms_norm=['native'])
+(APIServer pid=1) INFO 04-24 20:22:47 [api_server.py:598] Supported tasks: ['generate']
+(APIServer pid=1) INFO 04-24 20:22:48 [parser_manager.py:202] "auto" tool choice has been enabled.
+(APIServer pid=1) WARNING 04-24 20:22:48 [model.py:1442] Default vLLM sampling parameters have been overridden by the model's `generation_config.json`: `{'temperature': 1.0, 'top_k': 20, 'top_p': 0.95}`. If this is not intended, please relaunch vLLM instance with `--generation-config vllm`.
+(APIServer pid=1) INFO 04-24 20:22:48 [hf.py:314] Detected the chat template content format to be 'string'. You can set `--chat-template-content-format` to override this.
+(APIServer pid=1) [transformers] The `use_fast` parameter is deprecated and will be removed in a future version. Use `backend="torchvision"` instead of `use_fast=True`, or `backend="pil"` instead of `use_fast=False`.
+(APIServer pid=1) INFO 04-24 20:22:54 [base.py:247] Multi-modal warmup completed in 5.478s
+(APIServer pid=1) INFO 04-24 20:22:54 [api_server.py:602] Starting vLLM server on http://0.0.0.0:8000
+(APIServer pid=1) INFO 04-24 20:22:54 [launcher.py:37] Available routes are:
+(APIServer pid=1) INFO 04-24 20:22:54 [launcher.py:46] Route: /openapi.json, Methods: HEAD, GET
+(APIServer pid=1) INFO 04-24 20:22:54 [launcher.py:46] Route: /docs, Methods: HEAD, GET
+(APIServer pid=1) INFO 04-24 20:22:54 [launcher.py:46] Route: /docs/oauth2-redirect, Methods: HEAD, GET
+(APIServer pid=1) INFO 04-24 20:22:54 [launcher.py:46] Route: /redoc, Methods: HEAD, GET
+(APIServer pid=1) INFO 04-24 20:22:54 [launcher.py:46] Route: /tokenize, Methods: POST
+(APIServer pid=1) INFO 04-24 20:22:54 [launcher.py:46] Route: /detokenize, Methods: POST
+(APIServer pid=1) INFO 04-24 20:22:54 [launcher.py:46] Route: /load, Methods: GET
+(APIServer pid=1) INFO 04-24 20:22:54 [launcher.py:46] Route: /version, Methods: GET
+(APIServer pid=1) INFO 04-24 20:22:54 [launcher.py:46] Route: /health, Methods: GET
+(APIServer pid=1) INFO 04-24 20:22:54 [launcher.py:46] Route: /metrics, Methods: GET
+(APIServer pid=1) INFO 04-24 20:22:54 [launcher.py:46] Route: /v1/models, Methods: GET
+(APIServer pid=1) INFO 04-24 20:22:54 [launcher.py:46] Route: /ping, Methods: GET
+(APIServer pid=1) INFO 04-24 20:22:54 [launcher.py:46] Route: /ping, Methods: POST
+(APIServer pid=1) INFO 04-24 20:22:54 [launcher.py:46] Route: /invocations, Methods: POST
+(APIServer pid=1) INFO 04-24 20:22:54 [launcher.py:46] Route: /v1/chat/completions, Methods: POST
+(APIServer pid=1) INFO 04-24 20:22:54 [launcher.py:46] Route: /v1/chat/completions/batch, Methods: POST
+(APIServer pid=1) INFO 04-24 20:22:54 [launcher.py:46] Route: /v1/responses, Methods: POST
+(APIServer pid=1) INFO 04-24 20:22:54 [launcher.py:46] Route: /v1/responses/{response_id}, Methods: GET
+(APIServer pid=1) INFO 04-24 20:22:54 [launcher.py:46] Route: /v1/responses/{response_id}/cancel, Methods: POST
+(APIServer pid=1) INFO 04-24 20:22:54 [launcher.py:46] Route: /v1/completions, Methods: POST
+(APIServer pid=1) INFO 04-24 20:22:54 [launcher.py:46] Route: /v1/messages, Methods: POST
+(APIServer pid=1) INFO 04-24 20:22:54 [launcher.py:46] Route: /v1/messages/count_tokens, Methods: POST
+(APIServer pid=1) INFO 04-24 20:22:54 [launcher.py:46] Route: /inference/v1/generate, Methods: POST
+(APIServer pid=1) INFO 04-24 20:22:54 [launcher.py:46] Route: /scale_elastic_ep, Methods: POST
+(APIServer pid=1) INFO 04-24 20:22:54 [launcher.py:46] Route: /is_scaling_elastic_ep, Methods: POST
+(APIServer pid=1) INFO 04-24 20:22:54 [launcher.py:46] Route: /generative_scoring, Methods: POST
+(APIServer pid=1) INFO 04-24 20:22:54 [launcher.py:46] Route: /v1/chat/completions/render, Methods: POST
+(APIServer pid=1) INFO 04-24 20:22:54 [launcher.py:46] Route: /v1/completions/render, Methods: POST
+(APIServer pid=1) INFO:     Started server process [1]
+(APIServer pid=1) INFO:     Waiting for application startup.
+(APIServer pid=1) INFO:     Application startup complete.
+(APIServer pid=1) INFO:     127.0.0.1:57880 - "GET /health HTTP/1.1" 200 OK
+(APIServer pid=1) INFO:     <test-host>:43346 - "GET /health HTTP/1.1" 200 OK
+(APIServer pid=1) INFO:     127.0.0.1:38696 - "GET /health HTTP/1.1" 200 OK
+(APIServer pid=1) ERROR 04-24 20:23:50 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:35610 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:50 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:35614 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:50 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:35628 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:50 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:35640 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:50 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:35648 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:50 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:35658 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:50 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:35668 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:50 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:35678 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:50 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:35686 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:50 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:35690 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:50 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:35700 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:50 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:35708 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:50 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:35716 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:50 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:35730 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:50 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:35738 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:50 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:35744 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:50 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:35752 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:50 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:35756 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:50 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:35768 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:50 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:35784 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:50 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:35786 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:50 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:35800 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:50 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:35802 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:50 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:35818 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:51 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:35832 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:51 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:35848 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:51 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:35862 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:51 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:35868 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:51 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:35872 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:51 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:35876 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:51 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:35884 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:51 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:35896 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:51 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:35906 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:51 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:35910 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:51 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:35918 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:51 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:35932 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:51 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:35940 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:51 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:35952 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:51 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:35962 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:51 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:35972 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:51 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:35976 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:51 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:35978 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:51 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:35992 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:51 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:36006 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:51 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:36016 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:51 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:36022 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:51 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:36036 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:51 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:36052 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:51 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:36064 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:51 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:36070 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:51 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:36072 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:51 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:36088 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:51 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:36102 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:51 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:36112 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:51 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:36126 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:51 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:36130 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:51 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:36136 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:51 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:36148 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:51 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:36162 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:51 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:36176 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:51 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:36180 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:51 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:36192 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:51 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:36194 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:51 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:36198 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:51 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:36202 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:51 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:36210 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:51 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:36226 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:51 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:36232 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:51 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:36246 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:51 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:36258 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:51 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:36274 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:51 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:36284 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:51 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:36294 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:51 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:36306 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:51 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:36320 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:51 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:36334 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) ERROR 04-24 20:23:51 [serving.py:220] Error with model error=ErrorInfo(message='The model `qwen3.6-35b-a3b-awq` does not exist.', type='NotFoundError', param='model', code=404)
+(APIServer pid=1) INFO:     172.30.0.1:36340 - "POST /v1/chat/completions HTTP/1.1" 404 Not Found
+(APIServer pid=1) INFO:     127.0.0.1:43948 - "GET /health HTTP/1.1" 200 OK

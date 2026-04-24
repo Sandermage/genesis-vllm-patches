@@ -1,0 +1,209 @@
+# Genesis v7.0-dev INTEGRATION compose — PROD-MIRROR for VM 100 (192.168.1.10).
+#
+# This compose is engineered to replicate the prod `vllm-server` settings
+# 1:1, then layer Genesis v7.0 overlay on top. The intent: any deviation
+# in behavior between this and prod is attributable to the v7.0 changes,
+# not to runtime config drift. Prod is the stability reference.
+#
+# Source of truth for prod settings:
+#   /home/sander/genesis-v7-integration-backup-20260424-014628/docker-compose.yml
+# (Backed up 2026-04-24 before the first integration test stop.)
+#
+# DEVIATIONS from prod (intentional, documented):
+#   1. image: genesis-v7.0-baseline (pinned post-v0.20.0 nightly) instead
+#      of nightly-patched. nightly-patched bundles the v5.14.1 monolith
+#      pre-applied; v7.0-baseline is clean upstream so we can layer our
+#      _genesis package + plugin without conflict.
+#   2. NO mount of patch_genesis_unified.py — we replace it with the
+#      genesis-vllm-plugin entry-point + apply_all orchestrator.
+#   3. served_model_name: qwen3.6-35b-a3b-INTEGRATION (not -a3b) so client
+#      requests can target either prod or integration unambiguously.
+#   4. gpu-memory-utilization 0.94 (PROD-MIRROR exact value) +
+#      max-num-batched-tokens 4096 (prod parity) + GENESIS_ENABLE_P37=1
+#      + P38 on + P39a on (FLA KKT persistent pool) + P39c (#40129 MoE
+#      tuning JSON mounted).
+#
+#      Progression of work that enabled full prod-parity on dev134:
+#        v7.1 (workaround):  yaml=0.80 + chunk=2768 + P37=0 + no P38 → 255,010 ✅
+#        v7.2 (root-cause):  yaml=0.92 + chunk=4096 + P37=1 + P38 on → 255,010 ✅
+#        v7.3 (full parity): yaml=0.94 + chunk=4096 + P37+P38+P39a+#40129 → 255,010 ✅
+#
+#      What v7.3 unblocked beyond v7.2:
+#        * P39a — persistent pool for FLA `chunk_scaled_dot_kkt_fwd`'s `A`
+#          tensor (auto-grow, shared across all GDN layers). Each call
+#          was allocating 16 MiB × N_layers = ~500 MiB per-step churn
+#          that saturated the allocator at yaml≥0.93.
+#        * #40129 JSON — Sander's own community PR for A5000 (closed
+#          without merge upstream, maintainer policy on consumer-card
+#          configs). +16% gen tok/s on this exact shape, bind-mounted
+#          as single-file overlay.
+#
+#      Max concurrency: 3.96x at 262k (matches prod 3.95x exactly).
+#      Detail: docs/REPORT_v7_1_INTEGRATION_20260424_RU.md §6-8.
+#
+# Everything else (env vars, CLI args, resource limits) MIRRORS prod.
+#
+# Host requirements: VM 100 only (2× A5000 needed for TurboQuant + 35B).
+# VM 103 has no GPUs — would fail at runtime: nvidia. See validate_unit.sh
+# for CPU-only TDD.
+
+services:
+  vllm-integration:
+    image: vllm/vllm-openai:genesis-v7.0-baseline
+    container_name: vllm-integration-awq
+    restart: "no"
+    runtime: nvidia
+    ipc: host
+
+    environment:
+      # ── PROD-MIRROR env (verbatim from prod compose, including order) ──
+      # NOTE: prod runs vllm v0.19.2rc1.dev8 where this flag is a no-op
+      # (CUDA graph memory profiling was added LATER in upstream). Our
+      # v7.0-baseline image is v0.19.2rc1.dev134 — 126 commits ahead —
+      # where this flag REALLY subtracts ~0.01pp effective KV budget.
+      # To achieve paritet с prod memory-accounting (same 256k+ context
+      # window stability), we DISABLE it. This is the upstream-sanctioned
+      # rollback path for operators who want the pre-v0.20.0 behaviour:
+      # the profiler's own warning recommends `=0` as the "disable"
+      # alternative to bumping --gpu-memory-utilization to 0.9285.
+      - VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS=0
+      - VLLM_NO_USAGE_STATS=1
+      # PROD-MIRROR: max_split_size_mb=512 gives finer-grained slab reuse.
+      # An earlier experiment at 2048 hit allocator saturation at 150k
+      # prefill: bigger slabs leave more wasted space between similarly-
+      # sized transient allocations (TurboQuant v_cached_trim/torch.cat
+      # in _continuation_prefill), and `expandable_segments:True` doesn't
+      # fully paper over that at 2048-sized holes. Prod runs 512 for a
+      # reason. `garbage_collection_threshold` left unset to match prod.
+      - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True,max_split_size_mb:512
+      - VLLM_FLOAT32_MATMUL_PRECISION=high
+      - NCCL_P2P_DISABLE=1
+      - VLLM_USE_FLASHINFER_SAMPLER=1
+      - OMP_NUM_THREADS=1
+      - CUDA_DEVICE_MAX_CONNECTIONS=8
+      - VLLM_ALLOW_LONG_MAX_MODEL_LEN=1
+      - TRITON_CACHE_DIR=/root/.triton/cache
+      - VLLM_WORKER_MULTIPROC_METHOD=spawn
+      - VLLM_MARLIN_USE_ATOMIC_ADD=1
+      - VLLM_MARLIN_MOE_BLOCK_SIZE_M=8       # prod forces; our P17 also picks this for SM8.6
+      - VLLM_MOE_USE_DEEP_GEMM=0
+      - VLLM_USE_DEEP_GEMM=0
+      - VLLM_USE_FLASHINFER_MOE_FP8=0
+      # ── Genesis-specific (NOT in prod) ──
+      - HF_HOME=/root/.cache/huggingface
+      - TRANSFORMERS_OFFLINE=1
+      - VLLM_LOGGING_LEVEL=INFO
+      # ── v7.2 tuning for 256k stability (see docs/REPORT_v7_1_ROOTCAUSE) ──
+      # P37 (shared MoE intermediate cache pool): ENABLED. Together with
+      # P38 (persistent K_full/V_full continuation-prefill workspace),
+      # this converts ~850 MiB of per-step transient peak (553 MiB MoE
+      # churn + ~300 MiB TQ cat peak) into PROFILER-VISIBLE persistent
+      # memory. The profiler then sizes KV to fit in the remaining
+      # budget, eliminating the activation/KV collision that caused
+      # 100k OOM at yaml=0.92.
+      - GENESIS_ENABLE_P37=1
+
+    ports:
+      - "8000:8000"  # different from prod 8000 only because prod is stopped during integration
+
+    volumes:
+      # PROD-MIRROR mounts:
+      - /nfs/genesis/models:/models:ro
+      - ~/.cache/huggingface:/root/.cache/huggingface:ro
+      - /home/sander/Genesis_Project/vllm_engine/triton-cache:/root/.triton/cache
+      # Integration uses its OWN compile cache — prod and integration run
+      # different vLLM versions (dev8 vs dev134) with different runtime
+      # patches (monolith vs _genesis plugin incl. P38). Sharing a cache
+      # causes prod-compiled graphs to be loaded in integration which
+      # INLINES the original `_continuation_prefill` (with torch.cat peak)
+      # instead of our P38 replacement → the rebind is bypassed.
+      - /home/sander/Genesis_Project/vllm_engine/compile-cache-integration:/root/.cache/vllm/torch_compile_cache
+      # ── Genesis-specific overlay ──
+      - ./vllm/_genesis:/usr/local/lib/python3.12/dist-packages/vllm/_genesis:ro
+      - ./genesis_vllm_plugin:/plugin:ro
+      # P39c — community-contributed MoE tuning config for exactly our
+      # (E=256, N=512, NVIDIA RTX A5000, FP8 W8A8, block [128,128]) shape.
+      # Source: vllm-project/vllm#40129 (closed without merge by upstream;
+      # maintainers declined consumer-card configs in-tree). Measured uplift
+      # in the PR body: +16% generation tok/s on this exact hardware+model.
+      # Bind-mount as a single-file overlay — vLLM picks it up from
+      # fused_moe/configs/ automatically at import time.
+      - ./vllm/_genesis/configs/moe_tuning/E=256,N=512,device_name=NVIDIA_RTX_A5000,dtype=fp8_w8a8,block_shape=[128,128].json:/usr/local/lib/python3.12/dist-packages/vllm/model_executor/layers/fused_moe/configs/E=256,N=512,device_name=NVIDIA_RTX_A5000,dtype=fp8_w8a8,block_shape=[128,128].json:ro
+
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+        limits:
+          memory: 64G  # PROD-MIRROR
+
+    shm_size: "8g"  # PROD-MIRROR
+
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        set -e
+        echo "=== Genesis v7.0-dev INTEGRATION container (PROD-MIRROR config) ==="
+        echo "Python: $(python3 --version)"
+        echo "vLLM: $(python3 -c 'import vllm; print(vllm.__version__)')"
+        echo "PyTorch: $(python3 -c 'import torch; print(torch.__version__)')"
+        echo "CUDA: $(python3 -c 'import torch; print(torch.version.cuda)')"
+        echo ""
+        echo "=== Install prod-equivalent runtime deps + Genesis plugin ==="
+        # PROD-MIRROR: pip install pandas scipy xxhash (prod does this)
+        pip install --quiet --disable-pip-version-check pandas scipy xxhash
+        # Genesis plugin (read-only mount → copy first)
+        cp -r /plugin /tmp/genesis_vllm_plugin
+        pip install --quiet --disable-pip-version-check --no-deps -e /tmp/genesis_vllm_plugin 2>&1 | tail -3
+        python3 -c "from importlib.metadata import entry_points; print('Registered plugins:', [(e.name, e.value) for e in entry_points(group='vllm.general_plugins')])"
+        echo ""
+        echo "=== Genesis platform check ==="
+        python3 -c "from vllm._genesis import __version__, __author__; print(f'Genesis {__version__} by {__author__}')"
+        echo ""
+        echo "=== Apply Genesis wiring (text-patches + rebinds, BEFORE vllm serve) ==="
+        # --verify-rebinds runs verify_live_rebinds() after apply_all and
+        # exits non-zero if any runtime rebind is not live in the apply_all
+        # process (note: the definitive rebind state is in workers, which
+        # apply via plugin auto-load; this is a pre-flight check).
+        python3 -m vllm._genesis.patches.apply_all --verify-rebinds
+        echo ""
+        echo "=== Start vLLM server (PROD-MIRROR args + 262144 max-model-len) ==="
+        # PROD-MIRROR command line — verbatim from prod compose, ONLY
+        # served-model-name suffix changed to disambiguate from prod.
+        exec vllm serve \
+          --model /models/Qwen3.6-35B-A3B-AWQ \
+          --tensor-parallel-size 2 \
+          --gpu-memory-utilization 0.92 \
+          --max-model-len 262144 \
+          --kv-cache-dtype turboquant_k8v4 \
+          --max-num-seqs 2 \
+          --max-num-batched-tokens 4096 \
+          --enable-chunked-prefill \
+          --enable-prefix-caching \
+          --dtype float16 \
+          --disable-custom-all-reduce \
+          --language-model-only \
+          --trust-remote-code \
+          --enable-auto-tool-choice \
+          --tool-call-parser qwen3_coder \
+          --reasoning-parser qwen3 \
+          --api-key genesis-local \
+          --served-model-name qwen3.6-35b-a3b-awq-integration \
+          --host 0.0.0.0 \
+          --async-scheduling \
+          --performance-mode interactivity \
+          --attention-config.flash_attn_version 2 \
+          --port 8000 \
+          --no-scheduler-reserve-full-isl \
+          --prefix-caching-hash-algo xxhash \
+          --disable-log-stats
+
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 15s
+      retries: 3
+      start_period: 600s  # PROD allows long; 35B + TQ + 262k can take 5-10 min cold
