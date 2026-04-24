@@ -630,6 +630,52 @@ def apply_patch_26_prefill_output() -> PatchResult:
     )
 
 
+@register_patch("P56 TQ spec-decode safe-path guard")
+def apply_patch_56_spec_decode_guard() -> PatchResult:
+    """Patch 56: Workaround for vllm-project/vllm#40831 — TurboQuant ×
+    spec-decode degenerate token loops.
+
+    TurboQuant attention backend declares `supports_spec_as_decode=False`
+    at `turboquant_attn.py:192` and lacks a varlen kernel analogous to
+    FlashAttention's. Spec-decode batches (q_len > 1) get routed through
+    a per-row synthetic-decode fast path that breaks GQA causal semantics
+    across draft tokens — symptom: degenerate output loops.
+
+    Tightens the fast-path entry condition from
+    `q_len <= _CONTINUATION_DECODE_THRESHOLD` to `q_len == 1`, forcing
+    spec-decode batches through `_continuation_prefill` (causal-correct
+    `flash_attn_varlen_func` path).
+
+    Status: opt-in (`GENESIS_ENABLE_P56_SPEC_DECODE_GUARD=1`).
+
+    Credit: bug surface @noonghunna (vllm-project/vllm#40807, #40831).
+    """
+    name = "P56 TQ spec-decode safe-path guard"
+    from vllm._genesis.guards import (
+        is_nvidia_cuda, is_sm_at_least, is_amd_rocm, is_cpu_only,
+    )
+    if not is_nvidia_cuda():
+        if is_amd_rocm():
+            return _skipped(name, "ROCm — TurboQuant not ported")
+        if is_cpu_only():
+            return _skipped(name, "CPU-only — no TurboQuant kernel")
+        return _skipped(name, "non-NVIDIA platform")
+    if not is_sm_at_least(8, 0):
+        return _skipped(name, "SM < 8.0")
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring import patch_56_spec_decode_decode_path_guard
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_56_spec_decode_decode_path_guard.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
 @register_patch("P44 TQ mixed-batch attn_out pool")
 def apply_patch_44_tq_mixed_attn_out() -> PatchResult:
     """Patch 44: Pool the mixed decode+prefill `attn_out` zeros.
