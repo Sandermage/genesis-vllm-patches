@@ -179,6 +179,14 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "credit": "Genesis-original (long-ctx tool adherence mitigation)",
         "upstream_pr": None,
     },
+    "P70": {
+        "title": "Auto-strict-ngram (force prompt_lookup_min>=8)",
+        "env_flag": "GENESIS_ENABLE_P70_AUTO_STRICT_NGRAM",
+        "default_on": False,
+        "category": "spec_decode",
+        "credit": "Genesis-original (vllm#40875 enforcement)",
+        "upstream_pr": None,
+    },
 }
 
 

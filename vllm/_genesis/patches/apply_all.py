@@ -1032,6 +1032,44 @@ def apply_patch_68_69_long_ctx_tool_adherence() -> PatchResult:
     return _failed(name, reason)
 
 
+@register_patch("P70 Auto-strict-ngram (force prompt_lookup_min>=8)")
+def apply_patch_70_auto_strict_ngram() -> PatchResult:
+    """Patch 70 (Genesis-original): auto-bump ngram prompt_lookup_min>=8.
+
+    Mirror of the empirical breakthrough from vllm#40875: at min<8 ngram
+    matches tool-schema fragments and produces degenerate tool-call output.
+    At min>=8 acceptance is matched-only and tool-call rate is 100% clean.
+
+    When env GENESIS_ENABLE_P70_AUTO_STRICT_NGRAM=1, hooks
+    SpeculativeConfig.__post_init__ to auto-bump prompt_lookup_min and
+    prompt_lookup_max to >=8 when method=="ngram" or "ngram_gpu".
+
+    Affects engine startup only (per-request override is not architecturally
+    possible — speculative_config is engine-level).
+
+    Tradeoff: higher min = stricter matching = lower acceptance rate but
+    higher correctness. Recommended ON for tool-call workloads, OFF for
+    pure plain-text workloads where speed matters more.
+
+    Status: opt-in via GENESIS_ENABLE_P70_AUTO_STRICT_NGRAM=1.
+
+    Credit: Genesis investigation 2026-04-25, vllm#40875.
+    """
+    name = "P70 Auto-strict-ngram (force prompt_lookup_min>=8)"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring import patch_70_auto_strict_ngram
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_70_auto_strict_ngram.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
 @register_patch("P59 Qwen3 reasoning embedded tool_call recovery")
 def apply_patch_59_qwen3_reasoning_tool_call_recovery() -> PatchResult:
     """Patch 59: Backport of upstream PR vllm#39055 (ZenoAFfectionate, OPEN).
