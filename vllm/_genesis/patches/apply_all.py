@@ -804,6 +804,234 @@ def apply_patch_60_gdn_ngram_state_recovery() -> PatchResult:
     return _failed(name, reason)
 
 
+@register_patch("P63 MTP/Eagle drafter GDN state recovery")
+def apply_patch_63_mtp_gdn_state_recovery() -> PatchResult:
+    """Patch 63 (Genesis-original): MTP/Eagle drafter forward GDN state recovery.
+
+    Bug class identified by Genesis investigation 2026-04-25 after @noonghunna's
+    Probe 9 showed P60+P60b close the ngram path but MTP n=3 still produces
+    empty tool calls. Root cause: Eagle/MTP drafter forward goes through
+    `build_for_drafting()` which defaults to `self.build()` WITHOUT
+    `num_accepted_tokens`, so P60's spec_decode_src_indices recovery never
+    fires for the drafter's GDN attention.
+
+    Fix: override GDN's `build_for_drafting` to read cached num_accepted from
+    the builder's own buffer (set by the spec branch of the most recent
+    main-step build) and pass it through to `build()`. Engages P60's recovery
+    logic for the drafter forward path.
+
+    DEPENDS ON P60 being applied. Without P60's `spec_decode_src_indices`
+    field + non-spec branch recovery logic, P63 is a no-op.
+
+    Status: opt-in via GENESIS_ENABLE_P63_MTP_GDN_STATE_RECOVERY=1.
+
+    Validation: requires MTP-enabled test rig (Sander's prod uses ngram, so
+    we cannot empirically verify on Genesis hardware). Designed for cross-rig
+    validation by @noonghunna's Probe 9 setup or upstream maintainers.
+
+    Credit:
+      - Bug class identified: Genesis investigation 2026-04-25
+      - Pattern adapted from: @tdoublep (vllm#40738) main-model fix
+      - Bug surface: @noonghunna Probe 9 (vllm#40831 thread, 2026-04-25)
+    """
+    name = "P63 MTP/Eagle drafter GDN state recovery"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring import patch_63_mtp_gdn_state_recovery
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_63_mtp_gdn_state_recovery.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch("P64 qwen3coder MTP streaming early-return fix")
+def apply_patch_64_qwen3coder_mtp_streaming() -> PatchResult:
+    """Patch 64: Backport of vllm-project/vllm#39598 (kotori-yan, OPEN).
+
+    Streaming-only MTP/spec-decode tool-call edge case:
+    - Pre-PR `extract_tool_calls_streaming` early-returns after emitting
+      parameter fragments. With MTP, a single delta can bundle the LAST
+      parameter value AND `</function>` together. The early return skips
+      the `</function>` block, leaving prev_tool_call_arr with stale `"{}"`
+      and streamed_args_for_tool without closing `}` → empty `tool_calls[]`
+      in final chunk.
+    - Plus `_should_check_for_unstreamed_tool_arg_tokens` safety-net was
+      gated on non-empty `delta_message.tool_calls` — bypassed when the
+      final delta carries no tool_calls but tool calls are still in flight.
+
+    Fix scope: streaming code path only. Non-streaming tool calls unaffected.
+
+    Status: opt-in via GENESIS_ENABLE_P64_QWEN3CODER_MTP_STREAMING=1.
+    Recommended for any setup using LibreChat / OpenWebUI / SSE clients
+    against MTP-enabled vLLM.
+
+    Credit:
+      - Upstream fix: @kotori-yan (vllm#39598).
+      - Bug class identified by Genesis MTP test cycle 2026-04-25.
+    """
+    name = "P64 qwen3coder MTP streaming early-return fix"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring import patch_64_qwen3coder_mtp_streaming
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_64_qwen3coder_mtp_streaming.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch("P65 TurboQuant spec-decode cudagraph downgrade")
+def apply_patch_65_turboquant_spec_cg_downgrade() -> PatchResult:
+    """Patch 65 (Genesis-original): TurboQuant cudagraph downgrade for spec-decode.
+
+    Root cause for noonghunna #40880 (MTP × TurboQuant × FULL cudagraph
+    degenerate output) — identified by Genesis investigation 2026-04-25.
+
+    `_prefill_attention` cudagraph capture bypass (and fast path) both pass
+    `cu_seqlens_k = query_start_loc`, treating continuation prefill batches
+    (q_len < seq_len) as first-chunk prefill. For MTP n=3 spec-verify batches
+    (4-token uniform), the captured kernel attends ONLY to the 4 query tokens
+    of current chunk, missing the entire ~290-token cached history. Drafter
+    runs without context, predictions collapse to high-bias tokens.
+
+    Workaround: downgrade TurboQuant `_cudagraph_support` from UNIFORM_BATCH
+    to UNIFORM_SINGLE_TOKEN_DECODE so spec-verify K+1 batches fall to eager
+    (correct per-request continuation branch). 1-token decode batches retain
+    cudagraph capture.
+
+    Cost: spec-verify batches lose cudagraph speedup. Net throughput should
+    land between cudagraph=ON broken (85 TPS) and cudagraph=NONE correct
+    (33 TPS). Correctness restored.
+
+    NOT a proper fix — proper fix needs upstream rework of _prefill_attention
+    bypass to handle TurboQuant cached KV under cudagraph capture.
+
+    Status: opt-in via GENESIS_ENABLE_P65_TURBOQUANT_SPEC_CG_DOWNGRADE=1.
+
+    Credit:
+      - Bug surface: @noonghunna (vllm#40880).
+      - Root cause analysis: Genesis investigation 2026-04-25.
+      - Web research lead: Wasif Basharat (Medium "Overnight Stack" article).
+    """
+    name = "P65 TurboQuant spec-decode cudagraph downgrade"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring import patch_65_turboquant_spec_cg_downgrade
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_65_turboquant_spec_cg_downgrade.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch("P66 cudagraph_capture_sizes spec-decode divisibility filter")
+def apply_patch_66_cudagraph_size_filter() -> PatchResult:
+    """Patch 66 (Genesis-original): cudagraph_capture_sizes divisibility filter.
+
+    Mirrors closed/stale upstream PR vllm-project/vllm#23679 + addresses bug
+    class identified in vllm-project/vllm#28015.
+
+    When `uniform_decode_query_len > 1` (e.g., MTP n=3 → q_len=4), capture
+    sizes NOT divisible by uniform_decode_query_len produce mixed-q_len
+    batches at capture time (e.g., size=10 → [4, 4, 2]). The tail request
+    with q_len=2 gets misclassified as PREFILL during capture, baking a
+    PREFILL branch into the captured "uniform decode" graph. At runtime,
+    real decode batches replay that wrong path → degenerate output OR
+    illegal memory access.
+
+    Filter: keep only capture sizes divisible by uniform_decode_query_len
+    when spec-decode is active. For non-spec-decode setups: no change
+    (filter is a no-op when uniform_q_len == 1).
+
+    Benefits:
+      - Boot 2-4x faster (fewer captures during warmup)
+      - Less peak GPU memory during capture (avoids OOM)
+      - No mixed-q_len batches → no prefill branches baked into uniform
+        decode captures
+      - Reduces blast radius for the bug class
+
+    Status: opt-in via GENESIS_ENABLE_P66_CUDAGRAPH_SIZE_FILTER=1.
+
+    Credit:
+      - Mirror of @fhl2000's PR #23679 (closed, stale, never merged)
+      - Bug class identified by @ConcurrentLanguage in #28015
+      - Brought to attention by Genesis investigation 2026-04-25
+        (noonghunna #40880 cross-engine search)
+    """
+    name = "P66 cudagraph_capture_sizes spec-decode divisibility filter"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring import patch_66_cudagraph_size_divisibility_filter
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_66_cudagraph_size_divisibility_filter.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch("P68/P69 long-context tool-call adherence")
+def apply_patch_68_69_long_ctx_tool_adherence() -> PatchResult:
+    """Bundle wiring for P68 + P69 long-context tool-call adherence.
+
+    Genesis-original — addresses model-behavior limitation where Qwen3-class
+    models lose <tool_call> format adherence at long context (>4K tokens)
+    with significant prefix content. Empirically observed:
+
+      prompt chars  | tool_call success
+      ─────────────────────────────────
+        0-12K       | 3/3 OK
+        16K+        | 0/3 FAIL (JSON-text, refusal, hallucination)
+
+    Plain text generation works at same context, so it's NOT engine bug —
+    it's structured-output adherence degradation (model-level "lost in
+    the middle" + format decay).
+
+    Two complementary mitigations injected at top of create_chat_completion:
+      P68: upgrade tool_choice "auto" -> "required" for long-ctx + tools
+      P69: append explicit format reminder to last user message
+
+    Both env-flag opt-in. No-op when disabled. Threshold configurable via
+    GENESIS_P68_P69_LONG_CTX_THRESHOLD_CHARS (default 8000 chars ~= 2K tok).
+
+    Status:
+      - GENESIS_ENABLE_P68_AUTO_FORCE_TOOL=1 to engage P68
+      - GENESIS_ENABLE_P69_LONG_CTX_TOOL_REMINDER=1 to engage P69
+      - Wiring applies if EITHER is enabled; both can be enabled together
+
+    Credit: Genesis investigation 2026-04-25, ladder test isolation.
+    """
+    name = "P68/P69 long-context tool-call adherence"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring import patch_68_69_long_ctx_tool_adherence
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_68_69_long_ctx_tool_adherence.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
 @register_patch("P59 Qwen3 reasoning embedded tool_call recovery")
 def apply_patch_59_qwen3_reasoning_tool_call_recovery() -> PatchResult:
     """Patch 59: Backport of upstream PR vllm#39055 (ZenoAFfectionate, OPEN).

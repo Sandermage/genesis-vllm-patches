@@ -19,6 +19,7 @@ We backport not-yet-merged upstream PRs as opt-in patches when they fix bugs tha
 | **P61** | [vllm#40783](https://github.com/vllm-project/vllm/pull/40783) (slice) | **ExtReMLapin** | Multi-tool first-occurrence in `extract_content_ids` — preserves all tool calls instead of dropping all but the last. |
 | **P61b** | [vllm#40783](https://github.com/vllm-project/vllm/pull/40783) (streaming slice) | **ExtReMLapin** | Defensive overlap guard preventing partial `<tool_call>` tag fragments leaking as reasoning during streaming. |
 | **P62** | [vllm#36138](https://github.com/vllm-project/vllm/pull/36138) | **sfbemerk** | Reasoning-aware grammar acceptance + spec-token validation. Fixes grammar bypass when `</think>` arrives within speculative-decode token batch. Original bug report by **cicirori** in [#34650](https://github.com/vllm-project/vllm/issues/34650). |
+| **P64** | [vllm#39598](https://github.com/vllm-project/vllm/pull/39598) | **kotori-yan** | Streaming tool-call early-return removal — fixes empty `tool_calls` when MTP/spec-decode bundles last parameter + `</function>` in single delta. Plus widens safety-net trigger condition. (v7.14, opt-in) |
 
 ## Upstream issues that informed our investigation
 
@@ -34,6 +35,13 @@ Our investigation of the spec-decode + tool-call bug class (Genesis v7.11/12/13)
 | [vllm#36138](https://github.com/vllm-project/vllm/pull/36138) | **sfbemerk** | Grammar bypass when reasoning ends in spec tokens. **Backported as P62 in v7.13.** |
 | [vllm#37150](https://github.com/vllm-project/vllm/issues/37150) | **HF-001 (kx)** | ngram + async-scheduling 1.22% acceptance rate report — informed our ngram_gpu Path B test. |
 | [vllm#39056](https://github.com/vllm-project/vllm/issues/39056) | **ZenoAFfectionate** | Companion issue for #39055; identified the qwen3_reasoning + qwen3_coder parser interaction class. |
+| [vllm#40880](https://github.com/vllm-project/vllm/issues/40880) | **noonghunna** | MTP × TurboQuant × FULL cudagraph degenerate output bug — exact reproducer + cross-rig confirmation that motivated v7.14 P65 root-cause investigation. |
+| [vllm#28015](https://github.com/vllm-project/vllm/issues/28015) | (vLLM contributor) | Identified the broader bug class: capture-size divisibility in uniform decode CUDA graphs producing unexpected prefill branches. Inspired our P66 backport approach. |
+| [vllm#23679](https://github.com/vllm-project/vllm/pull/23679) (closed/stale) | **fhl2000** | Proposed `cudagraph_capture_sizes` divisibility filter — never merged but provided the algorithmic blueprint we backported as P66. |
+| [vllm-ascend#7148](https://github.com/vllm-project/vllm-ascend/pull/7148) (merged) | (vLLM-ascend contributor) | Concrete fix for `num_tokens_padded % uniform_decode_query_len == 0` assertion failure; confirmed the Ascend backend hits the same class of bug. |
+| [vllm#38556](https://github.com/vllm-project/vllm/pull/38556) (merged) | **MatthewBonanni**, co-authored by **SandishKumarHN** | Stale `num_accepted_tokens_cpu` in hybrid models under async spec decode. Already in our pin via `757068dc6` — confirmed in our investigation. |
+| [Wasif Basharat — "An Overnight Stack for Qwen3.6-27B" (Medium, Apr 2026)](https://medium.com/@fzbcwvv/an-overnight-stack-for-qwen3-6-27b-85-tps-125k-context-vision-on-one-rtx-3090-0d95c6291914) | **Wasif Basharat** | Documented the `query_start_loc.tolist()` cudagraph capture crash in TurboQuant's continuation-prefill branch. Genesis loads `external_probe/patch_tolist_cudagraph.py` (which mirrors his `is_current_stream_capturing()` guard pattern) at boot. Source of inspiration for understanding the bypass design space. |
+| [Liu et al. 2023 — "Lost in the Middle"](https://arxiv.org/abs/2307.03172) | **Liu, Lin, Hewitt et al.** | Empirical evidence that LLMs lose attention to instructions buried in middle of long context — motivated our P69 reminder-injection approach. |
 
 ## Earlier upstream PRs we depend on (already merged)
 

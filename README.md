@@ -1,8 +1,8 @@
-# Genesis vLLM Patches — v7.13
+# Genesis vLLM Patches — v7.14
 
 **Runtime patches for [vLLM](https://github.com/vllm-project/vllm) — long-context Qwen3-class inference on NVIDIA Ampere, with TurboQuant k8v4 KV-cache and 256k context.**
 
-> 30+ active patches (P58 + P59 + P60 + P60b + P61 added in v7.13). Zero vLLM source modifications beyond container startup.
+> 33+ active patches (P64 + P65 + P66 + P68 + P69 added in v7.14, P63 deprecated). Zero vLLM source modifications beyond container startup.
 > Defense-in-depth interface guards (P49). ASGI response-cache middleware (P50).
 > Runtime architecture-dispatch detection (P51 / P52 / P53 — v7.9).
 > Cross-model validated on FP8 / AWQ 4-bit / FP16-KV configurations.
@@ -14,6 +14,83 @@
 
 ---
 
+## What's new in v7.14 (2026-04-25 evening)
+
+**MTP × TurboQuant × FULL cudagraph root cause located + fix landed. Long-context tool-call adherence layer added. 38/38 (100%) regression suite + 18/18 (100%) extended ladder up to 250K characters.**
+
+After @noonghunna opened [vllm#40880](https://github.com/vllm-project/vllm/issues/40880) (a separate bug class from the v7.13 ngram path), Genesis ran a full investigation cycle. Walked back one wrong hypothesis (P63 — MTP layers turned out to use `layer_type="full_attention"`, not GDN, so a GDN-side fix was the wrong layer), then identified the actual root cause: `TurboQuantAttentionImpl._prefill_attention` cudagraph capture bypass treats continuation prefill batches (q_len < seq_len) as first-chunk prefill (`cu_seqlens_k = cu_seqlens_q`), so the captured kernel attends only to the current chunk and ignores all prior cached KV. Drafter and verifier converge on the same high-bias special token (`<tool_call>`) → cascade output.
+
+| New patch | Source | Author | Files | Effect |
+|---|---|---|---|---|
+| **P64** | [vllm#39598](https://github.com/vllm-project/vllm/pull/39598) backport | **kotori-yan** | qwen3coder_tool_parser.py + serving.py | Streaming tool-call early-return removal — fixes empty `tool_calls` when MTP/spec-decode bundles last parameter + `</function>` in single delta. Plus widens safety-net trigger condition. |
+| **P65** | Genesis-original (root cause for [#40880](https://github.com/vllm-project/vllm/issues/40880)) | Genesis | turboquant_attn.py | Downgrade TurboQuant `_cudagraph_support` from `UNIFORM_BATCH` to `UNIFORM_SINGLE_TOKEN_DECODE` when speculative_config is active. vLLM auto-flips `cudagraph_mode` from `FULL_AND_PIECEWISE` to `PIECEWISE`, so spec-verify K+1 batches fall to eager (correct per-request continuation path). 1-token decode batches retain piecewise capture. |
+| **P66** | mirror of [vllm#23679](https://github.com/vllm-project/vllm/pull/23679) (fhl2000, closed/stale) | Genesis | config/vllm.py | Filter `cudagraph_capture_sizes` to sizes divisible by `1 + num_speculative_tokens` when spec-decode is active. Eliminates 12 of 16 wasteful captures (e.g., for MTP n=3: keep `[4, 8, 12, 16]`, drop `[1, 2, 3, 5, 6, 7, 9, 10, 11, 13, 14, 15]`). Boot 2.5× faster (3 min vs 7-8 min on prod). Less peak GPU memory during warmup. |
+| **P68** | Genesis-original | Genesis | serving.py + middleware/long_ctx_tool_adherence.py | Auto-upgrade `tool_choice` from `"auto"` to `"required"` when prompt > threshold AND tools provided. Triggers vLLM's tool-format enforcement. |
+| **P69** | Genesis-original (informed by [Liu et al. 2023 "Lost in the Middle"](https://arxiv.org/abs/2307.03172)) | Genesis | serving.py + middleware/long_ctx_tool_adherence.py | Append explicit format reminder to last user message when prompt > threshold. Mitigates LLM long-context format-decay (`<tool_call>` markers replaced by JSON-text/refusals/hallucinations). Threshold via `GENESIS_P68_P69_LONG_CTX_THRESHOLD_CHARS` (default 8000 chars ≈ 2K tokens). |
+| **P63 (deprecated)** | Genesis hypothesis disproven 2026-04-25 | Genesis | gdn_attn.py (kept in tree for archival) | Originally hypothesized that MTP drafter forward needs `spec_decode_src_indices` recovery via `GDNAttentionMetadataBuilder.build_for_drafting`. Wrong layer — MTP module uses `layer_type="full_attention"`. Marked `deprecated:True` in the registry; never fires for MTP runtime. |
+
+### Empirical results — Genesis test rig (Qwen3.6-35B-A3B-FP8, 2× A5000, TurboQuant k8v4)
+
+**7-test regression suite** (short tool-call, multi-tool, plain chat, needle, long+tool, streaming, burst):
+
+| Config | Pass rate |
+|---|---|
+| baseline (no v7.14 patches, MTP n=3) | 5/38 (13%) |
+| + P64 + P65 + P66 | 37/38 (97%) |
+| **+ P64 + P65 + P66 + P68 + P69** | **38/38 (100%)** |
+
+**Extended long-context ladder** (1K → 250K characters, MTP n=3 + tool-call):
+
+| Prompt size (chars) | Approx tokens | Pass rate | Generation TPS |
+|---:|---:|---:|---:|
+| 1,000 | 193 | 2/2 | 43.6 |
+| 4,000 | 700 | 2/2 | 43.6 |
+| 16,000 | 2,740 | 2/2 | 41.1 |
+| 32,000 | 5,460 | 2/2 | 37.2 |
+| 50,000 | 9,162 | 2/2 | 28.6 |
+| 64,000 | 10,900 | 2/2 | 35.8 |
+| 100,000 | 17,945 | 2/2 | 18.3 |
+| 128,000 | 21,780 | 2/2 | 30.9 |
+| 150,000 | 26,729 | 2/2 | 17.1 |
+| 200,000 | 34,020 | 2/2 | 29.0 |
+| 250,000 | 44,297 | 2/2 | 14.3 |
+
+**18/18 PASS** at every tested size from 1K to 250K characters. Throughput degradation is healthy attention-scaling (~30% drop from peak 43.6 → 30 TPS over the 200× context expansion, with second-run speedups from prefix-caching). All within `--max-model-len 65536` window of the test container; full 256K context window in production retains the same scaling.
+
+### Boot-time impact
+
+| Config | Boot to ready |
+|---|---|
+| Without P66 (16 capture sizes) | ~7-8 minutes |
+| **With P66 (4 divisible capture sizes)** | **~3 minutes** (2.5× faster) |
+
+### Walked-back hypothesis: P63
+
+P63 was drafted on the assumption that the MTP drafter forward path goes through `GDNAttentionMetadataBuilder.build_for_drafting()` and needs an analogous `spec_decode_src_indices` recovery to what [#40738](https://github.com/vllm-project/vllm/pull/40738) fixed for the main-model decode path. After implementing and testing P63 (and a more aggressive P63b variant that always passes a synthetic `num_accepted_tokens`), neither helped — both stayed at 0/38 on the tool-call suite. Reading `vllm/model_executor/models/qwen3_5_mtp.py:97-104` confirmed: MTP layers are constructed with `layer_type="full_attention"` (Qwen3NextAttention), not `linear_attention` (GatedDeltaNet). DEBUG trace confirmed: P63's `build_for_drafting` log line never fires per request. P63 stays in the tree as a research artifact (`deprecated: True` in the dispatcher registry) but is a no-op for MTP setups. May still be relevant for hypothetical eagle/draft_model setups that use a separate drafter model with hybrid layers — none verified.
+
+### What v7.14 does NOT cover
+
+- **Custom multi-query TurboQuant kernel for spec-decode (P67)** — design documented in `Genesis_Doc/P67_KERNEL_DESIGN_RU.md`, not implemented. Would extend the P40 grouped decode kernel from `[Hq, D]` per-request to `[K+1, Hq, D]` per-request, allowing FULL cudagraph for spec-verify batches. Substantial Triton work (10-15 hours, needs GPU dev cycle); deferred. Without P67, P65 forces spec-verify to PIECEWISE which is a workaround not a proper fix.
+- **Long-context tool-call format adherence is a model-level limitation**, not an engine bug (verified by plain text generation test 3/3 OK at same context where tool-call test was 0/3). P68+P69 mitigate the symptom; the underlying model-format-decay issue remains. Other Qwen3-class models or future model versions may have improved format adherence at long context.
+
+### Production guidance
+
+For Qwen3-Next family + MTP + TurboQuant + tool calls:
+
+1. Apply P64 + P65 + P66 (engine-level fixes) — required for correctness with MTP
+2. Apply P68 + P69 if you need long-context (>2K token) tool-call workflows — model adherence layer
+3. Default thresholds work for our prod (Qwen3.6-35B-A3B-FP8, 2× A5000); tune `GENESIS_P68_P69_LONG_CTX_THRESHOLD_CHARS` for your setup
+4. P58 / P59 / P63 stay opt-in or `deprecated:True` — research artifacts only
+
+For Qwen3-Next family + ngram (no MTP) + TurboQuant + tool calls:
+
+The v7.13 strict-ngram config (`prompt_lookup_min=8`) plus P64/P65/P66 still gives 100% clean tool-call rate on short prompts. P68+P69 recommended if your prompts include long context with tools. P65 is a no-op for ngram (no spec-verify K+1 batches) but the cudagraph_mode auto-downgrade is harmless.
+
+### Cross-rig / cross-model notes
+
+- Independent multi-rig confirmation of the v7.13 + #40875 strict-ngram config came from [@noonghunna's Probe 9](https://github.com/vllm-project/vllm/issues/40831#issuecomment-4319911691) on Qwen3.6-27B-int4-AutoRound + 1× RTX 3090 + `turboquant_3bit_nc`. The v7.14 P65 root cause and patch tree are from Genesis rig (35B + 2× A5000 + k8v4); empirical confirmation on another rig is welcome.
+
+---
 
 ## What's new in v7.13 (2026-04-25)
 

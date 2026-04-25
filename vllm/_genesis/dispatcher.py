@@ -122,6 +122,63 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "credit": "ExtReMLapin (vllm#40783)",
         "upstream_pr": 40783,
     },
+    "P63": {
+        "title": "MTP/Eagle drafter GDN state recovery (deprecated — wrong layer)",
+        "env_flag": "GENESIS_ENABLE_P63_MTP_GDN_STATE_RECOVERY",
+        "default_on": False,
+        "deprecated": True,
+        "category": "spec_decode",
+        "credit": "Genesis-original (hypothesis disproven 2026-04-25)",
+        "upstream_pr": None,
+        "deprecation_note": (
+            "P63 hypothesis was wrong: MTP module uses layer_type='full_attention' "
+            "(Qwen3NextAttention), NOT GDN. GDNAttentionMetadataBuilder.build_for_drafting "
+            "is never called for MTP drafter. Real fix is P65 (TurboQuant CG downgrade) — "
+            "the bug is in the full_attention path under FULL cudagraph capture, not GDN. "
+            "P63 may still be relevant for eagle/draft_model methods that use a separate "
+            "drafter model with hybrid layers, but no such configuration is verified yet."
+        ),
+    },
+    "P64": {
+        "title": "qwen3coder MTP streaming early-return fix",
+        "env_flag": "GENESIS_ENABLE_P64_QWEN3CODER_MTP_STREAMING",
+        "default_on": False,
+        "category": "structured_output",
+        "credit": "kotori-yan (vllm#39598)",
+        "upstream_pr": 39598,
+    },
+    "P65": {
+        "title": "TurboQuant spec-decode cudagraph downgrade",
+        "env_flag": "GENESIS_ENABLE_P65_TURBOQUANT_SPEC_CG_DOWNGRADE",
+        "default_on": False,
+        "category": "spec_decode",
+        "credit": "Genesis-original (root cause for noonghunna #40880)",
+        "upstream_pr": None,
+    },
+    "P66": {
+        "title": "cudagraph_capture_sizes spec-decode divisibility filter",
+        "env_flag": "GENESIS_ENABLE_P66_CUDAGRAPH_SIZE_FILTER",
+        "default_on": False,
+        "category": "spec_decode",
+        "credit": "Genesis-original (mirrors fhl2000 vllm#23679 closed)",
+        "upstream_pr": 23679,
+    },
+    "P68": {
+        "title": "Auto force tool_choice=required for long-context tool calls",
+        "env_flag": "GENESIS_ENABLE_P68_AUTO_FORCE_TOOL",
+        "default_on": False,
+        "category": "structured_output",
+        "credit": "Genesis-original (long-ctx tool adherence mitigation)",
+        "upstream_pr": None,
+    },
+    "P69": {
+        "title": "Long-context tool-format reminder injection",
+        "env_flag": "GENESIS_ENABLE_P69_LONG_CTX_TOOL_REMINDER",
+        "default_on": False,
+        "category": "structured_output",
+        "credit": "Genesis-original (long-ctx tool adherence mitigation)",
+        "upstream_pr": None,
+    },
 }
 
 
