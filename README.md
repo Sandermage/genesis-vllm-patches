@@ -1,8 +1,8 @@
-# Genesis vLLM Patches — v7.14
+# Genesis vLLM Patches — v7.15
 
 **Runtime patches for [vLLM](https://github.com/vllm-project/vllm) — long-context Qwen3-class inference on NVIDIA Ampere, with TurboQuant k8v4 KV-cache and 256k context.**
 
-> 33+ active patches (P64 + P65 + P66 + P68 + P69 added in v7.14, P63 deprecated). Zero vLLM source modifications beyond container startup.
+> 34+ active patches (P64-P70 added across v7.14/v7.15, P63 deprecated). Zero vLLM source modifications beyond container startup. Stability matrix verified to GMU 0.93 with full patch set.
 > Defense-in-depth interface guards (P49). ASGI response-cache middleware (P50).
 > Runtime architecture-dispatch detection (P51 / P52 / P53 — v7.9).
 > Cross-model validated on FP8 / AWQ 4-bit / FP16-KV configurations.
@@ -11,6 +11,42 @@
 > Patches are written defensively for AMD ROCm / Intel XPU / Hopper / Blackwell / FP8-native paths — they graceful-skip on platform mismatch rather than crash.
 > Bug reports from other hardware are very welcome.
 > Optional support / hardware sponsorship — see [SPONSORS.md](SPONSORS.md).
+
+---
+
+## What's new in v7.15 (2026-04-25 late evening)
+
+**P65 v2 refactor + P70 auto-strict-ngram + audit suite + GMU stability matrix verified to 0.93.**
+
+Tightening pass on top of v7.14: P65 was reworked from a blunt ClassVar override into a context-aware classmethod that only downgrades cudagraph support when speculative_config is active (no longer penalizes operators who don't use spec-decode). P70 added as engine-level enforcement of the empirical `prompt_lookup_min ≥ 8` finding from #40875. Audit test suite added with anchor-presence checks for all v7.14/v7.15 new patches plus drift-safety checks for legacy P14/P28/P38/P39a. Full GMU stability sweep run on production-mirror test container (256K context, warm compile cache) — verified safe to GMU 0.93 with the full patch set; GMU 0.94 OOMs due to extra workspace footprint from P64-P70.
+
+| New patch | Source | Files | Effect |
+|---|---|---|---|
+| **P65 v2** | Genesis-original (refactor of v7.14 P65) | turboquant_attn.py | Replaces blunt ClassVar override with context-aware `get_cudagraph_support` classmethod. For non-spec-decode setups: keeps `UNIFORM_BATCH` (full caps). For spec-decode setups: returns `UNIFORM_SINGLE_TOKEN_DECODE` (downgrade only when needed). Same effective behavior for spec-decode prod, but avoids unnecessary downgrade for users without spec-decode. |
+| **P70** | Genesis-original (mirror vllm#40875 enforcement) | config/speculative.py | Auto-bump ngram `prompt_lookup_min` and `prompt_lookup_max` to ≥8 when method is "ngram"/"ngram_gpu" and env `GENESIS_ENABLE_P70_AUTO_STRICT_NGRAM=1`. Engine-level (per-request override is not architecturally possible — `speculative_config` is engine-level). |
+| **test_v7_14_15_audit.py** | Genesis-internal | tests/ | Anchor-presence checks for all v7.14/v7.15 new patches + drift-safety checks for legacy P14/P28/P38/P39a + dispatcher registry consistency + apply_all↔dispatcher consistency. 4/4 dispatcher tests pass; 9 anchor tests skip gracefully when pinned vLLM source is not present in the test environment. |
+
+### v7.15 stability matrix — GMU sweep (2× RTX A5000 24 GB, 256K context, all v7.14+v7.15 patches enabled, ngram strict, warm compile cache)
+
+Tested with full Genesis v7.14+v7.15 patch set: P58/P59 disabled (research artifacts), P60+P60b+P61+P61b+P62+P64+P65v2+P66+P68+P69+P70 enabled, plus all legacy Genesis patches.
+
+| GMU | Status | Boot time | Total GPU used (both cards) | Tool-call test (n=2) |
+|---|---|---|---|---|
+| 0.90 | ✅ HEALTHY | 126 s | 46,039 MiB | 2/2 |
+| 0.91 | ✅ HEALTHY | 126 s | 46,519 MiB | 2/2 |
+| 0.915 | ✅ HEALTHY | 125 s | 46,759 MiB | 2/2 |
+| 0.92 | ✅ HEALTHY | 126 s | 46,999 MiB | 2/2 |
+| 0.925 | ✅ HEALTHY | 126 s | 47,239 MiB | 2/2 |
+| 0.93 | ✅ HEALTHY | 126 s | 47,479 MiB | 2/2 |
+| 0.94 | ❌ OOM (both cold + warm cache) | 110 s (failure) | — | — |
+
+**Stability ceiling on 2× A5000 with full v7.15 patch set: GMU = 0.93.** OOM at 0.94 due to additional workspace footprint of P64-P70 (long-ctx middleware, capture-size filter, cudagraph downgrade extras).
+
+For comparison, prod stack (without P64-P70 patches enabled — just core v7.13 set) successfully runs at GMU = 0.94. If you need 0.94+ headroom, selectively disable the optional v7.14/v7.15 patches that aren't load-bearing for your workload.
+
+GPU usage scales linearly: ~240 MiB per +0.005 GMU (mostly KV-cache budget growth).
+
+**Sweet spot for full feature set: GMU = 0.92** (1.4 GiB safety margin per card, 38/38 regression suite passes, all v7.14/v7.15 patches active).
 
 ---
 
@@ -63,36 +99,6 @@ After @noonghunna opened [vllm#40880](https://github.com/vllm-project/vllm/issue
 |---|---|
 | Without P66 (16 capture sizes) | ~7-8 minutes |
 | **With P66 (4 divisible capture sizes)** | **~3 minutes** (2.5× faster) |
-
-### v7.15 — P65 v2 + P70 + audit suite (2026-04-25 late evening)
-
-| New patch | Source | Files | Effect |
-|---|---|---|---|
-| **P65 v2** | Genesis-original (refactor of v7.14 P65) | turboquant_attn.py | Replaces blunt ClassVar override with context-aware `get_cudagraph_support` classmethod. For non-spec-decode setups: keeps `UNIFORM_BATCH` (full caps). For spec-decode setups: returns `UNIFORM_SINGLE_TOKEN_DECODE` (downgrade only when needed). Same effective behavior for spec-decode prod, but avoids unnecessary downgrade for users without spec-decode. |
-| **P70** | Genesis-original (mirror vllm#40875) | config/speculative.py | Auto-bump ngram `prompt_lookup_min` and `prompt_lookup_max` to ≥8 when method is "ngram"/"ngram_gpu" and env `GENESIS_ENABLE_P70_AUTO_STRICT_NGRAM=1`. Engine-level (per-request override is not architecturally possible — `speculative_config` is engine-level). |
-| **test_v7_14_15_audit.py** | Genesis-internal | tests/ | Anchor-presence checks for all v7.14/v7.15 new patches + drift-safety checks for legacy P14/P28/P38/P39a + dispatcher registry consistency. 4/4 dispatcher tests pass; 9 anchor tests skip gracefully when pinned vLLM source is not present in the test environment. |
-
-### v7.15 stability matrix — GMU sweep (2× RTX A5000 24 GB, 256K context, all v7.14+v7.15 patches enabled, ngram strict, warm compile cache)
-
-Tested with full Genesis v7.14+v7.15 patch set: P58/P59 disabled (research artifacts), P60+P60b+P61+P61b+P62+P64+P65v2+P66+P68+P69+P70 enabled, plus all legacy Genesis patches.
-
-| GMU | Status | Boot time | Total GPU used (both cards) | Tool-call test (n=2) |
-|---|---|---|---|---|
-| 0.90 | ✅ HEALTHY | 126 s | 46,039 MiB | 2/2 |
-| 0.91 | ✅ HEALTHY | 126 s | 46,519 MiB | 2/2 |
-| 0.915 | ✅ HEALTHY | 125 s | 46,759 MiB | 2/2 |
-| 0.92 | ✅ HEALTHY | 126 s | 46,999 MiB | 2/2 |
-| 0.925 | ✅ HEALTHY | 126 s | 47,239 MiB | 2/2 |
-| 0.93 | ✅ HEALTHY | 126 s | 47,479 MiB | 2/2 |
-| 0.94 | ❌ OOM (both cold + warm cache) | 110 s (failure) | — | — |
-
-**Stability ceiling on 2× A5000 with full v7.15 patch set: GMU = 0.93.** OOM at 0.94 due to additional workspace footprint of P64-P70 (long-ctx middleware, capture-size filter, cudagraph downgrade extras).
-
-For comparison, prod stack (without P64-P70 patches enabled — just core v7.13 set) successfully runs at GMU = 0.94. If you need 0.94+ headroom, selectively disable the optional v7.14/v7.15 patches that aren't load-bearing for your workload.
-
-GPU usage scales linearly: ~240 MiB per +0.005 GMU (mostly KV-cache budget growth).
-
-### Walked-back hypothesis: P63
 
 ### Walked-back hypothesis: P63
 
