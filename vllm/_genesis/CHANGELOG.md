@@ -1,5 +1,48 @@
 # Genesis `_genesis/` Package Changelog
 
+## v7.11.0 — 2026-04-25 (spec-decode workaround + diagnostic tooling)
+
+**Investigation + opt-in workaround for [vllm-project/vllm#40831](https://github.com/vllm-project/vllm/issues/40831)** — TurboQuant × any speculative decoding (MTP or ngram) produces degenerate token loops on structured outputs.
+
+### Added
+
+- **P56 — TQ spec-decode safe-path guard** (`wiring/patch_56_spec_decode_decode_path_guard.py`):
+  - Opt-in via `GENESIS_ENABLE_P56_SPEC_DECODE_GUARD=1` (off by default)
+  - 5-line text-patch on `turboquant_attn.py` tightens `_prefill_attention` continuation fast-path entry from `q_len ≤ _CONTINUATION_DECODE_THRESHOLD` to `q_len == 1`
+  - Spec-decode batches (q_len > 1) now route through `_continuation_prefill`'s `flash_attn_varlen_func(causal=True)` — causal-correct
+  - Closes Layer 1 (catastrophic XML/JSON loops); Layer 2 (token duplication, e.g. `for for`, `age age`, `parameter parameter`) remains and is upstream's territory
+  - Registered in `apply_all.py` between P26 and P44
+
+- `scripts/sequential_backend_probe.py` — 9-prompt diagnostic probe set covering smoke / narrative / tool calls (no-thinking + thinking) / JSON / needle short+medium / code / structured XML. `run` subcommand fires the set against any vLLM endpoint and writes JSONL; `diff` subcommand compares two such logs side-by-side with degenerate-pattern detection.
+
+- `scripts/dual_backend_diagnostic_proxy.py` — FastAPI proxy on :9000 forwarding each request to two backends concurrently. Captures both responses byte-for-byte, computes structural diff, detects degenerate patterns. Useful when concurrent backends fit (we currently fall back to sequential probing because TP=2 saturates our 2× A5000).
+
+### Verified on Genesis pin `fe9c3d6c5`
+
+- 2× RTX A5000 (Ampere SM 8.6), TP=2
+- Qwen3-Next-35B-A3B-FP8 (MoE hybrid), `kv_cache_dtype=turboquant_k8v4`
+- ngram spec-decode `n=3` (chosen so result doesn't depend on MTP draft head)
+- Reproduced #40831 catastrophically without P56 (`tool_calls=[]`, content=`<parameter=parameter=unit>...</parameter>×16+`)
+- With P56: `tool_calls` populated, narrative coherent, no infinite loops
+- Layer 2 token-duplication probed via 9-prompt diff against prod baseline; documented in upstream comment
+
+### Upstream interactions (this release)
+
+- [#40807 issuecomment-4316663581](https://github.com/vllm-project/vllm/issues/40807#issuecomment-4316663581) — pointed at P44+P23 as fix direction for the CUDA graph crash (noonghunna's first bug)
+- [#40124 issuecomment-4316828133](https://github.com/vllm-project/vllm/issues/40124#issuecomment-4316828133) — replied to noonghunna's heads-up; promised the test we then ran
+- [#40831 issuecomment-4317214311](https://github.com/vllm-project/vllm/issues/40831#issuecomment-4317214311) — full Layer 1 root cause + P56 workaround + Layer 2 finding
+
+### Files touched
+
+- `vllm/_genesis/wiring/patch_56_spec_decode_decode_path_guard.py` (new, ~165 lines)
+- `vllm/_genesis/patches/apply_all.py` (+46 lines for P56 registration)
+- `scripts/sequential_backend_probe.py` (new, ~225 lines)
+- `scripts/dual_backend_diagnostic_proxy.py` (new, ~265 lines)
+- `README.md` — v7.11 What's-new section, P56 in opt-in roster, upstream tracking with issuecomment IDs, scripts/ in architecture
+- `vllm/_genesis/CHANGELOG.md` — this entry
+
+---
+
 ## v7.9.0 — 2026-04-24 (runtime architecture-dispatch detection)
 
 **Defense-in-depth layer 2: detect which patches need to fire before work begins.**

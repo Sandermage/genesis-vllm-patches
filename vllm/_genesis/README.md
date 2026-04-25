@@ -1,6 +1,9 @@
 # Genesis — `vllm/_genesis/` package
 
-**Modular drop-in architecture for Genesis vLLM patches — v7.0 transition.**
+**Modular drop-in architecture for Genesis vLLM patches — v7.0 → v7.11 (current).**
+
+> Current release: v7.11 (28 default + 5 opt-in patches incl. P56 spec-decode workaround).
+> Full feature changelog: [CHANGELOG.md](CHANGELOG.md). User-facing setup: [../QUICKSTART.md](../QUICKSTART.md).
 
 Replaces monolithic `patch_genesis_unified.py` (v5.14.1) with a clean package structure that:
 - Works on NVIDIA CUDA / AMD ROCm / Intel XPU / CPU with graceful skip (philosophy: **МЫ ЧИНИМ, НЕ ЛОМАЕМ**)

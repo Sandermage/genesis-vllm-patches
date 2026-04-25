@@ -214,6 +214,38 @@ Genesis patches reduce memory footprint significantly, but you can still hit OOM
 
 Edit the value in your compose file's `command:` section.
 
+## Optional: spec-decode mode (v7.11, opt-in workaround for #40831)
+
+If you want to try **speculative decoding with TurboQuant**, there is a known upstream interaction bug ([#40831](https://github.com/vllm-project/vllm/issues/40831)) that causes degenerate token loops. We ship `P56` as a partial workaround.
+
+- Test compose: `docker-compose.spec-decode-test.yml` (ngram n=3, port 8000)
+- Enable P56 via env: `GENESIS_ENABLE_P56_SPEC_DECODE_GUARD=1`
+- After boot, look for `[INFO genesis.apply_all] [Genesis] applied: P56 ... — spec-decode fast-path guard wired`
+
+**What P56 closes**: catastrophic XML/JSON loops, restored `tool_calls[]` population.
+**What P56 does NOT close**: token-level duplication (`for for`, `age age`, `parameter parameter`) — that's deeper architectural and needs upstream fix. Full analysis: [#40831 comment](https://github.com/vllm-project/vllm/issues/40831#issuecomment-4317214311).
+
+For investigating spec-decode regressions yourself, two diagnostic scripts:
+
+```bash
+# Run a 9-prompt probe against the live backend, write JSONL
+python3 scripts/sequential_backend_probe.py run \
+    --host http://localhost:8000 --api-key genesis-local \
+    --model qwen3.6-35b-a3b --label baseline --out /tmp/baseline.jsonl
+
+# Switch backend, run same probes against the second one
+python3 scripts/sequential_backend_probe.py run \
+    --host http://localhost:8000 --api-key genesis-local \
+    --model qwen3.6-35b-a3b-specdec --label specdec --out /tmp/specdec.jsonl
+
+# Diff side-by-side — surfaces token duplication, missing tool_calls, etc.
+python3 scripts/sequential_backend_probe.py diff /tmp/baseline.jsonl /tmp/specdec.jsonl
+```
+
+If you have GPU headroom for two concurrent backends on different ports, see also `scripts/dual_backend_diagnostic_proxy.py` for fan-out + diff in one call.
+
+---
+
 ## Where to go next
 
 | Topic | Where |

@@ -1,10 +1,11 @@
-# Genesis vLLM Patches — v7.10
+# Genesis vLLM Patches — v7.10 (+ v7.11 P56 spec-decode workaround)
 
 **Runtime patches for [vLLM](https://github.com/vllm-project/vllm) — long-context Qwen3-class inference on NVIDIA Ampere, with TurboQuant k8v4 KV-cache and 256k+ context.**
 
 > **28 active patches. 5 configurations validated. 258,528 tokens proven end-to-end.**
 > Defense-in-depth interface guards (P49). ASGI response-cache middleware (P50).
 > Runtime architecture-dispatch detection (P51 / P52 / P53).
+> Spec-decode safe-path guard (P56 — opt-in workaround for [vllm#40831](https://github.com/vllm-project/vllm/issues/40831)).
 > Cross-model validated on FP8 / AWQ 4-bit / FP16-KV / dense configurations.
 >
 > ⚠️ **Test matrix is 2× RTX A5000 (Ampere SM 8.6) + NVIDIA drivers 570+.**
@@ -38,6 +39,30 @@ This is the **exact vLLM build** against which every v7.10 patch is validated. I
 
 Raw results: [benchmarks/v7_10_validation_20260424/](benchmarks/v7_10_validation_20260424/)
 Master summary: [benchmarks/v7_10_validation_20260424/MASTER_SUMMARY.md](benchmarks/v7_10_validation_20260424/MASTER_SUMMARY.md)
+
+---
+
+## What's new in v7.11 (2026-04-25) — spec-decode workaround + diagnostic tooling
+
+**Investigation + workaround for [vllm-project/vllm#40831](https://github.com/vllm-project/vllm/issues/40831)** — TurboQuant × any speculative decoding (MTP or ngram) produces degenerate token loops on structured outputs (tool calls, recall, streaming).
+
+**Layer 1 root cause**: `turboquant_attn.py:192` declares `_init_reorder_batch_threshold(1, supports_spec_as_decode=False)`. Spec-decode batches (q_len > 1) are routed into `_prefill_attention`'s synthetic-decode fast path (lines 622-646) where the per-row online softmax breaks GQA causal coupling between draft positions → catastrophic XML/JSON loops on structured outputs.
+
+**P56 — TQ spec-decode safe-path guard** (opt-in via `GENESIS_ENABLE_P56_SPEC_DECODE_GUARD=1`):
+- 5-line text-patch tightens fast-path entry from `q_len ≤ _CONTINUATION_DECODE_THRESHOLD` to `q_len == 1`
+- Spec-decode batches now fall through to `_continuation_prefill`'s `flash_attn_varlen_func(causal=True)` — causal-correct
+- **Closes the catastrophic Layer 1**: `tool_calls[]` populated again, narrative output coherent, no `<tool_call><tool_call>` infinite loops
+
+**Layer 2 (still open)**: independent diff probing surfaced **token-level duplication** that P56 does not close — `for for`, `age age`, `parameter parameter` patterns. Appears to be acceptance-criterion × TQ quant noise interaction (not routing). Hypothesis + analysis posted upstream as [#40831 comment](https://github.com/vllm-project/vllm/issues/40831#issuecomment-4317214311) for the right hands to pick up.
+
+**New diagnostic scripts** (reusable for future regression hunts):
+- [`scripts/sequential_backend_probe.py`](scripts/sequential_backend_probe.py) — 9-prompt probe set + `diff` subcommand for side-by-side comparison of two backends
+- [`scripts/dual_backend_diagnostic_proxy.py`](scripts/dual_backend_diagnostic_proxy.py) — FastAPI proxy on :9000 that fans each request to two backends concurrently, captures diff + degenerate-pattern detection
+
+**Upstream interactions**:
+- Issue [#40807](https://github.com/vllm-project/vllm/issues/40807#issuecomment-4316663581) — pointed at our P44+P23 as fix direction for the CUDA graph crash
+- Issue [#40124](https://github.com/vllm-project/vllm/issues/40124#issuecomment-4316828133) — replied to noonghunna's heads-up; promised the test we then ran
+- Issue [#40831](https://github.com/vllm-project/vllm/issues/40831#issuecomment-4317214311) — full Layer 1 root cause + P56 workaround + Layer 2 finding
 
 ---
 
@@ -214,6 +239,7 @@ On a dense (non-MoE / non-hybrid) model boot you'll additionally see P52/P53 dis
 | P7b | `GENESIS_ENABLE_P7B=1` | GDN dual-stream custom-op (+8% decode on hybrid) |
 | P40 | `GENESIS_ENABLE_P40=1` | TurboQuant grouped-decode (watch upstream #40792) |
 | P41 | `GENESIS_ENABLE_P41=1` | ResponseCache + P50 middleware (needs a backend) |
+| **P56** | `GENESIS_ENABLE_P56_SPEC_DECODE_GUARD=1` | **TQ spec-decode safe-path guard — partial workaround for [#40831](https://github.com/vllm-project/vllm/issues/40831). Closes catastrophic loops; subtle token duplication remains, see Layer 2 in the upstream comment** |
 
 ### Retired / shelved
 
@@ -278,8 +304,8 @@ Compat-verified against our pinned SHA `fe9c3d6c5` (2026-04-25).
 | PR / Issue | Status | Our verdict | Compat with our pin |
 |---|---|---|---|
 | [#40124 — TurboQuant + Hybrid MoE broken on Ampere (13 patches)](https://github.com/vllm-project/vllm/issues/40124) | OPEN (our own filing, Sander) | PR [#40384](https://github.com/vllm-project/vllm/pull/40384) already extracts our Patch 9 with `Co-authored-by: Sandermage` by @jhsmith409 | — |
-| [#40807 — TQ+spec-decode capture crash](https://github.com/vllm-project/vllm/issues/40807) | OPEN issue | **We are the fix** (our P44 + P23). Reporter (@noonghunna) namechecks our Patch 23 and runs our patches in production | — |
-| [#40831 — TurboQuant × spec-decode degenerate loops](https://github.com/vllm-project/vllm/issues/40831) | OPEN issue | **Outside our patch scope** (backend math, not wiring). We don't use spec-decode in prod so we weren't hit. @noonghunna did the isolation matrix on single-3090 Qwen3.6-27B. Happy to run confirming probe on 2× A5000 + Qwen3-Next-35B-A3B if useful | — |
+| [#40807 — TQ+spec-decode capture crash](https://github.com/vllm-project/vllm/issues/40807) | OPEN issue | **We are the fix** (our P44 + P23). Reporter (@noonghunna) namechecks our Patch 23 and runs our patches in production. [Comment posted](https://github.com/vllm-project/vllm/issues/40807#issuecomment-4316663581) | — |
+| [#40831 — TurboQuant × spec-decode degenerate loops](https://github.com/vllm-project/vllm/issues/40831) | OPEN issue | **Layer 1 root cause located + workaround P56**. **Layer 2 (token duplication) remains** — outside our scope (acceptance × quant noise). [Full analysis posted](https://github.com/vllm-project/vllm/issues/40831#issuecomment-4317214311) | partial fix shipped as opt-in P56 |
 | [#40792 — TQ k8v4 GQA head grouping](https://github.com/vllm-project/vllm/pull/40792) | OPEN PR | Supersedes our P40 functionally (+16.5-27.2% in their bench) | ✅ **backport-clean** — target file unchanged between our SHA and PR base |
 | [#40798 — TQ scratch workspace sharing](https://github.com/vllm-project/vllm/pull/40798) | OPEN PR | Supersedes our P36 (×3.4 KV capacity in their bench) | ✅ **backport workable** — `WorkspaceManager.get_simultaneous()` already present in our pin |
 | [#40794 — MoE unpad routed output](https://github.com/vllm-project/vllm/pull/40794) | **MERGED 2026-04-24** | Post-merge; MoE smoke shows no drift on Qwen3-Next-35B-A3B | — |
@@ -347,8 +373,15 @@ vllm/_genesis/
 │   ├── patch_38_tq_continuation_memory.py
 │   ├── patch_39_fla_kkt_buffer.py   (P53 gated)
 │   ├── patch_46_gdn_gating_buffers.py  (P53 gated)
+│   ├── patch_56_spec_decode_decode_path_guard.py  (v7.11 — opt-in)
 │   └── ...
 └── tests/                    pytest TDD suite
+
+scripts/                      Operator + diagnostic tooling
+├── run_validation_suite.sh   Universal per-model validation runner
+├── compile_results.py        Aggregate per-model JSONL → MASTER_SUMMARY.md
+├── sequential_backend_probe.py  9-prompt probe + diff (v7.11)
+└── dual_backend_diagnostic_proxy.py  FastAPI :9000 dual-backend proxy (v7.11)
 ```
 
 ---
