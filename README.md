@@ -64,6 +64,36 @@ After @noonghunna opened [vllm#40880](https://github.com/vllm-project/vllm/issue
 | Without P66 (16 capture sizes) | ~7-8 minutes |
 | **With P66 (4 divisible capture sizes)** | **~3 minutes** (2.5× faster) |
 
+### v7.15 — P65 v2 + P70 + audit suite (2026-04-25 late evening)
+
+| New patch | Source | Files | Effect |
+|---|---|---|---|
+| **P65 v2** | Genesis-original (refactor of v7.14 P65) | turboquant_attn.py | Replaces blunt ClassVar override with context-aware `get_cudagraph_support` classmethod. For non-spec-decode setups: keeps `UNIFORM_BATCH` (full caps). For spec-decode setups: returns `UNIFORM_SINGLE_TOKEN_DECODE` (downgrade only when needed). Same effective behavior for spec-decode prod, but avoids unnecessary downgrade for users without spec-decode. |
+| **P70** | Genesis-original (mirror vllm#40875) | config/speculative.py | Auto-bump ngram `prompt_lookup_min` and `prompt_lookup_max` to ≥8 when method is "ngram"/"ngram_gpu" and env `GENESIS_ENABLE_P70_AUTO_STRICT_NGRAM=1`. Engine-level (per-request override is not architecturally possible — `speculative_config` is engine-level). |
+| **test_v7_14_15_audit.py** | Genesis-internal | tests/ | Anchor-presence checks for all v7.14/v7.15 new patches + drift-safety checks for legacy P14/P28/P38/P39a + dispatcher registry consistency. 4/4 dispatcher tests pass; 9 anchor tests skip gracefully when pinned vLLM source is not present in the test environment. |
+
+### v7.15 stability matrix — GMU sweep (2× RTX A5000 24 GB, 256K context, all v7.14+v7.15 patches enabled, ngram strict, warm compile cache)
+
+Tested with full Genesis v7.14+v7.15 patch set: P58/P59 disabled (research artifacts), P60+P60b+P61+P61b+P62+P64+P65v2+P66+P68+P69+P70 enabled, plus all legacy Genesis patches.
+
+| GMU | Status | Boot time | Total GPU used (both cards) | Tool-call test (n=2) |
+|---|---|---|---|---|
+| 0.90 | ✅ HEALTHY | 126 s | 46,039 MiB | 2/2 |
+| 0.91 | ✅ HEALTHY | 126 s | 46,519 MiB | 2/2 |
+| 0.915 | ✅ HEALTHY | 125 s | 46,759 MiB | 2/2 |
+| 0.92 | ✅ HEALTHY | 126 s | 46,999 MiB | 2/2 |
+| 0.925 | ✅ HEALTHY | 126 s | 47,239 MiB | 2/2 |
+| 0.93 | ✅ HEALTHY | 126 s | 47,479 MiB | 2/2 |
+| 0.94 | ❌ OOM (both cold + warm cache) | 110 s (failure) | — | — |
+
+**Stability ceiling on 2× A5000 with full v7.15 patch set: GMU = 0.93.** OOM at 0.94 due to additional workspace footprint of P64-P70 (long-ctx middleware, capture-size filter, cudagraph downgrade extras).
+
+For comparison, prod stack (without P64-P70 patches enabled — just core v7.13 set) successfully runs at GMU = 0.94. If you need 0.94+ headroom, selectively disable the optional v7.14/v7.15 patches that aren't load-bearing for your workload.
+
+GPU usage scales linearly: ~240 MiB per +0.005 GMU (mostly KV-cache budget growth).
+
+### Walked-back hypothesis: P63
+
 ### Walked-back hypothesis: P63
 
 P63 was drafted on the assumption that the MTP drafter forward path goes through `GDNAttentionMetadataBuilder.build_for_drafting()` and needs an analogous `spec_decode_src_indices` recovery to what [#40738](https://github.com/vllm-project/vllm/pull/40738) fixed for the main-model decode path. After implementing and testing P63 (and a more aggressive P63b variant that always passes a synthetic `num_accepted_tokens`), neither helped — both stayed at 0/38 on the tool-call suite. Reading `vllm/model_executor/models/qwen3_5_mtp.py:97-104` confirmed: MTP layers are constructed with `layer_type="full_attention"` (Qwen3NextAttention), not `linear_attention` (GatedDeltaNet). DEBUG trace confirmed: P63's `build_for_drafting` log line never fires per request. P63 stays in the tree as a research artifact (`deprecated: True` in the dispatcher registry) but is a no-op for MTP setups. May still be relevant for hypothetical eagle/draft_model setups that use a separate drafter model with hybrid layers — none verified.
