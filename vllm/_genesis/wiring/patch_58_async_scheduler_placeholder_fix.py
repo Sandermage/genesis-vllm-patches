@@ -428,16 +428,11 @@ def apply() -> tuple[str, str]:
     or the file is missing we abort the WHOLE patch group (we do not want a
     half-patched scheduler).
     """
-    if not _is_enabled():
-        return (
-            "skipped",
-            "opt-in only — set GENESIS_ENABLE_P58_ASYNC_PLACEHOLDER_FIX=1 to "
-            "engage. Backport of vllm-project/vllm#40768. Root cause fix for "
-            "async-scheduler -1 placeholder leakage that drives #40831 / #40807 "
-            "/ #40756 / #37159. Touches request.py + async_scheduler.py + "
-            "scheduler.py. Idempotent + anchor-safe + auto-no-op once #40768 "
-            "lands upstream.",
-        )
+    from vllm._genesis.dispatcher import should_apply, log_decision
+    decision, reason = should_apply("P58")
+    log_decision("P58", decision, reason)
+    if not decision:
+        return "skipped", reason
 
     if vllm_install_root() is None:
         return "skipped", "vllm install root not discoverable"

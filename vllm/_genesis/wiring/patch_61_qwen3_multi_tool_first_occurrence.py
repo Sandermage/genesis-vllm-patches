@@ -103,14 +103,11 @@ def _make_patcher() -> TextPatcher | None:
 
 
 def apply() -> tuple[str, str]:
-    if not _is_enabled():
-        return (
-            "skipped",
-            "opt-in only — set GENESIS_ENABLE_P61_QWEN3_MULTI_TOOL=1 to engage. "
-            "Backport of vllm-project/vllm#40783 (ExtReMLapin) — minimal slice "
-            "fixing multi-tool first-occurrence in qwen3_coder parser. Streaming "
-            "changes from #40783 deferred (anchor conflict risk with P12/P27/P59).",
-        )
+    from vllm._genesis.dispatcher import should_apply, log_decision
+    decision, reason = should_apply("P61")
+    log_decision("P61", decision, reason)
+    if not decision:
+        return "skipped", reason
 
     if vllm_install_root() is None:
         return "skipped", "vllm install root not discoverable"

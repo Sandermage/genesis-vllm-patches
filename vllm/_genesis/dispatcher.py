@@ -54,6 +54,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "title": "TQ spec-decode safe-path guard",
         "env_flag": "GENESIS_ENABLE_P56_SPEC_DECODE_GUARD",
         "default_on": False,
+        "deprecated": True,
         "category": "spec_decode",
         "credit": "noonghunna (#40807, #40831)",
     },
@@ -61,6 +62,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "title": "TQ spec-decode capture-safe buffers",
         "env_flag": "GENESIS_ENABLE_P57_SPEC_DECODE_CAPTURE_SAFE",
         "default_on": False,
+        "deprecated": True,
         "category": "spec_decode",
         "credit": "noonghunna (#40831), gdn_attn.py reference",
     },
@@ -175,6 +177,11 @@ def should_apply(patch_id: str) -> tuple[bool, str]:
 
     # Env flag unset/falsy
     if not meta.get("default_on", False):
+        if meta.get("deprecated", False):
+            return False, (
+                f"opt-in only AND empirically deprecated — "
+                f"keeping skip; set {env_flag}=1 only for diagnostics"
+            )
         return False, f"opt-in only — set {env_flag}=1 to engage"
 
     # default_on=True patches still consult config_detect

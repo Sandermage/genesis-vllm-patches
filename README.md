@@ -75,6 +75,24 @@ Setting `prompt_lookup_min=8` requires ngram to find an 8-token suffix match —
 
 This is the working production configuration as of v7.13.
 
+#### Independent multi-rig confirmation + scope notes (post-deploy 2026-04-25)
+
+After we deployed v7.13 + opened upstream bug report [vllm#40875](https://github.com/vllm-project/vllm/issues/40875), @noonghunna independently re-tested the v7.13 patch tree on a different rig + different model family member: **Qwen3.6-27B dense hybrid (Lorbus int4-AutoRound) on 1× RTX 3090 with `turboquant_3bit_nc` KV**. Detailed Probe 9 results in [vllm#40831 thread](https://github.com/vllm-project/vllm/issues/40831). Net findings:
+
+| Spec method (with v7.13 backports + cudagraph ON) | Status |
+|---|---|
+| ngram + `prompt_lookup_min=8` | ✓ all 7 tests clean (independent confirmation of #40875) |
+| MTP n=3 | ✗ tool calls still empty + first-token truncation at 10K — **separate bug class not covered by v7.13** |
+
+So v7.13 cleanly closes the **ngram path** for Qwen3-Next family models when `prompt_lookup_min=8` is set. The **MTP path** remains an open bug class and will be tracked in a separate upstream issue (to be opened by the contributor with the active reproducer rig).
+
+#### Memory footprint note (when adopting v7.13)
+
+Genesis v7.13 added several pre-allocation patches (P28 GDN core_attn_out + P38 TQ continuation_prefill workspace + P39a FLA persistent A pool, primarily) which expand the steady-state workspace footprint. Pre-v7.13 setups using `gpu_memory_utilization=0.95+` may need to **drop GMU by 1-2 percentage points** to leave room for the new workspaces — otherwise long-context sessions (≥10K tokens) can hit OOM in the KV budget that previously fit.
+
+Specific tuning numbers depend on `max_num_seqs × num_speculative_tokens × layer_count`; we have not benchmarked exact values yet. If you hit OOM after upgrading to v7.13, dropping GMU from 0.97 → 0.94-0.95 is a safe first cut.
+
+
 
 ### Genesis Dispatcher v2
 

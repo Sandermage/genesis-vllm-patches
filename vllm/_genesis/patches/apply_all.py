@@ -1801,6 +1801,16 @@ def run(verbose: bool = True, apply: bool = False) -> PatchStats:
             log.exception("[Genesis] EXCEPTION in %s", patch_name)
 
     log.info("Genesis %s", stats)
+
+    # [Genesis v7.13] Emit Dispatcher v2 apply matrix as a single readable
+    # block. Only matters for patches that route through dispatcher.should_apply
+    # (P56-P62 currently); other patches get only the per-line INFO above.
+    try:
+        from vllm._genesis.dispatcher import log_apply_matrix
+        log_apply_matrix()
+    except Exception as e:
+        log.debug("[Genesis] dispatcher matrix dump failed (non-fatal): %s", e)
+
     return stats
 
 

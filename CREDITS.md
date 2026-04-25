@@ -78,6 +78,9 @@ All design decisions and patch acceptance are gated on empirical reproducer test
 
 ## Acknowledgements
 
+**Independent multi-rig confirmation of v7.13 + #40875** (post-deploy):
+@noonghunna ran our v7.13 patch tree + strict ngram config on a different rig (1× RTX 3090) with a different model family member (Qwen3.6-27B dense hybrid, int4-AutoRound, `turboquant_3bit_nc` KV) and confirmed the `prompt_lookup_min=8` config-only fix from [vllm#40875](https://github.com/vllm-project/vllm/issues/40875) works cross-rig cross-model. The same Probe 9 also identified that **MTP × TurboQuant × cudagraph** is a separate bug class that v7.13 does not cover — that finding will inform a future fix attempt and a follow-up upstream issue (to be opened from the rig where the bug actively reproduces). Without this independent re-test, the report would have remained single-rig observation rather than confirmed bug class.
+
 Special thanks to:
 
 - The **vLLM core team** ([@WoosukKwon](https://github.com/WoosukKwon), [@zhuohan123](https://github.com/zhuohan123), [@bnellnm](https://github.com/bnellnm), [@youkaichao](https://github.com/youkaichao), [@LucasWilkinson](https://github.com/LucasWilkinson), [@njhill](https://github.com/njhill), [@mgoin](https://github.com/mgoin), [@simon-mo](https://github.com/simon-mo), and many others) for building and maintaining vLLM.

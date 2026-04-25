@@ -143,16 +143,11 @@ def _make_patcher() -> TextPatcher | None:
 
 
 def apply() -> tuple[str, str]:
-    if not _is_enabled():
-        return (
-            "skipped",
-            "opt-in only — set GENESIS_ENABLE_P61B_STREAMING_OVERLAP=1 to "
-            "engage. Backport slice of vllm-project/vllm#40783 (ExtReMLapin) "
-            "— defensive overlap guard against partial <tool_call> tag "
-            "fragments leaking as reasoning. For Qwen3 with proper special "
-            "tokens this is a no-op; useful for streaming with non-Qwen "
-            "tokenizers or edge cases.",
-        )
+    from vllm._genesis.dispatcher import should_apply, log_decision
+    decision, reason = should_apply("P61b")
+    log_decision("P61b", decision, reason)
+    if not decision:
+        return "skipped", reason
 
     if vllm_install_root() is None:
         return "skipped", "vllm install root not discoverable"

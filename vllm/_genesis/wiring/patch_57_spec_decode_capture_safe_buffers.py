@@ -252,20 +252,17 @@ def _check_memory_acceptability() -> tuple[bool, str]:
 def apply() -> tuple[str, str]:
     """Apply P57 v2 wiring. Never raises.
 
-    v7.12 universal-config integration: consults `config_detect`
-    if available; otherwise applies based on env flag alone.
+    v7.13: routes through the unified `dispatcher.should_apply("P57")`
+    gate (Dispatcher v2). P57 is marked `deprecated=True` in the registry
+    because the empirical workaround for #40831 is `prompt_lookup_min=8`
+    (config-only); the buffer-expansion fix here remains as a research
+    artifact for operators who want to test it via env override.
     """
-    if not _is_enabled():
-        return (
-            "skipped",
-            "opt-in only — set GENESIS_ENABLE_P57_SPEC_DECODE_CAPTURE_SAFE=1 "
-            "to engage. Targeted fix for vllm-project/vllm#40831 TurboQuant × "
-            "spec-decode token corruption: expand per-layer decode scratch "
-            "buffers by (1 + num_speculative_tokens) so the captured cudagraph "
-            "base buffer is large enough to be sliced for both plain decode "
-            "and spec-decode multi-token verify without pointer drift. "
-            "Memory cost: linear in num_spec; warn-on-large-max_num_seqs.",
-        )
+    from vllm._genesis.dispatcher import should_apply, log_decision
+    decision, reason = should_apply("P57")
+    log_decision("P57", decision, reason)
+    if not decision:
+        return "skipped", reason
 
     if vllm_install_root() is None:
         return "skipped", "vllm install root not discoverable"

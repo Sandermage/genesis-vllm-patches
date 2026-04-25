@@ -380,15 +380,11 @@ def _make_scheduler_patcher() -> TextPatcher | None:
 
 
 def apply() -> tuple[str, str]:
-    if not _is_enabled():
-        return (
-            "skipped",
-            "opt-in only — set GENESIS_ENABLE_P62_STRUCT_OUT_SPEC_TIMING=1 to "
-            "engage. Backport of vllm-project/vllm#36138 (sfbemerk). Fixes "
-            "grammar bypass when </think> arrives within speculative-decode "
-            "token batch — likely closes residual 30-50% broken tool-call "
-            "output that P60+P60b+P61 doesn't fully fix.",
-        )
+    from vllm._genesis.dispatcher import should_apply, log_decision
+    decision, reason = should_apply("P62")
+    log_decision("P62", decision, reason)
+    if not decision:
+        return "skipped", reason
 
     if vllm_install_root() is None:
         return "skipped", "vllm install root not discoverable"

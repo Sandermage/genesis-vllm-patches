@@ -380,16 +380,11 @@ def _make_gmr_patcher() -> TextPatcher | None:
 
 def apply() -> tuple[str, str]:
     """Apply P60 Phase 1 (Python-only) backport. All-or-nothing."""
-    if not _is_enabled():
-        return (
-            "skipped",
-            "opt-in only — set GENESIS_ENABLE_P60_GDN_NGRAM_FIX=1 to engage. "
-            "Backport of vllm-project/vllm#40738 (Thomas Parnell). Top "
-            "candidate root cause for #40831 / our degenerate output bug after "
-            "P58/P59 disproven. Python-only Phase 1 (3 files: gdn_attn.py + "
-            "gdn_linear_attn.py + gpu_model_runner.py). Triton kernel patch "
-            "(causal_conv1d.py) deferred to Phase 2 if Phase 1 insufficient.",
-        )
+    from vllm._genesis.dispatcher import should_apply, log_decision
+    decision, reason = should_apply("P60")
+    log_decision("P60", decision, reason)
+    if not decision:
+        return "skipped", reason
 
     if vllm_install_root() is None:
         return "skipped", "vllm install root not discoverable"

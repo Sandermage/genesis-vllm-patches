@@ -334,15 +334,11 @@ def apply() -> tuple[str, str]:
     All-or-nothing: if any required anchor drifts, abort the whole group.
     Idempotent + auto-no-op once #39055 lands upstream.
     """
-    if not _is_enabled():
-        return (
-            "skipped",
-            "opt-in only — set GENESIS_ENABLE_P59_QWEN3_TOOL_RECOVERY=1 to "
-            "engage. Backport of vllm-project/vllm#39055. Empirical candidate "
-            "for #40831 / our degenerate-output bug after P58 disproven. "
-            "Promotes tool_call XML out of <think> reasoning into content so "
-            "qwen3_coder tool parser can find it.",
-        )
+    from vllm._genesis.dispatcher import should_apply, log_decision
+    decision, reason = should_apply("P59")
+    log_decision("P59", decision, reason)
+    if not decision:
+        return "skipped", reason
 
     if vllm_install_root() is None:
         return "skipped", "vllm install root not discoverable"

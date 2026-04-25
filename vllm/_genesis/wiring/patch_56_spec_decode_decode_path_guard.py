@@ -157,24 +157,16 @@ def apply() -> tuple[str, str]:
     routing. Use `--compilation-config '{"cudagraph_mode":"NONE"}'`
     instead. P56 stays in the tree as research artifact.
 
-    v7.12: consults `config_detect.should_apply("P56")` first.
+    v7.13: routes the env+config decision through the unified
+    `dispatcher.should_apply("P56")` gate (Dispatcher v2). The previous
+    config_detect.should_apply() probe + local _is_enabled() pair is now
+    folded into one call so the apply matrix can record a single verdict.
     """
-    try:
-        from vllm._genesis import config_detect
-        ok, reason = config_detect.should_apply("P56")
-        if not ok:
-            return "skipped", reason
-    except Exception as e:
-        log.debug("[P56] config_detect probe failed (proceeding): %s", e)
-
-    if not _is_enabled():
-        return (
-            "skipped",
-            "opt-in only — set GENESIS_ENABLE_P56_SPEC_DECODE_GUARD=1 to engage. "
-            "Note: empirically deprecated 2026-04-25; routing fix does not "
-            "address #40831 root cause (CUDA graph capture corruption). "
-            "Use cudagraph_mode=NONE workaround instead.",
-        )
+    from vllm._genesis.dispatcher import should_apply, log_decision
+    decision, reason = should_apply("P56")
+    log_decision("P56", decision, reason)
+    if not decision:
+        return "skipped", reason
 
     if vllm_install_root() is None:
         return "skipped", "vllm install root not discoverable"

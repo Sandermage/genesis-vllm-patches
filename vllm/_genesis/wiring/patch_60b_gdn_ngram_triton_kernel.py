@@ -336,15 +336,11 @@ def _clear_triton_cache() -> tuple[bool, str]:
 
 def apply() -> tuple[str, str]:
     """Apply P60b (Phase 2) Triton kernel patch + gdn caller passthrough."""
-    if not _is_enabled():
-        return (
-            "skipped",
-            "opt-in only — set GENESIS_ENABLE_P60B_TRITON_KERNEL=1 to engage. "
-            "Phase 2 of vllm-project/vllm#40738 backport. Adds Triton kernel "
-            "offset arithmetic for conv state read/write under spec-decode. "
-            "Required for full correctness alongside P60 Phase 1 (SSM "
-            "pre-copy). Combined target: 95%+ clean tool-call output.",
-        )
+    from vllm._genesis.dispatcher import should_apply, log_decision
+    decision, reason = should_apply("P60b")
+    log_decision("P60b", decision, reason)
+    if not decision:
+        return "skipped", reason
 
     if vllm_install_root() is None:
         return "skipped", "vllm install root not discoverable"
