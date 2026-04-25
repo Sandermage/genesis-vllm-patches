@@ -155,7 +155,20 @@ def _is_enabled() -> bool:
 
 
 def apply() -> tuple[str, str]:
-    """Apply P37 wiring. Never raises."""
+    """Apply P37 wiring. Never raises.
+
+    v7.12: consults `config_detect.should_apply("P37")` first.
+    Skipped automatically if `max_num_seqs < 8` (MoE pool benefit
+    marginal at low concurrency).
+    """
+    try:
+        from vllm._genesis import config_detect
+        ok, reason = config_detect.should_apply("P37")
+        if not ok:
+            return "skipped", reason
+    except Exception:
+        pass  # config_detect optional; fall through to legacy logic
+
     # Always run warm_up so the manager's `should_apply` cache is populated
     # even when the text-patch is disabled — this keeps the manager API
     # usable for operators who pre-acquire buffers manually.

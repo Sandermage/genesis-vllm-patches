@@ -187,7 +187,21 @@ def _make_patcher() -> TextPatcher | None:
 
 
 def apply() -> tuple[str, str]:
-    """Apply P36 wiring. Never raises."""
+    """Apply P36 wiring. Never raises.
+
+    v7.12: consults `config_detect.should_apply("P36")` first.
+    Skipped automatically if upstream PR #40798 active OR if
+    `max_num_seqs < 8` (memory benefit marginal).
+    Override via `GENESIS_FORCE_APPLY_P36=1`.
+    """
+    try:
+        from vllm._genesis import config_detect
+        ok, reason = config_detect.should_apply("P36")
+        if not ok:
+            return "skipped", reason
+    except Exception as e:
+        log.debug("[P36] config_detect probe failed (proceeding): %s", e)
+
     if vllm_install_root() is None:
         return "skipped", "vllm install root not discoverable"
 

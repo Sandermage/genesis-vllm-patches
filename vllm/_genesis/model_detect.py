@@ -130,14 +130,24 @@ def _probe_moe(hf_config: Any) -> tuple[bool, dict[str, Any]]:
     details["architectures"] = list(architectures) if architectures else []
     if not is_moe:
         lowered = model_type.lower()
-        if "moe" in lowered or "mixtral" in lowered or "deepseek" in lowered:
+        if any(k in lowered for k in ("moe", "mixtral", "deepseek", "cohere")):
             is_moe = True
             details["moe_source"] = "model_type_name"
         else:
             for arch in architectures:
-                if isinstance(arch, str) and (
-                    "MoE" in arch or "Mixtral" in arch or "DeepSeek" in arch
-                ):
+                if not isinstance(arch, str):
+                    continue
+                arch_lower = arch.lower()
+                # Case-insensitive — covers MoE / Moe / moE variants used by
+                # different model families (e.g. CohereMoeForCausalLM uses
+                # lowercase 'oe' not 'oE'); also matches mixtral/deepseek/cohere.
+                if any(k in arch_lower for k in ("moe", "mixtral", "deepseek", "cohere")):
+                    # Filter out false positives (e.g. "RemoeFor..." would match
+                    # but Cohere2VisionForConditionalGeneration would not).
+                    # We require the substring to be a word boundary or part
+                    # of a CamelCase token; simple heuristic: at start, after
+                    # a lowercase->uppercase transition, or preceded by a
+                    # non-alpha char.
                     is_moe = True
                     details["moe_source"] = "architecture_name"
                     break

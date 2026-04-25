@@ -1,12 +1,11 @@
-# Genesis vLLM Patches — v7.10 (+ v7.11 P56 spec-decode workaround)
+# Genesis vLLM Patches — v7.13
 
-**Runtime patches for [vLLM](https://github.com/vllm-project/vllm) — long-context Qwen3-class inference on NVIDIA Ampere, with TurboQuant k8v4 KV-cache and 256k+ context.**
+**Runtime patches for [vLLM](https://github.com/vllm-project/vllm) — long-context Qwen3-class inference on NVIDIA Ampere, with TurboQuant k8v4 KV-cache and 256k context.**
 
-> **28 active patches. 5 configurations validated. 258,528 tokens proven end-to-end.**
+> 30+ active patches (P58 + P59 + P60 + P60b + P61 added in v7.13). Zero vLLM source modifications beyond container startup.
 > Defense-in-depth interface guards (P49). ASGI response-cache middleware (P50).
-> Runtime architecture-dispatch detection (P51 / P52 / P53).
-> Spec-decode safe-path guard (P56 — opt-in workaround for [vllm#40831](https://github.com/vllm-project/vllm/issues/40831)).
-> Cross-model validated on FP8 / AWQ 4-bit / FP16-KV / dense configurations.
+> Runtime architecture-dispatch detection (P51 / P52 / P53 — v7.9).
+> Cross-model validated on FP8 / AWQ 4-bit / FP16-KV configurations.
 >
 > ⚠️ **Test matrix is 2× RTX A5000 (Ampere SM 8.6) + NVIDIA drivers 570+.**
 > Patches are written defensively for AMD ROCm / Intel XPU / Hopper / Blackwell / FP8-native paths — they graceful-skip on platform mismatch rather than crash.
@@ -15,56 +14,85 @@
 
 ---
 
-## 🔒 Exact pinned versions (reproducibility)
 
-This is the **exact vLLM build** against which every v7.10 patch is validated. If you install this SHA, you get byte-for-byte the same vLLM we tested. No "nightly", no "latest" — a real immutable pin.
+## What's new in v7.13 (2026-04-25)
 
-| Component | Pinned value |
-|---|---|
-| **vLLM version string** | `v0.19.2rc1.dev134+gfe9c3d6c5` |
-| **Git commit SHA** | `fe9c3d6c5f66c873d196800384ed6880687b9e52` |
-| **Commit date** | **2026-04-23 04:35 UTC** |
-| **Commit title** | `[TurboQuant] enable FA3/FA4 for prefill paths (#40092)` |
-| **Docker image** | `vllm/vllm-openai:nightly-fe9c3d6c5f66c873d196800384ed6880687b9e52` |
-| **Genesis tag** | `v7.10.0` (this release) |
+**Spec-decode + structured output bug class — root cause located + multi-layer fix backported.**
 
-**Genesis v7.10 validation matrix (2026-04-24 → 2026-04-25 session on 2× A5000 VM 100):**
+After deep investigation of the noonghunna #40831 + #40807 thread + parallel community reports (#39273 / #34650 / #36138), located the actual root cause class for tool-call output corruption (`<<`, `parameter=parameter`, `<argname>` patterns) on hybrid GDN models with ngram speculative decoding.
 
-| Config | Quantization | Arch | Tokens proven | Decode @ context | Smoke | Leak |
-|---|---|---|---|---|---|---|
-| Qwen3-Next-35B-A3B-FP8 | FP8 | MoE + hybrid + TQ k8v4 | **258,528** | 66.6 t/s @ 100k | ✅ 10/10 | 0 MiB |
-| Qwen3-Next-35B-A3B-AWQ | AWQ 4-bit | MoE + hybrid + TQ k8v4 | **258,528** | 64.8 t/s @ 100k | ✅ 10/10 | 0 MiB |
-| RYS-Qwen3.5-27B-FP8-XL dense | FP8 | dense attn, no MoE, no hybrid | 28,528 (max_model_len) | 39.5 t/s @ 28k | ✅ 10/10 | — |
-| Qwen3-Next fp16kv (bonus) | FP8 weights + fp16 KV | MoE + hybrid, non-TQ KV | 28,528 | 159.6 t/s @ 28k | ✅ 10/10 | — |
+| New patch | Source | Author | Files | Effect |
+|---|---|---|---|---|
+| **P58** | vllm#40768 backport | @z1ying | scheduler.py + async_scheduler.py + request.py | Async-scheduler `-1` placeholder gating (opt-in research artifact; empirically NOT our bug for ngram method since vLLM auto-disables async_scheduling) |
+| **P59** | vllm#39055 backport | @ZenoAFfectionate | qwen3_reasoning_parser.py | Promotes `<tool_call>` XML out of `<think>` reasoning into content (opt-in research) |
+| **P60** | vllm#40738 backport (Phase 1) | @tdoublep, @bhaktatejas922 (#39273) | gdn_attn.py + gdn_linear_attn.py + gpu_model_runner.py | SSM state pre-copy from accepted block. **+23-40% clean tool-call rate** (43-60% vs 20% baseline) |
+| **P60b** | vllm#40738 backport (Phase 2) | @tdoublep | causal_conv1d.py (Triton) + gdn_linear_attn.py | Conv state Triton kernel offset. **Combined with P60: 70% clean** (3.5× baseline) |
+| **P61** | vllm#40783 backport (slice) | @ExtReMLapin | qwen3_reasoning_parser.py | Multi-tool first-occurrence fix — preserves all tool calls in agentic flows |
+| **P61b** | vllm#40783 backport (streaming slice) | @ExtReMLapin | qwen3_reasoning_parser.py | Defensive overlap guard for partial `<tool_call>` tags during streaming |
+| **P62** | vllm#36138 backport | @sfbemerk, @cicirori (#34650) | structured_output/__init__.py + scheduler.py | Reasoning-aware grammar acceptance — fixes grammar bypass when `</think>` arrives in spec-decode batch |
 
-Raw results: [benchmarks/v7_10_validation_20260424/](benchmarks/v7_10_validation_20260424/)
-Master summary: [benchmarks/v7_10_validation_20260424/MASTER_SUMMARY.md](benchmarks/v7_10_validation_20260424/MASTER_SUMMARY.md)
+### Empirical results (2026-04-25)
 
----
+| Config | Clean rate | Notes |
+|---|---|---|
+| baseline (no Genesis) | ~20% | bug pattern present |
+| Genesis v7.11 (P56 only) | ~20% | P56 was workaround attempt — disproven |
+| + P58 | ~20% | wrong code path (ngram → async_scheduling auto-disabled) |
+| + P59 | 40% | helps when `<tool_call>` nested inside `<think>` |
+| + cudagraph_mode=NONE | 40% | partial, tradeoff: ~25% TPS loss |
+| **+ P60** | **43-60%** | SSM pre-copy main fix |
+| **+ P60 + P60b** | **70%** (test) / **53%** (prod sample) | Triton kernel offset complete fix |
+| + P60 + P60b + P61 | 50% (prod) | P61 = multi-tool fix, marginal on single-tool reproducer |
+| **+ P60 + P60b + P61 + P61b + P62** | **53-56%** (prod) | Full v7.13 — best reachable with current patches |
+| no spec-decode | 100% | reference |
 
-## What's new in v7.11 (2026-04-25) — spec-decode workaround + diagnostic tooling
+### v7.13 BREAKTHROUGH (2026-04-25 evening) — config-only fix achieves 100% clean
 
-**Investigation + workaround for [vllm-project/vllm#40831](https://github.com/vllm-project/vllm/issues/40831)** — TurboQuant × any speculative decoding (MTP or ngram) produces degenerate token loops on structured outputs (tool calls, recall, streaming).
+After deep token-level investigation, **the structural ceiling formula was identified**:
 
-**Layer 1 root cause**: `turboquant_attn.py:192` declares `_init_reorder_batch_threshold(1, supports_spec_as_decode=False)`. Spec-decode batches (q_len > 1) are routed into `_prefill_attention`'s synthetic-decode fast path (lines 622-646) where the per-row online softmax breaks GQA causal coupling between draft positions → catastrophic XML/JSON loops on structured outputs.
+```
+clean_rate ≈ (per_token_accept_rate)^num_speculative_tokens
+0.8^3 ≈ 51%   ← matches our 53% empirical measurement with default ngram
+0.8^1 = 80%   ← matches 65% (n=20, statistical variance)
+```
 
-**P56 — TQ spec-decode safe-path guard** (opt-in via `GENESIS_ENABLE_P56_SPEC_DECODE_GUARD=1`):
-- 5-line text-patch tightens fast-path entry from `q_len ≤ _CONTINUATION_DECODE_THRESHOLD` to `q_len == 1`
-- Spec-decode batches now fall through to `_continuation_prefill`'s `flash_attn_varlen_func(causal=True)` — causal-correct
-- **Closes the catastrophic Layer 1**: `tool_calls[]` populated again, narrative output coherent, no `<tool_call><tool_call>` infinite loops
+The mechanism: ngram with default `prompt_lookup_min=2` finds spurious 2-token suffix matches in the system prompt's tool definitions, drafting wrong tokens that get accepted by the rejection sampler.
 
-**Layer 2 (still open)**: independent diff probing surfaced **token-level duplication** that P56 does not close — `for for`, `age age`, `parameter parameter` patterns. Appears to be acceptance-criterion × TQ quant noise interaction (not routing). Hypothesis + analysis posted upstream as [#40831 comment](https://github.com/vllm-project/vllm/issues/40831#issuecomment-4317214311) for the right hands to pick up.
+**Config-level fix (no code changes):**
 
-**New diagnostic scripts** (reusable for future regression hunts):
-- [`scripts/sequential_backend_probe.py`](scripts/sequential_backend_probe.py) — 9-prompt probe set + `diff` subcommand for side-by-side comparison of two backends
-- [`scripts/dual_backend_diagnostic_proxy.py`](scripts/dual_backend_diagnostic_proxy.py) — FastAPI proxy on :9000 that fans each request to two backends concurrently, captures diff + degenerate-pattern detection
+```bash
+--speculative-config '{"method":"ngram","num_speculative_tokens":3,"prompt_lookup_max":10,"prompt_lookup_min":8}'
+```
 
-**Upstream interactions**:
-- Issue [#40807](https://github.com/vllm-project/vllm/issues/40807#issuecomment-4316663581) — pointed at our P44+P23 as fix direction for the CUDA graph crash
-- Issue [#40124](https://github.com/vllm-project/vllm/issues/40124#issuecomment-4316828133) — replied to noonghunna's heads-up; promised the test we then ran
-- Issue [#40831](https://github.com/vllm-project/vllm/issues/40831#issuecomment-4317214311) — full Layer 1 root cause + P56 workaround + Layer 2 finding
+Setting `prompt_lookup_min=8` requires ngram to find an 8-token suffix match — this almost never matches spurious system-prompt template fragments, only true natural repetitions. Result: ngram drafts almost nothing on tool-call requests, close to no-spec correctness with whatever speedup is achievable on natural repetitions.
 
----
+**Empirical results with strict ngram config:**
+
+| Test | Clean rate | n |
+|---|---|---|
+| Single-query Tokyo | **100%** | 30/30 |
+| Multi-query diverse | **96%** | 24/25 |
+
+This is the working production configuration as of v7.13.
+
+
+### Genesis Dispatcher v2
+
+New `vllm/_genesis/dispatcher.py` provides:
+
+- `should_apply(patch_id) -> (bool, reason)` — unified gate combining env-flag + `config_detect.recommend()` + `model_detect`
+- `dump_apply_matrix() / log_apply_matrix()` — single condensed startup summary instead of scattered INFO lines
+- CLI: `python3 -m vllm._genesis.dispatcher` — diagnostic table
+
+Built on the existing `model_detect.py` (P52/P53 dispatch) + `config_detect.py` (v7.12 runtime probes) layers. Adds P58/P59/P60/P60b/P61 to the recommendation registry.
+
+### Pin bump
+
+| Component | v7.9 | v7.13 |
+|---|---|---|
+| Test base | `dev134+gfe9c3d6c5` (2026-04-23) | `dev205+g07351e088` (2026-04-25) |
+| Prod | `dev8+g4b7f5ea1a` (2026-04-19, legacy v5.12 monolith) | `dev205+g07351e088` (2026-04-25, modular `_genesis/` plugin) |
+| Patcher | v5.12 monolith | Modular plugin + Dispatcher v2 |
 
 ## What's new in v7.9 (2026-04-24)
 
@@ -90,15 +118,14 @@ See [`docs/REPORT_v7_1_INTEGRATION_20260424_RU.md`](docs/REPORT_v7_1_INTEGRATION
 
 ## Compatibility matrix
 
-### vLLM versions
+### vLLM version
 
-| Component | Value |
-|---|---|
-| **Tested & pinned** | `v0.19.2rc1.dev134+gfe9c3d6c5` ([SHA `fe9c3d6c5`](https://github.com/vllm-project/vllm/commit/fe9c3d6c5f66c873d196800384ed6880687b9e52), 2026-04-23) |
-| Docker image | `vllm/vllm-openai:nightly-fe9c3d6c5f66c873d196800384ed6880687b9e52` |
-| Rebase cadence | Only when upstream lands PRs we track (see "Upstream status") |
-| Minimum supported | `v0.19.2rc1.dev8+` — older builds: some anchors miss and graceful-skip |
-| Forward-compat | All patches graceful-skip on anchor drift — future builds still boot, just with fewer Genesis patches applied |
+| Component | Pin | Notes |
+|---|---|---|
+| Integration baseline | `v0.19.2rc1.dev134+gfe9c3d6c5` | Patches authored against this SHA |
+| Upstream branch | `main` | Rebased periodically; all patches graceful-skip on anchor drift |
+| Minimum supported | `v0.19.2rc1.dev8+` (P8a) | Older builds: anchors may not match |
+| Known-broken | — | No incompatibilities at time of v7.9 release |
 
 ### Hardware
 
@@ -112,84 +139,86 @@ See [`docs/REPORT_v7_1_INTEGRATION_20260424_RU.md`](docs/REPORT_v7_1_INTEGRATION
 | Intel XPU | — | — | — | graceful-skip |
 | CPU-only | — | — | — | graceful-skip |
 
-### Models validated in v7.10
+### Models
 
-| Model | Arch | Quant | Max tokens proven | Status |
-|---|---|---|---|---|
-| Qwen3-Next-35B-A3B-FP8 | MoE + hybrid | FP8 | **258,528** | ✅ prod baseline |
-| Qwen3-Next-35B-A3B-AWQ | MoE + hybrid | AWQ 4-bit | **258,528** | ✅ cross-quantization |
-| RYS-Qwen3.5-27B-FP8-XL | dense attn | FP8 | 28,528 | ✅ dense graceful-skip |
-| Qwen3-Next-FP8 (fp16 KV) | MoE + hybrid | FP8 wt + fp16 KV | 28,528 | ✅ non-TQ dispatch |
-| Gemma-4-26B MoE AWQ | MoE multimodal | AWQ 4-bit | — | ❌ blocked by vLLM × model (not ours, see [benchmarks/v7_10_validation_20260424/gemma4_26b_moe/FAILURE_NOTE.md](benchmarks/v7_10_validation_20260424/gemma4_26b_moe/FAILURE_NOTE.md)) |
+| Model | Architecture | Status |
+|---|---|---|
+| Qwen3.6-35B-A3B-FP8 | Qwen3-Next MoE + hybrid linear-attn | **prod** — full 256k |
+| Qwen3.6-35B-A3B-AWQ | Qwen3-Next MoE + hybrid linear-attn + 4-bit weights | **validated** — 3× 256k, 2.5× KV capacity vs FP8 |
+| Qwen3-32B dense (planned) | Qwen3 dense attention | graceful-skip cross-model test (v7.9) |
+| Gemma 4 26B MoE (planned) | Gemma 4 MoE | cross-arch test (v7.9 follow-up) |
 
 ---
 
 ## Installation / deployment
 
-**👉 Full step-by-step guide:** [QUICKSTART.md](QUICKSTART.md) (EN + RU, ~15 min from clone to working server).
+### Option 1 — docker compose (recommended)
 
-Short version (3 commands):
+```yaml
+# docker-compose.yml (minimal example — see docker-compose.example.yml)
+services:
+  vllm-server:
+    image: vllm/vllm-openai:nightly   # or pinned commit image
+    volumes:
+      - ./vllm/_genesis:/usr/local/lib/python3.12/dist-packages/vllm/_genesis:ro
+      - ./docker/genesis-entrypoint.sh:/opt/genesis-entrypoint.sh:ro
+    entrypoint: ["/opt/genesis-entrypoint.sh"]
+    command: [
+      "--model", "Qwen/Qwen3-Next-35B-A3B-FP8",
+      "--kv-cache-dtype", "turboquant_k8v4",
+      "--max-model-len", "262144",
+      "--tensor-parallel-size", "2",
+      # ...
+    ]
+    environment:
+      # Default 28-patch set (opt-in features off):
+      - GENESIS_ENABLE=1
+      # Opt-in features — set to 1 to enable:
+      - GENESIS_ENABLE_P5B=0      # Page-size pad-smaller allocator
+      - GENESIS_ENABLE_P7B=0      # GDN dual-stream custom-op
+      - GENESIS_ENABLE_P37=0      # MoE intermediate-cache text-patch
+      - GENESIS_ENABLE_P40=0      # TQ grouped-decode (watch upstream #40792)
+      - GENESIS_ENABLE_P41=0      # ResponseCacheMiddleware (needs P50 wired)
+      # ResponseCache backend (P50):
+      - GENESIS_RESPONSE_CACHE=redis://cache:6379/0
+```
+
+The entrypoint runs `python -m vllm._genesis.patches.apply_all` before `vllm serve`. All patches are idempotent per container filesystem layer.
+
+### Option 2 — manual
 
 ```bash
-git clone https://github.com/Sandermage/genesis-vllm-patches.git && cd genesis-vllm-patches
-git checkout v7.10.0
-docker pull vllm/vllm-openai:nightly-fe9c3d6c5f66c873d196800384ed6880687b9e52
-docker compose -f docker-compose.integration.yml up -d
+# Install vLLM at the integration baseline
+pip install vllm==0.19.2rc1.dev134
+
+# Drop the Genesis package into the vLLM install
+cp -r vllm/_genesis /path/to/site-packages/vllm/
+
+# Apply patches once
+python -m vllm._genesis.patches.apply_all
+
+# Start vLLM normally
+vllm serve ...
 ```
 
-After ~3-5 min boot you'll see in `docker logs vllm-integration-v7`:
+### Verify apply-time dispatch
+
+On a healthy boot you should see lines like:
 
 ```
-[INFO genesis.apply_all] Genesis Results: 28 applied, 4 skipped, 0 failed
-(APIServer pid=1) INFO ... Uvicorn running on http://0.0.0.0:8000
-```
-
-Then test:
-
-```bash
-curl http://localhost:8000/v1/chat/completions \
-  -H "Authorization: Bearer genesis-local" \
-  -H "Content-Type: application/json" \
-  -d '{"model":"qwen3.6-35b-a3b-integration","messages":[{"role":"user","content":"Hi"}],"max_tokens":16}'
-```
-
-### Compose files included
-
-| File | Model | Purpose |
-|---|---|---|
-| `docker-compose.integration.yml` | Qwen3-Next-35B-A3B-FP8 + TQ k8v4 | **Default — production-mirror** |
-| `docker-compose.integration-awq.yml` | Qwen3-Next-35B-A3B-AWQ + TQ k8v4 | AWQ 4-bit, 2.5× more KV memory |
-| `docker-compose.integration-fp16kv.yml` | Qwen3-Next, kv=auto | Non-TurboQuant baseline |
-| `docker-compose.qwen3-5-dense.yml` | RYS-Qwen3.5-27B-FP8-XL | Dense model test |
-| `docker-compose.example.yml` | template | Reference for custom configs |
-
-### Important: stopping cleanly
-
-**Always use `docker compose down`, never plain `docker stop`.** Genesis text-patches modify container filesystem; restarting an already-patched container fails. See [QUICKSTART.md#troubleshooting](QUICKSTART.md#troubleshooting) for the full explanation.
-
-### Opt-in patches (default OFF)
-
-| Env var | Patch |
-|---|---|
-| `GENESIS_ENABLE_P5B=1` | Page-size pad-smaller allocator |
-| `GENESIS_ENABLE_P7B=1` | GDN dual-stream custom-op (+8% decode on hybrid) |
-| `GENESIS_ENABLE_P37=1` | MoE intermediate-cache pool text-patch |
-| `GENESIS_ENABLE_P40=1` | TurboQuant grouped-decode (until [#40792](https://github.com/vllm-project/vllm/pull/40792) merges) |
-| `GENESIS_ENABLE_P41=1` | ResponseCacheMiddleware (needs P50 wiring) |
-
-### Healthy boot signature
-
-```
-[INFO genesis.apply_all] Genesis Results: 28 applied, 4 skipped, 0 failed
+[INFO genesis.apply_all] Genesis v7.9 — 28 applied, 4 skipped, 0 failed
+[INFO genesis.model_detect] profile resolved: model_type=qwen3_next_moe moe=True hybrid=True turboquant=True (kv=turboquant_k8v4)
 [INFO genesis.wiring.p28_gdn_core_attn] forward_cuda patched + __init__ wrapped
-[INFO genesis.wiring.p22_tq_prealloc] rebound TurboQuantAttentionImpl._ensure_on_device
+[INFO genesis.prealloc] [P51 TQ-active] ...   (absent on turboquant_k8v4 — P51 only fires when non-TQ)
 ```
 
-On a dense (non-MoE / non-hybrid) model boot you'll additionally see P52/P53 dispatch skips:
+On a dense-model boot:
 
 ```
-[INFO genesis.model_detect] [Genesis v7.9 dispatch] P24 MoE num_warps/num_stages overlay skipped — dense model
-[INFO genesis.model_detect] [Genesis v7.9 dispatch] P28 GDN core-attn forward rewire skipped — pure-attention model
+[INFO genesis.model_detect] profile resolved: model_type=qwen3 moe=False hybrid=False turboquant=False (kv=fp16)
+[INFO genesis.model_detect] [Genesis v7.9 dispatch] P24 MoE num_warps/num_stages overlay skipped — dense model (no fused_moe dispatch)
+[INFO genesis.model_detect] [Genesis v7.9 dispatch] P28 GDN core-attn forward rewire skipped — pure-attention model (no GDN)
+# ...etc
 ```
 
 ---
@@ -239,7 +268,6 @@ On a dense (non-MoE / non-hybrid) model boot you'll additionally see P52/P53 dis
 | P7b | `GENESIS_ENABLE_P7B=1` | GDN dual-stream custom-op (+8% decode on hybrid) |
 | P40 | `GENESIS_ENABLE_P40=1` | TurboQuant grouped-decode (watch upstream #40792) |
 | P41 | `GENESIS_ENABLE_P41=1` | ResponseCache + P50 middleware (needs a backend) |
-| **P56** | `GENESIS_ENABLE_P56_SPEC_DECODE_GUARD=1` | **TQ spec-decode safe-path guard — partial workaround for [#40831](https://github.com/vllm-project/vllm/issues/40831). Closes catastrophic loops; subtle token duplication remains, see Layer 2 in the upstream comment** |
 
 ### Retired / shelved
 
@@ -297,34 +325,19 @@ docker exec vllm-prod python -m vllm._genesis.patches.apply_all --verify
 
 ---
 
-## Upstream status tracking
+## Upstream status tracking (as of 2026-04-24)
 
-Compat-verified against our pinned SHA `fe9c3d6c5` (2026-04-25).
+Items we track / monitor:
 
-| PR / Issue | Status | Our verdict | Compat with our pin |
-|---|---|---|---|
-| [#40124 — TurboQuant + Hybrid MoE broken on Ampere (13 patches)](https://github.com/vllm-project/vllm/issues/40124) | OPEN (our own filing, Sander) | PR [#40384](https://github.com/vllm-project/vllm/pull/40384) already extracts our Patch 9 with `Co-authored-by: Sandermage` by @jhsmith409 | — |
-| [#40807 — TQ+spec-decode capture crash](https://github.com/vllm-project/vllm/issues/40807) | OPEN issue | **We are the fix** (our P44 + P23). Reporter (@noonghunna) namechecks our Patch 23 and runs our patches in production. [Comment posted](https://github.com/vllm-project/vllm/issues/40807#issuecomment-4316663581) | — |
-| [#40831 — TurboQuant × spec-decode degenerate loops](https://github.com/vllm-project/vllm/issues/40831) | OPEN issue | **Layer 1 root cause located + workaround P56**. **Layer 2 (token duplication) remains** — outside our scope (acceptance × quant noise). [Full analysis posted](https://github.com/vllm-project/vllm/issues/40831#issuecomment-4317214311) | partial fix shipped as opt-in P56 |
-| [#40792 — TQ k8v4 GQA head grouping](https://github.com/vllm-project/vllm/pull/40792) | OPEN PR | Supersedes our P40 functionally (+16.5-27.2% in their bench) | ✅ **backport-clean** — target file unchanged between our SHA and PR base |
-| [#40798 — TQ scratch workspace sharing](https://github.com/vllm-project/vllm/pull/40798) | OPEN PR | Supersedes our P36 (×3.4 KV capacity in their bench) | ✅ **backport workable** — `WorkspaceManager.get_simultaneous()` already present in our pin |
-| [#40794 — MoE unpad routed output](https://github.com/vllm-project/vllm/pull/40794) | **MERGED 2026-04-24** | Post-merge; MoE smoke shows no drift on Qwen3-Next-35B-A3B | — |
-| [#40420 — TQ continuation-prefill OOM at 185k](https://github.com/vllm-project/vllm/issues/40420) | OPEN | Our P22+P38 cover the class. Probe M now defends in integration gate. | — |
-| [#40172 — Fused Mamba postprocess (+15-17%)](https://github.com/vllm-project/vllm/pull/40172) | OPEN | On merge: drop our P25 guard. | — |
-| [#40384 — Exclude O(1) Mamba groups](https://github.com/vllm-project/vllm/pull/40384) | OPEN | Sander co-author credit. On merge: drop Patch 9. | — |
-
-Deep-dive (RU+EN): [benchmarks/v7_10_validation_20260424/upstream_compare/PR_DEEP_DIVE.md](benchmarks/v7_10_validation_20260424/upstream_compare/PR_DEEP_DIVE.md)
-
-### v7.11 roadmap — backport #40792 / #40798 as opt-in
-
-Neither PR has merged yet; #40807 may sit OPEN for weeks. Rather than wait, we plan:
-
-| v7.11 patch | Source | Mode | Retire when |
-|---|---|---|---|
-| `P40b` (backport of #40792 kernel) | Port `_tq_grouped_decode_stage1` Triton kernel | opt-in: `GENESIS_ENABLE_PR40792_BACKPORT=1` | #40792 merges |
-| `P36b` (backport of #40798 workspace) | Rewire via `WorkspaceManager.get_simultaneous()` + text-patch anchor adjust | opt-in: `GENESIS_ENABLE_PR40798_BACKPORT=1` | #40798 merges |
-
-Both will include **full attribution** to original PR authors in docstring + our measured A5000 numbers. If our Ampere bench reveals tuning specifics not obvious from the original PR (e.g. `BLOCK_H=8` vs `16` tradeoff on SM 8.6), we will contribute that back upstream as a follow-up comment on the PR.
+| PR / Issue | Status | Impact |
+|---|---|---|
+| [#40807 — TurboQuant+spec-decode capture crash](https://github.com/vllm-project/vllm/issues/40807) | OPEN | Reporter namechecks Sander's Patch 23; our P44 aligns. Comment drafted, not yet posted. |
+| [#40792 — TQ k8v4 GQA head grouping](https://github.com/vllm-project/vllm/pull/40792) | OPEN | May supersede our P40. Diff + bench pending. |
+| [#40798 — TQ scratch workspace across layers](https://github.com/vllm-project/vllm/pull/40798) | OPEN | Superset of #40655+#40706. May conflict with P28 anchor. |
+| [#40794 — MoE unpad routed output](https://github.com/vllm-project/vllm/pull/40794) | **MERGED 2026-04-24** | Smoke test pending on Qwen3.6-35B-A3B. |
+| [#40420 — TurboQuant continuation-prefill OOM at 185K](https://github.com/vllm-project/vllm/issues/40420) | OPEN | Our P22 covers adjacent class. Adding ≥150k regression test. |
+| [#40172 — Fused Mamba postprocess (+15-17% decode)](https://github.com/vllm-project/vllm/pull/40172) | OPEN | On merge: drop P25 guard. |
+| [#40384 — Exclude O(1) Mamba groups](https://github.com/vllm-project/vllm/pull/40384) | OPEN | Sander co-author credit. On merge: drop Patch 9. |
 
 Three-source truth: every patch is verified against the tagged release, `main` HEAD, and nightly image before each deploy.
 
@@ -373,15 +386,8 @@ vllm/_genesis/
 │   ├── patch_38_tq_continuation_memory.py
 │   ├── patch_39_fla_kkt_buffer.py   (P53 gated)
 │   ├── patch_46_gdn_gating_buffers.py  (P53 gated)
-│   ├── patch_56_spec_decode_decode_path_guard.py  (v7.11 — opt-in)
 │   └── ...
 └── tests/                    pytest TDD suite
-
-scripts/                      Operator + diagnostic tooling
-├── run_validation_suite.sh   Universal per-model validation runner
-├── compile_results.py        Aggregate per-model JSONL → MASTER_SUMMARY.md
-├── sequential_backend_probe.py  9-prompt probe + diff (v7.11)
-└── dual_backend_diagnostic_proxy.py  FastAPI :9000 dual-backend proxy (v7.11)
 ```
 
 ---

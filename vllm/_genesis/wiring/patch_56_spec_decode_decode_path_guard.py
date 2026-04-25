@@ -1,6 +1,20 @@
 # SPDX-License-Identifier: Apache-2.0
 """Wiring for Patch 56 — TurboQuant spec-decode safe-path guard.
 
+================================================================
+SUPERSEDED 2026-04-25 — see "Status update" section below before
+adopting this patch. The simpler upstream workaround is:
+
+    --compilation-config '{"cudagraph_mode":"NONE"}'
+
+posted by @noonghunna in
+https://github.com/noonghunna/qwen36-27b-single-3090/commit/de1d1afab324c8467dfd80f70da2e55567e3e841
+
+Use that instead. P56 stays in the tree as a research artifact
+documenting a partial-fix dead-end.
+================================================================
+
+
 Problem
 -------
 The TurboQuant attention backend declares
@@ -133,14 +147,33 @@ def _make_patcher() -> TextPatcher | None:
 
 
 def apply() -> tuple[str, str]:
-    """Apply P56 wiring. Never raises."""
+    """Apply P56 wiring. Never raises.
+
+    DEPRECATED 2026-04-25 by noonghunna's six-probe ladder
+    (https://github.com/noonghunna/qwen36-27b-single-3090/commit/de1d1afa).
+    His Probe 4 = `_CONTINUATION_DECODE_THRESHOLD = 0` is architecturally
+    equivalent to what this patch does and was empirically shown not to
+    fix #40831. Real bug is in CUDA graph capture/replay layer, not
+    routing. Use `--compilation-config '{"cudagraph_mode":"NONE"}'`
+    instead. P56 stays in the tree as research artifact.
+
+    v7.12: consults `config_detect.should_apply("P56")` first.
+    """
+    try:
+        from vllm._genesis import config_detect
+        ok, reason = config_detect.should_apply("P56")
+        if not ok:
+            return "skipped", reason
+    except Exception as e:
+        log.debug("[P56] config_detect probe failed (proceeding): %s", e)
+
     if not _is_enabled():
         return (
             "skipped",
             "opt-in only — set GENESIS_ENABLE_P56_SPEC_DECODE_GUARD=1 to engage. "
-            "Workaround for vllm-project/vllm#40831 spec-decode × TurboQuant "
-            "degenerate token loops. Cost: spec-decode requests pay dequant "
-            "overhead of _continuation_prefill instead of decode fast-path.",
+            "Note: empirically deprecated 2026-04-25; routing fix does not "
+            "address #40831 root cause (CUDA graph capture corruption). "
+            "Use cudagraph_mode=NONE workaround instead.",
         )
 
     if vllm_install_root() is None:

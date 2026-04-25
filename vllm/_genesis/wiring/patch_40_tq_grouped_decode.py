@@ -86,7 +86,18 @@ def apply() -> tuple[str, str]:
     """Rebind `triton_turboquant_decode_attention` with P40 dispatcher wrapper.
 
     Never raises. Returns (status, reason).
+
+    v7.12: consults `config_detect.should_apply("P40")` first.
+    Skipped automatically if upstream PR #40792 active.
     """
+    try:
+        from vllm._genesis import config_detect
+        ok, reason = config_detect.should_apply("P40")
+        if not ok:
+            return "skipped", reason
+    except Exception:
+        pass  # config_detect optional; fall through to legacy logic
+
     if not should_apply():
         if not is_nvidia_cuda():
             return "skipped", "platform: NVIDIA SM 8.0+ required"

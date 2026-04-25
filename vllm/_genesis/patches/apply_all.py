@@ -630,6 +630,319 @@ def apply_patch_26_prefill_output() -> PatchResult:
     )
 
 
+@register_patch("P61b Qwen3 streaming partial-tag overlap guard")
+def apply_patch_61b_streaming_overlap() -> PatchResult:
+    """Patch 61b: backport slice of vllm#40783 streaming changes.
+
+    Adds defensive overlap guard against partial `<tool_call>` tag fragments
+    leaking as reasoning when the tag is being assembled across multiple
+    streaming deltas.
+
+    For Qwen3 with proper special-token handling this is a no-op; useful for
+    streaming clients with non-Qwen tokenizers or edge cases where the tag
+    arrives character-fragmented.
+
+    Status: opt-in via GENESIS_ENABLE_P61B_STREAMING_OVERLAP=1.
+
+    Credit: @ExtReMLapin (vllm#40783).
+    """
+    name = "P61b Qwen3 streaming partial-tag overlap guard"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring import patch_61b_qwen3_streaming_overlap_guard
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_61b_qwen3_streaming_overlap_guard.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch("P62 structured-output spec-decode timing fix")
+def apply_patch_62_struct_out_spec_timing() -> PatchResult:
+    """Patch 62: backport of upstream PR vllm#36138 (sfbemerk).
+
+    Fixes grammar bypass when `</think>` (or implicit reasoning-end via
+    `<tool_call>`) arrives within a speculative-decode token batch. Likely
+    candidate for closing residual 30-50% broken tool-call output that
+    P60+P60b+P61 doesn't fully resolve.
+
+    Mechanism: old `should_advance()` checks a derived delta that becomes
+    empty when speculative tokens are involved → reasoning_end check fails →
+    grammar bypass for all post-reasoning tokens → arbitrary XML emission.
+
+    Status: opt-in via GENESIS_ENABLE_P62_STRUCT_OUT_SPEC_TIMING=1.
+
+    Credit:
+      - Upstream fix: @sfbemerk (vllm#36138).
+      - Original bug: @cicirori (vllm#34650).
+    """
+    name = "P62 structured-output spec-decode timing fix"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring import patch_62_structured_output_spec_decode_timing
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_62_structured_output_spec_decode_timing.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch("P61 Qwen3 multi-tool first-occurrence")
+def apply_patch_61_qwen3_multi_tool() -> PatchResult:
+    """Patch 61: Backport of upstream PR vllm#40783 minimal slice — fixes
+    multi-tool requests where multiple `<tool_call>` blocks were silently
+    dropped (parser found LAST occurrence instead of FIRST).
+
+    Status: opt-in via GENESIS_ENABLE_P61_QWEN3_MULTI_TOOL=1.
+
+    Credit:
+      - Upstream fix: @ExtReMLapin (vllm#40783).
+    """
+    name = "P61 Qwen3 multi-tool first-occurrence"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring import patch_61_qwen3_multi_tool_first_occurrence
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_61_qwen3_multi_tool_first_occurrence.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch("P60b GDN+ngram Triton kernel offset")
+def apply_patch_60b_gdn_ngram_triton_kernel() -> PatchResult:
+    """Patch 60b (P60 Phase 2): backport vllm#40738 Triton kernel portion.
+
+    DEPENDS ON P60 (Phase 1). Apply P60 first; P60b adds the Triton kernel
+    offset arithmetic for conv state read/write. Without P60 Phase 1,
+    Phase 2 alone won't help (SSM state must be pre-copied first).
+
+    Modifies `_causal_conv1d_fwd_kernel` Triton kernel signature + body
+    to apply `conv_state_token_offset = num_accepted - 1` to STEP 1 read
+    and STEP 2 write. Also updates `causal_conv1d_fn` Python wrapper +
+    GDN call site to pass `num_accepted_tokens` parameter.
+
+    Status: opt-in via GENESIS_ENABLE_P60B_TRITON_KERNEL=1.
+
+    Risk: Triton signature change invalidates JIT cache. Auto-clears
+    causal_conv1d cache entries on apply. First spec-decode call triggers
+    ~5-10s kernel recompile (profiler-visible spike).
+
+    Combined with P60 Phase 1, expected to push 43% clean → 95%+ clean.
+
+    Credit:
+      - Upstream fix: @tdoublep (vllm core team, vllm#40738).
+      - Empirical isolation on Genesis: 2026-04-25 blue/green test cycle.
+    """
+    name = "P60b GDN+ngram Triton kernel offset"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring import patch_60b_gdn_ngram_triton_kernel
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_60b_gdn_ngram_triton_kernel.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch("P60 GDN+ngram state recovery")
+def apply_patch_60_gdn_ngram_state_recovery() -> PatchResult:
+    """Patch 60 Phase 1 (Python-only): backport vllm#40738 (Thomas Parnell).
+
+    Top candidate root-cause fix for #40831 / our degenerate-output bug after
+    P58 (#40768) + P59 (#39055) + ngram_gpu (Path B) all empirically disproven
+    2026-04-25 in blue/green tests.
+
+    Bug: hybrid GDN models with ngram speculative decode read SSM state from
+    block[0] instead of block[num_accepted-1] after spec acceptance. Manifests
+    as token-level corruption (`<<`, `parameter=parameter`, `<argname>`)
+    that only appears when both spec-decode AND structured output (tools)
+    are active.
+
+    P60 Phase 1: Python-only changes in 3 files (gdn_attn.py + gdn_linear_attn
+    + gpu_model_runner.py). Adds `spec_decode_src_indices` metadata field +
+    SSM state pre-copy + non-spec passthrough.
+
+    P60 Phase 2 (Triton kernel patch in causal_conv1d.py) DEFERRED — needed
+    for full conv-state correctness if Phase 1 doesn't fully fix.
+
+    Status: opt-in via GENESIS_ENABLE_P60_GDN_NGRAM_FIX=1.
+
+    Credit:
+      - Upstream fix: @tdoublep (vllm core team, vllm#40738).
+      - Bug surface: @noonghunna (#40807, #40831).
+      - Empirical isolation on Genesis: 2026-04-25 blue/green test cycle.
+    """
+    name = "P60 GDN+ngram state recovery"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring import patch_60_gdn_ngram_state_recovery
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_60_gdn_ngram_state_recovery.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch("P59 Qwen3 reasoning embedded tool_call recovery")
+def apply_patch_59_qwen3_reasoning_tool_call_recovery() -> PatchResult:
+    """Patch 59: Backport of upstream PR vllm#39055 (ZenoAFfectionate, OPEN).
+
+    Empirical candidate for #40831 / our degenerate-output bug after P58
+    (#40768 backport) was empirically disproven 2026-04-25 in blue/green test.
+
+    Qwen3.5/3.6 models can emit XML tool_call blocks INSIDE <think>...</think>
+    reasoning. The downstream qwen3_coder tool parser only inspects content,
+    so embedded tool_calls in reasoning are lost — manifests as empty
+    tool_calls OR garbage XML fragments leaking into JSON arguments
+    (parameter=city, <<argname>, </parameter, etc.).
+
+    Composes with our existing P12 (Qwen3 tool_call reasoning fix v2):
+      - P12 handles the </think>-absent case via implicit tool_call end
+      - P59 handles the </think>-present case where tool_call is nested
+        inside reasoning
+
+    Status: opt-in via GENESIS_ENABLE_P59_QWEN3_TOOL_RECOVERY=1.
+
+    Credit:
+      - Upstream fix: @ZenoAFfectionate (vllm#39055).
+      - Bug surface in our family: @meitalbensinai (Qwen 3.6 30b),
+        @epheien (27b + 397b streaming), @jogoossens.
+    """
+    name = "P59 Qwen3 reasoning embedded tool_call recovery"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring import patch_59_qwen3_reasoning_tool_call_recovery
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_59_qwen3_reasoning_tool_call_recovery.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch("P58 async-scheduler -1 placeholder fix")
+def apply_patch_58_async_placeholder_fix() -> PatchResult:
+    """Patch 58: ROOT-CAUSE fix for vllm-project/vllm#40831 / #40807 / #40756 /
+    #37159 — backport of upstream PR vllm#40768 (z1ying, OPEN at time of
+    writing).
+
+    Async scheduler shipped `[-1] * num_spec_tokens` as a shared list reference
+    every step; worker-side `_prepare_input_ids` overwrite path skips for
+    newly-scheduled requests (`prev_positions[i] < 0`) → -1s reach GPU
+    embedding lookup → either crash (V100 IMA #37159 / #40756) or garbage
+    propagation as degenerate token loop (#40831 / #40807).
+
+    The fix: track placeholder *intent* as a counter on Request, materialize
+    `[-1, ...]` only when `request_id in prev_step_scheduled_req_ids` so
+    worker-side overwrite is guaranteed to land.
+
+    Touches three files in vllm v1 (request.py + async_scheduler.py +
+    scheduler.py). Idempotent + anchor-safe + auto-no-op once #40768 lands
+    upstream.
+
+    Status: opt-in via GENESIS_ENABLE_P58_ASYNC_PLACEHOLDER_FIX=1. Independent
+    of TurboQuant — bug class affects ALL spec-decode workloads under async
+    scheduling. P56 (deprecated routing-layer workaround) and P57 v2
+    (buffer-shape workaround) become redundant once P58 closes the actual
+    root cause.
+
+    Credit:
+      - Upstream fix: @z1ying (vllm#40768).
+      - Bug surface in our model family: @SongXiaoMao (#40756), @sweihub
+        (#37159), @noonghunna (#40807, #40831).
+      - Cross-rig confirmation: independent isolation by @noonghunna
+        (Qwen3.6-27B + 3090) and Genesis (Qwen3-Next-35B + 2× A5000).
+    """
+    name = "P58 async-scheduler -1 placeholder fix"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring import patch_58_async_scheduler_placeholder_fix
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_58_async_scheduler_placeholder_fix.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch("P57 TQ spec-decode capture-safe buffers")
+def apply_patch_57_spec_decode_capture_safe() -> PatchResult:
+    """Patch 57: REAL FIX (proof-of-concept) for vllm-project/vllm#40831.
+
+    Addresses the architectural gap surfaced after deep-diving the
+    GDN attention pattern at gdn_attn.py:103-115. TurboQuant declares
+    `supports_spec_as_decode=False` AND pre-allocates decode buffers at
+    `B=max_num_seqs` shape. Spec-decode batches with q_len=1+num_spec
+    cannot fit the captured cudagraph's decode shape — buffer addresses
+    captured at warmup don't match runtime addresses → token corruption
+    visible as `for for`, `age age`, `<function=call`, etc.
+
+    P57 fixes both layers:
+      1. `supports_spec_as_decode = True` based on speculative_config
+      2. Buffer alloc B = max_num_seqs * (1 + num_speculative_tokens)
+
+    Status: opt-in via GENESIS_ENABLE_P57_SPEC_DECODE_CAPTURE_SAFE=1.
+    Experimental — pending server validation that demonstrates clean
+    output WITHOUT cudagraph_mode=NONE workaround. If verified, this
+    is a candidate upstream PR.
+
+    Credit: bug surface @noonghunna (vllm#40807, #40831 + six-probe
+    ladder noonghunna/qwen36-27b-single-3090@de1d1afa). Reference
+    implementation pattern: gdn_attn.py:103-115 by vLLM team.
+    """
+    name = "P57 TQ spec-decode capture-safe buffers"
+    from vllm._genesis.guards import (
+        is_nvidia_cuda, is_sm_at_least, is_amd_rocm, is_cpu_only,
+    )
+    if not is_nvidia_cuda():
+        if is_amd_rocm():
+            return _skipped(name, "ROCm — TurboQuant not ported")
+        if is_cpu_only():
+            return _skipped(name, "CPU-only — no TurboQuant kernel")
+        return _skipped(name, "non-NVIDIA platform")
+    if not is_sm_at_least(8, 0):
+        return _skipped(name, "SM < 8.0")
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring import patch_57_spec_decode_capture_safe_buffers
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_57_spec_decode_capture_safe_buffers.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
 @register_patch("P56 TQ spec-decode safe-path guard")
 def apply_patch_56_spec_decode_guard() -> PatchResult:
     """Patch 56: Workaround for vllm-project/vllm#40831 — TurboQuant ×
@@ -1579,6 +1892,14 @@ def main() -> int:
     except Exception as e:
         log.exception("Genesis orchestrator setup error: %s", e)
         return 2
+
+    # [v7.13 Dispatcher v2] dump apply matrix at end of boot — single
+    # readable summary block instead of grep-ing scattered INFO lines.
+    try:
+        from vllm._genesis.dispatcher import log_apply_matrix
+        log_apply_matrix()
+    except Exception as e:
+        log.debug("[Genesis] Dispatcher v2 matrix dump unavailable: %s", e)
 
     exit_code = 1 if stats.failed_count > 0 else 0
 
