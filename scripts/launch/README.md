@@ -24,12 +24,31 @@ curl http://localhost:8000/health -H "Authorization: Bearer genesis-local"
 
 ## Which script?
 
-| Script | When to use | Empirical TPS (Qwen3.6-35B-A3B-FP8 / 2× A5000) |
+| Script | When to use | Empirical TPS (Qwen3.6-35B-A3B-FP8 / 2× A5000) | CV (stability) |
+|---|---|---|---|
+| **`start_no_spec_async.sh`** | Free-form chat WITHOUT tool calls. Fastest + most stable. | **134 tok/s** mean | **0.3%** (rock-solid) |
+| **`start_mtp.sh`** | Default for tool-call / agentic + general chat. Slower, full correctness stack. | **130 tok/s** mean | 5.0% |
+| `start_suffix.sh` | Tool-call workload — repetitive JSON/code. Peak speed on right input. | 46 tok/s free-form, **99 tool-call (max 175)** | 16-36% |
+| `start_ngram.sh` | Ngram-only fallback (no MTP available). | 46 tok/s | 4.4% |
+| `start_ngram_p77adaptive.sh` | Ngram + P77 adaptive K controller (auto-disables on low accept). | 50 tok/s | 6.1% |
+
+## Honest trade-off — `--async-scheduling` vs spec-decode
+
+vLLM has a hard mutual exclusion: **`--async-scheduling` is automatically disabled when `--speculative-config` is set**. We measured both sides:
+
+| Metric | no-spec + async (start_no_spec_async.sh) | MTP (start_mtp.sh) |
 |---|---|---|
-| **`start_mtp.sh`** | Default for free-form / general chat. Best overall. | **130 tok/s** mean (CV 5.0%) |
-| `start_suffix.sh` | Tool-call / agentic-heavy workload. Requires `pip install arctic-inference` (added to entrypoint). | **99 tok/s** mean, peak **175** |
-| `start_ngram.sh` | Ngram-only deployment (no MTP available). | 46 tok/s free-form |
-| `start_ngram_p77adaptive.sh` | Ngram + P77 adaptive K controller. Auto-disables spec on low acceptance. | 50 tok/s + adaptive |
+| Free-form throughput | **134 tok/s** | 130 tok/s |
+| Stability (CV 12 runs) | **0.3%** (extreme) | 5.0% |
+| Tool-call clean rate | ❌ Broken — cascades | ✅ 3/3 PASS |
+| Long-context | 160K (per stable config) | **252K** |
+
+**Pick by use-case**:
+- Aggregator with tool calls / agents → `start_mtp.sh` (sacrifice 4 tok/s for tool correctness + long ctx)
+- Pure chat / no tools → `start_no_spec_async.sh` (faster + more stable)
+- Hybrid: run BOTH containers on different GPUs and route requests by `tools` field
+
+We're researching a Genesis P79 patch ("async-spec-overlap") to combine the best of both — TBD timeline.
 
 ## Common configuration (all 4 scripts)
 
