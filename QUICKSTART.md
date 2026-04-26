@@ -13,7 +13,7 @@ Step-by-step: from cloning the repo to a healthy `vllm serve` with all 28 Genesi
 | Linux host | Tested on Ubuntu 22.04 / 24.04 with kernel 6.x |
 | Docker + Docker Compose v2 | `docker compose version` should report v2.x |
 | NVIDIA Container Toolkit | `docker run --rm --gpus all nvidia/cuda:12.4.1-base-ubuntu22.04 nvidia-smi` must work |
-| NVIDIA driver 570+ | `nvidia-smi` reports it; older drivers may work but untested |
+| NVIDIA driver 580.126.09+ (REQUIRED for CUDA 13.0; 570 → 3× slowdown) | `nvidia-smi` reports it; older drivers may work but untested |
 | 2× GPU with ≥ 24 GiB each | Validated on 2× RTX A5000. Single-GPU works for smaller models with `--tensor-parallel-size 1` |
 | ~80 GiB free disk | Model + HuggingFace cache |
 | Internet (first run) | To pull the Docker image and (optionally) the model |
@@ -26,7 +26,7 @@ If you don't have the model locally yet, the container will pull it from Hugging
 cd ~
 git clone https://github.com/Sandermage/genesis-vllm-patches.git
 cd genesis-vllm-patches
-git checkout v7.10.0   # pin to the validated release
+git checkout v7.50-stable-2026-04-27   # pin to the validated v7.50 production tag
 ```
 
 ## Step 2 — Pull the exact pinned vLLM image
@@ -281,7 +281,7 @@ If you have GPU headroom for two concurrent backends on different ports, see als
 cd ~
 git clone https://github.com/Sandermage/genesis-vllm-patches.git
 cd genesis-vllm-patches
-git checkout v7.10.0   # фиксируемся на validated релизе
+git checkout v7.50-stable-2026-04-27   # фиксируемся на validated v7.50 production tag
 ```
 
 ## Шаг 2 — Скачать pinned vLLM образ

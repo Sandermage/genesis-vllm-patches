@@ -21,3 +21,13 @@ docs/UPSTREAM_*_DRAFT*.md
 /bench_*.json
 /sweep_*.jsonl
 /longbench_*.jsonl
+
+# Dev / experimental kernel artifacts — live in PRIVATE Sandermage/p67-genesis-kernel
+# Never commit to the public patcher repo.
+/p67_dev/
+/p67_backups/
+/p67_kernel_*.py
+/p67_test_*.py
+
+# Upstream draft / discussion artifacts not yet ready for public review
+docs/DISCUSSION_DRAFT_*.md

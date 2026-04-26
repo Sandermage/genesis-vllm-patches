@@ -79,7 +79,7 @@ genesis-vllm-patches/
 │   ├── patches/apply_all.py           # Patch orchestrator (called at container start)
 │   └── tests/                         # Patch unit + integration tests
 ├── external_probe/                    # Pre-Genesis startup probes (tolist bypass etc.)
-└── benchmarks/                        # Bench scripts (genesis_bench_v3.py etc.)
+└── benchmarks/                        # Bench scripts (genesis_bench_v3.py etc, now in scripts/)
 ```
 
 ### 2. Container architecture

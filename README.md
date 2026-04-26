@@ -229,10 +229,10 @@ These run end-to-end against a live vLLM server:
 
 | Script | What it tests | Hardware needed |
 |---|---|---|
-| `genesis_bench_v3.py` | Throughput benchmark (mean + std over N runs, multiple prompts, MTP/ngram/suffix variants) | GPU + booted server |
-| `genesis_quality_harness.py` | Quality regression: cascades / garbage / repetition detection over N prompts | GPU + booted server |
-| `genesis_longbench_runner.py` | Long-context recall (single needle + multi-needle, ladder from 1K to 250K tokens) | GPU + booted server |
-| `genesis_context_sweep.py` | Context-window sweep with bisection to find OOM threshold | GPU + booted server |
+| `scripts/genesis_bench_v3.py` | Throughput benchmark (mean + std over N runs, multiple prompts, MTP/ngram/suffix variants) | GPU + booted server |
+| `scripts/genesis_quality_harness.py` | Quality regression: cascades / garbage / repetition detection over N prompts | GPU + booted server |
+| `scripts/genesis_longbench_runner.py` | Long-context recall (single needle + multi-needle, ladder from 1K to 250K tokens) | GPU + booted server |
+| `scripts/genesis_context_sweep.py` | Context-window sweep with bisection to find OOM threshold | GPU + booted server |
 
 Validation matrix run for the v7.42-v7.43 release (per the empirical table in the v7.42 section above):
 
