@@ -1,5 +1,47 @@
 # Genesis `_genesis/` Package Changelog
 
+## v7.51.2 — 2026-04-27 (cleanup pass: torch.cat → slice-assign in fallback paths + bench v3 fix)
+
+Pure-cleanliness pass — no behaviour change in our hot path, no measurable
+performance delta (within ±5 tok/s noise band of v7.51 baseline 167 mean).
+Quality 30/31 preserved.
+
+### Changed
+
+- **`vllm/_genesis/wiring/patch_38_tq_continuation_memory.py`** — fallback
+  path (fires only when prealloc pool isn't wired, e.g. AMD/CPU tests):
+  replaced final `torch.cat([k_cached_trim, key_chunk])` with the same
+  `pre-allocate-then-slice` idiom used in our main `use_persistent` branch.
+  Eliminates one allocation peak in the rare fallback path. Behaviour-
+  equivalent.
+
+- **`vllm/_genesis/kernels/block_verify_sampler.py`** — both `cu_start`
+  construction sites (lines 131 + 275) replaced `torch.cat` with
+  `torch.empty_like` + slice-assign. The tensor is 8 bytes
+  (`batch_size = max_num_seqs = 2`) so the perf delta is invisible, but
+  the idiom matches our P38 pattern and reads cleaner. P71 itself remains
+  opt-in, default OFF.
+
+- **`scripts/genesis_bench_v3.py`** — backported v4 fix: use
+  `usage.completion_tokens` from final SSE chunk instead of counting raw
+  delta chunks. Necessary because vLLM nightly batches stream deltas
+  (3-5 tokens per chunk), so the old chunk-count was undercounting tokens
+  by 3×, masking real throughput. Server-side bench was fixed already
+  (validated v7.48 baseline at 165 tok/s vs old 51 tok/s misreading);
+  public scripts now align.
+
+### Notes
+
+- Server-side bench tools (`/home/sander/Genesis_Project/vllm_engine/`)
+  remain `genesis_bench_v3.py` (already patched) AND
+  `genesis_bench_v4.py` (separate file kept for cross-check). Public repo
+  ships only the corrected `genesis_bench_v3.py`.
+- All `torch.cat` in `_genesis/` tree audited: only documentation comments
+  remain referencing it as historical context.
+- Snapshot tag for rollback: `pre-quick-wins-2026-04-27`.
+
+---
+
 ## v7.51.1 — 2026-04-27 (Action #2/#3 evaluation + dev/public split)
 
 Documentation-only update closing out the audit of two further candidates

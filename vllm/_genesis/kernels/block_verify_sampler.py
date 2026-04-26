@@ -128,10 +128,12 @@ def rejection_random_sample_block_verify_pytorch(
     batch_size = output_token_ids.shape[0]
     device = output_token_ids.device
 
-    cu_start = torch.cat([
-        torch.zeros(1, dtype=cu_num_draft_tokens.dtype, device=device),
-        cu_num_draft_tokens[:-1],
-    ])
+    # v7.51.2: pre-allocate then slice-assign instead of torch.cat
+    # (8-byte tensor is marginal but applies the same idiom we use
+    # elsewhere — no double-alloc spike, no transient peak).
+    cu_start = torch.empty_like(cu_num_draft_tokens)
+    cu_start[0] = 0
+    cu_start[1:] = cu_num_draft_tokens[:-1]
     num_draft_per_batch = cu_num_draft_tokens - cu_start
     gamma = num_draft_per_batch.to(torch.long)
 
@@ -272,10 +274,12 @@ def sample_recovered_tokens_blockwise_pytorch(
     if num_tokens == 0:
         return
 
-    cu_start = torch.cat([
-        torch.zeros(1, dtype=cu_num_draft_tokens.dtype, device=device),
-        cu_num_draft_tokens[:-1],
-    ])
+    # v7.51.2: pre-allocate then slice-assign instead of torch.cat
+    # (8-byte tensor is marginal but applies the same idiom we use
+    # elsewhere — no double-alloc spike, no transient peak).
+    cu_start = torch.empty_like(cu_num_draft_tokens)
+    cu_start[0] = 0
+    cu_start[1:] = cu_num_draft_tokens[:-1]
     token_indices = torch.arange(num_tokens, device=device)
     in_range_mask = (token_indices[:, None] >= cu_start[None, :]) & (
         token_indices[:, None] < cu_num_draft_tokens[None, :]

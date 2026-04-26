@@ -124,11 +124,10 @@ def stream_chat(base_url, model_id, prompt, max_tokens=256, temperature=0.7, tim
         return {"error": str(e)[:300], "prompt_chars": len(prompt), "max_tokens": max_tokens}
 
     t_end = time.perf_counter()
-    token_count = reasoning_tokens + content_tokens
+    chunk_count = reasoning_tokens + content_tokens  # chunks received, NOT tokens
     total_time = t_end - t_start
     ttft = (first_token_time - t_start) if first_token_time else None
     gen_time = (t_end - first_token_time) if first_token_time else total_time
-    tps = token_count / gen_time if gen_time > 0 and token_count > 0 else 0
 
     server_completion = None
     server_prompt = None
@@ -136,11 +135,19 @@ def stream_chat(base_url, model_id, prompt, max_tokens=256, temperature=0.7, tim
         server_completion = usage.get("completion_tokens")
         server_prompt = usage.get("prompt_tokens")
 
+    # v3.1 fix: vLLM nightly batches stream deltas (3-5 tokens per chunk),
+    # so chunk_count !=  token_count. Use server-side usage.completion_tokens
+    # when available (always set when stream_options.include_usage=true).
+    # Fallback to chunk_count only if server didn't report usage.
+    token_count = server_completion if server_completion is not None else chunk_count
+    tps = token_count / gen_time if gen_time > 0 and token_count > 0 else 0
+
     return {
         "ttft_s": round(ttft, 4) if ttft else None,
         "total_time_s": round(total_time, 3),
         "gen_time_s": round(gen_time, 3),
         "tokens_generated": token_count,
+        "chunks_received": chunk_count,
         "reasoning_tokens": reasoning_tokens,
         "content_tokens": content_tokens,
         "tokens_per_sec": round(tps, 2),

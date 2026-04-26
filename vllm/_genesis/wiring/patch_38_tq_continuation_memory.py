@@ -419,8 +419,12 @@ def _genesis_continuation_prefill(
         k_full[cached_len:seq_len].copy_(key_chunk)
         v_full[cached_len:seq_len].copy_(val_chunk)
     else:
-        # Fallback: upstream-identical path — `.contiguous()` + torch.cat.
-        # Hits when P38 prealloc wasn't wired (e.g. AMD/CPU tests).
+        # Fallback: pool not wired (e.g. AMD/CPU tests) — used to do
+        # `.contiguous()` + torch.cat. v7.51.2: replaced with the same
+        # pre-allocate-then-slice pattern from upstream PR vllm#40941
+        # (and from our main `use_persistent` branch above) to avoid the
+        # double-alloc spike of torch.cat. Behaviour-equivalent; just
+        # eliminates one allocation peak per call.
         if not self.tq_config.key_fp8:
             k_flat = k_cached[0, :, :cached_len, :].reshape(-1, D).float()
             k_flat = k_flat @ Pi
@@ -434,8 +438,14 @@ def _genesis_continuation_prefill(
         v_cached_trim = (
             v_cached[0, :, :cached_len, :].transpose(0, 1).contiguous()
         )
-        k_full = torch.cat([k_cached_trim.to(qdtype), key_chunk], dim=0)
-        v_full = torch.cat([v_cached_trim.to(qdtype), val_chunk], dim=0)
+        # Pre-allocate full-length workspace once; copy cached prefix and
+        # new chunk into the right slices. No torch.cat allocation peak.
+        k_full = torch.empty((seq_len, Hk, D), dtype=qdtype, device=device)
+        v_full = torch.empty((seq_len, Hk, D), dtype=qdtype, device=device)
+        k_full[:cached_len].copy_(k_cached_trim.to(qdtype))
+        k_full[cached_len:seq_len].copy_(key_chunk)
+        v_full[:cached_len].copy_(v_cached_trim.to(qdtype))
+        v_full[cached_len:seq_len].copy_(val_chunk)
 
     # ── 4. Attention — flash-attn fast path or SDPA fallback ──
     if _resolve_flash_attn_available():
