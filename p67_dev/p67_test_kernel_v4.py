@@ -193,21 +193,26 @@ def main():
             build_compressed_cache_and_dequant(k_raw, v_raw, block_size=BS, fp8_e4b15=bool(fp8_e4b15))
         )
 
-        seq_lens = torch.tensor([S], dtype=torch.int32)
+        # Reference uses PRIOR length convention; kernel uses TOTAL convention
+        # (vLLM passes attn_metadata.seq_lens = prior + K_PLUS_1 because
+        # do_kv_cache_update has already stored the K_PLUS_1 chunk to cache).
+        # Two separate tensors keep both contracts honest.
+        seq_lens_ref = torch.tensor([S], dtype=torch.int32)         # prior only
+        seq_lens_kernel = torch.tensor([S + K1], dtype=torch.int32) # prior + chunk
         scale = 1.0 / math.sqrt(D)
         kv_group_size = Hq // Hk
 
-        # Reference: Layer 3 with dequant ground-truth K/V
+        # Reference: Layer 3 with dequant ground-truth K/V (prior length)
         ref = reference_multi_query_attention_layer3(
             q, k_dequant, v_dequant, k_chunk, v_chunk,
-            scale, kv_group_size, seq_lens
+            scale, kv_group_size, seq_lens_ref
         )
 
-        # V4: compressed read
+        # V4: compressed read (vLLM-convention total length)
         try:
             out = p67_v4_compressed(
                 q.to(device), kv_cache.to(device), block_table.to(device),
-                seq_lens.to(device), k_chunk.to(device), v_chunk.to(device),
+                seq_lens_kernel.to(device), k_chunk.to(device), v_chunk.to(device),
                 scale=scale, block_size=BS,
                 kps=layout["KPS"], val_data_bytes=layout["VDB"],
                 fp8_e4b15=fp8_e4b15,

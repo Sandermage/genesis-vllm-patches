@@ -30,7 +30,7 @@ def _p67_v4_compressed_cache(
     Q_ptr,                  # [B, K_PLUS_1, Hq, D] fp16
     KV_cache_ptr,           # uint8 — [num_blocks, block_size, Hk, padded_slot]
     Block_table_ptr,        # [B, max_num_blocks] int32
-    Seq_lens_ptr,           # [B] int32 — prior cached length per request
+    Seq_lens_ptr,           # [B] int32 — TOTAL seq length (prior cached + K_PLUS_1)
     K_chunk_ptr,            # [B, K_PLUS_1, Hk, D] fp16 — current chunk K
     V_chunk_ptr,            # [B, K_PLUS_1, Hk, D] fp16 — current chunk V
     O_ptr,                  # [B, K_PLUS_1, Hq, D] fp32 output
@@ -69,7 +69,13 @@ def _p67_v4_compressed_cache(
     )
     mask_h = (cur_head < (kv_head + 1) * KV_GROUP_SIZE) & (cur_head < Hq_TOTAL)
 
-    seq_len = tl.load(Seq_lens_ptr + bid)
+    # vLLM convention: seq_lens[i] is TOTAL length INCLUDING the K_PLUS_1
+    # chunk already stored to cache by do_kv_cache_update before
+    # _prefill_attention is called. Phase 1 must read ONLY prior positions
+    # [0, total - K_PLUS_1); Phase 2 handles the K_PLUS_1 chunk via the
+    # uncompressed K_chunk_ptr/V_chunk_ptr buffers with causal mask.
+    total_seq_len = tl.load(Seq_lens_ptr + bid)
+    prior_seq_len = total_seq_len - K_PLUS_1
 
     d_offs = tl.arange(0, BLOCK_D)
     d_mask = d_offs < HEAD_DIM
@@ -103,9 +109,9 @@ def _p67_v4_compressed_cache(
     bt_base = bid * stride_bt_b
 
     # ── PHASE 1: prior cached KV (compressed read, no causal) ──
-    for start_n in range(0, seq_len, BLOCK_KV):
+    for start_n in range(0, prior_seq_len, BLOCK_KV):
         kv_offs = start_n + kv_range
-        kv_mask = kv_offs < seq_len
+        kv_mask = kv_offs < prior_seq_len
 
         # Block table lookup
         page_idx = kv_offs // BLOCK_SIZE

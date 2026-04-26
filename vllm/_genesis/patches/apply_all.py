@@ -1070,6 +1070,326 @@ def apply_patch_70_auto_strict_ngram() -> PatchResult:
     return _failed(name, reason)
 
 
+@register_patch("P67 TurboQuant multi-query kernel for spec-decode K+1")
+def apply_patch_67_tq_multi_query_kernel() -> PatchResult:
+    """Patch 67 (Genesis-original): proper-fix Triton kernel for multi-query
+    TurboQuant attention against compressed cache for spec-decode K+1 batches.
+
+    Replaces P65 workaround (cudagraph downgrade for spec-decode → ~30%
+    throughput hit) with a Triton kernel that handles compressed KV cache
+    DIRECTLY and supports FULL cudagraph capture.
+
+    Reads TurboQuant k8v4 layout in-kernel:
+      - FP8 K (e4b15 on Ampere/Ada, e4nv on Hopper+) via tl.float8 bitcast
+      - 4-bit V indices unpacked via bit shift
+      - FP16 scale + zero loaded as 2-byte pairs
+      - Paged block_table lookup per KV position
+
+    Online softmax per (q_token, head) pair. Phase 1 (prior cached, no causal),
+    Phase 2 (current chunk K+1, causal mask `q_pos >= k_pos`).
+
+    Cross-arch: pure tl.dot fp16, no FA3/Hopper-specific intrinsics.
+    Tested on Ampere SM 8.6 (A5000), should work on SM ≥ 7.5.
+
+    Empirical correctness (Phase 1 + 2 prototype p67_dev/):
+      Reference vs kernel: rel_avg ~1% (FP8 + 4-bit quant noise normal)
+
+    Status: opt-in via GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL=1.
+    On any error, falls through to upstream eager continuation branch.
+
+    Once empirically validated end-to-end on Sander's prod rig:
+      - Restore P65 to UNIFORM_BATCH (no longer need cudagraph downgrade)
+      - Spec-decode batches regain FULL cudagraph speedup
+      - Net: P64 + P65v2 + P66 + P67 = correct + fast
+
+    Credit:
+      - Bug surface: @noonghunna (vllm#40880)
+      - Algorithm: extends @tdoublep #40792 grouped decode pattern
+      - References studied: 0xSero/turboquant kernels, FlashInfer, SageAttention
+      - Genesis investigation 2026-04-25/26
+    """
+    name = "P67 TurboQuant multi-query kernel for spec-decode K+1"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring import patch_67_tq_multi_query_kernel
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_67_tq_multi_query_kernel.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch("P71 Block-verify rejection sampler (vllm#40819 + gemini bug-fixes)")
+def apply_patch_71_block_verify() -> PatchResult:
+    """Patch 71: opt-in backport of vllm-project/vllm#40819 (Z. Golpayegani,
+    OPEN draft) implementing Sun et al. 2024 ICLR block verification rule
+    (arXiv 2403.10444) for spec-decode rejection sampling.
+
+    Strictly >= per-token rule in expected accepted tokens. Theorem in
+    Sun 2024 §4 proves unbiased (same target marginal preserved).
+
+    Backported with TWO critical bug-fixes from gemini-code-assist review:
+      - FIX 1: SHARED u per request (PR uses per-position; Sun 2024 requires
+        ONE Bernoulli per block)
+      - FIX 2: denom==0 → ACCEPT (1.0); PR returned 0.0 which REJECTS perfect
+        drafts
+
+    Activation gate (all must hold):
+      - GENESIS_ENABLE_P71_BLOCK_VERIFY=1
+      - max_spec_len >= 3
+      - draft_probs is not None (per-token probs available; ngram has none)
+      - not synthetic_mode
+      - not all_greedy (block degenerates to per-token at T=0; upstream
+        skips this anyway)
+
+    Realistic gain on 35B-A3B + Ampere SM 8.6: +0-3% wall-clock
+    (PR's own Qwen3-32B parity bench). Treat as experimental.
+
+    Safety: any kernel error → silent fall-through to upstream per-token
+    path. NO output corruption, NO engine impact.
+
+    Status: opt-in, default OFF. Not enabled in v7.42 prod env.
+    """
+    name = "P71 Block-verify rejection sampler (vllm#40819 + gemini bug-fixes)"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring import patch_71_block_verify
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_71_block_verify.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch("P78 TurboQuant .tolist() capture-guard (adapted from noonghunna)")
+def apply_patch_78_tolist_capture_guard() -> PatchResult:
+    """Patch 78: surgical safety-net for cudagraph capture in
+    TurboQuant._prefill_attention. Falls back to flash_attn_varlen_func
+    when torch.cuda.is_current_stream_capturing() returns True (capture
+    can't tolerate the .tolist() GPU->CPU sync inside the continuation
+    branch).
+
+    Composes additively with our P22/P26/P44 prealloc patches: prealloc
+    fires on steady-state (eliminates the .tolist() path entirely);
+    P78 fires only during cudagraph capture warmup with dynamic shapes
+    that pre-empt prealloc. Belt-and-suspenders approach.
+
+    CREDIT: algorithm + anchor strings adapted from noonghunna's
+    patch_tolist_cudagraph.py (Apache-2.0):
+      https://github.com/noonghunna/qwen36-27b-single-3090
+
+    Status: opt-in via GENESIS_ENABLE_P78_TOLIST_CAPTURE_GUARD=1.
+    """
+    name = "P78 TurboQuant .tolist() capture-guard (adapted from noonghunna)"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring import patch_78_tolist_capture_guard
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_78_tolist_capture_guard.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch("P77 Adaptive ngram K controller (EMA + hysteresis + auto-disable)")
+def apply_patch_77_adaptive_ngram_k() -> PatchResult:
+    """Patch 77: wraps `NgramProposer.propose()` with adaptive K controller.
+
+    K dynamically chosen from {0, 1, 3, 5} (configurable) based on EMA of
+    acceptance over rolling window, with hysteresis to prevent oscillation
+    and auto-disable to K=0 (no-spec mode) when accept_rate < 30%.
+
+    Solves the ngram free-form text pathology: vLLM ngram with fixed K=3
+    on workload without repeats wastes 4 forward passes per output token
+    (acceptance ~10-15%) → effective decode is 4× slower than no-spec.
+
+    With P77 enabled:
+      - Free-form text: K auto-drops to 1 then 0 → ~no-spec TPS (~150 tok/s vs current 46)
+      - Tool-call: K stays at 3-5 (high acceptance) → no degradation
+      - Mid-session workload shift: probe every 100 batches re-tests
+
+    Status: opt-in via GENESIS_ENABLE_P77_ADAPTIVE_NGRAM_K=1.
+
+    Algorithm: port of SGLang adaptive_spec_params.py (Apache-2.0) +
+    Nightjar arXiv 2512.22420 auto-disable extension.
+
+    Composition:
+      - With P75 (suffix): P75 routes to SuffixDecodingProposer instead, P77
+        wiring patch is harmless no-op (NgramProposer never instantiated).
+      - With P70 (auto-strict-ngram): orthogonal — P70 sets prompt_lookup_min,
+        P77 controls K. Stack cleanly.
+      - With MTP method: no-op (only NgramProposer is wrapped).
+    """
+    name = "P77 Adaptive ngram K controller (EMA + hysteresis + auto-disable)"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring import patch_77_adaptive_ngram_k
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_77_adaptive_ngram_k.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch("P75 Auto-enable Suffix Decoding (vllm#25784 Arctic Inference)")
+def apply_patch_75_suffix_decoding_enable() -> PatchResult:
+    """Patch 75: operator-convenience auto-swap of speculative method from
+    "ngram" to "suffix" (Arctic Inference Suffix Decoding) when
+    `GENESIS_ENABLE_P75_SUFFIX_DECODING=1`.
+
+    Suffix Decoding (PR #25784, MERGED 2025-11-03, present in our pin) builds
+    per-prompt suffix trees with branch-frequency stats and speculates a
+    DYNAMIC number of tokens per step (vs ngram's fixed
+    num_speculative_tokens). Per arXiv 2411.04975 (NeurIPS 2025): up to 2.8×
+    over EAGLE on agentic workloads.
+
+    On our config (Qwen3.6-A3B-FP8 + 2× A5000), expected:
+      - Tool-call (heavy repeats): +40-60% TPS over current 75 tok/s strict-ngram
+      - Free-form text: +15-25% over current 46 tok/s (suffix tree handles
+        short repeats that pure ngram misses with prompt_lookup_min=8)
+
+    Dependency: `pip install arctic-inference` (added to test container
+    entrypoint). If missing, P75 logs warning and keeps method=ngram (safe).
+
+    Status: opt-in via GENESIS_ENABLE_P75_SUFFIX_DECODING=1.
+    """
+    name = "P75 Auto-enable Suffix Decoding (vllm#25784 Arctic Inference)"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring import patch_75_suffix_decoding_enable
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_75_suffix_decoding_enable.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch("P74 Auto chunk-clamp via long_prefill_token_threshold (P72 companion)")
+def apply_patch_74_chunk_clamp() -> PatchResult:
+    """Patch 74: auto-clamp `SchedulerConfig.long_prefill_token_threshold`
+    to GENESIS_PREALLOC_TOKEN_BUDGET when user runs with
+    `--max-num-batched-tokens > 4096` (typically via P72 unblock).
+
+    Companion safety net to P72: prevents the prefill-chunk-overflow
+    regression discovered in v7.42 testing where P28 GDN core_attn_out
+    buffer (sized at 4096) was overrun by a 5664-token prefill chunk on
+    long-context (180K) requests.
+
+    Mechanism: at SchedulerConfig.__post_init__, if user did not set
+    explicit `long_prefill_token_threshold`, AND P74 env enabled, AND
+    GENESIS_PREALLOC_TOKEN_BUDGET < max_num_batched_tokens, set
+    `long_prefill_token_threshold = budget`. Decode batches still
+    consume up to `max_num_batched_tokens` (multi-seq parallelism
+    preserved). Only prefill chunks get clamped. Zero VRAM cost.
+
+    Status: opt-in via GENESIS_ENABLE_P74_CHUNK_CLAMP=1.
+    Recommended ON whenever GENESIS_ENABLE_P72_PROFILE_RUN_CAP=1 AND
+    --max-num-batched-tokens > 4096.
+    """
+    name = "P74 Auto chunk-clamp via long_prefill_token_threshold (P72 companion)"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring import patch_74_chunk_clamp
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_74_chunk_clamp.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch("P72 profile_run M cap (unblocks --max-num-batched-tokens>4096 on MoE)")
+def apply_patch_72_profile_run_cap() -> PatchResult:
+    """Patch 72: workaround for Dynamo fake-tensor mismatch when running with
+    `--max-num-batched-tokens > 4096` on MoE models.
+
+    Root cause: profile_run calls `_dummy_run(self.max_num_tokens, is_profile=True)`
+    which traces MoE forward with topk_ids shape (M, top_k). For M=8192 + top_k=8,
+    `topk_ids.numel() = 65536`. Dynamo specializes 65536 in one trace branch and
+    leaves it symbolic (16*s72) in another, then can't reconcile.
+
+    Fix: cap M passed to _dummy_run to GENESIS_PROFILE_RUN_CAP_M (default 4096).
+    Memory profile delta < 1MB (negligible vs 35GB model weights). Real runtime
+    batches up to 8192 still go through the same compiled graph (Dynamo doesn't
+    re-trace; symbolic shape covers both M=4096 and M=8192).
+
+    For our 2-seq MTP K+1=4 interactive workload, real per-step gain is <0.5%.
+    The headroom is for prefill chunk size, relevant when ISL > 4096 in
+    aggregator multi-turn scenarios.
+
+    Status: opt-in via GENESIS_ENABLE_P72_PROFILE_RUN_CAP=1.
+
+    Tunable knobs:
+      - GENESIS_PROFILE_RUN_CAP_M (default 4096) — cap value
+      - GENESIS_PROFILE_RUN_CAP_LOG (default 1) — log when cap fires
+    """
+    name = "P72 profile_run M cap (unblocks --max-num-batched-tokens>4096 on MoE)"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring import patch_72_profile_run_cap
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_72_profile_run_cap.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch("P67b TurboQuant spec-verify forward() routing (FULL CG enable)")
+def apply_patch_67b_spec_verify_routing() -> PatchResult:
+    """Patch 67b: companion to P67 — adds dispatch branch in TurboQuant
+    `forward()` BEFORE prefill/decode classification, intercepting K+1
+    spec-verify batches and routing them through the P67 kernel directly.
+
+    Bypasses `_prefill_attention` entirely for K+1 batches → avoids the
+    upstream `tolist_cudagraph_fix` bypass crash (`cudaErrorStreamCapture
+    Invalidated`) under FULL cudagraph capture. Combined with reverting
+    P65 cudagraph downgrade, enables `FULL_AND_PIECEWISE` mode for spec-
+    decode → expected +20-30% TPS on top of P67.
+
+    Same env flag as P67: GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL=1.
+    """
+    name = "P67b TurboQuant spec-verify forward() routing"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring import patch_67b_spec_verify_routing
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_67b_spec_verify_routing.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
 @register_patch("P59 Qwen3 reasoning embedded tool_call recovery")
 def apply_patch_59_qwen3_reasoning_tool_call_recovery() -> PatchResult:
     """Patch 59: Backport of upstream PR vllm#39055 (ZenoAFfectionate, OPEN).

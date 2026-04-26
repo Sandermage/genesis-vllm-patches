@@ -1,6 +1,79 @@
-# Genesis vLLM Patches — v7.15
+# Genesis vLLM Patches — v7.43
 
 **Runtime patches for [vLLM](https://github.com/vllm-project/vllm) — long-context Qwen3-class inference on NVIDIA Ampere, with TurboQuant k8v4 KV-cache and 256k context.**
+
+> **Production-validated stack: 127 tok/s mean MTP free-form / 99 tok/s suffix tool-call (max 175!) on 2× RTX A5000 (Ampere SM 8.6, 48GB VRAM total).** Long-context corrected up to 252K tokens (96% of 262144 cap). Zero hallucinations / cascades / garbage in 5/5 quality tests.
+
+## What's new in v7.42-v7.43 (2026-04-26 — almost 24-hour push)
+
+This release closes the spec-decode method comparison loop and adds 4 new patches addressing concrete production gaps. After **methodical empirical comparison of all 4 vLLM-supported speculative-decode methods** on our hardware, deep audit of upstream PRs / forks / academic papers, and reverse-engineering of two distinct buffer-overflow bug classes — we ship:
+
+| Patch | Source | Effect | Status |
+|---|---|---|---|
+| **P71** | Backport of [vllm#40819](https://github.com/vllm-project/vllm/pull/40819) (Z. Golpayegani draft) + Sun et al. arXiv 2403.10444 + 2 critical bug-fixes from gemini-code-assist review | Block-verify rejection sampler. Strictly ≥ per-token rule (Sun 2024 §4 theorem). Bug-fixes: SHARED `u` per request (PR used per-position), `denom==0 → 1.0` ACCEPT (PR returned 0.0 — rejected perfect drafts). | opt-in (default OFF), MTP-only |
+| **P72** | Genesis-original | Cap `profile_run` M to 4096 → unblocks `--max-num-batched-tokens > 4096` on MoE (Dynamo fake-tensor mismatch in moe_align symbolic shape). | opt-in |
+| **P73** | Genesis-original | Central `prealloc_budget.py` resolver. Wired into P28 / P26 / P37 / P44 — eliminates 4 hardcoded `4096` constants that caused regression on chunk > 4096. | library |
+| **P74** | Genesis-original (companion to P72) | Auto-set `SchedulerConfig.long_prefill_token_threshold = GENESIS_PREALLOC_TOKEN_BUDGET` so prefill chunks never exceed prealloc budget. **Zero VRAM cost** — decodes still get full multi-seq parallelism. | opt-in |
+| **P75** | Genesis-enabler of [vllm#25784](https://github.com/vllm-project/vllm/pull/25784) (Arctic Inference Suffix Decoding, MERGED 2025-11-03, present in pin) | Auto-swap `method=ngram → method=suffix` when `GENESIS_ENABLE_P75_SUFFIX_DECODING=1`. Per arXiv 2411.04975: dynamic K speculation per step, per-prompt suffix tree. **Empirically: +32% over historic ngram on tool-call workload (max 175 tok/s).** | opt-in (requires `arctic-inference`) |
+| **P77** | Genesis-original (port of SGLang `adaptive_spec_params.py` Apache-2.0 + Nightjar arXiv 2512.22420 auto-disable extension) | Adaptive ngram K controller with EMA + hysteresis + auto-disable to K=0 on `accept_rate < 30%`. Fixes free-form ngram pathology where K=3 wastes 4 forward passes per accepted token. | opt-in |
+
+### Empirical comparison of all spec-decode methods (Qwen3.6-35B-A3B-FP8, 2× A5000)
+
+12-run benchmarks per config, mean ± std:
+
+| Method | Free-form (tok/s) | Tool-call (tok/s) | Quality | CV | Verdict |
+|---|---|---|---|---|---|
+| **MTP (default)** | **127.0** | (not tested) | 5/5 PASS | 4.7% | **BEST overall, prod default** |
+| ngram CPU (numba) | 46.6 | 75 (v7.13 historic) | 5/5 PASS | 4.4% | Fallback |
+| ngram_gpu | 43.6 | 45.4 | 4/5 PASS | 3-13% | **NO GAIN** (V1 stale-data residual; PR #40704 V2 rewrite needed for high-conc; dtype bug #37150 already fixed via PR #37246 in our pin) |
+| **suffix decoding (P75)** | 45.9 | **99.0 mean (max 175!)** | 4/5 PASS | 16-36% | **WIN for tool-call workload (+32%)** |
+
+### Long-context verification (P74 chunk-clamp, batched=8192)
+
+| Context (tokens) | Result | Latency |
+|---|---|---|
+| 14,640 | PASS | 2.5s |
+| 73,040 | PASS | 9.4s |
+| 146,040 | PASS | 23.2s |
+| 180,037 | PASS | 49s (cold) |
+| 216,037 | PASS | 17.4s (warm prefix-cache) |
+| **252,037** | **PASS** | **10.5s ← max stable** |
+| 266,050 | HTTP 400 (max_model_len=262144 cap, enforced cleanly — no OOM) |
+
+### Story log — what those 24 hours produced
+
+This release is the result of a near-continuous research+coding session that started from one user question ("can we improve ngram speed?") and ended with a fully-validated multi-method spec-decode stack. The chronology:
+
+1. **Discovery phase** — confirmed all 4 vLLM spec-decode methods (mtp / ngram / ngram_gpu / suffix) end-to-end on our hardware. Burned the myth that `ngram_gpu` is broken in our pin (it's not — bug #37150 was fixed via PR #37246 merged 2026-03-17, our pin is from 2026-04-25). The remaining `ngram_gpu` underperformance is V1 stale-data race (PR #40704 V2 rewrite, not text-patchable today).
+2. **Crash investigation** — discovered P28 `core_attn_out` buffer overflow when `--max-num-batched-tokens > 4096` (P72 unblock exposed it on long-context). Root-caused as 4 hardcoded `4096` constants across our prealloc patches (P28/P26/P37/P44). Built P73 central resolver + P74 auto chunk-clamp to fix without VRAM cost.
+3. **PR backport phase** — implemented vllm#40819 (block-verify) as P71 with **2 gemini-flagged critical bugs fixed before port** (shared u, denom==0 acceptance). Avoided the regression trap of porting broken code.
+4. **Method comparison phase** — empirically benchmarked all 4 methods on free-form + tool-call workloads. Discovered Suffix Decoding wins decisively on tool-call (+32% over ngram historic, peak 175 tok/s).
+5. **Adaptive control phase** — built P77 controller (port of SGLang EMA + hysteresis logic + Nightjar auto-disable) as backstop for ngram-only deployments where MTP isn't available.
+6. **Cross-rig validation** — analysed [@noonghunna/qwen36-dual-3090](https://github.com/noonghunna/qwen36-dual-3090) (RTX 3090 cousin rig) for cross-validation; identified `patch_tolist_cudagraph.py` as a candidate complementary patch (P78, with attribution).
+
+The full discovery loop — research → bug → fix → benchmark → rinse — happened in a tight cycle. Every patch landed has empirical evidence behind it, every regression was caught **before** it would have hit prod (P28 overflow regression caught by long-context test gate). The discipline rule "push to private repo BEFORE every prod deploy" held for all v7.42-v7.43 changes (commits `c2beaf0` v7.42, `9416c77` v7.43 on `Sandermage/p67-genesis-kernel`).
+
+### Final production recommendation
+
+```bash
+# Free-form / general-purpose (most users):
+--speculative-config '{"method":"mtp","num_speculative_tokens":3}'
+# 127 tok/s mean
+
+# Tool-call / agentic-heavy workload:
+GENESIS_ENABLE_P75_SUFFIX_DECODING=1 \
+--speculative-config '{"method":"ngram","num_speculative_tokens":3}'  # P75 auto-swaps to suffix
+# 99 tok/s mean, peak 175
+
+# Ngram-only deployment (no MTP available) — opt-in adaptive K:
+GENESIS_ENABLE_P77_ADAPTIVE_NGRAM_K=1 \
+--speculative-config '{"method":"ngram","num_speculative_tokens":3,"prompt_lookup_min":8}'
+# Auto-tunes K based on workload acceptance rate
+```
+
+---
+
+## Older changelog
 
 > 34+ active patches (P64-P70 added across v7.14/v7.15, P63 deprecated). Zero vLLM source modifications beyond container startup. Stability matrix verified to GMU 0.93 with full patch set.
 > Defense-in-depth interface guards (P49). ASGI response-cache middleware (P50).

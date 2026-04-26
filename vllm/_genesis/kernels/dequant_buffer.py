@@ -477,7 +477,14 @@ class TurboQuantBufferManager:
         elif _TQ_ENV_BUDGET is not None:
             max_n = _TQ_ENV_BUDGET
         else:
-            max_n = 4096
+            # [Genesis P73 fix v7.42] Was hardcoded 4096 — caused chunk-overflow
+            # at runtime when scheduler dispatched chunk > 4096 (P28 incident).
+            # Now consult central resolver (which probes vllm scheduler_config).
+            try:
+                from vllm._genesis.prealloc_budget import resolve_token_budget
+                max_n = resolve_token_budget(domain_env=_ENV_TQ_MAX_BT)
+            except Exception:
+                max_n = 4096  # final safety net
 
         if num_tokens > max_n or not cls.should_apply():
             # Fallback: fresh allocation (correctness over throughput)
@@ -677,7 +684,14 @@ class TurboQuantBufferManager:
         elif _TQ_ENV_BUDGET is not None:
             max_n = _TQ_ENV_BUDGET
         else:
-            max_n = 4096
+            # [Genesis P73 fix v7.42] Was hardcoded 4096 — caused chunk-overflow
+            # at runtime when scheduler dispatched chunk > 4096 (P28 incident).
+            # Now consult central resolver (which probes vllm scheduler_config).
+            try:
+                from vllm._genesis.prealloc_budget import resolve_token_budget
+                max_n = resolve_token_budget(domain_env=_ENV_TQ_MAX_BT)
+            except Exception:
+                max_n = 4096  # final safety net
 
         if num_tokens > max_n or not cls.should_apply():
             return torch.zeros(

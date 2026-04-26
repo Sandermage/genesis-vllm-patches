@@ -20,6 +20,8 @@ We backport not-yet-merged upstream PRs as opt-in patches when they fix bugs tha
 | **P61b** | [vllm#40783](https://github.com/vllm-project/vllm/pull/40783) (streaming slice) | **ExtReMLapin** | Defensive overlap guard preventing partial `<tool_call>` tag fragments leaking as reasoning during streaming. |
 | **P62** | [vllm#36138](https://github.com/vllm-project/vllm/pull/36138) | **sfbemerk** | Reasoning-aware grammar acceptance + spec-token validation. Fixes grammar bypass when `</think>` arrives within speculative-decode token batch. Original bug report by **cicirori** in [#34650](https://github.com/vllm-project/vllm/issues/34650). |
 | **P64** | [vllm#39598](https://github.com/vllm-project/vllm/pull/39598) | **kotori-yan** | Streaming tool-call early-return removal — fixes empty `tool_calls` when MTP/spec-decode bundles last parameter + `</function>` in single delta. Plus widens safety-net trigger condition. (v7.14, opt-in) |
+| **P71** | [vllm#40819](https://github.com/vllm-project/vllm/pull/40819) (DRAFT) + 2 fixes from [@gemini-code-assist](https://github.com/gemini-code-assist) review | **Z. Golpayegani** (PR author) + **gemini-code-assist** (bug reviewer) | Block-verify rejection sampler (Sun et al. arXiv 2403.10444). Backported with TWO critical fixes from PR review: (1) shared `u` per request (PR used per-position), (2) `denom==0 → 1.0` ACCEPT (PR returned 0.0 — rejected perfect drafts). Algorithm paper: Sun, Mendlovic, Leviathan et al. ICLR 2025. (v7.42, opt-in, MTP-only) |
+| **P75 enabler** | [vllm#25784](https://github.com/vllm-project/vllm/pull/25784) (already MERGED in pin) | Snowflake Arctic team | Suffix Decoding (per-prompt suffix tree, dynamic K). Algorithm: arXiv 2411.04975. We add operator-convenience auto-swap from method=ngram to method=suffix when env enabled. (v7.43, opt-in) |
 
 ## Upstream issues that informed our investigation
 
@@ -42,6 +44,16 @@ Our investigation of the spec-decode + tool-call bug class (Genesis v7.11/12/13)
 | [vllm#38556](https://github.com/vllm-project/vllm/pull/38556) (merged) | **MatthewBonanni**, co-authored by **SandishKumarHN** | Stale `num_accepted_tokens_cpu` in hybrid models under async spec decode. Already in our pin via `757068dc6` — confirmed in our investigation. |
 | [Wasif Basharat — "An Overnight Stack for Qwen3.6-27B" (Medium, Apr 2026)](https://medium.com/@fzbcwvv/an-overnight-stack-for-qwen3-6-27b-85-tps-125k-context-vision-on-one-rtx-3090-0d95c6291914) | **Wasif Basharat** | Documented the `query_start_loc.tolist()` cudagraph capture crash in TurboQuant's continuation-prefill branch. Genesis loads `external_probe/patch_tolist_cudagraph.py` (which mirrors his `is_current_stream_capturing()` guard pattern) at boot. Source of inspiration for understanding the bypass design space. |
 | [Liu et al. 2023 — "Lost in the Middle"](https://arxiv.org/abs/2307.03172) | **Liu, Lin, Hewitt et al.** | Empirical evidence that LLMs lose attention to instructions buried in middle of long context — motivated our P69 reminder-injection approach. |
+| [Sun et al. 2024 — "Block Verification Accelerates Speculative Decoding"](https://arxiv.org/abs/2403.10444) | **Ziteng Sun, Uri Mendlovic, Yaniv Leviathan, Asaf Aharoni, Jae Hun Ro, Ahmad Beirami, Ananda Theertha Suresh** | Algorithm paper for our P71 backport. Theorem 4 proves block-verify is unbiased and ≥ per-token rule in expected accepted tokens. |
+| [Snowflake / Arctic Inference — "Suffix Decoding"](https://arxiv.org/abs/2411.04975) | Snowflake Arctic team | Algorithm paper for our P75 enabler. Per-prompt suffix tree + dynamic K speculation; vLLM integration via PR #25784 (already in our pin). |
+| [SGLang `adaptive_spec_params.py`](https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/speculative/adaptive_spec_params.py) | SGLang team | EMA + hysteresis algorithm we ported as P77 (Apache-2.0). Adaptive K controller for ngram speculation. |
+| [Nightjar — adaptive speculation arXiv 2512.22420](https://arxiv.org/abs/2512.22420) | (Nightjar authors) | MAB-style auto-disable on low acceptance — extension we added on top of SGLang's logic in P77. |
+
+## Cross-rig collaboration
+
+| Person | Repo | Contribution |
+|---|---|---|
+| **[@noonghunna](https://github.com/noonghunna)** | [`qwen36-27b-single-3090`](https://github.com/noonghunna/qwen36-27b-single-3090), [`qwen36-dual-3090`](https://github.com/noonghunna/qwen36-dual-3090) | (1) Apache-2.0 `patch_tolist_cudagraph.py` adapted as our **P78** with attribution. (2) Cross-validation of our P65 root-cause for #40880 on RTX 3090 (cited in their dual-3090 README turbo section). (3) Multiple bug isolation matrices (#40807/#40831/#40880) that informed our v7.13/v7.14 investigation. |
 
 ## Earlier upstream PRs we depend on (already merged)
 

@@ -81,12 +81,28 @@ _DEFAULT_MAX_BT: int = 4096
 
 
 def resolve_max_batched_tokens(hint: Optional[int] = None) -> int:
-    """Choose max_num_tokens for prealloc. Called at __init__ time only."""
+    """Choose max_num_tokens for prealloc. Called at __init__ time only.
+
+    [Genesis P73 fix v7.42] Now delegates to central `prealloc_budget.resolve_token_budget`
+    which consults vllm scheduler_config IF env not set. Back-compat: still
+    honors GENESIS_GDN_MAX_BATCHED_TOKENS as a domain-specific override.
+    Resolves the chunk-overflow root cause (5664-token chunk vs hardcoded 4096).
+    """
     if hint is not None and hint > 0:
         return int(hint)
+    # Back-compat: domain env still wins if explicitly set
     if _ENV_BUDGET is not None:
         return _ENV_BUDGET
-    return _DEFAULT_MAX_BT
+    # Try central resolver (consults vllm scheduler_config)
+    try:
+        from vllm._genesis.prealloc_budget import resolve_token_budget
+        return resolve_token_budget(domain_env=_ENV_MAX_BT)
+    except Exception as e:
+        log.warning(
+            "[Genesis P28] prealloc_budget resolver failed (%s); "
+            "falling back to legacy default %d", e, _DEFAULT_MAX_BT,
+        )
+        return _DEFAULT_MAX_BT
 
 
 # ─── Should-apply cache ─────────────────────────────────────────────────────

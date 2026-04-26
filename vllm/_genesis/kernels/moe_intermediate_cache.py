@@ -157,12 +157,15 @@ def clear_for_tests() -> None:
 def _resolve_max_batched_tokens(m_hint: Optional[int] = None) -> int:
     """Resolve max_num_batched_tokens for pool sizing.
 
+    [Genesis P73 fix v7.42] Now consults central prealloc_budget resolver
+    which probes vllm scheduler_config. Back-compat: GENESIS_MOE_MAX_BATCHED_TOKENS
+    still wins as domain-specific override.
+
     Priority:
       1. `GENESIS_MOE_MAX_BATCHED_TOKENS` env (pinned at module import).
-      2. `m_hint` arg from caller (usually `M` from the first call —
-         not ideal because M can grow later, but safe for our chunked-
-         prefill capped at 4096).
-      3. Conservative default 4096 (prod config).
+      2. `m_hint` arg rounded up to power-of-2 (stabilise pool key).
+      3. Central P73 resolver (vllm scheduler_config / global env override).
+      4. Conservative default 4096 (final fallback).
     """
     if _MAX_BT_OVERRIDE is not None:
         return _MAX_BT_OVERRIDE
@@ -172,8 +175,17 @@ def _resolve_max_batched_tokens(m_hint: Optional[int] = None) -> int:
         p = 1
         while p < m_hint:
             p <<= 1
-        return max(p, 4096)
-    return 4096
+        # Floor by central resolver (prevents chunk-overflow regression)
+        try:
+            from vllm._genesis.prealloc_budget import resolve_token_budget
+            return max(p, resolve_token_budget(domain_env=_ENV_MAX_BT_OVERRIDE))
+        except Exception:
+            return max(p, 4096)
+    try:
+        from vllm._genesis.prealloc_budget import resolve_token_budget
+        return resolve_token_budget(domain_env=_ENV_MAX_BT_OVERRIDE)
+    except Exception:
+        return 4096
 
 
 # ─── Core allocator — DYNAMO-SAFE int-tuple keys ────────────────────────
