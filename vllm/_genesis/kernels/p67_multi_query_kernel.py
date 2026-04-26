@@ -1,6 +1,17 @@
 # SPDX-License-Identifier: Apache-2.0
 """P67 production wrapper — multi-query TurboQuant attention for spec-decode.
 
+v7.50 (2026-04-27): adopt vllm#33529 (Triton MLA perf fixes, merged
+2026-04-02) cache-modifier hints + tl.range() pipelining hint:
+  - Q + Block_table + scales/zeros loads → cache_modifier=".ca" (L1 cache)
+  - K/V dequant raw loads → cache_modifier=".cg" (L2 streaming)
+  - Hoist `kv_head * stride_cache_head` out of inner KV loop
+  - `for start_n in tl.range(0, total_seq_len, BLOCK_KV):` instead of plain
+    range() — explicit Triton pipelining hint, allows compiler to overlap
+    cp.async loads with prior-iteration MMA on Ampere
+Expected gain: +5-10% throughput. Numerics unchanged (cache_modifier is
+a memory-traffic hint, not arithmetic).
+
 v7.48 NOTE (2026-04-27): a brief tf32x3 → default-tf32 experiment was
 attempted to reduce inner-loop MMA cost, but the apparent regression
 turned out to be unrelated (vLLM nightly bumped PyTorch to 2.11+CUDA13
@@ -131,31 +142,47 @@ def _build_kernel():
 
         bt_base = bid * stride_bt_b
 
+        # v7.50 (Step C — vllm#33529 patterns): hoist KV-head-byte invariant
+        # out of inner KV loop. It depends only on (kv_head, stride), not on
+        # per-tile seq_offset. Triton would also hoist this with -O2 but
+        # explicit hoist matches the upstream MLA decode optimization.
+        _kv_head_byte_offset = tl.cast(kv_head, tl.int64) * stride_cache_head
+
         # ════════════════════════════════════════════════════════════════
         # OUTER LOOP — KV tiles. K/V loaded ONCE per iteration.
+        # v7.50: tl.range() instead of range() — explicit Triton pipelining
+        #        hint, lets the compiler overlap async-copy with MMA across
+        #        iterations. Adopted from vllm#33529 (merged 2026-04-02).
         # ════════════════════════════════════════════════════════════════
-        for start_n in range(0, total_seq_len, BLOCK_KV):
+        for start_n in tl.range(0, total_seq_len, BLOCK_KV):
             seq_offset = start_n + offs_kv
             tile_mask = seq_offset < total_seq_len
 
             page_idx = seq_offset // BLOCK_SIZE
             page_off = seq_offset % BLOCK_SIZE
+            # v7.50: cache_modifier=".ca" — block_table is a small lookup
+            # array reused across all K/V loads in this tile. Cache-all
+            # keeps it in L1.
             physical_block = tl.load(
                 Block_table_ptr + bt_base + page_idx,
                 mask=tile_mask, other=0,
+                cache_modifier=".ca",
             ).to(tl.int64)
             slot_bases = (
                 physical_block * stride_cache_block
                 + page_off.to(tl.int64) * stride_cache_pos
-                + tl.cast(kv_head, tl.int64) * stride_cache_head
+                + _kv_head_byte_offset  # hoisted invariant
             )
 
             # K loaded transposed: [HEAD_SIZE, TILE_SIZE]
+            # v7.50: cache_modifier=".cg" — K/V cache is streaming (sequential
+            # read, not reused). Cache-global keeps L1 free for Q + scales.
             k_addrs = slot_bases[None, :] + offs_d[:, None]
             k_raw = tl.load(
                 KV_cache_ptr + k_addrs,
                 mask=d_mask[:, None] & tile_mask[None, :],
                 other=0,
+                cache_modifier=".cg",
             )
             if FP8_E4B15:
                 k_float = k_raw.to(tl.float8e4b15, bitcast=True).to(tl.float32)
@@ -169,19 +196,28 @@ def _build_kernel():
             # V dequant — load 4-bit indices + scale + zero, build V_tile
             val_bases = slot_bases + KPS
             val_addrs = val_bases[:, None] + vb_idx[None, :]
+            # v7.50: streaming V dequant data — .cg
             val_raw = tl.load(
                 KV_cache_ptr + val_addrs,
                 mask=tile_mask[:, None] & d_mask[None, :],
                 other=0,
+                cache_modifier=".cg",
             ).to(tl.int32)
             v_idx = ((val_raw >> vb_shift[None, :]) & 0xF).to(tl.float32)
 
             sc_bases = val_bases + VAL_DATA_BYTES
-            sc_lo = tl.load(KV_cache_ptr + sc_bases, mask=tile_mask, other=0).to(tl.uint16)
-            sc_hi = tl.load(KV_cache_ptr + sc_bases + 1, mask=tile_mask, other=0).to(tl.uint16)
+            # v7.50: scales/zeros are 4 bytes per tile-row, reused across
+            # both V-dequant arithmetic and (potentially) MMA epilogue.
+            # Cache-all keeps them hot in L1.
+            sc_lo = tl.load(KV_cache_ptr + sc_bases, mask=tile_mask, other=0,
+                            cache_modifier=".ca").to(tl.uint16)
+            sc_hi = tl.load(KV_cache_ptr + sc_bases + 1, mask=tile_mask, other=0,
+                            cache_modifier=".ca").to(tl.uint16)
             v_scales = (sc_lo | (sc_hi << 8)).to(tl.float16, bitcast=True).to(tl.float32)
-            zr_lo = tl.load(KV_cache_ptr + sc_bases + 2, mask=tile_mask, other=0).to(tl.uint16)
-            zr_hi = tl.load(KV_cache_ptr + sc_bases + 3, mask=tile_mask, other=0).to(tl.uint16)
+            zr_lo = tl.load(KV_cache_ptr + sc_bases + 2, mask=tile_mask, other=0,
+                            cache_modifier=".ca").to(tl.uint16)
+            zr_hi = tl.load(KV_cache_ptr + sc_bases + 3, mask=tile_mask, other=0,
+                            cache_modifier=".ca").to(tl.uint16)
             v_zeros = (zr_lo | (zr_hi << 8)).to(tl.float16, bitcast=True).to(tl.float32)
             V_dequant = v_idx * v_scales[:, None] + v_zeros[:, None]
             V_safe = tl.where(V_dequant == V_dequant, V_dequant, 0.0)
@@ -206,10 +242,14 @@ def _build_kernel():
                     + abs_head[:, None] * stride_qh
                     + offs_d[None, :] * stride_qd
                 )
+                # v7.50: cache_modifier=".ca" — Q is reused inside this CTA
+                # across all KV iterations (constant per-batch tensor).
+                # Cache-all keeps it pinned in L1.
                 Q_t_raw = tl.load(
                     Q_ptr + q_addrs_t,
                     mask=head_mask[:, None] & d_mask[None, :],
                     other=0.0,
+                    cache_modifier=".ca",
                 )  # [BLOCK_QH, BLOCK_D] — fp16 from input
                 # Upcast Q to fp32 — required for input_precision='ieee' to be effective.
                 Q_t = Q_t_raw.to(tl.float32)

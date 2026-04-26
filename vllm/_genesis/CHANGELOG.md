@@ -1,5 +1,59 @@
 # Genesis `_genesis/` Package Changelog
 
+## v7.50 — 2026-04-27 (Tier 1 Step C: P67 cache_modifier + tl.range hints)
+
+Backport of [vllm#33529](https://github.com/vllm-project/vllm/pull/33529)
+("Triton MLA perf fixes", merged 2026-04-02) Triton compiler hints into our
+P67 multi-query attention kernel. Memory-traffic optimizations only — zero
+arithmetic change.
+
+### Changed (`vllm/_genesis/kernels/p67_multi_query_kernel.py`)
+
+- **`tl.range()` instead of plain `range()`** for the outer KV loop —
+  explicit Triton pipelining hint. Lets the compiler overlap `cp.async`
+  loads with prior-iteration MMA on Ampere.
+- **`cache_modifier=".cg"`** on K/V dequant raw loads (`KV_cache_ptr +
+  k_addrs / val_addrs`) — streaming reads that should NOT pollute L1.
+  L2-direct frees L1 capacity for Q + scales.
+- **`cache_modifier=".ca"`** on Q load, `Block_table_ptr` lookup, and
+  scale/zero loads (`sc_lo`, `sc_hi`, `zr_lo`, `zr_hi`) — these are
+  reused inside the CTA across all KV iterations. Pinning them in L1
+  saves repeated DRAM round-trips.
+- **Hoisted `kv_head * stride_cache_head`** out of the inner KV loop
+  (`_kv_head_byte_offset` precomputed once per CTA) — invariant across
+  all per-tile `slot_bases` calculations. Triton -O2 would also hoist
+  this but explicit form matches upstream MLA decode style.
+
+### Empirical (validated 2026-04-27, 2× RTX A5000 + Qwen3.6-A3B-FP8 + MTP K=3)
+
+| max_tokens | v7.48 | v7.50 | Δ |
+|---|---|---|---|
+| 64 | 188.6 | 191.0 | +1% |
+| 256 | 145.6 | **160.1** | **+10%** |
+| 512 | 141.8 | 144.9 | +2% |
+| 1024 | 132.8 | 132.0 | ~0% |
+| 2048 | 129.2 | 137.7 | +6.5% |
+
+Stability mean 157-162 tok/s (within v7.48 noise band). Quality 30/31
+PASS unchanged. Tool-call regression 2/2 unchanged. Long-context probe
+16K-160K all PASS at GMU 0.90.
+
+### Notes
+
+- All hints are memory-traffic only — `cache_modifier` is a PTX-level
+  cache-policy attribute, not arithmetic. Numerical correctness verified
+  via quality harness (no token-level deviations from v7.48 baseline).
+- `tl.range()` enables Triton 3.x async-copy pipelining (`num_stages>1`
+  in our autoconfig). On Triton 2.x it falls back to a plain loop —
+  graceful degrade.
+- Tested ONLY on `cache_modifier=".cg"`/`".ca"` literals supported by
+  Triton 3.x on Ampere (sm_86). On older Triton, the modifiers are
+  ignored — kernel still correct, just no cache-policy hint applied.
+
+Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
+
+---
+
 ## v7.49 — 2026-04-27 (P79d retired + P79c improved per upstream review)
 
 Two small but important corrections to the v7.46 async-safety patch trio,
