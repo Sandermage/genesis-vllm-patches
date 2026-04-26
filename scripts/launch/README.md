@@ -48,7 +48,28 @@ vLLM has a hard mutual exclusion: **`--async-scheduling` is automatically disabl
 - Pure chat / no tools → `start_no_spec_async.sh` (faster + more stable)
 - Hybrid: run BOTH containers on different GPUs and route requests by `tools` field
 
-We're researching a Genesis P79 patch ("async-spec-overlap") to combine the best of both — TBD timeline.
+### Why we DIDN'T merge MTP + `--async-scheduling`
+
+Surprising empirical finding (2026-04-26): vLLM technically allows MTP/EAGLE/ngram_gpu + `--async-scheduling` (only ngram-CPU/suffix/medusa are auto-disabled). We tested:
+
+| Config | Mean tok/s | CV |
+|---|---|---|
+| MTP without async (our standard) | 130 | 5.0% |
+| **MTP WITH async** | **123** | 7.4% — **WORSE!** |
+| no-spec + async | 134 | 0.3% |
+
+**Why MTP+async is slower on single-user setup** (max_num_seqs=2):
+- CPU scheduler overhead is tiny (very small batches)
+- Async adds synchronization overhead (events, locks, thread dispatch)
+- When CPU work < async overhead → async LOSES
+
+This matches upstream evidence:
+- vLLM PR #24799 own benchmark: 1.8% gain at 24 prompts, only 7.1% at 96 prompts (single-user is FAR below this band)
+- vLLM PR #32951 (zero-bubble async+spec, merged 2026-03-23): ~3% TPOT improvement on H100/DeepSeek-V3.2 — high-concurrency only
+- SGLang Spec V2 + EAGLE3: [issue #12411](https://github.com/sgl-project/sglang/issues/12411) reports overlap **slower than no-spec at concurrency=1**
+- Theoretical Amdahl ceiling for single-user: +3-7% maximum (scheduler is only 5-10% of step time)
+
+**Conclusion**: async-scheduling helps multi-user / high-throughput servers (24+ concurrent prompts). For single-user / aggregator-style workloads (max_num_seqs ≤ 4), it's neutral-to-negative. Stay with sync MTP unless you're running at concurrency 24+.
 
 ## Common configuration (all 4 scripts)
 
