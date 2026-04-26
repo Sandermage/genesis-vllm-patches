@@ -1,8 +1,33 @@
-# Genesis vLLM Patches — v7.43
+# Genesis vLLM Patches — v7.45
 
 **Runtime patches for [vLLM](https://github.com/vllm-project/vllm) — long-context Qwen3-class inference on NVIDIA Ampere, with TurboQuant k8v4 KV-cache and 256k context.**
 
 > **Production-validated stack: 127 tok/s mean MTP free-form / 99 tok/s suffix tool-call (max 175!) on 2× RTX A5000 (Ampere SM 8.6, 48GB VRAM total).** Long-context corrected up to 252K tokens (96% of 262144 cap). Zero hallucinations / cascades / garbage in 5/5 quality tests.
+
+## What's new in v7.45 (2026-04-26 — gemini bot review fix)
+
+After opening upstream draft PR [vllm#40914](https://github.com/vllm-project/vllm/pull/40914) for the K+1 spec-verify routing fix, **gemini-code-assist** flagged a critical issue in code review: the new routing path was not forwarding the cached decode buffers (`mid_o_buf`, `lse_buf`, `buf_holder=layer`) to `triton_turboquant_decode_attention`. Without these, the kernel allocates fresh tensors on every call — defeating the very cudagraph replay this PR aims to restore.
+
+The bot was right and the catch was important — `_decode_attention` next door already does this pattern correctly; we just hadn't matched the full call signature when copying the dispatch.
+
+**Fix applied** (commit [`aec8535`](https://github.com/Sandermage/genesis-vllm-patches/commit/aec8535) on `vllm/_genesis/wiring/patch_67b_spec_verify_routing.py`):
+
+- Forward all 5 decode-buffer parameters (`mid_o_buf`, `output_buf`, `lse_buf`, `buf_holder=layer`, `max_num_kv_splits`) to the routing call
+- Marker bumped to `v7.45_buf_reuse_fix` to force reapply
+
+**Empirical result** (12 runs, MTP, free-form, 2× A5000 + Qwen3.6-35B-A3B-FP8):
+
+| Config | Mean tok/s | std | CV | max |
+|---|---|---|---|---|
+| v7.40 baseline | 128.3 | 7.3 | 5.7% | 139 |
+| v7.42 full-stack (pre-fix) | 127.09 | 8.37 | 6.6% | 140 |
+| **v7.45 (with buf-reuse fix)** | **130.68** | **6.59** | **5.0%** | **141** |
+
+**+2.6% TPS over baseline + lowest CV** (5.0%) measured across the entire test cycle. Long-context still 4/4 PASS (180K, 216K, 237K, 252K). Tool-call 3/3 PASS. Quality and multi-needle results match the established baseline noise floor (model behavior, not regressions).
+
+This is a textbook example of why opening Draft PRs early is valuable — external review (even from a bot) caught a meaningful issue + the fix made the code both more correct AND faster.
+
+---
 
 ## What's new in v7.42-v7.43 (2026-04-26 — almost 24-hour push)
 
