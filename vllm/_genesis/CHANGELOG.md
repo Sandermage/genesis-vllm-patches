@@ -1,5 +1,90 @@
 # Genesis `_genesis/` Package Changelog
 
+## v7.51.1 — 2026-04-27 (Action #2/#3 evaluation + dev/public split)
+
+Documentation-only update closing out the audit of two further candidates
+from the vllm#40941 deep-dive (Action #2: OUTPUT_FP16 stage2 fold;
+Action #3: `torch.cat` → slice-assign in continuation prefill).
+
+### Action #2 — OUTPUT_FP16 stage2 fold: NOT APPLICABLE
+
+PR #40941 adds `OUTPUT_FP16: tl.constexpr` to upstream
+`vllm/v1/attention/ops/triton_decode_attention.py:_fwd_kernel_stage2`
+to fold an fp32→fp16 cast into the `tl.store`. This kernel is used by
+the upstream `_decode_attention` path (non-spec decode + ngram_gpu).
+
+**Our P67 multi-query kernel does NOT use upstream `_fwd_kernel_stage2`** —
+it is single-pass (no two-stage reduce-then-cast pattern), writes its
+output directly inside the inner loop. So the OUTPUT_FP16 win is invisible
+to our MTP K=3 verify path which is what dominates our production
+workload.
+
+The only path where this would help us is `start_no_spec_async.sh`
+(no-spec mode using upstream decode kernel). For that path the win is
+still small (one launch per token saved). Not worth a backport on the
+MTP-default prod stack. Re-evaluate if/when we ship a no-spec variant
+as a primary path.
+
+### Action #3 — `torch.cat` → slice-assign: ALREADY DEPLOYED via P38
+
+PR #40941 replaces `k_full = torch.cat([k_cached_trim, key_chunk])` with
+pre-allocate-then-slice in upstream `_continuation_prefill`. This is
+**already what our P38 (`patch_38_tq_continuation_memory.py`) does** when
+its prealloc pool is wired:
+
+```python
+k_full[:cached_len].copy_(src)           # cached portion
+k_full[cached_len:seq_len].copy_(key_chunk)  # new chunk
+```
+
+The fallback path (when prealloc not wired — e.g. AMD/CPU tests) still
+uses `torch.cat`, which is the upstream pre-#40941 behaviour. That's
+fine — fallback is rare and correctness-preserving by design.
+
+The remaining `torch.cat` sites in our `_genesis/` tree are:
+- `block_verify_sampler.py:131,275` — P71, opt-in default OFF, builds
+  a 2-element `cu_start` tensor (literally 8 bytes). Marginal.
+- `dequant_buffer.py` — only in comments documenting the pattern P38
+  replaces.
+
+**Net: nothing left to extract from PR #40941 that we're not already
+doing.** v7.48 P38/P40 shared-pool work covered this ground.
+
+### Repo housekeeping (separate from Action items)
+
+- 22 dev kernel artifacts (`p67_dev/`), 2 backup tarballs (`p67_backups/`),
+  and `docs/DISCUSSION_DRAFT_NOONGHUNNA.md` moved to private repo
+  `Sandermage/p67-genesis-kernel`. Public patcher repo now ships only
+  production-ready patches + supporting infra.
+- Root-level Python harness/bench files moved under `scripts/` for tidier
+  layout: `genesis_bench_v3.py`, `genesis_quality_harness.py`,
+  `genesis_context_sweep.py`, `genesis_longbench_runner.py`.
+- `.gitignore` hardened to prevent re-adding dev artifacts.
+- Server-side backup `/home/sander/genesis-backups/v7.50-stable-20260427_0202/`
+  contains full restore set (tar of `_genesis`, scripts, compile cache,
+  bench tools + RESTORE.md).
+
+### Snapshot tags (rollback-safe)
+
+- `v7.50-stable-2026-04-27` — pre-Step-D state
+- `v7.51-stable-2026-04-27` — current production (P67 exp2+FLT_MAX)
+- `pre-step-d-2026-04-27` — transient, before Step D sweep
+- `pre-action-2-2026-04-27` — transient, before Action #2 audit (no code changes resulted)
+
+### Next sprints (deferred)
+
+- **Tier 3 H** — re-fuse split-M with per-row online softmax. Multi-day
+  refactor, needs FP64 reference gate (numerical correctness regression
+  suite). Expected gain: +8-15%. Risk: medium (numerical drift across
+  ~256 KV iterations is what split-M originally fixed).
+- **Tier 3 I** — 2D split with `temp_size=32` (vllm#38786 backport).
+  Multi-day, needs context-window sweep (4K → 256K). Expected gain:
+  +8-15% specifically on long context.
+
+Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
+
+---
+
 ## v7.51 — 2026-04-27 (P67 softmax: tl.exp2 + -FLT_MAX sentinel; Step D rejected)
 
 Two corrections to `p67_multi_query_kernel.py` softmax inner loop, derived
