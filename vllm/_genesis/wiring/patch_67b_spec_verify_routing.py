@@ -37,7 +37,7 @@ from vllm._genesis.wiring.text_patch import (
 
 log = logging.getLogger("genesis.wiring.p67b_spec_verify_routing")
 
-GENESIS_P67B_MARKER = "Genesis P67b spec-verify forward() routing v7.41_kv_splits_tunable"
+GENESIS_P67B_MARKER = "Genesis P67b spec-verify forward() routing v7.45_buf_reuse_fix"
 
 
 # Anchor: existing `forward()` method just before the dispatch branches.
@@ -128,6 +128,12 @@ P67B_NEW = (
     "                                _genesis_p67b_buf_key, dtype=q.dtype, device=q.device\n"
     "                            )\n"
     "                            self._genesis_p67b_out_buffers[_genesis_p67b_buf_key] = _genesis_p67b_out_buf\n"
+    "                        # [v7.45 fix] Forward layer's cached decode buffers per\n"
+    "                        # gemini-code-assist review on vllm#40914 — without these\n"
+    "                        # the decode kernel allocates fresh tensors per call,\n"
+    "                        # breaking cudagraph replay (defeating the routing fix).\n"
+    "                        _genesis_p67b_mid_o = getattr(layer, '_tq_mid_o_buf', None)\n"
+    "                        _genesis_p67b_lse = getattr(layer, '_tq_lse_buf', None)\n"
     "                        _genesis_p67b_attn_out = _ts_decode_attn(\n"
     "                            query=_q_flat,\n"
     "                            kv_cache=kv_cache,\n"
@@ -143,6 +149,9 @@ P67B_NEW = (
     "                            norm_correction=self.tq_config.norm_correction,\n"
     "                            PiT=PiT,\n"
     "                            output_buf=_genesis_p67b_out_buf,\n"
+    "                            mid_o_buf=_genesis_p67b_mid_o,\n"
+    "                            lse_buf=_genesis_p67b_lse,\n"
+    "                            buf_holder=layer,\n"
     "                            max_num_kv_splits=int(_genesis_p67b_os2.environ.get(\n"
     "                                'GENESIS_P67_NUM_KV_SPLITS', str(self.max_num_kv_splits))),\n"
     "                        )\n"
