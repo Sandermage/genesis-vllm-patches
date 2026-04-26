@@ -1247,6 +1247,115 @@ def apply_patch_77_adaptive_ngram_k() -> PatchResult:
     return _failed(name, reason)
 
 
+@register_patch("P79b Async × spec-decode proposer-sync backport (vllm#40610)")
+def apply_patch_79b_async_proposer_sync() -> PatchResult:
+    """Patch 79b: backport of vllm#40610 (OPEN draft, tracked from #40608).
+
+    Wraps GPUModelRunner.sample_tokens() to re-record
+    `prepare_inputs_event` AFTER the spec-decode proposer GPU work
+    completes (not just after input prep). Fixes async-scheduling ×
+    spec-decode race: previously, the next batch's `_update_states`
+    could mutate persistent block_table / batch metadata while the
+    previous batch's proposer was still reading those tensors on GPU.
+
+    Symptoms (per upstream issue #40608):
+    - Nondeterministic instability on async + EAGLE/MTP/ngram_gpu
+    - Stale state usage during proposer execution
+    - Hard to reproduce — concurrency-sensitive race
+
+    Direct value for Genesis prod (sync ngram): NONE — async path
+    not engaged. But protects users on async + spec-decode.
+
+    Status: opt-in via GENESIS_ENABLE_P79B_ASYNC_PROPOSER_SYNC=1.
+    """
+    name = "P79b Async × spec-decode proposer-sync backport (vllm#40610)"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring import patch_79b_async_proposer_sync
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_79b_async_proposer_sync.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch("P79c Stale spec_token_ids cleanup for unscheduled requests (vllm#37629)")
+def apply_patch_79c_stale_spec_token_cleanup() -> PatchResult:
+    """Patch 79c: backport of vllm#37629 (OPEN, fixes #36906).
+
+    Adds a cleanup pass after the main scheduling loop in
+    `Scheduler.schedule()` that clears `spec_token_ids` for any
+    running request not present in `num_scheduled_tokens`. Prevents
+    stale `-1` placeholder leak into F.embedding() under
+    budget-exhausted high-concurrency on async + EAGLE/MTP.
+
+    Trigger: high concurrency exhausting token budget before scheduler
+    visits all running requests. Most visible on multimodal models
+    (large prefill chunks consume disproportionate budget) but PR's
+    regression test proves it's NOT multimodal-specific.
+
+    Direct value for Genesis prod (max_num_seqs=2, sync ngram): NONE.
+    Single-user can't exhaust token budget. Useful only for high-concurrency
+    multimodal users on async + EAGLE/MTP.
+
+    Status: opt-in via GENESIS_ENABLE_P79C_STALE_SPEC_TOKEN_CLEANUP=1.
+    """
+    name = "P79c Stale spec_token_ids cleanup for unscheduled requests (vllm#37629)"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring import patch_79c_stale_spec_token_cleanup
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_79c_stale_spec_token_cleanup.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch("P79d Preempt async-discard backport (vllm#38624)")
+def apply_patch_79d_preempt_async_discard() -> PatchResult:
+    """Patch 79d: backport of vllm#38624 (CodersAcademy006, OPEN).
+
+    Adds `request.num_output_placeholders = 0` and
+    `request.discard_latest_async_tokens = True` to `_preempt_request()`
+    in `v1/core/sched/scheduler.py`. Currently these are set ONLY in
+    `reset_prefix_cache()`, leaving the standard scheduler-loop
+    preemption path with stale async state — when a preempted request
+    resumes, the in-flight async token replays as a duplicated output
+    token ("the the", "of of"). Same bug class as our v7.13 ngram-corruption
+    story on a different code path.
+
+    Genesis variant is SAFER than upstream PR — additive only:
+    - ADD the discard to _preempt_request() (idempotent)
+    - DO NOT remove from reset_prefix_cache() (defensive)
+
+    Direct value for Genesis prod (sync ngram): MINIMAL — we don't run
+    async path. But protects users on async + EAGLE/MTP/ngram_gpu.
+
+    Status: opt-in via GENESIS_ENABLE_P79D_PREEMPT_ASYNC_DISCARD=1.
+    """
+    name = "P79d Preempt async-discard backport (vllm#38624)"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring import patch_79d_preempt_async_discard
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_79d_preempt_async_discard.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
 @register_patch("P75 Auto-enable Suffix Decoding (vllm#25784 Arctic Inference)")
 def apply_patch_75_suffix_decoding_enable() -> PatchResult:
     """Patch 75: operator-convenience auto-swap of speculative method from

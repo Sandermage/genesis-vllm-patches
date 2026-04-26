@@ -243,6 +243,30 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "credit": "Adapted from noonghunna's patch_tolist_cudagraph.py (Apache-2.0, github.com/noonghunna/qwen36-27b-single-3090). Surgical safety-net for cudagraph capture; complements our P22/P26/P44 prealloc.",
         "upstream_pr": None,
     },
+    "P79b": {
+        "title": "Async × spec-decode proposer-sync backport (vllm#40610)",
+        "env_flag": "GENESIS_ENABLE_P79B_ASYNC_PROPOSER_SYNC",
+        "default_on": False,
+        "category": "spec_decode",
+        "credit": "Backport of vllm#40610 (OPEN draft, tracked from #40608). Re-records prepare_inputs_event AFTER spec-decode proposer GPU work in sample_tokens(). Fixes async × spec-decode race where next batch _update_states could mutate block_table while previous batch's proposer was still reading on GPU. Genesis prod uses sync ngram so direct value is minimal; protects users on async+EAGLE/MTP/ngram_gpu.",
+        "upstream_pr": 40610,
+    },
+    "P79c": {
+        "title": "Stale spec_token_ids cleanup for unscheduled requests (vllm#37629)",
+        "env_flag": "GENESIS_ENABLE_P79C_STALE_SPEC_TOKEN_CLEANUP",
+        "default_on": False,
+        "category": "spec_decode",
+        "credit": "Backport of vllm#37629 (OPEN, fixes #36906). Cleanup pass after main scheduling loop clears spec_token_ids for unscheduled running requests. Prevents -1 placeholder leak into F.embedding() under budget-exhausted high-concurrency on async + EAGLE/MTP. Genesis prod (max_num_seqs=2, sync ngram) gains nothing direct; protects high-concurrency multimodal users.",
+        "upstream_pr": 37629,
+    },
+    "P79d": {
+        "title": "Preempt async-discard backport (vllm#38624)",
+        "env_flag": "GENESIS_ENABLE_P79D_PREEMPT_ASYNC_DISCARD",
+        "default_on": False,
+        "category": "spec_decode",
+        "credit": "Backport of vllm#38624 (CodersAcademy006, OPEN). Additive-only variant: discards in-flight async tokens on _preempt_request() to prevent duplicated tokens after preemption-resume. Genesis prod uses sync ngram so direct value is minimal; protects users on async+EAGLE/MTP/ngram_gpu paths.",
+        "upstream_pr": 38624,
+    },
 }
 
 

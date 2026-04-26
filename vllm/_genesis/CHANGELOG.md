@@ -1,5 +1,110 @@
 # Genesis `_genesis/` Package Changelog
 
+## v7.46 — 2026-04-26 (async × spec-decode safety patches — opt-in)
+
+Three additive backports of OPEN upstream PRs that fix async-scheduling
+race conditions on EAGLE/MTP/ngram_gpu paths. **All three default-off:**
+Genesis prod (sync ngram, max_num_seqs=2) gains nothing direct — these
+protect users who run `--async-scheduling` + spec-decode.
+
+### Added
+
+- **P79b — Async × spec-decode proposer-sync** (`wiring/patch_79b_async_proposer_sync.py`):
+  - Backport of [vllm#40610](https://github.com/vllm-project/vllm/pull/40610) (OPEN draft)
+  - Opt-in via `GENESIS_ENABLE_P79B_ASYNC_PROPOSER_SYNC=1`
+  - Wraps `GPUModelRunner.sample_tokens()` to re-record `prepare_inputs_event`
+    in `finally:` AFTER spec-decode proposer GPU work completes
+  - Fixes happens-before race where next batch's `_update_states` could
+    mutate persistent block_table while previous batch's proposer was
+    still reading on GPU — symptom: nondeterministic stale state on
+    async + EAGLE/MTP/ngram_gpu
+  - Drift detector: presence of `_sample_tokens_impl` symbol without
+    Genesis marker → upstream merged → auto-skip
+  - Verified on dev205+g07351e088: applies cleanly, file compiles,
+    method reload picks up new structure, idempotent
+
+- **P79c — Stale spec_token_ids cleanup** (`wiring/patch_79c_stale_spec_token_cleanup.py`):
+  - Backport of [vllm#37629](https://github.com/vllm-project/vllm/pull/37629) (OPEN, fixes #36906)
+  - Opt-in via `GENESIS_ENABLE_P79C_STALE_SPEC_TOKEN_CLEANUP=1`
+  - Adds cleanup pass after main scheduling loop in `Scheduler.schedule()`
+    that clears `spec_token_ids` for any running request not in
+    `num_scheduled_tokens`
+  - Fixes EAGLE3 + async high-concurrency CUDA device-side assert
+    in `F.embedding()` from stale `-1` placeholder leak
+  - Triggered when token budget exhausts before scheduler visits all
+    running requests; not multimodal-specific (PR's regression test
+    proves text-only with sufficient concurrency reproduces)
+  - Verified on dev205+g07351e088: applies cleanly, file compiles,
+    idempotent
+
+- **P79d — Preempt async-discard** (`wiring/patch_79d_preempt_async_discard.py`):
+  - Backport of [vllm#38624](https://github.com/vllm-project/vllm/pull/38624) (OPEN, CodersAcademy006)
+  - Opt-in via `GENESIS_ENABLE_P79D_PREEMPT_ASYNC_DISCARD=1`
+  - Adds 2 lines to `_preempt_request()` that set
+    `num_output_placeholders=0` + `discard_latest_async_tokens=True`
+  - Currently set ONLY in `reset_prefix_cache()` — scheduler-loop
+    preemption path bypasses cleanup, leading to duplicated tokens
+    after request resume on async paths ("the the", "of of")
+  - SAFER than upstream PR: additive only — does NOT remove the
+    existing block from `reset_prefix_cache()` (defensive)
+  - Drift detector: counts `discard_latest_async_tokens = True`
+    occurrences; ≥2 → upstream merged → auto-skip
+  - Verified on dev205+g07351e088: applies cleanly, count goes 1→2,
+    marker present, idempotent on re-apply
+
+### Investigation notes (no patch)
+
+- `docs/DRAFT_38903_async_pp_contamination.md` — local draft on
+  [vllm#38903](https://github.com/vllm-project/vllm/issues/38903)
+  (cross-request data contamination on PP>1 + async + multi-node).
+  Severe privacy bug but Genesis cannot reproduce (TP=2, PP=1,
+  single-node, single-user). Document includes proposed config-level
+  bandaid, recommendation NOT to ship it (over-broad, no reproducer),
+  and pointer to research-agent's Section 5 Cat-5v embedding-input
+  invariant guard as a multi-bug defensive layer worth implementing.
+
+### Empirical findings (no patch — data only)
+
+- **P80 ngram_gpu+async verification on dev205+ pin**: 3-shot bench on
+  Qwen3.6-A3B FP8 + `--async-scheduling` + ngram_gpu method (testing
+  whether [vllm#37150](https://github.com/vllm-project/vllm/issues/37150)
+  fix shipped). Result: 35-43 tok/s mean ≈40 — works without error
+  (no cascade, normal output) but SLOWER than sync ngram CPU (46 tok/s).
+  Same pattern as our MTP+async finding: async overhead > savings on
+  single-user max_num_seqs=2 setups.
+- Confirms #37150 fix IS active in our pin (no 1.22% acceptance
+  pathology), but ngram_gpu+async at single-user is net-negative —
+  use sync ngram CPU instead for our workload class.
+
+### Upstream-watch deltas
+
+These three PRs are independent of the TurboQuant workspace cluster
+tracked above. Each has its own drift marker; none conflict with
+P22/P26/P67/P67b. After any of #40610/#37629/#38624 merges, the
+respective drift detector auto-skips the corresponding Genesis patch.
+
+---
+
+## Upstream-watch — pending rebase work (added 2026-04-26)
+
+Three competing upstream PRs target the TurboQuant decode scratch workspace
+that our P22 / P26 / P67b stack already addresses. We monitor + auto-skip
+when any merges. Action plan per PR:
+
+| Upstream PR | Author | Drift marker | Genesis impact |
+|---|---|---|---|
+| **#40798** (likely winner) | Bot1822 | `_reserve_turboquant_decode_workspace` symbol in `vllm/v1/worker/gpu_model_runner.py` | (1) P22 auto-skips via drift detector. (2) **P67b needs rebase** — the PR REMOVES `buf_holder` kwarg from `triton_turboquant_decode_attention`. Drop these 4 explicit args from `patch_67b_spec_verify_routing.py:131-156`: `mid_o_buf`, `output_buf`, `lse_buf`, `buf_holder=layer`. Routing logic itself unchanged. |
+| #40706 (backup) | lesj0610 | `reserve_turboquant_decode_workspace` symbol in `vllm/v1/attention/backends/turboquant_attn.py` | (1) P22 auto-skips. (2) P67b unchanged — preserves `buf_holder` fallback. |
+| #40655 | bhoomit | `_init_turboquant_buffers` REMOVED from `TurboQuantAttentionImpl` | (1) P22 auto-skips. (2) P67b unchanged. CHANGES_REQUESTED upstream — less likely to land. |
+
+**Drift detector**: `wiring/patch_22_tq_prealloc.py:_check_upstream_tq_workspace_drift()` probes for all 3 markers. When any matches, P22 returns `("skipped", "PR #XXXXX merged ...")` — ready for next sync without manual intervention.
+
+**P26 (prefill output)**: orthogonal to all 3 PRs (they target decode path, P26 covers prefill). KEEP.
+
+**Our PR #40914**: complementary, not competing. Routing fix vs workspace dedup are separate axes.
+
+---
+
 ## v7.11.0 — 2026-04-25 (spec-decode workaround + diagnostic tooling)
 
 **Investigation + opt-in workaround for [vllm-project/vllm#40831](https://github.com/vllm-project/vllm/issues/40831)** — TurboQuant × any speculative decoding (MTP or ngram) produces degenerate token loops on structured outputs.

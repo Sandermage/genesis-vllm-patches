@@ -38,10 +38,27 @@ before pip-install precisely to avoid that failure mode.
 
 Compatibility with upstream OOM-fix PRs
 ---------------------------------------
-PRs #40655 (bhoomit, class-shared buffers) and #40706 (lesj0610,
-WorkspaceManager) propose two upstream alternatives. Our P22 sits in the
-#40655 class. When either lands and our marker is detected, this wiring
-auto-skips.
+Three upstream PRs propose alternatives (all OPEN as of 2026-04-26):
+
+- **PR #40798** (Bot1822): WorkspaceManager-based reservation in
+  `gpu_model_runner.capture_model()` BEFORE `lock_workspace()`.
+  Iterates ALL attention groups (hybrid-safe). Drift marker:
+  `_reserve_turboquant_decode_workspace` symbol in `gpu_model_runner.py`.
+  REMOVES `buf_holder` kwarg from `triton_turboquant_decode_attention` —
+  conflicts with our P67b. P67b will need rebase when this lands.
+- **PR #40706** (lesj0610): WorkspaceManager but reserved per-layer
+  in `_init_turboquant_buffers`. PRESERVES `buf_holder` fallback.
+  Drift marker: `reserve_turboquant_decode_workspace` symbol in
+  `turboquant_attn.py`.
+- **PR #40655** (bhoomit): class-shared buffers; no profiler visibility.
+  CHANGES_REQUESTED by maintainer (LucasWilkinson). Less likely to land.
+  Drift marker: removed `_init_turboquant_buffers` from `turboquant_attn.py`.
+
+Our P22 sits closest to the #40706 / Genesis hybrid class. When ANY of
+these three land and our drift markers are detected, this wiring
+auto-skips. After #40798 merges: P67b also needs rebase to drop the
+4 explicit buffer kwargs (`mid_o_buf`, `output_buf`, `lse_buf`,
+`buf_holder=layer`) which #40798 removes from the kernel signature.
 
 Author: Sandermage(Sander)-Barzov Aleksandr, Ukraine, Odessa
 """
@@ -111,6 +128,41 @@ def _import_tq_impl() -> Any | None:
     return None
 
 
+def _check_upstream_tq_workspace_drift() -> tuple[bool, str]:
+    """Detect if any of the 3 upstream TQ-workspace PRs has merged.
+
+    Returns (drifted, reason). When drifted=True, P22 should auto-skip
+    because upstream now does equivalent (or stronger) workspace dedup.
+
+    Drift markers (each PR introduces unique symbol):
+    - PR #40798: `_reserve_turboquant_decode_workspace` in `gpu_model_runner.py`
+    - PR #40706: `reserve_turboquant_decode_workspace` in `turboquant_attn.py`
+    - PR #40655: `_init_turboquant_buffers` REMOVED from `turboquant_attn.py`
+    """
+    try:
+        # Check #40798 marker (in gpu_model_runner)
+        try:
+            import vllm.v1.worker.gpu_model_runner as _gmr
+            if hasattr(_gmr, "_reserve_turboquant_decode_workspace"):
+                return True, "PR #40798 merged (Bot1822 WorkspaceManager) — auto-skip"
+        except Exception:
+            pass
+        # Check #40706 marker (in turboquant_attn)
+        try:
+            import vllm.v1.attention.backends.turboquant_attn as _tqa
+            if hasattr(_tqa, "reserve_turboquant_decode_workspace"):
+                return True, "PR #40706 merged (lesj0610 WorkspaceManager) — auto-skip"
+            # #40655 marker — REMOVAL of _init_turboquant_buffers method
+            impl = _import_tq_impl()
+            if impl is not None and not hasattr(impl, "_init_turboquant_buffers"):
+                return True, "PR #40655 merged (bhoomit moved init out) — auto-skip"
+        except Exception:
+            pass
+    except Exception as e:
+        log.debug("[P22] drift check probe failed (%s); proceeding to apply", e)
+    return False, "no upstream TQ workspace PR detected"
+
+
 def apply() -> tuple[str, str]:
     """Wire ensure_turboquant_buffers() into TurboQuantAttentionImpl._ensure_on_device.
 
@@ -118,6 +170,12 @@ def apply() -> tuple[str, str]:
     """
     if not should_apply():
         return "skipped", "platform: NVIDIA SM 8.0+ required for TurboQuant"
+
+    # Drift check: auto-skip if any of upstream PRs #40798/#40706/#40655 merged
+    drifted, drift_reason = _check_upstream_tq_workspace_drift()
+    if drifted:
+        log.info("[P22] %s — patch retired in favor of upstream", drift_reason)
+        return "skipped", drift_reason
 
     impl_cls = _import_tq_impl()
     if impl_cls is None:
