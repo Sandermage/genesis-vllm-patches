@@ -73,6 +73,131 @@ GENESIS_ENABLE_P77_ADAPTIVE_NGRAM_K=1 \
 
 ---
 
+## P67/P67b — the kernel in depth
+
+P67 (and its companion routing patch P67b) is the central performance + correctness contribution of Genesis. This section explains the **what / why / how** because the bare patch entry above doesn't do it justice.
+
+### What it fixes (the bug)
+
+[vllm#40880](https://github.com/vllm-project/vllm/issues/40880), reported by @noonghunna, observed degenerate output (`<tool_call>\n<tool_call>...` cascades) on Qwen3.6-MoE under MTP num_speculative_tokens=3 + FULL_AND_PIECEWISE cudagraph + TurboQuant k8v4 KV cache.
+
+Root cause we identified:
+1. MTP verify pass produces **uniform-query batches** with `max_query_len = K+1 = 4` (one verify batch per request)
+2. Each request has prior cached KV in TurboQuant compressed form (`max_seq_len > max_query_len`)
+3. The default `_prefill_attention` continuation branch in vLLM reads `query_start_loc.tolist()` — a GPU→CPU sync **incompatible with active CUDA stream capture**
+4. To work around the sync issue, vLLM previously took a "first-chunk" path that used `cu_seqlens_k = cu_seqlens_q` — meaning the captured kernel attended to **only the current chunk's K/V**, ignoring all prior cached KV
+5. Drafter and verifier both then converge on the same high-bias special token (e.g. `<tool_call>`) because both see "no context" — output cascades
+
+### What it does (the fix)
+
+P67/P67b adds a **dispatch branch in `TurboQuantAttentionImpl.forward()`** that:
+
+1. **Detects** uniform K+1 spec-verify batches via the predicate:
+   - `is_prefill = True`
+   - `num_decodes = 0`
+   - `1 < max_query_len ≤ 16`
+   - `max_seq_len > max_query_len` (have prior cache)
+   - `N (total tokens) % max_query_len == 0` (uniform batch)
+2. **Routes** those batches through `triton_turboquant_decode_attention` via the same `synth_seq_lens` trick `_continuation_prefill` uses internally:
+   ```
+   synth_seq_lens[req*K1+i] = base_seq_lens[req] - K1 + 1 + i
+   synth_block_table[req*K1+i] = block_table[req]
+   ```
+   All tensor ops on GPU — cudagraph-safe.
+3. **Falls through** to upstream code on any non-eligible batch (zero overhead at inference for non-spec-decode workloads)
+
+Two implementation variants ship:
+- **P67** (`vllm/_genesis/kernels/p67_multi_query_kernel.py` ~470 LOC): Genesis-original Triton kernel that handles K+1 verify directly. Faster on small K1 + short prior cache; can drift on long context (>4096 prior).
+- **P67b** (`vllm/_genesis/wiring/patch_67b_spec_verify_routing.py`): Thin routing wrapper that uses upstream's proven `triton_turboquant_decode_attention`. Drift-free, slightly slower on small K1. **This is what we recommend in production** (set `GENESIS_P67_USE_UPSTREAM=1`).
+
+### Why this is the proper fix vs the prior workarounds
+
+| Approach | TPS | Correctness | CG mode |
+|---|---|---|---|
+| `cudagraph_mode=NONE` (no spec-decode CG) | -30% | OK | None |
+| Genesis P65 (PIECEWISE downgrade) | -20% (vs full CG potential) | OK | PIECEWISE |
+| @noonghunna `patch_tolist_cudagraph.py` | OK at inference | safe at capture | FULL_AND_PIECEWISE |
+| **Genesis P67/P67b** | **baseline + 32%** | OK + verified clean | **FULL_AND_PIECEWISE** |
+
+P67/P67b restores `FULL_AND_PIECEWISE` capture for spec-decode (the fastest mode) while fixing the correctness bug. Empirical: 75.6 tok/s vs 57.2 tok/s baseline-with-P65 on Qwen3.6-35B-A3B-FP8 + MTP=3 + 2× A5000.
+
+### How to enable
+
+```bash
+GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL=1   # master switch (enables both P67 + P67b wiring)
+GENESIS_P67_USE_UPSTREAM=1                   # use upstream kernel via P67b routing (recommended)
+GENESIS_P67_NUM_KV_SPLITS=32                 # multi-CTA parallelism for upstream kernel
+GENESIS_P67_MAX_PRIOR_LEN=4096               # P67-only: threshold above which fall through to upstream (drift safety)
+```
+
+When `P67_USE_UPSTREAM=1` (default), only the routing logic fires — P67's custom Triton kernel is dormant, used only as a fallback if the upstream call raises.
+
+### Upstream PR
+
+The conservative routing-only version (P67b approach) was submitted as draft PR upstream:
+**[vllm#40914 — TurboQuant K+1 spec-verify routing (fixes #40880)](https://github.com/vllm-project/vllm/pull/40914)** (Draft, awaiting cross-arch validation).
+
+If/when merged, our P67/P67b will auto-no-op via drift markers and operators can drop the env flags.
+
+### Full kernel + wiring source
+
+- `vllm/_genesis/kernels/p67_multi_query_kernel.py` — Triton kernel + Python wrapper
+- `vllm/_genesis/wiring/patch_67_tq_multi_query_kernel.py` — text-patch installing the wrapper hook
+- `vllm/_genesis/wiring/patch_67b_spec_verify_routing.py` — text-patch installing the upstream routing branch in `TurboQuantAttentionImpl.forward()`
+
+---
+
+## Tests
+
+The test suite lives in `vllm/_genesis/tests/`:
+
+| Test file | What it verifies | How to run |
+|---|---|---|
+| `test_p71_block_verify.py` | P71 bug-fixes from gemini review (shared `u`, `denom==0 → 1.0`), Triton-PyTorch parity, greedy short-circuit, smoke test for unbiasedness | `pytest vllm/_genesis/tests/test_p71_block_verify.py -v` (requires CUDA) |
+| `test_gdn_core_attn_manager.py` | P28 GDN buffer registry — `should_apply` per arch, env override, get-or-create caching, multi-shape registry | `pytest vllm/_genesis/tests/test_gdn_core_attn_manager.py` (CPU-only) |
+| `test_config_detect.py` | Patch dispatcher decisions per model architecture (P51/P52/P53 logic) | `pytest vllm/_genesis/tests/test_config_detect.py` (CPU-only) |
+| `test_response_cache.py` | P41/P50 ASGI middleware response cache | `pytest vllm/_genesis/tests/test_response_cache.py` |
+| `test_v7_14_15_audit.py` | Anchor-presence audit for v7.14/v7.15 patches + drift-safety + dispatcher↔apply_all consistency | `pytest vllm/_genesis/tests/test_v7_14_15_audit.py` (some require live vLLM source) |
+
+### Empirical / integration tests
+
+These run end-to-end against a live vLLM server:
+
+| Script | What it tests | Hardware needed |
+|---|---|---|
+| `genesis_bench_v3.py` | Throughput benchmark (mean + std over N runs, multiple prompts, MTP/ngram/suffix variants) | GPU + booted server |
+| `genesis_quality_harness.py` | Quality regression: cascades / garbage / repetition detection over N prompts | GPU + booted server |
+| `genesis_longbench_runner.py` | Long-context recall (single needle + multi-needle, ladder from 1K to 250K tokens) | GPU + booted server |
+| `genesis_context_sweep.py` | Context-window sweep with bisection to find OOM threshold | GPU + booted server |
+
+Validation matrix run for the v7.42-v7.43 release (per the empirical table in the v7.42 section above):
+
+- **Quality**: 5/5 PASS on free-form (`quality_check.sh`)
+- **Tool-call**: 3/3 PASS (`tool_call_check.sh`) on MTP, P75, baseline ngram
+- **Long-context recall**: PASS at 14K, 73K, 146K, 216K, **252K** tokens
+- **Stability**: CV 4.7% over 12 runs (best config: P67b + MTP)
+- **Boot crashes**: 0 across all method variants
+- **Hidden runtime errors**: 0 in container logs
+
+### Running tests against a live server
+
+The test container helper scripts on the prod server:
+
+```bash
+# Free-form throughput
+/tmp/bench_compare.sh 8000 12 my-bench-name
+
+# Tool-call quality
+/tmp/quality_check.sh 8000
+
+# Long-context (single 6-digit needle, max_tokens cap to avoid thinking eat-up)
+python3 /tmp/max_ctx_probe.py
+```
+
+Their bash sources are reproducible from the public `benchmarks/` dir or the repo root scripts.
+
+---
+
 ## Older changelog
 
 > 34+ active patches (P64-P70 added across v7.14/v7.15, P63 deprecated). Zero vLLM source modifications beyond container startup. Stability matrix verified to GMU 0.93 with full patch set.
