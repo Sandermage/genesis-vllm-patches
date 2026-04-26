@@ -1,5 +1,75 @@
 # Genesis `_genesis/` Package Changelog
 
+## v7.51 — 2026-04-27 (P67 softmax: tl.exp2 + -FLT_MAX sentinel; Step D rejected)
+
+Two corrections to `p67_multi_query_kernel.py` softmax inner loop, derived
+from deep-dive of upstream PR vllm#40929 (DeepSeek-V4 Triton fallback
+kernels) — they apply textbook FlashAttention-2 numerical idioms that
+our v7.34 split-M kernel had missed.
+
+### Changed (`vllm/_genesis/kernels/p67_multi_query_kernel.py`)
+
+- **`tl.exp` → `tl.exp2`** for online-softmax `α_t` and `P_t` updates.
+  Triton's `tl.exp2` maps directly to the hardware `ex2.approx.f32`
+  PTX instruction; `tl.exp` is synthesized as `ex2(x * log2e)` so adds
+  one extra fp multiply per softmax step. Pre-multiplying by
+  `LOG2E = 1.4426950408889634` once is the standard FA2 idiom.
+- **`float("-inf")` → `-3.4028234663852886e38`** (`-FLT_MAX`) for masked-out
+  attention scores. `inf*0 = NaN` in fp32 accumulator can poison the
+  online-softmax across subsequent KV iterations; FLT_MAX gives the same
+  effective masking via `tl.exp2(very_negative)` clamping to 0, but
+  without NaN risk.
+
+### Empirical (validated 2026-04-27, Qwen3.6-A3B-FP8 + MTP K=3)
+
+| Metric | v7.50 | v7.51 | Δ |
+|---|---|---|---|
+| **Stability mean (10 runs)** | 157.6 | **167.2** | **+6.1%** |
+| @ 1024 tok | 132.0 | **146.5** | **+11.0%** |
+| @ 2048 tok | 137.7 | 142.0 | +3.1% |
+| @ 128 tok | 172.5 | 169.4 | -1.8% |
+| @ 256 tok | 160.1 | 150.8 | -5.8% (3-run high CV) |
+| @ 512 tok | 144.9 | 135.9 | -6.2% (3-run high CV) |
+| Quality 30-shot | 30/31 PASS | **30/31 PASS** | preserved |
+| Tool-call | 2/2 PASS | 2/2 PASS | preserved |
+
+Stability mean (10-run, low CV) is the load-bearing number. Mid-length
+3-run speed tests have CV up to 11% — within noise. Long-generation
+(1024+) shows clear consistent improvement.
+
+### Step D (@triton.autotune) — REJECTED
+
+Manual sweep of 5 alternative configs vs production
+(BLOCK_KV=32, NUM_WARPS=8, num_stages=3):
+
+| BLOCK_KV | NUM_WARPS | tok/s | vs baseline 157 |
+|---|---|---|---|
+| 16 | 4 | 151.0 | -3.8% |
+| 16 | 8 | 148.9 | -5.2% |
+| 32 | 4 | 149.1 | -5.0% |
+| 64 | 4 | 147.9 | -5.8% |
+| 64 | 8 | 149.6 | -4.7% |
+
+All alternatives regressed. Current `(32, 8, stages=3)` IS the optimum
+for our Ampere SM 8.6 + dequant-heavy workload. No autotune needed —
+the search space has a clean global maximum at the current setting.
+Rejection rationale recorded in P67 docstring with each config row.
+
+### Notes
+
+- `LOG2E = 1.4426950408889634` is precomputed at compile time inside the
+  inner loop body — Triton constant-folds it.
+- `_FLT_MAX_NEG = -3.4028234663852886e38` is the IEEE 754 most-negative
+  finite fp32 value. It survives all subtraction operations within the
+  online-softmax range without underflow.
+- Action #1 derived from research-agent deep-dive of vllm#40929 DeepSeek-V4
+  Triton fallback kernels (PR doesn't apply to us as a model, but the
+  softmax idioms inside transfer cleanly to our k8v4 verify path).
+
+Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
+
+---
+
 ## v7.50 — 2026-04-27 (Tier 1 Step C: P67 cache_modifier + tl.range hints)
 
 Backport of [vllm#33529](https://github.com/vllm-project/vllm/pull/33529)

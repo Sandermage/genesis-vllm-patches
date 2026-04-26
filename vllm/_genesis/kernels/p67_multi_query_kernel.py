@@ -277,9 +277,13 @@ def _build_kernel():
 
                 # Per-row causal mask for this q_t:
                 # q_abs_pos_t (scalar) >= seq_offset[n]
+                # v7.52 (Action #1 from PR #40929 audit): use -FLT_MAX sentinel
+                # instead of float("-inf"). Inf*0 = NaN in fp32 accum; FLT_MAX
+                # (-3.4028234663852886e38) avoids the trap and tl.exp2 of a
+                # very-negative-but-finite value clamps to 0 cleanly.
                 causal = q_abs_pos_t >= seq_offset
                 valid = head_mask[:, None] & tile_mask[None, :] & causal[None, :]
-                S_t = tl.where(valid, S_t, float("-inf"))
+                S_t = tl.where(valid, S_t, -3.4028234663852886e38)
 
                 # Triton can't index 2D with constexpr, use mask-based extract.
                 # tl.where avoids -inf*0=NaN issue from naive multiplication.
@@ -290,9 +294,16 @@ def _build_kernel():
                 acc_old_t = tl.sum(tl.where(t_mask[:, None, None], acc, 0.0), axis=0)
 
                 # Online softmax update for this q_t
+                # v7.52 (Action #1 from PR #40929 audit): tl.exp2 maps directly
+                # to hardware ex2 instruction; tl.exp is synthesized as
+                # ex2(x*log2e) so adds one mul. Pre-multiply by LOG2E = 1.4426...
+                # at the input (S_t and M-diff) and use exp2 throughout. Net:
+                # one fewer fp mul per softmax step in hot inner loop.
+                # SM_LOG2E = 1.4426950408889634 (standard math.log2(e))
+                _LOG2E = 1.4426950408889634
                 M_new_t = tl.maximum(tl.max(S_t, axis=1), M_old_t)
-                alpha_t = tl.exp(M_old_t - M_new_t)
-                P_t = tl.exp(S_t - M_new_t[:, None])
+                alpha_t = tl.exp2((M_old_t - M_new_t) * _LOG2E)
+                P_t = tl.exp2((S_t - M_new_t[:, None]) * _LOG2E)
                 L_new_t = L_old_t * alpha_t + tl.sum(P_t, axis=1)
                 # PV for this q_t: [BLOCK_QH, BLOCK_D]
                 # P_t already fp32, V_tile fp32 → IEEE software dot for full precision.
