@@ -101,6 +101,7 @@ from __future__ import annotations
 
 import logging
 import math
+import os
 from typing import Any
 
 import torch
@@ -111,6 +112,9 @@ from vllm._genesis.guards import is_nvidia_cuda, is_sm_at_least
 log = logging.getLogger("genesis.wiring.p38_tq_continuation_memory")
 
 _GENESIS_P38_MARKER_ATTR = "_genesis_p38_wrapped"
+
+# v7.48 (2026-04-27): one-time mode-decision log gate.
+_P38_MODE_LOGGED = False
 
 # Class-name candidate list — mirrors P22. If upstream renames, add here.
 _CANDIDATE_TQ_IMPL_NAMES = (
@@ -227,28 +231,67 @@ def _genesis_continuation_prefill(
     # ── 1. Dequant buffers (prealloc 4-D, matching engine shape exactly) ──
     alloc_len = math.ceil(cached_len / block_size) * block_size
     buf_shape = (1, Hk, alloc_len, D)
-    k_buf = getattr(layer, "_tq_k_dequant_buf", None)
-    v_buf = getattr(layer, "_tq_v_dequant_buf", None)
-    # P49 runtime shape-compat check (v7.8): if buffers exist but have
-    # unexpected Hk / D / ndim, fall back to fresh alloc. Covers the
-    # "same TurboQuantAttentionImpl class name, different shape
-    # convention" drift scenario (different model, upstream refactor).
-    need_fresh = (
-        k_buf is None or v_buf is None
-        or k_buf.dim() != 4 or v_buf.dim() != 4
-        or k_buf.shape[1] != Hk        # v7.8: Hk mismatch
-        or k_buf.shape[3] != D         # v7.8: D mismatch
-        or k_buf.shape[2] < alloc_len
-    )
-    if need_fresh:
-        # Fresh 4-D alloc — mirrors upstream exactly. Only fires if our
-        # prealloc was incompatible (platform-skip, shape mismatch, or
-        # drift). Genesis runtime-safe: we always end with a valid
-        # 4-D buffer of shape (1, Hk, alloc_len, D).
-        k_buf = torch.empty(buf_shape, dtype=torch.float16, device=device)
-        v_buf = torch.empty(buf_shape, dtype=torch.float16, device=device)
-        layer._tq_k_dequant_buf = k_buf
-        layer._tq_v_dequant_buf = v_buf
+
+    # v7.48 (2026-04-27): SHARED vs PER-LAYER toggle via GENESIS_BUFFER_MODE.
+    # Default "shared" — single buffer pair across all 36 attention layers
+    # (sequential exec ⇒ safe). Saves ~13-25 GB on long-context. Set
+    # GENESIS_BUFFER_MODE=per_layer (or _MODE_P38=per_layer) for legacy
+    # per-layer attached buffers if the shared path ever regresses.
+    from vllm._genesis.buffer_mode import buffer_mode_for, log_mode_decision
+    mode = buffer_mode_for("P38")
+    global _P38_MODE_LOGGED
+    if not _P38_MODE_LOGGED:
+        log_mode_decision("P38",  mode,
+                          "K/V dequant + K_full/V_full workspace pool")
+        _P38_MODE_LOGGED = True
+
+    if mode == "shared":
+        # v7.48 fix: ONE namespace per (Hk, D, dtype, device) — max-size
+        # alloc at first use, then slice. Earlier rounding strategy plowed
+        # multiple registry entries (one per rounded_len) which never GC'd
+        # — defeated the purpose of singleton pool. Now we allocate ONCE
+        # under TQ_MAX_MODEL_LEN and reuse forever via slicing.
+        from vllm._genesis.prealloc import GenesisPreallocBuffer as GPB
+        # Maximum size we'll ever need (env-controllable; defaults to engine
+        # max_model_len). Rounded to block_size so dequant kernel grid math
+        # stays clean.
+        _max_env = os.environ.get("GENESIS_TQ_MAX_MODEL_LEN", "262144")
+        try:
+            max_tq_len = int(_max_env)
+        except ValueError:
+            max_tq_len = 262144
+        max_tq_len = math.ceil(max_tq_len / block_size) * block_size
+        # Single namespace per layer-shape signature — same across all 36
+        # attention layers because Hk/D/dtype/device identical for them.
+        ns_k = f"p38_k_dequant|Hk={Hk}|D={D}|fp16"
+        ns_v = f"p38_v_dequant|Hk={Hk}|D={D}|fp16"
+        max_shape = (1, Hk, max_tq_len, D)
+        k_buf = GPB.get_or_create(ns_k, max_shape, torch.float16, device,
+                                  zero_init=False)
+        v_buf = GPB.get_or_create(ns_v, max_shape, torch.float16, device,
+                                  zero_init=False)
+    else:
+        # Legacy per-layer path — retained for rollback safety.
+        k_buf = getattr(layer, "_tq_k_dequant_buf", None)
+        v_buf = getattr(layer, "_tq_v_dequant_buf", None)
+        # P49 runtime shape-compat check (v7.8): if buffers exist but have
+        # unexpected Hk / D / ndim, fall back to fresh alloc. Covers the
+        # "same TurboQuantAttentionImpl class name, different shape
+        # convention" drift scenario (different model, upstream refactor).
+        need_fresh = (
+            k_buf is None or v_buf is None
+            or k_buf.dim() != 4 or v_buf.dim() != 4
+            or k_buf.shape[1] != Hk        # v7.8: Hk mismatch
+            or k_buf.shape[3] != D         # v7.8: D mismatch
+            or k_buf.shape[2] < alloc_len
+        )
+        if need_fresh:
+            # Fresh 4-D alloc — mirrors upstream exactly.
+            k_buf = torch.empty(buf_shape, dtype=torch.float16, device=device)
+            v_buf = torch.empty(buf_shape, dtype=torch.float16, device=device)
+            layer._tq_k_dequant_buf = k_buf
+            layer._tq_v_dequant_buf = v_buf
+
     k_cached = k_buf[:, :, :alloc_len, :].zero_()
     v_cached = v_buf[:, :, :alloc_len, :].zero_()
 
@@ -312,15 +355,34 @@ def _genesis_continuation_prefill(
 
     # ── 3. Persistent K_full / V_full workspace ──
     qdtype = query.dtype
-    k_full_buf = getattr(layer, "_tq_k_full_buf", None)
-    v_full_buf = getattr(layer, "_tq_v_full_buf", None)
-    use_persistent = (
-        k_full_buf is not None and v_full_buf is not None
-        and k_full_buf.shape[0] >= seq_len
-        and k_full_buf.shape[1] == Hk and k_full_buf.shape[2] == D
-        and k_full_buf.dtype == qdtype
-        and k_full_buf.device == device
-    )
+
+    # v7.48 (2026-04-27): same SHARED vs PER-LAYER toggle for the K_full /
+    # V_full workspace pair (shape `(seq_len, Hk, D)`). On Qwen3.6-MoE this
+    # is the larger of the two prealloc footprints (full sequence × heads
+    # × dim, fp16). Shared singleton via GenesisPreallocBuffer is the
+    # default; per-layer attached attribute path retained for rollback.
+    if mode == "shared":
+        from vllm._genesis.prealloc import GenesisPreallocBuffer as GPB
+        # ONE namespace per shape signature — max-size alloc once, slice forever.
+        # Use the same TQ_MAX env as dequant buffers above for consistency.
+        ns_k_full = f"p38_k_full|Hk={Hk}|D={D}|{qdtype}"
+        ns_v_full = f"p38_v_full|Hk={Hk}|D={D}|{qdtype}"
+        full_max_shape = (max_tq_len, Hk, D)
+        k_full_buf = GPB.get_or_create(ns_k_full, full_max_shape, qdtype, device,
+                                       zero_init=False)
+        v_full_buf = GPB.get_or_create(ns_v_full, full_max_shape, qdtype, device,
+                                       zero_init=False)
+        use_persistent = True
+    else:
+        k_full_buf = getattr(layer, "_tq_k_full_buf", None)
+        v_full_buf = getattr(layer, "_tq_v_full_buf", None)
+        use_persistent = (
+            k_full_buf is not None and v_full_buf is not None
+            and k_full_buf.shape[0] >= seq_len
+            and k_full_buf.shape[1] == Hk and k_full_buf.shape[2] == D
+            and k_full_buf.dtype == qdtype
+            and k_full_buf.device == device
+        )
 
     if use_persistent:
         # Take views; no new allocation.

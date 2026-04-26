@@ -267,6 +267,14 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "credit": "Backport of vllm#38624 (CodersAcademy006, OPEN). Additive-only variant: discards in-flight async tokens on _preempt_request() to prevent duplicated tokens after preemption-resume. Genesis prod uses sync ngram so direct value is minimal; protects users on async+EAGLE/MTP/ngram_gpu paths.",
         "upstream_pr": 38624,
     },
+    "P81": {
+        "title": "fp8 block-scaled MM low-M decode tuning (vllm#40925)",
+        "env_flag": "GENESIS_ENABLE_P81_FP8_BLOCK_SCALED_M_LE_8",
+        "default_on": False,
+        "category": "kernel_perf",
+        "credit": "Backport of vllm#40925 (tonyliu312, OPEN). Specializes w8a8_triton_block_scaled_mm default config for M<=8 (single-request decode + MTP K=3 verify): BLOCK_SIZE_M 64->16, num_stages 2->3 (non-ROCm). Empirical +23% median decode on GB10. Direct hit for Genesis prod (Qwen3.6-A3B FP8 + max_num_seqs=2 + no pre-tuned JSON for A5000).",
+        "upstream_pr": 40925,
+    },
 }
 
 

@@ -1,6 +1,16 @@
 # SPDX-License-Identifier: Apache-2.0
 """P67 production wrapper — multi-query TurboQuant attention for spec-decode.
 
+v7.48 NOTE (2026-04-27): a brief tf32x3 → default-tf32 experiment was
+attempted to reduce inner-loop MMA cost, but the apparent regression
+turned out to be unrelated (vLLM nightly bumped PyTorch to 2.11+CUDA13
+which our driver 570 only partially supported, masking real perf).
+After upgrading host driver to 580 + CUDA 13.0, tf32x3 stays as the
+production choice — its precision boost matters for spec-decode verify
+correctness on our k8v4 KV cache. Future PRs may revisit using `'tf32'`
+explicitly (single-pass, ~2-3× faster than tf32x3) once we have an
+A/B numerical regression suite in place.
+
 v7.34 SPLIT-M (Fix A from algorithms research, 2026-04-26):
 - Outer loop loads K/V tiles ONCE per iteration (same memory bandwidth)
 - Inner `tl.static_range` unrolls K_PLUS_1 separate tl.dot calls

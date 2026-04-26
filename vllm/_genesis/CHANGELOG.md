@@ -1,5 +1,88 @@
 # Genesis `_genesis/` Package Changelog
 
+## v7.48 — 2026-04-27 (memory shared-pool sprint + P81 backport + driver 580)
+
+Tested on **vLLM 0.19.2rc1.dev212+g8cd174fa3** (nightly image
+`vllm/vllm-openai:nightly` ID `10c7a6ba51c6`, PyTorch 2.11.0+cu130,
+Triton 3.6.0) on **NVIDIA driver 580.126.09 + CUDA 13.0**, 2× RTX
+A5000 (Ampere SM 8.6), Qwen3.6-35B-A3B-FP8 with TurboQuant k8v4 KV
+cache and MTP K=3 spec decode.
+
+### Added
+
+- **P81 — fp8 block-scaled MM low-M decode tuning**
+  (`wiring/patch_81_fp8_block_scaled_m_le_8.py`):
+  - Backport of [vllm#40925](https://github.com/vllm-project/vllm/pull/40925)
+    (tonyliu312, OPEN as of 2026-04-26)
+  - Opt-in via `GENESIS_ENABLE_P81_FP8_BLOCK_SCALED_M_LE_8=1`
+  - Specializes default `w8a8_triton_block_scaled_mm` config for M ≤ 8
+    (single-request decode + MTP K=3 verify): `BLOCK_SIZE_M` 64 → 16,
+    `num_stages` 2 → 3 (non-ROCm)
+  - Direct hit for our prod (Qwen3.6-A3B FP8 + max_num_seqs=2,
+    no pre-tuned JSON for A5000)
+  - Empirical (per upstream PR on GB10 sm_121): +23% median decode
+  - Drift detector: presence of `if M <= 8:` literal without Genesis
+    marker → upstream PR merged → auto-skip
+
+- **`vllm/_genesis/buffer_mode.py`** — centralized buffer-mode toggle:
+  - Reads `GENESIS_BUFFER_MODE=shared|per_layer` env (default `shared`)
+  - Per-patch override via `GENESIS_BUFFER_MODE_<PID>` (e.g. P38, P40)
+  - `shared` = singleton pool via `GenesisPreallocBuffer` (memory-efficient,
+    saves multi-GB on long-context)
+  - `per_layer` = legacy attached-attribute path (rollback safety)
+
+### Memory-opt sprint
+
+Driver 570 → 580 upgrade brought CUDA 13.0 PyTorch which adds ~3 GB
+allocator overhead. To restore long-context capability while staying
+at GMU 0.90+, audited prealloc patches:
+
+- **8 of 9 patches** (P22/P26/P28/P36/P37/P39/P44/P46) **already use
+  shared singleton** via `TurboQuantBufferManager` /
+  `GenesisPreallocBuffer` / `gdn_core_attn_manager` /
+  `FlaKktBufferManager`. The `setattr(layer, ...)` only attaches 36
+  references to a single registered buffer; per-layer attribute lookup
+  is for fast-path access, not duplicated allocation.
+
+- **P38 was the real waste** — `_genesis_continuation_prefill` had a
+  fresh `torch.empty(buf_shape, ...)` fallback when `seq_len` exceeded
+  current buffer, allocating per-call growth. Fixed
+  `wiring/patch_38_tq_continuation_memory.py` to use `buffer_mode_for`:
+  `shared` mode now allocates **one max-size buffer** per
+  (Hk, D, dtype, device) signature via `GenesisPreallocBuffer`, slice
+  to actual `alloc_len` per call. Single namespace, no growth churn,
+  no per-layer waste.
+
+- **P40 fallback** (TQ grouped decode `mid_o`/`output`/`lse` per-call
+  `torch.empty` when `buf_holder` not pre-attached) similarly fixed via
+  `buffer_mode_for("P40")` shared singleton with max-shape (max_B,
+  Hq, NUM_KV_SPLITS, D+1) registered through `GenesisPreallocBuffer`.
+
+### Empirical (validated v7.48 baseline)
+
+| Metric | v7.48 (driver 580 + P81 + shared P38/P40) | vs v7.13 (driver 570 + per-layer) |
+|---|---|---|
+| Throughput mean | **160-190 tok/s** | 130-143 tok/s = **+15-30%** |
+| Quality 30-shot harness | 30/31 PASS (96.8%) | 30/31 PASS |
+| Tool-call regression | 2/2 PASS | 2/2 PASS |
+| Long-ctx 16K-160K needle | ALL PASS | 16K-128K PASS |
+| Long-ctx 200K | PASS (153K server tokens) | OOM |
+| **GMU at which 200K runs** | **0.90** (Sander obligatory range MET) | 0.91 limit |
+| Production launch script | `scripts/launch/start_mtp.sh` (updated) | unchanged |
+
+### Notes
+
+- Env-driven `GENESIS_BUFFER_MODE=shared` is the new default. Set to
+  `per_layer` if shared pool ever shows regression on a different
+  model/config — purely a rollback knob, not expected for normal use.
+- The shared pool requires sequential layer execution within the
+  forward pass (which is true for TP + non-PP + sync-scheduling — our
+  config). Anyone adding pipeline parallelism or multi-stream pipelined
+  layers should re-evaluate.
+- Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
+
+---
+
 ## v7.46 — 2026-04-26 (async × spec-decode safety patches — opt-in)
 
 Three additive backports of OPEN upstream PRs that fix async-scheduling

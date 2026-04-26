@@ -43,8 +43,8 @@ curl http://localhost:8000/health -H "Authorization: Bearer genesis-local"
 
 - **GPU**: NVIDIA Ampere SM 8.0+ (A100, A5000, A6000, RTX 3090/3090Ti, A40)
 - **VRAM**: 24GB per GPU minimum (48GB total for default Qwen3.6-35B-A3B-FP8)
-- **CUDA**: 12.0+ recommended (compatible with vLLM 0.19+ images)
-- **Driver**: NVIDIA 570+ for stable nightly builds
+- **CUDA**: **13.0** (current vLLM nightly ships with PyTorch 2.11+cu130)
+- **Driver**: **NVIDIA ≥ 580.126.09 REQUIRED** as of v7.48 (2026-04-27). Driver 570 still loads but PyTorch falls into compat mode → ~3× slower decode. Install via `apt install nvidia-driver-580-server` on Ubuntu 24.04, then reboot. See [`scripts/launch/README.md`](scripts/launch/README.md) for the full version matrix.
 - **System RAM**: 64GB+ (model weights need to be paged in)
 - **Disk**: ~40GB for FP8 model weights, +10GB for vLLM compile cache
 
@@ -97,7 +97,7 @@ This means:
 ```bash
 # Verify GPU + driver
 nvidia-smi
-# Look for: Driver Version >= 570, all GPUs visible, ECC OK
+# Look for: Driver Version >= 580.126.09 (REQUIRED), CUDA Version: 13.0, all GPUs visible, ECC OK
 
 # Verify NCCL (for TP>1)
 docker run --rm --gpus all nvidia/cuda:12.0-base nvidia-smi -L

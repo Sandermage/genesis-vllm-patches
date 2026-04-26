@@ -1,5 +1,26 @@
 #!/bin/bash
-# v7.42 full stack: P72 + P73 + P74 + P71 — batched=8192 with safety nets
+# Genesis vLLM patcher v7.48 — production launch script
+#
+# Tested on:
+#   vLLM:       0.19.2rc1.dev212+g8cd174fa3 (image vllm/vllm-openai:nightly)
+#   PyTorch:    2.11.0+cu130
+#   Triton:     3.6.0
+#   CUDA:       13.0
+#   Driver:     >=580.126.09 (REQUIRED for CUDA 13.0; 570 puts PyTorch in
+#                             compat fallback mode → 3× decode slowdown)
+#   Hardware:   2× NVIDIA RTX A5000 (Ampere SM 8.6), TP=2
+#   Model:     Qwen3.6-35B-A3B-FP8 + TurboQuant k8v4 KV cache
+#   Spec dec:  MTP K=3
+#
+# Empirical (validated 2026-04-27):
+#   Throughput:    160-190 tok/s (v7.13 baseline was 130-143)
+#   Quality:       30/31 PASS on 30-shot harness, tool-call 2/2 PASS
+#   Long context:  16K-200K all PASS at GMU 0.90, 240K processed (no OOM)
+#
+# Active patches: P3, P4, P5, P6, P22, P26, P28, P37, P38, P44, P46,
+#                 P58, P60, P60b, P61, P61b, P62, P64, P66, P67, P67b,
+#                 P68, P69, P70, P72, P74, P81 (NEW v7.48)
+#
 set -euo pipefail
 docker stop ${CONTAINER_NAME:-vllm-genesis} 2>/dev/null || true
 docker rm ${CONTAINER_NAME:-vllm-genesis} 2>/dev/null || true
@@ -18,7 +39,7 @@ docker run -d \
   -v ${GENESIS_REPO:-$HOME/genesis-vllm-patches}/external_probe:/external_probe:ro \
   -v "${GENESIS_REPO:-$HOME/genesis-vllm-patches}/vllm/_genesis/configs/moe_tuning/E=256,N=512,device_name=NVIDIA_RTX_A5000,dtype=fp8_w8a8,block_shape=[128,128].json:/usr/local/lib/python3.12/dist-packages/vllm/model_executor/layers/fused_moe/configs/E=256,N=512,device_name=NVIDIA_RTX_A5000,dtype=fp8_w8a8,block_shape=[128,128].json:ro" \
   -e VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS=1 -e VLLM_NO_USAGE_STATS=1 \
-  -e PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True,max_split_size_mb:512" \
+  -e PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True,max_split_size_mb:256,garbage_collection_threshold:0.6" \
   -e VLLM_FLOAT32_MATMUL_PRECISION=high -e NCCL_P2P_DISABLE=1 \
   -e VLLM_USE_FLASHINFER_SAMPLER=1 -e VLLM_USE_FUSED_MOE_GROUPED_TOPK=1 \
   -e OMP_NUM_THREADS=1 -e CUDA_DEVICE_MAX_CONNECTIONS=8 \
@@ -37,6 +58,8 @@ docker run -d \
   -e GENESIS_ENABLE_P68_AUTO_FORCE_TOOL=1 -e GENESIS_ENABLE_P69_LONG_CTX_TOOL_REMINDER=1 \
   -e GENESIS_ENABLE_P70_AUTO_STRICT_NGRAM=1 -e GENESIS_P68_P69_LONG_CTX_THRESHOLD_CHARS=8000 \
   -e GENESIS_ENABLE_P37=1 -e GENESIS_TQ_MAX_MODEL_LEN=262144 \
+  -e GENESIS_ENABLE_P81_FP8_BLOCK_SCALED_M_LE_8=1 \
+  -e GENESIS_BUFFER_MODE=shared \
   -e GENESIS_ENABLE_P72_PROFILE_RUN_CAP=1 -e GENESIS_PROFILE_RUN_CAP_M=4096 \
   -e GENESIS_ENABLE_P74_CHUNK_CLAMP=1 -e GENESIS_PREALLOC_TOKEN_BUDGET=4096 \
   vllm/vllm-openai:nightly -c \
@@ -48,7 +71,7 @@ python3 /external_probe/patch_tolist_cudagraph.py || echo tolist bypass failed; 
 python3 /external_probe/patch_40074_iooo.py || echo PR40074 failed; \
 python3 -m vllm._genesis.patches.apply_all --verify-rebinds; \
 exec vllm serve --model /models/Qwen3.6-35B-A3B-FP8 --tensor-parallel-size 2 \
-  --gpu-memory-utilization 0.91 --max-model-len 262144 \
+  --gpu-memory-utilization 0.90 --max-model-len 262144 \
   --kv-cache-dtype turboquant_k8v4 --max-num-seqs 2 --max-num-batched-tokens 8192 \
   --enable-chunked-prefill --enable-prefix-caching --dtype float16 \
   --disable-custom-all-reduce --language-model-only --trust-remote-code \

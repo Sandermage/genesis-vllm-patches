@@ -211,13 +211,33 @@ def apply() -> tuple[str, str]:
 
         NUM_KV_SPLITS = max_num_kv_splits
 
+        # v7.48 (2026-04-27): fallback path now uses shared singleton via
+        # GenesisPreallocBuffer instead of per-call torch.empty + per-instance
+        # buf_holder attach. Eliminates allocator churn when upstream's
+        # buf_holder mechanism doesn't pre-attach (e.g. spec-decode verify
+        # path where layer's mid_o_buf is None on first call). Toggle via
+        # GENESIS_BUFFER_MODE=per_layer to revert to legacy.
+        from vllm._genesis.buffer_mode import buffer_mode_for
+        _p40_mode = buffer_mode_for("P40")
+
         if (
             mid_o_buf is not None
             and mid_o_buf.shape[0] >= B
             and mid_o_buf.shape[2] >= NUM_KV_SPLITS
         ):
             mid_o = mid_o_buf[:B, :Hq, :NUM_KV_SPLITS, :]
+        elif _p40_mode == "shared":
+            from vllm._genesis.prealloc import GenesisPreallocBuffer as GPB
+            # MAX-size singleton: pre-allocate worst-case (max_num_seqs × Hq
+            # × max_num_kv_splits × (D+1)) once, reuse forever via slicing.
+            # Hq + D are model-fixed, so namespace by them only.
+            ns = f"p40_mid_o|Hq={Hq}|D={D}|splits={NUM_KV_SPLITS}|fp32"
+            max_B = max(B, 8)  # 4× headroom over our max_num_seqs=2
+            shape = (max_B, Hq, NUM_KV_SPLITS, D + 1)
+            buf = GPB.get_or_create(ns, shape, torch.float32, device, zero_init=False)
+            mid_o = buf[:B, :Hq, :NUM_KV_SPLITS, :]
         else:
+            # Legacy per-call alloc + per-instance attach (rollback path).
             mid_o = torch.empty(
                 B, Hq, NUM_KV_SPLITS, D + 1,
                 dtype=torch.float32, device=device,
@@ -264,16 +284,32 @@ def apply() -> tuple[str, str]:
 
         # Stage 2 — reduce across KV splits. Reuse upstream's stage2
         # directly (unchanged by PR #40792).
+        # v7.48: same shared-singleton pattern as mid_o above.
         if output_buf is not None and output_buf.shape[0] >= B:
             output = output_buf[:B, :Hq, :D]
+        elif _p40_mode == "shared":
+            from vllm._genesis.prealloc import GenesisPreallocBuffer as GPB
+            ns = f"p40_output|Hq={Hq}|D={D}|fp32"
+            max_B = max(B, 8)
+            shape = (max_B, Hq, D)
+            buf = GPB.get_or_create(ns, shape, torch.float32, device, zero_init=False)
+            output = buf[:B, :Hq, :D]
         else:
             output = torch.empty(
                 B, Hq, D, dtype=torch.float32, device=device,
             )
             if buf_holder is not None:
                 buf_holder._tq_output_buf = output
+
         if lse_buf is not None and lse_buf.shape[0] >= B:
             lse = lse_buf[:B, :Hq]
+        elif _p40_mode == "shared":
+            from vllm._genesis.prealloc import GenesisPreallocBuffer as GPB
+            ns = f"p40_lse|Hq={Hq}|fp32"
+            max_B = max(B, 8)
+            shape = (max_B, Hq)
+            buf = GPB.get_or_create(ns, shape, torch.float32, device, zero_init=False)
+            lse = buf[:B, :Hq]
         else:
             lse = torch.empty(B, Hq, dtype=torch.float32, device=device)
             if buf_holder is not None:

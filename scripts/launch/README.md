@@ -2,6 +2,13 @@
 
 Production-tested launch scripts for the 4 spec-decode method variants. Each spawns a Docker container with the full Genesis patch stack (37+ patches) bind-mounted into a stock vLLM nightly image.
 
+> **Tested on (v7.48 baseline, 2026-04-27):**
+>
+> - vLLM `0.19.2rc1.dev212+g8cd174fa3` (image `vllm/vllm-openai:nightly`)
+> - PyTorch `2.11.0+cu130`, Triton `3.6.0`, CUDA `13.0`
+> - **NVIDIA driver `≥580.126.09`** (REQUIRED — driver 570 puts PyTorch in compat fallback ≈ 3× slower decode)
+> - 2× RTX A5000 (Ampere SM 8.6), Ubuntu 24.04 + kernel 6.8
+
 ## Quick start
 
 ```bash
@@ -24,13 +31,15 @@ curl http://localhost:8000/health -H "Authorization: Bearer genesis-local"
 
 ## Which script?
 
-| Script | When to use | Empirical TPS (Qwen3.6-35B-A3B-FP8 / 2× A5000) | CV (stability) |
+| Script | When to use | Empirical TPS (v7.48, Qwen3.6-35B-A3B-FP8 / 2× A5000) | CV (stability) |
 |---|---|---|---|
 | **`start_no_spec_async.sh`** | Free-form chat WITHOUT tool calls. Fastest + most stable. | **134 tok/s** mean | **0.3%** (rock-solid) |
-| **`start_mtp.sh`** | Default for tool-call / agentic + general chat. Slower, full correctness stack. | **130 tok/s** mean | 5.0% |
-| `start_suffix.sh` | Tool-call workload — repetitive JSON/code. Peak speed on right input. | 46 tok/s free-form, **99 tool-call (max 175)** | 16-36% |
+| **`start_mtp.sh`** ⭐ | Default for tool-call / agentic + general chat. Full correctness stack. | **160-190 tok/s** (v7.48: +15-30% vs v7.13) | 5-7% |
+| `start_suffix.sh` | Tool-call workload — repetitive JSON/code. Peak speed on right input. | 71 tok/s mean (sweep best 84 @ prob=0.10/depth=32) | 17-30% |
 | `start_ngram.sh` | Ngram-only fallback (no MTP available). | 46 tok/s | 4.4% |
-| `start_ngram_p77adaptive.sh` | Ngram + P77 adaptive K controller (auto-disables on low accept). | 50 tok/s | 6.1% |
+| `start_ngram_p77adaptive.sh` | Ngram + P77 adaptive K controller (auto-disables on low accept). | 48-50 tok/s (+4-9%) | 6.1% |
+
+**v7.48 long-context capability** (start_mtp.sh @ GMU 0.90, P38/P40 shared singleton): 16K-200K all PASS needle test, 240K processed without OOM. See [vllm/_genesis/CHANGELOG.md](../../vllm/_genesis/CHANGELOG.md) v7.48 entry for full details.
 
 ## Honest trade-off — `--async-scheduling` vs spec-decode
 

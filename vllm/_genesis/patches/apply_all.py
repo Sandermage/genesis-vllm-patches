@@ -1319,6 +1319,40 @@ def apply_patch_79c_stale_spec_token_cleanup() -> PatchResult:
     return _failed(name, reason)
 
 
+@register_patch("P81 fp8 block-scaled MM low-M decode tuning (vllm#40925)")
+def apply_patch_81_fp8_block_scaled_m_le_8() -> PatchResult:
+    """Patch 81: backport of vllm#40925 (tonyliu312, OPEN).
+
+    Specializes `w8a8_triton_block_scaled_mm` default config for M<=8
+    (single-request decode + MTP K=3 verify):
+      - BLOCK_SIZE_M: 64 -> 16  (4x less wasted M-dim)
+      - num_stages: 2 -> 3 (non-ROCm only)
+    Larger M unchanged. Pre-tuned JSON configs short-circuit before this.
+
+    Direct hit for Genesis prod: Qwen3.6-A3B FP8 + max_num_seqs=2 (M=1
+    typical, M=4 for MTP K=3 verify) + no pre-tuned JSON for our
+    (N, K, RTX A5000) tuple in configs/.
+
+    Empirical (per upstream PR on GB10 sm_121):
+    +23% median decode TPS (5.45 -> 6.73 t/s).
+
+    Status: opt-in via GENESIS_ENABLE_P81_FP8_BLOCK_SCALED_M_LE_8=1.
+    """
+    name = "P81 fp8 block-scaled MM low-M decode tuning (vllm#40925)"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring import patch_81_fp8_block_scaled_m_le_8
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_81_fp8_block_scaled_m_le_8.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
 @register_patch("P79d Preempt async-discard backport (vllm#38624)")
 def apply_patch_79d_preempt_async_discard() -> PatchResult:
     """Patch 79d: backport of vllm#38624 (CodersAcademy006, OPEN).

@@ -1,10 +1,49 @@
-# Genesis vLLM Patches — v7.45
+# Genesis vLLM Patches — v7.48
 
 **Runtime patches for [vLLM](https://github.com/vllm-project/vllm) — long-context Qwen3-class inference on NVIDIA Ampere, with TurboQuant k8v4 KV-cache and 256k context.**
 
-> **Production-validated stack: 127 tok/s mean MTP free-form / 99 tok/s suffix tool-call (max 175!) on 2× RTX A5000 (Ampere SM 8.6, 48GB VRAM total).** Long-context corrected up to 252K tokens (96% of 262144 cap). Zero hallucinations / cascades / garbage in 5/5 quality tests.
+> **Production-validated stack (v7.48, 2026-04-27): 160-190 tok/s MTP / 134 tok/s no-spec async / on 2× RTX A5000 (Ampere SM 8.6, 48GB VRAM total).** Long-context corrected — 16K to 200K all PASS needle test, 240K processed without OOM. Zero hallucinations / cascades / garbage in 30/31 harness tests.
 
-## What's new in v7.45 (2026-04-26 — gemini bot review fix)
+## Tested versions (v7.48 baseline)
+
+| Component | Version |
+|---|---|
+| **Genesis patcher** | `v7.48` |
+| **vLLM** | `0.19.2rc1.dev212+g8cd174fa3` (image `vllm/vllm-openai:nightly` ID `10c7a6ba51c6`) |
+| **PyTorch** | `2.11.0+cu130` |
+| **Triton** | `3.6.0` |
+| **CUDA** | `13.0` |
+| **NVIDIA driver** | `≥ 580.126.09` ⚠️ **REQUIRED** (driver 570 puts PyTorch in compat fallback ≈ 3× slower decode) |
+| **Hardware** | 2× NVIDIA RTX A5000 (Ampere SM 8.6), TP=2 |
+| **Model** | Qwen3.6-35B-A3B-FP8 + TurboQuant k8v4 KV cache |
+| **OS** | Ubuntu 24.04.4 LTS, kernel 6.8 |
+
+## What's new in v7.48 (2026-04-27 — memory shared-pool sprint + driver 580 + P81)
+
+After upgrading host NVIDIA driver from `570` → `580.126.09` (required because vLLM nightly bumped PyTorch to `2.11+cu130`), three changes landed:
+
+1. **P81 backport of [vllm#40925](https://github.com/vllm-project/vllm/pull/40925)** — `w8a8_triton_block_scaled_mm` low-M (M≤8) decode tuning: `BLOCK_SIZE_M` 64→16, `num_stages` 2→3. Direct hit for Qwen3.6-A3B FP8 + max_num_seqs=2 (M=1 typical, M=4 for MTP K=3 verify). Empirical +23% median decode on GB10 (per upstream PR).
+
+2. **`vllm/_genesis/buffer_mode.py`** — env-driven toggle `GENESIS_BUFFER_MODE=shared|per_layer` (default `shared`) + per-patch override. Makes shared singleton vs legacy per-layer attribute path operator-controllable.
+
+3. **P38/P40 shared-pool fix** — both had per-call `torch.empty` fallback paths that defeated singleton intent on long-context (P38 at growth boundary, P40 when `buf_holder` not pre-attached). Fixed via `GenesisPreallocBuffer.get_or_create()` with **single max-size namespace per (Hk, D, dtype, device)** signature — one buffer reused across all 36 attention layers via slicing.
+
+| Metric | v7.13 (driver 570 + per-layer) | v7.48 (driver 580 + shared P38/P40 + P81) |
+|---|---|---|
+| Throughput mean | 130-143 tok/s | **160-190 tok/s** (+15-30%) |
+| Quality 30-shot | 30/31 PASS | 30/31 PASS |
+| Tool-call regression | 2/2 PASS | 2/2 PASS |
+| Long-ctx 16K-160K | PASS | PASS |
+| Long-ctx 200K | OOM | **PASS** (153K server tokens) |
+| GMU at which 200K runs | 0.91 (limit) | **0.90** (Sander obligatory range MET) |
+
+Other patches audited (P22/P26/P28/P36/P37/P39/P44/P46) — all already use shared singleton through `TurboQuantBufferManager` / `GenesisPreallocBuffer` / `gdn_core_attn_manager` / `FlaKktBufferManager`. The `setattr(layer, ...)` only attaches 36 references to a single registered buffer, not duplicated allocations.
+
+See [`vllm/_genesis/CHANGELOG.md`](vllm/_genesis/CHANGELOG.md) v7.48 entry for full changelog.
+
+---
+
+## v7.45 (2026-04-26 — gemini bot review fix)
 
 After opening upstream draft PR [vllm#40914](https://github.com/vllm-project/vllm/pull/40914) for the K+1 spec-verify routing fix, **gemini-code-assist** flagged a critical issue in code review: the new routing path was not forwarding the cached decode buffers (`mid_o_buf`, `lse_buf`, `buf_holder=layer`) to `triton_turboquant_decode_attention`. Without these, the kernel allocates fresh tensors on every call — defeating the very cudagraph replay this PR aims to restore.
 
