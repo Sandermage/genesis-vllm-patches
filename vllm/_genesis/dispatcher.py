@@ -259,14 +259,6 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "credit": "Backport of vllm#37629 (OPEN, fixes #36906). Cleanup pass after main scheduling loop clears spec_token_ids for unscheduled running requests. Prevents -1 placeholder leak into F.embedding() under budget-exhausted high-concurrency on async + EAGLE/MTP. Genesis prod (max_num_seqs=2, sync ngram) gains nothing direct; protects high-concurrency multimodal users.",
         "upstream_pr": 37629,
     },
-    "P79d": {
-        "title": "Preempt async-discard backport (vllm#38624)",
-        "env_flag": "GENESIS_ENABLE_P79D_PREEMPT_ASYNC_DISCARD",
-        "default_on": False,
-        "category": "spec_decode",
-        "credit": "Backport of vllm#38624 (CodersAcademy006, OPEN). Additive-only variant: discards in-flight async tokens on _preempt_request() to prevent duplicated tokens after preemption-resume. Genesis prod uses sync ngram so direct value is minimal; protects users on async+EAGLE/MTP/ngram_gpu paths.",
-        "upstream_pr": 38624,
-    },
     "P81": {
         "title": "fp8 block-scaled MM low-M decode tuning (vllm#40925)",
         "env_flag": "GENESIS_ENABLE_P81_FP8_BLOCK_SCALED_M_LE_8",

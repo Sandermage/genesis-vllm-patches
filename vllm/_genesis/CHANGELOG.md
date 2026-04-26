@@ -1,5 +1,68 @@
 # Genesis `_genesis/` Package Changelog
 
+## v7.49 — 2026-04-27 (P79d retired + P79c improved per upstream review)
+
+Two small but important corrections to the v7.46 async-safety patch trio,
+based on upstream maintainer feedback received within 24h of v7.48 push.
+Tested versions unchanged from v7.48 (vLLM `dev212+g8cd174fa3`, PyTorch
+`2.11.0+cu130`, Triton `3.6.0`, CUDA 13.0, driver 580.126.09, 2× RTX A5000).
+
+### Removed
+
+- **P79d retired completely** (`vllm/_genesis/wiring/patch_79d_preempt_async_discard.py` + dispatcher entry + apply_all register).
+  - Reason: njhill (vLLM core maintainer) explicitly confirmed in
+    [vllm#38624](https://github.com/vllm-project/vllm/pull/38624) that the
+    asymmetry P79d "fixed" is **intentional**: the regular `_preempt_request`
+    removes the request from the next step entirely, so placeholder state is
+    never re-read; only `reset_prefix_cache` re-admits it. The backport
+    targeted a non-bug.
+  - CodersAcademy006 (original PR author) acknowledged the static-analysis
+    miss and committed to closing #38624 with a clarifying comment.
+  - Genesis prod is unaffected (P79d was opt-in, default-off, never enabled
+    in our `start_mtp.sh`). Removal is preventive — keeps the patcher
+    surface clean and avoids any operator accidentally enabling a
+    misguided modification.
+
+### Improved
+
+- **P79c smarter cleanup** (`vllm/_genesis/wiring/patch_79c_stale_spec_token_cleanup.py`):
+  - Old behaviour: cleared **any** `spec_token_ids` for unscheduled running
+    requests — risked wiping **real draft token IDs** (positive ints from
+    MTP / EAGLE / ngram), not just `-1` placeholders. Could corrupt MTP
+    state across budget-exhaustion cycles.
+  - New behaviour (matches the spirit of the emerging canonical fix
+    [vllm#40768](https://github.com/vllm-project/vllm/pull/40768) by jvlunteren):
+    1. Only clear when `spec_token_ids` is **all `-1`** (`all(t == -1 for t in ids)`).
+       Real draft tokens preserved.
+    2. **`prev_step_scheduled_req_ids` membership gate** — if request was in
+       the previous worker step, placeholders may still be consumed by async
+       input prep; we leave them alone. Otherwise (new request not in prev
+       step) → safe to clear.
+  - Drift detector unchanged — when #40768 (or the eventual canonical fix)
+    merges and adds `_consume_spec_decode_tokens_for_step`, our P79c
+    self-skips and the upstream takes over.
+  - Still opt-in via `GENESIS_ENABLE_P79C_STALE_SPEC_TOKEN_CLEANUP=1`.
+    Genesis prod (sync ngram, max_num_seqs=2) still doesn't engage it —
+    only protects high-concurrency multimodal users on async + EAGLE/MTP.
+
+### Tracker delta (since v7.48 push)
+
+- **vllm#38624 (P79d source)**: dead per maintainer — already retired here.
+- **vllm#40610 (P79b source)**: still draft, no human review — backport stays.
+- **vllm#37629 (P79c source)**: active discussion (benchislett asked for
+  non-multimodal repro; haosdent committed to providing one). Watch for v2
+  with proper root-cause fix.
+- **vllm#40925 (P81 source)**: open, mergeable, blocked on first-time
+  contributor label gate. Backport stays. Will retire when merged.
+- **vllm#40768 (canonical fix for the bug class P79c addresses)**: NEW PR,
+  introduces `_consume_spec_decode_tokens_for_step` + dedicated
+  `num_pending_async_spec_placeholders` Request field. Direct supersession
+  candidate for our P79c — when it lands we drop the patch entirely.
+
+Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
+
+---
+
 ## v7.48 — 2026-04-27 (memory shared-pool sprint + P81 backport + driver 580)
 
 Tested on **vLLM 0.19.2rc1.dev212+g8cd174fa3** (nightly image
