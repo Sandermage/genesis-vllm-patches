@@ -148,6 +148,14 @@ def _build_kernel():
         # explicit hoist matches the upstream MLA decode optimization.
         _kv_head_byte_offset = tl.cast(kv_head, tl.int64) * stride_cache_head
 
+        # v7.51 NOTE: experimented with explicit hoist of all K_PLUS_1 Q
+        # tiles before the outer KV loop (load once as [K_PLUS_1, BLOCK_QH,
+        # BLOCK_D] tensor, extract row t via mask-reduction inside loop).
+        # REGRESSION -5 to -12% across all max_tokens. Triton compiler with
+        # `tl.static_range` + cache_modifier=".ca" already hoists per-iter
+        # loads to L1; explicit hoist adds reduction overhead. Reverted —
+        # left per-t load below.
+
         # ════════════════════════════════════════════════════════════════
         # OUTER LOOP — KV tiles. K/V loaded ONCE per iteration.
         # v7.50: tl.range() instead of range() — explicit Triton pipelining
@@ -236,22 +244,27 @@ def _build_kernel():
 
                 # Load Q tile for this q_t: [BLOCK_QH, BLOCK_D]
                 # t is constexpr-static here so address computation is constant.
+                # v7.51 NOTE: tested explicit hoist of all K_PLUS_1 Q tiles
+                # before outer KV loop — REGRESSION -5 to -12% (Tier 2 Step F,
+                # 2026-04-27). Triton compiler ALREADY hoists this load via
+                # `tl.static_range` unroll + cache_modifier=".ca" L1 pinning.
+                # Our manual hoist added sum-reduction overhead (over K_PLUS_1)
+                # plus 8 KB virtual register pressure (all_Q tensor). Lesson:
+                # don't fight Triton's automatic loop-invariant code motion
+                # for simple loads — leave per-q_t load here.
                 q_addrs_t = (
                     q_base
                     + t * stride_qt
                     + abs_head[:, None] * stride_qh
                     + offs_d[None, :] * stride_qd
                 )
-                # v7.50: cache_modifier=".ca" — Q is reused inside this CTA
-                # across all KV iterations (constant per-batch tensor).
-                # Cache-all keeps it pinned in L1.
                 Q_t_raw = tl.load(
                     Q_ptr + q_addrs_t,
                     mask=head_mask[:, None] & d_mask[None, :],
                     other=0.0,
                     cache_modifier=".ca",
                 )  # [BLOCK_QH, BLOCK_D] — fp16 from input
-                # Upcast Q to fp32 — required for input_precision='ieee' to be effective.
+                # Upcast Q to fp32 — required for input_precision='tf32x3' to be effective.
                 Q_t = Q_t_raw.to(tl.float32)
 
                 # S_t = scale * Q_t @ K_tile [BLOCK_QH, BLOCK_KV]
@@ -329,6 +342,17 @@ def _autoconfig(sm_major: int, sm_minor: int, head_dim: int) -> dict:
     - BLOCK_KV=32: doubles tile size, halves loop iter count
     - num_warps=8: more parallelism per CTA (was 4)
     - num_stages=3: deeper async pipeline for better hide latency
+
+    v7.50 NOTE on num_stages choice:
+    Tested num_stages=2 on A5000 (Tier 2 Step E, 2026-04-27) — REGRESSION
+    -2% to -9% across all max_tokens, sweet spot at 128-256 tokens.
+    Reason: our P67 is memory-bound + dequant-heavy (TQ k8v4 FP8 bitcast +
+    4-bit V unpack + per-tile scale/zero loads). Deep pipeline (3 stages)
+    hides DRAM latency on KV reads better than the 2-buffer shmem savings.
+    Generic advice "num_stages=2 reduces register pressure on Ampere"
+    applies to compute-bound dense GEMM kernels, NOT to dequant-heavy paths.
+    Keep num_stages=3 for any TQ k8v4 / quant-dequant workload here.
+
     Override via env: GENESIS_P67_BLOCK_KV, GENESIS_P67_NUM_WARPS, GENESIS_P67_NUM_STAGES.
     """
     import os as _os
