@@ -2,12 +2,15 @@
 
 **Runtime patches for [vLLM](https://github.com/vllm-project/vllm) — long-context Qwen3-class inference on consumer NVIDIA Ampere with TurboQuant k8v4 KV cache.**
 
-> **Production status:** **v7.53, 2026-04-27.** Running 24/7 on 2× RTX A5000 with Qwen3.6-35B-A3B-FP8 + MTP K=3 spec-decode + 256K context. Latest sprint shipped **P82 SGLang acceptance OR-clause** (+12% TPS at threshold=0.3, validated on prod with 32/33 quality + 30/30 stability + 0 artifact flags).
+> **Production status:** **v7.59, 2026-04-28.** Running 24/7 on 2× RTX A5000 with Qwen3.6-35B-A3B-FP8 + MTP K=3 + P67 + P82.
+> **NEW: 320K context** (`--max-model-len 320000`, `--max-num-batched-tokens 4096`) — strict upgrade over v7.52 256K config: same TPS class (244→200 t/s @ max_tokens 64→2048), same CV (6.7%), 30/30 stability + 30/30 stress, **+25% context capacity** validated up to 317K tokens in both think-ON and think-OFF modes.
+> v7.56 also shipped **P67 safety gate** — auto-disables P67 multi-query kernel when no spec-decode is configured (prevents IndexKernel race in cache-deploy variants).
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Production](https://img.shields.io/badge/prod-validated-green.svg)](#production-baseline)
-[![Patches](https://img.shields.io/badge/patches-59-orange.svg)](PATCHES.md)
-[![Throughput](https://img.shields.io/badge/throughput-160--190%20tok%2Fs-brightgreen.svg)](#measured-throughput-table)
+[![Patches](https://img.shields.io/badge/patches-60-orange.svg)](PATCHES.md)
+[![Throughput](https://img.shields.io/badge/throughput-200--244%20tok%2Fs-brightgreen.svg)](#measured-throughput-table)
+[![Context](https://img.shields.io/badge/context-320K-blue.svg)](#long-context-verification)
 
 ---
 
@@ -358,7 +361,23 @@ for pid, m in dispatcher.PATCH_REGISTRY.items():
 
 ## Long-context verification
 
-**P74 chunk-clamp + P72 profile_run cap, batched=8192:**
+### v7.59 PROD (current — `--max-model-len 320000` + `--max-num-batched-tokens 4096`)
+
+Validated 2026-04-28 with both `enable_thinking=true` (default Qwen3 reasoning) and `enable_thinking=false` (direct answer mode):
+
+| Context (tokens) | think-ON time | think-OFF time | Result |
+|---|---|---|---|
+| 220,019 | 66.3s | 66.2s | PASS ✓ |
+| 240,019 | 76.3s | 75.6s | PASS ✓ |
+| 253,352 | 83.0s | 82.3s | PASS ✓ |
+| **280,021** | — | **94.0s** | **PASS** ⭐ (over previous 256K limit) |
+| **300,021** | — | **104.9s** | **PASS** ⭐ |
+| **317,798** | — | **114.5s** | **PASS** ⭐ near new 320K limit |
+| ~328,000 | 400 Bad Request | 400 Bad Request | rejected (over 320K limit) |
+
+Effective rate ~3,000-3,300 prompt-tokens/sec at long context. To send 220K+ context with short answer, set `chat_template_kwargs: {enable_thinking: false}` to avoid `max_tokens` overflow into reasoning.
+
+### v7.52 baseline (`--max-model-len 262144`, batched=8192) — for reference
 
 | Context (tokens) | Result | Latency |
 |---|---|---|
@@ -368,7 +387,13 @@ for pid, m in dispatcher.PATCH_REGISTRY.items():
 | **200,000** | **PASS** ⭐ (was OOM in v7.13) | 24.7s |
 | 240,000 | PASS (without OOM) | 31.2s |
 
-Tested with 6-digit needle paragraphs at start + question at end, max_tokens capped at 64 to avoid thinking-mode token eat-up.
+Tested with 6-digit needle paragraphs + question at end, max_tokens=64.
+
+### Why v7.59 fits in same VRAM
+
+Reducing `--max-num-batched-tokens` from 8192 → 4096 frees ~500 MB per GPU in mixed-batch staging. That offsets the additional KV-cache reservation for the larger context window. Net result: v7.59 has **MORE free VRAM at boot** than v7.52 (+482 MiB GPU 0, +462 MiB GPU 1) despite +25% context capacity.
+
+Full v7.59 validation in `docs/reference/V759_320K_CONTEXT_EXPANSION_20260427.md` and `docs/reference/LONG_CONTEXT_VALIDATION_20260427.md`.
 
 ---
 

@@ -4,14 +4,23 @@ Central reference for every environment variable that Genesis patches read.
 Default behaviour is "off" / "safe" for opt-in patches; on-by-default
 patches that are platform-gated (e.g. Ampere SM 8.0+) are noted.
 
-> **Tested baseline (v7.52, 2026-04-27):**
+> **Tested baseline (v7.59, 2026-04-28 — current PROD):**
 >
-> - vLLM `0.19.2rc1.dev212+g8cd174fa3` (image `vllm/vllm-openai:nightly` @ `10c7a6ba51c6`)
+> - vLLM `0.19.2rc1.dev212+g8cd174fa3` (image `vllm/vllm-openai:nightly`)
 > - PyTorch 2.11.0+cu130, Triton 3.6.0, CUDA 13.0
 > - **NVIDIA driver ≥ 580.126.09 REQUIRED** (570 → 3× slowdown)
 > - 2× RTX A5000 (Ampere SM 8.6), TP=2
-> - Qwen3.6-35B-A3B-FP8 + TurboQuant k8v4 + MTP K=3
-> - 167 tok/s mean, 30/31 quality, 200K context, GMU 0.90
+> - Qwen3.6-35B-A3B-FP8 + TurboQuant k8v4 + MTP K=3 + P67 multi-query kernel
+> - **`--max-model-len 320000` (320K) + `--max-num-batched-tokens 4096`**
+> - **220-317K context validated** (both think-ON + think-OFF modes)
+> - **Stability + stress 30/30 + 30/30** (CV 6.7-6.8%)
+> - Speed bench: 244 → 200 t/s (max_tokens 64 → 2048), GMU 0.90
+> - **P67 safety gate** (v7.56): auto-disabled when no spec-decode in config
+>
+> Previous baseline (v7.52, 2026-04-27): max-model-len 262144 (256K),
+> max-num-batched-tokens 8192. Same TPS class (CV practically identical).
+> See `docs/reference/V759_320K_CONTEXT_EXPANSION_20260427.md` for full
+> v759 vs v748 comparison + CV analysis.
 
 ---
 

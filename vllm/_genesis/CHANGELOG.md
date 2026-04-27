@@ -1,5 +1,117 @@
 # Genesis `_genesis/` Package Changelog
 
+## v7.59 — 2026-04-28 (PROD promotion: 320K context + smaller batched-tokens)
+
+After overnight investigation closed v756 stability (P67 safety gate fix in
+v7.56) Sander asked for "220K+ context to calmly hold the limit". Tested
+`--max-model-len 320000` + `--max-num-batched-tokens 4096` against PROD
+v7.52 baseline.
+
+**Validated as strict upgrade:**
+
+- Boot: clean, both A5000s healthy, +462-482 MiB MORE free VRAM at boot
+  (smaller batched-tokens saves more than larger context costs)
+- Long-context probes (think-OFF mode):
+  - 280K: 94.0s ✓ (was 400 over old 256K limit)
+  - 300K: 105s ✓
+  - 317K: 115s ✓ (just under new 320K hard limit)
+- Speed bench: 244 → 200 t/s @ max_tokens 64 → 2048 (matches v7.52 class)
+- Stability 30 sequential: **30/30** @ 215 t/s, CV 6.84% (was 6.44%)
+- Stress 30 (3 concurrent × 10 burst): **30/30** @ 231 t/s, CV 6.67%
+  (was 6.99%)
+- Both think-ON and think-OFF modes equally fast at long context
+- 5 short smoke + 1 280K + 1 300K probes on PROD all OK after promotion
+
+**Promoted to PROD 2026-04-28 23:53 UTC.** Launch script:
+`/home/sander/launch_scripts/current/start_v759_320k_prod.sh`. Old v7.52
+PROD launch archived as `start_v748_p82_prev_prod_archived_20260428.sh`.
+
+**Knob changes (only THREE from v7.52 PROD):**
+
+- `--max-model-len`: 262144 → 320000
+- `--max-num-batched-tokens`: 8192 → 4096
+- `GENESIS_TQ_MAX_MODEL_LEN` env: 262144 → 320000 (P37 cap match)
+
+Everything else identical: TQ k8v4, MTP K=3, P67 (with v7.56 safety gate),
+P82 t=0.3, all 43 Genesis patches. CONFIGURATION.md "Tested baseline"
+updated. README badge bumped (160-190 → 200-244 t/s; +context-320K badge).
+
+## v7.56.2 — 2026-04-27 night (P75 wiring fix scoped import os)
+
+P75 text-patch injected `os.environ.get(...)` into `vllm/config/speculative.py`
+`__post_init__` but that file does NOT import `os` at module level → first
+v758 boot died with NameError before vllm config was constructed.
+
+Fix: `import os as _genesis_p75_os` scoped to the injected block, all
+references switched to `_genesis_p75_os.environ.get(...)`. Marker bumped
+to `v7.56_local_os_import` so patch re-applies cleanly on fresh containers.
+
+v758 P75 Suffix Decoding deploy variant TESTED 2026-04-27 23:03 UTC after
+fix:
+- Boot succeeds
+- P75 swap `ngram → suffix` confirmed in logs
+- Speed bench INCONCLUSIVE (high variance on standard bench with varied
+  prompts; suffix decoding needs real-workload bench with prompt repetition)
+- Decision: NOT promoted; kept as opt-in variant for operators with
+  agentic/tool-call workloads
+
+## v7.56.1 — 2026-04-27 night (P67 safety gate fix: argv probe)
+
+`config_detect.get_runtime_profile()` short-circuits with
+`spec_decode_enabled=False` when `vllm_config` is unavailable (apply_all
+phase ALWAYS hits this path). My v7.56 P67 safety gate triggered on PROD
+v748 because it couldn't detect the `--speculative-config` from launch
+args at apply_all time → P67 SKIPPED on PROD → -32% TPS (lost the 160+
+tok/s).
+
+Fix: `_probe_spec_decode_from_argv()` fallback that reads:
+1. `GENESIS_FORCE_SPEC_DECODE` env (operator escape hatch)
+2. own `sys.argv` (covers `python -m vllm` direct calls)
+3. `/proc/1/cmdline` (covers Docker entrypoint where `bash -c "...;
+   vllm serve"` is PID 1 at apply_all time before `exec vllm serve`)
+
+Also: P67b mirror gate added (`patch_67b_spec_verify_routing.py::apply()`).
+Without P67 active, P67b's forward() routing would dispatch into a
+disabled kernel for any non-decode batch → reproducing the v756 IndexKernel
+overflow.
+
+Validated:
+- PROD v748 (has `--speculative-config` in PID 1 cmdline): P67 APPLY,
+  P67b APPLY → +32% TPS preserved.
+- v756-ascetic (no `--speculative-config`): P67 SKIP via gate, P67b SKIP
+  via gate → bench passes 50/50 + 150/150.
+
+## v7.56 — 2026-04-27 night (P67 safety gate, root cause of v756 crash)
+
+Bisect cleanly identified Genesis P67 multi-query kernel hook as the root
+cause of v756 sustained-load crash:
+
+- v756 / v756-ascetic: crash IMA at burst 11-21
+- B3-alt-2 (vanilla nightly + auto kv): PASS — bug NOT purely upstream
+- B4 (Genesis ascetic + auto kv): PASS — TQ k8v4 part of trigger
+- B2 (CUDA_LAUNCH_BLOCKING=1): EXACT line captured →
+  `gpu_model_runner.py:4099 hidden_states[logits_indices]`
+- **B5 (P67=0): PASS** — root cause confirmed
+- v756 + safety gate (P67=1 in env, gate auto-disables): PASS
+
+Fix shipped:
+1. `vllm/_genesis/config_detect.py::recommend("P67")` returns
+   `"skip:no speculative_config"` when spec-decode is not configured
+2. `vllm/_genesis/wiring/patch_67_tq_multi_query_kernel.py::apply()`
+   SAFETY GATE: refuses to apply even when env flag is set if
+   config_detect verdict starts with "skip"
+3. Operator override via `GENESIS_FORCE_SPEC_DECODE=mtp` if needed
+
+PROD v748 (has spec-decode): unaffected — P67 still APPLY → +32% TPS
+preserved.
+v756-style deploys (cache ON, no spec-decode): now safe under sustained
+burst — P67 auto-skipped by safety gate.
+
+NO upstream issue posted — Genesis-side bug, not vLLM. Per Sander rule
+"не пишем в ошибки без точных данных и перепроверок с тестами",
+investigation completed all narrowing before any draft.
+PATCHES.md updated with P83-P86 entries that were missing.
+
 ## v7.55 — 2026-04-27 night (v756 stability investigation + bisect)
 
 Sander green-lit v756 (cache ON + align + no spec-decode) live
