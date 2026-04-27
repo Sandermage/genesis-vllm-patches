@@ -287,6 +287,25 @@ def _recommend_for_patches(profile: dict[str, Any]) -> dict[str, Any]:
     else:
         rec["P40"] = "neutral"  # opt-in env flag still required
 
+    # P67 (opt-in): TurboQuant multi-query kernel for spec-decode K+1 verify
+    # 2026-04-27 v756 bisect: P67's `max_query_len > 1` heuristic ALSO matches
+    # chunked-prefill batches (not just spec-verify K+1). Without spec-decode,
+    # P67 misroutes prefill batches through the multi-query kernel which
+    # assumes uniform K+1 layout per request, causing scrambled output and
+    # downstream `hidden_states[logits_indices]` overflow under sustained
+    # burst. v756 reproducer 100% reliable; B5 confirmed P67=0 stable.
+    # See docs/reference/V756_STABILITY_INVESTIGATION_20260427.md.
+    if not spec_decode:
+        rec["P67"] = (
+            "skip:no speculative_config — P67 multi-query kernel is for "
+            "spec-decode K+1 verify only. Without spec-decode the dispatch "
+            "heuristic (`max_query_len > 1`) misroutes chunked-prefill "
+            "batches and causes IndexKernel overflow under sustained burst. "
+            "See V756_STABILITY_INVESTIGATION_20260427.md."
+        )
+    else:
+        rec["P67"] = "neutral"  # opt-in env flag still required
+
     # P56 (opt-in): spec-decode safe-path guard
     # **Empirically deprecated** — see Genesis_Doc/spec_decode_investigation/
     if not spec_decode:

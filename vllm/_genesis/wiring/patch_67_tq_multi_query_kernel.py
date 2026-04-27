@@ -253,6 +253,30 @@ def apply() -> tuple[str, str]:
     if not decision:
         return "skipped", reason
 
+    # 2026-04-27 v756 bisect SAFETY GATE: P67's `max_query_len > 1` dispatch
+    # heuristic ALSO matches chunked-prefill batches (not just spec-verify
+    # K+1). Without spec-decode, P67 misroutes prefill batches through the
+    # multi-query kernel which assumes uniform K+1 layout per request,
+    # causing scrambled output and downstream
+    # `hidden_states[logits_indices]` overflow under sustained burst.
+    # v756 reproducer 100% reliable; B5 confirmed P67=0 stable.
+    # See docs/reference/V756_STABILITY_INVESTIGATION_20260427.md.
+    # This safety gate refuses to apply P67 even when env flag is set if the
+    # config lacks speculative_config — operator may not know this is unsafe.
+    try:
+        from vllm._genesis.config_detect import recommend
+        cd_verdict, cd_reason = recommend("P67")
+        if cd_verdict.startswith("skip"):
+            return "skipped", (
+                f"P67 SAFETY GATE — config_detect says {cd_verdict}: "
+                f"{cd_reason} | env flag IGNORED to prevent v756-class "
+                "IndexKernel overflow under chunked-prefill + sustained "
+                "burst. To force-enable, you must also enable spec-decode "
+                "(--speculative-config '{\"method\":\"...\"}')."
+            )
+    except Exception as e:
+        log.warning("[P67] safety gate config_detect probe failed: %s", e)
+
     if vllm_install_root() is None:
         return "skipped", "vllm install root not discoverable"
 

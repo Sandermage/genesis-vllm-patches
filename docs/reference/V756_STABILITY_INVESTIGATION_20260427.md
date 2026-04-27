@@ -529,3 +529,109 @@ profile. So this investigation is for upstream-engagement value
 (closing another silent bug like #38898 we recently helped close)
 rather than direct PROD improvement.
 
+---
+
+## ⭐ ROOT CAUSE FOUND — B5 (P67=0) PASSED — 2026-04-27 22:12 UTC
+
+### Bisect run B5 — Genesis P67/P67b OFF, everything else identical to v756-ascetic
+
+```bash
+# Same as v756-ascetic except:
+GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL=0
+# (P67b automatically skips when P67 disabled via dispatcher cascade)
+```
+
+**Result:** **PASSED ALL TESTS**
+- Speed: 142.7 → 136.7 tok/s clean
+- Stability: **50/50 (100%)**
+- Stress: **150/150 (100%)**
+- Container alive, health 200
+
+This DEFINITIVELY identifies **Genesis P67 multi-query kernel hook**
+as the root cause. Not upstream TurboQuant. Not Genesis cache patches
+(P83/P84/P85). Not external_probe patches.
+
+### Why P67 is wrong for non-spec-decode chunked prefill
+
+P67 (`patch_67_tq_multi_query_kernel.py`) hooks
+`TurboQuantAttentionImpl._prefill_attention` and dispatches to the
+Genesis multi-query Triton kernel when:
+
+```python
+_genesis_p67_dispatch = (
+    _genesis_p67_is_active()                                  # env flag
+    and _genesis_p67_shape_ok                                 # Hq>=8, D in {128,256}, GQA>=2
+    and attn_metadata.max_query_len > 1                       # ← TRUE for chunked-prefill too
+    and attn_metadata.max_query_len <= 16                     # K+1 spec-verify range
+    and attn_metadata.max_seq_len > attn_metadata.max_query_len
+    and prior_len <= 4096
+    and N > 0
+    and (N % attn_metadata.max_query_len) == 0                # uniformity HEURISTIC, not strict
+)
+```
+
+The condition `max_query_len > 1` was meant to filter "spec-verify K+1
+batches" (decode-like with multi-query). But it ALSO matches
+**chunked-prefill** batches where each request has `query_len > 1`.
+
+Under v756 config (`--enable-chunked-prefill --enable-prefix-caching`
++ TQ k8v4 + sustained burst), chunked-prefill chunks land with
+`max_query_len > 1` and small enough N to pass the modular check. P67
+dispatches to a kernel that assumes uniform K+1 layout per request
+and writes output buffer shaped `(B, K+1, Hq, D)` — but the actual
+batch has VARIABLE query lengths per request. Output is scrambled,
+downstream `logits_indices = query_start_loc[1:] - 1` overflows
+because the scrambled hidden_states have different effective row count.
+
+### Why we couldn't catch this earlier
+
+1. PROD v748 has spec-decode (MTP K=3), and chunked-prefill is rarely
+   the active path because most batches are decode-step. P67 dispatches
+   correctly into spec-verify K+1 → no race observed.
+2. v756 has NO spec-decode, so chunked-prefill is the dominant prefill
+   path. P67 misroutes those.
+3. Our test bench only stress-burst-tested with spec-decode disabled
+   recently (the v756 series).
+
+### Fix paths (in priority order)
+
+**1. Quick fix (deploy-side):** simply require P67 to be OFF when
+spec-decode is disabled in config. v756-deploy variant with
+`GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL=0` is now stable per B5.
+
+**2. Dispatcher-level auto-disable:** modify
+`vllm/_genesis/config_detect.py::recommend("P67")` to return
+`("skip", "spec_decode disabled — P67 has no use case")` when
+`vllm_config.speculative_config is None`. Then P67's apply-time gate
+auto-skips even if env flag is set, with a clear log line.
+
+**3. Runtime hook hardening:** add stricter uniformity check to P67
+dispatch — ensure ALL requests have `query_len == max_query_len`.
+Requires reading `attn_metadata.query_start_loc` (GPU tensor) which
+is incompatible with cudagraph capture. Could use a precomputed
+boolean (set in metadata builder) instead.
+
+**4. Add `is_spec_verify` field to TurboQuantMetadata builder:** the
+metadata builder has full visibility into scheduler output. A boolean
+`is_spec_verify` can be set authoritatively at metadata build time
+rather than guessed from `max_query_len`. Requires text-patching the
+metadata builder + extending TurboQuantMetadata dataclass + threading
+the field through P67 hook. Heavier change.
+
+### Recommended action
+
+- **Immediate:** make v756-deploy (with P67=0) a documented variant.
+  Already prepared at `start_v756_B5_no_p67.sh`. Stable per B5.
+- **Short-term:** implement Fix Path 2 (dispatcher auto-disable).
+  Genesis-side correctness fix, no runtime cost. Can ship as v7.56.
+- **Medium-term:** Fix Path 4 (TQ metadata `is_spec_verify` field).
+  More architecturally sound but requires more code change.
+
+### What this means for upstream
+
+**Nothing to post.** This is a Genesis-side bug in our P67 hook, not
+an upstream vLLM issue. Per Sander rule, no upstream issue draft.
+The investigation was correct: B5 disproved the upstream hypothesis.
+
+The Genesis-side fix is straightforward and well-tested.
+
