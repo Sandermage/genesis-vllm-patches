@@ -391,3 +391,125 @@ All three implementations ARE correct fixes for their respective bug classes —
 8. **Empirical investigation must reach instrumentation level.** We had to add debug prints to confirm `committed=1 skipped_null=1`. Without this, we'd still be guessing whether the architecture or the patches were at fault.
 
 9. **Document architectural impossibility as much as possible improvements.** Saving ~280ms TTFT was the goal; proving it's UNFIXABLE for our model class is also valuable — it stops future agents from trying again.
+
+---
+
+## Phase 4 EXTENDED ROUND 9 — ARCHITECTURAL CLAIM REFUTED
+
+**Sander's challenge:** "I'm saying nothing can be implemented at all? Same in other projects?"
+
+This challenge prompted independent verification via two more research agents and direct testing. **The conclusion that "vLLM v1 prefix-cache + hybrid Mamba is architecturally impossible" was WRONG.**
+
+### What we verified (Round 9)
+
+**SGLang has cross-request hybrid Mamba prefix-cache** (`mamba_radix_cache.py:1038`):
+```cpp
+if (cow_mamba && last_node.mamba_value is not None):
+    dst_index = self.req_to_token_pool.mamba_pool.alloc(1)
+    src_index = last_node.mamba_value
+    self.req_to_token_pool.mamba_pool.copy_from(src_index, dst_index)
+```
+
+This is byte-copy of Mamba state into a new request's slot — literal cross-request reuse. SGLang's `MambaRadixCache` uses dual-LRU + tombstone eviction.
+
+**vLLM ALSO supports this:**
+- **PR #25752 (merged 2025-10-04)** — Mamba2 prefix caching with `--mamba-cache-mode={align|all}`
+- **PR #30877 (merged 2026-01-23)** — `align` mode for GDN (Qwen3.6 family) — present in our pin
+- **Tracking issue #26201** — many follow-ups still open, including spec-decode integration
+
+**Our pin DOES contain both PRs.** The "architectural impossibility" was a misdiagnosis — actually a configuration / version-skew issue.
+
+### The actual root cause chain (re-stated)
+
+| Layer | Issue | Resolution |
+|---|---|---|
+| 1 | Default `mamba_cache_mode = "none"` in vLLM | Set `--mamba-cache-mode=align` |
+| 2 | Qwen3.6 uses **GDN** not Mamba2 | `align` mode supports GDN per PR #30877 |
+| 3 | `--mamba-cache-mode=all` raises `NotImplementedError` for GDN | Use `align` instead |
+| 4 | **PR #30877 explicitly disables spec-decode** in align mode | Trade-off: cache OR MTP K=3, can't have both today |
+| 5 | P5 LCM-pad may produce non-256-aligned block_size (bs=2832) | Make P5 conditional on `mamba_cache_mode == "none"` |
+
+### Empirical proof: align mode WORKS
+
+**v756 launch:** `start_v748_p82_prod.sh` + `--mamba-cache-mode=align` + `--enable-prefix-caching` + NO MTP K=3.
+
+**5K identical-prompt × 3:**
+- Turn 1: TTFT = 1.654s (cold, no cache)
+- Turn 2: TTFT = **0.382s** (cache hit, hit_tokens=2768)
+- Turn 3: TTFT = **0.380s**
+- **77% TTFT improvement on warm hits**
+
+**Server logs confirm:**
+```
+[GENESIS_P83_DEBUG_HITS] req=chatcmpl max_len=5017 num_hashes_in=313 hit_tokens=2768
+[GENESIS_P85_STORE] req=chatcmpl bs=2768 hbs=16 scale=173 committed=1 skipped_null=0 shadows_inserted=173
+```
+
+P85 shadow entries fired correctly (173 inserts). Real Mamba block was committed (skipped_null=0 on first turn). Cache hit on turn 2+.
+
+### Trade-off matrix (everything verified empirically)
+
+| Config | Throughput | TTFT cold | TTFT identical-warm | TTFT diff-msg-warm | Stability | Notes |
+|---|---|---|---|---|---|---|
+| **v748 (cache OFF + MTP K=3)** ⭐ prod | 213 t/s mean | 480ms | 480ms | 430ms | ✅ rock-solid | current optimal |
+| v756 (cache ON align + no MTP) | slower (no MTP) | 1654ms | **382ms** | 421ms | ⚠️ crashed under load | repeat-query workloads benefit massively |
+| v755 (cache ON align + MTP) | normal MTP | 480ms | 392ms | 430ms | ✅ stable | hit_tokens=0 (spec-decode incompat) |
+
+### Why v756 is not yet a deploy candidate
+
+Two issues need resolution before v756 can replace v748:
+
+1. **MTP throughput loss.** v748 uses MTP K=3 for ~30% throughput boost. v756 disables MTP to enable cache. For workloads where decode dominates (long output, tool-calling), MTP loss > cache gain.
+
+2. **Sustained-load stability.** Engine crashed under repeat speed-bench load. Worker_TP0 died unexpectedly. Possible align-mode race condition or eviction bug. Needs further investigation before prod deploy.
+
+### Recommended actions (NO regression introduced)
+
+1. **Prod stays on v748** — current optimal
+2. **Open upstream vllm issue** with our trace — would help community + accelerate spec-decode integration in align mode
+3. **Optional second port** for agentic workloads with repeat queries — can offer v756 as alternative endpoint
+4. **Make P5 conditional** (small Genesis patch) — defer to upstream `_align_hybrid_block_size` when mamba mode set
+5. **Backport PR #26807** when it merges — adds GDN `all` mode (more cache aggressive)
+6. **Track issue #26201** for spec-decode integration
+
+### Patches now correctly understood
+
+| Patch | Status | Real utility |
+|---|---|---|
+| **P83** (Eagle pop skip) | Opt-in, default OFF | When upstream merges spec-decode + align integration |
+| **P84** (dual-site hash override) | Opt-in, default OFF | When `--mamba-cache-mode != none` (our align test had P84 on, helped hash compute) |
+| **P85** (hybrid fine-shadow) | Opt-in, default OFF | **PROVEN to work — fired correctly on align mode test** (shadows_inserted=173) |
+
+All three are technically correct. They become useful when proper Mamba cache mode is enabled. They also compose to enhance cache effectiveness when spec-decode + align integration ships upstream.
+
+### Honest correction (Round 9 retraction of Round 7-8 claims)
+
+In Round 7-8 I claimed:
+- "vLLM v1 hybrid Mamba prefix-cache for Mamba models in align mode is fundamentally non-functional, BY DESIGN"
+- "Mamba state is per-request, not shareable between requests by design"
+
+**Both claims were INCORRECT.** Evidence:
+- Mamba state IS deterministic given input tokens (same prompt → same state). It's recurrent, but reproducible.
+- vLLM v1 align mode DOES preserve and share Mamba state at block boundaries (PR #30877).
+- SGLang demonstrates same architectural feasibility via copy-on-write (`mamba_radix_cache.py`).
+
+The actual situation: **vLLM v1 hybrid Mamba prefix-cache + spec-decode is currently broken (issue #26201), but base align mode works**. Genesis can wait for upstream fix or contribute by opening issue with our trace.
+
+I owe Sander credit for pushing back on the "impossible" claim — without that pushback, we'd have stopped at the wrong conclusion.
+
+### Production state (final)
+
+`v748` (cache OFF + P82 t=0.3 + MTP K=3) running on prod. Healthy. 213 tok/s mean throughput. All 4 patches (P82, P83, P84, P85) preserved as opt-in research artifacts in code, default OFF in v748 launch.
+
+**v756 launch script saved** at `scripts/launch/` for future use when:
+- Spec-decode integration with align lands upstream
+- Agentic workloads with repeat-query patterns dominate
+
+### Key references for future Genesis work
+
+- vLLM PR #25752 — Mamba2 prefix cache merged Oct 2025
+- vLLM PR #30877 — GDN align mode merged Jan 2026 ("speculative decoding temporarily disabled")
+- vLLM PR #26807 — GDN `all` mode (OPEN, simondanielsson)
+- vLLM Issue #26201 — tracking follow-ups
+- SGLang `mamba_radix_cache.py` — reference implementation of cross-request Mamba cache
+- PyTorch blog "Hybrid Models as First-Class Citizens in vLLM"
