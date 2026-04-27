@@ -31,7 +31,7 @@ git checkout v7.50-stable-2026-04-27   # pin to the validated v7.50 production t
 
 ## Step 2 — Pull the exact pinned vLLM image
 
-This is the **same image** we used for all v7.10 validation runs. Pinned by SHA, immutable.
+This is the **same image** used for all v7.52 validation runs. Pinned by SHA, immutable.
 
 ```bash
 docker pull vllm/vllm-openai:nightly-fe9c3d6c5f66c873d196800384ed6880687b9e52
@@ -44,7 +44,7 @@ For convenience, tag it with a friendly name:
 ```bash
 docker tag \
   vllm/vllm-openai:nightly-fe9c3d6c5f66c873d196800384ed6880687b9e52 \
-  vllm/vllm-openai:genesis-v7.10-baseline
+  vllm/vllm-openai:nightly @ image ID 10c7a6ba51c6 (vLLM dev212+g8cd174fa3)
 ```
 
 ## Step 3 — Pick your compose file
@@ -87,7 +87,7 @@ If you tagged the image (Step 2), replace:
 image: vllm/vllm-openai:genesis-v7.0-baseline
 ```
 
-with whatever name you used (e.g. `vllm/vllm-openai:genesis-v7.10-baseline`). Or just keep the `nightly-fe9c3d6c5...` long form — both work.
+with whatever name you used (e.g. `vllm/vllm-openai:nightly @ image ID 10c7a6ba51c6 (vLLM dev212+g8cd174fa3)`). Or just keep the `nightly-fe9c3d6c5...` long form — both work.
 
 ## Step 5 — Start the container
 
@@ -286,7 +286,7 @@ git checkout v7.50-stable-2026-04-27   # фиксируемся на validated v
 
 ## Шаг 2 — Скачать pinned vLLM образ
 
-Тот же образ что использовался во всех v7.10 валидационных прогонах. Зафиксирован по SHA, не меняется.
+Тот же образ что использовался во всех v7.52 валидационных прогонах. Зафиксирован по SHA, не меняется.
 
 ```bash
 docker pull vllm/vllm-openai:nightly-fe9c3d6c5f66c873d196800384ed6880687b9e52
@@ -299,7 +299,7 @@ docker pull vllm/vllm-openai:nightly-fe9c3d6c5f66c873d196800384ed6880687b9e52
 ```bash
 docker tag \
   vllm/vllm-openai:nightly-fe9c3d6c5f66c873d196800384ed6880687b9e52 \
-  vllm/vllm-openai:genesis-v7.10-baseline
+  vllm/vllm-openai:nightly @ image ID 10c7a6ba51c6 (vLLM dev212+g8cd174fa3)
 ```
 
 ## Шаг 3 — Выбрать compose файл
@@ -342,7 +342,7 @@ volumes:
 image: vllm/vllm-openai:genesis-v7.0-baseline
 ```
 
-на твоё имя (например `vllm/vllm-openai:genesis-v7.10-baseline`). Или оставь длинную форму `nightly-fe9c3d6c5...` — обе работают.
+на твоё имя (например `vllm/vllm-openai:nightly @ image ID 10c7a6ba51c6 (vLLM dev212+g8cd174fa3)`). Или оставь длинную форму `nightly-fe9c3d6c5...` — обе работают.
 
 ## Шаг 5 — Запустить контейнер
 

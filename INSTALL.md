@@ -35,7 +35,7 @@ curl http://localhost:8000/health -H "Authorization: Bearer genesis-local"
 
 | Hardware | Validation status | Notes |
 |---|---|---|
-| 2× RTX A5000 24GB (Ampere SM 8.6) | **Primary** — full v7.43 stack tested | Default config targets this |
+| 2× RTX A5000 24GB (Ampere SM 8.6) | **Primary** — full v7.52 stack tested (driver 580.126.09 / CUDA 13.0 / vLLM dev212+g8cd174fa3) | Default config targets this |
 | 1× RTX 3090 24GB | Cross-validated by [@noonghunna](https://github.com/noonghunna/qwen36-27b-single-3090) | Same SM 8.6 family |
 | 2× RTX 3090 24GB | Cross-validated by [@noonghunna](https://github.com/noonghunna/qwen36-dual-3090) | TP=2 PCIe Gen4 (no NVLink) |
 
