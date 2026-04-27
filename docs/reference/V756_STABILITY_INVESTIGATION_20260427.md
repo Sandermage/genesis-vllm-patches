@@ -425,3 +425,107 @@ But this rules out v756 as a multi-user secondary endpoint.
 - No upstream posts made (per rule)
 - PROD healthy
 
+---
+
+## TRIPLE-CONFIRM RESULTS (2026-04-27 night, ~50 min PROD downtime total)
+
+Sander green-lit overnight bisect. Four narrowing runs executed.
+
+### Bisect matrix
+
+| Run | Config | Speed/Stability/Stress | Verdict |
+|---|---|---|---|
+| v756 (orig) | TQ k8v4 + cache + Genesis P83/P84/P85=1 | crash @ burst 21 | crash |
+| v756-ascetic | TQ k8v4 + cache + P83/P84/P85=0 | crash @ burst 11 | crash |
+| **B3-alt-2** | vanilla nightly (no Genesis) + auto kv | **5/5 + 50/50 + 150/150** | **PASS** |
+| **B4** | Genesis-ascetic + auto kv (no TQ) | **5/5 + 50/50 + 150/150** | **PASS** |
+| **B2** (CUDA_LAUNCH_BLOCKING=1) | TQ k8v4 + cache + P83/P84/P85=0 | crash | crash + EXACT stack |
+| B1 | TQ k8v4 + cache + `--enforce-eager` | (in progress at write time) | TBD |
+
+### Trigger ISOLATED
+
+**`--kv-cache-dtype turboquant_k8v4`** combined with
+**`--enable-prefix-caching --mamba-cache-mode align`** under
+sustained burst load is the trigger.
+
+- B3-alt-2 (vanilla + auto kv): PASS — disproves "purely upstream
+  hybrid+cache+chunked+async race" (auto kv with same flags works).
+- B4 (Genesis text-patches + auto kv): PASS — disproves "Genesis
+  text-patches cause it" (43 active patches, no crash).
+- v756-ascetic (Genesis-only-cache-OFF + TQ k8v4 + cache): crashes —
+  same as v756. Genesis cache patches (P83/P84/P85) NOT the cause.
+
+### EXACT failure point (from B2 with CUDA_LAUNCH_BLOCKING=1)
+
+```python
+# vllm/v1/worker/gpu_model_runner.py:4099 (in execute_model)
+sample_hidden_states = hidden_states[logits_indices]
+                       ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+torch.AcceleratorError: CUDA error: device-side assert triggered
+```
+
+The bad-index op is **`hidden_states[logits_indices]`** —
+`logits_indices` contains an index >= `hidden_states.shape[0]`.
+
+Computation upstream (line 2039 for non-spec-decode path):
+```python
+logits_indices = query_start_loc[1:] - 1
+```
+
+`query_start_loc` is the cumulative sum of token counts per request.
+Indices point at the LAST token of each request. For these to be
+valid, `hidden_states.shape[0]` must equal total scheduled tokens.
+
+### Hypothesis (still requires direct kernel-level proof)
+
+Under TQ k8v4 + chunked-prefill + prefix-cache + sustained burst:
+- TurboQuant `_continuation_prefill` path concatenates dequanted-cached
+  K/V with new K/V chunks for the GQA causal attention
+- Under burst, multiple requests in flight with varying cache-hit
+  prefix sizes
+- A subtle off-by-one between `query_start_loc` (computed from
+  scheduled tokens) and actual `hidden_states` rows produced by the
+  TQ-augmented forward pass causes overflow once the pattern of
+  cache hits + chunk boundaries hits a specific configuration
+
+Could also be:
+- Genesis P67 (multi-query kernel for spec-verify K+1) hook on
+  `_prefill_attention` — but no spec-decode in v756, so this should
+  NOT fire. Need to disprove with B5 (P67=0).
+- Genesis external_probe patches (`tolist_cudagraph_fix`,
+  `PR40074`) directly text-patch turboquant_attn.py at ~5 sites.
+  Could affect output shape under specific conditions.
+
+### What we will do (per Sander rule)
+
+> "только нечего не пишем в ошибки без точных данных и
+> перепроверок с тестами"
+
+Have:
+- ✅ Five reproductions (v756, v756-ascetic ×2, B2 with sync mode)
+- ✅ One disproven hypothesis (Genesis cache patches)
+- ✅ One disproven hypothesis (purely upstream)
+- ✅ Exact line + exact op `hidden_states[logits_indices]`
+- ✅ Trigger components: TQ k8v4 + cache + chunked + burst
+
+Still need before drafting upstream issue:
+- ❓ B1 result (--enforce-eager) — workaround?
+- ❓ B5 (Genesis P67/P67b OFF) — Genesis kernel hook contribution?
+- ❓ B6 (skip external_probe patches) — external probe contribution?
+- ❓ B7 (TQ k8v4 + cache + bench WITHOUT burst, just sequential) —
+  is burst required or is it sustained sequential too?
+
+These remaining bisects narrow the patch surface. Until B5/B6
+disprove Genesis involvement, we cannot honestly claim "purely
+upstream TQ k8v4 bug" to the maintainers.
+
+### Production reality
+
+PROD v748 (cache OFF + MTP K=3 + P82) continues unchanged. Single-user
+homelab profile (max_num_seqs=2, real concurrency=1) does not trigger
+this race regardless of root cause. The only deployment value of v756
+would be multi-user serving with high prompt repetition — not our
+profile. So this investigation is for upstream-engagement value
+(closing another silent bug like #38898 we recently helped close)
+rather than direct PROD improvement.
+
