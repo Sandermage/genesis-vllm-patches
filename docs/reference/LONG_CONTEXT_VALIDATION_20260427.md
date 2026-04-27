@@ -87,4 +87,23 @@ None of these are quick-win. Best path to >256K = R6000 Pro Blackwell 96GB (per 
 PROD v748 256K context is stable, validated 2026-04-27 night.
 **No changes needed to PROD.** This document confirms the existing config meets Sander's "220K+ works reliably" requirement.
 
-Sustained-load regression bench follow-up running — will add results when complete.
+## Regression bench (light, post long-context probe)
+
+`genesis_bench_v4 --speed-runs 3 --stability-n 30 --stress-bursts 10 --stress-per-burst 3`
+
+| Test | Result |
+|---|---|
+| Speed 64-tok | **244.6 tok/s** (vs CONFIGURATION.md baseline 167 mean) |
+| Speed 128-tok | 232.1 tok/s |
+| Speed 256-tok | 218.3 tok/s |
+| Speed 512-tok | 206.9 tok/s |
+| Speed 1024-tok | 191.9 tok/s |
+| Speed 2048-tok | 185.5 tok/s |
+| Stability 30 sequential | **30/30 (100%)** avg 213 tok/s |
+| Stress 30 rapid (3 concurrent) | **30/30 (100%)** avg 229 tok/s |
+| Container health | 200 |
+| Engine alive | yes |
+
+**ZERO regression.** Numbers actually exceed CONFIGURATION.md baseline (167 mean) — likely because previous baseline included context-sweep tests which are slower. Speed-only bench shows MTP K=3 + P67 + P82 producing healthy 185-244 tok/s.
+
+PROD v748 with v7.56 P67 safety gate fix: stable, fast, 256K-ready.
