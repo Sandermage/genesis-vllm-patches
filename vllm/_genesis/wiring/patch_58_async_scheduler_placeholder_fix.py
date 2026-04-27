@@ -103,7 +103,7 @@ from vllm._genesis.wiring.text_patch import (
 
 log = logging.getLogger("genesis.wiring.p58_async_scheduler_placeholder_fix")
 
-GENESIS_P58_MARKER = "Genesis P58 async-scheduler -1 placeholder fix v7.12"
+GENESIS_P58_MARKER = "Genesis P58 async-scheduler -1 placeholder fix v7.59_p62_compat"
 
 
 def _is_enabled() -> bool:
@@ -350,36 +350,52 @@ SCHED_PREEMPT_NEW = (
 )
 
 # Clear placeholder counter when real drafts arrive or prefill chunks land.
-SCHED_DRAFT_OLD = (
+#
+# 2026-04-28: SPLIT INTO TWO NARROW ANCHORS to coexist with P62.
+# Old single SCHED_DRAFT_OLD/NEW anchor included the lines P62 rewrites
+# (`should_advance(request)` block → `validate_tokens_reasoning_aware`).
+# After P62 applies first, the old monolith anchor stops matching and the
+# entire P58 patch group skips with `required_anchor_missing`. The fix:
+# split P58's two zero-resets into independent narrow anchors that survive
+# whether P62 ran or not.
+#
+# Site A anchor — surrounds the `if is_prefill_chunk:` ... `continue` block.
+#   Both pre-P62 and post-P62 layouts contain this block unchanged.
+#   Verified unique (1 occurrence each) on both layouts 2026-04-28.
+SCHED_DRAFT_SITE_A_OLD = (
     "            if request.is_prefill_chunk:\n"
     "                # Ignore draft tokens for prefill chunks.\n"
     "                if request.spec_token_ids:\n"
     "                    request.spec_token_ids = []\n"
-    "                continue\n"
-    "\n"
-    "            # Add newly generated spec token ids to the request.\n"
-    "            if self.structured_output_manager.should_advance(request):\n"
-    "                metadata = request.structured_output_request\n"
-    "                spec_token_ids = metadata.grammar.validate_tokens(spec_token_ids)  # type: ignore[union-attr]\n"
-    "            request.spec_token_ids = spec_token_ids"
+    "                continue"
 )
-
-SCHED_DRAFT_NEW = (
+SCHED_DRAFT_SITE_A_NEW = (
     "            if request.is_prefill_chunk:\n"
     "                # Ignore draft tokens for prefill chunks.\n"
     "                if request.spec_token_ids:\n"
     "                    request.spec_token_ids = []\n"
     "                # [Genesis P58] Backport vllm#40768.\n"
     "                request.num_pending_async_spec_placeholders = 0\n"
-    "                continue\n"
+    "                continue"
+)
+
+# Site B anchor — uses the boundary between `update_from_output` (final line
+#   `request.spec_token_ids = spec_token_ids`) and the next method
+#   `update_draft_token_ids_in_output`. P62's sched_udti rewrites the lines
+#   ABOVE the final assignment but keeps the assignment itself unchanged,
+#   so this 3-line boundary anchor matches whether P62 ran or not.
+#   Verified unique on both pre-P62 and post-P62 layouts 2026-04-28.
+SCHED_DRAFT_SITE_B_OLD = (
+    "            request.spec_token_ids = spec_token_ids\n"
     "\n"
-    "            # Add newly generated spec token ids to the request.\n"
-    "            if self.structured_output_manager.should_advance(request):\n"
-    "                metadata = request.structured_output_request\n"
-    "                spec_token_ids = metadata.grammar.validate_tokens(spec_token_ids)  # type: ignore[union-attr]\n"
+    "    def update_draft_token_ids_in_output("
+)
+SCHED_DRAFT_SITE_B_NEW = (
     "            request.spec_token_ids = spec_token_ids\n"
     "            # [Genesis P58] Backport vllm#40768.\n"
-    "            request.num_pending_async_spec_placeholders = 0"
+    "            request.num_pending_async_spec_placeholders = 0\n"
+    "\n"
+    "    def update_draft_token_ids_in_output("
 )
 
 
@@ -410,10 +426,18 @@ def _make_scheduler_patcher() -> TextPatcher | None:
                 replacement=SCHED_PREEMPT_NEW,
                 required=True,
             ),
+            # 2026-04-28 split into two narrow anchors so P58 coexists with P62.
+            # See SCHED_DRAFT_SITE_A/B_OLD comments for design rationale.
             TextPatch(
-                name="p58_sched_draft",
-                anchor=SCHED_DRAFT_OLD,
-                replacement=SCHED_DRAFT_NEW,
+                name="p58_sched_draft_site_a",
+                anchor=SCHED_DRAFT_SITE_A_OLD,
+                replacement=SCHED_DRAFT_SITE_A_NEW,
+                required=True,
+            ),
+            TextPatch(
+                name="p58_sched_draft_site_b",
+                anchor=SCHED_DRAFT_SITE_B_OLD,
+                replacement=SCHED_DRAFT_SITE_B_NEW,
                 required=True,
             ),
         ],

@@ -8,7 +8,7 @@
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Production](https://img.shields.io/badge/prod-validated-green.svg)](#production-baseline)
-[![Patches](https://img.shields.io/badge/patches-63-orange.svg)](PATCHES.md)
+[![Patches](https://img.shields.io/badge/patches-64-orange.svg)](PATCHES.md)
 [![Throughput](https://img.shields.io/badge/throughput-200--244%20tok%2Fs-brightgreen.svg)](#measured-throughput-table)
 [![Context](https://img.shields.io/badge/context-320K-blue.svg)](#long-context-verification)
 

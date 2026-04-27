@@ -2693,8 +2693,22 @@ def run(verbose: bool = True, apply: bool = False) -> PatchStats:
                 log.error("[Genesis] FAILED: %s — %s",
                           result.name, result.reason)
             elif result.status == "skipped":
-                log.info("[Genesis] skipped: %s — %s",
-                         result.name, result.reason)
+                # 2026-04-28: anchor drift / required_anchor_missing is a
+                # latent risk (patch silently not protecting). Surface as
+                # WARNING so operators notice in boot logs. Other skip
+                # reasons (opt-in, deprecated, redundant) stay at INFO.
+                _is_drift = (
+                    "required anchor" in result.reason.lower()
+                    or "required_anchor_missing" in result.reason.lower()
+                    or "anchor not found" in result.reason.lower()
+                    or "ambiguous_anchor" in result.reason.lower()
+                )
+                if _is_drift:
+                    log.warning("[Genesis] DRIFT skipped: %s — %s",
+                                result.name, result.reason)
+                else:
+                    log.info("[Genesis] skipped: %s — %s",
+                             result.name, result.reason)
             else:
                 log.info("[Genesis] applied: %s — %s",
                          result.name, result.reason)
