@@ -1,5 +1,49 @@
 # Genesis `_genesis/` Package Changelog
 
+## v7.55 — 2026-04-27 night (v756 stability investigation + bisect)
+
+Sander green-lit v756 (cache ON + align + no spec-decode) live
+reproducer + bisect during overnight session. Outcome:
+
+- **v756 sustained-load crash REPRODUCED** at burst 21/30. Root error:
+  `pytorch IndexKernel.cu:111 index out of bounds`, async-surfacing at
+  `gpu_input_batch.py:1013 update_async_output_token_ids` →
+  NVIDIA Xid 43 on both A5000s. Saved: `docs/reference/v756_crash_20260427.log`.
+
+- **Bisect 1 — v756-ascetic** (P83/P84/P85=0): IDENTICAL crash. Genesis
+  cache patches NOT the cause. `docs/reference/v756_ascetic_crash_20260427.log`.
+
+- **Bisect 2 — B3 vanilla nightly** (zero Genesis patches, but
+  `--kv-cache-dtype turboquant_k8v4`): didn't even boot —
+  `NotImplementedError: TurboQuant KV cache is not supported for hybrid
+  models`. Vanilla rejects TQ k8v4 + hybrid; Genesis P4 lifts that.
+
+- **Bisect 3 — B3-alt-2 vanilla + auto kv** (no TQ, no Genesis):
+  **PASSED ALL TESTS**. 50/50 stability + 150/150 stress + 134-138 tok/s
+  clean. → `--kv-cache-dtype turboquant_k8v4` is part of the trigger.
+
+- **Bisect 4 — B4 Genesis-ascetic + auto kv** (Genesis text-patches active
+  but NO TurboQuant): in progress at v7.55 cut time. If passes →
+  TurboQuant k8v4 + cache + chunked-prefill + sustained burst is the
+  single trigger. If crashes → some non-cache Genesis patch is involved
+  too.
+
+- **Per Sander rule 2026-04-27 night** ("только нечего не пишем в ошибки
+  без точных данных и перепроверок с тестами") — NO upstream issue
+  drafted yet. Triple-confirm narrowing continues until either a clean
+  upstream-only repro is captured OR Genesis-side cause is localized.
+
+- **Memory rule added** to `feedback_github_comment_style.md`: "no
+  upstream posts without exact data + retest verification" with
+  acceptance criteria.
+
+- **PATCHES.md** updated to include P83, P84, P85, P86 rows that were
+  missing (added 2026-04-27 cycles).
+
+- **PROD v748** untouched throughout. Total downtime to date: ~25 min
+  across 4 swap windows (v756 → v748 → v756-ascetic → v748 →
+  B3-vanilla → v748 → B3-alt-2 → v748 → B4).
+
 ## v7.54 — 2026-04-27 (Quick wins: P86 + bench v4 rename + 2 deferred research files)
 
 Continuation of v7.53 community-engagement round. Sander approved

@@ -6,7 +6,7 @@ env flag to toggle, upstream PR (if backported), and credit.
 
 **Total registered patches:** 59 (across 52 wiring files; some hooks share a wiring module).
 
-- **Source of truth:** `vllm/_genesis/dispatcher.py` `PATCH_REGISTRY` (P56-P82, rich metadata) + `vllm/_genesis/patches/apply_all.py` `@register_patch` decorators (legacy P1-P55).
+- **Source of truth:** `vllm/_genesis/dispatcher.py` `PATCH_REGISTRY` (P56-P86, rich metadata) + `vllm/_genesis/patches/apply_all.py` `@register_patch` decorators (legacy P1-P55).
 - **All patches default OFF unless explicitly noted.** Production launch script enables a curated set via env flags.
 - **Credits:** every backport names its upstream author + PR. Genesis-original patches are explicitly labelled. See [`CREDITS.md`](CREDITS.md) for the comprehensive attribution log.
 - **Status legend:**
@@ -96,6 +96,10 @@ docker run -e GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL=0 ... vllm/vllm-openai:ni
 | **P77** | Adaptive ngram K controller (EMA + hysteresis + auto-di | opt-in | `GENESIS_ENABLE_P77_ADAPTIVE_NGRAM_K` | — | Genesis-original (port of SGLang adaptive_spec_params.py EMA+hysteresis Apache-2.0 + Nightjar arXiv 2512.22420 auto-disa |
 | **P79b** | Async × spec-decode proposer-sync backport (vllm#40610) | opt-in | `GENESIS_ENABLE_P79B_ASYNC_PROPOSER_SYNC` | [#40610](https://github.com/vllm-project/vllm/pull/40610) | Backport of vllm#40610 (OPEN draft, tracked from #40608). Re-records prepare_inputs_event AFTER spec-decode proposer GPU |
 | **P82** | SGLang threshold_single OR-clause acceptance (BIASED —  | opt-in | `GENESIS_ENABLE_P82` | — | SGLang team (sgl-project/sglang) speculative_sampling.cuh — port of the threshold_single OR-clause that breaks the struc |
+| **P83** | MTP keep-last-cached-block (vllm#38182 downstream symptom) | opt-in (research) | `GENESIS_ENABLE_P83` | — | Genesis (root-cause analysis on vllm#38182 by uOnePiece + @Angazenn). Empirically DISPROVEN as actual cause for our workload; kept as research artifact. |
+| **P84** | hash_block_size override (vllm#38182 actual root cause for hybrid) | opt-in (research) | `GENESIS_ENABLE_P84` + `GENESIS_P84_HASH_BLOCK_SIZE=16` | — | Genesis-original 2026-04-27. scheduler.py:234 + engine/core.py:209 dual-site override; lets prefix-cache hash at finer granularity than the LCM-padded hybrid block_size. |
+| **P85** | Hybrid fine-shadow prefix cache (MambaManager fix) | opt-in (research) | `GENESIS_ENABLE_P85` | — | Genesis-original 2026-04-27. MambaManager scale-factor shadow-hash entries + eviction-safety verify. Requires P84 to give fine hashes. NOTE: bisect 2026-04-27 confirmed v756 sustained-load crash NOT caused by P85 (reproduced without it). |
+| **P86** | ngram batch_propose O(N\*K) → O(N+K) direct-fill (vllm#40876) | opt-in | `GENESIS_ENABLE_P86` | [#40876](https://github.com/vllm-project/vllm/pull/40876) | Backport of vllm#40876 (aaronagent). Replaces O(N\*K) `i in valid_ngram_requests` membership scan with O(N+K) direct-fill loop. Algorithmic improvement, no behavioral change. |
 | **P57** | TQ spec-decode capture-safe buffers | deprecated | `GENESIS_ENABLE_P57_SPEC_DECODE_CAPTURE_SAFE` | — | noonghunna (#40831), gdn_attn.py reference |
 | **P56** | TQ spec-decode safe-path guard | deprecated | `GENESIS_ENABLE_P56_SPEC_DECODE_GUARD` | — | noonghunna (#40807, #40831) |
 
