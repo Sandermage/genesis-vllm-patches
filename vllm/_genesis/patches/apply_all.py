@@ -1472,6 +1472,53 @@ def apply_patch_84_hash_block_size_override() -> PatchResult:
     return _failed(name, reason)
 
 
+@register_patch("P85 Hybrid fine-shadow prefix cache (MambaManager fix for vllm#38182 followup)")
+def apply_patch_85_hybrid_fine_shadow_prefix_cache() -> PatchResult:
+    """Patch 85: Genesis-original architectural fix for vLLM v1 hybrid
+    prefix-cache breakage on Mamba/GDN models.
+
+    Discovery: 6-round empirical investigation + deep code analysis
+    identified TWO mismatches that combine to make hybrid prefix-cache
+    non-functional:
+      (A) MambaManager.cache_blocks early-returns for short prompts
+          (num_full_blocks = num_tokens // self.block_size = 0).
+      (B) Mamba align-mode pads with null_blocks → 0 entries inserted
+          even when num_full_blocks > 0.
+
+    P85 patches MambaManager to:
+      1. cache_blocks() also registers `scale_factor = block_size /
+         hash_block_size` shadow fine-hash entries pointing to the
+         SAME real KVCacheBlock(s).
+      2. find_longest_cache_hit() prefers fine-grained scan, with
+         eviction-safety: re-derives the coarse hash from current
+         request fine hashes and verifies cached_block.block_hash
+         matches before returning.
+
+    Memory layout / ref-count untouched (shadows are pure lookup keys).
+
+    Constraints:
+      - Requires P84 (GENESIS_ENABLE_P84=1 + GENESIS_P84_HASH_BLOCK_SIZE=N)
+        for fine hashes to exist.
+      - Architectural limit: cannot help prompts < self.block_size
+        (Mamba state genuinely uncached at sub-block boundaries).
+
+    Status: opt-in via GENESIS_ENABLE_P85=1. Default OFF.
+    """
+    name = "P85 Hybrid fine-shadow prefix cache (MambaManager fix for vllm#38182 followup)"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring import patch_85_hybrid_fine_shadow_prefix_cache
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_85_hybrid_fine_shadow_prefix_cache.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
 @register_patch("P75 Auto-enable Suffix Decoding (vllm#25784 Arctic Inference)")
 def apply_patch_75_suffix_decoding_enable() -> PatchResult:
     """Patch 75: operator-convenience auto-swap of speculative method from

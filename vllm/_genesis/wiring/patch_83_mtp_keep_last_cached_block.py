@@ -208,10 +208,30 @@ def _make_patcher_kv_cache_manager() -> TextPatcher | None:
         "            _g83_s.stderr.flush()\n"
     )
 
+    # Instrument cache_blocks() — store side. Critical: confirms whether
+    # cache POPULATE happens at all and what num_tokens / enable_caching values flow in.
+    cache_blocks_anchor = (
+        "    def cache_blocks(self, request: Request, num_computed_tokens: int) -> None:\n"
+        "        \"\"\"Cache the blocks for the request, if enabled.\n"
+    )
+    cache_blocks_replacement = (
+        "    def cache_blocks(self, request: Request, num_computed_tokens: int) -> None:\n"
+        "        import os as _g83cb_os; import sys as _g83cb_s\n"
+        "        if _g83cb_os.environ.get('GENESIS_P83_DEBUG', '') == '1':\n"
+        "            _g83cb_s.stderr.write(\n"
+        "                '[GENESIS_P83_DEBUG_STORE] req=' + request.request_id[:8]\n"
+        "                + ' enable_caching=' + str(self.enable_caching)\n"
+        "                + ' num_computed_tokens=' + str(num_computed_tokens)\n"
+        "                + ' num_hashes=' + str(len(request.block_hashes))\n"
+        "                + '\\n')\n"
+        "            _g83cb_s.stderr.flush()\n"
+        "        \"\"\"Cache the blocks for the request, if enabled.\n"
+    )
+
     return TextPatcher(
         patch_name="P83 DEBUG instrumentation kv_cache_manager.py",
         target_file=str(target),
-        marker="Genesis P83 DEBUG instrumentation v7.53.4",
+        marker="Genesis P83 DEBUG instrumentation v7.53.6",
         sub_patches=[
             TextPatch(
                 name="p83_debug_get_computed_blocks_entry",
@@ -225,8 +245,14 @@ def _make_patcher_kv_cache_manager() -> TextPatcher | None:
                 replacement=after_replacement,
                 required=False,
             ),
+            TextPatch(
+                name="p83_debug_cache_blocks_store",
+                anchor=cache_blocks_anchor,
+                replacement=cache_blocks_replacement,
+                required=False,
+            ),
         ],
-        upstream_drift_markers=["[Genesis P83 DEBUG", "GENESIS_P83_DEBUG_GCB", "GENESIS_P83_DEBUG_HITS"],
+        upstream_drift_markers=["[Genesis P83 DEBUG", "GENESIS_P83_DEBUG_GCB", "GENESIS_P83_DEBUG_HITS", "GENESIS_P83_DEBUG_STORE"],
     )
 
 
