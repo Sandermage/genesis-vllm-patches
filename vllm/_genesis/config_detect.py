@@ -88,11 +88,72 @@ def _probe_scheduler(cfg: Any) -> dict[str, Any]:
 # Speculative decoding
 # ──────────────────────────────────────────────────────────────────────
 
+def _probe_spec_decode_from_argv() -> dict[str, Any] | None:
+    """Fallback: probe argv (own + container PID 1 cmdline + env override)
+    for --speculative-config when called BEFORE vllm config is constructed
+    (e.g. apply_all phase). Returns None if no spec-decode flag detected.
+
+    Sources tried in order:
+      1. GENESIS_FORCE_SPEC_DECODE env (operator override) — value used as method
+      2. own sys.argv (covers `python -m vllm` invocations directly)
+      3. /proc/1/cmdline (covers Docker entrypoint that runs apply_all then vllm serve)
+
+    Patterns parsed:
+      --speculative-config '{"method":"mtp",...}'
+      --speculative-config={"method":"ngram",...}
+      --speculative-model <path>
+    """
+    import os
+    # 1. Explicit operator override (escape hatch)
+    forced = os.environ.get("GENESIS_FORCE_SPEC_DECODE", "").strip()
+    if forced and forced.lower() not in ("0", "false", "no", "off"):
+        return {"spec_decode_enabled": True, "spec_decode_method": forced,
+                "spec_decode_method_kind": (
+                    "mtp" if "mtp" in forced.lower()
+                    else "ngram" if "ngram" in forced.lower()
+                    else "eagle" if "eagle" in forced.lower()
+                    else forced)}
+    # 2. + 3. Build a combined argv string from sys.argv + /proc/1/cmdline
+    import sys
+    argv_parts = [" ".join(sys.argv)]
+    try:
+        with open("/proc/1/cmdline", "rb") as f:
+            # cmdline args are NUL-separated
+            pid1_cmd = f.read().replace(b"\x00", b" ").decode(errors="replace")
+            argv_parts.append(pid1_cmd)
+    except (OSError, IOError):
+        pass  # not on Linux or no /proc — fine, no extra signal
+    argv = " ".join(argv_parts)
+    if "--speculative-config" not in argv and "--speculative-model" not in argv:
+        return None
+    out: dict[str, Any] = {"spec_decode_enabled": True}
+    # Try to extract method (match outside /proc shell-quote noise)
+    import re
+    m = re.search(r'"method"\s*:\s*\\?"(\w+)\\?"', argv)
+    if m:
+        method = m.group(1)
+        out["spec_decode_method"] = method
+        out["spec_decode_method_kind"] = (
+            "ngram" if "ngram" in method.lower()
+            else "mtp" if "mtp" in method.lower()
+            else "eagle" if "eagle" in method.lower()
+            else "draft_model" if "draft" in method.lower()
+            else method
+        )
+    return out
+
+
 def _probe_spec_decode(cfg: Any) -> dict[str, Any]:
     """Detect whether spec-decode is configured + which method + N."""
     out: dict[str, Any] = {"spec_decode_enabled": False}
     spec = getattr(cfg, "speculative_config", None)
     if spec is None:
+        # Fallback: check sys.argv for --speculative-config (apply_all phase
+        # runs BEFORE vllm config is built, so cfg.speculative_config is
+        # always None at that time).
+        argv_probe = _probe_spec_decode_from_argv()
+        if argv_probe is not None:
+            return argv_probe
         return out
     out["spec_decode_enabled"] = True
     for attr in ("method", "num_speculative_tokens", "model"):
@@ -365,9 +426,16 @@ def get_runtime_profile() -> dict[str, Any]:
 
     cfg = _try_get_vllm_config()
     if cfg is None:
+        # 2026-04-27 v756 fix: even without vllm_config (apply_all phase),
+        # try to detect spec-decode from sys.argv / /proc/1/cmdline /
+        # GENESIS_FORCE_SPEC_DECODE env. Critical for P67 safety gate to
+        # work correctly during apply_all (which runs BEFORE vllm config
+        # is constructed but AFTER the launch script has set up everything).
+        argv_spec = _probe_spec_decode_from_argv()
+        spec_decode_enabled = bool(argv_spec and argv_spec.get("spec_decode_enabled"))
         profile: dict[str, Any] = {
             "resolved": False,
-            "spec_decode_enabled": False,
+            "spec_decode_enabled": spec_decode_enabled,
             "cudagraph_capture_active": True,  # conservative default
             "max_num_seqs": None,
             "pr40384_active": _probe_pr40384_active(),
@@ -376,6 +444,10 @@ def get_runtime_profile() -> dict[str, Any]:
             "pr40792_active": _probe_pr40792_active(),
             "workspace_manager_present": _probe_workspace_manager_present(),
         }
+        if argv_spec:
+            for k, v in argv_spec.items():
+                if k != "spec_decode_enabled":
+                    profile[k] = v
         profile["recommendations"] = _recommend_for_patches(profile)
         return profile
 

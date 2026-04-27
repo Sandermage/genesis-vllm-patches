@@ -252,6 +252,25 @@ def apply() -> tuple[str, str]:
     if not decision:
         return "skipped", "P67 kernel disabled — P67b dispatch unused"
 
+    # 2026-04-27 v756 bisect SAFETY GATE (mirrors P67's gate): without
+    # speculative_config in vllm config, P67b's forward() routing would
+    # try to dispatch into the disabled P67 kernel for any non-decode
+    # batch (chunked-prefill included), reproducing the v756 IndexKernel
+    # overflow. Refuse to apply P67b unless spec-decode is actually
+    # configured. See V756_STABILITY_INVESTIGATION_20260427.md.
+    try:
+        from vllm._genesis.config_detect import recommend
+        cd_verdict, cd_reason = recommend("P67")
+        if cd_verdict.startswith("skip"):
+            return "skipped", (
+                f"P67b SAFETY GATE — config_detect for P67 says {cd_verdict}: "
+                f"{cd_reason} | env flag IGNORED to prevent v756-class "
+                "IndexKernel overflow. P67b cannot be safely applied "
+                "without P67 kernel and spec-decode."
+            )
+    except Exception as e:
+        log.warning("[P67b] safety gate config_detect probe failed: %s", e)
+
     if vllm_install_root() is None:
         return "skipped", "vllm install root not discoverable"
 
