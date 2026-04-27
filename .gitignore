@@ -31,3 +31,6 @@ docs/UPSTREAM_*_DRAFT*.md
 
 # Upstream draft / discussion artifacts not yet ready for public review
 docs/DISCUSSION_DRAFT_*.md
+
+# Internal-only docs (community surveys, draft action plans, internal sprint commentary)
+docs/_internal/
