@@ -22,6 +22,11 @@ We backport not-yet-merged upstream PRs as opt-in patches when they fix bugs tha
 | **P64** | [vllm#39598](https://github.com/vllm-project/vllm/pull/39598) | **kotori-yan** | Streaming tool-call early-return removal — fixes empty `tool_calls` when MTP/spec-decode bundles last parameter + `</function>` in single delta. Plus widens safety-net trigger condition. (v7.14, opt-in) |
 | **P71** | [vllm#40819](https://github.com/vllm-project/vllm/pull/40819) (DRAFT) + 2 fixes from [@gemini-code-assist](https://github.com/gemini-code-assist) review | **Z. Golpayegani** (PR author) + **gemini-code-assist** (bug reviewer) | Block-verify rejection sampler (Sun et al. arXiv 2403.10444). Backported with TWO critical fixes from PR review: (1) shared `u` per request (PR used per-position), (2) `denom==0 → 1.0` ACCEPT (PR returned 0.0 — rejected perfect drafts). Algorithm paper: Sun, Mendlovic, Leviathan et al. ICLR 2025. (v7.42, opt-in, MTP-only) |
 | **P75 enabler** | [vllm#25784](https://github.com/vllm-project/vllm/pull/25784) (already MERGED in pin) | Snowflake Arctic team | Suffix Decoding (per-prompt suffix tree, dynamic K). Algorithm: arXiv 2411.04975. We add operator-convenience auto-swap from method=ngram to method=suffix when env enabled. (v7.43, opt-in) |
+| **P77** | [SGLang `adaptive_spec_params.py`](https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/speculative/adaptive_spec_params.py) (Apache-2.0 port) + [Nightjar arXiv 2512.22420](https://arxiv.org/abs/2512.22420) extension | **SGLang team** + **Nightjar authors** | Adaptive ngram K controller — EMA + hysteresis + auto-disable to K=0 on `accept_rate < 30%`. Fixes free-form ngram pathology where K=3 wastes 4 forward passes per accepted token. (v7.43, opt-in) |
+| **P79b** | [vllm#40610](https://github.com/vllm-project/vllm/pull/40610) (OPEN draft) | **vLLM contributor** | Async × spec-decode proposer-sync race fix backport. (v7.46, opt-in) |
+| **P79c** | [vllm#37629](https://github.com/vllm-project/vllm/pull/37629) (OPEN, in review) | **vLLM contributor** | Stale `spec_token_ids` cleanup for unscheduled requests. Improved in v7.49 with `-1` placeholder discrimination + `prev_step_scheduled_req_ids` gate. (v7.46, opt-in) |
+| **P81** | [vllm#40925](https://github.com/vllm-project/vllm/pull/40925) (OPEN) | **tonyliu312** | `w8a8_triton_block_scaled_mm` low-M (M≤8) decode tuning: `BLOCK_SIZE_M` 64→16, `num_stages` 2→3 (non-ROCm). Direct hit for Qwen3.6-A3B FP8 + max_num_seqs=2 (M=1 typical, M=4 for MTP K=3 verify). Empirical +23% median decode on GB10 per upstream PR. (v7.48, opt-in) |
+| **P82** | [SGLang `speculative_sampling.cuh` line ~107](https://github.com/sgl-project/sglang/blob/main/sgl-kernel/csrc/speculative/speculative_sampling.cu) | **SGLang team** ([sgl-project/sglang](https://github.com/sgl-project/sglang)) | `threshold_single` OR-clause acceptance: `accept = vanilla_rejection OR (target_prob >= threshold)`. Targets the structural ceiling `clean_rate ≈ accept_rate^num_spec` identified in our v7.13 strict-ngram analysis. BIASED rule (loses unbiased-sampling guarantee); validated empirically on Qwen3.6-35B-A3B-FP8 — at threshold=0.3: +12% TPS on 128-2048 tok generation, quality 32/33 preserved. **Production-deployed v7.53.** |
 
 ## Upstream issues that informed our investigation
 
@@ -107,9 +112,12 @@ Special thanks to:
 - **noonghunna** for the rigorous bug-isolation methodology that made cross-rig data sharing possible (#40807 / #40831).
 - **Thomas Parnell (@tdoublep)** for PR #40738 which addresses our most impactful production bug class.
 - **bhaktatejas922** for the original GDN+ngram bug report (#39273) and the deeper root-cause analysis comments.
-- **z1ying**, **ZenoAFfectionate**, **ExtReMLapin**, **sfbemerk** for the additional fix PRs we backport / will backport.
+- **z1ying**, **ZenoAFfectionate**, **ExtReMLapin**, **sfbemerk**, **kotori-yan**, **tonyliu312** for the additional fix PRs we backport / will backport.
 - **JartX** for the FP16 rotation approach.
 - **0xSero**, **mitkox**, **Alberto-Codes** for parallel TurboQuant implementations that helped triangulate the algorithm space.
+- **SGLang team** ([sgl-project/sglang](https://github.com/sgl-project/sglang)) for the `threshold_single` OR-clause acceptance rule (P82) and the adaptive K controller (P77 basis) — both ported as Apache-2.0 derivatives with attribution.
+- **Nightjar authors** for the MAB-style auto-disable on low acceptance (extension we built on top of SGLang's logic in P77).
+- **gemini-code-assist (bot)** for the review on PR #40914 catching the missing buffer-reuse parameters in our P67b routing — bot review made the code both more correct AND faster (v7.45 outcome).
 
 ---
 

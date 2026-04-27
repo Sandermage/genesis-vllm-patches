@@ -147,7 +147,330 @@ curl -s http://localhost:8000/v1/completions \
   }'
 ```
 
-Expect ~127 tok/s (MTP default). 
+Expect ~127 tok/s (MTP default).
+
+---
+
+## Bare-metal install (without Docker)
+
+This path installs vLLM + Genesis directly on the host (Ubuntu 24.04 / Debian 12 / RHEL 9). Use this if you don't want containers, are on a system without Docker GPU support, or want to develop / iterate on patches without the container R/W layer trap (see [`CONFIGURATION.md`](CONFIGURATION.md) "Container R/W layer note").
+
+**Trade-offs vs Docker:**
+
+- ✅ No `docker compose down/up` cycle — just restart the Python process
+- ✅ Source-level edits to `_genesis/` apply on next process restart (no bind-mount needed)
+- ✅ Easier to debug with `pdb` / `py-spy` / `nsys` — no container PID translation
+- ❌ You manage the Python environment, NVIDIA driver, CUDA, Triton, PyTorch versions yourself
+- ❌ vLLM's CI builds and tests primarily on the official Docker image; bare-metal is your responsibility to keep in sync
+- ❌ Patches text-modify files in your `site-packages/vllm/` — you must back up before patching, and `pip install --upgrade vllm` will silently undo Genesis (re-apply afterwards)
+
+### Bare-metal prerequisites
+
+```bash
+# 1. NVIDIA driver — see "Hardware requirements" above
+nvidia-smi  # must show driver ≥ 580.126.09
+
+# 2. CUDA toolkit (for nvcc, Triton compilation)
+sudo apt install cuda-toolkit-13-0
+# or use NVIDIA's official .run installer
+nvcc --version  # must show release 13.0
+
+# 3. Python 3.12 (vLLM nightly requirement as of 2026-04-27)
+sudo apt install python3.12 python3.12-venv python3.12-dev
+python3.12 --version  # 3.12.x
+
+# 4. System libs vLLM needs
+sudo apt install build-essential pkg-config libssl-dev \
+                  libffi-dev libxml2-dev libxslt1-dev zlib1g-dev \
+                  libjpeg-dev libpng-dev libsndfile1
+```
+
+### 1. Create dedicated Python environment
+
+**Use a venv or conda env. Do NOT install into system Python** — vLLM's dependency tree (PyTorch, Triton, FlashInfer, xformers) will conflict with your distro's packages.
+
+```bash
+# Pick a location with at least 30 GB free for the env
+mkdir -p ~/vllm-genesis && cd ~/vllm-genesis
+
+python3.12 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip wheel setuptools
+```
+
+### 2. Install vLLM nightly
+
+Genesis is pinned to a specific vLLM nightly. Find the SHA / version that matches our [`Production baseline`](README.md#production-baseline) — currently `0.19.2rc1.dev205+g07351e088`.
+
+```bash
+# Option A — install from a specific nightly wheel (recommended if you can match)
+pip install --pre vllm==0.19.2rc1.dev205+g07351e088 \
+  --extra-index-url https://wheels.vllm.ai/nightly
+
+# Option B — install from source at a specific commit
+git clone https://github.com/vllm-project/vllm.git
+cd vllm
+git checkout 07351e088  # match the SHA from Production baseline
+pip install -e . --no-build-isolation
+cd ..
+
+# Option C — install latest nightly (may drift from our anchors;
+# `apply_all` will skip patches whose anchors no longer match — observable in startup log)
+pip install --pre vllm --extra-index-url https://wheels.vllm.ai/nightly
+```
+
+PyTorch / Triton / FlashInfer should be pulled in as vLLM dependencies. Verify:
+
+```bash
+python3 -c "
+import vllm, torch, triton
+print(f'vllm {vllm.__version__}')
+print(f'torch {torch.__version__} cuda={torch.version.cuda}')
+print(f'triton {triton.__version__}')
+print(f'cuda available: {torch.cuda.is_available()}')
+print(f'cuda devices: {torch.cuda.device_count()}')
+"
+# Expect:
+# vllm 0.19.2rc1.dev205+g07351e088
+# torch 2.11.0+cu130 cuda=13.0
+# triton 3.6.0
+# cuda available: True
+# cuda devices: 2  (or however many GPUs you have)
+```
+
+### 3. Install Genesis package into vLLM's `site-packages`
+
+Genesis is a Python module at `vllm/_genesis/`. We need to drop it into the **same `vllm/` package directory** that vLLM itself installed.
+
+```bash
+# Find where vLLM lives
+VLLM_DIR=$(python3 -c "import vllm, os; print(os.path.dirname(vllm.__file__))")
+echo "vLLM installed at: $VLLM_DIR"
+# Example: /home/sander/vllm-genesis/.venv/lib/python3.12/site-packages/vllm
+
+# Clone the Genesis patch repo
+git clone https://github.com/Sandermage/genesis-vllm-patches.git
+cd genesis-vllm-patches
+
+# Symlink _genesis/ into vLLM's package directory
+# (symlink, not copy — so `git pull` updates the live install in place)
+ln -s "$(pwd)/vllm/_genesis" "$VLLM_DIR/_genesis"
+
+# Verify import works
+python3 -c "from vllm import _genesis; print(_genesis.__file__)"
+# Expect: .../site-packages/vllm/_genesis/__init__.py
+```
+
+If you prefer **copy over symlink** (e.g., for a frozen production install):
+
+```bash
+cp -r vllm/_genesis "$VLLM_DIR/_genesis"
+# After updating the patcher repo: rsync -a vllm/_genesis/ "$VLLM_DIR/_genesis/"
+```
+
+### 4. Install Genesis runtime extras
+
+Genesis needs a few extra packages at startup (`pandas`, `scipy`, `xxhash` for prefix-cache hash, optionally `arctic-inference` for Suffix Decoding P75):
+
+```bash
+pip install pandas scipy xxhash
+# Optional — only if you plan to use P75 (suffix decoding):
+pip install arctic-inference
+```
+
+Install the Genesis vLLM plugin (auto-loads via vLLM entry point):
+
+```bash
+cd genesis-vllm-patches
+pip install --no-deps -e ./genesis_vllm_plugin
+```
+
+### 5. Apply external probes (recommended)
+
+Genesis depends on two startup probes that text-patch upstream vLLM:
+
+```bash
+# These run once per Python process startup; they are idempotent
+python3 external_probe/patch_tolist_cudagraph.py
+python3 external_probe/patch_40074_iooo.py
+```
+
+These can also be run once after install — they modify files in `$VLLM_DIR` directly.
+
+### 6. Run apply_all (text-patches vLLM source)
+
+```bash
+cd genesis-vllm-patches  # or anywhere — the module is now importable
+
+# Set patch enable flags FIRST (env vars are read at apply time):
+export GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL=1
+export GENESIS_ENABLE_P67B=1
+export GENESIS_ENABLE_P82=1
+export GENESIS_P82_THRESHOLD_SINGLE=0.3
+export GENESIS_ENABLE_P81_FP8_BLOCK_SCALED_M_LE_8=1
+export GENESIS_ENABLE_P70_AUTO_STRICT_NGRAM=1
+export GENESIS_BUFFER_MODE=shared
+# (See CONFIGURATION.md for the full list)
+
+# Apply patches (text-modifies $VLLM_DIR/v1/sample/rejection_sampler.py etc.)
+python3 -m vllm._genesis.patches.apply_all
+# Watch for: "Genesis Dispatcher" matrix output, [P82] applied, etc.
+```
+
+**Important:** patches are idempotent — running `apply_all` twice is safe. They include drift detectors that gracefully SKIP if upstream changes the anchor.
+
+To **reverse all patches** (e.g., before `pip install --upgrade vllm`):
+
+```bash
+# The simplest way: reinstall vLLM from scratch
+pip install --force-reinstall --no-deps vllm
+# Or restore from backup if you made one before applying
+```
+
+### 7. Launch vLLM
+
+```bash
+# Production-equivalent invocation (Qwen3.6-35B-A3B-FP8, TP=2, MTP K=3, TurboQuant k8v4):
+vllm serve --model /path/to/Qwen3.6-35B-A3B-FP8 \
+  --tensor-parallel-size 2 \
+  --gpu-memory-utilization 0.91 \
+  --max-model-len 262144 \
+  --kv-cache-dtype turboquant_k8v4 \
+  --max-num-seqs 2 \
+  --max-num-batched-tokens 8192 \
+  --enable-chunked-prefill \
+  --enable-prefix-caching \
+  --dtype float16 \
+  --disable-custom-all-reduce \
+  --language-model-only \
+  --trust-remote-code \
+  --enable-auto-tool-choice \
+  --tool-call-parser qwen3_coder \
+  --reasoning-parser qwen3 \
+  --api-key genesis-local \
+  --served-model-name qwen3.6-35b-a3b \
+  --host 0.0.0.0 --port 8000 \
+  --speculative-config '{"method":"mtp","num_speculative_tokens":3}' \
+  --async-scheduling \
+  --performance-mode interactivity \
+  --no-scheduler-reserve-full-isl \
+  --prefix-caching-hash-algo xxhash \
+  --disable-log-stats
+```
+
+For convenience, save the env vars + serve command into a launch script (modeled on [`scripts/launch/`](scripts/launch/)):
+
+```bash
+cat > ~/run-genesis.sh << 'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+source ~/vllm-genesis/.venv/bin/activate
+
+# Patch enable flags
+export GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL=1
+export GENESIS_ENABLE_P82=1 GENESIS_P82_THRESHOLD_SINGLE=0.3
+export GENESIS_ENABLE_P81_FP8_BLOCK_SCALED_M_LE_8=1
+export GENESIS_BUFFER_MODE=shared
+# (... full list — see CONFIGURATION.md)
+
+# Apply patches (idempotent)
+python3 -m vllm._genesis.patches.apply_all
+
+# Launch
+exec vllm serve --model "${MODEL_PATH:-/path/to/Qwen3.6-35B-A3B-FP8}" \
+  --tensor-parallel-size 2 \
+  --gpu-memory-utilization 0.91 \
+  --max-model-len 262144 \
+  --kv-cache-dtype turboquant_k8v4 \
+  --speculative-config '{"method":"mtp","num_speculative_tokens":3}' \
+  --async-scheduling --performance-mode interactivity \
+  --api-key "${VLLM_API_KEY:-genesis-local}" \
+  --port "${PORT:-8000}"
+EOF
+chmod +x ~/run-genesis.sh
+~/run-genesis.sh
+```
+
+### 8. Run as a systemd service (production)
+
+```bash
+sudo tee /etc/systemd/system/genesis-vllm.service > /dev/null << 'EOF'
+[Unit]
+Description=Genesis vLLM Patches Production Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+User=sander
+Group=sander
+WorkingDirectory=/home/sander/vllm-genesis
+Environment="MODEL_PATH=/path/to/Qwen3.6-35B-A3B-FP8"
+Environment="VLLM_API_KEY=YOUR_KEY_HERE"
+ExecStart=/home/sander/run-genesis.sh
+Restart=on-failure
+RestartSec=10
+LimitMEMLOCK=infinity
+LimitSTACK=67108864
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl enable --now genesis-vllm
+sudo systemctl status genesis-vllm
+journalctl -u genesis-vllm -f
+```
+
+### 9. Updating Genesis on bare-metal
+
+```bash
+# Pull latest patches from git
+cd ~/vllm-genesis/genesis-vllm-patches
+git pull origin main
+
+# If you symlinked _genesis/, the live install is already updated — just restart vLLM:
+sudo systemctl restart genesis-vllm
+
+# If you copied (not symlinked), re-sync first:
+rsync -a vllm/_genesis/ "$(python3 -c 'import vllm,os; print(os.path.dirname(vllm.__file__))')/_genesis/"
+sudo systemctl restart genesis-vllm
+```
+
+### 10. Updating vLLM on bare-metal (rare, careful)
+
+When upstream vLLM ships a new nightly that includes patches Genesis backports, our drift markers will detect it and SKIP those patches automatically. To upgrade:
+
+```bash
+# 1. Save current state
+pip freeze > ~/vllm-pre-upgrade.txt
+
+# 2. Upgrade vLLM
+pip install --upgrade --pre vllm \
+  --extra-index-url https://wheels.vllm.ai/nightly
+
+# 3. Re-apply Genesis (it's idempotent + drift-aware)
+python3 -m vllm._genesis.patches.apply_all
+# Watch the dispatcher matrix — newly-merged-upstream patches will show:
+#   PXX | SKIP | <title> | upstream may have absorbed this fix
+# That's correct — drop the corresponding GENESIS_ENABLE_PXX=1 flag from your env.
+
+# 4. Restart
+sudo systemctl restart genesis-vllm
+```
+
+### 11. Bare-metal troubleshooting
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `ImportError: No module named 'vllm._genesis'` | Symlink missing or wrong path | Re-run step 3 (`ln -s` into `$VLLM_DIR`) |
+| Boot hangs on `Capturing CUDA graphs` | Driver mismatch (570 instead of 580) or stale Triton cache | `apt install nvidia-driver-580-server`, reboot. `rm -rf ~/.triton/cache/*` |
+| `apply_all` reports `required_anchor_missing` for many patches | vLLM nightly drifted from Genesis pin | Pin to the SHA in [`Production baseline`](README.md#production-baseline), or accept that some patches will skip (read each SKIP reason) |
+| Patches re-apply on every restart and accumulate | You're running `apply_all` from multiple processes simultaneously | Add a lockfile, or run apply_all once at boot before launching workers |
+| `pip install --upgrade vllm` silently undid Genesis | Expected — `pip` reinstalls vLLM's own files cleanly | Re-run step 6 (apply_all) after upgrade |
+
+For more troubleshooting see the [`Troubleshooting`](#troubleshooting) section below — most container-side issues apply equally to bare-metal.
 
 ---
 
