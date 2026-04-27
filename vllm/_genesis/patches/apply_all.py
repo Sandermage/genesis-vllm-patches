@@ -1392,6 +1392,86 @@ def apply_patch_82_sglang_acceptance_threshold() -> PatchResult:
     return _failed(name, reason)
 
 
+@register_patch("P83 MTP keep-last-cached-block (vllm#38182 mitigation)")
+def apply_patch_83_mtp_keep_last_cached_block() -> PatchResult:
+    """Patch 83: skip the eagle-style pop() of the last matched cached block
+    when GENESIS_ENABLE_P83=1 is set in env.
+
+    Root cause (vllm#38182 by uOnePiece + @Angazenn):
+    `vllm/v1/core/single_type_kv_cache_manager.py:447-468` force-pops the
+    last matched cached block when `use_eagle=True`. This is intentional
+    for true Eagle/Eagle3 drafters (which need pre-materialised hidden
+    states from prefill), but MTP gets caught up because
+    `config/speculative.py:890-891` returns True for method='mtp' from
+    `use_eagle()`. For hybrid Qwen3.6-MoE with P5 LCM-pad, the popped
+    block is sized to the Mamba layer requirement (often >1024 tokens),
+    so each cache "hit" costs ~1024 recomputed tokens.
+
+    Empirical (this rig, Qwen3.6-35B-A3B-FP8, 2× A5000):
+      - cache ON  + default:           ~164 tok/s mean (cache useless)
+      - cache OFF (v7.48):              ~213 tok/s mean (+30%)
+      - cache ON  + --block-size 16:   ~163 tok/s (P5 LCM overrides)
+      - cache ON  + P83 (this patch):  TBD — predicted ~213 tok/s + cache benefit
+
+    Status: opt-in via GENESIS_ENABLE_P83=1. Default OFF.
+    MTP-only safe; do NOT enable for true Eagle/Eagle3 — they need the drop.
+    """
+    name = "P83 MTP keep-last-cached-block (vllm#38182 mitigation)"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring import patch_83_mtp_keep_last_cached_block
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_83_mtp_keep_last_cached_block.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch("P84 hash_block_size override (vllm#38182 ACTUAL root cause)")
+def apply_patch_84_hash_block_size_override() -> PatchResult:
+    """Patch 84: text-patch scheduler.py:234 to read hash_block_size from env
+    GENESIS_P84_HASH_BLOCK_SIZE (default: unchanged self.block_size).
+
+    Discovery: Genesis P83 DEBUG instrumentation (2026-04-27) empirically
+    demonstrated that find_longest_cache_hit is NEVER called for our hybrid
+    Qwen3.6-MoE workload because request_block_hasher returns ZERO hashes
+    when block_size > num_tokens. Scheduler.py:234 forces hash_block_size =
+    self.block_size, which on hybrid models is LCM-padded up to Mamba state
+    size (often >= 2048). For 1424-token requests, num_hashes=0 → cache
+    machinery runs with full overhead but produces zero hits.
+
+    The vllm#38182 issue identified the WRONG root cause (the L457 pop);
+    Genesis P84 attacks the actual upstream cause (the hash_block_size
+    coupling). P83 is kept as opt-in research artifact for the downstream
+    symptom; P84 is the real fix.
+
+    Constraint: chosen hash_block_size must divide EVERY KV cache group's
+    block_size, otherwise vLLM's own assertion fires at startup
+    (kv_cache_coordinator.py:403-405).
+
+    Recommended value: GENESIS_P84_HASH_BLOCK_SIZE=16 (full-attention default).
+
+    Status: opt-in via GENESIS_P84_HASH_BLOCK_SIZE=<int>. Default OFF.
+    """
+    name = "P84 hash_block_size override (vllm#38182 ACTUAL root cause)"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring import patch_84_hash_block_size_override
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_84_hash_block_size_override.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
 @register_patch("P75 Auto-enable Suffix Decoding (vllm#25784 Arctic Inference)")
 def apply_patch_75_suffix_decoding_enable() -> PatchResult:
     """Patch 75: operator-convenience auto-swap of speculative method from
