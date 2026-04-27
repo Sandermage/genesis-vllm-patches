@@ -72,7 +72,7 @@ from vllm._genesis.wiring.text_patch import (
 
 log = logging.getLogger("genesis.wiring.p75_suffix_decoding")
 
-GENESIS_P75_MARKER = "Genesis P75 suffix-decoding auto-enable v7.43"
+GENESIS_P75_MARKER = "Genesis P75 suffix-decoding auto-enable v7.56_local_os_import"
 
 
 # ─── Sub-patch: inject method swap BEFORE the ngram default-value branch ────
@@ -98,9 +98,13 @@ P75_NEW = (
     "        # higher TPS than ngram on agentic/tool-call workloads via per-prompt\n"
     "        # suffix tree + dynamic K speculation. Falls back gracefully if\n"
     "        # arctic_inference not installed.\n"
+    "        # NOTE: local `import os` because vllm/config/speculative.py does NOT\n"
+    "        # import `os` at module level — we add it scoped to this block to\n"
+    "        # avoid mutating import order or risking circular-import issues.\n"
     "        # ════════════════════════════════════════════════════════════\n"
+    "        import os as _genesis_p75_os\n"
     "        if (\n"
-    "            os.environ.get(\"GENESIS_ENABLE_P75_SUFFIX_DECODING\", \"\").strip().lower()\n"
+    "            _genesis_p75_os.environ.get(\"GENESIS_ENABLE_P75_SUFFIX_DECODING\", \"\").strip().lower()\n"
     "            in (\"1\", \"true\", \"yes\", \"on\")\n"
     "            and self.method == \"ngram\"\n"
     "        ):\n"
@@ -112,16 +116,16 @@ P75_NEW = (
     "                # Each is overridable via env. Only set if upstream default (None or 0).\n"
     "                if not getattr(self, \"suffix_decoding_max_tree_depth\", 0):\n"
     "                    self.suffix_decoding_max_tree_depth = int(\n"
-    "                        os.environ.get(\"GENESIS_P75_TREE_DEPTH\", \"24\"))\n"
+    "                        _genesis_p75_os.environ.get(\"GENESIS_P75_TREE_DEPTH\", \"24\"))\n"
     "                if not getattr(self, \"suffix_decoding_max_spec_factor\", 0):\n"
     "                    self.suffix_decoding_max_spec_factor = float(\n"
-    "                        os.environ.get(\"GENESIS_P75_SPEC_FACTOR\", \"2.0\"))\n"
+    "                        _genesis_p75_os.environ.get(\"GENESIS_P75_SPEC_FACTOR\", \"2.0\"))\n"
     "                if not getattr(self, \"suffix_decoding_min_token_prob\", 0):\n"
     "                    self.suffix_decoding_min_token_prob = float(\n"
-    "                        os.environ.get(\"GENESIS_P75_MIN_PROB\", \"0.10\"))\n"
+    "                        _genesis_p75_os.environ.get(\"GENESIS_P75_MIN_PROB\", \"0.10\"))\n"
     "                if not getattr(self, \"suffix_decoding_max_cached_requests\", 0):\n"
     "                    self.suffix_decoding_max_cached_requests = int(\n"
-    "                        os.environ.get(\"GENESIS_P75_CACHE_REQS\", \"10000\"))\n"
+    "                        _genesis_p75_os.environ.get(\"GENESIS_P75_CACHE_REQS\", \"10000\"))\n"
     "                logger.warning(\n"
     "                    \"[Genesis P75] Auto-swapped speculative method '%s' -> 'suffix' \"\n"
     "                    \"(tree_depth=%d, spec_factor=%.2f, min_prob=%.3f, cache_reqs=%d). \"\n"

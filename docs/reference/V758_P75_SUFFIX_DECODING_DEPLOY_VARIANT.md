@@ -1,9 +1,88 @@
 # v758 — P75 Suffix Decoding deploy variant
 
-**Status:** READY ON SERVER, NOT YET TESTED IN SUSTAINED BENCH
+**Status:** TESTED 2026-04-27 night — boots, P75 swap works, but speed
+INCONCLUSIVE on bench with non-repeating prompts. Not a clear win over
+v748 PROD baseline.
+
 **Source:** `/home/sander/launch_scripts/test/start_v758_p75_suffix.sh`
 **Goal:** opt-in alternative to v748 PROD (MTP K=3) — Suffix Decoding via
 P75 auto-swap.
+
+## Test results (2026-04-27 23:03 UTC)
+
+### Boot
+
+After fixing P75 wiring bug (missing `import os` in injected code → first
+boot died with `NameError`), v758 boot succeeded:
+
+```
+=== Genesis v7.58 P75 deploy: ngram->suffix decoding (Arctic Inference) + P82 ===
+[Genesis P75] Auto-swapped speculative method 'ngram' -> 'suffix'
+  (tree_depth=24, spec_factor=1.00, min_prob=0.100, cache_reqs=10000).
+```
+
+P75 swap confirmed; arctic-inference imports successfully; engine
+healthy (200).
+
+### Speed test (5 runs per max_tokens, no stability/stress)
+
+| max_tokens | avg t/s | min | max | TTFT |
+|---|---|---|---|---|
+| 64 | **182.0** | 53.6 | 238.4 | 0.137s |
+| 128 | 116.2 | 71.4 | 189.3 | 0.130s |
+| 256 | 83.3 | 66.6 | 115.5 | 0.132s |
+| 512 | 88.4 | 77.9 | 97.9 | 0.135s |
+| 1024 | 73.3 | 67.1 | 84.8 | 0.133s |
+| 2048 | 93.1 | 59.3 | 133.3 | 0.133s |
+
+**vs PROD v748 baseline** (~140-167 tok/s typical per CONFIGURATION.md):
+- Short generations (64-128 tok): high variance (53-238 t/s spread)
+  — first request "cold tree", subsequent could be "warm". Mean 182 on
+  64-tok could be a real win OR cache effect of repeated prompt in run.
+- Long generations (1024-2048 tok): regression (73-93 vs PROD 140+).
+  Suffix decoding has K-overhead per step that doesn't pay off when
+  the suffix tree doesn't have many cached repeats.
+
+### Why inconclusive
+
+Suffix Decoding (Arctic Inference) is designed for **agentic workloads
+with prompt repetition**:
+- Same prompt prefix across multiple iterations
+- Tool-call chains where intermediate context repeats
+- Multi-turn conversations with stable system prompt
+
+Our `genesis_bench_v4.py` uses VARIED test prompts (good for measuring
+TPS regression but bad for measuring suffix-decoding win). For each
+new prompt, the suffix tree is empty → degrades to linear scan → no
+speedup.
+
+To validate suffix decoding properly we'd need either:
+- A real agentic workload capture (10+ tool-call chains with same
+  system prompt + repeating tools)
+- A benchmark that intentionally repeats prompts to warm the tree
+
+### Stability
+
+Did NOT run stress/stability tests in this round (would need another
+PROD swap window). Boot + 5 speed runs all 200 OK.
+
+## Decision
+
+**v758 P75 deploy variant: DO NOT promote to PROD without proper
+agentic-workload validation.**
+
+- Boot: works ✓
+- Engine stability: confirmed ✓
+- Speed: inconclusive on standard bench
+- Real-workload value: theoretically high but unproven for our use
+
+**Keep v748 PROD as default.** v758 launch script preserved at
+`/home/sander/launch_scripts/test/start_v758_p75_suffix.sh` for
+operators who want to A/B test on their actual traffic.
+
+P75 wiring bug fix (import os) is independently valuable — committed
+as v7.56 fix. Marker bumped to `v7.56_local_os_import` so the patch
+re-applies cleanly on fresh containers.
 
 ---
 
