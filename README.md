@@ -8,7 +8,7 @@
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Production](https://img.shields.io/badge/prod-validated-green.svg)](#production-baseline)
-[![Patches](https://img.shields.io/badge/patches-60-orange.svg)](PATCHES.md)
+[![Patches](https://img.shields.io/badge/patches-63-orange.svg)](PATCHES.md)
 [![Throughput](https://img.shields.io/badge/throughput-200--244%20tok%2Fs-brightgreen.svg)](#measured-throughput-table)
 [![Context](https://img.shields.io/badge/context-320K-blue.svg)](#long-context-verification)
 
@@ -103,7 +103,7 @@ For users who want to install Python + vLLM + Genesis directly on the host (no D
 | [`QUICKSTART.md`](QUICKSTART.md) | First-time setup, 5-min walkthrough |
 | [`INSTALL.md`](INSTALL.md) | Full install (driver + CUDA + Python + vLLM + Genesis) |
 | [`CONFIGURATION.md`](CONFIGURATION.md) | Every env var, defaults, rollback recipes |
-| [`PATCHES.md`](PATCHES.md) | All 59 patches × status × env flag × upstream PR × credit |
+| [`PATCHES.md`](PATCHES.md) | All 63 patches × status × env flag × upstream PR × credit |
 | [`CREDITS.md`](CREDITS.md) | Comprehensive attribution log (every backport, every contributor) |
 | [`MODELS.md`](MODELS.md) | Tested model configurations (Qwen3, Gemma, Llama variants) |
 | [`SPONSORS.md`](SPONSORS.md) | Hardware / time sponsors |
@@ -405,7 +405,7 @@ genesis-vllm-patches/
 ├── QUICKSTART.md              ← 5-minute deploy
 ├── INSTALL.md                 ← full installation
 ├── CONFIGURATION.md           ← every env var
-├── PATCHES.md                 ← 59 patches × metadata × credits
+├── PATCHES.md                 ← 63 patches × metadata × credits
 ├── CREDITS.md                 ← attribution log
 ├── MODELS.md                  ← tested model configs
 ├── SPONSORS.md                ← hardware sponsors
