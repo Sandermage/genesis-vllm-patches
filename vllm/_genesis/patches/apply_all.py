@@ -1472,6 +1472,52 @@ def apply_patch_84_hash_block_size_override() -> PatchResult:
     return _failed(name, reason)
 
 
+@register_patch("P86 ngram batch_propose O(N+K) direct-fill (vllm#40876 backport)")
+def apply_patch_86_ngram_batch_propose_linear() -> PatchResult:
+    """Patch 86: backport of vllm#40876 (aaronagent) — replaces the
+    O(N*K) `i in valid_ngram_requests` list-membership scan in
+    NgramProposer.batch_propose with an O(N+K) direct-fill loop.
+
+    Original (O(N*K) due to list-membership scan):
+
+        draft_token_ids: list[list[int]] = []
+        ...
+        for i in range(num_requests):
+            if i in valid_ngram_requests and self.valid_ngram_num_drafts[i] > 0:
+                draft_token_ids.append(...)
+            else:
+                draft_token_ids.append([])
+
+    Patched (O(N+K) direct fill):
+
+        draft_token_ids: list[list[int]] = [[] for _ in range(num_requests)]
+        for i in valid_ngram_requests:
+            num_drafts = self.valid_ngram_num_drafts[i]
+            if num_drafts > 0:
+                draft_token_ids[i] = self.valid_ngram_draft[i, :num_drafts].tolist()
+
+    Genesis prod runs max_num_seqs=2 + prompt_lookup_min=8 — at N=2/K=2
+    the difference is ns-scale. Real wins are at high-concurrency
+    multi-user serving (N=64/K=32 saves ~1952 membership ops/batch).
+    Algorithmic improvement, no behavioral change.
+
+    Status: opt-in via GENESIS_ENABLE_P86=1. Default OFF.
+    """
+    name = "P86 ngram batch_propose O(N+K) direct-fill (vllm#40876 backport)"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring import patch_86_ngram_batch_propose_linear
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_86_ngram_batch_propose_linear.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
 @register_patch("P85 Hybrid fine-shadow prefix cache (MambaManager fix for vllm#38182 followup)")
 def apply_patch_85_hybrid_fine_shadow_prefix_cache() -> PatchResult:
     """Patch 85: Genesis-original architectural fix for vLLM v1 hybrid

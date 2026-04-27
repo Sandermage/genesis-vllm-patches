@@ -283,21 +283,23 @@ Full P67 history: search [`vllm/_genesis/CHANGELOG.md`](vllm/_genesis/CHANGELOG.
 
 Genesis ships three independent validation tools, all in `scripts/`:
 
-### 1. `genesis_bench_v3.py` / `v4.py` — speed + stability bench
+### 1. `genesis_bench_v4.py` — speed + stability bench
 
 Tests: speed (max_tokens 64-2048), context window (4K-160K), context sweep (148K-160K @ 2K step), stability (30 sequential requests), stress (rapid-fire bursts), long-generation (1024/2048).
 
+`v4` supersedes `v3`. Both files are byte-identical in this release; `v3.py` is kept as an alias for downstream scripts that pinned the old name. Migration: any caller of `genesis_bench_v3.py` can switch to `genesis_bench_v4.py` with no flag changes. `v3` will be deleted in Genesis v8.0.
+
 ```bash
 # Free-form throughput (3 runs per max_tokens):
-python3 scripts/genesis_bench_v3.py --host localhost --port 8000 \
+python3 scripts/genesis_bench_v4.py --host localhost --port 8000 \
   --label run_label --speed-runs 3
 
 # Tool-call quality:
-python3 scripts/genesis_bench_v3.py --host localhost --port 8000 \
+python3 scripts/genesis_bench_v4.py --host localhost --port 8000 \
   --label tool_call_run --skip-speed --skip-context --skip-stability
 
 # Long-context (single 6-digit needle, max_tokens cap to avoid thinking eat-up):
-python3 scripts/genesis_bench_v3.py --host localhost --port 8000 \
+python3 scripts/genesis_bench_v4.py --host localhost --port 8000 \
   --max-context-k 200 --skip-speed
 ```
 

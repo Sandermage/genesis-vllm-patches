@@ -1,5 +1,44 @@
 # Genesis `_genesis/` Package Changelog
 
+## v7.54 — 2026-04-27 (Quick wins: P86 + bench v4 rename + 2 deferred research files)
+
+Continuation of v7.53 community-engagement round. Sander approved
+"Quick wins (часы, low risk) тут 1,2,3,4 эти пункты реализовываем"
+plan. Outcome:
+
+- **P86 (vllm#40876 backport) — IMPLEMENTED, opt-in.** New wiring
+  `vllm/_genesis/wiring/patch_86_ngram_batch_propose_linear.py`.
+  Replaces O(N\*K) `i in valid_ngram_requests` membership scan in
+  `NgramProposer.batch_propose` with O(N+K) direct-fill loop. Both
+  anchors verified unique on upstream `ngram_proposer.py` (lines 87 +
+  121). Default OFF via `GENESIS_ENABLE_P86=1`. Negligible at Genesis
+  prod max\_num\_seqs=2 (~ns); meaningful at high-concurrency multi-
+  user serving (N=64/K=32 saves ~1952 list-membership ops/batch).
+  Wired into Dispatcher v2 PATCH\_REGISTRY + apply\_all `@register_patch`.
+  Synced to server `/home/sander/genesis-vllm-patches/`. AST OK +
+  dispatcher dry-run shows `P86 SKIP opt-in only — set
+  GENESIS_ENABLE_P86=1 to engage` as expected.
+
+- **`scripts/genesis_bench_v4.py` — synced from server.** Byte-
+  identical to local `genesis_bench_v3.py` (the v4 fix had already been
+  backported to v3 in v7.46). v4 now the canonical name; v3 retained as
+  alias until Genesis v8.0. README updated.
+
+- **2 deferred research files written** (so we don't re-investigate):
+  - `docs/reference/DEFERRED_P50_DEPLOY.md` — cliproxyapi P50
+    middleware deployment path (drop into `genesis-proxy:8318` as
+    FastAPI middleware; cliproxyapi itself is a Go binary, no plugin
+    surface). Pickup checklist included.
+  - `docs/reference/DEFERRED_P87_PR40924.md` — `merge_attn_states_kernel`
+    SM-shared-mem (PR #40924) is a CUDA `.cu` patch, not Python — not
+    backportable via Genesis text-patch. Wait for upstream merge → bump
+    pin → land for free. Workload-relevance check: kernel is off
+    Genesis PROD's hot path anyway (no prefix-cache).
+
+- **Status:** zero kernel/runtime change for current PROD; P86 is
+  opt-in research; bench v4 alias is no-op rename. PROD remains v748
+  (cache OFF + MTP K=3 + P82 t=0.3) — unchanged.
+
 ## v7.53 — 2026-04-27 (Research sprint: Tier 3 I REJECTED, P82 SGLang acceptance IMPLEMENTED (opt-in, unvalidated))
 
 This is a research-only delta (no kernel/wiring code change pending Sander's
