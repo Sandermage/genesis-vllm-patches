@@ -1,5 +1,79 @@
 # Genesis `_genesis/` Package Changelog
 
+## v7.52 — 2026-04-27 (Tier 3 H: fused-M kernel as opt-in; REJECTED for prod default)
+
+Implemented Tier 3 H from the throughput sprint plan: fused-M variant of
+P67 multi-query kernel. Adapted from the FP64 reference impl in private
+repo `Sandermage/p67-genesis-kernel/p67_dev/p67_test_ieee_precision.py`,
+ported to our production kernel signature with all v7.50/v7.51 opts
+(tl.exp2 + LOG2E, -FLT_MAX, cache_modifier hints, tl.range, hoisted
+invariants).
+
+### Added
+
+- `_build_kernel_fused()` in `p67_multi_query_kernel.py` — opt-in via
+  env `GENESIS_P67_USE_FUSED=1`. Same kernel signature as split-M for
+  caller compat. Architecture: ONE dot per KV-tile with
+  `m=K_PLUS_1*HEADS_PER_KV=32`, vectorized online softmax over BLOCK_M
+  rows with per-row causal mask `q_abs_pos[:, None] >= seq_offset[None, :]`
+  (this is the v7.27 drift fix — finally validated).
+
+### Empirical (validated 2026-04-27, opt-in test on prod)
+
+| Metric | v7.51 split-M | v7.52 fused | Δ |
+|---|---|---|---|
+| @ 64 tok | 191.0 | 185.0 | -3.1% |
+| @ 128 tok | 172.5 | 161.7 | -6.3% |
+| **@ 256 tok** | 160.1 | 134.0 | **-16.3%** |
+| @ 512 tok | 144.9 | 134.7 | -7.0% |
+| @ 1024 tok | 132.0 | 128.4 | -2.7% |
+| @ 2048 tok | 137.7 | 134.1 | -2.6% |
+| **Stability mean** | **167.2** | **155.5** | **-7.0%** |
+| Quality 30-shot | 30/31 | **30/31** | preserved |
+| Tool-call 2/2 | PASS | **PASS** | preserved |
+
+### Verdict: KEEP DEFAULT split-M, retain fused as opt-in
+
+Quality preserved (no numerical drift) → **the v7.27 per-row online
+softmax fix actually works**. The drift problem that led us to split-M
+in v7.34 is solved by `q_abs_pos[:, None] >= seq_offset[None, :]`
+broadcast (per-row causal mask). This is genuinely useful knowledge
+captured in working code.
+
+But throughput regressed by 7-16% because of register spill:
+the fused `acc` tensor is `[BLOCK_M=32, BLOCK_D=128]` fp32 =
+**16 KB virtual registers per CTA**, exceeding the A5000 register
+budget (64 KB per SM, shared across active warps). Triton compiler
+spills to local memory, and each `acc * alpha + dot(P, V)` then goes
+through L1/L2 — far slower than the theoretical MMA-count savings
+from fewer dots.
+
+This is the same pattern as Steps E (num_stages 3→2, rejected) and F
+(Q hoist, rejected): **theoretical optimization wins on consumer Ampere
+require respecting register pressure**. With 64 KB per SM (RTX A5000)
+and our acc tensor demand, fused-M is in the spill regime.
+
+### Why we keep the fused code in source
+
+1. **Reference for future maintainers** — when someone considers
+   fused-M again, the rejection rationale + working code prevents
+   re-treading.
+2. **Useful on different hardware** — A100/H100 (96 KB / 228 KB per
+   SM) may have enough register file. Operator can opt in to test.
+3. **Useful at smaller BLOCK_D** — if we ever serve a model with
+   HEAD_DIM=64 (not 128), `acc` shrinks to 8 KB; fused may win there.
+4. **Opt-in via `GENESIS_P67_USE_FUSED=1` is zero-cost when off** —
+   `_build_kernel()` checks env at module load, returns split-M if
+   not set.
+
+### Snapshot tag for rollback
+
+`pre-tier-3-h-2026-04-27` (set before this commit).
+
+Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
+
+---
+
 ## v7.51.2 — 2026-04-27 (cleanup pass: torch.cat → slice-assign in fallback paths + bench v3 fix)
 
 Pure-cleanliness pass — no behaviour change in our hot path, no measurable

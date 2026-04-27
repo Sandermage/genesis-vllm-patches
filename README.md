@@ -1,4 +1,4 @@
-# Genesis vLLM Patches — v7.51
+# Genesis vLLM Patches — v7.52
 
 **Runtime patches for [vLLM](https://github.com/vllm-project/vllm) — long-context Qwen3-class inference on NVIDIA Ampere, with TurboQuant k8v4 KV-cache and 256k context.**
 

@@ -64,8 +64,218 @@ def _env_enabled() -> bool:
 _CACHED_KERNEL = None
 
 
+def _build_kernel_fused(tl, triton):
+    """v7.52 fused-M kernel — opt-in via GENESIS_P67_USE_FUSED=1.
+
+    Architecture: ONE dot per KV-tile with m=K_PLUS_1*HEADS_PER_KV (e.g. 32
+    for Qwen3.6 K_PLUS_1=4 + GQA-8). Vector online softmax over BLOCK_M
+    rows. Per-row causal mask via `q_abs_pos[:, None] >= seq_offset[None, :]`
+    broadcast. Includes all v7.50+v7.51 optimizations (tl.exp2 + LOG2E,
+    -FLT_MAX, cache_modifier hints, tl.range, hoisted invariants).
+
+    Risks:
+    - Register pressure: acc tensor [BLOCK_M=32, BLOCK_D=128] fp32 = 16 KB
+      virtual. Compile may spill — measured if it happens.
+    - Per-row mask correctness: validated against reference impl in private
+      repo p67_test_ieee_precision.py (rel_avg < 1e-3 was the bar).
+
+    Same kernel signature as split-M for caller compat — launcher can
+    invoke either without code change.
+    """
+
+    @triton.jit
+    def _p67_v9_fused_cache(
+        Q_ptr,
+        KV_cache_ptr,
+        Block_table_ptr,
+        Seq_lens_ptr,
+        K_chunk_ptr,         # unused — API parity
+        V_chunk_ptr,         # unused — API parity
+        O_ptr,
+        stride_qb, stride_qt, stride_qh, stride_qd,
+        stride_cache_block, stride_cache_pos, stride_cache_head,
+        stride_bt_b,
+        stride_kkb, stride_kkt, stride_kkh, stride_kkd,  # unused
+        stride_vkb, stride_vkt, stride_vkh, stride_vkd,  # unused
+        stride_ob, stride_ot, stride_oh, stride_od,
+        SCALE: tl.constexpr,
+        K_PLUS_1: tl.constexpr,
+        BLOCK_D: tl.constexpr,
+        HEAD_DIM: tl.constexpr,
+        BLOCK_SIZE: tl.constexpr,
+        BLOCK_KV: tl.constexpr,
+        HEADS_PER_KV: tl.constexpr,
+        Hq_TOTAL: tl.constexpr,
+        KPS: tl.constexpr,
+        VAL_DATA_BYTES: tl.constexpr,
+        FP8_E4B15: tl.constexpr = 0,
+    ):
+        """Grid: (B, num_kv_heads, 1). Same as split-M."""
+        bid = tl.program_id(0)
+        kv_head = tl.program_id(1)
+
+        # Fused block: BLOCK_M = K_PLUS_1 * HEADS_PER_KV (e.g. 4*8=32).
+        BLOCK_M: tl.constexpr = K_PLUS_1 * HEADS_PER_KV
+
+        offs_m = tl.arange(0, BLOCK_M)
+        # Per-row q_t (which query position) and abs_head (which Q head)
+        q_t = offs_m // HEADS_PER_KV          # [BLOCK_M]: 0,0,..0,1,1,..1, ...
+        head_in_group = offs_m % HEADS_PER_KV  # [BLOCK_M]: 0,1,..7,0,1,..7, ...
+        abs_head = kv_head * HEADS_PER_KV + head_in_group  # [BLOCK_M]
+        head_mask = abs_head < Hq_TOTAL  # [BLOCK_M]
+
+        total_seq_len = tl.load(Seq_lens_ptr + bid)
+        prior_seq_len = total_seq_len - K_PLUS_1
+        q_abs_pos = prior_seq_len + q_t  # [BLOCK_M]
+
+        offs_d = tl.arange(0, BLOCK_D)
+        d_mask = offs_d < HEAD_DIM
+        offs_kv = tl.arange(0, BLOCK_KV)
+        vb_idx = offs_d // 2
+        vb_shift = (offs_d % 2) * 4
+
+        # Single fused Q load — [BLOCK_M, BLOCK_D]
+        q_addrs = (
+            bid * stride_qb
+            + q_t[:, None] * stride_qt
+            + abs_head[:, None] * stride_qh
+            + offs_d[None, :] * stride_qd
+        )
+        Q = tl.load(
+            Q_ptr + q_addrs,
+            mask=head_mask[:, None] & d_mask[None, :],
+            other=0.0,
+            cache_modifier=".ca",
+        ).to(tl.float32)  # [BLOCK_M, BLOCK_D] fp32
+
+        # Vector state per row
+        M_state = tl.zeros([BLOCK_M], dtype=tl.float32) - float("inf")
+        L_state = tl.zeros([BLOCK_M], dtype=tl.float32)
+        acc = tl.zeros([BLOCK_M, BLOCK_D], dtype=tl.float32)
+
+        bt_base = bid * stride_bt_b
+        _kv_head_byte_offset = tl.cast(kv_head, tl.int64) * stride_cache_head
+        _LOG2E = 1.4426950408889634
+
+        for start_n in tl.range(0, total_seq_len, BLOCK_KV):
+            seq_offset = start_n + offs_kv
+            tile_mask = seq_offset < total_seq_len
+
+            page_idx = seq_offset // BLOCK_SIZE
+            page_off = seq_offset % BLOCK_SIZE
+            physical_block = tl.load(
+                Block_table_ptr + bt_base + page_idx,
+                mask=tile_mask, other=0,
+                cache_modifier=".ca",
+            ).to(tl.int64)
+            slot_bases = (
+                physical_block * stride_cache_block
+                + page_off.to(tl.int64) * stride_cache_pos
+                + _kv_head_byte_offset
+            )
+
+            # K dequant
+            k_addrs = slot_bases[None, :] + offs_d[:, None]
+            k_raw = tl.load(
+                KV_cache_ptr + k_addrs,
+                mask=d_mask[:, None] & tile_mask[None, :],
+                other=0,
+                cache_modifier=".cg",
+            )
+            if FP8_E4B15:
+                k_float = k_raw.to(tl.float8e4b15, bitcast=True).to(tl.float32)
+            else:
+                k_float = k_raw.to(tl.float8e4nv, bitcast=True).to(tl.float32)
+            k_safe = tl.where(k_float == k_float, k_float, 0.0)
+            k_safe = tl.minimum(tl.maximum(k_safe, -0.9375), 0.9375)
+            K_tile = k_safe  # [BLOCK_D, BLOCK_KV] fp32
+
+            # V dequant
+            val_bases = slot_bases + KPS
+            val_addrs = val_bases[:, None] + vb_idx[None, :]
+            val_raw = tl.load(
+                KV_cache_ptr + val_addrs,
+                mask=tile_mask[:, None] & d_mask[None, :],
+                other=0,
+                cache_modifier=".cg",
+            ).to(tl.int32)
+            v_idx = ((val_raw >> vb_shift[None, :]) & 0xF).to(tl.float32)
+
+            sc_bases = val_bases + VAL_DATA_BYTES
+            sc_lo = tl.load(KV_cache_ptr + sc_bases, mask=tile_mask, other=0,
+                            cache_modifier=".ca").to(tl.uint16)
+            sc_hi = tl.load(KV_cache_ptr + sc_bases + 1, mask=tile_mask, other=0,
+                            cache_modifier=".ca").to(tl.uint16)
+            v_scales = (sc_lo | (sc_hi << 8)).to(tl.float16, bitcast=True).to(tl.float32)
+            zr_lo = tl.load(KV_cache_ptr + sc_bases + 2, mask=tile_mask, other=0,
+                            cache_modifier=".ca").to(tl.uint16)
+            zr_hi = tl.load(KV_cache_ptr + sc_bases + 3, mask=tile_mask, other=0,
+                            cache_modifier=".ca").to(tl.uint16)
+            v_zeros = (zr_lo | (zr_hi << 8)).to(tl.float16, bitcast=True).to(tl.float32)
+            V_dequant = v_idx * v_scales[:, None] + v_zeros[:, None]
+            V_safe = tl.where(V_dequant == V_dequant, V_dequant, 0.0)
+            V_safe = tl.minimum(tl.maximum(V_safe, -32.0), 32.0)
+            V_tile = V_safe  # [BLOCK_KV, BLOCK_D] fp32
+
+            # ─── FUSED single-MMA QK ───
+            # S = SCALE * Q @ K_tile, [BLOCK_M, BLOCK_KV]
+            # Full m=BLOCK_M=32 → mma.sync.m16n8k16 fully utilized.
+            S = SCALE * tl.dot(Q, K_tile, out_dtype=tl.float32, input_precision='tf32x3')
+
+            # ─── PER-ROW causal + head mask ───
+            # q_abs_pos[BLOCK_M] vs seq_offset[BLOCK_KV] → [BLOCK_M, BLOCK_KV]
+            # Each row gets its OWN causal cutoff based on its q_t position.
+            # This is the v7.27 drift fix: per-row mask, not shared.
+            causal = q_abs_pos[:, None] >= seq_offset[None, :]
+            valid = head_mask[:, None] & tile_mask[None, :] & causal
+            S = tl.where(valid, S, -3.4028234663852886e38)
+
+            # ─── Vector online softmax over BLOCK_M rows ───
+            M_new = tl.maximum(tl.max(S, axis=1), M_state)  # [BLOCK_M]
+            alpha = tl.exp2((M_state - M_new) * _LOG2E)     # [BLOCK_M]
+            P = tl.exp2((S - M_new[:, None]) * _LOG2E)      # [BLOCK_M, BLOCK_KV]
+            L_state = L_state * alpha + tl.sum(P, axis=1)   # [BLOCK_M]
+            # Single MMA for acc update
+            acc = acc * alpha[:, None] + tl.dot(
+                P, V_tile, out_dtype=tl.float32, input_precision='tf32x3'
+            )
+            M_state = M_new
+
+        # ───── Epilogue: normalize + scatter to (B, K+1, Hq, D) output ─────
+        safe_L = tl.where(L_state > 0.0, L_state, 1.0)
+        out = acc / safe_L[:, None]  # [BLOCK_M, BLOCK_D] fp32
+
+        # O_ptr layout: [B, K_PLUS_1, Hq, D]. Use per-row q_t + abs_head.
+        o_addrs = (
+            bid * stride_ob
+            + q_t[:, None] * stride_ot
+            + abs_head[:, None] * stride_oh
+            + offs_d[None, :] * stride_od
+        )
+        tl.store(
+            O_ptr + o_addrs, out.to(tl.float16),
+            mask=head_mask[:, None] & d_mask[None, :],
+        )
+
+    return _p67_v9_fused_cache
+
+
 def _build_kernel():
-    """Define the v7.34 split-M Triton kernel. Returns None on import failure."""
+    """Define the P67 Triton kernel. Returns None on import failure.
+
+    Two architectures available:
+    - **Split-M (v7.34, default)**: K_PLUS_1 separate dots per KV-tile,
+      m=8 each. Bit-exact match to per-query upstream path.
+    - **Fused-M (v7.52, opt-in via GENESIS_P67_USE_FUSED=1)**: ONE dot
+      per KV-tile with m=K_PLUS_1*HEADS_PER_KV=32, vectorized online
+      softmax over BLOCK_M rows with per-row causal mask. Eliminates
+      the m=8 under-utilization of mma.sync.m16n8k16 (which requires
+      m>=16 for full TC throughput). Targets +8-15% throughput.
+      Was rejected in v7.27 due to per-row causal mask error causing
+      0.2% drift; v7.52 fixes via `q_abs_pos[:, None] >= seq_offset[None, :]`
+      broadcasted explicitly, plus all v7.50/v7.51 optimizations
+      (tl.exp2 + LOG2E, -FLT_MAX, cache_modifier hints, tl.range).
+    """
     try:
         from vllm.triton_utils import tl, triton
     except Exception:
@@ -74,6 +284,13 @@ def _build_kernel():
             import triton.language as tl
         except Exception:
             return None
+
+    use_fused = os.environ.get("GENESIS_P67_USE_FUSED", "").strip().lower() in (
+        "1", "true", "yes", "on"
+    )
+
+    if use_fused:
+        return _build_kernel_fused(tl, triton)
 
     @triton.jit
     def _p67_v8_split_m_cache(
