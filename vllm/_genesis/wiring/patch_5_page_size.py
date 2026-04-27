@@ -396,6 +396,31 @@ def _make_patcher() -> TextPatcher | None:
 
 def apply() -> tuple[str, str]:
     """Apply P5 v2. Never raises. Returns (status, reason)."""
+    import os as _g_p5_os
+    # ════════════════════════════════════════════════════════════════════════
+    # [Genesis P5 conditional defer to upstream]
+    # When operator runs with --mamba-cache-mode={align|all}, vLLM's own
+    # `_align_hybrid_block_size` (PR #25752 / #30877) enforces block_size to
+    # be a multiple of mamba_chunk_size (256). Our P5 LCM-pad may produce
+    # non-256-aligned block_size that breaks
+    # MambaManager.find_longest_cache_hit's alignment check (returns 0 hits).
+    #
+    # Set GENESIS_DISABLE_P5=1 alongside --mamba-cache-mode={align|all} to
+    # defer page-size unification to upstream and unlock cache hits.
+    # WARNING: without our P5 v2, hybrid TQ models that need page padding
+    # may crash at KV cache init with NotImplementedError. Only set
+    # GENESIS_DISABLE_P5=1 when also setting --mamba-cache-mode != none.
+    # ════════════════════════════════════════════════════════════════════════
+    if _g_p5_os.environ.get("GENESIS_DISABLE_P5", "").strip().lower() in (
+            "1", "true", "yes", "on"):
+        return "skipped", (
+            "GENESIS_DISABLE_P5=1 set — deferring KV page-size unification "
+            "to upstream's `_align_hybrid_block_size` (PR #25752/#30877). "
+            "Required for compatibility with --mamba-cache-mode={align|all}. "
+            "Without P5, hybrid TQ models may need explicit alignment via "
+            "--block-size or upstream alignment to function."
+        )
+
     if not is_nvidia_cuda():
         return "skipped", "non-NVIDIA: TQ+hybrid only matters with CUDA TurboQuant"
 
