@@ -1,5 +1,136 @@
 # Genesis `_genesis/` Package Changelog
 
+## v7.53 — 2026-04-27 (Research sprint: Tier 3 I REJECTED, P82 SGLang acceptance IMPLEMENTED (opt-in, unvalidated))
+
+This is a research-only delta (no kernel/wiring code change pending Sander's
+GO). It captures TWO investigations triggered by the v7.52 follow-up sprint
+so future agents (and future-Sander) don't re-spelunk.
+
+### Tier 3 I — vllm#38786 "Splitting MLA attention Triton kernel" — REJECTED
+
+**Source:** [vllm#38786](https://github.com/vllm-project/vllm/pull/38786) — adds a 2D split
+(KV_SPLITS × TEMP_PAGES=32) to the **MLA grouped decode kernel**, with a
+stage-2 reduce of partial `(acc, e_sum, e_max)` triples back into `att_out`
+via online-softmax rescale.
+
+**Why we evaluated it:** carried forward from v7.52 sprint as the highest-EV
+remaining throughput candidate. Memory budget claim (`+67 MB scratchpad on
+200K context`) checks out: `temp_pages=32 × B=1 × H=128 × KV_SPLITS=8 × (Dv=512+2) × 4 B ≈ 67.4 MB`.
+
+**Why we will NOT backport:**
+
+1. **Wrong kernel family.** The PR modifies `vllm/v1/attention/ops/triton_decode_attention.py`
+   (MLA grouped decode, head_dim=512, K+1=1 single-query). Our P67 is GQA
+   multi-query spec-decode verify (Qwen3.6-MoE, head_dim=128, K+1=4).
+   The split-KV × temp_pages reduction structure does not map: P67 is
+   already split-M, single-pass, and the `(B, num_kv_heads)` grid already
+   saturates the 64 SMs of an A5000 at modest seq-len. Adding a TEMP_PAGES
+   third axis would multiply launch count 32× with no occupancy gain.
+2. **Author already disowned it.** After PR #33529 changed the
+   `num_kv_splits` calculation (which we adopted in our v7.50 Step C),
+   the patch makes throughput *worse* on current main. The PR is OPEN
+   with merge conflicts and effectively superseded.
+3. **Workload mismatch.** Targets `batch < 32` long-context decode (GLM-4.7-Flash,
+   DeepSeek-V3 on TRITON_MLA backend). Our spec-decode is `batch=1, K+1=4`
+   short queries on ≤32k context.
+4. **Likely register spill on Ampere.** No autotune in the PR; defaults
+   `BLOCK_H=16, num_warps=4, BLOCK_DV=512` → acc tile ~32 KB virtual on
+   our SM 8.6 — same spill pattern that killed our v7.52 fused-M attempt.
+
+**Reviewer flags also caught:** missing FP8 dequant on `kpe`, OOM at large batch,
+NaN risk on empty KV split (gemini-code-assist).
+
+**Decision:** documented and dropped. No kernel work, no opt-in env-flag —
+the patch is wrong for our architecture, full stop. If a future agent is
+again tempted to investigate split-KV for P67, the right move is to look
+at FlashDecoding 2.0 (split-K + atomic reduce) targeted at GQA, not the
+MLA-specific TEMP_PAGES design from #38786.
+
+### P82 — SGLang threshold_single OR-clause acceptance (implemented opt-in, NOT validated)
+
+**Source:** SGLang `sgl-kernel/csrc/speculative/speculative_sampling.cuh`
+(roughly line 107):
+
+```cpp
+if (coin <= prob_acc / threshold_acc || target_prob_single >= threshold_single) {
+    accept;
+}
+```
+
+vs vLLM's vanilla rule in `vllm/v1/sample/rejection_sampler.py:797`:
+
+```python
+accepted = draft_prob > 0 and target_prob / draft_prob >= uniform_prob
+```
+
+**Why this matters for us:** our v7.13 strict-ngram analysis identified the
+structural ceiling `clean_rate ≈ accept_rate^num_spec`. SGLang's OR-clause
+short-circuits whenever the target is even moderately confident
+(`target_prob >= threshold_single`), which decays the exponent slowly and
+breaks the ceiling. For greedy / low-temp tool-call workloads (our case),
+the bias is in the right direction (toward higher-prob target tokens).
+
+**Catch:** the threshold rule is biased — it loses the unbiased-sampling
+guarantee of canonical rejection sampling. SGLang accepts this trade-off
+explicitly in their docs. For temperature-0.7 tool-call output, expected
+quality impact is small but MUST be empirically validated.
+
+**Implementation plan (P82 written — wiring + dispatcher + apply_all hooks present, default OFF):**
+
+1. Text-patch `vllm/v1/sample/rejection_sampler.py` line ~797:
+
+   ```python
+   # Genesis P82 anchor:
+   accepted = draft_prob > 0 and target_prob / draft_prob >= uniform_prob
+   # → replaced (when GENESIS_ENABLE_P82=1) with:
+   accepted = (
+       (draft_prob > 0 and target_prob / draft_prob >= uniform_prob)
+       or (target_prob >= GENESIS_P82_THRESHOLD_SINGLE_LITERAL)
+   )
+   ```
+
+   Threshold baked as a fp32 literal at apply() time from env
+   `GENESIS_P82_THRESHOLD_SINGLE` (default 0.3).
+2. Drift-detect markers (P71-style): catch upstream rewrites of the line.
+3. Eligibility: ONLY random-sample path (greedy already accepts on argmax
+   match — threshold_single doesn't apply).
+4. Fallback: any patch failure → upstream untouched, server still boots.
+5. Dispatcher entry: `default_on=False`, `category=spec_decode`, `credit=SGLang`.
+
+**Test plan (must run before any prod deploy):**
+
+| Threshold | Expected accept rate | Expected quality | Risk |
+|---|---|---|---|
+| 0.0 (vanilla) | baseline | 30/31 | none — equiv to OFF |
+| 0.2 | +5-10% accept | 30/31 expected | low |
+| 0.3 (SGLang typical) | +10-20% accept | 29-30/31 expected | medium |
+| 0.5 | +20-30% accept | 27-29/31 expected | high |
+
+Sweep on prod via blue/green container with `genesis_quality_harness.py`
+(needle, math, code, tool-call subsets) + `genesis_bench_v3.py` (TPS sweep).
+**SHIP CRITERIA:** ≥30/31 quality preserved AND ≥+10% effective TPS at
+chosen threshold. ANY quality regression → reject.
+
+**Empirical SGLang baselines (sparse, public):** EAGLE3 on Llama-3-70B
+average accepted length ~3.5/7 (~50% per-token) per LMSYS SpecForge blog
+2025-07-25. No SGLang Qwen3-MoE numbers published. Our v7.13 strict-ngram
+baseline is ~96% (multi-query diverse) / 100% (single-query) clean rate.
+P82 target: maintain or improve clean rate while raising effective TPS.
+
+### Other cleanup this delta
+
+- `dispatcher.py`: P56 and P57 now have explicit `deprecation_note` field
+  (parity with P63). Registry entries kept (tests rely on them); wiring
+  files unchanged. Cosmetic only.
+
+### NOT pushed
+
+Per Sander's standing rule (2026-04-27): no push to `origin/main` without
+100% win on full sweep + explicit "ok push". This entire delta is local
+commits only (tag `pre-tier-3-i-2026-04-27` for rollback baseline).
+
+---
+
 ## v7.52 — 2026-04-27 (Tier 3 H: fused-M kernel as opt-in; REJECTED for prod default)
 
 Implemented Tier 3 H from the throughput sprint plan: fused-M variant of

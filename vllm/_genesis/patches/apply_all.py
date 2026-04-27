@@ -1353,6 +1353,45 @@ def apply_patch_81_fp8_block_scaled_m_le_8() -> PatchResult:
     return _failed(name, reason)
 
 
+@register_patch("P82 SGLang threshold_single OR-clause acceptance (BIASED — opt-in research)")
+def apply_patch_82_sglang_acceptance_threshold() -> PatchResult:
+    """Patch 82: backport of SGLang's per-token acceptance OR-clause for
+    speculative decoding rejection sampling.
+
+    Adds OR-clause to the per-token rule in `rejection_random_sample_kernel`:
+      vanilla:  accepted = draft_prob > 0 AND target_prob/draft_prob >= uniform_prob
+      P82:      accepted = vanilla OR target_prob >= GENESIS_P82_THRESHOLD_SINGLE
+
+    Targets the structural ceiling identified in v7.13 strict-ngram analysis:
+    `clean_rate ≈ accept_rate^num_spec`. The OR-clause short-circuits when
+    target is even moderately confident, decaying the exponent slowly.
+
+    BIASED RULE — loses unbiased-sampling guarantee. Acceptable for
+    greedy / low-temperature tool-call workloads (bias is in the right
+    direction); risky for high-temperature creative-writing.
+
+    Threshold baked from env GENESIS_P82_THRESHOLD_SINGLE (default 0.3)
+    at server start. Changing threshold requires restart.
+
+    Status: opt-in via GENESIS_ENABLE_P82=1. Default OFF. NOT VALIDATED
+    on prod yet — must run genesis_quality_harness.py + genesis_bench_v3.py
+    blue/green sweep before any deployment decision.
+    """
+    name = "P82 SGLang threshold_single OR-clause acceptance (BIASED — opt-in research)"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring import patch_82_sglang_acceptance_threshold
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_82_sglang_acceptance_threshold.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
 @register_patch("P75 Auto-enable Suffix Decoding (vllm#25784 Arctic Inference)")
 def apply_patch_75_suffix_decoding_enable() -> PatchResult:
     """Patch 75: operator-convenience auto-swap of speculative method from
