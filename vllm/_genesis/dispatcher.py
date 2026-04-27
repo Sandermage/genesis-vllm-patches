@@ -51,20 +51,40 @@ log = logging.getLogger("genesis.dispatcher")
 
 PATCH_REGISTRY: dict[str, dict[str, Any]] = {
     "P56": {
-        "title": "TQ spec-decode safe-path guard",
+        "title": "TQ spec-decode safe-path guard (deprecated — superseded by P65)",
         "env_flag": "GENESIS_ENABLE_P56_SPEC_DECODE_GUARD",
         "default_on": False,
         "deprecated": True,
         "category": "spec_decode",
         "credit": "noonghunna (#40807, #40831)",
+        "upstream_pr": None,
+        "deprecation_note": (
+            "P56 was a routing-layer workaround forcing spec-decode through a "
+            "'safe' path when CG-aware buffers misaligned. Real fix is P65 "
+            "(TurboQuant CG downgrade) which addresses the root cause in the "
+            "full-attention path under FULL cudagraph capture. Kept opt-in for "
+            "configurations where P65 is intentionally disabled and a routing "
+            "guard is still desired (no such config verified in production)."
+        ),
     },
     "P57": {
-        "title": "TQ spec-decode capture-safe buffers",
+        "title": "TQ spec-decode capture-safe buffers (deprecated — research artifact)",
         "env_flag": "GENESIS_ENABLE_P57_SPEC_DECODE_CAPTURE_SAFE",
         "default_on": False,
         "deprecated": True,
         "category": "spec_decode",
         "credit": "noonghunna (#40831), gdn_attn.py reference",
+        "upstream_pr": None,
+        "deprecation_note": (
+            "P57 v2 enlarges per-layer capture buffers from ~530 KiB to ~2.1 MiB "
+            "(see wiring/patch_57 docstring for derivation), which is the "
+            "MINIMAL sufficient fix for the original symptom but pushes total "
+            "spec-decode buffer memory from ~270 MiB to ~1080 MiB across 32 "
+            "layers — unacceptable on consumer Ampere with 24 GB VRAM. P65 "
+            "(CG downgrade) achieves the same correctness without the memory "
+            "blow-up. Kept opt-in as a research artifact / reference for "
+            "future hardware with larger VRAM budgets."
+        ),
     },
     "P58": {
         "title": "Async-scheduler -1 placeholder fix",
