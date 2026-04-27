@@ -1,0 +1,17 @@
+Genesis vLLM Patches
+Copyright (c) 2026 Sandermage (Aleksandr Barzov), Ukraine, Odessa.
+
+This product includes software developed by:
+- The vLLM Project (https://github.com/vllm-project/vllm) — Apache 2.0
+- The SGLang Project (https://github.com/sgl-project/sglang) — Apache 2.0
+  (P82 SGLang threshold_single OR-clause acceptance backport)
+- Arctic Inference (https://github.com/snowflakedb/ArcticInference) — Apache 2.0
+  (P75 Suffix Decoding integration via vllm#25784)
+
+Patches credited to upstream contributors are documented in CREDITS.md
+and per-patch docstrings inside vllm/_genesis/wiring/.
+
+When using or redistributing this work, please retain this NOTICE file
+and the LICENSE file alongside the source. Attribution to the original
+authors of backported PRs (listed per-patch in PATCHES.md) is appreciated
+when those specific patches contribute to your deployment.

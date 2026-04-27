@@ -739,14 +739,33 @@ Project: [genesis-vllm-patches](https://github.com/Sandermage/genesis-vllm-patch
 
 For sponsors / supporters see [`SPONSORS.md`](SPONSORS.md).
 
+### A small note on attribution
+
+Genesis is open-source under Apache 2.0 — you can use it freely in personal or commercial deployments, modify it, redistribute it. License-wise, only the standard Apache requirements apply (preserve the `LICENSE` and `NOTICE` files in derivatives).
+
+That said, this project represents a year-plus of single-engineer time spent reproducing bugs, reading vLLM internals, designing kernels, validating patches under real load. If Genesis (or specific patches like P67 multi-query kernel, P82 SGLang acceptance backport, the v7.13 strict-ngram breakthrough, or v7.59 320K context config) made a real difference for your deployment — a credit line in your README, a star on this repo, or a public mention is genuinely appreciated. It's not required. It just helps the work continue.
+
+If you build on a specific patch, please credit the upstream author too — every backport names its source PR + author in the per-patch docstring and in [`PATCHES.md`](PATCHES.md). Their work made this possible.
+
+### Thanks
+
+Thanks for the stars 🌟 — every one means someone found this useful, which is the whole reason to maintain it. Special thanks to the practitioners who tested cross-rig, reported bugs, and wrote derivative recipes (noonghunna, jhsmith409, ampersandru, walmis, radojko, danbedford, ExtReMLapin, tedivm, thc1006, k0zakinio, AlexsJones, and others). The peer-engineering loop is what makes this possible.
+
 ---
 
 ## License
 
-Apache-2.0 — see [`LICENSE`](LICENSE).
+Apache-2.0 — see [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).
+
+The Apache 2.0 license is permissive (commercial use OK, modification OK, sublicensing OK) but does require:
+- Preserving the `LICENSE` and `NOTICE` files in any redistribution
+- Including a NOTICE of any changes you made (if you modify and redistribute)
+- Acknowledging significant prior work in your own NOTICE/credits
+
+Per-patch licenses follow the upstream PR they backport from (also Apache 2.0 in all cases). Genesis-original kernels (P67 multi-query, P82 acceptance, etc.) are Apache 2.0.
 
 ---
 
-*Genesis vLLM Master Plan v7.0 / current production v7.53.*
-*Canonical reference: [`Genesis_Doc/common/GENESIS_VLLM_MASTER_PLAN_v7.0_20260424.md`](https://github.com/Sandermage/Genesis_Doc) (private).*
+*Genesis vLLM current production v7.59 (320K context).*
+*Canonical reference docs: [`Genesis_Doc/common/`](https://github.com/Sandermage/Genesis_Doc) (private).*
 *Latest sprint reports: [`docs/sprint_reports/`](docs/sprint_reports/).*
