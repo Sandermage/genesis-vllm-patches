@@ -1472,6 +1472,48 @@ def apply_patch_84_hash_block_size_override() -> PatchResult:
     return _failed(name, reason)
 
 
+@register_patch(
+    "P91 AutoRound row-parallel group cdiv + start-idx fix (vllm#39460 backport)"
+)
+def apply_patch_91_autoround_row_group_cdiv() -> PatchResult:
+    """Patch 91: backport of vllm#39460 (non-MoE portion only).
+
+    Fixes silent dequant corruption when AutoRound INT4/INT8 checkpoints
+    have row-parallel layers whose input_size_per_partition is not
+    divisible by group_size at TP>=2.
+
+    Two anchored sites in two files:
+      - gptq_marlin.py: replace floor-div with cdiv() in two scale-size
+        computations + tag scales/qzeros with row_group_size and
+        row_input_size_per_partition attrs
+      - parameter.py: RowvLLMParameter.load_row_parallel_weight uses
+        the group-aware start_idx when the new attrs are present, falls
+        back to the original behavior otherwise (no regression for
+        layers without quant grouping)
+
+    Hypothesized to address the dominant cause of Lorbus INT4 perf gap
+    vs Minachist INT8 on our 2x A5000 deployment.
+
+    Status: opt-in via GENESIS_ENABLE_P91=1. Default OFF.
+    """
+    name = (
+        "P91 AutoRound row-parallel group cdiv + start-idx fix "
+        "(vllm#39460 backport)"
+    )
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring import patch_91_autoround_row_group_cdiv
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_91_autoround_row_group_cdiv.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
 @register_patch("P87 Marlin sub-tile output dim pad-on-load (vllm#40361 backport)")
 def apply_patch_87_marlin_pad_sub_tile() -> PatchResult:
     """Patch 87: backport of vllm#40361 — MarlinLinearKernel sub-tile
