@@ -214,6 +214,9 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "spec_decode",
         "credit": "Genesis-original (proper fix for noonghunna #40880; replaces P65 workaround)",
         "upstream_pr": None,
+        "applies_to": {
+            "is_turboquant": [True],
+        },
     },
     "P72": {
         "title": "profile_run M cap (unblocks --max-num-batched-tokens>4096 on MoE)",
@@ -262,6 +265,10 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "compile_safety",
         "credit": "Adapted from noonghunna's patch_tolist_cudagraph.py (Apache-2.0, github.com/noonghunna/qwen36-27b-single-3090). Surgical safety-net for cudagraph capture; complements our P22/P26/P44 prealloc.",
         "upstream_pr": None,
+        "applies_to": {
+            "is_turboquant": [True],
+            "quant_format": ["fp8", "compressed_tensors"],
+        },
     },
     "P79b": {
         "title": "Async × spec-decode proposer-sync backport (vllm#40610)",
@@ -286,6 +293,9 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "kernel_perf",
         "credit": "Backport of vllm#40925 (tonyliu312, OPEN). Specializes w8a8_triton_block_scaled_mm default config for M<=8 (single-request decode + MTP K=3 verify): BLOCK_SIZE_M 64->16, num_stages 2->3 (non-ROCm). Empirical +23% median decode on GB10. Direct hit for Genesis prod (Qwen3.6-A3B FP8 + max_num_seqs=2 + no pre-tuned JSON for A5000).",
         "upstream_pr": 40925,
+        "applies_to": {
+            "quant_format": ["fp8"],
+        },
     },
     "P82": {
         "title": "SGLang threshold_single OR-clause acceptance (BIASED — opt-in research)",
@@ -334,6 +344,13 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "kernel",
         "credit": "Backport of vllm#40361 (OPEN). MarlinLinearKernel requires per-rank out_features divisible by GPTQ_MARLIN_MIN_THREAD_N=64. Sub-tile shards (e.g. Qwen3.5 GatedDeltaNet.in_proj_ba at TP>=2 with num_v_heads=64, or Intel/Qwen3.6-35B-A3B-int4-AutoRound n=32 shard at TP=2) fail can_implement and force a slow non-Marlin fallback (or refuse to load entirely on Ampere where Machete/CutlassW4A8/AllSpark are unavailable or restricted). P87 wraps three MarlinLinearKernel methods to zero-pad qweight/scales/qzeros/bias along the output dim at load, swap config.partition_weight_shape to padded value so downstream transforms see consistent layout, and slice the extra columns off the output in apply_weights. Runtime cost is zero — padding is one-time at load. PR bench: +24% on 2x RTX 3090 SM 8.6 with Intel/Qwen3.6-35B-A3B-int4-AutoRound TP=2 (137 -> 170 t/s). Closes vllm#35924 generically.",
         "upstream_pr": 40361,
+        "applies_to": {
+            "quant_format": [
+                "int8_w8a16", "int4_w4a16",
+                "autoround_int8", "autoround_int4",
+                "gptq_int4", "awq_int4", "compressed_tensors",
+            ],
+        },
     },
     "P91": {
         "title": "AutoRound row-parallel group cdiv + start-idx fix (vllm#39460)",
@@ -342,8 +359,72 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "quantization",
         "credit": "Backport of non-MoE-specific portion of vllm#39460 (CLOSED). gptq_marlin.py:402-407 computes scales_and_zp_size = input_size_per_partition // group_size — when input_size_per_partition % group_size != 0 (AutoRound INT4/INT8 checkpoints with awkward shard sizes), this floor-div drops the trailing partial group of scales. Combined with parameter.py:222-225 load_row_parallel_weight using `tp_rank * shard_size` as start_idx (in scale-rows units, but the source tensor is indexed in scales-rows that map to input-element groups), rank-1 scales load from the wrong offset for partial-group shards → silent dequant corruption or fallback to slow non-Marlin path. P91 (a) replaces both floor-divs with cdiv(), (b) tags scales/qzeros with row_group_size + row_input_size_per_partition, (c) makes load_row_parallel_weight compute start_idx as (tp_rank * input_partition_size) // group_size when those tags present. Hypothesized as dominant cause of Lorbus INT4 < INT8 perf gap on our 2x A5000 (87/61/67 vs 93/77/86 t/s) — sister bug #38064 had 2.72x latency improvement when fixed. We do NOT port the MoE/gate_linear/gemma4 changes (those are Gemma4-specific).",
         "upstream_pr": 39460,
+        "applies_to": {
+            "quant_format": [
+                "autoround_int8", "autoround_int4",
+                "gptq_int4", "int8_w8a16", "int4_w4a16",
+                "compressed_tensors",
+            ],
+        },
     },
 }
+
+
+# ─── Layer 2: model-aware applies_to gate ─────────────────────────────────
+
+def _check_applies_to(
+    patch_id: str, meta: dict[str, Any]
+) -> tuple[bool, str]:
+    """Layer 2 model-compatibility gate.
+
+    Reads `meta["applies_to"]` (a dict mapping profile-key → list of allowed
+    values), looks up the live model profile via `model_detect.get_model_profile()`,
+    and returns (compatible, reason).
+
+    Profile keys recognized: 'model_class', 'quant_format', 'kv_cache_dtype',
+    'is_moe', 'is_hybrid', 'is_turboquant'. Any key whose actual value is None
+    (detector couldn't resolve) is treated as compatible (conservative — let
+    the patch apply and have its own call-site guards decide).
+
+    Returns:
+        (True, reason)  — model matches all applies_to constraints (or none
+                          declared, or model couldn't be resolved)
+        (False, reason) — explicit incompatibility: actual_value not in
+                          allowed set for at least one key
+    """
+    applies_to = meta.get("applies_to")
+    if not applies_to:
+        return True, "no applies_to declared (model-class agnostic)"
+
+    try:
+        from vllm._genesis.model_detect import get_model_profile
+        profile = get_model_profile()
+    except Exception as e:
+        return True, f"model_detect probe failed ({e}) — conservative apply"
+
+    if not profile.get("resolved", False):
+        return True, "model profile unresolved — conservative apply"
+
+    # Map profile keys onto applies_to keys (some applies_to use boolean
+    # aliases like is_moe / is_hybrid / is_turboquant for readability).
+    key_aliases = {
+        "is_moe": "moe",
+        "is_hybrid": "hybrid",
+        "is_turboquant": "turboquant",
+    }
+
+    for key, allowed in applies_to.items():
+        profile_key = key_aliases.get(key, key)
+        actual = profile.get(profile_key)
+        if actual is None:
+            continue  # detector couldn't resolve → conservative
+        if not isinstance(allowed, (list, tuple, set)):
+            allowed = [allowed]
+        if actual not in allowed:
+            return False, (
+                f"MODEL-COMPAT: {key}={actual!r} not in {list(allowed)!r}"
+            )
+    return True, "applies_to satisfied"
 
 
 # ─── Single-call gate ─────────────────────────────────────────────────────
@@ -353,14 +434,20 @@ def should_apply(patch_id: str) -> tuple[bool, str]:
 
     Combines:
       - env-flag check (`GENESIS_ENABLE_P<patch>=1` opt-in)
+      - `applies_to` model-compatibility hard-skip (Layer 2, opt-in patches
+        respect env override; default_on patches honor it strictly)
       - `config_detect.recommend(patch_id)` (model+config-aware decision)
-      - `model_detect` arch checks if applicable
 
     The decision rule:
 
-      1. If env flag is set to truthy → always apply (operator override)
+      1. If env flag is truthy AND patch is opt-in (default_on=False) → apply,
+         operator override wins over applies_to (logged as override).
       2. If env flag is unset/falsy AND patch is `default_on=False` → skip (opt-in)
-      3. Otherwise consult `config_detect.recommend()`:
+      3. If applies_to declared and actual model profile mismatches → hard-skip
+         with WARNING-class reason ("MODEL-COMPAT: ..."). For default_on=True
+         patches this kicks in unconditionally; for env-truthy opt-ins it's
+         logged but apply proceeds (override).
+      4. Otherwise consult `config_detect.recommend()`:
          - "skip:..." → don't apply
          - "redundant:..." → don't apply
          - "deprecated:..." → don't apply
@@ -380,7 +467,15 @@ def should_apply(patch_id: str) -> tuple[bool, str]:
 
     # Operator override: env truthy = always apply (subject to anchor presence)
     if env_truthy:
-        # But still consult config_detect to PRINT the recommendation as info
+        # Layer 2 applies_to is informational under env-override
+        compat, compat_reason = _check_applies_to(patch_id, meta)
+        if not compat:
+            log.warning(
+                "[Genesis dispatcher] %s: env OVERRIDE applies_to mismatch — "
+                "%s. Proceeding because operator set %s=1.",
+                patch_id, compat_reason, env_flag,
+            )
+        # Still consult config_detect to PRINT the recommendation as info
         try:
             from vllm._genesis.config_detect import recommend
             verdict, reason = recommend(patch_id)
@@ -404,6 +499,17 @@ def should_apply(patch_id: str) -> tuple[bool, str]:
                 f"keeping skip; set {env_flag}=1 only for diagnostics"
             )
         return False, f"opt-in only — set {env_flag}=1 to engage"
+
+    # default_on=True: enforce applies_to as Layer 2 HARD skip.
+    compat, compat_reason = _check_applies_to(patch_id, meta)
+    if not compat:
+        log.warning(
+            "[Genesis dispatcher] %s HARD-SKIP — %s. Patch designed for a "
+            "different model class; skipping to avoid overhead. Set %s=1 to "
+            "force-apply if you know what you are doing.",
+            patch_id, compat_reason, env_flag,
+        )
+        return False, compat_reason
 
     # default_on=True patches still consult config_detect
     try:
