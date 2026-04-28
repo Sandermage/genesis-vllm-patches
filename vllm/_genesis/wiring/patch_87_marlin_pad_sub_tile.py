@@ -5,277 +5,331 @@ Backport of [vllm#40361](https://github.com/vllm-project/vllm/pull/40361)
 ("[Kernel][Bugfix] Marlin W4A16: pad sub-tile output dims on load").
 
 ================================================================
-ROOT CAUSE
+v7.62.10 REWRITE: text-patch instead of class-rebind
 ================================================================
 
-The Marlin GPTQ/AutoRound kernel requires each per-rank output dim to be
-a multiple of `GPTQ_MARLIN_MIN_THREAD_N = 64`. When a packed layer's
-natural output dim shards below 64 under TP (e.g. Qwen3.5
-`GatedDeltaNet.in_proj_ba` with `num_v_heads=64` at TP>=2, or
-`Intel/Qwen3.6-35B-A3B-int4-AutoRound` whose packing yields an n=32 shard
-at TP=2), `MarlinLinearKernel.can_implement` returns False and load fails
-with `size_n=... not divisible by tile_n_size=64`. On Ampere there is no
-stock fallback (Machete / CutlassW4A8 are sm_90+, AllSpark requires
-`group_size=-1`, etc.), so TP=2 is effectively unusable for these quants
-without this patch — the model falls back to a much slower path (or
-straight-up refuses to load).
+The v7.62 implementation used class-rebind (capture original methods +
+monkey-patch new ones). Empirically observed 2026-04-28: under torch.compile
++ FULL cudagraph capture (which Marlin path enters during decode),
+dynamo refused to trace through the wrapper indirection and crashed
+with `torch._dynamo.exc.Unsupported: Attempted to call function marked
+as skipped`. The wrapper closure over `_ORIGINAL_APPLY_WEIGHTS` global
+was the trigger.
 
-Closes #35924 generically; complements #36329 (Qwen3.5-GDN-specific
-`MergedColumnParallelLinear` -> `ReplicatedLinear` swap).
+This rewrite uses text-patch (like P91) — modifies the actual marlin.py
+source directly. dynamo then treats the patched code as native vLLM
+source and traces it cleanly. No wrapper, no closure, no indirection.
 
 ================================================================
-FIX (class-rebind, faithful port of PR diff)
+WHAT THE PATCH DOES (faithful port of PR #40361 diff)
 ================================================================
 
-We wrap three methods on `MarlinLinearKernel`:
+5 sub-patches on `vllm/model_executor/kernels/linear/mixed_precision/marlin.py`:
 
-  1. `can_implement` — validates shape against `round_up(n, 64)` instead
-     of raw `n`, so layers with sub-tile output dims report supported.
-  2. `process_weights_after_loading` — calls a new `_maybe_pad_n` helper
-     BEFORE the original processing. `_maybe_pad_n` zero-pads qweight,
-     scales, qzeros and bias along the output dim to the next tile
-     multiple, swaps `self.config.partition_weight_shape[1]` to the
-     padded value (so downstream repack/permute/zero-point transforms
-     see the padded size), and stores the original `n` on the layer for
-     later slicing.
-  3. `apply_weights` — pads the bias if caller supplied one sized for
-     the un-padded output, calls the original wrapped method (which now
-     sees padded_n via `c.partition_weight_shape[1]`), and slices the
-     extra columns off the output.
-
-The padded weight columns decode to zero, so `marlin_gemm` produces zero
-contribution for them, and the slice discards both before they reach the
-caller. Runtime cost is zero — padding happens once at load time. VRAM
-cost is a few KB per affected layer (zero-filled padding along output
-dim). When the shard is already tile-aligned, `_maybe_pad_n` returns
-early with `padded_n == orig_n` and the path is a no-op.
-
-================================================================
-RELEVANCE TO OUR DEPLOYMENTS
-================================================================
-
-- **Minachist/Qwen3.6-27B-INT8-AutoRound** (W8A16 hybrid, our current
-  INT8 PROD-candidate): the GDN `in_proj_ba` shard at TP=2 may or may
-  not be tile-aligned depending on `num_v_heads` of the specific
-  checkpoint. If aligned → no-op, no harm. If not → unblocks Marlin
-  path that was silently falling back to slower kernel.
-
-- **Lorbus/Qwen3.6-27B-int4-AutoRound** (W4A16, same hybrid shape):
-  same story for the INT4 path.
-
-- **Intel/Qwen3.6-35B-A3B-int4-AutoRound** (W4A16 dense MoE, n=32
-  shard at TP=2, the PR's primary repro): blocked entirely without this
-  patch on TP=2, would benefit ~+24% per the PR's bench (137 → 170 t/s
-  on 2× RTX 3090 SM 8.6 — same hardware family as our 2× A5000).
-
-- **Qwen3.6-35B-A3B-FP8** (PROD): N/A — does not go through Marlin
-  dispatch (FP8 has its own kernel path). No effect on prod.
+  1. **imports** — add `dataclasses`, `torch.nn.functional as F`,
+     `init_logger`, `GPTQ_MARLIN_MIN_THREAD_N`, `round_up`
+  2. **can_implement** — wrap `c.partition_weight_shape[1]` with
+     `round_up(..., GPTQ_MARLIN_MIN_THREAD_N)` so sub-tile shards report
+     supported (the actual padding happens in process_weights_after_loading)
+  3. **_maybe_pad_n method** — insert new private method right before
+     process_weights_after_loading; zero-pads qweight/scales/qzeros/bias
+     along the output dim to the next tile multiple, stores `_marlin_orig_n`
+     on the layer, swaps self.config to report padded shape
+  4. **process_weights_after_loading prelude** — call `self._maybe_pad_n(layer)`
+     as the very first statement, so all downstream repack/permute see
+     the padded shape consistently
+  5. **apply_weights output slice** — pad bias to padded_n if caller
+     supplied at orig_n, pass padded_n to apply_gptq_marlin_linear,
+     slice the extra columns off the output
 
 ================================================================
 SAFETY MODEL
 ================================================================
 
-- `can_implement` returns the same answer for shapes that are already
-  tile-aligned (the `padded_n == orig_n` no-op fast-path is preserved).
-- Original `process_weights_after_loading` still runs with full original
-  semantics — `_maybe_pad_n` only grows the tensor shape; the rest of
-  PWA reads `self.config.partition_weight_shape[1]` (now padded) and
-  produces a consistent Marlin layout.
-- `apply_weights` end-to-end behavior is identical: caller provides any
-  bias size (orig_n or padded_n), the wrapper normalizes to padded_n
-  before invoking the original, and slices output back to orig_n.
-- Default OFF (env-gated). When OFF, the kernel runs as upstream nightly.
-- Idempotent: second `apply()` call no-ops (looks for `_genesis_p87_applied`
-  marker on the class).
+- Idempotent via marker, drift detection on multiple anchors
+- When `padded_n == orig_n` (already tile-aligned), `_maybe_pad_n`
+  returns early — pure no-op, identical behavior to upstream
+- All sub-patches required (textual integrity); failure at any one
+  leaves marlin.py in a partially-patched state on disk → next boot
+  detects via marker absence and re-applies cleanly
+- Default OFF; opt-in via `GENESIS_ENABLE_P87=1`
 
-================================================================
-DRIFT DETECTION
-================================================================
-
-If upstream PR #40361 (or an equivalent) merges, the live class will
-already have `_maybe_pad_n` defined. We detect that via
-`hasattr(MarlinLinearKernel, '_maybe_pad_n')` and skip with a
-diagnostic message — no double-wrap risk.
-
-Author backport: Sandermage(Sander) Barzov Aleksandr, Ukraine, Odessa.
+Author backport: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
 Original PR: vllm#40361.
 """
 from __future__ import annotations
 
 import logging
-from typing import Any
+import os
+
+from vllm._genesis.guards import resolve_vllm_file, vllm_install_root
+from vllm._genesis.wiring.text_patch import (
+    TextPatch,
+    TextPatcher,
+    TextPatchResult,
+)
 
 log = logging.getLogger("genesis.wiring.p87_marlin_pad_sub_tile")
 
-
-# ─── Sentinel — set on MarlinLinearKernel class once apply() succeeds. ────
-_GENESIS_P87_MARKER = "_genesis_p87_applied_v7_62"
-
-
-# ─── Helper: pad weight/scales/qzeros/bias along output dim. ──────────────
+GENESIS_P87_MARKER = (
+    "Genesis P87 Marlin sub-tile output dim pad-on-load (vllm#40361) v7.62.10_textpatch"
+)
 
 
-def _genesis_p87_maybe_pad_n(self: Any, layer: Any) -> None:
-    """Pad qweight/scales/qzeros/bias along the output dim to the next
-    multiple of GPTQ_MARLIN_MIN_THREAD_N. Sets `layer._marlin_orig_n`
-    for later output slicing. Replaces `self.config` with a new
-    dataclass instance whose `partition_weight_shape` reports the padded
-    out-dim so downstream transforms see the padded size.
+# ─── Sub-patch 1: imports block ──────────────────────────────────────────
 
-    No-op when already tile-aligned (sets `_marlin_orig_n` and returns).
-    """
-    import dataclasses
+P87_IMPORTS_OLD = (
+    "import torch\n"
+    "\n"
+    "from vllm import _custom_ops as ops\n"
+    "from vllm.model_executor.layers.quantization.utils.marlin_utils import (\n"
+    "    MARLIN_SUPPORTED_GROUP_SIZES,\n"
+)
 
-    import torch.nn.functional as F  # noqa: N812
+P87_IMPORTS_NEW = (
+    "# [Genesis P87 vllm#40361 backport] additional imports\n"
+    "import dataclasses\n"
+    "\n"
+    "import torch\n"
+    "import torch.nn.functional as F  # noqa: N812 — Genesis P87\n"
+    "\n"
+    "from vllm import _custom_ops as ops\n"
+    "from vllm.logger import init_logger as _genesis_p87_init_logger\n"
+    "from vllm.model_executor.layers.quantization.utils.marlin_utils import (\n"
+    "    GPTQ_MARLIN_MIN_THREAD_N as _GENESIS_P87_MIN_THREAD_N,\n"
+    "    MARLIN_SUPPORTED_GROUP_SIZES,\n"
+)
 
-    from vllm.model_executor.layers.quantization.utils.marlin_utils import (
-        GPTQ_MARLIN_MIN_THREAD_N,
+
+# ─── Sub-patch 2: round_up import (separate site near math_utils) + logger ──
+
+P87_LOGGER_OLD = (
+    "from .MPLinearKernel import MPLinearKernel, MPLinearLayerConfig\n"
+    "\n"
+    "\n"
+    "class MarlinLinearKernel(MPLinearKernel):\n"
+)
+
+P87_LOGGER_NEW = (
+    "from .MPLinearKernel import MPLinearKernel, MPLinearLayerConfig\n"
+    "\n"
+    "# [Genesis P87 vllm#40361 backport] round_up + logger for sub-tile pad\n"
+    "from vllm.utils.math_utils import round_up as _genesis_p87_round_up\n"
+    "_genesis_p87_logger = _genesis_p87_init_logger(__name__)\n"
+    "\n"
+    "\n"
+    "class MarlinLinearKernel(MPLinearKernel):\n"
+)
+
+
+# ─── Sub-patch 3: can_implement uses padded_n ────────────────────────────
+
+P87_CAN_IMPLEMENT_OLD = (
+    "        return check_marlin_supports_shape(\n"
+    "            c.partition_weight_shape[1],  # out_features\n"
+    "            c.partition_weight_shape[0],  # in_features\n"
+    "            c.full_weight_shape[0],  # in_features\n"
+    "            c.group_size,\n"
+    "        )\n"
+)
+
+P87_CAN_IMPLEMENT_NEW = (
+    "        # [Genesis P87 vllm#40361 backport] allow shapes where\n"
+    "        # out_features is not divisible by Marlin tile (MIN_THREAD_N=64).\n"
+    "        # Validation against round_up(n, 64); actual zero-padding happens\n"
+    "        # in process_weights_after_loading via _maybe_pad_n. Runtime cost\n"
+    "        # is zero (load-time padding), VRAM cost is a few KB per layer.\n"
+    "        _genesis_p87_padded_n = _genesis_p87_round_up(\n"
+    "            c.partition_weight_shape[1], _GENESIS_P87_MIN_THREAD_N\n"
+    "        )\n"
+    "        return check_marlin_supports_shape(\n"
+    "            _genesis_p87_padded_n,  # out_features (possibly padded)\n"
+    "            c.partition_weight_shape[0],  # in_features\n"
+    "            c.full_weight_shape[0],  # in_features\n"
+    "            c.group_size,\n"
+    "        )\n"
+)
+
+
+# ─── Sub-patch 4: insert _maybe_pad_n method + call from PWA ─────────────
+
+P87_PWA_OLD = (
+    "    # note assumes that\n"
+    "    #  `weight_packed` is: {input_dim = 0, output_dim = 1, packed_dim = 0}\n"
+    "    #  `weight_scale` is: {input_dim = 0, output_dim = 1}\n"
+    "    def process_weights_after_loading(self, layer: torch.nn.Module) -> None:\n"
+    "        device = getattr(layer, self.w_q_name).device\n"
+)
+
+P87_PWA_NEW = (
+    "    # ════════════════════════════════════════════════════════════════\n"
+    "    # [Genesis P87 vllm#40361 backport] sub-tile output dim pad-on-load\n"
+    "    # ════════════════════════════════════════════════════════════════\n"
+    "    def _maybe_pad_n(self, layer: torch.nn.Module) -> None:\n"
+    "        \"\"\"Pad qweight/scales/qzeros/bias along the output dim to the\n"
+    "        next multiple of GPTQ_MARLIN_MIN_THREAD_N. Sets _marlin_orig_n on\n"
+    "        the layer for later output slicing in apply_weights. No-op when\n"
+    "        already tile-aligned (sets _marlin_orig_n and returns).\n"
+    "        \"\"\"\n"
+    "        c = self.config\n"
+    "        orig_n = c.partition_weight_shape[1]\n"
+    "        padded_n = _genesis_p87_round_up(orig_n, _GENESIS_P87_MIN_THREAD_N)\n"
+    "        layer._marlin_orig_n = orig_n\n"
+    "        if padded_n == orig_n:\n"
+    "            return\n"
+    "        pad = padded_n - orig_n\n"
+    "        pack_factor = 32 // c.weight_type.size_bits\n"
+    "        # qweight: [k/pack, n] int32, output_dim=1. Pad with zeros ->\n"
+    "        # those output columns decode to weight 0.\n"
+    "        q = getattr(layer, self.w_q_name)\n"
+    "        q.data = F.pad(q.data, (0, pad), value=0)\n"
+    "        # scales: [num_groups, n], output_dim=1. Pad with zeros (values\n"
+    "        # don't matter; padded weight columns are already zero).\n"
+    "        s = getattr(layer, self.w_s_name)\n"
+    "        s.data = F.pad(s.data, (0, pad), value=0)\n"
+    "        # qzeros: [num_groups, n/pack] int32, packed_dim=1. Pad by pad/pack\n"
+    "        # extra packed columns. Pad value 0 is safe (used only for padded\n"
+    "        # weight columns, which are themselves zero).\n"
+    "        if c.zero_points and self.w_zp_name is not None:\n"
+    "            zp = getattr(layer, self.w_zp_name, None)\n"
+    "            if zp is not None:\n"
+    "                zp_pad_cols = pad // pack_factor\n"
+    "                if zp_pad_cols > 0:\n"
+    "                    zp.data = F.pad(zp.data, (0, zp_pad_cols), value=0)\n"
+    "        # bias: [n] -> [padded_n]\n"
+    "        if hasattr(layer, \"bias\") and layer.bias is not None:\n"
+    "            layer.bias.data = F.pad(layer.bias.data, (0, pad), value=0)\n"
+    "        # Swap config so all downstream transforms use padded n.\n"
+    "        self.config = dataclasses.replace(\n"
+    "            c,\n"
+    "            partition_weight_shape=(c.partition_weight_shape[0], padded_n),\n"
+    "        )\n"
+    "        _genesis_p87_logger.info_once(\n"
+    "            \"[Genesis P87] padded output dim %d -> %d (tile=%d)\",\n"
+    "            orig_n, padded_n, _GENESIS_P87_MIN_THREAD_N,\n"
+    "        )\n"
+    "\n"
+    "    # note assumes that\n"
+    "    #  `weight_packed` is: {input_dim = 0, output_dim = 1, packed_dim = 0}\n"
+    "    #  `weight_scale` is: {input_dim = 0, output_dim = 1}\n"
+    "    def process_weights_after_loading(self, layer: torch.nn.Module) -> None:\n"
+    "        # [Genesis P87 vllm#40361 backport] pad before any repack/permute\n"
+    "        self._maybe_pad_n(layer)\n"
+    "        device = getattr(layer, self.w_q_name).device\n"
+)
+
+
+# ─── Sub-patch 5: apply_weights output slice ─────────────────────────────
+
+P87_APPLY_OLD = (
+    "        return apply_gptq_marlin_linear(\n"
+    "            input=x,\n"
+    "            weight=w_q,\n"
+    "            weight_scale=w_s,\n"
+    "            weight_zp=w_zp,  # type: ignore\n"
+    "            g_idx=w_gidx,  # type: ignore\n"
+    "            g_idx_sort_indices=layer.g_idx_sort_indices,\n"
+    "            workspace=self.workspace,\n"
+    "            wtype=c.weight_type,\n"
+    "            input_size_per_partition=c.partition_weight_shape[0],\n"
+    "            output_size_per_partition=c.partition_weight_shape[1],\n"
+    "            is_k_full=self.is_k_full,\n"
+    "            input_global_scale=getattr(layer, \"input_global_scale\", None),\n"
+    "            bias=bias,\n"
+    "            input_dtype=c.act_type,\n"
+    "        )\n"
+)
+
+P87_APPLY_NEW = (
+    "        # [Genesis P87 vllm#40361 backport] handle padded out-dim\n"
+    "        _genesis_p87_padded_n = c.partition_weight_shape[1]\n"
+    "        _genesis_p87_orig_n = getattr(\n"
+    "            layer, \"_marlin_orig_n\", _genesis_p87_padded_n\n"
+    "        )\n"
+    "        if bias is not None and bias.shape[-1] != _genesis_p87_padded_n:\n"
+    "            bias = F.pad(\n"
+    "                bias, (0, _genesis_p87_padded_n - bias.shape[-1]), value=0\n"
+    "            )\n"
+    "        _genesis_p87_out = apply_gptq_marlin_linear(\n"
+    "            input=x,\n"
+    "            weight=w_q,\n"
+    "            weight_scale=w_s,\n"
+    "            weight_zp=w_zp,  # type: ignore\n"
+    "            g_idx=w_gidx,  # type: ignore\n"
+    "            g_idx_sort_indices=layer.g_idx_sort_indices,\n"
+    "            workspace=self.workspace,\n"
+    "            wtype=c.weight_type,\n"
+    "            input_size_per_partition=c.partition_weight_shape[0],\n"
+    "            output_size_per_partition=_genesis_p87_padded_n,\n"
+    "            is_k_full=self.is_k_full,\n"
+    "            input_global_scale=getattr(layer, \"input_global_scale\", None),\n"
+    "            bias=bias,\n"
+    "            input_dtype=c.act_type,\n"
+    "        )\n"
+    "        # [Genesis P87] discard the extra columns produced by the padded matmul\n"
+    "        if _genesis_p87_orig_n != _genesis_p87_padded_n:\n"
+    "            _genesis_p87_out = _genesis_p87_out[\n"
+    "                ..., :_genesis_p87_orig_n\n"
+    "            ].contiguous()\n"
+    "        return _genesis_p87_out\n"
+)
+
+
+def _make_patcher() -> TextPatcher | None:
+    target = resolve_vllm_file(
+        "model_executor/kernels/linear/mixed_precision/marlin.py"
     )
-    from vllm.utils.math_utils import round_up
-
-    c = self.config
-    orig_n = c.partition_weight_shape[1]
-    padded_n = round_up(orig_n, GPTQ_MARLIN_MIN_THREAD_N)
-    layer._marlin_orig_n = orig_n
-    if padded_n == orig_n:
-        return
-
-    pad = padded_n - orig_n
-    pack_factor = 32 // c.weight_type.size_bits
-
-    # qweight: [k/pack, n] int32, output_dim=1 unpacked. Pad with zeros →
-    # those output columns decode to weight 0.
-    q = getattr(layer, self.w_q_name)
-    q.data = F.pad(q.data, (0, pad), value=0)
-
-    # scales: [num_groups, n], output_dim=1. Pad with zeros (values don't
-    # matter; padded weight columns are already zero).
-    s = getattr(layer, self.w_s_name)
-    s.data = F.pad(s.data, (0, pad), value=0)
-
-    # qzeros: [num_groups, n/pack] int32, packed_dim=1. Pad by pad/pack
-    # extra packed columns. Pad value 0 is safe (used only for padded
-    # weight columns, which are themselves zero).
-    if c.zero_points and self.w_zp_name is not None:
-        zp = getattr(layer, self.w_zp_name, None)
-        if zp is not None:
-            zp_pad_cols = pad // pack_factor
-            if zp_pad_cols > 0:
-                zp.data = F.pad(zp.data, (0, zp_pad_cols), value=0)
-
-    # bias: [n] -> [padded_n]
-    if hasattr(layer, "bias") and layer.bias is not None:
-        layer.bias.data = F.pad(layer.bias.data, (0, pad), value=0)
-
-    # Swap config so all downstream transforms use padded n.
-    self.config = dataclasses.replace(
-        c,
-        partition_weight_shape=(c.partition_weight_shape[0], padded_n),
+    if target is None:
+        return None
+    return TextPatcher(
+        patch_name=(
+            "P87 marlin.py — sub-tile output dim pad-on-load (vllm#40361)"
+        ),
+        target_file=str(target),
+        marker=GENESIS_P87_MARKER,
+        sub_patches=[
+            TextPatch(
+                name="p87_imports",
+                anchor=P87_IMPORTS_OLD,
+                replacement=P87_IMPORTS_NEW,
+                required=True,
+            ),
+            TextPatch(
+                name="p87_logger_round_up_imports",
+                anchor=P87_LOGGER_OLD,
+                replacement=P87_LOGGER_NEW,
+                required=True,
+            ),
+            TextPatch(
+                name="p87_can_implement_padded",
+                anchor=P87_CAN_IMPLEMENT_OLD,
+                replacement=P87_CAN_IMPLEMENT_NEW,
+                required=True,
+            ),
+            TextPatch(
+                name="p87_pwa_with_maybe_pad_n",
+                anchor=P87_PWA_OLD,
+                replacement=P87_PWA_NEW,
+                required=True,
+            ),
+            TextPatch(
+                name="p87_apply_weights_slice",
+                anchor=P87_APPLY_OLD,
+                replacement=P87_APPLY_NEW,
+                required=True,
+            ),
+        ],
+        upstream_drift_markers=[
+            "[Genesis P87",
+            # Upstream-side markers if PR #40361 (or equivalent) merges:
+            "_marlin_orig_n",
+            "GPTQ_MARLIN_MIN_THREAD_N as _GENESIS",
+        ],
     )
-    log.info(
-        "[Genesis P87] padded output dim %d -> %d (tile=%d)",
-        orig_n,
-        padded_n,
-        GPTQ_MARLIN_MIN_THREAD_N,
-    )
-
-
-# ─── Wrapped methods. Originals captured at apply() time. ─────────────────
-
-_ORIGINAL_CAN_IMPLEMENT: Any = None
-_ORIGINAL_PROCESS_WEIGHTS_AFTER_LOADING: Any = None
-_ORIGINAL_APPLY_WEIGHTS: Any = None
-
-
-def _genesis_p87_can_implement(cls, c: Any) -> tuple[bool, str | None]:
-    """Replacement for MarlinLinearKernel.can_implement that allows
-    shapes whose per-rank out-dim is not divisible by the Marlin tile
-    (GPTQ_MARLIN_MIN_THREAD_N=64). Validation happens against
-    `round_up(n, 64)`; the actual padding is performed at
-    `process_weights_after_loading` time by `_maybe_pad_n`.
-    """
-    from vllm.model_executor.layers.quantization.utils.marlin_utils import (
-        GPTQ_MARLIN_MIN_THREAD_N,
-        MARLIN_SUPPORTED_GROUP_SIZES,
-        check_marlin_supports_shape,
-        query_marlin_supported_quant_types,
-    )
-    from vllm.platforms import current_platform
-    from vllm.utils.math_utils import round_up
-
-    if not current_platform.is_cuda():
-        return False, "Marlin only supported on CUDA"
-
-    quant_types = query_marlin_supported_quant_types(c.zero_points)
-    if c.weight_type not in quant_types:
-        return (
-            False,
-            f"Quant type ({c.weight_type}) not supported by"
-            f"  Marlin, supported types are: {quant_types}",
-        )
-
-    if c.group_size not in MARLIN_SUPPORTED_GROUP_SIZES:
-        return (
-            False,
-            f"Group size ({c.group_size}) not supported by "
-            "Marlin, supported group sizes are: "
-            f"{MARLIN_SUPPORTED_GROUP_SIZES}",
-        )
-
-    padded_n = round_up(c.partition_weight_shape[1], GPTQ_MARLIN_MIN_THREAD_N)
-    return check_marlin_supports_shape(
-        padded_n,
-        c.partition_weight_shape[0],
-        c.full_weight_shape[0],
-        c.group_size,
-    )
-
-
-def _genesis_p87_process_weights_after_loading(self: Any, layer: Any) -> None:
-    """Pad out-dim BEFORE the original process_weights_after_loading runs,
-    so downstream repack / permute / marlin_zero_points transforms see
-    the padded shape and produce a consistent Marlin layout.
-    """
-    _genesis_p87_maybe_pad_n(self, layer)
-    _ORIGINAL_PROCESS_WEIGHTS_AFTER_LOADING(self, layer)
-
-
-def _genesis_p87_apply_weights(
-    self: Any,
-    layer: Any,
-    x: Any,
-    bias: Any | None = None,
-) -> Any:
-    """Pad caller-supplied bias to padded_n (if necessary), call the
-    original apply_weights (which now sees padded out-dim via
-    `c.partition_weight_shape[1]`), and slice the extra padded columns
-    off the output.
-    """
-    import torch.nn.functional as F  # noqa: N812
-
-    c = self.config
-    padded_n = c.partition_weight_shape[1]
-    orig_n = getattr(layer, "_marlin_orig_n", padded_n)
-
-    if bias is not None and bias.shape[-1] != padded_n:
-        bias = F.pad(bias, (0, padded_n - bias.shape[-1]), value=0)
-
-    out = _ORIGINAL_APPLY_WEIGHTS(self, layer, x, bias)
-
-    if orig_n != padded_n:
-        out = out[..., :orig_n].contiguous()
-    return out
-
-
-# ─── apply / is_applied / revert ──────────────────────────────────────────
 
 
 def apply() -> tuple[str, str]:
-    """Wrap MarlinLinearKernel methods so sub-tile output dims are
-    handled via load-time padding + apply-time slicing.
-
-    Returns (status, reason). status in {"applied", "skipped", "failed"}.
-    """
+    """Apply P87 — Marlin sub-tile output dim pad-on-load (text-patch v7.62.10)."""
     from vllm._genesis.dispatcher import log_decision, should_apply
 
     decision, reason = should_apply("P87")
@@ -283,108 +337,58 @@ def apply() -> tuple[str, str]:
     if not decision:
         return "skipped", reason
 
-    try:
-        from vllm.model_executor.kernels.linear.mixed_precision.marlin import (
-            MarlinLinearKernel,
-        )
-    except Exception as e:
-        return "skipped", f"MarlinLinearKernel import failed: {e}"
+    if vllm_install_root() is None:
+        return "skipped", "vllm install root not discoverable"
 
-    # Idempotency: already wrapped
-    if getattr(MarlinLinearKernel, _GENESIS_P87_MARKER, False):
-        return "applied", "idempotent (already wrapped)"
+    patcher = _make_patcher()
+    if patcher is None:
+        return "skipped", "marlin.py not found"
 
-    # Drift: upstream may have shipped its own _maybe_pad_n
-    if hasattr(MarlinLinearKernel, "_maybe_pad_n"):
-        return (
-            "skipped",
-            "MarlinLinearKernel._maybe_pad_n already present — upstream "
-            "PR #40361 (or equivalent) appears merged; auto-skip P87",
-        )
-
-    # Sanity: required methods exist
-    for required in (
-        "can_implement",
-        "process_weights_after_loading",
-        "apply_weights",
-        "config",
-        "w_q_name",
-        "w_s_name",
-        "w_zp_name",
-    ):
-        if not hasattr(MarlinLinearKernel, required) and not hasattr(
-            MarlinLinearKernel, "__annotations__"
-        ):
+    if not os.path.isfile(patcher.target_file):
+        return "skipped", f"target disappeared: {patcher.target_file}"
+    with open(patcher.target_file) as f:
+        content = f.read()
+    if patcher.marker in content:
+        log.info("[P87] marker present — skip (idempotent)")
+        return "applied", "idempotent (marker present)"
+    for m in patcher.upstream_drift_markers:
+        if m.startswith("[Genesis"):
+            continue
+        if m in content:
             return (
                 "skipped",
-                f"MarlinLinearKernel missing expected attribute {required!r} "
-                "— upstream layout drift, refusing to wrap",
+                f"upstream drift marker {m!r} in {patcher.target_file} "
+                "— upstream PR #40361 (or equivalent) appears merged",
             )
 
-    # Verify the imports we need are still available before wrapping
-    try:
-        from vllm.model_executor.layers.quantization.utils.marlin_utils import (
-            GPTQ_MARLIN_MIN_THREAD_N,  # noqa: F401
+    result, failure = patcher.apply()
+    if result == TextPatchResult.FAILED:
+        return "failed", (
+            f"{patcher.patch_name}: "
+            f"{failure.reason if failure else 'unknown'} "
+            f"({failure.detail if failure else ''})"
         )
-        from vllm.utils.math_utils import round_up as _round_up  # noqa: F401
-    except Exception as e:
-        return "skipped", f"required helper import failed: {e}"
-
-    global _ORIGINAL_CAN_IMPLEMENT
-    global _ORIGINAL_PROCESS_WEIGHTS_AFTER_LOADING
-    global _ORIGINAL_APPLY_WEIGHTS
-
-    _ORIGINAL_CAN_IMPLEMENT = MarlinLinearKernel.can_implement
-    _ORIGINAL_PROCESS_WEIGHTS_AFTER_LOADING = (
-        MarlinLinearKernel.process_weights_after_loading
-    )
-    _ORIGINAL_APPLY_WEIGHTS = MarlinLinearKernel.apply_weights
-
-    MarlinLinearKernel.can_implement = classmethod(_genesis_p87_can_implement)
-    MarlinLinearKernel.process_weights_after_loading = (
-        _genesis_p87_process_weights_after_loading
-    )
-    MarlinLinearKernel.apply_weights = _genesis_p87_apply_weights
-    setattr(MarlinLinearKernel, _GENESIS_P87_MARKER, True)
 
     return (
         "applied",
-        "MarlinLinearKernel.{can_implement, process_weights_after_loading, "
-        "apply_weights} wrapped — sub-tile out-dim now zero-padded at "
-        "load + sliced at apply",
+        "P87 v7.62.10 applied (TEXT-PATCH, 5 sub-patches): marlin.py "
+        "MarlinLinearKernel.{can_implement, _maybe_pad_n (NEW), "
+        "process_weights_after_loading prelude, apply_weights output slice} "
+        "rewritten in-place. Sub-tile output dims now zero-padded at load + "
+        "sliced at apply. Replaces v7.62 class-rebind which crashed under "
+        "torch.dynamo cudagraph capture."
     )
 
 
 def is_applied() -> bool:
-    """Return True iff our wrappers are installed on MarlinLinearKernel."""
+    """Return True iff our marker is present in the target file."""
+    if vllm_install_root() is None:
+        return False
+    patcher = _make_patcher()
+    if patcher is None:
+        return False
     try:
-        from vllm.model_executor.kernels.linear.mixed_precision.marlin import (
-            MarlinLinearKernel,
-        )
+        with open(patcher.target_file) as f:
+            return patcher.marker in f.read()
     except Exception:
         return False
-    return bool(getattr(MarlinLinearKernel, _GENESIS_P87_MARKER, False))
-
-
-def revert() -> tuple[str, str]:
-    """Restore the original MarlinLinearKernel methods. Tests-only."""
-    try:
-        from vllm.model_executor.kernels.linear.mixed_precision.marlin import (
-            MarlinLinearKernel,
-        )
-    except Exception as e:
-        return "failed", f"MarlinLinearKernel import failed: {e}"
-
-    if not getattr(MarlinLinearKernel, _GENESIS_P87_MARKER, False):
-        return "skipped", "P87 not currently applied"
-
-    if _ORIGINAL_CAN_IMPLEMENT is not None:
-        MarlinLinearKernel.can_implement = _ORIGINAL_CAN_IMPLEMENT
-    if _ORIGINAL_PROCESS_WEIGHTS_AFTER_LOADING is not None:
-        MarlinLinearKernel.process_weights_after_loading = (
-            _ORIGINAL_PROCESS_WEIGHTS_AFTER_LOADING
-        )
-    if _ORIGINAL_APPLY_WEIGHTS is not None:
-        MarlinLinearKernel.apply_weights = _ORIGINAL_APPLY_WEIGHTS
-    delattr(MarlinLinearKernel, _GENESIS_P87_MARKER)
-    return "applied", "MarlinLinearKernel methods restored"
