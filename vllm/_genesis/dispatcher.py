@@ -119,11 +119,12 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "upstream_pr": 40738,
     },
     "P61": {
-        "title": "Qwen3 multi-tool first-occurrence",
+        "title": "Qwen3 multi-tool first-occurrence (DEPRECATED — superseded by P12 v2)",
         "env_flag": "GENESIS_ENABLE_P61_QWEN3_MULTI_TOOL",
         "default_on": False,
+        "deprecated": True,
         "category": "structured_output",
-        "credit": "ExtReMLapin (vllm#40783)",
+        "credit": "ExtReMLapin (vllm#40783) — P61 was supposed to flip P12's LAST-occurrence to FIRST via post-anchor replacement, but its anchor 'tool_call_index = ...' never matched P12-emitted 'idx = ...' form, so it silent-skipped when P12 was active. v7.62.5 (2026-04-28): P12 emit updated to FIRST directly; P61 retired. Setting GENESIS_ENABLE_P61=1 is now a harmless no-op (anchor not found vs already-FIRST P12 output).",
         "upstream_pr": 40783,
     },
     "P62": {
