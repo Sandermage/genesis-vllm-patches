@@ -84,7 +84,7 @@ def _build_kernel_fused(tl, triton):
     """
 
     @triton.jit
-    def _p67_v10_fused_cache_log2e(
+    def _p67_v14_fused_qk_elementwise_sum(
         Q_ptr,
         KV_cache_ptr,
         Block_table_ptr,
@@ -198,9 +198,12 @@ def _build_kernel_fused(tl, triton):
                 k_float = k_raw.to(tl.float8e4b15, bitcast=True).to(tl.float32)
             else:
                 k_float = k_raw.to(tl.float8e4nv, bitcast=True).to(tl.float32)
-            k_safe = tl.where(k_float == k_float, k_float, 0.0)
-            k_safe = tl.minimum(tl.maximum(k_safe, -0.9375), 0.9375)
-            K_tile = k_safe  # [BLOCK_D, BLOCK_KV] fp32
+            # v7.62.21 (quality fix): drop NaN sanitize + clamp on K.
+            # Upstream `triton_turboquant_decode_attention` uses dequant output
+            # directly (no clamp); k8v4 cache by spec is bounded to fp8 range.
+            # The clamp+NaN-where rewrites edge-case bit patterns to 0.0,
+            # producing distribution drift that breaks spec-decode acceptance.
+            K_tile = k_float  # [BLOCK_D, BLOCK_KV] fp32
 
             # V dequant
             val_bases = slot_bases + KPS
@@ -225,9 +228,8 @@ def _build_kernel_fused(tl, triton):
                             cache_modifier=".ca").to(tl.uint16)
             v_zeros = (zr_lo | (zr_hi << 8)).to(tl.float16, bitcast=True).to(tl.float32)
             V_dequant = v_idx * v_scales[:, None] + v_zeros[:, None]
-            V_safe = tl.where(V_dequant == V_dequant, V_dequant, 0.0)
-            V_safe = tl.minimum(tl.maximum(V_safe, -32.0), 32.0)
-            V_tile = V_safe  # [BLOCK_KV, BLOCK_D] fp32
+            # v7.62.21: drop NaN sanitize + clamp on V (upstream parity).
+            V_tile = V_dequant  # [BLOCK_KV, BLOCK_D] fp32
 
             # ─── FUSED single-MMA QK ───
             # S = SCALE_LOG2E * Q @ K_tile, [BLOCK_M, BLOCK_KV]
@@ -241,9 +243,20 @@ def _build_kernel_fused(tl, triton):
                     out_dtype=tl.float32,
                 )
             else:
-                S = SCALE_LOG2E * tl.dot(
-                    Q, K_tile,
-                    out_dtype=tl.float32, input_precision='tf32x3',
+                # v7.62.21d (B3 — upstream-bit-match): element-wise multiply +
+                # tl.sum reduction = upstream `triton_turboquant_decode_attention`
+                # exact pattern. tl.dot(input_precision=...) with ANY
+                # emulation-based precision (tf32x3, bf16x6) breaks quality
+                # because the multi-pass accumulation rounding differs from
+                # upstream's IEEE single-pass fp32 reduction. ieee tl.dot fixes
+                # quality but disables Tensor Cores (-47% TPS). Element-wise
+                # multiply then tl.sum compiles to fp32 multiply + warp-shuffle
+                # tree reduction = bit-exact IEEE math, but uses Triton's fast
+                # reduction primitives (no serial scalar accumulator).
+                # Q [BLOCK_M, BLOCK_D] x K_tile [BLOCK_D, BLOCK_KV] —
+                # broadcast: [BLOCK_M, BLOCK_D, BLOCK_KV] then reduce axis=1.
+                S = SCALE_LOG2E * tl.sum(
+                    Q[:, :, None] * K_tile[None, :, :], axis=1,
                 )
 
             # ─── PER-ROW causal + head mask ───
@@ -252,7 +265,10 @@ def _build_kernel_fused(tl, triton):
             # This is the v7.27 drift fix: per-row mask, not shared.
             causal = q_abs_pos[:, None] >= seq_offset[None, :]
             valid = head_mask[:, None] & tile_mask[None, :] & causal
-            S = tl.where(valid, S, -3.4028234663852886e38)
+            # v7.62.21 (quality fix): -inf sentinel matches upstream + lmdeploy +
+            # SGLang. exp2(-inf)=0 cleanly; previous -FLT_MAX caused alpha=exp2(0)=1
+            # vs upstream alpha=0 on fully-masked tiles → drift in K+1 verify path.
+            S = tl.where(valid, S, -float("inf"))
 
             # ─── Vector online softmax over BLOCK_M rows ───
             # v7.62.19: M_state already in log2 domain (S_log2 = SCALE_LOG2E*QK),
@@ -289,7 +305,7 @@ def _build_kernel_fused(tl, triton):
             mask=head_mask[:, None] & d_mask[None, :],
         )
 
-    return _p67_v10_fused_cache_log2e
+    return _p67_v14_fused_qk_elementwise_sum
 
 
 def _build_kernel():
@@ -325,7 +341,7 @@ def _build_kernel():
         return _build_kernel_fused(tl, triton)
 
     @triton.jit
-    def _p67_v9_split_m_cache_log2e(
+    def _p67_v13_split_m_qk_elementwise_sum(
         Q_ptr,
         KV_cache_ptr,
         Block_table_ptr,
@@ -449,10 +465,12 @@ def _build_kernel():
                 k_float = k_raw.to(tl.float8e4b15, bitcast=True).to(tl.float32)
             else:
                 k_float = k_raw.to(tl.float8e4nv, bitcast=True).to(tl.float32)
-            # Sanitize Inf/NaN — clamp to FP8 e4b15 max.
-            k_safe = tl.where(k_float == k_float, k_float, 0.0)
-            k_safe = tl.minimum(tl.maximum(k_safe, -0.9375), 0.9375)
-            K_tile = k_safe  # keep fp32 — required for input_precision='ieee' to take effect
+            # v7.62.21 (quality fix): drop NaN sanitize + clamp on K — matches
+            # upstream `triton_turboquant_decode_attention` which uses the
+            # dequant output directly. Clamp+NaN-where rewrites edge bit
+            # patterns to 0.0, producing distribution drift that broke
+            # spec-decode acceptance and tool-call generation on 35B.
+            K_tile = k_float  # [BLOCK_D, BLOCK_KV] fp32
 
             # V dequant — load 4-bit indices + scale + zero, build V_tile
             val_bases = slot_bases + KPS
@@ -481,9 +499,8 @@ def _build_kernel():
                             cache_modifier=".ca").to(tl.uint16)
             v_zeros = (zr_lo | (zr_hi << 8)).to(tl.float16, bitcast=True).to(tl.float32)
             V_dequant = v_idx * v_scales[:, None] + v_zeros[:, None]
-            V_safe = tl.where(V_dequant == V_dequant, V_dequant, 0.0)
-            V_safe = tl.minimum(tl.maximum(V_safe, -32.0), 32.0)
-            V_tile = V_safe  # keep fp32 for IEEE precision PV dot
+            # v7.62.21: drop NaN sanitize + clamp on V (upstream parity).
+            V_tile = V_dequant  # keep fp32 for IEEE precision PV dot
 
             # ─────────── SPLIT-M: per-q_t independent dots ───────────
             # Static unroll over K_PLUS_1 query tokens. Each iteration:
@@ -534,20 +551,24 @@ def _build_kernel():
                         out_dtype=tl.float32,
                     )
                 else:
-                    S_t = SCALE_LOG2E_split * tl.dot(
-                        Q_t, K_tile,
-                        out_dtype=tl.float32, input_precision='tf32x3',
+                    # v7.62.21d (B3 — upstream-bit-match): element-wise * + sum
+                    # reduction. See fused-M explanation. Q_t [BLOCK_QH, BLOCK_D]
+                    # x K_tile [BLOCK_D, BLOCK_KV] → reduce axis=1.
+                    S_t = SCALE_LOG2E_split * tl.sum(
+                        Q_t[:, :, None] * K_tile[None, :, :], axis=1,
                     )
 
                 # Per-row causal mask for this q_t:
                 # q_abs_pos_t (scalar) >= seq_offset[n]
-                # v7.52 (Action #1 from PR #40929 audit): use -FLT_MAX sentinel
-                # instead of float("-inf"). Inf*0 = NaN in fp32 accum; FLT_MAX
-                # (-3.4028234663852886e38) avoids the trap and tl.exp2 of a
-                # very-negative-but-finite value clamps to 0 cleanly.
+                # v7.62.21 (quality fix): -inf sentinel matches upstream
+                # `triton_turboquant_decode_attention` + lmdeploy + SGLang.
+                # exp2(-inf) = 0 cleanly — fully-masked tile produces 0 cleanly.
+                # Previous -FLT_MAX caused alpha = exp2(0) = 1 (vs upstream 0)
+                # on fully-masked tiles → drift in K+1 verify path → tool-call
+                # repetition spam on 35B.
                 causal = q_abs_pos_t >= seq_offset
                 valid = head_mask[:, None] & tile_mask[None, :] & causal[None, :]
-                S_t = tl.where(valid, S_t, -3.4028234663852886e38)
+                S_t = tl.where(valid, S_t, -float("inf"))
 
                 # Triton can't index 2D with constexpr, use mask-based extract.
                 # tl.where avoids -inf*0=NaN issue from naive multiplication.
@@ -606,7 +627,7 @@ def _build_kernel():
             mask=head_mask[None, :, None] & d_mask[None, None, :],
         )
 
-    return _p67_v9_split_m_cache_log2e
+    return _p67_v13_split_m_qk_elementwise_sum
 
 
 def _get_kernel():
