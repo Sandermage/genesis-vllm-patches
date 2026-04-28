@@ -89,7 +89,31 @@ from vllm._genesis.wiring.text_patch import (
 log = logging.getLogger("genesis.wiring.p82_sglang_acceptance_threshold")
 
 
-GENESIS_P82_MARKER = "Genesis P82 SGLang-style threshold_single OR-clause v7.53"
+# NOTE: marker is built dynamically from the threshold so that operators
+# changing GENESIS_P82_THRESHOLD_SINGLE between restarts cause apply() to
+# re-patch (not silently skip on idempotency). See `_marker_for(threshold)`.
+GENESIS_P82_MARKER_PREFIX = "Genesis P82 SGLang-style threshold_single OR-clause v7.62.11"
+
+
+def _marker_for(threshold: float) -> str:
+    """Build the marker for a specific baked threshold value.
+
+    v7.62.11 fix (B3 from hidden bug audit): previous marker was constant
+    `"...v7.53"` regardless of `_BAKED_THRESHOLD`. Operator changes
+    `GENESIS_P82_THRESHOLD_SINGLE` and restarts → marker check matches the
+    OLD bake, returns IDEMPOTENT, **previously-baked threshold stays in
+    source**. Threshold change silently ignored unless container fs reset.
+
+    Embedding the threshold in the marker forces a re-apply when threshold
+    changes (drift detection still works because the prefix is stable).
+    """
+    # Round to 4 decimals for marker stability (avoid 0.30000000000000004
+    # vs 0.3 mismatches in apparently-equal env values)
+    return f"{GENESIS_P82_MARKER_PREFIX} thresh={float(threshold):.4f}"
+
+
+# Back-compat alias (old constant name still imported by tests)
+GENESIS_P82_MARKER = GENESIS_P82_MARKER_PREFIX
 
 
 # ─── Threshold parsing (with bounds + fallback) ────────────────────────────
@@ -159,7 +183,9 @@ def _make_patcher(threshold: float) -> TextPatcher | None:
             f"(threshold={threshold:.4f})"
         ),
         target_file=str(target),
-        marker=GENESIS_P82_MARKER,
+        # B3 fix: marker now embeds threshold so a changed threshold forces
+        # re-apply instead of silently passing the IDEMPOTENT check
+        marker=_marker_for(threshold),
         sub_patches=[
             TextPatch(
                 name="p82_threshold_or_clause",
@@ -208,8 +234,20 @@ def apply() -> tuple[str, str]:
     with open(patcher.target_file) as f:
         content = f.read()
     if patcher.marker in content:
-        log.info("[P82] marker present — skip (idempotent)")
-        return "applied", "idempotent (marker present)"
+        log.info("[P82] marker present (current threshold) — skip (idempotent)")
+        return "applied", "idempotent (marker present, threshold unchanged)"
+    # B3 fix: detect stale P82 marker from a different threshold bake.
+    # If a different P82 prefix marker is present, the source has the OLD
+    # threshold baked. We can't safely re-patch because the original anchor
+    # is now consumed. Operator must `docker compose down && up -d` to reset
+    # the container fs first. Surface this clearly instead of silent skip.
+    if GENESIS_P82_MARKER_PREFIX in content:
+        return (
+            "skipped",
+            f"P82 stale marker present (different threshold). Container fs has a previous "
+            f"P82 bake; current threshold={threshold:.4f} cannot be applied without resetting "
+            f"the source. Reset via `docker compose down && up -d` (NOT just stop/start)."
+        )
     for m in patcher.upstream_drift_markers:
         if m == "[Genesis P82" and m in content:
             continue  # our marker; handled above

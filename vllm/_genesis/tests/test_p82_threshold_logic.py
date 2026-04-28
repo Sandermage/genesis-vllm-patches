@@ -21,8 +21,10 @@ import pytest
 
 from vllm._genesis.wiring.patch_82_sglang_acceptance_threshold import (
     GENESIS_P82_MARKER,
+    GENESIS_P82_MARKER_PREFIX,
     P82_OLD,
     _build_replacement,
+    _marker_for,
     _read_threshold,
     _DEFAULT_THRESHOLD,
     apply,
@@ -159,12 +161,50 @@ def test_anchor_long_enough_for_uniqueness():
 # ─── marker invariants ──────────────────────────────────────────────────
 
 
-def test_marker_versioned():
-    """Marker should embed v7.53 (the version that introduced P82)."""
-    assert "v7.53" in GENESIS_P82_MARKER, (
-        f"P82 marker {GENESIS_P82_MARKER!r} should embed v7.53 version tag"
+def test_marker_prefix_versioned():
+    """Prefix should embed v7.62.11 (the version that fixed B3 — marker
+    now encodes the threshold value)."""
+    assert "v7.62.11" in GENESIS_P82_MARKER_PREFIX, (
+        f"P82 marker prefix {GENESIS_P82_MARKER_PREFIX!r} should embed v7.62.11"
     )
-    assert "Genesis P82" in GENESIS_P82_MARKER
+    assert "Genesis P82" in GENESIS_P82_MARKER_PREFIX
+
+
+# ─── B3 fix: marker encodes threshold ─────────────────────────────────
+
+
+def test_marker_for_encodes_threshold():
+    """The marker must include the threshold so a different bake forces
+    re-apply (not silent IDEMPOTENT skip)."""
+    m1 = _marker_for(0.30)
+    m2 = _marker_for(0.50)
+    assert m1 != m2, (
+        "Markers for different thresholds must differ (B3 fix). "
+        f"Got identical {m1!r} for both 0.30 and 0.50"
+    )
+    assert "thresh=0.3000" in m1
+    assert "thresh=0.5000" in m2
+
+
+def test_marker_for_stable_to_float_repr():
+    """0.30000000000000004 should produce the same marker as 0.3 — round to
+    4 decimals avoids spurious re-applies from float representation noise.
+    """
+    a = _marker_for(0.3)
+    b = _marker_for(0.3 + 1e-16)
+    assert a == b, (
+        f"Marker should be float-repr stable (round to 4 decimals). "
+        f"Got {a!r} vs {b!r}"
+    )
+
+
+def test_marker_for_starts_with_prefix():
+    """Drift detection still works: the prefix is stable across thresholds."""
+    for th in (0.1, 0.3, 0.5, 0.7, 0.999):
+        m = _marker_for(th)
+        assert m.startswith(GENESIS_P82_MARKER_PREFIX), (
+            f"_marker_for({th}) = {m!r} must start with {GENESIS_P82_MARKER_PREFIX!r}"
+        )
 
 
 # ─── apply() decision tree ──────────────────────────────────────────────
