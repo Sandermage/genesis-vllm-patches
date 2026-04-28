@@ -37,7 +37,37 @@ from vllm._genesis.wiring.text_patch import (
 
 log = logging.getLogger("genesis.wiring.p67b_spec_verify_routing")
 
-GENESIS_P67B_MARKER = "Genesis P67b spec-verify forward() routing v7.45_buf_reuse_fix"
+# ─── B2 fix v7.62.12: bake env reads at module load ─────────────────────
+# Hot-path env reads in the original emit ran on EVERY spec-verify forward()
+# call. While env reads are not GPU syncs (so not strictly illegal under
+# cudagraph capture), they incur ~50-100ns Python overhead × ~800 dispatch/sec
+# = ~0.04-0.08% TPS waste. More importantly: they're inconsistent with the
+# H2 fix already applied to P67. Bake at apply-time for symmetry + perf.
+#
+# Trade-off: GENESIS_P67_USE_UPSTREAM and GENESIS_P67_NUM_KV_SPLITS become
+# container-launch-time tunables. Operators set them the same way (env vars
+# at start), the snapshot just happens earlier.
+_BAKED_USE_UPSTREAM = (
+    os.environ.get("GENESIS_P67_USE_UPSTREAM", "1") == "1"
+)
+# For NUM_KV_SPLITS: empty string → fall back to self.max_num_kv_splits at
+# runtime (instance attr). Non-empty → bake as int literal.
+_BAKED_NUM_KV_SPLITS_RAW = os.environ.get("GENESIS_P67_NUM_KV_SPLITS", "").strip()
+try:
+    _BAKED_NUM_KV_SPLITS: int | None = (
+        int(_BAKED_NUM_KV_SPLITS_RAW) if _BAKED_NUM_KV_SPLITS_RAW else None
+    )
+except ValueError:
+    _BAKED_NUM_KV_SPLITS = None
+
+log.info(
+    "[Genesis P67b B2] baked env at module load: USE_UPSTREAM=%s NUM_KV_SPLITS=%s "
+    "(no per-dispatch env reads)",
+    _BAKED_USE_UPSTREAM,
+    _BAKED_NUM_KV_SPLITS if _BAKED_NUM_KV_SPLITS is not None else "(default = self.max_num_kv_splits)",
+)
+
+GENESIS_P67B_MARKER = "Genesis P67b spec-verify forward() routing v7.62.12_baked_env"
 
 
 # Anchor: existing `forward()` method just before the dispatch branches.
@@ -95,9 +125,8 @@ P67B_NEW = (
     "                if attn_metadata.query_start_loc.shape[0] == _genesis_p67b_B + 1:\n"
     "                    # ROUTE: env GENESIS_P67_USE_UPSTREAM=1 → upstream kernel\n"
     "                    # (drift-free, multi-CTA), else → P67 (custom Triton kernel).\n"
-    "                    import os as _genesis_p67b_os2\n"
-    "                    _use_upstream = _genesis_p67b_os2.environ.get(\n"
-    "                        'GENESIS_P67_USE_UPSTREAM', '1') == '1'\n"
+    "                    # [Genesis P67b B2 v7.62.12] baked at module load (no per-dispatch env read)\n"
+    f"                    _use_upstream = {_BAKED_USE_UPSTREAM}\n"
     "                    import torch as _genesis_p67b_torch\n"
     "                    if _use_upstream:\n"
     "                        # ─── Upstream kernel path (drift-free, multi-CTA) ───\n"
@@ -152,8 +181,13 @@ P67B_NEW = (
     "                            mid_o_buf=_genesis_p67b_mid_o,\n"
     "                            lse_buf=_genesis_p67b_lse,\n"
     "                            buf_holder=layer,\n"
-    "                            max_num_kv_splits=int(_genesis_p67b_os2.environ.get(\n"
-    "                                'GENESIS_P67_NUM_KV_SPLITS', str(self.max_num_kv_splits))),\n"
+    # [Genesis P67b B2 v7.62.12] baked num_kv_splits at module load.
+    # If env was unset, use instance attr at runtime (no env read either).
+    + (
+        f"                            max_num_kv_splits={int(_BAKED_NUM_KV_SPLITS)},\n"
+        if _BAKED_NUM_KV_SPLITS is not None
+        else "                            max_num_kv_splits=self.max_num_kv_splits,\n"
+    ) +
     "                        )\n"
     "                    else:\n"
     "                        # ─── P67 kernel path (custom, may drift on long ctx) ───\n"
