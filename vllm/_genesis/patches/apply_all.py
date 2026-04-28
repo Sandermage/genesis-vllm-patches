@@ -1472,6 +1472,61 @@ def apply_patch_84_hash_block_size_override() -> PatchResult:
     return _failed(name, reason)
 
 
+@register_patch("P87 Marlin sub-tile output dim pad-on-load (vllm#40361 backport)")
+def apply_patch_87_marlin_pad_sub_tile() -> PatchResult:
+    """Patch 87: backport of vllm#40361 — MarlinLinearKernel sub-tile
+    output dim pad-on-load.
+
+    The Marlin GPTQ/AutoRound kernel requires per-rank out_features to
+    be a multiple of GPTQ_MARLIN_MIN_THREAD_N=64. When TP shards a
+    weight whose natural out-dim is not tile-aligned (e.g. Qwen3.5
+    GatedDeltaNet.in_proj_ba with num_v_heads=64 at TP>=2, or Intel
+    Qwen3.6-35B-A3B-int4-AutoRound n=32 shard at TP=2),
+    `can_implement` returns False and load fails / falls back to a
+    much slower kernel.
+
+    P87 wraps three MarlinLinearKernel methods via class-rebind:
+      - can_implement: validates against round_up(n, 64)
+      - process_weights_after_loading: zero-pads qweight/scales/qzeros/
+        bias along output dim BEFORE the original PWA runs, so all
+        downstream repack/permute/zero-point transforms see the padded
+        shape consistently
+      - apply_weights: pads bias if caller-supplied at orig_n, calls
+        the original wrapped method (which now sees padded out-dim
+        through c.partition_weight_shape[1]), and slices the extra
+        padded columns off the output
+
+    The padded weight columns decode to zero, so marlin_gemm produces
+    zero contribution for them — the slice discards both before they
+    reach the caller. Runtime cost is zero (padding happens once at
+    load). VRAM cost is a few KB per affected layer.
+
+    PR bench: +24% on 2x RTX 3090 SM 8.6 with Intel Qwen3.6-35B-A3B-
+    int4-AutoRound TP=2 (137 -> 170 t/s). On our 2x A5000 SM 8.6 the
+    same hardware family applies; expected impact depends on whether
+    our exact checkpoint shards into sub-tile out-dims.
+
+    Idempotent + drift-aware: skips if `_maybe_pad_n` already exists on
+    MarlinLinearKernel (upstream merge detected), or if our wrapper
+    sentinel is set (already applied).
+
+    Status: opt-in via GENESIS_ENABLE_P87=1. Default OFF.
+    """
+    name = "P87 Marlin sub-tile output dim pad-on-load (vllm#40361 backport)"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: class-rebind ready")
+    try:
+        from vllm._genesis.wiring import patch_87_marlin_pad_sub_tile
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_87_marlin_pad_sub_tile.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
 @register_patch("P86 ngram batch_propose O(N+K) direct-fill (vllm#40876 backport)")
 def apply_patch_86_ngram_batch_propose_linear() -> PatchResult:
     """Patch 86: backport of vllm#40876 (aaronagent) — replaces the
