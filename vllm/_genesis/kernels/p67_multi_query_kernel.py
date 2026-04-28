@@ -84,7 +84,7 @@ def _build_kernel_fused(tl, triton):
     """
 
     @triton.jit
-    def _p67_v14_fused_qk_elementwise_sum(
+    def _p67_v15_fused_qk_tf32_single(
         Q_ptr,
         KV_cache_ptr,
         Block_table_ptr,
@@ -243,20 +243,14 @@ def _build_kernel_fused(tl, triton):
                     out_dtype=tl.float32,
                 )
             else:
-                # v7.62.21d (B3 — upstream-bit-match): element-wise multiply +
-                # tl.sum reduction = upstream `triton_turboquant_decode_attention`
-                # exact pattern. tl.dot(input_precision=...) with ANY
-                # emulation-based precision (tf32x3, bf16x6) breaks quality
-                # because the multi-pass accumulation rounding differs from
-                # upstream's IEEE single-pass fp32 reduction. ieee tl.dot fixes
-                # quality but disables Tensor Cores (-47% TPS). Element-wise
-                # multiply then tl.sum compiles to fp32 multiply + warp-shuffle
-                # tree reduction = bit-exact IEEE math, but uses Triton's fast
-                # reduction primitives (no serial scalar accumulator).
-                # Q [BLOCK_M, BLOCK_D] x K_tile [BLOCK_D, BLOCK_KV] —
-                # broadcast: [BLOCK_M, BLOCK_D, BLOCK_KV] then reduce axis=1.
-                S = SCALE_LOG2E * tl.sum(
-                    Q[:, :, None] * K_tile[None, :, :], axis=1,
+                # v7.62.21e (test): input_precision='tf32' single-pass. Differs
+                # from tf32x3 (3-pass emulation): single MMA tf32 → no
+                # inter-pass accumulator, different rounding pattern. Maybe
+                # close enough to upstream's IEEE for spec-decode acceptance.
+                # If quality breaks, fall back to element-wise tl.sum (B3).
+                S = SCALE_LOG2E * tl.dot(
+                    Q, K_tile,
+                    out_dtype=tl.float32, input_precision='tf32',
                 )
 
             # ─── PER-ROW causal + head mask ───
@@ -305,7 +299,7 @@ def _build_kernel_fused(tl, triton):
             mask=head_mask[:, None] & d_mask[None, :],
         )
 
-    return _p67_v14_fused_qk_elementwise_sum
+    return _p67_v15_fused_qk_tf32_single
 
 
 def _build_kernel():
@@ -341,7 +335,7 @@ def _build_kernel():
         return _build_kernel_fused(tl, triton)
 
     @triton.jit
-    def _p67_v13_split_m_qk_elementwise_sum(
+    def _p67_v14_split_m_qk_tf32_single(
         Q_ptr,
         KV_cache_ptr,
         Block_table_ptr,
@@ -551,11 +545,10 @@ def _build_kernel():
                         out_dtype=tl.float32,
                     )
                 else:
-                    # v7.62.21d (B3 — upstream-bit-match): element-wise * + sum
-                    # reduction. See fused-M explanation. Q_t [BLOCK_QH, BLOCK_D]
-                    # x K_tile [BLOCK_D, BLOCK_KV] → reduce axis=1.
-                    S_t = SCALE_LOG2E_split * tl.sum(
-                        Q_t[:, :, None] * K_tile[None, :, :], axis=1,
+                    # v7.62.21e: tf32 single-pass test (see fused-M comment).
+                    S_t = SCALE_LOG2E_split * tl.dot(
+                        Q_t, K_tile,
+                        out_dtype=tl.float32, input_precision='tf32',
                     )
 
                 # Per-row causal mask for this q_t:
@@ -627,7 +620,7 @@ def _build_kernel():
             mask=head_mask[None, :, None] & d_mask[None, None, :],
         )
 
-    return _p67_v13_split_m_qk_elementwise_sum
+    return _p67_v14_split_m_qk_tf32_single
 
 
 def _get_kernel():
