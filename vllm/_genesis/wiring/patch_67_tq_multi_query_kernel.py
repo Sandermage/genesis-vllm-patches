@@ -49,7 +49,28 @@ from vllm._genesis.wiring.text_patch import (
 
 log = logging.getLogger("genesis.wiring.p67_tq_multi_query_kernel")
 
-GENESIS_P67_MARKER = "Genesis P67 TQ multi-query kernel for spec-decode K+1 v7.39_aggressive_tune"
+GENESIS_P67_MARKER = "Genesis P67 TQ multi-query kernel for spec-decode K+1 v7.62.6_baked_env"
+
+
+# ─── H2 fix: bake env reads at module-load (eager) ───────────────────────
+# Hot-path env reads in the original emit (~800 dispatches/sec on K=3 spec
+# decode workload) cost ~0.5% TPS. Snapshot the env values once at module
+# load and inline them as literals into the text-patch body. Operators set
+# these the same way (env vars at container start) — the snapshot just
+# happens earlier (plugin register time) instead of per-dispatch.
+#
+# Trade-off: changing GENESIS_P67_MAX_PRIOR_LEN or
+# GENESIS_P67_DEBUG_COMPARE at runtime no longer takes effect — must
+# restart container. Acceptable: these are container-launch-time tunables.
+_BAKED_MAX_PRIOR = int(os.environ.get("GENESIS_P67_MAX_PRIOR_LEN", "4096"))
+_BAKED_DEBUG_COMPARE = (
+    os.environ.get("GENESIS_P67_DEBUG_COMPARE", "0") == "1"
+)
+log.info(
+    "[Genesis P67 H2] baked env at module load: MAX_PRIOR_LEN=%d "
+    "DEBUG_COMPARE=%s (no per-dispatch env reads)",
+    _BAKED_MAX_PRIOR, _BAKED_DEBUG_COMPARE,
+)
 
 
 # ─── Sub-patch: insert P67 hook at top of _prefill_attention ────────────────
@@ -103,9 +124,9 @@ P67_NEW = (
     "            # v7.34: split-M architecture eliminates per-row epilogue drift.\n"
     "            # Default threshold MUCH HIGHER (32K) since split-M is bit-exact\n"
     "            # to per-query precision. Tunable via GENESIS_P67_MAX_PRIOR_LEN.\n"
-    "            import os as _genesis_p67_os\n"
-    "            _genesis_p67_max_prior = int(_genesis_p67_os.environ.get(\n"
-    "                'GENESIS_P67_MAX_PRIOR_LEN', '4096'))\n"
+    "            # [Genesis P67 H2 v7.62.6] baked at module load instead of\n"
+    "            # per-dispatch env read (~0.5% TPS recovered).\n"
+    f"            _genesis_p67_max_prior = {_BAKED_MAX_PRIOR}\n"
     "            _genesis_p67_max_kp1 = 16\n"
     "            _genesis_p67_prior_len = (\n"
     "                attn_metadata.max_seq_len - attn_metadata.max_query_len\n"
@@ -185,12 +206,13 @@ P67_NEW = (
     "                        output=_genesis_p67_out_buf,\n"
     "                    )\n"
     "                    # DEBUG MODE v7.26: log stats + fall through to upstream.\n"
-    "                    # If GENESIS_P67_DEBUG_COMPARE=1, log P67 output statistics\n"
+    "                    # [Genesis P67 H2 v7.62.6] DEBUG_COMPARE baked at module load.\n"
+    "                    # If GENESIS_P67_DEBUG_COMPARE=1 was set at container start,\n"
+    "                    # log P67 output statistics\n"
     "                    # for first 5 dispatches but DON'T return — let upstream\n"
     "                    # produce clean output. Allows direct correctness verification\n"
     "                    # without poisoning the engine.\n"
-    "                    import os as _genesis_p67_os\n"
-    "                    _debug_compare = _genesis_p67_os.environ.get('GENESIS_P67_DEBUG_COMPARE', '0') == '1'\n"
+    f"                    _debug_compare = {_BAKED_DEBUG_COMPARE}\n"
     "                    if self._genesis_p67_dispatch_count <= 5:\n"
     "                        import torch as _genesis_p67_torch\n"
     "                        _stats_out = _genesis_p67_out.float().detach()\n"
