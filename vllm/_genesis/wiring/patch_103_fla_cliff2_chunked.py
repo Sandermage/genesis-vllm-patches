@@ -126,34 +126,48 @@ def _make_chunked_wrapper(
     # aligns with the kernel's chunk_size = 64.
     _MAX_T = (_MAX_T // fla_chunk_size) * fla_chunk_size
 
-    def chunked_fwd(
-        q: torch.Tensor,
-        k: torch.Tensor,
-        v: torch.Tensor,
-        g: torch.Tensor,
-        beta: torch.Tensor,
-        scale: float,
-        initial_state: torch.Tensor,
-        output_final_state: bool,
-        cu_seqlens: torch.Tensor | None = None,
-        chunk_indices: torch.Tensor | None = None,
-        chunk_offsets: torch.Tensor | None = None,
-    ):
-        T = q.shape[1]
+    # v7.62.20b — minimum-overhead fall-through. Decode (T=1) and
+    # short-prefill (T <= MAX_T) batches are 99%+ of calls; that path
+    # MUST be near-free. We use *args/**kwargs passthrough so the
+    # interpreter handles arg forwarding in C, not Python. The cu_seqlens
+    # check is positional/kwarg-aware.
+    _SUPPRESS_GE_3 = suppress_level >= 3
 
-        # Bypass conditions — fall back to original for cases where
-        # chunked path doesn't apply or would break correctness.
-        if (
-            cu_seqlens is not None
-            or T <= _MAX_T
-            or suppress_level >= 3
-        ):
+    if _SUPPRESS_GE_3:
+        # SUPPRESS_LEVEL >= 3: caller wants the raw h tensor, which our
+        # chunked path doesn't produce. Return identity wrapper —
+        # marker is set so is_applied() reports True, but no behavior change.
+        def chunked_fwd(*args, **kwargs):
+            return original_fwd(*args, **kwargs)
+        chunked_fwd.__name__ = "chunk_gated_delta_rule_fwd"
+        chunked_fwd.__doc__ = (
+            "[Genesis P103] identity wrapper "
+            f"(SUPPRESS_LEVEL={suppress_level} >=3, chunked path bypassed)"
+        )
+        setattr(chunked_fwd, _GENESIS_P103_MARKER_ATTR, True)
+        return chunked_fwd
+
+    def chunked_fwd(
+        q,
+        k,
+        v,
+        g,
+        beta,
+        scale,
+        initial_state,
+        output_final_state,
+        cu_seqlens=None,
+        chunk_indices=None,
+        chunk_offsets=None,
+    ):
+        # Hot-path: T <= MAX_T (always true for decode T=1, and most prefills)
+        # OR cu_seqlens is set (variable-length batches don't trigger Cliff 2).
+        # Direct positional return — no kwargs reconstruction overhead.
+        if cu_seqlens is not None or q.shape[1] <= _MAX_T:
             return original_fwd(
                 q, k, v, g, beta, scale,
                 initial_state, output_final_state,
-                cu_seqlens=cu_seqlens,
-                chunk_indices=chunk_indices,
-                chunk_offsets=chunk_offsets,
+                cu_seqlens, chunk_indices, chunk_offsets,
             )
 
         # Step 1: full-input setup. These allocations are small — they
