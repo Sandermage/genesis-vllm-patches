@@ -1473,6 +1473,36 @@ def apply_patch_84_hash_block_size_override() -> PatchResult:
 
 
 @register_patch(
+    "P100 FlashInfer FULL CUDA graph for spec-decode (vllm#41127 backport v7.62.17)"
+)
+def apply_patch_100_flashinfer_full_cg_specdec() -> PatchResult:
+    """Patch 100: backport of vllm#41127 (FlashInfer FULL CG for spec-decode).
+
+    Per Sander 2026-04-28: 'не ждём, изучаем, импортируем'. 11 sub-patches
+    on flashinfer.py. 27B variants (FlashInfer + spec-decode + non-DCP)
+    get UNIFORM_BATCH cudagraph instead of PIECEWISE.
+
+    Expected: +5-10% TPS on Ampere SM 8.6.
+    NO-OP for PROD (turboquant_attn backend).
+
+    Status: opt-in via GENESIS_ENABLE_P100=1.
+    """
+    name = "P100 FlashInfer FULL CUDA graph for spec-decode (vllm#41127)"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring import patch_100_flashinfer_full_cg_specdec
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_100_flashinfer_full_cg_specdec.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch(
     "P101 TQ continuation 64-token slicing (vllm#41123 selective v7.62.16)"
 )
 def apply_patch_101_tq_continuation_slicing() -> PatchResult:

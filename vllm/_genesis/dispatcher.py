@@ -378,6 +378,15 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             # Applies whenever spec-decode is active. All spec methods.
         },
     },
+    "P100": {
+        "title": "FlashInfer FULL CUDA graph for spec-decode (vllm#41127)",
+        "env_flag": "GENESIS_ENABLE_P100",
+        "default_on": False,
+        "category": "perf_hotfix",
+        "credit": "Backport of vllm#41127 (open 2026-04-28). Per Sander 'не ждём, изучаем, импортируем'. Native FlashInfer can route uniform query_len>1 (1+num_spec_tokens) batches through prefill wrapper in cudagraph mode (zero_rows padding bit-identical). Adds FISpecDecode dataclass + _get_spec_decode_prefill_wrapper method + per-row qo_indptr delta scan in build() + FISpecDecode case in forward(). 11 sub-patches on flashinfer.py. NO-OP for PROD (turboquant_attn). Active for 27B variants (FlashInfer + spec-decode + non-DCP). Expected: +5-10% TPS on Ampere SM 8.6.",
+        "upstream_pr": 41127,
+        "applies_to": {},  # FlashInfer auto-selected; gating via env_flag only
+    },
     "P101": {
         "title": "TQ continuation 64-token slicing (vllm#41123 SELECTIVE)",
         "env_flag": "GENESIS_ENABLE_P101",
