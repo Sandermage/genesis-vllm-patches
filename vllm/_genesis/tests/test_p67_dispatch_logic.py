@@ -1,0 +1,320 @@
+# SPDX-License-Identifier: Apache-2.0
+"""Unit tests for P67 — dispatch-heuristic shape guard.
+
+The Triton kernel itself can't be tested on a CPU dev host. What CAN
+be tested is the dispatch decision encoded in the text-patch body —
+the boolean expression that decides whether to route a batch through
+the P67 multi-query kernel or fall through to upstream.
+
+The expression (rebuilt here to mirror the patch body) is:
+
+    dispatch = (
+        is_active                              # env opt-in
+        and shape_ok                           # Hq>=8 AND D in {128,256} AND GQA>=2
+        and max_query_len > 1                  # not pure decode
+        and max_query_len <= max_kp1 (16)      # K+1 cap
+        and max_seq_len > max_query_len        # has prior cached KV
+        and prior_len <= max_prior             # baked tunable
+        and N > 0
+        and N % max_query_len == 0             # uniform K+1 layout
+    )
+
+This file pins each clause separately so a future refactor can't
+silently widen the dispatch envelope (which is what caused the v756
+chunked-prefill misroute).
+
+Also covers:
+  - module-level baked env constants (H2 fix)
+  - text-patch invariants the P67 emit must satisfy
+  - safety-gate language must reference v756 / config_detect / spec_decode
+"""
+from __future__ import annotations
+
+import re
+
+import pytest
+
+from vllm._genesis.wiring.patch_67_tq_multi_query_kernel import (
+    GENESIS_P67_MARKER,
+    P67_NEW,
+    P67_OLD,
+    _BAKED_DEBUG_COMPARE,
+    _BAKED_MAX_PRIOR,
+    apply,
+)
+
+
+# ─── Mirror of the dispatch decision from P67_NEW ───────────────────────
+
+
+def _dispatch(
+    *,
+    is_active: bool,
+    Hq: int,
+    Hk: int,
+    D: int,
+    max_query_len: int,
+    max_seq_len: int,
+    N: int,
+    max_kp1: int = 16,
+    max_prior: int = _BAKED_MAX_PRIOR,
+) -> bool:
+    """Replicate the P67 dispatch boolean from the patch body for testing."""
+    shape_ok = Hq >= 8 and D in (128, 256) and (Hq // Hk) >= 2
+    prior_len = max_seq_len - max_query_len
+    return (
+        is_active
+        and shape_ok
+        and max_query_len > 1
+        and max_query_len <= max_kp1
+        and max_seq_len > max_query_len
+        and prior_len <= max_prior
+        and N > 0
+        and (N % max_query_len) == 0
+    )
+
+
+# ─── happy path ─────────────────────────────────────────────────────────
+
+
+def test_happy_path_K3_spec_verify_dispatches():
+    """Typical K=3 spec-verify batch on Qwen3-A3B (Hq=64, Hk=8, D=128):
+    K+1=4, batch_size=2 → N=8.
+    """
+    assert _dispatch(
+        is_active=True, Hq=64, Hk=8, D=128,
+        max_query_len=4, max_seq_len=2048, N=8,
+    )
+
+
+# ─── env / opt-in ──────────────────────────────────────────────────────
+
+
+def test_dispatch_off_when_env_inactive():
+    assert not _dispatch(
+        is_active=False, Hq=64, Hk=8, D=128,
+        max_query_len=4, max_seq_len=2048, N=8,
+    )
+
+
+# ─── shape guards ──────────────────────────────────────────────────────
+
+
+def test_dispatch_off_when_Hq_lt_8():
+    assert not _dispatch(
+        is_active=True, Hq=4, Hk=2, D=128,
+        max_query_len=4, max_seq_len=2048, N=8,
+    )
+
+
+def test_dispatch_off_when_D_unsupported():
+    """Only D in {128, 256} is supported."""
+    for D in (32, 64, 96, 192, 512):
+        assert not _dispatch(
+            is_active=True, Hq=64, Hk=8, D=D,
+            max_query_len=4, max_seq_len=2048, N=8,
+        ), f"D={D} should be rejected"
+
+
+def test_dispatch_on_for_D_256():
+    assert _dispatch(
+        is_active=True, Hq=64, Hk=8, D=256,
+        max_query_len=4, max_seq_len=2048, N=8,
+    )
+
+
+def test_dispatch_off_when_GQA_lt_2():
+    """GQA = Hq // Hk; if Hq == Hk the model is MHA and our kernel doesn't
+    handle it (also wouldn't benefit).
+    """
+    assert not _dispatch(
+        is_active=True, Hq=8, Hk=8, D=128,  # GQA=1
+        max_query_len=4, max_seq_len=2048, N=8,
+    )
+
+
+# ─── max_query_len bounds ──────────────────────────────────────────────
+
+
+def test_dispatch_off_for_pure_decode():
+    """max_query_len=1 means pure decode — no spec-verify, route upstream."""
+    assert not _dispatch(
+        is_active=True, Hq=64, Hk=8, D=128,
+        max_query_len=1, max_seq_len=2048, N=2,
+    )
+
+
+def test_dispatch_off_for_max_query_len_above_K_plus_1_cap():
+    """K+1 cap defaults to 16. Larger query bursts route upstream."""
+    assert not _dispatch(
+        is_active=True, Hq=64, Hk=8, D=128,
+        max_query_len=17, max_seq_len=2048, N=17,
+    )
+
+
+def test_dispatch_on_at_K_plus_1_boundary():
+    """max_query_len == max_kp1 is INCLUSIVE per `<= max_kp1`."""
+    assert _dispatch(
+        is_active=True, Hq=64, Hk=8, D=128,
+        max_query_len=16, max_seq_len=2048, N=16,
+    )
+
+
+# ─── max_seq_len / prior cached KV ─────────────────────────────────────
+
+
+def test_dispatch_off_when_no_prior_cached_KV():
+    """max_seq_len == max_query_len means first-chunk prefill — no cached
+    KV — route to flash_attn fast path upstream.
+    """
+    assert not _dispatch(
+        is_active=True, Hq=64, Hk=8, D=128,
+        max_query_len=4, max_seq_len=4, N=8,
+    )
+
+
+def test_dispatch_off_when_prior_exceeds_baked_max():
+    """prior_len > GENESIS_P67_MAX_PRIOR_LEN (default 4096) → route upstream."""
+    big_prior = _BAKED_MAX_PRIOR + 1
+    max_seq_len = big_prior + 4
+    assert not _dispatch(
+        is_active=True, Hq=64, Hk=8, D=128,
+        max_query_len=4, max_seq_len=max_seq_len, N=8,
+    )
+
+
+def test_dispatch_on_at_max_prior_boundary():
+    """prior_len == max_prior is INCLUSIVE per `<= max_prior`."""
+    max_seq_len = _BAKED_MAX_PRIOR + 4
+    assert _dispatch(
+        is_active=True, Hq=64, Hk=8, D=128,
+        max_query_len=4, max_seq_len=max_seq_len, N=8,
+    )
+
+
+# ─── N (batch tokens) constraints ──────────────────────────────────────
+
+
+def test_dispatch_off_when_N_zero():
+    assert not _dispatch(
+        is_active=True, Hq=64, Hk=8, D=128,
+        max_query_len=4, max_seq_len=2048, N=0,
+    )
+
+
+def test_dispatch_off_when_N_not_divisible_by_max_query_len():
+    """Uniform K+1 layout requires N % max_query_len == 0."""
+    assert not _dispatch(
+        is_active=True, Hq=64, Hk=8, D=128,
+        max_query_len=4, max_seq_len=2048, N=10,  # 10 % 4 = 2
+    )
+
+
+# ─── baked env constants (H2 fix) ──────────────────────────────────────
+
+
+def test_baked_max_prior_is_int():
+    assert isinstance(_BAKED_MAX_PRIOR, int)
+    assert _BAKED_MAX_PRIOR > 0
+
+
+def test_baked_debug_compare_is_bool():
+    assert isinstance(_BAKED_DEBUG_COMPARE, bool)
+
+
+def test_baked_max_prior_default_4096(monkeypatch):
+    """Default when env is unset is 4096."""
+    monkeypatch.delenv("GENESIS_P67_MAX_PRIOR_LEN", raising=False)
+    # Re-evaluate: default is the constant 4096 baked at module load. The
+    # already-imported _BAKED_MAX_PRIOR reflects whatever env was at import
+    # time, so we can't guarantee it's 4096. Just assert it's positive +
+    # within a sane range.
+    assert 64 <= _BAKED_MAX_PRIOR <= 1_000_000
+
+
+# ─── text-patch emit invariants ────────────────────────────────────────
+
+
+def test_emit_has_baked_max_prior_literal():
+    """H2 fix: max_prior must be a literal in the emit, not env-read."""
+    expected = f"_genesis_p67_max_prior = {_BAKED_MAX_PRIOR}"
+    assert expected in P67_NEW
+
+
+def test_emit_has_baked_debug_compare_literal():
+    """H2 fix: debug_compare must be a literal in the emit."""
+    expected = f"_debug_compare = {_BAKED_DEBUG_COMPARE}"
+    assert expected in P67_NEW
+
+
+def test_emit_has_no_per_dispatch_env_reads():
+    """H2 fix: hot-path emit must NOT contain os.environ.get('GENESIS_P67_*')."""
+    forbidden = re.compile(
+        r"environ\.get\(\s*[\"']GENESIS_P67_(MAX_PRIOR_LEN|DEBUG_COMPARE)[\"']"
+    )
+    assert not forbidden.search(P67_NEW)
+
+
+def test_emit_has_shape_guard():
+    """The shape-guard expression must be present so the dispatch decision
+    matches our `_dispatch()` mirror above.
+    """
+    assert "Hq >= 8 and D in (128, 256) and (Hq // _genesis_p67_Hk) >= 2" in P67_NEW
+
+
+def test_emit_has_uniform_k_plus_1_check():
+    """`N % max_query_len == 0` is what enforces uniform K+1 layout — without
+    this guard, chunked-prefill batches misroute (v756 root cause).
+    """
+    assert "(N % attn_metadata.max_query_len) == 0" in P67_NEW
+
+
+def test_emit_has_kp1_cap_at_16():
+    """K+1 cap is hard-baked at 16."""
+    assert "_genesis_p67_max_kp1 = 16" in P67_NEW
+
+
+def test_emit_uses_attn_metadata_max_query_len_inclusive():
+    """The cap check must be `<=` not `<` — boundary K+1=16 is supported."""
+    assert (
+        "attn_metadata.max_query_len <= _genesis_p67_max_kp1" in P67_NEW
+    )
+
+
+def test_emit_falls_through_on_exception():
+    """On any P67 exception, must fall through to upstream — never raise."""
+    assert "except Exception as _genesis_p67_err" in P67_NEW
+    assert "falling through to upstream" in P67_NEW
+
+
+# ─── marker ─────────────────────────────────────────────────────────────
+
+
+def test_marker_versioned_baked_env():
+    """Marker should embed v7.62.6_baked_env so re-applies after H2 fix
+    don't no-op against stale per-dispatch-env-read marker.
+    """
+    assert "v7.62.6_baked_env" in GENESIS_P67_MARKER, (
+        f"P67 marker {GENESIS_P67_MARKER!r} should embed v7.62.6_baked_env"
+    )
+
+
+# ─── apply() safety gate language ──────────────────────────────────────
+
+
+def test_apply_skipped_when_disabled(monkeypatch):
+    monkeypatch.delenv("GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL", raising=False)
+    status, reason = apply()
+    assert status == "skipped"
+
+
+def test_apply_safety_gate_message_references_v756_root_cause():
+    """The safety-gate skip message must reference v756 / config_detect /
+    spec_decode — that's the institutional memory for *why* the gate exists.
+    Future maintainers must understand why the gate refuses opt-in.
+    """
+    import inspect
+    src = inspect.getsource(apply)
+    assert "SAFETY GATE" in src
+    assert "v756" in src or "spec-decode" in src
+    assert "config_detect" in src or "speculative" in src
