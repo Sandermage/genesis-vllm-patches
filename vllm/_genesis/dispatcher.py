@@ -387,6 +387,20 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "upstream_pr": 41127,
         "applies_to": {},  # FlashInfer auto-selected; gating via env_flag only
     },
+    "P105": {
+        "title": "TQ K/V dequant num_stages=3 (lmdeploy sm86 hint)",
+        "env_flag": "GENESIS_ENABLE_P105",
+        "default_on": False,
+        "category": "perf",
+        "credit": "Genesis-original 2026-04-29 from cross-engine grail research. lmdeploy uses num_warps=4, num_stages=3 for Ampere SM 8.6 prefill kernels with D≤128. Our TQ K/V dequant kernel (_tq_full_dequant_kv in turboquant_attn.py::_continuation_prefill) currently uses num_warps=4 without explicit num_stages (Triton default = 2). Adding num_stages=3 enables 3-stage async-copy pipeline. Predicted +0.5-1% on long-context prefill. Default OFF first deploy.",
+        "upstream_pr": None,
+        "applies_to": {
+            "kv_cache_dtype": [
+                "turboquant_k8v4", "turboquant_4bit_nc",
+                "turboquant_k3v4_nc", "turboquant_3bit_nc",
+            ],
+        },
+    },
     "P103": {
         "title": "FLA Cliff 2 chunked fwd_h+fwd_o orchestrator (qwen36-27b-single-3090#1)",
         "env_flag": "GENESIS_ENABLE_P103",
