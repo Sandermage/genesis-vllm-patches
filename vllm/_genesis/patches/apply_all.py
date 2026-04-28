@@ -1503,6 +1503,37 @@ def apply_patch_100_flashinfer_full_cg_specdec() -> PatchResult:
 
 
 @register_patch(
+    "P103 FLA Cliff 2 chunked fwd_h+fwd_o orchestrator (genesis-original v7.62.20)"
+)
+def apply_patch_103_fla_cliff2_chunked() -> PatchResult:
+    """Patch 103: chunked fwd_h+fwd_o for FLA GDN at long context.
+
+    Wraps `vllm.model_executor.layers.fla.ops.chunk.chunk_gated_delta_rule_fwd`
+    with a per-sub-T orchestrator that runs fwd_h + fwd_o chained, never
+    materializes the full (B, NT, H, V, K) hidden-state tensor.
+
+    Targets the Cliff 2 OOM at ~50-60K single-prompt prefill on 24 GB GPUs
+    (qwen36-27b-single-3090#1). Saves ~600 MiB headroom per rank at T=64K.
+    No-op for cu_seqlens != None or T <= MAX_T (default 16384).
+
+    Status: opt-in via GENESIS_ENABLE_P103=1.
+    """
+    name = "P103 FLA Cliff 2 chunked fwd_h+fwd_o orchestrator"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: monkey-patch ready")
+    try:
+        from vllm._genesis.wiring import patch_103_fla_cliff2_chunked
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_103_fla_cliff2_chunked.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch(
     "P101 TQ continuation 64-token slicing (vllm#41123 selective v7.62.16)"
 )
 def apply_patch_101_tq_continuation_slicing() -> PatchResult:

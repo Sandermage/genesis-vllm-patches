@@ -387,6 +387,21 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "upstream_pr": 41127,
         "applies_to": {},  # FlashInfer auto-selected; gating via env_flag only
     },
+    "P103": {
+        "title": "FLA Cliff 2 chunked fwd_h+fwd_o orchestrator (qwen36-27b-single-3090#1)",
+        "env_flag": "GENESIS_ENABLE_P103",
+        "default_on": False,
+        "category": "memory_hotfix",
+        "credit": "Genesis-original 2026-04-28 in response to noonghunna Cliff 2 OOM report (qwen36-27b-single-3090#1). Wraps chunk.py::chunk_gated_delta_rule_fwd to split T-dim into MAX_T sub-prompts; runs fwd_h + fwd_o per sub-call, chains final_state, never materializes full (B, NT, H, V, K) h tensor. For Qwen3.6-27B at T=64K: peak h drops 4x (805 → 200 MiB per rank). Saves ~600 MiB headroom for long-context single-GPU users. Falls back to original for cu_seqlens != None or T <= MAX_T. Default OFF; opt-in via GENESIS_ENABLE_P103=1. Threshold: GENESIS_FLA_FWD_H_MAX_T (default 16384, rounded down to FLA_CHUNK_SIZE multiple). KDA path uncovered (separate model class).",
+        "upstream_pr": None,
+        "applies_to": {
+            "model_arch": [
+                "Qwen3MoeForCausalLM",
+                "Qwen3_5ForConditionalGeneration",
+                "Qwen3NextForCausalLM",
+            ],
+        },
+    },
     "P101": {
         "title": "TQ continuation 64-token slicing (vllm#41123 SELECTIVE)",
         "env_flag": "GENESIS_ENABLE_P101",
