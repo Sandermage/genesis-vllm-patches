@@ -84,7 +84,7 @@ def _build_kernel_fused(tl, triton):
     """
 
     @triton.jit
-    def _p67_v9_fused_cache(
+    def _p67_v10_fused_cache_log2e(
         Q_ptr,
         KV_cache_ptr,
         Block_table_ptr,
@@ -109,8 +109,16 @@ def _build_kernel_fused(tl, triton):
         KPS: tl.constexpr,
         VAL_DATA_BYTES: tl.constexpr,
         FP8_E4B15: tl.constexpr = 0,
+        DOT_FP16: tl.constexpr = 0,
     ):
-        """Grid: (B, num_kv_heads, 1). Same as split-M."""
+        """Grid: (B, num_kv_heads, 1). Same as split-M.
+
+        v7.62.19 (Phase 2): DOT_FP16 constexpr — when 1, cast Q/K/V to fp16
+        before tl.dot and drop input_precision='tf32x3'. Yields native fp16
+        Tensor Core path (1 dot/MMA) vs Markidis tf32x3 (3 dots/MMA).
+        Expected +15-25% on Ampere consumer (lmdeploy/SGLang/FlashInfer
+        cross-engine consensus). Opt-in via GENESIS_P67_DOT_PRECISION=fp16.
+        """
         bid = tl.program_id(0)
         kv_head = tl.program_id(1)
 
@@ -156,6 +164,10 @@ def _build_kernel_fused(tl, triton):
         bt_base = bid * stride_bt_b
         _kv_head_byte_offset = tl.cast(kv_head, tl.int64) * stride_cache_head
         _LOG2E = 1.4426950408889634
+        # v7.62.19 (P67 v2 Phase 1): fuse SCALE*LOG2E once outside loop;
+        # eliminates per-element LOG2E mul on alpha and P (lmdeploy idiom,
+        # 1 mul per BLOCK_M + 1 mul per BLOCK_M*BLOCK_KV per tile saved).
+        SCALE_LOG2E = SCALE * _LOG2E
 
         for start_n in tl.range(0, total_seq_len, BLOCK_KV):
             seq_offset = start_n + offs_kv
@@ -218,9 +230,21 @@ def _build_kernel_fused(tl, triton):
             V_tile = V_safe  # [BLOCK_KV, BLOCK_D] fp32
 
             # ─── FUSED single-MMA QK ───
-            # S = SCALE * Q @ K_tile, [BLOCK_M, BLOCK_KV]
+            # S = SCALE_LOG2E * Q @ K_tile, [BLOCK_M, BLOCK_KV]
             # Full m=BLOCK_M=32 → mma.sync.m16n8k16 fully utilized.
-            S = SCALE * tl.dot(Q, K_tile, out_dtype=tl.float32, input_precision='tf32x3')
+            # v7.62.19: LOG2E pre-multiplied here, so exp2 below skips it.
+            if DOT_FP16:
+                # Native fp16 path: 1 dot/MMA on Ampere TC vs tf32x3=3 dots.
+                # Q/K stay fp32 in their carriers; cast before MMA only.
+                S = SCALE_LOG2E * tl.dot(
+                    Q.to(tl.float16), K_tile.to(tl.float16),
+                    out_dtype=tl.float32,
+                )
+            else:
+                S = SCALE_LOG2E * tl.dot(
+                    Q, K_tile,
+                    out_dtype=tl.float32, input_precision='tf32x3',
+                )
 
             # ─── PER-ROW causal + head mask ───
             # q_abs_pos[BLOCK_M] vs seq_offset[BLOCK_KV] → [BLOCK_M, BLOCK_KV]
@@ -231,14 +255,22 @@ def _build_kernel_fused(tl, triton):
             S = tl.where(valid, S, -3.4028234663852886e38)
 
             # ─── Vector online softmax over BLOCK_M rows ───
+            # v7.62.19: M_state already in log2 domain (S_log2 = SCALE_LOG2E*QK),
+            # so exp2 inputs are bare diffs — no per-element LOG2E mul needed.
             M_new = tl.maximum(tl.max(S, axis=1), M_state)  # [BLOCK_M]
-            alpha = tl.exp2((M_state - M_new) * _LOG2E)     # [BLOCK_M]
-            P = tl.exp2((S - M_new[:, None]) * _LOG2E)      # [BLOCK_M, BLOCK_KV]
+            alpha = tl.exp2(M_state - M_new)                # [BLOCK_M]
+            P = tl.exp2(S - M_new[:, None])                 # [BLOCK_M, BLOCK_KV]
             L_state = L_state * alpha + tl.sum(P, axis=1)   # [BLOCK_M]
             # Single MMA for acc update
-            acc = acc * alpha[:, None] + tl.dot(
-                P, V_tile, out_dtype=tl.float32, input_precision='tf32x3'
-            )
+            if DOT_FP16:
+                acc = acc * alpha[:, None] + tl.dot(
+                    P.to(tl.float16), V_tile.to(tl.float16),
+                    out_dtype=tl.float32,
+                )
+            else:
+                acc = acc * alpha[:, None] + tl.dot(
+                    P, V_tile, out_dtype=tl.float32, input_precision='tf32x3'
+                )
             M_state = M_new
 
         # ───── Epilogue: normalize + scatter to (B, K+1, Hq, D) output ─────
@@ -257,7 +289,7 @@ def _build_kernel_fused(tl, triton):
             mask=head_mask[:, None] & d_mask[None, :],
         )
 
-    return _p67_v9_fused_cache
+    return _p67_v10_fused_cache_log2e
 
 
 def _build_kernel():
@@ -293,7 +325,7 @@ def _build_kernel():
         return _build_kernel_fused(tl, triton)
 
     @triton.jit
-    def _p67_v8_split_m_cache(
+    def _p67_v9_split_m_cache_log2e(
         Q_ptr,
         KV_cache_ptr,
         Block_table_ptr,
@@ -318,6 +350,7 @@ def _build_kernel():
         KPS: tl.constexpr,
         VAL_DATA_BYTES: tl.constexpr,
         FP8_E4B15: tl.constexpr = 0,
+        DOT_FP16: tl.constexpr = 0,
     ):
         """Grid: (B, num_kv_heads, 1).
 
@@ -364,6 +397,9 @@ def _build_kernel():
         # per-tile seq_offset. Triton would also hoist this with -O2 but
         # explicit hoist matches the upstream MLA decode optimization.
         _kv_head_byte_offset = tl.cast(kv_head, tl.int64) * stride_cache_head
+        # v7.62.19 (P67 v2 Phase 1): hoist SCALE*LOG2E pre-multiply.
+        _LOG2E_split = 1.4426950408889634
+        SCALE_LOG2E_split = SCALE * _LOG2E_split
 
         # v7.51 NOTE: experimented with explicit hoist of all K_PLUS_1 Q
         # tiles before the outer KV loop (load once as [K_PLUS_1, BLOCK_QH,
@@ -490,7 +526,18 @@ def _build_kernel():
                 # tf32x3: Markidis 3xTF32 emulation — Tensor Core throughput
                 # with ~700x precision boost vs default TF32 (CUTLASS data).
                 # Requires fp32 inputs (which we have).
-                S_t = SCALE * tl.dot(Q_t, K_tile, out_dtype=tl.float32, input_precision='tf32x3')
+                # v7.62.19: SCALE_LOG2E_split absorbs LOG2E pre-multiply
+                # → exp2 below operates on bare diffs. Phase 2: fp16 dot opt-in.
+                if DOT_FP16:
+                    S_t = SCALE_LOG2E_split * tl.dot(
+                        Q_t.to(tl.float16), K_tile.to(tl.float16),
+                        out_dtype=tl.float32,
+                    )
+                else:
+                    S_t = SCALE_LOG2E_split * tl.dot(
+                        Q_t, K_tile,
+                        out_dtype=tl.float32, input_precision='tf32x3',
+                    )
 
                 # Per-row causal mask for this q_t:
                 # q_abs_pos_t (scalar) >= seq_offset[n]
@@ -516,17 +563,23 @@ def _build_kernel():
                 # ex2(x*log2e) so adds one mul. Pre-multiply by LOG2E = 1.4426...
                 # at the input (S_t and M-diff) and use exp2 throughout. Net:
                 # one fewer fp mul per softmax step in hot inner loop.
-                # SM_LOG2E = 1.4426950408889634 (standard math.log2(e))
-                _LOG2E = 1.4426950408889634
+                # v7.62.19: M_state already in log2 domain; no per-element
+                # _LOG2E mul on the exp2 inputs (fused into SCALE_LOG2E_split).
                 M_new_t = tl.maximum(tl.max(S_t, axis=1), M_old_t)
-                alpha_t = tl.exp2((M_old_t - M_new_t) * _LOG2E)
-                P_t = tl.exp2((S_t - M_new_t[:, None]) * _LOG2E)
+                alpha_t = tl.exp2(M_old_t - M_new_t)
+                P_t = tl.exp2(S_t - M_new_t[:, None])
                 L_new_t = L_old_t * alpha_t + tl.sum(P_t, axis=1)
                 # PV for this q_t: [BLOCK_QH, BLOCK_D]
                 # P_t already fp32, V_tile fp32 → IEEE software dot for full precision.
-                acc_new_t = acc_old_t * alpha_t[:, None] + tl.dot(
-                    P_t, V_tile, out_dtype=tl.float32, input_precision='tf32x3'
-                )
+                if DOT_FP16:
+                    acc_new_t = acc_old_t * alpha_t[:, None] + tl.dot(
+                        P_t.to(tl.float16), V_tile.to(tl.float16),
+                        out_dtype=tl.float32,
+                    )
+                else:
+                    acc_new_t = acc_old_t * alpha_t[:, None] + tl.dot(
+                        P_t, V_tile, out_dtype=tl.float32, input_precision='tf32x3'
+                    )
 
                 # Write back into per-q_t accumulator slots via where-mask.
                 M_state = tl.where(t_mask[:, None], M_new_t[None, :], M_state)
@@ -553,7 +606,7 @@ def _build_kernel():
             mask=head_mask[None, :, None] & d_mask[None, None, :],
         )
 
-    return _p67_v8_split_m_cache
+    return _p67_v9_split_m_cache_log2e
 
 
 def _get_kernel():
@@ -651,6 +704,11 @@ def call_p67_attention(
     )
 
     fp8_e4b15 = _detect_fp8_mode()
+    # v7.62.19 Phase 2: opt-in fp16 dot (drops tf32x3 emulation, +15-25%
+    # cross-engine consensus). Default 0 = tf32x3 (current safe path).
+    dot_fp16 = 1 if os.environ.get(
+        "GENESIS_P67_DOT_PRECISION", "tf32x3"
+    ).strip().lower() == "fp16" else 0
 
     grid = (B, Hk, 1)
     kernel[grid](
@@ -673,6 +731,7 @@ def call_p67_attention(
         KPS=kps,
         VAL_DATA_BYTES=val_data_bytes,
         FP8_E4B15=fp8_e4b15,
+        DOT_FP16=dot_fp16,
         num_warps=cfg["num_warps"],
         num_stages=cfg["num_stages"],
     )
