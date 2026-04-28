@@ -212,6 +212,13 @@ class AdaptiveNgramController:
             and accept_rate < self.disable_threshold
             and self.current_K > 0
         ):
+            # B4 fix v7.62.12: save OLD K as last_K BEFORE the transition
+            # (mirrors hysteresis branch line 245). Previous behavior set
+            # last_K = 0, breaking the "previous K" semantic and the log
+            # message at line 219 used self.last_K which was already
+            # overwritten in PRIOR disable cycles.
+            _previous_K = self.current_K
+            self.last_K = self.current_K
             self.current_K = 0
             self.disabled_steps += 1
             self.transitions += 1
@@ -219,10 +226,9 @@ class AdaptiveNgramController:
                 "[Genesis P77] DISABLE: K %d->0 (batch_avg_accept=%.2f, "
                 "accept_rate=%.2f%% < %.2f%% threshold). EMA=%.2f. "
                 "Will re-probe in %d batches.",
-                self.last_K, batch_avg, accept_rate * 100,
+                _previous_K, batch_avg, accept_rate * 100,
                 self.disable_threshold * 100, self.ema, self.probe_interval,
             )
-            self.last_K = 0
             return
 
         # Hysteresis: pick highest step <= ema + hyst_up, requiring at least

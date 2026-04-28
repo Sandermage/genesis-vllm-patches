@@ -164,6 +164,29 @@ def test_auto_disable_when_accept_rate_below_threshold(monkeypatch):
     assert c.transitions == 1
 
 
+def test_b4_disable_records_previous_K_as_last_K(monkeypatch):
+    """B4 fix v7.62.12: when auto-disable triggers, last_K must record the
+    PREVIOUS K (not the new 0). Without this fix, last_K was overwritten to
+    0, breaking the "previous K" semantic + corrupting log message at line 219.
+    """
+    monkeypatch.setenv("GENESIS_P77_WARMUP_BATCHES", "0")
+    monkeypatch.setenv("GENESIS_P77_UPDATE_INTERVAL", "1")
+    monkeypatch.setenv("GENESIS_P77_DISABLE_THRESHOLD", "0.30")
+    c = AdaptiveNgramController()
+    c.current_K = 5  # was running at K=5 before auto-disable trigger
+    c.last_K = 3  # previous transition was 3->5
+
+    # accept_rate = 0/5 = 0 << 0.30 → auto-disable
+    c.update([0, 0, 0], [5] * 3)
+
+    assert c.current_K == 0, "auto-disable should set K=0"
+    assert c.last_K == 5, (
+        f"B4 fix: last_K must be PREVIOUS K (5), got {c.last_K}. "
+        "If 0, this is the pre-fix bug — last_K incorrectly assigned to "
+        "the NEW value, breaking 'previous K' semantic."
+    )
+
+
 def test_no_auto_disable_when_zero_not_in_steps(monkeypatch):
     """If 0 is not in steps, controller must not pick it."""
     monkeypatch.setenv("GENESIS_P77_STEPS", "1,3,5")
