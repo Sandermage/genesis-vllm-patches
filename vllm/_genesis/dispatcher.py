@@ -378,6 +378,20 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             # Applies whenever spec-decode is active. All spec methods.
         },
     },
+    "P98": {
+        "title": "TQ WorkspaceManager revert (vllm#40941 perf hotfix)",
+        "env_flag": "GENESIS_ENABLE_P98",
+        "default_on": False,
+        "category": "perf_hotfix",
+        "credit": "Reverts upstream PR #40941 WorkspaceManager indirection in turboquant_attn._decode_attention hot path. Diagnosis 2026-04-28: NEW vllm caused 17% TPS regression on PROD (200 → 167 TPS) due to current_workspace_manager().get_simultaneous() Python lookup × N layers × per-step. Restores OLD per-layer cached buffer pattern. Memory cost: O(num_layers) extra dequant buffers (~1GB for 64-layer model). DO NOT enable on H100/H200 high-concurrency where WorkspaceManager amortizes better. Author: Sandermage.",
+        "upstream_pr": 40941,
+        "applies_to": {
+            "kv_cache_dtype": [
+                "turboquant_k8v4", "turboquant_4bit_nc",
+                "turboquant_k3v4_nc", "turboquant_3bit_nc",
+            ],
+        },
+    },
     "P95": {
         "title": "Marlin TP cudagraph cap on Ampere (vllm#40385)",
         "env_flag": "GENESIS_ENABLE_P95",

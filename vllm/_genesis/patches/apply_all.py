@@ -1473,6 +1473,36 @@ def apply_patch_84_hash_block_size_override() -> PatchResult:
 
 
 @register_patch(
+    "P98 TQ WorkspaceManager revert (vllm#40941 perf hotfix v7.62.14)"
+)
+def apply_patch_98_tq_workspace_revert() -> PatchResult:
+    """Patch 98: revert WorkspaceManager indirection in turboquant_attn.py.
+
+    Diagnosis 2026-04-28: NEW vllm caused 17% TPS regression on PROD
+    (200 → 167 TPS) due to current_workspace_manager().get_simultaneous()
+    Python lookup × N layers × per-step in _decode_attention.
+
+    Restores OLD per-layer cached buffer pattern (pre-vllm#40941). Memory
+    cost: O(num_layers) extra dequant buffers (~1GB for 64-layer).
+
+    Status: opt-in via GENESIS_ENABLE_P98=1.
+    """
+    name = "P98 TQ WorkspaceManager revert (vllm#40941 perf hotfix)"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring import patch_98_tq_workspace_revert
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_98_tq_workspace_revert.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch(
     "P94 Spec-decode prepare_next_token_ids_padded zero-alloc (vllm#41043 backport)"
 )
 def apply_patch_94_spec_decode_zero_alloc() -> PatchResult:
