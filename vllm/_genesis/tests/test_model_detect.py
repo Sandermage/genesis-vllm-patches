@@ -222,6 +222,65 @@ def test_hybrid_moe_combined_qwen3_next_a3b(monkeypatch):
     assert profile["hybrid"] is True
 
 
+def test_hybrid_qwen3_5_multimodal_text_config_layer_types(monkeypatch):
+    # Minachist Qwen3.6-27B-INT8-AutoRound (Qwen3_5ForConditionalGeneration):
+    # multimodal config with `layer_types` buried in `text_config`. The
+    # top-level model_type ("qwen3_5") is NOT a known-hybrid marker, and the
+    # arch name does not contain mamba/hybrid/next. Without nested recursion
+    # into text_config, the model would silently be classified as dense and
+    # ALL hybrid-class patches (P5/P5b/P8/P28/P34/P39a/P46) would skip,
+    # erasing ~7 critical optimizations. Regression test for v7.62 fix.
+    text_layer_types = (
+        ["linear_attention"] * 3 + ["full_attention"]
+        + ["linear_attention"] * 44 + ["full_attention"] * 16
+    )  # 64 layers total: 48 linear + 16 full
+    text_cfg = FakeHFConfig(
+        model_type="qwen3_5_text", layer_types=text_layer_types,
+    )
+    vision_cfg = FakeHFConfig(model_type="qwen3_5")
+    cfg = FakeVllmConfig(
+        FakeHFConfig(
+            model_type="qwen3_5",
+            architectures=["Qwen3_5ForConditionalGeneration"],
+            text_config=text_cfg,
+            vision_config=vision_cfg,
+        ),
+    )
+    monkeypatch.setattr(
+        "vllm.config.get_current_vllm_config", lambda: cfg, raising=False,
+    )
+    model_detect.clear_for_tests()
+    profile = model_detect.get_model_profile()
+    assert profile["resolved"] is True
+    assert profile["hybrid"] is True, (
+        "Qwen3_5 multimodal hybrid not detected — text_config.layer_types "
+        "recursion broken; this re-enables the v7.62 silent-skip bug"
+    )
+    assert profile["hybrid_details"].get("hybrid_source") == "text_config.layer_types"
+    assert profile["moe"] is False  # Minachist 27B is dense (no num_experts)
+
+
+def test_hybrid_nested_model_type_marker(monkeypatch):
+    # Defensive coverage: hybrid model where layer_types is missing entirely
+    # but nested model_type contains a known marker (e.g. some future
+    # multimodal Mamba variant ships with text_config.model_type="mamba2").
+    text_cfg = FakeHFConfig(model_type="mamba2_lm")
+    cfg = FakeVllmConfig(
+        FakeHFConfig(
+            model_type="some_multimodal",
+            architectures=["SomeMultimodalForConditionalGeneration"],
+            text_config=text_cfg,
+        ),
+    )
+    monkeypatch.setattr(
+        "vllm.config.get_current_vllm_config", lambda: cfg, raising=False,
+    )
+    model_detect.clear_for_tests()
+    profile = model_detect.get_model_profile()
+    assert profile["hybrid"] is True
+    assert profile["hybrid_details"].get("hybrid_source") == "text_config.model_type"
+
+
 # ════════════════════════════════════════════════════════════════════════
 #                         TURBOQUANT DETECTION
 # ════════════════════════════════════════════════════════════════════════

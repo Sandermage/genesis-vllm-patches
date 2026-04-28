@@ -158,31 +158,64 @@ def _probe_hybrid(hf_config: Any) -> tuple[bool, dict[str, Any]]:
     """Inspect config for hybrid linear-attention signals (Mamba2 / GDN / SSM).
 
     Returns (is_hybrid, details).
+
+    Multimodal configs (Qwen3.5 ConditionalGeneration, LLaVA-class) keep the
+    language-model `layer_types` and `model_type` in a nested `text_config` /
+    `language_config` / `thinker_config`. We scan top-level first, then nested
+    sub-configs. Mirrors the same nested pattern as `_probe_moe()`.
     """
     details: dict[str, Any] = {}
 
-    # Primary: Qwen3-Next-style `layer_types` list contains "linear_attention"
-    layer_types = getattr(hf_config, "layer_types", None)
-    if layer_types is not None:
-        details["layer_types_sample"] = (
-            list(layer_types)[:8] if hasattr(layer_types, "__iter__") else None
-        )
+    def _scan_layer_types(obj: Any, source_label: str) -> Optional[bool]:
+        """Return True if obj.layer_types contains a hybrid marker, None if no
+        layer_types attr. Always records sample into details."""
+        lt = getattr(obj, "layer_types", None)
+        if lt is None and isinstance(obj, dict):
+            lt = obj.get("layer_types")
+        if lt is None:
+            return None
         try:
-            for lt in layer_types:
-                s = str(lt).lower()
+            sample = list(lt)[:8]
+            details.setdefault(f"{source_label}layer_types_sample", sample)
+            for entry in lt:
+                s = str(entry).lower()
                 if "linear" in s or "mamba" in s or "gdn" in s or "ssm" in s:
-                    return True, {**details, "hybrid_source": "layer_types"}
+                    return True
         except Exception:
             pass
+        return False
 
-    # Secondary: model_type
-    model_type = getattr(hf_config, "model_type", "") or ""
-    details["model_type"] = model_type
-    if model_type:
-        lowered = model_type.lower()
-        for marker in ("qwen3_next", "mamba", "falcon_mamba", "gdn", "hybrid"):
-            if marker in lowered:
-                return True, {**details, "hybrid_source": "model_type"}
+    # Primary: layer_types — top-level then nested (multimodal)
+    if _scan_layer_types(hf_config, "") is True:
+        return True, {**details, "hybrid_source": "layer_types"}
+    for sub in ("text_config", "language_config", "thinker_config"):
+        nested = getattr(hf_config, sub, None)
+        if nested is not None and _scan_layer_types(nested, f"{sub}.") is True:
+            return True, {**details, "hybrid_source": f"{sub}.layer_types"}
+
+    # Secondary: model_type — top-level then nested
+    def _scan_model_type(obj: Any) -> Optional[str]:
+        mt = getattr(obj, "model_type", None)
+        if mt is None and isinstance(obj, dict):
+            mt = obj.get("model_type")
+        return (str(mt) if mt else None)
+
+    top_mt = _scan_model_type(hf_config) or ""
+    details["model_type"] = top_mt
+    markers = ("qwen3_next", "mamba", "falcon_mamba", "gdn", "hybrid")
+    for marker in markers:
+        if marker in top_mt.lower():
+            return True, {**details, "hybrid_source": "model_type"}
+    for sub in ("text_config", "language_config", "thinker_config"):
+        nested = getattr(hf_config, sub, None)
+        if nested is None:
+            continue
+        nested_mt = _scan_model_type(nested) or ""
+        if nested_mt:
+            details.setdefault(f"{sub}.model_type", nested_mt)
+            for marker in markers:
+                if marker in nested_mt.lower():
+                    return True, {**details, "hybrid_source": f"{sub}.model_type"}
 
     # Tertiary: architecture
     architectures = getattr(hf_config, "architectures", None) or []
