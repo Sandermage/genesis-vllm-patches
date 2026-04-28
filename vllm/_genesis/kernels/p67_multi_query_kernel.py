@@ -84,7 +84,7 @@ def _build_kernel_fused(tl, triton):
     """
 
     @triton.jit
-    def _p67_v17_fused_clean(
+    def cutlass_genesis_p67_v18_fused(
         Q_ptr,
         KV_cache_ptr,
         Block_table_ptr,
@@ -303,7 +303,7 @@ def _build_kernel_fused(tl, triton):
             mask=head_mask[:, None] & d_mask[None, :],
         )
 
-    return _p67_v17_fused_clean
+    return cutlass_genesis_p67_v18_fused
 
 
 def _build_kernel():
@@ -339,7 +339,7 @@ def _build_kernel():
         return _build_kernel_fused(tl, triton)
 
     @triton.jit
-    def _p67_v16_split_m_clean(
+    def cutlass_genesis_p67_v17_split_m(
         Q_ptr,
         KV_cache_ptr,
         Block_table_ptr,
@@ -625,7 +625,7 @@ def _build_kernel():
             mask=head_mask[None, :, None] & d_mask[None, None, :],
         )
 
-    return _p67_v16_split_m_clean
+    return cutlass_genesis_p67_v17_split_m
 
 
 def _get_kernel():
