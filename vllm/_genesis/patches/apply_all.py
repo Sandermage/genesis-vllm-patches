@@ -1473,6 +1473,33 @@ def apply_patch_84_hash_block_size_override() -> PatchResult:
 
 
 @register_patch(
+    "P99 WorkspaceManager memoize get_simultaneous (perf hotfix v7.62.15)"
+)
+def apply_patch_99_workspace_manager_memoize() -> PatchResult:
+    """Patch 99: memoize WorkspaceManager.get_simultaneous().
+
+    Per Sander 2026-04-28 direct request 'if revert gives speedup, look at
+    kernel — maybe rewrite'. P99 keeps upstream design but adds memo cache
+    by (shapes_and_dtypes, ubatch_id, ws_data_ptr).
+
+    Status: opt-in via GENESIS_ENABLE_P99=1.
+    """
+    name = "P99 WorkspaceManager memoize get_simultaneous (perf hotfix)"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring import patch_99_workspace_manager_memoize
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_99_workspace_manager_memoize.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch(
     "P98 TQ WorkspaceManager revert (vllm#40941 perf hotfix v7.62.14)"
 )
 def apply_patch_98_tq_workspace_revert() -> PatchResult:

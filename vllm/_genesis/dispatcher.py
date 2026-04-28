@@ -378,6 +378,15 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             # Applies whenever spec-decode is active. All spec methods.
         },
     },
+    "P99": {
+        "title": "WorkspaceManager.get_simultaneous memoization (perf hotfix)",
+        "env_flag": "GENESIS_ENABLE_P99",
+        "default_on": False,
+        "category": "perf_hotfix",
+        "credit": "Per Sander 2026-04-28: 'if revert gives speedup, look at kernel — maybe rewrite'. P99 keeps upstream WorkspaceManager design (shared memory, 60x savings) but adds memoization to bypass per-call list-comp + accumulate + _ensure_workspace_size. Cache hit ~5x faster than full computation. Composes with P98 (P98 reverts turboquant_attn to per-layer; P99 helps any other backend using WorkspaceManager).",
+        "upstream_pr": 40941,
+        "applies_to": {},  # applies whenever WorkspaceManager is used
+    },
     "P98": {
         "title": "TQ WorkspaceManager revert (vllm#40941 perf hotfix)",
         "env_flag": "GENESIS_ENABLE_P98",
