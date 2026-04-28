@@ -353,6 +353,17 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             ],
         },
     },
+    "P94": {
+        "title": "Spec-decode prepare_next_token_ids_padded zero-alloc (vllm#41043)",
+        "env_flag": "GENESIS_ENABLE_P94",
+        "default_on": False,
+        "category": "spec_decode",
+        "credit": "Backport of vllm#41043 (wangluochao902, OPEN). Removes GPU->CPU .tolist() sync + list-comp Python objects + np.array allocation in LLMBaseProposer.prepare_next_token_ids_padded hot path. PR author measured P99 TPOT -9.3% on Llama-3.1-8B + Eagle3 TP=4. For our MTP K=3 single-stream: expected +2-4% wall TPS + tighter CV.",
+        "upstream_pr": 41043,
+        "applies_to": {
+            # Applies whenever spec-decode is active. All spec methods.
+        },
+    },
     "P91": {
         "title": "AutoRound row-parallel group cdiv + start-idx fix (vllm#39460)",
         "env_flag": "GENESIS_ENABLE_P91",

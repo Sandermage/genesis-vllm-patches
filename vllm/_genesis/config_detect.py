@@ -422,7 +422,17 @@ def get_runtime_profile() -> dict[str, Any]:
     """
     global _CACHED_PROFILE
     if _CACHED_PROFILE is not None:
-        return _CACHED_PROFILE
+        # H3 fix (research agent aae2c26c, 2026-04-28): re-probe if previously
+        # cached as UNRESOLVED but vllm config is now available. Avoids
+        # stale unresolved profile masking subsequent resolved data after
+        # apply_all phase ends. Cheap: just one is-not-None check on cache hit.
+        if not _CACHED_PROFILE.get("resolved", False):
+            if _try_get_vllm_config() is not None:
+                _CACHED_PROFILE = None  # fall through to fresh probe
+            else:
+                return _CACHED_PROFILE
+        else:
+            return _CACHED_PROFILE
 
     cfg = _try_get_vllm_config()
     if cfg is None:
@@ -449,6 +459,10 @@ def get_runtime_profile() -> dict[str, Any]:
                 if k != "spec_decode_enabled":
                     profile[k] = v
         profile["recommendations"] = _recommend_for_patches(profile)
+        # H3 fix: cache the unresolved profile too. Saves ~33 patches × 5
+        # source-file-read probes = ~100 ms boot time. Re-probe trigger at
+        # cache-hit time when vllm config becomes available (above).
+        _CACHED_PROFILE = profile
         return profile
 
     profile = {"resolved": True}

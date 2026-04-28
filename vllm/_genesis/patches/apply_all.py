@@ -1473,6 +1473,40 @@ def apply_patch_84_hash_block_size_override() -> PatchResult:
 
 
 @register_patch(
+    "P94 Spec-decode prepare_next_token_ids_padded zero-alloc (vllm#41043 backport)"
+)
+def apply_patch_94_spec_decode_zero_alloc() -> PatchResult:
+    """Patch 94: backport of vllm#41043 (wangluochao902, OPEN).
+
+    Replaces GPU->CPU .tolist() + list-comprehension + np.array allocation
+    chain in `LLMBaseProposer.prepare_next_token_ids_padded` with an
+    in-place loop. Algorithmic identity preserved.
+
+    PR author measured P99 TPOT -9.3% on Llama-3.1-8B + Eagle3 TP=4.
+    For our MTP K=3 single-stream: expected +2-4% wall TPS + tighter CV.
+
+    Applies to ALL spec methods (Eagle, MTP, ngram, draft model).
+    Status: opt-in via GENESIS_ENABLE_P94=1, default OFF.
+    """
+    name = (
+        "P94 Spec-decode prepare_next_token_ids_padded zero-alloc "
+        "(vllm#41043 backport)"
+    )
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring import patch_94_spec_decode_zero_alloc
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_94_spec_decode_zero_alloc.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch(
     "P91 AutoRound row-parallel group cdiv + start-idx fix (vllm#39460 backport)"
 )
 def apply_patch_91_autoround_row_group_cdiv() -> PatchResult:
