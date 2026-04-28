@@ -84,7 +84,7 @@ def _build_kernel_fused(tl, triton):
     """
 
     @triton.jit
-    def _p67_v15_fused_qk_tf32_single(
+    def _p67_v17_fused_clean(
         Q_ptr,
         KV_cache_ptr,
         Block_table_ptr,
@@ -169,6 +169,10 @@ def _build_kernel_fused(tl, triton):
         # 1 mul per BLOCK_M + 1 mul per BLOCK_M*BLOCK_KV per tile saved).
         SCALE_LOG2E = SCALE * _LOG2E
 
+        # v7.62.22 reverted: Triton 3.6 flags (disallow_acc_multi_buffer +
+        # loop_unroll_factor=2) microbench REGRESSED -6.5% on 35B split-M
+        # path (BLOCK_M=4). Removed multi-buffering benefit, raised register
+        # pressure. May help fused-M (BLOCK_M=32) — kept default tl.range.
         for start_n in tl.range(0, total_seq_len, BLOCK_KV):
             seq_offset = start_n + offs_kv
             tile_mask = seq_offset < total_seq_len
@@ -299,7 +303,7 @@ def _build_kernel_fused(tl, triton):
             mask=head_mask[:, None] & d_mask[None, :],
         )
 
-    return _p67_v15_fused_qk_tf32_single
+    return _p67_v17_fused_clean
 
 
 def _build_kernel():
@@ -335,7 +339,7 @@ def _build_kernel():
         return _build_kernel_fused(tl, triton)
 
     @triton.jit
-    def _p67_v14_split_m_qk_tf32_single(
+    def _p67_v16_split_m_clean(
         Q_ptr,
         KV_cache_ptr,
         Block_table_ptr,
@@ -424,6 +428,7 @@ def _build_kernel():
         # v7.50: tl.range() instead of range() — explicit Triton pipelining
         #        hint, lets the compiler overlap async-copy with MMA across
         #        iterations. Adopted from vllm#33529 (merged 2026-04-02).
+        # v7.62.22 reverted: Triton 3.6 flags regressed -6.5% on 35B split-M.
         # ════════════════════════════════════════════════════════════════
         for start_n in tl.range(0, total_seq_len, BLOCK_KV):
             seq_offset = start_n + offs_kv
@@ -620,7 +625,7 @@ def _build_kernel():
             mask=head_mask[None, :, None] & d_mask[None, None, :],
         )
 
-    return _p67_v14_split_m_qk_tf32_single
+    return _p67_v16_split_m_clean
 
 
 def _get_kernel():
