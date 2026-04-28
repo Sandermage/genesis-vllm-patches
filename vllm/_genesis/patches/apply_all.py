@@ -1473,6 +1473,35 @@ def apply_patch_84_hash_block_size_override() -> PatchResult:
 
 
 @register_patch(
+    "P101 TQ continuation 64-token slicing (vllm#41123 selective v7.62.16)"
+)
+def apply_patch_101_tq_continuation_slicing() -> PatchResult:
+    """Patch 101: SELECTIVE backport of vllm#41123 TQ on hybrid models.
+
+    TAKE: _CONTINUATION_DECODE_THRESHOLD 128→64, _CONTINUATION_DECODE_MAX_CACHED_LEN=32K,
+    64-token slicing loop in _prefill_attention.
+    SKIP: cudagraph_support downgrade (would hurt PROD), hybrid boundary-skip.
+
+    Expected: +3-12% TPS on PROD long-context.
+    Composes with P98/P99 (non-overlapping anchors).
+    Status: opt-in via GENESIS_ENABLE_P101=1.
+    """
+    name = "P101 TQ continuation 64-token slicing (vllm#41123 selective)"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring import patch_101_tq_continuation_slicing
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_101_tq_continuation_slicing.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch(
     "P99 WorkspaceManager memoize get_simultaneous (perf hotfix v7.62.15)"
 )
 def apply_patch_99_workspace_manager_memoize() -> PatchResult:

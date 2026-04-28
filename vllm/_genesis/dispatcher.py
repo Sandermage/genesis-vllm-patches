@@ -378,6 +378,20 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             # Applies whenever spec-decode is active. All spec methods.
         },
     },
+    "P101": {
+        "title": "TQ continuation 64-token slicing (vllm#41123 SELECTIVE)",
+        "env_flag": "GENESIS_ENABLE_P101",
+        "default_on": False,
+        "category": "perf_hotfix",
+        "credit": "Selective backport of vllm#41123 TQ on hybrid models. TAKE: _CONTINUATION_DECODE_THRESHOLD 128→64 + _CONTINUATION_DECODE_MAX_CACHED_LEN=32K + 64-token slicing loop in _prefill_attention. SKIP: cudagraph_support downgrade (would hurt PROD), hybrid boundary-skip (would break our explicit skip-layers). Expected: +3-12% TPS on PROD long-context. Composes with P98/P99.",
+        "upstream_pr": 41123,
+        "applies_to": {
+            "kv_cache_dtype": [
+                "turboquant_k8v4", "turboquant_4bit_nc",
+                "turboquant_k3v4_nc", "turboquant_3bit_nc",
+            ],
+        },
+    },
     "P99": {
         "title": "WorkspaceManager.get_simultaneous memoization (perf hotfix)",
         "env_flag": "GENESIS_ENABLE_P99",
