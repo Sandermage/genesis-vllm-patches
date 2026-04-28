@@ -75,8 +75,8 @@ from vllm._genesis.wiring.text_patch import (
 
 log = logging.getLogger("genesis.wiring.p8_kv_hybrid_reporting")
 
-GENESIS_P8_MARKER_KV = "Genesis P8 KV hybrid reporting kv_cache_utils v7.0"
-GENESIS_P8_MARKER_SCHED = "Genesis P8 KV hybrid reporting scheduler v7.0"
+GENESIS_P8_MARKER_KV = "Genesis P8 KV hybrid reporting kv_cache_utils v7.62.13_v2anchor"
+GENESIS_P8_MARKER_SCHED = "Genesis P8 KV hybrid reporting scheduler v7.62.13_v2anchor"
 
 # Retirement pathways tracked as of 2026-04-24:
 #   - PR #40384 (@jhsmith409, OPEN): exports `token_capacity_kv_cache_groups`
@@ -102,6 +102,11 @@ UPSTREAM_DRIFT_MARKERS_SCHED = [
 
 # ── kv_cache_utils.py sub-patches ──────────────────────────────────────
 
+# [Genesis P8 v7.62.13] B-fix: anchor pair to handle BOTH pre- and post-MambaSpec
+# vllm versions. The pre-MambaSpec form (older nightly) needs both AttentionSpec
+# AND MambaSpec injected. The post-MambaSpec form (newer nightly, PR #40384 part
+# merged) only needs AttentionSpec injected. Apply() tries _OLD first, falls back
+# to _OLD_V2.
 _KV_IMPORT_OLD = (
     "from vllm.v1.kv_cache_interface import (\n"
     "    ChunkedLocalAttentionSpec,\n"
@@ -124,6 +129,41 @@ _KV_IMPORT_NEW = (
     "    KVCacheSpec,\n"
     "    KVCacheTensor,\n"
     "    MambaSpec,  # [Genesis P8]\n"
+    "    SlidingWindowSpec,\n"
+    "    UniformTypeKVCacheSpecs,\n"
+    ")"
+)
+# Newer vllm form (post-MambaSpec auto-imported, post-MLA additions).
+# We anchor on the closing `)` preceded by `UniformTypeKVCacheSpecs,\n` and
+# inject `AttentionSpec,` before `ChunkedLocalAttentionSpec`. The actual
+# matched anchor is the full block; any new MLA specs in between are kept.
+_KV_IMPORT_OLD_V2 = (
+    "from vllm.v1.kv_cache_interface import (\n"
+    "    ChunkedLocalAttentionSpec,\n"
+    "    FullAttentionSpec,\n"
+    "    KVCacheConfig,\n"
+    "    KVCacheGroupSpec,\n"
+    "    KVCacheSpec,\n"
+    "    KVCacheTensor,\n"
+    "    MambaSpec,\n"
+    "    MLAAttentionSpec,\n"
+    "    SlidingWindowMLASpec,\n"
+    "    SlidingWindowSpec,\n"
+    "    UniformTypeKVCacheSpecs,\n"
+    ")"
+)
+_KV_IMPORT_NEW_V2 = (
+    "from vllm.v1.kv_cache_interface import (\n"
+    "    AttentionSpec,  # [Genesis P8 v2]\n"
+    "    ChunkedLocalAttentionSpec,\n"
+    "    FullAttentionSpec,\n"
+    "    KVCacheConfig,\n"
+    "    KVCacheGroupSpec,\n"
+    "    KVCacheSpec,\n"
+    "    KVCacheTensor,\n"
+    "    MambaSpec,\n"
+    "    MLAAttentionSpec,\n"
+    "    SlidingWindowMLASpec,\n"
     "    SlidingWindowSpec,\n"
     "    UniformTypeKVCacheSpecs,\n"
     ")"
@@ -233,9 +273,38 @@ _SCHED_CALLSITE_NEW = (
 # ── Dispatch ──────────────────────────────────────────────────────────
 
 def _patcher_kv() -> TextPatcher | None:
+    """Build the kv_cache_utils.py patcher with V1/V2 import-anchor auto-pick.
+
+    [Genesis P8 v7.62.13 fix] Detect upstream import-block layout at
+    construction time. Old vllm: V1 anchor (no MambaSpec). New vllm
+    (post upstream MambaSpec auto-export + MLA additions): V2 anchor.
+    Either way, _KV_REPORT_FN_OLD and _KV_CALLSITE_OLD anchors stay
+    the same — only the import block layout differs.
+    """
     target = resolve_vllm_file("v1/core/kv_cache_utils.py")
     if target is None:
         return None
+    # Auto-pick imports anchor by reading the actual file once.
+    import_anchor = _KV_IMPORT_OLD
+    import_replacement = _KV_IMPORT_NEW
+    try:
+        import os as _os
+        if _os.path.isfile(str(target)):
+            with open(str(target)) as _f:
+                _src = _f.read()
+            if _KV_IMPORT_OLD in _src:
+                pass  # V1 layout — already set
+            elif _KV_IMPORT_OLD_V2 in _src:
+                import_anchor = _KV_IMPORT_OLD_V2
+                import_replacement = _KV_IMPORT_NEW_V2
+                log.info("[P8] using V2 import anchor (post-MambaSpec layout)")
+            else:
+                log.warning(
+                    "[P8] neither V1 nor V2 import anchor matches — "
+                    "kv_cache_utils.py may have drifted; patcher will skip"
+                )
+    except Exception as e:
+        log.warning("[P8] anchor auto-pick failed: %s — defaulting to V1", e)
     return TextPatcher(
         patch_name="P8 KV hybrid reporting (kv_cache_utils)",
         target_file=target,
@@ -243,8 +312,8 @@ def _patcher_kv() -> TextPatcher | None:
         sub_patches=[
             TextPatch(
                 name="p8_kv_imports",
-                anchor=_KV_IMPORT_OLD,
-                replacement=_KV_IMPORT_NEW,
+                anchor=import_anchor,
+                replacement=import_replacement,
                 required=True,
             ),
             TextPatch(
@@ -291,19 +360,47 @@ def _patcher_sched() -> TextPatcher | None:
 
 
 def apply() -> tuple[str, str]:
-    """Apply BOTH P8 sub-patches (kv_cache_utils + scheduler). Never raises."""
+    """Apply BOTH P8 sub-patches (kv_cache_utils + scheduler). Never raises.
+
+    [Genesis P8 v7.62.13 atomic-apply guard]: if kv_cache_utils.py FAILS or is
+    SKIPPED (anchor drift / partial-applied marker), scheduler.py MUST NOT
+    apply. Otherwise the scheduler.py P8 import line `from
+    vllm.v1.core.kv_cache_utils import token_capacity_kv_cache_groups` would
+    reference a missing function → `ImportError` at engine boot → container
+    crash loop. This was the v7.62.12 PROD-restore fail incident.
+    """
     if vllm_install_root() is None:
         return "skipped", "vllm install root not discoverable"
 
     messages: list[str] = []
 
-    # Apply to kv_cache_utils.py
+    # Apply to kv_cache_utils.py FIRST
     pk = _patcher_kv()
     if pk is None:
         return "skipped", "kv_cache_utils.py not found"
     result_kv, failure_kv = pk.apply()
 
-    # Apply to scheduler.py
+    # ─── ATOMIC GUARD ───────────────────────────────────────────────
+    # Only proceed to scheduler.py if kv_cache_utils.py was successfully
+    # APPLIED or already-IDEMPOTENT (helper exists). If it FAILED or
+    # SKIPPED, the scheduler.py import would crash the engine.
+    if result_kv not in (TextPatchResult.APPLIED, TextPatchResult.IDEMPOTENT):
+        reason_kv = failure_kv.reason if failure_kv else "unknown"
+        log.warning(
+            "[P8] kv_cache_utils.py apply did NOT succeed (%s: %s) — "
+            "REFUSING to apply scheduler.py P8 to avoid ImportError crash. "
+            "Engine will boot with vanilla scheduler (no Mamba groups exclusion). "
+            "Fix the kv_cache_utils.py anchor and re-deploy.",
+            result_kv.name if hasattr(result_kv, 'name') else result_kv,
+            reason_kv,
+        )
+        return "skipped", (
+            f"P8 atomic guard: kv_cache_utils.py {result_kv} "
+            f"({reason_kv}); scheduler.py P8 NOT applied to avoid ImportError. "
+            "Engine boots with vanilla scheduler."
+        )
+
+    # Apply to scheduler.py (only reached if kv_cache_utils.py succeeded)
     ps = _patcher_sched()
     if ps is None:
         return "skipped", "scheduler.py not found"
