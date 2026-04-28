@@ -21,173 +21,185 @@ from typing import Any, Optional
 log = logging.getLogger("genesis.guards")
 
 
-# ─── torch._dynamo.disable shim ────────────────────────────────────────────
+# ─── torch.dynamo compatibility ────────────────────────────────────────────
 # Genesis guards are eager-only diagnostic helpers (vendor / SM / version
 # detection). They are commonly called from kernel paths that vLLM compiles
 # with torch.compile / torch.dynamo (Marlin apply_weights, FP8 scaled MM,
 # CUDA-graph capture, etc.).
 #
-# torch.dynamo IGNORES `@functools.lru_cache` / `@functools.cache` wrappers
-# and traces the underlying function instead. When that traced body calls
-# `current_platform.get_device_capability()` (which itself touches torch
-# / pynvml internals dynamo can't trace), the engine init crashes with
-# RuntimeError. This was empirically observed 2026-04-28 with
-# GENESIS_FORCE_MARLIN_W8A16=1 on Qwen3.6-27B-INT8-AutoRound (Marlin path).
+# Two issues seen empirically (2026-04-28, with GENESIS_FORCE_MARLIN_W8A16=1
+# on Qwen3.6-27B-INT8-AutoRound, Marlin path):
+#   1. torch.dynamo IGNORES `@functools.lru_cache` / `@functools.cache`
+#      wrappers and traces the underlying function instead → crash inside
+#      `current_platform.get_device_capability()` which dynamo can't trace.
+#   2. `@torch._dynamo.disable` raises 'Skip calling
+#      torch.compiler.disable()d function' when invoked from inside an
+#      already-traced compiled region (it cannot fall back to eager mid-trace).
 #
-# Fix: wrap each guard with `@torch._dynamo.disable` BEFORE the
-# `@functools.cache`. Dynamo then treats the call as an opaque eager
-# function — no tracing into platform internals, cache wrapper still works
-# at runtime. No effect on patches that aren't dynamo-traced.
-try:
-    import torch._dynamo as _torch_dynamo
-    _dynamo_disable = _torch_dynamo.disable
-except Exception:  # noqa: BLE001 — torch may be unavailable in pure tests
-    def _dynamo_disable(fn=None, **_kwargs):  # type: ignore[no-redef]
-        """No-op fallback when torch._dynamo is not importable."""
-        if fn is None:
-            return lambda f: f
-        return fn
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-#                          VENDOR / PLATFORM IDENTITY
-# ═══════════════════════════════════════════════════════════════════════════
-
-@_dynamo_disable
-@functools.cache
-def _current_platform() -> Optional[Any]:
-    """Lazy import of vllm.platforms.current_platform.
-
-    Returns None if vllm is not importable — allows guards to work during
-    early initialization or in environments without vllm installed.
-    """
+# Robust fix: snapshot the platform-derived facts ONCE at module-load time
+# (which happens eagerly during plugin register, BEFORE any torch.compile /
+# dynamo run), and have all public guards return those captured constants.
+# The functions become pure `return _MODULE_CONSTANT` — dynamo can trace
+# through them with zero risk of touching unsupported APIs.
+#
+# A `_refresh()` helper is exposed for tests that monkey-patch
+# `current_platform`. Production has no use case for it.
+def _detect_platform() -> Optional[Any]:
     try:
         from vllm.platforms import current_platform
         return current_platform
     except Exception as e:
-        log.debug("current_platform unavailable: %s", e)
+        log.debug("[guards] vllm.platforms.current_platform unavailable: %s", e)
         return None
 
 
-@_dynamo_disable
-@functools.cache
-def is_nvidia_cuda() -> bool:
-    """True ONLY on NVIDIA CUDA (NOT ROCm).
-
-    Canonical source: vllm/platforms/interface.py:157
-        def is_cuda(self) -> bool: return self._enum == PlatformEnum.CUDA
-
-    CRITICAL: Use this (not is_cuda_alike) for NVIDIA-specific patches such as
-    Marlin, CUDA streams, CUDA graph capture. ROCm's PyTorch build exposes
-    torch.cuda namespace but with different semantics that can crash our patches.
-    """
-    p = _current_platform()
+def _detect_is_cuda(p: Optional[Any]) -> bool:
     try:
         return bool(p is not None and p.is_cuda())
     except Exception:
         return False
 
 
-@_dynamo_disable
-@functools.cache
-def is_amd_rocm() -> bool:
-    """True on AMD ROCm.
-
-    Canonical source: vllm/platforms/interface.py:160
-    """
-    p = _current_platform()
+def _detect_is_rocm(p: Optional[Any]) -> bool:
     try:
         return bool(p is not None and p.is_rocm())
     except Exception:
         return False
 
 
-@_dynamo_disable
-@functools.cache
-def is_intel_xpu() -> bool:
-    """True on Intel XPU (Arc, Max Series).
-
-    Canonical source: vllm/platforms/interface.py:166
-    """
-    p = _current_platform()
+def _detect_is_xpu(p: Optional[Any]) -> bool:
     try:
         return bool(p is not None and p.is_xpu())
     except Exception:
         return False
 
 
-@_dynamo_disable
-@functools.cache
-def is_cpu_only() -> bool:
-    """True on CPU-only build (no GPU accelerator).
-
-    Canonical source: vllm/platforms/interface.py:169
-    """
-    p = _current_platform()
+def _detect_is_cpu(p: Optional[Any]) -> bool:
     try:
         return bool(p is not None and p.is_cpu())
     except Exception:
         return False
 
 
-@_dynamo_disable
-@functools.cache
-def is_cuda_alike() -> bool:
-    """CUDA OR ROCm (shares torch.cuda namespace).
-
-    Canonical source: vllm/platforms/interface.py:184
-
-    ⚠️ TRAP: Do NOT use for NVIDIA-specific patches. ROCm exposes torch.cuda
-    Stream/Event but with weaker ordering guarantees. Use is_nvidia_cuda()
-    strict check for Marlin/CUDA-graph/aux-stream patches.
-
-    Safe to use for operations that work identically on both: torch tensor ops,
-    numerical operations, generic optimizations.
-    """
-    p = _current_platform()
+def _detect_is_cuda_alike(p: Optional[Any]) -> bool:
     try:
         return bool(p is not None and p.is_cuda_alike())
     except Exception:
         return False
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-#                      NVIDIA COMPUTE CAPABILITY
-# ═══════════════════════════════════════════════════════════════════════════
-
-@_dynamo_disable
-@functools.cache
-def get_compute_capability() -> Optional[tuple[int, int]]:
-    """Return (major, minor) compute capability for NVIDIA CUDA; None otherwise.
-
-    Canonical source: vllm/platforms/cuda.py:592-599 (NvmlCudaPlatform)
-    """
-    if not is_nvidia_cuda():
+def _detect_compute_capability(
+    p: Optional[Any], is_cuda: bool
+) -> Optional[tuple[int, int]]:
+    if not is_cuda or p is None:
         return None
-    p = _current_platform()
     try:
         cc = p.get_device_capability()
         if cc is None:
             return None
         return (cc.major, cc.minor)
     except Exception as e:
-        log.debug("get_device_capability failed: %s", e)
+        log.debug("[guards] get_device_capability failed: %s", e)
         return None
 
 
-@_dynamo_disable
+# Module-level captured constants — populated once at import time (eager
+# context). Public functions just return these. dynamo / torch.compile can
+# trace through `return _MODULE_CONST` trivially without ever touching
+# platform internals.
+_PLATFORM: Optional[Any] = None
+_IS_CUDA: bool = False
+_IS_ROCM: bool = False
+_IS_XPU: bool = False
+_IS_CPU: bool = False
+_IS_CUDA_ALIKE: bool = False
+_COMPUTE_CAPABILITY: Optional[tuple[int, int]] = None
+
+
+def _refresh() -> None:
+    """Re-snapshot platform facts. Called once at module import; tests can
+    re-invoke after monkey-patching `vllm.platforms.current_platform`."""
+    global _PLATFORM, _IS_CUDA, _IS_ROCM, _IS_XPU, _IS_CPU, _IS_CUDA_ALIKE
+    global _COMPUTE_CAPABILITY
+    _PLATFORM = _detect_platform()
+    _IS_CUDA = _detect_is_cuda(_PLATFORM)
+    _IS_ROCM = _detect_is_rocm(_PLATFORM)
+    _IS_XPU = _detect_is_xpu(_PLATFORM)
+    _IS_CPU = _detect_is_cpu(_PLATFORM)
+    _IS_CUDA_ALIKE = _detect_is_cuda_alike(_PLATFORM)
+    _COMPUTE_CAPABILITY = _detect_compute_capability(_PLATFORM, _IS_CUDA)
+
+
+_refresh()
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#                          VENDOR / PLATFORM IDENTITY
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _current_platform() -> Optional[Any]:
+    """Return the snapshotted platform handle (set at module load).
+
+    See module docstring for why this is a constant return now.
+    """
+    return _PLATFORM
+
+
+def is_nvidia_cuda() -> bool:
+    """True ONLY on NVIDIA CUDA (NOT ROCm).
+
+    Returns the constant snapshot taken at module load. Trace-safe (pure
+    `return _IS_CUDA`); see module docstring.
+    """
+    return _IS_CUDA
+
+
+def is_amd_rocm() -> bool:
+    """True on AMD ROCm. Trace-safe constant return."""
+    return _IS_ROCM
+
+
+def is_intel_xpu() -> bool:
+    """True on Intel XPU. Trace-safe constant return."""
+    return _IS_XPU
+
+
+def is_cpu_only() -> bool:
+    """True on CPU-only build. Trace-safe constant return."""
+    return _IS_CPU
+
+
+def is_cuda_alike() -> bool:
+    """CUDA OR ROCm. Trace-safe constant return.
+
+    ⚠️ TRAP: Do NOT use for NVIDIA-specific patches. Use is_nvidia_cuda().
+    """
+    return _IS_CUDA_ALIKE
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#                      NVIDIA COMPUTE CAPABILITY
+# ═══════════════════════════════════════════════════════════════════════════
+
+def get_compute_capability() -> Optional[tuple[int, int]]:
+    """Return snapshotted (major, minor) compute capability for NVIDIA CUDA.
+
+    Trace-safe constant return. Returns None on non-CUDA / failed detection.
+    """
+    return _COMPUTE_CAPABILITY
+
+
 def is_sm_at_least(major: int, minor: int = 0) -> bool:
-    """True if SM >= (major, minor). Mirrors vLLM's has_device_capability."""
-    cc = get_compute_capability()
+    """True if SM >= (major, minor). Trace-safe (reads module constant)."""
+    cc = _COMPUTE_CAPABILITY
     if cc is None:
         return False
     return cc >= (major, minor)
 
 
-@_dynamo_disable
 def is_sm_exactly(major: int, minor: int) -> bool:
-    """True if SM is exactly (major, minor)."""
-    return get_compute_capability() == (major, minor)
+    """True if SM is exactly (major, minor). Trace-safe constant read."""
+    return _COMPUTE_CAPABILITY == (major, minor)
 
 
 def is_ampere_datacenter() -> bool:
@@ -285,7 +297,6 @@ def detect_pdl_env_misconfig() -> list[str]:
 #                       AMD ROCm ARCHITECTURE
 # ═══════════════════════════════════════════════════════════════════════════
 
-@_dynamo_disable
 @functools.cache
 def _gcn_arch() -> str:
     """GCN architecture string (e.g. 'gfx942'). Empty string if not ROCm.
@@ -322,7 +333,6 @@ def is_rocm_rdna() -> bool:
 #                   EXTERNAL DEPENDENCY VERSIONS (NEW v7.0)
 # ═══════════════════════════════════════════════════════════════════════════
 
-@_dynamo_disable
 @functools.cache
 def get_torch_version() -> Optional[tuple[int, int]]:
     """Returns (major, minor) torch version, or None on failure."""
@@ -346,7 +356,6 @@ def is_torch_212_plus() -> bool:
     return v is not None and v >= (2, 12)
 
 
-@_dynamo_disable
 @functools.cache
 def get_transformers_version() -> Optional[tuple[int, int, int]]:
     """Returns (major, minor, patch) transformers version, or None on failure."""
@@ -371,7 +380,6 @@ def is_transformers_v55_plus() -> bool:
     return v is not None and v >= (5, 5, 0)
 
 
-@_dynamo_disable
 @functools.cache
 def get_vllm_version_tuple() -> Optional[tuple[int, ...]]:
     """Returns (major, minor, patch) vllm version tuple, or None on failure.
@@ -397,7 +405,6 @@ def is_vllm_020_plus() -> bool:
     return v is not None and v >= (0, 20, 0)
 
 
-@_dynamo_disable
 @functools.cache
 def get_flash_attn_major_version() -> Optional[int]:
     """Try to detect FlashAttention version (FA2 / FA3 / FA4).
@@ -521,7 +528,6 @@ def is_turboquant_backend(attn_backend: Any) -> bool:
 #                      FILE PATH RESOLUTION
 # ═══════════════════════════════════════════════════════════════════════════
 
-@_dynamo_disable
 @functools.cache
 def vllm_install_root() -> Optional[str]:
     """Returns absolute path to installed vllm package.
