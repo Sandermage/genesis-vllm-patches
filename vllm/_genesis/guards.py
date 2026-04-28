@@ -21,10 +21,39 @@ from typing import Any, Optional
 log = logging.getLogger("genesis.guards")
 
 
+# ─── torch._dynamo.disable shim ────────────────────────────────────────────
+# Genesis guards are eager-only diagnostic helpers (vendor / SM / version
+# detection). They are commonly called from kernel paths that vLLM compiles
+# with torch.compile / torch.dynamo (Marlin apply_weights, FP8 scaled MM,
+# CUDA-graph capture, etc.).
+#
+# torch.dynamo IGNORES `@functools.lru_cache` / `@functools.cache` wrappers
+# and traces the underlying function instead. When that traced body calls
+# `current_platform.get_device_capability()` (which itself touches torch
+# / pynvml internals dynamo can't trace), the engine init crashes with
+# RuntimeError. This was empirically observed 2026-04-28 with
+# GENESIS_FORCE_MARLIN_W8A16=1 on Qwen3.6-27B-INT8-AutoRound (Marlin path).
+#
+# Fix: wrap each guard with `@torch._dynamo.disable` BEFORE the
+# `@functools.cache`. Dynamo then treats the call as an opaque eager
+# function — no tracing into platform internals, cache wrapper still works
+# at runtime. No effect on patches that aren't dynamo-traced.
+try:
+    import torch._dynamo as _torch_dynamo
+    _dynamo_disable = _torch_dynamo.disable
+except Exception:  # noqa: BLE001 — torch may be unavailable in pure tests
+    def _dynamo_disable(fn=None, **_kwargs):  # type: ignore[no-redef]
+        """No-op fallback when torch._dynamo is not importable."""
+        if fn is None:
+            return lambda f: f
+        return fn
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 #                          VENDOR / PLATFORM IDENTITY
 # ═══════════════════════════════════════════════════════════════════════════
 
+@_dynamo_disable
 @functools.cache
 def _current_platform() -> Optional[Any]:
     """Lazy import of vllm.platforms.current_platform.
@@ -40,6 +69,7 @@ def _current_platform() -> Optional[Any]:
         return None
 
 
+@_dynamo_disable
 @functools.cache
 def is_nvidia_cuda() -> bool:
     """True ONLY on NVIDIA CUDA (NOT ROCm).
@@ -58,6 +88,7 @@ def is_nvidia_cuda() -> bool:
         return False
 
 
+@_dynamo_disable
 @functools.cache
 def is_amd_rocm() -> bool:
     """True on AMD ROCm.
@@ -71,6 +102,7 @@ def is_amd_rocm() -> bool:
         return False
 
 
+@_dynamo_disable
 @functools.cache
 def is_intel_xpu() -> bool:
     """True on Intel XPU (Arc, Max Series).
@@ -84,6 +116,7 @@ def is_intel_xpu() -> bool:
         return False
 
 
+@_dynamo_disable
 @functools.cache
 def is_cpu_only() -> bool:
     """True on CPU-only build (no GPU accelerator).
@@ -97,6 +130,7 @@ def is_cpu_only() -> bool:
         return False
 
 
+@_dynamo_disable
 @functools.cache
 def is_cuda_alike() -> bool:
     """CUDA OR ROCm (shares torch.cuda namespace).
@@ -121,6 +155,7 @@ def is_cuda_alike() -> bool:
 #                      NVIDIA COMPUTE CAPABILITY
 # ═══════════════════════════════════════════════════════════════════════════
 
+@_dynamo_disable
 @functools.cache
 def get_compute_capability() -> Optional[tuple[int, int]]:
     """Return (major, minor) compute capability for NVIDIA CUDA; None otherwise.
@@ -140,6 +175,7 @@ def get_compute_capability() -> Optional[tuple[int, int]]:
         return None
 
 
+@_dynamo_disable
 def is_sm_at_least(major: int, minor: int = 0) -> bool:
     """True if SM >= (major, minor). Mirrors vLLM's has_device_capability."""
     cc = get_compute_capability()
@@ -148,6 +184,7 @@ def is_sm_at_least(major: int, minor: int = 0) -> bool:
     return cc >= (major, minor)
 
 
+@_dynamo_disable
 def is_sm_exactly(major: int, minor: int) -> bool:
     """True if SM is exactly (major, minor)."""
     return get_compute_capability() == (major, minor)
@@ -248,6 +285,7 @@ def detect_pdl_env_misconfig() -> list[str]:
 #                       AMD ROCm ARCHITECTURE
 # ═══════════════════════════════════════════════════════════════════════════
 
+@_dynamo_disable
 @functools.cache
 def _gcn_arch() -> str:
     """GCN architecture string (e.g. 'gfx942'). Empty string if not ROCm.
@@ -284,6 +322,7 @@ def is_rocm_rdna() -> bool:
 #                   EXTERNAL DEPENDENCY VERSIONS (NEW v7.0)
 # ═══════════════════════════════════════════════════════════════════════════
 
+@_dynamo_disable
 @functools.cache
 def get_torch_version() -> Optional[tuple[int, int]]:
     """Returns (major, minor) torch version, or None on failure."""
@@ -307,6 +346,7 @@ def is_torch_212_plus() -> bool:
     return v is not None and v >= (2, 12)
 
 
+@_dynamo_disable
 @functools.cache
 def get_transformers_version() -> Optional[tuple[int, int, int]]:
     """Returns (major, minor, patch) transformers version, or None on failure."""
@@ -331,6 +371,7 @@ def is_transformers_v55_plus() -> bool:
     return v is not None and v >= (5, 5, 0)
 
 
+@_dynamo_disable
 @functools.cache
 def get_vllm_version_tuple() -> Optional[tuple[int, ...]]:
     """Returns (major, minor, patch) vllm version tuple, or None on failure.
@@ -356,6 +397,7 @@ def is_vllm_020_plus() -> bool:
     return v is not None and v >= (0, 20, 0)
 
 
+@_dynamo_disable
 @functools.cache
 def get_flash_attn_major_version() -> Optional[int]:
     """Try to detect FlashAttention version (FA2 / FA3 / FA4).
@@ -479,6 +521,7 @@ def is_turboquant_backend(attn_backend: Any) -> bool:
 #                      FILE PATH RESOLUTION
 # ═══════════════════════════════════════════════════════════════════════════
 
+@_dynamo_disable
 @functools.cache
 def vllm_install_root() -> Optional[str]:
     """Returns absolute path to installed vllm package.
