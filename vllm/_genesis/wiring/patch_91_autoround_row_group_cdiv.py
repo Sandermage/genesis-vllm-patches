@@ -104,7 +104,7 @@ from vllm._genesis.wiring.text_patch import (
 log = logging.getLogger("genesis.wiring.p91_autoround_row_group_cdiv")
 
 
-GENESIS_P91_MARKER = "Genesis P91 AutoRound row-group cdiv (vllm#39460) v7.62"
+GENESIS_P91_MARKER = "Genesis P91 AutoRound row-group cdiv (vllm#39460) v7.62.1"
 
 
 # ─── gptq_marlin.py: 3 sub-patches ─────────────────────────────────────────
@@ -151,17 +151,20 @@ P91_GM_REPLACE_REGISTER_SCALES = (
     "        # can compute the correct global group offset for TP>1 instead of\n"
     "        # the broken `tp_rank * shard_size` (which is in scales-rows units\n"
     "        # but applied to the input-element-indexed source tensor).\n"
-    "        from vllm.model_executor.parameter import set_weight_attrs as _genesis_p91_swa\n"
-    "        _genesis_p91_row_group_attrs = {\n"
-    "            \"row_group_size\": group_size,\n"
-    "            \"row_input_size_per_partition\": input_size_per_partition,\n"
-    "        }\n"
+    "        # We use direct setattr (no import dependency) — equivalent to\n"
+    "        # the upstream `set_weight_attrs` helper but robust to module\n"
+    "        # path drift across vLLM releases.\n"
     "        try:\n"
-    "            _genesis_p91_swa(scales, _genesis_p91_row_group_attrs)\n"
-    "            _genesis_p91_swa(qzeros, _genesis_p91_row_group_attrs)\n"
+    "            for _genesis_p91_obj in (scales, qzeros):\n"
+    "                setattr(_genesis_p91_obj, 'row_group_size', group_size)\n"
+    "                setattr(\n"
+    "                    _genesis_p91_obj,\n"
+    "                    'row_input_size_per_partition',\n"
+    "                    input_size_per_partition,\n"
+    "                )\n"
     "        except Exception:\n"
-    "            pass  # set_weight_attrs may not exist on older vLLM; loader\n"
-    "                  # falls back to the original non-grouped path.\n"
+    "            pass  # tagging best-effort; loader falls back to original\n"
+    "                  # non-grouped start_idx via getattr default.\n"
     "        layer.register_parameter(\"qweight\", qweight)\n"
     "        layer.register_parameter(\"g_idx\", g_idx)\n"
     "        layer.register_parameter(\"scales\", scales)\n"
