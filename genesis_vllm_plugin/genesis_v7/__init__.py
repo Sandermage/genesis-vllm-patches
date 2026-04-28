@@ -32,6 +32,47 @@ def register() -> None:
         log.info("[Genesis plugin] GENESIS_DISABLE set — skipping registration")
         return
 
+    # ────────────────────────────────────────────────────────────────────
+    # [Genesis P93] AllSpark bypass for INT8 W8A16 + group_size=-1 paths
+    # ────────────────────────────────────────────────────────────────────
+    # When GENESIS_FORCE_MARLIN_W8A16=1, prepend "AllSparkLinearKernel" to
+    # VLLM_DISABLED_KERNELS so vLLM's mixed-precision selector falls
+    # through to MarlinLinearKernel for AutoRound INT8 W8A16 group_size=-1
+    # checkpoints (e.g. Minachist/Qwen3.6-27B-INT8-AutoRound). This is
+    # the only way to engage P87 (Marlin sub-tile pad-on-load) and P91
+    # (gptq_marlin row-parallel group cdiv) on those checkpoints —
+    # without this flag the selector picks AllSpark first and the Marlin
+    # patches never fire.
+    #
+    # Marlin SUPPORTS group_size=-1 + uint8b128 (per
+    # vllm/model_executor/layers/quantization/utils/marlin_utils.py:30,75)
+    # — we are not relying on a workaround, just changing the
+    # kernel-selection priority via the existing VLLM_DISABLED_KERNELS hook.
+    #
+    # AllSpark vs Marlin perf on consumer Ampere SM 8.6 (A5000) at
+    # M=1..8 spec-decode is unbenched publicly; needs A/B before
+    # promoting to default-on. See memory record
+    # `project_genesis_allspark_research_20260428` for full analysis.
+    #
+    # Must run BEFORE vLLM engine init reads VLLM_DISABLED_KERNELS, so it
+    # lives in plugin register() (called early by load_general_plugins)
+    # rather than in apply_all (which runs later in init order).
+    if os.environ.get(
+        "GENESIS_FORCE_MARLIN_W8A16", ""
+    ).strip().lower() in ("1", "true", "yes"):
+        existing = os.environ.get("VLLM_DISABLED_KERNELS", "")
+        if "AllSparkLinearKernel" not in existing:
+            os.environ["VLLM_DISABLED_KERNELS"] = (
+                existing + ("," if existing else "") + "AllSparkLinearKernel"
+            )
+            log.info(
+                "[Genesis P93] GENESIS_FORCE_MARLIN_W8A16=1 — added "
+                "AllSparkLinearKernel to VLLM_DISABLED_KERNELS=%r so vLLM "
+                "selector falls through to Marlin (P87 + P91 will now fire "
+                "on AutoRound INT8 group_size=-1 checkpoints).",
+                os.environ["VLLM_DISABLED_KERNELS"],
+            )
+
     try:
         from vllm._genesis.patches.apply_all import run
     except ImportError as e:
