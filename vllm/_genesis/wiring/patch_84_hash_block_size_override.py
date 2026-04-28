@@ -162,6 +162,11 @@ def _make_patcher() -> TextPatcher | None:
             "--hash-block-size",
             "hash_block_size_arg",
             "args.hash_block_size",
+            # [v7.62.13 audit] Upstream PR landed in nightly 7923b48047be:
+            # cache_config.hash_block_size, Scheduler.__init__(hash_block_size),
+            # engine/core.py:210 uses hash_block_size+caching_hash_fn directly.
+            "self.hash_block_size",
+            "cache_config.hash_block_size",
         ],
     )
 

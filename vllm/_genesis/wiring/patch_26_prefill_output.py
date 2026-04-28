@@ -49,6 +49,10 @@ GENESIS_P26_MARKER = "Genesis P26 TQ prefill output prealloc v7.0"
 UPSTREAM_DRIFT_MARKERS = [
     "acquire_prefill_output",
     "_tq_prefill_output_slice",
+    # [v7.62.13 audit] Upstream nightly 7923b48047be wraps `_cu_2 = torch.zeros(...)`
+    # with `if not hasattr(self, "_cu_2"):` — this is exactly P26's optimization
+    # natively. P26 should auto-skip when this guard is present.
+    'if not hasattr(self, "_cu_2")',
 ]
 
 
