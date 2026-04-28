@@ -97,9 +97,22 @@ unless explicitly engaged.
 | `GENESIS_ENABLE_P78_TOLIST_CAPTURE_GUARD` | P78 | TurboQuant `.tolist()` capture-guard (adapted from @noonghunna's `patch_tolist_cudagraph.py`, Apache-2.0 attribution) |
 | `GENESIS_ENABLE_P79B_ASYNC_PROPOSER_SYNC` | P79b | Async × spec-decode proposer-sync backport (vllm#40610, OPEN draft) |
 | `GENESIS_ENABLE_P79C_STALE_SPEC_TOKEN_CLEANUP` | P79c | Stale spec_token_ids cleanup for unscheduled requests (vllm#37629, OPEN). v7.49 improvement: only clears `-1` placeholders, preserves real draft tokens |
+| `GENESIS_ENABLE_P40` | P40 | TurboQuant grouped-decode Stage1 Triton kernel (vllm#40792 backport, +10-27% on Qwen3-32B GQA) |
+| `GENESIS_ENABLE_P5B` | P5B | Page-size padded prealloc kernel (P5 follow-up — see `kernels/page_size_padded.py` history block) |
+| `GENESIS_ENABLE_P7B` | P7B | GDN dual-stream `custom_op` variant (P7 follow-up — fuses two `in_proj_*` GEMMs) |
+| `GENESIS_ENABLE_P41_RESPONSE_CACHE` | P41 | Response-level cache (above prefix-cache; full prompt → response). Memory or Redis backend. See P41 section below |
+| `GENESIS_ENABLE_P78_TOLIST_CAPTURE_GUARD` | P78 | TurboQuant `.tolist()` cudagraph-capture guard (adapted from @noonghunna, Apache-2.0) |
+| `GENESIS_ENABLE_P82` | P82 | SGLang per-token acceptance OR-clause (`speculative_sampling.cuh`). Opt-in; threshold via `GENESIS_P82_THRESHOLD_SINGLE` |
+| `GENESIS_ENABLE_P83` | P83 | MTP keep-last-cached-block fix (force-pop disabled for hybrid models). Opt-in for hybrid (Qwen3-Next etc.) |
+| `GENESIS_ENABLE_P84` | P84 | Override `hash_block_size` for hybrid prefix-cache (env `GENESIS_P84_HASH_BLOCK_SIZE`, defaults to layer block_size) |
+| `GENESIS_ENABLE_P85` | P85 | Hybrid fine-shadow prefix cache (companion to P83/P84; opt-in for hybrid) |
+| `GENESIS_ENABLE_P86` | P86 | Ngram batch propose linear scan (faster batch ngram proposer) |
+| `GENESIS_ENABLE_P87` | P87 | Marlin sub-tile output-dim pad-on-load (vllm#40361 backport). v7.62.10 text-patch implementation |
+| `GENESIS_ENABLE_P91` | P91 | AutoRound row-group cdiv quant dispatcher fix |
+| `GENESIS_ENABLE_P94` | P94 | Spec-decode `prepare_next_token_ids_padded` zero-alloc (vllm#41043 backport, P99 TPOT -9.3% per author) |
 
 > **P79d retired in v7.49** (vllm#38624 confirmed non-bug by njhill).
-> **P22, P26, P28, P36, P38, P40, P44, P46** are dispatcher-driven (always-on if platform supports).
+> **P22, P26, P28, P36, P38, P44, P46** are dispatcher-driven (always-on if platform supports).
 
 ---
 
@@ -128,6 +141,109 @@ Memory pool architecture — added v7.48 to control whether prealloc patches use
 | `GENESIS_P67_NUM_WARPS` | `8` (SM≥8.0) / `4` | Warps per CTA. 8 is optimum (Step D sweep — 4 regresses 4-5%) |
 | `GENESIS_P67_NUM_STAGES` | `3` (SM≥8.0) / `2` | Pipeline depth. 3 is optimum on A5000 dequant-heavy kernel; 2 was -2 to -9% (Step E) |
 | `GENESIS_P67_USE_FUSED` | `0` (off, opt-in) | **Experimental v7.52** — use fused-M kernel (BLOCK_M=K_PLUS_1*HEADS_PER_KV=32). REJECTED for prod default (-7% due to register spill on 64KB SM register file). Useful on A100/H100 or HEAD_DIM=64 models. |
+| `GENESIS_P67_MAX_PRIOR_LEN` | `4096` | Max prior context len for P67 fast-path. **Baked at module load (v7.62.6 H2 fix).** Container-launch-time tunable only. |
+| `GENESIS_P67_DEBUG_COMPARE` | `0` | Run reference CPU and assert match. **Baked at module load.** ~50× slower; use only for kernel debugging. |
+
+---
+
+## P75 Suffix Decoding tunables (opt-in via `GENESIS_ENABLE_P75_SUFFIX_DECODING=1`)
+
+Activates upstream PR #25784 (Arctic Inference). All values pass through to vLLM's
+`speculative_config`; defaults from PR's recommended profile.
+
+| Env var | Default | What it does |
+|---|---|---|
+| `GENESIS_P75_TREE_DEPTH` | `24` | Suffix tree max depth |
+| `GENESIS_P75_SPEC_FACTOR` | `2.0` | Max draft length factor (×K) |
+| `GENESIS_P75_MIN_PROB` | `0.10` | Branch probability threshold (drop branches below this) |
+| `GENESIS_P75_CACHE_REQS` | `10000` | Cross-request cache cap |
+
+---
+
+## P77 Adaptive Ngram-K Controller (opt-in via `GENESIS_ENABLE_P77_ADAPTIVE_NGRAM_K=1`)
+
+Port of SGLang's `adaptive_spec_params.py` EMA + hysteresis logic + Nightjar
+arXiv 2512.22420 auto-disable extension.
+
+| Env var | Default | What it does |
+|---|---|---|
+| `GENESIS_P77_STEPS` | `0,1,3,5` | K-ladder steps the controller can pick from |
+| `GENESIS_P77_EMA_ALPHA` | `0.2` | EMA smoothing factor for accept-rate |
+| `GENESIS_P77_WARMUP_BATCHES` | `10` | Batches to observe before first decision |
+| `GENESIS_P77_UPDATE_INTERVAL` | `5` | Batches between K decisions |
+| `GENESIS_P77_HYSTERESIS_DOWN` | `0.25` | Drop K when accept-rate falls this much below threshold |
+| `GENESIS_P77_HYSTERESIS_UP` | `0.0` | Raise K when accept-rate rises this much above threshold |
+| `GENESIS_P77_DISABLE_THRESHOLD` | `0.30` | Auto-disable spec-decode entirely below this accept-rate (Nightjar) |
+| `GENESIS_P77_PROBE_INTERVAL` | `100` | Batches between auto-disabled probes (re-test workload) |
+| `GENESIS_P77_LOG_EVERY` | `20` | Log K decision every N batches |
+
+---
+
+## P82 SGLang Acceptance Threshold (opt-in via `GENESIS_ENABLE_P82=1`)
+
+| Env var | Default | What it does |
+|---|---|---|
+| `GENESIS_P82_THRESHOLD_SINGLE` | (empty = disabled) | OR-clause threshold (`target_prob_single >= threshold_single`). Empirically tuned via prod sweep; biased rule, see `project_genesis_v7_53_p82_sglang_acceptance.md` |
+
+---
+
+## P41 Response Cache (opt-in via `GENESIS_ENABLE_P41_RESPONSE_CACHE=1`)
+
+Response-level cache layered above vLLM's prefix-cache: full prompt → full
+response, with TTL and weighted hit-rate metrics.
+
+| Env var | Default | What it does |
+|---|---|---|
+| `GENESIS_P41_BACKEND` | `memory` | `memory` (in-process LRU) or `redis` |
+| `GENESIS_P41_REDIS_URL` | (none) | e.g. `redis://192.168.1.10:6379/1` (required when backend=redis) |
+| `GENESIS_P41_MAX_ENTRIES` | (impl default) | LRU cap for memory backend |
+| `GENESIS_P41_TTL_SECONDS` | (impl default) | Expiry per cached entry |
+| `GENESIS_P41_HIT_WEIGHTED` | `0` | Weight hit-rate metric by response length |
+| `GENESIS_P41_HIT_ALPHA` | (impl default) | EMA alpha for weighted hit-rate |
+
+---
+
+## P83 / P85 debug knobs (opt-in via `GENESIS_ENABLE_P83=1` / `_P85=1`)
+
+| Env var | Default | What it does |
+|---|---|---|
+| `GENESIS_P83_DEBUG` | `0` | Enable P83 debug log lines (per-decision MTP cached-block trace) |
+| `GENESIS_P83_DEBUG_GCB` | `0` | Trace `get_computed_blocks` calls |
+| `GENESIS_P83_DEBUG_HITS` | `0` | Trace cache hit decisions |
+| `GENESIS_P83_DEBUG_STORE` | `0` | Trace block-store ops |
+| `GENESIS_P85_DEBUG` | `0` | Enable P85 hybrid fine-shadow prefix-cache trace lines |
+| `GENESIS_P84_HASH_BLOCK_SIZE` | (= layer `block_size`) | Override hash block size for hybrid prefix-cache |
+
+---
+
+## Memory / batched-token caps (kernel-side)
+
+These cap kernel-side scratch buffers; useful when vLLM's
+`--max-num-batched-tokens` differs from the kernel-baked default.
+
+| Env var | Default | What it does |
+|---|---|---|
+| `GENESIS_TQ_MAX_BATCHED_TOKENS` | (= `--max-num-batched-tokens`) | Override TurboQuant dequant scratch sizing (kernels/dequant_buffer.py) |
+| `GENESIS_GDN_MAX_BATCHED_TOKENS` | (= scheduler default) | Override GDN core-attn scratch sizing (kernels/gdn_core_attn_manager.py) |
+| `GENESIS_MOE_MAX_BATCHED_TOKENS` | (= scheduler default) | Override MoE intermediate-cache sizing (kernels/moe_intermediate_cache.py) |
+| `GENESIS_FLA_KKT_MAX_T` | (autodetect) | FLA KKT buffer max T-dim (patch_39_fla_kkt_buffer.py) |
+| `GENESIS_FLA_KKT_MAX_B` | (autodetect) | FLA KKT buffer max B-dim (patch_39_fla_kkt_buffer.py) |
+
+---
+
+## Force / override / test infra
+
+| Env var | Default | When to use |
+|---|---|---|
+| `GENESIS_DISABLE_P5` | `0` | Disable P5 page-size patch entirely (rollback) |
+| `GENESIS_FORCE_APPLY_P36` | `0` | Force P36 to apply even if config_detect would skip (test only) |
+| `GENESIS_FORCE_SPEC_DECODE` | (empty) | Force config_detect to report spec-decode active (test / pre-flight) |
+| `GENESIS_FORCE_MARLIN_W8A16` | `0` | Force Marlin kernel for W8A16 (bypasses AllSpark dispatch). Set together with `VLLM_DISABLED_KERNELS=AllSparkLinearKernel`. P93 companion |
+| `GENESIS_P71_USE_PYTORCH` | `0` | P71 block-verify: use PyTorch reference path instead of Triton kernel |
+| `GENESIS_PROFILE_RUN_CAP_LOG` | `1` | P72: log when profile_run M is capped |
+| `GENESIS_ENABLE_PERF_TESTS` | `0` | Run perf-benchmark tests (gated to keep CI fast) |
+| `GENESIS_SKIP_PERF_TESTS` | `0` | Force-skip perf tests even when implicitly enabled |
+| `GENESIS_VLLM_PIN_PATH` | (default file) | CI override for vLLM pin file location (test_v7_14_15_audit.py) |
 
 ---
 
