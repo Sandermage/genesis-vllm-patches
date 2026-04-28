@@ -692,6 +692,24 @@ def call_p67_attention(
     assert Hq % Hk == 0
     heads_per_kv = Hq // Hk
 
+    # v7.62.19b: defensive guard — Triton tl.zeros requires power-of-2 dims
+    # so K_PLUS_1 must be power of 2. With MTP K=3 the typical value is 4,
+    # but post-rejection or extension paths can produce K_PLUS_1 ∈ {3, 5, 6,
+    # 7, 9, ...}. Refuse those — caller (P67b dispatcher) catches and falls
+    # through to upstream kernel cleanly. This was causing CompilationError
+    # spam + bimodal variance under fp16-dot rebuild (v777 35B regression
+    # root cause; pre-existed but masked by warm Triton cache on prior names).
+    if K_PLUS_1 < 2 or (K_PLUS_1 & (K_PLUS_1 - 1)) != 0:
+        raise ValueError(
+            f"P67 kernel requires K_PLUS_1 power-of-2, got {K_PLUS_1}; "
+            "caller should fall through to upstream kernel"
+        )
+    if heads_per_kv < 1 or (heads_per_kv & (heads_per_kv - 1)) != 0:
+        raise ValueError(
+            f"P67 kernel requires heads_per_kv power-of-2, got {heads_per_kv}; "
+            "caller should fall through to upstream kernel"
+        )
+
     cap = torch.cuda.get_device_capability()
     cfg = _autoconfig(cap[0], cap[1], D)
 
