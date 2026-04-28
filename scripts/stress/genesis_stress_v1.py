@@ -239,12 +239,31 @@ def test_long_ctx(url, model, key) -> dict:
 
 
 def test_tool_call(url, model, key) -> dict:
-    """Simple Hermes-style tool-call rate test."""
-    sys_p = (
-        "You have access to one tool:\n"
-        '- get_weather(city: string) - Returns weather for a city\n\n'
-        "Use it ONLY when the user asks about weather."
-    )
+    """OpenAI-tools API style tool-call rate test (qwen3_coder-compatible).
+
+    Uses the OpenAI `tools` array so vllm's tool-call-parser processes
+    model output correctly regardless of model-specific format (qwen3_coder
+    XML, Hermes JSON, etc.). Pass criteria: model emits structured tool_call
+    in response.choices[0].message.tool_calls, OR mentions get_weather in
+    content (loose fallback).
+    """
+    tools = [{
+        "type": "function",
+        "function": {
+            "name": "get_weather",
+            "description": "Get the current weather for a given city.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "city": {
+                        "type": "string",
+                        "description": "City name, e.g. 'Paris'",
+                    },
+                },
+                "required": ["city"],
+            },
+        },
+    }]
     queries = [
         "What is the weather in Paris?",
         "How is the weather looking in Tokyo right now?",
@@ -254,14 +273,14 @@ def test_tool_call(url, model, key) -> dict:
     ]
     used = 0
     failed = 0
+    samples = []
     for q in queries:
         try:
             body = json.dumps({
                 "model": model,
-                "messages": [
-                    {"role": "system", "content": sys_p},
-                    {"role": "user", "content": q},
-                ],
+                "messages": [{"role": "user", "content": q}],
+                "tools": tools,
+                "tool_choice": "auto",
                 "max_tokens": 256,
                 "temperature": 0.0,
             }).encode()
@@ -274,17 +293,24 @@ def test_tool_call(url, model, key) -> dict:
                 },
             )
             j = json.loads(urllib.request.urlopen(req, timeout=120).read())
-            content = j["choices"][0]["message"].get("content", "")
-            tool_calls = j["choices"][0]["message"].get("tool_calls")
-            if tool_calls or "get_weather" in content:
+            msg = j["choices"][0]["message"]
+            content = msg.get("content") or ""
+            tool_calls = msg.get("tool_calls")
+            if tool_calls:
                 used += 1
-        except Exception:
+                samples.append({"tool_calls": len(tool_calls)})
+            elif "get_weather" in content or "weather" in content.lower()[:120]:
+                # loose fallback for models that emit weather info in content
+                samples.append({"content_excerpt": content[:80]})
+        except Exception as e:
             failed += 1
+            samples.append({"error": str(e)[:60]})
     return {
         "n_queries": len(queries),
         "tool_used": used,
         "failed": failed,
         "tool_use_rate": round(used / len(queries), 4),
+        "samples": samples,
     }
 
 
