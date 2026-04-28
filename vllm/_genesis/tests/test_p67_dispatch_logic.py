@@ -290,12 +290,23 @@ def test_emit_falls_through_on_exception():
 # ─── marker ─────────────────────────────────────────────────────────────
 
 
-def test_marker_versioned_baked_env():
-    """Marker should embed v7.62.6_baked_env so re-applies after H2 fix
-    don't no-op against stale per-dispatch-env-read marker.
+def test_marker_versioned_capture_guard():
+    """Marker should embed v7.62.12_capture_guard so re-applies after B1 fix
+    don't no-op against stale baked-env-only marker.
     """
-    assert "v7.62.6_baked_env" in GENESIS_P67_MARKER, (
-        f"P67 marker {GENESIS_P67_MARKER!r} should embed v7.62.6_baked_env"
+    assert "v7.62.12_capture_guard" in GENESIS_P67_MARKER, (
+        f"P67 marker {GENESIS_P67_MARKER!r} should embed v7.62.12_capture_guard"
+    )
+
+
+def test_emit_has_capture_guard_for_telemetry():
+    """B1 fix: telemetry block must guard on is_current_stream_capturing()
+    so .item()/.tolist() do not break cudagraph capture."""
+    assert "is_current_stream_capturing()" in P67_NEW, (
+        "B1 fix: P67 emit must guard telemetry on is_current_stream_capturing()"
+    )
+    assert "and not _genesis_p67_capturing" in P67_NEW, (
+        "B1 fix: stats block must check `not _genesis_p67_capturing`"
     )
 
 

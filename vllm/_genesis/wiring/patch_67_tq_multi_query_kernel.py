@@ -49,7 +49,7 @@ from vllm._genesis.wiring.text_patch import (
 
 log = logging.getLogger("genesis.wiring.p67_tq_multi_query_kernel")
 
-GENESIS_P67_MARKER = "Genesis P67 TQ multi-query kernel for spec-decode K+1 v7.62.6_baked_env"
+GENESIS_P67_MARKER = "Genesis P67 TQ multi-query kernel for spec-decode K+1 v7.62.12_capture_guard"
 
 
 # ─── H2 fix: bake env reads at module-load (eager) ───────────────────────
@@ -213,8 +213,16 @@ P67_NEW = (
     "                    # produce clean output. Allows direct correctness verification\n"
     "                    # without poisoning the engine.\n"
     f"                    _debug_compare = {_BAKED_DEBUG_COMPARE}\n"
-    "                    if self._genesis_p67_dispatch_count <= 5:\n"
-    "                        import torch as _genesis_p67_torch\n"
+    "                    # [Genesis P67 B1 fix v7.62.12] Telemetry .item()/.tolist() are\n"
+    "                    # GPU->CPU syncs that break under FULL cudagraph capture (capture\n"
+    "                    # gets invalidated). Gate on is_current_stream_capturing() so the\n"
+    "                    # debug stats run ONLY in eager mode (warmup + non-captured paths).\n"
+    "                    import torch as _genesis_p67_torch\n"
+    "                    _genesis_p67_capturing = (\n"
+    "                        _genesis_p67_torch.cuda.is_available()\n"
+    "                        and _genesis_p67_torch.cuda.is_current_stream_capturing()\n"
+    "                    )\n"
+    "                    if self._genesis_p67_dispatch_count <= 5 and not _genesis_p67_capturing:\n"
     "                        _stats_out = _genesis_p67_out.float().detach()\n"
     "                        _amax = float(_stats_out.abs().max().item())\n"
     "                        _amean = float(_stats_out.abs().mean().item())\n"
