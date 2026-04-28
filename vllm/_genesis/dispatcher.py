@@ -378,6 +378,21 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             # Applies whenever spec-decode is active. All spec methods.
         },
     },
+    "P95": {
+        "title": "Marlin TP cudagraph cap on Ampere (vllm#40385)",
+        "env_flag": "GENESIS_ENABLE_P95",
+        "default_on": False,
+        "category": "stability",
+        "credit": "Backport of vllm#40385 (OPEN as of 2026-04-28). Defensive cap of max_cudagraph_capture_size to 8 when ALL of: TP>1, Ampere SM 8.0 family (covers SM 8.6 A5000), quantization endswith '_marlin', AND user did NOT set explicit cudagraph sizing. Mitigates vllm#40121 (illegal memory access during CG replay on TP>1 + Marlin + Ampere). NO-OP for our PROD (FP8, not Marlin); ACTIVE for Lorbus INT4 + Minachist gs128 (Marlin path). Operator override via --compilation-config bypasses entirely.",
+        "upstream_pr": 40385,
+        "applies_to": {
+            "quant_format": [
+                "gptq_int4", "gptq_int8", "awq_int4", "awq_int8",
+                "compressed_tensors", "int4_w4a16", "int8_w8a16",
+                "autoround_int4", "autoround_int8",
+            ],
+        },
+    },
     "P91": {
         "title": "AutoRound row-parallel group cdiv + start-idx fix (vllm#39460)",
         "env_flag": "GENESIS_ENABLE_P91",
