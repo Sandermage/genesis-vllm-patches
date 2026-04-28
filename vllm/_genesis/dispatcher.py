@@ -101,6 +101,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "structured_output",
         "credit": "ZenoAFfectionate (vllm#39055)",
         "upstream_pr": 39055,
+        "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_moe", "qwen3_next"]},
     },
     "P60": {
         "title": "GDN+ngram state recovery (Phase 1: SSM pre-copy)",
@@ -109,6 +110,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "spec_decode",
         "credit": "tdoublep (vllm#40738), bhaktatejas922 (#39273)",
         "upstream_pr": 40738,
+        "applies_to": {"is_hybrid": [True]},
     },
     "P60b": {
         "title": "GDN+ngram Triton kernel offset (Phase 2)",
@@ -117,6 +119,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "spec_decode",
         "credit": "tdoublep (vllm#40738)",
         "upstream_pr": 40738,
+        "applies_to": {"is_hybrid": [True]},
     },
     "P61": {
         "title": "Qwen3 multi-tool first-occurrence (DEPRECATED — superseded by P12 v2)",
@@ -126,6 +129,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "structured_output",
         "credit": "ExtReMLapin (vllm#40783) — P61 was supposed to flip P12's LAST-occurrence to FIRST via post-anchor replacement, but its anchor 'tool_call_index = ...' never matched P12-emitted 'idx = ...' form, so it silent-skipped when P12 was active. v7.62.5 (2026-04-28): P12 emit updated to FIRST directly; P61 retired. Setting GENESIS_ENABLE_P61=1 is now a harmless no-op (anchor not found vs already-FIRST P12 output).",
         "upstream_pr": 40783,
+        "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_moe", "qwen3_next"]},
     },
     "P62": {
         "title": "Structured-output spec-decode reasoning-end timing fix",
@@ -134,6 +138,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "structured_output",
         "credit": "sfbemerk (vllm#36138), cicirori (vllm#34650)",
         "upstream_pr": 36138,
+        "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_moe", "qwen3_next"]},
     },
     "P61b": {
         "title": "Qwen3 streaming partial-tag overlap guard",
@@ -142,6 +147,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "structured_output",
         "credit": "ExtReMLapin (vllm#40783)",
         "upstream_pr": 40783,
+        "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_moe", "qwen3_next"]},
     },
     "P63": {
         "title": "MTP/Eagle drafter GDN state recovery (deprecated — wrong layer)",
@@ -167,6 +173,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "structured_output",
         "credit": "kotori-yan (vllm#39598)",
         "upstream_pr": 39598,
+        "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_moe", "qwen3_next"]},
     },
     "P65": {
         "title": "TurboQuant spec-decode cudagraph downgrade",
@@ -175,6 +182,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "spec_decode",
         "credit": "Genesis-original (root cause for noonghunna #40880)",
         "upstream_pr": None,
+        "applies_to": {"is_turboquant": [True]},
     },
     "P66": {
         "title": "cudagraph_capture_sizes spec-decode divisibility filter",
@@ -191,6 +199,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "structured_output",
         "credit": "Genesis-original (long-ctx tool adherence mitigation)",
         "upstream_pr": None,
+        "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_moe", "qwen3_next"]},
     },
     "P69": {
         "title": "Long-context tool-format reminder injection",
@@ -199,6 +208,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "structured_output",
         "credit": "Genesis-original (long-ctx tool adherence mitigation)",
         "upstream_pr": None,
+        "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_moe", "qwen3_next"]},
     },
     "P70": {
         "title": "Auto-strict-ngram (force prompt_lookup_min>=8)",
@@ -242,6 +252,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "compile_safety",
         "credit": "Genesis-original (zero-VRAM-cost prealloc-overflow safety net for P72-unblocked batched_tokens>4096)",
         "upstream_pr": None,
+        "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_moe", "qwen3_next"]},
     },
     "P75": {
         "title": "Auto-enable Suffix Decoding (Arctic Inference, vllm#25784)",
@@ -313,6 +324,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "spec_decode",
         "credit": "Root-cause analysis: vllm#38182 by uOnePiece + @Angazenn comment identifying single_type_kv_cache_manager.py:457 force-pop last cached block when use_eagle=True. MTP gets caught up via config/speculative.py:890-891 (use_eagle returns True for 'mtp'). EMPIRICALLY DISPROVEN as the actual cause: Genesis debug instrumentation showed find_longest_cache_hit was NEVER called for our workload because num_hashes=0 (block_size > prompt_len after P5 LCM-pad). The L457 pop is a downstream symptom, not the upstream cause. P84 (hash_block_size override) is the real fix. P83 kept as opt-in research artifact for future workloads where the pop site IS reached.",
         "upstream_pr": None,
+        "applies_to": {"is_hybrid": [True]},
     },
     "P84": {
         "title": "hash_block_size override (vllm#38182 actual root cause)",
@@ -321,6 +333,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "kv_cache",
         "credit": "Genesis-original discovery 2026-04-27 via P83 DEBUG instrumentation. scheduler.py:234 hard-codes hash_block_size=self.block_size; on hybrid Qwen3.6-MoE with P5 LCM-pad this becomes 2048+, so request_block_hasher computes 0 hashes for prompts < 2048 tokens. Cache machinery runs with overhead but never produces hits. P84 text-patches scheduler.py to read hash_block_size from env GENESIS_P84_HASH_BLOCK_SIZE (recommended value: 16 = full-attention default). Engage via GENESIS_ENABLE_P84=1 + GENESIS_P84_HASH_BLOCK_SIZE=16. Constraint: must divide every group's block_size, else vLLM's own assertion fires at startup. Related: vllm#38182 identified WRONG root cause (the L457 pop); P84 attacks the upstream cause.",
         "upstream_pr": None,
+        "applies_to": {"is_hybrid": [True]},
     },
     "P85": {
         "title": "Hybrid fine-shadow prefix cache (vllm#38182 followup, MambaManager fix)",
@@ -329,6 +342,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "kv_cache",
         "credit": "Genesis-original 2026-04-27 — synthesis of 6-round empirical investigation + deep code analysis. Identified TWO mismatches in hybrid prefix cache: (A) MambaManager.cache_blocks early-returns for prompts < self.block_size (e.g., 1424 < 2048); (B) Mamba align-mode pads with null_blocks so num_full_blocks > 0 still inserts 0 entries. P85 patches MambaManager to: (1) register shadow fine-grained hash entries (scale_factor=block_size/hash_block_size duplicates) when caching, (2) walk fine hashes on lookup with eviction-safety re-derive verify. Memory layout / ref-count untouched. Requires P84 (fine hashes computed). Architectural limit: cannot help prompts < block_size (Mamba state genuinely uncached at sub-block boundaries).",
         "upstream_pr": None,
+        "applies_to": {"is_hybrid": [True]},
     },
     "P86": {
         "title": "ngram batch_propose O(N*K) → O(N+K) direct-fill (vllm#40876)",
