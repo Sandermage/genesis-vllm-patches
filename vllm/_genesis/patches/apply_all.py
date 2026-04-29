@@ -1869,6 +1869,38 @@ def apply_patch_N11_gdn_a_b_contiguous() -> PatchResult:
     return _failed(name, reason)
 
 
+@register_patch("PN12 FFN intermediate scratch pool (Cliff 1 fix on TQ3)")
+def apply_patch_N12_ffn_intermediate_pool() -> PatchResult:
+    """Patch N12: pool transient SiluAndMul output buffers across layers.
+
+    Closes Cliff 1 OOM (138 MiB allocate failed at 122 MiB free) on TQ3
+    path that PN8 cannot address (different memory class — transient
+    activation peak vs persistent draft footprint).
+
+    Root cause: vllm/model_executor/layers/activation.py:146 SiluAndMul.
+    forward_cuda allocates [M, intermediate_size] BF16 transient PER
+    LAYER × 64 layers = 4.7-18 GiB allocator churn per forward step on
+    Lorbus 27B-int4. Pool single shared buffer per (intermediate_size,
+    dtype, device) — pointer-stable, cudagraph-safe.
+
+    Status: opt-in via GENESIS_ENABLE_PN12_FFN_INTERMEDIATE_POOL=1.
+    Default OFF.
+    """
+    name = "PN12 FFN intermediate scratch pool (Cliff 1 fix)"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring import patch_N12_ffn_intermediate_pool
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_N12_ffn_intermediate_pool.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
 @register_patch("PN13 CUDAGraphWrapper lambda arity (vllm#41235 backport)")
 def apply_patch_N13_cuda_graph_lambda_arity() -> PatchResult:
     """Patch N13: backport of vllm#41235 (roikoren755, OPEN as of 2026-04-29) —

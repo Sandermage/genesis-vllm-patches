@@ -445,6 +445,33 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             # patch is harmless (no-op .contiguous() call).
         },
     },
+    "PN12": {
+        "title": "FFN intermediate scratch pool — Cliff 1 fix on TQ3 path",
+        "env_flag": "GENESIS_ENABLE_PN12_FFN_INTERMEDIATE_POOL",
+        "default_on": False,
+        "category": "memory_savings",
+        "credit": (
+            "Genesis-original 2026-04-29 — Cliff 1 fix on TQ3 path. "
+            "Closes 138 MiB OOM at 192K + tool-call on RTX 3090 (noonghunna "
+            "report). PN8 closes Cliff 1 on FP8 by freeing ~600 MiB persistent "
+            "draft VRAM, but on TQ3 frees only ~230 MiB — not enough slack "
+            "for the 138 MiB transient. Different memory class. PN12 pools "
+            "the SiluAndMul output across layers (single buffer per "
+            "(intermediate_size, dtype, device)) — reduces per-step allocator "
+            "churn from ~4.7-18 GiB to ~73-285 MiB on Lorbus 27B-int4. "
+            "Pointer-stable (cudagraph-safe). Cross-engine reference: "
+            "TensorRT-LLM live-range activation reuse (gold standard); "
+            "alternative paths: vLLM PR #34207 (silu_and_mul.out variant), "
+            "SGLang PR #15927 (piecewise CUDA graph private pool). Tested "
+            "via 17 unit tests in tests/test_ffn_intermediate_cache.py."
+        ),
+        "upstream_pr": 34207,  # would obsolete this patch if merged
+        "applies_to": {
+            # Patch matters when SiluAndMul / MulAndSilu is on the hot path
+            # (any model with FFN gate-up + silu activation — qwen3, llama,
+            # mistral, deepseek, etc.). For MoE models impact is per-expert.
+        },
+    },
     "PN13": {
         "title": "CUDAGraphWrapper gc.collect/empty_cache lambda arity (vllm#41235)",
         "env_flag": "GENESIS_ENABLE_PN13_CUDA_GRAPH_LAMBDA_ARITY",
