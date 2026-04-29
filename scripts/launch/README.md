@@ -15,12 +15,30 @@ Plus 3 utility scripts and an `_archive/` of historical / research arms.
 
 ## Quick reference
 
+### TP=2 (validated PROD on 2× RTX A5000)
+
 | Model | Config | Docker | Bare metal |
 |---|---|---|---|
 | **35B-A3B-FP8** PROD (TQ k8v4 + MTP K=3 + PN8) | `--max-model-len 320000` | [`start_35b_fp8_PROD.sh`](start_35b_fp8_PROD.sh) | [`bare_metal_35b_fp8_PROD.sh`](bare_metal_35b_fp8_PROD.sh) |
 | **27B-INT4 Lorbus** short-ctx (no TQ, fp8_e5m2) | `--max-model-len 131072` `--max-num-seqs 4` | [`start_27b_int4_no_TQ_short.sh`](start_27b_int4_no_TQ_short.sh) | [`bare_metal_27b_int4_no_TQ_short.sh`](bare_metal_27b_int4_no_TQ_short.sh) |
 | **27B-INT4 Lorbus** long-ctx 256K (no TQ) | `--max-model-len 280000` `--max-num-seqs 2` `--gpu-mem-util 0.90` | [`start_27b_int4_no_TQ_long_256K.sh`](start_27b_int4_no_TQ_long_256K.sh) | [`bare_metal_27b_int4_no_TQ_long_256K.sh`](bare_metal_27b_int4_no_TQ_long_256K.sh) |
 | **27B-INT4 Lorbus** TQ k8v4 (hybrid + P98) | TQ packed slot + 256K capable | [`start_27b_int4_TQ_k8v4.sh`](start_27b_int4_TQ_k8v4.sh) | [`bare_metal_27b_int4_TQ_k8v4.sh`](bare_metal_27b_int4_TQ_k8v4.sh) |
+
+### TP=1 single-card (⚠️ EXPERIMENTAL — NOT TESTED by maintainer)
+
+These are the TP=1 derivatives of the four PROD configs above. Same Genesis env
+flags + `--tensor-parallel-size 1`, otherwise identical. Sander runs 2× A5000
+so these have NOT been benched / stress-tested end-to-end. Each script carries
+a prominent EXPERIMENTAL warning header and per-card sizing notes.
+
+If you run one and it works, please share results via [GitHub Discussions](https://github.com/Sandermage/genesis-vllm-patches/discussions) — we'll fold confirmed configs back into the main table and drop the experimental tag for that card class.
+
+| Model | Card class fit | Docker | Bare metal |
+|---|---|---|---|
+| **35B-A3B-FP8** (~35 GB weights) | 48 GB+ cards (A6000, 6000 Ada, L40, RTX PRO 5000/6000 Blackwell, A100, H100, B200) | [`start_35b_fp8_PROD_single_card.sh`](start_35b_fp8_PROD_single_card.sh) | [`bare_metal_35b_fp8_PROD_single_card.sh`](bare_metal_35b_fp8_PROD_single_card.sh) |
+| **27B-INT4 Lorbus** short-ctx (~14 GB weights) | 24 GB+ cards (3090, 4090, 5090, A5000, etc.) | [`start_27b_int4_no_TQ_short_single_card.sh`](start_27b_int4_no_TQ_short_single_card.sh) | [`bare_metal_27b_int4_no_TQ_short_single_card.sh`](bare_metal_27b_int4_no_TQ_short_single_card.sh) |
+| **27B-INT4 Lorbus** long-ctx 256K | 24 GB+ (tighter — may need to lower max-model-len on 24 GB) | [`start_27b_int4_no_TQ_long_256K_single_card.sh`](start_27b_int4_no_TQ_long_256K_single_card.sh) | [`bare_metal_27b_int4_no_TQ_long_256K_single_card.sh`](bare_metal_27b_int4_no_TQ_long_256K_single_card.sh) |
+| **27B-INT4 Lorbus** TQ k8v4 + P98 | 24 GB+ | [`start_27b_int4_TQ_k8v4_single_card.sh`](start_27b_int4_TQ_k8v4_single_card.sh) | [`bare_metal_27b_int4_TQ_k8v4_single_card.sh`](bare_metal_27b_int4_TQ_k8v4_single_card.sh) |
 
 **Empirical numbers** (2× RTX A5000 24 GB, vLLM nightly pin `8cd174fa3`,
 N=500 stress over 200 min continuous):

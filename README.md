@@ -413,6 +413,19 @@ Empirical:           wall_TPS 90.49 (+1.9% NS vs no-TQ, Welch p=0.067)
 
 Files: [`scripts/launch/start_27b_int4_TQ_k8v4.sh`](scripts/launch/start_27b_int4_TQ_k8v4.sh) · [`bare_metal_27b_int4_TQ_k8v4.sh`](scripts/launch/bare_metal_27b_int4_TQ_k8v4.sh)
 
+### Single-card variants (⚠️ EXPERIMENTAL — NOT TESTED by maintainer)
+
+Each of the 4 PROD configs above ships a TP=1 single-card derivative:
+
+- [`start_35b_fp8_PROD_single_card.sh`](scripts/launch/start_35b_fp8_PROD_single_card.sh) — 35B-A3B-FP8 needs ≥48 GB single card (A6000, 6000 Ada, L40, RTX PRO 5000 Blackwell 48 GB, RTX PRO 6000 Blackwell 96 GB, A100, H100, B200)
+- [`start_27b_int4_no_TQ_short_single_card.sh`](scripts/launch/start_27b_int4_no_TQ_short_single_card.sh) — fits 24 GB+ (3090, 4090, 5090, A5000, RTX PRO 4000 Blackwell 24 GB, etc.)
+- [`start_27b_int4_no_TQ_long_256K_single_card.sh`](scripts/launch/start_27b_int4_no_TQ_long_256K_single_card.sh)
+- [`start_27b_int4_TQ_k8v4_single_card.sh`](scripts/launch/start_27b_int4_TQ_k8v4_single_card.sh)
+
+Plus matching `bare_metal_*_single_card.sh` for native (non-Docker) runs.
+
+Each script has a prominent header warning marking it as **EXPERIMENTAL · NOT TESTED**, with hardware-class sizing notes. Sander runs 2× A5000 — these have not been benched end-to-end. **If you run one and it works, please share results via [GitHub Discussions](https://github.com/Sandermage/genesis-vllm-patches/discussions)** — confirmed configs get folded back and the EXPERIMENTAL tag dropped for that card class.
+
 ### Deferred — 27B-INT8-Minachist
 
 Both Minachist `Qwen3.6-27B-INT8-AutoRound` (group_size=-1, AllSpark path) and `Qwen3.6-27B-INT8-gs128` (group_size=128, Marlin path) currently boot-crash on `torch._dynamo.exc.Unsupported: infer_schema` in `qwen3_next.py:408 self.linear_attn(...)`. **Crash is independent of Genesis patches** — reproduces with `v764d` minimal config. Wait for pin bump past v0.20.2 or upstream fix.
