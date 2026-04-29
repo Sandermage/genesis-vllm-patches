@@ -550,6 +550,7 @@ Genesis ships **65+ runtime patches** across categories. Each patch is opt-in vi
 | P82 | SGLang threshold_single OR-clause | ON (35B) |
 | **PN8** | **MTP draft online-quant propagation** | **ON for FP8 + MTP** |
 | **PN9** | **Independent drafter attention backend** | **(self-retired in pin)** |
+| **P102** | **Unified spec-decode metadata (TRT-LLM-inspired)** | **OFF (Phase 1 assertion-only mode)** |
 
 ### Hybrid GDN / Mamba
 
@@ -561,6 +562,7 @@ Genesis ships **65+ runtime patches** across categories. Each patch is opt-in vi
 | P39 / P39a | FLA chunk_scaled_dot_kkt buffer pool | ON |
 | P46 | GDN gating buffers | ON |
 | P60 / P60b | GDN+ngram state recovery (vllm#40738) | ON |
+| **P103** | **FLA Cliff 2 chunked fwd_h+fwd_o orchestrator** | **ON for long-ctx single-card** |
 | **PN11** | **GDN a/b contiguity (vllm#41142, by Quentin Machu)** | **ON (defensive)** |
 
 ### Tool-call + reasoning parsers
@@ -590,6 +592,47 @@ Genesis ships **65+ runtime patches** across categories. Each patch is opt-in vi
 | P87 | Marlin sub-tile pad-on-load (vllm#40361) | ON |
 | P91 | AutoRound row-parallel cdiv (vllm#39460) | ON |
 | P93 | AllSpark bypass for INT8 W8A16 | OFF |
+| P95 | Marlin TP cudagraph cap | OFF |
+
+### Cache / scheduler / memory utilities
+
+| ID | Title | Default |
+|---|---|:---:|
+| P14 | KV cache block table guard | ON |
+| P26 | TQ prefill output prealloc | (auto-skipped if upstream merged) |
+| P44 | TQ mixed-attention out buffer | ON |
+| P72 | Profile-run M cap (unblocks max-num-batched-tokens > 4096 on MoE) | ON |
+| P75 | Suffix decoding enable (Arctic Inference port, vllm#25784) | OFF |
+| P78 | TQ `.tolist()` cudagraph capture guard (Apache-2.0 from @noonghunna) | OFF |
+| P79c | Stale `spec_token_ids` cleanup for unscheduled requests | OFF |
+
+### Pre-Genesis startup probes (`external_probe/`)
+
+Genesis ships **three small probes** that run BEFORE the main `apply_all` orchestrator. They patch crashes that would otherwise prevent the engine from booting under our exact stack — fixed first, then Genesis applies on top of a working engine:
+
+| Probe | Purpose | Status |
+|---|---|---|
+| [`external_probe/patch_tolist_cudagraph.py`](external_probe/patch_tolist_cudagraph.py) | `.tolist()` cudagraph-capture guards in `turboquant_attn.py` (forward + `_prefill_attention`). Adapted from [@noonghunna](https://github.com/noonghunna)'s `patch_tolist_cudagraph.py` (Apache-2.0, full attribution in CREDITS.md). | runs every boot |
+| [`external_probe/patch_40074_iooo.py`](external_probe/patch_40074_iooo.py) | 5-line backport of [vllm#40074](https://github.com/vllm-project/vllm/pull/40074) — IOOB (index-out-of-bounds) clamp on Triton block-table pointer arithmetic. Fixes [vllm#39998](https://github.com/vllm-project/vllm/issues/39998), possibly [#40831](https://github.com/vllm-project/vllm/issues/40831). | runs every boot |
+| [`external_probe/patch_pr40798_backport.py`](external_probe/patch_pr40798_backport.py) | Backport of [vllm#40798](https://github.com/vllm-project/vllm/pull/40798) — TurboQuant share decode scratch workspace across layers (4 file changes). Hypothesized side-effect fix for vllm#40831 token loops via stable workspace pointer. | runs every boot |
+
+These are referenced by Docker launch scripts via `python3 /external_probe/patch_*.py` calls before `python3 -m vllm._genesis.patches.apply_all`. If you fork the repo or copy launch scripts, **make sure `external_probe/` exists at the path the script mounts** (`-v $GENESIS_REPO/external_probe:/external_probe:ro`). The bare-metal scripts call them via `python3 $GENESIS_REPO/external_probe/patch_*.py` instead.
+
+### P102 — Unified spec-decode metadata (TRT-LLM-inspired architecture)
+
+A library file rather than a wiring text-patch — lives at [`vllm/_genesis/spec_meta.py`](vllm/_genesis/spec_meta.py). Per Sander's 2026-04-28 architectural study of `tensorrt_llm/_torch/speculative/interface.py`:
+
+> Current Genesis approach: each spec-decode-aware patch (P67/P67b/P78/P98/P99) re-derives "are we in spec-decode? cudagraph? warmup?" from local hints. There is NO single source of truth, so v756 regression broke specifically because P67 fired on chunked-prefill batches when spec-decode was OFF.
+
+**Solution:** single `GenesisSpecMeta` dataclass holds the full spec-decode + cudagraph + warmup state for the current step. Set by V1 `GPUModelRunner.execute_model` prelude. Consumed by predicate functions like `should_dispatch_p67(...)` that replace scattered inline checks.
+
+The TRT-LLM canonical idiom we ported (from `dflash.py:269`):
+
+```python
+is_warmup = spec_metadata.is_cuda_graph and not torch.cuda.is_current_stream_capturing()
+```
+
+This single-source warmup-vs-replay distinction is what bites our P67 hot path. Status: opt-in via `GENESIS_ENABLE_P102=1` (default OFF — Phase 1 assertion-only mode where predicates RECORD their decision and disagreement logs WARNING but doesn't change behavior). Phase 2 / 3 land in subsequent releases as we migrate the existing inline checks over.
 
 ### Disproven / not recommended
 
