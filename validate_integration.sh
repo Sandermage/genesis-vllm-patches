@@ -1,37 +1,41 @@
 #!/usr/bin/env bash
-# Genesis v7.0-dev INTEGRATION validation script (TDD gate 2 of 2)
+# Genesis INTEGRATION validation script (TDD gate 2 of 2) — v7.62.x updated.
 #
-# Runs on VM 100 (192.168.1.10) AFTER the integration container is up and
-# prod has been stopped (or scaled-down). Performs: container health check,
-# Genesis import check, full pytest suite (real CUDA), chat-completion
-# smoke test, and diagnostic probes defined in master plan v7.0.
+# What this does (vs the benchmark suite):
+#   - validate_unit.sh           CPU-only Python pytest suite (~30 sec)
+#   - validate_integration.sh    Real CUDA + container health + chat smoke + pytest
+#   - tools/genesis_bench_suite.py  Performance benchmark (TPS / TTFT / ctx probe)
 #
-# CRITICAL: VM 103 (192.168.1.15) has NO GPUs — do NOT run this there.
-# For CPU-only unit validation, use ./validate_unit.sh instead.
+# Use this script when you've made changes to Genesis patches and want
+# pytest + real engine validation BEFORE running the bench suite for numbers.
 #
-# Prereq (Mode A blue/green):
-#   ssh sander@192.168.1.10 'docker stop <prod-vllm-container>'
-#   docker compose -f docker-compose.integration.yml up -d
-#   # wait ~5 min for model load
-#   ./validate_integration.sh
+# Prereq:
+#   1. A GPU host with NVIDIA Container Toolkit installed.
+#   2. The integration container running:
+#        docker compose -f docker-compose.integration.yml up -d
+#      (or any of the model-specific compose files — see scripts/run_validation_suite.sh)
+#   3. ~5 min wait for model load + Genesis patch apply.
 #
 # Usage:
-#   ./validate_integration.sh           # uses defaults below
-#   HOST=192.168.1.10 ./validate_integration.sh   # remote host override
+#   ./validate_integration.sh                      # defaults below
+#   HOST=192.168.1.10 ./validate_integration.sh    # remote host
+#   MODEL_NAME=qwen3.6-35b-a3b ./validate_integration.sh   # match served-model-name
 #
 # Exit codes:
-#   0 — All tests pass, ready for prod consideration
-#   1 — pytest failures detected
+#   0 — All tests pass, ready for promotion
+#   1 — pytest failures
 #   2 — diagnostic probe failure
 #   3 — smoke test failure
 #   4 — setup error
 
 set -u  # don't 'set -e' — we want all checks to run and report summary
 
-CONTAINER=${CONTAINER:-vllm-integration-v7}
+# Defaults match scripts/launch/start_*_PROD.sh + docker-compose.integration.yml.
+# Override via env vars.
+CONTAINER=${CONTAINER:-vllm-server-mtp-test}
 HOST=${HOST:-localhost}
 PORT=${PORT:-8000}
-MODEL_NAME=${MODEL_NAME:-qwen3.6-35b-a3b-integration}
+MODEL_NAME=${MODEL_NAME:-qwen3.6-35b-a3b}
 API_KEY=${API_KEY:-genesis-local}
 
 PASS=0

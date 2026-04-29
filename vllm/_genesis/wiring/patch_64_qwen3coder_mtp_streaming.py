@@ -198,6 +198,44 @@ SERVING_SHOULD_NEW = (
 )
 
 
+# ─── Sub-patch E: serving.py — call-site guard for tool_calls[0] ────────────
+# P64's widened _should_check returns True on finish_reason alone (no tool_calls
+# required). The call site in chat_completion_stream_generator then accesses
+# delta_message.tool_calls[0] unconditionally → IndexError when the final
+# streaming delta carries tool calls in prev_tool_call_arr but an empty
+# delta_message.tool_calls list. Guard the inner `if` before [0] access.
+
+SERVING_CALLSITE_OLD = (
+    "                        if should_check and tool_parser and auto_tools_called:\n"
+    "                            latest_delta_len = 0\n"
+    "                            if (\n"
+    "                                isinstance(\n"
+    "                                    delta_message.tool_calls[0].function,\n"
+    "                                    DeltaFunctionCall,\n"
+    "                                )\n"
+    "                            ) and isinstance(\n"
+    "                                delta_message.tool_calls[0].function.arguments, str\n"
+    "                            ):\n"
+)
+
+SERVING_CALLSITE_NEW = (
+    "                        if should_check and tool_parser and auto_tools_called:\n"
+    "                            latest_delta_len = 0\n"
+    "                            # [Genesis P64 call-site guard] _should_check\n"
+    "                            # fires on finish_reason alone; tool_calls may\n"
+    "                            # be [] on the final delta — guard before [0].\n"
+    "                            if (\n"
+    "                                delta_message.tool_calls\n"
+    "                                and isinstance(\n"
+    "                                    delta_message.tool_calls[0].function,\n"
+    "                                    DeltaFunctionCall,\n"
+    "                                )\n"
+    "                            ) and isinstance(\n"
+    "                                delta_message.tool_calls[0].function.arguments, str\n"
+    "                            ):\n"
+)
+
+
 # ─── Sub-patch D: serving.py — _create_remaining_args_delta Pydantic fix ────
 
 SERVING_CRD_OLD = (
@@ -279,6 +317,8 @@ def _make_serving_patcher() -> TextPatcher | None:
         sub_patches=[
             TextPatch(name="p64_safety_net_widen", anchor=SERVING_SHOULD_OLD,
                       replacement=SERVING_SHOULD_NEW, required=True),
+            TextPatch(name="p64_callsite_guard", anchor=SERVING_CALLSITE_OLD,
+                      replacement=SERVING_CALLSITE_NEW, required=True),
             # NOTE: D sub-patch DUPLICATES the original return for the second
             # half of _create_remaining_args_delta to keep the function shape
             # syntactically valid (the original DeltaFunctionCall line

@@ -1,5 +1,17 @@
 #!/usr/bin/env bash
-# Genesis v7.10 — universal per-model validation runner
+# Genesis universal per-model validation runner — v7.62.x updated.
+#
+# Active model tags (v7.62.x):
+#   qwen3_6_35b_fp8         — 35B-A3B-FP8 PROD (TQ k8v4 + MTP K=3 + PN8)
+#   qwen3_6_27b_int4_short  — 27B-int4-Lorbus short-ctx (no TQ, fp8_e5m2)
+#   qwen3_6_27b_int4_long   — 27B-int4-Lorbus long-ctx 256K (no TQ)
+#   qwen3_6_27b_int4_TQ     — 27B-int4-Lorbus + TurboQuant k8v4 (P98 required)
+# Cross-arch (compat verification, not PROD):
+#   qwen3_next_awq | qwen3_32b_dense | gemma4_26b_moe
+# Legacy aliases (still supported): qwen3_next_fp8 → qwen3_6_35b_fp8
+#
+# For performance benchmarks: tools/genesis_bench_suite.py
+# This runner does CORRECTNESS validation (apply matrix, smoke tests, pytest).
 #
 # Usage:
 #   ./scripts/run_validation_suite.sh <model_tag>
@@ -37,10 +49,10 @@ esac
 
 # ── config per model ───────────────────────────────────────────────────
 case "$MODEL_TAG" in
-    qwen3_next_fp8)
+    qwen3_next_fp8|qwen3_6_35b_fp8)
         COMPOSE_FILE="docker-compose.integration.yml"
-        CONTAINER="vllm-integration-v7"
-        MODEL_NAME="qwen3.6-35b-a3b-integration"
+        CONTAINER="vllm-server-mtp-test"
+        MODEL_NAME="qwen3.6-35b-a3b"
         MAX_CTX=262144
         SWEEP_FROM=50; SWEEP_TO=250; SWEEP_STEP=50
         STRESS_FROM=150; STRESS_TO=180; STRESS_STEP=15

@@ -1750,6 +1750,125 @@ def apply_patch_87_marlin_pad_sub_tile() -> PatchResult:
     return _failed(name, reason)
 
 
+@register_patch("PN8 MTP/draft online-quant propagation (vllm#40849 backport)")
+def apply_patch_N8_mtp_draft_online_quant_propagation() -> PatchResult:
+    """Patch N8: backport of vllm#40849 (bhoomit) — propagate online
+    quantization (e.g. fp8_per_tensor) from target model to spec-decode
+    draft model in `get_draft_quant_config()`.
+
+    Currently the draft always loads in BF16 even when the target is
+    online-quantized, wasting memory that could feed KV cache. PR #40849
+    modifies `vllm/model_executor/models/utils.py::get_draft_quant_config`
+    so that, when the draft has no explicit quantization, it inherits
+    the target's `OnlineQuantizationConfig` directly. Also adds a
+    fallback in the existing draft-quant lookup path that catches
+    `ValueError`/`FileNotFoundError` (online-quant methods crash through
+    the checkpoint config path because hf_overrides is a callable).
+
+    Empirical (PR author): FP8 target + Eagle3 draft on Qwen3-32B —
+    draft model memory 1.45 GiB BF16 → 0.88 GiB FP8 = -40% on draft,
+    -0.57 GiB on total worker. Predicates: spec method == 'mtp',
+    'qwen3_next_mtp', 'eagle', 'eagle3', 'medusa' AND main model has
+    `OnlineQuantizationConfig`.
+
+    Status: opt-in via GENESIS_ENABLE_PN8_MTP_DRAFT_ONLINE_QUANT=1.
+    Default OFF. NO-OP for current Genesis prod (Lorbus/Minachist 27B
+    do not run online-quant + external draft); valuable when DFlash /
+    Eagle3 / FP8 stacks roll out.
+    """
+    name = "PN8 MTP/draft online-quant propagation (vllm#40849 backport)"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring import patch_N8_mtp_draft_online_quant_propagation
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_N8_mtp_draft_online_quant_propagation.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch("PN9 independent drafter attention backend (vllm#39930 backport)")
+def apply_patch_N9_independent_drafter_attn_backend() -> PatchResult:
+    """Patch N9: backport of vllm#39930 (MatthewBonanni, MERGED upstream) —
+    allow the spec-decode drafter to use a different attention backend
+    than the target model.
+
+    Currently the drafter inherits target's attention backend, which
+    breaks for drafters with incompatible requirements (e.g. DFlash
+    needs non-causal attention support, which TRITON_ATTN does not
+    provide → ValueError on boot). PR #39930 modifies
+    `vllm/v1/spec_decode/llm_base_proposer.py::_create_draft_vllm_config`
+    to ALWAYS reset the drafter's attention backend (None = auto-select
+    independently from target). Unblocks DFlash spike sprint without
+    requiring full pin bump (which would drag in #40860 mega-merge risk).
+
+    Genesis backport is minimal — text-patches only the
+    `_create_draft_vllm_config` body. Operator chooses the drafter
+    backend via env GENESIS_PN9_DRAFTER_BACKEND (e.g. "FLASH_ATTN",
+    "FLASHINFER", "TRITON_ATTN"); unset/auto/none → drafter
+    auto-selects. We do NOT add the new pydantic field on
+    SpeculativeConfig (too invasive at runtime for a frozen dataclass +
+    field_validator).
+
+    Predicates: spec_decode active. Patch is a no-op when not.
+
+    Status: opt-in via GENESIS_ENABLE_PN9_INDEPENDENT_DRAFTER_ATTN=1.
+    Default OFF.
+    """
+    name = "PN9 independent drafter attention backend (vllm#39930 backport)"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring import patch_N9_independent_drafter_attn_backend
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_N9_independent_drafter_attn_backend.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch("PN11 GDN a/b contiguity in fix_query_key_value_ordering (vllm#41142 backport)")
+def apply_patch_N11_gdn_a_b_contiguous() -> PatchResult:
+    """Patch N11: backport of vllm#41142 (Yeuvoir, OPEN as of 2026-04-29) —
+    force `.contiguous()` on `b` and `a` tensors after reshape inside
+    `GatedDeltaNetAttention.fix_query_key_value_ordering`.
+
+    Fixes upstream issue #41112: the reshape returns a non-contiguous view
+    when `num_v_heads == num_k_heads` (np/ng == 1), causing
+    `fused_post_conv_prep` Triton kernel to mis-index a/b tensors with
+    head-dim stride != 1. Symptom: silent quality drift (no crash).
+
+    For Genesis prod stack (Qwen3.6-27B has np/ng=8, not affected;
+    Qwen3.6-35B-A3B has no GDN), this is DEFENSIVE — installs the
+    contiguity guard against future model swaps that hit np/ng=1.
+
+    Cost: zero. `.contiguous()` is no-op when tensor is already contiguous.
+
+    Status: opt-in via GENESIS_ENABLE_PN11_GDN_AB_CONTIGUOUS=1.
+    Default OFF.
+    """
+    name = "PN11 GDN a/b contiguity (vllm#41142 backport)"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring import patch_N11_gdn_a_b_contiguous
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_N11_gdn_a_b_contiguous.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
 @register_patch("P86 ngram batch_propose O(N+K) direct-fill (vllm#40876 backport)")
 def apply_patch_86_ngram_batch_propose_linear() -> PatchResult:
     """Patch 86: backport of vllm#40876 (aaronagent) — replaces the
@@ -2955,6 +3074,15 @@ def run(verbose: bool = True, apply: bool = False) -> PatchStats:
         "Genesis Unified Patch v7.0 — Ampere FP8 + TQ + MoE + Hybrid + bugfixes. "
         "Philosophy: МЫ ЧИНИМ, НЕ ЛОМАЕМ."
     )
+
+    # GPU profile + per-patch recommendations (suggest-only, never auto-enables)
+    try:
+        from vllm._genesis.gpu_profile import print_recommendations
+        rec_text = print_recommendations(stream=None)
+        for line in rec_text.split("\n"):
+            log.info(line)
+    except Exception as e:
+        log.debug("[gpu_profile] recommendation skipped: %s", e)
 
     # Apply each patch
     for patch_name, patch_fn in PATCH_REGISTRY:

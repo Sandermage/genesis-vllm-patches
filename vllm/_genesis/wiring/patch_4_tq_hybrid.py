@@ -97,6 +97,13 @@ UPSTREAM_DRIFT_MARKERS = [
     "def is_full_attention_layer_index",
     "full_attention_layer_types",
     "# TurboQuant hybrid support: skip boundary check on mamba layers",
+    # PR #41123 (cderinbogaz, OPEN 2026-04-29) signature tokens — when this PR
+    # lands upstream the `_get_turboquant_boundary_skip_layers` helper appears
+    # at module level in arg_utils.py and the message text changes from "is
+    # not supported" to "skip layers are not supported". Either marker
+    # confirms #41123 has merged and P4 should self-retire.
+    "_get_turboquant_boundary_skip_layers",
+    "TurboQuant KV cache skip layers are not supported for ",
 ]
 
 

@@ -367,6 +367,84 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             ],
         },
     },
+    "PN8": {
+        "title": "MTP/draft online-quant propagation (vllm#40849)",
+        "env_flag": "GENESIS_ENABLE_PN8_MTP_DRAFT_ONLINE_QUANT",
+        "default_on": False,
+        "category": "spec_decode",
+        "credit": (
+            "Backport of vllm#40849 (bhoomit, OPEN). Modifies "
+            "`get_draft_quant_config()` so that, when the spec-decode draft "
+            "model has no explicit quantization config, it inherits the "
+            "target's `OnlineQuantizationConfig` (e.g. fp8_per_tensor). "
+            "Frees ~600 MiB on FP8-target + Eagle3 / DFlash / MTP-as-external-"
+            "draft worker (1.45 GiB BF16 → 0.88 GiB FP8 on Qwen3-32B + Eagle3 "
+            "per PR author bench). Also catches ValueError/FileNotFoundError "
+            "in the existing draft lookup path (online-quant methods crash "
+            "through checkpoint-config because hf_overrides is callable). "
+            "NO-OP for current Genesis prod (Lorbus/Minachist 27B do not run "
+            "online-quant + external draft). Becomes valuable when DFlash / "
+            "Eagle3 / FP8 stacks roll out."
+        ),
+        "upstream_pr": 40849,
+        "applies_to": {
+            # Predicate enforced naturally by the patched function — when
+            # spec-decode is off OR target is not online-quantized, the new
+            # branch falls through identical to vanilla. No model gating.
+        },
+    },
+    "PN9": {
+        "title": "Independent drafter attention backend (vllm#39930)",
+        "env_flag": "GENESIS_ENABLE_PN9_INDEPENDENT_DRAFTER_ATTN",
+        "default_on": False,
+        "category": "spec_decode",
+        "credit": (
+            "Backport of vllm#39930 (MatthewBonanni, MERGED). Allows the "
+            "spec-decode drafter to use a different attention backend than "
+            "the target model. Unblocks drafters with incompatible "
+            "requirements (e.g. DFlash needs non-causal attention support, "
+            "which TRITON_ATTN does not provide → ValueError on boot). "
+            "Modifies `LLMBaseProposer._create_draft_vllm_config()` to "
+            "always reset the drafter's attention backend (None = "
+            "auto-select). Genesis minimal port: env "
+            "GENESIS_PN9_DRAFTER_BACKEND chooses backend (e.g. FLASH_ATTN); "
+            "unset/auto → drafter auto-selects. Does NOT add the new "
+            "SpeculativeConfig.attention_backend pydantic field (too "
+            "invasive at runtime for a frozen dataclass + field_validator). "
+            "Unblocks DFlash spike sprint task without full pin bump risk "
+            "from #40860 mega-merge. NO-OP for current Genesis prod (PROD "
+            "uses ngram drafter, no attention backend conflict)."
+        ),
+        "upstream_pr": 39930,
+        "applies_to": {
+            # Patch only takes effect inside _create_draft_vllm_config which
+            # is only called when spec-decode is active. No additional gate.
+        },
+    },
+    "PN11": {
+        "title": "GDN a/b contiguity in fix_query_key_value_ordering (vllm#41142)",
+        "env_flag": "GENESIS_ENABLE_PN11_GDN_AB_CONTIGUOUS",
+        "default_on": False,
+        "category": "model_correctness",
+        "credit": (
+            "Backport of vllm#41142 (Yeuvoir, OPEN). Fixes upstream issue "
+            "#41112: in `GatedDeltaNetAttention.fix_query_key_value_ordering` "
+            "the reshape of `b` and `a` returns a non-contiguous view when "
+            "num_v_heads == num_k_heads (np/ng == 1), breaking "
+            "`fused_post_conv_prep` Triton kernel which assumes head-dim "
+            "stride 1. Adds `.contiguous()` to both lines (zero cost when "
+            "already contiguous; copy only on the buggy path). Symptom on "
+            "affected configs: silent quality drift, no crash. For Genesis "
+            "prod (Qwen3.6 27B has np/ng=8, 35B has no GDN) this is "
+            "DEFENSIVE — installs guard against future model swaps."
+        ),
+        "upstream_pr": 41142,
+        "applies_to": {
+            # Patch only matters when GDN layer's fix_query_key_value_ordering
+            # runs with np/ng==1. Genesis prod doesn't trigger it but the
+            # patch is harmless (no-op .contiguous() call).
+        },
+    },
     "P94": {
         "title": "Spec-decode prepare_next_token_ids_padded zero-alloc (vllm#41043)",
         "env_flag": "GENESIS_ENABLE_P94",

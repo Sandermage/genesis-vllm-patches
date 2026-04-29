@@ -1,8 +1,14 @@
 #!/usr/bin/env bash
-# Genesis v7.0-dev UNIT validation — CPU-only, runs anywhere (prefer VM 103).
+# Genesis UNIT validation — CPU-only, runs anywhere with Docker.
 #
-# This is TDD gate 1 of 2: validates the Python layer without touching real
-# vLLM engine or GPUs. Fast (~30 sec) and can run on any Docker host.
+# What this does (vs other validation tools):
+#   - validate_unit.sh           THIS — CPU-only Python pytest suite (~30 sec)
+#   - validate_integration.sh    Real CUDA + container health + chat smoke + pytest
+#   - tools/genesis_bench_suite.py  Performance benchmark (TPS / TTFT / ctx probe)
+#
+# Use this script as your fastest sanity check after touching Genesis patch
+# Python code (no GPU needed). It runs the unit pytest suite inside a
+# transient Docker container.
 #
 # Usage:
 #   ./validate_unit.sh
@@ -34,7 +40,7 @@ fi
 if docker compose -f docker-compose.unit.yml run --rm genesis-unit; then
     log "✅ UNIT validation PASSED"
     log ""
-    log "Next: TDD gate 2 — integration validation on VM 100 (GPUs)"
+    log "Next: TDD gate 2 — integration validation on a GPU host"
     log "   ./validate_integration.sh  # requires prod downtime window"
     exit 0
 else

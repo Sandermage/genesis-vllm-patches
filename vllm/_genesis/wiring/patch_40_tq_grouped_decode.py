@@ -321,12 +321,16 @@ def apply() -> tuple[str, str]:
             mid_o,
             output,
             lse,
+            seq_lens,
             mid_o.stride(0), mid_o.stride(1), mid_o.stride(2),
             output.stride(0), output.stride(1),
             lse.stride(0),
-            HEAD_DIM=D,
             NUM_KV_SPLITS=NUM_KV_SPLITS,
-            BLOCK_D=cfg["BLOCK_D"],
+            BLOCK_DV=cfg["BLOCK_D"],
+            Lv=D,
+            OUTPUT_FP16=1 if query.dtype == torch.float16 else 0,
+            num_warps=4,
+            num_stages=2,
         )
 
         return output.to(query.dtype)
