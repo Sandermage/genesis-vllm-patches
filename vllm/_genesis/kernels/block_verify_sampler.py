@@ -541,6 +541,43 @@ def call_block_verify_sample(
     On any exception, the wiring patch's outer try/except falls back to the
     upstream per-token rejection sampler — no engine impact.
     """
+    # ── A4 audit (PN13 follow-up) — defensive preconditions ────────────
+    # Fail loudly with informative messages on shape / device / dtype
+    # mismatches rather than letting Triton kernel raise cryptic errors.
+    if output_token_ids.dim() < 1:
+        raise ValueError(
+            f"output_token_ids must be at least 1-D, got shape "
+            f"{tuple(output_token_ids.shape)}"
+        )
+    if cu_num_draft_tokens.shape[0] != output_token_ids.shape[0] + 1:
+        raise ValueError(
+            f"cu_num_draft_tokens length {cu_num_draft_tokens.shape[0]} "
+            f"must equal batch_size + 1 = {output_token_ids.shape[0] + 1}"
+        )
+    if draft_probs.shape != target_probs.shape:
+        raise ValueError(
+            f"draft_probs shape {tuple(draft_probs.shape)} must match "
+            f"target_probs shape {tuple(target_probs.shape)}"
+        )
+    if draft_probs.shape[-1] != vocab_size:
+        raise ValueError(
+            f"draft_probs last dim {draft_probs.shape[-1]} must equal "
+            f"vocab_size {vocab_size}"
+        )
+    if max_spec_len < 1:
+        raise ValueError(f"max_spec_len must be >= 1, got {max_spec_len}")
+    # All input tensors must be on the same device
+    devs = {
+        "output_token_ids": output_token_ids.device,
+        "draft_probs": draft_probs.device,
+        "target_probs": target_probs.device,
+        "uniform_probs": uniform_probs.device,
+    }
+    if len(set(devs.values())) > 1:
+        raise RuntimeError(
+            f"All P71 input tensors must be on the same device. Got: "
+            + ", ".join(f"{k}={v}" for k, v in devs.items())
+        )
     batch_size = output_token_ids.shape[0]
     device = output_token_ids.device
 
