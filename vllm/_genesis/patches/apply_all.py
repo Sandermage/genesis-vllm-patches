@@ -1869,6 +1869,39 @@ def apply_patch_N11_gdn_a_b_contiguous() -> PatchResult:
     return _failed(name, reason)
 
 
+@register_patch("PN13 CUDAGraphWrapper lambda arity (vllm#41235 backport)")
+def apply_patch_N13_cuda_graph_lambda_arity() -> PatchResult:
+    """Patch N13: backport of vllm#41235 (roikoren755, OPEN as of 2026-04-29) —
+    fix CUDAGraphWrapper gc.collect/empty_cache lambda arity.
+
+    Genesis-relevant because our P67/P67b/P78/P85 family uses nested
+    @torch.compile callables. When dynamo recompiles inside cudagraph
+    capture, gc.collect(generation) fires with a positional arg → 0-arg
+    lambda → TypeError → worker dies. Author reports "consistent on GB200
+    nightly"; matches Sander's planned R6000 Pro Blackwell upgrade.
+
+    Cost: 2-line text-patch, zero runtime overhead, defensive only.
+    Recommend ON for any future Blackwell deployment; intermittent on
+    Ampere consumer.
+
+    Status: opt-in via GENESIS_ENABLE_PN13_CUDA_GRAPH_LAMBDA_ARITY=1.
+    Default OFF.
+    """
+    name = "PN13 CUDAGraphWrapper lambda arity (vllm#41235 backport)"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring import patch_N13_cuda_graph_lambda_arity
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_N13_cuda_graph_lambda_arity.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
 @register_patch("P86 ngram batch_propose O(N+K) direct-fill (vllm#40876 backport)")
 def apply_patch_86_ngram_batch_propose_linear() -> PatchResult:
     """Patch 86: backport of vllm#40876 (aaronagent) — replaces the
