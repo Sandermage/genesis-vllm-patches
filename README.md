@@ -129,6 +129,22 @@ raise to 0.93 for context spread).
 
 ---
 
+## Performance at a glance
+
+Throughput across the supported launch configurations on the Genesis reference rig (2× RTX A5000, PCIe Gen4 x16, no NVLink). Numbers are `wall_TPS` mean of n=5 with CV ≤ 4% per row.
+
+![Genesis v7.64 throughput by config](docs/img/performance_by_config.png)
+
+The same 5 defensive backports (PN9, PN12, PN13, PN14, P94) help 27B (+9% TPS) but regress 35B FP8 (−4%). They're baked into 27B default, kept OFF on 35B — bench per-model, never auto-enable across configs:
+
+![Per-model patch impact asymmetry](docs/img/patch_impact_asymmetry.png)
+
+DFlash (z-lab drafter) excels on code-heavy workloads, MTP wins on prose. Pick by your traffic pattern:
+
+![DFlash vs MTP per workload](docs/img/dflash_vs_mtp.png)
+
+---
+
 ## Documentation map
 
 | If you are... | Start with |
