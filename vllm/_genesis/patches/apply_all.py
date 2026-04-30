@@ -2045,6 +2045,68 @@ def apply_patch_N19_scoped_max_split() -> PatchResult:
     )
 
 
+@register_patch("PN23 DFlash combine_hidden_states dtype cast (vllm#40334 backport)")
+def apply_patch_N23_dflash_combine_hidden_dtype() -> PatchResult:
+    """Patch N23: backport of vllm#40334 (ciphernaut, OPEN).
+
+    Six-line defensive cast in Qwen3DFlashModel.combine_hidden_states to
+    handle mixed-precision targets (AWQ + non-quantized layers,
+    FP8 + BF16 mix). Casts hidden_states to fc.params_dtype before the
+    FC layer call. Fixes RuntimeError on mixed-precision DFlash configs.
+
+    Status: opt-in via GENESIS_ENABLE_PN23_DFLASH_DTYPE_FIX=1.
+    Default OFF. Auto-no-op once vllm#40334 merges (drift marker).
+    """
+    return _wiring_text_patch(
+        "PN23 DFlash combine_hidden_states dtype cast (vllm#40334 backport)",
+        "patch_N23_dflash_combine_hidden_dtype",
+    )
+
+
+@register_patch("PN22 Local argmax for TP draft (vllm#39419 backport)")
+def apply_patch_N22_local_argmax_tp() -> PatchResult:
+    """Patch N22: backport of vllm#39419 (EanWang, OPEN).
+
+    Adds get_top_tokens() plumbing to Qwen3 and Qwen3-DFlash model
+    classes — enables vocab-parallel argmax per TP rank instead of
+    all-gathering full logits. +9.4-30.6% TPS on TP>=2 + draft model
+    per PR author measurement.
+
+    LogitsProcessor.get_top_tokens() callsite already in our pin
+    (PR #34049 merged). This patch is pure plumbing.
+
+    Llama and Eagle3 parts of upstream PR not backported — Genesis
+    does not run those models.
+
+    Status: opt-in via GENESIS_ENABLE_PN22_LOCAL_ARGMAX_TP=1.
+    Default OFF. Auto-no-op once vllm#39419 merges.
+    """
+    return _wiring_text_patch(
+        "PN22 Local argmax for TP draft (vllm#39419 backport)",
+        "patch_N22_local_argmax_tp",
+    )
+
+
+@register_patch("PN24 DFlash aux layer +1 indexing fix (vllm#40727 backport)")
+def apply_patch_N24_dflash_aux_layer_indexing() -> PatchResult:
+    """Patch N24: backport of vllm#40727 (benchislett, OPEN).
+
+    One-line semantic fix in `_get_eagle3_aux_layers_from_config` —
+    adds `+1` to DFlash's target_layer_ids to convert 0-indexed
+    DFlash semantics to 1-indexed Eagle3 aux semantics. Without
+    the shift, every aux hidden state was read from the wrong layer.
+
+    Empirical: AL gsm8k 6.18→6.42 per PR author measurement.
+
+    Status: opt-in via GENESIS_ENABLE_PN24_DFLASH_AUX_LAYER_FIX=1.
+    Default OFF. Auto-no-op once vllm#40727 merges (drift marker).
+    """
+    return _wiring_text_patch(
+        "PN24 DFlash aux layer +1 indexing fix (vllm#40727 backport)",
+        "patch_N24_dflash_aux_layer_indexing",
+    )
+
+
 @register_patch("PN17 FA2 softmax_lse runtime clamp (Issue #11 Cliff 1 mechanism A)")
 def apply_patch_N17_fa2_softmax_lse_clamp() -> PatchResult:
     """Patch N17: Genesis-original 2026-04-30 — runtime clamp on FA2

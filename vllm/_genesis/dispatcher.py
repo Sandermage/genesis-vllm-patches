@@ -534,6 +534,63 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             # unchanged.
         },
     },
+    "PN23": {
+        "title": "DFlash combine_hidden_states dtype cast (vllm#40334)",
+        "env_flag": "GENESIS_ENABLE_PN23_DFLASH_DTYPE_FIX",
+        "default_on": False,
+        "category": "spec_decode",
+        "credit": (
+            "Backport of vllm#40334 (ciphernaut, OPEN 2026-05-01). Six-line "
+            "defensive cast in Qwen3DFlashModel.combine_hidden_states to handle "
+            "mixed-precision targets (AWQ + non-quantized layers, FP8 + BF16 mix). "
+            "Casts hidden_states to fc.params_dtype before FC layer call. Fixes "
+            "RuntimeError on mixed-precision DFlash configs."
+        ),
+        "upstream_pr": 40334,
+        "applies_to": {
+            # DFlash-specific; auto-no-op when qwen3_dflash.py absent or anchor
+            # already has params_dtype cast (upstream merge).
+        },
+        "conflicts_with": [],
+        "requires_patches": [],
+    },
+    "PN22": {
+        "title": "Local argmax for TP draft (vllm#39419 backport)",
+        "env_flag": "GENESIS_ENABLE_PN22_LOCAL_ARGMAX_TP",
+        "default_on": False,
+        "category": "spec_decode",
+        "credit": (
+            "Backport of vllm#39419 (EanWang, OPEN 2026-05-01). Adds "
+            "get_top_tokens() plumbing to Qwen3 and Qwen3-DFlash model "
+            "classes, enabling vocab-parallel argmax on each TP rank "
+            "instead of all-gathering full logits. Wins +9.4-30.6% TPS "
+            "on TP>=2 + draft model per PR author. LogitsProcessor."
+            "get_top_tokens() callsite is already in our pin (PR #34049 "
+            "merged). Llama and Eagle3 parts of the upstream PR are not "
+            "backported — Genesis does not run those models in production."
+        ),
+        "upstream_pr": 39419,
+        "applies_to": {},
+        "conflicts_with": [],
+        "requires_patches": [],
+    },
+    "PN24": {
+        "title": "DFlash aux layer +1 indexing fix (vllm#40727)",
+        "env_flag": "GENESIS_ENABLE_PN24_DFLASH_AUX_LAYER_FIX",
+        "default_on": False,
+        "category": "spec_decode",
+        "credit": (
+            "Backport of vllm#40727 (benchislett, OPEN 2026-05-01). One-line "
+            "semantic fix in _get_eagle3_aux_layers_from_config. DFlash stores "
+            "target_layer_ids as 0-indexed; downstream Eagle3 aux machinery "
+            "expects 1-indexed (layer 0 = embedding). +1 shift converts. "
+            "Empirical: AL gsm8k 6.18→6.42 per PR author."
+        ),
+        "upstream_pr": 40727,
+        "applies_to": {},
+        "conflicts_with": [],
+        "requires_patches": [],
+    },
     "PN17": {
         "title": "FA2 softmax_lse runtime clamp (Cliff 1 mechanism A, Issue #11)",
         "env_flag": "GENESIS_ENABLE_PN17_FA2_LSE_CLAMP",

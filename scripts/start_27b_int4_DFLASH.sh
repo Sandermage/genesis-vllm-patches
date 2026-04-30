@@ -5,7 +5,7 @@
 # Variant 3 (after fp8_e5m2 + TQ_k8v4):
 #   - main: Lorbus 27B-int4-AutoRound (same as other variants)
 #   - draft: z-lab/Qwen3.6-27B-DFlash (2B BF16 lightweight diffusion drafter)
-#   - method=dflash, num_speculative_tokens=5 (per noonghunna recipe)
+#   - method=dflash, num_speculative_tokens=5 (per noonghunna recipe; 4 tested but -7% on code workload — 5 wins)
 #   - --dtype bfloat16 (workaround vllm#40334 dtype mismatch)
 #   - NO --kv-cache-dtype (DFlash needs head_size=256 + non-causal attn,
 #     no Ampere backend supports that triple with fp8/turbo KV)
@@ -54,6 +54,9 @@ docker run -d \
   -e GENESIS_ENABLE_PN17_FA2_LSE_CLAMP=1 \
   -e GENESIS_ENABLE_PN19_SCOPED_MAX_SPLIT=1 \
   -e GENESIS_ENABLE_P103=1 \
+  -e GENESIS_ENABLE_PN23_DFLASH_DTYPE_FIX=1 \
+  -e GENESIS_ENABLE_PN24_DFLASH_AUX_LAYER_FIX=1 \
+  -e GENESIS_ENABLE_PN22_LOCAL_ARGMAX_TP=1 \
   -e GENESIS_PREALLOC_TOKEN_BUDGET=4096 -e GENESIS_BUFFER_MODE=shared \
   vllm/vllm-openai:nightly -c \
   "set -e; echo === 27B Lorbus INT4 + DFlash N=5 z-lab draft ===; \

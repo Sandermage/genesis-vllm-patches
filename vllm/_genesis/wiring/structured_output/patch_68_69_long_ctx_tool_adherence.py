@@ -29,7 +29,7 @@ Two independent middleware hooks injected at the top of
 Both are env-flag opt-in:
   GENESIS_ENABLE_P68_AUTO_FORCE_TOOL=1
   GENESIS_ENABLE_P69_LONG_CTX_TOOL_REMINDER=1
-  GENESIS_P68_P69_LONG_CTX_THRESHOLD_CHARS=8000  (default)
+  GENESIS_P68_P69_LONG_CTX_THRESHOLD_CHARS=50000  (default — ~12.5K tokens; raised from 8000 in v7.65 per Issue #9)
 
 ================================================================
 
@@ -201,5 +201,5 @@ def apply() -> tuple[str, str]:
     return "applied", (
         "Hook injected into create_chat_completion. Active mitigations: "
         + "; ".join(enabled)
-        + ". Threshold: GENESIS_P68_P69_LONG_CTX_THRESHOLD_CHARS env (default 8000)."
+        + ". Threshold: GENESIS_P68_P69_LONG_CTX_THRESHOLD_CHARS env (default 50000, raised from 8000 in v7.65 per Issue #9)."
     )

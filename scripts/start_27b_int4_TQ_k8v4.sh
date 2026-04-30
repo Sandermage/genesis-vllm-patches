@@ -57,7 +57,7 @@ docker run -d \
   -e GENESIS_ENABLE_PN12_FFN_INTERMEDIATE_POOL=1 \
   -e GENESIS_ENABLE_PN9_INDEPENDENT_DRAFTER_ATTN=1 \
   -e GENESIS_ENABLE_PN17_FA2_LSE_CLAMP=1 \
-  -e GENESIS_ENABLE_PN19_SCOPED_MAX_SPLIT=1 -e GENESIS_ENABLE_P103=1 \
+  -e GENESIS_ENABLE_PN19_SCOPED_MAX_SPLIT=1 -e GENESIS_ENABLE_PN22_LOCAL_ARGMAX_TP=1 -e GENESIS_ENABLE_P103=1 \
   vllm/vllm-openai:nightly -c \
   "set -e; echo === v771b 27B Lorbus INT4 NO-prefix-cache MTP K=3 ===; \
 pip install --quiet --disable-pip-version-check pandas scipy xxhash; \
