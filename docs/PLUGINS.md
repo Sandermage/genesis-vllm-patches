@@ -4,7 +4,7 @@ Genesis supports third-party patches without forking the core repo.
 Ship your patch as an installable Python package with a single
 entry-point declaration; Genesis auto-discovers + registers it at boot.
 
-> **Reference example:** see [`examples/genesis-plugin-hello-world/`](../examples/genesis-plugin-hello-world/) for a working plugin you can copy as a starting point. It's installed via `pip install -e examples/genesis-plugin-hello-world/`, validates clean against the schema, and survives the full discovery pipeline. Tests at [`tests/compat/test_plugin_example.py`](../vllm/_genesis/tests/compat/test_plugin_example.py) verify the contract end-to-end.
+> **Reference example:** plugin scaffold removed from repo; see plugin contract documented inline in this guide.
 
 ## Quick start
 

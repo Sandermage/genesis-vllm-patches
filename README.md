@@ -83,8 +83,6 @@
 > python3 -m vllm._genesis.compat.cli recipe diff my-prod community-prod
 > python3 -m vllm._genesis.compat.cli recipe diff a b --json    # CI / scripts
 >
-> # Reference plugin: see examples/genesis-plugin-hello-world/
-> # Real working plugin you can pip install + use as a starting point
 >
 > # Self-test (operator sanity check after `git pull` / pin bump)
 > python3 -m vllm._genesis.compat.cli self-test
@@ -305,7 +303,6 @@ product.
 | `tests/compat/test_recipes.py` | 36 | recipe save/load/share + diff |
 | `tests/compat/test_recipe_adopt.py` | 14 | recipe adopt URL (HTTPS-only) |
 | `tests/compat/test_plugins.py` | 18 | community plugin discovery |
-| `tests/compat/test_plugin_example.py` | 13 | hello-world reference plugin |
 | `tests/compat/test_telemetry.py` | 23 | opt-in anonymized telemetry |
 | `tests/compat/test_update_channel.py` | 18 | apt-style stable/beta/dev |
 | `tests/compat/test_schema_validator.py` | 15 | PATCH_REGISTRY schema |
