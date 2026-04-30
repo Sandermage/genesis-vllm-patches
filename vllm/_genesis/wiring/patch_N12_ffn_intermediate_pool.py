@@ -101,30 +101,48 @@ GENESIS_PN12_MARKER = (
 
 
 # ─── Sub-patch: replace SiluAndMul.forward_cuda body ──────────────────────
-# Anchor matches the exact 4-line body:
-#     def forward_cuda(self, x: torch.Tensor) -> torch.Tensor:
-#         d = x.shape[-1] // 2
-#         output_shape = x.shape[:-1] + (d,)
-#         out = torch.empty(output_shape, dtype=x.dtype, device=x.device)
-#         self.op(out, x)
-#         return out
+#
+# Anchor strategy: include `forward_native` (which is unique to SiluAndMul —
+# MulAndSilu has the inverted-arg variant) as the disambiguating prefix, then
+# match the vanilla `forward_cuda` body. Trailing context (`forward_xpu` +
+# next class's `@CustomOp.register(...)` decorator) is intentionally NOT in
+# the anchor — that section was the brittleness that broke this patch on
+# vLLM dev205+ when MulAndSilu was inserted between SiluAndMul and
+# SiluAndMulWithClamp.
+#
+# This anchor stays valid as long as upstream keeps:
+#   - SiluAndMul's `forward_native` body unchanged (silu(x[:d]) * x[d:])
+#   - SiluAndMul's `forward_cuda` body the vanilla `torch.empty()` form
+# It is robust to: any decorator / class reordering after SiluAndMul,
+# insertion of `MulAndSilu` and similar inverted variants, addition of
+# new `forward_*` methods after `forward_cuda`, etc.
+#
+# If vllm#34207 lands and rewrites the body to `silu_and_mul.out()` form,
+# the anchor self-skips (vanilla body no longer matches) — same drift
+# behavior as the original.
 
 PN12_SILU_ANCHOR = (
+    "    @staticmethod\n"
+    "    def forward_native(x: torch.Tensor) -> torch.Tensor:\n"
+    '        """PyTorch-native implementation equivalent to forward()."""\n'
+    "        d = x.shape[-1] // 2\n"
+    "        return F.silu(x[..., :d]) * x[..., d:]\n"
+    "\n"
     "    def forward_cuda(self, x: torch.Tensor) -> torch.Tensor:\n"
     "        d = x.shape[-1] // 2\n"
     "        output_shape = x.shape[:-1] + (d,)\n"
     "        out = torch.empty(output_shape, dtype=x.dtype, device=x.device)\n"
     "        self.op(out, x)\n"
     "        return out\n"
-    "\n"
-    "    def forward_xpu(self, x: torch.Tensor) -> torch.Tensor:\n"
-    "        return self.forward_cuda(x)\n"
-    "\n"
-    "\n"
-    "@CustomOp.register(\"silu_and_mul_with_clamp\")\n"
 )
 
 PN12_SILU_REPLACEMENT = (
+    "    @staticmethod\n"
+    "    def forward_native(x: torch.Tensor) -> torch.Tensor:\n"
+    '        """PyTorch-native implementation equivalent to forward()."""\n'
+    "        d = x.shape[-1] // 2\n"
+    "        return F.silu(x[..., :d]) * x[..., d:]\n"
+    "\n"
     "    def forward_cuda(self, x: torch.Tensor) -> torch.Tensor:\n"
     "        # [Genesis PN12 FFN intermediate pool — Cliff 1 fix on TQ3]\n"
     "        # Pool the [M, d] BF16 transient across layers instead of\n"
@@ -154,12 +172,6 @@ PN12_SILU_REPLACEMENT = (
     "            )\n"
     "        self.op(out, x)\n"
     "        return out\n"
-    "\n"
-    "    def forward_xpu(self, x: torch.Tensor) -> torch.Tensor:\n"
-    "        return self.forward_cuda(x)\n"
-    "\n"
-    "\n"
-    "@CustomOp.register(\"silu_and_mul_with_clamp\")\n"
 )
 
 
