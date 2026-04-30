@@ -35,7 +35,7 @@ curl http://localhost:8000/health -H "Authorization: Bearer genesis-local"
 
 | Hardware | Validation status | Notes |
 |---|---|---|
-| 2× RTX A5000 24GB (Ampere SM 8.6) | **Primary** — full v7.52 stack tested (driver 580.126.09 / CUDA 13.0 / vLLM dev212+g8cd174fa3) | Default config targets this |
+| 2× RTX A5000 24GB (Ampere SM 8.6) | **Primary** — full v7.52 stack tested (driver 580.126.09 / CUDA 13.0 / vLLM dev212+g7a1eb8ac2) | Default config targets this |
 | 1× RTX 3090 24GB | Cross-validated by [@noonghunna](https://github.com/noonghunna/qwen36-27b-single-3090) | Same SM 8.6 family |
 | 2× RTX 3090 24GB | Cross-validated by [@noonghunna](https://github.com/noonghunna/qwen36-dual-3090) | TP=2 PCIe Gen4 (no NVLink) |
 
@@ -215,17 +215,17 @@ pip install --upgrade pip wheel setuptools
 
 ### 2. Install vLLM nightly
 
-Genesis is pinned to a specific vLLM nightly. Find the SHA / version that matches our [`Production baseline`](README.md#production-baseline) — currently `0.19.2rc1.dev205+g07351e088`.
+Genesis is pinned to a specific vLLM nightly. Find the SHA / version that matches our [`Production baseline`](README.md#production-baseline) — currently `0.20.1rc1.dev16+g7a1eb8ac2`.
 
 ```bash
 # Option A — install from a specific nightly wheel (recommended if you can match)
-pip install --pre vllm==0.19.2rc1.dev205+g07351e088 \
+pip install --pre vllm==0.20.1rc1.dev16+g7a1eb8ac2 \
   --extra-index-url https://wheels.vllm.ai/nightly
 
 # Option B — install from source at a specific commit
 git clone https://github.com/vllm-project/vllm.git
 cd vllm
-git checkout 07351e088  # match the SHA from Production baseline
+git checkout 7a1eb8ac2  # match the SHA from Production baseline
 pip install -e . --no-build-isolation
 cd ..
 
@@ -246,7 +246,7 @@ print(f'cuda available: {torch.cuda.is_available()}')
 print(f'cuda devices: {torch.cuda.device_count()}')
 "
 # Expect:
-# vllm 0.19.2rc1.dev205+g07351e088
+# vllm 0.20.1rc1.dev16+g7a1eb8ac2
 # torch 2.11.0+cu130 cuda=13.0
 # triton 3.6.0
 # cuda available: True

@@ -1023,7 +1023,7 @@ For the full chronological derivations see the memory notes referenced in each s
 - 2× RTX A5000 24 GB (Ampere SM 8.6)
 - Ubuntu 24.04, kernel 6.8
 - NVIDIA driver `≥580.126.09` — **REQUIRED**, driver 570 puts PyTorch into a compatibility fallback ≈ 3× slower decode
-- vLLM nightly pin `8cd174fa3` (image `vllm/vllm-openai:nightly`)
+- vLLM nightly pin `7a1eb8ac2` (image `vllm/vllm-openai:nightly`)
 - PyTorch 2.11.0 + CUDA 13.0
 - Triton 3.6.0, FlashInfer (MoE FP8 disabled per `VLLM_USE_FLASHINFER_MOE_FP8=0`)
 - Genesis patch tree at the commit you cloned
@@ -1036,7 +1036,7 @@ For the full chronological derivations see the memory notes referenced in each s
 
 ### Pin management
 
-We hold pin at `8cd174fa3` deliberately. **Do NOT bump unless you've read [`docs/_internal/research_vllm_main_nightly_audit_20260429.md`](docs/_internal/) first** (gitignored, ask Sander) — there are several merged PRs in main that would break our patches simultaneously:
+We hold pin at `7a1eb8ac2` deliberately. **Do NOT bump unless you've read [`docs/_internal/research_vllm_main_nightly_audit_20260429.md`](docs/_internal/) first** (gitignored, ask Sander) — there are several merged PRs in main that would break our patches simultaneously:
 
 - vllm#40941 (TurboQuant share-dequant) — caused our prior 200→167 PROD regression, mitigated via P98/P99
 - vllm#40860 (DSV4 mega-merge, +16k LOC) — breaks anchors for ~13 patches; ~2.5h of careful re-anchoring needed

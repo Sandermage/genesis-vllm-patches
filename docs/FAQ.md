@@ -11,7 +11,7 @@ A: A runtime patch package that layers on top of stock vLLM. It applies text-pat
 A: No. Genesis runs against an unmodified vLLM commit (pinned in `INSTALL.md`). Patches are applied at runtime via the dispatcher, anchored to known commits. You can run Genesis-on/Genesis-off with the same vLLM binary by toggling environment variables.
 
 ### Q: Is it compatible with vLLM v0.20.x main?
-A: Genesis tracks specific vLLM commits (currently `fe9c3d6c5` and the v0.20.0 / v0.20.1rc0 tags). Each patch declares an `applies_to` range, so newer vLLM commits cause patches to print `[SKIP — applies_to mismatch]` rather than crashing. Bumping the pin is a deliberate release event.
+A: Genesis tracks specific vLLM commits (currently `7a1eb8ac2` (vllm 0.20.1rc1.dev16) plus the v0.20.0 / v0.20.1rc0 tags). Each patch declares an `applies_to` range, so newer vLLM commits cause patches to print `[SKIP — applies_to mismatch]` rather than crashing. Bumping the pin is a deliberate release event.
 
 ### Q: How do I update vLLM without losing patches?
 A: Bump the `applies_to` range on each affected patch and re-run the anchor-verification suite. Most text-patches survive minor vLLM updates because their anchors are short and stable; some need the anchor adjusted by a few characters. The Genesis CI doctor command (`genesis doctor`) tells you which patches drifted before you boot.
