@@ -4,6 +4,13 @@
 
 # Genesis vLLM Patches
 
+[![GitHub stars](https://img.shields.io/github/stars/Sandermage/genesis-vllm-patches?style=social)](https://github.com/Sandermage/genesis-vllm-patches/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/Sandermage/genesis-vllm-patches?style=social)](https://github.com/Sandermage/genesis-vllm-patches/network/members)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![vLLM pin](https://img.shields.io/badge/vllm-0.20.1rc1.dev16-orange.svg)](https://github.com/vllm-project/vllm)
+[![Patches](https://img.shields.io/badge/patches-50%2B-green.svg)](PATCHES.md)
+[![Validated](https://img.shields.io/badge/GPU-RTX%203090%20%7C%204090%20%7C%20A5000%20%7C%20H20-purple.svg)](docs/HARDWARE.md)
+
 **Runtime patches for [vLLM](https://github.com/vllm-project/vllm) — Qwen3.6-class inference on consumer NVIDIA Ampere with TurboQuant k8v4 KV cache, MTP K=3 spec-decode, tool-calling, and 256K-class context.**
 
 > **The fastest way in:** `python3 -m vllm._genesis.compat.cli init` —
