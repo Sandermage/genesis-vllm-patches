@@ -91,8 +91,12 @@ P101_LOOP_OLD = (
     "                if q_len <= _CONTINUATION_DECODE_THRESHOLD:\n"
     "                    # Fast path: treat each query as a decode request\n"
     "                    # with incremental seq_lens for causal masking.\n"
-    "                    # Slice from pre-built arange (no kernel launch)\n"
-    "                    synth_seq_lens = _arange_cache[cached_len + 1 : seq_len + 1]\n"
+    "                    synth_seq_lens = torch.arange(\n"
+    "                        cached_len + 1,\n"
+    "                        seq_len + 1,\n"
+    "                        device=query.device,\n"
+    "                        dtype=attn_metadata.seq_lens.dtype,\n"
+    "                    )\n"
     "                    synth_bt = attn_metadata.block_table[i : i + 1].expand(q_len, -1)\n"
     "                    out = triton_turboquant_decode_attention(\n"
     "                        query=q_seq,\n"
@@ -133,10 +137,12 @@ P101_LOOP_NEW = (
     "                        q_part = q_seq[q_offset:q_next]\n"
     "                        part_len = q_next - q_offset\n"
     "                        output_part = out[q_offset:q_next]\n"
-    "                        # Slice from pre-built arange (no kernel launch)\n"
-    "                        synth_seq_lens = _arange_cache[\n"
-    "                            cached_len + q_offset + 1 : cached_len + q_next + 1\n"
-    "                        ]\n"
+    "                        synth_seq_lens = torch.arange(\n"
+    "                            cached_len + q_offset + 1,\n"
+    "                            cached_len + q_next + 1,\n"
+    "                            device=query.device,\n"
+    "                            dtype=attn_metadata.seq_lens.dtype,\n"
+    "                        )\n"
     "                        synth_bt = attn_metadata.block_table[i : i + 1].expand(\n"
     "                            part_len, -1\n"
     "                        )\n"
@@ -232,6 +238,12 @@ def apply() -> tuple[str, str]:
         return "failed", (
             f"{patcher.patch_name}: "
             f"{failure.reason if failure else 'unknown'} "
+            f"({failure.detail if failure else ''})"
+        )
+    if result not in (TextPatchResult.APPLIED, TextPatchResult.IDEMPOTENT):
+        return result.value, (
+            f"{patcher.patch_name}: "
+            f"{failure.reason if failure else 'not applied'} "
             f"({failure.detail if failure else ''})"
         )
 
