@@ -12,9 +12,28 @@ Covers:
 """
 from __future__ import annotations
 
+import importlib.util
+
 import pytest
 
 from vllm._genesis import model_detect
+
+
+# This file monkeypatches `vllm.config.get_current_vllm_config` directly
+# in many tests. pytest's setattr resolves dotted paths by importing
+# the parent module — that requires a real vllm install. Skip on
+# CPU-only / no-vllm envs. Integration container has vllm and runs all.
+def _vllm_config_importable() -> bool:
+    try:
+        return importlib.util.find_spec("vllm.config") is not None
+    except (ImportError, ModuleNotFoundError, ValueError):
+        return False
+
+
+pytestmark = pytest.mark.skipif(
+    not _vllm_config_importable(),
+    reason="vllm.config not importable in this env (CPU-only / no vllm install)",
+)
 
 
 class FakeHFConfig:

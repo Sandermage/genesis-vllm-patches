@@ -59,7 +59,16 @@ Both hooks are independently togglable via env flags:
   GENESIS_ENABLE_P69_LONG_CTX_TOOL_REMINDER=1
 
 Threshold (in characters, approx 4 chars/token):
-  GENESIS_P68_P69_LONG_CTX_THRESHOLD_CHARS=8000   # default = ~2K tokens
+  GENESIS_P68_P69_LONG_CTX_THRESHOLD_CHARS=50000  # default = ~12.5K tokens
+                                                  # (was 8000; raised
+                                                  #  per Genesis Issue #9
+                                                  #  — 8K fired on every
+                                                  #  realistic IDE-agent
+                                                  #  prompt and silently
+                                                  #  forced tool_choice or
+                                                  #  appended reminders,
+                                                  #  causing finish_reason
+                                                  #  =stop on plain text)
 
 ================================================================
 
@@ -84,11 +93,24 @@ def _env_flag(name: str) -> bool:
 
 
 def _get_threshold_chars() -> int:
-    raw = os.environ.get("GENESIS_P68_P69_LONG_CTX_THRESHOLD_CHARS", "8000")
+    """Return the long-context threshold in characters.
+
+    Default raised 8000 → 50000 in response to Genesis Issue #9
+    (noonghunna 2026-04-29). At 8000 chars (~2K tokens) the threshold
+    fired on every realistic IDE-agent prompt — Cline / Cursor /
+    OpenCode / Copilot Gateway typically build 15-50K-char system
+    prompts — and silently coerced `tool_choice: auto → required` (P68)
+    or appended a "must use a tool" reminder (P69), producing
+    `finish_reason=stop` with empty content for plain-text user
+    messages. 50000 chars (~12.5K tokens) keeps the long-context tool
+    adherence behavior for genuinely long histories while leaving
+    casual IDE-agent flows alone.
+    """
+    raw = os.environ.get("GENESIS_P68_P69_LONG_CTX_THRESHOLD_CHARS", "50000")
     try:
         return max(1000, int(raw))
     except (ValueError, TypeError):
-        return 8000
+        return 50000
 
 
 def _estimate_prompt_chars(messages: list[dict[str, Any]]) -> int:
@@ -226,9 +248,15 @@ def apply_hook(serving_chat: Any, request: Any) -> dict[str, Any]:
         try:
             request.tool_choice = "required"
             result["applied_p68"] = True
-            log.info(
-                "[Genesis P68] long-ctx prompt (%d chars >= %d): "
-                "upgraded tool_choice 'auto' -> 'required'",
+            # WARN-level (was INFO): per Genesis Issue #9 — operators must
+            # see this in default log levels because the rewrite changes
+            # request semantics in a way that can produce
+            # finish_reason=stop on what was a casual user message.
+            log.warning(
+                "[Genesis P68] long-ctx prompt (%d chars >= %d threshold): "
+                "upgraded tool_choice 'auto' -> 'required'. To disable "
+                "this rewrite set GENESIS_ENABLE_P68_AUTO_FORCE_TOOL=0 or "
+                "raise GENESIS_P68_P69_LONG_CTX_THRESHOLD_CHARS.",
                 chars, threshold,
             )
         except Exception as e:

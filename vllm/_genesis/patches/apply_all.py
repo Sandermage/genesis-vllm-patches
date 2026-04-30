@@ -144,11 +144,41 @@ def _failed(name: str, reason: str) -> PatchResult:
 _APPLY_MODE: bool = False
 
 
+_WIRING_STEM_INDEX: dict[str, str] | None = None
+
+
+def _resolve_wiring_module(stem: str) -> str:
+    """Resolve a bare wiring filename stem (e.g. 'patch_67_tq_multi_query_kernel')
+    to its full dotted module path. Walks `wiring/` recursively so the
+    legacy flat layout AND post-Phase-2.1 category subdirs both work
+    transparently.
+    """
+    global _WIRING_STEM_INDEX
+    if _WIRING_STEM_INDEX is None:
+        from pathlib import Path
+        wiring_dir = Path(__file__).resolve().parent.parent / "wiring"
+        idx: dict[str, str] = {}
+        if wiring_dir.is_dir():
+            for f in wiring_dir.rglob("patch_*.py"):
+                rel_parts = f.relative_to(
+                    wiring_dir.parent.parent.parent
+                ).parts
+                idx[f.stem] = ".".join(list(rel_parts[:-1]) + [f.stem])
+        _WIRING_STEM_INDEX = idx
+    # Fallback to flat layout if not in cache (covers a freshly-added file
+    # that wasn't there at first-call time).
+    return _WIRING_STEM_INDEX.get(
+        stem, f"vllm._genesis.wiring.{stem}"
+    )
+
+
 def _wiring_text_patch(name: str, wiring_module_name: str) -> PatchResult:
     """Generic helper for dry-run / live dispatch of a text-patch wiring module."""
     try:
         import importlib
-        mod = importlib.import_module(f"vllm._genesis.wiring.{wiring_module_name}")
+        mod = importlib.import_module(
+            _resolve_wiring_module(wiring_module_name)
+        )
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
 
@@ -398,7 +428,7 @@ def apply_patch_4_tq_hybrid() -> PatchResult:
     if not _APPLY_MODE:
         # Dry-run: just confirm the wiring module is importable.
         try:
-            from vllm._genesis.wiring import patch_4_tq_hybrid
+            from vllm._genesis.wiring.legacy import patch_4_tq_hybrid
             assert callable(patch_4_tq_hybrid.apply)
         except Exception as e:
             return _failed(name, f"wiring import failed: {e}")
@@ -406,7 +436,7 @@ def apply_patch_4_tq_hybrid() -> PatchResult:
 
     # Real apply path: run the text-patcher.
     try:
-        from vllm._genesis.wiring import patch_4_tq_hybrid
+        from vllm._genesis.wiring.legacy import patch_4_tq_hybrid
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
 
@@ -437,14 +467,14 @@ def apply_patch_5_page_size() -> PatchResult:
 
     if not _APPLY_MODE:
         try:
-            from vllm._genesis.wiring import patch_5_page_size
+            from vllm._genesis.wiring.legacy import patch_5_page_size
             assert callable(patch_5_page_size.apply)
         except Exception as e:
             return _failed(name, f"wiring import failed: {e}")
         return _applied(name, "dry-run: wiring ready (pass apply=True to execute)")
 
     try:
-        from vllm._genesis.wiring import patch_5_page_size
+        from vllm._genesis.wiring.legacy import patch_5_page_size
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
 
@@ -489,7 +519,7 @@ def apply_patch_5b_page_size_pad_smaller() -> PatchResult:
         return _applied(name, "dry-run: env-opt-in scaffold ready")
 
     try:
-        from vllm._genesis.wiring import patch_5b_page_size_pad_smaller
+        from vllm._genesis.wiring.legacy import patch_5b_page_size_pad_smaller
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
 
@@ -539,7 +569,7 @@ def apply_patch_31_router_softmax() -> PatchResult:
     # grouped-MoE families; Qwen3.6 uses fused-CUDA-kernel softmax that's
     # out of scope for Python-level rebind).
     try:
-        from vllm._genesis.wiring import patch_31_router_softmax
+        from vllm._genesis.wiring.legacy import patch_31_router_softmax
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
 
@@ -593,7 +623,7 @@ def apply_patch_22_tq_dequant_prealloc() -> PatchResult:
 
     # Live wiring: rebind TurboQuantAttentionImpl._ensure_on_device.
     try:
-        from vllm._genesis.wiring import patch_22_tq_prealloc
+        from vllm._genesis.wiring.legacy import patch_22_tq_prealloc
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
 
@@ -650,7 +680,7 @@ def apply_patch_61b_streaming_overlap() -> PatchResult:
     if not _APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm._genesis.wiring import patch_61b_qwen3_streaming_overlap_guard
+        from vllm._genesis.wiring.structured_output import patch_61b_qwen3_streaming_overlap_guard
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = patch_61b_qwen3_streaming_overlap_guard.apply()
@@ -684,7 +714,7 @@ def apply_patch_62_struct_out_spec_timing() -> PatchResult:
     if not _APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm._genesis.wiring import patch_62_structured_output_spec_decode_timing
+        from vllm._genesis.wiring.structured_output import patch_62_structured_output_spec_decode_timing
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = patch_62_structured_output_spec_decode_timing.apply()
@@ -710,7 +740,7 @@ def apply_patch_61_qwen3_multi_tool() -> PatchResult:
     if not _APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm._genesis.wiring import patch_61_qwen3_multi_tool_first_occurrence
+        from vllm._genesis.wiring.structured_output import patch_61_qwen3_multi_tool_first_occurrence
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = patch_61_qwen3_multi_tool_first_occurrence.apply()
@@ -750,7 +780,7 @@ def apply_patch_60b_gdn_ngram_triton_kernel() -> PatchResult:
     if not _APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm._genesis.wiring import patch_60b_gdn_ngram_triton_kernel
+        from vllm._genesis.wiring.spec_decode import patch_60b_gdn_ngram_triton_kernel
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = patch_60b_gdn_ngram_triton_kernel.apply()
@@ -793,7 +823,7 @@ def apply_patch_60_gdn_ngram_state_recovery() -> PatchResult:
     if not _APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm._genesis.wiring import patch_60_gdn_ngram_state_recovery
+        from vllm._genesis.wiring.spec_decode import patch_60_gdn_ngram_state_recovery
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = patch_60_gdn_ngram_state_recovery.apply()
@@ -838,7 +868,7 @@ def apply_patch_63_mtp_gdn_state_recovery() -> PatchResult:
     if not _APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm._genesis.wiring import patch_63_mtp_gdn_state_recovery
+        from vllm._genesis.wiring.spec_decode import patch_63_mtp_gdn_state_recovery
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = patch_63_mtp_gdn_state_recovery.apply()
@@ -878,7 +908,7 @@ def apply_patch_64_qwen3coder_mtp_streaming() -> PatchResult:
     if not _APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm._genesis.wiring import patch_64_qwen3coder_mtp_streaming
+        from vllm._genesis.wiring.structured_output import patch_64_qwen3coder_mtp_streaming
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = patch_64_qwen3coder_mtp_streaming.apply()
@@ -926,7 +956,7 @@ def apply_patch_65_turboquant_spec_cg_downgrade() -> PatchResult:
     if not _APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm._genesis.wiring import patch_65_turboquant_spec_cg_downgrade
+        from vllm._genesis.wiring.spec_decode import patch_65_turboquant_spec_cg_downgrade
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = patch_65_turboquant_spec_cg_downgrade.apply()
@@ -975,7 +1005,7 @@ def apply_patch_66_cudagraph_size_filter() -> PatchResult:
     if not _APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm._genesis.wiring import patch_66_cudagraph_size_divisibility_filter
+        from vllm._genesis.wiring.spec_decode import patch_66_cudagraph_size_divisibility_filter
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = patch_66_cudagraph_size_divisibility_filter.apply()
@@ -1021,7 +1051,7 @@ def apply_patch_68_69_long_ctx_tool_adherence() -> PatchResult:
     if not _APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm._genesis.wiring import patch_68_69_long_ctx_tool_adherence
+        from vllm._genesis.wiring.structured_output import patch_68_69_long_ctx_tool_adherence
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = patch_68_69_long_ctx_tool_adherence.apply()
@@ -1059,7 +1089,7 @@ def apply_patch_70_auto_strict_ngram() -> PatchResult:
     if not _APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm._genesis.wiring import patch_70_auto_strict_ngram
+        from vllm._genesis.wiring.spec_decode import patch_70_auto_strict_ngram
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = patch_70_auto_strict_ngram.apply()
@@ -1112,7 +1142,7 @@ def apply_patch_67_tq_multi_query_kernel() -> PatchResult:
     if not _APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm._genesis.wiring import patch_67_tq_multi_query_kernel
+        from vllm._genesis.wiring.spec_decode import patch_67_tq_multi_query_kernel
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = patch_67_tq_multi_query_kernel.apply()
@@ -1158,7 +1188,7 @@ def apply_patch_71_block_verify() -> PatchResult:
     if not _APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm._genesis.wiring import patch_71_block_verify
+        from vllm._genesis.wiring.spec_decode import patch_71_block_verify
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = patch_71_block_verify.apply()
@@ -1192,7 +1222,7 @@ def apply_patch_78_tolist_capture_guard() -> PatchResult:
     if not _APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm._genesis.wiring import patch_78_tolist_capture_guard
+        from vllm._genesis.wiring.compile_safety import patch_78_tolist_capture_guard
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = patch_78_tolist_capture_guard.apply()
@@ -1236,7 +1266,7 @@ def apply_patch_77_adaptive_ngram_k() -> PatchResult:
     if not _APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm._genesis.wiring import patch_77_adaptive_ngram_k
+        from vllm._genesis.wiring.spec_decode import patch_77_adaptive_ngram_k
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = patch_77_adaptive_ngram_k.apply()
@@ -1272,7 +1302,7 @@ def apply_patch_79b_async_proposer_sync() -> PatchResult:
     if not _APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm._genesis.wiring import patch_79b_async_proposer_sync
+        from vllm._genesis.wiring.spec_decode import patch_79b_async_proposer_sync
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = patch_79b_async_proposer_sync.apply()
@@ -1308,7 +1338,7 @@ def apply_patch_79c_stale_spec_token_cleanup() -> PatchResult:
     if not _APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm._genesis.wiring import patch_79c_stale_spec_token_cleanup
+        from vllm._genesis.wiring.spec_decode import patch_79c_stale_spec_token_cleanup
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = patch_79c_stale_spec_token_cleanup.apply()
@@ -1342,7 +1372,7 @@ def apply_patch_81_fp8_block_scaled_m_le_8() -> PatchResult:
     if not _APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm._genesis.wiring import patch_81_fp8_block_scaled_m_le_8
+        from vllm._genesis.wiring.kernels import patch_81_fp8_block_scaled_m_le_8
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = patch_81_fp8_block_scaled_m_le_8.apply()
@@ -1381,7 +1411,7 @@ def apply_patch_82_sglang_acceptance_threshold() -> PatchResult:
     if not _APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm._genesis.wiring import patch_82_sglang_acceptance_threshold
+        from vllm._genesis.wiring.spec_decode import patch_82_sglang_acceptance_threshold
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = patch_82_sglang_acceptance_threshold.apply()
@@ -1420,7 +1450,7 @@ def apply_patch_83_mtp_keep_last_cached_block() -> PatchResult:
     if not _APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm._genesis.wiring import patch_83_mtp_keep_last_cached_block
+        from vllm._genesis.wiring.spec_decode import patch_83_mtp_keep_last_cached_block
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = patch_83_mtp_keep_last_cached_block.apply()
@@ -1461,7 +1491,7 @@ def apply_patch_84_hash_block_size_override() -> PatchResult:
     if not _APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm._genesis.wiring import patch_84_hash_block_size_override
+        from vllm._genesis.wiring.kv_cache import patch_84_hash_block_size_override
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = patch_84_hash_block_size_override.apply()
@@ -1491,7 +1521,7 @@ def apply_patch_100_flashinfer_full_cg_specdec() -> PatchResult:
     if not _APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm._genesis.wiring import patch_100_flashinfer_full_cg_specdec
+        from vllm._genesis.wiring.perf_hotfix import patch_100_flashinfer_full_cg_specdec
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = patch_100_flashinfer_full_cg_specdec.apply()
@@ -1522,7 +1552,7 @@ def apply_patch_103_fla_cliff2_chunked() -> PatchResult:
     if not _APPLY_MODE:
         return _applied(name, "dry-run: monkey-patch ready")
     try:
-        from vllm._genesis.wiring import patch_103_fla_cliff2_chunked
+        from vllm._genesis.wiring.hybrid import patch_103_fla_cliff2_chunked
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = patch_103_fla_cliff2_chunked.apply()
@@ -1551,7 +1581,7 @@ def apply_patch_101_tq_continuation_slicing() -> PatchResult:
     if not _APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm._genesis.wiring import patch_101_tq_continuation_slicing
+        from vllm._genesis.wiring.perf_hotfix import patch_101_tq_continuation_slicing
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = patch_101_tq_continuation_slicing.apply()
@@ -1578,7 +1608,7 @@ def apply_patch_99_workspace_manager_memoize() -> PatchResult:
     if not _APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm._genesis.wiring import patch_99_workspace_manager_memoize
+        from vllm._genesis.wiring.perf_hotfix import patch_99_workspace_manager_memoize
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = patch_99_workspace_manager_memoize.apply()
@@ -1608,7 +1638,7 @@ def apply_patch_98_tq_workspace_revert() -> PatchResult:
     if not _APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm._genesis.wiring import patch_98_tq_workspace_revert
+        from vllm._genesis.wiring.perf_hotfix import patch_98_tq_workspace_revert
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = patch_98_tq_workspace_revert.apply()
@@ -1642,7 +1672,7 @@ def apply_patch_94_spec_decode_zero_alloc() -> PatchResult:
     if not _APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm._genesis.wiring import patch_94_spec_decode_zero_alloc
+        from vllm._genesis.wiring.spec_decode import patch_94_spec_decode_zero_alloc
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = patch_94_spec_decode_zero_alloc.apply()
@@ -1651,6 +1681,28 @@ def apply_patch_94_spec_decode_zero_alloc() -> PatchResult:
     if status == "skipped":
         return _skipped(name, reason)
     return _failed(name, reason)
+
+
+@register_patch(
+    "P95 Marlin TP cudagraph cap on Ampere (vllm#40385 backport)"
+)
+def apply_patch_95_marlin_tp_cudagraph_cap() -> PatchResult:
+    """Patch 95: backport of vllm#40385 (OPEN as of 2026-04-28).
+
+    Defensive cap of `max_cudagraph_capture_sizes` to avoid OOM on
+    TP>=2 with Marlin kernels on Ampere SM 8.6 (our 2x A5000 PROD).
+
+    [Genesis production-readiness audit fix 2026-04-30]: this hook
+    was missing from apply_all.py despite the wiring file existing
+    and the PATCH_REGISTRY entry being live since 2026-04-29 — so
+    GENESIS_ENABLE_P95=1 silently did nothing. Now wired correctly.
+
+    Status: opt-in via GENESIS_ENABLE_P95=1, default OFF.
+    """
+    return _wiring_text_patch(
+        "P95 Marlin TP cudagraph cap on Ampere (vllm#40385 backport)",
+        "patch_95_marlin_tp_cudagraph_cap",
+    )
 
 
 @register_patch(
@@ -1684,7 +1736,7 @@ def apply_patch_91_autoround_row_group_cdiv() -> PatchResult:
     if not _APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm._genesis.wiring import patch_91_autoround_row_group_cdiv
+        from vllm._genesis.wiring.kernels import patch_91_autoround_row_group_cdiv
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = patch_91_autoround_row_group_cdiv.apply()
@@ -1739,7 +1791,7 @@ def apply_patch_87_marlin_pad_sub_tile() -> PatchResult:
     if not _APPLY_MODE:
         return _applied(name, "dry-run: class-rebind ready")
     try:
-        from vllm._genesis.wiring import patch_87_marlin_pad_sub_tile
+        from vllm._genesis.wiring.kernels import patch_87_marlin_pad_sub_tile
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = patch_87_marlin_pad_sub_tile.apply()
@@ -1780,7 +1832,7 @@ def apply_patch_N8_mtp_draft_online_quant_propagation() -> PatchResult:
     if not _APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm._genesis.wiring import patch_N8_mtp_draft_online_quant_propagation
+        from vllm._genesis.wiring.spec_decode import patch_N8_mtp_draft_online_quant_propagation
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = patch_N8_mtp_draft_online_quant_propagation.apply()
@@ -1823,7 +1875,7 @@ def apply_patch_N9_independent_drafter_attn_backend() -> PatchResult:
     if not _APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm._genesis.wiring import patch_N9_independent_drafter_attn_backend
+        from vllm._genesis.wiring.spec_decode import patch_N9_independent_drafter_attn_backend
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = patch_N9_independent_drafter_attn_backend.apply()
@@ -1858,7 +1910,7 @@ def apply_patch_N11_gdn_a_b_contiguous() -> PatchResult:
     if not _APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm._genesis.wiring import patch_N11_gdn_a_b_contiguous
+        from vllm._genesis.wiring.hybrid import patch_N11_gdn_a_b_contiguous
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = patch_N11_gdn_a_b_contiguous.apply()
@@ -1890,7 +1942,7 @@ def apply_patch_N12_ffn_intermediate_pool() -> PatchResult:
     if not _APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm._genesis.wiring import patch_N12_ffn_intermediate_pool
+        from vllm._genesis.wiring.hybrid import patch_N12_ffn_intermediate_pool
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = patch_N12_ffn_intermediate_pool.apply()
@@ -1923,10 +1975,129 @@ def apply_patch_N13_cuda_graph_lambda_arity() -> PatchResult:
     if not _APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm._genesis.wiring import patch_N13_cuda_graph_lambda_arity
+        from vllm._genesis.wiring.hybrid import patch_N13_cuda_graph_lambda_arity
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = patch_N13_cuda_graph_lambda_arity.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch("PN14 TQ decode IOOB safe_page_idx clamp (vllm#40074 backport)")
+def apply_patch_N14_tq_decode_oob_clamp() -> PatchResult:
+    """Patch N14: backport of vllm#40074 (devarakondasrikanth, OPEN as of
+    2026-04-29) — fix TurboQuant decode kernel index-out-of-bounds.
+
+    `_tq_decode_stage1` in `triton_turboquant_decode.py` uses `page_idx`
+    directly in pointer arithmetic. The mask= argument guards the loaded
+    VALUE on masked-out lanes but NOT the address computation; on long
+    (>32k) sequences the bounds checker fires (originally seen on 4090).
+
+    Fix: `safe_page_idx = tl.where(kv_mask, page_idx, 0)` BEFORE
+    Block_table_ptr arithmetic. Zero-cost (one tl.where in registers).
+
+    Genesis hardware-relevance: Ampere sm_86 (A5000) does not see the
+    assertion in PROD; Blackwell upgrade path (R6000 Pro Q3 2026) likely
+    benefits. Defensive backport — fires whenever P67 dispatch returns
+    False or spec-decode is OFF/K=1.
+
+    Status: opt-in via GENESIS_ENABLE_PN14_TQ_DECODE_OOB_CLAMP=1.
+    Default OFF. Self-retires via marker `safe_page_idx` when #40074 merges.
+    """
+    name = "PN14 TQ decode IOOB safe_page_idx clamp (vllm#40074 backport)"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring.kernels import patch_N14_tq_decode_oob_clamp
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_N14_tq_decode_oob_clamp.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch("PN19 Scoped max_split_size_mb during model load (vllm#41268)")
+def apply_patch_N19_scoped_max_split() -> PatchResult:
+    """Patch N19: backport of vllm#41268 (MatthewBonanni, OPEN
+    2026-04-30) — temporarily set max_split_size_mb=20 (PyTorch
+    minimum) for the duration of model load to mitigate PyTorch 2.10+
+    allocator fragmentation. Restores prior allocator settings on
+    exit (or PyTorch's effective default of SIZE_MAX = no limit).
+
+    Cudagraph-safe (load-time only; capture phase uses the restored
+    allocator). Self-detects torch lacking
+    `_accelerator_setAllocatorSettings` and falls through unchanged.
+
+    Status: opt-in via GENESIS_ENABLE_PN19_SCOPED_MAX_SPLIT=1.
+    Estimated win: 200-500 MiB on H100 (per PR author); unverified
+    on Ampere — measure before relying on it.
+    Default OFF.
+    """
+    return _wiring_text_patch(
+        "PN19 Scoped max_split_size_mb during model load (vllm#41268)",
+        "patch_N19_scoped_max_split",
+    )
+
+
+@register_patch("PN17 FA2 softmax_lse runtime clamp (Issue #11 Cliff 1 mechanism A)")
+def apply_patch_N17_fa2_softmax_lse_clamp() -> PatchResult:
+    """Patch N17: Genesis-original 2026-04-30 — runtime clamp on FA2
+    softmax_lse over-allocation.
+
+    Replaces `max_seqlen_k = attn_metadata.max_seq_len` (which equals
+    max_model_len during cudagraph capture per upstream design) with
+    a runtime-only clamp to actual chunk max from `seqused_k.max()`.
+    Cudagraph capture path falls back to original max_model_len
+    behavior for shape stability.
+
+    Closes Cliff 1 mechanism A (FA2 path); widens long-text-no-vision
+    safe envelope from ~150K to ~205K. Mechanism B (FFN buffer cliff)
+    is OUT OF SCOPE per Genesis Issue #11 dual-mechanism analysis.
+
+    Status: opt-in via GENESIS_ENABLE_PN17_FA2_LSE_CLAMP=1.
+    Diagnosis credit: noonghunna (cross-rig RTX 3090, Issue #11
+    follow-up 2026-04-29).
+    Default OFF.
+    """
+    return _wiring_text_patch(
+        "PN17 FA2 softmax_lse runtime clamp (Issue #11 Cliff 1 mechanism A)",
+        "patch_N17_fa2_softmax_lse_clamp",
+    )
+
+
+@register_patch("PN16 Lazy-reasoner request hook (per-request enable_thinking)")
+def apply_patch_N16_lazy_reasoner() -> PatchResult:
+    """Patch N16: Genesis-original 2026-04-29 — per-request decision on
+    whether the `<think>` reasoning block adds value.
+
+    Hybrid policy:
+      - Respect explicit client `chat_template_kwargs.enable_thinking`
+      - For short prompts without tools/schema/reasoning-signals → force
+        enable_thinking=False (variant 1)
+      - Otherwise allow with optional max-thinking-tokens cap (variant 4
+        Phase 2 — stub for now)
+
+    Goal: reduce wasted reasoning tokens + TTFT on trivial prompts
+    without retry-induced 2× latency/load.
+
+    Status: opt-in via GENESIS_ENABLE_PN16_LAZY_REASONER=1.
+    Threshold: GENESIS_PN16_THRESHOLD_CHARS (default 300).
+    Default OFF.
+    """
+    name = "PN16 Lazy-reasoner request hook (per-request enable_thinking)"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring.middleware import patch_N16_lazy_reasoner
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_N16_lazy_reasoner.apply()
     if status == "applied":
         return _applied(name, reason)
     if status == "skipped":
@@ -1969,7 +2140,7 @@ def apply_patch_86_ngram_batch_propose_linear() -> PatchResult:
     if not _APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm._genesis.wiring import patch_86_ngram_batch_propose_linear
+        from vllm._genesis.wiring.spec_decode import patch_86_ngram_batch_propose_linear
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = patch_86_ngram_batch_propose_linear.apply()
@@ -2016,7 +2187,7 @@ def apply_patch_85_hybrid_fine_shadow_prefix_cache() -> PatchResult:
     if not _APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm._genesis.wiring import patch_85_hybrid_fine_shadow_prefix_cache
+        from vllm._genesis.wiring.kv_cache import patch_85_hybrid_fine_shadow_prefix_cache
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = patch_85_hybrid_fine_shadow_prefix_cache.apply()
@@ -2053,7 +2224,7 @@ def apply_patch_75_suffix_decoding_enable() -> PatchResult:
     if not _APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm._genesis.wiring import patch_75_suffix_decoding_enable
+        from vllm._genesis.wiring.spec_decode import patch_75_suffix_decoding_enable
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = patch_75_suffix_decoding_enable.apply()
@@ -2090,7 +2261,7 @@ def apply_patch_74_chunk_clamp() -> PatchResult:
     if not _APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm._genesis.wiring import patch_74_chunk_clamp
+        from vllm._genesis.wiring.compile_safety import patch_74_chunk_clamp
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = patch_74_chunk_clamp.apply()
@@ -2130,7 +2301,7 @@ def apply_patch_72_profile_run_cap() -> PatchResult:
     if not _APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm._genesis.wiring import patch_72_profile_run_cap
+        from vllm._genesis.wiring.compile_safety import patch_72_profile_run_cap
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = patch_72_profile_run_cap.apply()
@@ -2159,7 +2330,7 @@ def apply_patch_67b_spec_verify_routing() -> PatchResult:
     if not _APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm._genesis.wiring import patch_67b_spec_verify_routing
+        from vllm._genesis.wiring.spec_decode import patch_67b_spec_verify_routing
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = patch_67b_spec_verify_routing.apply()
@@ -2199,7 +2370,7 @@ def apply_patch_59_qwen3_reasoning_tool_call_recovery() -> PatchResult:
     if not _APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm._genesis.wiring import patch_59_qwen3_reasoning_tool_call_recovery
+        from vllm._genesis.wiring.structured_output import patch_59_qwen3_reasoning_tool_call_recovery
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = patch_59_qwen3_reasoning_tool_call_recovery.apply()
@@ -2247,7 +2418,7 @@ def apply_patch_58_async_placeholder_fix() -> PatchResult:
     if not _APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm._genesis.wiring import patch_58_async_scheduler_placeholder_fix
+        from vllm._genesis.wiring.spec_decode import patch_58_async_scheduler_placeholder_fix
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = patch_58_async_scheduler_placeholder_fix.apply()
@@ -2298,7 +2469,7 @@ def apply_patch_57_spec_decode_capture_safe() -> PatchResult:
     if not _APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm._genesis.wiring import patch_57_spec_decode_capture_safe_buffers
+        from vllm._genesis.wiring.spec_decode import patch_57_spec_decode_capture_safe_buffers
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = patch_57_spec_decode_capture_safe_buffers.apply()
@@ -2344,7 +2515,7 @@ def apply_patch_56_spec_decode_guard() -> PatchResult:
     if not _APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm._genesis.wiring import patch_56_spec_decode_decode_path_guard
+        from vllm._genesis.wiring.spec_decode import patch_56_spec_decode_decode_path_guard
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = patch_56_spec_decode_decode_path_guard.apply()
@@ -2382,7 +2553,7 @@ def apply_patch_44_tq_mixed_attn_out() -> PatchResult:
     if not _APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm._genesis.wiring import patch_44_tq_mixed_attn_out
+        from vllm._genesis.wiring.legacy import patch_44_tq_mixed_attn_out
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = patch_44_tq_mixed_attn_out.apply()
@@ -2430,7 +2601,7 @@ def apply_patch_46_gdn_gating_buffers() -> PatchResult:
         return _applied(name, "dry-run: text-patch ready")
 
     try:
-        from vllm._genesis.wiring import patch_46_gdn_gating_buffers
+        from vllm._genesis.wiring.legacy import patch_46_gdn_gating_buffers
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
 
@@ -2482,7 +2653,7 @@ def apply_patch_7b_gdn_dual_stream_customop() -> PatchResult:
         return _applied(name, "dry-run: env-opt-in scaffold ready")
 
     try:
-        from vllm._genesis.wiring import patch_7b_gdn_dual_stream_customop
+        from vllm._genesis.wiring.legacy import patch_7b_gdn_dual_stream_customop
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
 
@@ -2536,7 +2707,7 @@ def apply_patch_40_tq_grouped_decode() -> PatchResult:
         return _applied(name, "dry-run: rebind ready (pass apply=True for live wiring)")
 
     try:
-        from vllm._genesis.wiring import patch_40_tq_grouped_decode
+        from vllm._genesis.wiring.legacy import patch_40_tq_grouped_decode
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
 
@@ -2594,7 +2765,7 @@ def apply_patch_39a_fla_kkt_buffer() -> PatchResult:
         return _applied(name, "dry-run: rebind ready (pass apply=True for live wiring)")
 
     try:
-        from vllm._genesis.wiring import patch_39_fla_kkt_buffer
+        from vllm._genesis.wiring.legacy import patch_39_fla_kkt_buffer
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
 
@@ -2651,7 +2822,7 @@ def apply_patch_38_tq_continuation_memory() -> PatchResult:
         return _applied(name, "dry-run: rebind ready (pass apply=True for live wiring)")
 
     try:
-        from vllm._genesis.wiring import patch_38_tq_continuation_memory
+        from vllm._genesis.wiring.legacy import patch_38_tq_continuation_memory
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
 
@@ -2945,7 +3116,7 @@ def apply_patch_14_block_table_tail_zero() -> PatchResult:
         return _applied(name, "dry-run: kernel ready (pass apply=True for live wiring)")
 
     try:
-        from vllm._genesis.wiring import patch_14_block_table
+        from vllm._genesis.wiring.legacy import patch_14_block_table
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
 
@@ -3149,6 +3320,62 @@ def run(verbose: bool = True, apply: bool = False) -> PatchStats:
     except Exception as e:
         log.debug("[gpu_profile] recommendation skipped: %s", e)
 
+    # [Phase 5b plugins] Discover + register community plugin patches
+    # via setuptools entry-points. OPT-IN: only fires when
+    # GENESIS_ALLOW_PLUGINS=1. Default behavior: zero foreign code loaded.
+    try:
+        from vllm._genesis.compat.plugins import (
+            register_plugins as _register_genesis_plugins,
+        )
+        n_plugins = _register_genesis_plugins()
+        if n_plugins > 0:
+            log.info(
+                "[Genesis plugins] registered %d community patch(es) via "
+                "entry-points (lifecycle=community).", n_plugins,
+            )
+    except Exception as e:
+        log.debug("[plugins] discovery skipped: %s", e)
+
+    # [Phase 5c apply_callable] After core patches finish, walk plugins
+    # whose env flags are set + call their apply_callable. Plugin failures
+    # are isolated (logged, counted, never crash apply_all). Skipped if
+    # GENESIS_ALLOW_PLUGINS gate is closed.
+    if apply:
+        try:
+            from vllm._genesis.compat.plugins import apply_all_plugins
+            plugin_stats = apply_all_plugins()
+            if plugin_stats.get("total", 0) > 0:
+                log.info(
+                    "[Genesis plugins] apply pass: total=%d applied=%d "
+                    "skipped=%d failed=%d",
+                    plugin_stats["total"], plugin_stats["applied"],
+                    plugin_stats["skipped"], plugin_stats["failed"],
+                )
+        except Exception as e:
+            log.debug("[plugins] apply pass skipped: %s", e)
+
+    # [Phase 5d telemetry] Opt-in anonymized telemetry. Default OFF —
+    # only fires when GENESIS_ENABLE_TELEMETRY=1. Even when ON, only
+    # saves locally. Network upload is a separate gate
+    # (GENESIS_TELEMETRY_UPLOAD=1) and is currently a no-op until the
+    # community dashboard is live.
+    try:
+        from vllm._genesis.compat.telemetry import (
+            is_enabled as _telemetry_is_enabled,
+            collect_report as _telemetry_collect_report,
+            save_report as _telemetry_save_report,
+        )
+        if _telemetry_is_enabled():
+            report = _telemetry_collect_report()
+            path = _telemetry_save_report(report)
+            if path:
+                log.info(
+                    "[Genesis telemetry] anonymized report saved → %s "
+                    "(no network upload — see telemetry CLI)", path,
+                )
+    except Exception as e:
+        log.debug("[telemetry] save skipped: %s", e)
+
     # Apply each patch
     for patch_name, patch_fn in PATCH_REGISTRY:
         try:
@@ -3200,6 +3427,26 @@ def run(verbose: bool = True, apply: bool = False) -> PatchStats:
     except Exception as e:
         log.debug("[Genesis] dispatcher matrix dump failed (non-fatal): %s", e)
 
+    # [Genesis A3/D2] Validate dependencies / conflicts on the actual
+    # APPLY set. Static registry validation runs first (cheap, catches
+    # typos in requires_patches/conflicts_with refs), then runtime plan
+    # check. Issues are logged at ERROR/WARNING level — we do NOT abort
+    # boot here because operators may have legitimate reasons for unusual
+    # combinations during diagnosis.
+    try:
+        from vllm._genesis.dispatcher import (
+            validate_registry, validate_apply_plan,
+            log_validation_issues, get_apply_matrix,
+        )
+        static_issues = validate_registry()
+        if static_issues:
+            log_validation_issues(static_issues)
+        applied_set = {d["patch_id"] for d in get_apply_matrix() if d["applied"]}
+        plan_issues = validate_apply_plan(applied_set)
+        log_validation_issues(plan_issues)
+    except Exception as e:
+        log.debug("[Genesis] dispatcher validator unavailable: %s", e)
+
     return stats
 
 
@@ -3233,7 +3480,9 @@ def verify_live_rebinds() -> dict[str, Any]:
         """Invoke `is_applied()` on the wiring module; record result."""
         try:
             import importlib
-            mod = importlib.import_module(f"vllm._genesis.wiring.{wiring_module}")
+            mod = importlib.import_module(
+                _resolve_wiring_module(wiring_module)
+            )
         except Exception as e:
             results[patch_id] = {
                 "expected": True, "actual": False, "ok": False,

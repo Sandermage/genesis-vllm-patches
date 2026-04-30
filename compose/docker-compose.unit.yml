@@ -1,0 +1,60 @@
+# Genesis v7.0-dev UNIT validation compose — CPU-only, no GPU required.
+#
+# Runs the full pytest suite for vllm/_genesis/ inside a lightweight CPU
+# Python container. Tests use monkeypatch to simulate every GPU platform
+# (NVIDIA Ampere/Ada/Hopper/Blackwell, AMD ROCm, Intel XPU, CPU) so the
+# full coverage runs without any physical GPU.
+#
+# Target hosts: VM 103 (192.168.1.15) or any Docker host — GPUs NOT needed.
+#
+# Usage:
+#   scp -r genesis-vllm-patches/ sander@192.168.1.15:/home/sander/
+#   ssh sander@192.168.1.15
+#   cd /home/sander/genesis-vllm-patches
+#   docker compose -f compose/docker-compose.unit.yml run --rm genesis-unit
+#
+# What this validates (TDD gate 1 of 2):
+#   - All 21 Python modules import cleanly
+#   - Guards dispatch correctly per mocked platform
+#   - Kernels (router_softmax, dequant_buffer, gdn_dual_stream, marlin_tuning,
+#     fp8_dispatcher) have correct platform-aware behavior
+#   - Orchestrator (apply_all) registers and dispatches all 5 patches
+#   - 9-platform integration matrix: never crashes, always skips gracefully
+#
+# What this does NOT validate (defer to docker-compose.integration.yml):
+#   - Real vLLM engine boot
+#   - CUDA graph capture with TQ buffers
+#   - End-to-end chat completion correctness
+#   - Decode throughput / VRAM footprint
+
+services:
+  genesis-unit:
+    image: python:3.12-slim
+    container_name: genesis-unit-v7
+    working_dir: /work
+    volumes:
+      - ..:/work:ro
+    # Install minimal deps for pytest + torch-cpu (no CUDA wheels needed)
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        set -e
+        echo "=== Genesis v7.0-dev UNIT validation (CPU-only) ==="
+        echo "Python: $(python3 --version)"
+        echo ""
+        echo "=== Install test deps ==="
+        pip install --quiet --disable-pip-version-check pytest numpy
+        # torch CPU wheel — small (~170MB), needed for tensor ops in tests
+        pip install --quiet --disable-pip-version-check \
+          --index-url https://download.pytorch.org/whl/cpu torch
+        echo ""
+        echo "=== Running pytest: vllm/_genesis/tests/ ==="
+        cd /work
+        # Make the package importable without installing vllm itself;
+        # our tests monkey-patch guards so no real vllm import needed
+        # for the pure-python layer.
+        PYTHONPATH=/work python3 -m pytest \
+          vllm/_genesis/tests/ \
+          -v --tb=short \
+          --color=yes \
+          -p no:cacheprovider

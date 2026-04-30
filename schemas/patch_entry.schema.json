@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Sandermage/genesis-vllm-patches/schemas/patch_entry.schema.json",
+  "title": "Genesis PATCH_REGISTRY entry",
+  "description": "Schema for one entry in vllm/_genesis/dispatcher.py::PATCH_REGISTRY. Validates structural correctness and surfaces typos / missing fields before they hit a live boot. Used by tools/validate_patch_registry.py and the pre-commit hook.",
+  "type": "object",
+  "required": ["title", "env_flag", "default_on"],
+  "additionalProperties": false,
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "Short human-readable name. Shown in dispatcher matrix + doctor + explain.",
+      "minLength": 5,
+      "maxLength": 120
+    },
+    "env_flag": {
+      "type": "string",
+      "description": "Master env variable. Must start with 'GENESIS_ENABLE_' or be a shared family flag.",
+      "pattern": "^GENESIS_[A-Z][A-Z0-9_]*$"
+    },
+    "default_on": {
+      "type": "boolean",
+      "description": "True = applies even when env unset. Default OFF for new patches; flip to True only after stable lifecycle + at least one PROD release."
+    },
+    "lifecycle": {
+      "type": "string",
+      "enum": ["experimental", "stable", "deprecated", "research", "community", "retired"],
+      "description": "Lifecycle state. New patches start as 'experimental'. Code removal requires prior 'retired' for at least one release."
+    },
+    "category": {
+      "type": "string",
+      "description": "Free-form category for navigation / Phase 2 wiring/ subdir grouping.",
+      "examples": [
+        "spec_decode",
+        "kv_cache",
+        "kernel_perf",
+        "kernel_safety",
+        "memory_pool",
+        "compile_safety",
+        "model_correctness",
+        "structured_output",
+        "request_middleware",
+        "stability",
+        "quantization",
+        "perf_hotfix"
+      ]
+    },
+    "credit": {
+      "type": "string",
+      "description": "What + why. Long-form free text. Should mention upstream PR number, original author handle, and the bug class fixed. Genesis-original work credits Sandermage."
+    },
+    "deprecation_note": {
+      "type": "string",
+      "description": "Required when lifecycle == 'deprecated'. Explains why and what supersedes it."
+    },
+    "experimental_note": {
+      "type": "string",
+      "description": "Required when lifecycle == 'experimental'. Explains the unknown / risk."
+    },
+    "research_note": {
+      "type": "string",
+      "description": "Required when lifecycle == 'research'. Explains why kept as reference."
+    },
+    "community_credit": {
+      "type": "string",
+      "description": "Required when lifecycle == 'community'. Plugin origin / author."
+    },
+    "stable_since": {
+      "type": "string",
+      "description": "Genesis version where this patch reached stable lifecycle (e.g. 'v7.62.18')."
+    },
+    "since_version": {
+      "type": "string",
+      "description": "Genesis version where this patch was first introduced."
+    },
+    "deprecated_since": {
+      "type": "string",
+      "description": "Genesis version where this patch became deprecated."
+    },
+    "removal_planned": {
+      "type": "string",
+      "description": "Genesis version where this patch will be removed (only valid with lifecycle == 'deprecated' or 'retired')."
+    },
+    "deprecated": {
+      "type": "boolean",
+      "description": "DEPRECATED FIELD — legacy boolean. Use `lifecycle: deprecated` instead. Old entries still recognized via lifecycle.get_state() fallback."
+    },
+    "superseded_by": {
+      "oneOf": [
+        {"type": "string"},
+        {"type": "array", "items": {"type": "string"}}
+      ],
+      "description": "Patch ID(s) that replace this one when deprecated."
+    },
+    "upstream_pr": {
+      "type": ["integer", "null"],
+      "description": "vllm-project/vllm PR number this patch backports. null = Genesis-original or no upstream tracker.",
+      "minimum": 1
+    },
+    "applies_to": {
+      "description": "Predicate that gates this patch by hardware / model / version. Either flat-dict legacy form (auto-normalized to all_of) or rich AND/OR/NOT/NONE_OF compound form. See compat/predicates.py.",
+      "type": "object"
+    },
+    "requires_patches": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Patch IDs that must also APPLY for this patch to make sense. Validated by A3/D2 validator at boot."
+    },
+    "conflicts_with": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Patch IDs that MUST NOT be applied at the same time. Validated by A3/D2 validator at boot."
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"lifecycle": {"const": "deprecated"}}, "required": ["lifecycle"]},
+      "then": {
+        "anyOf": [
+          {"required": ["deprecation_note"]},
+          {"required": ["superseded_by"]}
+        ]
+      }
+    },
+    {
+      "if": {"properties": {"lifecycle": {"const": "research"}}, "required": ["lifecycle"]},
+      "then": {"required": ["research_note"]}
+    },
+    {
+      "if": {"properties": {"lifecycle": {"const": "community"}}, "required": ["lifecycle"]},
+      "then": {"required": ["community_credit"]}
+    }
+  ]
+}

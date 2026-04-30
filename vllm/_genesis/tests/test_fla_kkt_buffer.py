@@ -199,13 +199,13 @@ class TestP39aRegistry:
 
 class TestP39aWiringSurface:
     def test_should_apply_non_nvidia(self, monkeypatch):
-        from vllm._genesis.wiring import patch_39_fla_kkt_buffer as p39a
+        from vllm._genesis.wiring.legacy import patch_39_fla_kkt_buffer as p39a
         from vllm._genesis import guards
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: False)
         assert p39a.should_apply() is False
 
     def test_apply_skips_on_non_nvidia(self, monkeypatch):
-        from vllm._genesis.wiring import patch_39_fla_kkt_buffer as p39a
+        from vllm._genesis.wiring.legacy import patch_39_fla_kkt_buffer as p39a
         from vllm._genesis import guards
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: False)
         status, reason = p39a.apply()
@@ -214,7 +214,7 @@ class TestP39aWiringSurface:
 
     def test_apply_skips_when_module_missing(self, monkeypatch):
         """FLA module isn't installed in unit-test env — expected skip."""
-        from vllm._genesis.wiring import patch_39_fla_kkt_buffer as p39a
+        from vllm._genesis.wiring.legacy import patch_39_fla_kkt_buffer as p39a
         from vllm._genesis import guards
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(guards, "is_sm_at_least",
@@ -224,7 +224,7 @@ class TestP39aWiringSurface:
         assert status in ("skipped", "applied")
 
     def test_public_surface_present(self):
-        from vllm._genesis.wiring import patch_39_fla_kkt_buffer as p39a
+        from vllm._genesis.wiring.legacy import patch_39_fla_kkt_buffer as p39a
         assert callable(p39a.apply)
         assert callable(p39a.revert)
         assert callable(p39a.is_applied)

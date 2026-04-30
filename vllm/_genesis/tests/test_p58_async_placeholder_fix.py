@@ -155,7 +155,7 @@ def fake_scheduler_py(tmp_path):
 class TestP58RequestPyPatch:
     def test_anchors_present_in_synthetic_file(self, fake_request_py):
         content = Path(fake_request_py).read_text()
-        from vllm._genesis.wiring.patch_58_async_scheduler_placeholder_fix import (
+        from vllm._genesis.wiring.spec_decode.patch_58_async_scheduler_placeholder_fix import (
             REQUEST_FIELD_OLD, REQUEST_NUM_TOKENS_OLD,
         )
         assert REQUEST_FIELD_OLD in content
@@ -165,7 +165,7 @@ class TestP58RequestPyPatch:
         from vllm._genesis.wiring.text_patch import (
             TextPatcher, TextPatch, TextPatchResult,
         )
-        from vllm._genesis.wiring.patch_58_async_scheduler_placeholder_fix import (
+        from vllm._genesis.wiring.spec_decode.patch_58_async_scheduler_placeholder_fix import (
             REQUEST_FIELD_OLD, REQUEST_FIELD_NEW,
             REQUEST_NUM_TOKENS_OLD, REQUEST_NUM_TOKENS_NEW,
         )
@@ -195,7 +195,7 @@ class TestP58RequestPyPatch:
 class TestP58AsyncSchedulerPyPatch:
     def test_anchor_present(self, fake_async_sched_py):
         content = Path(fake_async_sched_py).read_text()
-        from vllm._genesis.wiring.patch_58_async_scheduler_placeholder_fix import (
+        from vllm._genesis.wiring.spec_decode.patch_58_async_scheduler_placeholder_fix import (
             ASYNC_SCHED_OLD,
         )
         assert ASYNC_SCHED_OLD in content
@@ -206,7 +206,7 @@ class TestP58AsyncSchedulerPyPatch:
         from vllm._genesis.wiring.text_patch import (
             TextPatcher, TextPatch, TextPatchResult,
         )
-        from vllm._genesis.wiring.patch_58_async_scheduler_placeholder_fix import (
+        from vllm._genesis.wiring.spec_decode.patch_58_async_scheduler_placeholder_fix import (
             ASYNC_SCHED_OLD, ASYNC_SCHED_NEW,
         )
         patcher = TextPatcher(
@@ -230,24 +230,27 @@ class TestP58AsyncSchedulerPyPatch:
 class TestP58SchedulerPyPatch:
     def test_all_four_anchors_present(self, fake_scheduler_py):
         content = Path(fake_scheduler_py).read_text()
-        from vllm._genesis.wiring.patch_58_async_scheduler_placeholder_fix import (
+        from vllm._genesis.wiring.spec_decode.patch_58_async_scheduler_placeholder_fix import (
             SCHED_SPEC_BLOCK_OLD, SCHED_NEW_METHOD_OLD,
-            SCHED_PREEMPT_OLD, SCHED_DRAFT_OLD,
+            SCHED_PREEMPT_OLD, SCHED_DRAFT_SITE_A_OLD,
         )
         assert SCHED_SPEC_BLOCK_OLD in content
         assert SCHED_NEW_METHOD_OLD in content
         assert SCHED_PREEMPT_OLD in content
-        assert SCHED_DRAFT_OLD in content
+        # P58 split the single DRAFT anchor into Site A and Site B in the
+        # 2026-04-28 refactor (P62 layout compat). Site A is the
+        # `if is_prefill_chunk:` block — that's the legacy DRAFT_OLD.
+        assert SCHED_DRAFT_SITE_A_OLD in content
 
     def test_apply_inserts_new_method_and_gates(self, fake_scheduler_py):
         from vllm._genesis.wiring.text_patch import (
             TextPatcher, TextPatch, TextPatchResult,
         )
-        from vllm._genesis.wiring.patch_58_async_scheduler_placeholder_fix import (
+        from vllm._genesis.wiring.spec_decode.patch_58_async_scheduler_placeholder_fix import (
             SCHED_SPEC_BLOCK_OLD, SCHED_SPEC_BLOCK_NEW,
             SCHED_NEW_METHOD_OLD, SCHED_NEW_METHOD_NEW,
             SCHED_PREEMPT_OLD, SCHED_PREEMPT_NEW,
-            SCHED_DRAFT_OLD, SCHED_DRAFT_NEW,
+            SCHED_DRAFT_SITE_A_OLD, SCHED_DRAFT_SITE_A_NEW,
         )
         patcher = TextPatcher(
             patch_name="P58 scheduler test",
@@ -260,8 +263,8 @@ class TestP58SchedulerPyPatch:
                           replacement=SCHED_NEW_METHOD_NEW, required=True),
                 TextPatch(name="preempt", anchor=SCHED_PREEMPT_OLD,
                           replacement=SCHED_PREEMPT_NEW, required=True),
-                TextPatch(name="draft", anchor=SCHED_DRAFT_OLD,
-                          replacement=SCHED_DRAFT_NEW, required=True),
+                TextPatch(name="draft_a", anchor=SCHED_DRAFT_SITE_A_OLD,
+                          replacement=SCHED_DRAFT_SITE_A_NEW, required=True),
             ],
         )
         result, failure = patcher.apply()
@@ -280,7 +283,7 @@ class TestP58Idempotency:
         from vllm._genesis.wiring.text_patch import (
             TextPatcher, TextPatch, TextPatchResult,
         )
-        from vllm._genesis.wiring.patch_58_async_scheduler_placeholder_fix import (
+        from vllm._genesis.wiring.spec_decode.patch_58_async_scheduler_placeholder_fix import (
             REQUEST_FIELD_OLD, REQUEST_FIELD_NEW,
             REQUEST_NUM_TOKENS_OLD, REQUEST_NUM_TOKENS_NEW,
         )
@@ -338,7 +341,7 @@ class TestP58ApplyIsOptInOnly:
         """Without GENESIS_ENABLE_P58_ASYNC_PLACEHOLDER_FIX=1, apply() returns
         skipped status — never modifies anything."""
         monkeypatch.delenv("GENESIS_ENABLE_P58_ASYNC_PLACEHOLDER_FIX", raising=False)
-        from vllm._genesis.wiring.patch_58_async_scheduler_placeholder_fix import (
+        from vllm._genesis.wiring.spec_decode.patch_58_async_scheduler_placeholder_fix import (
             apply,
         )
         status, reason = apply()
@@ -347,14 +350,14 @@ class TestP58ApplyIsOptInOnly:
 
     def test_env_flag_recognized_when_set(self, monkeypatch):
         monkeypatch.setenv("GENESIS_ENABLE_P58_ASYNC_PLACEHOLDER_FIX", "1")
-        from vllm._genesis.wiring.patch_58_async_scheduler_placeholder_fix import (
+        from vllm._genesis.wiring.spec_decode.patch_58_async_scheduler_placeholder_fix import (
             _is_enabled,
         )
         assert _is_enabled() is True
 
     def test_env_flag_unset_returns_false(self, monkeypatch):
         monkeypatch.delenv("GENESIS_ENABLE_P58_ASYNC_PLACEHOLDER_FIX", raising=False)
-        from vllm._genesis.wiring.patch_58_async_scheduler_placeholder_fix import (
+        from vllm._genesis.wiring.spec_decode.patch_58_async_scheduler_placeholder_fix import (
             _is_enabled,
         )
         assert _is_enabled() is False

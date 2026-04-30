@@ -70,7 +70,7 @@ A friend of the project ([@noonghunna](https://github.com/noonghunna/qwen36-27b-
 | Speed estimate | ~50-65 tok/s decode (vs our 127 with MTP A3B) |
 | Patch compat | **32 of 37 patches apply** (5 MoE-only auto-skip via `model_detect.py`) |
 
-**Compose template**: `docker-compose.qwen3-5-dense.yml` (already in repo).
+**Compose template**: `compose/docker-compose.qwen3-5-dense.yml` (already in repo).
 
 **Recommendation**: validated for friend's setup — works with our patcher. **Not recommended as primary** because dense 27B is 2-2.5× slower than our A3B baseline.
 
@@ -85,7 +85,7 @@ A friend of the project ([@noonghunna](https://github.com/noonghunna/qwen36-27b-
 | Context | 128K (vs our 262K) |
 | Hybrid attention | NO — different MoE design from `qwen3_5_moe` |
 
-**Compose template**: `docker-compose.gemma4-26b-moe.yml` (experimental).
+**Compose template**: `compose/docker-compose.gemma4-26b-moe.yml` (experimental).
 
 **Recommendation**: experimental support — may work but **needs new patches** for Gemma 4-specific MoE layout. Not first-class supported. Most Genesis patches will skip via dispatcher; performance will likely be lower than Qwen3.6-A3B.
 
@@ -166,7 +166,7 @@ assert total_per_gpu < 22.0, f"Won't fit on 24GB A5000 (need {total_per_gpu:.1f}
 
 ### Step 3: Test container
 
-Copy `docker-compose.example.yml` → `docker-compose.<model>.yml`, swap `--model` path, leave Genesis env enable flags as-is. Boot, watch dispatcher log for SKIP messages — those are patches detecting your arch differs and gracefully not applying. No code changes needed.
+Copy `compose/docker-compose.example.yml` → `docker-compose.<model>.yml`, swap `--model` path, leave Genesis env enable flags as-is. Boot, watch dispatcher log for SKIP messages — those are patches detecting your arch differs and gracefully not applying. No code changes needed.
 
 ### Step 4: Quality gate
 

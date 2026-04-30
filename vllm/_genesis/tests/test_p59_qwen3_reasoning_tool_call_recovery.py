@@ -79,7 +79,7 @@ def fake_parser_file(tmp_path):
 
 def _make_p59_patcher(target_file: str, marker_suffix: str):
     from vllm._genesis.wiring.text_patch import TextPatcher, TextPatch
-    from vllm._genesis.wiring.patch_59_qwen3_reasoning_tool_call_recovery import (
+    from vllm._genesis.wiring.structured_output.patch_59_qwen3_reasoning_tool_call_recovery import (
         IMPORT_OLD, IMPORT_NEW,
         REGEX_OLD, REGEX_NEW,
         METHOD_OLD, METHOD_NEW,
@@ -105,22 +105,36 @@ def _make_p59_patcher(target_file: str, marker_suffix: str):
 
 class TestP59AllAnchorsHit:
     def test_all_5_anchors_present_in_synthetic_file(self, fake_parser_file):
-        from vllm._genesis.wiring.patch_59_qwen3_reasoning_tool_call_recovery import (
+        # P59 was split in the 2026-04-25 refactor: the single
+        # RETURN_THINK_OLD anchor became MONOLITH/MODULAR variants to
+        # cover both pre-/post-#36138 layouts (P62). Verify the variant
+        # that the synthetic file is shaped for matches.
+        from vllm._genesis.wiring.structured_output.patch_59_qwen3_reasoning_tool_call_recovery import (
             IMPORT_OLD, REGEX_OLD, METHOD_OLD,
-            RETURN_THINK_OLD, RETURN_TRUNC_OLD,
+            RETURN_THINK_MONOLITH_OLD, RETURN_THINK_MODULAR_OLD,
+            RETURN_TRUNC_OLD,
         )
         content = Path(fake_parser_file).read_text()
+        # Required anchors must always be present.
         for name, anchor in [
             ("IMPORT", IMPORT_OLD),
             ("REGEX", REGEX_OLD),
             ("METHOD", METHOD_OLD),
-            ("RETURN_THINK", RETURN_THINK_OLD),
             ("RETURN_TRUNC", RETURN_TRUNC_OLD),
         ]:
             assert content.count(anchor) == 1, (
                 f"{name}_OLD anchor must appear exactly once "
                 f"(got {content.count(anchor)})"
             )
+        # Exactly ONE of the THINK variants must match (pre-/post-#36138).
+        think_hits = (
+            content.count(RETURN_THINK_MONOLITH_OLD)
+            + content.count(RETURN_THINK_MODULAR_OLD)
+        )
+        assert think_hits == 1, (
+            f"Exactly one of RETURN_THINK_MONOLITH_OLD or "
+            f"RETURN_THINK_MODULAR_OLD must match (got {think_hits})"
+        )
 
 
 class TestP59Application:
@@ -183,7 +197,7 @@ class TestP59UpstreamDriftDetection:
 class TestP59OptIn:
     def test_apply_skips_without_env_flag(self, monkeypatch):
         monkeypatch.delenv("GENESIS_ENABLE_P59_QWEN3_TOOL_RECOVERY", raising=False)
-        from vllm._genesis.wiring.patch_59_qwen3_reasoning_tool_call_recovery import (
+        from vllm._genesis.wiring.structured_output.patch_59_qwen3_reasoning_tool_call_recovery import (
             apply,
         )
         status, reason = apply()
@@ -192,7 +206,7 @@ class TestP59OptIn:
 
     def test_env_flag_truthy_returns_true(self, monkeypatch):
         monkeypatch.setenv("GENESIS_ENABLE_P59_QWEN3_TOOL_RECOVERY", "1")
-        from vllm._genesis.wiring.patch_59_qwen3_reasoning_tool_call_recovery import (
+        from vllm._genesis.wiring.structured_output.patch_59_qwen3_reasoning_tool_call_recovery import (
             _is_enabled,
         )
         assert _is_enabled() is True

@@ -89,7 +89,7 @@ def fake_kv_utils_file(tmp_path, monkeypatch):
 
 
 def _patch_module_guards(monkeypatch, fake_path):
-    from vllm._genesis.wiring import patch_5_page_size as p5
+    from vllm._genesis.wiring.legacy import patch_5_page_size as p5
     monkeypatch.setattr(p5, "resolve_vllm_file",
                         lambda rel: fake_path if "kv_cache_utils" in rel else None)
     monkeypatch.setattr(p5, "vllm_install_root", lambda: "/fake")
@@ -98,7 +98,7 @@ def _patch_module_guards(monkeypatch, fake_path):
 
 class TestPatch5V1Active:
     def test_apply_writes_v1_lcm_algorithm(self, fake_kv_utils_file, monkeypatch):
-        from vllm._genesis.wiring import patch_5_page_size
+        from vllm._genesis.wiring.legacy import patch_5_page_size
         _patch_module_guards(monkeypatch, fake_kv_utils_file)
 
         status, reason = patch_5_page_size.apply()
@@ -115,7 +115,7 @@ class TestPatch5V1Active:
         assert "Cannot unify by adjusting block_size." not in content
 
     def test_idempotent(self, fake_kv_utils_file, monkeypatch):
-        from vllm._genesis.wiring import patch_5_page_size
+        from vllm._genesis.wiring.legacy import patch_5_page_size
         _patch_module_guards(monkeypatch, fake_kv_utils_file)
 
         s1, _ = patch_5_page_size.apply()
@@ -130,7 +130,7 @@ class TestPatch5V1Active:
         assert content.count("import math") == 1
 
     def test_skip_on_non_nvidia(self, fake_kv_utils_file, monkeypatch):
-        from vllm._genesis.wiring import patch_5_page_size
+        from vllm._genesis.wiring.legacy import patch_5_page_size
         monkeypatch.setattr(patch_5_page_size, "is_nvidia_cuda", lambda: False)
 
         status, reason = patch_5_page_size.apply()
@@ -140,7 +140,7 @@ class TestPatch5V1Active:
     def test_skip_when_upstream_pr37429_landed(self, fake_kv_utils_file, monkeypatch):
         """If upstream PR #37429 (per-group block pools) merges, our patch
         becomes obsolete and should auto-skip."""
-        from vllm._genesis.wiring import patch_5_page_size
+        from vllm._genesis.wiring.legacy import patch_5_page_size
         _patch_module_guards(monkeypatch, fake_kv_utils_file)
 
         content = open(fake_kv_utils_file).read()

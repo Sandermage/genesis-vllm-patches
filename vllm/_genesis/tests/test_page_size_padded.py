@@ -125,7 +125,7 @@ class TestP5bEnvGatedRegistration:
         """Default-OFF behaviour: even with NVIDIA+SM8.0, skip until
         GENESIS_ENABLE_P5B env is set."""
         monkeypatch.delenv("GENESIS_ENABLE_P5B", raising=False)
-        from vllm._genesis.wiring import patch_5b_page_size_pad_smaller as p5b
+        from vllm._genesis.wiring.legacy import patch_5b_page_size_pad_smaller as p5b
         from vllm._genesis import guards
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(

@@ -1,4 +1,19 @@
 """
+DEPRECATED 2026-04-29 — superseded by Genesis P78 (vllm/_genesis/wiring/
+patch_78_tolist_cudagraph_guard.py). Kept for compatibility with the 35B
+FP8 PROD launch path (`scripts/launch/start_35b_fp8_PROD*.sh`) which has
+not yet been migrated to rely solely on Genesis apply_all.
+
+When migrating a launch script: drop the `python3 /external_probe/
+patch_tolist_cudagraph.py` line and set
+`GENESIS_ENABLE_P78_TOLIST_CAPTURE_GUARD=1` in the env. P78 implements the
+same fix via the standard Genesis text-patch infrastructure (drift
+detection, idempotency, dispatcher gate).
+
+See `external_probe/README.md` for full migration status.
+
+────────────────────────────────────────────────────────────────────────
+
 Disk-edit patch for turboquant_attn.py: fix CUDA graph capture crashes
 at `.tolist()` calls inside the backend.
 

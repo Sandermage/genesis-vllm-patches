@@ -17,7 +17,7 @@ import re
 
 import pytest
 
-from vllm._genesis.wiring.patch_12_tool_call_reasoning import _NEW_METHODS_BLOCK
+from vllm._genesis.wiring.legacy.patch_12_tool_call_reasoning import _NEW_METHODS_BLOCK
 
 
 def test_p12_emits_first_occurrence_not_last():

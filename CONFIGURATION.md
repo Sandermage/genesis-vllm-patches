@@ -30,6 +30,7 @@ patches that are platform-gated (e.g. Ampere SM 8.0+) are noted.
 - [Patch enable / disable flags](#patch-enable--disable-flags)
 - [Buffer-mode toggles (memory pool architecture)](#buffer-mode-toggles)
 - [P67 multi-query kernel tuning](#p67-multi-query-kernel-tuning)
+- [Operator tooling (compat layer)](#operator-tooling-compat-layer)
 - [Diagnostic / observability](#diagnostic--observability)
 - [PyTorch / CUDA / Triton standard env (recommended values)](#pytorch--cuda--triton-standard-env-recommended-values)
 - [Rollback / debug overrides](#rollback--debug-overrides)
@@ -109,7 +110,30 @@ unless explicitly engaged.
 | `GENESIS_ENABLE_P86` | P86 | Ngram batch propose linear scan (faster batch ngram proposer) |
 | `GENESIS_ENABLE_P87` | P87 | Marlin sub-tile output-dim pad-on-load (vllm#40361 backport). v7.62.10 text-patch implementation |
 | `GENESIS_ENABLE_P91` | P91 | AutoRound row-group cdiv quant dispatcher fix |
-| `GENESIS_ENABLE_P94` | P94 | Spec-decode `prepare_next_token_ids_padded` zero-alloc (vllm#41043 backport, P99 TPOT -9.3% per author) |
+| `GENESIS_ENABLE_P94` | P94 | Spec-decode `prepare_next_token_ids_padded` zero-alloc (vllm#41043 backport, P99 TPOT -9.3% per author). MERGED upstream 2026-04-29 — superseded-on-pin-bump |
+| `GENESIS_ENABLE_P95` | P95 | Marlin TP cudagraph cap on Ampere (vllm#40385 backport). Defensive cap of `max_cudagraph_capture_sizes` for TP>=2 + Marlin on SM 8.6. v7.63.x audit fix: hook now wired into apply_all.py |
+| `GENESIS_ENABLE_P98` | P98 | TurboQuant WorkspaceManager revert (vllm#40941 perf hotfix — DELIBERATE INVERSE of merged upstream behavior; Ampere small-batch single-stream perf fix) |
+| `GENESIS_ENABLE_P99` | P99 | WorkspaceManager memoize variant (companion to P98 for hybrid TQ) |
+| `GENESIS_ENABLE_P100` | P100 | FlashInfer FULL CUDA graph for spec-decode (vllm#41127 backport — Ampere SM 8.6 +5-10% TPS estimated) |
+| `GENESIS_ENABLE_P101` | P101 | TurboQuant continuation 64-token slicing (vllm#41123 SELECTIVE backport — long-prefix continuation OOM mitigation) |
+| `GENESIS_ENABLE_P102` | P102 | Spec-meta sanity check (live in `spec_meta.py`) |
+| `GENESIS_ENABLE_P103` | P103 | FLA Cliff 2 chunked fwd_h+fwd_o orchestrator. Tunable: `GENESIS_FLA_FWD_H_MAX_T` (default 16384, rounded to FLA_CHUNK_SIZE multiple) |
+| `GENESIS_ENABLE_PN8_MTP_DRAFT_ONLINE_QUANT` | PN8 | MTP draft online-quant propagation (~1 GiB VRAM savings per GPU) |
+| `GENESIS_ENABLE_PN9_INDEPENDENT_DRAFTER_ATTN_BACKEND` | PN9 | Independent drafter attention backend (vllm#39930). Tunable: `GENESIS_PN9_DRAFTER_BACKEND` |
+| `GENESIS_ENABLE_PN11_GDN_AB_CONTIGUOUS` | PN11 | GDN a/b contiguity in fix_query_key_value_ordering (vllm#41142 — already in our pin) |
+| `GENESIS_ENABLE_PN12_FFN_INTERMEDIATE_POOL` | PN12 | FFN intermediate scratch pool — Cliff 1 fix on TQ3 path |
+| `GENESIS_ENABLE_PN13_CUDA_GRAPH_LAMBDA_ARITY` | PN13 | CUDAGraphWrapper gc.collect/empty_cache lambda arity (vllm#41235 backport, JartX) |
+| `GENESIS_ENABLE_PN14_TQ_DECODE_OOB_CLAMP` | PN14 | TQ decode `safe_page_idx` clamp (vllm#40074 backport) |
+| `GENESIS_ENABLE_PN16_LAZY_REASONER` | PN16 | Lazy-reasoner per-request `enable_thinking` middleware. Tunables: `GENESIS_PN16_THRESHOLD_CHARS` (default 300), `GENESIS_PN16_MAX_THINKING_TOKENS` (variant 5 soft cap) |
+| `GENESIS_ENABLE_PN17_FA2_LSE_CLAMP` | PN17 | FA2 softmax_lse runtime clamp (Cliff 1 mechanism A — Issue #11). Closes long-text-no-vision envelope ~150K → ~205K |
+| `GENESIS_ENABLE_PN19_SCOPED_MAX_SPLIT` | PN19 | Scoped max_split_size_mb during model load (vllm#41268 backport — PyTorch 2.10+ fragmentation, 200-500 MiB headroom on H100; unverified on Ampere) |
+
+#### P82 tunables (when `GENESIS_ENABLE_P82=1`)
+
+| Env var | Default | What it does |
+|---|---|---|
+| `GENESIS_P82_THRESHOLD_SINGLE` | `0.3` | Threshold for OR-clause (`target_prob >= threshold`). Set 0.0 → skip. Set 1.0 → skip (effectively no-op, argmax-tier). |
+| `GENESIS_P82_MIN_DRAFT_POS` | `0` | v2 (2026-04-30) opt-in: restrict OR-clause to draft positions `>= N`. Earlier positions cascade-affect more output tokens; restricting bias to later positions reduces quality drift. |
 
 > **P79d retired in v7.49** (vllm#38624 confirmed non-bug by njhill).
 > **P22, P26, P28, P36, P38, P44, P46** are dispatcher-driven (always-on if platform supports).
@@ -247,11 +271,35 @@ These cap kernel-side scratch buffers; useful when vLLM's
 
 ---
 
+## Operator tooling (compat layer)
+
+These env vars affect the operator-facing CLI tools (`doctor`,
+`self-test`, `bench`, `plugins`, `telemetry`, `update-channel`,
+`recipe`, `models pull`). They do NOT affect the runtime patch
+behavior — they only configure where the tools look for resources
+and how they behave.
+
+| Env var | Default | What it does |
+|---|---|---|
+| `GENESIS_REPO_ROOT` | (auto) | Override path to the Genesis source tree. Used by `self-test --schema-file` and `bench` to locate `schemas/` and `tools/` when running from a slim deployment that mounts only the package |
+| `GENESIS_ALLOW_PLUGINS` | `0` | Set to `1` to allow `plugins discover` to load community plugin entry-points (default-deny for security) |
+| `GENESIS_ENABLE_TELEMETRY` | `0` | Master switch for opt-in anonymized telemetry (gates BOTH local recording and upload) |
+| `GENESIS_TELEMETRY_UPLOAD` | `0` | Second gate for telemetry upload (must also set `GENESIS_ENABLE_TELEMETRY=1`) |
+| `GENESIS_TELEMETRY_INCLUDE_PLUGIN_NAMES` | `0` | Whether telemetry payloads include community plugin names (off by default for privacy) |
+| `GENESIS_TELEMETRY_DIR` | `~/.genesis/telemetry/` | Local directory for telemetry JSON snapshots |
+| `GENESIS_UPDATE_CHANNEL` | `stable` | Update channel: `stable` / `beta` / `dev` |
+| `GENESIS_UPDATE_DIR` | `~/.genesis/update/` | Cache directory for update-channel manifests (24h TTL) |
+| `GENESIS_RECIPES_DIR` | `~/.genesis/recipes/` | Where `recipe save` / `recipe load` / `recipe adopt` store JSON recipes |
+| `GENESIS_MODELS_DIR` | (auto) | Where `models pull` writes downloaded weights. Resolution order: this var → `/nfs/genesis/models` if present → `HUGGINGFACE_HUB_CACHE` → `~/.cache/huggingface/hub` |
+
+---
+
 ## Diagnostic / observability
 
 | Env var | Default | What it does |
 |---|---|---|
-| `GENESIS_DEBUG_INVARIANTS` | `0` | Enable assertions in patch hot paths (perf cost) |
+<!-- GENESIS_DEBUG_INVARIANTS removed 2026-04-30 production audit: never read in source. -->
+
 | `VLLM_LOGGING_LEVEL` | `WARNING` (prod) | Set `INFO` to see Genesis dispatcher matrix per boot |
 | `GENESIS_TQ_MAX_MODEL_LEN` | `262144` | Max model length for TQ prealloc sizing |
 | `GENESIS_PREALLOC_TOKEN_BUDGET` | `4096` | Token budget for prefill output prealloc (P26) |

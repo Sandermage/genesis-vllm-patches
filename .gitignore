@@ -1,36 +1,51 @@
+# Python build artifacts
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+*.egg-info/
+build/
+dist/
+
+# Test/bench artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+*.bench.json
+*.results.json
+
+# Editor temp files
+*.swp
+*.swo
+*~
 .DS_Store
+
+# macOS AppleDouble (created by scp from macOS)
 ._*
+
+# Environment/secrets
 .env
+.env.*
+*.key
+*.pem
 
-# Private upstream-comment drafts — must NEVER be committed.
-# These contain internal review notes ("draft", "tone self-check",
-# "what we will say to <user>") that should stay local.
-docs/UPSTREAM_COMMENT_*.md
-docs/UPSTREAM_REPLY_*.md
-docs/UPSTREAM_*_DRAFT*.md
-
-# Transient runtime caches (do NOT gitignore validation bench output)
-*.log
-!benchmarks/**/*.log
-!benchmarks/**/apply_all.log
-
-# Root-level tool output (bench JSONs / JSONLs live in benchmarks/)
-/harness_*.json
-/bench_*.json
-/sweep_*.jsonl
-/longbench_*.jsonl
-
-# Dev / experimental kernel artifacts — live in PRIVATE Sandermage/p67-genesis-kernel
-# Never commit to the public patcher repo.
-/p67_dev/
-/p67_backups/
-/p67_kernel_*.py
-/p67_test_*.py
-
-# Upstream draft / discussion artifacts not yet ready for public review
-docs/DISCUSSION_DRAFT_*.md
-
-# Internal-only docs (community surveys, draft action plans, internal sprint commentary)
+# Internal-only docs (private to maintainer; do not push to public)
 docs/_internal/
+
+# Snapshots / backups
+snapshots/
+*.bak
+*.backup-*
+*.tmp
+
+# Logs
+*.log
+*.json
+
+# vLLM compiled artifacts
+*.so
+.cache/
+
+# Genesis-specific local state
+genesis_bench_v*.md
+README.md.backup-*

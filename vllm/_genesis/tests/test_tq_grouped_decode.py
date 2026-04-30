@@ -146,14 +146,14 @@ class TestP40DispatcherDecision:
 
 class TestP40WiringSurface:
     def test_wiring_public_surface(self):
-        from vllm._genesis.wiring import patch_40_tq_grouped_decode as p40
+        from vllm._genesis.wiring.legacy import patch_40_tq_grouped_decode as p40
         assert callable(p40.apply)
         assert callable(p40.is_applied)
         assert callable(p40.revert)
         assert callable(p40.should_apply)
 
     def test_apply_skips_when_env_off(self, monkeypatch):
-        from vllm._genesis.wiring import patch_40_tq_grouped_decode as p40
+        from vllm._genesis.wiring.legacy import patch_40_tq_grouped_decode as p40
         monkeypatch.setattr(p40, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(
             p40, "is_sm_at_least", lambda major, minor=0: True,
@@ -165,7 +165,7 @@ class TestP40WiringSurface:
         assert "opt-in" in reason.lower() or "40792" in reason
 
     def test_apply_skips_on_non_nvidia(self, monkeypatch):
-        from vllm._genesis.wiring import patch_40_tq_grouped_decode as p40
+        from vllm._genesis.wiring.legacy import patch_40_tq_grouped_decode as p40
         monkeypatch.setattr(p40, "is_nvidia_cuda", lambda: False)
         status, reason = p40.apply()
         assert status == "skipped"
@@ -174,7 +174,7 @@ class TestP40WiringSurface:
     def test_apply_skips_when_target_missing(self, monkeypatch):
         """On CPU unit-test env the target vLLM module isn't installed;
         apply() must gracefully skip without raising."""
-        from vllm._genesis.wiring import patch_40_tq_grouped_decode as p40
+        from vllm._genesis.wiring.legacy import patch_40_tq_grouped_decode as p40
         monkeypatch.setattr(p40, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(
             p40, "is_sm_at_least", lambda major, minor=0: True,
@@ -192,7 +192,7 @@ class TestP40UpstreamSelfRetirement:
     by presence of `_tq_grouped_decode_stage1` on the target module)."""
 
     def test_self_retires_when_upstream_symbol_present(self, monkeypatch):
-        from vllm._genesis.wiring import patch_40_tq_grouped_decode as p40
+        from vllm._genesis.wiring.legacy import patch_40_tq_grouped_decode as p40
         from vllm._genesis import guards as _guards
 
         # Patch BOTH the wiring module's named imports AND the guards

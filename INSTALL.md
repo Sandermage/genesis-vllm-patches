@@ -18,7 +18,7 @@ docker pull vllm/vllm-openai:nightly
 huggingface-cli download Qwen/Qwen3.6-35B-A3B-FP8 --local-dir /nfs/genesis/models/Qwen3.6-35B-A3B-FP8
 
 # 4. Run with our example compose
-docker compose -f docker-compose.example.yml up -d
+docker compose -f compose/docker-compose.example.yml up -d
 
 # 5. Watch boot (5-8 min for cold compile cache; 1-2 min warm)
 docker logs -f vllm-genesis | grep -E "Genesis|HEALTHY|Started"
@@ -65,21 +65,36 @@ genesis-vllm-patches/
 ├── README.md                          # Overview + changelog
 ├── INSTALL.md                         # This file
 ├── MODELS.md                          # Supported models + selection guide
-├── QUICKSTART.md                      # Original (still valid)
+├── QUICKSTART.md                      # Quick-start launch guide
+├── CONFIGURATION.md                   # Every env var documented
+├── PATCHES.md                         # Patch metadata + credits
 ├── CREDITS.md                         # Attributions
-├── docker-compose.example.yml         # Default (Qwen3.6-35B-A3B-FP8 MTP)
-├── docker-compose.qwen3-5-dense.yml   # Qwen3.6-27B dense variant
-├── docker-compose.gemma4-26b-moe.yml  # Gemma 4 (experimental)
-├── docker-compose.integration*.yml    # Integration test variants
+├── compose/                           # Docker-compose definitions
+│   ├── docker-compose.example.yml         # Default (Qwen3.6-35B-A3B-FP8 MTP)
+│   ├── docker-compose.qwen3-5-dense.yml   # Qwen3.6-27B dense variant
+│   ├── docker-compose.gemma4-26b-moe.yml  # Gemma 4 (experimental)
+│   ├── docker-compose.integration*.yml    # Integration test variants
+│   └── docker-compose.unit.yml            # Unit-test compose (CPU only)
 ├── vllm/_genesis/                     # The Genesis package (bind-mounted into container)
 │   ├── dispatcher.py                  # Patch registry + dispatch logic
-│   ├── prealloc_budget.py             # P73 central resolver
 │   ├── kernels/                       # Custom Triton kernels + helpers
-│   ├── wiring/                        # Text-patch definitions (one file per patch)
+│   ├── wiring/<category>/             # Text-patch definitions, organized by category
+│   ├── compat/                        # CLI tools + version-gating + recipe / plugins / etc.
 │   ├── patches/apply_all.py           # Patch orchestrator (called at container start)
 │   └── tests/                         # Patch unit + integration tests
+├── tools/                             # genesis_bench_suite.py + drift checker
+├── scripts/                           # Launch scripts + validation harnesses
+│   ├── validate_unit.sh                   # CPU-only pytest gate
+│   ├── validate_integration.sh            # GPU integration gate
+│   └── launch/                            # Per-model launch scripts
 ├── external_probe/                    # Pre-Genesis startup probes (tolist bypass etc.)
-└── benchmarks/                        # Bench scripts (genesis_bench_v3.py etc, now in scripts/)
+├── genesis_vllm_plugin/               # vLLM plugin entry-point (for compose to mount)
+├── examples/                          # Reference plugins + recipes
+├── docs/                              # Long-form documentation
+│   ├── BENCHMARK_GUIDE.md, PLUGINS.md, SELF_TEST.md
+│   └── upstream_refs/                     # Diff studies of relevant upstream PRs
+├── schemas/                           # JSON schemas (PATCH_REGISTRY entry shape)
+└── patch_genesis_unified.py           # Backwards-compat shim for old compose mounts
 ```
 
 ### 2. Container architecture
@@ -112,7 +127,7 @@ ls -lh /nfs/genesis/models/Qwen3.6-35B-A3B-FP8
 First run takes 5-8 minutes for torch.compile + cudagraph capture. Subsequent runs (warm cache) take 1-2 minutes.
 
 ```bash
-docker compose -f docker-compose.example.yml up -d
+docker compose -f compose/docker-compose.example.yml up -d
 docker logs -f vllm-genesis 2>&1 | grep -E "Genesis|Capturing CUDA|Loading|Started server"
 ```
 
@@ -557,7 +572,7 @@ All Genesis patches are opt-in by default. Set the matching env var to `1` to en
 Use MTP. No env tweaks needed.
 
 ```yaml
-# docker-compose.example.yml (snippet)
+# compose/docker-compose.example.yml (snippet)
 command:
   - "exec vllm serve --model /models/Qwen3.6-35B-A3B-FP8
      --speculative-config '{\"method\":\"mtp\",\"num_speculative_tokens\":3}'
@@ -647,7 +662,7 @@ Enable `GENESIS_ENABLE_P61_QWEN3_MULTI_TOOL=1` (FIRST occurrence vs upstream LAS
 
 ### Container stops cleanly responding mid-generation
 
-Check `docker logs --tail 200` for the actual exception. Common cause: model arch mismatch — confirm `--model` path points to a Qwen3.5 MoE variant. For dense Qwen3.6-27B use `docker-compose.qwen3-5-dense.yml`.
+Check `docker logs --tail 200` for the actual exception. Common cause: model arch mismatch — confirm `--model` path points to a Qwen3.5 MoE variant. For dense Qwen3.6-27B use `compose/docker-compose.qwen3-5-dense.yml`.
 
 ---
 

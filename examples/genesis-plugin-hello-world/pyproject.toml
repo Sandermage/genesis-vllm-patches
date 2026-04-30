@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "genesis-plugin-hello-world"
+version = "0.1.0"
+description = "Reference Genesis plugin — demonstrates the entry-point + apply_callable contract"
+readme = "README.md"
+license = {text = "Apache-2.0"}
+authors = [
+  { name = "Genesis community example", email = "noreply@example.com" },
+]
+# Genesis itself is the only requirement. Plugin doesn't pull vllm or
+# torch — it shows up after Genesis is already installed.
+dependencies = []
+requires-python = ">=3.10"
+
+[project.entry-points."vllm_genesis_patches"]
+# Single entry-point pointing at the metadata callable.
+hello_world = "genesis_plugin_hello_world.plugin:get_patch_metadata"
+
+[tool.setuptools.packages.find]
+include = ["genesis_plugin_hello_world*"]

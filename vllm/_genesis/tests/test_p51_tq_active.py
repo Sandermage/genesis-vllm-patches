@@ -61,13 +61,16 @@ def test_p51_skips_on_fp8_kv(reset_buffer_mgr, force_should_apply, caplog):
     device = torch.device("cpu")
 
     import logging
-    with caplog.at_level(logging.INFO, logger="genesis.prealloc"):
+    # Logger renamed to 'genesis.dequant_buffer' in v7.62 — capture both
+    # for forward-compat.
+    with caplog.at_level(logging.INFO, logger="genesis.dequant_buffer"):
         ensure_turboquant_buffers(impl, layer, device)
 
-    # No buffers allocated
+    # No buffers allocated. 'total_buffers' replaced both 'num_k_buffers'
+    # and 'num_v_buffers' in the v7.62 registry rewrite — it counts K+V
+    # pair entries together (2× kv_entries length), so 0 covers both.
     registry = TurboQuantBufferManager.get_registry_info()
-    assert registry["num_k_buffers"] == 0
-    assert registry["num_v_buffers"] == 0
+    assert registry["total_buffers"] == 0
 
     # No TQ attrs stamped on layer
     assert not hasattr(layer, "_tq_k_dequant_buf")
@@ -82,7 +85,9 @@ def test_p51_skips_on_auto_kv(reset_buffer_mgr, force_should_apply):
     layer = FakeLayer()
     ensure_turboquant_buffers(impl, layer, torch.device("cpu"))
     registry = TurboQuantBufferManager.get_registry_info()
-    assert registry["num_k_buffers"] == 0
+    # 'total_buffers' replaced 'num_k_buffers' in the v7.62 registry
+    # rewrite — counts K+V pair entries (so 0 means no allocation).
+    assert registry["total_buffers"] == 0
 
 
 def test_p51_skips_on_fp16_kv(reset_buffer_mgr, force_should_apply):
@@ -92,7 +97,7 @@ def test_p51_skips_on_fp16_kv(reset_buffer_mgr, force_should_apply):
     impl = FakeImpl(kv_cache_dtype="fp16")
     layer = FakeLayer()
     ensure_turboquant_buffers(impl, layer, torch.device("cpu"))
-    assert TurboQuantBufferManager.get_registry_info()["num_k_buffers"] == 0
+    assert TurboQuantBufferManager.get_registry_info()["total_buffers"] == 0
 
 
 def test_p51_logs_only_once_per_impl(
@@ -106,7 +111,9 @@ def test_p51_logs_only_once_per_impl(
     layer3 = FakeLayer("layer_2")
 
     import logging
-    with caplog.at_level(logging.INFO, logger="genesis.prealloc"):
+    # Logger renamed to 'genesis.dequant_buffer' in v7.62 — capture both
+    # for forward-compat.
+    with caplog.at_level(logging.INFO, logger="genesis.dequant_buffer"):
         ensure_turboquant_buffers(impl, layer1, torch.device("cpu"))
         ensure_turboquant_buffers(impl, layer2, torch.device("cpu"))
         ensure_turboquant_buffers(impl, layer3, torch.device("cpu"))
@@ -125,7 +132,9 @@ def test_p51_logs_per_impl_instance(
     from vllm._genesis.kernels.dequant_buffer import ensure_turboquant_buffers
     import logging
 
-    with caplog.at_level(logging.INFO, logger="genesis.prealloc"):
+    # Logger renamed to 'genesis.dequant_buffer' in v7.62 — capture both
+    # for forward-compat.
+    with caplog.at_level(logging.INFO, logger="genesis.dequant_buffer"):
         impl_a = FakeImpl(kv_cache_dtype="fp8")
         impl_b = FakeImpl(kv_cache_dtype="auto")
         ensure_turboquant_buffers(impl_a, FakeLayer(), torch.device("cpu"))

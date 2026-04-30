@@ -11,7 +11,7 @@ import re
 
 import pytest
 
-from vllm._genesis.wiring.patch_94_spec_decode_zero_alloc import (
+from vllm._genesis.wiring.spec_decode.patch_94_spec_decode_zero_alloc import (
     P94_OLD,
     P94_NEW,
     GENESIS_P94_MARKER,

@@ -1,0 +1,92 @@
+# Genesis test suite — runs the 400+ unit tests on every push/PR.
+#
+# Scoped to the compat layer + core dispatcher / patch / wiring helpers.
+# Tests that require a real vllm install (model_detect probes against
+# live engine, kernel-level Triton tests) are SKIPPED on this CI —
+# those run on the dev box where vllm is installed.
+#
+# Triggered:
+#   - push to main
+#   - any PR
+#   - manual workflow_dispatch
+#
+# Author: Sandermage (Sander) Barzov Aleksandr.
+name: Genesis test suite
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12"]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+
+      - name: Install minimal deps
+        # Genesis stays runtime-dep-free, so for tests we only need:
+        #   - pytest + pytest-cov for the suite + coverage
+        #   - torch (CPU build) for the few tests that import torch.cuda
+        #   - packaging (stdlib of pip; pin for safety)
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest pytest-cov packaging
+          pip install --index-url https://download.pytorch.org/whl/cpu \
+              "torch>=2.0,<3.0"
+
+      - name: Run compat + dispatcher + PN-family tests
+        run: |
+          # The full session test surface — 400+ tests across compat/*,
+          # dispatcher validator, PN14/PN16, B2 wiring helper, D3 ablation
+          # bench. This is the load-bearing CI gate.
+          python -m pytest -v --tb=short \
+              --cov=vllm._genesis.compat \
+              --cov-report=term-missing:skip-covered \
+              vllm/_genesis/tests/compat/ \
+              vllm/_genesis/tests/test_dispatcher_validator.py \
+              vllm/_genesis/tests/test_pn14_tq_decode_oob_clamp.py \
+              vllm/_genesis/tests/test_pn16_lazy_reasoner.py \
+              vllm/_genesis/tests/test_wiring_status_helper.py \
+              vllm/_genesis/tests/test_bench_ablation.py \
+              vllm/_genesis/tests/test_version.py \
+              vllm/_genesis/tests/test_ci_workflow.py \
+              vllm/_genesis/tests/test_patches_md_sync.py
+
+      - name: Lifecycle audit
+        # An additional gate — ensures no patch was added with an unknown
+        # lifecycle state. Exit 1 from this command fails the CI.
+        run: |
+          python3 -m vllm._genesis.compat.lifecycle_audit_cli --quiet
+
+      - name: Schema validate PATCH_REGISTRY
+        # A second additional gate — ensures every entry validates.
+        # Catches typo'd field names, missing required, bad env_flag pattern.
+        run: |
+          python3 -m vllm._genesis.compat.schema_validator
+
+      - name: Genesis self-test
+        # Third additional gate — operator-facing structural sanity check.
+        # Different from the pytest suite: this is the same tool an
+        # operator runs after a `git pull` / pin bump on their box.
+        # Exits 1 if any check fails. The schema-file check returns
+        # `skip` in slim deployments without the source tree; on CI the
+        # full repo IS checked out, so it runs `pass`.
+        run: |
+          python3 -m vllm._genesis.compat.cli self-test --quiet

@@ -78,15 +78,30 @@ def fake_p8_files(tmp_path, monkeypatch):
             return str(sched_path)
         return None
 
-    from vllm._genesis.wiring import patch_8_kv_hybrid_reporting as p8
+    from vllm._genesis.wiring.legacy import patch_8_kv_hybrid_reporting as p8
     monkeypatch.setattr(p8, "resolve_vllm_file", resolve)
     monkeypatch.setattr(p8, "vllm_install_root", lambda: "/fake")
+
+    # Stub the Issue #5 post-apply import probe — in unit-test env we
+    # don't have a real vllm installed, so simulate "helper imports
+    # cleanly" by giving importlib.import_module a stand-in module that
+    # exposes the helper. Tests for the negative case override this.
+    import importlib, types
+    stub_kv = types.ModuleType("vllm.v1.core.kv_cache_utils")
+    stub_kv.token_capacity_kv_cache_groups = lambda *a, **kw: None
+    real_import = importlib.import_module
+    def fake_import(name, *args, **kwargs):
+        if name == "vllm.v1.core.kv_cache_utils":
+            return stub_kv
+        return real_import(name, *args, **kwargs)
+    monkeypatch.setattr(importlib, "import_module", fake_import)
+
     return str(kv_path), str(sched_path)
 
 
 class TestPatch8Wiring:
     def test_apply_both_files(self, fake_p8_files):
-        from vllm._genesis.wiring import patch_8_kv_hybrid_reporting as p8
+        from vllm._genesis.wiring.legacy import patch_8_kv_hybrid_reporting as p8
         kv_path, sched_path = fake_p8_files
 
         status, reason = p8.apply()
@@ -109,26 +124,28 @@ class TestPatch8Wiring:
         assert "num_groups = len(kv_cache_config.kv_cache_groups)" not in sched_content
 
     def test_idempotent(self, fake_p8_files):
-        from vllm._genesis.wiring import patch_8_kv_hybrid_reporting as p8
+        from vllm._genesis.wiring.legacy import patch_8_kv_hybrid_reporting as p8
         kv_path, sched_path = fake_p8_files
 
+        from vllm._genesis.wiring.legacy.patch_8_kv_hybrid_reporting import (
+            GENESIS_P8_MARKER_KV, GENESIS_P8_MARKER_SCHED,
+        )
         s1, _ = p8.apply()
         s2, _ = p8.apply()
         assert s1 == "applied" and s2 == "applied"
 
         kv_content = open(kv_path).read()
-        # Each marker inserted exactly once
-        assert kv_content.count("Genesis P8 KV hybrid reporting kv_cache_utils v7.0") == 1
+        # Each marker inserted exactly once (marker version follows
+        # GENESIS_P8_MARKER_KV constant, not a hardcoded literal).
+        assert kv_content.count(GENESIS_P8_MARKER_KV) == 1
 
         sched_content = open(sched_path).read()
-        assert sched_content.count(
-            "Genesis P8 KV hybrid reporting scheduler v7.0"
-        ) == 1
+        assert sched_content.count(GENESIS_P8_MARKER_SCHED) == 1
 
     def test_skip_when_upstream_merged_kv(self, fake_p8_files):
         """If helper function already exists in kv_cache_utils (upstream landed),
         KV sub-patch skips — but scheduler may still need the import."""
-        from vllm._genesis.wiring import patch_8_kv_hybrid_reporting as p8
+        from vllm._genesis.wiring.legacy import patch_8_kv_hybrid_reporting as p8
         kv_path, sched_path = fake_p8_files
 
         # Prepend helper to kv_cache_utils to simulate upstream merge
@@ -143,7 +160,7 @@ class TestPatch8Wiring:
         assert "kv_cache_utils=skipped" in reason
 
     def test_missing_files_skip(self, monkeypatch):
-        from vllm._genesis.wiring import patch_8_kv_hybrid_reporting as p8
+        from vllm._genesis.wiring.legacy import patch_8_kv_hybrid_reporting as p8
         monkeypatch.setattr(p8, "resolve_vllm_file", lambda rel: None)
         monkeypatch.setattr(p8, "vllm_install_root", lambda: "/fake")
         status, reason = p8.apply()

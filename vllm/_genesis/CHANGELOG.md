@@ -1,5 +1,1116 @@
 # Genesis `_genesis/` Package Changelog
 
+## v7.63.x — 2026-04-30 (Phase 2.2: repo root cleanup)
+
+The repo root previously had 29 entries — 7 docker-compose files, 2
+shell scripts, and a `reference/` dir of upstream PR studies were
+mixed in with the canonical top-level docs. Phase 2.2 consolidates
+them into purpose-named subdirectories so the root is short and every
+top-level item has an obvious purpose.
+
+**Before:** 29 root entries.
+**After:** 21 root entries (10 markdown + LICENSE/NOTICE + 1 backwards-
+compat shim + 10 directories).
+
+### Moves
+
+- `docker-compose.*.yml` × 7 → `compose/` — relative volume paths
+  inside each YAML rewritten `./X` → `../X`. `docker-compose.unit.yml`'s
+  `.:/work:ro` (mount cwd) updated to `..:/work:ro` (mount repo root).
+- `validate_unit.sh` + `validate_integration.sh` → `scripts/` —
+  both gained `cd "$(dirname "$0")/.."` normalization so they work
+  from anywhere in the repo. Internal cross-references and compose
+  paths updated.
+- `reference/` (upstream PR diff studies) → `docs/upstream_refs/` —
+  no collision with existing `docs/reference/` (Genesis-internal
+  markdown).
+
+### Doc updates
+
+35+ replacements across README.md, INSTALL.md, QUICKSTART.md,
+MODELS.md, docs/BENCHMARK_GUIDE.md:
+
+- `docker compose -f docker-compose.X.yml` → `docker compose -f compose/docker-compose.X.yml`
+- `./validate_X.sh` → `./scripts/validate_X.sh`
+- INSTALL.md "Repository layout" tree rewritten to reflect new
+  structure with explicit notes on the three deliberately-kept-at-root
+  items.
+
+### Kept at root (intentional)
+
+- `patch_genesis_unified.py` — backwards-compat shim. Multiple
+  external repos volume-mount this path in their docker-compose. Its
+  own docstring explains why.
+- `genesis_vllm_plugin/` — referenced by 4 compose files via
+  `./genesis_vllm_plugin:/plugin:ro` mount.
+- `external_probe/` — referenced from CREDITS.md, INSTALL.md, and
+  external compose files.
+
+### Verification
+
+- Session test surface: 469/469 pass (no regressions)
+- `genesis self-test --quiet` exits 0
+- All 7 compose files retain valid relative paths (verified
+  `../vllm/_genesis` and `../genesis_vllm_plugin` exist from within
+  `compose/`)
+
+NOT YET DEPLOYED to server — local commit only.
+
+---
+
+## v7.63.x — 2026-04-30 (Phase 2.1: wiring/ disk reorg)
+
+The Phase 2 categories surface (`compat/categories.py`) gave operators
+logical grouping — "browse all spec_decode patches", "see everything
+in structured_output". But the wiring tree itself stayed flat: 72
+`patch_*.py` files in one directory regardless of theme. Phase 2.1
+finally lands the disk reorg that was explicitly deferred earlier.
+
+### New layout
+
+```
+vllm/_genesis/wiring/
+├── text_patch.py              TextPatcher framework + B2 helper
+├── rebind.py                  runtime class-method rebind helpers
+├── spec_decode/      22 files P56-P79c, P82-83, P86, P94, PN8-9
+├── structured_output/ 6 files P59, P61/61b, P62, P64, P68/69
+├── perf_hotfix/       4 files P98, P99, P100, P101
+├── compile_safety/    3 files P72, P74, P78
+├── kv_cache/          2 files P84, P85
+├── kernels/           4 files P81, P87, P91, PN14
+├── hybrid/            5 files P95, P103, PN11-13
+├── middleware/        1 file  PN16 (lazy_reasoner)
+└── legacy/           25 files P1-P55 (pre-PATCH_REGISTRY series,
+                                apply_all.py dry-run only)
+```
+
+15 `compat/categories.py` categories collapsed into 9 disk subdirs:
+single-patch categories merged where they share a theme (kernel +
+kernel_perf + kernel_safety + quantization → `kernels/`;
+cudagraph_safety + memory_hotfix + memory_savings + model_correctness +
+stability → `hybrid/`).
+
+### Layout-agnostic resolution
+
+The infrastructure changes shipped in **Phase 2.1a** (commit b66d61e):
+
+- `compat/categories.py:_build_module_index` — `rglob` + computed
+  dotted module path. Works for the old flat layout AND the new
+  categorical layout transparently.
+- `compat/self_test.py:_check_wiring_imports` — same `rglob` walk
+  with computed module paths.
+- `patches/apply_all.py:_resolve_wiring_module` — new helper that
+  caches a `stem → full_dotted_path` index. Both call sites
+  (`_wiring_text_patch` and `verify_live_rebinds`) route through it.
+
+### Imports updated
+
+- 60 sites in `patches/apply_all.py`
+- 23 test files (~125 imports), including one parenthesized
+  multi-name import in `test_wiring_new_patches.py`
+
+### What you'd notice as an operator
+
+Almost nothing — the change is structural, not behavioral.
+
+- `genesis explain P67` still resolves correctly
+- `genesis categories --category spec_decode` lists the same patches
+- `genesis self-test` still walks all 19 compat modules + all 72
+  wiring modules
+- Existing recipes / launch scripts unchanged
+- All env flags unchanged
+
+What changes:
+
+- New patch contributors should drop their wiring file into the
+  matching `<category>/` subdir. `_build_module_index` will pick it
+  up via rglob — no registry change beyond the usual `category` field
+  in PATCH_REGISTRY.
+
+### Verification
+
+- Session test surface: 469/469 pass (same as pre-reorg)
+- Full test directory: 120 pre-existing failures are all
+  vllm-not-installed env limitations (test_config_detect, etc.) —
+  Phase 2.1 introduced zero new failures
+- `compat/categories.module_for(P67)` →
+  `'vllm._genesis.wiring.spec_decode.patch_67_tq_multi_query_kernel'`
+- `compat/categories.module_for(PN14)` →
+  `'vllm._genesis.wiring.kernels.patch_N14_tq_decode_oob_clamp'`
+
+NOT YET DEPLOYED to server — local commit only, awaiting explicit
+push approval.
+
+---
+
+## v7.63.x — 2026-04-29 (`genesis recipe diff` for community A/B compare)
+
+The recipe surface was complete for save/load/list/delete/adopt but
+missing the one workflow community Q&A actually needs every day:
+
+> "Here's my v794 recipe and yours from the issue thread —
+> what's actually different?"
+
+```bash
+python3 -m vllm._genesis.compat.cli recipe diff my-prod community-prod
+python3 -m vllm._genesis.compat.cli recipe diff a b --json
+```
+
+Output is a structured 3-section delta — CHANGED (key + old/new),
+REMOVED (only in A), ADDED (only in B) — keyed by dotted paths into
+the recipe (e.g. `vllm_serve.max_model_len`).
+
+Provenance fields (`created_at`, `created_by`, `_adopted_from`,
+`_adopted_at`, `name`, `description`, `genesis_recipe_version`) are
+excluded from the diff so two operators with the same effective config
+saved at different times see "identical (no differences ignoring
+provenance fields)" rather than meaningless metadata noise.
+
+The new `diff_recipes(a, b)` function is also exported as a library
+call for tooling that wants the structured diff without going through
+the CLI.
+
+11 new tests pin the contract: identical-clean, added/removed/changed
+keys, nested dict handling, list-as-opaque-value semantics, provenance
+exclusion, CLI routing, unknown-recipe error code, identical message,
+JSON output.
+
+Total session test surface: 456 → 467 passing.
+
+---
+
+## v7.63.x — 2026-04-29 (`genesis bench` joins the unified CLI)
+
+The benchmark suite (`tools/genesis_bench_suite.py`) was previously
+reachable only by direct path invocation. It's now a first-class
+unified-CLI subcommand:
+
+```bash
+python3 -m vllm._genesis.compat.cli bench --quick
+python3 -m vllm._genesis.compat.cli bench --mode standard --ctx 8k
+python3 -m vllm._genesis.compat.cli bench --compare a.json b.json
+python3 -m vllm._genesis.compat.cli bench --ablate-against base.json --ablate-tag no-PN14
+```
+
+All argv after `bench` is forwarded verbatim to the underlying script.
+
+The shim (`vllm/_genesis/compat/bench.py`) locates the script via
+three candidate paths (env var `GENESIS_REPO_ROOT`, repo-relative,
+cwd-relative) so deployments without a source tree can still point at
+a checkout. `--help` works even when the script is unreachable —
+falls back to a stub pointing at `docs/BENCHMARK_GUIDE.md`.
+
+The bench script's `main()` and `parse_args()` were refactored to
+accept an explicit `argv` parameter (was: implicit `sys.argv`). Direct
+invocation `python3 tools/genesis_bench_suite.py` is unchanged; this
+just removes a side-effect that blocked clean CLI wrapping and unit
+tests.
+
+11 new tests (`tests/compat/test_bench.py`) pin: shim importable,
+script locator, env override, --help passthrough, slim-deployment
+fallback, argv signature contract, parse_args with explicit argv,
+unified-CLI wiring, top-level help banner mention.
+
+The `compat.bench` module is now part of self-test's compat-imports
+walk: 18 → 19 modules.
+
+Total session test surface: 445 → 456 passing.
+
+---
+
+## v7.63.x — 2026-04-29 (operator tooling: version constant + CI + self-test)
+
+Three small but load-bearing additions on top of the Phase-1..5d compat
+layer to make the project operator-friendly and CI-gated.
+
+### NEW canonical version constant
+
+`vllm/_genesis/__version__.py` — single source of truth for the package
+version. `vllm/_genesis/__init__.py` re-exports it; telemetry now reads
+this constant instead of hardcoding a string. Five tests
+(`tests/test_version.py`) pin: importable, format regex, telemetry
+consistency, no stale version strings drifting through other modules.
+
+### NEW `.github/workflows/test.yml` — CI gate on every push/PR
+
+Runs the 439-test session suite (compat/* + dispatcher validator + PN14
++ PN16 + B2 wiring helper + D3 ablation bench + version sanity) on a
+Python 3.10 + 3.12 matrix. Adds two extra gates:
+
+- `python3 -m vllm._genesis.compat.lifecycle_audit_cli --quiet`
+  (exit 1 on unknown lifecycle state)
+- `python3 -m vllm._genesis.compat.schema_validator`
+  (exit 1 on malformed PATCH_REGISTRY entry)
+
+Genesis stays runtime-dep-free; CI installs only `pytest`,
+`pytest-cov`, `packaging`, and a CPU torch build.
+
+### NEW `genesis self-test` — operator-facing structural sanity check
+
+```bash
+python3 -m vllm._genesis.compat.cli self-test
+python3 -m vllm._genesis.compat.cli self-test --quiet
+python3 -m vllm._genesis.compat.cli self-test --json
+```
+
+8 checks run after a `git pull` or pin bump:
+
+1. `__version__` constant present + readable
+2. All compat modules import cleanly (18 modules)
+3. All wiring modules import cleanly (`vllm` may be skipped in slim env)
+4. PATCH_REGISTRY validates against schema (no errors)
+5. Lifecycle audit clean (no unknown states)
+6. Categories index builds + every patch placed
+7. Predicates evaluator works on every `applies_to` in the registry
+8. Schema file present + parseable (skip in slim deployments)
+
+Different from `doctor`: doctor answers "is my SYSTEM healthy?",
+self-test answers "is Genesis itself working?". A doctor failure can
+be hardware/config; a self-test failure is a Genesis bug.
+
+The schema-file check (#8) uses multi-candidate path resolution +
+`GENESIS_REPO_ROOT` env override so a slim container deployment that
+mounts only the package — without the `schemas/` source dir — returns
+**skip** rather than fail. Verified inside the live v794 PROD
+container: 7 pass, 0 fail, 1 skip, exit 0.
+
+17 tests (`tests/compat/test_self_test.py`) pin the contract — module
+import, run shape, individual check name presence, real-registry
+all-pass, CLI subcommand routing, JSON output, quiet mode, and two
+regression tests for the container path-resolution case.
+
+---
+
+## v7.63.x — 2026-04-30 (Genesis Compat Layer Phases 1 + 4 + Quentin-M cherry-pick)
+
+Phase 1 + Phase 4 in one release. Phase 2 (wiring refactor) and Phase 3
+(auto-update channels) deferred to v7.64.x and v7.65.x respectively.
+
+### NEW Phase 4 surface (CLI commands)
+
+- `python3 -m vllm._genesis.compat.explain <patch_id>` — per-patch
+  detailed report (identity + lifecycle + dependencies + applies_to
+  predicate evaluation + upstream tracker + live `should_apply()`
+  decision + credit). Counterpart to `doctor` — doctor shows the
+  forest, explain zooms into one tree.
+- `python3 -m vllm._genesis.compat.lifecycle_audit_cli` — registry
+  audit grouped by lifecycle state. `--state <X>` filter, `--quiet`
+  shows only error+warning rows, `--json` for CI. Exit 1 on unknown
+  lifecycle state (CI-blocking).
+- `python3 -m vllm._genesis.compat.schema_validator` — validates
+  every PATCH_REGISTRY entry against
+  `schemas/patch_entry.schema.json`. Catches typo'd field names
+  (`applys_to`), missing required fields, bad env_flag pattern,
+  unknown lifecycle, deprecated-without-supersedes, etc. Exit 1
+  on schema violations. Hand-rolled — no `jsonschema` dep required.
+
+### NEW JSON schema for PATCH_REGISTRY entries
+
+`schemas/patch_entry.schema.json` (PEP-style draft-2020-12). Documents
+every valid field + lifecycle-conditional requirements (deprecated
+must declare `superseded_by` or `deprecation_note`; research must
+declare `research_note`; community must declare `community_credit`).
+Used by:
+- `compat/schema_validator.py` for runtime validation
+- IDEs that recognize JSON schemas (auto-completion when editing entries)
+- Pre-commit hook (catches typos before commit)
+
+### NEW `genesis recipe adopt URL` — community recipe sharing
+
+Completes the recipe sharing loop. Sander saves his v794 PROD recipe,
+pushes the JSON to a public gist or repo, a community user runs:
+
+```bash
+python3 -m vllm._genesis.compat.cli recipe adopt \\
+    https://gist.githubusercontent.com/.../v794-prod.json \\
+    my-prod
+```
+
+→ identical launch configuration in one command.
+
+Security model:
+
+- HTTPS-only by default (HTTP refused unless `--allow-http` for testing)
+- Body capped at 100 KB by default (recipes are tiny — refuses oversized
+  payloads from malicious URLs)
+- Schema validated **before** saving (no garbage hits disk)
+- Adoption-specific stricter check: rejects "near-empty" recipes that
+  pass `validate_recipe` but have no substantive launch info (no
+  `target`/`container`/`vllm_serve`/`envs`/`mounts` declared)
+- Recipe-name validated by same regex as `recipe save` — no path
+  traversal possible
+- Provenance: every adopted recipe gets `_adopted_from` + `_adopted_at`
+  fields recording the source URL and timestamp
+
+CLI:
+
+```bash
+genesis recipe adopt <url> <local-name>
+genesis recipe adopt <url> <local-name> --allow-http     # for testing
+genesis recipe adopt <url> <local-name> --max-bytes 50000  # tighter cap
+```
+
+14 unit tests cover URL validation, body validation, oversized refusal,
+adoption persistence, origin tracking, CLI routing.
+
+### NEW reference plugin example — `examples/genesis-plugin-hello-world/`
+
+Working plugin package authors can copy as a starting point:
+
+```text
+examples/genesis-plugin-hello-world/
+├── pyproject.toml                          # entry-point declaration
+├── README.md                               # install + enable + verify
+└── genesis_plugin_hello_world/
+    ├── __init__.py
+    └── plugin.py                           # get_patch_metadata + apply
+```
+
+Install:
+
+```bash
+pip install -e examples/genesis-plugin-hello-world/
+export GENESIS_ALLOW_PLUGINS=1
+export GENESIS_ENABLE_HELLO_WORLD=1
+python3 -m vllm._genesis.compat.cli plugins list
+```
+
+13 unit tests (`tests/compat/test_plugin_example.py`) verify:
+
+- pyproject.toml + module + README all exist at expected paths
+- pyproject declares the `vllm_genesis_patches` entry-point
+- `get_patch_metadata` returns required fields (patch_id, title,
+  env_flag, default_on, community_credit)
+- Metadata validates clean against the schema validator
+- `env_flag` follows GENESIS_ pattern
+- `default_on=False` (good citizenship)
+- `apply_callable` resolves via importlib
+- `apply()` returns valid (status, reason) tuple
+- Full discovery pipeline — example survives `discover_plugins()` with
+  lifecycle force-tagged "community" + `_plugin_origin` stamp
+
+This is the pin: if `docs/PLUGINS.md` says "do X to ship a plugin",
+the example must actually demonstrate X working end-to-end. Tests fail
+if the example drifts from the documented contract.
+
+### NEW unified `genesis` CLI dispatcher
+
+`compat/cli.py` collapses 13 scattered `python3 -m vllm._genesis.compat.X`
+invocations into a single entry-point with subcommand routing:
+
+```bash
+python3 -m vllm._genesis.compat.cli                  # show all subcommands
+python3 -m vllm._genesis.compat.cli doctor
+python3 -m vllm._genesis.compat.cli explain PN14
+python3 -m vllm._genesis.compat.cli categories --category spec_decode
+python3 -m vllm._genesis.compat.cli recipe save my-prod \\
+    --from-container vllm-server-mtp-test
+python3 -m vllm._genesis.compat.cli plugins list
+python3 -m vllm._genesis.compat.cli telemetry status
+python3 -m vllm._genesis.compat.cli update-channel check
+```
+
+13 subcommands routed:
+
+- `doctor` — system diagnostic
+- `explain` — per-patch deep-dive
+- `init` — first-run wizard
+- `list-models` — model registry browser
+- `pull` — HF download
+- `lifecycle-audit` — registry lifecycle states
+- `validate-schema` — PATCH_REGISTRY shape check
+- `categories` — browse by category
+- `migrate` — pin-bump runbook
+- `recipe` — launch config sharing
+- `plugins` — community plugin entry-points
+- `telemetry` — anonymized stats
+- `update-channel` — apt-style stable/beta/dev
+
+External names use **dashes** (CLI convention); internal modules use
+**underscores** — dispatcher does the mapping. Each per-module CLI
+keeps working unchanged for backwards compat (operator scripts that
+call `python3 -m vllm._genesis.compat.doctor` still work fine).
+
+Exit-code propagation
+─────────────────────
+Subcommand's exit code is forwarded to the operator. `SystemExit`
+from argparse-driven sub-CLIs is caught + propagated cleanly.
+
+Help forwarding
+───────────────
+`cli doctor --help` calls `doctor.main(["--help"])` (does NOT
+intercept at dispatcher level), so each sub-CLI's argparse-generated
+help works unchanged.
+
+Test coverage
+─────────────
+  tests/compat/test_cli.py — 14 tests:
+    - main returns int (not None)
+    - Unknown subcommand → nonzero
+    - --help shows all subcommands
+    - KNOWN_SUBCOMMANDS public set covers all 13
+    - doctor / explain / categories routing with args
+    - lifecycle-audit / validate-schema / list-models / update-channel
+      hyphen→underscore aliasing
+    - Exit code 2 propagates from sub
+    - No-args prints usage banner
+    - --help forwarded to subcommand (not intercepted)
+
+  Cumulative session test count: 390 (was 376 before unified CLI).
+
+Live PROD verification
+──────────────────────
+`docker exec vllm-server-mtp-test python3 -m vllm._genesis.compat.cli
+categories --category kernel_safety` runs cleanly — confirms full
+pipeline in container.
+
+### NEW Phase 3.x — update channel + check tool
+
+`compat/update_channel.py` adds apt-style update awareness: operators
+choose a channel (`stable`/`beta`/`dev`), the tool queries GitHub for
+the upstream tip on that channel, compares against local checkout,
+and reports if an update is available. **Apply step is intentionally
+deferred** — operators using a git checkout can `git pull` manually
+based on the check tool's output, which avoids the security and
+atomicity risks of building a custom pull machinery.
+
+CLI:
+
+```bash
+# Status — current channel + local commit detection
+python3 -m vllm._genesis.compat.update_channel status
+
+# Check upstream (24h cached to avoid GitHub API rate-limiting)
+python3 -m vllm._genesis.compat.update_channel check
+python3 -m vllm._genesis.compat.update_channel check --force-refresh
+python3 -m vllm._genesis.compat.update_channel check --json
+
+# Channel management
+python3 -m vllm._genesis.compat.update_channel channel get
+python3 -m vllm._genesis.compat.update_channel channel set beta
+
+# Apply (currently prints manual git pull instructions)
+python3 -m vllm._genesis.compat.update_channel apply
+```
+
+Channels:
+
+- **stable** (default) — points at `main` for now (will promote to
+  GitHub Releases tag once Sandermage starts cutting tagged releases)
+- **beta** — release candidate branch (currently `main` until a
+  separate `beta` branch is forked)
+- **dev** — `main` HEAD; future-proofed for when a `dev` branch exists
+
+GENESIS_UPDATE_CHANNEL env overrides the persisted choice without
+touching disk. GITHUB_TOKEN / GH_TOKEN env, if set, attaches as Bearer
+auth to avoid rate-limiting on the GitHub API.
+
+Implementation:
+- `_fetch_github_ref(channel)` queries
+  `https://api.github.com/repos/Sandermage/genesis-vllm-patches/commits/<ref>`
+  via stdlib `urllib.request` — no extra deps.
+- 24h result cache at `$GENESIS_UPDATE_DIR/cache.json` with per-channel
+  bucketing.
+- `detect_local_commit()` uses `git rev-parse --short HEAD` (best-effort).
+- Exit codes: 0 up-to-date, 1 update available, 2 error.
+
+Test coverage:
+
+  tests/compat/test_update_channel.py — 18 tests:
+    - Default channel = stable
+    - Set / get persists across calls
+    - set_channel rejects unknown values
+    - Env override (GENESIS_UPDATE_CHANNEL) wins over persisted
+    - detect_local_commit returns string or None (never raises)
+    - check_for_updates returns dict with required keys
+    - Network failure handled gracefully (error key set, no crash)
+    - 24h cache deduplicates calls
+    - --force-refresh bypasses cache
+    - update_available correctly computed (match / mismatch / unknown)
+    - CLI subcommands (status / check / channel get/set / apply)
+
+  Cumulative session test count: 376 (was 358 before Phase 3.x).
+
+Live PROD verification on v794 container — status command runs cleanly,
+shows current channel + storage dir + repo URL.
+
+### NEW Phase 5d — opt-in anonymized telemetry
+
+`compat/telemetry.py` adds a strictly opt-in, PII-free reporting
+mechanism to help the Genesis community see "what configs work in
+the wild" without collecting anything that could re-identify users.
+
+Two-gate opt-in
+───────────────
+  GENESIS_ENABLE_TELEMETRY=1     master gate (default OFF)
+  GENESIS_TELEMETRY_UPLOAD=1     upload gate (default OFF; deferred)
+  GENESIS_TELEMETRY_DIR=<path>   storage override
+  GENESIS_TELEMETRY_INCLUDE_PLUGIN_NAMES=1
+                                 include plugin patch_ids in reports
+                                 (off by default — names could
+                                 fingerprint a small group)
+
+What's collected when enabled
+─────────────────────────────
+- Stable random instance_id (UUID-shaped, persisted locally only)
+- Hardware class (rtx_a5000 / rtx_4090 / h100 / ...) — categorical
+- Compute capability (sm_86 etc.)
+- vllm / torch / triton / cuda / nvidia driver version strings
+- Genesis version + commit
+- Detected model class + flags (is_hybrid / is_moe / is_turboquant /
+  quant_format)
+- List of applied core patch IDs (P67, PN14, ...)
+- Lifecycle distribution (counts per state)
+- Plugin count (NAMES default OFF)
+- Run timestamp
+
+What's NEVER collected
+──────────────────────
+- Hostname / IP / MAC address
+- Username / home directory / paths
+- Container names / launch script paths
+- Env-variable VALUES (only env-FLAG presence implied via patches)
+- Specific tokens, model paths, config secrets
+
+Local-first storage
+───────────────────
+Reports written to `$GENESIS_TELEMETRY_DIR/reports/<timestamp>.json`
+(default `~/.genesis/telemetry/reports/`). The `instance_id` lives
+at `<dir>/instance_id` with mode 0600. Network upload is **deferred**
+until the community dashboard exists — `upload_report()` is a no-op
+returning None for now.
+
+CLI
+───
+```bash
+python3 -m vllm._genesis.compat.telemetry status
+python3 -m vllm._genesis.compat.telemetry show     # what would be reported
+python3 -m vllm._genesis.compat.telemetry collect  # save a report
+python3 -m vllm._genesis.compat.telemetry clear    # delete local stash
+```
+
+Boot-time integration
+─────────────────────
+`apply_all.run()` checks `is_enabled()` at end of patch application.
+When telemetry is on, an anonymized report is collected + saved
+locally. No network call. Off-by-default means zero behavior change
+for existing operators.
+
+PII enforcement
+───────────────
+The test suite includes a strict PII check that scans the entire
+report payload as a flat string against:
+- Hostname (from socket.gethostname)
+- Username (from getpass.getuser)
+- Path patterns (/home/, /Users/, /nfs/)
+- Env-style strings (=true)
+
+Any leak fails CI immediately.
+
+Test coverage
+─────────────
+  tests/compat/test_telemetry.py — 23 tests:
+    - Default OFF (both gates)
+    - Upload requires both master AND upload gate
+    - Instance ID stable across calls + persisted to disk + not
+      derived from hostname/username
+    - Report shape (required keys present, no PII)
+    - Patches section: only ID strings, no env values
+    - Plugin section: count only by default, names opt-in
+    - Storage: timestamped filenames, collision handling, clear
+    - Save refused when gate closed
+    - Upload: no-op until dashboard launches
+    - CLI: status / show / collect / clear
+
+Live PROD verification on v794 container:
+  - Status (gate OFF default): correctly reports DISABLED
+  - Show with gate ON: produces clean JSON with hardware (a5000 ×2),
+    software (vllm 0.20.1+ / torch 2.11 / triton 3.6 / cuda 13.0),
+    no PII visible
+  - apply_all integration: imports clean, no crash on boot
+
+Cumulative session test count: 358 (was 335 before Phase 5d).
+
+### NEW Phase 5c — `apply_callable` for plugins (plugins can RUN code)
+
+Phase 5b shipped metadata-only plugins. Phase 5c completes the plugin
+story by letting plugins ACTUALLY apply their patch — not just declare
+it. A plugin now declares:
+
+```python
+def get_patch_metadata():
+    return {
+        "patch_id": "MY_PATCH",
+        "title": "My community fix",
+        "env_flag": "GENESIS_ENABLE_MY_PATCH",
+        "default_on": False,
+        "community_credit": "@my_handle",
+        "apply_callable": "my_pkg.module:apply",   # NEW
+    }
+```
+
+Where `apply_callable` may be:
+
+- **A "module:func" string** (preferred — entry-point style, lazy-loaded
+  via importlib at boot)
+- **A direct Python callable** (advanced — for plugins that compose
+  metadata at runtime)
+
+Genesis calls the function during boot when:
+
+1. `GENESIS_ALLOW_PLUGINS=1` (master gate, opt-in)
+2. The plugin's `env_flag` is set to a truthy value
+3. `apply_all` runs with `apply=True`
+
+### Return value contract
+
+`apply_callable` returns `(status, reason)` where status is one of
+`applied` / `skipped` / `failed`. Genesis is forgiving:
+
+- Bare string returned → treated as `("applied", <string>)`
+- `None` returned → treated as applied with generic message
+- Tuple with invalid status → treated as failed (preserves original status)
+- Exception raised → caught, logged, reported as failed (no crash)
+
+This means "lazy" plugins can write `def apply(): return "ok"` and
+still play nice with the dispatcher matrix.
+
+### Error isolation
+
+Same guarantees as Phase 5b discovery: one plugin's apply failure
+doesn't break others, doesn't propagate out of `apply_all`, doesn't
+crash the engine.
+
+### apply_all integration
+
+`apply_all.run()` calls `apply_all_plugins()` after core patches
+finish. Stats logged in standard form:
+
+```
+[Genesis plugins] apply pass: total=2 applied=1 skipped=1 failed=0
+[Genesis plugin] APPLIED MY_PATCH — MY_PATCH applied: did the thing
+[Genesis plugin] SKIPPED OTHER_PATCH — opt-in only — set GENESIS_ENABLE_OTHER_PATCH=1
+```
+
+### Schema validator
+
+Added `apply_callable` to `_KNOWN_FIELDS` so plugin schema-validates
+clean.
+
+### Test coverage
+
+15 new tests in `tests/compat/test_plugin_apply.py`:
+
+- String-form resolution (module:func)
+- Direct callable passthrough
+- Unknown module / attr / bad format → returns None
+- Discovery preserves apply_callable
+- Apply: env-set vs env-unset (gate behavior)
+- Apply: no apply_callable → skipped (metadata-only)
+- Apply: callable raises → failed (error isolation)
+- Apply: callable returns garbage → graceful handling
+- apply_all_plugins: stats dict shape
+- apply_all_plugins: zero when gate closed
+
+Live verification: imports clean inside v794 PROD container.
+
+Cumulative session test count: 335 (was 320 before Phase 5c).
+
+### NEW Phase 5b — community plugin entry-points
+
+`compat/plugins.py` opens Genesis to **third-party patches without
+forking the core repo**. A community plugin is just an installable
+Python package with one entry-point declaration.
+
+Plugin spec:
+
+```toml
+# In a third-party package's pyproject.toml:
+[project.entry-points."vllm_genesis_patches"]
+my_patch = "my_pkg.patch:get_patch_metadata"
+```
+
+Where `get_patch_metadata()` returns a dict (or list of dicts) with
+the same shape as a PATCH_REGISTRY entry. See `docs/PLUGINS.md` for
+the complete authoring guide.
+
+Genesis enforces:
+- **Schema validation** — same checks as core registry (catches typos,
+  missing fields, lifecycle-conditional requirements)
+- **Lifecycle force** — auto-tagged `lifecycle: community` (plugin
+  can't claim "stable")
+- **Collision check** — rejected if `patch_id` clashes with core registry
+- **Origin stamping** — `_plugin_origin` field shows which entry-point
+  the patch came from
+- **Failure isolation** — one bad plugin can't break discovery of others
+
+OPT-IN security gate: `GENESIS_ALLOW_PLUGINS=1` to enable. **Default:
+zero foreign code loaded.** Genesis boots identically with or without
+plugins installed.
+
+CLI:
+
+```bash
+GENESIS_ALLOW_PLUGINS=1 python3 -m vllm._genesis.compat.plugins list
+GENESIS_ALLOW_PLUGINS=1 python3 -m vllm._genesis.compat.plugins show MY_PATCH
+python3 -m vllm._genesis.compat.plugins validate    # works regardless of gate
+```
+
+Boot-time integration: `apply_all.run()` calls `register_plugins()` after
+the core registry is built but before validators fire. Plugins show up
+in:
+- `genesis doctor` (with provenance)
+- `genesis explain <patch>` (with origin)
+- `genesis lifecycle-audit` (under "community" bucket)
+- `genesis categories` (in their declared category)
+- All standard env-flag gating
+
+18 unit tests + new fields (`patch_id`, `_plugin_origin`) added to
+`schema_validator._KNOWN_FIELDS` so the plugin extension protocol is
+schema-allowed.
+
+Documentation: `docs/PLUGINS.md` ships with this release — full plugin-
+authoring guide including pyproject.toml example, callable shape,
+multi-patch packages, security model, etiquette.
+
+### NEW Phase 5a — `genesis recipe` system
+
+`compat/recipes.py` — first-class capture / share / replay of launch
+configurations. A "recipe" is a complete reproducible spec for a
+Genesis launch (hardware target + container settings + envs +
+vllm serve args + expected metrics + notes).
+
+Storage at `$GENESIS_RECIPES_DIR/<name>.json` (default `~/.genesis/
+recipes/`), JSON format (no PyYAML dep).
+
+CLI subcommands:
+```bash
+# Capture a running container as a recipe
+genesis recipe save v794-prod --from-container vllm-server-mtp-test \
+    --description "27B Lorbus INT4 + TQ k8v4 (v794 PROD)"
+
+# List local recipes
+genesis recipe list
+
+# Display one recipe (formatted or --json)
+genesis recipe show v794-prod
+
+# Generate a bash launch script from a recipe
+genesis recipe load v794-prod --out scripts/launch/start_v794.sh
+
+# Validate a recipe's shape against PATCH_REGISTRY env flags
+genesis recipe validate v794-prod
+
+# Delete
+genesis recipe delete old-recipe
+```
+
+Recipe-name validation: `^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$` — rejects
+path traversal, leading dots, separators. Tests verify this.
+
+Live-captured Sander's v794 PROD container as `v794-prod` recipe
+(63 envs detected, 5 mounts, all GENESIS_ENABLE_* flags preserved).
+Round-trip launch-script generation produces a valid bash script that
+recreates the container identically. 25 unit tests, all green.
+
+### NEW `--hf-id-override` for `genesis pull`
+
+Operator can override the registry's `hf_id` per pull. Enables Lorbus
+vs Intel quant-variant choice for Qwen3.6-27B INT4 without forking
+the model registry:
+
+```bash
+# Default registry path: Intel/Qwen3.6-27B-A3B-int4-AutoRound
+genesis pull qwen3_6_27b_int4_autoround
+
+# Override to Lorbus's variant (same AutoRound recipe, different quant pass)
+genesis pull qwen3_6_27b_int4_autoround \
+    --hf-id-override Lorbus/Qwen3.6-27B-int4-AutoRound
+```
+
+Smoke-tested live in container with `--dry-run` — pre-flight checks
+pass with override path printed.
+
+### NEW Phase 2 surface — categories navigation
+
+`compat/categories.py` provides logical category-grouped navigation
+without a physical disk move. Disk reorg deferred to Phase 2.1 — the
+flat `wiring/patch_*.py` layout is preserved (zero broken imports).
+
+- `python3 -m vllm._genesis.compat.categories` — list all categories
+- `python3 -m vllm._genesis.compat.categories --category spec_decode` — drill in
+- `python3 -m vllm._genesis.compat.categories --json` — machine consumer
+
+Programmatic API:
+- `category_for(patch_id)` — reverse lookup
+- `patches_in(category)` — forward lookup
+- `module_for(patch_id)` — resolve to wiring module path
+- `import_module_for(patch_id)` — actually load it
+
+48 patches across 15 categories. Categories derived from PATCH_REGISTRY's
+`category` field — no manual drift possible. 21 unit tests.
+
+### NEW Phase 3 surface — `genesis migrate-vllm` runbook generator
+
+`compat/migrate.py` is **D1's offline-aware sibling** — D1 runs on CI
+cron and reports drift; migrate.py is operator-driven and produces
+actionable runbook before a planned pin bump.
+
+Per-patch verdict against an upstream-vllm checkout:
+
+| Status | Meaning | Action |
+|---|---|---|
+| `clean` | All anchors match exactly once | No action |
+| `upstream_merged` | Upstream has merged equivalent fix | Self-retire (none) |
+| `anchor_drift` | Anchor not found / refactored | Re-derive anchor |
+| `ambiguous_anchor` | Anchor matches >1 times | Narrow anchor with context |
+| `file_missing` | Target file moved/renamed | Update wiring path |
+| `non_text_patch` | Wiring without _make_patcher | Manual review |
+
+Output:
+- Structured dict (JSON) for CI/dashboards
+- Human-readable markdown runbook (default `--out`)
+- Exit 1 if any patch needs operator action
+
+Usage:
+
+```bash
+# Quick: clone target vllm + run runbook
+git clone --depth 1 -b v0.21.0 https://github.com/vllm-project/vllm.git /tmp/v021
+python3 -m vllm._genesis.compat.migrate /tmp/v021 --out runbook.md
+```
+
+13 unit tests using synthetic vllm-tree fixtures (no real upstream
+clone needed for CI).
+
+### NEW pre-commit hook for contributors
+
+- `scripts/git/pre-commit` — bash hook that runs schema validator +
+  A3/D2 dispatcher validator + lifecycle audit on every commit
+  affecting PATCH_REGISTRY-relevant files (regex match on changed
+  paths). Fast-pass on doc-only commits.
+- `scripts/git/install.sh` — one-command symlink installer.
+- Skip with `git commit --no-verify` (use sparingly).
+
+### Quentin-M P67b cudaErrorIllegalAddress fix (cherry-pick)
+
+Cherry-picked from `Quentin-M/genesis-vllm-patches` branch
+`fix_p67b_illegal` (not yet PR'd to Sandermage main — found via
+cross-fork survey). Replaces shared `buf_holder=layer` in the P67b
+upstream path with a per-K1 `SimpleNamespace` holder on `self`. Defensive
+against any model where Hq/Hk is non power-of-2 (e.g. Qwen3.6-27B with
+Hq/Hk=5, where the custom P67 Triton kernel can't compile and falls
+back to the upstream path which had OOB write on B×K1 synthetic rows).
+Fresh-container restart on v794 PROD verified clean — tool-call 4/4,
+HTTP 200, no regressions. Marker bumped: `v7.62.12_baked_env` →
+`v7.63.x_quentin_buf_holder_fix`. Tracked in `upstream_compat.py` as
+`QUENTIN_M_P67b_BUF_HOLDER_FIX`.
+
+### Community fork research findings
+
+Surveyed 8 contributor repos (JartX, Quentin-M, noonghunna, thc1006,
+MidasMining, jhsmith409, webcodes-cz, ampersandru). Highlights:
+
+- **noonghunna/club-3090** (★85), `qwen36-27b-single-3090` (★78),
+  `qwen36-dual-3090` (★40) — multi-engine recipes for Qwen3.6-27B on
+  RTX 3090. Their **Cliff 1+2 documentation more granular than ours**;
+  Cliff 2 (DeltaNet GLA recurrent state buffer overflow on >50K single
+  prompts) is new info — investigate in v7.64+ if PN12-style pooling
+  could help GLA path.
+- **thc1006/qwen3.6-speculative-decoding-rtx3090** (★14) — empirical
+  finding: *"no llama.cpp spec-decode variant achieves net speedup on
+  Ampere + A3B MoE"*. Cross-engine counter-data; vllm MTP K=3 still
+  wins on Genesis PROD.
+- **JartX has 5 OPEN vllm PRs** in the per-token-head INT2/INT4 family.
+  Tracked in `upstream_compat.py` as `PR_40835_*`, `PR_39939_*`,
+  `PR_39074_*`. **Warning:** #39939 will require Genesis anchor
+  re-derivation for PN14 + P40 when merged.
+- **jhsmith409/llama-cpp-turboquant-gemma4** — TQ ports to llama.cpp for
+  Gemma 4 D=256/512. Cross-engine reference for v8.x arena work.
+
+Full details in `memory/project_genesis_community_research_20260430.md`
+(internal).
+
+### NEW Phase 1 surface (recap, shipped earlier this release)
+
+- `python3 -m vllm._genesis.compat.doctor` — diagnostic CLI
+- `python3 -m vllm._genesis.compat.init_wizard` — first-run wizard
+- `python3 -m vllm._genesis.compat.models.list_cli` — model browser
+- `python3 -m vllm._genesis.compat.models.pull <key>` — HF download
+- New `compat/` module: predicates, version_check, lifecycle, fingerprints,
+  models registry. Re-export shims preserve legacy import paths.
+- Richer `applies_to` DSL with AND/OR/NOT/NONE_OF compounds.
+- Reference fingerprint: `rtx_a5000_x2_qwen3_6_27b_int4_v794.json`.
+
+### Test coverage (Phase 1 + 4 cumulative)
+
+| Suite | Tests |
+|---|---:|
+| `tests/compat/test_predicates.py` | 33 |
+| `tests/compat/test_version_check.py` | 20 |
+| `tests/compat/test_lifecycle.py` | 13 |
+| `tests/compat/test_models_registry.py` | 11 |
+| `tests/compat/test_doctor_smoke.py` | 6 |
+| `tests/compat/test_explain.py` | 24 |
+| `tests/compat/test_lifecycle_audit_cli.py` | 9 |
+| `tests/compat/test_schema_validator.py` | 15 |
+| Pre-existing v7.63.x test suites (validator/PN14/PN16/B2/D3) | 112 |
+| **Total session test count** | **243** |
+
+### Live validation
+
+Doctor + explain + schema_validator all run cleanly inside v794 PROD
+container (Lorbus 27B INT4, 27 patches APPLY, 0 schema issues). Tool-call
+4/4, HTTP 200, container uptime preserved during sync.
+
+### Phase roadmap (updated)
+
+- ✅ **Phase 1** — compat module + doctor + models + predicates + lifecycle
+- ✅ **Phase 4** — explain CLI + lifecycle-audit + JSON schema + pre-commit
+  (ahead of original sequence; was originally after Phase 2)
+- 🚧 **Phase 2** — wiring refactor into category subdirs (next sprint)
+- 📋 **Phase 3** — auto-update channels (stable/beta/dev) + migration runbook
+- 📋 **Phase 5** — plugin entry-points + opt-in telemetry + recipes
+
+---
+
+## v7.63.x Phase 1 (initial release) — see entry above merged into combined section.
+
+## v7.62.x — 2026-04-29 (PN12 + PN14 + PN16 + A3/D2 validator + B2/D1/D3/D4)
+
+Major architectural milestone. Turns Genesis from a "patcher running on
+Sander's machine" into a discoverable, self-documenting, hardware-aware
+product surface. Backward-compatible with all v7.62.x configs — no PROD
+disruption.
+
+### New surface (CLI commands)
+
+- `python3 -m vllm._genesis.compat.doctor` — single-command diagnostic
+  (hw + sw + model + patches + lifecycle + validator). Human-readable
+  or `--json` for CI.
+- `python3 -m vllm._genesis.compat.init_wizard` — interactive first-run
+  setup (detect hw → recommend model → workload pick → generate launch
+  script).
+- `python3 -m vllm._genesis.compat.models.list_cli` — browse the curated
+  model registry.
+- `python3 -m vllm._genesis.compat.models.pull <key>` — one-command HF
+  download + verify + tailored launch script generator.
+
+### New `compat/` module — single home for all detection / UX
+
+```text
+vllm/_genesis/compat/
+├── doctor.py             — diagnostic CLI
+├── init_wizard.py        — first-run wizard
+├── version_check.py      — vllm/torch/cuda/triton/driver range matching
+├── predicates.py         — AND/OR/NOT applies_to evaluator
+├── lifecycle.py          — patch lifecycle state machine
+├── gpu_profile.py        — re-export shim (legacy import path preserved)
+├── model_detect.py       — re-export shim
+├── config_detect.py      — re-export shim
+├── models/
+│   ├── registry.py       — SUPPORTED_MODELS dict (5 entries)
+│   ├── pull.py           — HF download + verify + launch script gen
+│   └── list_cli.py
+└── fingerprints/
+    └── rtx_a5000_x2_qwen3_6_27b_int4_v794.json
+```
+
+### Engineering changes
+
+- **Richer `applies_to` predicate DSL** — AND/OR/NOT/NONE_OF compound
+  forms. Solves "INT4 alone doesn't need this, INT4+TQ does". Backwards-
+  compatible with all 48 existing flat-dict entries (auto-normalized
+  via `predicates.normalize_legacy_rule`).
+- **Version-range matching** — patches can now declare `vllm_version_range`,
+  `torch_version_min`, `triton_version_min`, `cuda_runtime_min`,
+  `nvidia_driver_min`, `compute_capability_min`/`compute_capability_max`.
+  Validator at boot enforces. Conservative pass on detection failures.
+- **Patch lifecycle states** — `experimental` / `stable` / `deprecated` /
+  `research` / `community` / `retired`. Code removal requires prior
+  `lifecycle: retired`. Doctor surfaces deprecation `superseded_by`
+  actionably.
+- **Reference fingerprints** — first entry is `rtx_a5000_x2_qwen3_6_27b_int4_v794`:
+  103.3 TPS (CV 4.9%, n=20), 9.36 ms TPOT, 127 ms TTFT, 21964/24564 MiB
+  per rank, 256K context verified, tool-call 100%.
+- **Curated model registry** — 5 entries with full metadata: HF id,
+  size, quant, model_class, hybrid/MoE flags, min VRAM per TP rank,
+  tested hardware classes, blessed launch configs, expected metrics,
+  license, gating, known quirks, lifecycle status.
+- **Dispatcher integration** — `_check_applies_to()` extended to
+  delegate to `compat.predicates.evaluate` when compound forms detected,
+  and to `compat.version_check.check_version_constraints` for version
+  keys. Legacy flat-dict path unchanged.
+
+### Test coverage (new in v7.63.x)
+
+- `tests/compat/test_predicates.py` — 33 tests
+- `tests/compat/test_version_check.py` — 20 tests
+- `tests/compat/test_lifecycle.py` — 13 tests
+- `tests/compat/test_models_registry.py` — 11 tests
+- `tests/compat/test_doctor_smoke.py` — 6 tests
+
+**Total new compat tests: 84, all green.**
+
+### Phase roadmap
+
+- ✅ Phase 1 (this release) — compat module + doctor + models + version
+- 🚧 Phase 2 — refactor `wiring/patch_*.py` into category subdirs
+- 📋 Phase 3 — auto-update channel system (`stable`/`beta`/`dev`)
+- 📋 Phase 4 — pre-commit + JSON schema + `genesis explain`
+- 📋 Phase 5 — plugin entry-points + opt-in telemetry + recipe system
+
+---
+
+## v7.62.x — 2026-04-29 (PN12 + PN14 + PN16 + A3/D2 validator + B2/D1/D3/D4)
+
+A focused 36-hour optimization sprint that turned into a much bigger
+story than expected. Detailed timeline in [README.md §What's new in
+v7.62.x](../../README.md#whats-new-in-v762x--36-hour-session-timeline).
+
+### Patches added
+
+- **PN12** — FFN intermediate scratch pool (Cliff 1 fix on TQ3 path).
+  Closes 138 MiB OOM at 192K + tool-call. Cross-engine inspiration:
+  TensorRT-LLM live-range arena.
+- **PN13** — CUDAGraphWrapper `gc.collect`/`empty_cache` lambda arity
+  fix (vllm#41235 backport). Defensive vs Blackwell.
+- **PN14** — TQ decode IOOB `safe_page_idx` clamp (vllm#40074 backport).
+  Defensive vs Triton bounds-checker on >32K sequences.
+- **PN16** — Lazy reasoner request hook. Hybrid policy: variant 1
+  (pre-decision) + variant 3 (client override) + variant 5 (prompt-
+  engineering soft cap). Variant 4 (LogitsProcessor cap) upstream-
+  blocked when speculative_config is set; documented in
+  `docs/_internal/PN16_PHASE2_UPSTREAM_BLOCKER.md`.
+
+### Infrastructure additions
+
+- **A3/D2 PATCH_REGISTRY validator** — `requires_patches` /
+  `conflicts_with` declarations, boot-time validation, caught 2 real
+  prod-config issues at first run.
+- **A4 P71 hardening** — 6 defensive guards on block_verify_sampler
+  launcher (fail LOUD vs silent corruption).
+- **B1 buffer-sizing audit** — clean (no NemotronH-class bugs found).
+- **B2 `result_to_wiring_status` helper** — DRY across 5 PN-family
+  wiring modules; caught silent SKIPPED-as-APPLIED bug class.
+- **D1 CI drift watcher** — `tools/check_upstream_drift.py` +
+  `.github/workflows/upstream_drift_watcher.yml`. Daily check.
+- **D3 bench ablation mode** — `--ablate-against` flag for
+  `genesis_bench_suite.py`. Welch t-test + per-metric delta table.
+- **D4 external_probe migration** — README + deprecation notices on
+  redundant probes.
+- **C1 TRT-LLM arena design (v8.x)** — internal design doc filed for
+  Phase 2+ work.
+
+### Production validation
+
+- v794 promoted to PROD 2026-04-29: 2× A5000 + 27B Lorbus INT4 + TQ
+  k8v4 + 5 PN-family patches. **+17% TPS** vs v771b baseline (88 → 103).
+- 256K context verified, 121s prefill, tool-call 7/7 + 4/4 cities.
+- VRAM headroom: 2.6 GB per rank (21964/24564 MiB).
+
+---
+
 ## v7.59 — 2026-04-28 (PROD promotion: 320K context + smaller batched-tokens)
 
 After overnight investigation closed v756 stability (P67 safety gate fix in
@@ -1135,7 +2246,7 @@ Full unit suite: 605 passed / 8 skipped / 0 failed.
 
 2. **Why separate `kernels/` and `patches/`**: clean separation between WHAT the code does (kernels) and HOW it integrates (patches). When we submit upstream PRs, we submit kernels/ directly — patches/ is just the bridging overlay.
 
-3. **Why TDD discipline**: matches user's `CLAUDE.md` explicit requirement: "Test-first for new functionality." Also mandatory for Patch 28 (GDN prealloc) to prevent repeating Patch 19's revert (−30% throughput, 188× stdev).
+3. **Why TDD discipline**: project rule. "Test-first for new functionality." Also mandatory for Patch 28 (GDN prealloc) to prevent repeating Patch 19's revert (−30% throughput, 188× stdev).
 
 4. **Why `@functools.cache` on guards**: NVML probe and vllm.platforms queries are ~1ms. Cached after first call (~50ns). At 20+ patches × startup = 20ms vs 1μs difference.
 

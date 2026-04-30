@@ -12,9 +12,30 @@ Covers:
 """
 from __future__ import annotations
 
+import importlib.util
+
 import pytest
 
 from vllm._genesis import config_detect
+
+
+# Many tests in this file monkeypatch `vllm.config.get_current_vllm_config`
+# directly via `monkeypatch.setattr("vllm.config...", ...)`. pytest's
+# setattr resolves the dotted path by importing the parent module, which
+# requires a real vllm install. On the CPU-only CI / local-dev env (no
+# vllm), skip the whole file. The integration container DOES have vllm
+# and runs everything.
+def _vllm_config_importable() -> bool:
+    try:
+        return importlib.util.find_spec("vllm.config") is not None
+    except (ImportError, ModuleNotFoundError, ValueError):
+        return False
+
+
+pytestmark = pytest.mark.skipif(
+    not _vllm_config_importable(),
+    reason="vllm.config not importable in this env (CPU-only / no vllm install)",
+)
 
 
 # ════════════════════════════════════════════════════════════════════

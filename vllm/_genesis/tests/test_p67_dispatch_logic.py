@@ -34,7 +34,7 @@ import re
 
 import pytest
 
-from vllm._genesis.wiring.patch_67_tq_multi_query_kernel import (
+from vllm._genesis.wiring.spec_decode.patch_67_tq_multi_query_kernel import (
     GENESIS_P67_MARKER,
     P67_NEW,
     P67_OLD,
@@ -258,8 +258,17 @@ def test_emit_has_no_per_dispatch_env_reads():
 def test_emit_has_shape_guard():
     """The shape-guard expression must be present so the dispatch decision
     matches our `_dispatch()` mirror above.
+
+    Post-Issue#7: the guard now also enforces power-of-2 HEADS_PER_KV,
+    spread across multiple lines for readability. We assert each
+    constituent clause is present rather than the original one-line form.
     """
-    assert "Hq >= 8 and D in (128, 256) and (Hq // _genesis_p67_Hk) >= 2" in P67_NEW
+    # Each clause of the multi-line guard
+    assert "Hq >= 8" in P67_NEW
+    assert "D in (128, 256)" in P67_NEW
+    assert "_genesis_p67_hpk >= 2" in P67_NEW
+    # Issue #7 — power-of-2 check (kept also in test_p67b_shape_ok_includes_power_of_two_check)
+    assert "(_genesis_p67_hpk & (_genesis_p67_hpk - 1)) == 0" in P67_NEW
 
 
 def test_emit_has_uniform_k_plus_1_check():
@@ -329,3 +338,75 @@ def test_apply_safety_gate_message_references_v756_root_cause():
     assert "SAFETY GATE" in src
     assert "v756" in src or "spec-decode" in src
     assert "config_detect" in src or "speculative" in src
+
+
+# ─── Issue #7: GQA non-power-of-2 guard (P67 + P67b) ─────────────────────
+
+
+class TestIssue7PowerOfTwoGuard:
+    """Genesis Issue #7 — Triton CompilationError on GQA non-power-of-2.
+
+    Qwen3.6-27B has GQA=24/4=6 → tl.arange + tl.dot fail
+    'arange's range must be a power of 2'. Without the guard the kernel
+    is dispatched, fails compile, retries every batch → 5x TPS regression.
+
+    The guard:
+        (heads_per_kv & (heads_per_kv - 1)) == 0
+    is a classic power-of-two check (true for 1, 2, 4, 8, 16, ...).
+
+    Validated by noonghunna 2026-04-29 cross-rig (RTX 3090 + 27B-AutoRound).
+    """
+
+    def test_p67_shape_ok_includes_power_of_two_check(self):
+        from vllm._genesis.wiring.spec_decode.patch_67_tq_multi_query_kernel import (
+            P67_NEW,
+        )
+        assert "_genesis_p67_hpk" in P67_NEW, (
+            "P67 must compute heads_per_kv into a named var for the guard"
+        )
+        assert "(_genesis_p67_hpk & (_genesis_p67_hpk - 1)) == 0" in P67_NEW, (
+            "P67 must reject HEADS_PER_KV that is not a power of 2 — "
+            "Issue #7 fix"
+        )
+
+    def test_p67b_shape_ok_includes_power_of_two_check(self):
+        # P67b runs FIRST inside forward(); guard MUST be in BOTH places
+        # (else the retry overhead from P67b fires every batch even when
+        # P67 itself bypasses cleanly).
+        from vllm._genesis.wiring.spec_decode.patch_67b_spec_verify_routing import (
+            P67B_NEW,
+        )
+        assert "_genesis_p67b_hpk" in P67B_NEW
+        assert "(_genesis_p67b_hpk & (_genesis_p67b_hpk - 1)) == 0" in P67B_NEW, (
+            "P67b must mirror P67's power-of-2 guard or Issue #7 still fires"
+        )
+
+    def test_guard_correctness_pure_python(self):
+        """Algorithmic check that the guard expression is a correct
+        power-of-2 detector (Brian Kernighan's bit-trick)."""
+        def is_p2(n: int) -> bool:
+            return n > 0 and (n & (n - 1)) == 0
+
+        # Power-of-2 GQA ratios (kernel-supported)
+        for hpk in (1, 2, 4, 8, 16, 32):
+            assert is_p2(hpk), f"hpk={hpk} should be power-of-2"
+
+        # Non-power-of-2 GQA ratios that would trigger Issue #7
+        for hpk in (3, 5, 6, 7, 9, 12, 24):
+            assert not is_p2(hpk), (
+                f"hpk={hpk} would fail Triton arange compile — must be rejected"
+            )
+
+        # The Qwen3.6-27B case specifically
+        qwen36_27b_hpk = 24 // 4  # num_heads / num_kv_heads
+        assert qwen36_27b_hpk == 6
+        assert not is_p2(qwen36_27b_hpk), (
+            "Qwen3.6-27B GQA=6 is the exact case Issue #7 reports — "
+            "must be rejected by guard"
+        )
+
+        # The Qwen3.6-35B case (works pre-fix)
+        qwen36_35b_hpk = 8  # GQA=8 directly
+        assert is_p2(qwen36_35b_hpk), (
+            "Qwen3.6-35B GQA=8 is power-of-2 — must continue dispatching"
+        )

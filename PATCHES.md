@@ -4,9 +4,9 @@ This file is the **single source of truth** for every Genesis runtime patch.
 For each patch you get: ID, title, what it does, status (ON / opt-in / deprecated),
 env flag to toggle, upstream PR (if backported), and credit.
 
-**Total registered patches:** 59 (across 52 wiring files; some hooks share a wiring module).
+**Total PATCH_REGISTRY entries:** 50 (41 numbered Pxx-class + 9 PN-class). The dispatcher's `PATCH_REGISTRY` is the schema-validated, lifecycle-tracked, opt-in surface — `genesis self-test` and the schema validator gate this set on every commit.
 
-- **Source of truth:** `vllm/_genesis/dispatcher.py` `PATCH_REGISTRY` (P56-P86, rich metadata) + `vllm/_genesis/patches/apply_all.py` `@register_patch` decorators (legacy P1-P55).
+- **Source of truth:** `vllm/_genesis/dispatcher.py` `PATCH_REGISTRY` (range: P56-P103 + PN8-PN16, rich metadata) + `vllm/_genesis/patches/apply_all.py` `@register_patch` decorators (legacy P1-P55, dry-run diagnostic only).
 - **All patches default OFF unless explicitly noted.** Production launch script enables a curated set via env flags.
 - **Credits:** every backport names its upstream author + PR. Genesis-original patches are explicitly labelled. See [`CREDITS.md`](CREDITS.md) for the comprehensive attribution log.
 - **Status legend:**
@@ -32,7 +32,7 @@ docker run -e GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL=0 ... vllm/vllm-openai:ni
 
 ## Where the code lives
 
-- **Wiring** (text-patcher hooks): `vllm/_genesis/wiring/patch_<id>_*.py`
+- **Wiring** (text-patcher hooks): `vllm/_genesis/wiring/<category>/patch_<id>_*.py` — organized by category (Phase 2.1, 9 subdirs: spec_decode, structured_output, perf_hotfix, compile_safety, kv_cache, kernels, hybrid, middleware, legacy). Resolution is layout-agnostic via `compat/categories.module_for(patch_id)`.
 - **Kernels** (Triton / CUDA): `vllm/_genesis/kernels/`
 - **Dispatcher metadata** (P56+): `vllm/_genesis/dispatcher.py:PATCH_REGISTRY`
 - **Registration**: `vllm/_genesis/patches/apply_all.py:@register_patch`
@@ -47,6 +47,9 @@ docker run -e GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL=0 ... vllm/vllm-openai:ni
 | ID | Title | Status | Env Flag | Upstream | Credit |
 |---|---|---|---|---|---|
 | **P4** | TurboQuant hybrid model support | opt-in | — | — | Genesis (see source / CHANGELOG) |
+| **P98** | TQ WorkspaceManager revert (vllm#40941 perf hotfix) | opt-in | `GENESIS_ENABLE_P98` | [#40941](https://github.com/vllm-project/vllm/pull/40941) | Reverts upstream PR #40941 WorkspaceManager indirection in turboquant_attn — required for TQ k8v4 on hybrid GDN models (else AssertionError on workspace lock) |
+| **P101** | TQ continuation 64-token slicing (vllm#41123 SELECTIVE) | opt-in | `GENESIS_ENABLE_P101` | [#41123](https://github.com/vllm-project/vllm/pull/41123) | Selective backport of vllm#41123 TQ on hybrid models — takes the `_CONTINUATION_DECODE_SLICE` improvement only |
+| **PN14** | TQ decode IOOB safe_page_idx clamp | opt-in | `GENESIS_ENABLE_PN14_TQ_DECODE_OOB_CLAMP` | [#40074](https://github.com/vllm-project/vllm/pull/40074) | devarakondasrikanth @adobe (vllm#40074, OPEN) — fixes upstream issue: TQ decode page-index out-of-bounds clamp |
 
 ### Memory / buffers
 
@@ -65,6 +68,9 @@ docker run -e GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL=0 ... vllm/vllm-openai:ni
 | **P28** | GDN core_attn_out prealloc | opt-in | — | — | Genesis (see source / CHANGELOG) |
 | **P14** | block_table tail zero-fill | opt-in | — | — | Genesis (see source / CHANGELOG) |
 | **P20** | TurboQuant continuation-prefill FP16 rotate | opt-in | — | — | Genesis (see source / CHANGELOG) |
+| **PN12** | FFN intermediate scratch pool — Cliff 1 fix on TQ3 path | opt-in | `GENESIS_ENABLE_PN12_FFN_INTERMEDIATE_POOL` | [#34207](https://github.com/vllm-project/vllm/pull/34207) | Genesis-original 2026-04-29 — Cliff 1 fix on TQ3 path. Closes 138 MiB OOM at 192K context |
+| **PN17** | FA2 softmax_lse runtime clamp (Cliff 1 mechanism A, Issue #11) | opt-in | `GENESIS_ENABLE_PN17_FA2_LSE_CLAMP` | — | Genesis-original 2026-04-30 in response to noonghunna's [Genesis Issue #11](https://github.com/Sandermage/genesis-vllm-patches/issues/11) cross-rig diagnosis (RTX 3090). Clamps `max_seqlen_k` from `attn_metadata.max_seq_len` (= max_model_len during cudagraph capture) to actual chunk max from `seqused_k.max()` at runtime. Closes Cliff 1 FA2 softmax_lse mechanism; widens long-text-no-vision safe envelope from ~150K to ~205K. Cudagraph-safe (capture-path falls back to original). Reference: Dao-AILab/flash-attention#1011. |
+| **PN19** | Scoped max_split_size_mb during model load (vllm#41268) | opt-in | `GENESIS_ENABLE_PN19_SCOPED_MAX_SPLIT` | [#41268](https://github.com/vllm-project/vllm/pull/41268) | Backport of vllm#41268 (MatthewBonanni, OPEN). PyTorch 2.10+ introduced load-time allocator fragmentation; mitigates by temporarily setting `max_split_size_mb=20` (PyTorch minimum) during `Worker.load_model`, restores prior on exit. Cudagraph-safe (load-time only). Self-detects torch < 2.11 lacking `_accelerator_setAllocatorSettings` and falls through unchanged. Estimated 200-500 MiB headroom on H100; unverified on Ampere — operator should measure via nvidia-smi peak before relying on it. |
 
 ### Kernel performance
 
@@ -106,6 +112,7 @@ docker run -e GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL=0 ... vllm/vllm-openai:ni
 | **P94** | Spec-decode prepare_next_token_ids_padded zero-alloc (vllm#41043) | opt-in | `GENESIS_ENABLE_P94` | [#41043](https://github.com/vllm-project/vllm/pull/41043) | Backport of vllm#41043 (wangluochao902, OPEN). Removes GPU→CPU `.tolist()` sync + list-comprehension + `np.array(...)` allocation in spec-decode hot path. PR author measured P99 TPOT -9.3% on Llama-3.1-8B + Eagle3 TP=4. Applies to all spec methods (Eagle, MTP, ngram, draft model). For our MTP K=3 single-stream: expected +2-4% wall TPS + tighter CV. |
 | **P57** | TQ spec-decode capture-safe buffers | deprecated | `GENESIS_ENABLE_P57_SPEC_DECODE_CAPTURE_SAFE` | — | noonghunna (#40831), gdn_attn.py reference |
 | **P56** | TQ spec-decode safe-path guard | deprecated | `GENESIS_ENABLE_P56_SPEC_DECODE_GUARD` | — | noonghunna (#40807, #40831) |
+| **PN9** | Independent drafter attention backend (vllm#39930) | opt-in | `GENESIS_ENABLE_PN9_INDEPENDENT_DRAFTER_ATTN` | [#39930](https://github.com/vllm-project/vllm/pull/39930) | MatthewBonanni (vllm#39930, MERGED). Allows the spec-decode drafter to use a different attention backend than the target model |
 
 ### Structured-output / Qwen3 parser
 
@@ -129,6 +136,7 @@ docker run -e GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL=0 ... vllm/vllm-openai:ni
 | **P34** | Mamba zero-collapse deadlock guard | opt-in | — | — | Genesis (see source / CHANGELOG) |
 | **P7b** | GDN dual-stream via torch.library.custom_op (opt-in) | opt-in | — | — | Genesis (see source / CHANGELOG) |
 | **P7** | GDN dual-stream in_proj parallelism | opt-in | — | — | Genesis (see source / CHANGELOG) |
+| **PN11** | GDN a/b contiguity in fix_query_key_value_ordering (vllm#41142) | opt-in | `GENESIS_ENABLE_PN11_GDN_AB_CONTIGUOUS` | [#41142](https://github.com/vllm-project/vllm/pull/41142) | Yeuvoir (vllm#41142, OPEN). Fixes upstream issue #41112: in `GatedDeltaNet.fix_query_key_value_ordering` the `a` and `b` slices need explicit `.contiguous()` calls |
 
 ### Cudagraph
 
@@ -136,6 +144,9 @@ docker run -e GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL=0 ... vllm/vllm-openai:ni
 |---|---|---|---|---|---|
 | **P78** | TurboQuant .tolist() capture-guard (adapted from noongh | opt-in | `GENESIS_ENABLE_P78_TOLIST_CAPTURE_GUARD` | — | Adapted from noonghunna's patch_tolist_cudagraph.py (Apache-2.0, github.com/noonghunna/qwen36-27b-single-3090). Surgical |
 | **P67b** | TurboQuant spec-verify forward() routing (FULL CG enabl | opt-in | — | — | Genesis (see source / CHANGELOG) |
+| **P95** | Marlin TP cudagraph cap on Ampere (vllm#40385) | opt-in | `GENESIS_ENABLE_P95` | [#40385](https://github.com/vllm-project/vllm/pull/40385) | Backport of vllm#40385 (OPEN as of 2026-04-28). Defensive cap of `max_cudagraph_capture_sizes` to avoid OOM on TP>=2 with Marlin kernels |
+| **P100** | FlashInfer FULL CUDA graph for spec-decode (vllm#41127) | opt-in | `GENESIS_ENABLE_P100` | [#41127](https://github.com/vllm-project/vllm/pull/41127) | Backport of vllm#41127 (open 2026-04-28) — enables FlashInfer FULL cudagraph mode for spec-decode |
+| **PN13** | CUDAGraphWrapper gc.collect/empty_cache lambda arity (vllm#41235) | opt-in | `GENESIS_ENABLE_PN13_CUDA_GRAPH_LAMBDA_ARITY` | [#41235](https://github.com/vllm-project/vllm/pull/41235) | roikoren755 (vllm#41235, OPEN). Fixes worker-death TypeError in CUDAGraphWrapper |
 
 ### Scheduler / chunked-prefill
 
@@ -199,12 +210,12 @@ Misc fixes: KV cache page size unification (P5/P5b), block_table tail zero-fill 
 ## Adding a new patch
 
 1. **Pick a free ID.** Run `grep -E '^@register_patch' vllm/_genesis/patches/apply_all.py | head` and `grep -E '"P[0-9]+' vllm/_genesis/dispatcher.py` to confirm the next available number. Don't reuse retired IDs (P56/P57/P63 are deprecated but kept).
-2. **Write wiring**: `vllm/_genesis/wiring/patch_<id>_<name>.py`. Use [`patch_71_block_verify.py`](vllm/_genesis/wiring/patch_71_block_verify.py) or [`patch_82_sglang_acceptance_threshold.py`](vllm/_genesis/wiring/patch_82_sglang_acceptance_threshold.py) as templates.
+2. **Write wiring**: `vllm/_genesis/wiring/<category>/patch_<id>_<name>.py`. Use [`patch_71_block_verify.py`](vllm/_genesis/wiring/spec_decode/patch_71_block_verify.py) or [`patch_82_sglang_acceptance_threshold.py`](vllm/_genesis/wiring/spec_decode/patch_82_sglang_acceptance_threshold.py) as templates. The category should match a `compat/categories.py` bucket — `_build_module_index` will rglob the new file in automatically.
 3. **Register in dispatcher** (P56+): add an entry to `PATCH_REGISTRY` in [`vllm/_genesis/dispatcher.py`](vllm/_genesis/dispatcher.py).
 4. **Hook in apply_all**: add `@register_patch(...)` + `apply_patch_<id>_*` function in [`vllm/_genesis/patches/apply_all.py`](vllm/_genesis/patches/apply_all.py).
 5. **Document in CHANGELOG**: add a `vX.YZ` entry to [`vllm/_genesis/CHANGELOG.md`](vllm/_genesis/CHANGELOG.md) explaining the WHY, empirical data, and ship/reject decision.
 6. **Validate**:
-   - Static: `python3 -c 'import ast; ast.parse(open("vllm/_genesis/wiring/patch_<id>_*.py").read())'`
+   - Static: `python3 -c 'import ast; ast.parse(open("vllm/_genesis/wiring/<category>/patch_<id>_*.py").read())'`
    - Container: `docker compose down && docker compose up -d` (NOT `stop/start` — see [`CONFIGURATION.md`](CONFIGURATION.md) Container R/W layer note)
    - Empirical: blue/green sweep with `genesis_quality_harness.py` + `genesis_bench_v3.py`. SHIP gate: ≥30/31 quality + ≥+5% TPS (or whatever the patch targets).
 7. **Credit upstream** in the patch docstring + `CREDITS.md` if backporting from someone else's PR / project.

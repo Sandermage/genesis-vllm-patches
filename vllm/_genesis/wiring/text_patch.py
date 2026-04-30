@@ -221,3 +221,62 @@ class TextPatcher:
             self.patch_name, len(applied_patches), ", ".join(applied_patches),
         )
         return TextPatchResult.APPLIED, None
+
+
+# ────────────────────────────────────────────────────────────────────────
+# B2 — Shared wiring-result mapper
+#
+# Most wiring `apply()` functions follow the same skeleton:
+#   1. Check dispatcher should_apply
+#   2. Check vllm_install_root + resolve target
+#   3. Run patcher.apply()
+#   4. Translate (TextPatchResult, TextPatchFailure | None) into the
+#      wiring contract: ("applied" | "skipped" | "failed", reason: str)
+#
+# Step 4 was duplicated across ~25 wiring modules with subtle drift —
+# some forgot to handle SKIPPED / IDEMPOTENT and silently reported
+# "applied" when the file was actually unchanged (caught by PN14 TDD
+# 2026-04-29). This helper centralizes the mapping so future patches
+# (and the legacy ones as they migrate) can call it instead of
+# rolling their own if/elif/else.
+
+def result_to_wiring_status(
+    result: "TextPatchResult",
+    failure: "TextPatchFailure | None",
+    *,
+    applied_message: str,
+    patch_name: str,
+) -> tuple[str, str]:
+    """Translate a (TextPatchResult, TextPatchFailure) pair into the
+    wiring `apply()` return contract: (status, reason).
+
+    Args:
+        result: TextPatchResult enum value from `patcher.apply()`
+        failure: optional TextPatchFailure from same call
+        applied_message: human-readable success message (only used when
+            result == APPLIED)
+        patch_name: patch identifier for inclusion in skip / failure
+            reasons (typically `patcher.patch_name`)
+
+    Returns:
+        (status, reason) where status ∈ {"applied", "skipped", "failed"}.
+        APPLIED → ("applied", applied_message)
+        IDEMPOTENT → ("skipped", "<patch_name>: already applied (marker present)")
+        SKIPPED → ("skipped", "<patch_name>: <failure.reason> — <failure.detail>")
+        FAILED → ("failed", "<patch_name>: <failure.reason> (<failure.detail>)")
+    """
+    if result == TextPatchResult.APPLIED:
+        return "applied", applied_message
+    if result == TextPatchResult.IDEMPOTENT:
+        return "skipped", f"{patch_name}: already applied (marker present)"
+    if result == TextPatchResult.SKIPPED:
+        reason = failure.reason if failure else "unknown_skip"
+        detail = failure.detail if failure and failure.detail else None
+        msg = f"{patch_name}: {reason}"
+        if detail:
+            msg += f" — {detail}"
+        return "skipped", msg
+    # TextPatchResult.FAILED
+    reason = failure.reason if failure else "unknown"
+    detail = failure.detail if failure and failure.detail else ""
+    return "failed", f"{patch_name}: {reason} ({detail})"

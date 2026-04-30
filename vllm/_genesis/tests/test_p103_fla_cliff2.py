@@ -27,7 +27,7 @@ def test_p103_in_dispatcher():
 
 def test_p103_wiring_module_imports():
     """The wiring module must import cleanly (no syntax errors)."""
-    from vllm._genesis.wiring import patch_103_fla_cliff2_chunked as p103
+    from vllm._genesis.wiring.hybrid import patch_103_fla_cliff2_chunked as p103
     assert hasattr(p103, "apply")
     assert hasattr(p103, "is_applied")
     assert hasattr(p103, "should_apply")
@@ -41,14 +41,14 @@ def test_p103_apply_register_in_apply_all():
 
 def test_p103_should_apply_off_by_default(monkeypatch):
     """Without GENESIS_ENABLE_P103=1, should_apply() must return False."""
-    from vllm._genesis.wiring import patch_103_fla_cliff2_chunked as p103
+    from vllm._genesis.wiring.hybrid import patch_103_fla_cliff2_chunked as p103
     monkeypatch.delenv("GENESIS_ENABLE_P103", raising=False)
     assert p103.should_apply() is False
 
 
 def test_p103_should_apply_recognizes_truthy_env(monkeypatch):
     """should_apply() must accept all truthy env values."""
-    from vllm._genesis.wiring import patch_103_fla_cliff2_chunked as p103
+    from vllm._genesis.wiring.hybrid import patch_103_fla_cliff2_chunked as p103
     # Mock platform checks since this test runs CPU-only
     with mock.patch.object(p103, "is_nvidia_cuda", return_value=True), \
          mock.patch.object(p103, "is_sm_at_least", return_value=True):
@@ -63,7 +63,7 @@ def test_p103_should_apply_recognizes_truthy_env(monkeypatch):
 def test_p103_apply_fails_soft_when_module_missing(monkeypatch):
     """If FLA module is unavailable, apply() must return ('skipped', ...)
     not raise."""
-    from vllm._genesis.wiring import patch_103_fla_cliff2_chunked as p103
+    from vllm._genesis.wiring.hybrid import patch_103_fla_cliff2_chunked as p103
     monkeypatch.setenv("GENESIS_ENABLE_P103", "1")
     with mock.patch.object(p103, "is_nvidia_cuda", return_value=True), \
          mock.patch.object(p103, "is_sm_at_least", return_value=True):
@@ -85,7 +85,7 @@ def test_p103_apply_fails_soft_when_module_missing(monkeypatch):
 
 def test_p103_marker_attr_consistent():
     """The wrapper marker attribute name must match between apply and is_applied."""
-    from vllm._genesis.wiring import patch_103_fla_cliff2_chunked as p103
+    from vllm._genesis.wiring.hybrid import patch_103_fla_cliff2_chunked as p103
     assert p103._GENESIS_P103_MARKER_ATTR == "_genesis_p103_chunked_wrap"
 
 
@@ -94,7 +94,7 @@ def test_p103_max_t_env_default():
     # We can't easily test the actual wrapper without FLA loaded, but we
     # can verify the default value is in the code (defensive sanity).
     import inspect
-    from vllm._genesis.wiring import patch_103_fla_cliff2_chunked as p103
+    from vllm._genesis.wiring.hybrid import patch_103_fla_cliff2_chunked as p103
     src = inspect.getsource(p103._make_chunked_wrapper)
     assert '"16384"' in src
     assert "GENESIS_FLA_FWD_H_MAX_T" in src
@@ -105,5 +105,5 @@ def test_p103_max_t_env_default():
 def test_p103_kda_path_not_covered_documented():
     """The patch deliberately doesn't cover kda.py path; this should be
     documented in the wiring module docstring."""
-    from vllm._genesis.wiring import patch_103_fla_cliff2_chunked as p103
+    from vllm._genesis.wiring.hybrid import patch_103_fla_cliff2_chunked as p103
     assert "KDA" in p103.__doc__ or "kda" in p103.__doc__.lower()

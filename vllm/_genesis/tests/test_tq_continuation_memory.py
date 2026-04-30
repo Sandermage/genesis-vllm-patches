@@ -295,13 +295,13 @@ class TestP38WiringPatch:
     """Group 6: wiring/patch_38_tq_continuation_memory module surface."""
 
     def test_should_apply_guard(self, monkeypatch):
-        from vllm._genesis.wiring import patch_38_tq_continuation_memory as p38
+        from vllm._genesis.wiring.legacy import patch_38_tq_continuation_memory as p38
         from vllm._genesis import guards
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: False)
         assert p38.should_apply() is False
 
     def test_apply_skips_on_non_nvidia(self, monkeypatch):
-        from vllm._genesis.wiring import patch_38_tq_continuation_memory as p38
+        from vllm._genesis.wiring.legacy import patch_38_tq_continuation_memory as p38
         from vllm._genesis import guards
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: False)
         status, reason = p38.apply()
@@ -309,7 +309,7 @@ class TestP38WiringPatch:
         assert "NVIDIA" in reason
 
     def test_wiring_has_expected_public_surface(self):
-        from vllm._genesis.wiring import patch_38_tq_continuation_memory as p38
+        from vllm._genesis.wiring.legacy import patch_38_tq_continuation_memory as p38
         assert callable(p38.apply)
         assert callable(p38.is_applied)
         assert callable(p38.revert)
@@ -334,7 +334,7 @@ class TestP38Idempotency:
     def _reset_p38_module_state(self):
         """Clear the stamp from any prior apply() so each test sees a
         fresh guard state."""
-        from vllm._genesis.wiring import patch_38_tq_continuation_memory as p38
+        from vllm._genesis.wiring.legacy import patch_38_tq_continuation_memory as p38
         fn = p38._genesis_continuation_prefill
         for attr in ("_genesis_p38_original", p38._GENESIS_P38_MARKER_ATTR):
             if hasattr(fn, attr):
@@ -355,7 +355,7 @@ class TestP38Idempotency:
         at import time → the symbols are bound in the wiring module's
         namespace, not looked up dynamically.
         """
-        from vllm._genesis.wiring import patch_38_tq_continuation_memory as p38
+        from vllm._genesis.wiring.legacy import patch_38_tq_continuation_memory as p38
         monkeypatch.setattr(p38, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(
             p38, "is_sm_at_least", lambda major, minor=0: True,
@@ -392,7 +392,7 @@ class TestP38Idempotency:
         """If apply() is called twice, the saved `_genesis_p38_original`
         MUST still point to the true upstream method — never our wrapper.
         """
-        from vllm._genesis.wiring import patch_38_tq_continuation_memory as p38
+        from vllm._genesis.wiring.legacy import patch_38_tq_continuation_memory as p38
         FakeImpl, fake_original = self._install_fake_impl(monkeypatch)
 
         # First apply
@@ -424,7 +424,7 @@ class TestP38Idempotency:
 
     def test_is_applied_tracks_state(self, monkeypatch):
         """is_applied() returns True only while our wrapper is live."""
-        from vllm._genesis.wiring import patch_38_tq_continuation_memory as p38
+        from vllm._genesis.wiring.legacy import patch_38_tq_continuation_memory as p38
         FakeImpl, fake_original = self._install_fake_impl(monkeypatch)
 
         assert p38.is_applied() is False

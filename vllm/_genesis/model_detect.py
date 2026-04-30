@@ -181,8 +181,9 @@ def _probe_hybrid(hf_config: Any) -> tuple[bool, dict[str, Any]]:
                 s = str(entry).lower()
                 if "linear" in s or "mamba" in s or "gdn" in s or "ssm" in s:
                     return True
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug("layer_types scan probe at %r failed: %s", base, e,
+                      exc_info=True)
         return False
 
     # Primary: layer_types — top-level then nested (multimodal)
@@ -374,8 +375,8 @@ def _refine_compressed_tensors_format(hf_config: Any) -> str:
             if "int" in wtype_s and wbits_i == 4:
                 return "int4_w4a16"
             break
-    except Exception:
-        pass
+    except Exception as e:
+        log.debug("compressed_tensors probe failed: %s", e, exc_info=True)
     return "compressed_tensors"
 
 
@@ -402,8 +403,8 @@ def _refine_autoround_bits(hf_config: Any, q_str: str) -> str:
                     return "autoround_int8"
                 if bits == 4:
                     return "autoround_int4"
-    except Exception:
-        pass
+    except Exception as e:
+        log.debug("autoround_bits probe failed: %s", e, exc_info=True)
     # Fall back to substring hint in the quantization id
     if "int4" in q_str or "_4_" in q_str or "4bit" in q_str:
         return "autoround_int4"

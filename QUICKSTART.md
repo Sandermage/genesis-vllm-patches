@@ -53,14 +53,14 @@ The repo ships several compose files for different scenarios:
 
 | File | Model | When to use |
 |---|---|---|
-| `docker-compose.example.yml` | template only | Read it, copy, adapt |
-| `docker-compose.integration.yml` | Qwen3-Next-35B-A3B-FP8 + TQ k8v4 | Production-mirror — what we test against |
-| `docker-compose.integration-awq.yml` | Qwen3-Next-35B-A3B-AWQ + TQ k8v4 | AWQ 4-bit weights, 2.5× more KV memory |
-| `docker-compose.integration-fp16kv.yml` | Qwen3-Next FP8 weights + fp16 KV | If you want non-TurboQuant baseline |
-| `docker-compose.qwen3-5-dense.yml` | RYS-Qwen3.5-27B-FP8-XL dense | Dense model, no MoE/hybrid |
-| `docker-compose.gemma4-26b-moe.yml` | Gemma 4 26B MoE AWQ | ⚠️ currently blocked by vLLM × model incompatibility |
+| `compose/docker-compose.example.yml` | template only | Read it, copy, adapt |
+| `compose/docker-compose.integration.yml` | Qwen3-Next-35B-A3B-FP8 + TQ k8v4 | Production-mirror — what we test against |
+| `compose/docker-compose.integration-awq.yml` | Qwen3-Next-35B-A3B-AWQ + TQ k8v4 | AWQ 4-bit weights, 2.5× more KV memory |
+| `compose/docker-compose.integration-fp16kv.yml` | Qwen3-Next FP8 weights + fp16 KV | If you want non-TurboQuant baseline |
+| `compose/docker-compose.qwen3-5-dense.yml` | RYS-Qwen3.5-27B-FP8-XL dense | Dense model, no MoE/hybrid |
+| `compose/docker-compose.gemma4-26b-moe.yml` | Gemma 4 26B MoE AWQ | ⚠️ currently blocked by vLLM × model incompatibility |
 
-**For first-time users, start with `docker-compose.integration.yml`** — that's the canonical config.
+**For first-time users, start with `compose/docker-compose.integration.yml`** — that's the canonical config.
 
 ## Step 4 — Adapt paths to your machine
 
@@ -92,7 +92,7 @@ with whatever name you used (e.g. `vllm/vllm-openai:nightly @ image ID 10c7a6ba5
 ## Step 5 — Start the container
 
 ```bash
-docker compose -f docker-compose.integration.yml up -d
+docker compose -f compose/docker-compose.integration.yml up -d
 ```
 
 Watch the logs:
@@ -167,7 +167,7 @@ Expected for Qwen3-Next: `"moe": true, "hybrid": true, "turboquant": true`.
 **Always use `docker compose down`, NEVER plain `docker stop`.**
 
 ```bash
-docker compose -f docker-compose.integration.yml down
+docker compose -f compose/docker-compose.integration.yml down
 ```
 
 This removes the container so the next `up -d` starts with a clean filesystem. If you only `docker stop` then `docker start`, the patches will fail on the second boot due to anchor-already-applied (the "R/W layer trap" — see Troubleshooting below).
@@ -255,8 +255,8 @@ If you have GPU headroom for two concurrent backends on different ports, see als
 | Upstream PR tracking and backport plan | [README.md#upstream-status-tracking](README.md#upstream-status-tracking) |
 | In-depth analysis of upstream PRs | [benchmarks/v7_10_validation_20260424/upstream_compare/PR_DEEP_DIVE.md](benchmarks/v7_10_validation_20260424/upstream_compare/PR_DEEP_DIVE.md) |
 | Architecture overview | [README.md#architecture](README.md#architecture) |
-| Running unit tests (CPU only) | `./validate_unit.sh` |
-| Running integration tests (GPU required) | `./validate_integration.sh` |
+| Running unit tests (CPU only) | `./scripts/validate_unit.sh` |
+| Running integration tests (GPU required) | `./scripts/validate_integration.sh` |
 | How to support / sponsor | [SPONSORS.md](SPONSORS.md) |
 
 ---
@@ -308,14 +308,14 @@ docker tag \
 
 | Файл | Модель | Когда использовать |
 |---|---|---|
-| `docker-compose.example.yml` | только шаблон | Прочитать, скопировать, адаптировать |
-| `docker-compose.integration.yml` | Qwen3-Next-35B-A3B-FP8 + TQ k8v4 | Production-mirror — на чём мы тестируем |
-| `docker-compose.integration-awq.yml` | Qwen3-Next-35B-A3B-AWQ + TQ k8v4 | AWQ 4-bit веса, 2.5× больше KV памяти |
-| `docker-compose.integration-fp16kv.yml` | Qwen3-Next FP8 веса + fp16 KV | Если нужен non-TurboQuant baseline |
-| `docker-compose.qwen3-5-dense.yml` | RYS-Qwen3.5-27B-FP8-XL dense | Dense модель, без MoE/hybrid |
-| `docker-compose.gemma4-26b-moe.yml` | Gemma 4 26B MoE AWQ | ⚠️ заблокирован vLLM × model несовместимостью |
+| `compose/docker-compose.example.yml` | только шаблон | Прочитать, скопировать, адаптировать |
+| `compose/docker-compose.integration.yml` | Qwen3-Next-35B-A3B-FP8 + TQ k8v4 | Production-mirror — на чём мы тестируем |
+| `compose/docker-compose.integration-awq.yml` | Qwen3-Next-35B-A3B-AWQ + TQ k8v4 | AWQ 4-bit веса, 2.5× больше KV памяти |
+| `compose/docker-compose.integration-fp16kv.yml` | Qwen3-Next FP8 веса + fp16 KV | Если нужен non-TurboQuant baseline |
+| `compose/docker-compose.qwen3-5-dense.yml` | RYS-Qwen3.5-27B-FP8-XL dense | Dense модель, без MoE/hybrid |
+| `compose/docker-compose.gemma4-26b-moe.yml` | Gemma 4 26B MoE AWQ | ⚠️ заблокирован vLLM × model несовместимостью |
 
-**Для первого запуска возьми `docker-compose.integration.yml`** — это канонический конфиг.
+**Для первого запуска возьми `compose/docker-compose.integration.yml`** — это канонический конфиг.
 
 ## Шаг 4 — Адаптировать пути под свою машину
 
@@ -347,7 +347,7 @@ image: vllm/vllm-openai:genesis-v7.0-baseline
 ## Шаг 5 — Запустить контейнер
 
 ```bash
-docker compose -f docker-compose.integration.yml up -d
+docker compose -f compose/docker-compose.integration.yml up -d
 ```
 
 Смотри логи:
@@ -422,7 +422,7 @@ print(json.dumps(get_model_profile(), indent=2, default=str))
 **Всегда используй `docker compose down`, НИКОГДА не делай простой `docker stop`.**
 
 ```bash
-docker compose -f docker-compose.integration.yml down
+docker compose -f compose/docker-compose.integration.yml down
 ```
 
 Это удаляет контейнер чтобы следующий `up -d` стартанул со свежей файловой системой. Если сделать только `docker stop` потом `docker start`, патчи провалятся на втором boot из-за того что anchors уже применены ("R/W layer trap" — см. Troubleshooting).
@@ -478,6 +478,6 @@ Genesis патчи существенно уменьшают расход пам
 | Tracking upstream PR-ов и план backport | [README.md#upstream-status-tracking](README.md#upstream-status-tracking) |
 | Глубокий разбор upstream PR | [benchmarks/v7_10_validation_20260424/upstream_compare/PR_DEEP_DIVE.md](benchmarks/v7_10_validation_20260424/upstream_compare/PR_DEEP_DIVE.md) |
 | Обзор архитектуры | [README.md#architecture](README.md#architecture) |
-| Запуск unit тестов (только CPU) | `./validate_unit.sh` |
-| Запуск integration тестов (нужен GPU) | `./validate_integration.sh` |
+| Запуск unit тестов (только CPU) | `./scripts/validate_unit.sh` |
+| Запуск integration тестов (нужен GPU) | `./scripts/validate_integration.sh` |
 | Как поддержать проект | [SPONSORS.md](SPONSORS.md) |

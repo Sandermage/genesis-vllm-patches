@@ -1,4 +1,18 @@
 """
+DEPRECATED 2026-04-29 — superseded by Genesis PN14 (vllm/_genesis/wiring/
+patch_N14_tq_decode_oob_clamp.py, commit 0d92e5b). Kept for compatibility
+with the 35B FP8 PROD launch path (`scripts/launch/start_35b_fp8_PROD*.sh`)
+which has not yet been migrated to rely solely on Genesis apply_all.
+
+When migrating a launch script: drop the `python3 /external_probe/
+patch_40074_iooo.py` line and set `GENESIS_ENABLE_PN14_TQ_DECODE_OOB_CLAMP=1`
+in the env. PN14's `safe_page_idx` drift marker makes it self-skip if
+this probe was already applied — running both is harmless, just redundant.
+
+See `external_probe/README.md` for full migration status.
+
+────────────────────────────────────────────────────────────────────────
+
 Apply PR #40074 IOOB fix to triton_turboquant_decode.py.
 
 5-line fix: clamp masked-out SIMD lanes to page_idx=0 before block_table

@@ -199,21 +199,21 @@ class TestP46Registry:
 
 class TestP46Wiring:
     def test_wiring_public_surface(self):
-        from vllm._genesis.wiring import patch_46_gdn_gating_buffers as p46
+        from vllm._genesis.wiring.legacy import patch_46_gdn_gating_buffers as p46
         assert callable(p46.apply)
         assert callable(p46.is_applied)
         assert callable(p46.revert)
         assert callable(p46.should_apply)
 
     def test_apply_skips_on_non_nvidia(self, monkeypatch):
-        from vllm._genesis.wiring import patch_46_gdn_gating_buffers as p46
+        from vllm._genesis.wiring.legacy import patch_46_gdn_gating_buffers as p46
         monkeypatch.setattr(p46, "is_nvidia_cuda", lambda: False)
         status, reason = p46.apply()
         assert status == "skipped"
         assert "non-NVIDIA" in reason or "CUDA" in reason
 
     def test_revert_always_false(self):
-        from vllm._genesis.wiring import patch_46_gdn_gating_buffers as p46
+        from vllm._genesis.wiring.legacy import patch_46_gdn_gating_buffers as p46
         assert p46.revert() is False
 
 
@@ -287,13 +287,13 @@ class TestP44MixedAttnOut:
 
 class TestP44Wiring:
     def test_public_surface(self):
-        from vllm._genesis.wiring import patch_44_tq_mixed_attn_out as p44
+        from vllm._genesis.wiring.legacy import patch_44_tq_mixed_attn_out as p44
         assert callable(p44.apply)
         assert callable(p44.is_applied)
         assert callable(p44.revert)
 
     def test_apply_skips_on_non_nvidia(self, monkeypatch):
-        from vllm._genesis.wiring import patch_44_tq_mixed_attn_out as p44
+        from vllm._genesis.wiring.legacy import patch_44_tq_mixed_attn_out as p44
         monkeypatch.setattr(p44, "is_nvidia_cuda", lambda: False)
         status, reason = p44.apply()
         assert status == "skipped"

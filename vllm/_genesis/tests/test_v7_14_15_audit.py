@@ -87,6 +87,7 @@ def _load_wiring_module(name: str):
         pytest.skip(f"wiring module not present: {file_path}")
     spec = importlib.util.spec_from_file_location(name, str(file_path))
     mod = importlib.util.module_from_spec(spec)
+    sys.modules[name] = mod  # py3.13 dataclass introspection needs this
     spec.loader.exec_module(mod)
     return mod
 
@@ -245,6 +246,7 @@ class TestDispatcherRegistry:
         path = repo_root / "vllm" / "_genesis" / "dispatcher.py"
         spec = importlib.util.spec_from_file_location("dispatcher", str(path))
         d = importlib.util.module_from_spec(spec)
+        sys.modules["dispatcher"] = d  # py3.13 dataclass introspection needs this
         spec.loader.exec_module(d)
         for pid, meta in d.PATCH_REGISTRY.items():
             assert "title" in meta, f"{pid} missing title"
@@ -264,6 +266,7 @@ class TestDispatcherRegistry:
         path = repo_root / "vllm" / "_genesis" / "dispatcher.py"
         spec = importlib.util.spec_from_file_location("dispatcher", str(path))
         d = importlib.util.module_from_spec(spec)
+        sys.modules["dispatcher"] = d  # py3.13 dataclass introspection needs this
         spec.loader.exec_module(d)
         # All v7.14 + v7.15 patches must be present
         for pid in ("P64", "P65", "P66", "P68", "P69", "P70"):
@@ -288,6 +291,7 @@ class TestDispatcherRegistry:
         path = repo_root / "vllm" / "_genesis" / "dispatcher.py"
         spec = importlib.util.spec_from_file_location("dispatcher2", str(path))
         d = importlib.util.module_from_spec(spec)
+        sys.modules["dispatcher2"] = d  # py3.13 dataclass introspection needs this
         spec.loader.exec_module(d)
 
         import os as _os

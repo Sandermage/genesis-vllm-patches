@@ -58,6 +58,12 @@ def mock_tq_impl_module(monkeypatch):
             layer._call_log = layer.__dict__.get("_call_log", []) + ["original"]
             return None
 
+        def _init_turboquant_buffers(self, *a, **kw):
+            # Sentinel: presence of this method tells P22's drift-check
+            # that upstream PR #40655 has NOT moved buffer init out yet
+            # (the patch is still applicable).
+            return None
+
     fake_mod = types.ModuleType(mod_name)
     fake_mod.TurboQuantAttentionImpl = FakeTQAttentionImpl
 
@@ -108,7 +114,7 @@ def mock_grouped_router_module(monkeypatch):
 class TestPatch22Wiring:
     def test_apply_rebinds_class_method(self, mock_tq_impl_module, monkeypatch):
         """The wired wrapper takes the place of _ensure_on_device."""
-        from vllm._genesis.wiring import patch_22_tq_prealloc
+        from vllm._genesis.wiring.legacy import patch_22_tq_prealloc
 
         # Force-enable platform guards
         monkeypatch.setattr(patch_22_tq_prealloc, "is_nvidia_cuda", lambda: True)
@@ -144,7 +150,7 @@ class TestPatch22Wiring:
         patch_22_tq_prealloc.revert()
 
     def test_idempotent_reapply(self, mock_tq_impl_module, monkeypatch):
-        from vllm._genesis.wiring import patch_22_tq_prealloc
+        from vllm._genesis.wiring.legacy import patch_22_tq_prealloc
 
         monkeypatch.setattr(patch_22_tq_prealloc, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(patch_22_tq_prealloc, "is_sm_at_least",
@@ -169,7 +175,7 @@ class TestPatch22Wiring:
         patch_22_tq_prealloc.revert()
 
     def test_skip_on_non_nvidia(self, monkeypatch):
-        from vllm._genesis.wiring import patch_22_tq_prealloc
+        from vllm._genesis.wiring.legacy import patch_22_tq_prealloc
         monkeypatch.setattr(patch_22_tq_prealloc, "is_nvidia_cuda", lambda: False)
 
         status, reason = patch_22_tq_prealloc.apply()
@@ -177,7 +183,7 @@ class TestPatch22Wiring:
         assert "NVIDIA" in reason
 
     def test_skip_when_tq_module_missing(self, monkeypatch):
-        from vllm._genesis.wiring import patch_22_tq_prealloc
+        from vllm._genesis.wiring.legacy import patch_22_tq_prealloc
 
         monkeypatch.setattr(patch_22_tq_prealloc, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(patch_22_tq_prealloc, "is_sm_at_least",
@@ -194,7 +200,7 @@ class TestPatch22Wiring:
         assert "TurboQuant" in reason or "turboquant_attn" in reason
 
     def test_revert_restores_original(self, mock_tq_impl_module, monkeypatch):
-        from vllm._genesis.wiring import patch_22_tq_prealloc
+        from vllm._genesis.wiring.legacy import patch_22_tq_prealloc
 
         monkeypatch.setattr(patch_22_tq_prealloc, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(patch_22_tq_prealloc, "is_sm_at_least",
@@ -218,7 +224,7 @@ class TestPatch22Wiring:
 
 class TestPatch31Wiring:
     def test_apply_wraps_grouped_topk(self, mock_grouped_router_module, monkeypatch):
-        from vllm._genesis.wiring import patch_31_router_softmax
+        from vllm._genesis.wiring.legacy import patch_31_router_softmax
         # Force not-cpu-only
         monkeypatch.setattr(patch_31_router_softmax, "is_cpu_only", lambda: False)
 
@@ -239,7 +245,7 @@ class TestPatch31Wiring:
         patch_31_router_softmax.revert()
 
     def test_skip_on_cpu(self, monkeypatch):
-        from vllm._genesis.wiring import patch_31_router_softmax
+        from vllm._genesis.wiring.legacy import patch_31_router_softmax
         monkeypatch.setattr(patch_31_router_softmax, "is_cpu_only", lambda: True)
 
         status, reason = patch_31_router_softmax.apply()
@@ -247,7 +253,7 @@ class TestPatch31Wiring:
         assert "CPU" in reason
 
     def test_idempotent(self, mock_grouped_router_module, monkeypatch):
-        from vllm._genesis.wiring import patch_31_router_softmax
+        from vllm._genesis.wiring.legacy import patch_31_router_softmax
         monkeypatch.setattr(patch_31_router_softmax, "is_cpu_only", lambda: False)
 
         s1, _ = patch_31_router_softmax.apply()
@@ -264,7 +270,7 @@ class TestPatch31Wiring:
         patch_31_router_softmax.revert()
 
     def test_revert_restores_original(self, mock_grouped_router_module, monkeypatch):
-        from vllm._genesis.wiring import patch_31_router_softmax
+        from vllm._genesis.wiring.legacy import patch_31_router_softmax
         monkeypatch.setattr(patch_31_router_softmax, "is_cpu_only", lambda: False)
 
         original = mock_grouped_router_module.grouped_topk
@@ -276,7 +282,7 @@ class TestPatch31Wiring:
 
     def test_fp32_input_not_double_upcast(self, mock_grouped_router_module, monkeypatch):
         """Already-fp32 input passes through unchanged (no extra .float() copy)."""
-        from vllm._genesis.wiring import patch_31_router_softmax
+        from vllm._genesis.wiring.legacy import patch_31_router_softmax
         monkeypatch.setattr(patch_31_router_softmax, "is_cpu_only", lambda: False)
 
         patch_31_router_softmax.apply()

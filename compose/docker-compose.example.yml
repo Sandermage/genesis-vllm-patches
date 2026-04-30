@@ -1,0 +1,362 @@
+
+services:
+  vllm-server:
+    image: vllm/vllm-openai:nightly-patched
+    container_name: vllm-server
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS=1
+      - VLLM_NO_USAGE_STATS=1
+      - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True,max_split_size_mb:512
+      - VLLM_FLOAT32_MATMUL_PRECISION=high
+      - NCCL_P2P_DISABLE=1
+      - VLLM_USE_FLASHINFER_SAMPLER=1
+      - OMP_NUM_THREADS=1
+      - CUDA_DEVICE_MAX_CONNECTIONS=8
+      - VLLM_ALLOW_LONG_MAX_MODEL_LEN=1
+      - TRITON_CACHE_DIR=/root/.triton/cache
+      - VLLM_WORKER_MULTIPROC_METHOD=spawn
+      - VLLM_MARLIN_USE_ATOMIC_ADD=1
+      # v5.9: Marlin MoE block_size_m override. Default heuristic yields 16
+      # for FP8 (itemsize==1 floor). On Qwen3.6-35B (E=256, topk=8) at small
+      # decode M, forcing 8 is +1.2% tok/s median with identical quality.
+      # Valid values: 8, 16, 32, 48, 64 (all precompiled in Marlin CUDA).
+      - VLLM_MARLIN_MOE_BLOCK_SIZE_M=8
+    volumes:
+      - /nfs/genesis/models:/models:ro
+      - ~/.cache/huggingface:/root/.cache/huggingface:ro
+      - ../vllm_engine/triton-cache:/root/.triton/cache
+      - ../vllm_engine/compile-cache:/root/.cache/vllm/torch_compile_cache
+      - ../vllm_engine/patch_genesis_unified.py:/patches/patch_genesis_unified.py:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+        limits:
+          memory: 64G
+    shm_size: "8g"
+    entrypoint: ["/bin/bash", "-c", "pip install pandas scipy xxhash -q && python3 /patches/patch_genesis_unified.py && exec vllm serve \"$@\"", "--"]
+    command:
+      - --model
+      - /models/Qwen3.6-35B-A3B-FP8
+      - --tensor-parallel-size
+      - "2"
+      - --gpu-memory-utilization
+      - "0.905"
+      - --max-model-len
+      - "163840"
+      - --kv-cache-dtype
+      - turboquant_k8v4
+      - --max-num-seqs
+      - "2"
+      - --max-num-batched-tokens
+      - "4096"
+      - --enable-chunked-prefill
+      - --enable-prefix-caching
+      - --language-model-only
+      - --dtype
+      - float16
+      - --disable-custom-all-reduce
+      - --trust-remote-code
+      - --enable-auto-tool-choice
+      - --tool-call-parser
+      - qwen3_coder
+      - --reasoning-parser
+      - qwen3
+      - --api-key
+      - genesis-local
+      - --served-model-name
+      - qwen3.6-35b-a3b
+      - --host
+      - 0.0.0.0
+      - --async-scheduling
+      - --gdn-prefill-backend
+      - flashinfer
+      - --performance-mode
+      - interactivity
+      - --attention-config.flash_attn_version
+      - "2"
+      - --port
+      - "8000" 
+      - --no-scheduler-reserve-full-isl
+      - --prefix-caching-hash-algo
+      - xxhash
+      - --disable-log-stats
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 15s
+      retries: 5
+      start_period: 300s
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - genesis
+
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: open-webui
+    command: bash -c "python3 /app/backend/data/apply_patches.py 2>&1; exec bash start.sh"
+    restart: unless-stopped
+    ports:
+      - "3000:8080"
+    volumes:
+      - ../open_webui:/app/backend/data
+    environment:
+      - OPENAI_API_BASE_URL=http://genesis-proxy-v2:8318/v1
+      - OPENAI_API_KEY=genesis-gw-f9d719aaab89c97bdf649cb7295feb4f1f394c87
+      - OLLAMA_BASE_URL=http://192.168.1.15:9621
+      - ENABLE_OLLAMA_API=true
+      - WEBUI_AUTH=true
+      - WEBUI_SECRET_KEY=${WEBUI_SECRET_KEY:-genesis-webui-secret-change-me}
+      - AIOHTTP_CLIENT_TIMEOUT_MODEL_LIST=30
+      - SCARF_NO_ANALYTICS=true
+      - DO_NOT_TRACK=true
+      - ANONYMIZED_TELEMETRY=false
+      - ENABLE_RAG_WEB_SEARCH=true
+      - RAG_WEB_SEARCH_ENGINE=searxng
+      - SEARXNG_QUERY_URL=http://searxng:8080/search?q=<query>&format=json
+      - RAG_WEB_SEARCH_RESULT_COUNT=10
+      - RAG_WEB_SEARCH_CONCURRENT_REQUESTS=10
+      - JINA_API_KEY=jina_a535298a0b5f403f87dfefe6da26a7ccO7QwrDY8Tz71zlzshfvBhi7uKax5
+      - ENABLE_API_KEYS=true
+      - OPENAI_API_CONFIGS={"pipelines":{"url":"http://192.168.1.10:9099","key":"0p3n-w3bu!","prefix":"pipeline"}}
+      - ENABLE_TOOLS=true
+      - CHAT_RESPONSE_MAX_TOOL_CALL_RETRIES=5
+    depends_on:
+      vllm-server:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 6G
+          cpus: '4.0'
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - genesis
+
+  open-terminal:
+    image: ghcr.io/open-webui/open-terminal
+    container_name: open-terminal
+    restart: unless-stopped
+    ports:
+      - "8001:8000"
+    environment:
+      - OPEN_TERMINAL_API_KEY=${OPEN_TERMINAL_API_KEY:-genesis-terminal-secret-key}
+    volumes:
+      - ../open_terminal/files:/home/user
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '2.0'
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - genesis
+
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: portainer
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+      - "9443:9443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - genesis
+
+  nvidia-gpu-exporter:
+    image: utkuozdemir/nvidia_gpu_exporter:1.3.0
+    container_name: nvidia-gpu-exporter
+    restart: unless-stopped
+    ports:
+      - "9835:9835"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+        limits:
+          memory: 128M
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - genesis
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: node-exporter
+    restart: unless-stopped
+    ports:
+      - "9100:9100"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - genesis
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: cadvisor
+    command:
+      - --docker_only=true
+      - --disable_metrics=disk,diskIO,udp,percpu,sched,process,hugetlb
+      - --housekeeping_interval=30s
+      - --storage_duration=2m
+    restart: unless-stopped
+    ports:
+      - "9101:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    privileged: true
+    devices:
+      - /dev/kmsg
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+    networks:
+      - genesis
+
+  searxng:
+    image: searxng/searxng:latest
+    container_name: searxng
+    restart: unless-stopped
+    ports:
+      - "8888:8080"
+    volumes:
+      - ../searxng:/etc/searxng:rw
+    environment:
+      - SEARXNG_BASE_URL=http://localhost:8888/
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - genesis
+
+  browserless:
+    image: ghcr.io/browserless/chromium:latest
+    container_name: browserless
+    restart: unless-stopped
+    environment:
+      - MAX_CONCURRENT_SESSIONS=5
+      - MAX_QUEUE_LENGTH=10
+      - DEFAULT_BLOCK_ADS=true
+      - DEFAULT_STEALTH=true
+      - TIMEOUT=60000
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - genesis
+
+  cliproxyapi:
+    image: eceasy/cli-proxy-api-plus:latest
+    container_name: cliproxyapi
+    restart: unless-stopped
+    ports:
+      - "8317:8317"
+    volumes:
+      - ../cliproxyapi/config.yaml:/CLIProxyAPI/config.yaml
+      - ../cliproxyapi/auths:/root/.cli-proxy-api
+      - ../cliproxyapi/logs:/CLIProxyAPI/logs
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "1.0"
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - genesis
+
+
+  genesis-proxy:
+    build: ../genesis_proxy
+    container_name: genesis-proxy-v2
+    restart: unless-stopped
+    ports:
+      - "8318:8318"
+    environment:
+      - GENESIS_PROXY_PLUS_URL=http://cliproxyapi:8317
+      - GENESIS_PROXY_API_KEY=genesis-gw-f9d719aaab89c97bdf649cb7295feb4f1f394c87
+      - GENESIS_PROXY_MIN_REQUEST_INTERVAL=1.0
+      - GENESIS_PROXY_CIRCUIT_FAILURE_THRESHOLD=5
+      - GENESIS_PROXY_CIRCUIT_OPEN_DURATION=120
+      - GENESIS_PROXY_RATE_LIMIT_COOLDOWN=30
+      - GENESIS_PROXY_REQUEST_TIMEOUT=300
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+        limits:
+          memory: 256M
+          cpus: "1"
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8318/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - genesis
+
+
+volumes:
+  portainer_data:
+
+networks:
+  genesis:
+    driver: bridge
+

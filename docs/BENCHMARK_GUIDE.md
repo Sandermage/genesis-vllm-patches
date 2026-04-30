@@ -2,7 +2,7 @@
 
 A reproducible, environment-agnostic guide for measuring Genesis vLLM Patches performance on your own hardware and sharing the numbers with the community.
 
-> Source of truth: `tools/genesis_bench_suite.py --help`. This guide describes the intended interface and the reasoning behind each metric. When the script's CLI flags drift from the table below, the script wins — open an issue or PR if you spot a mismatch.
+> Source of truth: `tools/genesis_bench_suite.py --help` (or, equivalently, `python3 -m vllm._genesis.compat.cli bench --help`). This guide describes the intended interface and the reasoning behind each metric. When the script's CLI flags drift from the table below, the script wins — open an issue or PR if you spot a mismatch.
 
 ---
 
@@ -86,9 +86,15 @@ vllm serve \
   --host 0.0.0.0 --port 8000 &
 
 # 4. Wait for "Application startup complete" (usually 60-180s on first launch).
-# 5. Run the bench.
+# 5. Run the bench. Either of these works:
 python3 tools/genesis_bench_suite.py --quick --out my_first_run.json
+python3 -m vllm._genesis.compat.cli bench --quick --out my_first_run.json
 ```
+
+The two forms are equivalent — the unified CLI is a thin shim over
+`tools/genesis_bench_suite.py` with all argv forwarded verbatim. Use
+the `tools/...` form on a checkout without `pip install`; use the
+`genesis bench` form wherever the package is importable.
 
 Sample output paths:
 
@@ -413,7 +419,7 @@ To match the exact public-benchmark numbers in [README.md § Headline numbers](.
 - 27B long-ctx 256K: `start_27b_int4_no_TQ_long_256K.sh`
 - 27B + TurboQuant: `start_27b_int4_TQ_k8v4.sh`
 
-For correctness validation (apply matrix, smoke tests, pytest) — different purpose than performance bench — see [`validate_unit.sh`](../validate_unit.sh) (CPU 30 sec) / [`validate_integration.sh`](../validate_integration.sh) (GPU smoke + pytest) / [`scripts/run_validation_suite.sh`](../scripts/run_validation_suite.sh) (universal per-model).
+For correctness validation (apply matrix, smoke tests, pytest) — different purpose than performance bench — see [`validate_unit.sh`](../scripts/validate_unit.sh) (CPU 30 sec) / [`validate_integration.sh`](../scripts/validate_integration.sh) (GPU smoke + pytest) / [`scripts/run_validation_suite.sh`](../scripts/run_validation_suite.sh) (universal per-model).
 
 ---
 

@@ -1,0 +1,101 @@
+#!/usr/bin/env bash
+# ════════════════════════════════════════════════════════════════════════
+# Genesis pre-commit hook
+#
+# Runs schema + lifecycle + dispatcher validators on PATCH_REGISTRY
+# before allowing a commit. Catches the common contributor mistakes:
+#
+#   - typo'd field name (e.g. `applys_to` instead of `applies_to`)
+#   - missing required field (title / env_flag / default_on)
+#   - bad env_flag pattern (must start with GENESIS_)
+#   - unknown lifecycle state (typo in `lifecycle: experimentl`)
+#   - deprecated entry without `superseded_by` or `deprecation_note`
+#   - requires_patches/conflicts_with referencing unknown patch IDs
+#
+# Install:
+#   bash scripts/git/install.sh
+#
+# Or symlink manually:
+#   ln -sf $(pwd)/scripts/git/pre-commit .git/hooks/pre-commit
+#
+# Skip (use sparingly):
+#   git commit --no-verify
+#
+# Author: Sandermage (Sander) Barzov Aleksandr.
+# ════════════════════════════════════════════════════════════════════════
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+
+# Only run when files affecting PATCH_REGISTRY actually changed. Saves
+# CI time on doc-only commits.
+CHANGED=$(git diff --cached --name-only --diff-filter=ACMR | grep -E \
+    'vllm/_genesis/(dispatcher|patches/upstream_compat|compat/predicates|compat/lifecycle|compat/schema_validator|compat/categories|compat/self_test|compat/cli|wiring/patch_|__version__)' \
+    || true)
+
+if [ -z "$CHANGED" ]; then
+    # Nothing relevant changed — fast pass.
+    exit 0
+fi
+
+echo "[Genesis pre-commit] PATCH_REGISTRY-affecting files changed:"
+echo "$CHANGED" | sed 's/^/  /'
+echo
+
+# 1. Schema validation
+echo "[1/4] Schema validator…"
+if ! python3 -m vllm._genesis.compat.schema_validator --quiet; then
+    echo
+    echo "✗ Schema validation FAILED. See output above."
+    echo "  Fix the entries or run with --no-verify if intentional."
+    exit 1
+fi
+echo "✓ schema clean"
+
+# 2. A3/D2 dependency / conflict validator
+echo
+echo "[2/4] A3/D2 dependency / conflict validator…"
+python3 -c "
+from vllm._genesis.dispatcher import validate_registry, PATCH_REGISTRY
+issues = validate_registry()
+if issues:
+    print()
+    for i in issues:
+        print(f'  {i.severity} {i.patch_id}: {i.message}')
+    print()
+    print('✗ A3/D2 validator FAILED. Fix unknown / cyclic references.')
+    raise SystemExit(1)
+" || exit 1
+echo "✓ no static structural issues"
+
+# 3. Lifecycle audit
+echo
+echo "[3/4] Lifecycle audit…"
+if ! python3 -m vllm._genesis.compat.lifecycle_audit_cli --quiet > /tmp/genesis_lifecycle_audit.txt 2>&1; then
+    cat /tmp/genesis_lifecycle_audit.txt
+    echo
+    echo "✗ Lifecycle audit FAILED — at least one entry has an unknown lifecycle state."
+    rm -f /tmp/genesis_lifecycle_audit.txt
+    exit 1
+fi
+rm -f /tmp/genesis_lifecycle_audit.txt
+echo "✓ lifecycle clean"
+
+# 4. Genesis self-test — broader structural sanity (imports, categories,
+#    predicates, version constant). Same gate CI runs.
+echo
+echo "[4/4] Genesis self-test…"
+if ! python3 -m vllm._genesis.compat.cli self-test --quiet > /tmp/genesis_self_test.txt 2>&1; then
+    cat /tmp/genesis_self_test.txt
+    echo
+    echo "✗ Self-test FAILED — see rows above."
+    rm -f /tmp/genesis_self_test.txt
+    exit 1
+fi
+rm -f /tmp/genesis_self_test.txt
+echo "✓ structural self-test clean"
+
+echo
+echo "[Genesis pre-commit] all checks passed."
+exit 0

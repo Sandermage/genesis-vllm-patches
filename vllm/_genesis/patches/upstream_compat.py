@@ -183,13 +183,129 @@ UPSTREAM_MARKERS: dict[str, dict[str, str]] = {
 
     # ── Additional upstream audits (Phase 3 step 4, 2026-04-24) ──
 
-    "PR_40074_tq_decode_int64": {
+    "PR_39931_turboquant_hybrid_support": {
+        "files": [
+            "engine/arg_utils.py",
+            "model_executor/layers/quantization/turboquant/config.py",
+            "platforms/interface.py",
+        ],
+        "marker": "_get_full_attention_layer_indices",
+        "description": (
+            "JartX TurboQuant hybrid-model support (Qwen3.5/Qwen3-Next/"
+            "Qwen3.6/Nemotron-H). Removes the `NotImplementedError: "
+            "TurboQuant KV cache is not supported for hybrid (attention + "
+            "Mamba) models` block. Adds `_get_full_attention_layer_indices` "
+            "helper so TQ applies only to full-attention layers; Mamba "
+            "layers fall through to default backend. Page-size planner uses "
+            "`lcm(tq_page, skip_page)` in `_align_hybrid_block_size`. ROCm "
+            "`flash_attn_varlen_func` wrapper for missing `out=` kwarg."
+        ),
+        "merged_date": "OPEN as of 2026-04-29 (label 'ready', JartX in private "
+                       "merge-process discussion with vibhavagarwal5)",
+        "affects_patch": (
+            "P5 (LCM-pad block_size) — auto-skip when marker present; "
+            "P9 (max_num_kv_tokens hybrid) — was already coupled to PR_40384, "
+            "this PR adds the upstream gate that makes both consistent. "
+            "When this PR merges, P5 self-retires and P9 confirms its retire "
+            "via the existing PR_40384 marker."
+        ),
+        "verified_in_main_2026_04_29": False,
+        "cross_rig_validation": (
+            "5090 sm_120 (jhsmith409): PASS, "
+            "H20 96GB (huangzhilin-hzl): PASS, "
+            "4× R6000 Blackwell (vibhavagarwal5): PASS 100% NIAH/PPL, "
+            "8× A4000 Nemotron-H Super-120B (MidasMining): PASS 100% bench, "
+            "5090 32GB FP8 lm_head (webcodes-cz): PASS"
+        ),
+    },
+
+    "PR_40835_jartx_int4_int2_per_token_head_kernels": {
+        "files_added": [
+            "v1/attention/ops/triton_quant_kv/",
+        ],
+        "marker": "INT4_PER_TOKEN_HEAD",
+        "description": (
+            "JartX vllm-project/vllm#40835 (OPEN as of 2026-04-30). "
+            "Triton INT4 / INT2 per-token-head KV cache quantization with "
+            "Prefill + Decode kernels. Successor to vllm#40633 with refined "
+            "kernel families. Track for potential adoption when KV-bandwidth "
+            "becomes the bottleneck on Blackwell upgrade."
+        ),
+        "merged_date": "OPEN as of 2026-04-30",
+        "affects_patch": (
+            "Future option: may supersede our turboquant_k8v4 path if INT4 "
+            "per-token-head KV gives better quality/perf trade. Genesis-side "
+            "untested."
+        ),
+        "verified_in_main_2026_04_30": False,
+    },
+
+    "PR_39939_jartx_per_token_head_refactor": {
+        "files": [
+            "v1/attention/ops/triton_turboquant_decode.py",
+        ],
+        "marker": "first_chunk_fast_path",
+        "description": (
+            "JartX vllm-project/vllm#39939 (OPEN). Refactor to add first-chunk "
+            "fast-path, mixed batch split, fused K+V, dedicated decode kernel. "
+            "Touches the same TQ decode kernel that PN14 (vllm#40074) clamps "
+            "and that P40 (#40792) tunes. If merged, our PN14 anchor + P40 "
+            "drift markers must be re-derived against the refactored kernel."
+        ),
+        "merged_date": "OPEN as of 2026-04-30",
+        "affects_patch": "PN14, P40 — anchor re-derivation likely on merge",
+        "verified_in_main_2026_04_30": False,
+    },
+
+    "PR_39074_jartx_kv_int2_int4_quantization": {
+        "files_added": [
+            "v1/attention/ops/triton_quant_kv/interface.py",
+        ],
+        "marker": "Triton_Quant_KV",
+        "description": (
+            "JartX vllm-project/vllm#39074 (OPEN). KV cache per-token-head "
+            "INT2/INT4 quantization + Triton_Quant_KV interface. Earlier "
+            "design ancestor of #40835. Track for upstream evolution."
+        ),
+        "merged_date": "OPEN as of 2026-04-30",
+        "affects_patch": "no current Genesis patch (future-look)",
+        "verified_in_main_2026_04_30": False,
+    },
+
+    "QUENTIN_M_P67b_BUF_HOLDER_FIX": {
+        "file": "v1/attention/backends/turboquant_attn.py",
+        "marker": "_genesis_p67b_syn_holders",
+        "description": (
+            "Quentin Machu (@Quentin-M) fix in his fork of "
+            "Sandermage/genesis-vllm-patches branch fix_p67b_illegal. "
+            "Replaces shared buf_holder=layer in P67b upstream path with a "
+            "per-K1 SimpleNamespace holder on `self`, preventing OOB write "
+            "when synthetic K+1 rows (B*K1) exceed the decode-path "
+            "max_num_seqs allocation. Adopted into Genesis main 2026-04-30. "
+            "Critical for any model where Hq/Hk is not power-of-2 (e.g. "
+            "Qwen3.6-27B with 5 heads/KV) — the custom P67 Triton kernel "
+            "can't compile then, forcing fallback through the buggy "
+            "upstream path."
+        ),
+        "merged_date": "Cherry-picked into Genesis main 2026-04-30 (commit pending)",
+        "affects_patch": "P67b upstream-path buffer routing",
+        "verified_in_main_2026_04_30": True,
+    },
+
+    "PR_40074_tq_decode_oob_clamp": {
         "file": "v1/attention/ops/triton_turboquant_decode.py",
-        "marker": "tl.cast",  # 3 matches of tl.cast → int64 casts are in
-        "description": "TurboQuant decode IOOB fix via int64 index casts",
-        "merged_date": "2026-04-24 VERIFIED in main",
-        "affects_patch": "P13 TQ decode IOOB — MERGED, our patch auto-skips",
-        "verified_in_main_2026_04_24": True,
+        "marker": "safe_page_idx",
+        "description": (
+            "TurboQuant decode IOOB clamp via tl.where(kv_mask, page_idx, 0). "
+            "Triton's bounds checker fires on the address even when the "
+            "output is masked; clamping the masked-out lanes to page_idx=0 "
+            "before pointer arithmetic prevents the assertion on long "
+            "(>32k) sequences. Distinct from PR #39953's int64 cast fix; "
+            "this is the safe_page_idx clamp from devarakondasrikanth."
+        ),
+        "merged_date": "OPEN as of 2026-04-29",
+        "affects_patch": "PN14 TQ decode safe_page_idx clamp",
+        "verified_in_main_2026_04_29": False,
     },
 
     "PR_38996_qwen3_none_null": {

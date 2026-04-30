@@ -36,7 +36,7 @@ def fake_tq_store(tmp_path, monkeypatch):
     path = tmp_path / "triton_turboquant_store.py"
     path.write_text(_P3_BASELINE)
 
-    from vllm._genesis.wiring import patch_3_tq_bf16_cast as p3
+    from vllm._genesis.wiring.legacy import patch_3_tq_bf16_cast as p3
     monkeypatch.setattr(p3, "resolve_vllm_file",
                         lambda rel: str(path) if "triton_turboquant_store" in rel else None)
     monkeypatch.setattr(p3, "vllm_install_root", lambda: "/fake")
@@ -47,7 +47,7 @@ def fake_tq_store(tmp_path, monkeypatch):
 
 class TestPatch3:
     def test_apply_writes_fp16_intermediate(self, fake_tq_store):
-        from vllm._genesis.wiring import patch_3_tq_bf16_cast as p3
+        from vllm._genesis.wiring.legacy import patch_3_tq_bf16_cast as p3
         status, reason = p3.apply()
         assert status == "applied", f"{status}: {reason}"
         content = open(fake_tq_store).read()
@@ -55,7 +55,7 @@ class TestPatch3:
         assert "Genesis P3 TQ BF16->FP8 Ampere fix" in content
 
     def test_idempotent(self, fake_tq_store):
-        from vllm._genesis.wiring import patch_3_tq_bf16_cast as p3
+        from vllm._genesis.wiring.legacy import patch_3_tq_bf16_cast as p3
         s1, _ = p3.apply()
         s2, _ = p3.apply()
         assert s1 == "applied" and s2 == "applied"
@@ -64,7 +64,7 @@ class TestPatch3:
         assert content.count("Genesis P3 TQ BF16->FP8 Ampere fix v7.0") == 1
 
     def test_skip_on_non_nvidia(self, fake_tq_store, monkeypatch):
-        from vllm._genesis.wiring import patch_3_tq_bf16_cast as p3
+        from vllm._genesis.wiring.legacy import patch_3_tq_bf16_cast as p3
         monkeypatch.setattr(p3, "is_nvidia_cuda", lambda: False)
         status, reason = p3.apply()
         assert status == "skipped"
@@ -124,7 +124,7 @@ def fake_interface(tmp_path, monkeypatch):
     path = tmp_path / "interface.py"
     path.write_text(_P6_BASELINE)
 
-    from vllm._genesis.wiring import patch_6_tq_block_size_align as p6
+    from vllm._genesis.wiring.legacy import patch_6_tq_block_size_align as p6
     monkeypatch.setattr(p6, "resolve_vllm_file",
                         lambda rel: str(path) if "interface.py" in rel else None)
     monkeypatch.setattr(p6, "vllm_install_root", lambda: "/fake")
@@ -134,7 +134,7 @@ def fake_interface(tmp_path, monkeypatch):
 
 class TestPatch6:
     def test_apply_adds_tq_branch(self, fake_interface):
-        from vllm._genesis.wiring import patch_6_tq_block_size_align as p6
+        from vllm._genesis.wiring.legacy import patch_6_tq_block_size_align as p6
         status, reason = p6.apply()
         assert status == "applied", f"{status}: {reason}"
         content = open(fake_interface).read()
@@ -143,7 +143,7 @@ class TestPatch6:
         assert "Genesis P6 TQ-aware block size alignment" in content
 
     def test_idempotent(self, fake_interface):
-        from vllm._genesis.wiring import patch_6_tq_block_size_align as p6
+        from vllm._genesis.wiring.legacy import patch_6_tq_block_size_align as p6
         s1, _ = p6.apply()
         s2, _ = p6.apply()
         assert s1 == "applied" and s2 == "applied"
@@ -152,7 +152,7 @@ class TestPatch6:
         assert content.count("TQFullAttentionSpec,  # [Genesis P6]") == 1
 
     def test_skip_on_non_nvidia(self, fake_interface, monkeypatch):
-        from vllm._genesis.wiring import patch_6_tq_block_size_align as p6
+        from vllm._genesis.wiring.legacy import patch_6_tq_block_size_align as p6
         monkeypatch.setattr(p6, "is_nvidia_cuda", lambda: False)
         status, reason = p6.apply()
         assert status == "skipped"
@@ -160,7 +160,7 @@ class TestPatch6:
 
     def test_skip_when_upstream_fully_merged(self, fake_interface):
         """If TQFullAttentionSpec is already imported → upstream merged #39931."""
-        from vllm._genesis.wiring import patch_6_tq_block_size_align as p6
+        from vllm._genesis.wiring.legacy import patch_6_tq_block_size_align as p6
         path = fake_interface
         content = open(path).read()
         # Inject upstream marker
@@ -196,7 +196,7 @@ def fake_qwen3_parser(tmp_path, monkeypatch):
     path = tmp_path / "qwen3coder_tool_parser.py"
     path.write_text(_P15_BASELINE)
 
-    from vllm._genesis.wiring import patch_15_qwen3_none_null as p15
+    from vllm._genesis.wiring.legacy import patch_15_qwen3_none_null as p15
     monkeypatch.setattr(p15, "resolve_vllm_file",
                         lambda rel: str(path) if "qwen3coder_tool_parser" in rel else None)
     monkeypatch.setattr(p15, "vllm_install_root", lambda: "/fake")
@@ -205,7 +205,7 @@ def fake_qwen3_parser(tmp_path, monkeypatch):
 
 class TestPatch15:
     def test_apply_accepts_none(self, fake_qwen3_parser):
-        from vllm._genesis.wiring import patch_15_qwen3_none_null as p15
+        from vllm._genesis.wiring.legacy import patch_15_qwen3_none_null as p15
         status, reason = p15.apply()
         assert status == "applied", f"{status}: {reason}"
         content = open(fake_qwen3_parser).read()
@@ -213,7 +213,7 @@ class TestPatch15:
         assert "[Genesis P15]" in content
 
     def test_idempotent(self, fake_qwen3_parser):
-        from vllm._genesis.wiring import patch_15_qwen3_none_null as p15
+        from vllm._genesis.wiring.legacy import patch_15_qwen3_none_null as p15
         s1, _ = p15.apply()
         s2, _ = p15.apply()
         assert s1 == "applied" and s2 == "applied"
@@ -221,7 +221,7 @@ class TestPatch15:
         assert content.count("Genesis P15 Qwen3 None/null") == 1
 
     def test_skip_when_upstream_merged(self, fake_qwen3_parser):
-        from vllm._genesis.wiring import patch_15_qwen3_none_null as p15
+        from vllm._genesis.wiring.legacy import patch_15_qwen3_none_null as p15
         path = fake_qwen3_parser
         # Simulate upstream form by directly patching in the tuple check
         content = open(path).read().replace(
@@ -320,7 +320,7 @@ def fake_qwen3_reasoning_p12(tmp_path, monkeypatch):
     path = d / "qwen3_reasoning_parser.py"
     path.write_text(_P12_BASELINE)
 
-    from vllm._genesis.wiring import patch_12_tool_call_reasoning as p12
+    from vllm._genesis.wiring.legacy import patch_12_tool_call_reasoning as p12
     monkeypatch.setattr(
         p12, "resolve_vllm_file",
         lambda rel: str(path) if "qwen3_reasoning_parser" in rel else None,
@@ -331,7 +331,7 @@ def fake_qwen3_reasoning_p12(tmp_path, monkeypatch):
 
 class TestPatch12:
     def test_apply_adds_tokens_and_hooks(self, fake_qwen3_reasoning_p12):
-        from vllm._genesis.wiring import patch_12_tool_call_reasoning as p12
+        from vllm._genesis.wiring.legacy import patch_12_tool_call_reasoning as p12
         status, reason = p12.apply()
         assert status == "applied", f"{status}: {reason}"
         content = open(fake_qwen3_reasoning_p12).read()
@@ -343,7 +343,7 @@ class TestPatch12:
         assert "[Genesis P12]" in content
 
     def test_idempotent(self, fake_qwen3_reasoning_p12):
-        from vllm._genesis.wiring import patch_12_tool_call_reasoning as p12
+        from vllm._genesis.wiring.legacy import patch_12_tool_call_reasoning as p12
         s1, _ = p12.apply()
         s2, _ = p12.apply()
         assert s1 == "applied" and s2 == "applied"
@@ -354,12 +354,12 @@ class TestPatch12:
 
     def test_patched_file_is_valid_python(self, fake_qwen3_reasoning_p12):
         import ast
-        from vllm._genesis.wiring import patch_12_tool_call_reasoning as p12
+        from vllm._genesis.wiring.legacy import patch_12_tool_call_reasoning as p12
         p12.apply()
         ast.parse(open(fake_qwen3_reasoning_p12).read())
 
     def test_upstream_drift_skip(self, fake_qwen3_reasoning_p12):
-        from vllm._genesis.wiring import patch_12_tool_call_reasoning as p12
+        from vllm._genesis.wiring.legacy import patch_12_tool_call_reasoning as p12
         open(fake_qwen3_reasoning_p12, "a").write(
             "\n# _tool_call_token_id upstream merged\n"
         )
@@ -369,7 +369,7 @@ class TestPatch12:
 
     def test_coexists_with_p27(self, fake_qwen3_reasoning_p12):
         """P12 applied first; P27's non-conflicting anchors still apply."""
-        from vllm._genesis.wiring import (
+        from vllm._genesis.wiring.legacy import (
             patch_12_tool_call_reasoning as p12,
             patch_27_reasoning_before_think as p27,
         )
@@ -510,7 +510,7 @@ def fake_qwen3_reasoning(tmp_path, monkeypatch):
     path = d / "qwen3_reasoning_parser.py"
     path.write_text(_P27_BASELINE)
 
-    from vllm._genesis.wiring import patch_27_reasoning_before_think as p27
+    from vllm._genesis.wiring.legacy import patch_27_reasoning_before_think as p27
     monkeypatch.setattr(
         p27, "resolve_vllm_file",
         lambda rel: str(path) if "qwen3_reasoning_parser" in rel else None,
@@ -521,7 +521,7 @@ def fake_qwen3_reasoning(tmp_path, monkeypatch):
 
 class TestPatch27:
     def test_apply_writes_before_think_capture(self, fake_qwen3_reasoning):
-        from vllm._genesis.wiring import patch_27_reasoning_before_think as p27
+        from vllm._genesis.wiring.legacy import patch_27_reasoning_before_think as p27
         status, reason = p27.apply()
         assert status == "applied", f"{status}: {reason}"
         content = open(fake_qwen3_reasoning).read()
@@ -534,7 +534,7 @@ class TestPatch27:
         assert "[Genesis P27]" in content
 
     def test_idempotent(self, fake_qwen3_reasoning):
-        from vllm._genesis.wiring import patch_27_reasoning_before_think as p27
+        from vllm._genesis.wiring.legacy import patch_27_reasoning_before_think as p27
         s1, _ = p27.apply()
         s2, _ = p27.apply()
         assert s1 == "applied" and s2 == "applied"
@@ -542,7 +542,7 @@ class TestPatch27:
         assert content.count("Genesis P27 Qwen3 BEFORE-THINK fallback v7.0") == 1
 
     def test_skip_when_upstream_merged(self, fake_qwen3_reasoning):
-        from vllm._genesis.wiring import patch_27_reasoning_before_think as p27
+        from vllm._genesis.wiring.legacy import patch_27_reasoning_before_think as p27
         # Inject an upstream drift marker
         original = open(fake_qwen3_reasoning).read()
         open(fake_qwen3_reasoning, "w").write(
@@ -559,7 +559,7 @@ class TestPatch27:
     def test_apply_produces_valid_python(self, fake_qwen3_reasoning):
         """The resulting file must still be valid Python."""
         import ast
-        from vllm._genesis.wiring import patch_27_reasoning_before_think as p27
+        from vllm._genesis.wiring.legacy import patch_27_reasoning_before_think as p27
         status, _ = p27.apply()
         assert status == "applied"
         content = open(fake_qwen3_reasoning).read()
@@ -567,7 +567,7 @@ class TestPatch27:
         ast.parse(content)
 
     def test_skip_when_file_missing(self, monkeypatch):
-        from vllm._genesis.wiring import patch_27_reasoning_before_think as p27
+        from vllm._genesis.wiring.legacy import patch_27_reasoning_before_think as p27
         monkeypatch.setattr(p27, "resolve_vllm_file", lambda rel: None)
         monkeypatch.setattr(p27, "vllm_install_root", lambda: "/fake")
         status, reason = p27.apply()
@@ -604,7 +604,7 @@ def fake_gdn_linear_attn(tmp_path, monkeypatch):
     path = d / "gdn_linear_attn.py"
     path.write_text(_P7_BASELINE)
 
-    from vllm._genesis.wiring import patch_7_gdn_dual_stream as p7
+    from vllm._genesis.wiring.legacy import patch_7_gdn_dual_stream as p7
     monkeypatch.setattr(
         p7, "resolve_vllm_file",
         lambda rel: str(path) if "gdn_linear_attn" in rel else None,
@@ -626,7 +626,7 @@ class TestPatch7Deferred:
     def test_default_skips_with_explicit_reason(
         self, fake_gdn_linear_attn, monkeypatch,
     ):
-        from vllm._genesis.wiring import patch_7_gdn_dual_stream as p7
+        from vllm._genesis.wiring.legacy import patch_7_gdn_dual_stream as p7
         monkeypatch.delenv("GENESIS_ENABLE_P7", raising=False)
         status, reason = p7.apply()
         assert status == "skipped"
@@ -634,7 +634,7 @@ class TestPatch7Deferred:
         assert "aot_compile" in reason.lower() or "fullgraph" in reason.lower()
 
     def test_env_enabled_applies(self, fake_gdn_linear_attn, monkeypatch):
-        from vllm._genesis.wiring import patch_7_gdn_dual_stream as p7
+        from vllm._genesis.wiring.legacy import patch_7_gdn_dual_stream as p7
         monkeypatch.setenv("GENESIS_ENABLE_P7", "1")
         status, reason = p7.apply()
         assert status == "applied", f"{status}: {reason}"
@@ -645,7 +645,7 @@ class TestPatch7Deferred:
     def test_env_enabled_only_non_lora_branch(
         self, fake_gdn_linear_attn, monkeypatch,
     ):
-        from vllm._genesis.wiring import patch_7_gdn_dual_stream as p7
+        from vllm._genesis.wiring.legacy import patch_7_gdn_dual_stream as p7
         monkeypatch.setenv("GENESIS_ENABLE_P7", "1")
         p7.apply()
         content = open(fake_gdn_linear_attn).read()
@@ -653,7 +653,7 @@ class TestPatch7Deferred:
         assert content.count("mixed_qkvz, _ = self.in_proj_qkvz(hidden_states)") == 0
 
     def test_env_enabled_idempotent(self, fake_gdn_linear_attn, monkeypatch):
-        from vllm._genesis.wiring import patch_7_gdn_dual_stream as p7
+        from vllm._genesis.wiring.legacy import patch_7_gdn_dual_stream as p7
         monkeypatch.setenv("GENESIS_ENABLE_P7", "1")
         s1, _ = p7.apply()
         s2, _ = p7.apply()
@@ -665,7 +665,7 @@ class TestPatch7Deferred:
         self, fake_gdn_linear_attn, monkeypatch,
     ):
         import ast
-        from vllm._genesis.wiring import patch_7_gdn_dual_stream as p7
+        from vllm._genesis.wiring.legacy import patch_7_gdn_dual_stream as p7
         monkeypatch.setenv("GENESIS_ENABLE_P7", "1")
         p7.apply()
         ast.parse(open(fake_gdn_linear_attn).read())
@@ -673,7 +673,7 @@ class TestPatch7Deferred:
     def test_env_enabled_upstream_drift_detected(
         self, fake_gdn_linear_attn, monkeypatch,
     ):
-        from vllm._genesis.wiring import patch_7_gdn_dual_stream as p7
+        from vllm._genesis.wiring.legacy import patch_7_gdn_dual_stream as p7
         monkeypatch.setenv("GENESIS_ENABLE_P7", "1")
         content = open(fake_gdn_linear_attn).read()
         open(fake_gdn_linear_attn, "w").write(
@@ -684,7 +684,7 @@ class TestPatch7Deferred:
         assert "upstream" in reason.lower()
 
     def test_env_enabled_skip_when_file_missing(self, monkeypatch):
-        from vllm._genesis.wiring import patch_7_gdn_dual_stream as p7
+        from vllm._genesis.wiring.legacy import patch_7_gdn_dual_stream as p7
         monkeypatch.setenv("GENESIS_ENABLE_P7", "1")
         monkeypatch.setattr(p7, "resolve_vllm_file", lambda rel: None)
         monkeypatch.setattr(p7, "vllm_install_root", lambda: "/fake")
@@ -736,7 +736,7 @@ def fake_gdn_linear_attn_p28(tmp_path, monkeypatch):
     d.mkdir(parents=True)
     path = d / "gdn_linear_attn.py"
     path.write_text(_P28_BASELINE)
-    from vllm._genesis.wiring import patch_28_gdn_core_attn as p28
+    from vllm._genesis.wiring.legacy import patch_28_gdn_core_attn as p28
     monkeypatch.setattr(
         p28, "resolve_vllm_file",
         lambda rel: str(path) if "gdn_linear_attn" in rel else None,
@@ -747,7 +747,7 @@ def fake_gdn_linear_attn_p28(tmp_path, monkeypatch):
 
 class TestPatch28:
     def test_apply_rewires_forward_cuda_only(self, fake_gdn_linear_attn_p28):
-        from vllm._genesis.wiring import patch_28_gdn_core_attn as p28
+        from vllm._genesis.wiring.legacy import patch_28_gdn_core_attn as p28
         status, reason = p28.apply()
         assert status == "applied", f"{status}: {reason}"
         content = open(fake_gdn_linear_attn_p28).read()
@@ -760,7 +760,7 @@ class TestPatch28:
         assert "    def forward_xpu" in content
 
     def test_idempotent(self, fake_gdn_linear_attn_p28):
-        from vllm._genesis.wiring import patch_28_gdn_core_attn as p28
+        from vllm._genesis.wiring.legacy import patch_28_gdn_core_attn as p28
         s1, _ = p28.apply()
         s2, _ = p28.apply()
         assert s1 == "applied" and s2 == "applied"
@@ -771,12 +771,12 @@ class TestPatch28:
 
     def test_patched_file_is_valid_python(self, fake_gdn_linear_attn_p28):
         import ast
-        from vllm._genesis.wiring import patch_28_gdn_core_attn as p28
+        from vllm._genesis.wiring.legacy import patch_28_gdn_core_attn as p28
         p28.apply()
         ast.parse(open(fake_gdn_linear_attn_p28).read())
 
     def test_upstream_drift_detected(self, fake_gdn_linear_attn_p28):
-        from vllm._genesis.wiring import patch_28_gdn_core_attn as p28
+        from vllm._genesis.wiring.legacy import patch_28_gdn_core_attn as p28
         content = open(fake_gdn_linear_attn_p28).read()
         # Use the CURRENT drift marker (matches patch_28_gdn_core_attn.UPSTREAM_DRIFT_MARKERS)
         open(fake_gdn_linear_attn_p28, "w").write(
@@ -787,7 +787,7 @@ class TestPatch28:
         assert "upstream" in reason.lower()
 
     def test_skip_when_file_missing(self, monkeypatch):
-        from vllm._genesis.wiring import patch_28_gdn_core_attn as p28
+        from vllm._genesis.wiring.legacy import patch_28_gdn_core_attn as p28
         monkeypatch.setattr(p28, "resolve_vllm_file", lambda rel: None)
         monkeypatch.setattr(p28, "vllm_install_root", lambda: "/fake")
         status, reason = p28.apply()
@@ -834,7 +834,7 @@ def fake_scheduler_p34(tmp_path, monkeypatch):
     path = d / "scheduler.py"
     path.write_text(_P34_BASELINE)
 
-    from vllm._genesis.wiring import patch_34_mamba_deadlock_guard as p34
+    from vllm._genesis.wiring.legacy import patch_34_mamba_deadlock_guard as p34
     monkeypatch.setattr(
         p34, "resolve_vllm_file",
         lambda rel: str(path) if "scheduler.py" in rel else None,
@@ -845,7 +845,7 @@ def fake_scheduler_p34(tmp_path, monkeypatch):
 
 class TestPatch34MambaDeadlock:
     def test_apply_inserts_aligned_guard(self, fake_scheduler_p34):
-        from vllm._genesis.wiring import patch_34_mamba_deadlock_guard as p34
+        from vllm._genesis.wiring.legacy import patch_34_mamba_deadlock_guard as p34
         status, reason = p34.apply()
         assert status == "applied", f"{status}: {reason}"
         content = open(fake_scheduler_p34).read()
@@ -855,7 +855,7 @@ class TestPatch34MambaDeadlock:
         assert "[Genesis P34]" in content
 
     def test_idempotent(self, fake_scheduler_p34):
-        from vllm._genesis.wiring import patch_34_mamba_deadlock_guard as p34
+        from vllm._genesis.wiring.legacy import patch_34_mamba_deadlock_guard as p34
         s1, _ = p34.apply()
         s2, _ = p34.apply()
         assert s1 == "applied" and s2 == "applied"
@@ -866,14 +866,14 @@ class TestPatch34MambaDeadlock:
 
     def test_patched_file_is_valid_python(self, fake_scheduler_p34):
         import ast
-        from vllm._genesis.wiring import patch_34_mamba_deadlock_guard as p34
+        from vllm._genesis.wiring.legacy import patch_34_mamba_deadlock_guard as p34
         p34.apply()
         ast.parse(open(fake_scheduler_p34).read())
 
     def test_upstream_drift_pr40757_detected(self, fake_scheduler_p34):
         """Simulate PR #40757 landing: the aligned= pattern appears before
         our patch runs. We must self-retire."""
-        from vllm._genesis.wiring import patch_34_mamba_deadlock_guard as p34
+        from vllm._genesis.wiring.legacy import patch_34_mamba_deadlock_guard as p34
         # Prepend a line that looks like the PR #40757 fix had already merged
         original = open(fake_scheduler_p34).read()
         open(fake_scheduler_p34, "w").write(
@@ -888,7 +888,7 @@ class TestPatch34MambaDeadlock:
     def test_semantic_fix_correct(self, fake_scheduler_p34):
         """Apply P34 then exec the patched scheduler and assert that the
         alignment does NOT collapse num_new_tokens to 0."""
-        from vllm._genesis.wiring import patch_34_mamba_deadlock_guard as p34
+        from vllm._genesis.wiring.legacy import patch_34_mamba_deadlock_guard as p34
         p34.apply()
         patched = open(fake_scheduler_p34).read()
 
@@ -918,7 +918,7 @@ class TestPatch34MambaDeadlock:
 
     def test_semantic_non_deadlock_path_unchanged(self, fake_scheduler_p34):
         """When alignment is non-zero the behaviour matches upstream."""
-        from vllm._genesis.wiring import patch_34_mamba_deadlock_guard as p34
+        from vllm._genesis.wiring.legacy import patch_34_mamba_deadlock_guard as p34
         p34.apply()
         patched = open(fake_scheduler_p34).read()
         ns = {}
@@ -939,7 +939,7 @@ class TestPatch34MambaDeadlock:
         assert result == 32
 
     def test_skip_when_file_missing(self, monkeypatch):
-        from vllm._genesis.wiring import patch_34_mamba_deadlock_guard as p34
+        from vllm._genesis.wiring.legacy import patch_34_mamba_deadlock_guard as p34
         monkeypatch.setattr(p34, "resolve_vllm_file", lambda rel: None)
         monkeypatch.setattr(p34, "vllm_install_root", lambda: "/fake")
         status, reason = p34.apply()
@@ -951,7 +951,7 @@ class TestPatch34MambaDeadlock:
     ):
         """Behavioral test: after patching, the patched parser should
         preserve BEFORE-THINK text in content on non-streaming extraction."""
-        from vllm._genesis.wiring import patch_27_reasoning_before_think as p27
+        from vllm._genesis.wiring.legacy import patch_27_reasoning_before_think as p27
         p27.apply()
 
         # Simulate the patched module by execing the content in a namespace

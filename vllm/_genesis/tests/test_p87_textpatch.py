@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import pytest
 
-from vllm._genesis.wiring.patch_87_marlin_pad_sub_tile import (
+from vllm._genesis.wiring.kernels.patch_87_marlin_pad_sub_tile import (
     GENESIS_P87_MARKER,
     P87_APPLY_NEW,
     P87_APPLY_OLD,
@@ -56,7 +56,7 @@ def test_p87_module_has_no_class_rebind_globals():
     the original methods (e.g. _ORIGINAL_APPLY_WEIGHTS). Those must be
     gone — they are the dynamo crash trigger.
     """
-    import vllm._genesis.wiring.patch_87_marlin_pad_sub_tile as mod
+    import vllm._genesis.wiring.kernels.patch_87_marlin_pad_sub_tile as mod
 
     forbidden_names = [
         "_ORIGINAL_APPLY_WEIGHTS",

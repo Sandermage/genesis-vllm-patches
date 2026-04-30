@@ -30,17 +30,14 @@ def _mock_platform(
     compute_capability=None,
     gcn_arch="",
 ):
-    """Helper: mock all platform detection helpers consistently."""
-    from vllm._genesis import guards
+    """Helper: mock all platform detection helpers consistently.
 
-    # Clear caches first
-    guards.is_nvidia_cuda.cache_clear()
-    guards.is_amd_rocm.cache_clear()
-    guards.is_intel_xpu.cache_clear()
-    guards.is_cpu_only.cache_clear()
-    guards.is_cuda_alike.cache_clear()
-    guards.get_compute_capability.cache_clear()
-    guards._gcn_arch.cache_clear()
+    Note: as of v7.62, the platform detectors are snapshot-at-load
+    constants (no @functools.cache), so we just monkeypatch the public
+    attribute directly. The earlier `.cache_clear()` calls are no longer
+    needed — the functions are plain returns of module-level constants.
+    """
+    from vllm._genesis import guards
 
     monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: is_cuda)
     monkeypatch.setattr(guards, "is_amd_rocm", lambda: is_rocm)

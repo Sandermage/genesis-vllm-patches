@@ -1,0 +1,144 @@
+# Genesis upstream drift watcher (D1)
+# ===================================
+# Daily check that Genesis text-patch anchors still match vllm-project/vllm
+# main HEAD, and that any newly-merged upstream PRs are flagged so the
+# corresponding Genesis patches can self-retire on the next pin bump.
+#
+# Triggers:
+#   - Scheduled: 06:00 UTC daily
+#   - Manual: workflow_dispatch (Actions tab → "Run workflow")
+#   - On push to main, only when this workflow / the drift tool / the
+#     anchor-bearing wiring modules change (avoids burning CI minutes
+#     on unrelated commits).
+#
+# Outputs:
+#   - JSON report uploaded as build artifact `drift-report-{run_id}.json`
+#   - Job fails (red ✗) on anchor drift → operator must investigate before
+#     the next pin bump, OR upstream has been refactored under us
+#   - Newly-merged upstream PRs are not failures, just informational lines
+#     in the job log + a comment on the latest open issue tagged
+#     'genesis-drift' (skipped if no such issue exists)
+#
+# Author: Sandermage(Sander) Barzov Aleksandr.
+name: Upstream drift watcher
+
+on:
+  schedule:
+    # Daily 06:00 UTC. vllm main usually lands the previous day's PRs
+    # by then; running before Sander's morning catches drift early.
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'tools/check_upstream_drift.py'
+      - '.github/workflows/upstream_drift_watcher.yml'
+      - 'vllm/_genesis/wiring/patch_*.py'
+      - 'vllm/_genesis/patches/upstream_compat.py'
+
+permissions:
+  contents: read
+  issues: write   # for posting drift summaries to a tracking issue
+
+jobs:
+  check-drift:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout Genesis
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Clone vllm-project/vllm at main (shallow)
+        run: |
+          git clone --depth=1 https://github.com/vllm-project/vllm.git /tmp/upstream-vllm
+          cd /tmp/upstream-vllm && git rev-parse HEAD
+
+      - name: Run drift check
+        id: drift
+        # Genesis modules import torch at top-level for guards/model_detect
+        # checks. We install only what's needed for the wiring modules to
+        # import cleanly — bare torch + no compiled extensions.
+        run: |
+          set -e
+          pip install --quiet "torch>=2.0,<3.0" --extra-index-url https://download.pytorch.org/whl/cpu
+          # Pre-create stubs for vllm modules that wiring imports try to touch
+          # (we don't actually run the patches, just inspect anchors).
+          python3 -c "import torch; print('torch:', torch.__version__)"
+          # Run the drift tool. Stdout = JSON report, stderr = human summary.
+          python3 tools/check_upstream_drift.py /tmp/upstream-vllm \
+            > drift-report.json 2> drift-summary.txt
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+        continue-on-error: true
+
+      - name: Read summary
+        if: always()
+        run: |
+          echo "=== Drift summary ==="
+          cat drift-summary.txt || true
+          echo
+          echo "=== Drift report (top 100 lines) ==="
+          head -100 drift-report.json || true
+
+      - name: Upload drift report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: drift-report-${{ github.run_id }}
+          path: |
+            drift-report.json
+            drift-summary.txt
+          retention-days: 30
+
+      - name: Fail on anchor drift
+        if: steps.drift.outputs.exit_code != '0'
+        run: |
+          echo "::error title=Genesis drift::Anchor drift detected vs upstream main."
+          echo "::error::See drift-summary.txt for details and download"
+          echo "::error::drift-report.json artifact for the full machine-readable report."
+          exit 1
+
+      - name: Comment on tracking issue (best-effort, non-fatal)
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let summary;
+            try {
+              summary = fs.readFileSync('drift-summary.txt', 'utf8');
+            } catch (e) {
+              core.info('No summary file — skipping issue comment.');
+              return;
+            }
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: 'genesis-drift',
+              state: 'open',
+              per_page: 1,
+            });
+            if (issues.data.length === 0) {
+              core.info('No open issue tagged "genesis-drift" — skipping.');
+              return;
+            }
+            const issue = issues.data[0];
+            const driftDetected = '${{ steps.drift.outputs.exit_code }}' !== '0';
+            const headline = driftDetected
+              ? `🚨 Anchor drift detected (run ${context.runId})`
+              : `✅ No anchor drift (run ${context.runId})`;
+            const body = [
+              headline, '',
+              '```', summary, '```', '',
+              `[Full report artifact](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`,
+            ].join('\n');
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.number,
+              body,
+            });

@@ -17,10 +17,11 @@ Sub-packages:
 
 Author: Sandermage(Sander)-Barzov Aleksandr, Ukraine, Odessa
 Project: github.com/Sandermage/genesis-vllm-patches
-Version: 7.0.0-dev
+Version: see vllm/_genesis/__version__.py — single source of truth
 """
 
-__version__ = "7.0.0-dev"
+# Single source of truth lives in __version__.py — re-exported here.
+from vllm._genesis.__version__ import __version__, VERSION  # noqa: F401
 __author__ = "Sandermage(Sander)-Barzov Aleksandr"
 __location__ = "Ukraine, Odessa"
 __project__ = "https://github.com/Sandermage/genesis-vllm-patches"

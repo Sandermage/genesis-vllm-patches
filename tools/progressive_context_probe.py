@@ -6,7 +6,7 @@ Stops at first failure (HTTP 5xx, OOM, timeout, connection refused).
 Records elapsed time + tokens-per-second for each successful step.
 
 Usage:
-    python3 tools/progressive_context_probe.py --host 192.168.1.10 --model qwen3.6-27b
+    python3 tools/progressive_context_probe.py --host localhost --model qwen3.6-27b
 """
 from __future__ import annotations
 import argparse, json, sys, time, urllib.error, urllib.request
@@ -60,7 +60,7 @@ def probe(host: str, port: int, api_key: str, model: str, target: int, timeout: 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--host", default="192.168.1.10")
+    ap.add_argument("--host", default="localhost")
     ap.add_argument("--port", type=int, default=8000)
     ap.add_argument("--api-key", default="genesis-local")
     ap.add_argument("--model", default="qwen3.6-27b")

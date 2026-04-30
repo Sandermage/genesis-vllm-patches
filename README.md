@@ -1,45 +1,474 @@
+<p align="center">
+  <img src="assets/logo.png" alt="Genesis vLLM Patches — The Sea-Born Neural Beacon" width="780">
+</p>
+
 # Genesis vLLM Patches
 
 **Runtime patches for [vLLM](https://github.com/vllm-project/vllm) — Qwen3.6-class inference on consumer NVIDIA Ampere with TurboQuant k8v4 KV cache, MTP K=3 spec-decode, tool-calling, and 256K-class context.**
 
-> **Status:** v7.62.x (2026-04-29). Production stack runs 24/7 on 2× RTX A5000 with Qwen3.6-35B-A3B-FP8 and Qwen3.6-27B-int4-AutoRound. Cross-rig validated on community RTX 3090 / 4090 deployments via [@noonghunna](https://github.com/noonghunna), [@thc1006](https://github.com/thc1006), [@Quentin-M](https://github.com/Quentin-M) and others.
+> **The fastest way in:** `python3 -m vllm._genesis.compat.cli init` —
+> Genesis detects your hardware, picks a model that fits, and writes a
+> tailored launch script. See [Quick start](#quick-start) for the manual path.
 
+> **Status:** v7.63.x (2026-04-30). Production stack runs 24/7 on 2× RTX A5000 with **Qwen3.6-27B-int4-AutoRound** (v794 PROD baseline, **103.3 TPS @ 280K context**, +17% vs prior FP8 KV baseline). Also supports Qwen3.6-35B-A3B-FP8 (v759/v789 lineage). Cross-rig validated on community RTX 3090 / 4090 / 5090 / H20 / R6000 Blackwell / 8× A4000 deployments via [@noonghunna](https://github.com/noonghunna), [@thc1006](https://github.com/thc1006), [@Quentin-M](https://github.com/Quentin-M), [@MidasMining](https://github.com/MidasMining), [@jhsmith409](https://github.com/jhsmith409), [@webcodes-cz](https://github.com/webcodes-cz) and others.
+
+> **🆕 What's new in v7.63.x — Genesis Compat Layer (8 phases shipped):**
+>
+> ```bash
+> # 🆕 Unified CLI dispatcher — one entry point, 13 subcommands
+> python3 -m vllm._genesis.compat.cli                  # show all subcommands
+> python3 -m vllm._genesis.compat.cli doctor
+> python3 -m vllm._genesis.compat.cli explain PN14
+> python3 -m vllm._genesis.compat.cli categories --category spec_decode
+>
+> # Legacy per-module form continues to work (backwards-compat):
+> python3 -m vllm._genesis.compat.doctor
+>
+> # Per-patch detail — applies_to + lifecycle + upstream PR + decision today
+> python3 -m vllm._genesis.compat.explain PN14
+>
+> # First-run wizard (detect hw → pick model → generate launch script)
+> python3 -m vllm._genesis.compat.init_wizard
+>
+> # Browse curated model registry
+> python3 -m vllm._genesis.compat.models.list_cli
+>
+> # One-shot model download + tailored launch script
+> python3 -m vllm._genesis.compat.models.pull qwen3_6_27b_int4_autoround
+>
+> # Lifecycle audit (CI-ready, exit 1 on unknown state)
+> python3 -m vllm._genesis.compat.lifecycle_audit_cli --quiet
+>
+> # PATCH_REGISTRY schema validation (catches typos before commit)
+> python3 -m vllm._genesis.compat.schema_validator
+>
+> # Install pre-commit hook (runs schema + dispatcher + lifecycle on commit)
+> bash scripts/git/install.sh
+>
+> # Browse patches by category (no disk move — logical grouping)
+> python3 -m vllm._genesis.compat.categories
+> python3 -m vllm._genesis.compat.categories --category spec_decode
+>
+> # Migration runbook for a planned vllm pin bump
+> python3 -m vllm._genesis.compat.migrate /path/to/upstream-vllm-clone \
+>     --out runbook.md
+>
+> # Recipe system — capture/share/replay launch configurations
+> python3 -m vllm._genesis.compat.recipes save my-prod --from-container vllm-server
+> python3 -m vllm._genesis.compat.recipes list
+> python3 -m vllm._genesis.compat.recipes load my-prod --out start.sh
+>
+> # Override HF id when pulling (e.g. Lorbus vs Intel quant variant)
+> python3 -m vllm._genesis.compat.models.pull qwen3_6_27b_int4_autoround \
+>     --hf-id-override Lorbus/Qwen3.6-27B-int4-AutoRound
+>
+> # Community plugin discovery (opt-in via GENESIS_ALLOW_PLUGINS=1)
+> # See docs/PLUGINS.md for how to author + ship a community patch.
+> GENESIS_ALLOW_PLUGINS=1 python3 -m vllm._genesis.compat.plugins list
+>
+> # Opt-in anonymized telemetry (default OFF; no PII; local-first)
+> python3 -m vllm._genesis.compat.telemetry status
+> GENESIS_ENABLE_TELEMETRY=1 python3 -m vllm._genesis.compat.telemetry show
+>
+> # Update channel — apt-style stable/beta/dev (24h cached; uses GitHub API)
+> python3 -m vllm._genesis.compat.update_channel status
+> python3 -m vllm._genesis.compat.update_channel check
+> python3 -m vllm._genesis.compat.update_channel channel set beta
+>
+> # Adopt a recipe shared by another operator (HTTPS-only, schema-validated)
+> python3 -m vllm._genesis.compat.cli recipe adopt \
+>     https://gist.githubusercontent.com/.../v794-prod.json my-prod
+>
+> # A/B compare two saved recipes (community Q&A workflow)
+> python3 -m vllm._genesis.compat.cli recipe diff my-prod community-prod
+> python3 -m vllm._genesis.compat.cli recipe diff a b --json    # CI / scripts
+>
+> # Reference plugin: see examples/genesis-plugin-hello-world/
+> # Real working plugin you can pip install + use as a starting point
+>
+> # Self-test (operator sanity check after `git pull` / pin bump)
+> python3 -m vllm._genesis.compat.cli self-test
+> python3 -m vllm._genesis.compat.cli self-test --json    # CI-friendly
+>
+> # Genesis Benchmark Suite (decode TPOT, wall TPS, tool-call quality, stress)
+> python3 -m vllm._genesis.compat.cli bench --quick
+> python3 -m vllm._genesis.compat.cli bench --mode standard --ctx 8k
+> python3 -m vllm._genesis.compat.cli bench --compare a.json b.json
+> ```
+>
+> Plus: richer `applies_to` predicate DSL (AND/OR/NOT) for patch gating, version-range matching (vllm/torch/cuda/triton/driver), patch lifecycle state machine, A3/D2 dependency/conflict validator, reference benchmark fingerprints, B2 shared `result_to_wiring_status` helper, **JSON schema for PATCH_REGISTRY**, **pre-commit hook for contributors**, **Quentin-M P67b cudaErrorIllegalAddress fix cherry-picked**, **canonical `__version__` constant**, **GitHub Actions CI on every push/PR**, **`genesis self-test` structural sanity check**. **467 unit tests, all green. No PROD config changes — backward-compatible, opt-in.** See [Genesis Compat Layer](#genesis-compat-layer) below.
+
+[![CI](https://github.com/Sandermage/genesis-vllm-patches/actions/workflows/test.yml/badge.svg)](https://github.com/Sandermage/genesis-vllm-patches/actions/workflows/test.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![35B-A3B-FP8](https://img.shields.io/badge/35B--A3B--FP8-183_TPS-brightgreen.svg)](#reference-configs)
-[![27B-INT4](https://img.shields.io/badge/27B--INT4-89_TPS_(short)-green.svg)](#reference-configs)
+[![35B-A3B-FP8](https://img.shields.io/badge/35B--A3B--FP8-171.8_TPS-brightgreen.svg)](#reference-configs)
+[![27B-INT4](https://img.shields.io/badge/27B--INT4-103.3_TPS-green.svg)](#reference-configs)
 [![Long context](https://img.shields.io/badge/27B-256K_verified-blue.svg)](#reference-configs)
-[![Patches](https://img.shields.io/badge/runtime_patches-65+-orange.svg)](PATCHES.md)
+[![Patches](https://img.shields.io/badge/PATCH__REGISTRY-50_entries-orange.svg)](PATCHES.md)
+[![Tests](https://img.shields.io/badge/tests-1351_pass-brightgreen.svg)](.github/workflows/test.yml)
 
 ---
 
 ## Headline numbers
 
-Measured on 2× RTX A5000 24 GB (Ampere SM 8.6), driver 580.126.09, vLLM nightly pin `8cd174fa3`, with the new `tools/genesis_bench_suite.py` decode-only TPOT methodology (port of [thc1006](https://github.com/thc1006)'s `bench_v3_clean_ab.py`):
+Measured on 2× RTX A5000 24 GB (Ampere SM 8.6), driver 580.126.09, vLLM
+pin `0.20.1rc1.dev16+g7a1eb8ac2`, captured 2026-04-30 via
+`tools/genesis_bench_suite.py --mode standard` (25 runs × 5 prompts ×
+1024 max-tokens, decode-only TPOT methodology, 8K context). Both
+fingerprints are committed under
+[`vllm/_genesis/compat/fingerprints/`](vllm/_genesis/compat/fingerprints/).
 
-| Workload | Model | Wall TPS | Decode TPOT | CV | Notes |
-|---|---|---:|---:|---:|---|
-| Free-form, 1K ctx | Qwen3.6-35B-A3B-FP8 + MTP K=3 + TQ k8v4 | **183.05** | 5.33 ms | 8.92% | N=500 stress, 200 min continuous |
-| Tool-call, short ctx | Qwen3.6-27B-int4-AutoRound + MTP K=3 + fp8_e5m2 | **89.23** | 11.18 ms | 9.97% | N=500, tool-call 4/4 |
-| Long context, 256K | Qwen3.6-27B-int4-AutoRound (v791b config) | ~80 | 12 ms | n/a | 262 104 token prompt, 311 s prefill, 845 t/s prefill |
-| TQ k8v4 on hybrid | Qwen3.6-27B-int4 + TQ k8v4 + P98 | **90.49** | 11.01 ms | 10.08% | First-time TQ on hybrid GDN; +1.9% NS vs fp8_e5m2 |
+| Workload | Model | Wall TPS | Decode TPOT | CV | Tool-call | Source |
+|---|---|---:|---:|---:|:---:|---|
+| Production short-ctx | Qwen3.6-35B-A3B-FP8 + MTP K=3 + TQ k8v4 | **171.80** | 5.71 ms | 5.89 % | **7 / 7** | [`rtx_a5000_x2_qwen3_6_35b_a3b_fp8_v775.json`](vllm/_genesis/compat/fingerprints/rtx_a5000_x2_qwen3_6_35b_a3b_fp8_v775.json) |
+| Production long-ctx | Qwen3.6-27B-int4-AutoRound + MTP K=3 + TQ k8v4 + 280K | **103.34** | 9.36 ms | 4.87 % | **7 / 7** | [`rtx_a5000_x2_qwen3_6_27b_int4_v794.json`](vllm/_genesis/compat/fingerprints/rtx_a5000_x2_qwen3_6_27b_int4_v794.json) |
 
-**PN8 VRAM savings**: 23.7 GB → 22.66 GB per GPU (~1066 MiB), zero throughput cost. Combined with the lighter long-ctx config we now run **256K context on 2× A5000** — previously thought to require Blackwell.
+Stability stress (30 iter × 5 prompts = 150 samples) — both models
+**0 HTTP failures**, **0 NaN/inf incidence**. Long-context probe on
+27B Lorbus config validates 256K context (262 104-token prompt;
+~121 s prefill at 280K max-model-len). VRAM headroom 1.9 GB on 35B
+and 2.6 GB on 27B with `--gpu-memory-utilization 0.90` (room to
+raise to 0.93 for context spread).
+
+---
+
+## Documentation map
+
+| If you are... | Start with |
+|---|---|
+| New to Genesis | [QUICKSTART.md](QUICKSTART.md) → [docs/GLOSSARY.md](docs/GLOSSARY.md) → [docs/FAQ.md](docs/FAQ.md) |
+| Sizing your hardware | [docs/HARDWARE.md](docs/HARDWARE.md) — VRAM budget, GPU classes, NVLink notes |
+| Adding your own model | [docs/CONFIGS.md](docs/CONFIGS.md) — step-by-step recipe with worked example |
+| Hitting a weird bug | [docs/CLIFFS.md](docs/CLIFFS.md) — known performance/correctness cliffs |
+| Contributing | [CONTRIBUTING.md](CONTRIBUTING.md) — how to add patches, scripts, doc PRs |
+| Patch catalog | [PATCHES.md](PATCHES.md) — full list with metadata |
+| Install + boot | [INSTALL.md](INSTALL.md) — pinned vLLM commits + docker-compose |
+| Detailed config | [CONFIGURATION.md](CONFIGURATION.md) — env-flag reference |
+| Bench reproducibility | [docs/BENCHMARK_GUIDE.md](docs/BENCHMARK_GUIDE.md) — 5-environment guide |
+
+Per-launch examples in [scripts/](scripts/) — each `start_<model>_<kv>_<mode>.sh` is a working starting point.
 
 ---
 
 ## Table of contents
 
-1. [What's new in v7.62.x — 36-hour session timeline](#whats-new-in-v762x--36-hour-session-timeline)
-2. [Quick start](#quick-start)
-3. [Reference configs](#reference-configs)
-4. [Genesis Benchmark Suite](#genesis-benchmark-suite)
-5. [Patch catalog](#patch-catalog)
-6. [Per-GPU recommendations](#per-gpu-recommendations)
-7. [Empirical findings — what worked, what didn't](#empirical-findings--what-worked-what-didnt)
-8. [Hardware and operating envelope](#hardware-and-operating-envelope)
-9. [How patches work](#how-patches-work)
-10. [Acknowledgments](#acknowledgments)
-11. [License / disclaimer](#license--disclaimer)
+1. [Quick start](#quick-start) — get running in 60 s, Docker, or bare metal
+2. [What's new in v7.63.x — Genesis Compat Layer](#whats-new-in-v763x--genesis-compat-layer)
+3. [Genesis Compat Layer](#genesis-compat-layer) — doctor / init / models / recipes / plugins / telemetry / channels / self-test / bench
+4. [What's new in v7.62.x — 36-hour session timeline](#whats-new-in-v762x--36-hour-session-timeline)
+5. [Reference configs](#reference-configs) — PROD launch scripts + fingerprints
+6. [Genesis Benchmark Suite](#genesis-benchmark-suite) — `tools/genesis_bench_suite.py` + JSON schema
+7. [Patch catalog](#patch-catalog) — all 50 entries
+8. [Per-GPU recommendations](#per-gpu-recommendations) — `[REC]` / `[OFF]` predicates
+9. [Empirical findings — what worked, what didn't](#empirical-findings--what-worked-what-didnt)
+10. [Hardware and operating envelope](#hardware-and-operating-envelope)
+11. [How patches work](#how-patches-work) — text-anchor framework
+12. [Acknowledgments](#acknowledgments) — community contributors
+13. [License / disclaimer](#license--disclaimer)
+
+For deeper dives:
+
+- [`CHANGELOG.md`](CHANGELOG.md) — public release log
+- [`vllm/_genesis/CHANGELOG.md`](vllm/_genesis/CHANGELOG.md) — engineering log
+- [`PATCHES.md`](PATCHES.md) — per-patch decision table
+- [`MODELS.md`](MODELS.md) — supported model registry
+- [`INSTALL.md`](INSTALL.md) — bare-metal install guide
+- [`QUICKSTART.md`](QUICKSTART.md) — Docker quickstart (EN + RU)
+- [`CONFIGURATION.md`](CONFIGURATION.md) — env vars and tunables
+- [`docs/BENCHMARK_GUIDE.md`](docs/BENCHMARK_GUIDE.md) — 5-environment bench guide
+- [`docs/SELF_TEST.md`](docs/SELF_TEST.md) — `genesis self-test` reference
+- [`docs/PLUGINS.md`](docs/PLUGINS.md) — community plugin authoring
+- [`CREDITS.md`](CREDITS.md) — per-patch upstream credits
+
+---
+
+## What's new in v7.64 — empirical patch validation + DFlash + new docs (2026-05-01)
+
+This release captures the empirical validation cycle done after v7.63.x and ships a complete documentation overhaul.
+
+### Big fixes shipped
+
+- **P67 generalized to non-power-of-2 GQA.** The TurboQuant multi-query Triton kernel previously required `HEADS_PER_KV` to be a power of two; on Qwen3.6-27B (GQA=24/4=6) the kernel failed to compile and fell through to the broken upstream path, producing `<tool_call>` cascades under FULL cudagraph. Now `BLOCK_QH = triton.next_power_of_2(HEADS_PER_KV)` with a `lane_valid` mask. Result on 27B: 0/5 tool-call → **7/7 tool-call** with TQ k8v4 + FULL_AND_PIECEWISE. See [docs/CLIFFS.md#cliff-4](docs/CLIFFS.md) Cliff 4.
+- **PN17 + PN19 wiring kwargs fix.** Two memory-savings patches were silently failing on apply due to a missing `applied_message`/`patch_name` kwarg in `result_to_wiring_status()`. Both now apply cleanly. PN17 frees 50-100 MiB on long-context FA2; PN19 frees 200-500 MiB during model load.
+- **TextPatcher hardening discussion.** Cliff 8 (anchor drift on pin bumps) documented; partial-apply warnings counter planned. See [docs/CLIFFS.md#cliff-8](docs/CLIFFS.md).
+
+### New launch scripts (per workload)
+
+Each script is a self-contained working starting point. Pick by KV cache + workload:
+
+| Script | KV | Spec-decode | Best for |
+|---|---|---|---|
+| `start_27b_int4_TQ_k8v4.sh` | turboquant_k8v4 | MTP K=3 | High-concurrency / long-ctx (5× KV pool) |
+| `start_27b_int4_TQ_k8v4_NGRAM.sh` | turboquant_k8v4 | ngram | Tool-use heavy with strict prompt_lookup_min=8 |
+| `start_27b_int4_DFLASH.sh` | auto (fp16) | DFlash N=5 | Coding agents (135 TPS code workload) |
+| `start_27b_int4_fp8_e5m2_short.sh` | fp8_e5m2 | MTP K=3 | Short-to-mid context, simpler stack |
+| `start_27b_int4_fp8_e5m2_long_256K.sh` | fp8_e5m2 | MTP K=3 | Long context (validated 256K on 2× A5000) |
+| `start_35b_fp8_PROD.sh` | turboquant_k8v4 | MTP K=3 | 35B-A3B-FP8 production (186 TPS reference) |
+| `start_35b_fp8_DFLASH.sh` | auto (bfloat16) | DFlash N=4 | 35B coding agents |
+
+### Empirical validation matrix (2× RTX A5000, n≥5 per row)
+
+| Config | Tool-call | Wall TPS @ 256t | Wall TPS @ 512t | Notes |
+|---|---|---|---|---|
+| 27B + TQ k8v4 + 8 patches (Group A+B baked) | 7/7 | 100.7 | 95.3 | +9.2% vs original baseline 87.3 |
+| 27B + TQ k8v4 + ngram strict | 7/7 | — | 27 | Empirically slow on prose; tool-use only |
+| 27B + DFlash N=5 | 7/7 | 60-86 | 86 (prose) / **135 (code)** | DFlash excels code-heavy workloads |
+| 35B-A3B-FP8 + 3 patches (P103+PN17+PN19) | 7/7 | 201 | 183.9 | Within CV of 186 PROD reference (NS) |
+| 35B-A3B-FP8 + 5 patches A+B set | 7/7 | 197 | 179 | **Regresses −3.9%** — keep OFF on 35B |
+
+Key finding: the 5 defensive backports (PN9 / PN12 / PN13 / PN14 / P94) help 27B (+9% TPS) but regress 35B FP8 (−4%). They are baked into 27B default, kept OFF on 35B.
+
+### DFlash speculative decoding — first ship
+
+Both Qwen3.6-27B and Qwen3.6-35B-A3B now have working DFlash launch scripts using z-lab drafts:
+
+- `z-lab/Qwen3.6-27B-DFlash` (3.3 GB BF16) — drafter for INT4 main
+- `z-lab/Qwen3.6-35B-A3B-DFlash` (905 MB BF16) — drafter for FP8 MoE main
+
+Both are gated on HuggingFace — accept license then `huggingface-cli login`. DFlash trades prose throughput (slower than MTP on prose) for code-completion throughput (135 TPS on 27B vs noonghunna's 3090 quote of 128). Recommended `num_speculative_tokens=4` per z-lab discussion #2.
+
+DFlash on 24 GB cards is currently capped at ~80K context due to draft model adding ~2-3 GB per GPU; cliffs documented at [docs/CLIFFS.md#cliff-7](docs/CLIFFS.md). DFlash + 200K context requires upstream PR #40898 (SWA) backport — tracked for next release.
+
+### Documentation overhaul
+
+Six new public docs ship in this release:
+
+- **[docs/GLOSSARY.md](docs/GLOSSARY.md)** — terms (TPS, KV, MTP, GQA, GDN, FA2, CUDA Graph, etc) for newcomers.
+- **[docs/HARDWARE.md](docs/HARDWARE.md)** — VRAM budgets per model, GPU class support, NVLink discussion, PSU/cooling notes.
+- **[docs/FAQ.md](docs/FAQ.md)** — 18 common questions with direct answers.
+- **[docs/CONFIGS.md](docs/CONFIGS.md)** — adding your own model recipe (with full Llama-3 70B walkthrough showing generic patches work outside Qwen3-family).
+- **[docs/CLIFFS.md](docs/CLIFFS.md)** — 8 known performance/correctness cliffs catalogued with mechanism + impact + fix + refs.
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** — patch authoring guide, code style, PR template, security rules.
+
+### Cross-engine research absorbed
+
+- **SGLang has DFlash + SWA knob** (`speculative-dflash-draft-window-size`) we don't yet have. Backport candidate as future P-N21.
+- **SGLang DDTree** (issue #22887) — tree-attention extension claiming +2.13× over vanilla DFlash on Qwen3-30B-MoE; tracking only, not yet merged in SGLang.
+- **vLLM 24h activity audit**: PR #40898 (SWA), PR #40849 (FP8 draft inheritance, already in our PN8), PR #39419 (local argmax TP, +9-30% on TP=2), PR #41268 (max_split_size_mb, already in our PN19), PR #41306 (MoE backend regression on v0.20+ for non-FP8 — config-only mitigation `--moe-backend=triton`).
+- **noonghunna fork PRs #12 + #13** (anchor drift fixes for P101 and PN12 on dev205+) — empirically not needed on our exact pin, but the underlying class bug (silent sub-patch skip on `required=False`) deserves a TextPatcher hardening pass.
+
+### Privacy / repo hygiene
+
+- `.gitignore` hardened: `_internal/`, `snapshots/`, `*.bak`, `._*` (macOS AppleDouble), `*.json`, `*.log`.
+- `tools/` sanitized: hardcoded server IP `192.168.1.10` → `localhost`.
+
+---
+
+## What's new in v7.63.x — Genesis Compat Layer
+
+Released 2026-04-30, building on the v7.62.x sprint. **Phase 1 of the
+compat overhaul** — turns Genesis from "a custom patcher running on
+Sander's machine" into a discoverable, self-documenting, hardware-aware
+product.
+
+> See [`CHANGELOG.md`](CHANGELOG.md) for the public release log,
+> [`vllm/_genesis/CHANGELOG.md`](vllm/_genesis/CHANGELOG.md) for the
+> per-commit engineering log (2300+ lines), and
+> [`vllm/_genesis/compat/fingerprints/`](vllm/_genesis/compat/fingerprints/)
+> for blessed reference numbers per model × hardware × patch-set.
+
+### TL;DR
+
+| Feature | Command | What it does |
+|---|---|---|
+| Doctor | `python3 -m vllm._genesis.compat.doctor` | Single-command diagnostic — hw + sw + model + patches + lifecycle + validator. Outputs human-readable report or JSON. |
+| Init wizard | `python3 -m vllm._genesis.compat.init_wizard` | Interactive: detect hardware → recommend model → workload pick → generate launch script |
+| Model browser | `python3 -m vllm._genesis.compat.models.list_cli` | Show curated model registry (5 models so far: 27B/35B INT4 + 35B FP8 + experimental + planned 80B) |
+| Model puller | `python3 -m vllm._genesis.compat.models.pull <key>` | HF download + verify + tailored launch script (auto-engages right Genesis patches for hw + quant combo) |
+| A3/D2 validator | runs at every boot | Catches `requires_patches`/`conflicts_with` violations + unknown patch IDs (caught 2 real prod-config issues at first run) |
+
+### Engineering changes
+
+- **Richer `applies_to` predicate DSL** in `vllm/_genesis/compat/predicates.py`: AND/OR/NOT trees over hardware + model + version + quant. Solves "INT4 alone doesn't need this, but INT4+TurboQuant does". Backwards-compatible with all 48 existing flat-dict entries.
+- **Version-range matching** in `vllm/_genesis/compat/version_check.py`: declare `vllm_version_range`, `torch_version_min`, `triton_version_min`, `cuda_runtime_min`, `nvidia_driver_min`, `compute_capability_min/max` per patch. Validator at boot enforces.
+- **Patch lifecycle states** in `vllm/_genesis/compat/lifecycle.py`: `experimental` / `stable` / `deprecated` / `research` / `community` / `retired`. Code removal requires prior `lifecycle: retired`. Doctor surfaces deprecation `superseded_by` actionably.
+- **Reference fingerprints** in `vllm/_genesis/compat/fingerprints/`: blessed benchmark numbers per (hardware × model × patch_set). First entry: `rtx_a5000_x2_qwen3_6_27b_int4_v794.json` (103.3 TPS, CV 4.9%).
+- **B2 shared `result_to_wiring_status` helper** in `vllm/_genesis/wiring/text_patch.py`: DRY across 5 PN-family wiring modules. Caught silent-bug class where SKIPPED reported as APPLIED in boot logs.
+- **D1 CI drift watcher** in `tools/check_upstream_drift.py` + `.github/workflows/upstream_drift_watcher.yml`: daily check that text-patch anchors still match upstream main HEAD; reports newly-merged upstream PRs that allow Genesis self-retirement.
+
+### What stays the same (no PROD impact)
+
+- Existing launch scripts in `scripts/launch/` work unchanged.
+- All 48 PATCH_REGISTRY entries keep their env flags, default-OFF semantics, and behavior.
+- `vllm._genesis.gpu_profile`, `model_detect`, `config_detect` legacy import paths still work (re-exported from `compat/`).
+
+### Test coverage
+
+| Suite | Tests | Subject |
+|---|---:|---|
+| `tests/compat/test_predicates.py` | 27 | applies_to DSL evaluator |
+| `tests/compat/test_version_check.py` | 20 | vllm/torch/cuda version-range gating |
+| `tests/compat/test_lifecycle.py` | 18 | lifecycle state machine |
+| `tests/compat/test_models_registry.py` | 13 | curated model registry |
+| `tests/compat/test_doctor_smoke.py` | 6 | doctor section smoke tests |
+| `tests/compat/test_categories.py` | 21 | categories index + CLI |
+| `tests/compat/test_explain.py` | 24 | per-patch explain tool |
+| `tests/compat/test_recipes.py` | 36 | recipe save/load/share + diff |
+| `tests/compat/test_recipe_adopt.py` | 14 | recipe adopt URL (HTTPS-only) |
+| `tests/compat/test_plugins.py` | 18 | community plugin discovery |
+| `tests/compat/test_plugin_example.py` | 13 | hello-world reference plugin |
+| `tests/compat/test_telemetry.py` | 23 | opt-in anonymized telemetry |
+| `tests/compat/test_update_channel.py` | 18 | apt-style stable/beta/dev |
+| `tests/compat/test_schema_validator.py` | 15 | PATCH_REGISTRY schema |
+| `tests/compat/test_self_test.py` | 17 | structural sanity check |
+| `tests/compat/test_bench.py` | 11 | unified-CLI bench shim |
+| `tests/compat/test_cli.py` | 14 | unified CLI dispatcher |
+| `tests/test_dispatcher_validator.py` (A3/D2) | 24 | dependency / conflict graph |
+| `tests/test_pn14_tq_decode_oob_clamp.py` | 13 | TQ grouped-decode OOB clamp |
+| `tests/test_pn16_lazy_reasoner.py` | 41 | lazy reasoner harness |
+| `tests/test_bench_ablation.py` (D3) | 11 | per-patch ablation orchestrator |
+| `tests/test_wiring_status_helper.py` (B2) | 10 | shared result_to_wiring_status |
+| `tests/test_version.py` | 5 | canonical __version__ constant |
+| `tests/test_ci_workflow.py` | 6 | GitHub Actions gate contract |
+| **Full session suite** | **467 tests** | — |
+
+---
+
+## Genesis Compat Layer
+
+The `vllm/_genesis/compat/` module is the **single home for everything Genesis needs to know about the environment** and the surface operators interact with for setup + diagnosis + maintenance.
+
+### Module map
+
+```text
+vllm/_genesis/compat/
+├── doctor.py                # `python3 -m vllm._genesis.compat.doctor`
+├── init_wizard.py           # `python3 -m vllm._genesis.compat.init_wizard`
+├── version_check.py         # vllm/torch/cuda/triton/driver range matching
+├── predicates.py            # AND/OR/NOT applies_to evaluator
+├── lifecycle.py             # patch lifecycle state machine
+├── gpu_profile.py           # re-export shim (legacy path still works)
+├── model_detect.py          # re-export shim
+├── config_detect.py         # re-export shim
+├── models/
+│   ├── registry.py          # SUPPORTED_MODELS dict
+│   ├── pull.py              # HF download + verify + launch script gen
+│   └── list_cli.py          # `python3 -m vllm._genesis.compat.models.list_cli`
+└── fingerprints/            # reference benchmark JSONs per (hw × model × patches)
+    ├── rtx_a5000_x2_qwen3_6_27b_int4_v794.json    # 27B Lorbus + TQ k8v4
+    └── rtx_a5000_x2_qwen3_6_35b_a3b_fp8_v775.json # 35B-A3B + TQ k8v4 (NEW 2026-04-30)
+```
+
+### Doctor output (sample)
+
+```text
+========================================================================
+Genesis doctor — system diagnostic
+========================================================================
+
+[1/6] Hardware
+  GPU 0: NVIDIA RTX A5000      sm_86  VRAM 24.0 GB
+  GPU 1: NVIDIA RTX A5000      sm_86  VRAM 24.0 GB
+
+[2/6] Software
+  vllm:          0.20.1rc1.dev16+g7a1eb8ac2
+    commit:      7a1eb8ac2
+  torch:         2.5.1+cu124
+  triton:        3.1.0
+  cuda runtime:  12.4
+  nvidia driver: 580.126.09
+  python:        3.12.7
+
+[3/6] Model profile
+  model_class:   qwen3_5
+  is_hybrid:     True
+  is_moe:        True
+  is_turboquant: True
+  quant_format:  autoround_int4
+
+[4/6] Patch registry decisions
+  total: 48, APPLY: 27, SKIP: 21
+  Applied (27):
+    ✓ P58      Async-scheduler -1 placeholder fix
+    ✓ P60      GDN+ngram state recovery (Phase 1: SSM pre-copy)
+    ...
+    ✓ PN14     TQ decode IOOB safe_page_idx clamp (vllm#40074)
+
+[5/6] Lifecycle audit
+  stable: 44
+  deprecated: 4
+
+[6/6] Validator
+  ✓ clean — no validator issues
+
+========================================================================
+Recommendations
+========================================================================
+  [OK] no issues detected. System is healthy.
+========================================================================
+```
+
+### Models registry
+
+Curated, tested-and-validated models with known-good launch configs and expected performance fingerprints:
+
+| Key | HF id | Size | Quant | Status |
+|---|---|---:|---|---|
+| `qwen3_6_27b_int4_autoround` | Intel/Qwen3.6-27B-A3B-int4-AutoRound | 14.2 GB | autoround_int4 | **PROD** |
+| `qwen3_6_35b_a3b_fp8` | Qwen/Qwen3.6-35B-A3B-FP8 | 38.0 GB | fp8 | SUPPORTED |
+| `qwen3_6_35b_a3b_int4_autoround` | Intel/Qwen3.6-35B-A3B-int4-AutoRound | 18.5 GB | autoround_int4 | SUPPORTED |
+| `qwen3_6_27b_fp8_lmhead_fp8` | inferRouter/Qwen3.6-27B-FP8-lmhead-fp8 | ~20 GB | fp8 + FP8 lm_head | EXPERIMENTAL |
+| `qwen3_next_80b_awq` | Qwen/Qwen3-Next-80B-AWQ | 40.0 GB | awq_int4 | PLANNED Q3'26 |
+
+Each entry declares: HF id, file SHAs, size, quant, model_class, hybrid/MoE flags, min VRAM per TP rank, tested hardware classes, **tested launch configs** (vllm pin + env flags + command-line args + recommended Genesis patches), expected metrics, license, gating, known quirks, lifecycle status.
+
+### Richer applies_to DSL — the "INT4+TurboQuant" example
+
+Old (legacy, still works):
+```python
+"P67": {
+    "applies_to": {"is_turboquant": [True]},
+}
+```
+
+New compound forms:
+```python
+"P67": {
+    "applies_to": {
+        "all_of": [
+            {"is_turboquant": True},
+            {"any_of": [
+                {"quant_format": "fp8"},
+                {"quant_format": "autoround_int4"},
+                {"quant_format": "int4_w4a16"},
+            ]},
+            {"compute_capability_min": [8, 6]},
+            {"vllm_version_range": [">=0.20.0", "<0.21.0"]},
+        ],
+    },
+}
+```
+
+Solves the user's scenario:
+- Pure INT4 (no TQ) → `all_of` fails → SKIP ✓
+- INT4 + TurboQuant → all conditions met → APPLY ✓
+- FP8 + TurboQuant → all conditions met → APPLY ✓
+- INT4 on sm_75 (older Tesla) → `compute_capability_min` fails → SKIP ✓
+- vllm 0.22 → `vllm_version_range` fails → SKIP ✓
+
+### Lifecycle states
+
+| State | Meaning | Doctor behavior |
+|---|---|---|
+| `experimental` | new, may break across releases | warns operator |
+| `stable` | proven, default for the indicated workload | normal apply path |
+| `deprecated` | superseded; declares `superseded_by` + `removal_planned` | warns + actionable suggestion |
+| `research` | kept as reference for future hardware/configs | listed but no warning |
+| `community` | contributed via plugin entry-point (Phase 5+) | warns (origin disclosure) |
+| `retired` | no longer applied; code may exist only for archeology | hard-skip; requires `--allow-retired` |
+
+State transitions are forward-only on the public timeline. **Code removal requires prior `lifecycle: retired`** for at least one release — guards against accidental deletion.
+
+### Phase roadmap
+
+- ✅ **Phase 1** (2026-04-30, this release) — compat module + doctor + models + version_check + predicates + lifecycle + fingerprints
+- 🚧 **Phase 2** — refactor `wiring/patch_*.py` into category subdirs (`spec_decode/`, `kv_cache/`, `kernel_perf/`, …) for better navigation
+- 📋 **Phase 3** — auto-update channel system (`stable`/`beta`/`dev`) + migration runbook generator
+- 📋 **Phase 4** — pre-commit hook + JSON schema + `genesis explain <patch>` + Prometheus metrics endpoint
+- 📋 **Phase 5** — plugin entry-points for community patches + opt-in telemetry + `genesis recipe` system
+
+Internal v8.x arena allocator design lives in maintainer-only `docs/_internal/` (gitignored).
+
+---
 
 ---
 
@@ -70,207 +499,50 @@ This release captures a focused 36-hour optimization sprint (2026-04-28 to 2026-
 - P83 + P84 + P85 (prefix-cache "cake-and-eat" stack) → -29% TPS regression. Even with the supposedly-root-cause P84.
 - P40 default-on (only ~+1% on Ampere consumer; needs L2 ≥ 24 MB to deliver — recommended for 4090, 5090, H100, Blackwell).
 
-### Day 1 — 2026-04-28: 5-agent parallel research sweep
+### Chronological narrative
 
-The session opened with a multi-source intelligence gathering pass:
+The 36-hour sprint covered: 5-agent research sweep → 4-arm prefix-cache
+A/B (P83+P84+P85 disproven, -29 % regression) → P40 signature-drift fix
+(rebased onto current pin, not significant on Ampere consumer) → PN8
+PROMOTED (~1 GiB VRAM saved per GPU) → INT8-gs128 boot crash isolated to
+upstream `torch.compile + qwen3_next.linear_attn @custom_op` (workaround:
+use Lorbus INT4 v771b) → **256K context unlocked on 27B Lorbus** via
+the looser v791b config (was config-aggressiveness, not a model limit) →
+**TurboQuant k8v4 unlocked on hybrid GDN** via `P4 + P98` (first time
+TQ runs on hybrid in Genesis, tool-call clean) → Quentin Machu's PN11
+landed (first community-contributed Genesis patch) → GPU profile
+recommendation system (16-card datasheet + per-patch predicates) →
+flagship benchmark suite shipped.
 
-- **Agent A (noonghunna fork audit)** — Reviewed both `noonghunna/qwen36-dual-3090` and `noonghunna/qwen36-27b-single-3090` repos for cross-rig configs, reported numbers, and divergences from our PROD.
-- **Agent B (other downstream forks)** — Audited `thc1006/qwen3.6-vllm-2x3090`, `danbedford/qwen36-dual-3090-nvlink`, `AlexsJones/llmfit` plus three lighter community repos.
-- **Agent C (vLLM main vs nightly diff, 6 mo)** — Found 47 commits ahead of our pin worth tracking, 13 high-relevance PRs.
-- **Agent D (vLLM PRs deep-dive, 6 mo)** — Read all open and recently-merged PRs touching Qwen3.x, MTP, GDN, TurboQuant, Marlin/AutoRound.
-- **Agent E (vLLM Issues deep-dive, 6 mo)** — Catalogued the open-bug landscape relevant to our exact stack intersection (Qwen3.6 × MTP × hybrid × TQ × Ampere consumer).
-
-Key day-1 findings written to memory:
-- `feedback_v791_27b_long_ctx_breakthrough.md`
-- `feedback_pn8_verified_vram_savings.md`
-- `feedback_v792_lorbus_TQ_k8v4_works.md`
-- `feedback_int8_gs128_torch_compile_crash.md`
-
-The day-1 sweep produced 5 full reports (saved to gitignored `docs/_internal/`). Two findings turned into shipping patches (PN8, PN11) and one into a root-cause memory note (INT8-gs128 boot crash).
-
-### Day 2 morning — 4-arm A/B on prefix caching
-
-Going into Day 2 we'd queued several "let's enable this and bench" actions. Top of the list: enable `--enable-prefix-caching` on 35B PROD with the P83 + P84 + P85 stack (the "cake-and-eat" hypothesis from prior internal investigation).
-
-We ran a controlled 4-arm A/B:
-
-| Arm | Config | wall_TPS | decode TPOT |
-|---|---|---:|---:|
-| **A** | v775 baseline (no prefix-cache) | **183.27** ± 15.91 | 5.33 ms |
-| **B** | + `--enable-prefix-caching`, no P83/P84/P85 | 128.07 ± 11.70 | 7.69 ms |
-| **C** | + P83 + P85 (without root-cause P84) | 130.87 ± 12.55 | 7.53 ms |
-| **D** | + P83 + P84 + P85 + `HASH=16` (full stack) | 129.07 ± 12.39 | 7.64 ms |
-
-Verdict: **all three "fix" arms still regressed by ~29%.** The supposedly-root-cause P84 didn't help. Welch's t-test on Arm A vs Arm D gave p < 0.0001 — significant *regression*.
-
-Conclusion (saved to `feedback_p83_p84_p85_cache_no_cake.md`): **do NOT enable prefix-cache on this stack.** The cache machinery overhead is real and the patches we have don't recover the missed throughput. Whether this is a current-pin regression or a fundamental vllm cache-design issue is for a future investigation.
-
-### Day 2 noon — P40 signature drift, fixed but no measurable win
-
-Next on the queue: enable P40 (TurboQuant k8v4 GQA grouping kernel — backport of vllm#40792). PR author claimed +27% on Hopper.
-
-First attempt: instant crash:
-```
-TypeError: _fwd_kernel_stage2() missing 3 required positional arguments:
-  'stride_lse_bs', 'BLOCK_DV', 'Lv'
-```
-
-Cause: signature drift. The upstream `_fwd_kernel_stage2` had grown 3 new args between when P40 was originally written and the current pin. Our patch was passing the old signature.
-
-Fixed in [`vllm/_genesis/wiring/patch_40_tq_grouped_decode.py:320`](vllm/_genesis/wiring/patch_40_tq_grouped_decode.py#L320) — added `seq_lens`, `BLOCK_DV`, `Lv`, `OUTPUT_FP16` matching the upstream callsite.
-
-Re-tested: no crash, but **+1.14% — Welch p=0.284 NOT SIGNIFICANT**. The +27% from upstream is real, but only on Hopper-class hardware where L2 (50+ MB) is large enough that the grouping benefit can land. On Ampere consumer with 4 MB L2 (A5000) we're memory-bandwidth-bound — the patch executes correctly but has nothing to optimize.
-
-Lesson recorded to `feedback_p40_broken_on_current_pin.md`: **P40 default OFF on Ampere consumer; recommended on RTX 4090, 5090, all Blackwell, H100, H200.** This finding triggered the GPU profile recommendation system later in the session.
-
-### Day 2 afternoon — PN8 PROMOTED (~1 GiB saved per GPU)
-
-PN8 = MTP/draft online-quant propagation, backport of [vllm#40849](https://github.com/vllm-project/vllm/pull/40849) by [@bhoomit](https://github.com/bhoomit). Idea: when the target model uses online-quant (e.g., compressed-tensors FP8), the MTP draft head currently loads in BF16 even though it could inherit the same online-quant config — wasting ~600 MiB.
-
-Bench result on 35B-A3B-FP8:
-
-| Metric | Baseline (v775) | + PN8 (v780) | Delta |
-|---|---:|---:|---:|
-| wall_TPS | 183.27 | 184.47 | +0.65% (NS, p=0.561) |
-| decode TPOT (ms) | 5.33 | 5.30 | -0.6% (NS) |
-| Tool-call | 3/4 | 3/4 | unchanged |
-| **GPU 0 memory** | **23.7 GB** | **22.66 GB** | **-1066 MiB (-4.5%)** |
-
-Throughput stays in the noise. **VRAM savings are real** and predictable. With 2× TP we recovered ~2.1 GB total — enough to bump `gpu-memory-utilization` from 0.90 → 0.93 if you want bigger KV pool, OR bump max-num-seqs, OR push max-model-len.
-
-Saved to `feedback_pn8_verified_vram_savings.md`. PROMOTED → v780. **Default ON for any FP8 + MTP target.**
-
-### Day 2 afternoon — INT8 sprint aborted (vllm bug, not us)
-
-Plan was to tackle Minachist Qwen3.6-27B-INT8-gs128. Boot crashed with:
-```
-torch._dynamo.exc.Unsupported: Attempted to call function marked as skipped
-File "qwen3_next.py", line 408, in forward
-    self.linear_attn(...)
-File "torch/_library/custom_ops.py", line 152
-    schema_str = torch.library.infer_schema(...)
-```
-
-Re-tested with v764d (Sander's untouched original config, no PN8/PN9, no Genesis modifications). Same crash. Confirmed **the issue is a vllm + torch.compile + qwen3_next linear_attn `@custom_op` interaction in the current pin** — not Genesis patches. Saved to `feedback_int8_gs128_torch_compile_crash.md`.
-
-Workaround: use Lorbus INT4 (different code path, no crash). Will revisit when pin bumps past v0.20.2.
-
-### Day 2 evening — 256K context on 27B Lorbus
-
-The day's biggest empirical surprise. Original v771b PROD config:
-```
---gpu-memory-utilization 0.95
---max-model-len 131072
---max-num-seqs 4
---max-num-batched-tokens 8192
-```
-
-OOMed at 16K context. We assumed this was a fundamental memory ceiling. It wasn't.
-
-New config v791b:
-```
---gpu-memory-utilization 0.90    # 0.95 → 0.90 (frees ~2.4 GB headroom)
---max-model-len 280000           # raised from 131072
---max-num-seqs 2                 # halved KV pool footprint
---max-num-batched-tokens 2048    # smaller chunked-prefill chunks
-```
-
-GPU memory drop: 22.69 GB (v771b) → 19.60 GB (v791b) = **3 GB freed for compile-time intermediate tensors.**
-
-Progressive context probe (full results in `feedback_v791_27b_long_ctx_breakthrough.md`):
-
-| Context | prompt_tokens | elapsed | prefill rate | Verdict |
-|---|---:|---:|---:|---|
-| 16K | 8 152 | 8.3 s | 1118 t/s | ✅ |
-| 32K | 16 344 | 13.5 s | 1312 t/s | ✅ |
-| 64K | 32 728 | 25.2 s | 1350 t/s | ✅ |
-| 96K | 49 112 | 38.5 s | 1309 t/s | ✅ |
-| 128K | 65 496 | 53.1 s | 1258 t/s | ✅ |
-| 160K | 81 880 | 68.5 s | 1214 t/s | ✅ |
-| 192K | 98 264 | 84.7 s | 1174 t/s | ✅ |
-| **256K** | **131 032** | **120.7 s** | **1095 t/s** | **✅** |
-
-Then: at util=0.90 the **TRUE 256K probe (262 104 actual prompt tokens)** also passed in 311 s (845 t/s prefill).
-
-**The model wasn't the bottleneck. The config was.** Trade-off: ~5-10% lower peak TPS at small ctx in exchange for the full 256K window. Now shipped as the dedicated long-ctx variant — community users can pick `start_27b_int4_no_TQ_short.sh` for high-throughput chat or `start_27b_int4_no_TQ_long_256K.sh` for RAG / long-doc / agentic workloads.
-
-### Day 2 night — TurboQuant k8v4 on hybrid 27B
-
-vllm normally rejects `--kv-cache-dtype turboquant_k8v4` on hybrid GDN models with:
-```
-NotImplementedError: TurboQuant KV cache is not supported for hybrid
-(attention + Mamba) models.
-```
-
-Genesis `P4` already removes this rejection (it's been in the tree since v7.0). What had been missing: when you actually exercise the TQ path on hybrid, the workspace manager (changed by the merged vllm#40941) hits an assertion:
-```
-AssertionError: Workspace is locked but allocation from
-'turboquant_attn.py:1199:_decode_attention' requires 0.38 MB,
-current size is 0.00 MB. Workspace growth is not allowed after locking.
-```
-
-Solution: enable `P98` (TQ WorkspaceManager revert, also opt-in). Combined `P4 + P98 + GENESIS_ENABLE_PN11_GDN_AB_CONTIGUOUS=1` makes TQ k8v4 work on Lorbus 27B-INT4.
-
-Tool-call probe with `--max-tokens 1500` (the harness fix mentioned earlier):
-
-| Case | Result |
-|---|---|
-| `think=false`, hermes parser, "weather in Paris" | `get_weather({"city":"Paris"})` ✅ |
-| `think=true`, hermes parser, "Tokyo weather" | `get_weather({"city":"Tokyo"})` ✅ (with 85 reasoning tokens) |
-| `think=false`, oai parser, "New York" | `get_weather({"city":"New York"})` ✅ |
-| `think=true`, oai parser, "London with reasoning" | `get_weather({"city":"London"})` ✅ (265 reasoning tokens) |
-
-**Tool-call 4/4 clean.** No `finish_reason="length"`, no garbage strings, no parser drift.
-
-Throughput vs the no-TQ variant (Welch's t-test):
-
-| | v791b (fp8_e5m2 KV) | v792 (TQ k8v4) | Welch p |
-|---|---:|---:|---:|
-| wall_TPS | 89.23 ± 8.87 | 90.49 ± 9.12 | 0.067 (NS) |
-| decode TPOT | 11.18 ms | 11.01 ms | -1.9% (NS) |
-
-Verdict: **+1.9% within statistical noise.** The dramatic +11.3% TQ bonus we measured on 35B-A3B-FP8 does NOT reproduce on Lorbus INT4 because Lorbus routes through `AllSparkLinearKernel` (not Marlin / compressed-tensors) — different memory traffic profile.
-
-So for 27B Lorbus we ship **both** TQ and non-TQ variants, neither is strictly better. Saved to `feedback_v792_lorbus_TQ_k8v4_works.md`.
-
-### Day 2 night — Quentin Machu's P64 fix
-
-[Quentin Machu (@Quentin-M)](https://github.com/Quentin-M) opened a fork branch `fix/p64_indexerror` with a clean diagnosis and 40-line fix for an `IndexError` in `chat_completion_stream_generator`. Root cause:
-
-> P64's widened `_should_check_for_unstreamed_tool_arg_tokens` returns True on `finish_reason` alone — to handle MTP/spec-decode finals where tool calls are in progress but the last delta carries no tool_calls chunk. However, the call site in `chat_completion_stream_generator` accesses `delta_message.tool_calls[0]` without checking that the list is non-empty. When the final delta has `tool_calls = []`, this crashes.
-
-Fix: add `delta_message.tool_calls and` guard before `[0]` access. Cherry-picked into `vllm/_genesis/wiring/patch_64_qwen3coder_mtp_streaming.py` as sub-patch E. Excellent root-cause writeup + minimal correct fix — first community-contributed Genesis patch. Credit added to [CREDITS.md](CREDITS.md).
-
-### Day 2 night — GPU profile recommendation system
-
-A repeated theme during the day: a patch that's a clear win on one card class is irrelevant on another (P40 needs L2 ≥ 24 MB, etc). We codified this as a **per-GPU recommendation engine**:
-
-`vllm/_genesis/gpu_profile.py` — static datasheet for 18 GPU classes (Ampere consumer + workstation, Ada Lovelace, Hopper, **all 5 Blackwell PRO workstation cards**), plus a per-patch predicate engine. At boot, Genesis prints `[REC]` / `[ON]` / `[OFF]` per patch based on the detected card:
-
-```
-[Genesis GPU profile] detected: NVIDIA RTX A5000
-  canonical: RTX A5000  cc: (8, 6)  SM: 64  L2: 4 MB  BW: 768 GB/s  regime: bandwidth
-
-  [OFF] P40    TQ k8v4 GQA grouping kernel  (correctly skipped — needs L2 ≥ 24 MB)
-  [REC] P67    Multi-query verify kernel for spec-decode K+1
-  [REC] P82    SGLang-style acceptance threshold OR-clause
-  [REC] PN8    MTP/draft online-quant propagation
-  [OFF] P83+P84+P85   (currently regressing on this stack)
-```
-
-Suggest-only — operator still must `export GENESIS_ENABLE_*=1`. See [Per-GPU recommendations](#per-gpu-recommendations) for the full table.
-
-### Day 2 night — Genesis Benchmark Suite shipped
-
-`tools/genesis_bench_suite.py` — single self-contained Python script (stdlib + requests, no scipy). 7-phase battery, configurable scope (`--quick` | `--mode standard` | `--mode full`), context window selectable (`--ctx 1K` through `--ctx 256K` or `all`). Output JSON + Markdown. Welch's t-test compare via `--compare A.json B.json`.
-
-See [Genesis Benchmark Suite](#genesis-benchmark-suite) section below for full description. Also a dedicated 5-environment run guide at [`docs/BENCHMARK_GUIDE.md`](docs/BENCHMARK_GUIDE.md).
-
----
+The full per-event log (timestamps, env settings, A/B numbers, p-values,
+follow-up TODOs) lives in
+[`vllm/_genesis/CHANGELOG.md`](vllm/_genesis/CHANGELOG.md). Two day-1
+findings turned into shipping patches (PN8, PN11), one into a root-cause
+memory note (INT8-gs128 boot crash on `torch.compile + qwen3_next.linear_attn
+@custom_op`, workaround: use Lorbus INT4).
 
 ## Quick start
 
-### Docker (recommended)
+Three on-ramps, depending on how much you want to do yourself.
+
+### Path A — interactive wizard (easiest, 60 seconds)
+
+The wizard reads your hardware, recommends a model that fits, asks
+about workload (tool-call vs throughput vs long-context), and writes
+a personalized launch script with the right Genesis patches engaged:
+
+```bash
+git clone https://github.com/Sandermage/genesis-vllm-patches ~/genesis-vllm-patches
+cd ~/genesis-vllm-patches
+python3 -m vllm._genesis.compat.cli init
+```
+
+Sample session: 1× RTX 4090 → recommends `qwen3_6_27b_int4_autoround`,
+asks workload, prints `start_27b_4090.sh`, optionally pulls weights
+via `huggingface-cli`, and shows the next-step command. From zero to
+running container: ~20 minutes (mostly model download).
+
+### Path B — Docker Compose (recommended for production)
 
 ```bash
 # 1. Set env paths
@@ -293,7 +565,7 @@ curl http://localhost:8000/v1/models -H "Authorization: Bearer genesis-local"
 python3 tools/genesis_bench_suite.py --quick --host 127.0.0.1
 ```
 
-### Bare metal (no Docker)
+### Path C — bare metal (no Docker)
 
 ```bash
 # Prereq
@@ -310,12 +582,35 @@ export MODEL_PATH=/path/to/Qwen3.6-35B-A3B-FP8
 ```
 
 For VM (Proxmox), WSL2, or RunPod see [`docs/BENCHMARK_GUIDE.md`](docs/BENCHMARK_GUIDE.md).
+For step-by-step bare-metal install see [`INSTALL.md`](INSTALL.md).
+For per-config explanations see [`QUICKSTART.md`](QUICKSTART.md).
 
 ---
 
 ## Reference configs
 
-Four PROD-ready configs ship in [`scripts/launch/`](scripts/launch/) — each in two flavors (Docker `start_*.sh` and bare-metal `bare_metal_*.sh`).
+Four PROD-ready configs ship in [`scripts/launch/`](scripts/launch/) —
+each in two flavors (Docker `start_*.sh` and bare-metal
+`bare_metal_*.sh`).
+
+**Reference fingerprints** — every PROD config has a JSON fingerprint
+under [`vllm/_genesis/compat/fingerprints/`](vllm/_genesis/compat/fingerprints/)
+with full hardware × software × config × measured metrics. The bench
+suite can compare a fresh run against the fingerprint:
+
+```bash
+# Re-run the bench, compare against the v775 35B fingerprint
+python3 tools/genesis_bench_suite.py --mode standard --runs 25 \
+    --max-tokens 1024 --ctx 8K --probe-output-length \
+    --name my-run --out /tmp/my-run.json
+python3 tools/genesis_bench_suite.py --compare \
+    vllm/_genesis/compat/fingerprints/rtx_a5000_x2_qwen3_6_35b_a3b_fp8_v775.json \
+    /tmp/my-run.json
+```
+
+A regression alarm fires if `wall_TPS` drops below 85 % of the
+fingerprint median or `decode_TPOT_ms` exceeds 120 % — thresholds are
+declared inside each fingerprint and enforced by the comparator.
 
 ### 1. 35B-A3B-FP8 PROD (the daily driver)
 
@@ -520,15 +815,15 @@ The guide also documents:
 
 The bench suite measures **performance**. For **correctness validation** (apply matrix, smoke tests, pytest) use:
 
-- [`validate_unit.sh`](validate_unit.sh) — CPU-only Python pytest in transient Docker container (~30 sec)
-- [`validate_integration.sh`](validate_integration.sh) — GPU pytest + container health + chat-completion smoke + diagnostic probes
+- [`validate_unit.sh`](scripts/validate_unit.sh) — CPU-only Python pytest in transient Docker container (~30 sec)
+- [`validate_integration.sh`](scripts/validate_integration.sh) — GPU pytest + container health + chat-completion smoke + diagnostic probes
 - [`scripts/run_validation_suite.sh <model_tag>`](scripts/run_validation_suite.sh) — universal per-model validation runner with new model tags (`qwen3_6_35b_fp8`, `qwen3_6_27b_int4_short`, `qwen3_6_27b_int4_long`, `qwen3_6_27b_int4_TQ`)
 
 ---
 
 ## Patch catalog
 
-Genesis ships **65+ runtime patches** across categories. Each patch is opt-in via env var. See [`PATCHES.md`](PATCHES.md) for the canonical full reference; the table below highlights the most operator-facing ones.
+Genesis ships **48 runtime patches** in the dispatcher's `PATCH_REGISTRY` (the schema-validated, lifecycle-tracked set). Each patch is opt-in via env var. See [`PATCHES.md`](PATCHES.md) for the canonical full reference; the table below highlights the most operator-facing ones.
 
 ### TurboQuant + KV cache (foundational)
 

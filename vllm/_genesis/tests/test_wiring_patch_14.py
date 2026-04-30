@@ -68,7 +68,7 @@ def fake_block_table_module(monkeypatch):
 
 class TestPatch14Wiring:
     def test_apply_wraps_both_methods(self, fake_block_table_module):
-        from vllm._genesis.wiring import patch_14_block_table as p14
+        from vllm._genesis.wiring.legacy import patch_14_block_table as p14
 
         status, reason = p14.apply()
         assert status == "applied", f"{status}: {reason}"
@@ -89,7 +89,7 @@ class TestPatch14Wiring:
         p14.revert()
 
     def test_idempotent(self, fake_block_table_module):
-        from vllm._genesis.wiring import patch_14_block_table as p14
+        from vllm._genesis.wiring.legacy import patch_14_block_table as p14
 
         s1, _ = p14.apply()
         s2, _ = p14.apply()
@@ -111,7 +111,7 @@ class TestPatch14Wiring:
 
     def test_move_row_zeros_target_tail(self, fake_block_table_module):
         """The critical regression: moving shorter into longer slot — tail must zero."""
-        from vllm._genesis.wiring import patch_14_block_table as p14
+        from vllm._genesis.wiring.legacy import patch_14_block_table as p14
         import numpy as np
 
         p14.apply()
@@ -136,14 +136,14 @@ class TestPatch14Wiring:
 
     def test_skip_when_module_missing(self, monkeypatch):
         """If BlockTable isn't importable, wiring skips cleanly."""
-        from vllm._genesis.wiring import patch_14_block_table as p14
+        from vllm._genesis.wiring.legacy import patch_14_block_table as p14
         monkeypatch.setattr(p14, "_import_block_table", lambda: None)
         status, reason = p14.apply()
         assert status == "skipped"
         assert "block_table" in reason
 
     def test_revert_restores_originals(self, fake_block_table_module):
-        from vllm._genesis.wiring import patch_14_block_table as p14
+        from vllm._genesis.wiring.legacy import patch_14_block_table as p14
         cls = fake_block_table_module
         orig_append = cls.append_row
         orig_move = cls.move_row

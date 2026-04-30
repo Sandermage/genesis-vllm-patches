@@ -40,9 +40,22 @@ from __future__ import annotations
 
 import logging
 import os
+from dataclasses import dataclass
 from typing import Any
 
 log = logging.getLogger("genesis.dispatcher")
+
+
+# ─── Validation issue dataclass ──────────────────────────────────────────
+# Reported by validate_registry() and validate_apply_plan(). Severity
+# levels: "ERROR" (operator must fix), "WARNING" (likely-wrong, allow boot
+# to proceed), "INFO" (informational only).
+
+@dataclass(frozen=True)
+class ValidationIssue:
+    severity: str  # "ERROR" | "WARNING" | "INFO"
+    patch_id: str
+    message: str
 
 
 # ─── Patch metadata registry ───────────────────────────────────────────────
@@ -58,6 +71,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "spec_decode",
         "credit": "noonghunna (#40807, #40831)",
         "upstream_pr": None,
+        "conflicts_with": ["P65"],
         "deprecation_note": (
             "P56 was a routing-layer workaround forcing spec-decode through a "
             "'safe' path when CG-aware buffers misaligned. Real fix is P65 "
@@ -75,6 +89,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "spec_decode",
         "credit": "noonghunna (#40831), gdn_attn.py reference",
         "upstream_pr": None,
+        "conflicts_with": ["P65"],
         "deprecation_note": (
             "P57 v2 enlarges per-layer capture buffers from ~530 KiB to ~2.1 MiB "
             "(see wiring/patch_57 docstring for derivation), which is the "
@@ -120,6 +135,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "credit": "tdoublep (vllm#40738)",
         "upstream_pr": 40738,
         "applies_to": {"is_hybrid": [True]},
+        "requires_patches": ["P60"],
     },
     "P61": {
         "title": "Qwen3 multi-tool first-occurrence (DEPRECATED — superseded by P12 v2)",
@@ -228,6 +244,23 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {
             "is_turboquant": [True],
         },
+        "conflicts_with": ["P65"],
+    },
+    "P67b": {
+        "title": "TurboQuant spec-verify forward() routing (FULL CG enable)",
+        # P67b reuses P67's env flag intentionally — they're a coupled pair,
+        # P67b is the forward() routing companion that bypasses
+        # _prefill_attention for K+1 verify batches (cudagraph-safe).
+        "env_flag": "GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL",
+        "default_on": False,
+        "category": "spec_decode",
+        "credit": "Genesis-original (FULL CG enable for P67 multi-query kernel)",
+        "upstream_pr": None,
+        "applies_to": {
+            "is_turboquant": [True],
+        },
+        "requires_patches": ["P67"],
+        "conflicts_with": ["P65"],
     },
     "P72": {
         "title": "profile_run M cap (unblocks --max-num-batched-tokens>4096 on MoE)",
@@ -253,6 +286,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "credit": "Genesis-original (zero-VRAM-cost prealloc-overflow safety net for P72-unblocked batched_tokens>4096)",
         "upstream_pr": None,
         "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_moe", "qwen3_next"]},
+        "requires_patches": ["P72"],
     },
     "P75": {
         "title": "Auto-enable Suffix Decoding (Arctic Inference, vllm#25784)",
@@ -343,6 +377,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "credit": "Genesis-original 2026-04-27 — synthesis of 6-round empirical investigation + deep code analysis. Identified TWO mismatches in hybrid prefix cache: (A) MambaManager.cache_blocks early-returns for prompts < self.block_size (e.g., 1424 < 2048); (B) Mamba align-mode pads with null_blocks so num_full_blocks > 0 still inserts 0 entries. P85 patches MambaManager to: (1) register shadow fine-grained hash entries (scale_factor=block_size/hash_block_size duplicates) when caching, (2) walk fine hashes on lookup with eviction-safety re-derive verify. Memory layout / ref-count untouched. Requires P84 (fine hashes computed). Architectural limit: cannot help prompts < block_size (Mamba state genuinely uncached at sub-block boundaries).",
         "upstream_pr": None,
         "applies_to": {"is_hybrid": [True]},
+        "requires_patches": ["P84"],
     },
     "P86": {
         "title": "ngram batch_propose O(N*K) → O(N+K) direct-fill (vllm#40876)",
@@ -472,6 +507,117 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             # mistral, deepseek, etc.). For MoE models impact is per-expert.
         },
     },
+    "PN19": {
+        "title": "Scoped max_split_size_mb during model load (vllm#41268)",
+        "env_flag": "GENESIS_ENABLE_PN19_SCOPED_MAX_SPLIT",
+        "default_on": False,
+        "category": "memory_savings",
+        "credit": (
+            "Backport of vllm#41268 (MatthewBonanni, OPEN 2026-04-30). "
+            "PyTorch 2.10+ introduced load-time allocator fragmentation: "
+            "weight segments split inside other segments, leaving "
+            "200-500 MiB unusable. Mitigation: temporarily set "
+            "max_split_size_mb=20 (PyTorch minimum) for the duration of "
+            "model load, restore prior on exit. Cudagraph-safe (load-"
+            "time only; capture phase uses restored allocator). "
+            "Default OFF — operator should measure fragmentation gap "
+            "via nvidia-smi peak during load before vs after to confirm "
+            "win on Ampere SM 8.6 (PR #41268 measured on H100; A5000 "
+            "behavior unverified). Cross-reference Genesis memory "
+            "feedback_p104_l2_persistence_thrashing — hardware-mismatch "
+            "patches are anti-pattern; measure first."
+        ),
+        "upstream_pr": 41268,
+        "applies_to": {
+            # Always applicable on CUDA. Self-detects torch < 2.11 lack
+            # of _accelerator_setAllocatorSettings and falls through
+            # unchanged.
+        },
+    },
+    "PN17": {
+        "title": "FA2 softmax_lse runtime clamp (Cliff 1 mechanism A, Issue #11)",
+        "env_flag": "GENESIS_ENABLE_PN17_FA2_LSE_CLAMP",
+        "default_on": False,
+        "category": "memory_savings",
+        "credit": (
+            "Genesis-original 2026-04-30 in response to noonghunna's "
+            "Genesis Issue #11 cross-rig diagnosis (RTX 3090, 2026-04-29). "
+            "FA2 `flash_attn_varlen_func` allocates softmax_lse buffer "
+            "of shape [num_seqs, num_heads, max_seqlen_k] sized by "
+            "the max_seqlen_k argument — NOT actual seqused_k. vLLM's "
+            "gpu_model_runner sets attn_metadata.max_seq_len = "
+            "max_model_len during cudagraph capture for shape stability "
+            "(see vllm#40961 SWA case); this leaks into runtime "
+            "decode/prefill, causing 50-100 MiB over-allocation at "
+            "long context. Closes Cliff 1 mechanism A (FA2 path); "
+            "widens long-text-no-vision safe envelope from ~150K to "
+            "~205K. Mechanism B (FFN intermediate buffer 138 MiB on "
+            "long-vision) is OUT OF SCOPE — requires upstream-FFN "
+            "chunked forward, not addressable from Genesis text-patch "
+            "layer. Cudagraph-safe: clamp only fires when "
+            "is_current_stream_capturing() returns False; capture-time "
+            "preserves max_model_len padding. Reference: "
+            "Dao-AILab/flash-attention#1011 (open since 2024)."
+        ),
+        "upstream_pr": None,
+        "applies_to": {
+            # Applies whenever FA2 varlen path is active. Most relevant
+            # at long context (>100K) where the cap-leak dominates.
+        },
+    },
+    "PN16": {
+        "title": "Lazy-reasoner request hook (per-request enable_thinking)",
+        "env_flag": "GENESIS_ENABLE_PN16_LAZY_REASONER",
+        "default_on": False,
+        "category": "request_middleware",
+        "credit": (
+            "Genesis-original 2026-04-29. Hybrid policy on whether the "
+            "model's `<think>...</think>` reasoning block adds value for "
+            "this specific request. Variant 1 (pre-decision): force "
+            "enable_thinking=False on short prompts (< "
+            "GENESIS_PN16_THRESHOLD_CHARS, default 300) without tools, "
+            "json_schema, or reasoning-signal patterns (math/code/CoT "
+            "keywords). Variant 3 (client override): respect explicit "
+            "chat_template_kwargs.enable_thinking from the client. Variant "
+            "4 (LogitsProcessor cap): UPSTREAM-BLOCKED — vllm v1 rejects "
+            "custom logits processors when speculative_config is set "
+            "(Genesis PROD = MTP K=3). Variant 5 (prompt-engineering soft "
+            "cap): fallback when max_thinking_tokens > 0; appends a "
+            "concise-reasoning hint to the last user message. Soft cap, "
+            "depends on model compliance, but works with spec-decode. "
+            "Goal: reduce wasted reasoning tokens + TTFT on simple prompts "
+            "without doubling latency or load. Stats counters exposed via "
+            "`vllm._genesis.middleware.lazy_reasoner.get_stats()`."
+        ),
+        "upstream_pr": None,
+    },
+    "PN14": {
+        "title": "TQ decode IOOB safe_page_idx clamp (vllm#40074)",
+        "env_flag": "GENESIS_ENABLE_PN14_TQ_DECODE_OOB_CLAMP",
+        "default_on": False,
+        "category": "kernel_safety",
+        "credit": (
+            "Backport of vllm#40074 (devarakondasrikanth @adobe, OPEN). "
+            "Fixes upstream issue #39998 — Triton bounds-checker assertion "
+            "in `_tq_decode_stage1` on long (>32k) sequences. The mask= "
+            "argument guards the LOADED VALUE on masked-out lanes but not "
+            "the address arithmetic; clamping page_idx to 0 via "
+            "`tl.where(kv_mask, page_idx, 0)` keeps the pointer in-bounds "
+            "even on lanes whose result is discarded. Originally reported "
+            "on 4090 (sm_89); jhsmith409 confirmed clean apply on 5090 "
+            "(sm_120) while stacking on top of #39931. Defensive on Genesis "
+            "Ampere prod (sm_86 — assertion not seen). Becomes load-bearing "
+            "on Sander's planned RTX PRO 6000 Blackwell upgrade. Self-"
+            "retires via marker `safe_page_idx` when #40074 merges. "
+            "Codepath fires when spec-decode OFF/K=1 OR P67 dispatch returns "
+            "False (shape outside envelope) — runs in Genesis prod despite "
+            "MTP K=3 being active."
+        ),
+        "upstream_pr": 40074,
+        "applies_to": {
+            "is_turboquant": [True],
+        },
+    },
     "PN13": {
         "title": "CUDAGraphWrapper gc.collect/empty_cache lambda arity (vllm#41235)",
         "env_flag": "GENESIS_ENABLE_PN13_CUDA_GRAPH_LAMBDA_ARITY",
@@ -501,8 +647,9 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "env_flag": "GENESIS_ENABLE_P94",
         "default_on": False,
         "category": "spec_decode",
-        "credit": "Backport of vllm#41043 (wangluochao902, OPEN). Removes GPU->CPU .tolist() sync + list-comp Python objects + np.array allocation in LLMBaseProposer.prepare_next_token_ids_padded hot path. PR author measured P99 TPOT -9.3% on Llama-3.1-8B + Eagle3 TP=4. For our MTP K=3 single-stream: expected +2-4% wall TPS + tighter CV.",
+        "credit": "Backport of vllm#41043 (wangluochao902, MERGED 2026-04-29). Removes GPU->CPU .tolist() sync + list-comp Python objects + np.array allocation in LLMBaseProposer.prepare_next_token_ids_padded hot path. PR author measured P99 TPOT -9.3% on Llama-3.1-8B + Eagle3 TP=4. For our MTP K=3 single-stream: expected +2-4% wall TPS + tighter CV. SUPERSEDED-ON-MERGE: when our pin advances past the merge SHA the patch will SKIP cleanly via drift detection on the original .tolist() anchor — at that point delete the wiring file + this entry.",
         "upstream_pr": 41043,
+        "superseded_by": "vllm#41043 (merged 2026-04-29)",
         "applies_to": {
             # Applies whenever spec-decode is active. All spec methods.
         },
@@ -559,7 +706,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "env_flag": "GENESIS_ENABLE_P98",
         "default_on": False,
         "category": "perf_hotfix",
-        "credit": "Reverts upstream PR #40941 WorkspaceManager indirection in turboquant_attn._decode_attention hot path. Diagnosis 2026-04-28: NEW vllm caused 17% TPS regression on PROD (200 → 167 TPS) due to current_workspace_manager().get_simultaneous() Python lookup × N layers × per-step. Restores OLD per-layer cached buffer pattern. Memory cost: O(num_layers) extra dequant buffers (~1GB for 64-layer model). DO NOT enable on H100/H200 high-concurrency where WorkspaceManager amortizes better. Author: Sandermage.",
+        "credit": "Reverts upstream PR #40941 (MERGED 2026-04-27). PR introduced WorkspaceManager indirection in turboquant_attn._decode_attention hot path. Diagnosis 2026-04-28: caused 17% TPS regression on PROD (200 → 167 TPS) due to current_workspace_manager().get_simultaneous() Python lookup × N layers × per-step. Restores OLD per-layer cached buffer pattern. Memory cost: O(num_layers) extra dequant buffers (~1GB for 64-layer model). DO NOT enable on H100/H200 high-concurrency where WorkspaceManager amortizes better. NOTE: this patch is a DELIBERATE INVERSE of merged upstream behavior (NOT a backport) — it remains a perf hotfix specifically for Ampere small-batch single-stream workloads even though the upstream PR is merged. Author: Sandermage.",
         "upstream_pr": 40941,
         "applies_to": {
             "kv_cache_dtype": [
@@ -644,7 +791,62 @@ def _check_applies_to(
         "is_turboquant": "turboquant",
     }
 
-    for key, allowed in applies_to.items():
+    # Build a flat profile dict that combines model_detect output with
+    # boolean-alias mapping so the new predicates evaluator can read both
+    # "is_turboquant" (used in applies_to) and "turboquant" (model_detect
+    # native key) interchangeably.
+    flat_profile: dict[str, Any] = dict(profile)
+    for applies_key, profile_key in key_aliases.items():
+        if profile_key in profile and applies_key not in flat_profile:
+            flat_profile[applies_key] = profile[profile_key]
+
+    # ─── Path A: richer predicate DSL (compat/predicates) ────────────────
+    # Detect compound keys: all_of / any_of / not / none_of. If present,
+    # delegate to the new evaluator. This lets new patches use the richer
+    # syntax while old ones keep working unchanged.
+    compound_keys = ("all_of", "any_of", "not", "none_of")
+    if any(k in applies_to for k in compound_keys):
+        try:
+            from vllm._genesis.compat.predicates import evaluate
+            ok, reason = evaluate(applies_to, flat_profile)
+            return ok, ("applies_to satisfied" if ok
+                        else f"MODEL-COMPAT: {reason}")
+        except Exception as e:
+            log.warning(
+                "[Genesis dispatcher] %s: predicate evaluator raised (%s) — "
+                "conservative apply. Check applies_to syntax.",
+                patch_id, e,
+            )
+            return True, f"predicate evaluator error ({e}) — conservative apply"
+
+    # ─── Path B: legacy flat-dict applies_to (backward compatible) ───────
+    # Also pull version-related keys out and check via version_check.
+    version_keys = (
+        "vllm_version_range", "torch_version_min", "triton_version_min",
+        "cuda_runtime_min", "nvidia_driver_min", "python_version_min",
+        "compute_capability_min", "compute_capability_max",
+    )
+    version_constraints = {k: v for k, v in applies_to.items() if k in version_keys}
+    profile_constraints = {k: v for k, v in applies_to.items() if k not in version_keys}
+
+    # Version range checks
+    if version_constraints:
+        try:
+            from vllm._genesis.compat.version_check import (
+                check_version_constraints,
+            )
+            v_ok, v_results = check_version_constraints(version_constraints)
+            if not v_ok:
+                failed = [r for r in v_results if r.matched is False]
+                if failed:
+                    return False, f"VERSION: {failed[0].reason}"
+                return False, "VERSION: constraint violation"
+        except Exception as e:
+            log.debug("[Genesis dispatcher] %s: version_check failed (%s) — "
+                      "conservative apply", patch_id, e)
+
+    # Legacy profile gates
+    for key, allowed in profile_constraints.items():
         profile_key = key_aliases.get(key, key)
         actual = profile.get(profile_key)
         if actual is None:
@@ -834,6 +1036,181 @@ def log_apply_matrix() -> None:
         "[Genesis Dispatcher v2] apply matrix:\n%s",
         matrix,
     )
+
+
+# ─── A3/D2 — PATCH_REGISTRY dependency / conflict validator ───────────────
+# Two layers:
+#   1. validate_registry()      — static structural check (boot-time)
+#   2. validate_apply_plan(set) — runtime check on actual decisions
+#
+# Patch metadata may declare:
+#   "requires_patches": ["P60"]      — list of patch_ids that must also apply
+#   "conflicts_with":   ["P65"]      — list of patch_ids that MUST NOT apply
+# Both fields default to [] when absent (no relationship declared).
+
+
+def _coerce_list(value: Any) -> list[str]:
+    """Normalize a metadata field into list[str]. Tolerates None / scalar."""
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, (list, tuple, set)):
+        return [str(v) for v in value]
+    return []
+
+
+def validate_registry(
+    registry: dict[str, dict[str, Any]] | None = None,
+) -> list[ValidationIssue]:
+    """Static validation of PATCH_REGISTRY shape.
+
+    Checks (per declared `requires_patches` / `conflicts_with` field):
+      - Every referenced id exists in the registry (else ERROR — typo class)
+      - No patch references itself (else ERROR — clear bug)
+      - No requires-cycle A→…→A (else ERROR — boot would loop or wedge)
+
+    Returns a list of `ValidationIssue` (empty list = clean).
+    """
+    if registry is None:
+        registry = PATCH_REGISTRY
+
+    issues: list[ValidationIssue] = []
+    keys = set(registry.keys())
+
+    # 1. Reference existence + self-reference
+    for pid, meta in registry.items():
+        for ref in _coerce_list(meta.get("requires_patches")):
+            if ref == pid:
+                issues.append(ValidationIssue(
+                    "ERROR", pid,
+                    f"requires_patches contains self-reference {ref!r}",
+                ))
+            elif ref not in keys:
+                issues.append(ValidationIssue(
+                    "ERROR", pid,
+                    f"requires_patches references unknown patch_id {ref!r}",
+                ))
+        for ref in _coerce_list(meta.get("conflicts_with")):
+            if ref == pid:
+                issues.append(ValidationIssue(
+                    "ERROR", pid,
+                    f"conflicts_with contains self-reference {ref!r}",
+                ))
+            elif ref not in keys:
+                issues.append(ValidationIssue(
+                    "ERROR", pid,
+                    f"conflicts_with references unknown patch_id {ref!r}",
+                ))
+
+    # 2. Cycle detection on requires_patches graph (DFS three-color).
+    WHITE, GRAY, BLACK = 0, 1, 2
+    color = {pid: WHITE for pid in registry}
+
+    def _walk(pid: str, path: list[str]) -> None:
+        if color[pid] == GRAY:
+            cycle = path[path.index(pid):] + [pid]
+            issues.append(ValidationIssue(
+                "ERROR", pid,
+                f"requires_patches cycle detected: {' → '.join(cycle)}",
+            ))
+            return
+        if color[pid] == BLACK:
+            return
+        color[pid] = GRAY
+        for ref in _coerce_list(registry.get(pid, {}).get("requires_patches")):
+            if ref in color:
+                _walk(ref, path + [pid])
+        color[pid] = BLACK
+
+    for pid in list(registry):
+        if color[pid] == WHITE:
+            _walk(pid, [])
+
+    return issues
+
+
+def validate_apply_plan(
+    applied: set[str],
+    registry: dict[str, dict[str, Any]] | None = None,
+) -> list[ValidationIssue]:
+    """Runtime validation: given the live APPLY set, surface dependency /
+    conflict violations.
+
+    Args:
+        applied: set of patch_ids that the dispatcher actually decided to
+            APPLY this boot (from `get_apply_matrix()` filtered by
+            applied=True, or computed externally).
+        registry: optional override for testing; defaults to PATCH_REGISTRY.
+
+    Returns:
+        list of ValidationIssue. Severities:
+          - ERROR  : missing required, conflict-pair both applied
+          - WARNING: applied set contains a patch_id not in registry
+
+    Conflict pairs are reported once (canonicalized — sorted ids) even when
+    the conflict is declared symmetrically on both sides.
+    """
+    if registry is None:
+        registry = PATCH_REGISTRY
+
+    issues: list[ValidationIssue] = []
+
+    # Unknown ids in applied set
+    for pid in applied:
+        if pid not in registry:
+            issues.append(ValidationIssue(
+                "WARNING", pid,
+                f"applied set contains unknown patch_id {pid!r}",
+            ))
+
+    # Required dependencies — only check patches that ARE applied
+    for pid in applied:
+        meta = registry.get(pid)
+        if meta is None:
+            continue  # already reported as unknown above
+        for ref in _coerce_list(meta.get("requires_patches")):
+            if ref not in applied:
+                issues.append(ValidationIssue(
+                    "ERROR", pid,
+                    f"missing required dependency: {pid} requires {ref!r} "
+                    f"to also be APPLY (currently SKIP)",
+                ))
+
+    # Conflicts — canonicalize pairs to avoid double-reporting
+    seen_pairs: set[tuple[str, str]] = set()
+    for pid in applied:
+        meta = registry.get(pid)
+        if meta is None:
+            continue
+        for ref in _coerce_list(meta.get("conflicts_with")):
+            if ref in applied:
+                pair = tuple(sorted([pid, ref]))
+                if pair in seen_pairs:
+                    continue
+                seen_pairs.add(pair)
+                issues.append(ValidationIssue(
+                    "ERROR", pid,
+                    f"conflict: {pair[0]} and {pair[1]} are both APPLY but "
+                    f"declared mutually exclusive — pick one",
+                ))
+
+    return issues
+
+
+def log_validation_issues(issues: list[ValidationIssue]) -> None:
+    """Emit issues at appropriate log severity. Operator-readable summary."""
+    if not issues:
+        log.info("[Genesis Dispatcher v2] validator: clean (no issues)")
+        return
+    for i in issues:
+        msg = f"[Genesis Dispatcher v2] validator {i.severity}: {i.patch_id} — {i.message}"
+        if i.severity == "ERROR":
+            log.error(msg)
+        elif i.severity == "WARNING":
+            log.warning(msg)
+        else:
+            log.info(msg)
 
 
 # ─── CLI entry-point ──────────────────────────────────────────────────────

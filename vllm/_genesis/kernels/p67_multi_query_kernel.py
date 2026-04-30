@@ -360,6 +360,7 @@ def _build_kernel():
         BLOCK_SIZE: tl.constexpr,
         BLOCK_KV: tl.constexpr,
         HEADS_PER_KV: tl.constexpr,
+        BLOCK_QH: tl.constexpr,
         Hq_TOTAL: tl.constexpr,
         KPS: tl.constexpr,
         VAL_DATA_BYTES: tl.constexpr,
@@ -378,12 +379,22 @@ def _build_kernel():
         bid = tl.program_id(0)
         kv_head = tl.program_id(1)
 
-        # Per-q_t block dimension (was BLOCK_M = K_PLUS_1 * HEADS_PER_KV in v7.27)
-        BLOCK_QH: tl.constexpr = HEADS_PER_KV
+        # Per-q_t block dimension. Caller passes BLOCK_QH = next_power_of_2(HEADS_PER_KV)
+        # so the kernel compiles for any GQA factor (incl. non-pow-2 like 27B GQA=6).
+        # Padding lanes (offs_h >= HEADS_PER_KV) are masked everywhere — no Q load,
+        # no score contribution, no output write. Bit-exact to power-of-2 case when
+        # HEADS_PER_KV is itself power-of-2 (BLOCK_QH == HEADS_PER_KV → mask all-true).
 
         offs_h = tl.arange(0, BLOCK_QH)
         abs_head = kv_head * HEADS_PER_KV + offs_h
-        head_mask = abs_head < Hq_TOTAL
+        # Padding lane mask: lane i is valid iff i < HEADS_PER_KV (i.e. it maps to
+        # a real head within this kv_head's group). Without this, lanes
+        # HEADS_PER_KV..BLOCK_QH-1 would alias into the *next* kv_head's heads
+        # via abs_head=kv_head*HEADS_PER_KV+i, computing wrong attention with the
+        # current kv_head's K/V tile. (With pow-2 HEADS_PER_KV the lane mask is
+        # identically true and lowers to a no-op.)
+        lane_valid = offs_h < HEADS_PER_KV
+        head_mask = lane_valid & (abs_head < Hq_TOTAL)
 
         # vLLM convention: seq_lens[i] = TOTAL length INCLUDING K_PLUS_1 chunk.
         total_seq_len = tl.load(Seq_lens_ptr + bid)
@@ -723,16 +734,34 @@ def call_p67_attention(
             f"P67 kernel requires K_PLUS_1 power-of-2, got {K_PLUS_1}; "
             "caller should fall through to upstream kernel"
         )
-    if heads_per_kv < 1 or (heads_per_kv & (heads_per_kv - 1)) != 0:
+    if heads_per_kv < 1:
         raise ValueError(
-            f"P67 kernel requires heads_per_kv power-of-2, got {heads_per_kv}; "
-            "caller should fall through to upstream kernel"
+            f"P67 kernel requires heads_per_kv >= 1, got {heads_per_kv}"
+        )
+    # Fused-M (opt-in via GENESIS_P67_USE_FUSED=1) bakes BLOCK_M = K_PLUS_1 *
+    # HEADS_PER_KV into one contiguous arange — requires pow-2. Split-M
+    # (default) is generalized to non-pow-2 via BLOCK_QH padding + lane_valid
+    # mask. Refuse fused on non-pow-2 so caller falls through to upstream.
+    _fused_mode = os.environ.get("GENESIS_P67_USE_FUSED", "").strip().lower() in (
+        "1", "true", "yes", "on"
+    )
+    if _fused_mode and (heads_per_kv & (heads_per_kv - 1)) != 0:
+        raise ValueError(
+            f"GENESIS_P67_USE_FUSED=1 requires heads_per_kv power-of-2, "
+            f"got {heads_per_kv}; either unset GENESIS_P67_USE_FUSED or use "
+            "default split-M which supports any GQA factor"
         )
 
     cap = torch.cuda.get_device_capability()
     cfg = _autoconfig(cap[0], cap[1], D)
 
     BLOCK_D = triton.next_power_of_2(D)
+    # v7.63.x non-pow-2 generalization: pad BLOCK_QH up to next_power_of_2 so
+    # Triton tl.arange / tl.dot compile for any GQA factor (e.g. Qwen3.6-27B
+    # GQA=6 → BLOCK_QH=8 with 2 lanes masked off via head_mask). When
+    # heads_per_kv is already power-of-2 (35B GQA=8 → BLOCK_QH=8) this is a
+    # no-op — bit-exact to pre-generalization split-M kernel.
+    BLOCK_QH = triton.next_power_of_2(heads_per_kv)
 
     if output is None:
         output = torch.empty_like(q)
@@ -764,6 +793,7 @@ def call_p67_attention(
         BLOCK_SIZE=block_size,
         BLOCK_KV=cfg["BLOCK_KV"],
         HEADS_PER_KV=heads_per_kv,
+        BLOCK_QH=BLOCK_QH,
         Hq_TOTAL=Hq,
         KPS=kps,
         VAL_DATA_BYTES=val_data_bytes,

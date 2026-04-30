@@ -22,7 +22,7 @@ import re
 
 import pytest
 
-from vllm._genesis.wiring.patch_95_marlin_tp_cudagraph_cap import (
+from vllm._genesis.wiring.hybrid.patch_95_marlin_tp_cudagraph_cap import (
     GENESIS_P95_MARKER,
     P95_CAP_NEW,
     P95_CAP_OLD,

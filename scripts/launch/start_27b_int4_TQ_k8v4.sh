@@ -1,14 +1,37 @@
 #!/bin/bash
-# v791: Lorbus INT4 + LONG-CONTEXT config + PN8 test
+# ════════════════════════════════════════════════════════════════════════
+# 27B Lorbus INT4 + TurboQuant k8v4 — EXPERIMENTAL / BROKEN under cudagraph
+# ════════════════════════════════════════════════════════════════════════
 #
-# Targets 128K context window (v771b OOMed at 16K with util=0.95).
-# Changes from v771b:
-#   - --gpu-memory-utilization 0.95 → 0.85 (frees ~2.4 GB headroom)
-#   - --max-num-seqs 4 → 2 (halves KV pool footprint)
-#   - --max-num-batched-tokens 8192 → 2048 (smaller chunked-prefill chunks)
-#   + GENESIS_ENABLE_PN8_MTP_DRAFT_ONLINE_QUANT=1 (verify if PN8 fires on INT4 AutoRound — it might no-op since AutoRound is offline-quant)
+# STATUS as of 2026-04-30: this config crashes during cudagraph FULL capture
+# with "Cannot copy between CPU and CUDA tensors during CUDA graph capture
+# unless the CPU tensor is pinned" (.tolist() inside _prefill_attention).
 #
-# Test plan:
+# Workarounds (current):
+#   1. PROD: use start_v771b_27b_no_prefix_cache.sh / start_27b_int4_no_TQ_short.sh
+#      → fp8_e5m2 KV, 96 TPS, 6/7 tool-call, FULL cudagraph clean.
+#   2. DIAGNOSTIC: add `-cc.cudagraph_mode=PIECEWISE` to vllm serve flags below
+#      → 70 TPS, 7/7 tool-call, no full graph capture.
+#
+# Why this config still ships:
+#   - 35B-A3B-FP8 (sister script start_35b_fp8_PROD.sh) uses same TQ k8v4 stack
+#     and works fine because GQA=8 (power-of-2) routes through P67 multi-query
+#     kernel before _prefill_attention's broken .tolist() path.
+#   - 27B has GQA=24/4=6 (non-pow-2) → falls through P67 → hits .tolist().
+#
+# Root-cause work tracked in:
+#   docs/_internal/ISSUE_27B_CUDAGRAPH_TOOL_CALL_REGRESSION_20260430.md
+#
+# Original v791 narrative (kept for context):
+#   v791: Lorbus INT4 + LONG-CONTEXT config + PN8 test
+#   Targets 128K context window (v771b OOMed at 16K with util=0.95).
+#   Changes from v771b:
+#     - --gpu-memory-utilization 0.95 → 0.85 (frees ~2.4 GB headroom)
+#     - --max-num-seqs 4 → 2 (halves KV pool footprint)
+#     - --max-num-batched-tokens 8192 → 2048 (smaller chunked-prefill chunks)
+#     + GENESIS_ENABLE_PN8_MTP_DRAFT_ONLINE_QUANT=1
+#
+# Test plan (paused until cudagraph fix lands):
 #   1. Boot, verify GPU memory < 21 GB after load (vs 22.69 GB v771b)
 #   2. /v1/models reachable
 #   3. Sequential context-size scan: 16K → 32K → 64K → 96K → 128K (200 tokens each)

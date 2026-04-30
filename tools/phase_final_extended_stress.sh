@@ -16,7 +16,7 @@
 set -euo pipefail
 
 MODEL_TAG="${1:-35b}"  # 35b or 27b
-HOST="${HOST:-192.168.1.10}"
+HOST="${HOST:-localhost}"
 PORT="${PORT:-8000}"
 API_KEY="${API_KEY:-genesis-local}"
 case "$MODEL_TAG" in
