@@ -2032,6 +2032,45 @@ def apply_patch_67c_sparse_v() -> PatchResult:
     return _failed(name, reason)
 
 
+@register_patch("PN30 DS conv state layout + spec-decode AL>1 fix (issue #17)")
+def apply_patch_N30_ds_layout_spec_decode() -> PatchResult:
+    """Patch N30: fix NotImplementedError in
+    `vllm/model_executor/layers/mamba/mamba_utils.py:get_conv_copy_spec`
+    when DS layout + num_accepted_tokens > 1.
+
+    Reported by noonghunna (issue #17, 2026-05-01) — 50/50 LCB v6 fail
+    on 27B Lorbus + TQ3 + MTP K=3 + TP=1 + structured-CoT + DS layout.
+
+    Two-file text-patch:
+    1. mamba_utils.py:get_conv_copy_spec — replace NotImplementedError
+       with .contiguous() + module-level temp-tensor list
+    2. v1/worker/mamba_utils.py:do_mamba_copy_block — wrap with stream
+       sync + list clear after batch_memcpy when DS+offset>0 used
+
+    Status: opt-in via GENESIS_ENABLE_PN30_DS_LAYOUT_SPEC_DECODE=1.
+    Default OFF — needs cross-rig validation on noonghunna's stack
+    since our PROD doesn't trigger (no --structured-outputs-config).
+
+    Cost: ~10-50us per batch when DS+offset>0 path active. Negligible
+    for prefill-dominated workloads (LCB, structured CoT, agent flows).
+    """
+    name = "PN30 DS conv state + spec-decode AL>1 (issue #17)"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: two-file text-patch ready")
+    try:
+        from vllm._genesis.wiring.spec_decode import (
+            patch_N30_ds_layout_spec_decode_align,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_N30_ds_layout_spec_decode_align.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
 @register_patch("PN29 GDN chunk_o scale-fold (vllm#41446 pattern (c) backport)")
 def apply_patch_N29_gdn_chunk_o_scale_fold() -> PatchResult:
     """Patch N29: backport of vllm#41446 pattern (c) (zobinHuang, OPEN

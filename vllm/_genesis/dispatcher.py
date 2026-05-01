@@ -456,6 +456,33 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             # is only called when spec-decode is active. No additional gate.
         },
     },
+    "PN30": {
+        "title": "DS conv state layout + spec-decode AL>1 fix (issue #17)",
+        "env_flag": "GENESIS_ENABLE_PN30_DS_LAYOUT_SPEC_DECODE",
+        "default_on": False,
+        "category": "model_correctness",
+        "credit": (
+            "Genesis-original fix for issue #17 (noonghunna, 2026-05-01). "
+            "Replaces upstream NotImplementedError raise in "
+            "`get_conv_copy_spec` for DS conv state layout + "
+            "num_accepted_tokens > 1 (every spec-decode AL>1 prefill on "
+            "DS-enabled hybrid GDN configs). Two-file text-patch: "
+            "(1) mamba_utils.py uses .contiguous() copy + module-level "
+            "temp tensor list; (2) v1/worker/mamba_utils.py wraps "
+            "do_mamba_copy_block with stream sync + list clear after "
+            "batch_memcpy. Cost: ~10-50us per batch when path active. "
+            "Closes 50/50 LCB v6 failure on structured-CoT workloads."
+        ),
+        "upstream_pr": None,
+        "applies_to": {
+            # Triggers in any hybrid GDN model with DS layout + spec-decode.
+            # Genesis A5000 PROD doesn't have --structured-outputs-config so
+            # may not exercise this path; community single-3090 + structured
+            # CoT does.
+        },
+        "conflicts_with": [],
+        "requires_patches": [],
+    },
     "P67c": {
         "title": "Per-row vote sparse-V integration into P67 split-M kernel",
         "env_flag": "GENESIS_ENABLE_P67_SPARSE_V",
