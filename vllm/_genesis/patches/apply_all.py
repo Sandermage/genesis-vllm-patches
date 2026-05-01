@@ -2018,6 +2018,81 @@ def apply_patch_N12_ffn_intermediate_pool() -> PatchResult:
 
 
 @register_patch(
+    "P15B FA varlen max_seqlen_k clamp on TQ path (Issue #15 fix)"
+)
+def apply_patch_15B_fa_varlen_clamp() -> PatchResult:
+    """Patch 15B: extend PN17-style clamp to TurboQuant FA varlen path.
+
+    Fixes Genesis Issue #15 (noonghunna 2026-05-01): PN17 doesn't reach
+    `turboquant_attn.py:_flash_attn_varlen` which calls vllm_flash_attn's
+    vendored wrapper. On long-context continuation prefill the wrapper
+    over-allocates ~max_seqlen_k-sized workspace, causing 50 MiB OOM at
+    tight VRAM (long-vision 140K + 0.95 mem-util on 24 GB 3090).
+
+    P15B inserts a clamp at the start of `_flash_attn_varlen` body that
+    computes actual max from cu_seqlens_k and reduces max_seqlen_k before
+    invocation. Adds one GPU->CPU sync per call on infrequent path.
+
+    Status: opt-in via GENESIS_ENABLE_P15B_FA_VARLEN_CLAMP=1. Default OFF.
+    """
+    name = "P15B FA varlen max_seqlen_k clamp on TQ path (Issue #15 fix)"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring.perf_hotfix import patch_15B_fa_varlen_clamp
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_15B_fa_varlen_clamp.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch(
+    "P38B P38 compile-safe in-source hook (Issue #14 fix — aot_compile-safe)"
+)
+def apply_patch_38B_compile_safe_hook() -> PatchResult:
+    """Patch 38B: P38 compile-safe in-source hook.
+
+    Fixes Genesis Issue #14 (noonghunna 2026-05-01): P38's class-attribute
+    rebind of `_continuation_prefill` doesn't survive aot_compile_fullgraph
+    capture. Compiled forward graph references the ORIGINAL method body at
+    runtime. Affects ALL TQ KV users with V0/V1 compile pipeline.
+
+    P38B fix: text-patch the upstream `turboquant_attn.py` source to
+    insert an in-source delegate hook at the START of
+    `_continuation_prefill` body. The hook calls a dispatcher that returns
+    Genesis impl result OR None (fall-through to original body).
+
+    Source-level edit means aot_compile captures the hook itself, not just
+    the original body. Class attribute `_genesis_p38_dispatch` is set
+    after import, BEFORE the worker compiles forward — dispatcher is
+    available at compile time.
+
+    Composes with P38: both share `_genesis_continuation_prefill` impl.
+    P38 still rebinds for eager-mode callers; P38B handles compile-mode.
+
+    Status: opt-in via GENESIS_ENABLE_P38B_COMPILE_SAFE=1. Default OFF.
+    Recommended pairing: enable P38 + P38B + P37 together when on TQ KV.
+    """
+    name = "P38B P38 compile-safe in-source hook (Issue #14 fix)"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch + dispatcher ready")
+    try:
+        from vllm._genesis.wiring.perf_hotfix import patch_38b_compile_safe_hook
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_38b_compile_safe_hook.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch(
     "PN26b sparse-V tile-skip Genesis kernel "
     "(BLASST λ=a/L for SM86, first NVIDIA Ampere implementation)"
 )

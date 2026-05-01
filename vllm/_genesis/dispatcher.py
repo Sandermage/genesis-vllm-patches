@@ -613,6 +613,51 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "conflicts_with": [],
         "requires_patches": [],
     },
+    "P15B": {
+        "title": "FA varlen max_seqlen_k clamp on TQ path (Issue #15 fix)",
+        "env_flag": "GENESIS_ENABLE_P15B_FA_VARLEN_CLAMP",
+        "default_on": False,
+        "category": "perf_hotfix",
+        "credit": (
+            "Genesis-original 2026-05-01 fix for noonghunna's Issue #15. "
+            "PN17 clamps max_seqlen_k on the FA2 backend path, but TurboQuant "
+            "code path bypasses PN17's coverage by calling vllm_flash_attn's "
+            "vendored wrapper via turboquant_attn.py:_flash_attn_varlen. P15B "
+            "extends the same clamp logic to that callsite via text-patch — "
+            "computes actual span from cu_seqlens_k and clamps max_seqlen_k "
+            "before invocation. Prevents 50 MiB workspace OOM on long-context "
+            "continuation-prefill on tight VRAM (24 GB consumer cards). "
+            "Trade-off: adds one GPU->CPU sync per call on the infrequent "
+            "continuation-prefill path."
+        ),
+        "upstream_pr": None,
+        "applies_to": {},
+        "conflicts_with": [],
+        "requires_patches": [],
+    },
+    "P38B": {
+        "title": "P38 compile-safe in-source hook (Issue #14 fix)",
+        "env_flag": "GENESIS_ENABLE_P38B_COMPILE_SAFE",
+        "default_on": False,
+        "category": "perf_hotfix",
+        "credit": (
+            "Genesis-original 2026-05-01 fix for noonghunna's Issue #14. "
+            "Root cause: aot_compile_fullgraph captures _continuation_prefill "
+            "original body at engine init; Python class-attribute rebind "
+            "(P38's mechanism) doesn't propagate to compiled artifact. "
+            "P38B injects an in-source delegate hook at the start of "
+            "_continuation_prefill body via text-patch. Hook calls a "
+            "dispatcher that returns Genesis result OR None (fall-through). "
+            "Source-level edit means aot_compile captures the hook itself. "
+            "Affects ALL TQ KV users with V0/V1 compile pipeline; fp8 KV "
+            "configs unaffected (different code path). Composes with P38 "
+            "(both share _genesis_continuation_prefill impl)."
+        ),
+        "upstream_pr": None,
+        "applies_to": {},
+        "conflicts_with": [],
+        "requires_patches": [],  # P38 install order: P38 first (provides impl), P38B second (installs hook)
+    },
     "PN26b": {
         "title": "Sparse-V tile-skip Genesis kernel (BLASST λ=a/L for SM86)",
         "env_flag": "GENESIS_ENABLE_PN26_SPARSE_V",
