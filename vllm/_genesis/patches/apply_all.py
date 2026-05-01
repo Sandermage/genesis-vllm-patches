@@ -2032,6 +2032,42 @@ def apply_patch_67c_sparse_v() -> PatchResult:
     return _failed(name, reason)
 
 
+@register_patch("PN31 FA varlen persistent out buffer (issue #15, sister to P38)")
+def apply_patch_N31_fa_varlen_persistent_out() -> PatchResult:
+    """Patch N31: persistent `out` buffer for `_flash_attn_varlen` to
+    eliminate per-call malloc pressure inside FA C extension. Sister
+    patch to P38's K_full/V_full persistent buffers.
+
+    Closes issue #15 (noonghunna 2026-05-01) — OOM at flash_attn_varlen_func
+    on 1×3090 24GB single GPU when long-vision config + ~50K-token prefill.
+    Different code path from P15B's max_seqlen_k clamp; P15B reduces FA's
+    workspace size, PN31 eliminates the per-call output tensor allocation.
+
+    Memory cost: ~16-64 MiB persistent VRAM per shape × layer. For our
+    2× A5000 PROD: NULL impact (we have 24 GB headroom). Intended for
+    single-GPU community users (1×3090, 1×4090) with budget-constrained
+    workloads.
+
+    Status: opt-in via GENESIS_ENABLE_PN31_FA_VARLEN_PERSISTENT_OUT=1.
+    Default OFF.
+    """
+    name = "PN31 FA varlen persistent out (issue #15)"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring.perf_hotfix import (
+            patch_N31_fa_varlen_persistent_out,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_N31_fa_varlen_persistent_out.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
 @register_patch("PN30 DS conv state layout + spec-decode AL>1 fix (issue #17)")
 def apply_patch_N30_ds_layout_spec_decode() -> PatchResult:
     """Patch N30: fix NotImplementedError in

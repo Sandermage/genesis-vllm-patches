@@ -61,11 +61,11 @@ docker run -d \
   -e GENESIS_PREALLOC_TOKEN_BUDGET=4096 -e GENESIS_BUFFER_MODE=shared \
   vllm/vllm-openai:nightly -c \
   "set -e; echo === 27B Lorbus INT4 + DFlash N=5 z-lab draft ===; \
-pip install --quiet --disable-pip-version-check pandas scipy xxhash; \
+pip install --quiet --disable-pip-version-check --root-user-action=ignore pandas scipy xxhash; \
 cp -r /plugin /tmp/genesis_vllm_plugin; \
-pip install --quiet --disable-pip-version-check --no-deps -e /tmp/genesis_vllm_plugin 2>&1 | tail -3; \
+pip install --quiet --disable-pip-version-check --root-user-action=ignore --no-deps -e /tmp/genesis_vllm_plugin 2>&1 | tail -3; \
 python3 -m vllm._genesis.patches.apply_all ; \
-exec vllm serve --model /models/Qwen3.6-27B-int4-AutoRound --tensor-parallel-size 2 \
+exec vllm serve /models/Qwen3.6-27B-int4-AutoRound --tensor-parallel-size 2 \
   --gpu-memory-utilization 0.95 --max-model-len 185000 \
   --max-num-seqs 1 --max-num-batched-tokens 8192 \
   --enable-chunked-prefill --dtype bfloat16 \

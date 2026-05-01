@@ -54,11 +54,11 @@ docker run -d \
   -e GENESIS_ENABLE_PN11_GDN_AB_CONTIGUOUS=1 \
   vllm/vllm-openai:nightly -c \
   "set -e; echo === 27B Lorbus INT4 + TQ k8v4 + NGRAM strict prompt_lookup_default ===; \
-pip install --quiet --disable-pip-version-check pandas scipy xxhash; \
+pip install --quiet --disable-pip-version-check --root-user-action=ignore pandas scipy xxhash; \
 cp -r /plugin /tmp/genesis_vllm_plugin; \
-pip install --quiet --disable-pip-version-check --no-deps -e /tmp/genesis_vllm_plugin 2>&1 | tail -3; \
+pip install --quiet --disable-pip-version-check --root-user-action=ignore --no-deps -e /tmp/genesis_vllm_plugin 2>&1 | tail -3; \
 python3 -m vllm._genesis.patches.apply_all ; \
-exec vllm serve --model /models/Qwen3.6-27B-int4-AutoRound --tensor-parallel-size 2 \
+exec vllm serve /models/Qwen3.6-27B-int4-AutoRound --tensor-parallel-size 2 \
   --gpu-memory-utilization 0.90 --max-model-len 280000 \
   --max-num-seqs 2 --max-num-batched-tokens 2048 \
   --enable-chunked-prefill --dtype float16 \

@@ -50,13 +50,13 @@ docker run -d \
   -e GENESIS_ENABLE_P74_CHUNK_CLAMP=1 -e GENESIS_ENABLE_P79B_ASYNC_PROPOSER_SYNC=0 -e GENESIS_ENABLE_P79C_STALE_SPEC_TOKEN_CLEANUP=0 -e GENESIS_ENABLE_P79D_PREEMPT_ASYNC_DISCARD=0 -e GENESIS_ENABLE_P81_FP8_BLOCK_SCALED_M_LE_8=1 -e GENESIS_ENABLE_P82=1 -e GENESIS_ENABLE_PN8_MTP_DRAFT_ONLINE_QUANT=1 -e GENESIS_ENABLE_PN11_GDN_AB_CONTIGUOUS=1 -e GENESIS_ENABLE_P99=1 -e GENESIS_ENABLE_PN17_FA2_LSE_CLAMP=1 -e GENESIS_ENABLE_PN19_SCOPED_MAX_SPLIT=1 -e GENESIS_ENABLE_PN22_LOCAL_ARGMAX_TP=1 -e GENESIS_ENABLE_PN26_SPARSE_V=1 -e GENESIS_PN26_SPARSE_V_THRESHOLD=0.005 -e GENESIS_PN26_SPARSE_V_BLOCK_KV=4 -e GENESIS_PN26_SPARSE_V_NUM_WARPS=4 -e GENESIS_PN26_SPARSE_V_DEBUG=1 -e GENESIS_ENABLE_P103=1 -e GENESIS_ENABLE_P101=1 -e GENESIS_P82_THRESHOLD_SINGLE=0.3 -e GENESIS_PREALLOC_TOKEN_BUDGET=4096 -e GENESIS_BUFFER_MODE=shared \
   vllm/vllm-openai:nightly -c \
   "set -e; echo \"=== v775 35B baseline upstream P67 (matches v759 PROD) ===\"; \
-pip install --quiet --disable-pip-version-check pandas scipy xxhash; \
+pip install --quiet --disable-pip-version-check --root-user-action=ignore pandas scipy xxhash; \
 cp -r /plugin /tmp/genesis_vllm_plugin; \
-pip install --quiet --disable-pip-version-check --no-deps -e /tmp/genesis_vllm_plugin 2>&1 | tail -3; \
+pip install --quiet --disable-pip-version-check --root-user-action=ignore --no-deps -e /tmp/genesis_vllm_plugin 2>&1 | tail -3; \
 python3 /external_probe/patch_tolist_cudagraph.py || echo tolist bypass failed; \
 python3 /external_probe/patch_40074_iooo.py || echo PR40074 failed; \
 python3 -m vllm._genesis.patches.apply_all ; \
-exec vllm serve --model /models/Qwen3.6-35B-A3B-FP8 --tensor-parallel-size 2 \
+exec vllm serve /models/Qwen3.6-35B-A3B-FP8 --tensor-parallel-size 2 \
   --gpu-memory-utilization 0.90 --max-model-len 320000 \
   --kv-cache-dtype turboquant_k8v4 --max-num-seqs 2 --max-num-batched-tokens 4096 \
   --enable-chunked-prefill --dtype float16 \

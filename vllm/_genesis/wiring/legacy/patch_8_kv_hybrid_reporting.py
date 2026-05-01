@@ -292,16 +292,37 @@ def _patcher_kv() -> TextPatcher | None:
         if _os.path.isfile(str(target)):
             with open(str(target)) as _f:
                 _src = _f.read()
+            # [Genesis P8 v3 2026-05-02] Distinguish "already patched"
+            # (idempotent skip — INFO) from "real anchor drift" (WARNING).
+            # Previously emitted alarming "may have drifted" log on every
+            # restart even when the patch was correctly already-applied
+            # (idempotent path triggers when marker comment + replacement
+            # block are in source instead of the original anchor).
+            already_applied = (
+                "[Genesis P8" in _src
+                or _KV_IMPORT_NEW in _src
+                or _KV_IMPORT_NEW_V2 in _src
+            )
             if _KV_IMPORT_OLD in _src:
                 pass  # V1 layout — already set
             elif _KV_IMPORT_OLD_V2 in _src:
                 import_anchor = _KV_IMPORT_OLD_V2
                 import_replacement = _KV_IMPORT_NEW_V2
                 log.info("[P8] using V2 import anchor (post-MambaSpec layout)")
+            elif already_applied:
+                log.info(
+                    "[P8] kv_cache_utils.py already has Genesis P8 marker — "
+                    "idempotent skip (this is the expected restart path; "
+                    "patch persists across container restart since file "
+                    "edits are on the bind-mount layer)"
+                )
             else:
                 log.warning(
-                    "[P8] neither V1 nor V2 import anchor matches — "
-                    "kv_cache_utils.py may have drifted; patcher will skip"
+                    "[P8] neither V1 nor V2 import anchor matches AND no "
+                    "Genesis marker present — kv_cache_utils.py drifted "
+                    "from upstream layout (real upstream change); patcher "
+                    "will skip safely. If this persists across pin-bumps, "
+                    "P8 may need a V3 anchor for new layout"
                 )
     except Exception as e:
         log.warning("[P8] anchor auto-pick failed: %s — defaulting to V1", e)

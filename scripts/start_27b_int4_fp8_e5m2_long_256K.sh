@@ -49,7 +49,6 @@ docker run -d \
   -e GENESIS_ENABLE_PN13_CUDA_GRAPH_LAMBDA_ARITY=1 \
   -e GENESIS_ENABLE_P94=1 \
   -e GENESIS_ENABLE_PN12_FFN_INTERMEDIATE_POOL=1 \
-  -e GENESIS_ENABLE_PN9_INDEPENDENT_DRAFTER_ATTN=1 \
   -e GENESIS_ENABLE_PN17_FA2_LSE_CLAMP=1 \
   -e GENESIS_ENABLE_PN19_SCOPED_MAX_SPLIT=1 -e GENESIS_ENABLE_PN22_LOCAL_ARGMAX_TP=1 -e GENESIS_ENABLE_P103=1 \
   -e GENESIS_ENABLE_P82=0 -e GENESIS_ENABLE_P99=1 -e GENESIS_P82_THRESHOLD_SINGLE=0.3 \
@@ -61,11 +60,11 @@ docker run -d \
   -e GENESIS_ENABLE_PN11_GDN_AB_CONTIGUOUS=1 \
   vllm/vllm-openai:nightly -c \
   "set -e; echo === v771b 27B Lorbus INT4 NO-prefix-cache MTP K=3 ===; \
-pip install --quiet --disable-pip-version-check pandas scipy xxhash; \
+pip install --quiet --disable-pip-version-check --root-user-action=ignore pandas scipy xxhash; \
 cp -r /plugin /tmp/genesis_vllm_plugin; \
-pip install --quiet --disable-pip-version-check --no-deps -e /tmp/genesis_vllm_plugin 2>&1 | tail -3; \
+pip install --quiet --disable-pip-version-check --root-user-action=ignore --no-deps -e /tmp/genesis_vllm_plugin 2>&1 | tail -3; \
 python3 -m vllm._genesis.patches.apply_all ; \
-exec vllm serve --model /models/Qwen3.6-27B-int4-AutoRound --tensor-parallel-size 2 \
+exec vllm serve /models/Qwen3.6-27B-int4-AutoRound --tensor-parallel-size 2 \
   --gpu-memory-utilization 0.90 --max-model-len 280000 \
   --max-num-seqs 2 --max-num-batched-tokens 2048 \
   --enable-chunked-prefill --dtype float16 \

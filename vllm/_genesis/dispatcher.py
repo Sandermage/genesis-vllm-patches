@@ -456,6 +456,28 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             # is only called when spec-decode is active. No additional gate.
         },
     },
+    "PN31": {
+        "title": "FA varlen persistent out buffer (issue #15, sister to P38)",
+        "env_flag": "GENESIS_ENABLE_PN31_FA_VARLEN_PERSISTENT_OUT",
+        "default_on": False,
+        "category": "memory_pool",
+        "credit": (
+            "Genesis-original sister patch to P38 (K_full/V_full persistent "
+            "buffers). Closes issue #15 — OOM at flash_attn_varlen_func on "
+            "budget-constrained single-GPU configs. Per-shape persistent "
+            "out buffer eliminates per-call malloc pressure inside FA C "
+            "extension. Memory cost: ~16-64 MiB per shape × layer. NULL "
+            "impact on 2×A5000 PROD (we have headroom); designed for "
+            "1×3090 / 1×4090 single-GPU community users."
+        ),
+        "upstream_pr": None,
+        "applies_to": {
+            # Triggers when TurboQuant attention is active. NULL on
+            # non-TQ paths (FP8 KV, BF16 KV).
+        },
+        "conflicts_with": [],
+        "requires_patches": [],
+    },
     "PN30": {
         "title": "DS conv state layout + spec-decode AL>1 fix (issue #17)",
         "env_flag": "GENESIS_ENABLE_PN30_DS_LAYOUT_SPEC_DECODE",
