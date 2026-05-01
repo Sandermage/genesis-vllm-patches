@@ -2032,6 +2032,50 @@ def apply_patch_67c_sparse_v() -> PatchResult:
     return _failed(name, reason)
 
 
+@register_patch("PN32 GDN chunked-prefill (Cliff 2 fix for single-24GB-GPU OOM)")
+def apply_patch_N32_gdn_chunked_prefill() -> PatchResult:
+    """Patch N32: chunked-prefill on GDN forward_cuda for long prompts.
+
+    Closes Cliff 2 (>50K-token single-prompt OOM on single-24GB-GPU
+    configs). Without this fix, GDN's `core_attn_out` allocates
+    819 MiB per layer × 30 layers = 24 GiB persistent — fully saturates
+    24GB card budget before KV cache or activations are sized.
+
+    Conditional path: when num_tokens > threshold (default 16384),
+    splits core attention + post-projection into chunks of CHUNK_SIZE
+    (default 8192). Each chunk allocates transient core_attn_out
+    (~131 MiB at 8K), runs gdn_attention_core (state continues via
+    layer-name keyed cache), runs norm+out_proj per chunk. Chunk
+    buffer freed between iterations.
+
+    Below threshold: original path unchanged. NO regression on normal
+    workloads.
+
+    Status: opt-in via GENESIS_ENABLE_PN32_GDN_CHUNKED_PREFILL=1.
+    Default OFF. Cross-rig validation required (our 2×A5000 PROD with
+    TP=2 doesn't hit Cliff 2 threshold; community single-GPU users
+    are the target).
+
+    Reference: Genesis_internal_docs/CLIFF2_INVESTIGATION_20260430.md
+    Reporter: noonghunna
+    """
+    name = "PN32 GDN chunked-prefill (Cliff 2 fix)"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring.hybrid import (
+            patch_N32_gdn_chunked_prefill,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_N32_gdn_chunked_prefill.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
 @register_patch("PN31 FA varlen persistent out buffer (issue #15, sister to P38)")
 def apply_patch_N31_fa_varlen_persistent_out() -> PatchResult:
     """Patch N31: persistent `out` buffer for `_flash_attn_varlen` to
@@ -2649,7 +2693,7 @@ def apply_patch_N24_dflash_aux_layer_indexing() -> PatchResult:
 
 @register_patch("PN17 FA2 softmax_lse runtime clamp (Issue #11 Cliff 1 mechanism A)")
 def apply_patch_N17_fa2_softmax_lse_clamp() -> PatchResult:
-    """Patch N17: Genesis-original 2026-04-30 — runtime clamp on FA2
+    """Patch N32: Genesis-original 2026-04-30 — runtime clamp on FA2
     softmax_lse over-allocation.
 
     Replaces `max_seqlen_k = attn_metadata.max_seq_len` (which equals

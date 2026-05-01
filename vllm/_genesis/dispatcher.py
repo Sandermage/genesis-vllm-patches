@@ -456,6 +456,36 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             # is only called when spec-decode is active. No additional gate.
         },
     },
+    "PN32": {
+        "title": "GDN chunked-prefill (Cliff 2 fix for single-24GB-GPU OOM)",
+        "env_flag": "GENESIS_ENABLE_PN32_GDN_CHUNKED_PREFILL",
+        "default_on": False,
+        "category": "hybrid",
+        # NOTE: conflicts with P28 (legacy text-patch, not in dispatcher
+        # PATCH_REGISTRY so can't list here). Both patches text-patch same
+        # gdn_linear_attn.py:forward_cuda lines. Operator MUST disable P28
+        # before enabling PN32 — otherwise P28 modifies file first and
+        # PN32 anchor won't match (will skip with drift warning).
+        "credit": (
+            "Genesis-original 2026-05-02 — Cliff 2 fix per noonghunna's "
+            "CLIFF2_INVESTIGATION_20260430.md. When num_tokens > 16384, "
+            "splits GDN forward_cuda core attention + post-projection "
+            "into chunks of 8192 (default). Each chunk allocates ~131 "
+            "MiB transient core_attn_out instead of 819 MiB persistent "
+            "per layer. State continuity via layer-name keyed cache "
+            "(same mechanism as upstream chunked-prefill). Closes >50K-"
+            "token single-shot OOM on 1×3090/4090/5090 configs. "
+            "Threshold + chunk size both env-tunable. Default OFF — "
+            "operators opt-in. Cross-rig validation required (our "
+            "2×A5000 PROD doesn't hit Cliff 2 threshold)."
+        ),
+        "upstream_pr": None,
+        "applies_to": {
+            # Triggers in any hybrid GDN model with long single-prompts.
+            # NULL on non-GDN paths (no GDN layers in 35B Qwen3MoE).
+        },
+        "requires_patches": [],
+    },
     "PN31": {
         "title": "FA varlen persistent out buffer (issue #15, sister to P38)",
         "env_flag": "GENESIS_ENABLE_PN31_FA_VARLEN_PERSISTENT_OUT",
