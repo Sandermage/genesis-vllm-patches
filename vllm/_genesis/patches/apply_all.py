@@ -3964,6 +3964,52 @@ def run(verbose: bool = True, apply: bool = False) -> PatchStats:
         "Philosophy: МЫ ЧИНИМ, НЕ ЛОМАЕМ."
     )
 
+    # Validate PATCH_REGISTRY shape + dependency graph at boot. Issues are
+    # logged so operators see drift (e.g. unknown env_flag pattern, missing
+    # superseded_by on deprecated patch, requires_patches referencing an
+    # unknown ID). ERROR-level issues are surfaced loudly; WARNING are
+    # logged at INFO so they don't drown the boot log on a busy registry.
+    # The registry IS the contract — silent drift is the failure mode this
+    # block was added to catch.
+    try:
+        from vllm._genesis.dispatcher import (
+            PATCH_REGISTRY as _GENESIS_DISPATCHER_REGISTRY,
+            validate_registry,
+        )
+        registry_issues = validate_registry()
+        for i in registry_issues:
+            if i.severity == "ERROR":
+                log.error(
+                    "[Genesis registry] %s: %s",
+                    i.patch_id, i.message,
+                )
+            elif i.severity == "WARNING":
+                log.warning(
+                    "[Genesis registry] %s: %s",
+                    i.patch_id, i.message,
+                )
+            else:
+                log.info(
+                    "[Genesis registry] %s: %s",
+                    i.patch_id, i.message,
+                )
+        if verbose:
+            n_err = sum(1 for i in registry_issues if i.severity == "ERROR")
+            if n_err == 0:
+                log.info(
+                    "[Genesis registry] %d dispatcher entries — "
+                    "schema-clean, dependency graph consistent.",
+                    len(_GENESIS_DISPATCHER_REGISTRY),
+                )
+            else:
+                log.error(
+                    "[Genesis registry] %d entries — %d ERROR(s) above. "
+                    "Apply will continue but operators must investigate.",
+                    len(_GENESIS_DISPATCHER_REGISTRY), n_err,
+                )
+    except Exception as e:
+        log.debug("[Genesis registry] validation skipped: %s", e)
+
     # GPU profile + per-patch recommendations (suggest-only, never auto-enables)
     try:
         from vllm._genesis.gpu_profile import print_recommendations

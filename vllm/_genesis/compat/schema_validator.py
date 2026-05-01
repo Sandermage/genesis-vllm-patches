@@ -49,7 +49,7 @@ class SchemaIssue:
 
 
 _KNOWN_LIFECYCLE = {"experimental", "stable", "deprecated", "research",
-                    "community", "retired"}
+                    "community", "retired", "legacy"}
 
 # Top-level fields permitted in a PATCH_REGISTRY entry.
 # Mirrors the `properties` block of patch_entry.schema.json.

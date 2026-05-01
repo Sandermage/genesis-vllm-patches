@@ -24,8 +24,8 @@
     },
     "lifecycle": {
       "type": "string",
-      "enum": ["experimental", "stable", "deprecated", "research", "community", "retired"],
-      "description": "Lifecycle state. New patches start as 'experimental'. Code removal requires prior 'retired' for at least one release."
+      "enum": ["experimental", "stable", "deprecated", "research", "community", "retired", "legacy"],
+      "description": "Lifecycle state. New patches start as 'experimental'. Code removal requires prior 'retired' for at least one release. 'legacy' marks pre-dispatcher patches (P1-P46 series) that have been live in PROD before the registry existed; they have minimal metadata by design."
     },
     "category": {
       "type": "string",

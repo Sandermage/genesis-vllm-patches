@@ -4,9 +4,9 @@ This file is the **single source of truth** for every Genesis runtime patch.
 For each patch you get: ID, title, what it does, status (ON / opt-in / deprecated),
 env flag to toggle, upstream PR (if backported), and credit.
 
-**Total PATCH_REGISTRY entries:** 65 (range P56–P103 + PN8–PN31 + sub-patches P67b/P67c/PN26b). The dispatcher's `PATCH_REGISTRY` is the schema-validated, lifecycle-tracked, opt-in surface — `genesis self-test` and the schema validator gate this set on every commit.
+**Total PATCH_REGISTRY entries:** 98 (range P1–P103 + PN8–PN32 + sub-patches P5b/P7b/P15B/P18b/P38B/P39a/P67b/P67c/PN26b). The dispatcher's `PATCH_REGISTRY` is the schema-validated, lifecycle-tracked, opt-in surface — `genesis self-test` and the schema validator gate this set on every commit.
 
-**Total apply_all `@register_patch`:** 96 entries. The 32-entry delta (legacy P1–P46) predates the dispatcher v2 migration (v7.13). They function correctly in production (text-patches with markers) but lack rich dispatcher metadata. Migration is tracked tech-debt; their runtime behavior is captured in source-level docstrings.
+**Total apply_all `@register_patch`:** 97 entries. P68/P69 share one `apply_patch_68_long_ctx_tool_adherence` function but are registered as two `PATCH_REGISTRY` entries; that's the reason for the 1-entry delta. As of v7.65 (2026-05-02) all legacy P1–P46 patches are first-class registry entries with `lifecycle: legacy` — historical pre-dispatcher patches with minimal metadata, kept default-on for compatibility.
 
 - **Source of truth:** `vllm/_genesis/dispatcher.py` `PATCH_REGISTRY` (range: P56-P103 + PN8-PN31, rich metadata) + `vllm/_genesis/patches/apply_all.py` `@register_patch` decorators (legacy P1-P55, dry-run diagnostic only).
 - **All patches default OFF unless explicitly noted.** Production launch script enables a curated set via env flags.
@@ -209,6 +209,42 @@ Scheduler-level fixes for long-context decode + MoE: `profile_run` M cap (P72, u
 ### Other
 
 Misc fixes: KV cache page size unification (P5/P5b), block_table tail zero-fill (P14), Marlin FP32_REDUCE env override (P23).
+
+### Community-issue fixes (v7.65, 2026-05-02)
+
+Patches addressing reported community bugs. All default OFF; opt-in via env, see per-patch doc:
+
+| ID | Title | Issue | Env flag |
+|---|---|---|---|
+| P15B | FA varlen `max_seqlen_k` clamp on TQ path | #15 | `GENESIS_ENABLE_P15B_FA_VARLEN_CLAMP` |
+| P38B | P38 compile-safe in-source hook (aot_compile-safe) | #14 | `GENESIS_ENABLE_P38B_COMPILE_SAFE_HOOK` |
+| PN30 | DS conv state layout + spec-decode AL>1 | #17 | `GENESIS_ENABLE_PN30_DS_LAYOUT` |
+| PN31 | FA varlen persistent `out` buffer (sister to P38) | #15 | `GENESIS_ENABLE_PN31_FA_VARLEN_OUT` |
+| PN32 | GDN chunked-prefill (Cliff 2 single-24GB-GPU OOM) | noonghunna | `GENESIS_ENABLE_PN32_GDN_CHUNKED_PREFILL` |
+
+### Reasoning + middleware
+
+- **PN16** — Lazy-reasoner request hook (per-request `enable_thinking`). Middleware variant; configured via `GENESIS_ENABLE_PN16_LAZY_REASONER`.
+
+### DFlash spec-decode (PN21–PN24)
+
+DFlash combine_hidden_states + SWA + aux-layer indexing fixes for spec-decode + DFlash hybrid:
+
+- **PN21** — DFlash SWA support partial backport (vllm#40898). Env: `GENESIS_ENABLE_PN21_DFLASH_SWA`.
+- **PN22** — Local argmax for TP draft (vllm#39419). Env: `GENESIS_ENABLE_PN22_TP_LOCAL_ARGMAX`.
+- **PN23** — DFlash combine_hidden_states dtype cast (vllm#40334). Env: `GENESIS_ENABLE_PN23_DFLASH_DTYPE`.
+- **PN24** — DFlash aux layer +1 indexing fix (vllm#40727). Env: `GENESIS_ENABLE_PN24_DFLASH_AUX_INDEX`.
+
+### TurboQuant unified pack (PN26 / PN26b)
+
+- **PN26** — TQ unified perf pack (centroids prebake + sparse-V scaffold). Genesis-original.
+- **PN26b** — Sparse-V tile-skip kernel (BLASST λ=a/L for SM86; first NVIDIA Ampere implementation). Genesis-original Triton kernel.
+
+### MoE / merge_attn_states / chunk_o numerics
+
+- **PN27** — Revert MoERunnerInterface PluggableLayer (vllm#41440 backport).
+- **PN28** — `merge_attn_states` NaN guard (vllm#39148 backport).
+- **PN29** — GDN `chunk_o` scale-fold (vllm#41446 pattern (c) backport). Default OFF; empirical −0.4% on 27B (Welch p=0.008) — kept opt-in for future Blackwell.
 
 ---
 

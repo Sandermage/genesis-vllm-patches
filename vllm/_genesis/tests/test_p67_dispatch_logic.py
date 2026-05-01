@@ -259,16 +259,16 @@ def test_emit_has_shape_guard():
     """The shape-guard expression must be present so the dispatch decision
     matches our `_dispatch()` mirror above.
 
-    Post-Issue#7: the guard now also enforces power-of-2 HEADS_PER_KV,
-    spread across multiple lines for readability. We assert each
-    constituent clause is present rather than the original one-line form.
+    v7.63.x_nopow2_gqa: dropped the pow-2 HEADS_PER_KV requirement. The
+    split-M kernel now compiles for any GQA factor via BLOCK_QH =
+    next_power_of_2(HEADS_PER_KV) padding + lane_valid mask. Qwen3.6-27B
+    GQA=24/4=6 → BLOCK_QH=8 with 2 lanes masked, bit-exact to pow-2 case
+    when hpk is itself pow-2. Hpk=1 still excluded (degenerate).
     """
     # Each clause of the multi-line guard
     assert "Hq >= 8" in P67_NEW
     assert "D in (128, 256)" in P67_NEW
     assert "_genesis_p67_hpk >= 2" in P67_NEW
-    # Issue #7 — power-of-2 check (kept also in test_p67b_shape_ok_includes_power_of_two_check)
-    assert "(_genesis_p67_hpk & (_genesis_p67_hpk - 1)) == 0" in P67_NEW
 
 
 def test_emit_has_uniform_k_plus_1_check():
@@ -300,11 +300,15 @@ def test_emit_falls_through_on_exception():
 
 
 def test_marker_versioned_capture_guard():
-    """Marker should embed v7.62.12_capture_guard so re-applies after B1 fix
-    don't no-op against stale baked-env-only marker.
+    """Marker must embed a version tag so re-applies after kernel rewrites
+    don't no-op against a stale marker. The exact tag rolls forward — the
+    pin is `vN.N.x_<reason>` shape, not a specific value.
     """
-    assert "v7.62.12_capture_guard" in GENESIS_P67_MARKER, (
-        f"P67 marker {GENESIS_P67_MARKER!r} should embed v7.62.12_capture_guard"
+    import re
+    pattern = re.compile(r"v\d+\.\d+\.[\w]+_[\w]+")
+    assert pattern.search(GENESIS_P67_MARKER), (
+        f"P67 marker {GENESIS_P67_MARKER!r} should embed a versioned tag "
+        f"(e.g. v7.63.x_nopow2_gqa)"
     )
 
 
@@ -343,70 +347,75 @@ def test_apply_safety_gate_message_references_v756_root_cause():
 # ─── Issue #7: GQA non-power-of-2 guard (P67 + P67b) ─────────────────────
 
 
-class TestIssue7PowerOfTwoGuard:
+class TestIssue7NonPowerOfTwoSupport:
     """Genesis Issue #7 — Triton CompilationError on GQA non-power-of-2.
 
-    Qwen3.6-27B has GQA=24/4=6 → tl.arange + tl.dot fail
-    'arange's range must be a power of 2'. Without the guard the kernel
-    is dispatched, fails compile, retries every batch → 5x TPS regression.
+    Qwen3.6-27B has GQA=24/4=6 → original split-M kernel had `tl.arange`
+    over HEADS_PER_KV which Triton rejects with "arange's range must be a
+    power of 2". The original v7.62 fix REJECTED non-pow-2 (fell through
+    to upstream, costing TPS). v7.63.x_nopow2_gqa GENERALIZES the kernel
+    instead: BLOCK_QH = next_power_of_2(HEADS_PER_KV) padding + lane_valid
+    mask in the kernel body. Qwen3.6-27B GQA=6 → BLOCK_QH=8 with 2 lanes
+    masked, bit-exact to the pow-2 case when hpk is itself pow-2.
 
-    The guard:
-        (heads_per_kv & (heads_per_kv - 1)) == 0
-    is a classic power-of-two check (true for 1, 2, 4, 8, 16, ...).
+    This class pins the support-not-reject contract; flipping back to
+    rejection would lose 27B coverage we already validated.
 
-    Validated by noonghunna 2026-04-29 cross-rig (RTX 3090 + 27B-AutoRound).
+    Validated by noonghunna 2026-04-29 (RTX 3090 + 27B-AutoRound) and
+    Sander 2026-04-30 PM (2x A5000 + 27B+TQ k8v4+FULL: 0/5 → 7/7
+    tool-call, 87 TPS; 35B unchanged at 186 TPS).
     """
 
-    def test_p67_shape_ok_includes_power_of_two_check(self):
+    def test_p67_supports_nonpow2_via_block_qh_padding(self):
         from vllm._genesis.wiring.spec_decode.patch_67_tq_multi_query_kernel import (
             P67_NEW,
         )
         assert "_genesis_p67_hpk" in P67_NEW, (
-            "P67 must compute heads_per_kv into a named var for the guard"
+            "P67 must compute heads_per_kv into a named var "
+            "(used by kernel launcher to derive BLOCK_QH)"
         )
-        assert "(_genesis_p67_hpk & (_genesis_p67_hpk - 1)) == 0" in P67_NEW, (
-            "P67 must reject HEADS_PER_KV that is not a power of 2 — "
-            "Issue #7 fix"
+        # The OLD pow-2 reject MUST be gone (regression guard)
+        assert "(_genesis_p67_hpk & (_genesis_p67_hpk - 1)) == 0" not in P67_NEW, (
+            "P67 must NOT reject non-power-of-2 hpk — that's the v7.62 "
+            "behavior that costs 27B coverage. v7.63.x_nopow2_gqa generalizes."
+        )
+        # Documentation marker for the design decision
+        assert "nopow2" in P67_NEW.lower() or "next_power_of_2" in P67_NEW, (
+            "P67 source should document the BLOCK_QH = next_power_of_2 "
+            "padding + lane_valid mask design"
         )
 
-    def test_p67b_shape_ok_includes_power_of_two_check(self):
-        # P67b runs FIRST inside forward(); guard MUST be in BOTH places
-        # (else the retry overhead from P67b fires every batch even when
-        # P67 itself bypasses cleanly).
+    def test_p67b_mirrors_nonpow2_support(self):
+        # P67b runs FIRST inside forward(); shape contract MUST mirror P67
+        # so non-pow-2 dispatches consistently across both entry points.
         from vllm._genesis.wiring.spec_decode.patch_67b_spec_verify_routing import (
             P67B_NEW,
         )
         assert "_genesis_p67b_hpk" in P67B_NEW
-        assert "(_genesis_p67b_hpk & (_genesis_p67b_hpk - 1)) == 0" in P67B_NEW, (
-            "P67b must mirror P67's power-of-2 guard or Issue #7 still fires"
+        assert "(_genesis_p67b_hpk & (_genesis_p67b_hpk - 1)) == 0" not in P67B_NEW, (
+            "P67b must NOT reject non-power-of-2 — would hide P67's "
+            "non-pow-2 support and cost 27B TPS"
         )
 
-    def test_guard_correctness_pure_python(self):
-        """Algorithmic check that the guard expression is a correct
-        power-of-2 detector (Brian Kernighan's bit-trick)."""
-        def is_p2(n: int) -> bool:
-            return n > 0 and (n & (n - 1)) == 0
+    def test_block_qh_next_power_of_2_correctness(self):
+        """Algorithmic check that next_power_of_2 padding gives a sufficient
+        BLOCK_QH for any hpk in the supported range (2..32)."""
+        def next_pow2(n: int) -> int:
+            p = 1
+            while p < n:
+                p <<= 1
+            return p
 
-        # Power-of-2 GQA ratios (kernel-supported)
-        for hpk in (1, 2, 4, 8, 16, 32):
-            assert is_p2(hpk), f"hpk={hpk} should be power-of-2"
-
-        # Non-power-of-2 GQA ratios that would trigger Issue #7
-        for hpk in (3, 5, 6, 7, 9, 12, 24):
-            assert not is_p2(hpk), (
-                f"hpk={hpk} would fail Triton arange compile — must be rejected"
+        # Common GQA ratios in modern Qwen / Llama hybrid models
+        cases = [
+            (2, 2),    # MQA-ish
+            (4, 4),    # already pow-2
+            (6, 8),    # Qwen3.6-27B
+            (8, 8),    # Qwen3.6-35B
+            (12, 16),
+            (24, 32),
+        ]
+        for hpk, expected in cases:
+            assert next_pow2(hpk) == expected, (
+                f"next_power_of_2({hpk}) = {next_pow2(hpk)}, expected {expected}"
             )
-
-        # The Qwen3.6-27B case specifically
-        qwen36_27b_hpk = 24 // 4  # num_heads / num_kv_heads
-        assert qwen36_27b_hpk == 6
-        assert not is_p2(qwen36_27b_hpk), (
-            "Qwen3.6-27B GQA=6 is the exact case Issue #7 reports — "
-            "must be rejected by guard"
-        )
-
-        # The Qwen3.6-35B case (works pre-fix)
-        qwen36_35b_hpk = 8  # GQA=8 directly
-        assert is_p2(qwen36_35b_hpk), (
-            "Qwen3.6-35B GQA=8 is power-of-2 — must continue dispatching"
-        )

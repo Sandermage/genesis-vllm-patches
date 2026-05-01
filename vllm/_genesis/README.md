@@ -1,39 +1,53 @@
 # Genesis — `vllm/_genesis/` package
 
-**Modular drop-in architecture for Genesis vLLM patches — v7.0 → v7.63.x (current).**
+**Modular drop-in architecture for Genesis vLLM patches — v7.0 → v7.65 (current).**
 
-> Current release: **v7.63.x** (2026-04-30) — Phase 1 of the **Compat Layer overhaul**: doctor CLI, model registry, version-range matching, richer predicates DSL, lifecycle states.
+> Current release: **v7.65** (2026-05-02) — community-issue closeouts (#14/#15/#16/#17), legacy P1–P46 promoted to first-class registry entries, T4.4 numerical regression infra, T4.2 PN32 GDN chunked-prefill.
 > Full feature changelog: [CHANGELOG.md](CHANGELOG.md). User-facing setup: [../../QUICKSTART.md](../../QUICKSTART.md). Top-level README: [../../README.md](../../README.md).
 
 Replaces monolithic `patch_genesis_unified.py` (v5.14.1) with a clean package structure that:
 - Works on NVIDIA CUDA / AMD ROCm / Intel XPU / CPU with graceful skip (philosophy: **МЫ ЧИНИМ, НЕ ЛОМАЕМ**)
-- Follows TDD discipline (tests first, implementation second) — **800+ tests across the package**
+- Follows TDD discipline (tests first, implementation second) — **1467+ tests across the package, 73 skipped, 0 failures**
 - Is upstream-ready — kernels can be submitted as vLLM PRs directly
 - Self-documents via `genesis doctor` and the curated model registry
 
-## Package layout (v7.63.x)
+## Minimum vLLM pin
+
+Genesis is pinned to a specific vLLM commit because patches text-edit
+specific upstream files at known anchors. Outside this pin, anchors
+will likely drift and patches will silent-skip:
+
+```text
+vLLM commit:  0.20.1rc1.dev16+g7a1eb8ac2  (2026-04-28 nightly)
+Stable tag:   v0.20.0 / v0.20.1rc0 also tested
+```
+
+If you're seeing `Genesis P<NN>` patches all skip with "anchor not found",
+you almost certainly drifted off this pin. Roll back or open an issue.
+
+## Package layout (v7.65)
 
 ```text
 vllm/_genesis/
 ├── __init__.py              Public API entry
-├── dispatcher.py            PATCH_REGISTRY (48 entries) + A3/D2 validator
+├── dispatcher.py            PATCH_REGISTRY (98 entries) + A3/D2 validator
 ├── guards.py                Canonical vendor/chip/model/dep detection
 ├── prealloc.py              GenesisPreallocBuffer framework
 │
-├── compat/                  🆕 v7.63.x — Unified compat / UX / diagnostic layer
-│   ├── doctor.py            🆕 `python3 -m vllm._genesis.compat.doctor`
-│   ├── init_wizard.py       🆕 `python3 -m vllm._genesis.compat.init_wizard`
-│   ├── version_check.py     🆕 vllm/torch/cuda/triton/driver range matching
-│   ├── predicates.py        🆕 AND/OR/NOT applies_to evaluator
-│   ├── lifecycle.py         🆕 patch lifecycle state machine
+├── compat/                  v7.63.x → v7.65 — Unified compat / UX / diagnostic layer
+│   ├── doctor.py            `python3 -m vllm._genesis.compat.doctor`
+│   ├── init_wizard.py       `python3 -m vllm._genesis.compat.init_wizard`
+│   ├── version_check.py     vllm/torch/cuda/triton/driver range matching
+│   ├── predicates.py        AND/OR/NOT applies_to evaluator
+│   ├── lifecycle.py         patch lifecycle state machine
 │   ├── gpu_profile.py       Re-export shim (legacy import path preserved)
 │   ├── model_detect.py      Re-export shim
 │   ├── config_detect.py     Re-export shim
 │   ├── models/
-│   │   ├── registry.py      🆕 SUPPORTED_MODELS dict (5 entries)
-│   │   ├── pull.py          🆕 HF download + verify + launch script gen
-│   │   └── list_cli.py      🆕 `python3 -m vllm._genesis.compat.models.list_cli`
-│   └── fingerprints/        🆕 Reference benchmark JSONs
+│   │   ├── registry.py      SUPPORTED_MODELS dict (5 entries)
+│   │   ├── pull.py          HF download + verify + launch script gen
+│   │   └── list_cli.py      `python3 -m vllm._genesis.compat.models.list_cli`
+│   └── fingerprints/        Reference benchmark JSONs
 │       └── rtx_a5000_x2_qwen3_6_27b_int4_v794.json
 │
 ├── kernels/                 Genesis-original Triton kernels
@@ -70,9 +84,9 @@ vllm/_genesis/
 │   ├── apply_all.py         Boot-time orchestrator
 │   └── upstream_compat.py   PR marker registry (auto-retire on merge)
 │
-└── tests/                   pytest TDD suite — full session = 456 green
+└── tests/                   pytest TDD suite — 1467 pass, 73 skipped, 0 failures (v7.65)
     ├── conftest.py
-    ├── compat/              🆕 v7.63.x test directory
+    ├── compat/              v7.63.x → v7.65 test directory
     │   ├── test_predicates.py        27 tests
     │   ├── test_version_check.py     20 tests
     │   ├── test_lifecycle.py         18 tests
@@ -100,7 +114,7 @@ vllm/_genesis/
     └── ... (legacy suites, all green)
 ```
 
-## v7.63.x quick start (operator)
+## v7.65 quick start (operator)
 
 ```bash
 # 1. Diagnostic — what's my system, what would Genesis do?
@@ -212,7 +226,7 @@ slice_view = GPB.slice_to(buf, 2)  # view, pointer-stable
 pip install pytest pytest-cov
 
 # Run all tests
-cd /Users/sander/Documents/Visual Studio Code/genesis-vllm-patches
+cd /path/to/genesis-vllm-patches
 PYTHONPATH=. pytest vllm/_genesis/tests/ -v
 
 # With coverage
@@ -222,28 +236,68 @@ PYTHONPATH=. pytest vllm/_genesis/tests/ -v --cov=vllm._genesis --cov-report=ter
 PYTHONPATH=. pytest vllm/_genesis/tests/ -v -m 'not cuda_required'
 ```
 
-## Migration status (as of 2026-04-24)
+## Troubleshooting
 
-| Module | Status | Patch # | Priority |
-|--------|--------|---------|----------|
-| `guards.py` | ✅ Complete | — | P0 foundation |
-| `prealloc.py` | ✅ Complete | — | P0 foundation |
-| `kernels/router_softmax.py` | ✅ Complete | P31 | P0 — self-contained universal win |
-| `kernels/dequant_buffer.py` | 🚧 Skeleton | P22 | P1 — high value, TQ prod user |
-| `kernels/gdn_dual_stream.py` | 🚧 Skeleton | P7 | P1 — +8% decode |
-| `kernels/marlin_tuning.py` | 🚧 Skeleton | P17/P18 | P1 — +1.2% tuned |
-| `kernels/fp8_dispatcher.py` | 🚧 Skeleton | P1/P2 | P1 — Ampere viability |
-| `patches/apply_all.py` | ✅ Complete | — | P0 orchestration |
-| `patches/upstream_compat.py` | ✅ Complete | — | P0 PR tracking |
-| `tests/conftest.py` | ✅ Complete | — | P0 test infra |
-| `tests/test_guards.py` | ✅ Complete | — | P0 |
-| `tests/test_prealloc.py` | ✅ Complete | — | P0 |
-| `tests/test_router_softmax.py` | ✅ Complete | P31 | P0 |
-| `tests/test_dequant_buffer.py` | ⏳ Pending | P22 | Phase 2 |
-| `tests/test_gdn_dual_stream.py` | ⏳ Pending | P7 | Phase 2 |
-| `tests/test_marlin_tuning.py` | ⏳ Pending | P17/18 | Phase 2 |
-| `tests/test_fp8_dispatcher.py` | ⏳ Pending | P1/2 | Phase 2 |
-| `tests/test_platform_matrix.py` | ⏳ Pending | — | Phase 2 |
+### "Patches all skipped — anchor not found"
+
+Genesis text-patches edit specific upstream files at known anchors. If
+the upstream pin drifted, anchors won't match and the patcher will
+silent-skip. Symptom: boot log shows `Genesis P<NN>: skipped (anchor
+not found)` for many patches.
+
+Fix: roll vLLM back to the pinned commit (see "Minimum vLLM pin"
+above), or open an issue with your `vllm --version` output.
+
+### "Boot log says X errors in Genesis registry"
+
+The boot validator runs on every `apply_all.run()` and surfaces shape
+or dependency issues in `PATCH_REGISTRY`. Errors look like:
+
+```text
+[ERROR:genesis.apply_all] [Genesis registry] PXX: <message>
+```
+
+Common causes: a contributor added an entry with malformed env_flag, a
+typo in a known field name, a `requires_patches` referencing a
+non-existent ID, or a deprecated patch missing `superseded_by`. Run
+`python3 -m vllm._genesis.compat.schema_validator` to see the same
+issues outside the boot flow.
+
+### "Plugin not loading"
+
+If a third-party plugin isn't being discovered:
+
+1. Confirm `GENESIS_ALLOW_PLUGINS=1` is set (Genesis loads zero foreign
+   code by default — opt-in is required).
+2. Confirm the plugin is `pip install`-ed (`pip show <plugin-name>`).
+3. Run `python3 -m vllm._genesis.compat.cli plugins list` — discovered
+   plugins will be listed even if their env_flag is unset.
+4. See [`docs/PLUGINS.md`](../../docs/PLUGINS.md) for the full plugin
+   guide and reference example at
+   [`examples/genesis-plugin-hello-world/`](../../examples/genesis-plugin-hello-world/).
+
+### "How do I tell which patches are active?"
+
+```bash
+python3 -m vllm._genesis.dispatcher       # full apply matrix
+python3 -m vllm._genesis.compat.cli list  # patch list with lifecycle
+python3 -m vllm._genesis.compat.cli explain P67   # one patch in detail
+```
+
+The boot log also prints a one-line summary per patch with applied /
+skipped (with reason) / failed annotations.
+
+## Migration status
+
+As of v7.65 (2026-05-02) the historical pre-dispatcher patches (P1–P46)
+have been promoted to first-class `PATCH_REGISTRY` entries with
+`lifecycle: legacy` (minimal metadata by design; they predate the
+registry). All `apply_patch_*` functions now have a corresponding
+registry entry — pinned by `tests/test_apply_all_dispatcher_sync.py`.
+
+The skeleton kernel modules listed in earlier README revisions (P22 /
+P7 / P17 / P1 dequant_buffer etc.) all shipped under their `wiring/`
+text-patches; the kernel-side rewrites are tracked in [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Upstream attribution
 
