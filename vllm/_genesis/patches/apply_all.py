@@ -62,6 +62,9 @@ class PatchResult:
 class PatchStats:
     """Accumulates per-run statistics for reporting."""
     results: list[PatchResult] = field(default_factory=list)
+    # [Genesis T4.6] compile-watchdog: total apply_all elapsed seconds.
+    # Set by run() at end. 0.0 if not measured (e.g. dry-run via CLI).
+    compile_elapsed_sec: float = 0.0
 
     @property
     def applied(self) -> list[PatchResult]:
@@ -3799,6 +3802,13 @@ def run(verbose: bool = True, apply: bool = False) -> PatchStats:
     global _APPLY_MODE
     _APPLY_MODE = apply
 
+    # [Genesis T4.6] Compile-time watchdog — log total apply elapsed.
+    # Triton kernel pre-build (e.g. PN26b _build_kernel() at apply()) can
+    # take 30-90s on cold cache. >120s is a red flag (autotune regression
+    # or stale cache mismatch) — investigate before user requests start.
+    import time
+    _t0_apply = time.perf_counter()
+
     stats = PatchStats()
 
     # Platform diagnostic — helps debugging on unexpected hardware
@@ -3986,6 +3996,25 @@ def run(verbose: bool = True, apply: bool = False) -> PatchStats:
         log_validation_issues(plan_issues)
     except Exception as e:
         log.debug("[Genesis] dispatcher validator unavailable: %s", e)
+
+    # [Genesis T4.6] Compile-time watchdog post-summary.
+    _elapsed = time.perf_counter() - _t0_apply
+    if _elapsed > 120:
+        log.warning(
+            "[Genesis compile-watchdog] apply_all took %.1fs (>120s threshold) — "
+            "investigate Triton compile cache state, autotune regression, or "
+            "stale .so files. Consider clearing TRITON_CACHE_DIR + retrying.",
+            _elapsed,
+        )
+    elif _elapsed > 60:
+        log.info(
+            "[Genesis compile-watchdog] apply_all elapsed: %.1fs (warm cache "
+            "should be < 30s; first cold-compile boot may take up to 90s)",
+            _elapsed,
+        )
+    else:
+        log.info("[Genesis compile-watchdog] apply_all elapsed: %.1fs", _elapsed)
+    stats.compile_elapsed_sec = _elapsed
 
     return stats
 
