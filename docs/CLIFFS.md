@@ -22,10 +22,16 @@ You hit OOM earlier than you should on long-context workloads. On a 24 GB card r
 
 **PN17 — FA2 lse runtime clamp.** Genesis-original, 2026-04-30, in response to noonghunna Issue #11. Patches FA2 to use the actual `seq_lens.max()` at runtime instead of `max_model_len` during capture.
 
+**PN19 — scoped max-split cudagraph init (datacenter Ampere / Hopper / Blackwell only).** Genesis-original, 2026-04-30. Frees 200-500 MiB during model load on H100/B100. **Does NOT transfer cleanly to Ampere consumer:** noonghunna 2026-05-01 confirmed PN19 costs ~120 MiB KV pool on a 24 GB single-3090 (vs the documented 200-500 MiB win). At 218K context + 0.985 mem-util, engine init fails with `KV cache memory available 3.4 GiB, estimated maximum model length is 206400`. Different allocator behavior under PyTorch 2.10+ load-time fragmentation on consumer SKUs.
+
+> **Recommendation:** disable PN19 on 24 GB consumer cards (3090, 4090, A5000) running long context. Same lesson as P104 L2 persistence (regressed -16.2% on 32+ layer KV >> L2 setups). Generic allocator hints don't survive GPU class boundaries.
+
 **Refs**
 
 - `vllm/_genesis/wiring/perf_hotfix/patch_n17_fa2_softmax_lse_clamp.py`
+- `vllm/_genesis/wiring/perf_hotfix/patch_N19_scoped_max_split.py`
 - noonghunna Issue #11 (cross-engine derivative)
+- club-3090 Discussion #19 (PN19 ≠ H100 ergonomics report, 2026-05-01)
 
 ---
 

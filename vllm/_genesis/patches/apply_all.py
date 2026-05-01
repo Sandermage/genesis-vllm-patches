@@ -87,23 +87,85 @@ class PatchStats:
     def failed_count(self) -> int:
         return len(self.failed)
 
+    @property
+    def partial_apply_warnings(self) -> list[PatchResult]:
+        """Skipped patches whose reason signals a real problem (drift,
+        ambiguous anchor, anchor-missing — NOT opt-in-OFF, upstream-merged,
+        or platform-mismatch which are all expected).
+
+        Surfaced separately from `skipped_count` so noonghunna's "silent
+        skip class" diagnosis (club-3090 discussion #19) is impossible to
+        miss in the boot summary. Cliff 8 hardening, v7.65.
+        """
+        # Reasons that indicate a benign/expected skip
+        BENIGN = (
+            "opt-in",   # matches "opt-in only", "opt-in:", "opt-in env"
+            "default off",
+            "upstream_merged",
+            "upstream_already",
+            "upstream_already_contains",
+            "upstream may have absorbed",
+            "upstream pr",  # "redundant: upstream PR ..."
+            "platform mismatch",
+            "platform_skip",
+            "config: opt-in",
+            "config: opt-out",
+            "config: skipped",
+            "config: neutral",
+            "already applied",
+            "marker present",
+            "soft_skip",
+            "no-op",
+            "dry-run",
+            "vllm install root not discoverable",
+            "target file not resolvable",
+            "is_pn",
+            "unsupported",
+            "not applicable",
+            "auto-disabled",
+            "auto-skip",
+            "deprecated",
+            "obsolete",
+            "redundant",
+            "deferred",
+            "incompatible with",  # P7 deferred reason
+        )
+        warnings = []
+        for r in self.skipped:
+            reason_lower = (r.reason or "").lower()
+            if not any(b.lower() in reason_lower for b in BENIGN):
+                warnings.append(r)
+        return warnings
+
+    @property
+    def partial_apply_warnings_count(self) -> int:
+        return len(self.partial_apply_warnings)
+
     def summary(self) -> dict[str, Any]:
         return {
             "applied": self.applied_count,
             "skipped": self.skipped_count,
             "failed": self.failed_count,
+            "partial_apply_warnings": self.partial_apply_warnings_count,
             "details": {
                 "applied": [(r.name, r.reason) for r in self.applied],
                 "skipped": [(r.name, r.reason) for r in self.skipped],
                 "failed": [(r.name, r.reason) for r in self.failed],
+                "partial_apply_warnings": [
+                    (r.name, r.reason) for r in self.partial_apply_warnings
+                ],
             },
         }
 
     def __str__(self) -> str:
-        return (
+        base = (
             f"Results: {self.applied_count} applied, "
             f"{self.skipped_count} skipped, {self.failed_count} failed"
         )
+        warns = self.partial_apply_warnings_count
+        if warns:
+            base += f", {warns} ⚠️ partial-apply warning(s)"
+        return base
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -3551,6 +3613,22 @@ def run(verbose: bool = True, apply: bool = False) -> PatchStats:
             log.exception("[Genesis] EXCEPTION in %s", patch_name)
 
     log.info("Genesis %s", stats)
+
+    # [Genesis v7.65 / Cliff 8 hardening] Surface partial-apply warnings.
+    # Silent anchor-drift / ambiguous-anchor / anchor-missing skips were
+    # the class noonghunna flagged in club-3090 discussion #19. Drift
+    # detection works correctly, but the user-visible summary previously
+    # buried the signal in the same `skipped` count as opt-in OFF. Now
+    # warnings are pulled out and logged individually at WARNING level.
+    if stats.partial_apply_warnings:
+        log.warning(
+            "[Genesis] %d partial-apply warning(s) — patch(es) failed to "
+            "match expected source pattern. Review below to confirm anchor "
+            "drift vs upstream change vs config issue:",
+            stats.partial_apply_warnings_count,
+        )
+        for r in stats.partial_apply_warnings:
+            log.warning("[Genesis] ⚠️  %s — %s", r.name, r.reason)
 
     # [Genesis v7.13] Emit Dispatcher v2 apply matrix as a single readable
     # block. Only matters for patches that route through dispatcher.should_apply
