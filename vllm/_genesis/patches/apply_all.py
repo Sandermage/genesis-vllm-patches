@@ -2063,6 +2063,31 @@ def apply_patch_N23_dflash_combine_hidden_dtype() -> PatchResult:
     )
 
 
+@register_patch("PN21 DFlash SWA support partial backport (vllm#40898 backport)")
+def apply_patch_N21_dflash_swa_support() -> PatchResult:
+    """Patch N21: partial backport of vllm#40898 (jianc99, OPEN).
+
+    Two-file partial: speculators/algos.py preserves SWA config keys
+    (layer_types, use_sliding_window, sliding_window, max_window_layers)
+    + v1/spec_decode/dflash.py forces causal=True on sliding-window
+    layer attention metadata.
+
+    qwen3_dflash.py model class changes NOT backported — 7+ sub-patches
+    with multi-line context, fragile. Wait for upstream merge or apply
+    manually. Genesis partial preserves config + metadata correctness
+    so the upstream merge auto-activates cleanly.
+
+    Composes with PN24 (gpu_model_runner +1 shift). Both can coexist.
+
+    Status: opt-in via GENESIS_ENABLE_PN21_DFLASH_SWA=1.
+    Default OFF. Auto-no-op on upstream merge (drift markers).
+    """
+    return _wiring_text_patch(
+        "PN21 DFlash SWA support partial backport (vllm#40898 backport)",
+        "patch_N21_dflash_swa_support",
+    )
+
+
 @register_patch("PN22 Local argmax for TP draft (vllm#39419 backport)")
 def apply_patch_N22_local_argmax_tp() -> PatchResult:
     """Patch N22: backport of vllm#39419 (EanWang, OPEN).

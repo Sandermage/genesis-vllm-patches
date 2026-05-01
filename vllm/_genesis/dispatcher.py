@@ -554,6 +554,28 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "conflicts_with": [],
         "requires_patches": [],
     },
+    "PN21": {
+        "title": "DFlash SWA support partial backport (vllm#40898)",
+        "env_flag": "GENESIS_ENABLE_PN21_DFLASH_SWA",
+        "default_on": False,
+        "category": "spec_decode",
+        "credit": (
+            "Partial backport of vllm#40898 (jianc99, OPEN 2026-05-01). "
+            "Adds SWA config preservation in speculators/algos.py and forces "
+            "causal=True on sliding-window layer attention metadata in "
+            "v1/spec_decode/dflash.py. The qwen3_dflash.py model class "
+            "changes (7+ sub-patches) are NOT backported. EMPIRICAL on 35B-A3B "
+            "DFlash 160K: tool-call regresses 5-6/7 vs 7/7 baseline (without PN21) — "
+            "metadata/compute mismatch (config says SWA, model computes full attn). "
+            "DEFAULT OFF, NOT enabled in any launch script. Wait for upstream merge "
+            "or full manual model class backport before enabling. Composes (no conflict) "
+            "with PN24 if/when full enabler lands."
+        ),
+        "upstream_pr": 40898,
+        "applies_to": {},
+        "conflicts_with": [],
+        "requires_patches": [],  # Pairs with PN24 but does not strictly require it
+    },
     "PN22": {
         "title": "Local argmax for TP draft (vllm#39419 backport)",
         "env_flag": "GENESIS_ENABLE_PN22_LOCAL_ARGMAX_TP",
