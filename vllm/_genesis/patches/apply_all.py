@@ -1100,7 +1100,9 @@ def apply_patch_68_69_long_ctx_tool_adherence() -> PatchResult:
       P69: append explicit format reminder to last user message
 
     Both env-flag opt-in. No-op when disabled. Threshold configurable via
-    GENESIS_P68_P69_LONG_CTX_THRESHOLD_CHARS (default 8000 chars ~= 2K tok).
+    GENESIS_P68_P69_LONG_CTX_THRESHOLD_CHARS (default 50000 chars ~= 12.5K
+    tok; raised from 8000 in v7.65 per Issue #9 — old default was too
+    aggressive and triggered on routine tool-call flows).
 
     Status:
       - GENESIS_ENABLE_P68_AUTO_FORCE_TOOL=1 to engage P68
@@ -2008,6 +2010,50 @@ def apply_patch_N12_ffn_intermediate_pool() -> PatchResult:
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = patch_N12_ffn_intermediate_pool.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch(
+    "PN26 TQ unified perf pack (centroids prebake + sparse V scaffold)"
+)
+def apply_patch_N26_tq_unified_perf() -> PatchResult:
+    """Patch N26: unified backport of three OPEN upstream PRs touching the
+    TurboQuant code path (#41418 + #41422 + #41414).
+
+    Combines the strengths and drops the weaknesses:
+
+    - **From #41418** (centroids prebake): drop-in safe, eliminates
+      50ms-2.5s JIT solver run on the first request per (d, bits) shape.
+      Genesis defensive addition: at first use, asserts prebaked == solver
+      to catch drift if upstream Lloyd-Max algorithm changes; auto-falls
+      back to runtime solver on mismatch.
+
+    - **From #41422** (sparse V tile-skip): kernel modification to skip V
+      load + dequant on tiles where softmax probability max is below a
+      threshold. Author validated on AMD MI300X only — we ship as
+      OFF-by-default scaffold; sub-flag GENESIS_ENABLE_PN26_SPARSE_V=1
+      acknowledges operator opt-in but actual kernel wiring is deferred
+      to next iteration after NVIDIA Ampere correctness baseline.
+
+    - **DROPPED from #41414** (head_dim power-of-2 padding): Qwen3.6
+      head_dim=128 is already a power of 2; the patch would add a
+      runtime branch (`needs_padding`) that is dead code on our model.
+
+    Status: opt-in via GENESIS_ENABLE_PN26_TQ_UNIFIED=1. Default OFF.
+    Composes with P67/P98/PN8 — orthogonal code paths.
+    """
+    name = "PN26 TQ unified perf pack (centroids prebake + sparse V scaffold)"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring.perf_hotfix import patch_N26_tq_unified_perf
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_N26_tq_unified_perf.apply()
     if status == "applied":
         return _applied(name, reason)
     if status == "skipped":

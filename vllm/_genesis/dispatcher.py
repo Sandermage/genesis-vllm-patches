@@ -613,6 +613,31 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "conflicts_with": [],
         "requires_patches": [],
     },
+    "PN26": {
+        "title": "TQ unified perf pack (centroids prebake + sparse V scaffold)",
+        "env_flag": "GENESIS_ENABLE_PN26_TQ_UNIFIED",
+        "default_on": False,
+        "category": "perf_hotfix",
+        "credit": (
+            "Genesis-original 2026-05-01 unification of three OPEN upstream "
+            "PRs (jasonkim8652): #41418 pre-baked Lloyd-Max centroids (drop-in "
+            "safe, eliminates 50ms-2.5s JIT solver per shape on cold boot); "
+            "#41422 sparse V tile-skip in decode kernel (scaffolded, OFF by "
+            "default until NVIDIA Ampere correctness validation — author "
+            "validated AMD MI300X only); #41414 head_dim pow-2 padding "
+            "DROPPED — Qwen3.6 head_dim=128 already pow-2, would add dead "
+            "code overhead. Genesis defensive addition: self-check at "
+            "module-init asserts prebaked centroids equal solver output; on "
+            "drift (e.g. upstream changes Lloyd-Max algo) auto-disables "
+            "prebake and falls through to runtime solver with WARNING. No "
+            "silent staleness. Composes with P67/P98/PN8 — orthogonal code "
+            "paths."
+        ),
+        "upstream_pr": 41418,
+        "applies_to": {},
+        "conflicts_with": [],
+        "requires_patches": [],
+    },
     "PN25": {
         "title": "SiluAndMul.forward_native opaque-op pool (Cliff 1 mech B compile path)",
         "env_flag": "GENESIS_ENABLE_PN25_SILU_INDUCTOR_SAFE",
