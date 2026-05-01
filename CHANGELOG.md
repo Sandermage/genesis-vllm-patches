@@ -14,6 +14,153 @@ loud-and-clear in the per-release notes.
 
 ---
 
+## [Unreleased] — `v7.65` series
+
+> Pin: `0.20.1rc1.dev16+g7a1eb8ac2` (committed 2026-04-28).
+> Series builds on top of v7.64 release and adds 4 new patches +
+> infrastructure hardening, all opt-in OFF by default. No
+> regression in PROD bench; pushed to `dev` branch only (main promotion
+> deferred until cross-rig validation).
+
+### Added — new patches
+
+- **PN21 — DFlash SWA partial backport** (`vllm#40898`, opt-in OFF).
+  Two of three sub-files of jianc99's PR backported: `algos.py`
+  (preserve `layer_types` / `use_sliding_window` / `sliding_window` /
+  `max_window_layers` from speculators-format checkpoint into HF
+  config) + `dflash.py` (force `causal=True` for sliding-window
+  layer attention metadata). The `qwen3_dflash.py` model-class
+  changes (7+ sub-patches across `Attention.__init__` / `DecoderLayer.__init__`
+  / Model class) NOT backported — too fragile for text-patch.
+  Empirical on 35B-A3B-FP8-DFlash 160K (3-run sweep):
+  `5-6/7` tool-call with PN21 ON vs `7/7` baseline OFF.
+  Without the model-side changes, config preserves SWA but the model
+  still constructs full attention → metadata/compute mismatch shifts
+  spec acceptance. **Default OFF, NOT enabled in any launch script**
+  until upstream merges or full manual model-class backport.
+
+- **PN25 — SiluAndMul.forward_native opaque-op pool** (Genesis-original,
+  opt-in OFF). Sister-patch to PN12; complement, not replacement.
+  PN12 patches `forward_cuda` (eager dispatch) but
+  `custom_ops=["none"]` (V1 default for `aot_compile_fullgraph`)
+  routes through `forward_native` which Inductor inlines and lowers
+  to `empty_strided_cuda(...)` — completely bypassing PN12's pool.
+  Reported by noonghunna in `club-3090#16` (VolandBerlioz Reddit + ampersandru
+  cross-rig: RTX 3090 24 GB + Lorbus 27B + OpenCode 29K-token prefill
+  OOMs at 137.6 MiB). PN25 registers `genesis::silu_and_mul_pooled`
+  as `torch.library.custom_op` with `mutates_args=()` and
+  `device_types=("cuda",)`. Inductor treats opaque ops as no-inline.
+  Body acquires from `FFNIntermediateCache` pool (same one PN12
+  uses) and dispatches to `torch.ops._C.silu_and_mul`.
+  PN12 + PN25 patch DIFFERENT methods so anchors never collide;
+  pool is shared singleton. Recommended pairing for any
+  inductor-heavy config; standalone use covers single-path setups.
+
+- **PN26 — TQ unified perf pack** (Genesis-original combining 3
+  upstream OPEN PRs from jasonkim8652, opt-in OFF):
+  - **Taken from #41418** (centroids prebake): pre-baked Lloyd-Max
+    centroid tables for `(d=128, bits=4 / 8 / 3)` — covers our PROD
+    presets `turboquant_4bit_nc` / `turboquant_k8v4` / `turboquant_3bit_nc`.
+    Empirical on live container: `(128, 8)` `0.018ms` vs solver
+    `4583.9ms` = **259,812× speedup** on cold boot.
+  - **Genesis defensive addition** vs upstream: at first use, runs
+    `prebaked == solver` self-check for `(128, 4)`. On drift > 1e-3
+    (real Lloyd-Max algorithm change upstream), auto-disables
+    prebake and falls through to runtime solver with a WARNING.
+    On 1e-6 drift (round-noise from int/1e10 encoding), logs INFO
+    and keeps prebake. Threshold gates against silent staleness.
+  - **Taken from #41422 (scaffold-only)**: sparse V tile-skip kernel
+    modification. Author validated AMD MI300X only; NVIDIA Ampere
+    correctness needs empirical confirmation. Ships as scaffold
+    gated by `GENESIS_ENABLE_PN26_SPARSE_V=1` sub-flag; actual
+    kernel wiring deferred to next iteration.
+  - **Dropped from #41414**: head_dim power-of-2 padding. Qwen3.6
+    head_dim=128 is already pow-2; the patch would add a runtime
+    branch that is dead code on our model.
+
+- **PN27 — Revert MoERunnerInterface PluggableLayer** (`vllm#41440`
+  backport, proactive scaffold, opt-in OFF). Reverts vllm#35178
+  (commit `b55b2652`, merged 2026-04-30) which made
+  `MoERunnerInterface` inherit from `PluggableLayer` for OOT support.
+  Issue #41306 reports v0.20 MoE perf regression: Mixtral-8x7B
+  TPOT +21%, TTFT +59%, throughput -19% (8× H200). bnellnm (vLLM core)
+  confirmed `--moe-backend=triton` restores v0.19 perf.
+  **Our pin `g7a1eb8ac2` was committed 2026-04-28 — 2 days BEFORE
+  #35178 merged.** So we are accidentally pre-#35178 and NOT
+  vulnerable. PN27 is a **proactive scaffold**: when we eventually
+  pin-bump past `b55b2652` BEFORE upstream's #41440 (or equivalent)
+  merges, all 3 sub-patches engage and revert to pre-regression
+  behavior. On our current pin, all sub-patches SKIP cleanly.
+
+### Added — infrastructure
+
+- **Cliff 8 hardening** (`apply_all.py`) — new
+  `PatchStats.partial_apply_warnings` property surfaces skipped
+  patches whose reason indicates real anchor drift / ambiguous-anchor /
+  required-anchor-missing — distinct from benign skips
+  (opt-in OFF, upstream-merged, platform mismatch, deferred,
+  redundant). Boot summary line now appends
+  `N ⚠️  partial-apply warning(s)` when count is non-zero, plus
+  per-warning WARNING-level lines that name each patch + reason.
+  Promised to noonghunna in `club-3090` discussion #19. First
+  detection in PROD: PN9 self-retire on 27B PROD boot
+  (`'spec_cfg.attention_backend' present in llm_base_proposer.py`)
+  — manually verified PR #39930 + DFlashProposer `use_non_causal=True`
+  is full superset of our partial backport; self-retire correct.
+
+### Changed
+
+- **A2 — P68/P69 long-context threshold default 8000 → 50000 chars**
+  (Issue #9). Old 8000-char default (~2K tokens) was too aggressive —
+  triggered P68 force-tool-choice and P69 explicit-format-reminder on
+  routine IDE-agent flows that are NOT genuinely long-context. New
+  50000-char default (~12.5K tokens) keeps the behavior for genuine
+  long histories. Code default updated; 6 active launch scripts
+  updated to override `8000 → 50000` explicitly.
+
+- **CLIFFS.md PN19 H100-only flag** (Cliff 1 mech A section).
+  noonghunna 2026-05-01 confirmed PN19 costs ~120 MiB KV pool on a
+  24 GB single-3090 (vs documented 200-500 MiB win on H100). Disable
+  PN19 on 24 GB consumer cards (3090, 4090, A5000) running long
+  context. Same lesson as P104 L2 persistence — generic allocator
+  hints don't survive GPU class boundaries.
+
+### Verified (no regression)
+
+- **#41190 stress test** — TP=2 + spec-decode + first-request
+  `cudaErrorIllegalAddress` reported by their RTX 6000 Ada / AWQ /
+  WIP-PR-#40898-build setup. Stress-tested on our 35B DFlash 160K
+  (TP=2 + DFlash spec K=3): 5 concurrent + 30 sequential rapid-fire
+  chat completions. **ZERO `cudaError`**, zero `illegal memory
+  access`, zero `watchdog` events. Differences:
+  they used QuantTrio AWQ (online-quant), we use FP8 (offline);
+  their pin built off PR #40898 head (WIP), our pin on main.
+  Possibly P58 (async scheduler placeholder) or P60 (GDN+ngram)
+  defends against the codepath.
+
+- **#41306 MoE regression** — verified via runtime probe that our
+  installed `MoERunnerInterface.__bases__ == (<class 'abc.ABC'>,)`
+  (no PluggableLayer inheritance). Our pin pre-dates #35178 by 2
+  days; we are NOT vulnerable. PN27 scaffold ready when we pin-bump.
+
+### Bench results — `v7.65` PROD eligibility
+
+35B FP8 DFlash 160K (TP=2 + DFlash spec K=3 + PN22+PN23+PN24):
+
+- 44 patches applied / 0 failed / 0 partial-apply warnings
+- prose 256t mean **125.07 TPS, CV 3.07%**
+- tool-call 5-7/7 (variance band)
+
+27B Lorbus INT4 PROD (TQ k8v4 + MTP K=3 + 8 baked patches):
+
+- 54 patches applied / 0 failed / 1 partial-apply warning (PN9
+  self-retire — verified correct, upstream is strict superset)
+- tool-call **7/7**
+- prose 256t mean **88.39 TPS, CV 2.59%**
+- code  512t mean **104.25 TPS, CV 0.20%**
+
+---
+
 ## [Unreleased] — `v7.63.x` series
 
 > 50 commits ahead of `origin/main` at time of writing. Local-only
