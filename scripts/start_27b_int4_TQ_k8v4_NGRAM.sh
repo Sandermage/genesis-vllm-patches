@@ -31,6 +31,7 @@ docker run -d \
   -v /home/sander/Genesis_Project/vllm_engine/triton-cache-int4-ngram:/root/.triton/cache \
   -v /home/sander/Genesis_Project/vllm_engine/compile-cache-int4-ngram:/root/.cache/vllm/torch_compile_cache \
   -v /home/sander/genesis-vllm-patches/vllm/_genesis:/usr/local/lib/python3.12/dist-packages/vllm/_genesis:ro \
+  -v /home/sander/genesis-vllm-patches/genesis_vllm_plugin:/plugin:ro \
   -e VLLM_NO_USAGE_STATS=1 -e VLLM_LOGGING_LEVEL=WARNING \
   -e PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True,max_split_size_mb:512" \
   -e VLLM_FLOAT32_MATMUL_PRECISION=high -e VLLM_SSM_CONV_STATE_LAYOUT=DS -e NCCL_P2P_DISABLE=1 -e NCCL_CUMEM_ENABLE=0 \
@@ -54,6 +55,8 @@ docker run -d \
   vllm/vllm-openai:nightly -c \
   "set -e; echo === 27B Lorbus INT4 + TQ k8v4 + NGRAM strict prompt_lookup_default ===; \
 pip install --quiet --disable-pip-version-check pandas scipy xxhash; \
+cp -r /plugin /tmp/genesis_vllm_plugin; \
+pip install --quiet --disable-pip-version-check --no-deps -e /tmp/genesis_vllm_plugin 2>&1 | tail -3; \
 python3 -m vllm._genesis.patches.apply_all ; \
 exec vllm serve --model /models/Qwen3.6-27B-int4-AutoRound --tensor-parallel-size 2 \
   --gpu-memory-utilization 0.90 --max-model-len 280000 \
