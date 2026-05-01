@@ -17,10 +17,66 @@ loud-and-clear in the per-release notes.
 ## [Unreleased] — `v7.65` series
 
 > Pin: `0.20.1rc1.dev16+g7a1eb8ac2` (committed 2026-04-28).
-> Series builds on top of v7.64 release and adds 4 new patches +
-> infrastructure hardening, all opt-in OFF by default. No
-> regression in PROD bench; pushed to `dev` branch only (main promotion
-> deferred until cross-rig validation).
+> Series builds on top of v7.64 release and adds 7+ new patches +
+> infrastructure hardening + community issue fixes, all opt-in OFF by
+> default unless noted. No regression in PROD bench (91.78 TPS @ 256t,
+> CV 0.3% — above v7.64 baseline 91.5). Pushed to `dev` branch only
+> (main promotion deferred until cross-rig validation).
+
+### Community-reported bugs CLOSED
+
+- **#16 PN25 worker-fork crash** (BLOCKING real IDE-agent users on TQ3+
+  spawn configs). Pre-check `torch.ops.genesis.silu_and_mul_pooled`
+  global C++ registry BEFORE `@custom_op` re-decoration in spawned
+  workers — avoids `infer_schema`-under-Dynamo crash. Sister-fix
+  applied to `gdn_dual_stream_customop.py` (P7b) preventively. Live
+  verified on 27B PROD: HTTP 200 + 32 reasoning tokens + 90.18 TPS.
+  Reporter: noonghunna (club-3090). 9 TDD tests pass.
+
+- **#17 PN30 DS conv state + spec-decode AL>1** (50/50 LCB v6 crash on
+  structured-CoT). Two-file text-patch: replaces `NotImplementedError`
+  in `mamba_utils.py:get_conv_copy_spec` with `.contiguous()` copy +
+  module-level temp-tensor list; adds stream sync + cleanup in
+  `do_mamba_copy_block`. Cost ~10-50us per batch when path active.
+  Default OFF (opt-in for affected workloads). 10 TDD tests pass.
+
+- **#15 PN31 FA varlen persistent out** (sister patch to P38). Per-shape
+  persistent `out` buffer for `_flash_attn_varlen` eliminates per-call
+  malloc pressure inside FA C extension. Memory cost: ~16-64 MiB per
+  shape × layer. NULL impact on 2×A5000 PROD; designed for 1×3090
+  community users with budget-constrained workloads. Default OFF.
+  9 TDD tests pass.
+
+### Warnings cleanup (118 → 16, -87%)
+
+- **P8 idempotent-skip log** clarified — distinguishes "already applied"
+  (INFO) from real "anchor drift" (WARNING). Was alarming on every
+  restart even when patch correctly applied.
+
+- **PN9** (independent drafter attention) **self-retired** —
+  `vllm#39930` merged upstream. Removed from all start scripts;
+  use `--speculative-config.attention_backend` instead.
+
+- **P67 hook ENTRY** misclassified `log.warning` → `log.info`. Was
+  diagnostic for first-3 dispatches per layer, not actual warning;
+  created ~50 fake-WARNING entries per boot.
+
+- **Pip "running as root"** silenced via `--root-user-action=ignore`
+  in all 7 start scripts.
+
+- **`vllm serve --model X` deprecation** — changed to positional
+  argument in all 7 start scripts.
+
+### Infrastructure hardening
+
+- **T4.6 Compile-time watchdog** — `PatchStats.compile_elapsed_sec`
+  field + 3-tier threshold logging (>120s WARNING with recovery hint).
+  Visibility into Triton autotune cache regression / cold-compile cost.
+
+- **T4.5 Boot-time probe** — standalone CLI
+  `python3 -m vllm._genesis.utils.boot_probe` for spec-decode cross-rank
+  issues (#41190-class). Heuristic markers for `cudaErrorIllegalAddress`,
+  workspace-lock AssertionError, OOM. Reasoning-mode aware.
 
 ### Added — new patches
 

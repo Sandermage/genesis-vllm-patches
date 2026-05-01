@@ -4,9 +4,11 @@ This file is the **single source of truth** for every Genesis runtime patch.
 For each patch you get: ID, title, what it does, status (ON / opt-in / deprecated),
 env flag to toggle, upstream PR (if backported), and credit.
 
-**Total PATCH_REGISTRY entries:** 50 (41 numbered Pxx-class + 9 PN-class). The dispatcher's `PATCH_REGISTRY` is the schema-validated, lifecycle-tracked, opt-in surface — `genesis self-test` and the schema validator gate this set on every commit.
+**Total PATCH_REGISTRY entries:** 65 (range P56–P103 + PN8–PN31 + sub-patches P67b/P67c/PN26b). The dispatcher's `PATCH_REGISTRY` is the schema-validated, lifecycle-tracked, opt-in surface — `genesis self-test` and the schema validator gate this set on every commit.
 
-- **Source of truth:** `vllm/_genesis/dispatcher.py` `PATCH_REGISTRY` (range: P56-P103 + PN8-PN16, rich metadata) + `vllm/_genesis/patches/apply_all.py` `@register_patch` decorators (legacy P1-P55, dry-run diagnostic only).
+**Total apply_all `@register_patch`:** 96 entries. The 32-entry delta (legacy P1–P46) predates the dispatcher v2 migration (v7.13). They function correctly in production (text-patches with markers) but lack rich dispatcher metadata. Migration is tracked tech-debt; their runtime behavior is captured in source-level docstrings.
+
+- **Source of truth:** `vllm/_genesis/dispatcher.py` `PATCH_REGISTRY` (range: P56-P103 + PN8-PN31, rich metadata) + `vllm/_genesis/patches/apply_all.py` `@register_patch` decorators (legacy P1-P55, dry-run diagnostic only).
 - **All patches default OFF unless explicitly noted.** Production launch script enables a curated set via env flags.
 - **Credits:** every backport names its upstream author + PR. Genesis-original patches are explicitly labelled. See [`CREDITS.md`](CREDITS.md) for the comprehensive attribution log.
 - **Status legend:**
@@ -71,6 +73,8 @@ docker run -e GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL=0 ... vllm/vllm-openai:ni
 | **PN12** | FFN intermediate scratch pool — Cliff 1 fix on TQ3 path | opt-in | `GENESIS_ENABLE_PN12_FFN_INTERMEDIATE_POOL` | [#34207](https://github.com/vllm-project/vllm/pull/34207) | Genesis-original 2026-04-29 — Cliff 1 fix on TQ3 path. Closes 138 MiB OOM at 192K context |
 | **PN17** | FA2 softmax_lse runtime clamp (Cliff 1 mechanism A, Issue #11) | opt-in | `GENESIS_ENABLE_PN17_FA2_LSE_CLAMP` | — | Genesis-original 2026-04-30 in response to noonghunna's [Genesis Issue #11](https://github.com/Sandermage/genesis-vllm-patches/issues/11) cross-rig diagnosis (RTX 3090). Clamps `max_seqlen_k` from `attn_metadata.max_seq_len` (= max_model_len during cudagraph capture) to actual chunk max from `seqused_k.max()` at runtime. Closes Cliff 1 FA2 softmax_lse mechanism; widens long-text-no-vision safe envelope from ~150K to ~205K. Cudagraph-safe (capture-path falls back to original). Reference: Dao-AILab/flash-attention#1011. |
 | **PN19** | Scoped max_split_size_mb during model load (vllm#41268) | opt-in | `GENESIS_ENABLE_PN19_SCOPED_MAX_SPLIT` | [#41268](https://github.com/vllm-project/vllm/pull/41268) | Backport of vllm#41268 (MatthewBonanni, OPEN). PyTorch 2.10+ introduced load-time allocator fragmentation; mitigates by temporarily setting `max_split_size_mb=20` (PyTorch minimum) during `Worker.load_model`, restores prior on exit. Cudagraph-safe (load-time only). Self-detects torch < 2.11 lacking `_accelerator_setAllocatorSettings` and falls through unchanged. Estimated 200-500 MiB headroom on H100; unverified on Ampere — operator should measure via nvidia-smi peak before relying on it. |
+| **PN25** | SiluAndMul forward_native opaque-op pool — Cliff 1 mech B fix | opt-in | `GENESIS_ENABLE_PN25_SILU_INDUCTOR_SAFE` | — | Genesis-original 2026-05-01 — closes Cliff 1 mech B (PN12 inductor inline bypass) on TQ3 + spec-decode + TP=1 configs. Registers `genesis::silu_and_mul_pooled` torch op as Inductor-opaque, ensuring FFN intermediate buffer pool fires even when Inductor inlines `forward_native`. Worker-spawn safe (issue #16 fix 2026-05-02). |
+| **PN31** | FA varlen persistent out buffer (issue #15, sister to P38) | opt-in | `GENESIS_ENABLE_PN31_FA_VARLEN_PERSISTENT_OUT` | — | Genesis-original 2026-05-02 — closes #15 OOM at flash_attn_varlen_func on budget-constrained single-GPU. Per-shape persistent `out` buffer eliminates per-call malloc pressure inside FA C extension. Memory cost: ~16-64 MiB per shape × layer. NULL impact on 2×A5000 PROD (we have headroom); designed for 1×3090/1×4090 community users. |
 
 ### Kernel performance
 
@@ -112,7 +116,8 @@ docker run -e GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL=0 ... vllm/vllm-openai:ni
 | **P94** | Spec-decode prepare_next_token_ids_padded zero-alloc (vllm#41043) | opt-in | `GENESIS_ENABLE_P94` | [#41043](https://github.com/vllm-project/vllm/pull/41043) | Backport of vllm#41043 (wangluochao902, OPEN). Removes GPU→CPU `.tolist()` sync + list-comprehension + `np.array(...)` allocation in spec-decode hot path. PR author measured P99 TPOT -9.3% on Llama-3.1-8B + Eagle3 TP=4. Applies to all spec methods (Eagle, MTP, ngram, draft model). For our MTP K=3 single-stream: expected +2-4% wall TPS + tighter CV. |
 | **P57** | TQ spec-decode capture-safe buffers | deprecated | `GENESIS_ENABLE_P57_SPEC_DECODE_CAPTURE_SAFE` | — | noonghunna (#40831), gdn_attn.py reference |
 | **P56** | TQ spec-decode safe-path guard | deprecated | `GENESIS_ENABLE_P56_SPEC_DECODE_GUARD` | — | noonghunna (#40807, #40831) |
-| **PN9** | Independent drafter attention backend (vllm#39930) | opt-in | `GENESIS_ENABLE_PN9_INDEPENDENT_DRAFTER_ATTN` | [#39930](https://github.com/vllm-project/vllm/pull/39930) | MatthewBonanni (vllm#39930, MERGED). Allows the spec-decode drafter to use a different attention backend than the target model |
+| **PN9** | Independent drafter attention backend (vllm#39930) | self-retired | — | [#39930](https://github.com/vllm-project/vllm/pull/39930) | MatthewBonanni (vllm#39930, MERGED). Self-retires when upstream merged — use `--speculative-config.attention_backend` instead. Removed from start scripts 2026-05-02. |
+| **PN30** | DS conv state layout + spec-decode AL>1 fix (issue #17) | opt-in | `GENESIS_ENABLE_PN30_DS_LAYOUT_SPEC_DECODE` | — | Genesis-original 2026-05-02 (closes #17 noonghunna LCB v6 50/50 crash). Two-file text-patch: replaces `NotImplementedError` raise in `mamba_utils.py:get_conv_copy_spec` with `.contiguous()` copy + module-level temp-tensor list; adds stream sync + cleanup in `do_mamba_copy_block`. Cost ~10-50us per batch when path active. |
 
 ### Structured-output / Qwen3 parser
 
