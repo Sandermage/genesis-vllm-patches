@@ -1985,6 +1985,42 @@ def apply_patch_N11_gdn_a_b_contiguous() -> PatchResult:
     return _failed(name, reason)
 
 
+@register_patch("PN29 GDN chunk_o scale-fold (vllm#41446 pattern (c) backport)")
+def apply_patch_N29_gdn_chunk_o_scale_fold() -> PatchResult:
+    """Patch N29: backport of vllm#41446 pattern (c) (zobinHuang, OPEN
+    as of 2026-05-01) — fold scale multiply in chunk_fwd_kernel_o.
+
+    `chunk_fwd_kernel_o` currently does `b_o * scale + dot * scale` (two
+    fp32 multiplies). PN29 folds to `(b_o + dot) * scale` (one multiply).
+    Distributive on fp32; drift bounded by 1-2 ULP per element (verified
+    by TDD `test_pn29_numerical_equivalence_*`).
+
+    Triton compiler does NOT auto-fuse across the +/- boundary, so the
+    explicit fold is guaranteed to save one fp32 mul per inner iter on
+    a [BT, BV] = [64, 128] tile = 8192 ops × hundreds of iterations × 36
+    layers per forward.
+
+    Applies to hybrid GDN models (Qwen3.6-27B-int4-AutoRound, INT8
+    Minachist). 35B Qwen3MoE has no GDN → no-op.
+
+    Status: opt-in via GENESIS_ENABLE_PN29_GDN_SCALE_FOLD=1. Default OFF.
+    Expected gain: +1-2% on GDN-heavy workloads.
+    """
+    name = "PN29 GDN chunk_o scale-fold (vllm#41446 pattern c)"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring.hybrid import patch_N29_gdn_chunk_o_scale_fold
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_N29_gdn_chunk_o_scale_fold.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
 @register_patch("PN12 FFN intermediate scratch pool (Cliff 1 fix on TQ3)")
 def apply_patch_N12_ffn_intermediate_pool() -> PatchResult:
     """Patch N12: pool transient SiluAndMul output buffers across layers.

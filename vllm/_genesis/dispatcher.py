@@ -456,6 +456,31 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             # is only called when spec-decode is active. No additional gate.
         },
     },
+    "PN29": {
+        "title": "GDN chunk_o scale-fold (vllm#41446 pattern (c))",
+        "env_flag": "GENESIS_ENABLE_PN29_GDN_SCALE_FOLD",
+        "default_on": False,
+        "category": "perf_hotfix",
+        "credit": (
+            "Backport of vllm#41446 (zobinHuang, OPEN) pattern (c) only. "
+            "Folds scale multiply in `chunk_fwd_kernel_o`: "
+            "`b_o = (b_o + tl.dot(b_A, b_v)) * scale` instead of "
+            "`b_o = b_o * scale + tl.dot(b_A, b_v) * scale`. "
+            "One fewer fp32 multiply per inner iter. Distributive on "
+            "fp32 accumulators (drift bounded by 1-2 ULP per element). "
+            "Triton compiler does NOT auto-fuse across the +/- boundary, "
+            "so explicit fold = guaranteed save. Hardware-agnostic; "
+            "PR is MI300X-targeted but pattern (c) is NVIDIA-Triton "
+            "compatible. Genesis-applicable: hybrid GDN models "
+            "(Qwen3.5/3.6 27B); no-op on Qwen3MoE 35B."
+        ),
+        "upstream_pr": 41446,
+        "applies_to": {
+            # Triggers in any model using FLA chunk_fwd_kernel_o (hybrid
+            # GDN). On Qwen3MoE without GDN, the kernel never fires →
+            # patch is silently no-op even if env enabled.
+        },
+    },
     "PN11": {
         "title": "GDN a/b contiguity in fix_query_key_value_ordering (vllm#41142)",
         "env_flag": "GENESIS_ENABLE_PN11_GDN_AB_CONTIGUOUS",
