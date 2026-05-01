@@ -115,10 +115,45 @@ def _register_op_once() -> bool:
       (a) We want CPU-only imports of this module to succeed (tests).
       (b) `torch.library.custom_op` requires a live library handle that
           shouldn't be created at import time in test environments.
+
+    Fork-safe across worker spawn (issue #16 sister-bug fix)
+    -------------------------------------------------------
+    `_op_registered` is module-level Python state — RESETS to False in
+    each spawned worker (VLLM_WORKER_MULTIPROC_METHOD=spawn). However
+    `torch.ops.genesis.dual_linear_parallel` lives in C++ state which
+    persists across spawn. We must detect existing registration BEFORE
+    calling `@custom_op(...)` again, otherwise:
+
+        torch._dynamo.exc.Unsupported: Attempted to call function
+        marked as skipped: infer_schema
+
+    This is the SAME bug class as PN25's silu_and_mul_pooled (filed by
+    noonghunna at issue #16). Applied same defensive guard here as
+    preventive measure — P7b will hit the same crash on any
+    single-GPU spawn config (1×3090, 1×4090, etc.).
     """
     global _op_registered
     if _op_registered:
         return True
+
+    # [Genesis #16 sister-fix] Pre-check global C++ registry. If op is
+    # already registered (parent process or earlier import — survives
+    # spawn), sync local flag and return True without calling
+    # @custom_op (which would invoke infer_schema → Dynamo crash).
+    try:
+        if hasattr(torch.ops, "genesis") and hasattr(
+            torch.ops.genesis, "dual_linear_parallel"
+        ):
+            _op_registered = True
+            log.info(
+                "[P7b] op %s already globally registered — synced "
+                "local flag (worker-spawn safe path)",
+                _OP_QUALNAME,
+            )
+            return True
+    except (AttributeError, RuntimeError):
+        # Namespace doesn't exist yet — fall through to registration.
+        pass
 
     try:
         lib = torch.library

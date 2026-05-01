@@ -131,14 +131,66 @@ def _silu_and_mul_native_fallback(x: torch.Tensor) -> torch.Tensor:
 def _register_op_once() -> bool:
     """Register `genesis::silu_and_mul_pooled` with torch.library.
 
-    Idempotent. Returns True on success. On any failure (torch too old,
-    op already registered by sister module, fake-impl rejection by
-    dynamo) returns False and PN25 wiring will fall back to upstream
-    `forward_native` body.
+    Idempotent — and **fork-safe across worker spawn** (issue #16).
+    Returns True on success. On any failure (torch too old, op already
+    registered by sister module, fake-impl rejection by dynamo) returns
+    False and PN25 wiring will fall back to upstream `forward_native`.
+
+    Cross-process registration model
+    --------------------------------
+    `_op_registered` is a module-level Python flag — it RESETS to False
+    in each worker process when vLLM spawns workers via
+    `VLLM_WORKER_MULTIPROC_METHOD=spawn` (fresh interpreter, re-imports
+    this module). However, `torch.ops.genesis.silu_and_mul_pooled` is
+    registered in C++ state that persists across spawn. So workers must
+    detect the existing global registration BEFORE attempting to call
+    `@custom_op(...)` again — calling it triggers
+    `torch.library.infer_schema()` which Dynamo refuses to trace at
+    that point in worker init (during `profile_run`'s first FFN
+    forward), crashing the engine with:
+
+        torch._dynamo.exc.Unsupported: Attempted to call function
+        marked as skipped: infer_schema
+
+    Reported by noonghunna (issue #16, 2026-05-01) on 1× RTX 3090 +
+    27B Lorbus + TQ3 + MTP K=3 + TP=1. Bug surface: any config that
+    routes FFN through `forward_native` during profile_run hits this.
+    Genesis A5000 PROD (35B + 27B-fp8_e5m2) routes through different
+    code paths (forward_cuda eager / cudagraph FULL_AND_PIECEWISE
+    short-circuit) so didn't surface there — but every IDE-agent
+    workload (Cline/OpenCode/Roo/Cursor) on TQ3 is blocked.
+
+    Fix
+    ---
+    Check the global `torch.ops.genesis.silu_and_mul_pooled` registry
+    BEFORE the `@custom_op` decoration. If the op already exists (which
+    is the case in spawned workers — C++ state survived the spawn),
+    set the local flag and return True without re-decorating.
     """
     global _op_registered
     if _op_registered:
         return True
+
+    # [Genesis #16 fix] Check global torch.library registry FIRST.
+    # Survives worker-fork/spawn even though our in-process flag does
+    # not. If the op is already globally registered (parent process or
+    # earlier import), we just sync our local flag and return True —
+    # no `@custom_op` call, no `infer_schema` trigger, no Dynamo crash.
+    try:
+        if hasattr(torch.ops, "genesis") and hasattr(
+            torch.ops.genesis, "silu_and_mul_pooled"
+        ):
+            _op_registered = True
+            log.info(
+                "[PN25] op %s already globally registered — synced "
+                "local flag (likely worker-spawn path post-#16 fix)",
+                _OP_QUALNAME,
+            )
+            return True
+    except (AttributeError, RuntimeError):
+        # torch.ops.genesis namespace may not exist yet — that's fine,
+        # fall through to the registration path.
+        pass
 
     try:
         custom_op = getattr(torch.library, "custom_op", None)
