@@ -28,6 +28,7 @@ docker run -d \
   -v /home/sander/Genesis_Project/vllm_engine/triton-cache-int4-mtp:/root/.triton/cache \
   -v /home/sander/Genesis_Project/vllm_engine/compile-cache-int4-mtp:/root/.cache/vllm/torch_compile_cache \
   -v /home/sander/genesis-vllm-patches/vllm/_genesis:/usr/local/lib/python3.12/dist-packages/vllm/_genesis:ro \
+  -v /home/sander/genesis-vllm-patches/genesis_vllm_plugin:/plugin:ro \
   -e VLLM_NO_USAGE_STATS=1 -e VLLM_LOGGING_LEVEL=WARNING \
   -e PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True,max_split_size_mb:512" \
   -e VLLM_FLOAT32_MATMUL_PRECISION=high -e VLLM_SSM_CONV_STATE_LAYOUT=DS -e NCCL_P2P_DISABLE=1 -e NCCL_CUMEM_ENABLE=0 \
@@ -45,7 +46,7 @@ docker run -d \
   -e GENESIS_ENABLE_P72_PROFILE_RUN_CAP=1 -e GENESIS_PROFILE_RUN_CAP_M=4096 \
   -e GENESIS_ENABLE_P74_CHUNK_CLAMP=1 \
   -e GENESIS_ENABLE_P82=0 -e GENESIS_ENABLE_P98=1 -e GENESIS_ENABLE_P99=1 -e GENESIS_P82_THRESHOLD_SINGLE=0.3 \
-  -e GENESIS_ENABLE_PN26_SPARSE_V=1 -e GENESIS_PN26_SPARSE_V_THRESHOLD=0.01 -e GENESIS_PN26_SPARSE_V_BLOCK_KV=8 -e GENESIS_PN26_SPARSE_V_NUM_WARPS=4 \
+  -e GENESIS_ENABLE_PN26_SPARSE_V=0 \
   -e GENESIS_ENABLE_P38B_COMPILE_SAFE=1 -e GENESIS_ENABLE_P15B_FA_VARLEN_CLAMP=1 \
   -e GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL=1 -e GENESIS_ENABLE_P91=1 -e GENESIS_ENABLE_P87=1 -e GENESIS_ENABLE_P85=1 -e GENESIS_ENABLE_P83=1 -e GENESIS_ENABLE_P101=1 -e GENESIS_ENABLE_P100=1 \
   -e GENESIS_ENABLE_P78_TOLIST_CAPTURE_GUARD=0 \
@@ -63,6 +64,8 @@ docker run -d \
   vllm/vllm-openai:nightly -c \
   "set -e; echo === v771b 27B Lorbus INT4 NO-prefix-cache MTP K=3 ===; \
 pip install --quiet --disable-pip-version-check pandas scipy xxhash; \
+cp -r /plugin /tmp/genesis_vllm_plugin; \
+pip install --quiet --disable-pip-version-check --no-deps -e /tmp/genesis_vllm_plugin 2>&1 | tail -3; \
 python3 -m vllm._genesis.patches.apply_all ; \
 exec vllm serve --model /models/Qwen3.6-27B-int4-AutoRound --tensor-parallel-size 2 \
   --gpu-memory-utilization 0.90 --max-model-len 280000 \

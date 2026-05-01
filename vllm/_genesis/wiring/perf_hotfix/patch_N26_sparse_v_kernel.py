@@ -249,7 +249,11 @@ def apply() -> tuple[str, str]:
                 try:
                     stats = collect_skip_stats()
                     if stats.get("enabled"):
-                        log.info(
+                        # WARNING level (not INFO) so it surfaces under
+                        # VLLM_LOGGING_LEVEL=WARNING. DEBUG_SKIP_CTR=1
+                        # is opt-in operator instrumentation — guaranteed
+                        # visibility is the contract.
+                        log.warning(
                             "[Genesis PN26 sparse_v] skip-rate after %d calls: "
                             "lifetime %.2f%% (last_launch %.2f%%, "
                             "tiles total/skipped: %d/%d)",
@@ -264,13 +268,37 @@ def apply() -> tuple[str, str]:
 
         return result
 
-    # Mark as wrapped + install
+    # Mark as wrapped + install on source module
     setattr(_genesis_pn26_dispatcher, _GENESIS_PN26_SPARSE_V_MARKER_ATTR, True)
     setattr(mod, _FN_NAME, _genesis_pn26_dispatcher)
 
+    # ALSO rebind on importing modules. The TQ backend at
+    # vllm.v1.attention.backends.turboquant_attn does
+    # `from ... import triton_turboquant_decode_attention` at module
+    # top, so its local binding captured the *original* fn. Patching
+    # only the source module is a silent no-op for those call sites
+    # (same class of bug as P38B). We must rebind every consumer.
+    _CONSUMER_MODULES = (
+        "vllm.v1.attention.backends.turboquant_attn",
+    )
+    _rebound = []
+    for consumer_path in _CONSUMER_MODULES:
+        try:
+            import importlib
+            consumer_mod = importlib.import_module(consumer_path)
+            if hasattr(consumer_mod, _FN_NAME):
+                setattr(consumer_mod, _FN_NAME, _genesis_pn26_dispatcher)
+                _rebound.append(consumer_path)
+        except Exception as e:
+            log.warning(
+                "[Genesis PN26 sparse_v] could not rebind on %s: %s",
+                consumer_path, e,
+            )
+
     log.info(
-        "[Genesis PN26 sparse_v] wrapped %s.%s with sparse-V dispatcher",
-        _MODULE_PATH, _FN_NAME,
+        "[Genesis PN26 sparse_v] wrapped %s.%s with sparse-V dispatcher "
+        "(also rebound on consumers: %s)",
+        _MODULE_PATH, _FN_NAME, _rebound or "none",
     )
     return "applied", (
         "PN26 sparse-V kernel dispatcher installed. Routes to Genesis "
