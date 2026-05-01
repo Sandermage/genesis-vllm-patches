@@ -53,19 +53,97 @@ Write these five things down. The rest of this guide refers back to them.
 
 ## Step 2: Pick a base launch script
 
-Genesis ships launch scripts at `scripts/`. Pick the closest match to your config:
+Genesis ships launch scripts in **two locations** for two deployment modes:
+
+- `scripts/*.sh` — Docker container launch (recommended for most users; uses `docker run`).
+- `scripts/launch/*.sh` — both Docker (`start_*`) and bare-metal (`bare_metal_*`, host shell with vLLM installed via pip) variants.
+
+Pick the closest match to your config:
 
 | Your config | Start with |
 |---|---|
-| Qwen3-family + INT4 + hybrid + 1× 24GB | `start_27b_int4_fp8_e5m2_short_single_card.sh` |
-| Qwen3-family + INT4 + hybrid + 2× 24GB long ctx | `start_27b_int4_fp8_e5m2_long_256K.sh` |
-| Qwen3-family + INT4 + hybrid + TurboQuant k8v4 (5× KV pool) | `start_27b_int4_TQ_k8v4.sh` |
-| Qwen3-family + MoE + FP8 | `start_35b_fp8_PROD.sh` |
-| Qwen3-family + MoE + FP8 + 1× 48GB | `start_35b_fp8_PROD_single_card.sh` |
-| Coding-agent workload (DFlash drafter) | `start_27b_int4_DFLASH.sh` |
-| Llama / Mistral / Gemma dense | `start_35b_fp8_PROD.sh` (drop MoE-specific flags) |
+| Qwen3-family + INT4 + hybrid + 1× 24GB short ctx | `scripts/launch/start_27b_int4_no_TQ_short_single_card.sh` |
+| Qwen3-family + INT4 + hybrid + 1× 24GB long ctx (256K) | `scripts/launch/start_27b_int4_no_TQ_long_256K_single_card.sh` |
+| Qwen3-family + INT4 + hybrid + 2× 24GB short ctx | `scripts/start_27b_int4_fp8_e5m2_short.sh` |
+| Qwen3-family + INT4 + hybrid + 2× 24GB long ctx (256K) | `scripts/start_27b_int4_fp8_e5m2_long_256K.sh` |
+| Qwen3-family + INT4 + hybrid + TurboQuant k8v4 (5× KV pool) | `scripts/start_27b_int4_TQ_k8v4.sh` |
+| Qwen3-family + MoE + FP8 (2× 24GB) | `scripts/start_35b_fp8_PROD.sh` |
+| Qwen3-family + MoE + FP8 + 1× 48GB | `scripts/launch/start_35b_fp8_PROD_single_card.sh` |
+| Coding-agent workload (DFlash drafter) | `scripts/start_27b_int4_DFLASH.sh` |
+| Bare-metal (no Docker), 27B INT4 + TQ k8v4 | `scripts/launch/bare_metal_27b_int4_TQ_k8v4.sh` |
+| Bare-metal (no Docker), 35B FP8 PROD | `scripts/launch/bare_metal_35b_fp8_PROD.sh` |
+| Llama / Mistral / Gemma dense | `scripts/start_35b_fp8_PROD.sh` (drop MoE-specific flags) |
 
-**Rule of thumb:** start with a script that matches your *attention type* (hybrid vs. dense) and *KV dtype* (auto / fp8_e5m2 / turboquant). The rest you'll edit in step 3.
+**Naming convention:**
+
+- `start_*` = Docker container launch (uses `docker run`, mounts /models, applies patches inside container)
+- `bare_metal_*` = host shell launch (assumes vLLM already installed via `pip install`)
+- `_no_TQ_*` historical name for fp8_e5m2 KV cache (without TurboQuant) — file IS for fp8 KV
+- `_TQ_k8v4_*` = TurboQuant 8-bit-key 4-bit-value KV cache (5× pool, requires P4 + P67 + P98)
+- `_DFLASH_*` = DFlash speculator (coding-agent workload)
+- `_single_card` suffix = TP=1 variant; without suffix = TP=2
+
+**Rule of thumb:** start with a script that matches your *attention type* (hybrid vs. dense), *KV dtype* (auto / fp8_e5m2 / turboquant), and *card count*. The rest you'll edit in step 3.
+
+### Step 2b: Docker compose mirror (if you don't use the bash scripts directly)
+
+If you deploy via Docker compose (rather than `bash scripts/...`), the
+bare-metal scripts won't run as-is inside the container — they expect
+`pip install`-writable layers. Mirror the env vars + flags into your
+compose's `environment:` and `command:` blocks. Reference: each
+`start_*.sh` script lists the full env-var set baked for that config —
+copy the `-e GENESIS_ENABLE_*` blocks into compose `environment:` and
+the `vllm serve` flags into `command:`.
+
+Worked compose snippet (27B + TQ k8v4 PROD, mirrors `scripts/start_27b_int4_TQ_k8v4.sh`):
+
+```yaml
+services:
+  vllm-27b:
+    image: vllm/vllm-openai:nightly
+    environment:
+      GENESIS_ENABLE_P4: "1"
+      GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL: "1"
+      GENESIS_ENABLE_P98: "1"
+      GENESIS_ENABLE_P85: "1"
+      GENESIS_ENABLE_P87: "1"
+      GENESIS_ENABLE_P91: "1"
+      GENESIS_ENABLE_P99: "1"
+      GENESIS_ENABLE_P100: "1"
+      GENESIS_ENABLE_P101: "1"
+      GENESIS_ENABLE_P58_ASYNC_PLACEHOLDER_FIX: "1"
+      GENESIS_ENABLE_P60_GDN_NGRAM_FIX: "1"
+      GENESIS_ENABLE_P60B_TRITON_KERNEL: "1"
+      GENESIS_ENABLE_P61_QWEN3_MULTI_TOOL: "1"
+      GENESIS_ENABLE_P61B_STREAMING_OVERLAP: "1"
+      GENESIS_ENABLE_P62_STRUCT_OUT_SPEC_TIMING: "1"
+      GENESIS_ENABLE_P64_QWEN3CODER_MTP_STREAMING: "1"
+      GENESIS_ENABLE_P66_CUDAGRAPH_SIZE_FILTER: "1"
+      GENESIS_ENABLE_P68_AUTO_FORCE_TOOL: "1"
+      GENESIS_ENABLE_P69_LONG_CTX_TOOL_REMINDER: "1"
+      GENESIS_ENABLE_P72_PROFILE_RUN_CAP: "1"
+      GENESIS_PROFILE_RUN_CAP_M: "4096"
+      GENESIS_ENABLE_P74_CHUNK_CLAMP: "1"
+      GENESIS_ENABLE_PN8_MTP_DRAFT_ONLINE_QUANT: "1"
+      GENESIS_ENABLE_PN9_INDEPENDENT_DRAFTER_ATTN: "1"
+      GENESIS_ENABLE_PN11_GDN_AB_CONTIGUOUS: "1"
+      GENESIS_ENABLE_PN13_CUDA_GRAPH_LAMBDA_ARITY: "1"
+      GENESIS_ENABLE_PN17_FA2_LSE_CLAMP: "1"
+      GENESIS_PREALLOC_TOKEN_BUDGET: "4096"
+      GENESIS_BUFFER_MODE: "shared"
+    command:
+      - --model
+      - /models/Qwen3.6-27B-int4-AutoRound
+      - --kv-cache-dtype
+      - turboquant_k8v4
+      - --tensor-parallel-size
+      - "2"
+      - --speculative-config
+      - '{"method":"mtp","num_speculative_tokens":3}'
+      # ... copy remaining flags from scripts/start_27b_int4_TQ_k8v4.sh
+```
+
+The full source of truth for env vars is the `start_*.sh` script header — keep your compose in sync when Genesis updates the env-var set.
 
 ---
 
@@ -85,12 +163,16 @@ Open the script and change these:
 --max-model-len 65536            # set to your target context
 --max-num-seqs 4                 # lower for long ctx, raise for high concurrency
 
-# Spec-decode (pick one)
+# Spec-decode (pick one — see Step 1 for which methods YOUR model supports)
 --speculative-config '{"method": "ngram", "num_speculative_tokens": 5, "prompt_lookup_min": 2, "prompt_lookup_max": 5}'
-# or for MTP:
+# or for MTP (REQUIRES the HF repo to carry mtp_* weight prefix — see Step 1 §4):
 --speculative-config '{"method": "mtp", "num_speculative_tokens": 3}'
-# or for DFlash (gated download required):
+# or for DFlash (REQUIRES separate z-lab drafter checkpoint download — see Step 1 §4):
 --speculative-config '{"method": "dflash", "model": "/path/to/dflash-draft", "num_speculative_tokens": 4}'
+# Note for DFlash on hybrid GDN models (Qwen3.6 family): vllm PR #40898 (DFlash SWA support)
+# is OPEN as of 2026-05-01. Genesis ships PN21 partial backport — full SWA enabler awaits
+# upstream merge. Without it, ~25% acceptance-length gap on long context with sliding-window
+# attention layers. Track at https://github.com/vllm-project/vllm/pull/40898.
 
 # KV cache dtype (pick one)
 --kv-cache-dtype auto             # default
@@ -168,6 +250,51 @@ If `--kv-cache-dtype turboquant_k8v4`:
 - P101 — TQ packed-slot layout opt.
 - PN8 — VRAM savings.
 
+**Copy-paste TQ k8v4 minimal env block:**
+
+```bash
+# Required for TQ k8v4 — engine won't boot without these
+export GENESIS_ENABLE_P4=1                              # removes hybrid TQ rejection
+export GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL=1       # Genesis multi-query kernel
+export GENESIS_ENABLE_P98=1                             # WorkspaceManager revert (vllm#40941 fix)
+export GENESIS_ENABLE_P101=1                            # TQ packed-slot layout
+export GENESIS_ENABLE_PN8_MTP_DRAFT_ONLINE_QUANT=1      # ~600 MiB VRAM savings on draft
+```
+
+**Recommended additional patches for TQ k8v4 PROD (per `start_27b_int4_TQ_k8v4.sh`):**
+
+```bash
+# Performance (composes with TQ k8v4)
+export GENESIS_ENABLE_P85=1                             # hybrid fine-shadow prefix cache
+export GENESIS_ENABLE_P87=1                             # ~+24% on AutoRound INT4 path (Marlin)
+export GENESIS_ENABLE_P91=1                             # AutoRound row-parallel scales fix
+export GENESIS_ENABLE_P99=1                             # WorkspaceManager memoize
+export GENESIS_ENABLE_P100=1                            # FlashInfer FULL cudagraph spec-decode
+
+# Recommended quality patches
+export GENESIS_ENABLE_P58_ASYNC_PLACEHOLDER_FIX=1
+export GENESIS_ENABLE_P60_GDN_NGRAM_FIX=1
+export GENESIS_ENABLE_P60B_TRITON_KERNEL=1
+export GENESIS_ENABLE_P61_QWEN3_MULTI_TOOL=1
+export GENESIS_ENABLE_P61B_STREAMING_OVERLAP=1
+export GENESIS_ENABLE_P62_STRUCT_OUT_SPEC_TIMING=1
+export GENESIS_ENABLE_P64_QWEN3CODER_MTP_STREAMING=1
+export GENESIS_ENABLE_P66_CUDAGRAPH_SIZE_FILTER=1
+export GENESIS_ENABLE_P68_AUTO_FORCE_TOOL=1
+export GENESIS_ENABLE_P69_LONG_CTX_TOOL_REMINDER=1
+export GENESIS_ENABLE_P72_PROFILE_RUN_CAP=1
+export GENESIS_PROFILE_RUN_CAP_M=4096
+export GENESIS_ENABLE_P74_CHUNK_CLAMP=1
+export GENESIS_ENABLE_PN9_INDEPENDENT_DRAFTER_ATTN=1
+export GENESIS_ENABLE_PN11_GDN_AB_CONTIGUOUS=1
+export GENESIS_ENABLE_PN13_CUDA_GRAPH_LAMBDA_ARITY=1
+export GENESIS_ENABLE_PN17_FA2_LSE_CLAMP=1
+export GENESIS_PREALLOC_TOKEN_BUDGET=4096
+export GENESIS_BUFFER_MODE=shared
+```
+
+> **Note**: P82 (SGLang acceptance threshold OR-clause) is **OFF by default** on the 27B PROD launch — historical bench data showed it's biased on small batch single-stream Lorbus INT4 + MTP K=3. Enable via `GENESIS_P82_THRESHOLD_SINGLE=0.3 GENESIS_ENABLE_P82=1` only after A/B on your specific workload.
+
 ### Compile / cudagraph safety
 
 If you hit boot crashes related to torch.compile or cudagraph capture:
@@ -209,6 +336,8 @@ curl -s http://localhost:8000/v1/chat/completions \
   }' | jq '.choices[0].message'
 ```
 
+> **API key note:** the launch scripts include `--api-key genesis-local` so the `Authorization: Bearer genesis-local` header is required. If you launched **without** `--api-key`, drop the header (and any `OPENAI_API_KEY` you set client-side). If you set a different key, replace it.
+
 You should see a `tool_calls` field with `name: "get_time"` and `arguments: {"city": "Paris"}`. If you get garbage tokens (`<tool_call><tool_call>...`) or repetition, you've hit a cliff — see [docs/CLIFFS.md](CLIFFS.md).
 
 5. **Bench:**
@@ -219,6 +348,8 @@ python tools/genesis_bench_suite.py \
     --model my-model \
     --runs 5
 ```
+
+> **Bench input format:** the script ships with default `NARR_PROMPTS` (narrative / 600-char) and `CODE_PROMPTS` (code / ~80-char) lists targeting the Qwen3-Coder chat template. If your model has a different template (e.g. Llama-3 ChatML, Mistral instruct), edit the prompt lists in `tools/genesis_bench_suite.py` to match the format your tokenizer expects — wrong template causes the bench to look slow because every reply gets a "I cannot help with that" stop after a few tokens.
 
 Record `wall_TPS` mean, std, CV. CV under 8% is a clean run. Above that, investigate (other tenants, thermal, allocator fragmentation).
 
