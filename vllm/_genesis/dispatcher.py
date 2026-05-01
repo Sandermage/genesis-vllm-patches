@@ -613,6 +613,29 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "conflicts_with": [],
         "requires_patches": [],
     },
+    "PN27": {
+        "title": "Revert MoERunnerInterface PluggableLayer (vllm#41440)",
+        "env_flag": "GENESIS_ENABLE_PN27_REVERT_PLUGGABLE_MOE",
+        "default_on": False,
+        "category": "perf_hotfix",
+        "credit": (
+            "Backport of vllm#41440 (auto-generated CI failure analyzer, OPEN "
+            "2026-05-01). Reverts vllm#35178 (b55b2652, merged 2026-04-30) "
+            "which made MoERunnerInterface inherit from PluggableLayer + "
+            "introduced DefaultMoERunner split/recombine. Issue #41306 "
+            "reports +21% TPOT / +59% TTFT / -19% throughput on Mixtral-8x7B "
+            "(8× H200), with bnellnm confirming `--moe-backend=triton` "
+            "restores v0.19 perf. Our pin (0.20.1rc1.dev16+g7a1eb8ac2) "
+            "predates the merge by 2 days — PN27 is a PROACTIVE SCAFFOLD "
+            "for the case when we eventually pin-bump past b55b2652 BEFORE "
+            "#41440 (or equivalent fix-forward) merges. On our current pin, "
+            "all 3 sub-patches SKIP as intended (anchors are pre-#35178)."
+        ),
+        "upstream_pr": 41440,
+        "applies_to": {},
+        "conflicts_with": [],
+        "requires_patches": [],
+    },
     "PN26": {
         "title": "TQ unified perf pack (centroids prebake + sparse V scaffold)",
         "env_flag": "GENESIS_ENABLE_PN26_TQ_UNIFIED",

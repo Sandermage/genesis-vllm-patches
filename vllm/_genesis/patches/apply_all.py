@@ -2018,6 +2018,43 @@ def apply_patch_N12_ffn_intermediate_pool() -> PatchResult:
 
 
 @register_patch(
+    "PN27 revert MoERunnerInterface PluggableLayer (vllm#41440 backport)"
+)
+def apply_patch_N27_revert_pluggable_moe() -> PatchResult:
+    """Patch N27: backport of vllm#41440 — revert PluggableLayer base.
+
+    PR #41440 (auto-generated CI failure analyzer revert of #35178) is the
+    upstream candidate fix for the v0.20 MoE regression reported in #41306
+    (Mixtral-8x7B: -19% throughput, +59% TTFT). Our pin (g7a1eb8ac2)
+    predates #35178 merge by 2 days, so right now all 3 sub-patches SKIP
+    on this pin. PN27 is a proactive scaffold that engages when we
+    eventually bump past `b55b2652` (2026-04-30) BEFORE #41440 merges.
+
+    Three coordinated sub-patches:
+    - moe_runner_interface.py: MoERunnerInterface(PluggableLayer, ABC) → ABC
+    - moe_runner.py: self._quant_method → self.quant_method (8 occurrences)
+    - layer.py: NON_EXPERT_PREFIXES tuple → inline _-prefix checks
+
+    Status: opt-in via GENESIS_ENABLE_PN27_REVERT_PLUGGABLE_MOE=1.
+    Default OFF. Each sub-patch independently auto-skips when not
+    applicable (pre-#35178 OR post-#41440 reverted upstream).
+    """
+    name = "PN27 revert MoERunnerInterface PluggableLayer (vllm#41440 backport)"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring.perf_hotfix import patch_N27_revert_pluggable_moe
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_N27_revert_pluggable_moe.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch(
     "PN26 TQ unified perf pack (centroids prebake + sparse V scaffold)"
 )
 def apply_patch_N26_tq_unified_perf() -> PatchResult:
