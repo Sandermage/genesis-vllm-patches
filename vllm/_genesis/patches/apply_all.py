@@ -1985,6 +1985,50 @@ def apply_patch_N11_gdn_a_b_contiguous() -> PatchResult:
     return _failed(name, reason)
 
 
+@register_patch("P67c per-row vote sparse-V integration into P67 split-M kernel")
+def apply_patch_67c_sparse_v() -> PatchResult:
+    """Patch 67c: per-q_t sparse-V skip integration into the P67 split-M
+    multi-query kernel.
+
+    Configuration-only patch — no monkey-patch, no text-patch. The kernel
+    reads sparse-V env vars at launch time and passes them as constexpr.
+
+    Constexpr-DCE invariant: when GENESIS_ENABLE_P67_SPARSE_V=0 (default),
+    the kernel-side `if SPARSE_V:` block is removed at compile time, and
+    Triton produces SASS byte-equivalent to the pre-sparse-V P67 v17
+    split-M kernel.
+
+    Bit-exact contract: when threshold=0.0, `p_t_max < 0` is False for any
+    P_t = exp2(...) (which is always >= 0). Skip never fires → output is
+    byte-equivalent to the no-skip path.
+
+    Greenfield: no upstream engine has integrated per-row sparse-V into
+    spec-decode K+1 verify path. PN26b separate kernel approach already
+    failed (-8.2% on 27B due to kernel-vs-kernel overhead). P67c integrates
+    INTO P67 to leverage its +32% kernel directly.
+
+    Status: opt-in via GENESIS_ENABLE_P67_SPARSE_V=1, default OFF.
+    Requires GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL=1.
+
+    Expected gain: +5-22% on long-context (16K+) where sparse skip rate is
+    high. NULL on short context (<2K) — sparse never fires when
+    p_t_max >= threshold for all tiles.
+    """
+    name = "P67c sparse-V integration into P67 split-M kernel"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: kernel-side constexpr ready")
+    try:
+        from vllm._genesis.wiring.perf_hotfix import patch_67c_sparse_v
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_67c_sparse_v.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
 @register_patch("PN29 GDN chunk_o scale-fold (vllm#41446 pattern (c) backport)")
 def apply_patch_N29_gdn_chunk_o_scale_fold() -> PatchResult:
     """Patch N29: backport of vllm#41446 pattern (c) (zobinHuang, OPEN

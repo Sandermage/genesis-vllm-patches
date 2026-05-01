@@ -456,6 +456,28 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             # is only called when spec-decode is active. No additional gate.
         },
     },
+    "P67c": {
+        "title": "Per-row vote sparse-V integration into P67 split-M kernel",
+        "env_flag": "GENESIS_ENABLE_P67_SPARSE_V",
+        "default_on": False,
+        "category": "perf_hotfix",
+        "credit": (
+            "Genesis-original 2026-05-01 — synthesizes PN26b proven uniform-"
+            "scalar `if` pattern (Triton 3.6 scf.if), TRT-LLM #9821 sink "
+            "protection design, TheTom #41422 threshold=0 bit-exact contract. "
+            "Per-q_t skip via `if SPARSE_V: ...` constexpr-DCE'd to nothing "
+            "at SPARSE_V=0 → byte-equivalent to pre-sparse-V P67. "
+            "When SPARSE_V=1 + threshold=0: bit-exact (P_t = exp2(...) >= 0, "
+            "so `p_t_max < 0` always False). When threshold > 0: per-q_t "
+            "max-prob check skips V@P tl.dot for cold tiles past sink window. "
+            "Greenfield in spec-decode K+1 verify (no upstream impl exists). "
+            "Expected gain: +5-22% on long-context (16K+); NULL on short ctx."
+        ),
+        "upstream_pr": None,
+        "applies_to": {"is_turboquant": [True]},
+        "requires_patches": ["P67"],
+        "conflicts_with": [],
+    },
     "PN29": {
         "title": "GDN chunk_o scale-fold (vllm#41446 pattern (c))",
         "env_flag": "GENESIS_ENABLE_PN29_GDN_SCALE_FOLD",
