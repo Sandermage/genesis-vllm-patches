@@ -613,6 +613,26 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "conflicts_with": [],
         "requires_patches": [],
     },
+    "PN28": {
+        "title": "merge_attn_states NaN guard (vllm#39148 backport)",
+        "env_flag": "GENESIS_ENABLE_PN28_MERGE_ATTN_NAN_GUARD",
+        "default_on": False,
+        "category": "perf_hotfix",
+        "credit": (
+            "Backport of vllm#39148 (jasonkim8652, OPEN 2026-05-01). "
+            "Branchless NaN guard in Triton merge_attn_states kernel for "
+            "both-LSE-(-inf) edge case (zero-context-length chunked prefill). "
+            "Without guard: NaN propagates through exp()/division and silently "
+            "corrupts output — one bad token can break tool-call JSON parsing. "
+            "Fix: clamp max_lse to -1e30 finite floor + add 1e-10 epsilon to "
+            "denominator. Quality-only — no perf impact. CUDA merge_attn_states "
+            "kernel already had this guard; PN28 brings Triton to parity."
+        ),
+        "upstream_pr": 39148,
+        "applies_to": {},
+        "conflicts_with": [],
+        "requires_patches": [],
+    },
     "P15B": {
         "title": "FA varlen max_seqlen_k clamp on TQ path (Issue #15 fix)",
         "env_flag": "GENESIS_ENABLE_P15B_FA_VARLEN_CLAMP",

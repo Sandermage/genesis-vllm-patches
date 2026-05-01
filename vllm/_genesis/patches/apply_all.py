@@ -2018,6 +2018,44 @@ def apply_patch_N12_ffn_intermediate_pool() -> PatchResult:
 
 
 @register_patch(
+    "PN28 merge_attn_states NaN guard (vllm#39148 backport)"
+)
+def apply_patch_N28_merge_attn_states_nan_guard() -> PatchResult:
+    """Patch N28: merge_attn_states NaN guard backport.
+
+    Backport of vllm#39148 (jasonkim8652, OPEN 2026-05-01). Triton
+    merge_attn_states kernel produces NaN output when both prefix_lse
+    and suffix_lse are -inf (zero-context-length chunked prefill edge
+    case). NaN propagates through exp()/division and silently corrupts
+    output. CUDA kernel already had isinf branch; this brings Triton
+    kernel to parity via branchless arithmetic guard:
+
+    1. Clamp max_lse to -1e30 finite floor when both LSEs are -inf.
+    2. Add +1e-10 epsilon to out_se denominator.
+
+    Quality-only fix — no perf impact. Prevents silent corruption rate
+    of ~1 in 10K decode tokens on chunked prefill. One corrupted token
+    breaks tool-call JSON parsing.
+
+    Status: opt-in via GENESIS_ENABLE_PN28_MERGE_ATTN_NAN_GUARD=1.
+    Default OFF.
+    """
+    name = "PN28 merge_attn_states NaN guard (vllm#39148 backport)"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring.perf_hotfix import patch_N28_merge_attn_states_nan_guard
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_N28_merge_attn_states_nan_guard.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch(
     "P15B FA varlen max_seqlen_k clamp on TQ path (Issue #15 fix)"
 )
 def apply_patch_15B_fa_varlen_clamp() -> PatchResult:
