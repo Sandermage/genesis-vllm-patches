@@ -143,6 +143,66 @@ loud-and-clear in the per-release notes.
   (no PluggableLayer inheritance). Our pin pre-dates #35178 by 2
   days; we are NOT vulnerable. PN27 scaffold ready when we pin-bump.
 
+### PN26b sparse-V kernel — major iteration (v5, 2026-05-01)
+
+Comprehensive deep-dive on Genesis-original sparse-V Triton kernel based
+on 4-agent research synthesis (skip-rate observability + per-row vote +
+memory profiling + 14-day community scan).
+
+**v5 design** (lean dispatcher + tuning + observability):
+
+- **Lean dispatcher** (no per-call GPU↔CPU sync; v1's `.item()` per call
+  caused -16% short-ctx + -22% long-ctx regression — REJECTED).
+- **Configurable launch params** baked at apply() time: BLOCK_KV (4/8/16),
+  num_warps (1/2/4/8), num_stages.
+- **`tl.range()` pipelining hint** (P67 v7.50 pattern, Triton compiler
+  cp.async overlap with prior-iter MMA on Ampere).
+- **Cache modifier `.cg`** on K/V dequant raw loads (L2 streaming).
+- **Sink-token protection** (StreamingLLM finding — first 4 KV positions
+  never skipped).
+- **Skip-rate observability** (NEW): per-CTA atomic int64 counters,
+  constexpr-DCE'd to zero overhead when disabled, `~50-100 ns` per CTA
+  at epilogue when enabled. Periodic logging every 500 calls so
+  operator sees real skip rate without cross-process IPC.
+- **BLASST adaptive threshold scaffold** (`λ = scale_factor / ctx_len`)
+  ready in code; default OFF until skip-rate data informs which mode
+  is better.
+
+**Empirical sweep on 35B FP8 PROD (TQ k8v4 + MTP K=3, 2× A5000 SM86)**:
+
+| BLOCK_KV | num_warps | mean | max | CV |
+|---|---|---|---|---|
+| OFF (baseline) | — | 175.41 | 185.15 | 4.20% |
+| 8 | 1 | 178.33 | 187.67 | 3.78% |
+| 8 | 2 | 180.36 | 190.24 | 4.70% |
+| 16 | 2 | 178.35 | 190.74 | 3.26% |
+| 8 | 4 | 183.11 | 202.38 | 5.26% |
+| 8 | 8 | 181.24 | 196.60 | 5.78% |
+| **4** | **4** | **184.89** | 194.56 | 4.63% |
+| 4 | 8 | 177.40 | 191.97 | 5.79% |
+
+Winner: **BLOCK_KV=4, num_warps=4** (baked as kernel default).
+
+**Final 35B PROD A/B (apples to apples, 100t output)**:
+
+| Config              | tool-call | mean   | min   | max    | CV    |
+|---------------------|-----------|--------|-------|--------|-------|
+| Baseline (OFF)      | 7/7       | 175.41 | 158.71| 185.15 | 4.20% |
+| **PN26b v5**        | **7/7**   | **182.30** | 153.53 | **212.24** | 7.02% |
+| Δ                   | match     | **+3.9%** | -3.3% | **+14.7%** ⭐ | +2.82pp |
+
+The `212 max` exceeds the historical 35B PROD ceiling reference (171-204
+TPS quoted from earlier sessions). Tool-call quality preserved (7/7).
+Sustained 50-request load: 0 errors, p50=181, p90=197, p99=211. VRAM
+delta +142 MiB (acceptable, no leak).
+
+**Caveat**: skip rate at threshold=0.005 is empirically very low on our
+short-output workload (most TPS gain comes from kernel restructuring,
+not the skip itself). Skip-rate counter scaffold ships so future
+operators can data-drive their threshold tuning. Long-context (>16K
+input) deeper sweep deferred to next session — needs sustained-context
+workload to characterize properly.
+
 ### Bench results — `v7.65` PROD eligibility
 
 35B FP8 DFlash 160K (TP=2 + DFlash spec K=3 + PN22+PN23+PN24):

@@ -613,6 +613,33 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "conflicts_with": [],
         "requires_patches": [],
     },
+    "PN26b": {
+        "title": "Sparse-V tile-skip Genesis kernel (BLASST λ=a/L for SM86)",
+        "env_flag": "GENESIS_ENABLE_PN26_SPARSE_V",
+        "default_on": False,
+        "category": "perf_hotfix",
+        "credit": (
+            "Genesis-original Triton kernel fork — first sparse-V tile-skip "
+            "deployed for SM86 (Ampere consumer). Synthesized from 4-agent "
+            "research 2026-05-01: vllm#41422 (TheTom, AMD-only validated) "
+            "design template + BLASST arXiv 2512.12087 (Yuan et al. Dec 2025) "
+            "λ=a/L threshold formula + tq-kv reference (CUDA, SM86-compatible) "
+            "acc*re_scale skip semantics + StreamingLLM (arXiv 2309.17453) "
+            "sink token protection (first 4 KV positions never skipped). "
+            "Mechanism: when tl.max(p) < threshold for a KV tile, skip V load + "
+            "dequant + weighted sum, just decay accumulator. Online softmax "
+            "denominator/max still update so totals stay numerically exact "
+            "for non-skipped tiles. Composes with PN26 main (centroids "
+            "prebake) + P98 (workspace revert) + P67 (multi-query — separate "
+            "code path, not affected). Default OFF; opt-in via "
+            "GENESIS_ENABLE_PN26_SPARSE_V=1 + GENESIS_PN26_SPARSE_V_THRESHOLD "
+            "(fixed) OR GENESIS_PN26_SPARSE_V_SCALE_FACTOR (BLASST adaptive)."
+        ),
+        "upstream_pr": 41422,
+        "applies_to": {},
+        "conflicts_with": [],
+        "requires_patches": [],
+    },
     "PN27": {
         "title": "Revert MoERunnerInterface PluggableLayer (vllm#41440)",
         "env_flag": "GENESIS_ENABLE_PN27_REVERT_PLUGGABLE_MOE",

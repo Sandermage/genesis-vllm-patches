@@ -2018,6 +2018,58 @@ def apply_patch_N12_ffn_intermediate_pool() -> PatchResult:
 
 
 @register_patch(
+    "PN26b sparse-V tile-skip Genesis kernel "
+    "(BLASST λ=a/L for SM86, first NVIDIA Ampere implementation)"
+)
+def apply_patch_N26b_sparse_v_kernel() -> PatchResult:
+    """Patch N26b: Genesis-original sparse-V tile-skip kernel for TQ decode.
+
+    Sub-component of PN26 (TQ unified perf pack). The PN26 main applies
+    centroids prebake (drop-in safe). PN26b applies the sparse-V kernel
+    dispatcher — riskier, opt-in only after empirical NVIDIA validation
+    on the operator's hardware.
+
+    Synthesized from 4-agent research 2026-05-01:
+    - vllm#41422 (TheTom): design template, AMD MI300X validated only
+    - BLASST arXiv 2512.12087: λ=a/L threshold scaling formula
+    - tq-kv reference: SM86-compatible CUDA implementation pattern
+    - StreamingLLM arXiv 2309.17453: sink token protection (first 4 pos)
+
+    Why fork the kernel instead of text-patching upstream?
+    - Upstream PR is fragile across nightly bumps
+    - Conflicts with our P67 multi-query kernel hot path on same file
+    - Lets us add Genesis-specific features (sink protection, BLASST λ)
+
+    Status: opt-in via GENESIS_ENABLE_PN26_SPARSE_V=1. Default OFF.
+    Threshold via GENESIS_PN26_SPARSE_V_THRESHOLD (fixed) OR
+    GENESIS_PN26_SPARSE_V_SCALE_FACTOR (BLASST adaptive). Min context
+    via GENESIS_PN26_SPARSE_V_MIN_CTX (default 8192).
+
+    Validation gates before flipping default ON:
+    - Numeric equivalence at SPARSE_V=0 (bit-exact match to upstream)
+    - Bench A/B 35B DFlash 16K/64K/160K: TPS gain +3-15% expected
+    - Tool-call clean rate ≥ baseline -1pp
+    - CV ≤ 7% across 5-run bench
+    """
+    name = (
+        "PN26b sparse-V tile-skip Genesis kernel "
+        "(BLASST lambda=a/L for SM86)"
+    )
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: kernel + dispatcher ready")
+    try:
+        from vllm._genesis.wiring.perf_hotfix import patch_N26_sparse_v_kernel
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_N26_sparse_v_kernel.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch(
     "PN27 revert MoERunnerInterface PluggableLayer (vllm#41440 backport)"
 )
 def apply_patch_N27_revert_pluggable_moe() -> PatchResult:
