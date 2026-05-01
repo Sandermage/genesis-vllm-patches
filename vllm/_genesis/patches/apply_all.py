@@ -1953,6 +1953,53 @@ def apply_patch_N12_ffn_intermediate_pool() -> PatchResult:
     return _failed(name, reason)
 
 
+@register_patch(
+    "PN25 SiluAndMul.forward_native opaque-op pool "
+    "(Cliff 1 mech B compile-path companion to PN12)"
+)
+def apply_patch_N25_silu_inductor_safe_pool() -> PatchResult:
+    """Patch N25: sister-patch to PN12 covering the compile dispatch path.
+
+    PN12 patches `SiluAndMul.forward_cuda` (eager mode); PN25 patches
+    `SiluAndMul.forward_native` via a `torch.library.custom_op` so
+    torch.compile/Inductor cannot inline the FFN intermediate alloc and
+    bypass PN12's pool.
+
+    Reported by noonghunna in club-3090#16 (VolandBerlioz Reddit + ampersandru
+    confirmation): on `custom_ops=["none"]` configs (default V1
+    aot_compile_fullgraph) `__call__` dispatches to `forward_native`,
+    Inductor traces and lowers to `empty_strided_cuda(...)` at line
+    `inductor_cache/...py:1208` — completely outside PN12's hot path.
+
+    PN25 registers `genesis::silu_and_mul_pooled` (opaque to Inductor)
+    and rewrites `forward_native` to dispatch through it. Inside the
+    opaque body, the same `FFNIntermediateCache` pool used by PN12
+    serves the [M, intermediate_size] transient. Pool is shared — both
+    paths converge on one buffer.
+
+    Status: opt-in via GENESIS_ENABLE_PN25_SILU_INDUCTOR_SAFE=1.
+    Default OFF. Composes with PN12 (recommended pairing for any
+    inductor-heavy config). Standalone use covers compile-only paths;
+    PN12-only covers eager-only paths.
+    """
+    name = (
+        "PN25 SiluAndMul.forward_native opaque-op pool "
+        "(Cliff 1 mech B compile-path)"
+    )
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring.hybrid import patch_N25_silu_inductor_safe_pool
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_N25_silu_inductor_safe_pool.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
 @register_patch("PN13 CUDAGraphWrapper lambda arity (vllm#41235 backport)")
 def apply_patch_N13_cuda_graph_lambda_arity() -> PatchResult:
     """Patch N13: backport of vllm#41235 (roikoren755, OPEN as of 2026-04-29) —

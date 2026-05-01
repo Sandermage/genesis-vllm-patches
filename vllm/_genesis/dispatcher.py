@@ -613,6 +613,30 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "conflicts_with": [],
         "requires_patches": [],
     },
+    "PN25": {
+        "title": "SiluAndMul.forward_native opaque-op pool (Cliff 1 mech B compile path)",
+        "env_flag": "GENESIS_ENABLE_PN25_SILU_INDUCTOR_SAFE",
+        "default_on": False,
+        "category": "memory_savings",
+        "credit": (
+            "Genesis-original 2026-05-01 in response to noonghunna's "
+            "club-3090#16 (VolandBerlioz/ampersandru cross-rig OOM trace, "
+            "RTX 3090 24 GB + Lorbus 27B + OpenCode 29K prefill). PN12 "
+            "patches eager `forward_cuda` but `custom_ops=['none']` (default "
+            "under V1 aot_compile_fullgraph) routes dispatch through "
+            "`forward_native` which Inductor inlines and lowers to "
+            "`empty_strided_cuda(...)`, bypassing PN12's pool. "
+            "Sister-patch PN25 patches `forward_native` to dispatch through "
+            "an opaque `genesis::silu_and_mul_pooled` torch.library.custom_op "
+            "(Inductor cannot inline opaque ops). Both patches share the "
+            "same FFNIntermediateCache pool. Recommended pairing for any "
+            "inductor-heavy config."
+        ),
+        "upstream_pr": None,
+        "applies_to": {},
+        "conflicts_with": [],
+        "requires_patches": [],  # complements PN12 but does not require it
+    },
     "PN17": {
         "title": "FA2 softmax_lse runtime clamp (Cliff 1 mechanism A, Issue #11)",
         "env_flag": "GENESIS_ENABLE_PN17_FA2_LSE_CLAMP",
