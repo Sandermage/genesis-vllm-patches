@@ -205,13 +205,19 @@ def _make_patcher() -> TextPatcher | None:
         ],
         upstream_drift_markers=[
             "[Genesis PN33",
-            # Upstream-side detection markers. If vllm#37521 (or any
-            # equivalent fix) merges, the modified line will contain
-            # `use_eagle` or `num_spec_tokens` in this scope. Either
-            # signals that upstream landed a fix; we should re-evaluate
-            # whether Genesis still adds value (we extend EAGLE-only
-            # to MTP/ngram, so might still want the patch).
-            "self.speculative_config.use_eagle()",
+            # Upstream-side detection: if vllm#37521 (or equivalent)
+            # merges into the pin, the modified file will contain the
+            # specific PR-introduced line that builds K-element dummy
+            # draft tokens via `range(self.num_spec_tokens)`. This is
+            # specific enough to PR #37521 that it won't match any
+            # other place in vllm that uses `use_eagle()` generically.
+            #
+            # IMPORTANT: do NOT use just "use_eagle()" — that method
+            # is referenced from many places in normal vllm code and
+            # would false-positive (PN33 v1 had this bug, observed on
+            # live boot 2026-05-02 — server skipped PN33 incorrectly).
+            "spec_decode_tokens = [i for i in range(self.num_spec_tokens)]",
+            "spec_decode_tokens for _ in range(num_reqs)",
         ],
     )
 
