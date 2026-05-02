@@ -4,7 +4,7 @@ A "cliff" is a regime boundary where vLLM (or Genesis) goes from working well to
 
 If you hit something that isn't here, please open an issue with a reproducer. Cliffs that aren't documented hurt every operator after you.
 
-For glossary terms (TQ, MTP, GDN, FA2, etc.) see [GLOSSARY.md](GLOSSARY.md). For the full patch catalog, see [PATCHES.md](../PATCHES.md).
+For glossary terms (TQ, MTP, GDN, FA2, etc.) see [GLOSSARY.md](GLOSSARY.md). For the full patch catalog, see [../docs/PATCHES.md](../docs/PATCHES.md).
 
 ---
 
@@ -74,7 +74,7 @@ Tool-call cascades on 27B + TQ k8v4 + FULL cudagraph: the model emits `<tool_cal
 
 - `vllm/_genesis/kernels/p67_multi_query_kernel.py`
 - `vllm/_genesis/wiring/spec_decode/patch_67_tq_multi_query_kernel.py`
-- See [PATCHES.md](../PATCHES.md) P67 entry for sanitized variant (Inf/NaN→0 in K/V dequant)
+- See [../docs/PATCHES.md](../docs/PATCHES.md) P67 entry for sanitized variant (Inf/NaN→0 in K/V dequant)
 
 ---
 
@@ -174,7 +174,7 @@ TurboQuant KV is not currently supported with DFlash on Ampere (the draft path d
 
 - vLLM PR #40898 (SWA for DFlash) — pending merge
 - vLLM PR #40849 (FP8 draft inheritance) — pending merge
-- See [PATCHES.md](../PATCHES.md) for DFlash backport status
+- See [../docs/PATCHES.md](../docs/PATCHES.md) for DFlash backport status
 
 ---
 
@@ -204,8 +204,8 @@ Operator pulls a new vLLM pin, restarts, sees `[GENESIS] APPLY` for all expected
 
 ## Cross-references
 
-- [PATCHES.md](../PATCHES.md) — full patch catalog with attribution and metadata
+- [../docs/PATCHES.md](../docs/PATCHES.md) — full patch catalog with attribution and metadata
 - [docs/CONFIGS.md](CONFIGS.md) — adding your own model recipe
 - [docs/COMPATIBILITY.md](COMPATIBILITY.md) — supported vLLM pins, models, GPUs
 - [docs/GLOSSARY.md](GLOSSARY.md) — term definitions
-- [CONTRIBUTING.md](../CONTRIBUTING.md) — reporting new cliffs you discover
+- [../docs/CONTRIBUTING.md](../docs/CONTRIBUTING.md) — reporting new cliffs you discover

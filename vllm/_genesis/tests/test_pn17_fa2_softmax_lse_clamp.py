@@ -171,6 +171,6 @@ class TestPN17DispatcherIntegration:
         the explicit per-patch pin."""
         from pathlib import Path
         repo_root = Path(__file__).resolve().parents[3]
-        patches_md = (repo_root / "PATCHES.md").read_text()
+        patches_md = (repo_root / "docs" / "PATCHES.md").read_text()
         assert "PN17" in patches_md
         assert "GENESIS_ENABLE_PN17_FA2_LSE_CLAMP" in patches_md

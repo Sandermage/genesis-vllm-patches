@@ -10,7 +10,7 @@ env flag to toggle, upstream PR (if backported), and credit.
 
 - **Source of truth:** `vllm/_genesis/dispatcher.py` `PATCH_REGISTRY` (range: P56-P103 + PN8-PN31, rich metadata) + `vllm/_genesis/patches/apply_all.py` `@register_patch` decorators (legacy P1-P55, dry-run diagnostic only).
 - **All patches default OFF unless explicitly noted.** Production launch script enables a curated set via env flags.
-- **Credits:** every backport names its upstream author + PR. Genesis-original patches are explicitly labelled. See [`CREDITS.md`](CREDITS.md) for the comprehensive attribution log.
+- **Credits:** every backport names its upstream author + PR. Genesis-original patches are explicitly labelled. See [`CREDITS.md`](../docs/CREDITS.md) for the comprehensive attribution log.
 - **Status legend:**
   - `default ON` — patch self-activates when its config gate passes
   - `opt-in` — requires `GENESIS_ENABLE_<patch>=1` env var
@@ -293,7 +293,7 @@ DFlash combine_hidden_states + SWA + aux-layer indexing fixes for spec-decode + 
 5. **Document in CHANGELOG**: add a `vX.YZ` entry to [`vllm/_genesis/CHANGELOG.md`](vllm/_genesis/CHANGELOG.md) explaining the WHY, empirical data, and ship/reject decision.
 6. **Validate**:
    - Static: `python3 -c 'import ast; ast.parse(open("vllm/_genesis/wiring/<category>/patch_<id>_*.py").read())'`
-   - Container: `docker compose down && docker compose up -d` (NOT `stop/start` — see [`CONFIGURATION.md`](CONFIGURATION.md) Container R/W layer note)
+   - Container: `docker compose down && docker compose up -d` (NOT `stop/start` — see [`CONFIGURATION.md`](../docs/CONFIGURATION.md) Container R/W layer note)
    - Empirical: blue/green sweep with `genesis_quality_harness.py` + `genesis_bench_v3.py`. SHIP gate: ≥30/31 quality + ≥+5% TPS (or whatever the patch targets).
 7. **Credit upstream** in the patch docstring + `CREDITS.md` if backporting from someone else's PR / project.
 

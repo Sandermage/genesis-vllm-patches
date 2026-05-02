@@ -158,7 +158,7 @@ class TestPN19DispatcherIntegration:
     def test_pn19_in_patches_md(self):
         from pathlib import Path
         repo_root = Path(__file__).resolve().parents[3]
-        patches_md = (repo_root / "PATCHES.md").read_text()
+        patches_md = (repo_root / "docs" / "PATCHES.md").read_text()
         assert "PN19" in patches_md
         assert "GENESIS_ENABLE_PN19_SCOPED_MAX_SPLIT" in patches_md
         assert "#41268" in patches_md

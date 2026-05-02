@@ -257,7 +257,7 @@ If you have GPU headroom for two concurrent backends on different ports, see als
 | Architecture overview | [README.md#architecture](README.md#architecture) |
 | Running unit tests (CPU only) | `./scripts/validate_unit.sh` |
 | Running integration tests (GPU required) | `./scripts/validate_integration.sh` |
-| How to support / sponsor | [SPONSORS.md](SPONSORS.md) |
+| How to support / sponsor | [../docs/SPONSORS.md](../docs/SPONSORS.md) |
 
 ---
 
@@ -480,4 +480,4 @@ Genesis патчи существенно уменьшают расход пам
 | Обзор архитектуры | [README.md#architecture](README.md#architecture) |
 | Запуск unit тестов (только CPU) | `./scripts/validate_unit.sh` |
 | Запуск integration тестов (нужен GPU) | `./scripts/validate_integration.sh` |
-| Как поддержать проект | [SPONSORS.md](SPONSORS.md) |
+| Как поддержать проект | [../docs/SPONSORS.md](../docs/SPONSORS.md) |

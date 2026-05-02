@@ -23,11 +23,11 @@ This folder holds extended documentation that doesn't belong in the top-level RE
 | Doc | Purpose |
 |---|---|
 | [`../README.md`](../README.md) | Project overview, quick install, hardware tested, architecture |
-| [`../INSTALL.md`](../INSTALL.md) | Detailed installation instructions |
-| [`../QUICKSTART.md`](../QUICKSTART.md) | Get running in 5 minutes |
-| [`../CONFIGURATION.md`](../CONFIGURATION.md) | Every env var documented |
-| [`../PATCHES.md`](../PATCHES.md) | All 48 PATCH_REGISTRY patches × metadata × credits |
-| [`../CREDITS.md`](../CREDITS.md) | Comprehensive attribution log |
-| [`../MODELS.md`](../MODELS.md) | Tested model configurations |
-| [`../SPONSORS.md`](../SPONSORS.md) | Hardware / time sponsors |
+| [`../INSTALL.md`](../docs/INSTALL.md) | Detailed installation instructions |
+| [`../QUICKSTART.md`](../docs/QUICKSTART.md) | Get running in 5 minutes |
+| [`../CONFIGURATION.md`](../docs/CONFIGURATION.md) | Every env var documented |
+| [`../PATCHES.md`](../docs/PATCHES.md) | All 48 PATCH_REGISTRY patches × metadata × credits |
+| [`../CREDITS.md`](../docs/CREDITS.md) | Comprehensive attribution log |
+| [`../MODELS.md`](../docs/MODELS.md) | Tested model configurations |
+| [`../SPONSORS.md`](../docs/SPONSORS.md) | Hardware / time sponsors |
 | [`../vllm/_genesis/CHANGELOG.md`](../vllm/_genesis/CHANGELOG.md) | Per-version changelog (technical, deep) |

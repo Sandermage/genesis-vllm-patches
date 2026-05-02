@@ -2,7 +2,7 @@
 
 This guide walks an operator through adding a new model to Genesis end-to-end: from picking a base launch script, to wiring up the right patches, to submitting the recipe upstream so others can reuse it.
 
-If you're new to Genesis, read [QUICKSTART.md](../QUICKSTART.md) first. If you want the patch catalog, see [PATCHES.md](../PATCHES.md). If you want the supported-versions matrix, see [docs/COMPATIBILITY.md](COMPATIBILITY.md).
+If you're new to Genesis, read [../docs/QUICKSTART.md](../docs/QUICKSTART.md) first. If you want the patch catalog, see [../docs/PATCHES.md](../docs/PATCHES.md). If you want the supported-versions matrix, see [docs/COMPATIBILITY.md](COMPATIBILITY.md).
 
 ---
 
@@ -202,7 +202,7 @@ Add the model-specific patches per step 4.
 
 ## Step 4: Pick patches
 
-Refer to [PATCHES.md](../PATCHES.md) for full descriptions. The buckets:
+Refer to [../docs/PATCHES.md](../docs/PATCHES.md) for full descriptions. The buckets:
 
 ### Universal (recommended for almost everything)
 
@@ -393,8 +393,8 @@ Common things to tweak after first boot:
 Once your recipe boots cleanly, passes a tool-call sanity check, and you have `n=5` bench numbers:
 
 1. **Add the launch script.** `scripts/start_<MODEL>_<KV>_<MODE>.sh`. Make sure it's executable and self-contained (no `source ../private_env.sh` referencing files outside the repo).
-2. **Update [MODELS.md](../MODELS.md).** Add a row to the table with model name, GPU, KV dtype, expected TPS, and link to your script.
-3. **Open a PR.** Follow the [contributing guide](../CONTRIBUTING.md) — include `tested-on` info and the bench output.
+2. **Update [../docs/MODELS.md](../docs/MODELS.md).** Add a row to the table with model name, GPU, KV dtype, expected TPS, and link to your script.
+3. **Open a PR.** Follow the [contributing guide](../docs/CONTRIBUTING.md) — include `tested-on` info and the bench output.
 
 The maintainer reviews everything personally. Turnaround is usually 24-48 hours.
 
@@ -472,9 +472,9 @@ That's it. Generic patches work on Llama-3 because they're not coupled to Qwen3 
 
 ## Cross-references
 
-- [QUICKSTART.md](../QUICKSTART.md) — getting started
-- [PATCHES.md](../PATCHES.md) — full patch catalog
-- [MODELS.md](../MODELS.md) — supported model table
+- [../docs/QUICKSTART.md](../docs/QUICKSTART.md) — getting started
+- [../docs/PATCHES.md](../docs/PATCHES.md) — full patch catalog
+- [../docs/MODELS.md](../docs/MODELS.md) — supported model table
 - [docs/COMPATIBILITY.md](COMPATIBILITY.md) — vLLM pin / model / GPU support matrix
 - [docs/CLIFFS.md](CLIFFS.md) — known cliffs to watch out for
-- [CONTRIBUTING.md](../CONTRIBUTING.md) — how to submit your recipe
+- [../docs/CONTRIBUTING.md](../docs/CONTRIBUTING.md) — how to submit your recipe

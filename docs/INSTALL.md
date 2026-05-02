@@ -168,7 +168,7 @@ Expect ~127 tok/s (MTP default).
 
 ## Bare-metal install (without Docker)
 
-This path installs vLLM + Genesis directly on the host (Ubuntu 24.04 / Debian 12 / RHEL 9). Use this if you don't want containers, are on a system without Docker GPU support, or want to develop / iterate on patches without the container R/W layer trap (see [`CONFIGURATION.md`](CONFIGURATION.md) "Container R/W layer note").
+This path installs vLLM + Genesis directly on the host (Ubuntu 24.04 / Debian 12 / RHEL 9). Use this if you don't want containers, are on a system without Docker GPU support, or want to develop / iterate on patches without the container R/W layer trap (see [`CONFIGURATION.md`](../docs/CONFIGURATION.md) "Container R/W layer note").
 
 **Trade-offs vs Docker:**
 
@@ -685,6 +685,6 @@ If a patch you rely on now skips with "drift marker found", congrats — upstrea
 ## Where to next
 
 - See [README.md](README.md) for changelog + benchmark history
-- See [MODELS.md](MODELS.md) for supported models + how to choose
-- See [QUICKSTART.md](QUICKSTART.md) for the original quick-start guide
+- See [../docs/MODELS.md](../docs/MODELS.md) for supported models + how to choose
+- See [../docs/QUICKSTART.md](../docs/QUICKSTART.md) for the original quick-start guide
 - See `vllm/_genesis/wiring/patch_*.py` for individual patch source — each file has a detailed docstring explaining the bug it fixes

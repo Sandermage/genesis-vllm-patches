@@ -8,7 +8,7 @@
 [![GitHub forks](https://img.shields.io/github/forks/Sandermage/genesis-vllm-patches?style=social)](https://github.com/Sandermage/genesis-vllm-patches/network/members)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![vLLM pin](https://img.shields.io/badge/vllm-0.20.1rc1.dev16-orange.svg)](https://github.com/vllm-project/vllm)
-[![Patches](https://img.shields.io/badge/patches-50%2B-green.svg)](PATCHES.md)
+[![Patches](https://img.shields.io/badge/patches-50%2B-green.svg)](docs/PATCHES.md)
 [![Validated](https://img.shields.io/badge/GPU-RTX%203090%20%7C%204090%20%7C%20A5000%20%7C%20H20-purple.svg)](docs/HARDWARE.md)
 
 **Runtime patches for [vLLM](https://github.com/vllm-project/vllm) — Qwen3.6-class inference on consumer NVIDIA Ampere with TurboQuant k8v4 KV cache, MTP K=3 spec-decode, tool-calling, and 256K-class context.**
@@ -119,7 +119,7 @@
 [![35B-A3B-FP8](https://img.shields.io/badge/35B--A3B--FP8-171.8_TPS-brightgreen.svg)](#reference-configs)
 [![27B-INT4](https://img.shields.io/badge/27B--INT4-103.3_TPS-green.svg)](#reference-configs)
 [![Long context](https://img.shields.io/badge/27B-256K_verified-blue.svg)](#reference-configs)
-[![Patches](https://img.shields.io/badge/PATCH__REGISTRY-50_entries-orange.svg)](PATCHES.md)
+[![Patches](https://img.shields.io/badge/PATCH__REGISTRY-50_entries-orange.svg)](docs/PATCHES.md)
 [![Tests](https://img.shields.io/badge/tests-1351_pass-brightgreen.svg)](.github/workflows/test.yml)
 
 ---
@@ -167,14 +167,14 @@ DFlash (z-lab drafter) excels on code-heavy workloads, MTP wins on prose. Pick b
 
 | If you are... | Start with |
 |---|---|
-| New to Genesis | [QUICKSTART.md](QUICKSTART.md) → [docs/GLOSSARY.md](docs/GLOSSARY.md) → [docs/FAQ.md](docs/FAQ.md) |
+| New to Genesis | [docs/QUICKSTART.md](docs/QUICKSTART.md) → [docs/GLOSSARY.md](docs/GLOSSARY.md) → [docs/FAQ.md](docs/FAQ.md) |
 | Sizing your hardware | [docs/HARDWARE.md](docs/HARDWARE.md) — VRAM budget, GPU classes, NVLink notes |
 | Adding your own model | [docs/CONFIGS.md](docs/CONFIGS.md) — step-by-step recipe with worked example |
 | Hitting a weird bug | [docs/CLIFFS.md](docs/CLIFFS.md) — known performance/correctness cliffs |
-| Contributing | [CONTRIBUTING.md](CONTRIBUTING.md) — how to add patches, scripts, doc PRs |
-| Patch catalog | [PATCHES.md](PATCHES.md) — full list with metadata |
-| Install + boot | [INSTALL.md](INSTALL.md) — pinned vLLM commits + docker-compose |
-| Detailed config | [CONFIGURATION.md](CONFIGURATION.md) — env-flag reference |
+| Contributing | [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) — how to add patches, scripts, doc PRs |
+| Patch catalog | [docs/PATCHES.md](docs/PATCHES.md) — full list with metadata |
+| Install + boot | [docs/INSTALL.md](docs/INSTALL.md) — pinned vLLM commits + docker-compose |
+| Detailed config | [docs/CONFIGURATION.md](docs/CONFIGURATION.md) — env-flag reference |
 | Bench reproducibility | [docs/BENCHMARK_GUIDE.md](docs/BENCHMARK_GUIDE.md) — 5-environment guide |
 
 Per-launch examples in [scripts/](scripts/) — each `start_<model>_<kv>_<mode>.sh` is a working starting point.
@@ -201,15 +201,15 @@ For deeper dives:
 
 - [`CHANGELOG.md`](CHANGELOG.md) — public release log
 - [`vllm/_genesis/CHANGELOG.md`](vllm/_genesis/CHANGELOG.md) — engineering log
-- [`PATCHES.md`](PATCHES.md) — per-patch decision table
-- [`MODELS.md`](MODELS.md) — supported model registry
-- [`INSTALL.md`](INSTALL.md) — bare-metal install guide
-- [`QUICKSTART.md`](QUICKSTART.md) — Docker quickstart (EN + RU)
-- [`CONFIGURATION.md`](CONFIGURATION.md) — env vars and tunables
+- [`PATCHES.md`](docs/PATCHES.md) — per-patch decision table
+- [`MODELS.md`](docs/MODELS.md) — supported model registry
+- [`INSTALL.md`](docs/INSTALL.md) — bare-metal install guide
+- [`QUICKSTART.md`](docs/QUICKSTART.md) — Docker quickstart (EN + RU)
+- [`CONFIGURATION.md`](docs/CONFIGURATION.md) — env vars and tunables
 - [`docs/BENCHMARK_GUIDE.md`](docs/BENCHMARK_GUIDE.md) — 5-environment bench guide
 - [`docs/SELF_TEST.md`](docs/SELF_TEST.md) — `genesis self-test` reference
 - [`docs/PLUGINS.md`](docs/PLUGINS.md) — community plugin authoring
-- [`CREDITS.md`](CREDITS.md) — per-patch upstream credits
+- [`CREDITS.md`](docs/CREDITS.md) — per-patch upstream credits
 
 ---
 
@@ -269,7 +269,7 @@ Six new public docs ship in this release:
 - **[docs/FAQ.md](docs/FAQ.md)** — 18 common questions with direct answers.
 - **[docs/CONFIGS.md](docs/CONFIGS.md)** — adding your own model recipe (with full Llama-3 70B walkthrough showing generic patches work outside Qwen3-family).
 - **[docs/CLIFFS.md](docs/CLIFFS.md)** — 8 known performance/correctness cliffs catalogued with mechanism + impact + fix + refs.
-- **[CONTRIBUTING.md](CONTRIBUTING.md)** — patch authoring guide, code style, PR template, security rules.
+- **[docs/CONTRIBUTING.md](docs/CONTRIBUTING.md)** — patch authoring guide, code style, PR template, security rules.
 
 ### Cross-engine research absorbed
 
@@ -640,8 +640,8 @@ export MODEL_PATH=/path/to/Qwen3.6-35B-A3B-FP8
 ```
 
 For VM (Proxmox), WSL2, or RunPod see [`docs/BENCHMARK_GUIDE.md`](docs/BENCHMARK_GUIDE.md).
-For step-by-step bare-metal install see [`INSTALL.md`](INSTALL.md).
-For per-config explanations see [`QUICKSTART.md`](QUICKSTART.md).
+For step-by-step bare-metal install see [`INSTALL.md`](docs/INSTALL.md).
+For per-config explanations see [`QUICKSTART.md`](docs/QUICKSTART.md).
 
 ---
 
@@ -881,7 +881,7 @@ The bench suite measures **performance**. For **correctness validation** (apply 
 
 ## Patch catalog
 
-Genesis ships **48 runtime patches** in the dispatcher's `PATCH_REGISTRY` (the schema-validated, lifecycle-tracked set). Each patch is opt-in via env var. See [`PATCHES.md`](PATCHES.md) for the canonical full reference; the table below highlights the most operator-facing ones.
+Genesis ships **48 runtime patches** in the dispatcher's `PATCH_REGISTRY` (the schema-validated, lifecycle-tracked set). Each patch is opt-in via env var. See [`PATCHES.md`](docs/PATCHES.md) for the canonical full reference; the table below highlights the most operator-facing ones.
 
 ### TurboQuant + KV cache (foundational)
 
@@ -1008,7 +1008,7 @@ This single-source warmup-vs-replay distinction is what bites our P67 hot path. 
 | P104 | -16.2% via L2 cache thrashing on 32+ layer transformer (prior session) |
 | P105 | Variance noise on dequant kernel (prior session) |
 
-For full per-patch documentation, opt-in env names, and credit lines see [PATCHES.md](PATCHES.md) and [CREDITS.md](CREDITS.md).
+For full per-patch documentation, opt-in env names, and credit lines see [docs/PATCHES.md](docs/PATCHES.md) and [docs/CREDITS.md](docs/CREDITS.md).
 
 ---
 
@@ -1141,7 +1141,7 @@ If you ran `docker compose stop` then `docker compose start`, the container's R/
 
 ## Acknowledgments
 
-Genesis stands on the shoulders of the upstream vLLM project + the open-source community. This list captures the authors whose work directly powers Genesis. For the canonical full credit reference see [CREDITS.md](CREDITS.md).
+Genesis stands on the shoulders of the upstream vLLM project + the open-source community. This list captures the authors whose work directly powers Genesis. For the canonical full credit reference see [docs/CREDITS.md](docs/CREDITS.md).
 
 ### Community contributors (this release)
 
@@ -1208,7 +1208,7 @@ For commercial support / consulting / collaboration:
 - **Discussions:** https://github.com/Sandermage/genesis-vllm-patches/discussions
 - **License:** [Apache-2.0](LICENSE)
 
-If you find Genesis useful and want to support continued development, see [SPONSORS.md](SPONSORS.md).
+If you find Genesis useful and want to support continued development, see [docs/SPONSORS.md](docs/SPONSORS.md).
 
 ---
 

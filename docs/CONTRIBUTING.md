@@ -29,7 +29,7 @@ If you're not sure whether your idea fits, open a Discussion first. Cheap to ask
 
 ## How to add a new patch
 
-Step-by-step. Read [PATCHES.md](PATCHES.md) and [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md) first to understand the conventions.
+Step-by-step. Read [../docs/PATCHES.md](../docs/PATCHES.md) and [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md) first to understand the conventions.
 
 ### 1. Pick the right directory
 
@@ -51,7 +51,7 @@ Pick the closest match. If genuinely unclear, default to `perf_hotfix/` and the 
 
 ### 2. Create `patch_NN_descriptive_name.py`
 
-`NN` is the next free integer in the project (check [PATCHES.md](PATCHES.md) — don't reuse). Name should be terse and grep-friendly: `patch_67_tq_multi_query_kernel.py`, not `patch_67_fix.py`.
+`NN` is the next free integer in the project (check [../docs/PATCHES.md](../docs/PATCHES.md) — don't reuse). Name should be terse and grep-friendly: `patch_67_tq_multi_query_kernel.py`, not `patch_67_fix.py`.
 
 Scaffold:
 
@@ -226,7 +226,7 @@ Same template as patch PRs but the focus is reproducibility: someone with the sa
 ### Triton kernels
 
 - Power-of-2 dims wherever possible. If you must support non-power-of-2 (e.g., GQA=24/4=6 heads-per-KV), use `next_power_of_2` + a `lane_valid` mask. Document the cliff in [docs/CLIFFS.md](docs/CLIFFS.md).
-- Sanitize Inf/NaN at dequant boundaries. We've been bitten by silent NaN propagation through softmax — see the v7.22 P67 sanitized variant in [PATCHES.md](PATCHES.md).
+- Sanitize Inf/NaN at dequant boundaries. We've been bitten by silent NaN propagation through softmax — see the v7.22 P67 sanitized variant in [../docs/PATCHES.md](../docs/PATCHES.md).
 - BLOCK_SIZE / num_warps / num_stages should be configurable via env override for sweep tuning.
 
 ### General Python
@@ -347,12 +347,12 @@ Please don't email for support questions — use Discussions so the answer helps
 
 ## Cross-references
 
-- [PATCHES.md](PATCHES.md) — full patch catalog with metadata
+- [../docs/PATCHES.md](../docs/PATCHES.md) — full patch catalog with metadata
 - [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md) — supported vLLM pins, models, GPUs
 - [docs/CONFIGS.md](docs/CONFIGS.md) — adding your own model recipe
 - [docs/CLIFFS.md](docs/CLIFFS.md) — known performance and correctness cliffs
 - [docs/BENCHMARK_GUIDE.md](docs/BENCHMARK_GUIDE.md) — how to bench reproducibly
 - [docs/SELF_TEST.md](docs/SELF_TEST.md) — running the validation suite
-- [CREDITS.md](CREDITS.md) — attributions, including upstream PRs we ported
+- [../docs/CREDITS.md](../docs/CREDITS.md) — attributions, including upstream PRs we ported
 
 Thanks for contributing.
