@@ -103,11 +103,44 @@ from vllm._genesis.wiring.text_patch import (
 log = logging.getLogger("genesis.wiring.pn25_silu_inductor_safe_pool")
 
 GENESIS_PN25_MARKER = (
-    "Genesis PN25 SiluAndMul.forward_native opaque-op pool v7.65"
+    "Genesis PN25 SiluAndMul.forward_native compiler-disable + "
+    "pool v7.67"
 )
 
 
-# ─── Text-patch: replace SiluAndMul.forward_native body ──────────────
+# ─── Text-patch: replace SiluAndMul.forward_native body (v7.67) ─────
+#
+# v7.67 design (this file): use @torch.compiler.disable to mark
+# forward_native as Dynamo-opaque. NO custom_op registration needed —
+# decorator is a no-op at runtime, only suppresses tracing. Pool
+# acquire from FFNIntermediateCache happens directly in body.
+#
+# Why this is better than v7.65/v7.66 custom_op approach:
+#   - Eliminates fork-safety concern entirely (no torch.library
+#     registration → no spawn-fork issue)
+#   - Eliminates infer_schema introspection cost
+#   - Eliminates fake_impl maintenance
+#   - Same Inductor opacity (graph-break vs opaque-op-node — compute
+#     equivalent, both atomic FX nodes)
+#
+# Reference patterns:
+#   - SGLang `python/sglang/srt/layers/attention/fla/chunk.py`:
+#     `@torch.compiler.disable` on `chunk_gated_delta_rule`
+#   - SGLang `python/sglang/srt/layers/attention/triton_backend.py`:
+#     `self.decode_attention_fwd = torch.compiler.disable(...)`
+#
+# torch.compiler.disable availability: PyTorch 2.0+ (originally
+# torch._dynamo.disable, aliased since 2.4). Genesis already requires
+# 2.4+ for other patches (custom_op, etc.) so no compatibility break.
+#
+# Decorator order: `@staticmethod` outermost, `@torch.compiler.disable`
+# inner. compiler.disable wraps the function first; staticmethod wraps
+# the result. Standard Python decorator stacking.
+#
+# Defensive fallback: if FFNIntermediateCache is not eligible
+# (CPU-only build, env-disabled, missing _C.silu_and_mul) the body
+# falls through to vanilla `F.silu(x[..., :d]) * x[..., d:]` — same
+# behavior as upstream `forward_native` would have had.
 PN25_FORWARD_NATIVE_ANCHOR = (
     "    @staticmethod\n"
     "    def forward_native(x: torch.Tensor) -> torch.Tensor:\n"
@@ -118,22 +151,38 @@ PN25_FORWARD_NATIVE_ANCHOR = (
 
 PN25_FORWARD_NATIVE_REPLACEMENT = (
     "    @staticmethod\n"
+    "    @torch.compiler.disable\n"
     "    def forward_native(x: torch.Tensor) -> torch.Tensor:\n"
-    "        \"\"\"PyTorch-native — Genesis PN25 routes through opaque\n"
-    "        custom op so torch.compile/Inductor cannot inline the FFN\n"
-    "        intermediate alloc; pool from FFNIntermediateCache instead.\n"
-    "        Falls back to vanilla math when registration unavailable.\n"
+    "        \"\"\"PyTorch-native — Genesis PN25-v7.67 marks this method\n"
+    "        as Dynamo-opaque via @torch.compiler.disable so Inductor\n"
+    "        graph-breaks here instead of inlining the FFN intermediate\n"
+    "        alloc. Acquires output buffer from FFNIntermediateCache pool\n"
+    "        directly (no custom_op dispatch required).\n"
+    "\n"
+    "        Falls back to vanilla math when pool helper is unavailable\n"
+    "        (CPU build, missing _C.silu_and_mul, env-disabled).\n"
     "        \"\"\"\n"
+    "        d = x.shape[-1] // 2\n"
     "        try:\n"
-    "            from vllm._genesis.kernels.silu_and_mul_customop import (\n"
-    "                get_op_callable as _genesis_pn25_get_op,\n"
+    "            from vllm._genesis.kernels.ffn_intermediate_cache import (\n"
+    "                FFNIntermediateCache as _genesis_pn25_cache,\n"
     "            )\n"
-    "            _genesis_pn25_op = _genesis_pn25_get_op()\n"
-    "            if _genesis_pn25_op is not None:\n"
-    "                return _genesis_pn25_op(x)\n"
+    "            if (\n"
+    "                _genesis_pn25_cache.is_production_eligible()\n"
+    "                and x.dim() == 2\n"
+    "                and hasattr(torch.ops, '_C')\n"
+    "                and hasattr(torch.ops._C, 'silu_and_mul')\n"
+    "            ):\n"
+    "                _genesis_pn25_out = _genesis_pn25_cache.acquire_silu_out(\n"
+    "                    num_tokens=x.shape[0],\n"
+    "                    intermediate_size=d,\n"
+    "                    dtype=x.dtype,\n"
+    "                    device=x.device,\n"
+    "                )\n"
+    "                torch.ops._C.silu_and_mul(_genesis_pn25_out, x)\n"
+    "                return _genesis_pn25_out\n"
     "        except Exception:  # pragma: no cover — defensive fallback\n"
     "            pass\n"
-    "        d = x.shape[-1] // 2\n"
     "        return F.silu(x[..., :d]) * x[..., d:]\n"
 )
 
@@ -159,6 +208,11 @@ def _make_patcher() -> TextPatcher | None:
         ],
         upstream_drift_markers=[
             "[Genesis PN25",
+            "_genesis_pn25_cache",
+            "_genesis_pn25_out",
+            # Older v7.65/v7.66 marker — if a pre-v7.67 PN25 marker is
+            # present in the file, current PN25 v7.67 should NOT replace
+            # it without explicit operator action (idempotency).
             "_genesis_pn25_op",
             # If upstream lands silu_and_mul.out variant or rewrites
             # forward_native to use the C op directly, anchor will miss

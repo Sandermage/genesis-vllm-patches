@@ -1,4 +1,44 @@
 # SPDX-License-Identifier: Apache-2.0
+#
+# ================================================================
+# v7.67 design candidate (NOT shipped) — `@torch.compiler.disable`
+# ================================================================
+#
+# SGLang ships `@torch.compiler.disable` on FLA's chunk_gated_delta_rule
+# (python/sglang/srt/layers/attention/fla/chunk.py) and on its Triton
+# attention paths (python/sglang/srt/layers/attention/triton_backend.py).
+# This is a SIMPLER mechanism for Inductor opacity than custom_op
+# registration:
+#
+#     @staticmethod
+#     @torch.compiler.disable
+#     def forward_native(x):
+#         # body change: acquire from FFNIntermediateCache pool directly
+#         ...
+#
+# vs the ~300-line registration module here. Same Inductor opacity
+# (graph-break instead of opaque-op-node; compute cost equivalent —
+# both atomic FX nodes). NO fork-safety surface. NO fake_impl. NO
+# schema introspection.
+#
+# Why we didn't ship v2 in v7.66 (the current refactor):
+#   - v7.66 (direct_register_custom_op) is a verified incremental
+#     improvement over v7.65 with same external semantics
+#   - PN25-v2 changes pool-acquire semantics (pool accessed inside
+#     `forward_native` body directly, not through a custom_op → must
+#     verify pointer-stable views don't break surrounding compile
+#     context)
+#   - Requires A/B validation against noonghunna's OpenCode reproducer
+#     (5,900-char IDE-agent prompt) which we can't run locally
+#
+# When to ship v2:
+#   - After noonghunna validates current v7.66 PN25 closes Cliff 1
+#     mech B on club-3090 long-text / long-vision configs
+#   - Then a v7.67 follow-up swaps the registration mechanism while
+#     keeping the proven body-change pattern
+#
+# ================================================================
+
 """PN25 — `silu_and_mul` as torch.library.custom_op (Inductor-safe pool).
 
 Problem (continuation of PN12)
@@ -128,54 +168,175 @@ def _silu_and_mul_native_fallback(x: torch.Tensor) -> torch.Tensor:
     return F.silu(x[..., :d]) * x[..., d:]
 
 
+# ─── Genesis library (vLLM canonical pattern, v7.66 refactor) ─────────
+#
+# Module-level `Library("genesis", "FRAGMENT")` — `FRAGMENT` mode
+# permits multiple Library objects with the same name to coexist, which
+# is the spawn-safe property we need: each worker process re-imports
+# this module and creates a fresh `_GENESIS_LIB` against the same
+# global "genesis" namespace without conflict.
+#
+# Reference: vLLM canonical pattern at vllm/utils/torch_utils.py:896
+# (`vllm_lib = Library("vllm", "FRAGMENT")`) + direct_register_custom_op
+# at L899. By using the same Library/FRAGMENT idiom Genesis aligns with
+# vLLM core convention — easier upstream review if this pattern ever
+# gets contributed back, and matches SGLang's approach in
+# python/sglang/srt/utils/custom_op.py.
+#
+# Fork-safety mechanism (replaces v7.65 d92bcb3 `hasattr` pre-check
+# pattern that needed to wrap @custom_op decoration):
+#   - `Library.define()` raises if op_name already defined in the
+#     namespace. In a fresh worker process, the C++ registry STILL
+#     has the op from the parent's earlier `define()` call (C++ state
+#     survives spawn), so the worker's `define()` would fail.
+#   - We pre-check `torch.ops.genesis.silu_and_mul_pooled` existence
+#     BEFORE calling `define()` — the same belt-and-suspenders SGLang
+#     uses (custom_op.py:155 `if not hasattr(torch.ops.sglang,
+#     op_name)`). On hit: skip define, sync local flag.
+#   - `direct_register_custom_op` calls `infer_schema` at registration
+#     time (synchronously), NOT inside dynamo trace at first call. So
+#     even when define() runs in a worker, `infer_schema` runs in
+#     normal Python context — no Dynamo "skipped frame" crash.
+
+try:
+    from torch.library import Library
+    _HAS_TORCH_LIBRARY = True
+except ImportError:
+    Library = None  # type: ignore
+    _HAS_TORCH_LIBRARY = False
+
+
+# Created lazily inside _register_op_once() so import of this module
+# doesn't have side-effects on torch.library state. Once created, the
+# module-level reference keeps it alive for the operator lifetime
+# (per direct_register_custom_op docstring caveat).
+_GENESIS_LIB = None
+
+
+def _make_genesis_lib():
+    """Construct or fetch the module-level `genesis` FRAGMENT Library.
+
+    Idempotent. Each worker process gets its own object pointing at
+    the shared "genesis" namespace.
+    """
+    global _GENESIS_LIB
+    if _GENESIS_LIB is None and _HAS_TORCH_LIBRARY:
+        _GENESIS_LIB = Library("genesis", "FRAGMENT")
+    return _GENESIS_LIB
+
+
+def _silu_and_mul_pooled_impl(x: torch.Tensor) -> torch.Tensor:
+    """Real (eager) implementation — registered as the CUDA dispatch.
+
+    For 2-D `(M, 2*d)` tensors, acquires output from the shared
+    `FFNIntermediateCache` pool. For 3-D `(B, S, 2*d)` we fall back
+    to `torch.empty` because the pool is keyed on `(num_tokens,
+    intermediate_size)` and 3-D shapes only appear in non-prefill
+    paths where the alloc is small enough to not matter.
+
+    Module-level (not nested in `_register_op_once`) so it can be
+    referenced by name from `direct_register_custom_op` AND so the
+    fake_impl can mirror the same shape-only logic.
+    """
+    has_cuda_op = (
+        hasattr(torch.ops, "_C") and
+        hasattr(torch.ops._C, "silu_and_mul")
+    )
+    d = x.shape[-1] // 2
+
+    if has_cuda_op and x.dim() == 2:
+        try:
+            from vllm._genesis.kernels.ffn_intermediate_cache import (
+                FFNIntermediateCache as _Cache,
+            )
+            if _Cache.is_production_eligible():
+                out = _Cache.acquire_silu_out(
+                    num_tokens=x.shape[0],
+                    intermediate_size=d,
+                    dtype=x.dtype, device=x.device,
+                )
+                torch.ops._C.silu_and_mul(out, x)
+                return out
+        except Exception as e:
+            log.debug("[PN25] pool acquire failed, fallback: %s", e)
+
+    if has_cuda_op:
+        output_shape = x.shape[:-1] + (d,)
+        out = torch.empty(output_shape, dtype=x.dtype, device=x.device)
+        torch.ops._C.silu_and_mul(out, x)
+        return out
+
+    return _silu_and_mul_native_fallback(x)
+
+
+def _silu_and_mul_pooled_fake(x: torch.Tensor) -> torch.Tensor:
+    """Shape-inference impl for dynamo tracing.
+
+    Returns an empty tensor of the correct shape; dynamo never
+    executes the body so this is never observed at runtime — only
+    used for output shape propagation through the compiled graph.
+    """
+    d = x.shape[-1] // 2
+    output_shape = x.shape[:-1] + (d,)
+    return torch.empty(output_shape, dtype=x.dtype, device=x.device)
+
+
 def _register_op_once() -> bool:
-    """Register `genesis::silu_and_mul_pooled` with torch.library.
+    """Register `genesis::silu_and_mul_pooled` via vLLM canonical
+    `direct_register_custom_op` pattern.
 
     Idempotent — and **fork-safe across worker spawn** (issue #16).
     Returns True on success. On any failure (torch too old, op already
-    registered by sister module, fake-impl rejection by dynamo) returns
-    False and PN25 wiring will fall back to upstream `forward_native`.
+    globally registered, dispatch_key resolution fail) returns False
+    and PN25 wiring will fall back to upstream `forward_native`.
 
-    Cross-process registration model
-    --------------------------------
+    Cross-process registration model (v7.66 refactor)
+    -------------------------------------------------
     `_op_registered` is a module-level Python flag — it RESETS to False
     in each worker process when vLLM spawns workers via
     `VLLM_WORKER_MULTIPROC_METHOD=spawn` (fresh interpreter, re-imports
-    this module). However, `torch.ops.genesis.silu_and_mul_pooled` is
-    registered in C++ state that persists across spawn. So workers must
-    detect the existing global registration BEFORE attempting to call
-    `@custom_op(...)` again — calling it triggers
-    `torch.library.infer_schema()` which Dynamo refuses to trace at
-    that point in worker init (during `profile_run`'s first FFN
-    forward), crashing the engine with:
+    this module). The C++ `torch.ops.genesis.silu_and_mul_pooled`
+    state persists across spawn though, so workers detect existing
+    global registration BEFORE attempting `Library.define()` — which
+    would raise on duplicate name.
 
-        torch._dynamo.exc.Unsupported: Attempted to call function
-        marked as skipped: infer_schema
+    Why this is safer than v7.65's `@custom_op` approach
+    ----------------------------------------------------
+    The original v7.65 fix (commit d92bcb3) wrapped the
+    `@torch.library.custom_op(...)` decorator in the same pre-check
+    guard. That works, but `@custom_op` triggers
+    `torch.library.infer_schema()` at decoration time, which Dynamo
+    refuses to trace if the call happens inside a torch.compile
+    region (see noonghunna issue #16 reproducer). The v7.66
+    `direct_register_custom_op` path:
 
-    Reported by noonghunna (issue #16, 2026-05-01) on 1× RTX 3090 +
-    27B Lorbus + TQ3 + MTP K=3 + TP=1. Bug surface: any config that
-    routes FFN through `forward_native` during profile_run hits this.
-    Genesis A5000 PROD (35B + 27B-fp8_e5m2) routes through different
-    code paths (forward_cuda eager / cudagraph FULL_AND_PIECEWISE
-    short-circuit) so didn't surface there — but every IDE-agent
-    workload (Cline/OpenCode/Roo/Cursor) on TQ3 is blocked.
-
-    Fix
-    ---
-    Check the global `torch.ops.genesis.silu_and_mul_pooled` registry
-    BEFORE the `@custom_op` decoration. If the op already exists (which
-    is the case in spawned workers — C++ state survived the spawn),
-    set the local flag and return True without re-decorating.
+      1. Calls `infer_schema` at module import time (BEFORE any
+         dynamo trace context exists)
+      2. Uses raw `Library.define()` + `Library.impl()` — no decorator
+         magic, no per-call schema introspection
+      3. Per `direct_register_custom_op` docstring:
+         *"`torch.library.custom_op` can have significant overhead
+         because it needs to consider complicated dispatching logic.
+         This function directly registers a custom op and dispatches
+         it to the CUDA backend."*
     """
     global _op_registered
     if _op_registered:
         return True
 
-    # [Genesis #16 fix] Check global torch.library registry FIRST.
-    # Survives worker-fork/spawn even though our in-process flag does
-    # not. If the op is already globally registered (parent process or
-    # earlier import), we just sync our local flag and return True —
-    # no `@custom_op` call, no `infer_schema` trigger, no Dynamo crash.
+    if not _HAS_TORCH_LIBRARY:
+        log.info(
+            "[PN25] torch.library.Library not available — "
+            "falling back to vanilla forward_native"
+        )
+        return False
+
+    # [Genesis #16 fork-safety guard, retained from v7.65]
+    # Check global torch.library registry FIRST. Survives worker-fork/spawn
+    # even though our in-process flag does not. If the op is already
+    # globally registered (parent process or earlier import), we just
+    # sync our local flag and return True — no `define()` call, no
+    # duplicate-name raise.
     try:
         if hasattr(torch.ops, "genesis") and hasattr(
             torch.ops.genesis, "silu_and_mul_pooled"
@@ -183,86 +344,66 @@ def _register_op_once() -> bool:
             _op_registered = True
             log.info(
                 "[PN25] op %s already globally registered — synced "
-                "local flag (likely worker-spawn path post-#16 fix)",
+                "local flag (worker-spawn path; v7.66 direct_register)",
                 _OP_QUALNAME,
             )
             return True
     except (AttributeError, RuntimeError):
-        # torch.ops.genesis namespace may not exist yet — that's fine,
-        # fall through to the registration path.
+        # torch.ops.genesis namespace may not exist yet — fall through.
         pass
 
     try:
-        custom_op = getattr(torch.library, "custom_op", None)
-        if custom_op is None:
-            log.info(
-                "[PN25] torch.library.custom_op not available "
-                "(torch<2.4) — falling back to vanilla forward_native"
-            )
+        # Try vLLM's canonical helper first — drops infer_schema
+        # overhead and keeps schema computation outside dynamo trace.
+        from vllm.utils.torch_utils import direct_register_custom_op
+        genesis_lib = _make_genesis_lib()
+        if genesis_lib is None:
+            log.info("[PN25] Library construction failed")
+            return False
+        direct_register_custom_op(
+            op_name="silu_and_mul_pooled",
+            op_func=_silu_and_mul_pooled_impl,
+            mutates_args=[],
+            fake_impl=_silu_and_mul_pooled_fake,
+            target_lib=genesis_lib,
+        )
+    except ImportError:
+        # Older vLLM without direct_register_custom_op — fall back to
+        # the v7.65 @custom_op path (still has fork-safe pre-check
+        # above).
+        log.info(
+            "[PN25] vllm.utils.torch_utils.direct_register_custom_op "
+            "not available — falling back to @custom_op path"
+        )
+        try:
+            custom_op = getattr(torch.library, "custom_op", None)
+            if custom_op is None:
+                log.info(
+                    "[PN25] torch.library.custom_op also unavailable "
+                    "(torch<2.4) — falling back to vanilla forward_native"
+                )
+                return False
+
+            @custom_op(_OP_QUALNAME, mutates_args=(), device_types=("cuda",))
+            def _silu_and_mul_pooled_decorated(x: torch.Tensor) -> torch.Tensor:
+                return _silu_and_mul_pooled_impl(x)
+
+            @_silu_and_mul_pooled_decorated.register_fake
+            def _silu_and_mul_pooled_decorated_fake(x: torch.Tensor) -> torch.Tensor:
+                return _silu_and_mul_pooled_fake(x)
+        except Exception as e:
+            log.info("[PN25] @custom_op fallback registration failed: %s", e)
             return False
     except Exception as e:
-        log.info("[PN25] torch.library import failed: %s", e)
+        log.info("[PN25] direct_register_custom_op failed: %s", e)
         return False
 
-    # Probe the underlying CUDA op once. If absent (CPU-only build,
-    # rare), we register a pure-pytorch impl that still routes through
-    # the opaque op so Inductor won't inline.
-    has_cuda_op = (
-        hasattr(torch.ops, "_C") and
-        hasattr(torch.ops._C, "silu_and_mul")
-    )
-
-    @custom_op(_OP_QUALNAME, mutates_args=(), device_types=("cuda",))
-    def _silu_and_mul_pooled(x: torch.Tensor) -> torch.Tensor:
-        """Real impl — runs outside dynamo trace (opaque op).
-
-        For 2-D `(M, 2*d)` tensors, acquires output from the shared
-        `FFNIntermediateCache` pool. For 3-D `(B, S, 2*d)` we fall
-        back to `torch.empty` because the pool is keyed on
-        `(num_tokens, intermediate_size)` and 3-D shapes only appear
-        in non-prefill paths where the alloc is small enough to not
-        matter.
-        """
-        d = x.shape[-1] // 2
-
-        if has_cuda_op and x.dim() == 2:
-            try:
-                from vllm._genesis.kernels.ffn_intermediate_cache import (
-                    FFNIntermediateCache as _Cache,
-                )
-                if _Cache.is_production_eligible():
-                    out = _Cache.acquire_silu_out(
-                        num_tokens=x.shape[0],
-                        intermediate_size=d,
-                        dtype=x.dtype, device=x.device,
-                    )
-                    torch.ops._C.silu_and_mul(out, x)
-                    return out
-            except Exception as e:
-                log.debug("[PN25] pool acquire failed, fallback: %s", e)
-
-        if has_cuda_op:
-            output_shape = x.shape[:-1] + (d,)
-            out = torch.empty(output_shape, dtype=x.dtype, device=x.device)
-            torch.ops._C.silu_and_mul(out, x)
-            return out
-
-        return _silu_and_mul_native_fallback(x)
-
-    @_silu_and_mul_pooled.register_fake
-    def _silu_and_mul_pooled_fake(x: torch.Tensor) -> torch.Tensor:
-        """Shape-inference impl for dynamo tracing.
-
-        Returns an empty tensor of the correct shape; dynamo never
-        executes the body so this is never observed at runtime — only
-        used for output shape propagation through the compiled graph.
-        """
-        d = x.shape[-1] // 2
-        output_shape = x.shape[:-1] + (d,)
-        return torch.empty(output_shape, dtype=x.dtype, device=x.device)
-
     _op_registered = True
-    log.info("[PN25] registered torch op %s (Inductor-opaque)", _OP_QUALNAME)
+    log.info(
+        "[PN25] registered torch op %s via direct_register_custom_op "
+        "(vLLM canonical, v7.66 — fork-safe + Inductor-opaque)",
+        _OP_QUALNAME,
+    )
     return True
 
 

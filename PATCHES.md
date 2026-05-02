@@ -4,9 +4,9 @@ This file is the **single source of truth** for every Genesis runtime patch.
 For each patch you get: ID, title, what it does, status (ON / opt-in / deprecated),
 env flag to toggle, upstream PR (if backported), and credit.
 
-**Total PATCH_REGISTRY entries:** 98 (range P1–P103 + PN8–PN32 + sub-patches P5b/P7b/P15B/P18b/P38B/P39a/P67b/P67c/PN26b). The dispatcher's `PATCH_REGISTRY` is the schema-validated, lifecycle-tracked, opt-in surface — `genesis self-test` and the schema validator gate this set on every commit.
+**Total PATCH_REGISTRY entries:** 99 (range P1–P103 + PN8–PN33 + sub-patches P5b/P7b/P15B/P18b/P38B/P39a/P67b/P67c/PN26b). The dispatcher's `PATCH_REGISTRY` is the schema-validated, lifecycle-tracked, opt-in surface — `genesis self-test` and the schema validator gate this set on every commit.
 
-**Total apply_all `@register_patch`:** 97 entries. P68/P69 share one `apply_patch_68_long_ctx_tool_adherence` function but are registered as two `PATCH_REGISTRY` entries; that's the reason for the 1-entry delta. As of v7.65 (2026-05-02) all legacy P1–P46 patches are first-class registry entries with `lifecycle: legacy` — historical pre-dispatcher patches with minimal metadata, kept default-on for compatibility.
+**Total apply_all `@register_patch`:** 98 entries. P68/P69 share one `apply_patch_68_long_ctx_tool_adherence` function but are registered as two `PATCH_REGISTRY` entries; that's the reason for the 1-entry delta. As of v7.65 (2026-05-02) all legacy P1–P46 patches are first-class registry entries with `lifecycle: legacy` — historical pre-dispatcher patches with minimal metadata, kept default-on for compatibility.
 
 - **Source of truth:** `vllm/_genesis/dispatcher.py` `PATCH_REGISTRY` (range: P56-P103 + PN8-PN31, rich metadata) + `vllm/_genesis/patches/apply_all.py` `@register_patch` decorators (legacy P1-P55, dry-run diagnostic only).
 - **All patches default OFF unless explicitly noted.** Production launch script enables a curated set via env flags.
@@ -212,15 +212,32 @@ Misc fixes: KV cache page size unification (P5/P5b), block_table tail zero-fill 
 
 ### Community-issue fixes (v7.65, 2026-05-02)
 
-Patches addressing reported community bugs. All default OFF; opt-in via env, see per-patch doc:
+Patches addressing reported community bugs. Mix of default-OFF (cross-rig
+validation pending) and default-ON (root-cause correctness fixes).
 
-| ID | Title | Issue | Env flag |
-|---|---|---|---|
-| P15B | FA varlen `max_seqlen_k` clamp on TQ path | #15 | `GENESIS_ENABLE_P15B_FA_VARLEN_CLAMP` |
-| P38B | P38 compile-safe in-source hook (aot_compile-safe) | #14 | `GENESIS_ENABLE_P38B_COMPILE_SAFE_HOOK` |
-| PN30 | DS conv state layout + spec-decode AL>1 | #17 | `GENESIS_ENABLE_PN30_DS_LAYOUT` |
-| PN31 | FA varlen persistent `out` buffer (sister to P38) | #15 | `GENESIS_ENABLE_PN31_FA_VARLEN_OUT` |
-| PN32 | GDN chunked-prefill (Cliff 2 single-24GB-GPU OOM) | noonghunna | `GENESIS_ENABLE_PN32_GDN_CHUNKED_PREFILL` |
+| ID | Title | Issue | Default | Env flag |
+|---|---|---|---|---|
+| P15B | FA varlen `max_seqlen_k` clamp on TQ path | #15 | OFF | `GENESIS_ENABLE_P15B_FA_VARLEN_CLAMP` |
+| P38B | P38 compile-safe in-source hook (aot_compile-safe) | #14 | OFF | `GENESIS_ENABLE_P38B_COMPILE_SAFE_HOOK` |
+| PN30 | DS conv state layout + spec-decode AL>1 | #17 | OFF | `GENESIS_ENABLE_PN30_DS_LAYOUT` |
+| PN31 | FA varlen persistent `out` buffer (sister to P38) | #15 | OFF | `GENESIS_ENABLE_PN31_FA_VARLEN_OUT` |
+| PN32 | GDN chunked-prefill (Cliff 2 single-24GB-GPU OOM) | noonghunna | OFF | `GENESIS_ENABLE_PN32_GDN_CHUNKED_PREFILL` |
+| PN33 | Spec-decode warmup K-aware (vllm#37521 extended to MTP/ngram) | ampersandru/noonghunna | **ON** | `GENESIS_ENABLE_PN33_SPEC_DECODE_WARMUP_K` (disable: `GENESIS_DISABLE_PN33_SPEC_DECODE_WARMUP_K=1`) |
+
+**PN33 is default-ON** because it's a root-cause correctness fix, not
+experimental. The vanilla `_dummy_sampler_run` warms the rejection
+sampler with K=1 dummy draft tokens regardless of real
+`num_speculative_tokens`. This causes (a) under-counted KV-cache
+profile → mid-stream OOM via `propose_draft_token_ids` (ampersandru on
+club-3090#16), and (b) TurboQuant `WorkspaceManager` lock fails when
+real K-token spec-decode tries to grow workspace beyond warmup-reserved
+size (noonghunna on club-3090 disc #19). Both share one root cause;
+PN33 fixes the root, both symptoms disappear. Genesis extends the
+upstream PR (vllm-project/vllm#37521 by `itailang`) beyond its
+`use_eagle()` gate to cover all spec-decode methods (EAGLE + MTP +
+ngram + draft-model) since the rejection sampler memory footprint
+scales with K regardless of method. Disable only if K-sized warmup
+itself OOMs on a tight rig.
 
 ### Reasoning + middleware
 

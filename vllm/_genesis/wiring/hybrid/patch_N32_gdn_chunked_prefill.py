@@ -74,6 +74,27 @@ SAFETY MODEL
 - Cross-rig validation needed: our 2× A5000 PROD (TP=2) doesn't hit
   Cliff 2 threshold; community single-GPU users are the target
 
+Threshold semantics (audit confirmed 2026-05-02)
+------------------------------------------------
+`num_tokens` in the patched `forward_cuda` is `hidden_states.size(0)`
+(upstream `gdn_linear_attn.py:530`) — the FIRST dimension of the
+batched input tensor. Under vLLM's continuous batching this is
+**total tokens in the current forward call** (sum across all
+sequences), NOT per-sequence tokens. So PN32 fires when batched
+prefill exceeds 16384 tokens — which is the correct behavior:
+
+- max_num_batched_tokens=4096 (typical): num_tokens ≤ 4K, never
+  triggers PN32 → zero overhead for high-throughput configs
+- max_num_batched_tokens=32768 + single >16K-token prompt prefill:
+  num_tokens > 16K → PN32 chunks
+- 5 short sequences batched (5 × 4K = 20K total): num_tokens > 16K
+  → PN32 chunks (each chunk size 8K processes a slice of the
+  concatenated batch). State-continuity caveat: chunks span
+  sequence boundaries within a batch — gdn_attention_core's
+  layer-name-keyed cache handles this because it tracks per-layer
+  state, not per-sequence. Verified against upstream
+  chunked-prefill behavior which uses the same mechanism.
+
 State continuity assumption
 ---------------------------
 `torch.ops.vllm.gdn_attention_core` maintains per-layer state via

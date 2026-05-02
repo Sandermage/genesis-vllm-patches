@@ -2032,6 +2032,53 @@ def apply_patch_67c_sparse_v() -> PatchResult:
     return _failed(name, reason)
 
 
+@register_patch(
+    "PN33 spec-decode warmup K-aware sizing (vllm#37521 extended to MTP/ngram)"
+)
+def apply_patch_N33_spec_decode_warmup_k() -> PatchResult:
+    """Patch N33: spec-decode warmup uses real num_speculative_tokens
+    instead of dummy K=1, fixing root cause of TWO bugs:
+
+    1. Mid-stream OOM via propose_draft_token_ids → llm_base_proposer.propose
+       (ampersandru, club-3090#16 2026-05-01 16:58). KV-cache profile
+       under-counts rejection sampler footprint, leaving too little
+       headroom for real K-token spec-decode at runtime.
+
+    2. TurboQuant WorkspaceManager AssertionError on MTP K=3 single-card
+       (noonghunna, club-3090 disc #19 2026-05-01 01:12). Workspace
+       reserved at warmup with K=1 sizing, locked, then real K-token
+       run tries to grow → AssertionError.
+
+    Both share root cause: warmup undercounted. PN33 fixes the root
+    instead of patching downstream symptoms (hence default ON).
+
+    Backport credit: itailang (vllm-project/vllm#37521 OPEN). Genesis
+    EXTENDS upstream beyond use_eagle() to cover all spec-decode
+    methods uniformly (EAGLE + MTP + ngram + draft-model). Distinct
+    dummy token IDs (list(range(K))) avoid sampler dedup under-count.
+
+    Disable via GENESIS_DISABLE_PN33_SPEC_DECODE_WARMUP_K=1 if K-sized
+    warmup itself OOMs on a tight rig.
+
+    Status: default ON (real correctness fix, not experimental).
+    """
+    name = "PN33 spec-decode warmup K-aware (vllm#37521 extended)"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring.spec_decode import (
+            patch_N33_spec_decode_warmup_k,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_N33_spec_decode_warmup_k.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
 @register_patch("PN32 GDN chunked-prefill (Cliff 2 fix for single-24GB-GPU OOM)")
 def apply_patch_N32_gdn_chunked_prefill() -> PatchResult:
     """Patch N32: chunked-prefill on GDN forward_cuda for long prompts.

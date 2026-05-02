@@ -456,6 +456,36 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             # is only called when spec-decode is active. No additional gate.
         },
     },
+    "PN33": {
+        "title": "Spec-decode warmup K-aware sizing (vllm#37521 extended to MTP/ngram)",
+        "env_flag": "GENESIS_ENABLE_PN33_SPEC_DECODE_WARMUP_K",
+        "default_on": True,
+        "category": "spec_decode",
+        "credit": (
+            "Backport of vllm-project/vllm#37521 (itailang, OPEN at "
+            "backport time 2026-05-02) EXTENDED beyond use_eagle() "
+            "gate to cover all spec-decode methods (EAGLE + MTP + "
+            "ngram + draft-model). Root-cause fix: gpu_model_runner."
+            "_dummy_sampler_run() warmed up with dummy K=1 instead of "
+            "real num_speculative_tokens, causing (a) KV-cache profile "
+            "to over-estimate available headroom → mid-stream OOM via "
+            "propose_draft_token_ids (ampersandru, club-3090#16 "
+            "2026-05-01) AND (b) TurboQuant WorkspaceManager lock fails "
+            "when real spec-decode tries to grow workspace beyond "
+            "warmup-reserved size (noonghunna, club-3090 disc #19 "
+            "2026-05-01). Same root cause for both bugs; one fix "
+            "closes both. Default ON when spec-decode active — real "
+            "correctness fix, not experimental. Disable via "
+            "GENESIS_DISABLE_PN33_SPEC_DECODE_WARMUP_K=1 if K-sized "
+            "warmup itself OOMs (better-than-runtime-OOM diagnosis)."
+        ),
+        "upstream_pr": 37521,
+        "applies_to": {
+            # Only fires when speculative_config is present at runtime.
+            # The text-patch site itself is gated `if self.speculative_config:`
+            # so non-spec-decode boots are NULL on this path.
+        },
+    },
     "PN32": {
         "title": "GDN chunked-prefill (Cliff 2 fix for single-24GB-GPU OOM)",
         "env_flag": "GENESIS_ENABLE_PN32_GDN_CHUNKED_PREFILL",

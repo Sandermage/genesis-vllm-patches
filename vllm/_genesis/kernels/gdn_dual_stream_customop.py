@@ -107,39 +107,140 @@ _OP_QUALNAME = "genesis::dual_linear_parallel"
 _op_registered = False
 
 
+# ─── Genesis library (vLLM canonical pattern, v7.66 refactor) ─────────
+#
+# Same Library("genesis", "FRAGMENT") namespace shared with PN25's
+# silu_and_mul_pooled. FRAGMENT mode means each worker process can
+# create its own Library object pointing at the same global "genesis"
+# namespace without conflict. Reference: vllm/utils/torch_utils.py:896.
+
+try:
+    from torch.library import Library
+    _HAS_TORCH_LIBRARY = True
+except ImportError:
+    Library = None  # type: ignore
+    _HAS_TORCH_LIBRARY = False
+
+
+_GENESIS_LIB = None
+
+
+def _make_genesis_lib():
+    """Construct or fetch the module-level `genesis` FRAGMENT Library.
+
+    Idempotent across re-imports. Each worker process creates its own
+    object pointing at the shared "genesis" namespace.
+    """
+    global _GENESIS_LIB
+    if _GENESIS_LIB is None and _HAS_TORCH_LIBRARY:
+        _GENESIS_LIB = Library("genesis", "FRAGMENT")
+    return _GENESIS_LIB
+
+
+def _dual_linear_parallel_impl(
+    hidden_states: torch.Tensor,
+    w1: torch.Tensor,
+    b1: Optional[torch.Tensor],
+    w2: torch.Tensor,
+    b2: Optional[torch.Tensor],
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """Real (eager) implementation — registered as the CUDA dispatch.
+
+    Canonical PyTorch cross-stream sync per `notes/cuda.html`:
+    `side.wait_stream(current)` before issue, `current.wait_stream(
+    side)` after. Equivalent to explicit events but simpler and
+    officially recommended.
+
+    Supports 2-D `(N, K)` and 3-D `(B, N, K)` inputs since
+    `nn.Linear` is shape-polymorphic and GDN in_proj is called with
+    `hidden_states: (num_tokens, hidden_size)`.
+    """
+    import torch.nn.functional as F
+
+    side = _get_side_stream(hidden_states.device)
+    if side is None:
+        # No CUDA or side stream alloc failed — serial fallback.
+        return (
+            F.linear(hidden_states, w1, b1),
+            F.linear(hidden_states, w2, b2),
+        )
+
+    current = torch.cuda.current_stream(hidden_states.device)
+    # Side waits for whatever produced `hidden_states` on current.
+    side.wait_stream(current)
+    # GEMM-B on side stream (issues async).
+    with torch.cuda.stream(side):
+        out2 = F.linear(hidden_states, w2, b2)
+    # GEMM-A on current stream (true parallelism — overlaps with B).
+    out1 = F.linear(hidden_states, w1, b1)
+    # Re-join: current waits for side before any consumer sees out2.
+    current.wait_stream(side)
+    return out1, out2
+
+
+def _dual_linear_parallel_fake(
+    hidden_states: torch.Tensor,
+    w1: torch.Tensor,
+    b1: Optional[torch.Tensor],
+    w2: torch.Tensor,
+    b2: Optional[torch.Tensor],
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """Shape inference for dynamo. Runs in `FakeTensorMode`.
+
+    `F.linear(X:(..., K), W:(M, K))` → `(..., M)`. Preserves all
+    leading dims so 2-D, 3-D, and any other rank works as upstream.
+    """
+    lead = list(hidden_states.shape[:-1])
+    out1 = hidden_states.new_empty(lead + [w1.shape[0]])
+    out2 = hidden_states.new_empty(lead + [w2.shape[0]])
+    return out1, out2
+
+
 def _register_op_once() -> bool:
-    """Register the custom op with torch.library. Idempotent: only fires
-    once per process. Returns True if registration succeeded.
+    """Register `genesis::dual_linear_parallel` via vLLM canonical
+    `direct_register_custom_op` pattern.
 
-    Registration is deferred to first use because:
-      (a) We want CPU-only imports of this module to succeed (tests).
-      (b) `torch.library.custom_op` requires a live library handle that
-          shouldn't be created at import time in test environments.
+    Idempotent. Sister to PN25's silu_and_mul_pooled refactor in v7.66
+    — same Library + direct_register pattern, same fork-safe pre-check.
 
-    Fork-safe across worker spawn (issue #16 sister-bug fix)
-    -------------------------------------------------------
-    `_op_registered` is module-level Python state — RESETS to False in
-    each spawned worker (VLLM_WORKER_MULTIPROC_METHOD=spawn). However
-    `torch.ops.genesis.dual_linear_parallel` lives in C++ state which
-    persists across spawn. We must detect existing registration BEFORE
-    calling `@custom_op(...)` again, otherwise:
+    Why this is safer than v7.65's `@custom_op` approach
+    ----------------------------------------------------
+    v7.65 (commit d92bcb3) wrapped `@torch.library.custom_op(...)` in
+    a hasattr() pre-check guard. That works, but @custom_op triggers
+    `torch.library.infer_schema()` at decoration time. If decoration
+    happens inside a torch.compile region, Dynamo refuses to trace
+    `infer_schema` and crashes with:
 
         torch._dynamo.exc.Unsupported: Attempted to call function
         marked as skipped: infer_schema
 
-    This is the SAME bug class as PN25's silu_and_mul_pooled (filed by
-    noonghunna at issue #16). Applied same defensive guard here as
-    preventive measure — P7b will hit the same crash on any
-    single-GPU spawn config (1×3090, 1×4090, etc.).
+    `direct_register_custom_op` calls `infer_schema` at module-import
+    time (synchronously, BEFORE any dynamo trace context exists), so
+    even if the op is registered in a worker process, Dynamo never
+    sees the infer_schema call.
+
+    Bug class reported by noonghunna at issue #16 against PN25's
+    silu_and_mul_pooled. Applied same v7.66 refactor here as
+    preventive measure — P7b would hit the same crash on any
+    single-GPU spawn config (1×3090, 1×4090, etc.) if a future
+    workload routes GDN dual-stream through a torch.compile region.
     """
     global _op_registered
     if _op_registered:
         return True
 
-    # [Genesis #16 sister-fix] Pre-check global C++ registry. If op is
-    # already registered (parent process or earlier import — survives
-    # spawn), sync local flag and return True without calling
-    # @custom_op (which would invoke infer_schema → Dynamo crash).
+    if not _HAS_TORCH_LIBRARY:
+        log.info(
+            "[P7b] torch.library.Library not available — "
+            "falling back to serial path"
+        )
+        return False
+
+    # [Genesis #16 sister-fix, retained from v7.65] Pre-check global
+    # C++ registry. If op is already registered (parent process or
+    # earlier import — survives spawn), sync local flag and return
+    # True without calling Library.define() (which would raise on
+    # duplicate name).
     try:
         if hasattr(torch.ops, "genesis") and hasattr(
             torch.ops.genesis, "dual_linear_parallel"
@@ -147,7 +248,7 @@ def _register_op_once() -> bool:
             _op_registered = True
             log.info(
                 "[P7b] op %s already globally registered — synced "
-                "local flag (worker-spawn safe path)",
+                "local flag (worker-spawn path; v7.66 direct_register)",
                 _OP_QUALNAME,
             )
             return True
@@ -156,79 +257,72 @@ def _register_op_once() -> bool:
         pass
 
     try:
-        lib = torch.library
-        custom_op = getattr(lib, "custom_op", None)
-        if custom_op is None:
-            log.info(
-                "[P7b] torch.library.custom_op not available (torch<2.4) "
-                "— falling back to serial path"
-            )
+        # vLLM canonical helper — drops infer_schema overhead and
+        # keeps schema computation outside dynamo trace context.
+        from vllm.utils.torch_utils import direct_register_custom_op
+        genesis_lib = _make_genesis_lib()
+        if genesis_lib is None:
+            log.info("[P7b] Library construction failed")
+            return False
+        direct_register_custom_op(
+            op_name="dual_linear_parallel",
+            op_func=_dual_linear_parallel_impl,
+            mutates_args=[],
+            fake_impl=_dual_linear_parallel_fake,
+            target_lib=genesis_lib,
+        )
+    except ImportError:
+        # Older vLLM without direct_register_custom_op — fall back to
+        # @custom_op path (still has fork-safe pre-check above).
+        log.info(
+            "[P7b] vllm.utils.torch_utils.direct_register_custom_op "
+            "not available — falling back to @custom_op path"
+        )
+        try:
+            custom_op = getattr(torch.library, "custom_op", None)
+            if custom_op is None:
+                log.info(
+                    "[P7b] torch.library.custom_op also unavailable "
+                    "(torch<2.4) — falling back to serial path"
+                )
+                return False
+
+            @custom_op(_OP_QUALNAME, mutates_args=(), device_types=("cuda",))
+            def _dual_linear_parallel_decorated(
+                hidden_states: torch.Tensor,
+                w1: torch.Tensor,
+                b1: Optional[torch.Tensor],
+                w2: torch.Tensor,
+                b2: Optional[torch.Tensor],
+            ) -> Tuple[torch.Tensor, torch.Tensor]:
+                return _dual_linear_parallel_impl(
+                    hidden_states, w1, b1, w2, b2,
+                )
+
+            @_dual_linear_parallel_decorated.register_fake
+            def _dual_linear_parallel_decorated_fake(
+                hidden_states: torch.Tensor,
+                w1: torch.Tensor,
+                b1: Optional[torch.Tensor],
+                w2: torch.Tensor,
+                b2: Optional[torch.Tensor],
+            ) -> Tuple[torch.Tensor, torch.Tensor]:
+                return _dual_linear_parallel_fake(
+                    hidden_states, w1, b1, w2, b2,
+                )
+        except Exception as e:
+            log.info("[P7b] @custom_op fallback registration failed: %s", e)
             return False
     except Exception as e:
-        log.info("[P7b] torch.library import failed: %s", e)
+        log.info("[P7b] direct_register_custom_op failed: %s", e)
         return False
 
-    @custom_op(_OP_QUALNAME, mutates_args=(), device_types=("cuda",))
-    def _dual_linear_parallel(
-        hidden_states: torch.Tensor,
-        w1: torch.Tensor,
-        b1: Optional[torch.Tensor],
-        w2: torch.Tensor,
-        b2: Optional[torch.Tensor],
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Real impl — runs outside dynamo trace (opaque).
-
-        Canonical PyTorch cross-stream sync per `notes/cuda.html`:
-        `side.wait_stream(current)` before issue, `current.wait_stream(
-        side)` after. Equivalent to explicit events but simpler and
-        officially recommended.
-
-        Supports 2-D `(N, K)` and 3-D `(B, N, K)` inputs since
-        `nn.Linear` is shape-polymorphic and GDN in_proj is called
-        with `hidden_states: (num_tokens, hidden_size)`.
-        """
-        import torch.nn.functional as F
-
-        side = _get_side_stream(hidden_states.device)
-        if side is None:
-            # No CUDA or side stream alloc failed — serial fallback.
-            return (
-                F.linear(hidden_states, w1, b1),
-                F.linear(hidden_states, w2, b2),
-            )
-
-        current = torch.cuda.current_stream(hidden_states.device)
-        # Side waits for whatever produced `hidden_states` on current.
-        side.wait_stream(current)
-        # GEMM-B on side stream (issues async).
-        with torch.cuda.stream(side):
-            out2 = F.linear(hidden_states, w2, b2)
-        # GEMM-A on current stream (true parallelism — overlaps with B).
-        out1 = F.linear(hidden_states, w1, b1)
-        # Re-join: current waits for side before any consumer sees out2.
-        current.wait_stream(side)
-        return out1, out2
-
-    @_dual_linear_parallel.register_fake
-    def _dual_linear_parallel_fake(
-        hidden_states: torch.Tensor,
-        w1: torch.Tensor,
-        b1: Optional[torch.Tensor],
-        w2: torch.Tensor,
-        b2: Optional[torch.Tensor],
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Shape inference for dynamo. Runs in `FakeTensorMode`.
-
-        `F.linear(X:(..., K), W:(M, K))` → `(..., M)`. Preserves all
-        leading dims so 2-D, 3-D, and any other rank works as upstream.
-        """
-        lead = list(hidden_states.shape[:-1])
-        out1 = hidden_states.new_empty(lead + [w1.shape[0]])
-        out2 = hidden_states.new_empty(lead + [w2.shape[0]])
-        return out1, out2
-
     _op_registered = True
-    log.info("[P7b] registered custom op %s", _OP_QUALNAME)
+    log.info(
+        "[P7b] registered custom op %s via direct_register_custom_op "
+        "(vLLM canonical, v7.66 — fork-safe + Inductor-opaque)",
+        _OP_QUALNAME,
+    )
     return True
 
 
