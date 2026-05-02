@@ -318,8 +318,9 @@ These can also be run once after install — they modify files in `$VLLM_DIR` di
 cd genesis-vllm-patches  # or anywhere — the module is now importable
 
 # Set patch enable flags FIRST (env vars are read at apply time):
+# NOTE: P67b intentionally reuses P67's flag — same kernel family,
+# enabled together. There is NO separate GENESIS_ENABLE_P67B env.
 export GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL=1
-export GENESIS_ENABLE_P67B=1
 export GENESIS_ENABLE_P82=1
 export GENESIS_P82_THRESHOLD_SINGLE=0.3
 export GENESIS_ENABLE_P81_FP8_BLOCK_SCALED_M_LE_8=1

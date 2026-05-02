@@ -4127,23 +4127,13 @@ def run(verbose: bool = True, apply: bool = False) -> PatchStats:
     except Exception as e:
         log.debug("[plugins] discovery skipped: %s", e)
 
-    # [Phase 5c apply_callable] After core patches finish, walk plugins
-    # whose env flags are set + call their apply_callable. Plugin failures
-    # are isolated (logged, counted, never crash apply_all). Skipped if
-    # GENESIS_ALLOW_PLUGINS gate is closed.
-    if apply:
-        try:
-            from vllm._genesis.compat.plugins import apply_all_plugins
-            plugin_stats = apply_all_plugins()
-            if plugin_stats.get("total", 0) > 0:
-                log.info(
-                    "[Genesis plugins] apply pass: total=%d applied=%d "
-                    "skipped=%d failed=%d",
-                    plugin_stats["total"], plugin_stats["applied"],
-                    plugin_stats["skipped"], plugin_stats["failed"],
-                )
-        except Exception as e:
-            log.debug("[plugins] apply pass skipped: %s", e)
+    # G-006 fix (audit 2026-05-02): Phase 5c apply_callable plugin pass
+    # was previously HERE (BEFORE core patch loop), contradicting the
+    # docstring "After core patches finish, walk plugins". Moved BELOW
+    # the core patch loop (just before telemetry) so plugin authors can
+    # rely on core patches being already applied — they may text-patch
+    # files that core patches have already modified, and need to find
+    # the post-modification anchors.
 
     # [Phase 5d telemetry] Opt-in anonymized telemetry. Default OFF —
     # only fires when GENESIS_ENABLE_TELEMETRY=1. Even when ON, only
@@ -4253,6 +4243,52 @@ def run(verbose: bool = True, apply: bool = False) -> PatchStats:
         log_validation_issues(plan_issues)
     except Exception as e:
         log.debug("[Genesis] dispatcher validator unavailable: %s", e)
+
+    # [Phase 5c apply_callable, G-006 audit fix 2026-05-02] After the
+    # core patch loop finishes, walk plugins whose env flags are set
+    # and call their apply_callable. Plugin failures are isolated
+    # (logged, counted, never crash apply_all). Skipped when
+    # GENESIS_ALLOW_PLUGINS gate is closed. Re-runs validate_registry
+    # so plugin entries injected at register_plugins() time are
+    # included in the boot-time validation pass (G-007 fix).
+    if apply:
+        try:
+            from vllm._genesis.compat.plugins import apply_all_plugins
+            plugin_stats = apply_all_plugins()
+            if plugin_stats.get("total", 0) > 0:
+                log.info(
+                    "[Genesis plugins] apply pass: total=%d applied=%d "
+                    "skipped=%d failed=%d",
+                    plugin_stats["total"], plugin_stats["applied"],
+                    plugin_stats["skipped"], plugin_stats["failed"],
+                )
+                # G-007 fix: re-validate registry now that plugin entries
+                # were potentially added during register_plugins().
+                try:
+                    from vllm._genesis.dispatcher import validate_registry
+                    post_plugin_issues = validate_registry()
+                    n_plugin_err = sum(
+                        1 for i in post_plugin_issues if i.severity == "ERROR"
+                    )
+                    if n_plugin_err > 0:
+                        log.error(
+                            "[Genesis registry] post-plugin validation: "
+                            "%d ERROR(s) — operator should investigate",
+                            n_plugin_err,
+                        )
+                        for i in post_plugin_issues:
+                            if i.severity == "ERROR":
+                                log.error(
+                                    "[Genesis registry plugin] %s: %s",
+                                    i.patch_id, i.message,
+                                )
+                except Exception as ve:
+                    log.debug(
+                        "[Genesis registry] post-plugin validation skipped: %s",
+                        ve,
+                    )
+        except Exception as e:
+            log.debug("[plugins] apply pass skipped: %s", e)
 
     # [Genesis T4.6] Compile-time watchdog post-summary.
     _elapsed = time.perf_counter() - _t0_apply

@@ -111,13 +111,26 @@ def build_cache_key_from_request(
 
     # Non-deterministic sampling must not be cached unless operator
     # explicitly opts in (same prompt → different output each call).
+    #
+    # G-003 fix (audit 2026-05-02): wrap numeric coercion in try/except.
+    # Malformed client payload like {"temperature": "abc"} raised
+    # ValueError that propagated all the way up through _try_cache_lookup
+    # → __call__, contradicting the "never raises / pass-through on
+    # malformed body" contract documented at the top of this module.
+    # Defensive: any non-coercible value is treated as "not cache-eligible"
+    # → fall through to the downstream app which will return a proper
+    # 4xx for the malformed input.
     temperature = body.get("temperature", 0.0)
     top_p = body.get("top_p", 1.0)
     top_k = body.get("top_k", -1)
     if not allow_sampled:
-        if (temperature is not None and float(temperature) > 0.0) or \
-           (top_k is not None and int(top_k) > 1) or \
-           (top_p is not None and float(top_p) < 1.0):
+        try:
+            t_val = float(temperature) if temperature is not None else 0.0
+            tk_val = int(top_k) if top_k is not None else -1
+            tp_val = float(top_p) if top_p is not None else 1.0
+        except (TypeError, ValueError):
+            return None
+        if t_val > 0.0 or tk_val > 1 or tp_val < 1.0:
             return None
 
     model = body.get("model")
@@ -223,8 +236,18 @@ class ResponseCacheMiddleware:
         cached = self._try_cache_lookup(body_bytes)
         if cached is not None:
             # HIT — synthesise a 200 OK response with the cached body.
-            await self._send_cached_response(send, cached)
-            return
+            #
+            # G-004 fix (audit 2026-05-02): _send_cached_response can fail
+            # to deliver if the cached entry is non-JSON-serializable
+            # (e.g. a corrupt entry written before a serialisation bug
+            # was fixed). Returns False in that case; we then fall
+            # through to _forward_and_store so the client always gets
+            # SOME response. Old behavior left the connection hanging
+            # because no http.response.start/body was ever sent.
+            sent = await self._send_cached_response(send, cached)
+            if sent:
+                return
+            # else: corrupt cached entry — fall through to MISS path
 
         # MISS — forward to downstream with buffered body, then
         # intercept the response and store on 2xx.
@@ -256,8 +279,19 @@ class ResponseCacheMiddleware:
             return None
         return hit
 
-    async def _send_cached_response(self, send, cached: dict) -> None:
-        """Emit a 200 OK with the cached JSON as body."""
+    async def _send_cached_response(self, send, cached: dict) -> bool:
+        """Emit a 200 OK with the cached JSON as body.
+
+        Returns True if the response was sent successfully, False if the
+        cached entry could not be serialised (caller must fall through
+        to MISS path so the client still gets a response).
+
+        G-004 fix (audit 2026-05-02): previously returned None on
+        serialisation failure WITHOUT sending any response, leaving the
+        ASGI connection hanging. Comment said "treating as miss" but
+        the caller didn't have a way to detect that and re-route to
+        _forward_and_store.
+        """
         try:
             body = json.dumps(
                 cached, ensure_ascii=False, default=str,
@@ -265,9 +299,10 @@ class ResponseCacheMiddleware:
         except (TypeError, ValueError) as e:
             log.warning(
                 "[P50 cache middleware] cached entry not JSON-serialisable "
-                "(%s); treating as miss", type(e).__name__,
+                "(%s); treating as miss — caller will forward to downstream",
+                type(e).__name__,
             )
-            return
+            return False
         await send({
             "type": "http.response.start",
             "status": 200,
@@ -281,6 +316,7 @@ class ResponseCacheMiddleware:
             "type": "http.response.body",
             "body": body,
         })
+        return True
 
     async def _forward_and_store(
         self, scope, body_bytes: bytes, send,

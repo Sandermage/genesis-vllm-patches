@@ -218,9 +218,9 @@ validation pending) and default-ON (root-cause correctness fixes).
 | ID | Title | Issue | Default | Env flag |
 |---|---|---|---|---|
 | P15B | FA varlen `max_seqlen_k` clamp on TQ path | #15 | OFF | `GENESIS_ENABLE_P15B_FA_VARLEN_CLAMP` |
-| P38B | P38 compile-safe in-source hook (aot_compile-safe) | #14 | OFF | `GENESIS_ENABLE_P38B_COMPILE_SAFE_HOOK` |
-| PN30 | DS conv state layout + spec-decode AL>1 | #17 | OFF | `GENESIS_ENABLE_PN30_DS_LAYOUT` |
-| PN31 | FA varlen persistent `out` buffer (sister to P38) | #15 | OFF | `GENESIS_ENABLE_PN31_FA_VARLEN_OUT` |
+| P38B | P38 compile-safe in-source hook (aot_compile-safe) | #14 | OFF | `GENESIS_ENABLE_P38B_COMPILE_SAFE` |
+| PN30 | DS conv state layout + spec-decode AL>1 | #17 | OFF | `GENESIS_ENABLE_PN30_DS_LAYOUT_SPEC_DECODE` |
+| PN31 | FA varlen persistent `out` buffer (sister to P38) | #15 | OFF | `GENESIS_ENABLE_PN31_FA_VARLEN_PERSISTENT_OUT` |
 | PN32 | GDN chunked-prefill (Cliff 2 single-24GB-GPU OOM) | noonghunna | OFF | `GENESIS_ENABLE_PN32_GDN_CHUNKED_PREFILL` |
 | PN33 | Spec-decode warmup K-aware (vllm#37521 extended to MTP/ngram) | ampersandru/noonghunna | **ON** | `GENESIS_ENABLE_PN33_SPEC_DECODE_WARMUP_K` (disable: `GENESIS_DISABLE_PN33_SPEC_DECODE_WARMUP_K=1`) |
 | PN34 | WorkspaceManager runtime lock relaxation (PN33 companion for runtime decode) | noonghunna | OFF | `GENESIS_ENABLE_PN34_WORKSPACE_LOCK_RELAX` |
@@ -267,9 +267,9 @@ itself OOMs on a tight rig.
 DFlash combine_hidden_states + SWA + aux-layer indexing fixes for spec-decode + DFlash hybrid:
 
 - **PN21** — DFlash SWA support partial backport (vllm#40898). Env: `GENESIS_ENABLE_PN21_DFLASH_SWA`.
-- **PN22** — Local argmax for TP draft (vllm#39419). Env: `GENESIS_ENABLE_PN22_TP_LOCAL_ARGMAX`.
-- **PN23** — DFlash combine_hidden_states dtype cast (vllm#40334). Env: `GENESIS_ENABLE_PN23_DFLASH_DTYPE`.
-- **PN24** — DFlash aux layer +1 indexing fix (vllm#40727). Env: `GENESIS_ENABLE_PN24_DFLASH_AUX_INDEX`.
+- **PN22** — Local argmax for TP draft (vllm#39419). Env: `GENESIS_ENABLE_PN22_LOCAL_ARGMAX_TP`.
+- **PN23** — DFlash combine_hidden_states dtype cast (vllm#40334). Env: `GENESIS_ENABLE_PN23_DFLASH_DTYPE_FIX`.
+- **PN24** — DFlash aux layer +1 indexing fix (vllm#40727). Env: `GENESIS_ENABLE_PN24_DFLASH_AUX_LAYER_FIX`.
 
 ### TurboQuant unified pack (PN26 / PN26b)
 

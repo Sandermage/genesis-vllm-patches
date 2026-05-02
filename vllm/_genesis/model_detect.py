@@ -182,8 +182,16 @@ def _probe_hybrid(hf_config: Any) -> tuple[bool, dict[str, Any]]:
                 if "linear" in s or "mamba" in s or "gdn" in s or "ssm" in s:
                     return True
         except Exception as e:
-            log.debug("layer_types scan probe at %r failed: %s", base, e,
-                      exc_info=True)
+            # G-001 fix (audit 2026-05-02): was `base` — undefined. Function
+            # parameter is `source_label`. NameError on this exception path
+            # would have masked the real layer_types probe failure as
+            # "model_detect probe failed (...)" in dispatcher.py:1470, which
+            # then triggers a conservative `apply=True` fallback — applying
+            # patches to a model that may be incompatible.
+            log.debug(
+                "layer_types scan probe at %r failed: %s",
+                source_label, e, exc_info=True,
+            )
         return False
 
     # Primary: layer_types — top-level then nested (multimodal)
