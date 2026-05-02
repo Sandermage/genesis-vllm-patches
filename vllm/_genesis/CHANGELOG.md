@@ -1,5 +1,251 @@
 # Genesis `_genesis/` Package Changelog
 
+## v7.68 — 2026-05-02 (cross-rig diagnose + fix)
+
+After v7.66 reached noonghunna's club-3090 single-card and dual-card
+3090 rigs, three distinct bug classes surfaced that 2× A5000 PROD
+didn't reproduce. All three are root-caused and fixed in v7.68; one
+new companion patch (PN34) ports a noonghunna setup-time sidecar
+into Genesis as a first-class opt-in.
+
+### PN30 v7.68 — dst-shaped temp (replaces v7.65 layout path)
+
+The v7.65 `get_conv_copy_spec` patch built a compact temp via
+`state[src_block_id, :, offset:].contiguous()`. That returns a
+`(dim, state_len - offset)` tensor where the row-stride equals
+`state_len - offset`, but the destination block in the conv state
+pool has row-stride `state_len`. A raw memcpy into the destination
+packed source rows into the wrong destination column offsets,
+silently corrupting DS conv state on every `offset > 0` continuation
+copy.
+
+The user-visible failure was a TQ store CUDA assert several layers
+downstream — the assert pointed at the wrong layer, which is why
+diagnosis took several rounds with noonghunna's logs and a
+ChatGPT/Codex CLI cross-check (club-3090 commit `9af1a52`).
+
+Fix: 3-file text-patch with new part3 patching
+`collect_mamba_copy_meta` to build a dst-shaped temp via
+`state[dest_block_id].clone()` + tail copy. Old part1 path is now
+fail-closed `RuntimeError` so any caller still routing through it
+gets a loud failure instead of silent corruption. Marker bumped
+v7.65 → v7.68. 12 TDD tests (8 original + 4 new layout-correctness).
+
+### PN25 v7.68 — import-time registration
+
+v7.66's `direct_register_custom_op` switch fixed the v7.65 fork-spawn
+crash on TP=2 but still failed on TP=1 spawn:
+
+```text
+torch._dynamo.exc.Unsupported:
+  instantiate_user_defined_class_object torch.library.Library
+```
+
+Root cause: `Library("genesis", "FRAGMENT")` was constructed inside
+the worker's first Dynamo trace context. v7.68 text-patches
+`activation.py` itself to register the custom op at module-import
+time (BEFORE any trace can happen) and caches the result as the
+module-global `_GENESIS_PN25_SILU_AND_MUL_OP`. `forward_native` body
+then reads only the cached global — never registers, never enters
+the Library code path under trace.
+
+Same import-time pattern preventively applied to **P7b**
+(`gdn_dual_stream_customop`) — same bug class would fire on any
+TP=1 enable. Pattern credit: noonghunna's
+`patch_pn25_genesis_register_fix.py` (club-3090 commit `a62ad78`).
+
+### PN34 (NEW) — workspace lock runtime relaxation
+
+PN33 fixed BOOT-time `_dummy_sampler_run` under-counting. The
+runtime decode path on `turboquant_attn.py:1350:_decode_attention`
+still raised `WorkspaceManager._ensure_workspace_size` AssertionError
+on rare paths (continuation-prefill into long context, MTP K=3 +
+decode mid-stream) — same lock invariant, different trigger.
+
+PN34 ports noonghunna's `patch_workspace_lock_disable.py`
+setup-time sidecar directly into the Genesis registry: relaxes the
+strict assertion to one-shot `WARN+grow-anyway`. Default OFF
+(it relaxes a strict-debug invariant; operators opt in only when
+they hit the runtime case). Requires PN33. Will retire when
+vllm#40706 (TQ scratch dedup + reserve-worst-case at warmup)
+merges upstream.
+
+### P103 fix — undefined `T` in chunked_fwd loop
+
+Latent since v7.62.20 ship: `wiring/hybrid/patch_103_fla_cliff2_chunked.py:197`
+used bare `T` in `for start in range(0, T, _MAX_T)` without ever
+defining it. Cliff 2 chunked path silent-crashed `NameError` on
+every trigger. PROD didn't surface this because continuous batching
+keeps `q.shape[1] ≤ max_num_batched_tokens (4096)`, well under the
+`_MAX_T = 32768` threshold that gates the chunked branch — so the
+buggy code never executed in our config.
+
+Fix: `T = q.shape[1]` immediately before the loop, plus dropped two
+unused locals (`BT`, `is_last`). Found by Gemini static-analysis
+audit (see "Audit pass" below).
+
+### Live validation matrix (2× A5000, 2026-05-02)
+
+| Config | Boot | TPS @ 256t | Tool-call | Active patches |
+|---|---|---|---|---|
+| 27B INT4 + TQ k8v4 + MTP K=3 (PROD) | OK | 104.0 (CV 0.5%) | clean | PN33 + PN25(v7.66) + 45 |
+| 35B-A3B FP8 + MTP K=3 | OK | 183.7 | clean | PN33 + PN25 + PN26b + PN8 |
+| 35B-A3B DFlash | OK | 155.0 | clean | PN33 + PN22 + PN23 + PN24 + PN8 |
+| 27B INT4 + DFlash drafter K=5 | OK | 129.3 | clean | PN33 + PN22 + PN23 + PN24 + PN12 + PN17 |
+
+PN33 text-patch verified live in `gpu_model_runner.py` on all 4
+configs (marker present + K-aware code in place). 27B+drafter
+result lines up with noonghunna's published 78 narr / 128 code on
+2× 3090 — same drafter recipe, similar consumer Ampere → cross-rig
+reproducibility confirmed.
+
+---
+
+## v7.67 — 2026-05-02 (REJECTED on live test)
+
+Tried `@torch.compiler.disable` on `SiluAndMul.forward_native`
+(SGLang pattern from
+`python/sglang/srt/layers/attention/triton_backend.py`). Empirically
+failed on 27B + TQ k8v4 + MTP K=3 boot:
+
+```text
+torch._dynamo.exc.Unsupported:
+  logging.Logger method not supported for non-export cases
+```
+
+Stack showed Dynamo tracing INTO `forward_native` body despite the
+decorator, hitting `log.info()` inside `acquire_silu_out`. Hypothesis:
+`@torch.compiler.disable` on a `@staticmethod` accessed through
+vLLM's `custom_op._forward_method` dispatcher does NOT propagate —
+the dispatcher reaches the underlying function via `getattr` which
+bypasses the decorator's frame-guard. SGLang's working
+`@torch.compiler.disable` patterns are on module-level functions,
+not `@staticmethod` on classes called via dispatchers — pattern
+doesn't transfer.
+
+Reverted to v7.66 in commit `d585d7d`.
+
+---
+
+## v7.66 — 2026-05-02 (root-cause spec-decode warmup fix)
+
+### PN33 — spec-decode warmup K-aware sizing (default ON)
+
+Backport of vllm-project/vllm#37521 by `itailang` (OPEN at backport
+time) EXTENDED beyond its `use_eagle()` gate to cover MTP, ngram,
+and draft-model methods. The vanilla warmup uses dummy K=1 draft
+tokens regardless of real `num_speculative_tokens`, under-counting
+the rejection-sampler footprint at profile time.
+
+Same root cause produces TWO distinct symptoms in the wild:
+
+- **(a)** ampersandru's mid-stream OOM via `propose_draft_token_ids`
+  (memory pool sized for K=1 explodes when real K=3 fires).
+- **(b)** noonghunna's workspace-lock AssertionError on dev205 + MTP
+  K=3 single-card (workspace reserved for K=1 then `_ensure_size`
+  asserts when K=3 grows it post-lock).
+
+PN33 fixes the root. Default ON, opt-out via
+`GENESIS_DISABLE_PN33_SPEC_DECODE_WARMUP_K=1`. 12 TDD tests pass.
+Drift markers tightened in commit `fc89395` to PR-#37521-specific
+lines after v1 false-positive matched generic vllm code.
+
+### PN25 v7.66 — direct_register_custom_op refactor
+
+Switched `silu_and_mul_pooled` and `dual_linear_parallel`
+registration from `@torch.library.custom_op` to vLLM canonical
+`direct_register_custom_op` from `vllm/utils/torch_utils.py:899`.
+`Library("genesis", "FRAGMENT")` at module level. Same fork-safe
+`hasattr()` pre-check guard as v7.65.
+
+Schema introspection happens at module import (synchronous, before
+any Dynamo trace), eliminating the "infer_schema skipped frame"
+crash class — for TP≥2 spawn. TP=1 still crashed (different code
+path); v7.68 PN25 closes that gap.
+
+### PN32 — GDN chunked-prefill (Cliff 2 single-24GB-GPU OOM fix)
+
+Splits GDN `forward_cuda` core attention + post-projection into
+chunks of 8K (default) when `num_tokens > 16K` (default; both
+env-tunable via `GENESIS_PN32_CHUNK_SIZE` and
+`GENESIS_PN32_THRESHOLD`). Closes >50K-token single-shot OOM on
+1× 3090 / 4090 / 5090.
+
+Conflicts with P28 (legacy persistent buffer pool) — operator picks
+one. Documented in dispatcher entry, wiring docstring, and new
+test `test_pn32_documents_p28_conflict`. Default OFF — cross-rig
+validation needed (our 2× A5000 PROD doesn't hit Cliff 2 threshold).
+
+---
+
+## Audit pass — 2026-05-02 (Gemini + ChatGPT/Codex CLI)
+
+Two independent static-analysis audits against the genesis-vllm-patches
+tree to catch latent issues that pytest + live-boot couldn't surface
+(rare exception paths, torch-less import, doc/code drift).
+
+| Audit | Tool | Findings | Real bugs | Commit |
+|---|---|---|---|---|
+| 1 | Google Gemini | 1 critical | 1 (P103) | `5743c03` |
+| 2 | ChatGPT/Codex CLI | 16 (G-001..G-016) | 9 | `82c64c1` + `6f9c5eb` |
+
+Real-bug summary (full per-finding writeup in top-level
+[`CHANGELOG.md`](../../CHANGELOG.md)):
+
+- G-001 — `model_detect.py:185` undefined `base` in exception path,
+  masked by dispatcher's "conservative apply" fallback. NameError
+  could have flipped a genuine model-incompat into "apply patches
+  anyway" → hybrid GDN patches on a non-hybrid model. Fixed:
+  `base` → `source_label`.
+- P103 (Gemini) — undefined `T` in chunked-prefill loop; latent
+  since v7.62.20 ship. Continuous-batching token cap kept us under
+  the trigger threshold, so the dead branch was never exercised in
+  PROD. Fix above in v7.68 section.
+- G-002 — `vllm/_genesis/__init__.py` eagerly imported `prealloc`
+  (which imports `torch`) → every torch-less CLI / pre-commit /
+  static-analysis tool failed `ModuleNotFoundError`. Fixed via lazy
+  `__getattr__` using `importlib.import_module`.
+- G-003 + G-004 — `ResponseCacheMiddleware` "never raises / always
+  returns response" contract violated two ways: malformed temperature
+  string leaked `ValueError` to client as 500; corrupt
+  JSON-non-serializable cache entry hung connection because
+  `_send_cached_response` returned without sending. Both fixed.
+- G-006 — `apply_all_plugins()` ran BEFORE the core patch loop
+  despite the docstring saying "After core patches finish, walk
+  plugins". Reordered.
+- G-007 — `validate_registry()` ran before `register_plugins()`
+  injected community entries → plugin entries skipped boot-time
+  validation. Re-validation added after plugin apply pass.
+- G-008 — 7 env-var references in PATCHES.md / INSTALL.md didn't
+  match `dispatcher.py` names. Operators copy-pasting got no-op env
+  vars while their patch silently stayed disabled. All 7 synced.
+
+Lint pass (G-016): **195 ruff `F401`/`F841`/`RUF059` errors → 0**.
+154 auto-fixes via `--fix`, 41 via `--unsafe-fixes`, 1 manual.
+
+Cleanup (G-005, G-009, G-010, G-011, G-012, G-013, G-014) closed
+streaming-doc drift, truncated PATCHES.md row, rig-specific paths
+(env-var override + README rationale), Pareto-ranking bug from
+unused `speed_runs`, Redis cache size off-by-N for stats keys, PN16
+broken doc reference to gitignored internal docs, TextPatcher
+Python-only marker now documented.
+
+Pre-commit ruff hook will be added to block this class of latent
+bug at commit time instead of waiting for a future audit pass.
+
+---
+
+## v7.65 — 2026-05-02 (repo hygiene + community closeouts)
+
+See top-level [`CHANGELOG.md`](../../CHANGELOG.md) "v7.65" section
+for the full list. Highlights: 32 legacy P1–P46 promoted to
+first-class PATCH_REGISTRY entries (now 100 total), example pkg
+restored, sync gate test for legacy↔registry consistency, boot
+validator wired, P67 stale tests fixed. 1470 tests / 0 failures at
+the time of cut; v7.68 brought it to 1494 / 0.
+
+---
+
 ## v7.63.x — 2026-04-30 (Phase 2.2: repo root cleanup)
 
 The repo root previously had 29 entries — 7 docker-compose files, 2

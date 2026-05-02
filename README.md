@@ -17,7 +17,18 @@
 > Genesis detects your hardware, picks a model that fits, and writes a
 > tailored launch script. See [Quick start](#quick-start) for the manual path.
 
-> **Status:** v7.63.x (2026-04-30). Production stack runs 24/7 on 2× RTX A5000 with **Qwen3.6-27B-int4-AutoRound** (v794 PROD baseline, **103.3 TPS @ 280K context**, +17% vs prior FP8 KV baseline). Also supports Qwen3.6-35B-A3B-FP8 (v759/v789 lineage). Cross-rig validated on community RTX 3090 / 4090 / 5090 / H20 / R6000 Blackwell / 8× A4000 deployments via [@noonghunna](https://github.com/noonghunna), [@thc1006](https://github.com/thc1006), [@Quentin-M](https://github.com/Quentin-M), [@MidasMining](https://github.com/MidasMining), [@jhsmith409](https://github.com/jhsmith409), [@webcodes-cz](https://github.com/webcodes-cz) and others.
+> **Status:** v7.68 (2026-05-02) — `dev` branch, cross-rig diagnose-and-fix series. Production stack runs 24/7 on 2× RTX A5000 with **Qwen3.6-27B-int4-AutoRound** (**104.0 TPS, CV 0.5%**, MTP K=3, TQ k8v4). Also live-validated on the same hardware: **Qwen3.6-35B-A3B-FP8** (183.7 TPS), **35B DFlash** (155.0 TPS), **27B INT4 + DFlash drafter K=5** (129.3 TPS — matches noonghunna's published 78/128 on 2× 3090). 1494 tests / 0 fail. Cross-rig validated on community RTX 3090 / 4090 / 5090 / H20 / R6000 Blackwell / 8× A4000 deployments via [@noonghunna](https://github.com/noonghunna), [@thc1006](https://github.com/thc1006), [@Quentin-M](https://github.com/Quentin-M), [@MidasMining](https://github.com/MidasMining), [@jhsmith409](https://github.com/jhsmith409), [@webcodes-cz](https://github.com/webcodes-cz), [@JartX](https://github.com/JartX) and others.
+
+> **What's new in v7.68 (2026-05-02):**
+>
+> - **PN30 v7.68 dst-shaped temp** — closes DS-conv layout corruption surfaced by club-3090 cross-rig testing
+> - **PN25 v7.68 import-time** — closes TP=1 spawn crash (`Library` constructed under Dynamo trace)
+> - **PN34 (NEW)** — runtime workspace-lock relaxation, PN33 companion (default OFF)
+> - **P103 fix** — undefined `T` in chunked-prefill loop, latent since v7.62.20
+> - **Audit pass** — Gemini + ChatGPT/Codex CLI static analysis, 17 findings → 10 real bugs fixed, 195 ruff errors → 0
+>
+>
+> Builds on **v7.66** (PN33 spec-decode warmup K-aware, root cause of two distinct symptoms in the wild) and **v7.65** (32 legacy patches promoted to first-class registry, **100 PATCH_REGISTRY entries** total). Full per-release detail in [`CHANGELOG.md`](CHANGELOG.md).
 
 > **🆕 What's new in v7.63.x — Genesis Compat Layer (8 phases shipped):**
 >

@@ -1,15 +1,24 @@
 # Genesis — `vllm/_genesis/` package
 
-**Modular drop-in architecture for Genesis vLLM patches — v7.0 → v7.65 (current).**
+**Modular drop-in architecture for Genesis vLLM patches — v7.0 → v7.68 (current).**
 
-> Current release: **v7.65** (2026-05-02) — community-issue closeouts (#14/#15/#16/#17), legacy P1–P46 promoted to first-class registry entries, T4.4 numerical regression infra, T4.2 PN32 GDN chunked-prefill.
-> Full feature changelog: [CHANGELOG.md](CHANGELOG.md). User-facing setup: [../../QUICKSTART.md](../../QUICKSTART.md). Top-level README: [../../README.md](../../README.md).
+> Current release: **v7.68** (2026-05-02) — cross-rig diagnose + fix series. PN30 dst-shaped temp closes DS-conv layout corruption; PN25 import-time registration closes TP=1 spawn crash; new PN34 relaxes runtime workspace-lock assertion (PN33 companion); P103 `T`-undefined latent bug fixed. Builds on v7.66 (PN33 spec-decode warmup K-aware) and v7.65 (32 legacy patches promoted, 100 PATCH_REGISTRY entries total).
+> Full per-release changelog: [CHANGELOG.md](CHANGELOG.md) and the top-level [`../../CHANGELOG.md`](../../CHANGELOG.md). User-facing setup: [../../QUICKSTART.md](../../QUICKSTART.md). Top-level README: [../../README.md](../../README.md).
 
 Replaces monolithic `patch_genesis_unified.py` (v5.14.1) with a clean package structure that:
 - Works on NVIDIA CUDA / AMD ROCm / Intel XPU / CPU with graceful skip (philosophy: **МЫ ЧИНИМ, НЕ ЛОМАЕМ**)
-- Follows TDD discipline (tests first, implementation second) — **1467+ tests across the package, 73 skipped, 0 failures**
+- Follows TDD discipline (tests first, implementation second) — **1494 tests across the package, 73 skipped, 0 failures** (full local sweep, 2026-05-02)
 - Is upstream-ready — kernels can be submitted as vLLM PRs directly
 - Self-documents via `genesis doctor` and the curated model registry
+
+## Live validation matrix (2× A5000 PROD, 2026-05-02)
+
+| Config | TPS @ 256t | Tool-call | Notes |
+|---|---|---|---|
+| 27B INT4 + TQ k8v4 + MTP K=3 (PROD) | 104.0 (CV 0.5%) | clean | PN33 + PN25(v7.66) + 45 patches |
+| 35B-A3B FP8 + MTP K=3 | 183.7 | clean | PN33 + PN25 + PN26b + PN8 |
+| 35B-A3B DFlash | 155.0 | clean | PN33 + PN22 + PN23 + PN24 + PN8 |
+| 27B INT4 + DFlash drafter K=5 | 129.3 | clean | matches noonghunna 78/128 on 2× 3090 |
 
 ## Minimum vLLM pin
 

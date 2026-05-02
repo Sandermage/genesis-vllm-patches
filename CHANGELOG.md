@@ -14,16 +14,235 @@ loud-and-clear in the per-release notes.
 
 ---
 
-## [Unreleased] — `v7.65` series
+## [Unreleased] — `v7.65 → v7.68` series
 
 > Pin: `0.20.1rc1.dev16+g7a1eb8ac2` (committed 2026-04-28).
-> Series builds on top of v7.64 release and adds 7+ new patches +
-> infrastructure hardening + community issue fixes, all opt-in OFF by
-> default unless noted. No regression in PROD bench (91.78 TPS @ 256t,
-> CV 0.3% — above v7.64 baseline 91.5). Pushed to `dev` branch only
-> (main promotion deferred until cross-rig validation).
+> Builds on v7.64 release with v7.65 hygiene + v7.66/v7.67/v7.68 patch
+> work + comprehensive audit pass. All on `dev` branch only (main
+> promotion deferred until cross-rig validation completes).
 
-### Community-reported bugs CLOSED
+### Live-validation matrix (all 4 configs on 2× A5000, 2026-05-02)
+
+| Config | Boot | TPS @ 256t | CV | Tool-call | Active patches |
+|---|---|---|---|---|---|
+| 27B INT4 + TQ k8v4 + MTP K=3 (PROD) | OK | **104.0** | 0.5% | clean | PN33+PN25(v7.66)+45 others |
+| 35B-A3B FP8 + MTP K=3 | OK | **183.7** | n/a (1 run) | clean | PN33+PN25+PN26b+PN8 |
+| 35B-A3B DFlash | OK | **155.0** | n/a (1 run) | clean | PN33+PN22+PN23+PN24+PN8 |
+| 27B INT4 + DFlash drafter K=5 | OK | **129.3** | n/a (1 run) | clean | PN33+PN22+PN23+PN24+PN12+PN17 |
+
+`PN33` text-patch verified in live `gpu_model_runner.py` on all 4
+configs (marker present + K-aware code `list(range(_genesis_pn33_K))`
+in place). The **27B INT4 + DFlash drafter** result (129.3 TPS on
+2× A5000) lines up with noonghunna's published 78 narr / 128 code TPS
+on 2× 3090 — same drafter recipe, similar consumer Ampere → cross-rig
+reproducibility confirmed.
+
+### Test + count metrics
+
+```
+vllm/_genesis/tests/  ─ 1494 pass / 73 skip / 0 fail (full local sweep)
+PATCH_REGISTRY        ─ 100 entries  (P1–P103 + PN8–PN34 + sub-patches)
+apply_all functions   ─ 99 (P68/P69 share one apply function — documented)
+ruff F821/F401/F841   ─ 0 errors    (was 195 before audit cleanup)
+```
+
+### PATCH_REGISTRY distribution by category
+
+```
+spec_decode   ████████████████████████████████  24
+hybrid (GDN)  ██████████████████████████        20
+moe           ██████████████████                14
+quant (TQ)    █████████████████                 13
+attention     ███████████████                   11
+kv_cache      ███████                            7
+sampling      █████                              5
+misc          ██████                             6
+                                              ─────
+                                                100
+```
+
+`PATCH_REGISTRY` snapshot from `vllm/_genesis/dispatcher.py` 2026-05-02
+(rounded to whole bars; some entries multi-categorize via tag list).
+
+### Cross-rig validation (community + Genesis PROD)
+
+| Rig | Owner | GPU(s) | Model | Verdict | Source |
+|---|---|---|---|---|---|
+| Genesis PROD | @Sandermage | 2× A5000 | Qwen3.6-27B-int4 + TQ k8v4 | 104 TPS / 0.5% CV | this repo |
+| Genesis PROD | @Sandermage | 2× A5000 | Qwen3.6-35B-A3B-FP8 | 184 TPS | this repo |
+| club-3090 | @noonghunna | 1× 3090 24GB | 27B INT4 + DFlash drafter K=5 | 78 TPS narr / 128 code | club-3090#19 |
+| club-3090 | @noonghunna | 2× 3090 | 27B INT4 + MTP K=3 | stable boot + tool-call | club-3090#19 |
+| ampersandru | community | 1× 3090 | 27B INT4 + MTP K=3 | mid-stream OOM (PN33 fix) | issue thread |
+| TurboQuant rigs | @JartX | 5090 / H20 / 4× R6000 / 8× A4000 | various TQ k8v4 | validated via PR #39931 | upstream |
+
+### v7.68 — diagnose + fix what cross-rig validation surfaced (2026-05-02)
+
+After v7.66 reached noonghunna's 1× 3090 + 2× 3090 rig, cross-rig
+testing surfaced 3 distinct bug classes that 2× A5000 PROD didn't
+reproduce. All 3 fixed in v7.68 + 1 new companion patch:
+
+- **PN30 v7.68 — dst-shaped temp** (corrects v7.65 layout-corruption).
+  v7.65 PN30 used `state[src_block_id, :, offset:].contiguous()` which
+  produced a compact `dim×(state_len-offset)` buffer; raw memcpy into
+  the destination block (strided by full `state_len`) packed source
+  rows into wrong destination offsets, corrupting DS conv state row
+  strides on every `offset>0` copy. Surfaced as TQ store CUDA assert
+  several layers downstream — the user-visible symptom was at the wrong
+  layer, not the root. Diagnosis credit: noonghunna + ChatGPT/Codex CLI
+  cross-check (club-3090 commit `9af1a52`). Fix: 3-file text-patch
+  with new part3 on `collect_mamba_copy_meta` building dst-shaped temp
+  via `state[dest_block_id].clone()` + tail copy. Old part1 path now
+  fail-closed RuntimeError. 12 TDD tests pass.
+
+- **PN25 v7.68 — import-time registration** (eliminates v7.66 TP=1
+  spawn fail). v7.66's `direct_register_custom_op` still failed on
+  TP=1 spawn config because `Library("genesis", "FRAGMENT")` was
+  constructed inside the Dynamo trace context →
+  `instantiate_user_defined_class_object` crash. v7.68 text-patches
+  `activation.py` to register at module-import time (BEFORE any trace),
+  caches result as `_GENESIS_PN25_SILU_AND_MUL_OP` module global.
+  `forward_native` body reads only the cached global — never registers.
+  Same pattern preventively applied to **P7b** (`gdn_dual_stream_
+  customop`) — same bug class would have hit on any TP=1 enable.
+  Pattern credit: noonghunna's `patch_pn25_genesis_register_fix.py`
+  (club-3090 commit `a62ad78`).
+
+- **PN34 (NEW) — workspace lock runtime relaxation** (PN33 companion).
+  PN33 fixed BOOT-time `_dummy_sampler_run` under-counting; runtime
+  decode path on `turboquant_attn.py:1350:_decode_attention` still
+  raised `WorkspaceManager._ensure_workspace_size` AssertionError on
+  rare paths (continuation-prefill into long context, MTP K=3 + decode
+  mid-stream). PN34 ports noonghunna's
+  `patch_workspace_lock_disable.py` setup-time sidecar directly into
+  Genesis: relaxes the strict assertion to one-shot WARN+grow-anyway.
+  Default OFF (relaxes a strict-debug assertion); requires PN33.
+  Retires when vllm#40706 (TQ scratch dedup + reserve worst-case at
+  warmup) merges upstream.
+
+- **P103 fix — `T` undefined in chunked_fwd loop** (latent since
+  v7.62.20). `vllm/_genesis/wiring/hybrid/patch_103_fla_cliff2_chunked.py:197`
+  used bare `T` in `for start in range(0, T, _MAX_T)` without defining
+  it. Cliff 2 chunked path silent-crashed `NameError` on every trigger
+  since ship date. PROD didn't surface because continuous batching
+  keeps `q.shape[1] ≤ max_num_batched_tokens (4096)` — well under the
+  `_MAX_T` threshold that gates the chunked branch. Fix: `T = q.shape[1]`
+  immediately before the loop + dropped 2 unused locals. Caught by the
+  Gemini static-analysis audit (see "Audit pass" below).
+
+### v7.67 — REJECTED on live test (2026-05-02)
+
+Tried `@torch.compiler.disable` decorator on `SiluAndMul.forward_native`
+(SGLang pattern from `python/sglang/srt/layers/attention/triton_backend.py`).
+Empirically failed on 27B + TQ k8v4 + MTP K=3 boot:
+
+```
+torch._dynamo.exc.Unsupported: logging.Logger method not supported for
+non-export cases
+```
+
+Stack showed Dynamo tracing INTO `forward_native` body despite the
+decorator, hitting `log.info()` inside `acquire_silu_out`. Hypothesis:
+`@torch.compiler.disable` on a `@staticmethod` accessed through vLLM's
+`custom_op._forward_method` dispatcher does NOT propagate — the
+dispatcher reaches the underlying function via `getattr` bypassing the
+decorator's frame guard. SGLang's working
+`@torch.compiler.disable` patterns are on module-level functions, not
+`@staticmethod` on classes called via dispatchers — pattern doesn't
+transfer. Reverted to v7.66.
+
+### v7.66 — root-cause spec-decode warmup fix (default ON)
+
+- **PN33 — spec-decode warmup K-aware sizing** (default ON, opt-out via
+  `GENESIS_DISABLE_PN33_SPEC_DECODE_WARMUP_K=1`). Backport of
+  vllm-project/vllm#37521 by `itailang` (OPEN at backport time)
+  EXTENDED beyond its `use_eagle()` gate to cover MTP, ngram, and
+  draft-model methods. The vanilla warmup uses dummy K=1 draft tokens
+  regardless of real `num_speculative_tokens` — under-counting the
+  rejection sampler footprint at profile time → causes BOTH (a)
+  ampersandru's mid-stream OOM via `propose_draft_token_ids` and (b)
+  the workspace lock AssertionError noonghunna hit on dev205 + MTP K=3
+  single-card. Same root cause, two symptoms; PN33 fixes the root.
+  12 TDD tests pass.
+
+- **PN25 v7.66 — direct_register_custom_op refactor**. Switched
+  `silu_and_mul_pooled` and `dual_linear_parallel` registration from
+  `@torch.library.custom_op` to vLLM canonical
+  `direct_register_custom_op` from `vllm/utils/torch_utils.py:899`.
+  `Library("genesis", "FRAGMENT")` at module level. Same fork-safe
+  `hasattr()` pre-check guard as v7.65. Schema introspection happens
+  at module import (synchronous, before any Dynamo trace), eliminating
+  the "infer_schema skipped frame" crash class entirely. Note: v7.68
+  later replaced the wiring call site (registration moved to
+  activation.py import time) — see PN25 v7.68 above.
+
+- **PN32 — GDN chunked-prefill (Cliff 2 single-24GB-GPU OOM fix)**.
+  Splits GDN forward_cuda core attention + post-projection into chunks
+  of 8K (default) when `num_tokens > 16K` (default, both env-tunable).
+  Closes >50K-token single-shot OOM on 1×3090/4090/5090. Conflicts
+  with P28 (legacy persistent buffer pool) — operator picks one;
+  documented in dispatcher entry + wiring docstring + new test
+  `test_pn32_documents_p28_conflict`. Default OFF — cross-rig
+  validation needed (our 2× A5000 PROD doesn't hit Cliff 2 threshold).
+
+### Audit pass (2026-05-02) — Gemini + ChatGPT/Codex CLI
+
+Two independent static-analysis audits ran across the genesis-vllm-patches
+tree to catch latent issues that pytest + live-boot couldn't surface.
+Both found real bugs the test suite missed.
+
+| Audit | Tool | Findings | Real bugs | Fixed |
+|---|---|---|---|---|
+| 1st | Google Gemini | 1 critical | 1 | ✓ commit `5743c03` |
+| 2nd | ChatGPT/Codex CLI | 16 (G-001..G-016) | 9 | ✓ commits `82c64c1` + `6f9c5eb` |
+
+**Latent bugs caught + fixed**:
+
+- `model_detect.py:185` — undefined `base` in exception path. NameError
+  was masked by dispatcher's `conservative apply` fallback → genuine
+  model-incompat could have applied hybrid GDN patches to non-hybrid
+  models silently. (Codex G-001)
+- `patch_103_fla_cliff2_chunked.py:197` — undefined `T` in chunked-
+  prefill loop. Cliff 2 chunked path silent-crashed `NameError` on
+  every trigger since v7.62.20 ship. PROD didn't surface because
+  continuous batching keeps `q.shape[1] ≤ max_num_batched_tokens
+  (4096)` — under the `_MAX_T` threshold gating the chunked branch.
+  (Gemini)
+- `vllm/_genesis/__init__.py` — eagerly imported `prealloc` (which
+  imports `torch`). Every torch-less CLI / pre-commit / static-analysis
+  tool failed `ModuleNotFoundError` before reaching their entry point.
+  Fixed via lazy `__getattr__` for `prealloc`. (Codex G-002)
+- `ResponseCacheMiddleware` — two contract violations: (a)
+  `float("abc")` on malformed temperature leaked ValueError to client
+  as 500; (b) corrupt cached entry → connection hung because
+  `_send_cached_response` returned without sending. Both fixed.
+  (Codex G-003 + G-004)
+- `apply_all.py` — community plugins were applied BEFORE the core
+  patch loop despite the docstring saying "After core patches finish".
+  Plugin authors relying on the contract found post-modification
+  anchors absent. Reordered + added post-plugin
+  `validate_registry()` re-run. (Codex G-006 + G-007)
+- 7 env-var references in PATCHES.md / INSTALL.md didn't match
+  `dispatcher.py` — operators copy-pasting got no-op env vars while
+  their patch silently stayed disabled. All synced. (Codex G-008)
+
+**Lint pass (Codex G-016)**:
+
+- 195 ruff `F401`/`F841`/`RUF059` errors → 0 (`All checks passed!`)
+- Unused imports + unused locals + unpacked tuple cleanup
+- 154 auto-fixes via `--fix`, 41 via `--unsafe-fixes`, 1 manual
+
+**Cleanup pass** also closed G-005 (streaming docs/code mismatch),
+G-009 (PATCHES.md P72 row truncated), G-010 (rig-specific paths in
+scripts — partially closed with env-var override + README rationale
+for the 50+ deferred PROD launch scripts), G-011 (`bench_suffix_sweep`
+`speed_runs` computed but unused → biased Pareto ranking), G-012
+(Redis cache size off-by-N for stats keys), G-013 (PN16 broken doc
+reference to gitignored `docs/_internal/`), G-014 (TextPatcher
+Python-only marker — documented).
+
+### v7.65 — repo hygiene + community issue closeouts
+
+#### Community-reported bugs CLOSED
 
 - **#16 PN25 worker-fork crash** (BLOCKING real IDE-agent users on TQ3+
   spawn configs). Pre-check `torch.ops.genesis.silu_and_mul_pooled`
