@@ -1,137 +1,152 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Wiring for Patch N32 — GDN chunked-prefill (Cliff 2 fix).
+"""Wiring for Patch N32 v2 — GDN _forward_core chunked prefill (Cliff 2 fix).
 
 ================================================================
-Issue
-================================================================
-Reported by noonghunna in Genesis_internal_docs/CLIFF2_INVESTIGATION_20260430.md
-(forwarded from VolandBerlioz Reddit post on club-3090).
-
-On single 24GB GPU (1×3090 / 1×4090 / 1×5090) with prompts >50K tokens,
-GDN layer's `core_attn_out` allocation hits OOM:
-
-    File ".../vllm/model_executor/layers/mamba/gdn_linear_attn.py", line 588
-    core_attn_out = torch.zeros(
-        (num_tokens, self.num_v_heads // self.tp_size, self.head_v_dim),
-        dtype=hidden_states.dtype, device=hidden_states.device,
-    )
-    # 50K × 64 heads × 128 dim × 2 bytes = ~819 MiB per layer
-    # 30 GDN layers × 819 MiB = ~24 GiB persistent — fully consumes 24GB
-
-Cliff 1 fix (PN12 FFN intermediate pool) handles transient SiluAndMul
-activations. Cliff 2 is structurally different — it's the GDN layer's
-core_attn_out which CAN be chunked because:
-  - GDN forward is per-token modulo recurrent state
-  - `gdn_attention_core` custom op maintains state per layer-name
-  - Chunked calls to the same layer-name continue state seamlessly
-  - Output projection (norm + out_proj) is per-token, chunkable
-
-================================================================
-FIX
+v7.69 REDESIGN (club-3090#19 finding 3, 2026-05-02)
 ================================================================
 
-Text-patch on `forward_cuda` of `GatedDeltaNetAttention`:
+The v7.65 PN32 design chunked at the WRONG level. It patched the outer
+`GatedDeltaNetAttention.forward_cuda` and sliced `mixed_qkv/b/a` before
+calling `torch.ops.vllm.gdn_attention_core`. Inside `_forward_core`, the
+chunked call to `self.chunk_gated_delta_rule(...)` still received
+`attn_metadata.non_spec_query_start_loc` (FULL prompt cu_seqlens),
+`chunk_indices`, and `chunk_offsets` describing the FULL prompt — so
+the FLA kernel allocated `h = (B, NT_FULL, H, V, K)` regardless of the
+chunked outer slice.
 
-When `num_tokens > THRESHOLD` (default 16K, env-tunable), split the
-core attention + post-projection block into chunks of CHUNK_SIZE
-(default 8K). For each chunk:
-  1. Allocate transient core_attn_out at chunk shape (~130 MiB at
-     8K × 64 × 128 × 2)
-  2. Call gdn_attention_core for the chunk (state continues from
-     prior chunk via layer-name keyed cache)
-  3. Run norm + out_proj per chunk, writing to output[start:end]
-  4. Chunk buffer goes out of scope, freed before next iteration
-
-When `num_tokens <= THRESHOLD`, fall through to existing path
-(P28 pool or torch.zeros). NO regression on normal workloads.
+Cross-rig empirical evidence: noonghunna 2026-05-02 reported PN32 v1
+OOMing EARLIER (30K) than baseline (50-60K) because the chunked outer
+loop added control-flow overhead WITHOUT reducing the inner allocation.
 
 ================================================================
-PEAK MEMORY MATH
+v7.69 v2 DESIGN
 ================================================================
 
-Without PN32 (current behavior at 50K tokens, 30 layers):
-  - Each layer holds 50000 × 64 × 128 × 2 = 819 MiB persistent
-  - 30 layers = 24.6 GiB → OOM on 24GB card
+Patch `_forward_core` directly. Wrap the prefill branch's
+`self.chunk_gated_delta_rule(...)` call with a chunk-aware loop that:
 
-With PN32 (chunk_size=8K):
-  - Each layer transient: 8000 × 64 × 128 × 2 = 131 MiB per call
-  - Released between chunks
-  - Peak across loop iterations: ~131 MiB × number-of-active-tensors-in-scope
-  - 30 layers × 131 MiB = 3.9 GiB peak (vs 24.6 GiB) — 6× reduction
+1. Detects single-sequence prefill (`non_spec_query_start_loc.shape[0]
+   == 2`, i.e. one [0, T] entry). Multi-sequence prefill bypasses to
+   original (correct chunking would require slicing across sequence
+   boundaries — out of scope).
+
+2. For T > THRESHOLD (default 16384), splits into chunks of CHUNK_SIZE
+   (default 8192). Per chunk:
+   - Slice query/key/value/g/beta along T dim (dim=1, since shape is
+     `(1, T, H, D)` after unsqueeze in the caller).
+   - Build chunk-local `cu_seqlens=[0, chunk_len]` (1-tensor on the
+     same device as query).
+   - Pass `chunk_indices=None, chunk_offsets=None` — FLA recomputes
+     internally from cu_seqlens.
+   - Thread `initial_state`: first chunk uses computed initial_state;
+     subsequent chunks use the prior chunk's `last_recurrent_state`.
+   - Set `output_final_state=True` always (we need it for chaining;
+     last chunk's final_state goes into ssm_state cache as before).
+
+3. Concatenate chunk outputs along dim=1 → `core_attn_out_non_spec`
+   matching the original full-shape output.
+
+4. Persist `last_recurrent_state` (from final chunk) into `ssm_state`
+   cache exactly as the original.
+
+================================================================
+COMPOSITION WITH P103 (RECOMMENDED — both default OFF)
+================================================================
+
+PN32 v2 chunks at the OUTER FLA boundary (call to
+`chunk_gated_delta_rule`). P103 chunks INSIDE FLA's
+`chunk_gated_delta_rule_fwd` (the kernel orchestrator), splitting the
+inner `h = k.new_empty(B, NT, H, V, K)` allocation.
+
+The two are COMPLEMENTARY, not redundant:
+
+- **PN32 alone**: reduces the OUTPUT buffer size per call
+  (`core_attn_out_non_spec`: 8K × 64 × 128 × 2 = 131 MiB per chunk vs
+  full-prompt 819 MiB at 50K). Reduces transient peak inside one layer.
+
+- **P103 alone**: reduces the INNER `h` tensor inside
+  `chunk_gated_delta_rule_fwd` (the recurrent state buffer:
+  200 MiB per FLA-internal sub-T at MAX_T=16K vs full 805 MiB at 64K).
+
+- **PN32 + P103**: PN32 calls FLA with chunk-sized inputs, FLA's
+  `chunk_gated_delta_rule_fwd` (now wrapped by P103) further splits if
+  the chunk is still > P103's MAX_T. Best memory profile.
+
+Recommended for single-24GB-GPU users hitting Cliff 2:
+
+    GENESIS_ENABLE_P103=1                              # required
+    GENESIS_ENABLE_PN32_GDN_CHUNKED_PREFILL=1          # recommended
+    GENESIS_PN32_GDN_CHUNK_SIZE=8192                   # default
+    GENESIS_PN32_GDN_CHUNK_THRESHOLD=16384             # default
+    GENESIS_FLA_FWD_H_MAX_T=16384                      # P103 default
+
+================================================================
+DEPENDENCIES
+================================================================
+
+- **Hard requirement**: NONE (PN32 v2 functions standalone — chunks
+  the outer call independently).
+- **Strong recommendation**: enable P103 simultaneously. Without P103,
+  each PN32 chunk still allocates the inner `h` tensor at chunk-T
+  size; for chunk_size=8K that's 200 MiB which is fine, but P103
+  composes for additional safety on very long contexts (>200K).
+- **Conflict**: P28 (legacy persistent buffer pool). P28 caches
+  `core_attn_out` per shape; PN32 allocates per-chunk transient. Pick
+  one — both modify overlapping code paths.
+
+================================================================
+THRESHOLD SEMANTICS
+================================================================
+
+`num_tokens` in `_forward_core` is `hidden_states.size(0)` — total
+batched tokens across all sequences in this forward call (continuous
+batching sum). PN32 v2 fires when:
+
+  num_tokens > GENESIS_PN32_GDN_CHUNK_THRESHOLD (default 16384)
+  AND single-sequence prefill (cu_seqlens shape == [2])
+  AND prefill branch (attn_metadata.num_prefills > 0)
+
+Multi-sequence prefill (continuous batching of N short prompts
+totaling > THRESHOLD) bypasses to original — correct chunking across
+sequence boundaries requires inner state-cache management not exposed
+at this layer.
 
 ================================================================
 SAFETY MODEL
 ================================================================
 
-- Default OFF (opt-in via GENESIS_ENABLE_PN32_GDN_CHUNKED_PREFILL=1)
-- Activation gated by num_tokens > GENESIS_PN32_GDN_CHUNK_THRESHOLD
-  (default 16384). Below threshold: existing path unchanged.
-- Pure text-patch, idempotent via marker
-- Anchor matches the exact `core_attn_out = (...)` allocation block
-  + the `torch.ops.vllm.gdn_attention_core(...)` call site
-- Drift-aware: if upstream rewrites GDN forward, anchor won't match
+- Default OFF (opt-in via `GENESIS_ENABLE_PN32_GDN_CHUNKED_PREFILL=1`)
+- Pure text-patch on `_forward_core` (idempotent via marker)
+- Single-sequence prefill only — multi-sequence bypasses (no risk of
+  wrong cross-sequence state mixing)
+- Anchor matches the EXACT prefill `if attn_metadata.num_prefills > 0:`
+  block from upstream (v0.20.1rc1.dev16+g7a1eb8ac2 reference)
+- Drift-aware: if upstream rewrites _forward_core, anchor won't match
   → SKIPPED, source stays vanilla
-- Cross-rig validation needed: our 2× A5000 PROD (TP=2) doesn't hit
-  Cliff 2 threshold; community single-GPU users are the target
-
-Threshold semantics (audit confirmed 2026-05-02)
-------------------------------------------------
-`num_tokens` in the patched `forward_cuda` is `hidden_states.size(0)`
-(upstream `gdn_linear_attn.py:530`) — the FIRST dimension of the
-batched input tensor. Under vLLM's continuous batching this is
-**total tokens in the current forward call** (sum across all
-sequences), NOT per-sequence tokens. So PN32 fires when batched
-prefill exceeds 16384 tokens — which is the correct behavior:
-
-- max_num_batched_tokens=4096 (typical): num_tokens ≤ 4K, never
-  triggers PN32 → zero overhead for high-throughput configs
-- max_num_batched_tokens=32768 + single >16K-token prompt prefill:
-  num_tokens > 16K → PN32 chunks
-- 5 short sequences batched (5 × 4K = 20K total): num_tokens > 16K
-  → PN32 chunks (each chunk size 8K processes a slice of the
-  concatenated batch). State-continuity caveat: chunks span
-  sequence boundaries within a batch — gdn_attention_core's
-  layer-name-keyed cache handles this because it tracks per-layer
-  state, not per-sequence. Verified against upstream
-  chunked-prefill behavior which uses the same mechanism.
-
-State continuity assumption
----------------------------
-`torch.ops.vllm.gdn_attention_core` maintains per-layer state via
-`_encode_layer_name(self.prefix)` argument. Chunked calls to the same
-layer continue state through the layer-name keyed cache (this is how
-upstream chunked-prefill already works). PN32 just exercises this
-mechanism more aggressively at long contexts.
-
-If state doesn't propagate correctly between chunks, output would have
-detectable distribution drift in last-tokens-of-each-chunk vs reference
-single-pass. Use Wasserstein test (T4.4) to validate.
+- Numerical correctness: chained `last_recurrent_state` propagation
+  preserves recurrent state across chunks (same mechanism FLA uses
+  internally for chunk_indices/chunk_offsets). Validated by tiny-
+  tensor unit test (synthetic dims, single-sequence comparison vs
+  unchunked reference).
 
 ================================================================
-LIMITATIONS / KNOWN UNKNOWNS
+HISTORY
 ================================================================
 
-1. **State continuity unverified across chunks empirically.** Logic
-   says it should work (gdn_attention_core uses layer-name state cache),
-   but no test we've run reproduces Cliff 2 conditions. Cross-rig
-   validation by noonghunna or similar single-GPU operator required
-   before promoting default-on.
+- v7.65 (2026-05-01): initial PN32 patching `forward_cuda` outer.
+  Tested only on 2× A5000 PROD (TP=2, doesn't hit Cliff 2). Cross-rig
+  validation by noonghunna on 1× 3090 (2026-05-02) revealed the
+  metadata-mismatch bug: chunking outer didn't propagate to the inner
+  FLA call's cu_seqlens/chunk_indices.
 
-2. **Norm + out_proj per chunk** assumes RMSNorm is per-token (true
-   for Qwen3.5/3.6 GDN). If model uses cross-token-aware norm, output
-   would differ from single-pass.
-
-3. **Chunk size choice**: 8K default is conservative. Larger chunks
-   reduce overhead but use more transient memory. 4K reduces peak by
-   another 2× at ~negligible compute overhead.
-
-4. **NOT a fix for prompts within budget**: if 50K prompt fits in
-   memory-utilization budget, PN32 is wasted overhead (~5-10% per-token
-   from extra Python control flow). Default OFF protects this case.
+- v7.69 v2 (2026-05-02): rewritten to chunk `_forward_core` directly,
+  with chunk-local cu_seqlens and threaded initial_state. Composes
+  with P103 (P103 = inner FLA-kernel chunking; PN32 = outer
+  FLA-call chunking). Documented dependencies + composition matrix.
 
 Author: Sandermage(Sander) Barzov Aleksandr, Ukraine, Odessa.
-Reporter: noonghunna (CLIFF2_INVESTIGATION_20260430.md).
-Reference: Genesis_internal_docs/CLIFF2_INVESTIGATION_20260430.md.
+Reporter: noonghunna (CLIFF2_INVESTIGATION_20260430.md +
+                       club-3090#19 cross-rig finding 3, 2026-05-02).
 """
 from __future__ import annotations
 
@@ -147,158 +162,188 @@ from vllm._genesis.wiring.text_patch import (
 log = logging.getLogger("genesis.wiring.pN32_gdn_chunked_prefill")
 
 GENESIS_PN32_MARKER = (
-    "Genesis PN32 GDN chunked-prefill (Cliff 2 fix) v7.65"
+    "Genesis PN32 v2 GDN _forward_core chunked-prefill (Cliff 2 fix) v7.69"
 )
 
 
-# ─── Anchor: existing core_attn_out + gdn_attention_core block ──────
-# Matches the EXACT allocation pattern + call. Indentation: 8 spaces
-# (inside forward_cuda method body).
+# ─── Anchor: prefill branch in _forward_core (v0.20.1rc1.dev16) ─────
+# Matches the EXACT 27-line block of the prefill `if
+# attn_metadata.num_prefills > 0:` branch from
+# `model_executor/layers/mamba/gdn_linear_attn.py:_forward_core`.
 
 PN32_ANCHOR = (
-    # NOTE: anchor matches the ORIGINAL upstream pattern (without P28's
-    # persistent buffer indirection). PN32 conflicts with P28 because both
-    # text-patch the same lines. Operator must choose one or the other:
-    # - P28: persistent pool, optimal for normal-length workloads
-    # - PN32: chunked transient, optimal for long-prompt single-stream
-    "        core_attn_out = torch.zeros(\n"
-    "            (num_tokens, self.num_v_heads // self.tp_size, self.head_v_dim),\n"
-    "            dtype=hidden_states.dtype,\n"
-    "            device=hidden_states.device,\n"
-    "        )\n"
-    "\n"
-    "        torch.ops.vllm.gdn_attention_core(\n"
-    "            mixed_qkv,\n"
-    "            b,\n"
-    "            a,\n"
-    "            core_attn_out,\n"
-    "            _encode_layer_name(self.prefix),\n"
-    "        )\n"
-    "\n"
-    "        # ============================================================\n"
-    "        # Part 3: Output Projection\n"
-    "        # ============================================================\n"
-    "        z_shape_og = z.shape\n"
-    "        # Reshape input data into 2D tensor\n"
-    "        core_attn_out = core_attn_out.reshape(-1, core_attn_out.shape[-1])\n"
-    "        z = z.reshape(-1, z.shape[-1])\n"
-    "        core_attn_out = self.norm(core_attn_out, z)\n"
-    "        core_attn_out = core_attn_out.reshape(z_shape_og)\n"
-    "        core_attn_out = rearrange(core_attn_out, \"... h d -> ... (h d)\")\n"
-    "        output[:num_tokens], _ = self.out_proj(core_attn_out)\n"
+    "        # 2.2: Process the remaining part\n"
+    "        if attn_metadata.num_prefills > 0:\n"
+    "            assert non_spec_state_indices_tensor is not None\n"
+    "            initial_state = ssm_state[non_spec_state_indices_tensor].contiguous()  # type: ignore[index]\n"
+    "            assert has_initial_state is not None\n"
+    "            initial_state[~has_initial_state, ...] = 0  # type: ignore[operator]\n"
+    "            (\n"
+    "                core_attn_out_non_spec,\n"
+    "                last_recurrent_state,\n"
+    "            ) = self.chunk_gated_delta_rule(\n"
+    "                q=query_non_spec,\n"
+    "                k=key_non_spec,\n"
+    "                v=value_non_spec,\n"
+    "                g=g_non_spec,\n"
+    "                beta=beta_non_spec,\n"
+    "                initial_state=initial_state,\n"
+    "                output_final_state=True,\n"
+    "                cu_seqlens=non_spec_query_start_loc,\n"
+    "                chunk_indices=attn_metadata.chunk_indices,\n"
+    "                chunk_offsets=attn_metadata.chunk_offsets,\n"
+    "                use_qk_l2norm_in_kernel=False,\n"
+    "            )\n"
+    "            # Init cache\n"
+    "            ssm_state[non_spec_state_indices_tensor] = last_recurrent_state.to(\n"
+    "                ssm_state.dtype\n"
+    "            )\n"
 )
 
 PN32_REPLACEMENT = (
-    "        # [Genesis PN32 Cliff 2 fix] Conditional chunked path for long\n"
-    "        # prompts. When num_tokens > THRESHOLD, allocates transient\n"
-    "        # chunk-sized core_attn_out instead of full-prompt-sized\n"
-    "        # persistent buffer. Closes Cliff 2 OOM on single-24GB-GPU\n"
-    "        # configs at >50K-token prompts (819 MiB per layer × 30 layers\n"
-    "        # = 24 GiB, fully saturates 24GB card).\n"
-    "        # See vllm/_genesis/wiring/hybrid/patch_N32_gdn_chunked_prefill.py\n"
-    "        # for full design + state-continuity correctness reasoning.\n"
-    "        import os as _genesis_pn32_os\n"
-    "        _genesis_pn32_enabled = _genesis_pn32_os.environ.get(\n"
-    "            'GENESIS_ENABLE_PN32_GDN_CHUNKED_PREFILL', ''\n"
-    "        ).strip().lower() in ('1', 'true', 'yes', 'on')\n"
-    "        try:\n"
-    "            _genesis_pn32_threshold = int(\n"
-    "                _genesis_pn32_os.environ.get(\n"
-    "                    'GENESIS_PN32_GDN_CHUNK_THRESHOLD', '16384'\n"
-    "                )\n"
-    "            )\n"
-    "        except (ValueError, TypeError):\n"
-    "            _genesis_pn32_threshold = 16384\n"
-    "        try:\n"
-    "            _genesis_pn32_chunk_size = int(\n"
-    "                _genesis_pn32_os.environ.get(\n"
-    "                    'GENESIS_PN32_GDN_CHUNK_SIZE', '8192'\n"
-    "                )\n"
-    "            )\n"
-    "        except (ValueError, TypeError):\n"
-    "            _genesis_pn32_chunk_size = 8192\n"
+    "        # 2.2: Process the remaining part\n"
+    "        if attn_metadata.num_prefills > 0:\n"
+    "            assert non_spec_state_indices_tensor is not None\n"
+    "            initial_state = ssm_state[non_spec_state_indices_tensor].contiguous()  # type: ignore[index]\n"
+    "            assert has_initial_state is not None\n"
+    "            initial_state[~has_initial_state, ...] = 0  # type: ignore[operator]\n"
     "\n"
-    "        if _genesis_pn32_enabled and num_tokens > _genesis_pn32_threshold:\n"
-    "            # ─── Chunked path: process in CHUNK_SIZE blocks ───\n"
-    "            # State continuity: gdn_attention_core uses layer-name keyed\n"
-    "            # cache, so successive chunks of same layer continue state\n"
-    "            # automatically (same mechanism as upstream chunked-prefill).\n"
-    "            for _genesis_pn32_start in range(0, num_tokens, _genesis_pn32_chunk_size):\n"
-    "                _genesis_pn32_end = min(\n"
-    "                    _genesis_pn32_start + _genesis_pn32_chunk_size, num_tokens\n"
+    "            # [Genesis PN32 v2 v7.69 chunked-prefill] Cliff 2 fix:\n"
+    "            # chunk the FLA call so the inner core_attn_out_non_spec\n"
+    "            # buffer is allocated per-chunk (not full-prompt). Composes\n"
+    "            # with P103 (P103 chunks INSIDE chunk_gated_delta_rule_fwd's\n"
+    "            # h tensor). Single-sequence prefill only — multi-sequence\n"
+    "            # bypasses to original since chunking across cu_seqlens\n"
+    "            # boundaries requires inner state-cache surgery not exposed\n"
+    "            # at this layer. See vllm/_genesis/wiring/hybrid/\n"
+    "            # patch_N32_gdn_chunked_prefill.py for full design notes.\n"
+    "            import os as _genesis_pn32_os\n"
+    "            _genesis_pn32_enabled = _genesis_pn32_os.environ.get(\n"
+    "                'GENESIS_ENABLE_PN32_GDN_CHUNKED_PREFILL', ''\n"
+    "            ).strip().lower() in ('1', 'true', 'yes', 'on')\n"
+    "            try:\n"
+    "                _genesis_pn32_threshold = int(\n"
+    "                    _genesis_pn32_os.environ.get(\n"
+    "                        'GENESIS_PN32_GDN_CHUNK_THRESHOLD', '16384'\n"
+    "                    )\n"
     "                )\n"
-    "                _genesis_pn32_chunk_len = _genesis_pn32_end - _genesis_pn32_start\n"
-    "                # Allocate transient chunk-sized core_attn_out\n"
-    "                _genesis_pn32_chunk_attn_out = torch.zeros(\n"
-    "                    (_genesis_pn32_chunk_len,\n"
-    "                     self.num_v_heads // self.tp_size,\n"
-    "                     self.head_v_dim),\n"
-    "                    dtype=hidden_states.dtype,\n"
-    "                    device=hidden_states.device,\n"
+    "            except (ValueError, TypeError):\n"
+    "                _genesis_pn32_threshold = 16384\n"
+    "            try:\n"
+    "                _genesis_pn32_chunk_size = int(\n"
+    "                    _genesis_pn32_os.environ.get(\n"
+    "                        'GENESIS_PN32_GDN_CHUNK_SIZE', '8192'\n"
+    "                    )\n"
     "                )\n"
-    "                # Compute attention for this chunk\n"
-    "                torch.ops.vllm.gdn_attention_core(\n"
-    "                    mixed_qkv[_genesis_pn32_start:_genesis_pn32_end],\n"
-    "                    b[_genesis_pn32_start:_genesis_pn32_end],\n"
-    "                    a[_genesis_pn32_start:_genesis_pn32_end],\n"
-    "                    _genesis_pn32_chunk_attn_out,\n"
-    "                    _encode_layer_name(self.prefix),\n"
-    "                )\n"
-    "                # Per-chunk norm + out_proj — RMSNorm is per-token,\n"
-    "                # safe to chunk\n"
-    "                _genesis_pn32_z_chunk = z[_genesis_pn32_start:_genesis_pn32_end]\n"
-    "                _genesis_pn32_z_shape_og = _genesis_pn32_z_chunk.shape\n"
-    "                _genesis_pn32_chunk_2d = _genesis_pn32_chunk_attn_out.reshape(\n"
-    "                    -1, _genesis_pn32_chunk_attn_out.shape[-1]\n"
-    "                )\n"
-    "                _genesis_pn32_z_2d = _genesis_pn32_z_chunk.reshape(\n"
-    "                    -1, _genesis_pn32_z_chunk.shape[-1]\n"
-    "                )\n"
-    "                _genesis_pn32_normed = self.norm(\n"
-    "                    _genesis_pn32_chunk_2d, _genesis_pn32_z_2d\n"
-    "                )\n"
-    "                _genesis_pn32_normed = _genesis_pn32_normed.reshape(\n"
-    "                    _genesis_pn32_z_shape_og\n"
-    "                )\n"
-    "                _genesis_pn32_normed = rearrange(\n"
-    "                    _genesis_pn32_normed, \"... h d -> ... (h d)\"\n"
-    "                )\n"
-    "                output[_genesis_pn32_start:_genesis_pn32_end], _ = (\n"
-    "                    self.out_proj(_genesis_pn32_normed)\n"
-    "                )\n"
-    "                # Explicit del helps allocator reuse chunk slot\n"
-    "                del _genesis_pn32_chunk_attn_out\n"
-    "                del _genesis_pn32_chunk_2d\n"
-    "                del _genesis_pn32_normed\n"
-    "        else:\n"
-    "            # ─── Original upstream path (no behavior change below threshold) ───\n"
-    "            # Anchor uses original pattern; conflicts with P28 — operator\n"
-    "            # must choose one or the other.\n"
-    "            core_attn_out = torch.zeros(\n"
-    "                (num_tokens, self.num_v_heads // self.tp_size, self.head_v_dim),\n"
-    "                dtype=hidden_states.dtype,\n"
-    "                device=hidden_states.device,\n"
+    "            except (ValueError, TypeError):\n"
+    "                _genesis_pn32_chunk_size = 8192\n"
+    "\n"
+    "            # Single-sequence detection: cu_seqlens shape [2] = one\n"
+    "            # [0, T] entry. Multi-seq has shape [N+1] for N>1.\n"
+    "            _genesis_pn32_T_full = int(query_non_spec.shape[1])\n"
+    "            _genesis_pn32_is_single_seq = (\n"
+    "                non_spec_query_start_loc is not None\n"
+    "                and non_spec_query_start_loc.shape[0] == 2\n"
+    "            )\n"
+    "            _genesis_pn32_should_chunk = (\n"
+    "                _genesis_pn32_enabled\n"
+    "                and _genesis_pn32_is_single_seq\n"
+    "                and _genesis_pn32_T_full > _genesis_pn32_threshold\n"
     "            )\n"
     "\n"
-    "            torch.ops.vllm.gdn_attention_core(\n"
-    "                mixed_qkv,\n"
-    "                b,\n"
-    "                a,\n"
-    "                core_attn_out,\n"
-    "                _encode_layer_name(self.prefix),\n"
-    "            )\n"
+    "            if _genesis_pn32_should_chunk:\n"
+    "                # ─── Chunked path: split FLA call into chunks ───\n"
+    "                _genesis_pn32_chunks = []\n"
+    "                _genesis_pn32_state = initial_state\n"
+    "                _genesis_pn32_last_state = None\n"
+    "                for _genesis_pn32_start in range(\n"
+    "                    0, _genesis_pn32_T_full, _genesis_pn32_chunk_size\n"
+    "                ):\n"
+    "                    _genesis_pn32_end = min(\n"
+    "                        _genesis_pn32_start + _genesis_pn32_chunk_size,\n"
+    "                        _genesis_pn32_T_full,\n"
+    "                    )\n"
+    "                    _genesis_pn32_chunk_len = (\n"
+    "                        _genesis_pn32_end - _genesis_pn32_start\n"
+    "                    )\n"
+    "                    # Slice along T dim (dim=1) — shape (1, T, H, D)\n"
+    "                    _genesis_pn32_q_chunk = query_non_spec[\n"
+    "                        :, _genesis_pn32_start:_genesis_pn32_end\n"
+    "                    ]\n"
+    "                    _genesis_pn32_k_chunk = key_non_spec[\n"
+    "                        :, _genesis_pn32_start:_genesis_pn32_end\n"
+    "                    ]\n"
+    "                    _genesis_pn32_v_chunk = value_non_spec[\n"
+    "                        :, _genesis_pn32_start:_genesis_pn32_end\n"
+    "                    ]\n"
+    "                    _genesis_pn32_g_chunk = g_non_spec[\n"
+    "                        :, _genesis_pn32_start:_genesis_pn32_end\n"
+    "                    ]\n"
+    "                    _genesis_pn32_beta_chunk = beta_non_spec[\n"
+    "                        :, _genesis_pn32_start:_genesis_pn32_end\n"
+    "                    ]\n"
+    "                    # Chunk-local cu_seqlens — single-seq, length = chunk_len\n"
+    "                    _genesis_pn32_chunk_cu_seqlens = torch.tensor(\n"
+    "                        [0, _genesis_pn32_chunk_len],\n"
+    "                        device=query_non_spec.device,\n"
+    "                        dtype=non_spec_query_start_loc.dtype,\n"
+    "                    )\n"
+    "                    # FLA call on chunk; output_final_state=True for chaining\n"
+    "                    (\n"
+    "                        _genesis_pn32_o_chunk,\n"
+    "                        _genesis_pn32_last_state,\n"
+    "                    ) = self.chunk_gated_delta_rule(\n"
+    "                        q=_genesis_pn32_q_chunk,\n"
+    "                        k=_genesis_pn32_k_chunk,\n"
+    "                        v=_genesis_pn32_v_chunk,\n"
+    "                        g=_genesis_pn32_g_chunk,\n"
+    "                        beta=_genesis_pn32_beta_chunk,\n"
+    "                        initial_state=_genesis_pn32_state,\n"
+    "                        output_final_state=True,\n"
+    "                        cu_seqlens=_genesis_pn32_chunk_cu_seqlens,\n"
+    "                        chunk_indices=None,\n"
+    "                        chunk_offsets=None,\n"
+    "                        use_qk_l2norm_in_kernel=False,\n"
+    "                    )\n"
+    "                    _genesis_pn32_chunks.append(_genesis_pn32_o_chunk)\n"
+    "                    # Thread state for next chunk\n"
+    "                    _genesis_pn32_state = _genesis_pn32_last_state\n"
+    "                    # Free chunk references (allocator can reuse)\n"
+    "                    del (\n"
+    "                        _genesis_pn32_q_chunk,\n"
+    "                        _genesis_pn32_k_chunk,\n"
+    "                        _genesis_pn32_v_chunk,\n"
+    "                        _genesis_pn32_g_chunk,\n"
+    "                        _genesis_pn32_beta_chunk,\n"
+    "                    )\n"
     "\n"
-    "            # ============================================================\n"
-    "            # Part 3: Output Projection\n"
-    "            # ============================================================\n"
-    "            z_shape_og = z.shape\n"
-    "            # Reshape input data into 2D tensor\n"
-    "            core_attn_out = core_attn_out.reshape(-1, core_attn_out.shape[-1])\n"
-    "            z = z.reshape(-1, z.shape[-1])\n"
-    "            core_attn_out = self.norm(core_attn_out, z)\n"
-    "            core_attn_out = core_attn_out.reshape(z_shape_og)\n"
-    "            core_attn_out = rearrange(core_attn_out, \"... h d -> ... (h d)\")\n"
-    "            output[:num_tokens], _ = self.out_proj(core_attn_out)\n"
+    "                core_attn_out_non_spec = torch.cat(\n"
+    "                    _genesis_pn32_chunks, dim=1\n"
+    "                )\n"
+    "                last_recurrent_state = _genesis_pn32_last_state\n"
+    "                del _genesis_pn32_chunks\n"
+    "            else:\n"
+    "                # ─── Original path (multi-seq, below threshold, or env off) ───\n"
+    "                (\n"
+    "                    core_attn_out_non_spec,\n"
+    "                    last_recurrent_state,\n"
+    "                ) = self.chunk_gated_delta_rule(\n"
+    "                    q=query_non_spec,\n"
+    "                    k=key_non_spec,\n"
+    "                    v=value_non_spec,\n"
+    "                    g=g_non_spec,\n"
+    "                    beta=beta_non_spec,\n"
+    "                    initial_state=initial_state,\n"
+    "                    output_final_state=True,\n"
+    "                    cu_seqlens=non_spec_query_start_loc,\n"
+    "                    chunk_indices=attn_metadata.chunk_indices,\n"
+    "                    chunk_offsets=attn_metadata.chunk_offsets,\n"
+    "                    use_qk_l2norm_in_kernel=False,\n"
+    "                )\n"
+    "            # Init cache\n"
+    "            ssm_state[non_spec_state_indices_tensor] = last_recurrent_state.to(\n"
+    "                ssm_state.dtype\n"
+    "            )\n"
 )
 
 
@@ -308,29 +353,37 @@ def _make_patcher() -> TextPatcher | None:
         return None
     return TextPatcher(
         patch_name=(
-            "PN32 model_executor/layers/mamba/gdn_linear_attn.py — "
-            "GDN forward_cuda chunked-prefill (Cliff 2 fix)"
+            "PN32 v2 model_executor/layers/mamba/gdn_linear_attn.py — "
+            "_forward_core chunked-prefill (Cliff 2 fix v7.69)"
         ),
         target_file=str(target),
         marker=GENESIS_PN32_MARKER,
         sub_patches=[
             TextPatch(
-                name="pN32_gdn_chunked_prefill",
+                name="pN32_v2_forward_core_chunked_prefill",
                 anchor=PN32_ANCHOR,
                 replacement=PN32_REPLACEMENT,
                 required=True,
             ),
         ],
         upstream_drift_markers=[
-            "[Genesis PN32",
-            # If upstream rewrites GDN forward, our anchor won't match
-            # → patcher reports drift, no-op apply
+            # Specific to v2's own insertion. Generic '[Genesis PN32'
+            # would false-positive if v1 ever existed alongside (it
+            # doesn't currently — v2 supersedes — but defensive).
+            "[Genesis PN32 v2 v7.69 chunked-prefill]",
         ],
     )
 
 
 def apply() -> tuple[str, str]:
-    """Apply PN32 — GDN chunked-prefill (text-patch)."""
+    """Apply PN32 v2 — _forward_core chunked-prefill (text-patch).
+
+    v7.69 v2 supersedes v7.65 v1. v1 chunked at the wrong level
+    (forward_cuda outer) and didn't propagate cu_seqlens — empirically
+    OOM'd EARLIER than baseline on club-3090 cross-rig. v2 chunks
+    inside _forward_core where chunk-local cu_seqlens can be built
+    correctly.
+    """
     from vllm._genesis.dispatcher import log_decision, should_apply
 
     decision, reason = should_apply("PN32")
@@ -349,12 +402,15 @@ def apply() -> tuple[str, str]:
     return result_to_wiring_status(
         result, failure,
         applied_message=(
-            "PN32 applied: GDN forward_cuda now uses conditional chunked "
-            "path for long prompts (>16K tokens default). Default OFF — "
-            "operators opt-in via GENESIS_ENABLE_PN32_GDN_CHUNKED_PREFILL=1. "
-            "Closes Cliff 2 OOM on single-24GB-GPU configs at >50K-token "
-            "prompts. Cross-rig validation needed (our 2×A5000 PROD with "
-            "TP=2 doesn't hit threshold)."
+            "PN32 v2 v7.69 applied: GDN _forward_core prefill branch "
+            "now uses single-seq chunked path for long prompts (>16K "
+            "tokens default). Chunks query/key/value/g/beta along T, "
+            "builds chunk-local cu_seqlens, threads initial_state via "
+            "last_recurrent_state. Multi-seq bypasses to original. "
+            "Default OFF — opt-in via GENESIS_ENABLE_PN32_GDN_"
+            "CHUNKED_PREFILL=1. Composes with P103 for full Cliff 2 "
+            "coverage on single-24GB-GPU (P103 chunks the inner FLA h "
+            "tensor; PN32 chunks the outer FLA call output buffer)."
         ),
-        patch_name="PN32 GDN chunked-prefill",
+        patch_name="PN32 v2 GDN _forward_core chunked-prefill",
     )

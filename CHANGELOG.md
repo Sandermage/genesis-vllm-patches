@@ -14,12 +14,97 @@ loud-and-clear in the per-release notes.
 
 ---
 
-## [Unreleased] — `v7.65 → v7.68` series
+## [Unreleased] — `v7.65 → v7.69` series
 
 > Pin: `0.20.1rc1.dev16+g7a1eb8ac2` (committed 2026-04-28).
 > Builds on v7.64 release with v7.65 hygiene + v7.66/v7.67/v7.68 patch
-> work + comprehensive audit pass. All on `dev` branch only (main
-> promotion deferred until cross-rig validation completes).
+> work + comprehensive audit pass + v7.69 cross-rig fix series. All on
+> `dev` branch only (main promotion deferred until cross-rig validation
+> completes).
+
+### v7.69 — close club-3090#19 cross-rig findings (2026-05-02)
+
+After v7.68 reached noonghunna's club-3090 1×3090 + 2×3090 rigs (commit
+`18e65e3`), three distinct issues surfaced. All three root-caused and
+fixed in v7.69. Tests: **1512 pass / 73 skip / 0 fail** (+18 new tests
+covering the three fixes).
+
+- **F1 — PN30 part3 drift-marker false-positive (CRITICAL).** Root
+  cause: `part3` declared generic `upstream_drift_markers=["[Genesis
+  PN30"]`. Because `part2` (separate `TextPatcher` in same `apply()`
+  call) inserts the substring `[Genesis PN30 issue #17]` into the same
+  file (`v1/worker/mamba_utils.py`), `part3`'s Layer 3 drift check
+  matched part2's own insertion and skipped with `upstream_merged` →
+  required-fail → vLLM aborts on first apply. Fix: tightened part3
+  drift markers to `[Genesis PN30 v7.68 dst-shaped]` (specific to
+  part3's own replacement comment). Re-runs unaffected because Layer 2
+  (idempotency marker) fires before Layer 3. 2 new regression tests
+  pin the fix.
+
+- **F2 — P103 setattr lost on `exec vllm serve` (HIGH).** Root cause:
+  P103 v7.62.20 was a pure-setattr monkey-patch. In noonghunna's
+  entrypoint pattern (`python3 -m vllm._genesis.patches.apply_all &&
+  exec vllm serve`), `apply_all` runs in the entrypoint shell process
+  and does `setattr(chunk_mod, "chunk_gated_delta_rule_fwd", wrapper)`.
+  Then `exec vllm serve` REPLACES the process image — the setattr is
+  gone. Workers spawn fresh, import the original
+  `chunk_gated_delta_rule_fwd`, hit Cliff 2 OOM at chunk.py:71
+  (`chunk_fwd_o(...)` after the inner h tensor was allocated).
+  
+  The "rebound at 0 caller sites" log noonghunna saw was a red herring
+  — internal callers in chunk.py resolve via `chunk_mod.__dict__` (which
+  we DID setattr), so 0 external aliases is normal. Log message rewritten.
+  
+  Fix: v7.69 introduces a **text-patch on `chunk.py` itself** that
+  appends a self-install hook at end of file. The hook checks
+  `GENESIS_ENABLE_P103=1` at module-import time and calls a new
+  `_genesis_p103_install_at_import(globals())` helper. This wraps
+  `chunk_gated_delta_rule_fwd` in the just-loaded module dict —
+  surviving any startup mechanism (entrypoint exec, worker spawn,
+  spawn-context multiprocessing). Legacy setattr step is preserved as
+  defense-in-depth for the current process. 11 new tests cover the
+  install helper, env gating, idempotency, missing deps soft-fail,
+  text-patch anchor, and v7.69 ordering.
+
+- **F3 — PN32 v1 chunked at wrong level (HIGH).** Root cause: PN32 v1
+  patched `forward_cuda` outer and sliced `mixed_qkv/b/a` before
+  calling `gdn_attention_core`. But inside `_forward_core`, the chunked
+  call to `self.chunk_gated_delta_rule(...)` still received
+  `attn_metadata.non_spec_query_start_loc` describing the FULL prompt
+  (PN32 v1 didn't slice metadata). FLA kernel allocated h based on
+  full T regardless of outer slice. Empirical evidence: PN32 v1 OOM'd
+  EARLIER (30K) than baseline (50-60K) — chunking overhead with no
+  inner allocation reduction.
+  
+  Fix: PN32 v2 (v7.69) **rewritten to patch `_forward_core` directly**.
+  Wraps the prefill branch's `self.chunk_gated_delta_rule(...)` call
+  with a chunk-aware loop:
+  
+  - Slices `query/key/value/g/beta` along T dim
+  - Builds chunk-local `cu_seqlens=[0, chunk_len]` per chunk
+  - Threads `initial_state` via prior chunk's `last_recurrent_state`
+  - Concatenates outputs along T (dim=1)
+  - Single-sequence prefill only — multi-seq bypasses to original
+    (chunking across cu_seqlens boundaries needs inner state-cache
+    surgery not exposed at this layer)
+  
+  PN32 v2 **composes with P103**: v2 chunks the OUTER FLA call, P103
+  chunks INSIDE FLA's `chunk_gated_delta_rule_fwd`. Together they
+  give full Cliff 2 coverage on single-24GB-GPU. 19 tests rewritten
+  for v2 semantics (anchor, replacement, threading, single-seq
+  detection, env gating, dependencies docstring).
+  
+  Recommended pairing for single-24GB-GPU Cliff 2:
+
+  ```bash
+  GENESIS_ENABLE_P103=1                              # required (closes inner h)
+  GENESIS_ENABLE_PN32_GDN_CHUNKED_PREFILL=1          # closes outer FLA call buffer
+  GENESIS_PN32_GDN_CHUNK_SIZE=8192                   # default
+  GENESIS_PN32_GDN_CHUNK_THRESHOLD=16384             # default
+  GENESIS_FLA_FWD_H_MAX_T=16384                      # P103 default
+  ```
+
+
 
 ### Live-validation matrix (all 4 configs on 2× A5000, 2026-05-02)
 

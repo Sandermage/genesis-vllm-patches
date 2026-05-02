@@ -221,3 +221,133 @@ def test_pn30_partial_application_handled():
     # apply() should handle partial application (part1 ok, part2 fails)
     # by logging warning, not silent inconsistent state
     assert "Partial" in src or "partial" in src or "part1" in src.lower()
+
+
+def test_pn30_part3_drift_markers_avoid_part2_false_positive():
+    """REGRESSION: club-3090 finding 1 (2026-05-02 cross-rig).
+
+    PN30 part3 patches the same file (`v1/worker/mamba_utils.py`) as
+    part2. part2's REPLACEMENT inserts the substring `[Genesis PN30
+    issue #17]` (lines 198 and 214 of the patch file) BEFORE part3
+    runs in the same `apply()` call. If part3's `upstream_drift_markers`
+    contains the generic prefix `[Genesis PN30`, Layer 3 of TextPatcher
+    sees part2's insertion and skips part3 with `upstream_merged` →
+    required-fail → vLLM aborts on first apply.
+
+    This test pins part3's drift markers to be SPECIFIC enough that
+    they cannot match anything part1/part2 inserts in either file.
+    """
+    from vllm._genesis.wiring.spec_decode import (
+        patch_N30_ds_layout_spec_decode_align as mod,
+    )
+
+    # Build the live part3 patcher to inspect its drift markers.
+    # Use a tmpdir vllm tree so resolve_vllm_file doesn't fail.
+    import os
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as td:
+        worker_dir = os.path.join(td, "v1", "worker")
+        os.makedirs(worker_dir)
+        with open(os.path.join(worker_dir, "mamba_utils.py"), "w") as f:
+            f.write("# placeholder for resolve_vllm_file\n")
+
+        # Monkey-patch vllm_install_root to return our tmp tree
+        import vllm._genesis.guards as guards
+
+        orig_root = guards.vllm_install_root
+        guards.vllm_install_root = lambda: td
+        try:
+            patcher = mod._make_patcher_part3()
+        finally:
+            guards.vllm_install_root = orig_root
+
+    assert patcher is not None, "part3 patcher must build"
+
+    # Drift markers must NOT include the generic '[Genesis PN30' prefix.
+    # That prefix matches part2's own insertions in the same file.
+    assert "[Genesis PN30" not in patcher.upstream_drift_markers, (
+        "part3 drift_markers contains the generic '[Genesis PN30' "
+        "prefix — this false-positives because part2 inserts text "
+        "containing '[Genesis PN30 issue #17]' into the same file "
+        "BEFORE part3 runs. Use a part3-specific marker instead. "
+        "See club-3090#19 finding 1."
+    )
+
+    # All drift markers should be specific (long enough that they can't
+    # accidentally match part1/part2 insertions).
+    for marker in patcher.upstream_drift_markers:
+        assert len(marker) >= 20, (
+            f"drift marker {marker!r} is too short — risk of "
+            f"false-positive collision with sibling sub-patches"
+        )
+
+    # Sanity: part3's own replacement must contain at least one drift
+    # marker (so re-runs hit IDEMPOTENT via Layer 2 marker, not Layer 3).
+    # Layer 2 actually matches the wiring marker line at top of file,
+    # but the in-body insertion containing the drift marker is what
+    # operators look for to confirm the patch is live.
+    found = any(
+        marker in mod.PN30_PART3_REPLACEMENT
+        for marker in patcher.upstream_drift_markers
+    )
+    assert found, (
+        "at least one drift marker should match part3's own "
+        "replacement text (so future maintainers can grep for it)"
+    )
+
+
+def test_pn30_part3_apply_after_part2_does_not_false_skip():
+    """End-to-end: simulate part2 having applied, then part3 must not
+    skip with `upstream_merged`.
+
+    Builds a synthetic vllm tree with the part3 anchor + part2's
+    insertion already present (as if part2 just ran). Confirms part3
+    proceeds to anchor matching, not drift-skip.
+    """
+    import os
+    import tempfile
+    from vllm._genesis.wiring.spec_decode import (
+        patch_N30_ds_layout_spec_decode_align as mod,
+    )
+
+    with tempfile.TemporaryDirectory() as td:
+        worker_dir = os.path.join(td, "v1", "worker")
+        os.makedirs(worker_dir)
+        target_path = os.path.join(worker_dir, "mamba_utils.py")
+
+        # Synthesize file content: part2's insertion + part3's anchor.
+        # part2's insertion contains '[Genesis PN30 issue #17]' which
+        # would have false-positive'd part3's old generic drift marker.
+        synthetic = (
+            "# part2 just inserted this:\n"
+            "#         # [Genesis PN30 issue #17] Even on n==0, "
+            "opportunistic clear of\n"
+            "#         # leftover DS temp tensors (defensive — should "
+            "be empty).\n"
+            "\n"
+            + mod.PN30_PART3_ANCHOR
+        )
+        with open(target_path, "w") as f:
+            f.write(synthetic)
+
+        import vllm._genesis.guards as guards
+
+        orig_root = guards.vllm_install_root
+        guards.vllm_install_root = lambda: td
+        try:
+            patcher = mod._make_patcher_part3()
+            assert patcher is not None
+            result, failure = patcher.apply()
+        finally:
+            guards.vllm_install_root = orig_root
+
+    # Must be APPLIED, not SKIPPED with upstream_merged.
+    from vllm._genesis.wiring.text_patch import TextPatchResult
+
+    assert result == TextPatchResult.APPLIED, (
+        f"expected APPLIED, got {result} (failure={failure}). "
+        "If failure.reason == 'upstream_merged', the F1 fix has "
+        "regressed — part3 is again false-positive'ing on part2's "
+        "insertion. See club-3090#19 finding 1."
+    )

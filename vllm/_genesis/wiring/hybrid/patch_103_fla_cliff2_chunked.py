@@ -7,6 +7,42 @@ Backport-equivalent for the upstream `fla` package issue raised by
 by Sander 2026-04-28 per direct ask.
 
 ================================================================
+v7.69 INSTALL MODEL — text-patch + setattr (survives `exec vllm serve`)
+================================================================
+
+The v7.62.20 design installed only via `setattr(chunk_mod, ...)` from
+`apply()`. That works when `apply_all()` runs in the same process as
+`vllm serve` (e.g. via the genesis_vllm_plugin entry point). But it
+DIES on the entrypoint pattern:
+
+    python3 -m vllm._genesis.patches.apply_all   # apply runs in shell process
+    exec vllm serve "$@"                          # exec REPLACES the process
+
+`exec` discards the Python state. The setattr is gone. Workers spawn
+fresh, import the original `chunk_gated_delta_rule_fwd`, hit Cliff 2.
+
+Cross-rig finding: noonghunna club-3090#19 (2026-05-02) — `[Genesis]
+applied: P103` log appeared in entrypoint, but Cliff 2 still fired
+because the wrap was lost. Sub-finding: P103's "rebound at 0 caller
+sites" log is misleading — internal callers in chunk.py resolve via
+chunk_mod.__dict__ (which our setattr DID update), so 0 external
+callers is normal. The real problem was the process replacement.
+
+v7.69 fix: text-patch `chunk.py` to APPEND a self-install hook at end
+of file. The hook checks `GENESIS_ENABLE_P103=1` at module-import time
+and calls `_genesis_p103_install_at_import(globals())` which monkey-
+patches `chunk_gated_delta_rule_fwd` in the just-loaded module dict.
+
+Why this survives:
+- Text-patch modifies the file on disk (under vllm install root).
+- Workers spawn → import chunk.py → run our appended block → install
+  wrapper → ChunkGatedDeltaRuleFunction.forward's name lookup hits
+  the wrapper.
+- Setattr-based apply() is preserved as defense-in-depth (it still
+  helps the current process and any module that captured a stale
+  reference via `from .chunk import chunk_gated_delta_rule_fwd`).
+
+================================================================
 PROBLEM
 ================================================================
 
@@ -254,8 +290,190 @@ def _make_chunked_wrapper(
     return chunked_fwd
 
 
+def _genesis_p103_install_at_import(module_globals: Any) -> bool:
+    """Install the chunked-fwd wrapper into a chunk.py module's globals.
+
+    Called from the text-patched bottom of chunk.py at MODULE-IMPORT
+    TIME. Survives `exec vllm serve` and worker spawn because every
+    fresh import of chunk.py runs the appended block which calls this
+    helper.
+
+    Args:
+      module_globals: chunk.py's `globals()` dict (passed by the text-
+        patched call site). Must contain `chunk_gated_delta_rule_fwd`
+        and the closure deps below.
+
+    Returns:
+      True if wrapper installed (or was already installed), False if
+      installation skipped (env not set, deps missing, etc). Never
+      raises — failure paths log debug and return False so the
+      text-patched chunk.py keeps importing cleanly.
+    """
+    try:
+        if os.environ.get("GENESIS_ENABLE_P103", "").strip().lower() not in (
+            "1", "true", "yes", "on"
+        ):
+            return False
+
+        original = module_globals.get(_FN_NAME)
+        if original is None:
+            return False
+        if getattr(original, _GENESIS_P103_MARKER_ATTR, False):
+            # Already wrapped — idempotent.
+            return True
+
+        # Resolve closure deps from the module dict directly
+        try:
+            wrapper = _make_chunked_wrapper(
+                original_fwd=original,
+                chunk_local_cumsum=module_globals["chunk_local_cumsum"],
+                chunk_scaled_dot_kkt_fwd=module_globals[
+                    "chunk_scaled_dot_kkt_fwd"
+                ],
+                solve_tril=module_globals["solve_tril"],
+                recompute_w_u_fwd=module_globals["recompute_w_u_fwd"],
+                chunk_gated_delta_rule_fwd_h=module_globals[
+                    "chunk_gated_delta_rule_fwd_h"
+                ],
+                chunk_fwd_o_callable=module_globals["chunk_fwd_o"],
+                fla_chunk_size=module_globals.get("FLA_CHUNK_SIZE", 64),
+                suppress_level=module_globals.get("SUPPRESS_LEVEL", 0),
+            )
+        except KeyError as e:
+            log.debug(
+                "[Genesis P103 self-install] interface drift: "
+                "missing symbol in chunk.py module globals — %s", e,
+            )
+            return False
+
+        module_globals[_FN_NAME] = wrapper
+        log.info(
+            "[Genesis P103 self-install] wrapper installed in chunk.py "
+            "at module-import time (survives `exec vllm serve` + worker "
+            "spawn)"
+        )
+        return True
+    except Exception as e:  # noqa: BLE001
+        log.debug("[Genesis P103 self-install] non-fatal failure: %s", e)
+        return False
+
+
+# ─── v7.69 text-patch: append self-install hook to chunk.py ──────────
+#
+# Inserted at end of `vllm/model_executor/layers/fla/ops/chunk.py`.
+# Anchor is the last line of the file's last function definition; we
+# append after it. The hook runs every time chunk.py is imported (in
+# main process, in spawn workers, in any child interpreter) — so the
+# wrapper is installed regardless of how vllm was started.
+
+_P103_SELF_INSTALL_BLOCK = (
+    "\n\n"
+    "# ============================================================\n"
+    "# [Genesis P103 v7.69 self-install] — module-import-time hook\n"
+    "# ============================================================\n"
+    "# When GENESIS_ENABLE_P103=1, monkey-patch chunk_gated_delta_rule_fwd\n"
+    "# at module-import time so the chunked-h wrapper survives any startup\n"
+    "# mechanism: `exec vllm serve` from an entrypoint shell, worker\n"
+    "# spawn, etc. The v7.62.20 setattr-only path died on the entrypoint\n"
+    "# pattern (`python3 -m vllm._genesis.patches.apply_all && exec\n"
+    "# vllm serve`). See club-3090#19 finding 2 (2026-05-02).\n"
+    "#\n"
+    "# Lazy import — if vllm._genesis isn't on sys.path (test env, partial\n"
+    "# install), the try/except keeps chunk.py importable.\n"
+    "try:\n"
+    "    import os as _genesis_p103_os\n"
+    "    if _genesis_p103_os.environ.get(\n"
+    "        \"GENESIS_ENABLE_P103\", \"\"\n"
+    "    ).strip().lower() in (\"1\", \"true\", \"yes\", \"on\"):\n"
+    "        from vllm._genesis.wiring.hybrid.patch_103_fla_cliff2_chunked "
+    "import (\n"
+    "            _genesis_p103_install_at_import as "
+    "_genesis_p103_install,\n"
+    "        )\n"
+    "        _genesis_p103_install(globals())\n"
+    "except Exception:  # noqa: BLE001\n"
+    "    # Never break chunk.py import — Genesis is opt-in defense-in-depth.\n"
+    "    pass\n"
+)
+
+# Anchor: the last `elif SUPPRESS_LEVEL >= 3:` block of
+# `chunk_gated_delta_rule` function (chunk.py:128-234). After this `return`,
+# the rest of the file is just the high-level wrapper docstring + return —
+# safe to append after.
+_P103_SELF_INSTALL_ANCHOR = (
+    "    o, final_state = ChunkGatedDeltaRuleFunction.apply(\n"
+    "        q,\n"
+    "        k,\n"
+    "        v,\n"
+    "        g,\n"
+    "        beta,\n"
+    "        scale,\n"
+    "        initial_state,\n"
+    "        output_final_state,\n"
+    "        cu_seqlens,\n"
+    "        chunk_indices,\n"
+    "        chunk_offsets,\n"
+    "        use_qk_l2norm_in_kernel,\n"
+    "    )\n"
+    "    return o, final_state\n"
+)
+
+_P103_SELF_INSTALL_REPLACEMENT = (
+    _P103_SELF_INSTALL_ANCHOR + _P103_SELF_INSTALL_BLOCK
+)
+
+_GENESIS_P103_SELF_INSTALL_MARKER = (
+    "Genesis P103 self-install hook (v7.69, club-3090#19 finding 2)"
+)
+
+
+def _make_self_install_text_patcher():
+    """Build the v7.69 text-patch that appends the self-install hook to
+    chunk.py. Returns None if vllm tree is not resolvable."""
+    from vllm._genesis.guards import resolve_vllm_file
+    from vllm._genesis.wiring.text_patch import TextPatch, TextPatcher
+
+    target = resolve_vllm_file(
+        "model_executor/layers/fla/ops/chunk.py"
+    )
+    if target is None:
+        return None
+    return TextPatcher(
+        patch_name=(
+            "P103 model_executor/layers/fla/ops/chunk.py — self-install "
+            "hook (v7.69, club-3090#19 finding 2)"
+        ),
+        target_file=str(target),
+        marker=_GENESIS_P103_SELF_INSTALL_MARKER,
+        sub_patches=[
+            TextPatch(
+                name="p103_self_install_at_chunk_py_end",
+                anchor=_P103_SELF_INSTALL_ANCHOR,
+                replacement=_P103_SELF_INSTALL_REPLACEMENT,
+                required=True,
+            ),
+        ],
+        upstream_drift_markers=[
+            # Specific to our own insertion (re-runs hit Layer 2
+            # IDEMPOTENT first via the wiring marker).
+            "[Genesis P103 v7.69 self-install]",
+        ],
+    )
+
+
 def apply() -> tuple[str, str]:
     """Apply P103 — chunked fwd_h+fwd_o orchestrator wrap.
+
+    v7.69 strategy:
+      1. Apply text-patch on chunk.py (appends self-install hook).
+         This is the durable mechanism — survives `exec vllm serve`
+         and worker spawn because chunk.py on disk now imports our
+         install helper at every module load.
+      2. ALSO do the legacy setattr-based wrap on the current process
+         (defense-in-depth — helps modules that captured a stale
+         reference via `from .chunk import chunk_gated_delta_rule_fwd`,
+         and triggers the wrapper immediately if chunk.py was already
+         imported before our text-patch landed on disk).
 
     Never raises. Returns (status, reason).
     """
@@ -274,18 +492,68 @@ def apply() -> tuple[str, str]:
     except Exception as e:
         log.debug("[Genesis P103] model_detect probe failed (proceeding): %s", e)
 
+    # ─── Step 1 (v7.69): durable text-patch on chunk.py ─────────────
+    # This is what survives `exec vllm serve` + worker spawn.
+    text_patch_status = "skipped"
+    text_patch_reason = "vllm tree not resolvable"
+    try:
+        from vllm._genesis.guards import vllm_install_root
+        from vllm._genesis.wiring.text_patch import TextPatchResult
+
+        if vllm_install_root() is not None:
+            patcher = _make_self_install_text_patcher()
+            if patcher is not None:
+                result, failure = patcher.apply()
+                if result in (
+                    TextPatchResult.APPLIED,
+                    TextPatchResult.IDEMPOTENT,
+                ):
+                    text_patch_status = "applied" if (
+                        result == TextPatchResult.APPLIED
+                    ) else "idempotent"
+                    text_patch_reason = (
+                        "chunk.py self-install hook appended (survives "
+                        "`exec vllm serve` + worker spawn)"
+                    )
+                else:
+                    text_patch_status = "skipped"
+                    text_patch_reason = (
+                        f"text-patch did not land: "
+                        f"{failure.reason if failure else 'unknown'} — "
+                        f"{failure.detail if failure and failure.detail else 'unknown'}"
+                    )
+    except Exception as e:  # noqa: BLE001
+        log.debug("[Genesis P103] text-patch step non-fatal failure: %s", e)
+        text_patch_reason = f"text-patch raised: {e}"
+
+    # ─── Step 2 (legacy setattr): current-process wrap ──────────────
+    # Defense-in-depth — wraps the function in THIS process's chunk.py
+    # module dict, helping any module that already imported it (e.g.
+    # `from .chunk import chunk_gated_delta_rule_fwd` style aliases).
     import importlib
     try:
         chunk_mod = importlib.import_module(_TARGET_MODULE)
     except ImportError as e:
-        return "skipped", f"FLA module {_TARGET_MODULE!r} not available: {e}"
+        return (
+            "applied" if text_patch_status == "applied" else "skipped",
+            f"text-patch={text_patch_status} ({text_patch_reason}); "
+            f"setattr-step skipped (FLA module unavailable: {e})",
+        )
 
     original = getattr(chunk_mod, _FN_NAME, None)
     if original is None:
-        return "skipped", f"{_FN_NAME!r} not found in {_TARGET_MODULE!r}"
+        return (
+            "applied" if text_patch_status == "applied" else "skipped",
+            f"text-patch={text_patch_status} ({text_patch_reason}); "
+            f"setattr-step skipped ({_FN_NAME!r} not in {_TARGET_MODULE!r})",
+        )
 
     if getattr(original, _GENESIS_P103_MARKER_ATTR, False):
-        return "applied", "already wrapped (idempotent)"
+        return "applied", (
+            f"text-patch={text_patch_status} ({text_patch_reason}); "
+            f"setattr already idempotent (chunk.py self-install fired or "
+            f"prior apply still active in this process)"
+        )
 
     # Resolve closure dependencies — fail soft if any symbol moved
     try:
@@ -298,7 +566,12 @@ def apply() -> tuple[str, str]:
         FLA_CHUNK_SIZE = getattr(chunk_mod, "FLA_CHUNK_SIZE", 64)
         SUPPRESS_LEVEL = getattr(chunk_mod, "SUPPRESS_LEVEL", 0)
     except AttributeError as e:
-        return "skipped", f"P49 interface drift: missing symbol in chunk.py — {e}"
+        return (
+            "applied" if text_patch_status == "applied" else "skipped",
+            f"text-patch={text_patch_status} ({text_patch_reason}); "
+            f"setattr-step skipped (P49 interface drift: missing symbol "
+            f"in chunk.py — {e})",
+        )
 
     wrapper = _make_chunked_wrapper(
         original_fwd=original,
@@ -313,7 +586,10 @@ def apply() -> tuple[str, str]:
     )
 
     # Rebind in the defining module + walk sys.modules for any other
-    # callers that did `from .chunk import chunk_gated_delta_rule_fwd`
+    # callers that did `from .chunk import chunk_gated_delta_rule_fwd`.
+    # rebound_count is INFORMATIONAL — internal callers in chunk.py
+    # resolve via chunk_mod.__dict__ which we just updated, so 0 is
+    # normal. The count tracks only `from .chunk import X` style aliases.
     setattr(chunk_mod, _FN_NAME, wrapper)
     import sys
     rebound_count = 0
@@ -333,11 +609,15 @@ def apply() -> tuple[str, str]:
     max_t = max(int(os.environ.get("GENESIS_FLA_FWD_H_MAX_T", "16384")), 64)
     return (
         "applied",
-        f"P103 v7.62.20 applied: chunk.py::{_FN_NAME} wrapped with "
-        f"chunked fwd_h+fwd_o (MAX_T={max_t}, rebound at {rebound_count} "
-        f"caller sites). For T <= MAX_T or cu_seqlens != None, falls "
-        f"through to original. NO-OP for non-hybrid models. PEAK h "
-        f"allocation drops 4x at T=64K vs T=16K sub-chunks."
+        (
+            f"P103 v7.69 applied: text-patch={text_patch_status} "
+            f"({text_patch_reason}); setattr-step wrapped chunk.py::"
+            f"{_FN_NAME} (MAX_T={max_t}, rebound at {rebound_count} "
+            f"external alias sites — internal callers go through "
+            f"chunk_mod.__dict__ and resolve to wrapper). For "
+            f"T <= MAX_T or cu_seqlens != None, falls through to "
+            f"original. NO-OP for non-hybrid models."
+        ),
     )
 
 

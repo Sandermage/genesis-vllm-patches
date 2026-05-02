@@ -509,27 +509,41 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         },
     },
     "PN32": {
-        "title": "GDN chunked-prefill (Cliff 2 fix for single-24GB-GPU OOM)",
+        "title": "GDN _forward_core chunked-prefill v2 (Cliff 2 fix for single-24GB-GPU OOM)",
         "env_flag": "GENESIS_ENABLE_PN32_GDN_CHUNKED_PREFILL",
         "default_on": False,
         "category": "hybrid",
-        # NOTE: conflicts with P28 (legacy text-patch, not in dispatcher
-        # PATCH_REGISTRY so can't list here). Both patches text-patch same
-        # gdn_linear_attn.py:forward_cuda lines. Operator MUST disable P28
-        # before enabling PN32 — otherwise P28 modifies file first and
-        # PN32 anchor won't match (will skip with drift warning).
+        # NOTE: v2 (v7.69) supersedes v1 (v7.65). v1 chunked at the WRONG
+        # level (forward_cuda outer, didn't propagate cu_seqlens to inner
+        # FLA call → empirically OOM'd EARLIER on club-3090 cross-rig).
+        # v2 chunks _forward_core directly with chunk-local cu_seqlens
+        # and threaded initial_state. See club-3090#19 finding 3.
+        #
+        # COMPOSITION: v2 chunks the OUTER FLA call (chunk_gated_delta_rule).
+        # P103 chunks INSIDE chunk_gated_delta_rule_fwd's h tensor. Both
+        # default OFF, COMPLEMENTARY. Recommended together for single-24GB-
+        # GPU users hitting Cliff 2 (>50K single-prompt prefill on 1×3090
+        # /4090/5090).
+        #
+        # DEPENDENCY: P28 (legacy persistent buffer pool) conflicts with
+        # PN32 v2 — both modify gdn_linear_attn.py overlapping paths.
+        # Operator MUST disable P28 before enabling PN32. P28 not in this
+        # dispatcher (legacy), so can't declare via conflicts_with.
         "credit": (
-            "Genesis-original 2026-05-02 — Cliff 2 fix per noonghunna's "
-            "CLIFF2_INVESTIGATION_20260430.md. When num_tokens > 16384, "
-            "splits GDN forward_cuda core attention + post-projection "
-            "into chunks of 8192 (default). Each chunk allocates ~131 "
-            "MiB transient core_attn_out instead of 819 MiB persistent "
-            "per layer. State continuity via layer-name keyed cache "
-            "(same mechanism as upstream chunked-prefill). Closes >50K-"
-            "token single-shot OOM on 1×3090/4090/5090 configs. "
-            "Threshold + chunk size both env-tunable. Default OFF — "
-            "operators opt-in. Cross-rig validation required (our "
-            "2×A5000 PROD doesn't hit Cliff 2 threshold)."
+            "Genesis-original v7.69 v2 (2026-05-02) — Cliff 2 fix per "
+            "noonghunna's CLIFF2_INVESTIGATION_20260430.md + cross-rig "
+            "club-3090#19 finding 3. v2 supersedes v1 (v7.65) which "
+            "chunked at wrong level. v2: when single-seq prefill T > "
+            "16384 (env-tunable), splits chunk_gated_delta_rule call "
+            "into chunks of 8192. Each chunk: slice query/key/value/g/"
+            "beta along T, build chunk-local cu_seqlens=[0, chunk_len], "
+            "thread initial_state via prior chunk's last_recurrent_state, "
+            "concat outputs. Multi-seq prefill bypasses to original. "
+            "Default OFF. Composes with P103 (P103 chunks INSIDE FLA "
+            "kernel; PN32 chunks the FLA CALL). Recommended pairing for "
+            "single-24GB-GPU Cliff 2: GENESIS_ENABLE_P103=1 + GENESIS_"
+            "ENABLE_PN32_GDN_CHUNKED_PREFILL=1. Cross-rig validation "
+            "required (our 2×A5000 PROD with TP=2 doesn't hit Cliff 2)."
         ),
         "upstream_pr": None,
         "applies_to": {

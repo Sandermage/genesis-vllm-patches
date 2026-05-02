@@ -458,6 +458,16 @@ def _make_patcher_part3() -> TextPatcher | None:
 
     This is the layout-correct fix. part1's old compact path is now
     fail-closed; this part3 path is the live route for DS+offset>0.
+
+    Drift-marker note (v7.68 hotfix): part3 patches the SAME file as
+    part2 (`v1/worker/mamba_utils.py`). part2's replacement inserts
+    the substring `[Genesis PN30 issue #17]` into that file, so a
+    generic `[Genesis PN30` drift marker would false-positive on
+    part3's first apply (after part2 runs in the same `apply()` call)
+    and fail with `upstream_merged`. Drift markers here must be
+    SPECIFIC to part3's own insertion or to known external sidecars.
+    Reported by noonghunna 2026-05-02 on club-3090 cross-rig test of
+    v7.68 commit `18e65e3`.
     """
     target = resolve_vllm_file("v1/worker/mamba_utils.py")
     if target is None:
@@ -478,8 +488,13 @@ def _make_patcher_part3() -> TextPatcher | None:
             ),
         ],
         upstream_drift_markers=[
-            "[Genesis PN30",
-            "club-3090: PN30 dst-shaped DS temp",  # noonghunna sidecar
+            # part3-specific marker (matches part3's own replacement
+            # comment) — re-runs hit Layer 2 (idempotency) before
+            # Layer 3 (drift), so this is correct.
+            "[Genesis PN30 v7.68 dst-shaped]",
+            # noonghunna's setup-time sidecar (different file, but if
+            # someone ports it inline this signal still works)
+            "club-3090: PN30 dst-shaped DS temp",
         ],
     )
 
