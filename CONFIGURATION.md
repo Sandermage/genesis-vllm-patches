@@ -240,6 +240,54 @@ response, with TTL and weighted hit-rate metrics.
 
 ---
 
+## Known config interactions (operator gotchas)
+
+### `--enable-prefix-caching` + TurboQuant + MTP K=3 long-context
+
+If your config has all of:
+
+- `--enable-prefix-caching` set
+- `--kv-cache-dtype turboquant_*` (k8v4, 3bit_nc, etc.)
+- `--speculative-config '{"method": "ngram"}'` with K=3 or `mtp` K=3
+- `--max-model-len ≥ 128K`
+
+then on hybrid GDN models (Qwen3.5/3.6 27B/35B) the combination has
+been observed to cause:
+
+1. **35B PROD**: `-30%` TPS regression (memory accounting, see
+   `feedback_p83_p84_p85_cache_no_cake.md` — neither P83 alone nor
+   P83+P84+P85+HASH=16 mitigate).
+2. **27B Lorbus INT4 (single-3090 / 1×24GB)**: DS conv state layout
+   error / mid-stream OOM during `propose_draft_token_ids` (reported
+   on `noonghunna/club-3090#16` 2026-05-01 by `kisimoff` and
+   `ampersandru`).
+
+**Recommended baseline**: drop `--enable-prefix-caching`. Re-bench
+without it before adding the flag back.
+
+If you NEED prefix caching on this stack:
+
+- Try `GENESIS_ENABLE_P83=1` + `GENESIS_ENABLE_P84=1` +
+  `GENESIS_ENABLE_P85=1` + `VLLM_KV_CACHE_HASH_BLOCK_SIZE=16` —
+  documented as the root-cause stack but also documented as **not
+  fully mitigating on 35B PROD**.
+- For 27B Lorbus + LCB v6 grammar workloads,
+  `GENESIS_ENABLE_PN30_DS_LAYOUT_SPEC_DECODE=1` addresses the DS
+  conv state crash specifically (cost: -3.2% TPS).
+
+### `--enforce-eager` as escape hatch for Cliff 1 mech B
+
+If you hit `inductor_cache/.../empty_strided_cuda(...)` OOM mid-prefill
+on long-text or long-vision configs (Cliff 1 mechanism B —
+`forward_native` inlined by Inductor), the immediate workaround is
+`--enforce-eager`. Costs cudagraph speedups but unblocks the engine.
+
+The proper fix is `GENESIS_ENABLE_PN25_SILU_INDUCTOR_SAFE=1` (PN25
+opaque-op pool) on the latest Genesis dev pin — see PN25 docstring
+for compatibility caveats.
+
+---
+
 ## Memory / batched-token caps (kernel-side)
 
 These cap kernel-side scratch buffers; useful when vLLM's
