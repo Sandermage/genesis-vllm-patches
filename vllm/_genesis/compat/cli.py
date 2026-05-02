@@ -52,6 +52,7 @@ _SUBCOMMAND_MAP: dict[str, str] = {
     "migrate":         "vllm._genesis.compat.migrate",
     # Deploy / share
     "recipe":          "vllm._genesis.compat.recipes",
+    "preset":          "vllm._genesis.compat.presets",
     # Community + telemetry + updates
     "plugins":         "vllm._genesis.compat.plugins",
     "telemetry":       "vllm._genesis.compat.telemetry",
@@ -79,6 +80,7 @@ _DESCRIPTIONS: dict[str, str] = {
     "categories":       "browse patches by category",
     "migrate":          "pin-bump runbook against an upstream-vllm clone",
     "recipe":           "save / load / share launch configurations",
+    "preset":           "curated launch bundles per (gpu × workload)",
     "plugins":          "community plugin entry-points (opt-in)",
     "telemetry":        "opt-in anonymized stats reporting",
     "update-channel":   "apt-style stable/beta/dev update channel",

@@ -96,6 +96,8 @@ GPU_SPECS: dict[str, dict] = {
     # Hopper
     "h100": {"bandwidth_gb_s": 3350, "l2_mb": 50, "sm": 132, "cc": (9, 0),
              "regime": "compute", "name_canonical": "H100"},
+    "h20": {"bandwidth_gb_s": 4000, "l2_mb": 60, "sm": 78, "cc": (9, 0),
+            "regime": "compute", "name_canonical": "H20"},
     "h200": {"bandwidth_gb_s": 4800, "l2_mb": 50, "sm": 132, "cc": (9, 0),
              "regime": "compute", "name_canonical": "H200"},
     # Blackwell (specs as of 2026 announcements)
