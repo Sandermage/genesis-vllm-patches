@@ -111,9 +111,13 @@ def test_pn33_register_in_apply_all():
         PATCH_REGISTRY as APPLY_REGISTRY,
     )
     names = [name for name, _ in APPLY_REGISTRY]
-    pn33 = [n for n in names if "PN33" in n]
+    # Match PN33 as standalone token (not substring) — PN34's title
+    # references PN33 ("companion to PN33"), so plain `"PN33" in n`
+    # would also match PN34's entry.
+    pn33 = [n for n in names if n.startswith("PN33 ")]
     assert len(pn33) == 1, (
-        f"PN33 not registered in apply_all, names: {names[:5]}"
+        f"PN33 not registered in apply_all, "
+        f"matching entries: {pn33}, all names: {names[:10]}"
     )
 
 

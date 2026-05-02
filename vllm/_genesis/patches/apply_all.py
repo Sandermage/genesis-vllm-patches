@@ -2033,6 +2033,51 @@ def apply_patch_67c_sparse_v() -> PatchResult:
 
 
 @register_patch(
+    "PN34 WorkspaceManager runtime lock relaxation (PN33 companion)"
+)
+def apply_patch_N34_workspace_lock_runtime_relax() -> PatchResult:
+    """Patch N34: relax strict WorkspaceManager runtime lock to WARN+grow.
+
+    Companion to PN33 — same bug class (workspace under-counted at
+    profile_run, real path needs more) but on the RUNTIME decode path
+    instead of the boot path.
+
+    PN33 closes the boot-time _dummy_sampler_run under-counting (warmup
+    correctly reserves K-token rejection-sampler footprint). But the
+    runtime decode path also has a workspace lock failure mode at
+    `turboquant_attn.py:1350:_decode_attention` on rare paths
+    (continuation-prefill into long context, MTP K=3 + decode mid-stream).
+
+    PN34 ports noonghunna's club-3090 setup-time sidecar
+    `patch_workspace_lock_disable.py` directly into Genesis. Relaxes
+    the strict AssertionError to a one-shot WARN + grow-anyway. Behavior
+    matches the pre-v0.20 path (workspace was just resized as needed;
+    the lock added the assertion at the Python boundary).
+
+    Status: default OFF. Engage when PN33 is on AND runtime decode
+    still hits workspace_lock crashes. Retires when vllm#40706
+    (TQ scratch dedup + reserve worst-case at warmup) merges upstream.
+
+    Credit: noonghunna club-3090 (commit 2b5ab4d).
+    """
+    name = "PN34 workspace lock runtime relaxation"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring.perf_hotfix import (
+            patch_N34_workspace_lock_runtime_relax,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_N34_workspace_lock_runtime_relax.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch(
     "PN33 spec-decode warmup K-aware sizing (vllm#37521 extended to MTP/ngram)"
 )
 def apply_patch_N33_spec_decode_warmup_k() -> PatchResult:

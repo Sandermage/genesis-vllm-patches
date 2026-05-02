@@ -103,48 +103,82 @@ from vllm._genesis.wiring.text_patch import (
 log = logging.getLogger("genesis.wiring.pn25_silu_inductor_safe_pool")
 
 GENESIS_PN25_MARKER = (
-    "Genesis PN25 SiluAndMul.forward_native opaque-op pool v7.66"
+    "Genesis PN25 SiluAndMul.forward_native import-time-cached "
+    "opaque-op pool v7.68"
 )
 
 
-# ─── Text-patch: replace SiluAndMul.forward_native body (v7.66) ─────
+# ─── Text-patch: 2 sub-patches on activation.py (v7.68) ─────────────
 #
-# v7.66 design (this file): dispatch through `get_op_callable()`
-# which returns a registered custom_op. The custom_op IS opaque to
-# Dynamo by virtue of `direct_register_custom_op` registration in
-# silu_and_mul_customop.py.
+# v7.68 design (this file): register the opaque op AT MODULE IMPORT
+# TIME of `activation.py` and cache the result as a module-level global
+# `_GENESIS_PN25_SILU_AND_MUL_OP`. The patched `forward_native` body
+# just reads that global — no `get_op_callable()` call from inside the
+# Dynamo trace context. Registration runs in eager Python during
+# worker model construction, BEFORE `profile_run` enters
+# `aot_compile_fullgraph`.
 #
-# v7.67 attempt — REJECTED on live test 2026-05-02
-# -------------------------------------------------
-# Tried `@torch.compiler.disable` decorator on the staticmethod with
-# direct pool-acquire body (no custom_op dispatch). Empirically failed
-# on Qwen3.6-27B + TQ k8v4 + MTP K=3 + cudagraph capture during model
-# load. Dynamo error from Worker_TP0/TP1:
+# Why this is strictly better than v7.66 (direct_register_custom_op)
+# ------------------------------------------------------------------
+# v7.66 still called `get_op_callable()` from inside `forward_native`
+# during the first dynamo trace, which triggered `Library` construction
+# inside the trace context. That was rejected on TP=1 spawn config:
 #
-#   torch._dynamo.exc.Unsupported: logging.Logger method not supported
-#   for non-export cases
+#   File ".../torch/_dynamo/polyfills/__init__.py", line 410, in
+#         instantiate_user_defined_class_object
+#     obj.__init__(*args, **kwargs)
 #
-# Stack trace showed Dynamo tracing INTO forward_native body despite
-# `@torch.compiler.disable`, hitting `log.info(...)` inside
-# `acquire_silu_out`. Hypothesis: `@torch.compiler.disable` on a
-# `@staticmethod` accessed through vLLM's `custom_op._forward_method`
-# dispatcher (`vllm/model_executor/custom_op.py:136`) does not
-# propagate — the dispatcher reaches the underlying function via
-# `getattr` bypassing the decorator's frame guard.
+# (Cross-rig finding by noonghunna on 1×3090 + Qwen3.6-27B + TQ3 +
+# MTP K=3 + TP=1 + spawn worker, club-3090 issue tracker 2026-05-02.)
 #
-# SGLang's working `@torch.compiler.disable` patterns are on
-# module-level functions (not staticmethods on classes called via
-# dispatchers), so the pattern doesn't transfer cleanly here.
+# v7.68 fix: text-patch activation.py to register at module import
+# time. Worker import of activation.py happens during model
+# construction in vLLM, BEFORE `profile_run` starts the dynamo trace
+# context. Registration runs in eager Python, never inside any trace.
+# Then `forward_native` body just reads the cached global; no
+# `Library`, no `infer_schema`, no decorator side effects from inside
+# the trace.
 #
-# v7.67 design left as future direction in silu_and_mul_customop.py
-# header — would need either (a) torch._dynamo.disable_recursive
-# usage, (b) direct rebind of `_forward_method` to a disabled wrapper
-# at SiluAndMul.__init__ time, or (c) module-level helper function
-# instead of staticmethod. None tested yet.
+# Original credit: noonghunna's `patch_pn25_genesis_register_fix.py`
+# (club-3090 commit a62ad78, 2026-05-01). Ported into Genesis to
+# eliminate the setup-time sidecar requirement on operator rigs.
 #
-# v7.66 (current): proven to work in 2-hour PROD run on the same
-# stack before this restart. Rolling back to it as the validated
-# state.
+# v7.66 (direct_register_custom_op) is preserved as the registration
+# implementation in `silu_and_mul_customop.py` — it's the right
+# mechanism, just shouldn't be called from inside the trace. v7.68
+# wires the call site, v7.66 wires the registration internals.
+
+# Sub-patch 1: insert import-time registration block after
+# `logger = init_logger(__name__)` in activation.py.
+PN25_IMPORT_ANCHOR = (
+    "logger = init_logger(__name__)\n"
+    "\n"
+    "\n"
+)
+
+PN25_IMPORT_REPLACEMENT = (
+    "logger = init_logger(__name__)\n"
+    "\n"
+    "# [Genesis PN25 v7.68] Register/cache the opaque silu_and_mul op\n"
+    "# while activation.py is imported in each spawned worker, BEFORE\n"
+    "# vLLM enters profile_run's aot_compile_fullgraph trace context.\n"
+    "# The patched SiluAndMul.forward_native body below reads only this\n"
+    "# cached global — never registers from inside a Dynamo trace, which\n"
+    "# was the v7.66 failure mode on TP=1 spawn workers.\n"
+    "try:\n"
+    "    from vllm._genesis.kernels.silu_and_mul_customop import (\n"
+    "        get_op_callable as _genesis_pn25_get_op_callable,\n"
+    "    )\n"
+    "    _GENESIS_PN25_SILU_AND_MUL_OP = _genesis_pn25_get_op_callable()\n"
+    "except Exception:\n"
+    "    _GENESIS_PN25_SILU_AND_MUL_OP = None\n"
+    "\n"
+    "\n"
+)
+
+# Sub-patch 2: replace SiluAndMul.forward_native body to read cached
+# module global. NO registration calls inside this body — they would
+# get traced by Dynamo during profile_run.
 PN25_FORWARD_NATIVE_ANCHOR = (
     "    @staticmethod\n"
     "    def forward_native(x: torch.Tensor) -> torch.Tensor:\n"
@@ -156,20 +190,14 @@ PN25_FORWARD_NATIVE_ANCHOR = (
 PN25_FORWARD_NATIVE_REPLACEMENT = (
     "    @staticmethod\n"
     "    def forward_native(x: torch.Tensor) -> torch.Tensor:\n"
-    "        \"\"\"PyTorch-native — Genesis PN25 routes through opaque\n"
-    "        custom op so torch.compile/Inductor cannot inline the FFN\n"
-    "        intermediate alloc; pool from FFNIntermediateCache instead.\n"
-    "        Falls back to vanilla math when registration unavailable.\n"
+    "        \"\"\"PyTorch-native — Genesis PN25 v7.68 routes through an\n"
+    "        opaque custom op cached at activation.py import time, BEFORE\n"
+    "        vLLM's aot_compile_fullgraph trace. Do not register custom\n"
+    "        ops here (would trigger Dynamo-Unsupported on spawn workers).\n"
     "        \"\"\"\n"
-    "        try:\n"
-    "            from vllm._genesis.kernels.silu_and_mul_customop import (\n"
-    "                get_op_callable as _genesis_pn25_get_op,\n"
-    "            )\n"
-    "            _genesis_pn25_op = _genesis_pn25_get_op()\n"
-    "            if _genesis_pn25_op is not None:\n"
-    "                return _genesis_pn25_op(x)\n"
-    "        except Exception:  # pragma: no cover — defensive fallback\n"
-    "            pass\n"
+    "        _genesis_pn25_op = _GENESIS_PN25_SILU_AND_MUL_OP\n"
+    "        if _genesis_pn25_op is not None:\n"
+    "            return _genesis_pn25_op(x)\n"
     "        d = x.shape[-1] // 2\n"
     "        return F.silu(x[..., :d]) * x[..., d:]\n"
 )
@@ -187,6 +215,16 @@ def _make_patcher() -> TextPatcher | None:
         target_file=str(target),
         marker=GENESIS_PN25_MARKER,
         sub_patches=[
+            # v7.68: import-time registration must come first so the
+            # global is defined BEFORE forward_native body references
+            # it. Both sub-patches required — half-applied state is
+            # incoherent (forward_native would NameError on the global).
+            TextPatch(
+                name="pN25_silu_and_mul_import_time_register",
+                anchor=PN25_IMPORT_ANCHOR,
+                replacement=PN25_IMPORT_REPLACEMENT,
+                required=True,
+            ),
             TextPatch(
                 name="pN25_silu_and_mul_forward_native_opaque",
                 anchor=PN25_FORWARD_NATIVE_ANCHOR,
@@ -196,12 +234,15 @@ def _make_patcher() -> TextPatcher | None:
         ],
         upstream_drift_markers=[
             "[Genesis PN25",
+            "_GENESIS_PN25_SILU_AND_MUL_OP",
+            # v7.65/v7.66 markers — if older marker present, this v7.68
+            # patch SHOULD replace cleanly via the standard idempotency
+            # path (different marker → re-apply). The drift markers
+            # below intentionally ALSO list older Genesis names so
+            # external re-apply tools can detect "already-Genesis" state.
+            "_genesis_pn25_op",
             "_genesis_pn25_cache",
             "_genesis_pn25_out",
-            # Older v7.65/v7.66 marker — if a pre-v7.67 PN25 marker is
-            # present in the file, current PN25 v7.67 should NOT replace
-            # it without explicit operator action (idempotency).
-            "_genesis_pn25_op",
             # If upstream lands silu_and_mul.out variant or rewrites
             # forward_native to use the C op directly, anchor will miss
             # naturally; these markers are extra belt-and-suspenders.

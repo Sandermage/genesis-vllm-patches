@@ -412,7 +412,49 @@ def get_op_callable():
 
     Used by the PN25 wiring patch to populate the replacement body.
     Caller is responsible for graceful degradation on None.
+
+    v7.68 trace-context guard
+    -------------------------
+    If this function is called from inside a Dynamo trace context
+    (e.g. v7.66 path where forward_native calls us during
+    profile_run.aot_compile_fullgraph), short-circuit to None BEFORE
+    attempting any `torch.library.Library` construction. v7.66 v3+
+    PN25 wiring should call this at activation.py module-import time
+    (before any trace context exists), but defense-in-depth in case
+    the wiring text-patch fails or anchor drifts and the legacy
+    `forward_native -> get_op_callable` path is exercised.
+
+    Returning None here makes the caller fall through to vanilla
+    `F.silu(x[..., :d]) * x[..., d:]` math instead of crashing the
+    engine with `instantiate_user_defined_class_object` Dynamo error.
     """
+    # v7.68 defense: if we're inside a torch.compile / Dynamo trace
+    # AND the op isn't already registered, do not attempt registration
+    # (would call `Library` constructor which Dynamo can't trace).
+    if not _op_registered:
+        try:
+            compiler = getattr(torch, "compiler", None)
+            if compiler is not None and getattr(compiler, "is_compiling", lambda: False)():
+                log.debug(
+                    "[PN25] get_op_callable called during torch.compile "
+                    "before registration; returning None (use import-time "
+                    "registration via PN25 v7.68 wiring instead)"
+                )
+                return None
+        except Exception:
+            pass
+        try:
+            dynamo = getattr(torch, "_dynamo", None)
+            if dynamo is not None and getattr(dynamo, "is_compiling", lambda: False)():
+                log.debug(
+                    "[PN25] get_op_callable called during Dynamo tracing "
+                    "before registration; returning None (use import-time "
+                    "registration via PN25 v7.68 wiring instead)"
+                )
+                return None
+        except Exception:
+            pass
+
     if not _register_op_once():
         return None
     try:

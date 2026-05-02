@@ -58,7 +58,9 @@ from vllm._genesis.wiring.text_patch import (
 
 log = logging.getLogger("genesis.wiring.p7b_gdn_dual_stream_customop")
 
-GENESIS_P7B_MARKER = "Genesis P7b GDN dual-stream custom_op v7.5"
+GENESIS_P7B_MARKER = (
+    "Genesis P7b GDN dual-stream custom_op import-time-cached v7.68"
+)
 
 # Drift markers: if upstream adds its own dual-stream via custom_op OR
 # via multi_stream framework, we self-retire.
@@ -66,9 +68,59 @@ UPSTREAM_DRIFT_MARKERS = [
     "dual_linear_parallel",
     "multi_stream_linear",
     "genesis::gdn_dual_gemm",
+    "_GENESIS_P7B_DUAL_LINEAR_OP",  # v7.68 marker
 ]
 
 
+# ─── v7.68 — sister fix to PN25 v7.68 (same bug class) ─────────────
+#
+# v7.5/v7.66 P7b had the same bug class as v7.66 PN25: registration
+# happens INSIDE the call site (`from ...customop import
+# dual_linear_parallel`), and the call site is reached during dynamo
+# tracing of `forward_cuda` under cudagraph capture. Worker spawn +
+# fresh interpreter + `Library` construction inside trace = same
+# Dynamo crash class:
+#
+#   torch._dynamo.exc.Unsupported: ... instantiate_user_defined_class_object
+#
+# Preventive fix (P7b is opt-in / default OFF, so noonghunna didn't hit
+# this — but anyone who flips `GENESIS_ENABLE_P7B_DUAL_STREAM_CUSTOM_OP=1`
+# on a TP=1 spawn config would). Same import-time pattern as PN25 v7.68:
+#   1. Sub-patch 1: insert at module-import time of `gdn_linear_attn.py`
+#      a try/except that calls `_register_op_once()` and caches result
+#      as `_GENESIS_P7B_DUAL_LINEAR_OP` module global.
+#   2. Sub-patch 2: replace the in_proj call body to read only the
+#      cached global (no import inside forward_cuda).
+#
+# Pattern credit: noonghunna's PN25 v3 fix on club-3090
+# (commit a62ad78, 2026-05-01). Applied preventively to P7b.
+
+# Sub-patch 1: insert import-time registration at module top.
+# Anchor: the import of GatedDeltaNet's surrounding helpers.
+_P7B_IMPORT_ANCHOR = (
+    "from vllm.distributed import get_tensor_model_parallel_world_size\n"
+    "\n"
+)
+
+_P7B_IMPORT_REPLACEMENT = (
+    "from vllm.distributed import get_tensor_model_parallel_world_size\n"
+    "\n"
+    "# [Genesis P7b v7.68] Register/cache the dual-stream custom op at\n"
+    "# module import time, BEFORE any cudagraph/torch.compile context.\n"
+    "# The patched in_proj call site below reads only this cached global.\n"
+    "# Same pattern as PN25 v7.68 (silu_and_mul) — fixes the dynamo\n"
+    "# 'instantiate_user_defined_class_object' crash class on TP=1 spawn.\n"
+    "try:\n"
+    "    from vllm._genesis.kernels.gdn_dual_stream_customop import (\n"
+    "        dual_linear_parallel as _genesis_p7b_dual_linear_op,\n"
+    "    )\n"
+    "    _GENESIS_P7B_DUAL_LINEAR_OP = _genesis_p7b_dual_linear_op\n"
+    "except Exception:\n"
+    "    _GENESIS_P7B_DUAL_LINEAR_OP = None\n"
+    "\n"
+)
+
+# Sub-patch 2: replace the call site to read the cached global.
 # Anchor: the back-to-back in_proj calls in the non-LoRA branch.
 # Matches the ORIGINAL upstream text (NOT the P7-patched variant —
 # if P7 is already applied, P7b will not find its anchor and will
@@ -79,21 +131,21 @@ _OLD_INPROJ = (
 )
 
 _NEW_INPROJ = (
-    "            # [Genesis P7b] Dual GEMM through torch.library.custom_op —\n"
-    "            # graph-safe (dynamo sees opaque node); runs GEMM-B on a\n"
-    "            # side CUDA stream while GEMM-A runs on current, rejoin via\n"
-    "            # stream wait_stream. Falls back to serial on non-CUDA or\n"
-    "            # env-off via `dual_linear_parallel`.\n"
-    "            from vllm._genesis.kernels.gdn_dual_stream_customop import (\n"
-    "                dual_linear_parallel as _genesis_dual_linear,\n"
-    "            )\n"
-    "            mixed_qkvz, ba = _genesis_dual_linear(\n"
-    "                hidden_states,\n"
-    "                self.in_proj_qkvz.weight,\n"
-    "                getattr(self.in_proj_qkvz, 'bias', None),\n"
-    "                self.in_proj_ba.weight,\n"
-    "                getattr(self.in_proj_ba, 'bias', None),\n"
-    "            )"
+    "            # [Genesis P7b v7.68] Dual GEMM through opaque op cached at\n"
+    "            # module import time (no registration inside forward — fixes\n"
+    "            # spawn-worker dynamo trace bug class). Falls back to serial\n"
+    "            # in_proj if op cache is None (CPU build / op disabled).\n"
+    "            if _GENESIS_P7B_DUAL_LINEAR_OP is not None:\n"
+    "                mixed_qkvz, ba = _GENESIS_P7B_DUAL_LINEAR_OP(\n"
+    "                    hidden_states,\n"
+    "                    self.in_proj_qkvz.weight,\n"
+    "                    getattr(self.in_proj_qkvz, 'bias', None),\n"
+    "                    self.in_proj_ba.weight,\n"
+    "                    getattr(self.in_proj_ba, 'bias', None),\n"
+    "                )\n"
+    "            else:\n"
+    "                mixed_qkvz, _ = self.in_proj_qkvz(hidden_states)\n"
+    "                ba, _ = self.in_proj_ba(hidden_states)"
 )
 
 
@@ -108,6 +160,16 @@ def _make_patcher() -> TextPatcher | None:
         target_file=target,
         marker=GENESIS_P7B_MARKER,
         sub_patches=[
+            # v7.68: import-time registration first so the global is
+            # defined BEFORE the in_proj call site references it. Both
+            # required — half-applied state would NameError on the
+            # global at the patched call site.
+            TextPatch(
+                name="p7b_import_time_register",
+                anchor=_P7B_IMPORT_ANCHOR,
+                replacement=_P7B_IMPORT_REPLACEMENT,
+                required=True,
+            ),
             TextPatch(
                 name="p7b_inproj_via_custom_op",
                 anchor=_OLD_INPROJ,

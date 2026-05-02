@@ -4,9 +4,9 @@ This file is the **single source of truth** for every Genesis runtime patch.
 For each patch you get: ID, title, what it does, status (ON / opt-in / deprecated),
 env flag to toggle, upstream PR (if backported), and credit.
 
-**Total PATCH_REGISTRY entries:** 99 (range P1–P103 + PN8–PN33 + sub-patches P5b/P7b/P15B/P18b/P38B/P39a/P67b/P67c/PN26b). The dispatcher's `PATCH_REGISTRY` is the schema-validated, lifecycle-tracked, opt-in surface — `genesis self-test` and the schema validator gate this set on every commit.
+**Total PATCH_REGISTRY entries:** 100 (range P1–P103 + PN8–PN34 + sub-patches P5b/P7b/P15B/P18b/P38B/P39a/P67b/P67c/PN26b). The dispatcher's `PATCH_REGISTRY` is the schema-validated, lifecycle-tracked, opt-in surface — `genesis self-test` and the schema validator gate this set on every commit.
 
-**Total apply_all `@register_patch`:** 98 entries. P68/P69 share one `apply_patch_68_long_ctx_tool_adherence` function but are registered as two `PATCH_REGISTRY` entries; that's the reason for the 1-entry delta. As of v7.65 (2026-05-02) all legacy P1–P46 patches are first-class registry entries with `lifecycle: legacy` — historical pre-dispatcher patches with minimal metadata, kept default-on for compatibility.
+**Total apply_all `@register_patch`:** 99 entries. P68/P69 share one `apply_patch_68_long_ctx_tool_adherence` function but are registered as two `PATCH_REGISTRY` entries; that's the reason for the 1-entry delta. As of v7.65 (2026-05-02) all legacy P1–P46 patches are first-class registry entries with `lifecycle: legacy` — historical pre-dispatcher patches with minimal metadata, kept default-on for compatibility.
 
 - **Source of truth:** `vllm/_genesis/dispatcher.py` `PATCH_REGISTRY` (range: P56-P103 + PN8-PN31, rich metadata) + `vllm/_genesis/patches/apply_all.py` `@register_patch` decorators (legacy P1-P55, dry-run diagnostic only).
 - **All patches default OFF unless explicitly noted.** Production launch script enables a curated set via env flags.
@@ -223,6 +223,25 @@ validation pending) and default-ON (root-cause correctness fixes).
 | PN31 | FA varlen persistent `out` buffer (sister to P38) | #15 | OFF | `GENESIS_ENABLE_PN31_FA_VARLEN_OUT` |
 | PN32 | GDN chunked-prefill (Cliff 2 single-24GB-GPU OOM) | noonghunna | OFF | `GENESIS_ENABLE_PN32_GDN_CHUNKED_PREFILL` |
 | PN33 | Spec-decode warmup K-aware (vllm#37521 extended to MTP/ngram) | ampersandru/noonghunna | **ON** | `GENESIS_ENABLE_PN33_SPEC_DECODE_WARMUP_K` (disable: `GENESIS_DISABLE_PN33_SPEC_DECODE_WARMUP_K=1`) |
+| PN34 | WorkspaceManager runtime lock relaxation (PN33 companion for runtime decode) | noonghunna | OFF | `GENESIS_ENABLE_PN34_WORKSPACE_LOCK_RELAX` |
+
+### v7.68 cross-rig fixes from noonghunna (2026-05-02)
+
+After v7.66 cross-rig validation by noonghunna + ChatGPT/Codex CLI on
+1× 3090 + 2× 3090, three real bugs in v7.66 were diagnosed and fixed
+in v7.68:
+
+| Bug | Root cause | Fix in v7.68 |
+|---|---|---|
+| PN30 layout corruption | `.contiguous()` produced compact buffer (10240×5) but destination strided full state_len (10240×6) → memcpy corrupted DS row strides on every offset>0 copy | New part3 patches `collect_mamba_copy_meta` to build dst-shaped temp via `state[dest].clone()` + tail copy. Old part1 path becomes fail-closed RuntimeError. |
+| PN25 v7.66 TP=1 spawn fail | `Library("genesis", "FRAGMENT")` constructed inside Dynamo trace context on TP=1 spawn config → `instantiate_user_defined_class_object` crash | Text-patch `activation.py` to register at module-import time (BEFORE any trace context). `forward_native` body reads only the cached module global. P7b extended with same pattern preventively. |
+| PN33 partial close | Boot-time warmup K-aware fix closes profile_run path but runtime decode `_decode_attention` workspace_lock still fires on rare paths | New PN34 — companion patch relaxing the strict runtime AssertionError to WARN+grow. Default OFF; engage when PN33 alone doesn't close. |
+
+Diagnosis credit: **noonghunna + ChatGPT/Codex CLI cross-check**
+([club-3090 commit 9af1a52](https://github.com/noonghunna/club-3090/commit/9af1a52),
+[a62ad78](https://github.com/noonghunna/club-3090/commit/a62ad78),
+[2b5ab4d](https://github.com/noonghunna/club-3090/commit/2b5ab4d), all
+on 2026-05-02).
 
 **PN33 is default-ON** because it's a root-cause correctness fix, not
 experimental. The vanilla `_dummy_sampler_run` warms the rejection

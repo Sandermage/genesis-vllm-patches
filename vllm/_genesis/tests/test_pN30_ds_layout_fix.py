@@ -63,7 +63,16 @@ def test_pn30_skips_when_env_off(monkeypatch):
 
 
 def test_pn30_part1_anchor_matches_upstream_pattern():
-    """Part1 anchor matches the exact NotImplementedError block."""
+    """Part1 anchor matches the exact NotImplementedError block.
+
+    v7.68: replacement is now a fail-closed RuntimeError, not the
+    v7.65 compact .contiguous() path. The .contiguous() approach
+    silently corrupted DS row strides because it lost destination
+    stride info. Fix moved to part3 (collect_mamba_copy_meta) where
+    dst block id is known and a dst-shaped temp can be built.
+    Part1's path becomes unreachable on the AL>1 + DS path; if
+    anything ever reaches it, we crash explicitly.
+    """
     from vllm._genesis.wiring.spec_decode.patch_N30_ds_layout_spec_decode_align import (
         PN30_PART1_ANCHOR, PN30_PART1_REPLACEMENT,
     )
@@ -72,15 +81,71 @@ def test_pn30_part1_anchor_matches_upstream_pattern():
     assert "DS conv state layout" in PN30_PART1_ANCHOR
     assert "num_accepted_tokens > 1" in PN30_PART1_ANCHOR
 
-    # Replacement: must use .contiguous() + module-level state
-    assert ".contiguous()" in PN30_PART1_REPLACEMENT
-    assert "_GENESIS_PN30_TEMP_TENSORS" in PN30_PART1_REPLACEMENT
-    assert "_GENESIS_PN30_FLAG" in PN30_PART1_REPLACEMENT
-    # No NotImplementedError in replacement
+    # v7.68 replacement: fail-closed RuntimeError instead of compact path
+    assert "raise RuntimeError" in PN30_PART1_REPLACEMENT
+    assert "collect_mamba_copy_meta" in PN30_PART1_REPLACEMENT
+    assert "v7.68" in PN30_PART1_REPLACEMENT
+    # The OLD compact-path approach must NOT be in EXECUTABLE code
+    # anymore (regression guard — would re-introduce the silent-
+    # corruption bug). Comment-mention OK (we explain why deprecated).
+    # Specific code patterns from v7.65 compact path:
+    assert "src_state = state[src_block_id, :, offset:].contiguous()" not in PN30_PART1_REPLACEMENT
+    assert "_GENESIS_PN30_TEMP_TENSORS.append" not in PN30_PART1_REPLACEMENT
+    # Original NotImplementedError must not survive either
     assert "raise NotImplementedError" not in PN30_PART1_REPLACEMENT
-    # Drift marker
-    assert "Genesis PN30" in PN30_PART1_REPLACEMENT
-    assert "issue #17" in PN30_PART1_REPLACEMENT
+
+
+def test_pn30_part3_dst_shaped_temp_is_layout_correct():
+    """v7.68 part3 builds dst-shaped temp on collect_mamba_copy_meta.
+
+    This is the layout-correct fix for DS+offset>0. Builds a temp
+    matching the destination block stride (via .clone()), patches
+    in only the source tail, then memcpys the full block. Preserves
+    DS row stride end-to-end.
+
+    Credit: noonghunna + ChatGPT/Codex CLI cross-check
+    (club-3090 commit 9af1a52, 2026-05-02).
+    """
+    from vllm._genesis.wiring.spec_decode.patch_N30_ds_layout_spec_decode_align import (
+        PN30_PART3_ANCHOR, PN30_PART3_REPLACEMENT,
+    )
+    # Anchor: target collect_mamba_copy_meta function
+    assert "def collect_mamba_copy_meta" in PN30_PART3_ANCHOR
+    assert "MambaCopyBuffers" in PN30_PART3_ANCHOR
+    assert "src_block_idx" in PN30_PART3_ANCHOR
+    assert "dest_block_idx" in PN30_PART3_ANCHOR
+
+    # Replacement: dst-shaped temp pattern
+    assert "v7.68" in PN30_PART3_REPLACEMENT
+    # Detect conv-copy via function identity + name fallback
+    assert "_GENESIS_PN30_GET_CONV_COPY_SPEC" in PN30_PART3_REPLACEMENT
+    assert "'get_conv_copy_spec'" in PN30_PART3_REPLACEMENT
+    # Dst-shaped temp construction
+    assert "tmp_state = state[dest_block_id].clone()" in PN30_PART3_REPLACEMENT
+    # Source tail copy preserves token offset
+    assert "tmp_state[..., :tail].copy_" in PN30_PART3_REPLACEMENT
+    assert "token_offset:token_offset + tail" in PN30_PART3_REPLACEMENT
+    # Tail computation
+    assert "tail = max(state_len - int(token_offset), 0)" in PN30_PART3_REPLACEMENT
+    # Lifecycle: append to PN30 temp tensor list (cleared by part2)
+    assert "_GENESIS_PN30_TEMP_TENSORS.append(tmp_state)" in PN30_PART3_REPLACEMENT
+    assert "_GENESIS_PN30_FLAG" in PN30_PART3_REPLACEMENT
+    # Memcpy entry uses tmp_state as source, full dst block as dst
+    assert "src_ptrs_np[offset] = tmp_state.data_ptr()" in PN30_PART3_REPLACEMENT
+    assert "dst_ptrs_np[offset] = state[dest_block_id].data_ptr()" in PN30_PART3_REPLACEMENT
+    # Defensive: state.dim() check + DS layout guard
+    assert "state.dim() >= 3" in PN30_PART3_REPLACEMENT
+    assert "_GENESIS_PN30_IS_CONV_STATE_DIM_FIRST" in PN30_PART3_REPLACEMENT
+    # num_accepted_tokens > 1 guard (don't fire on AL=1 fast path)
+    assert "num_accepted_tokens > 1" in PN30_PART3_REPLACEMENT
+
+
+def test_pn30_marker_bumped_to_v7_68():
+    """v7.68 marker bump signals that re-application supersedes v7.65."""
+    from vllm._genesis.wiring.spec_decode.patch_N30_ds_layout_spec_decode_align import (
+        GENESIS_PN30_MARKER,
+    )
+    assert "v7.68" in GENESIS_PN30_MARKER
 
 
 def test_pn30_part1b_inserts_module_level_state():

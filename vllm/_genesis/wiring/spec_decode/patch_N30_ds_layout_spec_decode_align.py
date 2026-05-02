@@ -91,12 +91,31 @@ from vllm._genesis.wiring.text_patch import (
 log = logging.getLogger("genesis.wiring.pN30_ds_layout_spec_decode")
 
 GENESIS_PN30_MARKER = (
-    "Genesis PN30 DS conv state + spec-decode AL>1 (issue #17) v7.65"
+    "Genesis PN30 DS conv state + spec-decode AL>1 (issue #17) v7.68"
 )
 
 
 # ─── Sub-patch 1: model_executor/layers/mamba/mamba_utils.py ────────
-# Replace the NotImplementedError raise with contiguous-copy fix.
+#
+# v7.68: replaced the v7.65 compact `.contiguous()` path with a
+# fail-closed RuntimeError. The v7.65 approach materialized
+# `state[src_block_id, :, offset:].contiguous()` (compact dim×(state_len-offset)
+# buffer) and raw-memcpy'd that into `state[dest_block_id]` — but the
+# destination block is strided by the FULL state_len. So row 1+ of the
+# compact source landed at wrong destination offsets, corrupting DS
+# conv state row strides on every offset>0 copy.
+#
+# The corrected fix lives in part3 (`collect_mamba_copy_meta`), where
+# both src AND dst block ids are known at the same callsite and a
+# dst-shaped temp can be built without losing destination stride. The
+# old part1 path becomes unreachable on the AL>1 + DS layout path; if
+# anything ever reaches it, fail closed with a clear error rather than
+# silently corrupt.
+#
+# Diagnosis credit: noonghunna + ChatGPT/Codex CLI cross-check
+# (club-3090 commit 9af1a52, 2026-05-02). The compact-temp approach
+# can't preserve DS layout because destination's stride information is
+# lost when you flatten to a compact buffer.
 
 PN30_PART1_ANCHOR = (
     "    if is_conv_state_dim_first():\n"
@@ -115,19 +134,22 @@ PN30_PART1_ANCHOR = (
 PN30_PART1_REPLACEMENT = (
     "    if is_conv_state_dim_first():\n"
     "        # DS layout: (num_blocks, dim, state_len) — state_len is last.\n"
-    "        # [Genesis PN30 issue #17 fix] Make non-contiguous slice contiguous\n"
-    "        # and retain reference until next batch (cleared by patched\n"
-    "        # do_mamba_copy_block after stream sync). Replaces the upstream\n"
-    "        # NotImplementedError that blocked all spec-decode AL>1 + DS configs.\n"
+    "        # [Genesis PN30 v7.68] DS offset>0 is handled in\n"
+    "        # collect_mamba_copy_meta (part3), where the destination block\n"
+    "        # id is known and a dst-shaped temp can preserve row strides.\n"
+    "        # If this path is reached, fail closed rather than corrupt.\n"
+    "        # See part3 patch + noonghunna club-3090 commit 9af1a52 for\n"
+    "        # the diagnosis of why the v7.65 compact .contiguous() path\n"
+    "        # silently corrupted DS conv state row strides.\n"
     "        if offset > 0:\n"
-    "            src_state = state[src_block_id, :, offset:].contiguous()\n"
-    "            try:\n"
-    "                _GENESIS_PN30_TEMP_TENSORS.append(src_state)\n"
-    "                _GENESIS_PN30_FLAG[0] = True\n"
-    "            except NameError:\n"
-    "                pass  # PN30 not loaded — defensive fallback\n"
-    "        else:\n"
-    "            src_state = state[src_block_id]\n"
+    "            raise RuntimeError(\n"
+    "                \"[Genesis PN30 v7.68] DS conv state offset>0 must be \"\n"
+    "                \"handled by collect_mamba_copy_meta's dst-shaped temp \"\n"
+    "                \"path; refusing compact copy that would corrupt row \"\n"
+    "                \"strides. PN30 part3 should be applied — check \"\n"
+    "                \"v1/worker/mamba_utils.py for marker.\"\n"
+    "            )\n"
+    "        src_state = state[src_block_id]\n"
 )
 
 # Sub-patch 1b: add module-level state for the temp-tensor list + flag.
@@ -208,6 +230,169 @@ PN30_PART2_REPLACEMENT = (
 )
 
 
+# ─── Sub-patch 3 (v7.68): collect_mamba_copy_meta dst-shaped temp ────
+#
+# This is the CORRECT fix for the DS layout + spec-decode AL>1 problem.
+# Both src AND dst block ids are available here, so we can build a temp
+# shaped like the destination block (preserving DS row stride) and patch
+# in only the source tail. Memcpy then sees a normal contiguous full-block
+# copy that lands at the right address.
+#
+# Algorithm:
+#   tmp = state[dest_block_id].clone()           # full dst-shaped temp
+#   tmp[..., :tail].copy_(state[src_block_id, ..., offset:offset+tail])
+#   memcpy: src=tmp.data_ptr(), dst=state[dest].data_ptr(), size=tmp.numel()*esz
+#
+# This preserves DS row stride end-to-end. Reuses PN30 part1's existing
+# `_GENESIS_PN30_TEMP_TENSORS` lifecycle (just changes the temp shape).
+#
+# Credit: noonghunna + ChatGPT/Codex CLI (club-3090 commit 9af1a52,
+# 2026-05-02). Validated on 1×3090 + 2×3090 across all 4 TQ3 composes,
+# probes 4 (multi-turn agent) + 5 (LCB-coding) pass cleanly with this
+# fix; both crashed with the v7.65 compact-temp path.
+
+PN30_PART3_ANCHOR = (
+    "def collect_mamba_copy_meta(\n"
+    "    copy_bufs: MambaCopyBuffers,\n"
+    "    kv_cache_config: KVCacheConfig,\n"
+    "    mamba_state_copy_funcs: tuple[MambaStateCopyFunc, ...],\n"
+    "    mamba_group_ids: list[int],\n"
+    "    src_block_idx: int,\n"
+    "    dest_block_idx: int,\n"
+    "    accept_token_bias: int,\n"
+    "    req_state: CachedRequestState,\n"
+    "    forward_context: dict[str, Any],\n"
+    ") -> None:\n"
+    "    if src_block_idx == dest_block_idx and accept_token_bias == 0:\n"
+    "        return\n"
+    "\n"
+    "    src_ptrs_np = copy_bufs.src_ptrs.np\n"
+    "    dst_ptrs_np = copy_bufs.dst_ptrs.np\n"
+    "    sizes_np = copy_bufs.sizes.np\n"
+    "    offset = copy_bufs.offset\n"
+    "\n"
+    "    for mamba_group_id in mamba_group_ids:\n"
+    "        block_ids = req_state.block_ids[mamba_group_id]\n"
+    "        dest_block_id = block_ids[dest_block_idx]\n"
+    "        layer_names = kv_cache_config.kv_cache_groups[mamba_group_id].layer_names\n"
+    "        for layer_name in layer_names:\n"
+    "            attention = forward_context[layer_name]\n"
+    "            kv_caches: list[torch.Tensor] = attention.kv_cache\n"
+    "            for state, state_copy_func in zip(kv_caches, mamba_state_copy_funcs):\n"
+    "                copy_spec = state_copy_func(\n"
+    "                    state, block_ids, src_block_idx, accept_token_bias + 1\n"
+    "                )\n"
+    "\n"
+    "                src_ptrs_np[offset] = copy_spec.start_addr\n"
+    "                dst_ptrs_np[offset] = state[dest_block_id].data_ptr()\n"
+    "                sizes_np[offset] = copy_spec.num_elements * state.element_size()\n"
+    "                offset += 1\n"
+    "\n"
+    "    copy_bufs.offset = offset\n"
+)
+
+PN30_PART3_REPLACEMENT = (
+    "def collect_mamba_copy_meta(\n"
+    "    copy_bufs: MambaCopyBuffers,\n"
+    "    kv_cache_config: KVCacheConfig,\n"
+    "    mamba_state_copy_funcs: tuple[MambaStateCopyFunc, ...],\n"
+    "    mamba_group_ids: list[int],\n"
+    "    src_block_idx: int,\n"
+    "    dest_block_idx: int,\n"
+    "    accept_token_bias: int,\n"
+    "    req_state: CachedRequestState,\n"
+    "    forward_context: dict[str, Any],\n"
+    ") -> None:\n"
+    "    if src_block_idx == dest_block_idx and accept_token_bias == 0:\n"
+    "        return\n"
+    "\n"
+    "    src_ptrs_np = copy_bufs.src_ptrs.np\n"
+    "    dst_ptrs_np = copy_bufs.dst_ptrs.np\n"
+    "    sizes_np = copy_bufs.sizes.np\n"
+    "    offset = copy_bufs.offset\n"
+    "    num_accepted_tokens = accept_token_bias + 1\n"
+    "\n"
+    "    # [Genesis PN30 v7.68 dst-shaped] Pull PN30 module-level state and\n"
+    "    # the conv-copy-spec function reference so we can detect the path\n"
+    "    # that needs the dst-shaped temp + bypass the compact-copy entry.\n"
+    "    try:\n"
+    "        from vllm.model_executor.layers.mamba.mamba_utils import (\n"
+    "            _GENESIS_PN30_FLAG,\n"
+    "            _GENESIS_PN30_TEMP_TENSORS,\n"
+    "            get_conv_copy_spec as _GENESIS_PN30_GET_CONV_COPY_SPEC,\n"
+    "            is_conv_state_dim_first as _GENESIS_PN30_IS_CONV_STATE_DIM_FIRST,\n"
+    "        )\n"
+    "    except (ImportError, AttributeError):\n"
+    "        _GENESIS_PN30_FLAG = None\n"
+    "        _GENESIS_PN30_TEMP_TENSORS = None\n"
+    "        _GENESIS_PN30_GET_CONV_COPY_SPEC = None\n"
+    "        _GENESIS_PN30_IS_CONV_STATE_DIM_FIRST = None\n"
+    "\n"
+    "    for mamba_group_id in mamba_group_ids:\n"
+    "        block_ids = req_state.block_ids[mamba_group_id]\n"
+    "        dest_block_id = block_ids[dest_block_idx]\n"
+    "        layer_names = kv_cache_config.kv_cache_groups[mamba_group_id].layer_names\n"
+    "        for layer_name in layer_names:\n"
+    "            attention = forward_context[layer_name]\n"
+    "            kv_caches: list[torch.Tensor] = attention.kv_cache\n"
+    "            for state, state_copy_func in zip(kv_caches, mamba_state_copy_funcs):\n"
+    "                # [Genesis PN30 v7.68] DS layout + offset>0 needs\n"
+    "                # dst-shaped temp to preserve row stride. Detect via\n"
+    "                # function identity (with __name__ fallback for import\n"
+    "                # cycles).\n"
+    "                _genesis_pn30_is_conv_copy = (\n"
+    "                    state_copy_func is _GENESIS_PN30_GET_CONV_COPY_SPEC\n"
+    "                    or getattr(state_copy_func, '__name__', '')\n"
+    "                    == 'get_conv_copy_spec'\n"
+    "                )\n"
+    "                if (\n"
+    "                    num_accepted_tokens > 1\n"
+    "                    and _genesis_pn30_is_conv_copy\n"
+    "                    and _GENESIS_PN30_IS_CONV_STATE_DIM_FIRST is not None\n"
+    "                    and _GENESIS_PN30_IS_CONV_STATE_DIM_FIRST()\n"
+    "                    and state.dim() >= 3\n"
+    "                ):\n"
+    "                    # Build dst-shaped temp; copy source tail into prefix.\n"
+    "                    # Memcpy lands the full block, preserving DS layout.\n"
+    "                    src_block_id = block_ids[src_block_idx]\n"
+    "                    token_offset = num_accepted_tokens - 1\n"
+    "                    state_len = int(state.shape[-1])\n"
+    "                    tail = max(state_len - int(token_offset), 0)\n"
+    "                    tmp_state = state[dest_block_id].clone()\n"
+    "                    if tail > 0:\n"
+    "                        tmp_state[..., :tail].copy_(\n"
+    "                            state[\n"
+    "                                src_block_id,\n"
+    "                                ...,\n"
+    "                                token_offset:token_offset + tail,\n"
+    "                            ]\n"
+    "                        )\n"
+    "                    if _GENESIS_PN30_TEMP_TENSORS is not None:\n"
+    "                        _GENESIS_PN30_TEMP_TENSORS.append(tmp_state)\n"
+    "                    if _GENESIS_PN30_FLAG is not None:\n"
+    "                        _GENESIS_PN30_FLAG[0] = True\n"
+    "\n"
+    "                    src_ptrs_np[offset] = tmp_state.data_ptr()\n"
+    "                    dst_ptrs_np[offset] = state[dest_block_id].data_ptr()\n"
+    "                    sizes_np[offset] = (\n"
+    "                        tmp_state.numel() * state.element_size()\n"
+    "                    )\n"
+    "                    offset += 1\n"
+    "                    continue\n"
+    "\n"
+    "                copy_spec = state_copy_func(\n"
+    "                    state, block_ids, src_block_idx, num_accepted_tokens\n"
+    "                )\n"
+    "\n"
+    "                src_ptrs_np[offset] = copy_spec.start_addr\n"
+    "                dst_ptrs_np[offset] = state[dest_block_id].data_ptr()\n"
+    "                sizes_np[offset] = copy_spec.num_elements * state.element_size()\n"
+    "                offset += 1\n"
+    "\n"
+    "    copy_bufs.offset = offset\n"
+)
+
+
 def _make_patcher_part1() -> TextPatcher | None:
     target = resolve_vllm_file(
         "model_executor/layers/mamba/mamba_utils.py"
@@ -268,8 +453,53 @@ def _make_patcher_part2() -> TextPatcher | None:
     )
 
 
+def _make_patcher_part3() -> TextPatcher | None:
+    """v7.68 dst-shaped temp patch on collect_mamba_copy_meta.
+
+    This is the layout-correct fix. part1's old compact path is now
+    fail-closed; this part3 path is the live route for DS+offset>0.
+    """
+    target = resolve_vllm_file("v1/worker/mamba_utils.py")
+    if target is None:
+        return None
+    return TextPatcher(
+        patch_name=(
+            "PN30 v1/worker/mamba_utils.py — collect_mamba_copy_meta "
+            "dst-shaped DS temp (issue #17, v7.68)"
+        ),
+        target_file=str(target),
+        marker=GENESIS_PN30_MARKER + " part3 dst-shaped-temp",
+        sub_patches=[
+            TextPatch(
+                name="pN30_collect_mamba_copy_meta_dst_shaped_temp",
+                anchor=PN30_PART3_ANCHOR,
+                replacement=PN30_PART3_REPLACEMENT,
+                required=True,
+            ),
+        ],
+        upstream_drift_markers=[
+            "[Genesis PN30",
+            "club-3090: PN30 dst-shaped DS temp",  # noonghunna sidecar
+        ],
+    )
+
+
 def apply() -> tuple[str, str]:
-    """Apply PN30 — DS layout spec-decode AL>1 fix (two-file text-patch)."""
+    """Apply PN30 v7.68 — DS layout spec-decode AL>1 fix (3-file text-patch).
+
+    v7.68 supersedes v7.65: part3 (dst-shaped temp on
+    collect_mamba_copy_meta) replaces the v7.65 compact `.contiguous()`
+    layout-correctness bug. part1 path is now fail-closed.
+
+    All three coordinated patches must apply. In particular, part3
+    bypasses PN30's original compact-temp path; without it, DS offset>0
+    would corrupt row strides. Treat any required-anchor skip as failed
+    when PN30 is explicitly enabled (operator picked an inconsistent
+    half-patched state).
+
+    Diagnosis credit (v7.68): noonghunna + ChatGPT/Codex CLI cross-check
+    on club-3090, 2026-05-02 (commit 9af1a52).
+    """
     from vllm._genesis.dispatcher import log_decision, should_apply
 
     decision, reason = should_apply("PN30")
@@ -280,50 +510,62 @@ def apply() -> tuple[str, str]:
     if vllm_install_root() is None:
         return "skipped", "vllm install root not discoverable"
 
-    # Both files must patch successfully — partial application would
-    # leave the system in inconsistent state (one half of the
-    # coordinated fix without the other).
+    # All three coordinated patches must be present.
     p1 = _make_patcher_part1()
     p2 = _make_patcher_part2()
-    if p1 is None or p2 is None:
+    p3 = _make_patcher_part3()
+    if p1 is None or p2 is None or p3 is None:
         return "skipped", (
             "target file(s) not resolvable — vllm tree may differ "
             "from expected layout"
         )
 
-    r1, f1 = p1.apply()
-    if r1 == TextPatchResult.FAILED:
-        return "failed", (
-            f"PN30 part1 (mamba_utils.py:get_conv_copy_spec) failed: "
-            f"{f1.detail if f1 else 'unknown'}"
-        )
+    patch_results = [
+        ("part1 mamba_utils.py:get_conv_copy_spec", *p1.apply()),
+        (
+            "part2 v1/worker/mamba_utils.py:do_mamba_copy_block",
+            *p2.apply(),
+        ),
+        (
+            "part3 v1/worker/mamba_utils.py:collect_mamba_copy_meta",
+            *p3.apply(),
+        ),
+    ]
+    for label, result, failure in patch_results:
+        if result not in (
+            TextPatchResult.APPLIED,
+            TextPatchResult.IDEMPOTENT,
+        ):
+            reason_text = failure.reason if failure else "unknown"
+            detail = (
+                failure.detail
+                if failure and failure.detail
+                else "unknown"
+            )
+            return "failed", (
+                f"PN30 {label} did not apply safely: "
+                f"{reason_text} — {detail}"
+            )
 
-    r2, f2 = p2.apply()
-    if r2 == TextPatchResult.FAILED:
-        # Partial patch state — log warning. Part1 stays applied;
-        # cleanup will not run but the contiguous() fix itself is
-        # correct (just leaks a small list of tensors per batch).
-        log.warning(
-            "[PN30] part2 (do_mamba_copy_block) failed: %s — part1 "
-            "applied but cleanup will not fire. Tensor list will grow "
-            "per batch until process restart. Recommend disabling PN30 "
-            "until both halves can apply.",
-            f2.detail if f2 else "unknown",
+    status_result = (
+        TextPatchResult.APPLIED
+        if any(
+            r == TextPatchResult.APPLIED for _, r, _ in patch_results
         )
-        return "failed", "PN30 partial application — see warning"
-
-    # Both halves applied (or skipped if anchors missing — drift-safe)
+        else TextPatchResult.IDEMPOTENT
+    )
     return result_to_wiring_status(
-        r1 if r1 != TextPatchResult.APPLIED else r2,
-        f1 if r1 != TextPatchResult.APPLIED else f2,
+        status_result,
+        None,
         applied_message=(
-            "PN30 applied: DS conv state layout + spec-decode AL>1 path "
-            "now uses contiguous-copy + delayed cleanup. Two-file patch — "
-            "mamba_utils.py:get_conv_copy_spec replaces NotImplementedError "
-            "with .contiguous() copy + temp-tensor list; "
-            "v1/worker/mamba_utils.py:do_mamba_copy_block adds stream sync "
-            "+ list clear after batch_memcpy when DS+offset>0 path used. "
-            "Closes issue #17. Cost: ~10-50us per batch when path active."
+            "PN30 v7.68 applied: DS conv state layout + spec-decode AL>1 "
+            "now uses collect_mamba_copy_meta dst-shaped temp blocks for "
+            "DS conv offset>0, preserving destination row stride. "
+            "get_conv_copy_spec fails closed if the collect-time bypass "
+            "is missed; do_mamba_copy_block keeps PN30's stream sync + "
+            "temp clear lifecycle. Supersedes v7.65 compact .contiguous() "
+            "approach which silently corrupted DS row strides "
+            "(diagnosed by noonghunna/ChatGPT-Codex 2026-05-02)."
         ),
         patch_name="PN30 DS layout + spec-decode AL>1",
     )

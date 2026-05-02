@@ -456,6 +456,28 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             # is only called when spec-decode is active. No additional gate.
         },
     },
+    "PN34": {
+        "title": "WorkspaceManager runtime lock relaxation (PN33 companion for runtime decode)",
+        "env_flag": "GENESIS_ENABLE_PN34_WORKSPACE_LOCK_RELAX",
+        "default_on": False,
+        "category": "perf_hotfix",
+        "credit": (
+            "Companion to PN33 — same root cause class but on the runtime "
+            "decode path. PN33 fixes BOOT-time _dummy_sampler_run "
+            "under-counting; PN34 relaxes the strict "
+            "WorkspaceManager._ensure_workspace_size AssertionError that "
+            "still fires at runtime decode "
+            "(turboquant_attn.py:1350:_decode_attention) on rare paths. "
+            "Direct port of noonghunna's club-3090 setup-time sidecar "
+            "patch_workspace_lock_disable.py. Default OFF — relaxes a "
+            "strict-debug assertion. Engage when PN33 is on AND runtime "
+            "decode still hits workspace_lock crashes. Retires when "
+            "vllm#40706 (TQ scratch dedup + reserve worst-case at warmup) "
+            "merges upstream."
+        ),
+        "upstream_pr": 40706,
+        "requires_patches": ["PN33"],
+    },
     "PN33": {
         "title": "Spec-decode warmup K-aware sizing (vllm#37521 extended to MTP/ngram)",
         "env_flag": "GENESIS_ENABLE_PN33_SPEC_DECODE_WARMUP_K",
