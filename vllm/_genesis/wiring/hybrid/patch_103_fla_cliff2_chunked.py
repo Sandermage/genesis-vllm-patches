@@ -190,13 +190,18 @@ def _make_chunked_wrapper(
 
         # Step 2: chained per-sub-prompt fwd_h + fwd_o. Never materialize
         # the full h. Chain final_state between sub-calls.
+        #
+        # T = sequence-length dim (audit fix 2026-05-02 — was undefined,
+        # would NameError on every Cliff 2 trigger; bug present since
+        # P103 v7.62.20 ship). The hot-path guard at line 166 already
+        # uses `q.shape[1]` to decide whether to enter the chunked
+        # branch, so by the time we're here we know `q.shape[1] > _MAX_T`.
+        T = q.shape[1]
         o_segments = []
         state = initial_state
-        BT = fla_chunk_size
 
         for start in range(0, T, _MAX_T):
             end = min(start + _MAX_T, T)
-            is_last = (end == T)
 
             # Slice all per-T tensors
             q_sub = q[:, start:end]
