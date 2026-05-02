@@ -136,13 +136,11 @@ Reference: Genesis_internal_docs/CLIFF2_INVESTIGATION_20260430.md.
 from __future__ import annotations
 
 import logging
-import os
 
 from vllm._genesis.guards import resolve_vllm_file, vllm_install_root
 from vllm._genesis.wiring.text_patch import (
     TextPatch,
     TextPatcher,
-    TextPatchResult,
     result_to_wiring_status,
 )
 

@@ -10,7 +10,6 @@ Port credit: noonghunna club-3090 (commit 2b5ab4d).
 """
 from __future__ import annotations
 
-import pytest
 
 
 def test_pn34_wiring_imports():

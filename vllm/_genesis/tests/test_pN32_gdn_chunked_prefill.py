@@ -11,7 +11,6 @@ Reporter: noonghunna (CLIFF2_INVESTIGATION_20260430.md).
 """
 from __future__ import annotations
 
-import pytest
 
 
 def test_pn32_wiring_imports():
@@ -40,7 +39,7 @@ def test_pn32_skips_when_env_off(monkeypatch):
 
 def test_pn32_anchor_matches_gdn_forward_cuda_pattern():
     from vllm._genesis.wiring.hybrid.patch_N32_gdn_chunked_prefill import (
-        PN32_ANCHOR, PN32_REPLACEMENT,
+        PN32_ANCHOR,
     )
     # Anchor must match ORIGINAL upstream pattern (NOT P28-modified).
     # PN32 conflicts with P28 — both text-patch same lines, operator

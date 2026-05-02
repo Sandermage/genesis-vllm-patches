@@ -99,7 +99,6 @@ from vllm._genesis.wiring.text_patch import (
     TextPatch,
     TextPatcher,
     TextPatchResult,
-    result_to_wiring_status,
 )
 
 log = logging.getLogger("genesis.wiring.pn21_dflash_swa")

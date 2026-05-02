@@ -51,7 +51,6 @@ Author: Sandermage(Sander)-Barzov Aleksandr, Ukraine, Odessa
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 import torch
 

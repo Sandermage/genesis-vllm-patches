@@ -10,7 +10,6 @@ Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
 """
 from __future__ import annotations
 
-import pytest
 
 
 def test_pn33_wiring_imports():
@@ -102,7 +101,7 @@ def test_pn33_skips_when_env_off(monkeypatch):
     # When the env is explicitly set to "0", it should skip.
     monkeypatch.setenv("GENESIS_ENABLE_PN33_SPEC_DECODE_WARMUP_K", "0")
     from vllm._genesis.wiring.spec_decode.patch_N33_spec_decode_warmup_k import apply
-    status, reason = apply()
+    status, _reason = apply()
     assert status == "skipped"
 
 

@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import re
 
-import pytest
 
 from vllm._genesis.wiring.spec_decode.patch_67_tq_multi_query_kernel import (
     P67_NEW,

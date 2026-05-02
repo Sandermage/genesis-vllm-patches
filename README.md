@@ -272,6 +272,33 @@ Six new public docs ship in this release:
 - `.gitignore` hardened: `_internal/`, `snapshots/`, `*.bak`, `._*` (macOS AppleDouble), `*.json`, `*.log`.
 - `tools/` sanitized: hardcoded server IP `192.168.1.10` → `localhost`.
 
+### Rig-specific paths in `scripts/` and `compose/` (G-010 audit, 2026-05-02)
+
+The launch scripts in `scripts/start_*.sh` and the integration compose files
+under `compose/docker-compose.integration*.yml` were authored for Sander's
+specific dev rig and reference paths like `/home/sander/Genesis_Project/...`
+and the host IP `192.168.1.10`. They are kept in-tree as **reference
+templates** — they document the exact configuration that produced the
+benchmarks shipped with the repo, but they are **not portable**:
+
+- Replace `/home/sander/Genesis_Project/vllm_engine/...` with your own
+  cache + plugin mount paths (typically `~/genesis-cache/...`).
+- Replace `192.168.1.10` with your own host IP (or `localhost`).
+- Bench harnesses (`scripts/stress/genesis_stress_v1.py`) accept
+  `GENESIS_STRESS_URL` / `GENESIS_STRESS_MODEL` / `GENESIS_STRESS_KEY`
+  env vars — set those instead of editing the scripts.
+- The `compose/docker-compose.example.yml` file uses
+  `EXAMPLE_HOST_IP_OR_HOSTNAME` / `EXAMPLE_PIPELINE_API_KEY` /
+  `EXAMPLE_JINA_API_KEY_REPLACE_ME` placeholders — substitute with
+  your actual values.
+
+Full sanitization to portable defaults is tracked but deferred — the
+scripts represent ~50 of the operator-facing surface area and rewriting
+them as portable templates would mean dropping the canonical PROD
+configuration that backs the published benchmarks. If you'd like a
+single-command dev wrapper (auto-detects local vllm install + spins
+up a localhost test rig), open an issue.
+
 ---
 
 ## What's new in v7.63.x — Genesis Compat Layer

@@ -114,7 +114,7 @@ def apply() -> tuple[str, str]:
     # plain Python), `required_methods` works fine.
     try:
         from vllm._genesis.interface_guard import (
-            validate_impl, GenesisInterfaceMismatch, ANY,
+            validate_impl, ANY,
         )
         validate_impl(
             mod,
@@ -288,7 +288,6 @@ def apply() -> tuple[str, str]:
     # they capture the original. To cover both, we also rebind the
     # symbol inside `vllm.model_executor.layers.fla.ops.chunk_delta_h`
     # and siblings if they imported it.
-    import importlib as _il
     import sys as _sys
     rebound_callers = []
     fla_ops_prefix = "vllm.model_executor.layers.fla.ops"
@@ -328,7 +327,7 @@ def is_applied() -> bool:
     target = _import_target()
     if target is None:
         return False
-    mod, fn = target
+    _mod, fn = target
     return getattr(fn, _GENESIS_P39A_MARKER_ATTR, False)
 
 

@@ -8,7 +8,7 @@ For each target context size (tokens):
   - Record: http_status, prompt_tokens, output_tokens, ttft, decode_tok_s,
             needle_recall_pass (bool), total_time_s
 """
-import argparse, json, re, sys, time
+import argparse, json, time
 import urllib.request
 import urllib.error
 

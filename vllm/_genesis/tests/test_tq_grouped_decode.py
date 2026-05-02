@@ -19,7 +19,6 @@ Author: Sandermage(Sander)-Barzov Aleksandr, Ukraine, Odessa
 """
 from __future__ import annotations
 
-import os
 
 import pytest
 
@@ -181,7 +180,7 @@ class TestP40WiringSurface:
         )
         monkeypatch.setenv("GENESIS_ENABLE_P40", "1")
         _reload_kernel_module()
-        status, reason = p40.apply()
+        status, _reason = p40.apply()
         # Either "skipped" (target not importable) or "applied" if
         # vllm is fully installed in the unit env
         assert status in ("skipped", "applied")

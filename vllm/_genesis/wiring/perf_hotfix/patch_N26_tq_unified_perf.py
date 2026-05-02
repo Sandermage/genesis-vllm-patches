@@ -104,7 +104,6 @@ from vllm._genesis.wiring.text_patch import (
     TextPatch,
     TextPatcher,
     TextPatchResult,
-    result_to_wiring_status,
 )
 
 log = logging.getLogger("genesis.wiring.pn26_tq_unified_perf")

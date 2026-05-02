@@ -18,7 +18,6 @@ This is the "is Genesis itself working?" tool. Different from doctor
 """
 from __future__ import annotations
 
-import pytest
 
 
 class TestSelfTestRunner:

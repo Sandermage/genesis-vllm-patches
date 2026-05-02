@@ -11,9 +11,7 @@ Author: Sandermage(Sander) Barzov Aleksandr, Ukraine, Odessa.
 """
 from __future__ import annotations
 
-import logging
 
-import pytest
 
 
 def test_patch_stats_has_compile_elapsed_field():

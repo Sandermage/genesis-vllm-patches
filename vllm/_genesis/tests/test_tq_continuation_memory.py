@@ -429,7 +429,7 @@ class TestP38Idempotency:
     def test_is_applied_tracks_state(self, monkeypatch):
         """is_applied() returns True only while our wrapper is live."""
         from vllm._genesis.wiring.legacy import patch_38_tq_continuation_memory as p38
-        FakeImpl, fake_original = self._install_fake_impl(monkeypatch)
+        _FakeImpl, _fake_original = self._install_fake_impl(monkeypatch)
 
         assert p38.is_applied() is False
         status, reason = p38.apply()

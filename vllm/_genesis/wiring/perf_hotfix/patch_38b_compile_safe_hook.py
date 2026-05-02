@@ -95,14 +95,12 @@ Origin: noonghunna Issue #14 — direct fix per their suggestion
 from __future__ import annotations
 
 import logging
-import os
 
 from vllm._genesis.guards import resolve_vllm_file, vllm_install_root
 from vllm._genesis.wiring.text_patch import (
     TextPatch,
     TextPatcher,
     TextPatchResult,
-    result_to_wiring_status,
 )
 
 log = logging.getLogger("genesis.wiring.p38b_compile_safe_hook")

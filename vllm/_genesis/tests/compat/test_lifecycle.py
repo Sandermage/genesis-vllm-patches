@@ -2,7 +2,6 @@
 """Tests for vllm._genesis.compat.lifecycle."""
 from __future__ import annotations
 
-import pytest
 
 from vllm._genesis.compat.lifecycle import (
     KNOWN_STATES,

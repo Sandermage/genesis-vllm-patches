@@ -146,7 +146,7 @@ class TestPatch8Wiring:
         """If helper function already exists in kv_cache_utils (upstream landed),
         KV sub-patch skips — but scheduler may still need the import."""
         from vllm._genesis.wiring.legacy import patch_8_kv_hybrid_reporting as p8
-        kv_path, sched_path = fake_p8_files
+        kv_path, _sched_path = fake_p8_files
 
         # Prepend helper to kv_cache_utils to simulate upstream merge
         content = open(kv_path).read()

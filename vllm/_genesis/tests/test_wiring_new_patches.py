@@ -373,7 +373,6 @@ class TestPatch12:
             patch_12_tool_call_reasoning as p12,
             patch_27_reasoning_before_think as p27,
         )
-        import pytest as _pytest
 
         # Rewrite fake to include both P12 and P27 anchors. Use baseline
         # with both minimal stubs.
@@ -434,7 +433,6 @@ class Qwen3ReasoningParser:
         assert s12 == "applied", f"P12: {r12}"
 
         # Patch P27 fixture pointer to the same file
-        import sys
         # Re-monkeypatch p27 resolve
         orig_resolve = p27.resolve_vllm_file
         p27.resolve_vllm_file = (
@@ -570,7 +568,7 @@ class TestPatch27:
         from vllm._genesis.wiring.legacy import patch_27_reasoning_before_think as p27
         monkeypatch.setattr(p27, "resolve_vllm_file", lambda rel: None)
         monkeypatch.setattr(p27, "vllm_install_root", lambda: "/fake")
-        status, reason = p27.apply()
+        status, _reason = p27.apply()
         assert status == "skipped"
 
 # ────────────────────────────────────────────────────────────────────────
@@ -688,7 +686,7 @@ class TestPatch7Deferred:
         monkeypatch.setenv("GENESIS_ENABLE_P7", "1")
         monkeypatch.setattr(p7, "resolve_vllm_file", lambda rel: None)
         monkeypatch.setattr(p7, "vllm_install_root", lambda: "/fake")
-        status, reason = p7.apply()
+        status, _reason = p7.apply()
         assert status == "skipped"
 
 
@@ -790,7 +788,7 @@ class TestPatch28:
         from vllm._genesis.wiring.legacy import patch_28_gdn_core_attn as p28
         monkeypatch.setattr(p28, "resolve_vllm_file", lambda rel: None)
         monkeypatch.setattr(p28, "vllm_install_root", lambda: "/fake")
-        status, reason = p28.apply()
+        status, _reason = p28.apply()
         assert status == "skipped"
 
 
@@ -942,7 +940,7 @@ class TestPatch34MambaDeadlock:
         from vllm._genesis.wiring.legacy import patch_34_mamba_deadlock_guard as p34
         monkeypatch.setattr(p34, "resolve_vllm_file", lambda rel: None)
         monkeypatch.setattr(p34, "vllm_install_root", lambda: "/fake")
-        status, reason = p34.apply()
+        status, _reason = p34.apply()
         assert status == "skipped"
 
 

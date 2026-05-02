@@ -13,10 +13,8 @@ Author: Sandermage(Sander) Barzov Aleksandr, Ukraine, Odessa.
 """
 from __future__ import annotations
 
-import sys
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 
 def test_boot_probe_imports():

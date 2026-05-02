@@ -32,12 +32,10 @@ from __future__ import annotations
 
 import re
 
-import pytest
 
 from vllm._genesis.wiring.spec_decode.patch_67_tq_multi_query_kernel import (
     GENESIS_P67_MARKER,
     P67_NEW,
-    P67_OLD,
     _BAKED_DEBUG_COMPARE,
     _BAKED_MAX_PRIOR,
     apply,
@@ -328,7 +326,7 @@ def test_emit_has_capture_guard_for_telemetry():
 
 def test_apply_skipped_when_disabled(monkeypatch):
     monkeypatch.delenv("GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL", raising=False)
-    status, reason = apply()
+    status, _reason = apply()
     assert status == "skipped"
 
 

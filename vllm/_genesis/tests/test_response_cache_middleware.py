@@ -23,7 +23,6 @@ from __future__ import annotations
 import asyncio
 import json
 
-import pytest
 
 
 # ── key extraction ─────────────────────────────────────────────────
@@ -34,7 +33,7 @@ class TestKeyExtraction:
         body = {"model": "m", "prompt": "hello"}
         out = build_cache_key_from_request(body)
         assert out is not None
-        prompt, model, sp = out
+        prompt, model, _sp = out
         assert prompt == "hello"
         assert model == "m"
 

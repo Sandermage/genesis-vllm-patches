@@ -46,7 +46,7 @@ def main(argv=None) -> int:
     p.add_argument("--json", action="store_true", help="Output as JSON")
     args = p.parse_args(argv)
 
-    from vllm._genesis.compat.models.registry import list_models, SUPPORTED_MODELS
+    from vllm._genesis.compat.models.registry import list_models
 
     models = list_models(status_filter=args.status)
     if not models:
@@ -54,7 +54,6 @@ def main(argv=None) -> int:
         return 0
 
     if args.json:
-        from dataclasses import asdict
         out = [
             {
                 "key": m.key, "hf_id": m.hf_id, "title": m.title,

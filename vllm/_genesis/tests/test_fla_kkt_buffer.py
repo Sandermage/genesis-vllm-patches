@@ -222,7 +222,7 @@ class TestP39aWiringSurface:
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(guards, "is_sm_at_least",
                             lambda major, minor=0: True)
-        status, reason = p39a.apply()
+        status, _reason = p39a.apply()
         # Either "skipped" (no FLA) or "applied" (if FLA is installed)
         assert status in ("skipped", "applied")
 

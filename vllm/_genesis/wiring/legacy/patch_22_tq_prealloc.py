@@ -195,7 +195,7 @@ def apply() -> tuple[str, str]:
     # in `ensure_turboquant_buffers` handle those.
     try:
         from vllm._genesis.interface_guard import (
-            validate_impl, GenesisInterfaceMismatch,
+            validate_impl,
         )
         validate_impl(
             impl_cls,

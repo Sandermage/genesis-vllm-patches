@@ -9,7 +9,7 @@ Usage:
     python3 tools/progressive_context_probe.py --host localhost --model qwen3.6-27b
 """
 from __future__ import annotations
-import argparse, json, sys, time, urllib.error, urllib.request
+import argparse, json, time, urllib.error, urllib.request
 
 
 def make_payload(model: str, target_tokens: int, max_completion: int = 200) -> bytes:

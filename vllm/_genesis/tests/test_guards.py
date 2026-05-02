@@ -7,7 +7,6 @@ All helpers must fail-safe: return False/None on any exception.
 from __future__ import annotations
 
 import pytest
-import torch
 
 
 class TestVendorIdentity:

@@ -6,7 +6,6 @@ Bug: github.com/Sandermage/genesis-vllm-patches/issues/15
 """
 from __future__ import annotations
 
-import pytest
 
 
 def test_pn31_wiring_imports():

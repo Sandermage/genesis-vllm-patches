@@ -295,5 +295,5 @@ class TestP44Wiring:
     def test_apply_skips_on_non_nvidia(self, monkeypatch):
         from vllm._genesis.wiring.legacy import patch_44_tq_mixed_attn_out as p44
         monkeypatch.setattr(p44, "is_nvidia_cuda", lambda: False)
-        status, reason = p44.apply()
+        status, _reason = p44.apply()
         assert status == "skipped"

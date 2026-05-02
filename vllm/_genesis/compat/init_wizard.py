@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import argparse
 import sys
-from pathlib import Path
 
 
 def _detect_gpu_envelope() -> tuple[float, int, str | None]:

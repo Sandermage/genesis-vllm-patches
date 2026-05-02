@@ -25,7 +25,6 @@ import json
 import time
 import sys
 import statistics
-import traceback
 from datetime import datetime
 
 try:

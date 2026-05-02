@@ -123,9 +123,14 @@ services:
       - SEARXNG_QUERY_URL=http://searxng:8080/search?q=<query>&format=json
       - RAG_WEB_SEARCH_RESULT_COUNT=10
       - RAG_WEB_SEARCH_CONCURRENT_REQUESTS=10
-      - JINA_API_KEY=jina_a535298a0b5f403f87dfefe6da26a7ccO7QwrDY8Tz71zlzshfvBhi7uKax5
+      # G-010 audit fix (2026-05-02): replaced rig-specific IPs +
+      # placeholder keys with EXAMPLE_* identifiers. The previous file
+      # contained what looked like a real JINA API key + a `0p3n-w3bu!`
+      # placeholder that scanners can flag. Operators MUST substitute
+      # their actual values; defaults are intentionally non-functional.
+      - JINA_API_KEY=EXAMPLE_JINA_API_KEY_REPLACE_ME
       - ENABLE_API_KEYS=true
-      - OPENAI_API_CONFIGS={"pipelines":{"url":"http://192.168.1.10:9099","key":"0p3n-w3bu!","prefix":"pipeline"}}
+      - OPENAI_API_CONFIGS={"pipelines":{"url":"http://EXAMPLE_HOST_IP_OR_HOSTNAME:9099","key":"EXAMPLE_PIPELINE_API_KEY","prefix":"pipeline"}}
       - ENABLE_TOOLS=true
       - CHAT_RESPONSE_MAX_TOOL_CALL_RETRIES=5
     depends_on:

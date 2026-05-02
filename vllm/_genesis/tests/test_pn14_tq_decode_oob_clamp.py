@@ -19,7 +19,6 @@ discipline, anchor stability, drift detection, and marker uniqueness.
 from __future__ import annotations
 
 import os
-from pathlib import Path
 
 import pytest
 
@@ -236,7 +235,7 @@ class TestPn14ApplyBehavior:
         `safe_page_idx`), the drift marker fires and we skip."""
         from vllm._genesis.wiring.kernels import patch_N14_tq_decode_oob_clamp as p14
         before = fake_tq_decode_already_upstream.read_text()
-        status, reason = p14.apply()
+        status, _reason = p14.apply()
         after = fake_tq_decode_already_upstream.read_text()
         assert status == "skipped"
         assert before == after, (

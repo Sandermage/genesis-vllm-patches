@@ -26,9 +26,14 @@ Scope (v7.8)
 - Exact-match only (uses P41 `ResponseCacheLRU` / `RedisResponseCache`
   under the hood; semantic/interpolation cache P41b is SHELVED per
   user direction — hallucination risk).
-- Honours `stream=True` requests by buffering server-sent events
-  and replaying on hit. Non-streaming `stream=False` requests are
-  the hot path (simpler).
+- Streaming (`stream=True`) requests are NOT cache-eligible; the
+  middleware skips cache lookup AND skips post-response store, so
+  they pass through unchanged. SSE buffering + replay was originally
+  planned for v7.9 but never shipped — see `build_cache_key_from_request`
+  for the explicit early-return on `body.get("stream")`. G-005 audit
+  fix 2026-05-02: docstring previously claimed "honours stream=True
+  by buffering SSE and replaying on hit" which contradicted the
+  actual code.
 - Never caches responses for `temperature > 0` unless
   `allow_sampled=True` in the middleware config — non-deterministic
   output must not be resurrected from cache.

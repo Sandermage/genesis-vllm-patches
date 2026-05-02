@@ -93,7 +93,7 @@ from __future__ import annotations
 
 import inspect
 import logging
-from typing import Any, Iterable, Mapping, Optional, Union
+from typing import Any, Iterable, Mapping, Optional
 
 log = logging.getLogger("genesis.interface_guard")
 

@@ -123,7 +123,7 @@ def evaluate(rule: Any, profile: dict[str, Any]) -> tuple[bool, str]:
                 if failed:
                     return False, f"version: {failed[0].reason}"
                 return False, "version: constraint violation"
-        except Exception as e:
+        except Exception:
             # Don't fail the patch because version checking failed
             pass
 

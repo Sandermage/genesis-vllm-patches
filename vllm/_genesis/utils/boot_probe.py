@@ -44,12 +44,10 @@ Author: Sandermage(Sander) Barzov Aleksandr, Ukraine, Odessa.
 from __future__ import annotations
 
 import argparse
-import json
 import logging
 import os
 import sys
 import time
-from typing import Any
 
 log = logging.getLogger("genesis.boot_probe")
 

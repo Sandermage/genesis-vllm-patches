@@ -41,7 +41,7 @@ import json
 import logging
 import os
 import sys
-from typing import Any, Iterable
+from typing import Any
 
 log = logging.getLogger("genesis.compat.plugins")
 

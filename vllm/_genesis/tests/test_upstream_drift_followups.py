@@ -138,7 +138,7 @@ class TestP5AutoRetireProbe:
         from vllm._genesis.wiring.legacy import patch_5_page_size
         monkeypatch.delenv("GENESIS_DISABLE_P5", raising=False)
 
-        status, reason = patch_5_page_size.apply()
+        _status, reason = patch_5_page_size.apply()
         # Should NOT mention the auto-retire reason text
         assert "#39931" not in reason, (
             "When #39931 symbols absent, P5 must not return the "

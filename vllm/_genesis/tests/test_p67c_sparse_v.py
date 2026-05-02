@@ -24,7 +24,6 @@ from __future__ import annotations
 
 import os
 
-import pytest
 
 
 def test_p67c_wiring_imports():
@@ -141,7 +140,6 @@ def test_p67c_threshold_zero_never_skips_invariant():
     # Invariant verified by reasoning above. Test is documentation.
     # Numeric edge case: tl.exp2 of very negative numbers → 0.0, not -0.0.
     # Float comparison: 0.0 < 0.0 is False → skip not triggered → bit-exact.
-    import math
     p_t_max_low = 2.0 ** (-1000)  # smallest reasonable exp2 result
     assert p_t_max_low >= 0.0, "exp2 of negative → must be non-negative"
     # Threshold=0 never fires:

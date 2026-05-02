@@ -289,7 +289,7 @@ class TestPatch31Wiring:
 
         import torch
         gating = torch.randn(4, 8, dtype=torch.float32)
-        result, observed_dtype = mock_grouped_router_module.grouped_topk(
+        _result, observed_dtype = mock_grouped_router_module.grouped_topk(
             None, gating,
         )
         assert observed_dtype == torch.float32

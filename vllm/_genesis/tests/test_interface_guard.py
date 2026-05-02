@@ -240,7 +240,6 @@ class TestMethodSignature:
 
 class TestAssertShapeCompat:
     def test_non_tensor_raises(self):
-        import torch
         from vllm._genesis.interface_guard import (
             assert_shape_compat, GenesisInterfaceMismatch,
         )

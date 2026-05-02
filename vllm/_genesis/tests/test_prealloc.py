@@ -227,12 +227,12 @@ class TestClearForTests:
         from vllm._genesis.prealloc import GenesisPreallocBuffer as GPB
 
         buf1 = GPB.get_or_create("x", (4,), torch.float32, "cpu")
-        ptr1 = buf1.data_ptr()
+        buf1.data_ptr()
 
         GPB.clear_for_tests()
 
         buf2 = GPB.get_or_create("x", (4,), torch.float32, "cpu")
-        ptr2 = buf2.data_ptr()
+        buf2.data_ptr()
 
         # New tensor may or may not have same ptr — both outcomes OK
         # (Python allocator reuse is implementation detail). What matters is

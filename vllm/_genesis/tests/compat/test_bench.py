@@ -15,10 +15,8 @@ What we pin:
 """
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
-import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 BENCH_SCRIPT = REPO_ROOT / "tools" / "genesis_bench_suite.py"

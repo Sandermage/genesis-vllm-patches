@@ -32,7 +32,6 @@ import logging
 import re
 import sys
 from pathlib import Path
-from typing import Any
 
 log = logging.getLogger("genesis.compat.categories")
 

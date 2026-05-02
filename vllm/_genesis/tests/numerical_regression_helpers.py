@@ -45,7 +45,6 @@ Reference: Golden et al. arXiv 2405.02803 (Is FA Stable?), 2024.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
 
 import torch
 

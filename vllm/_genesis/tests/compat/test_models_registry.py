@@ -2,7 +2,6 @@
 """Tests for vllm._genesis.compat.models.registry."""
 from __future__ import annotations
 
-import pytest
 
 from vllm._genesis.compat.models.registry import (
     SUPPORTED_MODELS,

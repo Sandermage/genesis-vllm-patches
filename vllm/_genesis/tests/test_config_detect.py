@@ -190,7 +190,7 @@ def test_recommend_p36_apply_when_high_concurrency(monkeypatch):
     )
     monkeypatch.setattr(config_detect, "_probe_pr40798_active", lambda: False)
     config_detect.clear_for_tests()
-    rec, reason = config_detect.recommend("P36")
+    rec, _reason = config_detect.recommend("P36")
     assert rec == "apply"
 
 
@@ -280,7 +280,7 @@ def test_recommend_p9_redundant_when_pr40384_active(monkeypatch):
     )
     monkeypatch.setattr(config_detect, "_probe_pr40384_active", lambda: True)
     config_detect.clear_for_tests()
-    rec, reason = config_detect.recommend("P9")
+    rec, _reason = config_detect.recommend("P9")
     assert rec == "redundant"
 
 
@@ -312,7 +312,7 @@ def test_should_apply_returns_true_for_apply_recommendation(monkeypatch):
     )
     monkeypatch.setattr(config_detect, "_probe_pr40798_active", lambda: False)
     config_detect.clear_for_tests()
-    ok, reason = config_detect.should_apply("P36")
+    ok, _reason = config_detect.should_apply("P36")
     assert ok is True
 
 

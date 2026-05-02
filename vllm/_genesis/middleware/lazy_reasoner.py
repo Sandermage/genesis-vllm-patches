@@ -20,9 +20,10 @@ Hybrid pre-decision policy that decides per-request whether the model's
     decoding". Genesis prod runs MTP K=3 spec-decode, so this path is
     unavailable until either: (a) we drop spec-decode (would cost ~30%
     TPS), or (b) upstream relaxes the spec-decode + custom-logitsprocs
-    restriction. See `docs/_internal/PN16_PHASE2_UPSTREAM_BLOCKER.md`
-    for a longer write-up. Code path is kept stubbed out + emits a
-    one-time warning when the operator sets a non-zero cap.
+    restriction. Code path is kept stubbed out + emits a one-time
+    warning when the operator sets a non-zero cap. Track upstream
+    spec-decode + custom-logitsprocs compatibility under vllm-project/vllm
+    issue tracker (search "logits processor speculative decoding").
   • Variant 5 (prompt-engineering soft cap): inject a hint into the
     request's last user message asking the model to keep reasoning
     concise. Works with spec-decode (it's just prompt engineering).

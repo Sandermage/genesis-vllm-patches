@@ -26,7 +26,6 @@ Author: Sandermage(Sander)-Barzov Aleksandr, Ukraine, Odessa
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 log = logging.getLogger("genesis.fp8_dispatcher")
 

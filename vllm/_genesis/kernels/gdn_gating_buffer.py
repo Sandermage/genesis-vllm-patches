@@ -52,7 +52,6 @@ Status: v7.7 implementation (default-on on NVIDIA)
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 import torch
 

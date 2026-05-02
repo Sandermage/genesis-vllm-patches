@@ -21,7 +21,6 @@ backend. Run via:
 """
 from __future__ import annotations
 
-import os
 
 import pytest
 
@@ -137,7 +136,6 @@ def test_sparse_v_off_matches_upstream_smoke(sparse_v_module):
     and the constexpr branch is dead-code-eliminated by checking PTX
     pseudo-equivalence.
     """
-    import torch
 
     # Just exercise the function table — full numeric requires real KV cache
     # which is constructed only inside vLLM workers. In tests we focus on

@@ -187,7 +187,15 @@ class TextPatcher:
             )
 
         # Layer 5: prepend marker comment so future runs see IDEMPOTENT.
-        # Use a Python-safe comment that never gets confused with module code.
+        # Uses Python-style `#` comment.
+        #
+        # G-014 audit note (2026-05-02): TextPatcher is currently Python-
+        # only. All Genesis text-patches target `.py` files in the vllm
+        # tree; the `#` marker is syntactically valid there. If
+        # TextPatcher is ever extended to non-Python targets (yaml/sh/
+        # cuda etc.), `marker_line` must switch to a syntax appropriate
+        # to the file extension. Until then: contract is "Python source
+        # files only".
         marker_line = f"# [Genesis wiring marker: {self.marker}]\n"
         if not modified.startswith(marker_line):
             modified = marker_line + modified

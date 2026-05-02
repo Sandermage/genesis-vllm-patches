@@ -24,7 +24,6 @@ from __future__ import annotations
 
 import json
 import re
-from pathlib import Path
 
 import pytest
 
@@ -237,7 +236,7 @@ class TestStorage:
     def test_save_when_disabled_returns_None(
         self, telemetry_dir, telemetry_disabled,
     ):
-        from vllm._genesis.compat.telemetry import collect_report, save_report
+        from vllm._genesis.compat.telemetry import save_report
         # Even if collect_report works, save_report should refuse when off
         report = {"schema_version": "1.0"}
         result = save_report(report)

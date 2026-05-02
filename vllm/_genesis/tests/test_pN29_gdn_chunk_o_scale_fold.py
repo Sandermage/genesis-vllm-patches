@@ -22,9 +22,7 @@ the `b_o = b_o * scale + dot * scale` boundary, so explicit fold = guaranteed
 """
 from __future__ import annotations
 
-import os
 
-import pytest
 
 
 def test_pn29_wiring_imports():

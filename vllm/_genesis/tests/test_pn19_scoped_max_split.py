@@ -18,7 +18,6 @@ These tests pin:
 """
 from __future__ import annotations
 
-import pytest
 
 
 class TestPN19ModuleStructure:
@@ -44,7 +43,6 @@ class TestPN19ModuleStructure:
         """Wrapping load_model must KEEP the two existing context
         managers; if we accidentally drop one, model loading breaks."""
         from vllm._genesis.wiring.perf_hotfix.patch_N19_scoped_max_split import (
-            LOAD_MODEL_OLD,
             LOAD_MODEL_NEW,
         )
         # Must keep both upstream contexts

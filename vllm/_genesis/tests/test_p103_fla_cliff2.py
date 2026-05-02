@@ -7,10 +7,8 @@ test (which requires GPU + triton) is in a separate gpu_test_p103.py.
 """
 from __future__ import annotations
 
-import os
 import unittest.mock as mock
 
-import pytest
 
 
 def test_p103_in_dispatcher():

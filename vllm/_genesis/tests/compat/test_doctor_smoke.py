@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import json
 
-import pytest
 
 
 def test_collect_report_runs_without_exception():
@@ -65,7 +64,7 @@ def test_main_returns_int():
 
 def test_main_json_mode(capsys):
     from vllm._genesis.compat.doctor import main
-    rc = main(argv=["--json"])
+    main(argv=["--json"])
     captured = capsys.readouterr()
     # Verify output is valid JSON
     parsed = json.loads(captured.out)

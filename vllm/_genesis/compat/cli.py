@@ -25,11 +25,9 @@ Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
 """
 from __future__ import annotations
 
-import argparse
 import importlib
 import logging
 import sys
-from typing import Callable
 
 log = logging.getLogger("genesis.compat.cli")
 
