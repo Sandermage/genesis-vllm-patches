@@ -203,7 +203,14 @@ def test_recommend_p36_skip_when_low_concurrency(monkeypatch):
     config_detect.clear_for_tests()
     rec, reason = config_detect.recommend("P36")
     assert rec == "skip"
-    assert "marginal" in reason.lower()
+    # Source text describes WHY: low max_num_seqs makes the memory
+    # saving not worth the maintenance cost. Accept either of the
+    # two phrasings the source has used over time.
+    reason_lower = reason.lower()
+    assert (
+        "not worth maintaining" in reason_lower
+        or "marginal" in reason_lower
+    ), f"unexpected skip reason: {reason!r}"
 
 
 def test_recommend_p36_redundant_when_pr40798_active(monkeypatch):

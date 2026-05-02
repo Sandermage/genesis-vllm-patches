@@ -199,15 +199,18 @@ class TestP39aRegistry:
 
 class TestP39aWiringSurface:
     def test_should_apply_non_nvidia(self, monkeypatch):
+        # patch_39 imports `is_nvidia_cuda` at module level via
+        # `from ... import is_nvidia_cuda`, so the local name binding
+        # is what should_apply() actually calls. Monkey-patching the
+        # original `vllm._genesis.guards.is_nvidia_cuda` would NOT
+        # propagate (local binding already captured the original).
         from vllm._genesis.wiring.legacy import patch_39_fla_kkt_buffer as p39a
-        from vllm._genesis import guards
-        monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: False)
+        monkeypatch.setattr(p39a, "is_nvidia_cuda", lambda: False)
         assert p39a.should_apply() is False
 
     def test_apply_skips_on_non_nvidia(self, monkeypatch):
         from vllm._genesis.wiring.legacy import patch_39_fla_kkt_buffer as p39a
-        from vllm._genesis import guards
-        monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: False)
+        monkeypatch.setattr(p39a, "is_nvidia_cuda", lambda: False)
         status, reason = p39a.apply()
         assert status == "skipped"
         assert "NVIDIA" in reason

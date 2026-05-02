@@ -295,15 +295,19 @@ class TestP38WiringPatch:
     """Group 6: wiring/patch_38_tq_continuation_memory module surface."""
 
     def test_should_apply_guard(self, monkeypatch):
+        # patch_38 imports `is_nvidia_cuda` at module level via
+        # `from ... import is_nvidia_cuda`, so the local name binding
+        # is what should_apply() actually calls. Monkey-patching the
+        # source `vllm._genesis.guards.is_nvidia_cuda` does NOT
+        # propagate to patch_38's local name (already captured at
+        # import time). We must patch the local binding directly.
         from vllm._genesis.wiring.legacy import patch_38_tq_continuation_memory as p38
-        from vllm._genesis import guards
-        monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: False)
+        monkeypatch.setattr(p38, "is_nvidia_cuda", lambda: False)
         assert p38.should_apply() is False
 
     def test_apply_skips_on_non_nvidia(self, monkeypatch):
         from vllm._genesis.wiring.legacy import patch_38_tq_continuation_memory as p38
-        from vllm._genesis import guards
-        monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: False)
+        monkeypatch.setattr(p38, "is_nvidia_cuda", lambda: False)
         status, reason = p38.apply()
         assert status == "skipped"
         assert "NVIDIA" in reason
