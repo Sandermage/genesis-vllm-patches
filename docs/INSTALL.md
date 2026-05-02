@@ -87,9 +87,9 @@ genesis-vllm-patches/
 │   ├── validate_unit.sh                   # CPU-only pytest gate
 │   ├── validate_integration.sh            # GPU integration gate
 │   └── launch/                            # Per-model launch scripts
-├── external_probe/                    # Pre-Genesis startup probes (tolist bypass etc.)
-├── genesis_vllm_plugin/               # vLLM plugin entry-point (for compose to mount)
-├── examples/                          # Reference plugins + recipes
+├── tools/external_probe/                    # Pre-Genesis startup probes (tolist bypass etc.)
+├── tools/genesis_vllm_plugin/               # vLLM plugin entry-point (for compose to mount)
+├── tools/examples/                          # Reference plugins + recipes
 ├── docs/                              # Long-form documentation
 │   ├── BENCHMARK_GUIDE.md, PLUGINS.md, SELF_TEST.md
 │   └── upstream_refs/                     # Diff studies of relevant upstream PRs
@@ -306,8 +306,8 @@ Genesis depends on two startup probes that text-patch upstream vLLM:
 
 ```bash
 # These run once per Python process startup; they are idempotent
-python3 external_probe/patch_tolist_cudagraph.py
-python3 external_probe/patch_40074_iooo.py
+python3 tools/external_probe/patch_tolist_cudagraph.py
+python3 tools/external_probe/patch_40074_iooo.py
 ```
 
 These can also be run once after install — they modify files in `$VLLM_DIR` directly.

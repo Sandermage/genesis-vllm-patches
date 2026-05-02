@@ -23,7 +23,9 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 INSTALL_SH = REPO_ROOT / "install.sh"
-PLUGIN_PYPROJECT = REPO_ROOT / "genesis_vllm_plugin" / "pyproject.toml"
+PLUGIN_PYPROJECT = (
+    REPO_ROOT / "tools" / "genesis_vllm_plugin" / "pyproject.toml"
+)
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -233,7 +235,10 @@ def test_install_sh_uninstall_warns_about_text_patches():
 def test_install_sh_installs_genesis_vllm_plugin():
     content = INSTALL_SH.read_text()
     assert "pip install" in content
-    assert "genesis_vllm_plugin" in content
+    assert "tools/genesis_vllm_plugin" in content, (
+        "install.sh must reference plugin at its current path "
+        "(tools/genesis_vllm_plugin/, not the legacy root location)"
+    )
 
 
 def test_install_sh_verifies_entry_point_after_install():

@@ -972,17 +972,17 @@ Genesis ships **48 runtime patches** in the dispatcher's `PATCH_REGISTRY` (the s
 | P78 | TQ `.tolist()` cudagraph capture guard (Apache-2.0 from @noonghunna) | OFF |
 | P79c | Stale `spec_token_ids` cleanup for unscheduled requests | OFF |
 
-### Pre-Genesis startup probes (`external_probe/`)
+### Pre-Genesis startup probes (`tools/external_probe/`)
 
 Genesis ships **three small probes** that run BEFORE the main `apply_all` orchestrator. They patch crashes that would otherwise prevent the engine from booting under our exact stack — fixed first, then Genesis applies on top of a working engine:
 
 | Probe | Purpose | Status |
 |---|---|---|
-| [`external_probe/patch_tolist_cudagraph.py`](external_probe/patch_tolist_cudagraph.py) | `.tolist()` cudagraph-capture guards in `turboquant_attn.py` (forward + `_prefill_attention`). Adapted from [@noonghunna](https://github.com/noonghunna)'s `patch_tolist_cudagraph.py` (Apache-2.0, full attribution in CREDITS.md). | runs every boot |
-| [`external_probe/patch_40074_iooo.py`](external_probe/patch_40074_iooo.py) | 5-line backport of [vllm#40074](https://github.com/vllm-project/vllm/pull/40074) — IOOB (index-out-of-bounds) clamp on Triton block-table pointer arithmetic. Fixes [vllm#39998](https://github.com/vllm-project/vllm/issues/39998), possibly [#40831](https://github.com/vllm-project/vllm/issues/40831). | runs every boot |
-| [`external_probe/patch_pr40798_backport.py`](external_probe/patch_pr40798_backport.py) | Backport of [vllm#40798](https://github.com/vllm-project/vllm/pull/40798) — TurboQuant share decode scratch workspace across layers (4 file changes). Hypothesized side-effect fix for vllm#40831 token loops via stable workspace pointer. | runs every boot |
+| [`tools/external_probe/patch_tolist_cudagraph.py`](tools/external_probe/patch_tolist_cudagraph.py) | `.tolist()` cudagraph-capture guards in `turboquant_attn.py` (forward + `_prefill_attention`). Adapted from [@noonghunna](https://github.com/noonghunna)'s `patch_tolist_cudagraph.py` (Apache-2.0, full attribution in CREDITS.md). | runs every boot |
+| [`tools/external_probe/patch_40074_iooo.py`](tools/external_probe/patch_40074_iooo.py) | 5-line backport of [vllm#40074](https://github.com/vllm-project/vllm/pull/40074) — IOOB (index-out-of-bounds) clamp on Triton block-table pointer arithmetic. Fixes [vllm#39998](https://github.com/vllm-project/vllm/issues/39998), possibly [#40831](https://github.com/vllm-project/vllm/issues/40831). | runs every boot |
+| [`tools/external_probe/patch_pr40798_backport.py`](tools/external_probe/patch_pr40798_backport.py) | Backport of [vllm#40798](https://github.com/vllm-project/vllm/pull/40798) — TurboQuant share decode scratch workspace across layers (4 file changes). Hypothesized side-effect fix for vllm#40831 token loops via stable workspace pointer. | runs every boot |
 
-These are referenced by Docker launch scripts via `python3 /external_probe/patch_*.py` calls before `python3 -m vllm._genesis.patches.apply_all`. If you fork the repo or copy launch scripts, **make sure `external_probe/` exists at the path the script mounts** (`-v $GENESIS_REPO/external_probe:/external_probe:ro`). The bare-metal scripts call them via `python3 $GENESIS_REPO/external_probe/patch_*.py` instead.
+These are referenced by Docker launch scripts via `python3 /external_probe/patch_*.py` calls before `python3 -m vllm._genesis.patches.apply_all`. The container path stays `/external_probe` — what changed is the host source path: launch scripts now mount `-v $GENESIS_REPO/tools/external_probe:/external_probe:ro` (was `external_probe/` at root pre-`tools/` reorganization). The bare-metal scripts call them via `python3 $GENESIS_REPO/tools/external_probe/patch_*.py` instead.
 
 ### P102 — Unified spec-decode metadata (TRT-LLM-inspired architecture)
 

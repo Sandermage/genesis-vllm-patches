@@ -16,7 +16,7 @@
 #       container vs bare-metal, available disk
 #    2. Resolves pin (default: latest stable tag; --pin dev = dev tip)
 #    3. Clones Genesis into ~/.genesis/ (or $GENESIS_HOME)
-#    4. pip install -e <repo>/genesis_vllm_plugin  (so vLLM auto-loads
+#    4. pip install -e <repo>/tools/genesis_vllm_plugin  (so vLLM auto-loads
 #       Genesis via vllm.general_plugins entry point in main + workers)
 #    5. Auto-matches a preset for your (gpu × workload) and writes a
 #       runnable launch script
@@ -107,7 +107,7 @@ Flags:
   --home <path>        Where to install Genesis (default: ~/.genesis)
   --python <path>      Python interpreter to use (default: python3)
   --no-verify          Skip post-install smoke test
-  --no-plugin          Skip pip install of genesis_vllm_plugin
+  --no-plugin          Skip pip install of tools/genesis_vllm_plugin
                        (Genesis still works via PYTHONPATH but won't
                         auto-load in vllm spawn workers)
   --system             Use system pip (default: --user)
@@ -387,7 +387,7 @@ clone_genesis() {
   done
 }
 
-# ─── Install genesis_vllm_plugin (so vLLM auto-loads us in workers) ───
+# ─── Install tools/genesis_vllm_plugin (so vLLM auto-loads us in workers) ───
 
 install_plugin() {
   if [ "$GENESIS_NO_PLUGIN_INSTALL" = "1" ]; then
@@ -397,17 +397,17 @@ install_plugin() {
 
   step "Install genesis-vllm-plugin (vllm.general_plugins entry point)"
 
-  if [ ! -d "$GENESIS_HOME/genesis_vllm_plugin" ]; then
-    warn "genesis_vllm_plugin/ missing in this Genesis tree — skipping"
+  if [ ! -d "$GENESIS_HOME/tools/genesis_vllm_plugin" ]; then
+    warn "tools/genesis_vllm_plugin/ missing in this Genesis tree — skipping"
     return
   fi
 
   # Use --user unless --system was given
   local pip_args="$PIP_INSTALL_FLAGS"
-  info "pip install -e $GENESIS_HOME/genesis_vllm_plugin/  (flags: $pip_args)"
-  if ! "$PYTHON_BIN" -m pip install -q $pip_args -e "$GENESIS_HOME/genesis_vllm_plugin/" 2>&1 | tail -5; then
+  info "pip install -e $GENESIS_HOME/tools/genesis_vllm_plugin/  (flags: $pip_args)"
+  if ! "$PYTHON_BIN" -m pip install -q $pip_args -e "$GENESIS_HOME/tools/genesis_vllm_plugin/" 2>&1 | tail -5; then
     warn "plugin pip install failed — Genesis still works via PYTHONPATH but won't auto-load in spawn workers"
-    hint "Manual: $PYTHON_BIN -m pip install -e $GENESIS_HOME/genesis_vllm_plugin/"
+    hint "Manual: $PYTHON_BIN -m pip install -e $GENESIS_HOME/tools/genesis_vllm_plugin/"
     return
   fi
   ok "genesis-vllm-plugin installed"

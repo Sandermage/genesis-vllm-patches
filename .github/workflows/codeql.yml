@@ -8,7 +8,7 @@ on:
     paths:
       - "vllm/_genesis/**/*.py"
       - "genesis_*.py"
-      - "external_probe/**/*.py"
+      - "tools/external_probe/**/*.py"
       - ".github/workflows/codeql.yml"
   schedule:
     # Weekly Monday 06:00 UTC

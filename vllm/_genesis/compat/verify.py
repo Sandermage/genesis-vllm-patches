@@ -359,7 +359,7 @@ def _check_plugin_entry_point() -> CheckResult:
                 "Without the plugin, Genesis won't auto-load in vllm "
                 "spawn workers. Setattr-based patches (P103, P67) will "
                 "die on `exec vllm serve`. Install:\n"
-                "  pip install -e $GENESIS_HOME/genesis_vllm_plugin/"
+                "  pip install -e $GENESIS_HOME/tools/genesis_vllm_plugin/"
             ),
         )
     except Exception as e:  # noqa: BLE001
@@ -576,7 +576,7 @@ def run_verify(level: str = "quick") -> VerifyReport:
         report.add(CheckResult(
             "F1 vLLM boot probe",
             SKIP,
-            "F1/F2 not yet implemented — use external_probe/ scripts",
+            "F1/F2 not yet implemented — use tools/external_probe/ scripts",
             hint=(
                 "Until F1/F2 land, run after install:\n"
                 "  bash $GENESIS_HOME/launch/start_*.sh    # boot vllm serve\n"
