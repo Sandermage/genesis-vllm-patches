@@ -2033,6 +2033,57 @@ def apply_patch_67c_sparse_v() -> PatchResult:
 
 
 @register_patch(
+    "PN35 inputs_embeds optional for text-only (vllm#35975 backport)"
+)
+def apply_patch_N35_inputs_embeds_optional() -> PatchResult:
+    """Patch N35: skip inputs_embeds buffer for text-only models.
+
+    Backport of vllm-project/vllm#35975 by AjAnubolu. Skips the
+    `(max_num_tokens, hidden_size)` GPU buffer + pinned CPU mirror for
+    text-only models (no multimodal, no prompt_embeds). For Qwen3.6-27B
+    at max_num_tokens=4096: ~64 MiB GPU + ~64 MiB pinned CPU per
+    allocation site, two sites total → ~128 MiB GPU + ~64 MiB CPU
+    per worker.
+
+    Particularly relevant on borderline-OOM configs:
+      - single-24GB-GPU + long context + spec-decode (Cliff 2 fires
+        at "tried to allocate 50 MiB, 24.5 MiB free" thresholds)
+      - WSL2 setups with extra ~830 MiB-1 GiB display/vGPU overhead
+        (per club-3090#32 reports from RossNE99 + GuiPerPT, 2026-05-02)
+
+    Status: default ON — strict memory savings, no regression possible.
+    The patched code path preserves original allocation behavior for
+    multimodal models via `if self.supports_mm_inputs or
+    self.enable_prompt_embeds` guard.
+
+    Composition: independent of all other Genesis patches. Combines
+    naturally with P103 + PN32 (Cliff 2 stack) on long-context
+    single-card configs.
+
+    Retires when vllm#35975 merges upstream.
+
+    Credit: vllm#35975 by AjAnubolu (UPSTREAM author).
+    Pattern credit: noonghunna club-3090 sidecar
+                    `patch_inputs_embeds_optional.py` (2026-05-02).
+    """
+    name = "PN35 inputs_embeds optional for text-only"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm._genesis.wiring.perf_hotfix import (
+            patch_N35_inputs_embeds_optional,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_N35_inputs_embeds_optional.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch(
     "PN34 WorkspaceManager runtime lock relaxation (PN33 companion)"
 )
 def apply_patch_N34_workspace_lock_runtime_relax() -> PatchResult:

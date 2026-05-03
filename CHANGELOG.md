@@ -22,6 +22,73 @@ loud-and-clear in the per-release notes.
 > `dev` branch only (main promotion deferred until cross-rig validation
 > completes).
 
+### v7.69 — `PN35` absorption from club-3090#32 (2026-05-03)
+
+After RossNE99 + GuiPerPT reported borderline OOM on 24GB cards
+(`docker-compose.dual.yml` 262K context on WSL2; `long-text.yml` on
+v7.69 needing context lowered to 110K), surveyed noonghunna's
+`models/qwen3.6-27b/vllm/patches/` directory. Found 1 new sidecar
+worth absorbing into Genesis as a first-class patch:
+
+- **PN35 — skip inputs_embeds buffer for text-only models** (default
+  ON). Backport of vllm-project/vllm#35975 by **AjAnubolu** (UPSTREAM
+  PR, OPEN since 2026-03-04). Skips the
+  `(max_num_tokens, hidden_size)` GPU buffer + pinned CPU mirror
+  allocation in BOTH `gpu_model_runner.py:713`
+  (`self.inputs_embeds = self._make_buffer(...)`) AND
+  `llm_base_proposer.py:205` spec-decode proposer
+  (`self.inputs_embeds = torch.zeros(...)`).
+
+  For Qwen3.6-27B at `max_num_tokens=4096`, hidden_size=8192:
+  - ~64 MiB GPU + ~64 MiB pinned CPU per buffer
+  - 2 sites total → **~128 MiB GPU + ~64 MiB CPU per worker freed**
+  - Default ON: pure addition behind a guard
+    (`if self.supports_mm_inputs or self.enable_prompt_embeds`),
+    no regression possible for multimodal models
+
+  **Particularly relevant on borderline-OOM configs:**
+  - Single-24GB-GPU + long context + spec-decode (Cliff 2 fires at
+    "tried to allocate 50 MiB, 24.5 MiB free" thresholds)
+  - WSL2 setups (per club-3090#32 reports — Xwayland/WSL vGPU layer
+    eats extra ~830 MiB-1 GiB overhead, pushing borderline configs
+    over the cliff)
+  - Composes naturally with P103 + PN32 v2 (Cliff 2 stack)
+
+  Pattern credit: noonghunna club-3090 setup-time sidecar
+  `patch_inputs_embeds_optional.py` (2026-05-02). Originally raised
+  by club-3090#32 reporters (RossNE99, GuiPerPT). PN35 promotes the
+  sidecar to a first-class Genesis text-patch so it survives the
+  entrypoint `exec vllm serve` pattern (same survivability argument
+  as P103 v7.69 self-install).
+
+  Auto-retires when vllm#35975 merges upstream — drift markers
+  include both Genesis-specific `[Genesis PN35 v7.69 inputs_embeds_optional]`
+  AND the upstream `vllm#35975` reference, so post-merge state
+  triggers SKIPPED cleanly.
+
+  19 new TDD tests in `test_pN35_inputs_embeds_optional.py`. Sweep:
+  1599 → 1618 / 0 fail.
+
+  Total PATCH_REGISTRY entries: 100 → 101.
+
+  **Other 6 patches in noonghunna's directory** were surveyed too —
+  all already covered by Genesis after the v7.66/v7.68 absorption
+  series:
+  - `patch_pn25_genesis_register_fix.py` → absorbed into PN25 v7.68
+    (import-time registration)
+  - `patch_pn30_dst_shaped_temp_fix.py` → absorbed into PN30 v7.68
+    (part3 dst-shaped temp)
+  - `patch_workspace_lock_disable.py` → absorbed into PN34
+  - `patch_tolist_cudagraph.py` → already shipped at
+    `tools/external_probe/patch_tolist_cudagraph.py`
+  - `patch_pr40798_workspace.py` → already shipped at
+    `tools/external_probe/patch_pr40798_backport.py`
+  - `README.md` → docs
+
+  noonghunna's sidecar set is now down to ZERO uncovered patches in
+  Genesis (all functionality available via PATCH_REGISTRY entries
+  or external_probe).
+
 ### v7.69 — close club-3090#19 cross-rig findings (2026-05-02)
 
 After v7.68 reached noonghunna's club-3090 1×3090 + 2×3090 rigs (commit
@@ -103,8 +170,6 @@ covering the three fixes).
   GENESIS_PN32_GDN_CHUNK_THRESHOLD=16384             # default
   GENESIS_FLA_FWD_H_MAX_T=16384                      # P103 default
   ```
-
-
 
 ### Live-validation matrix (all 4 configs on 2× A5000, 2026-05-02)
 

@@ -456,6 +456,32 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             # is only called when spec-decode is active. No additional gate.
         },
     },
+    "PN35": {
+        "title": "Skip inputs_embeds buffer for text-only models (vllm#35975 backport)",
+        "env_flag": "GENESIS_ENABLE_PN35_INPUTS_EMBEDS_OPTIONAL",
+        "default_on": True,
+        "category": "perf_hotfix",
+        "credit": (
+            "Backport of vllm-project/vllm#35975 by AjAnubolu (OPEN since "
+            "2026-03-04). Skips the (max_num_tokens, hidden_size) GPU "
+            "buffer allocation for text-only models in BOTH "
+            "gpu_model_runner (~64 MiB GPU + 64 MiB pinned CPU) AND "
+            "llm_base_proposer spec-decode proposer (~64 MiB GPU). For "
+            "Qwen3.6-27B at max_num_tokens=4096 and hidden_size=8192: "
+            "freed ~128 MiB GPU + 64 MiB pinned CPU per worker. "
+            "Particularly relevant on borderline-OOM single-24GB-GPU "
+            "configs (Cliff 2 fires at 50 MiB-free thresholds) and "
+            "WSL2 setups with extra display overhead. Pattern credit: "
+            "noonghunna club-3090 setup-time sidecar "
+            "patch_inputs_embeds_optional.py 2026-05-02. Originally "
+            "raised by club-3090#32 (RossNE99, GuiPerPT WSL2 OOM "
+            "reports). Default ON — strict memory savings, no "
+            "regression possible (the `if` guard preserves original "
+            "allocation for multimodal models). Auto-retires when "
+            "vllm#35975 merges upstream."
+        ),
+        "upstream_pr": 35975,
+    },
     "PN34": {
         "title": "WorkspaceManager runtime lock relaxation (PN33 companion for runtime decode)",
         "env_flag": "GENESIS_ENABLE_PN34_WORKSPACE_LOCK_RELAX",

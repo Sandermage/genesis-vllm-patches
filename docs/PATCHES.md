@@ -4,7 +4,7 @@ This file is the **single source of truth** for every Genesis runtime patch.
 For each patch you get: ID, title, what it does, status (ON / opt-in / deprecated),
 env flag to toggle, upstream PR (if backported), and credit.
 
-**Total PATCH_REGISTRY entries:** 100 (range P1–P103 + PN8–PN34 + sub-patches P5b/P7b/P15B/P18b/P38B/P39a/P67b/P67c/PN26b). The dispatcher's `PATCH_REGISTRY` is the schema-validated, lifecycle-tracked, opt-in surface — `genesis self-test` and the schema validator gate this set on every commit.
+**Total PATCH_REGISTRY entries:** 101 (range P1–P103 + PN8–PN35 + sub-patches P5b/P7b/P15B/P18b/P38B/P39a/P67b/P67c/PN26b). The dispatcher's `PATCH_REGISTRY` is the schema-validated, lifecycle-tracked, opt-in surface — `genesis self-test` and the schema validator gate this set on every commit.
 
 **Total apply_all `@register_patch`:** 99 entries. P68/P69 share one `apply_patch_68_long_ctx_tool_adherence` function but are registered as two `PATCH_REGISTRY` entries; that's the reason for the 1-entry delta. As of v7.65 (2026-05-02) all legacy P1–P46 patches are first-class registry entries with `lifecycle: legacy` — historical pre-dispatcher patches with minimal metadata, kept default-on for compatibility.
 
@@ -224,6 +224,7 @@ validation pending) and default-ON (root-cause correctness fixes).
 | PN32 | GDN chunked-prefill (Cliff 2 single-24GB-GPU OOM) | noonghunna | OFF | `GENESIS_ENABLE_PN32_GDN_CHUNKED_PREFILL` |
 | PN33 | Spec-decode warmup K-aware (vllm#37521 extended to MTP/ngram) | ampersandru/noonghunna | **ON** | `GENESIS_ENABLE_PN33_SPEC_DECODE_WARMUP_K` (disable: `GENESIS_DISABLE_PN33_SPEC_DECODE_WARMUP_K=1`) |
 | PN34 | WorkspaceManager runtime lock relaxation (PN33 companion for runtime decode) | noonghunna | OFF | `GENESIS_ENABLE_PN34_WORKSPACE_LOCK_RELAX` |
+| PN35 | Skip inputs_embeds buffer for text-only models (vllm#35975 backport, ~64 MiB GPU + 64 MiB CPU per buffer × 2 sites) | AjAnubolu/noonghunna/club-3090#32 | **ON** | `GENESIS_ENABLE_PN35_INPUTS_EMBEDS_OPTIONAL` (disable: `GENESIS_DISABLE_PN35_INPUTS_EMBEDS_OPTIONAL=1`) |
 
 ### v7.68 cross-rig fixes from noonghunna (2026-05-02)
 
