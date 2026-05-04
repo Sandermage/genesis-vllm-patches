@@ -1079,30 +1079,10 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "is_turboquant": [True],
         },
     },
-    "PN13": {
-        "title": "CUDAGraphWrapper gc.collect/empty_cache lambda arity (vllm#41235)",
-        "env_flag": "GENESIS_ENABLE_PN13_CUDA_GRAPH_LAMBDA_ARITY",
-        "default_on": False,
-        "category": "cudagraph_safety",
-        "credit": (
-            "Backport of vllm#41235 (roikoren755, OPEN). Fixes worker-death "
-            "TypeError in CUDAGraphWrapper.__call__: 0-arg lambdas patched "
-            "over gc.collect / torch.accelerator.empty_cache fail when dynamo "
-            "calls gc.collect(generation) with positional arg during nested "
-            "@torch.compile recompile inside cudagraph capture region. "
-            "Genesis-relevant because P67/P67b/P78/P85 family uses nested "
-            "compiled kernels — dynamo can recompile mid-capture. Author "
-            "reports 'consistent on GB200 nightly' → directly relevant for "
-            "Sander's planned R6000 Pro Blackwell upgrade. Cost: 2-line text "
-            "patch, zero runtime overhead, defensive only. NO-OP on workloads "
-            "that don't trigger nested recompile."
-        ),
-        "upstream_pr": 41235,
-        "applies_to": {
-            # Patch only matters during cudagraph capture with nested compile
-            # recompiles. Harmless no-op otherwise.
-        },
-    },
+    # PN13 entry moved to legacy/retired section below (lifecycle: retired_2026-05-04)
+    # Reason: vllm 0.20.2 commit c2fb013 merged identical change (#41235).
+    # See PN13 entry near line 1289 for retirement metadata.
+
     "P94": {
         "title": "Spec-decode prepare_next_token_ids_padded zero-alloc (vllm#41043)",
         "env_flag": "GENESIS_ENABLE_P94",
@@ -1284,6 +1264,26 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "kernel_perf",
         "credit": "Pre-dispatcher legacy patch. Custom-op variant of P7 dual-stream — opt-in alternative for cudagraph capture compatibility experiments.",
         "conflicts_with": ["P7"],
+    },
+    "PN13": {
+        "title": "CUDAGraphWrapper lambda arity (vllm#41235 backport) — RETIRED 2026-05-04",
+        "env_flag": "GENESIS_ENABLE_PN13_CUDA_GRAPH_LAMBDA_ARITY",
+        "default_on": False,
+        "lifecycle": "retired_2026-05-04",
+        "retired_reason": (
+            "upstream_native_via_pr41235 — vllm 0.20.2 (commit "
+            "c2fb013) merged identical change in cuda_graph.py: "
+            "patch(\"gc.collect\", lambda *args, **kwargs: None) + "
+            "patch(\"torch.accelerator.empty_cache\", lambda *args, "
+            "**kwargs: None). Upstream code now matches our PN13 "
+            "replacement byte-for-byte. PN13 anchor (pre-fix lambda: "
+            "None pattern) no longer matches → silent skip. Per Sander "
+            "rule (2026-05-04): «если код соответствует патчу, патч "
+            "отключаем». Retired."
+        ),
+        "category": "compile_safety",
+        "credit": "Backport of vllm#41235 by Roi Koren (NVIDIA). RETIRED — upstream natively fixes after vllm v0.20.2.",
+        "upstream_pr": 41235,
     },
     "P8": {
         "title": "KV hybrid reporting (per-token capacity) — RETIRED 2026-05-04",
