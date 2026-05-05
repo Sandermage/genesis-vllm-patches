@@ -571,14 +571,14 @@ vllm serve /path/to/model --tensor-parallel-size 2 ...   # start as usual
 
 ## 📋 Reference configs
 
-| Script | Model | KV dtype | Spec | Context | Use case |
-|:---|:---|:---:|:---:|---:|:---|
-| **start_35b_fp8_PROD.sh** | Qwen3.6-35B-A3B-FP8 | turboquant_k8v4 | MTP K=3 | 320K | Daily driver, high TPS, MoE |
-| **start_27b_int4_TQ_k8v4.sh** | Qwen3.6-27B-int4-AutoRound | turboquant_k8v4 | MTP K=3 | 280K | Hybrid GDN + TQ + long-ctx |
-| **start_27b_int4_fp8_e5m2_short.sh** | Qwen3.6-27B-int4-AutoRound | fp8_e5m2 | MTP K=3 | 131K | Short-ctx high-TPS |
-| **start_27b_int4_fp8_e5m2_long_256K.sh** | Qwen3.6-27B-int4-AutoRound | fp8_e5m2 | MTP K=3 | 256K | Long-ctx RAG |
-| **start_35b_fp8_DFLASH.sh** | Qwen3.6-35B-A3B-FP8 | fp8_e5m2 | DFlash K=5 | 320K | Research drafter |
-| **start_27b_int4_DFLASH.sh** | Qwen3.6-27B-int4-AutoRound | fp8_e5m2 | DFlash K=5 | 131K | Research drafter on hybrid |
+| Script (in `scripts/`) | Model | KV / Spec | Ctx | Use case |
+|:---|:---|:---|---:|:---|
+| `start_35b_fp8_PROD.sh` | 35B-A3B-FP8 | TQ k8v4 / MTP K=3 | 320K | Daily driver, high TPS |
+| `start_27b_int4_TQ_k8v4.sh` | 27B-int4-AutoRound | TQ k8v4 / MTP K=3 | 280K | Hybrid GDN + long-ctx |
+| `start_27b_int4_fp8_e5m2_short.sh` | 27B-int4-AutoRound | fp8_e5m2 / MTP K=3 | 131K | Short-ctx high-TPS |
+| `start_27b_int4_fp8_e5m2_long_256K.sh` | 27B-int4-AutoRound | fp8_e5m2 / MTP K=3 | 256K | Long-ctx RAG |
+| `start_35b_fp8_DFLASH.sh` | 35B-A3B-FP8 | fp8_e5m2 / DFlash K=5 | 320K | Research drafter |
+| `start_27b_int4_DFLASH.sh` | 27B-int4-AutoRound | fp8_e5m2 / DFlash K=5 | 131K | Research drafter (hybrid) |
 
 All 6 scripts share env-flag block (~50 patches enabled by default). To bisect, `sed -i 's/_X=1/_X=0/' script.sh` and re-bench.
 
@@ -602,22 +602,54 @@ All 6 scripts share env-flag block (~50 patches enabled by default). To bisect, 
 
 ## 📚 Documentation map
 
+### Getting started
+
 | File | Purpose |
 |:---|:---|
-| **[README.md](README.md)** | This file — overview + quick start |
-| **[docs/COMMANDS.md](docs/COMMANDS.md)** | Single-page command reference — install, diagnose, boot, bench, maintenance |
-| **[docs/BENCHMARKS.md](docs/BENCHMARKS.md)** | Full bench results + reproduction recipe |
-| **[docs/PATCHES.md](docs/PATCHES.md)** | All 123 patches table (id, env_flag, status, credit) |
-| **[docs/CREDITS.md](docs/CREDITS.md)** | Authors, backports, cross-rig collaborators |
-| **[docs/CLIFFS.md](docs/CLIFFS.md)** | Memory cliffs (Cliff 1, 2a, 2b) explained + mitigation patches |
-| **[docs/HARDWARE.md](docs/HARDWARE.md)** | Tested hardware envelope + cross-rig matrix |
-| **[docs/CONFIGURATION.md](docs/CONFIGURATION.md)** | Env-flag reference + tunable parameters |
-| **[docs/OOM_RECIPES.md](docs/OOM_RECIPES.md)** | Common OOM patterns + fix recipes |
-| **[docs/MODELS.md](docs/MODELS.md)** | Curated model registry + per-model recommendations |
-| **[docs/QUICKSTART.md](docs/QUICKSTART.md)** | Step-by-step first-time install |
-| **[docs/SELF_TEST.md](docs/SELF_TEST.md)** | Acceptance test runbook |
-| **[docs/PLUGINS.md](docs/PLUGINS.md)** | Author + ship a community patch |
-| **[CHANGELOG.md](CHANGELOG.md)** | Per-release detail (v7.69 → v7.72 + history) |
+| [README.md](README.md) | This file — overview, install, benchmarks, quick start |
+| [docs/QUICKSTART.md](docs/QUICKSTART.md) | Step-by-step first-time install (EN + RU) |
+| [docs/INSTALL.md](docs/INSTALL.md) | Detailed installer reference (flags, env, troubleshoot) |
+| [docs/COMMANDS.md](docs/COMMANDS.md) | Single-page command reference (10 sections) |
+| [docs/FAQ.md](docs/FAQ.md) | Frequently asked questions |
+| [docs/GLOSSARY.md](docs/GLOSSARY.md) | Cliffs / TQ / MTP / DFlash / Marlin terminology |
+
+### Reference
+
+| File | Purpose |
+|:---|:---|
+| [docs/PATCHES.md](docs/PATCHES.md) | All 123 patches table (id, env_flag, status, credit) |
+| [docs/CONFIGURATION.md](docs/CONFIGURATION.md) | Env-flag reference + tunable parameters |
+| [docs/CONFIGS.md](docs/CONFIGS.md) | Per-launch-script env block reference |
+| [docs/HARDWARE.md](docs/HARDWARE.md) | Tested hardware envelope + cross-rig matrix |
+| [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md) | vLLM / torch / triton / driver pin matrix |
+| [docs/MODELS.md](docs/MODELS.md) | Curated model registry + per-model recommendations |
+| [docs/CLIFFS.md](docs/CLIFFS.md) | Memory cliffs (Cliff 1, 2a, 2b) + mitigation patches |
+| [docs/OOM_RECIPES.md](docs/OOM_RECIPES.md) | Common OOM patterns + fix recipes |
+
+### Benchmarks + testing
+
+| File | Purpose |
+|:---|:---|
+| [docs/BENCHMARKS.md](docs/BENCHMARKS.md) | Full bench results + reproduction recipe |
+| [docs/BENCHMARK_GUIDE.md](docs/BENCHMARK_GUIDE.md) | How to run + interpret a bench from scratch |
+| [docs/SELF_TEST.md](docs/SELF_TEST.md) | Acceptance test runbook |
+
+### Contribute + community
+
+| File | Purpose |
+|:---|:---|
+| [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) | PR / issue / security disclosure guide |
+| [docs/PLUGINS.md](docs/PLUGINS.md) | Author + ship a community patch |
+| [docs/CREDITS.md](docs/CREDITS.md) | Authors, backports, cross-rig collaborators |
+| [docs/SPONSORS.md](docs/SPONSORS.md) | Hardware / time sponsors + how to support the project |
+
+### History
+
+| File | Purpose |
+|:---|:---|
+| [CHANGELOG.md](CHANGELOG.md) | Per-release detail (v7.69 → v7.72 + history) |
+| [vllm/_genesis/CHANGELOG.md](vllm/_genesis/CHANGELOG.md) | Engineering log (per-commit, per-A/B detail) |
+| [vllm/_genesis/README.md](vllm/_genesis/README.md) | Developer / contributor README for the package |
 
 ---
 
