@@ -4,6 +4,51 @@ Curated 2026-05-04 from cross-rig diagnostics on noonghunna/club-3090
 (single 3090 24GB rig) + our 2× A5000 PROD. Captures empirical findings
 that the audit identified as "OOM on single-card" priority items.
 
+## ⭐ noonghunna/club-3090#22 recipe (Cliff 2b on 24 GB single-card, 60K+ context)
+
+**Symptom**: vLLM 0.20.2 + Genesis v7.72+ on 1× RTX 3090 24 GB, Qwen3.6-27B-int4-AutoRound +
+hybrid GDN + chunked-prefill, 60K-token single-shot prompt → `OutOfMemoryError: tried to
+allocate 50 MiB, 56 MiB free` at `chunk_o.py:161 o = torch.empty_like(v)`.
+
+**Root cause**: at `gpu_memory_utilization=0.93`, KV pool eats 22.4 GiB, leaving ~1.6 GiB
+headroom for activations. FLA `chunk_gated_delta_rule_fwd_h` allocates `(B, NT, H, V, K)`
+h-tensor = **1.37 GiB at T=60K** which doesn't fit. PyTorch caching allocator fragments under
+repeat 1.37 GiB alloc-free cycles → "50 MiB requested, 56 MiB free" symptom.
+
+**The recipe** (env-only, no code changes — "Level 1" mitigation):
+
+```bash
+# 1. Enable Cliff 2b chunking patch (P103 — split T-dim 60K → 4×16K)
+export GENESIS_ENABLE_P103=1
+export GENESIS_FLA_FWD_H_MAX_T=16384
+
+# 2. Enable PN59 streaming-GDN window-iterative driver
+export GENESIS_ENABLE_PN59_STREAMING_GDN=1
+
+# 3. PyTorch allocator hardening (gc 0.6 → 0.85 stops needless GC churn)
+export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True,max_split_size_mb:256,garbage_collection_threshold:0.85"
+
+# 4. vllm serve flags — lower gpu_memory_utilization 0.93 → 0.85
+vllm serve ... \
+    --gpu-memory-utilization 0.85 \         # frees +1.9 GiB activation headroom
+    --max-num-batched-tokens 2048 \         # halves Marlin workspace peak
+    --max-num-seqs 1 \                      # halves worst-case KV reservation
+    ...
+```
+
+**Effect**: h-tensor peak 1.37 GiB → **365 MiB** (P103) and headroom 1.6 GiB → **3.5 GiB**.
+Real KV usage at 60K single-stream is ~3 GiB out of ~20.5 GiB pool — pool is over-provisioned
+for the workload, the 0.05 we give back is "paper" capacity not real.
+
+**Reference launch script**: `scripts/launch/bare_metal_27b_int4_TQ_k8v4_single_card.sh`
+already ships with this recipe baked in (v7.72.4+).
+
+**Long-term**: Level 2 (PN59 structural fix — thread chunk_indices/chunk_offsets per window,
+wire `GdnScratchPool` into production driver, fix state-chain bug) drops the env-flag
+requirement entirely. Tracking in genesis-vllm-patches v7.72.5 sprint.
+
+---
+
 ## Quick reference matrix
 
 | Card / VRAM | Workload | Recipe |

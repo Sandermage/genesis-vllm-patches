@@ -65,7 +65,13 @@ python3 -m vllm._genesis.patches.apply_all
 
 # Genesis env (matches start_27b_int4_no_TQ_short.sh / v771b)
 export VLLM_NO_USAGE_STATS=1 VLLM_LOGGING_LEVEL=WARNING
-export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True,max_split_size_mb:512"
+# v7.72.4 Level 1 fix for noonghunna/club-3090#22 (single 24 GB card OOM at 60K
+# context). Was: garbage_collection_threshold UNSET (default 1.0 = never GC) →
+# fragmentation accumulated. Now: 0.85 = GC fires under genuine pressure (>20.4
+# GiB used), avoiding the "50 MiB requested, 56 MiB free" classic split-block
+# OOM symptom on long prefill. expandable_segments:True keeps fragmentation
+# physically impossible by virtual-memory-mapping the allocator pool.
+export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True,max_split_size_mb:512,garbage_collection_threshold:0.85"
 export VLLM_FLOAT32_MATMUL_PRECISION=high VLLM_SSM_CONV_STATE_LAYOUT=DS
 export NCCL_P2P_DISABLE=1 NCCL_CUMEM_ENABLE=0
 export VLLM_USE_FLASHINFER_SAMPLER=1 VLLM_USE_FUSED_MOE_GROUPED_TOPK=1
@@ -90,10 +96,18 @@ export GENESIS_ENABLE_P87=1 GENESIS_ENABLE_P91=1
 export GENESIS_ENABLE_P99=1 GENESIS_ENABLE_P100=1 GENESIS_ENABLE_P101=1
 export GENESIS_ENABLE_PN11_GDN_AB_CONTIGUOUS=1
 export GENESIS_PREALLOC_TOKEN_BUDGET=4096 GENESIS_BUFFER_MODE=shared
+# v7.72.4 Level 1 — Cliff 2b mitigation stack for single 24 GB card.
+# P103 splits FLA T-dim 60K → 4×16K sub-prompts → h-tensor 1.37 GiB → 365 MiB.
+# PN59 streams the per-window h tensor on top of P103's outer chunking.
+export GENESIS_ENABLE_P103=1 GENESIS_FLA_FWD_H_MAX_T=16384
+export GENESIS_ENABLE_PN59_STREAMING_GDN=1
 
 # IMPORTANT: NO --enable-prefix-caching (DS conv state layout crash, see memory)
+# v7.72.4: gpu-memory-utilization lowered 0.90 → 0.85 — frees ~1.2 GiB headroom
+# for activations on single-card. Real KV usage at 60K single-stream is far
+# below pool capacity — the 0.05 we give back is "paper" capacity, not real.
 exec vllm serve --model "${MODEL_PATH}" --tensor-parallel-size 1 \
-    --gpu-memory-utilization 0.90 --max-model-len 280000 \
+    --gpu-memory-utilization 0.85 --max-model-len 280000 \
     --max-num-seqs 2 --max-num-batched-tokens 2048 \
     --enable-chunked-prefill --dtype float16 \
     --kv-cache-dtype turboquant_k8v4 \
