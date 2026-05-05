@@ -22,7 +22,7 @@ loud-and-clear in the per-release notes.
 > sprint (PN59-PN67 + audit hardening). All on `dev` branch only (main
 > promotion deferred until cross-rig validation completes).
 
-### v7.72.1 — P68 xgrammar-incompat tool skip (2026-05-05, evening)
+### v7.72.1 — P68 xgrammar-incompat tool skip (2026-05-05 11:30 EEST)
 
 **Bug fix from cross-rig report — [noonghunna/club-3090#57](https://github.com/noonghunna/club-3090/issues/57) (lexhoefsloot).**
 

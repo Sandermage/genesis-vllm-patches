@@ -139,7 +139,7 @@ single-page command reference.
 
 ---
 
-## 🚑 v7.72.1 hotfix (2026-05-05 evening) — P68 xgrammar-incompat tool skip
+## 🚑 v7.72.1 hotfix (2026-05-05 11:30 EEST) — P68 xgrammar-incompat tool skip
 
 **Bug** ([noonghunna/club-3090#57](https://github.com/noonghunna/club-3090/issues/57), reported by @lexhoefsloot): when P68 (`GENESIS_ENABLE_P68_AUTO_FORCE_TOOL=1`) upgraded `tool_choice: "auto" → "required"` on long prompts, vLLM built a combined schema across **all** tools and ran xgrammar on it. Any single tool with `patternProperties` / `propertyNames` / `$ref` / `oneOf` (very common for `exec`-type tools) then **poisoned every long-prompt request from agentic IDE clients** with `400 ValueError: features not supported by xgrammar`.
 
