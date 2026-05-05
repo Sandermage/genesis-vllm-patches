@@ -9,7 +9,7 @@
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![vLLM pin](https://img.shields.io/badge/vllm-0.20.2rc1.dev9-orange.svg)](https://github.com/vllm-project/vllm)
 [![Patches](https://img.shields.io/badge/patches-123-green.svg)](docs/PATCHES.md)
-[![Tests](https://img.shields.io/badge/tests-1912%20pass-brightgreen.svg)](vllm/_genesis/tests/)
+[![Tests](https://img.shields.io/badge/tests-1930%20pass-brightgreen.svg)](vllm/_genesis/tests/)
 [![GPU](https://img.shields.io/badge/GPU-RTX%203090%20%7C%204090%20%7C%205090%20%7C%20A5000%20%7C%20H20%20%7C%20R6000%20Blackwell-purple.svg)](docs/HARDWARE.md)
 [![PROD](https://img.shields.io/badge/PROD%20uptime-24%2F7-blue.svg)](docs/BENCHMARKS.md)
 
@@ -136,6 +136,14 @@ genesis lifecycle-audit          # patches near retirement
 
 For everything else, see [`docs/COMMANDS.md`](docs/COMMANDS.md) — the
 single-page command reference.
+
+---
+
+## 🚑 v7.72.1 hotfix (2026-05-05 evening) — P68 xgrammar-incompat tool skip
+
+**Bug** ([noonghunna/club-3090#57](https://github.com/noonghunna/club-3090/issues/57), reported by @lexhoefsloot): when P68 (`GENESIS_ENABLE_P68_AUTO_FORCE_TOOL=1`) upgraded `tool_choice: "auto" → "required"` on long prompts, vLLM built a combined schema across **all** tools and ran xgrammar on it. Any single tool with `patternProperties` / `propertyNames` / `$ref` / `oneOf` (very common for `exec`-type tools) then **poisoned every long-prompt request from agentic IDE clients** with `400 ValueError: features not supported by xgrammar`.
+
+**Fix:** P68 now scans `request.tools` for xgrammar-incompatible JSON Schema keys before upgrading; if any tool is incompatible, the upgrade is skipped with a WARN (P69 reminder still fires — only the upgrade step is unsafe). Operators on a non-xgrammar backend can override via the new `GENESIS_P68_FORCE=1` env. **+18 TDD**, full suite **1930 pass + 73 skip + 0 fail**. Details: [CHANGELOG §v7.72.1](CHANGELOG.md).
 
 ---
 

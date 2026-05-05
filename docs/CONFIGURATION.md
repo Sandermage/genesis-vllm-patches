@@ -76,7 +76,8 @@ unless explicitly engaged.
 | `GENESIS_ENABLE_P66_CUDAGRAPH_SIZE_FILTER=1` | P66 | cudagraph_capture_sizes spec-decode divisibility filter |
 | `GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL=1` | P67 | TurboQuant multi-query Triton kernel for K+1 spec-verify (Genesis-original) |
 | `GENESIS_P67_USE_UPSTREAM=1` | P67 | route to upstream `triton_turboquant_decode` instead of our v7.22 (drift-free) |
-| `GENESIS_ENABLE_P68_AUTO_FORCE_TOOL=1` | P68 | Auto force tool_choice=required for long-ctx + tool calls |
+| `GENESIS_ENABLE_P68_AUTO_FORCE_TOOL=1` | P68 | Auto force tool_choice=required for long-ctx + tool calls. **Auto-skips** when any tool's JSON Schema contains xgrammar-incompatible keys (`patternProperties`, `propertyNames`, `$ref`, `oneOf`, etc.) — see club-3090#57 |
+| `GENESIS_P68_FORCE=1` | P68 | Override the auto-skip — apply `tool_choice="required"` even on xgrammar-incompatible tool catalogs. Only safe on non-xgrammar backends (guidance / outlines / llguidance). Default OFF. |
 | `GENESIS_ENABLE_P69_LONG_CTX_TOOL_REMINDER=1` | P69 | Long-context tool-format reminder injection |
 | `GENESIS_ENABLE_P70_AUTO_STRICT_NGRAM=1` | P70 | Auto-strict-ngram (force prompt_lookup_min ≥ 8) |
 | `GENESIS_ENABLE_P72_PROFILE_RUN_CAP=1` | P72 | profile_run M cap (unblocks `--max-num-batched-tokens > 4096`) |

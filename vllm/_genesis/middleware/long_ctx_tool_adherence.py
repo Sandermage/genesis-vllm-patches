@@ -153,6 +153,107 @@ def _extract_tool_names(tools: list[Any]) -> list[str]:
     return names
 
 
+# ─────────────────────────────────────────────────────────────────
+# club-3090#57 fix (lexhoefsloot 2026-05-05): xgrammar-aware P68 skip
+# ─────────────────────────────────────────────────────────────────
+#
+# When P68 upgrades `tool_choice: "auto" → "required"`, vLLM's
+# `AbstractToolParser.adjust_request` then calls
+# `_get_json_schema_from_tools(tools)` which builds a combined
+# `{"type": "array", "items": {"anyOf": [<schema_for_every_tool>]}}` and
+# assigns it to `request.structured_outputs`. xgrammar then attempts to
+# compile that combined schema — and **fails on the first tool whose
+# schema contains any of the keys it doesn't support**, returning a 400
+# `ValueError: The provided JSON schema contains features not supported
+# by xgrammar.`
+#
+# In stock vLLM with `tool_choice="auto"` this never happens because
+# `_get_json_schema_from_tools` returns `None` for "auto" — the schema is
+# never built and never validated. The qwen3_coder parser handles tool
+# extraction at output time without grammar enforcement.
+#
+# So a single tool with `patternProperties` ANYWHERE in the catalog
+# poisons EVERY long-prompt request when P68 is on, even when the user /
+# model would never have called that particular tool.
+#
+# Fix: scan request.tools for xgrammar-incompatible JSON Schema keys
+# BEFORE upgrading tool_choice. If any tool is incompatible, skip the
+# upgrade (and let P69 still fire — only the upgrade step is unsafe).
+# Operators using a non-xgrammar backend (guidance / outlines / llguidance)
+# can override via GENESIS_P68_FORCE=1.
+
+_XGRAMMAR_UNSUPPORTED_SCHEMA_KEYS = frozenset({
+    # Hit empirically by lexhoefsloot's OpenClaw `exec.env` tool
+    "patternProperties",
+    "propertyNames",
+    # Reference + composition keywords xgrammar doesn't compile
+    "$ref",
+    "$defs",
+    "definitions",
+    "oneOf",
+    "not",
+    # Conditional schema keywords
+    "if",
+    "then",
+    "else",
+    "dependentRequired",
+    "dependentSchemas",
+    # Unevaluated-* and content-validation keywords
+    "unevaluatedProperties",
+    "unevaluatedItems",
+    "contentSchema",
+    "contentEncoding",
+    "contentMediaType",
+})
+
+
+def _scan_schema_for_unsupported_key(
+    schema: Any, _depth: int = 0
+) -> str | None:
+    """Recursively scan a JSON schema for keys xgrammar can't compile.
+    Returns the first offending key found, or None if the schema is clean.
+    Depth-limited (16) to avoid pathological recursion in cyclic $ref schemas."""
+    if _depth > 16:
+        return None
+    if isinstance(schema, dict):
+        for k in schema.keys():
+            if k in _XGRAMMAR_UNSUPPORTED_SCHEMA_KEYS:
+                return k
+        for v in schema.values():
+            r = _scan_schema_for_unsupported_key(v, _depth + 1)
+            if r is not None:
+                return r
+    elif isinstance(schema, list):
+        for v in schema:
+            r = _scan_schema_for_unsupported_key(v, _depth + 1)
+            if r is not None:
+                return r
+    return None
+
+
+def _find_xgrammar_incompat_tool(tools: list[Any]) -> tuple[str, str] | None:
+    """Walk request.tools; return (tool_name, offending_key) of the first
+    tool whose `function.parameters` schema contains any xgrammar-
+    unsupported key. Returns None if all tools are clean (or no tools)."""
+    for t in tools or []:
+        if isinstance(t, dict):
+            fn = t.get("function") or {}
+            name = fn.get("name") or "<anonymous>"
+            params = fn.get("parameters")
+        else:
+            fn = getattr(t, "function", None)
+            if fn is None:
+                continue
+            name = getattr(fn, "name", None) or "<anonymous>"
+            params = getattr(fn, "parameters", None)
+        if params is None:
+            continue
+        offender = _scan_schema_for_unsupported_key(params)
+        if offender is not None:
+            return (str(name), offender)
+    return None
+
+
 def _build_p69_reminder(tool_names: list[str]) -> str:
     """Build the P69 format-reminder string appended to last user message.
 
@@ -245,22 +346,59 @@ def apply_hook(serving_chat: Any, request: Any) -> dict[str, Any]:
 
     # P68 — auto force tool
     if p68_enabled:
-        try:
-            request.tool_choice = "required"
-            result["applied_p68"] = True
-            # WARN-level (was INFO): per Genesis Issue #9 — operators must
-            # see this in default log levels because the rewrite changes
-            # request semantics in a way that can produce
-            # finish_reason=stop on what was a casual user message.
+        # club-3090#57 fix (lexhoefsloot 2026-05-05): pre-scan tools for
+        # xgrammar-incompatible schema keys. Upgrading tool_choice to
+        # "required" makes vLLM build a combined schema across ALL tools and
+        # run xgrammar compilation; ANY tool with patternProperties /
+        # propertyNames / $ref / oneOf / etc. then poisons EVERY long-prompt
+        # request with `400 ValueError: features not supported by xgrammar`.
+        # Operators on a non-xgrammar backend (guidance / outlines /
+        # llguidance) can override via GENESIS_P68_FORCE=1.
+        force_p68 = _env_flag("GENESIS_P68_FORCE")
+        incompat = (
+            None if force_p68 else _find_xgrammar_incompat_tool(tools)
+        )
+        if incompat is not None:
+            tool_name, key = incompat
+            result["reason"] = (
+                f"P68 skipped: tool {tool_name!r} schema contains "
+                f"xgrammar-unsupported key {key!r} — upgrading tool_choice "
+                "to 'required' would trigger 400 ValueError at "
+                "adjust_request (club-3090#57). Set GENESIS_P68_FORCE=1 to "
+                "override on non-xgrammar backends."
+            )
             log.warning(
                 "[Genesis P68] long-ctx prompt (%d chars >= %d threshold): "
-                "upgraded tool_choice 'auto' -> 'required'. To disable "
-                "this rewrite set GENESIS_ENABLE_P68_AUTO_FORCE_TOOL=0 or "
-                "raise GENESIS_P68_P69_LONG_CTX_THRESHOLD_CHARS.",
-                chars, threshold,
+                "SKIPPING tool_choice upgrade — tool %r has xgrammar-"
+                "unsupported schema key %r. P69 reminder will still apply "
+                "if enabled. To force P68 on a non-xgrammar backend, set "
+                "GENESIS_P68_FORCE=1 (not recommended otherwise — see "
+                "noonghunna/club-3090#57).",
+                chars, threshold, tool_name, key,
             )
-        except Exception as e:
-            log.warning("[Genesis P68] failed to upgrade tool_choice: %s", e)
+        else:
+            try:
+                request.tool_choice = "required"
+                result["applied_p68"] = True
+                # WARN-level (was INFO): per Genesis Issue #9 — operators must
+                # see this in default log levels because the rewrite changes
+                # request semantics in a way that can produce
+                # finish_reason=stop on what was a casual user message.
+                _force_note = (
+                    " (FORCE-OVERRIDE active)" if force_p68 else ""
+                )
+                log.warning(
+                    "[Genesis P68] long-ctx prompt (%d chars >= %d "
+                    "threshold): upgraded tool_choice 'auto' -> "
+                    "'required'%s. To disable this rewrite set "
+                    "GENESIS_ENABLE_P68_AUTO_FORCE_TOOL=0 or raise "
+                    "GENESIS_P68_P69_LONG_CTX_THRESHOLD_CHARS.",
+                    chars, threshold, _force_note,
+                )
+            except Exception as e:
+                log.warning(
+                    "[Genesis P68] failed to upgrade tool_choice: %s", e
+                )
 
     # P69 — append reminder to last user message
     if p69_enabled:

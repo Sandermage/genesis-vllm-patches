@@ -22,6 +22,16 @@ loud-and-clear in the per-release notes.
 > sprint (PN59-PN67 + audit hardening). All on `dev` branch only (main
 > promotion deferred until cross-rig validation completes).
 
+### v7.72.1 — P68 xgrammar-incompat tool skip (2026-05-05, evening)
+
+**Bug fix from cross-rig report — [noonghunna/club-3090#57](https://github.com/noonghunna/club-3090/issues/57) (lexhoefsloot).**
+
+- **P68** (`GENESIS_ENABLE_P68_AUTO_FORCE_TOOL=1`) silently turned the upstream xgrammar `patternProperties` / `propertyNames` / `$ref` / `oneOf` limitation into a 100% reproducible **400 `ValueError: features not supported by xgrammar`** on long-prompt requests from agentic IDE clients (OpenClaw, Claude Code, Cline, Cursor) whose tool catalog included even one schema with such keys.
+- **Root cause:** P68 upgraded `tool_choice: "auto" → "required"`, which makes vLLM build a combined `anyOf` schema across ALL tools and run xgrammar compilation. A single tool with `patternProperties` (very common for `exec`-type tools) then poisoned every long-prompt request.
+- **Fix:** new `_find_xgrammar_incompat_tool()` scans `request.tools` BEFORE upgrading `tool_choice`. If any tool contains an xgrammar-unsupported JSON Schema key, P68 skips the upgrade with a WARN, but P69 reminder still fires (only the upgrade is unsafe). Operators on a non-xgrammar backend (guidance / outlines / llguidance) can override via new `GENESIS_P68_FORCE=1`.
+- **Tests:** +18 TDD (`test_club3090_57_p68_xgrammar_skip.py`) covering schema scanner + apply_hook integration + force override + P69 still-fires path. Full suite **1930 pass + 73 skipped + 0 failures** (was 1912).
+- **Honest scope:** this is a workaround on the Genesis side, not an upstream xgrammar fix. The fundamental `patternProperties` support gap is tracked at upstream xgrammar; Genesis's job is to not weaponize it.
+
 ### v7.72 — `PN59-PN67` + audit hardening sprint (2026-05-05)
 
 **7 new patches:**
