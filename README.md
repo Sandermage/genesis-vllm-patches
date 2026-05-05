@@ -9,7 +9,7 @@
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![vLLM pin](https://img.shields.io/badge/vllm-0.20.2rc1.dev9-orange.svg)](https://github.com/vllm-project/vllm)
 [![Patches](https://img.shields.io/badge/patches-123-green.svg)](docs/PATCHES.md)
-[![Tests](https://img.shields.io/badge/tests-1858%20pass-brightgreen.svg)](vllm/_genesis/tests/)
+[![Tests](https://img.shields.io/badge/tests-1912%20pass-brightgreen.svg)](vllm/_genesis/tests/)
 [![GPU](https://img.shields.io/badge/GPU-RTX%203090%20%7C%204090%20%7C%205090%20%7C%20A5000%20%7C%20H20%20%7C%20R6000%20Blackwell-purple.svg)](docs/HARDWARE.md)
 [![PROD](https://img.shields.io/badge/PROD%20uptime-24%2F7-blue.svg)](docs/BENCHMARKS.md)
 
@@ -157,27 +157,53 @@ single-page command reference.
 
 ### Detailed patch ledger — past 24 hours (2026-05-04 → 2026-05-05)
 
-| Patch | Category | What it does | Empirical result | Status |
-|:---:|:---:|:---|:---|:---:|
-| **PN59** | hybrid | Streaming-GDN window-iterative (Variant D) — replaces FLA's full `(B, NT, H, V, K)` h-tensor materialization with window-iterative driver + GdnScratchPool | 27B Lorbus PROD A/B: **−142 MiB/GPU at boot** + **−95% per-soak fragmentation drift** (40 → 2 MiB/turn) + 20/20 turns clean | ✅ default-ON 27B |
-| **PN60** | stability | Preflight quant-arg vs config.json validator (CLI `genesis preflight`) | catches apnar club-3090#51 NVFP4 boot failure (`auto_round` vs `compressed-tensors`) with **one-line remediation hint** instead of 30-line pydantic ValidationError | ✅ default-ON, 17/17 TDD |
-| **PN61** | stability | qwen3_vl loader `KeyError: blocks.0.attn.proj.weight` → `language_model_only=True` auto-fallback (class-rebind wrapper) | converts NVFP4 ViT-stripped checkpoint boot crash into one-line WARN; idempotent | 🟡 opt-in, 12/12 TDD |
-| **PN62** | memory_savings | Text-only ViT scratch **MARKER-ONLY** — wraps `_dummy_run` and sets `_pn62_skip_vit_scratch=True` when `mm_limits_all_zero AND --language-model-only`. **No production hook reads the marker yet** (audit G-POST-04 honesty); real ViT-alloc skip lands when inner alloc helper honours the marker. | predicted **−3-5 GiB** save pending real hook (NOT delivered yet); sister to PN35 | 🟡 opt-in, 11/11 TDD, awaits inner-alloc hook + cross-rig (apnar 5090) |
-| **PN63** | stability | gpu_profile advisory: prefer `--kv-cache-dtype fp8_e5m2` over `fp8_e4m3` on consumer Blackwell SM 12.0 | apnar empirical: e4m3 + 96K loses **−2.6% TPS** vs e5m2 + 48K on RTX 5090 | ✅ default-ON (advisory only) |
-| **PN64** | kernel_perf | Marlin MoE SM 12.0 placeholder entry (copies Hopper config) | unblocks Marlin MoE per-SM tuning on RTX 5090; awaits real sweep data | 🟡 opt-in (placeholder) |
-| **PN65** | request_middleware | Structured API access log middleware (replaces uvicorn defaults) | live: `[Genesis-API] 200  POST /v1/chat/completions  34ms  prompt=46t  completion=400t  tools=1  client=192.168.1.10` | 🟡 opt-in, 18/18 TDD, default in 27B PROD |
-| **P107** | structured_output | MTP truncation detector at reasoning→tool_call boundary (vllm#41467) | observability hook for MTP K=3 + tools stack; raises retryable on truncation | ✅ default-ON 27B+35B |
-| **PN51** | perf_hotfix | Qwen3 streaming `enable_thinking=false` content routing (vllm#40816) | fixes content-channel staying empty in stream-mode + thinking-disabled clients (Open WebUI, LibreChat, LobeChat, Cline) | ✅ default-ON 27B+35B (NULL-impact validated) |
-| **PN52** | perf_hotfix | prompt_logprobs eviction fix during chunked prefill (vllm#41411 MERGED) | fixes `-1` placeholder leak when chunked prefill resumes partial req | ✅ default-ON 27B+35B |
-| **PN55** | perf_hotfix | wake_up crash fix on hybrid (Mamba/DeltaNet) models (vllm#41602) | NULL on PROD (no /sleep API); defensive for hybrid users | ✅ default-ON 27B+35B |
-| **PN56** | structured_output | Qwen3Coder XML parse fallback (vllm#41466) | fixes leaking `{}` placeholder when XML parser fails midway; protects strict OpenAI clients | ✅ default-ON 27B+35B |
-| **PN57** | perf_hotfix | TurboQuant centroids disk-persistent cache (vllm#41418-inspired) | saves ~3-5s cold-start latency on TQ models | ✅ default-ON 27B+35B |
-| **PN58** | structured_output | Spec reasoning boundary validation (vllm#40962, narrower P62 alt) | mutex with P62 (active in PROD); kept opt-in | 🟡 opt-in (P62 broader preferred) |
-| **P79d** | spec_decode | Preempt async-discard (vllm#38624 backport) — wires + registers (was orphan in v7.69) | NULL on PROD sync-ngram; protects async + EAGLE/MTP users from "the the / of of" duplication after preempt-resume | 🟡 opt-in |
-| **P51 / P102** | library/diagnostic | Registered as library/diagnostic (were runtime-active but invisible to dispatcher matrix) | P51 = TQ-active runtime guard; P102 = unified spec-meta + disagreement tracker | ✅ runtime / 🟡 opt-in |
-| **conflicts_with symmetry** | infrastructure | Restored 4 declarations: P65↔[P56,P57,P67,P67b], PN58↔P62, P7↔P7b, P28↔PN32 | validator now produces correct conflict messages (was 7 asymmetric → 0) | infrastructure |
+| Patch | Headline | Status |
+|:---|:---|:---:|
+| **PN59** | Streaming-GDN window-iterative (Variant D) — Cliff 2b breakthrough | ✅ 27B default |
+| **PN60** | Preflight quant-arg validator (catches NVFP4 boot failure) | ✅ default-ON |
+| **PN61** | qwen3_vl loader `KeyError` → `language_model_only` auto-fallback | 🟡 opt-in |
+| **PN62** | Text-only ViT scratch **MARKER-ONLY** (real hook pending) | 🟡 opt-in |
+| **PN63** | Consumer Blackwell sm_120 kv-cache-dtype advisory | ✅ advisory |
+| **PN64** | Marlin MoE sm_120 placeholder (env-gated) | 🟡 opt-in |
+| **PN65** | Structured API access log middleware | 🟡 opt-in (27B PROD default) |
+| **PN66** | Multi-turn `</think>` leak fix (vllm#41696 backport) | 🟡 opt-in |
+| **PN67** | Thinking budget inverted-bool fix (vllm#41674 backport) | 🟡 opt-in |
+| **P107** | MTP truncation detector at reasoning→tool_call boundary | ✅ 27B+35B default |
+| **PN51** | Qwen3 streaming `enable_thinking=false` content routing | ✅ 27B+35B default |
+| **PN52** | `prompt_logprobs` eviction fix during chunked prefill | ✅ 27B+35B default |
+| **PN55** | wake_up crash fix on hybrid (Mamba/DeltaNet) models | ✅ defensive |
+| **PN56** | Qwen3Coder XML parse fallback | ✅ 27B+35B default |
+| **PN57** | TurboQuant centroids disk-persistent cache | ✅ 27B+35B default |
+| **PN58** | Spec reasoning boundary validation (narrower P62 alt) | 🟡 opt-in |
+| **P79d** | Preempt async-discard backport — wires + registers | 🟡 opt-in |
+| **P51/P102** | library + diagnostic — runtime guard + spec-meta tracker | ✅/🟡 |
+| _conflicts_with symmetry_ | 4 declarations restored (P65/PN58/P7/P28) | infra |
 
-  ◉ default-ON in PROD scripts   ○ opt-in (env flag)
+✅ default-ON in PROD scripts &nbsp;·&nbsp; 🟡 opt-in (env flag)
+
+<details>
+<summary><b>Per-patch detail (click to expand)</b></summary>
+
+- **PN59 — streaming-GDN.** Replaces FLA's full `(B, NT, H, V, K)` h-tensor materialization with a window-iterative driver + GdnScratchPool. **27B Lorbus PROD A/B: −142 MiB/GPU at boot, −95% per-soak fragmentation drift (40 → 2 MiB/turn), 20/20 turns clean.**
+- **PN60 — preflight quant validator.** CLI `genesis preflight` catches apnar club-3090#51 NVFP4 boot failure (`auto_round` vs `compressed-tensors`) with a **one-line remediation hint** instead of a 30-line pydantic ValidationError. 17/17 TDD.
+- **PN61 — qwen3_vl loader fallback.** Class-rebind wrapper converts the NVFP4 ViT-stripped checkpoint boot crash (`KeyError: blocks.0.attn.proj.weight`) into a one-line WARN; idempotent. 12/12 TDD.
+- **PN62 — text-only ViT skip MARKER-ONLY.** Wraps `_dummy_run` and sets `_pn62_skip_vit_scratch=True` when `mm_limits_all_zero AND --language-model-only`. **No production hook reads the marker yet** (audit G-POST-04 honesty); real ViT-alloc skip lands when inner alloc helper honours the marker. Predicted **−3-5 GiB** save pending real hook. 11/11 TDD, awaits cross-rig (apnar 5090).
+- **PN63 — Blackwell consumer kv-cache advisory.** gpu_profile advisory: prefer `--kv-cache-dtype fp8_e5m2` over `fp8_e4m3` on SM 12.0. apnar empirical: e4m3 + 96K loses **−2.6% TPS** vs e5m2 + 48K on RTX 5090.
+- **PN64 — Marlin MoE sm_120 placeholder.** Copies Hopper config; unblocks Marlin MoE per-SM tuning on RTX 5090; awaits real sweep data. Env-gated `GENESIS_ENABLE_PN64`.
+- **PN65 — structured access log.** Replaces uvicorn defaults; live output: `[Genesis-API] 200  POST /v1/chat/completions  34ms  prompt=46t  completion=400t  tools=1  client=192.168.1.10`. 18/18 TDD; default in 27B PROD.
+- **PN66 / PN67 — backports.** PN66 = vllm#41696 multi-turn `</think>` leak fix (panpan0000); PN67 = vllm#41674 thinking budget inverted-bool fix (JasonKeyiL).
+- **P107 — MTP truncation detector.** vllm#41467; observability hook for MTP K=3 + tools stack; raises retryable on truncation at reasoning→tool_call boundary.
+- **PN51 — Qwen3 streaming + thinking-disabled.** vllm#40816 backport; fixes content-channel staying empty in stream-mode for Open WebUI, LibreChat, LobeChat, Cline. NULL-impact validated.
+- **PN52 — prompt_logprobs eviction (vllm#41411 MERGED).** Fixes `-1` placeholder leak when chunked prefill resumes a partial request.
+- **PN55 — hybrid wake_up fix (vllm#41602).** NULL on PROD (no /sleep API); defensive for users running Mamba/DeltaNet hybrids with sleep.
+- **PN56 — Qwen3Coder XML fallback (vllm#41466).** Fixes leaking `{}` placeholder when the XML parser fails midway; protects strict OpenAI clients.
+- **PN57 — TurboQuant centroids cache (vllm#41418-inspired).** Saves ~3-5s cold-start latency on TQ models.
+- **PN58 — spec reasoning boundary validation.** vllm#40962, narrower P62 alt. Mutex with P62 (active in PROD); kept opt-in.
+- **P79d — preempt async-discard (vllm#38624 backport).** Wires + registers (was orphan in v7.69). NULL on PROD sync-ngram; protects async + EAGLE/MTP users from "the the / of of" duplication after preempt-resume.
+- **P51 / P102 — library + diagnostic.** Were runtime-active but invisible to dispatcher matrix. P51 = TQ-active runtime guard; P102 = unified spec-meta + disagreement tracker.
+- **`conflicts_with` symmetry.** Restored 4 declarations: P65↔[P56,P57,P67,P67b], PN58↔P62, P7↔P7b, P28↔PN32. Validator now produces correct conflict messages (was 7 asymmetric → 0).
+
+</details>
 
 ### Comparison: v7.68 → v7.72 deltas
 
@@ -276,32 +302,31 @@ All other audit items have landed.
 
 ---
 
-### Same numbers, ASCII fallback (for terminals that won't render PNGs)
+<details>
+<summary><b>Same numbers, ASCII fallback (for terminals that won't render PNGs)</b></summary>
 
 ```
-Sustained TPS on 2× RTX A5000 24 GB, MTP K=3, 400-tok generation × 10 iter mean
+Sustained TPS — 2× A5000, MTP K=3, 400-tok gen × 10 iter:
+  35B Stock 0.20.2           ████████████████  ~115  (PN8 off)
+  35B Genesis v7.68          ███████████████████████  ~162  (+41%)
+  35B Genesis v7.72          ███████████████████████████  192.9  (+68% stock)
+  27B Stock 0.20.2           ████████  ~57  (no Genesis)
+  27B Genesis v7.68          █████████████  ~88  (+54%)
+  27B Genesis v7.72          ██████████████  95.6  (+68% stock)
 
-35B-A3B-FP8 (MoE):
-  Stock vLLM 0.20.2          ████████████████████░░░░░░░░░░░░░░░░░░░░░░  ~115 tok/s  (PN8 OFF, no TQ)
-  Genesis v7.68 (PN8 + TQ)   ███████████████████████████░░░░░░░░░░░░░░░  ~162 tok/s  (+41%)
-  Genesis v7.72 (full PROD)  ████████████████████████████████░░░░░░░░░░  192.9 tok/s (+19% vs v7.68, +68% vs stock)
+Tool-call clean rate (10 prompts, weather/math/search/multi-tool):
+  35B Stock     ████  2/10
+  35B Genesis   ██████████████████████  10/10
+  27B Stock     ███  1/10
+  27B Genesis   ██████████████████████  10/10
 
-27B-int4-AutoRound (hybrid GDN):
-  Stock vLLM 0.20.2          ████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  ~57  tok/s  (no Genesis)
-  Genesis v7.68 (P67 + MTP)  ███████████████████░░░░░░░░░░░░░░░░░░░░░░░  ~88  tok/s  (+54%)
-  Genesis v7.72 (full PROD)  ████████████████████░░░░░░░░░░░░░░░░░░░░░░  95.6 tok/s  (+9% vs v7.68, +68% vs stock)
-
-10 different tool-call prompts (Berlin, Tokyo, Sydney, NYC, London, Paris, Madrid, Moscow, Shanghai, Mumbai):
-  35B Stock vLLM (no parser fixes)         ████░░░░░░░░░░░░░░░░░░  ~2/10  (20%)
-  35B Genesis v7.72                         ██████████████████████ 10/10  (100%)
-  27B Stock vLLM                            ███░░░░░░░░░░░░░░░░░░░  ~1/10  (10%)
-  27B Genesis v7.72                         ██████████████████████ 10/10  (100%)
-
-20-turn cliff2 multi-turn soak — per-soak GPU0 VRAM drift (MiB):
-  PN59 OFF (baseline):  ████████████████████████████████████████  +40 MiB/turn
-  PN59 ON  (v7.72):     ██░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  +2 MiB/turn  (-95%)
-  Pre-soak GPU0 VRAM: PN59 OFF 22873 MiB → PN59 ON 22731 MiB (-142 MiB savings at boot)
+VRAM drift — 20-turn Cliff 2b soak, per-turn GPU 0 (MiB):
+  PN59 OFF  ████████████████████████████████████████  +40
+  PN59 ON   ██  +2  (-95%)
+  Boot baseline: 22873 → 22731 MiB  (-142 MiB save)
 ```
+
+</details>
 
 > All charts above are regenerated by `python3 assets/charts/_generate.py`. Numbers come from [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md) — change the data source there + re-run the script and the README chart updates atomically.
 
