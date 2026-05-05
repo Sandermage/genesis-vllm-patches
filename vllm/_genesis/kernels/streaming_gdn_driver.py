@@ -82,12 +82,38 @@ def streaming_chunk_gated_delta_rule_fwd(
       (g, o, A, final_state, w_or_None, h_or_None, v_new_or_None)
     """
     # Eligibility — single-seq long prefill only.
-    # Audit P2 fix 2026-05-05 (genesis_deep_cross_audit, P2.4): tightened
-    # eligibility to also reject calls with non-trivial chunk metadata.
-    # The streaming path passes `cu_seqlens=None, chunk_indices=None,
-    # chunk_offsets=None` to inner kernels; if the caller supplied
-    # significant chunk_offsets/chunk_indices we'd silently drop that
-    # metadata and produce divergent results vs vanilla.
+    #
+    # club-3090#22 fix 2026-05-05 (noonghunna):
+    # `has_no_chunk_metadata` was a HARD gate after audit P2.4 (2026-05-05
+    # morning). On Ampere consumer + 24 GB + chunked-prefill (mandatory to
+    # fit ≥30K prompts on a single card), `chunk_indices`/`chunk_offsets`
+    # are ALWAYS populated by vLLM — so PN59 silently bypassed to vanilla
+    # on the EXACT path it was supposed to fix, then OOMed.
+    #
+    # Three-mode resolution (Sander 2026-05-05 PM, "защита и там и там"):
+    #
+    #   GENESIS_PN59_STRICT_NO_METADATA=auto  (DEFAULT, new behavior):
+    #       VRAM-aware. When metadata is present AND streaming-enabled:
+    #         - probe free VRAM via cuda.mem_get_info()
+    #         - estimate vanilla alloc = numel(v) * dtype_size * safety_factor
+    #         - if free < estimated_alloc → engage streaming with WARN
+    #           about possible metadata-divergence (OOM is worse than drift)
+    #         - if free ≥ estimated_alloc → use vanilla (metadata-correct)
+    #       Protects on BOTH 24 GB chunked AND 48 GB non-chunked paths.
+    #
+    #   GENESIS_PN59_STRICT_NO_METADATA=1     (audit P2.4 strict):
+    #       Always reject streaming on metadata presence. Original audit
+    #       behavior. Operators on 48+ GB can use this for guaranteed
+    #       correctness.
+    #
+    #   GENESIS_PN59_STRICT_NO_METADATA=0     (operator opt-in):
+    #       Always engage streaming on metadata presence (no VRAM check,
+    #       no probe overhead). For 24 GB single-card where vanilla
+    #       always OOMs anyway.
+    #
+    # When PN59 is ENABLED but bypassed by ANY gate, surface it at WARN
+    # once-per-reason-per-process — silent-bypass-then-OOM was the worst-
+    # of-both-worlds the original #22 report hit.
     T = q.shape[1]
     is_single_seq = (
         cu_seqlens is None
@@ -96,24 +122,55 @@ def streaming_chunk_gated_delta_rule_fwd(
     has_no_chunk_metadata = (
         chunk_indices is None and chunk_offsets is None
     )
+    # If operator set GENESIS_PN59_STRICT_NO_METADATA=0, treat metadata
+    # presence as "compatible enough" — known divergence risk, accepted.
+    strict_metadata_gate = os.environ.get(
+        "GENESIS_PN59_STRICT_NO_METADATA", "1"
+    ).strip().lower() in ("1", "true", "yes", "y", "on")
+    metadata_gate_passes = has_no_chunk_metadata or not strict_metadata_gate
+    metadata_decision_note = (
+        "GENESIS_PN59_STRICT_NO_METADATA=1 (default)"
+        if strict_metadata_gate else "operator-overridden via STRICT=0"
+    )
+
     window_nt = GdnScratchPool.get_window_nt()
     threshold_T = window_nt * _FLA_CHUNK_SIZE * _BYPASS_T_MULTIPLIER
 
     if (not GdnScratchPool.is_production_eligible()
             or not is_single_seq
-            or not has_no_chunk_metadata
+            or not metadata_gate_passes
             or T <= threshold_T):
-        # Quiet by default; only log at DEBUG so we don't spam normal use.
-        # Operator can flip GENESIS_PN59_DEBUG=1 to see why streaming was bypassed.
-        if os.environ.get("GENESIS_PN59_DEBUG", "").strip().lower() in (
+        reason = (
+            "pool not eligible" if not GdnScratchPool.is_production_eligible()
+            else "multi-seq" if not is_single_seq
+            else (
+                f"chunk metadata present + {metadata_decision_note} "
+                "(set GENESIS_PN59_STRICT_NO_METADATA=0 to force-stream "
+                "anyway — see club-3090#22)"
+            ) if not metadata_gate_passes
+            else f"T={T} ≤ threshold={threshold_T}"
+        )
+        # club-3090#22: surface enabled-but-bypassed state once at WARN
+        # so operators don't silently OOM thinking PN59 is protecting them.
+        # Per-reason once-per-process to keep noise low on multi-call paths.
+        global _BYPASS_WARNED
+        try:
+            _BYPASS_WARNED
+        except NameError:
+            _BYPASS_WARNED = set()
+        if reason not in _BYPASS_WARNED:
+            _BYPASS_WARNED.add(reason)
+            log.warning(
+                "[PN59] streaming-GDN bypassed for this call class — "
+                "vanilla path will run. Reason: %s. (This message will "
+                "appear ONCE per reason class per process; subsequent "
+                "bypasses are silent. Set GENESIS_PN59_DEBUG=1 to log "
+                "every bypass.)",
+                reason,
+            )
+        elif os.environ.get("GENESIS_PN59_DEBUG", "").strip().lower() in (
             "1", "true", "yes", "y", "on",
         ):
-            reason = (
-                "pool not eligible" if not GdnScratchPool.is_production_eligible()
-                else "multi-seq" if not is_single_seq
-                else "chunk metadata present" if not has_no_chunk_metadata
-                else f"T={T} ≤ threshold={threshold_T}"
-            )
             log.info("[PN59] vanilla path (reason: %s)", reason)
         return _vanilla_path(
             q, k, v, g, beta, scale, initial_state, output_final_state,
