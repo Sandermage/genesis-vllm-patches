@@ -46,7 +46,6 @@ Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
 from __future__ import annotations
 
 import logging
-import math
 import os
 from typing import Any
 
@@ -366,6 +365,16 @@ def _build_kernel():
         VAL_DATA_BYTES: tl.constexpr,
         FP8_E4B15: tl.constexpr = 0,
         DOT_FP16: tl.constexpr = 0,
+        # ───── Genesis P67c sparse-V (v7.65, 2026-05-01) ─────
+        # Per-q_t skip via uniform-scalar `if` (Triton 3.6 scf.if pattern,
+        # PN26b-proven). When SPARSE_V=0 (default constexpr), entire skip
+        # block is DCE'd at compile time → byte-equivalent to pre-sparse v17.
+        # Bit-exact contract: when SPARSE_V=1 AND threshold=0.0, skip never
+        # fires (P_t = exp2(...) ≥ 0, so `max(P_t) < 0` is always False).
+        # See `vllm/_genesis/tests/test_p67c_sparse_v.py` for invariants.
+        SPARSE_V: tl.constexpr = 0,
+        SPARSE_V_THRESHOLD: tl.constexpr = 0.0,
+        SINK_TOKENS: tl.constexpr = 4,
     ):
         """Grid: (B, num_kv_heads, 1).
 
@@ -375,6 +384,14 @@ def _build_kernel():
         - Each q_t has BLOCK_M = HEADS_PER_KV rows (e.g., 8 for Qwen3.6)
         - Per-q_t accumulators (M, L, acc) updated independently
         - Bit-exact match to per-query upstream path
+
+        Optional sparse-V skip (constexpr-DCE'd when SPARSE_V=0):
+        - After computing P_t for q_t, take scalar `tl.max(P_t)`
+        - If max < threshold AND tile beyond SINK_TOKENS positions → skip
+          P@V dot, only apply alpha decay to acc
+        - Sink protection prevents skipping initial KV positions (StreamingLLM
+          finding: first ~4 tokens are universally attended even when scores
+          look small relative to recent context)
         """
         bid = tl.program_id(0)
         kv_head = tl.program_id(1)
@@ -599,9 +616,25 @@ def _build_kernel():
                 alpha_t = tl.exp2(M_old_t - M_new_t)
                 P_t = tl.exp2(S_t - M_new_t[:, None])
                 L_new_t = L_old_t * alpha_t + tl.sum(P_t, axis=1)
+
+                # ───── Genesis P67c sparse-V per-q_t skip gate ─────
+                # Constexpr-DCE'd to nothing when SPARSE_V=0.
+                # When SPARSE_V=1 + threshold=0.0: max(P_t) >= 0 always, so
+                # `p_t_max < 0` is False → skip never fires → bit-exact.
+                # Sink protection: first SINK_TOKENS positions never skipped.
+                skip_pv_t = False
+                if SPARSE_V:
+                    tile_protected = start_n < SINK_TOKENS
+                    if not tile_protected:
+                        p_t_max = tl.max(P_t)
+                        skip_pv_t = p_t_max < SPARSE_V_THRESHOLD
+
                 # PV for this q_t: [BLOCK_QH, BLOCK_D]
                 # P_t already fp32, V_tile fp32 → IEEE software dot for full precision.
-                if DOT_FP16:
+                if skip_pv_t:
+                    # Skip path: only decay (no V@P contribution this tile)
+                    acc_new_t = acc_old_t * alpha_t[:, None]
+                elif DOT_FP16:
                     acc_new_t = acc_old_t * alpha_t[:, None] + tl.dot(
                         P_t.to(tl.float16), V_tile.to(tl.float16),
                         out_dtype=tl.float32,
@@ -646,6 +679,49 @@ def _get_kernel():
     return _CACHED_KERNEL
 
 
+# ───────────────────────────────────────────────────────────────────
+# P67c sparse-V env resolvers (v7.65, 2026-05-01)
+# ───────────────────────────────────────────────────────────────────
+
+
+def _resolve_sparse_v_enabled() -> bool:
+    """True iff GENESIS_ENABLE_P67_SPARSE_V env is set to a truthy value."""
+    return os.environ.get(
+        "GENESIS_ENABLE_P67_SPARSE_V", ""
+    ).strip().lower() in ("1", "true", "yes", "on")
+
+
+def _resolve_sparse_v_threshold() -> float:
+    """Parse and clamp threshold to safe range [0.0, 0.5].
+
+    Threshold = 0.0 → never skip (bit-exact with SPARSE_V=0 path, since
+    P_t = exp2(...) >= 0 always; `p_t_max < 0` is False).
+    Threshold > 0.5 → too aggressive (would skip warm tiles); clamp to 0.5.
+    Negative → invalid; clamp to 0 (degenerate to never-skip).
+    """
+    raw = os.environ.get("GENESIS_P67_SPARSE_V_THRESHOLD", "0.001")
+    try:
+        thr = float(raw)
+    except (ValueError, TypeError):
+        thr = 0.001
+    return max(0.0, min(0.5, thr))
+
+
+def _resolve_sparse_v_sink_tokens() -> int:
+    """Parse SINK_TOKENS, default 4 (StreamingLLM finding).
+
+    First N KV positions are universally attended even when scores look
+    small relative to recent context. Skipping them produces small but
+    measurable quality drift on long-form generation.
+    """
+    raw = os.environ.get("GENESIS_P67_SPARSE_V_SINK_TOKENS", "4")
+    try:
+        n = int(raw)
+    except (ValueError, TypeError):
+        n = 4
+    return max(0, n)
+
+
 def _autoconfig(sm_major: int, sm_minor: int, head_dim: int) -> dict:
     """Pick BLOCK_KV/num_warps/num_stages per SM.
 
@@ -665,9 +741,38 @@ def _autoconfig(sm_major: int, sm_minor: int, head_dim: int) -> dict:
     Keep num_stages=3 for any TQ k8v4 / quant-dequant workload here.
 
     Override via env: GENESIS_P67_BLOCK_KV, GENESIS_P67_NUM_WARPS, GENESIS_P67_NUM_STAGES.
+
+    [Genesis 2026-05-04 SMEM-aware default — pattern from MidasMining vllm#41508]
+    BLOCK_KV default — arch-aware:
+      * SM<9 (Ampere/Hopper consumer): 32 (Ampere SMEM 99 KB hard cap)
+      * SM>=9 (Hopper datacenter / Blackwell): 64 (more SMEM headroom)
+    SMEM math (Ampere):
+      Q tile: BLOCK_M*BLOCK_D*4 = 16*128*4 = 8 KB
+      K tile: BLOCK_KV*BLOCK_D*4 = 32*128*4 = 16 KB (32 OK; 64 = 32 KB also OK
+              but combined with V, dequant scratch, accumulators → tight)
+      V tile: BLOCK_KV*BLOCK_D*4 = 16 KB (× 2 for stages=3 → 48 KB)
+      Total: ~50-60 KB on Ampere, headroom 30-40 KB. BLOCK_KV=64 → exceeds.
+    Empirical: feedback_triton36_flags_regress_split_m confirmed BLOCK_KV>32
+    regresses on small-BLOCK_M Ampere split-M. Stay with 32 default.
+    Future-proof: when migrating to Blackwell R6000 Pro (sm 12), bump default
+    to 64 (SMEM 228 KB) for ~15-20% throughput uplift on long-K paths.
+
+    [2026-05-05 Blackwell consumer (sm_120 RTX 5090) status — UNMEASURED]
+    The (BLOCK_KV=64, num_warps=8, num_stages=3) defaults that fire on
+    sm_major>=9 are EXTRAPOLATED from Hopper datacenter, NOT empirically
+    measured on consumer Blackwell (sm 12.0). First real 5090 datapoints
+    expected from noonghunna club-3090 discussion #51 (apnar's rig).
+    Until empirical sweep lands, treat sm_120 as "use defaults but
+    UNVERIFIED" — the datacenter-class config may underutilize the
+    smaller consumer L2 (88 MB on 5090 vs 60 MB on H100 vs 6 MB A5000).
+    Cross-reference: feedback_triton36_flags_regress_split_m (split-M
+    regression on small BLOCK_M Ampere → may also bite on sm_120).
     """
     import os as _os
-    block_kv = int(_os.environ.get("GENESIS_P67_BLOCK_KV", "32"))
+    # arch-aware default — Ampere keeps 32, Hopper+ gets 64 future-proof
+    # NOTE: sm 12.0 Blackwell consumer config UNMEASURED (see docstring).
+    _default_block_kv = "32" if sm_major < 9 else "64"
+    block_kv = int(_os.environ.get("GENESIS_P67_BLOCK_KV", _default_block_kv))
     num_warps = int(_os.environ.get("GENESIS_P67_NUM_WARPS", "8" if sm_major >= 8 else "4"))
     num_stages = int(_os.environ.get("GENESIS_P67_NUM_STAGES", "3" if sm_major >= 8 else "2"))
     return dict(BLOCK_KV=block_kv, num_warps=num_warps, num_stages=num_stages)
@@ -776,6 +881,12 @@ def call_p67_attention(
         "GENESIS_P67_DOT_PRECISION", "tf32x3"
     ).strip().lower() == "fp16" else 0
 
+    # v7.65 P67c: opt-in sparse-V per-q_t skip (per-row vote integration).
+    # Default 0 = no sparse-V → constexpr-DCE'd → byte-equivalent to v17.
+    sparse_v_enabled = 1 if _resolve_sparse_v_enabled() else 0
+    sparse_v_thr = _resolve_sparse_v_threshold()
+    sink_tokens = _resolve_sparse_v_sink_tokens()
+
     grid = (B, Hk, 1)
     kernel[grid](
         q, kv_cache, block_table, seq_lens,
@@ -799,6 +910,9 @@ def call_p67_attention(
         VAL_DATA_BYTES=val_data_bytes,
         FP8_E4B15=fp8_e4b15,
         DOT_FP16=dot_fp16,
+        SPARSE_V=sparse_v_enabled,
+        SPARSE_V_THRESHOLD=sparse_v_thr,
+        SINK_TOKENS=sink_tokens,
         num_warps=cfg["num_warps"],
         num_stages=cfg["num_stages"],
     )

@@ -4,7 +4,7 @@ A "cliff" is a regime boundary where vLLM (or Genesis) goes from working well to
 
 If you hit something that isn't here, please open an issue with a reproducer. Cliffs that aren't documented hurt every operator after you.
 
-For glossary terms (TQ, MTP, GDN, FA2, etc.) see [GLOSSARY.md](GLOSSARY.md). For the full patch catalog, see [PATCHES.md](../PATCHES.md).
+For glossary terms (TQ, MTP, GDN, FA2, etc.) see [GLOSSARY.md](GLOSSARY.md). For the full patch catalog, see [../docs/PATCHES.md](../docs/PATCHES.md).
 
 ---
 
@@ -22,10 +22,16 @@ You hit OOM earlier than you should on long-context workloads. On a 24 GB card r
 
 **PN17 — FA2 lse runtime clamp.** Genesis-original, 2026-04-30, in response to noonghunna Issue #11. Patches FA2 to use the actual `seq_lens.max()` at runtime instead of `max_model_len` during capture.
 
+**PN19 — scoped max-split cudagraph init (datacenter Ampere / Hopper / Blackwell only).** Genesis-original, 2026-04-30. Frees 200-500 MiB during model load on H100/B100. **Does NOT transfer cleanly to Ampere consumer:** noonghunna 2026-05-01 confirmed PN19 costs ~120 MiB KV pool on a 24 GB single-3090 (vs the documented 200-500 MiB win). At 218K context + 0.985 mem-util, engine init fails with `KV cache memory available 3.4 GiB, estimated maximum model length is 206400`. Different allocator behavior under PyTorch 2.10+ load-time fragmentation on consumer SKUs.
+
+> **Recommendation:** disable PN19 on 24 GB consumer cards (3090, 4090, A5000) running long context. Same lesson as P104 L2 persistence (regressed -16.2% on 32+ layer KV >> L2 setups). Generic allocator hints don't survive GPU class boundaries.
+
 **Refs**
 
 - `vllm/_genesis/wiring/perf_hotfix/patch_n17_fa2_softmax_lse_clamp.py`
+- `vllm/_genesis/wiring/perf_hotfix/patch_N19_scoped_max_split.py`
 - noonghunna Issue #11 (cross-engine derivative)
+- club-3090 Discussion #19 (PN19 ≠ H100 ergonomics report, 2026-05-01)
 
 ---
 
@@ -68,7 +74,7 @@ Tool-call cascades on 27B + TQ k8v4 + FULL cudagraph: the model emits `<tool_cal
 
 - `vllm/_genesis/kernels/p67_multi_query_kernel.py`
 - `vllm/_genesis/wiring/spec_decode/patch_67_tq_multi_query_kernel.py`
-- See [PATCHES.md](../PATCHES.md) P67 entry for sanitized variant (Inf/NaN→0 in K/V dequant)
+- See [../docs/PATCHES.md](../docs/PATCHES.md) P67 entry for sanitized variant (Inf/NaN→0 in K/V dequant)
 
 ---
 
@@ -168,7 +174,7 @@ TurboQuant KV is not currently supported with DFlash on Ampere (the draft path d
 
 - vLLM PR #40898 (SWA for DFlash) — pending merge
 - vLLM PR #40849 (FP8 draft inheritance) — pending merge
-- See [PATCHES.md](../PATCHES.md) for DFlash backport status
+- See [../docs/PATCHES.md](../docs/PATCHES.md) for DFlash backport status
 
 ---
 
@@ -198,8 +204,8 @@ Operator pulls a new vLLM pin, restarts, sees `[GENESIS] APPLY` for all expected
 
 ## Cross-references
 
-- [PATCHES.md](../PATCHES.md) — full patch catalog with attribution and metadata
+- [../docs/PATCHES.md](../docs/PATCHES.md) — full patch catalog with attribution and metadata
 - [docs/CONFIGS.md](CONFIGS.md) — adding your own model recipe
 - [docs/COMPATIBILITY.md](COMPATIBILITY.md) — supported vLLM pins, models, GPUs
 - [docs/GLOSSARY.md](GLOSSARY.md) — term definitions
-- [CONTRIBUTING.md](../CONTRIBUTING.md) — reporting new cliffs you discover
+- [../docs/CONTRIBUTING.md](../docs/CONTRIBUTING.md) — reporting new cliffs you discover

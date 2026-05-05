@@ -137,6 +137,7 @@ def get_or_create_instance_id() -> str:
     try:
         f.chmod(0o600)  # private to user
     except OSError:
+        # chmod unsupported on Windows / network FS — anon-id still readable
         pass
     return new
 
@@ -377,6 +378,7 @@ def _format_status() -> list[str]:
             iid = get_or_create_instance_id()
             L.append(f"  Instance ID: {iid}")
         except Exception:
+            # ID file unwritable (read-only FS) — skip line, status report continues
             pass
         # Count local reports
         reports = _resolve_telemetry_dir() / "reports"

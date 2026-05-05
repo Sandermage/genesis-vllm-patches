@@ -18,7 +18,6 @@ Tests cover both.
 """
 from __future__ import annotations
 
-import pytest
 
 # Importing this also exercises module-load — if we accidentally introduce
 # a cycle in the static registry, the test will surface it via fixture.

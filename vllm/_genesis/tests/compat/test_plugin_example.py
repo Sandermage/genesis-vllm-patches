@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""End-to-end test of the examples/genesis-plugin-hello-world reference.
+"""End-to-end test of the tools/examples/genesis-plugin-hello-world reference.
 
 This test:
   1. Adds the example package's source to sys.path
@@ -27,7 +27,9 @@ import pytest
 # test_plugin_example.py is at <repo>/vllm/_genesis/tests/compat/test_*.py
 # parents: [0]=compat [1]=tests [2]=_genesis [3]=vllm [4]=<repo>
 _REPO_ROOT = Path(__file__).resolve().parents[4]
-_EXAMPLE_PKG = _REPO_ROOT / "examples" / "genesis-plugin-hello-world"
+_EXAMPLE_PKG = (
+    _REPO_ROOT / "tools" / "examples" / "genesis-plugin-hello-world"
+)
 
 
 @pytest.fixture

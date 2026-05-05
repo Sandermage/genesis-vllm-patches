@@ -112,7 +112,6 @@ class TestPatch14Wiring:
     def test_move_row_zeros_target_tail(self, fake_block_table_module):
         """The critical regression: moving shorter into longer slot — tail must zero."""
         from vllm._genesis.wiring.legacy import patch_14_block_table as p14
-        import numpy as np
 
         p14.apply()
         cls = fake_block_table_module

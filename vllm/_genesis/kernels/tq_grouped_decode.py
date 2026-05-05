@@ -58,9 +58,7 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Optional
 
-import torch
 
 log = logging.getLogger("genesis.tq_grouped_decode")
 

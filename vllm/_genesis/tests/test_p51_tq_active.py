@@ -155,7 +155,6 @@ def test_p51_does_not_skip_on_turboquant_k8v4(
     from vllm._genesis.kernels import dequant_buffer as db
     calls = {"reached_downstream": False}
 
-    original = db.ensure_turboquant_buffers
 
     def _spy(impl, layer, device):
         # Intercept right after the P51 guard.
@@ -178,7 +177,6 @@ def test_p51_proceeds_when_kv_cache_dtype_absent(
 ):
     """Legacy impls without kv_cache_dtype attr → don't block (backward
     compat). Guard only kicks in when attr exists AND is non-TQ string."""
-    from vllm._genesis.kernels import dequant_buffer as db
 
     class LegacyImpl:
         pass  # no kv_cache_dtype
@@ -186,7 +184,7 @@ def test_p51_proceeds_when_kv_cache_dtype_absent(
     # The P51 branch should not trigger: getattr returns None,
     # `isinstance(None, str)` is False.
     impl = LegacyImpl()
-    layer = FakeLayer()
+    FakeLayer()
     # Don't run full ensure (needs vllm config); validate the guard
     # condition directly via inline check.
     kv = getattr(impl, "kv_cache_dtype", None)

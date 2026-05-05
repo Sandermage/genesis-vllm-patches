@@ -146,6 +146,7 @@ def _check_upstream_tq_workspace_drift() -> tuple[bool, str]:
             if hasattr(_gmr, "_reserve_turboquant_decode_workspace"):
                 return True, "PR #40798 merged (Bot1822 WorkspaceManager) — auto-skip"
         except Exception:
+            # Module path not present in this pin — drift probe continues with next marker
             pass
         # Check #40706 marker (in turboquant_attn)
         try:
@@ -157,6 +158,7 @@ def _check_upstream_tq_workspace_drift() -> tuple[bool, str]:
             if impl is not None and not hasattr(impl, "_init_turboquant_buffers"):
                 return True, "PR #40655 merged (bhoomit moved init out) — auto-skip"
         except Exception:
+            # turboquant_attn backend missing — outer except handles broader fallback
             pass
     except Exception as e:
         log.debug("[P22] drift check probe failed (%s); proceeding to apply", e)
@@ -195,7 +197,7 @@ def apply() -> tuple[str, str]:
     # in `ensure_turboquant_buffers` handle those.
     try:
         from vllm._genesis.interface_guard import (
-            validate_impl, GenesisInterfaceMismatch,
+            validate_impl,
         )
         validate_impl(
             impl_cls,

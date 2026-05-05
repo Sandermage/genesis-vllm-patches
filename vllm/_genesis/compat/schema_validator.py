@@ -49,7 +49,7 @@ class SchemaIssue:
 
 
 _KNOWN_LIFECYCLE = {"experimental", "stable", "deprecated", "research",
-                    "community", "retired"}
+                    "community", "retired", "legacy"}
 
 # Top-level fields permitted in a PATCH_REGISTRY entry.
 # Mirrors the `properties` block of patch_entry.schema.json.
@@ -59,6 +59,11 @@ _KNOWN_FIELDS = {
     "community_credit", "stable_since", "since_version", "deprecated_since",
     "removal_planned", "deprecated", "superseded_by", "upstream_pr",
     "applies_to", "requires_patches", "conflicts_with",
+    # Pin-bump retirement metadata (added 2026-05-05 alongside vllm#39931
+    # P4 supersede). When `superseded_by` is set, `retire_after_pin` says
+    # which vllm pin contains the upstream merge — operator can drop the
+    # patch from PATCH_REGISTRY once that pin is on the allowlist.
+    "retire_after_pin",
     # Some legacy entries also have these informational-only fields:
     "notes", "cross_rig_validation", "files", "files_added", "files_removed",
     "verified_in_main_2026_04_24", "verified_in_main_2026_04_29",

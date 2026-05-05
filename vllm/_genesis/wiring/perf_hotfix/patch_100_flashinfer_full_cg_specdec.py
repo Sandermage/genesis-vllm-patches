@@ -672,20 +672,19 @@ def apply() -> tuple[str, str]:
             )
 
     result, failure = patcher.apply()
-    if result == TextPatchResult.FAILED:
-        return "failed", (
-            f"{patcher.patch_name}: "
-            f"{failure.reason if failure else 'unknown'} "
-            f"({failure.detail if failure else ''})"
-        )
-
-    return (
-        "applied",
-        "P100 v7.62.17 applied: 11 sub-patches on flashinfer.py for native "
-        "FULL CUDA graph + spec-decode without TRTLLM. 27B variants now "
-        "get UNIFORM_BATCH cudagraph (was PIECEWISE) for K+1 spec-verify. "
-        "Expected: +5-10% TPS on Ampere SM 8.6. NO-OP for PROD (TQ backend). "
-        "Composes with P67/P67b/P98/P99 (different backends)."
+    # Audit P1 fix 2026-05-05: 11-subpatch hotfix MUST surface SKIPPED honestly
+    # — was the highest-blast-radius silent-mask in the original 35-file set.
+    from vllm._genesis.wiring.text_patch import result_to_wiring_status
+    return result_to_wiring_status(
+        result, failure,
+        applied_message=(
+            "P100 v7.62.17 applied: 11 sub-patches on flashinfer.py for native "
+            "FULL CUDA graph + spec-decode without TRTLLM. 27B variants now "
+            "get UNIFORM_BATCH cudagraph (was PIECEWISE) for K+1 spec-verify. "
+            "Expected: +5-10% TPS on Ampere SM 8.6. NO-OP for PROD (TQ backend). "
+            "Composes with P67/P67b/P98/P99 (different backends)."
+        ),
+        patch_name=patcher.patch_name,
     )
 
 

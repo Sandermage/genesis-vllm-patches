@@ -11,9 +11,7 @@ call the per-module form keep working — backwards compat).
 """
 from __future__ import annotations
 
-import json
 
-import pytest
 
 
 # ─── List of subcommands the unified CLI must support ──────────────────
@@ -53,6 +51,7 @@ class TestSubcommandRouting:
         try:
             main(["--help"])
         except SystemExit:
+            # argparse calls sys.exit(0) after --help — expected, capture continues
             pass
         captured = capsys.readouterr()
         # All key subcommands referenced
@@ -171,9 +170,10 @@ class TestNoArgs:
     def test_no_args_prints_usage(self, capsys):
         from vllm._genesis.compat.cli import main
         try:
-            rc = main([])
-        except SystemExit as e:
-            rc = e.code or 0
+            main([])
+        except SystemExit:
+            # argparse exits when no subcommand provided — expected, output captured
+            pass
         captured = capsys.readouterr()
         joined = captured.out + captured.err
         # Should mention available subs or help

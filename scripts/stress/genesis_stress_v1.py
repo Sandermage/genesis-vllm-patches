@@ -2,9 +2,17 @@
 # SPDX-License-Identifier: Apache-2.0
 """Genesis stress test harness — multi-dimensional perf + correctness eval.
 
-Runs against any vllm-compatible OpenAI server. Designed for the Genesis
-test rig (vllm-server-mtp-test on 192.168.1.10:8000) and any model that
-declares its name via /v1/models.
+Runs against any vllm-compatible OpenAI server. Defaults match the
+Genesis dev rig but every value is overridable via env var or CLI flag:
+
+  GENESIS_STRESS_URL    — server URL (default `http://localhost:8000`)
+  GENESIS_STRESS_MODEL  — `served-model-name` (default `qwen3.6-35b-a3b`)
+  GENESIS_STRESS_KEY    — API key (default `genesis-local`)
+
+CLI flags `--url`, `--model`, `--key` override env. Rig-specific
+defaults like `192.168.1.10` were removed (G-010 audit fix 2026-05-02);
+operators on a different host just `export GENESIS_STRESS_URL=...`
+or pass `--url`.
 
 Categories tested:
   1. Stability  — 100 sustained requests, 1024 tok each, count failures
@@ -29,9 +37,12 @@ import sys
 import time
 import urllib.request
 
-DEFAULT_URL = "http://192.168.1.10:8000"
-DEFAULT_MODEL = "qwen3.6-35b-a3b"
-DEFAULT_KEY = "genesis-local"
+import os
+
+# G-010 audit fix (2026-05-02): no rig-specific IPs in source; env override.
+DEFAULT_URL = os.environ.get("GENESIS_STRESS_URL", "http://localhost:8000")
+DEFAULT_MODEL = os.environ.get("GENESIS_STRESS_MODEL", "qwen3.6-35b-a3b")
+DEFAULT_KEY = os.environ.get("GENESIS_STRESS_KEY", "genesis-local")
 
 
 def _post_chat(
@@ -202,7 +213,7 @@ def test_ttft(url, model, key) -> dict:
                         ttfts.append(time.time() - t0)
                         resp.close()
                         break
-            except Exception as e:
+            except Exception:
                 ttfts.append(float("nan"))
         finite = [t for t in ttfts if not (t != t)]
         results[label] = {

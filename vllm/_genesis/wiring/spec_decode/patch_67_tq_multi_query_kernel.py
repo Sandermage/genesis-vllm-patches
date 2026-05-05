@@ -108,7 +108,12 @@ P67_NEW = (
     "                self._genesis_p67_entry_count = 0\n"
     "            self._genesis_p67_entry_count += 1\n"
     "            if self._genesis_p67_entry_count <= 3:\n"
-    "                _genesis_p67_log.warning(\n"
+    "                # [Genesis 2026-05-02] Was log.warning — downgraded to\n"
+    "                # log.info: this is an INFO-level diagnostic for first 3\n"
+    "                # P67 dispatches per layer, not an actual warning. Was\n"
+    "                # creating ~120 fake-WARNING entries per boot under\n"
+    "                # VLLM_LOGGING_LEVEL=WARNING which obscured real warnings.\n"
+    "                _genesis_p67_log.info(\n"
     "                    'P67 hook ENTRY #%d: N=%d Hq=%d D=%d Hk=%d max_q=%s max_s=%s active=%s',\n"
     "                    self._genesis_p67_entry_count, N, Hq, D, key.shape[1],\n"
     "                    attn_metadata.max_query_len, attn_metadata.max_seq_len,\n"
@@ -347,6 +352,11 @@ def apply() -> tuple[str, str]:
             )
 
     result, failure = patcher.apply()
+    # Audit P1 fix 2026-05-05: surface SKIPPED as skipped (was masked as applied)
+    if result == TextPatchResult.SKIPPED:
+        _r = failure.reason if failure else "anchor drift / not eligible"
+        _d = f" ({failure.detail})" if (failure and failure.detail) else ""
+        return "skipped", f"{patcher.patch_name}: {_r}{_d}"
     if result == TextPatchResult.FAILED:
         return "failed", (
             f"{patcher.patch_name}: {failure.reason if failure else 'unknown'} "
@@ -359,6 +369,7 @@ def apply() -> tuple[str, str]:
         from vllm._genesis.kernels.p67_multi_query_kernel import diagnostic_info
         diag = f" Diag: {diagnostic_info()}"
     except Exception:
+        # Diagnostic helper is optional — apply already succeeded, log without diag
         pass
 
     return "applied", (

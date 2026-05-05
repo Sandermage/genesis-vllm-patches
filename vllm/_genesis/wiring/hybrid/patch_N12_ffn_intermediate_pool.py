@@ -90,7 +90,6 @@ from vllm._genesis.guards import resolve_vllm_file, vllm_install_root
 from vllm._genesis.wiring.text_patch import (
     TextPatch,
     TextPatcher,
-    TextPatchResult,
     result_to_wiring_status,
 )
 
@@ -188,7 +187,11 @@ def _make_patcher() -> TextPatcher | None:
             # If vllm#34207 lands the body becomes silu_and_mul.out()
             # variant — different anchor, ours auto-skips.
             "torch.ops._C.silu_and_mul.out",
-            "FFNIntermediateCache",
+            # Note: deliberately do NOT use "FFNIntermediateCache" here
+            # as a drift marker — it's our own pool class name and may
+            # appear in sister-patches (PN25) that legitimately compose
+            # with PN12 on the same file. Idempotency is handled by the
+            # Genesis-PN12 wiring marker line above.
         ],
     )
 

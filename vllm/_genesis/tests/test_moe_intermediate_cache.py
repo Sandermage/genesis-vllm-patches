@@ -14,7 +14,6 @@ Author: Sandermage(Sander)-Barzov Aleksandr, Ukraine, Odessa
 """
 from __future__ import annotations
 
-import pytest
 import torch
 
 
@@ -51,7 +50,7 @@ class TestPlatformGate:
         _reset(monkeypatch)
         monkeypatch.setattr(m, "_SHOULD_APPLY_CACHED", False)  # non-NVIDIA
         monkeypatch.setattr(m, "_ENABLED_AT_IMPORT", True)
-        t = m.acquire_cache13(
+        m.acquire_cache13(
             M=128, num_topk=8, w13_num_shards=2, N=2816, K=2048,
             dtype=torch.float16, device=torch.device("cpu"),
         )
@@ -294,6 +293,9 @@ class TestEnvIntegration:
         min 4096. Stable key across slightly different M values."""
         from vllm._genesis.kernels import moe_intermediate_cache as m
         monkeypatch.setattr(m, "_MAX_BT_OVERRIDE", None)
-        assert m._resolve_max_batched_tokens(M_hint := 100) == 4096
-        assert m._resolve_max_batched_tokens(M_hint := 3000) == 4096
-        assert m._resolve_max_batched_tokens(M_hint := 5000) == 8192  # pow2(5000)=8192
+        # G-016 audit fix: walrus `M_hint := ...` was assigned but never
+        # used downstream — drop walrus, pass values directly. Behavior
+        # unchanged (function takes the rvalue, not the binding).
+        assert m._resolve_max_batched_tokens(100) == 4096
+        assert m._resolve_max_batched_tokens(3000) == 4096
+        assert m._resolve_max_batched_tokens(5000) == 8192  # pow2(5000)=8192

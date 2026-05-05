@@ -13,8 +13,6 @@ machine consumers, formatted text for humans) covering:
 from __future__ import annotations
 
 import json
-import sys
-from types import SimpleNamespace
 
 import pytest
 
@@ -278,7 +276,7 @@ class TestCLISmoke:
 
     def test_main_json_mode(self, capsys):
         from vllm._genesis.compat.explain import main
-        rc = main(["PN14", "--json"])
+        main(["PN14", "--json"])
         captured = capsys.readouterr()
         # Verify output is valid JSON
         parsed = json.loads(captured.out)

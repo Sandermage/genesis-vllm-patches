@@ -40,7 +40,6 @@ Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
 from __future__ import annotations
 
 import logging
-import re
 import subprocess
 from dataclasses import dataclass, field
 from typing import Any
@@ -90,7 +89,7 @@ def detect_versions(refresh: bool = False) -> VersionProfile:
         import vllm
         vllm_v = getattr(vllm, "__version__", None)
         if vllm_v and "+g" in vllm_v:
-            base, _, suffix = vllm_v.partition("+g")
+            _base, _, suffix = vllm_v.partition("+g")
             vllm_commit = suffix
     except Exception as e:
         errors.append(f"vllm import: {e}")
@@ -131,6 +130,7 @@ def detect_versions(refresh: bool = False) -> VersionProfile:
         if out.returncode == 0 and out.stdout.strip():
             driver = out.stdout.strip().splitlines()[0].strip()
     except Exception:
+        # nvidia-smi missing on CPU-only / ROCm hosts — driver stays None
         pass
 
     # Python
@@ -139,6 +139,7 @@ def detect_versions(refresh: bool = False) -> VersionProfile:
         import sys
         py_v = ".".join(str(x) for x in sys.version_info[:3])
     except Exception:
+        # sys.version_info is always present; defensive guard for exotic CPython forks
         pass
 
     # Compute capabilities (per-GPU)

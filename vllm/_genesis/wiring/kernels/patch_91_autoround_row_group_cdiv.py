@@ -338,8 +338,14 @@ def apply() -> tuple[str, str]:
                 "without our marker — upstream may have merged equivalent fix",
             )
 
+    # Audit G-POST-03 fix 2026-05-05 (genesis_post_fix_rescan_audit):
+    # SKIPPED was being masked as final "applied" — surface it honestly.
     if not gm_already:
         result, failure = gm.apply()
+        if result == TextPatchResult.SKIPPED:
+            _r = failure.reason if failure else "anchor drift / not eligible"
+            _d = f" ({failure.detail})" if (failure and failure.detail) else ""
+            return "skipped", f"{gm.patch_name}: {_r}{_d}"
         if result == TextPatchResult.FAILED:
             return "failed", (
                 f"{gm.patch_name}: "
@@ -349,6 +355,14 @@ def apply() -> tuple[str, str]:
 
     if not param_already:
         result, failure = param.apply()
+        if result == TextPatchResult.SKIPPED:
+            _r = failure.reason if failure else "anchor drift / not eligible"
+            _d = f" ({failure.detail})" if (failure and failure.detail) else ""
+            return "skipped", (
+                f"{param.patch_name}: {_r}{_d} "
+                "(P91 partial: gptq_marlin.py applied but parameter.py "
+                "skipped — re-apply needed for matching pair)"
+            )
         if result == TextPatchResult.FAILED:
             return "failed", (
                 f"{param.patch_name}: "

@@ -2,7 +2,6 @@
 """Tests for vllm._genesis.compat.predicates — applies_to AND/OR/NOT eval."""
 from __future__ import annotations
 
-import pytest
 
 from vllm._genesis.compat.predicates import (
     evaluate,
@@ -204,7 +203,7 @@ class TestMixedCompoundLeaf:
 
     def test_mixed_compound_and_leaf_rejected(self):
         rule = {"all_of": [{"a": 1}], "b": 2}
-        ok, why = evaluate(rule, {"a": 1, "b": 2})
+        ok, _why = evaluate(rule, {"a": 1, "b": 2})
         # all_of takes precedence; the orphan "b": 2 leaf is ignored.
         # This is acceptable — the explicit `all_of` wins.
         # But if no compound key, then leaf-only mixing must be rejected

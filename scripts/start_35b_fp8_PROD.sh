@@ -23,8 +23,7 @@ docker run -d \
   -v /home/sander/Genesis_Project/vllm_engine/triton-cache-mtp-test:/root/.triton/cache \
   -v /home/sander/Genesis_Project/vllm_engine/compile-cache-prod-mirror-test:/root/.cache/vllm/torch_compile_cache \
   -v /home/sander/genesis-vllm-patches/vllm/_genesis:/usr/local/lib/python3.12/dist-packages/vllm/_genesis:ro \
-  -v /home/sander/genesis-vllm-patches/genesis_vllm_plugin:/plugin:ro \
-  -v /home/sander/genesis-vllm-patches/external_probe:/external_probe:ro \
+  -v /home/sander/genesis-vllm-patches/tools/genesis_vllm_plugin:/plugin:ro \
   -v "/home/sander/genesis-vllm-patches/vllm/_genesis/configs/moe_tuning/E=256,N=512,device_name=NVIDIA_RTX_A5000,dtype=fp8_w8a8,block_shape=[128,128].json:/usr/local/lib/python3.12/dist-packages/vllm/model_executor/layers/fused_moe/configs/E=256,N=512,device_name=NVIDIA_RTX_A5000,dtype=fp8_w8a8,block_shape=[128,128].json:ro" \
   -e VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS=1 -e VLLM_NO_USAGE_STATS=1 \
   -e PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True,max_split_size_mb:256,garbage_collection_threshold:0.6" \
@@ -44,19 +43,19 @@ docker run -d \
   -e GENESIS_ENABLE_P66_CUDAGRAPH_SIZE_FILTER=1 -e GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL=1 \
   -e GENESIS_P67_USE_UPSTREAM=1 -e GENESIS_P67_NUM_KV_SPLITS=32 \
   -e GENESIS_ENABLE_P68_AUTO_FORCE_TOOL=1 -e GENESIS_ENABLE_P69_LONG_CTX_TOOL_REMINDER=1 \
-  -e GENESIS_ENABLE_P70_AUTO_STRICT_NGRAM=1 -e GENESIS_P68_P69_LONG_CTX_THRESHOLD_CHARS=8000 \
+  -e GENESIS_ENABLE_P70_AUTO_STRICT_NGRAM=1 -e GENESIS_P68_P69_LONG_CTX_THRESHOLD_CHARS=50000 \
   -e GENESIS_ENABLE_P37=1 -e GENESIS_TQ_MAX_MODEL_LEN=320000 \
   -e GENESIS_ENABLE_P72_PROFILE_RUN_CAP=1 -e GENESIS_PROFILE_RUN_CAP_M=4096 \
-  -e GENESIS_ENABLE_P74_CHUNK_CLAMP=1 -e GENESIS_ENABLE_P79B_ASYNC_PROPOSER_SYNC=0 -e GENESIS_ENABLE_P79C_STALE_SPEC_TOKEN_CLEANUP=0 -e GENESIS_ENABLE_P79D_PREEMPT_ASYNC_DISCARD=0 -e GENESIS_ENABLE_P81_FP8_BLOCK_SCALED_M_LE_8=1 -e GENESIS_ENABLE_P82=1 -e GENESIS_ENABLE_PN8_MTP_DRAFT_ONLINE_QUANT=1 -e GENESIS_ENABLE_PN11_GDN_AB_CONTIGUOUS=1 -e GENESIS_ENABLE_P99=1 -e GENESIS_ENABLE_PN17_FA2_LSE_CLAMP=1 -e GENESIS_ENABLE_PN19_SCOPED_MAX_SPLIT=1 -e GENESIS_ENABLE_P103=1 -e GENESIS_ENABLE_P101=1 -e GENESIS_P82_THRESHOLD_SINGLE=0.3 -e GENESIS_PREALLOC_TOKEN_BUDGET=4096 -e GENESIS_BUFFER_MODE=shared \
+  -e GENESIS_ENABLE_P74_CHUNK_CLAMP=1 -e GENESIS_ENABLE_P79B_ASYNC_PROPOSER_SYNC=0 -e GENESIS_ENABLE_P79C_STALE_SPEC_TOKEN_CLEANUP=0 -e GENESIS_ENABLE_P79D_PREEMPT_ASYNC_DISCARD=0 -e GENESIS_ENABLE_P81_FP8_BLOCK_SCALED_M_LE_8=1 -e GENESIS_ENABLE_P82=1 -e GENESIS_ENABLE_PN8_MTP_DRAFT_ONLINE_QUANT=1 -e GENESIS_ENABLE_PN11_GDN_AB_CONTIGUOUS=1 -e GENESIS_ENABLE_P99=1 -e GENESIS_ENABLE_PN17_FA2_LSE_CLAMP=1 -e GENESIS_ENABLE_PN19_SCOPED_MAX_SPLIT=1 -e GENESIS_ENABLE_PN22_LOCAL_ARGMAX_TP=1 -e GENESIS_ENABLE_PN26_SPARSE_V=0 -e GENESIS_ENABLE_PN12_FFN_INTERMEDIATE_POOL=1 -e GENESIS_ENABLE_PN14_TQ_DECODE_OOB_CLAMP=1 -e GENESIS_ENABLE_P86=1 -e GENESIS_ENABLE_P103=1 -e GENESIS_ENABLE_P101=1 -e GENESIS_P82_THRESHOLD_SINGLE=0.3 -e GENESIS_ENABLE_P78_TOLIST_CAPTURE_GUARD=1 -e GENESIS_ENABLE_PN40_DFLASH_OMNIBUS=1 -e GENESIS_ENABLE_PN51_QWEN3_STREAMING_THINKING_DISABLED=1 -e GENESIS_ENABLE_PN52_PROMPT_LOGPROBS_EVICTION=1 -e GENESIS_ENABLE_PN55_WAKE_UP_HYBRID_KV=1 -e GENESIS_ENABLE_PN56_QWEN3CODER_XML_FALLBACK=1 -e GENESIS_ENABLE_PN57_TQ_CENTROIDS_DISK_CACHE=1 -e GENESIS_ENABLE_PN58_SPEC_REASONING_BOUNDARY=0 -e GENESIS_ENABLE_P107_MTP_TRUNCATION_DETECTOR=1 -e GENESIS_ENABLE_P38B_COMPILE_SAFE=1 -e GENESIS_ENABLE_P15B_FA_VARLEN_CLAMP=1 -e GENESIS_ENABLE_P102=1 -e GENESIS_ENABLE_PN65=1 -e GENESIS_PREALLOC_TOKEN_BUDGET=4096 -e GENESIS_BUFFER_MODE=shared \
+  -e GENESIS_VLLM_PIN_POLICY=strict \
   vllm/vllm-openai:nightly -c \
   "set -e; echo \"=== v775 35B baseline upstream P67 (matches v759 PROD) ===\"; \
-pip install --quiet --disable-pip-version-check pandas scipy xxhash; \
+pip install --quiet --disable-pip-version-check --root-user-action=ignore pandas scipy xxhash; \
 cp -r /plugin /tmp/genesis_vllm_plugin; \
-pip install --quiet --disable-pip-version-check --no-deps -e /tmp/genesis_vllm_plugin 2>&1 | tail -3; \
-python3 /external_probe/patch_tolist_cudagraph.py || echo tolist bypass failed; \
-python3 /external_probe/patch_40074_iooo.py || echo PR40074 failed; \
+pip install --quiet --disable-pip-version-check --root-user-action=ignore --no-deps -e /tmp/genesis_vllm_plugin 2>&1 | tail -3; \
+echo === vllm pin ===; pip show vllm 2>/dev/null | head -3; \
 python3 -m vllm._genesis.patches.apply_all ; \
-exec vllm serve --model /models/Qwen3.6-35B-A3B-FP8 --tensor-parallel-size 2 \
+exec vllm serve /models/Qwen3.6-35B-A3B-FP8 --tensor-parallel-size 2 \
   --gpu-memory-utilization 0.90 --max-model-len 320000 \
   --kv-cache-dtype turboquant_k8v4 --max-num-seqs 2 --max-num-batched-tokens 4096 \
   --enable-chunked-prefill --dtype float16 \
@@ -64,7 +63,7 @@ exec vllm serve --model /models/Qwen3.6-35B-A3B-FP8 --tensor-parallel-size 2 \
   --enable-auto-tool-choice --tool-call-parser qwen3_coder --reasoning-parser qwen3 \
   --api-key genesis-local --served-model-name qwen3.6-35b-a3b --host 0.0.0.0 \
   --speculative-config '{\"method\":\"mtp\",\"num_speculative_tokens\":3}' \
-  --performance-mode interactivity --attention-config.flash_attn_version 2 --port 8000 \
+  --generation-config vllm --performance-mode interactivity --attention-config.flash_attn_version 2 --port 8000 \
   --no-scheduler-reserve-full-isl --disable-log-stats"
 sleep 5
 docker logs --tail 5 vllm-server-mtp-test 2>&1 | sed "s/^/  /"

@@ -28,6 +28,7 @@ docker run -d \
   -v /home/sander/Genesis_Project/vllm_engine/triton-cache-int4-mtp:/root/.triton/cache \
   -v /home/sander/Genesis_Project/vllm_engine/compile-cache-int4-mtp:/root/.cache/vllm/torch_compile_cache \
   -v /home/sander/genesis-vllm-patches/vllm/_genesis:/usr/local/lib/python3.12/dist-packages/vllm/_genesis:ro \
+  -v /home/sander/genesis-vllm-patches/tools/genesis_vllm_plugin:/plugin:ro \
   -e VLLM_NO_USAGE_STATS=1 -e VLLM_LOGGING_LEVEL=WARNING \
   -e PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True,max_split_size_mb:512" \
   -e VLLM_FLOAT32_MATMUL_PRECISION=high -e VLLM_SSM_CONV_STATE_LAYOUT=DS -e NCCL_P2P_DISABLE=1 -e NCCL_CUMEM_ENABLE=0 \
@@ -45,8 +46,10 @@ docker run -d \
   -e GENESIS_ENABLE_P72_PROFILE_RUN_CAP=1 -e GENESIS_PROFILE_RUN_CAP_M=4096 \
   -e GENESIS_ENABLE_P74_CHUNK_CLAMP=1 \
   -e GENESIS_ENABLE_P82=0 -e GENESIS_ENABLE_P98=1 -e GENESIS_ENABLE_P99=1 -e GENESIS_P82_THRESHOLD_SINGLE=0.3 \
-  -e GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL=1 -e GENESIS_ENABLE_P91=1 -e GENESIS_ENABLE_P87=1 -e GENESIS_ENABLE_P85=1 -e GENESIS_ENABLE_P83=1 -e GENESIS_ENABLE_P101=1 -e GENESIS_ENABLE_P100=1 \
-  -e GENESIS_ENABLE_P78_TOLIST_CAPTURE_GUARD=0 \
+  -e GENESIS_ENABLE_PN26_SPARSE_V=0 -e GENESIS_ENABLE_PN25_SILU_INDUCTOR_SAFE=1 \
+  -e GENESIS_ENABLE_P38B_COMPILE_SAFE=1 -e GENESIS_ENABLE_P15B_FA_VARLEN_CLAMP=1 -e GENESIS_ENABLE_PN28_MERGE_ATTN_NAN_GUARD=1 \
+  -e GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL=1 -e GENESIS_ENABLE_P91=1 -e GENESIS_ENABLE_P87=1 -e GENESIS_ENABLE_P101=1 -e GENESIS_ENABLE_P100=1 -e GENESIS_ENABLE_P86=1 -e GENESIS_ENABLE_P95=1 \
+  -e GENESIS_ENABLE_P78_TOLIST_CAPTURE_GUARD=1 \
   -e GENESIS_ENABLE_P81_FP8_BLOCK_SCALED_M_LE_8=0 \
   -e GENESIS_PREALLOC_TOKEN_BUDGET=4096 -e GENESIS_BUFFER_MODE=shared \
   -e GENESIS_ENABLE_PN8_MTP_DRAFT_ONLINE_QUANT=1 \
@@ -55,18 +58,34 @@ docker run -d \
   -e GENESIS_ENABLE_PN13_CUDA_GRAPH_LAMBDA_ARITY=1 \
   -e GENESIS_ENABLE_P94=1 \
   -e GENESIS_ENABLE_PN12_FFN_INTERMEDIATE_POOL=1 \
-  -e GENESIS_ENABLE_PN9_INDEPENDENT_DRAFTER_ATTN=1 \
   -e GENESIS_ENABLE_PN17_FA2_LSE_CLAMP=1 \
-  -e GENESIS_ENABLE_PN19_SCOPED_MAX_SPLIT=1 -e GENESIS_ENABLE_P103=1 \
+  -e GENESIS_ENABLE_PN40_DFLASH_OMNIBUS=1 \
+  -e GENESIS_ENABLE_PN51_QWEN3_STREAMING_THINKING_DISABLED=1 \
+  -e GENESIS_ENABLE_PN50_GDN_FUSED_PROJ=0 \
+  -e GENESIS_ENABLE_PN52_PROMPT_LOGPROBS_EVICTION=1 \
+  -e GENESIS_ENABLE_PN54_GDN_CONTIGUOUS_DEDUP=0 \
+  -e GENESIS_ENABLE_PN55_WAKE_UP_HYBRID_KV=1 \
+  -e GENESIS_ENABLE_PN56_QWEN3CODER_XML_FALLBACK=1 \
+  -e GENESIS_ENABLE_PN57_TQ_CENTROIDS_DISK_CACHE=1 \
+  -e GENESIS_ENABLE_PN58_SPEC_REASONING_BOUNDARY=0 \
+  -e GENESIS_ENABLE_PN59_STREAMING_GDN=1 \
+  -e GENESIS_ENABLE_P107_MTP_TRUNCATION_DETECTOR=1 -e GENESIS_ENABLE_PN65=1 \
+  -e GENESIS_ENABLE_PN19_SCOPED_MAX_SPLIT=1 -e GENESIS_ENABLE_PN22_LOCAL_ARGMAX_TP=1 -e GENESIS_ENABLE_P103=1 \
+  -e GENESIS_VLLM_PIN_POLICY=strict \
   vllm/vllm-openai:nightly -c \
   "set -e; echo === v771b 27B Lorbus INT4 NO-prefix-cache MTP K=3 ===; \
-pip install --quiet --disable-pip-version-check pandas scipy xxhash; \
+pip install --quiet --disable-pip-version-check --root-user-action=ignore pandas scipy xxhash; \
+cp -r /plugin /tmp/genesis_vllm_plugin; \
+pip install --quiet --disable-pip-version-check --root-user-action=ignore --no-deps -e /tmp/genesis_vllm_plugin 2>&1 | tail -3; \
+echo === vllm pin ===; pip show vllm 2>/dev/null | head -3; \
 python3 -m vllm._genesis.patches.apply_all ; \
-exec vllm serve --model /models/Qwen3.6-27B-int4-AutoRound --tensor-parallel-size 2 \
+exec vllm serve /models/Qwen3.6-27B-int4-AutoRound --tensor-parallel-size 2 \
   --gpu-memory-utilization 0.90 --max-model-len 280000 \
   --max-num-seqs 2 --max-num-batched-tokens 2048 \
   --enable-chunked-prefill --dtype float16 \
   --kv-cache-dtype turboquant_k8v4 \
+  --attention-config '{\"flash_attn_version\":2}' \
+  --generation-config vllm \
   --disable-custom-all-reduce --language-model-only --trust-remote-code \
   --enable-auto-tool-choice --tool-call-parser qwen3_coder --reasoning-parser qwen3 \
   --api-key genesis-local --served-model-name qwen3.6-27b \

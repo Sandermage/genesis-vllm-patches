@@ -166,9 +166,24 @@ def run_bench_at_config(min_token_prob: float, max_tree_depth: int, runs_per_pro
                     "degen": False,
                 })
     # Aggregate
-    speed_runs = [r for r in all_runs if r.get("tps", 0) > 0 and "speed" in r.get("label", "")]
+    #
+    # G-011 audit fix (2026-05-02): docstring says "3 speed runs +
+    # stability + tool-call check" but `mean_tps` previously folded
+    # ALL valid runs together (speed + structured + tool-call + code),
+    # which biased Pareto ranking by mixing different prompt classes.
+    # Now: `mean_tps`/`cv_pct` are computed from speed-only runs (the
+    # clean perf signal) AND a separate `mean_tps_all` is reported
+    # for the heterogeneous mix. Old `mean_tps` = `mean_tps_all`
+    # behavior is preserved when no run is labeled "speed*" so
+    # callers without a speed subset still see something sensible.
+    speed_runs = [
+        r for r in all_runs
+        if r.get("tps", 0) > 0 and "speed" in r.get("label", "")
+    ]
     all_valid = [r for r in all_runs if r.get("tps", 0) > 0]
-    tps_values = [r["tps"] for r in all_valid]
+    speed_for_metric = speed_runs if speed_runs else all_valid
+    tps_values = [r["tps"] for r in speed_for_metric]
+    all_tps_values = [r["tps"] for r in all_valid]
     if tps_values:
         mean_tps = sum(tps_values) / len(tps_values)
         var = sum((x - mean_tps) ** 2 for x in tps_values) / len(tps_values)
@@ -177,6 +192,10 @@ def run_bench_at_config(min_token_prob: float, max_tree_depth: int, runs_per_pro
     else:
         mean_tps = 0
         cv = 999
+    if all_tps_values:
+        mean_tps_all = sum(all_tps_values) / len(all_tps_values)
+    else:
+        mean_tps_all = 0
     n_degen = sum(1 for r in all_runs if r.get("degen"))
     n_valid = len(all_valid)
     clean_rate = (n_valid - n_degen) / max(n_valid, 1)
@@ -185,7 +204,9 @@ def run_bench_at_config(min_token_prob: float, max_tree_depth: int, runs_per_pro
         "max_tree_depth": max_tree_depth,
         "n_runs": len(all_runs),
         "n_valid": n_valid,
+        "n_speed_runs": len(speed_runs),
         "mean_tps": round(mean_tps, 2),
+        "mean_tps_all": round(mean_tps_all, 2),
         "cv_pct": round(cv * 100, 2),
         "clean_rate": round(clean_rate, 3),
         "n_degen": n_degen,

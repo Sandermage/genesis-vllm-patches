@@ -3,7 +3,6 @@
 PATCH_REGISTRY structural validation against schemas/patch_entry.schema.json."""
 from __future__ import annotations
 
-import pytest
 
 
 # ─── Synthetic entries for testing ───────────────────────────────────────

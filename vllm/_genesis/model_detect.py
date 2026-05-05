@@ -182,8 +182,16 @@ def _probe_hybrid(hf_config: Any) -> tuple[bool, dict[str, Any]]:
                 if "linear" in s or "mamba" in s or "gdn" in s or "ssm" in s:
                     return True
         except Exception as e:
-            log.debug("layer_types scan probe at %r failed: %s", base, e,
-                      exc_info=True)
+            # G-001 fix (audit 2026-05-02): was `base` — undefined. Function
+            # parameter is `source_label`. NameError on this exception path
+            # would have masked the real layer_types probe failure as
+            # "model_detect probe failed (...)" in dispatcher.py:1470, which
+            # then triggers a conservative `apply=True` fallback — applying
+            # patches to a model that may be incompatible.
+            log.debug(
+                "layer_types scan probe at %r failed: %s",
+                source_label, e, exc_info=True,
+            )
         return False
 
     # Primary: layer_types — top-level then nested (multimodal)
@@ -434,8 +442,14 @@ def _probe_model_class(hf_config: Any) -> str:
             candidates.append(_scan_mt(nested))
 
     # Order matters — most specific first.
+    # NOTE: 27B Lorbus is branded "Qwen3.6" but config.json reports
+    # model_type="qwen3_5" (3.6 is sub-version of 3.5 architecture).
+    # qwen3_6 markers below are forward-compat for hypothetical future
+    # checkpoints that adopt the qwen3_6 type.
     markers = (
         ("qwen3_next", "qwen3_next"),
+        ("qwen3_6_text", "qwen3_6"),
+        ("qwen3_6", "qwen3_6"),
         ("qwen3_5_text", "qwen3_5"),
         ("qwen3_5", "qwen3_5"),
         ("qwen3_moe", "qwen3_moe"),

@@ -185,13 +185,14 @@ def apply() -> tuple[str, str]:
             )
 
     result, failure = patcher.apply()
-    if result == TextPatchResult.FAILED:
-        return "failed", (
-            f"{patcher.patch_name}: {failure.reason if failure else 'unknown'} "
-            f"({failure.detail if failure else ''})"
-        )
-    return "applied", (
-        "P72 applied: profile_run M capped to GENESIS_PROFILE_RUN_CAP_M (default 4096). "
-        "Unblocks --max-num-batched-tokens > 4096 by avoiding Dynamo fake-tensor "
-        "shape mismatch in moe_align_block_size symbolic-shape inference."
+    # Audit P1 fix 2026-05-05: route SKIPPED/IDEMPOTENT honestly via shared helper
+    from vllm._genesis.wiring.text_patch import result_to_wiring_status
+    return result_to_wiring_status(
+        result, failure,
+        applied_message=(
+            "P72 applied: profile_run M capped to GENESIS_PROFILE_RUN_CAP_M (default 4096). "
+            "Unblocks --max-num-batched-tokens > 4096 by avoiding Dynamo fake-tensor "
+            "shape mismatch in moe_align_block_size symbolic-shape inference."
+        ),
+        patch_name=patcher.patch_name,
     )

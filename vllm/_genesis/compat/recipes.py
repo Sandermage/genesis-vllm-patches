@@ -351,6 +351,7 @@ def _parse_vllm_command(cmd_list: list[str]) -> dict[str, Any]:
                 try:
                     value = float(value)
                 except (ValueError, TypeError):
+                    # Not numeric — keep raw string value (e.g. enum-like flag)
                     pass
             result[flag] = value
             i += 2

@@ -24,7 +24,6 @@ from vllm._genesis.guards import resolve_vllm_file, vllm_install_root
 from vllm._genesis.wiring.text_patch import (
     TextPatch,
     TextPatcher,
-    TextPatchResult,
     result_to_wiring_status,
 )
 
@@ -118,7 +117,9 @@ def apply() -> tuple[str, str]:
             "without reasoning signals (variant 1), prompt-engineering soft "
             "cap (variant 5) when GENESIS_PN16_MAX_THINKING_TOKENS > 0. "
             "Variant 4 (LogitsProcessor cap) upstream-blocked by spec-decode "
-            "— see docs/_internal/PN16_PHASE2_UPSTREAM_BLOCKER.md. Default "
+            "(vllm v1 rejects custom logits processors when "
+            "speculative_config is set; see lazy_reasoner.py docstring). "
+            "Default "
             "OFF — set GENESIS_ENABLE_PN16_LAZY_REASONER=1 to engage. "
             "Threshold GENESIS_PN16_THRESHOLD_CHARS (default 300)."
         ),

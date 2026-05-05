@@ -69,12 +69,12 @@ class TestVllmVersionRange:
 class TestTorchTritonCuda:
     def test_torch_min_passes(self):
         p = _profile(torch="2.5.1+cu124")
-        ok, results = check_version_constraints({"torch_version_min": "2.0"}, p)
+        ok, _results = check_version_constraints({"torch_version_min": "2.0"}, p)
         assert ok is True
 
     def test_torch_min_fails(self):
         p = _profile(torch="1.13.0")
-        ok, results = check_version_constraints({"torch_version_min": "2.0"}, p)
+        ok, _results = check_version_constraints({"torch_version_min": "2.0"}, p)
         assert ok is False
 
     def test_triton_min_passes(self):

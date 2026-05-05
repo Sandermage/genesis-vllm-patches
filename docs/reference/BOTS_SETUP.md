@@ -12,7 +12,7 @@ Quick guide for the AI / security bots installed on this repo (and the few that 
 
 ### CodeQL
 - **Config**: `.github/workflows/codeql.yml`
-- **What it does**: Static analysis on Python code (vllm/_genesis/, genesis_*.py, external_probe/) on every push to `main`, every PR touching those paths, and weekly Monday at 06:00 UTC.
+- **What it does**: Static analysis on Python code (vllm/_genesis/, genesis_*.py, tools/external_probe/) on every push to `main`, every PR touching those paths, and weekly Monday at 06:00 UTC.
 - **Query suite**: `security-and-quality` (strictest — catches both security issues and code quality smells)
 - **Where to see results**: GitHub repo → Security → Code scanning alerts
 

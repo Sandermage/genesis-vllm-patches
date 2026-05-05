@@ -12,7 +12,6 @@ import json
 import sys
 from pathlib import Path
 
-import pytest
 
 # Allow `import genesis_bench_suite` from tools/
 TOOLS_DIR = Path(__file__).resolve().parents[3] / "tools"

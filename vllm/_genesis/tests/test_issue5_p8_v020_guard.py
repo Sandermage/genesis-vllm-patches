@@ -23,7 +23,6 @@ from __future__ import annotations
 import sys
 import types
 
-import pytest
 
 
 class TestIssue5PostApplyImportGuard:
@@ -183,7 +182,7 @@ class TestIssue5PostApplyImportGuard:
             patch_8_kv_hybrid_reporting, "_patcher_sched", _fake_patcher_sched
         )
 
-        status, reason = patch_8_kv_hybrid_reporting.apply()
+        status, _reason = patch_8_kv_hybrid_reporting.apply()
 
         assert status == "skipped"
         assert not sched_called["value"], (

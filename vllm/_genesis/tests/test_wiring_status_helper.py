@@ -10,7 +10,6 @@ even when the file was unchanged (silent boot-log lie).
 """
 from __future__ import annotations
 
-import pytest
 
 from vllm._genesis.wiring.text_patch import (
     TextPatchFailure,

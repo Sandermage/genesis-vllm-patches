@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import re
 
-import pytest
 
 from vllm._genesis.wiring.spec_decode.patch_94_spec_decode_zero_alloc import (
     P94_OLD,

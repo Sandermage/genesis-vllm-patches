@@ -24,6 +24,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 import sys
 from typing import Any
 
@@ -68,6 +69,76 @@ def _section_hardware() -> dict[str, Any]:
                           exc_info=True)
     except Exception as e:
         log.debug("torch CUDA section probe failed: %s", e, exc_info=True)
+    return out
+
+
+def _section_environment() -> dict[str, Any]:
+    """Detect host environment quirks that affect Genesis behavior.
+
+    Currently surfaces:
+      * WSL2 (Windows Subsystem for Linux 2) host — display overhead +
+        DirectX shim eats VRAM, narrows borderline-OOM headroom; some
+        kernels (notably P104 L2 persistence) misbehave under WSL paging.
+      * Blackwell-class GPU on WSL2 — R6000 Pro 96GB on WSL2 is an
+        atypical combo; Sander's planned upgrade target. Warn that NVFP4
+        + PN38 FP8 paths assume bare-metal Linux/Windows, not WSL.
+      * PCIe lane width (per-GPU) via nvidia-smi when available; warns
+        when any GPU is wired below x16 (cuts P2P/host bandwidth and
+        affects TQ continuation-prefill perf in TP=2 setups).
+
+    All probes are best-effort and silently no-op when their data source
+    is missing (Mac, container without nvidia-smi, etc.).
+    """
+    import os
+    import shutil
+    import subprocess
+
+    out: dict[str, Any] = {
+        "is_wsl": False,
+        "wsl_version": None,
+        "pcie_lanes": [],
+        "errors": [],
+    }
+
+    # WSL2 detection — /proc/version contains "microsoft" or "WSL"
+    proc_version_path = "/proc/version"
+    if os.path.exists(proc_version_path):
+        try:
+            with open(proc_version_path, encoding="utf-8") as f:
+                content = f.read().lower()
+            if "microsoft" in content or "wsl" in content:
+                out["is_wsl"] = True
+                if "wsl2" in content:
+                    out["wsl_version"] = "WSL2"
+                elif "wsl" in content:
+                    out["wsl_version"] = "WSL1"
+        except Exception as e:
+            out["errors"].append(f"/proc/version probe: {e}")
+
+    # PCIe lane width per GPU — nvidia-smi --query-gpu=pcie.link.width.current
+    if shutil.which("nvidia-smi"):
+        try:
+            res = subprocess.run(
+                ["nvidia-smi",
+                 "--query-gpu=index,name,pcie.link.gen.current,pcie.link.width.current,pcie.link.gen.max,pcie.link.width.max",
+                 "--format=csv,noheader,nounits"],
+                capture_output=True, text=True, timeout=5,
+            )
+            if res.returncode == 0:
+                for line in res.stdout.strip().splitlines():
+                    parts = [p.strip() for p in line.split(",")]
+                    if len(parts) >= 6:
+                        out["pcie_lanes"].append({
+                            "index": int(parts[0]) if parts[0].isdigit() else parts[0],
+                            "name": parts[1],
+                            "gen_current": parts[2],
+                            "width_current": parts[3],
+                            "gen_max": parts[4],
+                            "width_max": parts[5],
+                        })
+        except Exception as e:
+            out["errors"].append(f"nvidia-smi pcie probe: {e}")
+
     return out
 
 
@@ -206,6 +277,49 @@ def _section_recommendations(report: dict[str, Any]) -> list[str]:
             "container for model-aware analysis)"
         )
 
+    # Environment quirks (P1.11 / P2.11)
+    env = report.get("environment", {})
+    hw = report.get("hardware", {})
+    if env.get("is_wsl"):
+        rec.append(
+            f"[WARN] {env.get('wsl_version','WSL')} detected — extra display "
+            "overhead eats VRAM (~200-400 MiB on 24GB cards). On borderline "
+            "configs (Cliff 2 single-card 24GB, club-3090 setups) expect "
+            "tighter mem-utilization headroom. Verified noonghunna fix: "
+            "set --gpu-memory-utilization to 0.85 (default 0.90 may trip)."
+        )
+        # Blackwell + WSL2 = atypical combo
+        for g in hw.get("gpus", []):
+            cc = g.get("compute_capability_tuple", [])
+            if cc and len(cc) >= 1 and cc[0] >= 12:
+                rec.append(
+                    f"[WARN] Blackwell-class GPU '{g.get('name','?')}' "
+                    f"detected on {env.get('wsl_version','WSL')}. PN38 NVFP4 "
+                    "drafter path + Genesis sm_120 kernel autotune "
+                    "assume bare-metal Linux/Windows. WSL paging may "
+                    "reduce TPS by 5-10%; report results to "
+                    "Genesis_internal_docs/wsl_blackwell_observations.md "
+                    "if you have ground-truth bare-metal numbers."
+                )
+                break
+
+    # PCIe lane warnings — flag any GPU wired below max width
+    for lane in env.get("pcie_lanes", []):
+        try:
+            current = int(lane.get("width_current", "0").lstrip("x"))
+            maximum = int(lane.get("width_max", "0").lstrip("x"))
+        except (ValueError, AttributeError):
+            continue
+        if current > 0 and maximum > 0 and current < maximum:
+            rec.append(
+                f"[WARN] GPU {lane.get('index','?')} ({lane.get('name','?')}) "
+                f"is wired x{current} but supports x{maximum} (gen {lane.get('gen_current','?')}/"
+                f"{lane.get('gen_max','?')}). On TP=2 with TQ continuation-prefill "
+                "this caps host↔device bandwidth and can cost 3-8% TPS. "
+                "Check motherboard slot allocation (often x8/x8 vs x16/x16 BIOS "
+                "setting) or PCIe riser cable integrity."
+            )
+
     # Show at least one recommendation if everything is clean
     if not rec:
         rec.append("[OK] no issues detected. System is healthy.")
@@ -236,6 +350,23 @@ def _format_text(report: dict[str, Any]) -> list[str]:
         L.append("  (no GPUs detected)")
     for e in hw.get("errors", []):
         L.append(f"  ⚠ {e}")
+
+    # Environment quirks (WSL2, PCIe lanes) — only show when interesting
+    env = report.get("environment", {})
+    if env.get("is_wsl") or env.get("pcie_lanes"):
+        L.append("")
+        L.append("[1b] Host environment")
+        if env.get("is_wsl"):
+            L.append(f"  WSL:           {env.get('wsl_version','WSL')} (display "
+                     "overhead +200-400 MiB; tighten gpu-mem-util)")
+        for lane in env.get("pcie_lanes", []):
+            L.append(
+                f"  PCIe GPU {lane.get('index','?')}:    "
+                f"gen {lane.get('gen_current','?')} x{lane.get('width_current','?')} "
+                f"(max gen {lane.get('gen_max','?')} x{lane.get('width_max','?')})"
+            )
+        for e in env.get("errors", []):
+            L.append(f"  ⚠ {e}")
 
     # Software
     L.append("")
@@ -330,15 +461,68 @@ def _format_text(report: dict[str, Any]) -> list[str]:
 # ─── Driver ──────────────────────────────────────────────────────────────
 
 
+def _section_preflight() -> dict[str, Any]:
+    """PN60 + club#34 + club#43 doctor rules.
+
+    Audit P2 fix 2026-05-05 (genesis_deep_cross_audit): PN60 was
+    `default_on=True` in registry with credit "Doctor extension; runs at
+    preflight" but `collect_report()` never called `run_all_preflight_checks()`.
+    Operator running `genesis doctor` got no preflight signal.
+
+    Now: doctor invokes preflight checks against the live container's logs
+    (best-effort) and reports any WARN/ERROR findings under a dedicated
+    `preflight` section. Operator-supplied `--quantization` and `--model`
+    args are not available here (doctor takes no model context), so PN60
+    quant validator only fires when the model_profile is resolved.
+    """
+    findings: list[dict[str, Any]] = []
+    try:
+        from vllm._genesis.compat.preflight_checks import (
+            check_grammar_rejection_pattern,
+            check_quant_arg,
+            check_spec_decode_token_loop,
+            fetch_container_logs,
+        )
+    except Exception as e:
+        return {"status": "preflight module unavailable", "error": str(e),
+                "findings": findings}
+
+    # PN60 quant validator — only when we can locate config.json on disk.
+    try:
+        from vllm._genesis.model_detect import get_model_profile
+        profile = get_model_profile()
+        model_dir = profile.get("model_dir") or profile.get("model_path")
+        cli_quant = os.environ.get("GENESIS_DOCTOR_CLI_QUANT", None)
+        if model_dir and cli_quant:
+            r = check_quant_arg(cli_quant, model_dir)
+            findings.append({"name": r.name, "severity": r.severity,
+                             "message": r.message,
+                             "remediation": r.remediation})
+    except Exception:
+        pass
+
+    # club#34 + club#43 — log-driven, fire only if container logs available.
+    log_text = fetch_container_logs(container_name="vllm-server-mtp-test")
+    if log_text:
+        for r in (check_grammar_rejection_pattern(log_text),
+                  check_spec_decode_token_loop(log_text)):
+            findings.append({"name": r.name, "severity": r.severity,
+                             "message": r.message,
+                             "remediation": r.remediation})
+    return {"status": "ok", "findings": findings}
+
+
 def collect_report() -> dict[str, Any]:
     """Run all sections and return the unified report."""
     report: dict[str, Any] = {}
     report["hardware"] = _section_hardware()
+    report["environment"] = _section_environment()
     report["software"] = _section_software()
     report["model_profile"] = _section_model_profile()
     report["patches"] = _section_patches()
     report["lifecycle"] = _section_lifecycle()
     report["validator"] = _section_validator()
+    report["preflight"] = _section_preflight()
     report["recommendations"] = _section_recommendations(report)
     return report
 

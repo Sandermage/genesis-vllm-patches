@@ -29,7 +29,7 @@ Two independent middleware hooks injected at the top of
 Both are env-flag opt-in:
   GENESIS_ENABLE_P68_AUTO_FORCE_TOOL=1
   GENESIS_ENABLE_P69_LONG_CTX_TOOL_REMINDER=1
-  GENESIS_P68_P69_LONG_CTX_THRESHOLD_CHARS=8000  (default)
+  GENESIS_P68_P69_LONG_CTX_THRESHOLD_CHARS=50000  (default — ~12.5K tokens; raised from 8000 in v7.65 per Issue #9)
 
 ================================================================
 
@@ -187,6 +187,11 @@ def apply() -> tuple[str, str]:
             )
 
     result, failure = patcher.apply()
+    # Audit P1 fix 2026-05-05: surface SKIPPED as skipped (was masked as applied)
+    if result == TextPatchResult.SKIPPED:
+        _r = failure.reason if failure else "anchor drift / not eligible"
+        _d = f" ({failure.detail})" if (failure and failure.detail) else ""
+        return "skipped", f"{patcher.patch_name}: {_r}{_d}"
     if result == TextPatchResult.FAILED:
         return "failed", (
             f"{patcher.patch_name}: {failure.reason if failure else 'unknown'} "
@@ -201,5 +206,5 @@ def apply() -> tuple[str, str]:
     return "applied", (
         "Hook injected into create_chat_completion. Active mitigations: "
         + "; ".join(enabled)
-        + ". Threshold: GENESIS_P68_P69_LONG_CTX_THRESHOLD_CHARS env (default 8000)."
+        + ". Threshold: GENESIS_P68_P69_LONG_CTX_THRESHOLD_CHARS env (default 50000, raised from 8000 in v7.65 per Issue #9)."
     )

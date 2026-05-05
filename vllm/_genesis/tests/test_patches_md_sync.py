@@ -25,7 +25,7 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-PATCHES_MD = REPO_ROOT / "PATCHES.md"
+PATCHES_MD = REPO_ROOT / "docs" / "PATCHES.md"
 
 
 @pytest.fixture(scope="module")

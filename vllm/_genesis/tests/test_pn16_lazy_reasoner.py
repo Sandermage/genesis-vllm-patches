@@ -18,7 +18,6 @@ What we cover:
 """
 from __future__ import annotations
 
-import os
 from types import SimpleNamespace
 
 import pytest

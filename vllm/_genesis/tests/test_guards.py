@@ -7,7 +7,6 @@ All helpers must fail-safe: return False/None on any exception.
 from __future__ import annotations
 
 import pytest
-import torch
 
 
 class TestVendorIdentity:
@@ -110,11 +109,35 @@ class TestComputeCapability:
                 is_ampere_consumer() and cc == (8, 6),
                 is_ada_lovelace() and cc == (8, 9),
                 is_hopper() and cc == (9, 0),
-                is_blackwell() and cc[0] == 10,
+                # Issue #20: is_blackwell now matches BOTH datacenter (sm_10x)
+                # AND consumer Blackwell (sm_120 — RTX 5090/5080/5070/5060).
+                is_blackwell() and cc[0] in (10, 12),
             ]
             # Each True match must correspond to actual cc
             true_matches = sum(matches)
             assert true_matches <= 1
+
+    def test_blackwell_split_predicates(self, monkeypatch):
+        """Issue #20: is_blackwell_datacenter vs is_blackwell_consumer."""
+        from vllm._genesis import guards
+        # Mock SM 10.0 (B100/B200/RTX PRO 6000) — datacenter Blackwell
+        monkeypatch.setattr(guards, "_COMPUTE_CAPABILITY", (10, 0))
+        assert guards.is_blackwell() is True
+        assert guards.is_blackwell_datacenter() is True
+        assert guards.is_blackwell_consumer() is False
+        # Mock SM 12.0 (RTX 5090/5080) — consumer Blackwell
+        monkeypatch.setattr(guards, "_COMPUTE_CAPABILITY", (12, 0))
+        assert guards.is_blackwell() is True
+        assert guards.is_blackwell_datacenter() is False
+        assert guards.is_blackwell_consumer() is True
+        # Mock SM 9.0 (Hopper) — neither
+        monkeypatch.setattr(guards, "_COMPUTE_CAPABILITY", (9, 0))
+        assert guards.is_blackwell() is False
+        assert guards.is_blackwell_datacenter() is False
+        assert guards.is_blackwell_consumer() is False
+        # Mock SM 8.6 (Ampere consumer) — neither
+        monkeypatch.setattr(guards, "_COMPUTE_CAPABILITY", (8, 6))
+        assert guards.is_blackwell() is False
 
 
 class TestDependencyVersions:

@@ -254,8 +254,12 @@ class TestDispatcherRegistry:
             assert "default_on" in meta, f"{pid} missing default_on"
             assert "category" in meta, f"{pid} missing category"
             assert isinstance(meta["env_flag"], str)
-            assert meta["env_flag"].startswith("GENESIS_ENABLE_"), (
-                f"{pid} env_flag must start with GENESIS_ENABLE_"
+            # Schema validator pattern: ^GENESIS_[A-Z][A-Z0-9_]*$
+            # Most patches use GENESIS_ENABLE_*, but legacy patches use
+            # GENESIS_LEGACY_* (placeholder for pre-dispatcher patches that
+            # don't actually read an env var). Both are schema-clean.
+            assert meta["env_flag"].startswith("GENESIS_"), (
+                f"{pid} env_flag must start with GENESIS_"
             )
 
     def test_v7_14_v7_15_patches_in_registry(self):

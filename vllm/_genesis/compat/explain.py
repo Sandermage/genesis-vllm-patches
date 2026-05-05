@@ -151,6 +151,7 @@ def explain_patch(patch_id: str) -> dict[str, Any]:
             upstream["merged_status"] = chosen_info.get("merged_date", "unknown")
             upstream["compat_key"] = chosen_key
     except Exception:
+        # compat-rules JSON optional — explain proceeds without merged_status
         pass
 
     # ─── Decision today (live should_apply) ─────────────────────────────

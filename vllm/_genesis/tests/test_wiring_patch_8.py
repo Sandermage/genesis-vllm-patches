@@ -134,19 +134,21 @@ class TestPatch8Wiring:
         s2, _ = p8.apply()
         assert s1 == "applied" and s2 == "applied"
 
-        kv_content = open(kv_path).read()
+        with open(kv_path) as _f:
+            kv_content = _f.read()
         # Each marker inserted exactly once (marker version follows
         # GENESIS_P8_MARKER_KV constant, not a hardcoded literal).
         assert kv_content.count(GENESIS_P8_MARKER_KV) == 1
 
-        sched_content = open(sched_path).read()
+        with open(sched_path) as _f:
+            sched_content = _f.read()
         assert sched_content.count(GENESIS_P8_MARKER_SCHED) == 1
 
     def test_skip_when_upstream_merged_kv(self, fake_p8_files):
         """If helper function already exists in kv_cache_utils (upstream landed),
         KV sub-patch skips — but scheduler may still need the import."""
         from vllm._genesis.wiring.legacy import patch_8_kv_hybrid_reporting as p8
-        kv_path, sched_path = fake_p8_files
+        kv_path, _sched_path = fake_p8_files
 
         # Prepend helper to kv_cache_utils to simulate upstream merge
         content = open(kv_path).read()

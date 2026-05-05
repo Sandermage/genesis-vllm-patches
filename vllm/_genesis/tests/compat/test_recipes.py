@@ -24,8 +24,6 @@ CLI:
 from __future__ import annotations
 
 import json
-import os
-from pathlib import Path
 
 import pytest
 
@@ -432,7 +430,6 @@ class TestDiffCLI:
     def test_diff_json_output(
         self, tmp_recipes_dir, capsys
     ):
-        import json
         from vllm._genesis.compat.recipes import save, main
         save("x", _VALID_RECIPE)
         modified = dict(_VALID_RECIPE)

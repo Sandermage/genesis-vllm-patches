@@ -58,6 +58,7 @@ KNOWN_STATES = frozenset({
     "research",
     "community",
     "retired",
+    "legacy",
 })
 
 # States that should NOT be auto-engaged even when env_flag is set
@@ -138,6 +139,12 @@ def audit_registry(registry: dict[str, dict[str, Any]]) -> list[LifecycleAuditEn
                 note="retired — apply_all will not attempt this patch",
                 severity="warn",
             ))
+        elif state == "legacy":
+            entries.append(LifecycleAuditEntry(
+                patch_id=pid, state=state,
+                note=meta.get("credit", "pre-dispatcher patch — minimal metadata"),
+                severity="ok",
+            ))
         else:  # stable
             entries.append(LifecycleAuditEntry(
                 patch_id=pid, state=state,
@@ -170,7 +177,7 @@ def format_audit_table(entries: list[LifecycleAuditEntry]) -> list[str]:
 
     lines = []
     for state in ("experimental", "stable", "deprecated", "research",
-                  "community", "retired"):
+                  "community", "retired", "legacy"):
         if state not in by_state:
             continue
         ents = by_state[state]

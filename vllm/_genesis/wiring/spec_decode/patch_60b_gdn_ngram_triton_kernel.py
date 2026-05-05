@@ -382,7 +382,7 @@ def apply() -> tuple[str, str]:
         results.append((p.patch_name, result))
 
     # Clear Triton cache to force kernel recompile with new signature
-    cleared, cache_msg = _clear_triton_cache()
+    _cleared, cache_msg = _clear_triton_cache()
     log.info("[Genesis P60b] Triton cache: %s", cache_msg)
 
     applied = sum(1 for _, r in results if r == TextPatchResult.APPLIED)

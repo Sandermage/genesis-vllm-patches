@@ -232,12 +232,29 @@ def is_hopper() -> bool:
 
 
 def is_blackwell() -> bool:
-    """NVIDIA B100 / B200 / RTX 5090 / RTX PRO 6000 — SM 10.x.
+    """NVIDIA Blackwell family — SM 10.x (datacenter/pro) OR SM 12.x (consumer).
 
-    Our future target after R6000 purchase.
+    NVIDIA splits Blackwell across two SM major versions:
+      * sm_10x (10.0/10.1/10.3): B100, B200, GB200, RTX PRO 6000 Blackwell
+      * sm_120 (12.0): RTX 5090, 5080, 5070, 5060 (consumer)
+
+    Fix for issue #20 (2026-05-04, club-3090 RTX 5090 user): original
+    `cc[0] == 10` missed consumer Blackwell. Now `cc[0] in (10, 12)`.
     """
     cc = get_compute_capability()
+    return cc is not None and cc[0] in (10, 12)
+
+
+def is_blackwell_datacenter() -> bool:
+    """NVIDIA Blackwell datacenter/pro (B100/B200/GB200/RTX PRO 6000) — SM 10.x only."""
+    cc = get_compute_capability()
     return cc is not None and cc[0] == 10
+
+
+def is_blackwell_consumer() -> bool:
+    """NVIDIA Blackwell consumer (RTX 5090/5080/5070/5060) — SM 12.x only."""
+    cc = get_compute_capability()
+    return cc is not None and cc[0] == 12
 
 
 def has_native_fp8() -> bool:
@@ -403,6 +420,94 @@ def is_vllm_020_plus() -> bool:
     """True if vllm >= 0.20.0."""
     v = get_vllm_version_tuple()
     return v is not None and v >= (0, 20, 0)
+
+
+@functools.cache
+def get_vllm_full_version_string() -> Optional[str]:
+    """Returns the FULL vllm version string including local-pin suffix.
+
+    Examples:
+      "0.20.1rc1.dev16+g7a1eb8ac2"
+      "0.20.2rc1.dev9+g01d4d1ad3"
+
+    Returns None if vllm is not importable. This is the canonical pin
+    identity used by `assert_vllm_pin_allowed` for protect-against-foot-gun
+    enforcement.
+    """
+    try:
+        import vllm
+        return getattr(vllm, "__version__", None)
+    except Exception:
+        return None
+
+
+# ───────────────────────────────────────────────────────────────────────
+# vLLM pin allowlist — known-good pins this Genesis revision validated against.
+#
+# When a patcher boot encounters an UNKNOWN pin, two policy modes are
+# possible (controlled by `GENESIS_VLLM_PIN_POLICY`):
+#   - "warn" (default) — log a loud warning, continue
+#   - "strict"          — log + sys.exit(2) — refuse to apply patches that
+#                         were never validated against this pin
+#
+# Add new entries via PR review only. Each line should be paired with a
+# CHANGELOG entry documenting the validated test surface.
+# ───────────────────────────────────────────────────────────────────────
+KNOWN_GOOD_VLLM_PINS: tuple[str, ...] = (
+    # v7.65 PROD baseline (validated 2026-04-23 → 2026-05-04, 1470 tests)
+    "0.20.1rc1.dev16+g7a1eb8ac2",
+    # v7.70 pin-bump target (validated 2026-05-04, Test 4 boot+smoke+tool-call clean)
+    "0.20.2rc1.dev9+g01d4d1ad3",
+)
+
+
+def assert_vllm_pin_allowed(
+    allowlist: tuple[str, ...] = KNOWN_GOOD_VLLM_PINS,
+    policy: Optional[str] = None,
+) -> tuple[str, str]:
+    """Loud check that the running vllm pin is on the allowlist.
+
+    Returns ("ok"|"unknown"|"missing", message). On policy="strict" and
+    a non-ok status, raises SystemExit(2) — caller does NOT need to handle.
+
+    Policy resolution order: explicit `policy` arg > env `GENESIS_VLLM_PIN_POLICY`
+    > "warn" (default). Set policy="strict" in production start scripts to
+    fail fast on accidental pin drift.
+
+    Per Sander 2026-05-04 ("защита от дурака"): never silently apply
+    patches against an unvalidated pin. The allowlist must be updated
+    explicitly when a new pin is qualified.
+    """
+    import os as _os
+
+    if policy is None:
+        policy = _os.environ.get("GENESIS_VLLM_PIN_POLICY", "warn").strip().lower()
+    if policy not in ("warn", "strict"):
+        policy = "warn"
+
+    pin = get_vllm_full_version_string()
+    if pin is None:
+        msg = "vllm not importable — cannot verify pin"
+        if policy == "strict":
+            print(f"[Genesis pin-gate] STRICT FAIL: {msg}", flush=True)
+            import sys as _sys
+            _sys.exit(2)
+        return "missing", msg
+
+    if pin in allowlist:
+        return "ok", f"vllm pin {pin} is on the Genesis allowlist"
+
+    msg = (
+        f"vllm pin {pin!r} is NOT on the Genesis known-good list "
+        f"({len(allowlist)} entries). Allowed pins: {list(allowlist)}. "
+        f"To accept this pin, add it to KNOWN_GOOD_VLLM_PINS in "
+        f"vllm/_genesis/guards.py and document the validation in CHANGELOG."
+    )
+    if policy == "strict":
+        print(f"[Genesis pin-gate] STRICT FAIL: {msg}", flush=True)
+        import sys as _sys
+        _sys.exit(2)
+    return "unknown", msg
 
 
 @functools.cache

@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "genesis-vllm-plugin"
+version = "7.0.0.dev0"
+description = "Genesis v7.0 runtime patcher for vLLM — registered as vllm.general_plugins entry point so it auto-loads in every process (main/engine-core/worker)."
+requires-python = ">=3.10"
+authors = [
+    {name = "Sandermage(Sander)-Barzov Aleksandr", email = "sander.odessa@gmail.com"},
+]
+license = {text = "Apache-2.0"}
+readme = "README.md"
+# No runtime deps — the plugin assumes vllm is available at import time.
+# Our orchestrator imports vllm._genesis/* which is mounted in the container.
+dependencies = []
+
+[project.entry-points."vllm.general_plugins"]
+# Official vLLM plugin system automatically calls this at process start —
+# in process0, engine core, AND every worker rank. Perfect place for
+# Genesis wiring because it runs BEFORE model load and has full access
+# to the target vllm.* import tree.
+genesis_v7 = "genesis_v7:register"
+
+[project.scripts]
+# `genesis` console command — works after `pip install` of this plugin.
+# Routes to the unified CLI dispatcher (compat/cli.py).
+#
+# After install.sh runs (which does `pip install -e genesis_vllm_plugin/`),
+# users can run:
+#     genesis doctor
+#     genesis preset list
+#     genesis verify --quick
+#     genesis explain P103
+# instead of the long form `python3 -m vllm._genesis.compat.cli ...`.
+#
+# Requires vllm._genesis on PYTHONPATH (install.sh symlinks it into
+# the vllm install dir; alternatively set PYTHONPATH manually).
+genesis = "vllm._genesis.compat.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["genesis_v7*"]

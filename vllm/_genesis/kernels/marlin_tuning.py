@@ -41,12 +41,18 @@ log = logging.getLogger("genesis.marlin_tuning")
 
 
 # Per-arch optimal block_size_m (empirically tuned)
+# PN64 (2026-05-05): added (12, 0) consumer Blackwell entry — copies
+# Hopper/datacenter Blackwell as starting point until empirical 5090
+# sweep data lands (apnar club-3090#51 boot log shows our patcher
+# previously skipped Marlin MoE tuning for SM 12.0 with NO entry).
 _OPTIMAL_BSM_BY_ARCH: dict[tuple[int, int], int] = {
     (8, 0): 16,   # A100 — defer to upstream heuristic (no tune data)
     (8, 6): 8,    # A5000/3090 — measured +1.2%
     (8, 9): 16,   # Ada Lovelace — defer to upstream
     (9, 0): 16,   # H100 — upstream heuristic adequate
-    (10, 0): 16,  # Blackwell — upstream heuristic adequate
+    (10, 0): 16,  # Blackwell datacenter — upstream heuristic adequate
+    (12, 0): 16,  # PN64: Blackwell consumer (RTX 5090) — placeholder copying
+                  # SM (9, 0) Hopper. UNMEASURED on real hw — solicit sweep.
 }
 
 
@@ -59,7 +65,8 @@ _OPTIMAL_NUM_STAGES_BY_ARCH: dict[tuple[int, int], Optional[int]] = {
     (8, 6): 3,     # A5000/3090 — measured ~+0.5% with 3 stages
     (8, 9): None,  # Ada — defer
     (9, 0): None,  # H100 — native FP32 + deep shared mem, defer
-    (10, 0): None,  # Blackwell — defer
+    (10, 0): None,  # Blackwell datacenter — defer
+    (12, 0): None,  # PN64: Blackwell consumer placeholder — defer
 }
 
 # P24: Per-arch optimal num_warps. Smaller warps on smaller cards.
@@ -69,6 +76,7 @@ _OPTIMAL_NUM_WARPS_BY_ARCH: dict[tuple[int, int], Optional[int]] = {
     (8, 9): None,  # Ada — defer
     (9, 0): None,  # H100 — defer (huge regs, upstream chooses well)
     (10, 0): None,
+    (12, 0): None,  # PN64: Blackwell consumer placeholder — defer
 }
 
 
@@ -94,7 +102,20 @@ def get_optimal_block_size_m() -> Optional[int]:
     if cc is None:
         return None
 
+    # Audit P1 fix 2026-05-05: PN64 is registered opt-in in dispatcher
+    # (env_flag=GENESIS_ENABLE_PN64, default_on=False), so the SM 12.0
+    # placeholder entry must respect that flag — otherwise the audit reads
+    # the registry as opt-in but the table lookup fires unconditionally.
+    if cc == (12, 0) and not _pn64_enabled():
+        return None
+
     return _OPTIMAL_BSM_BY_ARCH.get(cc)
+
+
+def _pn64_enabled() -> bool:
+    """Honour PN64 opt-in flag for SM 12.0 placeholder entries."""
+    raw = os.environ.get("GENESIS_ENABLE_PN64", "").strip().lower()
+    return raw in ("1", "true", "yes", "y", "on")
 
 
 def get_num_warps_override() -> Optional[int]:
@@ -114,6 +135,8 @@ def get_num_warps_override() -> Optional[int]:
         return None
     cc = get_compute_capability()
     if cc is None:
+        return None
+    if cc == (12, 0) and not _pn64_enabled():
         return None
     return _OPTIMAL_NUM_WARPS_BY_ARCH.get(cc)
 
@@ -135,6 +158,8 @@ def get_num_stages_override() -> Optional[int]:
         return None
     cc = get_compute_capability()
     if cc is None:
+        return None
+    if cc == (12, 0) and not _pn64_enabled():
         return None
     return _OPTIMAL_NUM_STAGES_BY_ARCH.get(cc)
 

@@ -20,7 +20,6 @@ import re
 import pytest
 
 from vllm._genesis.wiring.spec_decode.patch_82_sglang_acceptance_threshold import (
-    GENESIS_P82_MARKER,
     GENESIS_P82_MARKER_PREFIX,
     P82_OLD,
     _build_replacement,

@@ -404,17 +404,15 @@ def apply() -> tuple[str, str]:
             )
 
     result, failure = patcher.apply()
-    if result == TextPatchResult.FAILED:
-        return "failed", (
-            f"{patcher.patch_name}: {failure.reason if failure else 'unknown'} "
-            f"({failure.detail if failure else ''})"
-        )
+    # Audit P1 fix 2026-05-05: route SKIPPED to "skipped" (was masked as "applied")
+    # via the centralized helper that already lives in text_patch.py.
+    from vllm._genesis.wiring.text_patch import result_to_wiring_status
     pos_note = (
         f", min_draft_pos={min_draft_pos}"
         if min_draft_pos > 0
         else ""
     )
-    return "applied", (
+    applied_msg = (
         f"P82 v2 applied: SGLang threshold_single OR-clause installed at "
         f"threshold={threshold:.4f}{pos_note}. v2 hardening: fp32 denormal guard "
         "(draft_prob >= 1e-20), explicit target_prob > 0 check"
@@ -422,4 +420,9 @@ def apply() -> tuple[str, str]:
            if min_draft_pos > 0 else "")
         + ". Activates on random-sample path (greedy / synthetic untouched). "
         "BIASED rule — validate with genesis_quality_harness before prod."
+    )
+    return result_to_wiring_status(
+        result, failure,
+        applied_message=applied_msg,
+        patch_name=patcher.patch_name,
     )

@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import re
 
-import pytest
 
 from vllm._genesis.wiring.legacy.patch_12_tool_call_reasoning import _NEW_METHODS_BLOCK
 

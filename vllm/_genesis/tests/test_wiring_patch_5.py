@@ -183,7 +183,6 @@ class TestPatch5MathAnalysis:
         round 4). Future work: align with real_page_size_bytes in
         vLLM's kernel-layer allocation."""
         max_page = 1_073_152
-        smaller = 813_248
         num_attn = 10
         num_mamba = 30
 

@@ -75,6 +75,12 @@ Root-cause analysis: vllm#38182 by uOnePiece + @Angazenn comment.
 from __future__ import annotations
 
 import logging
+
+# Audit A-19 (2026-05-05): tightly coupled subpatches — both apply
+# or both stay un-applied. Shared marker is acceptable here because the
+# subpatches together form one logical fix; partial application is not
+# desired anyway. _AUDIT_A19_EXEMPT documents this intentional design.
+_AUDIT_A19_EXEMPT = True  # tightly coupled subpatches
 import os
 
 from vllm._genesis.guards import resolve_vllm_file, vllm_install_root
@@ -325,6 +331,11 @@ def apply() -> tuple[str, str]:
             )
 
     result, failure = patcher.apply()
+    # Audit P1 fix 2026-05-05: surface SKIPPED as skipped (was masked as applied)
+    if result == TextPatchResult.SKIPPED:
+        _r = failure.reason if failure else "anchor drift / not eligible"
+        _d = f" ({failure.detail})" if (failure and failure.detail) else ""
+        return "skipped", f"{patcher.patch_name}: {_r}{_d}"
     if result == TextPatchResult.FAILED:
         return "failed", (
             f"{patcher.patch_name}: {failure.reason if failure else 'unknown'} "

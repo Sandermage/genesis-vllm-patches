@@ -35,7 +35,6 @@ import os
 import shutil
 import sys
 from pathlib import Path
-from typing import Any
 
 log = logging.getLogger("genesis.compat.models.pull")
 
@@ -334,7 +333,6 @@ def main(argv=None) -> int:
     # (size, quant_format, expected metrics) carries over from the
     # registry entry — operator's responsibility to ensure the override
     # is shape-compatible.
-    effective_hf_id = args.hf_id_override or entry.hf_id
     if args.hf_id_override:
         from dataclasses import replace
         entry = replace(entry, hf_id=args.hf_id_override)

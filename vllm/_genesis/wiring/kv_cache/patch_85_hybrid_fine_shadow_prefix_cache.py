@@ -418,15 +418,16 @@ def apply() -> tuple[str, str]:
             )
 
     result, failure = patcher.apply()
-    if result == TextPatchResult.FAILED:
-        return "failed", (
-            f"{patcher.patch_name}: {failure.reason if failure else 'unknown'} "
-            f"({failure.detail if failure else ''})"
-        )
-    return "applied", (
-        "P85 applied: hybrid fine-shadow prefix cache installed at MambaManager. "
-        "cache_blocks now registers fine-grained shadow entries; "
-        "find_longest_cache_hit prefers fine-scan with eviction-safety verify. "
-        "Requires GENESIS_ENABLE_P84=1 + GENESIS_P84_HASH_BLOCK_SIZE=<N> for "
-        "fine hashes to be computed in the first place."
+    # Audit P1 fix 2026-05-05: route SKIPPED/IDEMPOTENT honestly via shared helper
+    from vllm._genesis.wiring.text_patch import result_to_wiring_status
+    return result_to_wiring_status(
+        result, failure,
+        applied_message=(
+            "P85 applied: hybrid fine-shadow prefix cache installed at MambaManager. "
+            "cache_blocks now registers fine-grained shadow entries; "
+            "find_longest_cache_hit prefers fine-scan with eviction-safety verify. "
+            "Requires GENESIS_ENABLE_P84=1 + GENESIS_P84_HASH_BLOCK_SIZE=<N> for "
+            "fine hashes to be computed in the first place."
+        ),
+        patch_name=patcher.patch_name,
     )

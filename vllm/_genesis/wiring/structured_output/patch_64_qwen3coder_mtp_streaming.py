@@ -13,21 +13,35 @@ streamed_args_for_tool without the closing `}`. Final chunk then has
 no valid arguments → empty `tool_calls`.
 ================================================================
 
-Three sub-patches:
+4 sub-patches wired (audit A-06 fix 2026-05-05: was "3" — actual is 4),
+plus 1 deferred:
 
-1. **qwen3coder_tool_parser.py** — Restructure `extract_tool_calls_streaming`
-   to remove early return and unify parameter/function-end accumulation.
+1. **qwen3coder_tool_parser.py — remove early return** — Restructure
+   `extract_tool_calls_streaming` to drop early `return` and accumulate
+   into `combined`.
 
-2. **serving.py — _should_check_for_unstreamed_tool_arg_tokens** — Widen
-   safety-net condition to fire on `finish_reason` presence alone (not
-   gated by non-empty `tool_calls`). With MTP, the last delta before
-   finish may carry no `tool_calls` even though tool calls in progress.
+2. **qwen3coder_tool_parser.py — unify </function> emit** — Inside the
+   `</function>` branch, append `"}"` to `combined` and fall through
+   to a single emit point at end of method (instead of a separate
+   early `return result`).
 
-3. **serving.py — _create_remaining_args_delta** — Switch from
-   constructor-passed `id=None / type=None / name=None` to
-   post-construction conditional assignment, so Pydantic v2 treats
-   absent fields as *unset* and `model_dump(exclude_unset=True)` omits
-   them (instead of emitting `"id": null`).
+3. **serving.py — _should_check_for_unstreamed_tool_arg_tokens widen** —
+   Fire safety-net on `finish_reason` presence alone (not gated by
+   non-empty `tool_calls`). With MTP, the last delta before finish may
+   carry no `tool_calls` even though a tool call is in progress.
+
+4. **serving.py — call-site guard for tool_calls[0]** — Defensive
+   `if delta_message.tool_calls and isinstance(...)` guard before
+   indexing into `tool_calls[0]`. Required because sub-patch 3 widened
+   `_should_check` to fire without `tool_calls` non-empty pre-check.
+
+DEFERRED (audit A-17 documented):
+  D. **serving.py — _create_remaining_args_delta Pydantic-null fix** —
+     SERVING_CRD_OLD/NEW constants are DEFINED in this module but NOT
+     wired into sub_patches. Intentional per `_make_serving_patcher`
+     comment: parser-side fix (sub-patches 1+2) closes the primary
+     symptom; Pydantic-null is belt-and-braces. Constants kept as
+     ready-to-wire if primary proves insufficient.
 
 Status: opt-in via `GENESIS_ENABLE_P64_QWEN3CODER_MTP_STREAMING=1`.
 
@@ -40,8 +54,17 @@ Compatibility
 
 Risks acknowledged
 ------------------
-- Three sub-patches across two files; all-or-nothing apply (anchor
-  drift in one → whole group skips).
+- Four active sub-patches across two files (qwen3coder parser + serving)
+  + the Pydantic null fix is **deferred** (constants `SERVING_CRD_*` are
+  declared but not yet wired). patch_name reflects MTP safety-net +
+  call-site guard only; Pydantic null fix is queued for follow-up.
+- All-or-nothing apply: anchor drift in one → whole group skips. **Audit P1
+  caveat (genesis_deep_cross_audit_2026-05-05):** the current commit-loop
+  treats `TextPatchResult.SKIPPED` as success and only short-circuits on
+  `FAILED`. A subset can therefore install while the rest silently skip.
+  Tracked for migration to `MultiFilePatchTransaction` once dry-run learns
+  anchor-uniqueness checking; until then operators should grep for the
+  specific marker if quality regresses unexpectedly.
 - Test coverage limited to streaming clients (LibreChat, OpenWebUI).
   Synthetic streaming reproducer in test suite.
 
@@ -142,6 +165,12 @@ QWEN3COD_FNEND_OLD = (
 QWEN3COD_FNEND_NEW = (
     "                # [Genesis P64 vllm#39598] Append \"}\" to combined and fall\n"
     "                # through to unified emit below — no early return.\n"
+    "                # [Audit A-07 fix 2026-05-05] NOTE on `self.json_closed = True`:\n"
+    "                # the OLD branch set this here. NEW branch does NOT — it is set\n"
+    "                # at the top of the upstream `if not self.json_closed and ...`\n"
+    "                # branch above (parser line ~626 in current pin). Not a bug,\n"
+    "                # just non-redundant: removing avoids double-set; runtime\n"
+    "                # invariant preserved by upstream parser logic.\n"
     "                combined += \"}\"\n"
     "                self.in_function = False\n"
     "                self.accumulated_params = {}\n"
@@ -237,6 +266,14 @@ SERVING_CALLSITE_NEW = (
 
 
 # ─── Sub-patch D: serving.py — _create_remaining_args_delta Pydantic fix ────
+# AUDIT A-17 (2026-05-05): These SERVING_CRD_* constants are DEFINED but
+# NOT WIRED into _make_serving_patcher.sub_patches — this is INTENTIONAL.
+# See the explanation block in _make_serving_patcher below ("belt-and-
+# braces / leave _create_remaining_args_delta unchanged / parser fix
+# closes primary symptom"). The constants stay as living documentation
+# of the deferred Pydantic-null fix and as a future-ready replacement
+# if the primary parser fix proves insufficient. DO NOT delete them
+# without re-evaluating that decision. Audit-A-17-keepalive: SERVING_CRD.
 
 SERVING_CRD_OLD = (
     "        original_tc = next(\n"

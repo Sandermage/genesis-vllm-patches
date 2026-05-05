@@ -29,13 +29,11 @@ from vllm._genesis.kernels.block_verify_sampler import (
     _BLOCK_VERIFY_VOCAB_BLOCK,
     _TRITON_OK,
     rejection_random_sample_block_verify_pytorch,
-    sample_recovered_tokens_blockwise_pytorch,
 )
 
 if _TRITON_OK:
     from vllm._genesis.kernels.block_verify_sampler import (
         rejection_random_sample_block_verify_kernel,
-        sample_recovered_tokens_block_verify_kernel,
     )
 
 
@@ -283,7 +281,6 @@ def test_block_verify_unbiasedness_smoke():
     """
     device = _device()
     torch.manual_seed(0)
-    batch_size = 1
     max_spec_len = 3
     vocab_size = 32
     num_trials = 200

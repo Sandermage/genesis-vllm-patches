@@ -194,7 +194,6 @@ def test_no_auto_disable_when_zero_not_in_steps(monkeypatch):
     monkeypatch.setenv("GENESIS_P77_UPDATE_INTERVAL", "1")
     monkeypatch.setenv("GENESIS_P77_DISABLE_THRESHOLD", "0.50")
     c = AdaptiveNgramController()
-    initial_K = c.current_K
     # accept_rate = 0 << 0.50 but 0 not in steps → must NOT pick 0
     c.update([0, 0, 0], [c.current_K] * 3)
     assert c.current_K != 0

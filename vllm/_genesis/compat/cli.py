@@ -25,11 +25,9 @@ Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
 """
 from __future__ import annotations
 
-import argparse
 import importlib
 import logging
 import sys
-from typing import Callable
 
 log = logging.getLogger("genesis.compat.cli")
 
@@ -54,12 +52,15 @@ _SUBCOMMAND_MAP: dict[str, str] = {
     "migrate":         "vllm._genesis.compat.migrate",
     # Deploy / share
     "recipe":          "vllm._genesis.compat.recipes",
+    "preset":          "vllm._genesis.compat.presets",
     # Community + telemetry + updates
     "plugins":         "vllm._genesis.compat.plugins",
     "telemetry":       "vllm._genesis.compat.telemetry",
     "update-channel":  "vllm._genesis.compat.update_channel",
     # Operator sanity check
     "self-test":       "vllm._genesis.compat.self_test",
+    "verify":          "vllm._genesis.compat.verify",
+    "preflight":       "vllm._genesis.compat.preflight_checks",
     # Benchmarking
     "bench":           "vllm._genesis.compat.bench",
 }
@@ -81,10 +82,13 @@ _DESCRIPTIONS: dict[str, str] = {
     "categories":       "browse patches by category",
     "migrate":          "pin-bump runbook against an upstream-vllm clone",
     "recipe":           "save / load / share launch configurations",
+    "preset":           "curated launch bundles per (gpu × workload)",
     "plugins":          "community plugin entry-points (opt-in)",
     "telemetry":        "opt-in anonymized stats reporting",
     "update-channel":   "apt-style stable/beta/dev update channel",
     "self-test":        "structural sanity check (post-pull / pin bump)",
+    "verify":           "post-install smoke test (--quick / --boot / --full)",
+    "preflight":        "preflight checks: PN60 quant validator + club#34/#43 rules",
     "bench":            "Genesis benchmark suite (decode TPOT, wall TPS, stress)",
 }
 

@@ -362,7 +362,7 @@ def is_applied() -> bool:
     target = _import_target()
     if target is None:
         return False
-    mod, fn = target
+    _mod, fn = target
     return getattr(fn, _GENESIS_P40_MARKER_ATTR, False)
 
 

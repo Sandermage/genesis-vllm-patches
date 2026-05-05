@@ -45,7 +45,6 @@ Author: Sandermage(Sander)-Barzov Aleksandr, Ukraine, Odessa
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 from vllm._genesis.guards import resolve_vllm_file, vllm_install_root
 from vllm._genesis.wiring.text_patch import (

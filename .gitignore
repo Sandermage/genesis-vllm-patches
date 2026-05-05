@@ -49,3 +49,20 @@ snapshots/
 # Genesis-specific local state
 genesis_bench_v*.md
 README.md.backup-*
+
+# Internal-only audit / plan / draft files at repo root (must live in
+# `Genesis_internal_docs/` sibling dir per Sander's "internal docs outside
+# project tree" rule — see feedback_internal_docs_outside_project memory).
+# These patterns catch accidental drops; move violators OUT manually.
+genesis_*_audit*.md
+genesis_master_plan*.md
+genesis_improvement_plan*.md
+genesis_runtime_*.md
+genesis_local_*.md
+genesis_deep_*.md
+genesis_project_*.md
+github_research*.md
+grok_*.md
+todos-log-*.md
+.README_*backup*.md
+.README_v*_backup*.md

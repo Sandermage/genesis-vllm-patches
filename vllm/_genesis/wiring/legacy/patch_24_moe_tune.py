@@ -43,6 +43,12 @@ from __future__ import annotations
 
 import logging
 
+# Audit A-19 (2026-05-05): tightly coupled subpatches — both apply
+# or both stay un-applied. Shared marker is acceptable here because the
+# subpatches together form one logical fix; partial application is not
+# desired anyway. _AUDIT_A19_EXEMPT documents this intentional design.
+_AUDIT_A19_EXEMPT = True  # tightly coupled subpatches
+
 from vllm._genesis.guards import resolve_vllm_file, vllm_install_root
 from vllm._genesis.wiring.text_patch import (
     TextPatch, TextPatcher, TextPatchResult,

@@ -33,7 +33,7 @@ docker run -d \
   -v /home/sander/Genesis_Project/vllm_engine/triton-cache-int8-gs128:/root/.triton/cache \
   -v /home/sander/Genesis_Project/vllm_engine/compile-cache-int8-gs128:/root/.cache/vllm/torch_compile_cache \
   -v /home/sander/genesis-vllm-patches/vllm/_genesis:/usr/local/lib/python3.12/dist-packages/vllm/_genesis:ro \
-  -v /home/sander/genesis-vllm-patches/genesis_vllm_plugin:/plugin:ro \
+  -v /home/sander/genesis-vllm-patches/tools/genesis_vllm_plugin:/plugin:ro \
   -e VLLM_NO_USAGE_STATS=1 -e VLLM_LOGGING_LEVEL=INFO \
   -e PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True,max_split_size_mb:256" \
   -e VLLM_FLOAT32_MATMUL_PRECISION=high -e NCCL_P2P_DISABLE=1 \

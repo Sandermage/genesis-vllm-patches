@@ -518,7 +518,7 @@ def apply() -> tuple[str, str]:
     # into a class that would crash on first forward.
     try:
         from vllm._genesis.interface_guard import (
-            validate_impl, GenesisInterfaceMismatch,
+            validate_impl,
         )
         validate_impl(
             impl_cls,

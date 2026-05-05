@@ -83,10 +83,22 @@ GPU_SPECS: dict[str, dict] = {
     "a100": {"bandwidth_gb_s": 2039, "l2_mb": 40, "sm": 108, "cc": (8, 0),
              "regime": "compute", "name_canonical": "A100 (SXM 80GB)"},
     # Ada (RTX 40-series + L40)
+    "rtx 4060": {"bandwidth_gb_s": 272, "l2_mb": 24, "sm": 24, "cc": (8, 9),
+                 "regime": "mixed", "name_canonical": "RTX 4060"},
+    "rtx 4060 ti": {"bandwidth_gb_s": 288, "l2_mb": 32, "sm": 34, "cc": (8, 9),
+                    "regime": "mixed", "name_canonical": "RTX 4060 Ti"},
     "rtx 4070": {"bandwidth_gb_s": 504, "l2_mb": 36, "sm": 46, "cc": (8, 9),
                  "regime": "mixed", "name_canonical": "RTX 4070"},
+    "rtx 4070 super": {"bandwidth_gb_s": 504, "l2_mb": 48, "sm": 56, "cc": (8, 9),
+                       "regime": "mixed", "name_canonical": "RTX 4070 SUPER"},
+    "rtx 4070 ti": {"bandwidth_gb_s": 672, "l2_mb": 48, "sm": 60, "cc": (8, 9),
+                    "regime": "mixed", "name_canonical": "RTX 4070 Ti"},
+    "rtx 4070 ti super": {"bandwidth_gb_s": 672, "l2_mb": 48, "sm": 66, "cc": (8, 9),
+                          "regime": "mixed", "name_canonical": "RTX 4070 Ti SUPER"},
     "rtx 4080": {"bandwidth_gb_s": 716, "l2_mb": 64, "sm": 76, "cc": (8, 9),
                  "regime": "mixed", "name_canonical": "RTX 4080"},
+    "rtx 4080 super": {"bandwidth_gb_s": 736, "l2_mb": 64, "sm": 80, "cc": (8, 9),
+                       "regime": "mixed", "name_canonical": "RTX 4080 SUPER"},
     "rtx 4090": {"bandwidth_gb_s": 1008, "l2_mb": 72, "sm": 128, "cc": (8, 9),
                  "regime": "mixed", "name_canonical": "RTX 4090"},
     "l40": {"bandwidth_gb_s": 864, "l2_mb": 96, "sm": 142, "cc": (8, 9),
@@ -96,9 +108,19 @@ GPU_SPECS: dict[str, dict] = {
     # Hopper
     "h100": {"bandwidth_gb_s": 3350, "l2_mb": 50, "sm": 132, "cc": (9, 0),
              "regime": "compute", "name_canonical": "H100"},
+    "h20": {"bandwidth_gb_s": 4000, "l2_mb": 60, "sm": 78, "cc": (9, 0),
+            "regime": "compute", "name_canonical": "H20"},
     "h200": {"bandwidth_gb_s": 4800, "l2_mb": 50, "sm": 132, "cc": (9, 0),
              "regime": "compute", "name_canonical": "H200"},
-    # Blackwell (specs as of 2026 announcements)
+    # Blackwell consumer (specs as of 2026 announcements; Issue #20 — sm_120)
+    "rtx 5060": {"bandwidth_gb_s": 448, "l2_mb": 32, "sm": 36, "cc": (12, 0),
+                 "regime": "mixed", "name_canonical": "RTX 5060"},
+    "rtx 5060 ti": {"bandwidth_gb_s": 448, "l2_mb": 32, "sm": 36, "cc": (12, 0),
+                    "regime": "mixed", "name_canonical": "RTX 5060 Ti"},
+    "rtx 5070": {"bandwidth_gb_s": 672, "l2_mb": 48, "sm": 50, "cc": (12, 0),
+                 "regime": "mixed", "name_canonical": "RTX 5070"},
+    "rtx 5070 ti": {"bandwidth_gb_s": 896, "l2_mb": 64, "sm": 70, "cc": (12, 0),
+                    "regime": "mixed", "name_canonical": "RTX 5070 Ti"},
     "rtx 5080": {"bandwidth_gb_s": 960, "l2_mb": 64, "sm": 84, "cc": (12, 0),
                  "regime": "mixed", "name_canonical": "RTX 5080"},
     "rtx 5090": {"bandwidth_gb_s": 1792, "l2_mb": 88, "sm": 170, "cc": (12, 0),
@@ -174,6 +196,44 @@ PATCH_RECOMMENDATIONS: dict[str, dict] = {
                     "fixed-overhead per-step. WAIT for v0.20.2 pin bump.",
         "expected_gain": "(currently negative)",
         "expected_cost": "high — full PROD swap needed to retest",
+    },
+    # PN63 — fp8_e5m2 advisory for Blackwell consumer (sm 12.0)
+    # Source: noonghunna club-3090#51 (apnar's RTX 5090 bench 2026-05-04)
+    # measured fp8_e4m3 + 96K ctx LOSES 2-6% TPS vs fp8_e5m2 + 48K. NOT a
+    # configuration patch — this is operator advisory only. Suggests staying
+    # with fp8_e5m2 until vLLM Blackwell e4m3 path matures (currently the
+    # FlashInfer + e4m3 codepath was newly added and underTuned for sm_120).
+    "PN63_kv_e5m2_blackwell_consumer": {
+        "title": "fp8_e5m2 KV-dtype advisory for consumer Blackwell (PN63)",
+        "env": "kv-cache-dtype fp8_e5m2 (CLI flag, not env)",
+        "predicate": lambda gpu: (
+            gpu.get("cc") == (12, 0)  # consumer Blackwell only
+        ),
+        "evidence": "club-3090#51 (apnar 2026-05-04): fp8_e4m3 + 96K ctx "
+                    "regressed 2-6% TPS vs fp8_e5m2 + 48K on RTX 5090. vLLM "
+                    "Blackwell e4m3 codepath is newly added and undertuned. "
+                    "Advisory only — operator passes via --kv-cache-dtype.",
+        "expected_gain": "+2-6% TPS staying with e5m2 until pin update",
+        "expected_cost": "none (CLI flag preserves current behavior)",
+    },
+    # P100 — FlashInfer FULL CG for spec-decode, recommended on consumer Blackwell
+    # Source: apnar club-3090#51 — PIECEWISE downgrade observed on RTX 5090
+    # because is_blackwell() returned False (Issue #20, since fixed but not yet
+    # released) AND P100 was not auto-recommended. With Issue #20 fix landed,
+    # the gate now passes; this rule surfaces P100 to the operator on sm_120.
+    "P100_blackwell_consumer_recommend": {
+        "title": "P100 FlashInfer FULL CG for spec-decode (recommend on Blackwell consumer)",
+        "env": "GENESIS_ENABLE_P100=1 (when using FlashInfer + spec-decode)",
+        "predicate": lambda gpu: (
+            gpu.get("cc") == (12, 0)  # consumer Blackwell only
+        ),
+        "evidence": "club-3090#51 boot log: `CUDAGraphMode.FULL_AND_PIECEWISE "
+                    "is not supported with spec-decode for FlashInferBackend; "
+                    "setting cudagraph_mode=PIECEWISE`. P100 backports vllm#41127 "
+                    "to route uniform query_len>1 batches through prefill "
+                    "wrapper in cudagraph mode. Bit-identical, +5-10% TPS expected.",
+        "expected_gain": "+5-10% TPS (when FlashInfer is the chosen backend)",
+        "expected_cost": "low (single env flag, idempotent text-patch)",
     },
 }
 

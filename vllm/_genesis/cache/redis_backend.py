@@ -229,12 +229,29 @@ class RedisResponseCache:
             return out
 
         # Approximate size via scan (cheap for our scale — 1k entries max)
+        #
+        # G-012 audit fix (2026-05-02): exclude the stats keys by NAME
+        # rather than subtracting a fixed constant 3. If only some of
+        # the stats keys exist (e.g. fresh cache with only one store
+        # call so misses/stores haven't been incremented yet), the
+        # `size - 3` arithmetic underflowed and `max(0, ...)` masked
+        # legitimate entries — a 1-entry cache with 1 stats key would
+        # report `size=0` instead of `size=1`.
+        _STATS_KEY_SET = frozenset((
+            _STATS_HITS, _STATS_MISSES, _STATS_STORES,
+        ))
         try:
-            size = sum(1 for _ in self._client.scan_iter(
-                match=_KEY_PREFIX + "*", count=500,
-            ))
-            # subtract the 3 stats keys
-            out["size"] = max(0, size - 3)
+            size = sum(
+                1 for k in self._client.scan_iter(
+                    match=_KEY_PREFIX + "*", count=500,
+                )
+                if (
+                    k.decode("utf-8", errors="replace")
+                    if isinstance(k, (bytes, bytearray))
+                    else k
+                ) not in _STATS_KEY_SET
+            )
+            out["size"] = size
         except Exception:
             out["size"] = None
         return out
