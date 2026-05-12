@@ -14,7 +14,12 @@ Tests cover:
 from __future__ import annotations
 
 import pytest
-import torch
+
+# Etap 4.4 (audit 2026-05-12): torch is required at runtime for these
+# tests, but unconditional top-level import breaks collection in
+# torch-less environments (Mac dev, CI without torch wheel). Use
+# importorskip so collection skips cleanly instead of failing.
+torch = pytest.importorskip("torch")
 
 
 def _wiring():
@@ -373,16 +378,16 @@ class TestMemTraceInstrumentation:
         assert get_mem_trace_summary()["calls"] == 0
 
     def test_mem_snapshot_returns_zero_without_cuda(self, monkeypatch):
-        """When CUDA отсутствует/недоступен, snapshot должен вернуть
-        (0.0, 0.0) без исключений. Раньше тест полагался на реальное
-        отсутствие CUDA (запуск на Mac), и падал на GPU-сервере. Теперь
-        мокаем `torch.cuda.is_available()` принудительно, чтобы тест
-        был детерминированный в любом окружении."""
+        """When CUDA is missing/unavailable, the snapshot must return
+        (0.0, 0.0) without exceptions. Previously the test relied on a
+        real absence of CUDA (running on a Mac) and failed on the GPU
+        server. We now mock `torch.cuda.is_available()` explicitly so
+        the test is deterministic in any environment."""
         from vllm.sndr_core.kernels import streaming_gdn_driver as _drv
         try:
             import torch
         except ImportError:
-            # На безторч-машинах тест проверяет ту же ветку напрямую
+            # On no-torch machines the test exercises the same branch directly
             alloc, peak = _drv._mem_snapshot("test")
             assert alloc == 0.0 and peak == 0.0
             return

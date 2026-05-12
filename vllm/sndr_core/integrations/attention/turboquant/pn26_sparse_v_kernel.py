@@ -4,7 +4,7 @@
 This is the second piece of PN26 (TQ unified perf pack). The first piece
 (centroids prebake) is in `patch_N26_tq_unified_perf.py`. This file wires
 the sparse-V tile-skip kernel forked in
-`vllm/_genesis/kernels/triton_turboquant_decode_sparse_v.py` into the
+`vllm/sndr_core/kernels/triton_turboquant_decode_sparse_v.py` into the
 runtime dispatch flow.
 
 Design — Genesis dispatcher wrapper (P40 pattern)
@@ -12,33 +12,22 @@ Design — Genesis dispatcher wrapper (P40 pattern)
 Rather than text-patching upstream Triton kernel (very fragile across
 nightly pin bumps + would conflict with our P67 multi-query kernel hot
 path), we **monkey-patch** the upstream Python launcher
-`triton_turboquant_decode_attention` with a Genesis dispatcher:
+`triton_turboquant_decode_attention` with a Genesis dispatcher.
 
-```
-def _genesis_pn26_dispatcher(*args, **kwargs):
-    from vllm.sndr_core.kernels.triton_turboquant_decode_sparse_v import (
-        is_pn26_sparse_v_enabled, compute_effective_threshold,
-        get_sparse_v_min_ctx,
-        triton_turboquant_decode_attention_sparse_v,
-    )
-    if is_pn26_sparse_v_enabled():
-        # Resolve seq_lens.max() once — used for BLASST λ=a/L scaling
-        seq_lens_arg = kwargs.get('seq_lens') or args[3]
-        seq_len = int(seq_lens_arg.max().item()) if seq_lens_arg.numel() else 0
-        if seq_len >= get_sparse_v_min_ctx():
-            return triton_turboquant_decode_attention_sparse_v(
-                *args,
-                sparse_v=True,
-                sparse_v_threshold=compute_effective_threshold(seq_len),
-                **kwargs,
-            )
-    # Fall through to upstream when env-disabled or short ctx
-    return _genesis_pn26_original(*args, **kwargs)
-```
+**Lean v2 (current, 2026-05-01).** When env-enabled, the wrapper always
+routes through our forked kernel with the threshold baked at apply()
+time. No per-call `seq_lens.max().item()` sync (that costs more than the
+sparse skip saves on SM86). BLASST adaptive λ=a/L is documented for
+reference but is not active on the lean path — operators who set
+`GENESIS_PN26_SPARSE_V_SCALE_FACTOR` see a warning and a fallback to the
+fixed threshold. cudagraph capture is safe because our kernel signature
+matches upstream byte-for-byte.
 
-When env-disabled, this is a single Python function call indirection on
-the upstream path — negligible overhead. When env-enabled + ctx ≥ min_ctx,
-we route to our forked kernel.
+Earlier v1 (deprecated, kept here for context) resolved seq_lens.max
+per call and gated on `seq_len >= get_sparse_v_min_ctx()`. The per-call
+GPU↔CPU sync alone caused -16% TPS on 35B PROD short-ctx, so v2 dropped
+it. See the `# LEAN DISPATCHER (PN26b v2, 2026-05-01)` comment in
+`apply()` for the full v1→v2 rationale.
 
 NVIDIA validation strategy
 --------------------------
@@ -107,13 +96,45 @@ def _import_target() -> tuple[Any, Any] | None:
 
 
 def _pn26_env_enabled() -> bool:
-    """Локальная проверка env-флага без импорта kernel-модуля
-    (kernel тянет torch+Triton на top-level и упадёт в torch-less
-    окружении вроде CI / Mac-dev). Mirror того же контракта,
-    что и `triton_turboquant_decode_sparse_v.is_pn26_sparse_v_enabled`.
+    """Local env-flag check without importing the kernel module
+    (the kernel pulls in torch+Triton at top-level and would crash in
+    a torch-less environment like CI / Mac-dev). Mirrors the same
+    contract as `triton_turboquant_decode_sparse_v.is_pn26_sparse_v_enabled`.
     """
     raw = os.environ.get("GENESIS_ENABLE_PN26_SPARSE_V", "")
     return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+_LOG_EVERY_DEFAULT = 500
+
+
+def _parse_log_every_env() -> int:
+    """Validate `GENESIS_PN26_SPARSE_V_LOG_EVERY` (Etap 4.3, audit 2026-05-12).
+
+    Accepts a positive integer; on any invalid value (non-int, zero,
+    negative) emits a warning and falls back to `_LOG_EVERY_DEFAULT`.
+    Previously a raw `int()` raised ValueError and aborted apply().
+    """
+    raw = os.environ.get("GENESIS_PN26_SPARSE_V_LOG_EVERY", "")
+    if not raw:
+        return _LOG_EVERY_DEFAULT
+    try:
+        value = int(raw)
+    except ValueError:
+        log.warning(
+            "[Genesis PN26 sparse_v] invalid "
+            "GENESIS_PN26_SPARSE_V_LOG_EVERY=%r; using default %d",
+            raw, _LOG_EVERY_DEFAULT,
+        )
+        return _LOG_EVERY_DEFAULT
+    if value < 1:
+        log.warning(
+            "[Genesis PN26 sparse_v] GENESIS_PN26_SPARSE_V_LOG_EVERY=%d "
+            "must be >= 1; using default %d",
+            value, _LOG_EVERY_DEFAULT,
+        )
+        return _LOG_EVERY_DEFAULT
+    return value
 
 
 def apply() -> tuple[str, str]:
@@ -125,16 +146,16 @@ def apply() -> tuple[str, str]:
     - Wrapper calls Genesis fork only when (env_enabled AND seq_len ≥ min_ctx);
       otherwise transparently delegates to upstream.
     """
-    # Сначала проверяем env локально — это позволяет вернуть tuple
-    # без падения в окружениях без torch (контракт patch_apply_contracts).
+    # First check env locally — this lets us return a tuple
+    # without crashing in environments without torch (patch_apply_contracts contract).
     if not _pn26_env_enabled():
         return "skipped", (
             "opt-in: set GENESIS_ENABLE_PN26_SPARSE_V=1 to enable sparse-V "
             "tile-skip kernel (BLASST λ=a/L formula by default)"
         )
 
-    # Kernel импортируем ТОЛЬКО после env-gate. ImportError → graceful skip
-    # (нет torch / Triton). Это сохраняет torch-less env-disabled контракт.
+    # Import the kernel ONLY after the env-gate. ImportError → graceful skip
+    # (no torch / Triton). This preserves the torch-less env-disabled contract.
     try:
         from vllm.sndr_core.kernels.triton_turboquant_decode_sparse_v import (
             should_apply,
@@ -218,15 +239,18 @@ def apply() -> tuple[str, str]:
     if _baked_debug_skip:
         log.info(
             "[Genesis PN26 sparse_v] DEBUG_SKIP_CTR=1 — per-CTA atomic "
-            "counters enabled. Read via vllm._genesis.kernels."
+            "counters enabled. Read via vllm.sndr_core.kernels."
             "triton_turboquant_decode_sparse_v.collect_skip_stats() "
             "after a request. Cost: ~50-100ns per CTA at epilogue (~0.05% "
             "kernel overhead, statistically indistinguishable from noise)."
         )
 
-    # Per-process call counter for periodic skip-stats logging
+    # Per-process call counter for periodic skip-stats logging.
+    # Etap 4.3 (audit 2026-05-12): validate GENESIS_PN26_SPARSE_V_LOG_EVERY
+    # — an invalid integer (e.g. "abc", "0", negative) used to raise
+    # ValueError and abort apply(), masking real failures.
     _call_counter = [0]
-    _LOG_EVERY_N = int(os.environ.get("GENESIS_PN26_SPARSE_V_LOG_EVERY", "500"))
+    _LOG_EVERY_N = _parse_log_every_env()
 
     def _genesis_pn26_dispatcher(*args, **kwargs):
         """Lean dispatcher — zero per-call GPU↔CPU sync.
