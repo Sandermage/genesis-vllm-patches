@@ -77,8 +77,8 @@ export GENESIS_ALLOW_PLUGINS=1            # opt-in (off by default)
 export GENESIS_ENABLE_MY_PATCH=1          # operator opts into your patch
 
 # Boot Genesis as usual; your patch shows up:
-python3 -m vllm._genesis.compat.plugins list
-python3 -m vllm._genesis.compat.doctor
+python3 -m vllm.sndr_core.compat.plugins list
+python3 -m vllm.sndr_core.compat.doctor
 ```
 
 ## What Genesis enforces
@@ -147,7 +147,7 @@ Two ways to provide the callable:
 # In my_genesis_plugin/apply.py:
 def apply():
     """Apply the patch. Returns (status, reason)."""
-    # Use vllm._genesis.wiring.text_patch.TextPatcher for text patches,
+    # Use vllm.sndr_core.wiring.text_patch.TextPatcher for text patches,
     # or directly modify modules / classes via setattr.
     return "applied", "MY_PATCH applied: did the thing"
 ```
@@ -204,13 +204,13 @@ run any code on your behalf. This is useful for:
 
 ```bash
 # List discovered plugins (when gate is open)
-python3 -m vllm._genesis.compat.plugins list
+python3 -m vllm.sndr_core.compat.plugins list
 
 # Show one plugin's full metadata
-python3 -m vllm._genesis.compat.plugins show MY_PATCH
+python3 -m vllm.sndr_core.compat.plugins show MY_PATCH
 
 # Validate plugins without booting Genesis
-python3 -m vllm._genesis.compat.plugins validate
+python3 -m vllm.sndr_core.compat.plugins validate
 ```
 
 ## Author etiquette

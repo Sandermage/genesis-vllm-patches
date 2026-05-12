@@ -26,7 +26,7 @@ If you don't have the model locally yet, the container will pull it from Hugging
 cd ~
 git clone https://github.com/Sandermage/genesis-vllm-patches.git
 cd genesis-vllm-patches
-git checkout v7.50-stable-2026-04-27   # pin to the validated v7.50 production tag
+git checkout v7.72.2-stable-2026-05-06  # pin to the latest validated v7.72.2 PROD tag (P61c club-3090#72 fix + PN77 FP8 lm_head Marlin tier; +6.4% TPS on 35B PROD with 10/10 tool quality)
 ```
 
 ## Step 2 — Pull the exact pinned vLLM image
@@ -68,11 +68,11 @@ Open the compose file and update **two** sections:
 
 ### 4a. Model path
 
-If your model files are in a different location than `/nfs/genesis/models/`, edit:
+If your model files are in a different location than `${HOME}/models/`, edit:
 
 ```yaml
 volumes:
-  - /nfs/genesis/models:/models:ro    # ← change /nfs/genesis/models to your path
+  - ${HOME}/models:/models:ro    # ← change ${HOME}/models to your path
 ```
 
 The model directory should contain the `Qwen3.6-35B-A3B-FP8/` (or whichever model) subfolder with `config.json`, `tokenizer.json`, safetensor shards, etc.
@@ -154,7 +154,7 @@ If you see **`0 failed`** — you're good. The 4 skipped ones are opt-in patches
 
 ```bash
 docker exec vllm-integration-v7 python3 -c "
-from vllm._genesis.model_detect import get_model_profile
+from vllm.sndr_core.model_detect import get_model_profile
 import json
 print(json.dumps(get_model_profile(), indent=2, default=str))
 "
@@ -214,16 +214,13 @@ Genesis patches reduce memory footprint significantly, but you can still hit OOM
 
 Edit the value in your compose file's `command:` section.
 
-## Optional: spec-decode mode (v7.11, opt-in workaround for #40831)
+## Optional: spec-decode mode (v7.65+, P65 superseded P56/P57)
 
-If you want to try **speculative decoding with TurboQuant**, there is a known upstream interaction bug ([#40831](https://github.com/vllm-project/vllm/issues/40831)) that causes degenerate token loops. We ship `P56` as a partial workaround.
+If you want to try **speculative decoding with TurboQuant**, there is a known upstream interaction bug ([#40831](https://github.com/vllm-project/vllm/issues/40831)) that causes degenerate token loops. The current production fix is **P65 (TurboQuant spec-CG downgrade)**, which superseded the earlier P56/P57 workarounds (archived 2026-05-05 — see `vllm/sndr_core/dispatcher.py` archive note).
 
 - Test compose: `docker-compose.spec-decode-test.yml` (ngram n=3, port 8000)
-- Enable P56 via env: `GENESIS_ENABLE_P56_SPEC_DECODE_GUARD=1`
-- After boot, look for `[INFO genesis.apply_all] [Genesis] applied: P56 ... — spec-decode fast-path guard wired`
-
-**What P56 closes**: catastrophic XML/JSON loops, restored `tool_calls[]` population.
-**What P56 does NOT close**: token-level duplication (`for for`, `age age`, `parameter parameter`) — that's deeper architectural and needs upstream fix. Full analysis: [#40831 comment](https://github.com/vllm-project/vllm/issues/40831#issuecomment-4317214311).
+- Production stack (35B): `qwen3_next_mtp` K=3 + P67 + P82 + PN77 + TQ k8v4 — empirically stable on 2×A5000 with 10/10 tool-call (see `genesis_internal_docs/bench_2026_05_06/k_sweep_report.md`)
+- For investigating spec-decode regressions, see the diagnostic scripts below.
 
 For investigating spec-decode regressions yourself, two diagnostic scripts:
 
@@ -323,11 +320,11 @@ docker tag \
 
 ### 4a. Путь к модели
 
-Если файлы модели лежат не в `/nfs/genesis/models/`, отредактируй:
+Если файлы модели лежат не в `${HOME}/models/`, отредактируй:
 
 ```yaml
 volumes:
-  - /nfs/genesis/models:/models:ro    # ← замени на свой путь
+  - ${HOME}/models:/models:ro    # ← замени на свой путь
 ```
 
 Директория модели должна содержать подпапку `Qwen3.6-35B-A3B-FP8/` (или другую) с `config.json`, `tokenizer.json`, safetensor shards и т.д.
@@ -409,7 +406,7 @@ docker logs vllm-integration-v7 2>&1 | grep "Genesis Results:"
 
 ```bash
 docker exec vllm-integration-v7 python3 -c "
-from vllm._genesis.model_detect import get_model_profile
+from vllm.sndr_core.model_detect import get_model_profile
 import json
 print(json.dumps(get_model_profile(), indent=2, default=str))
 "

@@ -4,6 +4,13 @@ This guide walks an operator through adding a new model to Genesis end-to-end: f
 
 If you're new to Genesis, read [../docs/QUICKSTART.md](../docs/QUICKSTART.md) first. If you want the patch catalog, see [../docs/PATCHES.md](../docs/PATCHES.md). If you want the supported-versions matrix, see [docs/COMPATIBILITY.md](COMPATIBILITY.md).
 
+> 📊 **Full machine-readable config inventory** — auto-generated from
+> `vllm/sndr_core/model_configs/builtin/*.yaml` — at
+> [**`CONFIGS_AUTO.md`**](CONFIGS_AUTO.md). Includes 11 built-in configs
+> (5 stable + 2 tested + 1 experimental + 2 community-test + 1 retired)
+> with reference_metrics, hardware targets, KV dtype, MTP K, max_ctx.
+> Regenerate via `python3 scripts/generate_configs_md.py`. CI gate: `--check`.
+
 ---
 
 ## Quick decision tree

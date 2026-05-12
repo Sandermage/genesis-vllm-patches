@@ -24,7 +24,7 @@ diagnostic".
 | `cd ~/.genesis && git pull && git checkout <ref>` | Pin a different ref by hand | Custom workflows |
 
 **Genesis bin shim** (after install): `genesis <subcommand>` is a thin
-wrapper for `python3 -m vllm._genesis.compat.cli`. Both forms work.
+wrapper for `python3 -m vllm.sndr_core.compat.cli`. Both forms work.
 
 ---
 
@@ -103,11 +103,11 @@ genesis categories --category memory
 genesis lifecycle-audit
 
 # Schema validator — PATCH_REGISTRY entries follow the right schema
-python3 -m vllm._genesis.compat.cli validate-schema
+python3 -m vllm.sndr_core.compat.cli validate-schema
 
 # Per-patch deep test
-python3 -m pytest vllm/_genesis/tests/test_pn59_streaming_gdn.py -v
-python3 -m pytest vllm/_genesis/tests/test_p67_kernel.py -v
+python3 -m pytest vllm/sndr_core/tests/test_pn59_streaming_gdn.py -v
+python3 -m pytest vllm/sndr_core/tests/test_p67_kernel.py -v
 ```
 
 ---
@@ -119,10 +119,10 @@ python3 -m pytest vllm/_genesis/tests/test_p67_kernel.py -v
 genesis list-models
 
 # Download model (SHA-verified, resumable, idempotent)
-./scripts/fetch_models.sh Lorbus/Qwen3.6-27B-int4-AutoRound /nfs/genesis/models
+./scripts/fetch_models.sh Lorbus/Qwen3.6-27B-int4-AutoRound ~/models
 
 # Genesis-bundled HF puller — same idea via the CLI
-genesis pull qwen3.6-27b-int4 --to /nfs/genesis/models
+genesis pull qwen3.6-27b-int4 --to ~/models
 
 # Show launch script for a curated model (writes to stdout, doesn't run)
 genesis recipe qwen3.6-27b-int4 --workload long_context
@@ -140,7 +140,7 @@ GENESIS_MODEL=qwen3.6-35b-a3b python3 tests/bench/comprehensive_bench.py
 GENESIS_MODEL=qwen3.6-27b      python3 tests/bench/comprehensive_bench.py
 
 # 7-stage smoke test — server live + tool-call + SSE + thinking + needle
-ENDPOINT=http://192.168.1.10:8000 \
+ENDPOINT=http://127.0.0.1:8000 \
 MODEL=qwen3.6-27b \
   ./scripts/verify-full.sh
 
@@ -153,7 +153,7 @@ GENESIS_AB_TREATMENT='GENESIS_ENABLE_PN59=1' \
   python3 tests/bench/ab_bench.py --runs 5
 
 # Quick latency probe — 10 prompts, P50 / P95 / P99
-python3 tests/bench/latency_probe.py --endpoint http://192.168.1.10:8000
+python3 tests/bench/latency_probe.py --endpoint http://127.0.0.1:8000
 
 # Needle-in-haystack at 4 depths (1K / 10K / 51K / 92K)
 python3 tests/bench/needle_ladder.py --max-ctx 92000
@@ -172,7 +172,7 @@ docker logs vllm-server-mtp-test 2>&1 | grep -A 200 'structured boot summary'
 
 # Enable the structured API access log (PN65, opt-in)
 #  Sample line:  [Genesis-API] 200  POST /v1/chat/completions
-#                34ms  prompt=46t  completion=400t  tools=1  client=192.168.1.10
+#                34ms  prompt=46t  completion=400t  tools=1  client=127.0.0.1
 docker run -e GENESIS_ENABLE_PN65=1 ...
 
 # Dump per-patch decision matrix at boot (which patches APPLY / SKIP / FAIL)
@@ -201,19 +201,19 @@ bash scripts/git/install.sh
 rm -rf ~/.cache/vllm/* && genesis verify
 
 # Test suite (1858 tests, ~12 sec on macOS, ~25 sec on Linux)
-python3 -m pytest vllm/_genesis/tests/ --no-header -q
+python3 -m pytest vllm/sndr_core/tests/ --no-header -q
 
 # Test one file with verbose output
-python3 -m pytest vllm/_genesis/tests/test_pn65_access_log.py -v
+python3 -m pytest vllm/sndr_core/tests/test_pn65_access_log.py -v
 
 # Lint without fixing — CI-style check
-python3 -m pyflakes vllm/_genesis/
+python3 -m pyflakes vllm/sndr_core/
 
 # Patch-registry → docs/PATCHES.md sync gate
-python3 -m pytest vllm/_genesis/tests/test_patches_md_sync.py -v
+python3 -m pytest vllm/sndr_core/tests/test_patches_md_sync.py -v
 
 # Apply text-patches in-place on the current vLLM install (bare-metal flow)
-python3 -m vllm._genesis.patches.apply_all
+python3 -m vllm.sndr_core.apply
 ```
 
 ---
@@ -264,7 +264,7 @@ rm -rf ~/.cache/vllm/* ~/.cache/torch/*
 - **Models registry** — [docs/MODELS.md](MODELS.md)
 - **Authoring a community patch** — [docs/PLUGINS.md](PLUGINS.md)
 - **Per-release notes** — [CHANGELOG.md](../CHANGELOG.md)
-- **Engineering log (per-commit)** — [vllm/_genesis/CHANGELOG.md](../vllm/_genesis/CHANGELOG.md)
+- **Engineering log (per-commit)** — [CHANGELOG.md](../CHANGELOG.md) (root is single source — audit 2026-05-11)
 
 ---
 

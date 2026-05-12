@@ -1,10 +1,27 @@
 # Genesis vLLM Patches — Benchmarks
 
-_Live PROD-config measurements 2026-05-05 — Genesis v7.72 (123 patches), vLLM `0.20.2rc1.dev9+g01d4d1ad3`, **2× RTX A5000 24 GB** (Ampere SM_86), driver 580.142, CUDA 13.2._
+_Latest canonical PROD bench 2026-05-11 — Genesis v11.0.0+wave8 (134 patches), vLLM `0.20.2rc1.dev93+g51f22dcfd`, **2× RTX A5000 24 GB** (Ampere SM_86), driver 580.142, CUDA 13.0.2. Both models served under MTP K=3 spec-decode, TurboQuant k8v4 KV cache, FlashAttention 2, TP=2._
 
-Both models served under MTP K=3 spec-decode, TurboQuant k8v4 KV cache, FlashAttention 2, TP=2.
+## Latest PROD numbers (Wave 8, 2026-05-11)
 
-## Headline numbers
+| Model | wall_TPS | decode_TPOT | CV% | Tool-call | Method |
+|---|---:|---:|---:|:---:|---|
+| **Qwen3.6-27B-int4-AutoRound** | **132.28** | **7.31 ms** | 5.29% | 8/8 | `genesis_bench_suite.py --quick --ctx 8k` (5×5×1024) |
+| **Qwen3.6-35B-A3B-FP8** (Sprint 1 2026-05-09) | 241.35 | 3.85 ms | 3.02% | 7/7 | same harness |
+
+### Wave 8 Δ vs prior Wave 7 baseline (27B PROD)
+
+| Metric | Wave 7 (2026-05-09) | Wave 8 (2026-05-11) | Δ |
+|---|---:|---:|---:|
+| wall_TPS | 124.29 | **132.28** | **+6.43%** |
+| decode_TPOT_ms | 7.78 | **7.31** | **-6.0%** (faster) |
+| TTFT_ms | 108.25 | 100.9 | -6.8% |
+
+**Wave 8 components**: PN90 + PN16 V8 (drift recovery) + P82=1+thr=0.1 (Sprint 1 sweep) + GroupAB additions (P70 / PN12 / PN14 / P94 / P103) + P67_NUM_KV_SPLITS 32→16 + removed retired/broken patches (P61 / P71-broken-on-GQA=6 / P100-Blackwell / PN13 / P83+P85 broken dep).
+
+## Historical reference (v7.72 dev9 snapshot, 2026-05-05)
+
+Preserved for regression-detection. Different stack from current Wave 8 / dev93 above.
 
 | Model | Sustained TPS | CV% | Cold-warm latency | Tool-call clean | Multi-turn 10/10 | VRAM steady-state |
 |---|---|---|---|---|---|---|
@@ -27,7 +44,7 @@ Six stages — cold-warm latency / sustained TPS / tool-call clean / multi-turn 
 ### Qwen3.6-35B-A3B-FP8 (MoE)
 
 ```
-Endpoint:     http://192.168.1.10:8000
+Endpoint:     http://127.0.0.1:8000
 Model:        qwen3.6-35b-a3b
 Patches ON:   45 / 78 unique (per Genesis structured boot summary)
 
@@ -60,7 +77,7 @@ Patches ON:   45 / 78 unique (per Genesis structured boot summary)
 ### Qwen3.6-27B-int4-AutoRound (Lorbus dense + hybrid GDN)
 
 ```
-Endpoint:     http://192.168.1.10:8000
+Endpoint:     http://127.0.0.1:8000
 Model:        qwen3.6-27b
 Patches ON:   45 / 78 unique (per Genesis structured boot summary)
 

@@ -17,16 +17,16 @@
 
 ```bash
 # Default: verbose, color-free, copy-paste friendly
-python3 -m vllm._genesis.compat.cli self-test
+python3 -m vllm.sndr_core.compat.cli self-test
 
 # Show only fail/warn/skip rows (good for `git pull` muscle memory)
-python3 -m vllm._genesis.compat.cli self-test --quiet
+python3 -m vllm.sndr_core.compat.cli self-test --quiet
 
 # Machine-readable
-python3 -m vllm._genesis.compat.cli self-test --json
+python3 -m vllm.sndr_core.compat.cli self-test --json
 ```
 
-Legacy form `python3 -m vllm._genesis.compat.self_test` still works.
+Legacy form `python3 -m vllm.sndr_core.compat.self_test` still works.
 
 ## What it checks
 
@@ -36,9 +36,9 @@ one pass.
 
 | # | Check | What it verifies |
 |---|---|---|
-| 1 | **version constant** | `vllm._genesis.__version__` is a non-empty string |
-| 2 | **compat imports** | All 18 `vllm._genesis.compat.*` modules import cleanly |
-| 3 | **wiring imports** | All `vllm/_genesis/wiring/patch_*.py` modules import; SKIPPED if `vllm` not installed in this env |
+| 1 | **version constant** | `vllm.sndr_core.__version__` is a non-empty string |
+| 2 | **compat imports** | All 18 `vllm.sndr_core.compat.*` modules import cleanly |
+| 3 | **wiring imports** | All `vllm/sndr_core/wiring/patch_*.py` modules import; SKIPPED if `vllm` not installed in this env |
 | 4 | **schema validator** | `PATCH_REGISTRY` validates against `schemas/patch_entry.schema.json` (no errors) |
 | 5 | **lifecycle audit** | Every entry has a known lifecycle state; no unknown states |
 | 6 | **categories build** | The categories index builds without errors and every patch is placed in at least one category |
@@ -66,7 +66,7 @@ one pass.
 ## Container deployments
 
 When you run self-test inside a container that mounts only the
-`vllm/_genesis/` package (without the source tree), the schema file
+`vllm/sndr_core/` package (without the source tree), the schema file
 check returns `skip` rather than `fail`. The `schemas/` directory is a
 repo-only artifact that does not ship with the installed package.
 
@@ -75,7 +75,7 @@ location, point self-test at it via env var:
 
 ```bash
 GENESIS_REPO_ROOT=/path/to/genesis-vllm-patches \
-    python3 -m vllm._genesis.compat.cli self-test
+    python3 -m vllm.sndr_core.compat.cli self-test
 ```
 
 The check now returns `pass` if the schema file is found at
@@ -87,7 +87,7 @@ Verified inside the live `vllm-server-mtp-test` PROD container:
 ## JSON output for CI
 
 ```bash
-python3 -m vllm._genesis.compat.cli self-test --json
+python3 -m vllm.sndr_core.compat.cli self-test --json
 ```
 
 returns:
@@ -115,13 +115,13 @@ table; it's not a contract).
 
 ## Adding a new check
 
-Self-test checks live in `vllm/_genesis/compat/self_test.py`. To add
+Self-test checks live in `vllm/sndr_core/compat/self_test.py`. To add
 one:
 
 1. Write a function `_check_<name>() -> tuple[str, str]` that returns
    `(status, message)` where `status ∈ {"pass", "fail", "warn", "skip"}`.
 2. Append it to the `_CHECKS` list at the bottom of the module.
-3. Add a unit test in `vllm/_genesis/tests/compat/test_self_test.py`
+3. Add a unit test in `vllm/sndr_core/tests/compat/test_self_test.py`
    that pins the new check's name (so a rename surfaces immediately).
 
 The contract: a check **must never raise**. The `_check()` wrapper

@@ -30,4 +30,4 @@ This folder holds extended documentation that doesn't belong in the top-level RE
 | [`../CREDITS.md`](../docs/CREDITS.md) | Comprehensive attribution log |
 | [`../MODELS.md`](../docs/MODELS.md) | Tested model configurations |
 | [`../SPONSORS.md`](../docs/SPONSORS.md) | Hardware / time sponsors |
-| [`../vllm/_genesis/CHANGELOG.md`](../vllm/_genesis/CHANGELOG.md) | Per-version changelog (technical, deep) |
+| [`../CHANGELOG.md`](../CHANGELOG.md) | Per-version changelog (technical, deep — single SoT, audit 2026-05-11) |

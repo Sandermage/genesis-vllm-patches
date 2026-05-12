@@ -4,23 +4,33 @@ Central reference for every environment variable that Genesis patches read.
 Default behaviour is "off" / "safe" for opt-in patches; on-by-default
 patches that are platform-gated (e.g. Ampere SM 8.0+) are noted.
 
-> **Tested baseline (v7.59, 2026-04-28 — current PROD):**
+> **Current PROD baseline (Wave 8, 2026-05-11; pin bumped 2026-05-11):**
 >
-> - vLLM `0.19.2rc1.dev212+g8cd174fa3` (image `vllm/vllm-openai:nightly`)
-> - PyTorch 2.11.0+cu130, Triton 3.6.0, CUDA 13.0
+> - Genesis v11.0.0+wave8 — 135 patches in PATCH_REGISTRY
+> - vLLM `0.20.2rc1.dev209+g5536fc0c0` (bumped from dev93; canonical bench
+>   numbers below measured on dev93 — Wave 9 re-bench pending for dev209)
+> - PyTorch 2.11.0+cu130, Triton 3.6.0, CUDA 13.0.2
 > - **NVIDIA driver ≥ 580.126.09 REQUIRED** (570 → 3× slowdown)
-> - 2× RTX A5000 (Ampere SM 8.6), TP=2
-> - Qwen3.6-35B-A3B-FP8 + TurboQuant k8v4 + MTP K=3 + P67 multi-query kernel
-> - **`--max-model-len 320000` (320K) + `--max-num-batched-tokens 4096`**
-> - **220-317K context validated** (both think-ON + think-OFF modes)
-> - **Stability + stress 30/30 + 30/30** (CV 6.7-6.8%)
-> - Speed bench: 244 → 200 t/s (max_tokens 64 → 2048), GMU 0.90
-> - **P67 safety gate** (v7.56): auto-disabled when no spec-decode in config
+> - 2× RTX A5000 24 GiB (Ampere SM 8.6), TP=2
 >
-> Previous baseline (v7.52, 2026-04-27): max-model-len 262144 (256K),
-> max-num-batched-tokens 8192. Same TPS class (CV practically identical).
-> See `docs/reference/V759_320K_CONTEXT_EXPANSION_20260427.md` for full
-> v759 vs v748 comparison + CV analysis.
+> **27B PROD**: Qwen3.6-27B-int4-AutoRound (Lorbus, hybrid GDN+Mamba) +
+> TurboQuant k8v4 + MTP K=3 + P67 multi-query kernel + P82=1+thr=0.1.
+> Canonical bench `genesis_bench_suite.py --quick --ctx 8k`:
+> **wall_TPS 132.28 / decode_TPOT 7.31 ms / TTFT 100.9 ms / tool 8/8**.
+> `--max-model-len 131072` + `--max-num-batched-tokens 8192` (Wave 8 bump
+> from 4096 per scheduler warning).
+>
+> **35B PROD**: Qwen3.6-35B-A3B-FP8 (cyankiwi) + TurboQuant k8v4 +
+> MTP K=3 + P67 multi-query (NUM_KV_SPLITS=48). Sprint 1 canonical:
+> **wall_TPS 241.35 / decode_TPOT 3.85 ms / tool 7/7** (2026-05-09).
+> `--max-model-len 320000`.
+>
+> **P67 safety gate** (v7.56): auto-disabled when no spec-decode in config.
+>
+> Previous v7.59 baseline (2026-04-28): vLLM dev212+g8cd174fa3 era —
+> superseded by dev93 pin 2026-05-07. Bench 244→200 t/s on 35B.
+> See `docs/reference/V759_320K_CONTEXT_EXPANSION_20260427.md` for v759
+> vs v748 CV analysis. See `CHANGELOG.md` for v8.0.0→v11.0.0 evolution.
 
 ---
 
@@ -221,7 +231,7 @@ response, with TTL and weighted hit-rate metrics.
 | Env var | Default | What it does |
 |---|---|---|
 | `GENESIS_P41_BACKEND` | `memory` | `memory` (in-process LRU) or `redis` |
-| `GENESIS_P41_REDIS_URL` | (none) | e.g. `redis://192.168.1.10:6379/1` (required when backend=redis) |
+| `GENESIS_P41_REDIS_URL` | (none) | e.g. `redis://redis:6379/1` (required when backend=redis) |
 | `GENESIS_P41_MAX_ENTRIES` | (impl default) | LRU cap for memory backend |
 | `GENESIS_P41_TTL_SECONDS` | (impl default) | Expiry per cached entry |
 | `GENESIS_P41_HIT_WEIGHTED` | `0` | Weight hit-rate metric by response length |
@@ -340,7 +350,7 @@ and how they behave.
 | `GENESIS_UPDATE_CHANNEL` | `stable` | Update channel: `stable` / `beta` / `dev` |
 | `GENESIS_UPDATE_DIR` | `~/.genesis/update/` | Cache directory for update-channel manifests (24h TTL) |
 | `GENESIS_RECIPES_DIR` | `~/.genesis/recipes/` | Where `recipe save` / `recipe load` / `recipe adopt` store JSON recipes |
-| `GENESIS_MODELS_DIR` | (auto) | Where `models pull` writes downloaded weights. Resolution order: this var → `/nfs/genesis/models` if present → `HUGGINGFACE_HUB_CACHE` → `~/.cache/huggingface/hub` |
+| `SNDR_MODELS_DIR` / `GENESIS_MODELS_DIR` | (auto) | Where `models pull` writes downloaded weights. Resolution order: `SNDR_MODELS_DIR` → legacy `GENESIS_MODELS_DIR` → `HUGGINGFACE_HUB_CACHE` → `~/.cache/huggingface/hub` |
 
 ---
 

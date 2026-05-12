@@ -8,7 +8,7 @@
 
 ## TL;DR
 
-P50 (`vllm/_genesis/middleware/response_cache_middleware.py`) is an ASGI
+P50 (`vllm/sndr_core/middleware/response_cache_middleware.py`) is an ASGI
 response cache designed to live in front of a FastAPI service. The
 homelab already has the right place to mount it: **`genesis-proxy`
 (port 8318)**, a Python FastAPI/uvicorn wrapper around `cliproxyapi`.
@@ -24,7 +24,7 @@ config — so P50 cannot live there directly.
 ### Path A-prime — drop P50 into `genesis-proxy`
 
 1. Copy
-   `vllm/_genesis/middleware/response_cache_middleware.py`
+   `vllm/sndr_core/middleware/response_cache_middleware.py`
    → `/home/sander/Genesis_Project/genesis_proxy/genesis_proxy/response_cache_middleware.py`
 2. Edit `/home/sander/Genesis_Project/genesis_proxy/genesis_proxy/app.py`
    ~line 60, after `app = FastAPI(...)`:
@@ -81,7 +81,7 @@ handling). If it does, adapt or wrap before mounting.
 - `/home/sander/Genesis_Project/docker-compose.yml` lines 296–325
   (cliproxyapi + genesis-proxy services)
 - Source to copy:
-  `vllm/_genesis/middleware/response_cache_middleware.py`
+  `vllm/sndr_core/middleware/response_cache_middleware.py`
 
 ---
 

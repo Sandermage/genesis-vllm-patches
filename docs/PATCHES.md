@@ -1,21 +1,180 @@
 # Genesis vLLM Patches — Complete Reference
 
-This file is the **single source of truth** for every Genesis runtime patch.
+This file is the **curated narrative reference** for every Genesis runtime patch.
 For each patch you get: ID, title, what it does, status (ON / opt-in / deprecated),
 env flag to toggle, upstream PR (if backported), and credit.
 
-**Total PATCH_REGISTRY entries:** 126 (range P1–P107 + PN8–PN67 + PN70 + sub-patches P5b/P7b/P15B/P18b/P38B/P39a/P67b/P67c/PN26b/PN40-classifier + library/diagnostic P51/P79d/P102). The dispatcher's `PATCH_REGISTRY` is the schema-validated, lifecycle-tracked, opt-in surface — `genesis self-test` and the schema validator gate this set on every commit.
+> 📊 **Full machine-readable table** — auto-generated from `dispatcher/registry.py` —
+> at [**`PATCHES_AUTO.md`**](PATCHES_AUTO.md). Regenerate via
+> `python3 scripts/generate_patches_md.py`. CI gate: `--check` mode (audit 2026-05-11).
 
-**Total apply_all `@register_patch`:** 113 entries. P68/P69 share one `apply_patch_68_long_ctx_tool_adherence` function but are registered as two `PATCH_REGISTRY` entries; that's the reason for the 1-entry delta. As of v7.65 (2026-05-02) all legacy P1–P46 patches are first-class registry entries with `lifecycle: legacy` — historical pre-dispatcher patches with minimal metadata, kept default-on for compatibility.
+## Current state (v11.0.0, 2026-05-09)
 
-- **Source of truth:** `vllm/_genesis/dispatcher.py` `PATCH_REGISTRY` (range: P56-P103 + PN8-PN31, rich metadata) + `vllm/_genesis/patches/apply_all.py` `@register_patch` decorators (legacy P1-P55, dry-run diagnostic only).
-- **All patches default OFF unless explicitly noted.** Production launch script enables a curated set via env flags.
-- **Credits:** every backport names its upstream author + PR. Genesis-original patches are explicitly labelled. See [`CREDITS.md`](../docs/CREDITS.md) for the comprehensive attribution log.
+**Total PATCH_REGISTRY entries:** 136 — range covers `P1`–`P107` legacy
++ `PN8`–`PN90` modern + sub-patches (P5b, P7b, P15B, P18b, P38B, P39a,
+P61c, P67b, P67c, P79d, PN26b, PN40-classifier) + library/diagnostic
+(P51, P102, P103). P56/P57 archived 2026-05-05; PN71 burned by
+abandoned prealloc_v2 experiment; PN78 tombstoned; P39a flipped to
+community per the strict-AND audit. **PN90 added 2026-05-09** —
+probabilistic draft rejection (vllm#40269 backport), opt-in.
+
+**Library modules** (not in PATCH_REGISTRY but available for patches to
+use): `vllm.sndr_core.cache.eviction_policies` — LRU/2Q/ARC eviction
+policy classes (37 unit tests, scan-pollution verified). Awaiting full
+backport of vllm#40270 with proper BlockPool integration before being
+added as a registry patch.
+
+| Metric | Count |
+|:-------|:------|
+| Total PATCH_REGISTRY entries | **136** |
+| Tier=community (Apache 2.0, sndr_core) | **136** (all entries) |
+| Tier=engine (commercial, sndr_engine) | **0** (PN72 reclassified to community 2026-05-08; sndr_engine namespace reserved but empty) |
+| Default-on at boot | 32 |
+| Lifecycle=legacy (pre-dispatcher) | 31 |
+| Lifecycle=retired / deprecated | 5 |
+| Lifecycle=experimental | 3 |
+| Lifecycle=stable | 0 (ratchet ready — see [STABLE_PROMOTION_CHECKLIST.md](upstream/STABLE_PROMOTION_CHECKLIST.md)) |
+| Apply-loop coverage (apply_module set) | 118 / 131 = 90% |
+| Spec-only (intentional, allow-listed) | 7 (P51, P69, P102, PN40-classifier, PN60, PN63, PN64) |
+
+### Engine tier (the strict-AND boundary)
+
+A patch is `tier="engine"` only when ALL four conditions hold (Sander's
+strict AND rule, audit 2026-05-08):
+
+1. NOT present on the public github repo.
+2. NO external author credit in title/credit text.
+3. NO PR link / PR number in title/credit text.
+4. NO `upstream_pr` / `related_upstream_prs` field.
+
+After the strict-AND + github-presence audit (2026-05-08):
+
+- **PN72** was the only candidate but reclassified to community since
+  its real algorithm lives in `vllm/sndr_core/kernels/ngram_frequency_filter.py`
+  (subsystem boundary). `sndr_engine` namespace remains reserved but empty;
+  `engine_available()` returns `False`.
+
+Everything previously parked in engine (P67/P67b/P67c, PN21..PN24, PN26,
+PN29, PN38, PN40, PN57, P82, PN16, PN65, plus 30+ legacy P*) was reclassified
+to community and ships in `vllm/sndr_core/integrations/<family>/` under Apache 2.0.
+
+### Tombstones (deprecated, no-op)
+
+- **PN78** — post-warmup `empty_cache()` wrap. Deprecated 2026-05-07
+  same day it was created: `apply()` returns `"skipped"` unconditionally.
+  Investigation found vllm pin already calls `torch.accelerator.empty_cache()`
+  twice in `gpu_model_runner.py:capture_model()` (lines 6213 + 6244), so the
+  wrap would be redundant. Architectural lesson: monkey-patches in
+  `apply_all` don't reach spawn'd workers — only source-level edits do.
+
+### Recent additions (v11.0 sprint)
+
+- **PN95** (2026-05-09, Path C v7.73.x foundation) — Genesis-original
+  tier-aware KV cache + vision sub-tier + Mamba SSM exclusion. Solves
+  club-3090 issue #58 long-context+vision OOM on hybrid-GDN models
+  (which all upstream CPU offload paths — vLLM `--cpu-offload-gb`,
+  `SimpleCPUOffloadConnector`, LMCache, SGLang HiCache — crash on
+  because Mamba state lives outside the KV pool). Two anchors:
+  `single_type_kv_cache_manager.py::cache_blocks` notify_admit, and
+  `block_pool.py::get_cached_block` notify_touch. Runtime singleton
+  TierManager (`vllm/sndr_core/cache/tier_manager.py`) owns per-tier
+  EvictionPolicy + CPU-pool slab + vision-first demote ordering +
+  Mamba-exclusion filter + spec-decode hot ring. Schema:
+  `cache_config.tiers: [CacheTier(...), ...]` with `exclude_mamba_ssm:
+  true` (mandatory on hybrid GDN). Default OFF; opt in via
+  `GENESIS_ENABLE_PN95_TIER_AWARE_CACHE=1` + declared tiers in YAML.
+  Days 5-7 (vision-token MM tagging + Mamba runtime classifier walk +
+  live 27B Lorbus bench) deferred to live integration.
+- **PN16_V6** (2026-05-09, Sprint 4) — Genesis-original streaming
+  `<think>` token-budget enforcer. Per-request stateful truncator
+  (`vllm/sndr_core/middleware/think_streaming_truncator.py`) wraps
+  `OpenAIServingChat.chat_completion_stream_generator` via class-rebind.
+  When request has tools attached AND
+  `GENESIS_PN16_MAX_THINKING_STREAM_TOKENS > 0`, counts
+  `delta.reasoning_content` chunks; once budget exceeded, drops
+  subsequent reasoning chunks and emits one-shot `[Genesis] truncation
+  note` as `delta.content`. tool_calls + plain content always pass.
+  Cache-safe (no chat_template mutation) + compute-neutral (model still
+  generates internally). Stacks on V8: V8 nudges, V6 enforces. Default
+  OFF; opt in via `GENESIS_ENABLE_PN16_V6_STREAMING_TRUNCATOR=1`.
+- **PN90** (2026-05-09, Wave 3.1) — vllm#40269 backport: probabilistic
+  draft rejection. Captures `softmax(logits)` in `_greedy_sample` of
+  MTP/Eagle/DFlash drafters, stacks per K-step into
+  `[total_draft_tokens, vocab]` 2D layout, feeds to rejection_sampler
+  via `gpu_model_runner.py` site (replaces literal `None,
+  # draft_probs`). Rejection rule becomes `min(1, target/draft)`
+  instead of argmax-or-bonus. Expected +0.5-2% acceptance on MTP K=3.
+  Atomic via MultiFilePatchTransaction (proposer + runner). Default
+  OFF; opt in via `SNDR_ENABLE_PN90_PROBABILISTIC_DRAFT=1`.
+- **PN82** (2026-05-08, PR38 Day 1) — vllm#41873 backport zeroing padded
+  `is_prefilling` rows so Mamba/hybrid backends don't read stale True from
+  `condense()` rotation. Hybrid-only via `applies_to`, default OFF.
+- **PN55v2** (2026-05-08, PR38 Day 2) — same patch_id as PN55, body upgraded
+  from list-only to recursive iterator covering `Tensor` / `list` / `tuple`
+  / `Mapping` / `None` / non-tensor sentinels. Unified backport of
+  vllm#41602 + vllm#41896.
+- **PN80** (2026-05-07) — vllm#41845 backport of LoRA tensorizer device
+  kwarg (single-line fix not yet in nightly image).
+- **PN79** (2026-05-07) — In-place SSM state for GDN chunk prefill
+  (vllm#41824 backport). Most complex patch in the registry: 17 anchors
+  atomic across 3 files via MultiFilePatchTransaction. A/B null-impact
+  on single-shot; multi-turn validation pending. `lifecycle="experimental"`.
+
+### Archived dead-ends
+
+- **P56 / P57** archived 2026-05-05 — TQ spec-decode dead-ends superseded
+  by P65 (CG downgrade). Files live in
+  `Genesis_internal_docs/_archive/dead_patches/p56_p57_tq_specdec_deadends/`.
+- **PN71** — abandoned prealloc_v2 experiment, never landed.
+
+### Native upstream features (no Genesis backport needed)
+
+The following capabilities are native to dev93 and require no Genesis
+patch — Genesis would only add a stub. Documented here so users know
+where to enable them.
+
+- **CPU KV cache offloading** (vllm#37160, merged upstream) — exposed as
+  `SimpleCPUOffloadConnector` at
+  `vllm/distributed/kv_transfer/kv_connector/v1/simple_cpu_offload_connector.py`.
+  Enable with:
+
+  ```bash
+  --kv-transfer-config '{"kv_connector": "SimpleCPUOffloadConnector",
+    "kv_role": "kv_both",
+    "kv_connector_extra_config": {"cpu_bytes_to_use": 34359738368}}'
+  ```
+
+  Caveats for Genesis stack:
+  - **Hybrid GDN models (Qwen3.6-A3B family) are NOT compatible** —
+    Mamba SSM state lives outside the KV cache and can't be offloaded
+    via this path. Use only on dense attention models (e.g. Qwen3-7B).
+  - Frees +96K context worth of GPU VRAM at the cost of CPU↔GPU PCIe
+    traffic on miss; suits long-context dense workloads only.
+- **Other connectors in dev93:** `LMCacheConnector`,
+  `MooncakeConnector`, `NixlConnector`, `OffloadingConnector`,
+  `MultiConnector`. See vllm docs for matrix.
+
+---
+
+- **Source of truth:** `vllm.sndr_core.dispatcher.PATCH_REGISTRY` (rich
+  metadata; lifecycle-tracked; schema-validated) +
+  `vllm.sndr_core.dispatcher.spec.iter_patch_specs()` (canonical apply_module
+  resolver; the new spec-driven loop).
+- **Legacy parking lot:** `vllm.sndr_core.apply._per_patch_dispatch` —
+  the 4542-line `@register_patch` registry kept as fallback during the
+  PR38 Day 6-8 migration to registry-driven apply (opt-in via
+  `SNDR_APPLY_VIA_SPECS=1`).
+- **All patches default OFF** unless explicitly noted. Production launch
+  script enables a curated set via env flags.
+- **Credits:** every backport names its upstream author + PR. Genesis-original
+  patches are explicitly labelled. See [`CREDITS.md`](CREDITS.md).
 - **Status legend:**
   - `default ON` — patch self-activates when its config gate passes
   - `opt-in` — requires `GENESIS_ENABLE_<patch>=1` env var
-  - `deprecated` — superseded by another patch; kept for archeology, do not enable in new deployments
+  - `deprecated` / `retired` — superseded by another patch; kept for archeology
   - `library` — utility module loaded by other patches, no direct env flag
+
+![Patch coverage by category](../assets/charts/patch_category_count.png)
 
 ---
 
@@ -34,11 +193,60 @@ docker run -e GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL=0 ... vllm/vllm-openai:ni
 
 ## Where the code lives
 
-- **Wiring** (text-patcher hooks): `vllm/_genesis/wiring/<category>/patch_<id>_*.py` — organized by category (Phase 2.1, 9 subdirs: spec_decode, structured_output, perf_hotfix, compile_safety, kv_cache, kernels, hybrid, middleware, legacy). Resolution is layout-agnostic via `compat/categories.module_for(patch_id)`.
-- **Kernels** (Triton / CUDA): `vllm/_genesis/kernels/`
-- **Dispatcher metadata** (P56+): `vllm/_genesis/dispatcher.py:PATCH_REGISTRY`
-- **Registration**: `vllm/_genesis/patches/apply_all.py:@register_patch`
-- **Per-patch CHANGELOG entries**: `vllm/_genesis/CHANGELOG.md` (search by patch ID)
+- **Wiring** (text-patcher hooks): `vllm/sndr_core/wiring/<category>/patch_<id>_*.py` — organized by category (Phase 2.1, 9 subdirs: spec_decode, structured_output, perf_hotfix, compile_safety, kv_cache, kernels, hybrid, middleware, legacy). Resolution is layout-agnostic via `compat/categories.module_for(patch_id)`.
+- **Kernels** (Triton / CUDA): `vllm/sndr_core/kernels/`
+- **Dispatcher metadata** (P56+): `vllm/sndr_core/dispatcher.py:PATCH_REGISTRY`
+- **Registration**: `vllm/sndr_core/integrations/apply_all.py:@register_patch`
+- **Per-patch CHANGELOG entries**: `CHANGELOG.md` (root, search by patch ID — audit 2026-05-11)
+
+---
+
+## How a patch is decided to apply or skip
+
+Every patch goes through the same dispatcher decision tree at boot. The
+tree below visualises the order of checks — if any check fails, the patch
+is SKIPPED with a logged reason; if all pass, it APPLIES.
+
+```mermaid
+flowchart TD
+    START[boot: apply_all iterates PATCH_REGISTRY] --> ENV{env_flag set<br/>to truthy?}
+    ENV -->|no| SKIP_OPTIN[SKIP: opt-in not engaged]
+    ENV -->|yes, OR default_on=True| LIFE{lifecycle in<br/>SAFETY_GATED_STATES?<br/>retired/deprecated}
+    LIFE -->|yes| SKIP_RETIRED[SKIP: retired/deprecated<br/>--allow-retired to override]
+    LIFE -->|no| MATCH{applies_to gates<br/>match runtime?<br/>model_class / is_hybrid / GPU}
+    MATCH -->|no| SKIP_MISMATCH[SKIP: applies_to mismatch]
+    MATCH -->|yes| REQS{requires_patches<br/>all also applied?}
+    REQS -->|no| SKIP_DEP[SKIP: missing dependency]
+    REQS -->|yes| CONFLICT{conflicts_with<br/>any active patch?}
+    CONFLICT -->|yes| SKIP_CONFLICT[SKIP: conflicts]
+    CONFLICT -->|no| WIRING{wiring import<br/>+ apply succeeds?}
+    WIRING -->|exception| FAIL[FAILED: see logs]
+    WIRING -->|drift marker found| SKIP_UPSTREAM[SKIP: upstream merged]
+    WIRING -->|anchor not found| SKIP_DRIFT[SKIP: anchor drift]
+    WIRING -->|marker already present| IDEM[APPLIED: idempotent]
+    WIRING -->|all clean| APPLY[APPLIED: text-patch written]
+
+    style APPLY fill:#90EE90,stroke:#2d6a2d
+    style IDEM fill:#90EE90,stroke:#2d6a2d
+    style FAIL fill:#FFB6B6,stroke:#a02020
+    style SKIP_OPTIN fill:#FFE4B5,stroke:#a05a00
+    style SKIP_RETIRED fill:#D3D3D3,stroke:#555
+    style SKIP_MISMATCH fill:#FFE4B5,stroke:#a05a00
+    style SKIP_DEP fill:#FFE4B5,stroke:#a05a00
+    style SKIP_CONFLICT fill:#FFE4B5,stroke:#a05a00
+    style SKIP_UPSTREAM fill:#D3D3D3,stroke:#555
+    style SKIP_DRIFT fill:#FFE4B5,stroke:#a05a00
+```
+
+**Reading guide:**
+- 🟢 green = patch active (production effect)
+- 🟡 amber = predictable skip (operator decision or runtime mismatch)
+- ⚪ grey = retired/upstream-merged (no longer needed)
+- 🔴 red = unexpected failure (read logs!)
+
+Boot summary (printed by `apply_all`) shows the verdict for each patch with
+the reason. Use `genesis lifecycle-audit` to see which patches are at risk
+of upstream-merge drift.
 
 ---
 
@@ -86,7 +294,7 @@ docker run -e GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL=0 ... vllm/vllm-openai:ni
 | **P81** | fp8 block-scaled MM low-M decode tuning (vllm#40925) | opt-in | `GENESIS_ENABLE_P81_FP8_BLOCK_SCALED_M_LE_8` | [#40925](https://github.com/vllm-project/vllm/pull/40925) | Backport of vllm#40925 (tonyliu312, OPEN). Specializes w8a8_triton_block_scaled_mm default config for M<=8 (single-reque |
 | **P87** | Marlin W4A16/W8A16 sub-tile output dim pad-on-load (vllm#40361) | opt-in | `GENESIS_ENABLE_P87` | [#40361](https://github.com/vllm-project/vllm/pull/40361) | Backport of vllm#40361 (OPEN). MarlinLinearKernel requires per-rank out_features divisible by GPTQ_MARLIN_MIN_THREAD_N=64. Sub-tile shards (Qwen3.5 GatedDeltaNet at TP>=2, Intel/Qwen3.6-35B-A3B-int4-AutoRound n=32 shard) fail can_implement and force a slow non-Marlin fallback. P87 zero-pads weights/scales/qzeros at load. Class-rebind on MarlinLinearKernel.{can_implement, process_weights_after_loading, apply_weights}. **NOTE 2026-04-28:** v764 boots with P87+P93 enabled trigger torch.dynamo "marked as skipped" error during cudagraph capture; deep dive deferred. Use at your own risk. |
 | **P91** | AutoRound row-parallel group cdiv + start-idx fix (vllm#39460) | opt-in | `GENESIS_ENABLE_P91` | [#39460](https://github.com/vllm-project/vllm/pull/39460) | Backport of vllm#39460 non-MoE portion (CLOSED but valid). Fixes silent dequant corruption when AutoRound INT4/INT8 checkpoints have row-parallel layers whose input_size_per_partition is not divisible by group_size at TP>=2. Text-patch on gptq_marlin.py + parameter.py. Hypothesized cause of Lorbus INT4 < INT8 perf gap. |
-| **P93** | AllSpark bypass for INT8 W8A16 group_size=-1 (force Marlin path) | opt-in | `GENESIS_FORCE_MARLIN_W8A16` | — | Genesis-original 2026-04-28. vLLM kernel selector picks AllSparkLinearKernel for AutoRound INT8 W8A16 group_size=-1 checkpoints (Minachist style); Marlin never fires, so P87/P91 are no-op. P93 prepends "AllSparkLinearKernel" to VLLM_DISABLED_KERNELS at plugin register() time, forcing fallback to MarlinLinearKernel. AllSpark on consumer Ampere is hardcoded for A100 (108 SMs, 40MB L2) — under-tuned on A5000 (64 SMs, 6MB L2). Functionally activates Marlin path; v764c boot crash blocks measurement until P87 wrapper is rewritten as text-patch. |
+| **P93** | AllSpark bypass for INT8 W8A16 group_size=-1 (force Marlin path) | **archived** | — | — | Genesis-original 2026-04-28. **Archived 2026-05-06:** P93 was removed from PATCH_REGISTRY after v764c boot crash blocked measurement. Conceptual approach (prepend "AllSparkLinearKernel" to VLLM_DISABLED_KERNELS to force Marlin fallback for INT8 W8A16 group_size=-1) is documented here for historical reference. If revived, must be rewritten as a text-patch and re-registered. |
 | **P72** | profile_run M cap (unblocks `--max-num-batched-tokens > 4096` on MoE) | opt-in | `GENESIS_ENABLE_P72_PROFILE_RUN_CAP` | — | Genesis-original (Dynamo fake-tensor mismatch workaround for moe_align_block_size symbolic shape) |
 | **P37** | MoE intermediate cache pool (opt-in) | opt-in | — | — | Genesis (see source / CHANGELOG) |
 | **P17/P18** | Marlin MoE per-SM tuning | opt-in | — | — | Genesis (see source / CHANGELOG) |
@@ -126,10 +334,16 @@ docker run -e GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL=0 ... vllm/vllm-openai:ni
 | **P15** | Qwen3 None/null tool arg parser | opt-in | — | — | Genesis (see source / CHANGELOG) |
 | **P12** | Qwen3 <tool_call> implicit reasoning end | opt-in | — | — | Genesis (see source / CHANGELOG) |
 | **P29** | tool parser IndexError guard | opt-in | — | — | Genesis (see source / CHANGELOG) |
+| **P61c** | Qwen3Coder deferred-commit until `<function=` header | opt-in | `GENESIS_ENABLE_P61C_QWEN3CODER_DEFERRED_COMMIT` | — | Closes [club-3090#72](https://github.com/noonghunna/club-3090/issues/72) (troymroberts 2026-05-06). Defers `is_tool_call_started=True` until `<function=` confirms within 64-char slack — fixes 30-120s SSE silence on prose containing literal `<tool_call>`. |
 | **P61b** | Qwen3 streaming partial-tag overlap guard | opt-in | `GENESIS_ENABLE_P61B_STREAMING_OVERLAP` | [#40783](https://github.com/vllm-project/vllm/pull/40783) | ExtReMLapin (vllm#40783) |
 | **P61** | Qwen3 multi-tool first-occurrence | opt-in | `GENESIS_ENABLE_P61_QWEN3_MULTI_TOOL` | [#40783](https://github.com/vllm-project/vllm/pull/40783) | ExtReMLapin (vllm#40783) |
 | **P68/P69** | long-context tool-call adherence | opt-in | `GENESIS_ENABLE_P68_AUTO_FORCE_TOOL` | — | Genesis-original (long-ctx tool adherence mitigation) |
 | **PN70** | Tool schema subset filter (companion to P68 v7.72.1) | opt-in | `GENESIS_ENABLE_PN70_TOOL_SCHEMA_FILTER` | — | Genesis-original (closes [club-3090#57](https://github.com/noonghunna/club-3090/issues/57) option-3) |
+| **PN72** | Frequency-based ngram draft post-filter (llama.cpp `draft_min_sample_size`-style; rejects spurious 2-token-suffix matches) | opt-in | `GENESIS_ENABLE_PN72_FREQUENCY_NGRAM_DRAFTER` | — | Genesis-original 2026-05-06 (composes with P70; tunables `GENESIS_PN72_MIN_OBSERVATIONS=4`, `GENESIS_PN72_FREQUENCY_WINDOW=1024`) |
+| **PN77** | FP8 lm_head compression (BF16→FP8 e4m3 + per-channel scale; ~606 MiB/rank на 27B Qwen3.6, ~243 MiB/rank на 35B). Phase E.5 redesign: subclass `Genesis_FP8_LMHead_EmbeddingMethod` swap via single text-patch on `process_weights_after_loading` walker; uses `replace_parameter` (preserves `weight_loader`); hardware-tier dispatch — **Marlin** на Ampere, **`torch._scaled_mm`** на Ada/Hopper/Blackwell, cast-back fallback otherwise. | opt-in | `GENESIS_ENABLE_PN77_FP8_LM_HEAD` | — | Genesis-original 2026-05-07 (Phase E.5 architectural redesign after E.2-3 weight_loader-orphan blocker; cosine_sim ≥0.999 quality gate validated; auto-retire on vllm#41000 lm_head_quantized merge) |
+| **PN78** | [DEPRECATED 2026-05-07] post-warmup empty_cache wrap — upstream `gpu_model_runner.py:6213/6244` already calls it; PN78 would be redundant 3rd call. Also monkey-patch wouldn't reach spawn'd workers. Retained for documentation only. | deprecated | `GENESIS_ENABLE_PN78_POST_WARMUP_CACHE_RELEASE` (ignored) | — | Genesis-original 2026-05-07 (deprecated same day after source-code investigation) |
+| **PN80** | [ADDED 2026-05-07] LoRA tensorizer device kwarg (vllm#41845 backport). Single-line fix: passes `device=device` to TensorDeserializer in lora/lora_model.py. Without it, deserializer first goes to host RAM then transfers to GPU, causing OOM on memory-constrained rigs. With kwarg, streams directly to GPU. Genesis 35B/27B PROD не использует LoRA — patch ready for community deployments. Default OFF. Not in nightly image as of dev93+g51f22dcfd. | experimental | `GENESIS_ENABLE_PN80_LORA_TENSORIZER_DEVICE` | [#41845](https://github.com/vllm-project/vllm/pull/41845) | Backport of Or Ozeri @ IBM (vllm#41845, MERGED 2026-05-07) |
+| **PN79** | [FULL IMPL 2026-05-07 + LIVE A/B VALIDATED] In-place SSM state for GDN chunk prefill (vllm#41824 backport). Eliminates per-decode-step gather/scatter copies of `initial_state`/`final_state` by passing `ssm_state_indices` directly to Triton kernel. Author claims 4.5–36 GiB cumulative fp32 traffic eliminated per multi-turn session. ORTHOGONAL TO PN59 (which fixes prefill peak; empirical 2026-05-06 — PN59 streaming path almost never fires under chunked-prefill, so PN79 is the actual decode-side win). 17 anchors atomic across 3 files via MultiFilePatchTransaction (Sub-1 chunk.py: 7, Sub-2 chunk_delta_h.py: 7, Sub-3 gdn_linear_attn.py: 3). 27B Lorbus INT4+TQ k8v4 A/B 2026-05-07: TPS 105.3 (PN79=1) vs 104.2 (baseline) — within noise; VRAM identical; tool 10/10 match. Single-shot win unproven, multi-turn evidence pending (Cliff 2 reproducer + memory traffic profiler on roadmap). 58 PN79 tests + 2260 full Genesis suite pass. conflicts_with [PN59, PN54]. Default OFF. | experimental | `GENESIS_ENABLE_PN79_INPLACE_SSM_STATE` | [#41824](https://github.com/vllm-project/vllm/pull/41824) | Backport of Kermit-C (vllm#41824, OPEN) |
 | **P59** | Qwen3 reasoning embedded tool_call recovery | opt-in | `GENESIS_ENABLE_P59_QWEN3_TOOL_RECOVERY` | [#39055](https://github.com/vllm-project/vllm/pull/39055) | ZenoAFfectionate (vllm#39055) |
 | **P40** | TurboQuant GQA-grouped decode stage1 (opt-in) | opt-in | — | — | Genesis (see source / CHANGELOG) |
 | **P24** | fused_moe num_warps/num_stages overlay | opt-in | — | — | Genesis (see source / CHANGELOG) |
@@ -175,12 +389,14 @@ docker run -e GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL=0 ... vllm/vllm-openai:ni
 | **P102** | Unified spec-decode metadata + disagreement tracker (TRT-LLM style) | opt-in | `GENESIS_ENABLE_P102` | — | Genesis-original (Sander 2026-04-29). First-class spec_meta module in spec_meta.py — diagnostic-only opt-in observability layer for spec-decode predicate disagreement (e.g. should_dispatch_p67 divergence between proposer and verify paths). |
 | **PN60** | Quant arg vs config.json validator (preflight DX) | default-on | `GENESIS_ENABLE_PN60` | — | Genesis-original 2026-05-05 (apnar club-3090#51 finding). Doctor extension cross-checks operator's `--quantization` CLI arg against the model's `config.json:quantization_config.quant_method` BEFORE vLLM loads. Emits one-line remediation hint instead of a 30-line pydantic ValidationError. |
 | **PN61** | qwen3_vl loader KeyError → text-only auto-fallback | opt-in | `GENESIS_ENABLE_PN61` | — | Genesis-original 2026-05-05 (apnar club-3090#51 NVFP4 finding). Catches `KeyError: 'blocks.0.attn.proj.weight'` in `qwen3_vl.load_weights` when an NVFP4 quant strips the ViT tower; emits WARN + auto-sets `language_model_only=True` instead of crashing. Same defensive pattern as P29 IndexError guard. |
-| **PN62** | Text-only ViT scratch skip (memory savings, 3-5 GiB on 27B-NVFP4) | opt-in | `GENESIS_ENABLE_PN62` | — | Genesis-original 2026-05-05 (apnar club-3090#51 highest-impact gap). When `mm_limits_all_zero AND --language-model-only`, the qwen3_vl visual-tower scratch allocation in `gpu_model_runner._dummy_run` still fires and reserves ~3-5 GiB. PN62 short-circuits the ViT branch to no-op alloc. Sister to PN35 (text-only inputs_embeds skip). |
+| **PN62** | Text-only ViT scratch skip (memory savings, 3-5 GiB on 27B-NVFP4) | opt-in | `GENESIS_ENABLE_PN62` | — | Genesis-original 2026-05-05 (apnar club-3090#51 highest-impact gap); Wave 6 real hook 2026-05-09. When `mm_limits_all_zero AND --language-model-only`, PN62 wraps `GPUModelRunner.profile_run` and flips `MultiModalConfig.skip_mm_profiling=True` BEFORE the original runs, so vllm dev93's native short-circuit at the encoder-profiling branch (`gpu_model_runner.py:5879`) fires. Saves ~3-5 GiB ViT scratch on qwen3_vl + NVFP4 single-card boot. Sister to PN35 (text-only inputs_embeds skip). |
 | **PN63** | fp8_e5m2 advisory for consumer Blackwell (gpu_profile recommendation) | default-on | `GENESIS_ENABLE_PN63` | — | Genesis-original 2026-05-05 (apnar club-3090#51 empirical). Adds advisory entry to `gpu_profile.PATCH_RECOMMENDATIONS` recommending `--kv-cache-dtype fp8_e5m2` over `fp8_e4m3` on consumer Blackwell (sm 12.0) until vLLM e4m3 codepath matures. Suggest-only; operator passes via CLI. |
 | **PN64** | Marlin MoE per-SM tuning placeholder for SM 12.0 | opt-in | `GENESIS_ENABLE_PN64` | — | Genesis-original 2026-05-05 (apnar club-3090#51 — boot log shows `[Genesis] skipped: P17/P18 Marlin MoE per-SM tuning — no tuning entry for SM (12, 0)`). PN64 adds a placeholder copying SM (9, 0) Hopper config until empirical sweep data lands from sm_120. Author-blocked: needs real 5090 sweep — solicit from apnar/jhsmith409. |
-| **PN65** | Genesis structured API access log middleware (operator UX) | opt-in | `GENESIS_ENABLE_PN65` | — | Genesis-original 2026-05-05 (Sander request 'по апи лог невзрачный надо тоже проработать'). Replaces uvicorn's bare `INFO: 192.168.1.10:45116 - "GET /v1/models" 401` with `[Genesis-API] 200  POST /v1/chat/completions  34ms  prompt=46t  completion=400t  tools=1  client=192.168.1.10`. Suppresses /health polling by default (GENESIS_PN65_LOG_HEALTH=1 to include). Status-aware level (2xx INFO / 4xx WARN / 5xx ERROR + exception type). |
+| **PN65** | Genesis structured API access log middleware (operator UX) | opt-in | `GENESIS_ENABLE_PN65` | — | Genesis-original 2026-05-05 (Sander request 'по апи лог невзрачный надо тоже проработать'). Replaces uvicorn's bare `INFO: 127.0.0.1:45116 - "GET /v1/models" 401` with `[Genesis-API] 200  POST /v1/chat/completions  34ms  prompt=46t  completion=400t  tools=1  client=127.0.0.1`. Suppresses /health polling by default (GENESIS_PN65_LOG_HEALTH=1 to include). Status-aware level (2xx INFO / 4xx WARN / 5xx ERROR + exception type). |
 | **PN66** | Multiturn `</think>` leak fix in DelegatingParser (vllm#41696 backport) | opt-in | `GENESIS_ENABLE_PN66` | [#41696](https://github.com/vllm-project/vllm/pull/41696) | Backport of vllm#41696 (panpan0000, OPEN as of 2026-05-05). Removes the buggy `prompt_reasoning_checked` short-circuit in `vllm.parser.abstract_parser.DelegatingParser.parse_delta` that walked the FULL prompt for `</think>` and prematurely set `reasoning_ended=True` from a previous turn's `</think>`. Defensive backport for multi-turn DSML/Hermes/Qwen3 chat clients sending full history. |
 | **PN67** | thinking_token_budget inverted-bool fix (vllm#41674 backport, 1-line) | opt-in | `GENESIS_ENABLE_PN67` | [#41674](https://github.com/vllm-project/vllm/pull/41674) | Backport of vllm#41674 (JasonKeyiL, OPEN as of 2026-05-04). Single-token fix in `vllm/v1/worker/gpu_input_batch.py:894` — removes `not` from `or not thinking_budget_tracks_reqs`. Bug: thinking_token_budget silently ignored for any request without penalty parameters. NULL on Genesis PROD; defensive for users who experiment. Trivial backport, zero risk. |
+| **SPRINT26_CG_DISPATCH_TRACE** | Sprint 2.6 v2 — CUDA graph dispatch trace wire-in | opt-in | `GENESIS_ENABLE_SPRINT26_CG_DISPATCH_TRACE` | — | Genesis-original (Sandermage). Wires the Sprint 2.6 v1 cudagraph dispatch instrumentation into the live decision path so dispatch divergences surface in boot logs instead of post-mortem diffs. Diagnostic-only; off by default. Family: observability. |
+| **PN96** | Persistent Marlin MoE workspace (Wave 9 dev209 perf-restore) | default-on | `GENESIS_ENABLE_PN96` | — | Genesis-original 2026-05-12 (Wave 9 dev209 35B regression RCA). Upstream `experts/marlin_moe.py::MarlinExperts.apply` calls `fused_marlin_moe(...)` without passing `workspace=`, so `_fused_marlin_moe` allocates fresh via `marlin_make_workspace_new(device, 4)` per call. PN96 wraps MarlinExperts.apply to cache a persistent workspace per-instance + monkey-patches fused_marlin_moe to honor a thread-local default when workspace=None. Target: recover part of -2.82% TPS / +2.86% TPOT 35B A3B-FP8 regression. NO-OP on non-Marlin paths (27B hybrid GDN+Mamba INT4). Auto-skips on dev93-era layout. Family: moe. |
 
 ---
 
@@ -253,7 +469,7 @@ validation pending) and default-ON (root-cause correctness fixes).
 
 ### v7.68 cross-rig fixes from noonghunna (2026-05-02)
 
-After v7.66 cross-rig validation by noonghunna + ChatGPT/Codex CLI on
+After v7.66 cross-rig validation by noonghunna and an independent CLI cross-check on
 1× 3090 + 2× 3090, three real bugs in v7.66 were diagnosed and fixed
 in v7.68:
 
@@ -263,7 +479,7 @@ in v7.68:
 | PN25 v7.66 TP=1 spawn fail | `Library("genesis", "FRAGMENT")` constructed inside Dynamo trace context on TP=1 spawn config → `instantiate_user_defined_class_object` crash | Text-patch `activation.py` to register at module-import time (BEFORE any trace context). `forward_native` body reads only the cached module global. P7b extended with same pattern preventively. |
 | PN33 partial close | Boot-time warmup K-aware fix closes profile_run path but runtime decode `_decode_attention` workspace_lock still fires on rare paths | New PN34 — companion patch relaxing the strict runtime AssertionError to WARN+grow. Default OFF; engage when PN33 alone doesn't close. |
 
-Diagnosis credit: **noonghunna + ChatGPT/Codex CLI cross-check**
+Diagnosis credit: **noonghunna + independent CLI cross-check**
 ([club-3090 commit 9af1a52](https://github.com/noonghunna/club-3090/commit/9af1a52),
 [a62ad78](https://github.com/noonghunna/club-3090/commit/a62ad78),
 [2b5ab4d](https://github.com/noonghunna/club-3090/commit/2b5ab4d), all
@@ -312,14 +528,13 @@ DFlash combine_hidden_states + SWA + aux-layer indexing fixes for spec-decode + 
 
 ## Adding a new patch
 
-1. **Pick a free ID.** Run `grep -E '^@register_patch' vllm/_genesis/patches/apply_all.py | head` and `grep -E '"P[0-9]+' vllm/_genesis/dispatcher.py` to confirm the next available number. Don't reuse retired IDs (P56/P57/P63 are deprecated but kept).
-2. **Write wiring**: `vllm/_genesis/wiring/<category>/patch_<id>_<name>.py`. Use [`patch_71_block_verify.py`](vllm/_genesis/wiring/spec_decode/patch_71_block_verify.py) or [`patch_82_sglang_acceptance_threshold.py`](vllm/_genesis/wiring/spec_decode/patch_82_sglang_acceptance_threshold.py) as templates. The category should match a `compat/categories.py` bucket — `_build_module_index` will rglob the new file in automatically.
-3. **Register in dispatcher** (P56+): add an entry to `PATCH_REGISTRY` in [`vllm/_genesis/dispatcher.py`](vllm/_genesis/dispatcher.py).
-4. **Hook in apply_all**: add `@register_patch(...)` + `apply_patch_<id>_*` function in [`vllm/_genesis/patches/apply_all.py`](vllm/_genesis/patches/apply_all.py).
-5. **Document in CHANGELOG**: add a `vX.YZ` entry to [`vllm/_genesis/CHANGELOG.md`](vllm/_genesis/CHANGELOG.md) explaining the WHY, empirical data, and ship/reject decision.
+1. **Pick a free ID.** Run `grep -E '^@register_patch' vllm/sndr_core/integrations/apply_all.py | head` and `grep -E '"P[0-9]+' vllm/sndr_core/dispatcher.py` to confirm the next available number. Don't reuse retired IDs (P56/P57/P63 are deprecated but kept).
+2. **Write wiring**: `vllm/sndr_core/wiring/<category>/patch_<id>_<name>.py`. Use [`patch_71_block_verify.py`](vllm/sndr_core/wiring/spec_decode/patch_71_block_verify.py) or [`patch_82_sglang_acceptance_threshold.py`](vllm/sndr_core/wiring/spec_decode/patch_82_sglang_acceptance_threshold.py) as templates. The category should match a `compat/categories.py` bucket — `_build_module_index` will rglob the new file in automatically.
+3. **Register in dispatcher** (P56+): add an entry to `PATCH_REGISTRY` in [`vllm/sndr_core/dispatcher.py`](vllm/sndr_core/dispatcher.py).
+4. **Hook in apply_all**: add `@register_patch(...)` + `apply_patch_<id>_*` function in [`vllm/sndr_core/integrations/apply_all.py`](vllm/sndr_core/integrations/apply_all.py).
+5. **Document in CHANGELOG**: add a `vX.YZ` entry to [`CHANGELOG.md`](../CHANGELOG.md) explaining the WHY, empirical data, and ship/reject decision.
 6. **Validate**:
-   - Static: `python3 -c 'import ast; ast.parse(open("vllm/_genesis/wiring/<category>/patch_<id>_*.py").read())'`
+   - Static: `python3 -c 'import ast; ast.parse(open("vllm/sndr_core/wiring/<category>/patch_<id>_*.py").read())'`
    - Container: `docker compose down && docker compose up -d` (NOT `stop/start` — see [`CONFIGURATION.md`](../docs/CONFIGURATION.md) Container R/W layer note)
    - Empirical: blue/green sweep with `genesis_quality_harness.py` + `genesis_bench_v3.py`. SHIP gate: ≥30/31 quality + ≥+5% TPS (or whatever the patch targets).
 7. **Credit upstream** in the patch docstring + `CREDITS.md` if backporting from someone else's PR / project.
-

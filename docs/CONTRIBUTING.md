@@ -317,7 +317,7 @@ The three are **layered** — pin-gate prevents the attempt when version is know
 3. **Server-side install** in throwaway container (NOT PROD):
 
    ```bash
-   ssh sander@192.168.1.10
+   ssh <your-user>@<your-host>
    docker run --rm -it --gpus all <base> pip install \
        "vllm @ git+https://github.com/vllm-project/vllm.git@<sha>"
    docker exec <container> python -c 'import vllm; print(vllm.__version__)'

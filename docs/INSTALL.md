@@ -189,7 +189,7 @@ This means:
 - No need to fork or rebuild vLLM
 - Patches apply transparently — visible to operator via boot logs
 - New vLLM nightly versions can be tried without recompiling — pull image, restart container, observe drift markers
-- `sndr_core/` is the only thing under version control we ship (pre-v11 scripts may still reference `_genesis/` — это back-compat alias)
+- `sndr_core/` is the only thing under version control we ship (pre-v11 scripts may still reference `_genesis/` — see the Migration appendix for the back-compat alias).
 
 ### 3. Pre-flight checks
 
@@ -345,7 +345,7 @@ Genesis is a Python module at `vllm/sndr_core/`. We need to drop it into the **s
 # Find where vLLM lives
 VLLM_DIR=$(python3 -c "import vllm, os; print(os.path.dirname(vllm.__file__))")
 echo "vLLM installed at: $VLLM_DIR"
-# Example: /home/sander/vllm-genesis/.venv/lib/python3.12/site-packages/vllm
+# Example: $HOME/vllm-genesis/.venv/lib/python3.12/site-packages/vllm
 
 # Clone the Genesis patch repo
 git clone https://github.com/Sandermage/genesis-vllm-patches.git
@@ -508,12 +508,15 @@ Wants=network-online.target
 
 [Service]
 Type=exec
-User=sander
-Group=sander
-WorkingDirectory=/home/sander/vllm-genesis
+# Replace `<your-user>` and `<your-home>` with your local values before
+# installing this unit. The bare-metal install guide assumes a regular
+# user account, not root.
+User=<your-user>
+Group=<your-user>
+WorkingDirectory=<your-home>/vllm-genesis
 Environment="MODEL_PATH=/path/to/Qwen3.6-35B-A3B-FP8"
 Environment="VLLM_API_KEY=YOUR_KEY_HERE"
-ExecStart=/home/sander/run-genesis.sh
+ExecStart=<your-home>/run-genesis.sh
 Restart=on-failure
 RestartSec=10
 LimitMEMLOCK=infinity

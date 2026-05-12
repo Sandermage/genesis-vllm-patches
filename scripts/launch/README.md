@@ -143,8 +143,14 @@ Linux side. Docker-in-WSL2 also works but adds one virtualization layer
 | Script | Purpose |
 |---|---|
 | [`preflight_check.sh`](preflight_check.sh) | Validate host before first launch (driver, CUDA, container toolkit, GPU memory headroom). |
-| [`snapshot_pre_arm.sh`](snapshot_pre_arm.sh) | Capture full server state (running container env, GPU usage, repo HEAD, git status) into `docs/_internal/snapshots/<timestamp>_<arm_name>/`. Use before any swap to enable rollback / forensics. |
-| [`nsight_profile_capture.sh`](nsight_profile_capture.sh) | Drive Nsight Systems profile capture against a running container (requires `nsys` on host; install via `apt install nsight-systems-2025.6.3` after adding NVIDIA CUDA repo). |
+
+> The earlier `snapshot_pre_arm.sh` and `nsight_profile_capture.sh`
+> utilities were retired in v11 (Etap 6.3, audit 2026-05-12). The
+> snapshot flow is now operator-driven (capture `docker inspect`,
+> `nvidia-smi`, `git rev-parse HEAD` manually before a swap). Nsight
+> profiling stays in the operator's local toolbox — invoke
+> `nsys profile --output … docker exec <container> python …` against a
+> running container.
 
 ---
 
