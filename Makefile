@@ -12,7 +12,8 @@
 
 .PHONY: help test gates audit docs precommit paths-env clean \
         test-pin-gate test-iron-rule test-family test-doc-sync \
-        audit-upstream audit-yaml docs-check docs-write doctor
+        audit-upstream audit-yaml docs-check docs-write doctor \
+        evidence evidence-release evidence-json
 
 # Default target — show help.
 .DEFAULT_GOAL := help
@@ -48,10 +49,13 @@ gates: test-pin-gate test-iron-rule test-family test-doc-sync ## Run all 4 CI ga
 
 # ─── Audits ────────────────────────────────────────────────────────────
 
-audit-upstream: ## Audit PATCH_REGISTRY vs GitHub PR merge state (live)
+audit-upstream-watchlist: ## Etap 5.1: validate UPSTREAM_WATCHLIST.yaml + emit PORT_CANDIDATE/WATCH report
+	$(PYTHON) scripts/audit_upstream_watchlist.py
+
+audit-upstream: audit-upstream-watchlist ## Audit PATCH_REGISTRY vs GitHub PR merge state (live)
 	$(PYTHON) scripts/audit_upstream_status.py
 
-audit-upstream-offline: ## Audit registry sanity offline (no gh API)
+audit-upstream-offline: audit-upstream-watchlist ## Audit registry sanity offline (no gh API)
 	$(PYTHON) scripts/audit_upstream_status.py --skip-network
 
 audit-yaml: ## YAML genesis_env vs docker inspect drift (env: YAML CONTAINER SSH_HOST)
@@ -64,8 +68,163 @@ audit-yaml: ## YAML genesis_env vs docker inspect drift (env: YAML CONTAINER SSH
 audit-legacy-imports: ## Forbid vllm.sndr_core.patches / vllm._genesis active imports
 	@bash scripts/check_no_legacy_imports.sh
 
-audit: audit-upstream-offline test-doc-sync audit-legacy-imports ## Run audit suite (offline-safe subset)
+audit-public-paths: ## Etap 6.7: forbid private LAN IPs / home paths / usernames in public docs+code
+	@echo "=== audit-public-paths ==="
+	@bad=$$(rg -n "192\.168\.1\.10|/home/sander|sander@|User=sander" \
+	    README.md docs/ scripts/ tools/ benchmarks/ vllm/ \
+	    --glob '!docs/_internal/**' \
+	    --glob '!**/_archive/**' \
+	    --glob '!**/_internal/**' \
+	    --glob '!tests/integration/baselines/**' \
+	    2>/dev/null || true); \
+	if [ -n "$$bad" ]; then \
+	    echo "$$bad"; \
+	    echo ""; \
+	    echo "✗ Private paths found in public files."; \
+	    echo "  Replace LAN IPs with 127.0.0.1 / <your-host>,"; \
+	    echo "  /home/sander with \$$HOME / <your-home>,"; \
+	    echo "  sander@ with <user>@<host>."; \
+	    exit 1; \
+	fi
+	@echo "✓ public-paths gate: clean"
+
+audit-docs-stale: ## Supplement §3: forbid stale tokens (wiring/, _genesis, retired CLI verbs) in active public docs
+	@$(PYTHON) scripts/docs_stale_scan.py
+
+audit-dirty-state-dev: ## §6.3 gate #6: dirty-state policy — dev tier (informational)
+	@$(PYTHON) scripts/check_dirty_state.py --tier dev
+
+audit-dirty-state-audit: ## §6.3 gate #6: dirty-state policy — audit tier (per-PR gate)
+	@$(PYTHON) scripts/check_dirty_state.py --tier audit
+
+audit-dirty-state-release: ## §6.3 gate #6: dirty-state policy — release tier (strict)
+	@$(PYTHON) scripts/check_dirty_state.py --tier release
+
+audit-security: ## Phase 4.6 release gate — security_scan.py + (when --public-release) SBOM presence
+	@$(PYTHON) scripts/security_scan.py
+
+audit-security-release: ## Phase 4.6 strict release gate — security_scan.py --public-release
+	@$(PYTHON) scripts/security_scan.py --public-release
+
+audit-configs: ## Phase 7 gate: every V2 preset alias composes cleanly
+	@$(PYTHON) scripts/audit_configs.py
+
+audit-public-docs: ## Phase 7 / §6.10 gate: public docs boundary (no _internal links, IPs, paths, retired verbs)
+	@$(PYTHON) scripts/audit_public_docs.py
+
+audit-artifacts: ## Phase 7 / §6.11 gate: artefact storage policy (ledger, patch-proof, rollback playbook)
+	@$(PYTHON) scripts/audit_artifacts.py
+
+audit-artifacts-release: ## Phase 7 strict release gate: artefact storage + SBOM + constraints present
+	@$(PYTHON) scripts/audit_artifacts.py --public-release
+
+audit-community: ## Phase 7 gate: community SDK release-tier validator (R-1..R-7)
+	@$(PYTHON) -m vllm.sndr_core.cli community validate
+
+audit-no-new-v1: ## Phase 9 freeze gate: top-level builtin/*.yaml matches frozen baseline
+	@$(PYTHON) scripts/audit_no_new_v1.py
+
+audit-patches-prove: ## §6.8 R1 mitigation: dead-patch detector (lists patches without proof artefacts)
+	@$(PYTHON) -m vllm.sndr_core.cli patches prove --dead-detect
+
+audit-patches-prove-all: ## §6.8 release gate: run static checks on every PATCH_REGISTRY entry
+	@$(PYTHON) -m vllm.sndr_core.cli patches prove --all --no-write
+
+audit-proof-status: ## §6.8 read-side: bucket summary of every patch's proof-artefact state (informational)
+	@$(PYTHON) -m vllm.sndr_core.cli patches proof-status
+
+audit-release-check: ## §6.8 release-gate consumer (informational by default — operator picks mode)
+	@$(PYTHON) -m vllm.sndr_core.cli patches release-check --mode report
+
+audit-model-baselines: ## Phase 7 supplement: every V2 model's reference_metrics_ref must point at an existing JSON file
+	@$(PYTHON) scripts/audit_model_baselines.py
+
+audit-launch-coverage: ## §4.2 V2 hardware schema: every V2 hardware YAML must cover canonical mount + env slots
+	@$(PYTHON) scripts/audit_launch_coverage.py
+
+config-v2-complete: ## §4.2 auto-completer: inject missing canonical mounts + env keys into V2 hardware YAMLs (check-only; pass ARGS=--write to rewrite)
+	@$(PYTHON) scripts/config_v2_complete.py $(ARGS)
+
+audit-v2-env-keys: ## §4.2 cross-layer env-key consistency: every Genesis/SNDR key across V2 model/profile/resolved-alias must be in canonical registry
+	@$(PYTHON) scripts/audit_v2_env_keys.py
+
+audit-bench-methodology: ## §6.8/§5 stale-bench detector: every bench_delta.methodology_sha must match current tools/bench_methodology.yaml SHA
+	@$(PYTHON) scripts/audit_bench_methodology.py
+
+audit-no-hardcoded-paths: ## §6.10 portability: active config (V1/V2 + compose) must use ${var} placeholders, no /home/USER or /Users/USER hardcoded paths
+	@$(PYTHON) scripts/audit_no_hardcoded_paths.py
+
+audit-v2-required-fields: ## §4.2 V2 schema: each V2 model/hardware/profile/preset YAML must carry the canonical required-field set
+	@$(PYTHON) scripts/audit_v2_required_fields.py
+
+audit-v2-freshness: ## §4.2 V2 model `last_validated` not older than 180 days (override via ARGS=--max-age-days N)
+	@$(PYTHON) scripts/audit_v2_freshness.py $(ARGS)
+
+audit-v2-id-consistency: ## §4.2 each V2 model/hardware/profile YAML's `id:` must equal its filename stem
+	@$(PYTHON) scripts/audit_v2_id_consistency.py
+
+audit-v2-license-coverage: ## §4.2/§6.10 each V2 model has SPDX-recognized `license:` + non-empty `maintainer:`
+	@$(PYTHON) scripts/audit_v2_license_coverage.py
+
+audit-v2-cross-reference: ## §4.2 every profile.parent_model + preset.{model,hardware,profile} ref resolves to a real file
+	@$(PYTHON) scripts/audit_v2_cross_reference.py
+
+audit-v2-vllm-pin-consistency: ## §4.2 model.versions.vllm_pin_required must equal baseline JSON's recorded vllm version
+	@$(PYTHON) scripts/audit_v2_vllm_pin_consistency.py
+
+audit-v2-patch-lifecycle: ## §4.2 V2 model.patches enabled lifecycle hygiene (retired patches require ALLOWED_RETIRED_PATCHES allowlist)
+	@$(PYTHON) scripts/audit_v2_patch_lifecycle.py
+
+audit-v2-hardware-sanity: ## §4.2 V2 hardware YAML numeric fields within sane bounds (cuda_capability_min, n_gpus, vram, gpu_memory_utilization, etc.)
+	@$(PYTHON) scripts/audit_v2_hardware_sanity.py
+
+audit-v2-patch-dependencies: ## §4.2 every enabled V2 patch's requires_patches/conflicts_with are satisfied
+	@$(PYTHON) scripts/audit_v2_patch_dependencies.py
+
+audit-v2-default-on-mismatch: ## §4.2 informational: surfaces explicit GENESIS_ENABLE_X='0' overrides on default_on=True patches
+	@$(PYTHON) scripts/audit_v2_default_on_mismatch.py
+
+audit-v2-capability-coverage: ## §4.2 every V2 model.capabilities string in frozen allowed set
+	@$(PYTHON) scripts/audit_v2_capability_coverage.py
+
+audit-v2-versions-pin-format: ## §4.2 V2 model.versions.{vllm_pin_required, genesis_pin_min} match canonical pin-format regex
+	@$(PYTHON) scripts/audit_v2_versions_pin_format.py
+
+audit-v2-quantization-coverage: ## §4.2 V2 model.quantization + dtype in frozen allowed set
+	@$(PYTHON) scripts/audit_v2_quantization_coverage.py
+
+audit-v2-context-length-sanity: ## §4.2 V2 hardware.sizing.max_model_len + max_num_batched_tokens within sane bounds + consistent
+	@$(PYTHON) scripts/audit_v2_context_length_sanity.py
+
+audit-v2-runtime-image-pin: ## §4.2 V2 hardware.runtime.docker.image_digest must be a canonical <repo>@sha256:<64-hex> pin
+	@$(PYTHON) scripts/audit_v2_runtime_image_pin.py
+
+audit-v2-network-port-consistency: ## §4.2 V2 hardware.runtime.docker network ports + shm_size + network name valid
+	@$(PYTHON) scripts/audit_v2_network_port_consistency.py
+
+audit-all-referents: ## §8 open item: F822 pure-Python gate — every `__all__` name must resolve
+	@$(PYTHON) scripts/lint_all_referents.py
+
+audit-readme-counters: ## §8 open item: README.md patch/V2 counters match live registry
+	@$(PYTHON) scripts/sync_readme_counters.py --check
+
+readme-sync: ## §8 open item: rewrite README.md counters to live registry values
+	@$(PYTHON) scripts/sync_readme_counters.py
+
+discover-apply-modules: ## Entry 12 follow-up: propose apply_module values for PATCH_REGISTRY metadata gap
+	@$(PYTHON) scripts/discover_apply_modules.py
+
+audit: audit-upstream-offline test-doc-sync audit-legacy-imports audit-public-paths ## Run audit suite (offline-safe subset)
 	@echo "✓ Audit suite complete. Run 'make audit-upstream' for live gh check."
+
+evidence: ## Phase 0 supplement: run every release gate, emit summary
+	@$(PYTHON) scripts/make_evidence.py
+
+evidence-release: ## Phase 0 supplement: aggregate + release-only gates (dirty-state, SBOM)
+	@$(PYTHON) scripts/make_evidence.py --release
+
+evidence-json: ## Phase 0 supplement: aggregate + JSON summary for CI
+	@$(PYTHON) scripts/make_evidence.py --json
 
 # ─── Docs ──────────────────────────────────────────────────────────────
 
