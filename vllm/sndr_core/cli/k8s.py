@@ -17,6 +17,7 @@ Dry-run by default; `--yes` to actually shell out to kubectl.
 from __future__ import annotations
 
 import argparse
+import re
 import shutil
 import subprocess
 from typing import Any, Optional
@@ -53,6 +54,16 @@ def add_argparser(subparsers: Any) -> None:
                           help="Actually call kubectl (default: dry-run).")
         sp.add_argument("--lines", type=int, default=50,
                           help="logs: number of recent lines (default 50).")
+        # Etap 2.6 (audit 2026-05-12): explicit opt-in for PVC deletion.
+        # PVCs hold state (model cache, hf-cache); preserving them across
+        # `delete` is the safe default — operator must consciously decide
+        # to drop the data with --delete-pvc.
+        if cmd == "delete":
+            sp.add_argument(
+                "--delete-pvc", action="store_true",
+                help="Also delete PersistentVolumeClaims created from "
+                     "kubernetes.pvc (default: preserve PVC state).",
+            )
         sp.set_defaults(func=fn)
 
     # `sndr k8s doctor` — verify cluster prerequisites for the preset
@@ -86,32 +97,64 @@ def _resolve(key: str):
     return cfg
 
 
-def _service_yaml(cfg) -> str:
-    k = cfg.kubernetes
-    name = f"sndr-{cfg.key}"
-    port = (cfg.docker.effective_container_port()
-            if cfg.docker else 8000)
-    nodeport_line = (
-        f"    nodePort: {k.service_node_port}\n"
-        if k.service_type == "NodePort" and k.service_node_port
-        else ""
-    )
-    return (
-        f"apiVersion: v1\n"
-        f"kind: Service\n"
-        f"metadata:\n"
-        f"  name: {name}\n"
-        f"  namespace: {k.namespace}\n"
-        f"spec:\n"
-        f"  type: {k.service_type}\n"
-        f"  selector:\n"
-        f"    app: {name}\n"
-        f"  ports:\n"
-        f"  - port: {port}\n"
-        f"    targetPort: {port}\n"
-        f"    protocol: TCP\n"
-        f"{nodeport_line}"
-    )
+# Etap 2.4/2.5 (audit 2026-05-12): dict-based manifests + yaml.safe_dump_all.
+# Previously YAML was built via f-string concatenation — that path silently
+# admitted invalid DNS-1123 names, non-absolute mount paths and zero-sized
+# PVCs (kubectl would reject them mid-apply with cryptic errors). Validators
+# below catch these at render time.
+_DNS_1123_RE = re.compile(r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?$")
+# k8s label key = [optional <prefix>/]<name> where prefix is a DNS
+# subdomain (≤253 chars, dots/hyphens allowed) and name is ≤63 chars
+# alphanumeric + `-_.`. Examples: `gpu-class`, `nvidia.com/gpu.present`.
+_LABEL_NAME_RE = re.compile(
+    r"^[A-Za-z0-9]([-A-Za-z0-9_.]{0,61}[A-Za-z0-9])?$"
+)
+_LABEL_PREFIX_RE = re.compile(
+    r"^[a-z0-9]([-a-z0-9.]{0,251}[a-z0-9])?$"
+)
+
+
+def _check_label_key(key: str, field: str) -> None:
+    """Validate a Kubernetes label key (optional `<prefix>/<name>`).
+
+    Spec: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+    """
+    if "/" in key:
+        prefix, _, name = key.partition("/")
+        if not _LABEL_PREFIX_RE.match(prefix):
+            raise ValueError(
+                f"{field}={key!r}: prefix {prefix!r} is not a valid "
+                "DNS-1123 subdomain"
+            )
+    else:
+        name = key
+    if not _LABEL_NAME_RE.match(name):
+        raise ValueError(
+            f"{field}={key!r}: name segment {name!r} is not a valid "
+            "label name (alphanumeric + `-_.`, ≤63 chars, "
+            "must start/end alphanumeric)"
+        )
+
+
+def _check_dns_1123(name: str, field: str) -> None:
+    """RFC-1123 DNS subdomain segment validation for k8s names."""
+    if not name or len(name) > 63 or not _DNS_1123_RE.match(name):
+        raise ValueError(
+            f"{field}={name!r} is not a valid DNS-1123 name "
+            "(lowercase alphanumerics + hyphens, ≤63 chars, "
+            "must start/end with alphanumeric)"
+        )
+
+
+def _check_absolute_mount(path: str, field: str) -> None:
+    if not path.startswith("/"):
+        raise ValueError(
+            f"{field}={path!r} must be an absolute path (starts with /)"
+        )
+
+
+def _name(cfg) -> str:
+    return f"sndr-{cfg.key}"
 
 
 def _image_ref(cfg) -> str:
@@ -123,179 +166,203 @@ def _image_ref(cfg) -> str:
     return ""
 
 
-def _configmap_yaml(cfg) -> str:
-    """Genesis env vars as a ConfigMap (simpler than Secret for typical knobs)."""
-    name = f"sndr-{cfg.key}-env"
+def _service_manifest(cfg) -> dict:
     k = cfg.kubernetes
-    env_dict = {**cfg.system_env, **cfg.genesis_env}
-    body = (
-        f"apiVersion: v1\n"
-        f"kind: ConfigMap\n"
-        f"metadata:\n"
-        f"  name: {name}\n"
-        f"  namespace: {k.namespace}\n"
-        f"data:\n"
-    )
-    for key, val in env_dict.items():
-        # YAML escape: wrap value in quotes always
-        body += f"  {key}: {str(val)!r}\n"
-    return body
+    name = _name(cfg)
+    _check_dns_1123(name, "service.metadata.name")
+    _check_dns_1123(k.namespace, "service.metadata.namespace")
+    port = (cfg.docker.effective_container_port()
+            if cfg.docker else 8000)
+    port_entry: dict = {
+        "port": port,
+        "targetPort": port,
+        "protocol": "TCP",
+    }
+    if k.service_type == "NodePort" and k.service_node_port:
+        port_entry["nodePort"] = k.service_node_port
+    return {
+        "apiVersion": "v1",
+        "kind": "Service",
+        "metadata": {"name": name, "namespace": k.namespace},
+        "spec": {
+            "type": k.service_type,
+            "selector": {"app": name},
+            "ports": [port_entry],
+        },
+    }
 
 
-def _pvc_yaml(cfg) -> str:
-    """S3.3 audit P3-3: per-claim PersistentVolumeClaim manifests.
+def _configmap_manifest(cfg) -> dict:
+    """Genesis env vars as a ConfigMap (simpler than Secret for typical knobs)."""
+    name = f"{_name(cfg)}-env"
+    k = cfg.kubernetes
+    _check_dns_1123(name, "configmap.metadata.name")
+    # ConfigMap values must be strings (k8s rejects non-string scalars).
+    data = {str(key): str(val) for key, val in
+            {**cfg.system_env, **cfg.genesis_env}.items()}
+    return {
+        "apiVersion": "v1",
+        "kind": "ConfigMap",
+        "metadata": {"name": name, "namespace": k.namespace},
+        "data": data,
+    }
 
-    Возвращает пустую строку если pvc пусты — operator использует
-    hostPath storage. Иначе по одному PVC на claim_name.
+
+def _pvc_manifests(cfg) -> list[dict]:
+    """S3.3 audit P3-3: one PersistentVolumeClaim per declared claim_name.
+
+    Empty list when `kubernetes.pvc` is empty (operator uses hostPath
+    storage). Etap 2.5: validates claim names + sizes.
     """
     k = cfg.kubernetes
-    if not k.pvc:
-        return ""
-    out = ""
+    out: list[dict] = []
     for claim_name in k.pvc:
+        _check_dns_1123(claim_name, "pvc.metadata.name")
         size_gib = k.pvc_size_gib.get(claim_name, 100)
-        storage_class_line = (
-            f"  storageClassName: {k.pvc_storage_class}\n"
-            if k.pvc_storage_class else ""
-        )
-        out += (
-            f"---\n"
-            f"apiVersion: v1\n"
-            f"kind: PersistentVolumeClaim\n"
-            f"metadata:\n"
-            f"  name: {claim_name}\n"
-            f"  namespace: {k.namespace}\n"
-            f"spec:\n"
-            f"  accessModes:\n"
-            f"  - ReadWriteOnce\n"
-            f"  resources:\n"
-            f"    requests:\n"
-            f"      storage: {size_gib}Gi\n"
-            f"{storage_class_line}"
-        )
+        if size_gib <= 0:
+            raise ValueError(
+                f"pvc_size_gib[{claim_name!r}]={size_gib} must be > 0"
+            )
+        spec: dict = {
+            "accessModes": ["ReadWriteOnce"],
+            "resources": {"requests": {"storage": f"{size_gib}Gi"}},
+        }
+        if k.pvc_storage_class:
+            spec["storageClassName"] = k.pvc_storage_class
+        out.append({
+            "apiVersion": "v1",
+            "kind": "PersistentVolumeClaim",
+            "metadata": {"name": claim_name, "namespace": k.namespace},
+            "spec": spec,
+        })
     return out
 
 
-def _deployment_yaml(cfg) -> str:
+def _build_volumes_and_mounts(
+    cfg,
+) -> tuple[list[dict], list[dict]]:
+    """Merge hostPath / PVC / Secret sources into a single volumes/mounts pair.
+
+    Etap 2.5: each volume name validated as DNS-1123; mount paths must
+    be absolute. Misconfigurations raise ValueError at render time.
+    """
     k = cfg.kubernetes
-    name = f"sndr-{cfg.key}"
+    volumes: list[dict] = []
+    mounts: list[dict] = []
+    seen_paths: set[str] = set()
+
+    def _record(name: str, mount_path: str, *, field_prefix: str,
+                 read_only: bool = False) -> None:
+        _check_dns_1123(name, f"{field_prefix}.name")
+        _check_absolute_mount(mount_path, f"{field_prefix}.mountPath")
+        if mount_path in seen_paths:
+            raise ValueError(
+                f"{field_prefix}.mountPath={mount_path!r} collides with "
+                "another volume mount (mount paths must be unique)"
+            )
+        seen_paths.add(mount_path)
+        m: dict = {"name": name, "mountPath": mount_path}
+        if read_only:
+            m["readOnly"] = True
+        mounts.append(m)
+
+    # 1) hostPath storage
+    for vol_name, vol_path in k.storage.items():
+        _check_absolute_mount(vol_path, "storage.hostPath.path")
+        volumes.append({
+            "name": vol_name,
+            "hostPath": {"path": vol_path},
+        })
+        _record(vol_name, f"/{vol_name}", field_prefix="storage",
+                read_only=True)
+    # 2) PVC
+    for claim_name, mount_path in k.pvc.items():
+        volumes.append({
+            "name": claim_name,
+            "persistentVolumeClaim": {"claimName": claim_name},
+        })
+        _record(claim_name, mount_path, field_prefix="pvc")
+    # 3) Secret mounts
+    for secret_name, mount_path in k.secret_mounts.items():
+        volumes.append({
+            "name": secret_name,
+            "secret": {"secretName": secret_name},
+        })
+        _record(secret_name, mount_path, field_prefix="secret_mounts",
+                read_only=True)
+    return volumes, mounts
+
+
+def _deployment_manifest(cfg) -> dict:
+    k = cfg.kubernetes
+    name = _name(cfg)
+    _check_dns_1123(name, "deployment.metadata.name")
+    image = _image_ref(cfg)
     port = (cfg.docker.effective_container_port()
             if cfg.docker else 8000)
-    image = _image_ref(cfg)
-
-    # Volumes + mounts: hostPath (legacy storage), PVC, Secret —
-    # три источника на один volumes[] список.
-    storage_volumes = ""
-    storage_mounts = ""
-    # 1) hostPath storage (existing)
-    for vol_name, vol_path in k.storage.items():
-        storage_volumes += (
-            f"      - name: {vol_name}\n"
-            f"        hostPath:\n"
-            f"          path: {vol_path}\n"
-        )
-        storage_mounts += (
-            f"        - name: {vol_name}\n"
-            f"          mountPath: /{vol_name}\n"
-            f"          readOnly: true\n"
-        )
-    # 2) PVC (S3.3)
-    for claim_name, mount_path in k.pvc.items():
-        storage_volumes += (
-            f"      - name: {claim_name}\n"
-            f"        persistentVolumeClaim:\n"
-            f"          claimName: {claim_name}\n"
-        )
-        storage_mounts += (
-            f"        - name: {claim_name}\n"
-            f"          mountPath: {mount_path}\n"
-        )
-    # 3) Secret mounts (S3.3)
-    for secret_name, mount_path in k.secret_mounts.items():
-        storage_volumes += (
-            f"      - name: {secret_name}\n"
-            f"        secret:\n"
-            f"          secretName: {secret_name}\n"
-        )
-        storage_mounts += (
-            f"        - name: {secret_name}\n"
-            f"          mountPath: {mount_path}\n"
-            f"          readOnly: true\n"
-        )
-
-    # S3.3 fix: emit inline `[]` when no volumes (was misaligned before).
-    volume_mounts_block = (
-        f"        volumeMounts:\n{storage_mounts}"
-        if storage_mounts
-        else "        volumeMounts: []\n"
-    )
-    volumes_block = (
-        f"      volumes:\n{storage_volumes}"
-        if storage_volumes
-        else "      volumes: []\n"
-    )
-
-    # S3.3: nodeSelector (опционально). Пустой → omit block.
-    node_selector_block = ""
+    volumes, volume_mounts = _build_volumes_and_mounts(cfg)
+    for label_key in k.node_selector:
+        _check_label_key(label_key, "nodeSelector key")
+    pod_spec: dict = {
+        "runtimeClassName": k.runtime_class_name,
+        "containers": [{
+            "name": name,
+            "image": image,
+            "imagePullPolicy": k.image_pull_policy,
+            "ports": [{"containerPort": port}],
+            "envFrom": [{"configMapRef": {"name": f"{name}-env"}}],
+            "resources": {"limits": {k.gpu_resource_name: k.gpu_count}},
+            "readinessProbe": {
+                "httpGet": {"path": "/health", "port": port},
+                "initialDelaySeconds": k.readiness_initial_delay,
+            },
+            "livenessProbe": {
+                "httpGet": {"path": "/health", "port": port},
+                "initialDelaySeconds": k.liveness_initial_delay,
+            },
+            "volumeMounts": volume_mounts,
+        }],
+        "volumes": volumes,
+    }
     if k.node_selector:
-        node_selector_block = "      nodeSelector:\n"
-        for key, value in k.node_selector.items():
-            node_selector_block += f"        {key}: {value}\n"
-
-    return (
-        f"apiVersion: apps/v1\n"
-        f"kind: Deployment\n"
-        f"metadata:\n"
-        f"  name: {name}\n"
-        f"  namespace: {k.namespace}\n"
-        f"spec:\n"
-        f"  replicas: 1\n"
-        f"  selector:\n"
-        f"    matchLabels:\n"
-        f"      app: {name}\n"
-        f"  template:\n"
-        f"    metadata:\n"
-        f"      labels:\n"
-        f"        app: {name}\n"
-        f"    spec:\n"
-        f"      runtimeClassName: {k.runtime_class_name}\n"
-        f"{node_selector_block}"
-        f"      containers:\n"
-        f"      - name: {name}\n"
-        f"        image: {image}\n"
-        f"        imagePullPolicy: {k.image_pull_policy}\n"
-        f"        ports:\n"
-        f"        - containerPort: {port}\n"
-        f"        envFrom:\n"
-        f"        - configMapRef:\n"
-        f"            name: {name}-env\n"
-        f"        resources:\n"
-        f"          limits:\n"
-        f"            {k.gpu_resource_name}: {k.gpu_count}\n"
-        f"        readinessProbe:\n"
-        f"          httpGet:\n"
-        f"            path: /health\n"
-        f"            port: {port}\n"
-        f"          initialDelaySeconds: {k.readiness_initial_delay}\n"
-        f"        livenessProbe:\n"
-        f"          httpGet:\n"
-        f"            path: /health\n"
-        f"            port: {port}\n"
-        f"          initialDelaySeconds: {k.liveness_initial_delay}\n"
-        f"{volume_mounts_block}"
-        f"{volumes_block}"
-    )
+        pod_spec["nodeSelector"] = dict(k.node_selector)
+    return {
+        "apiVersion": "apps/v1",
+        "kind": "Deployment",
+        "metadata": {"name": name, "namespace": k.namespace},
+        "spec": {
+            "replicas": 1,
+            "selector": {"matchLabels": {"app": name}},
+            "template": {
+                "metadata": {"labels": {"app": name}},
+                "spec": pod_spec,
+            },
+        },
+    }
 
 
 def _all_yaml(cfg) -> str:
-    return (
+    """Render the full k8s manifest set as a single YAML stream.
+
+    Etap 2.4 (audit 2026-05-12): uses `yaml.safe_dump_all` over dict
+    manifests instead of f-string concatenation. Validators raise at
+    render time so misconfigurations don't reach `kubectl apply`.
+    """
+    import yaml
+    manifests: list[dict] = [
+        _configmap_manifest(cfg),
+        _service_manifest(cfg),
+        *_pvc_manifests(cfg),
+        _deployment_manifest(cfg),
+    ]
+    header = (
         f"# Generated by sndr k8s render — preset {cfg.key!r}\n"
         f"# Do NOT edit by hand; re-run sndr k8s render to refresh.\n"
-        f"---\n{_configmap_yaml(cfg)}"
-        f"---\n{_service_yaml(cfg)}"
-        f"{_pvc_yaml(cfg)}"
-        f"---\n{_deployment_yaml(cfg)}"
     )
+    body = yaml.safe_dump_all(
+        manifests, default_flow_style=False, sort_keys=False,
+    )
+    return header + body
 
 
 def _kubectl(*args, dry_run: bool, stdin: Optional[str] = None) -> int:
@@ -374,13 +441,28 @@ def run_delete(args: argparse.Namespace) -> int:
     namespace = cfg.kubernetes.namespace
     name = f"sndr-{cfg.key}"
     dry_run = not args.yes
-    rc1 = _kubectl("delete", "deploy", "-n", namespace, name,
-                    "--ignore-not-found", dry_run=dry_run)
-    rc2 = _kubectl("delete", "svc", "-n", namespace, name,
-                    "--ignore-not-found", dry_run=dry_run)
-    rc3 = _kubectl("delete", "configmap", "-n", namespace, f"{name}-env",
-                    "--ignore-not-found", dry_run=dry_run)
-    return max(rc1, rc2, rc3)
+    rcs = [
+        _kubectl("delete", "deploy", "-n", namespace, name,
+                  "--ignore-not-found", dry_run=dry_run),
+        _kubectl("delete", "svc", "-n", namespace, name,
+                  "--ignore-not-found", dry_run=dry_run),
+        _kubectl("delete", "configmap", "-n", namespace, f"{name}-env",
+                  "--ignore-not-found", dry_run=dry_run),
+    ]
+    # Etap 2.6: PVCs are preserved by default (they hold model/cache state).
+    # Operator must opt in with --delete-pvc to drop the volumes.
+    if getattr(args, "delete_pvc", False):
+        for claim_name in cfg.kubernetes.pvc:
+            rcs.append(_kubectl(
+                "delete", "pvc", "-n", namespace, claim_name,
+                "--ignore-not-found", dry_run=dry_run,
+            ))
+    elif cfg.kubernetes.pvc:
+        _io.info(
+            f"preserving {len(cfg.kubernetes.pvc)} PVC(s); pass "
+            "--delete-pvc to drop them as well"
+        )
+    return max(rcs)
 
 
 # ─── doctor: cluster prerequisite checks

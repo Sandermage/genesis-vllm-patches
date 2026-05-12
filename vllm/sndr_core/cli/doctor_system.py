@@ -52,15 +52,37 @@ def add_argparser(subparsers: Any) -> None:
     p.add_argument(
         "--logs", action="store_true",
         help=(
-            "Дополнительная host-side log forensics: last OOM-kill, "
+            "Additional host-side log forensics: last OOM-kill, "
             "NVRM Xid errors, restarting containers, recent dmesg "
-            "warnings. Read-only — не делает действий, только репортит. "
+            "warnings. Read-only — performs no actions, only reports. "
             "Audit P2-1 (2026-05-12)."
         ),
     )
     p.add_argument(
         "--logs-hours", type=int, default=24,
-        help="Окно сканирования для --logs в часах (default 24).",
+        help="Scan window for --logs in hours (default 24).",
+    )
+    # Etap 3.2 (audit 2026-05-12): container name prefix filter — by
+    # default only Genesis-related containers count as fatal signals.
+    p.add_argument(
+        "--logs-container-prefix", action="append", default=None,
+        metavar="PREFIX",
+        help=(
+            "Only consider restarting containers whose name starts with "
+            "PREFIX (repeatable). Default: vllm, genesis, sndr. "
+            "Use --logs-all-containers to disable the filter."
+        ),
+    )
+    p.add_argument(
+        "--logs-all-containers", action="store_true",
+        help="Disable the container-name prefix filter (show every "
+             "restart loop on the host as a fatal signal).",
+    )
+    # Etap 3.3 (audit 2026-05-12): strict window mode.
+    p.add_argument(
+        "--logs-strict-window", action="store_true",
+        help="Drop OOM/Xid events with unknown timestamps instead of "
+             "including them as 'possibly recent'.",
     )
     p.set_defaults(func=run_doctor_system)
 
@@ -76,7 +98,9 @@ def _build_facts(cfg=None) -> dict:
         pin in KNOWN_GOOD_VLLM_PINS if pin else None
     )
     # virtualization
-    import shutil, subprocess
+    import os
+    import shutil
+    import subprocess
     if shutil.which("systemd-detect-virt"):
         try:
             r = subprocess.run(["systemd-detect-virt"],
@@ -85,6 +109,33 @@ def _build_facts(cfg=None) -> dict:
                 r.stdout.strip() if r.returncode == 0 else "")
         except Exception:
             facts["virtualization"] = ""
+
+    # WSL2 probes (audit closure post-MASTER_REMEDIATION_PLAN): operators
+    # on Windows-WSL2 hit class-specific issues (NVRM compat, kernel
+    # version, /dev/nvidia* visibility from Linux side). Detect early so
+    # caveats matcher can warn rather than waiting for vllm boot crash.
+    wsl_info: dict[str, object] = {"detected": False}
+    proc_version = "/proc/version"
+    try:
+        if os.path.isfile(proc_version):
+            with open(proc_version, "r") as f:
+                kver = f.read()
+            wsl_info["detected"] = (
+                "microsoft" in kver.lower() or "wsl" in kver.lower()
+            )
+            if wsl_info["detected"]:
+                # WSL2 specifically (vs WSL1) — gpus only work on 2
+                wsl_info["wsl2"] = "wsl2" in kver.lower()
+                wsl_info["kernel_release"] = kver.strip()[:200]
+                wsl_info["nvidia_devices"] = [
+                    p for p in ("/dev/nvidia0", "/dev/nvidiactl",
+                                  "/dev/nvidia-uvm", "/dev/dxg")
+                    if os.path.exists(p)
+                ]
+    except Exception:
+        # Defensive: detection should never crash doctor-system
+        pass
+    facts["wsl"] = wsl_info
     if cfg is not None:
         facts["genesis_env"] = dict(getattr(cfg, "genesis_env", {}) or {})
         # Y11 upstream policy check
@@ -123,15 +174,19 @@ def run_doctor_system(args: argparse.Namespace) -> int:
         1 for a in artifacts_problems if a["problems"]
     )
 
-    # Audit P2-1 (2026-05-12): host log forensics (опционально).
+    # Audit P2-1 (2026-05-12): host log forensics (optional).
     log_forensics = None
     if getattr(args, "logs", False):
         from .doctor_logs import collect_log_forensics
+        prefixes_arg = getattr(args, "logs_container_prefix", None)
         log_forensics = collect_log_forensics(
             window_hours=getattr(args, "logs_hours", 24),
+            container_prefixes=tuple(prefixes_arg) if prefixes_arg else None,
+            all_containers=getattr(args, "logs_all_containers", False),
+            strict_window=getattr(args, "logs_strict_window", False),
         )
         facts["log_forensics"] = log_forensics.to_dict()
-        # OOM / fatal Xid / restart loop эскалируем как error.
+        # OOM / fatal Xid / restart loop are escalated as error.
         if log_forensics.has_fatal_signals:
             has_error = True
 
@@ -142,7 +197,7 @@ def run_doctor_system(args: argparse.Namespace) -> int:
                 if k in ("os", "python", "docker", "nvidia", "vllm",
                           "virtualization", "vllm_pin_in_allowlist",
                           "upstream_violation", "artifacts_problems",
-                          "log_forensics")
+                          "log_forensics", "wsl")
             },
             "caveats_triggered": [
                 {"id": c.id, "severity": c.severity, "title": c.title,
@@ -185,6 +240,12 @@ def run_doctor_system(args: argparse.Namespace) -> int:
             print(f"  vLLM:     not installed in current Python")
         if facts.get("virtualization"):
             print(f"  Virt:     {facts['virtualization']}")
+        wsl = facts.get("wsl") or {}
+        if wsl.get("detected"):
+            kind = "WSL2" if wsl.get("wsl2") else "WSL1"
+            devs = wsl.get("nvidia_devices") or []
+            print(f"  WSL:      {kind} detected — "
+                  f"nvidia devices visible: {len(devs)}/4")
 
         if cfg is not None:
             print()

@@ -2,22 +2,22 @@
 """S3.2 (UNIFIED_CONFIG plan 2026-05-09; audit P3-2 closure 2026-05-12):
 `sndr quadlet render` — Podman Quadlet (.container) renderer.
 
-Зачем
------
-Podman Quadlet — рекомендованный путь для production-grade systemd-
-managed containers без root daemon (как Docker compose). Operator
-кладёт `<name>.container` файл в `~/.config/containers/systemd/`,
-делает `systemctl --user daemon-reload`, и systemd сам запускает
-контейнер. Genesis не имел этого пути — operator'у приходилось
-вручную переводить bash launch-script в Quadlet формат.
+Why
+---
+Podman Quadlet — the recommended path for production-grade systemd-
+managed containers without a root daemon (like Docker compose). The
+operator places a `<name>.container` file into `~/.config/containers/systemd/`,
+runs `systemctl --user daemon-reload`, and systemd itself starts
+the container. Genesis did not have this path — the operator had to
+manually translate the bash launch-script into Quadlet format.
 
-Формат
+Format
 ------
-Quadlet — это INI-подобный формат с секциями `[Unit]`, `[Container]`,
-`[Service]`, `[Install]`. Podman читает его и генерирует под капотом
-полноценный `.service` файл.
+Quadlet is an INI-like format with `[Unit]`, `[Container]`,
+`[Service]`, `[Install]` sections. Podman reads it and generates a
+full-fledged `.service` file under the hood.
 
-Минимальный пример:
+Minimal example:
 
     [Unit]
     Description=Genesis vLLM (preset X)
@@ -38,16 +38,17 @@ Quadlet — это INI-подобный формат с секциями `[Unit]
     WantedBy=default.target
 
 Test contract — `tests/unit/cli/test_quadlet_render.py`:
-  • Все обязательные секции присутствуют.
-  • Environment lines рендерят все env vars (по одной на строку).
-  • Volume lines рендерят все mounts с host_paths substitution.
-  • PublishPort правильный.
-  • Exec строка — vllm serve <args>.
-  • Идемпотентность.
+  • All required sections are present.
+  • Environment lines render all env vars (one per line).
+  • Volume lines render all mounts with host_paths substitution.
+  • PublishPort is correct.
+  • Exec line — vllm serve <args>.
+  • Idempotence.
 """
 from __future__ import annotations
 
 import argparse
+import re
 import shlex
 from pathlib import Path
 from typing import Any, Optional
@@ -62,27 +63,89 @@ __all__ = [
 ]
 
 
+# Etap 2.3 (audit 2026-05-12): systemd-safe escaping for Environment= /
+# Exec= lines. Previously raw `f"Environment={k}={v}"` could be broken
+# by newlines, quotes, or invalid env-key chars in values, producing a
+# unit file that fails to load with cryptic systemd errors.
+_SYSTEMD_ENV_KEY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _validate_env_key(key: str) -> None:
+    """Reject env keys systemd cannot accept.
+
+    Systemd `Environment=KEY=VALUE` requires KEY to match a POSIX
+    shell variable name (letters, digits, underscore; not starting
+    with a digit). Invalid keys silently break unit-file loading.
+    """
+    if not _SYSTEMD_ENV_KEY_RE.match(key):
+        raise ValueError(
+            f"systemd-invalid env key {key!r}: must match "
+            r"^[A-Za-z_][A-Za-z0-9_]*$"
+        )
+
+
+def _escape_env_value(value: str) -> str:
+    """Escape an env value for use inside `Environment=KEY=VALUE`.
+
+    Systemd rules (systemd.exec(5)):
+      - backslash → doubled
+      - newline   → `\\n` literal
+      - tab       → `\\t` literal
+      - if the value contains whitespace, quotes, or `$`, wrap in
+        double quotes (POSIX-style; systemd evaluates the escapes
+        inside quotes).
+
+    The empty string returns `""` so the assignment is still well-formed.
+    """
+    if not value:
+        return '""'
+    escaped = value.replace("\\", "\\\\")
+    escaped = escaped.replace("\n", "\\n").replace("\t", "\\t")
+    needs_quote = any(c in value for c in ' \t\n"\'$')
+    if needs_quote:
+        escaped = escaped.replace('"', '\\"')
+        return f'"{escaped}"'
+    return escaped
+
+
+def _argv_for_exec(argv: list[str]) -> str:
+    """Build the single `Exec=` value from canonical argv.
+
+    Systemd `Exec=` is one logical line — embedded newlines would
+    truncate the command silently. We reject them explicitly; spaces
+    and quotes are handled by `shlex.quote` (Podman/Quadlet honours
+    POSIX-style word splitting).
+    """
+    for a in argv:
+        if "\n" in a:
+            raise ValueError(
+                f"argv entry contains newline (not representable on "
+                f"single-line systemd Exec=): {a!r}"
+            )
+    return " ".join(shlex.quote(a) for a in argv)
+
+
 def add_argparser(subparsers: Any) -> None:
     p = subparsers.add_parser(
         "quadlet",
         help="Podman Quadlet (.container) renderer (audit P3-2).",
         description=(
-            "Рендерит preset как Podman Quadlet `<name>.container` файл "
-            "для systemd-managed запуска через `systemctl --user`. "
-            "Альтернатива docker compose для rootless production "
-            "deployment'ов."
+            "Renders a preset as a Podman Quadlet `<name>.container` file "
+            "for systemd-managed launch via `systemctl --user`. "
+            "An alternative to docker compose for rootless production "
+            "deployments."
         ),
     )
     sub = p.add_subparsers(dest="quadlet_cmd", required=True)
 
     p_render = sub.add_parser(
-        "render", help="Render preset → <name>.container на stdout/файл",
+        "render", help="Render preset → <name>.container to stdout/file",
     )
     p_render.add_argument("config", help="preset key")
     p_render.add_argument(
         "-o", "--output", default=None,
         help=(
-            "Записать в файл (рекомендовано: "
+            "Write to file (recommended: "
             "~/.config/containers/systemd/<name>.container)."
         ),
     )
@@ -90,7 +153,7 @@ def add_argparser(subparsers: Any) -> None:
 
 
 def render_quadlet(cfg, host_paths: Optional[dict[str, str]] = None) -> str:
-    """Рендерит ModelConfig в Podman Quadlet формат."""
+    """Renders ModelConfig into Podman Quadlet format."""
     if host_paths is None:
         host_paths = _load_host_paths()
 
@@ -106,8 +169,8 @@ def render_quadlet(cfg, host_paths: Optional[dict[str, str]] = None) -> str:
     host_port = docker.effective_host_port()
     container_port = docker.effective_container_port()
 
-    # Environment lines — одна на строку. Quadlet принимает Environment=
-    # повторяющиеся записи.
+    # Environment lines — one per line. Quadlet accepts repeated
+    # Environment= entries.
     env_pairs: list[tuple[str, str]] = []
     for k, v in cfg.system_env.items():
         env_pairs.append((str(k), str(v)))
@@ -116,17 +179,17 @@ def render_quadlet(cfg, host_paths: Optional[dict[str, str]] = None) -> str:
     if cfg.api_key and not any(k == "VLLM_API_KEY" for k, _ in env_pairs):
         env_pairs.append(("VLLM_API_KEY", str(cfg.api_key)))
 
-    # Volume lines с host_paths substitution.
+    # Volume lines with host_paths substitution.
     volumes: list[str] = [
         _resolve_mount(m, host_paths)
         for m in (docker.mounts or [])
     ]
 
-    # Exec= одна строка. Podman не интерпретирует `\` continuation —
-    # должна быть однострочная команда. Shlex-quote отдельных аргументов
-    # на случай spaces.
+    # Etap 2.3: argv goes through `_argv_for_exec` which rejects
+    # newlines (untenable on a single systemd Exec= line) and applies
+    # shlex.quote per argument.
     exec_argv = _container_command(cfg)
-    exec_line = " ".join(shlex.quote(a) for a in exec_argv)
+    exec_line = _argv_for_exec(exec_argv)
 
     lines: list[str] = []
     lines.append(
@@ -161,8 +224,12 @@ def render_quadlet(cfg, host_paths: Optional[dict[str, str]] = None) -> str:
         lines.append(f"Network={docker.network}")
     for vol in volumes:
         lines.append(f"Volume={vol}")
+    # Etap 2.3: validate key + escape value per Environment= entry.
+    # Invalid keys raise ValueError early; values are wrapped/escaped
+    # so newlines / quotes / spaces don't break the unit file.
     for k, v in env_pairs:
-        lines.append(f"Environment={k}={v}")
+        _validate_env_key(k)
+        lines.append(f"Environment={k}={_escape_env_value(v)}")
     lines.append(f"Exec={exec_line}")
     lines.append("")
     lines.append("[Service]")

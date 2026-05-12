@@ -1,16 +1,16 @@
 # SPDX-License-Identifier: Apache-2.0
-"""S3.2 closure (audit P3-2, 2026-05-12): тесты для `sndr quadlet render`.
+"""S3.2 closure (audit P3-2, 2026-05-12): tests for `sndr quadlet render`.
 
-Покрывают:
+Cover:
 
-  • Все обязательные секции (`[Unit]`, `[Container]`, `[Service]`,
+  • All required sections (`[Unit]`, `[Container]`, `[Service]`,
     `[Install]`).
-  • Image / ContainerName / PublishPort правильные.
+  • Image / ContainerName / PublishPort are correct.
   • Environment line per env var (system + genesis).
-  • Volume substitution через host_paths.
-  • Exec= одна строка с shlex-quoted args.
-  • GPU device line присутствует.
-  • Идемпотентность.
+  • Volume substitution via host_paths.
+  • Exec= a single line with shlex-quoted args.
+  • GPU device line is present.
+  • Idempotency.
 """
 from __future__ import annotations
 
@@ -42,13 +42,22 @@ def _make_cfg(**overrides) -> ModelConfig:
             container_name="vllm-quad-test",
             port=8000,
             shm_size="8g",
+            # Default: absolute path (no placeholder substitution required).
+            # Mount-substitution test below uses a separate cfg.
             mounts=[
-                "${models_dir}:/models:ro",
+                "/srv/models:/models:ro",
             ],
         ),
     )
     base.update(overrides)
     return ModelConfig(**base)
+
+
+def _make_cfg_with_placeholder_mount(**overrides) -> ModelConfig:
+    """Helper for tests that exercise placeholder substitution flow."""
+    cfg = _make_cfg(**overrides)
+    cfg.docker.mounts = ["${models_dir}:/models:ro"]
+    return cfg
 
 
 class TestRenderQuadlet:
@@ -75,7 +84,10 @@ class TestRenderQuadlet:
         )
 
     def test_volume_substituted(self):
-        out = render_quadlet(_make_cfg(), host_paths={"models_dir": "/srv/m"})
+        out = render_quadlet(
+            _make_cfg_with_placeholder_mount(),
+            host_paths={"models_dir": "/srv/m"},
+        )
         assert "Volume=/srv/m:/models:ro" in out
 
     def test_exec_single_line_with_vllm_serve(self):
@@ -99,8 +111,10 @@ class TestRenderQuadlet:
             render_quadlet(_make_cfg(docker=None), host_paths={})
 
     def test_idempotent(self):
-        a = render_quadlet(_make_cfg(), host_paths={"models_dir": "/srv/m"})
-        b = render_quadlet(_make_cfg(), host_paths={"models_dir": "/srv/m"})
+        a = render_quadlet(_make_cfg_with_placeholder_mount(),
+                            host_paths={"models_dir": "/srv/m"})
+        b = render_quadlet(_make_cfg_with_placeholder_mount(),
+                            host_paths={"models_dir": "/srv/m"})
         assert a == b
 
     def test_restart_on_failure(self):
@@ -110,3 +124,82 @@ class TestRenderQuadlet:
     def test_wanted_by_default_target(self):
         out = render_quadlet(_make_cfg(), host_paths={})
         assert "WantedBy=default.target" in out
+
+
+# ─── Etap 2.3 — systemd escaping safety ─────────────────────────────────
+
+
+class TestEnvEscaping:
+    """Etap 2.3 (audit 2026-05-12): Environment= values are escaped so
+    newlines / quotes / spaces don't break the unit file. Invalid env
+    keys are rejected early instead of silently producing a unit that
+    systemd refuses to load."""
+
+    def test_value_with_space_gets_quoted(self):
+        cfg = _make_cfg()
+        cfg.system_env = {"PATH": "/usr/local/bin /opt/bin"}
+        out = render_quadlet(cfg, host_paths={})
+        assert 'Environment=PATH="/usr/local/bin /opt/bin"' in out
+
+    def test_value_with_newline_escaped(self):
+        cfg = _make_cfg()
+        cfg.system_env = {"NOTE": "line1\nline2"}
+        out = render_quadlet(cfg, host_paths={})
+        # Single physical line containing literal `\n`
+        env_lines = [l for l in out.splitlines() if l.startswith("Environment=NOTE=")]
+        assert len(env_lines) == 1
+        assert "\\n" in env_lines[0]
+        # Actual newline must not split the value across two lines
+        assert "\nline2" not in env_lines[0]
+
+    def test_value_with_dollar_quoted(self):
+        cfg = _make_cfg()
+        cfg.system_env = {"V": "use $HOME"}
+        out = render_quadlet(cfg, host_paths={})
+        assert 'Environment=V="use $HOME"' in out
+
+    def test_value_with_double_quote_escaped(self):
+        cfg = _make_cfg()
+        cfg.system_env = {"V": 'has "quote"'}
+        out = render_quadlet(cfg, host_paths={})
+        # Wrapped in outer quotes, inner double-quote backslash-escaped
+        assert r'Environment=V="has \"quote\""' in out
+
+    def test_empty_value_emits_paired_quotes(self):
+        cfg = _make_cfg()
+        cfg.system_env = {"V": ""}
+        out = render_quadlet(cfg, host_paths={})
+        assert 'Environment=V=""' in out
+
+    def test_simple_value_not_quoted(self):
+        cfg = _make_cfg()
+        cfg.system_env = {"V": "simple-value-123"}
+        out = render_quadlet(cfg, host_paths={})
+        assert "Environment=V=simple-value-123" in out
+
+    def test_invalid_env_key_raises(self):
+        cfg = _make_cfg()
+        cfg.system_env = {"bad-key!": "x"}
+        with pytest.raises(ValueError, match="systemd-invalid env key"):
+            render_quadlet(cfg, host_paths={})
+
+    def test_key_starting_with_digit_rejected(self):
+        cfg = _make_cfg()
+        cfg.system_env = {"1ST": "x"}
+        with pytest.raises(ValueError, match="systemd-invalid env key"):
+            render_quadlet(cfg, host_paths={})
+
+
+class TestExecEscaping:
+    """Etap 2.3: argv with newline cannot be represented on a single
+    systemd Exec= line — reject explicitly rather than silently truncate."""
+
+    def test_argv_with_newline_rejected(self):
+        from vllm.sndr_core.cli.quadlet import _argv_for_exec
+        with pytest.raises(ValueError, match="newline"):
+            _argv_for_exec(["vllm", "serve", "--model", "bad\nname"])
+
+    def test_argv_with_spaces_quoted(self):
+        from vllm.sndr_core.cli.quadlet import _argv_for_exec
+        out = _argv_for_exec(["vllm", "serve", "--model", "/path with space"])
+        assert "'/path with space'" in out

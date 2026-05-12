@@ -1,14 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Audit P2-1 closure (2026-05-12): unit-тесты для host log forensics
+"""Audit P2-1 closure (2026-05-12): unit tests for host log forensics
 (`sndr doctor-system --logs`).
 
-Покрывают:
+Cover:
 
-  • dmesg OOM-kill парсинг (классический формат + variations).
-  • NVRM Xid парсинг и severity классификация (fatal vs warning vs info).
-  • Window filter (события старше N hours отбрасываются).
+  • dmesg OOM-kill parsing (classic format + variations).
+  • NVRM Xid parsing and severity classification (fatal vs warning vs info).
+  • Window filter (events older than N hours are dropped).
   • Docker restarting containers shape.
-  • Graceful degradation когда binaries недоступны.
+  • Graceful degradation when binaries are unavailable.
   • Top-level composition (collect_log_forensics).
   • Text summarization shape.
 """
@@ -90,7 +90,7 @@ class TestXidParsing:
         assert _classify_xid(1) == "info"
 
     def test_all_fatal_codes_classified(self):
-        """Sanity: каждый код в FATAL_XIDS должен возвращать 'fatal'."""
+        """Sanity: every code in FATAL_XIDS must return 'fatal'."""
         for code in FATAL_XIDS:
             assert _classify_xid(code) == "fatal"
 
@@ -184,9 +184,10 @@ def _fake_dmesg_clean(_=None):
 
 
 def _fake_dmesg_with_oom_and_xid(_=None):
-    # Без [uptime] префикса — иначе фильтр окна сравнит ts_ago с /proc/uptime
-    # реальной системы и события могут улететь за окно. Парсинг с [uptime]
-    # покрыт отдельно в TestOomParsing / TestXidParsing.
+    # Without an [uptime] prefix — otherwise the window filter would
+    # compare ts_ago against the real system's /proc/uptime and events
+    # could fall outside the window. Parsing with [uptime] is covered
+    # separately in TestOomParsing / TestXidParsing.
     return (
         "Mon May 12 03:14:15 host kernel: Out of memory: Killed process 999 (vllm)\n"
         "Mon May 12 03:14:16 host kernel: NVRM: Xid (PCI:0000:01:00): 31, pid=999\n"
@@ -246,7 +247,7 @@ class TestCollectLogForensics:
         assert len(r.oom_events) == 1
         assert r.oom_events[0].killed_process == "vllm"
         assert len(r.xid_events) == 2
-        # Один fatal (31), один warning (13)
+        # One fatal (31), one warning (13)
         assert sum(1 for x in r.xid_events if x.severity == "fatal") == 1
         assert sum(1 for x in r.xid_events if x.severity == "warning") == 1
         assert r.has_fatal_signals is True
@@ -289,7 +290,7 @@ class TestSummarizeText:
     def test_clean_result_renders(self):
         r = LogForensicsResult(window_hours=24)
         lines = summarize_for_text(r)
-        # Должны быть три «✓» (no OOM, no Xid, no restarts)
+        # Should be three checkmarks (no OOM, no Xid, no restarts)
         joined = "\n".join(lines)
         assert "no OOM-kills" in joined
         assert "no NVRM Xid errors" in joined
@@ -320,3 +321,125 @@ class TestSummarizeText:
                                 sources_unavailable=["dmesg: not available"])
         lines = summarize_for_text(r)
         assert any("dmesg" in line for line in lines)
+
+
+# ─── Etap 3.2 — container allowlist filter ──────────────────────────────
+
+
+class TestContainerPrefixFilter:
+    """Etap 3.2 (audit 2026-05-12): by default only Genesis-related
+    containers (name prefixes: vllm/genesis/sndr) feed `has_fatal_signals`.
+    Unrelated restart loops (e.g. `nvidia-gpu-exporter`) should not
+    permanently red-flag the host."""
+
+    def _restarting(self, name: str) -> RestartingContainer:
+        return RestartingContainer(
+            name=name, image="img", status="Restarting (1)",
+            started_at="1 min ago",
+        )
+
+    def _container_fixture(self, containers):
+        def collector():
+            return list(containers), None
+        return collector
+
+    def test_default_filter_excludes_unrelated(self):
+        containers = [
+            self._restarting("nvidia-gpu-exporter"),
+            self._restarting("vllm-pn95-2xa5000"),
+        ]
+        r = collect_log_forensics(
+            dmesg_reader=lambda _=None: ("", "unavailable"),
+            container_collector=self._container_fixture(containers),
+            journal_collector=lambda u, h: ([], None),
+        )
+        names = [c.name for c in r.restarting_containers]
+        assert names == ["vllm-pn95-2xa5000"]
+        assert r.has_fatal_signals is True  # vllm-pn95 is fatal
+
+    def test_default_filter_filters_out_unrelated_only(self):
+        containers = [
+            self._restarting("nvidia-gpu-exporter"),
+            self._restarting("docker-sandbox-1"),
+        ]
+        r = collect_log_forensics(
+            dmesg_reader=lambda _=None: ("", "unavailable"),
+            container_collector=self._container_fixture(containers),
+            journal_collector=lambda u, h: ([], None),
+        )
+        assert r.restarting_containers == []
+        assert r.has_fatal_signals is False
+
+    def test_custom_prefix_accepted(self):
+        containers = [self._restarting("myapp-1")]
+        r = collect_log_forensics(
+            dmesg_reader=lambda _=None: ("", "unavailable"),
+            container_collector=self._container_fixture(containers),
+            journal_collector=lambda u, h: ([], None),
+            container_prefixes=("myapp",),
+        )
+        assert len(r.restarting_containers) == 1
+
+    def test_all_containers_bypasses_filter(self):
+        containers = [
+            self._restarting("nvidia-gpu-exporter"),
+            self._restarting("docker-sandbox-1"),
+        ]
+        r = collect_log_forensics(
+            dmesg_reader=lambda _=None: ("", "unavailable"),
+            container_collector=self._container_fixture(containers),
+            journal_collector=lambda u, h: ([], None),
+            all_containers=True,
+        )
+        assert len(r.restarting_containers) == 2
+        assert r.has_fatal_signals is True
+
+
+# ─── Etap 3.3 — strict window mode ──────────────────────────────────────
+
+
+class TestStrictWindow:
+    """Etap 3.3 (audit 2026-05-12): with `strict_window=True`, events
+    with unknown timestamps are dropped (long-uptime host won't surface
+    very old events as 'possibly recent')."""
+
+    def _dmesg_with_unknown_ts(self, _=None):
+        # ctime-style line — our parser yields ts=None for these
+        return (
+            "Mon May 12 03:14:15 host kernel: Out of memory: "
+            "Killed process 1 (foo)\n",
+            None,
+        )
+
+    def test_default_includes_unknown_ts(self):
+        r = collect_log_forensics(
+            dmesg_reader=self._dmesg_with_unknown_ts,
+            container_collector=lambda: ([], None),
+            journal_collector=lambda u, h: ([], None),
+        )
+        assert len(r.oom_events) == 1
+
+    def test_strict_drops_unknown_ts(self):
+        r = collect_log_forensics(
+            dmesg_reader=self._dmesg_with_unknown_ts,
+            container_collector=lambda: ([], None),
+            journal_collector=lambda u, h: ([], None),
+            strict_window=True,
+        )
+        assert r.oom_events == []
+
+    def test_strict_keeps_events_within_window(self):
+        from vllm.sndr_core.cli.doctor_logs import (
+            OomEvent, _filter_within_window,
+        )
+        recent = OomEvent(timestamp_seconds_ago=600, killed_process="x", raw_line="")
+        old = OomEvent(timestamp_seconds_ago=999_999, killed_process="y", raw_line="")
+        unknown = OomEvent(timestamp_seconds_ago=None, killed_process="z", raw_line="")
+        # Non-strict: all three present (recent + unknown)
+        ns = _filter_within_window([recent, old, unknown], window_seconds=3600)
+        assert {e.killed_process for e in ns} == {"x", "z"}
+        # Strict: only recent (unknown dropped)
+        s = _filter_within_window(
+            [recent, old, unknown], window_seconds=3600, strict=True,
+        )
+        assert {e.killed_process for e in s} == {"x"}

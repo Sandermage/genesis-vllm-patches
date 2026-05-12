@@ -1,33 +1,33 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Host log forensics helper для `sndr doctor-system --logs`.
+"""Host log forensics helper for `sndr doctor-system --logs`.
 
-Audit P2-1 closure (2026-05-12): operator должен иметь быстрый способ
-проверить, есть ли в last N hours признаки нестабильности железа /
-runtime'а — без необходимости вручную копаться в dmesg/journalctl/docker.
+Audit P2-1 closure (2026-05-12): the operator must have a fast way
+to check whether the last N hours show signs of hardware / runtime
+instability — without having to manually dig through dmesg/journalctl/docker.
 
-Что собираем (read-only, без действий):
+What we collect (read-only, no actions):
 
   • dmesg | OOM-kills (`Out of memory: Killed process …`)
   • dmesg | NVRM Xid errors (`NVRM: Xid (PCI:…): <code>` —
-    14/31/43/45/79 особенно тревожны — fatal MMU/ECC/timeout).
-  • docker ps --filter status=restarting (контейнеры в restart loop).
-  • journalctl -u genesis-vllm.service (если установлен systemd unit) —
-    последние 20 строк со словами error|fatal|oom|cuda.
-  • Recent dmesg warnings/errors с фильтром по последним N hours.
+    14/31/43/45/79 are especially alarming — fatal MMU/ECC/timeout).
+  • docker ps --filter status=restarting (containers in a restart loop).
+  • journalctl -u genesis-vllm.service (if the systemd unit is installed) —
+    the last 20 lines containing the words error|fatal|oom|cuda.
+  • Recent dmesg warnings/errors filtered by the last N hours.
 
-Дизайн:
+Design:
 
-  • Все sources optional — отсутствие dmesg/journalctl/docker возвращает
-    пустой список с reason, не падает.
-  • Не пытается заменить full observability (Prometheus/Grafana) — это
-    fast triage tool для operator session.
-  • JSON-output совместим с `--json` режимом doctor-system: возвращает
-    dict, который кладётся в `facts["log_forensics"]`.
+  • All sources are optional — absence of dmesg/journalctl/docker returns
+    an empty list with a reason, does not fail.
+  • Does not try to replace full observability (Prometheus/Grafana) — this
+    is a fast triage tool for an operator session.
+  • JSON-output is compatible with the `--json` mode of doctor-system: returns
+    a dict that is placed into `facts["log_forensics"]`.
 
 Test contract — `tests/unit/cli/test_doctor_logs.py`:
 
-  • Mock subprocess.run → правильный shape возвращаемых dict'ов.
-  • OOM regex matches типичные dmesg lines.
+  • Mock subprocess.run → correct shape of returned dicts.
+  • OOM regex matches typical dmesg lines.
   • Xid severity categorization (fatal vs warning vs info).
   • Graceful when binaries missing.
 """
@@ -52,28 +52,28 @@ __all__ = [
 ]
 
 
-# Xid codes, при которых operator должен серьёзно насторожиться.
-# Источник: NVIDIA "Understanding Xid Errors" tech brief + полевой опыт.
-#   13  — Graphics Engine Exception (часто recoverable, но повторы → bad GPU)
+# Xid codes that should put the operator on serious alert.
+# Source: NVIDIA "Understanding Xid Errors" tech brief + field experience.
+#   13  — Graphics Engine Exception (often recoverable, but repeats → bad GPU)
 #   14  — Display Engine Error
-#   31  — GPU memory page fault (MMU; почти всегда runtime bug или ECC)
+#   31  — GPU memory page fault (MMU; almost always a runtime bug or ECC)
 #   43  — Reset Channel (CUDA program killed/hung)
-#   45  — Preemptive cleanup, due to previous errors (последствие 31/43)
+#   45  — Preemptive cleanup, due to previous errors (consequence of 31/43)
 #   62  — Internal micro-controller breakpoint/warning
 #   63  — ECC page retirement (memory degradation)
 #   64  — ECC page retirement recording failure
 #   74  — NVLink error
 #   79  — GPU fell off the bus (HARD failure — PCIe link lost)
-#   119 — GSP RPC timeout (driver/firmware compat issue, обычно non-fatal)
+#   119 — GSP RPC timeout (driver/firmware compat issue, usually non-fatal)
 FATAL_XIDS: frozenset[int] = frozenset({31, 43, 45, 63, 64, 74, 79})
 
 
 @dataclass(frozen=True)
 class OomEvent:
-    """OOM-kill событие из dmesg."""
-    timestamp_seconds_ago: int | None  # None если dmesg не дал uptime
-    killed_process: str  # имя процесса, которого убил kernel
-    raw_line: str  # для troubleshooting
+    """OOM-kill event from dmesg."""
+    timestamp_seconds_ago: int | None  # None if dmesg did not give uptime
+    killed_process: str  # name of the process that the kernel killed
+    raw_line: str  # for troubleshooting
 
     def to_dict(self) -> dict:
         return {
@@ -85,7 +85,7 @@ class OomEvent:
 
 @dataclass(frozen=True)
 class XidEvent:
-    """NVRM Xid ошибка из dmesg."""
+    """NVRM Xid error from dmesg."""
     timestamp_seconds_ago: int | None
     xid_code: int
     pci_addr: str  # e.g. "PCI:0000:01:00"
@@ -104,11 +104,11 @@ class XidEvent:
 
 @dataclass(frozen=True)
 class RestartingContainer:
-    """Контейнер в restart loop."""
+    """Container in a restart loop."""
     name: str
     image: str
     status: str  # "Restarting (X) Y ago"
-    started_at: str  # iso-8601 timestamp если доступен
+    started_at: str  # iso-8601 timestamp if available
 
     def to_dict(self) -> dict:
         return {
@@ -121,7 +121,7 @@ class RestartingContainer:
 
 @dataclass
 class LogForensicsResult:
-    """Композитный результат host log forensics."""
+    """Composite result of host log forensics."""
     window_hours: int
     oom_events: list[OomEvent] = field(default_factory=list)
     xid_events: list[XidEvent] = field(default_factory=list)
@@ -131,7 +131,7 @@ class LogForensicsResult:
 
     @property
     def has_fatal_signals(self) -> bool:
-        """True если есть Xid fatal или OOM в окне."""
+        """True if there is a fatal Xid or OOM within the window."""
         return (
             any(x.severity == "fatal" for x in self.xid_events)
             or bool(self.oom_events)
@@ -154,9 +154,9 @@ class LogForensicsResult:
 
 # ──── dmesg parsing ─────────────────────────────────────────────────────
 
-# Линия формата:
+# Line format:
 #   [12345.678] Out of memory: Killed process 12345 (vllm) total-vm:...
-# Современный dmesg --ctime даёт человеко-читаемое время; парсим обе формы.
+# Modern dmesg --ctime gives a human-readable time; we parse both forms.
 _OOM_RE = re.compile(
     r"Out of memory:\s+Killed process\s+\d+\s+\(([^)]+)\)",
     re.IGNORECASE,
@@ -164,33 +164,33 @@ _OOM_RE = re.compile(
 
 # Xid line format (NVRM driver):
 #   [12345.678] NVRM: Xid (PCI:0000:01:00): 31, pid=12345, name=python ...
-# или с --ctime:
+# or with --ctime:
 #   Mon May 12 03:14:15 host kernel: NVRM: Xid (PCI:0000:01:00): 31, ...
 _XID_RE = re.compile(
     r"NVRM:\s+Xid\s+\((PCI:[0-9a-fA-F:.]+)\):\s+(\d+)",
 )
 
-# Uptime-relative timestamps `[12345.678]` — секунды с boot.
+# Uptime-relative timestamps `[12345.678]` — seconds since boot.
 _UPTIME_TS_RE = re.compile(r"^\[\s*(\d+)\.\d+\]")
 
 
 def _read_dmesg(extra_args: list[str] | None = None) -> tuple[str, str | None]:
-    """Запускает dmesg, возвращает (stdout, reason_if_unavailable).
+    """Runs dmesg, returns (stdout, reason_if_unavailable).
 
-    Tries (in order):
-      1. `dmesg --ctime` (human-readable timestamps)
-      2. `dmesg` (uptime-relative)
+    Etap 3.1 (audit 2026-05-12): prefer plain dmesg over `--ctime`.
+    Our timestamp parser handles only the uptime-relative `[12345.678]`
+    prefix produced by the default; ctime lines result in `ts=None` for
+    every event, which bypasses `--logs-hours` filtering. We fall back
+    to `--ctime` only if plain dmesg fails (rare).
 
-    Returns ("", reason) если dmesg вообще нет / нет прав / падает.
+    Returns ("", reason) if dmesg is missing / no permissions / fails.
     """
     if not shutil.which("dmesg"):
         return "", "dmesg binary not found"
     base = ["dmesg"]
     if extra_args:
         base.extend(extra_args)
-    # Сначала пробуем --ctime
-    try_with_ctime = base + ["--ctime"]
-    for cmd in (try_with_ctime, base):
+    for cmd in (base, base + ["--ctime"]):
         try:
             r = subprocess.run(
                 cmd, capture_output=True, text=True, timeout=5,
@@ -214,7 +214,7 @@ def _parse_oom_events(dmesg_output: str) -> list[OomEvent]:
         u = _UPTIME_TS_RE.match(line)
         if u:
             # uptime seconds = how long ago from boot. Convert to
-            # "seconds ago" via current uptime if доступен.
+            # "seconds ago" via current uptime if available.
             try:
                 with open("/proc/uptime", "r") as f:
                     now_uptime = float(f.read().split()[0])
@@ -234,7 +234,7 @@ def _parse_oom_events(dmesg_output: str) -> list[OomEvent]:
 def _classify_xid(code: int) -> str:
     if code in FATAL_XIDS:
         return "fatal"
-    # 13/14/62/119 — повторы могут указывать на проблему, но одиночные обычно ok.
+    # 13/14/62/119 — repeats may indicate a problem, but single occurrences are usually ok.
     if code in {13, 14, 62, 119}:
         return "warning"
     return "info"
@@ -272,13 +272,24 @@ def _parse_xid_events(dmesg_output: str) -> list[XidEvent]:
     return events
 
 
-def _filter_within_window(events: list, window_seconds: int) -> list:
-    """Оставляет события у которых ts_ago либо неизвестен (включаем,
-    operator пусть видит), либо ≤ window."""
+def _filter_within_window(
+    events: list, window_seconds: int, *, strict: bool = False,
+) -> list:
+    """Keeps events whose ts_ago fits the window.
+
+    Etap 3.3 (audit 2026-05-12): added `strict` mode. By default events
+    with unknown timestamp (parser couldn't decode) are kept — visible
+    to the operator. In strict mode they're dropped so a long-uptime
+    host doesn't surface very old events as "recent".
+    """
     out = []
     for e in events:
         ts = e.timestamp_seconds_ago
-        if ts is None or ts <= window_seconds:
+        if ts is None:
+            if not strict:
+                out.append(e)
+            continue
+        if ts <= window_seconds:
             out.append(e)
     return out
 
@@ -288,12 +299,12 @@ def _filter_within_window(events: list, window_seconds: int) -> list:
 def _collect_restarting_containers() -> tuple[list[RestartingContainer], str | None]:
     """`docker ps --filter status=restarting --format=...`.
 
-    Returns ([], reason) если docker не установлен / daemon недоступен.
+    Returns ([], reason) if docker is not installed / daemon unavailable.
     """
     if not shutil.which("docker"):
         return [], "docker binary not found"
     try:
-        # Формат: name|image|status|startedat
+        # Format: name|image|status|startedat
         r = subprocess.run(
             ["docker", "ps", "--filter", "status=restarting",
              "--format", "{{.Names}}|{{.Image}}|{{.Status}}|{{.RunningFor}}"],
@@ -334,7 +345,7 @@ def _collect_service_journal(unit: str, hours: int) -> tuple[list[str], str | No
         return [], f"journalctl failed: {e!r}"
     if r.returncode != 0:
         return [], f"journalctl returned {r.returncode}"
-    # Фильтруем только строки с подозрительными keywords.
+    # Filter only lines with suspicious keywords.
     keep_re = re.compile(
         r"\b(error|fatal|panic|oom|cuda|nvrm|xid|killed|exit)\b",
         re.IGNORECASE,
@@ -343,11 +354,36 @@ def _collect_service_journal(unit: str, hours: int) -> tuple[list[str], str | No
         line.strip() for line in r.stdout.splitlines()
         if keep_re.search(line)
     ]
-    # Не возвращаем слишком много — берём последние 20 интересных строк.
+    # Don't return too many — take the last 20 interesting lines.
     return tail[-20:], None
 
 
 # ──── Top-level collector ────────────────────────────────────────────────
+
+# Etap 3.2 (audit 2026-05-12): default container-name prefixes that we
+# consider "Genesis-related". Anything outside this set is ignored when
+# deciding fatal signals — otherwise unrelated restart loops (e.g.
+# `nvidia-gpu-exporter`) keep `has_fatal_signals=True` permanently.
+_DEFAULT_CONTAINER_PREFIXES: tuple[str, ...] = ("vllm", "genesis", "sndr")
+
+
+def _filter_containers(
+    containers: list[RestartingContainer],
+    *, prefixes: tuple[str, ...] | None, all_containers: bool,
+) -> list[RestartingContainer]:
+    """Keep only containers whose name starts with one of `prefixes`.
+
+    `all_containers=True` short-circuits the filter (operator opted in
+    to see every restart loop on the host).
+    """
+    if all_containers:
+        return list(containers)
+    effective = prefixes if prefixes is not None else _DEFAULT_CONTAINER_PREFIXES
+    return [
+        c for c in containers
+        if any(c.name.startswith(p) for p in effective)
+    ]
+
 
 def collect_log_forensics(
     window_hours: int = 24,
@@ -355,11 +391,24 @@ def collect_log_forensics(
     dmesg_reader=_read_dmesg,
     container_collector=_collect_restarting_containers,
     journal_collector=_collect_service_journal,
+    *,
+    strict_window: bool = False,
+    container_prefixes: tuple[str, ...] | None = None,
+    all_containers: bool = False,
 ) -> LogForensicsResult:
-    """Собирает все log forensics источники.
+    """Collects all log forensics sources.
 
-    Все сборщики инъецируются как аргументы для тестируемости — production
-    использует defaults, unit-тесты подменяют stub'ами.
+    Args:
+        window_hours: time window for event filtering.
+        service_unit: systemd unit name for journalctl tailing.
+        dmesg_reader / container_collector / journal_collector: injected
+            for testability.
+        strict_window: Etap 3.3 — drop events with unknown timestamps
+            (otherwise included by default).
+        container_prefixes: Etap 3.2 — keep only containers whose name
+            starts with one of these prefixes. `None` → use
+            `_DEFAULT_CONTAINER_PREFIXES`.
+        all_containers: Etap 3.2 — bypass prefix filter entirely.
     """
     result = LogForensicsResult(window_hours=window_hours)
     window_seconds = window_hours * 3600
@@ -371,15 +420,23 @@ def collect_log_forensics(
     else:
         oom_all = _parse_oom_events(dmesg_out)
         xid_all = _parse_xid_events(dmesg_out)
-        result.oom_events = _filter_within_window(oom_all, window_seconds)
-        result.xid_events = _filter_within_window(xid_all, window_seconds)
+        result.oom_events = _filter_within_window(
+            oom_all, window_seconds, strict=strict_window,
+        )
+        result.xid_events = _filter_within_window(
+            xid_all, window_seconds, strict=strict_window,
+        )
 
-    # docker → restarting containers
+    # docker → restarting containers (filtered by name prefix)
     containers, c_reason = container_collector()
     if c_reason:
         result.sources_unavailable.append(f"docker: {c_reason}")
     else:
-        result.restarting_containers = containers
+        result.restarting_containers = _filter_containers(
+            containers,
+            prefixes=container_prefixes,
+            all_containers=all_containers,
+        )
 
     # journalctl → service logs tail
     journal, j_reason = journal_collector(service_unit, window_hours)
@@ -394,7 +451,7 @@ def collect_log_forensics(
 # ──── Text rendering ────────────────────────────────────────────────────
 
 def summarize_for_text(r: LogForensicsResult) -> list[str]:
-    """Human-readable lines для `sndr doctor-system --logs` (no --json)."""
+    """Human-readable lines for `sndr doctor-system --logs` (no --json)."""
     lines: list[str] = []
     lines.append(f"  Log forensics (last {r.window_hours}h):")
 
@@ -441,7 +498,7 @@ def summarize_for_text(r: LogForensicsResult) -> list[str]:
             "suspicious lines (last 20 shown):"
         )
         for line in r.service_journal_tail[-5:]:
-            # Обрезаем длинные строки для читаемости
+            # Trim long lines for readability
             clip = line if len(line) <= 120 else line[:117] + "…"
             lines.append(f"        {clip}")
 

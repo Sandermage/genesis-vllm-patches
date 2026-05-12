@@ -1,37 +1,37 @@
 # SPDX-License-Identifier: Apache-2.0
 """S3.1 (UNIFIED_CONFIG plan 2026-05-09; audit P3-1 closure 2026-05-12):
-`sndr compose render/up/down/logs` — docker-compose renderer и thin
-wrapper над `docker compose` CLI.
+`sndr compose render/up/down/logs` — docker-compose renderer and thin
+wrapper over the `docker compose` CLI.
 
-Зачем
------
-Раньше Genesis генерировал ТОЛЬКО bash launch-script через
+Why
+---
+Previously Genesis generated ONLY a bash launch-script via
 `ModelConfig.to_launch_script()`. Community feedback (issue X-COMPOSE):
-operator'ы интегрируют Genesis в существующий compose stack и хотят
-получить готовый `docker-compose.yml` со всеми патчами и env'ами,
-а не вручную переводить bash script в compose.
+operators integrate Genesis into an existing compose stack and want
+a ready-made `docker-compose.yml` with all patches and envs,
+rather than manually translating a bash script into compose.
 
-`sndr compose render <preset>` — обратимый renderer:
+`sndr compose render <preset>` — reversible renderer:
 
-  • Берёт ModelConfig из registry.
-  • Эмитит `docker-compose.yml` с правильным image, container_name,
-    ports, environment (genesis_env + system_env + патчевые knobs),
-    volumes (mounts с host.yaml resolution), command (vllm serve
-    flags). Использует yaml.safe_dump для корректной escapes
-    (избегаем string concatenation footguns).
-  • Идемпотентно: повторный render с тем же input даёт тот же output.
+  • Takes ModelConfig from the registry.
+  • Emits `docker-compose.yml` with the correct image, container_name,
+    ports, environment (genesis_env + system_env + patch knobs),
+    volumes (mounts with host.yaml resolution), command (vllm serve
+    flags). Uses yaml.safe_dump for correct escapes
+    (avoiding string concatenation footguns).
+  • Idempotent: re-rendering with the same input produces the same output.
 
-`sndr compose up/down/logs` — тонкая обёртка над `docker compose -f
-<rendered> up/down/logs`, для удобства operator'а. Если operator
-интегрирует output в свой stack — этими командами можно не пользоваться.
+`sndr compose up/down/logs` — thin wrapper over `docker compose -f
+<rendered> up/down/logs`, for operator convenience. If the operator
+integrates the output into their own stack, these commands need not be used.
 
 Test contract — `tests/unit/cli/test_compose_render.py`:
 
-  • Render canonical 27B PROD config → результат содержит ожидаемые
+  • Render canonical 27B PROD config → the result contains the expected
     image / container / ports / env / volumes / command.
   • yaml.safe_load(render) returns dict (proves it's parseable).
-  • Hermetic: не требует docker installed.
-  • render --output путь записывает файл с тем же содержимым.
+  • Hermetic: does not require docker to be installed.
+  • render --output path writes a file with the same content.
 """
 from __future__ import annotations
 
@@ -58,22 +58,22 @@ def add_argparser(subparsers: Any) -> None:
         "compose",
         help="docker-compose renderer + thin wrapper (audit P3-1).",
         description=(
-            "Render а preset как готовый docker-compose.yml, или "
-            "запустить/остановить/получить логи через docker compose. "
-            "Альтернатива `sndr launch` для operator'ов, интегрирующих "
-            "Genesis в существующий compose stack."
+            "Render a preset as a ready-made docker-compose.yml, or "
+            "start/stop/fetch logs via docker compose. "
+            "An alternative to `sndr launch` for operators integrating "
+            "Genesis into an existing compose stack."
         ),
     )
     sub = p.add_subparsers(dest="compose_cmd", required=True)
 
     # render
     p_render = sub.add_parser(
-        "render", help="Render preset → docker-compose.yml на stdout/файл",
+        "render", help="Render preset → docker-compose.yml to stdout/file",
     )
     p_render.add_argument("config", help="preset key")
     p_render.add_argument(
         "-o", "--output", default=None,
-        help="Записать в файл вместо stdout.",
+        help="Write to file instead of stdout.",
     )
     p_render.set_defaults(func=run_compose_render)
 
@@ -118,7 +118,7 @@ def _resolve(key: str):
 
 
 def _load_host_paths() -> dict[str, str]:
-    """Читает host.yaml для resolve mount paths. Не падает если файла нет."""
+    """Reads host.yaml to resolve mount paths. Does not fail if the file is missing."""
     try:
         from vllm.sndr_core.model_configs.host import load_host_config
         hc = load_host_config()
@@ -129,71 +129,55 @@ def _load_host_paths() -> dict[str, str]:
         return {}
 
 
+# Etap 2.2 (audit 2026-05-12): strict substitution. Previously unresolved
+# `${var}` placeholders silently passed through → Docker mount attempted
+# to use the literal `${unknown}` as hostpath → cryptic boot failure.
+# Now we raise on any remaining unresolved placeholders.
+import re as _re
+_UNRESOLVED_PLACEHOLDER_RE = _re.compile(r"\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?")
+
+
 def _resolve_mount(mount_spec: str, host_paths: dict[str, str]) -> str:
-    """Применяет host.yaml substitution к `${var}:/container_path:mode`."""
+    """Applies host.yaml substitution to `${var}:/container_path:mode`.
+
+    Etap 2.2: after substitution, verifies that no unresolved
+    `${var}` placeholders remain. If any remain — `ValueError` with a hint
+    about which variables need to be declared in host.yaml.
+    """
     out = mount_spec
     for var, path in host_paths.items():
         out = out.replace(f"${{{var}}}", path)
         out = out.replace(f"${var}", path)
+    unresolved = _UNRESOLVED_PLACEHOLDER_RE.findall(out)
+    if unresolved:
+        raise ValueError(
+            f"unresolved mount placeholder(s) {unresolved!r} in {mount_spec!r}; "
+            "add this variable to host.yaml `symbolic_mounts` or pass "
+            "an explicit `host_paths` dict to the renderer."
+        )
     return out
 
 
 def _container_command(cfg) -> list[str]:
-    """Реконструирует `vllm serve …` команду из ModelConfig.
+    """Delegates to canonical `build_runtime_command`.
 
-    Использует ту же логику что `ModelConfig.to_launch_script` —
-    но возвращает список аргументов (для compose command:).
+    Etap 2.1 (audit 2026-05-12): previously compose/quadlet/k8s had
+    independent command builders that diverged from bare-metal. Now
+    they all go through `vllm.sndr_core.model_configs.runtime_command`.
     """
-    args: list[str] = ["vllm", "serve", cfg.model_path]
-    if cfg.served_model_name:
-        args += ["--served-model-name", cfg.served_model_name]
-    if cfg.quantization:
-        args += ["--quantization", cfg.quantization]
-    if cfg.kv_cache_dtype:
-        args += ["--kv-cache-dtype", cfg.kv_cache_dtype]
-    args += ["--max-model-len", str(cfg.max_model_len)]
-    args += ["--gpu-memory-utilization", f"{cfg.gpu_memory_utilization:.2f}"]
-    args += ["--max-num-seqs", str(cfg.max_num_seqs)]
-    args += ["--max-num-batched-tokens", str(cfg.max_num_batched_tokens)]
-    args += ["--tensor-parallel-size", str(cfg.hardware.n_gpus)]
-    args += ["--dtype", cfg.dtype]
-    if cfg.enable_chunked_prefill:
-        args.append("--enable-chunked-prefill")
-    if cfg.enforce_eager:
-        args.append("--enforce-eager")
-    if cfg.disable_custom_all_reduce:
-        args.append("--disable-custom-all-reduce")
-    if cfg.trust_remote_code:
-        args.append("--trust-remote-code")
-    if cfg.tool_call_parser:
-        args += ["--tool-call-parser", cfg.tool_call_parser]
-    if cfg.reasoning_parser:
-        args += ["--reasoning-parser", cfg.reasoning_parser]
-    if cfg.enable_auto_tool_choice:
-        args.append("--enable-auto-tool-choice")
-    if cfg.spec_decode is not None:
-        args += ["--speculative-config", cfg.spec_decode.to_vllm_arg()]
-    # Etap 0.4 (audit 2026-05-12): `--api-key` НЕ добавляется в command —
-    # vLLM подхватывает ключ из env var `VLLM_API_KEY`, который рендерится
-    # через compose interpolation (см. `render_compose_yaml`). Раньше
-    # `--api-key <literal>` утекало в process listing / docker inspect.
-    args += ["--host", cfg.host]
-    args += [
-        "--port",
-        str(cfg.docker.effective_container_port() if cfg.docker else 8000),
-    ]
-    if cfg.vllm_extra_args:
-        args.extend(cfg.vllm_extra_args)
-    return args
+    from vllm.sndr_core.model_configs.runtime_command import (
+        build_runtime_command,
+    )
+    return build_runtime_command(cfg).argv
 
 
 def render_compose_yaml(cfg, host_paths: Optional[dict[str, str]] = None) -> str:
-    """Рендерит ModelConfig в docker-compose.yml.
+    """Renders ModelConfig into docker-compose.yml.
 
     Args:
-        cfg: ModelConfig из registry.
-        host_paths: optional substitution table для `${var}` в mounts.
-            None → попытка прочитать host.yaml.
+        cfg: ModelConfig from registry.
+        host_paths: optional substitution table for `${var}` in mounts.
+            None → attempt to read host.yaml.
     """
     try:
         import yaml
@@ -218,18 +202,18 @@ def render_compose_yaml(cfg, host_paths: Optional[dict[str, str]] = None) -> str
     host_port = docker.effective_host_port()
     container_port = docker.effective_container_port()
 
-    # Environment: combine system_env, genesis_env. Все values как
-    # строки — compose требует string-valued env vars.
+    # Environment: combine system_env, genesis_env. All values as
+    # strings — compose requires string-valued env vars.
     env: dict[str, str] = {}
     for k, v in cfg.system_env.items():
         env[str(k)] = str(v)
     for k, v in cfg.genesis_env.items():
         env[str(k)] = str(v)
-    # Etap 0.4 (audit 2026-05-12): VLLM_API_KEY рендерится как compose
-    # interpolation reference `${VLLM_API_KEY:?...}`, а не literal value.
-    # Docker Compose разрешит его из shell env / `.env` файла в момент
-    # `compose up`. Литерал в YAML больше не появляется → нет утечки
-    # ключа через файл в /tmp.
+    # Etap 0.4 (audit 2026-05-12): VLLM_API_KEY is rendered as a compose
+    # interpolation reference `${VLLM_API_KEY:?...}`, not a literal value.
+    # Docker Compose will resolve it from shell env / `.env` file at
+    # `compose up` time. The literal no longer appears in YAML → no leak
+    # of the key via a file in /tmp.
     if cfg.api_key:
         env.setdefault(
             "VLLM_API_KEY",
@@ -282,14 +266,14 @@ def render_compose_yaml(cfg, host_paths: Optional[dict[str, str]] = None) -> str
         f"# Source preset: {cfg.key} ({cfg.title})\n"
         f"# Maintainer: {cfg.maintainer}\n"
         f"#\n"
-        f"# Secrets (Etap 0.4 hardening): VLLM_API_KEY НЕ записан в YAML.\n"
-        f"# Вместо литерала используется `${{VLLM_API_KEY:?...}}` — compose\n"
-        f"# подтянет значение из shell env или `.env` файла рядом с этим YAML.\n"
-        f"# Запуск:\n"
+        f"# Secrets (Etap 0.4 hardening): VLLM_API_KEY is NOT written into the YAML.\n"
+        f"# Instead of a literal, `${{VLLM_API_KEY:?...}}` is used — compose\n"
+        f"# will pull the value from shell env or a `.env` file next to this YAML.\n"
+        f"# Launch:\n"
         f"#   VLLM_API_KEY=mykey docker compose -f docker-compose.yml up -d\n"
-        f"# ИЛИ положить `VLLM_API_KEY=mykey` в `.env` (chmod 0600!)\n"
+        f"# OR place `VLLM_API_KEY=mykey` into `.env` (chmod 0600!)\n"
         f"#\n"
-        f"# Usage через sndr:\n"
+        f"# Usage via sndr:\n"
         f"#   sndr compose up {cfg.key}      # equivalent to docker compose up -d\n"
         f"#   sndr compose logs {cfg.key} -f\n"
         f"#   sndr compose down {cfg.key}\n"
@@ -316,11 +300,11 @@ def run_compose_render(args: argparse.Namespace) -> int:
 
 
 def _write_temp_compose(cfg) -> Path:
-    """Рендерит compose в temp dir и возвращает путь.
+    """Renders compose into a temp dir and returns the path.
 
-    Etap 0.4 (audit 2026-05-12): tempdir всегда `0o700` — даже если он
-    уже существует (mkdir(mode=...) не меняет mode existing dir).
-    rendered YAML — `0o600`. Defense-in-depth на multi-user host'е.
+    Etap 0.4 (audit 2026-05-12): tempdir is always `0o700` — even if it
+    already exists (mkdir(mode=...) does not change the mode of an existing dir).
+    The rendered YAML is `0o600`. Defense-in-depth on a multi-user host.
     """
     import os
     import tempfile

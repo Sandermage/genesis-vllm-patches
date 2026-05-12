@@ -1,14 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
-"""S3.3 closure (audit P3-3, 2026-05-12): тесты для k8s YAML renderer.
+"""S3.3 closure (audit P3-3, 2026-05-12): tests for the k8s YAML renderer.
 
-Покрывают:
+Cover:
 
   • Existing hostPath storage path (regression safety).
-  • New `node_selector` block рендерится в pod template spec.
-  • New `pvc` блок создаёт `kind: PersistentVolumeClaim` + volume
-    binding через persistentVolumeClaim.claimName.
-  • `secret_mounts` создаёт volume через secret.secretName.
-  • Все YAML документы parseable (yaml.safe_load_all).
+  • New `node_selector` block renders into the pod template spec.
+  • New `pvc` block creates a `kind: PersistentVolumeClaim` + volume
+    binding via persistentVolumeClaim.claimName.
+  • `secret_mounts` creates a volume via secret.secretName.
+  • All YAML documents are parseable (yaml.safe_load_all).
 """
 from __future__ import annotations
 
@@ -51,7 +51,7 @@ class TestK8sRender:
     def test_baseline_yaml_parses(self):
         cfg = _make_k8s_cfg()
         docs = list(yaml.safe_load_all(_all_yaml(cfg)))
-        # ConfigMap + Service + Deployment минимум
+        # ConfigMap + Service + Deployment at minimum
         kinds = [d.get("kind") for d in docs if d]
         assert "ConfigMap" in kinds
         assert "Service" in kinds
@@ -133,3 +133,112 @@ class TestK8sRender:
         docs = list(yaml.safe_load_all(out))
         kinds = [d.get("kind") for d in docs if d]
         assert "PersistentVolumeClaim" not in kinds
+
+
+# ─── Etap 2.4/2.5 — schema validation at render time ────────────────────
+
+
+class TestRenderValidation:
+    """Etap 2.4/2.5 (audit 2026-05-12): YAML is built from dicts via
+    `yaml.safe_dump_all` and each name / path / size is validated at
+    render time. Misconfigurations raise ValueError instead of reaching
+    `kubectl apply` and failing with cryptic server-side errors."""
+
+    def test_invalid_pvc_name_rejected(self):
+        cfg = _make_k8s_cfg(pvc={"BadName_With_Underscores": "/data"})
+        with pytest.raises(ValueError, match="DNS-1123"):
+            _all_yaml(cfg)
+
+    def test_relative_pvc_mount_rejected(self):
+        cfg = _make_k8s_cfg(pvc={"models": "relative/path"})
+        with pytest.raises(ValueError, match="must be an absolute path"):
+            _all_yaml(cfg)
+
+    def test_zero_pvc_size_rejected(self):
+        cfg = _make_k8s_cfg(pvc={"x": "/x"}, pvc_size_gib={"x": 0})
+        with pytest.raises(ValueError, match="must be > 0"):
+            _all_yaml(cfg)
+
+    def test_negative_pvc_size_rejected(self):
+        cfg = _make_k8s_cfg(pvc={"x": "/x"}, pvc_size_gib={"x": -10})
+        with pytest.raises(ValueError, match="must be > 0"):
+            _all_yaml(cfg)
+
+    def test_duplicate_mount_path_rejected(self):
+        cfg = _make_k8s_cfg(
+            pvc={"models": "/data"},
+            secret_mounts={"token": "/data"},  # collides
+        )
+        with pytest.raises(ValueError, match="collides"):
+            _all_yaml(cfg)
+
+    def test_invalid_secret_name_rejected(self):
+        cfg = _make_k8s_cfg(secret_mounts={"Bad_Secret!": "/etc/x"})
+        with pytest.raises(ValueError, match="DNS-1123"):
+            _all_yaml(cfg)
+
+    def test_label_with_prefix_accepted(self):
+        """K8s labels allow `prefix/name` format."""
+        cfg = _make_k8s_cfg(node_selector={
+            "nvidia.com/gpu.present": "true",
+            "gpu-class": "a5000",
+        })
+        # No exception
+        docs = list(yaml.safe_load_all(_all_yaml(cfg)))
+        deploy = next(d for d in docs if d and d.get("kind") == "Deployment")
+        sel = deploy["spec"]["template"]["spec"]["nodeSelector"]
+        assert sel["nvidia.com/gpu.present"] == "true"
+        assert sel["gpu-class"] == "a5000"
+
+    def test_invalid_label_prefix_rejected(self):
+        cfg = _make_k8s_cfg(node_selector={"Bad.Prefix/x": "v"})
+        with pytest.raises(ValueError, match="DNS-1123 subdomain"):
+            _all_yaml(cfg)
+
+    def test_yaml_output_is_well_formed(self):
+        """safe_dump_all output must parse as a multi-doc YAML stream."""
+        cfg = _make_k8s_cfg(
+            pvc={"models-vol": "/models"},
+            secret_mounts={"hf-token": "/secrets/hf"},
+            node_selector={"gpu-class": "a5000"},
+        )
+        out = _all_yaml(cfg)
+        docs = list(yaml.safe_load_all(out))
+        # Header is a comment-only preamble; safe_load_all yields one
+        # implicit `None` doc for it plus the four real manifests
+        real = [d for d in docs if isinstance(d, dict)]
+        # ConfigMap + Service + 1 PVC + Deployment
+        assert len(real) == 4
+        kinds = {d["kind"] for d in real}
+        assert kinds == {"ConfigMap", "Service", "PersistentVolumeClaim",
+                          "Deployment"}
+
+
+# ─── Etap 2.6 — delete --delete-pvc opt-in ──────────────────────────────
+
+
+class TestDeletePvcFlag:
+    """Etap 2.6 (audit 2026-05-12): PVCs are preserved by default
+    on `sndr k8s delete`. Operator must pass --delete-pvc to drop them."""
+
+    def test_argparser_registers_delete_pvc(self):
+        """The flag is registered on the `delete` subcommand only."""
+        import argparse
+        from vllm.sndr_core.cli.k8s import add_argparser
+        parser = argparse.ArgumentParser(prog="sndr")
+        subparsers = parser.add_subparsers()
+        add_argparser(subparsers)
+        # Parsing should accept --delete-pvc on `k8s delete`
+        ns = parser.parse_args(["k8s", "delete", "some-preset",
+                                  "--delete-pvc"])
+        assert getattr(ns, "delete_pvc", False) is True
+
+    def test_argparser_flag_absent_on_other_subcommands(self):
+        """The flag must NOT be accepted on render/apply/status/logs."""
+        import argparse
+        from vllm.sndr_core.cli.k8s import add_argparser
+        parser = argparse.ArgumentParser(prog="sndr")
+        subparsers = parser.add_subparsers()
+        add_argparser(subparsers)
+        with pytest.raises(SystemExit):
+            parser.parse_args(["k8s", "render", "x", "--delete-pvc"])
