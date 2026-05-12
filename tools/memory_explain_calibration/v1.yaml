@@ -1,0 +1,86 @@
+# Genesis memory_explain calibration v1
+#
+# Source spec: CONSOLIDATED_ROADMAP_2026-05-13_RU.md §4.9 (Phase 4.7 MVP)
+# Seeded from Wave 9 dev209 bench observations on 2× RTX A5000 24 GiB rig.
+#
+# Operator can refine values as more empirical data arrives — every entry
+# carries provenance so calibration drift across vllm pin bumps remains
+# auditable. Schema is intentionally narrow to keep the MVP estimator
+# math transparent. Advanced calibration (live allocator telemetry,
+# per-layer attention sizing, tier-aware KV prediction) lives in the
+# future v2 (CONSOLIDATED §9.3).
+#
+# Loaded by `vllm/sndr_core/cli/memory.py` when present. Absence falls
+# back to conservative hardcoded factors (current behaviour).
+
+schema_version: 1
+methodology_id: wave9-baseline
+methodology_sha: null      # filled when calibration data captured live
+
+# ─── Per-architecture cudagraph reserve ────────────────────────────
+#
+# vLLM captures cudagraph buffers for FULL_AND_PIECEWISE mode on
+# hybrid GDN+MoE models. The reserve grows linearly with active
+# seqs (max_num_seqs in the hardware sizing layer).
+cudagraph_reserve_mib_per_seq:
+  hybrid_gdn_moe: 80         # Qwen 3.6 35B-A3B FP8 observation on dev209
+  dense:          50         # Qwen 3.6 7B dense baseline
+  default:        60         # fallback when arch is unrecognised
+
+# ─── Per-quantization activation overhead + KV byte multiplier ─────
+#
+# `activation_factor`: scales the activation budget projection.
+#   1.0 = FP8 baseline (no overhead).
+#   1.05+ = quantization de-quant scratch buffers (turboquant k8v4
+#           reserves scratch for per-tile dequant on every MoE expert).
+# `kv_overhead_mib`: constant addend per GPU for kv-cache metadata
+#                    (turboquant k8v4 needs scale/zero-point tables).
+quantizations:
+  fp8:               {activation_factor: 1.00, kv_overhead_mib: 0}
+  fp8_e5m2:          {activation_factor: 1.00, kv_overhead_mib: 0}
+  fp8_e4m3:          {activation_factor: 1.00, kv_overhead_mib: 0}
+  fp16:              {activation_factor: 1.00, kv_overhead_mib: 0}
+  bfloat16:          {activation_factor: 1.00, kv_overhead_mib: 0}
+  turboquant_k8v4:   {activation_factor: 1.05, kv_overhead_mib: 400}
+  gptq_marlin:       {activation_factor: 1.10, kv_overhead_mib: 0}
+  awq:               {activation_factor: 1.10, kv_overhead_mib: 0}
+  awq_marlin:        {activation_factor: 1.10, kv_overhead_mib: 0}
+  auto_round:        {activation_factor: 1.05, kv_overhead_mib: 0}
+  default:           {activation_factor: 1.00, kv_overhead_mib: 0}
+
+# ─── DFlash drafter overhead (per GPU after TP split) ──────────────
+#
+# DFlash adds a separate drafter model loaded on each TP rank. The
+# bytes are NOT in the main model's safetensors so the estimator
+# must add them explicitly.
+dflash_drafter_overhead_mib:
+  qwen3.6-27b-int4-dflash:        1200
+  qwen3.6-35b-a3b-fp8-dflash:     2400
+  default:                        1500       # conservative fallback
+
+# ─── Uncertainty band factors ──────────────────────────────────────
+#
+# Phase 4.7 MVP rule: every output mode emits median + p95 +
+# worst-case. These factors derive the upper bounds from the median
+# point-estimate. Values are intentionally generous in v1; live
+# allocator telemetry (v2) will tighten them.
+band_factors:
+  p95_factor:   1.15        # +15% over median
+  worst_factor: 1.35        # +35% over median (covers cudagraph
+                            # variance, allocator fragmentation, sudden
+                            # peak from spec-decode K+1 verify)
+
+# ─── Verdict thresholds ────────────────────────────────────────────
+#
+# SAFE      — p95 ≤ vram_budget
+# TIGHT     — median ≤ budget < p95
+# OOM_RISK  — median > budget OR worst > budget × oom_worst_multiplier
+verdict_thresholds:
+  oom_worst_multiplier: 1.05   # worst > budget × 1.05 → OOM_RISK
+
+# ─── Calibration provenance ────────────────────────────────────────
+provenance:
+  source_bench: "Wave 9 dev209 bench on 2× RTX A5000 24 GiB rig"
+  captured_at:  "2026-05-09"
+  refresh_policy: "Refresh on every vllm pin bump or new model family added"
+  next_review:   "2026-08-01"
