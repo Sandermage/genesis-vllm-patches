@@ -147,13 +147,13 @@ GATES: tuple[Gate, ...] = (
     Gate("audit-runtime-hook-ratchet", "audit-runtime-hook-ratchet",
          "§4.2 P2.3 stable patches declare stable_kind; runtime-hook requires ≥2 production pins",
          "gating"),
-    # ── Informational gates (warnings only) ────────────────────────────
     Gate("audit-docs-stale", "audit-docs-stale",
-         "stale tokens in public docs (warning-only — pre-existing drift)",
-         "informational"),
+         "§supplement-3 forbid stale tokens (retired verbs, renamed modules) in public docs",
+         "gating"),
     Gate("audit-public-docs", "audit-public-docs",
-         "§6.10 public/private docs boundary (warning-only until cleanup)",
-         "informational"),
+         "§6.10 public/private docs boundary (no _internal links, private IPs, operator paths, retired verbs)",
+         "gating"),
+    # ── Informational gates (warnings only) ────────────────────────────
     Gate("audit-security", "audit-security",
          "Phase 4.6 security scan (warning-only — pre-existing operator paths)",
          "informational"),

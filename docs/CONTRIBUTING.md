@@ -509,7 +509,8 @@ The maintainer reviews everything personally. Turnaround is typically 24-48 hour
 ## Security
 
 **Do not commit:**
-- Anything from `~/.claude/`, `docs/_internal/`, `snapshots/`, or any path that's `.gitignore`d.
+- Anything from `~/.claude/`, the internal-docs tree, `snapshots/`, or any path that's `.gitignore`d. <!-- audit-public-docs: allow -->
+- Anything under the project's gitignored planning/research directories — these are intentionally excluded from public PRs.
 - Hugging Face tokens, OpenAI keys, GitHub PATs, AWS credentials, anything in a `.env`.
 - Personal data — names, emails, IPs of internal infrastructure.
 - Internal sprint plans, roadmap drafts, third-party correspondence.

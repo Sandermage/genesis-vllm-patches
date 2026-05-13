@@ -14,7 +14,7 @@ A: No. Genesis runs against an unmodified vLLM commit (pinned in `INSTALL.md`). 
 A: Genesis tracks specific vLLM commits (currently `7a1eb8ac2` (vllm 0.20.1rc1.dev16) plus the v0.20.0 / v0.20.1rc0 tags). Each patch declares an `applies_to` range, so newer vLLM commits cause patches to print `[SKIP — applies_to mismatch]` rather than crashing. Bumping the pin is a deliberate release event.
 
 ### Q: How do I update vLLM without losing patches?
-A: Bump the `applies_to` range on each affected patch and re-run the anchor-verification suite. Most text-patches survive minor vLLM updates because their anchors are short and stable; some need the anchor adjusted by a few characters. The Genesis CI doctor command (`genesis doctor`) tells you which patches drifted before you boot.
+A: Bump the `applies_to` range on each affected patch and re-run the anchor-verification suite. Most text-patches survive minor vLLM updates because their anchors are short and stable; some need the anchor adjusted by a few characters. The Genesis CI doctor command (`sndr doctor`) tells you which patches drifted before you boot.
 
 ### Q: How do I enable or disable an individual patch?
 A: Each patch is gated by a single environment variable: `GENESIS_ENABLE_P67=1` turns it on, unset or `=0` turns it off. The boot log prints every patch and its decision. There is no global "enable all" switch — by design.

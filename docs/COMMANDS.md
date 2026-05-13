@@ -33,10 +33,10 @@ wrapper for `python3 -m vllm.sndr_core.compat.cli`. Both forms work.
 ```bash
 # Full system diagnostic — vendor / chip / vLLM pin / torch / triton / driver
 # / patch matrix / known-issues. Always start here on a new box.
-genesis doctor
+sndr doctor
 
 # Same, but JSON output for grafana / pipelines
-genesis doctor --json
+sndr doctor --json
 
 # Auto-pick a preset matching this rig (gpu × n_gpus × workload) and write
 # the launch script to ~/.genesis/launch/start_<gpu>_<n>_<workload>.sh
@@ -47,10 +47,10 @@ genesis preset list
 genesis preset show rtx_a5000_2_balanced --script
 
 # Quick smoke test (no model load, ~5 seconds)
-genesis verify --quick
+sndr verify --quick
 
 # Full smoke test (boots vLLM, sends 10 prompts, checks tool-call) — ~3 minutes
-genesis verify
+sndr verify
 ```
 
 ---
@@ -168,7 +168,7 @@ GPU_OVERRIDE=NVIDIA_GeForce_RTX_3090 ./scripts/moe_lookup_helper.sh
 
 ```bash
 # Tail the structured boot summary (replaces scattered uvicorn lines)
-docker logs vllm-server-mtp-test 2>&1 | grep -A 200 'structured boot summary'
+docker logs vllm-server 2>&1 | grep -A 200 'structured boot summary'
 
 # Enable the structured API access log (PN65, opt-in)
 #  Sample line:  [Genesis-API] 200  POST /v1/chat/completions
@@ -176,7 +176,7 @@ docker logs vllm-server-mtp-test 2>&1 | grep -A 200 'structured boot summary'
 docker run -e GENESIS_ENABLE_PN65=1 ...
 
 # Dump per-patch decision matrix at boot (which patches APPLY / SKIP / FAIL)
-genesis doctor --patches
+sndr doctor --patches
 
 # Preflight quant-arg validator (catches club-3090#51 NVFP4 boot OOM)
 genesis preflight --quantization auto_round \
@@ -186,7 +186,7 @@ genesis preflight --quantization auto_round \
 nvidia-smi --query-gpu=memory.used,memory.free --format=csv -l 5
 
 # Dump all GENESIS_* env vars currently set in the container
-docker exec vllm-server-mtp-test env | grep '^GENESIS_'
+docker exec vllm-server env | grep '^GENESIS_'
 ```
 
 ---
@@ -198,7 +198,7 @@ docker exec vllm-server-mtp-test env | grep '^GENESIS_'
 bash scripts/git/install.sh
 
 # Rebuild compile cache — necessary after vLLM pin bump
-rm -rf ~/.cache/vllm/* && genesis verify
+rm -rf ~/.cache/vllm/* && sndr verify
 
 # Test suite (1858 tests, ~12 sec on macOS, ~25 sec on Linux)
 python3 -m pytest vllm/sndr_core/tests/ --no-header -q
@@ -231,7 +231,7 @@ genesis plugins list
 genesis update_channel --set dev
 
 # Migrate from a previous Genesis pin (rewrites launch scripts to current schema)
-genesis migrate --from v7.65 --to v7.72
+sndr migrate --from v7.65 --to v7.72
 ```
 
 ---
@@ -268,4 +268,4 @@ rm -rf ~/.cache/vllm/* ~/.cache/torch/*
 
 ---
 
-*Last refreshed: 2026-05-05 (v7.72 sprint). Run `genesis doctor` if a command listed here errors out — Genesis is rapidly evolving and the pin may have drifted.*
+*Last refreshed: 2026-05-05 (v7.72 sprint). Run `sndr doctor` if a command listed here errors out — Genesis is rapidly evolving and the pin may have drifted.*

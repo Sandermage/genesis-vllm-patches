@@ -109,7 +109,7 @@ genesis_env:
 
 ```bash
 make smoke-content                            # default: 127.0.0.1:8101
-HOST=http://192.168.1.10:8101 make smoke-content
+HOST=http://your-host:8101 make smoke-content
 ENABLE_THINKING=false make smoke-content       # подтверждает V3 path
 ```
 
@@ -125,4 +125,3 @@ Exit codes:
 - `vllm/sndr_core/integrations/middleware/pn16_lazy_reasoner.py` — wiring
 - `tools/openai_smoke.py` — smoke-тест
 - `Makefile::smoke-content` — CI gate target
-- `docs/_internal/COMPREHENSIVE_DUAL_STATE_AUDIT_2026-05-12_RU.md` P0-3 — root analysis

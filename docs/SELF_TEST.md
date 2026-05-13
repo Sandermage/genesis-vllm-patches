@@ -38,7 +38,7 @@ one pass.
 |---|---|---|
 | 1 | **version constant** | `vllm.sndr_core.__version__` is a non-empty string |
 | 2 | **compat imports** | All 18 `vllm.sndr_core.compat.*` modules import cleanly |
-| 3 | **wiring imports** | All `vllm/sndr_core/wiring/patch_*.py` modules import; SKIPPED if `vllm` not installed in this env |
+| 3 | **integrations imports** | All `vllm/sndr_core/integrations/**/*.py` modules import; SKIPPED if `vllm` not installed in this env |
 | 4 | **schema validator** | `PATCH_REGISTRY` validates against `schemas/patch_entry.schema.json` (no errors) |
 | 5 | **lifecycle audit** | Every entry has a known lifecycle state; no unknown states |
 | 6 | **categories build** | The categories index builds without errors and every patch is placed in at least one category |
@@ -81,7 +81,7 @@ GENESIS_REPO_ROOT=/path/to/genesis-vllm-patches \
 The check now returns `pass` if the schema file is found at
 `$GENESIS_REPO_ROOT/schemas/patch_entry.schema.json`.
 
-Verified inside the live `vllm-server-mtp-test` PROD container:
+Verified inside the live `vllm-server` PROD container:
 **7 pass, 0 fail, 1 skip, exit 0**.
 
 ## JSON output for CI
@@ -133,10 +133,10 @@ message is operator-friendly.
 
 | Command | Use case |
 |---|---|
-| `genesis self-test` | "Is Genesis itself working?" — structural sanity check |
-| `genesis doctor` | "Is my SYSTEM healthy?" — hardware/software/model walk |
-| `genesis lifecycle-audit` | Lifecycle states only, machine-readable for CI |
-| `genesis validate-schema` | Schema validation only, exit 1 on violation |
+| `sndr self-test` | "Is Genesis itself working?" — structural sanity check |
+| `sndr doctor-system` | "Is my SYSTEM healthy?" — hardware/software/model walk |
+| `sndr patches lifecycle-audit` | Lifecycle states only, machine-readable for CI |
+| `sndr patches validate-schema` | Schema validation only, exit 1 on violation |
 | `genesis explain <patch_id>` | Per-patch deep-dive |
 
 `self-test` is the broadest of these — it runs the same

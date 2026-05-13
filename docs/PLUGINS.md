@@ -176,7 +176,7 @@ def get_patch_metadata():
 - `"failed"` — patch tried to apply but hit an unrecoverable error
 
 The `reason` is a free-text string surfaced in the dispatcher matrix
-+ `genesis doctor` output. Make it diagnostic.
++ `sndr doctor` output. Make it diagnostic.
 
 If your callable returns a plain string, Genesis treats it as
 `("applied", <string>)`. If it returns `None`, treated as applied
@@ -192,7 +192,7 @@ take down the engine.
 
 ### What if I don't declare apply_callable?
 
-Then your plugin is **metadata-only**: it shows up in `genesis doctor`,
+Then your plugin is **metadata-only**: it shows up in `sndr doctor`,
 `genesis lifecycle-audit`, and the patch registry, but Genesis won't
 run any code on your behalf. This is useful for:
 

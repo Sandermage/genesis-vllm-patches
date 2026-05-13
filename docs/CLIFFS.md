@@ -28,8 +28,8 @@ You hit OOM earlier than you should on long-context workloads. On a 24 GB card r
 
 **Refs**
 
-- `vllm/sndr_core/wiring/perf_hotfix/patch_n17_fa2_softmax_lse_clamp.py`
-- `vllm/sndr_core/wiring/perf_hotfix/patch_N19_scoped_max_split.py`
+- `vllm/sndr_core/integrations/attention/flash/pn17_fa2_softmax_lse_clamp.py`
+- `vllm/sndr_core/integrations/memory/pn19_scoped_max_split.py`
 - noonghunna Issue #11 (cross-engine derivative)
 - club-3090 Discussion #19 (PN19 ≠ H100 ergonomics report, 2026-05-01)
 
@@ -51,7 +51,7 @@ Single-prompt long-context generation (>50K tokens) OOMs on 24 GB cards even whe
 
 **Refs**
 
-- `vllm/sndr_core/wiring/hybrid/patch_103_fla_cliff2_chunked.py`
+- `vllm/sndr_core/integrations/attention/gdn/p103_fla_cliff2_chunked.py`
 - See also: P60, P60b for related GDN spec-decode corruption fixes
 
 ---
@@ -73,7 +73,7 @@ Tool-call cascades on 27B + TQ k8v4 + FULL cudagraph: the model emits `<tool_cal
 **Refs**
 
 - `vllm/sndr_core/kernels/p67_multi_query_kernel.py`
-- `vllm/sndr_core/wiring/spec_decode/patch_67_tq_multi_query_kernel.py`
+- `vllm/sndr_core/integrations/attention/turboquant/p67_tq_multi_query_kernel.py`
 - See [../docs/PATCHES.md](../docs/PATCHES.md) P67 entry for sanitized variant (Inf/NaN→0 in K/V dequant)
 
 ---
@@ -197,7 +197,7 @@ Operator pulls a new vLLM pin, restarts, sees `[GENESIS] APPLY` for all expected
 
 **Refs**
 
-- `vllm/sndr_core/wiring/text_patch.py` — TextPatcher implementation
+- `vllm/sndr_core/core/text_patch.py` — TextPatcher implementation
 - See [docs/COMPATIBILITY.md](COMPATIBILITY.md) for the currently-tested pin
 
 ---

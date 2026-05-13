@@ -414,6 +414,6 @@ git checkout v7.50-stable-2026-04-27   # pre-Step-D
 Or use the server-side backup:
 
 ```bash
-ls /home/sander/genesis-backups/
+ls ${HOME}/genesis-backups/
 # v7.50-stable-20260427_0202/ contains RESTORE.md with step-by-step
 ```

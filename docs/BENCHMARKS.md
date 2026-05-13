@@ -138,7 +138,7 @@ Genesis vLLM Patcher — boot summary
    cd genesis-vllm-patches
    bash scripts/start_27b_int4_TQ_k8v4.sh   # or start_35b_fp8_PROD.sh
    ```
-2. Wait for the structured boot summary line to appear in `docker logs vllm-server-mtp-test`.
+2. Wait for the structured boot summary line to appear in `docker logs vllm-server`.
 3. Run the comprehensive bench:
    ```bash
    pip install --no-deps -e tools/genesis_vllm_plugin

@@ -115,14 +115,14 @@ docker pull vllm/vllm-openai:nightly
 #    The reference scripts mount your model directory into /models.
 #    Edit:
 #       -v ${HOME}/models:/models:ro                      → your model directory
-#       -v /home/sander/.cache/huggingface:/root/...      → your HF cache (or remove)
-#       -v /home/sander/genesis-vllm-patches/...:/...:ro  → your repo path
+#       -v ${HOME}/.cache/huggingface:/root/...           → your HF cache (or remove)
+#       -v ${HOME}/genesis-vllm-patches/...:/...:ro       → your repo path
 #
 #    Then run it:
 bash scripts/launch/start_35b_fp8_PROD.sh
 
 # 3. Watch logs until you see "Application startup complete":
-docker logs -f vllm-server-mtp-test
+docker logs -f vllm-server
 
 # 4. The bench runs OUTSIDE the container, on the host, hitting localhost:8000.
 #    (The container exposes -p 8000:8000.)

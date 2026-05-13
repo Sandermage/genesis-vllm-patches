@@ -88,7 +88,7 @@ The biggest category — anything that touches speculative-decoding
 |---|---|
 | **P56** TQ spec-decode safe-path guard | Superseded by P65 (which itself is now superseded by P67b) |
 | **P57** TQ spec-decode capture-safe buffers | Research artifact; never reproduced positive effect |
-| **P61** Qwen3 multi-tool first-occurrence | Superseded by P12 v2 (in `vllm/sndr_core/wiring/legacy/`) |
+| **P61** Qwen3 multi-tool first-occurrence | Superseded by P12 v2 (in `vllm/sndr_core/integrations/reasoning/`) |
 
 ---
 

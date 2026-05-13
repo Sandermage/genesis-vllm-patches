@@ -164,7 +164,7 @@ Common overrides:
 ```bash
 # Most-common edits at the top of any archived start_*.sh:
 - v ${HOME}/models:/models:ro                       # → your model dir
-- e CONTAINER_NAME=vllm-server-mtp-test             # → name you prefer
+- e CONTAINER_NAME=vllm-server                      # → name you prefer
 - e PORT=8000                                       # → port if 8000 occupied
 
 # Inside the launch CMD:

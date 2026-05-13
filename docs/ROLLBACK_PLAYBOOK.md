@@ -45,8 +45,9 @@ sndr launch a5000-2x-35b-prod --preflight-only
 
 **Evidence:** append entry to `ROADMAP_EVIDENCE_LEDGER` with the
 rollback command + smoke output + the offending YAML field that broke
-V2. Open a finding under `docs/_internal/external_findings/` if upstream
-vLLM caused the break.
+V2. Open a finding via the project's external-findings pipeline (see
+`EXTERNAL_FINDINGS.md` for maintainer notes) if upstream vLLM caused
+the break.
 
 ---
 
