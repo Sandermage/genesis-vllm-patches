@@ -35,7 +35,7 @@ Multi-turn CoT leakage when running `qwen3.5-enhanced.jinja` on a Qwen3.6 model:
 ```bash
 # In your start script, add:
 exec vllm serve /models/Qwen3.6-27B-int4-AutoRound \
-  --chat-template /home/sander/genesis-vllm-patches/assets/chat_templates/qwen3.6-enhanced.jinja \
+  --chat-template "$HOME/genesis-vllm-patches/assets/chat_templates/qwen3.6-enhanced.jinja" \
   ...
 ```
 
@@ -55,7 +55,7 @@ Together: bundled jinja prevents the bug from reaching vLLM in the first place; 
 
 ## Bundling rationale + credit
 
-Genesis bundles these files unmodified (with attribution above) so operators don't have to clone a separate repo + manage a third path. Per Sander's `feedback_no_ai_credit_in_public.md` rule, no AI-generated edits to the templates themselves; they remain Cheuk-Yiu Chan's authored work. License terms inherited from upstream.
+Genesis bundles these files unmodified (with attribution above) so operators don't have to clone a separate repo + manage a third path. Per project policy, no generated edits to the templates themselves; they remain Cheuk-Yiu Chan's authored work. License terms inherited from upstream.
 
 If the upstream author ships updates, refresh via:
 ```bash

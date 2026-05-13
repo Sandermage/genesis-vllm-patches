@@ -27,7 +27,7 @@ These were enabled programmatically — no setup needed:
 
 ## Manual install needed (5 minutes via UI)
 
-### gemini-code-assist (Google AI code review)
+### gemini-code-assist (automated code-review service)
 
 This is the bot that reviewed our PR vllm#40914 and caught the buffer-reuse bug. **Free for public repos.**
 
@@ -37,7 +37,7 @@ This is the bot that reviewed our PR vllm#40914 and caught the buffer-reuse bug.
 4. Confirm
 5. Done — every new PR automatically gets a code review comment within ~1 minute of opening
 
-### CodeRabbit (alternative AI reviewer for cross-validation)
+### CodeRabbit (alternative automated reviewer for cross-validation)
 
 Optional second-opinion bot. Sometimes catches what gemini misses, and vice versa.
 
@@ -45,7 +45,7 @@ Optional second-opinion bot. Sometimes catches what gemini misses, and vice vers
 2. Install on `genesis-vllm-patches`
 3. Free for open-source
 
-Trade-off: 2 AI reviewers on the same PR can be noisy. Worth it for high-stakes PRs (kernels, security-sensitive changes); overkill for typo fixes.
+Trade-off: 2 automated reviewers on the same PR can be noisy. Worth it for high-stakes PRs (kernels, security-sensitive changes); overkill for typo fixes.
 
 ## Verifying setup
 

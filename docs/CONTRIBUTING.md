@@ -525,7 +525,7 @@ All public docs are in **English**. This includes README, PATCHES, MODELS, CHANG
 
 **Russian translations are welcome** but live as separate files: `docs/<file>.ru.md`. Don't replace the English version. If you submit a Russian translation, the English version is the source of truth — translations track it.
 
-The maintainer writes natively in Russian. AI translation help is fine for PR comments and discussions; please flag it briefly (`(translated with AI assistance)`) so reviewers can adjust expectations on phrasing.
+The maintainer writes natively in Russian. Machine-translation help is fine for PR comments and discussions; please flag it briefly (`(translated)`) so reviewers can adjust expectations on phrasing.
 
 ---
 

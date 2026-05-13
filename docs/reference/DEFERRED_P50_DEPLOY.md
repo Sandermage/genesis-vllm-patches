@@ -25,21 +25,21 @@ config — so P50 cannot live there directly.
 
 1. Copy
    `vllm/sndr_core/middleware/response_cache_middleware.py`
-   → `/home/sander/Genesis_Project/genesis_proxy/genesis_proxy/response_cache_middleware.py`
-2. Edit `/home/sander/Genesis_Project/genesis_proxy/genesis_proxy/app.py`
+   → `$HOME/Genesis_Project/genesis_proxy/genesis_proxy/response_cache_middleware.py`
+2. Edit `$HOME/Genesis_Project/genesis_proxy/genesis_proxy/app.py`
    ~line 60, after `app = FastAPI(...)`:
    ```python
    from .response_cache_middleware import ResponseCacheMiddleware
    app.add_middleware(ResponseCacheMiddleware, ttl=300)
    ```
 3. Add any new deps to
-   `/home/sander/Genesis_Project/genesis_proxy/requirements.txt`
+   `$HOME/Genesis_Project/genesis_proxy/requirements.txt`
 4. Add a unit test under
-   `/home/sander/Genesis_Project/genesis_proxy/tests/`
+   `$HOME/Genesis_Project/genesis_proxy/tests/`
    (TDD: cache hit returns 200 with `X-Cache: HIT`)
 5. Rebuild + redeploy:
-   `cd /home/sander/Genesis_Project && docker compose up -d --build genesis-proxy`
-6. Verify: `curl http://192.168.1.10:8318/health` then send two
+   `cd $HOME/Genesis_Project && docker compose up -d --build genesis-proxy`
+6. Verify: `curl http://<host>:8318/health` then send two
    identical `/v1/chat/completions` requests; confirm 2nd hits cache
    (response header `X-Cache: HIT`)
 
@@ -47,7 +47,7 @@ config — so P50 cannot live there directly.
 
 - cliproxyapi is a Go binary, no Python plugin surface.
 - `config.example.yaml` (22 KB) has ZERO response-cache options.
-- Only cache-related keys are `cache-user-id` (Codex `user_id`) and
+- Only cache-related keys are `cache-user-id` (per-request `user_id`) and
   `antigravity-signature-cache-enabled` (Antigravity thinking-block
   signature cache). Neither is a response cache.
 
@@ -72,13 +72,13 @@ handling). If it does, adapt or wrap before mounting.
 
 ## File paths reference
 
-- `/home/sander/Genesis_Project/genesis_proxy/genesis_proxy/app.py`
+- `$HOME/Genesis_Project/genesis_proxy/genesis_proxy/app.py`
   (target for `add_middleware`)
-- `/home/sander/Genesis_Project/genesis_proxy/genesis_proxy/dedup_cache.py`
+- `$HOME/Genesis_Project/genesis_proxy/genesis_proxy/dedup_cache.py`
   (reference pattern for keying)
-- `/home/sander/Genesis_Project/genesis_proxy/Dockerfile`
+- `$HOME/Genesis_Project/genesis_proxy/Dockerfile`
   (no edits needed — middleware is just a Python file)
-- `/home/sander/Genesis_Project/docker-compose.yml` lines 296–325
+- `$HOME/Genesis_Project/docker-compose.yml` lines 296–325
   (cliproxyapi + genesis-proxy services)
 - Source to copy:
   `vllm/sndr_core/middleware/response_cache_middleware.py`

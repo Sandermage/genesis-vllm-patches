@@ -1,7 +1,7 @@
 # v759 — 320K context expansion (validated 2026-04-27 night)
 
 **Status:** TESTED + VALIDATED, awaiting Sander GO for PROD promotion.
-**Source:** `/home/sander/launch_scripts/test/start_v759_320k_explore.sh`
+**Source:** `$HOME/launch_scripts/test/start_v759_320k_explore.sh`
 **Goal:** push --max-model-len from 256K (v748 PROD) to 320K with same stability.
 
 ## Knob changes vs v748 PROD

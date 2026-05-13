@@ -371,9 +371,23 @@ def _run_pn95_status(opts: argparse.Namespace) -> int:
         if hit:
             hints.append({"severity": severity, "message": msg})
 
+    # Disk-tier stats are best-effort: the module reads env at first
+    # access; we can probe it without forcing init when disabled.
+    disk_stats: dict = {}
+    try:
+        from vllm.sndr_core.cache import _pn95_disk_tier as _dt
+        disk_stats = _dt.disk_tier_stats()
+    except Exception as e:
+        disk_stats = {"error": str(e)}
+
     if opts.json:
         print(json.dumps(
-            {"available": True, "stats": stats, "hints": hints},
+            {
+                "available": True,
+                "stats": stats,
+                "disk_tier": disk_stats,
+                "hints": hints,
+            },
             indent=2, sort_keys=True,
         ))
         return 0
@@ -396,7 +410,22 @@ def _run_pn95_status(opts: argparse.Namespace) -> int:
     print(f"  async_demote_count:       {stats.get('async_demote_count', 0)}")
     print(f"  worker_proactive_calls:   {stats.get('worker_proactive_calls', 0)}")
     print(f"  worker_proactive_captured:{stats.get('worker_proactive_captured', 0)}")
+    print(f"  ram_to_disk_spills:       {stats.get('ram_to_disk_spills_total', 0)}")
+    print(f"  disk_to_ram_promotes:     {stats.get('disk_to_ram_promotes_total', 0)}")
     print(f"  timestamp:                {stats.get('timestamp', '-')}")
+    if disk_stats and "error" not in disk_stats:
+        print("")
+        print("  ── disk tier (Tier 3) ──")
+        print(f"  dir:           {disk_stats.get('disk_dir')}")
+        print(f"  entries:       {disk_stats.get('disk_entries', 0)}")
+        print(f"  bytes_on_disk: {disk_stats.get('disk_bytes_on_disk', 0)}")
+        print(f"  capacity:      {disk_stats.get('disk_capacity_bytes', 0)}")
+        print(f"  writes_total:  {disk_stats.get('disk_writes_total', 0)}")
+        print(f"  read_hits:     {disk_stats.get('disk_read_hits_total', 0)}")
+        print(f"  evictions:     {disk_stats.get('disk_evictions_total', 0)}")
+        err = disk_stats.get('disk_last_io_error')
+        if err:
+            print(f"  last_io_error: {err}")
     print("")
     if hints:
         print("  Self-diagnosis:")

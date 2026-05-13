@@ -4,7 +4,7 @@
 INCONCLUSIVE on bench with non-repeating prompts. Not a clear win over
 v748 PROD baseline.
 
-**Source:** `/home/sander/launch_scripts/test/start_v758_p75_suffix.sh`
+**Source:** `$HOME/launch_scripts/test/start_v758_p75_suffix.sh`
 **Goal:** opt-in alternative to v748 PROD (MTP K=3) — Suffix Decoding via
 P75 auto-swap.
 
@@ -77,7 +77,7 @@ agentic-workload validation.**
 - Real-workload value: theoretically high but unproven for our use
 
 **Keep v748 PROD as default.** v758 launch script preserved at
-`/home/sander/launch_scripts/test/start_v758_p75_suffix.sh` for
+`$HOME/launch_scripts/test/start_v758_p75_suffix.sh` for
 operators who want to A/B test on their actual traffic.
 
 P75 wiring bug fix (import os) is independently valuable — committed
@@ -125,7 +125,7 @@ docker stop vllm-server-mtp-test
 docker rm vllm-server-mtp-test
 
 # Launch v758
-bash /home/sander/launch_scripts/test/start_v758_p75_suffix.sh
+bash $HOME/launch_scripts/test/start_v758_p75_suffix.sh
 
 # Wait ~2 min for boot (`Application startup complete`)
 # Verify P75 swapped: docker logs | grep "P75" — should see
@@ -159,7 +159,7 @@ curl -s -H "Authorization: Bearer genesis-local" \
 ```bash
 docker stop vllm-server-mtp-test
 docker rm vllm-server-mtp-test
-bash /home/sander/launch_scripts/current/start_v748_p82_prod.sh
+bash $HOME/launch_scripts/current/start_v748_p82_prod.sh
 ```
 
 Rollback is exactly the PROD launch script — no state to clean up.

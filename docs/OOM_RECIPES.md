@@ -66,7 +66,7 @@ OOMs in `chunk_fwd_o → empty_like(v)` after 4-5 hermes turns. ALL six
 single-card vLLM composes FAIL continuous soak. Only TP=2 + llama.cpp
 survive cleanly.
 
-**Root cause** (per noonghunna codex residency analysis):
+**Root cause** (per noonghunna residency analysis):
 - PN12 stays exactly flat at 137 MiB across turns ✓ (Genesis pools clean)
 - Growth is in PyTorch caching allocator + vLLM internal state (NOT Genesis)
 - Per turn: `total_reserved +1400 MiB`, `total_alloc +590 MiB`,

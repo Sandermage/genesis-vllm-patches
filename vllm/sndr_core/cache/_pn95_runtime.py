@@ -1665,15 +1665,36 @@ def _prefix_store_max_bytes() -> int:
 
 
 def _prefix_store_evict_until_fit(needed_bytes: int) -> None:
-    """LRU evict from CPU prefix store until needed_bytes fits."""
+    """LRU evict from CPU prefix store until needed_bytes fits.
+
+    When the disk tier (`_pn95_disk_tier`) is enabled, the LRU victim
+    is spilled to disk before being dropped from RAM so future
+    `promote_on_miss` can still recover the bytes. With the disk tier
+    disabled (default) the behaviour matches the legacy implementation
+    — victims are discarded.
+    """
     global _PN95_PREFIX_STORE_BYTES_USED
     max_bytes = _prefix_store_max_bytes()
+    try:
+        from vllm.sndr_core.cache import _pn95_disk_tier as _disk
+    except ImportError:
+        _disk = None
+    disk_active = _disk is not None and _disk._enabled()
     while _PN95_PREFIX_STORE_BYTES_USED + needed_bytes > max_bytes:
         if not _PN95_PREFIX_STORE:
             return
-        _key, layer_data = _PN95_PREFIX_STORE.popitem(last=False)
+        key, layer_data = _PN95_PREFIX_STORE.popitem(last=False)
         freed = sum(len(b) for _name, b in layer_data)
         _PN95_PREFIX_STORE_BYTES_USED -= freed
+        # Spillover the evicted entry to the disk tier when enabled.
+        # Failure is non-fatal — the victim is then discarded as before.
+        if disk_active:
+            try:
+                if _disk.disk_tier_set(key, layer_data):
+                    _PN95_STATS.setdefault("ram_to_disk_spills_total", 0)
+                    _PN95_STATS["ram_to_disk_spills_total"] += 1
+            except Exception:
+                pass
 
 
 def register_block_pool(block_pool: Any) -> None:
@@ -1801,6 +1822,7 @@ def promote_on_miss(block_pool: Any, block_hash_with_group_id: Any) -> Any:
     eviction will trigger our demote_on_evict (recursive but bounded by
     prefix store capacity). cudaMemcpyHostToDevice is sync.
     """
+    global _PN95_PREFIX_STORE_BYTES_USED
     if not _enabled() or _TM is None:
         return None
     # OBS1 — track all lookup attempts (для hit_rate calculation)
@@ -1808,6 +1830,31 @@ def promote_on_miss(block_pool: Any, block_hash_with_group_id: Any) -> Any:
         _PN95_STATS.get("prefix_lookups_total", 0) + 1
     )
     layer_data = _PN95_PREFIX_STORE.get(block_hash_with_group_id)
+    promoted_from_disk = False
+    if layer_data is None:
+        # CPU prefix store miss — try the disk tier before giving up.
+        # On disk hit, re-insert into the in-RAM store (LRU at the
+        # warm end) so subsequent lookups stay fast and we don't pay
+        # the unpickle cost twice.
+        try:
+            from vllm.sndr_core.cache import _pn95_disk_tier as _disk
+        except ImportError:
+            _disk = None
+        if _disk is not None and _disk._enabled():
+            disk_data = _disk.disk_tier_get(block_hash_with_group_id)
+            if disk_data is not None:
+                layer_data = disk_data
+                promoted_from_disk = True
+                # Insert back into CPU prefix store; evict to fit if
+                # needed (which may itself spill an older entry to
+                # disk per _prefix_store_evict_until_fit policy).
+                total_bytes = sum(len(b) for _n, b in layer_data)
+                _prefix_store_evict_until_fit(total_bytes)
+                if total_bytes <= _prefix_store_max_bytes():
+                    _PN95_PREFIX_STORE[block_hash_with_group_id] = layer_data
+                    _PN95_PREFIX_STORE_BYTES_USED += total_bytes
+                _PN95_STATS.setdefault("disk_to_ram_promotes_total", 0)
+                _PN95_STATS["disk_to_ram_promotes_total"] += 1
     if layer_data is None:
         # OBS1 — cold miss: vllm asked, мы тоже не имели данных
         _PN95_STATS["prefix_lookups_cold_miss"] = (
@@ -1874,7 +1921,6 @@ def promote_on_miss(block_pool: Any, block_hash_with_group_id: Any) -> Any:
         except Exception:
             pass
 
-        global _PN95_PREFIX_STORE_BYTES_USED
         old = _PN95_PREFIX_STORE.pop(block_hash_with_group_id, None)
         if old is not None:
             _PN95_PREFIX_STORE_BYTES_USED -= sum(len(b) for _n, b in old)

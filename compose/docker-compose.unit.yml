@@ -1,16 +1,16 @@
 # Genesis v7.0-dev UNIT validation compose — CPU-only, no GPU required.
 #
-# Runs the full pytest suite for vllm/_genesis/ inside a lightweight CPU
+# Runs the full pytest suite for vllm/sndr_core/ inside a lightweight CPU
 # Python container. Tests use monkeypatch to simulate every GPU platform
 # (NVIDIA Ampere/Ada/Hopper/Blackwell, AMD ROCm, Intel XPU, CPU) so the
 # full coverage runs without any physical GPU.
 #
-# Target hosts: VM 103 (192.168.1.15) or any Docker host — GPUs NOT needed.
+# Target host: any CPU-only Docker host — GPUs NOT needed.
 #
-# Usage:
-#   scp -r genesis-vllm-patches/ sander@192.168.1.15:/home/sander/
-#   ssh sander@192.168.1.15
-#   cd /home/sander/genesis-vllm-patches
+# Usage (run on a fresh dev VM):
+#   scp -r genesis-vllm-patches/ <user>@<host>:~/
+#   ssh <user>@<host>
+#   cd ~/genesis-vllm-patches
 #   docker compose -f compose/docker-compose.unit.yml run --rm genesis-unit
 #
 # What this validates (TDD gate 1 of 2):
@@ -48,13 +48,13 @@ services:
         pip install --quiet --disable-pip-version-check \
           --index-url https://download.pytorch.org/whl/cpu torch
         echo ""
-        echo "=== Running pytest: vllm/_genesis/tests/ ==="
+        echo "=== Running pytest: vllm/sndr_core/tests/ ==="
         cd /work
         # Make the package importable without installing vllm itself;
         # our tests monkey-patch guards so no real vllm import needed
         # for the pure-python layer.
         PYTHONPATH=/work python3 -m pytest \
-          vllm/_genesis/tests/ \
+          vllm/sndr_core/tests/ \
           -v --tb=short \
           --color=yes \
           -p no:cacheprovider

@@ -464,7 +464,7 @@ The 21 xfailed tests across all 6 hand-written contracts + factory all stemmed f
   - Upstream-status audit (informational): runs `audit_upstream_status.py --skip-network` for PR-time visibility (strict gate is the weekly cron in [upstream_audit_status.yml](.github/workflows/upstream_audit_status.yml))
 - **README.md line 120** sync: `vllm.sndr_core.patches` → `vllm.sndr_core.integrations` reference + note on back-compat alias.
 - **audit_yaml_vs_runtime.sh verified post-renames** on PROD: 27B (`vllm-pn95-2xa5000`) shows 0 real drift — explicit disables in YAML + PN95 experiment additions properly classified.
-- **Code quality sweep**: scanned for top-level torch/triton imports across all of `integrations/`, `compat/`, `cli/`, `middleware/` — **0 hits** (P38 was the only one, already fixed). Also clean: hardcoded `/home/sander|/nfs/|/opt/` paths (only legitimate auto-detection probe lists in `model_configs/host.py`); FIXME/XXX/HACK comments (clean).
+- **Code quality sweep**: scanned for top-level torch/triton imports across all of `integrations/`, `compat/`, `cli/`, `middleware/` — **0 hits** (P38 was the only one, already fixed). Also clean: hardcoded `$HOME|/nfs/|/opt/` paths (only legitimate auto-detection probe lists in `model_configs/host.py`); FIXME/XXX/HACK comments (clean).
 
 **Final session totals**:
 
@@ -587,7 +587,7 @@ Plus `emit_env_shell()` — renders all paths as a sourcable bash snippet so ser
 
 **Server start-scripts rewritten** to source canonical env file + use env vars throughout:
 
-- 5 hardcoded paths per script replaced: `/nfs/genesis/models` → `${GENESIS_MODELS_DIR}`, `/home/sander/.cache/huggingface` → `${GENESIS_HF_CACHE_DIR}`, compile/triton cache dirs, Genesis project mount
+- 5 hardcoded paths per script replaced: `/nfs/genesis/models` → `${GENESIS_MODELS_DIR}`, `$HOME/.cache/huggingface` → `${GENESIS_HF_CACHE_DIR}`, compile/triton cache dirs, Genesis project mount
 - All 3 scripts (`start_pn95_2xa5000_test.sh`, `start_35b_prod_wave8.sh`, `start_27b_bump_test.sh`) source `~/.genesis_paths.env` at top if present
 - `~/.genesis_paths.env` written on server with operator-specific values (NFS models, host caches, Genesis project location)
 - Operator workflow: edit one file (`~/.genesis_paths.env`); all start-scripts pick up new values on next launch
@@ -901,7 +901,7 @@ Per Sander 2026-05-11. All edits local only.
 
 ## [v11.0.0] — Two-audit closure + canonical SNDR Core/Engine split (2026-05-08)
 
-> **48-hour audit-driven cleanup.** Two independent third-party AI deep
+> **48-hour audit-driven cleanup.** Two independent third-party deep
 > audits landed back-to-back: `sndr_structure_deep_audit_2026-05-07.md`
 > (19 + 20 findings) and `sndr_repeat_deep_audit_2026-05-08.md` (9 P0 + 9 P1).
 > Combined closure rate: **33 of 37 findings same-day**, including all
@@ -964,7 +964,7 @@ Per Sander 2026-05-11. All edits local only.
 - **P1-6 CI workflow**: pytest.ini single-root; CI workflow rewritten
   with torch-less import smoke + apply-shadow strict gate.
 - **P1-7 drift watcher**: rewritten to walk `iter_patch_specs()`.
-- **P1-9 public scripts**: hardcoded `192.168.1.10` removed in favor of
+- **P1-9 public scripts**: hardcoded `<host>` removed in favor of
   `localhost:8000` defaults.
 
 ### Deferred (2/18)
@@ -1394,7 +1394,7 @@ if is_enabled(Flags.P61C_QWEN3CODER_DEFERRED_COMMIT):
 - **PN62** (Genesis-original) — Text-only ViT scratch skip marker (3-5 GiB save target on qwen3_vl + NVFP4). Currently sets `_pn62_skip_vit_scratch` marker only — production hook deferred until NVFP4 cross-rig validation.
 - **PN63** (Genesis-original) — gpu_profile advisory: prefer `--kv-cache-dtype fp8_e5m2` over `fp8_e4m3` on consumer Blackwell SM 12.0 (apnar empirical: e4m3+96K loses −2.6% TPS vs e5m2+48K on RTX 5090).
 - **PN64** (Genesis-original) — Marlin MoE SM 12.0 placeholder entry (env-gated; awaits real 5090 sweep).
-- **PN65** (Genesis-original) — Genesis structured API access log middleware. Replaces uvicorn's bare `INFO: 192.168.1.10 - "GET /v1/models" 401` with `[Genesis-API] 401 GET /v1/models <1ms client=192.168.1.10`. v2 fix uses persistent `logging.Filter` to suppress uvicorn.access INFO records (live verified — single source request observability).
+- **PN65** (Genesis-original) — Genesis structured API access log middleware. Replaces uvicorn's bare `INFO: <host> - "GET /v1/models" 401` with `[Genesis-API] 401 GET /v1/models <1ms client=<host>`. v2 fix uses persistent `logging.Filter` to suppress uvicorn.access INFO records (live verified — single source request observability).
 - **PN66** (vllm#41696 backport, panpan0000) — Multiturn `</think>` leak in DelegatingParser. Removes buggy `prompt_reasoning_checked` short-circuit that walked the FULL prompt for `</think>` and prematurely set `reasoning_ended=True` from a previous turn's `</think>`. Defensive backport for multi-turn DSML/Hermes/Qwen3 chat.
 - **PN67** (vllm#41674 backport, JasonKeyiL) — thinking_token_budget inverted-bool single-token fix. Removes `not` from `or not thinking_budget_tracks_reqs` in `gpu_input_batch.py:894`. Defensive; NULL-impact on Genesis PROD.
 
@@ -1655,7 +1655,7 @@ reproduce. All 3 fixed in v7.68 + 1 new companion patch:
   rows into wrong destination offsets, corrupting DS conv state row
   strides on every `offset>0` copy. Surfaced as TQ store CUDA assert
   several layers downstream — the user-visible symptom was at the wrong
-  layer, not the root. Diagnosis credit: noonghunna + ChatGPT/Codex CLI
+  layer, not the root. Diagnosis credit: noonghunna + independent cross-check
   cross-check (club-3090 commit `9af1a52`). Fix: 3-file text-patch
   with new part3 on `collect_mamba_copy_meta` building dst-shaped temp
   via `state[dest_block_id].clone()` + tail copy. Old part1 path now
@@ -1751,7 +1751,7 @@ transfer. Reverted to v7.66.
   `test_pn32_documents_p28_conflict`. Default OFF — cross-rig
   validation needed (our 2× A5000 PROD doesn't hit Cliff 2 threshold).
 
-### Audit pass (2026-05-02) — Gemini + ChatGPT/Codex CLI
+### Audit pass (2026-05-02) — two independent reviewer passes
 
 Two independent static-analysis audits ran across the genesis-vllm-patches
 tree to catch latent issues that pytest + live-boot couldn't surface.
@@ -1760,14 +1760,14 @@ Both found real bugs the test suite missed.
 | Audit | Tool | Findings | Real bugs | Fixed |
 |---|---|---|---|---|
 | 1st | Google Gemini | 1 critical | 1 | ✓ commit `5743c03` |
-| 2nd | ChatGPT/Codex CLI | 16 (G-001..G-016) | 9 | ✓ commits `82c64c1` + `6f9c5eb` |
+| 2nd | independent reviewer #2 | 16 (G-001..G-016) | 9 | ✓ commits `82c64c1` + `6f9c5eb` |
 
 **Latent bugs caught + fixed**:
 
 - `model_detect.py:185` — undefined `base` in exception path. NameError
   was masked by dispatcher's `conservative apply` fallback → genuine
   model-incompat could have applied hybrid GDN patches to non-hybrid
-  models silently. (Codex G-001)
+  models silently. (audit finding G-001)
 - `patch_103_fla_cliff2_chunked.py:197` — undefined `T` in chunked-
   prefill loop. Cliff 2 chunked path silent-crashed `NameError` on
   every trigger since v7.62.20 ship. PROD didn't surface because
@@ -1777,22 +1777,22 @@ Both found real bugs the test suite missed.
 - `vllm/sndr_core/__init__.py` — eagerly imported `prealloc` (which
   imports `torch`). Every torch-less CLI / pre-commit / static-analysis
   tool failed `ModuleNotFoundError` before reaching their entry point.
-  Fixed via lazy `__getattr__` for `prealloc`. (Codex G-002)
+  Fixed via lazy `__getattr__` for `prealloc`. (audit finding G-002)
 - `ResponseCacheMiddleware` — two contract violations: (a)
   `float("abc")` on malformed temperature leaked ValueError to client
   as 500; (b) corrupt cached entry → connection hung because
   `_send_cached_response` returned without sending. Both fixed.
-  (Codex G-003 + G-004)
+  (audit findings G-003 + G-004)
 - `apply_all.py` — community plugins were applied BEFORE the core
   patch loop despite the docstring saying "After core patches finish".
   Plugin authors relying on the contract found post-modification
   anchors absent. Reordered + added post-plugin
-  `validate_registry()` re-run. (Codex G-006 + G-007)
+  `validate_registry()` re-run. (audit findings G-006 + G-007)
 - 7 env-var references in PATCHES.md / INSTALL.md didn't match
   `dispatcher.py` — operators copy-pasting got no-op env vars while
-  their patch silently stayed disabled. All synced. (Codex G-008)
+  their patch silently stayed disabled. All synced. (audit finding G-008)
 
-**Lint pass (Codex G-016)**:
+**Lint pass (audit finding G-016)**:
 
 - 195 ruff `F401`/`F841`/`RUF059` errors → 0 (`All checks passed!`)
 - Unused imports + unused locals + unpacked tuple cleanup
@@ -2067,7 +2067,7 @@ workload to characterize properly.
 
 > 50 commits ahead of `origin/main` at time of writing. Local-only
 > until Sander explicitly green-lights a GitHub push. Run on PROD
-> (server `192.168.1.10`, 2× RTX A5000) since 2026-04-29.
+> (server `<host>`, 2× RTX A5000) since 2026-04-29.
 
 ### Added
 

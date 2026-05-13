@@ -69,7 +69,7 @@ See [docs/CONTRIBUTING.md "Pin-bump playbook"](../docs/CONTRIBUTING.md#pin-bump-
 
 ## Genesis convention checks
 
-- [ ] No `Co-Authored-By: AI` / `Co-Authored-By: Claude` attributions in commits
+- [ ] No automated-tool co-author trailers in commits
 - [ ] No paths to `~/Genesis_internal_docs/` or other operator-specific dirs hardcoded in source
 - [ ] No hardcoded paths in active scripts — use `vllm.sndr_core.locations.project_paths` helpers + bash env vars
 - [ ] Renames respect back-compat aliases (e.g., `from vllm.sndr_core.patches` still resolves via `__getattr__`)

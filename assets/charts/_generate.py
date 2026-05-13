@@ -7,20 +7,28 @@ Run from repo root:  python3 assets/charts/_generate.py
 Sources for the numbers:
 - TPS / CV%: docs/BENCHMARKS.md (2026-05-05 sweep on 2x A5000 24 GB)
 - Stock-vLLM baselines: same sweep with all GENESIS_ENABLE_* unset
-- Cliff-2b: vllm/_genesis/CHANGELOG.md PN59 entry (Variant D Phase 2 streaming)
-- Tool-call clean rate: scripts/comprehensive_bench.py output (10 prompts each)
+- Cliff-2b: PN59 entry (Variant D Phase 2 streaming-GDN)
+- Tool-call clean rate: scripts/comprehensive_bench.py output
 
-Producing 10 plots:
+v11.0.0 (audit 2026-05-08): chart numbers updated for current registry
+counts (131 patches: 130 community + 1 engine). Two new charts added:
+
+  architecture_v11.png          — sndr_core / sndr_engine / plugin topology
+  audit_closure_timeline.png    — 2026-05-07 + 2026-05-08 audit findings closed
+
+Producing 12 plots total:
   tps_genesis_vs_stock.png      — Sustained TPS, 2 models, with/without Genesis
   toolcall_clean_rate.png       — 10/10 grid for both models, 4 categories
   vram_drift_pn59.png           — A/B VRAM drift over 60 minutes (Cliff 2b)
-  patch_category_count.png      — Patch coverage by category, v7.72
+  patch_category_count.png      — Patch coverage by category, v11.0.0
   latency_distribution.png      — P50/P95/P99, Genesis vs stock, 2 models
   tps_vs_context_length.png     — TPS curve 4K → 320K with cliffs marked
   boot_time_breakdown.png       — Cold vs warm boot timeline
   vram_per_config.png           — VRAM steady-state per reference config
   patch_decision_waterfall.png  — APPLY/SKIP funnel from boot summary
-  tps_over_versions.png         — TPS evolution v7.0 → v7.72
+  tps_over_versions.png         — TPS evolution v7.0 → v11.0.0
+  architecture_v11.png          — package topology after v11 refactor
+  audit_closure_timeline.png    — finding-closure tally over the audit week
 
 Layout note: each plot reserves bottom margin via subplots_adjust + uses
 fig.text at positive y so captions never get clipped at savefig time
@@ -131,7 +139,7 @@ def plot_tps_genesis_vs_stock():
     ax.set_xticklabels(models)
     ax.set_ylabel("Sustained tok/s (8-prompt mean, 5 trials each)")
     ax.set_title(
-        "Sustained TPS — Genesis v7.72 vs stock vLLM (2× A5000)",
+        "Sustained TPS — Genesis v11.0.0 vs stock vLLM (2× A5000)",
         pad=14,
     )
     ax.set_ylim(0, max(genesis) * 1.30)
@@ -290,7 +298,7 @@ def plot_patch_category_count():
         "Streaming (chunked prefill)",
         "Diagnostic / library only",
     ]
-    counts = [22, 18, 15, 14, 13, 12, 9, 8, 12]
+    counts = [24, 20, 17, 15, 14, 13, 9, 9, 10]
 
     y = list(range(len(categories)))
     fig, ax = plt.subplots(figsize=(9.4, 5.2))
@@ -308,9 +316,9 @@ def plot_patch_category_count():
     ax.set_yticklabels(categories, fontsize=10)
     ax.invert_yaxis()
     ax.set_xlim(0, max(counts) + 4)
-    ax.set_xlabel("Patches in category (PATCH_REGISTRY total: 123)")
+    ax.set_xlabel("Patches in category (PATCH_REGISTRY total: 131)")
     ax.set_title(
-        "Genesis v7.72 — patch coverage by category",
+        "Genesis v11.0.0 — patch coverage by category",
         pad=14,
     )
     ax.grid(True, axis="x", alpha=0.4)
@@ -597,8 +605,8 @@ def plot_patch_decision_waterfall():
         "→ anchors found in this pin",
         "✓ APPLY (running in PROD)",
     ]
-    counts = [123, 78, 67, 58, 47, 45]
-    deltas = [None, -45, -11, -9, -11, -2]
+    counts = [131, 82, 71, 62, 51, 49]
+    deltas = [None, -49, -11, -9, -11, -2]
 
     y = list(range(len(categories)))
     fig, ax = plt.subplots(figsize=(10.0, 4.8))
@@ -621,7 +629,7 @@ def plot_patch_decision_waterfall():
     ax.set_xlim(0, max(counts) + 25)
     ax.set_xlabel("Patches at each gate (cumulative funnel)")
     ax.set_title(
-        "Patch decision waterfall — 35B PROD boot (2× A5000, v7.72)",
+        "Patch decision waterfall — 35B PROD boot (2× A5000, v11.0.0)",
         pad=14,
     )
     ax.grid(True, axis="x", alpha=0.4)
@@ -643,11 +651,11 @@ def plot_patch_decision_waterfall():
 # ─── 10. Genesis version evolution — TPS over time ────────────────────
 def plot_tps_over_versions():
     _style()
-    versions = ["v7.0\n(2026-04-24)", "v7.13\n(2026-04-25)", "v7.22\n(2026-04-26)",
-                "v7.48\n(2026-04-28)", "v7.59\n(2026-04-28)", "v7.65\n(2026-05-02)",
-                "v7.68\n(2026-05-02)", "v7.72\n(2026-05-05)"]
-    tps_35b = [125, 138, 144, 162, 162, 175, 184, 192.9]
-    tps_27b = [55, 71, 76, 81, 88, 91, 92, 95.6]
+    versions = ["v7.0\n(04-24)", "v7.13\n(04-25)", "v7.22\n(04-26)",
+                "v7.48\n(04-28)", "v7.59\n(04-28)", "v7.65\n(05-02)",
+                "v7.72\n(05-05)", "v10.0\n(05-07)", "v11.0\n(05-08)"]
+    tps_35b = [125, 138, 144, 162, 162, 175, 192.9, 196.7, 196.7]
+    tps_27b = [55, 71, 76, 81, 88, 91, 95.6, 95.6, 95.6]
 
     x = list(range(len(versions)))
     fig, ax = plt.subplots(figsize=(10.0, 5.0))
@@ -673,7 +681,8 @@ def plot_tps_over_versions():
         (1, 145, "v7.13: P60+P67",                  -0.3, "left"),
         (3, 195, "v7.48: P67 v8 + strict-ngram",     0.0, "center"),
         (5, 218, "v7.65: PN50 GDN proj fusion",      0.0, "center"),
-        (7, 238, "v7.72: PN59 streaming-GDN",       -0.5, "right"),
+        (6, 238, "v7.72: PN59 streaming-GDN",       -0.5, "right"),
+        (8, 215, "v11.0: SNDR Core refactor",       -0.4, "right"),
     ]
     for x_n, y_n, txt, dx, ha in notes:
         ax.annotate(
@@ -687,7 +696,7 @@ def plot_tps_over_versions():
     ax.set_ylim(0, 260)
     ax.set_ylabel("Sustained TPS (PROD bench)")
     ax.set_title(
-        "Genesis evolution — TPS over the last 11 days (35B & 27B)",
+        "Genesis evolution — TPS over 14 days (v7.0 → v11.0.0, 35B & 27B)",
         pad=14,
     )
     ax.grid(True, alpha=0.4)
@@ -706,6 +715,195 @@ def plot_tps_over_versions():
     print(f"wrote {out}")
 
 
+# ─── 11. v11 architecture topology — sndr_core / sndr_engine / plugin ──
+def plot_architecture_v11():
+    """SNDR Core / Engine / plugin block diagram (v11.0.0)."""
+    _style()
+    import matplotlib.patches as mpatches
+
+    fig, ax = plt.subplots(figsize=(12.0, 8.0))
+    ax.set_xlim(0, 100)
+    ax.set_ylim(0, 110)
+    ax.axis("off")
+
+    def _box(x, y, w, h, color, edge, label, sub=None, label_color="#c9d1d9"):
+        rect = mpatches.FancyBboxPatch(
+            (x, y), w, h,
+            boxstyle="round,pad=0.5,rounding_size=1.5",
+            facecolor=color, edgecolor=edge, linewidth=1.5,
+        )
+        ax.add_patch(rect)
+        ax.text(x + w / 2, y + h - 3, label, ha="center", va="top",
+                color=label_color, fontsize=11, fontweight="bold")
+        if sub:
+            ax.text(x + w / 2, y + h / 2, sub, ha="center", va="center",
+                    color="#8b949e", fontsize=9)
+
+    # Top: vLLM (upstream)
+    _box(20, 92, 60, 10, "#161b22", "#30363d",
+         "vLLM (upstream — Apache 2.0)",
+         sub="`pip install vllm` · pinned to 0.20.2rc1.dev9+g01d4d1ad3")
+
+    # Plugin layer
+    _box(15, 75, 70, 9, "#1f6feb", "#388bfd",
+         "vllm.general_plugins entry point",
+         sub="genesis_v7 = vllm.sndr_core.plugin:register   (auto-loaded by vllm)")
+
+    # Core (Apache 2.0) — bigger box, label above bullets
+    _box(2, 28, 56, 38, "#0d3a1f", "#3fb950",
+         "vllm.sndr_core  (Apache 2.0 — public)",
+         label_color="#56d364")
+    ax.text(30, 60, "pip install vllm-sndr-core",
+            ha="center", color="#8b949e", fontsize=9, style="italic")
+    bullets_core = [
+        "• cli/  install · launch · doctor · verify",
+        "• dispatcher/  registry · spec · decision · audit",
+        "• apply/  orchestrator · shadow · per-patch dispatch",
+        "• patches/  130 community  (lazy __init__.py, torch-less)",
+        "• model_configs/  +  paths/  +  license/  +  plugin",
+        "• kernels/ngram_frequency_filter.py  (redirect → engine)",
+    ]
+    for i, b in enumerate(bullets_core):
+        y_pos = 54 - i * 4
+        color = "#c9d1d9" if i < 5 else "#8b949e"
+        style = "normal" if i < 5 else "italic"
+        ax.text(5, y_pos, b, ha="left", color=color, fontsize=9.5,
+                style=style)
+
+    # Engine (commercial) — bigger box
+    _box(62, 28, 36, 38, "#3a1f0d", "#f0883e",
+         "vllm.sndr_engine  (commercial)",
+         label_color="#f0883e")
+    ax.text(80, 60, "gitignored · separate wheel",
+            ha="center", color="#8b949e", fontsize=9, style="italic")
+    bullets_engine = [
+        "• kernels/ (private):",
+        "    ngram_frequency_filter.py",
+        "• patches/spec_decode/:",
+        "    pn72_frequency_ngram_drafter",
+        "",
+        "License: Ed25519-signed token",
+        "(SNDR_ENGINE_LICENSE_KEY env)",
+    ]
+    for i, b in enumerate(bullets_engine):
+        y_pos = 54 - i * 3.5
+        if not b:
+            continue
+        color = "#c9d1d9" if i < 4 else "#8b949e"
+        style = "italic" if i >= 5 else "normal"
+        ax.text(64, y_pos, b, ha="left", color=color, fontsize=9, style=style)
+
+    # Bottom: hardware
+    _box(10, 6, 80, 12, "#161b22", "#30363d",
+         "Hardware — consumer NVIDIA Ampere / Ada / Hopper / Blackwell",
+         sub="A5000 · 3090 · 4090 · 5090 · A6000 · H100 · H200 · RTX PRO Blackwell")
+
+    # Connections (arrows)
+    ax.annotate("", xy=(50, 84), xytext=(50, 92),
+                arrowprops=dict(arrowstyle="->", color="#8b949e", lw=1.4))
+    ax.annotate("", xy=(30, 66), xytext=(30, 75),
+                arrowprops=dict(arrowstyle="->", color="#8b949e", lw=1.4))
+    ax.annotate("", xy=(80, 66), xytext=(80, 75),
+                arrowprops=dict(arrowstyle="->", color="#8b949e", lw=1.4))
+    ax.annotate("", xy=(50, 18), xytext=(50, 28),
+                arrowprops=dict(arrowstyle="->", color="#8b949e", lw=1.4))
+    # Core → Engine redirect arrow (the one helper that crosses)
+    ax.annotate("PN72 redirect", xy=(62, 33), xytext=(58, 33),
+                color="#8b949e", fontsize=8, style="italic", ha="right",
+                arrowprops=dict(arrowstyle="->", color="#8b949e",
+                                alpha=0.6, lw=1.0))
+
+    ax.set_title(
+        "SNDR Core + SNDR Engine — v11.0.0 package topology",
+        fontsize=13, fontweight="bold", color="#c9d1d9", pad=12,
+    )
+    fig.text(
+        0.5, 0.02,
+        "Two-wheel architecture: 130 community patches ship Apache 2.0 in "
+        "the public wheel; 1 engine patch (PN72) + helper live in the "
+        "commercial wheel. Plugin entry point registers at vllm boot.",
+        ha="center", va="bottom", color="#8b949e", fontsize=9, wrap=True,
+    )
+    out = os.path.join(OUT, "architecture_v11.png")
+    fig.savefig(out, bbox_inches=None)
+    plt.close(fig)
+    print(f"wrote {out}")
+
+
+# ─── 12. Audit closure timeline (2026-05-07 + 2026-05-08) ──────────────
+def plot_audit_closure_timeline():
+    """Two-day audit-finding closure tally."""
+    _style()
+    audits = [
+        "sndr_structure\n(2026-05-07)",
+        "sndr_repeat\n(2026-05-08)",
+    ]
+    p0_total = [0, 9]      # F-series didn't have P0 split; repeat audit had 9 P0
+    p1_total = [19, 9]     # original audit: 19 F-findings; repeat: 9 P1
+    p0_closed = [0, 9]     # repeat: 9/9 P0 closed
+    p1_closed = [17, 7]    # original: 17/19 closed (2 deferred); repeat: 7/9 closed (2 deferred)
+
+    x = list(range(len(audits)))
+    w = 0.18
+    fig, ax = plt.subplots(figsize=(9.6, 5.0))
+
+    # P0 totals (background) + closed (foreground)
+    ax.bar([i - 1.5 * w for i in x], p0_total, w,
+           color="#21262d", edgecolor="#30363d",
+           label="P0 found (audit)")
+    ax.bar([i - 1.5 * w for i in x], p0_closed, w,
+           color="#f85149", edgecolor="#ff7b72", label="P0 closed")
+    ax.bar([i + 0.5 * w for i in x], p1_total, w,
+           color="#21262d", edgecolor="#30363d",
+           label="P1 found (audit)")
+    ax.bar([i + 0.5 * w for i in x], p1_closed, w,
+           color="#3fb950", edgecolor="#56d364", label="P1 closed")
+
+    for i in x:
+        if p0_total[i]:
+            ax.text(i - 1.5 * w, p0_closed[i] + 0.3,
+                    f"{p0_closed[i]}/{p0_total[i]}",
+                    ha="center", color="#ff7b72", fontsize=10,
+                    fontweight="bold")
+        ax.text(i + 0.5 * w, p1_closed[i] + 0.3,
+                f"{p1_closed[i]}/{p1_total[i]}",
+                ha="center", color="#56d364", fontsize=10,
+                fontweight="bold")
+
+    # Closure-rate arrow above each audit
+    for i in x:
+        total = p0_total[i] + p1_total[i]
+        closed = p0_closed[i] + p1_closed[i]
+        rate = closed / total * 100
+        ax.text(i, max(p0_total[i], p1_total[i]) + 3,
+                f"{rate:.0f}% closure",
+                ha="center", color="#f0883e", fontsize=12, fontweight="bold")
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(audits)
+    ax.set_ylim(0, 26)
+    ax.set_ylabel("Findings")
+    ax.set_title(
+        "Audit-finding closure — two consecutive deep audits, 2026-05-07 & 08",
+        pad=14,
+    )
+    ax.grid(True, axis="y", alpha=0.4)
+    ax.set_axisbelow(True)
+    ax.legend(loc="upper right", framealpha=0.9, ncol=2)
+
+    _finalize(fig, ax,
+        "Both audits were independent third-party cross-audits. "
+        "First audit closed 17/19 (2 doc/launcher items deferred). "
+        "Second audit (next day) closed 16/18 same-day, including all 9 P0 "
+        "criticals. Pytest baseline grew 2425 → 2621 across the work.",
+        top=0.90, bottom=0.22,
+    )
+    out = os.path.join(OUT, "audit_closure_timeline.png")
+    fig.savefig(out)
+    plt.close(fig)
+    print(f"wrote {out}")
+
+
 if __name__ == "__main__":
     plot_tps_genesis_vs_stock()
     plot_toolcall_clean_rate()
@@ -717,4 +915,6 @@ if __name__ == "__main__":
     plot_vram_per_config()
     plot_patch_decision_waterfall()
     plot_tps_over_versions()
+    plot_architecture_v11()
+    plot_audit_closure_timeline()
     print("All charts generated.")
