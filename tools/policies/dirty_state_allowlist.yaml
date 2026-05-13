@@ -1,0 +1,94 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 dirty-state allowlist — single source of truth for
+# scripts/check_dirty_state.py + LOCAL_SERVER_ALLOWED_DIRTY_STATE policy.
+#
+# Three tiers (dev / audit / release) — strictness rises monotonically.
+# `scripts/check_dirty_state.py --tier <tier>` materializes the active
+# patterns into a temp file and uses them with `git status --porcelain`.
+#
+# Pattern syntax: standard fnmatch / git pathspec. A trailing `/` matches
+# directory contents. `**` matches any number of path segments.
+
+schema_version: 1
+maintainer: sandermage
+last_updated: '2026-05-12'
+
+# ─── dev tier ──────────────────────────────────────────────────────────
+# Active workflow. Any untracked is OK except secrets / private keys.
+# Tracked modified files are always OK on dev.
+# Uses `**` to accept any path; forbidden_untracked is the only gate.
+dev:
+  allow_untracked:
+    - '**'                             # dev: anything goes unless explicitly forbidden below
+  forbidden_untracked:
+    - '.env'
+    - '.env.*'
+    - '*.pem'
+    - '*.key'
+    - 'id_rsa*'
+    - 'id_ed25519*'
+    - '**/credentials.json'
+    - '**/secrets.yaml'
+    - '**/secrets.yml'
+  forbidden_tracked_modified: []       # dev tier: any tracked modified file is OK
+
+# ─── audit tier (per-PR) ───────────────────────────────────────────────
+# Tighter. Untracked allowed only in narrow allowlist.
+audit:
+  allow_untracked:
+    - 'snapshots/**'
+    - '_archive/**'
+    - '*.log'
+    - 'node_modules/**'
+    - '.venv/**'
+    - '__pycache__/**'
+    - '**/__pycache__/**'
+    - '*.pyc'
+    - '.pytest_cache/**'
+    - '.mypy_cache/**'
+    - '.ruff_cache/**'
+  forbidden_untracked:                 # same baseline as dev
+    - '.env'
+    - '.env.*'
+    - '*.pem'
+    - '*.key'
+    - 'id_rsa*'
+    - 'id_ed25519*'
+    - '**/credentials.json'
+    - '**/secrets.yaml'
+    - '**/secrets.yml'
+  forbidden_tracked_modified: []       # audit tier: rely on `make audit` aggregate
+
+# ─── release tier (per-release) ────────────────────────────────────────
+# Strictest. Worktree must be clean except for repo-local snapshot/proof
+# artefacts. Host-level artefacts (~/.sndr/bench-results/*) are checked
+# separately by report-bundle pipeline, NOT this script.
+release:
+  allow_untracked:
+    - 'snapshots/**'                   # snapshot frozen at release commit
+    - 'evidence/patch_proof/*.json'    # §6.8 patch-proof gate output
+    - 'release/*.spdx.json'            # SBOM (Phase 4.6 audit-security output)
+    - 'release/constraints.txt'        # pinned deps (Phase 4.6)
+    - 'release/security_attestation.json'  # signed attestation (Phase 4.6)
+  forbidden_untracked:                 # all secrets stay forbidden
+    - '.env'
+    - '.env.*'
+    - '*.pem'
+    - '*.key'
+    - 'id_rsa*'
+    - 'id_ed25519*'
+    - '**/credentials.json'
+    - '**/secrets.yaml'
+    - '**/secrets.yml'
+  forbidden_tracked_modified:          # release blocks modified tracked files
+    - '**'                             # no modified tracked files at all on release tier
+
+# ─── Host artefact policy (outside git worktree) ───────────────────────
+# These paths are checked by `make evidence` / report-bundle pipeline,
+# not by check_dirty_state.py (they never appear in git status).
+host_artifacts_documented:
+  - '~/.sndr/bench-results/*.json'
+  - '~/.sndr/patches.lock'
+  - '~/.cache/sndr/**'
+  - '${cache_root}/triton-cache-*/**'
+  - '${cache_root}/compile-cache-*/**'
