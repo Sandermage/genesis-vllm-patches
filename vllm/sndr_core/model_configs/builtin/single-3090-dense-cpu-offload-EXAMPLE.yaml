@@ -1,0 +1,110 @@
+# SPDX-License-Identifier: Apache-2.0
+# club-3090 #58 Path A — DENSE-only single-3090 CPU offload reference
+#
+# Demonstrates the new `offload` schema block (UNIFIED_CONFIG plan
+# 2026-05-09). NOT intended for the canonical Genesis hybrid-GDN
+# production stack — Path A explicitly excludes hybrid GDN; the
+# schema validator raises if PN59_STREAMING_GDN=1 is also set.
+#
+# Use case: a community operator on single 3090 (24 GB) running a
+# DENSE Qwen-class model with long context. CPU offload moves
+# weights → host RAM, freeing VRAM headroom for KV cache.
+#
+# Status: lifecycle=experimental — community-tested, not yet bench-
+# validated by Sandermage on the canonical 2× A5000 rig (no 3090
+# hardware). Operators submitting a successful bench can push to
+# community-test.
+
+key: single-3090-dense-cpu-offload-example
+title: Single 3090 — DENSE long-ctx + CPU offload (Path A example)
+description: >-
+  Path A reference config for club-3090 #58. DENSE Qwen-class model
+  on single 3090, CPU offload moves weights to host RAM. NOT for
+  hybrid-GDN models (validator raises). community lifecycle.
+schema_version: 1
+maintainer: sandermage
+last_validated: '2026-05-09'
+genesis_pin: v11.0.0+wave7
+vllm_pin_required: 0.20.2rc1.dev93+g51f22dcfd
+lifecycle: community-test
+community_submitted: true
+test_started_at: '2026-05-09'
+workload_tag: long_context
+
+hardware:
+  gpu_match_keys: [rtx 3090]
+  n_gpus: 1
+  min_vram_per_gpu_mib: 22000  # 3090 nominal 24 GiB; leave headroom for OOM
+
+model_path: /models/Qwen3.6-7B-Instruct  # placeholder dense small-class
+served_model_name: qwen3.6-7b
+quantization: null
+kv_cache_dtype: fp8_e5m2  # NOT turboquant_k8v4 (hybrid GDN incompatible)
+
+max_model_len: 65536
+gpu_memory_utilization: 0.90
+max_num_seqs: 1
+max_num_batched_tokens: 2048
+enable_chunked_prefill: true
+dtype: float16
+cudagraph_mode: FULL_AND_PIECEWISE
+language_model_only: true
+trust_remote_code: true
+
+enable_auto_tool_choice: true
+tool_call_parser: qwen3_coder
+reasoning_parser: qwen3
+
+genesis_env:
+  # NOTE: PN59 deliberately OFF — Path A guard raises if combined with
+  # OffloadConfig.cpu_offload_gib > 0. Hybrid-GDN OOM stays for v7.73.x.
+  GENESIS_ENABLE_PN59_STREAMING_GDN: '0'
+
+system_env:
+  PYTORCH_CUDA_ALLOC_CONF: 'expandable_segments:True'
+  VLLM_NO_USAGE_STATS: '1'
+  VLLM_LOGGING_LEVEL: WARNING
+
+vllm_extra_args: []
+
+api_key: genesis-local
+host: 0.0.0.0
+
+docker:
+  image: vllm/vllm-openai:nightly
+  container_name: vllm-3090-dense-offload
+  port: 8000
+  shm_size: 8g
+  memory_limit: 96g  # need headroom for the 16 GiB CPU offload region
+  gpus: all
+  mounts:
+    - ${models_dir}:/models:ro
+    - ${hf_cache}:/root/.cache/huggingface:ro
+  extra_run_flags:
+    - --security-opt label=disable
+
+# club-3090 #58 Path A — the OffloadConfig block (UNIFIED_CONFIG plan).
+# Translates at render time to `--cpu-offload-gb 16 --swap-space 4`
+# in the vllm serve command line.
+offload:
+  cpu_offload_gib: 16.0
+  swap_space_gib: 4.0
+  notes: >-
+    16 GiB weight offload → host RAM frees ~16 GiB VRAM for KV cache.
+    Validated only on dense Qwen3.6-7B on community 3090 hosts.
+    NEVER set on hybrid-GDN models (PN59) — schema validator blocks
+    that combination. v7.73.x Path C will lift the restriction with a
+    tier-aware CacheConfig that excludes Mamba SSM state.
+
+verify_tolerances:
+  tps_drop_pct_max: 15.0  # CPU offload always degrades TPS; allow more drop
+  tool_call_min: 7/10
+  stability_cv_pct_max: 12.0
+  vram_increase_mib_max: 1500
+
+notes:
+  - 'ℹ EXAMPLE config for club-3090 #58 Path A — community-test lifecycle'
+  - 'ℹ DENSE-only — hybrid-GDN models will hit OffloadConfig validator block'
+  - 'ℹ Operators with bench results: submit via `sndr config promote`'
+  - '⚠ CPU offload TPS hit is real (~10-30% on long-context decode)'
+  - '⚠ memory_limit 96g implies 64+ GiB host RAM available'

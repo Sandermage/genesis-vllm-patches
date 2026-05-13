@@ -1,0 +1,257 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis builtin model config — 27B Lorbus INT4 + TurboQuant k8v4 KV
+# Source: scripts/launch/_archive/superseded_by_model_configs/start_27b_int4_TQ_k8v4.sh
+#
+# Sister of a5000-2x-27b-int4-balanced (fp8_e5m2 KV).
+# Same model + spec_decode + memory regime; swaps KV dtype to TQ k8v4.
+# Requires P4 (remove hybrid TQ rejection) + P98 (TQ WorkspaceManager
+# revert — fixes #40941 AssertionError on workspace lock for hybrid GDN).
+# 27B GQA=24/4=6 (non-pow-2) → P67 split-M kernel handles via
+# BLOCK_QH=next_power_of_2(hpk) + lane_valid mask (v7.63.x_nopow2_gqa fix).
+
+key: a5000-2x-27b-int4-tq-k8v4
+title: 2× RTX A5000 — 27B INT4 + TurboQuant k8v4 KV
+description: >-
+  Qwen3.6-27B-int4-AutoRound (Lorbus dense + GDN hybrid) + TurboQuant
+  k8v4 KV + MTP K=3 spec-decode. TQ trades 5-15% throughput vs fp8_e5m2
+  for 2-4× KV concurrency headroom. Use this when context >> generation.
+schema_version: 1
+maintainer: sandermage
+last_validated: '2026-05-11'
+# B1 fix (UNIFIED_CONFIG plan 2026-05-09): vllm_pin_required bumped
+# dev9→dev93 to match reference_metrics.vllm_pin (Wave 7 was bench'd
+# on dev93). Clears R-014 audit warning.
+# 2026-05-11 Phase 2 bump: dev93→dev209+g5536fc0c0 (today's nightly).
+# Canonical bench post-bugfixes: wall_TPS 131.48 / decode_TPOT 7.36 ms
+# / CV 2.96-3.71% (vs Wave 8 dev93 132.28, within CV — net-neutral).
+# 27B PROD currently running on this pin via env-driven start-script.
+genesis_pin: v11.0.0+wave8+phase2
+vllm_pin_required: 0.20.2rc1.dev209+g5536fc0c0
+lifecycle: stable
+workload_tag: balanced
+
+hardware:
+  gpu_match_keys: [rtx a5000]
+  n_gpus: 2
+  min_vram_per_gpu_mib: 22000
+  cuda_capability_min: [8, 6]
+
+model_path: /models/Qwen3.6-27B-int4-AutoRound
+served_model_name: qwen3.6-27b
+quantization: null
+kv_cache_dtype: turboquant_k8v4
+
+max_model_len: 131072
+gpu_memory_utilization: 0.92
+max_num_seqs: 4
+max_num_batched_tokens: 4096
+enable_chunked_prefill: true
+dtype: float16
+cudagraph_mode: FULL_AND_PIECEWISE   # vllm default — Genesis stack standard
+enforce_eager: false
+disable_custom_all_reduce: true
+language_model_only: true
+trust_remote_code: true
+
+enable_auto_tool_choice: true
+tool_call_parser: qwen3_coder
+reasoning_parser: qwen3
+
+spec_decode:
+  method: mtp
+  num_speculative_tokens: 3
+
+# Genesis patcher env — CRITICAL: P98 for hybrid GDN + TQ k8v4
+# (P4 "TurboQuant hybrid model support" is default_on=True, no env needed)
+# Comment density: see a5000-2x-35b-prod.yaml for full per-env-var commentary
+# (W-B exemplar 2026-05-06). This config shares most env vars with 35B PROD;
+# unique env vars below are commented inline. Run `genesis explain <patch-id>`
+# for any P*/PN* runtime details.
+genesis_env:
+  GENESIS_ENABLE_P58_ASYNC_PLACEHOLDER_FIX: '1'
+  GENESIS_ENABLE_P60_GDN_NGRAM_FIX: '1'
+  GENESIS_ENABLE_P60B_TRITON_KERNEL: '1'
+  # P61 RETIRED 2026-05-06 (superseded by P12 v2; anchor never matches on dev93).
+  # GENESIS_ENABLE_P61_QWEN3_MULTI_TOOL removed 2026-05-11 audit.
+  GENESIS_ENABLE_P61C_QWEN3CODER_DEFERRED_COMMIT: '1'    # PR38 Day 3 (2026-05-08): close club-3090#72 SSE silence on narrative <tool_call>
+  GENESIS_ENABLE_P61B_STREAMING_OVERLAP: '1'
+  GENESIS_ENABLE_P62_STRUCT_OUT_SPEC_TIMING: '1'
+  GENESIS_ENABLE_P64_QWEN3CODER_MTP_STREAMING: '1'
+  GENESIS_ENABLE_P66_CUDAGRAPH_SIZE_FILTER: '1'
+  GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL: '1'    # required for spec_decode + TQ
+  GENESIS_P67_USE_UPSTREAM: '1'
+  GENESIS_P67_NUM_KV_SPLITS: '32'                  # P67 split-K factor. Wave 8 canonical bench 2026-05-11 sanity-check: P67=16 gave wall_TPS 132.28 / TPOT 7.31 / TTFT 100.9; P67=32 gave wall_TPS 131.48 / TPOT 7.35 / TTFT **97.1** (CV 4.76% more stable). TPS/TPOT tied within CV ~5%, but **P67=32 wins TTFT by 3.7%** + Sprint 1 doc validated 27B@131K = 32. Choose P67=32 for user-facing TTFT + consistency. Note 35B@320K wants 48 (longer ctx). Per-model sweep required.
+  GENESIS_ENABLE_P68_AUTO_FORCE_TOOL: '1'
+  GENESIS_ENABLE_P69_LONG_CTX_TOOL_REMINDER: '1'
+  GENESIS_P68_P69_LONG_CTX_THRESHOLD_CHARS: '50000'
+  GENESIS_ENABLE_P72_PROFILE_RUN_CAP: '1'
+  GENESIS_PROFILE_RUN_CAP_M: '4096'
+  GENESIS_ENABLE_P74_CHUNK_CLAMP: '1'
+  GENESIS_ENABLE_P82: '1'                          # 27B sweep 2026-05-09: P82=1 + thr=0.1 wins +5.23% TPS over P82=0 baseline (124.29→130.79); 7/7 tool, london_think+tokyo_think PASS
+  GENESIS_ENABLE_P98: '1'                          # CRITICAL: TQ WorkspaceManager revert
+  GENESIS_ENABLE_P99: '1'
+  GENESIS_P82_THRESHOLD_SINGLE: '0.1'              # P82 threshold for single-query — 27B sweep 2026-05-09: monotonic 0.1=130.79 / 0.2=127.12 / 0.3=126.64 / 0.4=125.99 / 0.5=123.41. **0.1 wins on 27B** (35B PROD wins at 0.3 — per-model tuning).
+  GENESIS_ENABLE_P101: '1'
+  # P100 REMOVED 2026-05-11 audit: marked "Blackwell-only" в canonical doc; на Ampere SM 8.6 = no-op в лучшем случае, потенциально wasted check.
+  GENESIS_ENABLE_P78_TOLIST_CAPTURE_GUARD: '0'
+  GENESIS_ENABLE_P81_FP8_BLOCK_SCALED_M_LE_8: '0'
+  GENESIS_ENABLE_PN8_MTP_DRAFT_ONLINE_QUANT: '1'
+  GENESIS_ENABLE_PN11_GDN_AB_CONTIGUOUS: '1'
+  GENESIS_ENABLE_PN59_STREAMING_GDN: '1'           # required for ctx >= 64K hybrid
+  GENESIS_PREALLOC_TOKEN_BUDGET: '4096'
+  GENESIS_ENABLE_PN19_SCOPED_MAX_SPLIT: '1'    # vllm#41268 backport — max_split_size_mb=20 scope-restored during model load
+  GENESIS_ENABLE_PN25_SILU_INDUCTOR_SAFE: '1'    # Cliff 1B closure (Inductor opaque-op pool for SiluAndMul); preventive — NULL impact on 2xA5000, win for 24GB community
+  GENESIS_ENABLE_PN77_FP8_LM_HEAD: '1'    # Phase E.6 — Marlin tier fix: set output_size_per_partition/input_size_per_partition/orig_dtype attrs + size_k_first=False. Should give real ~606 MiB/rank saving without TPS regression.
+  # ── Wave 1 safe additions (2026-05-09) — defensive guards / narrow bug fixes ──
+  GENESIS_ENABLE_P107_MTP_TRUNCATION_DETECTOR: '1'   # vllm#41467 — defensive at think→tool_call boundary
+  GENESIS_ENABLE_PN17_FA2_LSE_CLAMP: '1'             # Cliff 1 mech A — long context guard
+  GENESIS_ENABLE_PN52_PROMPT_LOGPROBS_EVICTION: '1'  # vllm#41411 — prompt_logprobs eviction fix
+  GENESIS_ENABLE_PN56_QWEN3CODER_XML_FALLBACK: '1'   # vllm#41466 — XML fallback safety
+  GENESIS_ENABLE_PN66: '1'                           # vllm#41696 — multiturn </think> leak fix
+  GENESIS_ENABLE_PN67: '1'                           # vllm#41674 — thinking_budget bool guard
+  GENESIS_ENABLE_P95: '1'                            # vllm#40385 — Marlin TP cudagraph cap
+  # 27B-specific (hybrid GDN with Mamba):
+  GENESIS_ENABLE_PN82_MAMBA_CUDAGRAPH_PREFILL_ZERO: '1'  # vllm#41873 — zeros padded `is_prefilling` rows (CG correctness on hybrid)
+  GENESIS_ENABLE_PN30_DS_LAYOUT_SPEC_DECODE: '1'     # issue #17 — DS conv state + spec-decode accept_len>1 protection
+  # ── Wave 3.1 (2026-05-09) — probabilistic draft rejection ──
+  GENESIS_ENABLE_PN90_PROBABILISTIC_DRAFT: '1'       # vllm#40269 backport — propagate draft_probs to verifier; min(1, target/draft) accept rule. Bench 2026-05-09 27B INT4 + TQ k8v4: wall_TPS 124.63 vs 116.01 baseline (+7.4%), accept_rate 0.788 vs 0.697 (+13.1% rel / +0.091 abs), tool 7/7. STRONG WIN — bigger lift on 27B INT4 than 35B FP8.
+  # ── Wave 8 (2026-05-11 audit) — missing patches per registry applicability ──
+  GENESIS_ENABLE_P70_AUTO_STRICT_NGRAM: '1'          # token-level strict ngram (35B has it); closes club-3090#34 ngram quality cliff. Applicable to all spec_decode configs.
+  GENESIS_ENABLE_PN12_FFN_INTERMEDIATE_POOL: '1'     # GroupAB (2026-04-30): -1.7 GiB peak + part of +9.2% TPS group on 27B INT4+TQ k8v4 (95.32 TPS @ 512t).
+  GENESIS_ENABLE_PN14_TQ_DECODE_OOB_CLAMP: '1'       # GroupAB: OOB clamp в TQ decode; part of +9.2% group with PN12+P94.
+  GENESIS_ENABLE_P94: '1'                            # GroupAB: zero-alloc spec-decode prepare; +9.2% group component on 27B. (flag name corrected 2026-05-11 audit — env.py uses short P94.)
+  GENESIS_ENABLE_P103: '1'                           # FLA Cliff 2 chunked prefill — applicable to hybrid GDN (Qwen3.5/3.6/Next). (flag name corrected — env.py uses short P103.)
+  # ── Wave 7 (2026-05-09) — PN16 v2 + V8 tool-budget + observability ──
+  GENESIS_ENABLE_PN16_LAZY_REASONER: '1'             # PN16 v2 — cache-safe; default no chat_template_kwargs mutation.
+  GENESIS_PN16_TOOL_THINK_BUDGET: '200'              # V8 — short system msg cap on <think> for tool-attached requests. 27B bench 2026-05-09: TPS 124.29 (≈baseline 124.63 noise), decode_TPOT 7.78ms (-7% vs 8.37ms baseline), tool 8/8 (london_think FIXED). CV 3.44% (cleaner than 5.07% baseline).
+  GENESIS_PN16_CLASSIFIER_MAX_TOKENS: '0'            # V7 OFF — V7 cap caused -3.7% wall_TPS measurement artifact on 35B; same path-shape concern on 27B.
+  GENESIS_OBSERVABILITY: '1'                         # Per-patch apply timing instrumentation.
+  GENESIS_BUFFER_MODE: shared
+  GENESIS_TQ_MAX_MODEL_LEN: '131072'
+
+system_env:
+  PYTORCH_CUDA_ALLOC_CONF: 'expandable_segments:True,max_split_size_mb:256'
+  VLLM_NO_USAGE_STATS: '1'
+  VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS: '1'    # vllm#30515 — accurate KV pool sizing under cudagraph capture
+  VLLM_LOGGING_LEVEL: WARNING
+  VLLM_FLOAT32_MATMUL_PRECISION: high
+  VLLM_SSM_CONV_STATE_LAYOUT: DS
+  VLLM_USE_FLASHINFER_SAMPLER: '1'
+  VLLM_USE_FUSED_MOE_GROUPED_TOPK: '1'
+  VLLM_ALLOW_LONG_MAX_MODEL_LEN: '1'
+  TRITON_CACHE_DIR: /root/.triton/cache
+  VLLM_WORKER_MULTIPROC_METHOD: spawn
+  VLLM_MARLIN_USE_ATOMIC_ADD: '1'
+  NCCL_P2P_DISABLE: '1'
+  NCCL_CUMEM_ENABLE: '0'
+  OMP_NUM_THREADS: '1'
+  CUDA_DEVICE_MAX_CONNECTIONS: '8'
+
+vllm_extra_args: []   # vllm default cudagraph_mode=FULL_AND_PIECEWISE — DO NOT override
+
+# Y3 (UNIFIED_CONFIG plan 2026-05-09): model + cache artifact specs.
+# Drives `sndr model pull --config a5000-2x-27b-int4-tq-k8v4` (B4 path).
+artifacts:
+  models:
+    - hf_id: Lorbus/Qwen3.6-27B-int4-AutoRound
+      local_dir: /models/Qwen3.6-27B-int4-AutoRound
+      revision: main
+      gated: false
+      required_files:
+        - config.json
+        - '*.safetensors'
+      min_total_gib: 13.0
+      notes: >-
+        Lorbus's Qwen3.6-27B int4-AutoRound quant — required for
+        Genesis 27B PROD. Mirror at Intel/* if Lorbus is unreachable.
+  caches:
+    - kind: huggingface_hub
+      path: ${hf_cache}
+      persistent: true
+    - kind: triton
+      path: ${cache_root}/triton-cache-int4-tq
+      persistent: true
+    - kind: torch_compile
+      path: ${cache_root}/compile-cache-int4-tq
+      persistent: true
+
+# Y1 + B6 (UNIFIED_CONFIG plan 2026-05-09): runtime deps inside the
+# container, pinned. Replaces the renderer's hardcoded baseline.
+package_versions:
+  python_packages:
+    pandas: '2.2.3'
+    scipy: '1.14.1'
+    xxhash: '3.5.0'
+  notes: >-
+    Same pinning policy as a5000-2x-35b-prod; supply-chain reproducibility.
+
+api_key: genesis-local
+host: 0.0.0.0
+
+docker:
+  # B2 fix (UNIFIED_CONFIG plan 2026-05-09): image + digest pin.
+  image: vllm/vllm-openai:nightly
+  image_digest: vllm/vllm-openai@sha256:9b534fe66daf152e8ceca8a7f8e14c18105aaf6ddabc61eb17730d85b4c7c194
+  container_name: vllm-pn95-2xa5000  # F-013 fix 2026-05-11: was stale (pre-Wave 8 name)
+  port: 8000
+  shm_size: 8g
+  memory_limit: 64g
+  network: genesis-vllm-patches_default
+  gpus: all
+  mounts:
+    - ${models_dir}:/models:ro
+    - ${hf_cache}:/root/.cache/huggingface:ro
+    - ${cache_root}/triton-cache-int4-tq:/root/.triton/cache
+    - ${cache_root}/compile-cache-int4-tq:/root/.cache/vllm/torch_compile_cache
+    - ${genesis_src}:/usr/local/lib/python3.12/dist-packages/vllm/sndr_core:ro
+    - ${plugin_src}:/plugin:ro
+  extra_run_flags:
+    - --security-opt label=disable
+
+reference_metrics:
+  # Updated 2026-05-12 (Wave 9 — dev93 → dev209 pin-bump re-bench against
+  # live PROD container, no config changes): confirms pin bump is neutral
+  # on throughput, slightly slower TTFT (within noise), tighter CV.
+  # Bench delta vs Wave 8 (dev93): wall_TPS +0.14% (131.67 / 131.48),
+  # decode_TPOT -0.14% (7.34 / 7.35), TTFT +7.2% (104.07 / 97.1, within
+  # CV ~8%), CV 3.22% (was 4.76% — significantly tighter, n=25 each).
+  measured_at: '2026-05-12T00:00:00Z'
+  bench_method: genesis_bench_suite.py --quick --ctx 8k (5×5×1024) Wave 9 dev209 live-PROD re-bench
+  long_gen_sustained_tps: 131.67   # wall_TPS mean (n=25, CV 3.22%) — Δ +0.14% vs Wave 8 dev93
+  long_gen_mean_lat_s: 7.77        # 1024 tok / 131.67 TPS
+  tool_call_score: '7/7'           # quick mode runs 7 positive cases (Wave 8 reported 8/8 from a different harness build)
+  stability_mean_s: 2.152
+  stability_cv_pct: 3.22            # n=25 — Δ -32% vs Wave 8 (4.76%) — better reproducibility on dev209
+  vram_used_mib_per_gpu: [22544, 22335]
+  vram_total_mib: 44879             # Δ +285 MiB vs Wave 8 (44594) — within +2000 tolerance
+  decode_tpot_ms: 7.34              # primary metric — Δ -0.14% vs Wave 8 (7.35); -0.81% vs Sprint 1 (7.40)
+  ttft_ms: 104.07                   # CV 7.85% — Δ +7.2% vs Wave 8 (97.1), within TTFT inherent variance
+  spec_accept_rate: null            # not measured in --quick mode
+  genesis_pin: v11.0.0+stale_ref_cleanup
+  vllm_pin: 0.20.2rc1.dev209+g5536fc0c0
+
+  # Historical reference (regression detection):
+  prev_long_gen_tps: 131.48         # Wave 8 dev93 baseline (was 124.29 Wave 7)
+  prev_long_gen_tps_sprint1: 130.79 # Sprint 1 P82=1+thr=0.1 sweep winner
+  prev_genesis_pin: v11.0.0+wave8
+  prev_vllm_pin: 0.20.2rc1.dev93+g51f22dcfd
+
+  # Wave 8 audit-trail (preserved for history; values measured on dev93):
+  wave8_delta_pct_vs_wave7: '+5.78%'   # 131.48 / 124.29
+  wave8_delta_pct_vs_sprint1: '+0.53%' # 131.48 / 130.79
+  wave8_decode_tpot_delta_pct_vs_sprint1: '-0.68%' # 7.35 / 7.40
+  wave8_ttft_delta_pct_vs_sprint1: '-9.85%' # 97.1 / 107.7
+
+verify_tolerances:
+  tps_drop_pct_max: 7.0
+  tool_call_min: 9/10
+  stability_cv_pct_max: 8.0
+  vram_increase_mib_max: 2000
+
+notes:
+  - 'ℹ Sister of a5000-2x-27b-int4-balanced (which uses fp8_e5m2 KV)'
+  - 'ℹ TQ k8v4 trades 5-15% TPS for 2-4× KV concurrency headroom'
+  - 'ℹ P4 + P98 are CRITICAL — without P4 hybrid TQ is rejected at boot, without P98 #40941 workspace lock AssertionError'
+  - 'ℹ 27B GQA=6 (non-pow-2) — P67 v7.63.x split-M handles via lane_valid mask (was crash before fix)'
+  - 'ℹ Promoted to stable 2026-05-05 at 91.0 TPS; subsequent enables (PN77 Marlin tier, PN25, PN31) brought it to current 109.8 TPS / 10/10 tool / CV 0.12% (see reference_metrics)'
+  - '⚠ Do NOT enable --enable-prefix-caching (DS conv state crash on hybrid GDN)'

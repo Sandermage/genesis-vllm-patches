@@ -1,0 +1,35 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 profile — single-stream sizing for 27B-DFlash on 2× A5000.
+
+schema_version: 2
+kind: profile
+id: wave9-27b-dflash                             # canonical wave9 reference for 27B DFlash
+parent_model: qwen3.6-27b-dflash                 # parent model file (DFlash variant)
+maintainer: sandermage
+status: validated                                # values: experimental|validated|deprecated
+created: '2026-05-06'
+
+# ─── Empty patches delta — canonical matrix lives in model file ────────
+patches_delta:
+  enable: {}                                     # no additions
+  disable: []                                    # no removals
+  override: {}                                   # no value overrides
+
+# ─── Sizing override — DFlash is single-stream optimized; 185K context ──
+sizing_override:
+  max_model_len: 185000                          # 185K context (DFlash-fp16 KV ceiling — head_size=256 constraint shrinks pool)
+  gpu_memory_utilization: 0.95                   # 0.95 — push high since single-stream has no concurrent KV peak
+  max_num_seqs: 1                                # 1 = single-stream optimized (DFlash design point)
+  max_num_batched_tokens: 8192                   # 8192 — larger chunks since single-stream tolerates them
+  enable_chunked_prefill: true                   # required for long ctx
+  enforce_eager: false                           # cudagraph capture enabled
+  disable_custom_all_reduce: true                # NCCL fallback
+
+promotion:
+  validation_required:
+    - "bench long_gen single-stream ≥90 TPS (May-5 baseline 97.6)"
+    - "tool-call 10/10"
+  promote_to: qwen3.6-27b-dflash                 # target model file for promote operations
+  notes: |
+    Validated single-stream wave9 profile. Re-bench whenever DFlash
+    family patches (PN21/PN23/PN24/PN38/PN40) change.

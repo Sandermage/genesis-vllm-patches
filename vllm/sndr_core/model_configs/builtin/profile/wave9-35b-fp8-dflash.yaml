@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 profile — DFlash 35B single-stream sizing for 2× A5000 rig.
+# Includes sizing override appropriate for DFlash (single-stream optimized,
+# tighter context window than MTP PROD).
+
+schema_version: 2
+kind: profile
+id: wave9-35b-fp8-dflash                         # canonical wave9 reference for 35B DFlash
+parent_model: qwen3.6-35b-a3b-fp8-dflash         # parent model file (DFlash variant of 35B)
+maintainer: sandermage
+status: validated                                # values: experimental|validated|deprecated
+created: '2026-05-06'
+
+# ─── Empty patches delta — canonical matrix lives in model file ────────
+patches_delta:
+  enable: {}                                     # no additions on top of model.patches
+  disable: []                                    # no removals
+  override: {}                                   # no value overrides
+
+# ─── Sizing override — DFlash is single-stream optimized ───────────────
+# 160K context (vs 320K for MTP PROD); max_num_seqs=1; gpu_memory_utilization
+# trimmed to 0.92 to leave headroom for separate drafter model.
+sizing_override:
+  max_model_len: 160000                          # 160K context (vs 35B MTP's 320K — DFlash needs drafter overhead)
+  gpu_memory_utilization: 0.92                   # 0.92 (vs 0.90 MTP) — leaves headroom for separate drafter
+  max_num_seqs: 1                                # 1 = DFlash is single-stream optimized
+  max_num_batched_tokens: 2048                   # 2048 (vs 4096) — smaller chunks for single-stream
+  enable_chunked_prefill: true                   # required for spec-decode + long ctx
+  enforce_eager: false                           # false = cudagraph capture enabled
+  disable_custom_all_reduce: true                # NCCL fallback (consumer Ampere PCIe)
+
+promotion:
+  validation_required:
+    - "genesis_bench_suite.py --quick passes for DFlash single-stream"
+    - "tool-call regression ≥9/10 (DFlash matched MTP at 9/10 in legacy bench)"
+    - "200-min soak CV within tolerance"
+  promote_to: qwen3.6-35b-a3b-fp8-dflash         # target model file for promote operations
+  notes: |
+    wave9-35b-fp8-dflash captures single-stream sizing for the DFlash N=3
+    path. Re-bench whenever vllm pin bumps or any patch in model.patches
+    changes (especially PN23/PN24/PN40 — DFlash family).

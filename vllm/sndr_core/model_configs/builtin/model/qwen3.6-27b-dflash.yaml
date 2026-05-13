@@ -1,0 +1,92 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 model definition — Qwen3.6-27B-int4-AutoRound + TRUE DFlash N=5.
+# Uses a SEPARATE Qwen3.6-27B-DFlash drafter checkpoint (z-lab).
+#
+# Path note: fastest single-stream code-gen path in the 27B family.
+# Bench 2026-05-05 long_gen_sustained_tps 97.6 single-stream.
+# For concurrent serving use qwen3.6-27b-int4-autoround-tq-k8v4.
+# Migrated from a5000-2x-27b-dflash-true.
+
+schema_version: 2
+kind: model
+id: qwen3.6-27b-dflash                           # canonical ID; -dflash suffix marks separate drafter variant
+title: Qwen 3.6 27B INT4 AutoRound + TRUE DFlash N=5 drafter
+maintainer: sandermage
+last_validated: '2026-05-06'
+license: apache-2.0
+
+# ─── Identity ──────────────────────────────────────────────────────────
+# DFlash needs head_size=256 + non-causal attn → no Ampere backend
+# supports that with fp8/turbo KV, so KV stays at default fp16 and
+# dtype=bf16 (drafter requirement).
+model_path: /models/Qwen3.6-27B-int4-AutoRound   # target model checkpoint (same as TQ sister)
+served_model_name: qwen3.6-27b-dflash            # OpenAI-API model name (different from MTP variant)
+quantization: auto_round                         # explicit — not auto-detected for DFlash path
+dtype: bfloat16                                  # bfloat16 (NOT float16) — DFlash drafter expects bf16
+trust_remote_code: true                          # Qwen3 hybrid-GDN custom modeling code
+
+# ─── Capabilities ──────────────────────────────────────────────────────
+capabilities:
+  attention_arch: hybrid_gdn_moe                 # Qwen 3.6 hybrid arch
+  tool_call_parser: qwen3_coder                  # qwen3_coder tool-call parser
+  reasoning_parser: qwen3                        # qwen3 </think> parser
+  enable_auto_tool_choice: true                  # P68/P69 dependency
+  spec_decode:
+    method: dflash                               # DFlash separate drafter (range: mtp|dflash|ngram|null)
+    num_speculative_tokens: 5                    # DFlash N=5 (z-lab reference)
+    model: /models/Qwen3.6-27B-DFlash            # z-lab separate drafter checkpoint
+  kv_cache_dtype: null                           # null = default fp16; DFlash head_size=256 constraint
+
+# ─── Hardware preconditions composer enforces ──────────────────────────
+requires:
+  min_total_vram_mib: 44000                      # 2 × 22 GB minimum (target + drafter overhead)
+  min_gpu_count: 2                               # DFlash 27B validated on TP=2
+  min_cuda_capability: [8, 6]                    # Ampere SM 8.6
+  rig_arch_blocklist: []
+
+versions:
+  genesis_pin_min: v11.0.0
+  vllm_pin_required: 0.20.2rc1.dev9+g01d4d1ad3
+  reference_metrics_ref: null
+
+# ─── Canonical patches matrix (30 entries) ─────────────────────────────
+# DFlash family with TQ kernel optimizations dropped (no TQ KV here).
+patches:
+  # ── Core spec_decode + tool-call quality ──
+  GENESIS_ENABLE_P58_ASYNC_PLACEHOLDER_FIX: '1'      # vllm#40807 — async-scheduler placeholder fix
+  GENESIS_ENABLE_P60_GDN_NGRAM_FIX: '1'              # vllm#40738 (Phase 1) — GDN+ngram SSM state recovery
+  GENESIS_ENABLE_P60B_TRITON_KERNEL: '1'             # Phase 2 — Triton kernel offset fix
+  GENESIS_ENABLE_P61C_QWEN3CODER_DEFERRED_COMMIT: '1' # PR38 Day 3 — close club-3090#72 SSE silence
+  GENESIS_ENABLE_P61B_STREAMING_OVERLAP: '1'         # vllm#40783 — Qwen3 streaming partial-tag overlap guard
+  GENESIS_ENABLE_P62_STRUCT_OUT_SPEC_TIMING: '1'     # vllm#36138 — structured-output timing fix
+  GENESIS_ENABLE_P64_QWEN3CODER_MTP_STREAMING: '1'   # vllm#39598 — composes with DFlash via dispatcher
+  GENESIS_ENABLE_P66_CUDAGRAPH_SIZE_FILTER: '1'      # cudagraph capture size filter — OOM protection
+  GENESIS_ENABLE_P68_AUTO_FORCE_TOOL: '1'            # auto tool_choice on tool-mention
+  GENESIS_ENABLE_P69_LONG_CTX_TOOL_REMINDER: '1'     # long-ctx tool-format reminder
+  GENESIS_P68_P69_LONG_CTX_THRESHOLD_CHARS: '50000'  # threshold in chars (≈12K tokens)
+  GENESIS_ENABLE_P72_PROFILE_RUN_CAP: '1'            # caps profile_run M dim
+  GENESIS_PROFILE_RUN_CAP_M: '4096'                  # must equal max_num_batched_tokens
+  GENESIS_ENABLE_P74_CHUNK_CLAMP: '1'                # chunked-prefill chunk-size clamp
+  GENESIS_ENABLE_P82: '0'                            # P82 off on DFlash path
+  GENESIS_P82_THRESHOLD_SINGLE: '0.3'                # informational on disabled-P82 path
+  GENESIS_ENABLE_P78_TOLIST_CAPTURE_GUARD: '0'       # opt-out on this variant
+  GENESIS_ENABLE_P81_FP8_BLOCK_SCALED_M_LE_8: '0'    # opt-out — INT4 path, no FP8 block-scaled MM
+  GENESIS_ENABLE_PN11_GDN_AB_CONTIGUOUS: '1'         # GDN A/B contiguity guard
+  GENESIS_ENABLE_PN59_STREAMING_GDN: '1'             # required for ctx ≥ 64K hybrid
+  # ── DFlash family (full set on the dflash path) ──
+  GENESIS_ENABLE_PN21_DFLASH_SWA: '1'                # DFlash Sliding Window Attention support
+  GENESIS_ENABLE_PN23_DFLASH_DTYPE_FIX: '1'          # DFlash dtype guard — drafter bf16 mismatch fix
+  GENESIS_ENABLE_PN24_DFLASH_AUX_LAYER_FIX: '1'      # DFlash auxiliary layer indexing fix
+  GENESIS_ENABLE_PN38_DFLASH_QUANT_DRAFTER: '1'      # DFlash separate drafter quantization
+  GENESIS_ENABLE_PN40_DFLASH_OMNIBUS: '1'            # DFlash 4-part omnibus optimization
+  # ── Memory + buffer ──
+  GENESIS_PREALLOC_TOKEN_BUDGET: '4096'              # Genesis prealloc — token budget for shared scratch pools
+  GENESIS_ENABLE_PN19_SCOPED_MAX_SPLIT: '1'          # vllm#41268 — max_split_size_mb=20 scope-restored
+  GENESIS_ENABLE_PN25_SILU_INDUCTOR_SAFE: '1'        # Cliff 1B closure (Inductor opaque-op pool for SiluAndMul)
+  GENESIS_ENABLE_PN77_FP8_LM_HEAD: '1'               # Phase E.6 Marlin tier FP8 LM head
+  GENESIS_BUFFER_MODE: 'shared'                      # Genesis buffer mode (range: 'shared'|'exclusive'|'auto')
+
+notes:
+  - "Migrated from a5000-2x-27b-dflash-true (2026-05-12). Needs separate
+    Qwen3.6-27B-DFlash drafter checkpoint on host (/models/Qwen3.6-27B-DFlash)."
+  - "Single-stream optimized; max_num_seqs=1 set in the profile."

@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 alias — 27B INT4 + TRUE DFlash N=5 single-stream code-gen on 2× A5000.
+
+model: qwen3.6-27b-dflash
+hardware: a5000-2x-24gbvram-16cpu-128gbram
+profile: wave9-27b-dflash

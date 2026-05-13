@@ -1,0 +1,50 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 model definition — Qwen3.6-7B-Instruct (DENSE — community example).
+# Used for: club-3090 #58 Path A reference (DENSE + CPU offload).
+# NOT for hybrid-GDN production stack (validator raises if PN59 is enabled).
+
+schema_version: 2
+kind: model
+id: qwen3.6-7b-dense                             # canonical ID; -dense suffix marks dense attention path
+title: Qwen 3.6 7B Instruct (DENSE — community example)
+maintainer: sandermage
+last_validated: '2026-05-09'
+license: apache-2.0
+
+# ─── Identity ──────────────────────────────────────────────────────────
+model_path: /models/Qwen3.6-7B-Instruct          # placeholder dense small-class checkpoint
+served_model_name: qwen3.6-7b                    # OpenAI-API model name
+quantization: null                               # null = no quantization arg (FP16 native)
+dtype: float16                                   # values: float16|bfloat16|float32; float16 standard for dense path
+trust_remote_code: true                          # Qwen3 custom modeling code
+
+# ─── Capabilities — DENSE attention (no hybrid GDN) ────────────────────
+capabilities:
+  attention_arch: dense                          # DENSE (NOT hybrid_gdn_moe) — Path A guard raises if PN59 enabled
+  tool_call_parser: qwen3_coder                  # qwen3_coder tool-call parser (same as hybrid models)
+  reasoning_parser: qwen3                        # qwen3 </think> parser
+  enable_auto_tool_choice: true                  # P68/P69 default
+  spec_decode: null                              # no spec decode on small dense model (range: mtp|dflash|ngram|null)
+  kv_cache_dtype: fp8_e5m2                       # fp8_e5m2 KV — incompatible with hybrid GDN, OK for dense
+
+# ─── Hardware preconditions composer enforces ──────────────────────────
+requires:
+  min_total_vram_mib: 22000                      # 1 × 22 GB minimum (7B dense + CPU offload)
+  min_gpu_count: 1                               # single-card example
+  min_cuda_capability: [8, 6]                    # Ampere SM 8.6
+  rig_arch_blocklist: []
+
+versions:
+  genesis_pin_min: v11.0.0
+  vllm_pin_required: 0.20.2rc1.dev93+g51f22dcfd
+  reference_metrics_ref: null
+
+# ─── Canonical patches matrix ──────────────────────────────────────────
+# DENSE-only path: PN59 deliberately NOT present (Path A guard would raise
+# if PN59 fired with cpu_offload_gib > 0). Minimal baseline patches only.
+patches:
+  GENESIS_OBSERVABILITY: '1'                         # Per-patch apply timing logged; zero hot-path overhead
+
+notes:
+  - "Community example model. DENSE attention (no hybrid GDN). Pairs with
+    path-a-3090-cpu-offload-example profile for CPU-offload reference."

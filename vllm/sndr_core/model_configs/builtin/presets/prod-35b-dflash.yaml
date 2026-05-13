@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 alias — operator shortcut for the 35B FP8 + DFlash N=3 single-stream triplet.
+# `sndr launch prod-35b-dflash` resolves to (model, hardware, profile).
+
+model: qwen3.6-35b-a3b-fp8-dflash
+hardware: a5000-2x-24gbvram-16cpu-128gbram
+profile: wave9-35b-fp8-dflash

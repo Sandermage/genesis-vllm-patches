@@ -1,0 +1,115 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 model definition — Qwen 3.6 35B-A3B FP8 (Sander PROD reference).
+# Source-of-truth identity + capabilities + canonical patches.
+# POC migration from legacy combined `a5000-2x-35b-prod.yaml`.
+# Wave 9 reference bench: wall_TPS 232.36 / decode_TPOT 3.97 ms on 2× A5000 24 GB.
+#
+# Per-line comment style (W-B exemplar from legacy 35B PROD):
+#   • explain WHAT the patch does in 1 line
+#   • state default + valid values for non-binary settings
+#   • cite empirical evidence (TPS delta / OOM avoided / tool quality) when known
+#   • for exhaustive details run `sndr patches explain <patch-id>` (e.g. P67)
+
+schema_version: 2
+kind: model
+id: qwen3.6-35b-a3b-fp8                          # canonical ID; <model-family>-<size>-<quant> kebab style
+title: Qwen 3.6 35B-A3B FP8 (Sander PROD reference)
+maintainer: sandermage
+last_validated: '2026-05-09'                     # ISO-8601 date of last bench-and-update
+license: apache-2.0                              # values: apache-2.0 | mit | ...; apache-2.0 matches upstream Qwen license
+
+# ─── Identity ──────────────────────────────────────────────────────────
+model_path: /models/Qwen3.6-35B-A3B-FP8          # container-side path; matches Y3 artifact spec
+served_model_name: qwen3.6-35b-a3b               # OpenAI-API `model` field clients send
+quantization: null                               # null = FP8 native (no extra --quantization arg). Range: null|auto_round|gptq_marlin|fp8|...
+dtype: float16                                   # values: float16|bfloat16|float32; float16 standard for MTP+TQ k8v4
+trust_remote_code: true                          # required for Qwen3-A3B custom modeling code (vendor pattern)
+
+# ─── Capabilities — inherent to this model ─────────────────────────────
+# Different capabilities mean a different model file; do NOT override these
+# from hardware/profile layers (ownership rule, see roadmap §4.2).
+capabilities:
+  attention_arch: hybrid_gdn_moe                 # Qwen 3.6 architecture: hybrid GDN (gated delta net) + MoE; drives PN59/P98/PN11 enablement
+  tool_call_parser: qwen3_coder                  # qwen3_coder tool-call parser (XML+JSON fallback via PN56)
+  reasoning_parser: qwen3                        # qwen3 reasoning_content parser (</think> boundaries)
+  enable_auto_tool_choice: true                  # auto-set tool_choice=required when prompt mentions tools (P68 dependency)
+  spec_decode:
+    method: mtp                                  # spec-decode method (range: mtp|dflash|ngram|null); MTP K=3 is the throughput winner on hybrid GDN
+    num_speculative_tokens: 3                    # MTP K-value (1-7 valid; 3 = empirical optimum, +32% TPS vs no-spec on 35B)
+    model: null                                  # MTP draft is integrated into target; DFlash variant uses separate /models/Qwen3.6-35B-A3B-DFlash
+  kv_cache_dtype: turboquant_k8v4                # values: fp16|fp8_e5m2|fp8_e4m3|turboquant_k8v4; TQ k8v4 = +~2× KV concurrency at quality parity (Wave 9 win)
+
+# ─── Hardware preconditions composer enforces ──────────────────────────
+requires:
+  min_total_vram_mib: 44000                      # 2 × 22 GB minimum (weights ~14 GB + KV pool ~6 GB + activations + reserve)
+  min_gpu_count: 2                               # 35B+TQ k8v4 needs TP=2; single-card variant not validated for this model
+  min_cuda_capability: [8, 6]                    # CUDA SM 8.6 (Ampere); 8.9 (Ada) + 9.0 (Hopper) are forward-compat
+  rig_arch_blocklist: []                         # empty — no rig class refuses this model
+
+versions:
+  genesis_pin_min: v11.0.0                       # minimum sndr_core version (semver)
+  vllm_pin_required: 0.20.2rc1.dev209+g5536fc0c0 # exact vllm pin (anchors valid only on this pin)
+  reference_metrics_ref: tests/integration/baselines/35b_v11_wave9.json  # bench reference for bench-validate (E22: realigned to actual filename)
+
+# ─── Canonical patches matrix (44 entries) ─────────────────────────────
+# Format: 'GENESIS_ENABLE_<PATCH_ID>': '1' enables; '0' or absent disables.
+patches:
+  # ── Spec-decode + structured-output safety net (Qwen3-A3B + MTP K=3) ──
+  GENESIS_ENABLE_P58_ASYNC_PLACEHOLDER_FIX: '1'      # vllm#40807 backport — async-scheduler [-1] placeholder fix; root-cause for #40831 spec-decode degenerate loops
+  GENESIS_ENABLE_P60_GDN_NGRAM_FIX: '1'              # vllm#40738 backport (Phase 1) — GDN+ngram SSM state recovery on rollback
+  GENESIS_ENABLE_P60B_TRITON_KERNEL: '1'             # Phase 2 — Triton kernel offset fix for GDN+ngram
+  GENESIS_ENABLE_P61B_STREAMING_OVERLAP: '1'         # vllm#40783 backport — Qwen3 streaming partial-tag overlap guard
+  GENESIS_ENABLE_P61C_QWEN3CODER_DEFERRED_COMMIT: '1'   # 2026-05-06: closes club-3090#72 (30-120s SSE silence on narrative `<tool_call>`). Live verify: gap 0.24s vs 57.9s upstream, 30/30 tool regression, TPS −0.3% (noise).
+  GENESIS_ENABLE_P62_STRUCT_OUT_SPEC_TIMING: '1'     # vllm#36138 backport — structured-output spec-decode reasoning-end timing fix
+  GENESIS_ENABLE_P64_QWEN3CODER_MTP_STREAMING: '1'   # vllm#39598 backport — qwen3coder MTP streaming early-return removal (4 sub-patches across parser + serving)
+  GENESIS_ENABLE_P66_CUDAGRAPH_SIZE_FILTER: '1'      # cudagraph capture size filter — protects against OOM when too many capture sizes
+  # ── TQ kernel + MoE optimisation ──
+  GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL: '1'      # Genesis-original Triton multi-query kernel for spec-decode K+1 verify (+32% TPS on 35B PROD)
+  GENESIS_P67_USE_UPSTREAM: '1'                      # P67 routing flag: '1'=upstream Genesis kernel, '0'=Genesis fork (DEFAULT 1; fork was quality mirage 2026-04-28)
+  GENESIS_P67_NUM_KV_SPLITS: '48'                    # P67 split-K factor. Sprint 1 sweep on 35B PROD: 48 optimal at 320K context (+3.85% wall_TPS, -6.4% TTFT vs 32). 32 was optimum at 256K — longer context shifts optimum to 48.
+  GENESIS_ENABLE_P81_FP8_BLOCK_SCALED_M_LE_8: '1'    # Genesis-original — FP8 block-scaled MM optimization for M≤8 (spec-decode K+1 batch shape)
+  GENESIS_ENABLE_P95: '1'                            # vllm#40385 backport — Marlin TP cudagraph cap on Ampere (TP=2 + Marlin defensive)
+  # ── Tool-call safety net ──
+  GENESIS_ENABLE_P68_AUTO_FORCE_TOOL: '1'            # Genesis-original — auto-set tool_choice=required when prompt mentions tools (long-ctx adherence mitigation)
+  GENESIS_ENABLE_P69_LONG_CTX_TOOL_REMINDER: '1'     # Genesis-original — inject system-message reminder of tool format at long-ctx threshold
+  GENESIS_ENABLE_P70_AUTO_STRICT_NGRAM: '1'          # Genesis-original — auto-set prompt_lookup_min=8 (closes club-3090#34 ngram quality cliff)
+  GENESIS_ENABLE_PN56_QWEN3CODER_XML_FALLBACK: '1'   # vllm#41466 backport — XML parse fallback when JSON tool-call parse fails (qwen3_coder)
+  GENESIS_P68_P69_LONG_CTX_THRESHOLD_CHARS: '50000'  # P68/P69 threshold in CHARACTERS (≈12K tokens at 4 chars/tok); below = no reminder, above = inject
+  # ── Memory / KV cache management ──
+  GENESIS_ENABLE_P71_BLOCK_VERIFY: '1'               # vllm#40819 + gemini bug-fixes — block-verify rejection sampler. Bench: +2.3% wall_TPS (226.30→231.41) +1.3% accept_rate. Activates when max_spec_len≥3 + draft_probs available.
+  GENESIS_ENABLE_P72_PROFILE_RUN_CAP: '1'            # Genesis-original — caps profile_run M dim at GENESIS_PROFILE_RUN_CAP_M (Dynamo fake-tensor mismatch on moe_align_block_size symbolic shape)
+  GENESIS_PROFILE_RUN_CAP_M: '4096'                  # P72 cap value (must equal max_num_batched_tokens)
+  GENESIS_ENABLE_P74_CHUNK_CLAMP: '1'                # chunked-prefill chunk-size clamp (avoids degenerate single-token chunks under spec-decode)
+  GENESIS_ENABLE_PN52_PROMPT_LOGPROBS_EVICTION: '1'  # vllm#41411 backport — prompt_logprobs eviction fix during chunked prefill (only fires when logprobs requested)
+  GENESIS_ENABLE_PN17_FA2_LSE_CLAMP: '1'             # Cliff 1 mech A guard (Issue #11) — runtime clamp on FA2 softmax_lse for long context (320K relevant)
+  GENESIS_ENABLE_PN19_SCOPED_MAX_SPLIT: '1'          # vllm#41268 backport — max_split_size_mb=20 scope-restored during model load (reduces fragmentation)
+  GENESIS_TQ_MAX_MODEL_LEN: '320000'                 # TQ k8v4 KV cache size cap in tokens (matches max_model_len)
+  GENESIS_PREALLOC_TOKEN_BUDGET: '4096'              # Genesis prealloc framework — token budget for shared scratch pools
+  # ── Hybrid-GDN attention specifics ──
+  GENESIS_ENABLE_PN11_GDN_AB_CONTIGUOUS: '1'         # GDN A/B projection contiguity guard (avoids non-contiguous tensor on hybrid GDN path)
+  GENESIS_ENABLE_P37: '1'                            # MoE intermediate cache pool (avoids per-call torch.empty for top-k aggregation)
+  # ── MoE / FP8 ──
+  GENESIS_ENABLE_P99: '1'                            # FP8 block-scaled MM batch-invariance fix
+  GENESIS_ENABLE_P101: '1'                           # vllm#41127 backport (P100-companion) — uniform query_len>1 batches through prefill wrapper in cudagraph mode
+  GENESIS_ENABLE_PN66: '1'                           # vllm#41696 backport — multiturn </think> leak fix in DelegatingParser (streaming reasoning purity)
+  GENESIS_ENABLE_PN67: '1'                           # vllm#41674 backport — thinking_token_budget inverted bool fix (1-line guard)
+  GENESIS_ENABLE_PN77_FP8_LM_HEAD: '1'               # Phase E.6 Marlin tier — FP8 LM head; on 35B (vocab=248320, hidden=2048) ≈243 MiB/rank saving
+  GENESIS_ENABLE_PN8_MTP_DRAFT_ONLINE_QUANT: '1'     # MTP draft model online quantization (saves ~1 GiB/rank on FP8 draft)
+  # ── Probabilistic draft + truncation detection ──
+  GENESIS_ENABLE_PN90_PROBABILISTIC_DRAFT: '1'       # vllm#40269 backport — propagate draft_probs to verifier; min(1, target/draft) accept rule. Bench: TPS 231.91 (≈baseline 231.41), accept_rate 0.816 vs 0.794 (+2.8%), tool 7/7. Quality lift without TPS penalty.
+  GENESIS_ENABLE_P107_MTP_TRUNCATION_DETECTOR: '1'   # vllm#41467 — detect+log MTP truncation at think→tool_call boundary; defensive, +tool_call quality on edge cases
+  # ── Lazy reasoner (PN16 v2) ──
+  GENESIS_ENABLE_PN16_LAZY_REASONER: '1'             # PN16 v2 — cache-safe; default behavior leaves chat_template_kwargs untouched. Hook overhead micro-secs per request.
+  GENESIS_PN16_TOOL_THINK_BUDGET: '200'              # V8 — prepends short system message capping <think> at 200 tokens for tool-attached requests. Bench: TPS 237.95 (+0.7% vs baseline 236.24) + tool 7/7 (london_think FIXED). Cache-stable.
+  GENESIS_PN16_CLASSIFIER_MAX_TOKENS: '0'            # V7 OFF — V7 cap on bench-trivial prompts caused -3.7% wall_TPS measurement artifact. Operators with no-cache workloads may opt in for hard response-length ceiling.
+  # ── Sweep tunable ──
+  GENESIS_ENABLE_P82: '1'                            # SGLang acceptance OR-clause backport (vllm#40807-related); allows softer accept threshold
+  GENESIS_P82_THRESHOLD_SINGLE: '0.3'                # P82 threshold for single-query (range 0.1-0.5; 0.3 empirically optimum on 35B with MTP K=3)
+  # ── Observability + buffer mode ──
+  GENESIS_OBSERVABILITY: '1'                         # Per-patch apply timing + RSS delta logged via genesis.observability. Operator UX; zero hot-path overhead (fires only at apply time).
+  GENESIS_BUFFER_MODE: 'shared'                      # Genesis buffer manager mode (range: 'shared'|'exclusive'|'auto'; 'shared' = one buffer shared across ranks for read-only data)
+
+notes:
+  - "POC migration from a5000-2x-35b-prod (2026-05-12). All 44 canonical
+    patches preserved. Profile-driven testing should not modify this file
+    until a wave promotion ledger validates the delta."

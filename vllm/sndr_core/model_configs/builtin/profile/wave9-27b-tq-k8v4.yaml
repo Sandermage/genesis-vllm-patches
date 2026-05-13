@@ -1,0 +1,42 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 profile — wave9 validated set for 27B-TQ-k8v4 on A5000 2× rig.
+# Includes sizing override appropriate for the smaller 27B model
+# (max_num_seqs=4 vs 35B's 2; max_model_len=131072 vs 35B's 320000).
+
+schema_version: 2
+kind: profile
+id: wave9-27b-tq-k8v4                            # canonical wave9 reference for 27B TQ k8v4
+parent_model: qwen3.6-27b-int4-autoround-tq-k8v4 # parent model file this profile targets
+maintainer: sandermage
+status: validated                                # values: experimental|validated|deprecated
+created: '2026-05-11'
+
+# ─── Empty patches delta — canonical matrix lives in model file ────────
+patches_delta:
+  enable: {}                                     # no additions on top of model.patches
+  disable: []                                    # no removals
+  override: {}                                   # no value overrides
+
+# ─── Sizing override — operator tuning for 27B on 2× A5000 ─────────────
+# 27B leaves more VRAM for KV cache + sequences than 35B, so we run
+# 2× more concurrent sequences (max_num_seqs=4) and lower max_model_len
+# (131072 fits the larger seq count without OOM).
+sizing_override:
+  max_model_len: 131072                          # 128K context (vs 35B's 320K — trade ctx for concurrency)
+  gpu_memory_utilization: 0.92                   # 0.92 (vs 0.90 in 35B) — 27B leaves more headroom
+  max_num_seqs: 4                                # 4 concurrent (vs 35B's 2) — 27B has 2× the spare KV pool
+  max_num_batched_tokens: 4096                   # chunked prefill chunk size (must equal GENESIS_PROFILE_RUN_CAP_M)
+  enable_chunked_prefill: true                   # required for spec-decode + long ctx
+  enforce_eager: false                           # false = cudagraph capture enabled
+  disable_custom_all_reduce: true                # NCCL fallback (consumer Ampere PCIe)
+
+promotion:
+  validation_required:
+    - "genesis_bench_suite.py --quick passes within 2% of canonical baseline"
+    - "tool-call regression 10/10 (matches Wave 9 dev209 live-PROD bench)"
+    - "200-min soak CV within tolerance"
+  promote_to: qwen3.6-27b-int4-autoround-tq-k8v4 # target model file for promote operations
+  notes: |
+    wave9-27b-tq-k8v4 captures the validated patches set + sizing for
+    the 27B Lorbus + TQ k8v4 path on 2× A5000. Re-bench whenever vllm
+    pin bumps or any patch in model.patches changes.

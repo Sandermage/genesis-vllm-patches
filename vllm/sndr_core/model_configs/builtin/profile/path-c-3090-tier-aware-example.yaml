@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 profile — club-3090 #58 Path C reference: HYBRID-GDN + tier-aware
+# cache on single 3090. Vision encoder ENABLED (image input expected).
+
+schema_version: 2
+kind: profile
+id: path-c-3090-tier-aware-example               # path-c- prefix = Path C tier-aware reference
+parent_model: qwen3.6-27b-int4-autoround-tq-k8v4 # parent: 27B TQ k8v4 (single-card validated)
+maintainer: sandermage
+status: experimental                             # values: experimental|validated|deprecated
+created: '2026-05-09'
+
+# ─── Patches delta — Path C: tier-aware + vision page demotion ─────────
+# Mamba SSM state stays GPU-resident (mandatory for hybrid GDN correctness).
+patches_delta:
+  enable:
+    GENESIS_ENABLE_PN95_TIER_AWARE_CACHE: '1'                          # PN95 tier-aware cache (GPU↔CPU pages)
+    GENESIS_PN95_CONFIG_KEY: single-3090-hybrid-gdn-tier-aware-example # PN95 config key — looks up tier specs
+    GENESIS_ENABLE_PN16_LAZY_REASONER: '1'                             # PN16 v2 — cache-safe
+    GENESIS_PN16_TOOL_THINK_BUDGET: '200'                              # V8 — short msg cap on <think> for tool requests
+  disable: []                                    # no removals
+  override: {}                                   # no value overrides
+
+# ─── Sizing override — single-3090 hybrid-GDN ceiling at 145K ──────────
+# language_model_only=false is signaled via the model.capabilities path —
+# vision encoder remains active for this profile.
+sizing_override:
+  max_model_len: 145000                          # 145K context (original club-3090 #58 single-card ceiling)
+  gpu_memory_utilization: 0.85                   # 0.85 (vs 0.95 single-card without tier) — leave headroom for tier page moves
+  max_num_seqs: 1                                # 1 = single-stream (tier-aware adds overhead per seq)
+  max_num_batched_tokens: 4096                   # standard 4096 chunks
+  enable_chunked_prefill: true                   # required for long ctx
+  enforce_eager: false                           # cudagraph capture enabled
+  disable_custom_all_reduce: true                # informational on TP=1
+
+promotion:
+  validation_required:
+    - "noonghunna cross-rig validation on actual 3090 hardware"
+    - "vision + 145K ctx combined load no OOM"
+  promote_to: null                               # null = example profile, no promotion path
+  notes: |
+    Path C tier-aware reference for single 3090. Mamba SSM state stays
+    GPU-resident; vision pages demoted first via TierManager.

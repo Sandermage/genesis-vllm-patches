@@ -1,0 +1,73 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 hardware definition — 1× RTX A5000 (24 GB) single-card variant.
+# Sister of a5000-2x-24gbvram-16cpu-128gbram; same host class but TP=1.
+# Used for: QA / regression / community-parity single-card setups.
+
+schema_version: 2
+kind: hardware
+id: a5000-1x-24gbvram-16cpu-128gbram             # canonical ID; 1x prefix vs 2x sister rig
+title: 1× RTX A5000 24GB (single-card variant)
+maintainer: sandermage
+
+hardware:
+  gpu_match_keys: [rtx a5000, rtx 3090, rtx 4090]  # compatible with 24 GB Ampere class (3090/4090 same VRAM/SM)
+  n_gpus: 1                                      # single card; TP=1
+  min_vram_per_gpu_mib: 22000                    # 22 GB usable (24 GB physical minus OS/driver reserve)
+  cuda_capability_min: [8, 6]                    # Ampere SM 8.6 minimum
+
+# ─── Sizing — single-card conservative defaults ────────────────────────
+# Single A5000 fits at most ~78K ctx with TQ k8v4 + Lorbus 27B INT4.
+sizing:
+  max_model_len: 78000                           # 78K ctx ceiling on single A5000 (vs 320K for 2× rig)
+  gpu_memory_utilization: 0.95                   # 0.95 (vs 0.90 on 2×) — single card has no all-reduce overhead, can push higher
+  max_num_seqs: 1                                # 1 = single-stream optimized (concurrency on 2× rig)
+  max_num_batched_tokens: 4096                   # chunked prefill chunk size
+  enable_chunked_prefill: true                   # required for spec-decode + long ctx
+  enforce_eager: false                           # false = cudagraph capture enabled
+  disable_custom_all_reduce: true                # informational on TP=1; no all-reduce path
+
+runtime:
+  default: docker                                # values: docker|podman|kubernetes|systemd|bare
+  supported: [docker]                            # which runtime emitters this hardware supports
+  docker:
+    image: vllm/vllm-openai:nightly              # vllm container image tag
+    image_digest: vllm/vllm-openai@sha256:9b534fe66daf152e8ceca8a7f8e14c18105aaf6ddabc61eb17730d85b4c7c194  # pinned digest
+    container_name_template: vllm-{model_id}-1x  # template includes -1x suffix to avoid name collision with 2× rig
+    host_port: 8000                              # OpenAI-API host port
+    container_port: 8000                         # OpenAI-API container port
+    shm_size: 8g                                 # /dev/shm size — 8 GiB sufficient on single-card
+    network: genesis-vllm-patches_default        # docker network
+    mounts:
+      # ── Canonical 6-slot mount schema (E22 restoration: aligned with ──
+      # ── start_*_PROD.sh ground truth + V1 a5000-1x-*.yaml). ──
+      # ── audit-launch-coverage gate enforces presence of every slot. ──
+      - "${models_dir}:/models:ro"                                                                  # 1. model checkpoints — read-only
+      - "${hf_cache}:/root/.cache/huggingface:ro"                                                   # 2. HuggingFace cache — read-only
+      - "${triton_cache}:/root/.triton/cache"                                                       # 3. Triton kernel cache — RW (persist across restarts)
+      - "${compile_cache}:/root/.cache/vllm/torch_compile_cache"                                    # 4. torch.compile cache — RW (persist across restarts)
+      - "${genesis_src}:/usr/local/lib/python3.12/dist-packages/vllm/sndr_core:ro"                  # 5. sndr_core source overlay — REQUIRED unless image bakes Genesis patches
+      - "${plugin_src}:/plugin:ro"                                                                  # 6. Genesis vLLM plugin source — REQUIRED for plugin loading
+
+system_env:
+  PYTORCH_CUDA_ALLOC_CONF: 'expandable_segments:True,max_split_size_mb:256'  # PyTorch allocator: expandable_segments + 256 MiB max split
+  NCCL_P2P_DISABLE: '1'                          # harmless on single-card; consistent with 2× rig
+  OMP_NUM_THREADS: '1'                           # OpenMP thread count per worker
+  CUDA_DEVICE_MAX_CONNECTIONS: '8'               # CUDA stream pool size per device
+  TRITON_CACHE_DIR: '/root/.triton/cache'        # Triton kernel cache location
+  VLLM_ALLOW_LONG_MAX_MODEL_LEN: '1'             # allow max_model_len > model's published context limit
+  VLLM_FLOAT32_MATMUL_PRECISION: 'high'          # values: 'highest'|'high'|'medium'; 'high' = TF32 on Ampere+
+  VLLM_LOGGING_LEVEL: 'WARNING'                  # log level: DEBUG/INFO/WARNING/ERROR
+  VLLM_MARLIN_USE_ATOMIC_ADD: '1'                # Marlin reduction via atomicAdd
+  VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS: '1'  # vllm#30515 — accurate KV pool sizing under cudagraph capture
+  VLLM_MOE_USE_DEEP_GEMM: '0'                    # disable DeepGEMM in MoE (Hopper-only)
+  VLLM_NO_USAGE_STATS: '1'                       # disable telemetry ping
+  VLLM_USE_DEEP_GEMM: '0'                        # disable DeepGEMM globally
+  VLLM_USE_FLASHINFER_MOE_FP8: '0'               # disable FlashInfer MoE FP8 (Hopper-only)
+  VLLM_USE_FLASHINFER_SAMPLER: '1'               # FlashInfer sampler (required for spec-decode acceptance)
+  VLLM_USE_FUSED_MOE_GROUPED_TOPK: '1'           # fused MoE gate+topk kernel
+  VLLM_WORKER_MULTIPROC_METHOD: spawn            # values: 'spawn'|'fork'; spawn required for CUDA reinit
+
+notes:
+  - "Single-card variant. Compatible with RTX 3090 / 4090 too (24 GB Ampere class).
+    Use for: QA / regression / community parity. For production-throughput on
+    a homelab box, prefer the 2× rig."

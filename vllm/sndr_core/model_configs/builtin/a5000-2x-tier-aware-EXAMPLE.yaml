@@ -1,0 +1,137 @@
+# SPDX-License-Identifier: Apache-2.0
+# Path C v1.0 example for Sander's actual rig: 2× A5000 (24 GiB each) + TP=2.
+# Tier-aware KV cache config sized for the production hybrid-GDN target
+# (Qwen3.6-27B-int4-AutoRound + TQ k8v4) under PROD launch args.
+#
+# UNIFIED_CONFIG plan 2026-05-09 — addresses the gap noted by Sander:
+# the original single-3090-hybrid-gdn-tier-aware-EXAMPLE.yaml is sized
+# for ONE GPU. This config sizes per-GPU (each TP worker gets its own
+# TierManager singleton with these tiers), so total resources are
+# `tier_capacity × n_gpus` across the rig.
+
+key: a5000-2x-tier-aware-example
+title: 2× A5000 — Path C tier-aware (Sandermage rig)
+description: >-
+  Path C v1.0 reference for 2× A5000 24GiB rig. GPU tier ~22 GiB per
+  card (44 GiB combined) + CPU pinned tier 8 GiB per worker (16 GiB
+  combined, conservative — bump if host has spare RAM).
+schema_version: 1
+maintainer: sandermage
+last_validated: '2026-05-09'
+genesis_pin: v11.0.0+wave7+sprint1+path_c_v10
+vllm_pin_required: 0.20.2rc1.dev93+g51f22dcfd
+lifecycle: experimental
+workload_tag: long_context_vision
+
+hardware:
+  gpu_match_keys: [rtx a5000]
+  n_gpus: 2
+  min_vram_per_gpu_mib: 22000
+  cuda_capability_min: [8, 6]
+
+model_path: /models/Qwen3.6-27B-int4-AutoRound
+served_model_name: qwen3.6-27b
+quantization: null
+kv_cache_dtype: turboquant_k8v4
+
+max_model_len: 131072
+gpu_memory_utilization: 0.92
+max_num_seqs: 4
+max_num_batched_tokens: 4096
+enable_chunked_prefill: true
+dtype: float16
+cudagraph_mode: FULL_AND_PIECEWISE
+disable_custom_all_reduce: true
+language_model_only: false
+trust_remote_code: true
+
+enable_auto_tool_choice: true
+tool_call_parser: qwen3_coder
+reasoning_parser: qwen3
+
+spec_decode:
+  method: mtp
+  num_speculative_tokens: 3
+
+genesis_env:
+  GENESIS_ENABLE_PN59_STREAMING_GDN: '1'
+  GENESIS_ENABLE_P98: '1'
+  GENESIS_ENABLE_PN95_TIER_AWARE_CACHE: '1'
+  GENESIS_PN95_CONFIG_KEY: a5000-2x-tier-aware-example
+  GENESIS_PN95_TICK_EVERY: '100'
+  GENESIS_PN95_DEMOTE_FREE_MIB_THRESHOLD: '2048'
+  GENESIS_ENABLE_PN16_LAZY_REASONER: '1'
+  GENESIS_PN16_TOOL_THINK_BUDGET: '200'
+  GENESIS_ENABLE_P82: '1'
+  GENESIS_P82_THRESHOLD_SINGLE: '0.1'
+
+system_env:
+  PYTORCH_CUDA_ALLOC_CONF: 'expandable_segments:True,max_split_size_mb:256'
+  VLLM_NO_USAGE_STATS: '1'
+  VLLM_LOGGING_LEVEL: WARNING
+  VLLM_SSM_CONV_STATE_LAYOUT: DS
+
+vllm_extra_args: []
+
+api_key: genesis-local
+host: 0.0.0.0
+
+docker:
+  image: vllm/vllm-openai:nightly
+  image_digest: vllm/vllm-openai@sha256:9b534fe66daf152e8ceca8a7f8e14c18105aaf6ddabc61eb17730d85b4c7c194
+  container_name: vllm-2xa5000-tier-aware
+  port: 8000
+  shm_size: 8g
+  memory_limit: 64g
+  gpus: all
+  mounts:
+    - ${models_dir}:/models:ro
+    - ${hf_cache}:/root/.cache/huggingface:ro
+  extra_run_flags:
+    - --security-opt label=disable
+
+# Path C v1.0 — tier-aware CacheConfig sized for 2× A5000.
+# IMPORTANT: TierManager is per-worker, so capacity_gib values are
+# PER-WORKER (each TP worker gets its own singleton with these tiers).
+cache_config:
+  eviction_policy: lru
+  tiers:
+    - device: gpu
+      capacity_gib: 22.0  # ~92% of 24 GiB; tier_low_water_pct triggers demote when <8% free
+      eviction_policy: lru
+      promote_on_hit: true
+      demote_threshold_pct: 0.92
+      low_water_pct: 0.75
+    - device: cpu
+      capacity_gib: 8.0   # per-worker; 2 workers = 16 GiB total pinned RAM
+      eviction_policy: lru
+      promote_on_hit: true
+      vision_first: true
+      pinned: true
+      notes: >-
+        8 GiB per worker × 2 TP workers = 16 GiB pinned host RAM total.
+        Lazy-allocated on first store(). Bump to 16-24 GiB per worker
+        if host has 96+ GiB RAM AND `ulimit -l unlimited` is set.
+  exclude_mamba_ssm: true
+  vision_demote_first: true
+  tier_low_water_pct: 0.05
+  async_demote: true
+  notes: >-
+    Per-worker tiers — total resources scale with n_gpus. Sandermage rig:
+    2× A5000 + 64 GiB host = comfortable headroom. Increase cpu tier
+    capacity for longer-context workloads (more demote candidates).
+
+verify_tolerances:
+  tps_drop_pct_max: 30.0
+  tool_call_min: 7/10
+  stability_cv_pct_max: 12.0
+  vram_increase_mib_max: 1500
+
+notes:
+  - 'ℹ Path C v1.0 reference for 2× A5000 24GiB rig (Sandermage)'
+  - 'ℹ Per-worker tiers: each TP worker gets gpu(22)+cpu(8) singleton'
+  - 'ℹ All 5 PN95 anchors apply: admit/touch/mamba-init/register/scheduler-tick'
+  - 'ℹ Mamba SSM groups (3 of 4) hard-excluded from demote'
+  - 'ℹ 17 attention layers eligible for demote (16 + MTP)'
+  - '⚠ On 2× A5000 rig with 48 GiB total VRAM, real demote triggers only'
+  - '⚠ under heavy long-context+vision pressure (less common than single-3090)'

@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 alias — Path C tier-aware cache example on 2× A5000.
+
+model: qwen3.6-27b-int4-autoround-tq-k8v4
+hardware: a5000-2x-24gbvram-16cpu-128gbram
+profile: path-c-2x-tier-aware-example

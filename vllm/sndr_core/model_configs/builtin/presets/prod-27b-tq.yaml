@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 alias — operator shortcut for the 27B TQ k8v4 production triplet.
+# `sndr launch prod-27b-tq` resolves to (model, hardware, profile).
+
+model: qwen3.6-27b-int4-autoround-tq-k8v4
+hardware: a5000-2x-24gbvram-16cpu-128gbram
+profile: wave9-27b-tq-k8v4

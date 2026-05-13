@@ -1,0 +1,325 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis builtin model config — Sander's PROD reference
+# Source: scripts/launch/start_35b_fp8_PROD.sh + bench 2026-05-05
+
+key: a5000-2x-35b-prod
+title: 2× RTX A5000 — 35B-A3B FP8 PROD
+description: >-
+  Sander's production reference rig. Qwen3.6-35B-A3B FP8 MoE +
+  TurboQuant k8v4 KV + MTP K=3 spec-decode. Validated 192.6 TPS
+  sustained on 2× A5000 24 GB.
+schema_version: 1
+maintainer: sandermage
+last_validated: '2026-05-09'
+# F-018 fix (audit 2026-05-07): top-level pin re-aligned with
+# reference_metrics.genesis_pin — metrics were re-snapped at that pin
+# but the top-level field was forgotten. Source of truth is the
+# metrics block.
+# B1 fix (UNIFIED_CONFIG plan 2026-05-09): vllm_pin_required bumped
+# dev9→dev93 to match reference_metrics.vllm_pin. Sprint 1 P67 sweep
+# + Wave 7 + final reference bench were ALL on dev93 (clears R-014).
+genesis_pin: v11.0.0+wave8
+vllm_pin_required: 0.20.2rc1.dev209+g5536fc0c0
+lifecycle: stable
+workload_tag: balanced
+
+hardware:
+  gpu_match_keys: [rtx a5000]
+  n_gpus: 2
+  min_vram_per_gpu_mib: 22000
+  cuda_capability_min: [8, 6]
+
+model_path: /models/Qwen3.6-35B-A3B-FP8
+served_model_name: qwen3.6-35b-a3b
+quantization: null  # FP8 native, no extra arg
+kv_cache_dtype: turboquant_k8v4
+
+max_model_len: 320000
+gpu_memory_utilization: 0.90
+max_num_seqs: 2
+max_num_batched_tokens: 4096
+enable_chunked_prefill: true
+dtype: float16
+cudagraph_mode: FULL_AND_PIECEWISE   # vllm default — Genesis stack standard
+enforce_eager: false
+disable_custom_all_reduce: true
+language_model_only: true
+trust_remote_code: true
+
+enable_auto_tool_choice: true
+tool_call_parser: qwen3_coder
+reasoning_parser: qwen3
+
+spec_decode:
+  method: mtp
+  num_speculative_tokens: 3
+
+# ─── Genesis patcher env (P*, PN*, GENESIS_*) ────────────────────────
+# Each entry below maps to a row in PATCH_REGISTRY (see docs/PATCHES.md).
+# Format: 'GENESIS_ENABLE_<PATCH_ID>': '1' enables; '0' or absent disables.
+# Comment style: <one-line "what" + value semantics if non-binary>.
+# For exhaustive details run: `genesis explain <patch-id>` (e.g. P67).
+# This config is the W-B comment-density exemplar (audit 2026-05-06).
+# Pattern to replicate when commenting other configs:
+#   - explain WHAT the patch does in 1 line
+#   - state default + valid values for non-binary settings
+#   - cite empirical evidence (TPS delta / OOM avoided / tool quality) when known
+genesis_env:
+  # ── Spec-decode + structured-output safety net (Qwen3-A3B + MTP K=3) ──
+  GENESIS_ENABLE_P58_ASYNC_PLACEHOLDER_FIX: '1'      # vllm#40807 backport — async-scheduler [-1] placeholder fix; root-cause for #40831 spec-decode degenerate loops
+  GENESIS_ENABLE_P60_GDN_NGRAM_FIX: '1'              # vllm#40738 backport (Phase 1) — GDN+ngram SSM state recovery on rollback
+  GENESIS_ENABLE_P60B_TRITON_KERNEL: '1'             # Phase 2 — Triton kernel offset fix for GDN+ngram
+  # P61 REMOVED 2026-05-11 audit — RETIRED since 2026-05-06 (superseded by P12 v2),
+  # анкер не находится на dev93; гарантированный no-op + lint noise.
+  GENESIS_ENABLE_P61B_STREAMING_OVERLAP: '1'         # vllm#40783 backport — Qwen3 streaming partial-tag overlap guard
+  GENESIS_ENABLE_P61C_QWEN3CODER_DEFERRED_COMMIT: '1'   # 2026-05-06 promoted: closes club-3090#72 (30-120s SSE silence on narrative `<tool_call>`). Live verify: gap 0.24s vs 57.9s upstream, 30/30 tool regression, TPS −0.3% (noise).
+  GENESIS_ENABLE_P62_STRUCT_OUT_SPEC_TIMING: '1'     # vllm#36138 backport — structured-output spec-decode reasoning-end timing fix
+  GENESIS_ENABLE_P64_QWEN3CODER_MTP_STREAMING: '1'   # vllm#39598 backport — qwen3coder MTP streaming early-return removal (4 sub-patches across parser + serving)
+  GENESIS_ENABLE_P66_CUDAGRAPH_SIZE_FILTER: '1'      # cudagraph capture size filter — protects against OOM when too many capture sizes
+  GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL: '1'      # Genesis-original Triton multi-query kernel for spec-decode K+1 verify (+32% TPS on 35B PROD)
+  GENESIS_P67_USE_UPSTREAM: '1'                      # P67 routing flag: '1'=use upstream Genesis kernel, '0'=Genesis fork (DEFAULT 1, fork was quality mirage 2026-04-28)
+  GENESIS_P67_NUM_KV_SPLITS: '48'                    # P67 split-K factor. Sprint 1 sweep 2026-05-09 on 35B PROD (5×5×1024 quick bench): 16=231.99/16/4.03ms, 32=232.40/3.98ms, 48=241.35/3.85ms, 64=230.38/4.01ms. **48 is optimal at 320K context** — +3.85% wall_TPS, -6.4% TTFT, -3.2% decode_TPOT vs 32. (32 was optimum at 256K; longer context shifts optimum to 48.)
+  GENESIS_ENABLE_P68_AUTO_FORCE_TOOL: '1'            # Genesis-original — auto-set tool_choice=required when prompt mentions tools (long-ctx adherence mitigation)
+  GENESIS_ENABLE_P69_LONG_CTX_TOOL_REMINDER: '1'     # Genesis-original — inject system-message reminder of tool format at long-ctx threshold
+  GENESIS_ENABLE_P70_AUTO_STRICT_NGRAM: '1'          # Genesis-original — auto-set prompt_lookup_min=8 (closes club-3090#34 ngram quality cliff)
+  GENESIS_P68_P69_LONG_CTX_THRESHOLD_CHARS: '50000'  # P68/P69 threshold in CHARACTERS (≈12K tokens at 4 chars/tok); below = no reminder, above = inject
+  # ── KV cache + memory pool ──
+  GENESIS_ENABLE_P37: '1'                            # MoE intermediate cache pool (avoids per-call torch.empty for top-k aggregation)
+  GENESIS_TQ_MAX_MODEL_LEN: '320000'                 # TQ k8v4 KV cache size cap in tokens (matches max_model_len)
+  GENESIS_ENABLE_P72_PROFILE_RUN_CAP: '1'            # Genesis-original — caps profile_run M dim at GENESIS_PROFILE_RUN_CAP_M (Dynamo fake-tensor mismatch on moe_align_block_size symbolic shape)
+  GENESIS_PROFILE_RUN_CAP_M: '4096'                  # P72 cap value (must equal max_num_batched_tokens)
+  GENESIS_ENABLE_P74_CHUNK_CLAMP: '1'                # chunked-prefill chunk-size clamp (avoids degenerate single-token chunks under spec-decode)
+  GENESIS_ENABLE_P81_FP8_BLOCK_SCALED_M_LE_8: '1'    # Genesis-original — FP8 block-scaled MM optimization for M≤8 (spec-decode K+1 batch shape)
+  GENESIS_ENABLE_P82: '1'                            # SGLang acceptance OR-clause backport (vllm#40807-related); allows softer accept threshold
+  GENESIS_P82_THRESHOLD_SINGLE: '0.3'                # P82 threshold for single-query (range 0.1-0.5; 0.3 empirically optimum on 35B PROD with MTP K=3)
+  GENESIS_ENABLE_PN8_MTP_DRAFT_ONLINE_QUANT: '1'     # MTP draft model online quantization (saves ~1 GiB/rank on FP8 draft)
+  GENESIS_ENABLE_PN11_GDN_AB_CONTIGUOUS: '1'         # GDN A/B projection contiguity guard (avoids non-contiguous tensor on hybrid GDN path)
+  GENESIS_ENABLE_P99: '1'                            # FP8 block-scaled MM batch-invariance fix
+  GENESIS_ENABLE_P101: '1'                           # vllm#41127 backport (P100-companion) — uniform query_len>1 batches through prefill wrapper in cudagraph mode
+  GENESIS_PREALLOC_TOKEN_BUDGET: '4096'              # Genesis prealloc framework — token budget for shared scratch pools
+  GENESIS_ENABLE_PN19_SCOPED_MAX_SPLIT: '1'          # vllm#41268 backport — max_split_size_mb=20 scope-restored during model load (reduces fragmentation)
+  GENESIS_ENABLE_PN77_FP8_LM_HEAD: '1'               # Phase E.6 Marlin tier — proven on 27B+TQ k8v4 (+21% TPS, tool 10/10). On 35B (vocab=248320, hidden=2048) ~243 MiB/rank saving.
+  # ── Wave 1 safe additions (2026-05-09) — все default OFF, defensive guards / narrow bug fixes ──
+  GENESIS_ENABLE_P107_MTP_TRUNCATION_DETECTOR: '1'   # vllm#41467 — detect+log MTP truncation at think→tool_call boundary; defensive, +tool_call quality on edge cases
+  GENESIS_ENABLE_P71_BLOCK_VERIFY: '1'               # vllm#40819 + gemini bug-fixes — block-verify rejection sampler. Bench 2026-05-09: +2.3% wall_TPS (226.30 → 231.41) +1.3% accept_rate. Activates when max_spec_len>=3 + draft_probs available.
+  GENESIS_ENABLE_PN17_FA2_LSE_CLAMP: '1'             # Cliff 1 mech A guard (Issue #11) — runtime clamp on FA2 softmax_lse for long context (320K relevant)
+  GENESIS_ENABLE_PN52_PROMPT_LOGPROBS_EVICTION: '1'  # vllm#41411 backport — prompt_logprobs eviction fix during chunked prefill (only fires when logprobs requested)
+  GENESIS_ENABLE_PN56_QWEN3CODER_XML_FALLBACK: '1'   # vllm#41466 backport — XML parse fallback when JSON tool-call parse fails (qwen3_coder)
+  GENESIS_ENABLE_PN66: '1'                           # vllm#41696 backport — multiturn </think> leak fix in DelegatingParser (streaming reasoning purity)
+  GENESIS_ENABLE_PN67: '1'                           # vllm#41674 backport — thinking_token_budget inverted bool fix (1-line guard)
+  GENESIS_ENABLE_P95: '1'                            # vllm#40385 backport — Marlin TP cudagraph cap on Ampere (TP=2 + Marlin defensive)
+  # ── Wave 3.1 (2026-05-09) — probabilistic draft rejection ──
+  GENESIS_ENABLE_PN90_PROBABILISTIC_DRAFT: '1'       # vllm#40269 backport — propagate draft_probs to verifier; min(1, target/draft) accept rule. Bench 2026-05-09: TPS 231.91 (≈baseline 231.41), accept_rate 0.816 vs 0.794 (+2.8%), tool 7/7. WIN — quality lift without TPS penalty.
+  # ── Wave 7 (2026-05-09) — PN16 v2 + V8 tool-budget + observability ──
+  GENESIS_ENABLE_PN16_LAZY_REASONER: '1'             # PN16 v2 — cache-safe; default behavior leaves chat_template_kwargs untouched. Hook overhead micro-secs per request.
+  GENESIS_PN16_TOOL_THINK_BUDGET: '200'              # V8 — prepends short system message capping <think> at 200 tokens for tool-attached requests. Bench 2026-05-09: TPS 237.95 (+0.7% vs baseline 236.24!) + tool 7/7 (london_think FIXED). Cache-stable.
+  GENESIS_PN16_CLASSIFIER_MAX_TOKENS: '0'            # V7 OFF — V7 cap on bench-trivial prompts caused -3.7% wall_TPS measurement artifact. Operators with no-cache workloads can opt in to V7 if they want hard ceiling on response length.
+  GENESIS_OBSERVABILITY: '1'                         # Per-patch apply timing + RSS delta logged via genesis.observability. Operator UX; zero hot-path overhead (fires only at apply time).
+  # ── Internal mode flags ──
+  GENESIS_BUFFER_MODE: shared                        # Genesis buffer manager mode (range: 'shared'|'exclusive'|'auto'; 'shared' = one buffer shared across ranks for read-only data)
+
+# 2026-05-11 Wave 8 reference bench (genesis_bench_suite.py --quick --ctx 8k, 3rd warm rerun):
+#   wall_TPS = 232.36 (CV 6.74%) / decode_TPOT = 3.97 ms (CV 4.5%) / TTFT ~112 ms
+#   vs Sprint 1 baseline 241.35 / 3.85 ms: -3.7% TPS, +3.1% TPOT
+#   Possible causes: Wave 7 defensive guards overhead OR Triton cache state diff (new container).
+#   Bench artifact: ~/bench_results/35b_wave8_2026-05-11_warm_runs (be4q29rei.output)
+
+# System env (PYTORCH_*, VLLM_*, NCCL_*, OMP_*, CUDA_*, TRITON_*)
+system_env:
+  PYTORCH_CUDA_ALLOC_CONF: 'expandable_segments:True,max_split_size_mb:256'
+  VLLM_NO_USAGE_STATS: '1'                           # disable telemetry ping (privacy + offline boots)
+  VLLM_LOGGING_LEVEL: WARNING                        # log level: DEBUG/INFO/WARNING/ERROR (range); WARNING = clean PROD output
+  VLLM_FLOAT32_MATMUL_PRECISION: high                # values: 'highest'|'high'|'medium'; 'high' uses TF32 on Ampere+ (≈3-4× faster, ~bit-identical for our shapes)
+  VLLM_USE_FLASHINFER_SAMPLER: '1'                   # FlashInfer top-p/top-k sampler (faster than reference; required for spec-decode acceptance)
+  VLLM_USE_FUSED_MOE_GROUPED_TOPK: '1'               # fused MoE gate+topk kernel (saves ~1 launch per layer; required for batched expert routing)
+  VLLM_ALLOW_LONG_MAX_MODEL_LEN: '1'                 # allow max_model_len > model's published context limit (we run 320K on a 256K-trained model)
+  VLLM_WORKER_MULTIPROC_METHOD: spawn                # values: 'spawn'|'fork'; spawn required for CUDA reinitialization across workers (TP>1)
+  VLLM_MARLIN_USE_ATOMIC_ADD: '1'                    # Marlin reduction via atomicAdd (faster on Ampere SM 8.6 with shared L2)
+  VLLM_MOE_USE_DEEP_GEMM: '0'                        # disable DeepGEMM in MoE — our Marlin tier is faster on consumer Ampere
+  VLLM_USE_DEEP_GEMM: '0'                            # disable DeepGEMM globally (Hopper-only optimization, no benefit on Ampere)
+  VLLM_USE_FLASHINFER_MOE_FP8: '0'                   # disable FlashInfer MoE FP8 (requires Hopper SM 9.0+; Ampere routes through Marlin instead)
+  VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS: '1'      # vllm#30515 — include CUDA graphs in memory profiler estimate (prevents post-warmup OOM)
+  TRITON_CACHE_DIR: /root/.triton/cache              # Triton kernel cache location (mounted as docker volume to persist across container restarts)
+  NCCL_P2P_DISABLE: '1'                              # disable peer-to-peer GPU comms (REQUIRED on consumer Ampere — no NVLink → P2P falls back to PCIe with bugs)
+  OMP_NUM_THREADS: '1'                               # OpenMP thread count per worker (1 = avoid CPU oversubscription with TP=2)
+  CUDA_DEVICE_MAX_CONNECTIONS: '8'                   # CUDA stream pool size per device (8 = empirical optimum for spec-decode K+1 verify pattern)
+
+vllm_extra_args:
+  - --no-scheduler-reserve-full-isl
+  - --performance-mode interactivity
+  - --attention-config.flash_attn_version 2
+  - --generation-config vllm
+
+# Y1 + B6 (UNIFIED_CONFIG plan 2026-05-09): runtime deps inside the
+# container, pinned. Replaces the renderer's hardcoded baseline. Bump
+# in lockstep with `pyproject.toml [project.optional-dependencies] runtime`.
+package_versions:
+  python_packages:
+    pandas: '2.2.3'
+    scipy: '1.14.1'
+    xxhash: '3.5.0'
+  notes: >-
+    Pinned post-B6 fix; supply-chain reproducibility. Installed only when
+    SNDR_DEV_INSTALL_RUNTIME_DEPS=1 is set inside the container (otherwise
+    the wheel-baked runtime stack is used).
+
+# Y3 (UNIFIED_CONFIG plan 2026-05-09): model + cache artifact specs.
+# Drives `sndr model pull` + `sndr deps plan` + container mount
+# generation. Replaces fetch_models.sh hardcoded paths.
+artifacts:
+  models:
+    - hf_id: cyankiwi/Qwen3.6-35B-A3B-FP8
+      local_dir: /models/Qwen3.6-35B-A3B-FP8
+      revision: main
+      gated: false
+      required_files:
+        - config.json
+        - '*.safetensors'
+      min_total_gib: 35.0
+      notes: >-
+        Qwen3.6-35B-A3B FP8 native (cyankiwi quant) — required for
+        Genesis PROD reference bench. Sandermage pulled this from
+        cyankiwi/* Apr 2026; mirror at Lorbus/* if upstream is gated.
+  caches:
+    - kind: huggingface_hub
+      path: ${hf_cache}
+      persistent: true
+      notes: HF model cache; reused across containers.
+    - kind: triton
+      path: ${cache_root}/triton-cache-v11
+      persistent: true
+      notes: Triton kernel cache; large warm-boot win.
+    - kind: torch_compile
+      path: ${cache_root}/compile-cache-v11
+      persistent: true
+      notes: torch.compile / Inductor cache; significant warm-boot win.
+
+# Y11 (UNIFIED_CONFIG plan 2026-05-09): per-config vLLM pin policy.
+# Mirrors top-level `vllm_pin_required` for now; future entries can
+# add allowed_pins for graceful upgrade windows and blocked_pins for
+# regression sentinels.
+upstream:
+  required_pin: 0.20.2rc1.dev93+g51f22dcfd
+  allowed_pins:
+    - 0.20.2rc1.dev93+g51f22dcfd
+  blocked_pins: []
+  notes: >-
+    Sprint 1 + Wave 7 + Sprint 4 reference bench was on dev93. Future
+    pin bumps go through cross-rig validation before joining
+    allowed_pins.
+
+# Y12 (UNIFIED_CONFIG plan 2026-05-09): runtime override safety.
+# Operator-facing `sndr launch --override KEY=VAL` is rejected unless
+# the key is listed here. Numeric ranges are bench-validated bounds.
+overrides:
+  allow_env:
+    - GENESIS_P67_NUM_KV_SPLITS
+    - GENESIS_PN16_TOOL_THINK_BUDGET
+    - GENESIS_P82_THRESHOLD_SINGLE
+    - GENESIS_PN16_CLASSIFIER_MAX_TOKENS
+  safe_ranges:
+    GENESIS_P67_NUM_KV_SPLITS: ['16', '64']            # Sprint 1 sweep range
+    GENESIS_PN16_TOOL_THINK_BUDGET: ['50', '500']      # V8 hint length bounds
+    GENESIS_P82_THRESHOLD_SINGLE: ['0.1', '0.5']       # P82 acceptance window
+    GENESIS_PN16_CLASSIFIER_MAX_TOKENS: ['0', '4096']  # 0 = OFF, ≤4096 = cap
+  notes: >-
+    Hot-tunable knobs validated by bench sweeps (Sprint 1 P67 + Wave 7
+    PN16). Override keys outside this list require a config edit + PR.
+
+api_key: genesis-local
+host: 0.0.0.0
+
+docker:
+  # B2 fix (UNIFIED_CONFIG plan 2026-05-09): image + digest pin.
+  # `image` is the upstream tag for documentation; production builds
+  # tag the same content locally as `vllm-genesis-pinned:dev93-2026-05-09`.
+  # `image_digest` is the canonical sha256 sentinel — launcher refuses
+  # to start unless `docker inspect`'s RepoDigest matches (or operator
+  # passes --strict-image=off to opt out of the check).
+  image: vllm/vllm-openai:nightly
+  image_digest: vllm/vllm-openai@sha256:9b534fe66daf152e8ceca8a7f8e14c18105aaf6ddabc61eb17730d85b4c7c194
+  container_name: vllm-35b-prod  # F-013 fix 2026-05-11: was stale (pre-Wave 8 name)
+  port: 8000
+  shm_size: 8g
+  memory_limit: 64g
+  network: genesis-vllm-patches_default
+  gpus: all
+  mounts:
+    - ${models_dir}:/models:ro
+    - ${hf_cache}:/root/.cache/huggingface:ro
+    - ${cache_root}/triton-cache-mtp-test:/root/.triton/cache
+    - ${cache_root}/compile-cache-prod-mirror-test:/root/.cache/vllm/torch_compile_cache
+    - ${genesis_src}:/usr/local/lib/python3.12/dist-packages/vllm/sndr_core:ro
+    - ${plugin_src}:/plugin:ro
+  extra_run_flags:
+    - --security-opt label=disable
+
+reference_metrics:
+  # Updated 2026-05-12 (Wave 9 dev209 35B re-bench, fixed-config A/B):
+  # Same env-config as Sprint 1 (verified bit-identical against
+  # ~/start_35b_prod_wave8.sh.bak.dev93-2026-05-11) — only vllm pin
+  # differs. dev93 → dev209 (116 upstream dev commits) caused
+  # measurable A3B-FP8 regression: -2.82% wall_TPS / +2.86% decode_TPOT.
+  # Pin bump was NEUTRAL on 27B (hybrid GDN+Mamba INT4) but the FP8
+  # MoE / A3B sparse path is sensitive to an upstream change in the
+  # dev93..dev209 range — root cause under investigation. Sprint 1
+  # dev93 numbers retained as `prev_long_gen_tps` for tracking;
+  # current row reflects dev209 reality so verify catches further drift.
+  measured_at: '2026-05-12T01:55:00Z'
+  bench_method: genesis_bench_suite.py --quick --ctx 8k (5×5×1024) Wave 9 35B dev209 + Sprint 1 env
+  long_gen_sustained_tps: 234.54   # wall_TPS Wave 9 dev209: -2.82% vs Sprint 1 dev93 (241.35) — upstream regression
+  long_gen_mean_lat_s: 4.37        # 1024 tok / 234.54 TPS
+  tool_call_score: '7/7'           # unchanged — quality preserved
+  stability_mean_s: 1.40
+  stability_cv_pct: 6.61            # +0.20pp vs Sprint 1 (6.41%) — within noise
+  vram_used_mib_per_gpu: [21953, 21953]
+  vram_total_mib: 43906             # -2 MiB vs Sprint 1 (43908) — effectively identical
+  decode_tpot_ms: 3.96              # +2.86% per-token vs Sprint 1 (3.85)
+  ttft_ms: 109.88                  # +6.67% vs Sprint 1 (103.01), within TTFT CV ~35%
+  spec_accept_rate: null            # not measured in --quick mode
+  genesis_pin: v11.0.0+stable_first
+  vllm_pin: 0.20.2rc1.dev209+g5536fc0c0
+
+  # Historical reference (regression-recovery tracking):
+  prev_long_gen_tps: 241.35         # Sprint 1 dev93 winner — was 232.40 (splits=32)
+  prev_long_gen_tps_sprint1: 241.35 # Sprint 1 IS the canonical prior baseline
+  prev_genesis_pin: v11.0.0+wave7+sprint1
+  prev_vllm_pin: 0.20.2rc1.dev93+g51f22dcfd
+
+  # Wave 9 delta annotations (audit-trail — 2026-05-12):
+  wave9_delta_pct_vs_sprint1: '-2.82%'    # 234.54 / 241.35 — upstream-side regression
+  wave9_decode_tpot_delta_pct_vs_sprint1: '+2.86%' # 3.96 / 3.85
+  wave9_ttft_delta_pct_vs_sprint1: '+6.67%' # 109.88 / 103.01 (within high TTFT CV)
+
+  # Sprint 1 sweep summary (2026-05-09):
+  # splits=16: TPS 231.99 / TPOT 4.03 ms — marginal regression
+  # splits=32: TPS 232.40 / TPOT 3.98 ms — prior baseline
+  # splits=48: TPS 241.35 / TPOT 3.85 ms — WINNER (Sprint 1 baseline)
+  # splits=64: TPS 230.38 / TPOT 4.01 ms — over-split, falls off
+  # See bench_results/sprint1/35b_p67_splits{16,32,48,64}.json
+  #
+  # Pre-Sprint1 historical (dev9 + f9576df, 2026-05-06): 196.7 TPS.
+  # Phase 2 first dev209 warm-cache bench (2026-05-11):
+  #   231.08 TPS / 4.01 ms TPOT / 114.4 ms TTFT — net-neutral vs Wave 8
+  #   dev93 baseline (232.36 / 3.97 / 112). Wave 9 re-bench (this row)
+  #   improved to 234.54 TPS as the container warmed further.
+
+verify_tolerances:
+  tps_drop_pct_max: 5.0
+  tool_call_min: 9/10
+  # F-018 fix (audit 2026-05-07): raised 6.0 → 10.0 to match the
+  # 35B-class baseline (9.22%). Original 6.0 was set when baseline was
+  # 1.80% pre-MTP; current PROD config with MTP-K=3 + 2× A5000 has
+  # higher per-batch variance (matches 27B-long-ctx + 27B-dflash-true
+  # which also use 10.0 for spec-decode workloads).
+  stability_cv_pct_max: 10.0
+  vram_increase_mib_max: 2000
+
+verified_on:
+  - 'sandermage/2xA5000-A2: 192.6 TPS sustained, 9/10 tool, 991dc1a, 2026-05-05'
+
+notes:
+  - 'ℹ Pin gate enforces vllm 0.20.2rc1.dev93+g51f22dcfd (KNOWN_GOOD_VLLM_PINS)'
+  - 'ℹ MoE FP8 routes through Marlin (P87/P91) on Ampere SM 8.6'
+  - '⚠ Do NOT enable --enable-prefix-caching with TQ k8v4 + spec_decode (DS conv state crash)'
+  - '⚠ GQA=8 (pow-2) routes through P67 multi-query — DO NOT remove GENESIS_ENABLE_P67=1'

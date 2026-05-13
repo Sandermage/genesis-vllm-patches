@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 profile — club-3090 #58 Path A reference: DENSE + CPU offload on
+# single 3090. Validator raises if combined with hybrid-GDN models.
+
+schema_version: 2
+kind: profile
+id: path-a-3090-cpu-offload-example              # path-a- prefix = Path A DENSE+CPU-offload reference
+parent_model: qwen3.6-7b-dense                   # parent: DENSE 7B model (NOT hybrid GDN)
+maintainer: sandermage
+status: experimental                             # values: experimental|validated|deprecated
+created: '2026-05-09'
+
+# ─── Patches delta — Path A guard: PN59 explicitly OFF ─────────────────
+# PN59 would raise with OffloadConfig.cpu_offload_gib > 0. No other
+# patches needed for the minimal DENSE reference.
+patches_delta:
+  enable:
+    GENESIS_ENABLE_PN59_STREAMING_GDN: '0'               # explicit '0' — Path A guard: PN59 + cpu_offload_gib > 0 raises (hybrid GDN incompatible)
+  disable: []                                    # no removals
+  override: {}                                   # no value overrides
+
+# ─── Sizing override — community reference sizing ──────────────────────
+sizing_override:
+  max_model_len: 65536                           # 65K context (Path A conservative ceiling on single 3090 with CPU offload)
+  gpu_memory_utilization: 0.90                   # 0.90 — leave headroom for CPU offload PCIe traffic
+  max_num_seqs: 1                                # 1 = single-stream (CPU offload latency-bound)
+  max_num_batched_tokens: 2048                   # 2048 — smaller chunks for offload regime
+  enable_chunked_prefill: true                   # required for long ctx
+  enforce_eager: false                           # cudagraph capture enabled
+  disable_custom_all_reduce: true                # informational on TP=1
+
+promotion:
+  validation_required:
+    - "CPU-offload region loads without OOM on single 3090"
+  promote_to: null                               # null = example profile, no promotion path
+  notes: |
+    Path A reference profile. Community example only — NOT for production
+    hybrid-GDN stack.

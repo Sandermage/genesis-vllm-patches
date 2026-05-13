@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 alias — club-3090 #58 Path A reference (DENSE + CPU offload).
+
+model: qwen3.6-7b-dense
+hardware: single-3090-24gbvram
+profile: path-a-3090-cpu-offload-example

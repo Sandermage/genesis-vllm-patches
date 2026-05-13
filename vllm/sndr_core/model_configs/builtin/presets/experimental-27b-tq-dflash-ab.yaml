@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 alias — A/B diagnostic: 27B-TQ k8v4 + 5 DFlash patches on MTP path.
+# Experimental ONLY — for production-throughput use prod-27b-tq.
+
+model: qwen3.6-27b-int4-autoround-tq-k8v4
+hardware: a5000-2x-24gbvram-16cpu-128gbram
+profile: experimental-27b-tq-dflash-ab

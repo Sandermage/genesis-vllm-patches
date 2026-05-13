@@ -1,0 +1,109 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 model definition — Qwen 3.6 35B-A3B FP8 + DFlash N=3 spec-decode.
+# Sister of qwen3.6-35b-a3b-fp8 (MTP K=3 + TQ k8v4 KV).
+# Same target checkpoint, but DFlash needs a SEPARATE drafter model,
+# default-fp16 KV (no TQ), bfloat16 dtype, single-stream sizing.
+# Migrated from legacy a5000-2x-35b-fp8-dflash.yaml (Phase 3, 2026-05-12).
+#
+# Per-line comment style — same W-B exemplar discipline as 35B PROD.
+
+schema_version: 2
+kind: model
+id: qwen3.6-35b-a3b-fp8-dflash                   # canonical ID; differs from MTP variant by spec method + KV
+title: Qwen 3.6 35B-A3B FP8 + DFlash N=3 (Sander single-stream reference)
+maintainer: sandermage
+last_validated: '2026-05-06'
+license: apache-2.0
+
+# ─── Identity ──────────────────────────────────────────────────────────
+model_path: /models/Qwen3.6-35B-A3B-FP8          # same checkpoint as MTP variant (different spec/KV path)
+served_model_name: qwen3.6-35b-a3b               # OpenAI-API model name
+quantization: null                               # null = FP8 native (no --quantization arg needed)
+dtype: bfloat16                                  # bfloat16 (NOT float16) — DFlash drafter expects bf16; deviation from MTP variant
+trust_remote_code: true                          # required for Qwen3 hybrid-GDN custom modeling code
+
+# ─── Capabilities — DFlash variant ─────────────────────────────────────
+# DFlash needs head_size=256 + non-causal attn. No Ampere backend supports
+# that with fp8/turbo KV → KV must stay at default fp16 (different from
+# MTP variant which uses TQ k8v4).
+capabilities:
+  attention_arch: hybrid_gdn_moe                 # same arch as MTP variant
+  tool_call_parser: qwen3_coder                  # qwen3_coder tool-call parser
+  reasoning_parser: qwen3                        # qwen3 </think> parser
+  enable_auto_tool_choice: true                  # P68/P69 dependency
+  spec_decode:
+    method: dflash                               # DFlash N=3 with separate drafter (range: mtp|dflash|ngram|null)
+    num_speculative_tokens: 3                    # DFlash N-value (3 is z-lab reference)
+    model: /models/Qwen3.6-35B-A3B-DFlash        # z-lab separate drafter checkpoint (NOT integrated like MTP)
+  kv_cache_dtype: null                           # null = default fp16; DFlash head_size=256 constraint forbids TQ/fp8 on Ampere
+
+# ─── Hardware preconditions composer enforces ──────────────────────────
+requires:
+  min_total_vram_mib: 44000                      # 2 × 22 GB minimum (weights + KV + drafter overhead)
+  min_gpu_count: 2                               # DFlash 35B needs TP=2
+  min_cuda_capability: [8, 6]                    # Ampere SM 8.6
+  rig_arch_blocklist: []
+
+versions:
+  genesis_pin_min: v11.0.0                       # minimum sndr_core version
+  vllm_pin_required: 0.20.2rc1.dev9+g01d4d1ad3   # DFlash bench was on dev9 (re-bench needed for dev209 pin bump)
+  reference_metrics_ref: null                    # no JSON baseline yet; bench-and-update pending
+
+# ─── Canonical patches matrix (37 entries) ─────────────────────────────
+# Notable differences vs MTP variant:
+#   • P67_NUM_KV_SPLITS=32 (vs 48 — non-TQ path uses smaller split count)
+#   • P78_TOLIST_CAPTURE_GUARD=1 (ON for DFlash; OFF in MTP)
+#   • DFlash family enabled: PN23/PN24/PN40
+#   • TQ-specific patches dropped: P95, PN52, PN66, PN67, PN77, PN8
+patches:
+  # ── Spec-decode + structured-output safety net ──
+  GENESIS_ENABLE_P58_ASYNC_PLACEHOLDER_FIX: '1'      # vllm#40807 — async-scheduler placeholder fix
+  GENESIS_ENABLE_P60_GDN_NGRAM_FIX: '1'              # vllm#40738 (Phase 1) — GDN+ngram SSM state recovery on rollback
+  GENESIS_ENABLE_P60B_TRITON_KERNEL: '1'             # Phase 2 — Triton kernel offset fix for GDN+ngram
+  GENESIS_ENABLE_P61B_STREAMING_OVERLAP: '1'         # vllm#40783 — Qwen3 streaming partial-tag overlap guard
+  GENESIS_ENABLE_P62_STRUCT_OUT_SPEC_TIMING: '1'     # vllm#36138 — structured-output spec-decode timing fix
+  GENESIS_ENABLE_P64_QWEN3CODER_MTP_STREAMING: '1'   # vllm#39598 — MTP streaming early-return removal (composes with DFlash via dispatcher)
+  GENESIS_ENABLE_P66_CUDAGRAPH_SIZE_FILTER: '1'      # cudagraph capture size filter — OOM protection
+  # ── TQ kernel still helps even without TQ KV (smaller splits) ──
+  GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL: '1'      # Genesis-original Triton multi-query kernel
+  GENESIS_P67_USE_UPSTREAM: '1'                      # P67 routing: '1'=upstream Genesis kernel
+  GENESIS_P67_NUM_KV_SPLITS: '32'                    # 32 (vs 48 in MTP) — non-TQ KV path uses smaller split count
+  # ── Tool-call safety net ──
+  GENESIS_ENABLE_P68_AUTO_FORCE_TOOL: '1'            # auto tool_choice on tool-mention prompts
+  GENESIS_ENABLE_P69_LONG_CTX_TOOL_REMINDER: '1'     # long-ctx tool-format reminder
+  GENESIS_ENABLE_P70_AUTO_STRICT_NGRAM: '1'          # auto-set prompt_lookup_min=8
+  GENESIS_P68_P69_LONG_CTX_THRESHOLD_CHARS: '50000'  # threshold in chars (≈12K tokens)
+  # ── Memory / KV cache management ──
+  GENESIS_ENABLE_P37: '1'                            # MoE intermediate cache pool
+  GENESIS_TQ_MAX_MODEL_LEN: '320000'                 # TQ cap — informational on non-TQ path
+  GENESIS_ENABLE_P72_PROFILE_RUN_CAP: '1'            # caps profile_run M dim
+  GENESIS_PROFILE_RUN_CAP_M: '4096'                  # must equal max_num_batched_tokens
+  GENESIS_ENABLE_P74_CHUNK_CLAMP: '1'                # chunked-prefill chunk-size clamp
+  # ── FP8 + MoE ──
+  GENESIS_ENABLE_P81_FP8_BLOCK_SCALED_M_LE_8: '1'    # FP8 block-scaled MM optimization for M≤8 (35B FP8 native)
+  GENESIS_ENABLE_P82: '1'                            # SGLang acceptance OR-clause backport
+  GENESIS_P82_THRESHOLD_SINGLE: '0.3'                # 0.3 = optimum for 35B with FP8 path (range 0.1-0.5)
+  GENESIS_ENABLE_P98: '1'                            # vllm#40941 WorkspaceManager fix (hybrid GDN essential)
+  GENESIS_ENABLE_P99: '1'                            # FP8 block-scaled MM batch-invariance fix
+  GENESIS_ENABLE_P101: '1'                           # vllm#41127 — uniform query_len>1 batches through prefill wrapper
+  # ── DFlash-specific safeguards ──
+  GENESIS_ENABLE_P78_TOLIST_CAPTURE_GUARD: '1'       # ON for DFlash (OFF in MTP) — protects against tolist capture in cudagraph mode
+  GENESIS_ENABLE_PN8_MTP_DRAFT_ONLINE_QUANT: '1'     # MTP draft online quant — also helps DFlash separate drafter mem
+  GENESIS_ENABLE_PN11_GDN_AB_CONTIGUOUS: '1'         # GDN A/B contiguity guard
+  GENESIS_ENABLE_PN17_FA2_LSE_CLAMP: '1'             # FA2 softmax_lse long-ctx clamp
+  GENESIS_ENABLE_PN19_SCOPED_MAX_SPLIT: '1'          # vllm#41268 — max_split_size_mb=20 scope-restored
+  GENESIS_ENABLE_PN22_LOCAL_ARGMAX_TP: '1'           # local argmax under TP — sampling correctness on DFlash path
+  # ── DFlash family (separate drafter optimizations) ──
+  GENESIS_ENABLE_PN23_DFLASH_DTYPE_FIX: '1'          # DFlash dtype guard — drafter bf16 mismatch fix
+  GENESIS_ENABLE_PN24_DFLASH_AUX_LAYER_FIX: '1'      # DFlash auxiliary layer indexing fix
+  GENESIS_ENABLE_PN40_DFLASH_OMNIBUS: '1'            # DFlash 4-part omnibus optimization (composes with MTP via dispatcher gate)
+  # ── Misc + buffer mode ──
+  GENESIS_ENABLE_P103: '1'                           # FLA Cliff 2 chunked prefill — hybrid GDN applicable
+  GENESIS_PREALLOC_TOKEN_BUDGET: '4096'              # Genesis prealloc framework — token budget for shared scratch pools
+  GENESIS_BUFFER_MODE: 'shared'                      # Genesis buffer mode (range: 'shared'|'exclusive'|'auto')
+
+notes:
+  - "Migrated from legacy a5000-2x-35b-fp8-dflash (2026-05-12). Needs separate
+    Qwen3.6-35B-A3B-DFlash drafter checkpoint on host (/models/Qwen3.6-35B-A3B-DFlash)."
+  - "Use this variant for single-stream code-gen throughput. For concurrent serving
+    use MTP variant qwen3.6-35b-a3b-fp8."

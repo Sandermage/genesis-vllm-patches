@@ -1,0 +1,176 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis builtin model config — 27B Lorbus INT4 fp8_e5m2 (TESTED / QA-only)
+# Source: scripts/launch/start_27b_int4_no_TQ_short.sh + bench 2026-05-05
+#
+# 2026-05-06 LIFECYCLE CHANGE: demoted from `stable` to `tested` —
+# operator should NOT compare this against working configs. fp8_e5m2 on
+# 27B Lorbus reproducibly underperforms TQ k8v4 + MTP (~57 vs 109.8 TPS on
+# bench-and-update). Kept for QA / regression / community parity (matches
+# noonghunna club-3090 default fp8 path), not as a recommended deployment.
+# Working alternatives: a5000-2x-27b-int4-tq-k8v4 (best concurrency) or
+# a5000-2x-27b-dflash-true (best single-stream).
+
+key: a5000-2x-27b-int4-tested
+title: 2× RTX A5000 — 27B INT4 + fp8 KV (TESTED — QA-only, not recommended)
+description: >-
+  Qwen3.6-27B-int4-AutoRound (Lorbus dense + GDN hybrid) + fp8_e5m2 KV
+  + MTP K=3 + 128K context. KEPT FOR QA + regression-testing only —
+  reproducibly slower than TQ k8v4 sister. Use this only when matching
+  noonghunna club-3090 reference path; for production prefer
+  a5000-2x-27b-int4-tq-k8v4 (109.8 TPS) or a5000-2x-27b-dflash-true (97 TPS).
+schema_version: 1
+maintainer: sandermage
+last_validated: '2026-05-05'
+genesis_pin: 991dc1a
+vllm_pin_required: 0.20.2rc1.dev9+g01d4d1ad3
+lifecycle: tested
+workload_tag: regression-test
+
+hardware:
+  gpu_match_keys: [rtx a5000]
+  n_gpus: 2
+  min_vram_per_gpu_mib: 22000
+  cuda_capability_min: [8, 6]
+
+model_path: /models/Qwen3.6-27B-int4-AutoRound
+served_model_name: qwen3.6-27b
+quantization: null
+kv_cache_dtype: fp8_e5m2
+
+max_model_len: 131072
+gpu_memory_utilization: 0.90    # was 0.95 — 97% util observed → ~870 MiB to OOM. Lowered for safety.
+max_num_seqs: 2                 # was 4 — halve KV pool peak; tested config, concurrency not critical
+max_num_batched_tokens: 4096    # was 8192 — smaller chunked-prefill chunk → smaller FFN intermediate peak (Cliff 1B)
+enable_chunked_prefill: true
+dtype: float16
+cudagraph_mode: FULL_AND_PIECEWISE   # vllm default — Genesis stack standard
+enforce_eager: false
+disable_custom_all_reduce: true
+language_model_only: true
+trust_remote_code: true
+
+enable_auto_tool_choice: true
+tool_call_parser: qwen3_coder
+reasoning_parser: qwen3
+
+spec_decode:
+  method: mtp
+  num_speculative_tokens: 3
+
+# Comment density: see a5000-2x-35b-prod.yaml for full per-env-var commentary
+# (W-B exemplar 2026-05-06). This config shares most env vars with 35B PROD;
+# unique env vars below are commented inline. Run `genesis explain <patch-id>`
+# for any P*/PN* runtime details.
+genesis_env:
+  GENESIS_ENABLE_P58_ASYNC_PLACEHOLDER_FIX: '1'
+  GENESIS_ENABLE_P60_GDN_NGRAM_FIX: '1'
+  GENESIS_ENABLE_P60B_TRITON_KERNEL: '1'
+  # P61 REMOVED 2026-05-11 audit — RETIRED 2026-05-06.
+  GENESIS_ENABLE_P61C_QWEN3CODER_DEFERRED_COMMIT: '1'    # PR38 Day 3 (2026-05-08): close club-3090#72 SSE silence on narrative <tool_call>
+  GENESIS_ENABLE_P61B_STREAMING_OVERLAP: '1'
+  GENESIS_ENABLE_P62_STRUCT_OUT_SPEC_TIMING: '1'
+  GENESIS_ENABLE_P64_QWEN3CODER_MTP_STREAMING: '1'
+  GENESIS_ENABLE_P66_CUDAGRAPH_SIZE_FILTER: '1'
+  GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL: '1'
+  GENESIS_ENABLE_P68_AUTO_FORCE_TOOL: '1'
+  GENESIS_ENABLE_P69_LONG_CTX_TOOL_REMINDER: '1'
+  GENESIS_ENABLE_P72_PROFILE_RUN_CAP: '1'
+  GENESIS_PROFILE_RUN_CAP_M: '4096'
+  GENESIS_ENABLE_P74_CHUNK_CLAMP: '1'
+  GENESIS_ENABLE_P82: '0'
+  GENESIS_ENABLE_P99: '1'
+  GENESIS_P82_THRESHOLD_SINGLE: '0.3'
+  # 2026-05-06 cleanup vs original launch script:
+  # - dropped GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL_DUP (typo placeholder, no PATCH_REGISTRY entry — R-011 would catch)
+  # - dropped P83 + P85 (memory: -30% TPS regression observed on 35B PROD with prefix-cache; risky on 27B too)
+  # - dropped P87 + P91 (Lorbus INT4 routes through AllSparkLinearKernel, not Marlin — patches no-op, just boot overhead)
+  # - added PN8 + PN11 + PN59 (parity with TQ k8v4 sister config; PN59 required for ctx >= 64K hybrid)
+  GENESIS_ENABLE_P101: '1'
+  # P100 REMOVED 2026-05-11 audit: canonical "Blackwell-only" — on Ampere SM 8.6 = no-op.
+  GENESIS_ENABLE_P78_TOLIST_CAPTURE_GUARD: '0'
+  GENESIS_ENABLE_P81_FP8_BLOCK_SCALED_M_LE_8: '0'
+  GENESIS_ENABLE_PN8_MTP_DRAFT_ONLINE_QUANT: '1'
+  GENESIS_ENABLE_PN11_GDN_AB_CONTIGUOUS: '1'
+  GENESIS_ENABLE_PN59_STREAMING_GDN: '1'
+  # 2026-05-06: parity with start_27b_int4_fp8_e5m2_short.sh (latest fp8 launch, May-5)
+  GENESIS_ENABLE_P94: '1'
+  GENESIS_ENABLE_P103: '1'
+  GENESIS_ENABLE_PN12_FFN_INTERMEDIATE_POOL: '1'
+  # PN13 REMOVED 2026-05-11 audit — RETIRED 2026-05-04 (upstream merged vllm#41235).
+  GENESIS_ENABLE_PN14_TQ_DECODE_OOB_CLAMP: '1'
+  GENESIS_ENABLE_PN17_FA2_LSE_CLAMP: '1'
+  GENESIS_ENABLE_PN19_SCOPED_MAX_SPLIT: '1'
+  GENESIS_ENABLE_PN25_SILU_INDUCTOR_SAFE: '1'    # Cliff 1B closure (Inductor opaque-op pool for SiluAndMul); preventive — NULL impact on 2xA5000, win for 24GB community
+  GENESIS_ENABLE_PN77_FP8_LM_HEAD: '1'    # Phase E.6 Marlin tier — proven on 27B+TQ k8v4 (+21% TPS) and 35B PROD (+6% TPS, tool 10/10). Hardware-tier dispatch.
+  GENESIS_ENABLE_PN22_LOCAL_ARGMAX_TP: '1'
+  GENESIS_PREALLOC_TOKEN_BUDGET: '4096'
+  GENESIS_BUFFER_MODE: shared
+
+system_env:
+  PYTORCH_CUDA_ALLOC_CONF: 'expandable_segments:True,max_split_size_mb:256'
+  VLLM_NO_USAGE_STATS: '1'
+  VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS: '1'    # vllm#30515 — accurate KV pool sizing under cudagraph capture
+  VLLM_LOGGING_LEVEL: WARNING
+  VLLM_FLOAT32_MATMUL_PRECISION: high
+  VLLM_SSM_CONV_STATE_LAYOUT: DS
+  VLLM_USE_FLASHINFER_SAMPLER: '1'
+  VLLM_USE_FUSED_MOE_GROUPED_TOPK: '1'
+  VLLM_ALLOW_LONG_MAX_MODEL_LEN: '1'
+  TRITON_CACHE_DIR: /root/.triton/cache
+  VLLM_WORKER_MULTIPROC_METHOD: spawn
+  VLLM_MARLIN_USE_ATOMIC_ADD: '1'
+  NCCL_P2P_DISABLE: '1'
+  NCCL_CUMEM_ENABLE: '0'
+  OMP_NUM_THREADS: '1'
+  CUDA_DEVICE_MAX_CONNECTIONS: '8'
+
+vllm_extra_args: []
+
+api_key: genesis-local
+host: 0.0.0.0
+
+docker:
+  image: vllm/vllm-openai:nightly
+  container_name: vllm-pn95-2xa5000-tested  # F-013 fix 2026-05-11
+  port: 8000
+  shm_size: 8g
+  memory_limit: 64g
+  network: genesis-vllm-patches_default
+  gpus: all
+  mounts:
+    - ${models_dir}:/models:ro
+    - ${hf_cache}:/root/.cache/huggingface:ro
+    - ${cache_root}/triton-cache-int4-mtp:/root/.triton/cache
+    - ${cache_root}/compile-cache-int4-mtp:/root/.cache/vllm/torch_compile_cache
+    - ${genesis_src}:/usr/local/lib/python3.12/dist-packages/vllm/sndr_core:ro
+    - ${plugin_src}:/plugin:ro
+  extra_run_flags:
+    - --security-opt label=disable
+
+reference_metrics:
+  measured_at: '2026-05-05T21:47:57Z'
+  bench_method: genesis model-config bench-and-update (verify._bench_long_gen×3 / tool×10 / stability×5)
+  long_gen_sustained_tps: 57.4
+  long_gen_mean_lat_s: 17.41
+  tool_call_score: '10/10'
+  stability_mean_s: 4.581
+  stability_cv_pct: 1.31
+  vram_used_mib_per_gpu: [23693, 23002]
+  vram_total_mib: 46695
+  genesis_pin: f9576df
+  vllm_pin: 0.20.2rc1.dev9+g01d4d1ad3
+
+verify_tolerances:
+  tps_drop_pct_max: 7.0
+  tool_call_min: 9/10
+  stability_cv_pct_max: 8.0
+  vram_increase_mib_max: 2000
+
+verified_on:
+  - 'sandermage/2xA5000-A2: 67.0 TPS sustained, 10/10 tool, 991dc1a, 2026-05-05'
+
+notes:
+  - 'ℹ fp8_e5m2 KV variant — sister `a5000-2x-27b-int4-tq-k8v4` uses TQ k8v4'
+  - 'ℹ Lorbus INT4 routes through AllSparkLinearKernel (not Marlin) → P87/P91 no-op'
+  - '⚠ Underperforms TQ k8v4 sibling: 57.4 vs 109.8 TPS (-48%, NOT noise). 2026-05-06 lifecycle demoted to QA-only — not recommended for deployment.'
+  - '⚠ Do NOT enable --enable-prefix-caching (DS conv state crash on hybrid GDN)'

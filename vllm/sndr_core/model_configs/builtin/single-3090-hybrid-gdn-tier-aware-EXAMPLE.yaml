@@ -1,0 +1,159 @@
+# SPDX-License-Identifier: Apache-2.0
+# club-3090 #58 Path C — HYBRID-GDN single-3090 tier-aware reference
+#
+# This is the headline configuration for v7.73.x: tier-aware KV cache
+# with vision sub-tier and Mamba SSM exclusion. Solves club-3090 #58
+# long-context+vision OOM on hybrid-GDN models — the production stack
+# (Qwen3.6-27B/35B-A3B) — that all upstream CPU offload paths
+# (vLLM cpu-offload-gb, SimpleCPUOffloadConnector, LMCache,
+# SGLang HiCache) crash on.
+#
+# **What's different from Path A:**
+#   - Path A (`OffloadConfig.cpu_offload_gib`) is DENSE-ONLY because
+#     vLLM's stock CPU offload doesn't know to skip Mamba SSM blocks.
+#   - Path C (`CacheConfig.tiers`) ships a Genesis-original TierManager
+#     that filters MambaSpec groups out of demote candidates AND
+#     drains MM/vision pages first (image tokens have lower attention
+#     re-use than text-prefix tokens, so they amortize the PCIe
+#     round-trip).
+#
+# Status: lifecycle=community-test — community-tested, awaiting cross-
+# rig validation by noonghunna on actual 3090 hardware. Sandermage's
+# rig is 2× A5000; the OOM cliff is shifted later there but the
+# tier-manager logic is identical.
+
+key: single-3090-hybrid-gdn-tier-aware-example
+title: Single 3090 — HYBRID-GDN long-ctx + vision + tier-aware (Path C example)
+description: >-
+  Path C reference config for club-3090 #58. Hybrid-GDN Qwen3.6-27B
+  on single 3090, GPU+CPU tiers, vision pages demoted first,
+  Mamba SSM state stays GPU-resident (mandatory). community-test.
+schema_version: 1
+maintainer: sandermage
+last_validated: '2026-05-09'
+genesis_pin: v11.0.0+wave7+sprint1+path_c
+vllm_pin_required: 0.20.2rc1.dev93+g51f22dcfd
+lifecycle: community-test
+community_submitted: true
+test_started_at: '2026-05-09'
+workload_tag: long_context_vision
+
+hardware:
+  gpu_match_keys: [rtx 3090]
+  n_gpus: 1
+  min_vram_per_gpu_mib: 22000
+
+model_path: /models/Qwen3.6-27B-int4-AutoRound  # hybrid-GDN production target
+served_model_name: qwen3.6-27b
+quantization: null
+kv_cache_dtype: turboquant_k8v4   # NOTE: TQ + hybrid GDN requires P98
+
+max_model_len: 145000  # the original #58 ceiling
+gpu_memory_utilization: 0.85  # leave headroom for tier moves
+max_num_seqs: 1
+max_num_batched_tokens: 4096
+enable_chunked_prefill: true
+dtype: float16
+cudagraph_mode: FULL_AND_PIECEWISE
+disable_custom_all_reduce: true
+language_model_only: false  # vision encoder ENABLED — image input expected
+trust_remote_code: true
+
+enable_auto_tool_choice: true
+tool_call_parser: qwen3_coder
+reasoning_parser: qwen3
+
+spec_decode:
+  method: mtp
+  num_speculative_tokens: 3
+
+genesis_env:
+  # Hybrid-GDN essentials
+  GENESIS_ENABLE_PN59_STREAMING_GDN: '1'        # required for hybrid GDN
+  GENESIS_ENABLE_P98: '1'                        # CRITICAL: TQ+hybrid workspace
+  # Path C — tier-aware cache
+  GENESIS_ENABLE_PN95_TIER_AWARE_CACHE: '1'      # PN95 active
+  # Standard Wave 7 essentials
+  GENESIS_ENABLE_PN16_LAZY_REASONER: '1'
+  GENESIS_PN16_TOOL_THINK_BUDGET: '200'
+
+system_env:
+  PYTORCH_CUDA_ALLOC_CONF: 'expandable_segments:True'
+  VLLM_NO_USAGE_STATS: '1'
+  VLLM_LOGGING_LEVEL: WARNING
+  VLLM_SSM_CONV_STATE_LAYOUT: DS              # required for hybrid GDN
+
+vllm_extra_args: []
+
+api_key: genesis-local
+host: 0.0.0.0
+
+docker:
+  image: vllm/vllm-openai:nightly
+  container_name: vllm-3090-tier-aware
+  port: 8000
+  shm_size: 8g
+  memory_limit: 96g
+  gpus: all
+  mounts:
+    - ${models_dir}:/models:ro
+    - ${hf_cache}:/root/.cache/huggingface:ro
+  extra_run_flags:
+    - --security-opt label=disable
+
+# ─── Path C — tier-aware CacheConfig (the headline block) ───────────
+#
+# Two tiers: GPU (20 GiB cap) + CPU (40 GiB pinned RAM cap).
+# `vision_demote_first: true` and `vision_first: true` (per-tier)
+# cause MM/image pages to be drained from GPU first when free VRAM
+# drops below `tier_low_water_pct`.
+# `exclude_mamba_ssm: true` (mandatory on hybrid GDN) tells the
+# TierManager to never demote Mamba SSM state — that stays on GPU.
+cache_config:
+  # PN91 single-tier defaults still honored for backward-compat
+  eviction_policy: lru
+  # PN95 multi-tier extension
+  tiers:
+    - device: gpu
+      capacity_gib: 20.0
+      eviction_policy: lru
+      promote_on_hit: true
+      demote_threshold_pct: 0.92
+      low_water_pct: 0.75
+    - device: cpu
+      capacity_gib: 4.0
+      eviction_policy: lru
+      promote_on_hit: true
+      vision_first: true
+      pinned: true
+      notes: >-
+        Pinned host RAM. Vision pages drained first (lower attention
+        re-use than text prefix). 4 GiB ≈ 500 pages of fp16 KV at
+        head_dim=128 × num_kv_heads=4 × block_size=16. Conservative
+        default — operators with bigger host RAM can bump capacity_gib.
+        The `_CpuSlab` is now allocated LAZILY (Path C v1.0 Phase 1 fix)
+        so this declared capacity is reserved budget, not eager alloc.
+  exclude_mamba_ssm: true            # MUST stay True on hybrid GDN
+  vision_demote_first: true          # sub-policy mirror
+  tier_low_water_pct: 0.05           # demote when <5% GPU VRAM free
+  async_demote: true                 # cudaMemcpyAsync vs sync
+  notes: >-
+    Path C v7.73.x reference. v7.72.x Path A schema guard was
+    relaxed because PN95's tier manager filters MambaSpec groups
+    out of demote candidates — see
+    docs/_internal/research/club3090_issue58_long_ctx_vision_oom_2026-05-09.md
+    for the full design rationale.
+
+verify_tolerances:
+  tps_drop_pct_max: 30.0   # Path C trades TPS for capability — accept 30% drop
+  tool_call_min: 7/10
+  stability_cv_pct_max: 12.0
+  vram_increase_mib_max: 1500
+
+notes:
+  - 'ℹ EXAMPLE config for club-3090 #58 Path C — community-test lifecycle'
+  - 'ℹ HYBRID-GDN safe — Mamba SSM state filtered out of demote candidates'
+  - 'ℹ Vision pages demoted FIRST when GPU VRAM pressure rises'
+  - '⚠ Tier moves cost PCIe round-trip; expect 10-30% TPS regression vs GPU-only'
+  - '⚠ Acceptance gates per design doc §6: turn-count ≥ 2× baseline OOM, decode TPS regression ≤ 30%, tool 10/10, no SSM demote'
+  - '⚠ Cross-rig validation by noonghunna pending → community-prod promotion'

@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 alias — club-3090 #58 Path C reference (HYBRID-GDN + tier-aware).
+
+model: qwen3.6-27b-int4-autoround-tq-k8v4
+hardware: single-3090-24gbvram
+profile: path-c-3090-tier-aware-example

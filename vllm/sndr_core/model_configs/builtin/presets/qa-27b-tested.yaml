@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 alias — 27B INT4 fp8kv QA / regression-test on 2× A5000.
+# Lifecycle: tested (NOT recommended; use prod-27b-tq for production).
+
+model: qwen3.6-27b-int4-autoround-fp8kv
+hardware: a5000-2x-24gbvram-16cpu-128gbram
+profile: qa-27b-fp8kv-tested

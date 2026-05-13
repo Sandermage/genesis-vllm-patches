@@ -1,0 +1,74 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 hardware definition — 2× RTX A5000 (24 GB) Sander's homelab rig.
+# Identity + sizing knobs + runtime block (docker default).
+# POC migration from legacy combined `a5000-2x-35b-prod.yaml`.
+
+schema_version: 2
+kind: hardware
+id: a5000-2x-24gbvram-16cpu-128gbram             # canonical ID encoding: <gpu>-<count>x-<vram>-<cpu>-<ram>
+title: 2× RTX A5000 24GB (Sander homelab)
+maintainer: sandermage
+
+# ─── Hardware identity ─────────────────────────────────────────────────
+hardware:
+  gpu_match_keys: [rtx a5000]                    # gpu detection substrings (case-insensitive); add 4090/3090 if cross-class needed
+  n_gpus: 2                                      # TP=2 across cards (NCCL_P2P_DISABLE=1 via PCIe — no NVLink on A5000 consumer)
+  min_vram_per_gpu_mib: 22000                    # 22 GB usable (24 GB physical minus ~2 GB OS/driver reserve)
+  cuda_capability_min: [8, 6]                    # Ampere SM 8.6 minimum
+
+# ─── Sizing knobs operator-tuned for this rig ──────────────────────────
+sizing:
+  max_model_len: 320000                          # max context length in tokens (320K — Wave 9 reference; profile may override)
+  gpu_memory_utilization: 0.90                   # vLLM KV cache budget fraction (range 0.5-0.95; 0.90 = ~21.6 GiB on 24 GiB card)
+  max_num_seqs: 2                                # max concurrent sequences (range 1-N; 2 = 35B+TQ k8v4 production reference)
+  max_num_batched_tokens: 4096                   # chunked prefill chunk size (must equal GENESIS_PROFILE_RUN_CAP_M)
+  enable_chunked_prefill: true                   # required for spec-decode + long ctx (avoids degenerate single-token chunks via P74)
+  enforce_eager: false                           # false = cudagraph capture enabled (production); true = debug-only
+  disable_custom_all_reduce: true                # disable custom all-reduce (NCCL fallback — required on consumer Ampere PCIe)
+
+# ─── Runtime block — docker default; podman / bare-metal can be added later ──
+runtime:
+  default: docker                                # values: docker|podman|kubernetes|systemd|bare; docker is the operator default
+  supported: [docker]                            # which runtime emitters this hardware definition declares as supported
+  docker:
+    image: vllm/vllm-openai:nightly              # vllm container image tag (resolved to digest below for reproducibility)
+    image_digest: vllm/vllm-openai@sha256:9b534fe66daf152e8ceca8a7f8e14c18105aaf6ddabc61eb17730d85b4c7c194  # pinned digest — Wave 9 reference
+    container_name_template: vllm-{model_id}     # template; {model_id} expanded at compose time
+    host_port: 8000                              # OpenAI-API port on host
+    container_port: 8000                         # OpenAI-API port inside container
+    shm_size: 8g                                 # /dev/shm size (8 GiB sufficient for 2× TP NCCL)
+    network: genesis-vllm-patches_default        # docker network name (project-default)
+    mounts:                                      # bind-mount specs; expanded via env var lookup at launch
+      # ── Canonical 6-slot mount schema (E22 restoration: aligned with ──
+      # ── start_35b_fp8_PROD.sh ground truth + V1 a5000-2x-35b-prod.yaml). ──
+      # ── audit-launch-coverage gate enforces presence of every slot. ──
+      - "${models_dir}:/models:ro"                                                                  # 1. model checkpoints — read-only
+      - "${hf_cache}:/root/.cache/huggingface:ro"                                                   # 2. HuggingFace cache — read-only
+      - "${triton_cache}:/root/.triton/cache"                                                       # 3. Triton kernel cache — RW (persist across restarts to avoid +30-60s recompile penalty)
+      - "${compile_cache}:/root/.cache/vllm/torch_compile_cache"                                    # 4. torch.compile cache — RW (persist across restarts)
+      - "${genesis_src}:/usr/local/lib/python3.12/dist-packages/vllm/sndr_core:ro"                  # 5. sndr_core source overlay — REQUIRED unless image bakes Genesis patches
+      - "${plugin_src}:/plugin:ro"                                                                  # 6. Genesis vLLM plugin source — REQUIRED for plugin loading
+
+# ─── System env — host-side knobs stable across models ─────────────────
+system_env:
+  PYTORCH_CUDA_ALLOC_CONF: 'expandable_segments:True,max_split_size_mb:256'   # PyTorch allocator: expandable_segments reduces fragmentation, max_split_size 256 MiB
+  NCCL_P2P_DISABLE: '1'                          # REQUIRED on consumer Ampere — no NVLink → P2P falls back to PCIe with bugs
+  OMP_NUM_THREADS: '1'                           # OpenMP thread count per worker (1 = avoid CPU oversubscription with TP=2)
+  CUDA_DEVICE_MAX_CONNECTIONS: '8'               # CUDA stream pool size per device (8 = empirical optimum for spec-decode K+1 verify pattern)
+  TRITON_CACHE_DIR: '/root/.triton/cache'        # Triton kernel cache location (mounted as docker volume to persist across restarts)
+  VLLM_ALLOW_LONG_MAX_MODEL_LEN: '1'             # allow max_model_len > model's published context (we run 320K on a 256K-trained model)
+  VLLM_FLOAT32_MATMUL_PRECISION: 'high'          # values: 'highest'|'high'|'medium'; 'high' uses TF32 on Ampere+ (~3-4× faster, bit-identical for our shapes)
+  VLLM_LOGGING_LEVEL: 'WARNING'                  # log level: DEBUG/INFO/WARNING/ERROR; WARNING = clean PROD output
+  VLLM_MARLIN_USE_ATOMIC_ADD: '1'                # Marlin reduction via atomicAdd (faster on Ampere SM 8.6 with shared L2)
+  VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS: '1'  # vllm#30515 — include CUDA graphs in memory profiler estimate (prevents post-warmup OOM)
+  VLLM_MOE_USE_DEEP_GEMM: '0'                    # disable DeepGEMM in MoE — Marlin tier faster on consumer Ampere
+  VLLM_NO_USAGE_STATS: '1'                       # disable telemetry ping (privacy + offline boots)
+  VLLM_USE_DEEP_GEMM: '0'                        # disable DeepGEMM globally (Hopper-only optimization, no Ampere benefit)
+  VLLM_USE_FLASHINFER_MOE_FP8: '0'               # disable FlashInfer MoE FP8 (Hopper SM 9.0+ required; Ampere routes through Marlin)
+  VLLM_USE_FLASHINFER_SAMPLER: '1'               # FlashInfer top-p/top-k sampler (faster than reference; required for spec-decode acceptance)
+  VLLM_USE_FUSED_MOE_GROUPED_TOPK: '1'           # fused MoE gate+topk kernel (saves ~1 launch per layer)
+  VLLM_WORKER_MULTIPROC_METHOD: spawn            # values: 'spawn'|'fork'; spawn required for CUDA reinit across workers (TP>1)
+
+notes:
+  - "POC rig profile (2026-05-12). Use as template for other A5000-class
+    homelab rigs; copy + bump VRAM/CPU/RAM in id when needed."

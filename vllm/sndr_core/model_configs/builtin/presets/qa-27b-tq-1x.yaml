@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 alias — 27B INT4 TQ k8v4 single-card on 1× A5000 (QA / regression).
+# For 2× production use prod-27b-tq.
+
+model: qwen3.6-27b-int4-autoround-tq-k8v4
+hardware: a5000-1x-24gbvram-16cpu-128gbram
+profile: qa-27b-tq-1x-tested

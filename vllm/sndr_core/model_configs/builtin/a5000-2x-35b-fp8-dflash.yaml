@@ -1,0 +1,178 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis builtin model config — 35B-A3B FP8 + TRUE DFlash N=3 spec-decode
+# Source: scripts/launch/_archive/superseded_by_model_configs/start_35b_fp8_DFLASH.sh
+#
+# Sister of a5000-2x-35b-prod (which uses MTP K=3 + TQ k8v4 KV).
+# Same target model (Qwen3.6-35B-A3B-FP8); swaps spec method to DFlash
+# with a separate drafter model (Qwen3.6-35B-A3B-DFlash, z-lab) and
+# drops TurboQuant KV (DFlash needs head_size=256 + non-causal attn,
+# no Ampere backend supports that with fp8/turbo). dtype=bfloat16.
+# Single-stream optimized (max_num_seqs=1).
+
+key: a5000-2x-35b-fp8-dflash
+title: 2× RTX A5000 — 35B-A3B FP8 + TRUE DFlash N=3
+description: >-
+  Qwen3.6-35B-A3B-FP8 target + Qwen3.6-35B-A3B-DFlash drafter (z-lab),
+  DFlash N=3 spec-decode method, fp16 KV (head_size=256 constraint),
+  bfloat16 dtype, single-stream (max_num_seqs=1). 160K context (vs 320K
+  for MTP PROD). Use when single-user code-gen single-stream throughput
+  matters more than concurrency. For concurrency stay on a5000-2x-35b-prod.
+schema_version: 1
+maintainer: sandermage
+last_validated: '2026-05-06'
+genesis_pin: f9576df
+vllm_pin_required: 0.20.2rc1.dev9+g01d4d1ad3
+lifecycle: stable
+workload_tag: high-tps
+
+hardware:
+  gpu_match_keys: [rtx a5000]
+  n_gpus: 2
+  min_vram_per_gpu_mib: 22000
+  cuda_capability_min: [8, 6]
+
+model_path: /models/Qwen3.6-35B-A3B-FP8
+served_model_name: qwen3.6-35b-a3b
+quantization: null         # FP8 native
+kv_cache_dtype: null       # default fp16 — DFlash needs head_size=256
+
+max_model_len: 160000
+gpu_memory_utilization: 0.92    # was 0.95 — 95% util observed (46461/49128 MiB), ~900 MiB to OOM with drafter overhead. Aligned with 35B PROD safe margin.
+max_num_seqs: 1
+max_num_batched_tokens: 2048
+enable_chunked_prefill: true
+dtype: bfloat16            # NOT float16 — DFlash drafter expects bf16
+cudagraph_mode: FULL_AND_PIECEWISE
+enforce_eager: false
+disable_custom_all_reduce: true
+language_model_only: true
+trust_remote_code: true
+
+enable_auto_tool_choice: true
+tool_call_parser: qwen3_coder
+reasoning_parser: qwen3
+
+spec_decode:
+  method: dflash
+  num_speculative_tokens: 3
+  model: /models/Qwen3.6-35B-A3B-DFlash   # z-lab drafter checkpoint
+
+# Comment density: see a5000-2x-35b-prod.yaml for full per-env-var commentary
+# (W-B exemplar 2026-05-06). This config shares most env vars with 35B PROD;
+# unique env vars below are commented inline. Run `genesis explain <patch-id>`
+# for any P*/PN* runtime details.
+genesis_env:
+  GENESIS_ENABLE_P58_ASYNC_PLACEHOLDER_FIX: '1'
+  GENESIS_ENABLE_P60_GDN_NGRAM_FIX: '1'
+  GENESIS_ENABLE_P60B_TRITON_KERNEL: '1'
+  # P61 REMOVED 2026-05-11 audit — RETIRED 2026-05-06.
+  GENESIS_ENABLE_P61B_STREAMING_OVERLAP: '1'
+  GENESIS_ENABLE_P62_STRUCT_OUT_SPEC_TIMING: '1'
+  GENESIS_ENABLE_P64_QWEN3CODER_MTP_STREAMING: '1'
+  GENESIS_ENABLE_P66_CUDAGRAPH_SIZE_FILTER: '1'
+  GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL: '1'
+  GENESIS_P67_USE_UPSTREAM: '1'
+  GENESIS_P67_NUM_KV_SPLITS: '32'
+  GENESIS_ENABLE_P68_AUTO_FORCE_TOOL: '1'
+  GENESIS_ENABLE_P69_LONG_CTX_TOOL_REMINDER: '1'
+  GENESIS_P68_P69_LONG_CTX_THRESHOLD_CHARS: '50000'
+  GENESIS_ENABLE_P70_AUTO_STRICT_NGRAM: '1'
+  GENESIS_ENABLE_P37: '1'
+  GENESIS_TQ_MAX_MODEL_LEN: '320000'
+  GENESIS_ENABLE_P72_PROFILE_RUN_CAP: '1'
+  GENESIS_PROFILE_RUN_CAP_M: '4096'
+  GENESIS_ENABLE_P74_CHUNK_CLAMP: '1'
+  GENESIS_ENABLE_P81_FP8_BLOCK_SCALED_M_LE_8: '1'
+  GENESIS_ENABLE_P82: '1'
+  GENESIS_ENABLE_P98: '1'
+  GENESIS_ENABLE_P99: '1'
+  GENESIS_P82_THRESHOLD_SINGLE: '0.3'
+  GENESIS_ENABLE_P101: '1'
+  GENESIS_ENABLE_P78_TOLIST_CAPTURE_GUARD: '1'   # ON for DFlash (not OFF as in MTP PROD)
+  GENESIS_ENABLE_PN8_MTP_DRAFT_ONLINE_QUANT: '1'
+  GENESIS_ENABLE_PN11_GDN_AB_CONTIGUOUS: '1'
+  GENESIS_ENABLE_PN17_FA2_LSE_CLAMP: '1'
+  GENESIS_ENABLE_PN19_SCOPED_MAX_SPLIT: '1'
+  GENESIS_ENABLE_PN22_LOCAL_ARGMAX_TP: '1'
+  # ── DFlash family ──────────────────────────────
+  GENESIS_ENABLE_PN23_DFLASH_DTYPE_FIX: '1'
+  GENESIS_ENABLE_PN24_DFLASH_AUX_LAYER_FIX: '1'
+  GENESIS_ENABLE_PN40_DFLASH_OMNIBUS: '1'
+  GENESIS_ENABLE_P103: '1'
+  GENESIS_PREALLOC_TOKEN_BUDGET: '4096'
+  GENESIS_BUFFER_MODE: shared
+
+system_env:
+  PYTORCH_CUDA_ALLOC_CONF: 'expandable_segments:True,max_split_size_mb:256'
+  VLLM_NO_USAGE_STATS: '1'
+  VLLM_LOGGING_LEVEL: WARNING
+  VLLM_FLOAT32_MATMUL_PRECISION: high
+  VLLM_USE_FLASHINFER_SAMPLER: '1'
+  VLLM_USE_FUSED_MOE_GROUPED_TOPK: '1'
+  VLLM_ALLOW_LONG_MAX_MODEL_LEN: '1'
+  VLLM_WORKER_MULTIPROC_METHOD: spawn
+  VLLM_MARLIN_USE_ATOMIC_ADD: '1'
+  VLLM_MOE_USE_DEEP_GEMM: '0'
+  VLLM_USE_DEEP_GEMM: '0'
+  VLLM_USE_FLASHINFER_MOE_FP8: '0'
+  VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS: '1'
+  TRITON_CACHE_DIR: /root/.triton/cache
+  NCCL_P2P_DISABLE: '1'
+  OMP_NUM_THREADS: '1'
+  CUDA_DEVICE_MAX_CONNECTIONS: '8'
+  GENESIS_VLLM_PIN_POLICY: strict
+
+vllm_extra_args:
+  - --no-scheduler-reserve-full-isl
+  - --performance-mode interactivity
+  - --attention-config.flash_attn_version 2
+  - --generation-config vllm
+
+api_key: genesis-local
+host: 0.0.0.0
+
+docker:
+  image: vllm/vllm-openai:nightly
+  container_name: vllm-server-35b-dflash
+  port: 8000
+  shm_size: 8g
+  memory_limit: 64g
+  network: genesis-vllm-patches_default
+  gpus: all
+  mounts:
+    - ${models_dir}:/models:ro
+    - ${hf_cache}:/root/.cache/huggingface:ro
+    - ${cache_root}/triton-cache-35b-dflash:/root/.triton/cache
+    - ${cache_root}/compile-cache-35b-dflash:/root/.cache/vllm/torch_compile_cache
+    - ${genesis_src}:/usr/local/lib/python3.12/dist-packages/vllm/sndr_core:ro
+    - ${plugin_src}:/plugin:ro
+  extra_run_flags:
+    - --security-opt label=disable
+
+reference_metrics:
+  measured_at: '2026-05-05T22:19:41Z'
+  bench_method: genesis model-config bench-and-update (verify._bench_long_gen×3 / tool×10 / stability×5)
+  long_gen_sustained_tps: 127.2
+  long_gen_mean_lat_s: 7.86
+  tool_call_score: '9/10'
+  stability_mean_s: 1.746
+  stability_cv_pct: 2.67
+  vram_used_mib_per_gpu: [23615, 22846]
+  vram_total_mib: 46461
+  genesis_pin: f9576df
+  vllm_pin: 0.20.2rc1.dev9+g01d4d1ad3
+
+verify_tolerances:
+  tps_drop_pct_max: 7.0
+  tool_call_min: 9/10
+  stability_cv_pct_max: 6.0
+  vram_increase_mib_max: 2000
+
+notes:
+  - 'ℹ Sister of a5000-2x-35b-prod (which uses MTP K=3 + TQ k8v4 KV)'
+  - 'ℹ TRUE DFlash spec method — separate drafter Qwen3.6-35B-A3B-DFlash on host required'
+  - 'ℹ KV dtype is fp16 (default) — DFlash needs head_size=256 + non-causal attn, no fp8/turbo Ampere backend'
+  - 'ℹ dtype: bfloat16 (NOT float16) — DFlash drafter expects bf16'
+  - 'ℹ max_num_seqs=1 — DFlash is single-stream optimized; for concurrency use a5000-2x-35b-prod'
+  - 'ℹ P78_TOLIST_CAPTURE_GUARD=1 (ON) for DFlash — different from MTP PROD where it is OFF'
+  - 'ℹ Lifecycle = experimental until bench-and-update fills reference_metrics'

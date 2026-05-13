@@ -1,0 +1,34 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 profile — wave9-balanced (canonical, no delta).
+# Represents the validated wave9 patches set for qwen3.6-35b-a3b-fp8.
+# Empty patches_delta = use the model's canonical patches as-is.
+# POC migration from legacy `a5000-2x-35b-prod.yaml` (2026-05-12).
+
+schema_version: 2
+kind: profile
+id: wave9-balanced                               # canonical wave9 reference (no delta — model.patches IS the wave9 set)
+parent_model: qwen3.6-35b-a3b-fp8                # parent model file this profile targets
+maintainer: sandermage
+status: validated                                # values: experimental|validated|deprecated; validated = bench-and-update passed
+created: '2026-05-09'
+
+# ─── Empty patches delta ───────────────────────────────────────────────
+# wave9-balanced IS the canonical set already merged into model.patches.
+# The profile exists to (a) demonstrate the profile mechanism and (b)
+# provide a named anchor for the wave that bench baselines reference.
+patches_delta:
+  enable: {}                                     # no patches added on top of model.patches
+  disable: []                                    # no patches removed from model.patches
+  override: {}                                   # no value overrides on existing keys
+
+# ─── Promotion contract — what must pass before changes merge upstream ─
+promotion:
+  validation_required:
+    - "tools/genesis_bench_suite.py --quick passes within 2% of canonical baseline"
+    - "tool-call regression 4/4 or better"
+    - "200-min soak CV within tolerance"
+  promote_to: qwen3.6-35b-a3b-fp8                # target model file for promote operations (null = no promotion path)
+  notes: |
+    wave9-balanced is the validated patches set for the dev209 vllm pin.
+    Already merged into model.patches; this profile is the reference
+    waypoint, not a delta to promote.

@@ -1,0 +1,61 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 hardware definition — single RTX 3090 24GB (community reference).
+# club-3090 #58 baseline rig; sandermage rig is 2× A5000 (compatible spec).
+
+schema_version: 2
+kind: hardware
+id: single-3090-24gbvram                         # canonical ID; community-facing reference rig
+title: Single RTX 3090 24GB (community reference)
+maintainer: sandermage
+
+hardware:
+  gpu_match_keys: [rtx 3090, rtx 4090, rtx a5000]  # 3090 primary; 4090/A5000 same VRAM/SM class for cross-rig validation
+  n_gpus: 1                                      # single card; TP=1
+  min_vram_per_gpu_mib: 22000                    # 22 GB usable (nominal 24 GiB minus OS/driver reserve)
+  cuda_capability_min: [8, 6]                    # Ampere SM 8.6 minimum
+
+# ─── Sizing — conservative single-3090 defaults; per-profile override expected ──
+sizing:
+  max_model_len: 65536                           # 65K conservative default (Path A); profile may override
+  gpu_memory_utilization: 0.85                   # 0.85 (vs 0.95 on a5000-1x) — leaves headroom for tier-aware page moves
+  max_num_seqs: 1                                # single-stream default
+  max_num_batched_tokens: 2048                   # smaller chunks (2048 vs 4096) for single-3090 memory regime
+  enable_chunked_prefill: true                   # required for spec-decode + long ctx
+  enforce_eager: false                           # false = cudagraph capture enabled
+  disable_custom_all_reduce: true                # informational on TP=1
+
+runtime:
+  default: docker                                # values: docker|podman|kubernetes|systemd|bare
+  supported: [docker]                            # which runtime emitters this hardware supports
+  docker:
+    image: vllm/vllm-openai:nightly              # vllm container image tag
+    image_digest: vllm/vllm-openai@sha256:9b534fe66daf152e8ceca8a7f8e14c18105aaf6ddabc61eb17730d85b4c7c194  # pinned digest
+    container_name_template: vllm-{model_id}-3090  # template includes -3090 suffix
+    host_port: 8000                              # OpenAI-API host port
+    container_port: 8000                         # OpenAI-API container port
+    shm_size: 8g                                 # /dev/shm size
+    network: genesis-vllm-patches_default        # docker network
+    mounts:
+      # ── Canonical 6-slot mount schema (E22 restoration). ──
+      # ── audit-launch-coverage gate enforces presence of every slot. ──
+      - "${models_dir}:/models:ro"                                                                  # 1. model checkpoints — read-only
+      - "${hf_cache}:/root/.cache/huggingface:ro"                                                   # 2. HuggingFace cache — read-only
+      - "${triton_cache}:/root/.triton/cache"                                                       # 3. Triton kernel cache — RW (persist across restarts)
+      - "${compile_cache}:/root/.cache/vllm/torch_compile_cache"                                    # 4. torch.compile cache — RW (persist across restarts)
+      - "${genesis_src}:/usr/local/lib/python3.12/dist-packages/vllm/sndr_core:ro"                  # 5. sndr_core source overlay — REQUIRED unless image bakes Genesis patches
+      - "${plugin_src}:/plugin:ro"                                                                  # 6. Genesis vLLM plugin source — REQUIRED for plugin loading
+
+system_env:
+  # ── Canonical 7 REQUIRED env keys (audit-launch-coverage). ──
+  PYTORCH_CUDA_ALLOC_CONF: 'expandable_segments:True'   # PyTorch allocator — expandable_segments reduces fragmentation
+  OMP_NUM_THREADS: '1'                           # OpenMP thread count per worker (1 = avoid CPU oversubscription)
+  CUDA_DEVICE_MAX_CONNECTIONS: '8'               # CUDA stream pool size per device (8 = empirical optimum)
+  TRITON_CACHE_DIR: '/root/.triton/cache'        # MUST match the /root/.triton/cache mount container_path
+  VLLM_ALLOW_LONG_MAX_MODEL_LEN: '1'             # allow max_model_len > model's published context limit
+  VLLM_WORKER_MULTIPROC_METHOD: spawn            # spawn required for CUDA reinit across workers (TP>1)
+  VLLM_NO_USAGE_STATS: '1'                       # disable telemetry ping (privacy + offline boots)
+  # ── Optional perf tunables ──
+  VLLM_LOGGING_LEVEL: 'WARNING'                  # log level: DEBUG/INFO/WARNING/ERROR
+
+notes:
+  - "Community reference for single 3090. Compatible with RTX 4090 / A5000 (Ampere 24 GB)."

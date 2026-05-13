@@ -1,0 +1,120 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 model definition — Qwen3.6-27B-int4-AutoRound (Lorbus) + fp8_e5m2 KV.
+# Sister of qwen3.6-27b-int4-autoround-tq-k8v4 (TurboQuant k8v4 KV variant).
+#
+# Path note: fp8_e5m2 reproducibly UNDER-performs TQ k8v4 on this model
+# (~57 vs 109.8 TPS bench 2026-05-05). Kept for:
+#   • long-context (>256K) variants — fp8_e5m2 fits where TQ k8v4 would OOM
+#   • QA / regression / community parity (noonghunna club-3090 reference path)
+# For production throughput use the TQ k8v4 sister model.
+#
+# Migrated from a5000-2x-27b-int4-long-ctx (newer, fuller Wave 7+ patches set).
+
+schema_version: 2
+kind: model
+id: qwen3.6-27b-int4-autoround-fp8kv             # canonical ID; fp8kv suffix differs from TQ k8v4 sister
+title: Qwen 3.6 27B INT4 AutoRound (Lorbus) + fp8_e5m2 KV
+maintainer: sandermage
+last_validated: '2026-05-06'
+license: apache-2.0
+
+# ─── Identity ──────────────────────────────────────────────────────────
+model_path: /models/Qwen3.6-27B-int4-AutoRound   # same checkpoint as TQ k8v4 sister
+served_model_name: qwen3.6-27b                   # OpenAI-API model name
+quantization: null                               # null = auto-detected by vLLM (AutoRound metadata)
+dtype: float16                                   # values: float16|bfloat16|float32; float16 standard for MTP path
+trust_remote_code: true                          # required for Qwen3 hybrid-GDN custom modeling code
+
+# ─── Capabilities ──────────────────────────────────────────────────────
+capabilities:
+  attention_arch: hybrid_gdn_moe                 # same arch as TQ sister
+  tool_call_parser: qwen3_coder                  # qwen3_coder tool-call parser
+  reasoning_parser: qwen3                        # qwen3 </think> parser
+  enable_auto_tool_choice: true                  # P68/P69 dependency
+  spec_decode:
+    method: mtp                                  # MTP K=3 (range: mtp|dflash|ngram|null)
+    num_speculative_tokens: 3                    # MTP K-value (1-7 valid)
+    model: null                                  # integrated MTP draft
+  kv_cache_dtype: fp8_e5m2                       # fp8_e5m2 KV; underperforms TQ k8v4 (~48% slower) but fits long-ctx where TQ OOMs
+
+# ─── Hardware preconditions composer enforces ──────────────────────────
+requires:
+  min_total_vram_mib: 44000                      # 2 × 22 GB minimum
+  min_gpu_count: 2                               # validated on TP=2
+  min_cuda_capability: [8, 6]                    # Ampere SM 8.6
+  rig_arch_blocklist: []
+
+versions:
+  genesis_pin_min: v11.0.0
+  vllm_pin_required: 0.20.2rc1.dev9+g01d4d1ad3   # bench was on dev9
+  reference_metrics_ref: null                    # no JSON baseline yet
+
+# ─── Canonical patches matrix ──────────────────────────────────────────
+# Long-ctx (newer) reference set. QA-only `tested` profile uses
+# patches_delta.disable to roll back to its older subset.
+patches:
+  # ── Spec-decode + structured-output safety net ──
+  GENESIS_ENABLE_P58_ASYNC_PLACEHOLDER_FIX: '1'      # vllm#40807 — async-scheduler placeholder fix
+  GENESIS_ENABLE_P60_GDN_NGRAM_FIX: '1'              # vllm#40738 (Phase 1) — GDN+ngram SSM state recovery
+  GENESIS_ENABLE_P60B_TRITON_KERNEL: '1'             # Phase 2 — Triton kernel offset fix
+  GENESIS_ENABLE_P61C_QWEN3CODER_DEFERRED_COMMIT: '1' # PR38 Day 3 — close club-3090#72 SSE silence
+  GENESIS_ENABLE_P61B_STREAMING_OVERLAP: '1'         # vllm#40783 — Qwen3 streaming partial-tag overlap guard
+  GENESIS_ENABLE_P62_STRUCT_OUT_SPEC_TIMING: '1'     # vllm#36138 — structured-output spec-decode timing
+  GENESIS_ENABLE_P64_QWEN3CODER_MTP_STREAMING: '1'   # vllm#39598 — qwen3coder MTP streaming early-return removal
+  GENESIS_ENABLE_P66_CUDAGRAPH_SIZE_FILTER: '1'      # cudagraph capture size filter — OOM protection
+  # ── TQ kernel + AutoRound row-parallel ──
+  GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL: '1'      # Genesis-original Triton multi-query kernel
+  GENESIS_P67_USE_UPSTREAM: '1'                      # P67 routing: '1'=upstream Genesis kernel
+  GENESIS_ENABLE_P87: '1'                            # Marlin pad (autoroute via tier dispatch)
+  GENESIS_ENABLE_P91: '1'                            # AutoRound row-parallel (Marlin tier autoroute)
+  GENESIS_ENABLE_P95: '1'                            # vllm#40385 — Marlin TP cudagraph cap on Ampere
+  # ── Tool-call safety net ──
+  GENESIS_ENABLE_P68_AUTO_FORCE_TOOL: '1'            # auto tool_choice on tool-mention
+  GENESIS_ENABLE_P69_LONG_CTX_TOOL_REMINDER: '1'     # long-ctx tool-format reminder
+  GENESIS_ENABLE_P70_AUTO_STRICT_NGRAM: '1'          # auto-set prompt_lookup_min=8
+  GENESIS_ENABLE_PN56_QWEN3CODER_XML_FALLBACK: '1'   # vllm#41466 — XML fallback when JSON parse fails
+  GENESIS_P68_P69_LONG_CTX_THRESHOLD_CHARS: '50000'  # threshold in chars (≈12K tokens)
+  # ── Memory / KV cache management ──
+  GENESIS_ENABLE_P72_PROFILE_RUN_CAP: '1'            # caps profile_run M dim
+  GENESIS_PROFILE_RUN_CAP_M: '4096'                  # must equal max_num_batched_tokens
+  GENESIS_ENABLE_P74_CHUNK_CLAMP: '1'                # chunked-prefill chunk-size clamp
+  GENESIS_ENABLE_PN52_PROMPT_LOGPROBS_EVICTION: '1'  # vllm#41411 — prompt_logprobs eviction fix
+  GENESIS_ENABLE_PN17_FA2_LSE_CLAMP: '1'             # FA2 softmax_lse long-ctx clamp
+  GENESIS_ENABLE_PN19_SCOPED_MAX_SPLIT: '1'          # vllm#41268 — max_split_size_mb=20 scope-restored
+  GENESIS_PREALLOC_TOKEN_BUDGET: '4096'              # prealloc token budget
+  # ── FP8 / Marlin specifics ──
+  GENESIS_ENABLE_P78_TOLIST_CAPTURE_GUARD: '0'       # opt-out on MTP path
+  GENESIS_ENABLE_P81_FP8_BLOCK_SCALED_M_LE_8: '0'    # opt-out for fp8_e5m2 KV path (TQ variant differs)
+  GENESIS_ENABLE_P82: '0'                            # 27B fp8kv keeps P82 off (TQ sister turns it on)
+  GENESIS_ENABLE_P99: '1'                            # FP8 block-scaled MM batch-invariance fix
+  GENESIS_ENABLE_P101: '1'                           # vllm#41127 — uniform query_len>1 batches through prefill wrapper
+  # ── Hybrid-GDN + Mamba (27B-specific) ──
+  GENESIS_ENABLE_PN8_MTP_DRAFT_ONLINE_QUANT: '1'     # MTP draft online quant — saves ~1 GiB/rank
+  GENESIS_ENABLE_PN11_GDN_AB_CONTIGUOUS: '1'         # GDN A/B contiguity guard
+  GENESIS_ENABLE_PN59_STREAMING_GDN: '1'             # required for ctx ≥ 64K hybrid (Cliff 2b OOM guard)
+  GENESIS_ENABLE_P94: '1'                            # GroupAB zero-alloc spec-decode prepare
+  GENESIS_ENABLE_P103: '1'                           # FLA Cliff 2 chunked prefill
+  GENESIS_ENABLE_PN12_FFN_INTERMEDIATE_POOL: '1'     # GroupAB: -1.7 GiB peak + part of +9.2% TPS group
+  GENESIS_ENABLE_PN14_TQ_DECODE_OOB_CLAMP: '1'       # GroupAB: OOB clamp in TQ decode
+  GENESIS_ENABLE_PN22_LOCAL_ARGMAX_TP: '1'           # local argmax under TP
+  GENESIS_ENABLE_PN25_SILU_INDUCTOR_SAFE: '1'        # Cliff 1B closure (Inductor opaque-op pool for SiluAndMul)
+  GENESIS_ENABLE_PN30_DS_LAYOUT_SPEC_DECODE: '1'     # issue #17 — DS conv state + spec-decode accept_len>1 protection
+  GENESIS_ENABLE_PN66: '1'                           # vllm#41696 — multiturn </think> leak fix
+  GENESIS_ENABLE_PN67: '1'                           # vllm#41674 — thinking_token_budget bool fix
+  GENESIS_ENABLE_PN77_FP8_LM_HEAD: '1'               # Phase E.6 Marlin tier FP8 LM head
+  GENESIS_ENABLE_PN82_MAMBA_CUDAGRAPH_PREFILL_ZERO: '1' # vllm#41873 — zeros padded is_prefilling rows
+  # ── Wave 3.1 / Wave 7 ──
+  GENESIS_ENABLE_PN90_PROBABILISTIC_DRAFT: '1'       # vllm#40269 — propagate draft_probs; +7.4% TPS on 27B INT4+TQ
+  GENESIS_ENABLE_P107_MTP_TRUNCATION_DETECTOR: '1'   # vllm#41467 — defensive at think→tool_call boundary
+  GENESIS_ENABLE_PN16_LAZY_REASONER: '1'             # PN16 v2 — cache-safe
+  GENESIS_PN16_TOOL_THINK_BUDGET: '200'              # V8 — short msg cap on <think> for tool requests
+  GENESIS_PN16_CLASSIFIER_MAX_TOKENS: '0'            # V7 OFF
+  GENESIS_OBSERVABILITY: '1'                         # Per-patch apply timing logged
+  GENESIS_BUFFER_MODE: 'shared'                      # Genesis buffer mode (range: 'shared'|'exclusive'|'auto')
+
+notes:
+  - "Migrated from a5000-2x-27b-int4-long-ctx (the newer, fuller Wave 7+ patches set).
+    The QA-only `tested` profile rolls back to its older subset via patches_delta.disable.
+    Long-ctx variant uses 280K context with sizing override; tested variant uses 131K."
+  - "Lorbus INT4 routes through AllSparkLinearKernel (not Marlin) for the dense
+    path — P87/P91 still help for the moe-marlin path on 27B."
