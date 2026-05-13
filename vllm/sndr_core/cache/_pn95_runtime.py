@@ -1960,6 +1960,108 @@ def _select_cold_blocks_via_bpool_lru(target_count: int) -> list:
     return candidates
 
 
+def worker_side_proactive_demote(
+    block_pool: Any,
+    target_count: int = 8,
+) -> int:
+    """Worker-process entry point for proactive cold-block demote.
+
+    The scheduler-tick path (`scheduler_tick`) runs in the EngineCore
+    process. In a multiproc vLLM deploy that process never holds a
+    BlockPool reference (those live in Worker processes), so the
+    `_proactive_demote_cold` branch silently no-ops.
+
+    This helper closes that gap. Callers from worker context — a
+    BlockPool hot path, a worker rpc, or a manual operator probe — pass
+    the locally-live `block_pool` so the LRU walk runs against the
+    real free-block queue that owns the GPU bytes.
+
+    Throttling is deliberately the caller's job: this function performs
+    the requested work synchronously and returns the count of blocks
+    captured. Callers in a hot path should rate-limit (e.g. only invoke
+    when free queue length drops below a threshold).
+
+    Returns the number of blocks whose bytes were captured to the CPU
+    prefix store. Zero is returned when:
+      - PN95 disabled
+      - TierManager not installed in this process
+      - block_pool has no free_block_queue / no cached blocks
+      - all candidates already in CPU prefix store
+    """
+    if not _enabled() or _TM is None:
+        return 0
+    if block_pool is None:
+        return 0
+    # Register the pool if the worker-side anchor (SITE6) hasn't run
+    # yet for this pool. Idempotent — `register_block_pool` dedups.
+    register_block_pool(block_pool)
+
+    # Replay the same LRU walk `_select_cold_blocks_via_bpool_lru` does
+    # but bounded to this single pool — caller knows which pool is
+    # under pressure, so we don't scan unrelated pools.
+    candidates: list = []
+    hot_keys: set = set()
+    try:
+        ring_size = getattr(_TM, "spec_decode_hot_ring", 0) or 0
+        if ring_size > 0:
+            hot_keys = set(_TM._admit_order[-ring_size:])
+    except (AttributeError, TypeError):
+        hot_keys = set()
+    try:
+        queue = getattr(block_pool, "free_block_queue", None)
+        if queue is None:
+            return 0
+        head = (
+            getattr(queue, "fake_free_list_head", None)
+            or getattr(queue, "_fake_head", None)
+        )
+        cur = getattr(head, "next_free_block", None) if head else None
+        walked = 0
+        max_walk = max(target_count * 8, 16)
+        while cur is not None and walked < max_walk:
+            walked += 1
+            if getattr(cur, "is_null", False):
+                cur = getattr(cur, "next_free_block", None)
+                continue
+            blk_hash = getattr(cur, "block_hash", None)
+            if blk_hash is None:
+                cur = getattr(cur, "next_free_block", None)
+                continue
+            if blk_hash in _PN95_PREFIX_STORE:
+                cur = getattr(cur, "next_free_block", None)
+                continue
+            blk_id = getattr(cur, "block_id", -1)
+            if (id(block_pool), blk_id) in hot_keys:
+                cur = getattr(cur, "next_free_block", None)
+                continue
+            candidates.append((blk_id, blk_hash))
+            if len(candidates) >= target_count:
+                break
+            cur = getattr(cur, "next_free_block", None)
+    except Exception:
+        return 0
+
+    if not candidates:
+        return 0
+
+    captured = 0
+    for blk_id, blk_hash in candidates:
+        try:
+            if demote_on_evict(blk_hash, blk_id):
+                captured += 1
+        except Exception:
+            continue
+
+    if captured:
+        _PN95_STATS["blocks_demoted_total"] += captured
+        _PN95_STATS["last_demote_count"] = captured
+        _PN95_STATS.setdefault("worker_proactive_calls", 0)
+        _PN95_STATS["worker_proactive_calls"] += 1
+        _PN95_STATS.setdefault("worker_proactive_captured", 0)
+        _PN95_STATS["worker_proactive_captured"] += captured
+    return captured
+
+
 def _proactive_demote_cold(target_count: int) -> int:
     """Path C v1.0 Phase 4.1 — opportunistic demote of cold cached blocks.
 
