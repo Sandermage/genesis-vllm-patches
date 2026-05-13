@@ -123,6 +123,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "env_flag": "GENESIS_ENABLE_P61C_QWEN3CODER_DEFERRED_COMMIT",
         "default_on": False,
         "category": "structured_output",
+        "apply_module": "vllm.sndr_core.integrations.tool_parsing.p61c_qwen3coder_deferred_commit",
         "credit": (
             "Local mitigation for club-3090 issue #72 (troymroberts 2026-05-06). "
             "qwen3coder parser flips is_tool_call_started=True permanently on "
@@ -1154,6 +1155,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "lifecycle": "experimental",
         "implementation_status": "full",
         "category": "spec_decode",
+        "apply_module": "vllm.sndr_core.integrations.spec_decode.pn90_probabilistic_draft_rejection",
         "credit": (
             "Backport of vllm-project/vllm#40269 (OPEN as of 2026-05-09). "
             "Stock vLLM dev93 passes literal `None` for draft_probs in "
@@ -1196,6 +1198,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "default_on": False,
         "lifecycle": "experimental",
         "category": "perf_hotfix",
+        "apply_module": "vllm.sndr_core.integrations.worker.pn82_mamba_cudagraph_prefill_zero",
         "credit": (
             "Backport of vllm-project/vllm#41873 (OPEN as of 2026-05-07). "
             "After CUDA-graph batch padding via condense(), the boolean "
@@ -1221,6 +1224,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "env_flag": "GENESIS_ENABLE_PN55_WAKE_UP_HYBRID_KV",
         "default_on": False,
         "category": "perf_hotfix",
+        "apply_module": "vllm.sndr_core.integrations.worker.pn55_wake_up_hybrid_kv",
         "credit": (
             "PR38 Day 2 (2026-05-08) upgrade from PN55v1 → PN55v2. "
             "Unified backport of vllm-project/vllm#41602 (kevglynn / "
