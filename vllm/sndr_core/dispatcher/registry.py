@@ -1217,6 +1217,80 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "requires_patches": [],
         "conflicts_with": [],
     },
+    "PN71": {
+        "title": "PN71 — `</thinking>` hallucination runtime normalizer",
+        "tier": "community",
+        "family": "reasoning",
+        "env_flag": "GENESIS_ENABLE_PN71_THINKING_TAG_NORMALIZE",
+        "default_on": False,
+        "lifecycle": "experimental",
+        "category": "compat",
+        "apply_module": "vllm.sndr_core.integrations.reasoning.pn71_thinking_token_hallucination",
+        "source": "genesis_original",
+        "credit": (
+            "Genesis-original parser-side normalizer for Qwen 3.6 "
+            "`</thinking>` hallucination. The model occasionally emits "
+            "the full word instead of the canonical `</think>` token. "
+            "Without this patch, Qwen3ReasoningParser.extract_reasoning "
+            "routes ALL output to reasoning channel with content=None. "
+            "PN71 normalizes the tag at parser entry so the partition "
+            "logic stays correct regardless of which chat template is "
+            "active. Complements froggeric template fix (which handles "
+            "the prompt side); PN71 handles the live-generation side."
+        ),
+        "applies_to": {
+            "vllm_version_range": (">=0.20.2rc1.dev9", "<0.21.0"),
+        },
+        "requires_patches": [],
+        "conflicts_with": [],
+    },
+    "PN73": {
+        "title": "PN73 — safe `tool_calls.arguments` string→dict normalization",
+        "tier": "community",
+        "family": "serving",
+        "env_flag": "GENESIS_ENABLE_PN73_TOOL_ARGS_SAFE_NORMALIZE",
+        "default_on": False,
+        "lifecycle": "experimental",
+        "category": "compat",
+        "apply_module": "vllm.sndr_core.integrations.serving.pn73_tool_args_safe_normalize",
+        "source": "genesis_original",
+        "credit": (
+            "Genesis-original defensive normalizer for malformed "
+            "tool_calls.arguments. Upstream chat_utils.py runs unguarded "
+            "json.loads which raises HTTP 500 on (a) non-strict JSON, "
+            "(b) non-string scalars, (c) double-encoded payloads. PN73 "
+            "wraps in try/except and keeps the original string on failure "
+            "instead of 500'ing. Strictly defensive."
+        ),
+        "applies_to": {
+            "vllm_version_range": (">=0.20.2rc1.dev9", "<0.21.0"),
+        },
+        "requires_patches": [],
+        "conflicts_with": [],
+    },
+    "PN72": {
+        "title": "PN72 — `developer` role pre-render normalizer (OpenAI Responses API compat)",
+        "tier": "community",
+        "family": "serving",
+        "env_flag": "GENESIS_ENABLE_PN72_DEVELOPER_ROLE",
+        "default_on": False,
+        "lifecycle": "experimental",
+        "category": "compat",
+        "apply_module": "vllm.sndr_core.integrations.serving.pn72_developer_role_normalizer",
+        "source": "genesis_original",
+        "credit": (
+            "Genesis-original fix for OpenAI Responses API `role=developer` "
+            "support. Maps developer→system at parser layer "
+            "(_parse_chat_message_content) BEFORE chat template renders, so "
+            "the fix holds regardless of which chat template is active — "
+            "complements froggeric/enhanced jinja but does not require them."
+        ),
+        "applies_to": {
+            "vllm_version_range": (">=0.20.2rc1.dev9", "<0.21.0"),
+        },
+        "requires_patches": [],
+        "conflicts_with": [],
+    },
     "PN82": {
         "title": "Mamba CUDA-graph stale `is_prefilling` padded rows — vllm#41873 backport",
         "tier": "community",
