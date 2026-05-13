@@ -23,6 +23,9 @@ htmlcov/
 # macOS AppleDouble (created by scp from macOS)
 ._*
 
+# Local IDE / agent settings
+.claude/settings.local.json
+
 # Environment/secrets
 .env
 .env.*

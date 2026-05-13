@@ -52,7 +52,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "spec_decode",
         "credit": "z1ying (vllm#40768)",
         "upstream_pr": 40768,
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "P59": {
         "title": "Qwen3 reasoning embedded tool_call recovery",
@@ -64,7 +64,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "credit": "ZenoAFfectionate (vllm#39055)",
         "upstream_pr": 39055,
         "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_moe", "qwen3_next"]},
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "P60": {
         "title": "GDN+ngram state recovery (Phase 1: SSM pre-copy)",
@@ -76,7 +76,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "credit": "tdoublep (vllm#40738), bhaktatejas922 (#39273)",
         "upstream_pr": 40738,
         "applies_to": {"is_hybrid": [True]},
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "P60b": {
         "title": "GDN+ngram Triton kernel offset (Phase 2)",
@@ -89,7 +89,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "upstream_pr": 40738,
         "applies_to": {"is_hybrid": [True]},
         "requires_patches": ["P60"],
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "P61": {
         "title": "Qwen3 multi-tool first-occurrence (RETIRED — fully superseded by P12 v2)",
@@ -97,7 +97,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "family": "reasoning",
         "env_flag": "GENESIS_ENABLE_P61_QWEN3_MULTI_TOOL",
         "default_on": False,
-        "lifecycle": "retired",  # Audit 2026-05-06: migrated from `deprecated: True` to explicit retired lifecycle. P12 v2 directly emits FIRST-occurrence; P61 anchor never matched in active form. Safety-gated.
+        "lifecycle": "retired",  # migrated from `deprecated: True` to explicit retired lifecycle. P12 v2 directly emits FIRST-occurrence; P61 anchor never matched in active form. Safety-gated.
         "category": "structured_output",
         "credit": "ExtReMLapin (vllm#40783) — P61 was supposed to flip P12's LAST-occurrence to FIRST via post-anchor replacement, but its anchor 'tool_call_index = ...' never matched P12-emitted 'idx = ...' form, so it silent-skipped when P12 was active. v7.62.5 (2026-04-28): P12 emit updated to FIRST directly; P61 retired. Setting GENESIS_ENABLE_P61=1 is now a harmless no-op (anchor not found vs already-FIRST P12 output).",
         "upstream_pr": 40783,
@@ -114,7 +114,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "upstream_pr": 36138,
         "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_6", "qwen3_moe", "qwen3_next"]},
         "conflicts_with": ["PN58"],
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "P61c": {
         "title": "Qwen3Coder deferred-commit until <function= header (club-3090#72)",
@@ -141,7 +141,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         ),
         "upstream_pr": None,  # club-3090 issue, not yet upstream PR
         "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_6", "qwen3_moe", "qwen3_next"]},
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "P61b": {
         "title": "Qwen3 streaming partial-tag overlap guard",
@@ -153,7 +153,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "credit": "ExtReMLapin (vllm#40783)",
         "upstream_pr": 40783,
         "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_moe", "qwen3_next"]},
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "P63": {
         "title": "MTP/Eagle drafter GDN state recovery (RETIRED — hypothesis disproven 2026-04-25)",
@@ -161,7 +161,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "family": "attention.gdn",
         "env_flag": "GENESIS_ENABLE_P63_MTP_GDN_STATE_RECOVERY",
         "default_on": False,
-        "lifecycle": "retired",  # Audit 2026-05-06: migrated from `deprecated: True`. Hypothesis disproven empirically; safety-gated.
+        "lifecycle": "retired",  # migrated from `deprecated: True`. Hypothesis disproven empirically; safety-gated.
         "category": "spec_decode",
         "credit": "Genesis-original (hypothesis disproven 2026-04-25)",
         "upstream_pr": None,
@@ -184,7 +184,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "credit": "kotori-yan (vllm#39598)",
         "upstream_pr": 39598,
         "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_moe", "qwen3_next"]},
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "P65": {
         "title": "TurboQuant spec-decode cudagraph downgrade",
@@ -197,7 +197,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "upstream_pr": None,
         "applies_to": {"is_turboquant": [True]},
         "conflicts_with": ["P67", "P67b"],
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "P66": {
         "title": "cudagraph_capture_sizes spec-decode divisibility filter",
@@ -208,7 +208,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "spec_decode",
         "credit": "Genesis-original (mirrors fhl2000 vllm#23679 closed)",
         "upstream_pr": 23679,
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "P68": {
         "title": "Auto force tool_choice=required for long-context tool calls",
@@ -220,7 +220,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "credit": "Genesis-original (long-ctx tool adherence mitigation)",
         "upstream_pr": None,
         "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_moe", "qwen3_next"]},
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "P69": {
         "title": "Long-context tool-format reminder injection",
@@ -232,7 +232,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "credit": "Genesis-original (long-ctx tool adherence mitigation)",
         "upstream_pr": None,
         "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_moe", "qwen3_next"]},
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "P70": {
         "title": "Auto-strict-ngram (force prompt_lookup_min>=8)",
@@ -248,7 +248,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             # +9.2% on 27B). Validated dev9 → dev93.
             "vllm_version_range": (">=0.20.0", "<0.21.0"),
         },
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "PN72": {
         "title": "Frequency-based ngram draft post-filter (llama.cpp-style)",
@@ -274,7 +274,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "unfiltered drafts on any internal error."
         ),
         "upstream_pr": None,
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "PN77": {
         "title": "FP8 lm_head compression (BF16→FP8 e4m3 + per-channel scale)",
@@ -298,7 +298,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "Tied-embedding detection prevents poisoning embed_tokens."
         ),
         "upstream_pr": None,  # PR #35696 OPEN; Genesis is preemptive backport
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "PN80": {
         "title": "LoRA tensorizer device kwarg (vllm#41845 backport)",
@@ -386,7 +386,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "family": "memory",
         "env_flag": "GENESIS_ENABLE_PN78_POST_WARMUP_CACHE_RELEASE",
         "default_on": False,
-        "lifecycle": "retired",  # Audit 2026-05-06: migrated from "deprecated" — upstream pin handles cache release internally; this wrap is permanent no-op.
+        "lifecycle": "retired",  # migrated from "deprecated" — upstream pin handles cache release internally; this wrap is permanent no-op.
         "category": "memory_savings",
         "credit": (
             "DEPRECATED 2026-05-07: see deprecation_note. Patch retained "
@@ -433,7 +433,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "vllm_version_range": (">=0.20.0", "<0.21.0"),
         },
         "conflicts_with": ["P65"],
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "P67b": {
         "title": "TurboQuant spec-verify forward() routing (FULL CG enable)",
@@ -452,7 +452,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         },
         "requires_patches": ["P67"],
         "conflicts_with": ["P65"],
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "P72": {
         "title": "profile_run M cap (unblocks --max-num-batched-tokens>4096 on MoE)",
@@ -469,7 +469,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             # on MoE). Validated dev9 → dev93.
             "vllm_version_range": (">=0.20.0", "<0.21.0"),
         },
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "P71": {
         "title": "Block-verify rejection sampler (Sun 2024 ICLR)",
@@ -480,7 +480,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "spec_decode",
         "credit": "Backport of vllm#40819 (Z. Golpayegani draft) + Sun et al. arXiv 2403.10444 + 2 critical fixes from gemini-code-assist review (shared u per request, denom==0 → 1.0)",
         "upstream_pr": 40819,
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "P74": {
         "title": "Auto chunk-clamp via long_prefill_token_threshold (P72 companion)",
@@ -493,7 +493,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "upstream_pr": None,
         "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_moe", "qwen3_next"]},
         "requires_patches": ["P72"],
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "P75": {
         "title": "Auto-enable Suffix Decoding (Arctic Inference, vllm#25784)",
@@ -510,7 +510,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         # (#25784 in pin since 2025-11). Audit script honors
         # `enables_upstream_feature: True` to exclude from NEWLY-MERGED
         # categorization. KEEP active — convenience value preserved.
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "P77": {
         "title": "Adaptive ngram K controller (EMA + hysteresis + auto-disable)",
@@ -521,7 +521,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "spec_decode",
         "credit": "Genesis-original (port of SGLang adaptive_spec_params.py EMA+hysteresis Apache-2.0 + Nightjar arXiv 2512.22420 auto-disable extension). Targets free-form ngram pathology (46 tok/s).",
         "upstream_pr": None,
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "P78": {
         "title": "TurboQuant .tolist() capture-guard (adapted from noonghunna)",
@@ -536,7 +536,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "is_turboquant": [True],
             "quant_format": ["fp8", "compressed_tensors"],
         },
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "P79b": {
         "title": "Async × spec-decode proposer-sync backport (vllm#40610)",
@@ -547,7 +547,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "spec_decode",
         "credit": "Backport of vllm#40610 (OPEN draft, tracked from #40608). Re-records prepare_inputs_event AFTER spec-decode proposer GPU work in sample_tokens(). Fixes async × spec-decode race where next batch _update_states could mutate block_table while previous batch's proposer was still reading on GPU. Genesis prod uses sync ngram so direct value is minimal; protects users on async+EAGLE/MTP/ngram_gpu.",
         "upstream_pr": 40610,
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "P79c": {
         "title": "Stale spec_token_ids cleanup for unscheduled requests (vllm#37629)",
@@ -558,7 +558,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "spec_decode",
         "credit": "Backport of vllm#37629 (OPEN, fixes #36906). Cleanup pass after main scheduling loop clears spec_token_ids for unscheduled running requests. Prevents -1 placeholder leak into F.embedding() under budget-exhausted high-concurrency on async + EAGLE/MTP. Genesis prod (max_num_seqs=2, sync ngram) gains nothing direct; protects high-concurrency multimodal users.",
         "upstream_pr": 37629,
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "P79d": {
         "title": "Preempt async-discard backport (vllm#38624)",
@@ -569,7 +569,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "spec_decode",
         "credit": "Backport of vllm#38624 (CodersAcademy006, OPEN). Adds discard_latest_async_tokens=True + num_output_placeholders=0 to _preempt_request() — fixes silent token duplication ('the the', 'of of') after preemption-resume on async + EAGLE/MTP/ngram_gpu paths. Additive (does NOT remove from reset_prefix_cache like upstream does — defensive). Idempotent. Genesis prod (sync ngram) gains nothing direct; protects async users.",
         "upstream_pr": 38624,
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "P81": {
         "title": "fp8 block-scaled MM low-M decode tuning (vllm#40925)",
@@ -583,7 +583,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {
             "quant_format": ["fp8"],
         },
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "P82": {
         "title": "SGLang threshold_single OR-clause acceptance (BIASED — opt-in research)",
@@ -599,7 +599,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             # +5.23% TPS at thr=0.1). Validated dev9 → dev93.
             "vllm_version_range": (">=0.20.0", "<0.21.0"),
         },
-        "lifecycle": "research",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "research",
         "research_note": (
             "BIASED rule — gives up the unbiased-sampling guarantee in "
             "exchange for breaking the clean_rate ≈ accept_rate^num_spec "
@@ -620,7 +620,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "credit": "Root-cause analysis: vllm#38182 by uOnePiece + @Angazenn comment identifying single_type_kv_cache_manager.py:457 force-pop last cached block when use_eagle=True. MTP gets caught up via config/speculative.py:890-891 (use_eagle returns True for 'mtp'). EMPIRICALLY DISPROVEN as the actual cause: Genesis debug instrumentation showed find_longest_cache_hit was NEVER called for our workload because num_hashes=0 (block_size > prompt_len after P5 LCM-pad). The L457 pop is a downstream symptom, not the upstream cause. P84 (hash_block_size override) is the real fix. P83 kept as opt-in research artifact for future workloads where the pop site IS reached.",
         "upstream_pr": None,
         "applies_to": {"is_hybrid": [True]},
-        "lifecycle": "research",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "research",
         "research_note": (
             "Empirically disproven as the root cause of vllm#38182: "
             "Genesis instrumentation found `find_longest_cache_hit` was "
@@ -642,7 +642,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "credit": "Genesis-original discovery 2026-04-27 via P83 DEBUG instrumentation. scheduler.py:234 hard-codes hash_block_size=self.block_size; on hybrid Qwen3.6-MoE with P5 LCM-pad this becomes 2048+, so request_block_hasher computes 0 hashes for prompts < 2048 tokens. Cache machinery runs with overhead but never produces hits. P84 text-patches scheduler.py to read hash_block_size from env GENESIS_P84_HASH_BLOCK_SIZE (recommended value: 16 = full-attention default). Engage via GENESIS_ENABLE_P84=1 + GENESIS_P84_HASH_BLOCK_SIZE=16. Constraint: must divide every group's block_size, else vLLM's own assertion fires at startup. Related: vllm#38182 identified WRONG root cause (the L457 pop); P84 attacks the upstream cause.",
         "upstream_pr": None,
         "applies_to": {"is_hybrid": [True]},
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "P85": {
         "title": "Hybrid fine-shadow prefix cache (vllm#38182 followup, MambaManager fix)",
@@ -655,7 +655,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "upstream_pr": None,
         "applies_to": {"is_hybrid": [True]},
         "requires_patches": ["P84"],
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "P86": {
         "title": "ngram batch_propose O(N*K) → O(N+K) direct-fill (vllm#40876)",
@@ -666,7 +666,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "spec_decode",
         "credit": "Backport of vllm#40876 (aaronagent, OPEN). Replaces O(N*K) `i in valid_ngram_requests` membership scan in NgramProposer.batch_propose with O(N+K) direct-fill loop iterating only the valid ngram requests. Algorithmic improvement, no behavioral change. Negligible at Genesis prod max_num_seqs=2 (~ns); meaningful at high-concurrency multi-user serving (e.g. N=64, K=32 saves ~1952 list-membership ops per batch step).",
         "upstream_pr": 40876,
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "P87": {
         "title": "Marlin W4A16/W8A16 sub-tile output dim pad-on-load (vllm#40361)",
@@ -684,7 +684,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
                 "gptq_int4", "awq_int4", "compressed_tensors",
             ],
         },
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "PN8": {
         "title": "MTP/draft online-quant propagation (vllm#40849)",
@@ -713,7 +713,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             # spec-decode is off OR target is not online-quantized, the new
             # branch falls through identical to vanilla. No model gating.
         },
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "PN9": {
         "title": "Independent drafter attention backend (vllm#39930)",
@@ -784,7 +784,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {
             "spec_method": ["dflash"],
         },
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "PN40-classifier": {
         "title": "PN40 sub-D workload classifier (chat_completion middleware)",
@@ -811,7 +811,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {
             "spec_method": ["dflash", "mtp"],
         },
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "PN40": {
         "title": "Spec-decode omnibus (A DFlash K-norm + B pool + C adaptive K + D sentinel)",
@@ -848,7 +848,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {
             "spec_method": ["dflash", "mtp"],  # C+D universal across both
         },
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     # PN37 archived 2026-05-04 to vllm/_genesis/_not_used_artifact/.
     # Premise (FA2 dead-zone for tiny-Q non-causal) was disproved by
@@ -894,7 +894,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {
             "model_class": ["qwen3_5", "qwen3_6"],
         },
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "PN59": {
         "title": "Streaming-GDN orchestrator (Variant D Phase 2) — true Cliff 2b OOM fix",
@@ -927,7 +927,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         # the GDN chunk-prefill path with in-place SSM state; this
         # streaming-GDN orchestrator targets the same call site differently.
         "conflicts_with": ["PN79"],
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "PN58": {
         "title": "Spec-decode reasoning boundary validation — narrower alt to P62 (vllm#40962)",
@@ -957,7 +957,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "upstream_pr": 40962,
         "applies_to": {},
         "conflicts_with": ["P62"],
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "P107": {
         "title": "MTP truncation detector at reasoning→tool_call boundary (vllm#41467)",
@@ -985,7 +985,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             # OFF). Validated dev9 → dev93. Self-retires when #41467 merges.
             "vllm_version_range": (">=0.20.0", "<0.21.0"),
         },
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "PN56": {
         "title": "Qwen3Coder XML parse fallback (vllm#41466 backport)",
@@ -1009,7 +1009,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         ),
         "upstream_pr": 41466,
         "applies_to": {},
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "PN57": {
         "title": "TurboQuant centroids disk-persistent cache (vllm#41418-inspired)",
@@ -1033,7 +1033,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         ),
         "upstream_pr": 41418,
         "applies_to": {},
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "SPRINT26_CG_DISPATCH_TRACE": {
         "title": "Sprint 2.6 v2 — CUDA graph dispatch trace wire-in",
@@ -1104,7 +1104,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "composes_with": ["P17", "P22", "P38"],
     },
     "PN95": {
-        "title": "PN95 — Tier-aware KV cache + vision sub-tier + Mamba SSM exclusion (Path C v7.73.x v0.5)",
+        "title": "PN95 — Tier-aware KV cache + CPU offload + boot-time expansion (Path C, club-3090 #58)",
         "tier": "community",
         "family": "kv_cache",
         "env_flag": "GENESIS_ENABLE_PN95_TIER_AWARE_CACHE",
@@ -1115,29 +1115,30 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "apply_module": "vllm.sndr_core.integrations.kv_cache.pn95_tier_aware_cache",
         "lifecycle": "experimental",
         "experimental_note": (
-            "Path C v7.73.x v0.5 — instrumentation + bookkeeping layer. "
-            "Solves club-3090 #58 design + Mamba SSM exclusion. THREE "
-            "text-patch anchors inject fail-silent tier-manager hooks: "
-            "(1) cache_blocks admit, (2) block_pool.get_cached_block touch, "
-            "(3) KVCacheManager.__init__ Mamba classifier + lazy TM init. "
-            "Day 5 per-block MM tagging via request.mm_features works. "
-            "Day 6 MambaSpec exclusion works. CPU pool is torch.empty("
-            "pin_memory=True) when torch+CUDA available. **Phase 2 (v7.74.x): "
-            "wire actual GPU↔CPU bytes movement via worker-level kv_caches "
-            "access — requires 4th anchor not yet designed.** Today PN95 "
-            "is 'observability + readiness' — proves wire-in is harmless "
-            "and Mamba groups are correctly identified on hybrid-GDN configs."
+            "Eleven text-patch anchors wired into vLLM v1 KV cache hot path. "
+            "Phase 1 (anchors 1-3): cache_blocks admit, block_pool touch, "
+            "KVCacheManager mamba classifier + lazy TierManager init. "
+            "Phase 2 (anchors 4-5): worker register_kv_caches + Scheduler tick. "
+            "Phase 4 (anchors 6-8): prefix cache extension — block_pool register, "
+            "demote-on-evict, promote-on-miss. Phase 5 partial (anchors 9, 11, 12): "
+            "boot-time available_memory inflation, BlockPool metadata side-table, "
+            "get_new_blocks virtual materialization. "
+            "Phase 5 anchor #10 (KVCacheTensor physical-allocation cap via "
+            "pn95_physical_num_blocks_cap()) helper exists in _pn95_runtime.py "
+            "but text-patch wire-in is pending — boot-time virtualization needs "
+            "live GPU validation before flipping that switch. CPU slab is "
+            "torch.empty(pin_memory=True) when torch+CUDA available; "
+            "MambaSpec groups are filtered from demote candidates."
         ),
         "credit": (
-            "Genesis-original implementation (Sandermage). Solves club-3090 "
-            "#58 — Mamba SSM state lives outside KV pool, so all upstream "
-            "CPU offload (vLLM cpu-offload-gb, SimpleCPUOffloadConnector, "
-            "LMCache, SGLang HiCache) crash on hybrid-GDN. PN95's tier "
-            "manager filters MambaSpec groups out of demote candidates and "
-            "drains MM/vision pages first, since image tokens have lower "
-            "attention re-use than text-prefix pages. Reuses PN91 eviction "
-            "policy ABC (LRU/2Q/ARC) per tier. Anchors at vLLM v1 KV "
-            "manager hot path; coordinates with P83 + P85 in same files."
+            "Genesis-original implementation. Addresses club-3090 #58 — Mamba "
+            "SSM state lives outside the KV pool, so all upstream CPU-offload "
+            "paths (vLLM cpu-offload-gb, SimpleCPUOffloadConnector, LMCache, "
+            "SGLang HiCache) crash on hybrid-GDN models. PN95 filters MambaSpec "
+            "groups out of demote candidates and drains MM/vision pages first "
+            "(image tokens carry lower attention re-use than text-prefix pages). "
+            "Reuses PN91 eviction policy ABC (LRU/2Q/ARC) per tier. Coordinates "
+            "with P83 and P85 in the same vLLM source files."
         ),
         "requires_patches": [],
         "conflicts_with": [],
@@ -1241,7 +1242,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "upstream_pr": 41602,
         "related_upstream_prs": [41896],
         "applies_to": {},
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "PN54": {
         "title": "GDN contiguous-call deduplication (P0.7 Cliff 2b OOM mitigation)",
@@ -1277,7 +1278,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         # in the same gdn_linear_attn.py codepath. Together they double-pad
         # the same allocation in some prefill regimes.
         "conflicts_with": ["PN79"],
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "PN52": {
         "title": "prompt_logprobs eviction fix during chunked prefill (vllm#41411 backport)",
@@ -1418,7 +1419,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         ),
         "upstream_pr": 40706,
         "requires_patches": ["PN33"],
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "PN33": {
         "title": "Spec-decode warmup K-aware sizing (vllm#37521 extended to MTP/ngram)",
@@ -1512,7 +1513,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         },
         "requires_patches": [],
         "conflicts_with": ["P28"],
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "PN31": {
         "title": "FA varlen persistent out buffer (issue #15, sister to P38)",
@@ -1537,7 +1538,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         },
         "conflicts_with": [],
         "requires_patches": [],
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "PN30": {
         "title": "DS conv state layout + spec-decode AL>1 fix (issue #17)",
@@ -1567,7 +1568,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         },
         "conflicts_with": [],
         "requires_patches": [],
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "P67c": {
         "title": "Per-row vote sparse-V integration into P67 split-M kernel",
@@ -1592,7 +1593,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {"is_turboquant": [True]},
         "requires_patches": ["P67"],
         "conflicts_with": [],
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "PN29": {
         "title": "GDN chunk_o scale-fold (vllm#41446 pattern (c))",
@@ -1620,7 +1621,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             # GDN). On Qwen3MoE without GDN, the kernel never fires →
             # patch is silently no-op even if env enabled.
         },
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "PN11": {
         "title": "GDN a/b contiguity in fix_query_key_value_ordering (vllm#41142)",
@@ -1647,7 +1648,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             # runs with np/ng==1. Genesis prod doesn't trigger it but the
             # patch is harmless (no-op .contiguous() call).
         },
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "PN12": {
         "title": "FFN intermediate scratch pool — Cliff 1 fix on TQ3 path",
@@ -1681,7 +1682,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             # Validated dev9 → dev93. Self-retires when #34207 merges.
             "vllm_version_range": (">=0.20.0", "<0.21.0"),
         },
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "PN19": {
         "title": "Scoped max_split_size_mb during model load (vllm#41268)",
@@ -1747,7 +1748,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         },
         "conflicts_with": [],
         "requires_patches": [],
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "PN21": {
         "title": "DFlash SWA support partial backport (vllm#40898)",
@@ -1772,7 +1773,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {},
         "conflicts_with": [],
         "requires_patches": [],  # Pairs with PN24 but does not strictly require it
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "PN22": {
         "title": "Local argmax for TP draft (vllm#39419 backport)",
@@ -1795,7 +1796,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {},
         "conflicts_with": [],
         "requires_patches": [],
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "PN24": {
         "title": "DFlash aux layer +1 indexing fix (vllm#40727)",
@@ -1815,7 +1816,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {},
         "conflicts_with": [],
         "requires_patches": [],
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "PN28": {
         "title": "merge_attn_states NaN guard (vllm#39148 backport)",
@@ -1838,7 +1839,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {},
         "conflicts_with": [],
         "requires_patches": [],
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "P15B": {
         "title": "FA varlen max_seqlen_k clamp on TQ path (Issue #15 fix)",
@@ -1863,7 +1864,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {},
         "conflicts_with": [],
         "requires_patches": [],
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "P38B": {
         "title": "P38 compile-safe in-source hook (Issue #14 fix)",
@@ -1889,7 +1890,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {},
         "conflicts_with": [],
         "requires_patches": [],  # P38 install order: P38 first (provides impl), P38B second (installs hook)
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "PN26b": {
         "title": "Sparse-V tile-skip Genesis kernel (BLASST λ=a/L for SM86)",
@@ -1922,7 +1923,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {},
         "conflicts_with": [],
         "requires_patches": [],
-        "lifecycle": "research",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "research",
         "research_note": (
             "First sparse-V tile-skip kernel deployed on SM86 (Ampere). "
             "Upstream vllm#41422 (TheTom) is AMD-only validated; Genesis "
@@ -1962,7 +1963,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {},
         "conflicts_with": [],
         "requires_patches": [],
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "PN26": {
         "title": "TQ unified perf pack (centroids prebake + sparse V scaffold)",
@@ -1990,7 +1991,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {},
         "conflicts_with": [],
         "requires_patches": [],
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "PN25": {
         "title": "SiluAndMul.forward_native opaque-op pool (Cliff 1 mech B compile path)",
@@ -2017,7 +2018,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {},
         "conflicts_with": [],
         "requires_patches": [],  # complements PN12 but does not require it
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "PN17": {
         "title": "FA2 softmax_lse runtime clamp (Cliff 1 mechanism A, Issue #11)",
@@ -2051,7 +2052,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             # Applies whenever FA2 varlen path is active. Most relevant
             # at long context (>100K) where the cap-leak dominates.
         },
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
         # [Performance verified 2026-05-11 — DO NOT DISABLE]
         # Differential bench on 35B/dev209 (canonical genesis_bench_suite
         # --quick --ctx 8k, 5×5×1024):
@@ -2112,7 +2113,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             # Wave 6 closure). V1 retired, V5/V7 cache-safe paths active.
             "vllm_version_range": (">=0.20.0", "<0.21.0"),
         },
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "PN16_V6": {
         "title": "PN16 V6 — streaming `<think>` token-budget enforcer (Sprint 4)",
@@ -2182,7 +2183,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             # Self-retires via marker when #40074 merges.
             "vllm_version_range": (">=0.20.0", "<0.21.0"),
         },
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     # PN13 entry moved to legacy/retired section below (lifecycle: retired_2026-05-04)
     # Reason: vllm 0.20.2 commit c2fb013 merged identical change (#41235).
@@ -2220,7 +2221,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "credit": "Backport of vllm#41127 (open 2026-04-28). Per Sander 'не ждём, изучаем, импортируем'. Native FlashInfer can route uniform query_len>1 (1+num_spec_tokens) batches through prefill wrapper in cudagraph mode (zero_rows padding bit-identical). Adds FISpecDecode dataclass + _get_spec_decode_prefill_wrapper method + per-row qo_indptr delta scan in build() + FISpecDecode case in forward(). 11 sub-patches on flashinfer.py. NO-OP for PROD (turboquant_attn). Active for 27B variants (FlashInfer + spec-decode + non-DCP). Expected: +5-10% TPS on Ampere SM 8.6. RECOMMENDED on Blackwell consumer (sm_120) where FlashInfer is the default backend and PIECEWISE downgrade was observed (apnar club-3090#51). Recommendation surfaced via gpu_profile.PATCH_RECOMMENDATIONS rule.",
         "upstream_pr": 41127,
         "applies_to": {},  # FlashInfer auto-selected; gating via env_flag only
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "P103": {
         "title": "FLA Cliff 2 chunked fwd_h+fwd_o orchestrator (qwen36-27b-single-3090#1)",
@@ -2241,7 +2242,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             # + long-context single-GPU users). Validated dev9 → dev93.
             "vllm_version_range": (">=0.20.0", "<0.21.0"),
         },
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "P101": {
         "title": "TQ continuation 64-token slicing (vllm#41123 SELECTIVE)",
@@ -2258,7 +2259,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
                 "turboquant_k3v4_nc", "turboquant_3bit_nc",
             ],
         },
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "P99": {
         "title": "WorkspaceManager.get_simultaneous memoization (perf hotfix)",
@@ -2279,7 +2280,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         # NEWLY-MERGED categorization. KEEP active. Cleanup queue:
         # if upstream upstreams the memoization, retire then.
         "applies_to": {},  # applies whenever WorkspaceManager is used
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "P98": {
         "title": "TQ WorkspaceManager revert (vllm#40941 perf hotfix)",
@@ -2296,7 +2297,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
                 "turboquant_k3v4_nc", "turboquant_3bit_nc",
             ],
         },
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "P95": {
         "title": "Marlin TP cudagraph cap on Ampere (vllm#40385)",
@@ -2314,7 +2315,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
                 "autoround_int4", "autoround_int8",
             ],
         },
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "P91": {
         "title": "AutoRound row-parallel group cdiv + start-idx fix (vllm#39460)",
@@ -2332,7 +2333,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
                 "compressed_tensors",
             ],
         },
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
 
     # ─── Legacy patches (P1–P46 series, pre-dispatcher era) ─────────────
@@ -2800,7 +2801,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "spec_decode",
         "credit": "Genesis-original (Sander 2026-04-29). First-class spec_meta module that wraps spec-decode metadata into a unified object + tracks predicate disagreement (e.g. should_dispatch_p67 disagreements between proposer and verify paths). Diagnostic-only opt-in observability layer; emits log lines when divergence detected. Future hook for unified spec-decode dispatcher refactor.",
         "upstream_pr": None,
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "PN60": {
         "title": "Quant arg vs config.json validator (preflight DX)",
@@ -2812,7 +2813,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "credit": "Genesis-original 2026-05-05 (apnar club-3090#51 finding). Cross-checks operator's --quantization CLI arg against the model's config.json:quantization_config.quant_method BEFORE vLLM loads. Emits one-line remediation hint instead of a 30-line pydantic ValidationError. Doctor extension; runs at preflight, no monkey-patch.",
         "upstream_pr": None,
         "applies_to": {},
-        "lifecycle": "legacy",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "legacy",
     },
     "PN61": {
         "title": "qwen3_vl loader KeyError → text-only auto-fallback (vllm-loader guard)",
@@ -2824,7 +2825,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "credit": "Genesis-original 2026-05-05 (apnar club-3090#51 NVFP4 finding). Catches `KeyError: 'blocks.0.attn.proj.weight'` in qwen3_vl.load_weights when an NVFP4 quant strips the ViT tower; emits WARN + auto-sets language_model_only=True instead of crashing. Same defensive pattern as P29 IndexError guard.",
         "upstream_pr": None,
         "applies_to": {"model_class": ["qwen3_vl"]},
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "PN62": {
         "title": "Text-only ViT scratch skip via skip_mm_profiling flip (3-5 GiB save)",
@@ -2848,7 +2849,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "stability",
         "credit": "Genesis-original 2026-05-05 (apnar club-3090#51 empirical). Adds a per-GPU advisory entry to gpu_profile.PATCH_RECOMMENDATIONS that recommends --kv-cache-dtype fp8_e5m2 over fp8_e4m3 on consumer Blackwell (sm 12.0) until vLLM e4m3 codepath matures. Suggest-only; operator passes via CLI.",
         "upstream_pr": None,
-        "lifecycle": "legacy",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "legacy",
     },
     "PN64": {
         "title": "Marlin MoE per-SM tuning placeholder for SM 12.0 (consumer Blackwell)",
@@ -2861,7 +2862,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "upstream_pr": None,
         "applies_to": {},
         "implementation_status": "placeholder",
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "PN65": {
         "title": "Genesis structured API access log middleware (operator UX)",
@@ -2873,7 +2874,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "credit": "Genesis-original 2026-05-05 (Sander request 'по апи лог невзрачный надо тоже проработать'). Replaces uvicorn's bare `INFO: 127.0.0.1:45116 - GET /v1/models 401 Unauthorized` with `[Genesis-API] 200  POST /v1/chat/completions  34ms  prompt=46t  completion=400t  tools=1  client=127.0.0.1`. Suppresses /health polling by default (GENESIS_PN65_LOG_HEALTH=1 to include). Status-aware level (2xx INFO / 4xx WARN / 5xx ERROR + exception type).",
         "upstream_pr": None,
         "applies_to": {},
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "PN66": {
         "title": "Multiturn </think> leak fix in DelegatingParser (vllm#41696 backport)",
@@ -2885,7 +2886,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "credit": "Backport of vllm#41696 (panpan0000, OPEN as of 2026-05-05). Removes the buggy `prompt_reasoning_checked` short-circuit in `vllm.parser.abstract_parser.DelegatingParser.parse_delta` that walked the FULL prompt looking for `</think>` and prematurely set `reasoning_ended=True` from a previous turn's `</think>`. Defensive backport for multi-turn DSML/Hermes/Qwen3 chat clients sending full history. Original report: DeepSeek V3.2 reasoning users.",
         "upstream_pr": 41696,
         "applies_to": {},
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "PN67": {
         "title": "thinking_token_budget inverted-bool fix (vllm#41674 backport, 1-line)",
@@ -2897,7 +2898,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "credit": "Backport of vllm#41674 (JasonKeyiL, OPEN as of 2026-05-04). Single-token fix in `vllm/v1/worker/gpu_input_batch.py:879` — removes `not` from `or not thinking_budget_tracks_reqs`. Bug: thinking_token_budget was silently ignored for any request without penalty parameters. NULL on Genesis PROD (we don't enable thinking_token_budget); defensive for users who experiment with it. Trivial backport, zero risk.",
         "upstream_pr": 41674,
         "applies_to": {},
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
     "PN70": {
         "title": "Tool schema subset filter (combined `anyOf` xgrammar-clean) — companion to P68 v7.72.1",
@@ -2909,7 +2910,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "credit": "Genesis-original — implements lexhoefsloot's option-3 fix for noonghunna/club-3090#57. Wraps `vllm.tool_parsers.utils._get_json_schema_from_tools` and filters tools containing xgrammar-unsupported JSON Schema keys (patternProperties / propertyNames / $ref / oneOf / etc.) BEFORE the combined `anyOf` is built and handed to xgrammar. Companion to P68's option-1 skip: where P68 refuses to upgrade tool_choice on dirty catalogs, PN70 keeps the upgrade and filters dirty tools out of grammar enforcement (model can still SEE all tools in context but grammar restricts callable subset). Reuses P68's `_scan_schema_for_unsupported_key` so the unsupported-key set is single-sourced. Off by default; enable per workload.",
         "applies_to": {},
         "composes_with": ["P68"],
-        "lifecycle": "experimental",  # DA-005 (audit 2026-05-08): heuristic-tagged
+        "lifecycle": "experimental",
     },
 }
 
