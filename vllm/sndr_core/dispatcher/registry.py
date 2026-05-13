@@ -1343,6 +1343,34 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "requires_patches": [],
         "conflicts_with": [],
     },
+    "PN105": {
+        "title": "PN105 — PrefetchOffloader AutoRound INT4 compat (pin-assert relax)",
+        "tier": "community",
+        "family": "offload",
+        "env_flag": "GENESIS_ENABLE_PN105_AUTOROUND_OFFLOAD_COMPAT",
+        "default_on": False,
+        "lifecycle": "experimental",
+        "category": "compat",
+        "apply_module": "vllm.sndr_core.integrations.offload.pn105_prefetch_autoround_compat",
+        "source": "genesis_original",
+        "credit": (
+            "Genesis-original fix unblocking vllm's PrefetchOffloader on "
+            "AutoRound INT4 models. AutoRound's process_weights_after_"
+            "loading replaces param.data with non-pinned INT tensors "
+            "(g_idx, qzeros, scales). PrefetchOffloader asserts ALL "
+            "cpu_storage pinned and crashes at engine startup. PN105 "
+            "replaces the assertion with conditional blocking copy: "
+            "non-blocking when pinned (fast path), blocking when not "
+            "(slow fallback). Blocking copy from pageable memory IS "
+            "correct, just slower. Combined with PN104 (UVA→Prefetch "
+            "redirect) and Tier 1 GDN scratch pool, this unblocks "
+            "cpu_offload_gb=8 on AutoRound → KV pool grows 4 GB → "
+            "9-10 GB → 156K-176K context on single A5000."
+        ),
+        "applies_to": {"vllm_version_range": (">=0.20.2rc1.dev9", "<0.21.0")},
+        "requires_patches": ["PN104"],
+        "conflicts_with": [],
+    },
     "PN104": {
         "title": "PN104 — redirect --cpu-offload-gb from UVA to Prefetch backend",
         "tier": "community",

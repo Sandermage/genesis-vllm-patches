@@ -1045,6 +1045,29 @@ def apply_patch_pn106_gdn_h_pool() -> PatchResult:
     return _failed(name, reason)
 
 
+@register_patch("PN105 PrefetchOffloader AutoRound INT4 compat")
+def apply_patch_pn105_prefetch_autoround_compat() -> PatchResult:
+    """PN105: relax PrefetchOffloader pin-assertion to support AutoRound
+    INT4 models. Conditional blocking copy for non-pinned tensors.
+    Companion to PN104. Default OFF.
+    """
+    name = "PN105 PrefetchOffloader AutoRound compat"
+    if not _state._APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm.sndr_core.integrations.offload import (
+            pn105_prefetch_autoround_compat as _wiring,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = _wiring.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
 @register_patch("PN104 cpu_offload -> Prefetch backend redirect")
 def apply_patch_pn104_offload_backend_redirect() -> PatchResult:
     """PN104 — critical perf patch redirecting vllm's UVA cpu_offload
