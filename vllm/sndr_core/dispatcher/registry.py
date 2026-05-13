@@ -1217,6 +1217,35 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "requires_patches": [],
         "conflicts_with": [],
     },
+    "PN96": {
+        "title": "PN96 — emergency-demote hook (Phase 6 PoC; allocator intercept)",
+        "tier": "community",
+        "family": "kv_cache",
+        "env_flag": "GENESIS_ENABLE_PN96_EMERGENCY_DEMOTE",
+        "default_on": False,
+        "lifecycle": "experimental",
+        "category": "memory",
+        "apply_module": "vllm.sndr_core.integrations.kv_cache.pn96_emergency_demote",
+        "source": "genesis_original",
+        "credit": (
+            "Genesis-original Phase 6 PoC. Inserts an emergency-rescue "
+            "branch at the entry of BlockPool.get_new_blocks: when vllm "
+            "would raise 'Cannot get N free blocks', PN96 walks the "
+            "free queue for already-cached (ref_cnt=0, block_hash!=None) "
+            "blocks, captures their bytes to PN95 L2 via demote_on_evict, "
+            "and clears the hash so vllm sees clean free slots. Recovers "
+            "the engine from the allocation cliff without preempting "
+            "active sequences. Helps multi-prefix workloads; does NOT "
+            "extend single-user max_model_len above the physical pool — "
+            "that requires virtual block_table addressing inside attention "
+            "(Phase 7 / scheduler refactor)."
+        ),
+        "applies_to": {
+            "vllm_version_range": (">=0.20.2rc1.dev9", "<0.21.0"),
+        },
+        "requires_patches": [],
+        "conflicts_with": [],
+    },
     "PN92": {
         "title": "PN92 — nixl_ep/deep_ep/mori trial-import guard (vllm PR #40154)",
         "tier": "community",

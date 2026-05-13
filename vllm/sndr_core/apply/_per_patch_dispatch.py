@@ -929,6 +929,33 @@ def apply_patch_sndr_workspace_001() -> PatchResult:
     return _failed(name, reason)
 
 
+@register_patch("PN96 emergency-demote hook (Phase 6 PoC)")
+def apply_patch_pn96_emergency_demote() -> PatchResult:
+    """PN96: Phase 6 PoC — intercept get_new_blocks before its
+    `Cannot get N free blocks` cliff, attempt PN95 byte-preserving
+    demote of cached free-queue entries, return slots to the pool.
+
+    Default OFF; opt-in via GENESIS_ENABLE_PN96_EMERGENCY_DEMOTE=1.
+    Documented limitation: rescues only ref_cnt=0 cached blocks;
+    does NOT preempt active sequences (that needs Phase 7).
+    """
+    name = "PN96 emergency-demote (Phase 6 PoC)"
+    if not _state._APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm.sndr_core.integrations.kv_cache import (
+            pn96_emergency_demote as _wiring,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = _wiring.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
 @register_patch("PN92 nixl_ep/deep_ep/mori trial-import guard (vllm PR #40154)")
 def apply_patch_pn92_nixl_ep_trial_import() -> PatchResult:
     """PN92: backport of upstream PR #40154 — fixes the `dcacdf9a`+

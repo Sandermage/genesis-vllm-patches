@@ -760,6 +760,82 @@ def pn95_materialize_virtual_block(
         return None
 
 
+def pn96_emergency_rescue(pool: Any, deficit: int) -> int:
+    """Phase 6 PoC — emergency rescue when get_new_blocks would crash.
+
+    Called from the PN96 anchor BEFORE vllm raises
+    `ValueError("Cannot get N free blocks")`. Walks the pool's
+    free_block_queue looking for ALREADY-CACHED blocks (block_hash
+    set, ref_cnt=0). For each such block, captures the bytes to the
+    PN95 L2 store via demote_on_evict, then marks the slot reusable
+    (by clearing its hash — vllm will pop it from cached_block_hash_to_block
+    on the next eviction pass).
+
+    Returns the number of slots rescued. Best-effort: on any error
+    returns 0 (caller falls through to the upstream ValueError).
+
+    Why this matters: vllm's block pool can have free slots that
+    are "free but reserved for cache reuse" — they show up in
+    free_block_queue but with non-None block_hash. The eviction
+    happens lazily inside `_maybe_evict_cached_block`. PN96 forces
+    eager eviction with byte-preservation so the pool reports enough
+    free slots to satisfy the current allocation request.
+
+    Honest limitation: this ONLY rescues already-free cached blocks.
+    Active blocks (ref_cnt>0, held by a running sequence) are NOT
+    touched — those would need scheduler-level preemption which is
+    Phase 7 work. So PN96 helps multi-prefix workloads but does
+    NOT extend the single-user max_model_len above the GPU pool size.
+    """
+    if not _enabled() or deficit <= 0:
+        return 0
+    rescued = 0
+    try:
+        free_q = getattr(pool, "free_block_queue", None)
+        if free_q is None:
+            return 0
+        head = (getattr(free_q, "fake_free_list_head", None)
+                or getattr(free_q, "_fake_head", None))
+        cur = getattr(head, "next_free_block", None) if head else None
+        walked = 0
+        max_walk = max(deficit * 4, 64)  # cap walk cost
+        while cur is not None and walked < max_walk and rescued < deficit:
+            walked += 1
+            block_hash = getattr(cur, "block_hash", None)
+            ref_cnt = getattr(cur, "ref_cnt", -1)
+            block_id = getattr(cur, "block_id", -1)
+            is_null = getattr(cur, "is_null", False)
+            nxt = getattr(cur, "next_free_block", None)
+            if (block_hash is not None and ref_cnt == 0
+                    and block_id >= 0 and not is_null):
+                # Preserve bytes BEFORE vllm reuses this slot.
+                try:
+                    if demote_on_evict(block_hash, block_id):
+                        rescued += 1
+                        # Clear hash so vllm sees it as a clean free slot.
+                        try:
+                            cur.block_hash = None
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+            cur = nxt
+        if rescued > 0:
+            _PN95_STATS["pn96_emergency_rescues"] = (
+                _PN95_STATS.get("pn96_emergency_rescues", 0) + 1
+            )
+            _PN95_STATS["pn96_blocks_rescued_total"] = (
+                _PN95_STATS.get("pn96_blocks_rescued_total", 0) + rescued
+            )
+            log.info(
+                "[PN96] emergency rescue: rescued %d slots (deficit was %d, walked %d)",
+                rescued, deficit, walked,
+            )
+    except Exception as e:
+        log.warning("[PN96] emergency_rescue failed silently: %s", e)
+    return rescued
+
+
 def pn95_block_is_physical_resident(pool: Any, block_id: int) -> bool:
     """Return True iff `block_id` exists in the physical KV pool range.
 
