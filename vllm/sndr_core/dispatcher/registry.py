@@ -1217,6 +1217,37 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "requires_patches": [],
         "conflicts_with": [],
     },
+    "PN104": {
+        "title": "PN104 — redirect --cpu-offload-gb from UVA to Prefetch backend",
+        "tier": "community",
+        "family": "offload",
+        "env_flag": "GENESIS_ENABLE_PN104_OFFLOAD_PREFETCH_REDIRECT",
+        "default_on": False,
+        "lifecycle": "experimental",
+        "category": "perf_critical",
+        "apply_module": "vllm.sndr_core.integrations.offload.pn104_offload_backend_redirect",
+        "source": "genesis_original",
+        "credit": (
+            "Genesis-original critical perf patch. vllm's --cpu-offload-gb "
+            "defaults to UVAOffloader which uses cudaHostGetDevicePointer to "
+            "map pinned host RAM as GPU-visible pointer — every GEMM kernel "
+            "issues PCIe reads on every load instruction, with zero GPU "
+            "caching. Empirically observed 24x slowdown (50K prefill: 30s "
+            "→ 720s) on Genesis 27B INT4 single-A5000 with cpu_offload_gb=8. "
+            "PN104 monkey-patches create_offloader so cpu_offload_gb auto-"
+            "translates to PrefetchOffloader params (offload_group_size + "
+            "num_in_group + prefetch_step=2). PrefetchOffloader does explicit "
+            "cudaMemcpyAsync into static GPU buffers on a side stream, "
+            "compute reads from GPU buffer, copy hidden behind previous "
+            "layer's compute. Expected +30-50% TPS recovery — the single "
+            "biggest win for any cpu_offload deployment."
+        ),
+        "applies_to": {
+            "vllm_version_range": (">=0.20.2rc1.dev9", "<0.21.0"),
+        },
+        "requires_patches": [],
+        "conflicts_with": [],
+    },
     "PN97": {
         "title": "PN97 — physical-cap on KV tensor allocation (Phase 7 PoC)",
         "tier": "community",

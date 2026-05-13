@@ -929,6 +929,29 @@ def apply_patch_sndr_workspace_001() -> PatchResult:
     return _failed(name, reason)
 
 
+@register_patch("PN104 cpu_offload -> Prefetch backend redirect")
+def apply_patch_pn104_offload_backend_redirect() -> PatchResult:
+    """PN104 — critical perf patch redirecting vllm's UVA cpu_offload
+    to PrefetchOffloader. Expected +30-50% TPS recovery on configs
+    that use --cpu-offload-gb. Default OFF.
+    """
+    name = "PN104 cpu_offload prefetch redirect"
+    if not _state._APPLY_MODE:
+        return _applied(name, "dry-run: monkey-patch ready")
+    try:
+        from vllm.sndr_core.integrations.offload import (
+            pn104_offload_backend_redirect as _wiring,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = _wiring.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
 @register_patch("PN97 KV tensor physical-cap (Phase 7 PoC)")
 def apply_patch_pn97_tensor_physical_cap() -> PatchResult:
     """PN97: cap KVCacheTensor.size to physical GPU budget when VIRT=1
