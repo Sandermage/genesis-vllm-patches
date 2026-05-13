@@ -1,48 +1,38 @@
 # SPDX-License-Identifier: Apache-2.0
-"""PN104 — redirect `--cpu-offload-gb` to PrefetchOffloader backend.
+"""PN104 — text-patch: redirect cpu_offload_gb -> Prefetch backend.
 
-The biggest TPS win for cpu_offload deployments. vllm's default behavior
-for `--cpu-offload-gb N > 0` selects the UVAOffloader, which uses
-cudaHostGetDevicePointer to map pinned host RAM as a GPU-visible
-pointer. Every GEMM kernel then issues PCIe reads on every load
-instruction — no GPU caching, no async overlap, no amortization across
-forward passes. Decode TPS collapses ~10× when more than a few GiB of
-weights live in host RAM.
+vllm's `create_offloader` selects UVA when only `cpu_offload_gb > 0`
+(via backend="auto" branch). UVA is the slow path — cudaHostGetDevicePointer
++ PCIe-per-MatMul, no GPU caching. PrefetchOffloader is the fast path
+(explicit cudaMemcpyAsync + static GPU buffer + lookahead prefetch_step).
 
-PrefetchOffloader (vllm's newer SGLang-derived path) explicitly copies
-weights into a static GPU buffer with `cudaMemcpyAsync` on a side
-stream, with `prefetch_step` lookahead. Computation reads from a
-GPU-resident buffer, the copy is hidden behind the previous layer's
-compute. But it is only selected when the operator manually sets
-`offload_group_size > 0` — `--cpu-offload-gb` alone never gets it.
+PN104 text-patches `vllm/model_executor/offloader/base.py::create_offloader`
+to auto-derive prefetch params from cpu_offload_gb when the env flag is
+set, so the "auto" backend selector routes to prefetch instead of UVA.
 
-PN104 closes the gap: when `cpu_offload_gb > 0` and PN104 is enabled,
-the OffloadConfig is rewritten so `create_offloader` returns
-`PrefetchOffloader` with auto-derived parameters:
+Critically: text-patches modify the .py source file, which means EVERY
+process that imports the module (API server, EngineCore worker, draft
+workers under spec-decode) sees the patched code. Monkey-patches set
+in apply_all only stick in the API server process — `_genesis_pn104_wrapped`
+remains False in the spawn'd worker. Worker processes do `import vllm`
+fresh and would otherwise get the original UVA path. This was empirically
+confirmed today: API server marked PN104 applied, worker still used
+UVA (10K request took 224s vs ~9s baseline).
 
-  bytes_per_layer = sum(p.numel() * p.element_size() for p in layer.params)
-  num_offload_layers = ceil(cpu_offload_gb * 2**30 / bytes_per_layer)
-  offload_group_size  = max(2, num_layers // num_offload_layers)
-  offload_num_in_group = 1
-  offload_prefetch_step = 2
-
-Empirical win on PCIe Gen4 x16 (A5000): +30-50% decode TPS at
-`cpu_offload_gb >= 6`. Critical for Genesis single-card 156K+
-deployments where weight offload is the only way to free KV pool space.
-
-Env gate: `GENESIS_ENABLE_PN104_OFFLOAD_PREFETCH_REDIRECT=1` (default OFF).
+Env gate: `GENESIS_ENABLE_PN104_OFFLOAD_PREFETCH_REDIRECT=1`.
+Tunable: `GENESIS_PN104_PREFETCH_STEP` (default 2, range 1-8).
 """
 from __future__ import annotations
 
 import logging
-import math
 import os
-from typing import Any
+
+from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
+from vllm.sndr_core.core import TextPatch, TextPatcher
 
 log = logging.getLogger("genesis.wiring.pn104_offload_backend_redirect")
 
 GENESIS_MARKER = "Genesis PN104 cpu_offload->prefetch backend redirect"
-_APPLIED = False
 
 
 def _enabled() -> bool:
@@ -51,144 +41,112 @@ def _enabled() -> bool:
     ).strip().lower() in ("1", "true", "yes", "on")
 
 
-def _prefetch_step() -> int:
-    """Lookahead distance for prefetch — larger = more overlap, more VRAM
-    for static buffers. Operator override via env."""
-    try:
-        return max(1, min(8, int(os.environ.get(
-            "GENESIS_PN104_PREFETCH_STEP", "2"))))
-    except (ValueError, TypeError):
-        return 2
+# Anchor verified on vllm nightly dcacdf9a (2026-05-13).
+# `base.py::create_offloader` auto-resolve branch.
+PN104_OLD = (
+    "    if backend == \"auto\":\n"
+    "        if prefetch.offload_group_size > 0:\n"
+    "            backend = \"prefetch\"\n"
+    "        elif uva.cpu_offload_gb > 0:\n"
+    "            backend = \"uva\"\n"
+    "        else:\n"
+    "            return NoopOffloader()\n"
+)
+PN104_NEW = (
+    "    # [Genesis PN104] redirect cpu_offload_gb -> prefetch backend.\n"
+    "    # vllm's auto-resolve picks UVA when only cpu_offload_gb>0; UVA reads\n"
+    "    # weights from pinned host RAM on every GEMM load -> ~24x slower than\n"
+    "    # PrefetchOffloader. PN104 auto-derives prefetch params from\n"
+    "    # cpu_offload_gb so this exact deployment gets the fast path.\n"
+    "    # Env gate: GENESIS_ENABLE_PN104_OFFLOAD_PREFETCH_REDIRECT=1.\n"
+    "    import os as _g_pn104_os\n"
+    "    _g_pn104_on = _g_pn104_os.environ.get(\n"
+    "        \"GENESIS_ENABLE_PN104_OFFLOAD_PREFETCH_REDIRECT\", \"0\",\n"
+    "    ).strip().lower() in (\"1\", \"true\", \"yes\", \"on\")\n"
+    "    if (backend == \"auto\" and _g_pn104_on\n"
+    "            and prefetch.offload_group_size == 0 and uva.cpu_offload_gb > 0):\n"
+    "        try:\n"
+    "            _g_pn104_num_layers = 64\n"
+    "            _g_pn104_bytes_per_layer = 200 * (1 << 20)\n"
+    "            _g_pn104_target = int(uva.cpu_offload_gb * (1 << 30))\n"
+    "            _g_pn104_n_off = max(1, _g_pn104_target // _g_pn104_bytes_per_layer)\n"
+    "            _g_pn104_n_off = min(_g_pn104_n_off, _g_pn104_num_layers - 2)\n"
+    "            prefetch.offload_group_size = max(2, _g_pn104_num_layers // _g_pn104_n_off)\n"
+    "            prefetch.offload_num_in_group = 1\n"
+    "            _g_pn104_step = int(_g_pn104_os.environ.get(\n"
+    "                \"GENESIS_PN104_PREFETCH_STEP\", \"2\"))\n"
+    "            prefetch.offload_prefetch_step = max(1, min(8, _g_pn104_step))\n"
+    "            backend = \"prefetch\"\n"
+    "            import logging as _g_pn104_log\n"
+    "            _g_pn104_log.getLogger(\"genesis.pn104\").info(\n"
+    "                \"[PN104] cpu_offload_gb=%.1f -> prefetch backend \"\n"
+    "                \"(group_size=%d num_in_group=%d prefetch_step=%d)\",\n"
+    "                uva.cpu_offload_gb,\n"
+    "                prefetch.offload_group_size,\n"
+    "                prefetch.offload_num_in_group,\n"
+    "                prefetch.offload_prefetch_step,\n"
+    "            )\n"
+    "        except Exception as _g_pn104_e:\n"
+    "            import logging as _g_pn104_log\n"
+    "            _g_pn104_log.getLogger(\"genesis.pn104\").warning(\n"
+    "                \"[PN104] redirect failed, staying on UVA: %s\", _g_pn104_e,\n"
+    "            )\n"
+    "    if backend == \"auto\":\n"
+    "        if prefetch.offload_group_size > 0:\n"
+    "            backend = \"prefetch\"\n"
+    "        elif uva.cpu_offload_gb > 0:\n"
+    "            backend = \"uva\"\n"
+    "        else:\n"
+    "            return NoopOffloader()\n"
+)
 
 
-def _derive_prefetch_params(cpu_offload_gb: float, vllm_config: Any) -> dict:
-    """Compute (offload_group_size, offload_num_in_group, offload_prefetch_step)
-    from `cpu_offload_gb` and the model layer count.
-
-    Strategy: distribute the offload budget across N layers, where N is
-    the smallest number that fits the byte target. Group size = total
-    layers / N, num_in_group = 1 (one offload per group), prefetch_step = 2.
-    """
-    try:
-        num_layers = int(getattr(vllm_config.model_config.hf_config,
-                                 "num_hidden_layers", 64))
-    except Exception:
-        num_layers = 64
-
-    # Conservative bytes_per_layer estimate. Real value computed lazily
-    # inside PrefetchOffloader.wrap_modules from actual module parameters;
-    # we only need an approximation here for group_size.
-    # 27B INT4: ~150 MB / layer including q/k/v/o + ffn
-    # 35B FP8: ~400 MB / layer
-    bytes_per_layer_est = 200 * (1 << 20)
-    target_bytes = int(cpu_offload_gb * (1 << 30))
-    num_offload_layers = max(1, math.ceil(target_bytes / bytes_per_layer_est))
-    num_offload_layers = min(num_offload_layers, num_layers - 2)
-
-    if num_offload_layers <= 0:
-        return {}
-
-    group_size = max(2, num_layers // num_offload_layers)
-    return {
-        "offload_group_size": group_size,
-        "offload_num_in_group": 1,
-        "offload_prefetch_step": _prefetch_step(),
-    }
-
-
-def _patch_create_offloader() -> bool:
-    """Monkey-patch vllm.model_executor.offloader.base.create_offloader
-    to translate `cpu_offload_gb > 0` (would-be UVA) into the
-    PrefetchOffloader configuration with auto-derived parameters.
-
-    Returns True iff the patch was applied this call.
-    """
-    try:
-        from vllm.model_executor.offloader import base as _base_mod
-    except Exception as e:
-        log.warning("[PN104] cannot import vllm.model_executor.offloader.base: %s", e)
-        return False
-
-    if getattr(_base_mod, "_genesis_pn104_wrapped", False):
-        return True  # idempotent
-
-    original_create = getattr(_base_mod, "create_offloader", None)
-    if original_create is None:
-        log.warning("[PN104] create_offloader symbol not found — vllm version drift")
-        return False
-
-    def _wrapped_create_offloader(vllm_config: Any, *args, **kwargs):
-        # Discover the OffloadConfig on the engine config.
-        offload_cfg = None
-        for path in ("offload_config", "cache_config.offload_config",
-                     "load_config.offload_config"):
-            obj: Any = vllm_config
-            ok = True
-            for part in path.split("."):
-                obj = getattr(obj, part, None)
-                if obj is None:
-                    ok = False
-                    break
-            if ok:
-                offload_cfg = obj
-                break
-        if offload_cfg is None:
-            return original_create(vllm_config, *args, **kwargs)
-
-        cpu_offload_gb = getattr(offload_cfg, "cpu_offload_gb", 0)
-        # If prefetch already configured by the operator, leave it alone.
-        already_prefetch = (
-            getattr(offload_cfg, "offload_group_size", 0) > 0
-            or getattr(offload_cfg, "offload_num_in_group", 0) > 0
-        )
-        if cpu_offload_gb <= 0 or already_prefetch:
-            return original_create(vllm_config, *args, **kwargs)
-
-        # Compute prefetch parameters and inject them into the config.
-        params = _derive_prefetch_params(cpu_offload_gb, vllm_config)
-        if not params:
-            return original_create(vllm_config, *args, **kwargs)
-
-        for k, v in params.items():
-            if hasattr(offload_cfg, k):
-                try:
-                    setattr(offload_cfg, k, v)
-                except Exception:
-                    pass
-
-        log.info(
-            "[PN104] redirecting cpu_offload_gb=%.1f -> prefetch backend "
-            "(group_size=%d, num_in_group=%d, prefetch_step=%d)",
-            cpu_offload_gb,
-            params.get("offload_group_size"),
-            params.get("offload_num_in_group"),
-            params.get("offload_prefetch_step"),
-        )
-
-        # Now original create_offloader will see offload_group_size > 0
-        # and return PrefetchOffloader.
-        return original_create(vllm_config, *args, **kwargs)
-
-    _base_mod.create_offloader = _wrapped_create_offloader
-    _base_mod._genesis_pn104_wrapped = True
-    return True
+def _make_patcher() -> TextPatcher | None:
+    if not _enabled():
+        return None
+    target = resolve_vllm_file("model_executor/offloader/base.py")
+    if target is None:
+        return None
+    return TextPatcher(
+        patch_name="PN104 cpu_offload -> Prefetch redirect",
+        target_file=str(target),
+        marker=GENESIS_MARKER,
+        sub_patches=[
+            TextPatch(
+                name="pn104_create_offloader_auto_redirect",
+                anchor=PN104_OLD,
+                replacement=PN104_NEW,
+                required=True,
+            ),
+        ],
+        upstream_drift_markers=[
+            "Genesis PN104",
+            "_g_pn104_on",
+        ],
+    )
 
 
 def apply() -> tuple[str, str]:
-    """Apply PN104. Returns (status, message). Module-level monkey-patch
-    rather than a text-patch — `create_offloader` is a small dispatcher,
-    swapping the symbol cleanly is safer than patching the file.
-    """
-    global _APPLIED
     if not _enabled():
         return "skipped", "PN104 disabled (set GENESIS_ENABLE_PN104_OFFLOAD_PREFETCH_REDIRECT=1)"
-    if _APPLIED:
-        return "applied", "PN104 already applied (idempotent)"
-    ok = _patch_create_offloader()
-    if ok:
-        _APPLIED = True
-        return "applied", (
-            "PN104 cpu_offload_gb -> prefetch backend redirect active "
-            "(prefetch_step=" + str(_prefetch_step()) + ")"
-        )
-    return "skipped", "PN104 could not patch create_offloader"
+    if vllm_install_root() is None:
+        return "skipped", "vllm install root not discoverable"
+    patcher = _make_patcher()
+    if patcher is None:
+        return "skipped", "target file base.py not resolvable"
+    if not os.path.isfile(patcher.target_file):
+        return "skipped", f"target disappeared: {patcher.target_file}"
+    with open(patcher.target_file) as fh:
+        content = fh.read()
+    if patcher.marker in content:
+        return "applied", "idempotent (marker present)"
+    for m in patcher.upstream_drift_markers:
+        if m in content:
+            return "skipped", f"drift marker {m!r} already in file"
+    result, failure = patcher.apply()
+    from vllm.sndr_core.core import result_to_wiring_status
+    return result_to_wiring_status(
+        result, failure,
+        applied_message="PN104 text-patch applied — cpu_offload now routes to Prefetch backend",
+        patch_name=patcher.patch_name,
+    )
