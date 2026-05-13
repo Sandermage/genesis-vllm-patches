@@ -929,6 +929,34 @@ def apply_patch_sndr_workspace_001() -> PatchResult:
     return _failed(name, reason)
 
 
+@register_patch("PN92 nixl_ep/deep_ep/mori trial-import guard (vllm PR #40154)")
+def apply_patch_pn92_nixl_ep_trial_import() -> PatchResult:
+    """PN92: backport of upstream PR #40154 — fixes the `dcacdf9a`+
+    regression where nixl_ep ships built against CUDA 12 inside a
+    CUDA-13 image. Without this patch every hybrid-MoE model
+    (Qwen3.5/3.6, DeepSeek, Mixtral) fails to inspect because the
+    cascading import path traverses fused_moe → nixl_ep.
+
+    Default OFF; opt-in via GENESIS_ENABLE_PN92_NIXL_EP_TRIAL_IMPORT=1.
+    Only needed on nightly >= dcacdf9a (2026-05-13).
+    """
+    name = "PN92 nixl_ep trial-import guard"
+    if not _state._APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm.sndr_core.integrations.worker import (
+            pn92_nixl_ep_trial_import as _wiring,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = _wiring.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
 @register_patch("PN71 </thinking> hallucination runtime normalizer")
 def apply_patch_pn71_thinking_token_hallucination() -> PatchResult:
     """PN71: parser-side normalizer for the rare Qwen 3.6 `</thinking>`

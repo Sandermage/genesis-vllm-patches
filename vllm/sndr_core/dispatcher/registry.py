@@ -1217,6 +1217,32 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "requires_patches": [],
         "conflicts_with": [],
     },
+    "PN92": {
+        "title": "PN92 — nixl_ep/deep_ep/mori trial-import guard (vllm PR #40154)",
+        "tier": "community",
+        "family": "worker",
+        "env_flag": "GENESIS_ENABLE_PN92_NIXL_EP_TRIAL_IMPORT",
+        "default_on": False,
+        "lifecycle": "experimental",
+        "category": "compat",
+        "apply_module": "vllm.sndr_core.integrations.worker.pn92_nixl_ep_trial_import",
+        "source": "genesis_original",
+        "credit": (
+            "Genesis-original backport of upstream vllm PR #40154 / "
+            "issue #42525. New nightlies (>= dcacdf9a 2026-05-13) ship "
+            "nixl_ep C++ extension compiled against CUDA 12 inside a "
+            "CUDA-13 image. find_spec-only check in has_nixl_ep() lets "
+            "the broken import cascade through fused_moe → all2all_utils "
+            "and break ALL hybrid-MoE models (Qwen3.5/3.6, DeepSeek, "
+            "Mixtral) on inspect. PN92 replaces with try/except trial "
+            "import. Until upstream PR lands."
+        ),
+        "applies_to": {
+            "vllm_version_range": (">=0.20.2rc1.dev209", "<0.21.0"),
+        },
+        "requires_patches": [],
+        "conflicts_with": [],
+    },
     "PN71": {
         "title": "PN71 — `</thinking>` hallucination runtime normalizer",
         "tier": "community",
