@@ -646,7 +646,19 @@ def _make_patcher_worker_proactive_demote() -> TextPatcher | None:
     Threshold is env-driven (default 32 free blocks); below that we
     walk the head of free_block_queue and preserve each cached
     block's bytes to the CPU prefix store before vllm reuses the slot.
+
+    Opt-in: gated by `GENESIS_PN95_ANCHOR13_ENABLE=1`. Default off
+    because the anchor modifies `vllm/v1/core/block_pool.py` source
+    bytes, which can invalidate the torch.inductor compile cache and
+    force a cold recompile on next boot (5-10 minute warmup). When
+    the operator wants the proactive demote loop they set the env;
+    the default `1` deploy stays bit-identical to the pre-anchor
+    state so existing compile caches keep hitting.
     """
+    if os.environ.get("GENESIS_PN95_ANCHOR13_ENABLE", "0").strip().lower() not in (
+        "1", "true", "yes", "on",
+    ):
+        return None
     target = resolve_vllm_file("v1/core/block_pool.py")
     if target is None:
         return None

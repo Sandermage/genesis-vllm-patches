@@ -1190,6 +1190,33 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "requires_patches": [],
         "conflicts_with": [],
     },
+    "SNDR_WORKSPACE_001": {
+        "title": "SNDR-WORKSPACE-001 — workspace grow-after-lock graceful fix",
+        "tier": "community",
+        "family": "worker",
+        "env_flag": "GENESIS_ENABLE_SNDR_WORKSPACE_001",
+        "default_on": False,
+        "lifecycle": "experimental",
+        "category": "perf_hotfix",
+        "apply_module": "vllm.sndr_core.integrations.worker.sndr_workspace_001_grow_after_lock",
+        "source": "genesis_original",
+        "credit": (
+            "Genesis-original fix for the upstream vllm v1 workspace.py guard "
+            "that raises AssertionError when any post-warmup path "
+            "(decode_attention, continuation_prefill, Marlin GEMM scratch) "
+            "needs to grow the GPU workspace. Without this patch the engine "
+            "crashes on every request that touches a code path warmup did not "
+            "pre-size. The patch replaces the raise with a warn + grow: the "
+            "torch CUDA allocator handles the resize, the first call takes a "
+            "non-graph slow path, subsequent calls hit the graph normally. "
+            "Net effect: engine keeps serving instead of crashing."
+        ),
+        "applies_to": {
+            "vllm_version_range": (">=0.20.2rc1.dev9", "<0.21.0"),
+        },
+        "requires_patches": [],
+        "conflicts_with": [],
+    },
     "PN82": {
         "title": "Mamba CUDA-graph stale `is_prefilling` padded rows — vllm#41873 backport",
         "tier": "community",
