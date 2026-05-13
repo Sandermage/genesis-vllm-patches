@@ -76,6 +76,11 @@ def _budget_bytes() -> int:
 # Per-process singleton (per-rank since each Worker is its own process).
 _POOL: Optional["PinnedHostPool"] = None
 _POOL_LOCK = threading.Lock()
+# Sticky-disable flag: once cudaHostAlloc fails (RLIMIT_MEMLOCK / host OOM),
+# we don't retry on every demote. Module-local so we don't mutate os.environ
+# (process-wide, leaks into child procs, races with operator readers — review
+# finding #6).
+_POOL_ALLOC_FAILED: bool = False
 
 
 class PinnedHostPool:
@@ -150,9 +155,14 @@ class PinnedHostPool:
                 self._hash_to_slot[block_hash] = slot
             n = len(data)
             offset = slot * self._slot_size
-            # Copy bytes into pinned buffer slice.
-            # torch.frombuffer is zero-copy for bytes input (no extra alloc).
-            src = torch.frombuffer(data, dtype=torch.uint8)
+            # Copy bytes into pinned buffer slice. torch.frombuffer on
+            # immutable `bytes` raises a UserWarning (and on some torch
+            # builds errors); bytearray gives us a single writable view
+            # with one alloc, then from_numpy adapts to a torch tensor.
+            # The host-to-host memcpy that copy_() emits is unavoidable.
+            import numpy as _np
+            src_np = _np.frombuffer(memoryview(data), dtype=_np.uint8)
+            src = torch.from_numpy(_np.array(src_np, copy=True))
             self._buf[offset : offset + n].copy_(src)
             self._used[slot] = n
             self._stats["slots_used"] = len(self._used)
@@ -228,34 +238,50 @@ def get_pool(slot_size_hint: int = 0) -> Optional[PinnedHostPool]:
     is fixed once allocated).
 
     Operator escape: setting GENESIS_PN95_PINNED_POOL=0 (or unset) returns
-    None and PN95 stays on pageable-only path.
+    None and PN95 stays on pageable-only path. Sticky-disable: if the first
+    alloc raised RLIMIT_MEMLOCK / OOM, subsequent calls also return None
+    (module flag _POOL_ALLOC_FAILED is sticky for the process lifetime).
     """
-    if not _enabled():
+    global _POOL, _POOL_ALLOC_FAILED
+    if not _enabled() or _POOL_ALLOC_FAILED:
         return None
-    global _POOL
     if _POOL is not None:
         return _POOL
     with _POOL_LOCK:
         if _POOL is not None:
             return _POOL
-        if slot_size_hint <= 0:
-            # First demote hasn't happened yet; we can't size the pool.
-            # Caller will retry on next demote with a real hint.
-            return None
+        # Slot size: prefer explicit env override (avoids the "first demote
+        # was lucky-compressible → pool locked into tiny slots" footgun from
+        # review finding #5). Default falls back to caller's hint if env
+        # not set. We also bump by 25% headroom because the pickle envelope
+        # plus zstd worst-case-incompressible payloads can drift up.
+        env_slot = os.environ.get("GENESIS_PN95_PINNED_SLOT_BYTES", "").strip()
+        if env_slot:
+            try:
+                slot_bytes = int(env_slot)
+            except ValueError:
+                slot_bytes = slot_size_hint
+        else:
+            if slot_size_hint <= 0:
+                # First demote hasn't happened yet; we can't size the pool.
+                # Caller will retry on next demote with a real hint.
+                return None
+            slot_bytes = max(slot_size_hint, int(slot_size_hint * 1.25))
         budget = _budget_bytes()
-        capacity = max(1, budget // slot_size_hint)
+        capacity = max(1, budget // slot_bytes)
+        # Keep slot_size_hint name in the PinnedHostPool ctor for back-compat.
+        slot_size_hint = slot_bytes
         try:
             pool = PinnedHostPool(slot_size_hint, capacity)
         except Exception as e:
             # RLIMIT_MEMLOCK hit or torch failed pin_memory allocation.
-            # Disable pool for the rest of the process (don't retry every demote).
+            # Sticky-disable via module flag, NOT env mutation (review #6).
             log.warning(
                 "[PN95-PINNED] failed to allocate %d MB pinned pool (slot=%d, "
                 "capacity=%d): %s — falling back to pageable-only L2.",
                 budget // (1024 * 1024), slot_size_hint, capacity, e,
             )
-            # Set _POOL to a sentinel that future get_pool() calls hit.
-            os.environ["GENESIS_ENABLE_PN95_PINNED_POOL"] = "0"
+            _POOL_ALLOC_FAILED = True
             return None
         log.info(
             "[PN95-PINNED] allocated %d MB pinned host pool: %d slots × %d bytes each.",

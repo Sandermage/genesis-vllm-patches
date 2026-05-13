@@ -253,7 +253,10 @@ def _pn95_cpu_to_gpu_copy_batch_v2(views: list, src_bytes_list: list) -> int:
         with torch.cuda.stream(stream):
             for view, src_bytes in zip(views, src_bytes_list):
                 src_arr = np.frombuffer(src_bytes, dtype=np.uint8).copy()
-                src_cpu = torch.from_numpy(src_arr)
+                # pin_memory() so cudaMemcpyAsync uses the fast PCIe path
+                # (review finding #4 — without pinning we silently fall
+                # back to the sync bounce-buffer copy).
+                src_cpu = torch.from_numpy(src_arr).pin_memory()
                 src_u8 = src_cpu.to(view.device, non_blocking=True)
                 view_u8 = view.contiguous().view(torch.uint8).reshape(-1)
                 n = min(view_u8.numel(), src_u8.numel())
@@ -366,18 +369,23 @@ def _pn95_cpu_to_gpu_copy_batch(views: list, src_bytes_list: list) -> int:
         return n_total
 
     # Async batched — queue ALL N copies on _pn95_stream, ONE wait_stream at end.
+    # Review finding #4: numpy.frombuffer produces pageable memory, so the
+    # `.to(view.device, non_blocking=True)` falls back to sync bounce-buffer
+    # DMA and the pinned-pool premise is defeated. We pin the source through
+    # torch.from_numpy(...).pin_memory() so the DMA path is async pinned->GPU
+    # like cudaMemcpyAsync expects (3-5 GB/s vs 600 MB/s pageable).
     n_total = 0
     with torch.cuda.stream(stream):
         for view, src_bytes in zip(views, src_bytes_list):
             src_arr = np.frombuffer(src_bytes, dtype=np.uint8).copy()
-            src_cpu = torch.from_numpy(src_arr)
+            src_cpu = torch.from_numpy(src_arr).pin_memory()
             src_u8 = src_cpu.to(view.device, non_blocking=True)
             view_u8 = view.contiguous().view(torch.uint8).reshape(-1)
             n = min(view_u8.numel(), src_u8.numel())
             if n > 0:
                 view_u8[:n].copy_(src_u8[:n], non_blocking=True)
                 n_total += 1
-    # ONE wait_stream — saves (N-1) × wait_stream calls.
+    # ONE wait_stream — saves (N-1) wait_stream calls.
     # Default stream waits for ALL our pn95-stream copies before next compute.
     torch.cuda.current_stream().wait_stream(stream)
     _PN95_STATS["async_promote_count"] = (
@@ -893,7 +901,9 @@ def _detect_upstream_offload_connector(cfg: Any) -> Optional[str]:
     candidates = (
         ("kv_transfer_config", "kv_connector"),
         ("kv_transfer_config", "connector_class"),
+        ("kv_transfer_config", "kv_connector_module_path"),  # PR #40020 surface
         ("cache_config", "offload_connector"),
+        ("cache_config", "kv_connector"),                    # older alias
     )
     for top, attr in candidates:
         block = getattr(cfg, top, None)
@@ -902,6 +912,19 @@ def _detect_upstream_offload_connector(cfg: Any) -> Optional[str]:
         value = getattr(block, attr, None)
         if isinstance(value, str) and value.strip():
             return value
+
+    # Fallback scan: any *connector* attribute on kv_transfer_config with
+    # a truthy-string value indicates an offload framework is wired in.
+    # Catches custom user spec names that bypass the well-known attrs above.
+    block = getattr(cfg, "kv_transfer_config", None)
+    if block is not None:
+        try:
+            attrs = vars(block)
+        except TypeError:
+            attrs = {}
+        for k, v in attrs.items():
+            if "connector" in k.lower() and isinstance(v, str) and v.strip():
+                return v
     return None
 
 
@@ -1463,7 +1486,7 @@ def get_pn95_stats() -> dict:
     snapshot["async_stream_enabled"] = _pn95_async_enabled()
     snapshot["async_demote_count"] = _PN95_STATS.get("async_demote_count", 0)
     snapshot["async_promote_count"] = _PN95_STATS.get("async_promote_count", 0)
-    # B2 — batched demote ops (each batch processes N layers с 1 sync)
+    # B2 — batched demote ops (each batch processes N layers with 1 sync)
     snapshot["async_batch_demote_count"] = _PN95_STATS.get(
         "async_batch_demote_count", 0
     )
@@ -1586,6 +1609,14 @@ _PN95_PREFIX_STORE: "_OrderedDict[Any, list]" = _OrderedDict()
 _PN95_PREFIX_STORE_BYTES_USED: int = 0
 _PN95_PREFIX_STORE_MAX_BYTES_CACHED: Optional[int] = None
 _PN95_BLOCK_POOL_REFS: list = []
+# Lock protecting concurrent writers to _PN95_PREFIX_STORE +
+# _PN95_PREFIX_STORE_BYTES_USED. Multiple paths can mutate the store:
+# demote_on_evict (scheduler thread), prefetch_blocks (prefetch worker
+# thread), _prefix_store_evict_until_fit (called recursively from demote).
+# Pre-PN95 the dict was single-threaded so a lock would have been overhead;
+# with the new prefetch API + worker_side_proactive_demote we explicitly
+# advertise thread-safety, so the lock is required (review finding #12).
+_PN95_PREFIX_STORE_LOCK: threading.Lock = threading.Lock()
 
 
 # ── L1 pinned host cache (optional, gated by GENESIS_ENABLE_PN95_PINNED_POOL).
@@ -1603,11 +1634,41 @@ def _pn95_pack_layer_data(layer_data: list) -> bytes:
 
 
 def _pn95_unpack_layer_data(blob: bytes) -> Optional[list]:
+    """Unpickle the layer-data blob from a pinned-pool slot or disk tier.
+
+    Uses a strict allow-list of class lookups (review finding #16):
+    a corrupted slot or a maliciously-crafted disk file MUST NOT be able
+    to invoke arbitrary code via pickle's `__reduce__` / `find_class`.
+    KV payloads are pure (str, bytes) tuples in a list, no custom classes
+    needed; everything else is rejected.
+    """
     if not blob:
         return None
+    import io
     import pickle
+
+    class _PN95SafeUnpickler(pickle.Unpickler):
+        _ALLOWED = frozenset({
+            ("builtins", "str"),
+            ("builtins", "bytes"),
+            ("builtins", "list"),
+            ("builtins", "tuple"),
+            ("builtins", "int"),
+            ("builtins", "float"),
+            ("builtins", "bool"),
+            ("builtins", "dict"),
+            ("builtins", "NoneType"),
+        })
+
+        def find_class(self, module: str, name: str):
+            if (module, name) in self._ALLOWED:
+                return super().find_class(module, name)
+            raise pickle.UnpicklingError(
+                f"[PN95] pickle class not allow-listed: {module}.{name}"
+            )
+
     try:
-        obj = pickle.loads(blob)
+        obj = _PN95SafeUnpickler(io.BytesIO(blob)).load()
     except (pickle.UnpicklingError, EOFError, TypeError, ValueError):
         return None
     return obj if isinstance(obj, list) else None
@@ -1717,14 +1778,13 @@ def pn95_prefetch_blocks(block_hashes: list) -> dict:
                     layer_data = None
             if layer_data is not None:
                 # Re-insert into L2 so future direct hits stay fast too.
-                # (Doesn't run the regular evict path — caller may not
-                # have room budget; but L1 fill below benefits anyway.)
                 try:
                     global _PN95_PREFIX_STORE_BYTES_USED
                     total_bytes = sum(len(b) for _n, b in layer_data)
                     if total_bytes <= _prefix_store_max_bytes():
-                        _PN95_PREFIX_STORE[h] = layer_data
-                        _PN95_PREFIX_STORE_BYTES_USED += total_bytes
+                        with _PN95_PREFIX_STORE_LOCK:
+                            _PN95_PREFIX_STORE[h] = layer_data
+                            _PN95_PREFIX_STORE_BYTES_USED += total_bytes
                 except Exception:
                     pass
                 delta["blocks_warmed_from_disk"] += 1
@@ -2312,8 +2372,9 @@ def demote_on_evict(block_hash: Any, block_id: int) -> bool:
             l1_acquired = False  # L1 refused — proceed L2-only
 
         try:
-            _PN95_PREFIX_STORE[block_hash] = layer_data
-            _PN95_PREFIX_STORE_BYTES_USED += total_bytes
+            with _PN95_PREFIX_STORE_LOCK:
+                _PN95_PREFIX_STORE[block_hash] = layer_data
+                _PN95_PREFIX_STORE_BYTES_USED += total_bytes
         except Exception:
             # L2 insert failed — rollback L1 to keep tiers consistent.
             if l1_acquired and l1_pool is not None:
@@ -2365,10 +2426,15 @@ def promote_on_miss(block_pool: Any, block_hash_with_group_id: Any) -> Any:
     global _PN95_PREFIX_STORE_BYTES_USED
     if not _enabled() or _TM is None:
         return None
-    # OBS1 — track all lookup attempts (для hit_rate calculation)
+    # OBS1 — track all lookup attempts (for hit_rate calculation)
     _PN95_STATS["prefix_lookups_total"] = (
         _PN95_STATS.get("prefix_lookups_total", 0) + 1
     )
+    # store_threshold: bump per-hash hit counter so future demote knows
+    # this block has been queried (review finding #1 — without this call
+    # _pn95_should_demote always returns False and the gate blocks ALL
+    # demotes when GENESIS_PN95_STORE_THRESHOLD>=2).
+    _pn95_record_lookup(block_hash_with_group_id)
 
     # L1 pinned pool first — fastest path. If hit, unpack and use directly;
     # bypass the L2 OrderedDict read entirely. L2 still holds the entry for
