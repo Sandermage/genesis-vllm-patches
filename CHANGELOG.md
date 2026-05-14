@@ -8,10 +8,75 @@ single source of truth — earlier references to a separate
 `vllm/sndr_core/CHANGELOG.md` pointed to a file that never existed.
 
 The project uses [Semantic-ish Versioning](https://semver.org/) keyed
-to internal sprints (`v7.62.x` etc). Until a 1.0 cut, expect
-breaking changes only when an upstream vLLM PR replaces a Genesis
-patch and the patch retires accordingly — those are flagged
-loud-and-clear in the per-release notes.
+to internal sprints (`v7.62.x` etc). Until a 1.0 cut, expect breaking
+changes only when an upstream vLLM PR replaces a Genesis patch and
+the patch retires accordingly — those are flagged loud-and-clear in
+the per-release notes.
+
+---
+
+## How this file is organised
+
+Each release is a top-level `## [<tag>] — <title> (<date>)` heading.
+Within a release, sub-sections use one of the following H3 headers
+so an operator can scan a release at a glance:
+
+| Sub-section | What goes in it |
+|---|---|
+| **Highlights** | One-paragraph summary of the most operator-visible change. |
+| **Patches changed** | Added / changed / retired patches with one-line rationale each. |
+| **Migration notes** | Anything an operator needs to do on upgrade (env-var rename, config diff, manual step). |
+| **Bench / measurements** | A/B numbers, regression deltas, wall-TPS / TPOT / VRAM tables. |
+| **Audit findings** | What gate failed, what was fixed, what was deferred. |
+| **Verified** | What was actually run to prove the release works (`make evidence`, `pytest`, hardware probe). |
+
+Release-type tags in the title give the shape of the release at a glance:
+
+- **Wave N** — the N-th canonical PROD bench cycle (e.g. `wave9`).
+  Patch matrix changes + new bench numbers + verified A/B vs the prior wave.
+- **audit-closure** — fixes a specific audit reference doc's P0/P1 findings.
+- **stable-promotion** — moves one or more patches from
+  `lifecycle=experimental` to `lifecycle=stable` with anchor-manifest
+  coverage.
+- **release-blockers-closed** — final gate before a tag is cut.
+- **hotfix** — narrow fix for a reported issue, no new patches.
+
+---
+
+## Version index (newest first)
+
+### v11.0.0 series — SNDR Core (current)
+
+| Tag | Date | Type | Summary |
+|---|---|---|---|
+| `wave9_release_blockers_closed` | 2026-05-14 evening | release-blockers-closed | Closes remaining P0/P1; 256K hardware-verified on both models; patch-proof coverage 151/151 |
+| `wave9_tp2_256k` | 2026-05-14 | wave | TP=2 256K commissioning + PN59 anchor fix on dcacdf9a pin |
+| `audit_2026_05_12_dual_state_closure` | 2026-05-12 | audit-closure | Comprehensive dual-state audit closure |
+| `stable_first` | 2026-05-12 | stable-promotion | First STABLE patches in registry + asyncio cleanup |
+| `wave9_dev209` | 2026-05-12 | wave | Wave 9 pin-bump re-bench + STABLE promotion analysis |
+| `stale_ref_cleanup` | 2026-05-12 | audit-closure | F-015 closure + post-rename stale-ref sweep |
+| `wave8` | 2026-05-11 | wave | Wave 8 regression audit + canonical bench WIN |
+| `v11.1.0-dev` | 2026-05-09 | feature | UNIFIED_CONFIG_AUTOMATION_PLAN closure + Path C foundation |
+| `v11.0.0` | 2026-05-08 | release | Two-audit closure + canonical SNDR Core/Engine split |
+
+### v10.x — pre-rename foundation
+
+| Tag | Date | Type | Summary |
+|---|---|---|---|
+| `v10.0.0` | 2026-05-07 | architecture | Hard flip: canonical impl now lives in `sndr_core/` |
+| `v9.0.0` | 2026-05-07 | architecture | Path consolidation (`project_paths.py`) |
+| `v8.0.0` | 2026-05-07 | architecture | SNDR Core architectural refactor |
+
+### v7.x — pre-restructure history
+
+| Tag | Date | Type | Summary |
+|---|---|---|---|
+| `v7.65 → v7.72` | 2026-04 – 2026-05 | series | 7.72 series: PN59 streaming-GDN, Cliff 2b breakthrough, Blackwell consumer support, structured boot summary |
+| `v7.63.x` | 2026-04 | series | TurboQuant k8v4 + MTP K=3 stabilization |
+
+The current PROD canonical baseline is `v11.0.0+wave9_release_blockers_closed`
+on vLLM nightly pin `0.20.2rc1.dev209+g5536fc0c0`. 152 patches in
+`PATCH_REGISTRY`, 32 default-ON, `make evidence` 40 / 40 green.
 
 ---
 

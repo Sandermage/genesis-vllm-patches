@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo.png" alt="Genesis vLLM Patches — The Sea-Born Neural Beacon" width="780">
+  <img src="assets/logo.png" alt="Genesis vLLM Patches" width="780">
 </p>
 
 # Genesis vLLM Patches
@@ -7,603 +7,463 @@
 [![GitHub stars](https://img.shields.io/github/stars/Sandermage/genesis-vllm-patches?style=social)](https://github.com/Sandermage/genesis-vllm-patches/stargazers)
 [![GitHub forks](https://img.shields.io/github/forks/Sandermage/genesis-vllm-patches?style=social)](https://github.com/Sandermage/genesis-vllm-patches/network/members)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![vLLM pin](https://img.shields.io/badge/vllm-0.20.2rc1.dev93-orange.svg)](https://github.com/vllm-project/vllm)
-[![Patches](https://img.shields.io/badge/patches-152-green.svg)](docs/PATCHES.md)
-[![Tests](https://img.shields.io/badge/tests-2994%20pass-brightgreen.svg)](tests/)
-[![SNDR Core](https://img.shields.io/badge/SNDR%20Core-v11.0.0%2Bwave7-blue.svg)](CHANGELOG.md)
-[![GPU](https://img.shields.io/badge/GPU-RTX%203090%20%7C%204090%20%7C%205090%20%7C%20A5000%20%7C%20H20%20%7C%20R6000%20Blackwell-purple.svg)](docs/HARDWARE.md)
+[![vLLM pin](https://img.shields.io/badge/vllm-0.20.2rc1.dev209-orange.svg)](https://github.com/vllm-project/vllm)
+[![Patches](https://img.shields.io/badge/registry-152%20patches-green.svg)](docs/PATCHES.md)
+[![SNDR Core](https://img.shields.io/badge/SNDR%20Core-v11.0.0%2Bwave9-blue.svg)](CHANGELOG.md)
+[![GPU](https://img.shields.io/badge/GPU-RTX%203090%20%7C%204090%20%7C%205090%20%7C%20A5000%20%7C%20H20%20%7C%20R6000-purple.svg)](docs/HARDWARE.md)
 [![PROD](https://img.shields.io/badge/PROD%20uptime-24%2F7-blue.svg)](docs/BENCHMARKS.md)
 
-**Runtime patches for [vLLM](https://github.com/vllm-project/vllm) — Qwen3.6-class inference on consumer NVIDIA Ampere/Ada/Hopper/Blackwell with TurboQuant k8v4 KV cache, MTP K=3 spec-decode, tool-calling, and 256K-class context.**
-
-> **🆕 v11.0.0 + Wave 7 (2026-05-09) — SNDR Core / Engine canonical split.**
-> Genesis is organized as two cleanly separated packages with a single
-> install entry point:
->
-> - **`vllm.sndr_core`** (Apache 2.0, **152 community patches**) — the
->   public wheel. Lazy `__init__.py` (torch-less importable for CI /
->   preflight), structured dispatcher, 19-family patch taxonomy,
->   schema-driven launcher, anchor-manifest fast-path, signed-token
->   license gate (placeholder pubkey until offline keygen ceremony),
->   full audit/CLI surface (`sndr install / launch / doctor / verify`).
-> - **`vllm.sndr_engine`** — reserved namespace, **currently empty**.
->   `engine_available()` returns `False`. Built from a separate
->   `pyproject-engine.toml`. PN72 (frequency ngram drafter) was moved
->   to core 2026-05-08 because it was Genesis-original community code,
->   not commercial IP. Future overlays land here when there is genuine
->   private IP not present in upstream PRs.
-> - **Plugin entry**: canonical `vllm.sndr_core.plugin:register` (lives
->   in the core wheel — single `pip install vllm-sndr-core` is
->   sufficient, the standalone `genesis_v7` plugin package is a thin
->   re-export).
->
-> ![SNDR architecture v11.0.0](assets/charts/architecture_v11.png)
->
-> **Three consecutive deep audits closed**: structure audit
-> (2026-05-07, 17/19), repeat audit (2026-05-08, 16/18 including all 9
-> critical findings), and noonghunna external audit (2026-05-08; P0/P1.1
-> closed 2026-05-09 — pytest 2994 / 0 fail / 94 skip; no-torch dry-run
-> failed=0). Pytest baseline grew **2425 → 2621 → 2994**.
->
-> ![Audit-finding closure timeline](assets/charts/audit_closure_timeline.png)
->
-> **Wave 7 PROD verified** (35B FP8 + 27B INT4 hybrid GDN): TPS +0.7%
-> over Wave 3.1 baseline, tool-call quality 8/8 (london_think fixed
-> via PN16 V8 cache-safe tool-budget hint), per-patch observability
-> live. **Zero functional regressions** vs v7.72 PROD bench. See
-> [CHANGELOG.md](CHANGELOG.md) for full migration history + per-version
-> deltas.
-
-### What this actually is
-
-Genesis is a **drop-in patcher** for vLLM. It pins to a specific vLLM commit
-and applies 152 small, surgical changes — text-edits at known anchors,
-class-rebind wrappers, and middleware install — that together turn an
-out-of-the-box vLLM into a production-grade Qwen3.6 inference server on
-*consumer* NVIDIA hardware (3090, A5000, A6000, 4090, 5090, …) where vLLM
-upstream targets datacenter SKUs.
-
-Concretely, on a single 2× RTX A5000 box (per [the live PROD bench
-below](#-live-prod-benchmarks-2026-05-05)) Genesis turns:
-
-- 35B-A3B FP8 MoE → **+68% sustained TPS** vs stock (114 → 193 tok/s)
-- 27B-int4-AutoRound hybrid GDN → **+34% sustained TPS** (71 → 96 tok/s)
-- Tool-call clean rate → **stock 2-6/10 → Genesis 10/10** across 4 categories
-- Long-context Cliff 2b OOM → **PN59 streaming-GDN keeps a single 24 GiB
-  card running at 92K context for an hour** with -95% allocator drift
-
-What it is *not*: a fork of vLLM, a quantizer, a new inference engine, or a
-training framework. Patches retire automatically when upstream merges the
-underlying fix (10+ Genesis patches have already retired this way).
-
-> **The fastest way in:** one curl one-liner installs Genesis, picks a
-> preset matching your GPU, writes a tailored launch script, and runs a
-> 60-second smoke test:
->
-> ```bash
-> curl -sSL https://raw.githubusercontent.com/Sandermage/genesis-vllm-patches/main/install.sh | bash
-> ```
->
-> See [Installation](#-installation) for non-interactive / pinned variants
-> and [`docs/COMMANDS.md`](docs/COMMANDS.md) for the full command reference.
+**Runtime patches for [vLLM](https://github.com/vllm-project/vllm) — Qwen3.6-class
+inference on consumer NVIDIA Ampere / Ada / Blackwell with TurboQuant k8v4 KV
+cache, MTP K=3 spec-decode, tool-calling, and 256K-class context. 152 patches
+across 21 families. Apache 2.0.**
 
 ---
 
-## 🏗 Architecture (v11.0.0)
+## Table of Contents
 
-Genesis is split into three layers that match the operational distinction
-between **public infrastructure**, **commercial IP**, and **glue**:
+1. [What this is](#1-what-this-is)
+2. [v11 — rename + restructure](#2-v110--rename--restructure-genesis--sndr_core)
+3. [Architecture](#3-architecture-v110)
+4. [Benchmarks](#4-benchmarks)
+5. [Hardware: single-card vs dual-card](#5-hardware--single-card-vs-dual-card)
+6. [Installation](#6-installation)
+7. [CLI utilities](#7-cli-utilities)
+8. [Reference presets](#8-reference-presets-v2-layered)
+9. [Patch coverage by family](#9-patch-coverage-by-family)
+10. [Testing](#10-testing)
+11. [Documentation map](#11-documentation-map)
+12. [Contributing](#12-contributing)
+13. [Credits + license](#13-credits--license)
 
-| Layer | What lives here | License | How it ships |
-|:------|:----------------|:--------|:-------------|
-| `vllm.sndr_core` | **152 community patches** + dispatcher + apply orchestrator + CLI + model-config schema + license gate + Wave 7 observability instrumentation | Apache 2.0 | `pip install vllm-sndr-core` (PyPI, public GitHub) |
-| `vllm.sndr_engine` | **Reserved namespace, currently empty.** `engine_available()` returns `False`. Future commercial overlay lands here when genuine private IP exists. PN72 was moved to core 2026-05-08 (Genesis-original community code, not commercial IP) | LicenseRef-Sandermage-Commercial (reserved) | Separate wheel from `pyproject-engine.toml`, distributed only to license holders when overlay materializes |
-| `vllm.general_plugins` entry point | Auto-loads Genesis in every vLLM rank/worker | (vLLM's) | `genesis_v7 = vllm.sndr_core.plugin:register` (canonical, in core wheel) |
+---
 
-### Patch coverage by category (152 entries)
+## 1. What this is
 
-![Patch coverage by category](assets/charts/patch_category_count.png)
+Genesis is a **drop-in runtime patcher** for vLLM. It pins to a specific vLLM
+nightly commit and applies 152 small, surgical changes — text edits at known
+anchors, class-rebind wrappers, and FastAPI middleware — that together turn
+an out-of-the-box vLLM into a production-grade Qwen3.6 inference server on
+*consumer* NVIDIA hardware (3090, 4090, 5090, A5000, A6000, …) where vLLM
+upstream mostly targets datacenter SKUs.
+
+It is **not**: a fork of vLLM, a quantizer, a new inference engine, or a
+training framework. Patches retire automatically when upstream merges the
+underlying fix — 10+ Genesis patches have already retired this way (P94, PN9,
+…) via `drift_marker` self-skip on boot.
+
+### Concretely on the PROD baseline (2× RTX A5000 24 GB)
+
+| Model | Stock vLLM | Genesis Wave 8 (2026-05-11) | Δ |
+|---|---:|---:|---:|
+| Qwen3.6-35B-A3B-FP8 (MoE) | ~156 t/s | **241.35 t/s** | +55% |
+| Qwen3.6-27B-int4-AutoRound (hybrid GDN) | ~87 t/s | **132.28 t/s** | +52% |
+| Tool-call clean rate | 2–6 / 10 | **8/8 (35B) · 7/7 (27B)** | qualitative |
+
+Wave 9 (2026-05-14) extended the ladder with **256K context hardware-verified**
+on both models — see [Benchmarks](#4-benchmarks). All measurements
+reproducible from `tools/genesis_bench_suite.py --quick --ctx 8k`.
+
+---
+
+## 2. v11.0.0 — rename + restructure (`Genesis → sndr_core`)
+
+v11.0.0 (2026-05-08) was a **hard rename** of the Python package — the
+runtime now lives at `vllm.sndr_core`. The pre-v11 namespace is removed
+in full; there is no back-compat alias. Detailed before / after table,
+list of what improved, what was removed, what stayed on purpose, and a
+sed one-liner to update any pre-v11 launch scripts live in
+[`docs/MIGRATION_V11_RENAME.md`](docs/MIGRATION_V11_RENAME.md).
+
+The short version operators usually want:
+
+- The Python import path changed; `~/.sndr/` is the canonical config
+  dir (`~/.genesis/` is still honoured as a legacy alias so existing
+  state does not need to move).
+- A single CLI (`sndr launch <preset>`) replaces ~18 ad-hoc `start_*.sh`
+  scripts.
+- Patches are organised by family under `vllm/sndr_core/integrations/`
+  (21 families on disk) instead of one flat directory.
+- V1 monolithic model configs still work alongside the new V2 layered
+  configs — no forced migration.
+- The "Genesis" name stayed for the project / docs / wave numbering —
+  only the Python package was renamed.
+
+---
+
+## 3. Architecture (v11.0.0)
+
+Genesis is organised as two cleanly separated namespaces under a single
+install entry:
+
+| Namespace | License | Status | Wheel |
+|---|---|---|---|
+| `vllm.sndr_core` | Apache 2.0 | **152 patches active** | `pip install vllm-sndr-core` |
+| `vllm.sndr_engine` | LicenseRef-Sandermage-Commercial (reserved) | **Empty** — `engine_available()` returns `False` | separate `pyproject-engine.toml` |
+
+The `sndr_engine` namespace is reserved for future commercial overlays
+when private IP that is not already in upstream PRs materializes.
+It is empty at HEAD; PN72 (frequency ngram drafter) was moved back to
+core 2026-05-08 since it turned out to be community-original code.
+
+![SNDR architecture v11.0.0](assets/charts/architecture_v11.png)
+
+### Package layout
+
+```
+vllm/sndr_core/
+├── apply/             apply orchestrator + verify + shadow + per-patch dispatch
+├── cli/               sndr command (launch, doctor, verify, deps, patches, …)
+├── compat/            version_check, predicates, lifecycle, doctor, init_wizard
+├── deps/              host inspection + plan_changes (Docker, driver, models)
+├── detection/         GPU class, hybrid arch, quantization scheme, MoE detection
+├── dispatcher/        registry (152 entries) + audit + decision + spec
+├── integrations/      patches grouped by family (20 directories on disk)
+│   ├── attention/      ── GDN / FA2 / FA3 / TurboQuant subdirs (3 sub-families)
+│   ├── compile_safety/ ── torch.compile + cudagraph capture guards
+│   ├── kernels/        ── Marlin / Triton wrappers
+│   ├── kv_cache/       ── KV dtype, prefix cache, hash backends
+│   ├── loader/
+│   ├── lora/
+│   ├── memory/
+│   ├── middleware/     ── PN65 API access log, telemetry, lazy reasoner
+│   ├── moe/
+│   ├── multimodal/
+│   ├── observability/
+│   ├── offload/        ── PrefetchOffloader pinned-allocator pool (PN102)
+│   ├── quantization/
+│   ├── reasoning/
+│   ├── scheduler/
+│   ├── serving/
+│   ├── spec_decode/    ── MTP, ngram, DFlash, EAGLE
+│   ├── streaming/
+│   ├── tool_parsing/
+│   └── worker/
+├── kernels/           Marlin per-SM tuning, Triton wrappers
+├── locations/         canonical path resolution
+├── model_configs/     V1 monolithic + V2 layered
+│   └── builtin/
+│       ├── model/      ── V2: model definition (checkpoint, KV format, spec)
+│       ├── hardware/   ── V2: rig definition (GPU, VRAM, CPU, RAM, mounts)
+│       ├── profile/    ── V2: env / runtime tuning deltas
+│       ├── presets/    ── V2: composed alias = (model, hardware, profile)
+│       └── community/  ── community-contributed samples / templates
+├── observability/     per-patch metrics, audit instrumentation
+├── proof/             text-patch anchor verification (`prove --all`)
+└── runtime/           boot summary, structured logger
+```
+
+### 21 families in the registry
+
+| Family | Patches | Family | Patches |
+|---|---:|---|---:|
+| `attention.turboquant` | 24 | `compile_safety` | 6 |
+| `attention.gdn` | 19 | `tool_parsing` | 5 |
+| `spec_decode` | 15 | `memory` | 5 |
+| `kv_cache` | 13 | `moe` | 5 |
+| `worker` | 11 | `quantization` | 4 |
+| `reasoning` | 9 | `middleware` | 4 |
+| `scheduler` | 8 | `offload` | 3 |
+| `kernels` | 7 | `loader` | 2 |
+| `serving` | 7 | `attention.flash` | 2 |
+| | | `lora` | 1 |
+| | | `observability` | 1 |
+| | | `multimodal` | 1 |
+| **Total** | | | **152** |
+
+**32 of 152** are default-ON in PROD scripts. The remaining 120 are opt-in
+via `GENESIS_ENABLE_<id>=1` env flags.
 
 ### Boot-time decision waterfall (35B PROD, 2× A5000)
 
 ![Patch decision waterfall](assets/charts/patch_decision_waterfall.png)
 
-Of 152 registry entries, ~49-56 actually `APPLY` on a typical 35B PROD boot —
-the rest skip cleanly via env flags (opt-in by design), `applies_to`
-hardware filters, `conflicts_with` rules, or upstream-merged drift markers
-(self-retiring patches like PN9 and P94 which landed natively in vllm dev93).
-Per-patch elapsed_ms + rss_delta visible at boot when
+Of 152 registry entries, ~49–56 actually `APPLY` on a typical 35B PROD
+boot — the rest skip cleanly via env flags, `applies_to` hardware filters,
+`conflicts_with` rules, or upstream-merged drift markers. Per-patch
+`elapsed_ms` and `rss_delta` are visible at boot when
 `GENESIS_OBSERVABILITY=1`.
 
-### What's enforced at boot
+### What is enforced at boot
 
-- **Lazy imports** — `vllm.sndr_core.integrations` (renamed 2026-05-11
-  from `patches/`) is torch-less importable, so CI / preflight / Mac
-  dev rigs can analyse the registry without touching CUDA. Legacy
-  `vllm.sndr_core.patches` continues to resolve via `__getattr__`
-  back-compat alias.
+- **Lazy imports** — `vllm.sndr_core.integrations` is torch-less importable
+  so CI / preflight / Mac dev rigs can analyse the registry without CUDA.
 - **License gate** — `tier="engine"` patches consult
   `vllm.sndr_core.license.check_engine_tier_eligible()` (Ed25519-signed
-  token; legacy unsigned-key mode behind `SNDR_ALLOW_LEGACY_LICENSE_KEYS=1`).
-- **Apply shadow gate** (CI) — `python -m vllm.sndr_core.apply.shadow --strict`
-  fails on any unexpected divergence between the legacy `_per_patch_dispatch`
-  registry and the spec-driven `iter_patch_specs()` loop.
+  token).
+- **Apply shadow gate** — `python -m vllm.sndr_core.apply.shadow --strict`
+  fails on any unexpected divergence between the legacy
+  `_per_patch_dispatch` registry and the spec-driven `iter_patch_specs()`
+  loop.
 - **Stable lifecycle ratchet** — promoting a patch to `lifecycle="stable"`
-  requires anchor-manifest coverage; ratchet test in
-  `tests/unit/infra/test_stable_manifest_policy.py` blocks otherwise.
-  See [`docs/upstream/STABLE_PROMOTION_CHECKLIST.md`](docs/upstream/STABLE_PROMOTION_CHECKLIST.md).
+  requires anchor-manifest coverage; the ratchet test in
+  `tests/unit/infra/test_stable_manifest_policy.py` blocks otherwise. See
+  [`docs/upstream/STABLE_PROMOTION_CHECKLIST.md`](docs/upstream/STABLE_PROMOTION_CHECKLIST.md).
 
 ---
 
-## ⚡ Live PROD benchmarks (2026-05-05)
+## 4. Benchmarks
 
-_2× RTX A5000 24 GB · vLLM `0.20.2rc1.dev9+g01d4d1ad3` · Genesis v7.72 · 45 of 78 unique patches APPLY (per structured boot summary) · MTP K=3 spec-decode · TurboQuant k8v4 KV · TP=2_
+### Wave 8 canonical PROD bench (2026-05-11)
 
-| Model | Sustained TPS | CV% | TPS range | Latency | Tool-call | Multi-turn 10/10 | VRAM steady |
-|:------|--------------:|----:|----------:|--------:|:---------:|:----------------:|------------:|
-| **Qwen3.6-35B-A3B-FP8** (MoE) | **192.9 tok/s** | 4.19% | 184 – 208 | 2.34s | **10/10** | **10/10** (avg 1.1s) | 22687 + 21998 MiB |
-| **Qwen3.6-27B-int4-AutoRound** (Lorbus dense + GDN) | **95.6 tok/s** | 4.04% | 88 – 102 | 4.76s | **10/10** | **10/10** (avg 2.3s) | 22753 + 22064 MiB |
+_2× RTX A5000 24 GB · vLLM `0.20.2rc1.dev93+g51f22dcfd` · MTP K=3 ·
+TurboQuant k8v4 KV cache · TP=2 · driver 580.142 · CUDA 13.0.2_
 
-```
-Sustained TPS — visualised
-                                                    100 tok/s   200 tok/s
-35B FP8 MoE  ████████████████████████████████████████████████░░  192.9 ▲
-27B INT4 GDN ████████████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░   95.6
-```
+| Model | wall_TPS | decode_TPOT | CV % | Tool-call | Command |
+|---|---:|---:|---:|:---:|---|
+| Qwen3.6-27B-int4-AutoRound | **132.28** | **7.31 ms** | 5.29 % | 8 / 8 | `genesis_bench_suite.py --quick --ctx 8k` |
+| Qwen3.6-35B-A3B-FP8 (Sprint 1) | **241.35** | **3.85 ms** | 3.02 % | 7 / 7 | same |
 
-**Reproduce:** `GENESIS_MODEL=qwen3.6-35b-a3b python3 tests/bench/comprehensive_bench.py`. Full numbers: [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md).
+### Wave 8 Δ vs Wave 7 baseline (27B PROD)
 
-![Sustained TPS — Genesis vs stock vLLM](assets/charts/tps_genesis_vs_stock.png)
+| Metric | Wave 7 (2026-05-09) | Wave 8 (2026-05-11) | Δ |
+|---|---:|---:|---:|
+| wall_TPS | 124.29 | **132.28** | **+ 6.43 %** |
+| decode_TPOT (ms) | 7.78 | **7.31** | − 6.0 % (faster) |
+| TTFT (ms) | 108.25 | 100.9 | − 6.8 % |
 
-> **Reading the chart**: same hardware, same vLLM pin, same 8 prompts × 5 trials per bar. "Stock" = all `GENESIS_ENABLE_*` env vars unset, default vLLM scheduler. CV% printed inside each Genesis bar is the coefficient of variation across 5 trials — under 5% is the bar Genesis holds itself to.
+Wave 8 components: PN90 + PN16 V8 (drift recovery) + P82=1, thr=0.1
+(Sprint 1 sweep) + GroupAB additions (P70 / PN12 / PN14 / P94 / P103) +
+`P67_NUM_KV_SPLITS 32→16` + removed retired/broken patches
+(P61 / P71-broken-on-GQA=6 / P100-Blackwell / PN13 / P83+P85 broken dep).
 
----
+### Wave 9 — 256K context hardware-verified (2026-05-14)
 
-## 🛟 Installation
+Both target models hit 256K end-to-end on the same `dcacdf9a` pin with
+the canonical V2 preset and the full Wave 9 env-flag matrix:
 
-Genesis ships a thin bootstrap shim that ensures Python ≥3.10 + git, clones
-the repo into `~/.sndr` (canonical; legacy alias `~/.genesis` still
-honoured), `pip install -e`'s the package, then hands off to the canonical
-`sndr install` Python wizard. The wizard does the rest: hardware
-detection, NVIDIA driver sanity, Proxmox VE caveat probe, workload pick,
-preset match, launch-script generation, and smoke test. **Interactive by
-default; fully unattended with `-y`.**
+| Model | 200 K | 230 K | 256 K |
+|---|---|---|---|
+| **27B INT4 TQ k8v4** | 886 s · 113 t/s | 1190 s · 97 t/s | 1487 s · 86 t/s |
+| **35B-A3B FP8** | 381 s · 263 t/s | 495 s · 233 t/s | 620 s · 207 t/s |
+
+Drift is graceful — `wall_TPS` decays as context grows but does not OOM
+within the 256K budget. Raw run logs are kept as an internal artefact
+and are not published; the bench numbers above are reproducible from
+the commands in the next section.
+
+### Visual comparison
+
+![Sustained TPS — Genesis vs stock](assets/charts/tps_genesis_vs_stock.png)
+
+![Sustained TPS vs context length](assets/charts/tps_vs_context_length.png)
+
+![VRAM drift, PN59 streaming-GDN A/B](assets/charts/vram_drift_pn59.png)
+
+![TPS evolution across Genesis releases](assets/charts/tps_over_versions.png)
+
+![Latency distribution P50 / P95 / P99](assets/charts/latency_distribution.png)
+
+![Tool-call clean rate](assets/charts/toolcall_clean_rate.png)
+
+Charts are regenerated by `python3 assets/charts/_generate.py`. Numbers
+come from [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md) — change the data
+source there + re-run the script and every chart updates atomically.
+
+### Reproducing the bench
 
 ```bash
-# Interactive — one question (workload). Three minutes, working system.
+# Boot the PROD 27B preset
+sndr launch prod-27b-tq
+
+# In a second shell — short-context canonical bench
+python3 tools/genesis_bench_suite.py --quick --ctx 8k
+
+# Long-context ladder (200K / 230K / 256K)
+./scripts/probe_max_ctx.sh --start 200000 --max 262144
+
+# Cross-rig markdown for a PR
+python3 tools/genesis_bench_suite.py --quick --ctx 8k --markdown \
+  > benchmarks/cross_rig_reports/<gpu>_<date>.md
+```
+
+Full bench history: [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md).
+
+---
+
+## 5. Hardware — Single-card vs Dual-card
+
+The PROD baseline is **2× RTX A5000 24 GB** (Ampere SM 8.6), but single-card
+configurations are supported and exercised by cross-rig collaborators on
+RTX 3090 / 4090 / 5090.
+
+### Dual-card (recommended for 27B / 35B)
+
+- TurboQuant k8v4 KV cache fits **256K context** on 2 × 24 GB
+  (~22.7 GB steady per GPU).
+- TP=2 splits attention + MoE shards across two GPUs; aggregate memory
+  bandwidth doubles.
+- MTP K=3 spec-decode delivers **241 t/s on 35B-A3B-FP8** (Wave 8).
+- All 152 patches are testable.
+
+**Cost:** ~$1 400 used (2 × A5000) or ~$2 000 (2 × 3090).
+Idle ~120 W combined; under load ~520 W combined.
+
+**Reference preset:** `sndr launch prod-27b-tq` or `prod-35b`.
+
+### Single-card (RTX 3090 / 4090 / 5090 / A5000 24 GB)
+
+| Workload | Verdict | Notes |
+|---|:---:|---|
+| 27B INT4 + fp8_e5m2 KV + short ctx ≤ 32 K | ✅ | TP=1, ~110 t/s |
+| 27B INT4 + long ctx 64 K – 92 K | ✅ (PN59 default-ON) | streaming GDN saves −142 MiB at boot + 95 % drift reduction |
+| 27B INT4 + long ctx ≥ 128 K | 🟡 | OOM risk approaching 200 K — `PN95` tier-aware KV cache helps |
+| 35B-A3B-FP8 (MoE) | ❌ | 35B FP8 weights ≈ 40 GB — requires TP=2 minimum |
+| qwen3_vl (multi-modal) + NVFP4 | ✅ (PN61 + PN62) | text-only auto-fallback + ViT scratch skip |
+
+**Single-card limits at a glance:**
+- No 35B / 80B / DeepSeek-class models.
+- 27B INT4 stable up to ~96 K context; beyond that PN59 + PN95 buy
+  more but accept VRAM drift.
+- No tensor parallelism — single-stream only.
+- Some patches auto-skip (e.g. P95 Marlin TP cudagraph cap → no-op on
+  TP=1).
+
+**Reference preset:** `sndr launch qa-27b-tq-1x` (single-card 27B INT4
+QA-validated profile).
+
+### Compute-capability matrix
+
+| Arch | SM | Cards | TQ k8v4 | MTP K=3 | NVFP4 | Marlin MoE | Status |
+|---|---:|---|:-:|:-:|:-:|:-:|:-:|
+| Ampere datacenter | 8.0 | A100 | ✅ | ✅ | ❌ | ✅ | tested |
+| Ampere consumer | 8.6 | 3090, A5000, A6000 | ✅ | ✅ | ❌ | ✅ | **PROD** |
+| Ada consumer | 8.9 | 4070–4090 | ✅ | ✅ | ✅ | ✅ (cross-rig) | tested |
+| Hopper | 9.0 | H100, H200 | ✅ | ✅ | ✅ | ✅ | partial |
+| Blackwell datacenter | 10.0 | B100, B200 | 🟡 | 🟡 | ✅ | 🟡 | placeholder |
+| Blackwell consumer | 12.0 | 5070–5090 | ✅ | ✅ | ✅ | PN64 placeholder | cross-rig |
+
+`sndr doctor` prints the matched row for your hardware at boot.
+
+---
+
+## 6. Installation
+
+Three install paths, in order of preference:
+
+### Path A — installer wizard
+
+```bash
 curl -sSL https://raw.githubusercontent.com/Sandermage/genesis-vllm-patches/main/install.sh | bash
+```
 
-# Fully non-interactive (CI / scripted). Pin a tag explicitly.
+The wizard executes:
+
+1. Pre-flight (OS, Python ≥ 3.10, `git`, `curl`, ≥ 200 MiB free disk)
+2. GPU detection (32-card class map; warns on driver < 580.x)
+3. vLLM importability check (warns on pin drift)
+4. Runtime-caveat probe (Proxmox VE 8.x kernel 6.17.x → auto
+   `--bare-metal`)
+5. Workload pick (one interactive question, or `--workload <name>` flag)
+6. Pin resolve (`stable` → latest tag, `dev` → branch tip, or explicit ref)
+7. Clone to `~/.sndr/` (legacy `~/.genesis/` and `--home` / `SNDR_HOME`
+   honoured)
+8. Plugin install (`pip install -e .` registers
+   `vllm.general_plugins → genesis_v7 = vllm.sndr_core.plugin:register`)
+9. Host-path detection → `~/.sndr/host.yaml`
+10. Launch script generation for the matched preset
+11. Smoke test (`apply.run(apply=False)` dispatcher dry-run; exits 2 on
+    any failed patch)
+
+Non-interactive variant (CI / scripted):
+
+```bash
 curl -sSL .../install.sh | bash -s -- --pin v11.0 --workload tool_agent -y
+```
 
-# Dev branch tip (latest fixes, mutable). Use --pin <commit> for repro.
-curl -sSL .../install.sh | bash -s -- --pin dev
+Bare-metal variant (skip Docker checks):
 
-# Bare-metal mode (skip docker hints; auto-set on Proxmox VE 8.x kernels).
+```bash
 curl -sSL .../install.sh | bash -s -- --bare-metal
+```
 
-# Clean rollback — removes plugin entry, leaves source tree intact.
+Clean rollback (removes plugin entry, leaves source intact):
+
+```bash
 curl -sSL .../install.sh | bash -s -- --uninstall
 ```
 
-After bootstrap, `sndr` is a top-level command:
+### Path B — Docker (recommended for PROD)
 
 ```bash
-sndr install                      # re-run the wizard
-sndr launch <preset>              # render config + apply patches + exec vllm
-sndr launch --dry-run <preset>    # preview the bash script without exec
-sndr launch                       # interactive preset picker (TTY)
-sndr doctor                       # full system diagnostic
-sndr verify                       # post-apply verification (loads model)
-sndr --help                       # full command surface
+git clone https://github.com/Sandermage/genesis-vllm-patches
+cd genesis-vllm-patches
+./scripts/fetch_models.sh Lorbus/Qwen3.6-27B-int4-AutoRound ~/models
+sndr launch prod-27b-tq
 ```
 
-### Workload presets (the one question the installer asks)
+`sndr launch` bind-mounts `sndr_core/` into a stock
+`vllm/vllm-openai:nightly` image, the runtime dispatcher applies all
+registered integrations at boot, and then `exec vllm serve` takes over.
+No fork or rebuild of vLLM is required.
 
-| Workload | Optimised for | Defaults |
-|:---|:---|:---|
-| **balanced** | Chat + occasional long ctx + occasional tool-call | Default — safe pick if unsure |
-| **long_context** | Single long prompt (≥50K), low concurrency | Streaming GDN, prefix cache off |
-| **high_throughput** | Many short prompts in parallel, max TPS | Aggressive batch, MTP K=3 |
-| **tool_agent** | IDE coding agents (Cline / Claude Code / OpenCode) | All tool-call + reasoning fixes ON |
+### Path C — bare metal (no Docker)
 
-Workload is also settable via env (`GENESIS_WORKLOAD=long_context curl … | bash`).
-
-### Steps the installer runs (in order)
-
-1. **Pre-flight** — OS, Python ≥3.10, `git`, `curl`, ≥200 MiB free at the install root
-2. **Hardware detect** — `nvidia-smi` → 32-GPU class map (`gpu_class_map.classify_gpu()`)
-   → preset hint; NVIDIA driver ≥580.x sanity warn (interactive y/N if older)
-3. **vLLM detect** — confirms `vllm 0.20.x` importable; warns on pin drift
-4. **Runtime caveat** — Proxmox VE 8.x kernel 6.17.x → auto `--bare-metal`
-5. **Workload pick** — explicit flag, env, or 1 interactive question
-6. **Pin resolve** — `stable` (latest tag via GitHub API), `dev`, or explicit ref
-7. **Clone or update** — `~/.sndr` (overridable via `--home` / `SNDR_HOME` / legacy `GENESIS_HOME`)
-8. **Plugin install** — `pip install -e .` registers
-   `vllm.general_plugins → genesis_v7 = vllm.sndr_core.plugin:register` so
-   vLLM auto-loads Genesis in every spawn worker
-9. **Host paths** — auto-detect `models_dir` / `hf_cache` / etc → `~/.sndr/host.yaml`
-10. **Launch script gen** — picks the preset matching (gpu_class, n_gpus, workload),
-    renders `cfg.to_launch_script(host_paths=…)` → executable bash at
-    `~/.sndr/launch/start_<gpu>_<n>x_<workload>.sh`
-11. **Smoke test** — `apply.run(apply=False)` dispatcher dry-run; **exit 2 on
-    any failed patch** (`--allow-smoke-fail` to override, `--no-verify` to skip)
-
-For everything else, see [`docs/COMMANDS.md`](docs/COMMANDS.md) — the
-single-page command reference.
-
----
-
-## 🚑 v7.72.2 hotfix (2026-05-05 12:30 EEST) — PN70 schema subset filter + Proxmox VE installer caveat
-
-**Two complementary improvements landed together.**
-
-**PN70 — Tool schema subset filter** (Genesis-original, opt-in via `GENESIS_ENABLE_PN70_TOOL_SCHEMA_FILTER=1`): companion to v7.72.1's P68 fix. Closes lexhoefsloot's option-3 from [club-3090#57](https://github.com/noonghunna/club-3090/issues/57). Where P68 **skips** the `tool_choice` upgrade on dirty tool catalogs, PN70 keeps the upgrade and **filters** xgrammar-incompatible tools out of the combined `anyOf` schema. Recommended combo: P68 ON + PN70 ON → grammar enforcement on the compat subset, no 400 error from one dirty tool. Reuses P68's scanner so the unsupported-key list is single-sourced. **+28 TDD**, full suite **1958 pass + 73 skip + 0 fail** (was 1930). Details: [CHANGELOG §v7.72.2](CHANGELOG.md).
-
-**install.sh — Proxmox VE caveat + `--bare-metal` flag** ([club-3090#49](https://github.com/noonghunna/club-3090/issues/49)): new `detect_proxmox_runtime()` step warns operators on PVE 8.x kernel 6.17.x hosts about the upstream `vllm/vllm-openai:nightly` image's uvloop crash and auto-enables `--bare-metal` so the next-steps printout points at native `pip install vllm==0.20.x` + `vllm serve` instead of docker-compose. Manual flag also available for microk8s / podman / k8s users.
-
----
-
-## 🚑 v7.72.1 hotfix (2026-05-05 11:30 EEST) — P68 xgrammar-incompat tool skip
-
-**Bug** ([noonghunna/club-3090#57](https://github.com/noonghunna/club-3090/issues/57), reported by @lexhoefsloot): when P68 (`GENESIS_ENABLE_P68_AUTO_FORCE_TOOL=1`) upgraded `tool_choice: "auto" → "required"` on long prompts, vLLM built a combined schema across **all** tools and ran xgrammar on it. Any single tool with `patternProperties` / `propertyNames` / `$ref` / `oneOf` (very common for `exec`-type tools) then **poisoned every long-prompt request from agentic IDE clients** with `400 ValueError: features not supported by xgrammar`.
-
-**Fix:** P68 now scans `request.tools` for xgrammar-incompatible JSON Schema keys before upgrading; if any tool is incompatible, the upgrade is skipped with a WARN (P69 reminder still fires — only the upgrade step is unsafe). Operators on a non-xgrammar backend can override via the new `GENESIS_P68_FORCE=1` env. **+18 TDD**, full suite **1930 pass + 73 skip + 0 fail**. Details: [CHANGELOG §v7.72.1](CHANGELOG.md).
-
----
-
-## 🆕 What's new in v7.72 (2026-05-05) — global update vs v7.68
-
-7 new patches, structured boot summary, full Blackwell consumer support, comprehensive bench harness, 3 tfriedel-pattern ports.
-
-| Area | v7.68 (2026-05-02) | **v7.72 (2026-05-05)** | Delta |
-|---|---|---|---|
-| Patch count | 100 + sub-patches | **128 PATCH_REGISTRY** | +6 PN6x + library/diagnostic |
-| Default-ON | 25 | **32** (incl. PN59 + 6 PN5x defensive) | +28% |
-| Boot logs | scattered uvicorn INFO lines | **structured boot summary** (system info + categorized tables) | UX win |
-| API access logs | bare uvicorn `INFO: 127.0.0.1 - "GET /v1/models" 401` | **`[Genesis-API] 401  GET   /v1/models  <1ms  client=127.0.0.1`** (PN65) | UX win |
-| Cliff 2b OOM (single 24 GB card, ≥50K ctx) | best-effort P103 chunk | **PN59 streaming-GDN** (-142 MiB/GPU + 95% drift reduction) | breakthrough |
-| Consumer Blackwell (RTX 5090 sm_120) | not detected (Issue #20) | **6 PN6x patches** (PN60-65) + 10 GPU-spec entries | full support |
-| Tests | 1599 pass | **1846 pass** + 73 skipped | +247 unit tests |
-| Bench harness | scattered scripts | **tests/bench/comprehensive_bench.py** (6-stage README-ready output) | new |
-| Doctor | one-shot smoke | **3 doctor rules** (PN60 quant validator + club#34 token-loop + club#43 grammar reject) + CLI `genesis preflight` | new |
-
-### Detailed patch ledger — past 24 hours (2026-05-04 → 2026-05-05)
-
-| Patch | Headline | Status |
-|:---|:---|:---:|
-| **PN59** | Streaming-GDN window-iterative (Variant D) — Cliff 2b breakthrough | ✅ 27B default |
-| **PN60** | Preflight quant-arg validator (catches NVFP4 boot failure) | ✅ default-ON |
-| **PN61** | qwen3_vl loader `KeyError` → `language_model_only` auto-fallback | 🟡 opt-in |
-| **PN62** | Text-only ViT scratch **MARKER-ONLY** (real hook pending) | 🟡 opt-in |
-| **PN63** | Consumer Blackwell sm_120 kv-cache-dtype advisory | ✅ advisory |
-| **PN64** | Marlin MoE sm_120 placeholder (env-gated) | 🟡 opt-in |
-| **PN65** | Structured API access log middleware | 🟡 opt-in (27B PROD default) |
-| **PN66** | Multi-turn `</think>` leak fix (vllm#41696 backport) | 🟡 opt-in |
-| **PN67** | Thinking budget inverted-bool fix (vllm#41674 backport) | 🟡 opt-in |
-| **P107** | MTP truncation detector at reasoning→tool_call boundary | ✅ 27B+35B default |
-| **PN51** | Qwen3 streaming `enable_thinking=false` content routing | ✅ 27B+35B default |
-| **PN52** | `prompt_logprobs` eviction fix during chunked prefill | ✅ 27B+35B default |
-| **PN55** | wake_up crash fix on hybrid (Mamba/DeltaNet) models | ✅ defensive |
-| **PN56** | Qwen3Coder XML parse fallback | ✅ 27B+35B default |
-| **PN57** | TurboQuant centroids disk-persistent cache | ✅ 27B+35B default |
-| **PN58** | Spec reasoning boundary validation (narrower P62 alt) | 🟡 opt-in |
-| **P79d** | Preempt async-discard backport — wires + registers | 🟡 opt-in |
-| **P51/P102** | library + diagnostic — runtime guard + spec-meta tracker | ✅/🟡 |
-| _conflicts_with symmetry_ | 4 declarations restored (P65/PN58/P7/P28) | infra |
-
-✅ default-ON in PROD scripts &nbsp;·&nbsp; 🟡 opt-in (env flag)
-
-<details>
-<summary><b>Per-patch detail (click to expand)</b></summary>
-
-- **PN59 — streaming-GDN.** Replaces FLA's full `(B, NT, H, V, K)` h-tensor materialization with a window-iterative driver + GdnScratchPool. **27B Lorbus PROD A/B: −142 MiB/GPU at boot, −95% per-soak fragmentation drift (40 → 2 MiB/turn), 20/20 turns clean.**
-- **PN60 — preflight quant validator.** CLI `genesis preflight` catches apnar club-3090#51 NVFP4 boot failure (`auto_round` vs `compressed-tensors`) with a **one-line remediation hint** instead of a 30-line pydantic ValidationError. 17/17 TDD.
-- **PN61 — qwen3_vl loader fallback.** Class-rebind wrapper converts the NVFP4 ViT-stripped checkpoint boot crash (`KeyError: blocks.0.attn.proj.weight`) into a one-line WARN; idempotent. 12/12 TDD.
-- **PN62 — text-only ViT skip MARKER-ONLY.** Wraps `_dummy_run` and sets `_pn62_skip_vit_scratch=True` when `mm_limits_all_zero AND --language-model-only`. **No production hook reads the marker yet** (audit G-POST-04 honesty); real ViT-alloc skip lands when inner alloc helper honours the marker. Predicted **−3-5 GiB** save pending real hook. 11/11 TDD, awaits cross-rig (apnar 5090).
-- **PN63 — Blackwell consumer kv-cache advisory.** gpu_profile advisory: prefer `--kv-cache-dtype fp8_e5m2` over `fp8_e4m3` on SM 12.0. apnar empirical: e4m3 + 96K loses **−2.6% TPS** vs e5m2 + 48K on RTX 5090.
-- **PN64 — Marlin MoE sm_120 placeholder.** Copies Hopper config; unblocks Marlin MoE per-SM tuning on RTX 5090; awaits real sweep data. Env-gated `GENESIS_ENABLE_PN64`.
-- **PN65 — structured access log.** Replaces uvicorn defaults; live output: `[Genesis-API] 200  POST /v1/chat/completions  34ms  prompt=46t  completion=400t  tools=1  client=127.0.0.1`. 18/18 TDD; default in 27B PROD.
-- **PN66 / PN67 — backports.** PN66 = vllm#41696 multi-turn `</think>` leak fix (panpan0000); PN67 = vllm#41674 thinking budget inverted-bool fix (JasonKeyiL).
-- **P107 — MTP truncation detector.** vllm#41467; observability hook for MTP K=3 + tools stack; raises retryable on truncation at reasoning→tool_call boundary.
-- **PN51 — Qwen3 streaming + thinking-disabled.** vllm#40816 backport; fixes content-channel staying empty in stream-mode for Open WebUI, LibreChat, LobeChat, Cline. NULL-impact validated.
-- **PN52 — prompt_logprobs eviction (vllm#41411 MERGED).** Fixes `-1` placeholder leak when chunked prefill resumes a partial request.
-- **PN55 — hybrid wake_up fix (vllm#41602).** NULL on PROD (no /sleep API); defensive for users running Mamba/DeltaNet hybrids with sleep.
-- **PN56 — Qwen3Coder XML fallback (vllm#41466).** Fixes leaking `{}` placeholder when the XML parser fails midway; protects strict OpenAI clients.
-- **PN57 — TurboQuant centroids cache (vllm#41418-inspired).** Saves ~3-5s cold-start latency on TQ models.
-- **PN58 — spec reasoning boundary validation.** vllm#40962, narrower P62 alt. Mutex with P62 (active in PROD); kept opt-in.
-- **P79d — preempt async-discard (vllm#38624 backport).** Wires + registers (was orphan in v7.69). NULL on PROD sync-ngram; protects async + EAGLE/MTP users from "the the / of of" duplication after preempt-resume.
-- **P51 / P102 — library + diagnostic.** Were runtime-active but invisible to dispatcher matrix. P51 = TQ-active runtime guard; P102 = unified spec-meta + disagreement tracker.
-- **`conflicts_with` symmetry.** Restored 4 declarations: P65↔[P56,P57,P67,P67b], PN58↔P62, P7↔P7b, P28↔PN32. Validator now produces correct conflict messages (was 7 asymmetric → 0).
-
-</details>
-
-### Comparison: v7.68 → v7.72 deltas
-
-```
-                    v7.68 (2026-05-02)    v7.72 (2026-05-05)
-Patch count         100 + sub-patches      ███ 128 PATCH_REGISTRY        +23%
-Default-ON          25                     █████ 32                       +28%
-Tests passing       1599                   █████████████ 1846             +247
-Boot logs           scattered INFO         structured table + categories  qualitative
-API access logs     uvicorn default        Genesis-API formatted          qualitative
-Cliff 2b 24GB OOM   best-effort P103       PN59 −142 MiB/GPU + 95% drift  breakthrough
-Blackwell consumer  not detected           6 PN6x + 10 GPU-spec entries   full support
-Bench harness       scattered scripts      comprehensive_bench.py 6-stage new
-Doctor rules        1 (smoke)              4 (PN60 + club#34 + club#43)   +3
+```bash
+git clone https://github.com/Sandermage/genesis-vllm-patches
+cd genesis-vllm-patches
+pip install -e .
+python3 -m vllm.sndr_core.apply        # apply text-patches in-place
+vllm serve /path/to/model --tensor-parallel-size 2 ...
 ```
 
-### Audit hardening (third-party cross-audit, 2026-05-05)
+Bare-metal is auto-suggested on Proxmox VE 8.x because the upstream
+`vllm/vllm-openai:nightly` image's uvloop crashes on PVE 6.17.x kernels
+([club-3090#49](https://github.com/noonghunna/club-3090/issues/49)).
 
-Third-party deep-audit (`genesis_deep_cross_audit_2026-05-05.md`) flagged 15 functional risks. **11 fixed in v7.72**, breakdown:
-
-| # | Severity | Fix |
-|:-:|:-:|:---|
-| 1 | P1 | Status helper integration: 4 critical wirings (P82/P72/P85/P100) routed via `result_to_wiring_status` — was masking SKIPPED→"applied" |
-| 2 | P1 | PN64 env-gate added in `marlin_tuning.py` — sm_120 entries now respect `GENESIS_ENABLE_PN64=0` |
-| 3 | P1 | PN40 scheduler subpatch split — observe + k_trim now have separate markers (was sharing → partial-apply lock-out) |
-| 4 | P2 | PN65 health-log + quiet paths interaction — `GENESIS_PN65_LOG_HEALTH=1` now actually overrides `/health` in quiet set |
-| 5 | P2 | `preflight_checks` club#34: `consecutive` rewritten as state-machine (`current_streak` / `max_streak`) — was any-match-in-window false-positive risk |
-| 6 | P2 | `env_flag_guard` scan extended to `GENESIS_DISABLE_*` prefix (was unreachable for typo detection) |
-| 7 | P3 | PN59 / GdnScratchPool unified bool parser — accepts `"1","true","yes","y","on"` case-insensitive (was strict `"1","true","True"` only) |
-| 8 | P2 | PN60 wired into `doctor.collect_report` — was registered default-on but never invoked from doctor |
-| 9 | P3 | `gdn_composability.composes_with` honored — explicit-compatible pairs no longer trigger site-overlap warnings; conflict-message picks declaring side |
-| 10 | P2 | Docstring honesty: PN52 (MultiFilePatchTransaction caveat), PN62 (marker-only state), PN61 (post-failure timing), P64 (Pydantic deferred + SKIPPED-handling caveat), apply_all PN40 (sub-C/D wired) |
-| 11 | infra | Removed duplicate `wiring/_status.py` (existing helper in `text_patch.py:251` reused) |
-
-Remaining audit items (post-rescan, audit `genesis_post_fix_rescan_audit_2026-05-05`):
-- `MultiFilePatchTransaction` — dry-run uniqueness + sequential preview shipped; **true rollback** (backup+restore on commit-phase race) still pending.
-- P64 commit-loop — currently routes SKIPPED honestly via 4-wiring helper batch; deeper migration to `MultiFilePatchTransaction` queued.
-- PN62 — currently MARKER-ONLY (wraps `_dummy_run`, sets `_pn62_skip_vit_scratch`); real ViT-alloc hook is pending cross-rig validation on apnar 5090 NVFP4 checkpoint.
-- Wiring SKIPPED-routing migration: closed for **30 of 31 files** (28 batch-injected + 3 already-handled). Last 2 files (P91 dual-file + PN22 dual-file) explicitly migrated 2026-05-05 with G-POST-03 fix per file.
-
-All other audit items have landed.
-
-### TPS evolution — Genesis v7.0 → v7.72 (last 11 days)
-
-![Genesis TPS over versions — 35B + 27B](assets/charts/tps_over_versions.png)
-
-> Each version is a real PROD deployment. The bigger relative jump on 27B vs 35B reflects the higher density of low-hanging fruit in hybrid GDN + spec-decode (P60 / P67 / PN50 / PN59) compared to the FP8 MoE path that already had upstream wins baked in.
-
-### Latency distribution — P50 / P95 / P99
-
-![Latency P50/P95/P99 — Genesis vs stock](assets/charts/latency_distribution.png)
-
-> The number that matters for tool-agent UX is **P99**, not the median — it's the slowest response your user actually feels. Genesis cuts 35B's P99 by 52% and 27B's by 33%. Median is also down ~50% but the tail compression is the bigger UX win.
-
-### Tool-call clean rate — multi-prompt sweep
-
-![Tool-call clean rate — 10 prompts × 4 categories](assets/charts/toolcall_clean_rate.png)
-
-> 10 prompts per category, "clean" = exactly the expected `tool_call` schema, valid JSON args, no `<think>` leak into the content channel. Stock vLLM 0.20.x has a known Qwen3.6 tool-call regression on this pin; PN51/PN56/P107 close the loop.
-
-### Sustained TPS vs context length — where the cliffs hit
-
-![Sustained TPS vs context length, all 3 cliffs marked](assets/charts/tps_vs_context_length.png)
-
-> Three named cliffs in the codebase (see [`docs/CLIFFS.md`](docs/CLIFFS.md)). Stock vLLM 27B-int4 OOMs at Cliff 2b on a single 24 GiB card; PN59 streaming-GDN unlocks 256K context with graceful degradation.
-
-### VRAM allocator drift — PN59 streaming-GDN A/B
-
-![VRAM drift over 60 minutes, PN59 A/B](assets/charts/vram_drift_pn59.png)
-
-> Continuous 92K-token generation on a single 24 GiB card. Without PN59, FLA's full `(B, NT, H, V, K)` h-tensor materialization fragments the allocator at 40 MiB / turn — eventually OOMs. PN59 caps Mamba SSM-state scratch to a streaming window: drift collapses to 2 MiB / turn (-95%), boot baseline is also 142 MiB lighter.
-
-### VRAM steady-state per reference config
-
-![VRAM per reference config — 6 launch scripts vs 24 GiB cap](assets/charts/vram_per_config.png)
-
-> All 6 reference configs land under the 24 GiB cap with intentional headroom for KV-cache spikes during concurrent decoding. Pick the config that matches your workload from the [Reference configs](#-reference-configs) table.
-
-### Boot timeline — cold vs warm
-
-![Boot timeline cold vs warm — 35B PROD](assets/charts/boot_time_breakdown.png)
-
-> Compile cache dominates cold boot (~75% of total). `docker compose restart` keeps the cache (warm boot ~1.5 min); `docker compose down && up -d` wipes it (cold boot ~4 min). Genesis itself adds 4s for ~120 patches.
-
-### Patch coverage — 152 patches across 21 categories
-
-![Patch coverage by category](assets/charts/patch_category_count.png)
-
-> v7.72 ships 128 PATCH_REGISTRY entries across 9 functional groups. Numbers count unique patches; many ship sub-patches (PN52 = 5 file-targets, PN40 = 4 sub-kernels). 32 default-ON for both production models, the remaining ~90 are opt-in via `GENESIS_ENABLE_*` env flags.
-
-### Patch decision waterfall — what actually applies at boot
-
-![Patch decision waterfall — 35B PROD boot](assets/charts/patch_decision_waterfall.png)
-
-> Each gate filters the previous set. The structured boot summary prints this funnel live so operators can see *which* patches dropped at *which* gate. Use `sndr doctor --patches` to inspect the full matrix without booting vLLM.
+See [`docs/INSTALL.md`](docs/INSTALL.md) for the full driver matrix,
+troubleshooting tree, and env-var reference.
 
 ---
 
-<details>
-<summary><b>Same numbers, ASCII fallback (for terminals that won't render PNGs)</b></summary>
+## 7. CLI utilities
 
-```
-Sustained TPS — 2× A5000, MTP K=3, 400-tok gen × 10 iter:
-  35B Stock 0.20.2           ████████████████  ~115  (PN8 off)
-  35B Genesis v7.68          ███████████████████████  ~162  (+41%)
-  35B Genesis v7.72          ███████████████████████████  192.9  (+68% stock)
-  27B Stock 0.20.2           ████████  ~57  (no Genesis)
-  27B Genesis v7.68          █████████████  ~88  (+54%)
-  27B Genesis v7.72          ██████████████  95.6  (+68% stock)
+`sndr` is short-hand for `python3 -m vllm.sndr_core.cli`.
 
-Tool-call clean rate (10 prompts, weather/math/search/multi-tool):
-  35B Stock     ████  2/10
-  35B Genesis   ██████████████████████  10/10
-  27B Stock     ███  1/10
-  27B Genesis   ██████████████████████  10/10
+### Launch
 
-VRAM drift — 20-turn Cliff 2b soak, per-turn GPU 0 (MiB):
-  PN59 OFF  ████████████████████████████████████████  +40
-  PN59 ON   ██  +2  (-95%)
-  Boot baseline: 22873 → 22731 MiB  (-142 MiB save)
+```bash
+sndr launch <preset>                    # boot
+sndr launch <preset> --dry-run          # render the bash, do not exec
+sndr launch <preset> --preflight-only   # env check (driver, mounts, model dir)
+sndr launch <preset> --check-deps       # planner (Docker, NVIDIA driver, …)
+sndr launch                             # interactive preset picker (TTY)
 ```
 
-</details>
+### Inspect
 
-> All charts above are regenerated by `python3 assets/charts/_generate.py`. Numbers come from [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md) — change the data source there + re-run the script and the README chart updates atomically.
-
----
-
-## 🏗 Architecture
-
-```mermaid
-flowchart TD
-    A[Operator runs<br/>start_27b_int4_TQ_k8v4.sh] --> B[Docker container boots]
-    B --> C[apply_all.py orchestrator]
-    C --> D{Per-patch<br/>should_apply}
-    D -->|env on + applies_to OK + no conflict| E[wiring/*/patch_NN_*.py]
-    D -->|skip| F[log skip reason]
-    E --> G[text_patch / class-rebind /<br/>middleware install]
-    G --> H[vLLM server up]
-    H --> I[Structured boot summary<br/>system info + tables]
-    I --> J[ready for traffic]
-    J --> K[PN65 access log:<br/>Genesis-API 200 POST ...]
-
-    subgraph Genesis layer
-        C
-        D
-        E
-        G
-    end
-
-    subgraph Stock vLLM
-        B
-        H
-    end
-
-    subgraph Operator UX
-        I
-        K
-    end
+```bash
+sndr model-config list                  # 11 V2 presets + V1 monoliths
+sndr model-config validate <key>        # schema + audit-rules R-001 … R-016
+sndr model-config diagnose <key>        # check a running container
+sndr model-config verify <key>          # bench-vs-reference (CI gate)
+sndr doctor                             # full system diagnostic
+sndr doctor --patches                   # patch matrix without booting vLLM
 ```
 
-The Genesis layer hooks at four levels:
+### Patches
 
-1. **Dispatcher** ([`vllm/sndr_core/dispatcher.py`](vllm/sndr_core/dispatcher.py)) — single-line `should_apply()` decision per patch using `applies_to` (model class, hybrid flag, quant format, KV dtype, GPU compute capability) + env-flag override + `conflicts_with` symmetry check.
-2. **Integrations** ([`vllm/sndr_core/integrations/`](vllm/sndr_core/integrations/)) — subsystem-first taxonomy (`attention/`, `compile_safety/`, `kernels/`, `kv_cache/`, `loader/`, `lora/`, `memory/`, `middleware/`, `moe/`, `multimodal/`, `observability/`, `quantization/`, `reasoning/`, `scheduler/`, `serving/`, `spec_decode/`, `tool_parsing/`, `worker/`). Each patch is a separate module with `apply()` returning `(status, reason)`.
-3. **Apply mechanism** — three options:
-   - **Text-patch** (anchor-based source replacement, idempotent via marker)
-   - **Class-rebind** (monkey-patch wrapping with `__pn65_wrapped__` marker)
-   - **Middleware install** (FastAPI/Starlette HTTP middleware)
-4. **GPU profile** ([`vllm/sndr_core/gpu_profile.py`](vllm/sndr_core/gpu_profile.py)) — 28-card datasheet (Ampere/Ada/Hopper/Blackwell datacenter+consumer) + per-patch recommendation predicates.
-
----
-
-## 📦 152 patches by category
-
-| Category | Count | What lives here |
-|:---|---:|:---|
-| **spec_decode** | 32 | MTP K=3, ngram, EAGLE backends, kernel routing, acceptance-rate boosters, sentinel guards |
-| **perf_hotfix** | 19 | Defensive backports of upstream fixes (cache eviction, TQ centroids, hybrid wake_up, etc.) |
-| **structured_output** | 14 | Qwen3 reasoning parser, qwen3_coder XML, tool-call recovery, MTP truncation detection |
-| **memory_pool** | 11 | Persistent buffer pools (TQ k8v4 attn_out, GDN gating, FFN intermediate, etc.) |
-| **kernel_perf** | 10 | Triton kernel tuning per-arch (Marlin MoE, P67 multi-query, sparse-V) |
-| **kv_cache** | 7 | Page-size unification, hash-block override, prefix-cache cake-and-eat (P83/P84/P85 family) |
-| **memory_savings** | 5 | FFN scratch pool, SiluAndMul opaque-op pool, text-only ViT skip (PN62) |
-| **stability** | 5 | DX safeguards: Marlin TP cudagraph cap, PN60 quant validator, PN63 fp8 advisory |
-| **compile_safety** | 4 | torch.compile / cudagraph capture-safe wrappers (P38B, PN13, PN35, etc.) |
-| **quantization** | 4 | AutoRound row-parallel cdiv, FP8 block-scaled MM low-M (P81, P91) |
-| **model_correctness** | 3 | GDN a/b contiguity, BF16→FP8 cast guards, hybrid TQ support |
-| **hybrid** | 2 | DeltaNet/Mamba GDN-specific patches (P103 chunked fwd_h, **PN59 streaming**) |
-| **request_middleware** | 2 | Lazy reasoner (PN16), **structured access log (PN65)** |
-| **kernel_safety** | 2 | TQ decode IOOB clamp (PN14), other defensive guards |
-| **kernel** | 1 | Marlin sub-tile pad-on-load (P87) |
-| **perf_kernel** | 1 | TQ multi-query verify routing (P67b) |
-| **memory_hotfix** | 1 | FLA Cliff 2 chunked fwd_h+fwd_o orchestrator (P103) |
-| **TOTAL** | **152** | (32 default-on · 120 opt-in) |
-| **By lifecycle** | | 2 stable · 86 experimental · 33 legacy · 11 retired · 3 research · 1 coordinator |
-| **By implementation_status** | | 4 full · 1 partial · 1 placeholder · 1 retired · 129 unset (legacy/experimental) |
-
-Every patch has: `applies_to` (gating), `default_on` (bool), `category`, `credit` (author + upstream PR), `conflicts_with` (mutex peers), `requires_patches` (dependencies). Full table: [`docs/PATCHES.md`](docs/PATCHES.md).
-
----
-
-## 🚀 Cliff 2b breakthrough — PN59 streaming-GDN (Variant D)
-
-**The problem:** Single 24 GB GPU + Qwen3.6-27B hybrid GDN + long single-prompt prefill ≥50K → OOM in `chunk_gated_delta_rule_fwd_h` materializing the full `(B, NT, H, V, K)` h-tensor (805 MiB allocation). First reported by [@noonghunna](https://github.com/noonghunna) in [club-3090#19](https://github.com/noonghunna/club-3090/issues/19).
-
-**The fix:** PN59 = window-iterative orchestrator that splits the chunk_gated_delta_rule_fwd into windows of `window_nt` chunks, threads `last_recurrent_state` between windows, releases each window's intermediate before allocating the next.
-
-**Live A/B on 27B Lorbus + TQ k8v4 + MTP K=3 + 2× A5000 PROD (2026-05-05):**
-
-```
-                          PN59 OFF (baseline)   PN59 ON       Delta
-Turns survived (20-turn)        20/20             20/20       EQUAL
-Avg latency                     9.5s              9.6s        +1% (noise)
-Pre-soak GPU0 VRAM              22873 MiB         22731 MiB   −142 MiB ▼
-Pre-soak GPU1 VRAM              22184 MiB         22042 MiB   −142 MiB ▼
-Per-soak drift GPU0             +40 MiB           +2 MiB      −95% ▼▼
-Per-soak drift GPU1             +40 MiB           +2 MiB      −95% ▼▼
-20-cell streaming×thinking      20/20 PASS        20/20 PASS  EQUAL
+```bash
+sndr patches list                       # 152 entries, family / lifecycle
+sndr patches show <id>                  # one-patch deep-dive
+sndr patches prove --all                # text-patch anchor verification
+sndr patches prove <id> --dead-detect   # is the patch reachable?
 ```
 
-**Outcome:** PROMOTED to **default-ON in 27B PROD** (`scripts/start_27b_int4_TQ_k8v4.sh`). On Genesis 2× A5000 the savings are modest (we don't hit Cliff 2b — TP=2 + 24 GB headroom). On a single 3090/4090/5090 24 GB card the savings are predicted to be 5-15× larger; cross-rig validation requested from [@noonghunna](https://github.com/noonghunna) and [@apnar](https://github.com/apnar) (see [`docs/CLIFFS.md`](docs/CLIFFS.md)).
+### Plan host changes
 
-```mermaid
-flowchart LR
-    A[chunk_gated_delta_rule_fwd<br/>called by GatedDeltaNet] --> B{single-seq<br/>AND T > 16384<br/>AND GdnScratchPool eligible?}
-    B -->|NO| C[Vanilla path:<br/>full h tensor 805 MiB]
-    B -->|YES| D[Window-iterative driver]
-    D --> E[For each window of window_nt chunks:]
-    E --> F[Slice q/k/v/g/beta along T]
-    F --> G[Acquire h_window from GdnScratchPool<br/>shape-keyed B,window_nt,H,V,K]
-    G --> H[chunk_fwd_h on window]
-    H --> I[chunk_fwd_o on window]
-    I --> J[Thread last_recurrent_state to next window]
-    J --> K[Release window via pool]
-    K --> E
-    E -->|done| L[Concat outputs]
-    L --> M[Return: −142 MiB total / GPU]
+```bash
+sndr deps inspect                       # host snapshot (driver, Docker, models)
+sndr deps plan                          # blockers + suggested fixes
+sndr deps plan --strict                 # exit 2 on any blocker (CI gate)
+sndr deps apply --dry-run               # show the apt / snap commands, do not run
 ```
 
----
-
-## 🆕 Consumer Blackwell support — Issue #20 + 6 PN6x patches
-
-**Trigger:** [@apnar](https://github.com/apnar) reported in [club-3090#51](https://github.com/noonghunna/club-3090/discussions/51) that Genesis on RTX 5090 (sm_120) was applying only the smallest-ever patch set (~25/99) because `is_blackwell()` only recognised SM 10.x datacenter Blackwell. Plus 4 sequential boot failures with NVFP4 quants that the patcher could turn into one-line operator hints.
-
-**Fixed in v7.72:**
-
-| Patch | Fix | Status |
-|:---:|:---|:---:|
-| `is_blackwell()` | recognise SM 10.x **AND** SM 12.0; new `is_blackwell_consumer()` / `is_blackwell_datacenter()` helpers | live |
-| GPU datasheet | added 10 cards: 5060/5060Ti/5070/5070Ti/4060/4060Ti/4070 SUPER/4070Ti/4070Ti SUPER/4080 SUPER + RTX 5090/5080 | live |
-| `model_detect.py` | added forward-compat `qwen3_6` / `qwen3_6_text` markers | live |
-| **PN60** | quant arg vs config.json preflight validator (catches `auto_round` vs `compressed-tensors` mismatch) | live + 17 TDD |
-| **PN61** | qwen3_vl loader KeyError → `language_model_only=True` auto-fallback | live + 12 TDD |
-| **PN62** | text-only ViT scratch skip (saves 3-5 GiB on qwen3_vl + NVFP4 single-card boot) | live + 11 TDD |
-| **PN63** | `gpu_profile` advisory: prefer `--kv-cache-dtype fp8_e5m2` over `fp8_e4m3` on sm_120 | live |
-| **PN64** | Marlin MoE SM 12.0 entry (placeholder copying SM 9.0 Hopper config; awaits 5090 sweep) | live |
-| **P100 auto-rec** | `gpu_profile` rule surfaces P100 (FlashInfer FULL CG for spec-decode) on Blackwell consumer | live |
-| `install.sh` | consumer GPU detect_gpu cases (with proper ordering: specific before general) | live |
-
----
-
-## 🔍 Do I need Genesis? — quick decision matrix
-
-| Your config | Verdict | Why |
-|:---|:---:|:---|
-| Qwen3.6-27B / 35B + **TurboQuant k8v4** (MTP K=3 hybrid GDN) | ✅ **YES** | 17 TQ + 13 spec-decode + 8 structured-output patches active by default; ≥50% APPLY rate |
-| Qwen3.6 + **fp8_e5m2 KV** + recent vLLM nightly (no TurboQuant) | 🟡 **OPTIONAL** | Qwen3 parser fixes (P12/P15/P27/P61b/P107/PN51/PN56) still help; TQ-specific patches NULL-skip cleanly |
-| Single 24 GB GPU + long context (>50K) Qwen3.6-27B hybrid | ✅ **YES (PN59 default-ON)** | Cliff 2b OOM fix saves 142 MiB / GPU + 95% allocator drift reduction |
-| Single 24 GB GPU + GGUF (llama.cpp) Qwen3.6-35B-A3B | ❌ **NO** | Different engine. Use llama.cpp's IQ4_XS quant instead. See [`docs/MODELS.md`](docs/MODELS.md) |
-| Consumer Blackwell (RTX 5090, sm_120) — any Qwen3.6 quant | ✅ **YES** | Issue #20 fix + 6 PN6x patches (PN60-65) target this hardware specifically |
-| Other hybrid-GDN model (Mamba2, etc.) | 🟡 **MAYBE** | Read [`docs/PATCHES.md`](docs/PATCHES.md) `applies_to` columns; PN60 catches the most common boot failures |
-| Multi-modal (qwen3_vl) + NVFP4 quant + single 32 GB card | ✅ **YES (PN61+PN62)** | text-only auto-fallback + ViT scratch skip = boots a checkpoint that otherwise OOMs after model load |
-
----
-
-## 🛠 Tools we ship
-
-> **Full reference:** [`docs/COMMANDS.md`](docs/COMMANDS.md) — single-page
-> cheat sheet for every Genesis command (install · diagnose · boot · bench
-> · per-patch · live-run diagnostics · maintenance · uninstall). The block
-> below is the fast-path subset; everything else is in COMMANDS.md.
+### Benchmarks + scripts
 
 ```bash
 # Comprehensive bench → README-ready markdown table
-GENESIS_MODEL=qwen3.6-35b-a3b python3 tests/bench/comprehensive_bench.py
+GENESIS_MODEL=qwen3.6-27b python3 tools/genesis_bench_suite.py --quick --ctx 8k
 
 # 7-stage smoke test (server + tool-call + SSE + thinking + needle)
 ENDPOINT=http://127.0.0.1:8000 MODEL=qwen3.6-27b ./scripts/verify-full.sh
@@ -613,206 +473,228 @@ ENDPOINT=http://127.0.0.1:8000 MODEL=qwen3.6-27b ./scripts/verify-full.sh
 
 # SHA-verified HF model download (idempotent, resumable)
 ./scripts/fetch_models.sh Lorbus/Qwen3.6-27B-int4-AutoRound ~/models
-
-# Preflight quant-arg validator (catches club-3090#51 NVFP4 boot failure)
-genesis preflight --quantization auto_round \
-  --model /models/Qwen3.6-27B-int4-AutoRound
-
-# Per-patch deep-dive
-genesis explain PN59
-genesis categories --category spec_decode
-sndr doctor
-
-# View structured boot summary (replaces scattered uvicorn lines)
-docker logs vllm-server | grep -A 200 'structured boot summary'
-
-# Enable structured API access log (PN65 — opt-in)
-docker run -e GENESIS_ENABLE_PN65=1 ...
-# Then: [Genesis-API] 200  POST /v1/chat/completions  34ms  prompt=46t  completion=400t  tools=1  client=127.0.0.1
 ```
+
+Full reference: [`docs/COMMANDS.md`](docs/COMMANDS.md).
 
 ---
 
-## 🏃 Quick start
+## 8. Reference presets (V2 layered)
 
-### Path A — interactive wizard (60 seconds)
+Eleven composed presets ship in
+`vllm/sndr_core/model_configs/builtin/presets/`:
+
+| Preset | Model | Hardware | Profile | Lifecycle |
+|---|---|---|---|---|
+| `prod-35b` | qwen3.6-35b-a3b-fp8 | a5000-2x-24gb | 35b-balanced | stable |
+| `prod-27b-tq` | qwen3.6-27b-int4-autoround-tq-k8v4 | a5000-2x-24gb | 27b-tq-k8v4 | stable |
+| `prod-35b-dflash` | qwen3.6-35b-a3b-fp8-dflash | a5000-2x-24gb | 35b-dflash | stable |
+| `prod-27b-dflash` | qwen3.6-27b-dflash | a5000-2x-24gb | 27b-dflash | stable |
+| `long-ctx-27b` | qwen3.6-27b-int4-autoround-fp8kv | a5000-2x-24gb | 27b-long-ctx | stable |
+| `qa-27b-tested` | qwen3.6-27b-int4-autoround-fp8kv | a5000-2x-24gb | qa-27b-fp8kv | tested (QA) |
+| `qa-27b-tq-1x` | qwen3.6-27b-int4-autoround-tq-k8v4 | a5000-1x-24gb | qa-27b-tq-1x | tested (single-card) |
+| `experimental-27b-tq-dflash-ab` | qwen3.6-27b-int4-autoround-tq-k8v4 | a5000-2x-24gb | ab-27b-tq-dflash | experimental |
+| `example-2x-tier-aware` | qwen3.6-27b-int4-autoround-tq-k8v4 | a5000-2x-24gb | tier-aware-2x | experimental |
+| `example-3090-dense-cpu-offload` | qwen3.6-7b-dense | single-3090-24gb | cpu-offload-3090 | experimental |
+| `example-3090-tier-aware` | qwen3.6-27b-int4-autoround-tq-k8v4 | single-3090-24gb | tier-aware-3090 | experimental |
+
+Picking a preset:
 
 ```bash
-git clone https://github.com/Sandermage/genesis-vllm-patches
-cd genesis-vllm-patches
-python3 -m vllm.sndr_core.compat.cli init
-# Detects hw → picks model that fits → writes a tailored launch script
+sndr launch prod-27b-tq         # 27B INT4 + TurboQuant k8v4 + MTP K=3 (2× A5000)
+sndr launch qa-27b-tq-1x        # 27B INT4 single-card (3090 / 4090 / A5000 24 GB)
+sndr launch long-ctx-27b        # 27B + fp8 KV + 256K context budget
+sndr launch prod-35b            # 35B-A3B-FP8 (highest TPS)
 ```
 
-### Path B — Docker (recommended for PROD)
+Each preset composes three layers:
+
+- `model/` — checkpoint, KV format, spec-decode method, patch matrix
+- `hardware/` — rig (GPU class, VRAM, CPU, RAM, host mounts)
+- `profile/` — env / runtime tuning deltas
+
+`make audit-configs` walks every preset on every PR and verifies the
+triplet composes cleanly. See
+[`docs/CONFIG_SYSTEM_V2.md`](docs/CONFIG_SYSTEM_V2.md) and
+[`docs/MODEL_CONFIG_LAUNCHER.md`](docs/MODEL_CONFIG_LAUNCHER.md) for the
+authoring guide.
+
+---
+
+## 9. Patch coverage by family
+
+![Patch coverage by category](assets/charts/patch_category_count.png)
+
+The 152 entries in `PATCH_REGISTRY` split across 21 families:
+
+| Family | Count | What lives here |
+|---|---:|---|
+| `attention.turboquant` | 24 | TQ kernels (P17 / P18 / P67), k8v4 KV cache helpers |
+| `attention.gdn` | 19 | Hybrid GDN streaming (PN59), Mamba SSM state, P103 chunked fwd |
+| `spec_decode` | 15 | MTP K=3, ngram, DFlash, EAGLE backends, acceptance boosters |
+| `kv_cache` | 13 | Page-size unification, prefix-cache cake-and-eat, hash backends |
+| `worker` | 11 | gpu_model_runner integrations, profile_run, thinking-budget |
+| `reasoning` | 9 | Qwen3 reasoning parser, `<think>` handling, multi-turn boundary |
+| `scheduler` | 8 | Async scheduling, batching, chunked-prefill clamp |
+| `serving` | 7 | OpenAI chat-completions, stream gens, MTP truncation detector |
+| `kernels` | 7 | Triton wrappers, Marlin per-SM tuning, sparse-V |
+| `compile_safety` | 6 | torch.compile guards, cudagraph capture safety |
+| `tool_parsing` | 5 | Qwen3Coder XML fallback, tool-call argument parsing |
+| `memory` | 5 | Allocator scoping, fragmentation mitigation, cache release |
+| `moe` | 5 | Fused MoE, router softmax, expert intermediate cache |
+| `quantization` | 4 | FP8 block-scaled, AutoRound row-parallel, FP8 lm_head |
+| `middleware` | 4 | API access log (PN65), telemetry, lazy reasoner |
+| `offload` | 3 | CPU offload, PrefetchOffloader pinned pool (PN102) |
+| `loader` | 2 | Weight loading, quantization checkpoint routing |
+| `attention.flash` | 2 | FA2 / FA3 specifics |
+| `lora` | 1 | LoRA adapter integration |
+| `observability` | 1 | Per-patch metrics |
+| `multimodal` | 1 | Vision encoder scratch sizing |
+| **Total** | **152** | (32 default-ON, 120 opt-in) |
+
+Every patch carries: `applies_to` (gating predicate), `default_on` (bool),
+`family` (str), `credit` (author + upstream PR), `conflicts_with` (mutex
+peers), `requires_patches` (dependencies), `lifecycle` (experimental /
+stable / legacy / retired / research / coordinator).
+
+Full table: [`docs/PATCHES.md`](docs/PATCHES.md). Auto-generated extended
+view: [`docs/PATCHES_AUTO.md`](docs/PATCHES_AUTO.md).
+
+---
+
+## 10. Testing
+
+```
+2 994 unit tests · 0 failures · 94 skipped (CPU-only env)
+  ↳ Per-patch TDD: every wiring patch has test_pNN_*.py
+  ↳ Integration: test_streaming_gdn_numerical, test_gdn_composability_matrix
+  ↳ Sync gates: test_apply_all_dispatcher_sync, test_patches_md_sync
+  ↳ Schema validators: test_self_test, test_validate_schema
+  ↳ Family contracts: 18 directories under tests/unit/integrations/
+  ↳ Bench harness: tools/genesis_bench_suite.py (6-stage README-ready)
+```
+
+Run everything:
 
 ```bash
-git clone https://github.com/Sandermage/genesis-vllm-patches
-cd genesis-vllm-patches
-
-# 1. Download model (SHA-verified, resumable)
-./scripts/fetch_models.sh Lorbus/Qwen3.6-27B-int4-AutoRound ~/models
-
-# 2. Boot one of the 4 reference configs
-bash scripts/start_27b_int4_TQ_k8v4.sh        # 27B + TQ k8v4 + MTP K=3 (daily driver short-ctx)
-# OR
-bash scripts/start_35b_fp8_PROD.sh             # 35B FP8 MoE + MTP K=3 (highest TPS)
-# OR
-bash scripts/start_27b_int4_fp8_e5m2_long_256K.sh    # 27B + fp8_e5m2 + 256K context
-# OR
-bash scripts/start_35b_fp8_DFLASH.sh           # 35B + DFlash drafter K=5 (research)
-
-# 3. Wait ~3-5 min for cold compile cache (subsequent boots ~1-2 min)
-docker logs -f vllm-server | grep "structured boot summary"
-
-# 4. Smoke test
-./scripts/verify-full.sh
-
-# 5. Comprehensive bench
-GENESIS_MODEL=qwen3.6-27b python3 tests/bench/comprehensive_bench.py
+pytest -q
 ```
 
-### Path C — bare metal (no Docker)
+Per-area:
 
 ```bash
-# Prereqs: vLLM 0.20.2rc1.dev9+g01d4d1ad3 installed, Genesis cloned
-cd genesis-vllm-patches
-pip install --no-deps -e tools/genesis_vllm_plugin
-python3 -m vllm.sndr_core.apply   # apply all text-patches in-place
-vllm serve /path/to/model --tensor-parallel-size 2 ...   # start as usual
+pytest tests/unit/integrations/attention/     # GDN + TQ + FA
+pytest tests/unit/dispatcher/                 # registry / decision / audit
+pytest tests/unit/test_phase9_v1_freeze.py    # V1 frozen baseline
+```
+
+CI gates (every PR + nightly):
+
+```bash
+make evidence                  # 40-gate release-tier audit (40/40 green at HEAD)
+make audit-public-paths        # no hardcoded /home/<user>, LAN IPs
+make audit-no-hardcoded-paths  # portable env-var references
+make security-scan             # SAST against the runtime tree
+make release-check             # final release gate
 ```
 
 ---
 
-## 📋 Reference configs
-
-| Script (in `scripts/`) | Model | KV / Spec | Ctx | Use case |
-|:---|:---|:---|---:|:---|
-| `start_35b_fp8_PROD.sh` | 35B-A3B-FP8 | TQ k8v4 / MTP K=3 | 320K | Daily driver, high TPS |
-| `start_27b_int4_TQ_k8v4.sh` | 27B-int4-AutoRound | TQ k8v4 / MTP K=3 | 280K | Hybrid GDN + long-ctx |
-| `start_27b_int4_fp8_e5m2_short.sh` | 27B-int4-AutoRound | fp8_e5m2 / MTP K=3 | 131K | Short-ctx high-TPS |
-| `start_27b_int4_fp8_e5m2_long_256K.sh` | 27B-int4-AutoRound | fp8_e5m2 / MTP K=3 | 256K | Long-ctx RAG |
-| `start_35b_fp8_DFLASH.sh` | 35B-A3B-FP8 | fp8_e5m2 / DFlash K=5 | 320K | Research drafter |
-| `start_27b_int4_DFLASH.sh` | 27B-int4-AutoRound | fp8_e5m2 / DFlash K=5 | 131K | Research drafter (hybrid) |
-
-All 6 scripts share env-flag block (~50 patches enabled by default). To bisect, `sed -i 's/_X=1/_X=0/' script.sh` and re-bench.
-
----
-
-## 🌐 Cross-rig validators
-
-| Validator | Hardware | Repo | What they validate |
-|:---|:---|:---|:---|
-| [@noonghunna](https://github.com/noonghunna) | 1× / 4× RTX 3090 | [club-3090](https://github.com/noonghunna/club-3090) | Cliff 2 OOM, MTP K-sweep, single-3090 long-ctx |
-| [@apnar](https://github.com/apnar) | RTX 5090 (sm_120 consumer Blackwell) | [club-3090#51](https://github.com/noonghunna/club-3090/discussions/51) | Issue #20 fix, NVFP4 ViT path, FlashInfer + spec-decode |
-| [@tfriedel](https://github.com/tfriedel) | 4× RTX 3090 | [qwen3.6-rtx3090-lab](https://github.com/tfriedel/qwen3.6-rtx3090-lab) | Cross-engine (vLLM ⇄ llama.cpp), needle ladder |
-| [@Quentin-M](https://github.com/Quentin-M) | varies | own fork | P64 sub-patch E author + bug-class triage |
-| [@MidasMining](https://github.com/MidasMining) | H20, R6000 Blackwell | own deployments | TurboQuant cross-rig confirms |
-| [@thc1006](https://github.com/thc1006) | RTX 4090 | [vllm-perf](https://github.com/thc1006) | spec-decode acceptance benchmarking |
-| [@JartX](https://github.com/JartX) | 5090 / 4×R6000 / 8×A4000 | upstream PRs | TurboQuant hybrid (vllm#39931) |
-| [@jhsmith409](https://github.com/jhsmith409) | varies | llama-cpp-turboquant | Cross-engine TQ port |
-| [@webcodes-cz](https://github.com/webcodes-cz) | varies | own deployments | OpenAI tool-call validator |
-
----
-
-## 📚 Documentation map
+## 11. Documentation map
 
 ### Getting started
 
 | File | Purpose |
-|:---|:---|
-| [README.md](README.md) | This file — overview, install, benchmarks, quick start |
-| [docs/QUICKSTART.md](docs/QUICKSTART.md) | Step-by-step first-time install (EN + RU) |
-| [docs/INSTALL.md](docs/INSTALL.md) | Detailed installer reference (flags, env, troubleshoot) |
-| [docs/COMMANDS.md](docs/COMMANDS.md) | Single-page command reference (10 sections) |
+|---|---|
+| [README.md](README.md) | This file — overview, install, benchmarks |
+| [docs/QUICKSTART.md](docs/QUICKSTART.md) | Step-by-step first-time install |
+| [docs/INSTALL.md](docs/INSTALL.md) | Detailed installer reference |
+| [docs/COMMANDS.md](docs/COMMANDS.md) | Single-page command reference |
 | [docs/FAQ.md](docs/FAQ.md) | Frequently asked questions |
-| [docs/GLOSSARY.md](docs/GLOSSARY.md) | Cliffs / TQ / MTP / DFlash / Marlin terminology |
+| [docs/GLOSSARY.md](docs/GLOSSARY.md) | Cliffs / TQ / MTP / DFlash terminology |
 
 ### Reference
 
 | File | Purpose |
-|:---|:---|
-| [docs/PATCHES.md](docs/PATCHES.md) | All 152 patches table (id, env_flag, status, credit) |
-| [docs/CONFIGURATION.md](docs/CONFIGURATION.md) | Env-flag reference + tunable parameters |
-| [docs/CONFIGS.md](docs/CONFIGS.md) | Per-launch-script env block reference |
-| [docs/HARDWARE.md](docs/HARDWARE.md) | Tested hardware envelope + cross-rig matrix |
-| [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md) | vLLM / torch / triton / driver pin matrix |
-| [docs/MODELS.md](docs/MODELS.md) | Curated model registry + per-model recommendations |
-| [docs/CLIFFS.md](docs/CLIFFS.md) | Memory cliffs (Cliff 1, 2a, 2b) + mitigation patches |
-| [docs/OOM_RECIPES.md](docs/OOM_RECIPES.md) | Common OOM patterns + fix recipes |
+|---|---|
+| [docs/PATCHES.md](docs/PATCHES.md) | 152-patch table (id, env_flag, status, credit) |
+| [docs/PATCHES_AUTO.md](docs/PATCHES_AUTO.md) | Auto-generated extended view |
+| [docs/CONFIGURATION.md](docs/CONFIGURATION.md) | Env-flag reference + tunables |
+| [docs/CONFIGS.md](docs/CONFIGS.md) | Per-launch env block reference |
+| [docs/CONFIGS_AUTO.md](docs/CONFIGS_AUTO.md) | Auto-generated preset matrix |
+| [docs/CONFIG_SYSTEM_V2.md](docs/CONFIG_SYSTEM_V2.md) | V2 layered architecture |
+| [docs/MODEL_CONFIG_LAUNCHER.md](docs/MODEL_CONFIG_LAUNCHER.md) | Launcher reference |
+| [docs/HARDWARE.md](docs/HARDWARE.md) | Tested hardware envelope |
+| [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md) | vLLM / torch / triton pin matrix |
+| [docs/MODELS.md](docs/MODELS.md) | Curated model registry |
+| [docs/CLIFFS.md](docs/CLIFFS.md) | Memory cliffs + mitigation patches |
+| [docs/OOM_RECIPES.md](docs/OOM_RECIPES.md) | Common OOM patterns + fixes |
 
 ### Benchmarks + testing
 
 | File | Purpose |
-|:---|:---|
-| [docs/BENCHMARKS.md](docs/BENCHMARKS.md) | Full bench results + reproduction recipe |
-| [docs/BENCHMARK_GUIDE.md](docs/BENCHMARK_GUIDE.md) | How to run + interpret a bench from scratch |
+|---|---|
+| [docs/BENCHMARKS.md](docs/BENCHMARKS.md) | Full bench history (Wave 1 → Wave 9) |
+| [docs/BENCHMARK_GUIDE.md](docs/BENCHMARK_GUIDE.md) | How to run + interpret a bench |
 | [docs/SELF_TEST.md](docs/SELF_TEST.md) | Acceptance test runbook |
 
-### Contribute + community
+### Contributing
 
 | File | Purpose |
-|:---|:---|
-| [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) | PR / issue / security disclosure guide |
+|---|---|
+| [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) | PR + issue + security disclosure |
 | [docs/PLUGINS.md](docs/PLUGINS.md) | Author + ship a community patch |
+| [docs/COMMUNITY_PATCHES.md](docs/COMMUNITY_PATCHES.md) | Patches contributed by users |
 | [docs/CREDITS.md](docs/CREDITS.md) | Authors, backports, cross-rig collaborators |
-| [docs/SPONSORS.md](docs/SPONSORS.md) | Hardware / time sponsors + how to support the project |
 
 ### History
 
 | File | Purpose |
-|:---|:---|
-| [CHANGELOG.md](CHANGELOG.md) | Per-release detail (v7.69 → v7.72 + history) |
-| [CHANGELOG.md](CHANGELOG.md) | Engineering log (per-commit, per-A/B detail) |
-| [vllm/sndr_core/README.md](vllm/sndr_core/README.md) | Developer / contributor README for the package |
+|---|---|
+| [CHANGELOG.md](CHANGELOG.md) | Per-release detail (v7.x → v11.0.0+wave9) |
 
 ---
 
-## 🧪 Test coverage
+## 12. Contributing
 
-```
-1846 unit tests pass   |   73 skipped (CPU-only env)   |   0 failures
-  ↳ TDD per patch (PN50/PN51/.../PN65 each have dedicated test_pn*.py)
-  ↳ Integration TDD (test_streaming_gdn_numerical, test_gdn_composability_matrix)
-  ↳ Sync gates (test_apply_all_dispatcher_sync, test_patches_md_sync)
-  ↳ Schema validator (test_self_test, test_validate_schema)
-```
-
-Run locally:
-
-```bash
-python3 -m pytest vllm/sndr_core/tests/ --no-header -q
-# Or specific patch
-python3 -m pytest vllm/sndr_core/tests/test_pn59_streaming_gdn.py -v
-```
+1. **Bug report** — open an issue at
+   [Sandermage/genesis-vllm-patches/issues](https://github.com/Sandermage/genesis-vllm-patches/issues)
+   with: GPU + driver + vLLM pin + Genesis structured boot summary
+   excerpt + minimal reproducer.
+2. **Cross-rig benchmark** — run
+   `python3 tools/genesis_bench_suite.py --quick --ctx 8k` and PR the
+   markdown to `benchmarks/cross_rig_reports/`.
+3. **New patch** — see [`docs/PLUGINS.md`](docs/PLUGINS.md) for the
+   wiring template + TDD requirements.
+4. **Doc fix** — all PRs welcome; install pre-commit hooks via
+   `bash scripts/git/install.sh`.
 
 ---
 
-## 🤝 How to contribute
+## 13. Credits + license
 
-1. **Bug report:** open an issue at [Sandermage/genesis-vllm-patches/issues](https://github.com/Sandermage/genesis-vllm-patches/issues) with: GPU + driver + vLLM pin + Genesis structured boot summary excerpt + minimal reproducer.
-2. **Cross-rig benchmark:** run `python3 tests/bench/comprehensive_bench.py` and PR the markdown to `tests/bench/cross_rig_reports/`.
-3. **New patch:** see [`docs/PLUGINS.md`](docs/PLUGINS.md) for the wiring template + TDD requirements.
-4. **Doc fix:** all PRs welcome; we use `pre-commit` hooks (install via `bash scripts/git/install.sh`).
+Genesis stands on:
 
----
+- **vLLM core team** ([@WoosukKwon](https://github.com/WoosukKwon),
+  [@zhuohan123](https://github.com/zhuohan123),
+  [@simon-mo](https://github.com/simon-mo) and many others) — for the
+  engine.
+- **Beidi Chen + TurboQuant team** — for the k8v4 KV cache that makes
+  256K context possible on consumer Ampere.
+- **27 upstream PR authors we backport** — see
+  [`docs/CREDITS.md`](docs/CREDITS.md) for the full list.
+- **Cross-rig collaborators** —
+  [@noonghunna](https://github.com/noonghunna),
+  [@apnar](https://github.com/apnar),
+  [@tfriedel](https://github.com/tfriedel),
+  [@Quentin-M](https://github.com/Quentin-M),
+  [@MidasMining](https://github.com/MidasMining),
+  [@thc1006](https://github.com/thc1006),
+  [@JartX](https://github.com/JartX),
+  [@jhsmith409](https://github.com/jhsmith409),
+  [@webcodes-cz](https://github.com/webcodes-cz).
 
-## 🙏 Acknowledgments
-
-Genesis stands on the shoulders of:
-
-- **vLLM core team** ([@WoosukKwon](https://github.com/WoosukKwon), [@zhuohan123](https://github.com/zhuohan123), [@simon-mo](https://github.com/simon-mo) and many others) — for the engine
-- **Beidi Chen + TurboQuant team** — for k8v4 KV cache that makes 320K context possible on consumer Ampere
-- **Cross-rig collaborators** (table above) — for hardware variety that catches what 2× A5000 PROD never does
-- **27 upstream PR authors we backport** — see [`docs/CREDITS.md`](docs/CREDITS.md) for the full list
-
-Special thanks to **[@noonghunna](https://github.com/noonghunna)** for the Cliff 2 reproducer suite and the cross-rig culture, **[@Quentin-M](https://github.com/Quentin-M)** for P64 sub-patch E + the rapid bug-class triage style, **[@apnar](https://github.com/apnar)** for the first-ever real RTX 5090 sm_120 datapoints, and **[@tfriedel](https://github.com/tfriedel)** for the cross-engine framing that keeps Genesis honest about scope.
-
----
-
-## 📄 License + disclaimer
-
-Apache 2.0. AS-IS. No warranty, no SLA. Built nights and weekends with the community for the community.
+Apache 2.0. AS-IS. No warranty, no SLA.
 
 **Repo:** https://github.com/Sandermage/genesis-vllm-patches
 **Discussions:** https://github.com/Sandermage/genesis-vllm-patches/discussions
@@ -820,4 +702,5 @@ Apache 2.0. AS-IS. No warranty, no SLA. Built nights and weekends with the commu
 
 ---
 
-*Genesis vLLM Patches — empirical, attribution-rich, AS-IS. Built on Ampere. Tested on Blackwell.*
+*Genesis vLLM Patches — empirical, attribution-rich, AS-IS. Built on
+Ampere. Tested on Blackwell.*

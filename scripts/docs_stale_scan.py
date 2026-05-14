@@ -69,6 +69,7 @@ ALLOWLIST_SUBSTRINGS: tuple[str, ...] = (
     "docs/INSTALL.md",  # Migration appendix referencing _genesis alias
     "docs/CONTRIBUTING.md",  # logger back-compat note
     "docs/BENCHMARK_GUIDE.md",  # symlink back-compat note
+    "docs/MIGRATION_V11_RENAME.md",  # canonical v10→v11 rename doc
     # The scanner itself.
     "scripts/docs_stale_scan.py",
 )
