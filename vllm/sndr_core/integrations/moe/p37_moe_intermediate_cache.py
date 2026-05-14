@@ -130,9 +130,15 @@ _NEW = (
 
 
 def _make_patcher() -> TextPatcher | None:
+    # Upstream relocated the file in dev209+ (PR #40572). Try the new
+    # path first, then fall back to the legacy path for older pins.
     target = resolve_vllm_file(
-        "model_executor/layers/fused_moe/fused_marlin_moe.py"
+        "model_executor/layers/fused_moe/experts/marlin_moe.py"
     )
+    if target is None:
+        target = resolve_vllm_file(
+            "model_executor/layers/fused_moe/fused_marlin_moe.py"
+        )
     if target is None:
         return None
     return TextPatcher(

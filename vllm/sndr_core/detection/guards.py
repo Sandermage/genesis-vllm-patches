@@ -491,6 +491,18 @@ KNOWN_GOOD_VLLM_PINS: tuple[str, ...] = (
     # image vllm-genesis-pinned:dev93-2026-05-09 → vllm/vllm-openai:nightly.
     # Backup retained at ~/start_pn95_2xa5000_test.sh.bak.dev93-2026-05-11.
     "0.20.2rc1.dev209+g5536fc0c0",
+    # 2026-05-14 — vllm nightly dev338+gbf0d2dc6d (~129 dev-increments /
+    # 3 days ahead of dev209). Validated on both PROD models via short
+    # smoke test (server up, /v1/chat/completions OK):
+    #   - 27B INT4 TQ k8v4: 59 applied / 96 skipped / 0 failed; HTTP 200
+    #     ready after 170s; inference 1.97s (1 short prompt).
+    #   - 35B-A3B FP8: 57 applied / 98 skipped / 0 failed / 2 partial-apply
+    #     warnings (P37 fused_marlin_moe path drift — fixed in same wave
+    #     by trying experts/marlin_moe.py first; P103 GDN env not set on
+    #     35B profile by design — 35B is dense MoE, no GDN). HTTP 200
+    #     ready after ~275s; inference 1.50s, content "60".
+    # See CHANGELOG "[v11.0.0+wave9_dev338]" for the upgrade summary.
+    "0.20.2rc1.dev338+gbf0d2dc6d",
 )
 
 
@@ -565,7 +577,7 @@ def assert_vllm_pin_allowed(
         f"vllm pin {pin!r} is NOT on the Genesis known-good list "
         f"({len(allowlist)} entries). Allowed pins: {list(allowlist)}. "
         f"To accept this pin, add it to KNOWN_GOOD_VLLM_PINS in "
-        f"vllm/_genesis/guards.py and document the validation in CHANGELOG."
+        f"vllm/sndr_core/detection/guards.py and document the validation in CHANGELOG."
     )
     if policy == "strict":
         print(f"[Genesis pin-gate] STRICT FAIL: {msg}", flush=True)

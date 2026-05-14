@@ -89,7 +89,13 @@ FLA_CHUNK_O = "model_executor/layers/fla/ops/chunk_o.py"
 # ─────────────────────────────────────────────────────────────────────
 # model_executor/layers/fused_moe/ — MoE expert routing + fused dispatch
 # ─────────────────────────────────────────────────────────────────────
+# Upstream PR #40572 moved the Marlin MoE implementation into the
+# `experts/` subpackage between dev93 and dev209. Pre-dev209 callers
+# resolve FUSED_MARLIN_MOE; dev209+ callers should prefer
+# FUSED_MARLIN_MOE_NEW. Patches that text-patch this file try the new
+# location first and fall back to the legacy one.
 FUSED_MARLIN_MOE = "model_executor/layers/fused_moe/fused_marlin_moe.py"
+FUSED_MARLIN_MOE_NEW = "model_executor/layers/fused_moe/experts/marlin_moe.py"
 FUSED_MOE = "model_executor/layers/fused_moe/fused_moe.py"
 FUSED_MOE_LAYER = "model_executor/layers/fused_moe/layer.py"
 FUSED_MOE_RUNNER = "model_executor/layers/fused_moe/runner/moe_runner.py"
