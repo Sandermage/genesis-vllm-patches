@@ -8,7 +8,7 @@
 [![GitHub forks](https://img.shields.io/github/forks/Sandermage/genesis-vllm-patches?style=social)](https://github.com/Sandermage/genesis-vllm-patches/network/members)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![vLLM pin](https://img.shields.io/badge/vllm-0.20.2rc1.dev93-orange.svg)](https://github.com/vllm-project/vllm)
-[![Patches](https://img.shields.io/badge/patches-151-green.svg)](docs/PATCHES.md)
+[![Patches](https://img.shields.io/badge/patches-152-green.svg)](docs/PATCHES.md)
 [![Tests](https://img.shields.io/badge/tests-2994%20pass-brightgreen.svg)](tests/)
 [![SNDR Core](https://img.shields.io/badge/SNDR%20Core-v11.0.0%2Bwave7-blue.svg)](CHANGELOG.md)
 [![GPU](https://img.shields.io/badge/GPU-RTX%203090%20%7C%204090%20%7C%205090%20%7C%20A5000%20%7C%20H20%20%7C%20R6000%20Blackwell-purple.svg)](docs/HARDWARE.md)
@@ -20,7 +20,7 @@
 > Genesis is organized as two cleanly separated packages with a single
 > install entry point:
 >
-> - **`vllm.sndr_core`** (Apache 2.0, **151 community patches**) — the
+> - **`vllm.sndr_core`** (Apache 2.0, **152 community patches**) — the
 >   public wheel. Lazy `__init__.py` (torch-less importable for CI /
 >   preflight), structured dispatcher, 19-family patch taxonomy,
 >   schema-driven launcher, anchor-manifest fast-path, signed-token
@@ -57,7 +57,7 @@
 ### What this actually is
 
 Genesis is a **drop-in patcher** for vLLM. It pins to a specific vLLM commit
-and applies 151 small, surgical changes — text-edits at known anchors,
+and applies 152 small, surgical changes — text-edits at known anchors,
 class-rebind wrappers, and middleware install — that together turn an
 out-of-the-box vLLM into a production-grade Qwen3.6 inference server on
 *consumer* NVIDIA hardware (3090, A5000, A6000, 4090, 5090, …) where vLLM
@@ -96,11 +96,11 @@ between **public infrastructure**, **commercial IP**, and **glue**:
 
 | Layer | What lives here | License | How it ships |
 |:------|:----------------|:--------|:-------------|
-| `vllm.sndr_core` | **151 community patches** + dispatcher + apply orchestrator + CLI + model-config schema + license gate + Wave 7 observability instrumentation | Apache 2.0 | `pip install vllm-sndr-core` (PyPI, public GitHub) |
+| `vllm.sndr_core` | **152 community patches** + dispatcher + apply orchestrator + CLI + model-config schema + license gate + Wave 7 observability instrumentation | Apache 2.0 | `pip install vllm-sndr-core` (PyPI, public GitHub) |
 | `vllm.sndr_engine` | **Reserved namespace, currently empty.** `engine_available()` returns `False`. Future commercial overlay lands here when genuine private IP exists. PN72 was moved to core 2026-05-08 (Genesis-original community code, not commercial IP) | LicenseRef-Sandermage-Commercial (reserved) | Separate wheel from `pyproject-engine.toml`, distributed only to license holders when overlay materializes |
 | `vllm.general_plugins` entry point | Auto-loads Genesis in every vLLM rank/worker | (vLLM's) | `genesis_v7 = vllm.sndr_core.plugin:register` (canonical, in core wheel) |
 
-### Patch coverage by category (151 entries)
+### Patch coverage by category (152 entries)
 
 ![Patch coverage by category](assets/charts/patch_category_count.png)
 
@@ -108,7 +108,7 @@ between **public infrastructure**, **commercial IP**, and **glue**:
 
 ![Patch decision waterfall](assets/charts/patch_decision_waterfall.png)
 
-Of 151 registry entries, ~49-56 actually `APPLY` on a typical 35B PROD boot —
+Of 152 registry entries, ~49-56 actually `APPLY` on a typical 35B PROD boot —
 the rest skip cleanly via env flags (opt-in by design), `applies_to`
 hardware filters, `conflicts_with` rules, or upstream-merged drift markers
 (self-retiring patches like PN9 and P94 which landed natively in vllm dev93).
@@ -401,7 +401,7 @@ All other audit items have landed.
 
 > Compile cache dominates cold boot (~75% of total). `docker compose restart` keeps the cache (warm boot ~1.5 min); `docker compose down && up -d` wipes it (cold boot ~4 min). Genesis itself adds 4s for ~120 patches.
 
-### Patch coverage — 151 patches across 21 categories
+### Patch coverage — 152 patches across 21 categories
 
 ![Patch coverage by category](assets/charts/patch_category_count.png)
 
@@ -490,7 +490,7 @@ The Genesis layer hooks at four levels:
 
 ---
 
-## 📦 151 patches by category
+## 📦 152 patches by category
 
 | Category | Count | What lives here |
 |:---|---:|:---|
@@ -511,7 +511,7 @@ The Genesis layer hooks at four levels:
 | **kernel** | 1 | Marlin sub-tile pad-on-load (P87) |
 | **perf_kernel** | 1 | TQ multi-query verify routing (P67b) |
 | **memory_hotfix** | 1 | FLA Cliff 2 chunked fwd_h+fwd_o orchestrator (P103) |
-| **TOTAL** | **151** | (32 default-on · 119 opt-in) |
+| **TOTAL** | **152** | (32 default-on · 120 opt-in) |
 | **By lifecycle** | | 2 stable · 86 experimental · 33 legacy · 11 retired · 3 research · 1 coordinator |
 | **By implementation_status** | | 4 full · 1 partial · 1 placeholder · 1 retired · 129 unset (legacy/experimental) |
 
@@ -732,7 +732,7 @@ All 6 scripts share env-flag block (~50 patches enabled by default). To bisect, 
 
 | File | Purpose |
 |:---|:---|
-| [docs/PATCHES.md](docs/PATCHES.md) | All 151 patches table (id, env_flag, status, credit) |
+| [docs/PATCHES.md](docs/PATCHES.md) | All 152 patches table (id, env_flag, status, credit) |
 | [docs/CONFIGURATION.md](docs/CONFIGURATION.md) | Env-flag reference + tunable parameters |
 | [docs/CONFIGS.md](docs/CONFIGS.md) | Per-launch-script env block reference |
 | [docs/HARDWARE.md](docs/HARDWARE.md) | Tested hardware envelope + cross-rig matrix |

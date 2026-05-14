@@ -3455,6 +3455,40 @@ def apply_patch_N204_dual_stream_inproj() -> PatchResult:
     return _failed(name, reason)
 
 
+@register_patch("PN102 PrefetchOffloader pinned-allocator prewarm pool")
+def apply_patch_N102_pinned_alloc_pool() -> PatchResult:
+    """PN102: prewarm a single pinned-host-memory slab so the
+    PrefetchOffloader's per-parameter `torch.empty_strided(
+    pin_memory=True)` calls hit PyTorch's cached pinned allocator
+    instead of a fresh `cudaHostAlloc` each time.
+
+    Triggers only when `--cpu-offload-gb > 0` (PrefetchOffloader path
+    is otherwise never entered). Idempotent runtime monkey-patch on
+    `_CpuParamOffloader._offload_to_cpu_internal`.
+
+    Configurable via `GENESIS_PN102_PREWARM_MB` (default `1024`) —
+    raise for larger models with more offloaded weights, lower for
+    small models where prewarm wastes RAM.
+
+    Default OFF — opt-in via `GENESIS_ENABLE_PN102_PARAM_POOL=1`.
+    """
+    name = "PN102 PrefetchOffloader pinned alloc pool"
+    if not _state._APPLY_MODE:
+        return _applied(name, "dry-run: runtime monkey-patch ready")
+    try:
+        from vllm.sndr_core.integrations.offload import (
+            pn102_pinned_alloc_pool,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = pn102_pinned_alloc_pool.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
 @register_patch("PN108 GDN fused_recurrent prefill dispatch (Cliff 2 memory-bound fix)")
 def apply_patch_N108_fused_recurrent_prefill() -> PatchResult:
     """Patch N108: dispatch long single-seq GDN prefill to fla

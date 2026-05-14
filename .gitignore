@@ -109,3 +109,6 @@ benchmarks/runs/
 .DS_Store
 **/.DS_Store
 
+
+# sponsor-site is a separate sibling project; not part of genesis-vllm-patches release
+sponsor-site/

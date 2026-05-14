@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # audit-no-hardcoded-paths EXEMPT (E26): this file is a remote-host
-# test deployment compose; the `/home/sander/...` paths reflect the
+# test deployment compose; mount paths come from `${SNDR_*}` env vars (see
 # specific test rig layout. NOT a portable preset — operators on
 # other rigs should NOT consume this file directly.
 #
@@ -48,13 +48,13 @@ services:
     volumes:
       # Models (shared, read-only)
       - /nfs/genesis/models:/models:ro
-      - /home/sander/.cache/huggingface:/root/.cache/huggingface:ro
+      - ${SNDR_HF_CACHE:-${HOME}/.cache/huggingface}:/root/.cache/huggingface:ro
       # v11 layout — canonical Apache 2.0 community
-      - /home/sander/genesis-vllm-patches-v11/vllm/sndr_core:/usr/local/lib/python3.12/dist-packages/vllm/sndr_core:ro
-      - /home/sander/genesis-vllm-patches-v11/vllm/sndr_engine:/usr/local/lib/python3.12/dist-packages/vllm/sndr_engine:ro
+      - ${SNDR_REPO_ROOT:-${HOME}/genesis-vllm-patches}/vllm/sndr_core:/usr/local/lib/python3.12/dist-packages/vllm/sndr_core:ro
+      - ${SNDR_REPO_ROOT:-${HOME}/genesis-vllm-patches}/vllm/sndr_engine:/usr/local/lib/python3.12/dist-packages/vllm/sndr_engine:ro
       # OWN cache directories — never share with PROD to avoid pollution
-      - /home/sander/Genesis_Project/vllm_engine/triton-cache-test-v11:/root/.triton/cache
-      - /home/sander/Genesis_Project/vllm_engine/compile-cache-test-v11:/root/.cache/vllm/torch_compile_cache
+      - ${SNDR_CACHE_ROOT:-${HOME}/Genesis_Project/vllm_engine}/triton-cache-test-v11:/root/.triton/cache
+      - ${SNDR_CACHE_ROOT:-${HOME}/Genesis_Project/vllm_engine}/compile-cache-test-v11:/root/.cache/vllm/torch_compile_cache
     environment:
       # Offline: we only use models already on /nfs/genesis/models.
       HF_HUB_OFFLINE: "1"

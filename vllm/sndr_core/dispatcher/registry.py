@@ -1886,6 +1886,37 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "conflicts_with": ["P28"],
         "lifecycle": "experimental",
     },
+    "PN102": {
+        "title": "PrefetchOffloader pinned-allocator prewarm pool",
+        "tier": "community",
+        "family": "offload",
+        "env_flag": "GENESIS_ENABLE_PN102_PARAM_POOL",
+        "default_on": False,
+        "category": "performance",
+        # Relevant only when --cpu-offload-gb > 0. Without prewarm,
+        # vllm's PrefetchOffloader calls torch.empty_strided(pin_memory=True)
+        # once per offloaded param: 27B INT4 Qwen3.6 with cpu_offload_gb=8
+        # has ~768 cudaHostAlloc calls × ~50 ms each ≈ 38 s of pure
+        # pinning overhead before the model is ready. PN102 prewarms a
+        # single contiguous slab (configurable via
+        # GENESIS_PN102_PREWARM_MB, default 1024) so the subsequent
+        # per-param pinnings are served from PyTorch's cached pinned
+        # allocator — drops startup overhead to single-digit seconds.
+        # Idempotent; harmless if cpu_offload is off (then the
+        # PrefetchOffloader is never touched).
+        "credit": (
+            "Genesis-original 2026-05-14. Closes the 38 s startup-wall "
+            "introduced by per-param `cudaHostAlloc` when "
+            "`--cpu-offload-gb > 0` on AutoRound INT4 models. Companion "
+            "to PN104 (cpu_offload → Prefetch redirect) and PN105 "
+            "(AutoRound metadata exclusion)."
+        ),
+        "upstream_pr": None,
+        "applies_to": {},
+        "requires_patches": [],
+        "conflicts_with": [],
+        "lifecycle": "experimental",
+    },
     "PN204": {
         "title": "GDN dual-stream input projection (port of vllm#42301)",
         "tier": "community",

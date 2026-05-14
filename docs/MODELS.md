@@ -32,8 +32,8 @@ Larger Apr-2026 releases — DeepSeek V4 Flash (158GB), GLM-5.1 (754B), Qwen3-Ne
 #### 2. Active-parameter throughput on Ampere
 A3B = 3B active parameters per forward pass on top of a 35B sparse backbone. On 2× A5000 (no FP8 native compute, Marlin weight-only path), this yields ~57 tok/s baseline and 127 tok/s with the Genesis MTP stack. A dense 35B model would saturate the PCIe Gen4 bus and run 3-4× slower. **A3B is the highest-throughput configuration the SM 8.6 generation can sustain at this parameter count.**
 
-#### 3. Genesis patch lock-in (151 runtime patches in PATCH_REGISTRY, ~38 active on 27B PROD / ~31 active on 35B PROD)
-Genesis maintains 151 vLLM runtime patches in PATCH_REGISTRY (audit 2026-05-11). Active subset varies per-model:
+#### 3. Genesis patch lock-in (152 runtime patches in PATCH_REGISTRY, ~38 active on 27B PROD / ~31 active on 35B PROD)
+Genesis maintains 152 vLLM runtime patches in PATCH_REGISTRY (audit 2026-05-11). Active subset varies per-model:
 - **P17/P31/P37** — 256-expert MoE routing fixes
 - **P28/P46/P60/P60b** — GDN+full-attention hybrid (10/30 split) state recovery
 - **P67/P67b/P75** — Triton TurboQuant kernels for spec-decode K+1 verify
