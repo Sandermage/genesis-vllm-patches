@@ -3,8 +3,9 @@ mixed workload (code / short / long-ctx / free-form). Captures latency,
 TPS, tool-call cleanliness, and lets PN40 sub-C+D emit observability
 log lines (every 200 obs).
 
-Run on Mac, target server vLLM endpoint at http://192.168.1.10:8000.
-Reads model name from env or defaults to qwen3.6-27b.
+Targets the vLLM endpoint set via GENESIS_ENDPOINT (default
+http://localhost:8000). Reads model name from GENESIS_MODEL or
+defaults to qwen3.6-27b.
 """
 
 from __future__ import annotations
@@ -19,7 +20,7 @@ import urllib.error
 import urllib.request
 
 API_KEY = os.environ.get("GENESIS_API_KEY", "genesis-local")
-ENDPOINT = os.environ.get("GENESIS_ENDPOINT", "http://192.168.1.10:8000/v1/chat/completions")
+ENDPOINT = os.environ.get("GENESIS_ENDPOINT", "http://localhost:8000/v1/chat/completions")
 MODEL = os.environ.get("GENESIS_MODEL", "qwen3.6-27b")
 
 CODE_PROMPTS = [

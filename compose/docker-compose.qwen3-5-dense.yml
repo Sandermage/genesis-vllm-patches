@@ -34,8 +34,8 @@ services:
       - ~/.cache/huggingface:/root/.cache/huggingface:ro
       - ${SNDR_TRITON_CACHE:-../vllm_engine/triton-cache}:/root/.triton/cache
       - ${SNDR_COMPILE_CACHE:-../vllm_engine/compile-cache-integration}:/root/.cache/vllm/torch_compile_cache
-      - ../vllm/_genesis:/usr/local/lib/python3.12/dist-packages/vllm/_genesis:ro
-      - ../genesis_vllm_plugin:/plugin:ro
+      - ../vllm/sndr_core:/usr/local/lib/python3.12/dist-packages/vllm/sndr_core:ro
+      - ../tools/genesis_vllm_plugin:/plugin:ro
     deploy:
       resources:
         reservations:
@@ -50,7 +50,7 @@ services:
         echo "=== Install prod-equivalent runtime deps + Genesis plugin ==="
         pip install --no-deps --quiet /plugin 2>&1 | tail -2 || true
         echo "=== Apply Genesis wiring (text-patches + rebinds) ==="
-        python3 -m vllm._genesis.patches.apply_all || true
+        python3 -m vllm.sndr_core.apply || true
         echo "=== Start vLLM server (RYS-Qwen3.5-27B-FP8-XL dense) ==="
         exec python3 -m vllm.entrypoints.openai.api_server \
           --model dnhkng/RYS-Qwen3.5-27B-FP8-XL \

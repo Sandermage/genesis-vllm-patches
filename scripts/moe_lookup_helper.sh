@@ -1,7 +1,7 @@
 #!/bin/bash
 # moe_lookup_helper.sh — print the EXACT vLLM fused-MoE config filename for
 # the current GPU + target shape, verify the lookup path, and stage a
-# JSON file into `vllm/_genesis/configs/moe_tuning/` ready to bundle.
+# JSON file into `vllm/sndr_core/configs/moe_tuning/` ready to bundle.
 #
 # This is a NAMING + STAGING helper — NOT an autotuner. It does not run
 # Triton's autotune sweep. The actual sweep is `benchmark_moe.py --tune`
@@ -28,7 +28,8 @@
 #   Qwen3-Next-80B (MoE)  → E=128  N=2048  block_shape=[128,128]
 #
 # Output lands at:
-#   vllm/_genesis/configs/moe_tuning/E={E},N={N},device_name={GPU},dtype={DTYPE}{,block_shape={BS}}.json
+#   vllm/sndr_core/configs/moe_tuning/E={E},N={N},device_name={GPU},dtype={DTYPE}{,block_shape={BS}}.json
+# (override via SNDR_MOE_TUNING_DIR env var)
 #
 # Author: Sandermage 2026-05-05.
 set -euo pipefail
@@ -54,7 +55,7 @@ else
   FNAME="E=${E},N=${N},device_name=${GPU},dtype=${DTYPE}.json"
 fi
 
-OUT_DIR="vllm/_genesis/configs/moe_tuning"
+OUT_DIR="${SNDR_MOE_TUNING_DIR:-vllm/sndr_core/configs/moe_tuning}"
 OUT_PATH="$OUT_DIR/$FNAME"
 
 echo "═══════════════════════════════════════════════════════════════════════"

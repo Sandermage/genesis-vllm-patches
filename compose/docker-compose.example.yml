@@ -29,7 +29,11 @@ services:
       - ~/.cache/huggingface:/root/.cache/huggingface:ro
       - ../vllm_engine/triton-cache:/root/.triton/cache
       - ../vllm_engine/compile-cache:/root/.cache/vllm/torch_compile_cache
-      - ../vllm_engine/patch_genesis_unified.py:/patches/patch_genesis_unified.py:ro
+      # Genesis sndr_core overlay — the canonical v11+ entry point.
+      # The runtime dispatcher applies registered integrations at container
+      # start before `exec vllm serve` takes over. No monolithic patcher
+      # script needed any more (audit 2026-05-14 P1-1).
+      - ../vllm/sndr_core:/usr/local/lib/python3.12/dist-packages/vllm/sndr_core:ro
     deploy:
       resources:
         reservations:
@@ -40,7 +44,7 @@ services:
         limits:
           memory: 64G
     shm_size: "8g"
-    entrypoint: ["/bin/bash", "-c", "pip install pandas scipy xxhash -q && python3 /patches/patch_genesis_unified.py && exec vllm serve \"$@\"", "--"]
+    entrypoint: ["/bin/bash", "-c", "pip install pandas scipy xxhash -q && python3 -m vllm.sndr_core.apply && exec vllm serve \"$@\"", "--"]
     command:
       - --model
       - /models/Qwen3.6-35B-A3B-FP8
@@ -109,8 +113,13 @@ services:
       - ../open_webui:/app/backend/data
     environment:
       - OPENAI_API_BASE_URL=http://genesis-proxy-v2:8318/v1
-      - OPENAI_API_KEY=genesis-gw-f9d719aaab89c97bdf649cb7295feb4f1f394c87
-      - OLLAMA_BASE_URL=http://192.168.1.15:9621
+      # Audit 2026-05-14 P1-5: do NOT hard-code keys / private LAN IPs in
+      # public compose. Operator supplies these via the host environment
+      # (or a separate `compose/.env` file). The `${VAR:?msg}` form makes
+      # `docker compose` fail loudly when the variable is unset, instead
+      # of silently embedding an empty/leaked value.
+      - OPENAI_API_KEY=${OPENAI_API_KEY:?set OPENAI_API_KEY in compose .env or shell}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://localhost:11434}
       - ENABLE_OLLAMA_API=true
       - WEBUI_AUTH=true
       - WEBUI_SECRET_KEY=${WEBUI_SECRET_KEY:-genesis-webui-secret-change-me}

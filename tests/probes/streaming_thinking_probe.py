@@ -43,7 +43,7 @@ import urllib.error
 import urllib.request
 
 ENDPOINT = os.environ.get(
-    "GENESIS_ENDPOINT", "http://192.168.1.10:8000/v1/chat/completions",
+    "GENESIS_ENDPOINT", "http://localhost:8000/v1/chat/completions",
 )
 MODEL = os.environ.get("GENESIS_MODEL", "qwen3.6-27b")
 API_KEY = os.environ.get("GENESIS_API_KEY", "genesis-local")

@@ -5,19 +5,26 @@
 Periodically (run from CI) checks two things against an upstream vllm
 checkout:
 
-  1. **Anchor drift.** For every Genesis wiring patch in
-     `vllm/_genesis/wiring/patch_*.py`, attempt to construct its
-     `_make_patcher()` and verify that all required anchors are still
+  1. **Anchor drift.** For every Genesis patch spec returned by
+     `vllm.sndr_core.dispatcher.spec.iter_patch_specs()` that carries
+     an `apply_module`, import the module, attempt to construct its
+     `_make_patcher()`, and verify that all required anchors are still
      present in the upstream source files they target. If an anchor no
      longer matches, upstream has refactored that region — we need to
      re-derive the anchor before the next pin bump.
 
   2. **Upstream-merged markers.** For every entry in
-     `vllm/_genesis/patches/upstream_compat.py::UPSTREAM_MARKERS`,
+     `vllm/sndr_core/integrations/upstream_compat.py::UPSTREAM_MARKERS`,
      check whether its `marker` string now appears in the upstream
      source. A new match means the upstream PR has merged → the
      corresponding Genesis patch should self-retire on the next pin
      bump.
+
+Audit 2026-05-14 P1-3 rewrote this tool: pre-v11 it walked
+`vllm/_genesis/wiring/patch_*.py` directly; v11 introduced the
+spec-driven dispatcher, and the legacy `_genesis` namespace was
+removed in commit 776aa32b. The tool now consumes `iter_patch_specs()`
+so it stays in sync with whatever the dispatcher considers canonical.
 
 Usage:
     python3 tools/check_upstream_drift.py /path/to/upstream-vllm-clone
@@ -90,13 +97,35 @@ def _git_head_sha(repo: Path) -> str:
         return "unknown"
 
 
-def _list_wiring_modules() -> list[str]:
-    """Find all patch_*.py wiring modules."""
-    wiring_dir = REPO_ROOT / "vllm" / "_genesis" / "wiring"
-    out = []
-    for f in sorted(wiring_dir.glob("patch_*.py")):
-        out.append(f"vllm._genesis.wiring.{f.stem}")
-    return out
+def _list_wiring_modules() -> list[tuple[str, str]]:
+    """Return (patch_id, apply_module) pairs for every text-patch wiring.
+
+    The v11 spec-driven dispatcher is the source of truth. We pick patches
+    whose `apply_module` is a dotted Python path (i.e. they live under
+    `vllm/sndr_core/integrations/`) and whose `implementation_status` is
+    one of the text-patch-ish states (`live`, `full`, `text_patch`,
+    `runtime_hook`). Other implementation states (`retired`,
+    `upstream_merged`, `placeholder`, `marker_only`, …) are skipped —
+    they either don't apply text patches or don't apply at all.
+    """
+    try:
+        from vllm.sndr_core.dispatcher.spec import iter_patch_specs
+    except Exception as exc:  # pragma: no cover — defensive
+        print(f"check_upstream_drift: iter_patch_specs unavailable: {exc}",
+              file=sys.stderr)
+        return []
+
+    text_patch_states = {"live", "full", "text_patch", "runtime_hook"}
+    out: list[tuple[str, str]] = []
+    for spec in iter_patch_specs():
+        module = getattr(spec, "apply_module", None)
+        if not module:
+            continue
+        status = getattr(spec, "implementation_status", None)
+        if status is not None and status not in text_patch_states:
+            continue
+        out.append((spec.patch_id, module))
+    return sorted(out, key=lambda kv: kv[0])
 
 
 def _check_one_patch(module_name: str, upstream_root: Path) -> dict:
@@ -305,10 +334,10 @@ def main(argv: list[str]) -> int:
 
     # Anchor drift checks
     anchors_report: dict[str, dict] = {}
-    for module_name in _list_wiring_modules():
-        # Use a short patch-id label keyed by module name (or whatever it
-        # exposes). We strip 'vllm._genesis.wiring.' prefix for readability.
-        label = module_name.replace("vllm._genesis.wiring.", "")
+    for patch_id, module_name in _list_wiring_modules():
+        # Label by the registry patch_id (e.g. "P58") with the module
+        # path as a fallback for readability in the report.
+        label = patch_id
         anchors_report[label] = _check_one_patch(module_name, upstream)
 
     # Upstream-merged marker checks

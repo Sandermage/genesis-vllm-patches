@@ -15,7 +15,7 @@ Workflow
 
 Eligibility
 -----------
-- Server URL via GENESIS_ENDPOINT (default 192.168.1.10:8000)
+- Server URL via GENESIS_ENDPOINT (default http://localhost:8000)
 - Model: 27B Lorbus hybrid (Cliff 2b reproducer model)
 - WSL2 / single-3090 / 24GB headroom = traditional Cliff 2 trigger config
 
@@ -51,10 +51,13 @@ import urllib.request
 
 API_KEY = os.environ.get("GENESIS_API_KEY", "genesis-local")
 ENDPOINT = os.environ.get(
-    "GENESIS_ENDPOINT", "http://192.168.1.10:8000/v1/chat/completions"
+    "GENESIS_ENDPOINT", "http://localhost:8000/v1/chat/completions"
 )
 MODEL = os.environ.get("GENESIS_MODEL", "qwen3.6-27b")
-SSH_HOST = os.environ.get("GENESIS_SSH_HOST", "sander@192.168.1.10")
+# Empty default = local-only run (no SSH telemetry). Operator wires
+# GENESIS_SSH_HOST=<user>@<host> when running this probe against a
+# remote rig and wanting nvidia-smi memory snapshots in the report.
+SSH_HOST = os.environ.get("GENESIS_SSH_HOST", "")
 
 
 SYSTEM_PROMPT = (

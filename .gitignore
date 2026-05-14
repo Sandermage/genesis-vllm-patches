@@ -41,9 +41,26 @@ snapshots/
 *.backup-*
 *.tmp
 
-# Logs
+# Logs / generated result JSON (bench output, probe runs, …)
 *.log
-*.json
+*.results.json
+*.bench.json
+
+# Genesis package-data JSON is source — keep it tracked even though the
+# generic `*.json` rule above existed historically. Audit 2026-05-14
+# (CURRENT_PROJECT_RECHECK_CLEANUP_ERRORS_2026-05-14_eaa44975_RU.md P0-2):
+# wheel / clean-clone need these artifacts; the generic `*.json` rule was
+# silently dropping them.
+!vllm/sndr_core/schemas/
+!vllm/sndr_core/schemas/*.json
+!vllm/sndr_core/manifests/
+!vllm/sndr_core/manifests/*.json
+!vllm/sndr_core/configs/
+!vllm/sndr_core/configs/**/*.json
+!schemas/
+!schemas/*.json
+!evidence/.gitkeep
+!benchmarks/cross_rig_reports/**/*.json
 
 # vLLM compiled artifacts
 *.so
