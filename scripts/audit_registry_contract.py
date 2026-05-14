@@ -126,7 +126,10 @@ def _check_apply_module_coverage(
     warnings: list[str] = []
     # implementation_status values that legitimately have no apply_module
     # (advisory entries, placeholders, exploratory wrappers).
-    NO_WIRING_OK = {"metadata_only", "placeholder", "advisory", "research"}
+    # `marker_only` is the canonical enum value (per dispatcher validator);
+    # other strings (metadata_only/advisory/research) are accepted for
+    # backward compat from earlier drafts.
+    NO_WIRING_OK = {"marker_only", "metadata_only", "placeholder", "advisory", "research"}
     for pid, meta in registry.items():
         lifecycle = meta.get("lifecycle", "experimental")
         if lifecycle == "retired":
