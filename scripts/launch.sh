@@ -17,7 +17,7 @@
 set -euo pipefail
 
 if [ $# -eq 0 ] || [ "$1" = "list" ]; then
-  exec python3 -m vllm._genesis.compat.cli model-config list
+  exec python3 -m vllm.sndr_core.compat.cli model-config list
 fi
 
 KEY="$1"
@@ -25,13 +25,13 @@ shift
 
 case "${1:-}" in
   --dry|--dry-run)
-    exec python3 -m vllm._genesis.compat.cli model-config render "$KEY"
+    exec python3 -m vllm.sndr_core.compat.cli model-config render "$KEY"
     ;;
   --validate)
-    exec python3 -m vllm._genesis.compat.cli model-config validate "$KEY"
+    exec python3 -m vllm.sndr_core.compat.cli model-config validate "$KEY"
     ;;
   --preflight)
-    exec python3 -m vllm._genesis.compat.cli model-config preflight "$KEY"
+    exec python3 -m vllm.sndr_core.compat.cli model-config preflight "$KEY"
     ;;
   --help|-h)
     cat <<'EOF'
@@ -44,17 +44,17 @@ Genesis universal launcher
   ./scripts/launch.sh list              show all configs
 
 After launch, use:
-  python3 -m vllm._genesis.compat.cli model-config diagnose <key>
-  python3 -m vllm._genesis.compat.cli model-config verify <key>
+  python3 -m vllm.sndr_core.compat.cli model-config diagnose <key>
+  python3 -m vllm.sndr_core.compat.cli model-config verify <key>
 EOF
     exit 0
     ;;
   "")
     # Pass-through: actual launch (uses preflight gate, see model_config_cli)
-    exec python3 -m vllm._genesis.compat.cli model-config launch "$KEY"
+    exec python3 -m vllm.sndr_core.compat.cli model-config launch "$KEY"
     ;;
   *)
     # Pass remaining args through to the launch subcommand
-    exec python3 -m vllm._genesis.compat.cli model-config launch "$KEY" "$@"
+    exec python3 -m vllm.sndr_core.compat.cli model-config launch "$KEY" "$@"
     ;;
 esac

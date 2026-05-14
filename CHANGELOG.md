@@ -15,6 +15,106 @@ loud-and-clear in the per-release notes.
 
 ---
 
+## [v11.0.0+wave9_release_blockers_closed] — Release-tier audit closure (2026-05-14, evening)
+
+> Closes the remaining P0/P1 findings from
+> `docs/_internal/CURRENT_PROJECT_STATE_ERRORS_2026-05-14_RU.md`.
+> Both 256K hardware bench ladders (27B INT4 TQ k8v4 + 35B-A3B FP8)
+> completed PASS on the same dcacdf9a pin with all Wave 9 patches
+> in the canonical config matrix.
+
+### Hardware verification — both target models hit 256K
+
+`docs/_internal/runs/tp2_256k_probe_27b.json` and
+`tp2_256k_probe_35b.json` (gitignored — internal artefact):
+
+| Model | 200K | 230K | 256K |
+|---|---|---|---|
+| **27B INT4 TQ k8v4** | 886 s · 113 t/s | 1190 s · 97 t/s | 1487 s · 86 t/s |
+| **35B-A3B FP8**     | 381 s · 263 t/s | 495 s · 233 t/s | 620 s · 207 t/s |
+
+Both runs were against the V2 layered preset (`sndr launch prod-27b-tq` /
+`prod-35b`) after the env-flag matrix synced in commit `77f2ec8` —
+i.e. the canonical `python3 -m vllm.sndr_core.cli launch ...` path,
+not the bash launcher. The bash launcher in
+`scripts/launch/start_pn95_2xa5000_nightly_dcacdf9a.sh` is now a
+reference artefact (it documents the exact env matrix used during
+commissioning) rather than the canonical operator path.
+
+### `launch --check-deps` false-positive — fixed
+
+`vllm/sndr_core/cli/launch.py::_run_check_deps` previously only ran
+the caveat matcher (env-flag combinations) and therefore never
+reported the real host blockers (Docker not installed, NVIDIA driver
+missing, model directory absent). Operators got a green preflight
+even when the host could not launch.
+
+`_run_check_deps` now drives the canonical
+`vllm.sndr_core.deps.{inspect_host, plan_changes}` planner — the same
+code path that powers `sndr deps plan --strict` — and surfaces both
+planner blockers and caveat errors. Either signal makes the function
+return 2. Verified on a Mac dev box without Docker: three planner
+blockers + `FINAL_EXIT=2`.
+
+### `vllm/_genesis/` migration — every active consumer now uses sndr_core
+
+`_genesis/` was the legacy patch home; `sndr_core/` has been the
+canonical home since v11. Runtime was already clean
+(`python3 -m vllm.sndr_core.apply` loads zero `_genesis` modules),
+but six utility / installer / probe files outside the runtime path
+still imported from `vllm._genesis`. Each one is now pointed at the
+sndr_core equivalent:
+
+| File | Was | Now |
+|---|---|---|
+| `patch_genesis_unified.py` | `vllm._genesis.patches.apply_all.main` | `vllm.sndr_core.apply.apply_all` |
+| `tools/check_upstream_drift.py` | `vllm._genesis.patches.upstream_compat` | `vllm.sndr_core.integrations.upstream_compat` |
+| `tools/genesis_vllm_plugin/genesis_v7/__init__.py` | `vllm._genesis.patches.apply_all.run` | `vllm.sndr_core.apply.orchestrator.run` |
+| `tests/probes/verify_new_patches_all_models.py` | `vllm._genesis.dispatcher` | `vllm.sndr_core.dispatcher{,.registry}` |
+| `install.sh` | symlink `_genesis` + `vllm._genesis.compat.cli` | symlink `sndr_core` + `vllm.sndr_core.compat.cli` (and the legacy `_genesis` symlink is cleaned up during setup) |
+| `scripts/run_validation_suite.sh` | `vllm._genesis.model_detect.get_model_profile` | `vllm.sndr_core.detection.model_detect.get_model_profile` |
+
+The only remaining references to `vllm._genesis` outside the package
+itself are intentional — `tests/legacy/test_deployment_runtimes.py`
+verifies that the deprecated docker bind-mount path still works for
+v7.x users, and `tests/unit/scripts/test_check_no_legacy_imports.py`
+is the static gate that fails the build if NEW legacy imports
+appear. The `vllm/_genesis/` directory itself can now be removed in
+a follow-up commit without breaking any active runtime, plugin,
+utility, installer, or test path.
+
+### Patch proof coverage — 151/151
+
+`python3 -m vllm.sndr_core.cli patches prove --all` was run to
+populate `evidence/patch_proof/` with one `{patch_id}__*.json`
+artefact per registry entry. The reference doc reported 136 proven
+/ 15 dead (coverage 90.1%); after the sweep:
+
+```
+dead=0  proven=151  coverage=100.0%
+```
+
+`audit-patches-prove-all` in `make evidence` is now green
+(80 s wall on the local box). Proof artefacts live under
+`evidence/patch_proof/` and are gitignored by project policy — each
+operator runs `prove --all` on their own pin to populate the local
+cache; the static checks inside each artefact verify the
+patch_id ↔ registry entry ↔ apply-function link.
+
+The 15 entries previously surfaced as "dead" (SNDR_WORKSPACE_001,
+PN200/201/202/203/204, PN104/105/106/108, PN91/92/97, PN71/73)
+now all carry a fresh `static_passed: true` proof.
+
+### Tail of the P0/P1 audit list
+
+The remaining `make evidence` failures
+(audit-community, audit-all-referents, audit-readme-counters,
+audit-no-hardcoded-paths, audit-no-stub, audit-engine-boundary,
+audit-security) are outside the original reference-doc P0/P1 list
+and are filed as separate cleanup items for the next iteration.
+
+---
+
 ## [v11.0.0+wave9_tp2_256k] — TP=2 256K commissioning + PN59 anchor fix (2026-05-14)
 
 > Wave 9 closure for the 27B-INT4 hybrid stack on 2× A5000. PN59 (streaming

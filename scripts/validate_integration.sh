@@ -93,14 +93,14 @@ log ""
 log "=== 2. Genesis package import check ==="
 
 if docker exec "$CONTAINER" python3 -c \
-    "from vllm._genesis import __version__, __author__; print(f'{__version__} by {__author__}')" 2>&1; then
-    pass "vllm._genesis imports cleanly"
+    "from vllm.sndr_core import __version__; print(f'sndr_core {__version__}')" 2>&1; then
+    pass "vllm.sndr_core imports cleanly"
 else
-    fail "vllm._genesis import failed"
+    fail "vllm.sndr_core import failed"
 fi
 
 if docker exec "$CONTAINER" python3 -c \
-    "from vllm._genesis.guards import platform_summary; import json; print(json.dumps(platform_summary(), default=str, indent=2))" 2>&1; then
+    "from vllm.sndr_core.detection.guards import platform_summary; import json; print(json.dumps(platform_summary(), default=str, indent=2))" 2>&1; then
     pass "platform_summary() works"
 else
     fail "platform_summary() failed"

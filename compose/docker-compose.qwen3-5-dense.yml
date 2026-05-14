@@ -32,8 +32,8 @@ services:
       - GENESIS_ENABLE_P37=1
     volumes:
       - ~/.cache/huggingface:/root/.cache/huggingface:ro
-      - /home/sander/Genesis_Project/vllm_engine/triton-cache:/root/.triton/cache
-      - /home/sander/Genesis_Project/vllm_engine/compile-cache-integration:/root/.cache/vllm/torch_compile_cache
+      - ${SNDR_TRITON_CACHE:-../vllm_engine/triton-cache}:/root/.triton/cache
+      - ${SNDR_COMPILE_CACHE:-../vllm_engine/compile-cache-integration}:/root/.cache/vllm/torch_compile_cache
       - ../vllm/_genesis:/usr/local/lib/python3.12/dist-packages/vllm/_genesis:ro
       - ../genesis_vllm_plugin:/plugin:ro
     deploy:

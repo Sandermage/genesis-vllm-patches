@@ -46,6 +46,7 @@ import argparse
 import sys
 from typing import Any
 
+from .community import add_argparser as _community_argparser  # Phase 5 community SDK
 from .install import add_argparser as _install_argparser
 from .launch import add_argparser as _launch_argparser
 from .memory import add_argparser as _memory_argparser
@@ -186,6 +187,7 @@ def cli_main(argv: list[str] | None = None) -> int:
         metavar="{install,launch,doctor,verify,model-config,patches,...}",
     )
     # Native subcommands (live in this package).
+    _community_argparser(subparsers)  # Phase 5 community SDK validator + scaffold
     _install_argparser(subparsers)
     _launch_argparser(subparsers)
     _memory_argparser(subparsers)  # T1.3 (audit closure 2026-05-09)

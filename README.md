@@ -401,7 +401,7 @@ All other audit items have landed.
 
 > Compile cache dominates cold boot (~75% of total). `docker compose restart` keeps the cache (warm boot ~1.5 min); `docker compose down && up -d` wipes it (cold boot ~4 min). Genesis itself adds 4s for ~120 patches.
 
-### Patch coverage — 151 patches across 20 categories
+### Patch coverage — 151 patches across 21 categories
 
 ![Patch coverage by category](assets/charts/patch_category_count.png)
 

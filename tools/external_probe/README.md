@@ -22,11 +22,11 @@ hasn't been migrated yet.
 ## Running them
 
 If your launch script uses external_probe, run them BEFORE
-`python3 -m vllm._genesis.patches.apply_all`:
+`python3 -m vllm.sndr_core.apply`:
 
 ```bash
 python3 /external_probe/patch_pr40798_backport.py || echo "PR40798 probe failed (non-fatal)"
-python3 -m vllm._genesis.patches.apply_all
+python3 -m vllm.sndr_core.apply
 ```
 
 ## When to delete a probe

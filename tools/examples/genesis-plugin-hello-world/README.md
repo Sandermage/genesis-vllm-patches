@@ -27,7 +27,7 @@ export GENESIS_ENABLE_HELLO_WORLD=1
 
 ```bash
 # Lists all discovered plugins, with lifecycle/origin annotations.
-python3 -m vllm._genesis.compat.cli plugins list
+python3 -m vllm.sndr_core.compat.cli plugins list
 ```
 
 Expected entry: `HELLO_WORLD` (lifecycle: `community`, origin from this
@@ -40,7 +40,7 @@ package's entry-point).
   `title`, `env_flag`, `default_on`, `community_credit`) plus
   optional fields (`apply_callable`, `category`, `credit`)
 - `apply()` returning the canonical `(status, reason)` tuple
-- Schema-clean metadata (passes `vllm._genesis.compat.schema_validator`)
+- Schema-clean metadata (passes `vllm.sndr_core.compat.schema_validator`)
 - End-to-end discovery + validation pipeline (covered by
   `vllm/_genesis/tests/compat/test_plugin_example.py`)
 
