@@ -8,14 +8,14 @@
 [![GitHub forks](https://img.shields.io/github/forks/Sandermage/genesis-vllm-patches?style=social)](https://github.com/Sandermage/genesis-vllm-patches/network/members)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![vLLM pin](https://img.shields.io/badge/vllm-0.20.2rc1.dev209-orange.svg)](https://github.com/vllm-project/vllm)
-[![Patches](https://img.shields.io/badge/registry-152%20patches-green.svg)](docs/PATCHES.md)
+[![Patches](https://img.shields.io/badge/registry-156%20patches-green.svg)](docs/PATCHES.md)
 [![SNDR Core](https://img.shields.io/badge/SNDR%20Core-v11.0.0%2Bwave9-blue.svg)](CHANGELOG.md)
 [![GPU](https://img.shields.io/badge/GPU-RTX%203090%20%7C%204090%20%7C%205090%20%7C%20A5000%20%7C%20H20%20%7C%20R6000-purple.svg)](docs/HARDWARE.md)
 [![PROD](https://img.shields.io/badge/PROD%20uptime-24%2F7-blue.svg)](docs/BENCHMARKS.md)
 
 **Runtime patches for [vLLM](https://github.com/vllm-project/vllm) — Qwen3.6-class
 inference on consumer NVIDIA Ampere / Ada / Blackwell with TurboQuant k8v4 KV
-cache, MTP K=3 spec-decode, tool-calling, and 256K-class context. 152 patches
+cache, MTP K=3 spec-decode, tool-calling, and 256K-class context. 156 patches
 across 21 families. Apache 2.0.**
 
 ---
@@ -41,7 +41,7 @@ across 21 families. Apache 2.0.**
 ## 1. What this is
 
 Genesis is a **drop-in runtime patcher** for vLLM. It pins to a specific vLLM
-nightly commit and applies 152 small, surgical changes — text edits at known
+nightly commit and applies 156 small, surgical changes — text edits at known
 anchors, class-rebind wrappers, and FastAPI middleware — that together turn
 an out-of-the-box vLLM into a production-grade Qwen3.6 inference server on
 *consumer* NVIDIA hardware (3090, 4090, 5090, A5000, A6000, …) where vLLM
@@ -98,7 +98,7 @@ install entry:
 
 | Namespace | License | Status | Wheel |
 |---|---|---|---|
-| `vllm.sndr_core` | Apache 2.0 | **152 patches active** | `pip install vllm-sndr-core` |
+| `vllm.sndr_core` | Apache 2.0 | **156 patches active** | `pip install vllm-sndr-core` |
 | `vllm.sndr_engine` | LicenseRef-Sandermage-Commercial (reserved) | **Empty** — `engine_available()` returns `False` | separate `pyproject-engine.toml` |
 
 The `sndr_engine` namespace is reserved for future commercial overlays
@@ -117,7 +117,7 @@ vllm/sndr_core/
 ├── compat/            version_check, predicates, lifecycle, doctor, init_wizard
 ├── deps/              host inspection + plan_changes (Docker, driver, models)
 ├── detection/         GPU class, hybrid arch, quantization scheme, MoE detection
-├── dispatcher/        registry (152 entries) + audit + decision + spec
+├── dispatcher/        registry (156 entries) + audit + decision + spec
 ├── integrations/      patches grouped by family (20 directories on disk)
 │   ├── attention/      ── GDN / FA2 / FA3 / TurboQuant subdirs (3 sub-families)
 │   ├── compile_safety/ ── torch.compile + cudagraph capture guards
@@ -169,16 +169,16 @@ vllm/sndr_core/
 | | | `lora` | 1 |
 | | | `observability` | 1 |
 | | | `multimodal` | 1 |
-| **Total** | | | **152** |
+| **Total** | | | **156** |
 
-**32 of 152** are default-ON in PROD scripts. The remaining 120 are opt-in
+**32 of 156** are default-ON in PROD scripts. The remaining 120 are opt-in
 via `GENESIS_ENABLE_<id>=1` env flags.
 
 ### Boot-time decision waterfall (35B PROD, 2× A5000)
 
 ![Patch decision waterfall](assets/charts/patch_decision_waterfall.png)
 
-Of 152 registry entries, ~49–56 actually `APPLY` on a typical 35B PROD
+Of 156 registry entries, ~49–56 actually `APPLY` on a typical 35B PROD
 boot — the rest skip cleanly via env flags, `applies_to` hardware filters,
 `conflicts_with` rules, or upstream-merged drift markers. Per-patch
 `elapsed_ms` and `rss_delta` are visible at boot when
@@ -294,7 +294,7 @@ RTX 3090 / 4090 / 5090.
 - TP=2 splits attention + MoE shards across two GPUs; aggregate memory
   bandwidth doubles.
 - MTP K=3 spec-decode delivers **241 t/s on 35B-A3B-FP8** (Wave 8).
-- All 152 patches are testable.
+- All 156 patches are testable.
 
 **Cost:** ~$1 400 used (2 × A5000) or ~$2 000 (2 × 3090).
 Idle ~120 W combined; under load ~520 W combined.
@@ -444,7 +444,7 @@ sndr doctor --patches                   # patch matrix without booting vLLM
 ### Patches
 
 ```bash
-sndr patches list                       # 152 entries, family / lifecycle
+sndr patches list                       # 156 entries, family / lifecycle
 sndr patches show <id>                  # one-patch deep-dive
 sndr patches prove --all                # text-patch anchor verification
 sndr patches prove <id> --dead-detect   # is the patch reachable?
@@ -525,7 +525,7 @@ authoring guide.
 
 ![Patch coverage by category](assets/charts/patch_category_count.png)
 
-The 152 entries in `PATCH_REGISTRY` split across 21 families:
+The 156 entries in `PATCH_REGISTRY` split across 21 families:
 
 | Family | Count | What lives here |
 |---|---:|---|
@@ -550,7 +550,7 @@ The 152 entries in `PATCH_REGISTRY` split across 21 families:
 | `lora` | 1 | LoRA adapter integration |
 | `observability` | 1 | Per-patch metrics |
 | `multimodal` | 1 | Vision encoder scratch sizing |
-| **Total** | **152** | (32 default-ON, 120 opt-in) |
+| **Total** | **156** | (32 default-ON, 120 opt-in) |
 
 Every patch carries: `applies_to` (gating predicate), `default_on` (bool),
 `family` (str), `credit` (author + upstream PR), `conflicts_with` (mutex
@@ -617,7 +617,7 @@ make release-check             # final release gate
 
 | File | Purpose |
 |---|---|
-| [docs/PATCHES.md](docs/PATCHES.md) | 152-patch table (id, env_flag, status, credit) |
+| [docs/PATCHES.md](docs/PATCHES.md) | 156-patch table (id, env_flag, status, credit) |
 | [docs/PATCHES_AUTO.md](docs/PATCHES_AUTO.md) | Auto-generated extended view |
 | [docs/CONFIGURATION.md](docs/CONFIGURATION.md) | Env-flag reference + tunables |
 | [docs/CONFIGS.md](docs/CONFIGS.md) | Per-launch env block reference |

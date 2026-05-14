@@ -1209,13 +1209,24 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "pre-size. The patch replaces the raise with a warn + grow: the "
             "torch CUDA allocator handles the resize, the first call takes a "
             "non-graph slow path, subsequent calls hit the graph normally. "
-            "Net effect: engine keeps serving instead of crashing."
+            "Net effect: engine keeps serving instead of crashing. "
+            "Update 2026-05-14 PR sweep: upstream vllm#42551 (jasonboukheir, "
+            "DRAFT) proposes a more invasive fix to the same fault class — "
+            "pre-reserve decode workspace in TurboQuantAttentionImpl.__init__ "
+            "plus non-raising try_get_simultaneous() + torch.empty fallback "
+            "in _decode_attention. When #42551 merges and a pin bump absorbs "
+            "it, this patch self-retires via drift-marker. Until then we "
+            "stay on the lighter warn+grow shape which is already running "
+            "in PROD without issue (27B INT4 + TQ k8v4, 256K hardware-"
+            "verified Wave 9). PN34 is being retired in this same wave "
+            "(duplicate of this patch with the same fault site)."
         ),
         "applies_to": {
             "vllm_version_range": (">=0.20.2rc1.dev9", "<0.21.0"),
         },
         "requires_patches": [],
         "conflicts_with": [],
+        "upstream_pr": 42551,  # 2026-05-14 PR sweep — pin-bump retire trigger
     },
     "PN202": {
         "title": "PN202 — per-layer KV tensor split (Tier 2.A enabler)",
@@ -1782,15 +1793,21 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "still fires at runtime decode "
             "(turboquant_attn.py:1350:_decode_attention) on rare paths. "
             "Direct port of noonghunna's club-3090 setup-time sidecar "
-            "patch_workspace_lock_disable.py. Default OFF — relaxes a "
-            "strict-debug assertion. Engage when PN33 is on AND runtime "
-            "decode still hits workspace_lock crashes. Retires when "
-            "vllm#40706 (TQ scratch dedup + reserve worst-case at warmup) "
-            "merges upstream."
+            "patch_workspace_lock_disable.py. "
+            "Retired 2026-05-14 PR sweep: this entry is a near-duplicate "
+            "of SNDR_WORKSPACE_001 (same fault site, same warn+grow "
+            "shape, same vllm.v1.worker.workspace anchor). Both were "
+            "carried side-by-side during the v7 → v11 migration; the "
+            "audit identified PN34 as the older variant. Consolidated "
+            "into SNDR_WORKSPACE_001 going forward. Upstream replacement "
+            "is vllm#42551 (jasonboukheir, DRAFT — pre-reserve + non-"
+            "raising try API in _decode_attention) — see "
+            "SNDR_WORKSPACE_001 credit for the merge-and-retire plan."
         ),
-        "upstream_pr": 40706,
+        "upstream_pr": 42551,  # 2026-05-14 PR sweep — same retire trigger as SNDR_WORKSPACE_001
         "requires_patches": ["PN33"],
-        "lifecycle": "experimental",
+        "superseded_by": "SNDR_WORKSPACE_001",
+        "lifecycle": "retired",  # 2026-05-14 PR sweep audit — duplicate of SNDR_WORKSPACE_001
     },
     "PN33": {
         "title": "Spec-decode warmup K-aware sizing (vllm#37521 extended to MTP/ngram)",
@@ -2697,6 +2714,122 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "vllm_version_range": "<0.20.2rc1.dev9",
         },
         "lifecycle": "retired",  # 2026-05-11 v2 audit: formalized byte-identical retire
+    },
+    # ════════════════════════════════════════════════════════════════════
+    # 2026-05-14 — vLLM upstream PR sweep on dev338+gbf0d2dc6d nightly.
+    # Four entries here (P108, P109, PN110, PN111). All backport open
+    # upstream fixes that target either bugs in our hot path (P108, P109,
+    # PN110) or a measurable perf win on a future operator profile
+    # (PN111, align-mode only). Default-on choice is per-patch.
+    # ════════════════════════════════════════════════════════════════════
+    "P108": {
+        "title": "MTP draft-loop stream synchronization (vllm#42603)",
+        "tier": "community",
+        "family": "spec_decode",
+        "env_flag": "GENESIS_ENABLE_P108",
+        "default_on": True,
+        "category": "spec_decode",
+        "credit": (
+            "Backport of vllm#42603 (z1ying, OPEN 2026-05-14). Closes a "
+            "cudaErrorIllegalAddress race in LLMBaseProposer.propose() "
+            "where the input_ids / hidden_states buffer writes on the "
+            "default stream were not synchronized before downstream "
+            "attention kernels ran on a different stream (FlashInfer "
+            "default). Reproduced upstream on Qwen3.6-27B-FP8 + RTX 5090. "
+            "Genesis ships ON for any spec-decode method; cost is a "
+            "single-stream synchronize() — ~0 in the common case where "
+            "the producer kernel has already finished."
+        ),
+        "upstream_pr": 42603,
+        "applies_to": {
+            "spec_method_any": ["mtp", "eagle", "dflash"],
+        },
+        "implementation_status": "live",
+        "apply_module": "vllm.sndr_core.integrations.spec_decode.p108_mtp_draft_stream_sync",
+        "source": "vllm_pr_backport",
+        "lifecycle": "experimental",
+    },
+    "P109": {
+        "title": "sampling_params vocab-range validators (vllm#42614)",
+        "tier": "community",
+        "family": "serving",
+        "env_flag": "GENESIS_ENABLE_P109",
+        "default_on": True,
+        "category": "stability",
+        "credit": (
+            "Backport of vllm#42614 (jperezdealgaba, OPEN 2026-05-14). "
+            "Adds explicit validation of stop_token_ids and "
+            "logprob_token_ids against model vocab size in "
+            "SamplingParams.verify(). Out-of-vocab ids previously OOB'd "
+            "the V2 Triton _bias_kernel and crashed the worker; with "
+            "this patch the request bounces with a clear 400 instead. "
+            "Defense-in-depth for the public Proxy-AI surface (Cline / "
+            "OpenWebUI / LibreChat clients sometimes pass malformed "
+            "stop_token_ids). Bit-identical for valid inputs."
+        ),
+        "upstream_pr": 42614,
+        "applies_to": {},  # generic safety; always applicable
+        "implementation_status": "live",
+        "apply_module": "vllm.sndr_core.integrations.serving.p109_sampling_params_vocab_bounds",
+        "source": "vllm_pr_backport",
+        "lifecycle": "experimental",
+    },
+    "PN110": {
+        "title": "BlockPool.free_blocks deduplication (vllm#42615)",
+        "tier": "community",
+        "family": "kv_cache",
+        "env_flag": "GENESIS_ENABLE_PN110",
+        "default_on": True,
+        "category": "stability",
+        "credit": (
+            "Backport of vllm#42615 (AkCodes23, OPEN 2026-05-14). "
+            "Deduplicates by id(block) in BlockPool.free_blocks() so a "
+            "caller that passes the same KVCacheBlock twice (sliding-"
+            "window + offload-connector race) does not double-decrement "
+            "ref_cnt or double-append into the free queue. Composes "
+            "cleanly with PN95/PN96/PN97 — same family, no anchor "
+            "conflict (dedup happens before ref_cnt -= and before "
+            "append_n). Warns when duplicates are observed."
+        ),
+        "upstream_pr": 42615,
+        "applies_to": {},  # generic defensive guard; always applicable
+        "implementation_status": "live",
+        "apply_module": "vllm.sndr_core.integrations.kv_cache.pn110_block_pool_free_dedup",
+        "source": "vllm_pr_backport",
+        "lifecycle": "experimental",
+    },
+    "PN111": {
+        "title": "Skip-mamba-postprocess GPU->CPU sync (align-mode; vllm#42574)",
+        "tier": "community",
+        "family": "attention.gdn",
+        "env_flag": "GENESIS_ENABLE_PN111",
+        "default_on": False,
+        "category": "perf_hotfix",
+        "credit": (
+            "Backport of vllm#42574 (mamingyuan-nv, OPEN 2026-05-14). "
+            "Skips the per-decode-step blocking GPU->CPU sync of "
+            "num_accepted_tokens in the mamba_cache_mode==align branch "
+            "of GPUModelRunner._update_states_after_model_execute when "
+            "the downstream postprocess_mamba is provably a no-op this "
+            "step (upper-bound proof: num_accepted <= n_draft + 1, no "
+            "Mamba block boundary crossed). Adds can_skip_mamba_"
+            "postprocess() to mamba_utils.py. Reported +17.4% TPS / "
+            "-13.7% ITL on Nemotron-Super-120B-A12B-NVFP4 MTP=3 on "
+            "GB300. ⚠ Genesis PROD presets currently DO NOT set "
+            "--mamba-cache-mode align — patch is a no-op there. Win "
+            "materialises only after an operator opts into align mode."
+        ),
+        "upstream_pr": 42574,
+        "applies_to": {
+            "is_hybrid": True,
+            "spec_method_any": ["mtp", "eagle"],
+        },
+        "implementation_status": "live",
+        "apply_module": "vllm.sndr_core.integrations.attention.gdn.pn111_skip_mamba_postprocess_sync",
+        "source": "vllm_pr_backport",
+        "lifecycle": "experimental",
+        "conflicts_with": [],
+        "requires_patches": [],
     },
     "P100": {
         "title": "FlashInfer FULL CUDA graph for spec-decode (vllm#41127)",

@@ -10,7 +10,7 @@ env flag to toggle, upstream PR (if backported), and credit.
 
 ## Current state (v11.0.0, 2026-05-09)
 
-**Total PATCH_REGISTRY entries:** 152 — range covers `P1`–`P107` legacy
+**Total PATCH_REGISTRY entries:** 156 — range covers `P1`–`P107` legacy
 + `PN8`–`PN90` modern + sub-patches (P5b, P7b, P15B, P18b, P38B, P39a,
 P61c, P67b, P67c, P79d, PN26b, PN40-classifier) + library/diagnostic
 (P51, P102, P103). P56/P57 archived 2026-05-05; PN71 burned by
@@ -26,8 +26,8 @@ added as a registry patch.
 
 | Metric | Count |
 |:-------|:------|
-| Total PATCH_REGISTRY entries | **152** |
-| Tier=community (Apache 2.0, sndr_core) | **152** (all entries) |
+| Total PATCH_REGISTRY entries | **156** |
+| Tier=community (Apache 2.0, sndr_core) | **156** (all entries) |
 | Tier=engine (commercial, sndr_engine) | **0** (PN72 reclassified to community 2026-05-08; sndr_engine namespace reserved but empty) |
 | Default-on at boot | 32 |
 | Lifecycle=legacy (pre-dispatcher) | 31 |

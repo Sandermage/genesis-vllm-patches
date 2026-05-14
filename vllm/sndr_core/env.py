@@ -82,6 +82,7 @@ class Flags:
     PN58_SPEC_REASONING_BOUNDARY = "PN58_SPEC_REASONING_BOUNDARY"
     PN66 = "PN66"  # multiturn think leak
     PN70_TOOL_SCHEMA_FILTER = "PN70_TOOL_SCHEMA_FILTER"
+    P109 = "P109"  # sampling_params vocab-range validators (vllm#42614)
 
     # attention.gdn family (memory + chunked + streaming)
     P7B = "P7B"
@@ -97,6 +98,7 @@ class Flags:
     PN102_PARAM_POOL = "PN102_PARAM_POOL"
     PN204_DUAL_STREAM_INPROJ = "PN204_DUAL_STREAM_INPROJ"
     P103 = "P103"  # FLA Cliff 2 chunked
+    PN111 = "PN111"  # skip-mamba-postprocess sync (align-mode only; vllm#42574)
 
     # GDN spec-decode subfamily
     P60_GDN_NGRAM_FIX = "P60_GDN_NGRAM_FIX"
@@ -134,6 +136,8 @@ class Flags:
     P83 = "P83"  # MTP keep last cached block
     P86 = "P86"  # ngram batch propose linear
     P94 = "P94"  # spec-decode zero-alloc
+    # 2026-05-14 PR sweep — backports landed in v11.0.0+wave9_dev338_pr_sweep:
+    P108 = "P108"  # MTP draft-loop stream synchronization (vllm#42603)
     PN8_MTP_DRAFT_ONLINE_QUANT = "PN8_MTP_DRAFT_ONLINE_QUANT"
     PN9_INDEPENDENT_DRAFTER_ATTN = "PN9_INDEPENDENT_DRAFTER_ATTN"
     PN33_SPEC_DECODE_WARMUP_K = "PN33_SPEC_DECODE_WARMUP_K"
@@ -168,6 +172,7 @@ class Flags:
     P5B = "P5B"  # page size pad smaller
     P85 = "P85"  # hybrid fine shadow prefix cache
     P102 = "P102"
+    PN110 = "PN110"  # BlockPool.free_blocks deduplication (vllm#42615)
 
     # moe family
     P37 = "P37"  # MoE intermediate cache

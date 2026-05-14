@@ -825,6 +825,109 @@ def apply_patch_94_spec_decode_zero_alloc() -> PatchResult:
     return _failed(name, reason)
 
 
+# ════════════════════════════════════════════════════════════════════════
+# 2026-05-14 vLLM PR sweep — backports landed in
+# v11.0.0+wave9_dev338_pr_sweep. Four entries below.
+# ════════════════════════════════════════════════════════════════════════
+
+@register_patch("P108 MTP draft-loop stream synchronization (vllm#42603)")
+def apply_patch_108_mtp_draft_stream_sync() -> PatchResult:
+    """P108: backport of vllm#42603 — synchronize current stream after
+    buffer writes in LLMBaseProposer.propose to close the
+    cudaErrorIllegalAddress race on FlashInfer + MTP under concurrency.
+    Default ON for spec_method ∈ {mtp, eagle, dflash}.
+    """
+    name = "P108 MTP draft-loop stream synchronization (vllm#42603)"
+    if not _state._APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm.sndr_core.integrations.spec_decode import (
+            p108_mtp_draft_stream_sync as _wiring,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = _wiring.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch("P109 sampling_params vocab-range validators (vllm#42614)")
+def apply_patch_109_sampling_params_vocab_bounds() -> PatchResult:
+    """P109: backport of vllm#42614 — validate stop_token_ids /
+    logprob_token_ids against model vocab size before the V2 Triton
+    sampler can OOB the GPU. Default ON (generic safety).
+    """
+    name = "P109 sampling_params vocab-range validators (vllm#42614)"
+    if not _state._APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm.sndr_core.integrations.serving import (
+            p109_sampling_params_vocab_bounds as _wiring,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = _wiring.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch("PN110 BlockPool.free_blocks deduplication (vllm#42615)")
+def apply_patch_n110_block_pool_free_dedup() -> PatchResult:
+    """PN110: backport of vllm#42615 — deduplicate by id(block) in
+    BlockPool.free_blocks() to prevent double-free under sliding-window
+    + offload-connector race. Default ON (defensive guard composing with
+    PN95/96/97 BlockPool overlays).
+    """
+    name = "PN110 BlockPool.free_blocks deduplication (vllm#42615)"
+    if not _state._APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm.sndr_core.integrations.kv_cache import (
+            pn110_block_pool_free_dedup as _wiring,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = _wiring.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch(
+    "PN111 skip-mamba-postprocess GPU->CPU sync (align-mode; vllm#42574)"
+)
+def apply_patch_n111_skip_mamba_postprocess_sync() -> PatchResult:
+    """PN111: backport of vllm#42574 — skip the blocking sync of
+    num_accepted_tokens when postprocess_mamba is provably a no-op.
+    Two-file transaction (gpu_model_runner.py + mamba_utils.py).
+    Default OFF — only active when an operator opts into
+    --mamba-cache-mode align.
+    """
+    name = "PN111 skip-mamba-postprocess GPU->CPU sync (align-mode; vllm#42574)"
+    if not _state._APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm.sndr_core.integrations.attention.gdn import (
+            pn111_skip_mamba_postprocess_sync as _wiring,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = _wiring.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
 @register_patch("Sprint 2.6 v2 — CUDA graph dispatch trace wire-in")
 def apply_patch_sprint26_cudagraph_dispatch_trace() -> PatchResult:
     """Sprint 2.6 v2: text-patch wire-in for cudagraph dispatch trace.
