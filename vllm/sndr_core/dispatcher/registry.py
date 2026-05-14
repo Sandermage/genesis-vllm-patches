@@ -2744,7 +2744,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {
             "spec_method_any": ["mtp", "eagle", "dflash"],
         },
-        "implementation_status": "live",
+        "implementation_status": "full",
         "apply_module": "vllm.sndr_core.integrations.spec_decode.p108_mtp_draft_stream_sync",
         "source": "vllm_pr_backport",
         "lifecycle": "experimental",
@@ -2769,7 +2769,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         ),
         "upstream_pr": 42614,
         "applies_to": {},  # generic safety; always applicable
-        "implementation_status": "live",
+        "implementation_status": "full",
         "apply_module": "vllm.sndr_core.integrations.serving.p109_sampling_params_vocab_bounds",
         "source": "vllm_pr_backport",
         "lifecycle": "experimental",
@@ -2793,7 +2793,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         ),
         "upstream_pr": 42615,
         "applies_to": {},  # generic defensive guard; always applicable
-        "implementation_status": "live",
+        "implementation_status": "full",
         "apply_module": "vllm.sndr_core.integrations.kv_cache.pn110_block_pool_free_dedup",
         "source": "vllm_pr_backport",
         "lifecycle": "experimental",
@@ -2824,7 +2824,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "is_hybrid": True,
             "spec_method_any": ["mtp", "eagle"],
         },
-        "implementation_status": "live",
+        "implementation_status": "full",
         "apply_module": "vllm.sndr_core.integrations.attention.gdn.pn111_skip_mamba_postprocess_sync",
         "source": "vllm_pr_backport",
         "lifecycle": "experimental",
