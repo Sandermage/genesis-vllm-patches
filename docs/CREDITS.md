@@ -128,7 +128,7 @@ These projects either implement the same algorithms or share design ideas with o
 |---|---|---|
 | [0xSero/turboquant](https://github.com/0xSero/turboquant) | 0xSero | Canonical TurboQuant reference (1196★). Studied algorithm internals (Lloyd-Max, polar quant, QJL). |
 | [mitkox/vllm-turboquant](https://github.com/mitkox/vllm-turboquant) | mitkox | Workstation-GPU support fork. Reference for A5000/A6000 deployment patterns. |
-| [Alberto-Codes/turboquant-vllm](https://github.com/Alberto-Codes/turboquant-vllm) | Alberto-Codes | Plugin-style TurboQuant integration (45★, 8 models validated). Architectural inspiration for our `_genesis/` package layout. |
+| [Alberto-Codes/turboquant-vllm](https://github.com/Alberto-Codes/turboquant-vllm) | Alberto-Codes | Plugin-style TurboQuant integration (45★, 8 models validated). Architectural inspiration for our package layout (originally `_genesis/`; since v11.0.0 renamed to `sndr_core/`). |
 | [SGLang TurboQuant PR #21617](https://github.com/sgl-project/sglang/pull/21617) | scottgl9 | Parallel TurboQuant port to SGLang — wires through FlashInfer/Triton hooks. Confirmed the ecosystem-wide bug class. |
 | [JartX/vllm](https://github.com/JartX/vllm/pull/11) | JartX | FP16 rotation approach for TurboQuant continuation prefill. Foundation for our Patch 20. |
 | [noonghunna/qwen36-27b-single-3090](https://github.com/noonghunna/qwen36-27b-single-3090) | noonghunna | Six-probe isolation methodology + `patch_tolist_cudagraph.py` (`is_current_stream_capturing()` runtime detection pattern). |

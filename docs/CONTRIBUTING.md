@@ -33,7 +33,7 @@ Step-by-step. Read [../docs/PATCHES.md](../docs/PATCHES.md) and [docs/COMPATIBIL
 
 ### 1. Pick the right directory
 
-`vllm/sndr_core/integrations/` (path updated 2026-05-11 audit; was `wiring/` pre-v11) is split by `family` — same vocabulary as registry's `family` field. Current 18 families on disk:
+`vllm/sndr_core/integrations/` (path updated 2026-05-11 audit; was `wiring/` pre-v11) is split by `family` — same vocabulary as registry's `family` field. Current 20 family directories on disk (the registry adds two further sub-family tags — `attention.gdn`, `attention.flash`, `attention.turboquant` — that all live under `integrations/attention/`):
 
 | Directory | What goes here |
 | --- | --- |
@@ -45,14 +45,16 @@ Step-by-step. Read [../docs/PATCHES.md](../docs/PATCHES.md) and [docs/COMPATIBIL
 | `lora/` | LoRA adapter integration |
 | `memory/` | Allocator scoping, fragmentation mitigation, cache release timing |
 | `middleware/` | Logging, metrics, telemetry, lazy-reasoner request hooks, observability |
-| `moe/` | Fused MoE, router softmax, expert intermediate cache (4 patches) |
+| `moe/` | Fused MoE, router softmax, expert intermediate cache |
 | `multimodal/` | Vision encoders, multimodal scratch sizing |
 | `observability/` | Per-patch metrics, audit instrumentation |
-| `quantization/` | FP8 block-scaled, AutoRound row-parallel, FP8 lm_head (3 patches) |
+| `offload/` | CPU offload, PrefetchOffloader pinned-allocator pool (PN102) |
+| `quantization/` | FP8 block-scaled, AutoRound row-parallel, FP8 lm_head |
 | `reasoning/` | Reasoning parsers, `<think>` handling, multi-turn boundary fixes |
 | `scheduler/` | Async scheduling, batching, profile_run caps |
 | `serving/` | OpenAI-compatible chat-completions, stream generators, MTP truncation detector |
 | `spec_decode/` | MTP, ngram, DFlash, rejection sampling, draft acceptance, prepare_next_token |
+| `streaming/` | Streaming-response orchestration helpers (chunked tool-call assembly, partial-tag guards) |
 | `tool_parsing/` | Qwen3Coder XML fallback, tool-call argument parsing |
 | `worker/` | gpu_model_runner integrations, profile_run, thinking-budget, prompt_logprobs |
 
@@ -391,7 +393,7 @@ python3 -m pytest tests/unit/dispatcher/test_pin_gate.py -v
 
 - We don't enforce a formatter on contributors, but we do run `ruff` on the maintainer side. PRs may be reformatted before merge.
 - Type hints encouraged on public surfaces (the modules under `vllm/sndr_core/dispatcher/`, `vllm/sndr_core/core.py` (TextPatcher API), and `vllm/sndr_core/apply/orchestrator.py`).
-- Logging via `logger = logging.getLogger("vllm.sndr_core")` (older code may still use `vllm._genesis` — back-compat alias, prefer the new name for new code). Print only in the boot-summary path.
+- Logging via `logger = logging.getLogger("vllm.sndr_core")`. The pre-v11 `vllm._genesis` namespace was removed in v11.0.0 and no longer resolves — any new code (and any pre-v11 code being touched) must use `vllm.sndr_core`. Print only in the boot-summary path.
 
 ---
 
@@ -432,7 +434,7 @@ class TestNewFamilyFamilyRegistry(
 
 For nested families (e.g. `attention.gdn`), pass `filesystem_dir="attention/gdn"` to `make_family_registry_class()`.
 
-The factory enforces 6 invariants per patch (module importable / Genesis marker / apply() callable / env_flag documented / no top-level torch / family field matches) + 2 family-level checks (registry has all entries + filesystem matches). Refining invariants in [_family_contract_helpers.py](../tests/unit/integrations/_family_contract_helpers.py) propagates to all 17 family contracts at once.
+The factory enforces 6 invariants per patch (module importable / Genesis marker / apply() callable / env_flag documented / no top-level torch / family field matches) + 2 family-level checks (registry has all entries + filesystem matches). Refining invariants in [_family_contract_helpers.py](../tests/unit/integrations/_family_contract_helpers.py) propagates to all 18 family contracts at once.
 
 ### CI
 
@@ -440,7 +442,7 @@ GitHub Actions runs `python3 -m pytest tests/unit/` on every PR (path updated 20
 
 - **Pin-gate adoption** (`tests/unit/dispatcher/test_pin_gate.py`) — KNOWN_GOOD_VLLM_PINS allowlist drift, version range semantics
 - **Iron rule #11 enforcement** (`tests/unit/dispatcher/test_iron_rule_11_enforcement.py`) — every `lifecycle="retired"` patch carries `superseded_by` + `vllm_version_range` (or explicit waiver)
-- **Family contracts** (`tests/unit/integrations/`) — all 17 family contracts, ~700 tests
+- **Family contracts** (`tests/unit/integrations/`) — all 18 family contracts, ~700 tests
 - **Upstream-status audit** (`scripts/audit_upstream_status.py --skip-network`) — informational at PR-time; strict weekly gate via [upstream_audit_status.yml](../.github/workflows/upstream_audit_status.yml)
 
 Doc-sync gate also runs (`check_doc_sync.py --strict` + `generate_patches_md.py --check` + `generate_configs_md.py --check`).

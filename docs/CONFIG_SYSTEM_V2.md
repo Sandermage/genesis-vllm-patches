@@ -86,17 +86,17 @@ ModelDef, not override the existing one.
 
 | Alias | Model | Hardware | Profile | Lifecycle |
 |---|---|---|---|---|
-| `prod-35b` | qwen3.6-35b-a3b-fp8 | a5000-2x-24gb | wave9-balanced | stable |
-| `prod-27b-tq` | qwen3.6-27b-int4-autoround-tq-k8v4 | a5000-2x-24gb | wave9-27b-tq-k8v4 | stable |
-| `prod-35b-dflash` | qwen3.6-35b-a3b-fp8-dflash | a5000-2x-24gb | wave9-35b-fp8-dflash | stable |
-| `prod-27b-dflash` | qwen3.6-27b-dflash | a5000-2x-24gb | wave9-27b-dflash | stable |
-| `long-ctx-27b` | qwen3.6-27b-int4-autoround-fp8kv | a5000-2x-24gb | wave9-27b-fp8kv-long-ctx | stable |
-| `qa-27b-tested` | qwen3.6-27b-int4-autoround-fp8kv | a5000-2x-24gb | qa-27b-fp8kv-tested | tested (QA-only) |
-| `qa-27b-tq-1x` | qwen3.6-27b-int4-autoround-tq-k8v4 | a5000-1x-24gb | qa-27b-tq-1x-tested | tested (single-card QA) |
-| `experimental-27b-tq-dflash-ab` | qwen3.6-27b-int4-autoround-tq-k8v4 | a5000-2x-24gb | experimental-27b-tq-dflash-ab | experimental |
-| `example-2x-tier-aware` | qwen3.6-27b-int4-autoround-tq-k8v4 | a5000-2x-24gb | path-c-2x-tier-aware-example | experimental |
-| `example-3090-dense-cpu-offload` | qwen3.6-7b-dense | single-3090-24gb | path-a-3090-cpu-offload-example | experimental |
-| `example-3090-tier-aware` | qwen3.6-27b-int4-autoround-tq-k8v4 | single-3090-24gb | path-c-3090-tier-aware-example | experimental |
+| `prod-35b` | qwen3.6-35b-a3b-fp8 | a5000-2x-24gb | 35b-balanced | stable |
+| `prod-27b-tq` | qwen3.6-27b-int4-autoround-tq-k8v4 | a5000-2x-24gb | 27b-tq-k8v4 | stable |
+| `prod-35b-dflash` | qwen3.6-35b-a3b-fp8-dflash | a5000-2x-24gb | 35b-dflash | stable |
+| `prod-27b-dflash` | qwen3.6-27b-dflash | a5000-2x-24gb | 27b-dflash | stable |
+| `long-ctx-27b` | qwen3.6-27b-int4-autoround-fp8kv | a5000-2x-24gb | 27b-long-ctx | stable |
+| `qa-27b-tested` | qwen3.6-27b-int4-autoround-fp8kv | a5000-2x-24gb | qa-27b-fp8kv | tested (QA-only) |
+| `qa-27b-tq-1x` | qwen3.6-27b-int4-autoround-tq-k8v4 | a5000-1x-24gb | qa-27b-tq-1x | tested (single-card QA) |
+| `experimental-27b-tq-dflash-ab` | qwen3.6-27b-int4-autoround-tq-k8v4 | a5000-2x-24gb | ab-27b-tq-dflash | experimental |
+| `example-2x-tier-aware` | qwen3.6-27b-int4-autoround-tq-k8v4 | a5000-2x-24gb | tier-aware-2x | experimental |
+| `example-3090-dense-cpu-offload` | qwen3.6-7b-dense | single-3090-24gb | cpu-offload-3090 | experimental |
+| `example-3090-tier-aware` | qwen3.6-27b-int4-autoround-tq-k8v4 | single-3090-24gb | tier-aware-3090 | experimental |
 
 The release gate `make audit-configs` walks every preset and verifies
 the triplet composes cleanly.

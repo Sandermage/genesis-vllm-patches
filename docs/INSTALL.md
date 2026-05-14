@@ -189,7 +189,7 @@ This means:
 - No need to fork or rebuild vLLM
 - Patches apply transparently — visible to operator via boot logs
 - New vLLM nightly versions can be tried without recompiling — pull image, restart container, observe drift markers
-- `sndr_core/` is the only thing under version control we ship (pre-v11 scripts may still reference `_genesis/` — see the Migration appendix for the back-compat alias).
+- `sndr_core/` is the only thing under version control we ship. Pre-v11 `vllm/_genesis/` is fully removed — no back-compat alias is provided; update any pre-v11 scripts to import from `vllm.sndr_core.*`.
 
 ### 3. Pre-flight checks
 
@@ -368,10 +368,9 @@ cp -r vllm/sndr_core "$VLLM_DIR/sndr_core"
 ```
 
 > Pre-v11 layout used `vllm/_genesis/` as the package directory; that
-> namespace has been removed since v11.0.0 (rename to `sndr_core/` with
-> back-compat alias inside `vllm.sndr_core.__getattr__`). Older guides
-> referring to `_genesis` paths still work via the alias for the v11.x
-> series, but new operators should use `sndr_core` everywhere.
+> namespace has been removed entirely in v11.0.0 (renamed to `sndr_core/`).
+> No back-compat alias is provided — older guides or scripts that import
+> from `vllm._genesis.*` must be updated to `vllm.sndr_core.*`.
 
 ### 4. Install Genesis runtime extras
 
@@ -573,7 +572,8 @@ sudo systemctl restart genesis-vllm
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| `ImportError: No module named 'vllm.sndr_core'` (or `vllm._genesis` on pre-v11 scripts) | Symlink missing or wrong path | Re-run step 3 (`ln -s` into `$VLLM_DIR`). `_genesis` resolves through the v11 back-compat alias when `sndr_core` is installed. |
+| `ImportError: No module named 'vllm.sndr_core'` | Symlink missing or wrong path | Re-run step 3 (`ln -s` into `$VLLM_DIR`). |
+| `ImportError: No module named 'vllm._genesis'` (pre-v11 scripts) | Pre-v11 namespace removed in v11.0.0; no alias is provided | Update the script: rewrite imports `vllm._genesis.*` → `vllm.sndr_core.*`. |
 | Boot hangs on `Capturing CUDA graphs` | Driver mismatch (570 instead of 580) or stale Triton cache | `apt install nvidia-driver-580-server`, reboot. `rm -rf ~/.triton/cache/*` |
 | `apply_all` reports `required_anchor_missing` for many patches | vLLM nightly drifted from Genesis pin | Pin to the SHA in [`Production baseline`](README.md#production-baseline), or accept that some patches will skip (read each SKIP reason) |
 | Patches re-apply on every restart and accumulate | You're running `apply_all` from multiple processes simultaneously | Add a lockfile, or run apply_all once at boot before launching workers |

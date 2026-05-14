@@ -68,7 +68,7 @@ A friend of the project ([@noonghunna](https://github.com/noonghunna/qwen36-27b-
 | Active params/token | **27.78 B (full forward — no MoE sparsity)** |
 | VRAM @ FP8 | ~28 GB (fits on 1× 24GB or 2× 24GB) |
 | Speed estimate | ~50-65 tok/s decode (vs our 127 with MTP A3B) |
-| Patch compat | **32 of 37 patches apply** (5 MoE-only auto-skip via `model_detect.py`) |
+| Patch compat | All non-MoE patches apply (MoE-only patches in `family=moe` auto-skip via `model_detect.py`) |
 
 **Compose template**: `compose/docker-compose.qwen3-5-dense.yml` (already in repo).
 
@@ -97,7 +97,7 @@ A friend of the project ([@noonghunna](https://github.com/noonghunna/qwen36-27b-
 **Why not**: 80GB FP8 weights don't fit in our 48GB VRAM budget. Would require AWQ-INT4 quant (no official release) + multi-node setup.
 
 ### `deepseek-ai/DeepSeek-V4-Flash` (284B / 13B active)
-**Why not**: 158GB on disk — needs 4× A100 80GB. Architecture `deepseek_v4` (CSA+HCA hybrid) is incompatible with our 37 GDN/MoE patches. Would require 2-3 weeks of new patch port work even if hardware was available.
+**Why not**: 158GB on disk — needs 4× A100 80GB. Architecture `deepseek_v4` (CSA+HCA hybrid) is incompatible with our GDN/MoE patch families (`attention.gdn`, `attention.turboquant`, `moe`). Would require 2-3 weeks of new patch port work even if hardware was available.
 
 ### `deepseek-ai/DeepSeek-V4-Pro` (862B)
 **Why not**: 860GB on disk. Out of scope for any single-node Ampere setup. Use cloud inference providers if you need V4-Pro quality.
@@ -117,7 +117,7 @@ This is a four-stage derivative:
 3. Claude-tuned: `huihui-ai/Huihui-Qwen3.6-35B-A3B-Claude-4.7-Opus-abliterated` (claimed Claude 4.7 Opus distillation — undocumented training)
 4. This repo: `batsclamp` FP8 quantization (blockwise [128,128] + dynamic per-token)
 
-**Pros**: drop-in by architecture (all 37 patches applicable); abliteration removes refusals; Claude distillation *might* improve tool-calling.
+**Pros**: drop-in by architecture (same `qwen3_5_moe` class as our PROD 35B-A3B, so the full GDN/MoE/TQ patch families apply unchanged); abliteration removes refusals; Claude distillation *might* improve tool-calling.
 
 **Cons**:
 - Only 2 likes / 784 downloads on HF — community traction zero

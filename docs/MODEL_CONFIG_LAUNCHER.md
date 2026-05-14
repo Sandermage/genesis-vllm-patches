@@ -489,17 +489,31 @@ New world: 1 YAML per (model, hardware, tuning). 1 launcher. 5 layers of validat
 ```
 vllm/sndr_core/model_configs/
 ├── __init__.py                 # exports ModelConfig + sub-components
-├── schema.py                   # dataclasses + validation
+├── schema.py                   # dataclasses + validation (V1 monolithic + V2 layered)
 ├── registry.py                 # 3-tier loader (user > community > builtin)
 ├── audit_rules.py              # 16 rules (R-001 through R-016)
 ├── preflight.py                # pre-launch env checks
 ├── diagnose.py                 # runtime checks
 ├── verify.py                   # bench-vs-reference gate
 └── builtin/
+    # V1 monolithic — one YAML per (model, hardware, tuning) combo:
     ├── a5000-2x-35b-prod.yaml
     ├── a5000-2x-27b-int4-tested.yaml
     ├── a5000-1x-27b-int4-tested.yaml
-    └── a5000-2x-27b-int4-long-ctx.yaml
+    ├── a5000-2x-27b-int4-long-ctx.yaml
+    ├── a5000-2x-27b-int4-tq-k8v4.yaml
+    ├── a5000-2x-27b-int4-tq-k8v4-dflash.yaml
+    ├── a5000-2x-27b-dflash-true.yaml
+    ├── a5000-2x-35b-fp8-dflash.yaml
+    ├── a5000-1x-tier-aware-pn95.yaml
+    ├── a5000-2x-tier-aware-EXAMPLE.yaml
+    ├── single-3090-dense-cpu-offload-EXAMPLE.yaml
+    └── single-3090-hybrid-gdn-tier-aware-EXAMPLE.yaml
+    # V2 layered — split into model/hardware/profile + composed presets:
+    ├── model/      # <id>.yaml  — checkpoint, KV format, spec method, patches
+    ├── hardware/   # <id>.yaml  — rig (GPU, VRAM, CPU, RAM, mounts)
+    ├── profile/    # <id>.yaml  — env/runtime tuning deltas
+    └── presets/    # <alias>.yaml — composes model + hardware + profile
 
 vllm/sndr_core/compat/
 └── model_config_cli.py         # 14-subcommand CLI (sndr model-config <cmd>)
@@ -507,3 +521,9 @@ vllm/sndr_core/compat/
 scripts/
 └── launch.sh                   # universal launcher (thin wrapper over CLI)
 ```
+
+V1 and V2 coexist in the registry — `sndr model-config list` walks both
+layouts; V2 presets are resolved by composing their three references.
+New configs SHOULD use V2 (smaller diffs, sharper audit). V1 monoliths
+are kept for rigs that haven't been migrated yet — they pass the same
+audit gate as V2.

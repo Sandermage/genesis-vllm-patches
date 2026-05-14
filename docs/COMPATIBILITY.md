@@ -32,9 +32,12 @@ conflicts** between patches — they all compose additively. The
 "conflicts" you'll see below are EMPIRICAL (observed at runtime), not
 schema-declared.
 
-The 50-entry registry splits into 15 categories. Within a category,
-patches are typically **alternatives** (enable one, not all). Across
-categories, patches are typically **additive**.
+The registry (152 entries as of HEAD) splits into the user-facing
+categories shown below. Within a category, patches are typically
+**alternatives** (enable one, not all). Across categories, patches
+are typically **additive**. The per-category counts below reflect the
+PROD-relevant subset documented here, not the full registry — see
+`docs/PATCHES_AUTO.md` for the auto-generated complete list.
 
 ---
 

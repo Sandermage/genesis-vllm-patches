@@ -403,7 +403,7 @@ The 4 PROD-ready configs ship in two flavors each — Docker (`start_*.sh`) and 
 | **27B-INT4-Lorbus** + TurboQuant k8v4 (P98 required) | [`start_27b_int4_TQ_k8v4.sh`](../scripts/launch/start_27b_int4_TQ_k8v4.sh) | [`bare_metal_27b_int4_TQ_k8v4.sh`](../scripts/launch/bare_metal_27b_int4_TQ_k8v4.sh) |
 
 The Docker variants bind-mount Genesis into a stock `vllm/vllm-openai:nightly` image (recommended for reproducibility).
-The bare-metal variants assume vLLM is installed via `pip install vllm` and symlink Genesis `sndr_core` into the existing vllm package on first run. Pre-v11 скрипты могли использовать имя `_genesis` — back-compat alias всё ещё работает, но канон с v11.0.0 — `vllm.sndr_core`.
+The bare-metal variants assume vLLM is installed via `pip install vllm` and symlink Genesis `sndr_core` into the existing vllm package on first run. The pre-v11 `vllm._genesis` namespace was removed in v11.0.0 with no back-compat alias — any pre-v11 launch scripts must be updated to import from `vllm.sndr_core` before they will run.
 
 Internal building blocks (used by the bench suite, also runnable standalone):
 

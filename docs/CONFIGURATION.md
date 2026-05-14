@@ -6,7 +6,10 @@ patches that are platform-gated (e.g. Ampere SM 8.0+) are noted.
 
 > **Current PROD baseline (Wave 8, 2026-05-11; pin bumped 2026-05-11):**
 >
-> - Genesis v11.0.0+wave8 — 135 patches in PATCH_REGISTRY
+> - Genesis v11.0.0+wave8 — 135 patches in PATCH_REGISTRY at the time of
+>   the bench below; registry has since grown to **152 entries** as
+>   Wave 9 work landed (+PN102 pinned-allocator pool, +PN204 GDN dual-stream
+>   port, plus the env-flag block now shared with the dflash V2 models).
 > - vLLM `0.20.2rc1.dev209+g5536fc0c0` (bumped from dev93; canonical bench
 >   numbers below measured on dev93 — Wave 9 re-bench pending for dev209)
 > - PyTorch 2.11.0+cu130, Triton 3.6.0, CUDA 13.0.2
