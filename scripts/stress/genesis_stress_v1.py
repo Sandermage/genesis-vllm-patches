@@ -10,7 +10,7 @@ Genesis dev rig but every value is overridable via env var or CLI flag:
   GENESIS_STRESS_KEY    — API key (default `genesis-local`)
 
 CLI flags `--url`, `--model`, `--key` override env. Rig-specific
-defaults like `192.168.1.10` were removed (G-010 audit fix 2026-05-02);
+defaults like `<lan-ip>` were removed (G-010 audit fix 2026-05-02);
 operators on a different host just `export GENESIS_STRESS_URL=...`
 or pass `--url`.
 

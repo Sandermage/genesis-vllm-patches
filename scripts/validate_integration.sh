@@ -18,7 +18,7 @@
 #
 # Usage (from anywhere in the repo):
 #   ./scripts/validate_integration.sh                      # defaults below
-#   HOST=192.168.1.10 ./scripts/validate_integration.sh    # remote host
+#   HOST=<your-host> ./scripts/validate_integration.sh    # remote host
 #   MODEL_NAME=qwen3.6-35b-a3b ./scripts/validate_integration.sh   # match served-model-name
 #
 # Exit codes:
@@ -117,7 +117,7 @@ log "=== 3. TDD pytest suite ==="
 docker exec "$CONTAINER" bash -c "pip install pytest -q 2>/dev/null"
 
 TEST_OUTPUT=$(docker exec "$CONTAINER" python3 -m pytest \
-    /usr/local/lib/python3.12/dist-packages/vllm/_genesis/tests/ \
+    /usr/local/lib/python3.12/dist-packages/vllm/sndr_core/tests/ \
     -v --tb=short 2>&1) || true
 
 echo "$TEST_OUTPUT" | tail -30

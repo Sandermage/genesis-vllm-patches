@@ -5,7 +5,7 @@
 Runs the six sub-checks from SECURITY_LICENSE_GATE_2026-05-12_RU.md §3:
 
   1. No secrets in tree (basic patterns + SECRETS_FORBIDDEN allowlist).
-  2. No `/home/sander` / `/Users/sander` in tracked code or public docs.
+  2. No `/home/<user>` / `/Users/<user>` in tracked code or public docs.
   3. No private IPs (RFC 1918) in public docs.
   4. No RSA/OpenSSH private key markers anywhere.
   5. No .env files outside gitignore.
@@ -98,7 +98,7 @@ def _grep_pattern(
 
 
 def check_no_operator_paths(files: list[str]) -> list[str]:
-    """No `/home/sander` or `/Users/sander` in tracked code or public docs."""
+    """No `/home/<user>` or `/Users/<user>` in tracked code or public docs."""
     pat = re.compile(r"/(?:home|Users)/sander")
     hits = _grep_pattern(pat, files)
     return [f"{h[0]}:{h[1]}: {h[2]}" for h in hits]

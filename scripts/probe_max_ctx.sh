@@ -6,7 +6,7 @@
 # operators sizing their context window.
 #
 # Usage:
-#   ENDPOINT=http://192.168.1.10:8000 MODEL=qwen3.6-35b-a3b ./probe_max_ctx.sh
+#   ENDPOINT=http://127.0.0.1:8000 MODEL=qwen3.6-35b-a3b ./probe_max_ctx.sh
 #   ./probe_max_ctx.sh --start 16384 --max 320000 --kv fp8_e5m2
 #
 # Strategy:
@@ -20,7 +20,7 @@
 # container between probes (script suggests but does not execute).
 set -euo pipefail
 
-ENDPOINT="${ENDPOINT:-http://192.168.1.10:8000}"
+ENDPOINT="${ENDPOINT:-http://127.0.0.1:8000}"
 MODEL="${MODEL:-qwen3.6-35b-a3b}"
 API_KEY="${GENESIS_API_KEY:-genesis-local}"
 START_CTX="${START_CTX:-16384}"

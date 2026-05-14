@@ -38,7 +38,7 @@ N="${N:-512}"
 DTYPE="${DTYPE:-fp8_w8a8}"
 BLOCK_SHAPE="${BLOCK_SHAPE:-[128,128]}"  # empty string = no block_shape suffix
 CONTAINER="${CONTAINER:-vllm-server-mtp-test}"
-SSH_HOST="${SSH_HOST:-sander@192.168.1.10}"
+SSH_HOST="${SSH_HOST:-${USER}@127.0.0.1}"
 
 # Resolve GPU name via nvidia-smi
 if [ -n "${GPU_OVERRIDE:-}" ]; then
@@ -123,7 +123,7 @@ NEXT STEPS (manual — vLLM benchmark scripts vary by pin version):
      docker logs $CONTAINER 2>&1 | grep "fused_moe.*config"
 
 6. Bind-mount in your start script (already done for the A5000 PROD):
-     -v "/home/sander/genesis-vllm-patches/$OUT_PATH:/usr/local/lib/python3.12/dist-packages/vllm/model_executor/layers/fused_moe/configs/$FNAME:ro" \\
+     -v "\${SNDR_REPO_ROOT:-\${HOME}/genesis-vllm-patches}/\$OUT_PATH:/usr/local/lib/python3.12/dist-packages/vllm/model_executor/layers/fused_moe/configs/\$FNAME:ro" \\
 
 ═══════════════════════════════════════════════════════════════════════
 EOF

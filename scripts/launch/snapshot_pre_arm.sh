@@ -16,8 +16,8 @@ mkdir -p "${OUT_DIR}"
 
 echo "Snapshot dir: ${OUT_DIR}"
 
-# Capture from server
-ssh sander@192.168.1.10 "
+# Capture from server (override via env: SSH_HOST="<user>@<host>")
+ssh "${SSH_HOST:-${USER}@127.0.0.1}" "
 docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Image}}\t{{.ID}}' | head -10
 echo '---ENV---'
 docker inspect vllm-server-mtp-test --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null | grep -E 'GENESIS|VLLM|PYTORCH|NCCL|CUDA' | sort

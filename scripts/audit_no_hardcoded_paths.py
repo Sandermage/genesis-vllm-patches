@@ -4,7 +4,7 @@
 
 Active config files (V1 + V2 model_configs, compose YAMLs) must use
 `${env_var}` placeholders for host paths, never hardcoded operator
-filesystem paths like `/home/sander/...` or `/Users/sander/...`.
+filesystem paths like `/home/<user>/...` or `/Users/<user>/...`.
 
 Hardcoded paths in active config:
   • break portability — works on operator's homelab, fails everywhere else

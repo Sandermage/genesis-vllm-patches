@@ -80,9 +80,12 @@ def stop_container():
 
 
 def generate_launch_script(min_token_prob: float, max_tree_depth: int) -> str:
-    """Render launch script for given suffix config. Reuses base from
-    /home/sander/start_v742_full_8k_suffix.sh, replaces speculative-config."""
-    base = Path("/home/sander/start_v742_full_8k_suffix.sh").read_text()
+    """Render launch script for given suffix config. Reuses a base
+    template selected via env `$SUFFIX_SWEEP_BASE` (default:
+    `$HOME/start_v742_full_8k_suffix.sh`); replaces speculative-config."""
+    import os
+    _base_default = str(Path.home() / "start_v742_full_8k_suffix.sh")
+    base = Path(os.environ.get("SUFFIX_SWEEP_BASE", _base_default)).read_text()
     # Replace speculative-config line
     spec_old_marker = "--speculative-config"
     spec_new = (
@@ -228,7 +231,12 @@ def main():
     for i, (p, d) in enumerate(grid):
         print(f"  [{i}] min_token_prob={p}  max_tree_depth={d}")
 
-    out_dir = Path(f"/home/sander/Genesis_Project/vllm_engine/suffix_sweep_{args.label}_{datetime.now().strftime('%H%M%S')}")
+    import os
+    _profile_root = os.environ.get(
+        "SNDR_PROFILE_DIR",
+        str(Path.home() / "Genesis_Project" / "vllm_engine"),
+    )
+    out_dir = Path(_profile_root) / f"suffix_sweep_{args.label}_{datetime.now().strftime('%H%M%S')}"
     out_dir.mkdir(parents=True, exist_ok=True)
     print(f"Output dir: {out_dir}")
 

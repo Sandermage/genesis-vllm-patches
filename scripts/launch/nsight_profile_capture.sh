@@ -6,17 +6,24 @@
 # Example: bash scripts/launch/nsight_profile_capture.sh prod_v775_2026_04_29
 #
 # Prereqs: server has nsys installed; container is running on test slot.
-# Output: /home/sander/Genesis_Project/profiles/<run_name>.nsys-rep
+# Output: ${SNDR_PROFILE_DIR}/<run_name>.nsys-rep
 #         + analyze locally with `nsys stats <run_name>.nsys-rep`
+#
+# Env overrides:
+#   HOST              target server (default 127.0.0.1)
+#   SSH_USER          ssh login (default $USER)
+#   DURATION          capture window in seconds (default 300)
+#   SNDR_PROFILE_DIR  where to land the .nsys-rep (default $HOME/Genesis_Project/profiles)
 
 set -euo pipefail
 
 RUN_NAME="${1:-prod_$(date -u +%Y%m%dT%H%M%SZ)}"
-HOST="${HOST:-192.168.1.10}"
+HOST="${HOST:-127.0.0.1}"
+SSH_USER="${SSH_USER:-${USER}}"
 DURATION="${DURATION:-300}"  # 5 minutes
-OUT_DIR="/home/sander/Genesis_Project/profiles"
+OUT_DIR="${SNDR_PROFILE_DIR:-${HOME}/Genesis_Project/profiles}"
 
-ssh sander@${HOST} "
+ssh ${SSH_USER}@${HOST} "
 mkdir -p ${OUT_DIR}
 nsys --version || { echo 'nsys not installed on server. Install: sudo apt install nsight-systems-2024.1'; exit 1; }
 PID=\$(docker exec vllm-server-mtp-test pgrep -f 'vllm.entrypoints' | head -1)
@@ -44,4 +51,4 @@ for i in $(seq 1 10); do
         -o /dev/null -w "  workload req $i: %{http_code} (%{time_total}s)\n" 2>/dev/null
 done
 echo "Workload done. Wait for nsys to finish capture..."
-echo "Then run: ssh sander@${HOST} \"nsys stats /home/sander/Genesis_Project/profiles/${RUN_NAME}.nsys-rep | head -50\""
+echo "Then run: ssh ${SSH_USER}@${HOST} \"nsys stats ${OUT_DIR}/${RUN_NAME}.nsys-rep | head -50\""

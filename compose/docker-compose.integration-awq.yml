@@ -6,7 +6,7 @@
 # not to runtime config drift. Prod is the stability reference.
 #
 # Source of truth for prod settings:
-#   /home/sander/genesis-v7-integration-backup-20260424-014628/docker-compose.yml
+#   <historical integration backup, kept in git history>
 # (Backed up 2026-04-24 before the first integration test stop.)
 #
 # DEVIATIONS from prod (intentional, documented):

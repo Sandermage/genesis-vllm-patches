@@ -17,9 +17,21 @@
 #   variant targets the dcacdf9a pin with the env flags actually
 #   verified on hardware during the 2026-05-14 TP=2 200K ladder.
 #
-# Verified on: 2× NVIDIA RTX A5000 24 GB, host 192.168.1.10.
+# Verified on: 2× NVIDIA RTX A5000 24 GB.
 # Bench: progressive 50K-200K all PASS (see
 #   docs/_internal/runs/tp2_progressive_probe.json).
+#
+# Env overrides (set via the operator's host.env or shell rc):
+#   SNDR_REPO_ROOT     repo root with vllm/sndr_core (default $HOME/genesis-vllm-patches-v11)
+#   SNDR_CACHE_ROOT    triton + compile cache root  (default $HOME/Genesis_Project/vllm_engine)
+#   SNDR_HF_CACHE      HuggingFace cache dir         (default $HOME/.cache/huggingface)
+#   SNDR_RUNTIME_CACHE genesis runtime cache         (default $HOME/.sndr/cache)
+#   SNDR_MODELS_DIR    model dir mounted as /models  (default /nfs/genesis/models)
+SNDR_REPO_ROOT="${SNDR_REPO_ROOT:-${HOME}/genesis-vllm-patches-v11}"
+SNDR_CACHE_ROOT="${SNDR_CACHE_ROOT:-${HOME}/Genesis_Project/vllm_engine}"
+SNDR_HF_CACHE="${SNDR_HF_CACHE:-${HOME}/.cache/huggingface}"
+SNDR_RUNTIME_CACHE="${SNDR_RUNTIME_CACHE:-${HOME}/.sndr/cache}"
+SNDR_MODELS_DIR="${SNDR_MODELS_DIR:-/nfs/genesis/models}"
 #
 # Credit:
 #   Genesis stack — Sandermage / Sander Barzov Aleksandr, Odessa.
@@ -34,8 +46,8 @@ docker rm $NAME 2>/dev/null || true
 docker stop vllm-pn95-1xa5000 2>/dev/null || true
 docker rm vllm-pn95-1xa5000 2>/dev/null || true
 
-mkdir -p /home/sander/Genesis_Project/vllm_engine/compile-cache-pn95-2x \
-         /home/sander/Genesis_Project/vllm_engine/triton-cache-pn95-2x
+mkdir -p "${SNDR_CACHE_ROOT}/compile-cache-pn95-2x" \
+         "${SNDR_CACHE_ROOT}/triton-cache-pn95-2x"
 
 docker run -d --name $NAME \
   --gpus all \
@@ -139,12 +151,12 @@ docker run -d --name $NAME \
   -e GENESIS_PN201_EMPTY_CACHE_COOLDOWN=50 \
   -e GENESIS_ENABLE_SNDR_WORKSPACE_001=1 \
   \
-  -v /home/sander/genesis-vllm-patches-v11/vllm/sndr_core:/usr/local/lib/python3.12/dist-packages/vllm/sndr_core \
-  -v /nfs/genesis/models:/models \
-  -v /home/sander/.cache/huggingface:/root/.cache/huggingface \
-  -v /home/sander/Genesis_Project/vllm_engine/compile-cache-pn95-2x:/root/.cache/vllm/torch_compile_cache \
-  -v /home/sander/Genesis_Project/vllm_engine/triton-cache-pn95-2x:/root/.triton/cache \
-  -v /home/sander/.sndr/cache:/root/.sndr/cache \
+  -v "${SNDR_REPO_ROOT}/vllm/sndr_core:/usr/local/lib/python3.12/dist-packages/vllm/sndr_core" \
+  -v "${SNDR_MODELS_DIR}:/models" \
+  -v "${SNDR_HF_CACHE}:/root/.cache/huggingface" \
+  -v "${SNDR_CACHE_ROOT}/compile-cache-pn95-2x:/root/.cache/vllm/torch_compile_cache" \
+  -v "${SNDR_CACHE_ROOT}/triton-cache-pn95-2x:/root/.triton/cache" \
+  -v "${SNDR_RUNTIME_CACHE}:/root/.sndr/cache" \
   vllm/vllm-openai:nightly-dcacdf9a8860a86401127d1c8f93ebf3cfbfd026 \
   -c "
 set -e

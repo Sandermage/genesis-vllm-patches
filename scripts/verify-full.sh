@@ -16,17 +16,17 @@
 #                              animal+color+number, in-vocabulary tokens)
 #
 # Usage:
-#   ENDPOINT=http://192.168.1.10:8000 MODEL=qwen3.6-27b ./verify-full.sh
+#   ENDPOINT=http://127.0.0.1:8000 MODEL=qwen3.6-27b ./verify-full.sh
 #   ./verify-full.sh --skip-needle  # quick mode (skip stage 7)
 #
 # Exit 0 = all stages PASS; non-zero = first stage that failed.
 set -euo pipefail
 
-ENDPOINT="${ENDPOINT:-http://192.168.1.10:8000}"
+ENDPOINT="${ENDPOINT:-http://127.0.0.1:8000}"
 MODEL="${MODEL:-qwen3.6-27b}"
 API_KEY="${GENESIS_API_KEY:-genesis-local}"
 CONTAINER="${CONTAINER:-vllm-server-mtp-test}"
-SSH_HOST="${SSH_HOST:-sander@192.168.1.10}"
+SSH_HOST="${SSH_HOST:-${USER}@127.0.0.1}"
 SKIP_NEEDLE=0
 for arg in "$@"; do
   [[ "$arg" == "--skip-needle" ]] && SKIP_NEEDLE=1

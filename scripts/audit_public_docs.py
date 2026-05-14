@@ -7,7 +7,7 @@ private-information leaks that the docs-stale-scan (§6.3 gate #1) doesn't:
 
   D-1  No public doc links into `docs/_internal/*`.
   D-2  No RFC-1918 private IPv4 ranges in public docs.
-  D-3  No `/home/sander` or `/Users/sander` operator paths in public docs.
+  D-3  No `/home/<user>` or `/Users/<user>` operator paths in public docs.
   D-4  No server-only container names (vllm-server-mtp-test, vllm-pn95-2xa5000-*).
   D-5  No retired CLI verbs (genesis doctor, genesis verify, genesis migrate,
        ./scripts/launch.sh in instructions).
