@@ -117,6 +117,34 @@ genesis_env:
   GENESIS_OBSERVABILITY: '1'                         # Per-patch apply timing + RSS delta logged via genesis.observability. Operator UX; zero hot-path overhead (fires only at apply time).
   # ── Internal mode flags ──
   GENESIS_BUFFER_MODE: shared                        # Genesis buffer manager mode (range: 'shared'|'exclusive'|'auto'; 'shared' = one buffer shared across ranks for read-only data)
+  # ── Wave 9 (2026-05-14) — patches verified on the dcacdf9a TP=2 ladder.
+  #    Defaults match the env-flag matrix that produced the 35B-A3B-FP8 256K
+  #    PASS results (`docs/_internal/runs/tp2_256k_probe_35b.json`).
+  GENESIS_ENABLE_P87: '1'                            # Spec-decode rejection ratio sanity guard.
+  GENESIS_ENABLE_P91: '1'                            # Long-prompt tool-call reminder helper (was PN72 before the registry rename).
+  GENESIS_ENABLE_P94: '1'                            # Zero-alloc spec-decode prepare (GroupAB perf component).
+  GENESIS_ENABLE_P98: '1'                            # CRITICAL: TQ WorkspaceManager revert (hybrid + TQ k8v4 boot fix).
+  GENESIS_ENABLE_P103: '1'                           # FLA Cliff 2 chunked prefill — applicable to the hybrid GDN layers in Qwen3-Next.
+  GENESIS_ENABLE_PN12_FFN_INTERMEDIATE_POOL: '1'     # FFN intermediate pool — peak memory reduction at long context.
+  GENESIS_ENABLE_PN14_TQ_DECODE_OOB_CLAMP: '1'       # TQ decode out-of-bound clamp (paired with PN12 and P94).
+  GENESIS_ENABLE_PN25_SILU_INDUCTOR_SAFE: '1'        # Inductor opaque-op pool for SiluAndMul (Cliff 1B preventive).
+  GENESIS_ENABLE_PN30_DS_LAYOUT_SPEC_DECODE: '1'     # DS conv state layout + spec-decode accept_len>1 protection.
+  GENESIS_ENABLE_PN59_STREAMING_GDN: '1'             # Required for ctx >= 64K on hybrid (GDN streaming orchestrator).
+  GENESIS_ENABLE_PN71_THINKING_TAG_NORMALIZE: '1'    # Normalises malformed `<think>`/`</think>` from upstream tokenizer drift.
+  GENESIS_ENABLE_PN73_TOOL_ARGS_SAFE_NORMALIZE: '1'  # Tool argument JSON normaliser (Qwen3-Coder edge cases).
+  GENESIS_ENABLE_PN82_MAMBA_CUDAGRAPH_PREFILL_ZERO: '1' # vllm#41873 backport — zeros padded `is_prefilling` rows on hybrid CG.
+  GENESIS_ENABLE_PN91_DEVELOPER_ROLE: '1'            # OpenAI-style `developer` role passthrough for IDE agent clients.
+  GENESIS_ENABLE_PN92_NIXL_EP_TRIAL_IMPORT: '1'      # vllm#40154 backport — trial-import guard for nixl_ep / deep_ep / mori (boot guard on dcacdf9a).
+  GENESIS_ENABLE_PN95_TIER_AWARE_CACHE: '1'          # Tier-aware KV cache (GPU hot + CPU pinned warm + disk cold). Holds long-context KV pools beyond plain GPU residency.
+  GENESIS_ENABLE_PN96_EMERGENCY_DEMOTE: '1'          # Companion to PN95 — emergency demote when scheduler hits the free-blocks threshold.
+  GENESIS_ENABLE_PN104_OFFLOAD_PREFETCH_REDIRECT: '0' # cpu_offload → Prefetch redirect. OFF — only relevant with `--cpu-offload-gb > 0`; 35B PROD does not use weight offload.
+  GENESIS_ENABLE_PN105_AUTOROUND_OFFLOAD_COMPAT: '0' # AutoRound INT4 + Prefetch compat — OFF on FP8 35B; flag exists for cross-config consistency only.
+  GENESIS_ENABLE_PN106_GDN_H_POOL: '1'               # GDN inner chunk-state `h` pool — removes per-step alloc churn.
+  GENESIS_ENABLE_PN108_FUSED_RECURRENT_PREFILL: '0' # TOMBSTONED — fla `fused_recurrent_gated_delta_rule` cannot serve single-seq prefill (see patch docstring).
+  GENESIS_ENABLE_PN200_GDN_SCRATCH_REUSE: '0'        # GDN `core_attn_out` pool. OFF — anchor depends on P28-modified ternary but dispatcher applies PN200 before P28 (ordinal 34 < 141). Pending ordering rework.
+  GENESIS_ENABLE_PN201_SCHEDULER_EMPTY_CACHE: '1'    # Scheduler-tick `torch.cuda.empty_cache()` hook, threshold-gated.
+  GENESIS_ENABLE_PN204_DUAL_STREAM_INPROJ: '0'       # Port of vllm#42301 (open). OFF — eager event allocation raises a torch.Event type error on this pin; lazy init still incubating.
+  GENESIS_ENABLE_SNDR_WORKSPACE_001: '1'             # Workspace grow-after-lock graceful fix — replaces upstream assert with one-shot grow + warn.
 
 # 2026-05-11 Wave 8 reference bench (genesis_bench_suite.py --quick --ctx 8k, 3rd warm rerun):
 #   wall_TPS = 232.36 (CV 6.74%) / decode_TPOT = 3.97 ms (CV 4.5%) / TTFT ~112 ms

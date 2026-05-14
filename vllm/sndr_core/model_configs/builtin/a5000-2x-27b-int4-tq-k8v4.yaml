@@ -41,7 +41,7 @@ served_model_name: qwen3.6-27b
 quantization: null
 kv_cache_dtype: turboquant_k8v4
 
-max_model_len: 131072
+max_model_len: 262144
 gpu_memory_utilization: 0.92
 max_num_seqs: 4
 max_num_batched_tokens: 4096
@@ -127,7 +127,27 @@ genesis_env:
   GENESIS_PN16_CLASSIFIER_MAX_TOKENS: '0'            # V7 OFF — V7 cap caused -3.7% wall_TPS measurement artifact on 35B; same path-shape concern on 27B.
   GENESIS_OBSERVABILITY: '1'                         # Per-patch apply timing instrumentation.
   GENESIS_BUFFER_MODE: shared
-  GENESIS_TQ_MAX_MODEL_LEN: '131072'
+  GENESIS_TQ_MAX_MODEL_LEN: '262144'                 # Raised 2026-05-14: TP=2 256K ladder PASS (50K/100K/156K/180K/200K/230K/256K green on dcacdf9a pin). Keep TQ_MAX in sync with max_model_len so the workspace allocator sizes correctly for the worst-case context.
+  # ── Wave 9 (2026-05-14) — patches verified on the dcacdf9a TP=2 256K ladder.
+  #    Most are default-off in the patch registry but were enabled during the
+  #    bench; defaults below match the env-flag matrix that produced the
+  #    `docs/_internal/runs/tp2_256k_probe_27b.json` PASS results.
+  GENESIS_ENABLE_P87: '1'                            # Spec-decode rejection ratio sanity guard — keeps verifier from accepting drafts on stale GDN state.
+  GENESIS_ENABLE_P91: '1'                            # Renamed PN72 (registry ID collision); long-prompt tool-call reminder helper companion to P68/P69.
+  GENESIS_ENABLE_PN71_THINKING_TAG_NORMALIZE: '1'    # Normalises malformed `<think>`/`</think>` from upstream tokenizer drift; closes a tool-call quality regression on long context.
+  GENESIS_ENABLE_PN73_TOOL_ARGS_SAFE_NORMALIZE: '1'  # Tool argument JSON normaliser (Qwen3-Coder edge cases) — required alongside PN56 XML fallback for full tool-call adherence.
+  GENESIS_ENABLE_PN91_DEVELOPER_ROLE: '1'            # OpenAI-style `developer` role passthrough — IDE agents (Cline / Claude Code / OpenCode) rely on it.
+  GENESIS_ENABLE_PN92_NIXL_EP_TRIAL_IMPORT: '1'      # Backport of vllm#40154 — trial-import guard for nixl_ep / deep_ep / mori; prevents boot crash on dcacdf9a.
+  GENESIS_ENABLE_PN95_TIER_AWARE_CACHE: '1'          # Tier-aware KV cache (GPU hot + CPU pinned warm + disk cold). Required at long context to hold the KV pool beyond plain GPU residency.
+  GENESIS_ENABLE_PN96_EMERGENCY_DEMOTE: '1'          # Companion to PN95 — emergency demote path when scheduler hits the free-blocks threshold.
+  GENESIS_ENABLE_PN104_OFFLOAD_PREFETCH_REDIRECT: '0' # cpu_offload → Prefetch redirect. Default OFF — only relevant when `--cpu-offload-gb > 0` (not used on TP=2 256K ladder; activation budget, not weight residency, is the limit).
+  GENESIS_ENABLE_PN105_AUTOROUND_OFFLOAD_COMPAT: '0' # AutoRound INT4 + Prefetch compat. Default OFF; tied to PN104. Re-enable when cpu_offload is required on a single-A5000 deployment.
+  GENESIS_ENABLE_PN106_GDN_H_POOL: '1'               # GDN inner chunk-state `h` pool — removes 32-48 MiB × 48-layer alloc churn each chunked-prefill step.
+  GENESIS_ENABLE_PN108_FUSED_RECURRENT_PREFILL: '0' # TOMBSTONED — fla `fused_recurrent_gated_delta_rule` cannot serve single-seq prefill. Kept at '0' so future maintainers see the documented dead end and do not retry.
+  GENESIS_ENABLE_PN200_GDN_SCRATCH_REUSE: '0'        # GDN `core_attn_out` pool. Default OFF on the dcacdf9a pin — anchor depends on P28 having modified the ternary first, but the dispatcher applies PN200 (ordinal 34) before P28 (ordinal 141). Re-enable once the ordering is reworked.
+  GENESIS_ENABLE_PN201_SCHEDULER_EMPTY_CACHE: '1'    # Scheduler-tick `torch.cuda.empty_cache()` hook; threshold-gated, prevents fragmentation creep at long context.
+  GENESIS_ENABLE_PN204_DUAL_STREAM_INPROJ: '0'       # Port of vllm#42301 (open). Default OFF — eager `__init__` allocation of `torch.cuda.Event` raises a type error on this pin; lazy init path is still incubating. Re-enable after the upstream PR lands or the Genesis lazy-init wrapper graduates.
+  GENESIS_ENABLE_SNDR_WORKSPACE_001: '1'             # Workspace grow-after-lock graceful fix — replaces an upstream assertion with a one-shot grow + warn, recovers cleanly on the first oversized decode that the warmup never exercised.
 
 system_env:
   PYTORCH_CUDA_ALLOC_CONF: 'expandable_segments:True,max_split_size_mb:256'

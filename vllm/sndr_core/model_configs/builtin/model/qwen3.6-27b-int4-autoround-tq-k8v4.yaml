@@ -116,6 +116,25 @@ patches:
   # ── Observability + buffer mode ──
   GENESIS_OBSERVABILITY: '1'                         # Per-patch apply timing + RSS delta logged; zero hot-path overhead
   GENESIS_BUFFER_MODE: 'shared'                      # Genesis buffer manager mode (range: 'shared'|'exclusive'|'auto')
+  # ── Wave 9 (2026-05-14) — verified on the dcacdf9a TP=2 256K ladder.
+  #    Defaults match the env-flag matrix that produced
+  #    `docs/_internal/runs/tp2_256k_probe_27b.json` (200K/230K/256K PASS).
+  GENESIS_ENABLE_P87: '1'                            # Spec-decode rejection ratio sanity guard.
+  GENESIS_ENABLE_P91: '1'                            # Renamed PN72 (registry ID collision); long-prompt tool-call reminder helper.
+  GENESIS_ENABLE_PN71_THINKING_TAG_NORMALIZE: '1'    # Normalises malformed `<think>`/`</think>` from upstream tokenizer drift.
+  GENESIS_ENABLE_PN73_TOOL_ARGS_SAFE_NORMALIZE: '1'  # Tool argument JSON normaliser (Qwen3-Coder edge cases).
+  GENESIS_ENABLE_PN91_DEVELOPER_ROLE: '1'            # OpenAI-style `developer` role passthrough for IDE agents (Cline / Claude Code / OpenCode).
+  GENESIS_ENABLE_PN92_NIXL_EP_TRIAL_IMPORT: '1'      # Backport of vllm#40154 — trial-import guard for nixl_ep / deep_ep / mori.
+  GENESIS_ENABLE_PN95_TIER_AWARE_CACHE: '1'          # Tier-aware KV cache — GPU hot + CPU pinned warm + disk cold.
+  GENESIS_ENABLE_PN96_EMERGENCY_DEMOTE: '1'          # Companion to PN95 — emergency demote on scheduler free-blocks threshold.
+  GENESIS_ENABLE_PN104_OFFLOAD_PREFETCH_REDIRECT: '0' # cpu_offload → Prefetch redirect. OFF — only used when `--cpu-offload-gb > 0`.
+  GENESIS_ENABLE_PN105_AUTOROUND_OFFLOAD_COMPAT: '0' # AutoRound INT4 + Prefetch compat. OFF — tied to PN104.
+  GENESIS_ENABLE_PN106_GDN_H_POOL: '1'               # GDN inner chunk-state `h` pool — removes 32-48 MiB × 48-layer alloc churn each chunked-prefill step.
+  GENESIS_ENABLE_PN108_FUSED_RECURRENT_PREFILL: '0' # TOMBSTONED — fla `fused_recurrent_gated_delta_rule` cannot serve single-seq prefill (design conflict, see patch docstring).
+  GENESIS_ENABLE_PN200_GDN_SCRATCH_REUSE: '0'        # GDN `core_attn_out` pool. OFF — anchor depends on P28 modification but dispatcher runs PN200 first.
+  GENESIS_ENABLE_PN201_SCHEDULER_EMPTY_CACHE: '1'    # Scheduler-tick `torch.cuda.empty_cache()` hook, threshold-gated.
+  GENESIS_ENABLE_PN204_DUAL_STREAM_INPROJ: '0'       # Port of vllm#42301 (open). OFF — eager event allocation raises a torch.Event type error; lazy init still incubating.
+  GENESIS_ENABLE_SNDR_WORKSPACE_001: '1'             # Workspace grow-after-lock graceful fix — replaces upstream assert with one-shot grow + warn.
 
 notes:
   - "27B hybrid GDN + TQ k8v4 + MTP K=3. Validated 2026-05-11 on 2× A5000."

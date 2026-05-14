@@ -22,7 +22,7 @@ patches_delta:
 # 2× more concurrent sequences (max_num_seqs=4) and lower max_model_len
 # (131072 fits the larger seq count without OOM).
 sizing_override:
-  max_model_len: 131072                          # 128K context (vs 35B's 320K — trade ctx for concurrency)
+  max_model_len: 262144                          # 256K context — raised 2026-05-14 after TP=2 progressive ladder PASSed 200K/230K/256K on the dcacdf9a pin. Concurrency stays at max_num_seqs=4 (verified during the ladder).
   gpu_memory_utilization: 0.92                   # 0.92 (vs 0.90 in 35B) — 27B leaves more headroom
   max_num_seqs: 4                                # 4 concurrent (vs 35B's 2) — 27B has 2× the spare KV pool
   max_num_batched_tokens: 4096                   # chunked prefill chunk size (must equal GENESIS_PROFILE_RUN_CAP_M)
