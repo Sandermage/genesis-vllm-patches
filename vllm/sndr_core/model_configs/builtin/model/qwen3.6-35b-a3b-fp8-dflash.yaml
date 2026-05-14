@@ -22,6 +22,12 @@ quantization: null                               # null = FP8 native (no --quant
 dtype: bfloat16                                  # bfloat16 (NOT float16) — DFlash drafter expects bf16; deviation from MTP variant
 trust_remote_code: true                          # required for Qwen3 hybrid-GDN custom modeling code
 
+# 2026-05-14 chat-template override — same Qwen3.6 family bug as the
+# MTP sister (club-3090 disc #53). Chat-template gates input prompt
+# rendering only; DFlash drafter affects verify-side spec decode and
+# does not change template handling.
+chat_template: /models/Qwen3.6-35B-A3B-FP8/chat_template_enhanced.jinja
+
 # ─── Capabilities — DFlash variant ─────────────────────────────────────
 # DFlash needs head_size=256 + non-causal attn. No Ampere backend supports
 # that with fp8/turbo KV → KV must stay at default fp16 (different from
@@ -46,7 +52,7 @@ requires:
 
 versions:
   genesis_pin_min: v11.0.0                       # minimum sndr_core version
-  vllm_pin_required: 0.20.2rc1.dev9+g01d4d1ad3   # DFlash bench was on dev9 (re-bench needed for dev209 pin bump)
+  vllm_pin_required: 0.20.2rc1.dev338+gbf0d2dc6d # current PROD baseline (Wave 9 dev338 nightly upgrade 2026-05-14)
   reference_metrics_ref: null                    # no JSON baseline yet; bench-and-update pending
 
 # ─── Canonical patches matrix (37 entries) ─────────────────────────────

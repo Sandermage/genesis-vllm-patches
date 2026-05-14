@@ -25,6 +25,13 @@ quantization: auto_round                         # explicit — not auto-detecte
 dtype: bfloat16                                  # bfloat16 (NOT float16) — DFlash drafter expects bf16
 trust_remote_code: true                          # Qwen3 hybrid-GDN custom modeling code
 
+# 2026-05-14 chat-template override — same Qwen3.6-27B checkpoint as
+# the TQ-k8v4 sister, so the same multi-turn tool-call bug applies
+# (club-3090 disc #53). DFlash drafter path runs the same template
+# (chat-template gates input prompt rendering; drafter only affects
+# verify-side spec decode).
+chat_template: /models/Qwen3.6-27B-int4-AutoRound/chat_template_enhanced.jinja
+
 # ─── Capabilities ──────────────────────────────────────────────────────
 capabilities:
   attention_arch: hybrid_gdn_moe                 # Qwen 3.6 hybrid arch
@@ -46,7 +53,7 @@ requires:
 
 versions:
   genesis_pin_min: v11.0.0
-  vllm_pin_required: 0.20.2rc1.dev9+g01d4d1ad3
+  vllm_pin_required: 0.20.2rc1.dev338+gbf0d2dc6d
   reference_metrics_ref: null
 
 # ─── Canonical patches matrix (30 entries) ─────────────────────────────

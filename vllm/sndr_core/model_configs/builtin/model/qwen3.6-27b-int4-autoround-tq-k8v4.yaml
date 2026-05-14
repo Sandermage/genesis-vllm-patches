@@ -24,6 +24,19 @@ quantization: null                               # null = auto-detected by vLLM 
 dtype: float16                                   # values: float16|bfloat16|float32; float16 standard for MTP+TQ k8v4 hybrid path
 trust_remote_code: true                          # required for Qwen3 hybrid-GDN custom modeling code
 
+# 2026-05-14 chat-template override. Stock chat_template.jinja shipped
+# with Qwen3.6-27B has a multi-turn agentic bug — the assistant branch
+# can leave `<think>` open before `<tool_call>` blocks, so historical
+# reasoning leaks into `tool_response` and downstream tool-call rate
+# collapses (club-3090 disc #53 — allanchan339 root-cause writeup).
+# `qwen3.6-enhanced.jinja` adds self-healing logic that injects
+# `</think>` immediately before the first `<tool_call>` when the
+# model output did not close the reasoning block itself. The file
+# lives next to the checkpoint on host (under ${models_dir}) so the
+# existing `${models_dir}:/models:ro` mount exposes it inside the
+# container — no new mount slot required.
+chat_template: /models/Qwen3.6-27B-int4-AutoRound/chat_template_enhanced.jinja
+
 # ─── Capabilities — inherent to this model ─────────────────────────────
 capabilities:
   attention_arch: hybrid_gdn_moe                 # Qwen 3.6 hybrid (gated delta net + MoE); drives PN59/P98/PN11 + PN82
@@ -48,7 +61,7 @@ requires:
 
 versions:
   genesis_pin_min: v11.0.0                       # minimum sndr_core version
-  vllm_pin_required: 0.20.2rc1.dev209+g5536fc0c0 # anchors valid only on this vllm pin
+  vllm_pin_required: 0.20.2rc1.dev338+gbf0d2dc6d # current PROD baseline (Wave 9 dev338 — 27B tool-call PASS 2026-05-14)
   reference_metrics_ref: tests/integration/baselines/27b_v11_wave9.json   # E22: realigned to actual filename
 
 # ─── Canonical patches matrix (52 entries) ─────────────────────────────

@@ -222,6 +222,17 @@ def compose(
     if profile is not None and profile.sizing_override is not None:
         sizing = profile.sizing_override
 
+    # 4c. Optional --chat-template override → vllm_extra_args. The
+    # template path is the container-side path (typically under
+    # /models/<checkpoint>/...) so the operator does not have to add
+    # a new mount slot; the existing ${models_dir}:/models:ro mount
+    # exposes it. Added 2026-05-14 for the qwen3.6-27b template fix
+    # (club-3090 disc #53 — assistant branch did not close </think>
+    # before <tool_call>; tools stopped firing in agentic traces).
+    vllm_extra_args: list[str] = []
+    if getattr(model, "chat_template", None):
+        vllm_extra_args.extend(["--chat-template", model.chat_template])
+
     # 5. Composed key for downstream identification.
     composed_key = (
         f"{model.id}__{hardware.id}"
@@ -276,6 +287,9 @@ def compose(
         # Patches matrix
         genesis_env=patches,
         system_env=dict(hardware.system_env),
+
+        # Extra CLI flags (currently only --chat-template; see 4c above)
+        vllm_extra_args=vllm_extra_args,
 
         # Docker
         docker=docker_cfg,

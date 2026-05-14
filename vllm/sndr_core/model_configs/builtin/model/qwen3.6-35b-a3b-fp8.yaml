@@ -25,6 +25,13 @@ quantization: null                               # null = FP8 native (no extra -
 dtype: float16                                   # values: float16|bfloat16|float32; float16 standard for MTP+TQ k8v4
 trust_remote_code: true                          # required for Qwen3-A3B custom modeling code (vendor pattern)
 
+# 2026-05-14 chat-template override — Qwen3.6-35B-A3B-FP8 ships the
+# byte-identical chat_template.jinja as 27B-int4-AutoRound (verified
+# via cmp -s). Same multi-turn tool-call bug (club-3090 disc #53),
+# same fix. Enhanced template lives next to the checkpoint and is
+# exposed via the existing /models mount.
+chat_template: /models/Qwen3.6-35B-A3B-FP8/chat_template_enhanced.jinja
+
 # ─── Capabilities — inherent to this model ─────────────────────────────
 # Different capabilities mean a different model file; do NOT override these
 # from hardware/profile layers (ownership rule, see roadmap §4.2).
@@ -48,7 +55,7 @@ requires:
 
 versions:
   genesis_pin_min: v11.0.0                       # minimum sndr_core version (semver)
-  vllm_pin_required: 0.20.2rc1.dev209+g5536fc0c0 # exact vllm pin (anchors valid only on this pin)
+  vllm_pin_required: 0.20.2rc1.dev338+gbf0d2dc6d # current PROD baseline (Wave 9 dev338 — smoke 35B tool-call PASS 2026-05-14)
   reference_metrics_ref: tests/integration/baselines/35b_v11_wave9.json  # bench reference for bench-validate (E22: realigned to actual filename)
 
 # ─── Canonical patches matrix (44 entries) ─────────────────────────────

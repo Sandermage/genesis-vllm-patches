@@ -25,6 +25,11 @@ quantization: null                               # null = auto-detected by vLLM 
 dtype: float16                                   # values: float16|bfloat16|float32; float16 standard for MTP path
 trust_remote_code: true                          # required for Qwen3 hybrid-GDN custom modeling code
 
+# 2026-05-14 chat-template override — same Qwen3.6-27B multi-turn
+# tool-call bug as the TQ-k8v4 sister (club-3090 disc #53).
+# Same checkpoint → same template fix.
+chat_template: /models/Qwen3.6-27B-int4-AutoRound/chat_template_enhanced.jinja
+
 # ─── Capabilities ──────────────────────────────────────────────────────
 capabilities:
   attention_arch: hybrid_gdn_moe                 # same arch as TQ sister
@@ -46,7 +51,7 @@ requires:
 
 versions:
   genesis_pin_min: v11.0.0
-  vllm_pin_required: 0.20.2rc1.dev9+g01d4d1ad3   # bench was on dev9
+  vllm_pin_required: 0.20.2rc1.dev338+gbf0d2dc6d # current PROD baseline (smoke + tool-call validated 2026-05-14)
   reference_metrics_ref: null                    # no JSON baseline yet
 
 # ─── Canonical patches matrix ──────────────────────────────────────────

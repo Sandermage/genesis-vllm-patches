@@ -144,6 +144,17 @@ class ModelDef:
     # A profile delta can disable / enable / override entries here.
     patches: dict[str, str] = field(default_factory=dict)
 
+    # Optional Jinja chat-template override (`--chat-template <path>`).
+    # When set, the launch renderer bind-mounts the host-resolved file
+    # into the container at /chat_templates/<basename> and emits the
+    # CLI flag. Supports `${chat_templates_dir}/...` symbolic refs that
+    # resolve via host.yaml. Use for models where the upstream
+    # tokenizer-bundled chat_template.jinja has known bugs (e.g.
+    # qwen3.6-27b club-3090 disc #53 — assistant branch does not close
+    # </think> before <tool_call>, tools stop firing in multi-turn
+    # agentic traces).
+    chat_template: Optional[str] = None
+
     notes: list[str] = field(default_factory=list)
 
     def validate(self) -> None:
@@ -163,6 +174,11 @@ class ModelDef:
                 raise SchemaError(
                     f"model.patches[{k!r}] value must be str (got {type(v).__name__})"
                 )
+        if self.chat_template is not None and not isinstance(self.chat_template, str):
+            raise SchemaError(
+                f"model.chat_template must be str | None (got "
+                f"{type(self.chat_template).__name__})"
+            )
 
 
 # ─── HardwareDef ──────────────────────────────────────────────────────────

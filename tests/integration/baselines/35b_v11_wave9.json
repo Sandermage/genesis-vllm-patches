@@ -1,0 +1,824 @@
+{
+  "suite_version": "1.1",
+  "name": "wave9-35b-dev209",
+  "started": "2026-05-11T22:58:55Z",
+  "mode": "quick",
+  "host": "127.0.0.1",
+  "port": 8000,
+  "scheme": "http",
+  "model": "qwen3.6-35b-a3b",
+  "local_gpus": [
+    {
+      "index": 0,
+      "name": "NVIDIA RTX A5000",
+      "vram_total_mib": 24564,
+      "vram_used_mib": 21953,
+      "driver": "580.126.09",
+      "compute_cap": "8.6",
+      "bandwidth_gb_s": 768
+    },
+    {
+      "index": 1,
+      "name": "NVIDIA RTX A5000",
+      "vram_total_mib": 24564,
+      "vram_used_mib": 21953,
+      "driver": "580.126.09",
+      "compute_cap": "8.6",
+      "bandwidth_gb_s": 768
+    }
+  ],
+  "vllm_version": {
+    "system_fingerprint": "vllm-0.20.2rc1.dev338+gbf0d2dc6d-tp2-d1a8664a",
+    "parsed": {
+      "vllm_version": "0.20.2rc1.dev338+gbf0d2dc6d",
+      "tp_size": 2,
+      "backend_sig": "d1a8664a"
+    },
+    "probe_error": null
+  },
+  "genesis_state": {
+    "available": true,
+    "source": "host",
+    "self_test": {
+      "checks": [
+        {
+          "name": "version constant",
+          "status": "pass",
+          "message": "version: 11.0.0"
+        },
+        {
+          "name": "compat imports",
+          "status": "pass",
+          "message": "19 compat modules import cleanly"
+        },
+        {
+          "name": "wiring imports",
+          "status": "pass",
+          "message": "121 wiring modules import cleanly"
+        },
+        {
+          "name": "schema validator",
+          "status": "pass",
+          "message": "all 135 entries schema-clean"
+        },
+        {
+          "name": "lifecycle audit",
+          "status": "pass",
+          "message": "135 entries \u2014 no unknown lifecycle states"
+        },
+        {
+          "name": "categories build",
+          "status": "pass",
+          "message": "135 patches \u2192 18 categories"
+        },
+        {
+          "name": "predicates evaluator",
+          "status": "pass",
+          "message": "predicates evaluator works on every applies_to in registry"
+        },
+        {
+          "name": "schema file",
+          "status": "pass",
+          "message": "schema file parseable + has required keys"
+        }
+      ],
+      "summary": {
+        "passed": 8,
+        "failed": 0,
+        "warned": 0,
+        "skipped": 0,
+        "total": 8
+      }
+    }
+  },
+  "accept_rate_pre": {
+    "accepted_tokens": null,
+    "drafted_tokens": null,
+    "emitted_tokens": null,
+    "accept_rate": null
+  },
+  "config": {
+    "runs": 5,
+    "stress": 0,
+    "ctx": "8k",
+    "prompts_set": "short",
+    "max_tokens": 1024
+  },
+  "server": {
+    "reachable": true,
+    "http": 200,
+    "models": [
+      "qwen3.6-35b-a3b"
+    ]
+  },
+  "tool_call": {
+    "cases": [
+      {
+        "case": "paris_no_think",
+        "thinking": false,
+        "http": 200,
+        "tool_calls": 1,
+        "tool_name": "get_weather",
+        "tool_args_sample": "{\"city\": \"Paris\"}",
+        "finish": "tool_calls",
+        "completion_tokens": 26,
+        "content_excerpt": null,
+        "verdict": "PASS"
+      },
+      {
+        "case": "tokyo_think",
+        "thinking": true,
+        "http": 200,
+        "tool_calls": 1,
+        "tool_name": "get_weather",
+        "tool_args_sample": "{\"city\": \"Tokyo\"}",
+        "finish": "tool_calls",
+        "completion_tokens": 245,
+        "content_excerpt": "\n\nI will check the weather for Tokyo.\n\n",
+        "verdict": "PASS"
+      },
+      {
+        "case": "nyc_no_think",
+        "thinking": false,
+        "http": 200,
+        "tool_calls": 1,
+        "tool_name": "get_weather",
+        "tool_args_sample": "{\"city\": \"New York\"}",
+        "finish": "tool_calls",
+        "completion_tokens": 27,
+        "content_excerpt": null,
+        "verdict": "PASS"
+      },
+      {
+        "case": "london_think",
+        "thinking": true,
+        "http": 200,
+        "tool_calls": 1,
+        "tool_name": "get_weather",
+        "tool_args_sample": "{\"city\": \"London\"}",
+        "finish": "tool_calls",
+        "completion_tokens": 76,
+        "content_excerpt": "\n\nThinking of the user's intent to get weather information for a specific city.\n",
+        "verdict": "PASS"
+      },
+      {
+        "case": "kyiv_no_think",
+        "thinking": false,
+        "http": 200,
+        "tool_calls": 1,
+        "tool_name": "get_weather",
+        "tool_args_sample": "{\"city\": \"Kyiv\"}",
+        "finish": "tool_calls",
+        "completion_tokens": 27,
+        "content_excerpt": null,
+        "verdict": "PASS"
+      },
+      {
+        "case": "multi_no_think",
+        "thinking": false,
+        "http": 200,
+        "tool_calls": 2,
+        "tool_name": "get_weather",
+        "tool_args_sample": "{\"city\": \"Berlin\"}",
+        "finish": "tool_calls",
+        "completion_tokens": 52,
+        "content_excerpt": null,
+        "verdict": "PASS"
+      },
+      {
+        "case": "error_recovery",
+        "thinking": false,
+        "http": 200,
+        "tool_calls": 1,
+        "tool_name": "get_weather",
+        "tool_args_sample": "{\"city\": \"Rome\"}",
+        "finish": "tool_calls",
+        "completion_tokens": 43,
+        "content_excerpt": "I apologize for any inconvenience. I will now check the weather for Rome.\n\n",
+        "verdict": "PASS"
+      },
+      {
+        "case": "denial_no_think",
+        "thinking": false,
+        "http": 200,
+        "tool_calls": 0,
+        "tool_name": "",
+        "tool_args_sample": "",
+        "finish": "stop",
+        "completion_tokens": 11,
+        "content_excerpt": "Understood. I will not call any tools.",
+        "verdict": "PASS"
+      }
+    ],
+    "passed_positive": 7,
+    "total_positive": 7,
+    "summary": "7/7 positive cases passed (negative cases scored separately)"
+  },
+  "decode_bench": {
+    "n_runs": 5,
+    "n_prompts": 5,
+    "max_tokens": 1024,
+    "decode_TPOT_ms": {
+      "mean": 3.9572,
+      "std": 0.1632,
+      "cv": 0.0412,
+      "min": 3.708,
+      "max": 4.4104,
+      "n": 25
+    },
+    "wall_TPS": {
+      "mean": 234.5364,
+      "std": 15.5082,
+      "cv": 0.0661,
+      "min": 195.65,
+      "max": 252.28,
+      "n": 25
+    },
+    "TTFT_ms": {
+      "mean": 109.88,
+      "std": 38.0815,
+      "cv": 0.3466,
+      "min": 58.8,
+      "max": 145.4,
+      "n": 25
+    },
+    "flat_results": [
+      {
+        "prompt_idx": 0,
+        "run_idx": 0,
+        "ttft_ms": 144.0,
+        "elapsed_s": 0.766,
+        "completion_tokens": 161,
+        "decode_tpot_ms": 3.8875,
+        "wall_tps": 210.18,
+        "finish": "stop"
+      },
+      {
+        "prompt_idx": 0,
+        "run_idx": 1,
+        "ttft_ms": 138.2,
+        "elapsed_s": 0.598,
+        "completion_tokens": 117,
+        "decode_tpot_ms": 3.9638,
+        "wall_tps": 195.65,
+        "finish": "stop"
+      },
+      {
+        "prompt_idx": 0,
+        "run_idx": 2,
+        "ttft_ms": 139.3,
+        "elapsed_s": 0.651,
+        "completion_tokens": 139,
+        "decode_tpot_ms": 3.708,
+        "wall_tps": 213.52,
+        "finish": "stop"
+      },
+      {
+        "prompt_idx": 0,
+        "run_idx": 3,
+        "ttft_ms": 140.2,
+        "elapsed_s": 0.834,
+        "completion_tokens": 181,
+        "decode_tpot_ms": 3.8544,
+        "wall_tps": 217.03,
+        "finish": "stop"
+      },
+      {
+        "prompt_idx": 0,
+        "run_idx": 4,
+        "ttft_ms": 142.5,
+        "elapsed_s": 0.652,
+        "completion_tokens": 135,
+        "decode_tpot_ms": 3.8022,
+        "wall_tps": 207.06,
+        "finish": "stop"
+      },
+      {
+        "prompt_idx": 1,
+        "run_idx": 0,
+        "ttft_ms": 138.3,
+        "elapsed_s": 3.595,
+        "completion_tokens": 880,
+        "decode_tpot_ms": 3.9325,
+        "wall_tps": 244.78,
+        "finish": "stop"
+      },
+      {
+        "prompt_idx": 1,
+        "run_idx": 1,
+        "ttft_ms": 140.9,
+        "elapsed_s": 3.398,
+        "completion_tokens": 831,
+        "decode_tpot_ms": 3.9242,
+        "wall_tps": 244.56,
+        "finish": "stop"
+      },
+      {
+        "prompt_idx": 1,
+        "run_idx": 2,
+        "ttft_ms": 138.3,
+        "elapsed_s": 1.572,
+        "completion_tokens": 375,
+        "decode_tpot_ms": 3.8334,
+        "wall_tps": 238.55,
+        "finish": "stop"
+      },
+      {
+        "prompt_idx": 1,
+        "run_idx": 3,
+        "ttft_ms": 145.4,
+        "elapsed_s": 2.204,
+        "completion_tokens": 530,
+        "decode_tpot_ms": 3.8915,
+        "wall_tps": 240.47,
+        "finish": "stop"
+      },
+      {
+        "prompt_idx": 1,
+        "run_idx": 4,
+        "ttft_ms": 142.3,
+        "elapsed_s": 2.885,
+        "completion_tokens": 712,
+        "decode_tpot_ms": 3.8575,
+        "wall_tps": 246.79,
+        "finish": "stop"
+      },
+      {
+        "prompt_idx": 2,
+        "run_idx": 0,
+        "ttft_ms": 65.7,
+        "elapsed_s": 1.104,
+        "completion_tokens": 273,
+        "decode_tpot_ms": 3.8173,
+        "wall_tps": 247.28,
+        "finish": "stop"
+      },
+      {
+        "prompt_idx": 2,
+        "run_idx": 1,
+        "ttft_ms": 62.4,
+        "elapsed_s": 0.986,
+        "completion_tokens": 223,
+        "decode_tpot_ms": 4.1604,
+        "wall_tps": 226.17,
+        "finish": "stop"
+      },
+      {
+        "prompt_idx": 2,
+        "run_idx": 2,
+        "ttft_ms": 65.2,
+        "elapsed_s": 1.169,
+        "completion_tokens": 284,
+        "decode_tpot_ms": 3.9004,
+        "wall_tps": 242.94,
+        "finish": "stop"
+      },
+      {
+        "prompt_idx": 2,
+        "run_idx": 3,
+        "ttft_ms": 63.2,
+        "elapsed_s": 0.846,
+        "completion_tokens": 209,
+        "decode_tpot_ms": 3.7635,
+        "wall_tps": 247.04,
+        "finish": "stop"
+      },
+      {
+        "prompt_idx": 2,
+        "run_idx": 4,
+        "ttft_ms": 66.6,
+        "elapsed_s": 0.863,
+        "completion_tokens": 213,
+        "decode_tpot_ms": 3.7566,
+        "wall_tps": 246.81,
+        "finish": "stop"
+      },
+      {
+        "prompt_idx": 3,
+        "run_idx": 0,
+        "ttft_ms": 141.3,
+        "elapsed_s": 4.411,
+        "completion_tokens": 1024,
+        "decode_tpot_ms": 4.1737,
+        "wall_tps": 232.15,
+        "finish": "length"
+      },
+      {
+        "prompt_idx": 3,
+        "run_idx": 1,
+        "ttft_ms": 136.7,
+        "elapsed_s": 4.403,
+        "completion_tokens": 1024,
+        "decode_tpot_ms": 4.1704,
+        "wall_tps": 232.57,
+        "finish": "length"
+      },
+      {
+        "prompt_idx": 3,
+        "run_idx": 2,
+        "ttft_ms": 137.2,
+        "elapsed_s": 4.649,
+        "completion_tokens": 1024,
+        "decode_tpot_ms": 4.4104,
+        "wall_tps": 220.26,
+        "finish": "length"
+      },
+      {
+        "prompt_idx": 3,
+        "run_idx": 3,
+        "ttft_ms": 140.6,
+        "elapsed_s": 4.362,
+        "completion_tokens": 1024,
+        "decode_tpot_ms": 4.1265,
+        "wall_tps": 234.75,
+        "finish": "length"
+      },
+      {
+        "prompt_idx": 3,
+        "run_idx": 4,
+        "ttft_ms": 138.6,
+        "elapsed_s": 4.358,
+        "completion_tokens": 1024,
+        "decode_tpot_ms": 4.1245,
+        "wall_tps": 234.97,
+        "finish": "length"
+      },
+      {
+        "prompt_idx": 4,
+        "run_idx": 0,
+        "ttft_ms": 59.4,
+        "elapsed_s": 4.119,
+        "completion_tokens": 1024,
+        "decode_tpot_ms": 3.9683,
+        "wall_tps": 248.6,
+        "finish": "length"
+      },
+      {
+        "prompt_idx": 4,
+        "run_idx": 1,
+        "ttft_ms": 66.1,
+        "elapsed_s": 4.181,
+        "completion_tokens": 1024,
+        "decode_tpot_ms": 4.0224,
+        "wall_tps": 244.92,
+        "finish": "length"
+      },
+      {
+        "prompt_idx": 4,
+        "run_idx": 2,
+        "ttft_ms": 58.8,
+        "elapsed_s": 4.145,
+        "completion_tokens": 1024,
+        "decode_tpot_ms": 3.9943,
+        "wall_tps": 247.04,
+        "finish": "length"
+      },
+      {
+        "prompt_idx": 4,
+        "run_idx": 3,
+        "ttft_ms": 71.4,
+        "elapsed_s": 4.059,
+        "completion_tokens": 1024,
+        "decode_tpot_ms": 3.8979,
+        "wall_tps": 252.28,
+        "finish": "length"
+      },
+      {
+        "prompt_idx": 4,
+        "run_idx": 4,
+        "ttft_ms": 64.4,
+        "elapsed_s": 4.145,
+        "completion_tokens": 1024,
+        "decode_tpot_ms": 3.9889,
+        "wall_tps": 247.04,
+        "finish": "length"
+      }
+    ],
+    "per_prompt": {
+      "0": [
+        {
+          "prompt_idx": 0,
+          "run_idx": 0,
+          "ttft_ms": 144.0,
+          "elapsed_s": 0.766,
+          "completion_tokens": 161,
+          "decode_tpot_ms": 3.8875,
+          "wall_tps": 210.18,
+          "finish": "stop"
+        },
+        {
+          "prompt_idx": 0,
+          "run_idx": 1,
+          "ttft_ms": 138.2,
+          "elapsed_s": 0.598,
+          "completion_tokens": 117,
+          "decode_tpot_ms": 3.9638,
+          "wall_tps": 195.65,
+          "finish": "stop"
+        },
+        {
+          "prompt_idx": 0,
+          "run_idx": 2,
+          "ttft_ms": 139.3,
+          "elapsed_s": 0.651,
+          "completion_tokens": 139,
+          "decode_tpot_ms": 3.708,
+          "wall_tps": 213.52,
+          "finish": "stop"
+        },
+        {
+          "prompt_idx": 0,
+          "run_idx": 3,
+          "ttft_ms": 140.2,
+          "elapsed_s": 0.834,
+          "completion_tokens": 181,
+          "decode_tpot_ms": 3.8544,
+          "wall_tps": 217.03,
+          "finish": "stop"
+        },
+        {
+          "prompt_idx": 0,
+          "run_idx": 4,
+          "ttft_ms": 142.5,
+          "elapsed_s": 0.652,
+          "completion_tokens": 135,
+          "decode_tpot_ms": 3.8022,
+          "wall_tps": 207.06,
+          "finish": "stop"
+        }
+      ],
+      "1": [
+        {
+          "prompt_idx": 1,
+          "run_idx": 0,
+          "ttft_ms": 138.3,
+          "elapsed_s": 3.595,
+          "completion_tokens": 880,
+          "decode_tpot_ms": 3.9325,
+          "wall_tps": 244.78,
+          "finish": "stop"
+        },
+        {
+          "prompt_idx": 1,
+          "run_idx": 1,
+          "ttft_ms": 140.9,
+          "elapsed_s": 3.398,
+          "completion_tokens": 831,
+          "decode_tpot_ms": 3.9242,
+          "wall_tps": 244.56,
+          "finish": "stop"
+        },
+        {
+          "prompt_idx": 1,
+          "run_idx": 2,
+          "ttft_ms": 138.3,
+          "elapsed_s": 1.572,
+          "completion_tokens": 375,
+          "decode_tpot_ms": 3.8334,
+          "wall_tps": 238.55,
+          "finish": "stop"
+        },
+        {
+          "prompt_idx": 1,
+          "run_idx": 3,
+          "ttft_ms": 145.4,
+          "elapsed_s": 2.204,
+          "completion_tokens": 530,
+          "decode_tpot_ms": 3.8915,
+          "wall_tps": 240.47,
+          "finish": "stop"
+        },
+        {
+          "prompt_idx": 1,
+          "run_idx": 4,
+          "ttft_ms": 142.3,
+          "elapsed_s": 2.885,
+          "completion_tokens": 712,
+          "decode_tpot_ms": 3.8575,
+          "wall_tps": 246.79,
+          "finish": "stop"
+        }
+      ],
+      "2": [
+        {
+          "prompt_idx": 2,
+          "run_idx": 0,
+          "ttft_ms": 65.7,
+          "elapsed_s": 1.104,
+          "completion_tokens": 273,
+          "decode_tpot_ms": 3.8173,
+          "wall_tps": 247.28,
+          "finish": "stop"
+        },
+        {
+          "prompt_idx": 2,
+          "run_idx": 1,
+          "ttft_ms": 62.4,
+          "elapsed_s": 0.986,
+          "completion_tokens": 223,
+          "decode_tpot_ms": 4.1604,
+          "wall_tps": 226.17,
+          "finish": "stop"
+        },
+        {
+          "prompt_idx": 2,
+          "run_idx": 2,
+          "ttft_ms": 65.2,
+          "elapsed_s": 1.169,
+          "completion_tokens": 284,
+          "decode_tpot_ms": 3.9004,
+          "wall_tps": 242.94,
+          "finish": "stop"
+        },
+        {
+          "prompt_idx": 2,
+          "run_idx": 3,
+          "ttft_ms": 63.2,
+          "elapsed_s": 0.846,
+          "completion_tokens": 209,
+          "decode_tpot_ms": 3.7635,
+          "wall_tps": 247.04,
+          "finish": "stop"
+        },
+        {
+          "prompt_idx": 2,
+          "run_idx": 4,
+          "ttft_ms": 66.6,
+          "elapsed_s": 0.863,
+          "completion_tokens": 213,
+          "decode_tpot_ms": 3.7566,
+          "wall_tps": 246.81,
+          "finish": "stop"
+        }
+      ],
+      "3": [
+        {
+          "prompt_idx": 3,
+          "run_idx": 0,
+          "ttft_ms": 141.3,
+          "elapsed_s": 4.411,
+          "completion_tokens": 1024,
+          "decode_tpot_ms": 4.1737,
+          "wall_tps": 232.15,
+          "finish": "length"
+        },
+        {
+          "prompt_idx": 3,
+          "run_idx": 1,
+          "ttft_ms": 136.7,
+          "elapsed_s": 4.403,
+          "completion_tokens": 1024,
+          "decode_tpot_ms": 4.1704,
+          "wall_tps": 232.57,
+          "finish": "length"
+        },
+        {
+          "prompt_idx": 3,
+          "run_idx": 2,
+          "ttft_ms": 137.2,
+          "elapsed_s": 4.649,
+          "completion_tokens": 1024,
+          "decode_tpot_ms": 4.4104,
+          "wall_tps": 220.26,
+          "finish": "length"
+        },
+        {
+          "prompt_idx": 3,
+          "run_idx": 3,
+          "ttft_ms": 140.6,
+          "elapsed_s": 4.362,
+          "completion_tokens": 1024,
+          "decode_tpot_ms": 4.1265,
+          "wall_tps": 234.75,
+          "finish": "length"
+        },
+        {
+          "prompt_idx": 3,
+          "run_idx": 4,
+          "ttft_ms": 138.6,
+          "elapsed_s": 4.358,
+          "completion_tokens": 1024,
+          "decode_tpot_ms": 4.1245,
+          "wall_tps": 234.97,
+          "finish": "length"
+        }
+      ],
+      "4": [
+        {
+          "prompt_idx": 4,
+          "run_idx": 0,
+          "ttft_ms": 59.4,
+          "elapsed_s": 4.119,
+          "completion_tokens": 1024,
+          "decode_tpot_ms": 3.9683,
+          "wall_tps": 248.6,
+          "finish": "length"
+        },
+        {
+          "prompt_idx": 4,
+          "run_idx": 1,
+          "ttft_ms": 66.1,
+          "elapsed_s": 4.181,
+          "completion_tokens": 1024,
+          "decode_tpot_ms": 4.0224,
+          "wall_tps": 244.92,
+          "finish": "length"
+        },
+        {
+          "prompt_idx": 4,
+          "run_idx": 2,
+          "ttft_ms": 58.8,
+          "elapsed_s": 4.145,
+          "completion_tokens": 1024,
+          "decode_tpot_ms": 3.9943,
+          "wall_tps": 247.04,
+          "finish": "length"
+        },
+        {
+          "prompt_idx": 4,
+          "run_idx": 3,
+          "ttft_ms": 71.4,
+          "elapsed_s": 4.059,
+          "completion_tokens": 1024,
+          "decode_tpot_ms": 3.8979,
+          "wall_tps": 252.28,
+          "finish": "length"
+        },
+        {
+          "prompt_idx": 4,
+          "run_idx": 4,
+          "ttft_ms": 64.4,
+          "elapsed_s": 4.145,
+          "completion_tokens": 1024,
+          "decode_tpot_ms": 3.9889,
+          "wall_tps": 247.04,
+          "finish": "length"
+        }
+      ]
+    }
+  },
+  "multi_turn": {
+    "turns": 5,
+    "results": [
+      {
+        "turn": 1,
+        "ttft_ms": 153.6,
+        "elapsed_s": 0.356,
+        "completion_tokens": 50,
+        "finish": "length",
+        "error": null
+      },
+      {
+        "turn": 2,
+        "ttft_ms": 140.7,
+        "elapsed_s": 0.325,
+        "completion_tokens": 50,
+        "finish": "length",
+        "error": null
+      },
+      {
+        "turn": 3,
+        "ttft_ms": 138.1,
+        "elapsed_s": 0.351,
+        "completion_tokens": 50,
+        "finish": "length",
+        "error": null
+      },
+      {
+        "turn": 4,
+        "ttft_ms": 140.7,
+        "elapsed_s": 0.332,
+        "completion_tokens": 50,
+        "finish": "length",
+        "error": null
+      },
+      {
+        "turn": 5,
+        "ttft_ms": 153.3,
+        "elapsed_s": 0.341,
+        "completion_tokens": 50,
+        "finish": "length",
+        "error": null
+      }
+    ]
+  },
+  "ctx_probe": {
+    "probes": [
+      {
+        "target": 8192,
+        "target_label": "8K",
+        "http": 200,
+        "prompt_tokens": 4056,
+        "completion_tokens": 50,
+        "elapsed_s": 0.89,
+        "prefill_tps_est": 6337.5,
+        "verdict": "PASS"
+      }
+    ],
+    "max_stable_ctx": 8192,
+    "max_stable_label": "8K"
+  },
+  "validation_notes": {
+    "pin_bump_2026_05_14": "vllm_version bumped 0.20.2rc1.dev209+g5536fc0c0 \u2192 0.20.2rc1.dev338+gbf0d2dc6d during the 2026-05-14 nightly upgrade (smoke + tool-call PASS; canonical bench numbers retained from prior Wave 9 dev209 run until full re-bench)."
+  }
+}

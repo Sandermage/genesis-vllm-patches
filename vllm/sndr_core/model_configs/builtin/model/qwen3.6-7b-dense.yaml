@@ -36,7 +36,7 @@ requires:
 
 versions:
   genesis_pin_min: v11.0.0
-  vllm_pin_required: 0.20.2rc1.dev93+g51f22dcfd
+  vllm_pin_required: 0.20.2rc1.dev338+gbf0d2dc6d
   reference_metrics_ref: null
 
 # ─── Canonical patches matrix ──────────────────────────────────────────
