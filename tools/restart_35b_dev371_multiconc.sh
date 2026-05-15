@@ -1,25 +1,42 @@
 #!/usr/bin/env bash
-# Финальный restart — ВСЕ JIT warmup patches включены:
+# Final restart — ALL JIT warmup patches enabled:
 #   - PN126: V1 decode kernel warmup orchestrator
 #   - PN127: Qwen 3.5/3.6 chat-template auto-install
 #   - PN128: eagle helper kernel warmup (vllm#41481, 4 kernels)
 #   - PN129: V1 slot mapping warmup (vllm#42165, 1 kernel + do_not_specialize)
 #   - PN130: TurboQuant decode kernel warmup (vllm#42215, 1 kernel + workspace prealloc)
-# Все на свежем nightly bf610c2f (dev371) + 280K context.
+# All on the nightly bf610c2f (dev371) pin + 280K context.
+#
+# Configure paths via env vars before invoking (no hardcoded operator paths):
+#   GENESIS_REPO_ROOT  — path to the genesis-vllm-patches checkout (default: $HOME/genesis-vllm-patches)
+#   GENESIS_MODELS_DIR — model weight root (default: /nfs/genesis/models)
+#   HF_HOME            — HuggingFace cache (default: $HOME/.cache/huggingface)
+#   TRITON_CACHE_DIR   — Triton kernel cache (default: $HOME/.cache/triton)
+#   VLLM_COMPILE_CACHE — vLLM torch.compile cache (default: $HOME/.cache/vllm/torch_compile_cache)
+#
+# Example override:
+#   GENESIS_REPO_ROOT=/opt/genesis HF_HOME=/data/hf bash tools/restart_35b_dev371_multiconc.sh
 
 set -euo pipefail
+
+# ─── Operator-configurable paths (env-overridable, no hardcoded /home/user) ──
+: "${GENESIS_REPO_ROOT:=${HOME}/genesis-vllm-patches}"
+: "${GENESIS_MODELS_DIR:=/nfs/genesis/models}"
+: "${HF_HOME:=${HOME}/.cache/huggingface}"
+: "${TRITON_CACHE_DIR:=${HOME}/.cache/triton}"
+: "${VLLM_COMPILE_CACHE:=${HOME}/.cache/vllm/torch_compile_cache}"
 
 CONTAINER=vllm-qwen3.6-35b-a3b-fp8
 IMAGE=vllm/vllm-openai:nightly-bf610c2f56764e1b30bc6065f4ceace3d6e59036
 
-echo "→ Pull/проверка образа..."
+echo "→ Pull/check image ${IMAGE}..."
 docker pull "$IMAGE" 2>&1 | tail -3
 
-echo "→ Останавливаю старый (если жив)..."
+echo "→ Stopping previous container (if alive)..."
 docker rm -f $CONTAINER 2>/dev/null || true
 sleep 2
 
-echo "→ Стартую с PN126+127+128+129+130..."
+echo "→ Starting with PN126+127+128+129+130 (Wave 10 stack)..."
 
 docker run -d \
   --name "$CONTAINER" \
@@ -28,12 +45,12 @@ docker run -d \
   --shm-size=8g \
   --network genesis-vllm-patches_default \
   -p 8000:8000 \
-  -v /home/sander/genesis-vllm-patches/tools/genesis_vllm_plugin:/plugin:ro \
-  -v /nfs/genesis/models:/models:ro \
-  -v /home/sander/.cache/huggingface:/root/.cache/huggingface:ro \
-  -v /home/sander/.cache/triton:/root/.triton/cache \
-  -v /home/sander/.cache/vllm/torch_compile_cache:/root/.cache/vllm/torch_compile_cache \
-  -v /home/sander/genesis-vllm-patches/vllm/sndr_core:/usr/local/lib/python3.12/dist-packages/vllm/sndr_core:ro \
+  -v "${GENESIS_REPO_ROOT}/tools/genesis_vllm_plugin:/plugin:ro" \
+  -v "${GENESIS_MODELS_DIR}:/models:ro" \
+  -v "${HF_HOME}:/root/.cache/huggingface:ro" \
+  -v "${TRITON_CACHE_DIR}:/root/.triton/cache" \
+  -v "${VLLM_COMPILE_CACHE}:/root/.cache/vllm/torch_compile_cache" \
+  -v "${GENESIS_REPO_ROOT}/vllm/sndr_core:/usr/local/lib/python3.12/dist-packages/vllm/sndr_core:ro" \
   -e SNDR_DEV_INSTALL_PLUGIN=1 \
   -e GENESIS_BUFFER_MODE=shared \
   -e GENESIS_ENABLE_P101=1 \

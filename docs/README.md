@@ -26,7 +26,7 @@ This folder holds extended documentation that doesn't belong in the top-level RE
 | [`../INSTALL.md`](../docs/INSTALL.md) | Detailed installation instructions |
 | [`../QUICKSTART.md`](../docs/QUICKSTART.md) | Get running in 5 minutes |
 | [`../CONFIGURATION.md`](../docs/CONFIGURATION.md) | Every env var documented |
-| [`../PATCHES.md`](../docs/PATCHES.md) | All 48 PATCH_REGISTRY patches × metadata × credits |
+| [`../PATCHES.md`](../docs/PATCHES.md) | All 169 PATCH_REGISTRY patches × metadata × credits |
 | [`../CREDITS.md`](../docs/CREDITS.md) | Comprehensive attribution log |
 | [`../MODELS.md`](../docs/MODELS.md) | Tested model configurations |
 | [`../SPONSORS.md`](../docs/SPONSORS.md) | Hardware / time sponsors |

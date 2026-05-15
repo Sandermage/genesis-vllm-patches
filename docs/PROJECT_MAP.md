@@ -178,8 +178,9 @@ sndr_core/
 | `tests/probes/` | live-probe scripts (require server) |
 | `tests/bench/` | bench harnesses |
 
-Run: `python3 -m pytest tests/unit -q` (~6500 passed, ~130 skipped on
-Mac without CUDA / cryptography).
+Run: `python3 -m pytest tests/unit -q` (~5700 collected, of which the
+tracked-only subset is the release baseline; some tests in
+`tests/unit/integrations/` skip on Mac without CUDA / cryptography).
 
 ## docs/
 

@@ -7,6 +7,10 @@ __pycache__/
 build/
 dist/
 
+# Local IDE history (VS Code "Local History" extension etc.) — never part
+# of the release artefact; was leaking invalid JSON into security/audit scans.
+.history/
+
 # Test/bench artifacts
 .pytest_cache/
 .coverage
