@@ -19,9 +19,10 @@ verdict with actionable migration guidance:
 Read-only against upstream. Output: structured dict (JSON) + markdown
 runbook file (default `genesis_migration_<sha>.md`).
 
-This is **D1's offline-aware sibling**: D1 (`tools/check_upstream_drift.py`)
-runs on a CI cron and reports drift; `migrate.py` is operator-driven and
-produces actionable runbook before a planned pin bump.
+This is **D1's offline-aware sibling**: D1 (the upstream-drift detector
+CLI shipped alongside the operator-facing scripts) runs on a CI cron
+and reports drift; `migrate.py` is operator-driven and produces an
+actionable runbook before a planned pin bump.
 
 Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
 """

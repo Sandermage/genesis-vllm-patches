@@ -12,7 +12,10 @@ Variables recognized:
   triton_cache   — Triton kernel cache (persistent across container restarts)
   compile_cache  — vLLM torch.compile cache (persistent compile artifacts)
   genesis_src    — checkout of genesis-vllm-patches/vllm/sndr_core (RO mount source). Variable name kept "genesis_src" for legacy compat with existing host.yaml; physical path points at sndr_core after v11 (_genesis dir removed 2026-05-08).
-  plugin_src     — checkout of genesis-vllm-patches/tools/genesis_vllm_plugin
+  plugin_src     — operator-side path to the optional Genesis vllm-plugin
+                   pip package (separate from sndr_core). Set via
+                   SNDR_PLUGIN_SRC / GENESIS_PLUGIN_SRC env var, or relies
+                   on the default candidate-path search below.
 
 Operator can override any auto-detected value by editing the YAML directly.
 Configs reference these via `${name}` in mount strings; render layer
@@ -87,6 +90,12 @@ _DEFAULT_GENESIS_SRC_CANDIDATES = [
     str(Path.home() / ".genesis/genesis-vllm-patches/vllm/sndr_core"),
 ]
 
+# Plugin source candidates. Operator-side path — sndr_core does NOT
+# import this package at Python level (the canonical plugin entry-point
+# is vllm.sndr_core.plugin:register). These candidates are only used
+# by Docker mount renderers when the operator wants to bind-mount the
+# plugin source into the container for editable installs.
+# Set SNDR_PLUGIN_SRC / GENESIS_PLUGIN_SRC env var to override.
 _DEFAULT_PLUGIN_SRC_CANDIDATES = [
     str(Path.home() / "genesis-vllm-patches/tools/genesis_vllm_plugin"),
     "/opt/genesis-vllm-patches/tools/genesis_vllm_plugin",

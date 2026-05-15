@@ -426,24 +426,52 @@ def _run_git(cwd: Path, args: list[str], *, check: bool = True
 # ─── Plugin install ──────────────────────────────────────────────────────
 
 
+def _resolve_plugin_src(home: Path) -> Path | None:
+    """Locate the Genesis vllm-plugin source directory.
+
+    Search order (first directory containing pyproject.toml wins):
+      1. ${GENESIS_PLUGIN_SRC} env var (operator override)
+      2. <Genesis checkout home>/tools/genesis_vllm_plugin  (default
+         operator-side repo layout)
+      3. <home>/genesis_vllm_plugin                          (alt layout)
+
+    Returns None if no candidate is a directory with a pyproject.toml.
+    """
+    import os
+    candidates: list[Path] = []
+    env_override = os.environ.get("GENESIS_PLUGIN_SRC", "").strip()
+    if env_override:
+        candidates.append(Path(env_override).expanduser())
+    candidates.append(home / "tools" / "genesis_vllm_plugin")
+    candidates.append(home / "genesis_vllm_plugin")
+    for c in candidates:
+        if c.is_dir() and (c / "pyproject.toml").is_file():
+            return c
+    return None
+
+
 def step_install_plugin(
     opts: argparse.Namespace, clone_info: dict[str, Any],
 ) -> StepResult:
-    """`pip install -e tools/genesis_vllm_plugin` so vLLM auto-loads
-    Genesis in spawn workers."""
+    """`pip install -e <plugin-src>` so vLLM auto-loads Genesis in spawn
+    workers. Plugin source location resolved via _resolve_plugin_src()
+    — operators can override with GENESIS_PLUGIN_SRC."""
     if opts.no_plugin:
         _io.warn("skipping plugin install (--no-plugin)")
         return StepResult({"installed": False, "reason": "--no-plugin"})
 
     _io.step(8, 11, "Install genesis-vllm-plugin (vllm.general_plugins)")
     if opts.dry_run:
-        _io.info("(dry-run: would pip install -e tools/genesis_vllm_plugin/)")
+        _io.info("(dry-run: would pip install -e <Genesis plugin source>)")
         return StepResult({"installed": False, "reason": "dry-run"})
 
     home = Path(clone_info["home"])
-    plugin = home / "tools" / "genesis_vllm_plugin"
-    if not plugin.is_dir():
-        _io.warn(f"{plugin} missing in this Genesis tree — skipping")
+    plugin = _resolve_plugin_src(home)
+    if plugin is None:
+        _io.warn(
+            f"Genesis plugin source not found in this checkout — skipping. "
+            f"Set GENESIS_PLUGIN_SRC to override."
+        )
         return StepResult({"installed": False, "reason": "missing"})
 
     pip_args = []
@@ -709,8 +737,8 @@ def step_smoke_test(opts: argparse.Namespace) -> StepResult:
     if anchor_drift_n:
         _io.warn(
             f"  ⚠ {anchor_drift_n} patches reported anchor drift — "
-            "vllm refactored the target region. Run "
-            "`tools/check_upstream_drift.py` for detail."
+            "vllm refactored the target region. Run the operator-facing "
+            "upstream-drift detector script for detail (see docs/INSTALL.md)."
         )
         for r in buckets["anchor_drift"][:3]:
             _io.info(f"    - {r.name}: {r.reason[:120]}")

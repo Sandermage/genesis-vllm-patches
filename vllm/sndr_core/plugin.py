@@ -2,18 +2,18 @@
 """SNDR Core — `vllm.general_plugins` entry point.
 
 P0-6 fix (audit 2026-05-08): the root `pyproject.toml` previously
-declared `genesis_v7 = "genesis_v7:register"`, but the `genesis_v7`
-package was NOT included in the core wheel — it lived under
-`tools/genesis_vllm_plugin/`. After `pip install vllm-sndr-core`, the
-entry point pointed at a nonexistent module and vllm would log a
-"plugin failed to load" warning.
+declared `genesis_v7 = "genesis_v7:register"`, pointing at a
+standalone `genesis_v7` package that was NOT included in the core
+wheel. After `pip install vllm-sndr-core`, the entry point pointed
+at a nonexistent module and vllm would log a "plugin failed to load"
+warning.
 
 This module is the canonical entry point. The root pyproject now
 declares `genesis_v7 = "vllm.sndr_core.plugin:register"`.
 
-The standalone `tools/genesis_vllm_plugin/genesis_v7/__init__.py`
-remains as a thin re-export for back-compat with operators who
-installed the plugin separately during the v7.x era.
+A separate `genesis_v7` shim package may still exist on hosts where
+operators installed the plugin via pip during the v7.x era; it
+re-exports `apply_genesis` from this module for back-compat.
 
 Behavioral guarantees (vllm plugin contract):
   - Importable in a vLLM-less environment (no top-level vllm imports).
@@ -101,7 +101,8 @@ def register() -> None:
 
 
 # Manual-invocation alias kept for parity with the legacy
-# `tools/genesis_vllm_plugin/genesis_v7` package surface.
+# v7.x `genesis_v7` package surface (back-compat for operators who
+# installed it as a separate pip package).
 apply_genesis = register
 
 

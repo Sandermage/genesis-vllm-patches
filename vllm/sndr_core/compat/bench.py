@@ -1,22 +1,22 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Genesis bench — unified-CLI shim for `tools/genesis_bench_suite.py`.
+"""Genesis bench — unified-CLI shim for `genesis_bench_suite.py`.
 
-The real benchmark suite lives at `tools/genesis_bench_suite.py` (it
-needs to ship as a single self-contained script people can curl, run,
-and share without installing the full Genesis package). This module is
-a thin pass-through that lets it be reached via the unified CLI:
+The real benchmark suite lives at `vllm/sndr_core/tools/genesis_bench_suite.py`
+(canonical post-Wave-10) — it needs to ship as a single self-contained
+script people can curl, run, and share without installing the full
+Genesis package. This module is a thin pass-through that lets it be
+reached via the unified CLI:
 
     python3 -m vllm.sndr_core.compat.cli bench --quick
     python3 -m vllm.sndr_core.compat.cli bench --mode standard --ctx 8k
     python3 -m vllm.sndr_core.compat.cli bench --compare a.json b.json
 
 All argv after the `bench` subcommand is forwarded verbatim to
-`tools.genesis_bench_suite.main()`.
+`genesis_bench_suite.main()`.
 
-If the bench script can't be located on `sys.path` (e.g. running from a
-deployed package without the source `tools/` directory), the shim
-fails with a clear error pointing at `docs/BENCHMARK_GUIDE.md` rather
-than a confusing import traceback.
+If the bench script can't be located (e.g. running from a slim
+deployed package), the shim fails with a clear error pointing at
+`docs/BENCHMARK_GUIDE.md` rather than a confusing import traceback.
 
 Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
 """
@@ -36,14 +36,13 @@ def _locate_bench_module() -> Path | None:
     Wave 10 (2026-05-15) refactor: the canonical home is now INSIDE
     the package at `vllm/sndr_core/tools/genesis_bench_suite.py`.
     This makes sndr_core self-contained — no runtime imports from
-    outside the package. The legacy root `tools/` locations stay in
-    the search order as fallbacks for older checkouts where the file
-    has not yet been moved.
+    outside the package. Operator-side fallback locations stay in
+    the search order for slim deployments / dev checkouts.
 
     Search order (first-hit wins):
       1. <package-internal>/tools/genesis_bench_suite.py — Wave 10 canonical
-      2. <repo-root>/tools/genesis_bench_suite.py — legacy location
-      3. $GENESIS_REPO_ROOT/tools/genesis_bench_suite.py — operator override
+      2. $GENESIS_REPO_ROOT/tools/genesis_bench_suite.py — operator override
+      3. <repo-root>/tools/genesis_bench_suite.py — operator-facing back-compat shim
       4. cwd-relative tools/genesis_bench_suite.py — last-resort
     """
     import os
@@ -51,18 +50,17 @@ def _locate_bench_module() -> Path | None:
     candidates: list[Path] = []
     # 1. Wave 10 canonical: inside sndr_core package
     #    compat/bench.py → parents[0]=compat, [1]=sndr_core, [2]=vllm, [3]=repo
-    #    package-internal: parents[1] / tools / genesis_bench_suite.py
     candidates.append(
         Path(__file__).resolve().parents[1] / "tools" / "genesis_bench_suite.py"
     )
-    # 2. Legacy root tools/ (pre-Wave-10 checkouts)
-    candidates.append(
-        Path(__file__).resolve().parents[3] / "tools" / "genesis_bench_suite.py"
-    )
-    # 3. Operator override
+    # 2. Operator-side override (env var)
     env_root = os.environ.get("GENESIS_REPO_ROOT")
     if env_root:
         candidates.append(Path(env_root) / "tools" / "genesis_bench_suite.py")
+    # 3. Operator-side back-compat shim path at repo root
+    candidates.append(
+        Path(__file__).resolve().parents[3] / "tools" / "genesis_bench_suite.py"
+    )
     # 4. CWD fallback
     candidates.append(Path.cwd() / "tools" / "genesis_bench_suite.py")
     return next((p for p in candidates if p.is_file()), None)
@@ -71,19 +69,18 @@ def _locate_bench_module() -> Path | None:
 def _load_bench_module():
     """Import genesis_bench_suite.py as a module.
 
-    The script lives outside the regular package import tree (it's a
-    single-file CLI that operators can also run standalone), so we use
-    an explicit spec loader rather than `importlib.import_module`.
-    Canonical location after Wave 10: vllm/sndr_core/tools/.
+    The script lives in vllm/sndr_core/tools/ (canonical post-Wave-10).
+    It is intentionally not a regular package submodule because operators
+    can also run it standalone via `python3 …/genesis_bench_suite.py …`,
+    so we use an explicit `spec_from_file_location` loader.
     """
     bench_path = _locate_bench_module()
     if bench_path is None:
         raise FileNotFoundError(
             "Could not locate genesis_bench_suite.py. Canonical location "
-            "is vllm/sndr_core/tools/genesis_bench_suite.py; legacy "
-            "fallback is repo-root tools/. Set GENESIS_REPO_ROOT to "
-            "point at a checkout, or run the bench directly per "
-            "docs/BENCHMARK_GUIDE.md."
+            "is vllm/sndr_core/tools/genesis_bench_suite.py. Set "
+            "GENESIS_REPO_ROOT to point at a Genesis checkout, or run "
+            "the bench directly per docs/BENCHMARK_GUIDE.md."
         )
     spec = importlib.util.spec_from_file_location(
         "genesis_bench_suite", bench_path
@@ -111,7 +108,7 @@ def main(argv: list[str] | None = None) -> int:
             print("genesis bench — Genesis Benchmark Suite (shim)")
             print()
             print("The full benchmark suite lives at "
-                  "tools/genesis_bench_suite.py.")
+                  "vllm/sndr_core/tools/genesis_bench_suite.py.")
             print()
             print(f"Could not load it from this deployment: {e}")
             print()
