@@ -2,7 +2,12 @@
 # SPDX-License-Identifier: Apache-2.0
 """§6.8 + §5 — `make audit-bench-methodology` — stale-bench detector.
 
-Genesis bench methodology contract lives in `tools/bench_methodology.yaml`.
+Genesis bench methodology contract lives at
+`vllm/sndr_core/tools/bench_methodology.yaml` (canonical, post-Wave-10
+self-containment). A legacy operator-side mirror at repo-root
+`tools/bench_methodology.yaml` is supported as a fallback when the
+canonical file is missing.
+
 Every bench artefact under `evidence/patch_proof/*.json` carries a
 `bench_delta.methodology_sha` fingerprint of the methodology that was
 in force when the bench was measured.
@@ -14,7 +19,8 @@ Release-gate consumers (`sndr patches release-check`) should NOT trust
 such artefacts at face value.
 
 This gate enforces the invariant: every bench artefact's
-`methodology_sha` must equal the current `sha256(tools/bench_methodology.yaml)`.
+`methodology_sha` must equal the current
+`sha256(vllm/sndr_core/tools/bench_methodology.yaml)`.
 
 Modes:
 
@@ -42,7 +48,23 @@ from typing import Optional
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-METHODOLOGY_FILE = REPO_ROOT / "tools" / "bench_methodology.yaml"
+# Canonical post-Wave-10 location: package-local under vllm/sndr_core/tools/.
+# Legacy operator-side mirror at repo-root tools/ is supported as fallback.
+_CANONICAL_METHODOLOGY = (
+    REPO_ROOT / "vllm" / "sndr_core" / "tools" / "bench_methodology.yaml"
+)
+_LEGACY_METHODOLOGY = REPO_ROOT / "tools" / "bench_methodology.yaml"
+
+
+def _resolve_methodology_file() -> Path:
+    if _CANONICAL_METHODOLOGY.is_file():
+        return _CANONICAL_METHODOLOGY
+    if _LEGACY_METHODOLOGY.is_file():
+        return _LEGACY_METHODOLOGY
+    return _CANONICAL_METHODOLOGY
+
+
+METHODOLOGY_FILE = _resolve_methodology_file()
 PROOF_DIR = REPO_ROOT / "evidence" / "patch_proof"
 
 
@@ -252,7 +274,9 @@ def main() -> int:
     ap.add_argument("--proof-dir", default=None,
                     help="Override evidence/patch_proof directory.")
     ap.add_argument("--methodology", default=None,
-                    help="Override tools/bench_methodology.yaml path.")
+                    help="Override methodology YAML path (default: "
+                         "vllm/sndr_core/tools/bench_methodology.yaml "
+                         "with fallback to tools/bench_methodology.yaml).")
     ap.add_argument("--no-bench-allow-empty",
                     dest="allow_empty", action="store_false",
                     default=True,

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/Sandermage/genesis-vllm-patches/schemas/patch_entry.schema.json",
   "title": "Genesis PATCH_REGISTRY entry",
-  "description": "Schema for one entry in vllm/_genesis/dispatcher.py::PATCH_REGISTRY. Validates structural correctness and surfaces typos / missing fields before they hit a live boot. Used by tools/validate_patch_registry.py and the pre-commit hook.",
+  "description": "Schema for one entry in vllm/sndr_core/dispatcher/registry.py::PATCH_REGISTRY. Validates structural correctness and surfaces typos / missing fields before they hit a live boot. Used by the operator-facing validate-patch-registry CLI and the pre-commit hook.",
   "type": "object",
   "required": ["title", "env_flag", "default_on"],
   "additionalProperties": false,
