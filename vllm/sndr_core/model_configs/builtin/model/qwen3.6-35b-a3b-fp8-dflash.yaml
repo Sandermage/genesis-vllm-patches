@@ -127,11 +127,61 @@ patches:
   GENESIS_ENABLE_PN108_FUSED_RECURRENT_PREFILL: '0' # TOMBSTONED — fla recurrent kernel cannot serve single-seq prefill.
   GENESIS_ENABLE_PN200_GDN_SCRATCH_REUSE: '0'        # GDN `core_attn_out` pool. OFF — anchor ordering dependency on P28.
   GENESIS_ENABLE_PN201_SCHEDULER_EMPTY_CACHE: '1'    # Scheduler-tick `empty_cache()` hook, threshold-gated.
-  GENESIS_ENABLE_PN204_DUAL_STREAM_INPROJ: '0'       # vllm#42301 port — OFF (eager event allocation crashes).
+  GENESIS_ENABLE_PN204_DUAL_STREAM_INPROJ: '0'       # vllm#42301 port — OFF in single-conc DFlash profile.
+                                                       # v1 history: eager torch.cuda.Event allocation raised type error.
+                                                       # v1 lazy-init follow-up: dev371 profile_run crashed via
+                                                       #   torch/_inductor/runtime/static_triton_launcher.py:291 CUDA invalid argument.
+                                                       # v2 fix 2026-05-15: torch.compiler.is_compiling() guard + _PN204_ARMED hook
+                                                       #   + explicit device=hidden_states.device on Stream + per-layer fallback.
+                                                       # Bench dev371: neutral within CV on Ampere; future-proof for Hopper +5-10%.
+                                                       # Re-enable in DFlash multi-conc preset if/when bench validates the combo
+                                                       # (DFlash drafter overhead may compete with dual-stream benefits — re-test
+                                                       # before promoting). Requires GENESIS_LEGACY_P7=0.
   GENESIS_ENABLE_SNDR_WORKSPACE_001: '1'             # Workspace grow-after-lock graceful fix.
+
+  # ── Wave 10 (2026-05-15) — multi-conc unlock + correctness recoveries ──
+  # Inherited from MTP sibling qwen3.6-35b-a3b-fp8.yaml. DFlash uses different
+  # spec-decode path (separate drafter model, not MTP integrated), but most
+  # Wave 10 patches apply identically — they target hybrid_gdn_moe forward
+  # pass / serving layer / Marlin MoE workspace, independent of spec-decode method.
+  # Multi-conc bench on DFlash NOT YET EXECUTED — apply with caution and re-bench
+  # before promoting DFlash multi-conc to validated status.
+  GENESIS_ENABLE_PN96B: '1'                          # Marlin persistent workspace (renamed 2026-05-15 from PN96 dict-key collision). +4-5% TPS recovery on Marlin MoE — was silently unloaded pre-rename. APPLIES on DFlash (same MoE expert path).
+  GENESIS_ENABLE_PN51_QWEN3_STREAMING_THINKING_DISABLED: '1'  # vllm#40816 (OPEN). Defensive streaming guard for OpenAI clients reading delta.content. Reasoning-parser qwen3 used identically on DFlash.
+  GENESIS_ENABLE_PN125_HYBRID_FULL_AND_PIECEWISE: '1' # PyTorch blog 2026-05 — forces cudagraph_mode=FULL_AND_PIECEWISE on Qwen3.5/3.6 hybrid_gdn_moe. Applies on DFlash target model (separate drafter has its own config).
+  GENESIS_ENABLE_PN126_V1_DECODE_WARMUP: '1'         # V1 decode kernel warmup orchestrator — pre-JITs decode kernels at boot. DFlash benefits from this on target model warmup.
+  GENESIS_ENABLE_PN127_AUTO_CHAT_TEMPLATE: '1'       # Qwen3.5/3.6 enhanced chat-template auto-install.
+  GENESIS_ENABLE_PN128_SPEC_DECODE_WARMUP: '1'       # vllm#41481 backport — pre-JITs 4 eagle helper kernels. NOTE: eagle helpers are MTP-specific; on DFlash this becomes no-op (eagle kernels not in code path) but cost zero — keep ON for compatibility.
+  GENESIS_ENABLE_PN129_SLOT_MAPPING_WARMUP: '1'      # vllm#42165 backport — pre-JITs _compute_slot_mapping_kernel. Applies on both MTP + DFlash decode paths.
+  GENESIS_ENABLE_PN130_TQ_DECODE_WARMUP: '1'         # vllm#42215 backport — pre-JITs _tq_grouped_decode_stage1. NOTE: DFlash uses fp16/null KV (head_size=256 forbids TQ on Ampere), so this is no-op on DFlash target — keep ON for compatibility (it self-detects and skips).
+  GENESIS_ENABLE_PN132_TOPK_TOPP_CONTIGUOUS: '1'     # vllm#42739 backport — Triton top-k/top-p contiguous fix (no-op when FlashInfer sampler active).
+  GENESIS_ENABLE_PN133_MTP_EMPTY_OUTPUT_FIX: '1'     # vllm#42722 backport — MTP scheduler empty-output guard. NOTE: targets MTP scheduler — no-op on DFlash spec-decode path but cost zero — keep ON.
+  # GENESIS_ENABLE_PN134_TORCH_COMPILE_FULLGRAPH_211: KEEP OFF — retired 2026-05-15 (-25% TPS bench regressor on hybrid_gdn_moe; affects ALL spec-decode paths including DFlash via Inductor cache blow-up).
 
 notes:
   - "Migrated from legacy a5000-2x-35b-fp8-dflash (2026-05-12). Needs separate
     Qwen3.6-35B-A3B-DFlash drafter checkpoint on host (/models/Qwen3.6-35B-A3B-DFlash)."
   - "Use this variant for single-stream code-gen throughput. For concurrent serving
     use MTP variant qwen3.6-35b-a3b-fp8."
+  - "Wave 10 (2026-05-15): patches added symmetric to MTP sibling. Multi-conc
+    bench on DFlash variant pending — see commit log + tools/multi_conc_bench.py
+    for methodology."
+  - |
+    Wave 10 multi-conc bench result (2026-05-15, dev371+bf610c2f5, 2× A5000):
+    Configuration: max_num_seqs=8, max_model_len=100000 (DFlash cap on this rig
+    because head_size=256 forbids TQ/fp8 KV → fp16 KV at 256K exceeds 24GB VRAM),
+    dtype=bfloat16, gpu_memory_utilization=0.92, all Wave 10 patches active.
+
+      conc=1: 153 TPS  TTFT  74 ms  TPOT 20.0 ms
+      conc=2: 226 TPS  TTFT  85 ms  TPOT 23.1 ms
+      conc=4: 359 TPS  TTFT 154 ms  TPOT 27.4 ms
+      conc=8: 562 TPS  TTFT 162 ms  TPOT 35.9 ms (3.66x scaling)
+
+    Vs MTP+TQ k8v4 sibling (qwen3.6-35b-a3b-fp8.yaml):
+      MTP+TQ conc=8: 689 TPS / TTFT 243 ms — wins throughput +23%
+      DFlash conc=8: 562 TPS / TTFT 162 ms — wins TTFT -33%
+
+    Conclusion: DFlash is the LATENCY-WIN preset on 35B (TTFT 162 ms much
+    closer to user target 100-120 ms than MTP's 243 ms). MTP+TQ remains
+    the THROUGHPUT-WIN preset (689 vs 562 aggregate, plus 256K context
+    supported via TQ k8v4 compression).

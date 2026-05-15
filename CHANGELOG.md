@@ -220,6 +220,50 @@ floor: fuse `chunk_local_cumsum`+`chunk_scaled_dot_kkt_fwd` (Phase 1),
 Decision: monitor upstream до 2026-06-01; implement Phase 1 if upstream doesn't
 merge equivalent.
 
+### DFlash variant bench (Wave 10 closure, 2026-05-15 evening)
+
+После TQ+MTP multi-conc сцены DFlash variants получили симметричный Wave 10
+patch matrix + полный bench. DFlash имеет фундаментальное VRAM-ограничение
+на consumer Ampere: head_size=256 в drafter блокирует TQ k8v4 / fp8 KV
+(target FP8 + drafter bf16 page-size mismatch при fp8 KV applied). Без
+compression fp16 KV @ 256K не помещается в 24GB.
+
+**35B DFlash** (max_model_len=100K, max_num_seqs=8, dtype=bfloat16):
+
+| conc | DFlash agg TPS | DFlash TTFT | MTP+TQ ref | Delta |
+| --- | --- | --- | --- | --- |
+| 1 | 153 | 74 ms | 215 / 65 ms | -29% TPS / +14% TTFT |
+| 4 | 359 | 154 ms | 478 / 146 ms | -25% TPS / +5% TTFT |
+| 8 | **562** | **162 ms** ⭐ | 689 / 243 ms | -18% TPS / **-33% TTFT** |
+
+DFlash на 35B — **LATENCY winner** при conc=8 (TTFT 162 ms vs MTP 243 ms,
+гораздо ближе к user target 100-120 ms). MTP+TQ — **THROUGHPUT winner**
+(689 vs 562 aggregate) + **long-context winner** (280K vs 100K cap).
+
+**27B DFlash** (max_model_len=80K, max_num_seqs=8):
+
+| conc | DFlash agg TPS | DFlash TTFT | MTP+TQ ref |
+| --- | --- | --- | --- |
+| 1 | 102 | 102 ms | 97 / 105 ms |
+| 4 | 268 | 160 ms | 265 / 159 ms |
+| 8 | 385 | 190 ms | 379 / 189 ms |
+
+На 27B DFlash и MTP+TQ практически идентичны (Δ <2%). Выбор зависит
+от context length: MTP+TQ supports 262K, DFlash capped at 80K.
+
+**Operator decision matrix**:
+
+- Latency-critical single-user 35B agentic → DFlash (TTFT 74 ms)
+- Multi-tenant 35B (≤100K ctx) → DFlash (TTFT 162 ms — closer to user target)
+- Multi-tenant 35B (long-ctx required) → MTP+TQ (256K + 689 TPS)
+- 27B either method → pick by required context length
+
+DFlash V2 model YAML files updated with full bench tables in notes section
+(qwen3.6-35b-a3b-fp8-dflash.yaml, qwen3.6-27b-dflash.yaml). Wave 10 patches
+(PN51/96b/125/126-130/132/133) added symmetric to MTP siblings — some are
+no-op on DFlash code path (PN128 eagle warmup, PN130 TQ decode warmup,
+PN133 MTP scheduler) but cost zero and aid cross-config consistency.
+
 ---
 
 ## [v11.0.0+wave9_release_blockers_closed] — Release-tier audit closure (2026-05-14, evening)
