@@ -156,8 +156,10 @@ patches:
                                                        #   explicit device=hidden_states.device on Stream + per-layer single-strike
                                                        #   fallback. Bench dev371 35B conc=8: neutral within CV (agg 675 vs 689,
                                                        #   TTFT 240 vs 237 ms). Hardware-future-proof — Hopper SM 9.0+ gives
-                                                       #   +5-10% TPOT per upstream PR. Enabled in multi-conc preset (see
-                                                       #   model/qwen3.6-35b-a3b-fp8-multiconc.yaml).
+                                                       #   +5-10% TPOT per upstream PR. Enabled in multi-conc preset via:
+                                                       #     V2 profile  → profile/35b-multiconc.yaml (patches_delta.enable)
+                                                       #     V2 launch   → presets/prod-35b-multiconc.yaml (alias)
+                                                       #     V1 preset   → a5000-2x-35b-multiconc.yaml (legacy flat)
                                                        # Requires GENESIS_LEGACY_P7=0 when enabled (registry conflicts_with).
   GENESIS_ENABLE_SNDR_WORKSPACE_001: '1'             # Workspace grow-after-lock graceful fix.
 

@@ -19,12 +19,17 @@ created: '2026-05-15'
 #   conc=1: 215 TPS  TTFT  65 ms  TPOT 14.3 ms
 #   conc=4: 478 TPS  TTFT 146 ms  TPOT 22.4 ms  (good compromise — close to 100-120 ms TTFT target)
 #   conc=8: 689 TPS  TTFT 243 ms  TPOT 31.7 ms ⭐ throughput optimum
-sizing_delta:
-  max_num_seqs: 8                                # OVERRIDE from hardware default 2 → 8 (multi-conc optimum)
-  # All other sizing knobs inherited verbatim from a5000-2x-24gbvram-16cpu-128gbram:
-  # max_model_len 280000, gpu_memory_utilization 0.90, max_num_batched_tokens 4096,
-  # enable_chunked_prefill true, enforce_eager false, disable_custom_all_reduce true.
-  scheduler_reserve_full_isl: false              # Sprint 1 flag — allow scheduler to pack more sequences (helps multi-conc)
+sizing_override:                                 # V2 canonical key (NOT sizing_delta — schema_v2.py SchemaProfile.sizing_override).
+  # When sizing_override is present, profile sizing fully REPLACES hardware
+  # sizing — so we must restate ALL fields, not just the deltas.
+  max_model_len: 280000                          # inherited from hardware default
+  gpu_memory_utilization: 0.90                   # inherited from hardware default
+  max_num_seqs: 8                                # OVERRIDE from hardware default 2 → 8 (multi-conc optimum, 3.21x scaling).
+  max_num_batched_tokens: 4096                   # inherited; bench 2026-05-15 confirmed 8192 regresses TTFT.
+  enable_chunked_prefill: true                   # inherited
+  enforce_eager: false                           # inherited
+  disable_custom_all_reduce: true                # inherited (NCCL fallback on consumer Ampere PCIe).
+  scheduler_reserve_full_isl: false              # Sprint 1 flag — allow scheduler to pack more sequences (helps multi-conc).
 
 # ─── Patches delta — Wave 10 additions vs wave9-balanced ────────────────
 # NOTE: the new Wave 10 patches (PN51, PN96b, PN125-130, PN132/133) are

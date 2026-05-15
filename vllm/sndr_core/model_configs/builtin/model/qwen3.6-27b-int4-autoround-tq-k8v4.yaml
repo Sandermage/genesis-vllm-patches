@@ -156,8 +156,12 @@ patches:
                                                        # v2 fix 2026-05-15 (Sander): torch.compiler.is_compiling() guard +
                                                        #   _PN204_ARMED arming hook (Worker.determine_available_memory wrap) +
                                                        #   explicit device=hidden_states.device on Stream + per-layer single-strike disable.
-                                                       # Bench dev371 27B INT4 multi-conc=8: neutral within CV.
-                                                       # Enabled in 27B multi-conc preset; requires GENESIS_LEGACY_P7=0.
+                                                       # Bench dev371 27B INT4 multi-conc=8: neutral within CV (375 vs 379 agg TPS).
+                                                       # Enabled in 27B multi-conc preset via:
+                                                       #     V2 profile  → profile/27b-multiconc.yaml (patches_delta.enable)
+                                                       #     V2 launch   → presets/prod-27b-tq-multiconc.yaml (alias)
+                                                       #     V1 preset   → a5000-2x-27b-int4-multiconc.yaml (legacy flat)
+                                                       # Requires GENESIS_LEGACY_P7=0 when enabled (registry conflicts_with).
   GENESIS_ENABLE_SNDR_WORKSPACE_001: '1'             # Workspace grow-after-lock graceful fix — replaces upstream assert with one-shot grow + warn.
 
   # ── Wave 10 (2026-05-15) — multi-conc unlock + correctness recoveries ──
