@@ -50,24 +50,61 @@ runtime:
       - "${plugin_src}:/plugin:ro"                                                                  # 6. Genesis vLLM plugin source — REQUIRED for plugin loading
 
 # ─── System env — host-side knobs stable across models ─────────────────
+# Convention: explicit values for non-default behaviour + explicit defaults
+# for cross-version stability (vllm/pytorch env semantics can shift between
+# nightlies — pinning makes the operator config self-documenting).
 system_env:
+  # ── PyTorch / CUDA allocator + memory ──
   PYTORCH_CUDA_ALLOC_CONF: 'expandable_segments:True,max_split_size_mb:256'   # PyTorch allocator: expandable_segments reduces fragmentation, max_split_size 256 MiB
+  CUDA_MODULE_LOADING: 'LAZY'                    # CUDA 12+ default; explicit for portability. Defers kernel module loading from process start to first use → faster startup + lower idle VRAM (saves ~50-200 MiB on multi-package frameworks like vLLM+Triton+FlashInfer).
+  PYTORCH_NVML_BASED_CUDA_CHECK: '1'             # Use NVML (not full cuInit) for torch.cuda.is_available() checks. Marginal startup speedup; safe on all driver versions (NVML is part of any NVIDIA driver).
+  # ── NCCL (TP=2 PCIe — no NVLink on consumer Ampere) ──
   NCCL_P2P_DISABLE: '1'                          # REQUIRED on consumer Ampere — no NVLink → P2P falls back to PCIe with bugs
+  NCCL_DEBUG: 'WARN'                             # surface silent NCCL failures (e.g. P2P fallback regressions) without verbose chatter. Tiny overhead; high diagnostic value when TP coordination misbehaves.
+  # ── CPU / thread pinning ──
   OMP_NUM_THREADS: '1'                           # OpenMP thread count per worker (1 = avoid CPU oversubscription with TP=2)
   CUDA_DEVICE_MAX_CONNECTIONS: '8'               # CUDA stream pool size per device (8 = empirical optimum for spec-decode K+1 verify pattern)
+  # ── Triton kernel cache ──
   TRITON_CACHE_DIR: '/root/.triton/cache'        # Triton kernel cache location (mounted as docker volume to persist across restarts)
+  # ── vLLM core knobs ──
   VLLM_ALLOW_LONG_MAX_MODEL_LEN: '1'             # allow max_model_len > model's published context (we run 320K on a 256K-trained model)
   VLLM_FLOAT32_MATMUL_PRECISION: 'high'          # values: 'highest'|'high'|'medium'; 'high' uses TF32 on Ampere+ (~3-4× faster, bit-identical for our shapes)
   VLLM_LOGGING_LEVEL: 'WARNING'                  # log level: DEBUG/INFO/WARNING/ERROR; WARNING = clean PROD output
+  VLLM_LOG_MODEL_INSPECTION: '1'                 # at boot, log transformers-style hierarchical view of the model with quantization + attention backends. Free observability — fires once, zero hot-path cost. Diagnoses MoE routing + hybrid layer split + TQ vs Marlin tier confusion.
+  VLLM_NO_USAGE_STATS: '1'                       # disable telemetry ping (privacy + offline boots)
+  # ── vLLM torch.compile / AOT ──
+  VLLM_USE_AOT_COMPILE: '1'                      # explicit (default 1 on torch 2.10+). AOT compile shifts work to warmup phase + caches Python bytecode hooks for subsequent calls. Pairs with VLLM_USE_STANDALONE_COMPILE and TRITON_CACHE_DIR.
+  VLLM_USE_STANDALONE_COMPILE: '1'               # explicit (default 1). Loads compiled artifacts directly without re-splitting graph modules → reduces model-load overhead.
+  VLLM_ENABLE_PREGRAD_PASSES: '1'                # explicit (default 1). vLLM custom passes before grad to work around pytorch/pytorch#174502. Required for compile correctness on hybrid attention/Mamba models.
+  # ── Marlin / FP8 / MoE (Ampere SM 8.6 specific) ──
   VLLM_MARLIN_USE_ATOMIC_ADD: '1'                # Marlin reduction via atomicAdd (faster on Ampere SM 8.6 with shared L2)
   VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS: '1'  # vllm#30515 — include CUDA graphs in memory profiler estimate (prevents post-warmup OOM)
   VLLM_MOE_USE_DEEP_GEMM: '0'                    # disable DeepGEMM in MoE — Marlin tier faster on consumer Ampere
-  VLLM_NO_USAGE_STATS: '1'                       # disable telemetry ping (privacy + offline boots)
   VLLM_USE_DEEP_GEMM: '0'                        # disable DeepGEMM globally (Hopper-only optimization, no Ampere benefit)
   VLLM_USE_FLASHINFER_MOE_FP8: '0'               # disable FlashInfer MoE FP8 (Hopper SM 9.0+ required; Ampere routes through Marlin)
   VLLM_USE_FLASHINFER_SAMPLER: '1'               # FlashInfer top-p/top-k sampler (faster than reference; required for spec-decode acceptance)
   VLLM_USE_FUSED_MOE_GROUPED_TOPK: '1'           # fused MoE gate+topk kernel (saves ~1 launch per layer)
+  # ── vLLM worker / dist ──
   VLLM_WORKER_MULTIPROC_METHOD: spawn            # values: 'spawn'|'fork'; spawn required for CUDA reinit across workers (TP>1)
+  # ── Notes on knobs we DELIBERATELY leave at defaults ──
+  # VLLM_USE_V2_MODEL_RUNNER:  default 0 — V2 has automatic warmup_kernels()
+  #     which would eliminate 8-10 JIT spikes we currently see in
+  #     `jit_monitor` warnings during first inference. NOT enabled because
+  #     V2 path is new (May 2026) and not yet validated on our hybrid_gdn_moe
+  #     + TQ k8v4 + MTP K=3 combo. Tracking as Phase 6 follow-up after a
+  #     dedicated bench cycle.
+  # VLLM_USE_SPINLOOP_EXT:     default 0 — PR #36517 saves up to 110W idle
+  #     power via mwaitx/pause busy-poll. We're a homelab; idle power not
+  #     a priority. Enable on metered deployments.
+  # VLLM_KV_CACHE_LAYOUT:      default None → NHD. HND only required for
+  #     NIXL disagg PD transfer (we don't use).
+  # VLLM_SSM_CONV_STATE_LAYOUT: default None → SD. DS only required for
+  #     NIXL SSM transfer + CPU GDN backend (we don't use either).
+  # VLLM_ENABLE_CUDAGRAPH_GC:  default 0 (GC frozen during capture for
+  #     speed). Flip to 1 only if capture-time OOM observed.
+  # VLLM_FLASHINFER_WORKSPACE_BUFFER_SIZE: default ~394 MiB. Tune down to
+  #     128 MiB if VRAM pressure on long context (cost: per-call workspace
+  #     resizes if shape exceeds).
 
 notes:
   - "POC rig profile (2026-05-12). Use as template for other A5000-class
