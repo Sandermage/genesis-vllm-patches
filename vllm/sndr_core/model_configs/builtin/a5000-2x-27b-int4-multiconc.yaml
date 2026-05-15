@@ -1,0 +1,181 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis builtin model config — 27B INT4-AutoRound multi-concurrency throughput preset.
+#
+# Sister config to a5000-2x-27b-int4-tq-k8v4.yaml (LATENCY profile, max_num_seqs=4).
+# Differs ONLY in: max_num_seqs=8 (was 4), PN204=1 (v2 redesign safe),
+# GENESIS_LEGACY_P7=0 (conflict resolved), scheduler_reserve_full_isl=false.
+#
+# All Genesis env flags, spec-decode setup, TQ k8v4 KV pool config are
+# inherited from the latency profile. Use this preset side-by-side with the
+# latency profile, swap based on workload.
+
+key: a5000-2x-27b-int4-multiconc
+title: 2× RTX A5000 — Qwen3.6 27B INT4-AutoRound multi-conc throughput preset
+description: >-
+  Throughput-optimised companion to a5000-2x-27b-int4-tq-k8v4. Same model + KV +
+  patches, raised max_num_seqs=8 + PN204 v2 enabled. Validated 379 TPS
+  aggregate on dev371 nightly bf610c2f (vs 97 TPS single-conc). 3.89x scaling —
+  even better than 35B 3.21x. Use when serving agentic / batch workloads;
+  accepts TTFT 189ms@conc=8 for the throughput win. For latency-critical
+  single-user prefer a5000-2x-27b-int4-tq-k8v4 (TTFT 105ms@conc=1).
+schema_version: 1
+maintainer: sandermage
+last_validated: '2026-05-15'
+genesis_pin: v11.0.0+wave10
+vllm_pin_required: 0.20.2rc1.dev371+gbf610c2f5
+lifecycle: stable
+workload_tag: throughput
+
+hardware:
+  gpu_match_keys: [rtx a5000]
+  n_gpus: 2
+  min_vram_per_gpu_mib: 22000
+  cuda_capability_min: [8, 6]
+
+model_path: /models/Qwen3.6-27B-int4-AutoRound
+served_model_name: qwen3.6-27b
+quantization: null
+kv_cache_dtype: turboquant_k8v4
+
+# Multi-conc-optimised dimensions (vs latency 262144/4):
+max_model_len: 131072         # lowered from 256K to free VRAM headroom for batch=8 cudagraph capture (27B INT4 leaves more headroom than 35B FP8, but multi-conc still benefits)
+gpu_memory_utilization: 0.85  # 0.85 (vs latency 0.92) — extra headroom for 8 concurrent decode buffers
+max_num_seqs: 8               # 8 concurrent sequences. Sweet spot per bench: 3.89x scaling, diminishing returns at 16.
+max_num_batched_tokens: 4096
+enable_chunked_prefill: true
+dtype: float16
+cudagraph_mode: FULL_AND_PIECEWISE   # forced by PN125 on hybrid_gdn_moe; matches dev371 v1 default
+enforce_eager: false
+disable_custom_all_reduce: true
+language_model_only: true
+trust_remote_code: true
+
+# Scheduler tuning for throughput workload:
+scheduler_reserve_full_isl: false  # Sprint 1 flag — allows scheduler to pack more sequences
+
+enable_auto_tool_choice: true
+tool_call_parser: qwen3_coder
+reasoning_parser: qwen3
+
+spec_decode:
+  method: mtp
+  num_speculative_tokens: 3       # K=3 optimal (same as 35B; K=1 tested -29% TPS, K=3 holds 0.78 accept at conc=8)
+
+# Bench reference 2026-05-15 (tools/multi_conc_bench.py sweep, n=2 warm):
+#   Non-streaming aggregate:
+#     conc=1  :  97 TPS  per-req 104
+#     conc=2  : 161 TPS  per-req  77  (1.65x scaling)
+#     conc=4  : 265 TPS  per-req  72  (2.72x scaling)
+#     conc=8  : 379 TPS  per-req  48  (3.89x scaling) ⭐ OPTIMUM (better scaling than 35B 3.21x)
+#   Streaming (real-user UX):
+#     conc=1  : TTFT 105 ms / TPOT 29.5 ms
+#     conc=4  : TTFT 159 ms / TPOT 40.2 ms
+#     conc=8  : TTFT 189 ms / TPOT 53.3 ms  (lower TTFT than 35B's 243 ms — INT4 weight is cheaper to fetch)
+# Bench artefact: /tmp/start_27b_multiconc.sh on server (single-purpose, not yet copied to tools/)
+
+genesis_env:
+  # ── Inherited from a5000-2x-27b-int4-tq-k8v4.yaml (LATENCY profile) ──
+  # See sibling config for full annotations. Only THROUGHPUT-mode-specific
+  # overrides are commented inline below; all other flags retain their
+  # latency-mode values.
+
+  GENESIS_BUFFER_MODE: shared                        # Genesis buffer manager mode (range: shared|exclusive|auto). 'shared' = one buffer shared across ranks for read-only data.
+
+  # GDN / hybrid attention (same as latency)
+  GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL: '1'      # Genesis-original Triton multi-query kernel for spec-decode K+1 verify. +32% TPS on hybrid GDN.
+  GENESIS_P67_USE_UPSTREAM: '1'                      # P67 routing flag: '1'=upstream-merged Genesis kernel, '0'=local fork (DEFAULT 1).
+  GENESIS_P67_NUM_KV_SPLITS: '32'                    # 27B optimum at 131K (per Wave 8 bench — 35B@320K wants 48; per-model tuning).
+  GENESIS_ENABLE_PN11_GDN_AB_CONTIGUOUS: '1'         # vllm#41142 backport — force a/b contiguity in fix_query_key_value_ordering on hybrid GDN.
+  GENESIS_ENABLE_PN106_GDN_H_POOL: '1'               # GDN inner chunk-state `h` pool — removes per-step alloc churn.
+
+  # ── THROUGHPUT-MODE DIFFS vs latency profile ─────────────────────────
+  GENESIS_ENABLE_PN204_DUAL_STREAM_INPROJ: '1'       # ENABLED 2026-05-15 (v2 redesign — is_compiling() guard + arming hook). Bench-neutral on Ampere; future-proof for Hopper +5-10%.
+  GENESIS_LEGACY_P7: '0'                             # P7 OFF — required when PN204=1 (registry conflicts_with declared mutual exclusivity).
+
+  # ── Spec-decode + structured-output safety net (same as latency) ──────
+  GENESIS_ENABLE_P58_ASYNC_PLACEHOLDER_FIX: '1'      # vllm#40807 backport — async-scheduler [-1] placeholder fix (#40831 spec-decode degenerate loops root cause).
+  GENESIS_ENABLE_P60_GDN_NGRAM_FIX: '1'              # vllm#40738 backport Phase 1 — GDN+ngram SSM state recovery on rollback.
+  GENESIS_ENABLE_P60B_TRITON_KERNEL: '1'             # vllm#40738 Phase 2 — Triton kernel offset fix for GDN+ngram.
+  GENESIS_ENABLE_P61B_STREAMING_OVERLAP: '1'         # vllm#40783 backport — Qwen3 streaming partial-tag overlap guard.
+  GENESIS_ENABLE_P61C_QWEN3CODER_DEFERRED_COMMIT: '1'    # closes club-3090#72 SSE silence on narrative <tool_call>.
+  GENESIS_ENABLE_P62_STRUCT_OUT_SPEC_TIMING: '1'     # vllm#36138 backport — structured-output spec-decode reasoning-end timing fix.
+  GENESIS_ENABLE_P64_QWEN3CODER_MTP_STREAMING: '1'   # vllm#39598 backport — qwen3coder MTP streaming early-return removal.
+  GENESIS_ENABLE_P66_CUDAGRAPH_SIZE_FILTER: '1'      # cudagraph_capture_sizes spec-decode divisibility filter — boot 2-4x faster.
+  GENESIS_ENABLE_P68_AUTO_FORCE_TOOL: '1'            # Genesis-original — auto-set tool_choice=required when prompt mentions tools.
+  GENESIS_ENABLE_P69_LONG_CTX_TOOL_REMINDER: '1'     # Genesis-original — inject tool-format reminder at long-ctx threshold.
+  GENESIS_ENABLE_P70_AUTO_STRICT_NGRAM: '1'          # Genesis-original — auto-set prompt_lookup_min=8 (closes club-3090#34 ngram quality cliff).
+  GENESIS_ENABLE_P71_BLOCK_VERIFY: '1'               # vllm#40819 — block-verify rejection sampler. Bench: +2.3% TPS +1.3% accept_rate at K≥3.
+  GENESIS_ENABLE_P72_PROFILE_RUN_CAP: '1'            # Genesis-original — caps profile_run M dim at GENESIS_PROFILE_RUN_CAP_M.
+  GENESIS_ENABLE_P74_CHUNK_CLAMP: '1'                # Chunked-prefill chunk-size clamp (avoids degenerate single-token chunks).
+  GENESIS_ENABLE_P82: '1'                            # SGLang-style acceptance threshold OR-clause. +5.23% TPS on 27B (sweep 2026-05-09).
+  GENESIS_P82_THRESHOLD_SINGLE: '0.3'                # P82 threshold single-query. 27B INT4 optimum 0.1 in latency YAML; using 0.3 here to match 35B-multiconc sibling — re-sweep recommended after Wave 10.
+  GENESIS_ENABLE_P95: '1'                            # vllm#40385 backport — Marlin TP cudagraph cap on Ampere.
+  GENESIS_ENABLE_P99: '1'                            # FP8 block-scaled MM batch-invariance fix.
+  GENESIS_ENABLE_P101: '1'                           # vllm#41127 backport — uniform query_len>1 batches through prefill wrapper in cudagraph mode.
+  GENESIS_ENABLE_P107_MTP_TRUNCATION_DETECTOR: '1'   # vllm#41467 backport — detect+log MTP truncation at think→tool_call boundary.
+
+  # Wave 8/9 stack — all inherited
+  GENESIS_ENABLE_PN8_MTP_DRAFT_ONLINE_QUANT: '1'     # MTP draft model online quantization (~1 GiB/rank saving on INT4 draft).
+  GENESIS_ENABLE_PN16_LAZY_REASONER: '1'             # PN16 v2 lazy-reasoner request hook — cache-safe.
+  GENESIS_PN16_CLASSIFIER_MAX_TOKENS: '0'            # PN16 V7 classifier cap OFF — was bench-artifact regressor.
+  GENESIS_PN16_TOOL_THINK_BUDGET: '200'              # PN16 V8 — system-msg hint <think> cap at 200 tokens for tool-attached requests.
+  GENESIS_ENABLE_PN17_FA2_LSE_CLAMP: '1'             # Cliff 1 mech A guard — runtime clamp on FA2 softmax_lse for long context.
+  GENESIS_ENABLE_PN19_SCOPED_MAX_SPLIT: '1'          # vllm#41268 backport — max_split_size_mb=20 scope-restored during model load.
+  GENESIS_ENABLE_PN52_PROMPT_LOGPROBS_EVICTION: '1'  # vllm#41411 backport — prompt_logprobs eviction fix during chunked prefill.
+  GENESIS_ENABLE_PN56_QWEN3CODER_XML_FALLBACK: '1'   # vllm#41466 backport — XML parse fallback when JSON tool-call parse fails.
+  GENESIS_ENABLE_PN66: '1'                           # vllm#41696 backport — multiturn </think> leak fix in DelegatingParser.
+  GENESIS_ENABLE_PN67: '1'                           # vllm#41674 backport — thinking_token_budget inverted-bool fix (1-line guard).
+  GENESIS_ENABLE_PN71_THINKING_TAG_NORMALIZE: '1'    # Malformed `<think>` tokenizer-drift normaliser.
+  GENESIS_ENABLE_PN73_TOOL_ARGS_SAFE_NORMALIZE: '1'  # Tool argument JSON normaliser (Qwen3-Coder edge cases).
+  # PN77_FP8_LM_HEAD NOT enabled here — 27B is INT4 not FP8; FP8 lm_head compression doesn't apply.
+  GENESIS_ENABLE_PN90_PROBABILISTIC_DRAFT: '1'       # self-retires on dev371 (upstream merged); kept on for older pins.
+  GENESIS_ENABLE_PN91_DEVELOPER_ROLE: '1'            # OpenAI `developer` role passthrough for IDE agent clients.
+  GENESIS_ENABLE_PN92_NIXL_EP_TRIAL_IMPORT: '1'      # vllm#40154 backport — trial-import guard for nixl_ep / deep_ep / mori.
+  GENESIS_ENABLE_PN95_TIER_AWARE_CACHE: '1'          # Tier-aware KV cache (GPU hot + CPU pinned warm + disk cold). Active only when CONFIG_KEY set.
+  GENESIS_PN95_CONFIG_KEY: a5000-2x-tier-aware-example  # Tier spec lookup key — Mamba SSM excluded (state cannot be moved).
+  GENESIS_PN95_DEMOTE_FREE_MIB_THRESHOLD: '2048'     # Trigger demote when free VRAM < 2 GiB.
+  GENESIS_PN95_TICK_EVERY: '100'                     # Tick frequency: scheduler-tick runs page-move evaluation every N decode steps.
+  GENESIS_ENABLE_PN96_EMERGENCY_DEMOTE: '1'          # Companion to PN95 — emergency demote when scheduler hits free-blocks threshold.
+  GENESIS_ENABLE_PN96B: '1'                          # Marlin persistent workspace (renamed 2026-05-15 from PN96 collision). +4-5% TPS recovery — was silently unloaded pre-rename.
+  GENESIS_ENABLE_PN201_SCHEDULER_EMPTY_CACHE: '1'    # Scheduler-tick `empty_cache()` hook, threshold-gated.
+  GENESIS_ENABLE_SNDR_WORKSPACE_001: '1'             # Workspace grow-after-lock graceful fix — replaces upstream assert with one-shot grow + warn.
+
+  # Wave 10 (2026-05-15)
+  GENESIS_ENABLE_PN51_QWEN3_STREAMING_THINKING_DISABLED: '1'  # vllm#40816 streaming defensive
+  GENESIS_ENABLE_PN125_HYBRID_FULL_AND_PIECEWISE: '1'         # PR-blog 2026-05 hybrid cudagraph forcing
+  GENESIS_ENABLE_PN126_V1_DECODE_WARMUP: '1'                  # JIT decode warmup orchestrator
+  GENESIS_ENABLE_PN127_AUTO_CHAT_TEMPLATE: '1'                # Qwen3.6 chat-template auto-install
+  GENESIS_ENABLE_PN128_SPEC_DECODE_WARMUP: '1'                # vllm#41481 eagle helper kernel warmup
+  GENESIS_ENABLE_PN129_SLOT_MAPPING_WARMUP: '1'               # vllm#42165 V1 slot mapping warmup
+  GENESIS_ENABLE_PN130_TQ_DECODE_WARMUP: '1'                  # vllm#42215 TurboQuant decode warmup
+  GENESIS_ENABLE_PN132_TOPK_TOPP_CONTIGUOUS: '1'              # vllm#42739 Triton top-k/top-p contiguous fix
+  GENESIS_ENABLE_PN133_MTP_EMPTY_OUTPUT_FIX: '1'              # vllm#42722 MTP scheduler empty-output guard
+  # GENESIS_ENABLE_PN134_TORCH_COMPILE_FULLGRAPH_211: KEEP OFF — retired 2026-05-15 (-25% TPS bench regressor)
+
+  # Misc
+  GENESIS_OBSERVABILITY: '1'
+  GENESIS_TQ_MAX_MODEL_LEN: '131072'                  # matches max_model_len above
+  GENESIS_PREALLOC_TOKEN_BUDGET: '4096'
+  GENESIS_PROFILE_RUN_CAP_M: '4096'
+  GENESIS_P68_P69_LONG_CTX_THRESHOLD_CHARS: '50000'
+
+system_env:
+  PYTORCH_CUDA_ALLOC_CONF: 'expandable_segments:True,max_split_size_mb:256'
+  VLLM_NO_USAGE_STATS: '1'
+  VLLM_LOGGING_LEVEL: WARNING                         # -10ms TTFT vs INFO (verified short-prompt bench)
+  VLLM_FLOAT32_MATMUL_PRECISION: high
+  VLLM_USE_FLASHINFER_SAMPLER: '1'
+  VLLM_USE_FUSED_MOE_GROUPED_TOPK: '1'
+  VLLM_ALLOW_LONG_MAX_MODEL_LEN: '1'
+  VLLM_WORKER_MULTIPROC_METHOD: spawn
+  VLLM_MARLIN_USE_ATOMIC_ADD: '1'
+  VLLM_MOE_USE_DEEP_GEMM: '0'                         # DeepGEMM Hopper-only; Marlin on Ampere
+  VLLM_USE_DEEP_GEMM: '0'
+  VLLM_USE_FLASHINFER_MOE_FP8: '0'
+  VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS: '1'
+  TRITON_CACHE_DIR: /root/.triton/cache
+  NCCL_P2P_DISABLE: '1'                               # consumer Ampere has no NVLink P2P
+  NCCL_DEBUG: WARN
+  OMP_NUM_THREADS: '1'
+  CUDA_DEVICE_MAX_CONNECTIONS: '8'
+  CUDA_MODULE_LOADING: LAZY

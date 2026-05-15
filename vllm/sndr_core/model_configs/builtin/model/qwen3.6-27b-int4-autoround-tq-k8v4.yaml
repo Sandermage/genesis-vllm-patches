@@ -149,8 +149,31 @@ patches:
   GENESIS_ENABLE_PN108_FUSED_RECURRENT_PREFILL: '0' # TOMBSTONED — fla `fused_recurrent_gated_delta_rule` cannot serve single-seq prefill (design conflict, see patch docstring).
   GENESIS_ENABLE_PN200_GDN_SCRATCH_REUSE: '0'        # GDN `core_attn_out` pool. OFF — anchor depends on P28 modification but dispatcher runs PN200 first.
   GENESIS_ENABLE_PN201_SCHEDULER_EMPTY_CACHE: '1'    # Scheduler-tick `torch.cuda.empty_cache()` hook, threshold-gated.
-  GENESIS_ENABLE_PN204_DUAL_STREAM_INPROJ: '0'       # Port of vllm#42301 (open). OFF — eager event allocation raises a torch.Event type error; lazy init still incubating.
+  GENESIS_ENABLE_PN204_DUAL_STREAM_INPROJ: '0'       # Port of vllm#42301 (open). OFF in single-conc latency profile.
+                                                       # v1 history: eager `__init__` allocation of torch.cuda.Event raised type error.
+                                                       # v1 lazy-init follow-up: crashed during profile_run on dev371 with
+                                                       #   torch/_inductor/runtime/static_triton_launcher.py:291 CUDA invalid argument.
+                                                       # v2 fix 2026-05-15 (Sander): torch.compiler.is_compiling() guard +
+                                                       #   _PN204_ARMED arming hook (Worker.determine_available_memory wrap) +
+                                                       #   explicit device=hidden_states.device on Stream + per-layer single-strike disable.
+                                                       # Bench dev371 27B INT4 multi-conc=8: neutral within CV.
+                                                       # Enabled in 27B multi-conc preset; requires GENESIS_LEGACY_P7=0.
   GENESIS_ENABLE_SNDR_WORKSPACE_001: '1'             # Workspace grow-after-lock graceful fix — replaces upstream assert with one-shot grow + warn.
+
+  # ── Wave 10 (2026-05-15) — multi-conc unlock + correctness recoveries ──
+  # Bench: tools/multi_conc_bench.py on dev371+bf610c2f5.
+  # Single-conc neutral within CV; multi-conc max_num_seqs=8 → 379 TPS aggregate (3.89x scaling).
+  GENESIS_ENABLE_PN96B: '1'                          # Marlin persistent workspace (renamed 2026-05-15 from PN96 dict-key collision). +4-5% TPS recovery on Marlin MoE — was silently unloaded pre-rename.
+  GENESIS_ENABLE_PN51_QWEN3_STREAMING_THINKING_DISABLED: '1'  # vllm#40816 (OPEN). Defensive streaming guard for OpenAI clients reading delta.content. Zero risk for thinking-enabled (dominant case).
+  GENESIS_ENABLE_PN125_HYBRID_FULL_AND_PIECEWISE: '1' # PyTorch blog 2026-05 — forces cudagraph_mode=FULL_AND_PIECEWISE on Qwen3.5/3.6 hybrid_gdn_moe.
+  GENESIS_ENABLE_PN126_V1_DECODE_WARMUP: '1'         # V1 decode kernel warmup orchestrator — pre-JITs decode + spec-decode kernels at boot.
+  GENESIS_ENABLE_PN127_AUTO_CHAT_TEMPLATE: '1'       # Qwen3.5/3.6 enhanced chat-template auto-install.
+  GENESIS_ENABLE_PN128_SPEC_DECODE_WARMUP: '1'       # vllm#41481 backport — pre-JITs 4 eagle helper kernels (closes 4 of 8 JIT spikes).
+  GENESIS_ENABLE_PN129_SLOT_MAPPING_WARMUP: '1'      # vllm#42165 backport — pre-JITs _compute_slot_mapping_kernel + do_not_specialize='num_tokens'.
+  GENESIS_ENABLE_PN130_TQ_DECODE_WARMUP: '1'         # vllm#42215 backport — pre-JITs _tq_grouped_decode_stage1 + workspace prealloc.
+  GENESIS_ENABLE_PN132_TOPK_TOPP_CONTIGUOUS: '1'     # vllm#42739 backport — Triton top-k/top-p contiguous fix (no-op when FlashInfer sampler active).
+  GENESIS_ENABLE_PN133_MTP_EMPTY_OUTPUT_FIX: '1'     # vllm#42722 backport — MTP scheduler empty-output guard (prevents Prometheus -1 ValueError).
+  # GENESIS_ENABLE_PN134_TORCH_COMPILE_FULLGRAPH_211: KEEP OFF — retired 2026-05-15 (-25% TPS bench regressor on hybrid_gdn_moe).
 
 notes:
   - "27B hybrid GDN + TQ k8v4 + MTP K=3. Validated 2026-05-11 on 2× A5000."

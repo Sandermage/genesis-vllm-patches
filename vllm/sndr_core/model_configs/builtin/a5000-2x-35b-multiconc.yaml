@@ -81,71 +81,71 @@ genesis_env:
   # overrides are commented inline below; all other flags retain their
   # latency-mode values.
 
-  GENESIS_BUFFER_MODE: shared
+  GENESIS_BUFFER_MODE: shared                        # Genesis buffer manager mode (range: shared|exclusive|auto). 'shared' = one buffer shared across ranks for read-only data.
 
   # GDN / hybrid attention
-  GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL: '1'
-  GENESIS_P67_USE_UPSTREAM: '1'
-  GENESIS_P67_NUM_KV_SPLITS: '48'
-  GENESIS_ENABLE_PN11_GDN_AB_CONTIGUOUS: '1'
-  GENESIS_ENABLE_PN106_GDN_H_POOL: '1'
+  GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL: '1'      # Genesis-original Triton multi-query kernel for spec-decode K+1 verify (+32% TPS on 35B PROD spec-decode K=3).
+  GENESIS_P67_USE_UPSTREAM: '1'                      # P67 routing flag: '1'=upstream-merged Genesis kernel, '0'=local fork (DEFAULT 1; fork was quality mirage 2026-04-28).
+  GENESIS_P67_NUM_KV_SPLITS: '48'                    # P67 split-K factor. Sprint 1 sweep on 35B PROD: 48 optimal at 320K context. (27B uses 32; 35B uses 48 due to longer ctx).
+  GENESIS_ENABLE_PN11_GDN_AB_CONTIGUOUS: '1'         # vllm#41142 backport — force a/b contiguity in fix_query_key_value_ordering. Removes non-contiguous tensor on hybrid GDN path.
+  GENESIS_ENABLE_PN106_GDN_H_POOL: '1'               # GDN inner chunk-state `h` pool — removes per-step alloc churn each chunked-prefill step.
 
   # ── THROUGHPUT-MODE DIFFS vs prod-latency ──────────────────────────
   GENESIS_ENABLE_PN204_DUAL_STREAM_INPROJ: '1'       # ENABLED 2026-05-15 (v2 redesign — is_compiling() guard + arming hook). Neutral within CV on A5000 (would give +5-10% on Hopper).
   GENESIS_LEGACY_P7: '0'                             # P7 OFF — required when PN204=1 (registry conflicts_with declares mutual exclusivity).
 
   # ── Reasoning / tool parsing — inherited from prod ──────────────────
-  GENESIS_ENABLE_P12: '1'
-  GENESIS_ENABLE_P27_REASONING_BEFORE_THINK: '1'
-  GENESIS_ENABLE_P58_ASYNC_PLACEHOLDER_FIX: '1'
-  GENESIS_ENABLE_P60_GDN_NGRAM_FIX: '1'
-  GENESIS_ENABLE_P60B_TRITON_KERNEL: '1'
-  GENESIS_ENABLE_P61B_STREAMING_OVERLAP: '1'
-  GENESIS_ENABLE_P61C_QWEN3CODER_DEFERRED_COMMIT: '1'
-  GENESIS_ENABLE_P62_STRUCT_OUT_SPEC_TIMING: '1'
-  GENESIS_ENABLE_P64_QWEN3CODER_MTP_STREAMING: '1'
-  GENESIS_ENABLE_P66_CUDAGRAPH_SIZE_FILTER: '1'
-  GENESIS_ENABLE_P68_AUTO_FORCE_TOOL: '1'
-  GENESIS_ENABLE_P69_LONG_CTX_TOOL_REMINDER: '1'
-  GENESIS_ENABLE_P70_AUTO_STRICT_NGRAM: '1'
-  GENESIS_ENABLE_P71_BLOCK_VERIFY: '1'
-  GENESIS_ENABLE_P72_PROFILE_RUN_CAP: '1'
-  GENESIS_ENABLE_P74_CHUNK_CLAMP: '1'
-  GENESIS_ENABLE_P81_FP8_BLOCK_SCALED_M_LE_8: '1'
-  GENESIS_ENABLE_P82: '1'
-  GENESIS_P82_THRESHOLD_SINGLE: '0.3'
-  GENESIS_ENABLE_P87: '1'
-  GENESIS_ENABLE_P91: '1'
-  GENESIS_ENABLE_P95: '1'
-  GENESIS_ENABLE_P99: '1'
-  GENESIS_ENABLE_P101: '1'
-  GENESIS_ENABLE_P107_MTP_TRUNCATION_DETECTOR: '1'
+  GENESIS_ENABLE_P12: '1'                            # Qwen3 <tool_call> implicit reasoning end (vllm#35687 backport — token-id resolution + is_reasoning_end_streaming + extract_content_ids).
+  GENESIS_ENABLE_P27_REASONING_BEFORE_THINK: '1'     # BEFORE-THINK fallback for content emitted before reasoning starts (Qwen3 streaming edge case).
+  GENESIS_ENABLE_P58_ASYNC_PLACEHOLDER_FIX: '1'      # vllm#40807 backport — async-scheduler [-1] placeholder fix (root cause of #40831 spec-decode degenerate loops).
+  GENESIS_ENABLE_P60_GDN_NGRAM_FIX: '1'              # vllm#40738 backport Phase 1 — GDN+ngram SSM state recovery on spec-decode rollback.
+  GENESIS_ENABLE_P60B_TRITON_KERNEL: '1'             # vllm#40738 Phase 2 — Triton kernel offset fix for GDN+ngram.
+  GENESIS_ENABLE_P61B_STREAMING_OVERLAP: '1'         # vllm#40783 backport — Qwen3 streaming partial-tag overlap guard.
+  GENESIS_ENABLE_P61C_QWEN3CODER_DEFERRED_COMMIT: '1'    # closes club-3090#72 30-120s SSE silence on narrative <tool_call>.
+  GENESIS_ENABLE_P62_STRUCT_OUT_SPEC_TIMING: '1'     # vllm#36138 backport — structured-output spec-decode reasoning-end timing fix.
+  GENESIS_ENABLE_P64_QWEN3CODER_MTP_STREAMING: '1'   # vllm#39598 backport — qwen3coder MTP streaming early-return removal (4 sub-patches).
+  GENESIS_ENABLE_P66_CUDAGRAPH_SIZE_FILTER: '1'      # cudagraph_capture_sizes spec-decode divisibility filter — boot 2-4x faster, less peak GPU memory.
+  GENESIS_ENABLE_P68_AUTO_FORCE_TOOL: '1'            # Genesis-original — auto-set tool_choice=required when prompt mentions tools (long-ctx adherence).
+  GENESIS_ENABLE_P69_LONG_CTX_TOOL_REMINDER: '1'     # Genesis-original — inject system-message reminder of tool format at long-ctx threshold.
+  GENESIS_ENABLE_P70_AUTO_STRICT_NGRAM: '1'          # Genesis-original — auto-set prompt_lookup_min=8 (closes club-3090#34 ngram quality cliff).
+  GENESIS_ENABLE_P71_BLOCK_VERIFY: '1'               # vllm#40819 + gemini bug-fixes — block-verify rejection sampler. Bench: +2.3% TPS +1.3% accept_rate at K≥3.
+  GENESIS_ENABLE_P72_PROFILE_RUN_CAP: '1'            # Genesis-original — caps profile_run M dim at GENESIS_PROFILE_RUN_CAP_M (Dynamo fake-tensor mismatch fix).
+  GENESIS_ENABLE_P74_CHUNK_CLAMP: '1'                # Chunked-prefill chunk-size clamp (avoids degenerate single-token chunks under spec-decode).
+  GENESIS_ENABLE_P81_FP8_BLOCK_SCALED_M_LE_8: '1'    # Genesis-original — FP8 block-scaled MM optimization for M≤8 (spec-decode K+1 batch shape).
+  GENESIS_ENABLE_P82: '1'                            # SGLang-style acceptance threshold OR-clause. +8-12% TPS on Ampere FP8 / INT4 (cross-rig confirmed).
+  GENESIS_P82_THRESHOLD_SINGLE: '0.3'                # P82 threshold single-query. 35B PROD optimum 0.3 (27B optimum 0.1 — per-model tuning).
+  GENESIS_ENABLE_P87: '1'                            # Spec-decode rejection ratio sanity guard.
+  GENESIS_ENABLE_P91: '1'                            # Long-prompt tool-call reminder helper (renamed from PN72).
+  GENESIS_ENABLE_P95: '1'                            # vllm#40385 backport — Marlin TP cudagraph cap on Ampere (TP=2 + Marlin defensive).
+  GENESIS_ENABLE_P99: '1'                            # FP8 block-scaled MM batch-invariance fix.
+  GENESIS_ENABLE_P101: '1'                           # vllm#41127 backport — uniform query_len>1 batches through prefill wrapper in cudagraph mode. +5-10% TPS.
+  GENESIS_ENABLE_P107_MTP_TRUNCATION_DETECTOR: '1'   # vllm#41467 backport — detect+log MTP truncation at think→tool_call boundary (defensive, +tool quality on edge cases).
 
   # Wave 8/9 stack — all inherited
-  GENESIS_ENABLE_PN8_MTP_DRAFT_ONLINE_QUANT: '1'
-  GENESIS_ENABLE_PN16_LAZY_REASONER: '1'
-  GENESIS_PN16_CLASSIFIER_MAX_TOKENS: '0'
-  GENESIS_PN16_TOOL_THINK_BUDGET: '200'
-  GENESIS_ENABLE_PN17_FA2_LSE_CLAMP: '1'
-  GENESIS_ENABLE_PN19_SCOPED_MAX_SPLIT: '1'
-  GENESIS_ENABLE_PN52_PROMPT_LOGPROBS_EVICTION: '1'
-  GENESIS_ENABLE_PN56_QWEN3CODER_XML_FALLBACK: '1'
-  GENESIS_ENABLE_PN66: '1'
-  GENESIS_ENABLE_PN67: '1'                            # thinking_token_budget inverted bool fix
-  GENESIS_ENABLE_PN71_THINKING_TAG_NORMALIZE: '1'
-  GENESIS_ENABLE_PN73_TOOL_ARGS_SAFE_NORMALIZE: '1'
-  GENESIS_ENABLE_PN77_FP8_LM_HEAD: '1'
-  GENESIS_ENABLE_PN90_PROBABILISTIC_DRAFT: '1'        # self-retires on dev371 (upstream merged), kept on for older pins
-  GENESIS_ENABLE_PN91_DEVELOPER_ROLE: '1'
-  GENESIS_ENABLE_PN92_NIXL_EP_TRIAL_IMPORT: '1'
-  GENESIS_ENABLE_PN95_TIER_AWARE_CACHE: '1'
-  GENESIS_PN95_CONFIG_KEY: a5000-2x-tier-aware-example
-  GENESIS_PN95_DEMOTE_FREE_MIB_THRESHOLD: '2048'
-  GENESIS_PN95_TICK_EVERY: '100'
-  GENESIS_ENABLE_PN96_EMERGENCY_DEMOTE: '1'
-  GENESIS_ENABLE_PN96B: '1'                           # Marlin persistent workspace (renamed 2026-05-15 from PN96 collision)
-  GENESIS_ENABLE_PN201_SCHEDULER_EMPTY_CACHE: '1'
-  GENESIS_ENABLE_SNDR_WORKSPACE_001: '1'
+  GENESIS_ENABLE_PN8_MTP_DRAFT_ONLINE_QUANT: '1'     # MTP draft model online quantization (~1 GiB/rank saving on FP8 draft).
+  GENESIS_ENABLE_PN16_LAZY_REASONER: '1'             # PN16 v2 lazy-reasoner request hook — cache-safe; default behavior leaves chat_template_kwargs untouched.
+  GENESIS_PN16_CLASSIFIER_MAX_TOKENS: '0'            # PN16 V7 classifier cap OFF — V7 caused -3.7% wall_TPS on bench-trivial prompts (measurement artifact).
+  GENESIS_PN16_TOOL_THINK_BUDGET: '200'              # PN16 V8 — system-msg hint cap <think> at 200 tokens for tool-attached requests. Bench: TPS 237.95 + tool 7/7 + london_think FIXED.
+  GENESIS_ENABLE_PN17_FA2_LSE_CLAMP: '1'             # Cliff 1 mech A guard — runtime clamp on FA2 softmax_lse for long context.
+  GENESIS_ENABLE_PN19_SCOPED_MAX_SPLIT: '1'          # vllm#41268 backport — max_split_size_mb=20 scope-restored during model load (reduces fragmentation).
+  GENESIS_ENABLE_PN52_PROMPT_LOGPROBS_EVICTION: '1'  # vllm#41411 backport — prompt_logprobs eviction fix during chunked prefill (only fires when logprobs requested).
+  GENESIS_ENABLE_PN56_QWEN3CODER_XML_FALLBACK: '1'   # vllm#41466 backport — XML parse fallback when JSON tool-call parse fails (qwen3_coder).
+  GENESIS_ENABLE_PN66: '1'                           # vllm#41696 backport — multiturn </think> leak fix in DelegatingParser (streaming reasoning purity).
+  GENESIS_ENABLE_PN67: '1'                           # vllm#41674 backport — thinking_token_budget inverted-bool fix (1-line guard).
+  GENESIS_ENABLE_PN71_THINKING_TAG_NORMALIZE: '1'    # Normalises malformed `<think>`/`</think>` from upstream tokenizer drift.
+  GENESIS_ENABLE_PN73_TOOL_ARGS_SAFE_NORMALIZE: '1'  # Tool argument JSON normaliser (Qwen3-Coder edge cases).
+  GENESIS_ENABLE_PN77_FP8_LM_HEAD: '1'               # Phase E.6 Marlin tier — FP8 LM head; 35B (vocab=248320, hidden=2048) ≈243 MiB/rank saving.
+  GENESIS_ENABLE_PN90_PROBABILISTIC_DRAFT: '1'       # self-retires on dev371 (upstream merged), kept on for older pins.
+  GENESIS_ENABLE_PN91_DEVELOPER_ROLE: '1'            # OpenAI `developer` role passthrough for IDE agent clients.
+  GENESIS_ENABLE_PN92_NIXL_EP_TRIAL_IMPORT: '1'      # vllm#40154 backport — trial-import guard for nixl_ep / deep_ep / mori (boot guard on dcacdf9a).
+  GENESIS_ENABLE_PN95_TIER_AWARE_CACHE: '1'          # Tier-aware KV cache (GPU hot + CPU pinned warm + disk cold). Active only when CONFIG_KEY set below.
+  GENESIS_PN95_CONFIG_KEY: a5000-2x-tier-aware-example  # Tier spec lookup key — defines GPU + CPU pinned tier; Mamba SSM excluded (state cannot be moved).
+  GENESIS_PN95_DEMOTE_FREE_MIB_THRESHOLD: '2048'     # Trigger demote when free VRAM < 2 GiB. On 8K+8seq rarely fires; on 32K+ ctx becomes dominant memory mgmt.
+  GENESIS_PN95_TICK_EVERY: '100'                     # Tick frequency: scheduler-tick runs page-move evaluation every N decode steps (range 50-500; 100 = conservative).
+  GENESIS_ENABLE_PN96_EMERGENCY_DEMOTE: '1'          # Companion to PN95 — emergency demote when scheduler hits free-blocks threshold.
+  GENESIS_ENABLE_PN96B: '1'                          # Marlin persistent workspace (renamed 2026-05-15 from PN96 collision). +4-5% TPS recovery — was silently unloaded pre-rename.
+  GENESIS_ENABLE_PN201_SCHEDULER_EMPTY_CACHE: '1'    # Scheduler-tick `empty_cache()` hook, threshold-gated. Prevents fragmentation creep at long context.
+  GENESIS_ENABLE_SNDR_WORKSPACE_001: '1'             # Workspace grow-after-lock graceful fix — replaces upstream assert with one-shot grow + warn.
 
   # Wave 10 (2026-05-15)
   GENESIS_ENABLE_PN51_QWEN3_STREAMING_THINKING_DISABLED: '1'  # vllm#40816 streaming defensive

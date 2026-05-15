@@ -1,0 +1,66 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 profile — Wave 10 multi-concurrency throughput preset for 27B INT4.
+# Companion to 27b-tq-k8v4 (LATENCY profile, max_num_seqs=4).
+# Layers on top of qwen3.6-27b-int4-autoround-tq-k8v4 model.
+# All overrides ADDITIVE; nothing removed from canonical wave9 set.
+# Switch between profiles per-workload via `sndr launch --profile`.
+
+schema_version: 2
+kind: profile
+id: 27b-multiconc                                # multi-concurrency throughput companion to 27b-tq-k8v4 (latency profile)
+parent_model: qwen3.6-27b-int4-autoround-tq-k8v4 # same model as 27b-tq-k8v4 — only sizing + 2 patches differ
+maintainer: sandermage
+status: validated                                # validated = Wave 10 bench passed 2026-05-15
+created: '2026-05-15'
+
+# ─── Sizing overrides — multi-conc throughput regime ───────────────────
+# Latency profile sets max_num_seqs=4 (good single-user UX). Multi-conc
+# raises to 8 for 3.89x aggregate throughput scaling on 27B INT4 — even
+# better than 35B FP8's 3.21x scaling.
+# Bench reference 2026-05-15 (tools/multi_conc_bench.py on dev371+bf610c2f5):
+#   conc=1: 97 TPS   TTFT 105 ms  TPOT 29.5 ms
+#   conc=4: 265 TPS  TTFT 159 ms  TPOT 40.2 ms
+#   conc=8: 379 TPS  TTFT 189 ms  TPOT 53.3 ms ⭐ throughput optimum (TTFT lower than 35B 243 ms — INT4 cheaper to fetch)
+sizing_override:
+  max_model_len: 131072                          # 128K — lowered from latency 256K to free VRAM headroom for batch=8 cudagraph capture. 27B INT4 has more headroom than 35B FP8 but multi-conc still benefits from trim.
+  gpu_memory_utilization: 0.85                   # 0.85 (vs latency 0.92) — extra headroom for 8 concurrent decode buffers.
+  max_num_seqs: 8                                # OVERRIDE from latency 4 → 8 (multi-conc optimum on 27B INT4).
+  max_num_batched_tokens: 4096                   # Same as latency; bench 2026-05-15 showed 8192 regresses TTFT.
+  enable_chunked_prefill: true                   # Required for spec-decode + long ctx.
+  enforce_eager: false                           # cudagraph capture enabled.
+  disable_custom_all_reduce: true                # NCCL fallback (consumer Ampere PCIe).
+  scheduler_reserve_full_isl: false              # Sprint 1 flag — allow scheduler to pack more sequences (helps multi-conc).
+
+# ─── Patches delta — Wave 10 additions vs canonical model.patches ──────
+# Note: Wave 10 patches (PN51, PN96b, PN125-130, PN132/133) already in
+# model.patches as of 2026-05-15 update. This delta only changes PN204
+# (multi-conc specific) + LEGACY_P7 (conflict).
+patches_delta:
+  enable:
+    GENESIS_ENABLE_PN204_DUAL_STREAM_INPROJ: '1' # v2 redesign 2026-05-15 — is_compiling() guard + arming hook. Bench-neutral on Ampere; future-proof for Hopper +5-10%.
+    GENESIS_LEGACY_P7: '0'                       # P7 OFF — required when PN204=1 (registry conflicts_with declared).
+  disable: []                                    # nothing removed from model.patches
+  override: {}                                   # no value overrides
+
+# ─── Spec-decode reaffirmation — same as 35B-multiconc ──────────────────
+# Spec-decode stays at MTP K=3 greedy (model.capabilities default).
+# Probabilistic-draft tested 2026-05-15 on dev371+MTP+TQ k8v4 — REGRESSION.
+# Do NOT add rejection_sample_method/draft_sample_method here.
+
+# ─── Promotion contract — bench thresholds for status=validated ─────────
+promotion:
+  validation_required:
+    - "tools/multi_conc_bench.py sweep — agg_TPS at conc=8 ≥ 350 on 27B INT4"
+    - "tools/multi_conc_bench.py sweep — TTFT med at conc=8 ≤ 220 ms"
+    - "tool-call regression suite — 7/7 at conc=4"
+    - "PN204 v2 boot — no CUDA driver crash during profile_run on dev371"
+  promote_to: null                               # multi-conc-specific; do NOT promote into canonical model.patches
+  notes: |
+    27b-multiconc validates on Wave 10 stack (dev371+bf610c2f5) with PN204 v2.
+    Companion to 27b-tq-k8v4 (latency, max_num_seqs=4). Operator chooses
+    profile per-workload — both are stable. 27B INT4 has BETTER multi-conc
+    scaling (3.89x) than 35B FP8 (3.21x) because INT4 weight fetch is
+    cheaper, leaving more SM cycles for parallel KV access.
+
+    For architectural roadmap to break 189 ms TTFT ceiling at conc=8 on
+    27B: see docs/GDN_KERNEL_FUSION_DESIGN.md (3-phase plan).
