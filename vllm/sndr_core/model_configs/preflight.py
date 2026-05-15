@@ -171,7 +171,7 @@ def check_gpu_count(cfg) -> Optional[PreflightCheck]:
             message="nvidia-smi not available",
             severity="warning",
         )
-    visible = len([l for l in out.strip().splitlines() if l.startswith("GPU")])
+    visible = len([ln for ln in out.strip().splitlines() if ln.startswith("GPU")])
     if visible < cfg.hardware.n_gpus:
         return PreflightCheck(
             name="gpu_count", passed=False,

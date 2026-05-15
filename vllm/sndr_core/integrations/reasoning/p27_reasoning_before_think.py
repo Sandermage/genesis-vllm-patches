@@ -50,8 +50,8 @@ import logging
 # desired anyway. _AUDIT_A19_EXEMPT documents this intentional design.
 _AUDIT_A19_EXEMPT = True  # tightly coupled subpatches
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
-from vllm.sndr_core.core import (
+from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root  # noqa: E402
+from vllm.sndr_core.core import (  # noqa: E402
     TextPatch, TextPatcher, TextPatchResult,
 )
 

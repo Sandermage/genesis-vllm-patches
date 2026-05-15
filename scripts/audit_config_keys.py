@@ -37,7 +37,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # Import the validator directly so we don't pay subprocess startup per
 # YAML (would be 40+ python launches otherwise).
 sys.path.insert(0, str(REPO_ROOT))
-from vllm.sndr_core.cli import config_keys as _ck  # type: ignore
+from vllm.sndr_core.cli import config_keys as _ck  # type: ignore  # noqa: E402  — import after sys.path mutation
 
 
 SCAN_DIRS = (

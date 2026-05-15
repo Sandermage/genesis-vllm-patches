@@ -328,7 +328,6 @@ def _recommend_for_patches(profile: dict[str, Any]) -> dict[str, Any]:
     pr40792 = profile.get("pr40792_active", False)
     pr40384 = profile.get("pr40384_active", False)
     pr40074 = profile.get("pr40074_active", False)
-    cudagraph_active = profile.get("cudagraph_capture_active", True)
     spec_decode = profile.get("spec_decode_enabled", False)
 
     # P36: shared decode buffers

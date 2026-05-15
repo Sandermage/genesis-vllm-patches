@@ -342,7 +342,8 @@ def welch_t(a: list[float], b: list[float]) -> dict:
     """Welch's two-sample t-test, two-sided. Returns t, df, approx p (Simpson)."""
     if len(a) < 2 or len(b) < 2:
         return dict(t=None, df=None, p_two_sided=None, verdict="INSUFFICIENT_SAMPLES")
-    ma = sum(a) / len(a); mb = sum(b) / len(b)
+    ma = sum(a) / len(a)
+    mb = sum(b) / len(b)
     va = sum((x - ma) ** 2 for x in a) / (len(a) - 1)
     vb = sum((x - mb) ** 2 for x in b) / (len(b) - 1)
     se = math.sqrt(va / len(a) + vb / len(b))
@@ -529,7 +530,8 @@ def detect_local_gpus() -> list[dict]:
         bw = None
         for key, b in GPU_BANDWIDTH_GB_S.items():
             if key in nname:
-                bw = b; break
+                bw = b
+                break
         gpus.append(dict(
             index=int(idx), name=name, vram_total_mib=int(mtot),
             vram_used_mib=int(mused), driver=drv, compute_cap=cc,
@@ -1110,8 +1112,10 @@ def cmd_compare(a_path: str, b_path: str, out_path: str | None = None) -> int:
     da = [e["decode_tpot_ms"] for e in A.get("decode_bench", {}).get("flat_results", [])]
     db = [e["decode_tpot_ms"] for e in B.get("decode_bench", {}).get("flat_results", [])]
     if not da or not db:
-        print("no decode_bench results in one of the inputs"); return 2
-    sa = mean_std_cv(da); sb = mean_std_cv(db)
+        print("no decode_bench results in one of the inputs")
+        return 2
+    sa = mean_std_cv(da)
+    sb = mean_std_cv(db)
     test = welch_t(da, db)
     delta_pct = round(100 * (sb["mean"] - sa["mean"]) / sa["mean"], 2) if sa["mean"] else None
     print("\nGenesis Bench Compare")

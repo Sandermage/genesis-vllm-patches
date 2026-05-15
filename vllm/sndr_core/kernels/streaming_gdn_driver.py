@@ -483,7 +483,6 @@ def _streaming_path(
     `chunk_fwd_kernel_o:74` analysis).
     """
     B, T, Hg, K = q.shape
-    V = v.shape[-1]
     BT = _FLA_CHUNK_SIZE
 
     # Mem-trace instrumentation Phase D-deep 2026-05-06 — measure REAL Phase A
@@ -551,15 +550,12 @@ def _streaming_path(
 
     # State chained across windows (float32 per kernel signature)
     state = initial_state
-    H = u.shape[-2]
     final_state = None
 
     # Window loop — slice T-dim by window_nt × BT tokens
     window_T = window_nt * BT
     for win_start in range(0, T, window_T):
         win_end = min(win_start + window_T, T)
-        cur_T = win_end - win_start
-        cur_NT = (cur_T + BT - 1) // BT
         is_last_window = (win_end >= T)
 
         # Slice T-dim inputs (input_guard wraps will re-contigify if needed)

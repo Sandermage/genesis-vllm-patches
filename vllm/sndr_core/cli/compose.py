@@ -147,7 +147,7 @@ def _load_host_paths() -> dict[str, str]:
 # contract in model_configs/schema.py uses brace form exclusively, so
 # matching `$FOO` would generate false unresolved-placeholder alerts on
 # shell-style env references that pass through to the runtime.
-import re as _re
+import re as _re  # noqa: E402  — section-local import after explanatory docstring
 _UNRESOLVED_PLACEHOLDER_RE = _re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
 
 

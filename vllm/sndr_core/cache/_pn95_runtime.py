@@ -2120,7 +2120,7 @@ def _pn95_dump_stats_if_due() -> None:
 # Compatible with TP=2+ — each worker has its own _PN95_PREFIX_STORE
 # scoped to that worker's GPU.
 
-from collections import OrderedDict as _OrderedDict
+from collections import OrderedDict as _OrderedDict  # noqa: E402  — block-local import after PN95 section header
 _PN95_PREFIX_STORE: "_OrderedDict[Any, list]" = _OrderedDict()
 _PN95_PREFIX_STORE_BYTES_USED: int = 0
 _PN95_PREFIX_STORE_MAX_BYTES_CACHED: Optional[int] = None
@@ -2970,7 +2970,6 @@ def promote_on_miss(block_pool: Any, block_hash_with_group_id: Any) -> Any:
 
     if layer_data is None:
         layer_data = _PN95_PREFIX_STORE.get(block_hash_with_group_id)
-    promoted_from_disk = False
     if layer_data is None:
         # CPU prefix store miss — try the disk tier before giving up.
         # On disk hit, re-insert into the in-RAM store (LRU at the
@@ -2984,7 +2983,6 @@ def promote_on_miss(block_pool: Any, block_hash_with_group_id: Any) -> Any:
             disk_data = _disk.disk_tier_get(block_hash_with_group_id)
             if disk_data is not None:
                 layer_data = disk_data
-                promoted_from_disk = True
                 # Insert back into CPU prefix store; evict to fit if
                 # needed (which may itself spill an older entry to
                 # disk per _prefix_store_evict_until_fit policy).

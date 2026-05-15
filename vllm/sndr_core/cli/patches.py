@@ -221,7 +221,6 @@ def _run_explain(opts: argparse.Namespace) -> int:
         return 0
 
     # Pretty print
-    title_line = f"  {pid}  —  {meta.get('title', '(no title)')}"
     _io.banner(f"Patch {pid}", meta.get("title", "")[:60])
 
     def _row(label: str, value: Any) -> None:
@@ -1352,7 +1351,6 @@ def _run_bench_attach(args: argparse.Namespace) -> int:
         v = bench_delta.get(k)
         if v is None:
             continue
-        delta_key = f"{k.replace('_ms','').replace('_tps','_tps')}_delta_pct"
         # Two specific delta keys we render: median_tps + p95_tps + decode_tpot + ttft
         pretty_delta = ""
         if k == "median_tps":

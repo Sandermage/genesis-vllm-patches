@@ -180,7 +180,7 @@ def _vram_usage(cfg, total_only: bool = False) -> dict:
     ])
     if rc != 0:
         return {}
-    per_gpu = [int(l.strip()) for l in out.strip().splitlines() if l.strip()][
+    per_gpu = [int(ln.strip()) for ln in out.strip().splitlines() if ln.strip()][
         : cfg.hardware.n_gpus
     ]
     return {

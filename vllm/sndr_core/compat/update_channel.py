@@ -261,9 +261,9 @@ def check_for_updates(force_refresh: bool = False) -> dict[str, Any]:
         update_available = None  # can't tell
     else:
         # Compare short SHAs prefix-wise to handle length mismatch
-        u = (upstream_sha or "")[:7]
-        l = local[:7]
-        update_available = bool(u) and (u != l)
+        u_short = (upstream_sha or "")[:7]
+        local_short = local[:7]
+        update_available = bool(u_short) and (u_short != local_short)
 
     return {
         "channel": channel,

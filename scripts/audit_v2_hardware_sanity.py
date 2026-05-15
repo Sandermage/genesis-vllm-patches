@@ -180,7 +180,6 @@ def _render_text(results: list[SanityCheck]) -> str:
         for v in r.violations:
             lines.append(f"      ⚠ {v}")
     passed = sum(1 for r in results if r.passed)
-    failed = sum(1 for r in results if not r.passed)
     lines.append("─" * 70)
     lines.append(f"  {passed}/{len(results)} hardware files clean")
     return "\n".join(lines)

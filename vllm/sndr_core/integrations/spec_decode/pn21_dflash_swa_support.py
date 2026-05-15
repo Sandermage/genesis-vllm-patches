@@ -304,7 +304,8 @@ def apply() -> tuple[str, str]:
 
 def is_applied() -> bool:
     target = resolve_vllm_file("transformers_utils/configs/speculators/algos.py")
-    if target is None: return False
+    if target is None:
+        return False
     try:
         with open(str(target)) as f:
             return GENESIS_PN21_MARKER in f.read()

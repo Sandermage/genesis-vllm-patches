@@ -81,10 +81,10 @@ import logging
 # subpatches together form one logical fix; partial application is not
 # desired anyway. _AUDIT_A19_EXEMPT documents this intentional design.
 _AUDIT_A19_EXEMPT = True  # tightly coupled subpatches
-import os
+import os  # noqa: E402  — import after A-19 exemption marker
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
-from vllm.sndr_core.core import (
+from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root  # noqa: E402
+from vllm.sndr_core.core import (  # noqa: E402
     TextPatcher,
     TextPatchResult,
     TextPatch,

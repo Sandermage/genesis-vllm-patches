@@ -62,14 +62,17 @@ async def stream_req(session, prompt, max_tok):
                 chunk = line[6:].strip()
                 if chunk == b"[DONE]":
                     break
-                try: j = json.loads(chunk)
-                except Exception: continue
+                try:
+                    j = json.loads(chunk)
+                except Exception:
+                    continue
                 delta = j.get("choices", [{}])[0].get("delta", {})
                 tok = delta.get("content") or delta.get("reasoning")
                 if tok:
                     n_tokens += 1
                     if first_t is None:
-                        first_t = now; ttft = now - t0
+                        first_t = now
+                        ttft = now - t0
                     last_t = now
     t1 = time.perf_counter()
     total = t1 - t0
@@ -109,9 +112,12 @@ async def run_round(session, n_conc, mode, max_tok):
 
 
 def pct(data, p):
-    if not data: return None
-    s = sorted(data); k = (len(s) - 1) * p / 100
-    f = int(k); c = min(f + 1, len(s) - 1)
+    if not data:
+        return None
+    s = sorted(data)
+    k = (len(s) - 1) * p / 100
+    f = int(k)
+    c = min(f + 1, len(s) - 1)
     return s[f] + (s[c] - s[f]) * (k - f)
 
 
@@ -131,8 +137,10 @@ async def sweep_main():
                 rnd = await run_round(session, n, "stream", 384)
                 aggs.append(rnd["aggregate_tps"])
                 for r in rnd["results"]:
-                    if r["ttft_ms"]: ttfts.append(r["ttft_ms"])
-                    if r["tpot_ms"]: tpots.append(r["tpot_ms"])
+                    if r["ttft_ms"]:
+                        ttfts.append(r["ttft_ms"])
+                    if r["tpot_ms"]:
+                        tpots.append(r["tpot_ms"])
             print(f"  conc={n:2d}  agg_TPS={statistics.mean(aggs):6.1f}  "
                   f"TTFT_med={statistics.median(ttfts):4.0f}ms  TTFT_P95={pct(ttfts, 95):4.0f}ms  "
                   f"TPOT_med={statistics.median(tpots):5.2f}ms  TPOT_P95={pct(tpots, 95):5.2f}ms")
@@ -145,8 +153,10 @@ async def single_main(n_conc, n_rounds, max_tok):
             r = await run_round(session, n_conc, "stream", max_tok)
             agg.append(r["aggregate_tps"])
             for r2 in r["results"]:
-                if r2["ttft_ms"]: all_ttft.append(r2["ttft_ms"])
-                if r2["tpot_ms"]: all_tpot.append(r2["tpot_ms"])
+                if r2["ttft_ms"]:
+                    all_ttft.append(r2["ttft_ms"])
+                if r2["tpot_ms"]:
+                    all_tpot.append(r2["tpot_ms"])
                 all_per_req.append(r2["tps_per_req"])
             ttft_m = statistics.median([x["ttft_ms"] for x in r["results"] if x["ttft_ms"]]) if any(x["ttft_ms"] for x in r["results"]) else 0
             tpot_m = statistics.median([x["tpot_ms"] for x in r["results"] if x["tpot_ms"]]) if any(x["tpot_ms"] for x in r["results"]) else 0

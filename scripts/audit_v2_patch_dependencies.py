@@ -173,7 +173,6 @@ def _render_text(results: list[DepCheck]) -> str:
                 f"      ⚠ {c['patch_a']} ⨯ {c['patch_b']} — both enabled (conflict)"
             )
     passed = sum(1 for r in results if r.passed)
-    failed = sum(1 for r in results if not r.passed)
     lines.append("─" * 70)
     lines.append(f"  {passed}/{len(results)} models clean")
     return "\n".join(lines)

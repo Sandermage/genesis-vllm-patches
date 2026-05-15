@@ -737,13 +737,13 @@ def _print_section(title: str, items: list, name_fn, msg_fn, sev_fn,
         sev = sev_fn(item)
         passed = passed_fn(item)
         if sev == "error" and not passed:
-            mark, e_ = "✗ ERROR  ", 1
+            mark = "✗ ERROR  "
             e += 1
         elif sev == "warning" and not passed:
-            mark, e_ = "⚠ WARN   ", 1
+            mark = "⚠ WARN   "
             w += 1
         else:
-            mark, e_ = "✓ ok     ", 0
+            mark = "✓ ok     "
             i += 1
         print(f"  {mark}{name_fn(item):<35}  {msg_fn(item)}")
     return e, w, i
@@ -760,9 +760,11 @@ def cmd_audit(args) -> int:
         return 0
     for rid, sev, title, msg in issues:
         if sev == "error":
-            mark = "✗ ERROR  "; e += 1
+            mark = "✗ ERROR  "
+            e += 1
         elif sev == "warning":
-            mark = "⚠ WARN   "; w += 1
+            mark = "⚠ WARN   "
+            w += 1
         else:
             mark = "ℹ INFO   "
         print(f"  {mark}[{rid}] {title}")
@@ -803,9 +805,11 @@ def cmd_preflight(args) -> int:
     e = w = 0
     for c in checks:
         if c.severity == "error" and not c.passed:
-            print(f"  ✗ ERROR  {c.name:<35}  {c.message}"); e += 1
+            print(f"  ✗ ERROR  {c.name:<35}  {c.message}")
+            e += 1
         elif c.severity == "warning" and not c.passed:
-            print(f"  ⚠ WARN   {c.name:<35}  {c.message}"); w += 1
+            print(f"  ⚠ WARN   {c.name:<35}  {c.message}")
+            w += 1
         else:
             print(f"  ✓ ok     {c.name:<35}  {c.message}")
     print(f"\n  Summary: {e} blockers, {w} warnings")
@@ -819,9 +823,11 @@ def cmd_diagnose(args) -> int:
     e = w = 0
     for f in findings:
         if f.severity == "error" and not f.passed:
-            print(f"  ✗ ERROR  {f.name:<35}  {f.message}"); e += 1
+            print(f"  ✗ ERROR  {f.name:<35}  {f.message}")
+            e += 1
         elif f.severity == "warning" and not f.passed:
-            print(f"  ⚠ WARN   {f.name:<35}  {f.message}"); w += 1
+            print(f"  ⚠ WARN   {f.name:<35}  {f.message}")
+            w += 1
         else:
             print(f"  ✓ ok     {f.name:<35}  {f.message}")
     print(f"\n  Summary: {e} blockers, {w} warnings")
@@ -846,9 +852,11 @@ def cmd_verify(args) -> int:
     e = w = 0
     for r in results:
         if r.severity == "error" and not r.passed:
-            mark = "✗ ERROR  "; e += 1
+            mark = "✗ ERROR  "
+            e += 1
         elif r.severity == "warning" and not r.passed:
-            mark = "⚠ WARN   "; w += 1
+            mark = "⚠ WARN   "
+            w += 1
         else:
             mark = "✓ ok     "
         print(f"  {mark}{r.metric:<20}  expected={r.expected:<15} "

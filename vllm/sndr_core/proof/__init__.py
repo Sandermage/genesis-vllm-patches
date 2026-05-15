@@ -38,7 +38,7 @@ import subprocess
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]

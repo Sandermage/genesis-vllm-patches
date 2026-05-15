@@ -124,7 +124,8 @@ def apply() -> tuple[str, str]:
 
 def is_applied() -> bool:
     target = resolve_vllm_file("v1/worker/gpu_model_runner.py")
-    if target is None: return False
+    if target is None:
+        return False
     try:
         with open(str(target)) as f:
             return GENESIS_PN24_MARKER in f.read()

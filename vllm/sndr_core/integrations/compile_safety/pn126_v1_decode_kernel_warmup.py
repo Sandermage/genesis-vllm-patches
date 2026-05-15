@@ -162,7 +162,7 @@ def _genesis_pn126_run_warmup_extras(worker) -> None:
     the pre-PN126 behavior (JIT on first request).
     """
     try:
-        from vllm.config.compilation import CUDAGraphMode
+        from vllm.config.compilation import CUDAGraphMode  # noqa: F401 — import-availability probe
     except ImportError:
         log.warning("[PN126] CUDAGraphMode not importable; skip extras")
         return

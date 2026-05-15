@@ -229,7 +229,6 @@ def should_apply(patch_id: str) -> tuple[bool, str]:
         from vllm.sndr_core.env import is_enabled as _is_enabled
         env_truthy = _is_enabled(bare_flag)
         env_disabled = _is_disabled(bare_flag)
-        env_value = "1" if env_truthy else ""
 
         # F-2026-05-14: explicit operator opt-out via
         # SNDR_DISABLE_<bare>=1 / GENESIS_DISABLE_<bare>=1.
@@ -262,7 +261,6 @@ def should_apply(patch_id: str) -> tuple[bool, str]:
             )
     else:
         env_truthy = False
-        env_value = ""
 
     # Operator override: env truthy = always apply (subject to anchor presence)
     if env_truthy:

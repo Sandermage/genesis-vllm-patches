@@ -38,7 +38,7 @@ def _git_tracked_files() -> list[str]:
         cwd=REPO_ROOT,
         capture_output=True, text=True, check=True,
     )
-    return [l for l in result.stdout.splitlines() if l]
+    return [ln for ln in result.stdout.splitlines() if ln]
 
 
 def check_evidence_ledger_present() -> list[str]:

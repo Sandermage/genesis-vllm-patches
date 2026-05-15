@@ -44,7 +44,6 @@ from __future__ import annotations
 
 import argparse
 import sys
-from typing import Any
 
 from .community import add_argparser as _community_argparser  # Phase 5 community SDK
 from .install import add_argparser as _install_argparser
@@ -169,7 +168,6 @@ def cli_main(argv: list[str] | None = None) -> int:
     # `--help` and flags pass through verbatim.
     if (len(argv) >= 2 and argv[0] == "model"
             and argv[1] in ("pull", "list")):
-        from vllm.sndr_core.cli import model as _model_mod
         if argv[1] == "pull":
             from vllm.sndr_core.compat.models import pull as _pull
             return _pull.main(argv[2:])

@@ -144,7 +144,7 @@ def main():
         if not os.path.exists(path):
             print(f"  [ERR] missing data file: {path}")
             continue
-        ds = [json.loads(l) for l in open(path)]
+        ds = [json.loads(line) for line in open(path)]
         scores = []
         total_dt = 0
         for i, ex in enumerate(ds):

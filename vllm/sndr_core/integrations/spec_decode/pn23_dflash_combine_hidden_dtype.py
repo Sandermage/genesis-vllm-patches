@@ -127,7 +127,8 @@ def apply() -> tuple[str, str]:
 
 def is_applied() -> bool:
     target = resolve_vllm_file("model_executor/models/qwen3_dflash.py")
-    if target is None: return False
+    if target is None:
+        return False
     try:
         with open(str(target)) as f:
             return GENESIS_PN23_MARKER in f.read()

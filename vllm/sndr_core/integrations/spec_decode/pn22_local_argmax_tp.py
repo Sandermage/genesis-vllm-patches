@@ -211,7 +211,8 @@ def apply() -> tuple[str, str]:
 
 def is_applied() -> bool:
     qwen3 = resolve_vllm_file("model_executor/models/qwen3.py")
-    if qwen3 is None: return False
+    if qwen3 is None:
+        return False
     try:
         with open(str(qwen3)) as f:
             return GENESIS_PN22_MARKER in f.read()

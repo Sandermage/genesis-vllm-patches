@@ -165,7 +165,10 @@ def _student_t_two_sided_p(t, df):
     abs_t, upper, n = abs(t), max(abs(t) + 30.0, 50.0), 4096
     h = (upper - abs_t) / n
     coef = math.gamma((df + 1) / 2) / (math.sqrt(df * math.pi) * math.gamma(df / 2))
-    pdf = lambda x: coef * (1.0 + (x * x) / df) ** (-(df + 1) / 2.0)
+
+    def pdf(x):
+        return coef * (1.0 + (x * x) / df) ** (-(df + 1) / 2.0)
+
     s = pdf(abs_t) + pdf(upper)
     for i in range(1, n):
         s += (4.0 if i % 2 else 2.0) * pdf(abs_t + i * h)

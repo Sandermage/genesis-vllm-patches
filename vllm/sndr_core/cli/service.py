@@ -99,7 +99,6 @@ _SYSTEMD_RESTART = {
 def _render_systemd_unit(cfg, *, system: bool = False) -> str:
     """Render the [Service] body from cfg.service + cfg.docker."""
     s = cfg.service
-    name = s.service_name or f"sndr-{cfg.key}"
     user_line = f"User={s.user}\n" if s.user else ""
     wd_line = f"WorkingDirectory={s.working_dir}\n" if s.working_dir else ""
     env_line = f"EnvironmentFile={s.env_file}\n" if s.env_file else ""
