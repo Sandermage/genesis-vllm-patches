@@ -295,7 +295,15 @@ def _warmup_eagle_helpers(drafter, model_runner) -> int:
 
 
 def _run_pn128_warmup(worker) -> None:
-    """Главная entry — извлекает drafter и запускает eagle helper warmup."""
+    """Главная entry — извлекает drafter и запускает eagle helper warmup.
+
+    v2 (2026-05-15 bench finding): первый run использовал только
+    num_reqs=1, но real user request имеет num_reqs до max_num_seqs.
+    Triton JIT cache key включает constexpr — разные BLOCK_SIZE_TOKENS
+    → разные binaries. Итерируем по shape variants чтобы покрыть
+    все возможные num_reqs × num_sampled_per_req комбинации, которые
+    реально могут случиться на inference.
+    """
     runner = getattr(worker, "model_runner", None)
     if runner is None:
         log.debug("[PN128] worker.model_runner None — skip")
@@ -305,9 +313,28 @@ def _run_pn128_warmup(worker) -> None:
         log.debug("[PN128] runner.drafter None — no spec-decode active, skip")
         return
 
-    log.info("[PN128] starting spec-decode helper kernel warmup...")
-    n = _warmup_eagle_helpers(drafter, runner)
-    log.info("[PN128] spec-decode helper warmup complete: %d/4 kernels warmed", n)
+    # Shape coverage: num_reqs до max_num_seqs (1 + 2 для max_num_seqs=2 setup).
+    # Real bench iteration на dev371 показал что warmup с num_reqs=1
+    # покрывает только одну Triton specialization; max_num_seqs=2 batch
+    # отдаст другой cache key.
+    sched_config = getattr(worker, "scheduler_config", None)
+    max_num_seqs = int(getattr(sched_config, "max_num_seqs", 2)) if sched_config else 2
+
+    log.info(
+        "[PN128] starting spec-decode helper kernel warmup "
+        "(num_reqs sweep 1..%d)...", max_num_seqs,
+    )
+
+    total_warmed = 0
+    for num_reqs in range(1, max(2, max_num_seqs) + 1):
+        try:
+            n = _warmup_eagle_helpers_with_reqs(drafter, runner, num_reqs)
+            total_warmed += n
+            log.info("[PN128] num_reqs=%d: %d/4 kernels warmed", num_reqs, n)
+        except Exception as e:
+            log.warning("[PN128] num_reqs=%d failed: %s", num_reqs, e)
+
+    log.info("[PN128] spec-decode helper warmup complete: %d total warmups", total_warmed)
 
     # Sync GPU перед jit_monitor activation
     try:
@@ -315,6 +342,59 @@ def _run_pn128_warmup(worker) -> None:
         torch.accelerator.synchronize()
     except Exception as e:
         log.warning("[PN128] post-warmup sync failed: %s", e)
+
+
+def _warmup_eagle_helpers_with_reqs(drafter, model_runner, num_reqs: int) -> int:
+    """Запуск warmup с конкретным num_reqs (форсируем shape variant)."""
+    # Параметризуем глобальный _warmup_eagle_helpers через локальный
+    # override. Простейший вариант — передать через temporary attribute,
+    # но это hacky. Делаем явный duplicate с num_reqs параметром.
+    import torch
+
+    device = drafter.device
+    success = 0
+    num_spec_tokens = int(getattr(drafter, "num_speculative_tokens", 0) or 0)
+    if num_spec_tokens <= 0:
+        return 0
+
+    num_sampled_per_req = num_spec_tokens + 1
+    block_size_tokens = _next_power_of_2(num_sampled_per_req)
+
+    # kernel 1
+    try:
+        from vllm.v1.spec_decode.utils import (
+            eagle_prepare_next_token_padded_kernel,
+        )
+        sampled_token_ids = torch.zeros(
+            (num_reqs, num_sampled_per_req), dtype=torch.int64, device=device
+        )
+        discard_mask = torch.zeros(num_reqs, dtype=torch.bool, device=device)
+        backup_tokens = torch.zeros(num_reqs, dtype=torch.int32, device=device)
+        next_token_ids = torch.empty(num_reqs, dtype=torch.int32, device=device)
+        valid_count_out = torch.empty(num_reqs, dtype=torch.int32, device=device)
+        eagle_prepare_next_token_padded_kernel[(num_reqs,)](
+            sampled_token_ids, discard_mask, backup_tokens, next_token_ids,
+            valid_count_out, 128, num_sampled_per_req, num_reqs,
+            sampled_token_ids.stride(0), BLOCK_SIZE_TOKENS=block_size_tokens,
+        )
+        success += 1
+    except Exception as e:
+        log.debug("[PN128] num_reqs=%d k1 failed: %s", num_reqs, e)
+
+    # kernel 2
+    try:
+        from vllm.v1.spec_decode.utils import eagle_prepare_inputs_padded_kernel
+        cu = torch.zeros(num_reqs, dtype=torch.int32, device=device)
+        valid = torch.zeros(num_reqs, dtype=torch.int32, device=device)
+        qsl = torch.zeros(num_reqs + 1, dtype=torch.int32, device=device)
+        tits = torch.empty(num_reqs, dtype=torch.int32, device=device)
+        nrt = torch.empty(num_reqs, dtype=torch.int32, device=device)
+        eagle_prepare_inputs_padded_kernel[(num_reqs,)](cu, valid, qsl, tits, nrt, num_reqs)
+        success += 1
+    except Exception as e:
+        log.debug("[PN128] num_reqs=%d k2 failed: %s", num_reqs, e)
+
+    return success
 
 
 def apply() -> tuple[str, str]:
