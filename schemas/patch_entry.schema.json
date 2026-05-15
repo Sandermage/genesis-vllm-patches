@@ -108,6 +108,18 @@
       ],
       "description": "Patch ID(s) that replace this one when deprecated."
     },
+    "retired_reason": {
+      "type": "string",
+      "description": "Free-text rationale shown when lifecycle == 'retired'. Use when the retirement context is non-obvious (e.g. 'fla recurrent kernel can't serve single-seq prefill — see PN108 docstring TOMBSTONE)."
+    },
+    "retired_waiver": {
+      "type": "boolean",
+      "description": "When true, exempts a `lifecycle: retired` entry from the iron-rule-#11 'retired must have superseded_by' check. Used for patches retired without a direct upstream replacement (no-longer-needed runtime hooks)."
+    },
+    "vllm_version_range": {
+      "type": "string",
+      "description": "Top-level pin-range gate for retired patches that should only decide on a specific pin window. Example: '>=0.20.1rc1.dev16,<0.20.2rc1.dev338'. Distinct from applies_to.vllm_version_range — this top-level form gates the entire entry's decision, used by retired entries whose code stays in registry for audit trail."
+    },
     "upstream_pr": {
       "type": ["integer", "null"],
       "description": "vllm-project/vllm PR number this patch backports. null = Genesis-original or no upstream tracker.",

@@ -147,6 +147,19 @@ _KNOWN_FIELDS = {
     # `production_validated_pins`: list of (genesis_pin, vllm_pin) tuples;
     # required when stable_kind == "runtime-hook". Min 2 entries.
     "production_validated_pins",
+    # Retirement metadata (added 2026-05-15 cleanup): when a patch is
+    # `lifecycle: retired` the entry can carry a free-text rationale + an
+    # optional `retired_waiver: True` flag that exempts it from the
+    # iron-rule-#11 "retired must have `superseded_by`" check. Used for
+    # patches retired without a direct upstream replacement (e.g. PN9 /
+    # PN13 / PN52 / PN108 — runtime-hooks no longer needed after pin bump).
+    "retired_reason", "retired_waiver",
+    # Pin-range gate (top-level, added 2026-05-14 cleanup): some retired
+    # patches keep registry entries pinned to the version range where they
+    # were active so operators on stale pins still see a sensible decision
+    # log. Example: `">=0.20.1rc1.dev16,<0.20.2rc1.dev338"`. Mirrors the
+    # semantics of the per-applies_to range but operates at registry level.
+    "vllm_version_range",
 }
 
 
