@@ -1124,11 +1124,11 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {},
     },
     "PN125": {
-        "title": "Hybrid Qwen3.5/3.6 FULL_AND_PIECEWISE cudagraph_mode (closes upstream gap)",
+        "title": "Hybrid Qwen3.5/3.6 FULL_AND_PIECEWISE cudagraph_mode (redundant on dev338+)",
         "tier": "community",
         "family": "compile_safety",
         "env_flag": "GENESIS_ENABLE_PN125_HYBRID_FULL_AND_PIECEWISE",
-        "default_on": False,  # bench-gate required before flip
+        "default_on": False,  # measured no-op on dev338
         "category": "perf_hotfix",
         "implementation_status": "full",
         "source": "genesis_original",
@@ -1138,29 +1138,36 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         ),
         "lifecycle": "experimental",
         "experimental_note": (
-            "Closes a vLLM upstream gap: Qwen3_5ForConditionalGenerationConfig "
-            "(used by both Qwen3_5ForConditionalGeneration AND "
-            "Qwen3_5MoeForConditionalGeneration architectures) only updates "
+            "POST-BENCH NOTE (2026-05-15): on dev338 PN125 is empirically "
+            "REDUNDANT. The vllm v1 default cudagraph resolver in "
+            "config/compilation.py already sets FULL_AND_PIECEWISE when "
+            "splitting_ops_contain_attention(); for hybrid_gdn_moe this "
+            "branch fires unconditionally. Bench on 2× A5000 + 35B-A3B-FP8 "
+            "+ TQ k8v4 + MTP K=3 (n=25, 5 runs × 5 prompts × 384 tok):\n"
+            "  - PN125 OFF: 206.26 TPS / CV 5.5%\n"
+            "  - PN125 ON:  206.23 TPS / CV 5.5%\n"
+            "Delta within noise band (CV exceeds the 0.01% TPS gap by 500×).\n"
+            "ORIGINAL motivation (likely incorrect for dev338): "
+            "Qwen3_5ForConditionalGenerationConfig only updates "
             "mamba_ssm_cache_dtype and never calls "
-            "MambaModelConfig.verify_and_update_config — so the "
-            "FULL_AND_PIECEWISE cudagraph_mode that other Mamba/Jamba "
-            "hybrids get for free is NOT applied to our 35B-A3B-FP8 "
-            "(hybrid_gdn_moe) or 27B-INT4-AutoRound (hybrid_gdn) builds. "
-            "PyTorch blog 'Hybrid Models as First-Class Citizens in vLLM' "
-            "(2026-05) measures up to 91% throughput / lower ITL on hybrid "
-            "models with FULL_AND_PIECEWISE. PN125 monkey-patches "
-            "Qwen3_5ForConditionalGenerationConfig.verify_and_update_config "
-            "to also call MambaModelConfig.verify_and_update_config. "
-            "Default OFF until bench: 35B 8K TPS ≥ 216 / VRAM headroom "
-            "≥ 1 GiB, 27B 8K TPS ≥ 130 / VRAM headroom ≥ 2 GiB."
+            "MambaModelConfig.verify_and_update_config — assumed this "
+            "leaked the FULL_AND_PIECEWISE setup. In practice the v1 "
+            "resolver runs LATER in init and re-applies FULL_AND_PIECEWISE "
+            "via the splitting-ops path regardless. PN125 monkey-patches "
+            "verify_and_update_config to also invoke MambaModelConfig — "
+            "essentially a NO-OP given the v1 resolver. Retained as "
+            "audit-trail registry entry + safety net in case future vllm "
+            "pins change the resolver default (auto-retire when "
+            "splitting_ops_contain_attention drops the FULL branch). "
+            "Default OFF until a bench shows measurable benefit on some "
+            "pin/workload combination."
         ),
         "credit": (
             "Genesis-original 2026-05-15 — Sandermage. Source: "
-            "https://pytorch.org/blog/hybrid-models-as-first-class-citizens-in-vllm/. "
-            "Could also be fixed upstream by registering "
-            "HybridAttentionMambaModelConfig for Qwen3_5* architectures "
-            "(it exists in vllm/model_executor/models/config.py but is "
-            "currently unreferenced from _MODELS_CONFIG_MAP)."
+            "https://pytorch.org/blog/hybrid-models-as-first-class-citizens-in-vllm/ "
+            "(PyTorch blog claim of up to 91% throughput gain on hybrid "
+            "Mamba models — measured 0% on our 35B / dev338 stack since "
+            "vllm v1 default already engages FULL_AND_PIECEWISE)."
         ),
         "upstream_pr": None,
         "requires_patches": [],
