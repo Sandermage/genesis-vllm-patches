@@ -3,7 +3,7 @@ import re
 from pathlib import Path
 from collections import defaultdict
 
-REPO = Path("/Users/sander/Documents/Visual Studio Code/genesis-vllm-patches")
+REPO = Path(__file__).resolve().parents[1]
 INCLUDE = ["README.md", "CHANGELOG.md", "docs/", "scripts/launch/README.md"]
 EXCLUDE_PARTS = {"_internal", ".history", "_archive", "_retired",
                  "v7_10_validation_20260424",  # historical bench archive
@@ -26,13 +26,16 @@ def scan():
             files.extend(REPO.glob(f"{prefix}**/*.md"))
         else:
             p = REPO / prefix
-            if p.is_file(): files.append(p)
+            if p.is_file():
+                files.append(p)
     for f in files:
-        if any(part in f.parts for part in EXCLUDE_PARTS): continue
+        if any(part in f.parts for part in EXCLUDE_PARTS):
+            continue
         text = strip_code_spans(f.read_text(errors="replace"))
         for m in LINK_RE.finditer(text):
             label, target, _anchor = m.groups()
-            if not is_local(target): continue
+            if not is_local(target):
+                continue
             resolved = REPO / target.lstrip("/") if target.startswith("/") else (f.parent / target).resolve()
             if not resolved.exists():
                 results[str(f.relative_to(REPO))].append((target, label[:40]))
@@ -43,6 +46,7 @@ total = sum(len(v) for v in r.values())
 print(f"Active public docs with broken links: {len(r)} files / {total} links")
 for fp, broken in sorted(r.items()):
     print(f"  {fp} ({len(broken)} broken):")
-    for t, l in broken[:5]:
-        print(f"    → [{l[:30]}]({t})")
-    if len(broken) > 5: print(f"    ... +{len(broken)-5} more")
+    for t, label in broken[:5]:
+        print(f"    → [{label[:30]}]({t})")
+    if len(broken) > 5:
+        print(f"    ... +{len(broken)-5} more")
