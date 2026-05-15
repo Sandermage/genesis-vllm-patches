@@ -1123,6 +1123,107 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "conflicts_with": [],
         "applies_to": {},
     },
+    "PN128": {
+        "title": "Spec-decode helper kernel warmup (backport vllm#41481, 4 eagle kernels)",
+        "tier": "community",
+        "family": "compile_safety",
+        "env_flag": "GENESIS_ENABLE_PN128_SPEC_DECODE_WARMUP",
+        "default_on": False,
+        "category": "perf_hotfix",
+        "implementation_status": "full",
+        "source": "vllm_pr_backport",
+        "apply_module": (
+            "vllm.sndr_core.integrations.compile_safety."
+            "pn128_spec_decode_helper_warmup"
+        ),
+        "lifecycle": "experimental",
+        "experimental_note": (
+            "Genesis backport of vllm-project/vllm#41481 (OPEN). Закрывает "
+            "4 из 8 JIT spikes на первом user request: "
+            "eagle_prepare_next_token_padded_kernel, "
+            "eagle_prepare_inputs_padded_kernel, "
+            "copy_and_expand_eagle_inputs_kernel, "
+            "eagle_step_slot_mapping_metadata_kernel. Wraps "
+            "Worker.compile_or_warm_up_model + после оригинального "
+            "warmup вызывает 4 dummy Triton kernel invokes с synthetic "
+            "shapes (next_power_of_2(num_spec_tokens + 1)). Auto-skip "
+            "V2_MODEL_RUNNER=1, enforce_eager=True. Issue #39790 H100 "
+            "repro показал 25× первая-request регрессию pre-fix."
+        ),
+        "credit": "Backport of vllm-project/vllm#41481 by Sandermage 2026-05-15.",
+        "upstream_pr": 41481,
+        "requires_patches": [],
+        "conflicts_with": [],
+        "applies_to": {
+            "model_arch": [
+                "Qwen3_5ForConditionalGeneration",
+                "Qwen3_5MoeForConditionalGeneration",
+                "Qwen3NextForCausalLM",
+                "Qwen3MoeForCausalLM",
+            ],
+            "vllm_version_range": (">=0.20.0", "<0.22.0"),
+        },
+    },
+    "PN129": {
+        "title": "V1 slot mapping kernel warmup (backport vllm#42165, 1 kernel + do_not_specialize)",
+        "tier": "community",
+        "family": "compile_safety",
+        "env_flag": "GENESIS_ENABLE_PN129_SLOT_MAPPING_WARMUP",
+        "default_on": False,
+        "category": "perf_hotfix",
+        "implementation_status": "full",
+        "source": "vllm_pr_backport",
+        "apply_module": (
+            "vllm.sndr_core.integrations.compile_safety."
+            "pn129_slot_mapping_warmup"
+        ),
+        "lifecycle": "experimental",
+        "experimental_note": (
+            "Genesis backport of vllm-project/vllm#42165 (OPEN). Закрывает "
+            "_compute_slot_mapping_kernel JIT spike + (попытка) "
+            "do_not_specialize='num_tokens' через private Triton API. "
+            "Если do_not_specialize injection не работает на нашей "
+            "версии Triton, остаётся warmup hook — kernel JIT'ится на "
+            "boot вместо первого user request. Best-effort fix."
+        ),
+        "credit": "Backport of vllm-project/vllm#42165 by Sandermage 2026-05-15.",
+        "upstream_pr": 42165,
+        "requires_patches": [],
+        "conflicts_with": [],
+        "applies_to": {
+            "vllm_version_range": (">=0.20.0", "<0.22.0"),
+        },
+    },
+    "PN130": {
+        "title": "TurboQuant decode kernel warmup (backport vllm#42215, 1 kernel + workspace prealloc)",
+        "tier": "community",
+        "family": "compile_safety",
+        "env_flag": "GENESIS_ENABLE_PN130_TQ_DECODE_WARMUP",
+        "default_on": False,
+        "category": "perf_hotfix",
+        "implementation_status": "full",
+        "source": "vllm_pr_backport",
+        "apply_module": (
+            "vllm.sndr_core.integrations.compile_safety."
+            "pn130_turboquant_decode_warmup"
+        ),
+        "lifecycle": "experimental",
+        "experimental_note": (
+            "Genesis backport of vllm-project/vllm#42215 (OPEN). Закрывает "
+            "_tq_grouped_decode_stage1 JIT spike + предотвращает workspace "
+            "re-allocation после lock_workspace(). Итерирует Attention "
+            "слои модели, dedupes по config-tuple, вызывает "
+            "impl._decode_attention() с synthetic tensors. Auto-skip "
+            "когда kv_cache_dtype != turboquant_*."
+        ),
+        "credit": "Backport of vllm-project/vllm#42215 by Sandermage 2026-05-15.",
+        "upstream_pr": 42215,
+        "requires_patches": [],
+        "conflicts_with": [],
+        "applies_to": {
+            "vllm_version_range": (">=0.20.0", "<0.22.0"),
+        },
+    },
     "PN127": {
         "title": "Qwen 3.5/3.6 enhanced chat-template auto-install (closes club-3090#53/#72)",
         "tier": "community",

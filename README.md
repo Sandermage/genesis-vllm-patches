@@ -41,7 +41,7 @@ across 21 families. Apache 2.0.**
 ## 1. What this is
 
 Genesis is a **drop-in runtime patcher** for vLLM. It pins to a specific vLLM
-nightly commit and applies 163 small, surgical changes — text edits at known
+nightly commit and applies 166 small, surgical changes — text edits at known
 anchors, class-rebind wrappers, and FastAPI middleware — that together turn
 an out-of-the-box vLLM into a production-grade Qwen3.6 inference server on
 *consumer* NVIDIA hardware (3090, 4090, 5090, A5000, A6000, …) where vLLM
@@ -178,7 +178,7 @@ via `GENESIS_ENABLE_<id>=1` env flags.
 
 ![Patch decision waterfall](assets/charts/patch_decision_waterfall.png)
 
-Of 163 registry entries, ~49–56 actually `APPLY` on a typical 35B PROD
+Of 166 registry entries, ~49–56 actually `APPLY` on a typical 35B PROD
 boot — the rest skip cleanly via env flags, `applies_to` hardware filters,
 `conflicts_with` rules, or upstream-merged drift markers. Per-patch
 `elapsed_ms` and `rss_delta` are visible at boot when

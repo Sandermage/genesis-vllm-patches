@@ -1034,6 +1034,81 @@ def apply_patch_sprint26_cudagraph_dispatch_trace() -> PatchResult:
     return _failed(name, reason)
 
 
+@register_patch("PN128 spec-decode helper kernel warmup (vllm#41481)")
+def apply_patch_pn128_spec_decode_helper_warmup() -> PatchResult:
+    """PN128: backport vllm#41481 — warmup eagle helper kernels на boot.
+    Закрывает 4 из 8 JIT spikes (eagle_prepare_next/inputs/copy_expand/
+    step_update_slot_mapping).
+
+    Default OFF — opt-in via GENESIS_ENABLE_PN128_SPEC_DECODE_WARMUP=1.
+    Auto-skip V2_MODEL_RUNNER=1 + enforce_eager=True.
+    """
+    name = "PN128 spec-decode helper kernel warmup"
+    if not _state._APPLY_MODE:
+        return _applied(name, "dry-run: runtime hook ready")
+    try:
+        from vllm.sndr_core.integrations.compile_safety import (
+            pn128_spec_decode_helper_warmup as _wiring,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = _wiring.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch("PN129 V1 slot mapping kernel warmup (vllm#42165)")
+def apply_patch_pn129_slot_mapping_warmup() -> PatchResult:
+    """PN129: backport vllm#42165 — slot_mapping warmup +
+    do_not_specialize='num_tokens'. Закрывает 1 JIT spike +
+    структурный fix против пересборки по batch size.
+
+    Default OFF — opt-in via GENESIS_ENABLE_PN129_SLOT_MAPPING_WARMUP=1.
+    """
+    name = "PN129 V1 slot mapping warmup"
+    if not _state._APPLY_MODE:
+        return _applied(name, "dry-run: runtime hook ready")
+    try:
+        from vllm.sndr_core.integrations.compile_safety import (
+            pn129_slot_mapping_warmup as _wiring,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = _wiring.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch("PN130 TurboQuant decode kernel warmup (vllm#42215)")
+def apply_patch_pn130_tq_decode_warmup() -> PatchResult:
+    """PN130: backport vllm#42215 — TQ decode kernel warmup + workspace
+    pre-alloc до lock'a. Закрывает _tq_grouped_decode_stage1 JIT spike.
+
+    Default OFF — opt-in via GENESIS_ENABLE_PN130_TQ_DECODE_WARMUP=1.
+    """
+    name = "PN130 TurboQuant decode warmup"
+    if not _state._APPLY_MODE:
+        return _applied(name, "dry-run: runtime hook ready")
+    try:
+        from vllm.sndr_core.integrations.compile_safety import (
+            pn130_turboquant_decode_warmup as _wiring,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = _wiring.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
 @register_patch("PN127 Qwen 3.5/3.6 chat-template auto-install")
 def apply_patch_pn127_chat_template_qwen36() -> PatchResult:
     """PN127: запекает enhanced chat-template для Qwen 3.5/3.6 как
