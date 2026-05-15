@@ -31,41 +31,59 @@ log = logging.getLogger("genesis.compat.bench")
 
 
 def _locate_bench_module() -> Path | None:
-    """Find tools/genesis_bench_suite.py on disk.
+    """Find genesis_bench_suite.py on disk.
 
-    Search order:
-      1. <repo-root>/tools/genesis_bench_suite.py (compat is at
-         _genesis/compat/, parents[3] is the repo root)
-      2. $GENESIS_REPO_ROOT/tools/genesis_bench_suite.py (operator
-         override for slim deployments)
-      3. cwd-relative tools/genesis_bench_suite.py
+    Wave 10 (2026-05-15) refactor: the canonical home is now INSIDE
+    the package at `vllm/sndr_core/tools/genesis_bench_suite.py`.
+    This makes sndr_core self-contained — no runtime imports from
+    outside the package. The legacy root `tools/` locations stay in
+    the search order as fallbacks for older checkouts where the file
+    has not yet been moved.
+
+    Search order (first-hit wins):
+      1. <package-internal>/tools/genesis_bench_suite.py — Wave 10 canonical
+      2. <repo-root>/tools/genesis_bench_suite.py — legacy location
+      3. $GENESIS_REPO_ROOT/tools/genesis_bench_suite.py — operator override
+      4. cwd-relative tools/genesis_bench_suite.py — last-resort
     """
     import os
 
     candidates: list[Path] = []
-    env_root = os.environ.get("GENESIS_REPO_ROOT")
-    if env_root:
-        candidates.append(Path(env_root) / "tools" / "genesis_bench_suite.py")
+    # 1. Wave 10 canonical: inside sndr_core package
+    #    compat/bench.py → parents[0]=compat, [1]=sndr_core, [2]=vllm, [3]=repo
+    #    package-internal: parents[1] / tools / genesis_bench_suite.py
+    candidates.append(
+        Path(__file__).resolve().parents[1] / "tools" / "genesis_bench_suite.py"
+    )
+    # 2. Legacy root tools/ (pre-Wave-10 checkouts)
     candidates.append(
         Path(__file__).resolve().parents[3] / "tools" / "genesis_bench_suite.py"
     )
+    # 3. Operator override
+    env_root = os.environ.get("GENESIS_REPO_ROOT")
+    if env_root:
+        candidates.append(Path(env_root) / "tools" / "genesis_bench_suite.py")
+    # 4. CWD fallback
     candidates.append(Path.cwd() / "tools" / "genesis_bench_suite.py")
     return next((p for p in candidates if p.is_file()), None)
 
 
 def _load_bench_module():
-    """Import tools/genesis_bench_suite.py as a module.
+    """Import genesis_bench_suite.py as a module.
 
-    The script lives outside the package, so we use an explicit spec
-    loader rather than `importlib.import_module`.
+    The script lives outside the regular package import tree (it's a
+    single-file CLI that operators can also run standalone), so we use
+    an explicit spec loader rather than `importlib.import_module`.
+    Canonical location after Wave 10: vllm/sndr_core/tools/.
     """
     bench_path = _locate_bench_module()
     if bench_path is None:
         raise FileNotFoundError(
-            "Could not locate tools/genesis_bench_suite.py — this "
-            "deployment may not include the source `tools/` directory. "
-            "Set GENESIS_REPO_ROOT to point at a checkout, or run the "
-            "bench directly per docs/BENCHMARK_GUIDE.md."
+            "Could not locate genesis_bench_suite.py. Canonical location "
+            "is vllm/sndr_core/tools/genesis_bench_suite.py; legacy "
+            "fallback is repo-root tools/. Set GENESIS_REPO_ROOT to "
+            "point at a checkout, or run the bench directly per "
+            "docs/BENCHMARK_GUIDE.md."
         )
     spec = importlib.util.spec_from_file_location(
         "genesis_bench_suite", bench_path

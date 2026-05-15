@@ -35,7 +35,14 @@ __all__ = [
 ]
 
 
+# Wave 10 (2026-05-15) refactor: canonical location moved INSIDE sndr_core
+# package to make it self-contained. parents[0]=cli, [1]=sndr_core,
+# [2]=vllm, [3]=repo. Internal path: parents[1] / tools / yaml.
+# Legacy repo-root path kept as fallback for older checkouts.
 _DEFAULT_METHODOLOGY_PATH = (
+    Path(__file__).resolve().parents[1] / "tools" / "bench_methodology.yaml"
+)
+_LEGACY_METHODOLOGY_PATH = (
     Path(__file__).resolve().parents[3] / "tools" / "bench_methodology.yaml"
 )
 
@@ -81,12 +88,27 @@ def add_argparser(subparsers: Any) -> None:
 
 
 def load_methodology(path: Optional[Path] = None) -> dict:
-    """Load methodology YAML. Returns parsed dict; raises on file/parse errors."""
-    fp = Path(path) if path else _DEFAULT_METHODOLOGY_PATH
+    """Load methodology YAML. Returns parsed dict; raises on file/parse errors.
+
+    Wave 10 path resolution:
+      1. Explicit `path` argument wins if provided.
+      2. Canonical: vllm/sndr_core/tools/bench_methodology.yaml.
+      3. Legacy fallback: <repo-root>/tools/bench_methodology.yaml (for
+         pre-Wave-10 checkouts where the file has not been moved yet).
+    """
+    if path is not None:
+        fp = Path(path)
+    elif _DEFAULT_METHODOLOGY_PATH.is_file():
+        fp = _DEFAULT_METHODOLOGY_PATH
+    elif _LEGACY_METHODOLOGY_PATH.is_file():
+        fp = _LEGACY_METHODOLOGY_PATH
+    else:
+        fp = _DEFAULT_METHODOLOGY_PATH  # surface canonical path in the error
     if not fp.is_file():
         raise FileNotFoundError(
             f"methodology file not found: {fp}. "
-            f"Phase 6 expects tools/bench_methodology.yaml in the repo."
+            f"Phase 6 expects vllm/sndr_core/tools/bench_methodology.yaml "
+            f"(canonical) or tools/bench_methodology.yaml (legacy)."
         )
     import yaml
     with fp.open() as f:
