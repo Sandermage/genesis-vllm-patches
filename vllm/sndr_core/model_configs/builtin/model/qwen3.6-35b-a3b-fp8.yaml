@@ -44,13 +44,20 @@ capabilities:
     method: mtp                                  # spec-decode method (range: mtp|dflash|ngram|null); MTP K=3 is the throughput winner on hybrid GDN
     num_speculative_tokens: 3                    # MTP K-value (1-7 valid; 3 = empirical optimum, +32% TPS vs no-spec on 35B)
     model: null                                  # MTP draft is integrated into target; DFlash variant uses separate /models/Qwen3.6-35B-A3B-DFlash
-    # 2026-05-15: enable upstream-native probabilistic draft sampling (vllm#40269 merged in v0.21.0).
-    # Replaces our retired PN90 backport with the supported rejection_sampler path:
-    # accept rule = min(1, target_p / draft_p) instead of the greedy argmax-match fallback.
-    # Bench data PN90 era: +1.4-2.8% accept_rate (0.794 → 0.816), TPS roughly flat (~ ±0.3%, noise).
-    # Both fields required together — gated by `LLMBaseProposer._enable_probabilistic_draft_probs`.
-    rejection_sample_method: standard            # values: standard | synthetic. "standard" = probabilistic rejection (paired with draft_sample_method below).
-    draft_sample_method: probabilistic           # values: greedy | probabilistic. Stochastic draft sampling + full logits → verifier uses min(1, p_target/p_draft). Costs +VRAM (kept logits per draft step) but worth it for our MTP K=3 + tool-call workload.
+    # 2026-05-15 ROLLBACK: probabilistic draft sampling tested on dev371 +
+    # MTP K=3 + hybrid_gdn_moe + TQ k8v4 — DELIVERED REGRESSION not gain.
+    # Empirical bench (n=25, same hardware, same prompts, same Triton cache):
+    #   - greedy draft (current):       TPS 209.90, accept 0.793
+    #   - probabilistic draft:          TPS 197.54, accept 0.716
+    #   - Delta:                        −5.9% TPS, −10% accept_rate
+    # The PN90-era "+1.4-2.8% accept_rate" measurement was on dev93/dev209
+    # pre-merge state — upstream native vllm#40269 implementation behaves
+    # differently for our exact (MTP integrated draft + K=3) combo: the
+    # full-logits path costs more memory + has different rejection bias
+    # than the PN90 backport did. Leaving fields commented out so anyone
+    # who tries them sees the bench history before flipping again.
+    # rejection_sample_method: standard           # → regression on our shape
+    # draft_sample_method: probabilistic          # → regression on our shape
   kv_cache_dtype: turboquant_k8v4                # values: fp16|fp8_e5m2|fp8_e4m3|turboquant_k8v4; TQ k8v4 = +~2× KV concurrency at quality parity (Wave 9 win)
 
 # ─── Hardware preconditions composer enforces ──────────────────────────

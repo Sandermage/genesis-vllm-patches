@@ -179,17 +179,23 @@ def _genesis_pn126_run_warmup_extras(worker) -> None:
     max_num_batched = sched_config.max_num_batched_tokens
 
     # ────────────────────────────────────────────────────────
-    # Pass 1: Prefill warmup (PIECEWISE cudagraph dispatch)
+    # Pass 1: Prefill warmup — auto-dispatch (let runner decide)
     # ────────────────────────────────────────────────────────
+    # NOTE 2026-05-15 fix: passing cudagraph_runtime_mode=PIECEWISE
+    # explicitly triggered "Cudagraph runtime mode mismatch in
+    # dummy_run. Expected NONE, but got PIECEWISE." The cudagraph
+    # dispatcher selects NONE for large/non-uniform shapes regardless
+    # of the global cudagraph_mode setting. Pass None so the runner's
+    # built-in dispatcher resolves the right mode for this shape.
     prefill_tokens = min(max_num_batched, 4096)  # cap for safety
     log.info(
-        "[PN126] Pass 1: prefill warmup num_tokens=%d cudagraph=PIECEWISE",
+        "[PN126] Pass 1: prefill warmup num_tokens=%d cudagraph=auto",
         prefill_tokens,
     )
     try:
         runner._dummy_run(
             num_tokens=prefill_tokens,
-            cudagraph_runtime_mode=CUDAGraphMode.PIECEWISE,
+            cudagraph_runtime_mode=None,  # auto-dispatch
             uniform_decode=False,
             skip_eplb=True,
             is_profile=False,
@@ -199,8 +205,14 @@ def _genesis_pn126_run_warmup_extras(worker) -> None:
         log.warning("[PN126] Pass 1 (prefill) failed: %s — continuing", e)
 
     # ────────────────────────────────────────────────────────
-    # Pass 2: Uniform decode warmup (FULL cudagraph dispatch)
+    # Pass 2: Uniform decode warmup — auto-dispatch (FULL for capture)
     # ────────────────────────────────────────────────────────
+    # num_tokens = max_num_seqs × (1 + num_speculative_tokens). For our
+    # MTP K=3 + max_num_seqs=2 this gives 8 tokens, which is in the
+    # default cudagraph_capture_sizes list [4, 8, 16] on dev371. The
+    # dispatcher picks FULL for that uniform-decode shape, so the
+    # explicit FULL pass through worked. Switching to auto-dispatch
+    # here keeps it robust if cudagraph_capture_sizes changes.
     num_spec_tokens = 0
     if spec_config is not None and spec_config.num_speculative_tokens is not None:
         num_spec_tokens = spec_config.num_speculative_tokens
@@ -208,13 +220,13 @@ def _genesis_pn126_run_warmup_extras(worker) -> None:
     decode_tokens = max_num_seqs * decode_query_len
     log.info(
         "[PN126] Pass 2: uniform decode num_tokens=%d (max_num_seqs=%d × "
-        "1+spec_tokens=%d) cudagraph=FULL",
+        "1+spec_tokens=%d) cudagraph=auto",
         decode_tokens, max_num_seqs, decode_query_len,
     )
     try:
         runner._dummy_run(
             num_tokens=decode_tokens,
-            cudagraph_runtime_mode=CUDAGraphMode.FULL,
+            cudagraph_runtime_mode=None,  # auto-dispatch
             uniform_decode=True,
             skip_eplb=True,
             is_profile=False,
@@ -224,6 +236,41 @@ def _genesis_pn126_run_warmup_extras(worker) -> None:
         log.warning(
             "[PN126] Pass 2 (uniform decode) failed: %s — continuing", e
         )
+
+    # ────────────────────────────────────────────────────────
+    # Pass 3: Additional cudagraph_capture_sizes coverage
+    # ────────────────────────────────────────────────────────
+    # The dispatcher's capture-size list (cudagraph_capture_sizes) on
+    # dev371 defaults to [4, 8, 16] for max_num_seqs=2. Pass 2 covered
+    # size=8 (max_num_seqs × decode_query_len). Iterate the remaining
+    # captured sizes so user-request shapes that land on 4 or 16 don't
+    # JIT mid-inference. Cheap: each call is a couple of ms once
+    # kernels are cached.
+    try:
+        capture_sizes = list(
+            worker.vllm_config.compilation_config.cudagraph_capture_sizes or []
+        )
+    except Exception:
+        capture_sizes = []
+    extra_sizes = [s for s in capture_sizes if s != decode_tokens]
+    if extra_sizes:
+        log.info(
+            "[PN126] Pass 3: covering extra capture sizes %s (decode shapes)",
+            extra_sizes,
+        )
+        for size in extra_sizes:
+            try:
+                runner._dummy_run(
+                    num_tokens=size,
+                    cudagraph_runtime_mode=None,  # auto-dispatch
+                    uniform_decode=True,
+                    skip_eplb=True,
+                    is_profile=False,
+                )
+            except Exception as e:
+                log.warning(
+                    "[PN126] Pass 3 size=%d failed: %s — continuing", size, e,
+                )
 
     log.info("[PN126] all extra warmup passes complete; first user request "
              "should hit cache for decode + spec-decode kernels")
