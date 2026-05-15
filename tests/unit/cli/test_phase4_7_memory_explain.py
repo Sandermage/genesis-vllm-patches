@@ -84,7 +84,9 @@ class TestV2AliasResolution:
         assert rc == 0
         assert "Memory budget for preset:" in out
         # V2 composed key carries the canonical model+hw+profile composite.
-        assert "__" in out
+        # Separator switched from "__" to "--" in Wave 10 to satisfy the V1
+        # ModelConfig kebab-case key regex.
+        assert "--" in out
         # Verdict layer must surface.
         assert "verdict:" in out
 
@@ -209,8 +211,10 @@ class TestResolverHelper:
         from vllm.sndr_core.cli.memory import _resolve_preset_v1_or_v2
         cfg = _resolve_preset_v1_or_v2("prod-35b")
         assert cfg is not None
-        # V2 alias produces a composed key with `__` separators.
-        assert "__" in cfg.key
+        # V2 alias produces a composed key with `--` separators (Wave 10
+        # canonical separator; was `__` pre-Wave-10 but had to switch to
+        # `--` to satisfy the V1 ModelConfig kebab-case key regex).
+        assert "--" in cfg.key
 
     def test_unknown_raises(self):
         from vllm.sndr_core.cli.memory import _resolve_preset_v1_or_v2

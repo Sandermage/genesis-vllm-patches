@@ -81,12 +81,13 @@ class TestWalkers:
         for e in entries:
             assert e.layer == "profile"
 
-    def test_resolved_alias_walker_returns_eleven(self):
+    def test_resolved_alias_walker_returns_fifteen(self):
         mod = _import_script()
         from vllm.sndr_core.cli.config_keys import load_canonical_registry
         canon = load_canonical_registry()
         entries = mod._walk_resolved_aliases(canon)
-        assert len(entries) == 11
+        # Wave 10 V2 layout has 15 preset aliases.
+        assert len(entries) == 15
         for e in entries:
             assert e.layer == "resolved-alias"
 

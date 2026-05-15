@@ -174,7 +174,8 @@ class TestSchemaRules:
         from vllm.sndr_core.model_configs.schema import SchemaError
         yaml = _MINIMAL_MANIFEST_YAML.replace("id: PN999", "id: pn999")
         path = _write_manifest(tmp_path, "userA", "PN999", yaml_text=yaml)
-        with pytest.raises(SchemaError, match="must match P-code"):
+        # Wave 10 validator emits the canonical pattern in the error.
+        with pytest.raises(SchemaError, match=r"must match pattern P\[N\]\?"):
             load_manifest(path)
 
     def test_bad_semver_rejected(self, tmp_path):

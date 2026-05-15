@@ -207,7 +207,10 @@ class TestPhase8bAcceptance:
         cfg = load_alias(alias)
         # Compose returned a complete V1 ModelConfig.
         assert cfg is not None
-        assert "__" in cfg.key  # composed key carries triplet separator
+        # Composed key carries the triplet separator. Wave 10 switched the
+        # canonical separator from "__" to "--" so V1 ModelConfig kebab-case
+        # key regex stays satisfied.
+        assert "--" in cfg.key
         assert cfg.hardware.n_gpus >= 1
         assert cfg.max_model_len >= 1
         # Composer attached a docker block from hardware layer.

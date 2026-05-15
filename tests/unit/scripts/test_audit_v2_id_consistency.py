@@ -87,8 +87,8 @@ class TestLiveRepo:
                 for r in failed
             )
         )
-        # 6 model + 3 hardware + 11 profile = 20.
-        assert len(results) == 20
+        # Wave 10 V2 layout: 6 model + 3 hardware + 15 profile = 24.
+        assert len(results) == 24
 
 
 class TestScriptCLI:

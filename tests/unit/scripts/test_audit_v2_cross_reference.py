@@ -36,8 +36,8 @@ class TestLiveRepo:
             f"→ no such {r.target_layer}"
             for r in failed
         )
-        # 11 profile parent_model + 11 preset×3 = 11 + 33 = 44 refs.
-        assert len(results) == 44
+        # Wave 10 V2 layout: 15 profile parent_model + 15 preset×3 = 60 refs.
+        assert len(results) == 60
 
 
 class TestScriptCLI:
@@ -56,7 +56,7 @@ class TestScriptCLI:
         assert result.returncode == 0
         payload = json.loads(result.stdout)
         assert payload["failed"] == 0
-        assert payload["total"] == 44
+        assert payload["total"] == 60
 
 
 class TestSyntheticBroken:

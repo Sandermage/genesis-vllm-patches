@@ -147,8 +147,8 @@ class TestLiveRepo:
                 for r in failed
             )
         )
-        # 6 model + 3 hardware + 11 profile + 11 preset = 31.
-        assert len(results) == 31
+        # Wave 10 V2 layout: 6 model + 3 hardware + 15 profile + 15 preset = 39.
+        assert len(results) == 39
 
 
 # ─── CLI ──────────────────────────────────────────────────────────────
