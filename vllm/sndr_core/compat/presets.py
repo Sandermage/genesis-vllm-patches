@@ -1070,12 +1070,12 @@ def _cmd_show(args: argparse.Namespace) -> int:
         print(f"\nExpected: {p.expected_tps_ref}")
 
     if p.verified_on:
-        print(f"\nVerified-on:")
+        print("\nVerified-on:")
         for v in p.verified_on:
             print(f"  - {v}")
 
     if p.notes:
-        print(f"\nNotes:")
+        print("\nNotes:")
         for n in p.notes:
             print(f"  {n}")
 
@@ -1096,7 +1096,7 @@ def _cmd_match(args: argparse.Namespace) -> int:
             file=sys.stderr,
         )
         print(
-            f"Use `genesis preset list` to see available combinations.",
+            "Use `genesis preset list` to see available combinations.",
             file=sys.stderr,
         )
         return 2

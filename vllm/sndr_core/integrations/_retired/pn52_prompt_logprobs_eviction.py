@@ -66,7 +66,6 @@ from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
 from vllm.sndr_core.core import (
     TextPatch,
     TextPatcher,
-    TextPatchResult,
 )
 
 log = logging.getLogger("genesis.wiring.pn52_prompt_logprobs_eviction")

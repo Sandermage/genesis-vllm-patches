@@ -165,8 +165,8 @@ def is_engageable(meta: dict[str, Any], allow_gated: bool = False) -> tuple[bool
     state = get_state(meta)
     if state == "retired" and not allow_gated:
         return False, (
-            f"lifecycle=retired — patch removed from active use. "
-            f"Pass --allow-retired to engage anyway."
+            "lifecycle=retired — patch removed from active use. "
+            "Pass --allow-retired to engage anyway."
         )
     return True, f"lifecycle={state}"
 

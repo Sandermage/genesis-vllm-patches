@@ -77,8 +77,8 @@ def run_status(args: argparse.Namespace) -> int:
     print("─" * 60)
     print(f"  Core:                  {status.core}")
     if status.engine is None:
-        print(f"  Engine (private):      not detected")
-        print(f"  Premium patches:       none")
+        print("  Engine (private):      not detected")
+        print("  Premium patches:       none")
         print()
         print("  Capabilities available: all public-core features.")
     else:
@@ -97,7 +97,7 @@ def run_status(args: argparse.Namespace) -> int:
                 ok = "valid" if status.license_signature_valid else "INVALID"
                 print(f"    Signature:           {ok}")
         else:
-            print(f"  License:               not loaded")
+            print("  License:               not loaded")
         print(f"  Premium patches:       {status.premium_patches_enabled} enabled")
     return 0
 
@@ -115,7 +115,7 @@ def run_verify(args: argparse.Namespace) -> int:
     print(f"sndr license verify '{args.file}'")
     print("─" * 60)
     if result.valid:
-        print(f"  ✓ Signature: valid")
+        print("  ✓ Signature: valid")
         if result.subject:
             print(f"  Subject:     {result.subject}")
         if result.expires:

@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Any
 
 from vllm.sndr_core.locations import resolve_vllm_file, vllm_install_root
 from vllm.sndr_core.core import (

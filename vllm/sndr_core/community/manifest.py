@@ -13,7 +13,6 @@ Thin wrapper over `registry_v2.load_patch_manifest()`. Adds:
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Iterator
 
 from vllm.sndr_core.model_configs.registry_v2 import load_patch_manifest
 from vllm.sndr_core.model_configs.schema import SchemaError

@@ -32,7 +32,7 @@ import argparse
 import datetime as dt
 import json
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
@@ -187,8 +187,8 @@ def _render_text(
     if failed:
         lines.append("")
         lines.append(
-            f"  ✗ Fix: re-validate stale models and bump last_validated, "
-            f"or raise --max-age-days if the policy needs loosening."
+            "  ✗ Fix: re-validate stale models and bump last_validated, "
+            "or raise --max-age-days if the policy needs loosening."
         )
     return "\n".join(lines)
 

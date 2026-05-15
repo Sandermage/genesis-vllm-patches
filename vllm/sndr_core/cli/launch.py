@@ -295,7 +295,6 @@ def _verify_image_digest(cfg: Any, mode: str) -> int:
 
     # auto + digest declared, OR strict-image=on + digest declared
     import shutil
-    import subprocess
     if not shutil.which("docker"):
         _io.warn(
             "image_digest declared but `docker` not on PATH — "
@@ -368,7 +367,6 @@ def _run_apply_phase() -> int:
 def _run_docker_pull(cfg) -> int:
     """`--pull`: docker-pull the preset's image. Returns shell rc."""
     import shutil
-    import subprocess
     docker = getattr(cfg, "docker", None)
     if docker is None:
         _io.info("--pull: bare-metal config, skipping docker pull")

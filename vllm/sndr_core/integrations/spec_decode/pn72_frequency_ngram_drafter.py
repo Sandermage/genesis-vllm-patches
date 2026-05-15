@@ -160,9 +160,9 @@ def apply() -> tuple[str, str]:
     setattr(_patched_propose, _MARKER, True)
     NgramProposer.propose = _patched_propose
     return "applied", (
-        f"PN72 wrapped NgramProposer.propose — frequency filter active "
-        f"(MIN_OBS gating + WINDOW tokens). On any error → graceful "
-        f"fallback to unfiltered drafts (vllm never breaks)."
+        "PN72 wrapped NgramProposer.propose — frequency filter active "
+        "(MIN_OBS gating + WINDOW tokens). On any error → graceful "
+        "fallback to unfiltered drafts (vllm never breaks)."
     )
 
 

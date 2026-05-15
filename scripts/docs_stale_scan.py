@@ -24,7 +24,6 @@ Exit codes:
 """
 from __future__ import annotations
 
-import re
 import sys
 from pathlib import Path
 
@@ -110,7 +109,7 @@ def _scan_file(path: Path) -> list[tuple[int, str, str]]:
 
 def main(argv: list[str] | None = None) -> int:
     files = _iter_md_files()
-    print(f"=== docs_stale_scan.py ===")
+    print("=== docs_stale_scan.py ===")
     print(f"scanning {len(files)} markdown files in {', '.join(SEARCH_PATHS)}")
     total = 0
     for f in files:

@@ -25,22 +25,17 @@ Migration history:
 """
 from __future__ import annotations
 
-import json
 import logging
-import sys
-from typing import Any, Callable
 
 # Import shared state (registry, _APPLY_MODE, helpers, types).
 # Using `from ._state import ...` for the names — `_state._APPLY_MODE` is
 # read indirectly through `_wiring_text_patch` which does its own check.
 from . import _state
 from ._state import (
-    PATCH_REGISTRY,
     PatchResult,
     PatchStats,  # noqa: F401  (some patch funcs reference for type hints)
     _applied,
     _failed,
-    _resolve_wiring_module,
     _skipped,
     _wiring_text_patch,
     register_patch,

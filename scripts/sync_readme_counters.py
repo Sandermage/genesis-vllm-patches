@@ -264,7 +264,7 @@ def main() -> int:
         return 0
 
     print(f"sync_readme_counters: {target}")
-    print(f"  Authoritative counts:")
+    print("  Authoritative counts:")
     print(f"    patches:      {counts.patches}")
     print(f"    families:     {counts.families}")
     print(f"    v2_models:    {counts.v2_models}")

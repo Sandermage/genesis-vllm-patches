@@ -16,7 +16,12 @@ Example:
 
   python3 tools/multi_conc_bench.py sweep    # full concurrency sweep 1/2/4/8
 """
-import asyncio, aiohttp, time, statistics, sys, json
+import asyncio
+import aiohttp
+import time
+import statistics
+import sys
+import json
 
 URL = "http://localhost:8000/v1/chat/completions"
 API_KEY = "genesis-local"

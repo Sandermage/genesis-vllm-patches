@@ -28,7 +28,6 @@ Key design decisions:
 """
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
 from dataclasses import dataclass
@@ -38,7 +37,6 @@ from typing import Any, Optional
 
 from . import (
     DEFAULT_PROOF_DIR,
-    PatchProof,
     build_proof_for_patch,
     find_proof_artefacts,
     load_proof_artefact,

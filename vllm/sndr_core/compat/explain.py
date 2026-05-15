@@ -230,30 +230,30 @@ def format_explain_text(report: dict[str, Any]) -> list[str]:
     # Dependencies
     deps = report["dependencies"]
     L.append("")
-    L.append(f"  Dependencies:")
+    L.append("  Dependencies:")
     if deps["requires"]:
         L.append(f"    requires:         {', '.join(deps['requires'])}")
     else:
-        L.append(f"    requires:         (none)")
+        L.append("    requires:         (none)")
     if deps["conflicts_with"]:
         L.append(f"    conflicts with:   {', '.join(deps['conflicts_with'])}")
     else:
-        L.append(f"    conflicts with:   (none)")
+        L.append("    conflicts with:   (none)")
 
     # applies_to
     L.append("")
-    L.append(f"  applies_to:")
+    L.append("  applies_to:")
     for line in report["applies_to"].get("explanation", []):
         L.append(f"    {line}")
 
     # Upstream
     up = report["upstream"]
     L.append("")
-    L.append(f"  Upstream tracking:")
+    L.append("  Upstream tracking:")
     if up.get("pr_number"):
         L.append(f"    PR:               vllm#{up['pr_number']}")
     else:
-        L.append(f"    PR:               (Genesis-original or no upstream tracker)")
+        L.append("    PR:               (Genesis-original or no upstream tracker)")
     if up.get("marker"):
         L.append(f"    marker symbol:    {up['marker']}")
     if up.get("marker_file"):
@@ -271,14 +271,14 @@ def format_explain_text(report: dict[str, Any]) -> list[str]:
     # Credit / notes
     if report.get("credit"):
         L.append("")
-        L.append(f"  Credit / what + why:")
+        L.append("  Credit / what + why:")
         # Wrap long credit lines for readability
         for line in _wrap(report["credit"], width=70, indent=4):
             L.append(line)
 
     if report.get("notes"):
         L.append("")
-        L.append(f"  Notes:")
+        L.append("  Notes:")
         for line in _wrap(str(report["notes"]), width=70, indent=4):
             L.append(line)
 

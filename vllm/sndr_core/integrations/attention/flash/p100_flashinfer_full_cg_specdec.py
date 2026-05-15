@@ -87,7 +87,6 @@ from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
 from vllm.sndr_core.core import (
     TextPatch,
     TextPatcher,
-    TextPatchResult,
 )
 
 log = logging.getLogger("genesis.wiring.p100_flashinfer_full_cg_specdec")

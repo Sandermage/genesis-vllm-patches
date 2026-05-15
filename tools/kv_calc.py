@@ -42,7 +42,6 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from dataclasses import asdict
 from pathlib import Path
 from typing import Optional
 
@@ -52,10 +51,10 @@ if str(_REPO) not in sys.path:
     sys.path.insert(0, str(_REPO))
 
 from vllm.sndr_core.runtime.memory_estimator import (  # noqa: E402
-    ModelShape, MemoryEstimate, MemoryComponent, read_model_shape,
+    MemoryEstimate, MemoryComponent, read_model_shape,
     estimate_kv_cache, estimate_weights, estimate_activations,
     estimate_cuda_graph_reserve, estimate_marlin_scratch,
-    estimate_for_config, lookup_gpu_vram, _humanize, _dtype_bytes,
+    estimate_for_config, _humanize,
 )
 
 
@@ -234,8 +233,8 @@ def _render_human(estimate: MemoryEstimate, gpu_vram_gib: float,
     reset = "\033[0m" if use_color else ""
     color = color if use_color else ""
 
-    print(f"kv_calc — VRAM breakdown")
-    print(f"─" * 60)
+    print("kv_calc — VRAM breakdown")
+    print("─" * 60)
     print(f"  Preset/model:  {estimate.preset_key}")
     print(f"  Model path:    {estimate.model_path}")
     print(f"  ctx:           {ctx} tokens")
@@ -245,7 +244,7 @@ def _render_human(estimate: MemoryEstimate, gpu_vram_gib: float,
     for c in estimate.components:
         marker = " (transient)" if "transient" in c.notes else ""
         print(f"  {c.name:<32s} {c.human:>12s}  [{c.confidence}]{marker}")
-    print(f"  ─────────────")
+    print("  ─────────────")
     print(f"  TOTAL (committed):              {_humanize(estimate.total_bytes):>12s}")
     print()
 
@@ -255,13 +254,13 @@ def _render_human(estimate: MemoryEstimate, gpu_vram_gib: float,
 
     if estimate.warnings:
         print()
-        print(f"  Warnings:")
+        print("  Warnings:")
         for w in estimate.warnings:
             print(f"    - {w}")
 
     if label in ("YELLOW", "RED"):
         print()
-        print(f"  Suggestions:")
+        print("  Suggestions:")
         for s in _suggestions(estimate, kv_dtype):
             print(f"    · {s}")
 

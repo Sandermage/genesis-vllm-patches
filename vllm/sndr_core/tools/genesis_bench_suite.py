@@ -1154,7 +1154,7 @@ def write_markdown(out_md: Path, result: dict) -> None:
     lines.append(f"- **Mode:** {result['mode']}")
     lines.append(f"- **Server:** {result['host']}:{result['port']}  Model: `{result['model']}`")
     if result.get("local_gpus"):
-        lines.append(f"- **Local GPUs detected:**")
+        lines.append("- **Local GPUs detected:**")
         for g in result["local_gpus"]:
             lines.append(f"  - GPU {g['index']}: {g['name']}  "
                          f"VRAM {g['vram_used_mib']}/{g['vram_total_mib']} MiB  "
@@ -1261,7 +1261,7 @@ def main(argv: list[str] | None = None) -> int:
 
     local_gpus = detect_local_gpus()
     if local_gpus:
-        print(f"      local GPUs:")
+        print("      local GPUs:")
         for g in local_gpus:
             print(f"        GPU {g['index']}: {g['name']}  "
                   f"VRAM {g['vram_used_mib']}/{g['vram_total_mib']} MiB")

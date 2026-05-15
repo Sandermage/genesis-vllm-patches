@@ -388,8 +388,8 @@ def verify_plugin(
             signature_status=sig_status,
             sandbox_reasons=sandbox_reasons,
             summary=(
-                f"plugin patches protected modules; set "
-                f"SNDR_PLUGIN_ALLOW_CORE=1 to override"
+                "plugin patches protected modules; set "
+                "SNDR_PLUGIN_ALLOW_CORE=1 to override"
             ),
         )
 

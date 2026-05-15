@@ -16,7 +16,13 @@ between arms is the operator's job: bounce server, re-invoke with a new
 Style mirrors scripts/genesis_bench_v4.py (argparse, requests, SSE reader).
 """
 
-import argparse, hashlib, json, math, statistics, sys, time
+import argparse
+import hashlib
+import json
+import math
+import statistics
+import sys
+import time
 from datetime import datetime
 try:
     import requests

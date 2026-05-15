@@ -27,7 +27,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 from typing import Any, Optional
 
 from . import _io
@@ -149,7 +148,7 @@ def run_check(args: argparse.Namespace) -> int:
             out["preset_message"] = cfg_msg
         print(json.dumps(out, indent=2, sort_keys=True))
     else:
-        print(f"sndr upstream check")
+        print("sndr upstream check")
         print("─" * 50)
         print(f"  Running pin:       {pin or '<vllm not importable>'}")
         if pin is not None:
@@ -202,7 +201,7 @@ def run_show(args: argparse.Namespace) -> int:
     print("─" * 50)
     print(f"  Running pin:   {pin or '<vllm not importable>'}")
     if pol is None:
-        print(f"  Policy:        (no Y11 upstream block declared)")
+        print("  Policy:        (no Y11 upstream block declared)")
         return 0
     print(f"  required_pin:  {pol.required_pin or '_unset_'}")
     print(f"  allowed_pins:  {', '.join(pol.allowed_pins) or '_empty_'}")
@@ -228,7 +227,7 @@ def run_list(args: argparse.Namespace) -> int:
                          indent=2, sort_keys=True))
         return 0
 
-    print(f"sndr upstream list — KNOWN_GOOD_VLLM_PINS")
+    print("sndr upstream list — KNOWN_GOOD_VLLM_PINS")
     print("─" * 50)
     if not allowlist:
         print("  (allowlist empty — vllm.sndr_core.detection.guards not importable)")

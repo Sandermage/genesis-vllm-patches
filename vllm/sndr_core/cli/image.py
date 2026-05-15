@@ -103,7 +103,7 @@ def run_inspect(args: argparse.Namespace) -> int:
     print(f"  Id:           {info.get('Id', '?')}")
     print(f"  Created:      {info.get('Created', '?')}")
     print(f"  Size:         {info.get('Size', 0) / (1<<30):.2f} GiB")
-    print(f"  RepoDigests:")
+    print("  RepoDigests:")
     for d in digests:
         print(f"    {d}")
     return 0
@@ -146,7 +146,7 @@ def run_resolve(args: argparse.Namespace) -> int:
         print("─" * 60)
         print(f"  tag:                {image}")
         print(f"  declared digest:    {cfg.docker.image_digest or '_unset_'}")
-        print(f"  local repo digests:")
+        print("  local repo digests:")
         for d in digests:
             print(f"    {d}")
     return 0
@@ -186,11 +186,11 @@ def run_verify(args: argparse.Namespace) -> int:
             matched = True
             break
     if matched:
-        _io.success(f"image digest matches declared")
+        _io.success("image digest matches declared")
         return 0
-    _io.error(f"image digest MISMATCH:")
+    _io.error("image digest MISMATCH:")
     print(f"  declared: {declared}")
-    print(f"  local:")
+    print("  local:")
     for d in digests:
         print(f"    {d}")
     return 1

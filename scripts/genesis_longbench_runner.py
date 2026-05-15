@@ -4,7 +4,12 @@
 Runs a configurable subset of LongBench tasks via the chat API.
 Scores with F1 (English QA), ROUGE-L (summarization), exact-match (classification).
 """
-import argparse, json, os, re, string, time
+import argparse
+import json
+import os
+import re
+import string
+import time
 from collections import Counter
 import urllib.request
 import urllib.error

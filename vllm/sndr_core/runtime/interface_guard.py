@@ -123,7 +123,7 @@ class GenesisInterfaceMismatch(Exception):
             parts.append(f"missing attrs {missing_attrs}")
         if wrong_type_attrs:
             parts.append(
-                f"wrong-type attrs "
+                "wrong-type attrs "
                 + ", ".join(
                     f"{n}(got {got}, expected {exp})"
                     for n, got, exp in wrong_type_attrs
@@ -265,7 +265,7 @@ def validate_method_signature(
         raise GenesisInterfaceMismatch(
             role=role,
             missing_methods=[method_name],
-            message_suffix=f"(signature check on absent method)",
+            message_suffix="(signature check on absent method)",
         )
     try:
         sig = inspect.signature(method)

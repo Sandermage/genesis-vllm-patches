@@ -164,7 +164,7 @@ def _check_text(path: Path) -> list[tuple[int, str]]:
 
 def main(argv: list[str] | None = None) -> int:
     files = _iter_files()
-    print(f"=== check_no_legacy_imports.py ===")
+    print("=== check_no_legacy_imports.py ===")
     print(f"scanning {len(files)} files in {', '.join(SEARCH_DIRS)}")
 
     total = 0

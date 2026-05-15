@@ -345,10 +345,10 @@ def print_recommendations(stream=None) -> str:
         if r["recommended"] and not r["currently_on"]:
             lines.append(f"          → recommend: export {r['env']}=1")
         elif not r["recommended"] and r["currently_on"]:
-            lines.append(f"          ⚠️  enabled but NOT recommended on this GPU "
-                         f"(may regress or no-op)")
+            lines.append("          ⚠️  enabled but NOT recommended on this GPU "
+                         "(may regress or no-op)")
         elif not r["recommended"] and not r["currently_on"]:
-            lines.append(f"          (correctly skipped on this regime)")
+            lines.append("          (correctly skipped on this regime)")
         lines.append(f"          why: {r['evidence']}")
 
     lines.append("=" * 78)

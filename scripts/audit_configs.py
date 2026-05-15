@@ -85,8 +85,8 @@ def main() -> int:
     alias_ids = _alias_ids()
     if not alias_ids:
         sys.stderr.write(
-            f"audit-configs: no presets found under "
-            f"vllm/sndr_core/model_configs/builtin/presets/\n"
+            "audit-configs: no presets found under "
+            "vllm/sndr_core/model_configs/builtin/presets/\n"
         )
         return 2
 

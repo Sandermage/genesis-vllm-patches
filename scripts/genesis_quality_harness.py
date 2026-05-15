@@ -357,7 +357,7 @@ def run_suite(client: httpx.Client, base_url: str, api_key: str, model: str,
 
 def run_long_context(client: httpx.Client, base_url: str, api_key: str, model: str) -> dict:
     """Needle-in-haystack at specific prompt-token sizes."""
-    print(f"\n── LONG_CONTEXT ──")
+    print("\n── LONG_CONTEXT ──")
     results = []
 
     for name, target_tokens, needle, required in LONG_CTX_TESTS:
@@ -478,11 +478,11 @@ def main():
     args = ap.parse_args()
 
     base_url = f"http://{args.host}:{args.port}"
-    print(f"Genesis Quality Harness v1.0")
+    print("Genesis Quality Harness v1.0")
     print(f"Endpoint: {base_url}")
     print(f"Model:    {args.model}")
     print(f"Label:    {args.label}")
-    print(f"=" * 60)
+    print("=" * 60)
 
     # Pre-flight
     with httpx.Client(timeout=10.0) as c:

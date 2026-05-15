@@ -162,9 +162,9 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"      ... ({len(hits) - 10} more)")
             print()
             print(f"  FAIL — {len(hits)} unguarded reference(s)")
-            print(f"  Fix: wrap the import in try/except ImportError, OR")
-            print(f"  add 'audit-engine-boundary: allow' on the line if it's")
-            print(f"  a genuine first-party engine-tier file.")
+            print("  Fix: wrap the import in try/except ImportError, OR")
+            print("  add 'audit-engine-boundary: allow' on the line if it's")
+            print("  a genuine first-party engine-tier file.")
         else:
             print("  ✓ no unguarded vllm.sndr_engine imports in sndr_core")
             print()

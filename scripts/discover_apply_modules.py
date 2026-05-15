@@ -208,7 +208,7 @@ def main() -> int:
     print(f"  apply_module already set:            {len(already_set)}")
     print(f"  apply_module needs update:           {len(needing_update)}")
     print()
-    print(f"  Coverage if all proposals applied:")
+    print("  Coverage if all proposals applied:")
     print(f"    before:  {coverage_before}/{total}  "
           f"({summary['coverage_before_pct']}%)")
     print(f"    after:   {coverage_after}/{total}  "

@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import Any, Literal, Optional
+from typing import Literal, Optional
 
 # Reuse V1 helper types where possible (HardwareSpec, SpecDecodeConfig, etc.).
 # This keeps a single source of truth for sub-component validation rules.

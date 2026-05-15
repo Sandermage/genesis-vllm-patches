@@ -40,7 +40,7 @@ def _run(cmd: list[str], *, timeout: float = 5.0) -> tuple[int, str, str]:
         return p.returncode, p.stdout.strip(), p.stderr.strip()
     except FileNotFoundError as e:
         return -1, "", str(e)
-    except subprocess.TimeoutExpired as e:
+    except subprocess.TimeoutExpired:
         return -1, "", f"timeout after {timeout}s"
     except Exception as e:  # pragma: no cover — defensive
         return -1, "", str(e)

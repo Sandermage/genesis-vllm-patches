@@ -20,7 +20,7 @@ from __future__ import annotations
 import argparse
 import json
 from dataclasses import asdict, is_dataclass
-from typing import Any, Optional
+from typing import Any
 
 from . import _io
 
@@ -457,7 +457,7 @@ def run_new(args: argparse.Namespace) -> int:
 
     _io.success(f"wrote new config: {out_path}")
     print(f"  mode: {mode}")
-    print(f"  edit, then validate with:")
+    print("  edit, then validate with:")
     print(f"    sndr model-config validate {key}")
     return 0
 

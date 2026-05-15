@@ -420,11 +420,11 @@ def emit_env_shell(prefix: str = "GENESIS") -> str:
     """
     p = all_paths()
     lines = [
-        f"# Genesis canonical paths — rendered from project_paths.py",
-        f"# Source this file BEFORE running start-scripts:",
-        f"#   source ~/.genesis_paths.env",
-        f"# Override any value by setting the env var BEFORE sourcing.",
-        f"",
+        "# Genesis canonical paths — rendered from project_paths.py",
+        "# Source this file BEFORE running start-scripts:",
+        "#   source ~/.genesis_paths.env",
+        "# Override any value by setting the env var BEFORE sourcing.",
+        "",
         f"export {prefix}_INSTALL_ROOT={str(p['install_root'])!r}",
         f"export {prefix}_MODELS_DIR={str(p['models_dir'])!r}",
         f"export {prefix}_COMPILE_CACHE_DIR={str(p['compile_cache_dir'])!r}",
@@ -432,8 +432,8 @@ def emit_env_shell(prefix: str = "GENESIS") -> str:
         f"export {prefix}_HF_CACHE_DIR={str(p['hf_cache_dir'])!r}",
         f"export {prefix}_MODEL_CONFIG_DIR={str(p['model_configs_user_dir'])!r}",
         f"export {prefix}_TELEMETRY_DIR={str(p['telemetry_dir'])!r}",
-        f"",
-        f"# vllm-side env passthroughs (canonical names where they exist):",
+        "",
+        "# vllm-side env passthroughs (canonical names where they exist):",
         f"export TRITON_CACHE_DIR={str(p['triton_cache_dir'])!r}",
         f"export HF_HOME={str(p['hf_cache_dir'])!r}",
     ]

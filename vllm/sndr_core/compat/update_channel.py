@@ -401,7 +401,7 @@ def main(argv=None) -> int:
         print("Genesis update apply is deferred for safety reasons.")
         print()
         print("To pull the latest version manually:")
-        print(f"  git pull origin main")
+        print("  git pull origin main")
         print()
         print("Then verify your stack with:")
         print("  python3 -m vllm.sndr_core.compat.doctor")

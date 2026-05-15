@@ -33,7 +33,6 @@ import argparse
 import importlib
 import json
 import sys
-from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
@@ -254,7 +253,6 @@ def _check_dict_dup_keys() -> list[str]:
     shadowing bug.
     """
     import ast
-    import sys
 
     issues: list[str] = []
     registry_path = (

@@ -37,7 +37,6 @@ Reference: noonghunna/club-3090#16, Genesis v7.13 BREAKTHROUGH.
 from __future__ import annotations
 
 import os
-from typing import Iterable
 
 import numpy as np
 

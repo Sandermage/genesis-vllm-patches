@@ -140,8 +140,8 @@ def main(argv: list[str] | None = None) -> int:
     rc = report.get("rc", 0)
     print(f"  ledger:          {report['ledger_path']}")
     if report.get("newest_entry") is None:
-        print(f"  newest entry:    (none — malformed)")
-        print(f"  ✗ FAIL — ledger has no dated entries")
+        print("  newest entry:    (none — malformed)")
+        print("  ✗ FAIL — ledger has no dated entries")
         return 2
     print(f"  newest entry:    {report['newest_entry']} ({report['age_days']} days old)")
     print(f"  threshold:       ≤{report['max_age_days']} days OR contains HEAD sha")

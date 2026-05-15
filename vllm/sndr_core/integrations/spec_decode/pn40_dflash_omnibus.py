@@ -45,7 +45,6 @@ from vllm.sndr_core.core import (
     TextPatch,
     TextPatcher,
     TextPatchResult,
-    result_to_wiring_status,
 )
 
 log = logging.getLogger("genesis.wiring.pN40_dflash_omnibus")

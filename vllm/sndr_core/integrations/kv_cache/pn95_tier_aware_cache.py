@@ -31,7 +31,6 @@ import os
 from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
 from vllm.sndr_core.core import (
     TextPatcher,
-    TextPatchResult,
     TextPatch,
 )
 

@@ -38,8 +38,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from dataclasses import asdict
-from typing import Any, Optional
+from typing import Any
 
 from . import _io
 
@@ -234,7 +233,6 @@ def _run_explain(opts: argparse.Namespace) -> int:
     from vllm.sndr_core.runtime.memory_estimator import (
         estimate_for_config,
         render_waterfall,
-        lookup_gpu_vram,
     )
     from vllm.sndr_core.model_configs.schema import SchemaError
 
@@ -384,7 +382,6 @@ def _run_explain(opts: argparse.Namespace) -> int:
 def _run_simulate(opts: argparse.Namespace) -> int:
     """Estimator without a preset — pure ctx/seqs/model knobs."""
     from vllm.sndr_core.runtime.memory_estimator import (
-        ModelShape,
         read_model_shape,
         estimate_weights,
         estimate_kv_cache,
@@ -556,7 +553,8 @@ def _probe_live_vram() -> dict:
                     "free_mib": int, "total_mib": int, "util_pct": float}, ...],
          "totals": {"used_mib": int, "free_mib": int, "total_mib": int}}
     """
-    import shutil, subprocess
+    import shutil
+    import subprocess
     if shutil.which("nvidia-smi") is None:
         return {"available": False, "reason": "nvidia-smi not on PATH",
                 "n_gpus": 0, "gpus": [], "totals": {}}
@@ -700,7 +698,7 @@ def _run_report(opts: argparse.Namespace) -> int:
 
     if diff_lines:
         print()
-        print(f"  Live vs Estimate diff:")
+        print("  Live vs Estimate diff:")
         print(f"    Estimated: {diff_lines['estimated_mib']:6d} MiB")
         print(f"    Actual:    {diff_lines['actual_mib']:6d} MiB")
         print(f"    Δ:         {diff_lines['delta_mib']:+6d} MiB")

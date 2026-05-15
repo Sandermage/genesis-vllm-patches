@@ -22,7 +22,6 @@ import logging
 import os
 import sys
 import time
-from typing import Any
 
 # Import shared state. orchestrator MUTATES `_state._APPLY_MODE` to switch
 # between dry-run and apply mode for this run.
@@ -52,7 +51,6 @@ def _is_env_enabled(env_flag: str | None) -> bool:
     """Return True if the env flag is truthy (1/true/yes/on)."""
     if not env_flag:
         return False
-    import os
     val = os.environ.get(env_flag, "").strip().lower()
     return val in ("1", "true", "yes", "y", "on")
 
@@ -192,7 +190,6 @@ def run(verbose: bool = True, apply: bool = False) -> PatchStats:
     # Triton kernel pre-build (e.g. PN26b _build_kernel() at apply()) can
     # take 30-90s on cold cache. >120s is a red flag (autotune regression
     # or stale cache mismatch) — investigate before user requests start.
-    import time
     _t0_apply = time.perf_counter()
 
     stats = PatchStats()

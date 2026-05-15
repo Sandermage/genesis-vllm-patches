@@ -314,7 +314,7 @@ def pull_via_artifacts(
     try:
         from vllm.sndr_core.model_configs.registry import get
     except ImportError:
-        print(f"ERROR: model_configs registry not importable", file=sys.stderr)
+        print("ERROR: model_configs registry not importable", file=sys.stderr)
         return 2
     cfg = get(cfg_key)
     if cfg is None:
@@ -358,7 +358,7 @@ def pull_via_artifacts(
         # Pre-pull verify (skip download if already present)
         problems = art.verify(base_path=target)
         if not problems:
-            print(f"    ✓ already complete — skip pull")
+            print("    ✓ already complete — skip pull")
             continue
         print(f"    pre-pull problems: {problems}")
 
@@ -386,11 +386,11 @@ def pull_via_artifacts(
                 failed += 1
                 continue
         except subprocess.TimeoutExpired:
-            print(f"    ✗ pull timed out after 1h")
+            print("    ✗ pull timed out after 1h")
             failed += 1
             continue
         except FileNotFoundError:
-            print(f"    ✗ huggingface-cli not on PATH (pip install huggingface_hub)")
+            print("    ✗ huggingface-cli not on PATH (pip install huggingface_hub)")
             failed += 1
             continue
 
@@ -400,7 +400,7 @@ def pull_via_artifacts(
             print(f"    ⚠ post-pull verify problems: {problems}")
             failed += 1
         else:
-            print(f"    ✓ verify OK")
+            print("    ✓ verify OK")
 
     print()
     print("=" * 64)
@@ -503,11 +503,11 @@ def main(argv=None) -> int:
     print(f"  Status: {entry.status}")
 
     if entry.status == "PLANNED":
-        print(f"\n[!] This model is PLANNED — not yet validated.")
+        print("\n[!] This model is PLANNED — not yet validated.")
         print("    Genesis won't auto-block but expect rough edges.")
 
     models_dir = _resolve_models_dir(args.models_dir)
-    print(f"\n[1/4] Pre-flight checks")
+    print("\n[1/4] Pre-flight checks")
 
     ok_disk, msg_disk = _check_disk_space(models_dir, entry.size_gb)
     print(f"  disk:    {'✓' if ok_disk else '✗'} {msg_disk}")
@@ -540,18 +540,18 @@ def main(argv=None) -> int:
 
     print(f"  ✓ downloaded to {local_path}")
 
-    print(f"\n[3/4] Verify download")
+    print("\n[3/4] Verify download")
     ok_v, msg_v = _verify_download(local_path, entry)
     print(f"  {'✓' if ok_v else '⚠'} {msg_v}")
     if not ok_v:
         print("  (download retained in case operator wants to inspect manually)")
 
     if args.no_launch:
-        print(f"\nSkipping launch-script generation (--no-launch).")
+        print("\nSkipping launch-script generation (--no-launch).")
         print(f"\nModel ready at: {local_path}")
         return 0
 
-    print(f"\n[4/4] Generate launch script")
+    print("\n[4/4] Generate launch script")
     cfg = _select_config(entry, args.workload, args.tp)
     if cfg is None:
         print("  ⚠ no tested config available — skipping launch-script generation")

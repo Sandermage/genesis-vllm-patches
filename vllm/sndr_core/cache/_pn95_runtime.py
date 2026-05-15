@@ -851,7 +851,6 @@ def pn106_get_pooled_buf(name: str, shape: tuple, dtype: Any, device: Any,
     write-only on these scratch tensors). No correctness loss.
     """
     import torch
-    import math
     n_elems = 1
     for d in shape:
         n_elems *= int(d)

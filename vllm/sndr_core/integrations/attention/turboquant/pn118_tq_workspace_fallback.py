@@ -66,7 +66,6 @@ Author: Genesis backport, original by jasonboukheir.
 from __future__ import annotations
 
 import logging
-import os
 from pathlib import Path
 
 from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root

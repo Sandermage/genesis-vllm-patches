@@ -39,7 +39,6 @@ import argparse
 import os
 import shutil
 import subprocess
-import sys
 from pathlib import Path
 from typing import Any, Optional
 
@@ -321,7 +320,6 @@ def _write_temp_compose(cfg) -> Path:
     already exists (mkdir(mode=...) does not change the mode of an existing dir).
     The rendered YAML is `0o600`. Defense-in-depth on a multi-user host.
     """
-    import os
     import tempfile
     out = render_compose_yaml(cfg)
     tmpdir = Path(tempfile.gettempdir()) / "sndr-compose"

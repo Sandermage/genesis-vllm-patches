@@ -200,7 +200,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         print()
 
     # Public key — всегда в stdout (это безопасно копировать в license.py).
-    print(f"PUBLIC  KEY (base64url, 32 bytes raw, drop into license.py):")
+    print("PUBLIC  KEY (base64url, 32 bytes raw, drop into license.py):")
     print(f"  {pub}")
     print()
 
@@ -208,7 +208,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     # раньше всегда печатался → shell history / scrollback / recorders
     # могли сохранить root-of-trust ключ.
     if args.print_private:
-        print(f"PRIVATE KEY (base64url, 32 bytes raw, KEEP OFFLINE):")
+        print("PRIVATE KEY (base64url, 32 bytes raw, KEEP OFFLINE):")
         print(f"  {priv}")
         print()
 

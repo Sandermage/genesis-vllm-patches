@@ -1,0 +1,201 @@
+{
+  "files": {
+    "model_executor/layers/fla/ops/chunk.py": {
+      "md5_pristine": "0f66320b6b74a11d7b4f3e7ea223ecec",
+      "patches": {
+        "PN79.Sub-1": {
+          "anchors": {
+            "1A": {
+              "anchor_md5": "fc4101c92cd414a6906898fbdcd87e39",
+              "byte_length": 63,
+              "byte_offset": 678,
+              "replacement_md5": "54b03a10843eaf394cb848da0e6e671e"
+            },
+            "1B": {
+              "anchor_md5": "2aecd599da8f8dc5bbec43e90d08613e",
+              "byte_length": 169,
+              "byte_offset": 1003,
+              "replacement_md5": "fd016e760e1c96c644aa635934564b08"
+            },
+            "1C": {
+              "anchor_md5": "cf6964a5418a369f8b87796093587f35",
+              "byte_length": 132,
+              "byte_offset": 2001,
+              "replacement_md5": "666d1ab637a2cdf10a26306b16a41ca9"
+            },
+            "1D": {
+              "anchor_md5": "ab1a1442195ecc7c8058e60a04422f40",
+              "byte_length": 1170,
+              "byte_offset": 2519,
+              "replacement_md5": "a177328535055d0dcf8b7a787c664e4d"
+            },
+            "1E_APPLY_CALL": {
+              "anchor_md5": "66f1264d8a3b02caf14fc689bbe2e732",
+              "byte_length": 88,
+              "byte_offset": 8114,
+              "replacement_md5": "bd942d9f4a9d29b7a226ac249a89bc63"
+            },
+            "1E_SIG": {
+              "anchor_md5": "cb5f567303e5015c52e36d91aecc0c64",
+              "byte_length": 140,
+              "byte_offset": 3998,
+              "replacement_md5": "e3e244b503440bb58ac318a90eac80ea"
+            },
+            "1E_VAL": {
+              "anchor_md5": "183be0f5c592e4a862bfda43be35017f",
+              "byte_length": 88,
+              "byte_offset": 7509,
+              "replacement_md5": "e9214f8ded2f58b6a00b06336ac0dc45"
+            }
+          }
+        }
+      },
+      "size_bytes": 8202
+    },
+    "model_executor/layers/fla/ops/chunk_delta_h.py": {
+      "md5_pristine": "e90e9a46606fadcf22cf5f8425f0f490",
+      "patches": {
+        "PN79.Sub-2": {
+          "anchors": {
+            "2A": {
+              "anchor_md5": "70d893064aa3a6ef5730483cbbb617e5",
+              "byte_length": 206,
+              "byte_offset": 830,
+              "replacement_md5": "8c395ce1584a1a9d66ba37dcf5ade7a8"
+            },
+            "2B": {
+              "anchor_md5": "a98582fd2f8b0569b3fdf0b07c48c3b5",
+              "byte_length": 362,
+              "byte_offset": 1475,
+              "replacement_md5": "8769b2a8a8023bb3aa2ec24e12888728"
+            },
+            "2C": {
+              "anchor_md5": "46ad35f9259d0ad0cffd887f634a188f",
+              "byte_length": 976,
+              "byte_offset": 2936,
+              "replacement_md5": "84ceb36ad7f464557dfde73cce826e15"
+            },
+            "2D": {
+              "anchor_md5": "a142c14e53c3ab5f06e085f2bfe91a6c",
+              "byte_length": 127,
+              "byte_offset": 9508,
+              "replacement_md5": "be3bc1fdb41b46822d76757b1764fccb"
+            },
+            "2E": {
+              "anchor_md5": "a0bccb4a833d8e09e0676b17b4bd8919",
+              "byte_length": 178,
+              "byte_offset": 10709,
+              "replacement_md5": "8a4182f95f6449de56dea2efc82fa227"
+            },
+            "2F": {
+              "anchor_md5": "3121457926608261a13866963e768f83",
+              "byte_length": 296,
+              "byte_offset": 11614,
+              "replacement_md5": "830f89c34b8113484e1d75dbfc7d4585"
+            },
+            "2G": {
+              "anchor_md5": "a87c58c8ef61e3501ca80f52b7af633f",
+              "byte_length": 156,
+              "byte_offset": 12192,
+              "replacement_md5": "8a605db58e89a8d59121fc9fed715abb"
+            }
+          }
+        }
+      },
+      "size_bytes": 12381
+    },
+    "model_executor/layers/mamba/gdn_linear_attn.py": {
+      "md5_pristine": "18dc6a9c0b1f615a338b468c11fcb71c",
+      "patches": {
+        "PN79.Sub-3": {
+          "anchors": {
+            "3A": {
+              "anchor_md5": "f747de9ae92cc2cc8e8204f1bd74211a",
+              "byte_length": 486,
+              "byte_offset": 5616,
+              "replacement_md5": "353c273a48f571a77ef350c84557d89c"
+            },
+            "3B": {
+              "anchor_md5": "ef97710156520d50eb7be3286d061342",
+              "byte_length": 569,
+              "byte_offset": 6388,
+              "replacement_md5": "e916107a83a09eec350909e4b5b905b5"
+            },
+            "3C": {
+              "anchor_md5": "434449e003f7fe70018b7d2dbb3bcfc1",
+              "byte_length": 1153,
+              "byte_offset": 38002,
+              "replacement_md5": "f0c459236cf9ca1731fa99e78bc073d0"
+            }
+          }
+        }
+      },
+      "size_bytes": 46108
+    },
+    "model_executor/models/olmo_hybrid.py": {
+      "md5_pristine": "63ab5a2d29b29b522693188a8da2e421",
+      "patches": {
+        "PN79.Sub-4": {
+          "anchors": {
+            "4A": {
+              "anchor_md5": "f66c252f1c79d31ffd7cb5c7da772088",
+              "byte_length": 803,
+              "byte_offset": 21339,
+              "replacement_md5": "a36a9e701d185ffc77058fcbf1b15f7f"
+            }
+          }
+        }
+      },
+      "size_bytes": 43524
+    },
+    "v1/spec_decode/llm_base_proposer.py": {
+      "md5_pristine": "b2b5def581d27d4654e66d83b4ff4998",
+      "patches": {
+        "PN35.Sub-2": {
+          "anchors": {
+            "pN35_inputs_embeds_optional": {
+              "anchor_md5": "748d091807d565024688a8bd6f5a3ced",
+              "byte_length": 169,
+              "byte_offset": 9898,
+              "replacement_md5": "d654f95a0f1b1aa499b02ea1ee1170fc"
+            }
+          }
+        }
+      },
+      "size_bytes": 73335
+    },
+    "v1/worker/gpu_model_runner.py": {
+      "md5_pristine": "ac61702177b286d0d7239050fd07cbbc",
+      "patches": {
+        "PN33.Sub-1": {
+          "anchors": {
+            "pN33_warmup_k_draft_tokens": {
+              "anchor_md5": "a2a6e4b0c25267c2fd3fd6d693d3943d",
+              "byte_length": 97,
+              "byte_offset": 255752,
+              "replacement_md5": "4e1cfbbc464be9dffcdb3279a6ef5932"
+            }
+          }
+        },
+        "PN35.Sub-1": {
+          "anchors": {
+            "pN35_inputs_embeds_optional": {
+              "anchor_md5": "3f5b74f9bf44fc07b6edcbd03450cabc",
+              "byte_length": 146,
+              "byte_offset": 30013,
+              "replacement_md5": "3f52a8859c9f4083a6ab4ea139c2d453"
+            }
+          }
+        }
+      },
+      "size_bytes": 316188
+    }
+  },
+  "generated_at": "2026-05-11T22:36:00Z",
+  "generated_by": "vllm.sndr_core.wiring.anchor_manifest.assemble_manifest",
+  "manifest_version": 1,
+  "pins": {
+    "genesis": "v11.0.0+wave9_dev209",
+    "vllm": "0.20.2rc1.dev209+g5536fc0c0"
+  }
+}

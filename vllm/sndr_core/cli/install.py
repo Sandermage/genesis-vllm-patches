@@ -469,8 +469,8 @@ def step_install_plugin(
     plugin = _resolve_plugin_src(home)
     if plugin is None:
         _io.warn(
-            f"Genesis plugin source not found in this checkout — skipping. "
-            f"Set GENESIS_PLUGIN_SRC to override."
+            "Genesis plugin source not found in this checkout — skipping. "
+            "Set GENESIS_PLUGIN_SRC to override."
         )
         return StepResult({"installed": False, "reason": "missing"})
 

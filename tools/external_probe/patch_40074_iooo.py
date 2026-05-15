@@ -26,7 +26,8 @@ Fixes: https://github.com/vllm-project/vllm/issues/39998
 This is an upstream-author-credited backport applied for probe purposes
 on Genesis pin fe9c3d6c5. Will be retired when #40074 merges upstream.
 """
-import logging, sys
+import logging
+import sys
 
 log = logging.getLogger("pr40074_backport")
 log.setLevel(logging.INFO)

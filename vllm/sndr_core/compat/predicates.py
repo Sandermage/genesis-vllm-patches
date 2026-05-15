@@ -99,7 +99,7 @@ def evaluate(rule: Any, profile: dict[str, Any]) -> tuple[bool, str]:
         ok, why = evaluate(rule["not"], profile)
         if ok:
             return False, f"not: inner matched ({why})"
-        return True, f"not: inner did not match"
+        return True, "not: inner did not match"
 
     if "none_of" in rule:
         for i, sub in enumerate(rule["none_of"]):

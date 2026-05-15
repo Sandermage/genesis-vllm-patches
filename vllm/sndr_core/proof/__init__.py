@@ -186,8 +186,8 @@ def _check_p2_apply_module_declared(
                           f"apply_module resolved: {apply_module}")
     if patch_id in known_spec_only:
         return ProofCheck("P-2", True,
-                          f"patch is in KNOWN_SPEC_ONLY allowlist "
-                          f"(documentation/legacy entry)")
+                          "patch is in KNOWN_SPEC_ONLY allowlist "
+                          "(documentation/legacy entry)")
     if legacy_register_names is not None:
         # Match `patch_id` against legacy register names. The legacy
         # convention uses combined entries like "P1/P2 FP8 kernel
@@ -198,12 +198,12 @@ def _check_p2_apply_module_declared(
                     or name.startswith(patch_id + " ")
                     or name.startswith(patch_id + "/")):
                 return ProofCheck("P-2", True,
-                                  f"patch in legacy `@register_patch` register "
-                                  f"(applies via _per_patch_dispatch.py) — "
-                                  f"Phase 10 will migrate to integrations/<family>/")
+                                  "patch in legacy `@register_patch` register "
+                                  "(applies via _per_patch_dispatch.py) — "
+                                  "Phase 10 will migrate to integrations/<family>/")
     return ProofCheck("P-2", False,
-                      f"no apply_module AND not in KNOWN_SPEC_ONLY allowlist "
-                      f"AND not in legacy register — dead registry entry")
+                      "no apply_module AND not in KNOWN_SPEC_ONLY allowlist "
+                      "AND not in legacy register — dead registry entry")
 
 
 def _check_p3_apply_module_importable(
@@ -232,15 +232,15 @@ def _check_p4_no_shadow_orphan(patch_id: str, known_spec_only: frozenset[str],
     OR is in KNOWN_SPEC_ONLY (so apply.shadow doesn't flag it)."""
     if patch_id in known_spec_only:
         return ProofCheck("P-4", True,
-                          f"patch is in KNOWN_SPEC_ONLY allowlist")
+                          "patch is in KNOWN_SPEC_ONLY allowlist")
     # Legacy register stores names that often match patch_id directly.
     # Substring match handles variants like `apply_P67b` for `P67b`.
     if any(patch_id in name or name in patch_id for name in legacy_names):
         return ProofCheck("P-4", True,
-                          f"patch present in legacy apply register")
+                          "patch present in legacy apply register")
     return ProofCheck("P-4", False,
-                      f"patch absent from legacy register AND not in "
-                      f"KNOWN_SPEC_ONLY — apply.shadow would flag it")
+                      "patch absent from legacy register AND not in "
+                      "KNOWN_SPEC_ONLY — apply.shadow would flag it")
 
 
 def _check_p5_env_flag(patch_id: str, meta: dict,
@@ -249,7 +249,7 @@ def _check_p5_env_flag(patch_id: str, meta: dict,
     flag = meta.get("env_flag")
     if not flag:
         return ProofCheck("P-5", False,
-                          f"no env_flag declared (patch is not toggleable)")
+                          "no env_flag declared (patch is not toggleable)")
     if flag not in canonical_keys:
         return ProofCheck("P-5", False,
                           f"env_flag {flag!r} not in canonical key registry "

@@ -179,7 +179,7 @@ def apply() -> tuple[str, str]:
         if patcher.sub_patches[0].anchor not in content:
             return (
                 "skipped",
-                f"required anchor not found — TurboQuant _cudagraph_support "
+                "required anchor not found — TurboQuant _cudagraph_support "
                 "declaration may have changed; P65 cannot apply.",
             )
 

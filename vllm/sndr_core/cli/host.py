@@ -189,7 +189,7 @@ def run_init(args: argparse.Namespace) -> int:
     _io.success(f"wrote {out_path}")
     _io.info("  next steps:")
     _io.info("    1. fill in genesis_src + plugin_src paths (operator-specific)")
-    _io.info(f"    2. validate: sndr host doctor")
+    _io.info("    2. validate: sndr host doctor")
     _io.info("    3. launch:   sndr launch <preset>")
     return 0
 

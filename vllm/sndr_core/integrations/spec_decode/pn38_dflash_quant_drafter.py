@@ -54,7 +54,6 @@ from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
 from vllm.sndr_core.core.text_patch import (
     TextPatch,
     TextPatcher,
-    TextPatchResult,
     result_to_wiring_status,
 )
 

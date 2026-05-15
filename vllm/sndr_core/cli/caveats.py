@@ -18,8 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
-from typing import Any, Optional
+from typing import Any
 
 from . import _io
 
@@ -72,7 +71,8 @@ def _facts_from_inventory() -> dict:
         pin in KNOWN_GOOD_VLLM_PINS if pin else None
     )
     # virtualization (best-effort detect)
-    import shutil, subprocess
+    import shutil
+    import subprocess
     if shutil.which("systemd-detect-virt"):
         try:
             r = subprocess.run(["systemd-detect-virt"],
@@ -95,7 +95,7 @@ def run_list(args: argparse.Namespace) -> int:
         ]
         print(json.dumps(out, indent=2, sort_keys=True))
         return 0
-    print(f"sndr caveats — KNOWN_CAVEATS")
+    print("sndr caveats — KNOWN_CAVEATS")
     print("─" * 60)
     if not KNOWN_CAVEATS:
         print("  (registry empty)")
@@ -132,7 +132,7 @@ def run_check(args: argparse.Namespace) -> int:
         }
         print(json.dumps(out, indent=2, sort_keys=True))
     else:
-        print(f"sndr caveats check")
+        print("sndr caveats check")
         print("─" * 60)
         print(f"  Host: {facts.get('os', {}).get('system', '?')}")
         print(f"  Triggered: {len(triggered)}")

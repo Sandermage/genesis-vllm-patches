@@ -81,7 +81,6 @@ Original PR: vllm#42574.
 from __future__ import annotations
 
 import logging
-import os
 
 from vllm.sndr_core.core import (
     MultiFilePatchTransaction,

@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 from typing import Any
 
 from . import _io
@@ -225,19 +224,19 @@ def run_doctor_system(args: argparse.Namespace) -> int:
                   f"daemon={'running' if d.get('daemon_running') else 'STOPPED'} "
                   f"nvidia-runtime={'yes' if d.get('nvidia_runtime_present') else 'NO'}")
         else:
-            print(f"  Docker:   not installed")
+            print("  Docker:   not installed")
         n = facts.get("nvidia", {})
         if n.get("installed"):
             print(f"  NVIDIA:   driver {n.get('driver_version')} CUDA "
                   f"{n.get('cuda_version')} GPUs={n.get('n_gpus')}")
         else:
-            print(f"  NVIDIA:   not detected")
+            print("  NVIDIA:   not detected")
         v = facts.get("vllm", {})
         if v.get("installed"):
             mark = "✓" if facts.get("vllm_pin_in_allowlist") else "✗"
             print(f"  vLLM:     {v.get('version')} (allowlist={mark})")
         else:
-            print(f"  vLLM:     not installed in current Python")
+            print("  vLLM:     not installed in current Python")
         if facts.get("virtualization"):
             print(f"  Virt:     {facts['virtualization']}")
         wsl = facts.get("wsl") or {}
@@ -253,9 +252,9 @@ def run_doctor_system(args: argparse.Namespace) -> int:
             if upstream_violation:
                 print(f"    ✗ upstream: {upstream_violation}")
             else:
-                print(f"    ✓ upstream policy OK")
+                print("    ✓ upstream policy OK")
             if artifacts_problems:
-                print(f"    Artifacts:")
+                print("    Artifacts:")
                 for a in artifacts_problems:
                     if a["problems"]:
                         print(f"      ✗ {a['hf_id']}: {a['problems']}")
@@ -279,11 +278,11 @@ def run_doctor_system(args: argparse.Namespace) -> int:
         # Verdict line
         print()
         if has_error or n_artifact_failures > 0 or upstream_violation:
-            print(f"  → VERDICT: NOT READY (errors / blockers present)")
+            print("  → VERDICT: NOT READY (errors / blockers present)")
         elif has_warning:
-            print(f"  → VERDICT: WARNING (operational with caveats)")
+            print("  → VERDICT: WARNING (operational with caveats)")
         else:
-            print(f"  → VERDICT: GREEN")
+            print("  → VERDICT: GREEN")
 
     if has_error or upstream_violation or n_artifact_failures > 0:
         return 2

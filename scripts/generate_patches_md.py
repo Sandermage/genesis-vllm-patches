@@ -246,7 +246,7 @@ def main() -> int:
             return 0
         else:
             print(f"✗ {OUTPUT_PATH.relative_to(REPO_ROOT)} OUT OF SYNC with registry", file=sys.stderr)
-            print(f"  Run: python3 scripts/generate_patches_md.py", file=sys.stderr)
+            print("  Run: python3 scripts/generate_patches_md.py", file=sys.stderr)
             return 1
 
     # Write file

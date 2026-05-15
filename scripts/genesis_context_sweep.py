@@ -8,7 +8,9 @@ For each target context size (tokens):
   - Record: http_status, prompt_tokens, output_tokens, ttft, decode_tok_s,
             needle_recall_pass (bool), total_time_s
 """
-import argparse, json, time
+import argparse
+import json
+import time
 import urllib.request
 import urllib.error
 
@@ -18,8 +20,8 @@ NEEDLE_PARA = (
     f"You will be asked to recall it at the end. The code is {NEEDLE_CANARY}.\n\n"
 )
 QUESTION = (
-    f"\n\nWhat was the special code mentioned at the very start of this text? "
-    f"Reply with ONLY the code itself and nothing else."
+    "\n\nWhat was the special code mentioned at the very start of this text? "
+    "Reply with ONLY the code itself and nothing else."
 )
 
 FILLER_WORD = "the quick brown fox jumps over the lazy dog. "
@@ -113,7 +115,7 @@ def main():
     sizes = list(range(args.from_k, args.to_k + 1, args.step_k))
     total = len(sizes) * args.runs
     print(f"# sweep {args.label}: {len(sizes)} points {args.from_k}k..{args.to_k}k step {args.step_k}k, {args.runs} runs each = {total} trials")
-    print(f"# ctx_k\tprompt_tok\tttft\tdecode_tok_s\tcomp_tok\tneedle\terror")
+    print("# ctx_k\tprompt_tok\tttft\tdecode_tok_s\tcomp_tok\tneedle\terror")
     for k in sizes:
         for r in range(args.runs):
             prompt = build_prompt(k * 1024)

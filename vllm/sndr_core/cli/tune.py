@@ -19,7 +19,6 @@ from __future__ import annotations
 import argparse
 import shutil
 import subprocess
-import json
 from typing import Any, Optional
 
 from . import _io
@@ -247,14 +246,14 @@ def run_report(args: argparse.Namespace) -> int:
     ], capture_output=True, text=True, timeout=10)
     print(f"sndr tune report '{args.config}'")
     print("─" * 70)
-    print(f"  Y8 declared:")
+    print("  Y8 declared:")
     g = cfg.gpu_tuning
     print(f"    persistence_mode: {g.persistence_mode}")
     print(f"    power_limit_W:    {g.power_limit_watts} (unsafe={g.unsafe_apply})")
     print(f"    clocks_gfx_MHz:   {g.clocks_gfx_mhz}")
     print(f"    clocks_mem_MHz:   {g.clocks_mem_mhz}")
     print()
-    print(f"  Live nvidia-smi:")
+    print("  Live nvidia-smi:")
     if r.returncode != 0:
         print(f"    (nvidia-smi failed: {r.stderr})")
         return 1

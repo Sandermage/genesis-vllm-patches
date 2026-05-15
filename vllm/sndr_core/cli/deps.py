@@ -25,7 +25,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 from typing import Any, Optional
 
 from . import _io
@@ -195,7 +194,7 @@ def _print_inventory_summary(inv) -> None:
         print(f"  Docker:  {inv.docker.version or '?'}  daemon={daemon}  "
               f"nvidia-runtime={nvr}")
     else:
-        print(f"  Docker:  not installed")
+        print("  Docker:  not installed")
     if inv.nvidia.installed:
         print(f"  NVIDIA:  driver {inv.nvidia.driver_version}  "
               f"CUDA {inv.nvidia.cuda_version}  "
@@ -205,11 +204,11 @@ def _print_inventory_summary(inv) -> None:
                    if i < len(inv.nvidia.gpu_total_vram_mib) else 0)
             print(f"           [{i}] {name} ({mib} MiB)")
     else:
-        print(f"  NVIDIA:  not detected")
+        print("  NVIDIA:  not detected")
     if inv.vllm.installed:
         print(f"  vLLM:    {inv.vllm.version}")
     else:
-        print(f"  vLLM:    not installed in current Python")
+        print("  vLLM:    not installed in current Python")
 
 
 def _print_plan_summary(plan) -> None:

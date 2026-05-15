@@ -17,9 +17,7 @@ patch with a local clone in `plugins/community/`).
 from __future__ import annotations
 
 import logging
-from dataclasses import is_dataclass
 from pathlib import Path
-from typing import Iterable
 
 from vllm.sndr_core.model_configs.schema import SchemaError
 from vllm.sndr_core.model_configs.schema_v2 import PatchManifest

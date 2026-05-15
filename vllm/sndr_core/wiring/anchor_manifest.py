@@ -50,7 +50,7 @@ import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable, Optional, Union
+from typing import Any, Optional, Union
 
 log = logging.getLogger("genesis.wiring.anchor_manifest")
 

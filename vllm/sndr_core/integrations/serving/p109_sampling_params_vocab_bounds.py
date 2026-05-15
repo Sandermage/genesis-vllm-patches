@@ -63,7 +63,6 @@ import logging
 import os
 
 from vllm.sndr_core.core import (
-    MultiFilePatchTransaction,
     TextPatch,
     TextPatcher,
     TextPatchResult,

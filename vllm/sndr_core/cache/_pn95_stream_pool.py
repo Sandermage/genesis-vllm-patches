@@ -136,7 +136,8 @@ def submit(
     Returns a Transfer record. Caller may discard the return — the Transfer
     is also kept in the in-flight deque for drain_completed() pickup.
     """
-    import torch, time
+    import torch
+    import time
     st = _state()
     stream = st.acquire_stream()
     start_evt = st.acquire_event()

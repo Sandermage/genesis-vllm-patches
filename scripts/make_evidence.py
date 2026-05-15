@@ -31,16 +31,13 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
-import dataclasses
 import json
 import subprocess
 import sys
-import textwrap
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -337,7 +334,7 @@ def render_markdown_ledger_entry(results: list[GateResult]) -> str:
     host = _detect_host()
 
     lines = [
-        f"### Entry X — `make evidence` aggregate run",
+        "### Entry X — `make evidence` aggregate run",
         "",
         f"- timestamp: {ts}",
         f"- host: {host}",
@@ -366,7 +363,7 @@ def render_markdown_ledger_entry(results: list[GateResult]) -> str:
         lines.append("**Blocking gate output (tails):**")
         lines.append("")
         for r in blocking:
-            lines.append(f"```text")
+            lines.append("```text")
             lines.append(f"# {r.gate.name}")
             lines.append(r.stdout_tail or "(no stdout)")
             if r.stderr_tail:
@@ -391,7 +388,8 @@ def _git_short_sha() -> str:
 
 
 def _detect_host() -> str:
-    import os, socket
+    import os
+    import socket
     forced = os.environ.get("SNDR_HOST_LABEL")
     if forced:
         return forced

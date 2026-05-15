@@ -637,8 +637,8 @@ def _check_env_keys_exist(cfg) -> Optional[str]:
     if not unknown:
         return None
     return (
-        f"genesis_env contains unknown keys (typo or removed patch?):\n"
-        f"    " + "\n    ".join(unknown)
+        "genesis_env contains unknown keys (typo or removed patch?):\n"
+        "    " + "\n    ".join(unknown)
     )
 
 

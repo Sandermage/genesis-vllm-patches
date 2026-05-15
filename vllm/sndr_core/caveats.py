@@ -25,7 +25,7 @@ Matcher uses a small DSL: each match key is a function over facts.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Callable, Optional
+from typing import Callable, Optional
 
 
 # ─── Caveat dataclass + registry ────────────────────────────────────────

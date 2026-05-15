@@ -34,7 +34,7 @@ Author: Sandermage(Sander)-Barzov Aleksandr.
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Hashable, Iterable, Optional
 
 from vllm.sndr_core.cache.eviction_policies import (
@@ -210,7 +210,6 @@ class _CpuSlab:
                 n = min(len(gpu_view._ba), len(src_bytes))
                 gpu_view._ba[:n] = src_bytes[:n]
             return
-        import torch
         flat = gpu_view.contiguous().view(-1)
         n = min(flat.numel(), self.slot_nbytes)
         flat[:n].copy_(

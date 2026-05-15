@@ -17,7 +17,6 @@ side effects.
 """
 from __future__ import annotations
 
-import shutil
 import subprocess
 from dataclasses import dataclass
 from typing import Optional
@@ -102,7 +101,7 @@ def apply(
             if r.returncode == 0:
                 results.append(InstallResult(
                     item=item, status="applied",
-                    reason=f"rc=0",
+                    reason="rc=0",
                     stdout_tail=r.stdout[-300:],
                 ))
             else:

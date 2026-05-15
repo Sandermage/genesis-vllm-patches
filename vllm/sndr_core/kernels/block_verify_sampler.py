@@ -575,7 +575,7 @@ def call_block_verify_sample(
     }
     if len(set(devs.values())) > 1:
         raise RuntimeError(
-            f"All P71 input tensors must be on the same device. Got: "
+            "All P71 input tensors must be on the same device. Got: "
             + ", ".join(f"{k}={v}" for k, v in devs.items())
         )
     batch_size = output_token_ids.shape[0]

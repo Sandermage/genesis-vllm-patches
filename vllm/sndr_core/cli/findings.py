@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import argparse
 import json
-from dataclasses import asdict
 from datetime import date
 from pathlib import Path
 from typing import Any, Optional
@@ -225,7 +224,7 @@ review_cadence: {opts.review_cadence}
 """
     target.write_text(yaml_text, encoding="utf-8")
     print(f"sndr findings add — wrote {target}")
-    print(f"  Run `sndr findings validate` to confirm shape.")
+    print("  Run `sndr findings validate` to confirm shape.")
     return 0
 
 

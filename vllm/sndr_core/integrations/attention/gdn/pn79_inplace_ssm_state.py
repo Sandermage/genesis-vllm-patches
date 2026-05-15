@@ -121,7 +121,6 @@ from vllm.sndr_core.core import (
     MultiFilePatchTransaction,
     TextPatch,
     TextPatcher,
-    TextPatchResult,
 )
 
 log = logging.getLogger("genesis.wiring.pn79_inplace_ssm_state")

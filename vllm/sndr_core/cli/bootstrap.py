@@ -211,7 +211,7 @@ def run_apply(args: argparse.Namespace) -> int:
     if cfg.bootstrap.apply_policy == "auto-yes":
         yes = True
     if cfg.bootstrap.apply_policy == "ask" and not yes:
-        _io.warn(f"--yes required for apply_policy='ask' (running dry-run)")
+        _io.warn("--yes required for apply_policy='ask' (running dry-run)")
         # fall through to dry-run path
 
     unsupported = _unsupported_plan_scopes(scope)

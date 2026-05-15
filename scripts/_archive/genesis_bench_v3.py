@@ -244,7 +244,7 @@ def test_speed(base_url, model_id, max_tokens_list=(64, 128, 256, 512, 1024, 204
         for _ in range(runs):
             r = stream_chat(base_url, model_id, prompt, max_tokens=mt, temperature=0.7)
             if r.get("error"):
-                print(f"ERR ", end="", flush=True)
+                print("ERR ", end="", flush=True)
                 run_results.append(r)
                 continue
             run_results.append(r)
@@ -264,7 +264,7 @@ def test_speed(base_url, model_id, max_tokens_list=(64, 128, 256, 512, 1024, 204
                   f"TTFT={avg_ttft}s, {avg_tokens} tok, {avg_total}s total")
         else:
             avg_tps = avg_ttft = avg_total = avg_tokens = min_tps = max_tps = None
-            print(f"    ALL FAILED")
+            print("    ALL FAILED")
 
         results.append({
             "max_tokens": mt,
@@ -513,7 +513,7 @@ def test_stress(base_url, model_id, num_bursts=5, requests_per_burst=5):
         for req in range(requests_per_burst):
             r = stream_chat(base_url, model_id, prompt, max_tokens=64, temperature=0.1)
             if r.get("error"):
-                print(f"ERR", end=" ", flush=True)
+                print("ERR", end=" ", flush=True)
                 burst_errors += 1
                 total_errors += 1
             else:
@@ -717,7 +717,7 @@ def main():
     print("FULL REPORT")
     print("=" * 60)
     print(f"Model:        {model['id']}")
-    print(f"Benchmark:    Genesis Ultimate v3.0")
+    print("Benchmark:    Genesis Ultimate v3.0")
     print(f"Label:        {args.label}")
     print(f"Time:         {iso_time}")
     print()
@@ -741,7 +741,7 @@ def main():
     # Context window summary
     if "context" in all_results:
         ctx = all_results["context"]
-        print(f"◆ CONTEXT WINDOW (standard):")
+        print("◆ CONTEXT WINDOW (standard):")
         print(f"  Max working: ~{ctx['max_working_k']}k tokens")
         print(f"  {'size':>6}  {'TTFT':>8}  {'speed':>8}  {'status':>8}")
         print(f"  {'─'*6}  {'─'*8}  {'─'*8}  {'─'*8}")
@@ -806,7 +806,7 @@ def main():
 
     # Long generation summary
     if "long_generation" in all_results:
-        print(f"◆ LONG GENERATION:")
+        print("◆ LONG GENERATION:")
         for item in all_results["long_generation"]:
             mt = item["max_tokens"]
             r = item["result"]

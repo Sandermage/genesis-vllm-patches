@@ -21,7 +21,6 @@ Migration history:
 from __future__ import annotations
 
 import logging
-import os
 from typing import Any
 
 from .registry import PATCH_REGISTRY  # noqa: F401 (re-exported)
@@ -282,7 +281,7 @@ def should_apply(patch_id: str) -> tuple[bool, str]:
             if verdict == "apply":
                 return True, f"opt-in env + config recommends apply: {reason}"
             elif verdict == "neutral":
-                return True, f"opt-in env (config: neutral)"
+                return True, "opt-in env (config: neutral)"
             else:
                 return True, (
                     f"opt-in env OVERRIDE (config recommends {verdict}: "

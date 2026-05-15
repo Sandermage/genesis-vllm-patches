@@ -1173,7 +1173,7 @@ class OverridesPolicy:
           4. key in allow_env but no range → accept (string-only override)
         """
         if not self.allow_env:
-            return f"overrides not enabled (allow_env is empty)"
+            return "overrides not enabled (allow_env is empty)"
         if key not in self.allow_env:
             return (
                 f"override key {key!r} not in allow_env "

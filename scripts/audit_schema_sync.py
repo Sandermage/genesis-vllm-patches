@@ -48,7 +48,7 @@ def main() -> int:
         )
         return 0
 
-    print(f"✗ schemas differ:")
+    print("✗ schemas differ:")
     print(f"    canonical: {CANONICAL.relative_to(REPO_ROOT)} ({len(canonical_bytes)} bytes)")
     print(f"    mirror:    {MIRROR.relative_to(REPO_ROOT)} ({len(mirror_bytes)} bytes)")
     print()

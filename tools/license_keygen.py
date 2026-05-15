@@ -107,7 +107,7 @@ def cmd_generate_keypair(args: argparse.Namespace) -> int:
     print(f"✓ private key: {out_dir / 'private_key.pem'}")
     print(f"✓ public key:  {out_dir / 'public_key.b64url'}")
     print()
-    print(f"public_key (paste into vllm/sndr_core/license.py):")
+    print("public_key (paste into vllm/sndr_core/license.py):")
     print(f"  {public_b64url}")
     print()
     print("⚠ Keep private_key.pem OFFLINE. Never commit. Never push.")

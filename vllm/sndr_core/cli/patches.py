@@ -55,9 +55,8 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import sys
 from dataclasses import asdict
-from typing import Any, Iterable, Optional
+from typing import Any, Optional
 
 from . import _io
 
@@ -327,8 +326,8 @@ _PN95_STATUS_HINTS = (
     (
         lambda s: s["prefix_store_promote_hits"] > 0,
         "ok",
-        f'Prefix store is actively serving cache hits — multi-turn '
-        f'workloads are benefiting from CPU offload.',
+        'Prefix store is actively serving cache hits — multi-turn '
+        'workloads are benefiting from CPU offload.',
     ),
 )
 
@@ -1160,7 +1159,6 @@ def _run_prove(args: argparse.Namespace) -> int:
 def _run_prove_one(args: argparse.Namespace, out_dir) -> int:
     """`sndr patches prove <id>` — verify one patch + write artefact."""
     import json as _json
-    from vllm.sndr_core.cli import _io
     from vllm.sndr_core.proof import (
         build_proof_for_patch, write_proof_artefact,
     )
@@ -1203,9 +1201,9 @@ def _run_prove_one(args: argparse.Namespace, out_dir) -> int:
     if path:
         print(f"  artefact: {path}")
     elif args.no_write:
-        print(f"  (artefact write skipped — --no-write)")
+        print("  (artefact write skipped — --no-write)")
     else:
-        print(f"  (no artefact written — P-1 failed)")
+        print("  (no artefact written — P-1 failed)")
     print()
     if proof.static_passed:
         print(f"  ✓ static checks passed ({len(proof.static_checks)}/{len(proof.static_checks)})")
@@ -1525,7 +1523,7 @@ def _run_release_check(args: argparse.Namespace) -> int:
         print(f"  ✗ RELEASE BLOCKED — policy={pol['mode']!r}")
         return 1
     if pol["mode"] == "report":
-        print(f"  · report-only mode (no blocking)")
+        print("  · report-only mode (no blocking)")
     else:
         print(f"  ✓ release policy {pol['mode']!r} satisfied")
     return 0

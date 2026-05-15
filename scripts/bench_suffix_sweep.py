@@ -83,7 +83,6 @@ def generate_launch_script(min_token_prob: float, max_tree_depth: int) -> str:
     """Render launch script for given suffix config. Reuses a base
     template selected via env `$SUFFIX_SWEEP_BASE` (default:
     `$HOME/start_v742_full_8k_suffix.sh`); replaces speculative-config."""
-    import os
     _base_default = str(Path.home() / "start_v742_full_8k_suffix.sh")
     base = Path(os.environ.get("SUFFIX_SWEEP_BASE", _base_default)).read_text()
     # Replace speculative-config line
@@ -231,7 +230,6 @@ def main():
     for i, (p, d) in enumerate(grid):
         print(f"  [{i}] min_token_prob={p}  max_tree_depth={d}")
 
-    import os
     _profile_root = os.environ.get(
         "SNDR_PROFILE_DIR",
         str(Path.home() / "Genesis_Project" / "vllm_engine"),
@@ -261,7 +259,7 @@ def main():
             continue
         # Wait healthy
         if not wait_healthy(timeout_s=600):
-            print(f"  HEALTH TIMEOUT after 10min")
+            print("  HEALTH TIMEOUT after 10min")
             results.append({"min_token_prob": min_token_prob, "max_tree_depth": max_tree_depth, "error": "health_timeout"})
             continue
         boot_s = time.time() - t_boot_start
