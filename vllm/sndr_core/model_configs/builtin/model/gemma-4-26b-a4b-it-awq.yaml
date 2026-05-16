@@ -1,0 +1,96 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 model definition — Gemma 4 26B-A4B-it AWQ-4bit (cyankiwi) + MTP.
+# 128-expert MoE; sliding+global asymmetric KV-heads (sliding=8, full=2).
+# Genesis G4_NN family closes Marlin K-dim (K=352%64≠0) + asymmetric KV.
+#
+# Bench reference (projected — server validation pending):
+#   wall_TPS  ~120-160 (MoE active params A=4B; faster than 31B dense)
+#   TPOT_ms   ~6-8     (decode at batch=1)
+#   accept_rate ~0.78-0.85 (MTP assistant)
+#   context   256K (with G4_09 chunked prefill)
+
+schema_version: 2
+kind: model
+id: gemma-4-26b-a4b-it-awq
+title: Gemma 4 26B-A4B-it AWQ-4bit (cyankiwi) + MTP assistant
+maintainer: sandermage
+last_validated: '2026-05-17'
+license: gemma-license
+
+# ─── Identity ──────────────────────────────────────────────────────────
+model_path: /models/gemma-4-26B-A4B-it-AWQ-4bit          # cyankiwi/gemma-4-26B-A4B-it-AWQ-4bit checkpoint
+served_model_name: gemma-4-26b-a4b                       # OpenAI-API model name
+quantization: awq_marlin                                 # AWQ via Marlin kernel; G4_02 protects against K%64≠0 by default
+dtype: float16
+trust_remote_code: false
+chat_template: /tmp/genesis/chat_templates/gemma4.jinja  # installed by G4_11 at boot
+
+# ─── Capabilities ──────────────────────────────────────────────────────
+capabilities:
+  attention_arch: gemma4_moe                             # Gemma 4 MoE (128 experts, top_k=8, A=4B active)
+  tool_call_parser: gemma4
+  reasoning_parser: null
+  enable_auto_tool_choice: true
+  spec_decode:
+    method: mtp                                          # MTP via assistant drafter
+    num_speculative_tokens: 3
+    model: /models/gemma-4-26B-A4B-it-assistant          # google/gemma-4-26B-A4B-it-assistant
+  kv_cache_dtype: auto                                   # G4_18 makes this per-layer-type when enabled
+
+# ─── Hardware preconditions ────────────────────────────────────────────
+requires:
+  min_total_vram_mib: 24000                              # 26B-A4B AWQ ~12 GB weights + ~8 GB KV at 32K ctx
+  min_gpu_count: 1
+  min_cuda_capability: [8, 6]
+  rig_arch_blocklist: []
+
+versions:
+  genesis_pin_min: v12.0.0
+  vllm_pin_required: 0.20.2rc1.dev371+gbf610c2f5
+  reference_metrics_ref: tests/integration/baselines/gemma4_26b_a4b_awq_baseline.json
+
+# ─── Canonical patches matrix ──────────────────────────────────────────
+patches:
+  # ── Gemma 4 family guards (default-on safety) ──
+  GENESIS_ENABLE_G4_01_GEMMA4_FP8_BLOCK_GUARD: '1'
+  GENESIS_ENABLE_G4_03_GEMMA4_NON_CAUSAL_DRAFTER_GUARD: '1'
+  GENESIS_ENABLE_G4_12_GEMMA4_FP8_E4NV_GUARD: '1'
+
+  # ── G4_02 disabled because G4_08 supersedes it (Triton K-pad unblocks K=352) ──
+  GENESIS_ENABLE_G4_02_GEMMA4_MARLIN_KDIM_GUARD: '0'  # disabled — G4_08 handles K=352 instead
+
+  # ── G4_13 disabled because G4_18 supersedes it (per-layer KV instead of refusal) ──
+  GENESIS_ENABLE_G4_13_GEMMA4_PER_TOKEN_HEAD_KV_GUARD: '0'   # disabled — G4_18 handles asymmetric KV
+
+  # ── Gemma 4 family fixes (default-on) ──
+  GENESIS_ENABLE_G4_04_GEMMA4_AWQ_MOE_KEYS_REMAP: '1'      # vendors vllm#40886 (AWQ MoE keys for 26B-A4B)
+  GENESIS_ENABLE_G4_05_GEMMA4_DFLASH_BACKEND_AUTOSELECT: '1'
+  GENESIS_ENABLE_G4_09_GEMMA4_SWA_PREFILL_CHUNKER: '1'
+  GENESIS_ENABLE_G4_11_GEMMA4_CHAT_TEMPLATE_INSTALL: '1'
+  GENESIS_ENABLE_G4_14_GEMMA4_TOOL_CALL_PARSER_PAD: '1'
+  GENESIS_ENABLE_G4_16_GEMMA4_FULL_AND_PIECEWISE: '1'
+  GENESIS_ENABLE_G4_23_GEMMA4_VISION_FP16_OVERFLOW: '1'
+  GENESIS_ENABLE_G4_25_GEMMA4_RoPE_DUAL_BASE_GUARD: '1'
+
+  # ── Deep fixes (this model needs them!) ──
+  GENESIS_ENABLE_G4_08_MARLIN_KDIM_PAD: '1'                # Triton K-pad MoE GEMM — unblocks K=352 (704/2 at TP=2)
+  GENESIS_ENABLE_G4_18_GEMMA4_PER_LAYER_KV_PAGE_SIZE: '1'  # per-layer KV-head counts (sliding=8, full=2)
+
+  # ── Perf kernels (opt-in; bench-gate) ──
+  GENESIS_ENABLE_G4_15_GEMMA4_FUSED_RMSNORM: '0'           # +5-10% TPS (route Q/K/V + residual norms through Triton)
+  GENESIS_ENABLE_G4_24_GEMMA4_FUSED_SOFTCAP: '0'           # +3-5% TPS (fuse div+tanh+mul for softcap)
+  GENESIS_ENABLE_G4_06_GEMMA4_KV_PROJ_V0: '0'              # vendor #41944
+
+  # ── Vision tower (operator choice) ──
+  GENESIS_ENABLE_G4_17_GEMMA4_VISION_SKIP: '0'
+
+  # ── Cross-family ──
+  GENESIS_ENABLE_PN126_V1_DECODE_WARMUP: '1'
+  GENESIS_ENABLE_PN132_TOPK_TOPP_CONTIGUOUS: '1'
+
+# ─── Composition hints ─────────────────────────────────────────────────
+compose_hints:
+  family: gemma4
+  attention_arch: gemma4_moe
+  drafter_method: mtp
+  drafter_id: gemma4-26b-a4b-assistant

@@ -5695,5 +5695,104 @@ def apply_patch_1_2_fp8_dispatcher() -> PatchResult:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+#                       GEMMA 4 FAMILY (G4_NN — 2026-05-17)
+# ═══════════════════════════════════════════════════════════════════════════
+# 21 patches covering: refusal guards (G4_01/02/03/12/13), vendor backports
+# (G4_04/05/06/18), deep fixes (G4_07/08/09/10), perf kernels (G4_15/16/24),
+# compatibility (G4_11/14), vision-tower management (G4_17/23), and
+# diagnostic (G4_25).
+# Family location: vllm/sndr_core/integrations/gemma4/
+# See registry.py "G4_NN" entries for full per-patch metadata.
+
+
+def _g4_dispatch_factory(name: str, module_attr: str):
+    """Build a per-patch dispatch function for a Gemma 4 patch.
+
+    Factory eliminates 21 copies of the same boilerplate. Each generated
+    function:
+      1. Honors _APPLY_MODE (dry-run support)
+      2. Imports the wiring module from vllm.sndr_core.integrations.gemma4
+      3. Calls its apply() and maps (status, reason) → PatchResult
+    """
+    def _g4_dispatch():
+        if not _state._APPLY_MODE:
+            return _applied(name, "dry-run: gemma4 runtime hook ready")
+        try:
+            from vllm.sndr_core.integrations import gemma4 as _g4_pkg
+            wiring = getattr(_g4_pkg, module_attr, None)
+            if wiring is None:
+                # Lazy import — the module may not be loaded yet
+                import importlib
+                wiring = importlib.import_module(
+                    f"vllm.sndr_core.integrations.gemma4.{module_attr}"
+                )
+        except Exception as e:
+            return _failed(name, f"wiring import failed: {e}")
+        status, reason = wiring.apply()
+        if status == "applied":
+            return _applied(name, reason)
+        if status == "skipped":
+            return _skipped(name, reason)
+        return _failed(name, reason)
+    _g4_dispatch.__name__ = f"apply_patch_{module_attr}"
+    _g4_dispatch.__doc__ = f"Dispatch hook for {name}."
+    return _g4_dispatch
+
+
+# Register all 21 Gemma 4 patches in one block. Each entry is
+# (registry_id, dispatch_title, wiring_module_attr).
+_G4_PATCHES: tuple[tuple[str, str, str], ...] = (
+    ("G4_01", "G4_01 gemma4 Ampere FP8_BLOCK refusal guard",
+     "g4_01_gemma4_ampere_fp8_block_guard"),
+    ("G4_02", "G4_02 gemma4 Ampere Marlin K-dim refusal guard",
+     "g4_02_gemma4_ampere_marlin_kdim_guard"),
+    ("G4_03", "G4_03 gemma4 Ampere non-causal drafter refusal guard",
+     "g4_03_gemma4_ampere_non_causal_drafter_guard"),
+    ("G4_04", "G4_04 gemma4 AWQ MoE keys remap (vendor #40886)",
+     "g4_04_gemma4_awq_moe_keys_remap"),
+    ("G4_05", "G4_05 gemma4 DFlash drafter backend autoselect (vendor #42069)",
+     "g4_05_gemma4_dflash_backend_autoselect"),
+    ("G4_06", "G4_06 gemma4 v_head_size=0 for k_eq_v (vendor #41944)",
+     "g4_06_gemma4_kv_proj_v_head_size_zero"),
+    ("G4_07", "G4_07 gemma4 FP8_BLOCK double-scale fix (custom quant config)",
+     "g4_07_gemma4_fp8_block_double_scale_fix"),
+    ("G4_08", "G4_08 gemma4 Marlin K-pad Triton MoE fallback",
+     "g4_08_gemma4_marlin_kdim_pad_fallback"),
+    ("G4_09", "G4_09 gemma4 SWA→global prefill chunker (closes #39914)",
+     "g4_09_gemma4_swa_global_prefill_chunker"),
+    ("G4_10", "G4_10 gemma4 Ampere non-causal head_dim=256 Triton attn backend",
+     "g4_10_gemma4_ampere_non_causal_attn_backend"),
+    ("G4_11", "G4_11 gemma4 enhanced chat template install",
+     "g4_11_gemma4_chat_template_install"),
+    ("G4_12", "G4_12 gemma4 FP8 e4nv Ampere refusal guard (closes #41014)",
+     "g4_12_gemma4_fp8_e4nv_ampere_guard"),
+    ("G4_13", "G4_13 gemma4 per-token-head KV refusal guard (closes #40388)",
+     "g4_13_gemma4_per_token_head_kv_guard"),
+    ("G4_14", "G4_14 gemma4 tool-call-parser pad-token strip (closes #39392)",
+     "g4_14_gemma4_tool_call_parser_pad_token"),
+    ("G4_15", "G4_15 gemma4 fused RMSNorm Triton route (ported SGLang)",
+     "g4_15_gemma4_fused_rmsnorm_route"),
+    ("G4_16", "G4_16 gemma4 FULL_AND_PIECEWISE cudagraph_mode (parallel PN125)",
+     "g4_16_gemma4_full_piecewise_cudagraph"),
+    ("G4_17", "G4_17 gemma4 vision-tower text-only skip (closes #41565)",
+     "g4_17_gemma4_vision_tower_text_only_skip"),
+    ("G4_18", "G4_18 gemma4 per-layer KV page-size (vendor WIP #40391)",
+     "g4_18_gemma4_per_layer_kv_page_size"),
+    ("G4_23", "G4_23 gemma4 vision-tower FP16 overflow fix (closes #40124)",
+     "g4_23_gemma4_vision_fp16_overflow_fix"),
+    ("G4_24", "G4_24 gemma4 fused softcap Triton route (attention + final logits)",
+     "g4_24_gemma4_fused_softcap_route"),
+    ("G4_25", "G4_25 gemma4 dual-RoPE base-freq divergence guard",
+     "g4_25_gemma4_rope_dual_base_freq_guard"),
+)
+
+
+# Register each G4 patch through the factory
+for _g4_id, _g4_title, _g4_module in _G4_PATCHES:
+    register_patch(_g4_title)(_g4_dispatch_factory(_g4_title, _g4_module))
+del _g4_id, _g4_title, _g4_module  # don't pollute module namespace
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 #                             MAIN ORCHESTRATOR
 # ═══════════════════════════════════════════════════════════════════════════

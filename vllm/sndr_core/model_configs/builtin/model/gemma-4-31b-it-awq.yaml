@@ -1,0 +1,86 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 model definition — Gemma 4 31B AWQ-4bit (cyankiwi) + MTP assistant.
+# Dense architecture; MTP K=3 spec decode via google/gemma-4-31B-it-assistant.
+# Tested on 2× A5000 (SM 8.6) — uses Genesis G4_NN family patches.
+#
+# Per-line comment style:
+#   • WHAT the patch does / why this setting
+#   • default + valid values for non-binary settings
+#   • cross-reference to G4_NN patch when applicable
+#
+# Bench reference (projected — server validation pending):
+#   wall_TPS  ~80-100 (dense decode, MTP K=3)
+#   TPOT_ms   ~10-12  (decode at batch=1)
+#   accept_rate ~0.75-0.85 (MTP assistant causal, KV-shared)
+#   context   256K (with G4_09 chunked prefill)
+
+schema_version: 2
+kind: model
+id: gemma-4-31b-it-awq
+title: Gemma 4 31B-it AWQ-4bit (cyankiwi) + MTP assistant
+maintainer: sandermage
+last_validated: '2026-05-17'
+license: gemma-license
+
+# ─── Identity ──────────────────────────────────────────────────────────
+model_path: /models/gemma-4-31B-it-AWQ-4bit              # cyankiwi/gemma-4-31B-it-AWQ-4bit checkpoint
+served_model_name: gemma-4-31b                           # OpenAI-API model name
+quantization: awq_marlin                                 # AWQ via Marlin kernel (Ampere-supported)
+dtype: float16                                           # values: float16|bfloat16; FP16 for AWQ Marlin path (BF16 also works)
+trust_remote_code: false                                 # Gemma 4 is native vLLM model — no custom code
+chat_template: /tmp/genesis/chat_templates/gemma4.jinja  # installed by G4_11 at boot
+
+# ─── Capabilities — inherent to this model ─────────────────────────────
+capabilities:
+  attention_arch: gemma4_dense                           # Gemma 4 dense (interleaved sliding+global+p-RoPE)
+  tool_call_parser: gemma4                               # Gemma 4 tool-call parser (cleaned by G4_14 pad-strip)
+  reasoning_parser: null                                 # Gemma 4 doesn't use <think> tags by default
+  enable_auto_tool_choice: true                          # auto tool_choice on tool-mention prompts
+  spec_decode:
+    method: mtp                                          # MTP via assistant drafter (range: mtp|null on this model)
+    num_speculative_tokens: 3                            # K=3 (causal MTP; assistant shares KV with target)
+    model: /models/gemma-4-31B-it-assistant              # google/gemma-4-31B-it-assistant — MTP causal drafter
+  kv_cache_dtype: auto                                   # values: auto|fp8|fp16; auto stays in dtype for safety
+
+# ─── Hardware preconditions composer enforces ──────────────────────────
+requires:
+  min_total_vram_mib: 28000                              # 14 GB × 2 (AWQ 4-bit at TP=2; plus KV ~6 GB)
+  min_gpu_count: 1                                       # supports 1× (single A6000 48 GB) and 2× (A5000 24 GB each)
+  min_cuda_capability: [8, 6]                            # Ampere SM 8.6; G4_01 / G4_03 / G4_12 protect against unsupported combos
+  rig_arch_blocklist: []
+
+versions:
+  genesis_pin_min: v12.0.0                               # G4_NN family lands in v12
+  vllm_pin_required: 0.20.2rc1.dev371+gbf610c2f5         # current PROD baseline (Gemma 4 native model_executor support)
+  reference_metrics_ref: tests/integration/baselines/gemma4_31b_awq_baseline.json
+
+# ─── Canonical patches matrix ──────────────────────────────────────────
+patches:
+  # ── Gemma 4 family guards (refuse known-broken combos) ──
+  GENESIS_ENABLE_G4_01_GEMMA4_FP8_BLOCK_GUARD: '1'        # refuses FP8_BLOCK + Ampere (closes vllm#39407 user pain)
+  GENESIS_ENABLE_G4_03_GEMMA4_NON_CAUSAL_DRAFTER_GUARD: '1'  # refuses Eagle3/DFlash drafter on Ampere (closes #40382)
+  GENESIS_ENABLE_G4_12_GEMMA4_FP8_E4NV_GUARD: '1'         # refuses FP8 e4nv on Ampere (closes #41014)
+  # ── Gemma 4 family fixes (default-on stability) ──
+  GENESIS_ENABLE_G4_05_GEMMA4_DFLASH_BACKEND_AUTOSELECT: '1'  # vendors vllm#42069 (DFlash backend=None for drafter autoselect)
+  GENESIS_ENABLE_G4_09_GEMMA4_SWA_PREFILL_CHUNKER: '1'    # closes vllm#39914 engine hang at prefill > 4K
+  GENESIS_ENABLE_G4_11_GEMMA4_CHAT_TEMPLATE_INSTALL: '1'  # installs enhanced gemma4.jinja chat template
+  GENESIS_ENABLE_G4_14_GEMMA4_TOOL_CALL_PARSER_PAD: '1'   # strips <pad>/<eos> from tool-call JSON (closes #39392)
+  GENESIS_ENABLE_G4_16_GEMMA4_FULL_AND_PIECEWISE: '1'     # forces FULL_AND_PIECEWISE cudagraph (+10-30% TPS at low batch)
+  GENESIS_ENABLE_G4_23_GEMMA4_VISION_FP16_OVERFLOW: '1'   # vision tower → BF16 to avoid FP16 overflow (closes #40124)
+  GENESIS_ENABLE_G4_25_GEMMA4_RoPE_DUAL_BASE_GUARD: '1'   # diagnoses dual-RoPE config; warns on single-table collapse
+  # ── Gemma 4 family perf (opt-in; bench-gate before promoting) ──
+  GENESIS_ENABLE_G4_15_GEMMA4_FUSED_RMSNORM: '0'          # +5-10% TPS (route Q/K/V + residual norms through Triton)
+  GENESIS_ENABLE_G4_24_GEMMA4_FUSED_SOFTCAP: '0'          # +3-5% TPS (fuse div+tanh+mul for softcap)
+  GENESIS_ENABLE_G4_06_GEMMA4_KV_PROJ_V0: '0'             # vendor #41944 — ~3% memory savings on V slot
+  # ── Vision tower management (operator choice) ──
+  GENESIS_ENABLE_G4_17_GEMMA4_VISION_SKIP: '0'            # set + GENESIS_GEMMA4_TEXT_ONLY=1 to save ~2.3 GB VRAM
+  # ── Cross-family supporting patches (Genesis-wide quality) ──
+  GENESIS_ENABLE_PN119_TQ_GQA_GROUPING: '0'               # Gemma 4 doesn't use TQ — N/A
+  GENESIS_ENABLE_PN126_V1_DECODE_WARMUP: '1'              # V1 decode + spec-decode warmup at boot (TTFT CV drop)
+  GENESIS_ENABLE_PN132_TOPK_TOPP_CONTIGUOUS: '1'          # sampler stability (cross-model)
+
+# ─── Composition hints for the V1 ModelConfig compose() ────────────────
+compose_hints:
+  family: gemma4
+  drafter_method: mtp
+  drafter_id: gemma4-31b-assistant

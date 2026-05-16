@@ -1,0 +1,56 @@
+# SPDX-License-Identifier: Apache-2.0
+"""gemma4 family contract — 21-patch family (2026-05-17).
+
+Covers:
+  * Guards: G4_01 (FP8_BLOCK), G4_02 (Marlin K-dim), G4_03 (non-causal
+    drafter), G4_12 (FP8 e4nv), G4_13 (asymmetric KV)
+  * Vendor backports: G4_04 (AWQ MoE keys), G4_05 (DFlash backend),
+    G4_06 (v_head_size=0), G4_18 (per-layer KV WIP)
+  * Deep fixes: G4_07 (FP8 double-scale), G4_08 (Marlin K-pad MoE),
+    G4_09 (SWA prefill chunker), G4_10 (Ampere non-causal attn)
+  * Perf kernels: G4_15 (fused RMSNorm), G4_24 (fused softcap)
+  * Compatibility: G4_11 (chat template), G4_14 (tool-call parser),
+    G4_16 (FULL_AND_PIECEWISE)
+  * Vision: G4_17 (text-only skip), G4_23 (FP16 overflow)
+  * Diagnostic: G4_25 (dual-RoPE)
+"""
+from tests.unit.integrations._family_contract_helpers import (
+    make_family_contract_class,
+    make_family_registry_class,
+)
+
+PATCHES = [
+    ("vllm.sndr_core.integrations.gemma4.g4_01_gemma4_ampere_fp8_block_guard", "G4_01"),
+    ("vllm.sndr_core.integrations.gemma4.g4_02_gemma4_ampere_marlin_kdim_guard", "G4_02"),
+    ("vllm.sndr_core.integrations.gemma4.g4_03_gemma4_ampere_non_causal_drafter_guard", "G4_03"),
+    ("vllm.sndr_core.integrations.gemma4.g4_04_gemma4_awq_moe_keys_remap", "G4_04"),
+    ("vllm.sndr_core.integrations.gemma4.g4_05_gemma4_dflash_backend_autoselect", "G4_05"),
+    ("vllm.sndr_core.integrations.gemma4.g4_06_gemma4_kv_proj_v_head_size_zero", "G4_06"),
+    ("vllm.sndr_core.integrations.gemma4.g4_07_gemma4_fp8_block_double_scale_fix", "G4_07"),
+    ("vllm.sndr_core.integrations.gemma4.g4_08_gemma4_marlin_kdim_pad_fallback", "G4_08"),
+    ("vllm.sndr_core.integrations.gemma4.g4_09_gemma4_swa_global_prefill_chunker", "G4_09"),
+    ("vllm.sndr_core.integrations.gemma4.g4_10_gemma4_ampere_non_causal_attn_backend", "G4_10"),
+    ("vllm.sndr_core.integrations.gemma4.g4_11_gemma4_chat_template_install", "G4_11"),
+    ("vllm.sndr_core.integrations.gemma4.g4_12_gemma4_fp8_e4nv_ampere_guard", "G4_12"),
+    ("vllm.sndr_core.integrations.gemma4.g4_13_gemma4_per_token_head_kv_guard", "G4_13"),
+    ("vllm.sndr_core.integrations.gemma4.g4_14_gemma4_tool_call_parser_pad_token", "G4_14"),
+    ("vllm.sndr_core.integrations.gemma4.g4_15_gemma4_fused_rmsnorm_route", "G4_15"),
+    ("vllm.sndr_core.integrations.gemma4.g4_16_gemma4_full_piecewise_cudagraph", "G4_16"),
+    ("vllm.sndr_core.integrations.gemma4.g4_17_gemma4_vision_tower_text_only_skip", "G4_17"),
+    ("vllm.sndr_core.integrations.gemma4.g4_18_gemma4_per_layer_kv_page_size", "G4_18"),
+    ("vllm.sndr_core.integrations.gemma4.g4_23_gemma4_vision_fp16_overflow_fix", "G4_23"),
+    ("vllm.sndr_core.integrations.gemma4.g4_24_gemma4_fused_softcap_route", "G4_24"),
+    ("vllm.sndr_core.integrations.gemma4.g4_25_gemma4_rope_dual_base_freq_guard", "G4_25"),
+]
+
+
+class TestGemma4PatchContract(
+    make_family_contract_class("gemma4", PATCHES)
+):
+    pass
+
+
+class TestGemma4FamilyRegistry(
+    make_family_registry_class("gemma4", PATCHES)
+):
+    pass
