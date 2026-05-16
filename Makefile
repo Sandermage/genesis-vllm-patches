@@ -160,10 +160,14 @@ audit-patches-prove-all: ## §6.8 release gate: run static checks on every PATCH
 audit-proof-status: ## §6.8 read-side: bucket summary of every patch's proof-artefact state (informational)
 	@$(PYTHON) -m vllm.sndr_core.cli patches proof-status
 
-audit-release-check: ## §6.8 release-gate consumer (gating: require-static; release strictens to require-baseline)
+audit-release-check: ## §6.8 release-gate consumer — every patch must have a static proof (gating in make evidence --release)
 	@$(PYTHON) -m vllm.sndr_core.cli patches release-check --mode require-static
 
-audit-release-check-strict: ## §6.8 strict release gate — every patch must have a bench-with-baseline proof
+audit-release-check-baseline-optional: ## §6.8 optional ratchet — every patch must carry a bench_with_baseline proof
+	# Informational by design: 0/169 entries have bench_with_baseline today,
+	# wiring this into make evidence --release as gating would block every
+	# release until operators run the full bench suite + ingest per patch.
+	# Operators who want the strict gate run this target directly.
 	@$(PYTHON) -m vllm.sndr_core.cli patches release-check --mode require-baseline
 
 audit-model-baselines: ## Phase 7 supplement: every V2 model's reference_metrics_ref must point at an existing JSON file

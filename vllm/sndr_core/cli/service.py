@@ -290,14 +290,36 @@ def run_status(args: argparse.Namespace) -> int:
     cfg = _resolve(args.config)
     if cfg is None:
         return 2
-    if cfg.service.backend == "systemd":
+    backend = cfg.service.backend
+    if backend == "systemd":
         return _systemctl("status", f"sndr-{cfg.key}.service",
                            system=args.system, dry_run=False)
-    if cfg.service.backend in ("docker_compose", "podman_quadlet"):
+    if backend == "docker_compose":
+        # Compose-level ps so the operator sees service-defined state
+        # (replicas, healthchecks). Fall back to docker ps when the
+        # compose file is absent.
+        compose_file = _compose_file_path(cfg)
+        if compose_file.is_file():
+            return _docker_cmd("compose", "-f", str(compose_file), "ps",
+                               dry_run=False)
         container = cfg.docker.container_name if cfg.docker else f"sndr-{cfg.key}"
         return _docker_cmd("ps", "-a", "--filter", f"name={container}",
                             dry_run=False)
-    _io.info(f"backend={cfg.service.backend} — status not implemented")
+    if backend == "podman_quadlet":
+        # Quadlet generates systemd units, so status goes through
+        # systemctl, not docker — docker isn't even installed in many
+        # quadlet deployments.
+        return _systemctl("status", f"sndr-{cfg.key}.service",
+                           system=args.system, dry_run=False)
+    if backend == "kubernetes":
+        _io.warn("backend=kubernetes — `sndr k8s render` is the supported "
+                 "path; service-level status not wired yet (preview).")
+        return 0
+    if backend == "proxmox":
+        _io.warn("backend=proxmox — render via `sndr proxmox render <preset>`; "
+                 "service-level status not wired (preview).")
+        return 0
+    _io.info(f"backend={backend} — status not implemented")
     return 0
 
 
@@ -305,7 +327,8 @@ def run_logs(args: argparse.Namespace) -> int:
     cfg = _resolve(args.config)
     if cfg is None:
         return 2
-    if cfg.service.backend == "systemd":
+    backend = cfg.service.backend
+    if backend == "systemd":
         cmd = ["journalctl", "--user-unit" if not args.system else "--unit",
                f"sndr-{cfg.key}.service", "-n", str(args.lines), "--no-pager"]
         if shutil.which("journalctl") is None:
@@ -313,11 +336,36 @@ def run_logs(args: argparse.Namespace) -> int:
             return 1
         r = subprocess.run(cmd, timeout=10)
         return r.returncode
-    if cfg.service.backend in ("docker_compose", "podman_quadlet"):
+    if backend == "docker_compose":
+        compose_file = _compose_file_path(cfg)
+        if compose_file.is_file():
+            return _docker_cmd(
+                "compose", "-f", str(compose_file), "logs",
+                "--tail", str(args.lines),
+                dry_run=False,
+            )
         container = cfg.docker.container_name if cfg.docker else f"sndr-{cfg.key}"
         return _docker_cmd("logs", "--tail", str(args.lines), container,
                             dry_run=False)
-    _io.info(f"backend={cfg.service.backend} — logs not implemented")
+    if backend == "podman_quadlet":
+        # journalctl streams the quadlet-managed unit output; docker
+        # would not see it because podman runs the workload.
+        cmd = ["journalctl", "--user-unit" if not args.system else "--unit",
+               f"sndr-{cfg.key}.service", "-n", str(args.lines), "--no-pager"]
+        if shutil.which("journalctl") is None:
+            _io.error("journalctl not on PATH")
+            return 1
+        r = subprocess.run(cmd, timeout=10)
+        return r.returncode
+    if backend == "kubernetes":
+        _io.warn("backend=kubernetes — use `kubectl logs` against the "
+                 "rendered Deployment for now (preview).")
+        return 0
+    if backend == "proxmox":
+        _io.warn("backend=proxmox — logs not wired at service layer; "
+                 "exec into the LXC/VM and inspect manually (preview).")
+        return 0
+    _io.info(f"backend={backend} — logs not implemented")
     return 0
 
 

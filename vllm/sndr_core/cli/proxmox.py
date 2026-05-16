@@ -176,9 +176,18 @@ def run_render(args: argparse.Namespace) -> int:
             f"proxmox.mode field."
         )
         return 2
+    # All Proxmox modes (lxc / vm / host) emit operator-runnable command
+    # *guides*, not auto-executed deployments. Storage class, network
+    # bridge, GPU PCI ID, and (in vm mode) the disk image are
+    # operator-specific and the renderer leaves them as placeholders.
+    # Banner explicitly states "preview / manual-guide" so the operator
+    # knows the output is not turn-key.
     print(f"# sndr proxmox render — preset {cfg.key!r}")
     print(f"# mode={p.mode} runtime={p.runtime}")
-    print("# Generated commands — REVIEW before executing.")
+    print("# STATUS: preview / manual-guide — the lines below are operator")
+    print("#         command templates with site-specific placeholders")
+    print("#         (storage class, network bridge, GPU PCI ID, etc).")
+    print("#         REVIEW + customise every line before executing.")
     print()
 
     if p.mode == "lxc":

@@ -38,7 +38,12 @@ set -euo pipefail
 # ─── Config (overridable via env or flags) ────────────────────────────
 
 GENESIS_REPO="${GENESIS_REPO:-https://github.com/Sandermage/genesis-vllm-patches.git}"
-GENESIS_HOME="${GENESIS_HOME:-${HOME}/.genesis}"
+# Primary path: ~/.sndr (new canonical home, post-rebrand). Legacy alias
+# GENESIS_HOME still honored for back-compat with v7.x operators — if
+# the operator already has $GENESIS_HOME set, prefer it; otherwise use
+# $SNDR_HOME (new) and fall back to ~/.sndr.
+SNDR_HOME="${SNDR_HOME:-${HOME}/.sndr}"
+GENESIS_HOME="${GENESIS_HOME:-${SNDR_HOME}}"
 GENESIS_PIN="${GENESIS_PIN:-stable}"     # 'stable' (latest tag) | 'dev' | <commit-or-tag>
 GENESIS_WORKLOAD="${GENESIS_WORKLOAD:-}" # one of: long_context, high_throughput, tool_agent, balanced
 GENESIS_NON_INTERACTIVE="${GENESIS_NON_INTERACTIVE:-0}"
@@ -48,7 +53,16 @@ GENESIS_BARE_METAL="${GENESIS_BARE_METAL:-0}"      # 1 = skip Docker hints, poin
 GENESIS_UNINSTALL=0
 
 PYTHON_BIN="${PYTHON_BIN:-python3}"
-PIP_INSTALL_FLAGS="${PIP_INSTALL_FLAGS:---user}"  # safer default than system-wide
+# Pip flag overrides — accept both new SNDR_PIP_FLAGS and legacy
+# PIP_INSTALL_FLAGS env vars. New name takes priority if set.
+SNDR_PIP_FLAGS="${SNDR_PIP_FLAGS:-}"
+# If SNDR_PIP_FLAGS is set, it wins; otherwise fall back to legacy
+# PIP_INSTALL_FLAGS or the default `--user` (safer than system-wide).
+if [ -n "${SNDR_PIP_FLAGS}" ]; then
+    PIP_INSTALL_FLAGS="${SNDR_PIP_FLAGS}"
+else
+    PIP_INSTALL_FLAGS="${PIP_INSTALL_FLAGS:---user}"
+fi
 
 # ─── Output helpers (rustup/uv-style) ─────────────────────────────────
 
