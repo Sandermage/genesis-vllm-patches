@@ -54,11 +54,15 @@ SCAN_GLOBS: tuple[str, ...] = (
 
 # Exempt specific files that are operator-host-specific by design.
 # Adding to this list requires the file to explicitly document WHY in
-# its header comment block. Example: `compose/docker-compose.test-v11.yml`
-# is a remote-host test deployment file; paths reflect the test rig.
-EXEMPT_FILES: frozenset[str] = frozenset({
-    "compose/docker-compose.test-v11.yml",
-})
+# its header comment block.
+#
+# Public compose templates under `compose/` are now generated from V2
+# presets via `sndr compose render <alias>` and use portable
+# `/REPLACE_ME/*` placeholders — no per-file exemption needed.
+# Operator-host-specific composes (the previous E26 entry
+# `docker-compose.test-v11.yml`) moved to the private maintainer tree
+# `sndr_private/compose/` in the 2026-05-16 privacy consolidation.
+EXEMPT_FILES: frozenset[str] = frozenset()
 
 
 # ─── Detection rules ──────────────────────────────────────────────────
