@@ -322,7 +322,10 @@ def resolve_patch_plan(
                 note=note, bench_evidence=bench,
             ))
 
-    warnings = _detect_conflict_warnings(included)
+    warnings = (
+        _detect_candidate_when_warnings(included, attribution, cfg)
+        + _detect_conflict_warnings(included)
+    )
 
     return PatchPlan(
         policy=policy,
@@ -331,6 +334,151 @@ def resolve_patch_plan(
         warnings=warnings,
         passthrough=passthrough,
     )
+
+
+# ─── candidate_when predicate evaluator ──────────────────────────────────
+
+
+# Supported predicate suffixes — pure operator-facing ergonomics on top
+# of a flat ``{key: expected}`` map. Suffix selects the comparison
+# operator; suffix-less keys default to list-membership when expected
+# is list, else equality.
+_PREDICATE_SUFFIXES: tuple[str, ...] = ("_gte", "_lte", "_eq")
+
+
+# Map from predicate base name (with suffix stripped) to a callable that
+# extracts the comparable value from ``cfg``. Operator-authored
+# candidate_when keys are intentionally limited to fields a deployment
+# operator can reason about — model_class / cuda_capability stay on
+# registry.applies_to (which the runtime dispatcher consults), not here.
+def _cfg_value_for_predicate(cfg, base_key: str):
+    if base_key == "max_num_seqs":
+        return getattr(cfg, "max_num_seqs", None)
+    if base_key == "max_model_len":
+        return getattr(cfg, "max_model_len", None)
+    if base_key == "n_gpus":
+        hw = getattr(cfg, "hardware", None)
+        return getattr(hw, "n_gpus", None) if hw is not None else None
+    if base_key == "tool_call_parser":
+        return getattr(cfg, "tool_call_parser", None)
+    if base_key == "reasoning_parser":
+        return getattr(cfg, "reasoning_parser", None)
+    if base_key == "kv_cache_dtype":
+        return getattr(cfg, "kv_cache_dtype", None)
+    if base_key == "quantization":
+        return getattr(cfg, "quantization", None)
+    if base_key == "dtype":
+        return getattr(cfg, "dtype", None)
+    return _UNKNOWN_KEY
+
+
+_UNKNOWN_KEY = object()
+# Sentinel — distinguishes "key unknown to resolver" from "key known but
+# value is None". The unknown case produces a forward-compat warning
+# but the resolver doesn't fail closed (operators may author new
+# predicate names that the resolver hasn't been updated to recognise).
+
+
+def _evaluate_candidate_when(
+    cw: dict,
+    cfg,
+) -> tuple[bool, str]:
+    """Return ``(matches, mismatch_reason)`` for a candidate_when dict.
+
+    Conjunctive: every key in cw must satisfy its predicate. Empty /
+    None cw matches everything. The mismatch_reason names the FIRST
+    failing predicate so the warning is concrete; if multiple fail
+    only the first surfaces (cheap, deterministic).
+
+    Unknown predicate keys are surfaced as ``KEY=<unknown>`` and the
+    resolver treats them as a mismatch — the warning surfaces them
+    so operators see the typo / forward-compat gap; behaviour stays
+    safe (warning, never silently include).
+    """
+    if not cw:
+        return True, ""
+    for key, expected in cw.items():
+        base = key
+        op = "list_or_eq"
+        for suffix in _PREDICATE_SUFFIXES:
+            if key.endswith(suffix):
+                base = key[: -len(suffix)]
+                op = suffix[1:]  # "gte" / "lte" / "eq"
+                break
+
+        actual = _cfg_value_for_predicate(cfg, base)
+        if actual is _UNKNOWN_KEY:
+            return False, (
+                f"unknown predicate key {key!r} (resolver doesn't know "
+                f"how to evaluate it against the current cfg)"
+            )
+
+        ok: bool
+        if op == "gte":
+            ok = actual is not None and actual >= expected
+        elif op == "lte":
+            ok = actual is not None and actual <= expected
+        elif op == "eq":
+            ok = actual == expected
+        else:
+            # list_or_eq: bare key with list-valued expected → membership;
+            # bare key with scalar expected → equality (rare but supported
+            # for symmetry with applies_to-style predicates).
+            if isinstance(expected, list):
+                ok = actual in expected
+            else:
+                ok = actual == expected
+        if not ok:
+            return False, (
+                f"{key}={actual!r} doesn't satisfy candidate_when "
+                f"(wanted {expected!r})"
+            )
+    return True, ""
+
+
+def _detect_candidate_when_warnings(
+    included: list[PatchDecision],
+    attribution: dict[str, "PatchAttribution"],
+    cfg,
+) -> tuple[str, ...]:
+    """For every included decision with an attribution carrying
+    ``candidate_when``, evaluate the predicate against cfg and append
+    one warning per mismatch.
+
+    Warnings are advisory — they do NOT move the patch to excluded.
+    Rationale (intentional design):
+
+      * candidate_when is operator-authored hint metadata. Filtering
+        on it could surprise an operator who knows the patch helps
+        despite the predicate (e.g. a defensive fix that doesn't need
+        the conditions it was originally measured under).
+      * Future iteration may add a ``mode: filter`` field to escalate
+        to exclusion. Phase D ships warning-only so the rollout is
+        observable before any exclusion behaviour ships.
+    """
+    if not attribution:
+        return ()
+    warnings: list[str] = []
+    for d in included:
+        attr = attribution.get(d.patch_id)
+        if attr is None:
+            # Decision's primary patch_id may be the A-19 alphabetical
+            # first; attribution might sit on a family sibling.
+            family = _patch_family_for_env_flag(d.env_flag)
+            for pid in family:
+                if pid in attribution:
+                    attr = attribution[pid]
+                    break
+        if attr is None or not attr.candidate_when:
+            continue
+        matches, reason = _evaluate_candidate_when(attr.candidate_when, cfg)
+        if not matches:
+            warnings.append(
+                f"candidate_when: {d.patch_id} ({d.env_flag}) — {reason}. "
+                f"Patch stays included under policy={d.reason.split(' ')[1]} "
+                f"but may be a no-op at runtime."
+            )
+    return tuple(warnings)
 
 
 def _detect_conflict_warnings(

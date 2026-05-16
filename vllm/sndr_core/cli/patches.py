@@ -625,8 +625,29 @@ def _run_plan(opts: argparse.Namespace) -> int:
     # Phase B (2026-05-16): optional patch_plan resolver layer.
     # Decoupled from the dispatcher simulator above — operators can
     # request both views in one JSON payload by passing --policy.
+    #
+    # Phase D refinement (2026-05-16): even when --policy is NOT
+    # passed, we still run the resolver under compat just to collect
+    # advisory warnings (conflicts_with + candidate_when). These are
+    # surfaced as `resolver_warnings` in JSON output and as a
+    # standalone "⚠ advisory" block in human output, so legacy
+    # operators see misconfigurations they'd otherwise miss.
     resolver_payload = None
+    advisory_warnings: tuple[str, ...] = ()
     policy = getattr(opts, "policy", None)
+
+    if policy is None:
+        try:
+            from vllm.sndr_core.model_configs.patch_plan import (
+                resolve_patch_plan,
+            )
+            advisory_plan = resolve_patch_plan(cfg, policy="compat")
+            advisory_warnings = advisory_plan.warnings
+        except Exception:
+            # Resolver failure must not break the simulator output —
+            # advisory layer is best-effort.
+            advisory_warnings = ()
+
     if policy is not None:
         from vllm.sndr_core.model_configs.patch_plan import (
             resolve_patch_plan,
@@ -675,6 +696,8 @@ def _run_plan(opts: argparse.Namespace) -> int:
         }
         if resolver_payload is not None:
             out["resolver"] = resolver_payload
+        if advisory_warnings:
+            out["resolver_warnings"] = list(advisory_warnings)
         print(json.dumps(out, indent=2, default=str))
         return 2 if profile_violations else 0
 
@@ -757,6 +780,20 @@ def _run_plan(opts: argparse.Namespace) -> int:
             _io.warn(f"  ⚠ {len(resolver_payload['warnings'])} warning(s):")
             for w in resolver_payload["warnings"]:
                 _io.warn(f"    {w}")
+    # Phase D refinement — surface resolver advisory warnings even
+    # when --policy is NOT set, so legacy operators see conflict /
+    # candidate_when mismatches they'd otherwise miss.
+    if resolver_payload is None and advisory_warnings:
+        _io.info("")
+        _io.warn(
+            f"  ⚠ {len(advisory_warnings)} advisory warning(s) from "
+            "patch_plan resolver:"
+        )
+        for w in advisory_warnings:
+            _io.warn(f"    {w}")
+        _io.info(
+            "  (pass `--policy compat --explain` for the full resolver view)"
+        )
     return 0
 
 
