@@ -9,6 +9,11 @@ install, run, inspect, configure, report.
 > document tracks the same content with extra context, examples, and
 > a stability badge per subcommand.
 
+**Looking for a one-page cheatsheet instead?** See
+[`COMMANDS.md`](COMMANDS.md) — same commands grouped by "first day
+on rig → weekly maintenance → deep diagnostic" rather than by
+subcommand alphabetical order.
+
 ## Conventions
 
 | Badge | Meaning |

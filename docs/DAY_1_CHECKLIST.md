@@ -30,13 +30,17 @@ versions, NCCL availability, plugin registration, applied patch manifest.
 **Pass signal:** all 6 sections green; "0 issues found" at the end.
 
 **Common fail patterns:**
-- `vllm version mismatch (got X, expected 0.20.2rc1.dev9+g01d4d1ad3)` —
-  re-run installer with `--pin <pin>` to align, OR pin via
-  `pip install vllm==<your-current-pin>` and accept the drift warning
-- `NCCL P2P_DISABLE recommended on consumer Ampere` — set
-  `NCCL_P2P_DISABLE=1` in your launch env (already in builtin configs)
 
-Time: ~5 sec. Doc: [docs/COMMANDS.md#genesis-doctor](COMMANDS.md#genesis-doctor)
+- `vllm version mismatch (got X, expected 0.20.2rc1.dev371+gbf610c2f5)` —
+  re-run installer with `--pin <pin>` to align, OR pin via
+  `pip install vllm==<your-current-pin>` and accept the drift warning.
+  The current Genesis pin is documented in [`INSTALL.md`](INSTALL.md)
+  and the `vllm_pin_required` field of every builtin config.
+- `NCCL P2P_DISABLE recommended on consumer Ampere` — set
+  `NCCL_P2P_DISABLE=1` in your launch env (already in builtin configs).
+
+Time: ~5 sec. Doc: [`COMMANDS.md` → `sndr doctor`](COMMANDS.md) and
+[`CLI_REFERENCE.md`](CLI_REFERENCE.md) for the full surface.
 
 ## 2. ✅ Run smoke test — `sndr verify --quick`
 
@@ -66,14 +70,21 @@ sndr model-config list
 
 Or equivalently: `sndr config list`.
 
-Shows the 8 builtin configs (a5000-2x-35b-prod, a5000-2x-27b-int4-tq-k8v4,
-etc.) with their reference TPS, tool quality, and tier (stable/tested).
+Shows the 12 builtin configs (`a5000-2x-35b-prod`,
+`a5000-2x-27b-int4-tq-k8v4`, etc.) plus the V2 presets
+(`prod-35b`, `prod-27b-tq`, `long-ctx-27b`, ...) with their reference
+TPS, tool quality, and tier (stable / community-test / experimental /
+retired). The auto-generated full table is in
+[`CONFIGS_AUTO.md`](CONFIGS_AUTO.md).
 
 **Pick the right config for your hardware:**
-- 2× A5000 (24 GiB each) → `a5000-2x-35b-prod` (flagship, 196 TPS)
-- 2× 3090 / 4090 → see [HARDWARE.md → cross-rig configs](HARDWARE.md#cross-rig-configs)
+
+- 2× A5000 (24 GiB each) → `a5000-2x-35b-prod` or the V2 alias
+  `prod-35b` (current flagship, ~216 TPS sustained on Wave 10)
+- 2× 3090 / 4090 → see [`HARDWARE.md`](HARDWARE.md)
 - 1× A5000 / 3090 → `a5000-1x-27b-int4-tested`
-- Long-context (128K+) → `a5000-2x-27b-int4-long-ctx`
+- Long-context (128K+) → `a5000-2x-27b-int4-long-ctx` or
+  V2 alias `long-ctx-27b`
 
 Doc: [docs/MODELS.md](MODELS.md) for choosing the right model;
 [docs/MODEL_CONFIG_LAUNCHER.md](MODEL_CONFIG_LAUNCHER.md) for the config

@@ -4,6 +4,16 @@ Genesis supports third-party patches without forking the core repo.
 Ship your patch as an installable Python package with a single
 entry-point declaration; Genesis auto-discovers + registers it at boot.
 
+> **Two community paths exist — pick the one that fits your release model:**
+>
+> - **This doc (`PLUGINS.md`)**: ship as a separate **pip-installable
+>   package** with a `vllm_genesis_patches` entry-point. Best for
+>   patches you want to version independently of Genesis.
+> - [**`COMMUNITY_PATCHES.md`**](COMMUNITY_PATCHES.md): ship as an
+>   **in-repo plugin** under `plugins/community/<author>/<patch-id>/`
+>   with a `manifest.yaml`. Best for patches the operator wants
+>   bundled into the Genesis release.
+>
 > **Reference example:** see [`tools/examples/genesis-plugin-hello-world/`](../tools/examples/genesis-plugin-hello-world/) for a working scaffold you can copy. The example is tested in CI (`tests/compat/test_plugin_example.py`); if the contract drifts, those tests catch it before the docs become misleading.
 
 ## Quick start

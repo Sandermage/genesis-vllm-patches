@@ -167,7 +167,7 @@ reference_metrics:
   vram_used_mib_per_gpu: [22000, 22000]
   vram_total_mib: 44000
   genesis_pin: 'abc1234'
-  vllm_pin: '0.20.2rc1.dev9+g01d4d1ad3'
+  vllm_pin: '0.20.2rc1.dev371+gbf610c2f5'
 ```
 
 ### 7. Verify against reference — `verify`

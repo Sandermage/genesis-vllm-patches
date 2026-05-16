@@ -133,8 +133,8 @@ GPTQ INT4 моделей часто peak = `weights × 1.5x`.
 ```bash
 # Pin к известно-рабочему digest:
 docker pull vllm/vllm-openai:nightly@sha256:<KNOWN_GOOD_DIGEST>
-# Или откат на предыдущий tag:
-docker pull vllm/vllm-openai:0.20.2rc1.dev9
+# Или откат на текущий Genesis pin (Wave 10, 2026-05-16):
+docker pull vllm/vllm-openai:0.20.2rc1.dev371
 ```
 
 **Fix**:

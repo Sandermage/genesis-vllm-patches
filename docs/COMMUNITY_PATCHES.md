@@ -1,7 +1,12 @@
-# Community patches — operator + contributor guide
+# Community patches — in-repo SDK guide
 
 **Status:** Phase 5 draft (`sndr community` SDK shipped, validator rules
 R-1..R-7 enforced). Phase 7 finalizes documentation.
+
+> Genesis offers two community-patch paths — this doc covers the
+> **in-repo SDK** path. If you would rather ship your patch as a
+> **separate pip-installable package** (versioned independently),
+> see [`PLUGINS.md`](PLUGINS.md).
 
 The community SDK lets outside contributors author patches as
 self-contained plugins under `plugins/community/<author>/<patch-id>/`.

@@ -1,12 +1,23 @@
-# Genesis vLLM Patches — command reference
+# Genesis vLLM Patches — command cheatsheet
 
 > Single-page command cheatsheet for Genesis. Every command shown here ships
 > in the repo on the listed pin. If you copy-paste this into a runbook, also
-> grab `docs/CONFIGURATION.md` for the env-flag matrix.
+> grab [`CONFIGURATION.md`](CONFIGURATION.md) for the env-flag matrix.
 
-The README intentionally keeps only the highest-leverage three or four commands
-in the body — this file is the long-form catalogue. Sections are roughly
-ordered by "first day on a new rig" → "weekly maintenance" → "deep
+**Companion docs:**
+
+- [`CLI_REFERENCE.md`](CLI_REFERENCE.md) — full structured reference for
+  every `sndr` subcommand with stability badges, examples, and exit codes.
+  Use that doc when you need to look up a specific flag; use this one when
+  you want a printable cheatsheet ordered by operator workflow.
+- [`CONFIGURATION.md`](CONFIGURATION.md) — every Genesis env var (defaults,
+  ranges, which patch reads it).
+- [`DAY_1_CHECKLIST.md`](DAY_1_CHECKLIST.md) — first-30-minutes acceptance
+  walkthrough that uses commands from this page.
+
+The top-level README intentionally keeps only the highest-leverage three or
+four commands in the body — this file is the long-form catalogue. Sections
+are ordered by "first day on a new rig" → "weekly maintenance" → "deep
 diagnostic".
 
 ---
