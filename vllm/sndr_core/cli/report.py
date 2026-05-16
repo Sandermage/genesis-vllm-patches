@@ -231,8 +231,14 @@ _SCOPE_ARTIFACTS: dict[str, set[str]] = {
     # C19 (UNIFIED_CONFIG plan 2026-05-09): scope filter for bundle.
     # Operators sharing a bundle for ONE topic (e.g. dependency
     # planning, launch debugging) don't need ALL 9 artifacts.
+    #
+    # Phase D extension (2026-05-16): patch_plan.json — patch_plan
+    # resolver snapshot for compat / safe / minimal under the given
+    # --preset. Lets the reviewer see exactly which toggles each
+    # policy would have produced without re-running the resolver.
     "all": {
-        "doctor.json", "patches.json", "launch_dryrun.sh", "vllm_boot.log",
+        "doctor.json", "patches.json", "patch_plan.json",
+        "launch_dryrun.sh", "vllm_boot.log",
         "host_yaml.txt", "nvidia_smi.txt", "pip_freeze.txt",
         "git_log.txt", "image_inspect.json",
     },
@@ -242,14 +248,14 @@ _SCOPE_ARTIFACTS: dict[str, set[str]] = {
     },
     "launch": {  # for boot/launch issues
         "doctor.json", "launch_dryrun.sh", "vllm_boot.log",
-        "host_yaml.txt", "image_inspect.json",
+        "host_yaml.txt", "image_inspect.json", "patch_plan.json",
     },
     "quality": {  # for tool-call / model quality regressions
-        "doctor.json", "patches.json", "launch_dryrun.sh",
-        "vllm_boot.log", "git_log.txt",
+        "doctor.json", "patches.json", "patch_plan.json",
+        "launch_dryrun.sh", "vllm_boot.log", "git_log.txt",
     },
     "patches": {  # for patch apply / drift questions
-        "doctor.json", "patches.json", "git_log.txt",
+        "doctor.json", "patches.json", "patch_plan.json", "git_log.txt",
     },
 }
 
@@ -284,7 +290,56 @@ def _collect_all(
         full["git_log.txt"] = _collect_git_log()
     if "image_inspect.json" in selected:
         full["image_inspect.json"] = _collect_image_inspect(container)
+    if "patch_plan.json" in selected:
+        pp = _collect_patch_plan(preset)
+        if pp is not None:
+            full["patch_plan.json"] = pp
     return full
+
+
+def _collect_patch_plan(preset: str | None) -> dict[str, Any] | None:
+    """Phase D — capture patch_plan resolver output for the preset.
+
+    Runs the resolver for compat / safe / minimal in parallel and
+    summarises included / excluded / passthrough counts plus the
+    full env map per policy. Returns None when no --preset was
+    supplied (no anchor for the resolver). Returns an error marker
+    dict when the preset can't be resolved — failure-to-collect is
+    not a bundle blocker (the rest of the artifacts still ship).
+    """
+    if not preset:
+        return None
+    try:
+        from vllm.sndr_core.cli.memory import _resolve_preset_v1_or_v2
+        from vllm.sndr_core.model_configs.patch_plan import resolve_patch_plan
+    except Exception as e:
+        return {"preset": preset, "error": f"import failed: {e}"}
+
+    try:
+        cfg = _resolve_preset_v1_or_v2(preset)
+    except Exception as e:
+        return {
+            "preset": preset,
+            "error": f"preset resolution failed: {type(e).__name__}: {e}",
+        }
+
+    out: dict[str, Any] = {"preset": preset, "plans": {}}
+    for policy in ("compat", "safe", "minimal"):
+        try:
+            plan = resolve_patch_plan(cfg, policy=policy)
+        except Exception as e:
+            out["plans"][policy] = {"error": f"{type(e).__name__}: {e}"}
+            continue
+        out["plans"][policy] = {
+            "included_count": len(plan.included),
+            "excluded_count": len(plan.excluded),
+            "passthrough_count": len(plan.passthrough),
+            "warnings": list(plan.warnings),
+            "included_env_flags": [d.env_flag for d in plan.included],
+            "excluded_env_flags": [d.env_flag for d in plan.excluded],
+            "passthrough_keys": sorted(plan.passthrough),
+        }
+    return out
 
 
 def _maybe_redact(artifacts: dict[str, Any], do_redact: bool
