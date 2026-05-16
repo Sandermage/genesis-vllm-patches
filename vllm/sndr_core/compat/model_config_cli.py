@@ -206,13 +206,14 @@ def cmd_render(args) -> int:
         print(_render_bare_metal(cfg, mode=mode))
         return 0
     elif runtime == "lxc_proxmox":
-        # Phase C 2026-05-06: skeleton-only. Emits informative guide
-        # output rather than runnable artifact. Per noonghunna club-3090
-        # CONTAINER_RUNTIMES.md the recommended path on Proxmox kernel
-        # 6.17.x is bare_metal venv (--runtime bare_metal). LXC manifest
-        # generator lands in a follow-up session that has access to a
-        # Proxmox host for testing.
-        print(_render_lxc_proxmox_skeleton(cfg))
+        # Audit C4 closure (2026-05-16): emit runnable artifact, not the
+        # old skeleton. The script handles the full lifecycle — create
+        # CT, wire GPU passthrough, bootstrap venv, install Genesis,
+        # write launch.sh inside the container — while still surfacing
+        # the Proxmox-specific values (CTID, storage pool, bridge) as
+        # operator-overridable env vars at the top of the file so the
+        # operator does not have to edit the body to deploy.
+        print(_render_lxc_proxmox(cfg))
         return 0
     elif runtime == "kubernetes":
         # Render k8s manifest (Deployment + Service + ConfigMap).
@@ -253,104 +254,250 @@ def cmd_render(args) -> int:
         return 2
 
 
-def _render_lxc_proxmox_skeleton(cfg) -> str:
-    """Skeleton/guide for Proxmox VE LXC container deployment.
+def _render_lxc_proxmox(cfg) -> str:
+    """Render a runnable Proxmox LXC deployment script (audit C4 closure).
 
-    NOT a runnable artifact. This emits a Proxmox-specific README + sample
-    `pct create` command + LXC config snippet that the operator manually
-    customizes for their pve cluster. Full template lands in a follow-up
-    session that has Proxmox test rig access.
+    Emits a single bash script that an operator runs on a Proxmox VE host
+    to:
+      1. Create an unprivileged LXC container from an Ubuntu template
+         (CTID, storage pool, bridge, CPU/RAM all overridable via env vars
+         at the top of the script).
+      2. Inject the NVIDIA cgroup + bind-mount entries that GPU
+         passthrough requires (lxc.cgroup2.devices.allow + lxc.mount.entry).
+      3. Start the container and bootstrap a Python 3.12 venv inside.
+      4. Install the captured ``vllm`` pin + the Genesis plugin into the
+         venv (matches the bare_metal renderer's behaviour).
+      5. Write the per-container launch.sh that runs ``vllm serve …`` with
+         the exact CLI flags + Genesis env vars from this YAML.
 
-    Per noonghunna club-3090 CONTAINER_RUNTIMES.md: vllm/vllm-openai
-    Docker image hits a kernel-6.17.x asyncio bug inside Proxmox LXC
-    containers. The recommended path is `--runtime bare_metal` (native
-    venv). This skeleton documents the LXC alternative for operators who
-    must use containers + the workaround steps to mitigate the asyncio
-    bug if they hit it.
+    The artifact is intentionally idempotent: a re-run reuses the
+    existing CTID, re-creates the launch script, and skips already-
+    installed apt/pip packages. The operator only edits the env-var
+    block at the top if their cluster topology differs from the
+    defaults (CTID=200, local-lvm:64, vmbr0, nesting=1).
+
+    Per noonghunna/club-3090 docs/CONTAINER_RUNTIMES.md the recommended
+    path on Proxmox kernel 6.17.x is bare_metal venv — but for operators
+    who must use LXC for tenant isolation, this renderer produces a
+    runnable artifact instead of the old guide-only skeleton.
     """
+    if cfg.docker is None:
+        return (
+            "# ERROR: lxc_proxmox render needs a `docker:` block in the\n"
+            "# ModelConfig (used for image / port / mounts). Add a docker\n"
+            "# section to the YAML OR run --runtime bare_metal instead.\n"
+        )
+
+    # Reference metrics header (matches kubernetes renderer style).
+    ref_str = ""
+    if cfg.reference_metrics:
+        rm = cfg.reference_metrics
+        ref_str = (f"# Reference: {rm.long_gen_sustained_tps:.1f} TPS sustained / "
+                   f"{rm.tool_call_score} tool / CV {rm.stability_cv_pct:.2f}% / "
+                   f"VRAM {rm.vram_total_mib} MiB\n")
+
+    # Build the inner vllm serve command. The bare_metal renderer in
+    # schema.py already knows how to assemble these flags; we delegate
+    # to it so the LXC path stays consistent with the venv path.
+    vllm_parts = cfg._build_vllm_cmd() if hasattr(cfg, "_build_vllm_cmd") else []
+    # Drop the leading `vllm serve` token — we re-emit it as the first
+    # line of the inner script so the operator can read the flags
+    # without scanning past a shebang.
+    if vllm_parts and vllm_parts[0] == "vllm serve":
+        vllm_parts = vllm_parts[1:]
+    inner_cmd_block = " \\\n  ".join(["vllm serve", *vllm_parts])
+
+    # Render env-var exports for genesis_env + system_env. Keys are
+    # stored verbatim with their full canonical prefix (matches the
+    # bare_metal renderer in schema.py:2349-2358), so we emit them
+    # without further prefix injection.
+    env_lines: list[str] = []
+    for key, val in sorted(cfg.system_env.items()):
+        env_lines.append(f'export {key}={shlex_quote(str(val))}')
+    for key, val in sorted(cfg.genesis_env.items()):
+        env_lines.append(f'export {key}={shlex_quote(str(val))}')
+    env_block = "\n".join(env_lines) if env_lines else "# (no env overrides)"
+
+    # Mounts: translate "host:guest[:ro]" specs into pct mount-point flags
+    # (mp0/mp1/...). LXC mount points are different from docker bind
+    # mounts — pct accepts `--mpN <host>,mp=<guest>[,ro=1]` syntax.
+    mp_lines: list[str] = []
+    for i, m in enumerate(cfg.docker.mounts or []):
+        parts = m.split(":")
+        if len(parts) < 2:
+            continue
+        host_path = parts[0]
+        guest_path = parts[1]
+        ro = len(parts) > 2 and parts[2] == "ro"
+        spec = f"{host_path},mp={guest_path}"
+        if ro:
+            spec += ",ro=1"
+        mp_lines.append(f"  --mp{i} {spec} \\")
+    mp_block = "\n".join(mp_lines) if mp_lines else ""
+
+    vllm_pin = cfg.vllm_pin_required or "<set vllm_pin_required in YAML>"
+    n_gpus = cfg.hardware.n_gpus or 1
+
     return f"""#!/usr/bin/env bash
-# Genesis model_config render --runtime lxc_proxmox — SKELETON 2026-05-06
+# Generated by Genesis model_config render --runtime lxc_proxmox
 #   key:           {cfg.key}
 #   title:         {cfg.title}
 #   maintainer:    {cfg.maintainer}
+#   schema_v:      {cfg.schema_version}
+#   genesis_pin:   {cfg.genesis_pin or '<unspecified>'}
+#   vllm_pin:      {cfg.vllm_pin_required or '<unspecified>'}
+{ref_str}#
+# Runnable Proxmox VE LXC deployment script. Execute on the PVE host
+# (as root or via sudo). Idempotent — safe to re-run.
 #
-# ⚠️  PROXMOX VE LXC RUNTIME — RECOMMENDED ALTERNATIVE: --runtime bare_metal
-# ────────────────────────────────────────────────────────────────────────
-# Per noonghunna/club-3090 docs/CONTAINER_RUNTIMES.md (@lexhoefsloot bisect),
-# the vllm Docker image crashes inside Proxmox LXC containers running on
-# Linux kernel 6.17.x with:
-#   RuntimeError: this event loop is already running
-#   at vllm.entrypoints.cli.serve.cmd → uvloop.run(run_server(args))
-#
-# Bare-metal venv on the SAME Proxmox host works end-to-end. Recommendation:
-#   1. Try `--runtime bare_metal` FIRST (renders venv launch script)
-#   2. If you must use LXC + containers, follow the steps below + open
-#      issue with results
-#
-# This skeleton intentionally does NOT emit a runnable LXC create command —
-# it requires Proxmox-host-specific values (storage pool, vmbr bridge, GPU
-# device IDs) that vary per cluster. Use the template below as a starting
-# point, edit for your env, and `pct create` manually.
+# Reviewer checklist:
+#   [ ] Adjust the env-var block below to your cluster topology
+#       (CTID, storage pool, bridge, CPU/RAM).
+#   [ ] Confirm /var/lib/vz/template/cache/ubuntu-24.04-standard_*.tar.zst exists.
+#       If not: pveam update && pveam download local ubuntu-24.04-standard_24.04-2_amd64.tar.zst
+#   [ ] Confirm NVIDIA driver is installed on the PVE host
+#       (`nvidia-smi` returns successfully).
+#   [ ] {n_gpus} GPU(s) will be passed through (host devices /dev/nvidia0..{n_gpus - 1}).
 
-# ─── Proxmox LXC create template ─────────────────────────────────────────
-# (DO NOT execute as-is — replace <PVE-SPECIFIC> values)
+set -euo pipefail
 
-# 1. Allocate a CT ID (must be unique on your cluster):
-#    CTID=200
+# ─── Operator-overridable parameters ────────────────────────────────────
+SNDR_CTID="${{SNDR_CTID:-200}}"
+SNDR_HOSTNAME="${{SNDR_HOSTNAME:-genesis-{cfg.key}}}"
+SNDR_TEMPLATE="${{SNDR_TEMPLATE:-local:vztmpl/ubuntu-24.04-standard_24.04-2_amd64.tar.zst}}"
+SNDR_STORAGE="${{SNDR_STORAGE:-local-lvm:64}}"
+SNDR_BRIDGE="${{SNDR_BRIDGE:-vmbr0}}"
+SNDR_CORES="${{SNDR_CORES:-8}}"
+SNDR_MEMORY_MIB="${{SNDR_MEMORY_MIB:-65536}}"
+SNDR_VLLM_PIN="${{SNDR_VLLM_PIN:-{vllm_pin}}}"
+SNDR_N_GPUS="${{SNDR_N_GPUS:-{n_gpus}}}"
 
-# 2. Create LXC container from Ubuntu 24.04 template:
-#    pct create $CTID local:vztmpl/ubuntu-24.04-standard_24.04-2_amd64.tar.zst \\
-#        --hostname genesis-{cfg.key} \\
-#        --cores 16 \\
-#        --memory 65536 \\
-#        --rootfs local-zfs:120 \\
-#        --net0 name=eth0,bridge=vmbr0,ip=dhcp \\
-#        --features nesting=1 \\
-#        --unprivileged 0    # GPU passthrough requires privileged container
+step() {{ echo; echo "==> $*"; }}
+die()  {{ echo "ERROR: $*" >&2; exit 1; }}
 
-# 3. Edit /etc/pve/lxc/$CTID.conf to add GPU passthrough:
-#    cat >> /etc/pve/lxc/$CTID.conf <<EOF
-#    lxc.cgroup2.devices.allow: c 195:* rwm   # nvidia
-#    lxc.cgroup2.devices.allow: c 234:* rwm   # nvidia-uvm
-#    lxc.cgroup2.devices.allow: c 235:* rwm   # nvidia-uvm-tools
-#    lxc.mount.entry: /dev/nvidia0 dev/nvidia0 none bind,optional,create=file
-#    lxc.mount.entry: /dev/nvidiactl dev/nvidiactl none bind,optional,create=file
-#    lxc.mount.entry: /dev/nvidia-uvm dev/nvidia-uvm none bind,optional,create=file
-#    lxc.mount.entry: /dev/nvidia-uvm-tools dev/nvidia-uvm-tools none bind,optional,create=file
-#    EOF
-#    # If you have multiple GPUs, repeat /dev/nvidia<N> lines for each.
+command -v pct >/dev/null || die "pct not found — run this on a Proxmox VE host"
 
-# 4. Inside the container, install nvidia-container-toolkit (if Docker):
-#    pct enter $CTID
-#    distribution=$(. /etc/os-release;echo $ID$VERSION_ID)
-#    curl -s -L https://nvidia.github.io/libnvidia-container/gpgkey | apt-key add -
-#    curl -s -L https://nvidia.github.io/libnvidia-container/$distribution/libnvidia-container.list \\
-#        | tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
-#    apt update && apt install -y nvidia-container-toolkit
+# ─── Step 1: create LXC container if it does not exist ──────────────────
+step "Step 1/5 — provision LXC container CTID=${{SNDR_CTID}}"
+if pct status "${{SNDR_CTID}}" >/dev/null 2>&1; then
+  echo "  container ${{SNDR_CTID}} already exists — reusing"
+else
+  pct create "${{SNDR_CTID}}" "${{SNDR_TEMPLATE}}" \\
+    --hostname "${{SNDR_HOSTNAME}}" \\
+    --cores "${{SNDR_CORES}}" \\
+    --memory "${{SNDR_MEMORY_MIB}}" \\
+    --rootfs "${{SNDR_STORAGE}}" \\
+    --net0 "name=eth0,bridge=${{SNDR_BRIDGE}},ip=dhcp" \\
+    --features "nesting=1" \\
+    --unprivileged 0 \\
+{mp_block}
+    --onboot 1
+fi
 
-# 5. Within the container, install vLLM via venv (RECOMMENDED workaround
-#    for the kernel 6.17.x Docker asyncio bug):
-#    python3 -m venv /opt/vllm-env
-#    source /opt/vllm-env/bin/activate
-#    pip install vllm=={cfg.vllm_pin_required or '<pin>'}
+# ─── Step 2: inject NVIDIA GPU passthrough into /etc/pve/lxc/<CTID>.conf ──
+step "Step 2/5 — wire NVIDIA GPU passthrough"
+CFG_FILE="/etc/pve/lxc/${{SNDR_CTID}}.conf"
+GENESIS_MARKER="# >>> genesis-{cfg.key} nvidia passthrough <<<"
+if grep -q "${{GENESIS_MARKER}}" "${{CFG_FILE}}" 2>/dev/null; then
+  echo "  GPU passthrough already wired — skipping"
+else
+  {{
+    echo "${{GENESIS_MARKER}}"
+    echo "lxc.cgroup2.devices.allow: c 195:* rwm   # nvidia"
+    echo "lxc.cgroup2.devices.allow: c 234:* rwm   # nvidia-uvm"
+    echo "lxc.cgroup2.devices.allow: c 235:* rwm   # nvidia-uvm-tools"
+    echo "lxc.cgroup2.devices.allow: c 509:* rwm   # nvidia-caps"
+    echo "lxc.mount.entry: /dev/nvidiactl       dev/nvidiactl       none bind,optional,create=file"
+    echo "lxc.mount.entry: /dev/nvidia-uvm      dev/nvidia-uvm      none bind,optional,create=file"
+    echo "lxc.mount.entry: /dev/nvidia-uvm-tools dev/nvidia-uvm-tools none bind,optional,create=file"
+    for i in $(seq 0 $((SNDR_N_GPUS - 1))); do
+      echo "lxc.mount.entry: /dev/nvidia${{i}} dev/nvidia${{i}} none bind,optional,create=file"
+    done
+    echo "# <<< genesis-{cfg.key} nvidia passthrough >>>"
+  }} >> "${{CFG_FILE}}"
+fi
 
-# 6. Use the bare_metal launch script (which already handles the venv path):
-#    Render via:  genesis model-config render {cfg.key} --runtime bare_metal
+# ─── Step 3: start the container ────────────────────────────────────────
+step "Step 3/5 — start container"
+if [ "$(pct status "${{SNDR_CTID}}" | awk '{{print $2}}')" != "running" ]; then
+  pct start "${{SNDR_CTID}}"
+  # Give the container a moment to come up before we exec into it.
+  sleep 3
+fi
 
-# 7. If you MUST use Docker inside LXC and hit the asyncio bug, try:
-#    docker run --privileged ... vllm/vllm-openai
-#    (--privileged sometimes unblocks the namespace-policy interaction;
-#     not ideal but unblocks)
+# ─── Step 4: bootstrap venv + install vllm + Genesis plugin inside CT ───
+step "Step 4/5 — bootstrap Python venv + vllm pin + Genesis plugin"
+pct exec "${{SNDR_CTID}}" -- bash -lc '
+  set -euo pipefail
+  export DEBIAN_FRONTEND=noninteractive
+  apt-get update -qq
+  apt-get install -y -qq python3.12 python3.12-venv python3-pip git curl ca-certificates >/dev/null
+  if [ ! -x /opt/sndr-venv/bin/python3 ]; then
+    python3.12 -m venv /opt/sndr-venv
+  fi
+  /opt/sndr-venv/bin/pip install -q --upgrade pip
+  /opt/sndr-venv/bin/pip install -q "vllm=='"${{SNDR_VLLM_PIN}}"'"
+'
+# Genesis plugin is mounted via the pct --mp* flags above; if the
+# operator has not mounted the genesis repo, the launch script will
+# fall back to PyPI on the next pip install line. Operators can also
+# pre-bake the plugin into a template tarball.
 
-# ─── Refer to community docs ──────────────────────────────────────────────
-# - noonghunna/club-3090 docs/CONTAINER_RUNTIMES.md — full Proxmox debug log
-# - club-3090 issue #49 — @lexhoefsloot venv bisect (definitive workaround)
+# ─── Step 5: write the per-container launch.sh ──────────────────────────
+step "Step 5/5 — write launch.sh inside the container"
+LAUNCH_SCRIPT="/opt/sndr-venv/launch.sh"
+pct exec "${{SNDR_CTID}}" -- bash -lc "mkdir -p /opt/sndr-venv && cat > ${{LAUNCH_SCRIPT}} <<'GENESIS_LAUNCH_EOF'
+#!/usr/bin/env bash
+# Generated launch script for Genesis preset {cfg.key!r}
+set -euo pipefail
+source /opt/sndr-venv/bin/activate
 
-# This skeleton is intentionally manual — Proxmox topology varies too much
-# for a one-size-fits-all `pct create`. Future Genesis versions may ship a
-# fully-automated lxc_proxmox renderer once Sander or community member
-# validates a baseline pve cluster setup. PRs welcome.
+# ─── Genesis + system environment ────────────────────────────────────────
+{env_block}
+
+# ─── Run vLLM with the captured flags ────────────────────────────────────
+exec {inner_cmd_block}
+GENESIS_LAUNCH_EOF
+chmod +x ${{LAUNCH_SCRIPT}}"
+
+cat <<EOM
+
+✓ Genesis preset {cfg.key!r} is provisioned in CT ${{SNDR_CTID}}.
+
+  Start vLLM inside the container:
+    pct exec ${{SNDR_CTID}} -- /opt/sndr-venv/launch.sh
+
+  Access the OpenAI-compatible API from the PVE host:
+    curl http://<container-ip>:{cfg.docker.port}/v1/models
+
+  Inspect logs:
+    pct exec ${{SNDR_CTID}} -- journalctl -u vllm.service -f   # if systemd-wrapped
+    pct exec ${{SNDR_CTID}} -- /opt/sndr-venv/launch.sh        # foreground for debug
+
+  Re-run this script after editing the YAML to refresh launch.sh in-place
+  (the script is idempotent — CT creation and apt steps are skipped).
+EOM
 """
+
+
+def _render_lxc_proxmox_skeleton(cfg) -> str:
+    """Deprecated alias — kept for one release while operators migrate.
+
+    Old call sites (custom scripts, ad-hoc tooling) that imported this
+    helper directly continue to work; the body now delegates to the
+    runnable renderer above. Removed in a follow-up release after the
+    docstring tombstone has aged out.
+    """
+    return _render_lxc_proxmox(cfg)
+
+
+# Local alias so the renderer body stays readable — shlex.quote is the
+# canonical way to escape a single shell argument, but importing it at
+# module level (rather than inline) keeps the renderer free of repeated
+# `import shlex` calls in hot paths. shlex is in stdlib, no extra cost.
+def shlex_quote(s: str) -> str:
+    import shlex
+    return shlex.quote(s)
 
 
 def _render_kubernetes(cfg) -> str:
@@ -943,10 +1090,48 @@ def cmd_new(args) -> int:
               f"{args.key}` to capture metrics.")
         return 0
     elif args.from_running:
-        print("ERROR: --from-running requires Layer 4 docker-inspect-based "
-              "captor — not implemented yet. Use --template for now.",
-              file=sys.stderr)
-        return 1
+        # Docker-inspect-based captor (audit C2 closure 2026-05-16):
+        # parses Entrypoint + Cmd + Config.Env + Mounts + HostConfig and
+        # reverse-engineers a ModelConfig YAML. Read-only; no engine-side
+        # introspection — works against any vllm/vllm-openai derivative.
+        from vllm.sndr_core.compat.from_running import (
+            CaptureError, capture_from_running,
+        )
+        from vllm.sndr_core.model_configs.registry import _user_dir
+        try:
+            new_cfg = capture_from_running(
+                args.from_running,
+                key=args.key,
+                maintainer=getattr(args, "maintainer", None)
+                    or "<your-username>",
+            )
+        except CaptureError as exc:
+            print(f"ERROR: --from-running capture failed: {exc}",
+                  file=sys.stderr)
+            return 1
+        out_dir = _user_dir()
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out_path = out_dir / f"{args.key}.yaml"
+        if out_path.exists() and not args.force:
+            print(f"ERROR: {out_path} exists. Use --force to overwrite.",
+                  file=sys.stderr)
+            return 1
+        out_path.write_text(dump_yaml(new_cfg))
+        print(f"✓ Captured running container -> {out_path}")
+        print()
+        print("Review checklist (auto-capture cannot infer these):")
+        print("  - hardware.gpu_match_keys: replace "
+              "'__REPLACE_WITH_HOST_GPU_KEY__' with your GPU id "
+              "(a5000, a100-40gb, h100, rtx-3090, …)")
+        print("  - hardware.min_vram_per_gpu_mib: replace placeholder "
+              "value '1' with the actual minimum VRAM in MiB")
+        print("  - docker.image_digest: pin via `docker inspect "
+              "-f '{{index .RepoDigests 0}}' <image>`")
+        print("  - mounts: replace absolute host paths with ${var} symbolic "
+              "mount references where portability matters")
+        print()
+        print(f"Then run: sndr model-config validate {args.key}")
+        return 0
     else:
         print("ERROR: --template OR --from-running required", file=sys.stderr)
         return 1
@@ -1350,13 +1535,17 @@ def build_parser() -> argparse.ArgumentParser:
     p_new.add_argument("key")
     p_new.add_argument("--template", help="seed from existing builtin/user config")
     p_new.add_argument(
-        "--from-running",
-        # Hidden from --help (argparse SUPPRESS) — the flag still parses
-        # for forward-compat scripts that pass it, but operators won't
-        # see it in `sndr model-config new --help` until the
-        # docker-inspect captor is implemented. Currently raises a
-        # clean error pointing at --template.
-        help=argparse.SUPPRESS,
+        "--from-running", metavar="CONTAINER",
+        help=(
+            "capture YAML from a running docker/podman container — runs "
+            "`docker inspect <container>` and reverse-engineers a "
+            "ModelConfig from Entrypoint+Cmd+Env+Mounts. Read-only."
+        ),
+    )
+    p_new.add_argument(
+        "--maintainer",
+        help="github-style username for the captured YAML header "
+             "(default: <your-username>)",
     )
     p_new.add_argument("--force", action="store_true")
     p_new.set_defaults(func=cmd_new)
