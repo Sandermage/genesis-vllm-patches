@@ -51,30 +51,31 @@ if TYPE_CHECKING:  # avoid runtime cycle (schema imports nothing from us)
 _VALID_POLICIES: tuple[str, ...] = ("compat", "safe", "minimal")
 
 
-def _build_env_flag_to_patch_id() -> dict[str, str]:
-    """Return a reverse map from registry env_flag → patch_id.
+def _build_env_flag_to_patch_id() -> dict[str, tuple[str, ...]]:
+    """Return reverse map env_flag → sorted tuple of patch IDs.
 
-    Regex-based env-flag parsing is unreliable for canonical Genesis
-    flag names like ``GENESIS_ENABLE_PN204_DUAL_STREAM_INPROJ`` —
-    a naive regex captures the full suffix and produces patch IDs that
-    don't exist in the registry. The reliable mapping is the registry
-    itself: every PATCH_REGISTRY entry declares its own ``env_flag``.
-    Lifted into a module-level cache because the registry never mutates
-    at runtime (frozen dict literal at import time).
+    Most env flags map 1:1 to a single patch ID, but A-19-exempt
+    "tightly coupled subpatch" families share a flag — flipping
+    ``GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL`` enables BOTH
+    P67 and P67b together; the same with PN40 + PN40-classifier.
+    Storing a tuple keeps the family visible to conflict-detection
+    and avoids "last write wins" patch dropouts in the reverse map.
+
+    Result is alphabetically sorted so resolution is deterministic
+    (the primary ID surfaced by ``_patch_id_from_env_flag()`` is
+    always the alphabetical first, regardless of registry dict
+    iteration order).
     """
-    # Imported inside the helper to keep `patch_plan` importable without
-    # the full dispatcher stack in scope (resolver tests use synthetic
-    # ModelConfigs and don't need the registry there).
     from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
-    out: dict[str, str] = {}
+    families: dict[str, list[str]] = {}
     for pid, meta in PATCH_REGISTRY.items():
         flag = meta.get("env_flag") if isinstance(meta, dict) else None
         if isinstance(flag, str) and flag:
-            out[flag] = pid
-    return out
+            families.setdefault(flag, []).append(pid)
+    return {flag: tuple(sorted(pids)) for flag, pids in families.items()}
 
 
-_ENV_FLAG_TO_PATCH_ID: dict[str, str] | None = None
+_ENV_FLAG_TO_PATCH_ID: dict[str, tuple[str, ...]] | None = None
 
 
 _GENESIS_PREFIX_RE = None  # lazy-initialised, see _strip_genesis_prefix
@@ -95,34 +96,35 @@ def _strip_genesis_prefix(env_flag: str) -> str:
     return env_flag[m.end():] if m else env_flag
 
 
-def _patch_id_from_env_flag(env_flag: str) -> str:
-    """Resolve env_flag → patch_id.
+def _patch_family_for_env_flag(env_flag: str) -> tuple[str, ...]:
+    """Resolve env_flag → full family of patch IDs (sorted).
 
-    Lookup order:
-      1. Registry reverse index — authoritative for canonical Genesis
-         flags like ``GENESIS_ENABLE_PN204_DUAL_STREAM_INPROJ`` →
-         ``PN204`` (the registry stores the full flag name, the
-         patch ID is its registry key).
-      2. Prefix-strip fallback — for flags not in the registry
-         (synthetic fixtures, operator overrides). Strips
-         ``GENESIS_(ENABLE|DISABLE)_`` → bare suffix so
-         ``GENESIS_ENABLE_PN17`` resolves to ``PN17`` cleanly.
-      3. Otherwise return the raw flag (legacy bare flags like
-         ``GENESIS_OBSERVABILITY``); attribution lookup then keys
-         by the full flag name and role defaults to "unknown".
+    Most flags have a one-element family. A-19 tight-coupled
+    subpatches (P67 + P67b, PN40 + PN40-classifier) share an
+    env_flag — both flip together — and the resolver needs to see
+    every family member for conflict detection.
     """
     global _ENV_FLAG_TO_PATCH_ID
     if _ENV_FLAG_TO_PATCH_ID is None:
         try:
             _ENV_FLAG_TO_PATCH_ID = _build_env_flag_to_patch_id()
         except Exception:
-            # Defensive: if the registry can't load (dev env), keep
-            # using the prefix-strip fallback below.
             _ENV_FLAG_TO_PATCH_ID = {}
     hit = _ENV_FLAG_TO_PATCH_ID.get(env_flag)
     if hit is not None:
         return hit
-    return _strip_genesis_prefix(env_flag)
+    return (_strip_genesis_prefix(env_flag),)
+
+
+def _patch_id_from_env_flag(env_flag: str) -> str:
+    """Return the primary patch ID for an env flag.
+
+    For single-member families this is just the patch ID. For A-19
+    families it's the alphabetical first (P67 before P67b, PN40
+    before PN40-classifier) — chosen so resolution is deterministic
+    and operator-facing output is stable across registry edits.
+    """
+    return _patch_family_for_env_flag(env_flag)[0]
 
 
 @dataclass(frozen=True)
@@ -296,13 +298,74 @@ def resolve_patch_plan(
                 note=note, bench_evidence=bench,
             ))
 
+    warnings = _detect_conflict_warnings(included)
+
     return PatchPlan(
         policy=policy,
         included=tuple(included),
         excluded=tuple(excluded),
-        warnings=(),
+        warnings=warnings,
         passthrough=passthrough,
     )
+
+
+def _detect_conflict_warnings(
+    included: list[PatchDecision],
+) -> tuple[str, ...]:
+    """Surface ``conflicts_with`` violations among the included set.
+
+    Reads PATCH_REGISTRY[<pid>].conflicts_with for every included
+    patch. When two members of ``included`` declare each other (or one
+    declares the other), append one canonical "A ⨯ B" warning. The
+    pair is sorted alphabetically so the (A→B) and (B→A) views of
+    the same conflict produce only one warning string, not two.
+
+    Advisory only — does not move patches between included / excluded.
+    Resolver is read-only; the dispatcher remains the runtime gate.
+    """
+    if len(included) < 2:
+        return ()
+    try:
+        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+    except Exception:
+        # Resolver stays usable even when registry can't load.
+        return ()
+
+    # Expand each included decision into its full family (A-19 subpatches
+    # share env_flag → the decision's patch_id is the primary, but both
+    # members are runtime-active and either can trigger a conflict).
+    included_family_ids: set[str] = set()
+    decision_families: list[tuple[PatchDecision, tuple[str, ...]]] = []
+    for d in included:
+        family = _patch_family_for_env_flag(d.env_flag)
+        included_family_ids.update(family)
+        decision_families.append((d, family))
+
+    seen_pairs: set[tuple[str, str]] = set()
+    warnings: list[str] = []
+    for d, family in decision_families:
+        for pid in family:
+            meta = PATCH_REGISTRY.get(pid)
+            if not isinstance(meta, dict):
+                continue
+            conflicts = meta.get("conflicts_with") or []
+            if isinstance(conflicts, str):
+                conflicts = [conflicts]
+            for other in conflicts:
+                if other not in included_family_ids:
+                    continue
+                if other == pid:
+                    continue  # self-conflict declarations are bogus, skip
+                pair = tuple(sorted((pid, other)))
+                if pair in seen_pairs:
+                    continue
+                seen_pairs.add(pair)
+                warnings.append(
+                    f"conflict: {pair[0]} ⨯ {pair[1]} — both included "
+                    f"but registry declares them incompatible. Drop one "
+                    f"or override via profile.patches_delta.disable."
+                )
+    return tuple(warnings)
 
 
 __all__ = ["PatchDecision", "PatchPlan", "resolve_patch_plan"]

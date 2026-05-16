@@ -376,3 +376,109 @@ class TestNonToggleGenesisKeys:
         flags = {d.env_flag for d in plan.included}
         assert "GENESIS_ENABLE_PN17" in flags
         assert "GENESIS_DISABLE_PN204" in flags
+
+
+# ─── Conflicts_with detection ────────────────────────────────────────────
+
+
+class TestConflictsWarnings:
+    """The resolver consults PATCH_REGISTRY for `conflicts_with`
+    declarations on each included patch. When two conflicting toggles
+    survive into ``included`` together, the resolver appends a
+    warning string so the operator sees the misconfig before launch.
+
+    Warnings are advisory — they do NOT move the patch to excluded.
+    The dispatcher's runtime layer is the ultimate gate; resolver
+    just surfaces the problem early."""
+
+    def test_two_conflicting_patches_emit_warning(self):
+        # P65 and P67 conflict per the live registry.
+        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        # Sanity guard: keep this test honest if registry changes.
+        assert "P67" in PATCH_REGISTRY["P65"].get("conflicts_with", [])
+
+        flag_p65 = PATCH_REGISTRY["P65"]["env_flag"]
+        flag_p67 = PATCH_REGISTRY["P67"]["env_flag"]
+        cfg = _make_cfg(genesis_env={flag_p65: "1", flag_p67: "1"})
+        plan = resolve_patch_plan(cfg, policy="compat")
+        # Both stay included — warning surface, not exclusion.
+        included_ids = {d.patch_id for d in plan.included}
+        assert "P65" in included_ids and "P67" in included_ids
+        # Warning mentions both patches.
+        assert any(
+            "P65" in w and "P67" in w for w in plan.warnings
+        ), f"expected P65↔P67 conflict warning, got: {plan.warnings}"
+
+    def test_single_patch_no_conflict_warning(self):
+        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        flag = PATCH_REGISTRY["P65"]["env_flag"]
+        cfg = _make_cfg(genesis_env={flag: "1"})
+        plan = resolve_patch_plan(cfg, policy="compat")
+        assert plan.warnings == ()
+
+    def test_conflict_pair_warned_only_once(self):
+        """Avoid the (A→B) + (B→A) double-warn. Each unique (pid_a, pid_b)
+        pair surfaces at most one warning regardless of which side
+        declares the conflict in its registry meta.
+
+        Note: A-19 subpatch families (P67 + P67b share env_flag) DO
+        produce separate warnings — P65↔P67 and P65↔P67b are two
+        distinct conflict pairs even though both fire on the same
+        toggle. That's a feature: each pair stays operator-visible
+        so the resolver doesn't hide structurally distinct issues.
+        """
+        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        # P62 ↔ PN58 — single-family conflict pair, perfect for the
+        # canonical "warn once per pair" check.
+        flag_p62 = PATCH_REGISTRY["P62"]["env_flag"]
+        flag_pn58 = PATCH_REGISTRY["PN58"]["env_flag"]
+        cfg = _make_cfg(genesis_env={flag_p62: "1", flag_pn58: "1"})
+        plan = resolve_patch_plan(cfg, policy="compat")
+        conflict_warns = [
+            w for w in plan.warnings if "P62" in w and "PN58" in w
+        ]
+        assert len(conflict_warns) == 1, (
+            f"expected 1 warning, got {len(conflict_warns)}: "
+            f"{conflict_warns}"
+        )
+
+    def test_subpatch_family_emits_pair_per_subpatch(self):
+        """When a conflict pair includes an A-19 family (P67 + P67b),
+        the resolver emits ONE warning per (primary, family_member)
+        pair — P65 ⨯ P67 AND P65 ⨯ P67b — because each subpatch is
+        an independent runtime gate and dropping just one wouldn't
+        resolve the other half of the conflict."""
+        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        flag_p65 = PATCH_REGISTRY["P65"]["env_flag"]
+        flag_p67 = PATCH_REGISTRY["P67"]["env_flag"]
+        cfg = _make_cfg(genesis_env={flag_p65: "1", flag_p67: "1"})
+        plan = resolve_patch_plan(cfg, policy="compat")
+        # Canonical warning format is "conflict: A ⨯ B — …". Parse the
+        # A and B back out of every warning to avoid substring-overlap
+        # bugs (P67 is a substring of P67b otherwise).
+        import re
+        pair_re = re.compile(r"conflict: (\S+) ⨯ (\S+) —")
+        warned_pairs = {
+            tuple(sorted(m.groups()))
+            for w in plan.warnings
+            for m in [pair_re.search(w)] if m
+        }
+        assert ("P65", "P67") in warned_pairs
+        assert ("P65", "P67b") in warned_pairs
+
+    def test_excluded_patches_dont_count_for_conflicts(self):
+        """If one of the conflicting patches is operator-disabled
+        (value="0" → excluded), no conflict exists at runtime — no
+        warning."""
+        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        flag_p65 = PATCH_REGISTRY["P65"]["env_flag"]
+        flag_p67 = PATCH_REGISTRY["P67"]["env_flag"]
+        cfg = _make_cfg(genesis_env={flag_p65: "1", flag_p67: "0"})
+        plan = resolve_patch_plan(cfg, policy="compat")
+        # Only one in included; the other was operator-disabled.
+        assert {d.patch_id for d in plan.included} == {"P65"}
+        # No conflict warning.
+        conflict_warns = [
+            w for w in plan.warnings if "P65" in w and "P67" in w
+        ]
+        assert conflict_warns == []

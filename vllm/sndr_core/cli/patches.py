@@ -752,6 +752,11 @@ def _run_plan(opts: argparse.Namespace) -> int:
                     f"    - {d['patch_id']:<10} role={d['role']:<22} "
                     f"{d['env_flag']} — {d['reason'][:80]}"
                 )
+        if resolver_payload["warnings"]:
+            _io.info("")
+            _io.warn(f"  ⚠ {len(resolver_payload['warnings'])} warning(s):")
+            for w in resolver_payload["warnings"]:
+                _io.warn(f"    {w}")
     return 0
 
 
