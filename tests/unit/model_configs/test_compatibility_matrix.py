@@ -1,15 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0
-"""S2.5 closure (audit P2-2, 2026-05-12): тесты для
-`CompatibilityMatrix` в model_configs.schema.
+"""Tests for `CompatibilityMatrix` in model_configs.schema.
 
-Покрывают:
-
-  • Структуру CompatibilityRule (validate, severity).
-  • Regression-теcт каждого зарегистрированного правила (predicate
-    точно срабатывает на canonical bad config и НЕ срабатывает на good).
-  • Интеграция с ModelConfig.validate (forbidden → SchemaError).
-  • Интеграция с ModelConfig.audit (discouraged → warning list).
-  • Невозможность зарегистрировать duplicate id.
+Coverage:
+  - CompatibilityRule structure (validate, severity enum).
+  - Regression test for every registered rule (predicate fires on
+    a canonical bad config and stays silent on a good one).
+  - Integration with ModelConfig.validate — forbidden rules raise
+    SchemaError, blocking the cfg from being constructed.
+  - Integration with ModelConfig.audit — discouraged rules surface
+    in the warnings list without aborting validation.
+  - Duplicate id registration is rejected.
 """
 from __future__ import annotations
 
@@ -85,7 +85,7 @@ class TestMatrixBookkeeping:
             ),
             lambda c: (_ for _ in ()).throw(RuntimeError("oops")),
         )
-        # evaluate должен вернуть пустые списки, не сломаться
+        # evaluate() must return empty lists, not raise
         forb, disc = m.evaluate(_minimal_cfg())
         assert forb == []
         assert disc == []
@@ -93,7 +93,7 @@ class TestMatrixBookkeeping:
     def test_canonical_matrix_has_rules(self):
         rules = COMPATIBILITY_MATRIX.rules()
         ids = {r.id for r in rules}
-        # Минимум: 4 правила из S2.5
+        # Sanity floor: at least 4 rules registered by the schema layer
         for expected in ("COMPAT-001", "COMPAT-002",
                           "COMPAT-003", "COMPAT-004"):
             assert expected in ids
@@ -103,8 +103,8 @@ class TestMatrixBookkeeping:
 
 
 def _minimal_cfg(**overrides) -> ModelConfig:
-    """Builder для минимально валидного ModelConfig'а с дефолтами,
-    которые тесты могут overrid'ить."""
+    """Builder for a minimally-valid ModelConfig with defaults
+    individual tests can override."""
     base = dict(
         key="test-cfg", title="t", description="d",
         schema_version=1, maintainer="x",
@@ -149,7 +149,7 @@ class TestRuleDFlashOnQwenNext:
 
     def test_not_triggered_for_qwen36_lorbus_dflash(self):
         """Existing PROD preset (a5000-2x-27b-dflash-true) — Qwen3.6 hybrid
-        Mamba + DFlash drafter works fine; должно НЕ срабатывать."""
+        Mamba + DFlash drafter is a valid combination; rule should not fire."""
         cfg = _minimal_cfg(
             model_path="/models/Qwen3.6-27B-int4-AutoRound",
             spec_decode=SpecDecodeConfig(
@@ -239,10 +239,10 @@ class TestRuleNgramOnTqK8v4Long:
 
 # Note: COMPAT-004 (DFlash without drafter) is implicitly tested via
 # SpecDecodeConfig.validate, which already raises SchemaError when method=dflash
-# and model is None — это означает ModelConfig никогда не дойдёт до
-# CompatibilityMatrix evaluation с такой конфигурацией. Правило в matrix
-# существует для declarative visibility (CLI rendering), а не как
-# дополнительный enforcement gate.
+# and model is None — meaning ModelConfig never reaches
+# CompatibilityMatrix evaluation in that shape. The matrix rule
+# exists for declarative visibility (CLI rendering), not as an
+# additional enforcement gate.
 
 
 # ─── ModelConfig integration ───────────────────────────────────────────
@@ -266,7 +266,7 @@ class TestModelConfigIntegration:
             kv_cache_dtype="turboquant_k8v4",
             genesis_env={"GENESIS_ENABLE_PN59_STREAMING_GDN": "1"},
         )
-        # validate сам по себе не должен падать (discouraged ≠ forbidden)
+        # validate() itself must not raise (discouraged != forbidden)
         cfg.validate()
         warnings = cfg.audit()
         assert any("COMPAT-002" in w for w in warnings)
@@ -278,8 +278,8 @@ class TestModelConfigIntegration:
             ),
         )
         cfg.validate()  # no raise
-        # audit может содержать другие warnings (например, missing
-        # reference_metrics), но НЕ должно содержать COMPAT-* для clean.
+        # audit() may surface other warnings (e.g. missing
+        # reference_metrics) but must not flag COMPAT-* on a clean cfg.
         warnings = cfg.audit()
         compat_warnings = [w for w in warnings if w.startswith("[COMPAT-")]
         assert compat_warnings == []

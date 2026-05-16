@@ -81,10 +81,10 @@ class TestGenerator:
 
 class TestPlaceholderDetection:
     def test_is_placeholder_returns_true_for_zeros(self, monkeypatch):
-        """Когда `_TRUST_ANCHOR_PUBKEY_B64URL` ставится в 32-нулевой
-        placeholder, детектор должен срабатывать. Тест не проверяет
-        live-состояние модуля (там сейчас активирован реальный ключ
-        2026-05-12 ceremony) — только семантику самой функции.
+        """When `_TRUST_ANCHOR_PUBKEY_B64URL` is set to the 32-zero
+        placeholder, the detector must fire. This test exercises
+        the function semantics — not the live module state (the
+        real production key is currently active).
         """
         from vllm.sndr_core import license as L
         zero_b64 = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
@@ -92,9 +92,9 @@ class TestPlaceholderDetection:
         assert L._is_placeholder_anchor() is True
 
     def test_warning_logged_at_module_load(self, caplog, monkeypatch):
-        """Warning должен срабатывать когда anchor — placeholder.
-        Здесь тоже мокаем константу, потому что в production-tree
-        реальный ключ активирован."""
+        """The warning must fire when the anchor is a placeholder.
+        We mock the module constant; the production tree carries
+        the real key."""
         from vllm.sndr_core import license as L
         assert hasattr(L, "_maybe_log_placeholder_warning")
         zero_b64 = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
@@ -108,9 +108,9 @@ class TestPlaceholderDetection:
         )
 
     def test_warning_idempotent(self, caplog, monkeypatch):
-        """Повторный вызов `_maybe_log_placeholder_warning` не должен
-        генерить новые warnings (идемпотентность). Мокаем anchor в
-        placeholder режим иначе функция вообще ничего не пишет."""
+        """Repeated calls to `_maybe_log_placeholder_warning` must not
+        emit new warnings (idempotency). We mock the anchor into
+        placeholder mode; otherwise the function emits nothing."""
         from vllm.sndr_core import license as L
         zero_b64 = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
         monkeypatch.setattr(L, "_TRUST_ANCHOR_PUBKEY_B64URL", zero_b64)
@@ -160,15 +160,16 @@ class TestUpdateLicenseScript:
 
 
 class TestMainCli:
-    """Etap 0.2 (audit 2026-05-12): private key никогда не уходит в
-    stdout без явного opt-in. Default — `main([])` отказывается
-    генерить ключ если не указано куда положить приватную половину."""
+    """The private key must never reach stdout without an explicit
+    opt-in. Default behaviour: `main([])` refuses to generate the
+    keypair when no destination for the private half is specified."""
 
     def test_no_destination_refuses(self, generator_module, capsys):
-        """`main([])` без --out и без --print-private → rc=3, error в stderr.
+        """`main([])` without --out and without --print-private exits
+        with rc=3 and writes the error to stderr.
 
-        Не зависит от cryptography — guard срабатывает ДО generate_keypair().
-        """
+        Independent of cryptography — the guard fires before
+        generate_keypair() is called."""
         rc = generator_module.main([])
         assert rc == 3
         err = capsys.readouterr().err
@@ -176,25 +177,27 @@ class TestMainCli:
         assert "--out" in err and "--print-private" in err
 
     def test_out_only_emits_public_in_stdout(self, cryptography_available, generator_module, capsys, tmp_path):
-        """`--out` без `--print-private` → public в stdout, private ТОЛЬКО в файле."""
+        """`--out` without `--print-private` → public on stdout, private
+        is written to the file ONLY."""
         path = tmp_path / "priv.key"
         rc = generator_module.main(["--out", str(path)])
         assert rc == 0
         out = capsys.readouterr().out
         assert "PUBLIC  KEY" in out
-        # Etap 0.2: private key НЕ должен оказаться в stdout
+        # The private key must NOT appear in stdout
         assert "PRIVATE KEY" not in out
-        # Но должен быть в файле
+        # But the file must contain it
         assert path.is_file()
         assert (path.stat().st_mode & 0o777) == 0o600
-        # Содержимое файла — base64url 43 chars (плюс newline)
+        # File content: base64url 43 chars (plus newline)
         priv_in_file = path.read_text().strip()
         assert len(priv_in_file) == 43
-        # И этот string не должен встретиться в stdout
+        # And that string must not appear anywhere in stdout
         assert priv_in_file not in out
 
     def test_print_private_emits_both(self, cryptography_available, generator_module, capsys):
-        """`--print-private` явный opt-in → public + private оба в stdout."""
+        """`--print-private` is the explicit opt-in: both public and
+        private end up in stdout."""
         rc = generator_module.main(["--print-private"])
         assert rc == 0
         out = capsys.readouterr().out
@@ -202,7 +205,8 @@ class TestMainCli:
         assert "PRIVATE KEY" in out
 
     def test_out_plus_print_private_combination(self, cryptography_available, generator_module, capsys, tmp_path):
-        """`--out PATH --print-private` — обе ветки активны (file + stdout)."""
+        """`--out PATH --print-private` activates both sinks (file +
+        stdout)."""
         path = tmp_path / "priv.key"
         rc = generator_module.main(["--out", str(path), "--print-private"])
         assert rc == 0
@@ -211,14 +215,15 @@ class TestMainCli:
         assert path.is_file()
 
     def test_quiet_with_out_keeps_security_default(self, cryptography_available, generator_module, capsys, tmp_path):
-        """`--quiet` не меняет exposure правил — только убирает баннеры."""
+        """`--quiet` does not change exposure rules — it only suppresses
+        the explanatory banners."""
         path = tmp_path / "priv.key"
         rc = generator_module.main(["--out", str(path), "--quiet"])
         assert rc == 0
         out = capsys.readouterr().out
         assert "NEXT STEPS" not in out
         assert "PUBLIC" in out
-        # Private всё равно не утекает в stdout
+        # The private key still must not leak to stdout
         assert "PRIVATE KEY" not in out
         priv_in_file = path.read_text().strip()
         assert priv_in_file not in out

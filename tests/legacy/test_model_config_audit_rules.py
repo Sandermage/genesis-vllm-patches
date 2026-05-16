@@ -444,12 +444,12 @@ paths:
                                                            monkeypatch):
         """No host.yaml + symbolic mounts → R-019 fires with helpful tip.
 
-        Тест должен быть hermetic — не зависеть от наличия реального
-        `~/.sndr/host.yaml` на хосте, где он запускается. Раньше тест
-        полагался на `GENESIS_HOME` env, но `load_host_config()` сейчас
-        читает фиксированный путь и игнорирует env. Поэтому мы напрямую
-        мокаем `load_host_config()` (вернёт объект без paths) и
-        `detect_paths()` (вернёт пустой dict).
+        The test must be hermetic — it cannot depend on whether the
+        host running the test has a real `~/.sndr/host.yaml` on disk.
+        Earlier versions used a `GENESIS_HOME` env override, but
+        `load_host_config()` now reads a fixed path and ignores env,
+        so we patch `load_host_config()` (returns an object with no
+        paths) and `detect_paths()` (returns an empty dict) instead.
         """
         from vllm.sndr_core.model_configs import host as _host_mod
 

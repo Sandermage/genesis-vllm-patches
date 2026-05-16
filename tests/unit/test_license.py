@@ -40,8 +40,8 @@ class TestLicenseStatus:
         assert len({s.value for s in statuses}) == 5
 
     def test_bad_payload_status_present(self):
-        """Etap 0.1: BAD_PAYLOAD добавлен как distinct failure mode для
-        signature-OK + contract-violation сценария."""
+        """BAD_PAYLOAD is a distinct failure mode for the
+        signature-OK + contract-violation case."""
         L = _license_module()
         assert L.LicenseStatus.BAD_PAYLOAD.value == "bad_payload"
         assert L.LicenseStatus.BAD_PAYLOAD != L.LicenseStatus.BAD_SIGNATURE
@@ -51,21 +51,21 @@ class TestLicenseStatus:
 
 
 class TestPayloadContract:
-    """Etap 0.1 (audit 2026-05-12): подписанный token должен иметь полный
-    contract: customer_id (str non-empty), issued_at/expires_at (positive
-    epoch float/int, expires > issued), engine_major (int, не bool).
+    """A signed token must carry the full contract:
+    customer_id (non-empty str), issued_at + expires_at (positive
+    epoch numerics, expires > issued), engine_major (int, not bool).
 
-    Без этой проверки missing/wrong-type поля silently passed as LICENSED
-    и token становился бессрочным.
+    Without this check, missing or wrong-type fields silently
+    passed as LICENSED and the token became effectively unbounded.
     """
 
-    NOW = 1_700_000_000.0  # фиксированная точка времени для предсказуемости
+    NOW = 1_700_000_000.0  # frozen epoch for deterministic comparisons
 
     def _valid(self, **overrides):
         base = {
             "customer_id": "test-customer-7",
-            "issued_at": self.NOW - 86400,    # вчера
-            "expires_at": self.NOW + 86400,   # завтра
+            "issued_at": self.NOW - 86400,    # one day ago
+            "expires_at": self.NOW + 86400,   # one day ahead
             "engine_major": 11,
         }
         base.update(overrides)
@@ -111,8 +111,9 @@ class TestPayloadContract:
         assert "non-empty" in err
 
     def test_bool_engine_major_rejected(self):
-        """Python quirk: `True` isinstance(int) → True. Validator должен
-        отвергнуть bool явно, чтобы token с `engine_major: true` не прошёл."""
+        """Python quirk: `True` isinstance(int) -> True. The validator
+        must reject bool explicitly so a token with
+        `engine_major: true` does not pass as a numeric major."""
         L = _license_module()
         err = L._validate_payload_contract(
             self._valid(engine_major=True), now_epoch=self.NOW,
@@ -149,22 +150,23 @@ class TestPayloadContract:
         """Token issued in the future = clock attack or signer misconfigured."""
         L = _license_module()
         err = L._validate_payload_contract(
-            self._valid(issued_at=self.NOW + 3600),  # 1 час в будущее
+            self._valid(issued_at=self.NOW + 3600),  # one hour in the future
             now_epoch=self.NOW,
         )
         assert err is not None
         assert "future" in err
 
     def test_small_clock_skew_tolerated(self):
-        """Skew ≤ 60s — допустим (рассинхронизация часов нормальна)."""
+        """Skew <= 60s is tolerated — clock drift between issuer and
+        verifier is expected."""
         L = _license_module()
         assert L._validate_payload_contract(
-            self._valid(issued_at=self.NOW + 30),  # 30 секунд вперёд
+            self._valid(issued_at=self.NOW + 30),  # 30 seconds in the future
             now_epoch=self.NOW,
         ) is None
 
     def test_int_timestamps_accepted(self):
-        """expires_at/issued_at могут быть int — не только float."""
+        """expires_at/issued_at accept int as well as float."""
         L = _license_module()
         assert L._validate_payload_contract(
             self._valid(
@@ -179,8 +181,9 @@ class TestPayloadContract:
 
 
 class TestPublicApi:
-    """Etap 0.5: ceremony doc и custom integrations используют public
-    names, а не приватные `_verify_signed_token` / `_is_placeholder_anchor`."""
+    """The ceremony doc and downstream integrations consume public
+    names; the underscored `_verify_signed_token` and
+    `_is_placeholder_anchor` are internal helpers."""
 
     def test_verify_token_exported(self):
         L = _license_module()
@@ -198,7 +201,8 @@ class TestPublicApi:
         assert "TokenVerification" in L.__all__
 
     def test_verify_token_rejects_malformed_format(self):
-        """Token без точки или слишком короткий → BAD_SIGNATURE без crash."""
+        """A token without the separator or too short to parse must
+        resolve to BAD_SIGNATURE rather than crashing the verifier."""
         L = _license_module()
         r = L.verify_token("not-a-signed-token")
         assert r.status == L.LicenseStatus.BAD_SIGNATURE
@@ -207,13 +211,13 @@ class TestPublicApi:
     def test_verify_token_returns_token_verification(self):
         L = _license_module()
         r = L.verify_token("garbage.also-garbage")
-        # Должен быть instance of TokenVerification, не tuple
+        # Must be an instance of TokenVerification, not a tuple
         assert isinstance(r, L.TokenVerification)
         # status — enum value
         assert isinstance(r.status, L.LicenseStatus)
 
     def test_is_placeholder_anchor_runs(self):
-        """Smoke: вызов не падает, возвращает bool."""
+        """Smoke check: the call returns bool without raising."""
         L = _license_module()
         result = L.is_placeholder_anchor()
         assert isinstance(result, bool)
