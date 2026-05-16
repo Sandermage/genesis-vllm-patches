@@ -73,7 +73,7 @@ runtime now lives at `vllm.sndr_core`. The pre-v11 namespace is removed
 in full; there is no back-compat alias. Detailed before / after table,
 list of what improved, what was removed, what stayed on purpose, and a
 sed one-liner to update any pre-v11 launch scripts live in
-[`docs/MIGRATION_V11_RENAME.md`](docs/MIGRATION_V11_RENAME.md).
+[`docs/PATCH_DESIGNS.md`](docs/PATCH_DESIGNS.md).
 
 The short version operators usually want:
 
@@ -275,7 +275,7 @@ loud with a `-25% TPS` bench regression note. See [CHANGELOG.md](CHANGELOG.md)
 entry `[v11.0.0+wave10]` for full per-patch rationale.
 
 Architectural roadmap to break the 243 ms TTFT ceiling at `conc=8`:
-[docs/GDN_KERNEL_FUSION_DESIGN.md](docs/GDN_KERNEL_FUSION_DESIGN.md) —
+[docs/PATCH_DESIGNS.md](docs/PATCH_DESIGNS.md) —
 3-phase plan to fuse the 6 sequential GDN Triton kernels into ≤3
 (estimated -25..-36 % TTFT, +15..+30 % aggregate TPS).
 
@@ -672,7 +672,7 @@ make release-check             # final release gate
 | File | Purpose |
 |---|---|
 | [docs/BENCHMARKS.md](docs/BENCHMARKS.md) | Full bench history (Wave 1 → Wave 9) |
-| [docs/BENCHMARK_GUIDE.md](docs/BENCHMARK_GUIDE.md) | How to run + interpret a bench |
+| [docs/BENCHMARKS.md](docs/BENCHMARKS.md) | How to run + interpret a bench |
 | [docs/CLI_REFERENCE.md](docs/CLI_REFERENCE.md) | Acceptance test runbook |
 
 ### Contributing
@@ -680,8 +680,8 @@ make release-check             # final release gate
 | File | Purpose |
 |---|---|
 | [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) | PR + issue + security disclosure |
-| [docs/PLUGINS.md](docs/PLUGINS.md) | Author + ship a community patch |
-| [docs/COMMUNITY_PATCHES.md](docs/COMMUNITY_PATCHES.md) | Patches contributed by users |
+| [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) | Author + ship a community patch |
+| [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) | Patches contributed by users |
 | [docs/CREDITS.md](docs/CREDITS.md) | Authors, backports, cross-rig collaborators |
 
 ### History
@@ -701,7 +701,7 @@ make release-check             # final release gate
 2. **Cross-rig benchmark** — run
    `python3 tools/genesis_bench_suite.py --quick --ctx 8k` and PR the
    markdown to `benchmarks/cross_rig_reports/`.
-3. **New patch** — see [`docs/PLUGINS.md`](docs/PLUGINS.md) for the
+3. **New patch** — see [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md) for the
    wiring template + TDD requirements.
 4. **Doc fix** — all PRs welcome; install pre-commit hooks via
    `bash scripts/git/install.sh`.

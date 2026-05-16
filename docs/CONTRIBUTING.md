@@ -544,14 +544,230 @@ Please don't email for support questions — use Discussions so the answer helps
 
 ---
 
+## Authoring a community patch
+
+Two paths exist depending on how you want to ship your patch.
+
+### Path 1 — pip-installable plugin (versioned independently)
+
+Ship the patch as its own Python package. Genesis auto-discovers it
+at boot via the `vllm_genesis_patches` entry-point group. Best when
+you want to release the patch on your own cadence, separate from the
+Genesis release train.
+
+A working scaffold is in
+[`tools/examples/genesis-plugin-hello-world/`](../tools/examples/genesis-plugin-hello-world/),
+tested in CI (`tests/compat/test_plugin_example.py`).
+
+Minimal layout:
+
+```text
+my-genesis-plugin/
+├── pyproject.toml
+└── my_genesis_plugin/
+    ├── __init__.py
+    └── patch.py
+```
+
+`pyproject.toml`:
+
+```toml
+[project]
+name = "my-genesis-plugin"
+version = "0.1.0"
+dependencies = []                      # Genesis is the only requirement
+
+[project.entry-points."vllm_genesis_patches"]
+my_patch = "my_genesis_plugin.patch:get_patch_metadata"
+```
+
+`patch.py`:
+
+```python
+"""Example community plugin for Genesis."""
+from __future__ import annotations
+
+
+def get_patch_metadata() -> dict:
+    return {
+        "patch_id": "MY_HANDLE_001",
+        "title": "Short, descriptive title",
+        "applies_to": {
+            "model_archs": ["qwen3_5_moe"],
+            "kv_dtypes":  ["turboquant_k8v4"],
+        },
+        "default_on": False,
+        "lifecycle": "experimental",
+        "credit": "your-name",
+    }
+```
+
+Operator workflow:
+
+```bash
+pip install my-genesis-plugin
+python3 -m vllm.sndr_core.compat.plugins list
+python3 -m vllm.sndr_core.compat.plugins show MY_HANDLE_001
+python3 -m vllm.sndr_core.compat.plugins validate
+```
+
+Author etiquette:
+
+- Open an issue at
+  <https://github.com/Sandermage/genesis-vllm-patches/issues>
+  describing your plugin's purpose before publishing.
+- Use a unique `patch_id` namespace (`MY_HANDLE_X`) to avoid future
+  collisions with core patches.
+- Document the hardware you tested on.
+- If your patch supersedes a core patch, mention it in
+  `community_credit`.
+
+### Path 2 — in-repo SDK (bundled with Genesis releases)
+
+Ship the patch inside the repo at
+`plugins/community/<author>/<patch-id>/` with a `manifest.yaml`. The
+SDK validates manifests, discovers them via filesystem +
+entry-points, and scaffolds new patches from a template. Best when
+you want the patch bundled into the Genesis release.
+
+```bash
+# Scaffold
+sndr community new-patch \
+    --id PN999 \
+    --author your_handle \
+    --family spec_decode \
+    --title "PN999 — short description"
+
+# Creates:
+#   plugins/community/your_handle/PN999/
+#     manifest.yaml
+#     patch.py            (apply() stub — replace with real logic)
+#     tests/test_pn999.py
+
+# Implement the apply() hook, then:
+sndr community list
+sndr community validate
+
+# Promote draft → review when ready
+$EDITOR plugins/community/your_handle/PN999/manifest.yaml
+```
+
+Validator rules:
+
+- **R-1** unique `patch_id` (no collision with core or other
+  community).
+- **R-2** family must be one of the canonical families.
+- **R-3** `applies_to` predicate parses.
+- **R-4** lifecycle is one of `draft`, `review`, `experimental`,
+  `stable`, `retired`.
+- **R-5** `apply()` must exist and be importable torch-less.
+- **R-6** unit tests pass (`pytest plugins/community/<author>/<id>/tests/`).
+- **R-7** stable lifecycle requires `default_on=True` only after
+  cross-rig validation.
+
+Reference code:
+
+- `vllm/sndr_core/model_configs/schema_v2.py` — `PatchManifest` +
+  `PatchCompatibility` + `PatchTargetFile` + `PatchAnchor`.
+- `vllm/sndr_core/community/manifest.py` — load + path enumeration.
+- `vllm/sndr_core/community/discovery.py` — filesystem +
+  entry-points.
+- `vllm/sndr_core/community/validator.py` — release-tier rules.
+- `vllm/sndr_core/community/scaffold.py` — scaffold generator.
+- `vllm/sndr_core/cli/community.py` — CLI surface.
+- `plugins/community/_template/` — reference example layout.
+
+## Project map — where things live
+
+Pointers for first-time contributors. The repo is large; this is a
+quick "I want to change X, where is X" reference.
+
+### Entry points
+
+| Command | File | Purpose |
+| --- | --- | --- |
+| `sndr launch <preset>` | `vllm/sndr_core/cli/launch.py` | Render + exec a preset. |
+| `sndr doctor` | `vllm/sndr_core/cli/doctor.py` | Health check. |
+| `sndr model-config` | `vllm/sndr_core/compat/model_config_cli.py` | Preset CRUD + bench. |
+| `sndr patches` | `vllm/sndr_core/cli/patches.py` | Registry browse / plan / release-check. |
+| `sndr service` | `vllm/sndr_core/cli/service.py` | systemd / compose / quadlet / k8s / proxmox lifecycle. |
+| `sndr community` | `vllm/sndr_core/cli/community.py` | In-repo SDK. |
+| `sndr report` | `vllm/sndr_core/cli/report.py` | Diagnostic tar.gz bundle. |
+| `install.sh` | `install.sh` (root) | One-command bootstrap. |
+| Bench harness | `vllm/sndr_core/tools/genesis_bench_suite.py` | Canonical bench. Shim under `tools/`. |
+
+### `vllm/sndr_core/` subpackages
+
+| Subpackage | What's inside |
+| --- | --- |
+| `apply/` | `orchestrator`, `verify`, `shadow`, `_per_patch_dispatch` — the legacy register that drives apply at boot. |
+| `audit/` | Audit gates consumed by `make evidence` (release_check, patch_proof, schema validator). |
+| `caveats/` | Host-condition caveats registry consumed by `sndr caveats`. |
+| `cli/` | One module per `sndr` subcommand. |
+| `community/` | In-repo SDK (manifest loader, discovery, validator, scaffold). |
+| `compat/` | Operator-facing wrappers (bench, doctor, install, model_config_cli, plugins, ...). |
+| `core/` | `TextPatcher`, anchor manifest, drift markers. |
+| `dispatcher/` | `registry.py` (PATCH_REGISTRY) + `spec.py` (PatchSpec) + `registry_metadata.py` (derived production_default). |
+| `integrations/` | 21 family subdirectories of wiring modules (one per patch). |
+| `kernels/` | Triton / CUDA kernel source (`p67_multi_query_kernel.py`, …). |
+| `locations/` | `project_paths.py` + `vllm_targets.py` — portable filesystem layout. |
+| `middleware/` | Per-request hooks (lazy reasoner, observability). |
+| `model_configs/` | V1 schema + V2 layered registry + composer + audit_rules + preflight + verify + patch_plan resolver. |
+| `tools/` | Bench harness (`genesis_bench_suite.py`) — the canonical bench. |
+
+### `scripts/` (release-tier audit gates)
+
+| Script | Purpose |
+| --- | --- |
+| `check_doc_sync.py` | Patch-count consistency across docs. |
+| `check_md_links.py` | Active-doc broken-link finder. |
+| `audit_public_docs.py` | D-1..D-6 boundary rules. |
+| `audit_no_stub.py` | No-stub gate. |
+| `check_dirty_state.py` | dev / audit / release tier dirty-state. |
+| `audit_artifacts.py` | Release-artifact policy. |
+| `security_scan.py` | Public-release security scan. |
+| `make_evidence.py` | Aggregate runner of every gate above. |
+| `generate_patches_md.py` | Auto-regen `docs/PATCHES_AUTO.md`. |
+| `generate_configs_md.py` | Auto-regen `docs/CONFIGS_AUTO.md`. |
+| `sync_readme_counters.py` | Sync patch counts in README sections. |
+
+### `tests/`
+
+| Directory | What's inside |
+| --- | --- |
+| `tests/unit/` | Per-module unit tests, hermetic (no GPU, no network). |
+| `tests/unit/integrations/<family>/` | Per-family contract tests (factory pattern). |
+| `tests/integration/` | Tests that exercise a running container; gated on GPU availability. |
+| `tests/integration/baselines/` | Per-preset bench baselines (regression bounds). |
+| `tests/legacy/` | Pre-v11 tests kept for back-compat; do not add new tests here. |
+| `tests/conftest.py` | Shared fixtures and the skip-list for legacy naming drift. |
+
+### `Makefile` (operator-facing)
+
+`make help` enumerates ~21 targets. Most common:
+
+- `make evidence` — full release-tier audit aggregate.
+- `make gates` — fast-fail subset (~2 s).
+- `make audit-release-check` — current public release gate.
+- `make audit-yaml` — drift between local YAML and live container.
+- `make precommit-install` — wire pre-commit hooks.
+- `make clean` — pycache / pytest-cache cleanup.
+
+For the full audit list see [`RELEASE_POLICY.md`](RELEASE_POLICY.md).
+
 ## Cross-references
 
-- [PATCHES.md](PATCHES.md) — full patch catalog with metadata
-- [COMPATIBILITY.md](PATCHES.md) — supported vLLM pins, models, GPUs
-- [CONFIGS.md](CONFIGS.md) — adding your own model recipe
-- [CLIFFS.md](TROUBLESHOOTING.md) — known performance and correctness cliffs
-- [BENCHMARK_GUIDE.md](BENCHMARK_GUIDE.md) — how to bench reproducibly
-- [SELF_TEST.md](CLI_REFERENCE.md) — running the validation suite
-- [CREDITS.md](CREDITS.md) — attributions, including upstream PRs we ported
+- [`PATCHES.md`](PATCHES.md) — full patch catalog with metadata
+  (incl. compatibility matrix + patch plan resolver).
+- [`MODELS.md`](MODELS.md) — model selection, V2 layered configs,
+  community config submission pipeline.
+- [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md) — cliffs, OOM recipes,
+  cookbook, rollback playbook.
+- [`BENCHMARKS.md`](BENCHMARKS.md) — canonical numbers + reproduction.
+- [`CLI_REFERENCE.md`](CLI_REFERENCE.md) — every `sndr` subcommand.
+- [`PATCH_DESIGNS.md`](PATCH_DESIGNS.md) — PN95 / GDN fusion /
+  reasoning contract / v11 rename appendices.
+- [`CREDITS.md`](CREDITS.md) — attributions, including upstream PRs
+  we ported.
 
 Thanks for contributing.

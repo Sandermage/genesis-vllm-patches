@@ -815,4 +815,4 @@ inline comments inside each model YAML.
 - [CONFIGURATION.md](CONFIGURATION.md) — runtime env knobs + preset selection
 - [PATCHES.md](PATCHES.md) — patch taxonomy + lifecycle
 - [INSTALL.md](INSTALL.md) — first-time install walkthrough
-- [BENCHMARK_GUIDE.md](BENCHMARK_GUIDE.md) — bench methodology + reproduction
+- [BENCHMARK_GUIDE.md](BENCHMARKS.md) — bench methodology + reproduction
