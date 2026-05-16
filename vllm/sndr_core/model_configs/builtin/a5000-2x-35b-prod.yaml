@@ -85,7 +85,7 @@ genesis_env:
   GENESIS_P68_P69_LONG_CTX_THRESHOLD_CHARS: '50000'  # P68/P69 threshold in CHARACTERS (≈12K tokens at 4 chars/tok); below = no reminder, above = inject
   # ── KV cache + memory pool ──
   GENESIS_ENABLE_P37: '1'                            # MoE intermediate cache pool (avoids per-call torch.empty for top-k aggregation)
-  GENESIS_TQ_MAX_MODEL_LEN: '320000'                 # TQ k8v4 KV cache size cap in tokens (matches max_model_len)
+  GENESIS_TQ_MAX_MODEL_LEN: '280000'                 # 2026-05-15 V1↔V2 sync: trimmed 320000→280000 to match V2 model YAML + hardware decision. Reasoning: 35B-A3B+TQ k8v4+MTP K=3 at gpu_memory_utilization=0.9 left ~1.0-1.5 GiB headroom per card; FULL_AND_PIECEWISE cudagraph capture (v1 default for hybrid_gdn_moe) needs +200-400 MiB margin. 280K still serves above the model's 256K published context (VLLM_ALLOW_LONG_MAX_MODEL_LEN=1) while restoring ~3-4 GiB free per card.
   GENESIS_ENABLE_P72_PROFILE_RUN_CAP: '1'            # Genesis-original — caps profile_run M dim at GENESIS_PROFILE_RUN_CAP_M (Dynamo fake-tensor mismatch on moe_align_block_size symbolic shape)
   GENESIS_PROFILE_RUN_CAP_M: '4096'                  # P72 cap value (must equal max_num_batched_tokens)
   GENESIS_ENABLE_P74_CHUNK_CLAMP: '1'                # chunked-prefill chunk-size clamp (avoids degenerate single-token chunks under spec-decode)
