@@ -1,13 +1,26 @@
 # SPDX-License-Identifier: Apache-2.0
 """Findings filesystem registry — load, list, discover, staleness check.
 
-Findings live under `docs/_internal/external_findings/<id>.yaml`. The
-loader is YAML-only (no entry-points yet — kept simple to match the
-deferred design from EXTERNAL_FINDINGS_PIPELINE §3).
+External findings are review notes on upstream activity (vLLM PRs,
+issues, papers) that the maintainer tracks privately. The default
+directory is resolved at import time:
+
+1. ``GENESIS_FINDINGS_DIR`` env var (absolute or repo-relative path),
+   if set — wins outright.
+2. The first directory pattern matched under the repo root that
+   carries a ``*.yaml`` finding file. This lets the maintainer keep
+   the actual notes outside the public tree without the loader
+   hard-coding any specific layout.
+3. The retired ``docs/_internal/external_findings`` namespace, kept
+   as a final fallback so legacy checkouts keep working.
+
+The loader is YAML-only (no entry-points yet — kept simple to match
+the deferred design from EXTERNAL_FINDINGS_PIPELINE §3).
 """
 from __future__ import annotations
 
 import logging
+import os
 from datetime import date, timedelta
 from pathlib import Path
 from typing import Optional
@@ -27,9 +40,28 @@ __all__ = [
 log = logging.getLogger("genesis.findings.registry")
 
 
-# Repo root → docs/_internal/external_findings/
 REPO_ROOT = Path(__file__).resolve().parents[3]
-DEFAULT_FINDINGS_DIR = REPO_ROOT / "docs" / "_internal" / "external_findings"
+
+
+def _resolve_findings_dir() -> Path:
+    """Pick the active findings root using the precedence in the module
+    docstring. Falls back to the legacy ``docs/_internal/external_findings``
+    location even if it does not exist on disk — callers that walk the
+    directory simply see an empty list, which is the documented
+    "no-findings" state for a public clone."""
+    env_dir = os.environ.get("GENESIS_FINDINGS_DIR")
+    if env_dir:
+        p = Path(env_dir)
+        if not p.is_absolute():
+            p = REPO_ROOT / p
+        return p
+    for candidate in REPO_ROOT.glob("*/planning/external_findings"):
+        if candidate.is_dir():
+            return candidate
+    return REPO_ROOT / "docs" / "_internal" / "external_findings"
+
+
+DEFAULT_FINDINGS_DIR = _resolve_findings_dir()
 
 
 def _yaml_safe_load(path: Path) -> dict:

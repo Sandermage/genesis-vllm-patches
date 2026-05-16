@@ -68,13 +68,12 @@ log = logging.getLogger("genesis.license")
 # `audit-license-anchor` gate refuses any release whose fingerprint
 # still matches `_DEV_ANCHOR_FINGERPRINT_FORBIDDEN` below.
 #
-# Rotation flow:
+# Rotation flow (maintainer-only — end users never run this):
 #
-#   1. Run `sndr_private/scripts/generate_trust_anchor.py --out <secure-path>
-#      --update-license` on an air-gapped machine. The private key
-#      never reaches stdout under the security-first default. The script
-#      lives in the private maintainer tree (gitignored) — see
-#      sndr_private/README.md for layout.
+#   1. Run the offline trust-anchor ceremony on an air-gapped machine.
+#      The private key never reaches stdout under the security-first
+#      default; it is written to a secure path under the maintainer's
+#      control.
 #   2. Store the private key offline (YubiKey / paper / safe).
 #   3. Update this constant with the new public key, re-issue all
 #      active customer tokens, ship the wheel.
@@ -120,9 +119,8 @@ def _maybe_log_placeholder_warning() -> None:
             "Signed Ed25519 license tokens will be rejected with status "
             "BAD_SIGNATURE — only plain `SNDR_ALLOW_LEGACY_LICENSE_KEYS=1` "
             "tokens will work. Production deployments must replace the "
-            "placeholder by running `sndr_private/scripts/generate_trust_anchor.py "
-            "--update-license` (private maintainer tree) and shipping a "
-            "fresh wheel."
+            "placeholder via the offline trust-anchor ceremony and ship "
+            "a fresh wheel."
         )
 
 

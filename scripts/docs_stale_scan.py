@@ -122,7 +122,7 @@ def main(argv: list[str] | None = None) -> int:
     print()
     print("Fix options:")
     print("  - Update the doc to use the current command/path/namespace.")
-    print("  - Move the doc into sndr_private/ or docs/archive/ if it's historical.")
+    print("  - Move the doc into docs/archive/ if it's historical.")
     print("  - Mark the section as 'ARCHIVED / not current' and request allowlist.")
     return 1
 

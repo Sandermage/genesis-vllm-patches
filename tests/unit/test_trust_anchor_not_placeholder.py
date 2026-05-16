@@ -14,9 +14,8 @@ def test_trust_anchor_is_not_placeholder():
     from vllm.sndr_core.license import _is_placeholder_anchor
 
     assert not _is_placeholder_anchor(), (
-        "Trust anchor placeholder detected. Run "
-        "`sndr_private/scripts/generate_trust_anchor.py` offline "
-        "(private maintainer tree), then update "
+        "Trust anchor placeholder detected. Run the offline "
+        "trust-anchor ceremony, then update "
         "`_TRUST_ANCHOR_PUBKEY_B64URL` in `vllm/sndr_core/license.py`."
     )
 

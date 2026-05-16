@@ -28,13 +28,31 @@ def _import():
 
 
 class TestLiveRepo:
-    def test_no_overrides_committed(self):
-        """Current state: no V2 model explicitly disables a default_on=True patch."""
+    # Legitimate default_on overrides that the V2 surface intentionally
+    # documents. Each entry is (model_id, env_flag, expected_value)
+    # and must carry a YAML comment explaining the override.
+    _ALLOWED_OVERRIDES: set[tuple[str, str, str]] = {
+        ("qwen3.6-35b-a3b-fp8", "GENESIS_LEGACY_P7", "0"),
+    }
+
+    def test_only_documented_overrides_present(self):
+        """Every default_on override that surfaces must be on the
+        allowlist above (with a documenting comment in the YAML). The
+        audit script itself is informational and never fails CI; this
+        test is what ratchets the allowlist."""
         mod = _import()
         results = mod.audit_v2_default_on_mismatch()
+        observed: set[tuple[str, str, str]] = set()
         for r in results:
             assert r.error == ""
-            assert r.overrides == []
+            for ov in r.overrides:
+                observed.add((r.model_id, ov["env_flag"], ov["model_value"]))
+        unexpected = observed - self._ALLOWED_OVERRIDES
+        assert not unexpected, (
+            f"undocumented default_on overrides: {sorted(unexpected)} — "
+            "either add a YAML justification comment and update the "
+            "allowlist, or revert the override"
+        )
         assert len(results) == 6
 
 

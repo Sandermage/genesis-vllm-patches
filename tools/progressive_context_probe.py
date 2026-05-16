@@ -70,7 +70,10 @@ def main():
     ap.add_argument("--model", default="qwen3.6-27b")
     ap.add_argument("--steps", default="16384,32768,65536,98304,131072,163840,196608,262144")
     ap.add_argument("--timeout", type=int, default=300)
-    ap.add_argument("--out", default="sndr_private/runs/progressive_ctx_probe.json")
+    ap.add_argument("--out", default="progressive_ctx_probe.json",
+                    help="Output JSON path. Default writes the file in "
+                         "the current working directory; pass an absolute "
+                         "path to redirect.")
     ap.add_argument("--stop-on-fail", action="store_true", default=True)
     args = ap.parse_args()
 

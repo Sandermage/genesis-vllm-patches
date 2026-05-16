@@ -145,11 +145,12 @@ class TestScanOneFile:
 
 
 class TestExempt:
-    def test_exempt_marker_present(self):
-        """Verify the live exempt list is non-empty + each item is a real file."""
+    def test_exempt_entries_resolve_to_real_files(self):
+        """Whatever lives in the live exempt list must be a real file
+        in the tree. Empty list is OK — the privacy-consolidation pass
+        moved the only previously-exempt example off the public surface,
+        so the gate currently runs with zero exemptions."""
         mod = _import_script()
-        # Currently one exemption: test-v11.yml.
-        assert len(mod.EXEMPT_FILES) >= 1
         for rel in mod.EXEMPT_FILES:
             assert (REPO_ROOT / rel).is_file(), f"exempt file missing: {rel}"
 

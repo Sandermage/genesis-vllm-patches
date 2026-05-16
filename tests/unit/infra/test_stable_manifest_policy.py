@@ -164,32 +164,48 @@ class TestStableLifecycleRatchet:
 
 
 class TestStableRatchetDocumented:
-    """Sanity: the promotion checklist file exists and is referenced."""
+    """Sanity: the promotion checklist is reachable from contributor docs.
+
+    Post-2026-05-16 consolidation, the standalone
+    ``docs/upstream/STABLE_PROMOTION_CHECKLIST.md`` page was merged
+    into ``docs/CONTRIBUTING.md`` under "Promoting a patch to
+    ``lifecycle=\"stable\"``". Both locations are accepted so legacy
+    checkouts keep working."""
+
+    _LEGACY = "docs/upstream/STABLE_PROMOTION_CHECKLIST.md"
+    _MERGED = "docs/CONTRIBUTING.md"
+
+    def _checklist_text(self) -> str:
+        legacy = REPO_ROOT / self._LEGACY
+        if legacy.is_file():
+            return legacy.read_text()
+        merged = REPO_ROOT / self._MERGED
+        assert merged.is_file(), (
+            f"neither {self._LEGACY} nor {self._MERGED} present — "
+            "operators need the promotion checklist when promoting a "
+            "patch to lifecycle=stable"
+        )
+        return merged.read_text()
 
     def test_promotion_checklist_exists(self):
-        checklist = (
-            REPO_ROOT / "docs" / "upstream" / "STABLE_PROMOTION_CHECKLIST.md"
-        )
-        assert checklist.is_file(), (
-            f"missing {checklist} — operators need this when promoting "
-            "a patch to lifecycle=stable"
-        )
+        assert self._checklist_text(), "checklist content empty"
 
     def test_checklist_mentions_all_four_steps(self):
-        """Checklist must enumerate the 4 ratchet conditions."""
-        checklist = (
-            REPO_ROOT / "docs" / "upstream" / "STABLE_PROMOTION_CHECKLIST.md"
+        """Checklist must enumerate the 4 ratchet conditions. Each
+        condition is recognized by ANY of the listed synonyms — the
+        legacy standalone checklist used different phrasing than the
+        merged CONTRIBUTING.md section."""
+        content = self._checklist_text()
+        required_terms: tuple[tuple[str, ...], ...] = (
+            ("patch_id",),
+            ("register_text_patcher", "TextPatcher", "register_for_manifest"),
+            ("anchor_manifest",),
+            ("build_anchor_manifest",),
         )
-        content = checklist.read_text()
-        for term in (
-            "patch_id",
-            "register_text_patcher",
-            "anchor_manifest",
-            "build_anchor_manifest",
-        ):
-            assert term in content, (
-                f"STABLE_PROMOTION_CHECKLIST.md missing reference to "
-                f"{term!r} — operators may skip a critical ratchet step"
+        for synonyms in required_terms:
+            assert any(t in content for t in synonyms), (
+                f"promotion checklist missing any reference to {synonyms} — "
+                "operators may skip a critical ratchet step"
             )
 
 

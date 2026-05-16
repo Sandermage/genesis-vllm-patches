@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -42,19 +43,29 @@ def _git_tracked_files() -> list[str]:
 
 
 def check_evidence_ledger_present() -> list[str]:
-    """A-1: at least one evidence ledger MD must exist under the
-    private maintainer tree (sndr_private/planning/, replacing the
-    retired docs/_internal/ namespace)."""
-    candidates = [
-        REPO_ROOT / "sndr_private" / "planning",
-        REPO_ROOT / "docs" / "_internal",  # legacy fallback
-    ]
+    """A-1: evidence ledger MD must exist when a maintainer planning
+    tree is checked out alongside the public repo.
+
+    The ledger lives outside the public source tree by design — public
+    clones don't carry it, and the gate is a no-op on those checkouts.
+    Maintainers point the gate at their planning dir via the
+    ``GENESIS_PLANNING_DIR`` env var; if it's unset and the legacy
+    ``docs/_internal/`` path is also absent, the gate skips silently.
+    When a planning dir IS visible to the gate, at least one
+    ``ROADMAP_EVIDENCE_LEDGER_*.md`` must live in it."""
+    candidates: list[Path] = []
+    env_dir = os.environ.get("GENESIS_PLANNING_DIR")
+    if env_dir:
+        candidates.append(Path(env_dir))
+    candidates.append(REPO_ROOT / "docs" / "_internal")  # legacy fallback
+    if not any(b.is_dir() for b in candidates):
+        return []
     for base in candidates:
         if base.is_dir() and list(base.glob("ROADMAP_EVIDENCE_LEDGER_*.md")):
             return []
     return [
-        "A-1: no ROADMAP_EVIDENCE_LEDGER_*.md found under "
-        "sndr_private/planning/ (or legacy docs/_internal/)"
+        "A-1: maintainer planning tree visible but contains no "
+        "ROADMAP_EVIDENCE_LEDGER_*.md"
     ]
 
 

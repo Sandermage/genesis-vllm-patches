@@ -1452,11 +1452,13 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "override deploy.default runtime (must satisfy "
             "deploy.<runtime>=True for the config OR pass --force). "
-            "Currently implemented: docker (default), bare_metal (Proxmox "
-            "LXC venv per noonghunna CONTAINER_RUNTIMES.md), podman "
-            "(docker-compatible w/ --device nvidia.com/gpu=all), kubernetes "
-            "(Deployment+Service+ConfigMap manifest, ready for kubectl apply). "
-            "lxc_proxmox: skeleton-only follow-up."
+            "Currently implemented: docker (default), bare_metal "
+            "(Proxmox LXC venv), podman (docker-compatible w/ "
+            "--device nvidia.com/gpu=all), kubernetes "
+            "(Deployment+Service+ConfigMap manifest, ready for "
+            "kubectl apply), lxc_proxmox (runnable Proxmox LXC "
+            "deployment script — review host-specific env vars "
+            "before executing)."
         ),
     )
     p_render.add_argument(
