@@ -78,11 +78,26 @@ _KNOWN_REGISTRY_ONLY = frozenset({
     # regex extracts only "N16" prefix, so PN16_V6 looks registry-only.
     # The function exists in apply_all.py; no asymmetry in practice.
     "PN16_V6",
-    # Sprint 2.6 v2 (UNIFIED_CONFIG plan 2026-05-09): non-PN-style
-    # registry id (no leading P/PN). Apply function name is
-    # `apply_patch_sprint26_cudagraph_dispatch_trace`. Sync regex
-    # only matches P[0-9]+ / PN[0-9]+ prefixes.
-    "SPRINT26_CG_DISPATCH_TRACE",
+    # Sprint 2.6 v2 — renamed to PN122 in §12 cleanup. Kept here for
+    # historical context; the canonical entry is now PN122 below.
+    # PN122 trace tooling — wired through observability dispatch helper,
+    # not via apply_patch_* function in apply_all.py.
+    "PN122",
+    # Wave 10 backports / experimental patches without standalone wiring
+    # function in apply_all.py — each one ships its own apply via the
+    # dispatcher's per-patch overlay loader (`integrations/<family>/<id>.py`
+    # defines apply() directly). Registry entries exist for dispatcher
+    # visibility and proof-artefact tracking.
+    "PN104", "PN105", "PN106",         # offload tier (CPU)
+    "PN110", "PN111",                  # kv_cache experimental
+    "PN116", "PN118", "PN119",         # turboquant wave 10 backports
+    "PN125", "PN126", "PN127", "PN128",  # warmup orchestrator series
+    "PN129", "PN130",                  # JIT + TQ decode warmup
+    "PN132", "PN133", "PN134",         # correctness backports
+    "PN200", "PN201", "PN202", "PN203",  # streaming runtime
+    "PN71", "PN73", "PN91", "PN92", "PN97",  # legacy backports retired/merged
+    # Synthetic workspace token — coordinator only, no apply path.
+    "SNDR_WORKSPACE_001",
 })
 
 _KNOWN_APPLY_ONLY: frozenset[str] = frozenset({

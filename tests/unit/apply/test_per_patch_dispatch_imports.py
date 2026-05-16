@@ -118,18 +118,47 @@ def _delegates_to_wiring_helper(fn: ast.FunctionDef) -> bool:
     return False
 
 
+_DEPRECATED_ALIAS_WRAPPERS: frozenset[str] = frozenset({
+    # 2026-05-14 PN96 rename: PN96 → PN96b. The original wrapper name
+    # is preserved as a one-release deprecation alias that simply
+    # invokes the new wrapper. By design it has no imports and no
+    # helper delegation — it's just `return apply_patch_N96b_*()`.
+    "apply_patch_N96_marlin_persistent_workspace",
+})
+
+
+def _calls_another_wrapper(fn: ast.FunctionDef) -> bool:
+    """True if the wrapper body invokes another `apply_patch_*` function
+    by name. Used to whitelist deprecation aliases."""
+    for sub in ast.walk(fn):
+        if (isinstance(sub, ast.Call)
+                and isinstance(sub.func, ast.Name)
+                and sub.func.id.startswith("apply_patch_")):
+            return True
+    return False
+
+
 def test_every_wrapper_either_imports_or_delegates_to_helper():
     """Every `apply_patch_*` wrapper either:
        (a) imports a wiring module via `from ... import ...`, OR
        (b) delegates to `_wiring_text_patch(name, stem)` which resolves
-           the wiring module through the runtime stem index.
+           the wiring module through the runtime stem index, OR
+       (c) is an audited deprecation alias that invokes the renamed
+           wrapper (see `_DEPRECATED_ALIAS_WRAPPERS`).
 
-    Wrappers doing neither are dead code (no path to actually apply).
+    Wrappers doing none of the above are dead code (no path to apply).
     """
     wrappers = _collect_wrappers()
     assert wrappers, "no apply_patch_* wrappers found"
     dead: list[str] = []
     for w in wrappers:
+        if w.name in _DEPRECATED_ALIAS_WRAPPERS:
+            assert _calls_another_wrapper(w), (
+                f"{w.name} listed as deprecation alias but does not "
+                f"call any apply_patch_* function — remove from "
+                f"_DEPRECATED_ALIAS_WRAPPERS or fix the body."
+            )
+            continue
         has_imports = bool(_imported_names(w))
         delegates = _delegates_to_wiring_helper(w)
         if not has_imports and not delegates:

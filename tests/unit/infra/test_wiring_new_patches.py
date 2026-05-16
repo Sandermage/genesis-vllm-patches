@@ -359,6 +359,12 @@ class TestPatch12:
         p12.apply()
         ast.parse(Path(fake_qwen3_reasoning_p12).read_text())
 
+    @pytest.mark.skip(
+        reason="P12 drift-marker auto-skip removed 2026-05-15 — patch now "
+               "self-skips via anchor-absence detection on upstream-merged "
+               "checkouts rather than a textual marker. See P12 module "
+               "head comment (lines 64-70) and UPSTREAM_DRIFT_MARKERS=[]."
+    )
     def test_upstream_drift_skip(self, fake_qwen3_reasoning_p12):
         from vllm.sndr_core.integrations.reasoning import p12_tool_call_reasoning as p12
         with open(fake_qwen3_reasoning_p12, "a") as _fh:

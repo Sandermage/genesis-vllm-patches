@@ -53,7 +53,7 @@ PRISTINE_PARSER_TAIL = (
 
 def _load_anchors():
     """Load the anchor strings out of the wiring module."""
-    from vllm.sndr_core.integrations._retired import pn51_qwen3_streaming_thinking_disabled as M
+    from vllm.sndr_core.integrations.reasoning import pn51_qwen3_streaming_thinking_disabled as M
     return M.ANCHOR_OLD, M.ANCHOR_NEW, M.GENESIS_PN51_MARKER
 
 

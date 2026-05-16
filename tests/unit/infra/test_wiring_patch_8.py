@@ -79,7 +79,7 @@ def fake_p8_files(tmp_path, monkeypatch):
             return str(sched_path)
         return None
 
-    from vllm.sndr_core.integrations.scheduler import p8_kv_hybrid_reporting as p8
+    from vllm.sndr_core.integrations._retired import p8_kv_hybrid_reporting as p8
     monkeypatch.setattr(p8, "resolve_vllm_file", resolve)
     monkeypatch.setattr(p8, "vllm_install_root", lambda: "/fake")
 
@@ -102,7 +102,7 @@ def fake_p8_files(tmp_path, monkeypatch):
 
 class TestPatch8Wiring:
     def test_apply_both_files(self, fake_p8_files):
-        from vllm.sndr_core.integrations.scheduler import p8_kv_hybrid_reporting as p8
+        from vllm.sndr_core.integrations._retired import p8_kv_hybrid_reporting as p8
         kv_path, sched_path = fake_p8_files
 
         status, reason = p8.apply()
@@ -125,7 +125,7 @@ class TestPatch8Wiring:
         assert "num_groups = len(kv_cache_config.kv_cache_groups)" not in sched_content
 
     def test_idempotent(self, fake_p8_files):
-        from vllm.sndr_core.integrations.scheduler import p8_kv_hybrid_reporting as p8
+        from vllm.sndr_core.integrations._retired import p8_kv_hybrid_reporting as p8
         kv_path, sched_path = fake_p8_files
 
         from vllm.sndr_core.integrations._retired.p8_kv_hybrid_reporting import (
@@ -148,7 +148,7 @@ class TestPatch8Wiring:
     def test_skip_when_upstream_merged_kv(self, fake_p8_files):
         """If helper function already exists in kv_cache_utils (upstream landed),
         KV sub-patch skips — but scheduler may still need the import."""
-        from vllm.sndr_core.integrations.scheduler import p8_kv_hybrid_reporting as p8
+        from vllm.sndr_core.integrations._retired import p8_kv_hybrid_reporting as p8
         kv_path, _sched_path = fake_p8_files
 
         # Prepend helper to kv_cache_utils to simulate upstream merge
@@ -163,7 +163,7 @@ class TestPatch8Wiring:
         assert "kv_cache_utils=skipped" in reason
 
     def test_missing_files_skip(self, monkeypatch):
-        from vllm.sndr_core.integrations.scheduler import p8_kv_hybrid_reporting as p8
+        from vllm.sndr_core.integrations._retired import p8_kv_hybrid_reporting as p8
         monkeypatch.setattr(p8, "resolve_vllm_file", lambda rel: None)
         monkeypatch.setattr(p8, "vllm_install_root", lambda: "/fake")
         status, reason = p8.apply()

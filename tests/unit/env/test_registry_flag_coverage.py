@@ -162,6 +162,8 @@ def test_registry_family_values_valid(registry_env_flags):
         "loader", "middleware", "memory", "observability",
         "lora", "multimodal",
         "model_specific",  # rare — for truly model-tied patches
+        "streaming",       # PN200-PN203 — Wave 8 streaming runtime
+        "offload",         # PN102/PN104/PN105 — CPU offload tier
     }
     bad = [
         (pid, meta.get("family"))

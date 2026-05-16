@@ -25,7 +25,10 @@ def bench_module():
     """Load the bench module via spec_from_file_location since it lives
     outside the package tree."""
     repo_root = Path(__file__).resolve().parents[3]
-    bench_path = repo_root / "tools" / "genesis_bench_suite.py"
+    # Wave 10 (2026-05-15) canonical location.
+    bench_path = (
+        repo_root / "vllm" / "sndr_core" / "tools" / "genesis_bench_suite.py"
+    )
     if not bench_path.is_file():
         pytest.skip(f"bench module not found at {bench_path}")
     spec = importlib.util.spec_from_file_location("gbs", bench_path)
