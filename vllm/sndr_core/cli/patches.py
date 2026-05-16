@@ -1209,6 +1209,16 @@ def add_argparser(subparsers: Any) -> None:
         help="Restrict to these tiers (repeatable, e.g. release, community).",
     )
     p_rc.add_argument(
+        "--scope", default="all",
+        choices=["all", "production-subset"],
+        help=(
+            "Restrict evaluation to a named subset. 'production-subset' "
+            "is the union of patches enabled by any prod-* V2 preset + "
+            "every default_on=True entry — the practical scope for "
+            "hardened-release bench/baseline gating. Default: all."
+        ),
+    )
+    p_rc.add_argument(
         "--out-dir", default=None,
         help="Override evidence/patch_proof/ artefact directory.",
     )
@@ -1612,11 +1622,22 @@ def _run_release_check(args: argparse.Namespace) -> int:
     )
 
     out_dir = Path(args.out_dir) if args.out_dir else DEFAULT_PROOF_DIR
+
+    # Build the patch filter: --patch is the explicit operator-driven
+    # list; --scope production-subset programmatically widens it to the
+    # canonical hardened-release scope (every patch enabled by any prod-*
+    # preset + default_on=True entries). When both are given, --patch
+    # wins (operator override).
+    patch_filter = frozenset(args.patch) if args.patch else None
+    if patch_filter is None and getattr(args, "scope", "all") == "production-subset":
+        from vllm.sndr_core.proof.production_subset import get_production_subset
+        patch_filter = get_production_subset()
+
     try:
         policy = ReleasePolicy(
             mode=args.mode,
             max_regression_pct=args.max_regression_pct,
-            patch_filter=frozenset(args.patch) if args.patch else None,
+            patch_filter=patch_filter,
             tier_filter=frozenset(args.tier) if args.tier else None,
         )
     except ReleaseCheckError as e:
