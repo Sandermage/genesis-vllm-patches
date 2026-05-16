@@ -164,3 +164,54 @@ notes:
     raw throughput; MTP+TQ has better long-context (262K vs 80K cap). For
     most workloads, the choice depends on context length requirement, not
     per-token performance.
+
+# ── patches_attribution (Phase D backfill, 2026-05-16) ─────────────────
+# 27B DFlash variant: same hot-path patches as 27B TQ k8v4 except the
+# spec-decode method (DFlash internal, not MTP K=3). Load-bearing entries
+# differ accordingly: PN21-PN24 (DFlash core) are required.
+patches_attribution:
+  PN21:
+    role: load_bearing
+    note: |
+      DFlash SWA support — required for the DFlash drafter to attend
+      over swa-windowed keys. Without it the DFlash path can't
+      produce valid drafts (boot error on speculative_config).
+  PN23:
+    role: load_bearing
+    note: |
+      DFlash combine_hidden dtype fix — converts mixed fp16/bf16
+      hidden states correctly during drafter combine. Without it
+      decode silently produces NaN on the DFlash path.
+  PN24:
+    role: load_bearing
+    note: |
+      DFlash aux-layer indexing in V1 gpu_model_runner. Drafter reads
+      aux layers; wrong indexing → wrong tensors → invalid drafts.
+  PN51:
+    role: defensive
+    note: "Qwen3 streaming thinking-disabled short-circuit (vllm#40816)."
+  PN125:
+    role: defensive
+    note: "Forces FULL_AND_PIECEWISE on hybrid_gdn_moe."
+  PN126:
+    role: defensive
+    bench_evidence: "Eliminates 5-25s TTFT spike on first decode after restart"
+    note: "V1 decode kernel warmup. Boot-only cost."
+  PN132:
+    role: defensive
+    bench_evidence: "no-op when VLLM_USE_FLASHINFER_SAMPLER=1"
+    note: "Triton top-k/top-p contiguous fix (vllm#42739)."
+  PN133:
+    role: defensive
+    bench_evidence: "MTP scheduler — no-op on DFlash path, zero cost"
+    note: "MTP empty-output guard (vllm#42722)."
+  PN130:
+    role: optional_perf
+    bench_evidence: "Head_size=256 forbids TQ on Ampere → no-op on DFlash preset"
+    note: "TQ decode warmup; included for cross-config consistency."
+  PN134:
+    role: suspected_regression
+    note: |
+      Retired 2026-05-15 (-25% TPS regressor; affects DFlash via
+      Inductor cache blow-up). Keep OFF — do not re-enable without
+      new evidence delta.

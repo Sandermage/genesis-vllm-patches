@@ -185,3 +185,65 @@ notes:
     closer to user target 100-120 ms than MTP's 243 ms). MTP+TQ remains
     the THROUGHPUT-WIN preset (689 vs 562 aggregate, plus 256K context
     supported via TQ k8v4 compression).
+
+# ── patches_attribution (Phase D backfill, 2026-05-16) ─────────────────
+# 35B MoE FP8 with DFlash drafter (latency-optimised). Load-bearing
+# entries focus on DFlash path correctness + 35B MoE specifics.
+patches_attribution:
+  P67:
+    role: load_bearing
+    note: |
+      TurboQuant multi-query attention kernel. Same hot-path patch
+      as MTP+TQ sibling (~30% decode TPS without it).
+  PN22:
+    role: load_bearing
+    note: "DFlash local argmax + TP support. Required for TP=2 multi-GPU DFlash."
+  PN23:
+    role: load_bearing
+    note: "DFlash combine_hidden dtype fix — silent NaN without it."
+  PN24:
+    role: load_bearing
+    note: "DFlash aux-layer indexing in V1 gpu_model_runner."
+  PN95:
+    role: load_bearing
+    note: |
+      Tier-aware KV cache, CONFIG_KEY-gated. 35B-A3B: 30/41 Mamba
+      layers excluded, 11 attention + 1 MTP eligible for demote.
+  PN201:
+    role: load_bearing
+    note: |
+      Scheduler-tick empty_cache hedge. Same long-soak fragmentation
+      protection as the MTP+TQ sibling.
+  PN51:
+    role: defensive
+    note: "Qwen3 streaming thinking-disabled short-circuit (vllm#40816)."
+  PN125:
+    role: defensive
+    note: "Forces FULL_AND_PIECEWISE on hybrid_gdn_moe."
+  PN126:
+    role: defensive
+    bench_evidence: "Eliminates 5-25s TTFT spike on first decode"
+    note: "V1 decode kernel warmup. Boot-only cost."
+  PN132:
+    role: defensive
+    bench_evidence: "no-op when VLLM_USE_FLASHINFER_SAMPLER=1"
+    note: "Triton top-k/top-p contiguous fix (vllm#42739)."
+  PN133:
+    role: defensive
+    bench_evidence: "No-op on DFlash spec-decode path but cost zero"
+    note: "MTP scheduler empty-output guard (vllm#42722)."
+  PN96b:
+    role: optional_perf
+    bench_evidence: "Marlin MoE workspace persistent pool +4-5% TPS recovery"
+    note: "Renamed 2026-05-15 from PN96 (dict-key collision fix)."
+  PN106:
+    role: optional_perf
+    bench_evidence: "GDN inner chunk-state h-pool — +0.5-1% on long-context decode"
+    note: |
+      Reuses inner GDN chunk-state h alloc across iterations.
+      Effect modest at conc=1; compounds with PN95 at higher conc.
+  PN134:
+    role: suspected_regression
+    note: |
+      Retired 2026-05-15 (-25% TPS regressor on hybrid_gdn_moe;
+      affects DFlash via Inductor cache blow-up). Keep OFF.

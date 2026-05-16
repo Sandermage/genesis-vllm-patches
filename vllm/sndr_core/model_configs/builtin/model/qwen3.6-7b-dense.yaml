@@ -48,3 +48,11 @@ patches:
 notes:
   - "Community example model. DENSE attention (no hybrid GDN). Pairs with
     path-a-3090-cpu-offload-example profile for CPU-offload reference."
+
+# ── patches_attribution (Phase D backfill, 2026-05-16) ─────────────────
+# DENSE-only minimal baseline. The patches dict has only
+# GENESIS_OBSERVABILITY which is a *parameter* (not a toggle) — by
+# design it sits outside the attribution domain. Empty map is the
+# honest representation: this model exists to demonstrate the DENSE
+# Path A profile, not to ship a curated patch stack.
+patches_attribution: {}

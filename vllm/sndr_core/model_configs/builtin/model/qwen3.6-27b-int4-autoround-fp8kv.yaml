@@ -123,3 +123,41 @@ notes:
     Long-ctx variant uses 280K context with sizing override; tested variant uses 131K."
   - "Lorbus INT4 routes through AllSparkLinearKernel (not Marlin) for the dense
     path — P87/P91 still help for the moe-marlin path on 27B."
+
+# ── patches_attribution (Phase D backfill, 2026-05-16) ─────────────────
+# 27B INT4 AutoRound with fp8 KV (the QA-tested variant). No TQ k8v4,
+# straight MTP K=3 path. Load-bearing entries focus on 27B
+# hybrid_gdn_moe stability + long-ctx OOM hedges.
+patches_attribution:
+  PN8:
+    role: load_bearing
+    note: |
+      MTP draft online quant — saves ~1 GiB/rank. Removing causes
+      OOM on max_model_len ≥ 128K with conc=2 on 24 GB cards.
+  PN11:
+    role: load_bearing
+    note: |
+      GDN A/B contiguity guard. hybrid_gdn_moe can produce non-
+      contiguous AB tensors that crash the Mamba mixer.
+  PN59:
+    role: load_bearing
+    note: |
+      Streaming GDN — Cliff 2b OOM guard required for ctx ≥ 64K.
+      Removing causes peak materialization OOMs at long contexts.
+  P94:
+    role: load_bearing
+    note: |
+      GroupAB zero-alloc spec-decode prepare. MTP K=3 path needs
+      this to avoid per-step alloc churn that crashes the worker
+      after ~10 min of decode.
+  PN17:
+    role: load_bearing
+    note: "Long-ctx FA2 safety margin (same justification as TQ variant)."
+  PN22:
+    role: load_bearing
+    note: "DFlash local argmax + TP support; required for MTP K=3 + TP=2 path."
+  PN134:
+    role: suspected_regression
+    note: |
+      Retired 2026-05-15 (-25% TPS regressor; affects all spec-decode
+      paths via Inductor cache). Keep OFF.
