@@ -10,59 +10,45 @@ cross-platform test bench.
 > Sponsorship is voluntary and carries no obligations on either
 > side. Genesis has no premium tiers, no paywalled patches, and no
 > priority queues — past and future contributions buy access to the
-> same public docs and issue tracker as everyone else. What
-> sponsorship does buy is **collective bandwidth**: more total
-> hours spent on Genesis instead of on other paid commitments, plus
-> more hardware to validate patches against.
+> same public docs and issue tracker as everyone else. Support
+> simply gives the maintainer room to engage with the project more
+> deeply and to keep developing its functionality and capabilities.
 
 ## What sponsorship enables
 
 Genesis is a one-maintainer project funded out of the maintainer's
 own savings and developed alongside other commitments. Support
-contributes to two concrete buckets — **time** and **hardware** —
-and the project ratchets forward at whatever pace operators
-collectively underwrite.
+gives the project room along two natural axes — the maintainer's
+time and the hardware available for validation.
 
-### Maintainer time
+### Time spent on the project
 
 Working on Genesis is currently a part-time effort. Sponsorship
-directly translates into the maintainer being able to reduce
-unrelated paid commitments and spend that time instead on:
+gives the maintainer space to engage with the project more deeply
+and consistently, rather than fitting it around other paid work.
+Practically, this means more room to develop existing functionality,
+explore new directions on the registry side
+([`PATCHES.md`](PATCHES.md)), advance the deferred architecture
+work documented in [`PATCH_DESIGNS.md`](PATCH_DESIGNS.md), and stay
+engaged with community issues and contributions.
 
-- Faster vLLM pin bumps with full deep-diff review of every
-  upstream PR against existing patches (see iron rule #11 in
-  [`CONTRIBUTING.md`](CONTRIBUTING.md)).
-- More frequent bench cycles + longer soak runs to catch
-  fragmentation-class regressions like Cliff 2b.
-- Better-quality design docs and follow-up on the deferred
-  architecture work (PN95 runtime split, GDN kernel fusion,
-  WorkspaceFacade consolidation — see
-  [`PATCH_DESIGNS.md`](PATCH_DESIGNS.md)).
-- More responsive triage on community issues and faster review of
-  community-submitted patches and configs.
+How much of that actually happens scales with how much breathing
+room sponsorship provides — there are no quotas, no promised
+deliverables, and no per-donor service levels.
 
-This is the bucket that scales linearly with sponsorship — every
-hour funded is an hour spent on Genesis instead of on something
-else.
-
-### Cross-platform test bench
+### Cross-platform hardware
 
 Genesis is currently validated on the reference rig:
-**2× NVIDIA RTX A5000** (Ampere SM 8.6, 24 GB each). Every patch
+**2× NVIDIA RTX A5000** (Ampere SM 8.6, 24 GB each). Anything
 beyond that envelope — Hopper, Blackwell, RTX PRO 6000, H100,
 Intel XPU, AMD ROCm CDNA — ships with defensive `applies_to` guards
-but cannot be empirically validated against real silicon. Operators
-on those platforms today get "graceful skip" semantics instead of
-measured numbers.
+because there is no real silicon to validate against.
 
-Expanding the test bench would let the maintainer:
-
-- Replace defensive guards with measured cross-platform baselines.
-- Land hardware-specific patches (NVFP4 on Blackwell, native FP8 on
-  Hopper, FlashInfer-MoE on H100, XPU / ROCm equivalents).
-- Publish bench-attached proof artefacts for the wider patch
-  registry (today only ~14 of 169 entries carry bench attachments —
-  see [`RELEASE_POLICY.md`](RELEASE_POLICY.md)).
+Access to more hardware (purchased through sponsorship, lent, or
+donated) opens up room for the project to grow into platforms it
+currently treats as "best-effort graceful skip" — see
+[`RELEASE_POLICY.md`](RELEASE_POLICY.md) for the proof-artefact
+ratchet that tracks this expansion.
 
 ## How to support
 
