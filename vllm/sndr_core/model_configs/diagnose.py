@@ -71,8 +71,23 @@ def diagnose_container_running(cfg) -> Optional[DiagnoseFinding]:
     )
 
 
-def diagnose_env_exported(cfg) -> list[DiagnoseFinding]:
-    """Compare cfg.genesis_env vs container's actual env."""
+def diagnose_env_exported(
+    cfg,
+    *,
+    expected_env: Optional[dict[str, str]] = None,
+) -> list[DiagnoseFinding]:
+    """Compare cfg.genesis_env vs container's actual env.
+
+    Args:
+        cfg: ModelConfig — used for cfg.docker.container_name resolution.
+        expected_env: Phase D override. When provided, diagnose compares
+            against this map (e.g. the policy-filtered plan.env from
+            `resolve_patch_plan`) instead of the raw cfg.genesis_env.
+            Use when the container was launched with --policy: the
+            running env is the filtered subset and the raw matrix
+            would produce false-positive "missing key" errors for
+            patches the policy intentionally dropped.
+    """
     out: list[DiagnoseFinding] = []
     if not cfg.docker:
         return out
@@ -94,8 +109,10 @@ def diagnose_env_exported(cfg) -> list[DiagnoseFinding]:
             k, _, v = e.partition("=")
             actual_dict[k] = v
 
-    # Cross-check: every key in cfg.genesis_env must be in actual_dict
-    for k, expected in cfg.genesis_env.items():
+    # When expected_env is provided, use it instead of cfg.genesis_env.
+    # Falls back to cfg.genesis_env so existing callers stay unchanged.
+    source = expected_env if expected_env is not None else cfg.genesis_env
+    for k, expected in source.items():
         actual = actual_dict.get(k)
         if actual is None:
             out.append(DiagnoseFinding(
@@ -267,8 +284,21 @@ def diagnose_vllm_pin_runtime(cfg) -> Optional[DiagnoseFinding]:
 # ─── Public API ────────────────────────────────────────────────────────
 
 
-def diagnose_all(cfg, port: Optional[int] = None) -> list[DiagnoseFinding]:
-    """Full diagnose suite. Requires container to be running."""
+def diagnose_all(
+    cfg,
+    port: Optional[int] = None,
+    *,
+    policy: Optional[str] = None,
+) -> list[DiagnoseFinding]:
+    """Full diagnose suite. Requires container to be running.
+
+    Args:
+        policy: Phase D — when set, run the patch_plan resolver and
+            compare the container's env against the policy-filtered
+            map instead of cfg.genesis_env raw. Avoids false-positive
+            "env missing" findings when the container was launched
+            with the same --policy flag.
+    """
     out: list[DiagnoseFinding] = []
     cs = diagnose_container_running(cfg)
     if cs:
@@ -276,7 +306,13 @@ def diagnose_all(cfg, port: Optional[int] = None) -> list[DiagnoseFinding]:
         if not cs.passed:
             return out  # bail out — nothing else will work
 
-    out.extend(diagnose_env_exported(cfg))
+    expected_env: Optional[dict[str, str]] = None
+    if policy is not None:
+        from vllm.sndr_core.model_configs.patch_plan import resolve_patch_plan
+        plan = resolve_patch_plan(cfg, policy=policy)
+        expected_env = plan.env
+
+    out.extend(diagnose_env_exported(cfg, expected_env=expected_env))
     out.extend(diagnose_boot_summary(cfg))
 
     api = diagnose_api_responsive(cfg, port=port)

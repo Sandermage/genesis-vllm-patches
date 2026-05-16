@@ -230,6 +230,15 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--json", action="store_true",
                     help="Machine-readable JSON output.")
+    ap.add_argument(
+        "--min-coverage", type=float, default=None,
+        help=(
+            "Optional informational threshold (percent). When set, the "
+            "gate also fails when the overall coverage % is below this "
+            "value. Use to ratchet attribution coverage upward over time. "
+            "Default: no coverage floor — only consistency is gating."
+        ),
+    )
     args = ap.parse_args()
 
     try:
@@ -243,6 +252,21 @@ def main() -> int:
     else:
         out, ok = _render_text(registry_flags, results)
     print(out)
+
+    # Optional coverage floor — operator-set ratchet.
+    if args.min_coverage is not None and ok:
+        total_patches = sum(r.total_patches for r in results)
+        total_attribs = sum(r.total_attributions for r in results)
+        coverage = (
+            100.0 * total_attribs / total_patches if total_patches else 100.0
+        )
+        if coverage < args.min_coverage:
+            sys.stderr.write(
+                f"audit-patch-attribution: coverage {coverage:.1f}% < "
+                f"--min-coverage {args.min_coverage}% — ratchet failed\n"
+            )
+            return 1
+
     return 0 if ok else 1
 
 

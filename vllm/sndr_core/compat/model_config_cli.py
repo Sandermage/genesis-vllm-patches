@@ -818,8 +818,11 @@ def cmd_preflight(args) -> int:
 
 def cmd_diagnose(args) -> int:
     cfg = _cfg_or_die(args.key)
-    print(f"=== diagnose {args.key} (runtime) ===\n")
-    findings = diagnose_all(cfg, port=args.port)
+    policy = getattr(args, "policy", None)
+    print(f"=== diagnose {args.key} (runtime"
+          + (f", policy={policy}" if policy else "")
+          + ") ===\n")
+    findings = diagnose_all(cfg, port=args.port, policy=policy)
     e = w = 0
     for f in findings:
         if f.severity == "error" and not f.passed:
@@ -1319,6 +1322,18 @@ def build_parser() -> argparse.ArgumentParser:
                             help="runtime diagnose — query running container")
     p_diag.add_argument("key")
     p_diag.add_argument("--port", type=int, default=None)
+    p_diag.add_argument(
+        "--policy",
+        choices=("compat", "safe", "minimal"),
+        default=None,
+        help=(
+            "Phase D (2026-05-16): compare against the policy-filtered "
+            "plan.env instead of cfg.genesis_env raw. Use when the "
+            "container was launched with the same --policy flag, "
+            "otherwise the legacy diff flags expected drop-outs as "
+            "errors."
+        ),
+    )
     p_diag.set_defaults(func=cmd_diagnose)
 
     p_ver = sub.add_parser("verify",

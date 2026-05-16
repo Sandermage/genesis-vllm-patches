@@ -96,6 +96,20 @@ def add_argparser(subparsers: Any) -> None:
              "and abort if any required dependency is missing. "
              "Equivalent to `sndr deps inspect <key>` followed by launch.",
     )
+    p.add_argument(
+        "--policy",
+        choices=("compat", "safe", "minimal"),
+        default=None,
+        help=(
+            "Phase D (2026-05-16): filter cfg.genesis_env through the "
+            "patch_plan resolver before rendering the launch script. "
+            "compat keeps every truthy toggle; safe drops role='no_op'; "
+            "minimal additionally drops role in {suspected_regression, "
+            "unknown}. Non-toggle GENESIS_* parameter keys always pass "
+            "through. Omit the flag to keep the legacy unfiltered "
+            "launch matrix."
+        ),
+    )
     p.set_defaults(func=run_launch)
 
 
@@ -447,6 +461,34 @@ def _run_check_deps(cfg, key: str) -> int:
     return 0
 
 
+def _maybe_apply_patch_policy(cfg: Any, opts: argparse.Namespace) -> None:
+    """Apply --policy filter to cfg.genesis_env in place.
+
+    No-op when ``opts.policy`` is None (legacy unfiltered path).
+
+    The resolver itself is read-only — it doesn't mutate cfg — so we
+    overwrite cfg.genesis_env explicitly. The replacement is the
+    union of policy-included toggles AND parameter passthrough, so
+    dependent patches keep their configuration keys (PN95 stays
+    armed via GENESIS_PN95_CONFIG_KEY, etc.).
+    """
+    policy = getattr(opts, "policy", None)
+    if policy is None:
+        return
+    from vllm.sndr_core.model_configs.patch_plan import resolve_patch_plan
+    plan = resolve_patch_plan(cfg, policy=policy)
+    _io.info(
+        f"  patch plan policy={policy}: "
+        f"{len(plan.included)} included / {len(plan.excluded)} excluded / "
+        f"{len(plan.passthrough)} passthrough"
+    )
+    if plan.warnings:
+        _io.warn(f"  ⚠ {len(plan.warnings)} patch_plan warning(s):")
+        for w in plan.warnings:
+            _io.warn(f"    {w}")
+    cfg.genesis_env = plan.env
+
+
 def run_launch(opts: argparse.Namespace) -> int:
     """Render `cfg.to_launch_script()` + apply patches + exec the script."""
     cfg, key = _resolve_config(opts.config_key, opts.non_interactive)
@@ -454,6 +496,13 @@ def run_launch(opts: argparse.Namespace) -> int:
 
     _io.banner(f"SNDR Launch: {key}",
                f"port={getattr(getattr(cfg, 'docker', None), 'port', None) or 'config'}")
+
+    # Phase D (2026-05-16): patch_plan resolver opt-in.
+    # When --policy is set, replace cfg.genesis_env with the policy-
+    # filtered + parameter-passthrough union before any downstream
+    # render. Uses dataclasses.replace() so the in-memory cfg stays
+    # mutation-free (resolver is read-only by design).
+    _maybe_apply_patch_policy(cfg, opts)
 
     # Optional preludes — each runs only when its flag is passed and
     # short-circuits the launch on failure.
