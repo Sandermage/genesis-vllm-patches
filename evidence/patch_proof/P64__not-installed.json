@@ -1,0 +1,37 @@
+{
+  "bench_delta": null,
+  "commit_sha": "0e877eaf",
+  "genesis_pin": "11.0.0",
+  "host": "MacBook-Pro.local",
+  "measured_at": "2026-05-14T17:23:18+00:00",
+  "patch_id": "P64",
+  "static_checks": [
+    {
+      "message": "patch 'P64' present in registry",
+      "passed": true,
+      "rule": "P-1"
+    },
+    {
+      "message": "apply_module resolved: vllm.sndr_core.integrations.tool_parsing.p64_qwen3coder_mtp_streaming",
+      "passed": true,
+      "rule": "P-2"
+    },
+    {
+      "message": "apply_module 'vllm.sndr_core.integrations.tool_parsing.p64_qwen3coder_mtp_streaming' imports cleanly",
+      "passed": true,
+      "rule": "P-3"
+    },
+    {
+      "message": "patch present in legacy apply register",
+      "passed": true,
+      "rule": "P-4"
+    },
+    {
+      "message": "env_flag 'GENESIS_ENABLE_P64_QWEN3CODER_MTP_STREAMING' is canonical",
+      "passed": true,
+      "rule": "P-5"
+    }
+  ],
+  "static_passed": true,
+  "vllm_pin": "not-installed"
+}

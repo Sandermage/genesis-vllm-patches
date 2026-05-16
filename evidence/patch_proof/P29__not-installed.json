@@ -1,0 +1,32 @@
+{
+  "bench_delta": null,
+  "commit_sha": "0e877eaf",
+  "genesis_pin": "11.0.0",
+  "host": "MacBook-Pro.local",
+  "measured_at": "2026-05-14T17:24:10+00:00",
+  "patch_id": "P29",
+  "static_checks": [
+    {
+      "message": "patch 'P29' present in registry",
+      "passed": true,
+      "rule": "P-1"
+    },
+    {
+      "message": "patch in legacy `@register_patch` register (applies via _per_patch_dispatch.py) \u2014 Phase 10 will migrate to integrations/<family>/",
+      "passed": true,
+      "rule": "P-2"
+    },
+    {
+      "message": "patch present in legacy apply register",
+      "passed": true,
+      "rule": "P-4"
+    },
+    {
+      "message": "env_flag 'GENESIS_LEGACY_P29' is canonical",
+      "passed": true,
+      "rule": "P-5"
+    }
+  ],
+  "static_passed": true,
+  "vllm_pin": "not-installed"
+}

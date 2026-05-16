@@ -1,0 +1,42 @@
+{
+  "bench_delta": null,
+  "commit_sha": "0e877eaf",
+  "genesis_pin": "11.0.0",
+  "host": "MacBook-Pro.local",
+  "measured_at": "2026-05-14T17:23:47+00:00",
+  "patch_id": "P67c",
+  "static_checks": [
+    {
+      "message": "patch 'P67c' present in registry",
+      "passed": true,
+      "rule": "P-1"
+    },
+    {
+      "message": "apply_module resolved: vllm.sndr_core.integrations.attention.turboquant.p67c_sparse_v",
+      "passed": true,
+      "rule": "P-2"
+    },
+    {
+      "message": "apply_module 'vllm.sndr_core.integrations.attention.turboquant.p67c_sparse_v' imports cleanly",
+      "passed": true,
+      "rule": "P-3"
+    },
+    {
+      "message": "patch present in legacy apply register",
+      "passed": true,
+      "rule": "P-4"
+    },
+    {
+      "message": "env_flag 'GENESIS_ENABLE_P67_SPARSE_V' is canonical",
+      "passed": true,
+      "rule": "P-5"
+    },
+    {
+      "message": "all 1 requires_patches resolve",
+      "passed": true,
+      "rule": "P-6"
+    }
+  ],
+  "static_passed": true,
+  "vllm_pin": "not-installed"
+}

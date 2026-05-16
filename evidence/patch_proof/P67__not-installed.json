@@ -1,0 +1,42 @@
+{
+  "bench_delta": null,
+  "commit_sha": "0e877eaf",
+  "genesis_pin": "11.0.0",
+  "host": "MacBook-Pro.local",
+  "measured_at": "2026-05-14T17:23:23+00:00",
+  "patch_id": "P67",
+  "static_checks": [
+    {
+      "message": "patch 'P67' present in registry",
+      "passed": true,
+      "rule": "P-1"
+    },
+    {
+      "message": "apply_module resolved: vllm.sndr_core.integrations.attention.turboquant.p67_tq_multi_query_kernel",
+      "passed": true,
+      "rule": "P-2"
+    },
+    {
+      "message": "apply_module 'vllm.sndr_core.integrations.attention.turboquant.p67_tq_multi_query_kernel' imports cleanly",
+      "passed": true,
+      "rule": "P-3"
+    },
+    {
+      "message": "patch present in legacy apply register",
+      "passed": true,
+      "rule": "P-4"
+    },
+    {
+      "message": "env_flag 'GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL' is canonical",
+      "passed": true,
+      "rule": "P-5"
+    },
+    {
+      "message": "all 1 conflicts_with resolve",
+      "passed": true,
+      "rule": "P-7"
+    }
+  ],
+  "static_passed": true,
+  "vllm_pin": "not-installed"
+}

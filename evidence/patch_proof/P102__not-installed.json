@@ -1,0 +1,32 @@
+{
+  "bench_delta": null,
+  "commit_sha": "0e877eaf",
+  "genesis_pin": "11.0.0",
+  "host": "MacBook-Pro.local",
+  "measured_at": "2026-05-14T17:24:16+00:00",
+  "patch_id": "P102",
+  "static_checks": [
+    {
+      "message": "patch 'P102' present in registry",
+      "passed": true,
+      "rule": "P-1"
+    },
+    {
+      "message": "patch is in KNOWN_SPEC_ONLY allowlist (documentation/legacy entry)",
+      "passed": true,
+      "rule": "P-2"
+    },
+    {
+      "message": "patch is in KNOWN_SPEC_ONLY allowlist",
+      "passed": true,
+      "rule": "P-4"
+    },
+    {
+      "message": "env_flag 'GENESIS_ENABLE_P102' is canonical",
+      "passed": true,
+      "rule": "P-5"
+    }
+  ],
+  "static_passed": true,
+  "vllm_pin": "not-installed"
+}
