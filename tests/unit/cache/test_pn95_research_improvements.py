@@ -97,9 +97,18 @@ class TestHostCapacityCap(unittest.TestCase):
             clear=False,
         ):
             # Invalid value MUST NOT raise — falls back to default 8 GiB.
-            # On a Mac without /proc/meminfo, total RAM probe returns
-            # None so the final cap is None regardless of reserve value.
-            self.assertIsNone(tm_mod._host_capacity_cap_gib())
+            # On a host without /proc/meminfo (e.g. macOS) the total-RAM
+            # probe returns None so the final cap is None regardless of
+            # reserve value. On Linux with a readable /proc/meminfo the
+            # probe returns the real free-mem cap (positive float) and
+            # the contract is "no exception", not "exactly None".
+            result = tm_mod._host_capacity_cap_gib()
+            assert result is None or isinstance(result, (int, float)), (
+                f"_host_capacity_cap_gib must return None or a numeric "
+                f"cap when given an invalid reserve value, got {result!r}"
+            )
+            if isinstance(result, (int, float)):
+                self.assertGreater(result, 0.0)
 
 
 # ─── Improvement 2: Active-block protection (TTL) ────────────────────

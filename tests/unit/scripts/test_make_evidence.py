@@ -252,6 +252,20 @@ class TestAllGatingGreenOnRepoRoot:
     """
 
     def test_aggregate_run_blocking_count_zero(self):
+        # `audit-release-check` consumes the per-host
+        # ``evidence/patch_proof/<id>__*.json`` artefacts which are
+        # gitignored (each carries a hostname + measured_at + commit
+        # SHA, so they re-generate per checkout). CI regenerates them
+        # via `sndr patches prove --all` before running make_evidence;
+        # mirror that contract here so a fresh clone exercises the
+        # same green-on-green state as CI.
+        subprocess.run(
+            [sys.executable, "-m", "vllm.sndr_core.cli",
+             "patches", "prove", "--all"],
+            cwd=REPO_ROOT, capture_output=True, text=True,
+            timeout=120, check=False,
+        )
+
         result = subprocess.run(
             [sys.executable, str(SCRIPT_PATH), "--json"],
             cwd=REPO_ROOT, capture_output=True, text=True, timeout=600,
