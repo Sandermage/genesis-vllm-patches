@@ -512,7 +512,7 @@ ENDPOINT=http://127.0.0.1:8000 MODEL=qwen3.6-27b ./scripts/verify-full.sh
 ./scripts/fetch_models.sh Lorbus/Qwen3.6-27B-int4-AutoRound ~/models
 ```
 
-Full reference: [`docs/COMMANDS.md`](docs/COMMANDS.md).
+Full reference: [`docs/CLI_REFERENCE.md`](docs/CLI_REFERENCE.md).
 
 ---
 
@@ -552,7 +552,7 @@ Each preset composes three layers:
 
 `make audit-configs` walks every preset on every PR and verifies the
 triplet composes cleanly. See
-[`docs/CONFIG_SYSTEM_V2.md`](docs/CONFIG_SYSTEM_V2.md) and
+[`docs/MODELS.md`](docs/MODELS.md) and
 [`docs/MODEL_CONFIG_LAUNCHER.md`](docs/MODEL_CONFIG_LAUNCHER.md) for the
 authoring guide.
 
@@ -646,7 +646,7 @@ make release-check             # final release gate
 | [README.md](README.md) | This file — overview, install, benchmarks |
 | [docs/QUICKSTART.md](docs/QUICKSTART.md) | Step-by-step first-time install |
 | [docs/INSTALL.md](docs/INSTALL.md) | Detailed installer reference |
-| [docs/COMMANDS.md](docs/COMMANDS.md) | Single-page command reference |
+| [docs/CLI_REFERENCE.md](docs/CLI_REFERENCE.md) | Single-page command reference |
 | [docs/FAQ.md](docs/FAQ.md) | Frequently asked questions |
 | [docs/GLOSSARY.md](docs/GLOSSARY.md) | Cliffs / TQ / MTP / DFlash terminology |
 
@@ -659,13 +659,13 @@ make release-check             # final release gate
 | [docs/CONFIGURATION.md](docs/CONFIGURATION.md) | Env-flag reference + tunables |
 | [docs/CONFIGS.md](docs/CONFIGS.md) | Per-launch env block reference |
 | [docs/CONFIGS_AUTO.md](docs/CONFIGS_AUTO.md) | Auto-generated preset matrix |
-| [docs/CONFIG_SYSTEM_V2.md](docs/CONFIG_SYSTEM_V2.md) | V2 layered architecture |
+| [docs/MODELS.md](docs/MODELS.md) | V2 layered architecture |
 | [docs/MODEL_CONFIG_LAUNCHER.md](docs/MODEL_CONFIG_LAUNCHER.md) | Launcher reference |
 | [docs/HARDWARE.md](docs/HARDWARE.md) | Tested hardware envelope |
-| [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md) | vLLM / torch / triton pin matrix |
+| [docs/PATCHES.md](docs/PATCHES.md) | vLLM / torch / triton pin matrix |
 | [docs/MODELS.md](docs/MODELS.md) | Curated model registry |
-| [docs/CLIFFS.md](docs/CLIFFS.md) | Memory cliffs + mitigation patches |
-| [docs/OOM_RECIPES.md](docs/OOM_RECIPES.md) | Common OOM patterns + fixes |
+| [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Memory cliffs + mitigation patches |
+| [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Common OOM patterns + fixes |
 
 ### Benchmarks + testing
 
@@ -673,7 +673,7 @@ make release-check             # final release gate
 |---|---|
 | [docs/BENCHMARKS.md](docs/BENCHMARKS.md) | Full bench history (Wave 1 → Wave 9) |
 | [docs/BENCHMARK_GUIDE.md](docs/BENCHMARK_GUIDE.md) | How to run + interpret a bench |
-| [docs/SELF_TEST.md](docs/SELF_TEST.md) | Acceptance test runbook |
+| [docs/CLI_REFERENCE.md](docs/CLI_REFERENCE.md) | Acceptance test runbook |
 
 ### Contributing
 

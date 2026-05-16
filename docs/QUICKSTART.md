@@ -1,480 +1,297 @@
-# Genesis vLLM Patches — Quickstart
+# Quickstart — from clone to running vLLM in 5 minutes
 
-Step-by-step: from cloning the repo to a healthy `vllm serve` with all 28 Genesis patches applied. About 15 minutes if your model is already downloaded.
+Get a Genesis-patched vLLM server up on a single machine, end-to-end.
+Covers the three entry points (`install.sh`, the `sndr` CLI, direct
+docker compose) and the first-30-minute acceptance walkthrough.
 
-> 🇬🇧 English first · 🇷🇺 Русский ниже
+> Stack as of 2026-05-16:
+> Genesis `v11.0.0+wave10` (169 PATCH_REGISTRY entries) ·
+> vLLM `0.20.2rc1.dev371+gbf610c2f5` ·
+> Reference rig: 2× RTX A5000 24 GB · driver ≥ 580.126 · CUDA 13.
 
----
+## 1. Prerequisites
 
-## 🇬🇧 What you need before starting
+| Requirement | How to verify |
+| --- | --- |
+| NVIDIA GPU with ≥ 24 GiB (any 2× config preferred) | `nvidia-smi` lists your GPU |
+| Driver ≥ 580.126 (CUDA 13 capable) | `nvidia-smi --query-gpu=driver_version --format=csv,noheader` |
+| Docker + nvidia-container-toolkit *(docker path)* | `docker run --rm --gpus all nvidia/cuda:13.0-base-ubuntu24.04 nvidia-smi` |
+| Python ≥ 3.10 *(bare-metal path)* | `python3 --version` |
+| ≥ 80 GiB free disk | `df -h ~/` |
 
-| Requirement | Notes |
-|---|---|
-| Linux host | Tested on Ubuntu 22.04 / 24.04 with kernel 6.x |
-| Docker + Docker Compose v2 | `docker compose version` should report v2.x |
-| NVIDIA Container Toolkit | `docker run --rm --gpus all nvidia/cuda:12.4.1-base-ubuntu22.04 nvidia-smi` must work |
-| NVIDIA driver 580.126.09+ (REQUIRED for CUDA 13.0; 570 → 3× slowdown) | `nvidia-smi` reports it; older drivers may work but untested |
-| 2× GPU with ≥ 24 GiB each | Validated on 2× RTX A5000. Single-GPU works for smaller models with `--tensor-parallel-size 1` |
-| ~80 GiB free disk | Model + HuggingFace cache |
-| Internet (first run) | To pull the Docker image and (optionally) the model |
+For sizing guidance against specific GPUs (3090, 4090, 5090, A6000,
+H100, mixed rigs) see [`HARDWARE.md`](HARDWARE.md). For the full
+model lineup and chosen-default rationale see [`MODELS.md`](MODELS.md).
 
-If you don't have the model locally yet, the container will pull it from HuggingFace on first run.
+## 2. Install
 
-## Step 1 — Clone the repository
+Pick the path that matches your environment.
+
+### 2a. One-command bootstrap (recommended)
 
 ```bash
-cd ~
+curl -sSL https://raw.githubusercontent.com/Sandermage/genesis-vllm-patches/main/install.sh | bash
+```
+
+The installer:
+
+1. Detects OS / Python / GPU / vLLM presence / disk budget.
+2. Resolves the Genesis pin (default: latest stable tag; pass
+   `-s -- --pin dev` to track the dev branch).
+3. Clones the repo into `~/.sndr/` (or `$SNDR_HOME`; legacy
+   `$GENESIS_HOME` honoured for back-compat).
+4. `pip install -e tools/genesis_vllm_plugin` so vLLM auto-loads
+   Genesis via the `vllm.general_plugins` entry point.
+5. Picks a preset for your (GPU × workload) combo and writes the
+   matching launch script.
+6. Runs a 60-second smoke test via `sndr verify --quick`.
+
+Non-interactive flavour for CI:
+
+```bash
+curl -sSL .../install.sh | bash -s -- --workload tool_agent -y
+```
+
+Full `install.sh` flag matrix and troubleshooting:
+[`INSTALL.md`](INSTALL.md).
+
+### 2b. Clone manually
+
+```bash
 git clone https://github.com/Sandermage/genesis-vllm-patches.git
 cd genesis-vllm-patches
-git checkout v7.72.2-stable-2026-05-06  # pin to the latest validated v7.72.2 PROD tag (P61c club-3090#72 fix + PN77 FP8 lm_head Marlin tier; +6.4% TPS on 35B PROD with 10/10 tool quality)
+pip install -e tools/genesis_vllm_plugin
 ```
 
-## Step 2 — Pull the exact pinned vLLM image
+This gives you the `sndr` CLI without the auto-detected preset; you
+pick the preset yourself in the next step.
 
-This is the **same image** used for all v7.52 validation runs. Pinned by SHA, immutable.
+## 3. Pick a preset
 
 ```bash
-docker pull vllm/vllm-openai:nightly-7a1eb8ac2
+sndr model-config list           # browse builtin + V2 presets
+sndr config diff prod-35b        # see the resolved YAML for one preset
+sndr patches plan prod-35b       # preview which patches will apply
 ```
 
-About 36 GiB. Once downloaded, it's cached locally — re-runs are instant.
+The 12 builtin configs are auto-inventoried in
+[`CONFIGS_AUTO.md`](CONFIGS_AUTO.md). Pick by hardware shape:
 
-For convenience, tag it with a friendly name:
+| Hardware | Preset (V1 key / V2 alias) | Notes |
+| --- | --- | --- |
+| 2× RTX A5000 24 GB | `a5000-2x-35b-prod` / `prod-35b` | Flagship — Qwen3.6-35B-A3B-FP8, ~216 TPS sustained. |
+| 2× RTX A5000 multi-conc | `a5000-2x-35b-prod-multiconc` / `prod-35b-multiconc` | `max_num_seqs=8`, aggregate ~675 TPS. |
+| 2× 24 GB (3090 / 4090 / A5000) | `a5000-2x-27b-int4-tq-k8v4` / `prod-27b-tq` | Lorbus 27B int4 + TurboQuant k8v4 (long context). |
+| 2× 24 GB long-context | `a5000-2x-27b-int4-long-ctx` / `long-ctx-27b` | Same model, `--max-model-len 320000`. |
+| 1× RTX A5000 / 3090 | `a5000-1x-27b-int4-tested` | TP=1, 32K context. |
+| Single 3090 (community) | `single-3090-dense-cpu-offload-example` | CPU-offload preview. |
+
+For other rig shapes see [`HARDWARE.md`](HARDWARE.md). To add your
+own, see [`MODELS.md` § Adding a model recipe](MODELS.md).
+
+## 4. Launch
 
 ```bash
-docker tag \
-  vllm/vllm-openai:nightly-7a1eb8ac2 \
-  vllm/vllm-openai:nightly @ image ID 10c7a6ba51c6 (vLLM dev212+g7a1eb8ac2)
+sndr launch prod-35b               # V2 alias
+# or
+sndr launch a5000-2x-35b-prod      # V1 monolithic key
 ```
 
-## Step 3 — Pick your compose file
+The launcher:
 
-The repo ships several compose files for different scenarios:
+1. Runs preflight (mounts, GPU, pin, quant arg coherence).
+2. Renders the per-preset launch script.
+3. Boots vLLM with Genesis env exports.
+4. Streams the structured Genesis boot summary on stdout.
 
-| File | Model | When to use |
-|---|---|---|
-| `compose/docker-compose.example.yml` | template only | Read it, copy, adapt |
-| `compose/docker-compose.integration.yml` | Qwen3-Next-35B-A3B-FP8 + TQ k8v4 | Production-mirror — what we test against |
-| `compose/docker-compose.integration-awq.yml` | Qwen3-Next-35B-A3B-AWQ + TQ k8v4 | AWQ 4-bit weights, 2.5× more KV memory |
-| `compose/docker-compose.integration-fp16kv.yml` | Qwen3-Next FP8 weights + fp16 KV | If you want non-TurboQuant baseline |
-| `compose/docker-compose.qwen3-5-dense.yml` | RYS-Qwen3.5-27B-FP8-XL dense | Dense model, no MoE/hybrid |
-| `compose/docker-compose.gemma4-26b-moe.yml` | Gemma 4 26B MoE AWQ | ⚠️ currently blocked by vLLM × model incompatibility |
-
-**For first-time users, start with `compose/docker-compose.integration.yml`** — that's the canonical config.
-
-## Step 4 — Adapt paths to your machine
-
-Open the compose file and update **two** sections:
-
-### 4a. Model path
-
-If your model files are in a different location than `${HOME}/models/`, edit:
-
-```yaml
-volumes:
-  - ${HOME}/models:/models:ro    # ← change ${HOME}/models to your path
-```
-
-The model directory should contain the `Qwen3.6-35B-A3B-FP8/` (or whichever model) subfolder with `config.json`, `tokenizer.json`, safetensor shards, etc.
-
-Alternative: pull from HuggingFace directly. Replace `--model /models/Qwen3.6-35B-A3B-FP8` with `--model Qwen/Qwen3-Next-35B-A3B-FP8` (the HF repo id) and let the container download on first start.
-
-### 4b. Image tag
-
-If you tagged the image (Step 2), replace:
-
-```yaml
-image: vllm/vllm-openai:genesis-v7.0-baseline
-```
-
-with whatever name you used (e.g. `vllm/vllm-openai:nightly @ image ID 10c7a6ba51c6 (vLLM dev212+g7a1eb8ac2)`). Or just keep the `nightly-7a1eb8ac2...` long form — both work.
-
-## Step 5 — Start the container
+Dry-run first if you want to inspect the rendered command:
 
 ```bash
-docker compose -f compose/docker-compose.integration.yml up -d
+sndr launch prod-35b --dry-run
 ```
 
-Watch the logs:
+First boot takes 2–5 minutes (Triton kernel JIT, CUDA graph capture).
+Warm restarts are ~30–90 seconds.
+
+### Capture an existing running container
+
+If you have a hand-tuned container running and want to lift its
+config into Genesis:
 
 ```bash
-docker logs -f vllm-integration-v7
+sndr model-config new my-rig --from-running vllm-test-container
 ```
 
-Boot takes about **3–5 minutes** the first time (vLLM downloads/installs deps, applies all Genesis patches, loads model weights, captures CUDA graphs).
+The docker-inspect-based captor (audit C2 closure, 2026-05-16) reads
+the Entrypoint + Cmd + Env + Mounts and reverse-engineers a
+`ModelConfig` YAML you can edit, validate, and launch.
 
-You'll see this sequence:
+### Other deployment runtimes
 
-```
-=== Install prod-equivalent runtime deps + Genesis plugin ===
-=== Apply Genesis wiring (text-patches + rebinds, BEFORE vllm serve) ===
-[INFO genesis.apply_all] Genesis Results: 28 applied, 4 skipped, 0 failed
-=== Start vLLM server ===
-(APIServer pid=1) INFO ... Application startup complete
-(APIServer pid=1) INFO ... Uvicorn running on http://0.0.0.0:8000
-```
+`sndr model-config render <key> --runtime <name>` emits the
+artefact for the runtime you need:
 
-When you see `Uvicorn running on http://0.0.0.0:8000` — server is ready.
+| Runtime | What it emits |
+| --- | --- |
+| `docker` *(default)* | `docker run …` shell script. |
+| `bare_metal` | `python3 -m venv` + `vllm serve …` shell script. |
+| `podman` | docker render with podman binary / GPU-flag substitution. |
+| `kubernetes` | Single-stream Deployment + Service + ConfigMap manifest. |
+| `lxc_proxmox` | Runnable Proxmox VE bootstrap script (audit C4 closure). |
 
-## Step 6 — Verify it works
+The k8s + Proxmox lifecycles also have full `sndr service install /
+start / stop / status / logs / uninstall` symmetry as of audit C3
+(2026-05-16).
 
-### 6a. Health check
+## 5. Day 1 — first 30 minutes of acceptance
+
+Six checks. Each has a clear pass signal — if anything looks off, the
+linked doc has the fix.
+
+### 5.1 Verify hardware + software — `sndr doctor`
 
 ```bash
-curl http://localhost:8000/health
-# → 200 OK
+sndr doctor
 ```
 
-### 6b. Smoke chat
+Checks: GPU type / count / VRAM, driver / CUDA version, Python / torch /
+vllm versions, NCCL availability, plugin registration, applied patch
+manifest.
+
+**Pass signal:** all sections green; "0 issues found" at the end.
+
+**Common failures:**
+
+- `vllm version mismatch (got X, expected 0.20.2rc1.dev371+gbf610c2f5)`
+  → re-run installer with `--pin <pin>` to align, or
+  `pip install vllm==<your-pin>` and accept the drift warning.
+- `NCCL P2P_DISABLE recommended on consumer Ampere` → set
+  `NCCL_P2P_DISABLE=1` in your launch env (already in builtin
+  presets, but a hand-rolled script may miss it).
+
+Doc: [`CLI_REFERENCE.md` → `sndr doctor`](CLI_REFERENCE.md).
+
+### 5.2 Run smoke test — `sndr verify --quick`
+
+```bash
+sndr verify --quick
+```
+
+Loads a tiny model, fires 10 inferences, exits. Catches "obvious
+broken" states — bad CUDA driver, broken vllm install, missing
+weights, plugin failed to register.
+
+**Pass signal:** `10/10 inferences successful` → `verify PASSED`.
+
+**Common failures:**
+
+- Plugin not registered → `pip install -e tools/genesis_vllm_plugin`.
+- Model not found → ensure `~/.sndr/models/` points where weights
+  live, or pull from HuggingFace by passing the repo id directly.
+- OOM at 8 GiB load → check no other process is holding the GPU
+  (`nvidia-smi` should show < 1 GiB used).
+
+### 5.3 Browse available presets — `sndr model-config list`
+
+```bash
+sndr model-config list
+```
+
+Already covered in step 3 above — re-run after a `sndr install` to
+see which preset the auto-detect picked for your rig. Cross-check
+against the inventory in [`CONFIGS_AUTO.md`](CONFIGS_AUTO.md).
+
+### 5.4 Preflight the chosen preset
+
+```bash
+sndr launch prod-35b --preflight-only
+```
+
+Validates env vars, no conflicting Genesis patches enabled,
+quantization args coherent, disk + VRAM budget vs preset
+requirements.
+
+**Pass signal:** `preflight PASSED`. Failures name the exact
+mismatch (e.g. `quant mismatch: model declares auto_round but env
+says compressed-tensors`).
+
+Time: ~3 seconds, no GPU load.
+
+### 5.5 Boot — `sndr launch <preset>`
+
+```bash
+sndr launch prod-35b
+```
+
+**Pass signal:** `docker logs <container> | grep "Application
+startup complete"` → API ready at `http://localhost:8000/v1/models`.
+
+Smoke chat:
 
 ```bash
 curl -s -X POST http://localhost:8000/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer genesis-local" \
-  -d '{
-    "model": "qwen3.6-35b-a3b-integration",
-    "messages": [{"role":"user","content":"Say hello in one word."}],
-    "max_tokens": 16,
-    "temperature": 0
-  }'
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer genesis-local" \
+    -d '{
+        "model": "qwen3.6-35b-a3b",
+        "messages": [{"role":"user","content":"Say hello in one word."}],
+        "max_tokens": 16,
+        "temperature": 0
+    }'
 ```
 
-You should get a normal JSON response with `choices[0].message.content`.
+**Common failures** are catalogued in [`FAQ.md`](FAQ.md): boot loop,
+patches reapplied to a writable layer ("R/W layer trap"), OOM at
+long context. The cliffs catalogue lives in the same file.
 
-### 6c. Verify Genesis applied
+### 5.6 Verify against reference metrics — `sndr model-config verify`
 
 ```bash
-docker logs vllm-integration-v7 2>&1 | grep "Genesis Results:"
-# → [INFO:genesis.apply_all] Genesis Results: 28 applied, 4 skipped, 0 failed
+sndr model-config verify prod-35b
 ```
 
-If you see **`0 failed`** — you're good. The 4 skipped ones are opt-in patches that need explicit env flags (P5b / P7b / P40 / P41), see [README#opt-in-patches](README.md#4-opt-in-patches).
+Runs a 5-dimension benchmark (short_gen, long_gen, tool_call,
+stability, concurrent) via `tools/genesis_bench_suite.py`, compares
+to the preset's `reference_metrics` and reports whether your rig
+matches the validated baseline (within typical CV noise).
 
-### 6d. Verify dispatch profile (v7.9 model_detect)
+**Pass signal:** Δ < 5% on TPS, tool quality matches, stability CV
+within reference + 1σ. Results land in `~/.sndr/bench-results/`.
 
-```bash
-docker exec vllm-integration-v7 python3 -c "
-from vllm.sndr_core.model_detect import get_model_profile
-import json
-print(json.dumps(get_model_profile(), indent=2, default=str))
-"
-```
+Time: ~5–10 minutes. Methodology + canonical Wave 10 numbers in
+[`BENCHMARKS.md`](BENCHMARKS.md).
 
-Expected for Qwen3-Next: `"moe": true, "hybrid": true, "turboquant": true`.
+## 6. Stopping cleanly
 
-## Step 7 — Stopping cleanly
+Always use `sndr service stop <preset>` or, when you launched via
+docker compose by hand, `docker compose down`. Plain `docker stop` +
+`docker start` recycles the same writable layer; Genesis text-patches
+applied to that layer fail to re-apply (anchors don't match) and the
+next boot reports `[FAIL]` for every patch in the manifest.
 
-**Always use `docker compose down`, NEVER plain `docker stop`.**
-
-```bash
-docker compose -f compose/docker-compose.integration.yml down
-```
-
-This removes the container so the next `up -d` starts with a clean filesystem. If you only `docker stop` then `docker start`, the patches will fail on the second boot due to anchor-already-applied (the "R/W layer trap" — see Troubleshooting below).
-
-## Troubleshooting
-
-### "Genesis Results: N applied, M skipped, 1 failed" on second boot
-
-**Cause**: you used `docker stop` + `docker start` instead of `docker compose down` + `up -d`. Genesis text-patches are applied to files inside the container's writable layer; restarting the same container shows already-patched files, so anchors don't match.
-
-**Fix**:
+Recovery from a stuck "R/W layer trap":
 
 ```bash
 docker compose -f <your-compose>.yml down
 docker compose -f <your-compose>.yml up -d
 ```
 
-### Container restarts in a loop
-
-Same root cause as above. Check `docker logs <container>` for `[FAILED]` patches. The fix is `down + up -d`.
-
-### Model fails to load with `KeyError: 'layers.0.moe.experts.0.down_proj_packed'`
-
-Some AWQ-quantized MoE models (notably `cyankiwi/gemma-4-26B-A4B-it-AWQ-4bit`) use a per-expert tensor naming scheme that the current vLLM dev134 loader doesn't recognise. This is a vLLM × model compatibility issue, **not a Genesis bug**. Workaround: use a different quantization of the same model, or wait for upstream vLLM to support it.
-
-### `docker run --rm --gpus all` fails
-
-NVIDIA Container Toolkit isn't installed or not configured. See https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html
-
-### "Cannot connect to the Docker daemon"
-
-`docker compose` needs your user to be in the `docker` group:
-
-```bash
-sudo usermod -aG docker $USER
-# log out and back in
-```
-
-### Out-of-memory at long context
-
-Genesis patches reduce memory footprint significantly, but you can still hit OOM if `max_model_len` is too aggressive for your VRAM. For 2× A5000 (24 GiB each):
-- `Qwen3-Next-35B-A3B-FP8` at `max_model_len=262144` works (proven to 258k actual tokens)
-- For smaller cards, drop to `max_model_len=131072` or `65536`
-
-Edit the value in your compose file's `command:` section.
-
-## Optional: spec-decode mode (v7.65+, P65 superseded P56/P57)
-
-If you want to try **speculative decoding with TurboQuant**, there is a known upstream interaction bug ([#40831](https://github.com/vllm-project/vllm/issues/40831)) that causes degenerate token loops. The current production fix is **P65 (TurboQuant spec-CG downgrade)**, which superseded the earlier P56/P57 workarounds (archived 2026-05-05 — see `vllm/sndr_core/dispatcher.py` archive note).
-
-- Test compose: `docker-compose.spec-decode-test.yml` (ngram n=3, port 8000)
-- Production stack (35B): `qwen3_next_mtp` K=3 + P67 + P82 + PN77 + TQ k8v4 — empirically stable on 2×A5000 with 10/10 tool-call (see `genesis_internal_docs/bench_2026_05_06/k_sweep_report.md`)
-- For investigating spec-decode regressions, see the diagnostic scripts below.
-
-For investigating spec-decode regressions yourself, two diagnostic scripts:
-
-```bash
-# Run a 9-prompt probe against the live backend, write JSONL
-python3 scripts/sequential_backend_probe.py run \
-    --host http://localhost:8000 --api-key genesis-local \
-    --model qwen3.6-35b-a3b --label baseline --out /tmp/baseline.jsonl
-
-# Switch backend, run same probes against the second one
-python3 scripts/sequential_backend_probe.py run \
-    --host http://localhost:8000 --api-key genesis-local \
-    --model qwen3.6-35b-a3b-specdec --label specdec --out /tmp/specdec.jsonl
-
-# Diff side-by-side — surfaces token duplication, missing tool_calls, etc.
-python3 scripts/sequential_backend_probe.py diff /tmp/baseline.jsonl /tmp/specdec.jsonl
-```
-
-If you have GPU headroom for two concurrent backends on different ports, see also `scripts/dual_backend_diagnostic_proxy.py` for fan-out + diff in one call.
-
----
-
-## Where to go next
+## 7. What's next
 
 | Topic | Where |
-|---|---|
-| Patch list and what each does | [README.md#patch-roster-v710](README.md#patch-roster-v710) |
-| Validation methodology and raw bench data | [benchmarks/v7_10_validation_20260424/](../benchmarks/v7_10_validation_20260424/) |
-| Upstream PR tracking and backport plan | [README.md#upstream-status-tracking](README.md#upstream-status-tracking) |
-| In-depth analysis of upstream PRs | [benchmarks/v7_10_validation_20260424/upstream_compare/PR_DEEP_DIVE.md](../benchmarks/v7_10_validation_20260424/upstream_compare/PR_DEEP_DIVE.md) |
-| Architecture overview | [README.md#architecture](README.md#architecture) |
-| Running unit tests (CPU only) | `./scripts/validate_unit.sh` |
-| Running integration tests (GPU required) | `./scripts/validate_integration.sh` |
-| How to support / sponsor | [../docs/SPONSORS.md](../docs/SPONSORS.md) |
-
----
-
-## 🇷🇺 Что нужно перед стартом
-
-| Требование | Заметки |
-|---|---|
-| Linux хост | Тестировано на Ubuntu 22.04 / 24.04, ядро 6.x |
-| Docker + Docker Compose v2 | `docker compose version` должна показать v2.x |
-| NVIDIA Container Toolkit | `docker run --rm --gpus all nvidia/cuda:12.4.1-base-ubuntu22.04 nvidia-smi` должен работать |
-| NVIDIA драйвер 570+ | Старые версии могут работать, но не тестировались |
-| 2× GPU ≥ 24 GiB | Валидировано на 2× RTX A5000. Один GPU подойдёт для меньших моделей с `--tensor-parallel-size 1` |
-| ~80 GiB свободного диска | Модель + HuggingFace кеш |
-| Интернет (первый запуск) | Для загрузки Docker image и (опционально) модели |
-
-Если модели локально нет — контейнер скачает её с HuggingFace при первом запуске.
-
-## Шаг 1 — Клонировать репозиторий
-
-```bash
-cd ~
-git clone https://github.com/Sandermage/genesis-vllm-patches.git
-cd genesis-vllm-patches
-git checkout v7.50-stable-2026-04-27   # фиксируемся на validated v7.50 production tag
-```
-
-## Шаг 2 — Скачать pinned vLLM образ
-
-Тот же образ что использовался во всех v7.52 валидационных прогонах. Зафиксирован по SHA, не меняется.
-
-```bash
-docker pull vllm/vllm-openai:nightly-7a1eb8ac2
-```
-
-Около 36 GiB. После скачивания кешируется локально — повторные запуски мгновенные.
-
-Для удобства можно перетегнуть:
-
-```bash
-docker tag \
-  vllm/vllm-openai:nightly-7a1eb8ac2 \
-  vllm/vllm-openai:nightly @ image ID 10c7a6ba51c6 (vLLM dev212+g7a1eb8ac2)
-```
-
-## Шаг 3 — Выбрать compose файл
-
-Репо содержит несколько compose-файлов под разные сценарии:
-
-| Файл | Модель | Когда использовать |
-|---|---|---|
-| `compose/docker-compose.example.yml` | только шаблон | Прочитать, скопировать, адаптировать |
-| `compose/docker-compose.integration.yml` | Qwen3-Next-35B-A3B-FP8 + TQ k8v4 | Production-mirror — на чём мы тестируем |
-| `compose/docker-compose.integration-awq.yml` | Qwen3-Next-35B-A3B-AWQ + TQ k8v4 | AWQ 4-bit веса, 2.5× больше KV памяти |
-| `compose/docker-compose.integration-fp16kv.yml` | Qwen3-Next FP8 веса + fp16 KV | Если нужен non-TurboQuant baseline |
-| `compose/docker-compose.qwen3-5-dense.yml` | RYS-Qwen3.5-27B-FP8-XL dense | Dense модель, без MoE/hybrid |
-| `compose/docker-compose.gemma4-26b-moe.yml` | Gemma 4 26B MoE AWQ | ⚠️ заблокирован vLLM × model несовместимостью |
-
-**Для первого запуска возьми `compose/docker-compose.integration.yml`** — это канонический конфиг.
-
-## Шаг 4 — Адаптировать пути под свою машину
-
-Открой compose файл и поправь **две** секции:
-
-### 4a. Путь к модели
-
-Если файлы модели лежат не в `${HOME}/models/`, отредактируй:
-
-```yaml
-volumes:
-  - ${HOME}/models:/models:ro    # ← замени на свой путь
-```
-
-Директория модели должна содержать подпапку `Qwen3.6-35B-A3B-FP8/` (или другую) с `config.json`, `tokenizer.json`, safetensor shards и т.д.
-
-Альтернатива: тянуть с HuggingFace напрямую. Замени `--model /models/Qwen3.6-35B-A3B-FP8` на `--model Qwen/Qwen3-Next-35B-A3B-FP8` (HF repo id), контейнер сам скачает при первом старте.
-
-### 4b. Тег образа
-
-Если перетегнул образ (Шаг 2), замени:
-
-```yaml
-image: vllm/vllm-openai:genesis-v7.0-baseline
-```
-
-на твоё имя (например `vllm/vllm-openai:nightly @ image ID 10c7a6ba51c6 (vLLM dev212+g7a1eb8ac2)`). Или оставь длинную форму `nightly-7a1eb8ac2...` — обе работают.
-
-## Шаг 5 — Запустить контейнер
-
-```bash
-docker compose -f compose/docker-compose.integration.yml up -d
-```
-
-Смотри логи:
-
-```bash
-docker logs -f vllm-integration-v7
-```
-
-Boot занимает **3–5 минут** на первый раз (vLLM скачивает/ставит зависимости, применяет все Genesis патчи, грузит веса модели, компилирует CUDA графы).
-
-Увидишь такую последовательность:
-
-```
-=== Install prod-equivalent runtime deps + Genesis plugin ===
-=== Apply Genesis wiring (text-patches + rebinds, BEFORE vllm serve) ===
-[INFO genesis.apply_all] Genesis Results: 28 applied, 4 skipped, 0 failed
-=== Start vLLM server ===
-(APIServer pid=1) INFO ... Application startup complete
-(APIServer pid=1) INFO ... Uvicorn running on http://0.0.0.0:8000
-```
-
-Как только видишь `Uvicorn running on http://0.0.0.0:8000` — сервер готов.
-
-## Шаг 6 — Проверка
-
-### 6a. Health check
-
-```bash
-curl http://localhost:8000/health
-# → 200 OK
-```
-
-### 6b. Тестовый чат
-
-```bash
-curl -s -X POST http://localhost:8000/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer genesis-local" \
-  -d '{
-    "model": "qwen3.6-35b-a3b-integration",
-    "messages": [{"role":"user","content":"Привет в одно слово."}],
-    "max_tokens": 16,
-    "temperature": 0
-  }'
-```
-
-Должен прийти нормальный JSON ответ с `choices[0].message.content`.
-
-### 6c. Проверка что Genesis применился
-
-```bash
-docker logs vllm-integration-v7 2>&1 | grep "Genesis Results:"
-# → [INFO:genesis.apply_all] Genesis Results: 28 applied, 4 skipped, 0 failed
-```
-
-Если **`0 failed`** — всё хорошо. 4 skipped — это opt-in патчи которые нужно явно включать env-флагами (P5b / P7b / P40 / P41), см. [README#opt-in-patches](README.md#4-opt-in-patches).
-
-### 6d. Проверка dispatch profile (v7.9 model_detect)
-
-```bash
-docker exec vllm-integration-v7 python3 -c "
-from vllm.sndr_core.model_detect import get_model_profile
-import json
-print(json.dumps(get_model_profile(), indent=2, default=str))
-"
-```
-
-Для Qwen3-Next ожидаемо: `"moe": true, "hybrid": true, "turboquant": true`.
-
-## Шаг 7 — Корректная остановка
-
-**Всегда используй `docker compose down`, НИКОГДА не делай простой `docker stop`.**
-
-```bash
-docker compose -f compose/docker-compose.integration.yml down
-```
-
-Это удаляет контейнер чтобы следующий `up -d` стартанул со свежей файловой системой. Если сделать только `docker stop` потом `docker start`, патчи провалятся на втором boot из-за того что anchors уже применены ("R/W layer trap" — см. Troubleshooting).
-
-## Решение проблем
-
-### "Genesis Results: N applied, M skipped, 1 failed" на втором запуске
-
-**Причина**: использовал `docker stop` + `docker start` вместо `docker compose down` + `up -d`. Genesis text-патчи применяются к файлам внутри writable layer контейнера; при перезапуске того же контейнера файлы уже патченые, и anchors не находятся.
-
-**Решение**:
-
-```bash
-docker compose -f <твой-compose>.yml down
-docker compose -f <твой-compose>.yml up -d
-```
-
-### Контейнер в цикле перезапуска
-
-Та же причина что выше. Проверь `docker logs <container>` на `[FAILED]` патчи. Решение — `down + up -d`.
-
-### Модель не загружается с `KeyError: 'layers.0.moe.experts.0.down_proj_packed'`
-
-Некоторые AWQ-квантизованные MoE модели (например `cyankiwi/gemma-4-26B-A4B-it-AWQ-4bit`) используют per-expert tensor naming которое текущий vLLM dev134 loader не понимает. Это **vLLM × model совместимость, НЕ баг Genesis**. Workaround: возьми другую квантизацию той же модели, или подожди когда upstream vLLM это поддержит.
-
-### `docker run --rm --gpus all` не работает
-
-NVIDIA Container Toolkit не установлен или не настроен. См. https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html
-
-### "Cannot connect to the Docker daemon"
-
-`docker compose` требует чтобы пользователь был в группе `docker`:
-
-```bash
-sudo usermod -aG docker $USER
-# выйди и войди заново в систему
-```
-
-### OOM на длинном контексте
-
-Genesis патчи существенно уменьшают расход памяти, но всё равно можно поймать OOM если `max_model_len` слишком агрессивный для VRAM. Для 2× A5000 (24 GiB каждая):
-- `Qwen3-Next-35B-A3B-FP8` на `max_model_len=262144` работает (доказано до 258k фактических токенов)
-- Для меньших карт ставь `max_model_len=131072` или `65536`
-
-Меняй значение в `command:` секции своего compose-файла.
-
-## Куда дальше
-
-| Тема | Где |
-|---|---|
-| Список патчей и что каждый делает | [README.md#patch-roster-v710](README.md#patch-roster-v710) |
-| Методология валидации и сырые бенчи | [benchmarks/v7_10_validation_20260424/](../benchmarks/v7_10_validation_20260424/) |
-| Tracking upstream PR-ов и план backport | [README.md#upstream-status-tracking](README.md#upstream-status-tracking) |
-| Глубокий разбор upstream PR | [benchmarks/v7_10_validation_20260424/upstream_compare/PR_DEEP_DIVE.md](../benchmarks/v7_10_validation_20260424/upstream_compare/PR_DEEP_DIVE.md) |
-| Обзор архитектуры | [README.md#architecture](README.md#architecture) |
-| Запуск unit тестов (только CPU) | `./scripts/validate_unit.sh` |
-| Запуск integration тестов (нужен GPU) | `./scripts/validate_integration.sh` |
-| Как поддержать проект | [../docs/SPONSORS.md](../docs/SPONSORS.md) |
+| --- | --- |
+| Tune Genesis env flags (P67 splits, P82 threshold, ...) | [`CONFIGURATION.md`](CONFIGURATION.md) |
+| Browse the patch system + dispatcher | [`PATCHES.md`](PATCHES.md) |
+| Fix common OOM patterns + named cliffs | [`FAQ.md`](FAQ.md) |
+| Add a custom model preset | [`MODELS.md`](MODELS.md) |
+| Author a new patch | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
+| Compare your rig to validated baselines | [`BENCHMARKS.md`](BENCHMARKS.md) |
+| Look up a specific `sndr` command | [`CLI_REFERENCE.md`](CLI_REFERENCE.md) |
+| Recover from a regression | [`FAQ.md` § Rollback playbook](FAQ.md) |
+
+## If something broke
+
+1. `sndr doctor` — most issues are environment drift; re-run.
+2. `docker logs <container>` — last 200 lines for the actual error.
+3. [`FAQ.md`](FAQ.md) — common issues, cliffs, rollback playbook.
+4. Open an issue with `sndr doctor --json` output attached.

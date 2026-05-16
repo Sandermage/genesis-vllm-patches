@@ -20,8 +20,8 @@ notes live in a gitignored sibling directory and never ship publicly.
 | Write a new patch | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
 | Ship a community patch (pip-installable) | [`PLUGINS.md`](PLUGINS.md) |
 | Ship a community patch (in-repo SDK) | [`COMMUNITY_PATCHES.md`](COMMUNITY_PATCHES.md) |
-| Diagnose an OOM / cliff | [`OOM_RECIPES.md`](OOM_RECIPES.md) → [`CLIFFS.md`](CLIFFS.md) |
-| Roll a broken release back | [`ROLLBACK_PLAYBOOK.md`](ROLLBACK_PLAYBOOK.md) |
+| Diagnose an OOM / cliff | [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md) → [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md) |
+| Roll a broken release back | [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md) |
 
 ## Reference catalogue
 
@@ -51,13 +51,13 @@ notes live in a gitignored sibling directory and never ship publicly.
 | --- | --- |
 | [`MODELS.md`](MODELS.md) | Tested models (Qwen3.6 lineup) + why the defaults were chosen. |
 | [`HARDWARE.md`](HARDWARE.md) | Tested GPU envelope (A5000, 3090, 4090, 5090, H100, ...) + cross-rig validators. |
-| [`COMPATIBILITY.md`](COMPATIBILITY.md) | Patch × model × hardware enable/disable matrix. |
+| [`COMPATIBILITY.md`](PATCHES.md) | Patch × model × hardware enable/disable matrix. |
 | [`CONFIGS.md`](CONFIGS.md) | Narrative guide — "I want to add my own model" recipe. |
 | [`CONFIGS_AUTO.md`](CONFIGS_AUTO.md) | Auto-generated full config inventory (regenerated from `model_configs/builtin/*.yaml`). |
 | [`CONFIGS_FOR_COMMUNITY.md`](CONFIGS_FOR_COMMUNITY.md) | Community config submission path + validation rules. |
-| [`COOKBOOK.md`](COOKBOOK.md) | Recipe-style how-tos for production scenarios (symptom → root → workaround → fix). |
-| [`OOM_RECIPES.md`](OOM_RECIPES.md) | Targeted fixes for the most common OOM patterns. |
-| [`CLIFFS.md`](CLIFFS.md) | Named behavioural cliffs (OOM patterns, regressions) — the catalogue. |
+| [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md) | Recipe-style how-tos for production scenarios (symptom → root → workaround → fix). |
+| [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md) | Targeted fixes for the most common OOM patterns. |
+| [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md) | Named behavioural cliffs (OOM patterns, regressions) — the catalogue. |
 
 ### Patches + dispatcher
 
@@ -65,7 +65,7 @@ notes live in a gitignored sibling directory and never ship publicly.
 | --- | --- |
 | [`PATCHES.md`](PATCHES.md) | Curated narrative reference for every patch — what / why / status / env-flag / credit. |
 | [`PATCHES_AUTO.md`](PATCHES_AUTO.md) | Auto-generated full patch table from `dispatcher/registry.py`. |
-| [`PATCH_PLAN.md`](PATCH_PLAN.md) | Resolver policy — `compat` / `safe` / `minimal` semantics. |
+| [`PATCH_PLAN.md`](PATCHES.md) | Resolver policy — `compat` / `safe` / `minimal` semantics. |
 | [`PATH_C_TIER_AWARE_KV_CACHE.md`](PATH_C_TIER_AWARE_KV_CACHE.md) | PN95 tier-aware KV cache design. |
 | [`GDN_KERNEL_FUSION_DESIGN.md`](GDN_KERNEL_FUSION_DESIGN.md) | GDN kernel fusion deep-dive. |
 | [`REASONING_CONTENT_CONTRACT.md`](REASONING_CONTENT_CONTRACT.md) | Qwen3 streaming reasoning-content semantics. |
@@ -92,7 +92,7 @@ notes live in a gitignored sibling directory and never ship publicly.
 
 | Doc | Purpose |
 | --- | --- |
-| [`ROLLBACK_PLAYBOOK.md`](ROLLBACK_PLAYBOOK.md) | Production rollback procedure when a patch regresses. |
+| [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md) | Production rollback procedure when a patch regresses. |
 | [`FAQ.md`](FAQ.md) | Common operator questions (registry size, default-on subset, LoRA, streaming, ...). |
 
 ### Credits

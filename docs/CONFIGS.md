@@ -2,7 +2,7 @@
 
 This guide walks an operator through adding a new model to Genesis end-to-end: from picking a base launch script, to wiring up the right patches, to submitting the recipe upstream so others can reuse it.
 
-If you're new to Genesis, read [../docs/QUICKSTART.md](../docs/QUICKSTART.md) first. If you want the patch catalog, see [../docs/PATCHES.md](../docs/PATCHES.md). If you want the supported-versions matrix, see [docs/COMPATIBILITY.md](COMPATIBILITY.md).
+If you're new to Genesis, read [../docs/QUICKSTART.md](../docs/QUICKSTART.md) first. If you want the patch catalog, see [../docs/PATCHES.md](../docs/PATCHES.md). If you want the supported-versions matrix, see [docs/PATCHES.md](PATCHES.md).
 
 > 📊 **Full machine-readable config inventory** — auto-generated from
 > `vllm/sndr_core/model_configs/builtin/*.yaml` — at
@@ -309,7 +309,7 @@ If you hit boot crashes related to torch.compile or cudagraph capture:
 - P65 — switch to PIECEWISE cudagraph (workaround for FULL capture issues on hybrid).
 - P99 — compile-cache safety.
 
-See [docs/CLIFFS.md](CLIFFS.md) for the cliffs these patches address.
+See [docs/TROUBLESHOOTING.md](TROUBLESHOOTING.md) for the cliffs these patches address.
 
 ---
 
@@ -345,7 +345,7 @@ curl -s http://localhost:8000/v1/chat/completions \
 
 > **API key note:** the launch scripts include `--api-key genesis-local` so the `Authorization: Bearer genesis-local` header is required. If you launched **without** `--api-key`, drop the header (and any `OPENAI_API_KEY` you set client-side). If you set a different key, replace it.
 
-You should see a `tool_calls` field with `name: "get_time"` and `arguments: {"city": "Paris"}`. If you get garbage tokens (`<tool_call><tool_call>...`) or repetition, you've hit a cliff — see [docs/CLIFFS.md](CLIFFS.md).
+You should see a `tool_calls` field with `name: "get_time"` and `arguments: {"city": "Paris"}`. If you get garbage tokens (`<tool_call><tool_call>...`) or repetition, you've hit a cliff — see [docs/TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 
 5. **Bench:**
 
@@ -369,7 +369,7 @@ Common things to tweak after first boot:
 ### Slow
 
 - **Spec-decode acceptance low?** Try a different `num_speculative_tokens` (3 is a good default; 5 helps repetitive workloads, 2 helps prose).
-- **CPU dispatch overhead?** Set `VLLM_MOE_BACKEND=triton` for MoE models on v0.20+ (see Cliff 6 in [docs/CLIFFS.md](CLIFFS.md)).
+- **CPU dispatch overhead?** Set `VLLM_MOE_BACKEND=triton` for MoE models on v0.20+ (see Cliff 6 in [docs/TROUBLESHOOTING.md](TROUBLESHOOTING.md)).
 - **Kernel sweep.** P67 BLOCK_KV / num_warps overrides via env: `GENESIS_P67_BLOCK_KV=64`, `GENESIS_P67_NUM_WARPS=4`. Sweep with `tools/genesis_bench_suite.py`.
 
 ### OOM
@@ -482,6 +482,6 @@ That's it. Generic patches work on Llama-3 because they're not coupled to Qwen3 
 - [../docs/QUICKSTART.md](../docs/QUICKSTART.md) — getting started
 - [../docs/PATCHES.md](../docs/PATCHES.md) — full patch catalog
 - [../docs/MODELS.md](../docs/MODELS.md) — supported model table
-- [docs/COMPATIBILITY.md](COMPATIBILITY.md) — vLLM pin / model / GPU support matrix
-- [docs/CLIFFS.md](CLIFFS.md) — known cliffs to watch out for
+- [docs/PATCHES.md](PATCHES.md) — vLLM pin / model / GPU support matrix
+- [docs/TROUBLESHOOTING.md](TROUBLESHOOTING.md) — known cliffs to watch out for
 - [../docs/CONTRIBUTING.md](../docs/CONTRIBUTING.md) — how to submit your recipe

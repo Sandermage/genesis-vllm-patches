@@ -9,10 +9,68 @@ install, run, inspect, configure, report.
 > document tracks the same content with extra context, examples, and
 > a stability badge per subcommand.
 
-**Looking for a one-page cheatsheet instead?** See
-[`COMMANDS.md`](COMMANDS.md) — same commands grouped by "first day
-on rig → weekly maintenance → deep diagnostic" rather than by
-subcommand alphabetical order.
+## Cheatsheet — first day on a rig → weekly maintenance
+
+Top commands, ordered by operator workflow. Long-form per-subcommand
+reference follows from §1 below.
+
+```bash
+# Install + first boot
+curl -sSL https://raw.githubusercontent.com/Sandermage/genesis-vllm-patches/main/install.sh | bash
+sndr launch prod-35b                            # V2 alias; V1 keys also accepted
+sndr launch prod-35b --dry-run                  # render only, no exec
+sndr launch prod-35b --preflight-only           # gate; never exec vLLM
+
+# Health + smoke
+sndr doctor                                     # full system diagnostic
+sndr doctor --json                              # machine-readable
+sndr doctor-system                              # extended host probe
+sndr verify --quick                             # 10-prompt smoke (~60 s)
+sndr self-test                                  # structural sanity (no GPU needed)
+sndr verify prod-35b                            # bench vs reference_metrics
+
+# Browse + diff presets
+sndr config list                                # V1 + V2 inventory
+sndr config show prod-35b
+sndr config diff prod-35b prod-35b-multiconc
+sndr config explain prod-35b
+sndr profile show 35b-balanced                  # V2 profile patches_delta
+
+# Patches
+sndr patches list --default-on                  # opt-out catalogue
+sndr patches plan --preset prod-35b             # dispatcher simulation
+sndr patches plan --preset prod-35b --policy compat --explain
+sndr patches explain PN67
+sndr patches doctor                             # registry validator
+sndr patches release-check --mode require-static
+
+# Capture a running container into a YAML
+sndr model-config new my-rig --from-running vllm-test-container
+
+# Service lifecycle (docker_compose / systemd / podman_quadlet / k8s / proxmox)
+sndr service install prod-35b
+sndr service start prod-35b
+sndr service status prod-35b
+sndr service logs prod-35b --lines 200
+sndr service stop prod-35b
+sndr service uninstall prod-35b
+
+# Memory + caveats
+sndr memory --preset prod-35b                   # VRAM waterfall
+sndr memory --live                              # query running container
+sndr caveats list
+
+# Reporting
+sndr report bundle --preset prod-35b            # tarball for issues
+sndr report cudagraph-coverage                  # hit-rate snapshot
+
+# Uninstall
+bash ~/.sndr/install.sh --uninstall
+```
+
+For env-var knobs see [`CONFIGURATION.md`](CONFIGURATION.md); for the
+`--from-running` captor + lxc_proxmox renderer see
+[`QUICKSTART.md`](QUICKSTART.md).
 
 ## Conventions
 
@@ -88,7 +146,7 @@ Key flags:
 | `--preflight-only` | off | Run preflight gates and exit; never exec vLLM. |
 | `--pull` | off | `docker pull` the preset's image before exec. |
 | `--check-deps` | off | Run `sndr deps inspect` against the preset; abort on missing dep. |
-| `--policy {compat,safe,minimal}` | unset | Filter `cfg.genesis_env` through the `patch_plan` resolver. See [PATCH_PLAN.md](PATCH_PLAN.md). |
+| `--policy {compat,safe,minimal}` | unset | Filter `cfg.genesis_env` through the `patch_plan` resolver. See [PATCH_PLAN.md](PATCHES.md). |
 
 Pre-launch warnings surface for enabled patches with
 `implementation_status` in `{partial, placeholder, marker_only}` so
@@ -152,6 +210,60 @@ specific patches or presets.
 sndr caveats list
 sndr caveats inspect <preset>
 ```
+
+### `sndr self-test` — **stable**
+
+Structural sanity check after a fresh `git pull` or vLLM pin bump.
+Answers the question "is Genesis itself working on this box?" —
+different from `doctor` ("is my SYSTEM healthy?"). A `doctor` failure
+can be hardware / config; a `self-test` failure is a Genesis bug or a
+botched install.
+
+```bash
+sndr self-test                                          # human, all checks
+sndr self-test --quiet                                  # only fail/warn/skip rows
+sndr self-test --json                                   # machine-readable
+```
+
+**Eight checks**, run in order, all run regardless of failures
+(self-test never crashes — it surfaces every problem in one pass):
+
+| # | Check | What it verifies |
+| --- | --- | --- |
+| 1 | version constant | `vllm.sndr_core.__version__` is a non-empty string. |
+| 2 | compat imports | All `vllm.sndr_core.compat.*` modules import cleanly. |
+| 3 | integrations imports | All `vllm/sndr_core/integrations/**/*.py` modules import; SKIP if `vllm` not installed. |
+| 4 | schema validator | `PATCH_REGISTRY` validates against `schemas/patch_entry.schema.json`. |
+| 5 | lifecycle audit | Every entry has a known lifecycle state. |
+| 6 | categories build | Categories index builds without errors and every patch is placed in at least one category. |
+| 7 | predicates evaluator | Every `applies_to` clause can be evaluated against an empty environment without raising. |
+| 8 | schema file | `schemas/patch_entry.schema.json` is parseable; SKIP in slim deployments where the source tree is not mounted. |
+
+**Exit codes:** `0` = all `fail`-class checks passed; `1` = at least
+one `fail`. `warn` and `skip` do not change the exit code.
+
+**Status symbols:** ✓ `pass`, ✗ `fail`, ⚠ `warn`, • `skip`.
+
+**Slim deployments.** If only the `vllm/sndr_core/` package is mounted
+(no source tree), the schema file check returns `skip` rather than
+`fail`. Point at an external source tree via env var:
+
+```bash
+GENESIS_REPO_ROOT=/path/to/genesis-vllm-patches sndr self-test
+```
+
+**Adding a new check.** Self-test lives in
+`vllm/sndr_core/compat/self_test.py`. Add a function
+`_check_<name>() -> tuple[str, str]` returning
+`(status, message)`, append to the `_CHECKS` list, and add a unit
+test pinning the new check name. Contract: a check must never raise.
+
+Companion utilities:
+
+- `sndr patches lifecycle-audit` — lifecycle states only,
+  machine-readable for CI.
+- `sndr patches validate-schema` — schema validation only,
+  exit 1 on violation.
 
 ---
 
@@ -699,7 +811,7 @@ inline comments inside each model YAML.
 
 ## See also
 
-- [PATCH_PLAN.md](PATCH_PLAN.md) — `--policy compat|safe|minimal` deep dive
+- [PATCH_PLAN.md](PATCHES.md) — `--policy compat|safe|minimal` deep dive
 - [CONFIGURATION.md](CONFIGURATION.md) — runtime env knobs + preset selection
 - [PATCHES.md](PATCHES.md) — patch taxonomy + lifecycle
 - [INSTALL.md](INSTALL.md) — first-time install walkthrough

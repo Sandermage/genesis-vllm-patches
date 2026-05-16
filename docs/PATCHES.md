@@ -536,6 +536,324 @@ DFlash combine_hidden_states + SWA + aux-layer indexing fixes for spec-decode + 
 
 ---
 
+## Compatibility matrix
+
+Every opt-in patch listed here is `default_on=False`. The PROD launch
+scripts already set the right combination for each model — this
+section is what to consult when customising. The default-on subset
+ships in the V1 / V2 presets and is summarised in
+[`MODELS.md`](MODELS.md) + [`CONFIGS_AUTO.md`](CONFIGS_AUTO.md).
+
+Conventions:
+
+- 🟢 **SAFE** — empirically verified neutral or positive on the
+  listed model. No tool-call regression, no stability issue.
+- 🟡 **OPT-IN-ONLY** — patch is applied but its effect depends on
+  workload (prefix-caching, GQA shape, online quant, ...).
+- 🔴 **DO-NOT-ENABLE** — empirically broken on the listed model
+  (regression confirmed in this repo's commit history).
+- ⚠ **DEPRECATED** — superseded by another patch; kept for git
+  history but should NOT be enabled.
+
+### How patches interact
+
+The dispatcher's `validate_registry()` call (runs at every boot)
+checks for `requires_patches` and `conflicts_with` declarations and
+refuses to boot on a violation. As of HEAD there are **0 declared
+conflicts** between patches — they compose additively. The
+"conflicts" below are EMPIRICAL (observed at runtime), not
+schema-declared. Within a category, patches are typically
+**alternatives** (enable one, not all). Across categories, patches
+are typically **additive**.
+
+### spec_decode — currently in PROD on 35B-A3B-FP8
+
+| Patch | Status | Effect | Notes |
+| --- | --- | --- | --- |
+| **P58** Async-scheduler -1 placeholder fix | 🟢 SAFE | spec-decode + cudagraph workloads no longer loop or IMA | Backport vllm#40768 |
+| **P60** GDN+ngram state recovery (Phase 1) | 🟢 SAFE | tool-call recovery on hybrid models | Backport vllm#40738 |
+| **P60b** GDN+ngram Triton kernel offset (Phase 2) | 🟢 SAFE | composes with P60 | Backport vllm#40738 |
+| **P66** cudagraph_capture_sizes divisibility filter | 🟢 SAFE | boot 2–4× faster, less peak GPU memory | Genesis-original |
+| **P67** TurboQuant multi-query kernel (spec K+1) | 🟢 SAFE on 35B (GQA=8 = pow-2); 🔴 27B (GQA=6 non-pow-2) — guard auto-skips | self-protected by power-of-2 guard | Genesis-original |
+| **P67b** TQ spec-verify forward() routing | 🟢 SAFE on 35B; auto-skips on 27B | routes K+1 batches through P67 before `_prefill_attention` | Genesis-original |
+| **P82** SGLang threshold_single OR-clause acceptance | 🟢 SAFE on 35B; `GENESIS_P82_THRESHOLD_SINGLE=0.3` recommended | +5–10% acceptance on conservative draft scenarios | Backport SGLang |
+
+### spec_decode — opt-in only on certain workloads
+
+| Patch | When to enable | Why off by default |
+| --- | --- | --- |
+| **P59** Qwen3 reasoning embedded tool_call recovery | Streaming clients (LibreChat / OpenWebUI) | Overlaps with P62; dual-apply on same code is redundant. |
+| **P65** TQ spec-decode CG downgrade | Never on Ampere (superseded by P67b) | Forces PIECEWISE which costs ~5% TPS. |
+| **P70** Auto-strict-ngram (`prompt_lookup_min>=8`) | ngram workloads only | We use MTP, not ngram → no-op. |
+| **P71** Block-verify rejection sampler | Hopper / Blackwell experiments | Sampling change; needs retraining. |
+| **P75** Auto-enable Suffix Decoding | Arctic Inference workloads | Different acceptance heuristic. |
+| **P77** Adaptive ngram K controller | ngram only | We're on MTP. |
+| **P83 + P85** MTP keep-last-cached-block + hybrid fine-shadow prefix cache | If `--enable-prefix-caching` ON | PROD doesn't use prefix-caching (P83+P84+P85 stack regressed −29% in our 4-arm A/B). |
+| **PN8** MTP/draft online-quant propagation | FP8 + MTP only | No-op on offline-quant INT4 (Lorbus). −1066 MiB VRAM on 35B FP8. |
+
+### spec_decode — deprecated
+
+| Patch | Why |
+| --- | --- |
+| **P56** TQ spec-decode safe-path guard | Superseded by P65 (which itself is superseded by P67b). |
+| **P57** TQ spec-decode capture-safe buffers | Research artefact; never reproduced positive effect. |
+| **P61** Qwen3 multi-tool first-occurrence | Superseded by P12 v2. |
+
+### structured_output
+
+| Patch | Status | When | Effect |
+| --- | --- | --- | --- |
+| **P61b** Streaming partial-tag overlap guard | 🟢 SAFE on PROD | streaming tool-call | stops `<tool_call` partial fragment closing prematurely |
+| **P62** Spec-decode reasoning-end timing fix | 🟢 SAFE on PROD | spec-decode + grammar | reasoning-aware grammar acceptance + spec-token validation |
+| **P64** Qwen3coder MTP streaming early-return fix | 🟢 SAFE on PROD | streaming + MTP | removes early `return` that drops parameters when MTP bundles last param + `</function>` |
+| **P68** Auto force `tool_choice=required` for long-context | 🟢 SAFE on PROD | long-context (≥50K chars) | threshold via `GENESIS_P68_P69_LONG_CTX_THRESHOLD_CHARS` |
+| **P69** Long-context tool-format reminder injection | 🟢 SAFE on PROD | long-context | companion to P68 |
+
+### perf_hotfix
+
+| Patch | Status | Effect | Empirical |
+| --- | --- | --- | --- |
+| **P98** TQ WorkspaceManager revert | 🟡 OPT-IN-ONLY | expected +15–25% TPS recovery on Ampere small-batch single-stream | tested 35B PROD 2026-04-30: +1.0% — within ±1% noise |
+| **P99** WorkspaceManager.get_simultaneous memoization | 🟢 SAFE on 35B PROD | helper for P98 | already in PROD; baked into baseline |
+| **P100** FlashInfer FULL CUDA graph for spec-decode | 🟢 SAFE on 35B PROD | UNIFORM_BATCH cudagraph for K+1 spec-verify | NO-OP on TQ backend; only fires on FlashInfer |
+| **P101** TQ continuation 64-token slicing | 🟢 SAFE on 35B PROD | +3–12% TPS on long-context | already in PROD baseline |
+
+### kv_cache
+
+| Patch | Status | When | Notes |
+| --- | --- | --- | --- |
+| **P84** hash_block_size override (vllm#38182) | 🔴 DO NOT ENABLE on 27B PROD | prefix-caching ON + `GENESIS_P84_HASH_BLOCK_SIZE` set | −29% TPS regression in 4-arm A/B |
+| **P85** Hybrid fine-shadow prefix cache | 🔴 DO NOT ENABLE on 27B PROD | companion to P84 | same regression |
+
+### kernel / quantization
+
+| Patch | Status | When | Notes |
+| --- | --- | --- | --- |
+| **P81** fp8 block-scaled MM low-M decode tuning | 🟢 SAFE on 35B PROD | FP8 block-scaled checkpoints | Backport vllm#40925 |
+| **P87** Marlin W4A16/W8A16 sub-tile output dim pad-on-load | 🟢 SAFE on 27B PROD | INT4 AutoRound checkpoints | Backport vllm#40361 |
+| **P91** AutoRound row-parallel group cdiv + start-idx fix | 🟢 SAFE on 27B PROD | row-parallel AutoRound INT4 | Backport vllm#39460 |
+| **PN14** TQ decode IOOB safe_page_idx clamp | 🟡 OPT-IN-ONLY | defensive on TQ k8v4 | tested 35B PROD: +0.1% (noise) |
+
+### compile_safety
+
+| Patch | Status | Effect | Empirical |
+| --- | --- | --- | --- |
+| **P72** profile_run M cap | 🟢 SAFE on PROD | unblocks `--max-num-batched-tokens > 4096` on MoE | already PROD |
+| **P74** Auto chunk-clamp via long_prefill_token_threshold | 🟢 SAFE on PROD | prevents prealloc buffer overflow when batched=8192 | already PROD |
+| **P78** TurboQuant `.tolist()` capture-guard | 🟡 OPT-IN-ONLY (Site B only) | falls back to `flash_attn_varlen_func` during cudagraph capture | Site A NOT applied — substituting captured-time constant produces garbage output |
+
+### cudagraph_safety / model_correctness / memory_savings
+
+| Patch | Status | When | Empirical |
+| --- | --- | --- | --- |
+| **PN11** GDN a/b contiguity (vllm#41142) | 🟢 SAFE on 35B PROD | hybrid GDN — Quentin Machu fix | defensive; community-validated |
+| **PN12** FFN intermediate scratch pool (Cliff 1 fix) | 🟡 OPT-IN-ONLY | INT4 AutoRound 27B at long-ctx | tested 35B PROD: +0.16% (noise) |
+| **PN13** CUDAGraphWrapper lambda-arity fix (vllm#41235) | 🟡 OPT-IN-ONLY | Blackwell GB200 nightly | tested 35B PROD: +0.7% (noise) on Ampere |
+| **PN17** FA2 softmax_lse runtime clamp | 🟡 OPT-IN-ONLY | FA2 + spec-decode | recent; not yet PROD-tested |
+
+### Empirical compatibility (2× RTX A5000, 2026-04-30 baseline)
+
+| Patch | 35B-A3B-FP8 | 27B-Lorbus + fp8_e5m2 | 27B-Lorbus + TQ k8v4 | Notes |
+| --- | --- | --- | --- | --- |
+| P58 | 🟢 PROD | 🟢 PROD | 🟢 PROD | always safe |
+| P60 + P60b | 🟢 PROD | 🟢 PROD | 🟢 PROD | hybrid GDN — always |
+| P66 | 🟢 PROD | 🟢 PROD | 🟢 PROD | always safe |
+| P67 + P67b | 🟢 fires (GQA=8) | 🟡 auto-skip (GQA=6) | 🟡 auto-skip (GQA=6) | pow-2 guard |
+| P67/P67b under FULL cudagraph | 🟢 PROD | n/a | 🔴 `_prefill_attention` `.tolist()` crash + repetition spam | use PIECEWISE on 27B+TQ |
+| P82 (threshold=0.3) | 🟢 PROD | 🟡 OFF | 🟡 OFF | workload-dependent acceptance |
+| P98 | 🟡 +1% noise | not yet tested | required for boot on hybrid+TQ | |
+| P99 + P101 | 🟢 PROD | 🟡 OFF | n/a | already optimised in baseline |
+| P83 + P84 + P85 | n/a | n/a | n/a | −29% regression with prefix-cache ON |
+| PN8 | 🟢 PROD (−1066 MiB) | 🟡 no-op (offline INT4) | 🟡 no-op (offline INT4) | online-quant only |
+| PN11 | 🟢 PROD | 🟡 OFF | 🟡 OFF | hybrid defensive |
+| PN12 | 🟡 +0.16% noise | not yet tested | not yet tested | Cliff 1 fix |
+| PN13 | 🟡 +0.7% noise | not yet tested | not yet tested | Blackwell-targeted |
+| PN14 | 🟡 +0.1% noise | not yet tested | not yet tested | TQ defensive |
+
+Numbers in "noise" parentheses are from
+`tools/genesis_bench_suite.py --mode standard --runs 25 --max-tokens 1024`
+on 2× RTX A5000. CV is 5–6%, so anything under ±2% is sampling
+noise.
+
+## Patch plan resolver — `--policy compat|safe|minimal`
+
+Genesis ships **169 patches**; a typical preset enables ~50–80 of
+them. Two operator questions follow naturally:
+
+1. Which patches actually need to be on for this deployment?
+2. Which ones could I safely drop without losing the speedups I
+   care about?
+
+`patch_plan` is the answer. It's a read-only resolver that reads
+each preset's `genesis_env` and the structured
+`patches_attribution` metadata, applies a policy filter, and
+produces:
+
+- the **included** env-flag set (what the runtime should export),
+- the **excluded** set (what the policy dropped and why),
+- the **passthrough** set (`GENESIS_*` parameter keys that are NOT
+  patch toggles and therefore always survive),
+- a **warnings** list (conflicts between included patches,
+  `candidate_when` predicate mismatches against your rig).
+
+The resolver does NOT change runtime apply decisions — the
+dispatcher's `should_apply()` remains the canonical runtime gate.
+`patch_plan` operates upstream of the runtime: it decides what
+gets exported in the first place.
+
+### Policy modes
+
+| Policy | What it drops | When to use |
+| --- | --- | --- |
+| `compat` *(default)* | Nothing. Every truthy toggle survives. The excluded set only contains operator-disabled (`value=0`) toggles. | Legacy / pre-attribution operators. Byte-identical to old behaviour. |
+| `safe` | Toggles whose attribution declares `role: no_op`. Conservative — only kills patches explicitly documented as inactive on this preset. | Recommended starting point once attribution coverage is meaningful. |
+| `minimal` | Above + `role: suspected_regression` + `role: unknown` (no attribution at all). Aggressive — drops everything that isn't explicitly documented as needed. | Advanced operators who curate attribution and want a lean stack. |
+
+**Parameter keys always pass through.**
+`GENESIS_PN95_CONFIG_KEY`, `GENESIS_BUFFER_MODE`,
+`GENESIS_PROFILE_RUN_CAP_M`, and similar configuration values are
+not patch toggles — they're how the patches behave once they fire.
+Filtering them would silently break the patches that depend on
+them. The resolver detects toggles by the `GENESIS_ENABLE_` /
+`GENESIS_DISABLE_` prefix; every other `GENESIS_*` key passes
+through every policy unchanged.
+
+### CLI surface
+
+```bash
+sndr patches plan --preset prod-35b
+sndr patches plan --preset prod-35b --policy compat --explain
+sndr patches plan --preset prod-35b --policy minimal --json
+
+# A/B before flipping
+sndr compose plan-diff prod-35b --from compat --to minimal
+
+# Render a compose file with the filtered env
+sndr compose render prod-35b --policy minimal -o /etc/sndr/compose.yml
+
+# Launch with the filter applied
+sndr launch prod-35b --policy minimal --dry-run
+
+# Diagnose against the same policy used at launch
+sndr model-config diagnose prod-35b --policy minimal
+
+# Capture the plan in a report bundle
+sndr report bundle --preset prod-35b --scope quality
+```
+
+### Authoring attribution
+
+`patches_attribution` lives inside the model YAML, keyed by registry
+patch ID (e.g. `PN204`, not the env-flag name):
+
+```yaml
+patches_attribution:
+  PN204:
+    role: optional_perf
+    bench_evidence: "dev371 35B conc=8: 689 TPS / TTFT 237 ms"
+    note: |
+      Enabled in 35b-multiconc profile via patches_delta.enable.
+      Hopper SM 9.0+ gives +5-10% TPOT per upstream PR.
+    candidate_when:
+      max_num_seqs_gte: 4
+```
+
+#### Role taxonomy
+
+| Role | Semantics | Required fields |
+| --- | --- | --- |
+| `load_bearing` | Removal causes measurable regression / boot break. | `note` |
+| `defensive` | Cheap safety guard; default-include. | — |
+| `optional_perf` | Conditional perf knob; needs evidence to justify. | `bench_evidence` |
+| `suspected_regression` | Bench showed regression; documented but kept off. | `note` |
+| `no_op` | Included for cross-config consistency but inactive on this preset. | — |
+| `unknown` | Not yet classified (defaults when no attribution exists). | — |
+
+#### `candidate_when` predicates
+
+`candidate_when` is an optional dict of operator-authored predicates.
+When the predicate doesn't match the current `cfg`, the resolver
+emits an advisory warning (it does not exclude the patch).
+
+Supported predicate keys:
+
+```yaml
+candidate_when:
+  max_num_seqs_gte: 4               # cfg.max_num_seqs >= 4
+  max_num_seqs_lte: 8
+  max_model_len_gte: 100000
+  n_gpus_eq: 2
+  tool_call_parser: ["qwen3_coder", "qwen3_xml"]    # list membership
+  reasoning_parser: ["qwen3"]
+  kv_cache_dtype: ["fp8_e5m2", "turboquant_3bit_nc"]
+  quantization: ["auto_round"]
+```
+
+Unknown predicate keys produce a warning and don't fail closed —
+forward-compat for predicates the resolver hasn't been updated to
+recognise.
+
+### Profile-level overrides
+
+A `ProfileDef.patches_delta.attribution` map can override or extend
+the model's attribution per patch ID:
+
+```yaml
+# profile/long-ctx-27b.yaml
+patches_delta:
+  enable:
+    GENESIS_ENABLE_PN204_DUAL_STREAM_INPROJ: '1'
+  attribution:
+    PN204:
+      role: load_bearing
+      note: |
+        Long-ctx profile keeps PN204 mandatory because OOM risk
+        compounds with context length on the multi-conc path.
+```
+
+Per-key full replacement (not field merge): the profile entry is
+the entry that lands in the composed
+`ModelConfig.patches_attribution`.
+
+### Audit gates
+
+```bash
+make audit-patch-attribution     # AT-1 key matches registry; AT-2 role-presence consistency
+make audit-patch-plan-resolves   # every V2 preset resolves cleanly under all 3 policies
+```
+
+Coverage ratchet (optional CI gate):
+
+```bash
+python3 scripts/audit_patch_attribution.py --min-coverage 30
+```
+
+### Migration
+
+The policy filter is opt-in everywhere. If no `--policy` flag is
+passed:
+
+- `sndr patches plan` runs the dispatcher simulator (legacy);
+- `sndr compose render` produces byte-identical output to
+  pre-2026-05-16;
+- `sndr launch` exports the full `genesis_env` matrix;
+- `sndr diagnose` compares against the raw matrix.
+
+The resolver still runs in the background under `sndr patches plan`
+without `--policy` to surface advisory warnings (conflicts +
+`candidate_when` mismatches). Those warnings are always visible —
+they don't change behaviour, just visibility.
+
+### Reference
+
+- Resolver code:
+  `vllm/sndr_core/model_configs/patch_plan.py`
+- Schema: `PatchAttribution` in
+  `vllm/sndr_core/model_configs/schema.py`,
+  `PatchesDelta.attribution` in `schema_v2.py`.
+- Audit gates: `scripts/audit_patch_attribution.py`,
+  `scripts/audit_patch_plan_resolves.py`.
+
 ## Adding a new patch
 
 1. **Pick a free ID.** Run `grep -E '^@register_patch' vllm/sndr_core/apply/_per_patch_dispatch.py | head` and `grep -E '"P[0-9]+' vllm/sndr_core/dispatcher/registry.py` to confirm the next available number. Don't reuse retired IDs (P56/P57/P63 are deprecated but kept).

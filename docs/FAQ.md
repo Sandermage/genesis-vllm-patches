@@ -61,7 +61,7 @@ registry — production-eligible Wave 10 backports + legacy
 pre-dispatcher overlays that have been validated against the
 v11 baselines. The full list is in [`PATCHES_AUTO.md`](PATCHES_AUTO.md);
 the policy that decides which subset is allowed in production
-presets is in [`PATCH_PLAN.md`](PATCH_PLAN.md).
+presets is in [`PATCH_PLAN.md`](PATCHES.md).
 
 A fresh Genesis install without any preset still respects the
 per-patch `default_on` flag; production launch scripts under
@@ -100,7 +100,7 @@ Yes — this is one of Genesis's main focus areas. The P59 / P61 /
 P62 / P64 / P68 / P69 patch family fixes upstream regressions in
 Qwen3 tool-call generation, especially around `<think>` tags,
 multi-tool prompts, and streaming. Enable them together via the
-`tool_call_safe` recipe in [`COOKBOOK.md`](COOKBOOK.md).
+`tool_call_safe` recipe in [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md).
 
 ### Q: How do I download the DFlash draft model?
 
@@ -116,7 +116,7 @@ First, look at the boot log — Genesis prints `[APPLY]` / `[SKIP]` /
 patch by unsetting its `GENESIS_ENABLE_*` flag. If you can't find a
 working subset, file an issue with the full boot log; include your
 vLLM commit hash, GPU model, and the model checkpoint. The
-[`ROLLBACK_PLAYBOOK.md`](ROLLBACK_PLAYBOOK.md) walks through the
+[`TROUBLESHOOTING.md`](TROUBLESHOOTING.md) walks through the
 recovery procedure step by step.
 
 ### Q: How do I capture a running container into a config?

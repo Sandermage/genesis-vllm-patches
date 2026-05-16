@@ -193,11 +193,11 @@ tracked-only subset is the release baseline; some tests in
 | `docs/CONFIG_SYSTEM_V2.md` | layered config — model + hardware + profile + preset |
 | `docs/MODEL_CONFIG_LAUNCHER.md` | `sndr launch` walkthrough |
 | `docs/PATCHES.md` | high-level patch catalogue |
-| `docs/CLIFFS.md` | known hardware/software cliffs |
-| `docs/COMPATIBILITY.md` | vLLM pin matrix + retired patches |
+| `docs/TROUBLESHOOTING.md` | known hardware/software cliffs |
+| `docs/PATCHES.md` | vLLM pin matrix + retired patches |
 | `docs/COMMUNITY_PATCHES.md` | community SDK quickstart |
 | `docs/PLUGINS.md` | plugin author guide |
-| `docs/ROLLBACK_PLAYBOOK.md` | R-001..R-008 recovery procedures |
+| `docs/TROUBLESHOOTING.md` | R-001..R-008 recovery procedures |
 | `docs/SELF_TEST.md` | `sndr self-test` semantics |
 | `docs/BENCHMARK_GUIDE.md` | how to run our benches |
 | `docs/PROJECT_MAP.md` | **this file** |
