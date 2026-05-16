@@ -121,6 +121,9 @@ audit-schema-sync: ## P0-3 (audit 2026-05-14): patch_entry schemas (package + ro
 audit-patch-attribution: ## Phase A (2026-05-16): ModelDef.patches_attribution keys + role-presence consistency
 	@$(PYTHON) scripts/audit_patch_attribution.py
 
+audit-patch-plan-resolves: ## Phase D (2026-05-16): every V2 preset resolves cleanly under compat/safe/minimal
+	@$(PYTHON) scripts/audit_patch_plan_resolves.py
+
 audit-engine-boundary: ## §10.3 #5 engine boundary: only optional-discovery `vllm.sndr_engine` imports in sndr_core
 	@$(PYTHON) scripts/audit_engine_boundary.py
 
