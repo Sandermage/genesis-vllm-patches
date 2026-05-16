@@ -363,14 +363,24 @@ class HardwareDef:
 
 @dataclass
 class PatchesDelta:
-    """Three explicit actions on the canonical patches dict.
+    """Three explicit actions on the canonical patches dict + optional
+    attribution override layer.
 
-    Order applied by composer: enable → disable → override.
+    Order applied by composer: enable → disable → override → attribution.
     Conflicts within a profile (enable + disable same key) raise SchemaError.
+
+    Phase D extension (2026-05-16): the ``attribution`` map lets a
+    profile override ModelDef.patches_attribution per patch ID at
+    compose time. Use case: the long-ctx profile flags PN204 as
+    load_bearing (model marked it optional_perf because the latency
+    profile doesn't need it), or an A/B profile downgrades a patch
+    from defensive to suspected_regression during a validation window.
+    Override is per-entry full replacement, not field-level merge.
     """
     enable: dict[str, str] = field(default_factory=dict)
     disable: list[str] = field(default_factory=list)
     override: dict[str, str] = field(default_factory=dict)
+    attribution: dict[str, "PatchAttribution"] = field(default_factory=dict)
 
     def validate(self) -> None:
         enabled = set(self.enable)
@@ -390,6 +400,20 @@ class PatchesDelta:
                     raise SchemaError(
                         f"profile patches_delta.{src_name}[{k!r}] must be str"
                     )
+        # Phase D — validate the optional attribution override map.
+        # Key shape mirrors ModelDef.patches_attribution: keys are
+        # canonical patch IDs (P[N]?\\d+[A-Za-z0-9_]*), values are
+        # PatchAttribution entries (role enum + role-conditional aux
+        # fields). _check_patch_id() enforces the key contract; the
+        # entry-level role check delegates to PatchAttribution.validate.
+        for pid, attr in self.attribution.items():
+            _check_patch_id(pid, f"profile patches_delta.attribution[{pid!r}]")
+            if not isinstance(attr, PatchAttribution):
+                raise SchemaError(
+                    f"profile patches_delta.attribution[{pid!r}] must be "
+                    f"PatchAttribution (got {type(attr).__name__})"
+                )
+            attr.validate(key=pid)
 
 
 @dataclass

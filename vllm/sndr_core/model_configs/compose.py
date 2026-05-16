@@ -28,7 +28,7 @@ Runtime semantics (Q-runtime in § 1):
 """
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any, Optional
 
 from .schema import (
     DockerConfig,
@@ -166,6 +166,29 @@ def _render_docker_config(
 # ─── Top-level compose ──────────────────────────────────────────────────
 
 
+def _merged_attribution(
+    model: ModelDef,
+    profile: Optional[ProfileDef],
+) -> dict[str, Any]:
+    """Phase D: merge ModelDef.patches_attribution with optional
+    ProfileDef.patches_delta.attribution.
+
+    Semantics: per-key full replacement (the profile entry overrides
+    the model entry in its entirety; partial field merge is not
+    supported — keeps the data model simple and the diff explicit).
+    Profile entries for patches absent in model attribution are
+    additive. Model entries absent from the profile pass through
+    unchanged.
+
+    Order: profile wins on conflicts, same precedence as enable /
+    disable / override above.
+    """
+    merged: dict[str, Any] = dict(model.patches_attribution)
+    if profile is not None and profile.patches_delta is not None:
+        merged.update(profile.patches_delta.attribution)
+    return merged
+
+
 def compose(
     model: ModelDef,
     hardware: HardwareDef,
@@ -294,12 +317,12 @@ def compose(
 
         # Patches matrix
         genesis_env=patches,
-        # Phase B (2026-05-16) — copy attribution from ModelDef so the V1
-        # ModelConfig and downstream patch_plan resolver share the same
-        # metadata. Shallow copy guards against downstream mutation
-        # corrupting the original ModelDef dict; PatchAttribution itself
-        # is a frozen-by-convention dataclass (no mutating methods).
-        patches_attribution=dict(model.patches_attribution),
+        # Phase B (2026-05-16) — copy attribution from ModelDef.
+        # Phase D extension: profile.patches_delta.attribution overlays
+        # per-key full replacements on top of the model's map. Same
+        # merge semantics as enable/override on the patches dict —
+        # profile takes precedence.
+        patches_attribution=_merged_attribution(model, profile),
         system_env=dict(hardware.system_env),
 
         # Extra CLI flags (currently only --chat-template; see 4c above)
