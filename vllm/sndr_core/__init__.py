@@ -148,9 +148,16 @@ def _g4_19_import_time_hook():
     g60k = _os.environ.get(
         "GENESIS_ENABLE_G4_60K_TQ_ENGINE_CONFIG", ""
     ).strip().lower() in ("1", "true", "yes")
+    # G4_61 + G4_62 — PR #40798 (workspace share) + PR #42215 (decode warmup).
+    g61 = _os.environ.get(
+        "GENESIS_ENABLE_G4_61_TQ_SHARED_WORKSPACE", ""
+    ).strip().lower() in ("1", "true", "yes")
+    g62 = _os.environ.get(
+        "GENESIS_ENABLE_G4_62_TQ_KERNEL_WARMUP", ""
+    ).strip().lower() in ("1", "true", "yes")
     if not (
         g19 or g19b or g19c or g30 or g31 or g32 or g43 or g44 or g45 or g50
-        or g60a or g60e or g60g or g60h or g60k
+        or g60a or g60e or g60g or g60h or g60k or g61 or g62
     ):
         return
     try:
@@ -259,6 +266,20 @@ def _g4_19_import_time_hook():
                 g4_60k_arg_utils as _g4_60k_mod,
             )
             _g4_60k_mod.apply()
+        # G4_61 shares TQ decode workspace across layers (PR #40798).
+        # Apply before any model forward — patches launcher + capture_model.
+        if g61:
+            from .integrations.gemma4 import (
+                g4_61_tq_shared_workspace as _g4_61_mod,
+            )
+            _g4_61_mod.apply()
+        # G4_62 warms up TQ decode kernels before lock_workspace (PR #42215).
+        # Apply order: G4_62 after G4_61 so warmup uses shared workspace path.
+        if g62:
+            from .integrations.gemma4 import (
+                g4_62_tq_kernel_warmup as _g4_62_mod,
+            )
+            _g4_62_mod.apply()
     except Exception:  # noqa: BLE001
         # Never block sndr_core import on G4-TQ apply error
         pass
