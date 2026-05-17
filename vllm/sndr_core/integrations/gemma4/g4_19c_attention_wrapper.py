@@ -45,6 +45,46 @@ buffer rewrite:
     aggressive bit-widths and go to 4/5-bit before cache substitution.
 
 ================================================================
+SERVER A/B RESULT 2026-05-17 — quality regression observed
+================================================================
+
+First end-to-end bench against live Gemma 4 31B AWQ + 256K context,
+pack=uint32 wht=signs_only (3-bit Lloyd-Max, no real Hadamard):
+
+  Baseline (G4_19c OFF)            G4_19c ON (uint32+signs)
+  - "2+2?"        → "4" ✓         → "4! (Wait, it's 4!) ..." LOOPING
+  - "primary cols" → "Red, blue,  → "//" BROKEN
+                     yellow"
+  - "WWII ended?"  → "1945" ✓     → "Historically, the** (Wait wait..." LOOPING
+  - "Tokyo?"       → "Tokyo" ✓    → "Tokyo" ✓
+  - "3 planets"    → "Mercury,    → "Mercury, Venus, **Venus**" HALLUCIN.
+                     Venus, Earth"
+  - long-ctx 8K needle: FOUND in both
+  - TPS: 55-66 (CV ~40%, warmup variability)
+
+**Root cause hypothesis**: Lloyd-Max codebooks are calibrated for unit-
+variance Gaussian marginals, but Gemma 4 K/V tensors AFTER q_norm +
+k_norm + v_norm + RoPE have a different empirical distribution. The
+sign-only "rotation" (the placeholder path) doesn't Gaussianize them
+either. Quantization error is asymmetric enough to skew attention
+scores → divergent token sampling → looping / wrong answers.
+
+**Next steps (separate session)**:
+  1. Probe real K/V distribution stats (mean, std, kurtosis, %outliers)
+     from a warmup pass; calibrate per-layer scale + codebook from
+     observed data instead of assuming unit-variance Gaussian.
+  2. Try full_wht mode (butterfly Hadamard actually applied) — paper
+     claims Beta-concentration restores Gaussian marginals.
+  3. Try 4-bit and 5-bit codebooks (more aggressive than 3-bit means
+     less quantization-error margin; raising bits should ease quality).
+  4. Per-layer adaptive bit-width: profile per-layer attention
+     sensitivity and use 5-bit on attention-dominant layers, 3-bit on
+     redundant ones.
+
+Default status of G4_19c: **OFF in production launcher** until quality
+regression is resolved.
+
+================================================================
 ENV FLAG
 ================================================================
 
