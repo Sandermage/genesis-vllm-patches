@@ -4636,7 +4636,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {"model_arch": ["Gemma4ForConditionalGeneration"]},
     },
     "G4_24": {
-        "title": "Fused softcap Triton kernel route for Gemma 4 (attention + final logits)",
+        "title": "Fused softcap Triton kernel route for Gemma 4 (FINAL logits only; G4_24b will cover attention)",
         "tier": "community",
         "family": "gemma4",
         "env_flag": "GENESIS_ENABLE_G4_24_GEMMA4_FUSED_SOFTCAP",

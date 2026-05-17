@@ -87,7 +87,44 @@ GENESIS_G4_09_MARKER = (
 )
 
 _ENV_ENABLE = "GENESIS_ENABLE_G4_09_GEMMA4_SWA_PREFILL_CHUNKER"
-_CHUNK_SIZE_TOKENS = 2048  # safe from #39914 reproducer comments
+_ENV_CHUNK_SIZE = "GENESIS_G4_09_CHUNK_SIZE"  # tunable override; audit P0 follow-up
+
+# Default chunk size budget per scheduling step.
+# Audit GEMMA4_PATCH_OPTIMIZATION_PLAN_2026-05-17_RU notes:
+#   "G4_09 stable but limit 2048 may cut throughput; provide profiles
+#    2048 / 4096 / 8192".
+# 2048 is the empirically-safe minimum from issue #39914 reproducer
+# comments. 4096 has been tested on dev371 without hang. 8192 is the
+# aggressive ceiling — operator must validate per checkpoint.
+_DEFAULT_CHUNK_SIZE_TOKENS = 2048
+
+# Hard ceiling — anything above this approaches the hang threshold per
+# #39914 measurements (~4096 was reported as triggering on FP8_BLOCK;
+# 8192 was confirmed safe on AWQ checkpoints).
+_MAX_CHUNK_SIZE_TOKENS = 8192
+
+
+def _resolve_chunk_size() -> int:
+    """Read GENESIS_G4_09_CHUNK_SIZE env, clamp to safe range."""
+    import os
+    raw = os.environ.get(_ENV_CHUNK_SIZE, "").strip()
+    if not raw:
+        return _DEFAULT_CHUNK_SIZE_TOKENS
+    try:
+        v = int(raw)
+        if v < 512:
+            log.warning("[G4_09] chunk size %d too small (min 512); using default %d",
+                        v, _DEFAULT_CHUNK_SIZE_TOKENS)
+            return _DEFAULT_CHUNK_SIZE_TOKENS
+        if v > _MAX_CHUNK_SIZE_TOKENS:
+            log.warning("[G4_09] chunk size %d exceeds safe ceiling %d; clamping",
+                        v, _MAX_CHUNK_SIZE_TOKENS)
+            return _MAX_CHUNK_SIZE_TOKENS
+        return v
+    except ValueError:
+        log.warning("[G4_09] invalid %s=%r; using default %d",
+                    _ENV_CHUNK_SIZE, raw, _DEFAULT_CHUNK_SIZE_TOKENS)
+        return _DEFAULT_CHUNK_SIZE_TOKENS
 
 _APPLIED = False
 _ORIGINAL_VERIFY = None
@@ -135,6 +172,11 @@ def apply() -> tuple[str, str]:
         return "applied", "G4_09 already wrapped (idempotent)"
     _ORIGINAL_VERIFY = original
 
+    # Resolve operator-configured chunk size (default 2048; tunable via
+    # GENESIS_G4_09_CHUNK_SIZE env per audit P0 follow-up). Baked at
+    # apply() time so per-step calls don't reread env.
+    chunk_size = _resolve_chunk_size()
+
     def _genesis_g4_09_wrapped_verify(vllm_config):
         result = original(vllm_config)
         try:
@@ -142,13 +184,13 @@ def apply() -> tuple[str, str]:
             mc = getattr(vllm_config, "model_config", None)
             if sc is not None and mc is not None and is_gemma4_arch(mc):
                 current = getattr(sc, "max_num_batched_tokens", None)
-                if current is None or current > _CHUNK_SIZE_TOKENS:
+                if current is None or current > chunk_size:
                     log.warning(
                         "[G4_09] clamping scheduler.max_num_batched_tokens "
                         "%s → %d (Gemma 4 + #39914 workaround)",
-                        current, _CHUNK_SIZE_TOKENS,
+                        current, chunk_size,
                     )
-                    sc.max_num_batched_tokens = _CHUNK_SIZE_TOKENS
+                    sc.max_num_batched_tokens = chunk_size
                 # Force chunked prefill on (its absence triggers single-batch path)
                 if hasattr(sc, "enable_chunked_prefill"):
                     if not sc.enable_chunked_prefill:
@@ -171,12 +213,13 @@ def apply() -> tuple[str, str]:
     _APPLIED = True
     log.info(
         "[G4_09] installed: Gemma 4 will use max_num_batched_tokens ≤ %d "
-        "and enable_chunked_prefill=True to avoid #39914 SWA→global hang.",
-        _CHUNK_SIZE_TOKENS,
+        "and enable_chunked_prefill=True to avoid #39914 SWA→global hang. "
+        "Override via %s env (range 512..%d).",
+        chunk_size, _ENV_CHUNK_SIZE, _MAX_CHUNK_SIZE_TOKENS,
     )
     return "applied", (
-        f"G4_09 installed: Gemma 4 prefill chunked to ≤{_CHUNK_SIZE_TOKENS} tokens "
-        "per scheduling step (#39914 workaround)."
+        f"G4_09 installed: Gemma 4 prefill chunked to ≤{chunk_size} tokens "
+        f"per scheduling step (#39914 workaround). Tune via {_ENV_CHUNK_SIZE}=<512..{_MAX_CHUNK_SIZE_TOKENS}>."
     )
 
 

@@ -1,0 +1,100 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 model definition — Gemma 4 26B-A4B AWQ-4bit EXPERIMENTAL overlay.
+#
+# Per audit GEMMA4_PATCH_OPTIMIZATION_PLAN_2026-05-17_RU section P0:
+#   "G4_08/G4_18 перенести из default-on в experimental overlay,
+#    пока нет real server validation."
+#
+# This profile flips:
+#   G4_02 guard OFF  → allows boot when Marlin K%64≠0 path triggers
+#   G4_08 K-pad ON   → routes through Genesis Triton zero-pad kernel
+#   G4_13 guard OFF  → allows boot when asymmetric KV-heads config exists
+#   G4_18 per-layer ON → uses per-layer-type KV-head counts
+#
+# WARNING: implementation_status for G4_08 and G4_18 is "partial" — these
+# need server bench validation before promoting to default. See base
+# profile gemma-4-26b-a4b-it-awq.yaml for the stable production stack.
+
+schema_version: 2
+kind: model
+id: gemma-4-26b-a4b-it-awq-experimental
+title: Gemma 4 26B-A4B AWQ-4bit EXPERIMENTAL (G4_08 K-pad + G4_18 per-layer KV)
+maintainer: sandermage
+last_validated: '2026-05-17'
+license: gemma-license
+inherits_from: gemma-4-26b-a4b-it-awq                    # base config (use compose if supported)
+
+# ─── Identity (same as base) ───────────────────────────────────────────
+model_path: /models/gemma-4-26B-A4B-it-AWQ-4bit
+served_model_name: gemma-4-26b-a4b-exp
+quantization: null
+dtype: bfloat16
+trust_remote_code: false
+chat_template: /tmp/genesis/chat_templates/gemma4.jinja
+
+# ─── Capabilities ──────────────────────────────────────────────────────
+capabilities:
+  attention_arch: gemma4_moe
+  tool_call_parser: gemma4
+  reasoning_parser: null
+  enable_auto_tool_choice: true
+  spec_decode:
+    method: mtp
+    num_speculative_tokens: 4
+    model: /models/gemma-4-26B-A4B-it-assistant
+  kv_cache_dtype: auto
+
+requires:
+  min_total_vram_mib: 24000
+  min_gpu_count: 1
+  min_cuda_capability: [8, 6]
+  rig_arch_blocklist: []
+
+versions:
+  genesis_pin_min: v12.0.0
+  vllm_pin_required: 0.20.2rc1.dev371+gbf610c2f5
+  reference_metrics_ref: tests/integration/baselines/gemma4_26b_a4b_awq_experimental_baseline.json
+
+# ─── Canonical patches matrix — EXPERIMENTAL: G4_08 + G4_18 ENABLED ────
+patches:
+  # ── Guards (default-on safety) ──
+  GENESIS_ENABLE_G4_01_GEMMA4_FP8_BLOCK_GUARD: '1'
+  GENESIS_ENABLE_G4_03_GEMMA4_NON_CAUSAL_DRAFTER_GUARD: '1'
+  GENESIS_ENABLE_G4_12_GEMMA4_FP8_E4NV_GUARD: '1'
+
+  # ── KEY DIFFERENCE from base profile: G4_02 OFF, G4_08 ON ──
+  GENESIS_ENABLE_G4_02_GEMMA4_MARLIN_KDIM_GUARD: '0'      # disabled — G4_08 will route through Triton K-pad kernel
+  GENESIS_DISABLE_G4_02_GUARD: '1'                        # explicit override for G4_02 (mutual-exclusive with G4_08)
+  GENESIS_ENABLE_G4_08_MARLIN_KDIM_PAD: '1'               # EXPERIMENTAL — Genesis Triton K-pad MoE GEMM kernel
+
+  # ── KEY DIFFERENCE: G4_13 OFF, G4_18 ON (only if checkpoint truly asymmetric) ──
+  GENESIS_ENABLE_G4_13_GEMMA4_PER_TOKEN_HEAD_KV_GUARD: '0'    # disabled — G4_18 will adapt KV spec per layer type
+  GENESIS_DISABLE_G4_13_GUARD: '1'                            # explicit override
+  GENESIS_ENABLE_G4_18_GEMMA4_PER_LAYER_KV_PAGE_SIZE: '1'     # EXPERIMENTAL — per-layer KV-head spec
+
+  # ── Stable fixes (same as base) ──
+  GENESIS_ENABLE_G4_04_GEMMA4_AWQ_MOE_KEYS_REMAP: '1'
+  GENESIS_ENABLE_G4_05_GEMMA4_DFLASH_BACKEND_AUTOSELECT: '1'
+  GENESIS_ENABLE_G4_09_GEMMA4_SWA_PREFILL_CHUNKER: '1'
+  GENESIS_ENABLE_G4_11_GEMMA4_CHAT_TEMPLATE_INSTALL: '1'
+  GENESIS_ENABLE_G4_14_GEMMA4_TOOL_CALL_PARSER_PAD: '1'
+  GENESIS_ENABLE_G4_16_GEMMA4_FULL_AND_PIECEWISE: '1'
+  GENESIS_ENABLE_G4_23_GEMMA4_VISION_FP16_OVERFLOW: '1'
+  GENESIS_ENABLE_G4_25_GEMMA4_RoPE_DUAL_BASE_GUARD: '1'
+  GENESIS_ENABLE_G4_17_GEMMA4_VISION_SKIP: '0'
+
+  # ── Perf experimental (still OFF until deep anchor patches G4_15b/G4_24b land) ──
+  GENESIS_ENABLE_G4_15_GEMMA4_FUSED_RMSNORM: '0'
+  GENESIS_ENABLE_G4_24_GEMMA4_FUSED_SOFTCAP: '0'
+  GENESIS_ENABLE_G4_06_GEMMA4_KV_PROJ_V0: '0'
+
+  # ── Cross-family ──
+  GENESIS_ENABLE_PN126_V1_DECODE_WARMUP: '1'
+  GENESIS_ENABLE_PN132_TOPK_TOPP_CONTIGUOUS: '1'
+
+compose_hints:
+  family: gemma4
+  attention_arch: gemma4_moe
+  drafter_method: mtp
+  drafter_id: gemma4-26b-a4b-assistant
+  workload_hint: experimental
