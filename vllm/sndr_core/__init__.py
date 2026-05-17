@@ -129,51 +129,58 @@ def _g4_19_import_time_hook():
         _os.environ.get("GENESIS_ENABLE_G4_45_UNIFY_FIX", "").strip().lower()
         in ("1", "true", "yes")
     )
-    if not (g19 or g19b or g19c or g30 or g31 or g32 or g43 or g44 or g45):
+    g50 = _os.environ.get(
+        "GENESIS_ENABLE_G4_50_NATIVE_TQ", ""
+    ).strip().lower() in ("1", "true", "yes")
+    if not (g19 or g19b or g19c or g30 or g31 or g32 or g43 or g44 or g45 or g50):
         return
     try:
-        # G4_30 must apply BEFORE Attention.__init__ runs, so do it first.
-        # It monkey-patches vllm.v1.attention.backends.turboquant_attn
-        # TurboQuantAttentionBackend.supports_mm_prefix → True.
-        if g30:
-            from .integrations.gemma4 import (
-                g4_30_upstream_tq_unblock as _g4_30_mod,
-            )
-            _g4_30_mod.apply()
-        # G4_31 also wraps Attention.__init__ — must apply before model init.
+        # G4_30/G4_43/G4_44/G4_45/G4_50 moved to sndr_private/g4_upstream_tq_wip/
+        # 2026-05-17 — superseded by upstream PR #42637 (Mixed-attention TQ for
+        # Gemma 4). Their env flags still resolve via sndr_private fallback if
+        # explicitly enabled; left here as no-ops to maintain back-compat.
+        if g30 or g43 or g44 or g45 or g50:
+            try:
+                if g30:
+                    from .sndr_private.g4_upstream_tq_wip import (
+                        g4_30_upstream_tq_unblock as _m,
+                    )
+                    _m.apply()
+                if g43:
+                    from .sndr_private.g4_upstream_tq_wip import (
+                        g4_43_unblock_forced_triton as _m,
+                    )
+                    _m.apply()
+                if g44:
+                    from .sndr_private.g4_upstream_tq_wip import (
+                        g4_44_tq_head_dim_512_prefill as _m,
+                    )
+                    _m.apply()
+                if g45:
+                    from .sndr_private.g4_upstream_tq_wip import (
+                        g4_45_unify_page_diag as _m,
+                    )
+                    _m.apply()
+                if g50:
+                    from .sndr_private.g4_upstream_tq_wip import (
+                        g4_50_genesis_native_backend as _m,
+                    )
+                    _m.apply()
+            except ImportError:
+                # sndr_private may be absent in slim distributions; silent no-op
+                pass
+        # G4_31 active in main — preserves turboquant_* dtype from AWQ override.
         if g31:
             from .integrations.gemma4 import (
                 g4_31_preserve_tq_dtype as _g4_31_mod,
             )
             _g4_31_mod.apply()
-        # G4_32 bypasses TQ backend's validate_configuration. Must apply
-        # BEFORE get_attn_backend is called, which means before any
-        # Attention.__init__ — same timing as G4_30.
+        # G4_32 active in main — bypasses TQ validate_configuration.
         if g32:
             from .integrations.gemma4 import (
                 g4_32_tq_validation_bypass as _g4_32_mod,
             )
             _g4_32_mod.apply()
-        # G4_43 reverts vllm's forced TRITON_ATTN on Gemma 4. Must apply
-        # BEFORE Gemma4Config.verify_and_update_config runs (during boot).
-        if g43:
-            from .integrations.gemma4 import (
-                g4_43_unblock_forced_triton as _g4_43_mod,
-            )
-            _g4_43_mod.apply()
-        # G4_44 patches TQ _prefill_attention to fall back to torch SDPA
-        # for head_dim > 256. Must apply BEFORE Attention.__init__
-        # creates its backend instance.
-        if g44:
-            from .integrations.gemma4 import (
-                g4_44_tq_head_dim_512_prefill as _g4_44_mod,
-            )
-            _g4_44_mod.apply()
-        if g45:
-            from .integrations.gemma4 import (
-                g4_45_unify_page_diag as _g4_45_mod,
-            )
-            _g4_45_mod.apply()
         if g19b:
             from .integrations.gemma4 import (
                 g4_19b_gemma4_tq_kv_spec_integration as _g4_19b_mod,
