@@ -21,6 +21,7 @@ Migration history:
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any
 
 from .registry import PATCH_REGISTRY  # noqa: F401 (re-exported)
@@ -288,33 +289,77 @@ def should_apply(patch_id: str) -> tuple[bool, str]:
         except Exception as e:
             return True, f"opt-in env (config_detect probe failed: {e})"
 
-    # Env flag unset/falsy
-    if not meta.get("default_on", False):
-        if meta.get("deprecated", False):
-            return False, (
-                f"opt-in only AND empirically deprecated — "
-                f"keeping skip; set {env_flag}=1 only for diagnostics"
+    # Env flag unset/falsy.
+    #
+    # ── STRICT OPT-IN POLICY (Sander directive 2026-05-17) ────────────────
+    # Patches activate ONLY when explicitly listed в operator's config via
+    # env_flag. `default_on=True` becomes INFORMATIONAL (used by recommendation
+    # docs + bench profiles), it does NOT trigger auto-apply anymore.
+    #
+    # Rationale: prior behaviour caused operator surprise — patches active
+    # in production whose env flag was never set in the launch script. With
+    # 200+ patches in registry, implicit activation made it hard to reason
+    # about which patches were live. Strict opt-in makes the active stack
+    # exactly the set of env flags in the config — no hidden auto-applies.
+    #
+    # Backward-compat escape hatch: GENESIS_LEGACY_DEFAULT_ON=1 reverts
+    # to the pre-2026-05-17 semantics (auto-apply when default_on=True).
+    # Intended only for emergency rollback OR ноды where operator does
+    # not control config and relies on registry defaults.
+    # ─────────────────────────────────────────────────────────────────────
+    if os.environ.get("GENESIS_LEGACY_DEFAULT_ON", "").strip().lower() in (
+        "1", "true", "yes",
+    ):
+        # Legacy path — preserved for backward compat.
+        if not meta.get("default_on", False):
+            if meta.get("deprecated", False):
+                return False, (
+                    f"opt-in only AND empirically deprecated — "
+                    f"keeping skip; set {env_flag}=1 only for diagnostics"
+                )
+            return False, f"opt-in only — set {env_flag}=1 to engage"
+
+        # default_on=True: enforce applies_to as Layer 2 HARD skip.
+        compat, compat_reason = _check_applies_to(patch_id, meta)
+        if not compat:
+            log.warning(
+                "[Genesis dispatcher] %s HARD-SKIP — %s. Patch designed for "
+                "a different model class; skipping to avoid overhead. Set "
+                "%s=1 to force-apply if you know what you are doing.",
+                patch_id, compat_reason, env_flag,
             )
-        return False, f"opt-in only — set {env_flag}=1 to engage"
+            return False, compat_reason
 
-    # default_on=True: enforce applies_to as Layer 2 HARD skip.
-    compat, compat_reason = _check_applies_to(patch_id, meta)
-    if not compat:
-        log.warning(
-            "[Genesis dispatcher] %s HARD-SKIP — %s. Patch designed for a "
-            "different model class; skipping to avoid overhead. Set %s=1 to "
-            "force-apply if you know what you are doing.",
-            patch_id, compat_reason, env_flag,
+        # default_on=True patches still consult config_detect
+        try:
+            from vllm.sndr_core.detection.config_detect import recommend
+            verdict, reason = recommend(patch_id)
+            return (
+                verdict in ("apply", "neutral"),
+                f"config_detect: {verdict}:{reason}",
+            )
+        except Exception as e:
+            return False, f"config_detect failed: {e}"
+
+    # === STRICT OPT-IN (NEW DEFAULT) ===
+    # Any patch без env_flag explicitly set → SKIP. `default_on` is purely
+    # informational under strict mode.
+    if meta.get("deprecated", False):
+        return False, (
+            f"strict opt-in + deprecated — set {env_flag}=1 only for "
+            f"diagnostics (or GENESIS_LEGACY_DEFAULT_ON=1 for old behaviour)"
         )
-        return False, compat_reason
-
-    # default_on=True patches still consult config_detect
-    try:
-        from vllm.sndr_core.detection.config_detect import recommend
-        verdict, reason = recommend(patch_id)
-        return (verdict in ("apply", "neutral")), f"config_detect: {verdict}:{reason}"
-    except Exception as e:
-        return False, f"config_detect failed: {e}"
+    if meta.get("default_on", False):
+        return False, (
+            f"strict opt-in: patch has default_on=True (informational) but "
+            f"env_flag={env_flag} unset. Add {env_flag}=1 to launch config "
+            f"to engage. Set GENESIS_LEGACY_DEFAULT_ON=1 to revert to "
+            f"pre-2026-05-17 auto-apply semantics."
+        )
+    return False, (
+        f"strict opt-in — set {env_flag}=1 in config to engage "
+        f"(GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+    )
 
 
 # ─── Decision logging ─────────────────────────────────────────────────────
