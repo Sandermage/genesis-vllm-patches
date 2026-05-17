@@ -225,40 +225,102 @@ def apply() -> tuple[str, str]:
     pack_mode = _resolve_pack_mode()
     wht_mode = _resolve_wht_mode()
 
-    # Install hook on Gemma4 model config → KV cache spec
+    # Eager registration with conservative defaults — this ensures that
+    # worker subprocesses (where the import-time hook runs apply() but
+    # verify_and_update_config has ALREADY been called in the parent)
+    # still get a populated registry. The wrap below may overwrite this
+    # with a more precise config (read from the real model_config) when
+    # it fires; both writes go to the same singleton.
     try:
-        from vllm.model_executor.models import gemma4 as _g4_mod
-    except ImportError as e:
-        return "skipped", f"vllm.model_executor.models.gemma4 not importable: {e}"
+        from .g4_19_config_registry import set_active_config
+        # Layer types are unknown without model_config — defer that to the
+        # wrap path. Worker subprocesses can still proceed because the
+        # cache wrapper reads per_layer_types lazily.
+        _eager_config = G4TurboQuantConfig(
+            head_dim=256,  # Gemma 4 invariant
+            bits_sliding=bits_sliding,
+            bits_global=bits_global,
+            block_size=128,
+            rotation_method=method,
+            seed_base=seed,
+            sliding_window=1024,
+            per_layer_types=None,
+            pack_mode=pack_mode,
+            wht_mode=wht_mode,
+        )
+        set_active_config(_eager_config)
+    except Exception as e:  # noqa: BLE001
+        log.warning(
+            "[G4_19] eager registration failed (%r); falling back to wrap-only path",
+            e,
+        )
+
+    # Install hook on Gemma4 model config → KV cache spec.
+    # dev371+ moved the verify_and_update_config wrappers from
+    # vllm.model_executor.models.gemma4 to vllm.model_executor.models.config.
+    # Search both locations so the patch survives the move.
+    _candidate_modules: list[tuple[str, object]] = []
+    try:
+        from vllm.model_executor.models import config as _g4_cfg_mod
+        _candidate_modules.append(
+            ("vllm.model_executor.models.config", _g4_cfg_mod)
+        )
+    except ImportError:
+        pass
+    try:
+        from vllm.model_executor.models import gemma4 as _g4_legacy_mod
+        _candidate_modules.append(
+            ("vllm.model_executor.models.gemma4", _g4_legacy_mod)
+        )
+    except ImportError:
+        pass
+
+    if not _candidate_modules:
+        return "skipped", (
+            "Neither vllm.model_executor.models.config nor .gemma4 "
+            "importable; G4_19 is no-op on this pin"
+        )
 
     target_cls = None
-    for cls_name in ("Gemma4Config", "Gemma4TextConfig", "Gemma4ForConditionalGenerationConfig"):
-        cls = getattr(_g4_mod, cls_name, None)
-        if cls is not None and hasattr(cls, "verify_and_update_config"):
-            target_cls = cls
+    target_origin = None
+    for cls_name in (
+        "Gemma4Config",
+        "Gemma4TextConfig",
+        "Gemma4ForConditionalGenerationConfig",
+    ):
+        for mod_name, mod in _candidate_modules:
+            cls = getattr(mod, cls_name, None)
+            if cls is not None and hasattr(cls, "verify_and_update_config"):
+                target_cls = cls
+                target_origin = f"{mod_name}.{cls_name}"
+                break
+        if target_cls is not None:
             break
     if target_cls is None:
         return "skipped", (
-            "No Gemma4Config-like class with verify_and_update_config found; "
+            "No Gemma4Config-like class with verify_and_update_config found "
+            f"in {[m for m, _ in _candidate_modules]}; "
             "G4_19 is no-op on this pin"
         )
+    log.info("[G4_19] hooking %s.verify_and_update_config", target_origin)
 
-    # Mark the config that G4-TQ is enabled — model executor reads this
-    # at attention init time to decide whether to use our cache class.
+    # Wrap verify_and_update_config to PUBLISH the G4-TQ config to a
+    # module-level registry. We do NOT attach to vllm_config because
+    # dev371's strict VllmConfig dataclass rejects unknown attributes
+    # during IPC pickle (worker subprocess spawn) — see
+    # g4_19_config_registry.py docstring for the full story.
     original = target_cls.verify_and_update_config
     if getattr(original, "_genesis_g4_19_wrapped", False):
         _APPLIED = True
         return "applied", "G4_19 already wrapped (idempotent)"
+
+    from .g4_19_config_registry import set_active_config
 
     def _genesis_g4_19_wrapped_verify(vllm_config):
         result = original(vllm_config)
         try:
             mc = getattr(vllm_config, "model_config", None)
             if mc is not None and is_gemma4_arch(mc):
-                # Stash config on vllm_config so the model executor can
-                # find it. The actual cache instantiation happens at the
-                # ModelRunner.initialize_kv_caches stage via a separate
-                # hook (we install it via vllm.attention.layer extension).
                 hf = getattr(mc, "hf_config", None) or mc
                 text = getattr(hf, "text_config", None) or hf
                 tq_config = G4TurboQuantConfig(
@@ -273,20 +335,26 @@ def apply() -> tuple[str, str]:
                     pack_mode=pack_mode,
                     wht_mode=wht_mode,
                 )
-                # Attach to vllm_config — model executor will read this
-                vllm_config._g4_19_turboquant_config = tq_config
+                # Publish to module-level registry. The cache wrapper and
+                # the attention-layer KV-substitution hook (PN-future)
+                # read from this singleton at decode time.
+                set_active_config(tq_config)
                 log.info(
-                    "[G4_19] G4-TurboQuant KV cache config attached: "
+                    "[G4_19] G4-TurboQuant KV cache config REGISTERED: "
                     "head_dim=%d sliding_bits=%d global_bits=%d method=%s "
                     "pack=%s wht=%s layers=%s sliding_window=%d",
                     tq_config.head_dim, tq_config.bits_sliding,
                     tq_config.bits_global, tq_config.rotation_method,
                     tq_config.pack_mode, tq_config.wht_mode,
-                    len(tq_config.per_layer_types) if tq_config.per_layer_types else "?",
+                    len(tq_config.per_layer_types)
+                    if tq_config.per_layer_types else "?",
                     tq_config.sliding_window,
                 )
         except Exception as e:  # noqa: BLE001
-            log.warning("[G4_19] config attach failed: %r; G4-TQ not active", e)
+            log.warning(
+                "[G4_19] config registration failed: %r; G4-TQ not active",
+                e,
+            )
         return result
 
     _genesis_g4_19_wrapped_verify._genesis_g4_19_wrapped = True
@@ -299,15 +367,15 @@ def apply() -> tuple[str, str]:
 
     _APPLIED = True
     log.info(
-        "[G4_19] installed: G4-TurboQuant KV cache config will be attached "
-        "to vllm_config on Gemma 4 boot. Kernel module: %s",
+        "[G4_19] installed: G4-TurboQuant config will be published to "
+        "the module-level registry on Gemma 4 boot. Kernel module: %s",
         GENESIS_G4_TQ_VERSION,
     )
     return "applied", (
-        f"G4_19 installed: G4-TurboQuant KV cache config attached to "
-        f"Gemma 4 (sliding_bits={bits_sliding} / global_bits={bits_global} / "
-        f"method={method}). Expected compression: {16/bits_global:.1f}x "
-        f"on global layers; unlocks 256K context on 2× A5000."
+        f"G4_19 installed: G4-TurboQuant config will be published to "
+        f"g4_19_config_registry on Gemma 4 boot (sliding_bits={bits_sliding}"
+        f" / global_bits={bits_global} / method={method}). "
+        f"Expected compression: {16/bits_global:.1f}x on global layers."
     )
 
 
@@ -316,22 +384,41 @@ def is_applied() -> bool:
 
 
 def revert() -> bool:
-    """G4_19 attaches config attr — revert is best-effort."""
+    """Best-effort revert: unwrap verify_and_update_config + clear registry."""
     global _APPLIED
     if not _APPLIED:
         return False
     try:
-        from vllm.model_executor.models import gemma4 as _g4_mod
-        for cls_name in ("Gemma4Config", "Gemma4TextConfig", "Gemma4ForConditionalGenerationConfig"):
-            cls = getattr(_g4_mod, cls_name, None)
-            if cls is None:
-                continue
-            method = cls.verify_and_update_config
-            if getattr(method, "_genesis_g4_19_wrapped", False):
-                # We can only restore via the __wrapped__ chain
-                orig = getattr(method, "__wrapped__", None)
-                if orig is not None:
-                    cls.verify_and_update_config = orig
+        from .g4_19_config_registry import clear_active_config
+        clear_active_config()
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        _modules = []
+        try:
+            from vllm.model_executor.models import config as _m
+            _modules.append(_m)
+        except ImportError:
+            pass
+        try:
+            from vllm.model_executor.models import gemma4 as _m
+            _modules.append(_m)
+        except ImportError:
+            pass
+        for mod in _modules:
+            for cls_name in (
+                "Gemma4Config",
+                "Gemma4TextConfig",
+                "Gemma4ForConditionalGenerationConfig",
+            ):
+                cls = getattr(mod, cls_name, None)
+                if cls is None:
+                    continue
+                method = cls.verify_and_update_config
+                if getattr(method, "_genesis_g4_19_wrapped", False):
+                    orig = getattr(method, "__wrapped__", None)
+                    if orig is not None:
+                        cls.verify_and_update_config = orig
         _APPLIED = False
         return True
     except Exception:  # noqa: BLE001

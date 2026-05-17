@@ -96,7 +96,7 @@ __version__ = SNDR_CORE_VERSION
 #
 # Idempotent: each patch has its own _APPLIED guard so double-apply is a no-op.
 def _g4_19_import_time_hook():
-    """Apply G4_19/G4_19b at any vllm.sndr_core import (parent + subprocess)."""
+    """Apply G4_19/G4_19b/G4_19c at any vllm.sndr_core import (parent + subprocess)."""
     import os as _os
     g19 = _os.environ.get(
         "GENESIS_ENABLE_G4_19_GEMMA4_TURBOQUANT_KV", ""
@@ -104,7 +104,10 @@ def _g4_19_import_time_hook():
     g19b = _os.environ.get(
         "GENESIS_ENABLE_G4_19B_GEMMA4_TQ_KV_SPEC", ""
     ).strip().lower() in ("1", "true", "yes")
-    if not (g19 or g19b):
+    g19c = _os.environ.get(
+        "GENESIS_ENABLE_G4_19C_ATTN_WRAP", ""
+    ).strip().lower() in ("1", "true", "yes")
+    if not (g19 or g19b or g19c):
         return
     try:
         if g19b:
@@ -122,6 +125,17 @@ def _g4_19_import_time_hook():
                 g4_19_gemma4_turboquant_kv_cache as _g4_19_mod,
             )
             _g4_19_mod.apply()
+        if g19c:
+            # G4_19c depends on G4_19 having published the config registry,
+            # so apply order matters: G4_19 first, G4_19c second.
+            try:
+                import vllm.model_executor.models.gemma4  # noqa: F401
+            except ImportError:
+                pass
+            from .integrations.gemma4 import (
+                g4_19c_attention_wrapper as _g4_19c_mod,
+            )
+            _g4_19c_mod.apply()
     except Exception:  # noqa: BLE001
         # Never block sndr_core import on G4-TQ apply error
         pass
