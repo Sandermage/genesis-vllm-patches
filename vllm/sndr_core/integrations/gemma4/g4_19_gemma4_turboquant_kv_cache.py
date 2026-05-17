@@ -164,18 +164,27 @@ def _resolve_pack_mode() -> str:
 
 
 def _resolve_wht_mode() -> str:
-    """Pick rotation implementation. ``signs_only`` keeps the original
-    fast-path (which is the placeholder sign-flip — same as v1 release).
-    ``full_wht`` enables the Walsh-Hadamard butterfly via the new
-    ``g4_tq_packed_wht_triton`` kernel. Default = signs_only so the
-    bit-validated 256K boot path remains the operator-default."""
-    raw = os.environ.get(_ENV_WHT_MODE, "signs_only").strip().lower()
+    """Pick rotation implementation.
+
+    Default changed 2026-05-17 from ``signs_only`` to ``full_wht`` after
+    live server A/B revealed signs_only-only round-trip degrades model
+    output (looping, hallucinations). Lloyd-Max codebooks are calibrated
+    for unit-variance Gaussian marginals; without the Hadamard butterfly
+    Gemma 4's post-norm K/V never get Gaussianized → asymmetric
+    quantization error → divergent token sampling.
+
+    ``full_wht`` enables the in-tile Fast Walsh-Hadamard butterfly which
+    restores the Beta-concentration property that TurboQuant theory
+    requires (arXiv:2504.19874 Thm 3.1). Cost is small thanks to the
+    butterfly form (~57x cheaper than naive GEMV).
+    """
+    raw = os.environ.get(_ENV_WHT_MODE, "full_wht").strip().lower()
     if raw not in ("signs_only", "full_wht"):
         log.warning(
-            "[G4_19] %s=%r invalid; using signs_only (no Hadamard)",
+            "[G4_19] %s=%r invalid; using full_wht (real Hadamard)",
             _ENV_WHT_MODE, raw,
         )
-        return "signs_only"
+        return "full_wht"
     return raw
 
 
