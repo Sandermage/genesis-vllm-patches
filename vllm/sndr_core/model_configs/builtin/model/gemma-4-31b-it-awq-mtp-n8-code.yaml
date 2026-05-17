@@ -48,22 +48,40 @@ versions:
   vllm_pin_required: 0.20.2rc1.dev371+gbf610c2f5
   reference_metrics_ref: tests/integration/baselines/gemma4_31b_awq_mtp_n8_code_baseline.json
 
-# ─── Canonical patches matrix (same as default profile) ────────────────
+# ─── Canonical patches matrix (mirrors default profile + same TQ stack) ───
 patches:
+  # ── Gemma 4 family guards (refuse known-broken combos) ──
   GENESIS_ENABLE_G4_01_GEMMA4_FP8_BLOCK_GUARD: '1'
   GENESIS_ENABLE_G4_03_GEMMA4_NON_CAUSAL_DRAFTER_GUARD: '1'
   GENESIS_ENABLE_G4_12_GEMMA4_FP8_E4NV_GUARD: '1'
+  # ── Gemma 4 family fixes (stable) ──
   GENESIS_ENABLE_G4_05_GEMMA4_DFLASH_BACKEND_AUTOSELECT: '1'
   GENESIS_ENABLE_G4_09_GEMMA4_SWA_PREFILL_CHUNKER: '1'
   GENESIS_ENABLE_G4_11_GEMMA4_CHAT_TEMPLATE_INSTALL: '1'
+  GENESIS_ENABLE_G4_13_GEMMA4_PER_TOKEN_HEAD_KV_GUARD: '1'   # added 2026-05-17
   GENESIS_ENABLE_G4_14_GEMMA4_TOOL_CALL_PARSER_PAD: '1'
-  GENESIS_ENABLE_G4_16_GEMMA4_FULL_AND_PIECEWISE: '1'
+  GENESIS_ENABLE_G4_16_GEMMA4_FULL_AND_PIECEWISE: '1'        # +10-30% TPS
   GENESIS_ENABLE_G4_23_GEMMA4_VISION_FP16_OVERFLOW: '1'
   GENESIS_ENABLE_G4_25_GEMMA4_RoPE_DUAL_BASE_GUARD: '1'
-  GENESIS_ENABLE_G4_15_GEMMA4_FUSED_RMSNORM: '0'
-  GENESIS_ENABLE_G4_24_GEMMA4_FUSED_SOFTCAP: '0'
-  GENESIS_ENABLE_G4_06_GEMMA4_KV_PROJ_V0: '0'
+  # ── Gemma 4 family perf (opt-in; bench-gate before promoting) ──
+  GENESIS_ENABLE_G4_15_GEMMA4_FUSED_RMSNORM: '0'             # +5-10% TPS (bench-gate)
+  GENESIS_ENABLE_G4_24_GEMMA4_FUSED_SOFTCAP: '0'             # +3-5% TPS (bench-gate)
+  GENESIS_ENABLE_G4_06_GEMMA4_KV_PROJ_V0: '0'                # ~3% memory savings
+  # ── Vision tower management (operator choice) ──
   GENESIS_ENABLE_G4_17_GEMMA4_VISION_SKIP: '0'
+  # ── Genesis G4 TurboQuant KV cache wrapper-stack (256K unlock) ──
+  GENESIS_ENABLE_G4_19_GEMMA4_TURBOQUANT_KV: '1'             # vector-quant KV
+  GENESIS_ENABLE_G4_19B_GEMMA4_TQ_KV_SPEC: '1'               # memory accounting
+  GENESIS_ENABLE_G4_19C_ATTN_WRAP: '1'                       # round-trip wrapper
+  GENESIS_ENABLE_G4_31_TQ_DTYPE_PRESERVE: '1'                # AWQ kv_cache_scheme guard
+  # ── PR #40914 backport — TQ K+1 spec-verify cudagraph fix ──
+  GENESIS_ENABLE_G4_67_TQ_SPEC_VERIFY_ROUTE: '1'             # MORE relevant here: K=8 amplifies cudagraph stress
+  # ── Qwen-applicable patches (MTP/general-purpose) ──
+  GENESIS_ENABLE_PN33_SPEC_DECODE_WARMUP_K: '1'              # MTP K-aware warmup (K=8 needs even more sizing)
+  GENESIS_ENABLE_P108_MTP_DRAFT_STREAM_SYNC: '1'             # MTP stream sync
+  GENESIS_ENABLE_P109_SAMPLING_PARAMS_VOCAB_RANGE_VALIDATORS: '1'
+  GENESIS_ENABLE_PN110_BLOCK_POOL_FREE_DEDUP: '1'
+  # ── Cross-family supporting patches ──
   GENESIS_ENABLE_PN126_V1_DECODE_WARMUP: '1'
   GENESIS_ENABLE_PN132_TOPK_TOPP_CONTIGUOUS: '1'
 

@@ -88,6 +88,15 @@ patches:
   GENESIS_ENABLE_G4_24_GEMMA4_FUSED_SOFTCAP: '0'
   GENESIS_ENABLE_G4_06_GEMMA4_KV_PROJ_V0: '0'
 
+  # ── PR #40914 backport — TQ K+1 spec-verify cudagraph fix (added 2026-05-17) ──
+  GENESIS_ENABLE_G4_67_TQ_SPEC_VERIFY_ROUTE: '1'             # safe no-op without TQ backend
+
+  # ── Qwen-applicable patches (MTP/general-purpose, added 2026-05-17) ──
+  GENESIS_ENABLE_PN33_SPEC_DECODE_WARMUP_K: '1'              # MTP K-aware warmup
+  GENESIS_ENABLE_P108_MTP_DRAFT_STREAM_SYNC: '1'             # MTP draft stream sync
+  GENESIS_ENABLE_P109_SAMPLING_PARAMS_VOCAB_RANGE_VALIDATORS: '1'
+  GENESIS_ENABLE_PN110_BLOCK_POOL_FREE_DEDUP: '1'
+
   # ── Cross-family ──
   GENESIS_ENABLE_PN126_V1_DECODE_WARMUP: '1'
   GENESIS_ENABLE_PN132_TOPK_TOPP_CONTIGUOUS: '1'
