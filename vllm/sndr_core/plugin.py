@@ -37,9 +37,62 @@ def register() -> None:
     Called by `vllm.plugins.load_general_plugins()` once per process
     (engine + every worker rank).
     """
+    # G4_19/G4_19b ALWAYS-APPLY override: when G4_19 is explicitly enabled
+    # via env, apply it + G4_19b even if GENESIS_DISABLE is set. This lets
+    # operators run ONLY the G4-TurboQuant KV cache path (256K context unlock)
+    # without enabling the entire Genesis patch stack which can corrupt
+    # Gemma 4 config max_model_len in current dev371 pin.
+    #
+    # Critical for EngineCore subprocess: vLLM v1 spawns EngineCore which
+    # re-loads plugins. Our G4_19b monkey-patches _check_enough_kv_cache_memory
+    # and must run BEFORE the check fires in EngineCore. Apply happens here
+    # at plugin register time, before vLLM engine init.
+    _G4_19_ENABLED = os.environ.get(
+        "GENESIS_ENABLE_G4_19_GEMMA4_TURBOQUANT_KV", ""
+    ).strip().lower() in ("1", "true", "yes")
+    _G4_19B_ENABLED = os.environ.get(
+        "GENESIS_ENABLE_G4_19B_GEMMA4_TQ_KV_SPEC", ""
+    ).strip().lower() in ("1", "true", "yes")
+
+    def _apply_g4_19_pair() -> None:
+        """Apply G4_19 + G4_19b selectively (no full Genesis apply)."""
+        try:
+            # Pre-import Gemma 4 module so Gemma4Config exists for G4_19 wrapper
+            import vllm.model_executor.models.gemma4  # noqa: F401
+        except ImportError:
+            log.warning(
+                "[Genesis plugin] gemma4 module not importable; G4_19 will skip"
+            )
+        try:
+            if _G4_19_ENABLED:
+                from vllm.sndr_core.integrations.gemma4 import (
+                    g4_19_gemma4_turboquant_kv_cache as _g4_19,
+                )
+                s, m = _g4_19.apply()
+                log.info("[Genesis plugin] G4_19: %s — %s", s, m[:200])
+            if _G4_19B_ENABLED:
+                from vllm.sndr_core.integrations.gemma4 import (
+                    g4_19b_gemma4_tq_kv_spec_integration as _g4_19b,
+                )
+                s, m = _g4_19b.apply()
+                log.info("[Genesis plugin] G4_19b: %s — %s", s, m[:200])
+        except Exception as e:  # noqa: BLE001
+            log.warning("[Genesis plugin] selective G4 apply failed: %r", e)
+
     if os.environ.get("GENESIS_DISABLE", "").strip().lower() in ("1", "true", "yes"):
-        log.info("[Genesis plugin] GENESIS_DISABLE set — skipping registration")
+        if _G4_19_ENABLED or _G4_19B_ENABLED:
+            log.info(
+                "[Genesis plugin] GENESIS_DISABLE set BUT G4_19/19b explicitly "
+                "enabled — running selective apply for those only"
+            )
+            _apply_g4_19_pair()
+        else:
+            log.info("[Genesis plugin] GENESIS_DISABLE set — skipping registration")
         return
+
+    # When full Genesis stack is enabled, G4_19/19b are part of apply.run() too,
+    # so no need to call _apply_g4_19_pair() — apply.run() handles them via
+    # registry default_on / env-enable checks.
 
     # ── Operator-opt-in safety valve: route AutoRound INT8 W8A16 ─────────
     # group_size=-1 checkpoints through Marlin instead of AllSpark by
