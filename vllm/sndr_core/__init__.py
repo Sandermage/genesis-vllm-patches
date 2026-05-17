@@ -116,7 +116,20 @@ def _g4_19_import_time_hook():
     g32 = _os.environ.get(
         "GENESIS_ENABLE_G4_32_TQ_VALIDATION_BYPASS", ""
     ).strip().lower() in ("1", "true", "yes")
-    if not (g19 or g19b or g19c or g30 or g31 or g32):
+    g43 = _os.environ.get(
+        "GENESIS_ENABLE_G4_43_UNBLOCK_TRITON_FORCE", ""
+    ).strip().lower() in ("1", "true", "yes")
+    g44 = _os.environ.get(
+        "GENESIS_ENABLE_G4_44_TQ_HEAD_DIM_512", ""
+    ).strip().lower() in ("1", "true", "yes")
+    g45 = (
+        _os.environ.get("GENESIS_ENABLE_G4_45_UNIFY_DIAG", "").strip().lower()
+        in ("1", "true", "yes")
+    ) or (
+        _os.environ.get("GENESIS_ENABLE_G4_45_UNIFY_FIX", "").strip().lower()
+        in ("1", "true", "yes")
+    )
+    if not (g19 or g19b or g19c or g30 or g31 or g32 or g43 or g44 or g45):
         return
     try:
         # G4_30 must apply BEFORE Attention.__init__ runs, so do it first.
@@ -141,6 +154,26 @@ def _g4_19_import_time_hook():
                 g4_32_tq_validation_bypass as _g4_32_mod,
             )
             _g4_32_mod.apply()
+        # G4_43 reverts vllm's forced TRITON_ATTN on Gemma 4. Must apply
+        # BEFORE Gemma4Config.verify_and_update_config runs (during boot).
+        if g43:
+            from .integrations.gemma4 import (
+                g4_43_unblock_forced_triton as _g4_43_mod,
+            )
+            _g4_43_mod.apply()
+        # G4_44 patches TQ _prefill_attention to fall back to torch SDPA
+        # for head_dim > 256. Must apply BEFORE Attention.__init__
+        # creates its backend instance.
+        if g44:
+            from .integrations.gemma4 import (
+                g4_44_tq_head_dim_512_prefill as _g4_44_mod,
+            )
+            _g4_44_mod.apply()
+        if g45:
+            from .integrations.gemma4 import (
+                g4_45_unify_page_diag as _g4_45_mod,
+            )
+            _g4_45_mod.apply()
         if g19b:
             from .integrations.gemma4 import (
                 g4_19b_gemma4_tq_kv_spec_integration as _g4_19b_mod,
