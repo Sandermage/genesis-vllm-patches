@@ -345,7 +345,26 @@ class G4TurboQuantKVCache:
         pack_mode = getattr(self.config, "pack_mode", "uint32")
         wht_mode = getattr(self.config, "wht_mode", "signs_only")
 
-        if pack_mode == "uint32" and self.bits == 3:
+        if pack_mode == "tight" and self.bits == 3:
+            # 5.33× compression tight 3-byte packing kernel.
+            # Same kernel implements both signs_only and full_wht via the
+            # APPLY_WHT constexpr argument.
+            from .g4_tq_tight_triton import g4_tq_write_tight_3bit
+
+            apply_wht = (wht_mode == "full_wht")
+            k_idx, k_sc = g4_tq_write_tight_3bit(
+                k.contiguous(), self.signs,
+                head_dim=self.config.head_dim,
+                block_size=self.config.block_size,
+                apply_wht=apply_wht,
+            )
+            v_idx, v_sc = g4_tq_write_tight_3bit(
+                v.contiguous(), self.signs,
+                head_dim=self.config.head_dim,
+                block_size=self.config.block_size,
+                apply_wht=apply_wht,
+            )
+        elif pack_mode == "uint32" and self.bits == 3:
             # Use packed 3-bit kernel. wht_mode picks the rotation impl;
             # both write to the IDENTICAL uint32 packed buffer format so
             # operators may toggle the flag between restarts safely.
@@ -414,7 +433,25 @@ class G4TurboQuantKVCache:
         pack_mode = getattr(self.config, "pack_mode", "uint32")
         wht_mode = getattr(self.config, "wht_mode", "signs_only")
 
-        if pack_mode == "uint32" and self.bits == 3:
+        if pack_mode == "tight" and self.bits == 3:
+            from .g4_tq_tight_triton import g4_tq_read_tight_3bit
+
+            apply_wht = (wht_mode == "full_wht")
+            k = g4_tq_read_tight_3bit(
+                k_idx, k_sc, self.signs,
+                head_dim=self.config.head_dim,
+                block_size=self.config.block_size,
+                apply_wht=apply_wht,
+                dtype=dtype,
+            )
+            v = g4_tq_read_tight_3bit(
+                v_idx, v_sc, self.signs,
+                head_dim=self.config.head_dim,
+                block_size=self.config.block_size,
+                apply_wht=apply_wht,
+                dtype=dtype,
+            )
+        elif pack_mode == "uint32" and self.bits == 3:
             if wht_mode == "full_wht":
                 from .g4_tq_packed_wht_triton import (
                     g4_tq_read_packed_wht_3bit as _read_fn,
