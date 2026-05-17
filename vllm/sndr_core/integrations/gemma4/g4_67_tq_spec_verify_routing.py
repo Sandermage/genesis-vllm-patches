@@ -211,8 +211,10 @@ def apply() -> tuple[str, str]:
         kv_cache,
         attn_metadata,
         output=None,
+        output_scale=None,
         output_block_scale=None,
         positions=None,
+        **extra_kwargs,
     ):
         """Inject spec-verify K+1 routing before original forward.
 
@@ -226,7 +228,7 @@ def apply() -> tuple[str, str]:
         if attn_metadata is None:
             return original(
                 self, layer, query, key, value, kv_cache, attn_metadata,
-                output, output_block_scale, positions,
+                output=output, output_scale=output_scale, output_block_scale=output_block_scale, **extra_kwargs,
             )
 
         num_decodes = getattr(attn_metadata, "num_decodes", 0)
@@ -254,7 +256,7 @@ def apply() -> tuple[str, str]:
         if not _spec_verify_eligible:
             return original(
                 self, layer, query, key, value, kv_cache, attn_metadata,
-                output, output_block_scale, positions,
+                output=output, output_scale=output_scale, output_block_scale=output_block_scale, **extra_kwargs,
             )
 
         K_PLUS_1 = int(max_q)
@@ -262,7 +264,7 @@ def apply() -> tuple[str, str]:
         if qsl.shape[0] != B + 1:
             return original(
                 self, layer, query, key, value, kv_cache, attn_metadata,
-                output, output_block_scale, positions,
+                output=output, output_scale=output_scale, output_block_scale=output_block_scale, **extra_kwargs,
             )
 
         # === Spec-verify K+1 path (PR #40914) ===
@@ -277,7 +279,7 @@ def apply() -> tuple[str, str]:
             if num_heads is None or head_size is None:
                 return original(
                     self, layer, query, key, value, kv_cache, attn_metadata,
-                    output, output_block_scale, positions,
+                    output=output, output_scale=output_scale, output_block_scale=output_block_scale, **extra_kwargs,
                 )
             _q_flat = query[:N].view(N, num_heads, head_size)
 
@@ -307,7 +309,7 @@ def apply() -> tuple[str, str]:
                 # Layer not yet warmed; fall through.
                 return original(
                     self, layer, query, key, value, kv_cache, attn_metadata,
-                    output, output_block_scale, positions,
+                    output=output, output_scale=output_scale, output_block_scale=output_block_scale, **extra_kwargs,
                 )
 
             kwargs = dict(
@@ -347,7 +349,7 @@ def apply() -> tuple[str, str]:
             )
             return original(
                 self, layer, query, key, value, kv_cache, attn_metadata,
-                output, output_block_scale, positions,
+                output=output, output_scale=output_scale, output_block_scale=output_block_scale, **extra_kwargs,
             )
 
     _wrapped_forward._genesis_g4_67_wrapped = True  # type: ignore[attr-defined]

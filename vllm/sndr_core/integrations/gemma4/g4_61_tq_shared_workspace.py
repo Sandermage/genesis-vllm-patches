@@ -229,6 +229,12 @@ def apply() -> tuple[str, str]:
         # Filter buf_holder out if caller passed it (PR removes the param)
         extra_kwargs.pop("buf_holder", None)
 
+        # PR #42637 launcher signature: NO kv_group_size, NO out kwargs.
+        # Computed internally as Hq // Hk. Filter these for forward-compat
+        # with overlay path. Also pop any caller-supplied kv_group_size
+        # from extra_kwargs.
+        extra_kwargs.pop("kv_group_size", None)
+        extra_kwargs.pop("out", None)
         return original_launcher(
             query=query,
             kv_cache=kv_cache,
@@ -242,8 +248,6 @@ def apply() -> tuple[str, str]:
             value_quant_bits=value_quant_bits,
             PiT=PiT,
             norm_correction=norm_correction,
-            kv_group_size=kv_group_size,
-            out=out,
             mid_o_buf=mid_o_buf,
             output_buf=output_buf,
             lse_buf=lse_buf,
