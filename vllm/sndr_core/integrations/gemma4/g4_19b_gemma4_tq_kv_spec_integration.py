@@ -189,8 +189,8 @@ def _make_patched_check(original, get_compression_factor):
         effective_available = int(available_memory * factor)
         log.warning(
             "[G4_19b] KV cache memory check: available %.2f GB × compression "
-            "%.2fx (bits=%d) = effective %.2f GB",
-            available_memory / (1024 ** 3), factor, eff_bits,
+            "%.2fx (pack=%s, bits sliding=%d/global=%d) = effective %.2f GB",
+            available_memory / (1024 ** 3), factor, pack_mode, bits_s, bits_g,
             effective_available / (1024 ** 3),
         )
         return original(
