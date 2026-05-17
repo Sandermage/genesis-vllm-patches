@@ -124,27 +124,66 @@ def _compute_compression_factor(tq_config) -> float:
 
 
 def _make_patched_check(original, get_compression_factor):
-    """Wrap _check_enough_kv_cache_memory with compression awareness."""
+    """Wrap _check_enough_kv_cache_memory with compression awareness.
 
-    def _patched_check(vllm_config, kv_cache_specs, available_memory):
-        # Read attached G4-TQ config from vllm_config
-        tq_config = getattr(vllm_config, "_g4_19_turboquant_config", None)
-        if tq_config is None:
-            # G4_19 not active — pass-through to original
-            return original(vllm_config, kv_cache_specs, available_memory)
+    Real vLLM v1 signature (dev371):
+      _check_enough_kv_cache_memory(
+          available_memory: int,
+          get_needed_memory: Callable[[], int],
+          max_model_len: int,
+          estimate_max_model_len: Callable[[int], int],
+      )
 
-        factor = get_compression_factor(tq_config)
-        # Multiply available memory by compression factor — vLLM will see
-        # more memory available and accept the (logically smaller) KV cache.
-        effective_available = available_memory * factor
+    G4_19b approach: multiply ``available_memory`` by the G4-TurboQuant
+    compression factor before calling the original. vLLM then sees more
+    KV cache memory than is physically available, but the actual cache
+    is logically smaller post-compression so the math works out.
+
+    Note: G4_19 attaches ``_g4_19_turboquant_config`` to vllm_config in
+    parent process. In EngineCore subprocess, the attribute survives
+    pickle/unpickle. We read from sys.modules to find any vllm_config
+    instance — but simpler: only apply when G4_19 env is on (operator
+    explicit opt-in).
+    """
+    import os
+
+    # Cache decision once at wrap time — operator must explicitly enable
+    g4_19_on = os.environ.get(
+        "GENESIS_ENABLE_G4_19_GEMMA4_TURBOQUANT_KV", ""
+    ).strip().lower() in ("1", "true", "yes")
+
+    def _patched_check(
+        available_memory,
+        get_needed_memory,
+        max_model_len,
+        estimate_max_model_len,
+    ):
+        if not g4_19_on:
+            return original(
+                available_memory, get_needed_memory,
+                max_model_len, estimate_max_model_len,
+            )
+
+        # Compute factor from operator env (no need for vllm_config attr —
+        # bits come from env directly).
+        bits_g = int(os.environ.get("GENESIS_G4_TQ_BITS_GLOBAL", "3"))
+        bits_s = int(os.environ.get("GENESIS_G4_TQ_BITS_SLIDING", "4"))
+        # We currently store indices as uint8 (1 byte each) so effective
+        # compression is 16/8 = 2× until bit-packing lands. Conservative.
+        eff_bits = max(min(bits_g, bits_s), 8)
+        factor = 16.0 / eff_bits  # 2.0 for uint8 packed indices
+
+        effective_available = int(available_memory * factor)
         log.warning(
             "[G4_19b] KV cache memory check: available %.2f GB × compression "
-            "%.2fx = effective %.2f GB (TQ %d/%d bits sliding/global)",
-            available_memory / (1024 ** 3), factor,
+            "%.2fx (bits=%d) = effective %.2f GB",
+            available_memory / (1024 ** 3), factor, eff_bits,
             effective_available / (1024 ** 3),
-            tq_config.bits_sliding, tq_config.bits_global,
         )
-        return original(vllm_config, kv_cache_specs, effective_available)
+        return original(
+            effective_available, get_needed_memory,
+            max_model_len, estimate_max_model_len,
+        )
 
     _patched_check._genesis_g4_19b_wrapped = True
     _patched_check.__wrapped__ = original

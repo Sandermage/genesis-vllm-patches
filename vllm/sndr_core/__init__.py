@@ -78,6 +78,59 @@ def __getattr__(name: str):
 
 __version__ = SNDR_CORE_VERSION
 
+
+# ─── Import-time selective apply for G4_19/G4_19b ─────────────────────
+#
+# vLLM v1 EngineCore is a separate spawn'd subprocess that doesn't reliably
+# call our plugin.register() (vllm.general_plugins discovery is incomplete
+# in V1 multiproc). To ensure G4_19/G4_19b monkey-patches apply in BOTH
+# parent APIServer AND EngineCore subprocess, we hook them at import-time.
+#
+# Triggers: vllm.sndr_core is imported by EngineCore via plugin discovery
+# OR via vllm_config unpickling that touches sndr_core types. The import
+# runs this __init__.py which applies G4_19b BEFORE
+# _check_enough_kv_cache_memory is called by vllm.v1.core.kv_cache_utils.
+#
+# Safety: ONLY runs when explicit env flag is set. Operators who don't
+# enable G4_19/G4_19b see zero behavior change vs prior import semantics.
+#
+# Idempotent: each patch has its own _APPLIED guard so double-apply is a no-op.
+def _g4_19_import_time_hook():
+    """Apply G4_19/G4_19b at any vllm.sndr_core import (parent + subprocess)."""
+    import os as _os
+    g19 = _os.environ.get(
+        "GENESIS_ENABLE_G4_19_GEMMA4_TURBOQUANT_KV", ""
+    ).strip().lower() in ("1", "true", "yes")
+    g19b = _os.environ.get(
+        "GENESIS_ENABLE_G4_19B_GEMMA4_TQ_KV_SPEC", ""
+    ).strip().lower() in ("1", "true", "yes")
+    if not (g19 or g19b):
+        return
+    try:
+        if g19b:
+            from .integrations.gemma4 import (
+                g4_19b_gemma4_tq_kv_spec_integration as _g4_19b_mod,
+            )
+            _g4_19b_mod.apply()
+        if g19:
+            # Pre-import gemma4 so Gemma4Config exists for the wrapper
+            try:
+                import vllm.model_executor.models.gemma4  # noqa: F401
+            except ImportError:
+                pass
+            from .integrations.gemma4 import (
+                g4_19_gemma4_turboquant_kv_cache as _g4_19_mod,
+            )
+            _g4_19_mod.apply()
+    except Exception:  # noqa: BLE001
+        # Never block sndr_core import on G4-TQ apply error
+        pass
+
+
+_g4_19_import_time_hook()
+del _g4_19_import_time_hook
+
+
 __all__ = [
     "SNDR_CORE_VERSION",
     "GENESIS_VERSION",
