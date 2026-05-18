@@ -31,19 +31,23 @@ G4_68 is NOT a monkey-patch. It is a **marker verifier** that:
      downgrade marker — specifically the presence of a `get_cudagraph_
      support` classmethod that returns `AttentionCGSupport.UNIFORM_
      SINGLE_TOKEN_DECODE` under `speculative_config`.
-  3. Verifies the env flag `GENESIS_ENABLE_P65_TURBOQUANT_SPEC_CG_
-     DOWNGRADE` is set (without env, the classmethod returns the
-     ClassVar default).
+  3. Reads BOTH runtime env flags
+     (`GENESIS_ENABLE_P65_TURBOQUANT_SPEC_CG_DOWNGRADE` and
+     `GENESIS_ENABLE_PN256_KPLUS1_RAW_KV`) and renders the apply-result
+     as ACTIVE / PARTIAL / INERT so operators can see at a glance whether
+     the workaround is actually engaged. See "ENV FLAGS" section below
+     for the full semantics; one runtime env alone is not enough.
   4. Reports applied/error/skipped to the dispatcher so `patches doctor`
      and the boot-log apply summary correctly show whether the
-     downgrade is in effect.
+     workaround is configured.
 
 The actual cudagraph downgrade lives **inline** in the overlay source at
 `vllm/sndr_core/integrations/gemma4/upstream_overlay_pr42637/turboquant_
 attn.py` (see the `[Genesis P65 v2 inlined for PR #42637 overlay]`
-comment block on `TurboQuantMetadataBuilder`). This patch's role is
-purely identity + dispatcher visibility; runtime behavior is governed by
-the overlay code and the env flag.
+comment block on `TurboQuantMetadataBuilder`). The raw-K/V continuation
+fix (PN256) lives in the same overlay inside `_prefill_attention()`.
+G4_68's role is purely identity + dispatcher visibility; runtime behavior
+is governed by the overlay code and the runtime env flags listed below.
 
 ================================================================
 ENV FLAGS — read carefully, two distinct purposes
