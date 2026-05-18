@@ -1247,6 +1247,161 @@ def _get_kv_cache_config_deepseek_v4(
     return num_blocks, kv_cache_tensors
 
 
+def _pn259b_classify_layer_layout(spec: KVCacheSpec) -> str:
+    """[Genesis PN259b-1] Per-layer KV-cache LAYOUT classifier.
+
+    Returns "tq" for TurboQuant packed layout, "native" for FlashAttn /
+    standard layout, "other" otherwise (Mamba, Hidden, Encoder, etc).
+    Used by both the forensic guard and the per-layer allocator to
+    prevent physical aliasing of TQ-packed and native KV tensors.
+    """
+    spec_type = type(spec)
+    if spec_type in (TQFullAttentionSpec, TQSlidingWindowSpec):
+        return "tq"
+    if spec_type in (FullAttentionSpec, SlidingWindowSpec):
+        return "native"
+    return "other"
+
+
+def _pn259b_mixed_tq_native_specs(
+    kv_cache_groups: list[KVCacheGroupSpec],
+) -> bool:
+    """[Genesis PN259b-1] Detect TQ+native mix across KV cache groups.
+
+    Returns True when the groups together contain at least one TQ layer
+    AND at least one native layer. This is wider than
+    `_is_tq_native_mixed_kv_cache_spec` (which additionally requires a
+    SlidingWindow type) and correctly catches Gemma 4 31B AWQ with
+    `GENESIS_G4_TQ_FORCE_SKIP_LAYERS=58,59` where the skip-listed
+    layers may be FULL attention (not sliding-window).
+    """
+    has_tq = False
+    has_native = False
+    for group in kv_cache_groups:
+        kind = _pn259b_classify_layer_layout(group.kv_cache_spec)
+        if kind == "tq":
+            has_tq = True
+        elif kind == "native":
+            has_native = True
+    return has_tq and has_native
+
+
+def _pn259b_per_layer_kv_cache_tensors(
+    vllm_config: VllmConfig,
+    kv_cache_groups: list[KVCacheGroupSpec],
+    available_memory: int,
+) -> tuple[int, list[KVCacheTensor]]:
+    """[Genesis PN259b-2] Per-layer KVCacheTensor allocation for mixed
+    TQ+native layouts.
+
+    Enforces the invariant: one physical KV cache tensor can never be
+    shared between layers of different layouts. Each layer gets its own
+    `KVCacheTensor` with `shared_by=[layer_name]`. Total memory is
+    distributed by per-layer `page_size_bytes`.
+
+    For Gemma 4 31B with 60 layers and 2 skip-listed native layers, the
+    overhead vs cross-layout shared tensors is negligible (we already
+    paid for the larger native KV in `_check_enough_kv_cache_memory`);
+    safety is the dominant concern, not memory efficiency.
+
+    Returns (num_blocks, kv_cache_tensors) compatible with the existing
+    `get_kv_cache_config_from_groups` return type.
+    """
+    # Sum of all layers' per-block bytes across all groups: this is the
+    # per-block cost of one virtual "token block" replicated across
+    # every layer. Total KV memory budget = sum_page * num_blocks.
+    sum_page_bytes = 0
+    for group in kv_cache_groups:
+        sum_page_bytes += group.kv_cache_spec.page_size_bytes * len(
+            group.layer_names
+        )
+    if sum_page_bytes <= 0:
+        raise RuntimeError(
+            "[PN259b-2] sum of layer page_size_bytes is zero; "
+            "kv_cache_groups appear empty or have invalid specs"
+        )
+
+    num_blocks = available_memory // sum_page_bytes
+    num_blocks = may_override_num_blocks(vllm_config, num_blocks)
+    if num_blocks <= 0:
+        raise RuntimeError(
+            f"[PN259b-2] num_blocks computed as {num_blocks} <= 0 "
+            f"(available_memory={available_memory}, "
+            f"sum_page_bytes={sum_page_bytes}); "
+            f"increase gpu_memory_utilization or decrease max_model_len"
+        )
+
+    kv_cache_tensors: list[KVCacheTensor] = []
+    for group in kv_cache_groups:
+        per_layer_bytes = group.kv_cache_spec.page_size_bytes * num_blocks
+        for layer_name in group.layer_names:
+            kv_cache_tensors.append(
+                KVCacheTensor(size=per_layer_bytes, shared_by=[layer_name])
+            )
+    return num_blocks, kv_cache_tensors
+
+
+def _pn259b_layer_name_to_layout(
+    kv_cache_groups: list[KVCacheGroupSpec],
+) -> dict[str, str]:
+    """[Genesis PN259b-1] Build flat layer_name -> layout_kind map.
+
+    Used by the cross-layout aliasing guard to classify each
+    KVCacheTensor.shared_by entry.
+    """
+    out: dict[str, str] = {}
+    for group in kv_cache_groups:
+        kind = _pn259b_classify_layer_layout(group.kv_cache_spec)
+        for layer_name in group.layer_names:
+            out[layer_name] = kind
+    return out
+
+
+def _pn259b_assert_no_cross_layout_aliasing(
+    kv_cache_tensors: list[KVCacheTensor],
+    layer_to_kind: dict[str, str],
+    *,
+    raise_on_violation: bool,
+) -> None:
+    """[Genesis PN259b-1] Forensic guard.
+
+    For each KVCacheTensor, classify its `shared_by` layers by layout.
+    If a single tensor mixes "tq" and "native" layouts, raise (when
+    `raise_on_violation`) or log a critical warning (otherwise). The
+    raise path is preferred — it converts a downstream
+    `cudaErrorIllegalAddress` into an actionable Python traceback at
+    boot time, BEFORE any forward.
+    """
+    violations: list[tuple[int, list[str], set[str]]] = []
+    for idx, tensor in enumerate(kv_cache_tensors):
+        kinds = {
+            layer_to_kind.get(name, "unknown") for name in tensor.shared_by
+        }
+        if "tq" in kinds and "native" in kinds:
+            violations.append((idx, list(tensor.shared_by), kinds))
+
+    if not violations:
+        return
+
+    msg_lines = [
+        f"[PN259b-1] Cross-layout aliasing detected: "
+        f"{len(violations)} KVCacheTensor(s) share both TQ-layout and "
+        f"native-layout layers. This is the precondition for the "
+        f"cudaErrorIllegalAddress on first forward."
+    ]
+    for idx, shared, kinds in violations[:8]:
+        msg_lines.append(
+            f"  tensor[{idx}].shared_by={shared}  layouts={sorted(kinds)}"
+        )
+    if len(violations) > 8:
+        msg_lines.append(f"  ... and {len(violations) - 8} more")
+    msg = "\n".join(msg_lines)
+
+    if raise_on_violation:
+        raise RuntimeError(msg)
+    logger.error(msg)  # noqa: F821
+
+
 def get_kv_cache_config_from_groups(
     vllm_config: VllmConfig,
     kv_cache_groups: list[KVCacheGroupSpec],
@@ -1272,8 +1427,66 @@ def get_kv_cache_config_from_groups(
             kv_cache_groups=kv_cache_groups,
         )
 
+    # [Genesis PN259b-2] Per-layer allocation early-route for TQ+native
+    # mixed layouts (Gemma 4 31B AWQ with kv_cache_dtype_skip_layers).
+    # The general allocator below would create KVCacheTensor objects
+    # whose `shared_by` field spans layers of DIFFERENT physical KV
+    # layouts (TQ packed vs native FlashAttn shape). On the first
+    # forward this manifests as cudaErrorIllegalAddress because each
+    # attention impl reshapes the shared memory according to its OWN
+    # expected layout, and the byte-offset arithmetic does not match
+    # for the other layout.
+    #
+    # This early-route hands such mixes off to a strict per-layer
+    # allocator (`_pn259b_per_layer_kv_cache_tensors`) which gives
+    # every layer its own `KVCacheTensor` with `shared_by=[layer_name]`
+    # only. No cross-layout aliasing is possible.
+    #
+    # Env-gated by `GENESIS_ENABLE_G4_70_PN259B_MIXED_ALLOC`. When unset
+    # the general allocator runs as before. When set together with
+    # `GENESIS_G4_TQ_FORCE_SKIP_LAYERS=...` it produces a safe physical
+    # layout for the TQ + native split.
+    import os as _os_pn259b
+    _pn259b_mixed_enabled = (
+        _os_pn259b.environ.get(
+            "GENESIS_ENABLE_G4_70_PN259B_MIXED_ALLOC", ""
+        ).strip().lower() in ("1", "true", "yes", "on")
+    )
+    _pn259b_layout_map = _pn259b_layer_name_to_layout(kv_cache_groups)
+    _pn259b_route_used = False
+    if _pn259b_mixed_enabled and _pn259b_mixed_tq_native_specs(
+        kv_cache_groups
+    ):
+        try:
+            num_blocks, kv_cache_tensors = (
+                _pn259b_per_layer_kv_cache_tensors(
+                    vllm_config, kv_cache_groups, available_memory
+                )
+            )
+            _pn259b_route_used = True
+            logger.warning(
+                "[PN259b-2] mixed TQ+native KV layouts detected — "
+                "routing to per-layer KVCacheTensor allocator. "
+                "num_blocks=%d, total_tensors=%d (one per layer).",
+                num_blocks,
+                len(kv_cache_tensors),
+            )
+        except Exception as _err:
+            logger.error(
+                "[PN259b-2] per-layer allocator failed: %s — falling "
+                "back to general allocator (forensic guard will catch "
+                "any cross-layout aliasing).",
+                _err,
+            )
+            _pn259b_route_used = False
+
     # Determine how model runners should initialize the KV cache tensors.
-    if len(kv_cache_groups) == 1 and isinstance(
+    # [Genesis PN259b-2] If the early-route fired above, skip the
+    # vanilla allocators below — num_blocks/kv_cache_tensors are
+    # already set by `_pn259b_per_layer_kv_cache_tensors`.
+    if _pn259b_route_used:
+        pass
+    elif len(kv_cache_groups) == 1 and isinstance(
         kv_cache_groups[0].kv_cache_spec, UniformTypeKVCacheSpecs
     ):
         # Special case: all layers have the same type of KV cache but with
@@ -1327,6 +1540,44 @@ def get_kv_cache_config_from_groups(
             kv_cache_tensors.append(
                 KVCacheTensor(size=page_size * num_blocks, shared_by=shared_by)
             )
+
+    # [Genesis PN259b-1] Forensic guard: fail fast on cross-layout
+    # aliasing (TQ-packed + native FlashAttn sharing one physical KV
+    # tensor). Converts a downstream cudaErrorIllegalAddress into an
+    # actionable Python RuntimeError at boot time.
+    # Env-gated by `GENESIS_ENABLE_G4_70_PN259B_FAIL_FAST`. When unset
+    # the guard does nothing. When set together with
+    # `GENESIS_ENABLE_G4_70_PN259B_MIXED_ALLOC` it confirms the
+    # per-layer allocator produced safe `shared_by` lists.
+    if _os_pn259b.environ.get(
+        "GENESIS_ENABLE_G4_70_PN259B_FAIL_FAST", ""
+    ).strip().lower() in ("1", "true", "yes", "on"):
+        # Per-tensor forensic dump (capped for log volume).
+        for _idx, _tensor in enumerate(kv_cache_tensors[:20]):
+            _kinds = sorted(
+                {
+                    _pn259b_layout_map.get(_name, "unknown")
+                    for _name in _tensor.shared_by
+                }
+            )
+            logger.warning(
+                "[PN259b-1] kv_cache_tensor[%d] size=%d layouts=%s "
+                "shared_by=%s",
+                _idx,
+                _tensor.size,
+                _kinds,
+                list(_tensor.shared_by)[:6],
+            )
+        if len(kv_cache_tensors) > 20:
+            logger.warning(
+                "[PN259b-1] ... %d more tensors not dumped",
+                len(kv_cache_tensors) - 20,
+            )
+        _pn259b_assert_no_cross_layout_aliasing(
+            kv_cache_tensors,
+            _pn259b_layout_map,
+            raise_on_violation=True,
+        )
 
     return KVCacheConfig(
         num_blocks=num_blocks,
