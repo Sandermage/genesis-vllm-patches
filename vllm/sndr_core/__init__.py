@@ -183,10 +183,16 @@ def _g4_19_import_time_hook():
     pn248 = _os.environ.get(
         "GENESIS_ENABLE_PN248_ACCEPTANCE_TRACE", ""
     ).strip().lower() in ("1", "true", "yes")
+    # PN258 — Oracle acceptance test (record/replay around rejection_sample).
+    # First technical step of the post-PN257a cycle: separates "verifier
+    # rows 1..K still broken" vs "drafter is the only remaining problem".
+    pn258 = _os.environ.get(
+        "GENESIS_ENABLE_PN258_ORACLE_ACCEPTANCE", ""
+    ).strip().lower() in ("1", "true", "yes")
     if not (
         g19 or g19b or g19c or g30 or g31 or g32 or g43 or g44 or g45 or g50
         or g60a or g60b or g60c or g60d or g60e or g60g or g60h or g60k
-        or g61 or g62 or g67 or g68 or pn241 or pn248
+        or g61 or g62 or g67 or g68 or pn241 or pn248 or pn258
     ):
         return
     try:
@@ -371,6 +377,25 @@ def _g4_19_import_time_hook():
                 pn248_acceptance_trace as _pn248_mod,
             )
             _pn248_mod.apply()
+        # PN258 — Oracle acceptance test. Record/replay around
+        # rejection_sample: pass 1 captures target's greedy continuation
+        # to /tmp/genesis_pn258_oracle.txt, pass 2 injects those tokens
+        # as the drafter's drafts. If accepted_per_req ~= K under
+        # injection: target verifier rows 0..K-1 are all correct and the
+        # remaining problem is in the drafter (Outcome A → H8). If
+        # accepted_per_req stays 0 under injection: rows 1..K-1 / sampler
+        # / position mapping are still broken (Outcome B → fix verifier).
+        # Apply AFTER PN248 so the PN258 wrap is on the outside; both
+        # logs co-exist.
+        if pn258:
+            try:
+                import vllm.v1.sample.rejection_sampler  # noqa: F401
+            except ImportError:
+                pass
+            from .integrations.gemma4 import (
+                pn258_oracle_acceptance as _pn258_mod,
+            )
+            _pn258_mod.apply()
     except Exception:  # noqa: BLE001
         # Never block sndr_core import on G4-TQ apply error
         pass
