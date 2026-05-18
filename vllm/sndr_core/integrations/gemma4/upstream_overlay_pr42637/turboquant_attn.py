@@ -316,7 +316,47 @@ class TurboQuantMetadata(AttentionMetadata):
 class TurboQuantMetadataBuilder(AttentionMetadataBuilder[TurboQuantMetadata]):
     """Builds TurboQuantMetadata from scheduler output."""
 
+    # [Genesis P65 v2 inlined for PR #42637 overlay — see
+    # vllm/sndr_core/integrations/attention/turboquant/p65_turboquant_spec_cg_downgrade.py]
+    # Context-aware cudagraph support downgrade. Keep UNIFORM_BATCH as the
+    # ClassVar default (full capabilities for non-spec-decode setups), and
+    # override `get_cudagraph_support` classmethod to downgrade to
+    # UNIFORM_SINGLE_TOKEN_DECODE only when speculative_config is active.
+    #
+    # Under spec-decode, K+1 batches hit the cache-read continuation route in
+    # _decode_prefill_from_cache that assumes current K+1 K/V rows are already
+    # written to TQ cache (PN255 proved no observable writes happen). The
+    # captured CUDA graph replays this broken route and the Python-level PN256
+    # fix never executes (PN256 route log shows 0 target language_model fires
+    # under cudagraph mode, 960 under --enforce-eager). The downgrade forces
+    # spec-verify K+1 batches to eager so PN256's raw-KV _continuation_prefill
+    # route takes effect for target's K+1 verify.
+    #
+    # NOTE: vLLM compilation.py:1356 globally flips cudagraph_mode to
+    # PIECEWISE when our backend declares < UNIFORM_BATCH AND uniform_decode
+    # _query_len > 1. So under spec-decode this also affects 1-token decode.
+    # A finer-grained per-batch dispatch would require upstream architecture
+    # change or the proper raw-KV-aware multi-query kernel.
+    # Reference: noonghunna #40880 + Genesis investigation 2026-04-25 +
+    # PN255/PN256/PN257 cycle 2026-05-18.
     _cudagraph_support: ClassVar[AttentionCGSupport] = AttentionCGSupport.UNIFORM_BATCH
+
+    @classmethod
+    def get_cudagraph_support(
+        cls,
+        vllm_config,
+        kv_cache_spec,
+    ) -> AttentionCGSupport:
+        """[Genesis P65 v2] Context-aware downgrade for spec-decode only."""
+        import os as _os_p65
+        if (
+            _os_p65.environ.get(
+                "GENESIS_ENABLE_P65_TURBOQUANT_SPEC_CG_DOWNGRADE", ""
+            ).strip() == "1"
+            and vllm_config.speculative_config is not None
+        ):
+            return AttentionCGSupport.UNIFORM_SINGLE_TOKEN_DECODE
+        return cls._cudagraph_support
 
     def __init__(self, kv_cache_spec, layer_names, vllm_config, device):
         super().__init__(kv_cache_spec, layer_names, vllm_config, device)
