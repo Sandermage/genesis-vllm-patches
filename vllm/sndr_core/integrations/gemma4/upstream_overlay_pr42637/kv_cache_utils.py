@@ -1286,6 +1286,120 @@ def _pn259b_mixed_tq_native_specs(
     return has_tq and has_native
 
 
+def _pn259c_split_allocator(
+    vllm_config: VllmConfig,
+    kv_cache_groups: list[KVCacheGroupSpec],
+    available_memory: int,
+) -> tuple[int, list[KVCacheTensor]]:
+    """[Genesis PN259c — Route B] Split TQ+native mixed KV allocation.
+
+    PN259b-2 used wholesale per-layer KVCacheTensor for every layer.
+    That isolates TQ from native (good for the no-cross-aliasing
+    invariant) but breaks TurboQuant's K+1 verify decode kernel
+    `_tq_decode_stage1`, which expects multiple TQ layers to share one
+    `KVCacheTensor` with the cross-grouped block_table semantics that
+    the original general allocator provided. K=2/4/5 verify ran into
+    `cudaErrorIllegalAddress` because the per-layer TQ tensors broke
+    that contract.
+
+    Route B resolution: split allocation by layout_kind.
+      - TQ groups -> use the original general allocator math
+        (one tensor per i-th-layer-from-each-TQ-group, shared_by-list
+        contains all i-th layers across TQ groups). This restores the
+        TQ kernel's expected layout.
+      - Native groups -> per-layer KVCacheTensor (one tensor per layer,
+        shared_by=[layer_name]). Preserves the
+        skip-listed-layer isolation we got from G4_69 + PN259b-2.
+
+    The no-cross-layout-aliasing invariant is preserved: each
+    KVCacheTensor's shared_by list contains layers of exactly one
+    layout_kind ("tq" or "native"). The forensic guard
+    (`_pn259b_assert_no_cross_layout_aliasing`) still validates this.
+
+    All tensors share a single `num_blocks`. Memory budget is
+    distributed by total "tensor slots":
+      total_slots = max_tq_group_layers + native_layer_count
+      num_blocks  = available_memory // (total_slots * page_size)
+
+    Where `page_size` is the unified page size from
+    `get_uniform_page_size` (set up by `unify_kv_cache_spec_page_size`
+    before the call reaches the allocator).
+    """
+    # Split groups by layout_kind.
+    tq_groups: list[KVCacheGroupSpec] = []
+    native_groups: list[KVCacheGroupSpec] = []
+    other_groups: list[KVCacheGroupSpec] = []
+    for group in kv_cache_groups:
+        kind = _pn259b_classify_layer_layout(group.kv_cache_spec)
+        if kind == "tq":
+            tq_groups.append(group)
+        elif kind == "native":
+            native_groups.append(group)
+        else:
+            other_groups.append(group)
+
+    if other_groups:
+        raise RuntimeError(
+            f"[PN259c] unsupported layout_kind for groups: "
+            f"{[type(g.kv_cache_spec).__name__ for g in other_groups]}; "
+            f"PN259c split allocator handles only TQ+native mixes"
+        )
+
+    # All groups already have unified page size at this point.
+    page_size = get_uniform_page_size(
+        [group.kv_cache_spec for group in kv_cache_groups]
+    )
+
+    tq_group_size = max(
+        (len(group.layer_names) for group in tq_groups), default=0
+    )
+    native_layer_count = sum(len(g.layer_names) for g in native_groups)
+    total_slots = tq_group_size + native_layer_count
+    if total_slots <= 0:
+        raise RuntimeError(
+            "[PN259c] total tensor slots is zero; no TQ or native groups "
+            "present in kv_cache_groups"
+        )
+
+    num_blocks = get_num_blocks(
+        vllm_config, total_slots, available_memory, page_size
+    )
+    if num_blocks <= 0:
+        raise RuntimeError(
+            f"[PN259c] num_blocks computed as {num_blocks} <= 0 "
+            f"(available_memory={available_memory}, "
+            f"total_slots={total_slots}, page_size={page_size}); "
+            f"increase gpu_memory_utilization or decrease max_model_len"
+        )
+
+    kv_cache_tensors: list[KVCacheTensor] = []
+
+    # Step 1: TQ-compatible shared allocation (mirrors the original
+    # general-case allocator on TQ groups only).
+    for i in range(tq_group_size):
+        shared_by: list[str] = []
+        for tq_group in tq_groups:
+            if i < len(tq_group.layer_names):
+                shared_by.append(tq_group.layer_names[i])
+        if shared_by:
+            kv_cache_tensors.append(
+                KVCacheTensor(
+                    size=page_size * num_blocks, shared_by=shared_by
+                )
+            )
+
+    # Step 2: native per-layer allocation (one tensor per skipped layer).
+    for native_group in native_groups:
+        for layer_name in native_group.layer_names:
+            kv_cache_tensors.append(
+                KVCacheTensor(
+                    size=page_size * num_blocks, shared_by=[layer_name]
+                )
+            )
+
+    return num_blocks, kv_cache_tensors
+
+
 def _pn259b_per_layer_kv_cache_tensors(
     vllm_config: VllmConfig,
     kv_cache_groups: list[KVCacheGroupSpec],
@@ -1452,30 +1566,63 @@ def get_kv_cache_config_from_groups(
             "GENESIS_ENABLE_G4_70_PN259B_MIXED_ALLOC", ""
         ).strip().lower() in ("1", "true", "yes", "on")
     )
+    # [Genesis PN259c — Route B selector]
+    # When set, the split allocator (TQ shared + native per-layer) is
+    # used instead of the wholesale per-layer allocator (PN259b-2).
+    # The split allocator restores the cross-grouped TQ tensor layout
+    # that the TQ K+1 verify decode kernel `_tq_decode_stage1` expects,
+    # while still isolating native skip-listed layers in their own
+    # KVCacheTensor objects. PN259b-1 forensic guard continues to
+    # enforce the no-cross-layout-aliasing invariant.
+    _pn259c_route_b_enabled = (
+        _os_pn259b.environ.get(
+            "GENESIS_ENABLE_G4_70_PN259C_ROUTE_B", ""
+        ).strip().lower() in ("1", "true", "yes", "on")
+    )
     _pn259b_layout_map = _pn259b_layer_name_to_layout(kv_cache_groups)
     _pn259b_route_used = False
     if _pn259b_mixed_enabled and _pn259b_mixed_tq_native_specs(
         kv_cache_groups
     ):
         try:
-            num_blocks, kv_cache_tensors = (
-                _pn259b_per_layer_kv_cache_tensors(
+            if _pn259c_route_b_enabled:
+                num_blocks, kv_cache_tensors = _pn259c_split_allocator(
                     vllm_config, kv_cache_groups, available_memory
                 )
-            )
-            _pn259b_route_used = True
-            logger.warning(
-                "[PN259b-2] mixed TQ+native KV layouts detected — "
-                "routing to per-layer KVCacheTensor allocator. "
-                "num_blocks=%d, total_tensors=%d (one per layer).",
-                num_blocks,
-                len(kv_cache_tensors),
-            )
+                _pn259b_route_used = True
+                _tq_count = sum(
+                    1
+                    for _t in kv_cache_tensors
+                    if len(_t.shared_by) > 1
+                )
+                _nat_count = len(kv_cache_tensors) - _tq_count
+                logger.warning(
+                    "[PN259c Route B] mixed TQ+native KV layouts detected "
+                    "— using split allocator: %d TQ-shared tensors + %d "
+                    "native per-layer tensors. num_blocks=%d.",
+                    _tq_count,
+                    _nat_count,
+                    num_blocks,
+                )
+            else:
+                num_blocks, kv_cache_tensors = (
+                    _pn259b_per_layer_kv_cache_tensors(
+                        vllm_config, kv_cache_groups, available_memory
+                    )
+                )
+                _pn259b_route_used = True
+                logger.warning(
+                    "[PN259b-2] mixed TQ+native KV layouts detected — "
+                    "routing to per-layer KVCacheTensor allocator. "
+                    "num_blocks=%d, total_tensors=%d (one per layer).",
+                    num_blocks,
+                    len(kv_cache_tensors),
+                )
         except Exception as _err:
             logger.error(
-                "[PN259b-2] per-layer allocator failed: %s — falling "
-                "back to general allocator (forensic guard will catch "
-                "any cross-layout aliasing).",
+                "[PN259b/c] mixed allocator failed: %s — falling back "
+                "to general allocator (forensic guard will catch any "
+                "cross-layout aliasing).",
                 _err,
             )
             _pn259b_route_used = False
