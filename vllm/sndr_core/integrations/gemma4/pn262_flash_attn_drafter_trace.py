@@ -184,12 +184,20 @@ def apply() -> tuple[str, str]:
         )
 
         # Locate kv_cache argument. v1 FlashAttn forward signature:
-        #   forward(self, query, key, value, kv_cache, attn_metadata,
+        #   forward(self, layer, query, key, value, kv_cache, attn_metadata,
         #           output, ...)
-        # Try kwargs first, then positional index 3.
+        # When called as `self.impl.forward(self_layer, query, key, value,
+        # kv_cache, attn_metadata, ...)` and dispatched through our wrap
+        # `_wrapped_forward(self=impl, *args, **kwargs)`, args layout is:
+        #   args[0] = layer
+        #   args[1] = query
+        #   args[2] = key
+        #   args[3] = value
+        #   args[4] = kv_cache    <-- correct index
+        #   args[5] = attn_metadata
         kv_cache = kwargs.get("kv_cache")
-        if kv_cache is None and len(args) >= 4:
-            kv_cache = args[3]
+        if kv_cache is None and len(args) >= 5:
+            kv_cache = args[4]
 
         kv_sharing_target = getattr(self, "kv_sharing_target_layer_name", None)
         impl_class = type(self).__qualname__
