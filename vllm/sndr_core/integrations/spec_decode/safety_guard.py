@@ -1,0 +1,234 @@
+# SPDX-License-Identifier: Apache-2.0
+"""safety_guard — production policy for SpecDecode KV sharing.
+
+PN274 deliverable (skeleton only — not yet auto-installed).
+
+Library-grade policy module. Provides:
+
+  evaluate(runner) -> GuardDecision
+
+  where GuardDecision encodes:
+    - per-pair verdicts (Verdict from kv_contract)
+    - overall worst-case verdict
+    - whether MTP should be allowed to proceed
+    - reason strings
+
+Policy (conservative, default for production):
+
+  EXACT_COPY                                -> ALLOW
+  GQA_REPEAT / LAYOUT_ADAPTER               -> ALLOW iff env opt-in
+  COMPOSITE_ADAPTER                         -> ALLOW iff env opt-in
+  DEQUANT_REQUIRED                          -> DENY (bridge not implemented)
+  ADAPTER_STRUCTURAL_OK_FUNCTIONAL_UNVERIFIED ->
+      DENY by default; ALLOW iff a SECOND env opt-in is also set
+  UNSUPPORTED                               -> DENY
+
+Env flags:
+  GENESIS_ALLOW_SPEC_DECODE_KV_ADAPTER=1
+      Permits LAYOUT/GQA/COMPOSITE/DEQUANT verdicts to proceed.
+  GENESIS_ALLOW_SPEC_DECODE_FUNCTIONAL_UNKNOWN=1
+      Permits ADAPTER_STRUCTURAL_OK_FUNCTIONAL_UNVERIFIED verdict to
+      proceed. Independent of the first env — operators have to
+      consciously accept the "no acceptance guarantee" risk.
+
+This module does NOT yet patch anything. It is a building block for a
+future patch (PN274) that wires this guard into the spec-decode boot
+path to flip ``vllm_config.speculative_config = None`` when the
+verdict is a DENY.
+
+Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
+"""
+from __future__ import annotations
+
+import logging
+import os
+from dataclasses import dataclass
+from typing import Any
+
+from .kv_contract import (
+    KVContract,
+    Verdict,
+    compare_contracts,
+    extract_contract,
+)
+from .mapping.base import LayerMapping
+from .mapping.registry import find_provider
+
+log = logging.getLogger("genesis.spec_decode.safety_guard")
+
+
+_ENV_ALLOW_ADAPTER = "GENESIS_ALLOW_SPEC_DECODE_KV_ADAPTER"
+_ENV_ALLOW_FUNCTIONAL_UNKNOWN = "GENESIS_ALLOW_SPEC_DECODE_FUNCTIONAL_UNKNOWN"
+
+
+def _env_flag(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in (
+        "1", "true", "yes", "on",
+    )
+
+
+@dataclass
+class PairAssessment:
+    drafter_idx: int
+    target_full_prefix: str
+    drafter_contract: KVContract
+    target_contract: KVContract | None
+    verdict: Verdict
+    divergences: list[str]
+    hints: dict[str, Any]
+
+
+@dataclass
+class GuardDecision:
+    """Final policy outcome."""
+    overall_verdict: Verdict
+    allowed: bool
+    reason: str
+    per_pair: list[PairAssessment]
+
+
+def evaluate(runner: Any,
+             *, require_functional_gate: bool = True) -> GuardDecision:
+    """Compute the GuardDecision for one runner.
+
+    Does NOT modify state. Returns the assessment; the caller decides
+    what to do (typically: deny -> set vllm_config.speculative_config
+    = None; allow -> proceed).
+    """
+    provider = find_provider(runner)
+    if provider is None:
+        # No spec-decode K/V sharing concern for this model.
+        return GuardDecision(
+            overall_verdict=Verdict.EXACT_COPY,
+            allowed=True,
+            reason="no MappingProvider matched (model uses no kv-sharing "
+                   "spec-decode path)",
+            per_pair=[],
+        )
+
+    log.warning(
+        "[safety_guard] using provider=%s", provider.name,
+    )
+
+    mappings: list[LayerMapping] = []
+    try:
+        mappings = provider.get_mapping(runner)
+    except Exception as _e:  # noqa: BLE001
+        log.warning("[safety_guard] mapping failed: %s — DENY", _e)
+        return GuardDecision(
+            overall_verdict=Verdict.UNSUPPORTED,
+            allowed=False,
+            reason=f"mapping provider raised: {_e!r}",
+            per_pair=[],
+        )
+
+    if not mappings:
+        return GuardDecision(
+            overall_verdict=Verdict.UNSUPPORTED,
+            allowed=False,
+            reason=f"provider {provider.name} returned empty mapping",
+            per_pair=[],
+        )
+
+    assessments: list[PairAssessment] = []
+    flags: set[Verdict] = set()
+    for m in mappings:
+        dst_contract = extract_contract(
+            m.drafter_self_attn,
+            layer_full_name=f"drafter[{m.drafter_idx}]",
+        )
+        src_contract = (
+            extract_contract(m.target_self_attn, m.target_full_prefix)
+            if m.target_self_attn is not None else None
+        )
+        if src_contract is None:
+            verdict = Verdict.UNSUPPORTED
+            divergences = ["target self_attn not resolvable"]
+            hints: dict[str, Any] = {}
+        else:
+            verdict, divergences, hints = compare_contracts(
+                src_contract, dst_contract,
+                require_functional_gate=require_functional_gate,
+            )
+        flags.add(verdict)
+        assessments.append(PairAssessment(
+            drafter_idx=m.drafter_idx,
+            target_full_prefix=m.target_full_prefix,
+            drafter_contract=dst_contract,
+            target_contract=src_contract,
+            verdict=verdict,
+            divergences=divergences,
+            hints=hints,
+        ))
+
+    # Aggregate worst-case
+    overall = _aggregate(flags)
+
+    # Policy decision
+    allow_adapter = _env_flag(_ENV_ALLOW_ADAPTER)
+    allow_unknown = _env_flag(_ENV_ALLOW_FUNCTIONAL_UNKNOWN)
+
+    if overall == Verdict.EXACT_COPY:
+        return GuardDecision(
+            overall_verdict=overall,
+            allowed=True,
+            reason="all pairs EXACT_COPY",
+            per_pair=assessments,
+        )
+    if overall == Verdict.UNSUPPORTED:
+        return GuardDecision(
+            overall_verdict=overall,
+            allowed=False,
+            reason="at least one pair is UNSUPPORTED",
+            per_pair=assessments,
+        )
+    if overall == Verdict.ADAPTER_STRUCTURAL_OK_FUNCTIONAL_UNVERIFIED:
+        return GuardDecision(
+            overall_verdict=overall,
+            allowed=(allow_unknown and allow_adapter),
+            reason=(
+                f"adapter-required AND no functional gate; allow only if "
+                f"BOTH {_ENV_ALLOW_ADAPTER}=1 AND "
+                f"{_ENV_ALLOW_FUNCTIONAL_UNKNOWN}=1 "
+                f"(currently adapter={allow_adapter} "
+                f"functional={allow_unknown})"
+            ),
+            per_pair=assessments,
+        )
+    # Structural-adapter classes
+    return GuardDecision(
+        overall_verdict=overall,
+        allowed=allow_adapter,
+        reason=(
+            f"adapter required ({overall.value}); allow only if "
+            f"{_ENV_ALLOW_ADAPTER}=1 (currently {allow_adapter})"
+        ),
+        per_pair=assessments,
+    )
+
+
+def _aggregate(flags: set[Verdict]) -> Verdict:
+    if Verdict.UNSUPPORTED in flags:
+        return Verdict.UNSUPPORTED
+    if Verdict.ADAPTER_STRUCTURAL_OK_FUNCTIONAL_UNVERIFIED in flags:
+        return Verdict.ADAPTER_STRUCTURAL_OK_FUNCTIONAL_UNVERIFIED
+    if Verdict.DEQUANT_REQUIRED in flags:
+        return Verdict.DEQUANT_REQUIRED
+    if Verdict.COMPOSITE_ADAPTER in flags:
+        return Verdict.COMPOSITE_ADAPTER
+    has_layout = Verdict.LAYOUT_ADAPTER in flags
+    has_gqa = Verdict.GQA_REPEAT in flags
+    if has_layout and has_gqa:
+        return Verdict.COMPOSITE_ADAPTER
+    if has_layout:
+        return Verdict.LAYOUT_ADAPTER
+    if has_gqa:
+        return Verdict.GQA_REPEAT
+    return Verdict.EXACT_COPY
+
+
+__all__ = [
+    "PairAssessment",
+    "GuardDecision",
+    "evaluate",
+]
