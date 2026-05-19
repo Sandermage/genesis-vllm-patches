@@ -96,6 +96,11 @@ _ENV_ENABLE = "GENESIS_ENABLE_G4_76_DISABLE_DRAFTER_KV_SHARING"
 _APPLIED = False
 _ORIGINAL_SETUP = None
 _NOOP_COUNT = [0]
+_BACKEND_COERCE_COUNT = [0]
+_ORIGINAL_FA_GET_SHAPE = None
+_ORIGINAL_TRITON_GET_SHAPE = None
+_ORIGINAL_ATTENTION_INIT = None
+_ATTN_DTYPE_OVERRIDE_COUNT = [0]
 
 
 def _env_enabled() -> bool:
@@ -166,12 +171,166 @@ def apply() -> tuple[str, str]:
 
     _wrapped_setup._genesis_g4_76_wrapped = True  # type: ignore[attr-defined]
     Gemma4Proposer._setup_gemma4_kv_sharing = _wrapped_setup  # type: ignore[method-assign]
+
+    # --- Companion fix (G4_76b): coerce cache_dtype_str for native backends ---
+    #
+    # After G4_76 disables kv_sharing, drafter is in its own kv_cache_group.
+    # When _reshape_kv_cache_tensors runs, it calls:
+    #   attn_backend.get_kv_cache_shape(..., cache_dtype_str=
+    #       self.cache_config.cache_dtype)
+    # The global cache_config.cache_dtype is "turboquant_4bit_nc" (set by
+    # --kv-cache-dtype). FlashAttn/Triton backends don't understand the TQ
+    # string and raise:
+    #   RuntimeError: Unsupported fp8 kv cache data type: turboquant_4bit_nc
+    #
+    # Drafter's per-layer spec is native (G4_72 → bf16), so the TQ string
+    # is meaningless for FA/Triton get_kv_cache_shape. Coerce it to "auto"
+    # so the backend uses the spec's native dtype.
+    #
+    # We coerce only on FlashAttentionBackend and TritonAttentionBackend —
+    # TurboQuant backend keeps its TQ string for the target layers.
+    global _ORIGINAL_FA_GET_SHAPE, _ORIGINAL_TRITON_GET_SHAPE
+    try:
+        from vllm.v1.attention.backends.flash_attn import FlashAttentionBackend
+        if not getattr(FlashAttentionBackend.get_kv_cache_shape,
+                       "_genesis_g4_76_wrapped", False):
+            _ORIGINAL_FA_GET_SHAPE = FlashAttentionBackend.get_kv_cache_shape
+
+            def _fa_get_shape(
+                num_blocks, block_size, num_kv_heads, head_size,
+                *, cache_dtype_str="auto", **kwargs,
+            ):
+                if (isinstance(cache_dtype_str, str)
+                        and cache_dtype_str.startswith("turboquant_")):
+                    _BACKEND_COERCE_COUNT[0] += 1
+                    if _BACKEND_COERCE_COUNT[0] <= 4:
+                        log.warning(
+                            "[G4_76b] FlashAttentionBackend.get_kv_cache_shape "
+                            "called with cache_dtype_str=%r; coercing to "
+                            "'auto' (drafter native cache; TQ string is "
+                            "meaningless for FlashAttn). (call #%d)",
+                            cache_dtype_str, _BACKEND_COERCE_COUNT[0],
+                        )
+                    cache_dtype_str = "auto"
+                return _ORIGINAL_FA_GET_SHAPE(
+                    num_blocks, block_size, num_kv_heads, head_size,
+                    cache_dtype_str=cache_dtype_str, **kwargs,
+                )
+
+            _fa_get_shape._genesis_g4_76_wrapped = True  # type: ignore[attr-defined]
+            FlashAttentionBackend.get_kv_cache_shape = staticmethod(
+                _fa_get_shape
+            )
+    except Exception as e:  # noqa: BLE001
+        log.warning(
+            "[G4_76b] FlashAttentionBackend.get_kv_cache_shape wrap failed: %s",
+            e,
+        )
+
+    try:
+        from vllm.v1.attention.backends.triton_attn import TritonAttentionBackend
+        if not getattr(TritonAttentionBackend.get_kv_cache_shape,
+                       "_genesis_g4_76_wrapped", False):
+            _ORIGINAL_TRITON_GET_SHAPE = TritonAttentionBackend.get_kv_cache_shape
+
+            def _triton_get_shape(
+                num_blocks, block_size, num_kv_heads, head_size,
+                *, cache_dtype_str="auto", **kwargs,
+            ):
+                if (isinstance(cache_dtype_str, str)
+                        and cache_dtype_str.startswith("turboquant_")):
+                    _BACKEND_COERCE_COUNT[0] += 1
+                    if _BACKEND_COERCE_COUNT[0] <= 4:
+                        log.warning(
+                            "[G4_76b] TritonAttentionBackend.get_kv_cache_shape "
+                            "called with cache_dtype_str=%r; coercing to "
+                            "'auto' (drafter native cache; TQ string is "
+                            "meaningless for Triton). (call #%d)",
+                            cache_dtype_str, _BACKEND_COERCE_COUNT[0],
+                        )
+                    cache_dtype_str = "auto"
+                return _ORIGINAL_TRITON_GET_SHAPE(
+                    num_blocks, block_size, num_kv_heads, head_size,
+                    cache_dtype_str=cache_dtype_str, **kwargs,
+                )
+
+            _triton_get_shape._genesis_g4_76_wrapped = True  # type: ignore[attr-defined]
+            TritonAttentionBackend.get_kv_cache_shape = staticmethod(
+                _triton_get_shape
+            )
+    except Exception as e:  # noqa: BLE001
+        log.warning(
+            "[G4_76b] TritonAttentionBackend.get_kv_cache_shape wrap failed: %s",
+            e,
+        )
+
+    # --- Companion fix (G4_76c): override Attention.kv_cache_dtype for drafter ---
+    #
+    # reshape_and_cache_flash (called from FlashAttn impl's KV cache
+    # update path) reads kv_cache_dtype from impl/layer attribute. The
+    # global is "turboquant_4bit_nc"; the C++ op rejects it with:
+    #   RuntimeError: Unsupported fp8 kv cache data type:
+    #     turboquant_4bit_nc
+    #
+    # Wrap Attention.__init__: AFTER original init, for drafter layers,
+    # reset self.kv_cache_dtype="auto" and self.impl.kv_cache_dtype="auto"
+    # so downstream cache ops use the native path.
+    global _ORIGINAL_ATTENTION_INIT
+    try:
+        from vllm.model_executor.layers.attention.attention import Attention
+    except Exception as e:  # noqa: BLE001
+        log.warning(
+            "[G4_76c] Attention not importable — skipping kv_cache_dtype "
+            "override: %s", e,
+        )
+        Attention = None  # type: ignore[assignment]
+
+    if Attention is not None and not getattr(
+        Attention.__init__, "_genesis_g4_76c_wrapped", False
+    ):
+        _ORIGINAL_ATTENTION_INIT = Attention.__init__
+        drafter_prefix_local = "draft_model."
+
+        def _wrapped_attn_init(self, *args, **kwargs):
+            result = _ORIGINAL_ATTENTION_INIT(self, *args, **kwargs)
+            prefix = kwargs.get("prefix", "") or ""
+            if isinstance(prefix, str) and prefix.startswith(drafter_prefix_local):
+                try:
+                    if isinstance(getattr(self, "kv_cache_dtype", None), str) \
+                            and self.kv_cache_dtype.startswith("turboquant_"):
+                        old = self.kv_cache_dtype
+                        self.kv_cache_dtype = "auto"
+                        _ATTN_DTYPE_OVERRIDE_COUNT[0] += 1
+                        if _ATTN_DTYPE_OVERRIDE_COUNT[0] <= 8:
+                            log.warning(
+                                "[G4_76c] drafter Attention(prefix=%r) "
+                                "kv_cache_dtype: %r -> 'auto' (count=%d)",
+                                prefix, old, _ATTN_DTYPE_OVERRIDE_COUNT[0],
+                            )
+                except Exception:  # noqa: BLE001
+                    pass
+                # Also propagate to impl if it has the same attribute.
+                try:
+                    impl = getattr(self, "impl", None)
+                    if impl is not None \
+                            and isinstance(getattr(impl, "kv_cache_dtype", None), str) \
+                            and impl.kv_cache_dtype.startswith("turboquant_"):
+                        impl.kv_cache_dtype = "auto"
+                except Exception:  # noqa: BLE001
+                    pass
+            return result
+
+        _wrapped_attn_init._genesis_g4_76c_wrapped = True  # type: ignore[attr-defined]
+        Attention.__init__ = _wrapped_attn_init  # type: ignore[method-assign]
+
     _APPLIED = True
 
     log.warning(
         "[G4_76] INSTALLED: Gemma4Proposer._setup_gemma4_kv_sharing wrapped "
-        "as no-op — drafter Attention layers will not have "
-        "kv_sharing_target_layer_name set."
+        "as no-op + FlashAttn/Triton get_kv_cache_shape wrapped to coerce "
+        "cache_dtype_str='turboquant_*' to 'auto' for drafter group + "
+        "Attention.__init__ wrapped to reset drafter kv_cache_dtype='auto' "
+        "(drafter has native bf16 cache after G4_72)."
     )
     return "applied", (
         "G4_76 installed: drafter kv_sharing disabled — drafter is "
