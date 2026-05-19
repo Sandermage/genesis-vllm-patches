@@ -173,9 +173,20 @@ def apply() -> tuple[str, str]:
     )
 
     def _wrapped_init(self, *args, **kwargs):
-        """Override drafter head_size==threshold layer backend to Triton."""
+        """Override drafter head_size==threshold layer backend to Triton.
+
+        Attention.__init__ signature:
+            (self, num_heads, head_size, scale, num_kv_heads=None, ...,
+             prefix='', ..., attn_backend=None, ...)
+        head_size is positional index 1 (after num_heads). Most callers
+        use positional for num_heads/head_size/scale and keyword for
+        prefix/attn_backend. Read both ways.
+        """
         prefix = kwargs.get("prefix", "") or ""
+        # head_size: positional index 1, or kwarg
         head_size = kwargs.get("head_size", None)
+        if head_size is None and len(args) >= 2:
+            head_size = args[1]
         is_drafter_target = (
             isinstance(prefix, str)
             and prefix.startswith(drafter_prefix)
