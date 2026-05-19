@@ -186,6 +186,12 @@ def _g4_19_import_time_hook():
     g71 = _os.environ.get(
         "GENESIS_ENABLE_G4_71_DRAFTER_NATIVE_BACKEND", ""
     ).strip().lower() in ("1", "true", "yes")
+    # G4_72 — force native FullAttentionSpec/SlidingWindowSpec for drafter
+    # layers (G4_71 marker). Companion to G4_71 — fixes spec/impl mismatch
+    # that caused FlashAttn unbind(0) ValueError after G4_71 alone (PN261-D).
+    g72 = _os.environ.get(
+        "GENESIS_ENABLE_G4_72_DRAFTER_NATIVE_SPEC", ""
+    ).strip().lower() in ("1", "true", "yes")
     # PN241 — Gemma4MTPAttention.forward finite/norm trace (Codex-designed).
     pn241 = _os.environ.get(
         "GENESIS_ENABLE_PN241_MTP_TRACE", ""
@@ -204,7 +210,8 @@ def _g4_19_import_time_hook():
     if not (
         g19 or g19b or g19c or g30 or g31 or g32 or g43 or g44 or g45 or g50
         or g60a or g60b or g60c or g60d or g60e or g60g or g60h or g60k
-        or g61 or g62 or g67 or g68 or g69 or g71 or pn241 or pn248 or pn258
+        or g61 or g62 or g67 or g68 or g69 or g71 or g72
+        or pn241 or pn248 or pn258
     ):
         return
     try:
@@ -383,6 +390,16 @@ def _g4_19_import_time_hook():
                 g4_71_drafter_native_attn_backend as _g4_71_mod,
             )
             _g4_71_mod.apply()
+        # G4_72 — force native FullAttentionSpec/SlidingWindowSpec for
+        # drafter Attention layers (companion to G4_71). MUST apply AFTER
+        # G4_60g so its wrap sits on top — non-drafter layers continue
+        # through G4_60g's TQ-first dispatch; only drafter (G4_71 marker)
+        # is rerouted to native spec.
+        if g72:
+            from .integrations.gemma4 import (
+                g4_72_drafter_native_kv_cache_spec as _g4_72_mod,
+            )
+            _g4_72_mod.apply()
         # PN241 — Codex-designed finite/norm trace at SpecDecodeBaseProposer
         # boundary (Python orchestration above torch.compile boundary).
         # Logs target_hidden_states (input) + draft_token_ids (output) per

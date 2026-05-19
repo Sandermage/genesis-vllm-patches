@@ -153,13 +153,20 @@ def apply() -> tuple[str, str]:
     drafter_prefix = _drafter_prefix()
 
     def _wrapped_init(self, *args, **kwargs):
-        """Force FlashAttn backend for drafter Attention layers."""
+        """Force FlashAttn backend for drafter Attention layers.
+
+        Side effects on ``self``:
+          * ``self._genesis_g4_71_is_drafter = True`` — read by G4_72 in
+            ``get_kv_cache_spec`` to override TQ spec with native spec.
+          * ``self._genesis_g4_71_drafter_prefix = prefix`` — kept for
+            diagnostic logs.
+        """
         prefix = kwargs.get("prefix", "") or ""
-        if (
+        is_drafter = (
             isinstance(prefix, str)
             and prefix.startswith(drafter_prefix)
-            and kwargs.get("attn_backend") is None
-        ):
+        )
+        if is_drafter and kwargs.get("attn_backend") is None:
             try:
                 # Resolve FlashAttention v2 backend on demand. We pick
                 # FLASH_ATTN as it is the canonical native attention
@@ -196,7 +203,21 @@ def apply() -> tuple[str, str]:
                     _e,
                 )
 
-        return original(self, *args, **kwargs)
+        result = original(self, *args, **kwargs)
+
+        # Stamp drafter marker AFTER original init so any attribute the
+        # original sets does not shadow ours. Read by G4_72 at
+        # get_kv_cache_spec time.
+        if is_drafter:
+            try:
+                self._genesis_g4_71_is_drafter = True
+                self._genesis_g4_71_drafter_prefix = prefix
+            except Exception:
+                # Slotted classes may reject attribute assignment; G4_72
+                # will then need to fall back to its own prefix check.
+                pass
+
+        return result
 
     _wrapped_init._genesis_g4_71_wrapped = True  # type: ignore[attr-defined]
     Attention.__init__ = _wrapped_init  # type: ignore[method-assign]
