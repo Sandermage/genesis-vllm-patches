@@ -144,14 +144,39 @@ def _drafter_prefix() -> str:
 
 
 def apply() -> tuple[str, str]:
-    """Install drafter-only HND-layout post-reshape rebinding."""
+    """Install drafter-only HND-layout post-bind rebinding.
+
+    PIVOT (2026-05-19 K=2 gate): wrapping _reshape_kv_cache_tensors did
+    not intercept drafter because drafter is NOT in that function's
+    output. Gemma4Proposer._setup_gemma4_kv_sharing makes drafter ALIAS
+    a target layer's kv_cache (via kv_sharing_target_layer_name). The
+    aliased target tensor is NHD-laid-out, so drafter inherits NHD.
+
+    Solution: wrap GPUModelRunner.initialize_kv_cache_tensors. AFTER its
+    original call (which includes bind_kv_cache that sets each
+    Attention.kv_cache via aliasing), iterate
+    self.compilation_config.static_forward_context for drafter Attention
+    layers. For each drafter that has a 5-D NHD kv_cache, replace it
+    with a freshly-allocated HND tensor via
+    ``kv_cache.transpose(0, 1).contiguous()``. This BREAKS the alias to
+    target (memory is independent) — drafter now has its own bf16 HND
+    cache. The transpose+contiguous copy preserves data at allocation
+    time (which is zero for newly-allocated cache).
+
+    Trade-off: drafter no longer shares context with target. The Gemma4
+    kv_sharing was an inference-time acceleration to give drafter cold
+    access to target's accumulated KV. With acceptance currently at 0%
+    (per H8 notes), this trade is acceptable — it unblocks the layout
+    crash and lets us measure whether drafter even produces useful
+    drafts on its own.
+    """
     global _APPLIED, _ORIGINAL_RESHAPE
 
     if not _env_enabled():
         return "skipped", (
             f"G4_74 disabled (set {_ENV_ENABLE}=1 to force HND layout on "
-            "drafter kv_cache after _reshape_kv_cache_tensors — PN263 fix "
-            "for FlashAttn unbind(0) on NHD-shaped drafter cache)"
+            "drafter kv_cache after initialize_kv_cache_tensors — PN263 "
+            "fix for FlashAttn unbind(0) on NHD-shared drafter cache)"
         )
 
     if _APPLIED:
@@ -165,39 +190,47 @@ def apply() -> tuple[str, str]:
         log.warning("[G4_74] SKIP: GPUModelRunner not importable: %s", e)
         return "skipped", f"GPUModelRunner not importable: {e!r}"
 
-    if not hasattr(GPUModelRunner, "_reshape_kv_cache_tensors"):
-        return "skipped", "GPUModelRunner._reshape_kv_cache_tensors missing on this pin"
+    if not hasattr(GPUModelRunner, "initialize_kv_cache_tensors"):
+        return "skipped", "GPUModelRunner.initialize_kv_cache_tensors missing on this pin"
 
-    original_reshape = GPUModelRunner._reshape_kv_cache_tensors
-    if getattr(original_reshape, "_genesis_g4_74_wrapped", False):
+    original_init_tensors = GPUModelRunner.initialize_kv_cache_tensors
+    if getattr(original_init_tensors, "_genesis_g4_74_wrapped", False):
         _APPLIED = True
-        return "applied", "GPUModelRunner._reshape_kv_cache_tensors already wrapped"
-    _ORIGINAL_RESHAPE = original_reshape
+        return "applied", "GPUModelRunner.initialize_kv_cache_tensors already wrapped"
+    _ORIGINAL_RESHAPE = original_init_tensors
 
     drafter_prefix = _drafter_prefix()
     log.warning(
         "[G4_74] import phase OK — drafter_prefix=%r; about to wrap "
-        "GPUModelRunner._reshape_kv_cache_tensors",
+        "GPUModelRunner.initialize_kv_cache_tensors (post-bind hook)",
         drafter_prefix,
     )
 
-    def _wrapped_reshape(self, kv_cache_raw_tensors, kernel_block_sizes):
-        """Post-call: transpose drafter kv_cache from NHD to HND."""
-        kv_caches = original_reshape(self, kv_cache_raw_tensors, kernel_block_sizes)
+    def _wrapped_init_tensors(self, kv_cache_config, kernel_block_sizes):
+        """Post-call: break drafter kv_sharing and give it own HND cache."""
+        kv_caches = original_init_tensors(self, kv_cache_config, kernel_block_sizes)
 
-        # Iterate keys in a list copy because we mutate the dict.
+        # After bind_kv_cache, each Attention.kv_cache is set. For drafter
+        # layers aliased to a target tensor, replace with an independent
+        # HND-laid-out copy.
         try:
-            items = list(kv_caches.items())
+            fwd_ctx = self.compilation_config.static_forward_context
+            ctx_items = list(fwd_ctx.items())
         except Exception as _e:
             log.warning(
-                "[G4_74] result is not a dict-like (%s); cannot post-fix",
+                "[G4_74] could not access static_forward_context: %s; "
+                "drafter HND layout not enforced",
                 _e,
             )
             return kv_caches
 
-        for layer_name, kv_cache in items:
+        for layer_name, attn_layer in ctx_items:
             if not (isinstance(layer_name, str)
                     and layer_name.startswith(drafter_prefix)):
+                continue
+
+            kv_cache = getattr(attn_layer, "kv_cache", None)
+            if kv_cache is None:
                 continue
 
             try:
@@ -205,6 +238,7 @@ def apply() -> tuple[str, str]:
                 shape = tuple(kv_cache.shape)
                 stride_before = tuple(kv_cache.stride())
                 contig_before = bool(kv_cache.is_contiguous())
+                data_ptr_before = int(kv_cache.data_ptr())
             except Exception as _e:
                 log.warning(
                     "[G4_74] introspection failed on drafter kv_cache "
@@ -213,20 +247,21 @@ def apply() -> tuple[str, str]:
                 )
                 continue
 
+            if ndim == 0 or (ndim == 1 and shape == (0,)):
+                # Empty placeholder (drafter not yet bound — unexpected at
+                # this point, but skip rather than crash).
+                continue
+
             if ndim != 5:
-                # Non-5D drafter cache is unexpected for FlashAttn path; fail
-                # fast so the operator sees the actual shape rather than a
-                # downstream surprise.
                 raise RuntimeError(
                     f"[G4_74] drafter layer {layer_name!r} has unexpected "
-                    f"ndim={ndim} (expected 5); shape={shape} stride={stride_before} "
-                    f"dtype={kv_cache.dtype} contig={contig_before}. "
-                    f"Disable G4_74 (GENESIS_ENABLE_G4_74_DRAFTER_HND_LAYOUT=0) "
-                    f"to bypass; investigate the allocator before re-enabling."
+                    f"ndim={ndim} (expected 5); shape={shape} "
+                    f"stride={stride_before} dtype={kv_cache.dtype} "
+                    f"contig={contig_before}. Disable G4_74 to bypass; "
+                    f"investigate the allocator before re-enabling."
                 )
 
             if shape[0] == 2:
-                # Already HND. No-op.
                 _CONVERT_COUNT[0] += 1
                 if _CONVERT_COUNT[0] <= 12:
                     log.warning(
@@ -237,19 +272,29 @@ def apply() -> tuple[str, str]:
                 continue
 
             if shape[1] == 2:
-                # NHD layout — transpose to HND.
+                # NHD layout aliased from target. Transpose + .contiguous()
+                # allocates a NEW independent tensor in HND order, breaking
+                # the alias to target. Drafter now has its own kv_cache.
                 new_kv_cache = kv_cache.transpose(0, 1).contiguous()
-                kv_caches[layer_name] = new_kv_cache
+                attn_layer.kv_cache = new_kv_cache
+
+                # Also patch the kv_caches dict if drafter is present there
+                # (covers any consumer that re-reads the dict).
+                if layer_name in kv_caches:
+                    kv_caches[layer_name] = new_kv_cache
+
                 _CONVERT_COUNT[0] += 1
                 if _CONVERT_COUNT[0] <= 12:
                     log.warning(
-                        "[G4_74] drafter layer=%r NHD->HND: "
-                        "before shape=%s stride=%s contig=%s -> "
-                        "after shape=%s stride=%s contig=%s (count=%d)",
+                        "[G4_74] drafter layer=%r NHD->HND (alias broken): "
+                        "before shape=%s stride=%s data_ptr=0x%x -> "
+                        "after shape=%s stride=%s data_ptr=0x%x "
+                        "contig=%s (count=%d)",
                         layer_name,
-                        shape, stride_before, contig_before,
+                        shape, stride_before, data_ptr_before,
                         tuple(new_kv_cache.shape),
                         tuple(new_kv_cache.stride()),
+                        int(new_kv_cache.data_ptr()),
                         bool(new_kv_cache.is_contiguous()),
                         _CONVERT_COUNT[0],
                     )
@@ -259,32 +304,30 @@ def apply() -> tuple[str, str]:
                     )
                 continue
 
-            # Neither axis 0 nor axis 1 has size 2 — unexpected; fail fast.
             raise RuntimeError(
                 f"[G4_74] drafter layer {layer_name!r} has 5-D shape "
                 f"{shape} with neither shape[0]==2 nor shape[1]==2; "
                 f"stride={stride_before} dtype={kv_cache.dtype} "
                 f"contig={contig_before}. FlashAttn expects "
-                f"shape[0]==2 (HND, k/v stack at axis 0). Cannot "
-                f"determine intended axis for transpose. Disable G4_74 "
-                f"and investigate the allocator."
+                f"shape[0]==2 (HND). Cannot determine intended axis for "
+                f"transpose. Disable G4_74 and investigate the allocator."
             )
 
         return kv_caches
 
-    _wrapped_reshape._genesis_g4_74_wrapped = True  # type: ignore[attr-defined]
-    GPUModelRunner._reshape_kv_cache_tensors = _wrapped_reshape  # type: ignore[method-assign]
+    _wrapped_init_tensors._genesis_g4_74_wrapped = True  # type: ignore[attr-defined]
+    GPUModelRunner.initialize_kv_cache_tensors = _wrapped_init_tensors  # type: ignore[method-assign]
     _APPLIED = True
 
     log.warning(
-        "[G4_74] INSTALLED: GPUModelRunner._reshape_kv_cache_tensors wrapped; "
-        "drafter layers (prefix=%r) with shape[1]==2 will be transposed to "
-        "HND layout before bind_kv_cache.",
+        "[G4_74] INSTALLED: GPUModelRunner.initialize_kv_cache_tensors wrapped; "
+        "drafter layers (prefix=%r) with NHD layout will have alias broken "
+        "and replaced with independent HND tensor after bind_kv_cache.",
         drafter_prefix,
     )
     return "applied", (
-        f"G4_74 installed: drafter (prefix {drafter_prefix!r}) kv_cache "
-        f"NHD->HND post-reshape rebinding active."
+        f"G4_74 installed: drafter (prefix {drafter_prefix!r}) NHD->HND "
+        f"post-bind rebinding active (breaks gemma4 kv_sharing alias)."
     )
 
 
