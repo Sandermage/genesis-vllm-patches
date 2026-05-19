@@ -268,12 +268,20 @@ def _g4_19_import_time_hook():
     pn268 = _os.environ.get(
         "GENESIS_ENABLE_PN268_DRAFTER_BLOCKS_TRACE", ""
     ).strip().lower() in ("1", "true", "yes")
+    # PN269 — G4_78-A0 block_table accessibility trace.
+    # Wraps FlashAttn + Triton attention forward, captures target[58]/[59]
+    # block_table/slot_mapping/positions, cross-references drafter[0..3]
+    # forward to determine if target's block_table is reachable for KV
+    # bridging. Strict prompt-prefill-first design (K=1, single prompt).
+    pn269 = _os.environ.get(
+        "GENESIS_ENABLE_PN269_A0_BLOCK_TABLE_TRACE", ""
+    ).strip().lower() in ("1", "true", "yes")
     if not (
         g19 or g19b or g19c or g30 or g31 or g32 or g43 or g44 or g45 or g50
         or g60a or g60b or g60c or g60d or g60e or g60g or g60h or g60k
         or g61 or g62 or g67 or g68 or g69 or g71 or g72
         or pn241 or pn248 or pn258 or pn262 or pn262b
-        or g73 or g74 or g75 or g76 or pn266 or pn267 or pn268
+        or g73 or g74 or g75 or g76 or pn266 or pn267 or pn268 or pn269
     ):
         return
     try:
@@ -626,6 +634,17 @@ def _g4_19_import_time_hook():
                 pn268_drafter_blocks_origin as _pn268_mod,
             )
             _pn268_mod.apply()
+        # PN269 — G4_78-A0 block_table accessibility trace.
+        if pn269:
+            try:
+                import vllm.v1.attention.backends.flash_attn  # noqa: F401
+                import vllm.v1.attention.backends.triton_attn  # noqa: F401
+            except ImportError:
+                pass
+            from .integrations.gemma4 import (
+                pn269_a0_block_table_trace as _pn269_mod,
+            )
+            _pn269_mod.apply()
     except Exception:  # noqa: BLE001
         # Never block sndr_core import on G4-TQ apply error
         pass
