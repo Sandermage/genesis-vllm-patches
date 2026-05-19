@@ -281,13 +281,19 @@ def _g4_19_import_time_hook():
     g78 = _os.environ.get(
         "GENESIS_ENABLE_G4_78_DRAFTER_TARGET_KV_BRIDGE", ""
     ).strip().lower() in ("1", "true", "yes")
+    # PN270 — drafter K/V projection audit (read-only). Settles whether
+    # drafter's k_proj/v_proj exist + differ. Triggered by G4_78 v1
+    # finding that drafter K stats == V stats (suspicious tied/missing).
+    pn270 = _os.environ.get(
+        "GENESIS_ENABLE_PN270_DRAFTER_KV_PROJ_AUDIT", ""
+    ).strip().lower() in ("1", "true", "yes")
     if not (
         g19 or g19b or g19c or g30 or g31 or g32 or g43 or g44 or g45 or g50
         or g60a or g60b or g60c or g60d or g60e or g60g or g60h or g60k
         or g61 or g62 or g67 or g68 or g69 or g71 or g72
         or pn241 or pn248 or pn258 or pn262 or pn262b
         or g73 or g74 or g75 or g76 or pn266 or pn267 or pn268 or pn269
-        or g78
+        or g78 or pn270
     ):
         return
     try:
@@ -665,6 +671,16 @@ def _g4_19_import_time_hook():
                 g4_78_drafter_target_kv_bridge as _g4_78_mod,
             )
             _g4_78_mod.apply()
+        # PN270 — drafter K/V projection audit (read-only).
+        if pn270:
+            try:
+                import vllm.v1.worker.gpu_model_runner  # noqa: F401
+            except ImportError:
+                pass
+            from .integrations.gemma4 import (
+                pn270_drafter_kv_proj_audit as _pn270_mod,
+            )
+            _pn270_mod.apply()
     except Exception:  # noqa: BLE001
         # Never block sndr_core import on G4-TQ apply error
         pass
