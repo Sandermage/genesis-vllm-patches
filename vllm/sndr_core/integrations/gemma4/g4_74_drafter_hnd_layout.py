@@ -243,6 +243,20 @@ def apply() -> tuple[str, str]:
                     and layer_name.startswith(drafter_prefix)):
                 continue
 
+            # G4_75 marker: this drafter layer was rerouted to a
+            # backend (typically TRITON_ATTN) that uses NHD layout
+            # natively. Skip HND conversion for it.
+            if getattr(attn_layer, "_genesis_g4_75_drafter_triton", False):
+                _CONVERT_COUNT[0] += 1
+                if _CONVERT_COUNT[0] <= 12:
+                    log.warning(
+                        "[G4_74] drafter layer=%r marked by G4_75 "
+                        "(triton/native-NHD backend) — skip HND "
+                        "conversion (count=%d)",
+                        layer_name, _CONVERT_COUNT[0],
+                    )
+                continue
+
             kv_cache = getattr(attn_layer, "kv_cache", None)
             if kv_cache is None:
                 continue

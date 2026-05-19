@@ -238,11 +238,18 @@ def _g4_19_import_time_hook():
     g74 = _os.environ.get(
         "GENESIS_ENABLE_G4_74_DRAFTER_HND_LAYOUT", ""
     ).strip().lower() in ("1", "true", "yes")
+    # G4_75 — per-layer drafter backend split (PN264). Route drafter
+    # layers with head_size==threshold (default 512) to TRITON_ATTN
+    # instead of FlashAttn (which caps head_size at 256). Triton uses
+    # NHD natively, so G4_74 skips Triton-marked drafter layers.
+    g75 = _os.environ.get(
+        "GENESIS_ENABLE_G4_75_DRAFTER_HEAD512_TRITON", ""
+    ).strip().lower() in ("1", "true", "yes")
     if not (
         g19 or g19b or g19c or g30 or g31 or g32 or g43 or g44 or g45 or g50
         or g60a or g60b or g60c or g60d or g60e or g60g or g60h or g60k
         or g61 or g62 or g67 or g68 or g69 or g71 or g72
-        or pn241 or pn248 or pn258 or pn262 or pn262b or g73 or g74
+        or pn241 or pn248 or pn258 or pn262 or pn262b or g73 or g74 or g75
     ):
         return
     try:
@@ -537,6 +544,16 @@ def _g4_19_import_time_hook():
                 g4_74_drafter_hnd_layout as _g4_74_mod,
             )
             _g4_74_mod.apply()
+        # G4_75 — drafter head_size==512 -> TRITON_ATTN reroute (PN264).
+        # Must apply AFTER G4_71 so that its kwargs["attn_backend"] override
+        # preempts G4_71's FlashAttn assignment. Also stamps a marker on
+        # the Attention instance so G4_74 skips HND conversion for Triton
+        # drafter layers (Triton uses NHD natively).
+        if g75:
+            from .integrations.gemma4 import (
+                g4_75_drafter_head512_triton as _g4_75_mod,
+            )
+            _g4_75_mod.apply()
     except Exception:  # noqa: BLE001
         # Never block sndr_core import on G4-TQ apply error
         pass
