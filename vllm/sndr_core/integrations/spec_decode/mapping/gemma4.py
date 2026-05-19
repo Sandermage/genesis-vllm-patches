@@ -197,17 +197,41 @@ class Gemma4MappingProvider(MappingProvider):
         engine_backend_hint = self._engine_backend(vllm_config)
         skip_layers = self._tq_skip_layers(vllm_config)
         kv_share_targets = self._kv_share_target_indices(vllm_config)
+        # Genesis-side fixes that resolve the kernel-vs-storage
+        # mismatch for drafter layers. If the operator enabled these,
+        # the drafter no longer inherits the TQ kernel: G4_71b routes
+        # sliding drafter layers (head=256) to native Triton, and
+        # G4_75 routes the full drafter layer (head=512) to native
+        # Triton. With both ON, the drafter side matches the
+        # native-skip-listed target side.
+        import os as _os
+        g71b_on = _os.environ.get(
+            "GENESIS_ENABLE_G4_71B_DRAFTER_SLIDING_TRITON", ""
+        ).strip().lower() in ("1", "true", "yes", "on")
+        g75_on = _os.environ.get(
+            "GENESIS_ENABLE_G4_75_DRAFTER_HEAD512_TRITON", ""
+        ).strip().lower() in ("1", "true", "yes", "on")
         if cache_is_tq:
             mismatched = [t for t in kv_share_targets if t in skip_layers]
-            if mismatched:
+            if mismatched and not (g71b_on and g75_on):
+                missing_fixes = []
+                if not g71b_on:
+                    missing_fixes.append(
+                        "GENESIS_ENABLE_G4_71B_DRAFTER_SLIDING_TRITON=1"
+                    )
+                if not g75_on:
+                    missing_fixes.append(
+                        "GENESIS_ENABLE_G4_75_DRAFTER_HEAD512_TRITON=1"
+                    )
                 return (
                     Verdict.KERNEL_STORAGE_DTYPE_MISMATCH,
-                    f"cache_dtype is quantized (engine uses TQ-style kernel) "
-                    f"but kv_sharing source layer(s) {mismatched} are forced "
-                    f"native via skip-list. Drafter inherits the engine's "
-                    f"quantized kernel and would read native bf16 bytes as "
-                    f"TQ-packed. β empirical: acceptance=0 with this "
-                    f"contract. attention_backend_hint={engine_backend_hint!r}",
+                    f"cache_dtype is quantized (engine uses TQ-style "
+                    f"kernel) but kv_sharing source layer(s) {mismatched} "
+                    f"are forced native via skip-list. Drafter would read "
+                    f"native bf16 bytes as TQ-packed. β empirical: "
+                    f"acceptance=0 with this contract. Genesis-side fixes "
+                    f"to align drafter with native source: {missing_fixes}. "
+                    f"attention_backend_hint={engine_backend_hint!r}",
                 )
         # (b) Plain quantized-target case.
         if _is_quantized_kv(vllm_config):
