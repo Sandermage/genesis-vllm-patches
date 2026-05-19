@@ -245,11 +245,19 @@ def _g4_19_import_time_hook():
     g75 = _os.environ.get(
         "GENESIS_ENABLE_G4_75_DRAFTER_HEAD512_TRITON", ""
     ).strip().lower() in ("1", "true", "yes")
+    # G4_76 — disable Gemma4Proposer._setup_gemma4_kv_sharing (PN265).
+    # Make drafter fully independent (own kv_cache + block_table +
+    # slot_mapping) so target's block ids don't OOB drafter's smaller
+    # cache. Required after G4_74 broke the physical alias.
+    g76 = _os.environ.get(
+        "GENESIS_ENABLE_G4_76_DISABLE_DRAFTER_KV_SHARING", ""
+    ).strip().lower() in ("1", "true", "yes")
     if not (
         g19 or g19b or g19c or g30 or g31 or g32 or g43 or g44 or g45 or g50
         or g60a or g60b or g60c or g60d or g60e or g60g or g60h or g60k
         or g61 or g62 or g67 or g68 or g69 or g71 or g72
-        or pn241 or pn248 or pn258 or pn262 or pn262b or g73 or g74 or g75
+        or pn241 or pn248 or pn258 or pn262 or pn262b
+        or g73 or g74 or g75 or g76
     ):
         return
     try:
@@ -554,6 +562,22 @@ def _g4_19_import_time_hook():
                 g4_75_drafter_head512_triton as _g4_75_mod,
             )
             _g4_75_mod.apply()
+        # G4_76 — disable Gemma4Proposer._setup_gemma4_kv_sharing (PN265).
+        # Apply AFTER G4_72 so the spec route is established. Must apply
+        # before the proposer's setup is invoked at model load. Drafter
+        # becomes fully independent — its own kv_cache_groups entry,
+        # block table, and slot_mapping. Required after G4_74 broke the
+        # physical alias (otherwise target's block ids overflow drafter's
+        # smaller cache → CUDA illegal access on long prompts).
+        if g76:
+            try:
+                import vllm.v1.spec_decode.gemma4  # noqa: F401
+            except ImportError:
+                pass
+            from .integrations.gemma4 import (
+                g4_76_disable_drafter_kv_sharing as _g4_76_mod,
+            )
+            _g4_76_mod.apply()
     except Exception:  # noqa: BLE001
         # Never block sndr_core import on G4-TQ apply error
         pass
