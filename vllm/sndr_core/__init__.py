@@ -230,11 +230,19 @@ def _g4_19_import_time_hook():
     g73 = _os.environ.get(
         "GENESIS_ENABLE_G4_73_DRAFTER_PROFILE_SKIP", ""
     ).strip().lower() in ("1", "true", "yes")
+    # G4_74 — drafter HND layout enforcement post-reshape (PN263 fix).
+    # PN262 with fixed args[4] index revealed drafter kv_cache shape is
+    # NHD (num_blocks, 2, ...). FlashAttn expects HND (2, num_blocks, ...).
+    # G4_74 wraps _reshape_kv_cache_tensors and, for drafter layers,
+    # transposes axes 0 and 1 + .contiguous() before bind_kv_cache.
+    g74 = _os.environ.get(
+        "GENESIS_ENABLE_G4_74_DRAFTER_HND_LAYOUT", ""
+    ).strip().lower() in ("1", "true", "yes")
     if not (
         g19 or g19b or g19c or g30 or g31 or g32 or g43 or g44 or g45 or g50
         or g60a or g60b or g60c or g60d or g60e or g60g or g60h or g60k
         or g61 or g62 or g67 or g68 or g69 or g71 or g72
-        or pn241 or pn248 or pn258 or pn262 or pn262b or g73
+        or pn241 or pn248 or pn258 or pn262 or pn262b or g73 or g74
     ):
         return
     try:
@@ -512,6 +520,23 @@ def _g4_19_import_time_hook():
                 g4_73_drafter_profile_skip as _g4_73_mod,
             )
             _g4_73_mod.apply()
+        # G4_74 — drafter HND layout enforcement post-reshape (PN263 fix).
+        # Must apply AFTER G4_73 (which already wraps GPUModelRunner._dummy_run);
+        # G4_74 wraps a separate method (_reshape_kv_cache_tensors) so they
+        # compose cleanly. The wrap on _reshape_kv_cache_tensors fires once
+        # per initialize_kv_cache call; for each drafter layer in the returned
+        # kv_caches dict, if shape is NHD (num_blocks, 2, ...) it transposes
+        # axes 0,1 + .contiguous() to give HND (2, num_blocks, ...) before
+        # bind_kv_cache stores the tensor in the static forward context.
+        if g74:
+            try:
+                import vllm.v1.worker.gpu_model_runner  # noqa: F401
+            except ImportError:
+                pass
+            from .integrations.gemma4 import (
+                g4_74_drafter_hnd_layout as _g4_74_mod,
+            )
+            _g4_74_mod.apply()
     except Exception:  # noqa: BLE001
         # Never block sndr_core import on G4-TQ apply error
         pass
