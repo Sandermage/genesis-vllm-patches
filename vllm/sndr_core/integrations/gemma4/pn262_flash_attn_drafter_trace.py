@@ -163,11 +163,25 @@ def apply() -> tuple[str, str]:
     do_fail_fast = _fail_fast_enabled()
 
     def _wrapped_forward(self, *args, **kwargs):
-        """Trace + fail-fast for drafter; passthrough otherwise."""
-        layer_name = getattr(self, "layer_name", None) or "<unknown>"
-        if not (isinstance(layer_name, str)
-                and layer_name.startswith(drafter_prefix)):
-            return original(self, *args, **kwargs)
+        """Trace + fail-fast on wrong KV axis order in any FlashAttn fwd.
+
+        Why no prefix filter: ``FlashAttentionImpl`` in this pin does not
+        carry ``layer_name`` attribute (the prefix lives on the outer
+        ``Attention`` wrapper, not on the impl). We therefore inspect
+        every FlashAttn forward, log up to 16 calls with whatever name
+        we can recover, and fail-fast on the first ``shape[0] != 2``.
+        Non-drafter FlashAttn forwards (target skip-listed layers like
+        58/59 routed by G4_69) have correct ``(2, num_blocks, ...)``
+        layout and pass through silently.
+        """
+        # Recover any layer identifier we can — multiple attribute names
+        # exist across pins.
+        layer_name = (
+            getattr(self, "layer_name", None)
+            or getattr(self, "prefix", None)
+            or getattr(self, "_layer_name", None)
+            or "<unknown>"
+        )
 
         # Locate kv_cache argument. v1 FlashAttn forward signature:
         #   forward(self, query, key, value, kv_cache, attn_metadata,
@@ -182,10 +196,10 @@ def apply() -> tuple[str, str]:
         layout_env = os.environ.get("VLLM_KV_CACHE_LAYOUT", "<unset>")
 
         if kv_cache is None:
-            if _LOG_COUNT[0] < 12:
+            if _LOG_COUNT[0] < 16:
                 _LOG_COUNT[0] += 1
                 log.warning(
-                    "[PN262] FlashAttn drafter forward (kv_cache=None): "
+                    "[PN262] FlashAttn forward (kv_cache=None): "
                     "layer=%r impl=%s kv_sharing_target=%r "
                     "VLLM_KV_CACHE_LAYOUT=%r (call #%d)",
                     layer_name, impl_class, kv_sharing_target,
@@ -210,42 +224,41 @@ def apply() -> tuple[str, str]:
             )
             return original(self, *args, **kwargs)
 
-        if _LOG_COUNT[0] < 12:
+        if _LOG_COUNT[0] < 16:
             _LOG_COUNT[0] += 1
             log.warning(
-                "[PN262] FlashAttn drafter forward: layer=%r "
+                "[PN262] FlashAttn forward: layer=%r "
                 "shape=%s stride=%s dtype=%s contiguous=%s "
                 "data_ptr=0x%x ndim=%d numel=%d impl=%s "
                 "kv_sharing_target=%r VLLM_KV_CACHE_LAYOUT=%r "
-                "expected_leading_dim=2 (call #%d)",
+                "expected_leading_dim=2 self_attrs=%s (call #%d)",
                 layer_name, shape, stride, dtype, contig,
                 data_ptr, ndim, numel, impl_class,
-                kv_sharing_target, layout_env, _LOG_COUNT[0],
+                kv_sharing_target, layout_env,
+                sorted(k for k in vars(self) if not k.startswith("_"))[:20]
+                if hasattr(self, "__dict__") else "<no_dict>",
+                _LOG_COUNT[0],
             )
-        elif _LOG_COUNT[0] == 12:
+        elif _LOG_COUNT[0] == 16:
             _LOG_COUNT[0] += 1
-            log.warning("[PN262] further drafter trace logs suppressed (> 12)")
+            log.warning("[PN262] further FlashAttn trace logs suppressed (> 16)")
 
         if do_fail_fast and ndim >= 1 and shape[0] != 2:
             raise RuntimeError(
-                f"[PN262] FlashAttn drafter layer {layer_name!r} received "
-                f"KV cache with wrong leading axis: shape={shape} "
+                f"[PN262] FlashAttn forward received KV cache with wrong "
+                f"leading axis: layer={layer_name!r} shape={shape} "
                 f"stride={stride} dtype={dtype} contiguous={contig} "
                 f"data_ptr=0x{data_ptr:x} ndim={ndim} numel={numel} "
                 f"impl={impl_class} "
                 f"kv_sharing_target_layer_name={kv_sharing_target!r} "
                 f"VLLM_KV_CACHE_LAYOUT={layout_env!r}. "
                 f"FlashAttention.forward expects leading dim == 2 (k,v "
-                f"stack). G4_71 forced FlashAttn impl and G4_72 forced "
-                f"native FullAttentionSpec/SlidingWindowSpec — yet the "
-                f"physical tensor reaching this forward is shaped as if "
-                f"it came from a TQ-flavored allocation or a stacked "
-                f"layout flip. Disambiguate via the fields above: "
-                f"shape[0]!=2 AND contiguous=True ⇒ allocator built the "
-                f"wrong shape; contiguous=False ⇒ a transpose/view was "
+                f"stack). Disambiguate via the fields above: "
+                f"shape[0]!=2 AND contiguous=True => allocator built the "
+                f"wrong shape; contiguous=False => a transpose/view was "
                 f"applied between allocator and forward; "
-                f"kv_sharing_target!=None ⇒ drafter aliases another "
-                f"layer's cache; VLLM_KV_CACHE_LAYOUT='NHD' globally ⇒ "
+                f"kv_sharing_target!=None => drafter aliases another "
+                f"layer's cache; VLLM_KV_CACHE_LAYOUT='NHD' globally => "
                 f"all attention layers including drafter use NHD."
             )
 

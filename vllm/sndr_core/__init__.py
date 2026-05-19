@@ -215,11 +215,18 @@ def _g4_19_import_time_hook():
     pn262 = _os.environ.get(
         "GENESIS_ENABLE_PN262_FLASH_ATTN_DRAFTER_TRACE", ""
     ).strip().lower() in ("1", "true", "yes")
+    # PN262-B — KV cache allocator/reshape/proposer-init deep-dive trace.
+    # PN262-A nailed the wrong shape to allocator path; PN262-B finds
+    # which of (group backend / group spec / proposer per-layer spec
+    # lookup) produces the (8192, 8, 256) tensor.
+    pn262b = _os.environ.get(
+        "GENESIS_ENABLE_PN262B_KV_ALLOC_TRACE", ""
+    ).strip().lower() in ("1", "true", "yes")
     if not (
         g19 or g19b or g19c or g30 or g31 or g32 or g43 or g44 or g45 or g50
         or g60a or g60b or g60c or g60d or g60e or g60g or g60h or g60k
         or g61 or g62 or g67 or g68 or g69 or g71 or g72
-        or pn241 or pn248 or pn258 or pn262
+        or pn241 or pn248 or pn258 or pn262 or pn262b
     ):
         return
     try:
@@ -468,6 +475,19 @@ def _g4_19_import_time_hook():
                 pn262_flash_attn_drafter_trace as _pn262_mod,
             )
             _pn262_mod.apply()
+        # PN262-B — KV cache allocator/reshape/proposer-init trace.
+        # Wraps GPUModelRunner._reshape_kv_cache_tensors and
+        # LLMBaseProposer.initialize_attn_backend with diagnostic logs.
+        if pn262b:
+            try:
+                import vllm.v1.worker.gpu_model_runner  # noqa: F401
+                import vllm.v1.spec_decode.llm_base_proposer  # noqa: F401
+            except ImportError:
+                pass
+            from .integrations.gemma4 import (
+                pn262b_kv_alloc_trace as _pn262b_mod,
+            )
+            _pn262b_mod.apply()
     except Exception:  # noqa: BLE001
         # Never block sndr_core import on G4-TQ apply error
         pass
