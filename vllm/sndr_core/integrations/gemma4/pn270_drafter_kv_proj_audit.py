@@ -86,6 +86,53 @@ DRAFTER_SELF_ATTN_PREFIX = "draft_model.layers."
 DRAFTER_SELF_ATTN_SUFFIX = ".self_attn"
 
 
+def _unwrap_model(m: Any) -> Any:
+    """Strip common wrappers (CUDAGraphWrapper, torch.compile, etc.) to
+    reach the underlying nn.Module that owns the actual layers."""
+    seen = set()
+    for _ in range(12):  # bounded
+        if m is None or id(m) in seen:
+            return m
+        seen.add(id(m))
+        for attr in ("runnable_model", "module", "model", "orig_module",
+                     "_orig_mod", "wrapped", "inner"):
+            inner = getattr(m, attr, None)
+            if (inner is not None and inner is not m
+                    and hasattr(inner, "named_modules")):
+                m = inner
+                break
+        else:
+            return m
+    return m
+
+
+def _find_drafter_attached(runner: Any) -> list[tuple[str, Any]]:
+    """Search GPUModelRunner for the drafter sub-model. Returns
+    list of (root_attr_path, root_module) candidates to walk."""
+    candidates: list[tuple[str, Any]] = []
+    # Direct: runner.drafter.model
+    drafter = getattr(runner, "drafter", None)
+    if drafter is not None:
+        for attr in ("model", "draft_model", "runnable_model"):
+            cand = getattr(drafter, attr, None)
+            if cand is not None and hasattr(cand, "named_modules"):
+                candidates.append((f"drafter.{attr}", cand))
+    # Other common proposer attribute names on the runner
+    for attr in ("proposer", "speculative_decoder", "spec_decode_proposer"):
+        prop = getattr(runner, attr, None)
+        if prop is not None:
+            for ma in ("model", "draft_model"):
+                cand = getattr(prop, ma, None)
+                if cand is not None and hasattr(cand, "named_modules"):
+                    candidates.append((f"{attr}.{ma}", cand))
+    # As fallback, look at runner.model AFTER unwrap (target model might
+    # contain draft_model as a child for some MTP integrations).
+    rm = getattr(runner, "model", None)
+    if rm is not None:
+        candidates.append(("model", rm))
+    return candidates
+
+
 def _env_enabled() -> bool:
     return os.environ.get(_ENV_ENABLE, "").strip().lower() in (
         "1", "true", "yes", "on",
@@ -144,28 +191,47 @@ def _describe_param(proj_name: str, full_name: str, proj: Any) -> dict[str, Any]
     return info
 
 
-def _dump_drafter_audit(model: Any) -> None:
-    """Walk model, find drafter self_attn modules, log full audit."""
+def _dump_drafter_audit(runner: Any) -> None:
+    """Find drafter sub-model on the runner and log full audit."""
     import torch
 
     log.warning("[PN270] === Drafter K/V projection audit BEGIN ===")
-    log.warning("[PN270] model_class=%s", type(model).__qualname__)
+    log.warning("[PN270] runner_class=%s", type(runner).__qualname__)
+
+    # List attributes on the runner that might hold the drafter model
+    runner_attrs = sorted([
+        a for a in dir(runner)
+        if not a.startswith("_") and any(
+            k in a.lower() for k in
+            ("draft", "spec", "propos", "model")
+        )
+    ])
+    log.warning("[PN270] runner candidate attrs: %s", runner_attrs)
+
+    seed_candidates = _find_drafter_attached(runner)
+    log.warning("[PN270] seed candidates: %s",
+                [(p, type(m).__qualname__) for p, m in seed_candidates])
 
     candidates: list[tuple[str, Any]] = []
-    try:
-        for name, module in model.named_modules():
-            if (
-                name.startswith(DRAFTER_SELF_ATTN_PREFIX)
-                and name.endswith(DRAFTER_SELF_ATTN_SUFFIX)
-                # exclude .self_attn.attn or other inner pieces
-                and name.count(".") == 3  # draft_model . layers . N . self_attn
-            ):
-                candidates.append((name, module))
-    except Exception as _e:
-        log.warning("[PN270] named_modules() failed: %s", _e)
-        return
+    for seed_path, seed_model in seed_candidates:
+        unwrapped = _unwrap_model(seed_model)
+        log.warning("[PN270] walking %s -> unwrapped=%s",
+                    seed_path, type(unwrapped).__qualname__)
+        try:
+            for name, module in unwrapped.named_modules():
+                # Accept paths whose tail looks like
+                # "...draft_model.layers.N.self_attn" OR plain
+                # "layers.N.self_attn" (when seed is the drafter root).
+                if name.endswith(DRAFTER_SELF_ATTN_SUFFIX) and (
+                    DRAFTER_SELF_ATTN_PREFIX in name
+                    or name.startswith("layers.")
+                    or ".layers." in name
+                ):
+                    candidates.append((f"{seed_path}.{name}", module))
+        except Exception as _e:
+            log.warning("[PN270] walk %s failed: %s", seed_path, _e)
 
-    log.warning("[PN270] found %d drafter self_attn modules: %s",
+    log.warning("[PN270] found %d candidate self_attn modules: %s",
                 len(candidates), [n for n, _ in candidates])
 
     proj_attrs = ("q_proj", "k_proj", "v_proj", "qkv_proj", "kv_proj", "o_proj")
@@ -239,22 +305,29 @@ def _dump_drafter_audit(model: Any) -> None:
                     layer_name, tuple(w.shape),
                 )
 
-    # ---- state_dict key audit ----
-    try:
-        sd_keys = list(model.state_dict().keys())
-        drafter_keys = [k for k in sd_keys if k.startswith("draft_model.")]
+    # ---- state_dict key audit across all candidate models ----
+    for seed_path, seed_model in seed_candidates:
+        unwrapped = _unwrap_model(seed_model)
+        try:
+            sd_keys = list(unwrapped.state_dict().keys())
+        except Exception as _e:
+            log.warning("[PN270] state_dict(%s) failed: %s", seed_path, _e)
+            continue
+        drafter_keys = [
+            k for k in sd_keys
+            if "draft" in k.lower() or k.startswith("layers.")
+        ]
         kv_keys = [
             k for k in drafter_keys
             if any(p in k for p in (".k_proj.", ".v_proj.", ".q_proj.",
-                                    ".qkv_proj.", ".kv_proj."))
+                                    ".qkv_proj.", ".kv_proj.", ".o_proj."))
         ]
         log.warning(
-            "[PN270] state_dict drafter K/V/Q keys (count=%d): %s",
-            len(kv_keys),
-            kv_keys[:24] + (["..."] if len(kv_keys) > 24 else []),
+            "[PN270] %s.state_dict total=%d draft-like=%d K/V/Q keys "
+            "(count=%d): %s",
+            seed_path, len(sd_keys), len(drafter_keys), len(kv_keys),
+            kv_keys[:32] + (["..."] if len(kv_keys) > 32 else []),
         )
-    except Exception as _e:
-        log.warning("[PN270] state_dict audit failed: %s", _e)
 
     log.warning("[PN270] === Drafter K/V projection audit END ===")
 
@@ -289,13 +362,8 @@ def apply() -> tuple[str, str]:
         global _DUMPED
         if not _DUMPED:
             try:
-                model = getattr(self, "model", None)
-                if model is None:
-                    log.warning("[PN270] no self.model on GPUModelRunner; "
-                                "deferring audit to next call")
-                else:
-                    _dump_drafter_audit(model)
-                    _DUMPED = True
+                _dump_drafter_audit(self)
+                _DUMPED = True
             except Exception as e:  # noqa: BLE001
                 log.warning("[PN270] audit pass failed: %s", e)
         return result
