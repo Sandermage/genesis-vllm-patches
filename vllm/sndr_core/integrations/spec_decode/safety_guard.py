@@ -227,8 +227,99 @@ def _aggregate(flags: set[Verdict]) -> Verdict:
     return Verdict.EXACT_COPY
 
 
+def evaluate_from_config(vllm_config: Any) -> GuardDecision:
+    """Config-only evaluation, run BEFORE workers spawn.
+
+    Used by PN274's hook on ``EngineArgs.create_engine_config`` so the
+    guard can deny MTP before drafter weights load.
+
+    Policy:
+      - No provider matches at config time:
+          ALLOW (model doesn't use kv-sharing spec-decode path).
+      - Provider matches + verdict EXACT_COPY:
+          ALLOW.
+      - Provider matches + non-EXACT verdict (FUNCTIONAL_UNVERIFIED,
+        adapter classes, UNSUPPORTED):
+          require explicit env opt-ins; otherwise DENY.
+    """
+    provider = find_provider_for_config(vllm_config)
+    if provider is None:
+        return GuardDecision(
+            overall_verdict=Verdict.EXACT_COPY,
+            allowed=True,
+            reason="no MappingProvider matched at config time (model is "
+                   "outside the kv-sharing safety guard scope)",
+            per_pair=[],
+        )
+
+    log.warning("[SpecDecodeGuard] provider=%s matched at config time",
+                provider.name)
+    try:
+        verdict, reason = provider.evaluate_from_config(vllm_config)
+    except Exception as _e:  # noqa: BLE001
+        log.warning("[SpecDecodeGuard] provider %s.evaluate_from_config "
+                    "raised %s — DENY", provider.name, _e)
+        return GuardDecision(
+            overall_verdict=Verdict.UNSUPPORTED,
+            allowed=False,
+            reason=f"provider {provider.name} raised: {_e!r}",
+            per_pair=[],
+        )
+
+    allow_adapter = _env_flag(_ENV_ALLOW_ADAPTER)
+    allow_unknown = _env_flag(_ENV_ALLOW_FUNCTIONAL_UNKNOWN)
+
+    if verdict == Verdict.EXACT_COPY:
+        allowed = True
+        decision_reason = f"{provider.name}: EXACT_COPY — {reason}"
+    elif verdict == Verdict.UNSUPPORTED:
+        allowed = False
+        decision_reason = f"{provider.name}: UNSUPPORTED — {reason}"
+    elif verdict == Verdict.ADAPTER_STRUCTURAL_OK_FUNCTIONAL_UNVERIFIED:
+        allowed = allow_adapter and allow_unknown
+        decision_reason = (
+            f"{provider.name}: {verdict.value} — {reason} "
+            f"(allow requires BOTH {_ENV_ALLOW_ADAPTER}=1 and "
+            f"{_ENV_ALLOW_FUNCTIONAL_UNKNOWN}=1; "
+            f"adapter={allow_adapter} functional={allow_unknown})"
+        )
+    else:
+        allowed = allow_adapter
+        decision_reason = (
+            f"{provider.name}: {verdict.value} — {reason} "
+            f"(allow requires {_ENV_ALLOW_ADAPTER}=1; "
+            f"adapter={allow_adapter})"
+        )
+
+    return GuardDecision(
+        overall_verdict=verdict,
+        allowed=allowed,
+        reason=decision_reason,
+        per_pair=[],
+    )
+
+
+def find_provider_for_config(vllm_config: Any):
+    """Find the first provider whose .supports_config(vllm_config) is True.
+
+    Separate from runtime ``mapping.registry.find_provider(runner)``:
+    config-time path takes a VllmConfig, not a runner.
+    """
+    from .mapping.registry import PROVIDERS
+    for p in PROVIDERS:
+        try:
+            if p.supports_config(vllm_config):
+                return p
+        except Exception as _e:
+            log.warning("[SpecDecodeGuard] %s.supports_config raised: %s",
+                        p.name, _e)
+    return None
+
+
 __all__ = [
     "PairAssessment",
     "GuardDecision",
     "evaluate",
+    "evaluate_from_config",
+    "find_provider_for_config",
 ]

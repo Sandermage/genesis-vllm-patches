@@ -91,6 +91,36 @@ def _find_target_attn_module(target_root: Any, target_prefix: str) -> Any:
     return None
 
 
+def _is_gemma4_config(hf_config: Any) -> bool:
+    if hf_config is None:
+        return False
+    cls_name = type(hf_config).__qualname__.lower()
+    model_type = str(getattr(hf_config, "model_type", "")).lower()
+    return ("gemma" in cls_name) or ("gemma" in model_type)
+
+
+def _is_mtp_method(spec_cfg: Any) -> bool:
+    if spec_cfg is None:
+        return False
+    method = getattr(spec_cfg, "method", None)
+    if method is None:
+        return False
+    return str(method).strip().lower() == "mtp"
+
+
+def _is_quantized_kv(model_cfg: Any) -> bool:
+    if model_cfg is None:
+        return False
+    dt = getattr(model_cfg, "kv_cache_dtype", None) or getattr(
+        model_cfg, "kv_cache_dtype_str", None)
+    if dt is None:
+        return False
+    s = str(dt).lower()
+    return ("turboquant" in s) or ("fp8" in s) or (
+        "quant" in s and s not in ("auto", "default", "none")
+    )
+
+
 class Gemma4MappingProvider(MappingProvider):
     name = "Gemma4"
 
@@ -98,13 +128,55 @@ class Gemma4MappingProvider(MappingProvider):
         try:
             mc = getattr(runner, "model_config", None)
             hf = getattr(mc, "hf_config", None) if mc is not None else None
-            if hf is None:
-                return False
-            cls_name = type(hf).__qualname__.lower()
-            model_type = str(getattr(hf, "model_type", "")).lower()
-            return ("gemma" in cls_name) or ("gemma" in model_type)
+            return _is_gemma4_config(hf)
         except Exception:
             return False
+
+    def supports_config(self, vllm_config: Any) -> bool:
+        """Match Gemma 4 ANY-form MTP at config time.
+
+        We engage the guard for Gemma 4 + MTP. The actual verdict in
+        ``evaluate_from_config`` differentiates between native bf16
+        (EXACT_COPY -> allow) and quantized target KV
+        (FUNCTIONAL_UNVERIFIED -> deny by default).
+        """
+        try:
+            mc = getattr(vllm_config, "model_config", None)
+            spec_cfg = getattr(vllm_config, "speculative_config", None)
+            if mc is None or spec_cfg is None:
+                return False
+            hf = getattr(mc, "hf_config", None)
+            return _is_gemma4_config(hf) and _is_mtp_method(spec_cfg)
+        except Exception:
+            return False
+
+    def evaluate_from_config(self, vllm_config: Any) -> tuple[Any, str]:
+        """Return (Verdict, reason) for a matched Gemma 4 MTP config.
+
+        Decision rule:
+          - target KV is quantized (turboquant_* / fp8) ->
+            ADAPTER_STRUCTURAL_OK_FUNCTIONAL_UNVERIFIED
+            (backend mix breaks physical kv_sharing; bridge required;
+            runtime acceptance not yet proven)
+          - target KV is native bf16/fp16 ->
+            EXACT_COPY (kv_sharing works as designed; no bridge)
+        """
+        from ..kv_contract import Verdict
+        mc = getattr(vllm_config, "model_config", None)
+        if _is_quantized_kv(mc):
+            dt = getattr(mc, "kv_cache_dtype", None) or getattr(
+                mc, "kv_cache_dtype_str", "?")
+            return (
+                Verdict.ADAPTER_STRUCTURAL_OK_FUNCTIONAL_UNVERIFIED,
+                f"Gemma4 MTP with quantized target KV (kv_cache_dtype={dt!r}) "
+                f"breaks physical kv_sharing — bridge required; runtime "
+                f"acceptance not validated for this configuration.",
+            )
+        return (
+            Verdict.EXACT_COPY,
+            "Gemma4 MTP with native KV — physical kv_sharing works as "
+            "designed.",
+        )
 
     def get_mapping(self, runner: Any) -> list[LayerMapping]:
         predictor = _find_drafter_predictor(runner)

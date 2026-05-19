@@ -725,6 +725,49 @@ _g4_19_import_time_hook()
 del _g4_19_import_time_hook
 
 
+# ─── PN274 SpecDecode safety guard — DEFAULT ON ──────────────────────
+#
+# Wires safety_guard.evaluate_from_config() into
+# EngineArgs.create_engine_config so the spec-decode safety policy
+# runs BEFORE workers spawn (saves drafter memory on denial).
+#
+# Default behavior: guard ON. Escape hatch:
+#   GENESIS_DISABLE_SPEC_DECODE_SAFETY_GUARD=1
+#
+# Per-pair operator override (still subject to the disable env):
+#   GENESIS_ALLOW_SPEC_DECODE_KV_ADAPTER=1
+#   GENESIS_ALLOW_SPEC_DECODE_FUNCTIONAL_UNKNOWN=1
+#
+# Impact on existing models:
+#   Qwen (no Gemma4 hf_config + no MappingProvider match)
+#     -> guard ALLOW -> speculative_config unchanged -> no regression
+#   Gemma 4 + native KV
+#     -> guard ALLOW (EXACT_COPY) -> unchanged
+#   Gemma 4 + TQ kv_cache_dtype
+#     -> guard DENY by default (FUNCTIONAL_UNVERIFIED) ->
+#        speculative_config = None -> boots as TQ-only (safe)
+def _pn274_safety_guard_install_time_hook():
+    import os as _os
+    if _os.environ.get(
+        "GENESIS_DISABLE_SPEC_DECODE_SAFETY_GUARD", ""
+    ).strip().lower() in ("1", "true", "yes", "on"):
+        return
+    try:
+        import vllm.engine.arg_utils  # noqa: F401
+    except ImportError:
+        return
+    try:
+        from .integrations.spec_decode import pn274_install as _pn274_mod
+        _pn274_mod.apply()
+    except Exception:  # noqa: BLE001
+        # Never block sndr_core import on guard install failure
+        pass
+
+
+_pn274_safety_guard_install_time_hook()
+del _pn274_safety_guard_install_time_hook
+
+
 __all__ = [
     "SNDR_CORE_VERSION",
     "GENESIS_VERSION",

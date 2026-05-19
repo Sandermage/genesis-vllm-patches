@@ -37,6 +37,32 @@ class MappingProvider(ABC):
         """
         raise NotImplementedError
 
+    def supports_config(self, vllm_config: Any) -> bool:
+        """Config-only variant of supports(). Called from
+        ``safety_guard.evaluate_from_config`` BEFORE workers spawn,
+        when only the VllmConfig is available (no live runner / no
+        drafter loaded yet).
+
+        Default implementation returns False (provider doesn't engage
+        at config time). Override to participate in the boot-time
+        safety guard.
+        """
+        return False
+
+    def evaluate_from_config(self, vllm_config: Any) -> tuple[Any, str]:
+        """Return (Verdict, reason_str) decision based on config alone.
+
+        Default returns (Verdict.EXACT_COPY, '<not implemented>') —
+        callers must check ``supports_config`` first and only invoke
+        this on matched providers.
+
+        ``Verdict`` here is the same enum as in ``kv_contract.py``
+        but passed back as Any to keep this base module
+        torch/import-free.
+        """
+        from ..kv_contract import Verdict
+        return Verdict.EXACT_COPY, "default: provider does not opine"
+
     @abstractmethod
     def get_mapping(self, runner: Any) -> list[LayerMapping]:
         """Return a list of (drafter, target) layer pairs for this runner.
