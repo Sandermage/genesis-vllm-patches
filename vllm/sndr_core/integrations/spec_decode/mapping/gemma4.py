@@ -183,27 +183,31 @@ class Gemma4MappingProvider(MappingProvider):
           (c) Target KV native -> EXACT_COPY.
         """
         from ..kv_contract import Verdict
-        # (a) Kernel-vs-storage mismatch heuristic: if the engine
-        # backend is a quantized impl but the kv-sharing source layer
-        # is forced native via skip-list, the drafter (which inherits
-        # the global backend) will try to read native bytes as
-        # TQ-packed.
-        engine_backend = self._engine_backend(vllm_config)
+        # (a) Kernel-vs-storage mismatch heuristic.
+        # If the engine writes a quantized cache (drafter inherits
+        # this kernel) BUT the kv-sharing source target layer is
+        # forced native via skip-list, the drafter kernel will
+        # interpret native bf16 bytes as quantized. β empirical:
+        # acceptance=0.
+        # Using cache_config.cache_dtype as the engine-kernel proxy
+        # is more robust than walking vllm_config attribute paths
+        # for attention_backend (vLLM v1 places that field on a
+        # version-dependent path).
+        cache_is_tq = _is_quantized_kv(vllm_config)
+        engine_backend_hint = self._engine_backend(vllm_config)
         skip_layers = self._tq_skip_layers(vllm_config)
-        if engine_backend in ("TURBOQUANT", "FP8"):
-            # Two of last sliding (58) / last full (59) are the only
-            # candidate KV-sharing source layers Gemma4Proposer maps
-            # to. Mismatch iff either is on the skip-list.
-            kv_share_targets = self._kv_share_target_indices(vllm_config)
+        kv_share_targets = self._kv_share_target_indices(vllm_config)
+        if cache_is_tq:
             mismatched = [t for t in kv_share_targets if t in skip_layers]
             if mismatched:
                 return (
                     Verdict.KERNEL_STORAGE_DTYPE_MISMATCH,
-                    f"engine_backend={engine_backend} but kv_sharing source "
-                    f"layer(s) {mismatched} are forced native via skip-list. "
-                    f"Drafter inherits {engine_backend} kernel and would "
-                    f"read native bf16 bytes as quantized. β empirical: "
-                    f"acceptance=0 with this contract.",
+                    f"cache_dtype is quantized (engine uses TQ-style kernel) "
+                    f"but kv_sharing source layer(s) {mismatched} are forced "
+                    f"native via skip-list. Drafter inherits the engine's "
+                    f"quantized kernel and would read native bf16 bytes as "
+                    f"TQ-packed. β empirical: acceptance=0 with this "
+                    f"contract. attention_backend_hint={engine_backend_hint!r}",
                 )
         # (b) Plain quantized-target case.
         if _is_quantized_kv(vllm_config):

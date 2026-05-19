@@ -146,13 +146,32 @@ def _apply_guard(vllm_config) -> None:
     # DENY: disable MTP in place. Workers receive the modified config
     # via the standard pickle/IPC path.
     vllm_config.speculative_config = None
-    log.warning(
-        "[SpecDecodeGuard] ACTION=disable_mtp — speculative_config has "
-        "been set to None. To override, set BOTH "
-        "GENESIS_ALLOW_SPEC_DECODE_KV_ADAPTER=1 and "
-        "GENESIS_ALLOW_SPEC_DECODE_FUNCTIONAL_UNKNOWN=1 in your "
-        "container env, then restart."
-    )
+    # Per-verdict override hint — KERNEL_*_MISMATCH is non-overridable
+    # because the consumer kernel would misread bytes, so no env flips
+    # are safe; operator must change the backend/layout contract.
+    if "KERNEL_STORAGE_DTYPE_MISMATCH" in verdict_str or (
+            "KERNEL_LAYOUT_CONTRACT_MISMATCH" in verdict_str):
+        log.warning(
+            "[SpecDecodeGuard] ACTION=disable_mtp — speculative_config "
+            "has been set to None. This verdict is NON-OVERRIDABLE: the "
+            "consumer kernel would misread cache bytes. To research, "
+            "change the engine backend or KV storage layout so the "
+            "drafter kernel and target storage agree on (dtype, layout)."
+        )
+    elif verdict_str == "UNSUPPORTED":
+        log.warning(
+            "[SpecDecodeGuard] ACTION=disable_mtp — speculative_config "
+            "has been set to None. Verdict UNSUPPORTED is not "
+            "overridable; the contract is fundamentally incompatible."
+        )
+    else:
+        log.warning(
+            "[SpecDecodeGuard] ACTION=disable_mtp — speculative_config "
+            "has been set to None. To override, set BOTH "
+            "GENESIS_ALLOW_SPEC_DECODE_KV_ADAPTER=1 and "
+            "GENESIS_ALLOW_SPEC_DECODE_FUNCTIONAL_UNKNOWN=1 in your "
+            "container env, then restart."
+        )
 
 
 def is_applied() -> bool:
