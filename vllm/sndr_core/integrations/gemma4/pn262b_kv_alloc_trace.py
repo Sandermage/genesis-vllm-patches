@@ -27,7 +27,7 @@ at config-build time may still carry a TurboQuant backend AND/OR a
 TQ-flavored ``kv_cache_spec``, and that group-level state drives the
 physical shape.
 
-LLMBaseProposer.initialize_attn_backend (line ~1535) adds a second
+SpecDecodeBaseProposer.initialize_attn_backend (line ~1535) adds a second
 risk: it iterates ``self._draft_attn_layer_names``, calls
 ``all_attn_layers[layer_name].get_attn_backend()`` (per-layer, honors
 G4_71), but uses ``layer_kv_cache_spec = kv_cache_spec`` from the
@@ -49,7 +49,7 @@ change.
      every drafter layer in the returned ``kv_caches`` dict, log
      final ``shape``/``stride``/``dtype``/``is_contiguous``/``data_ptr``.
 
-  2. ``LLMBaseProposer.initialize_attn_backend`` — pre-call: log the
+  2. ``SpecDecodeBaseProposer.initialize_attn_backend`` — pre-call: log the
      selected ``kv_cache_gid``, group spec class, group layer_names.
      Post-call: log each ``AttentionGroup`` in ``self.draft_attn_groups``
      with backend.full_cls_name(), kv_cache_spec class,
@@ -169,26 +169,39 @@ def apply() -> tuple[str, str]:
         return "applied", "PN262-B already installed (idempotent)"
 
     # --- Import targets ---
+    log.warning("[PN262-B] apply() entered — beginning import phase")
     try:
         from vllm.v1.worker.gpu_model_runner import GPUModelRunner
-    except ImportError:
+    except Exception as e:  # noqa: BLE001 — any error during this import is fatal for the patch
         try:
             from vllm.v1.worker.gpu_model_runner import (  # type: ignore[no-redef]
                 GpuModelRunner as GPUModelRunner,
             )
-        except ImportError as e:
+        except Exception as e2:  # noqa: BLE001
+            log.warning(
+                "[PN262-B] SKIP: GPUModelRunner not importable: "
+                "first=%s second=%s", e, e2,
+            )
             return "skipped", (
                 f"GPUModelRunner not importable from "
-                f"vllm.v1.worker.gpu_model_runner: {e}"
+                f"vllm.v1.worker.gpu_model_runner: {e!r}"
             )
 
     try:
-        from vllm.v1.spec_decode.llm_base_proposer import LLMBaseProposer
-    except ImportError as e:
-        return "skipped", (
-            f"LLMBaseProposer not importable from "
-            f"vllm.v1.spec_decode.llm_base_proposer: {e}"
+        from vllm.v1.spec_decode.llm_base_proposer import SpecDecodeBaseProposer
+    except Exception as e:  # noqa: BLE001
+        log.warning(
+            "[PN262-B] SKIP: SpecDecodeBaseProposer not importable: %s", e,
         )
+        return "skipped", (
+            f"SpecDecodeBaseProposer not importable from "
+            f"vllm.v1.spec_decode.llm_base_proposer: {e!r}"
+        )
+
+    log.warning(
+        "[PN262-B] import phase OK — GPUModelRunner=%s SpecDecodeBaseProposer=%s",
+        GPUModelRunner.__name__, SpecDecodeBaseProposer.__name__,
+    )
 
     drafter_prefix = _drafter_prefix()
 
@@ -297,10 +310,10 @@ def apply() -> tuple[str, str]:
     GPUModelRunner._reshape_kv_cache_tensors = _wrapped_reshape  # type: ignore[method-assign]
 
     # ----------------------------------------------------------------
-    # Wrap LLMBaseProposer.initialize_attn_backend
+    # Wrap SpecDecodeBaseProposer.initialize_attn_backend
     # ----------------------------------------------------------------
-    if hasattr(LLMBaseProposer, "initialize_attn_backend"):
-        original_proposer_init = LLMBaseProposer.initialize_attn_backend
+    if hasattr(SpecDecodeBaseProposer, "initialize_attn_backend"):
+        original_proposer_init = SpecDecodeBaseProposer.initialize_attn_backend
         if not getattr(original_proposer_init, "_genesis_pn262b_wrapped", False):
             _ORIGINAL_PROPOSER_INIT = original_proposer_init
 
@@ -360,18 +373,18 @@ def apply() -> tuple[str, str]:
                 return result
 
             _wrapped_proposer_init._genesis_pn262b_wrapped = True  # type: ignore[attr-defined]
-            LLMBaseProposer.initialize_attn_backend = _wrapped_proposer_init  # type: ignore[method-assign]
+            SpecDecodeBaseProposer.initialize_attn_backend = _wrapped_proposer_init  # type: ignore[method-assign]
 
     _APPLIED = True
-    log.info(
-        "[PN262-B] installed: _reshape_kv_cache_tensors + "
+    log.warning(
+        "[PN262-B] INSTALLED: _reshape_kv_cache_tensors + "
         "initialize_attn_backend wrapped with diagnostic trace "
         "(drafter prefix %r)",
         drafter_prefix,
     )
     return "applied", (
         f"PN262-B installed: trace on GpuModelRunner._reshape_kv_cache_tensors "
-        f"+ LLMBaseProposer.initialize_attn_backend; drafter prefix "
+        f"+ SpecDecodeBaseProposer.initialize_attn_backend; drafter prefix "
         f"{drafter_prefix!r}"
     )
 
@@ -396,9 +409,9 @@ def revert() -> bool:
     except ImportError:
         return False
     try:
-        from vllm.v1.spec_decode.llm_base_proposer import LLMBaseProposer
+        from vllm.v1.spec_decode.llm_base_proposer import SpecDecodeBaseProposer
         if _ORIGINAL_PROPOSER_INIT is not None:
-            LLMBaseProposer.initialize_attn_backend = _ORIGINAL_PROPOSER_INIT  # type: ignore[method-assign]
+            SpecDecodeBaseProposer.initialize_attn_backend = _ORIGINAL_PROPOSER_INIT  # type: ignore[method-assign]
     except ImportError:
         return False
     _APPLIED = False
