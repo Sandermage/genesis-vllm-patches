@@ -128,6 +128,7 @@ GENESIS_G4_74_MARKER = (
 
 _ENV_ENABLE = "GENESIS_ENABLE_G4_74_DRAFTER_HND_LAYOUT"
 _ENV_PREFIX = "GENESIS_G4_74_DRAFTER_PREFIX"
+_ENV_MAX_BLOCKS = "GENESIS_G4_74_DRAFTER_MAX_BLOCKS"
 _APPLIED = False
 _ORIGINAL_RESHAPE = None
 _CONVERT_COUNT = [0]
@@ -141,6 +142,17 @@ def _env_enabled() -> bool:
 
 def _drafter_prefix() -> str:
     return os.environ.get(_ENV_PREFIX, "draft_model.").strip()
+
+
+def _drafter_max_blocks() -> int:
+    """0 means no cap (full transpose+contiguous). >0 means allocate
+    a fresh zero HND tensor with min(source_num_blocks, cap) blocks.
+    """
+    raw = os.environ.get(_ENV_MAX_BLOCKS, "0").strip()
+    try:
+        return max(0, int(raw))
+    except ValueError:
+        return 0
 
 
 def apply() -> tuple[str, str]:
@@ -200,10 +212,12 @@ def apply() -> tuple[str, str]:
     _ORIGINAL_RESHAPE = original_init_tensors
 
     drafter_prefix = _drafter_prefix()
+    drafter_max_blocks = _drafter_max_blocks()
     log.warning(
-        "[G4_74] import phase OK — drafter_prefix=%r; about to wrap "
+        "[G4_74] import phase OK — drafter_prefix=%r max_blocks=%d "
+        "(0=no cap); about to wrap "
         "GPUModelRunner.initialize_kv_cache_tensors (post-bind hook)",
-        drafter_prefix,
+        drafter_prefix, drafter_max_blocks,
     )
 
     def _wrapped_init_tensors(self, kv_cache_config, kernel_block_sizes):
@@ -272,10 +286,31 @@ def apply() -> tuple[str, str]:
                 continue
 
             if shape[1] == 2:
-                # NHD layout aliased from target. Transpose + .contiguous()
-                # allocates a NEW independent tensor in HND order, breaking
-                # the alias to target. Drafter now has its own kv_cache.
-                new_kv_cache = kv_cache.transpose(0, 1).contiguous()
+                # NHD layout aliased from target.
+                # If drafter_max_blocks > 0, allocate a FRESH zero HND
+                # tensor capped at max_blocks (drafter doesn't need the
+                # target's full num_blocks; it only needs enough for the
+                # current sequence + K-step lookahead). This dramatically
+                # reduces memory vs full transpose+contiguous of a
+                # full-size target tensor.
+                # If drafter_max_blocks == 0, full transpose+contiguous.
+                import torch as _torch
+                source_num_blocks = int(shape[0])
+                cap = drafter_max_blocks if drafter_max_blocks > 0 else source_num_blocks
+                effective_num_blocks = min(source_num_blocks, cap)
+
+                if drafter_max_blocks > 0 and effective_num_blocks < source_num_blocks:
+                    # Capped path — fresh zero allocation.
+                    new_hnd_shape = (2, effective_num_blocks) + tuple(shape[2:])
+                    new_kv_cache = _torch.zeros(
+                        new_hnd_shape,
+                        dtype=kv_cache.dtype,
+                        device=kv_cache.device,
+                    )
+                else:
+                    # Full transpose+contiguous.
+                    new_kv_cache = kv_cache.transpose(0, 1).contiguous()
+
                 attn_layer.kv_cache = new_kv_cache
 
                 # Also patch the kv_caches dict if drafter is present there
@@ -289,13 +324,14 @@ def apply() -> tuple[str, str]:
                         "[G4_74] drafter layer=%r NHD->HND (alias broken): "
                         "before shape=%s stride=%s data_ptr=0x%x -> "
                         "after shape=%s stride=%s data_ptr=0x%x "
-                        "contig=%s (count=%d)",
+                        "contig=%s capped_blocks=%d (count=%d)",
                         layer_name,
                         shape, stride_before, data_ptr_before,
                         tuple(new_kv_cache.shape),
                         tuple(new_kv_cache.stride()),
                         int(new_kv_cache.data_ptr()),
                         bool(new_kv_cache.is_contiguous()),
+                        effective_num_blocks,
                         _CONVERT_COUNT[0],
                     )
                 elif _CONVERT_COUNT[0] == 13:
