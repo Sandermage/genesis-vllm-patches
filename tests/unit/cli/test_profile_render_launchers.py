@@ -114,6 +114,85 @@ class TestStructuredProfileRender:
     def test_structured_attention_backend_arg(self, script):
         assert "--attention-backend TURBOQUANT" in script
 
+    # ─── P1.7d byte-equivalence gate extensions ────────────────────────
+    #
+    # The opt-in rehearsal halt diagnosis (2026-05-20) found that the
+    # original P1.5 gate checked env vars but missed THREE CLI args
+    # that diverged from the validated start_g4_betaA_k1.sh:
+    #   --kv-cache-dtype      auto                  → turboquant_4bit_nc
+    #   --max-num-seqs        2 (hardware default)  → 1
+    #   --speculative-config  no attention_backend  → "attention_backend":"FLASH_ATTN"
+    #
+    # The three tests below codify these as part of the byte-
+    # equivalence gate so any future regression would fail in CI
+    # rather than at server-side rehearsal time.
+
+    def test_p1_7d_structured_kv_cache_dtype_turboquant(self, script):
+        """P1.7a + P1.7d: rendered --kv-cache-dtype must be
+        turboquant_4bit_nc (driven by profile.compression_plan.default_kv_dtype
+        on top of a neutral 'auto' parent ModelDef)."""
+        assert "--kv-cache-dtype turboquant_4bit_nc" in script, (
+            "structured render must use --kv-cache-dtype turboquant_4bit_nc "
+            "(P1.7a kv_cache_dtype promotion)"
+        )
+        # And NOT carry through the parent's 'auto'
+        assert "--kv-cache-dtype auto" not in script
+
+    def test_p1_7d_structured_max_num_seqs_1(self, script):
+        """P1.7b + P1.7d: rendered --max-num-seqs must be 1 (driven by
+        profile.sizing_override.max_num_seqs=1, NOT hardware default 2)."""
+        assert "--max-num-seqs 1" in script, (
+            "structured render must use --max-num-seqs 1 (P1.7b "
+            "sizing_override matches validated launcher concurrency)"
+        )
+        # And NOT carry through the hardware default 2
+        assert "--max-num-seqs 2" not in script
+
+    def test_p1_7d_structured_max_model_len_4096(self, script):
+        """P1.7b + P1.7d: rendered --max-model-len must be 4096 (driven
+        by profile.sizing_override.max_model_len=4096, NOT hardware
+        default 280000)."""
+        assert "--max-model-len 4096" in script
+
+    def test_p1_7d_structured_max_num_batched_tokens_8192(self, script):
+        """P1.7b + P1.7d: rendered --max-num-batched-tokens must be 8192
+        (driven by profile.sizing_override, NOT hardware default 4096)."""
+        assert "--max-num-batched-tokens 8192" in script
+
+    def test_p1_7d_structured_gpu_memory_utilization_0_92(self, script):
+        """P1.7b + P1.7d: rendered --gpu-memory-utilization must be 0.92
+        (driven by profile.sizing_override, NOT hardware default 0.90)."""
+        assert "--gpu-memory-utilization 0.92" in script
+
+    def test_p1_7d_structured_speculative_config_carries_attention_backend(
+        self, script,
+    ):
+        """P1.7c + P1.7d: rendered --speculative-config JSON must
+        include "attention_backend": "FLASH_ATTN" (driven by
+        profile.spec_decode_override.attention_backend).
+
+        Without this, the drafter falls back to vLLM auto-pick (would
+        land on TURBOQUANT on a TQ engine) and breaks the validated
+        acceptance distribution."""
+        import re
+        # Find the --speculative-config arg and parse its JSON
+        m = re.search(
+            r"--speculative-config '(\{[^']+\})'",
+            script,
+        )
+        assert m, (
+            "structured render must contain --speculative-config '{...}'"
+        )
+        import json as _json
+        spec_json = _json.loads(m.group(1))
+        assert spec_json["method"] == "mtp"
+        assert spec_json["num_speculative_tokens"] == 4
+        assert spec_json["model"] == "/models/gemma-4-31B-it-assistant"
+        assert spec_json["attention_backend"] == "FLASH_ATTN", (
+            f"speculative-config missing attention_backend=FLASH_ATTN; "
+            f"got: {spec_json}"
+        )
+
     def test_structured_pr42637_overlay_mounts_present(self, script):
         """structured profile enables G4_60a..k → render must mount the
         8 PR42637 overlay files."""
