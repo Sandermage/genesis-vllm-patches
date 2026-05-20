@@ -48,6 +48,7 @@ __all__ = [
     "compose",
     "apply_patches_delta",
     "check_compat",
+    "render_compression_env",
 ]
 
 
@@ -72,6 +73,64 @@ def apply_patches_delta(
     for k, v in delta.override.items():
         result[k] = v
     return result
+
+
+# ─── Runtime-role (P1.2) — compression plan → env emission ───────────────
+
+
+def render_compression_env(profile: Optional[ProfileDef]) -> dict[str, str]:
+    """Render `profile.compression_plan.native_source_layers` into the
+    env that the existing G4_60K / PN247 reader honors.
+
+    Currently the reader at
+    `vllm/sndr_core/integrations/gemma4/g4_60k_arg_utils.py:198`
+    looks for ``GENESIS_G4_TQ_FORCE_SKIP_LAYERS`` directly. We emit
+    BOTH the SNDR canonical form (forward-compatible operator surface)
+    AND the GENESIS legacy alias (so the existing reader still picks
+    it up). When the reader is migrated to accept the SNDR canonical
+    via the standard env helper, the GENESIS line should be dropped
+    in a follow-up.
+
+    Returns an empty dict for any of:
+      * profile is None
+      * profile.compression_plan is None
+      * compression_plan.native_source_layers is empty
+    """
+    if profile is None or profile.compression_plan is None:
+        return {}
+    layers = profile.compression_plan.native_source_layers
+    if not layers:
+        return {}
+    csv = ",".join(str(int(layer)) for layer in layers)
+    return {
+        "SNDR_G4_TQ_FORCE_SKIP_LAYERS": csv,    # canonical (forward-compatible)
+        "GENESIS_G4_TQ_FORCE_SKIP_LAYERS": csv,  # legacy alias (current reader)
+    }
+
+
+def _check_compression_kv_dtype_compat(
+    model: ModelDef, profile: ProfileDef,
+) -> None:
+    """If profile declares default_kv_dtype, it must match model's
+    canonical kv_cache_dtype. This is a documentation-correctness gate:
+    the profile's "default" is just the dtype already used for
+    non-skipped layers, so divergence here is operator error.
+    """
+    plan = profile.compression_plan
+    if plan is None or plan.default_kv_dtype is None:
+        return
+    model_dtype = model.capabilities.kv_cache_dtype
+    if model_dtype is None:
+        # Model didn't declare; profile fills the gap. Allowed.
+        return
+    if plan.default_kv_dtype != model_dtype:
+        raise SchemaError(
+            f"profile {profile.id!r} compression_plan.default_kv_dtype="
+            f"{plan.default_kv_dtype!r} disagrees with parent "
+            f"model.capabilities.kv_cache_dtype={model_dtype!r}. "
+            f"The profile cannot override the model's KV dtype; remove "
+            f"the field or use a different parent_model."
+        )
 
 
 # ─── Compatibility check ────────────────────────────────────────────────
@@ -230,6 +289,20 @@ def compose(
     else:
         patches = dict(model.patches)
 
+    # 3b. P1.2 — runtime-role compression plan → env emission.
+    # Compression plan declares which target layers must stay native
+    # (uncompressed) because they're KV-sharing sources for an MTP
+    # drafter. The composer renders this into the existing reader's
+    # env (GENESIS legacy alias + SNDR canonical, both for the
+    # one-release migration window).
+    if profile is not None and profile.compression_plan is not None:
+        _check_compression_kv_dtype_compat(model, profile)
+        compression_env = render_compression_env(profile)
+        for k, v in compression_env.items():
+            # If the operator already wrote one of these into patches_delta,
+            # respect it (operator intent wins). Else add.
+            patches.setdefault(k, v)
+
     # 4. Resolve versions (profile override wins).
     vllm_pin = model.versions.vllm_pin_required
     genesis_pin = model.versions.genesis_pin_min
@@ -309,11 +382,20 @@ def compose(
         language_model_only=True,
         trust_remote_code=model.trust_remote_code,
 
-        # Capabilities (model-owned)
+        # Capabilities (model-owned, with optional profile spec_decode override)
+        # P1.2: profile.spec_decode_override (V1 SpecDecodeConfig type) takes
+        # precedence over model.capabilities.spec_decode when set on a
+        # runtime-role profile. Used by the structured-role profile to
+        # declare K / drafter backend semantics distinct from the default
+        # role on the same parent model.
         enable_auto_tool_choice=model.capabilities.enable_auto_tool_choice,
         tool_call_parser=model.capabilities.tool_call_parser,
         reasoning_parser=model.capabilities.reasoning_parser,
-        spec_decode=model.capabilities.spec_decode,
+        spec_decode=(
+            profile.spec_decode_override
+            if profile is not None and profile.spec_decode_override is not None
+            else model.capabilities.spec_decode
+        ),
 
         # Patches matrix
         genesis_env=patches,
