@@ -49,7 +49,86 @@ __all__ = [
     "apply_patches_delta",
     "check_compat",
     "render_compression_env",
+    "render_backend_env",
+    "BACKEND_PLAN_EMISSION_MAP",
 ]
+
+
+# ─── Backend-plan single-source-of-truth emission map (P1.8) ────────────
+#
+# Maps (BackendPlanConfig.field_name, declared_value) → emitted envs
+# (a dict of {env_name: env_value} or None when no env is needed).
+#
+# This is BOTH the compose-time emission source AND the render-launchers
+# strict consistency check input. cli/profile.py imports this map for
+# its consistency validation; never define a parallel map elsewhere.
+#
+# Adding a new (field, value) requires:
+#   1. Adding the entry here
+#   2. Confirming the env(s) actually exist in some Genesis runtime path
+#      (or set the value to None for CLI-arg / config-time concerns)
+#   3. A unit test that the render emits the expected env(s)
+#
+# Unknown (field, value) pairs raise SchemaError in
+# _validate_backend_plan_consistency() (cli/profile.py).
+BACKEND_PLAN_EMISSION_MAP: dict[tuple[str, str], dict[str, str] | None] = {
+    # target_default → vLLM CLI flag --attention-backend; no env needed
+    ("target_default", "TURBOQUANT"): None,
+    ("target_default", "TRITON_ATTN"): None,
+    ("target_default", "FLASH_ATTN"): None,
+    # target_native_layers → handled via compression_plan skip-list
+    # auto-emit (SNDR_G4_TQ_FORCE_SKIP_LAYERS + GENESIS legacy alias)
+    ("target_native_layers", "TRITON_ATTN"): None,
+    ("target_native_layers", "FLASH_ATTN"): None,
+    # drafter_sliding head_size=256 → G4_71b reroutes to Triton
+    ("drafter_sliding", "TRITON_ATTN"): {
+        "GENESIS_ENABLE_G4_71B_DRAFTER_SLIDING_TRITON": "1",
+    },
+    # drafter_full head_size=512 → G4_75 reroutes to Triton
+    ("drafter_full", "TRITON_ATTN"): {
+        "GENESIS_ENABLE_G4_75_DRAFTER_HEAD512_TRITON": "1",
+    },
+    # P1.8: drafter_kv_sharing
+    #   physical → emit G4_76_DISABLE_DRAFTER_KV_SHARING=0 (BOTH SNDR
+    #              canonical + GENESIS legacy alias). Required for the
+    #              validated β'-A K=4 path; the Gemma4 mapping provider
+    #              reads default="1" so explicit "0" is needed to flip
+    #              kv_sharing_on=True in artifact_lookup_keys().
+    ("drafter_kv_sharing", "physical"): {
+        "SNDR_ENABLE_G4_76_DISABLE_DRAFTER_KV_SHARING": "0",
+        "GENESIS_ENABLE_G4_76_DISABLE_DRAFTER_KV_SHARING": "0",
+    },
+    #   disabled → no env emission; runtime default ("1" = disable) applies
+    ("drafter_kv_sharing", "disabled"): None,
+}
+
+
+def render_backend_env(profile: Optional[ProfileDef]) -> dict[str, str]:
+    """Render ``profile.backend_plan`` declarations into env vars.
+
+    Iterates the BackendPlanConfig fields, looks up each (field, value)
+    pair in BACKEND_PLAN_EMISSION_MAP, merges any returned env dicts.
+    Unknown (field, value) pairs are caught by
+    _validate_backend_plan_consistency() in cli/profile.py — this
+    function trusts that validation has run; missing keys here mean
+    "no env emission" rather than an error.
+    """
+    if profile is None or profile.backend_plan is None:
+        return {}
+    out: dict[str, str] = {}
+    for field_name in (
+        "target_default", "target_native_layers",
+        "drafter_sliding", "drafter_full",
+        "drafter_kv_sharing",
+    ):
+        value = getattr(profile.backend_plan, field_name)
+        if value is None:
+            continue
+        envs = BACKEND_PLAN_EMISSION_MAP.get((field_name, value))
+        if envs is None:
+            continue
+        out.update(envs)
+    return out
 
 
 # ─── Patches delta application ───────────────────────────────────────────
@@ -357,6 +436,16 @@ def compose(
         for k, v in compression_env.items():
             # If the operator already wrote one of these into patches_delta,
             # respect it (operator intent wins). Else add.
+            patches.setdefault(k, v)
+
+    # 3c. P1.8 — runtime-role backend plan → env emission.
+    # backend_plan declares per-role attention backends; emission map
+    # in BACKEND_PLAN_EMISSION_MAP above (used by both compose-time
+    # emission AND render-launchers consistency check — single source
+    # of truth). Same operator-wins setdefault discipline as 3b.
+    if profile is not None and profile.backend_plan is not None:
+        backend_env = render_backend_env(profile)
+        for k, v in backend_env.items():
             patches.setdefault(k, v)
 
     # 4. Resolve versions (profile override wins).

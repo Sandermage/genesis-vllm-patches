@@ -101,6 +101,15 @@ backend_plan:
   target_native_layers: TRITON_ATTN              # layers 58, 59 (skip-list)
   drafter_sliding: TRITON_ATTN                   # head_size 256 (G4_71b)
   drafter_full: TRITON_ATTN                      # head_size 512 (G4_75 HEAD512)
+  # P1.8 (2026-05-21): drafter shares physical KV slots with target —
+  # required for validated β'-A K=4 acceptance. Compose emits
+  # G4_76_DISABLE_DRAFTER_KV_SHARING=0 (both SNDR + GENESIS aliases).
+  # The Gemma4 mapping provider's artifact_lookup_keys() reads
+  # default="1" so without this declaration the artifact lookup
+  # returns None and the safety guard denies MTP at boot
+  # (verdict ADAPTER_STRUCTURAL_OK_FUNCTIONAL_UNVERIFIED). This was
+  # the C2 failure surfaced by the 2026-05-21 opt-in rehearsal.
+  drafter_kv_sharing: physical
 
 # Operator-declared intent. Runtime effective set is computed by the
 # request router as:

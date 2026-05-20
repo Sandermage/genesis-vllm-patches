@@ -491,11 +491,31 @@ class BackendPlanConfig:
     contract belongs to the spec_decode planner + safety guard
     (PN271b/PN274). The composer only propagates the operator's
     declared intent into env / engine-config.
+
+    P1.8 (2026-05-21): adds ``drafter_kv_sharing`` to declare whether
+    the drafter shares physical KV with the target (β'-A K=4 needs
+    ``physical``; native default is ``disabled``). This replaces the
+    operator-implicit knowledge that hand-written launchers must set
+    ``GENESIS_ENABLE_G4_76_DISABLE_DRAFTER_KV_SHARING=0`` to opt into
+    native sharing. The mapping provider's predicate requires this
+    env to be ``0`` for the artifact lookup to succeed, but the
+    Gemma4 mapping provider hardcodes ``default="1"`` (disable kv
+    sharing). Profiles that need the validated β'-A path must
+    declare ``drafter_kv_sharing: physical`` so compose emits the
+    env explicitly.
     """
     target_default: Optional[str] = None
     target_native_layers: Optional[str] = None
     drafter_sliding: Optional[str] = None
     drafter_full: Optional[str] = None
+    # P1.8: drafter KV sharing policy.
+    #   physical  → drafter shares target's KV slots; native β'-A K=4 path;
+    #                emits GENESIS_ENABLE_G4_76_DISABLE_DRAFTER_KV_SHARING=0
+    #                (mapping provider's predicate reads this as "kv_sharing_on")
+    #   disabled  → drafter uses its own KV; mapping provider default behavior;
+    #                no env emission (relies on runtime default = disable)
+    #   None       → profile is silent on this dimension; runtime default applies
+    drafter_kv_sharing: Optional[Literal["physical", "disabled"]] = None
 
     def validate(self) -> None:
         for name in (
@@ -507,6 +527,14 @@ class BackendPlanConfig:
                 raise SchemaError(
                     f"profile.backend_plan.{name}={val!r} must be a non-empty str"
                 )
+        if self.drafter_kv_sharing is not None and (
+            self.drafter_kv_sharing not in ("physical", "disabled")
+        ):
+            raise SchemaError(
+                f"profile.backend_plan.drafter_kv_sharing="
+                f"{self.drafter_kv_sharing!r} must be one of "
+                f"('physical', 'disabled') or None"
+            )
 
 
 @dataclass

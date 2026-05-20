@@ -609,52 +609,40 @@ def run_validate(args: argparse.Namespace) -> int:
 # ─── render-launchers ───────────────────────────────────────────────────
 
 
-# Strict mapping from (backend_plan field, value) to the env var that
-# must be present in compose's genesis_env. None means "value is known
-# but does not map to a single env" (handled via CLI arg or upstream
-# config). Unknown (field, value) pairs raise SchemaError.
-#
-# Adding a new backend value requires:
-#   1. Adding the (field, value) entry here
-#   2. Verifying the corresponding env var is recognised by some Genesis
-#      patch (or set the value to None if it's a CLI-arg / config-time
-#      concern)
-#   3. A unit test that the render path emits the env (or doesn't, for
-#      None-valued entries)
-_BACKEND_PLAN_MAP: dict[tuple[str, str], str | None] = {
-    # target_default → vLLM CLI flag --attention-backend; no env needed
-    ("target_default", "TURBOQUANT"): None,
-    ("target_default", "TRITON_ATTN"): None,
-    ("target_default", "FLASH_ATTN"): None,
-    # target_native_layers → handled via compression_plan skip-list
-    # auto-emit (SNDR_G4_TQ_FORCE_SKIP_LAYERS + GENESIS legacy alias)
-    ("target_native_layers", "TRITON_ATTN"): None,
-    ("target_native_layers", "FLASH_ATTN"): None,
-    # drafter_sliding head_size=256 → G4_71b reroutes to Triton
-    ("drafter_sliding", "TRITON_ATTN"): "GENESIS_ENABLE_G4_71B_DRAFTER_SLIDING_TRITON",
-    # drafter_full head_size=512 → G4_75 reroutes to Triton
-    ("drafter_full", "TRITON_ATTN"): "GENESIS_ENABLE_G4_75_DRAFTER_HEAD512_TRITON",
-}
+# P1.8 (2026-05-21): the source-of-truth backend mapping moved to
+# compose.py:BACKEND_PLAN_EMISSION_MAP. Same data, but now also used
+# for compose-time env emission via render_backend_env(), not just
+# render-launchers consistency. This module imports it for the
+# consistency check so both layers reference the same dict (no parallel
+# maps that can drift). Re-exported here as _BACKEND_PLAN_MAP for
+# back-compat with the existing P1.5 test surface.
+from vllm.sndr_core.model_configs.compose import (
+    BACKEND_PLAN_EMISSION_MAP as _BACKEND_PLAN_MAP,
+)
 
 
 def _validate_backend_plan_consistency(profile, genesis_env: dict) -> None:
     """Verify that profile.backend_plan declarations match the env in
     the composed genesis_env. Raises SchemaError on:
       * unknown (field, value) pair not in the mapping table
-      * mapped env var that is not '1' in genesis_env (i.e. profile
-        declared a backend but patches_delta.enable did not include
-        the corresponding patch — silent mismatch)
+      * mapped env var that is not its expected value in genesis_env
+        (i.e. profile declared a backend but the corresponding env
+        is missing or has the wrong value — silent mismatch)
 
     Backend values mapped to None are CLI-arg or config-time concerns
-    and are not env-checked here.
+    and are not env-checked here. Multi-env mappings (e.g. drafter_kv_sharing
+    emits BOTH SNDR canonical AND GENESIS legacy alias) check every entry.
     """
     from vllm.sndr_core.model_configs.schema import SchemaError
 
     bp = profile.backend_plan
     if bp is None:
         return
-    for field_name in ("target_default", "target_native_layers",
-                       "drafter_sliding", "drafter_full"):
+    for field_name in (
+        "target_default", "target_native_layers",
+        "drafter_sliding", "drafter_full",
+        "drafter_kv_sharing",
+    ):
         value = getattr(bp, field_name)
         if value is None:
             continue
@@ -663,33 +651,43 @@ def _validate_backend_plan_consistency(profile, genesis_env: dict) -> None:
             raise SchemaError(
                 f"profile.backend_plan.{field_name}={value!r}: not in the "
                 f"supported backend mapping table. Adding a new value "
-                f"requires extending _BACKEND_PLAN_MAP in cli/profile.py "
-                f"with the env mapping AND a test."
+                f"requires extending BACKEND_PLAN_EMISSION_MAP in "
+                f"compose.py with the env mapping AND a test."
             )
-        expected_env = _BACKEND_PLAN_MAP[key]
-        if expected_env is None:
+        expected_envs = _BACKEND_PLAN_MAP[key]
+        if expected_envs is None:
             continue
-        observed = genesis_env.get(expected_env)
-        if observed != "1":
-            raise SchemaError(
-                f"profile.backend_plan.{field_name}={value!r} requires "
-                f"{expected_env}=1 in composed genesis_env, but observed "
-                f"{observed!r}. Add to patches_delta.enable on the profile "
-                f"or remove the backend_plan field."
-            )
+        for env_name, expected_value in expected_envs.items():
+            observed = genesis_env.get(env_name)
+            if observed != expected_value:
+                raise SchemaError(
+                    f"profile.backend_plan.{field_name}={value!r} requires "
+                    f"{env_name}={expected_value} in composed genesis_env, "
+                    f"but observed {observed!r}. Either compose did not "
+                    f"emit it (P1.8 regression) or operator override in "
+                    f"patches_delta blocked it."
+                )
 
 
 # Subset of canonical envs the byte-equivalence gate cares about. The
 # render path does NOT auto-add these; they must arrive via compose
-# (patches_delta.enable or model.patches or compression_plan emission).
-# This list is the set the render-launchers smoke gate scans for when
-# the profile is structured-role.
+# (patches_delta.enable or model.patches or compression_plan emission
+# or backend_plan emission). This list is the set the render-launchers
+# smoke gate scans for when the profile is structured-role.
+#
+# P1.8 added the two G4_76 disable envs (value "0") via the
+# drafter_kv_sharing: physical declaration. Without them the Gemma4
+# mapping provider's artifact_lookup_keys() returns None and the
+# safety guard denies MTP at boot — exactly the C2 failure surfaced
+# by the 2026-05-21 opt-in rehearsal.
 _STRUCTURED_REQUIRED_ENVS = (
     "GENESIS_ENABLE_G4_71B_DRAFTER_SLIDING_TRITON",
     "GENESIS_ENABLE_G4_75_DRAFTER_HEAD512_TRITON",
     "SNDR_G4_TQ_FORCE_SKIP_LAYERS",
     "GENESIS_G4_TQ_FORCE_SKIP_LAYERS",
     "SNDR_ALLOW_SPEC_DECODE_KV_ADAPTER",
+    "SNDR_ENABLE_G4_76_DISABLE_DRAFTER_KV_SHARING",     # P1.8 (= "0")
+    "GENESIS_ENABLE_G4_76_DISABLE_DRAFTER_KV_SHARING",  # P1.8 legacy alias (= "0")
 )
 
 

@@ -212,16 +212,27 @@ class TestStructuredProfileRender:
 class TestBackendMapping:
     def test_backend_plan_map_immutable_known_pairs(self):
         """If this fails, somebody added/removed entries in
-        _BACKEND_PLAN_MAP. Audit before committing — the map is the
-        contract surface."""
+        BACKEND_PLAN_EMISSION_MAP. Audit before committing — the map
+        is the contract surface for BOTH compose emission AND render
+        consistency validation.
+
+        P1.8 refactored the map shape from str|None to dict[str,str]|None
+        to support multi-env mappings (drafter_kv_sharing emits BOTH
+        SNDR canonical + GENESIS legacy alias)."""
         assert _BACKEND_PLAN_MAP[
             ("drafter_sliding", "TRITON_ATTN")
-        ] == "GENESIS_ENABLE_G4_71B_DRAFTER_SLIDING_TRITON"
+        ] == {"GENESIS_ENABLE_G4_71B_DRAFTER_SLIDING_TRITON": "1"}
         assert _BACKEND_PLAN_MAP[
             ("drafter_full", "TRITON_ATTN")
-        ] == "GENESIS_ENABLE_G4_75_DRAFTER_HEAD512_TRITON"
+        ] == {"GENESIS_ENABLE_G4_75_DRAFTER_HEAD512_TRITON": "1"}
         assert _BACKEND_PLAN_MAP[("target_default", "TURBOQUANT")] is None
         assert _BACKEND_PLAN_MAP[("target_native_layers", "TRITON_ATTN")] is None
+        # P1.8 drafter_kv_sharing
+        assert _BACKEND_PLAN_MAP[("drafter_kv_sharing", "physical")] == {
+            "SNDR_ENABLE_G4_76_DISABLE_DRAFTER_KV_SHARING": "0",
+            "GENESIS_ENABLE_G4_76_DISABLE_DRAFTER_KV_SHARING": "0",
+        }
+        assert _BACKEND_PLAN_MAP[("drafter_kv_sharing", "disabled")] is None
 
     def test_g10_unknown_backend_value_raises(self, monkeypatch):
         """G10: a backend_plan value not in the mapping table must raise
@@ -296,8 +307,22 @@ class TestBackendMapping:
             fake_load,
         )
 
-        with pytest.raises(SchemaError, match="GENESIS_ENABLE_G4_71B"):
-            render_profile_launcher(bad_profile.id)
+        # P1.8 (2026-05-21): compose now AUTO-emits the env from
+        # backend_plan declaration via render_backend_env(), so the
+        # consistency check no longer fires for the "operator forgot
+        # patches_delta.enable" case — that bug class is eliminated
+        # by construction. The previous SchemaError-raising path stays
+        # as a defensive check for a different failure mode: if some
+        # OTHER code path overrides the env to a non-expected value
+        # (e.g. patches_delta.disable removes it after compose adds it).
+        # Verified by asserting compose's auto-emit puts the env in
+        # place and the rendered launcher contains it.
+        rendered = render_profile_launcher(bad_profile.id)
+        assert "GENESIS_ENABLE_G4_71B_DRAFTER_SLIDING_TRITON=1" in rendered, (
+            "P1.8: compose must auto-emit the G4_71b env from "
+            "backend_plan.drafter_sliding=TRITON_ATTN even when "
+            "patches_delta.enable is empty"
+        )
 
 
 # ─── G08 + G09: output file handling ────────────────────────────────────
@@ -399,6 +424,145 @@ class TestOutputFlags:
 
 
 # ─── Backend consistency check function (direct) ────────────────────────
+
+
+# ─── P1.8 regression gate ───────────────────────────────────────────────
+
+
+class TestP18ArtifactLookupRegression:
+    """P1.8 regression gate — would have caught the 2026-05-21 C2 failure.
+
+    The Gemma4 mapping provider's artifact_lookup_keys() has 8 implicit
+    predicates; one of them (kv_sharing_on) reads
+    GENESIS_ENABLE_G4_76_DISABLE_DRAFTER_KV_SHARING with default="1",
+    so the env MUST be explicitly emitted as "0" to opt into the
+    validated β'-A K=4 path. Pre-P1.8 the V2 structured profile did
+    not declare this, the env was unset, and artifact_lookup_keys()
+    returned None at boot — even though the rendered launcher was
+    structurally correct otherwise.
+
+    These tests assert the symptom + the fix at compose time, before
+    any server-side rehearsal.
+    """
+
+    def test_structured_profile_declares_physical_kv_sharing(self):
+        """The structured profile YAML MUST declare drafter_kv_sharing:
+        physical. Without this declaration the compose layer doesn't
+        know to emit the G4_76=0 envs, and the artifact lookup at the
+        guard would return None."""
+        from vllm.sndr_core.model_configs.registry_v2 import load_profile
+        p = load_profile("gemma4-tq-mtp-structured-k4")
+        assert p.backend_plan is not None
+        assert p.backend_plan.drafter_kv_sharing == "physical", (
+            "structured profile must declare drafter_kv_sharing=physical; "
+            "without it the Gemma4MappingProvider.artifact_lookup_keys() "
+            "returns None at boot and MTP is disabled by the safety guard."
+        )
+
+    def test_compose_emits_g4_76_disable_zero(self):
+        """compose() must emit BOTH SNDR + GENESIS aliases of the
+        G4_76 disable env with value '0'. This is the actual env the
+        mapping provider reads to decide kv_sharing_on=True."""
+        from vllm.sndr_core.model_configs.compose import compose
+        from vllm.sndr_core.model_configs.registry_v2 import (
+            load_hardware, load_model, load_profile,
+        )
+        p = load_profile("gemma4-tq-mtp-structured-k4")
+        m = load_model("gemma-4-31b-it-awq")
+        hw = load_hardware("a5000-2x-24gbvram-16cpu-128gbram")
+        cfg = compose(m, hw, p)
+        assert cfg.genesis_env.get(
+            "SNDR_ENABLE_G4_76_DISABLE_DRAFTER_KV_SHARING"
+        ) == "0"
+        assert cfg.genesis_env.get(
+            "GENESIS_ENABLE_G4_76_DISABLE_DRAFTER_KV_SHARING"
+        ) == "0"
+
+    def test_render_emits_g4_76_disable_zero(self):
+        """The rendered launcher (operator-facing) MUST contain both
+        G4_76 disable envs at value 0. Without them the C2 verdict
+        gate fails at boot."""
+        script = render_profile_launcher("gemma4-tq-mtp-structured-k4")
+        assert "-e SNDR_ENABLE_G4_76_DISABLE_DRAFTER_KV_SHARING=0" in script
+        assert "-e GENESIS_ENABLE_G4_76_DISABLE_DRAFTER_KV_SHARING=0" in script
+
+    def test_disabled_value_emits_no_g4_76_env(self):
+        """drafter_kv_sharing=disabled is the explicit opt-out; it must
+        NOT emit the G4_76 env (runtime default ='1' is the behavior).
+        Verified by constructing a synthetic disabled-sharing profile
+        and asserting absence."""
+        from vllm.sndr_core.model_configs.compose import compose
+        from vllm.sndr_core.model_configs.registry_v2 import (
+            load_hardware, load_model,
+        )
+        from vllm.sndr_core.model_configs.schema_v2 import (
+            BackendPlanConfig, PatchesDelta, ProfileDef,
+        )
+        synthetic = ProfileDef(
+            schema_version=2, kind="profile",
+            id="synthetic-disabled-sharing",
+            parent_model="gemma-4-31b-it-awq",
+            maintainer="tests",
+            status="experimental",
+            patches_delta=PatchesDelta(),
+            role="default",
+            backend_plan=BackendPlanConfig(
+                target_default="TURBOQUANT",
+                drafter_kv_sharing="disabled",
+            ),
+        )
+        m = load_model("gemma-4-31b-it-awq")
+        hw = load_hardware("a5000-2x-24gbvram-16cpu-128gbram")
+        cfg = compose(m, hw, synthetic)
+        assert "SNDR_ENABLE_G4_76_DISABLE_DRAFTER_KV_SHARING" not in cfg.genesis_env
+        assert "GENESIS_ENABLE_G4_76_DISABLE_DRAFTER_KV_SHARING" not in cfg.genesis_env
+
+    def test_unknown_kv_sharing_value_raises(self, monkeypatch):
+        """drafter_kv_sharing must be one of {None, physical, disabled};
+        anything else is SchemaError at validate() time."""
+        from vllm.sndr_core.model_configs.schema import SchemaError
+        from vllm.sndr_core.model_configs.schema_v2 import (
+            BackendPlanConfig,
+        )
+        bp = BackendPlanConfig(drafter_kv_sharing="shared")  # type: ignore[arg-type]
+        with pytest.raises(SchemaError, match="drafter_kv_sharing"):
+            bp.validate()
+
+    def test_artifact_lookup_keys_would_match(self):
+        """Higher-order assertion: after compose, the cfg.genesis_env
+        carries the env values that the mapping provider's predicate
+        needs. We don't actually call artifact_lookup_keys() here
+        (it requires a torch-loaded vllm_config) but we assert the
+        envs it reads are all set as expected.
+
+        The predicate chain in gemma4.py:347-360:
+          * GENESIS_G4_TQ_FORCE_SKIP_LAYERS == '58,59'         → kv_share_targets+skip_layers
+          * GENESIS_ENABLE_G4_71B_DRAFTER_SLIDING_TRITON == '1' → g71b_on
+          * GENESIS_ENABLE_G4_75_DRAFTER_HEAD512_TRITON == '1' → g75_on
+          * GENESIS_ENABLE_G4_76_DISABLE_DRAFTER_KV_SHARING == '0' → kv_sharing_on
+          * GENESIS_ENABLE_G4_78_DRAFTER_TARGET_KV_BRIDGE not '1' → not bridge_on
+          * (mtp_k=4 comes from cfg.spec_decode, not env)
+        """
+        from vllm.sndr_core.model_configs.compose import compose
+        from vllm.sndr_core.model_configs.registry_v2 import (
+            load_hardware, load_model, load_profile,
+        )
+        p = load_profile("gemma4-tq-mtp-structured-k4")
+        m = load_model("gemma-4-31b-it-awq")
+        hw = load_hardware("a5000-2x-24gbvram-16cpu-128gbram")
+        cfg = compose(m, hw, p)
+        env = cfg.genesis_env
+
+        # All five predicate envs match what the mapping provider expects
+        assert env.get("GENESIS_G4_TQ_FORCE_SKIP_LAYERS") == "58,59"
+        assert env.get("GENESIS_ENABLE_G4_71B_DRAFTER_SLIDING_TRITON") == "1"
+        assert env.get("GENESIS_ENABLE_G4_75_DRAFTER_HEAD512_TRITON") == "1"
+        assert env.get("GENESIS_ENABLE_G4_76_DISABLE_DRAFTER_KV_SHARING") == "0"
+        # bridge_on must be False — env either unset or != "1"
+        assert env.get("GENESIS_ENABLE_G4_78_DRAFTER_TARGET_KV_BRIDGE", "0") != "1"
+        # mtp_k=4 from spec_decode
+        assert cfg.spec_decode is not None
+        assert cfg.spec_decode.num_speculative_tokens == 4
 
 
 class TestValidateBackendPlanConsistency:
