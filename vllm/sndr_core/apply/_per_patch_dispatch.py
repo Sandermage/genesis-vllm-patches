@@ -5787,9 +5787,9 @@ _G4_PATCHES: tuple[tuple[str, str, str], ...] = (
     ("G4_25", "G4_25 gemma4 dual-RoPE base-freq divergence guard",
      "g4_25_gemma4_rope_dual_base_freq_guard"),
     ("G4_19", "G4_19 gemma4 Genesis TurboQuant KV cache (3/4-bit VQ, 256K unlock)",
-     "g4_19_gemma4_turboquant_kv_cache"),
+     "g4_19_turboquant_kv_cache", "attention.turboquant"),  # Phase 3 bucket 4: relocated 2026-05-21
     ("G4_19B", "G4_19b gemma4 TQ KV spec integration (compression-aware memory check)",
-     "g4_19b_gemma4_tq_kv_spec_integration"),
+     "g4_19b_tq_kv_spec_integration", "attention.turboquant"),  # Phase 3 bucket 4: relocated 2026-05-21
 )
 
 

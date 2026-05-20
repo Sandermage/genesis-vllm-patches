@@ -23,7 +23,7 @@ import pytest
 
 
 def test_codebook_centroids_count():
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_codebook import (
+    from vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_codebook import (
         BITS_3_LLOYD_MAX_CENTROIDS,
         BITS_4_LLOYD_MAX_CENTROIDS,
         BITS_5_LLOYD_MAX_CENTROIDS,
@@ -35,7 +35,7 @@ def test_codebook_centroids_count():
 
 def test_codebook_symmetric_around_zero():
     """For unit-variance Gaussian, optimal Lloyd-Max codebook is symmetric."""
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_codebook import (
+    from vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_codebook import (
         BITS_3_LLOYD_MAX_CENTROIDS,
         BITS_4_LLOYD_MAX_CENTROIDS,
     )
@@ -47,7 +47,7 @@ def test_codebook_symmetric_around_zero():
 
 def test_codebook_monotone():
     """Centroids must be monotonically increasing."""
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_codebook import (
+    from vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_codebook import (
         BITS_3_LLOYD_MAX_CENTROIDS,
         BITS_4_LLOYD_MAX_CENTROIDS,
         BITS_5_LLOYD_MAX_CENTROIDS,
@@ -58,7 +58,7 @@ def test_codebook_monotone():
 
 def test_expected_mse_decreases_with_bits():
     """MSE should monotonically decrease as bits increase."""
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_codebook import (
+    from vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_codebook import (
         expected_mse_for_bits,
     )
     mse_3 = expected_mse_for_bits(3, n_samples=10000)
@@ -68,7 +68,7 @@ def test_expected_mse_decreases_with_bits():
 
 
 def test_quantize_dequantize_indices_round_trip():
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_codebook import (
+    from vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_codebook import (
         get_centroids,
         quantize_indices,
         dequantize_indices,
@@ -87,7 +87,7 @@ def test_quantize_dequantize_indices_round_trip():
 
 def test_online_lloyd_max_solver_converges():
     """The online solver should produce reasonable centroids."""
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_codebook import (
+    from vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_codebook import (
         lloyd_max_codebook,
     )
     rng = np.random.default_rng(0)
@@ -103,7 +103,7 @@ def test_online_lloyd_max_solver_converges():
 
 def test_rht_seed_deterministic():
     """Same seed + layer_idx → same sign vector."""
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_rotor import (
+    from vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_rotor import (
         build_randomized_hadamard_seed,
     )
     s1 = build_randomized_hadamard_seed(256, layer_idx=5, seed_base=0xC0FFEE)
@@ -116,7 +116,7 @@ def test_rht_seed_deterministic():
 
 def test_rht_sign_values_only_pm1():
     """Signs must be ±1."""
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_rotor import (
+    from vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_rotor import (
         build_randomized_hadamard_seed,
     )
     s = build_randomized_hadamard_seed(256, layer_idx=0)
@@ -126,7 +126,7 @@ def test_rht_sign_values_only_pm1():
 
 def test_rht_orthogonality_norm_preservation():
     """Random orthogonal rotation preserves L2 norm."""
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_rotor import (
+    from vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_rotor import (
         build_randomized_hadamard_seed,
         randomized_hadamard_apply_blocked,
     )
@@ -141,7 +141,7 @@ def test_rht_orthogonality_norm_preservation():
 
 def test_rht_inverse_round_trip():
     """RHT followed by its inverse recovers the original."""
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_rotor import (
+    from vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_rotor import (
         build_randomized_hadamard_seed,
         randomized_hadamard_apply_blocked,
     )
@@ -155,7 +155,7 @@ def test_rht_inverse_round_trip():
 
 def test_clifford_rotor_orthogonality():
     """Clifford rotor preserves length per 3-vector group."""
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_rotor import (
+    from vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_rotor import (
         clifford_rotate_full,
         clifford_rotor_layer,
     )
@@ -174,7 +174,7 @@ def test_clifford_rotor_orthogonality():
 
 
 def test_clifford_rotor_inverse_round_trip():
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_rotor import (
+    from vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_rotor import (
         clifford_rotate_full,
         clifford_rotor_layer,
     )
@@ -188,7 +188,7 @@ def test_clifford_rotor_inverse_round_trip():
 
 def test_rotor_decorrelation_quality():
     """Both rotation methods should give marginal std ≈ 1 and low correlation."""
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_rotor import (
+    from vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_rotor import (
         estimate_decorrelation_quality,
     )
     for method in ("rht", "clifford"):
@@ -203,7 +203,7 @@ def test_rotor_decorrelation_quality():
 
 def test_reference_write_then_read_unit_variance():
     """Round-trip: original ≈ read(write(original)) at 4-bit."""
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_reference import (
+    from vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_reference import (
         g4_tq_round_trip_test,
     )
     rng = np.random.default_rng(0)
@@ -217,7 +217,7 @@ def test_reference_write_then_read_unit_variance():
 
 def test_reference_higher_bits_better_quality():
     """5-bit reconstruction should be better than 3-bit."""
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_reference import (
+    from vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_reference import (
         g4_tq_round_trip_test,
     )
     rng = np.random.default_rng(0)
@@ -230,7 +230,7 @@ def test_reference_higher_bits_better_quality():
 
 def test_reference_clifford_method_works():
     """Clifford rotation path should also round-trip correctly."""
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_reference import (
+    from vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_reference import (
         g4_tq_round_trip_test,
     )
     rng = np.random.default_rng(7)
@@ -248,7 +248,7 @@ def test_reference_attention_proxy_4bit_quality():
     top-5) because attention activations after softmax have a power-law
     distribution that quantization handles better than uniform Gaussian.
     """
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_reference import (
+    from vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_reference import (
         g4_tq_attention_proxy_test,
     )
     rng = np.random.default_rng(0)
@@ -264,7 +264,7 @@ def test_reference_attention_proxy_4bit_quality():
 
 
 def test_config_validation():
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_cache import (
+    from vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_cache import (
         G4TurboQuantConfig,
     )
     # Valid config
@@ -284,7 +284,7 @@ def test_config_validation():
 
 
 def test_config_per_layer_bits():
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_cache import (
+    from vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_cache import (
         G4TurboQuantConfig,
     )
     layer_types = ["sliding_attention"] * 5 + ["full_attention"]
@@ -298,7 +298,7 @@ def test_config_per_layer_bits():
 
 def test_kv_cache_size_compression_ratio():
     """Compression ratio should approximate target bits/16."""
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_cache import (
+    from vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_cache import (
         G4TurboQuantConfig,
         kv_cache_size_bytes,
     )

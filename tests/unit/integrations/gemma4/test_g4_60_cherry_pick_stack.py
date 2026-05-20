@@ -52,7 +52,7 @@ def _clear_env_flags(monkeypatch):
 
 def test_g4_60a_skipped_without_env(monkeypatch):
     """Apply returns ``skipped`` when env flag is absent."""
-    from vllm.sndr_core.integrations.gemma4 import (
+    from vllm.sndr_core.integrations.attention.turboquant import (
         g4_60a_tq_sliding_window_spec as m,
     )
     # Reset module state (test isolation)
@@ -65,7 +65,7 @@ def test_g4_60a_skipped_without_env(monkeypatch):
 def test_g4_60a_apply_adds_tqslidingwindowspec(monkeypatch):
     """Apply makes TQSlidingWindowSpec available on the module."""
     monkeypatch.setenv("GENESIS_ENABLE_G4_60A_TQ_SLIDING_SPEC", "1")
-    from vllm.sndr_core.integrations.gemma4 import (
+    from vllm.sndr_core.integrations.attention.turboquant import (
         g4_60a_tq_sliding_window_spec as m,
     )
     m._APPLIED = False  # test-only reset
@@ -84,7 +84,7 @@ def test_g4_60a_apply_adds_tqslidingwindowspec(monkeypatch):
 def test_g4_60a_idempotent(monkeypatch):
     """Second apply() returns ``applied`` with idempotent message."""
     monkeypatch.setenv("GENESIS_ENABLE_G4_60A_TQ_SLIDING_SPEC", "1")
-    from vllm.sndr_core.integrations.gemma4 import (
+    from vllm.sndr_core.integrations.attention.turboquant import (
         g4_60a_tq_sliding_window_spec as m,
     )
     m._APPLIED = False
@@ -98,7 +98,7 @@ def test_g4_60a_idempotent(monkeypatch):
 
 
 def test_g4_60h_skipped_without_env():
-    from vllm.sndr_core.integrations.gemma4 import (
+    from vllm.sndr_core.integrations.attention.turboquant import (
         g4_60h_turboquant_config_augment as m,
     )
     m._APPLIED = False
@@ -108,7 +108,7 @@ def test_g4_60h_skipped_without_env():
 
 def test_g4_60h_injects_static_methods(monkeypatch):
     monkeypatch.setenv("GENESIS_ENABLE_G4_60H_TQ_CONFIG_AUGMENT", "1")
-    from vllm.sndr_core.integrations.gemma4 import (
+    from vllm.sndr_core.integrations.attention.turboquant import (
         g4_60h_turboquant_config_augment as m,
     )
     m._APPLIED = False
@@ -126,7 +126,7 @@ def test_g4_60h_injects_static_methods(monkeypatch):
 
 def test_g4_60h_sort_skip_layers_helper():
     """The injected ``_sort_skip_layers`` helper preserves numeric order."""
-    from vllm.sndr_core.integrations.gemma4.g4_60h_turboquant_config_augment import (
+    from vllm.sndr_core.integrations.attention.turboquant.g4_60h_turboquant_config_augment import (
         _sort_skip_layers,
     )
 
@@ -143,7 +143,7 @@ def test_g4_60h_sort_skip_layers_helper():
 
 
 def test_g4_60k_skipped_without_env():
-    from vllm.sndr_core.integrations.gemma4 import g4_60k_arg_utils as m
+    from vllm.sndr_core.integrations.attention.turboquant import g4_60k_arg_utils as m
 
     m._APPLIED = False
     status, _ = m.apply()
@@ -152,7 +152,7 @@ def test_g4_60k_skipped_without_env():
 
 def test_g4_60k_wraps_create_engine_config(monkeypatch):
     monkeypatch.setenv("GENESIS_ENABLE_G4_60K_TQ_ENGINE_CONFIG", "1")
-    from vllm.sndr_core.integrations.gemma4 import g4_60k_arg_utils as m
+    from vllm.sndr_core.integrations.attention.turboquant import g4_60k_arg_utils as m
 
     m._APPLIED = False
     status, _ = m.apply()
@@ -182,7 +182,7 @@ def test_g4_60e_requires_g4_60a(monkeypatch):
             "prerequisite path without reload."
         )
 
-    from vllm.sndr_core.integrations.gemma4 import g4_60e_kv_cache_utils as m
+    from vllm.sndr_core.integrations.attention.turboquant import g4_60e_kv_cache_utils as m
 
     m._APPLIED = False
     status, msg = m.apply()
@@ -194,10 +194,10 @@ def test_g4_60e_apply_after_g4_60a(monkeypatch):
     monkeypatch.setenv("GENESIS_ENABLE_G4_60A_TQ_SLIDING_SPEC", "1")
     monkeypatch.setenv("GENESIS_ENABLE_G4_60E_KV_CACHE_UTILS", "1")
 
-    from vllm.sndr_core.integrations.gemma4 import (
+    from vllm.sndr_core.integrations.attention.turboquant import (
         g4_60a_tq_sliding_window_spec as a_mod,
     )
-    from vllm.sndr_core.integrations.gemma4 import g4_60e_kv_cache_utils as e_mod
+    from vllm.sndr_core.integrations.attention.turboquant import g4_60e_kv_cache_utils as e_mod
 
     a_mod._APPLIED = False
     e_mod._APPLIED = False
@@ -230,7 +230,7 @@ def test_g4_60g_requires_g4_60a(monkeypatch):
             "missing-prerequisite path."
         )
 
-    from vllm.sndr_core.integrations.gemma4 import (
+    from vllm.sndr_core.integrations.attention.turboquant import (
         g4_60g_attention_dispatch as m,
     )
 
@@ -244,10 +244,10 @@ def test_g4_60g_apply_after_g4_60a(monkeypatch):
     monkeypatch.setenv("GENESIS_ENABLE_G4_60A_TQ_SLIDING_SPEC", "1")
     monkeypatch.setenv("GENESIS_ENABLE_G4_60G_TQ_DISPATCH", "1")
 
-    from vllm.sndr_core.integrations.gemma4 import (
+    from vllm.sndr_core.integrations.attention.turboquant import (
         g4_60a_tq_sliding_window_spec as a_mod,
     )
-    from vllm.sndr_core.integrations.gemma4 import (
+    from vllm.sndr_core.integrations.attention.turboquant import (
         g4_60g_attention_dispatch as g_mod,
     )
 
@@ -278,7 +278,7 @@ def test_g4_60_full_stack_compose(monkeypatch):
     ):
         monkeypatch.setenv(flag, "1")
 
-    from vllm.sndr_core.integrations.gemma4 import (
+    from vllm.sndr_core.integrations.attention.turboquant import (
         g4_60a_tq_sliding_window_spec,
         g4_60e_kv_cache_utils,
         g4_60g_attention_dispatch,

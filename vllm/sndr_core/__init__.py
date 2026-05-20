@@ -367,19 +367,19 @@ def _g4_19_import_time_hook():
                 pass
         # G4_31 active in main — preserves turboquant_* dtype from AWQ override.
         if g31:
-            from .integrations.gemma4 import (
+            from .integrations.attention.turboquant import (
                 g4_31_preserve_tq_dtype as _g4_31_mod,
             )
             _g4_31_mod.apply()
         # G4_32 active in main — bypasses TQ validate_configuration.
         if g32:
-            from .integrations.gemma4 import (
+            from .integrations.attention.turboquant import (
                 g4_32_tq_validation_bypass as _g4_32_mod,
             )
             _g4_32_mod.apply()
         if g19b:
-            from .integrations.gemma4 import (
-                g4_19b_gemma4_tq_kv_spec_integration as _g4_19b_mod,
+            from .integrations.attention.turboquant import (
+                g4_19b_tq_kv_spec_integration as _g4_19b_mod,
             )
             _g4_19b_mod.apply()
         if g19:
@@ -388,8 +388,8 @@ def _g4_19_import_time_hook():
                 import vllm.model_executor.models.gemma4  # noqa: F401
             except ImportError:
                 pass
-            from .integrations.gemma4 import (
-                g4_19_gemma4_turboquant_kv_cache as _g4_19_mod,
+            from .integrations.attention.turboquant import (
+                g4_19_turboquant_kv_cache as _g4_19_mod,
             )
             _g4_19_mod.apply()
         if g19c:
@@ -399,7 +399,7 @@ def _g4_19_import_time_hook():
                 import vllm.model_executor.models.gemma4  # noqa: F401
             except ImportError:
                 pass
-            from .integrations.gemma4 import (
+            from .integrations.attention.turboquant import (
                 g4_19c_attention_wrapper as _g4_19c_mod,
             )
             _g4_19c_mod.apply()
@@ -407,46 +407,46 @@ def _g4_19_import_time_hook():
         # G4_60a (TQSlidingWindowSpec class injection) is prerequisite for
         # G4_60e (kv_cache_utils mixed-route) and G4_60g (dispatch). Apply first.
         if g60a:
-            from .integrations.gemma4 import (
+            from .integrations.attention.turboquant import (
                 g4_60a_tq_sliding_window_spec as _g4_60a_mod,
             )
             _g4_60a_mod.apply()
         # G4_60h augments TurboQuantConfig — required by G4_60k.
         if g60h:
-            from .integrations.gemma4 import (
+            from .integrations.attention.turboquant import (
                 g4_60h_turboquant_config_augment as _g4_60h_mod,
             )
             _g4_60h_mod.apply()
         # G4_60e patches kv_cache_utils — needs G4_60a first.
         if g60e:
-            from .integrations.gemma4 import (
+            from .integrations.attention.turboquant import (
                 g4_60e_kv_cache_utils as _g4_60e_mod,
             )
             _g4_60e_mod.apply()
         # G4_60g patches Attention.get_kv_cache_spec — needs G4_60a first.
         if g60g:
-            from .integrations.gemma4 import (
+            from .integrations.attention.turboquant import (
                 g4_60g_attention_dispatch as _g4_60g_mod,
             )
             _g4_60g_mod.apply()
         # G4_60k wraps EngineArgs.create_engine_config — applies post-build.
         # Order is independent but typically after G4_60h.
         if g60k:
-            from .integrations.gemma4 import (
+            from .integrations.attention.turboquant import (
                 g4_60k_arg_utils as _g4_60k_mod,
             )
             _g4_60k_mod.apply()
         # G4_61 shares TQ decode workspace across layers (PR #40798).
         # Apply before any model forward — patches launcher + capture_model.
         if g61:
-            from .integrations.gemma4 import (
+            from .integrations.attention.turboquant import (
                 g4_61_tq_shared_workspace as _g4_61_mod,
             )
             _g4_61_mod.apply()
         # G4_62 warms up TQ decode kernels before lock_workspace (PR #42215).
         # Apply order: G4_62 after G4_61 so warmup uses shared workspace path.
         if g62:
-            from .integrations.gemma4 import (
+            from .integrations.attention.turboquant import (
                 g4_62_tq_kernel_warmup as _g4_62_mod,
             )
             _g4_62_mod.apply()
@@ -455,17 +455,17 @@ def _g4_19_import_time_hook():
         # launch script via docker -v flags). Apply after all monkey-patches
         # so verification reflects the final live state.
         if g60b:
-            from .integrations.gemma4 import (
+            from .integrations.attention.turboquant import (
                 g4_60b_turboquant_attn_overlay_loader as _g4_60b_mod,
             )
             _g4_60b_mod.apply()
         if g60c:
-            from .integrations.gemma4 import (
+            from .integrations.attention.turboquant import (
                 g4_60c_triton_decode_overlay_loader as _g4_60c_mod,
             )
             _g4_60c_mod.apply()
         if g60d:
-            from .integrations.gemma4 import (
+            from .integrations.attention.turboquant import (
                 g4_60d_triton_store_overlay_loader as _g4_60d_mod,
             )
             _g4_60d_mod.apply()
@@ -473,7 +473,7 @@ def _g4_19_import_time_hook():
         # verifier) so TurboQuantAttentionImpl exists with PR #42637
         # signatures before we monkey-patch its forward method.
         if g67:
-            from .integrations.gemma4 import (
+            from .integrations.attention.turboquant import (
                 g4_67_tq_spec_verify_routing as _g4_67_mod,
             )
             _g4_67_mod.apply()
@@ -482,7 +482,7 @@ def _g4_19_import_time_hook():
         # G4_60b so TurboQuantMetadataBuilder is imported from the
         # overlay. Reports applied/error/skipped; no monkey-patching.
         if g68:
-            from .integrations.gemma4 import (
+            from .integrations.attention.turboquant import (
                 g4_68_tq_spec_cg_downgrade_overlay as _g4_68_mod,
             )
             _g4_68_mod.apply()
@@ -493,7 +493,7 @@ def _g4_19_import_time_hook():
         # so this ordering is satisfied by being part of the apply-all
         # sweep.
         if g69:
-            from .integrations.gemma4 import (
+            from .integrations.attention.turboquant import (
                 g4_69_skip_layers_native_backend as _g4_69_mod,
             )
             _g4_69_mod.apply()

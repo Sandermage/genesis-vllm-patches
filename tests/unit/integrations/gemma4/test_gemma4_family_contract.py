@@ -41,8 +41,10 @@ PATCHES = [
     ("vllm.sndr_core.integrations.gemma4.g4_17_gemma4_vision_tower_text_only_skip", "G4_17"),
     # G4_18 relocated to kv_cache/ in Phase 3 bucket 2 (2026-05-21) —
     # see tests/unit/integrations/kv_cache/test_kv_cache_family_contract.py
-    ("vllm.sndr_core.integrations.gemma4.g4_19_gemma4_turboquant_kv_cache", "G4_19"),
-    ("vllm.sndr_core.integrations.gemma4.g4_19b_gemma4_tq_kv_spec_integration", "G4_19B"),
+    # G4_19, G4_19B, G4_19C, G4_31, G4_32, G4_60a-k, G4_61, G4_62, G4_67,
+    # G4_68, G4_69 relocated to attention/turboquant/ in Phase 3 bucket 4
+    # (2026-05-21) — see
+    # tests/unit/integrations/attention/turboquant/test_attention_turboquant_family_contract.py
     ("vllm.sndr_core.integrations.gemma4.g4_23_gemma4_vision_fp16_overflow_fix", "G4_23"),
     ("vllm.sndr_core.integrations.gemma4.g4_24_gemma4_fused_softcap_route", "G4_24"),
     ("vllm.sndr_core.integrations.gemma4.g4_25_gemma4_rope_dual_base_freq_guard", "G4_25"),

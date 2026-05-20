@@ -11,7 +11,7 @@ import pytest
 
 def test_pack_3bit_uint32_round_trip():
     """8 × 3-bit indices → uint32 → 8 indices unchanged."""
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_packing import (
+    from vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_packing import (
         pack_indices_3bit_uint32,
         unpack_indices_3bit_uint32,
     )
@@ -27,7 +27,7 @@ def test_pack_3bit_uint32_round_trip():
 
 
 def test_pack_3bit_all_zero():
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_packing import (
+    from vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_packing import (
         pack_indices_3bit_uint32,
         unpack_indices_3bit_uint32,
     )
@@ -40,7 +40,7 @@ def test_pack_3bit_all_zero():
 
 def test_pack_3bit_all_max():
     """All indices = 7 → packed word = 0x00FFFFFF (24 bits set)."""
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_packing import (
+    from vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_packing import (
         pack_indices_3bit_uint32,
         unpack_indices_3bit_uint32,
     )
@@ -58,7 +58,7 @@ def test_pack_3bit_all_max():
 
 def test_pack_3bit_specific_pattern():
     """Verify specific known-value placement."""
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_packing import (
+    from vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_packing import (
         pack_indices_3bit_uint32,
     )
     indices = np.array([[1, 2, 3, 4, 5, 6, 7, 0]], dtype=np.uint8)
@@ -69,7 +69,7 @@ def test_pack_3bit_specific_pattern():
 
 
 def test_pack_4bit_byte_round_trip():
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_packing import (
+    from vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_packing import (
         pack_indices_4bit_byte,
         unpack_indices_4bit_byte,
     )
@@ -85,7 +85,7 @@ def test_pack_4bit_byte_round_trip():
 
 def test_pack_3bit_tight_round_trip():
     """Tight 3-byte/8-index packing."""
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_packing import (
+    from vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_packing import (
         pack_indices_3bit_tight,
         unpack_indices_3bit_tight,
     )
@@ -98,7 +98,7 @@ def test_pack_3bit_tight_round_trip():
 
 
 def test_compression_ratio_3bit():
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_packing import (
+    from vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_packing import (
         compression_ratio,
     )
     # head_dim=256, 3-bit uint32 packing: 32 × 4 bytes + 4 byte scale = 132 bytes
@@ -109,7 +109,7 @@ def test_compression_ratio_3bit():
 
 
 def test_compression_ratio_4bit():
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_packing import (
+    from vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_packing import (
         compression_ratio,
     )
     # head_dim=256, 4-bit: 128 bytes + 4 = 132 bytes; same as 3-bit uint32
@@ -119,7 +119,7 @@ def test_compression_ratio_4bit():
 
 def test_pack_modules_importable():
     """Just confirm module structure exists."""
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant import g4_tq_packing
+    from vllm.sndr_core.integrations.attention.turboquant.kernels import g4_tq_packing
     assert hasattr(g4_tq_packing, "pack_indices_3bit_uint32")
     assert hasattr(g4_tq_packing, "unpack_indices_3bit_uint32")
     assert hasattr(g4_tq_packing, "pack_indices_4bit_byte")
@@ -129,7 +129,7 @@ def test_pack_modules_importable():
 
 def test_packed_triton_module_importable():
     """Triton kernel module imports without crashing (kernel won't fire without CUDA)."""
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant import (
+    from vllm.sndr_core.integrations.attention.turboquant.kernels import (
         g4_tq_packed_triton,
     )
     assert hasattr(g4_tq_packed_triton, "g4_tq_write_packed_3bit")

@@ -31,6 +31,25 @@ PATCHES = [
     ("vllm.sndr_core.integrations.attention.turboquant.pn31_fa_varlen_persistent_out", "PN31"),
     ("vllm.sndr_core.integrations.attention.turboquant.pn34_workspace_lock_runtime_relax", "PN34"),
     ("vllm.sndr_core.integrations.attention.turboquant.pn57_tq_centroids_disk_cache", "PN57"),
+    # Phase 3 bucket 4 (2026-05-21): G4_19/G4_19B/G4_19C/G4_31/G4_32/G4_60*/G4_61/G4_62/G4_67/G4_68/G4_69 relocated from gemma4/.
+    ("vllm.sndr_core.integrations.attention.turboquant.g4_19_turboquant_kv_cache", "G4_19"),
+    ("vllm.sndr_core.integrations.attention.turboquant.g4_19b_tq_kv_spec_integration", "G4_19B"),
+    ("vllm.sndr_core.integrations.attention.turboquant.g4_19c_attention_wrapper", "G4_19C"),
+    ("vllm.sndr_core.integrations.attention.turboquant.g4_31_preserve_tq_dtype", "G4_31"),
+    ("vllm.sndr_core.integrations.attention.turboquant.g4_32_tq_validation_bypass", "G4_32"),
+    ("vllm.sndr_core.integrations.attention.turboquant.g4_60a_tq_sliding_window_spec", "G4_60A"),
+    ("vllm.sndr_core.integrations.attention.turboquant.g4_60b_turboquant_attn_overlay_loader", "G4_60B"),
+    ("vllm.sndr_core.integrations.attention.turboquant.g4_60c_triton_decode_overlay_loader", "G4_60C"),
+    ("vllm.sndr_core.integrations.attention.turboquant.g4_60d_triton_store_overlay_loader", "G4_60D"),
+    ("vllm.sndr_core.integrations.attention.turboquant.g4_60e_kv_cache_utils", "G4_60E"),
+    ("vllm.sndr_core.integrations.attention.turboquant.g4_60g_attention_dispatch", "G4_60G"),
+    ("vllm.sndr_core.integrations.attention.turboquant.g4_60h_turboquant_config_augment", "G4_60H"),
+    ("vllm.sndr_core.integrations.attention.turboquant.g4_60k_arg_utils", "G4_60K"),
+    ("vllm.sndr_core.integrations.attention.turboquant.g4_61_tq_shared_workspace", "G4_61"),
+    ("vllm.sndr_core.integrations.attention.turboquant.g4_62_tq_kernel_warmup", "G4_62"),
+    ("vllm.sndr_core.integrations.attention.turboquant.g4_67_tq_spec_verify_routing", "G4_67"),
+    ("vllm.sndr_core.integrations.attention.turboquant.g4_68_tq_spec_cg_downgrade_overlay", "G4_68"),
+    ("vllm.sndr_core.integrations.attention.turboquant.g4_69_skip_layers_native_backend", "G4_69"),
 ]
 
 
