@@ -110,6 +110,15 @@ class TestExistingProfilesLoadUnchanged:
         assert p.spec_decode_override is not None
         assert p.spec_decode_override.method == "mtp"
         assert p.spec_decode_override.num_speculative_tokens == 4
+        # P1.7c: drafter attention_backend must be FLASH_ATTN (matches
+        # validated start_g4_betaA_k1.sh recipe). Without this the
+        # drafter falls back to TURBOQUANT auto-pick and breaks the
+        # validated acceptance path.
+        assert p.spec_decode_override.attention_backend == "FLASH_ATTN"
+        # P1.7b: sizing_override matches validated launcher
+        assert p.sizing_override is not None
+        assert p.sizing_override.max_num_seqs == 1
+        assert p.sizing_override.max_model_len == 4096
         # Compression plan
         assert p.compression_plan is not None
         assert p.compression_plan.native_source_layers == [58, 59]
@@ -340,3 +349,86 @@ class TestProfileDefRuntimeRole:
         )
         p.validate()
         assert p.role is None
+
+
+# ─── P1.7c — SpecDecodeConfig.attention_backend ─────────────────────────
+
+
+class TestSpecDecodeAttentionBackend:
+    """P1.7c: SpecDecodeConfig.attention_backend extends the schema with
+    an optional drafter-attention-backend hint. Renders into the
+    --speculative-config JSON for vLLM v1."""
+
+    def test_default_none_preserves_compat(self):
+        from vllm.sndr_core.model_configs.schema import SpecDecodeConfig
+        c = SpecDecodeConfig(method="mtp", num_speculative_tokens=4)
+        c.validate()
+        assert c.attention_backend is None
+        # JSON output must NOT contain the attention_backend key when
+        # field is None (backward-compat with pre-P1.7c configs).
+        import json
+        d = json.loads(c.to_vllm_arg())
+        assert "attention_backend" not in d
+
+    def test_flash_attn_emitted_in_json(self):
+        from vllm.sndr_core.model_configs.schema import SpecDecodeConfig
+        c = SpecDecodeConfig(
+            method="mtp", num_speculative_tokens=4,
+            attention_backend="FLASH_ATTN",
+        )
+        c.validate()
+        import json
+        d = json.loads(c.to_vllm_arg())
+        assert d["attention_backend"] == "FLASH_ATTN"
+
+    @pytest.mark.parametrize(
+        "value", ["FLASH_ATTN", "TRITON_ATTN", "TURBOQUANT", None],
+    )
+    def test_valid_values_accepted(self, value):
+        from vllm.sndr_core.model_configs.schema import SpecDecodeConfig
+        c = SpecDecodeConfig(
+            method="mtp", num_speculative_tokens=4,
+            attention_backend=value,
+        )
+        c.validate()  # no raise
+
+    @pytest.mark.parametrize(
+        "bad_value", ["flash_attn", "MAMBA_ATTN", "EAGLE_BACKEND", ""],
+    )
+    def test_invalid_value_rejected(self, bad_value):
+        from vllm.sndr_core.model_configs.schema import (
+            SpecDecodeConfig, SchemaError,
+        )
+        c = SpecDecodeConfig(
+            method="mtp", num_speculative_tokens=4,
+            attention_backend=bad_value,
+        )
+        with pytest.raises(SchemaError, match="attention_backend"):
+            c.validate()
+
+    def test_structured_profile_yaml_loads_attention_backend(self):
+        """Smoke: the gemma4-tq-mtp-structured-k4 YAML carries
+        attention_backend=FLASH_ATTN after P1.7c."""
+        p = load_profile("gemma4-tq-mtp-structured-k4")
+        p.validate()
+        assert p.spec_decode_override.attention_backend == "FLASH_ATTN"
+
+    def test_composed_spec_decode_carries_attention_backend(self):
+        """Compose the structured profile and verify the resulting
+        cfg.spec_decode.to_vllm_arg() includes the attention_backend
+        key — exactly what the rendered --speculative-config will use."""
+        from vllm.sndr_core.model_configs.compose import compose
+        from vllm.sndr_core.model_configs.registry_v2 import (
+            load_hardware, load_model,
+        )
+        import json as _json
+
+        p = load_profile("gemma4-tq-mtp-structured-k4")
+        m = load_model("gemma-4-31b-it-awq")
+        hw = load_hardware("a5000-2x-24gbvram-16cpu-128gbram")
+        cfg = compose(m, hw, p)
+        spec_json = _json.loads(cfg.spec_decode.to_vllm_arg())
+        assert spec_json["method"] == "mtp"
+        assert spec_json["num_speculative_tokens"] == 4
+        assert spec_json["model"] == "/models/gemma-4-31B-it-assistant"
+        assert spec_json["attention_backend"] == "FLASH_ATTN"

@@ -82,6 +82,22 @@ class SpecDecodeConfig:
     rejection_sample_method: Optional[str] = None  # "standard" | None
     draft_sample_method: Optional[str] = None      # "probabilistic" | None
 
+    # P1.7c (2026-05-20): drafter attention backend — selects the
+    # attention kernel the drafter runs with. vLLM v1 SpeculativeConfig
+    # accepts an `attention_backend` key; the validated β'-A K=4
+    # configuration explicitly sets this to FLASH_ATTN so the drafter
+    # routes head_size 256 / 512 layers through G4_71b / G4_75
+    # respectively. Without this key the drafter falls back to vLLM's
+    # auto-pick (typically TURBOQUANT on a TQ engine) which causes a
+    # KV layout / kernel mismatch and breaks acceptance.
+    #
+    # Known values: FLASH_ATTN | TRITON_ATTN | TURBOQUANT | None.
+    # Default None preserves backward compat: pre-P1.7c configs that
+    # never set this field render bit-identically to their prior
+    # behaviour. Operator opts in via the spec_decode block on
+    # ModelDef or via ProfileDef.spec_decode_override.
+    attention_backend: Optional[str] = None
+
     def validate(self) -> None:
         valid_methods = {"mtp", "eagle", "ngram", "dflash"}
         if self.method not in valid_methods:
@@ -115,6 +131,17 @@ class SpecDecodeConfig:
                 "SpecDecodeConfig.draft_sample_method must be one of "
                 f"{valid_draft_sample}, got {self.draft_sample_method!r}"
             )
+        # P1.7c: attention_backend validates against the known set of
+        # vLLM v1 attention backends. None means "do not emit the key"
+        # (engine auto-picks).
+        valid_attn_backend = {
+            None, "FLASH_ATTN", "TRITON_ATTN", "TURBOQUANT",
+        }
+        if self.attention_backend not in valid_attn_backend:
+            raise SchemaError(
+                "SpecDecodeConfig.attention_backend must be one of "
+                f"{valid_attn_backend}, got {self.attention_backend!r}"
+            )
 
     def to_vllm_arg(self) -> str:
         """Format for --speculative-config flag."""
@@ -131,6 +158,10 @@ class SpecDecodeConfig:
             d["rejection_sample_method"] = self.rejection_sample_method
         if self.draft_sample_method is not None:
             d["draft_sample_method"] = self.draft_sample_method
+        # P1.7c: drafter attention backend (FLASH_ATTN, TRITON_ATTN,
+        # TURBOQUANT). Emitted only when set; absent key = vLLM auto-pick.
+        if self.attention_backend is not None:
+            d["attention_backend"] = self.attention_backend
         return json.dumps(d)
 
 

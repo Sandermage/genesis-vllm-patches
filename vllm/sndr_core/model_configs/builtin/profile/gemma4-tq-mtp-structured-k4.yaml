@@ -72,6 +72,13 @@ spec_decode_override:
   method: mtp
   num_speculative_tokens: 4
   model: /models/gemma-4-31B-it-assistant
+  # P1.7c (2026-05-20): drafter attention_backend explicit. Without
+  # this key the drafter would fall back to engine auto-pick
+  # (TURBOQUANT on a TQ engine), causing KV layout / kernel mismatch
+  # and breaking the validated acceptance distribution. The hand-
+  # written start_g4_betaA_k1.sh sets this in the spec-decode JSON;
+  # the V2 rendered launcher now does too.
+  attention_backend: FLASH_ATTN
 
 # Per-layer KV compression plan. Layers 58/59 are KV-sharing sources
 # for the MTP drafter and must stay native (uncompressed bf16); other
