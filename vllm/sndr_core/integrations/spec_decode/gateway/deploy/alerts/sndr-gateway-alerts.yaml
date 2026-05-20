@@ -134,6 +134,73 @@ groups:
             If probe failures rise but state stays 'up', check probe
             timeout vs. upstream latency.
 
+      # --- Structured acceptance collapse (commented-out template) ---
+      #
+      # Status: TEMPLATE — disabled by default. Uncomment + reload
+      #   Prometheus only after operator approval.
+      #
+      # Data source: PN282 (commit b1999ff6) + PN283 (commit abc5fe5d).
+      #   Conditional on the structured launcher setting:
+      #     PROMETHEUS_MULTIPROC_DIR=/tmp/sndr-prom-mp
+      #     SNDR_ENABLE_SPEC_DECODE_ACCEPTANCE_METRIC=1
+      #     SNDR_SPEC_DECODE_PROFILE_LABEL=gemma4-tq-mtp-structured-k4
+      #   Otherwise no series and the alert never fires (vector
+      #   matching returns empty → alert is silently inert).
+      #
+      # Numerator/denominator semantics validated 2026-05-20:
+      #   - sndr_spec_decode_calls_total: rejection_sample call count
+      #     (per call, NOT per request outcome)
+      #   - sndr_spec_decode_accepted_per_call_total{k}: increments
+      #     once per request per call
+      #   - For batch_size=1: ratio == fraction of calls with zero
+      #     accepted draft tokens. β'-A K=4 healthy reference shows
+      #     k=0 share = 24/106 = 22.6% on the canonical workload
+      #     (mean 1.79/4). The 60% threshold is well above; sustained
+      #     breach indicates kernel/storage mismatch, drafter regression,
+      #     or workload-class regression at the gateway router.
+      #
+      # When enabling, choose the response level deliberately:
+      #   - severity: warning + paging channel → page on-call
+      #   - severity: info + dashboard-only → silent observability
+      # Recommended first enable: severity=warning, 5m sustained, with
+      #   the L1 force-default rollback (POST /admin/force-default) as
+      #   the response action.
+      #
+      # - alert: SNDRStructuredAcceptanceCollapsed
+      #   expr: |
+      #     (
+      #       sum by (profile) (rate(sndr_spec_decode_accepted_per_call_total{
+      #         k="0", profile="gemma4-tq-mtp-structured-k4"}[5m]))
+      #       /
+      #       sum by (profile) (rate(sndr_spec_decode_calls_total{
+      #         profile="gemma4-tq-mtp-structured-k4"}[5m]))
+      #     ) > 0.60
+      #   for: 5m
+      #   labels:
+      #     severity: warning
+      #     team: sndr
+      #   annotations:
+      #     summary: "Structured acceptance collapsed (>60% k=0 for 5m)"
+      #     description: |
+      #       More than 60% of rejection_sample calls landed at k=0 (zero
+      #       drafts accepted) on profile {{ $labels.profile }} over the
+      #       past 5m. Healthy β'-A K=4 reference: k=0 share 22.6%.
+      #       Sustained breach indicates one of:
+      #         - Drafter ↔ target divergence (kernel/storage mismatch)
+      #         - Workload classifier sent the wrong workload class to
+      #           the structured upstream
+      #         - PN271 / PN272 / PN274 guard regression
+      #       Cross-references during incident response:
+      #         - sndr_routed_structured_total — is traffic still landing
+      #           on structured (collapse + still routing = bad for users)?
+      #         - vllm:spec_decode_num_accepted_tokens_total — does
+      #           upstream agree?
+      #         - /tmp/genesis_pn248_acceptance_trace.log inside the
+      #           structured container — byte-level cross-check
+      #       Operator action: consider L1 rollback (POST
+      #       /admin/force-default on the gateway). See production cutover
+      #       runbook §5 (rollback decision tree).
+
       # --- VRAM headroom (placeholder) ---
       # vLLM does not (yet) expose VRAM as a Prometheus metric out of
       # the box. To enable this alert, install a nvidia-smi exporter
