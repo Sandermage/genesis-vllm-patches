@@ -38,23 +38,42 @@ from vllm.sndr_core.model_configs.schema_v2 import (
 
 
 class TestExistingProfilesLoadUnchanged:
-    def test_all_builtin_profiles_load_with_new_fields_default_none(self):
-        """Every builtin ProfileDef YAML must load + validate + have all
-        six new optional fields equal None.
+    # P1.3 (2026-05-20) added two builtin profiles that intentionally
+    # set the new runtime-role fields. They are exempted here; any
+    # OTHER profile setting role-related fields fails this test
+    # (the per-field assertions below catch the leak).
+    _RUNTIME_ROLE_EXEMPTIONS = frozenset({
+        "gemma4-tq-default",                # role=default, no spec/compression/etc.
+        "gemma4-tq-mtp-structured-k4",      # role=structured, full structured config
+    })
 
-        If this fails after adding a new builtin YAML, that new YAML
-        is using one of the runtime-role fields — verify intentionally,
-        then add the new profile to the exemption list in this test.
+    def test_all_builtin_profiles_load_with_new_fields_default_none(self):
+        """Every builtin ProfileDef YAML must load + validate. Profiles
+        with role=None (the tuning-preset majority) must have all six
+        new optional fields = None. Profiles in
+        ``_RUNTIME_ROLE_EXEMPTIONS`` may set role-related fields and
+        are checked separately by the dedicated P1.3 / Variant A tests.
+
+        If this fails after adding a new builtin YAML, the new YAML
+        is using one of the runtime-role fields without being in the
+        exemption list — verify intentionally, then add the new
+        profile id to ``_RUNTIME_ROLE_EXEMPTIONS`` above.
         """
         ids = list_profiles()
         assert ids, "no profiles discovered — registry_v2 broken?"
         for pid in ids:
             p = load_profile(pid)
             p.validate()
+            if pid in self._RUNTIME_ROLE_EXEMPTIONS:
+                # Exempt: runtime-role profile; field shape verified
+                # by dedicated P1.3 / Variant A tests in this file
+                # (TestProfileDefRuntimeRole::test_full_structured_profile_validates,
+                # test_default_profile_validates).
+                continue
             assert p.role is None, (
-                f"{pid}: role={p.role!r} — only the two P1.3 new profiles "
-                f"(gemma4-tq-default, gemma4-tq-mtp-structured-k4) are "
-                f"allowed to set role; this is one of the existing 17."
+                f"{pid}: role={p.role!r} — only profiles in "
+                f"_RUNTIME_ROLE_EXEMPTIONS may set role. Add this id "
+                f"to the exemption list if intentional."
             )
             assert p.spec_decode_override is None, (
                 f"{pid}: spec_decode_override set"
@@ -63,6 +82,59 @@ class TestExistingProfilesLoadUnchanged:
             assert p.backend_plan is None, f"{pid}: backend_plan set"
             assert p.routing is None, f"{pid}: routing set"
             assert p.validation is None, f"{pid}: validation set"
+
+    def test_p1_3_builtin_gemma4_tq_default_loads(self):
+        """gemma4-tq-default (P1.3): role=default, no runtime-role
+        sub-blocks. Inherits ModelDef canonical patches as-is."""
+        p = load_profile("gemma4-tq-default")
+        p.validate()
+        assert p.role == "default"
+        assert p.parent_model == "gemma-4-31b-it-awq"
+        assert p.spec_decode_override is None
+        assert p.compression_plan is None
+        assert p.backend_plan is None
+        assert p.routing is None
+        assert p.validation is None
+        assert p.patches_delta.enable == {}
+        assert p.patches_delta.disable == []
+        assert p.patches_delta.override == {}
+
+    def test_p1_3_builtin_gemma4_structured_k4_loads(self):
+        """gemma4-tq-mtp-structured-k4 (P1.3): full structured config
+        with MTP K=4, skip-list 58,59, artifact validation reference."""
+        p = load_profile("gemma4-tq-mtp-structured-k4")
+        p.validate()
+        assert p.role == "structured"
+        assert p.parent_model == "gemma-4-31b-it-awq"
+        # Spec-decode K=4
+        assert p.spec_decode_override is not None
+        assert p.spec_decode_override.method == "mtp"
+        assert p.spec_decode_override.num_speculative_tokens == 4
+        # Compression plan
+        assert p.compression_plan is not None
+        assert p.compression_plan.native_source_layers == [58, 59]
+        assert p.compression_plan.default_kv_dtype == "turboquant_4bit_nc"
+        assert p.compression_plan.strategy == "per_layer"
+        # Backend plan
+        assert p.backend_plan is not None
+        assert p.backend_plan.target_default == "TURBOQUANT"
+        assert p.backend_plan.target_native_layers == "TRITON_ATTN"
+        assert p.backend_plan.drafter_sliding == "TRITON_ATTN"
+        assert p.backend_plan.drafter_full == "TRITON_ATTN"
+        # Routing
+        assert p.routing is not None
+        assert set(p.routing.intended_workloads) == {
+            "structured_count", "tool_json",
+        }
+        # Validation
+        assert p.validation is not None
+        assert p.validation.artifact_id == "gemma4-tq-mtp-structured-k4"
+        assert p.validation.config_hash == "71c874d7ffedae04"
+        # patches_delta.enable populated (P1.3 transitional — moves to
+        # backend_plan in P1.5)
+        assert "GENESIS_ENABLE_G4_71B_DRAFTER_SLIDING_TRITON" in p.patches_delta.enable
+        assert "GENESIS_ENABLE_G4_75_DRAFTER_HEAD512_TRITON" in p.patches_delta.enable
+        assert "SNDR_ALLOW_SPEC_DECODE_KV_ADAPTER" in p.patches_delta.enable
 
     def test_profile_roles_enum_unchanged(self):
         assert PROFILE_ROLES == ("default", "structured", "gateway")

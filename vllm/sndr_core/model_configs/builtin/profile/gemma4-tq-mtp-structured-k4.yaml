@@ -1,0 +1,159 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 profile — gemma4-tq-mtp-structured-k4
+# Role: structured — β'-A K=4 validated_conditional runtime for
+# gemma-4-31b-it-awq with MTP spec-decode targeting tool_json and
+# structured_count workloads.
+#
+# This profile is the declarative form of the manually-validated
+# server-side launcher `start_g4_betaA_k1.sh`. Composition + render-
+# launchers (P1.5) will produce a launcher byte-equivalent to it
+# (modulo header comments, ports, container name).
+#
+# Bench evidence (2026-05-20 runtime validation, dev371+gbf610c2f5,
+# 10 tool_json requests, K=4):
+#   PN248 distribution: k=0:24 / k=1:40 / k=3:18 / k=4:24 / total=106
+#   mean k = 1.79/4 ≈ 1.83/4 reference
+#   PN282 acceptance counter matches PN248 byte-for-byte (tolerance 0)
+#   TP aggregation: centralized (no rank label needed)
+#
+# Workload routing semantics (enforced at runtime by request_router
+# AND artifact intersection):
+#   tool_json (response_format json_object / json_schema) → THIS profile
+#   structured_count (extra_body.workload_class)          → THIS profile
+#   free_chat / summarization / code_gen                   → fall back to
+#                                                            gemma4-tq-default
+#
+# Architectural cross-references:
+#   docs/_internal/ACCEPTANCE_METRIC_DESIGN_2026-05-20.md
+#   docs/_internal/PN283_MULTIPROC_BRIDGE_DESIGN_2026-05-20.md
+#   docs/_internal/SNDR_RUNTIME_PROFILES_DESIGN_DECISIONS_2026-05-20.md
+#   docs/_internal/GEMMA4_MTP_MODELDEF_MIGRATION_AUDIT_2026-05-20.md
+#   docs/_internal/PN282_PN283_PRODUCTION_LAUNCHER_OPT_IN_PLAN_2026-05-20.md
+
+schema_version: 2
+kind: profile
+id: gemma4-tq-mtp-structured-k4
+parent_model: gemma-4-31b-it-awq                 # post-Variant-A: ModelDef has spec_decode=null
+maintainer: sandermage
+status: validated                                 # PN282/PN283 validation 2026-05-20 evening passed all gates
+created: '2026-05-20'
+
+# ─── Runtime role (P1.1+P1.2+P1.2b+Variant A architecture) ────────────
+role: structured
+
+# MTP K=4 via the gemma-4-31B-it-assistant drafter. spec_decode_override
+# is the V1 SpecDecodeConfig type (single source of truth — same shape
+# the engine already understands). Reused rather than wrapped per
+# Decision 1 in the design doc.
+spec_decode_override:
+  method: mtp
+  num_speculative_tokens: 4
+  model: /models/gemma-4-31B-it-assistant
+
+# Per-layer KV compression plan. Layers 58/59 are KV-sharing sources
+# for the MTP drafter and must stay native (uncompressed bf16); other
+# target layers use turboquant_4bit_nc. compose() renders
+# native_source_layers into the existing G4_60K reader's env
+# (SNDR_G4_TQ_FORCE_SKIP_LAYERS canonical + GENESIS_ legacy alias,
+# both for the one-release migration window).
+compression_plan:
+  strategy: per_layer
+  default_kv_dtype: turboquant_4bit_nc
+  native_source_layers: [58, 59]
+
+# Backend assignments. P1.3 ships backend_plan as declarative-only
+# metadata; the corresponding G4_71b/G4_75 env vars are enabled
+# explicitly via patches_delta.enable below. P1.5 will add the strict
+# backend_plan -> env mapping table and move those entries out of
+# patches_delta.enable, but the runtime behavior remains identical.
+backend_plan:
+  target_default: TURBOQUANT
+  target_native_layers: TRITON_ATTN              # layers 58, 59 (skip-list)
+  drafter_sliding: TRITON_ATTN                   # head_size 256 (G4_71b)
+  drafter_full: TRITON_ATTN                      # head_size 512 (G4_75 HEAD512)
+
+# Operator-declared intent. Runtime effective set is computed by the
+# request router as:
+#   effective_allowed = intended_workloads ∩ artifact.allowed_workloads
+# The artifact's allowed_workloads is the cryptographic gate; this
+# field is operator-facing intent.
+routing:
+  intended_workloads:
+    - structured_count
+    - tool_json
+
+# Pin-invariant reference into the bench evidence file.
+# config_hash is computed over (model_id, kv_plan, K, drafter_backend),
+# excluding the vLLM pin — stable across pin bumps.
+validation:
+  artifact_id: gemma4-tq-mtp-structured-k4
+  config_hash: 71c874d7ffedae04                  # see vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-tq-mtp-structured-k4.json
+
+# ─── Patches delta — structured-specific runtime gates ────────────────
+# These envs are enabled by `start_g4_betaA_k1.sh` on the server but
+# are NOT in the parent ModelDef's canonical patches dict (which holds
+# the default-safe Gemma 4 family stack). Once P1.5 ships the strict
+# backend_plan mapping, the G4_71b / G4_75 entries will move out of
+# patches_delta.enable into the backend_plan derivation. The other
+# entries (G4_60a..k, PN256, PN261, PN271, G4_70 mixed-alloc) stay
+# in patches_delta because they're structured-specific patches that
+# don't have a backend_plan home.
+#
+# Observability envs (SNDR_ENABLE_SPEC_DECODE_ACCEPTANCE_METRIC,
+# PROMETHEUS_MULTIPROC_DIR, SNDR_SPEC_DECODE_PROFILE_LABEL) are NOT
+# in this profile — they are operator-decision per
+# PN282_PN283_PRODUCTION_LAUNCHER_OPT_IN_PLAN_2026-05-20.md §1, set
+# at the launcher level (P1.5 render-launchers can add them via a
+# future --observability flag).
+patches_delta:
+  enable:
+    # ── PR42637 Mixed-attention TQ for Gemma 4 (G4_60a..k stack) ──
+    GENESIS_ENABLE_G4_60A_TQ_SLIDING_SPEC: '1'
+    GENESIS_ENABLE_G4_60B_TQ_ATTN_OVERLAY: '1'
+    GENESIS_ENABLE_G4_60C_TQ_DECODE_OVERLAY: '1'
+    GENESIS_ENABLE_G4_60D_TQ_STORE_OVERLAY: '1'
+    GENESIS_ENABLE_G4_60E_KV_CACHE_UTILS: '1'
+    GENESIS_ENABLE_G4_60G_TQ_DISPATCH: '1'
+    GENESIS_ENABLE_G4_60H_TQ_CONFIG_AUGMENT: '1'
+    GENESIS_ENABLE_G4_60K_TQ_ENGINE_CONFIG: '1'
+    GENESIS_ENABLE_G4_61_TQ_SHARED_WORKSPACE: '1'
+    GENESIS_ENABLE_G4_62_TQ_KERNEL_WARMUP: '1'
+    GENESIS_ENABLE_G4_32_TQ_VALIDATION_BYPASS: '1'
+    # ── Skip-list / native-backend / mixed-allocator stack ──
+    GENESIS_ENABLE_G4_69_SKIP_LAYERS_NATIVE_BACKEND: '1'
+    GENESIS_ENABLE_G4_70_PN259B_MIXED_ALLOC: '1'
+    GENESIS_ENABLE_G4_70_PN259B_FAIL_FAST: '1'
+    # ── Drafter Triton routing (will move to backend_plan in P1.5) ──
+    GENESIS_ENABLE_G4_71B_DRAFTER_SLIDING_TRITON: '1'
+    GENESIS_ENABLE_G4_75_DRAFTER_HEAD512_TRITON: '1'
+    # ── Spec-decode runtime + contract audit ──
+    GENESIS_ENABLE_PN256_KPLUS1_RAW_KV: '1'
+    GENESIS_ENABLE_PN261_TQ_NATIVE_CACHE_ASSERT: '1'
+    GENESIS_ENABLE_PN271_KV_CONTRACT_AUDIT: '1'
+    # ── Safety guard structural opt-in (PN274) ──
+    SNDR_ALLOW_SPEC_DECODE_KV_ADAPTER: '1'
+  disable: []
+  override: {}
+
+# ─── Promotion contract ────────────────────────────────────────────────
+# Promotion to canonical model.patches is intentionally NOT planned for
+# this profile: MTP and the per-layer compression plan are workload-
+# conditional, not inherent model properties. The structured profile
+# stays a profile permanently; "promotion" for this entry just means
+# moving lifecycle from `validated` → `stable` once the production
+# observation window per the opt-in plan completes.
+promotion:
+  validation_required:
+    - "functional artifact gemma4-tq-mtp-structured-k4.json present and config_hash matches"
+    - "PN248 ↔ PN282 cross-check tolerance 0 maintained over observation window"
+    - "router intersects routing.intended_workloads ∩ artifact.allowed_workloads to {structured_count, tool_json}"
+    - "no KERNEL_STORAGE_DTYPE_MISMATCH verdict from PN271/PN271b at boot"
+    - "free_chat / summarization / code_gen NOT in artifact.allowed_workloads (denial preserved)"
+  promote_to: null                                 # MTP stays profile-side; do not promote into model.patches
+  notes: |
+    This is the declarative form of the manually-validated launcher
+    start_g4_betaA_k1.sh on 192.168.1.10. P1.5 (render-launchers) will
+    generate a launcher byte-equivalent to it (modulo cosmetic
+    differences). Until then, this profile composes correctly via
+    sndr profile show / sndr profile validate (P1.4) but does NOT
+    automatically affect production runtime.

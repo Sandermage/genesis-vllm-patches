@@ -1,0 +1,63 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 profile — gemma4-tq-default
+# Role: default — production-safe MTP-OFF runtime for gemma-4-31b-it-awq.
+#
+# This profile pairs with `gemma4-tq-mtp-structured-k4` (the structured-
+# role sibling). Together they implement the post-Variant-A architecture
+# where MTP is a workload-conditional runtime behavior rather than an
+# inherent ModelDef capability:
+#
+#   default     → MTP OFF, TQ-only, broad workload safe
+#                 (chat, free-form, summarization, code_gen — anything)
+#   structured  → MTP K=4, β'-A K=4 validated_conditional artifact,
+#                 ONLY for tool_json + structured_count workloads
+#
+# Composition expectations (verified by P1.3 gates):
+#   compose(gemma-4-31b-it-awq, hw, gemma4-tq-default).spec_decode == None
+#   compose(...).genesis_env has no SNDR_G4_TQ_FORCE_SKIP_LAYERS
+#   compose(...).genesis_env inherits model.patches as-is (27 entries)
+#
+# Empty patches_delta = inherit the ModelDef's canonical patches dict.
+# The new runtime-role fields are all null because the default profile
+# has nothing role-specific to add (no MTP, no compression plan, no
+# routing constraint, no artifact validation gate).
+
+schema_version: 2
+kind: profile
+id: gemma4-tq-default
+parent_model: gemma-4-31b-it-awq                 # post-Variant-A: ModelDef has spec_decode=null
+maintainer: sandermage
+status: validated                                 # canonical default mode for Gemma 4 31B AWQ
+created: '2026-05-20'
+
+# ─── Runtime role (P1.1+P1.2+P1.2b+Variant A architecture) ────────────
+role: default                                     # production-safe TQ-only MTP-OFF
+spec_decode_override: null                        # MTP OFF; inherits model's spec_decode=null
+compression_plan: null                            # no per-layer compression plan; TQ via canonical patches
+backend_plan: null                                # default backend assignments via model.patches
+routing: null                                     # default has no workload-class restriction
+validation: null                                  # no functional artifact gate (default is broadly safe)
+
+# ─── Empty patches delta ───────────────────────────────────────────────
+# Default profile uses the ModelDef's canonical patches as-is — Gemma 4
+# family guards + fixes + TurboQuant wrapper-stack are already in
+# model.patches. No structured-specific patches needed.
+patches_delta:
+  enable: {}
+  disable: []
+  override: {}
+
+# ─── Promotion contract ────────────────────────────────────────────────
+# Default profile is already the canonical reference mode; no promotion
+# path. Lifecycle is `validated` because TQ-only MTP-OFF posture matches
+# how Gemma 4 31B AWQ has run in every production-eligible test since
+# the AWQ checkpoint shipped (2026-05-17+).
+promotion:
+  validation_required: []
+  promote_to: null
+  notes: |
+    Default profile = canonical production-safe mode for gemma-4-31b-it-awq.
+    No delta to promote; the model's canonical patches already encode
+    everything the default role needs. This profile exists as the
+    explicit "MTP OFF default" anchor so render-launchers (P1.5) can
+    target it by name rather than relying on profile=None semantics.
