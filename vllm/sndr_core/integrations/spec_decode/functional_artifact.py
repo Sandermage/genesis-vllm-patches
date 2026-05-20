@@ -112,15 +112,19 @@ class FunctionalArtifact:
 def compute_config_hash(model_id: str, vllm_pin: str,
                         kv_plan: dict[str, Any], mtp_k: int | None,
                         drafter_backend: str | None = None) -> str:
-    """Stable hash over (model, pin, kv_plan, K, drafter_backend).
+    """Stable hash over (model, kv_plan, K, drafter_backend).
 
-    Used to identify "same configuration" across artifact lookup.
-    Order-stable via sort_keys.
+    NOTE: vllm_pin is intentionally NOT in the hash. Pin is stored in
+    the artifact as metadata so an operator log clearly shows what
+    pin was bench'd, but a pin bump should not silently invalidate a
+    config that's structurally identical. If you want stricter
+    matching, validate ``art.vllm_pin == live_pin`` at the caller.
+
+    Order-stable via sort_keys. 16-hex truncated sha256.
     """
     blob = json.dumps(
         {
             "model_id": model_id,
-            "vllm_pin": vllm_pin,
             "kv_plan": kv_plan,
             "mtp_k": mtp_k,
             "drafter_backend": drafter_backend,

@@ -373,11 +373,26 @@ def _try_match_artifact(provider: Any, vllm_config: Any):
     try:
         keys = provider.artifact_lookup_keys(vllm_config)
         if not keys:
+            log.warning(
+                "[SpecDecodeGuard] artifact_lookup_keys returned None — "
+                "live config did not match any known profile shape",
+            )
             return None
         model_id, profile, config_hash = keys
-        return find_matching(
+        log.warning(
+            "[SpecDecodeGuard] artifact lookup keys: model_id=%r "
+            "profile=%r config_hash=%r",
+            model_id, profile, config_hash,
+        )
+        result = find_matching(
             model_id=model_id, profile=profile, config_hash=config_hash,
         )
+        if result is None:
+            log.warning(
+                "[SpecDecodeGuard] no matching artifact for "
+                "(%s, %s, %s)", model_id, profile, config_hash,
+            )
+        return result
     except Exception as _e:  # noqa: BLE001
         log.warning("[SpecDecodeGuard] artifact lookup failed: %s", _e)
         return None

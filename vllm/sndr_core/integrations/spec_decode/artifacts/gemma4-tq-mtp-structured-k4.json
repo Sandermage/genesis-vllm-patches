@@ -3,7 +3,7 @@
     "structured_count",
     "tool_json"
   ],
-  "config_hash": "64ef66daf891a881",
+  "config_hash": "71c874d7ffedae04",
   "created_at": "2026-05-20T00:00:00Z",
   "decision": "validated_conditional",
   "denied_workloads": [
@@ -93,9 +93,9 @@
       }
     ]
   },
-  "model_id": "cyankiwi/gemma-4-31B-it-AWQ-4bit",
-  "notes": "\u03b2\u2032-A K=4 first measurement. structured workloads +24%, free-form workloads -51%, global geomean -14.7%. Validated as conditional profile only.",
-  "patch_hash": "5402a57cda8e6317bb9efe8bce42c551bf4efb01",
+  "model_id": "gemma-4-31B-it-AWQ-4bit",
+  "notes": "\u03b2\u2032-A K=4 first measurement. structured +24%, free-form -51%, global -14.7%. Validated as conditional profile only.",
+  "patch_hash": "eb4334c1a2097a98060077513c027568c53d05af",
   "profile": "gemma4-tq-mtp-structured-k4",
   "prompt_suite": [
     "code_gen",

@@ -320,7 +320,12 @@ class Gemma4MappingProvider(MappingProvider):
         """
         try:
             mc = getattr(vllm_config, "model_config", None)
-            model_id = getattr(mc, "model", None) or "<unknown>"
+            raw_model = getattr(mc, "model", None) or "<unknown>"
+            # Normalize: artifacts store the model basename (last path
+            # component) so a launcher that passes a local path matches
+            # an artifact generated against the canonical HF id.
+            model_id = (raw_model.rstrip("/").rsplit("/", 1)[-1]
+                        if isinstance(raw_model, str) else raw_model)
 
             spec_cfg = getattr(vllm_config, "speculative_config", None)
             mtp_k = (getattr(spec_cfg, "num_speculative_tokens", None)
