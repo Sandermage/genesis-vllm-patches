@@ -208,6 +208,47 @@ def _resolve_fp8_e4b15():
         return None
 
 
+def _call_original_continuation_prefill(
+    self,
+    layer: Any,
+    query: torch.Tensor,
+    key_chunk: torch.Tensor,
+    val_chunk: torch.Tensor,
+    kv_cache: torch.Tensor,
+    block_table: torch.Tensor,
+    cached_len: int,
+    seq_len: int,
+    Pi: torch.Tensor,
+    centroids: torch.Tensor,
+    *,
+    mm_prefix_ranges: torch.Tensor | None = None,
+) -> torch.Tensor:
+    """Call the upstream `_continuation_prefill` captured by P38."""
+    impl_method = getattr(self.__class__, "_continuation_prefill", None)
+    original = getattr(impl_method, "_genesis_p38_original", None)
+    if original is None:
+        raise RuntimeError(
+            "[Genesis P38] no saved original _continuation_prefill method — "
+            "engine is in an unexpected state."
+        )
+    if mm_prefix_ranges is None:
+        return original(
+            self, layer, query, key_chunk, val_chunk, kv_cache,
+            block_table, cached_len, seq_len, Pi, centroids,
+        )
+    try:
+        return original(
+            self, layer, query, key_chunk, val_chunk, kv_cache,
+            block_table, cached_len, seq_len, Pi, centroids,
+            mm_prefix_ranges=mm_prefix_ranges,
+        )
+    except TypeError as exc:
+        raise RuntimeError(
+            "[Genesis P38] mm_prefix_ranges was requested, but the captured "
+            "upstream _continuation_prefill does not support it."
+        ) from exc
+
+
 def _genesis_continuation_prefill(
     self,
     layer: Any,
@@ -220,6 +261,7 @@ def _genesis_continuation_prefill(
     seq_len: int,
     Pi: torch.Tensor,
     centroids: torch.Tensor,
+    mm_prefix_ranges: torch.Tensor | None = None,
 ) -> torch.Tensor:
     """Genesis P38 replacement for `TurboQuantAttentionImpl._continuation_prefill`.
 
@@ -235,6 +277,17 @@ def _genesis_continuation_prefill(
     allocation pattern so correctness is preserved.
     """
     import triton
+
+    # PR42637 added multimodal-prefix masking to `_continuation_prefill`.
+    # P38's persistent-buffer rewrite does not implement that mask, so when
+    # the caller supplies real ranges we delegate to the captured upstream
+    # implementation instead of silently dropping correctness state.
+    if mm_prefix_ranges is not None:
+        return _call_original_continuation_prefill(
+            self, layer, query, key_chunk, val_chunk, kv_cache,
+            block_table, cached_len, seq_len, Pi, centroids,
+            mm_prefix_ranges=mm_prefix_ranges,
+        )
 
     q_len, Hq, D = query.shape
     Hk = key_chunk.shape[1]
@@ -317,26 +370,12 @@ def _genesis_continuation_prefill(
     tq_kernel = _resolve_triton_kernel()
     fp8_e4b15_fn = _resolve_fp8_e4b15()
     if tq_kernel is None or fp8_e4b15_fn is None:
-        # Can't proceed — fall back to original method. This hits only
-        # if upstream moved the kernel symbol. Import the original via
-        # the saved reference attached to our wrapper.
-        # Use `getattr(cls, name, None)` on the class (walks MRO) rather
-        # than `self.__class__.__dict__.get(name)` which sees only the
-        # direct class and returns None on subclasses — which would then
-        # AttributeError on the `_genesis_p38_original` lookup.
-        impl_method = getattr(
-            self.__class__, "_continuation_prefill", None,
-        )
-        original = getattr(impl_method, "_genesis_p38_original", None)
-        if original is None:
-            raise RuntimeError(
-                "[Genesis P38] Triton kernel / fp8 helper not resolvable AND "
-                "no saved original method — engine is in an unexpected "
-                "state."
-            )
-        return original(
+        # Can't proceed — fall back to the captured original method. This
+        # hits only if upstream moved the kernel / fp8 helper symbol.
+        return _call_original_continuation_prefill(
             self, layer, query, key_chunk, val_chunk, kv_cache,
             block_table, cached_len, seq_len, Pi, centroids,
+            mm_prefix_ranges=mm_prefix_ranges,
         )
 
     tq_kernel[grid](

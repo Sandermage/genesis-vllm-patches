@@ -134,6 +134,7 @@ P38B_REPLACEMENT = (
     "                self, layer, query, key_chunk, val_chunk,\n"
     "                kv_cache, block_table, cached_len, seq_len,\n"
     "                Pi, centroids,\n"
+    "                mm_prefix_ranges=locals().get('mm_prefix_ranges'),\n"
     "            )\n"
     "            if _genesis_p38b_r is not None:\n"
     "                return _genesis_p38b_r\n"
@@ -209,7 +210,8 @@ def _install_dispatcher() -> bool:
         return False
 
     def _dispatch(self, layer, query, key_chunk, val_chunk, kv_cache,
-                  block_table, cached_len, seq_len, Pi, centroids):
+                  block_table, cached_len, seq_len, Pi, centroids,
+                  mm_prefix_ranges=None):
         """P38b dispatcher: route through Genesis impl when applicable.
 
         Returns Genesis result tensor on success. Returns None to fall
@@ -221,6 +223,7 @@ def _install_dispatcher() -> bool:
             return genesis_fn(
                 self, layer, query, key_chunk, val_chunk, kv_cache,
                 block_table, cached_len, seq_len, Pi, centroids,
+                mm_prefix_ranges=mm_prefix_ranges,
             )
         except Exception as e:
             # Don't crash the request — log and fall through.
