@@ -432,6 +432,154 @@ class ProfileVersionsOverride:
 
 
 @dataclass
+class CompressionPlanConfig:
+    """Per-layer KV compression plan owned by the profile.
+
+    Used by the structured-role profile to declare which layers must
+    stay in their native (uncompressed) dtype because they are
+    KV-sharing sources for an MTP drafter. Layers NOT listed here
+    use ``default_kv_dtype``.
+
+    Composer expands this into the corresponding env that the
+    existing G4_60K / PN247 reader honors
+    (currently ``GENESIS_G4_TQ_FORCE_SKIP_LAYERS``); when the
+    reader migrates to the SNDR canonical name the composer emits
+    only the SNDR variant.
+
+    The strategy enum is constrained to ``per_layer`` for v1 — other
+    strategies (global, role_based) can be added when there's a
+    second concrete use case.
+    """
+    native_source_layers: list[int] = field(default_factory=list)
+    default_kv_dtype: Optional[str] = None
+    strategy: Literal["per_layer"] = "per_layer"
+
+    def validate(self) -> None:
+        seen: set[int] = set()
+        for i, layer in enumerate(self.native_source_layers):
+            if not isinstance(layer, int) or layer < 0:
+                raise SchemaError(
+                    f"profile.compression_plan.native_source_layers[{i}]="
+                    f"{layer!r} must be a non-negative int"
+                )
+            if layer in seen:
+                raise SchemaError(
+                    f"profile.compression_plan.native_source_layers contains "
+                    f"duplicate index {layer}"
+                )
+            seen.add(layer)
+        if self.default_kv_dtype is not None and not isinstance(
+            self.default_kv_dtype, str
+        ):
+            raise SchemaError(
+                "profile.compression_plan.default_kv_dtype must be a str when set"
+            )
+        if self.strategy != "per_layer":
+            raise SchemaError(
+                f"profile.compression_plan.strategy={self.strategy!r} "
+                f"must be 'per_layer' (only supported value in v1)"
+            )
+
+
+@dataclass
+class BackendPlanConfig:
+    """Attention backend assignments owned by the profile.
+
+    Names map to the v1 attention-backend enum string forms
+    (TURBOQUANT / TRITON_ATTN / FLASH_ATTN / etc.). The composer is
+    NOT a validator of which combinations are runtime-safe; that
+    contract belongs to the spec_decode planner + safety guard
+    (PN271b/PN274). The composer only propagates the operator's
+    declared intent into env / engine-config.
+    """
+    target_default: Optional[str] = None
+    target_native_layers: Optional[str] = None
+    drafter_sliding: Optional[str] = None
+    drafter_full: Optional[str] = None
+
+    def validate(self) -> None:
+        for name in (
+            "target_default", "target_native_layers",
+            "drafter_sliding", "drafter_full",
+        ):
+            val = getattr(self, name)
+            if val is not None and (not isinstance(val, str) or not val):
+                raise SchemaError(
+                    f"profile.backend_plan.{name}={val!r} must be a non-empty str"
+                )
+
+
+@dataclass
+class RoutingConfig:
+    """Operator-declared workload intent for the profile.
+
+    At runtime the spec-decode router intersects this list with the
+    artifact's ``allowed_workloads`` to compute the effective allow
+    set; the artifact is the source of truth on what's been bench-
+    validated, this field is what the operator claims the profile
+    is intended for.
+    """
+    intended_workloads: list[str] = field(default_factory=list)
+
+    def validate(self) -> None:
+        seen: set[str] = set()
+        for i, cls in enumerate(self.intended_workloads):
+            if not isinstance(cls, str) or not cls:
+                raise SchemaError(
+                    f"profile.routing.intended_workloads[{i}]={cls!r} "
+                    f"must be a non-empty str"
+                )
+            if cls in seen:
+                raise SchemaError(
+                    f"profile.routing.intended_workloads contains duplicate "
+                    f"{cls!r}"
+                )
+            seen.add(cls)
+
+
+@dataclass
+class ValidationArtifactRef:
+    """Reference to a spec-decode functional artifact that bench-
+    validated this profile's runtime semantics.
+
+    Pin-invariant by design: artifact's ``config_hash`` is computed
+    over (model_id, kv_plan, K, drafter_backend) excluding the vLLM
+    pin, so this reference stays valid across pin bumps. Strict pin
+    matching is opt-in via ``sndr profile validate --strict-pin``
+    (later).
+    """
+    artifact_id: str
+    config_hash: str
+
+    def validate(self) -> None:
+        _check_id(self.artifact_id, "profile.validation.artifact_id")
+        if not isinstance(self.config_hash, str):
+            raise SchemaError(
+                "profile.validation.config_hash must be a string"
+            )
+        h = self.config_hash.strip()
+        if not h:
+            raise SchemaError(
+                "profile.validation.config_hash must be a non-empty hex string"
+            )
+        if not re.fullmatch(r"[0-9a-fA-F]+", h):
+            raise SchemaError(
+                f"profile.validation.config_hash={h!r} must be hex "
+                f"(letters [0-9a-f])"
+            )
+
+
+# Allowed values for ProfileDef.role.
+# - default:    role producing the production-safe upstream (TQ-only, MTP OFF)
+# - structured: role producing the MTP / spec-decode upstream
+# - gateway:    role producing the FastAPI reverse-proxy in front of the
+#               above pair
+# None preserves the existing 17 builtin profiles which are pure
+# (model × hardware) operator-tuning presets.
+PROFILE_ROLES = ("default", "structured", "gateway")
+
+
+@dataclass
 class ProfileDef:
     """Patches delta layered on top of a specific model's canonical set.
 
@@ -445,6 +593,26 @@ class ProfileDef:
     SPECIFIC model on a specific rig (35B on 2×A5000 → max_num_seqs=2;
     27B on same rig → max_num_seqs=4). Profile is the right "operator
     tuning" layer; hardware just declares physical capacity.
+
+    Runtime-role fields (P1.1, 2026-05-20)
+    -------------------------------------
+    The optional fields below extend ProfileDef from "tuning preset" to
+    "runtime role". A profile with ``role=None`` (the default) behaves
+    exactly as the prior 17 builtin profiles do — patches_delta +
+    sizing_override only. A profile with ``role`` set additionally
+    declares spec-decode / compression / backend / routing / validation
+    semantics that the composer renders into the launcher env.
+
+    Why optional: all 17 existing builtin profiles set role=None
+    implicitly (the field is absent in their YAMLs) and continue to
+    work unchanged. See SNDR_RUNTIME_PROFILES_DESIGN_DECISIONS_2026-05-20
+    §4 for the full design.
+
+    The ``spec_decode_override`` field reuses V1 ``SpecDecodeConfig``
+    rather than introducing a dedicated dataclass — it's literally a
+    profile-side spec-decode config (method, K, drafter, sample rules)
+    so the V1 type is the right shape and gives single-source-of-truth
+    semantics.
     """
     schema_version: int
     kind: Literal["profile"]
@@ -458,6 +626,13 @@ class ProfileDef:
     sizing_override: Optional["HardwareSizing"] = None
     versions_override: Optional[ProfileVersionsOverride] = None
     promotion: Optional[ProfilePromotion] = None
+
+    role: Optional[Literal["default", "structured", "gateway"]] = None
+    spec_decode_override: Optional[SpecDecodeConfig] = None
+    compression_plan: Optional[CompressionPlanConfig] = None
+    backend_plan: Optional[BackendPlanConfig] = None
+    routing: Optional[RoutingConfig] = None
+    validation: Optional[ValidationArtifactRef] = None
 
     def validate(self) -> None:
         _check_schema_version(self.schema_version)
@@ -473,6 +648,22 @@ class ProfileDef:
             raise SchemaError(
                 f"profile.status={self.status!r} must be experimental|validated|promoted"
             )
+
+        # Runtime-role fields — all Optional, default None preserves prior behavior.
+        if self.role is not None and self.role not in PROFILE_ROLES:
+            raise SchemaError(
+                f"profile.role={self.role!r} must be one of {PROFILE_ROLES} or None"
+            )
+        if self.spec_decode_override is not None:
+            self.spec_decode_override.validate()
+        if self.compression_plan is not None:
+            self.compression_plan.validate()
+        if self.backend_plan is not None:
+            self.backend_plan.validate()
+        if self.routing is not None:
+            self.routing.validate()
+        if self.validation is not None:
+            self.validation.validate()
 
 
 # ─── PatchManifest (community SDK) ───────────────────────────────────────
