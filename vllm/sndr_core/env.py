@@ -423,6 +423,98 @@ def is_legacy_active(flag: str, default: bool = True) -> bool:
     return val.strip().lower() in ("1", "true", "yes", "on")
 
 
+# ──────────────────────────────────────────────────────────────────────
+# Generic SNDR/GENESIS-aliased env reader  (P1 naming migration)
+# ──────────────────────────────────────────────────────────────────────
+#
+# `is_enabled/disabled/legacy` cover the well-known ENABLE_/DISABLE_/
+# LEGACY_ patterns for patch flags. The spec_decode + gateway layers
+# introduced new env vars whose suffixes don't fit those patterns:
+#
+#   ALLOW_SPEC_DECODE_KV_ADAPTER
+#   ALLOW_SPEC_DECODE_FUNCTIONAL_UNKNOWN
+#   DISABLE_SPEC_DECODE_SAFETY_GUARD
+#   SPEC_DECODE_ARTIFACTS_DIR
+#   GATEWAY_DEFAULT_URL
+#   GATEWAY_STRUCTURED_URL
+#   GATEWAY_PROFILE
+#   GATEWAY_BIND_HOST / _PORT / _HEALTH_INTERVAL / _TIMEOUT / _LOG_LEVEL
+#   GATEWAY_ADMIN_ALLOW_REMOTE
+#
+# `get_sndr_env(name, default)` resolves these with the same
+# SNDR_/GENESIS_ alias semantics: SNDR_<name> wins; falls back to
+# GENESIS_<name> with a one-shot deprecation warning per name.
+
+# Per-name dedup so we warn once per process per env name
+_deprecation_warned: set[str] = set()
+
+
+def get_sndr_env(name: str, default: str | None = None,
+                 *, warn_deprecated: bool = True) -> str | None:
+    """Read an env var with SNDR_/GENESIS_ alias semantics.
+
+    `name` is the suffix without any prefix (e.g.
+    ``ALLOW_SPEC_DECODE_KV_ADAPTER``). Both ``SNDR_<name>`` and
+    ``GENESIS_<name>`` are checked. SNDR_ wins if both are set.
+
+    If only GENESIS_<name> is set, returns its value AND emits a
+    one-shot deprecation log warning naming the new SNDR_<name>
+    canonical form. ``warn_deprecated=False`` suppresses the warning
+    (use sparingly, e.g. inside docstring-default config templates).
+
+    Returns ``default`` if neither env is present.
+    """
+    sndr_var = f"SNDR_{name}"
+    genesis_var = f"GENESIS_{name}"
+    val = os.environ.get(sndr_var)
+    if val is not None:
+        return val
+    val = os.environ.get(genesis_var)
+    if val is not None:
+        if warn_deprecated and name not in _deprecation_warned:
+            _deprecation_warned.add(name)
+            try:
+                import logging as _logging
+                _logging.getLogger("vllm.sndr_core.env").warning(
+                    "%s is deprecated; rename to %s. The alias is "
+                    "supported now but will be removed in a future "
+                    "release.",
+                    genesis_var, sndr_var,
+                )
+            except Exception:
+                pass
+        return val
+    return default
+
+
+def get_sndr_env_bool(name: str, default: bool = False) -> bool:
+    """Boolean form of get_sndr_env. Treats 1/true/yes/on as True."""
+    v = get_sndr_env(name)
+    if v is None:
+        return default
+    return v.strip().lower() in ("1", "true", "yes", "on")
+
+
+def get_sndr_env_int(name: str, default: int) -> int:
+    v = get_sndr_env(name)
+    if v is None:
+        return default
+    try:
+        return int(v.strip())
+    except (TypeError, ValueError):
+        return default
+
+
+def get_sndr_env_float(name: str, default: float) -> float:
+    v = get_sndr_env(name)
+    if v is None:
+        return default
+    try:
+        return float(v.strip())
+    except (TypeError, ValueError):
+        return default
+
+
 def known_flags() -> list[str]:
     """Return all flag names declared on `Flags` class (sorted)."""
     return sorted([

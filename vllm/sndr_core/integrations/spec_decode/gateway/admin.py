@@ -25,9 +25,8 @@ _LOCAL_IPS = ("127.0.0.1", "::1", "localhost")
 
 
 def _client_is_local(request) -> bool:
-    if os.environ.get(
-        "GENESIS_GATEWAY_ADMIN_ALLOW_REMOTE", ""
-    ).strip().lower() in ("1", "true", "yes", "on"):
+    from ....env import get_sndr_env_bool
+    if get_sndr_env_bool("GATEWAY_ADMIN_ALLOW_REMOTE"):
         return True
     try:
         host = request.client.host if request.client else ""

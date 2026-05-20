@@ -746,11 +746,12 @@ del _g4_19_import_time_hook
 # runs BEFORE workers spawn (saves drafter memory on denial).
 #
 # Default behavior: guard ON. Escape hatch:
-#   GENESIS_DISABLE_SPEC_DECODE_SAFETY_GUARD=1
+#   SNDR_DISABLE_SPEC_DECODE_SAFETY_GUARD=1
+#   (alias GENESIS_DISABLE_SPEC_DECODE_SAFETY_GUARD still works)
 #
 # Per-pair operator override (still subject to the disable env):
-#   GENESIS_ALLOW_SPEC_DECODE_KV_ADAPTER=1
-#   GENESIS_ALLOW_SPEC_DECODE_FUNCTIONAL_UNKNOWN=1
+#   SNDR_ALLOW_SPEC_DECODE_KV_ADAPTER=1
+#   SNDR_ALLOW_SPEC_DECODE_FUNCTIONAL_UNKNOWN=1
 #
 # Impact on existing models:
 #   Qwen (no Gemma4 hf_config + no MappingProvider match)
@@ -761,10 +762,10 @@ del _g4_19_import_time_hook
 #     -> guard DENY by default (FUNCTIONAL_UNVERIFIED) ->
 #        speculative_config = None -> boots as TQ-only (safe)
 def _pn274_safety_guard_install_time_hook():
-    import os as _os
-    if _os.environ.get(
-        "GENESIS_DISABLE_SPEC_DECODE_SAFETY_GUARD", ""
-    ).strip().lower() in ("1", "true", "yes", "on"):
+    # Use the SNDR/GENESIS-aliased resolver. Both prefixes work; SNDR_
+    # wins if both are set; GENESIS_ emits a deprecation warning.
+    from .env import get_sndr_env_bool
+    if get_sndr_env_bool("DISABLE_SPEC_DECODE_SAFETY_GUARD"):
         return
     try:
         import vllm.engine.arg_utils  # noqa: F401

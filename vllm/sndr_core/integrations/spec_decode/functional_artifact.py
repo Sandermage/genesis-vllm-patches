@@ -8,10 +8,11 @@ safety_guard reads these artifacts to relax the
 ``FUNCTIONAL_UNVERIFIED`` requirement for matching configurations.
 
 Without an artifact, a non-EXACT contract verdict still requires
-both ``GENESIS_ALLOW_SPEC_DECODE_KV_ADAPTER`` and
-``GENESIS_ALLOW_SPEC_DECODE_FUNCTIONAL_UNKNOWN`` envs. With a
+both ``SNDR_ALLOW_SPEC_DECODE_KV_ADAPTER`` and
+``SNDR_ALLOW_SPEC_DECODE_FUNCTIONAL_UNKNOWN`` envs. With a
 matching artifact, only the ``KV_ADAPTER`` (structural opt-in)
-env is required.
+env is required. ``GENESIS_*`` aliases still work via the
+``get_sndr_env()`` resolver (with deprecation warning).
 
 Files live as JSON next to this module:
   ``vllm/sndr_core/integrations/spec_decode/artifacts/<profile>.json``
@@ -166,12 +167,14 @@ def find_matching(model_id: str, profile: str,
 
     Looks in the shipped artifacts/ directory first, then in any
     operator-supplied directory via env
-    ``GENESIS_SPEC_DECODE_ARTIFACTS_DIR``.
+    ``SNDR_SPEC_DECODE_ARTIFACTS_DIR`` (alias
+    ``GENESIS_SPEC_DECODE_ARTIFACTS_DIR``).
     """
     candidates: list[Path] = []
     if _ARTIFACTS_DIR.exists():
         candidates.extend(_ARTIFACTS_DIR.glob("*.json"))
-    extra = os.environ.get("GENESIS_SPEC_DECODE_ARTIFACTS_DIR", "").strip()
+    from ...env import get_sndr_env
+    extra = (get_sndr_env("SPEC_DECODE_ARTIFACTS_DIR") or "").strip()
     if extra and Path(extra).exists():
         candidates.extend(Path(extra).glob("*.json"))
 

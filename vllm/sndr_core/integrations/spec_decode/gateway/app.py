@@ -36,11 +36,12 @@ from typing import Any
 
 from fastapi import FastAPI, Request, Response
 
+from ....env import get_sndr_env, get_sndr_env_float, get_sndr_env_int
 from .upstream import UpstreamState, run_health_loop
 
 log = logging.getLogger("genesis.spec_decode.gateway.app")
 logging.basicConfig(
-    level=os.environ.get("GENESIS_GATEWAY_LOG_LEVEL", "INFO").upper(),
+    level=(get_sndr_env("GATEWAY_LOG_LEVEL", "INFO") or "INFO").upper(),
     format="%(asctime)s %(levelname)s %(name)s — %(message)s",
 )
 
@@ -75,13 +76,13 @@ class GatewayState:
 
 
 def _build_state() -> GatewayState:
-    default_url = os.environ.get(
-        "GENESIS_GATEWAY_DEFAULT_URL", "http://localhost:8101")
-    structured_url = os.environ.get(
-        "GENESIS_GATEWAY_STRUCTURED_URL", "http://localhost:8102")
-    profile = os.environ.get(
-        "GENESIS_GATEWAY_PROFILE", "gemma4-tq-mtp-structured-k4")
-    timeout_s = float(os.environ.get("GENESIS_GATEWAY_TIMEOUT", "120"))
+    default_url = get_sndr_env(
+        "GATEWAY_DEFAULT_URL", "http://localhost:8101")
+    structured_url = get_sndr_env(
+        "GATEWAY_STRUCTURED_URL", "http://localhost:8102")
+    profile = get_sndr_env(
+        "GATEWAY_PROFILE", "gemma4-tq-mtp-structured-k4")
+    timeout_s = get_sndr_env_float("GATEWAY_TIMEOUT", 120.0)
 
     state = GatewayState(
         default_state=UpstreamState(name="default", base_url=default_url),
@@ -206,8 +207,7 @@ def create_app(state: GatewayState | None = None):
 
     @app.on_event("startup")
     async def _startup() -> None:
-        interval = float(os.environ.get(
-            "GENESIS_GATEWAY_HEALTH_INTERVAL", "5"))
+        interval = get_sndr_env_float("GATEWAY_HEALTH_INTERVAL", 5.0)
         app.state.health_task = asyncio.create_task(
             run_health_loop(
                 [state.default_state, state.structured_state],
@@ -238,8 +238,8 @@ def create_app(state: GatewayState | None = None):
 
 def main() -> None:
     import uvicorn
-    host = os.environ.get("GENESIS_GATEWAY_BIND_HOST", "0.0.0.0")
-    port = int(os.environ.get("GENESIS_GATEWAY_BIND_PORT", "8100"))
+    host = get_sndr_env("GATEWAY_BIND_HOST", "0.0.0.0")
+    port = get_sndr_env_int("GATEWAY_BIND_PORT", 8100)
     log.info("[gateway] starting on %s:%s", host, port)
     uvicorn.run(create_app(), host=host, port=port, log_level="info")
 

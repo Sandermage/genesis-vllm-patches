@@ -47,15 +47,15 @@ log = logging.getLogger("genesis.spec_decode.pn274_install")
 
 GENESIS_PN274_MARKER = "Genesis PN274 SpecDecode safety guard install"
 
-_ENV_DISABLE = "GENESIS_DISABLE_SPEC_DECODE_SAFETY_GUARD"
+# P1 naming migration: bare suffix; resolver handles SNDR_/GENESIS_.
+_ENV_DISABLE = "DISABLE_SPEC_DECODE_SAFETY_GUARD"
 _APPLIED = False
 _ORIGINAL_CREATE_ENGINE_CONFIG = None
 
 
 def _env_disabled() -> bool:
-    return os.environ.get(_ENV_DISABLE, "").strip().lower() in (
-        "1", "true", "yes", "on",
-    )
+    from ...env import get_sndr_env_bool
+    return get_sndr_env_bool(_ENV_DISABLE)
 
 
 def apply() -> tuple[str, str]:
@@ -63,7 +63,7 @@ def apply() -> tuple[str, str]:
     global _APPLIED, _ORIGINAL_CREATE_ENGINE_CONFIG
 
     if _env_disabled():
-        return "skipped", f"PN274 guard disabled via {_ENV_DISABLE}=1"
+        return "skipped", f"PN274 guard disabled via SNDR_{_ENV_DISABLE}=1"
     if _APPLIED:
         return "applied", "PN274 guard already installed"
 
@@ -105,7 +105,7 @@ def apply() -> tuple[str, str]:
         "[PN274] INSTALLED — guard will evaluate each create_engine_config "
         "result and may disable speculative_config when contract is "
         "ADAPTER_STRUCTURAL_OK_FUNCTIONAL_UNVERIFIED or UNSUPPORTED. "
-        "Escape: %s=1.", _ENV_DISABLE,
+        "Escape: SNDR_%s=1.", _ENV_DISABLE,
     )
     return "applied", "PN274 installed"
 
@@ -168,9 +168,10 @@ def _apply_guard(vllm_config) -> None:
         log.warning(
             "[SpecDecodeGuard] ACTION=disable_mtp — speculative_config "
             "has been set to None. To override, set BOTH "
-            "GENESIS_ALLOW_SPEC_DECODE_KV_ADAPTER=1 and "
-            "GENESIS_ALLOW_SPEC_DECODE_FUNCTIONAL_UNKNOWN=1 in your "
-            "container env, then restart."
+            "SNDR_ALLOW_SPEC_DECODE_KV_ADAPTER=1 and "
+            "SNDR_ALLOW_SPEC_DECODE_FUNCTIONAL_UNKNOWN=1 in your "
+            "container env, then restart. (GENESIS_* aliases also "
+            "work, with a deprecation warning.)"
         )
 
 

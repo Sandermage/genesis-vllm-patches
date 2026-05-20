@@ -57,14 +57,23 @@ from .mapping.registry import find_provider
 log = logging.getLogger("genesis.spec_decode.safety_guard")
 
 
-_ENV_ALLOW_ADAPTER = "GENESIS_ALLOW_SPEC_DECODE_KV_ADAPTER"
-_ENV_ALLOW_FUNCTIONAL_UNKNOWN = "GENESIS_ALLOW_SPEC_DECODE_FUNCTIONAL_UNKNOWN"
+# P1 naming migration (2026-05-20):
+#   Canonical names are SNDR_*; GENESIS_* aliases continue to work
+#   via get_sndr_env() helper with a deprecation warning on each
+#   GENESIS_-only resolution.
+_ENV_ALLOW_ADAPTER = "ALLOW_SPEC_DECODE_KV_ADAPTER"
+_ENV_ALLOW_FUNCTIONAL_UNKNOWN = "ALLOW_SPEC_DECODE_FUNCTIONAL_UNKNOWN"
 
 
 def _env_flag(name: str) -> bool:
-    return os.environ.get(name, "").strip().lower() in (
-        "1", "true", "yes", "on",
-    )
+    # Read with SNDR_/GENESIS_ alias semantics.
+    from ...env import get_sndr_env_bool
+    return get_sndr_env_bool(name)
+
+
+def _canonical(name: str) -> str:
+    """Render canonical env name (SNDR_<name>) for operator log lines."""
+    return f"SNDR_{name}"
 
 
 @dataclass
@@ -188,8 +197,8 @@ def evaluate(runner: Any,
             allowed=(allow_unknown and allow_adapter),
             reason=(
                 f"adapter-required AND no functional gate; allow only if "
-                f"BOTH {_ENV_ALLOW_ADAPTER}=1 AND "
-                f"{_ENV_ALLOW_FUNCTIONAL_UNKNOWN}=1 "
+                f"BOTH {_canonical(_ENV_ALLOW_ADAPTER)}=1 AND "
+                f"{_canonical(_ENV_ALLOW_FUNCTIONAL_UNKNOWN)}=1 "
                 f"(currently adapter={allow_adapter} "
                 f"functional={allow_unknown})"
             ),
@@ -201,7 +210,7 @@ def evaluate(runner: Any,
         allowed=allow_adapter,
         reason=(
             f"adapter required ({overall.value}); allow only if "
-            f"{_ENV_ALLOW_ADAPTER}=1 (currently {allow_adapter})"
+            f"{_canonical(_ENV_ALLOW_ADAPTER)}=1 (currently {allow_adapter})"
         ),
         per_pair=assessments,
     )
@@ -301,7 +310,7 @@ def evaluate_from_config(vllm_config: Any) -> GuardDecision:
         allowed = allow_adapter
         decision_reason = (
             f"{provider.name}: FUNCTIONALLY_VALIDATED — {reason} "
-            f"(allow requires {_ENV_ALLOW_ADAPTER}=1; "
+            f"(allow requires {_canonical(_ENV_ALLOW_ADAPTER)}=1; "
             f"adapter={allow_adapter}; FUNCTIONAL_UNKNOWN not needed)"
         )
     elif verdict == Verdict.UNSUPPORTED:
@@ -320,15 +329,15 @@ def evaluate_from_config(vllm_config: Any) -> GuardDecision:
         allowed = allow_adapter and allow_unknown
         decision_reason = (
             f"{provider.name}: {verdict.value} — {reason} "
-            f"(allow requires BOTH {_ENV_ALLOW_ADAPTER}=1 and "
-            f"{_ENV_ALLOW_FUNCTIONAL_UNKNOWN}=1; "
+            f"(allow requires BOTH {_canonical(_ENV_ALLOW_ADAPTER)}=1 and "
+            f"{_canonical(_ENV_ALLOW_FUNCTIONAL_UNKNOWN)}=1; "
             f"adapter={allow_adapter} functional={allow_unknown})"
         )
     else:
         allowed = allow_adapter
         decision_reason = (
             f"{provider.name}: {verdict.value} — {reason} "
-            f"(allow requires {_ENV_ALLOW_ADAPTER}=1; "
+            f"(allow requires {_canonical(_ENV_ALLOW_ADAPTER)}=1; "
             f"adapter={allow_adapter})"
         )
 

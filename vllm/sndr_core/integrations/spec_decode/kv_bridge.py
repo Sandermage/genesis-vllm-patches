@@ -256,11 +256,13 @@ class FunctionallyUnverifiedBridge(Bridge):
     to actually apply. Without opt-in, .adapt() passes through
     (no-op) and logs a one-shot warning.
 
-    Env: ``GENESIS_ALLOW_SPEC_DECODE_FUNCTIONAL_UNKNOWN=1``
+    Env: ``SNDR_ALLOW_SPEC_DECODE_FUNCTIONAL_UNKNOWN=1``
+    (alias ``GENESIS_ALLOW_SPEC_DECODE_FUNCTIONAL_UNKNOWN`` still works)
     """
 
     name = "FunctionallyUnverifiedBridge"
-    _OPT_IN_ENV = "GENESIS_ALLOW_SPEC_DECODE_FUNCTIONAL_UNKNOWN"
+    # P1 migration: bare suffix; reader resolves SNDR_/GENESIS_ prefix.
+    _OPT_IN_ENV = "ALLOW_SPEC_DECODE_FUNCTIONAL_UNKNOWN"
     _warned: bool = False
 
     def __init__(self, inner: Bridge, *, reason: str = ""):
@@ -269,16 +271,15 @@ class FunctionallyUnverifiedBridge(Bridge):
         self.name = f"FunctionallyUnverifiedBridge[{inner.name}]"
 
     def _opted_in(self) -> bool:
-        return os.environ.get(self._OPT_IN_ENV, "").strip().lower() in (
-            "1", "true", "yes", "on",
-        )
+        from ...env import get_sndr_env_bool
+        return get_sndr_env_bool(self._OPT_IN_ENV)
 
     def adapt(self, K, V, *, dst_dtype=None):
         if not self._opted_in():
             if not FunctionallyUnverifiedBridge._warned:
                 log.warning(
                     "[kv_bridge] FunctionallyUnverifiedBridge passthrough "
-                    "(set %s=1 to enable inner=%s; reason=%s)",
+                    "(set SNDR_%s=1 to enable inner=%s; reason=%s)",
                     self._OPT_IN_ENV, self.inner.name, self.reason,
                 )
                 FunctionallyUnverifiedBridge._warned = True

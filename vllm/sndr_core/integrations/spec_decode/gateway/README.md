@@ -57,18 +57,25 @@ curl -X POST http://localhost:8100/v1/chat/completions \
 
 ## Env vars
 
-| name | default | meaning |
+All env names below have a canonical `SNDR_*` form and a `GENESIS_*`
+legacy alias. SNDR wins if both are set; GENESIS emits a deprecation
+warning on each first read.
+
+| canonical name | default | meaning |
 |---|---|---|
-| `GENESIS_GATEWAY_DEFAULT_URL` | `http://localhost:8101` | default upstream |
-| `GENESIS_GATEWAY_STRUCTURED_URL` | `http://localhost:8102` | structured upstream |
-| `GENESIS_GATEWAY_PROFILE` | `gemma4-tq-mtp-structured-k4` | which artifact to load |
-| `GENESIS_GATEWAY_BIND_HOST` | `0.0.0.0` | gateway bind host |
-| `GENESIS_GATEWAY_BIND_PORT` | `8100` | gateway bind port |
-| `GENESIS_GATEWAY_HEALTH_INTERVAL` | `5` | upstream probe interval (s) |
-| `GENESIS_GATEWAY_TIMEOUT` | `120` | upstream request timeout (s) |
-| `GENESIS_GATEWAY_LOG_LEVEL` | `INFO` | logging |
-| `GENESIS_GATEWAY_ADMIN_ALLOW_REMOTE` | unset | `1` to permit non-localhost admin calls |
-| `GENESIS_SPEC_DECODE_ARTIFACTS_DIR` | unset | extra artifact search dir |
+| `SNDR_GATEWAY_DEFAULT_URL` | `http://localhost:8101` | default upstream |
+| `SNDR_GATEWAY_STRUCTURED_URL` | `http://localhost:8102` | structured upstream |
+| `SNDR_GATEWAY_PROFILE` | `gemma4-tq-mtp-structured-k4` | which artifact to load |
+| `SNDR_GATEWAY_BIND_HOST` | `0.0.0.0` | gateway bind host |
+| `SNDR_GATEWAY_BIND_PORT` | `8100` | gateway bind port |
+| `SNDR_GATEWAY_HEALTH_INTERVAL` | `5` | upstream probe interval (s) |
+| `SNDR_GATEWAY_TIMEOUT` | `120` | upstream request timeout (s) |
+| `SNDR_GATEWAY_LOG_LEVEL` | `INFO` | logging |
+| `SNDR_GATEWAY_ADMIN_ALLOW_REMOTE` | unset | `1` to permit non-localhost admin calls |
+| `SNDR_SPEC_DECODE_ARTIFACTS_DIR` | unset | extra artifact search dir |
+| `SNDR_ALLOW_SPEC_DECODE_KV_ADAPTER` | unset | safety guard: structural opt-in |
+| `SNDR_ALLOW_SPEC_DECODE_FUNCTIONAL_UNKNOWN` | unset | safety guard: unverified opt-in |
+| `SNDR_DISABLE_SPEC_DECODE_SAFETY_GUARD` | unset | `1` to disable PN274 guard entirely |
 
 ## Public endpoints
 

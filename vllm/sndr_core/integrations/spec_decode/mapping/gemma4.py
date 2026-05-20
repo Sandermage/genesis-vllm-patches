@@ -204,24 +204,21 @@ class Gemma4MappingProvider(MappingProvider):
         # G4_75 routes the full drafter layer (head=512) to native
         # Triton. With both ON, the drafter side matches the
         # native-skip-listed target side.
-        import os as _os
-        g71b_on = _os.environ.get(
-            "GENESIS_ENABLE_G4_71B_DRAFTER_SLIDING_TRITON", ""
-        ).strip().lower() in ("1", "true", "yes", "on")
-        g75_on = _os.environ.get(
-            "GENESIS_ENABLE_G4_75_DRAFTER_HEAD512_TRITON", ""
-        ).strip().lower() in ("1", "true", "yes", "on")
+        # is_enabled() resolves SNDR_ENABLE_* / GENESIS_ENABLE_* aliases.
+        from ....env import is_enabled
+        g71b_on = is_enabled("G4_71B_DRAFTER_SLIDING_TRITON")
+        g75_on = is_enabled("G4_75_DRAFTER_HEAD512_TRITON")
         if cache_is_tq:
             mismatched = [t for t in kv_share_targets if t in skip_layers]
             if mismatched and not (g71b_on and g75_on):
                 missing_fixes = []
                 if not g71b_on:
                     missing_fixes.append(
-                        "GENESIS_ENABLE_G4_71B_DRAFTER_SLIDING_TRITON=1"
+                        "SNDR_ENABLE_G4_71B_DRAFTER_SLIDING_TRITON=1"
                     )
                 if not g75_on:
                     missing_fixes.append(
-                        "GENESIS_ENABLE_G4_75_DRAFTER_HEAD512_TRITON=1"
+                        "SNDR_ENABLE_G4_75_DRAFTER_HEAD512_TRITON=1"
                     )
                 return (
                     Verdict.KERNEL_STORAGE_DTYPE_MISMATCH,
@@ -295,9 +292,13 @@ class Gemma4MappingProvider(MappingProvider):
     @staticmethod
     def _tq_skip_layers(vllm_config: Any) -> set[int]:
         """Read skip-list set from env (operator-set), since the
-        skip-list is delivered to the runtime via env var."""
-        import os
-        raw = os.environ.get("GENESIS_G4_TQ_FORCE_SKIP_LAYERS", "")
+        skip-list is delivered to the runtime via env var.
+
+        Resolves SNDR_G4_TQ_FORCE_SKIP_LAYERS first, then
+        GENESIS_G4_TQ_FORCE_SKIP_LAYERS with a deprecation warning.
+        """
+        from ....env import get_sndr_env
+        raw = get_sndr_env("G4_TQ_FORCE_SKIP_LAYERS") or ""
         out: set[int] = set()
         for piece in raw.split(","):
             piece = piece.strip()
@@ -336,19 +337,19 @@ class Gemma4MappingProvider(MappingProvider):
             kv_share_targets = sorted(
                 self._kv_share_target_indices(vllm_config))
 
-            import os
-            g71b_on = os.environ.get(
-                "GENESIS_ENABLE_G4_71B_DRAFTER_SLIDING_TRITON", ""
-            ).strip().lower() in ("1", "true", "yes", "on")
-            g75_on = os.environ.get(
-                "GENESIS_ENABLE_G4_75_DRAFTER_HEAD512_TRITON", ""
-            ).strip().lower() in ("1", "true", "yes", "on")
-            kv_sharing_on = os.environ.get(
-                "GENESIS_ENABLE_G4_76_DISABLE_DRAFTER_KV_SHARING", "1"
-            ).strip().lower() in ("0", "false", "no", "off", "")
-            bridge_on = os.environ.get(
-                "GENESIS_ENABLE_G4_78_DRAFTER_TARGET_KV_BRIDGE", ""
-            ).strip().lower() in ("1", "true", "yes", "on")
+            from ....env import is_enabled, get_sndr_env
+            g71b_on = is_enabled("G4_71B_DRAFTER_SLIDING_TRITON")
+            g75_on = is_enabled("G4_75_DRAFTER_HEAD512_TRITON")
+            # Preserve the pre-P1 default: when the operator does
+            # not set the G4_76 disable env at all, disable_kv_sharing
+            # is treated as ON (kv_sharing_on = False). Operator
+            # explicitly sets the env to '0' to allow native sharing.
+            raw76 = get_sndr_env(
+                "ENABLE_G4_76_DISABLE_DRAFTER_KV_SHARING", default="1")
+            kv_sharing_on = (
+                str(raw76).strip().lower() in ("0", "false", "no", "off", "")
+            )
+            bridge_on = is_enabled("G4_78_DRAFTER_TARGET_KV_BRIDGE")
 
             drafter_backend = "TRITON_ATTN" if (g71b_on and g75_on) else None
 
