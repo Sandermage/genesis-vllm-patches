@@ -1,14 +1,20 @@
 # SPDX-License-Identifier: Apache-2.0
-"""proxy — non-streaming request forwarder with default-first fallback.
+"""proxy — request forwarder with default-first fallback.
 
-D2a scope:
+D2a:
   - non-streaming requests: full proxy to chosen upstream
-  - streaming requests (stream=true): forced to DEFAULT upstream
-    (D2b will add structured-streaming support)
-  - on ANY uncertainty (router exception, missing artifact, structured
-    down, force-default flag) -> default upstream
+  - streaming (stream=true): forced to DEFAULT upstream
+
+D2b (this commit):
+  - streaming requests route by the same router/artifact rules as
+    non-streaming; SSE chunks are passed through with no buffering
+  - structured upstream EXCEPTION/down still triggers fallback BEFORE
+    the upstream connection is opened; once streaming starts, mid-
+    stream errors are surfaced as-is (we cannot replay chunks the
+    client already has)
   - upstream connection refused / timeout / 5xx → propagated to client
-    (no retry); only structured-side failures trigger fallback to default
+    (no retry); only PRE-stream structured-side failures trigger
+    fallback to default
 """
 from __future__ import annotations
 
@@ -50,10 +56,9 @@ def _decide_route(
         return (default_state, "fallback_force",
                 "admin force-default flag is active")
 
-    # 2) Streaming
-    if _is_streaming(body):
-        return (default_state, "fallback_streaming",
-                "stream=true; D2a routes streaming to default only")
+    # 2) Streaming: D2b routes streaming by the same rules as
+    # non-streaming (no longer forced to default). Fall through to
+    # the artifact + router checks.
 
     # 3) Artifact present?
     if artifact is None:
@@ -90,6 +95,66 @@ def _decide_route(
     return (structured_state, "structured", sel.reason)
 
 
+_HOP_BY_HOP_REQ_HEADERS = (
+    "host", "content-length", "connection", "keep-alive",
+    "transfer-encoding", "upgrade", "te", "trailer",
+    "proxy-authenticate", "proxy-authorization",
+)
+_HOP_BY_HOP_RESP_HEADERS = (
+    "content-length", "connection", "keep-alive",
+    "transfer-encoding", "content-encoding",
+)
+
+
+def _strip_headers(headers: dict[str, str], drop: tuple[str, ...]) -> dict[str, str]:
+    drop_lc = {d.lower() for d in drop}
+    return {k: v for k, v in headers.items() if k.lower() not in drop_lc}
+
+
+async def _open_upstream_stream(method: str, url: str, body_bytes: bytes,
+                                headers: dict[str, str], timeout_s: float):
+    """Open a streaming request to upstream.
+
+    Returns (status, response_headers, async-byte-generator).
+    The generator owns the lifecycle of the httpx client + response
+    and closes both on completion / exception.
+    """
+    import httpx
+    client = httpx.AsyncClient(timeout=timeout_s)
+    try:
+        req = client.build_request(
+            method=method, url=url, content=body_bytes, headers=headers,
+        )
+        response = await client.send(req, stream=True)
+    except Exception:
+        await client.aclose()
+        raise
+
+    status = response.status_code
+    resp_headers = dict(response.headers)
+
+    async def _byte_stream():
+        try:
+            async for chunk in response.aiter_raw():
+                yield chunk
+        except Exception as e:  # noqa: BLE001
+            log.warning(
+                "[gateway.proxy] mid-stream upstream error: %s: %s",
+                type(e).__name__, e,
+            )
+        finally:
+            try:
+                await response.aclose()
+            except Exception:
+                pass
+            try:
+                await client.aclose()
+            except Exception:
+                pass
+
+    return status, resp_headers, _byte_stream()
+
+
 async def proxy_request(
     *,
     method: str,
@@ -103,12 +168,17 @@ async def proxy_request(
     force_default: bool,
     timeout_s: float = 120.0,
 ):
-    """Forward a request to the chosen upstream and return the
-    response (status, headers, body). Returns a FastAPI Response.
+    """Forward a request to the chosen upstream and return a FastAPI
+    Response (non-streaming) or StreamingResponse (stream=true).
+
+    Routing decision is identical for streaming and non-streaming.
     """
     from fastapi import Response
+    from fastapi.responses import StreamingResponse
 
     body = body_json if isinstance(body_json, dict) else {}
+    is_streaming = _is_streaming(body)
+
     chosen, label, reason = _decide_route(
         body=body, artifact=artifact,
         default_state=default_state,
@@ -117,11 +187,11 @@ async def proxy_request(
     )
 
     log.info(
-        "[gateway.proxy] decision=%s upstream=%s reason=%s",
-        label, chosen.name, reason,
+        "[gateway.proxy] decision=%s upstream=%s streaming=%s reason=%s",
+        label, chosen.name, is_streaming, reason,
     )
 
-    # Update routing metrics
+    # Routing metrics
     try:
         if label == "structured":
             metrics.ROUTED_STRUCTURED.inc()
@@ -133,21 +203,63 @@ async def proxy_request(
     except Exception:
         pass
 
-    # Forward
-    import httpx
     url = chosen.base_url.rstrip("/") + path
-
-    # Strip hop-by-hop headers
-    fwd_headers = {
-        k: v for k, v in headers.items()
-        if k.lower() not in (
-            "host", "content-length", "connection", "keep-alive",
-            "transfer-encoding", "upgrade", "te", "trailer",
-            "proxy-authenticate", "proxy-authorization",
-        )
-    }
+    fwd_headers = _strip_headers(headers, _HOP_BY_HOP_REQ_HEADERS)
 
     t0 = time.perf_counter()
+
+    # ---- streaming path -----------------------------------------
+    if is_streaming:
+        try:
+            status, raw_resp_headers, body_gen = await _open_upstream_stream(
+                method=method, url=url, body_bytes=body_bytes,
+                headers=fwd_headers, timeout_s=timeout_s,
+            )
+        except Exception as e:  # noqa: BLE001
+            latency = time.perf_counter() - t0
+            try:
+                metrics.UPSTREAM_ERROR.labels(
+                    upstream=chosen.name, kind=type(e).__name__,
+                ).inc()
+                metrics.REQUEST_LATENCY.labels(
+                    upstream=chosen.name).observe(latency)
+            except Exception:
+                pass
+            log.warning(
+                "[gateway.proxy] streaming open failed to %s: %s: %s",
+                chosen.name, type(e).__name__, e,
+            )
+            return Response(
+                content=json.dumps({
+                    "error": {
+                        "message": f"upstream {chosen.name} stream open failed",
+                        "type": "upstream_error",
+                        "code": "upstream_stream_failed",
+                    }
+                }).encode("utf-8"),
+                status_code=502,
+                media_type="application/json",
+            )
+
+        # Observe latency at "stream opened" time (TTFB-like)
+        try:
+            metrics.REQUEST_LATENCY.labels(
+                upstream=chosen.name).observe(time.perf_counter() - t0)
+        except Exception:
+            pass
+
+        resp_headers = _strip_headers(
+            raw_resp_headers, _HOP_BY_HOP_RESP_HEADERS)
+        return StreamingResponse(
+            body_gen,
+            status_code=status,
+            headers=resp_headers,
+            media_type=raw_resp_headers.get(
+                "content-type", "text/event-stream"),
+        )
+
+    # ---- non-streaming path -------------------------------------
+    import httpx
     try:
         async with httpx.AsyncClient(timeout=timeout_s) as client:
             r = await client.request(
@@ -156,19 +268,12 @@ async def proxy_request(
             )
         latency = time.perf_counter() - t0
         try:
-            metrics.REQUEST_LATENCY.labels(upstream=chosen.name).observe(
-                latency)
+            metrics.REQUEST_LATENCY.labels(
+                upstream=chosen.name).observe(latency)
         except Exception:
             pass
-
-        # Strip response hop-by-hop headers
-        resp_headers = {
-            k: v for k, v in r.headers.items()
-            if k.lower() not in (
-                "content-length", "connection", "keep-alive",
-                "transfer-encoding", "content-encoding",
-            )
-        }
+        resp_headers = _strip_headers(
+            dict(r.headers), _HOP_BY_HOP_RESP_HEADERS)
         return Response(
             content=r.content,
             status_code=r.status_code,
@@ -179,11 +284,10 @@ async def proxy_request(
         latency = time.perf_counter() - t0
         try:
             metrics.UPSTREAM_ERROR.labels(
-                upstream=chosen.name,
-                kind=type(e).__name__,
+                upstream=chosen.name, kind=type(e).__name__,
             ).inc()
-            metrics.REQUEST_LATENCY.labels(upstream=chosen.name).observe(
-                latency)
+            metrics.REQUEST_LATENCY.labels(
+                upstream=chosen.name).observe(latency)
         except Exception:
             pass
         log.warning(
