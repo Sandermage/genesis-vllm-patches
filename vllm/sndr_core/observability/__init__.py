@@ -29,6 +29,11 @@ from .cudagraph_dispatch import (
     record_dispatch as record_cudagraph_dispatch,
     reset_summary as reset_cudagraph_summary,
 )
+from .spec_decode_metrics import (
+    get_profile_label as get_spec_decode_profile_label,
+    is_enabled as is_spec_decode_metric_enabled,
+    record_acceptance as record_spec_decode_acceptance,
+)
 
 __all__ = [
     # Per-patch apply timing (Wave 7)
@@ -42,4 +47,8 @@ __all__ = [
     "get_cudagraph_summary",
     "record_cudagraph_dispatch",
     "reset_cudagraph_summary",
+    # Spec-decode acceptance proxy metric (PN282 / 2026-05-20)
+    "get_spec_decode_profile_label",
+    "is_spec_decode_metric_enabled",
+    "record_spec_decode_acceptance",
 ]

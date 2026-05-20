@@ -171,6 +171,14 @@ class Flags:
     # Sprint 2.6 v2 — CUDA graph dispatch trace wire-in
     PN122_CG_DISPATCH_TRACE = "PN122"  # renamed 2026-05-14 from SPRINT26_CG_DISPATCH_TRACE
     SPRINT26_CG_DISPATCH_TRACE = "PN122"  # legacy alias for backward compat (1 release)
+    # PN282 — Spec-decode acceptance proxy metric (production sibling
+    # of PN248's debug log trace). Wraps rejection_sample and emits
+    # sndr_spec_decode_* Prometheus series on the worker's existing
+    # /metrics endpoint. Canonical env: SNDR_ENABLE_SPEC_DECODE_ACCEPTANCE_METRIC;
+    # legacy alias GENESIS_ENABLE_SPEC_DECODE_ACCEPTANCE_METRIC warns once.
+    # Boot-applied from sndr_core/__init__.py, not via dispatcher (matches
+    # PN248 sibling pattern).
+    PN282_SPEC_DECODE_ACCEPTANCE_METRIC = "PN282_SPEC_DECODE_ACCEPTANCE_METRIC"
 
     # kv_cache family
     P5B = "P5B"  # page size pad smaller

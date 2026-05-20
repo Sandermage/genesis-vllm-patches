@@ -201,6 +201,21 @@ def _g4_19_import_time_hook():
     pn248 = _os.environ.get(
         "GENESIS_ENABLE_PN248_ACCEPTANCE_TRACE", ""
     ).strip().lower() in ("1", "true", "yes")
+    # PN282 — Spec-decode acceptance proxy METRIC via rejection_sample
+    # wrap (production sibling of PN248's log trace). Increments
+    # sndr_spec_decode_accepted_per_call_total{k,profile} +
+    # sndr_spec_decode_calls_total{profile} + sndr_spec_decode_max_spec_len
+    # on the worker's existing /metrics endpoint. Designed for
+    # prod-permanent enable on the structured upstream. Canonical env
+    # flag is SNDR_ENABLE_SPEC_DECODE_ACCEPTANCE_METRIC; legacy alias
+    # GENESIS_ENABLE_SPEC_DECODE_ACCEPTANCE_METRIC accepted with
+    # deprecation warning. Coexists with PN248 (independent idempotency
+    # markers, separate wrap layers).
+    pn282 = _os.environ.get(
+        "SNDR_ENABLE_SPEC_DECODE_ACCEPTANCE_METRIC", ""
+    ).strip().lower() in ("1", "true", "yes") or _os.environ.get(
+        "GENESIS_ENABLE_SPEC_DECODE_ACCEPTANCE_METRIC", ""
+    ).strip().lower() in ("1", "true", "yes")
     # PN258 — Oracle acceptance test (record/replay around rejection_sample).
     # First technical step of the post-PN257a cycle: separates "verifier
     # rows 1..K still broken" vs "drafter is the only remaining problem".
@@ -310,7 +325,7 @@ def _g4_19_import_time_hook():
         g19 or g19b or g19c or g30 or g31 or g32 or g43 or g44 or g45 or g50
         or g60a or g60b or g60c or g60d or g60e or g60g or g60h or g60k
         or g61 or g62 or g67 or g68 or g69 or g71 or g72
-        or pn241 or pn248 or pn258 or pn262 or pn262b
+        or pn241 or pn248 or pn282 or pn258 or pn262 or pn262b
         or g73 or g74 or g75 or g76 or pn266 or pn267 or pn268 or pn269
         or g78 or pn270 or pn271 or pn272 or g71b
     ):
@@ -527,6 +542,23 @@ def _g4_19_import_time_hook():
                 pn248_acceptance_trace as _pn248_mod,
             )
             _pn248_mod.apply()
+        # PN282 — Production sibling of PN248. Wraps the same
+        # rejection_sample but emits Prometheus counters instead of a
+        # log file. Apply AFTER PN248 so PN248's log writer is the
+        # outermost layer; PN282's metric increment runs inside PN248's
+        # wrap. Either ordering is functionally safe (both wraps are
+        # try/except-guarded) but this order keeps the trace authoritative
+        # when both are on. Coexistence enforced by independent
+        # idempotency markers on the wrapped callable.
+        if pn282:
+            try:
+                import vllm.v1.sample.rejection_sampler  # noqa: F401
+            except ImportError:
+                pass
+            from .integrations.observability import (
+                pn282_spec_decode_acceptance_metric as _pn282_mod,
+            )
+            _pn282_mod.apply()
         # PN258 — Oracle acceptance test. Record/replay around
         # rejection_sample: pass 1 captures target's greedy continuation
         # to /tmp/genesis_pn258_oracle.txt, pass 2 injects those tokens
