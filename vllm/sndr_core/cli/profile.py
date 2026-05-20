@@ -34,6 +34,8 @@ __all__ = [
     "run_diff",
     "run_validate",
     "validate_profile",
+    "run_render_launchers",
+    "render_profile_launcher",
 ]
 
 
@@ -89,6 +91,38 @@ def add_argparser(subparsers: Any) -> None:
         help="Emit machine-readable JSON.",
     )
     p_validate.set_defaults(func=run_validate)
+
+    p_render = sub.add_parser(
+        "render-launchers",
+        help="Render a bash launcher derived from a V2 ProfileDef.",
+        description=(
+            "Generate a bash launcher script from the composed V1 "
+            "ModelConfig (model + hardware + profile). Output goes to "
+            "stdout by default (--dry-run). Use --output DIR to write a "
+            "file; --force is required to overwrite existing files."
+        ),
+    )
+    p_render.add_argument("profile_id", help="profile id to render")
+    p_render.add_argument(
+        "--hardware", default=None,
+        help="HardwareDef id; if omitted, auto-pick the first known "
+             "hardware satisfying the parent model's `requires`.",
+    )
+    p_render.add_argument(
+        "--dry-run", action="store_true",
+        help="Print the rendered script to stdout. This is the default "
+             "when --output is not given.",
+    )
+    p_render.add_argument(
+        "--output", default=None,
+        help="Write to <output_dir>/start_<profile_id>.sh. Implies "
+             "non-dry-run unless --dry-run is also passed.",
+    )
+    p_render.add_argument(
+        "--force", action="store_true",
+        help="Allow overwriting an existing output file.",
+    )
+    p_render.set_defaults(func=run_render_launchers)
 
 
 def _profile_summary(profile_id: str) -> dict:
@@ -569,4 +603,384 @@ def run_validate(args: argparse.Namespace) -> int:
 
     if args.strict and total_errors > 0:
         return 1
+    return 0
+
+
+# ─── render-launchers ───────────────────────────────────────────────────
+
+
+# Strict mapping from (backend_plan field, value) to the env var that
+# must be present in compose's genesis_env. None means "value is known
+# but does not map to a single env" (handled via CLI arg or upstream
+# config). Unknown (field, value) pairs raise SchemaError.
+#
+# Adding a new backend value requires:
+#   1. Adding the (field, value) entry here
+#   2. Verifying the corresponding env var is recognised by some Genesis
+#      patch (or set the value to None if it's a CLI-arg / config-time
+#      concern)
+#   3. A unit test that the render path emits the env (or doesn't, for
+#      None-valued entries)
+_BACKEND_PLAN_MAP: dict[tuple[str, str], str | None] = {
+    # target_default → vLLM CLI flag --attention-backend; no env needed
+    ("target_default", "TURBOQUANT"): None,
+    ("target_default", "TRITON_ATTN"): None,
+    ("target_default", "FLASH_ATTN"): None,
+    # target_native_layers → handled via compression_plan skip-list
+    # auto-emit (SNDR_G4_TQ_FORCE_SKIP_LAYERS + GENESIS legacy alias)
+    ("target_native_layers", "TRITON_ATTN"): None,
+    ("target_native_layers", "FLASH_ATTN"): None,
+    # drafter_sliding head_size=256 → G4_71b reroutes to Triton
+    ("drafter_sliding", "TRITON_ATTN"): "GENESIS_ENABLE_G4_71B_DRAFTER_SLIDING_TRITON",
+    # drafter_full head_size=512 → G4_75 reroutes to Triton
+    ("drafter_full", "TRITON_ATTN"): "GENESIS_ENABLE_G4_75_DRAFTER_HEAD512_TRITON",
+}
+
+
+def _validate_backend_plan_consistency(profile, genesis_env: dict) -> None:
+    """Verify that profile.backend_plan declarations match the env in
+    the composed genesis_env. Raises SchemaError on:
+      * unknown (field, value) pair not in the mapping table
+      * mapped env var that is not '1' in genesis_env (i.e. profile
+        declared a backend but patches_delta.enable did not include
+        the corresponding patch — silent mismatch)
+
+    Backend values mapped to None are CLI-arg or config-time concerns
+    and are not env-checked here.
+    """
+    from vllm.sndr_core.model_configs.schema import SchemaError
+
+    bp = profile.backend_plan
+    if bp is None:
+        return
+    for field_name in ("target_default", "target_native_layers",
+                       "drafter_sliding", "drafter_full"):
+        value = getattr(bp, field_name)
+        if value is None:
+            continue
+        key = (field_name, value)
+        if key not in _BACKEND_PLAN_MAP:
+            raise SchemaError(
+                f"profile.backend_plan.{field_name}={value!r}: not in the "
+                f"supported backend mapping table. Adding a new value "
+                f"requires extending _BACKEND_PLAN_MAP in cli/profile.py "
+                f"with the env mapping AND a test."
+            )
+        expected_env = _BACKEND_PLAN_MAP[key]
+        if expected_env is None:
+            continue
+        observed = genesis_env.get(expected_env)
+        if observed != "1":
+            raise SchemaError(
+                f"profile.backend_plan.{field_name}={value!r} requires "
+                f"{expected_env}=1 in composed genesis_env, but observed "
+                f"{observed!r}. Add to patches_delta.enable on the profile "
+                f"or remove the backend_plan field."
+            )
+
+
+# Subset of canonical envs the byte-equivalence gate cares about. The
+# render path does NOT auto-add these; they must arrive via compose
+# (patches_delta.enable or model.patches or compression_plan emission).
+# This list is the set the render-launchers smoke gate scans for when
+# the profile is structured-role.
+_STRUCTURED_REQUIRED_ENVS = (
+    "GENESIS_ENABLE_G4_71B_DRAFTER_SLIDING_TRITON",
+    "GENESIS_ENABLE_G4_75_DRAFTER_HEAD512_TRITON",
+    "SNDR_G4_TQ_FORCE_SKIP_LAYERS",
+    "GENESIS_G4_TQ_FORCE_SKIP_LAYERS",
+    "SNDR_ALLOW_SPEC_DECODE_KV_ADAPTER",
+)
+
+
+# Observability envs that must NOT be in the rendered launcher by
+# default (operator-decision per the opt-in plan). If any of these is
+# present in cfg.genesis_env at render time, it means an operator
+# explicitly added it via patches_delta — that's allowed and we keep
+# it. But the renderer does not auto-emit them.
+_OBSERVABILITY_OPTIN_ENVS = (
+    "SNDR_ENABLE_SPEC_DECODE_ACCEPTANCE_METRIC",
+    "GENESIS_ENABLE_SPEC_DECODE_ACCEPTANCE_METRIC",
+    "PROMETHEUS_MULTIPROC_DIR",
+    "SNDR_PROMETHEUS_MULTIPROC_CLEAN",
+    "SNDR_SPEC_DECODE_PROFILE_LABEL",
+)
+
+
+def _format_env_flags(env: dict[str, str]) -> str:
+    """Render a dict of env vars as docker `-e KEY=value \\` lines,
+    sorted by key for deterministic output."""
+    lines = []
+    for k in sorted(env):
+        v = env[k]
+        lines.append(f"  -e {k}={v} \\")
+    return "\n".join(lines)
+
+
+def _pick_default_hardware(model):
+    """Auto-pick the first hardware that satisfies model.requires.
+    Returns the HardwareDef or raises SchemaError if no hardware fits.
+    """
+    from vllm.sndr_core.model_configs.registry_v2 import (
+        list_hardware, load_hardware,
+    )
+    from vllm.sndr_core.model_configs.schema import SchemaError
+
+    req = model.requires
+    candidates = []
+    for hw_id in list_hardware():
+        hw = load_hardware(hw_id)
+        total_vram = hw.hardware.min_vram_per_gpu_mib * hw.hardware.n_gpus
+        if total_vram < req.min_total_vram_mib:
+            continue
+        if hw.hardware.n_gpus < req.min_gpu_count:
+            continue
+        candidates.append(hw)
+    if not candidates:
+        raise SchemaError(
+            f"no HardwareDef satisfies model {model.id!r}'s requires "
+            f"(min_total_vram_mib={req.min_total_vram_mib}, "
+            f"min_gpu_count={req.min_gpu_count}); pass --hardware <id> "
+            f"explicitly."
+        )
+    return candidates[0]
+
+
+def render_profile_launcher(
+    profile_id: str, hardware_id: str | None = None,
+) -> str:
+    """Compose (model + hw + profile) and render a bash launcher script.
+
+    Args:
+        profile_id: V2 ProfileDef id (e.g. ``gemma4-tq-mtp-structured-k4``).
+        hardware_id: optional HardwareDef id; if None, auto-picks the
+            first hardware satisfying the parent model's requires.
+
+    Returns:
+        Bash script source as a single string.
+
+    Raises:
+        SchemaError on invalid backend_plan / unloadable profile / no
+        compatible hardware / etc.
+    """
+    from datetime import datetime, timezone
+
+    from vllm.sndr_core.model_configs.compose import compose
+    from vllm.sndr_core.model_configs.registry_v2 import (
+        load_hardware, load_model, load_profile,
+    )
+
+    profile = load_profile(profile_id)
+    profile.validate()
+    model = load_model(profile.parent_model)
+    model.validate()
+    if hardware_id is None:
+        hw = _pick_default_hardware(model)
+    else:
+        hw = load_hardware(hardware_id)
+        hw.validate()
+
+    cfg = compose(model, hw, profile)
+
+    # Strict backend_plan consistency check (raises SchemaError on
+    # unknown values or missing envs).
+    _validate_backend_plan_consistency(profile, cfg.genesis_env)
+
+    role = profile.role or "tuning"
+    has_spec_decode = cfg.spec_decode is not None
+    has_compression = profile.compression_plan is not None and (
+        profile.compression_plan.native_source_layers
+    )
+    has_overlay = any(
+        k.startswith("GENESIS_ENABLE_G4_60") and v == "1"
+        for k, v in cfg.genesis_env.items()
+    )
+
+    # Build the speculative-config CLI arg if profile sets spec_decode.
+    spec_decode_arg = ""
+    spec_decode_k_default = ""
+    if has_spec_decode:
+        spec_json = cfg.spec_decode.to_vllm_arg()
+        spec_decode_arg = f"  --speculative-config '{spec_json}' \\\n"
+        spec_decode_k_default = str(cfg.spec_decode.num_speculative_tokens)
+
+    # Attention backend (vLLM CLI flag). Defaults to None (engine auto)
+    # unless backend_plan.target_default is set.
+    attn_backend_arg = ""
+    if profile.backend_plan is not None and profile.backend_plan.target_default:
+        attn_backend_arg = (
+            f"  --attention-backend {profile.backend_plan.target_default} \\\n"
+        )
+
+    # PR42637 overlay mounts (8 files), only when any G4_60* env is set.
+    overlay_mounts = ""
+    if has_overlay:
+        overlay_mounts = """\
+  -v ${GENESIS_REPO}/vllm/sndr_core/integrations/gemma4/upstream_overlay_pr42637/turboquant_attn.py:${TGT}/v1/attention/backends/turboquant_attn.py:ro \\
+  -v ${GENESIS_REPO}/vllm/sndr_core/integrations/gemma4/upstream_overlay_pr42637/triton_turboquant_decode.py:${TGT}/v1/attention/ops/triton_turboquant_decode.py:ro \\
+  -v ${GENESIS_REPO}/vllm/sndr_core/integrations/gemma4/upstream_overlay_pr42637/triton_turboquant_store.py:${TGT}/v1/attention/ops/triton_turboquant_store.py:ro \\
+  -v ${GENESIS_REPO}/vllm/sndr_core/integrations/gemma4/upstream_overlay_pr42637/turboquant_config.py:${TGT}/model_executor/layers/quantization/turboquant/config.py:ro \\
+  -v ${GENESIS_REPO}/vllm/sndr_core/integrations/gemma4/upstream_overlay_pr42637/kv_cache_interface.py:${TGT}/v1/kv_cache_interface.py:ro \\
+  -v ${GENESIS_REPO}/vllm/sndr_core/integrations/gemma4/upstream_overlay_pr42637/kv_cache_utils.py:${TGT}/v1/core/kv_cache_utils.py:ro \\
+  -v ${GENESIS_REPO}/vllm/sndr_core/integrations/gemma4/upstream_overlay_pr42637/single_type_kv_cache_manager.py:${TGT}/v1/core/single_type_kv_cache_manager.py:ro \\
+  -v ${GENESIS_REPO}/vllm/sndr_core/integrations/gemma4/upstream_overlay_pr42637/block_pool.py:${TGT}/v1/core/block_pool.py:ro \\
+"""
+
+    # Validation receipt comment block.
+    validation_line = "validation: none"
+    if profile.validation is not None:
+        validation_line = (
+            f"validation: artifact_id={profile.validation.artifact_id} "
+            f"config_hash={profile.validation.config_hash}"
+        )
+
+    # Header comment block (timestamped, traceable).
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    header = (
+        f"#!/bin/bash\n"
+        f"# Generated by `sndr profile render-launchers {profile_id}` at {now}.\n"
+        f"# DO NOT edit manually — re-render from the V2 profile YAML.\n"
+        f"#\n"
+        f"# Source profile:    {profile_id}\n"
+        f"# Composed key:      {cfg.key}\n"
+        f"# Role:              {role}\n"
+        f"# Parent model:      {profile.parent_model}\n"
+        f"# Hardware:          {hw.id}\n"
+        f"# {validation_line}\n"
+        f"# spec_decode:       {'MTP K=' + spec_decode_k_default if has_spec_decode else 'OFF'}\n"
+        f"# compression_plan:  {'native_source_layers=' + str(profile.compression_plan.native_source_layers) if has_compression else 'none'}\n"
+        f"# PR42637 overlay:   {'mounted' if has_overlay else 'not needed'}\n"
+        f"#\n"
+        f"# Observability envs (PN282/PN283) are NOT in this launcher.\n"
+        f"# They are operator opt-in per\n"
+        f"# docs/_internal/PN282_PN283_PRODUCTION_LAUNCHER_OPT_IN_PLAN_2026-05-20.md\n"
+    )
+
+    # Genesis env flags (sorted for determinism).
+    genesis_env_lines = _format_env_flags(cfg.genesis_env)
+    # System env flags (e.g. PYTORCH_*, VLLM_*).
+    system_env_lines = _format_env_flags(cfg.system_env)
+
+    # Per-role port. Single-role-per-launcher → fixed port matches the
+    # gateway README quick-start convention. Override at deploy time
+    # by editing the rendered file (this is a starting template).
+    port = 8101 if role == "default" else 8102
+
+    container_name = f"vllm-{profile_id}-k${{K}}" if has_spec_decode else \
+                     f"vllm-{profile_id}"
+
+    # Inner run.sh — what the docker entrypoint executes.
+    inner_run = []
+    inner_run.append('#!/bin/bash')
+    inner_run.append('set -e')
+    inner_run.append('echo "=== Install vllm-sndr-core ==="')
+    inner_run.append('pip install -e ${GENESIS_REPO} --no-deps --quiet 2>&1 | tail -2')
+    if has_spec_decode and "GENESIS_ENABLE_PN248_ACCEPTANCE_TRACE" in cfg.genesis_env \
+            and cfg.genesis_env.get("GENESIS_ENABLE_PN248_ACCEPTANCE_TRACE") == "1":
+        inner_run.append('echo "=== Clear PN248 trace ==="')
+        inner_run.append('rm -f /tmp/genesis_pn248_acceptance_trace.log')
+    inner_run.append('')
+    inner_run.append(f'echo "=== Launch {profile_id} role={role}" K=${{K:-(none)}}')
+    inner_run.append(f'exec vllm serve {cfg.model_path} \\')
+    inner_run.append(f'  --served-model-name {cfg.served_model_name} \\')
+    inner_run.append(f'  --tensor-parallel-size {hw.hardware.n_gpus} \\')
+    inner_run.append('  --disable-custom-all-reduce \\')
+    inner_run.append(f'  --dtype {cfg.dtype} \\')
+    inner_run.append(f'  --kv-cache-dtype {cfg.kv_cache_dtype} \\')
+    if attn_backend_arg:
+        inner_run.append(attn_backend_arg.rstrip(' \\\n') + ' \\')
+    inner_run.append(f'  --max-model-len {cfg.max_model_len} \\')
+    inner_run.append(f'  --max-num-seqs {cfg.max_num_seqs} \\')
+    inner_run.append(f'  --max-num-batched-tokens {cfg.max_num_batched_tokens} \\')
+    if cfg.enable_chunked_prefill:
+        inner_run.append('  --enable-chunked-prefill \\')
+    if cfg.trust_remote_code:
+        inner_run.append('  --trust-remote-code \\')
+    if spec_decode_arg:
+        inner_run.append(spec_decode_arg.rstrip(' \\\n') + ' \\')
+    inner_run.append(f'  --gpu-memory-utilization {cfg.gpu_memory_utilization} \\')
+    inner_run.append(f'  --api-key {cfg.api_key} \\')
+    inner_run.append(f'  --host {cfg.host} --port {port} \\')
+    inner_run.append('  --disable-log-stats')
+
+    inner = "\n".join(inner_run)
+
+    # Outer script.
+    k_default = spec_decode_k_default or "0"
+    script = f"""{header}
+set -e
+K="${{1:-{k_default}}}"
+CONTAINER="{container_name}"
+PORT={port}
+
+docker rm -f "$CONTAINER" 2>/dev/null || true
+
+GENESIS_REPO=/home/sander/genesis-vllm-patches
+TGT=/usr/local/lib/python3.12/dist-packages/vllm
+IMAGE="vllm/vllm-openai:nightly"
+
+LAUNCHER_DIR=/tmp/{profile_id}_launcher
+mkdir -p "$LAUNCHER_DIR"
+cat > "$LAUNCHER_DIR/run.sh" <<INNER_EOF
+{inner}
+INNER_EOF
+chmod +x "$LAUNCHER_DIR/run.sh"
+
+docker run -d --name "$CONTAINER" \\
+  --gpus all --ipc=host -p ${{PORT}}:${{PORT}} \\
+  --entrypoint "$LAUNCHER_DIR/run.sh" \\
+{system_env_lines}
+{genesis_env_lines}
+  -v "$LAUNCHER_DIR":"$LAUNCHER_DIR":ro \\
+  -v ${{GENESIS_REPO}}:${{GENESIS_REPO}}:rw \\
+  -v /nfs/genesis/models:/models:ro \\
+  -v ${{GENESIS_REPO}}/vllm/sndr_core:${{TGT}}/sndr_core:ro \\
+{overlay_mounts}  ${{IMAGE}}
+
+echo "$CONTAINER on port $PORT ({profile_id}, role={role})"
+"""
+    return script
+
+
+def run_render_launchers(args: argparse.Namespace) -> int:
+    """Handler for `sndr profile render-launchers`.
+
+    Exit codes:
+      0  success (rendered to stdout or wrote file)
+      1  output target already exists and --force not provided
+      2  schema / backend_plan inconsistency / tooling failure
+    """
+    import pathlib
+
+    from vllm.sndr_core.model_configs.schema import SchemaError
+
+    try:
+        script = render_profile_launcher(args.profile_id, args.hardware)
+    except SchemaError as e:
+        if args.json if hasattr(args, "json") else False:
+            print(json.dumps({"error": str(e)}, indent=2))
+        else:
+            _io.error(f"render failed: {e}")
+        return 2
+    except Exception as e:  # noqa: BLE001
+        _io.error(f"render tooling failure: {type(e).__name__}: {e}")
+        return 2
+
+    # Decide between stdout and file output.
+    # Default: --dry-run is implicit when --output is not given.
+    if args.output is None or args.dry_run:
+        print(script)
+        return 0
+
+    out_dir = pathlib.Path(args.output)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / f"start_{args.profile_id}.sh"
+    if out_path.exists() and not args.force:
+        _io.error(
+            f"{out_path} already exists; pass --force to overwrite."
+        )
+        return 1
+    out_path.write_text(script)
+    out_path.chmod(0o755)
+    _io.success(f"wrote {out_path}")
     return 0
