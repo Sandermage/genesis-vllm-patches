@@ -678,11 +678,24 @@ def _validate_backend_plan_consistency(profile, genesis_env: dict) -> None:
 # P1.8 added the two G4_76 disable envs (value "0") via the
 # drafter_kv_sharing: physical declaration. Without them the Gemma4
 # mapping provider's artifact_lookup_keys() returns None and the
-# safety guard denies MTP at boot — exactly the C2 failure surfaced
-# by the 2026-05-21 opt-in rehearsal.
+# safety guard denies MTP at boot.
+#
+# P1.9 (2026-05-21 control-A) adds the output-correctness envs that
+# the hand-written launcher used but the first V2-rendered launcher
+# missed. Without P65 + G4_68 + G4_70C the engine can boot and pass
+# the guard while producing corrupt unicode due to wrong TQ+MTP
+# cudagraph / split-allocator state.
 _STRUCTURED_REQUIRED_ENVS = (
+    "GENESIS_ENABLE_P65_TURBOQUANT_SPEC_CG_DOWNGRADE",
+    "GENESIS_ENABLE_G4_68_TQ_SPEC_CG_DOWNGRADE_OVERLAY",
+    "GENESIS_ENABLE_G4_70_PN259C_ROUTE_B",
     "GENESIS_ENABLE_G4_71B_DRAFTER_SLIDING_TRITON",
     "GENESIS_ENABLE_G4_75_DRAFTER_HEAD512_TRITON",
+    "GENESIS_ENABLE_G4_71_DRAFTER_NATIVE_BACKEND",  # P1.9 (= "0")
+    "GENESIS_ENABLE_G4_72_DRAFTER_NATIVE_SPEC",     # P1.9 (= "0")
+    "GENESIS_ENABLE_G4_73_DRAFTER_PROFILE_SKIP",    # P1.9 (= "0")
+    "GENESIS_ENABLE_G4_74_DRAFTER_HND_LAYOUT",      # P1.9 (= "0")
+    "GENESIS_ENABLE_G4_78_DRAFTER_TARGET_KV_BRIDGE",  # P1.9 (= "0")
     "SNDR_G4_TQ_FORCE_SKIP_LAYERS",
     "GENESIS_G4_TQ_FORCE_SKIP_LAYERS",
     "SNDR_ALLOW_SPEC_DECODE_KV_ADAPTER",

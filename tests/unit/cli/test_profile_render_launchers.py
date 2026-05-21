@@ -34,6 +34,52 @@ from vllm.sndr_core.cli.profile import (
 )
 
 
+_FIXTURES_DIR = Path(__file__).with_name("fixtures")
+_CONTROL_A_ENV_SNAPSHOT = _FIXTURES_DIR / "start_g4_betaA_k1_envs.txt"
+
+# Env lines present in the hand-written control-A launcher but not owned by
+# the V2 profile/render contract. They are debug/runtime shell controls, or
+# the PN248 trace flag that remains an operator instrumentation choice.
+_CONTROL_A_NON_PROFILE_ENVS = {
+    "CUDA_LAUNCH_BLOCKING",
+    "NCCL_CUMEM_ENABLE",
+    "TORCH_NCCL_ASYNC_ERROR_HANDLING",
+    "GENESIS_ENABLE_PN248_ACCEPTANCE_TRACE",
+}
+
+# The hand-written launcher still uses the legacy GENESIS alias here. The V2
+# profile intentionally emits the SNDR canonical key; get_sndr_env() accepts
+# both at runtime, so the parity test normalizes this one known alias.
+_CONTROL_A_ALIAS_EQUIVALENTS = {
+    "GENESIS_ALLOW_SPEC_DECODE_KV_ADAPTER": "SNDR_ALLOW_SPEC_DECODE_KV_ADAPTER",
+}
+
+
+def _parse_env_snapshot(path: Path) -> dict[str, str]:
+    env: dict[str, str] = {}
+    for raw in path.read_text().splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        key, value = line.split("=", 1)
+        env[key] = value
+    return env
+
+
+def _parse_rendered_docker_envs(script: str) -> dict[str, str]:
+    env: dict[str, str] = {}
+    for raw in script.splitlines():
+        line = raw.strip()
+        if not line.startswith("-e "):
+            continue
+        payload = line[3:].strip()
+        if payload.endswith("\\"):
+            payload = payload[:-1].strip()
+        key, value = payload.split("=", 1)
+        env[key] = value
+    return env
+
+
 # ─── G01 + G02: default profile ─────────────────────────────────────────
 
 
@@ -107,6 +153,44 @@ class TestStructuredProfileRender:
             assert env in script, (
                 f"required structured env {env} missing from render"
             )
+
+    def test_control_a_env_snapshot_matches_rendered_profile_envs(self, script):
+        """Control-A parity gate (2026-05-21).
+
+        The first V2-rendered G-STRUCT-K4 launcher passed boot/guard gates but
+        produced corrupt unicode output because it missed load-bearing envs
+        from the hand-written `start_g4_betaA_k1.sh`. This fixture snapshots
+        that hand-written launcher's env contract and compares key/value pairs
+        instead of relying on broad substring checks.
+
+        Some hand-written envs are intentionally outside profile ownership
+        (debug shell controls and PN248 trace), and the PN274 guard opt-in is
+        normalized from the legacy GENESIS alias to the SNDR canonical key.
+        Everything else in the snapshot must be present at the same value.
+        """
+        expected = _parse_env_snapshot(_CONTROL_A_ENV_SNAPSHOT)
+        rendered = _parse_rendered_docker_envs(script)
+
+        missing: dict[str, str] = {}
+        mismatched: dict[str, dict[str, str]] = {}
+        for key, value in expected.items():
+            if key in _CONTROL_A_NON_PROFILE_ENVS:
+                continue
+            rendered_key = _CONTROL_A_ALIAS_EQUIVALENTS.get(key, key)
+            observed = rendered.get(rendered_key)
+            if observed is None:
+                missing[key] = value
+            elif observed != value:
+                mismatched[key] = {"expected": value, "observed": observed}
+
+        assert not missing and not mismatched, json.dumps(
+            {
+                "missing_from_rendered_launcher": missing,
+                "value_mismatches": mismatched,
+            },
+            indent=2,
+            sort_keys=True,
+        )
 
     def test_structured_pn274_guard_optin_present(self, script):
         assert "SNDR_ALLOW_SPEC_DECODE_KV_ADAPTER=1" in script
