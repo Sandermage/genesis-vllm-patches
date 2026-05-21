@@ -116,20 +116,33 @@ def _build_wrapper(original):
         sizes = getattr(cc, "cudagraph_capture_sizes", None)
         mx = getattr(cc, "max_cudagraph_capture_size", None)
 
-        # Fast exit 3: nothing to align if either field is absent /
-        # empty / already consistent.
-        if not sizes or mx is None:
-            return original(dataclass_instance, **kwargs)
-        target_max = max(sizes)
-        if mx == target_max:
+        # Fast exit 3: if EITHER field is absent on the source, the
+        # validator at vllm/config/vllm.py:1703-1715 cannot raise
+        # (its condition requires BOTH non-None). Treat empty list
+        # of sizes as equivalent to None — vllm's validator logic
+        # checks `cudagraph_capture_sizes is not None`, but an empty
+        # list produces valid_max_size=0 which always mismatches
+        # anything non-zero. Either way, our wrapper has no useful
+        # intervention to make on empty sizes.
+        if mx is None or not sizes:
             return original(dataclass_instance, **kwargs)
 
-        # Align: rebuild compilation_config with corrected max. Use
-        # the same `original` function — that's what's available + we
-        # know its semantics on this pin.
+        # Both fields are set on the source. Even when they look
+        # consistent right now (e.g. parent's first init aligned them),
+        # P95 (Marlin TP cudagraph cap) text-patches
+        # vllm/config/vllm.py:_set_cudagraph_sizes to FORCE
+        # max_cudagraph_capture_size=8 again during the rebuild
+        # triggered by `original` → `cls(**dataclass_dict)`. valid_max_size
+        # is then recomputed from cudagraph_capture_sizes (still 6),
+        # producing a mid-rebuild mismatch. The validator's escape
+        # hatch is `cudagraph_capture_sizes is None` → only warns,
+        # does not raise. So clear sizes on the injected
+        # compilation_config; vllm will auto-recompute them inside
+        # `_set_cudagraph_sizes` (line 1648-1688) and align max at
+        # line 1722.
         try:
             aligned_cc = original(
-                cc, max_cudagraph_capture_size=target_max,
+                cc, cudagraph_capture_sizes=None,
             )
         except Exception as e:  # noqa: BLE001
             # Never break the outer replace because alignment failed —
@@ -144,9 +157,11 @@ def _build_wrapper(original):
 
         kwargs["compilation_config"] = aligned_cc
         log.debug(
-            "[PN275] aligned VllmConfig replace: "
-            "max_cudagraph_capture_size %s → %s (max of sizes)",
-            mx, target_max,
+            "[PN275] VllmConfig replace pre-aligned: cleared "
+            "cudagraph_capture_sizes (was len=%d, max=%s) to route "
+            "validator into warning-only branch; vllm auto-recomputes "
+            "sizes + max during _set_cudagraph_sizes",
+            len(sizes), mx,
         )
         return original(dataclass_instance, **kwargs)
 

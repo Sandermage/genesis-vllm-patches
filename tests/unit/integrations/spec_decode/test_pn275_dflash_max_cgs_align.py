@@ -116,8 +116,12 @@ class TestWrapperBehavior:
                     "max_cudagraph_capture_size",
                     instance.max_cudagraph_capture_size,
                 )
+                merged_sizes = kwargs.get(
+                    "cudagraph_capture_sizes",
+                    instance.cudagraph_capture_sizes,
+                )
                 return _FakeCompilationConfig(
-                    merged_max, instance.cudagraph_capture_sizes,
+                    merged_max, merged_sizes,
                 )
             return "ORIG_RESULT"
         return recorded, fake_replace
@@ -151,7 +155,17 @@ class TestWrapperBehavior:
             operator_supplied_cc
         )
 
-    def test_consistent_max_and_sizes_pass_through(self):
+    def test_consistent_source_still_clears_sizes_for_p95_safety(self):
+        """Even when source's max == max(sizes), wrapper MUST clear
+        cudagraph_capture_sizes before delegating. Reason: P95
+        text-patches `_set_cudagraph_sizes` to FORCE max=8 mid-
+        rebuild, which then desyncs against the carried sizes and
+        triggers the dev371 cross-validator. The only way to route
+        the validator into its warning-only branch is to have
+        `cudagraph_capture_sizes is None` at rebuild time. See M4
+        retry receipt 2026-05-21 for the empirical trace through
+        wrapper line 125 that proved source-only check is
+        insufficient."""
         recorded, fake_replace = self._make_recorder()
         wrapper = _import_patch()._build_wrapper(fake_replace)
 
@@ -161,9 +175,19 @@ class TestWrapperBehavior:
         )
         vc = _FakeVllmConfig(cc)
         wrapper(vc, attention_config="ATTN")
-        # Original called exactly once; no compilation_config inject
-        assert len(recorded) == 1
-        assert "compilation_config" not in recorded[0]["kwargs"]
+        # Two calls expected: 1) clear-sizes rebuild of cc,
+        # 2) outer VllmConfig replace with the cleared cc injected.
+        assert len(recorded) == 2
+        # First call clears cudagraph_capture_sizes
+        assert recorded[0]["instance"] is cc
+        assert recorded[0]["kwargs"] == {"cudagraph_capture_sizes": None}
+        # Second call sees the cleared compilation_config injected
+        outer_kwargs = recorded[1]["kwargs"]
+        assert "compilation_config" in outer_kwargs
+        injected_cc = outer_kwargs["compilation_config"]
+        assert injected_cc.cudagraph_capture_sizes is None
+        # Operator's attention_config kwarg preserved
+        assert outer_kwargs["attention_config"] == "ATTN"
 
     def test_empty_sizes_passes_through(self):
         recorded, fake_replace = self._make_recorder()
@@ -191,10 +215,13 @@ class TestWrapperBehavior:
         assert len(recorded) == 1
         assert "compilation_config" not in recorded[0]["kwargs"]
 
-    def test_desync_triggers_alignment_inject(self):
-        """The canonical defect case: max=8 vs sizes=[..., 6]. Wrapper
-        must inject an aligned compilation_config (max=6) into kwargs
-        before delegating."""
+    def test_desync_source_clears_sizes(self):
+        """Canonical defect case: source has max=8 vs sizes=[..., 6].
+        Wrapper clears cudagraph_capture_sizes on the injected
+        compilation_config so vllm's `_set_cudagraph_sizes` auto-
+        recomputes both fields aligned. The validator at
+        vllm/config/vllm.py:1703-1715 sees cudagraph_capture_sizes=None
+        and routes through the warning-only branch."""
         recorded, fake_replace = self._make_recorder()
         wrapper = _import_patch()._build_wrapper(fake_replace)
 
@@ -204,29 +231,28 @@ class TestWrapperBehavior:
         )
         vc = _FakeVllmConfig(cc)
         wrapper(vc, attention_config="ATTN")
-        # Two calls: one for the inner align (CompilationConfig rebuild),
-        # one for the outer VllmConfig replace
+        # Two calls: 1) inner cc rebuild with sizes=None, 2) outer VllmConfig
         assert len(recorded) == 2
-        # First call rebuilds CompilationConfig with max=6
+        # First call clears cudagraph_capture_sizes
         assert recorded[0]["instance"] is cc
-        assert recorded[0]["kwargs"] == {"max_cudagraph_capture_size": 6}
-        # Second call sees the aligned compilation_config injected
+        assert recorded[0]["kwargs"] == {"cudagraph_capture_sizes": None}
+        # Second call sees the cleared compilation_config injected
         outer_kwargs = recorded[1]["kwargs"]
         assert "compilation_config" in outer_kwargs
-        aligned_cc = outer_kwargs["compilation_config"]
-        assert aligned_cc.max_cudagraph_capture_size == 6
-        # And the operator's attention_config kwarg is preserved
+        injected_cc = outer_kwargs["compilation_config"]
+        assert injected_cc.cudagraph_capture_sizes is None
+        # Operator's attention_config kwarg preserved
         assert outer_kwargs["attention_config"] == "ATTN"
 
     def test_alignment_failure_falls_through_to_original(self):
-        """If the inner alignment call raises, the wrapper must NOT
+        """If the inner clear-sizes call raises, the wrapper must NOT
         propagate — fall through to the original outer call so pydantic
-        can surface the real error."""
+        can surface the real error. Defense-in-depth."""
         recorded = []
 
         def fake_replace(instance, /, **kwargs):
             if isinstance(instance, _FakeCompilationConfig):
-                raise RuntimeError("simulated alignment failure")
+                raise RuntimeError("simulated clear-sizes failure")
             recorded.append({"instance": instance, "kwargs": dict(kwargs)})
             return "ORIG_RESULT"
 
