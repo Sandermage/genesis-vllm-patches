@@ -39,10 +39,21 @@ patches_delta:
   override: {}                                   # no value overrides
 
 # ─── Sizing override — DFlash is single-stream optimized ───────────────
-# 160K context (vs 320K for MTP PROD); max_num_seqs=1; gpu_memory_utilization
-# trimmed to 0.92 to leave headroom for separate drafter model.
+# 65K context cap on 2× A5000 24GB. Empirical: M5 smoke 2026-05-21 hit
+# `_check_enough_kv_cache_memory` at vllm/v1/core/kv_cache_utils.py:729
+# with the previous 160000 setting — 3.81 GiB KV cache required vs
+# 1.95 GiB available, vllm estimated max usable ≈ 79328 tokens for the
+# parent + DFlash drafter combination. 65536 is the round-numbered
+# headroom-safe cap; ModelDef docstring also documents "DFlash cap on
+# this rig is 100000" but that figure pre-dates the dev371 drafter
+# memory accounting and is now optimistic. Lift this only after a
+# formal memory bench (genesis_bench_suite + memory probe) validates
+# a higher cap; do not chase the vllm-suggested 79328 directly because
+# the spec-decode drafter's KV growth across acceptance branches is
+# not flat. Receipt:
+# sndr_private/planning/bench_results/2026-05-21/P2_DFLASH_M5_Q35_DEV371_COMPAT_PASS_SIZING_FAIL_2026-05-21_RU.md
 sizing_override:
-  max_model_len: 160000                          # 160K context (vs 35B MTP's 320K — DFlash needs drafter overhead)
+  max_model_len: 65536                           # 64K context — see comment block above for the 160K → 65K rationale
   gpu_memory_utilization: 0.92                   # 0.92 (vs 0.90 MTP) — leaves headroom for separate drafter
   max_num_seqs: 1                                # 1 = DFlash is single-stream optimized
   max_num_batched_tokens: 2048                   # 2048 (vs 4096) — smaller chunks for single-stream
