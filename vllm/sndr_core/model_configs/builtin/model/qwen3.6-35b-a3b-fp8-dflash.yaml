@@ -12,7 +12,7 @@ kind: model
 id: qwen3.6-35b-a3b-fp8-dflash                   # canonical ID; differs from MTP variant by spec method + KV
 title: Qwen 3.6 35B-A3B FP8 + DFlash N=3 (Sander single-stream reference)
 maintainer: sandermage
-last_validated: '2026-05-06'
+last_validated: '2026-05-21'                     # P2.DFlash M8-Q35 dev371 smoke + quick bench PASS
 license: apache-2.0
 
 # ─── Identity ──────────────────────────────────────────────────────────
@@ -52,8 +52,8 @@ requires:
 
 versions:
   genesis_pin_min: v11.0.0                       # minimum sndr_core version
-  vllm_pin_required: 0.20.2rc1.dev338+gbf0d2dc6d # current PROD baseline (Wave 9 dev338 nightly upgrade 2026-05-14)
-  reference_metrics_ref: null                    # no JSON baseline yet; bench-and-update pending
+  vllm_pin_required: 0.20.2rc1.dev371+gbf610c2f5 # promoted 2026-05-21 (P2.DFlash M8-Q35) — dev371 smoke + quick bench PASS via canonical V2 flow. Requires PN275 wired in via this ModelDef's patches matrix (M6 commit 12d901a5) — that patch closes the dev371 cross-validator at vllm/config/vllm.py:1703-1715 that broke DFlash drafter VllmConfig rebuilds on dev371 + P95 + P66 combination. Previous pin dev338 retained side-by-side on server as :nightly-previous for rollback per CLAUDE.md pin policy.
+  reference_metrics_ref: null                    # no JSON baseline yet. dev371 quick bench (n=25): decode_TPOT 8.73 ms mean (CV 13.4%), TTFT 153.5 ms mean, wall_TPS 83.7 mean — the FASTEST decode TPOT in the Qwen lineup thanks to A3B MoE 3B active params + DFlash K=3. Receipt: sndr_private/planning/bench_results/2026-05-21/P2_DFLASH_M5_RETRY_Q35_PASS_2026-05-21_RU.md. NOT a formal canonical baseline — full sustained-methodology cycle still pending.
 
 # ─── Canonical patches matrix (37 entries) ─────────────────────────────
 # Notable differences vs MTP variant:
@@ -181,6 +181,42 @@ notes:
     Qwen3.6-35B-A3B-DFlash drafter checkpoint on host (/models/Qwen3.6-35B-A3B-DFlash)."
   - "Use this variant for single-stream code-gen throughput. For concurrent serving
     use MTP variant qwen3.6-35b-a3b-fp8."
+  - "P2.DFlash M8-Q35 runtime pin promotion 2026-05-21: dev338 → dev371.
+    SECOND and FINAL DFlash variant promoted off dev338, closing the
+    DFlash Candidate A sprint. Full sprint chain:
+      M1 root-cause investigation (P2_DFLASH_CANDIDATE_A_DESIGN_REFINED)
+      M2..M2f PN275 implementation (commits 40e60ec5 → 387a9a63):
+        utils.replace text-patch self-install + validator waiver +
+        in-process setattr wrap (3-layer fix for dev371 cross-validator)
+      M5 retry Q35-DFlash dev371 E2E smoke PASS:
+        container booted on dev371, /v1/models served, two coherent
+        text completions (Paris + TCP/UDP, both factually correct
+        with constraints honored), system_fingerprint reported
+        dev371+gbf610c2f5, 272 Genesis patches applied / 0 failed,
+        0 validator raises, 0 waiver firings (wrapper pre-empted
+        the desync on the replace-mediated path).
+      Quick bench (5 prompts × 5 runs = n=25): decode_TPOT 8.73 ms
+        mean (CV 13.4%), TTFT 153.5 ms mean, wall_TPS 83.7 mean.
+        Fastest decode TPOT in the Qwen lineup — A3B MoE 3B active
+        params per token + DFlash K=3 (smaller K than Q27-DFlash's
+        K=5) combined to win.
+      Sizing fix sibling commit 7a94349b (chore profile) — trimmed
+        max_model_len 160000 → 65536 on the 35b-dflash profile to
+        fit the KV cache budget on 2× A5000 24GB + DFlash drafter
+        overhead. Orthogonal to PN275 but a hard prerequisite for
+        end-to-end deployable smoke on this rig.
+      M6 wired GENESIS_ENABLE_PN275_DFLASH_MAX_CGS_ALIGN=1 into this
+        ModelDef's patches matrix (commit 12d901a5) — PN275 is now a
+        hard ModelDef-level requirement of the dev371 boot.
+      M7 lifted DFLASH_DEV371_HOLD_LIFTED (commit 43fe70b7) — audit
+        permitted DFlash dev371 promotions.
+      M8-Q27 (commit 7e310b25) — Q27-DFlash promoted first; this
+        commit completes the pair.
+    Receipt:
+    sndr_private/planning/bench_results/2026-05-21/P2_DFLASH_M5_RETRY_Q35_PASS_2026-05-21_RU.md.
+    Bench artifact: bench_q35_dflash_dev371.json in the same dir.
+    Sprint closure: with this commit, both DFlash variants are on
+    dev371 and the DFlash Candidate A sprint is complete."
   - "Wave 10 (2026-05-15): patches added symmetric to MTP sibling. Multi-conc
     bench on DFlash variant pending — see commit log + tools/multi_conc_bench.py
     for methodology."
