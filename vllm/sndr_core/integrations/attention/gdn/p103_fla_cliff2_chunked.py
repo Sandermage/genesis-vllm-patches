@@ -199,11 +199,28 @@ def _make_chunked_wrapper(
         cu_seqlens=None,
         chunk_indices=None,
         chunk_offsets=None,
+        **kwargs,
     ):
         # DA-003 (audit 2026-05-08): torch is needed only when this
         # callable is actually invoked at runtime; the builder
         # `_make_chunked_wrapper` itself stays cold-import-safe.
         import torch
+
+        # ABI-forward-compat (2026-05-21): dev371 upstream added
+        # `core_attn_out` to `chunk_gated_delta_rule_fwd` — a caller-owned
+        # preallocated output buffer. P103 does not rewrite calls that
+        # request a caller-owned output buffer; bypass to original so the
+        # buffer write contract is honored. The wider `**kwargs` capture
+        # also makes the wrapper survive future signature additions on
+        # the hot fallthrough path below.
+        if kwargs.get("core_attn_out") is not None:
+            return original_fwd(
+                q, k, v, g, beta, scale,
+                initial_state, output_final_state,
+                cu_seqlens, chunk_indices, chunk_offsets,
+                **kwargs,
+            )
+
         # Hot-path: T <= MAX_T (always true for decode T=1, and most prefills)
         # OR cu_seqlens indicates a true multi-seq batch.
         #
@@ -225,6 +242,7 @@ def _make_chunked_wrapper(
                 q, k, v, g, beta, scale,
                 initial_state, output_final_state,
                 cu_seqlens, chunk_indices, chunk_offsets,
+                **kwargs,
             )
 
         # Step 1: full-input setup. These allocations are small — they

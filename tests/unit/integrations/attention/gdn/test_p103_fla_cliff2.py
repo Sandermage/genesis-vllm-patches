@@ -309,3 +309,203 @@ def test_p103_module_docstring_explains_v7_69_install_model():
         "exec pattern)"
     )
     assert "self-install" in doc.lower() or "module-import" in doc.lower()
+
+
+# ─────────────────────────────────────────────────────────────────
+# P2.4b — ABI-forward-compat (dev371 `core_attn_out` kwarg drift)
+# ─────────────────────────────────────────────────────────────────
+#
+# Q35-TQ HALT 2026-05-21 traced to a closure built by
+# `_make_chunked_wrapper` whose explicit signature pre-dated the
+# dev338→dev371 addition of `core_attn_out` to
+# `chunk_gated_delta_rule_fwd`. Upstream callers on dev371 pass
+# `core_attn_out=<tensor>` → wrapper raised TypeError. The fix below
+# accepts arbitrary `**kwargs` and bypasses the chunked rewrite when
+# the caller supplies an output buffer (P103 has no semantics for
+# caller-owned outputs).
+#
+# These tests build the wrapper directly via `_make_chunked_wrapper`
+# with lightweight fakes (no CUDA, no torch tensors). They exercise
+# the closure behavior, not the full apply() flow.
+
+
+class _FakeShape(tuple):
+    """Tuple-with-int-subscript so `q.shape[1]` works on a non-tensor."""
+
+    def __new__(cls, *vals):
+        return super().__new__(cls, vals)
+
+
+class _FakeQ:
+    """Minimal q-stub: needs `.shape` (tuple) and `__getitem__` for slicing.
+
+    The wrapper reads `q.shape[1]` to decide hot-path vs chunked path; it
+    does NOT actually slice when the hot-path returns. So __getitem__ can
+    raise — we never reach it in the tests below.
+    """
+
+    def __init__(self, t: int):
+        self.shape = _FakeShape(1, t, 1, 1)
+
+
+def _build_wrapper(original_fwd, max_t_env: str = "16384"):
+    """Build a P103 chunked_fwd closure with fake deps + a real original_fwd.
+
+    The chunked-loop branch is never reached by these tests (hot-path
+    returns first, or core_attn_out bypass returns first), so the inner
+    closure deps can be no-op lambdas.
+    """
+    import os
+    import unittest.mock as _mock
+    from vllm.sndr_core.integrations.attention.gdn import p103_fla_cliff2_chunked as p103
+
+    _noop = lambda **kw: None  # noqa: E731
+
+    with _mock.patch.dict(os.environ, {"GENESIS_FLA_FWD_H_MAX_T": max_t_env}):
+        wrapper = p103._make_chunked_wrapper(
+            original_fwd=original_fwd,
+            chunk_local_cumsum=_noop,
+            chunk_scaled_dot_kkt_fwd=_noop,
+            solve_tril=_noop,
+            recompute_w_u_fwd=_noop,
+            chunk_gated_delta_rule_fwd_h=_noop,
+            chunk_fwd_o_callable=_noop,
+            fla_chunk_size=64,
+            suppress_level=0,
+        )
+    return wrapper
+
+
+def test_p103_wrapper_accepts_core_attn_out_none_no_error():
+    """dev371 callers pass `core_attn_out=None` on the default path.
+
+    The wrapper must NOT raise TypeError on the new kwarg, even when
+    its value is None. Hot-path (T=1) fallthrough preserves the old
+    11-positional contract to `original_fwd`.
+    """
+    recorded = {}
+
+    def fake_original(*args, **kwargs):
+        recorded["args"] = args
+        recorded["kwargs"] = kwargs
+        return "ORIG_RESULT"
+
+    wrapper = _build_wrapper(fake_original)
+    q = _FakeQ(t=1)  # T=1 → hot-path fallthrough
+    result = wrapper(
+        q=q, k=None, v=None, g=None, beta=None, scale=1.0,
+        initial_state=None, output_final_state=False,
+        cu_seqlens=None,
+        core_attn_out=None,
+    )
+    assert result == "ORIG_RESULT"
+    # core_attn_out=None must reach original_fwd via **kwargs so upstream
+    # can either default-allocate or skip allocation per its own logic.
+    assert recorded["kwargs"].get("core_attn_out") is None
+    assert "core_attn_out" in recorded["kwargs"]
+
+
+def test_p103_wrapper_bypasses_when_core_attn_out_tensor_provided():
+    """When the caller supplies a non-None `core_attn_out` buffer, the
+    wrapper must call `original_fwd` directly and forward the kwarg —
+    even if shape would normally trigger the chunked-loop branch.
+
+    P103 does not own caller-owned output buffer semantics.
+    """
+    recorded = {}
+    sentinel_buffer = object()  # not None — looks like a preallocated tensor
+
+    def fake_original(*args, **kwargs):
+        recorded["args"] = args
+        recorded["kwargs"] = kwargs
+        return "ORIG_RESULT"
+
+    wrapper = _build_wrapper(fake_original, max_t_env="64")  # small MAX_T
+    # T=128 > MAX_T(64) AND cu_seqlens=None → would normally enter chunked
+    # branch. But core_attn_out!=None must bypass.
+    q = _FakeQ(t=128)
+    result = wrapper(
+        q=q, k="K", v="V", g="G", beta="B", scale=2.5,
+        initial_state="S", output_final_state=True,
+        cu_seqlens=None,
+        core_attn_out=sentinel_buffer,
+    )
+    assert result == "ORIG_RESULT"
+    assert recorded["kwargs"].get("core_attn_out") is sentinel_buffer
+    # And the positional arg layout reaches original_fwd unchanged
+    args = recorded["args"]
+    assert args[0] is q
+    assert args[1] == "K"
+    assert args[5] == 2.5  # scale
+
+
+def test_p103_wrapper_forwards_unknown_future_kwarg_on_hot_path():
+    """Forward-compat: an unrelated kwarg added by a future upstream
+    must traverse the hot fallthrough without TypeError and reach
+    `original_fwd` via **kwargs."""
+    recorded = {}
+
+    def fake_original(*args, **kwargs):
+        recorded["args"] = args
+        recorded["kwargs"] = kwargs
+        return None
+
+    wrapper = _build_wrapper(fake_original)
+    q = _FakeQ(t=1)  # hot-path
+    wrapper(
+        q=q, k=None, v=None, g=None, beta=None, scale=1.0,
+        initial_state=None, output_final_state=False,
+        cu_seqlens=None,
+        future_param_2027="abc",
+    )
+    assert recorded["kwargs"].get("future_param_2027") == "abc"
+
+
+def test_p103_wrapper_preserves_old_signature_call():
+    """Backward-compat: a dev338-style caller (no kwargs beyond the
+    explicit ones) must continue to work identically. Hot-path
+    fallthrough forwards positional args."""
+    recorded = {}
+
+    def fake_original(*args, **kwargs):
+        recorded["args"] = args
+        recorded["kwargs"] = kwargs
+        return "OK"
+
+    wrapper = _build_wrapper(fake_original)
+    q = _FakeQ(t=1)
+    result = wrapper(
+        q=q, k="K", v="V", g="G", beta="B", scale=0.125,
+        initial_state="S", output_final_state=True,
+        cu_seqlens=None, chunk_indices=None, chunk_offsets=None,
+    )
+    assert result == "OK"
+    # No extraneous kwargs leaked into original_fwd
+    assert recorded["kwargs"] == {}
+
+
+def test_p103_wrapper_signature_accepts_var_keyword():
+    """The closure signature must include **kwargs (or equivalent).
+
+    Regression guard: catches a future refactor that re-introduces an
+    explicit-only signature and reopens the dev371 ABI gap.
+    """
+    import inspect
+
+    recorded = {}
+
+    def fake_original(*args, **kwargs):
+        recorded["args"] = args
+        recorded["kwargs"] = kwargs
+        return None
+
+    wrapper = _build_wrapper(fake_original)
+    sig = inspect.signature(wrapper)
+    has_var_kw = any(
+        p.kind == inspect.Parameter.VAR_KEYWORD
+        for p in sig.parameters.values()
+    )
+    assert has_var_kw, (
+        f"wrapper signature must accept **kwargs for ABI-forward-compat; "
+        f"got {sig}"
+    )
