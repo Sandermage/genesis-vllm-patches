@@ -880,6 +880,19 @@ def render_profile_launcher(
     container_name = f"vllm-{profile_id}-k${{K}}" if has_spec_decode else \
                      f"vllm-{profile_id}"
 
+    # P2.1: Resolve container image from hardware YAML verbatim so the
+    # rendered launcher is locked to the runtime pin the hardware was
+    # validated on. Without this, the launcher emits the generic
+    # `vllm/vllm-openai:nightly` tag, which is mutable on the host and
+    # silently routes to whichever pin was last tagged `:nightly` — the
+    # exact failure mode that produced Q35-TQ HALT 2026-05-21 when the
+    # host's `:nightly` pointed at dev371 while Qwen 35B requires dev338.
+    #
+    # compose() upstream already guarantees hw.runtime.docker is present
+    # when the docker runtime is chosen (raises SchemaError otherwise),
+    # so unconditionally reading .image here is safe — no fallback path.
+    image_value = hw.runtime.docker.image
+
     # Inner run.sh — what the docker entrypoint executes.
     inner_run = []
     inner_run.append('#!/bin/bash')
@@ -928,7 +941,7 @@ docker rm -f "$CONTAINER" 2>/dev/null || true
 
 GENESIS_REPO=/home/sander/genesis-vllm-patches
 TGT=/usr/local/lib/python3.12/dist-packages/vllm
-IMAGE="vllm/vllm-openai:nightly"
+IMAGE="{image_value}"
 
 LAUNCHER_DIR=/tmp/{profile_id}_launcher
 mkdir -p "$LAUNCHER_DIR"

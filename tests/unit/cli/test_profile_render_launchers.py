@@ -290,6 +290,121 @@ class TestStructuredProfileRender:
         assert "upstream_overlay_pr42637" not in script
 
 
+# ─── P2.1 image pin routing tests ───────────────────────────────────────
+
+
+class TestP21ImagePinRouting:
+    """P2.1 — rendered launcher's IMAGE line MUST match the hardware YAML's
+    runtime.docker.image verbatim, NOT a generic mutable tag.
+
+    The pre-fix renderer hard-coded ``IMAGE="vllm/vllm-openai:nightly"``,
+    which silently routed to whichever pin the host last tagged
+    ``:nightly``. On 2026-05-21 this produced the Q35-TQ HALT: the rig
+    was validated on dev338 but the host's ``:nightly`` was dev371, and
+    the cross-pin chunked_fwd kwarg mismatch killed the engine at
+    initialization.
+
+    These tests pin the renderer to ``hw.runtime.docker.image`` verbatim.
+    """
+
+    @staticmethod
+    def _extract_image_line(script: str) -> str | None:
+        """Return the IMAGE="..." value from the rendered launcher, or
+        None if the line is absent."""
+        import re
+        m = re.search(r'^IMAGE="([^"]+)"\s*$', script, re.MULTILINE)
+        return m.group(1) if m else None
+
+    def test_image_line_present(self):
+        """Rendered launcher has exactly one IMAGE="..." line."""
+        script = render_profile_launcher(
+            "gemma4-tq-mtp-structured-k4",
+            hardware_id="a5000-2x-24gbvram-16cpu-128gbram",
+        )
+        image = self._extract_image_line(script)
+        assert image is not None, (
+            "rendered launcher missing IMAGE=\"...\" line"
+        )
+
+    def test_image_matches_hardware_yaml_a5000_2x(self):
+        """gemma4 structured + a5000-2x → rendered IMAGE must equal
+        hw.runtime.docker.image (dev338 explicit hash tag, NOT generic
+        :nightly)."""
+        from vllm.sndr_core.model_configs.registry_v2 import load_hardware
+        hw = load_hardware("a5000-2x-24gbvram-16cpu-128gbram")
+        expected = hw.runtime.docker.image  # type: ignore[union-attr]
+        script = render_profile_launcher(
+            "gemma4-tq-mtp-structured-k4",
+            hardware_id="a5000-2x-24gbvram-16cpu-128gbram",
+        )
+        image = self._extract_image_line(script)
+        assert image == expected, (
+            f"rendered IMAGE={image!r} != hw.runtime.docker.image={expected!r}; "
+            f"renderer must use the hardware YAML's pinned image verbatim, "
+            f"NOT a generic mutable tag"
+        )
+
+    def test_image_is_explicit_hash_not_generic_nightly(self):
+        """Defensive: on a5000-2x the hardware YAML pins to the explicit
+        dev338 hash tag. The rendered launcher must NOT emit the bare
+        :nightly tag (which is mutable on the host)."""
+        script = render_profile_launcher(
+            "gemma4-tq-mtp-structured-k4",
+            hardware_id="a5000-2x-24gbvram-16cpu-128gbram",
+        )
+        image = self._extract_image_line(script)
+        assert image is not None
+        # The bare :nightly tag is the failure mode we're guarding
+        # against. Any explicit-hash tag (nightly-<sha>) is fine.
+        assert image != "vllm/vllm-openai:nightly", (
+            "rendered IMAGE must not be the bare mutable :nightly tag; "
+            "hardware YAML pins an explicit hash and renderer must "
+            "carry it through"
+        )
+
+    def test_image_matches_default_profile_too(self):
+        """Pin routing is profile-agnostic — also covers the default
+        (non-structured) profile to avoid regressions on operator
+        smoke launches."""
+        from vllm.sndr_core.model_configs.registry_v2 import load_hardware
+        hw = load_hardware("a5000-2x-24gbvram-16cpu-128gbram")
+        expected = hw.runtime.docker.image  # type: ignore[union-attr]
+        script = render_profile_launcher(
+            "gemma4-tq-default",
+            hardware_id="a5000-2x-24gbvram-16cpu-128gbram",
+        )
+        image = self._extract_image_line(script)
+        assert image == expected
+
+    def test_missing_docker_block_raises_via_compose(self, monkeypatch):
+        """When hardware YAML has no docker block but runtime='docker'
+        is chosen, compose() raises SchemaError upstream — the renderer
+        never reaches its IMAGE line. This regression-tests that the
+        renderer relies on compose's invariant rather than a silent
+        generic-tag fallback that masked the original Q35-TQ defect."""
+        from vllm.sndr_core.model_configs import registry_v2 as r2
+        from vllm.sndr_core.model_configs.schema import SchemaError
+        hw = r2.load_hardware("a5000-2x-24gbvram-16cpu-128gbram")
+        hw.runtime.docker = None
+
+        real_load_hw = r2.load_hardware
+
+        def fake_load_hw(hw_id):
+            if hw_id == "a5000-2x-24gbvram-16cpu-128gbram":
+                return hw
+            return real_load_hw(hw_id)
+
+        monkeypatch.setattr(
+            "vllm.sndr_core.model_configs.registry_v2.load_hardware",
+            fake_load_hw,
+        )
+        with pytest.raises(SchemaError, match="hardware.runtime.docker"):
+            render_profile_launcher(
+                "gemma4-tq-default",
+                hardware_id="a5000-2x-24gbvram-16cpu-128gbram",
+            )
+
+
 # ─── Backend mapping table tests ────────────────────────────────────────
 
 
