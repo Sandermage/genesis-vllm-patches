@@ -28,8 +28,8 @@ runtime:
   default: docker                                # values: docker|podman|kubernetes|systemd|bare
   supported: [docker]                            # which runtime emitters this hardware supports
   docker:
-    image: vllm/vllm-openai:nightly              # vllm container image tag
-    image_digest: vllm/vllm-openai@sha256:9b534fe66daf152e8ceca8a7f8e14c18105aaf6ddabc61eb17730d85b4c7c194  # pinned digest
+    image: vllm/vllm-openai:nightly-bf610c2f56764e1b30bc6065f4ceace3d6e59036  # vllm container image tag — dev371 runtime unified with 2x rig 2026-05-21. Single-card variants do not have an independent dev371 smoke yet; engine binary is identical to 2x.
+    image_digest: vllm/vllm-openai@sha256:7f047b7e625283eee436cfc0c37784064f75422452ed4f9b6fa8c69eae6afe68  # pinned digest — dev371 (0.20.2rc1.dev371+gbf610c2f5)
     container_name_template: vllm-{model_id}-3090  # template includes -3090 suffix
     host_port: 8000                              # OpenAI-API host port
     container_port: 8000                         # OpenAI-API container port
