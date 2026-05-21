@@ -338,16 +338,19 @@ class TestDFlashHoldGate:
         assert "DFlash hold receipt:" in joined
 
     def test_non_dflash_qwen_dev338_remains_migration_candidate(self):
-        """Non-DFlash Qwen models on dev338 (27b-int4-autoround-fp8kv,
-        7b-dense) must still be marked as 'P2.4d candidate'. The
-        DFlash hold logic must NOT bleed into the non-DFlash family."""
+        """Non-DFlash Qwen models on dev338 (currently only 7b-dense
+        after P2.4d-Q35, P2.4d-Q27, P2.4d-Q27-FP8KV promotions) must
+        still be marked as 'P2.4d candidate'. The DFlash hold logic
+        must NOT bleed into the non-DFlash family.
+
+        This assertion intentionally pins on the current live tree
+        state — when a future P2.4d-Q7B-dense lands, the test should
+        be retargeted at whichever Qwen ModelDef is the next
+        non-DFlash candidate. If no non-DFlash candidate remains,
+        the test should be retired."""
         mod = _import_audit()
         _, infos = mod.check_r_pin_4_modeldef_migration()
         joined = "\n".join(infos)
-        assert (
-            "qwen3.6-27b-int4-autoround-fp8kv → dev338  (P2.4d candidate)"
-            in joined
-        )
         assert (
             "qwen3.6-7b-dense → dev338  (P2.4d candidate)" in joined
         )

@@ -15,7 +15,7 @@ kind: model
 id: qwen3.6-27b-int4-autoround-fp8kv             # canonical ID; fp8kv suffix differs from TQ k8v4 sister
 title: Qwen 3.6 27B INT4 AutoRound (Lorbus) + fp8_e5m2 KV
 maintainer: sandermage
-last_validated: '2026-05-06'
+last_validated: '2026-05-21'                     # P2.4d-Q27-FP8KV dev371 smoke + quick bench PASS
 license: apache-2.0
 
 # ─── Identity ──────────────────────────────────────────────────────────
@@ -51,8 +51,8 @@ requires:
 
 versions:
   genesis_pin_min: v11.0.0
-  vllm_pin_required: 0.20.2rc1.dev338+gbf0d2dc6d # current PROD baseline (smoke + tool-call validated 2026-05-14)
-  reference_metrics_ref: null                    # no JSON baseline yet
+  vllm_pin_required: 0.20.2rc1.dev371+gbf610c2f5 # promoted 2026-05-21 (P2.4d-Q27-FP8KV) — dev371 smoke + quick bench PASS via canonical V2 flow (hardware YAML → renderer → IMAGE dev371, no sed). Requires P103 wrapper kwargs ABI fix (commit 122c2576). Previous pin dev338 retained side-by-side on server as :nightly-previous for rollback per CLAUDE.md pin policy.
+  reference_metrics_ref: null                    # no JSON baseline yet. dev371 quick bench (n=25): decode_TPOT 17.81 ms mean (CV 12.2%), TTFT 156.7 ms mean (CV 12.5%), wall_TPS 47.8 mean. Receipt: sndr_private/planning/bench_results/2026-05-21/P2_Q27_FP8KV_DEV371_SMOKE_RECEIPT_2026-05-21_RU.md. NOT a formal canonical baseline — full sustained-methodology cycle still pending.
 
 # ─── Canonical patches matrix ──────────────────────────────────────────
 # Long-ctx (newer) reference set. QA-only `tested` profile uses
@@ -123,6 +123,32 @@ notes:
     Long-ctx variant uses 280K context with sizing override; tested variant uses 131K."
   - "Lorbus INT4 routes through AllSparkLinearKernel (not Marlin) for the dense
     path — P87/P91 still help for the moe-marlin path on 27B."
+  - "P2.4d-Q27-FP8KV runtime pin promotion 2026-05-21: dev338 → dev371.
+    Smoke + 5-prompt × 5-run quick bench (n=25) on dev371 via the canonical
+    V2 flow (hardware YAML pinned dev371 commit 7d067bb1 → renderer reads
+    hw.runtime.docker.image verbatim commit a3fa5265 → IMAGE = dev371,
+    no sed). Backed by container boot PASS, /v1/models served, two
+    coherent text completions (Paris exact 8-token stop; TCP/UDP
+    2-sentence constraint honored, factually correct + tasteful
+    application examples), 237 Genesis patches applied / 0 failed,
+    zero `chunked_fwd … core_attn_out` ABI exceptions across 3954-line
+    dispatch log. Bench characteristics: decode_TPOT 17.81 ms mean vs
+    Q27-TQ k8v4 sister 10.03 ms mean — the ~1.78× gap matches the
+    documented fp8_e5m2 underperformance of TQ k8v4 (~48% throughput),
+    NOT a regression. Smoke profile used: 27b-long-ctx (full Wave 7+
+    matrix, validated status). The QA-only sibling qa-27b-fp8kv would
+    benefit from this same pin promotion since it composes against
+    the same parent ModelDef. Receipt:
+    sndr_private/planning/bench_results/2026-05-21/P2_Q27_FP8KV_DEV371_SMOKE_RECEIPT_2026-05-21_RU.md.
+    P103 wrapper **kwargs + core_attn_out bypass (commit 122c2576) is
+    a hard prerequisite for this pin on hybrid_gdn_moe paths; FP8KV
+    doesn't itself exercise GDN chunked attention in this smoke
+    (long-ctx profile has no spec_decode drafter), but the P103
+    overlay is still on the apply path and must remain active.
+    Q27-FP8KV only — qwen3.6-27b-dflash, 35b-a3b-fp8-dflash held on
+    dev338 per the P2.DFlash hold gate (see commit 6d40c768 and
+    sndr_private/planning/audits/P2_DFLASH_DEV371_INCOMPATIBILITY_DESIGN_2026-05-21_RU.md);
+    qwen3.6-7b-dense remains dev338 pending its own smoke."
 
 # ── patches_attribution (Phase D full backfill, 2026-05-16) ────────────
 # 27B INT4 AutoRound with fp8 KV (QA-tested variant). No TQ k8v4,
