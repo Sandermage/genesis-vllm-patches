@@ -82,6 +82,20 @@ jobs:
         run: |
           python3 scripts/audit_phase3_relocation.py
 
+      - name: V2 runtime + ModelDef pin harmonization
+        # P2.6 — locks the runtime image and ModelDef pin discipline so
+        # the next pin bump cannot silently regress to a bare mutable
+        # :nightly tag or to an unknown pin:
+        #   R-PIN-1 — no bare mutable vLLM nightly in hardware YAMLs
+        #   R-PIN-2 — hardware image_digest present + correct prefix
+        #   R-PIN-3 — rendered IMAGE == composed cfg.docker.image
+        #   R-PIN-4 — ModelDef vllm_pin_required in allowed set;
+        #             migration table emitted as info only (Qwen dev338
+        #             allowed until P2.4d promotes per-model with
+        #             smoke + bench evidence)
+        run: |
+          python3 scripts/audit_v2_runtime_pins.py
+
       - name: Lifecycle audit
         # Ensures no patch was added with an unknown lifecycle state.
         run: |

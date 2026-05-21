@@ -101,3 +101,20 @@ repos:
         language: system
         pass_filenames: false
         files: '(vllm/sndr_core/integrations/.*|vllm/sndr_core/dispatcher/registry\.py|vllm/sndr_core/model_configs/builtin/profile/.*\.yaml|scripts/audit_phase3_relocation\.py|tests/unit/scripts/test_audit_phase3_relocation\.py)$'
+
+      - id: genesis-audit-v2-runtime-pins
+        name: Genesis V2 runtime + ModelDef pin harmonization (R-PIN-1..4)
+        # P2.6 invariants — locks the runtime image / ModelDef pin
+        # discipline so a future pin bump cannot silently regress:
+        #   R-PIN-1  no bare mutable vLLM nightly in hardware YAMLs
+        #   R-PIN-2  hardware image_digest present + correct prefix
+        #   R-PIN-3  rendered IMAGE == composed cfg.docker.image == hw image
+        #   R-PIN-4  ModelDef vllm_pin_required within allowed set;
+        #            migration table emitted as info (Qwen dev338 OK
+        #            until P2.4d promotes per-model with smoke evidence)
+        # Read-only. Fires when hardware / model YAMLs, the renderer,
+        # the compose layer, or the audit itself changes.
+        entry: python3 scripts/audit_v2_runtime_pins.py
+        language: system
+        pass_filenames: false
+        files: '(vllm/sndr_core/model_configs/builtin/hardware/.*\.yaml|vllm/sndr_core/model_configs/builtin/model/.*\.yaml|vllm/sndr_core/cli/profile\.py|vllm/sndr_core/model_configs/compose\.py|scripts/audit_v2_runtime_pins\.py|tests/unit/scripts/test_audit_v2_runtime_pins\.py)$'
