@@ -239,16 +239,18 @@ def check_r2_canonical_apply_path() -> list[str]:
 # documented pending registration so the audit does not block other
 # Phase 3 work. Adding each to PATCH_REGISTRY closes the entry.
 #
-# Source: V2 config completeness audit §4.2 (2026-05-21) +
-#         structured profile patches_delta.enable inventory.
-PENDING_REGISTRATION = frozenset({
-    "GENESIS_ENABLE_G4_70_PN259B_MIXED_ALLOC",
-    "GENESIS_ENABLE_G4_70_PN259B_FAIL_FAST",
-    "GENESIS_ENABLE_PN256_KPLUS1_RAW_KV",
-    "GENESIS_ENABLE_PN261_TQ_NATIVE_CACHE_ASSERT",
-    "GENESIS_ENABLE_PN271_KV_CONTRACT_AUDIT",
-    "SNDR_ALLOW_SPEC_DECODE_KV_ADAPTER",
-})
+# History:
+#   Phase 3 Bucket 6 (2026-05-21) introduced this set with 6 entries
+#   sourced from the V2 config completeness audit §4.2.
+#   R3 cleanup (2026-05-21, same day) closed all 6 by adding registry
+#   entries: G4_70, G4_70B, PN256, PN261, PN271, PN274. The waiver
+#   set is now empty.
+#
+# Add a new entry here only when a future profile change introduces an
+# env whose patch hasn't been registered yet AND the registration
+# work is being explicitly deferred to a follow-up commit. The
+# entry must reference a tracking issue / audit doc.
+PENDING_REGISTRATION: frozenset[str] = frozenset()
 
 
 def _registered_env_flags() -> set[str]:

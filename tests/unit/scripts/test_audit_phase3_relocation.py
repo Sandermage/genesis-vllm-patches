@@ -243,21 +243,31 @@ def test_r3_flags_unknown_env_in_structured_profile(tmp_path, monkeypatch):
 
 
 def test_r3_pending_registration_demoted_to_info(tmp_path, monkeypatch):
-    """An env in PENDING_REGISTRATION surfaces as info, not error."""
+    """An env in PENDING_REGISTRATION surfaces as info, not error.
+
+    The live PENDING_REGISTRATION set is empty after the R3 cleanup
+    (2026-05-21) closed all 6 originally-pending entries via real
+    PATCH_REGISTRY additions. This test injects a synthetic
+    PENDING_REGISTRATION entry so the waiver-demotion mechanism
+    itself stays under test even when no live waivers exist.
+    """
     mod = _load_module()
 
+    synthetic_env = "GENESIS_ENABLE_SOME_FUTURE_PENDING_PATCH"
     fake_profile = tmp_path / "gemma4-tq-mtp-structured-k4.yaml"
     fake_profile.write_text(
         "patches_delta:\n"
         "  enable:\n"
-        "    GENESIS_ENABLE_PN271_KV_CONTRACT_AUDIT: '1'\n"
+        f"    {synthetic_env}: '1'\n"
     )
     monkeypatch.setattr(mod, "STRUCTURED_PROFILE", fake_profile)
     monkeypatch.setattr(mod, "_registered_env_flags", lambda: set())
+    # Inject a temporary waiver so the demotion path is exercised.
+    monkeypatch.setattr(mod, "PENDING_REGISTRATION", frozenset({synthetic_env}))
 
     errors, infos = mod.check_r3_config_boundary()
     assert errors == []
-    assert any("GENESIS_ENABLE_PN271_KV_CONTRACT_AUDIT" in i for i in infos)
+    assert any(synthetic_env in i for i in infos)
 
 
 def test_r3_known_profile_envs_all_validated_against_current_registry():
