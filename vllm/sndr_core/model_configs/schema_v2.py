@@ -133,10 +133,20 @@ class ModelRequires:
 
 @dataclass
 class ModelVersions:
-    """Version pins for this model's canonical configuration."""
+    """Version pins for this model's canonical configuration.
+
+    Phase 5.2.C (2026-05-22) — added optional `pin_hold` field:
+    operator-supplied rationale for keeping `vllm_pin_required` at a
+    value that differs from the rig's canonical hardware image pin
+    (e.g. placeholder checkpoints with no runtime evidence for a
+    bump). Consumed by `audit_v2_modeldef_vs_hardware_pin.py` (Phase
+    5.2.E) — when present, it explicitly waives the model-vs-hardware
+    pin equality check.
+    """
     genesis_pin_min: Optional[str] = None
     vllm_pin_required: Optional[str] = None
     reference_metrics_ref: Optional[str] = None
+    pin_hold: Optional[str] = None
 
 
 # PatchAttribution + _PATCH_ROLES live in V1 schema.py (re-exported above)

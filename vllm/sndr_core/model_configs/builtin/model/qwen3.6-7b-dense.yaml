@@ -38,6 +38,23 @@ versions:
   genesis_pin_min: v11.0.0
   vllm_pin_required: 0.20.2rc1.dev338+gbf0d2dc6d
   reference_metrics_ref: null
+  # Phase 5.2.C (2026-05-22) — explicit pin hold annotation. This
+  # ModelDef intentionally remains on dev338 even after the rest of
+  # the family was promoted to dev371 on 2026-05-21. Hold rationale:
+  #   * Q7B is a community-example DENSE Path A model. The referenced
+  #     checkpoint (/models/Qwen3.6-7B-Instruct) is a placeholder —
+  #     no real weights exist on the rig.
+  #   * Without a live checkpoint, no smoke or bench can be run on
+  #     dev371, so bumping the pin without runtime evidence would
+  #     violate iron-rule discipline (no stubs, no scaffolds).
+  #   * Retiring/deleting the model is premature: it documents the
+  #     DENSE Path A profile structure for future operators.
+  # Consumed by `audit_v2_modeldef_vs_hardware_pin.py` (Phase 5.2.E)
+  # to suppress the would-be ERROR for this row.
+  pin_hold: "placeholder community-example model; checkpoint absent
+    so dev371 smoke is impossible. Holding dev338 until either (a)
+    a real Q7B checkpoint lands on the rig and smoke validates dev371,
+    or (b) the model is retired."
 
 # ─── Canonical patches matrix ──────────────────────────────────────────
 # DENSE-only path: PN59 deliberately NOT present (Path A guard would raise
