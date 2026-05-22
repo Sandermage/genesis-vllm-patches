@@ -504,35 +504,82 @@ def iter_patch_specs(
 # ─── Coverage diagnostic ──────────────────────────────────────────────────
 
 
+# Lifecycle / implementation_status values that legitimately have NO
+# `apply_module` field — they are registry-only entries by design:
+#
+#   lifecycle=legacy       → pre-dispatcher patches; auto-apply via the
+#                            legacy text-patch wiring under
+#                            `vllm/sndr_core/wiring/`. The dispatcher
+#                            does not need to know about them.
+#   lifecycle=coordinator  → bundle/forward-shim row (e.g. PN274). Has
+#                            no apply path of its own; coordinates
+#                            other patches via env_flag wiring.
+#   lifecycle=retired      → no-op entry preserved for audit-trail.
+#   implementation_status in {marker_only, metadata_only, placeholder,
+#                             advisory, research}
+#                          → informational; env consumed inside another
+#                            patch's apply_module or by the runtime
+#                            directly, not via the dispatcher loop.
+#
+# The coverage report excludes these from the `unmapped` list so the
+# operator's `patches doctor` view doesn't conflate intentional
+# registry-only entries with real-residual-gap patches that need
+# follow-up wiring.
+_INTENTIONALLY_UNMAPPED_LIFECYCLES = frozenset({"legacy", "coordinator", "retired"})
+_INTENTIONALLY_UNMAPPED_IMPL_STATUSES = frozenset({
+    "marker_only", "metadata_only", "placeholder", "advisory", "research",
+})
+
+
 @dataclass(frozen=True)
 class CoverageReport:
     """Snapshot of `PatchSpec.apply_module` coverage across the registry.
 
     `unmapped` is the list of `patch_id` values whose registry entry has
-    no on-disk impl (no `apply_module` derivable). Some are legitimate
-    (informational entries, legacy P1-P46 stubs registered for lifecycle
-    tracking but with no code path); `validate_apply_module_coverage`
-    surfaces them so the operator can audit which fall in which class.
+    no `apply_module` AND is not in any of the intentionally-unmapped
+    categories above. Real-residual-gap patches surface here so the
+    operator can audit which need follow-up wiring.
+
+    `intentionally_unmapped` is the parallel list of registry-only
+    entries that are NOT a gap by design (legacy auto-apply,
+    coordinator bundles, marker-only metadata, etc.).
     """
     total: int
     mapped: int
     unmapped: list[str]
+    intentionally_unmapped: list[str] = field(default_factory=list)
 
 
 def validate_apply_module_coverage(
     registry: Optional[dict[str, dict[str, Any]]] = None,
 ) -> CoverageReport:
-    """Walk every registry entry; report which ones have no apply_module."""
+    """Walk every registry entry; report which ones have no apply_module,
+    splitting between real gaps and intentional registry-only entries."""
     total = 0
     mapped = 0
     unmapped: list[str] = []
+    intentional: list[str] = []
     for spec in iter_patch_specs(registry):
         total += 1
         if spec.apply_module is not None:
             mapped += 1
+            continue
+        # Inspect the raw registry meta to classify the unmapped entry.
+        # `PatchSpec` doesn't carry lifecycle / impl_status directly,
+        # so re-read from the registry dict.
+        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY as _REG
+        meta = _REG.get(spec.patch_id, {}) if registry is None else (registry.get(spec.patch_id, {}))
+        lc = meta.get("lifecycle")
+        impl = meta.get("implementation_status")
+        if (lc in _INTENTIONALLY_UNMAPPED_LIFECYCLES
+                or impl in _INTENTIONALLY_UNMAPPED_IMPL_STATUSES):
+            intentional.append(spec.patch_id)
         else:
             unmapped.append(spec.patch_id)
-    return CoverageReport(total=total, mapped=mapped, unmapped=unmapped)
+    return CoverageReport(
+        total=total, mapped=mapped, unmapped=unmapped,
+        intentionally_unmapped=intentional,
+    )
 
 
 __all__ = [

@@ -524,18 +524,29 @@ def _run_doctor(opts: argparse.Namespace) -> int:
     if remaining_info > 0:
         _io.info(f"    … and {remaining_info} more INFO entries")
 
-    # Coverage detail
+    # Coverage detail. `unmapped` is the real-residual-gap list;
+    # `intentionally_unmapped` is the legacy/marker/coordinator/retired
+    # set that has no apply_module by design (Phase 3A.7+8, 2026-05-22).
     _io.info("")
     _io.info(
         f"  apply_module coverage: {coverage.mapped}/{coverage.total} "
-        f"({len(coverage.unmapped)} unmapped)"
+        f"({len(coverage.unmapped)} unmapped, "
+        f"{len(coverage.intentionally_unmapped)} intentionally unmapped)"
     )
     if coverage.unmapped:
         cap = 12
         sample = coverage.unmapped[:cap]
-        _io.info(f"    sample unmapped: {', '.join(sample)}")
+        _io.info(f"    sample unmapped (follow-up): {', '.join(sample)}")
         if len(coverage.unmapped) > cap:
             _io.info(f"    … and {len(coverage.unmapped) - cap} more")
+    if coverage.intentionally_unmapped:
+        cap = 12
+        sample = coverage.intentionally_unmapped[:cap]
+        _io.info(f"    sample intentionally unmapped: {', '.join(sample)}")
+        if len(coverage.intentionally_unmapped) > cap:
+            _io.info(
+                f"    … and {len(coverage.intentionally_unmapped) - cap} more"
+            )
 
     return _exit_for_issues(issues, opts.strict)
 
