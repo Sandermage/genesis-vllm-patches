@@ -80,6 +80,60 @@ KNOWN_SPEC_ONLY_PATCHES: frozenset[str] = frozenset({
     # registry-driven from inception).
     "PN16_V6",         # Streaming <think> truncator middleware (Sprint 4)
     "PN122",  # renamed from SPRINT26_CG_DISPATCH_TRACE 2026-05-14
+    # Category (c) continued — Phase 3 (2026-05-21) bucket 3+4
+    # spec-driven onboarding. These patches were relocated to their
+    # technical-area canonical home (spec_decode/ or attention/
+    # turboquant/) AND made spec-only at the same time. Their apply()
+    # is invoked by the registry-driven dispatcher loop, not by the
+    # legacy @register_patch table. Adding @register_patch for them
+    # would re-introduce the parking-lot dependency that PR38 is
+    # migrating away from.
+    #
+    # Bucket 3 (spec_decode drafter routing relocated from gemma4/):
+    "G4_71",           # drafter native attn-backend forcing
+    "G4_71B",          # drafter sliding-window Triton routing
+    "G4_72",           # drafter native KV cache spec
+    "G4_73",           # drafter profile-skip
+    "G4_74",           # drafter HND layout
+    "G4_75",           # drafter head_size=512 Triton route
+    "G4_76",           # disable drafter KV sharing
+    "G4_78",           # drafter target KV bridge (lifecycle=retired)
+    #
+    # Bucket 1 (spec_decode probes — diagnostic):
+    "PN262",           # FlashAttn drafter trace
+    "PN262B",          # KV alloc trace
+    #
+    # Bucket 4 (TurboQuant cherry-pick overlay loader stack
+    # relocated from gemma4/ to attention/turboquant/):
+    "G4_19B",          # TQ KV spec integration (case-sensitive
+                       # legacy register entry is 'G4_19b ...')
+    "G4_19C",          # K,V round-trip attention wrapper
+    "G4_31",           # preserve TQ dtype
+    "G4_32",           # TQ validation bypass
+    "G4_60A",          # TQ sliding-window spec
+    "G4_60B",          # TQ overlay loader (turboquant_attn)
+    "G4_60C",          # TQ overlay loader (triton_turboquant_decode)
+    "G4_60D",          # TQ overlay loader (triton_turboquant_store)
+    "G4_60E",          # KV cache utils overlay
+    "G4_60G",          # attention dispatch overlay
+    "G4_60H",          # TQ config augment overlay
+    "G4_60K",          # arg_utils skip-list plumbing
+    "G4_61",           # TQ shared workspace
+    "G4_62",           # TQ kernel warmup
+    "G4_67",           # TQ spec-verify routing
+    "G4_68",           # TQ spec CG-downgrade overlay
+    "G4_69",           # skip-layers native backend
+    #
+    # Bucket-6 R3 closure (2026-05-21) — marker-only registry rows:
+    # envs read inside the bind-mount overlay, no apply_module by
+    # design. Registered to close R3 config-keys catalog gap.
+    "G4_70",           # mixed-allocator routing
+    "G4_70B",          # mixed-allocator FAIL_FAST
+    "G4_70C",          # skip-list plumbing companion
+    "PN256",           # raw-K/V continuation inside overlay
+    "PN261",           # TQ decode cache layout assert
+    "PN271",           # KV contract audit (registry-only)
+    "PN274",           # spec-decode KV adapter coordinator (lifecycle=coordinator)
 })
 
 
@@ -105,7 +159,11 @@ def _legacy_apply_names() -> list[str]:
 #   "PN14 TQ decode IOOB safe_page_idx clamp"    → "PN14"
 #   "P68/P69 long-ctx tool reminder"             → "P68"  (primary)
 #   "P5b KV page-size pad-smaller-to-max"        → "P5b"
-_PATCH_ID_LEAD = re.compile(r"^(P[Nn]?\d+[a-zA-Z]?)\b")
+#   "G4_01 gemma4 Ampere FP8_BLOCK refusal guard" → "G4_01"
+#   "G4_19b gemma4 TQ KV spec integration"       → "G4_19B"  (suffix uppercased)
+# G4_NN[a-z]? prefix added 2026-05-22 (Phase 3A.1) after Phase 3 buckets
+# 3/4 onboarded the G4 patch series into the legacy register table.
+_PATCH_ID_LEAD = re.compile(r"^(P[Nn]?\d+[a-zA-Z]?|G4_\d+[a-zA-Z]?)\b")
 
 # UNIFIED_CONFIG 2026-05-10 — non-P/PN style legacy registrations.
 # These are sprint/middleware names registered before patch_id taxonomy
@@ -122,14 +180,24 @@ def _patch_id_from_legacy_name(name: str) -> Optional[str]:
     # First check explicit map (non-P/PN style names)
     if name in _LEGACY_NAME_TO_PATCH_ID:
         return _LEGACY_NAME_TO_PATCH_ID[name]
-    # Then leading P/PN regex
+    # Then leading P/PN/G4_ regex
     m = _PATCH_ID_LEAD.match(name)
     if not m:
         return None
     raw = m.group(1)
-    # Normalize casing: PN-series uppercase prefix, suffix letter as-is.
+    # Normalize casing.
     if raw.lower().startswith("pn"):
+        # PN-series: uppercase prefix, suffix letter preserved as-is.
+        # Registry uses inconsistent suffix case (PN26b/PN96b lowercase
+        # vs PN262B uppercase). Both forms are matched by the legacy
+        # title's casing, so preserve.
         return "PN" + raw[2:]
+    if raw.startswith("G4_") or raw.startswith("g4_"):
+        # G4-series: prefix uppercased + suffix letter uppercased to match
+        # spec registry shape (G4_19B uppercase suffix — Phase 3A.1, 2026-05-22).
+        head = "G4_" + raw[3:]
+        return head[:-1] + head[-1].upper() if head[-1].isalpha() else head
+    # P-series default — uppercase prefix, suffix letter as-is.
     return "P" + raw[1:]
 
 
