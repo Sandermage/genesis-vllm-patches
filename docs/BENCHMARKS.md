@@ -16,13 +16,13 @@ GPU envelope and [`MODELS.md`](MODELS.md) for the model lineup.
 > - Spec-decode: MTP K=3 (probabilistic draft rejection, vllm#40269).
 > - Attention: TurboQuant k8v4 KV cache + FlashAttention 2, TP=2.
 
-## Latest PROD numbers (v12.0.0 current registry; benched 2026-05-15)
+## Latest PROD numbers (v12.0.0 current registry; rows 23+24 benched 2026-05-23, row 25 deferred)
 
 | Model | wall_TPS (sustained) | decode_TPOT | CV% | Tool-call | Method |
 | --- | ---: | ---: | ---: | :---: | --- |
-| **Qwen3.6-27B-int4-AutoRound** | **132.93** | 7.27 ms | 3.5% | 8/8 | `genesis_bench_suite.py --quick --ctx 8k` (5×5×1024) |
-| **Qwen3.6-35B-A3B-FP8** (decode-only, max_num_seqs=2) | **216.02** | 4.38 ms | 5.4% | 7/7 | same harness |
-| **Qwen3.6-35B-A3B-FP8** (multi-conc, max_num_seqs=8) | **~675** agg | — | within CV | — | `genesis_bench_suite.py --multi-conc` |
+| **Qwen3.6-27B-int4-AutoRound** (prod-27b-tq) | **130.90** | 7.37 ms | 3.0% | 7/7 | `genesis_bench_suite.py --quick` (5×5×1024) |
+| **Qwen3.6-35B-A3B-FP8** (prod-35b, max_num_seqs=2) | **219.04** | 4.24 ms | 7.2% | 7/7 | same harness |
+| **Qwen3.6-35B-A3B-FP8** (prod-35b-multiconc, max_num_seqs=8) | _deferred_ | — | — | — | `tools/multi_conc_bench.py` (stdout-only, no JSON baseline schema; see follow-up) |
 
 ### Wave 10 Δ vs Wave 8 baseline (27B PROD, same harness)
 
