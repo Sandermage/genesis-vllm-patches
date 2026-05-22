@@ -83,6 +83,19 @@ def _check_category_enum(registry: dict[str, dict[str, Any]]) -> list[str]:
     return issues
 
 
+# Family-name → on-disk subdir aliases for cases where the family
+# label is a model lineage (kept for `sndr family <X> status` ergonomics)
+# but the wiring lives under a technical-area bucket. Phase 2.2
+# (2026-05-22) relocated the 18 real Gemma compat patches to
+# `model_compat/gemma4/` while keeping `family='gemma4'` so the
+# model-family semantic stays intact. The audit honors that by
+# mapping the family label through this alias table before computing
+# the expected subdir.
+_FAMILY_TO_SUBDIR_ALIAS: dict[str, str] = {
+    "gemma4": "model_compat/gemma4",
+}
+
+
 def _check_family_path(registry: dict[str, dict[str, Any]]) -> list[str]:
     """Invariant 3: registry family ↔ integrations subdir consistency.
 
@@ -95,7 +108,10 @@ def _check_family_path(registry: dict[str, dict[str, Any]]) -> list[str]:
     A patch's `apply_module` may live deeper than one level under the
     family directory (e.g. probes/ under spec_decode/). Acceptance
     rule: the apply_module's prefix path must START with
-    `integrations/<family>/`.
+    `integrations/<expected>/`, where `<expected>` is either the
+    family label converted from dotted to slash form, or the
+    alias-table value for cases where family is a model lineage
+    (Phase 2.2 — see `_FAMILY_TO_SUBDIR_ALIAS`).
     """
     issues: list[str] = []
     for pid, meta in registry.items():
@@ -111,7 +127,7 @@ def _check_family_path(registry: dict[str, dict[str, Any]]) -> list[str]:
             continue
         after_int = mod.split("integrations.", 1)[1]
         subdir = after_int.rsplit(".", 1)[0].replace(".", "/")
-        expected = fam.replace(".", "/")
+        expected = _FAMILY_TO_SUBDIR_ALIAS.get(fam, fam.replace(".", "/"))
         # subdir may be a deeper path under the family (e.g.
         # `spec_decode/probes`); accept when it starts with the
         # expected family path.
