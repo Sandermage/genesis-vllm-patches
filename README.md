@@ -7,7 +7,7 @@
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![vLLM pin](https://img.shields.io/badge/vllm-0.20.2rc1.dev371-orange.svg)](https://github.com/vllm-project/vllm)
 [![Patches](https://img.shields.io/badge/registry-226%20patches-green.svg)](docs/PATCHES.md)
-[![SNDR Core](https://img.shields.io/badge/SNDR%20Core-v11.0.0%2Bwave10-blue.svg)](CHANGELOG.md)
+[![SNDR Core](https://img.shields.io/badge/SNDR%20Core-v12.0.0-blue.svg)](CHANGELOG.md)
 [![GPU](https://img.shields.io/badge/GPU-RTX%203090%20%7C%204090%20%7C%205090%20%7C%20A5000%20%7C%20H20%20%7C%20R6000-purple.svg)](docs/HARDWARE.md)
 
 **Runtime patches for [vLLM](https://github.com/vllm-project/vllm) — Qwen3.6-class
@@ -30,12 +30,12 @@ It is **not** a fork of vLLM, a quantizer, a new inference engine, or a
 training framework. Patches retire automatically when upstream merges the
 underlying fix.
 
-## Headline numbers (Wave 10, 2026-05-15)
+## Headline numbers (v12.0.0 current registry)
 
 Reference rig: **2× RTX A5000 24 GB** (Ampere SM 8.6), driver 580.142,
 CUDA 13.0.2, MTP K=3 + TurboQuant k8v4, TP=2.
 
-| Model | Stock vLLM | Genesis Wave 10 | Δ |
+| Model | Stock vLLM | Genesis (v12.0.0) | Δ |
 | --- | ---: | ---: | ---: |
 | Qwen3.6-35B-A3B-FP8 (single-conc) | ~157 t/s | **216 t/s** | +38 % |
 | Qwen3.6-35B-A3B-FP8 (8-way multi-conc) | n/a | **~675 t/s agg** | 3.21× scaling |

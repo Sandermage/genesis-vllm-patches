@@ -434,7 +434,7 @@ different scratch size; for GPTQ INT4 models peak is often
 ```bash
 # Pin to a known-good digest:
 docker pull vllm/vllm-openai:nightly@sha256:<KNOWN_GOOD_DIGEST>
-# Or fall back to the current Genesis pin (Wave 10, 2026-05-16):
+# Or fall back to the current Genesis pin (v12.0.0 current registry):
 docker pull vllm/vllm-openai:0.20.2rc1.dev371
 ```
 

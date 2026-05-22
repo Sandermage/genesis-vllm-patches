@@ -4,9 +4,9 @@ Central reference for every environment variable that Genesis patches read.
 Default behaviour is "off" / "safe" for opt-in patches; on-by-default
 patches that are platform-gated (e.g. Ampere SM 8.0+) are noted.
 
-> **Current PROD baseline (Wave 10, 2026-05-15; pin bumped 2026-05-15):**
+> **Current PROD baseline (v12.0.0 current registry; pin bumped 2026-05-15):**
 >
-> - Genesis v11.0.0+wave10 — registry has **226 entries** (173 full-
+> - Genesis v12.0.0 — registry has **226 entries** (173 full-
 >   implementation + 17 marker_only + 4 retired + 7 partial + 2 placeholder).
 >   Wave 10 additions: PN125-PN130 warmup-orchestrator family, PN132
 >   (top-k/top-p contiguous), PN133, PN204 v2 (GDN dual-stream consolidated).

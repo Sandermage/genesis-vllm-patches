@@ -6,9 +6,9 @@ Reproducible from any host that runs the same vLLM pin against
 the listed Genesis preset. See [`HARDWARE.md`](HARDWARE.md) for the
 GPU envelope and [`MODELS.md`](MODELS.md) for the model lineup.
 
-> **Current canonical stack (Wave 10, 2026-05-16)**
+> **Current canonical stack (v12.0.0 current registry)**
 >
-> - Genesis `v11.0.0+wave10` — 226 PATCH_REGISTRY entries
+> - Genesis `v12.0.0` — 226 PATCH_REGISTRY entries
 >   (173 full + 17 marker-only + 4 retired + 7 partial + 2 placeholder).
 > - vLLM `0.20.2rc1.dev371+gbf610c2f5`.
 > - Reference rig: **2× RTX A5000 24 GB** (Ampere SM 8.6),
@@ -16,7 +16,7 @@ GPU envelope and [`MODELS.md`](MODELS.md) for the model lineup.
 > - Spec-decode: MTP K=3 (probabilistic draft rejection, vllm#40269).
 > - Attention: TurboQuant k8v4 KV cache + FlashAttention 2, TP=2.
 
-## Latest PROD numbers (Wave 10, 2026-05-15)
+## Latest PROD numbers (v12.0.0 current registry; benched 2026-05-15)
 
 | Model | wall_TPS (sustained) | decode_TPOT | CV% | Tool-call | Method |
 | --- | ---: | ---: | ---: | :---: | --- |
@@ -54,7 +54,7 @@ Per Genesis structured boot summary printed once at boot end:
 ══════════════════════════════════════════════════════════════════════
 Genesis vLLM Patcher — boot summary
 ══════════════════════════════════════════════════════════════════════
-  Genesis:  v11.0.0+wave10
+  Genesis:  v12.0.0
   vLLM:     0.20.2rc1.dev371+gbf610c2f5
   GPU:      2× NVIDIA RTX A5000 (sm_86)
 ──────────────────────────────────────────────────────────────────────
@@ -134,7 +134,7 @@ smaller (134 entries vs 226 today).
 
 The 35B Sprint-1 number (241 TPS) was a single-prompt cherry-pick
 captured before the methodology shift to 5×5×1024 sustained — the
-~216 TPS sustained figure in the Wave 10 table above is the
+~216 TPS sustained figure in the v12.0.0 PROD-numbers table above is the
 correct apples-to-apples comparison.
 
 ## Cross-rig validators (call for replication)
@@ -267,7 +267,7 @@ git clone https://github.com/Sandermage/genesis-vllm-patches.git
 cd genesis-vllm-patches
 python3 -m pip install --user requests        # bench dep
 
-# Boot vLLM via the unified launcher (Wave 10 canonical):
+# Boot vLLM via the unified launcher (v12.0.0 canonical):
 sndr launch prod-35b              # 35B FP8 + MTP K=3 + TQ k8v4, latency
 # OR inspect resolved args:
 sndr launch prod-35b --dry-run
@@ -540,7 +540,7 @@ environment beyond what you explicitly passed as flags.
 `tools/genesis_bench_suite.py` is the flagship community-grade
 entrypoint. Under the hood it composes:
 
-- `tools/multi_conc_bench.py` — Wave 10 multi-concurrency sweep
+- `tools/multi_conc_bench.py` — multi-concurrency sweep
   (TTFT / TPOT / aggregate TPS at conc=1/2/4/8).
 - `tools/bench_decode_tpot_clean_ab.py` — decode-only TPOT building
   block (raw bench + Welch t-test compare). Methodology originally

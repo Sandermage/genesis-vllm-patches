@@ -64,7 +64,7 @@ never ship publicly.
 
 | Doc | Purpose |
 | --- | --- |
-| [`BENCHMARKS.md`](BENCHMARKS.md) | Canonical PROD numbers (Wave 10) + methodology + 5 scenarios + bench command reference + result-sharing rules + interpretation of every metric. |
+| [`BENCHMARKS.md`](BENCHMARKS.md) | Canonical PROD numbers (v12.0.0 current registry) + methodology + 5 scenarios + bench command reference + result-sharing rules + interpretation of every metric. |
 | [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md) | Quick triage → named cliffs (1–8) → OOM recipes → operational cookbook (10 named scenarios) → rollback playbook (R-001…R-008). |
 | [`FAQ.md`](FAQ.md) | Common operator questions (registry size, default-on subset, LoRA, streaming, `--from-running`, k8s/proxmox lifecycle). |
 

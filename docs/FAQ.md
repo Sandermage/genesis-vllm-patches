@@ -25,7 +25,7 @@ variables.
 
 ### Q: Which vLLM pin does Genesis target today?
 
-`0.20.2rc1.dev371+gbf610c2f5` (current public release, Wave 10,
+`0.20.2rc1.dev371+gbf610c2f5` (current public release, v12.0.0,
 2026-05-16). Each patch declares an `applies_to` range, so newer
 vLLM commits cause patches to print `[SKIP — applies_to mismatch]`
 rather than crashing. Bumping the pin is a deliberate release event
