@@ -106,12 +106,22 @@ _VALID_IMPLEMENTATION_STATUSES = frozenset({
 })
 
 # Canonical env_flag prefixes recognized by the runtime (env.py knows
-# both Sander-IP and community brands; LEGACY_ is the opt-out variant
-# for default-on legacy patches). Anything else surfaces as a WARNING.
+# both Sander-IP and community brands). Semantic prefix groups:
+#   *_ENABLE_  — gate opt-in; default OFF
+#   *_DISABLE_ — opt-out for default-on legacy patches
+#   *_LEGACY_  — restore legacy behavior on default-on flips
+#   *_ALLOW_   — gate a feature that is otherwise blocked by policy;
+#                semantically distinct from ENABLE_ (operator
+#                permission, not feature switch) — used by coordinator
+#                patches like PN274. Added 2026-05-22 (Phase 3A.6) to
+#                close the false-positive doctor warning on PN274's
+#                SNDR_ALLOW_SPEC_DECODE_KV_ADAPTER.
+# Anything outside these prefix groups surfaces as a WARNING.
 _CANONICAL_ENV_PREFIXES = (
     "SNDR_ENABLE_", "GENESIS_ENABLE_",
     "SNDR_DISABLE_", "GENESIS_DISABLE_",
     "SNDR_LEGACY_", "GENESIS_LEGACY_",
+    "SNDR_ALLOW_", "GENESIS_ALLOW_",
 )
 
 
@@ -119,7 +129,9 @@ def _is_canonical_env_flag(flag: str) -> bool:
     """Registry env_flag must use one of the canonical full-prefix forms.
 
     See env.py for the alias logic — SNDR_* takes precedence over
-    GENESIS_* for the same suffix. Both prefixes work.
+    GENESIS_* for the same suffix. Both prefixes work. ALLOW_ is
+    semantically distinct from ENABLE_ (operator permission gate vs
+    feature switch); both are recognized.
     """
     return any(flag.startswith(p) for p in _CANONICAL_ENV_PREFIXES)
 
