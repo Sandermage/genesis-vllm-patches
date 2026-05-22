@@ -4252,7 +4252,13 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "credit": "Genesis-original 2026-05-05 (apnar club-3090#51 — boot log shows `[Genesis] skipped: P17/P18 Marlin MoE per-SM tuning — no tuning entry for SM (12, 0)`). PN64 adds a placeholder entry copying SM (9, 0) Hopper config until empirical sweep data lands from sm_120. Author-blocked: needs real 5090 sweep — solicit from apnar/jhsmith409.",
         "upstream_pr": None,
         "applies_to": {},
-        "lifecycle": "experimental",
+        # Phase 3B.3 (2026-05-22): lifecycle changed from 'experimental'
+        # to 'research'. 'experimental' implies the patch can plausibly
+        # be tried on currently-supported hardware; PN64 is a
+        # hardware-forward placeholder for SM 12.0 (Blackwell) which
+        # no Genesis-validated rig has access to. 'research' is the
+        # honest tag — opt-in, not for PROD, future hardware.
+        "lifecycle": "research",
     },
     "PN65": {
         "title": "Genesis structured API access log middleware (operator UX)",
