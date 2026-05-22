@@ -4175,7 +4175,14 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "family": "kv_cache",
         "env_flag": "GENESIS_ENABLE_P102",
         "default_on": False,
-        "implementation_status": "marker_only",  # exploratory design entry, no on-disk wiring
+        # Phase 3B.2 (2026-05-22): impl_status changed from
+        # 'marker_only' to 'placeholder'. 'marker_only' implies the
+        # registry row documents an already-active behavior (env
+        # consumed elsewhere). P102 is the opposite — it's a future
+        # planned feature (TRT-LLM-style spec_meta + disagreement
+        # tracker) that has no on-disk wiring yet. 'placeholder' is
+        # the canonical semantic for "entry exists but apply path TBD".
+        "implementation_status": "placeholder",
         "category": "spec_decode",
         "credit": "Genesis-original (Sander 2026-04-29). First-class spec_meta module that wraps spec-decode metadata into a unified object + tracks predicate disagreement (e.g. should_dispatch_p67 disagreements between proposer and verify paths). Diagnostic-only opt-in observability layer; emits log lines when divergence detected. Future hook for unified spec-decode dispatcher refactor.",
         "upstream_pr": None,
