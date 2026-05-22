@@ -23,6 +23,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .registry import PATCH_REGISTRY  # noqa: F401  (re-exported)
+from .spec import VALID_UPSTREAM_PR_RELATIONSHIPS
 
 log = logging.getLogger("genesis.dispatcher")
 
@@ -204,6 +205,30 @@ def validate_registry(
                 "ERROR", pid,
                 f"implementation_status={impl_status!r} is not in "
                 f"{sorted(_VALID_IMPLEMENTATION_STATUSES)}",
+            ))
+
+        # Phase 5.1.A (2026-05-22): upstream_pr_relationship enum check.
+        # During the migration window, missing field is allowed (treated
+        # as implicit "backport"). When present, it MUST be one of the
+        # canonical values. Also surface entries that set the field
+        # without an upstream_pr — likely a copy-paste mistake.
+        # After Phase 5.1.C the absence-with-upstream_pr case becomes
+        # ERROR; for now it is only an INFO so the migration is gradual.
+        rel = meta.get("upstream_pr_relationship")
+        upstream_pr_value = meta.get("upstream_pr")
+        if rel is not None and rel not in VALID_UPSTREAM_PR_RELATIONSHIPS:
+            issues.append(ValidationIssue(
+                "ERROR", pid,
+                f"upstream_pr_relationship={rel!r} is not in "
+                f"{sorted(VALID_UPSTREAM_PR_RELATIONSHIPS)}",
+            ))
+        if rel is not None and upstream_pr_value is None:
+            issues.append(ValidationIssue(
+                "WARNING", pid,
+                f"upstream_pr_relationship={rel!r} is set but "
+                f"upstream_pr is None — relationship field has no "
+                f"target; either set upstream_pr or remove the "
+                f"relationship field",
             ))
 
         # env_flag canonical form. WARNING (not ERROR) because the

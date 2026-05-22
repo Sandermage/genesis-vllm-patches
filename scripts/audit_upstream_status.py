@@ -88,6 +88,9 @@ class PatchAuditRow:
     has_superseded_by: bool
     has_vllm_version_range: bool
     category: str  # NEWLY-MERGED / STALE-RETIRED / WATCH / SUPERSEDED-OK / ERROR
+    # Phase 5.1.A (2026-05-22) — registry-driven relationship hint
+    # (one of VALID_UPSTREAM_PR_RELATIONSHIPS, or "backport" if absent).
+    upstream_pr_relationship: str = "backport"
 
 
 # ─── Registry parsing ──────────────────────────────────────────────────────
@@ -122,9 +125,25 @@ def _enables_upstream_feature(body: str) -> bool:
 
     Used for patches that ACTIVATE/wrap an upstream feature rather than
     BACKPORT a fix. Audit excludes them from NEWLY-MERGED categorization.
+
+    Phase 5.1.A note: this boolean is the LEGACY relationship-hint and
+    is being subsumed by `upstream_pr_relationship: "enables_upstream"`.
+    Kept here for back-compat during the 5.1.A → 5.1.C migration window.
     """
     return bool(re.search(
         r'"enables_upstream_feature"\s*:\s*True', body))
+
+
+def _extract_upstream_pr_relationship(body: str) -> Optional[str]:
+    """Read explicit `upstream_pr_relationship` from a registry entry body.
+
+    Phase 5.1.A (2026-05-22): operator-set relationship hint that routes
+    the patch to one of the audit buckets without needing per-patch
+    hardcoded waivers in this script. Returns None when the field is
+    absent (caller treats as implicit "backport").
+    """
+    m = re.search(r'"upstream_pr_relationship"\s*:\s*"([^"]+)"', body)
+    return m.group(1) if m else None
 
 
 # ─── GitHub API (via gh CLI) ───────────────────────────────────────────────
@@ -217,7 +236,26 @@ _INTENTIONAL_INVERSE_WAIVER = {
 
 
 def categorize(row_data: dict) -> str:
-    """Decide which audit bucket a patch goes in."""
+    """Decide which audit bucket a patch goes in.
+
+    Phase 5.1.A (2026-05-22) — routing precedence:
+      1. PR error → ERROR
+      2. Reference is an issue → ISSUE-OPEN / ISSUE-CLOSED
+      3. PR merged + explicit `upstream_pr_relationship` in registry →
+         COUNTER-REGRESSION / INTENTIONAL-INVERSE / ENABLES-UPSTREAM /
+         DEFENSIVE-OVERLAY / RELATED-NOT-SUPERSEDING / NEWLY-MERGED
+      4. PR merged + legacy `enables_upstream_feature: True` →
+         ENABLES-UPSTREAM (back-compat)
+      5. PR merged + hardcoded waivers (P98 inverse, P61 internal) →
+         INTENTIONAL-INVERSE / RETIRED-INTERNAL (back-compat)
+      6. Otherwise → NEWLY-MERGED / SUPERSEDED-OK / WATCH /
+         STALE-RETIRED based on lifecycle.
+
+    The registry-driven path (3) is preferred. The hardcoded waiver
+    dicts (4, 5) survive until Phase 5.1.C cleanup, at which point
+    P98/P61/the legacy boolean are migrated to explicit
+    `upstream_pr_relationship` and the dicts can be deleted.
+    """
     pr = row_data["pr"]
     pid = row_data["pid"]
     if "error" in pr:
@@ -228,6 +266,7 @@ def categorize(row_data: dict) -> str:
     merged_at = pr.get("merged_at")
     is_merged = kind == "pr" and state == "closed" and bool(merged_at)
     lifecycle = row_data["lifecycle"]
+    relationship = row_data.get("upstream_pr_relationship")
 
     if kind == "issue":
         # Issues don't have merge semantics. Categorize based on issue
@@ -239,6 +278,21 @@ def categorize(row_data: dict) -> str:
     if is_merged:
         if lifecycle == "retired":
             return "SUPERSEDED-OK"
+
+        # Phase 5.1.A: explicit registry-driven relationship takes
+        # precedence over the hardcoded waiver dicts below.
+        if relationship == "counter_regression":
+            return "COUNTER-REGRESSION"
+        if relationship == "intentional_inverse":
+            return "INTENTIONAL-INVERSE"
+        if relationship == "enables_upstream":
+            return "ENABLES-UPSTREAM"
+        if relationship == "defensive_overlay":
+            return "DEFENSIVE-OVERLAY"
+        if relationship == "related_not_superseding":
+            return "RELATED-NOT-SUPERSEDING"
+
+        # Back-compat fallbacks (will be removed in Phase 5.1.C).
         if pid in _INTENTIONAL_INVERSE_WAIVER:
             return "INTENTIONAL-INVERSE"  # waived: kept on purpose
         if row_data.get("enables_upstream_feature"):
@@ -249,6 +303,8 @@ def categorize(row_data: dict) -> str:
     if lifecycle == "retired":
         if pid in _INTERNAL_SUPERSESSION_WAIVER:
             return "RETIRED-INTERNAL"  # waived: internal supersession
+        if relationship == "related_not_superseding":
+            return "RELATED-NOT-SUPERSEDING"
         return "STALE-RETIRED"  # weird state — premature retire?
     return "WATCH"  # normal: upstream open, our patch active
 
@@ -287,9 +343,13 @@ def run_audit(skip_network: bool = False) -> list[PatchAuditRow]:
                       file=sys.stderr)
                 time.sleep(0.2)  # gentle rate-limit
 
+        relationship_explicit = _extract_upstream_pr_relationship(body)
+        relationship_for_output = relationship_explicit or "backport"
+
         category = categorize({
             "pr": pr_info, "lifecycle": lifecycle, "pid": pid,
             "enables_upstream_feature": _enables_upstream_feature(body),
+            "upstream_pr_relationship": relationship_explicit,
         })
 
         rows.append(PatchAuditRow(
@@ -303,6 +363,7 @@ def run_audit(skip_network: bool = False) -> list[PatchAuditRow]:
             has_superseded_by=has_sb,
             has_vllm_version_range=has_vvr,
             category=category,
+            upstream_pr_relationship=relationship_for_output,
         ))
 
     return rows
@@ -312,17 +373,31 @@ def run_audit(skip_network: bool = False) -> list[PatchAuditRow]:
 
 
 _CATEGORY_PRIORITY = {
-    "NEWLY-MERGED": 0,        # action required
-    "STALE-RETIRED": 1,       # investigate — retired locally but upstream open
-    "ISSUE-CLOSED": 2,        # upstream issue resolved — check our patch state
+    "NEWLY-MERGED": 0,          # action required
+    "STALE-RETIRED": 1,         # investigate — retired locally but upstream open
+    "ISSUE-CLOSED": 2,          # upstream issue resolved — check our patch state
     "ERROR": 3,
-    "ISSUE-OPEN": 4,          # issue tracked, watching
+    "ISSUE-OPEN": 4,            # issue tracked, watching
     "WATCH": 5,
-    "INTENTIONAL-INVERSE": 6, # waived — kept on purpose vs merged upstream
-    "ENABLES-UPSTREAM": 7,    # waived — convenience activator of upstream feature
-    "RETIRED-INTERNAL": 8,    # waived — internal supersession
-    "SUPERSEDED-OK": 9,
+    # Phase 5.1.A (2026-05-22): explicit-relationship waiver buckets.
+    "COUNTER-REGRESSION": 6,    # waived — Genesis corrects a regression in the cited PR
+    "INTENTIONAL-INVERSE": 7,   # waived — kept on purpose vs merged upstream
+    "DEFENSIVE-OVERLAY": 8,     # waived — lower-layer defensive guard alongside upstream
+    "RELATED-NOT-SUPERSEDING": 9,  # waived — different layer; coverage doesn't overlap
+    "ENABLES-UPSTREAM": 10,     # waived — convenience activator of upstream feature
+    "RETIRED-INTERNAL": 11,     # waived — internal supersession
+    "SUPERSEDED-OK": 12,
 }
+
+# Categories shown in the table output (mirrors _CATEGORY_PRIORITY order).
+# Kept as a separate constant so the table iterates deterministically.
+_CATEGORY_DISPLAY_ORDER = [
+    "NEWLY-MERGED", "STALE-RETIRED", "ISSUE-CLOSED",
+    "ERROR", "ISSUE-OPEN", "WATCH",
+    "COUNTER-REGRESSION", "INTENTIONAL-INVERSE",
+    "DEFENSIVE-OVERLAY", "RELATED-NOT-SUPERSEDING",
+    "ENABLES-UPSTREAM", "RETIRED-INTERNAL", "SUPERSEDED-OK",
+]
 
 
 def _print_table(rows: list[PatchAuditRow]) -> None:
@@ -340,12 +415,7 @@ def _print_table(rows: list[PatchAuditRow]) -> None:
     print(f"  Upstream PR audit ({len(rows_sorted)} patches with upstream_pr)")
     print("=" * 100)
 
-    for category in [
-        "NEWLY-MERGED", "STALE-RETIRED", "ISSUE-CLOSED",
-        "ERROR", "ISSUE-OPEN", "WATCH",
-        "INTENTIONAL-INVERSE", "ENABLES-UPSTREAM",
-        "RETIRED-INTERNAL", "SUPERSEDED-OK",
-    ]:
+    for category in _CATEGORY_DISPLAY_ORDER:
         rows_in_cat = [r for r in rows_sorted if r.category == category]
         if not rows_in_cat:
             continue
@@ -360,6 +430,12 @@ def _print_table(rows: list[PatchAuditRow]) -> None:
             print("  Action: upstream bug fixed — check whether our patch is now redundant")
         elif category == "ERROR":
             print("  Action: check gh authentication / network / PR access")
+        elif category == "COUNTER-REGRESSION":
+            print("  Waived: Genesis corrects a regression introduced by the cited PR")
+        elif category == "DEFENSIVE-OVERLAY":
+            print("  Waived: defensive lower-layer guard alongside upstream's primary fix")
+        elif category == "RELATED-NOT-SUPERSEDING":
+            print("  Waived: lives at a different layer; coverage doesn't overlap")
 
         for r in rows_in_cat:
             merged = (r.pr_merged_at or "")[:10] if r.pr_merged_at else "(not merged)"
@@ -376,12 +452,7 @@ def _print_table(rows: list[PatchAuditRow]) -> None:
     print(
         "  Summary: "
         + "  ".join(f"{cat}={counts.get(cat, 0)}"
-                    for cat in ["NEWLY-MERGED", "STALE-RETIRED",
-                                "ISSUE-CLOSED", "ERROR",
-                                "ISSUE-OPEN", "WATCH",
-                                "INTENTIONAL-INVERSE",
-                                "ENABLES-UPSTREAM",
-                                "RETIRED-INTERNAL", "SUPERSEDED-OK"])
+                    for cat in _CATEGORY_DISPLAY_ORDER)
     )
     print("=" * 100)
 
@@ -411,7 +482,9 @@ def main():
     p.add_argument(
         "--filter", choices=[
             "newly-merged", "stale-retired", "issue-closed",
-            "watch", "issue-open", "intentional-inverse",
+            "watch", "issue-open",
+            "counter-regression", "intentional-inverse",
+            "defensive-overlay", "related-not-superseding",
             "enables-upstream", "retired-internal",
             "superseded-ok", "error",
         ],

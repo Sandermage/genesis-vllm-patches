@@ -131,6 +131,29 @@ VALID_SOURCES = (
     "cross_engine_research",
 )
 
+# `upstream_pr_relationship` describes the SEMANTIC relationship between
+# the Genesis patch and the upstream PR it cites via `upstream_pr`. The
+# audit script (`audit_upstream_status.py`) uses this to route the patch
+# to the correct decision bucket (retire candidate vs. waived vs. WATCH).
+#
+# Schema rule (enforced after Phase 5.1.C cleanup):
+#   * REQUIRED when `upstream_pr` is an integer.
+#   * FORBIDDEN when `upstream_pr` is None.
+# During the Phase 5.1.A migration window, missing field is treated as
+# implicit `"backport"` for back-compat.
+#
+# Introduced 2026-05-22 (Phase 5.1.A) — see
+# `sndr_private/planning/audits/PHASE_5_1_RELATIONSHIP_SCHEMA_DESIGN_2026-05-22_RU.md`
+# for the full design rationale, migration set, and audit-routing changes.
+VALID_UPSTREAM_PR_RELATIONSHIPS = (
+    "backport",                  # Genesis mirrors upstream (default)
+    "counter_regression",        # Genesis corrects a regression introduced by the cited PR
+    "intentional_inverse",       # Genesis deliberately reverses cited PR's behavior for our shape
+    "enables_upstream",          # Genesis turns on the upstream feature on opt-in
+    "related_not_superseding",   # Genesis lives at a different layer; coverage doesn't overlap
+    "defensive_overlay",         # Genesis is a defensive lower-layer guard alongside upstream's primary fix
+)
+
 # Mapping from `family` (registry field) to canonical `category`.
 # Families not listed default to "uncategorized" + warning.
 _FAMILY_TO_CATEGORY: dict[str, str] = {
@@ -265,6 +288,11 @@ class PatchSpec:
     requires_patches: tuple[str, ...] = field(default_factory=tuple)
     conflicts_with: tuple[str, ...] = field(default_factory=tuple)
     related_upstream_prs: tuple[int, ...] = field(default_factory=tuple)
+    # Phase 5.1.A (2026-05-22) — relationship between Genesis patch and
+    # the cited upstream_pr. Default `"backport"` for back-compat during
+    # the migration window. After Phase 5.1.C cleanup the default will
+    # be removed and the field will be REQUIRED when upstream_pr is set.
+    upstream_pr_relationship: str = "backport"
 
 
 # ─── apply_module derivation ──────────────────────────────────────────────
@@ -462,6 +490,20 @@ def patch_spec_for(
     implementation_status = infer_implementation_status(meta, patch_id)
     source = infer_source(meta)
 
+    # Phase 5.1.A (2026-05-22) — derive upstream_pr_relationship.
+    # During the migration window, missing field defaults to "backport"
+    # for back-compat. The audit script's `enables_upstream_feature: True`
+    # boolean is honored as a fallback synonym for `"enables_upstream"`
+    # so the 2 existing entries (P75, P99) keep their classification
+    # without an explicit field set. Will be tightened in Phase 5.1.C.
+    rel_explicit = meta.get("upstream_pr_relationship")
+    if isinstance(rel_explicit, str) and rel_explicit:
+        upstream_pr_relationship = rel_explicit
+    elif meta.get("enables_upstream_feature") is True:
+        upstream_pr_relationship = "enables_upstream"
+    else:
+        upstream_pr_relationship = "backport"
+
     return PatchSpec(
         patch_id=patch_id,
         title=str(meta.get("title", "")),
@@ -479,6 +521,7 @@ def patch_spec_for(
         requires_patches=_coerce_tuple(meta.get("requires_patches")),
         conflicts_with=_coerce_tuple(meta.get("conflicts_with")),
         related_upstream_prs=_coerce_tuple(meta.get("related_upstream_prs")),
+        upstream_pr_relationship=upstream_pr_relationship,
     )
 
 
