@@ -1,29 +1,37 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Phase 5.1.A (2026-05-22) — `audit_upstream_status.py` classify() routing.
+"""Phase 5.1.A + 5.1.C (2026-05-22) — `audit_upstream_status.py`
+classify() routing.
 
 The audit script's `categorize()` translates a (PR-state, lifecycle,
-registry-driven relationship hint) triple into one of the audit buckets.
+registry-driven relationship) triple into one of the audit buckets.
+
 Phase 5.1.A added three buckets:
 
   - COUNTER-REGRESSION       — `upstream_pr_relationship: counter_regression`
   - DEFENSIVE-OVERLAY        — `upstream_pr_relationship: defensive_overlay`
   - RELATED-NOT-SUPERSEDING  — `upstream_pr_relationship: related_not_superseding`
 
-Existing buckets that the new field can drive:
+Existing buckets that the new field drives:
 
-  - INTENTIONAL-INVERSE      — explicit hint (preferred over hardcoded waiver)
-  - ENABLES-UPSTREAM         — explicit hint (preferred over legacy boolean)
+  - INTENTIONAL-INVERSE      — `upstream_pr_relationship: intentional_inverse`
+  - ENABLES-UPSTREAM         — `upstream_pr_relationship: enables_upstream`
 
-The hardcoded waiver dicts and the legacy `enables_upstream_feature: True`
-boolean stay as fallback during the 5.1.A → 5.1.C migration window. These
-tests verify both routing layers (explicit-field-first, fallback-second).
+Phase 5.1.C removed the legacy fallback chain:
+
+  - The `_INTENTIONAL_INVERSE_WAIVER` dict (P98) is gone.
+  - The `_INTERNAL_SUPERSESSION_WAIVER` dict (P61) is gone, along with
+    the RETIRED-INTERNAL bucket that only P61 routed through.
+  - The `enables_upstream_feature: True` boolean fallback is gone;
+    `categorize()` no longer reads that field.
+
+Classification is now driven entirely by `upstream_pr_relationship`
+on the registry entry. These tests verify the explicit-field routing
+and the absence of legacy fallback paths.
 """
 from __future__ import annotations
 
 import sys
 from pathlib import Path
-
-import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
@@ -66,7 +74,7 @@ def _closed_issue():
     }
 
 
-# ─── Phase 5.1.A new buckets via explicit relationship field ──────────────
+# ─── Explicit-relationship routing ────────────────────────────────────────
 
 
 class TestExplicitRelationshipRouting:
@@ -77,7 +85,6 @@ class TestExplicitRelationshipRouting:
             "pid": "P_FAKE",
             "lifecycle": "stable",
             "upstream_pr_relationship": "counter_regression",
-            "enables_upstream_feature": False,
         })
         assert cat == "COUNTER-REGRESSION"
 
@@ -87,7 +94,6 @@ class TestExplicitRelationshipRouting:
             "pid": "P_FAKE",
             "lifecycle": "stable",
             "upstream_pr_relationship": "defensive_overlay",
-            "enables_upstream_feature": False,
         })
         assert cat == "DEFENSIVE-OVERLAY"
 
@@ -97,29 +103,29 @@ class TestExplicitRelationshipRouting:
             "pid": "P_FAKE",
             "lifecycle": "stable",
             "upstream_pr_relationship": "related_not_superseding",
-            "enables_upstream_feature": False,
         })
         assert cat == "RELATED-NOT-SUPERSEDING"
 
-    def test_intentional_inverse_routes_via_explicit_hint(self):
-        """Explicit hint preferred over the hardcoded P98 waiver dict."""
+    def test_intentional_inverse_routes_via_explicit_field(self):
+        """Post-5.1.C: routing is via the registry field, not the
+        hardcoded P98 waiver dict (now deleted). Verifying for a
+        non-P98 PID confirms there's no patch-id dependency left."""
         cat = M.categorize({
             "pr": _merged_pr(),
-            "pid": "P_FAKE",  # not in _INTENTIONAL_INVERSE_WAIVER
+            "pid": "P_FAKE",
             "lifecycle": "experimental",
             "upstream_pr_relationship": "intentional_inverse",
-            "enables_upstream_feature": False,
         })
         assert cat == "INTENTIONAL-INVERSE"
 
-    def test_enables_upstream_routes_via_explicit_hint(self):
-        """Explicit hint preferred over `enables_upstream_feature: True`."""
+    def test_enables_upstream_routes_via_explicit_field(self):
+        """Post-5.1.C: `enables_upstream_feature: True` boolean is no
+        longer read. The explicit field is the only path."""
         cat = M.categorize({
             "pr": _merged_pr(),
             "pid": "P_FAKE",
             "lifecycle": "stable",
             "upstream_pr_relationship": "enables_upstream",
-            "enables_upstream_feature": False,
         })
         assert cat == "ENABLES-UPSTREAM"
 
@@ -131,61 +137,111 @@ class TestExplicitRelationshipRouting:
             "pid": "P_FAKE",
             "lifecycle": "stable",
             "upstream_pr_relationship": "backport",
-            "enables_upstream_feature": False,
         })
         assert cat == "NEWLY-MERGED"
 
-
-# ─── Implicit-backport / back-compat fallbacks ────────────────────────────
-
-
-class TestBackCompatFallbacks:
-
     def test_missing_relationship_treated_as_backport(self):
-        """During Phase 5.1.A migration window: absent field == backport.
-        Merged + stable lifecycle == NEWLY-MERGED action queue."""
+        """A None / absent relationship value (e.g. when the audit
+        script can't extract the field from a malformed entry) still
+        falls through merged-bucket enum checks to NEWLY-MERGED."""
         cat = M.categorize({
             "pr": _merged_pr(),
             "pid": "P_FAKE",
             "lifecycle": "stable",
             "upstream_pr_relationship": None,
-            "enables_upstream_feature": False,
         })
         assert cat == "NEWLY-MERGED"
 
-    def test_legacy_boolean_fallback_still_works(self):
-        """Phase 5.1.A keeps the legacy boolean working until 5.1.C
-        migrates P75/P99 to explicit field syntax."""
+
+# ─── Legacy fallbacks removed — regression tests ──────────────────────────
+
+
+class TestLegacyFallbacksRemoved:
+    """Phase 5.1.C: the legacy boolean and waiver dicts were removed.
+    These tests confirm the routing relies only on the explicit field."""
+
+    def test_legacy_boolean_no_longer_routes_to_enables_upstream(self):
+        """An `enables_upstream_feature` key in row_data must be a
+        no-op now (was the legacy boolean fallback in 5.1.A). Without
+        the explicit field the patch routes to NEWLY-MERGED."""
         cat = M.categorize({
             "pr": _merged_pr(),
-            "pid": "P75",
+            "pid": "P_FAKE",
             "lifecycle": "stable",
             "upstream_pr_relationship": None,
-            "enables_upstream_feature": True,
+            "enables_upstream_feature": True,  # ignored now
         })
-        assert cat == "ENABLES-UPSTREAM"
+        assert cat == "NEWLY-MERGED"
 
-    def test_hardcoded_intentional_inverse_waiver_still_works(self):
-        """P98 waiver dict survives until 5.1.C cleanup."""
+    def test_p98_without_explicit_field_no_longer_inverse(self):
+        """The hardcoded `_INTENTIONAL_INVERSE_WAIVER = {"P98": ...}`
+        dict was deleted in 5.1.C. Without the explicit field, P98
+        routes to NEWLY-MERGED just like any other patch."""
         cat = M.categorize({
             "pr": _merged_pr(),
             "pid": "P98",
             "lifecycle": "experimental",
             "upstream_pr_relationship": None,
-            "enables_upstream_feature": False,
         })
-        assert cat == "INTENTIONAL-INVERSE"
+        assert cat == "NEWLY-MERGED"
 
-    def test_hardcoded_internal_supersession_waiver_still_works(self):
-        """P61 waiver dict survives until 5.1.C cleanup."""
+    def test_p61_without_explicit_field_routes_to_stale_retired(self):
+        """The `_INTERNAL_SUPERSESSION_WAIVER = {"P61": ...}` dict and
+        the RETIRED-INTERNAL bucket are both gone. Without the explicit
+        field, P61 + retired lifecycle + open upstream routes to
+        STALE-RETIRED (the standard "investigate" bucket)."""
         cat = M.categorize({
             "pr": _open_pr(),
             "pid": "P61",
             "lifecycle": "retired",
             "upstream_pr_relationship": None,
-            "enables_upstream_feature": False,
         })
-        assert cat == "RETIRED-INTERNAL"
+        assert cat == "STALE-RETIRED"
+
+    def test_retired_internal_bucket_is_gone(self):
+        assert "RETIRED-INTERNAL" not in M._CATEGORY_PRIORITY
+        assert "RETIRED-INTERNAL" not in M._CATEGORY_DISPLAY_ORDER
+
+    def test_waiver_dicts_are_gone(self):
+        assert not hasattr(M, "_INTERNAL_SUPERSESSION_WAIVER")
+        assert not hasattr(M, "_INTENTIONAL_INVERSE_WAIVER")
+
+    def test_enables_upstream_feature_helper_is_gone(self):
+        assert not hasattr(M, "_enables_upstream_feature")
+
+
+# ─── Live-registry: 5.1.B special patches resolve correctly ───────────────
+
+
+class TestLiveRegistrySpecialPatchExtraction:
+    """End-to-end: extract the relationship from the live registry text
+    for each of the 8 special-classification patches and confirm the
+    field is present + correctly valued. Guards both against the
+    extractor regex breaking and against an operator silently dropping
+    the field on one of these patches."""
+
+    EXPECTED_SPECIAL = {
+        "PN116": "counter_regression",
+        "P98":   "intentional_inverse",
+        "P75":   "enables_upstream",
+        "P99":   "enables_upstream",
+        "PN51":  "defensive_overlay",
+        "PN90":  "related_not_superseding",
+        "PN24":  "related_not_superseding",
+        "P61":   "related_not_superseding",
+    }
+
+    def test_each_special_patch_extracts_expected_relationship(self):
+        entries = M._load_registry_entries()
+        for pid, expected in self.EXPECTED_SPECIAL.items():
+            assert pid in entries, (
+                f"{pid}: not in live PATCH_REGISTRY anymore"
+            )
+            got = M._extract_upstream_pr_relationship(entries[pid])
+            assert got == expected, (
+                f"{pid}: registry value drifted; expected {expected!r}, "
+                f"got {got!r}"
+            )
 
 
 # ─── Lifecycle precedence (retire still wins regardless of hint) ──────────
@@ -201,7 +257,6 @@ class TestLifecyclePrecedence:
             "pid": "P_FAKE",
             "lifecycle": "retired",
             "upstream_pr_relationship": "counter_regression",
-            "enables_upstream_feature": False,
         })
         assert cat == "SUPERSEDED-OK"
 
@@ -214,7 +269,6 @@ class TestLifecyclePrecedence:
             "pid": "P_FAKE",
             "lifecycle": "retired",
             "upstream_pr_relationship": "related_not_superseding",
-            "enables_upstream_feature": False,
         })
         assert cat == "RELATED-NOT-SUPERSEDING"
 
@@ -230,7 +284,6 @@ class TestExistingBucketsUnchanged:
             "pid": "P_FAKE",
             "lifecycle": "stable",
             "upstream_pr_relationship": None,
-            "enables_upstream_feature": False,
         })
         assert cat == "WATCH"
 
@@ -240,7 +293,6 @@ class TestExistingBucketsUnchanged:
             "pid": "P_FAKE",
             "lifecycle": "retired",
             "upstream_pr_relationship": None,
-            "enables_upstream_feature": False,
         })
         assert cat == "STALE-RETIRED"
 
@@ -250,7 +302,6 @@ class TestExistingBucketsUnchanged:
             "pid": "P_FAKE",
             "lifecycle": "stable",
             "upstream_pr_relationship": None,
-            "enables_upstream_feature": False,
         })
         assert cat == "ISSUE-OPEN"
 
@@ -260,7 +311,6 @@ class TestExistingBucketsUnchanged:
             "pid": "P_FAKE",
             "lifecycle": "stable",
             "upstream_pr_relationship": None,
-            "enables_upstream_feature": False,
         })
         assert cat == "ISSUE-CLOSED"
 
@@ -270,7 +320,6 @@ class TestExistingBucketsUnchanged:
             "pid": "P_FAKE",
             "lifecycle": "stable",
             "upstream_pr_relationship": None,
-            "enables_upstream_feature": False,
         })
         assert cat == "ERROR"
 

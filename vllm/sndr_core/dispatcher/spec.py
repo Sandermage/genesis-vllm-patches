@@ -490,17 +490,19 @@ def patch_spec_for(
     implementation_status = infer_implementation_status(meta, patch_id)
     source = infer_source(meta)
 
-    # Phase 5.1.A (2026-05-22) — derive upstream_pr_relationship.
-    # During the migration window, missing field defaults to "backport"
-    # for back-compat. The audit script's `enables_upstream_feature: True`
-    # boolean is honored as a fallback synonym for `"enables_upstream"`
-    # so the 2 existing entries (P75, P99) keep their classification
-    # without an explicit field set. Will be tightened in Phase 5.1.C.
+    # Phase 5.1.C (2026-05-22) — derive upstream_pr_relationship.
+    # All 72 upstream_pr-bearing entries carry an explicit value after
+    # the 5.1.B migration. Entries without an explicit field default to
+    # "backport" — which is meaningless when upstream_pr is None (the
+    # 154 entries without an upstream link); the registry validator
+    # catches "upstream_pr set without relationship" as an ERROR so
+    # the next operator adding a backport sets the field explicitly.
+    # The legacy `enables_upstream_feature: True` boolean fallback was
+    # removed in 5.1.C — P75 and P99 carry the explicit
+    # `upstream_pr_relationship: "enables_upstream"` field set in 5.1.B.
     rel_explicit = meta.get("upstream_pr_relationship")
     if isinstance(rel_explicit, str) and rel_explicit:
         upstream_pr_relationship = rel_explicit
-    elif meta.get("enables_upstream_feature") is True:
-        upstream_pr_relationship = "enables_upstream"
     else:
         upstream_pr_relationship = "backport"
 

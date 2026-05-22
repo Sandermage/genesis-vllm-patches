@@ -574,12 +574,12 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "credit": "Backport-enabler of vllm#25784 (Arctic Inference Suffix Decoding) — operator convenience: auto-swap method=ngram→suffix when env enabled. Algorithm: arxiv 2411.04975.",
         "upstream_pr": 25784,
         "upstream_pr_relationship": "enables_upstream",
-        "enables_upstream_feature": True,
         # [Iron rule #11 audit 2026-05-11 v2] P75 is NOT a backport —
         # it's a convenience activator ON TOP of merged upstream feature
-        # (#25784 in pin since 2025-11). Audit script honors
-        # `enables_upstream_feature: True` to exclude from NEWLY-MERGED
-        # categorization. KEEP active — convenience value preserved.
+        # (#25784 in pin since 2025-11). Audit script routes via the
+        # explicit `upstream_pr_relationship: "enables_upstream"` field
+        # to exclude from NEWLY-MERGED categorization. KEEP active —
+        # convenience value preserved.
         "apply_module": "vllm.sndr_core.integrations.spec_decode.p75_suffix_decoding_enable",
         "lifecycle": "experimental",
         "implementation_status": "full",
@@ -3851,15 +3851,16 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "credit": "Per Sander 2026-04-28: 'if revert gives speedup, look at kernel — maybe rewrite'. P99 keeps upstream WorkspaceManager design (shared memory, 60x savings) but adds memoization to bypass per-call list-comp + accumulate + _ensure_workspace_size. Cache hit ~5x faster than full computation. Composes with P98 (P98 reverts turboquant_attn to per-layer; P99 helps any other backend using WorkspaceManager).",
         "upstream_pr": 40941,
         "upstream_pr_relationship": "enables_upstream",
-        "enables_upstream_feature": True,
         # [Iron rule #11 audit 2026-05-11 v2] P99 AUGMENTS the merged
         # upstream feature (#40941 WorkspaceManager) by wrapping
         # `get_simultaneous()` with memoization — it does NOT backport
         # the PR (the PR is already in our pin since dev9+). Case (b)
         # of iron rule #11: we do MORE on top of upstream. Audit script
-        # honors `enables_upstream_feature: True` to exclude from
-        # NEWLY-MERGED categorization. KEEP active. Cleanup queue:
-        # if upstream upstreams the memoization, retire then.
+        # routes via the explicit
+        # `upstream_pr_relationship: "enables_upstream"` field to
+        # exclude from NEWLY-MERGED categorization. KEEP active.
+        # Cleanup queue: if upstream upstreams the memoization,
+        # retire then.
         "applies_to": {},  # applies whenever WorkspaceManager is used
         "apply_module": "vllm.sndr_core.integrations.attention.turboquant.p99_workspace_manager_memoize",
         "lifecycle": "experimental",

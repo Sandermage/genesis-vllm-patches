@@ -207,13 +207,13 @@ def validate_registry(
                 f"{sorted(_VALID_IMPLEMENTATION_STATUSES)}",
             ))
 
-        # Phase 5.1.A (2026-05-22): upstream_pr_relationship enum check.
-        # During the migration window, missing field is allowed (treated
-        # as implicit "backport"). When present, it MUST be one of the
-        # canonical values. Also surface entries that set the field
-        # without an upstream_pr — likely a copy-paste mistake.
-        # After Phase 5.1.C the absence-with-upstream_pr case becomes
-        # ERROR; for now it is only an INFO so the migration is gradual.
+        # Phase 5.1.C (2026-05-22): upstream_pr_relationship enum check.
+        # After the 5.1.B migration every upstream_pr-bearing entry
+        # carries an explicit relationship value, so missing-when-set
+        # is now an ERROR (escalated from silent in 5.1.A). When the
+        # field is present it MUST be one of the canonical values.
+        # The reverse case (relationship set without upstream_pr) stays
+        # WARNING — likely a copy-paste mistake but not fatal.
         rel = meta.get("upstream_pr_relationship")
         upstream_pr_value = meta.get("upstream_pr")
         if rel is not None and rel not in VALID_UPSTREAM_PR_RELATIONSHIPS:
@@ -221,6 +221,14 @@ def validate_registry(
                 "ERROR", pid,
                 f"upstream_pr_relationship={rel!r} is not in "
                 f"{sorted(VALID_UPSTREAM_PR_RELATIONSHIPS)}",
+            ))
+        if rel is None and isinstance(upstream_pr_value, int):
+            issues.append(ValidationIssue(
+                "ERROR", pid,
+                f"upstream_pr is set (#{upstream_pr_value}) but "
+                f"upstream_pr_relationship is missing — pick one of "
+                f"{sorted(VALID_UPSTREAM_PR_RELATIONSHIPS)}. Default "
+                f"choice for plain backports is 'backport'.",
             ))
         if rel is not None and upstream_pr_value is None:
             issues.append(ValidationIssue(
