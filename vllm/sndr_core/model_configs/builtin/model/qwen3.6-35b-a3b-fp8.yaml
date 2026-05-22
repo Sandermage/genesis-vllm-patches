@@ -113,7 +113,7 @@ patches:
   GENESIS_ENABLE_P99: '1'                            # FP8 block-scaled MM batch-invariance fix
   GENESIS_ENABLE_P101: '1'                           # vllm#41127 backport (P100-companion) — uniform query_len>1 batches through prefill wrapper in cudagraph mode
   GENESIS_ENABLE_PN66: '1'                           # vllm#41696 backport — multiturn </think> leak fix in DelegatingParser (streaming reasoning purity)
-  GENESIS_ENABLE_PN67: '1'                           # vllm#41674 backport — thinking_token_budget inverted bool fix (1-line guard)
+  GENESIS_ENABLE_PN67: '0'                           # vllm#41674 merged at bf610c2f5… — the dev371 canonical baseline. Patch lifecycle=retired with vllm_version_range "<0.20.2rc1.dev371", so it auto-skips at runtime even when enabled. Explicit disable here keeps the active matrix free of retired patches (Phase 5.2.A 2026-05-22).
   GENESIS_ENABLE_PN77_FP8_LM_HEAD: '1'               # Phase E.6 Marlin tier — FP8 LM head; on 35B (vocab=248320, hidden=2048) ≈243 MiB/rank saving
   GENESIS_ENABLE_PN8_MTP_DRAFT_ONLINE_QUANT: '1'     # MTP draft model online quantization (saves ~1 GiB/rank on FP8 draft)
   # ── Probabilistic draft + truncation detection ──

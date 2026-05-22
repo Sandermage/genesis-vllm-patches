@@ -105,7 +105,7 @@ patches:
   GENESIS_ENABLE_PN25_SILU_INDUCTOR_SAFE: '1'        # Cliff 1B closure (Inductor opaque-op pool for SiluAndMul)
   GENESIS_ENABLE_PN30_DS_LAYOUT_SPEC_DECODE: '1'     # issue #17 — DS conv state + spec-decode accept_len>1 protection
   GENESIS_ENABLE_PN66: '1'                           # vllm#41696 — multiturn </think> leak fix
-  GENESIS_ENABLE_PN67: '1'                           # vllm#41674 — thinking_token_budget bool fix
+  GENESIS_ENABLE_PN67: '0'                           # vllm#41674 merged at bf610c2f5… — the dev371 canonical baseline. Patch lifecycle=retired with vllm_version_range "<0.20.2rc1.dev371", so it auto-skips at runtime even when enabled. Explicit disable here keeps the active matrix free of retired patches (Phase 5.2.A 2026-05-22).
   GENESIS_ENABLE_PN77_FP8_LM_HEAD: '1'               # Phase E.6 Marlin tier FP8 LM head
   GENESIS_ENABLE_PN82_MAMBA_CUDAGRAPH_PREFILL_ZERO: '1' # vllm#41873 — zeros padded is_prefilling rows
   # ── Wave 3.1 / Wave 7 ──
