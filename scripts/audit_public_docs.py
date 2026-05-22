@@ -40,6 +40,14 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 ALLOWLIST_PREFIXES = (
     "sndr_private/",
     "_archive/",
+    # Phase 4.A (2026-05-22): docs/_internal/ is the retired internal-
+    # docs path (migrated to sndr_private/planning/ — see .gitignore
+    # line 44). The directory is gitignored, but if legacy files exist
+    # on a developer laptop from before the migration, they would
+    # otherwise be scanned as public docs. Adding the prefix here is
+    # belt-and-suspenders alongside the .gitignore entry: defensive
+    # against re-introduction even if the gitignore policy ever drifts.
+    "docs/_internal/",
 )
 
 

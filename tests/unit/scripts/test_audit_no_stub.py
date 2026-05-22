@@ -44,21 +44,55 @@ def fake_repo(tmp_path, monkeypatch):
 
 class TestRaiseNotImplementedAst:
     def test_bare_raise_caught(self, fake_repo):
+        """Phase 4.A (2026-05-22): updated fixture to use a multi-
+        statement function body. The script's
+        `_is_abstract_method_raise()` intentionally exempts SINGLE-
+        statement function bodies as "canonical abstract-method shape"
+        (also used by protocol stand-ins / interface contracts that
+        don't import abc) — see scripts/audit_no_stub.py:104-133.
+        A multi-statement body around the `raise` makes the fixture
+        exercise the stub-detection path the audit actually catches.
+        """
         mod = _import()
         p = fake_repo / "x.py"
         p.write_text(textwrap.dedent("""
-            def f():
+            def f(x):
+                x += 1
                 raise NotImplementedError("bare")
         """))
         hits = mod._check_ast_raises(p, p.read_text())
         assert any("raise NotImplementedError" in h for h in hits)
 
     def test_raise_without_call_caught(self, fake_repo):
+        """Phase 4.A (2026-05-22): same exempt-pattern boundary as
+        test_bare_raise_caught — uses a multi-statement body so the
+        audit doesn't treat the function as a canonical abstract
+        shape and skip."""
         mod = _import()
         p = fake_repo / "x.py"
-        p.write_text("def f():\n    raise NotImplementedError\n")
+        p.write_text("def f(x):\n    x += 1\n    raise NotImplementedError\n")
         hits = mod._check_ast_raises(p, p.read_text())
         assert hits
+
+    def test_single_statement_raise_is_exempt(self, fake_repo):
+        """Positive-case counterpart: confirm the abstract-method
+        exemption. A function whose body is a single
+        `raise NotImplementedError(...)` (with or without args, with
+        or without a leading docstring) is the canonical abstract /
+        protocol shape and must NOT be flagged. Phase 4.A added this
+        as a regression guard alongside the multi-statement fixtures
+        above."""
+        mod = _import()
+        p = fake_repo / "x.py"
+        p.write_text(textwrap.dedent('''
+            def abstract_method(self):
+                """Subclasses must implement this."""
+                raise NotImplementedError("must override")
+        '''))
+        hits = mod._check_ast_raises(p, p.read_text())
+        assert hits == [], (
+            f"abstract-method shape should be exempt; got hits: {hits}"
+        )
 
     def test_string_literal_not_flagged(self, fake_repo):
         """Patches often DESCRIBE a `NotImplementedError` raise they

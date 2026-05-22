@@ -54,6 +54,15 @@ htmlcov/
 # ─────────────────────────────────────────────────────────────────────
 sndr_private/
 
+# Retired internal-docs path. Content migrated to `sndr_private/planning/`
+# (see comment above). Legacy laptops may still carry pre-migration
+# leftovers under `docs/_internal/`; this rule keeps git blind to them
+# so they cannot be accidentally committed and so audit scripts that
+# walk git-tracked files do not see them. Phase 4.A (2026-05-22) added
+# this explicit entry alongside the `ALLOWLIST_PREFIXES` defensive
+# allowlist in `scripts/audit_public_docs.py`.
+docs/_internal/
+
 # Backup / temp files (still allowed anywhere)
 *.bak
 *.backup-*

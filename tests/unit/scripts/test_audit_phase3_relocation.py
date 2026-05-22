@@ -101,26 +101,22 @@ def test_script_rule_selection_runs_only_that_rule():
 
 
 def test_r1_flags_stray_non_whitelisted_file(tmp_path, monkeypatch):
-    """A stray .py file in gemma4/ that's not in the whitelist and not
-    a shim must produce an R1 violation."""
+    """R1 is a directory-level rule post-Phase-2.5: `integrations/gemma4/`
+    must NOT exist. Any reintroduction — even by a single stray file
+    — is flagged because the directory's mere existence is the
+    violation.
+
+    Phase 4.A (2026-05-22): refreshed from the pre-Phase-2.5 fixture
+    that exercised file-level allowlist semantics. R1 was tightened
+    (audit_phase3_relocation.py:117-142) to forbid the directory
+    itself; per-file whitelist is gone. The test's intent — "R1
+    catches a stray addition" — survives, but the granularity shifted
+    to the directory level.
+    """
     mod = _load_module()
 
-    # Build a synthetic gemma4/ tree containing:
-    #  - one whitelisted real file (should pass)
-    #  - one shim file (should pass — it has the sentinel docstring)
-    #  - one stray file (should fail)
     fake_root = tmp_path / "integrations" / "gemma4"
     fake_root.mkdir(parents=True)
-    (fake_root / "__init__.py").write_text('"""shim test fixture"""\n')
-    (fake_root / "g4_01_gemma4_ampere_fp8_block_guard.py").write_text(
-        '"""real Gemma-owned patch"""\n'
-    )
-    (fake_root / "g4_99_gemma4_relocated.py").write_text(
-        '"""Compatibility shim — relocated.\n\n'
-        'Real implementation: vllm.sndr_core.integrations.other.g4_99_relocated\n'
-        '"""\n'
-        'from vllm.sndr_core.integrations.other.g4_99_relocated import *  # noqa: F401,F403\n'
-    )
     stray = fake_root / "stray_new_tq_patch.py"
     stray.write_text(
         '"""A new TurboQuant patch someone accidentally dropped in gemma4/"""\n'
@@ -129,12 +125,12 @@ def test_r1_flags_stray_non_whitelisted_file(tmp_path, monkeypatch):
     monkeypatch.setattr(mod, "GEMMA4_DIR", fake_root)
 
     issues = mod.check_r1_gemma_whitelist()
-    assert any("stray_new_tq_patch" in i for i in issues), (
-        f"R1 should have flagged the stray file; got: {issues}"
+    assert any("integrations/gemma4/" in i for i in issues), (
+        f"R1 should have flagged the forbidden directory; got: {issues}"
     )
-    # The whitelisted real and the shim must NOT be flagged.
-    assert not any("g4_01_gemma4_ampere_fp8_block_guard" in i for i in issues)
-    assert not any("g4_99_gemma4_relocated" in i for i in issues)
+    assert any("forbidden post-Phase-2.5" in i for i in issues), (
+        f"R1 message should explain the policy; got: {issues}"
+    )
 
 
 def test_r1_flags_unknown_subdirectory(tmp_path, monkeypatch):
@@ -151,12 +147,19 @@ def test_r1_flags_unknown_subdirectory(tmp_path, monkeypatch):
 
 
 def test_r1_clean_tree_returns_empty(tmp_path, monkeypatch):
-    """Empty-but-correct gemma4/ produces zero R1 violations."""
+    """Clean tree under post-Phase-2.5 R1 means the gemma4 directory
+    does NOT exist on disk. R1 must return zero violations.
+
+    Phase 4.A (2026-05-22): refreshed from the pre-Phase-2.5 fixture
+    that built an "allowed-but-clean" gemma4/ tree (whitelisted
+    contents). Under the tightened R1, ANY existence of the directory
+    is forbidden — so the clean-tree expectation is the absent-tree
+    expectation. The fixture deliberately does NOT call mkdir.
+    """
     mod = _load_module()
     fake_root = tmp_path / "integrations" / "gemma4"
-    fake_root.mkdir(parents=True)
-    (fake_root / "__init__.py").write_text('"""empty"""\n')
-    (fake_root / "_gemma4_detect.py").write_text('"""detect"""\n')
+    # Intentionally do not create fake_root — the absent-directory
+    # state is what "clean" means under the post-Phase-2.5 R1.
     monkeypatch.setattr(mod, "GEMMA4_DIR", fake_root)
     assert mod.check_r1_gemma_whitelist() == []
 
