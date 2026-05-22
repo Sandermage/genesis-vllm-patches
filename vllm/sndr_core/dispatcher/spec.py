@@ -129,6 +129,13 @@ VALID_SOURCES = (
     "vllm_pr_backport",
     "club_3090_adapted",
     "cross_engine_research",
+    # Phase 5.3.D (2026-05-22): "vendor_backport" captures Gemma 4
+    # checkpoint-format adaptations that came from a downstream vendor
+    # fork (Google's Gemma-specific path), not from the canonical vllm
+    # repo. Distinct provenance from `vllm_pr_backport` (=upstream
+    # vllm PR). Four current consumers: G4_04 / G4_05 / G4_06 / G4_18
+    # (Gemma 4 AWQ MoE keys remap + sibling loader-class entries).
+    "vendor_backport",
 )
 
 # `upstream_pr_relationship` describes the SEMANTIC relationship between
