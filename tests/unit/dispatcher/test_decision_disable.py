@@ -44,17 +44,47 @@ def _should_apply():
 class TestDisableEnvKnob:
     """`should_apply()` honours SNDR_DISABLE_X / GENESIS_DISABLE_X."""
 
-    def test_clean_default_on_applies(self):
-        """Baseline: with no env knobs set, a default_on=True patch applies."""
-        # Strip both ENABLE and DISABLE knobs to make sure we're seeing
-        # the default behaviour.
+    def test_clean_default_on_skips_under_strict_opt_in(self):
+        """Strict opt-in (Phase 2026-05-17, decision.py:305-360):
+
+        With no env knobs set, a `default_on=True` patch must SKIP and
+        emit an operator-actionable reason that names the canonical
+        `GENESIS_ENABLE_<X>` flag plus the `GENESIS_LEGACY_DEFAULT_ON=1`
+        legacy escape hatch. Confirms that the post-2026-05-17 policy
+        is in effect — under the pre-2026-05-17 auto-apply semantics
+        this same setup applied the patch.
+        """
         env = {k: v for k, v in os.environ.items()
                if TEST_BARE_FLAG not in k.replace("ENABLE_", "").replace("DISABLE_", "")}
+        env.pop("GENESIS_LEGACY_DEFAULT_ON", None)
+        env.pop("SNDR_LEGACY_DEFAULT_ON", None)
         with mock.patch.dict(os.environ, env, clear=True):
             should_apply = _should_apply()
             ok, reason = should_apply(TEST_PATCH_ID)
-            # default_on=True + clean env → apply
-            assert ok, f"clean env should apply default_on patch, got skip: {reason}"
+            assert not ok, (
+                f"strict opt-in: clean env must SKIP default_on patch, "
+                f"got apply with reason: {reason}"
+            )
+            assert "strict opt-in" in reason.lower()
+            assert f"GENESIS_ENABLE_{TEST_BARE_FLAG}" in reason
+            assert "GENESIS_LEGACY_DEFAULT_ON" in reason
+
+    def test_explicit_enable_applies(self):
+        """Modern strict-opt-in apply path: `GENESIS_ENABLE_<X>=1`
+        explicitly engages the patch. Counterpart to the
+        `test_clean_default_on_skips_under_strict_opt_in` SKIP case —
+        confirms the canonical opt-in env flag works.
+        """
+        env = {k: v for k, v in os.environ.items()
+               if TEST_BARE_FLAG not in k.replace("ENABLE_", "").replace("DISABLE_", "")}
+        env[f"GENESIS_ENABLE_{TEST_BARE_FLAG}"] = "1"
+        with mock.patch.dict(os.environ, env, clear=True):
+            should_apply = _should_apply()
+            ok, reason = should_apply(TEST_PATCH_ID)
+            assert ok, (
+                f"explicit GENESIS_ENABLE_{TEST_BARE_FLAG}=1 should "
+                f"apply default_on patch, got skip: {reason}"
+            )
 
     def test_genesis_disable_skips(self):
         """`GENESIS_DISABLE_P108=1` skips even though default_on=True."""
@@ -96,16 +126,25 @@ class TestDisableEnvKnob:
             assert not ok, "DISABLE must beat ENABLE when both set"
             assert "explicitly disabled" in reason.lower()
 
-    def test_disable_falsy_does_not_disable(self):
-        """`GENESIS_DISABLE_X=0` is treated as 'no opt-out' (not as 'disable')."""
+    def test_disable_falsy_is_noop_under_explicit_enable(self):
+        """`GENESIS_DISABLE_X=0` is "no opt-out" — it must NOT override
+        an explicit `GENESIS_ENABLE_X=1`. Strict opt-in (2026-05-17)
+        requires the explicit ENABLE for any apply path, so the test
+        sets both flags: ENABLE=1 (engages the patch) and DISABLE=0
+        (must not interfere). The intent of `DISABLE=0` is "no
+        opt-out" — falsy disable is a no-op, not a skip trigger.
+        """
         env = {**os.environ, f"GENESIS_DISABLE_{TEST_BARE_FLAG}": "0"}
-        env.pop(f"GENESIS_ENABLE_{TEST_BARE_FLAG}", None)
-        env.pop(f"SNDR_ENABLE_{TEST_BARE_FLAG}", None)
+        env[f"GENESIS_ENABLE_{TEST_BARE_FLAG}"] = "1"
+        env.pop("GENESIS_LEGACY_DEFAULT_ON", None)
+        env.pop("SNDR_LEGACY_DEFAULT_ON", None)
         with mock.patch.dict(os.environ, env, clear=True):
             should_apply = _should_apply()
-            ok, _reason = should_apply(TEST_PATCH_ID)
-            # default_on=True patch with DISABLE=0 should still apply.
-            assert ok, "DISABLE=0 should NOT disable; it means 'no opt-out'"
+            ok, reason = should_apply(TEST_PATCH_ID)
+            assert ok, (
+                f"DISABLE=0 must not interfere with explicit "
+                f"ENABLE=1; got skip: {reason}"
+            )
 
 
 # ─── Reason text contract ─────────────────────────────────────────────────

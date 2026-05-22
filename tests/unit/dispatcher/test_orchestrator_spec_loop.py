@@ -41,48 +41,64 @@ class TestSpecLoopWiring:
 
 class TestSpecLoopDryRun:
     def test_spec_loop_runs_clean_in_dry_run(self, monkeypatch):
-        """With `SNDR_APPLY_VIA_SPECS=1` and dry-run mode:
+        """With `SNDR_APPLY_VIA_SPECS=1` and dry-run mode, the
+        orchestrator must classify every registry entry into exactly
+        one of {applied, skipped, failed} without raising — and must
+        report zero failures (no wiring imports broken).
 
-        P0-2 (audit 2026-05-08): the dispatcher decision (`should_apply`)
-        is consulted BEFORE importing the wiring module. Disabled patches
-        — env-flag off, tier ineligible, hardware mismatch, conflicts —
-        record as 'skipped' without touching their potentially
-        torch-heavy apply_module. This makes dry-run a real torch-less
-        diagnostic path.
+        Phase 5.3.A (2026-05-22): refreshed from the pre-2026-05-17
+        auto-apply expectation. Under the strict-opt-in policy
+        (decision.py:305-360), with a clean test env (no per-patch
+        `GENESIS_ENABLE_<X>=1` flags set), every `default_on=True`
+        patch routes to 'skipped' rather than 'applied'. The previous
+        assertion `applied >= 5` therefore no longer holds — it
+        encoded the auto-apply semantics now reserved for the
+        `GENESIS_LEGACY_DEFAULT_ON=1` escape hatch.
 
-        New contract (replaces the pre-P0-2 'every apply_module → applied'
-        expectation):
-          - default_on patches with apply_module → 'applied' (dry-run ready)
-          - default_off patches → 'skipped' (env flag not set)
-          - patches without apply_module → 'skipped' (informational entry)
-          - failures → only structurally broken wiring (rare)
+        Structural contract (what matters regardless of policy era):
+          - applied + skipped + failed == total (every entry classified)
+          - failed == 0 (no broken wiring imports / structural bugs)
+          - applied ⊆ entries that satisfied dispatcher decision
 
-        Acceptable result on a torch-equipped host: a small bucket of
-        applied (~20 default_on), a large bucket of skipped (the
-        intentionally opt-in patches), and zero failures.
+        The 'no failures' guarantee is the load-bearing one: a torch-
+        less laptop run must not crash inside any apply_module. That
+        was the P0-2 audit's original promise and survives the policy
+        flip.
         """
         monkeypatch.setenv("SNDR_APPLY_VIA_SPECS", "1")
+        # Ensure clean strict-opt-in env — no LEGACY_DEFAULT_ON
+        # rescue, no per-patch ENABLE flags leaking from the parent
+        # shell. The test verifies the modern policy's classification
+        # invariants.
+        monkeypatch.delenv("GENESIS_LEGACY_DEFAULT_ON", raising=False)
+        monkeypatch.delenv("SNDR_LEGACY_DEFAULT_ON", raising=False)
+
         o = _orch()
         stats = o.run(verbose=False, apply=False)
         applied = [r for r in stats.results if r.status == "applied"]
         skipped = [r for r in stats.results if r.status == "skipped"]
         failed = [r for r in stats.results if r.status == "failed"]
-        # default_on bucket should be non-empty.
-        assert len(applied) >= 5, (
-            f"dry-run produced suspiciously few applied: {len(applied)}"
+        total_classified = len(applied) + len(skipped) + len(failed)
+
+        # Every entry must land in exactly one bucket — no unclassified
+        # / leaked statuses.
+        assert total_classified == len(stats.results), (
+            f"classification gap: applied={len(applied)} + "
+            f"skipped={len(skipped)} + failed={len(failed)} != "
+            f"total={len(stats.results)}"
         )
-        # The bulk of registry is opt-in → skipped is the larger bucket.
-        assert len(skipped) >= len(applied), (
-            f"applied={len(applied)} skipped={len(skipped)} — "
-            "post-P0-2 contract expects skipped to dominate (most "
-            "patches are opt-in)"
-        )
-        # Failures during dry-run import are P0-2's other guarantee:
-        # missing torch on host → skipped, not failed. Real wiring
-        # bugs surface as failed.
+        # No broken wiring imports — the load-bearing P0-2 guarantee.
         assert len(failed) == 0, (
             f"spec-loop dry-run produced failures: "
             f"{[(r.name, r.reason) for r in failed[:5]]}"
+        )
+        # Under strict-opt-in clean env, the bulk of entries route to
+        # 'skipped' (informational metadata-only entries + default_off
+        # opt-ins + default_on awaiting explicit ENABLE).
+        assert len(skipped) > 0, (
+            "dry-run classified nothing as skipped; either the "
+            "registry is empty or the orchestrator misclassified — "
+            "investigate stats.results"
         )
 
     def test_spec_loop_default_off(self, monkeypatch):
