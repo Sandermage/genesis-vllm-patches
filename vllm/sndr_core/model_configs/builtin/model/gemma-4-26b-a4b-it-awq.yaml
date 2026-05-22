@@ -47,7 +47,7 @@ requires:
 versions:
   genesis_pin_min: v12.0.0
   vllm_pin_required: 0.20.2rc1.dev371+gbf610c2f5
-  reference_metrics_ref: tests/integration/baselines/gemma4_26b_a4b_awq_baseline.json
+  reference_metrics_ref: null  # Phase 5.2.D (2026-05-22): formalize receipt-only state. The referenced baseline JSON was never generated (audit_v2_vllm_pin_consistency reported file-not-found). dev371 evidence for this model lives in the Gemma 4 P1.7d byte-equivalence test (rehearsal 2026-05-20). A formal canonical baseline JSON requires the full sustained-methodology bench cycle and is deferred to Phase 7.
 
 # ─── Canonical patches matrix ──────────────────────────────────────────
 patches:

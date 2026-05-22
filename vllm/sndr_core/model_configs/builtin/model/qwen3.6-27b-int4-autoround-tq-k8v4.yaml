@@ -62,7 +62,7 @@ requires:
 versions:
   genesis_pin_min: v11.0.0                       # minimum sndr_core version
   vllm_pin_required: 0.20.2rc1.dev371+gbf610c2f5 # promoted 2026-05-21 (P2.4d-Q27) — dev371 smoke PASS + quick bench (decode_TPOT 10.03 ms / TTFT 111 ms / wall_TPS 81.6 mean). Requires P103 wrapper kwargs ABI fix (commit 122c2576). Previous pin dev338 retained side-by-side on server as :nightly-previous for rollback per CLAUDE.md pin policy.
-  reference_metrics_ref: tests/integration/baselines/27b_v11_wave9.json   # NOTE: still the dev338 Wave 9 baseline. dev371 runtime evidence currently lives under sndr_private/planning/bench_results/2026-05-21/P2_Q27_TQ_DEV371_SMOKE_RECEIPT_2026-05-21_RU.md. A formal dev371 baseline JSON requires a full canonical bench cycle (genesis_bench_suite --quick + sustained methodology), captured separately when the rest of the Qwen family is promoted.
+  reference_metrics_ref: null   # Phase 5.2.D (2026-05-22): formalize receipt-only state. The prior dev338 Wave-9 baseline (tests/integration/baselines/27b_v11_wave9.json) is no longer authoritative for this dev371-promoted ModelDef; keeping that reference produced a sticky audit mismatch in audit_v2_vllm_pin_consistency. Current dev371 runtime evidence: sndr_private/planning/bench_results/2026-05-21/P2_Q27_TQ_DEV371_SMOKE_RECEIPT_2026-05-21_RU.md (smoke + quick bench: decode_TPOT 10.03 ms / TTFT 111 ms / wall_TPS 81.6 mean). A formal canonical baseline JSON requires the full sustained-methodology cycle and is deferred to Phase 7.
 
 # ─── Canonical patches matrix (52 entries) ─────────────────────────────
 patches:
