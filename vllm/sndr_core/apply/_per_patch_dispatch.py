@@ -2787,7 +2787,7 @@ def apply_patch_N67_thinking_budget_inverted_bool() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.worker import pn67_thinking_budget_inverted_bool
+        from vllm.sndr_core.integrations._retired import pn67_thinking_budget_inverted_bool
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn67_thinking_budget_inverted_bool.apply()
