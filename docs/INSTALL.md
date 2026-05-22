@@ -115,7 +115,7 @@ genesis-vllm-patches/
 │   │   ├── cli/                       # sndr install / launch / doctor / verify
 │   │   ├── dispatcher/                # registry · spec · decision · audit
 │   │   ├── apply/                     # orchestrator · shadow · per-patch dispatch
-│   │   ├── integrations/              # 169 community patches (lazy __init__.py)
+│   │   ├── integrations/              # 226 community patches (lazy __init__.py)
 │   │   │   ├── attention/{flash,gdn,turboquant}/
 │   │   │   ├── compile_safety/  kv_cache/  loader/  lora/  memory/
 │   │   │   ├── middleware/  moe/  multimodal/  observability/  quantization/

@@ -20,7 +20,7 @@ across 21 families. Apache 2.0.**
 ## What it is
 
 A **drop-in runtime patcher** for vLLM. It pins to a specific vLLM nightly
-commit and applies 169 small, surgical changes — text edits at known anchors,
+commit and applies 226 small, surgical changes — text edits at known anchors,
 class-rebind wrappers, and FastAPI middleware — that together turn an
 out-of-the-box vLLM into a production-grade Qwen3.6 inference server on
 *consumer* NVIDIA hardware (3090, 4090, 5090, A5000, A6000, …) where vLLM

@@ -16,13 +16,13 @@ env flag to toggle, upstream PR (if backported), and credit.
 
 ## Current state (v11.0.0, 2026-05-09)
 
-**Total PATCH_REGISTRY entries:** 169 — range covers `P1`–`P107` legacy
-+ `PN8`–`PN90` modern + sub-patches (P5b, P7b, P15B, P18b, P38B, P39a,
-P61c, P67b, P67c, P79d, PN26b, PN40-classifier) + library/diagnostic
-(P51, P102, P103). P56/P57 archived 2026-05-05; PN71 burned by
-abandoned prealloc_v2 experiment; PN78 tombstoned; P39a flipped to
-community per the strict-AND audit. **PN90 added 2026-05-09** —
-probabilistic draft rejection (vllm#40269 backport), opt-in.
+**Total PATCH_REGISTRY entries:** 226 — range covers `P1`–`P109` legacy
++ `PN8`–`PN275` modern + `G4_01`–`G4_78` Gemma 4 family + sub-patches
+(P5b, P7b, P15B, P18b, P38B, P39a, P61c, P67b, P67c, P79d, PN26b,
+PN40-classifier) + library/diagnostic (P51, P102, P103) + the standalone
+`SNDR_WORKSPACE_001` entry. P56/P57 archived 2026-05-05; PN71 burned
+by abandoned prealloc_v2 experiment; PN78 tombstoned; P39a flipped to
+community per the strict-AND audit.
 
 **Library modules** (not in PATCH_REGISTRY but available for patches to
 use): `vllm.sndr_core.cache.eviction_policies` — LRU/2Q/ARC eviction
@@ -32,8 +32,8 @@ added as a registry patch.
 
 | Metric | Count |
 |:-------|:------|
-| Total PATCH_REGISTRY entries | **169** |
-| Tier=community (Apache 2.0, sndr_core) | **169** (all entries) |
+| Total PATCH_REGISTRY entries | **226** |
+| Tier=community (Apache 2.0, sndr_core) | **226** (all entries) |
 | Tier=engine (commercial, sndr_engine) | **0** (PN72 reclassified to community 2026-05-08; sndr_engine namespace reserved but empty) |
 | Default-on at boot | 39 |
 | Lifecycle=experimental | 117 |
@@ -44,7 +44,7 @@ added as a registry patch.
 | Lifecycle=coordinator | 1 (P5b — env-flag-only, no real binding) |
 | Implementation status=full | 154 |
 | Implementation status=marker_only / placeholder / partial / retired | 15 |
-| Apply-loop coverage (apply_module set) | 157 / 169 = 92.9% |
+| Apply-loop coverage (apply_module set) | 209 / 226 = 92.5% |
 | Spec-only (intentional, allow-listed) | 12 (P1, P17, P18b, P20, P23, P29, P32, P51, P102, PN60, PN63, PN64) |
 
 ### Engine tier (the strict-AND boundary)
@@ -677,7 +677,7 @@ noise.
 
 ## Patch plan resolver — `--policy compat|safe|minimal`
 
-Genesis ships **169 patches**; a typical preset enables ~50–80 of
+Genesis ships **226 patches**; a typical preset enables ~50–80 of
 them. Two operator questions follow naturally:
 
 1. Which patches actually need to be on for this deployment?
