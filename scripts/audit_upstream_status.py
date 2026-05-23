@@ -198,6 +198,89 @@ def _query_pr(pr_number: int) -> dict:
 # Audit script handles via _query_pr fallback to issues endpoint.
 
 
+# ─── Retire-eligibility taxonomy (Phase 5.1.D, 2026-05-23) ────────────────
+
+
+_PURE_UPSTREAM_RELATIONSHIPS = frozenset({"backport"})
+"""Relationship values that permit *status-based* retire scoring.
+
+A patch with `upstream_pr_relationship in _PURE_UPSTREAM_RELATIONSHIPS`
+AND upstream PR merged AND lifecycle active is a `RETIRE-CANDIDATE`.
+Iron-rule-#11 deep-diff is still REQUIRED before the actual retire —
+the relationship being pure only means status alone is sufficient to put
+the patch in the deep-diff queue.
+
+Every OTHER relationship value signals that upstream coverage is NOT a
+straight superset of Genesis runtime logic — the patch may guard a
+regression, invert upstream behavior, live at a different layer, or
+provide an env-gated convenience over upstream. For those, status alone
+is NOT a retire signal. They classify as `NEEDS-DEEP-PARITY` and the
+default verdict is KEEP unless a separate parity proof exists.
+
+This constant codifies the discipline operator established after the
+2026-05-23 sidecleanup audit, where 5 patches with merged upstream PRs
+were initially proposed for retire by an agent reading PR dates only —
+all 5 turned out to be non-pure relationships (intentional_inverse,
+enables_upstream, defensive_overlay, related_not_superseding) that
+would have caused regressions if retired blindly.
+"""
+
+
+def retire_eligibility(row_data: dict) -> str:
+    """Return the canonical retire verdict for a (PR-state, lifecycle,
+    relationship) triple.
+
+    Returns ONE of:
+
+      "RETIRE-CANDIDATE"   — pure-`backport` upstream PR merged AND our
+                             patch lifecycle is active. Iron-rule-#11
+                             deep-diff REQUIRED before any actual retire.
+                             This is the only verdict that authorizes
+                             putting a patch in the retire queue.
+      "NEEDS-DEEP-PARITY"  — upstream PR merged AND our patch's relationship
+                             is one of the non-pure classes
+                             (counter_regression, intentional_inverse,
+                             enables_upstream, defensive_overlay,
+                             related_not_superseding). PR-status alone is
+                             INSUFFICIENT to retire. Default verdict KEEP
+                             unless a separate deep parity audit proves
+                             equivalence.
+      "ACTIVE"             — upstream PR still open AND our patch
+                             lifecycle is active. No retire action.
+      "ALREADY-RETIRED"    — our patch lifecycle is "retired". Action
+                             already complete.
+      "UNKNOWN"            — issue reference, PR query error, or other
+                             state that cannot be auto-classified.
+
+    Implementation: derives the verdict from `categorize()`'s bucket so
+    the two stay in lockstep. Adding a new audit bucket requires updating
+    this mapping; the test suite locks both surfaces.
+
+    Operator contract: PIN.R recon scripts / agents MUST consult this
+    function (or equivalent registry-aware filter) before producing a
+    "retire-NOW" list. Reading PR merge dates without consulting
+    `upstream_pr_relationship` produces false positives — see
+    docs/_internal/PIN_R_SIDECLEANUP_DEEP_PARITY_AUDIT for the empirical
+    proof.
+    """
+    bucket = categorize(row_data)
+    if bucket == "NEWLY-MERGED":
+        return "RETIRE-CANDIDATE"
+    if bucket in {
+        "COUNTER-REGRESSION",
+        "INTENTIONAL-INVERSE",
+        "ENABLES-UPSTREAM",
+        "DEFENSIVE-OVERLAY",
+        "RELATED-NOT-SUPERSEDING",
+    }:
+        return "NEEDS-DEEP-PARITY"
+    if bucket in {"SUPERSEDED-OK", "STALE-RETIRED"}:
+        return "ALREADY-RETIRED"
+    if bucket == "WATCH":
+        return "ACTIVE"
+    return "UNKNOWN"  # ERROR / ISSUE-OPEN / ISSUE-CLOSED
+
+
 # ─── Categorization ────────────────────────────────────────────────────────
 
 
@@ -381,7 +464,7 @@ def _print_table(rows: list[PatchAuditRow]) -> None:
         print(f"── {category} ({len(rows_in_cat)}) " + "─" * 70)
 
         if category == "NEWLY-MERGED":
-            print("  Action: deep-diff our patch vs upstream → retire OR update")
+            print("  Verdict: RETIRE-CANDIDATE — iron-rule-#11 deep-diff REQUIRED before retire")
         elif category == "STALE-RETIRED":
             print("  Action: investigate — our patch retired but upstream OPEN")
         elif category == "ISSUE-CLOSED":
@@ -389,11 +472,15 @@ def _print_table(rows: list[PatchAuditRow]) -> None:
         elif category == "ERROR":
             print("  Action: check gh authentication / network / PR access")
         elif category == "COUNTER-REGRESSION":
-            print("  Waived: Genesis corrects a regression introduced by the cited PR")
+            print("  Verdict: NEEDS-DEEP-PARITY — Genesis corrects a regression in the cited PR; default KEEP")
+        elif category == "INTENTIONAL-INVERSE":
+            print("  Verdict: NEEDS-DEEP-PARITY — Genesis deliberately reverses the cited PR; default KEEP")
+        elif category == "ENABLES-UPSTREAM":
+            print("  Verdict: NEEDS-DEEP-PARITY — Genesis is an env-gated convenience over upstream; default KEEP")
         elif category == "DEFENSIVE-OVERLAY":
-            print("  Waived: defensive lower-layer guard alongside upstream's primary fix")
+            print("  Verdict: NEEDS-DEEP-PARITY — defensive guard at a different layer; default KEEP")
         elif category == "RELATED-NOT-SUPERSEDING":
-            print("  Waived: lives at a different layer; coverage doesn't overlap")
+            print("  Verdict: NEEDS-DEEP-PARITY — lives at a different layer; coverage doesn't overlap; default KEEP")
 
         for r in rows_in_cat:
             merged = (r.pr_merged_at or "")[:10] if r.pr_merged_at else "(not merged)"
@@ -417,8 +504,11 @@ def _print_table(rows: list[PatchAuditRow]) -> None:
     if counts.get("NEWLY-MERGED", 0) > 0:
         print()
         print(
-            "ACTION REQUIRED: {} newly-merged patch(es). Run iron-rule-#11 "
-            "deep-diff for each — see CONTRIBUTING.md Pin-bump playbook."
+            "ACTION REQUIRED: {} RETIRE-CANDIDATE patch(es) (pure backports "
+            "with merged upstream). Run iron-rule-#11 deep-diff for EACH "
+            "before any retire — see CONTRIBUTING.md Pin-bump playbook. "
+            "Patches in other waiver buckets are NEEDS-DEEP-PARITY (default "
+            "KEEP); do NOT add them to a retire list based on PR status alone."
             .format(counts["NEWLY-MERGED"])
         )
 
