@@ -90,8 +90,11 @@ class TestWalkers:
         from vllm.sndr_core.cli.config_keys import load_canonical_registry
         canon = load_canonical_registry()
         entries = mod._walk_resolved_aliases(canon)
-        # Wave 10 V2 layout has 15 preset aliases.
-        assert len(entries) == 15
+        # Wave 10 V2 layout had 15 preset aliases.
+        # Phase 7.G4.B1.0 (2026-05-23): +2 Gemma 4 31B presets → 17.
+        # Test name kept as "fifteen" for grep continuity; assertion
+        # tracks current fleet.
+        assert len(entries) == 17
         for e in entries:
             assert e.layer == "resolved-alias"
 

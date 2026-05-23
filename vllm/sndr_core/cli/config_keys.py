@@ -140,6 +140,39 @@ _POLICY_KEYS: dict[str, dict[str, str]] = {
         "owner_module": "vllm.sndr_core.detection.guards",
         "description": "vllm pin enforcement mode (strict|warn|off)",
     },
+    # Gemma 4 declarative profile fields (compression_plan,
+    # backend_plan) get rendered into env vars by compose() — register
+    # them here so audit-v2-env-keys recognises them on resolved
+    # presets. These are consumed by integrations/model_compat/gemma4/
+    # patches G4_60K (TQ engine config skip-list union) and
+    # G4_76 (drafter KV-sharing disable toggle).
+    "GENESIS_G4_TQ_FORCE_SKIP_LAYERS": {
+        "source": "policy",
+        "owner_module": "vllm.sndr_core.integrations.model_compat.gemma4",
+        "description": (
+            "Comma-separated layer indices forced to native bf16 "
+            "(skipped by TQ KV cache). Emitted by compose() from "
+            "profile.compression_plan.native_source_layers."
+        ),
+    },
+    "SNDR_G4_TQ_FORCE_SKIP_LAYERS": {
+        "source": "policy",
+        "owner_module": "vllm.sndr_core.integrations.model_compat.gemma4",
+        "description": (
+            "SNDR_-canonical alias of GENESIS_G4_TQ_FORCE_SKIP_LAYERS "
+            "(one-release migration window)."
+        ),
+    },
+    "SNDR_ENABLE_G4_76_DISABLE_DRAFTER_KV_SHARING": {
+        "source": "policy",
+        "owner_module": "vllm.sndr_core.integrations.model_compat.gemma4",
+        "description": (
+            "SNDR_-canonical alias of "
+            "GENESIS_ENABLE_G4_76_DISABLE_DRAFTER_KV_SHARING. "
+            "0 = drafter shares physical KV with target (β'-A K=4 "
+            "validated path), 1 = drafter uses logical/separate KV."
+        ),
+    },
 }
 
 

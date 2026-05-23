@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 alias — operator shortcut for the Gemma 4 31B AWQ default TQ-only triplet.
+# `sndr launch prod-gemma4-31b-tq-default` resolves to (model, hardware, profile).
+#
+# Default-mode preset: TQ-only, MTP OFF — production-safe across all
+# workload classes (free chat, summarization, code generation, anything).
+# Pairs with `prod-gemma4-31b-tq-mtp-structured-k4` which is the
+# structured-role sibling (MTP K=4 gated on tool_json + structured_count
+# workloads only).
+#
+# Bench status (2026-05-23):
+#   No canonical baseline JSON yet. Phase 7.G4.B1.0 = preset creation
+#   only (this file). Phase 7.G4.B1.1 will collect the canonical
+#   single-stream baseline and add a BENCHMARKS.md row.
+#
+# Hand-launcher reference: the β'-A control on this rig
+# (~/start_g4_betaA_k1.sh) uses MTP K=N parametric; this preset is the
+# `K=0 / MTP OFF` analogue exposed through canonical V2 compose so
+# render-launchers can target it without hand-shell.
+
+model: gemma-4-31b-it-awq                        # cyankiwi/gemma-4-31B-it-AWQ-4bit + native gemma4_dense
+hardware: a5000-2x-24gbvram-16cpu-128gbram       # Sander 2× A5000 homelab
+profile: gemma4-tq-default                       # default role: MTP OFF, TQ-only patches inherited from ModelDef

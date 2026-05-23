@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 alias — operator shortcut for the Gemma 4 31B AWQ structured K=4 triplet.
+# `sndr launch prod-gemma4-31b-tq-mtp-structured-k4` resolves to (model, hardware, profile).
+#
+# Structured-role preset: MTP K=4 via gemma-4-31B-it-assistant drafter,
+# β'-A K=4 validated_conditional acceptance artifact, gated to
+# tool_json + structured_count workloads (free chat / summarization /
+# code generation are denied by artifact and fall back to
+# prod-gemma4-31b-tq-default at request-router time).
+#
+# Profile sizing (verbatim from gemma4-tq-mtp-structured-k4 — β'-A control):
+#   max_model_len:        4096
+#   max_num_seqs:         1
+#   max_num_batched_tokens: 8192
+#   gpu_memory_utilization: 0.92
+#   enable_chunked_prefill: true
+#
+# Acceptance artifact reference:
+#   vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-tq-mtp-structured-k4.json
+#   config_hash: 71c874d7ffedae04
+#   decision: validated_conditional
+#
+# Hand-launcher reference: the β'-A control on this rig
+# (~/start_g4_betaA_k1.sh) renders the same K=4 spec-decode config; the
+# V2-composed launcher emitted by this preset should be functionally
+# equivalent. md5 of hand-launcher (immutable per standing constraint):
+#   085cdccee8c80aa9b70aef1092d4dfae
+
+model: gemma-4-31b-it-awq                            # same model as the default sibling
+hardware: a5000-2x-24gbvram-16cpu-128gbram           # same rig
+profile: gemma4-tq-mtp-structured-k4                 # structured role: MTP K=4 + TQ + native target[58,59]
