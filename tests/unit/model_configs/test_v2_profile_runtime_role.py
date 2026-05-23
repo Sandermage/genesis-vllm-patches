@@ -85,7 +85,12 @@ class TestExistingProfilesLoadUnchanged:
 
     def test_p1_3_builtin_gemma4_tq_default_loads(self):
         """gemma4-tq-default (P1.3): role=default, no runtime-role
-        sub-blocks. Inherits ModelDef canonical patches as-is."""
+        sub-blocks. Inherits ModelDef canonical patches as-is, except
+        for a profile-local G4_19C disable (TEMPORARY pending Phase
+        7.G4.G4_19C-FULLGRAPH-AUDIT — wrapper has unresolved Dynamo
+        fullgraph-trace issues; profile-local override boots without
+        the K/V round-trip wrapper, functionally matching the hand-
+        launcher beta'-A reference)."""
         p = load_profile("gemma4-tq-default")
         p.validate()
         assert p.role == "default"
@@ -97,7 +102,9 @@ class TestExistingProfilesLoadUnchanged:
         assert p.validation is None
         assert p.patches_delta.enable == {}
         assert p.patches_delta.disable == []
-        assert p.patches_delta.override == {}
+        assert p.patches_delta.override == {
+            "GENESIS_ENABLE_G4_19C_ATTN_WRAP": "0",
+        }
 
     def test_p1_3_builtin_gemma4_structured_k4_loads(self):
         """gemma4-tq-mtp-structured-k4 (P1.3): full structured config
