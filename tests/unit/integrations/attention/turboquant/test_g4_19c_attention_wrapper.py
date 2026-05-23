@@ -220,26 +220,31 @@ def test_signs_attached_to_module_as_buffer():
 
 
 def test_wrapped_forward_source_uses_module_attribute():
-    """Static check: the wrapped forward must read signs from
-    ``self._g4_19c_signs`` and must NOT call ``_get_or_build_signs``
-    from the compile-region forward path (would bail under
-    fullgraph torch.compile).
+    """Phase 7.G4.G4_19C-FULLGRAPH-AUDIT (iter-3, 2026-05-23):
+    the active hot-path forward lives in the companion module
+    ``g4_19c_per_layer_forward._active_forward``. The wrapper
+    module no longer has a ``_make_wrapped_forward`` (class-level
+    monkeypatch retired); per-instance install happens in
+    ``_wrapped_init`` via ``types.MethodType``.
+
+    Static check: the active forward reads ``self._g4_19c_signs``
+    directly and must NOT call ``_get_or_build_signs`` from the
+    compile region.
     """
     pytest.importorskip("torch")
     from pathlib import Path
     from vllm.sndr_core.integrations.attention.turboquant import (
-        g4_19c_attention_wrapper as mod,
+        g4_19c_per_layer_forward as pl,
     )
-    src = Path(mod.__file__).read_text()
-    # Locate the wrapped forward body
-    start = src.index("def _make_wrapped_forward")
-    end = src.index("def apply()", start)
+    src = Path(pl.__file__).read_text()
+    start = src.index("def _active_forward")
+    end = src.index("# Marker for the wrapper", start)
     body = src[start:end]
     assert "self._g4_19c_signs" in body, (
-        "wrapped forward must read self._g4_19c_signs directly"
+        "active forward must read self._g4_19c_signs directly"
     )
     assert "_get_or_build_signs(" not in body, (
-        "wrapped forward must NOT call _get_or_build_signs from the "
+        "active forward must NOT call _get_or_build_signs from the "
         "compile region (fullgraph bail). Use the per-layer buffer "
         "attached by _wrapped_init instead."
     )

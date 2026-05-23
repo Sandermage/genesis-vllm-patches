@@ -26,27 +26,40 @@ So G4_19c is a **quality + speed A/B harness**:
   * Memory: NO change (memory savings come from a separate patch)
 
 ================================================================
-WHY THIS IS THE RIGHT FIRST STEP
+ITERATION HISTORY
 ================================================================
 
-Real KV-cache substitution requires touching vllm v1's
-``KVCacheSpec`` + ``KVCacheManager`` + attention-backend block-table
-plumbing. Each of those has dev371-specific signatures that change
-upstream. A reliable A/B harness that injects the **same numerical
-error** into attention without touching the cache buffer gives us the
-EMPIRICAL data needed before committing engineering effort to the
-buffer rewrite:
+  Iter 1 (commit 5e13cb8e): ``@torch._dynamo.disable`` on cold builders.
+                            gb0098 fail under fullgraph.
+  Iter 2 (commit 6ecc685d): ``register_buffer("_g4_19c_signs", ...)`` at
+                            ``__init__`` time; forward reads buffer
+                            directly. Closed the build-from-forward
+                            blocker but left 8 other Dynamo blockers in
+                            the class-level wrapped forward body
+                            (env reads, config lookups, try/except,
+                            kernel-resolution-per-call, log calls,
+                            module-state mutation).
+  Iter 3 (this commit):     ARCHITECTURAL shift. Every Python-side
+                            decision is baked in at apply() / __init__
+                            time as install-time constants. Each
+                            instance gets EITHER the unmodified
+                            original_forward (eager-pass — same as
+                            "G4_19c never touched this layer") OR
+                            the specialized ``_active_forward`` from
+                            ``g4_19c_per_layer_forward.py`` (pure
+                            tensor ops + one allow_in_graph kernel
+                            call per K and V). Per-instance install
+                            via ``types.MethodType`` — no class-level
+                            forward monkeypatch.
 
-  * If the round-trip TPS hit is e.g. -5% per layer, full substitution
-    saves memory **and** improves perf via smaller buffers — go for it.
-  * If TPS hit is -25%, full substitution can't save enough to pay
-    for compression overhead — explore tensor-core batching first.
-  * If quality (NIAH @ 128K+) collapses under round-trip noise, abandon
-    aggressive bit-widths and go to 4/5-bit before cache substitution.
+See ``sndr_private/research/gemma4/analysis/
+     G4_19C_FULLGRAPH_AUDIT_R_2026-05-23.md`` for the full audit.
 
 ================================================================
 SERVER A/B RESULT 2026-05-17 — quality regression observed
 ================================================================
+
+(Unchanged from iter-2 docstring — kept here as a deployment note.)
 
 First end-to-end bench against live Gemma 4 31B AWQ + 256K context,
 pack=uint32 wht=signs_only (3-bit Lloyd-Max, no real Hadamard):
@@ -56,33 +69,15 @@ pack=uint32 wht=signs_only (3-bit Lloyd-Max, no real Hadamard):
   - "primary cols" → "Red, blue,  → "//" BROKEN
                      yellow"
   - "WWII ended?"  → "1945" ✓     → "Historically, the** (Wait wait..." LOOPING
-  - "Tokyo?"       → "Tokyo" ✓    → "Tokyo" ✓
-  - "3 planets"    → "Mercury,    → "Mercury, Venus, **Venus**" HALLUCIN.
-                     Venus, Earth"
-  - long-ctx 8K needle: FOUND in both
-  - TPS: 55-66 (CV ~40%, warmup variability)
 
 **Root cause hypothesis**: Lloyd-Max codebooks are calibrated for unit-
 variance Gaussian marginals, but Gemma 4 K/V tensors AFTER q_norm +
-k_norm + v_norm + RoPE have a different empirical distribution. The
-sign-only "rotation" (the placeholder path) doesn't Gaussianize them
-either. Quantization error is asymmetric enough to skew attention
-scores → divergent token sampling → looping / wrong answers.
-
-**Next steps (separate session)**:
-  1. Probe real K/V distribution stats (mean, std, kurtosis, %outliers)
-     from a warmup pass; calibrate per-layer scale + codebook from
-     observed data instead of assuming unit-variance Gaussian.
-  2. Try full_wht mode (butterfly Hadamard actually applied) — paper
-     claims Beta-concentration restores Gaussian marginals.
-  3. Try 4-bit and 5-bit codebooks (more aggressive than 3-bit means
-     less quantization-error margin; raising bits should ease quality).
-  4. Per-layer adaptive bit-width: profile per-layer attention
-     sensitivity and use 5-bit on attention-dominant layers, 3-bit on
-     redundant ones.
+k_norm + v_norm + RoPE have a different empirical distribution.
 
 Default status of G4_19c: **OFF in production launcher** until quality
-regression is resolved.
+regression is resolved. The fullgraph fix (this iter) unblocks
+re-enabling the wrapper for A/B benches; it does NOT solve the
+quality regression itself.
 
 ================================================================
 ENV FLAG
@@ -103,8 +98,8 @@ PER-LAYER ROTATION SEEDS
 Each layer gets a distinct random-sign vector via
 ``build_randomized_hadamard_seed(head_dim, layer_idx)``. We extract
 ``layer_idx`` from ``self.prefix`` (e.g. "model.layers.5.self_attn" → 5)
-at first call and cache the device-resident sign tensor on ``self``
-to avoid the numpy→torch transfer cost on hot path.
+at ``__init__`` and cache the device-resident sign tensor as a
+non-persistent buffer on the module.
 
 ================================================================
 PER-LAYER BIT-WIDTH
@@ -125,22 +120,26 @@ import logging
 import os
 import re
 import threading
+import types
 from typing import Optional
 
 log = logging.getLogger("genesis.gemma4.g4_19c")
 
 GENESIS_G4_19C_MARKER = (
-    "Genesis G4_19c attention K/V round-trip wrapper v1 "
-    "(injects TurboQuant quantization noise into Gemma4Attention math; "
-    "memory layout unchanged — companion patch needed for buffer savings)"
+    "Genesis G4_19c attention K/V round-trip wrapper v3 "
+    "(per-layer specialized forward via types.MethodType; "
+    "allow_in_graph kernel entry; fullgraph-safe hot path)"
 )
 
 _ENV_ENABLE = "GENESIS_ENABLE_G4_19C_ATTN_WRAP"
 _ENV_DEBUG = "GENESIS_G4_19C_DEBUG"
+_ENV_FORCE_ALL_LAYERS = "GENESIS_G4_19C_FORCE_ALL_LAYERS"
 
 _APPLIED = False
-_ORIGINAL_FORWARD = None
 _ORIGINAL_INIT = None
+_ORIGINAL_FORWARD_REF = None  # captured at apply() for per-instance install
+_FORCE_ALL_LAYERS = False     # frozen at apply() — read ONCE from env
+_DEBUG = False                # frozen at apply() — read ONCE from env
 
 _PREFIX_LAYER_RE = re.compile(r"\.layers\.(\d+)\.")
 
@@ -175,6 +174,10 @@ def _select_bits(config, layer_idx: int) -> int:
 
     With per_layer_types: sliding → bits_sliding, full → bits_global.
     Without per_layer_types: bits_global (conservative).
+
+    Retained for compatibility with prewarm / debug callers. NOT used
+    on the hot path post-iter-3 — kernel resolution happens once at
+    apply() time.
     """
     lt = getattr(config, "per_layer_types", None)
     if lt is not None and 0 <= layer_idx < len(lt):
@@ -188,7 +191,10 @@ _KERNEL_LOCK = threading.Lock()
 def _resolve_kernels(config) -> tuple:
     """Return (write_fn, read_fn, kernel_name) for the active (pack, wht) mode.
 
-    Cached at first call to avoid repeated import overhead on hot path.
+    Called ONCE at apply() time post-iter-3 (was: every forward call
+    in iter-1/iter-2). The result is stashed into the companion
+    ``g4_19c_per_layer_forward`` module via ``setup()`` so the active
+    forward can reach it without per-call resolution.
     """
     pack_mode = config.pack_mode
     wht_mode = config.wht_mode
@@ -250,9 +256,11 @@ def _resolve_kernels(config) -> tuple:
 
 _SIGNS_LOCK = threading.Lock()
 # Process-global pre-built sign tensors, keyed by (layer_idx, head_dim,
-# seed_base, device-string). Built once at apply()-time or on first use
-# OUTSIDE any traced region; the forward path only reads from this dict
-# so CUDA-graph capture never sees a numpy/CPU op.
+# seed_base, device-string). Populated eagerly at ``_wrapped_init``
+# (and optionally ``prewarm_signs``); each Gemma4Attention instance
+# carries its OWN copy as a non-persistent buffer ``self._g4_19c_signs``,
+# so this cache is only used for de-dup / debug / prewarm. The forward
+# hot path never reads from it.
 _SIGNS_CACHE: dict[tuple, "object"] = {}
 
 
@@ -260,15 +268,9 @@ def _build_signs_torch(head_dim: int, layer_idx: int, seed_base: int):
     """CPU fp32 sign tensor matching numpy reference
     ``build_randomized_hadamard_seed`` (same seed → same signs).
 
-    Uses numpy (not torch.Generator) because vllm sets
-    ``torch.set_default_device("cuda")`` during model construction;
-    a torch CPU-generator inside that scope fails with
-    "Expected a 'cuda' device type for generator but found 'cpu'".
-
-    Called ONLY from eager paths (``Gemma4Attention.__init__`` wrap,
-    ``prewarm_signs``, direct unit-test callers). After Phase
-    7.G4.G4_19C-FIX.2 the wrapped attention forward reads signs as
-    a per-layer CUDA buffer attribute (``self._g4_19c_signs``) and
+    Called ONLY from eager paths (``_wrapped_init``, ``prewarm_signs``,
+    direct unit-test callers). After iter-3 the active forward reads
+    ``self._g4_19c_signs`` as a per-layer CUDA buffer attribute and
     never calls this function, so the numpy RNG / device transfer
     inside never enters a torch.compile fullgraph region.
     """
@@ -282,35 +284,13 @@ def _build_signs_torch(head_dim: int, layer_idx: int, seed_base: int):
 
 def _get_or_build_signs(
     layer_idx: int, head_dim: int, seed_base: int, device,
-    attn_layer=None,  # kept for API back-compat; ignored after CUDA-graph bug
+    attn_layer=None,  # kept for API back-compat; ignored
 ):
     """Lookup-or-build the device-resident signs tensor from the
     process-global cache. **NOT called from any compile region after
-    Phase 7.G4.G4_19C-FIX.2** — the wrapped attention forward reads
-    ``self._g4_19c_signs`` directly. This helper is retained as a
-    defensive eager API for prewarm / unit-test / debug callers.
-
-    Original cache-attach rationale (still valid for the cache itself):
-    we intentionally do NOT attach signs to ``nn.Module`` instances —
-    torch.compile / inductor captures module attributes into the
-    compiled graph, and a CPU tensor attribute fails CUDA-graph capture
-    with::
-
-        RuntimeError: Cannot copy between CPU and CUDA tensors during
-        CUDA graph capture unless the CPU tensor is pinned.
-
-    The global cache is keyed by ``(layer_idx, head_dim, seed_base,
-    device_str)`` and holds device-resident tensors only. Cold-path
-    builds may still allocate inside a traced region — to avoid that,
-    the wrap on ``Gemma4Attention.__init__`` pre-populates the cache
-    BEFORE any forward runs.
-
-    The cold-path ``with _SIGNS_LOCK:`` branch is preserved here for
-    direct callers (prewarm, debug, tests). It is NOT called from any
-    torch.compile region: the wrapped attention forward reads
-    ``self._g4_19c_signs`` directly and never touches this helper.
+    iter-2**.
     """
-    del attn_layer  # signs are NOT attached to layers — see docstring
+    del attn_layer
     key = (layer_idx, head_dim, seed_base, str(device))
     cached = _SIGNS_CACHE.get(key)
     if cached is not None:
@@ -328,9 +308,6 @@ def _get_or_build_signs(
 def prewarm_signs(num_layers: int, head_dim: int, seed_base: int, device) -> int:
     """Pre-populate the sign cache for ``num_layers`` × head_dim before any
     CUDA-graph capture runs. Returns the number of new entries added.
-
-    Called from apply() once we know the model dimensions. Safe to call
-    repeatedly — cache hits short-circuit.
     """
     added = 0
     for layer_idx in range(num_layers):
@@ -344,157 +321,78 @@ def prewarm_signs(num_layers: int, head_dim: int, seed_base: int, device) -> int
     return added
 
 
-def _roundtrip(x, signs, head_dim, block_size, write_fn, read_fn):
-    """Compress + decompress x once. Returns a tensor of the same
-    shape/dtype as x with the quantization noise applied.
+# ─── Per-instance install logic ─────────────────────────────────────────
+
+
+def _decide_layer_active(self) -> bool:
+    """Decide at __init__ time whether this layer should round-trip.
+
+    All decisions use STATIC layer properties or apply-time constants —
+    no per-call branches reach the compiled forward.
     """
-    # x is (..., head_dim_total) where head_dim_total = num_kv_heads * head_dim
-    # The kernel expects shape (M, num_kv_heads, head_dim). Reshape:
-    orig_shape = x.shape
-    # The K/V tensor coming out of qkv_proj.split has shape
-    #   (num_tokens, num_kv_heads * head_dim)
-    num_kv_heads = orig_shape[-1] // head_dim
-    M = x.numel() // (num_kv_heads * head_dim)
-    x_3d = x.contiguous().view(M, num_kv_heads, head_dim)
-
-    packed, scale = write_fn(x_3d, signs, head_dim, block_size)
-    x_rt = read_fn(packed, scale, signs, head_dim, block_size, x.dtype)
-    return x_rt.view(orig_shape)
-
-
-def _make_wrapped_forward(original_forward):
-    """Wrap ``Gemma4Attention.forward`` to round-trip K, V through TurboQuant.
-
-    Only fires when:
-      * the registry has an active config (G4_19 ran)
-      * the layer has ``self.attn`` (vllm Attention instance — not the
-        embedding-only layers)
-      * the layer is NOT KV-shared (shared layers re-use the previous
-        layer's K, so we skip to avoid corrupting it)
-    """
-
-    def _wrapped_g4_attn_forward(self, positions, hidden_states, **kwargs):
+    # Registry must have an active config.
+    try:
         from .g4_19_config_registry import get_active_config
         config = get_active_config()
-        if config is None:
-            return original_forward(self, positions, hidden_states, **kwargs)
+    except Exception:  # noqa: BLE001
+        return False
+    if config is None:
+        return False
 
-        # Replicate the original forward up to attention call:
-        qkv, _ = self.qkv_proj(hidden_states)
-        q, k, v = qkv.split(
-            [self.q_size, self.kv_size, self.kv_size], dim=-1,
-        )
-        q = q.unflatten(-1, (self.num_heads, self.head_dim))
-        q = self.q_norm(q)
-        q = q.flatten(-2, -1)
+    # KV-shared layers re-use the previous layer's K — round-tripping
+    # would corrupt the upstream shared K cache.
+    if getattr(self, "is_kv_shared_layer", False):
+        return False
 
-        if not self.is_kv_shared_layer:
-            k = k.unflatten(-1, (self.num_kv_heads, self.head_dim))
-            k = self.k_norm(k)
-            k = k.flatten(-2, -1)
-            q, k = self.rotary_emb(positions, q, k)
-            v = v.unflatten(-1, (self.num_kv_heads, self.head_dim))
-            v = self.v_norm(v)
-            v = v.flatten(-2, -1)
+    # Sliding-attention layers have a tiny KV budget (window=1024);
+    # round-trip overhead is not justified vs storage savings.
+    if getattr(self, "is_sliding", False) and not _FORCE_ALL_LAYERS:
+        return False
 
-            # ── G4_19c hook: round-trip K and V through TurboQuant ──
-            #
-            # ARCHITECTURAL PERF FIX (2026-05-17):
-            # Gemma 4 has 50 sliding (1024 ctx) + 10 full (256K ctx)
-            # attention layers. 99.7% of KV cache memory lives in the
-            # 10 full-attention layers. Sliding layers are tiny and
-            # compression-overhead-bound: round-trip costs more wall
-            # time than the storage saving justifies.
-            #
-            # Skip sliding-attention layers entirely:
-            #   * Sliding layers attribute ``is_sliding=True`` (per
-            #     gemma4.py Gemma4Attention.__init__ — line 436).
-            #   * Skipping cuts the round-trip count from 60 → 10 per
-            #     decode token (~6× less work).
-            # Operator can disable the skip via
-            # ``GENESIS_G4_19C_FORCE_ALL_LAYERS=1``.
-            if (
-                getattr(self, "is_sliding", False)
-                and not _env_truthy_local("GENESIS_G4_19C_FORCE_ALL_LAYERS")
-            ):
-                # No round-trip for sliding layers — fall through with
-                # un-modified K, V. KV cache contribution is negligible
-                # at sliding_window=1024.
-                pass
-            else:
-                # Read pre-attached signs as a plain CUDA-resident
-                # module attribute (set by _wrapped_init via
-                # register_buffer). This is the only access pattern
-                # that survives torch.compile fullgraph — calling out
-                # to _get_or_build_signs from here would force either
-                # a graph break (forbidden by fullgraph) or symbolic
-                # tracing through threading.Lock (unsupported by
-                # Dynamo). See iteration log in commits
-                # 1864f5b1 / Phase 7.G4.G4_19C-FIX for context.
-                # Direct attribute read — Dynamo traces this as a
-                # plain tensor attribute on the module. getattr() with
-                # default would also work but is fuzzier for Dynamo;
-                # the attribute is set by register_buffer in
-                # _wrapped_init so the lookup is guaranteed to succeed
-                # on every layer whose init-wrap fired.
-                if not hasattr(self, "_g4_19c_signs"):
-                    # Init-wrap didn't attach (config absent at
-                    # construction or pre-build failed). Fail open:
-                    # log once and let K, V pass through untouched.
-                    # We MUST NOT try to build signs here — the
-                    # builder uses numpy and cannot run inside a
-                    # fullgraph-compiled region.
-                    if not getattr(self, "_genesis_g4_19c_warned", False):
-                        log.warning(
-                            "[G4_19c] signs not attached at layer=%s "
-                            "(init-wrap missed this layer); falling "
-                            "through with untouched K, V",
-                            getattr(self, "prefix", "?"),
-                        )
-                        self._genesis_g4_19c_warned = True
-                else:
-                    try:
-                        signs = self._g4_19c_signs
-                        write_fn, read_fn, _kernel_name = _resolve_kernels(config)
-                        head_dim = self.head_dim
-                        block_size = getattr(config, "block_size", 128)
-                        k = _roundtrip(k, signs, head_dim, block_size, write_fn, read_fn)
-                        v = _roundtrip(v, signs, head_dim, block_size, write_fn, read_fn)
-                        if _env_debug():
-                            layer_idx = _extract_layer_idx(
-                                getattr(self, "prefix", "")
-                            )
-                            log.debug(
-                                "[G4_19c] layer=%d %s round-tripped K/V "
-                                "(shape=%s dtype=%s)",
-                                layer_idx, _kernel_name,
-                                tuple(k.shape), k.dtype,
-                            )
-                    except Exception as e:  # noqa: BLE001
-                        # Fail-open: log once, fall through with un-modified K, V.
-                        if not getattr(self, "_genesis_g4_19c_warned", False):
-                            log.warning(
-                                "[G4_19c] round-trip failed at layer=%s (%r); "
-                                "falling through with untouched K,V",
-                                getattr(self, "prefix", "?"), e,
-                            )
-                            self._genesis_g4_19c_warned = True
-        else:
-            # Shared-K layer: only apply RoPE to Q
-            q = self.rotary_emb(positions, q, k)[0]
+    return True
 
-        attn_output = self.attn(q, k, v)
-        output, _ = self.o_proj(attn_output)
-        return output
 
-    _wrapped_g4_attn_forward._genesis_g4_19c_wrapped = True
-    _wrapped_g4_attn_forward.__wrapped__ = original_forward
-    return _wrapped_g4_attn_forward
+def _attach_signs_buffer(self) -> None:
+    """Build and attach ``self._g4_19c_signs`` as a non-persistent
+    CUDA-resident buffer. Idempotent."""
+    import torch
+    from .g4_19_config_registry import get_active_config
+    config = get_active_config()
+    layer_idx = _extract_layer_idx(getattr(self, "prefix", ""))
+    head_dim = getattr(self, "head_dim", 256)
+    seed_base = getattr(config, "seed_base", 0xC0FFEE)
+
+    if torch.cuda.is_available():
+        device_str = f"cuda:{torch.cuda.current_device()}"
+    else:
+        device_str = "cpu"
+    key = (layer_idx, head_dim, seed_base, device_str)
+    cached = _SIGNS_CACHE.get(key)
+    if cached is None:
+        signs_cpu = _build_signs_torch(head_dim, layer_idx, seed_base)
+        cached = signs_cpu.to(device_str)
+        with _SIGNS_LOCK:
+            _SIGNS_CACHE.setdefault(key, cached)
+
+    if hasattr(self, "register_buffer") and callable(self.register_buffer):
+        self.register_buffer("_g4_19c_signs", cached, persistent=False)
+    else:
+        self._g4_19c_signs = cached
 
 
 def apply() -> tuple[str, str]:
-    """Install K/V round-trip wrapper on Gemma4Attention.forward."""
-    global _APPLIED, _ORIGINAL_FORWARD
+    """Install K/V round-trip wrapper on Gemma4Attention.
+
+    Iter-3 (Phase 7.G4.G4_19C-FULLGRAPH-AUDIT):
+      • Resolves kernel pair + frozen env flags ONCE at apply() time.
+      • Wraps ``Gemma4Attention.__init__`` at class level so every new
+        instance gets a per-instance specialized forward bound to it.
+      • Does NOT class-level monkeypatch ``Gemma4Attention.forward``
+        — each instance carries its own bound forward via
+        ``types.MethodType``.
+    """
+    global _APPLIED, _ORIGINAL_INIT, _ORIGINAL_FORWARD_REF
+    global _FORCE_ALL_LAYERS, _DEBUG
 
     if not _env_enabled():
         return "skipped", (
@@ -502,15 +400,16 @@ def apply() -> tuple[str, str]:
             "round-trip wrapper for A/B quality+perf benchmarking)"
         )
 
-    # Need an active config from G4_19 — otherwise no kernels to select
+    # Need an active config from G4_19.
     try:
-        from .g4_19_config_registry import is_active
+        from .g4_19_config_registry import is_active, get_active_config
         if not is_active():
             return "skipped", (
                 "G4_19c needs G4_19 to have populated the config registry first "
                 "(set GENESIS_ENABLE_G4_19_GEMMA4_TURBOQUANT_KV=1 + bring G4_19 "
                 "into the apply chain before G4_19c)"
             )
+        config = get_active_config()
     except Exception as e:  # noqa: BLE001
         return "skipped", f"registry lookup failed: {e!r}"
 
@@ -525,102 +424,79 @@ def apply() -> tuple[str, str]:
     if not hasattr(_g4, "Gemma4Attention"):
         return "skipped", "Gemma4Attention class not found on this pin"
 
-    original = _g4.Gemma4Attention.forward
-    if getattr(original, "_genesis_g4_19c_wrapped", False):
-        _APPLIED = True
-        return "applied", "Gemma4Attention.forward already wrapped (idempotent)"
+    # Capture the ORIGINAL forward BEFORE any per-instance binding —
+    # used as the eager-pass install for inactive layers and as the
+    # baseline reference for revert().
+    _ORIGINAL_FORWARD_REF = _g4.Gemma4Attention.forward
 
-    _ORIGINAL_FORWARD = original
-    _g4.Gemma4Attention.forward = _make_wrapped_forward(original)
+    # Freeze env flags at apply() time so the hot path never reads
+    # os.environ.
+    _FORCE_ALL_LAYERS = _env_truthy_local(_ENV_FORCE_ALL_LAYERS)
+    _DEBUG = _env_debug()
 
-    # Also wrap __init__ so signs are built BEFORE first forward (which
-    # may run inside a CUDA-graph capture region — at-runtime allocation
-    # inside a captured graph is unsupported and triggers a Triton trace
-    # error 'attempted to trace numpy function unsupported by PyTorch').
-    global _ORIGINAL_INIT
+    # Resolve the kernel pair ONCE and wire the companion module.
+    write_fn, read_fn, kernel_name = _resolve_kernels(config)
+    block_size = getattr(config, "block_size", 128)
+    from . import g4_19c_per_layer_forward as _per_layer
+    _per_layer.setup(write_fn, read_fn, block_size)
+
+    # Wrap __init__ at class level so every newly-constructed
+    # Gemma4Attention instance receives a per-instance forward.
     original_init = _g4.Gemma4Attention.__init__
-    if not getattr(original_init, "_genesis_g4_19c_init_wrapped", False):
-        _ORIGINAL_INIT = original_init
+    if getattr(original_init, "_genesis_g4_19c_init_wrapped", False):
+        _APPLIED = True
+        return "applied", (
+            f"G4_19c init-wrap already installed (idempotent); "
+            f"kernel={kernel_name}"
+        )
 
-        def _wrapped_init(self, *args, **kwargs):
-            original_init(self, *args, **kwargs)
+    _ORIGINAL_INIT = original_init
+    original_forward = _ORIGINAL_FORWARD_REF
+
+    def _wrapped_init(self, *args, **kwargs):
+        original_init(self, *args, **kwargs)
+
+        do_roundtrip = _decide_layer_active(self)
+        if do_roundtrip:
             try:
-                from .g4_19_config_registry import get_active_config
-                config = get_active_config()
-                if config is None:
-                    return
-                layer_idx = _extract_layer_idx(getattr(self, "prefix", ""))
-                head_dim = getattr(self, "head_dim", 256)
-                seed_base = getattr(config, "seed_base", 0xC0FFEE)
-
-                # Build signs DIRECTLY on the current CUDA device and
-                # attach to ``self`` as a non-persistent buffer. The
-                # forward hot path then reads ``self._g4_19c_signs``
-                # as a plain tensor attribute — fully Dynamo-traceable
-                # under fullgraph compile (no graph break, no cache
-                # lookup, no lock).
-                #
-                # The original implementation kept signs in a process-
-                # global ``_SIGNS_CACHE`` to avoid attaching to nn.Module
-                # because of a CUDA-graph-capture issue with CPU tensor
-                # attributes. That concern is specific to CPU tensors —
-                # a CUDA-resident buffer is the standard way to carry
-                # per-layer constants through ``torch.compile`` +
-                # cudagraph capture. The cache is still populated below
-                # for prewarm / dedup / debug, but forward never reads
-                # from it (and ``_get_or_build_signs`` is no longer
-                # called from any compile region).
-                import torch
-                if torch.cuda.is_available():
-                    device_str = f"cuda:{torch.cuda.current_device()}"
-                else:
-                    device_str = "cpu"
-                key = (layer_idx, head_dim, seed_base, device_str)
-                cached = _SIGNS_CACHE.get(key)
-                if cached is None:
-                    signs_cpu = _build_signs_torch(
-                        head_dim, layer_idx, seed_base,
-                    )
-                    cached = signs_cpu.to(device_str)
-                    with _SIGNS_LOCK:
-                        _SIGNS_CACHE.setdefault(key, cached)
-                # Attach via register_buffer when self is an nn.Module
-                # (the standard path on the vLLM Gemma4Attention class).
-                # Fall back to plain attribute assignment if the class
-                # doesn't subclass nn.Module (defensive — should never
-                # happen on the real Gemma4Attention).
-                if hasattr(self, "register_buffer") and callable(
-                    self.register_buffer
-                ):
-                    self.register_buffer(
-                        "_g4_19c_signs", cached, persistent=False,
-                    )
-                else:
-                    self._g4_19c_signs = cached
+                _attach_signs_buffer(self)
             except Exception as e:  # noqa: BLE001
                 log.warning(
-                    "[G4_19c] sign pre-build at __init__ failed (%r); "
-                    "layer will fall through with un-modified K, V at "
-                    "forward time (no torch.compile-region cold build)",
-                    e,
+                    "[G4_19c] sign pre-build at __init__ failed at "
+                    "layer=%s (%r); installing eager-pass forward on "
+                    "this layer (no round-trip, no Dynamo-region risk)",
+                    getattr(self, "prefix", "?"), e,
                 )
+                do_roundtrip = False
+        self._g4_19c_active = do_roundtrip
 
-        _wrapped_init._genesis_g4_19c_init_wrapped = True
-        _wrapped_init.__wrapped__ = original_init
-        _g4.Gemma4Attention.__init__ = _wrapped_init
+        specialized = _per_layer.make_per_layer_forward(
+            do_roundtrip, original_forward,
+        )
+        # Per-instance bind. Each Gemma4Attention layer's `self.forward`
+        # now points at either original_forward (eager-pass) or
+        # _per_layer._active_forward (active hot path). Dynamo compiles
+        # the bound method graph per instance — no class-level
+        # branching.
+        self.forward = types.MethodType(specialized, self)
+
+    _wrapped_init._genesis_g4_19c_init_wrapped = True
+    _wrapped_init.__wrapped__ = original_init
+    _g4.Gemma4Attention.__init__ = _wrapped_init
 
     _APPLIED = True
-
     log.info(
-        "[G4_19c] installed: Gemma4Attention.forward now round-trips K,V "
-        "through G4-TurboQuant on every call. Note: cache BUFFER unchanged."
+        "[G4_19c] installed iter-3: per-instance specialized forward "
+        "via types.MethodType, allow_in_graph kernel entry. "
+        "kernel=%s force_all_layers=%s",
+        kernel_name, _FORCE_ALL_LAYERS,
     )
     return "applied", (
-        "G4_19c installed: Gemma4Attention.forward now round-trips K,V "
-        "through G4-TurboQuant kernels. Active kernel selected from registry "
-        "(env-driven pack_mode / wht_mode). KV cache BUFFER unchanged — this "
-        "is the A/B harness for quality/perf measurement; full memory "
-        "savings need a separate cache-substitution patch."
+        f"G4_19c iter-3 installed: per-layer specialized forward "
+        f"(allow_in_graph kernel entry). kernel={kernel_name}. "
+        "KV cache BUFFER unchanged — this is the A/B harness for "
+        "quality/perf measurement; full memory savings need a separate "
+        "cache-substitution patch."
     )
 
 
@@ -629,17 +505,22 @@ def is_applied() -> bool:
 
 
 def revert() -> bool:
-    global _APPLIED, _ORIGINAL_FORWARD, _ORIGINAL_INIT
+    """Restore the original ``Gemma4Attention.__init__``. Per-instance
+    forwards on already-constructed layers persist on those instances
+    until they're garbage-collected (Gemma4Attention objects only live
+    for the lifetime of one model load).
+    """
+    global _APPLIED, _ORIGINAL_INIT, _ORIGINAL_FORWARD_REF
     if not _APPLIED:
         return False
     try:
         from vllm.model_executor.models import gemma4 as _g4
-        if _ORIGINAL_FORWARD is not None:
-            _g4.Gemma4Attention.forward = _ORIGINAL_FORWARD
         if _ORIGINAL_INIT is not None:
             _g4.Gemma4Attention.__init__ = _ORIGINAL_INIT
         _SIGNS_CACHE.clear()
         _APPLIED = False
+        _ORIGINAL_INIT = None
+        _ORIGINAL_FORWARD_REF = None
         return True
     except ImportError:
         return False
@@ -650,4 +531,5 @@ __all__ = [
     "apply",
     "is_applied",
     "revert",
+    "prewarm_signs",
 ]
