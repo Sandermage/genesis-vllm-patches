@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 alias — Gemma 4 26B-A4B AWQ-4bit, multi-conc throughput.
+# `sndr launch prod-gemma4-26b-a4b-multiconc` resolves to (model, hardware, profile).
+#
+# THE MAIN QUESTION FOR THE 26B-A4B BENCH CYCLE: does Gemma 4 MoE A=4B
+# replicate the Qwen 35B-A3B effect on multi-conc aggregate throughput?
+#
+# Reference: Phase 7.B.2.B2 measured Qwen 35B-A3B at 672 TPS agg @ conc=8
+# vs Qwen 27B-dense INT4 at 471 TPS @ conc=8 (+43%). The hypothesis here
+# is that 26B-A4B's smaller active-param tile (~4B) lets it batch more
+# efficiently than 31B dense, replicating the architectural advantage
+# on Gemma family.
+#
+# Bench harness: tools/multi_conc_bench.py --conc 8 --rounds 5 --max-tok 1024
+# (same harness used for Qwen prod-35b-multiconc baseline in commit d52eb168).
+#
+# Sibling presets:
+#   prod-gemma4-26b-a4b-default      — K=1 single-stream control
+#   prod-gemma4-26b-a4b-mtp-k4       — K=4 single-stream structured
+
+model: gemma-4-26b-a4b-it-awq
+hardware: a5000-2x-24gbvram-16cpu-128gbram
+profile: gemma4-a4b-multiconc                     # max_num_seqs=8, MTP K=4, max_model_len 16K

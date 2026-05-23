@@ -45,6 +45,17 @@ class TestExistingProfilesLoadUnchanged:
     _RUNTIME_ROLE_EXEMPTIONS = frozenset({
         "gemma4-tq-default",                # role=default, no spec/compression/etc.
         "gemma4-tq-mtp-structured-k4",      # role=structured, full structured config
+        # Phase 7.G4.26B-A4B.B0 (2026-05-23): 26B-A4B MoE profiles.
+        # K=1 control (no-mtp) uses role=default + spec_decode_override
+        # to K=1 because 26B-A4B ModelDef pre-dates Variant A and still
+        # declares MTP K=4 at model level — null override would inherit
+        # K=4, so K=1 is the closest available MTP-off control. K=4
+        # sibling uses role=structured + routing block. multiconc uses
+        # role=default + sizing_override (max_num_seqs=8); the
+        # multi-conc semantic is sizing not role-class.
+        "gemma4-a4b-no-mtp",                # role=default, spec_decode K=1 control
+        "gemma4-a4b-mtp-k4",                # role=structured, MTP K=4
+        "gemma4-a4b-multiconc",             # role=default, max_num_seqs=8
     })
 
     def test_all_builtin_profiles_load_with_new_fields_default_none(self):

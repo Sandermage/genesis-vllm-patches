@@ -1,0 +1,91 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 profile — gemma4-a4b-multiconc
+# Role: multiconc throughput — Gemma 4 MoE A=4B at concurrency=8.
+#
+# THIS IS THE MAIN QUESTION FOR THE 26B-A4B BENCH CYCLE.
+#
+# Hypothesis: Gemma 4 26B-A4B MoE (A=4B active params) replicates the
+# Qwen 35B-A3B effect — "bigger" nominal model wins multi-conc
+# aggregate throughput vs dense alternatives because active params
+# load is much smaller. Phase 7.B.2.B2 measured Qwen 35B-A3B at
+# 672 TPS aggregate at conc=8 vs 27B-dense INT4 at 471 TPS (+43%).
+#
+# For Gemma 4 the comparison vs 31B-dense isn't directly measurable
+# (31B's V2 path has multiple blockers; β'-A is single-stream only).
+# This profile targets the absolute multi-conc number for 26B-A4B
+# itself — to be compared against ModelDef projection (~120-160 TPS
+# single-stream) and any future Gemma 4 dense multi-conc baseline.
+#
+# Sizing rationale:
+#   max_num_seqs=8 to match the Qwen multi-conc bench design.
+#   max_model_len reduced to 16K because 8 concurrent streams require
+#   8x the KV budget vs single-stream. With AWQ-4bit weights ~8.5 GB
+#   per GPU at TP=2, plus MoE expert dispatch cache, plus 8x KV pool,
+#   we need a tighter context bound. 16K is conservative; first boot
+#   smoke will validate VRAM headroom and we can raise to 32K if there
+#   is room.
+
+schema_version: 2
+kind: profile
+id: gemma4-a4b-multiconc
+parent_model: gemma-4-26b-a4b-it-awq
+maintainer: sandermage
+status: experimental                              # not yet boot-validated; B0 creates this file
+created: '2026-05-23'
+
+# ─── Runtime role ──────────────────────────────────────────────────────
+# PROFILE_ROLES enum is {default, structured, gateway, None}; "multiconc"
+# is not a runtime-role classifier (it's a sizing/throughput regime). The
+# multi-conc semantic lives entirely in sizing_override.max_num_seqs=8
+# below. role=default keeps this profile workload-class-unrestricted —
+# any incoming workload can use this preset; the user opts in via launcher
+# alias, not via router gating. Same convention as the existing
+# 27b-multiconc / 35b-multiconc / prod-35b-multiconc profiles.
+role: default
+spec_decode_override:                             # MTP K=4 (matches Qwen multi-conc precedent and ModelDef default)
+  method: mtp
+  num_speculative_tokens: 4
+  model: /models/gemma-4-26B-A4B-it-assistant
+compression_plan: null
+backend_plan: null
+routing: null                                     # multiconc profile takes all incoming workloads; no per-class gating
+validation: null
+
+# ─── Sizing override ───────────────────────────────────────────────────
+# Multi-conc regime: lower max_model_len to fit 8 concurrent KV pools.
+# Same gpu_memory_utilization as single-stream profiles — KV pool grows
+# linearly with max_num_seqs, not with max_model_len.
+sizing_override:
+  max_model_len: 16384                            # 16K — conservative for 8x KV; raise after boot smoke if headroom available
+  gpu_memory_utilization: 0.85
+  max_num_seqs: 8                                 # the multi-conc test target
+  max_num_batched_tokens: 4096
+  enable_chunked_prefill: true
+  enforce_eager: false
+  disable_custom_all_reduce: true
+
+# ─── Patches delta ─────────────────────────────────────────────────────
+# G4_19C disable — same rationale as siblings.
+patches_delta:
+  enable: {}
+  disable: []
+  override:
+    GENESIS_ENABLE_G4_19C_ATTN_WRAP: '0'
+
+# ─── Promotion contract ────────────────────────────────────────────────
+promotion:
+  validation_required:
+    - "26B-A4B B1 multiconc smoke: boot prod-gemma4-26b-a4b-multiconc through V2 compose without G4_08/G4_18 OR MoE expert-routing runtime failures"
+    - "tools/multi_conc_bench.py --conc 8 --rounds 5 --max-tok 1024: agg_TPS measured + compared against Qwen 35B-A3B 672 TPS reference"
+    - "no schema corruption / unicode garble at conc=8 (5-prompt smoke)"
+    - "PN248 acceptance distribution at conc=8 captured and parsed"
+  promote_to: null
+  notes: |
+    Status experimental until first multi-conc bench completes. The
+    primary question this profile answers: does Gemma 4 MoE A=4B
+    multiconc throughput land in the same TPS-class as Qwen 35B-A3B?
+    If yes (e.g. >= 400 TPS aggregate at conc=8), the MoE preset
+    becomes a strong production candidate for batch API workloads.
+    If no (e.g. < 200 TPS at conc=8), the MoE arch's multi-conc
+    advantage is workload-dependent and needs further investigation
+    (expert routing efficiency, AWQ MoE GEMM kernel, etc.).

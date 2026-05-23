@@ -1,0 +1,77 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 profile — gemma4-a4b-mtp-k4
+# Role: structured — MTP K=4 for gemma-4-26b-a4b-it-awq (MoE A=4B).
+#
+# Sibling of gemma4-a4b-no-mtp (K=1 control). Together they implement
+# the K=1 vs K=4 fair-comparison test for the MoE arch, mirroring the
+# B1.1 + B1.2 work on 31B dense.
+#
+# Hypothesis under test: does the workload gate from B1.1 + B1.2
+# (β'-A artifact's denied_workloads vs allowed_workloads) generalize
+# from gemma4_dense to gemma4_moe? Acceptance distribution shape
+# should determine this — drafter accuracy depends on output content
+# predictability (high on structured JSON, low on free-chat), not on
+# target architecture.
+#
+# Spec-decode config matches the 26B-A4B ModelDef's default
+# (method=mtp, K=4, drafter=gemma-4-26B-A4B-it-assistant). The
+# 26B-A4B-assistant is purpose-paired (config.text_config.attention_k_eq_v
+# = true) — same dense-assistant-for-MoE-target pattern as Qwen.
+
+schema_version: 2
+kind: profile
+id: gemma4-a4b-mtp-k4
+parent_model: gemma-4-26b-a4b-it-awq
+maintainer: sandermage
+status: experimental                              # not yet boot-validated; B0 creates this file
+created: '2026-05-23'
+
+# ─── Runtime role ──────────────────────────────────────────────────────
+role: structured                                  # MTP K=4 positive case; workload-gated at request-router
+spec_decode_override:                             # explicit K=4 (matches ModelDef capabilities; explicit for self-documentation)
+  method: mtp
+  num_speculative_tokens: 4
+  model: /models/gemma-4-26B-A4B-it-assistant
+compression_plan: null                            # 26B-A4B uses kv_cache_dtype: auto, no per-layer compression plan needed
+backend_plan: null                                # MoE expert routing handled by G4_04 (AWQ MoE keys); no profile-side backend forcing yet
+routing:                                          # operator-declared workload intent
+  intended_workloads:
+    - structured_count
+    - tool_json
+validation: null                                  # no cryptographic artifact for 26B-A4B yet (β'-A artifact is 31B-specific)
+
+# ─── Sizing override ───────────────────────────────────────────────────
+# Same single-stream regime as no-mtp sibling — fair K=1 vs K=4 test.
+sizing_override:
+  max_model_len: 32768
+  gpu_memory_utilization: 0.85
+  max_num_seqs: 2
+  max_num_batched_tokens: 4096
+  enable_chunked_prefill: true
+  enforce_eager: false
+  disable_custom_all_reduce: true
+
+# ─── Patches delta ─────────────────────────────────────────────────────
+# G4_19C disable — same rationale as no-mtp sibling. See Phase
+# 7.G4.B1.1-UNBLOCK / 81949928 / G4_19C-FULLGRAPH-AUDIT.
+patches_delta:
+  enable: {}
+  disable: []
+  override:
+    GENESIS_ENABLE_G4_19C_ATTN_WRAP: '0'
+
+# ─── Promotion contract ────────────────────────────────────────────────
+promotion:
+  validation_required:
+    - "26B-A4B B1 smoke: boot prod-gemma4-26b-a4b-mtp-k4 through V2 compose without G4_08/G4_18 runtime failures"
+    - "26B-A4B B1 free-chat bench: PN248 acceptance distribution measured — k-distribution should shape similar to B1.1 31B free-chat (high k=0, low mean) IF workload-gate hypothesis generalizes"
+    - "26B-A4B B1 structured JSON bench: PN248 mean k ≥ 2.0 (within 0.5 of 31B's 2.79 on structured); schema pass close to K=1 sibling"
+    - "no measurable quality regression vs K=1 control on either workload"
+  promote_to: null
+  notes: |
+    Status experimental until B1 closes both workloads. Promotion
+    requires the workload-gate hypothesis to hold on MoE arch — i.e.
+    K=4 helps structured but is at-best-neutral on free-chat. If MoE
+    arch shifts the gate (e.g. K=4 helps free-chat too because the
+    smaller assistant predicts MoE outputs differently), profile may
+    promote to default-on for broader workloads.

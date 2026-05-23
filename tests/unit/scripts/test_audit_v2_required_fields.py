@@ -152,7 +152,10 @@ class TestLiveRepo:
         # Wave 10 baseline was 39 with 6 models and 15 profiles).
         # Phase 7.G4.B1.0 (2026-05-23): +2 Gemma 4 31B presets
         # (10 model + 3 hardware + 17 profile + 17 preset = 47).
-        assert len(results) == 47
+        # Phase 7.G4.26B-A4B.B0 (2026-05-23): +3 Gemma 4 26B-A4B
+        # profiles + 3 preset aliases
+        # (10 model + 3 hardware + 20 profile + 20 preset = 53).
+        assert len(results) == 53
 
 
 # ─── CLI ──────────────────────────────────────────────────────────────

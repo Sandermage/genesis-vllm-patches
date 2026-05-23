@@ -90,7 +90,9 @@ class TestLiveRepo:
         # Phase 5.4 (2026-05-22): refreshed for current fleet
         # (10 model + 3 hardware + 17 profile = 30; Wave 10 baseline
         # was 24 with 6 models and 15 profiles).
-        assert len(results) == 30
+        # Phase 7.G4.26B-A4B.B0 (2026-05-23): +3 Gemma 4 26B-A4B
+        # profiles (no new models / hardware) → 33.
+        assert len(results) == 33
 
 
 class TestScriptCLI:

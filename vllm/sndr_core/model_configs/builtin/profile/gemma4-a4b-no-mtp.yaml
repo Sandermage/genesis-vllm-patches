@@ -1,0 +1,97 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 profile — gemma4-a4b-no-mtp
+# Role: default control — MTP K=1 baseline for gemma-4-26b-a4b-it-awq.
+#
+# Naming clarification: "no-mtp" is the DESIGN INTENT (MTP effectively off
+# for production-safe broad-workload use). The MECHANICAL implementation
+# is MTP K=1 (`spec_decode_override.num_speculative_tokens: 1`) because:
+#
+#   1. The 26B-A4B ModelDef pre-dates Variant A migration and still
+#      declares `capabilities.spec_decode = {method: mtp, K: 4, model: ...}`
+#      at the model level. compose() reads this default unless the
+#      profile overrides with a non-null SpecDecodeConfig.
+#   2. SpecDecodeConfig.method enum does not include "none" / "off".
+#      Setting spec_decode_override = null would inherit the K=4 default,
+#      which is NOT what we want for a control baseline.
+#   3. MTP K=1 is the established control in Phase 7.G4.B1.1 + B1.2
+#      (hand-launcher ~/start_g4_betaA_k1.sh K=1 produced the negative-
+#      test baseline for free-chat). K=1 keeps the drafter loaded but
+#      speculates 1 token per step — effectively no speculation gain.
+#
+# When (later) the 26B-A4B ModelDef migrates to Variant A (move MTP
+# out of model.capabilities into structured profile only), this
+# profile should be updated to spec_decode_override: null. Until then,
+# K=1 is the cleanest available "MTP-control" semantic for fair K=1
+# vs K=4 comparison.
+#
+# This profile pairs with gemma4-a4b-mtp-k4 (positive-case structured
+# profile) and gemma4-a4b-multiconc (K=4 + max_num_seqs=8 for the
+# Qwen 35B-A3B multi-conc throughput analog test).
+
+schema_version: 2
+kind: profile
+id: gemma4-a4b-no-mtp
+parent_model: gemma-4-26b-a4b-it-awq
+maintainer: sandermage
+status: experimental                              # not yet boot-validated; Phase 7.G4.26B-A4B.B0 creates this file
+created: '2026-05-23'
+
+# ─── Runtime role ──────────────────────────────────────────────────────
+role: default                                     # default control: K=1 baseline, broad workload safe
+spec_decode_override:                             # K=1 control (see header for why not null)
+  method: mtp
+  num_speculative_tokens: 1
+  model: /models/gemma-4-26B-A4B-it-assistant
+compression_plan: null
+backend_plan: null
+routing: null
+validation: null
+
+# ─── Sizing override ───────────────────────────────────────────────────
+# Hardware default max_model_len is 280K (28B+ A100/H100 class). On
+# 2x A5000 24GB with AWQ-4bit 26B-A4B + MTP K=1 + assistant 832 MB,
+# the KV pool budget at 280K context overflows. Explicit bound here
+# to avoid the same class of "12.64 GiB KV needed, 10 GiB available"
+# failure seen in 31B B1.1 default-preset boot attempt.
+sizing_override:
+  max_model_len: 32768                            # 32K — fits comfortably; conservative for single-stream control
+  gpu_memory_utilization: 0.85                    # leave headroom for MTP K=1 + assistant + MoE expert cache
+  max_num_seqs: 2                                  # single-stream regime (control baseline)
+  max_num_batched_tokens: 4096                    # chunked prefill chunk size
+  enable_chunked_prefill: true                    # required for spec-decode + AWQ MoE
+  enforce_eager: false                            # cudagraph capture enabled
+  disable_custom_all_reduce: true                 # NCCL fallback on 2x A5000 PCIe
+
+# ─── Patches delta ─────────────────────────────────────────────────────
+# Profile-local override disables G4_19C attention K/V round-trip
+# wrapper. See Phase 7.G4.B1.1-UNBLOCK commit 81949928 for full
+# context: G4_19C has unresolved Dynamo fullgraph-trace issues
+# (lock context manager, @torch._dynamo.disable in fullgraph,
+# log.warning in compile region, init-order vs config-registry race).
+# Three narrow fix iterations (1864f5b1, 3b135087) closed individual
+# surfaces but more remain. Phase 7.G4.G4_19C-FULLGRAPH-AUDIT will
+# ship a coherent fix. Until then, profile-local disable is the
+# canonical unblock pattern (proven on 31B presets).
+#
+# Note: 26B-A4B uses kv_cache_dtype: auto (NOT turboquant_4bit_nc),
+# so G4_19C's design purpose (inject TQ quantization noise into K/V)
+# is structurally moot on this profile. Disabling it has zero
+# semantic effect on the runtime KV cache.
+patches_delta:
+  enable: {}
+  disable: []
+  override:
+    GENESIS_ENABLE_G4_19C_ATTN_WRAP: '0'          # TEMPORARY — see G4_19C-FULLGRAPH-AUDIT
+
+# ─── Promotion contract ────────────────────────────────────────────────
+promotion:
+  validation_required:
+    - "26B-A4B B1 smoke: boot prod-gemma4-26b-a4b-default through V2 compose without G4_08/G4_18 runtime failures"
+    - "26B-A4B B1 free-chat bench: K=1 wall_TPS baseline established (no spec-decode regression vs ModelDef declared ~120-160 TPS projection)"
+    - "26B-A4B B1 structured JSON pass-rate: parse 10/10 + schema_pass close to K=4 sibling (within 1-2 cases CV)"
+  promote_to: null
+  notes: |
+    Status experimental until B1 boots cleanly + first bench-suite quick
+    completes. Promotion gate: same shape as prod-27b-tq's path —
+    measured single-stream TPS within 20% of ModelDef projection AND
+    no boot blockers AND no schema regression vs K=4 sibling.

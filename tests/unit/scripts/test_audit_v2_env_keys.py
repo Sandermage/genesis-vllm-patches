@@ -92,9 +92,11 @@ class TestWalkers:
         entries = mod._walk_resolved_aliases(canon)
         # Wave 10 V2 layout had 15 preset aliases.
         # Phase 7.G4.B1.0 (2026-05-23): +2 Gemma 4 31B presets → 17.
+        # Phase 7.G4.26B-A4B.B0 (2026-05-23): +3 Gemma 4 26B-A4B
+        # preset aliases (default + mtp-k4 + multiconc) → 20.
         # Test name kept as "fifteen" for grep continuity; assertion
         # tracks current fleet.
-        assert len(entries) == 17
+        assert len(entries) == 20
         for e in entries:
             assert e.layer == "resolved-alias"
 

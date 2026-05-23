@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 alias — Gemma 4 26B-A4B AWQ-4bit, MTP K=4 (structured).
+# `sndr launch prod-gemma4-26b-a4b-mtp-k4` resolves to (model, hardware, profile).
+#
+# Structured-role preset for the MoE A=4B target. MTP K=4 via the
+# 26B-A4B-it-assistant drafter. Designed for tool_json / structured_count
+# workloads where speculation gain dominates drafter overhead.
+#
+# Sibling presets:
+#   prod-gemma4-26b-a4b-default      — K=1 control (effective MTP-off)
+#   prod-gemma4-26b-a4b-multiconc    — K=4 + conc=8
+#
+# Hypothesis under test (Phase 7.G4.26B-A4B.B1):
+#   Does the workload gate from B1.1 + B1.2 (validated on 31B dense)
+#   generalize to 26B-A4B MoE arch? If yes, K=4 should help tool_json
+#   AND hurt free_chat with PN248 acceptance distribution mirroring
+#   the 31B pattern (high k=4 on JSON, high k=0 on free-chat).
+
+model: gemma-4-26b-a4b-it-awq
+hardware: a5000-2x-24gbvram-16cpu-128gbram
+profile: gemma4-a4b-mtp-k4                        # K=4 + assistant; same single-stream sizing as default sibling

@@ -41,7 +41,9 @@ class TestLiveRepo:
         # Wave 10 baseline was 60 with 15 profiles).
         # Phase 7.G4.B1.0 (2026-05-23): +2 Gemma 4 31B presets
         # (17 profile + 17 preset×3 = 68 refs).
-        assert len(results) == 68
+        # Phase 7.G4.26B-A4B.B0 (2026-05-23): +3 Gemma 4 26B-A4B
+        # profiles + 3 presets (20 profile + 20 preset×3 = 80 refs).
+        assert len(results) == 80
 
 
 class TestScriptCLI:
@@ -63,7 +65,8 @@ class TestScriptCLI:
         # Phase 5.4 (2026-05-22): refreshed for current fleet (62 refs;
         # was 60 in Wave 10 era with 15 profiles vs current 17).
         # Phase 7.G4.B1.0 (2026-05-23): +2 Gemma 4 31B presets = 68.
-        assert payload["total"] == 68
+        # Phase 7.G4.26B-A4B.B0 (2026-05-23): +3 profiles + 3 presets = 80.
+        assert payload["total"] == 80
 
 
 class TestSyntheticBroken:

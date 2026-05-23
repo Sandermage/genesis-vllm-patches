@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 alias — Gemma 4 26B-A4B AWQ-4bit, K=1 MTP control (default).
+# `sndr launch prod-gemma4-26b-a4b-default` resolves to (model, hardware, profile).
+#
+# Default-mode preset for the MoE A=4B target. Pairs with:
+#   prod-gemma4-26b-a4b-mtp-k4         — K=4 positive-case (structured)
+#   prod-gemma4-26b-a4b-multiconc      — K=4 + conc=8 (Qwen 35B-A3B analog)
+#
+# "Default" here means: MTP K=1 control (effective MTP-off baseline).
+# See gemma4-a4b-no-mtp profile docstring for why this is K=1 and not
+# spec_decode=null (26B-A4B ModelDef pre-dates Variant A migration).
+#
+# Bench status (2026-05-23):
+#   Phase 7.G4.26B-A4B.B0 = preset creation only (this file).
+#   Phase 7.G4.26B-A4B.B1 will boot-smoke + bench K=1 baseline,
+#   compare against K=4 sibling and 31B B1.1/B1.2 baselines.
+
+model: gemma-4-26b-a4b-it-awq                    # MoE 128 experts, top_k=8, A=4B active, AWQ-4bit
+hardware: a5000-2x-24gbvram-16cpu-128gbram       # Sander 2× A5000 homelab
+profile: gemma4-a4b-no-mtp                        # K=1 control (MTP off-by-design; profile docstring explains K=1 mechanism)
