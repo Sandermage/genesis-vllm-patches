@@ -197,7 +197,20 @@ patches_delta:
     # ── Safety guard structural opt-in (PN274) ──
     SNDR_ALLOW_SPEC_DECODE_KV_ADAPTER: '1'
   disable: []
-  override: {}
+  # TEMPORARY profile-local override pending Phase 7.G4.G4_19C-FULLGRAPH-AUDIT.
+  # The G4_19C attention K/V round-trip wrapper has multiple Dynamo-incompat
+  # surfaces under vLLM's fullgraph compile (lock context manager,
+  # @torch._dynamo.disable in fullgraph, log.warning in compile region,
+  # init-order race vs config-registry populate). Three iterations of
+  # narrow fixes (commits 1864f5b1, 3b135087) closed individual surfaces
+  # but more remain. Until the dedicated audit phase ships a coherent fix,
+  # this preset boots with G4_19C off — functionally closer to the
+  # hand-launcher beta'-A reference (which also bypasses G4_19C, via the
+  # PR42637 bind-mount overlay path) than the broken-but-enabled state.
+  # The TurboQuant KV cache itself (--kv-cache-dtype turboquant_4bit_nc)
+  # is driven by the G4_60a..k overlay stack above and is unaffected.
+  override:
+    GENESIS_ENABLE_G4_19C_ATTN_WRAP: '0'         # TEMPORARY — see Phase 7.G4.G4_19C-FULLGRAPH-AUDIT
 
 # ─── Promotion contract ────────────────────────────────────────────────
 # Promotion to canonical model.patches is intentionally NOT planned for
