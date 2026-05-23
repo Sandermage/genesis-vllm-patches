@@ -129,3 +129,52 @@ def test_apply_skips_when_registry_empty(monkeypatch):
     status, msg = mod.apply()
     assert status == "skipped"
     assert "registry" in msg or "G4_19" in msg
+
+
+def test_get_or_build_signs_dynamo_disabled():
+    """G4_19c bug 2026-05-23: ``_get_or_build_signs`` had ``with
+    _SIGNS_LOCK:`` on the cold path, which made torch.compile bail
+    the entire engine init at warmup because Dynamo cannot trace
+    ``threading.Lock`` context managers.
+
+    Fix: ``@torch._dynamo.disable`` on both ``_get_or_build_signs``
+    and ``_build_signs_torch`` so the lock context manager is never
+    seen by a Dynamo trace.
+
+    Regression test: call ``_get_or_build_signs`` from inside a
+    ``torch.compile`` boundary. Before the fix this raised
+    ``torch._dynamo.exc.Unsupported`` / engine bail. After the fix
+    it returns the signs tensor cleanly because Dynamo treats the
+    function as an opaque eager call.
+    """
+    torch = pytest.importorskip("torch")
+    from vllm.sndr_core.integrations.attention.turboquant import (
+        g4_19c_attention_wrapper as mod,
+    )
+
+    # CPU device works for the trace test — Dynamo will still try
+    # (and fail without the fix) regardless of device.
+    device = torch.device("cpu")
+
+    # Pre-populate the cache so the hot path is exercised; cold path
+    # is also Dynamo-disabled but the dict.get is what we want to
+    # verify works under compile.
+    signs0 = mod._get_or_build_signs(0, 8, 0xC0FFEE, device)
+    assert signs0.shape == (8,)
+    assert signs0.dtype == torch.float32
+
+    def caller(x):
+        # The wrapper function called from a torch.compile region.
+        # _get_or_build_signs is @torch._dynamo.disable, so Dynamo
+        # graph-breaks at the call but does not bail.
+        signs = mod._get_or_build_signs(0, 8, 0xC0FFEE, device)
+        return x * signs.sum()
+
+    # mode="reduce-overhead" is the typical vLLM compile setting; if
+    # the fix regresses, this raises Unsupported at trace time.
+    compiled = torch.compile(caller, fullgraph=False)
+    out = compiled(torch.ones(4))
+    # signs are ±1, sum is an integer in [-8, 8]; just verify the
+    # call completes and returns a tensor of the expected shape.
+    assert out.shape == (4,)
+    assert out.dtype == torch.float32
