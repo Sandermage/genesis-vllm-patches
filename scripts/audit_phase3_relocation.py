@@ -114,32 +114,81 @@ def _shim_target(path: Path) -> str | None:
     return m.group(1) if m else None
 
 
+# Phase 7.G4.OVERLAY-PATH-CONSISTENCY (2026-05-23): STRICT allowlist
+# of the two entries permitted inside integrations/gemma4/ — see
+# vllm/sndr_core/integrations/gemma4/README.md for the operator
+# rationale.
+R1_ALLOWED_SYMLINK_NAME = "upstream_overlay_pr42637"
+R1_ALLOWED_SYMLINK_TARGET = "../attention/turboquant/overlays/pr42637"
+R1_ALLOWED_README = "README.md"
+
+
 def check_r1_gemma_whitelist() -> list[str]:
-    """R1: integrations/gemma4/ directory MUST NOT exist (Phase 2.5).
+    """R1: integrations/gemma4/ MUST NOT contain Gemma-specific code.
 
     Phase 2.2..2.4 of the production cleanup workstream relocated
     every tracked file out of integrations/gemma4/ to its
-    technical-area canonical home. Phase 2.5 (2026-05-22) deletes
-    the now-empty directory and flips this audit from "allowlist
-    permitted contents" to "the directory itself is forbidden".
+    technical-area canonical home. Phase 2.5 (2026-05-22) deleted
+    the now-empty directory.
 
-    Any reintroduction of the path (intentional or accidental — e.g.,
-    a future relocation revert, a fresh G4 patch landed in the wrong
-    family bucket, or a stray .DS_Store creating an inode) flips
-    this audit red so the regression is caught at the canonical
-    Genesis gate, not at boot.
+    Phase 7.G4.OVERLAY-PATH-CONSISTENCY (2026-05-23) re-introduced
+    the directory as a STRICT path-compat shim — exactly one
+    symlink (`upstream_overlay_pr42637` → the canonical post-Phase-2.4
+    overlay location under attention/turboquant/overlays/pr42637)
+    plus a README explaining the intent. The shim preserves the
+    β'-A hand-launcher md5 invariant (40+ launchers under
+    ~/start_g4_*.sh reference the historical path).
+
+    R1 therefore tolerates EXACTLY two entries:
+
+      1. README.md (regular file, any size).
+      2. upstream_overlay_pr42637 → ../attention/turboquant/overlays/pr42637
+         (symlink with exactly this name and exactly this raw target).
+
+    Any other entry — a .py file, a different symlink, a symlink
+    with the wrong target, a subdirectory, .DS_Store, __pycache__,
+    etc. — is a violation. The intent ("no Gemma-specific code
+    here") is preserved; the carve-out only permits the path-compat
+    shim itself.
     """
-    if GEMMA4_DIR.exists():
-        return [
-            f"R1: integrations/gemma4/ exists at {GEMMA4_DIR} — "
-            f"this path is forbidden post-Phase-2.5. Every G4 patch / "
-            f"kernel / overlay belongs to a technical-area family "
-            f"(model_compat/gemma4/, attention/turboquant/overlays/, etc.). "
-            f"If you need to add something Gemma-specific, route it to "
-            f"the appropriate technical-area bucket; do not recreate "
-            f"this directory."
-        ]
-    return []
+    if not GEMMA4_DIR.exists():
+        return []
+
+    import os
+    issues: list[str] = []
+    for entry in sorted(GEMMA4_DIR.iterdir(), key=lambda p: p.name):
+        name = entry.name
+        if name == R1_ALLOWED_README and entry.is_file() and not entry.is_symlink():
+            continue
+        if name == R1_ALLOWED_SYMLINK_NAME and entry.is_symlink():
+            # Use os.readlink so we check the RAW relative target,
+            # not the resolved absolute path. A symlink with the
+            # right name but the wrong target (e.g. absolute path
+            # or different relative depth) must fail.
+            raw_target = os.readlink(entry)
+            if raw_target == R1_ALLOWED_SYMLINK_TARGET:
+                continue
+            issues.append(
+                f"R1: symlink {entry} points at unexpected target "
+                f"{raw_target!r}; the only permitted target is "
+                f"{R1_ALLOWED_SYMLINK_TARGET!r}"
+            )
+            continue
+        # Any other entry — code, alternate symlink, subdir, cache, etc.
+        kind = (
+            "symlink" if entry.is_symlink()
+            else "directory" if entry.is_dir()
+            else "file"
+        )
+        issues.append(
+            f"R1: forbidden {kind} {entry} — integrations/gemma4/ "
+            f"tolerates ONLY README.md and the upstream_overlay_pr42637 "
+            f"symlink (see vllm/sndr_core/integrations/gemma4/README.md). "
+            f"Every G4 patch / kernel / overlay belongs to a "
+            f"technical-area family (model_compat/gemma4/, "
+            f"attention/turboquant/overlays/, etc.)."
+        )
+    return issues
 
 
 # ─── R2: Canonical apply path ───────────────────────────────────────────
