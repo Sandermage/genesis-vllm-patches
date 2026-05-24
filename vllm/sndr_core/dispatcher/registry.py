@@ -242,9 +242,22 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "env_flag": "GENESIS_ENABLE_P66_CUDAGRAPH_SIZE_FILTER",
         "default_on": False,
         "category": "spec_decode",
-        "credit": "Genesis-original (mirrors fhl2000 vllm#23679 closed)",
+        "credit": (
+            "Genesis-original runtime filter (mirrors fhl2000 vllm#23679, "
+            "closed-without-merge 2026-03-13). Audit 2026-05-24 "
+            "(PIN.R-P66-METADATA.1): relationship reclassified from "
+            "`backport` to `related_not_superseding` — Genesis P66 is a "
+            "narrow runtime filter on cudagraph_capture_sizes at the "
+            "consumer call site, while the cited upstream PR was a "
+            "broader config-time refactor of the size-derivation logic. "
+            "Same bug class (#28015 family), different layer, coverage "
+            "does not overlap. Status-only retire FORBIDDEN — "
+            "audit_upstream_status.py routes this entry to "
+            "RELATED-NOT-SUPERSEDING bucket; iron-rule-#11 deep-parity "
+            "remains the only retire path."
+        ),
         "upstream_pr": 23679,
-        "upstream_pr_relationship": "backport",
+        "upstream_pr_relationship": "related_not_superseding",
         "apply_module": "vllm.sndr_core.integrations.compile_safety.p66_cudagraph_size_divisibility_filter",
         "lifecycle": "experimental",
         "implementation_status": "full",
