@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-05-24",
+  "phase": "CONFIG-UX.4.1",
+  "notes": "Single source of truth for V1 monolithic preset key migration buckets. Read by `_rollout.py` + `audit_v1_migration.py`. Tombstone bucket initially empty; populated per-incident via `sndr_private/planning/incidents/`.",
+  "entries": {
+    "a5000-2x-27b-int4-tq-k8v4": {
+      "bucket": "transparent",
+      "v2_preset": "prod-27b-tq",
+      "rationale": "Direct match — V2 preset composes identical config (TQ k8v4 + MTP K=3 single-stream)."
+    },
+    "a5000-2x-35b-prod": {
+      "bucket": "transparent",
+      "v2_preset": "prod-35b",
+      "rationale": "Direct match — V2 preset composes identical config (FP8 + TQ k8v4 + MTP K=3 balanced)."
+    },
+    "a5000-2x-27b-dflash-true": {
+      "bucket": "transparent",
+      "v2_preset": "prod-27b-dflash",
+      "rationale": "Direct match — V2 preset composes identical config (DFlash N=5 single-stream)."
+    },
+    "a5000-2x-27b-int4-tq-k8v4-dflash": {
+      "bucket": "needs_operator_choice",
+      "v2_preset": null,
+      "rationale": "Combines TQ k8v4 + DFlash drafter; no 1:1 V2 alias yet. Operator picks prod-27b-tq or prod-27b-dflash depending on K choice. CONFIG-UX.2b may add a `prod-27b-tq-dflash` preset."
+    },
+    "a5000-2x-27b-int4-long-ctx": {
+      "bucket": "needs_operator_choice",
+      "v2_preset": "long-ctx-27b",
+      "rationale": "V2 alias exists but card-less + bench_pending; needs long-context evidence refresh before promotion to production."
+    },
+    "a5000-2x-35b-fp8-dflash": {
+      "bucket": "needs_operator_choice",
+      "v2_preset": "prod-35b-dflash",
+      "rationale": "V2 alias exists with production_candidate status; operator should verify identical compose before flipping references."
+    },
+    "a5000-1x-27b-int4-tested": {
+      "bucket": "needs_operator_choice",
+      "v2_preset": "qa-27b-tq-1x",
+      "rationale": "qa-tested single-GPU 27B; V2 alias is card-less, awaiting CONFIG-UX.2b annotation."
+    },
+    "a5000-2x-27b-int4-tested": {
+      "bucket": "needs_operator_choice",
+      "v2_preset": "qa-27b-tested",
+      "rationale": "qa-tested rather than prod-tested; V2 alias is card-less, awaiting CONFIG-UX.2b annotation."
+    },
+    "a5000-1x-tier-aware-pn95": {
+      "bucket": "deprecated",
+      "v2_preset": "example-3090-tier-aware",
+      "rationale": "PN95 tier-aware was experimental; closest V2 alias is the single-3090 example preset (different hardware but same concept)."
+    },
+    "a5000-2x-tier-aware-example": {
+      "bucket": "deprecated",
+      "v2_preset": "example-2x-tier-aware",
+      "rationale": "`-example` suffix marks non-prod; direct V2 migration to the example namespace."
+    },
+    "single-3090-dense-cpu-offload-example": {
+      "bucket": "deprecated",
+      "v2_preset": "example-3090-dense-cpu-offload",
+      "rationale": "Direct V2 migration; example namespace, single-3090 hardware."
+    },
+    "single-3090-hybrid-gdn-tier-aware-example": {
+      "bucket": "deprecated",
+      "v2_preset": "example-3090-tier-aware",
+      "rationale": "Direct V2 migration; example namespace, single-3090 hardware."
+    }
+  }
+}

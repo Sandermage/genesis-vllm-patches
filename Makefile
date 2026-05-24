@@ -142,6 +142,9 @@ audit-config-catalog: ## CONFIG-UX.audit: preset card catalog (Stage 1 warnings;
 audit-override-policy: ## CONFIG-UX.audit: profile OverridePolicy presence + shape (Stage 1 warnings)
 	@$(PYTHON) scripts/audit_override_policy.py
 
+audit-v1-migration: ## CONFIG-UX.4.1: V1 monolithic key migration bucket resolution (Stage 0/1 informational)
+	@$(PYTHON) scripts/audit_v1_migration.py
+
 audit-config-keys: ## §10.3 #4 / §6.7 canonical env-key registry: every committed YAML's Genesis/SNDR keys in canonical union
 	@$(PYTHON) scripts/audit_config_keys.py
 

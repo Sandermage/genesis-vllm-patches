@@ -159,6 +159,9 @@ exclude = [
     "model_configs/builtin/profile/*.yaml",
     "model_configs/builtin/presets/*.yaml",
     "model_configs/community/*.yaml.sample",
+    # CONFIG-UX.4.1 (audit 2026-05-24): V1 migration table — frozen
+    # JSON resource consumed by `_rollout.py` + `audit_v1_migration.py`.
+    "model_configs/_v1_migration_table.json",
     "manifests/*.json",
     "configs/moe_tuning/*.yaml",
     "configs/moe_tuning/*.json",

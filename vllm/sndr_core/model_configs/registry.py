@@ -107,30 +107,100 @@ def get(key: str) -> Optional[ModelConfig]:
 _V1_DEPRECATION_WARNED: set[str] = set()
 
 
-def _maybe_warn_v1_deprecation(key: str) -> None:
-    """Emit a one-time DeprecationWarning per V1 preset key.
+def _lookup_v1_bucket(key: str) -> str:
+    """Resolve a V1 key to its migration bucket (CONFIG-UX.4.1).
 
-    Phase 9 contract: warning is once-per-key-per-process so operators
-    see it on first load but the warning doesn't flood logs on repeated
-    `sndr launch` calls (e.g. CI sweeps that exercise many presets).
-    Set `GENESIS_DISABLE_V1_DEPRECATION_WARNING=1` to silence entirely
-    (release-engineering escape hatch for the freeze transition window).
+    Reads `_v1_migration_table.json`; defensive default is
+    "needs_operator_choice" for keys not in the table (should not
+    happen — audit_no_new_v1.py freezes the baseline). Cached
+    once-per-process via the module-level `_V1_BUCKET_CACHE`.
     """
-    import os
-    if os.environ.get("GENESIS_DISABLE_V1_DEPRECATION_WARNING"):
-        return
+    cache = _v1_bucket_cache()
+    return cache.get(key, "needs_operator_choice")
+
+
+_V1_BUCKET_CACHE: dict[str, str] | None = None
+
+
+def _v1_bucket_cache() -> dict[str, str]:
+    """Lazy-load the migration table → key→bucket mapping."""
+    global _V1_BUCKET_CACHE
+    if _V1_BUCKET_CACHE is not None:
+        return _V1_BUCKET_CACHE
+    import json
+    table_path = Path(__file__).parent / "_v1_migration_table.json"
+    try:
+        with table_path.open("r", encoding="utf-8") as f:
+            data = json.load(f)
+        entries = data.get("entries", {})
+        out = {
+            k: v.get("bucket", "needs_operator_choice")
+            for k, v in entries.items() if isinstance(v, dict)
+        }
+    except (OSError, ValueError, KeyError):
+        # Defensive — degraded mode (empty table) still works; all V1
+        # keys resolve to needs_operator_choice (warn at Stage 0/1).
+        out = {}
+    _V1_BUCKET_CACHE = out
+    return out
+
+
+def _maybe_warn_v1_deprecation(
+    key: str,
+    *,
+    bucket: Optional[str] = None,
+    stage: Optional[int] = None,
+) -> None:
+    """Emit a stage-aware deprecation event per V1 preset key.
+
+    Backwards-compatible signature: positional `key` arg unchanged;
+    `bucket` and `stage` are keyword-only with defaults that match
+    the prior behavior at Stage 0/1 (warning emission).
+
+    Severity is resolved via `_rollout.effective_severity()`:
+      - transparent / needs_operator_choice / deprecated at Stage 0-2:
+          DeprecationWarning (current behavior).
+      - tombstone (any stage):
+          RuntimeError raised with the migration-table rationale.
+      - Stage 3+ for non-transparent buckets:
+          RuntimeError raised.
+
+    Once-per-key-per-process tracking preserved.
+
+    Set `GENESIS_DISABLE_V1_DEPRECATION_WARNING=1` to silence emitted
+    warnings (does NOT silence ERROR severity at Stage 3+).
+    """
+    from ._rollout import effective_severity, is_disabled
     if key in _V1_DEPRECATION_WARNED:
         return
     _V1_DEPRECATION_WARNED.add(key)
-    import warnings
-    warnings.warn(
-        f"V1 monolithic preset key {key!r} is deprecated. "
-        f"Prefer a V2 alias under model_configs/builtin/presets/ "
-        f"(see `sndr hardware list` / `sndr model list-v2` / `sndr profile list`). "
-        f"V1 loader stays functional during the Phase 9 freeze window.",
-        DeprecationWarning,
-        stacklevel=3,
+
+    if bucket is None:
+        bucket = _lookup_v1_bucket(key)
+
+    severity = effective_severity(
+        bucket=bucket,  # type: ignore[arg-type]
+        stage=stage,
     )
+
+    if severity == "info" or (severity == "warn" and is_disabled()):
+        # info severity never emits; warn severity silenced by escape hatch.
+        return
+
+    msg = (
+        f"V1 monolithic preset key {key!r} (bucket={bucket}) is deprecated. "
+        f"Prefer a V2 alias under model_configs/builtin/presets/ "
+        f"(see `sndr preset list` / `sndr preset recommend`). "
+        f"V1 loader stays functional during the Phase 9 freeze window."
+    )
+
+    if severity == "error":
+        # Stage 3+ for non-transparent buckets, or tombstone at any stage.
+        raise RuntimeError(msg)
+
+    # severity == "warn"
+    import warnings
+    warnings.warn(msg, DeprecationWarning, stacklevel=3)
 
 
 def list_keys() -> list[str]:

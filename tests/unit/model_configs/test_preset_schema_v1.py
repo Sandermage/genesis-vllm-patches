@@ -410,25 +410,47 @@ class TestGate6OverridePolicy:
 
 
 class TestGate7BackwardsCompat:
-    def test_legacy_preset_load_emits_deprecation_warning(self):
-        """Loading a legacy preset (no card) emits ONE DeprecationWarning
-        per preset per process.
+    def test_legacy_prod_preset_emits_deprecation_warning(self):
+        """CONFIG-UX.4.1: card-less `prod-*` presets emit a
+        DeprecationWarning at Stage 0/1.
 
-        Use a builtin preset known to be legacy. Need fresh warning state —
-        reset the once-per-process gate first.
+        At the time of writing all 14 builtin prod-* presets are
+        annotated (CONFIG-UX.2 ship). To exercise the prod-* warn
+        path, call the helper directly with a synthetic prod-* id.
+        Non-prod card-less presets are silenced forever per the
+        operator's CONFIG-UX.4.R §10.3 decision (see the next test).
         """
         from vllm.sndr_core.model_configs import registry_v2
-        # Pick the first legacy preset
+        registry_v2._UNANNOTATED_PRESET_WARNED.discard("prod-synthetic-fake")
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always", DeprecationWarning)
+            registry_v2._maybe_warn_unannotated("prod-synthetic-fake", stage=0)
+        depr = [w for w in caught if issubclass(w.category, DeprecationWarning)]
+        assert depr, "prod-* card-less preset should emit DeprecationWarning"
+        assert any("prod-synthetic-fake" in str(w.message) for w in depr)
+
+    def test_legacy_non_prod_preset_silenced(self):
+        """CONFIG-UX.4.1 / operator decision §10.3: card-less non-prod
+        presets (example-*, qa-*, experimental-*, long-ctx-*) stay
+        silenced forever to avoid breaking demos / qa / WIP entries
+        before they become user-facing in CONFIG-UX.2b."""
+        from vllm.sndr_core.model_configs import registry_v2
         alias = _all_builtin_aliases()[0]
-        # Reset the once-per-process gate so we can observe emission
+        # First builtin preset alphabetically is non-prod ("example-*").
+        assert not alias.startswith("prod-"), (
+            f"test assumption broken — first builtin {alias!r} should be non-prod"
+        )
         registry_v2._UNANNOTATED_PRESET_WARNED.discard(alias)
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always", DeprecationWarning)
             registry_v2.load_alias(alias)
-        depr = [w for w in caught if issubclass(w.category, DeprecationWarning)]
-        assert depr, "expected DeprecationWarning for unannotated preset"
-        assert any(alias in str(w.message) for w in depr), (
-            f"warning should mention preset id {alias!r}; got: "
+        depr = [
+            w for w in caught
+            if issubclass(w.category, DeprecationWarning)
+            and "card:" in str(w.message)
+        ]
+        assert not depr, (
+            f"non-prod card-less preset should be silenced; got: "
             f"{[str(w.message) for w in depr]}"
         )
 

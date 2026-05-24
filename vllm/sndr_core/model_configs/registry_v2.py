@@ -54,27 +54,55 @@ __all__ = [
 _UNANNOTATED_PRESET_WARNED: set[str] = set()
 
 
-def _maybe_warn_unannotated(preset_id: str) -> None:
-    """Emit a one-time CONFIG-UX deprecation hint for a card-less preset.
+def _maybe_warn_unannotated(
+    preset_id: str,
+    *,
+    stage: Optional[int] = None,
+) -> None:
+    """Emit a stage-aware CONFIG-UX hint for a card-less preset.
 
-    Silenced by `GENESIS_DISABLE_V1_DEPRECATION_WARNING=1` (same escape
-    hatch the V1 deprecation honors — operators get a single env var to
-    suppress all config-related deprecation chatter during a release).
+    Backwards-compatible signature: positional `preset_id` arg unchanged;
+    `stage` is keyword-only with default = read from env via
+    `_rollout.rollout_stage()`.
+
+    Severity is resolved per CONFIG_UX_R §6.1 + CONFIG_UX_4_R §2.2:
+
+      - prod-* preset (id starts with "prod-"):
+          bucket = card_less_prod → WARN at Stage 0-2 (default),
+          ERROR at Stage 3+ (raises RuntimeError).
+
+      - non-prod preset (example-*, qa-*, experimental-*, long-ctx-*, ...):
+          bucket = card_less_non_prod → INFO indefinitely (silenced).
+          CONFIG-UX.2b will annotate these separately.
+
+    Once-per-process tracking + GENESIS_DISABLE_V1_DEPRECATION_WARNING
+    escape hatch preserved (does NOT silence ERROR severity).
     """
-    import os
-    if os.environ.get("GENESIS_DISABLE_V1_DEPRECATION_WARNING"):
-        return
+    from ._rollout import effective_severity, is_disabled
     if preset_id in _UNANNOTATED_PRESET_WARNED:
         return
     _UNANNOTATED_PRESET_WARNED.add(preset_id)
-    import warnings
-    warnings.warn(
+
+    bucket = "card_less_prod" if preset_id.startswith("prod-") else "card_less_non_prod"
+    severity = effective_severity(
+        bucket=bucket,  # type: ignore[arg-type]
+        stage=stage,
+    )
+
+    if severity == "info" or (severity == "warn" and is_disabled()):
+        return
+
+    msg = (
         f"V2 preset {preset_id!r} lacks operator `card:` annotation. "
         f"Add a card to enable `sndr preset list/show/explain/recommend` "
-        f"(CONFIG-UX.2). Legacy 3-pointer load path remains supported.",
-        DeprecationWarning,
-        stacklevel=3,
+        f"(CONFIG-UX.2). Legacy 3-pointer load path remains supported."
     )
+
+    if severity == "error":
+        raise RuntimeError(msg)
+
+    import warnings
+    warnings.warn(msg, DeprecationWarning, stacklevel=3)
 
 
 # Resolved at import time so tests can monkeypatch.
