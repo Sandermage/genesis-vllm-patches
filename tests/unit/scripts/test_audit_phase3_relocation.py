@@ -5,7 +5,7 @@ Verifies that the four architectural-invariant rules from §0.5 of
 ``sndr_private/planning/audits/RELOCATION_DESIGN_2026-05-21_RU.md``
 are enforced correctly:
 
-  R1 — Gemma whitelist (only true Gemma-owned files in gemma4/)
+  R1 — historical gemma4/ path shim whitelist (README + exact symlink only)
   R2 — canonical apply path (registry never points at a shim)
   R3 — TQ/config boundary (structured-profile envs are registered)
   R4 — no shell scripts / launcher subprocess calls in integrations/

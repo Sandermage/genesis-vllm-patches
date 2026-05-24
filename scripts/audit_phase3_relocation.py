@@ -5,11 +5,12 @@
 Enforces the four architectural rules from
 ``sndr_private/planning/audits/RELOCATION_DESIGN_2026-05-21_RU.md`` §0.5:
 
-  R1 — ``integrations/gemma4/`` is a small compatibility namespace.
-       Only patches whose technical area of influence is genuinely
-       Gemma-4-specific may live here. Everything else must live
-       under its technical-area owner (kv_cache/, spec_decode/,
-       attention/turboquant/, etc.).
+  R1 — ``integrations/gemma4/`` is a strict historical-path
+       compatibility shim. It may contain only README.md and the
+       ``upstream_overlay_pr42637`` symlink while legacy launcher
+       contracts still need that path. All real patch code must live
+       under its technical-area owner (model_compat/gemma4/,
+       kv_cache/, spec_decode/, attention/turboquant/, etc.).
 
   R2 — Canonical apply path is one. Registry ``apply_module`` must
        point at the NEW location (post-relocation), not at the
@@ -73,15 +74,17 @@ STRUCTURED_PROFILE = (
 
 # ─── R1: Gemma whitelist ────────────────────────────────────────────────
 
-# Post-Phase-2.5 (2026-05-22): integrations/gemma4/ is forbidden.
+# Post-Phase-2.5 (2026-05-22): integrations/gemma4/ is forbidden
+# for real code.
 # Every previous occupant has been relocated to its technical-area
 # canonical home:
 #   * 18 real G4 patches + _gemma4_detect + __init__ → model_compat/gemma4/  (Phase 2.2)
 #   * 4 Gemma-only Triton kernels + kernels/__init__  → model_compat/gemma4/kernels/ (Phase 2.3)
 #   * 11-file PR42637 overlay subtree                 → attention/turboquant/overlays/pr42637/ (Phase 2.4)
 #   * 41 Phase-3 shims + 10 kernel shims              → deleted (Phase 2.1)
-# R1 now asserts the directory does NOT exist, instead of allowlisting
-# what is permitted inside.
+# R1 now asserts either absent directory OR the exact two-entry
+# compatibility shim. No code, subdirectory, alternate symlink, or
+# cache entry is permitted inside.
 
 # Shim sentinel — the marker we put in the docstring of every
 # compatibility shim left at an old path during a relocation.
@@ -136,8 +139,8 @@ def check_r1_gemma_whitelist() -> list[str]:
     symlink (`upstream_overlay_pr42637` → the canonical post-Phase-2.4
     overlay location under attention/turboquant/overlays/pr42637)
     plus a README explaining the intent. The shim preserves the
-    β'-A hand-launcher md5 invariant (40+ launchers under
-    ~/start_g4_*.sh reference the historical path).
+    β'-A hand-launcher md5 invariant and any remaining
+    ~/start_g4_*.sh workflows that reference the historical path.
 
     R1 therefore tolerates EXACTLY two entries:
 
@@ -149,7 +152,9 @@ def check_r1_gemma_whitelist() -> list[str]:
     with the wrong target, a subdirectory, .DS_Store, __pycache__,
     etc. — is a violation. The intent ("no Gemma-specific code
     here") is preserved; the carve-out only permits the path-compat
-    shim itself.
+    shim itself until a dedicated overlay-path retirement phase
+    removes the launcher-path dependency and restores the stricter
+    absent-directory rule.
     """
     if not GEMMA4_DIR.exists():
         return []

@@ -3,18 +3,18 @@
 
 Canonical location after Phase 2.2 of the production cleanup
 workstream (2026-05-22): ``integrations/model_compat/gemma4/``. The
-previous location ``integrations/gemma4/`` was retired together
-with the Phase 3 relocation shims; it now contains only the
-Gemma-only kernels (Phase 2.3 target) and the PR42637 overlay
-(Phase 2.4 target).
+previous location ``integrations/gemma4/`` was retired for real
+code. It may now contain only the historical PR42637 overlay-path
+compatibility shim documented in
+``vllm/sndr_core/integrations/gemma4/README.md``.
 
 This package owns ONLY patches whose technical area of influence
 is genuinely Gemma-4-specific and cannot be re-homed under a shared
 technical bucket without losing meaning. Per the architectural
 invariant in
 ``sndr_private/planning/audits/RELOCATION_DESIGN_2026-05-21_RU.md``
-§0.5 Rule 1, this folder is a small compatibility namespace, not a
-residual dumping ground.
+§0.5 Rule 1, real Gemma-owned code belongs here, not in the
+historical ``integrations/gemma4/`` shim directory.
 
 Real Gemma-owned patches (16 modules + 2 support files):
 
@@ -63,9 +63,9 @@ Support modules (not patches):
                        G4_15 (fused RMSNorm), G4_24 (fused softcap),
                        G4_10 (non-causal attn), G4_08 (k-pad MoE GEMM).
 
-Relocated families (one-release compatibility shims still live in
-this directory under the old filenames; remove after migration
-window per Phase 3 Bucket 7):
+Relocated families (old-path shims were removed during the Phase 3
+cleanup; these families now live at their canonical technical-area
+owners):
 
   Spec-decode drafter routing → integrations/spec_decode/:
     G4_05, G4_71, G4_71B, G4_72, G4_73, G4_74, G4_75, G4_76
@@ -82,14 +82,14 @@ window per Phase 3 Bucket 7):
     G4_67, G4_68, G4_69
     Plus kernels: kernels/turboquant/g4_tq_* → attention/turboquant/kernels/
 
-Deferred (Bucket 4b, operator server-coordinated):
-  Phase 2.4 (2026-05-22): PR42637 bind-mount overlay was the
-  last resident of integrations/gemma4/; it has been relocated to
-  integrations/attention/turboquant/overlays/pr42637/. Phase 2.5
-  will delete the now-empty integrations/gemma4/ directory.
-  moving it requires synchronized cli/profile.py emitter +
-  hand-written server launcher + P1.7d golden-substring assertions.
-  Tracked under sndr_private/planning/audits/RELOCATION_DESIGN…§14.
+Historical overlay-path shim:
+  Phase 2.4 (2026-05-22): PR42637 bind-mount overlay moved to
+  integrations/attention/turboquant/overlays/pr42637/. The old
+  integrations/gemma4/upstream_overlay_pr42637 path remains only as
+  a symlink shim for historical launcher reproducibility. Removing
+  that shim requires a dedicated overlay-path retirement phase that
+  retires or re-baselines the launcher path and then restores the
+  stricter R1 absent-directory rule.
 
 Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
 """

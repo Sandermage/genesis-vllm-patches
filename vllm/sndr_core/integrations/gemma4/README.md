@@ -46,19 +46,38 @@ shim for historical hand-launchers.
 
 ## When this shim can retire
 
-Two upstream conditions need to land first:
+The original two technical prerequisites have landed:
 
-1. `Phase 7.G4.G4_19C-FULLGRAPH-AUDIT` closes — removes the
-   profile-local G4_19C disable that the β'-A hand-launcher
-   workflow depends on.
-2. `Phase 7.G4.WORKLOAD-GATE-POLICY.IMPLEMENT` lands — gives the V2
-   preset path full coverage of the K=1 / K=4 / multi-conc /
-   structured-JSON workload matrix that hand-launchers currently
-   provide.
+1. `Phase 7.G4.G4_19C-FULLGRAPH-AUDIT` closed the profile-local
+   G4_19C handling that the β'-A hand-launcher workflow depended on.
+2. `Phase 7.G4.WORKLOAD-GATE-POLICY.IMPLEMENT` gave the V2 preset
+   path routing coverage for the K=1 / K=4 / multi-conc /
+   structured-JSON workload matrix.
 
-After both close, the 40 hand-launchers retire (replaced by V2
-`sndr launch` invocations) and this entire directory + symlink +
-the R1 carve-out can be deleted in one clean commit.
+Those closures are necessary but no longer sufficient. The shim is
+still retained because the historical launcher path remains an
+operator contract until the hand-launcher workflow is formally retired
+or re-baselined. In particular, the β'-A canonical launcher md5 above
+is still a standing reproducibility invariant.
+
+Retire this directory only in a dedicated overlay-path retirement
+phase, after all of the following are true:
+
+1. Every active `~/start_g4_*.sh` workflow that still references
+   `integrations/gemma4/upstream_overlay_pr42637` has either been
+   replaced by V2 `sndr launch` output or explicitly archived.
+2. The β'-A launcher md5 invariant has either been retired by the
+   operator or re-baselined against the canonical
+   `attention/turboquant/overlays/pr42637/` path.
+3. The PR42637 / current-pin decision no longer requires a
+   historical bind-mount path for reproducibility.
+4. Both primary and rig worktrees are already converged on the same
+   dev commit, so removing the shim cannot be reintroduced by a stale
+   integration branch.
+
+The retirement commit must delete this README, delete the symlink,
+remove the R1 carve-out in `scripts/audit_phase3_relocation.py`, and
+update the R1 tests to make `integrations/gemma4/` forbidden again.
 
 ## History
 
@@ -72,3 +91,6 @@ the R1 carve-out can be deleted in one clean commit.
 - 2026-05-23 — Phase 7.G4.OVERLAY-PATH-CONSISTENCY committed the
   shim as a tracked symlink + this README + R1 carve-out, making
   laptop and rig identical.
+- 2026-05-25 — RIG-INTEGRATION.WRITE.1 converged primary and rig on
+  the same dev commit. The shim remains intentionally retained only
+  for the historical launcher path contract described above.
