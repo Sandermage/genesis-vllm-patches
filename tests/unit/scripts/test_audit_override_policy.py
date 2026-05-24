@@ -383,12 +383,22 @@ class TestSynthesisedFindings:
 
 
 class TestForbiddenPlaceholder:
-    def test_forbidden_overrides_empty_at_stage_1(self):
-        """CONFIG-UX.4 will populate FORBIDDEN_OVERRIDES; audit phase
-        ships it as empty so the audit doesn't accidentally enforce
-        rollout policy."""
+    def test_forbidden_overrides_populated_at_stage_2(self):
+        """CONFIG-UX.4.2 populates FORBIDDEN_OVERRIDES with 4 rules.
+
+        Detailed per-rule coverage lives in
+        `test_audit_override_policy_class4.py`; this test just verifies
+        the registration shape (right count, right rule ids).
+        """
         mod = _import_audit()
-        assert mod.FORBIDDEN_OVERRIDES == ()
+        assert len(mod.FORBIDDEN_OVERRIDES) == 4
+        rule_ids = {r.rule_id for r in mod.FORBIDDEN_OVERRIDES}
+        assert rule_ids == {
+            "gpu_memory_utilization_over_1",
+            "tensor_parallel_size_over_hw_gpus",
+            "kv_cache_dtype_downgrade",
+            "spec_decode_method_change",
+        }
 
 
 # ─── Severity gate behavior ─────────────────────────────────────────────────

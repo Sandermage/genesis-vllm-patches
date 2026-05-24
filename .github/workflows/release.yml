@@ -35,6 +35,36 @@ permissions:
   contents: write   # needed to attach files to the GitHub Release
 
 jobs:
+  # CONFIG-UX.4.2 (2026-05-24): Stage 2 strict-mode audit gate.
+  # Runs the three CONFIG-UX audits in --strict mode with
+  # SNDR_V1_ROLLOUT_STAGE=2 so warnings become errors on tag pushes.
+  # Pre-commit and dev-mode `make evidence` stay default-severity so
+  # normal edits aren't blocked by Stage 1 warnings.
+  rollout_strict_audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install audit-side tooling
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install PyYAML
+
+      - name: Run CONFIG-UX audits in strict mode (Stage 2)
+        env:
+          SNDR_V1_ROLLOUT_STAGE: "2"
+        run: |
+          python scripts/audit_config_catalog.py --strict
+          python scripts/audit_override_policy.py --strict
+          python scripts/audit_v1_migration.py --strict
+
   build_and_sbom:
     runs-on: ubuntu-latest
     steps:

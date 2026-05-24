@@ -209,6 +209,7 @@ class TestSeverityPerStage:
 
 class TestJSONOutput:
     def test_json_structure(self):
+        from vllm.sndr_core.model_configs._rollout import DEFAULT_STAGE
         result = _run_cli("--json")
         assert result.returncode == 0
         data = json.loads(result.stdout)
@@ -216,7 +217,10 @@ class TestJSONOutput:
                     "counts", "bucket_distribution", "findings",
                     "has_errors", "has_warnings"):
             assert key in data, f"missing JSON key {key!r}"
-        assert data["stage"] == 0
+        # CONFIG-UX.4.2 (2026-05-24): DEFAULT_STAGE flipped 0 → 1.
+        # Operators reverting with SNDR_V1_ROLLOUT_STAGE=0 still see
+        # functionally identical behavior for non-tombstone buckets.
+        assert data["stage"] == DEFAULT_STAGE
         assert data["v1_keys_on_disk"] == 12
         assert data["table_entries"] == 12
 

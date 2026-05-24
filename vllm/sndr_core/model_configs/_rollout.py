@@ -70,8 +70,12 @@ BUCKETS: tuple[str, ...] = (
 SEVERITIES: tuple[str, ...] = ("info", "warn", "error")
 
 # Default stage in source — operator/CI opts in to higher stages via env.
-# CONFIG-UX.4.1 ships Stage 0 default; CONFIG-UX.4.2 will flip to Stage 1.
-DEFAULT_STAGE: int = 0
+# CONFIG-UX.4.1 shipped Stage 0 default; CONFIG-UX.4.2 (2026-05-24) flips
+# to Stage 1. Operators reverting via `SNDR_V1_ROLLOUT_STAGE=0` see
+# functionally identical observable output (severity matrix is unchanged
+# between Stage 0 and Stage 1; the flip is preparation for Stage 2/3
+# escalation in CONFIG-UX.4.3, not a behavioral change).
+DEFAULT_STAGE: int = 1
 
 # Stages allowed by the matrix. Operator-supplied values outside this
 # range fall back to DEFAULT_STAGE with a one-time warning.

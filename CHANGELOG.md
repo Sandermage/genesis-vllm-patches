@@ -80,6 +80,60 @@ on vLLM nightly pin `0.20.2rc1.dev209+g5536fc0c0`. 152 patches in
 
 ---
 
+## [Unreleased] — CONFIG-UX Stage 2 (CONFIG-UX.4.2 rollout)
+
+> Default `SNDR_V1_ROLLOUT_STAGE` flips from `0` to `1`; Class-4 forbidden
+> override rules (gpu_memory_utilization > 1.0, tensor_parallel_size >
+> hardware.n_gpus, kv_cache_dtype downgrade, spec_decode method-name
+> change) now reject violating profiles at audit-time regardless of
+> OverridePolicy justification.
+>
+> No current builtin profile trips any Class-4 rule — verified by
+> `tests/unit/scripts/test_audit_override_policy_class4.py::TestLiveCorpusClass4Clean`.
+
+### Highlights
+
+- CONFIG-UX rollout reaches Stage 1 (observability-only default). Stage 2
+  strict-mode escalation runs on tag-push CI via the new
+  `rollout_strict_audit` job in `.github/workflows/release.yml`.
+- Class-4 forbidden override enforcement (4 rules, audit-time only):
+  physics-broken (Rules 1 + 2) and evidence-invalidating (Rules 3 + 4)
+  overrides are now rejected before container boot.
+- `make evidence-release` exports `SNDR_V1_ROLLOUT_STAGE=2` so release
+  evidence runs match the CI strict-audit job.
+
+### Migration notes
+
+- Operators previously running at the implicit Stage 0 see no
+  observable change at the new Stage 1 default (severity matrix is
+  identical between Stage 0 and Stage 1 for non-tombstone buckets).
+- Operators who want to revert to explicit Stage 0 can set
+  `SNDR_V1_ROLLOUT_STAGE=0` during the transition window (≥1 release).
+- Pre-commit hooks for `audit_config_catalog` / `audit_override_policy`
+  / `audit_v1_migration` stay default-severity (non-strict) to avoid
+  slowing normal edits. Class-4 errors fire unconditionally because
+  they're physics/evidence policy, not rollout warnings.
+
+### Audit findings
+
+- Stage 1 audit results on the current corpus (per `audit_v1_migration.py --json`):
+  - transparent (3): `a5000-2x-27b-int4-tq-k8v4`, `a5000-2x-35b-prod`, `a5000-2x-27b-dflash-true`
+  - needs_operator_choice (5): see migration table
+  - deprecated (4): tier-aware and `*-example` legacy keys
+  - tombstone (0): empty at Stage 2 ship — operator-confirmed
+- Zero Class-4 errors on 21 builtin profiles (live-corpus acceptance gate).
+
+### Migration help
+
+```bash
+sndr preset list                         # browse current annotated presets
+sndr preset recommend --workload X       # find V2 replacement for V1 usage
+SNDR_V1_ROLLOUT_STAGE=0 sndr launch ...  # revert to explicit Stage 0 during transition
+make evidence-release                    # run Stage 2 strict-mode audits locally
+```
+
+---
+
 ## [v11.0.0+wave10] — Multi-conc unlock + PN204 v2 + partial-merge recoveries (2026-05-15)
 
 > Multi-concurrency throughput characterisation на dev371 pin

@@ -50,10 +50,14 @@ class TestRolloutStageEnv:
             stage = rollout_stage(env_value=bad)
         assert stage == DEFAULT_STAGE
 
-    def test_default_stage_is_zero(self):
-        """Operator guard: CONFIG-UX.4.1 ships with default stage 0 so
-        behavior is observability-only."""
-        assert DEFAULT_STAGE == 0
+    def test_default_stage_current_contract(self):
+        """Operator guard: CONFIG-UX.4.2 (2026-05-24) flipped default
+        stage 0 → 1. Stage 0 and Stage 1 produce functionally identical
+        observable severity for non-tombstone buckets (verified by the
+        TestEffectiveSeverityMatrix class), so the flip is a no-op for
+        operators staying at the default while preparing the source
+        tree for Stage 2/3 escalation in CONFIG-UX.4.3."""
+        assert DEFAULT_STAGE == 1
 
 
 # ─── effective_severity matrix ──────────────────────────────────────────────

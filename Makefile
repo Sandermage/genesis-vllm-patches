@@ -287,8 +287,8 @@ audit: audit-upstream-offline test-doc-sync audit-legacy-imports audit-public-pa
 evidence: ## Phase 0 supplement: run every release gate, emit summary
 	@$(PYTHON) scripts/make_evidence.py
 
-evidence-release: ## Phase 0 supplement: aggregate + release-only gates (dirty-state, SBOM)
-	@$(PYTHON) scripts/make_evidence.py --release
+evidence-release: ## Phase 0 supplement: aggregate + release-only gates (dirty-state, SBOM); CONFIG-UX.4.2 sets Stage 2 strict for rollout audits
+	@SNDR_V1_ROLLOUT_STAGE=2 $(PYTHON) scripts/make_evidence.py --release
 
 evidence-json: ## Phase 0 supplement: aggregate + JSON summary for CI
 	@$(PYTHON) scripts/make_evidence.py --json
