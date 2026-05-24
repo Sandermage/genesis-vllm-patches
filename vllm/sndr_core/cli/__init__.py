@@ -82,6 +82,7 @@ from .profile import add_argparser as _profile_argparser  # profile (V2 profile 
 from .gateway import add_argparser as _gateway_argparser  # P1.6 thin gateway wrapper
 from .routing import add_argparser as _routing_argparser  # Phase 7.G4.WORKLOAD-GATE-POLICY.IMPLEMENT
 from .preset import add_argparser as _preset_argparser  # CONFIG-UX.3 native preset surface
+from .config_catalog import add_argparser as _config_catalog_argparser  # CONFIG-UX.5.2 derived catalog CLI
 
 __all__ = ["cli_main"]
 
@@ -240,6 +241,7 @@ def cli_main(argv: list[str] | None = None) -> int:
     _gateway_argparser(subparsers)       # gateway (P1.6 thin CLI wrapper)
     _routing_argparser(subparsers)       # routing-table (Phase 7.G4.WORKLOAD-GATE-POLICY.IMPLEMENT)
     _preset_argparser(subparsers)        # CONFIG-UX.3 preset list/show/explain/recommend
+    _config_catalog_argparser(subparsers) # CONFIG-UX.5.2 derived catalog build/verify/show/query
 
     # S2.5 (audit closure 2026-05-08): bench-compare A.json B.json
     p_bcmp = subparsers.add_parser(

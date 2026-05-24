@@ -151,6 +151,9 @@ generate-config-catalog: ## CONFIG-UX.5.1: build derived catalog JSON from V2 YA
 audit-config-catalog-fresh: ## CONFIG-UX.5.1: generated catalog determinism + redaction audit (informational at .5.1)
 	@$(PYTHON) scripts/audit_generated_config_catalog.py
 
+config-catalog: ## CONFIG-UX.5.2: discoverable alias for `sndr config-catalog build` (derived catalog UX sugar)
+	@$(PYTHON) -m vllm.sndr_core.cli config-catalog build
+
 audit-config-keys: ## §10.3 #4 / §6.7 canonical env-key registry: every committed YAML's Genesis/SNDR keys in canonical union
 	@$(PYTHON) scripts/audit_config_keys.py
 
