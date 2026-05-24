@@ -33,6 +33,26 @@ sizing_override:
   enforce_eager: false                           # cudagraph capture enabled
   disable_custom_all_reduce: true                # informational on TP=1
 
+# ─── Override policy (CONFIG-UX.4.DEBT.2C, 2026-05-24) ──────────────────
+# Path A annotation: max_model_len 145K is intentionally over hardware
+# Path A default 65K. Hardware YAML's own comment explicitly anticipates
+# this override; PN95 tier-aware page demotion is the mechanism that
+# makes 145K usable on single 3090.
+override_policy:
+  override_class: bench
+  reason: >-
+    Tier-aware single-3090 long-context bench profile: max_model_len intentionally
+    exceeds the conservative hardware default because PN95 tier-aware cache is
+    enabled and the paired hardware YAML documents that profiles may override the
+    65K Path-A cap; external 3090 validation is still required before production.
+  evidence_refs:
+    - vllm/sndr_core/model_configs/builtin/hardware/single-3090-24gbvram.yaml
+    - vllm/sndr_core/model_configs/builtin/profile/tier-aware-3090.yaml
+    - external://club-3090/issues/58
+  evidence_visibility: public
+  expires_at: '2026-08-22'
+  allowed_to_exceed_hardware_default: true
+
 promotion:
   validation_required:
     - "noonghunna cross-rig validation on actual 3090 hardware"

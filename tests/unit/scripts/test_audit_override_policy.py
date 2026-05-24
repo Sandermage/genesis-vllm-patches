@@ -56,11 +56,20 @@ class TestLiveCorpus:
             f"stdout={result.stdout}\nstderr={result.stderr}"
         )
 
-    def test_strict_returns_one_on_live_corpus(self):
-        """--strict elevates Stage 1 warnings to fatal."""
+    def test_strict_returns_zero_after_debt_closure(self):
+        """After CONFIG-UX.4.DEBT (1 + 2A + 2B + 2C) closure, the live
+        corpus has zero `missing_override_policy` warnings, so --strict
+        also exits 0. Test was pinned to exit 1 before DEBT closure; the
+        contract now reflects the clean-corpus state.
+
+        If a new profile is added with `sizing_override` but no
+        `override_policy`, this test starts failing again — that's the
+        intended regression signal.
+        """
         result = _run_cli("--strict")
-        assert result.returncode == 1, (
-            f"--strict should exit 1 on warnings; got rc={result.returncode}"
+        assert result.returncode == 0, (
+            f"--strict should exit 0 on clean corpus (post-DEBT closure); "
+            f"got rc={result.returncode}\nstdout={result.stdout[:500]}"
         )
 
     def test_no_errors_on_live_corpus(self):
@@ -75,17 +84,23 @@ class TestLiveCorpus:
             )
         )
 
-    def test_warnings_are_missing_policy_only_at_stage_1(self):
-        """At Stage 1 we expect only `missing_override_policy` warnings
-        on live corpus (existing profiles haven't been retrofitted yet)."""
+    def test_no_warnings_after_debt_closure(self):
+        """After CONFIG-UX.4.DEBT (1 + 2A + 2B + 2C) closure, the live
+        corpus is fully clean — zero warnings of any rule.
+
+        Pre-DEBT contract was 'only missing_override_policy warnings
+        allowed'; post-closure contract is 'zero warnings allowed'. If
+        a future profile lands without override_policy, this test will
+        fail with the missing_override_policy warning surfaced — that's
+        the intended regression signal.
+        """
         mod = _import_audit()
         report = mod.run_audit()
         warns = [f for f in report.findings if f.severity == "warning"]
-        assert warns, "expected warnings for profiles with sizing_override but no policy"
-        for f in warns:
-            assert f.rule == "missing_override_policy", (
-                f"unexpected warning rule {f.rule!r} on {f.profile_id!r}"
-            )
+        assert warns == [], (
+            f"clean corpus expected post-DEBT closure; got {len(warns)} warnings:\n"
+            + "\n".join(f"  [{f.rule}] {f.profile_id}: {f.message}" for f in warns)
+        )
 
 
 # ─── JSON output shape ──────────────────────────────────────────────────────
