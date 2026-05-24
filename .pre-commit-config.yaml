@@ -116,6 +116,32 @@ repos:
         pass_filenames: false
         files: '(vllm/.*\.py|scripts/audit_private_namespace\.py|tests/unit/test_wheel_contents\.py|\.gitignore)$'
 
+      - id: genesis-audit-config-catalog
+        name: Genesis preset card catalog (CONFIG-UX.audit Stage 1)
+        # Wraps `validate_for_status()` from preset_schema.py plus catalog-
+        # level cross-checks (fallback resolution, default_for_family
+        # uniqueness, evidence path existence). Runs in DEFAULT mode
+        # (non-strict) → warnings about card-less presets are surfaced
+        # but don't block commits at Stage 1. CI / release can run
+        # `make audit-config-catalog` with `--strict` to gate on warnings.
+        entry: python3 scripts/audit_config_catalog.py
+        language: system
+        pass_filenames: false
+        files: '(vllm/sndr_core/model_configs/builtin/presets/.*\.yaml|vllm/sndr_core/model_configs/preset_schema\.py|scripts/audit_config_catalog\.py|tests/unit/scripts/test_audit_config_catalog\.py)$'
+
+      - id: genesis-audit-override-policy
+        name: Genesis profile OverridePolicy presence (CONFIG-UX.audit Stage 1)
+        # Audits every profile with `sizing_override` for the presence +
+        # shape of `override_policy`. Stage 1: missing policy = warning
+        # (not error); invalid shape = error; effective_class=production
+        # requires reason + evidence_refs; non-production classes need
+        # reason. FORBIDDEN_OVERRIDES list remains empty at this phase —
+        # hard enforcement lands in CONFIG-UX.4.
+        entry: python3 scripts/audit_override_policy.py
+        language: system
+        pass_filenames: false
+        files: '(vllm/sndr_core/model_configs/builtin/profile/.*\.yaml|vllm/sndr_core/model_configs/community/profile/.*\.yaml|vllm/sndr_core/model_configs/schema_v2\.py|scripts/audit_override_policy\.py|tests/unit/scripts/test_audit_override_policy\.py)$'
+
       - id: genesis-audit-v2-runtime-pins
         name: Genesis V2 runtime + ModelDef pin harmonization (R-PIN-1..4)
         # P2.6 invariants — locks the runtime image / ModelDef pin

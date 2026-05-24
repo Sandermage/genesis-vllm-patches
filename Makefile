@@ -136,6 +136,12 @@ audit-engine-boundary: ## §10.3 #5 engine boundary: only optional-discovery `vl
 audit-private-namespace: ## P0.1 M.7: hard rule #27 — no `sndr_private` under `vllm/`; only repo-root `sndr_private/` allowed (gitignored)
 	@$(PYTHON) scripts/audit_private_namespace.py
 
+audit-config-catalog: ## CONFIG-UX.audit: preset card catalog (Stage 1 warnings; --strict for CI/release)
+	@$(PYTHON) scripts/audit_config_catalog.py
+
+audit-override-policy: ## CONFIG-UX.audit: profile OverridePolicy presence + shape (Stage 1 warnings)
+	@$(PYTHON) scripts/audit_override_policy.py
+
 audit-config-keys: ## §10.3 #4 / §6.7 canonical env-key registry: every committed YAML's Genesis/SNDR keys in canonical union
 	@$(PYTHON) scripts/audit_config_keys.py
 
