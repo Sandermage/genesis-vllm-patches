@@ -99,14 +99,44 @@ See [`BENCHMARKS.md`](BENCHMARKS.md) for the run-and-share guide.
 
 ## Maintainer commitments
 
-- Everything Genesis ships stays under Apache-2.0, including bench
-  results, methodology, and raw logs.
+- Everything in the community wheel (`vllm-sndr-core`) stays under
+  Apache-2.0, including bench results, methodology, and raw logs.
 - Every upstream author and contributor is credited in
   [`CREDITS.md`](CREDITS.md) and inside individual patch docstrings.
 - No functionality will ever be gated behind sponsorship,
-  paywalls, or premium tiers.
+  paywalls, or premium tiers in the community wheel.
 - Support does not buy maintainer time, custom features, or
   priority on the issue tracker.
+
+## Sponsorship and the reserved commercial engine wheel
+
+Genesis reserves a separate namespace, `vllm/sndr_engine/`, that
+builds as an independent wheel (`vllm-sndr-engine`) under a
+commercial license. It is currently **reserved but empty** — no
+patches qualify as engine-tier under the strict-AND rule in
+[`PATCHES.md`](PATCHES.md#engine-tier-the-strict-and-boundary).
+The namespace exists so that, if a future clean-room maintainer-
+original contribution ever fits, there is a defined zone for it
+without disturbing the Apache-2.0 community wheel.
+
+What sponsorship explicitly **does not** do:
+
+- Sponsorship is **not** a license to the commercial engine wheel.
+  If `vllm-sndr-engine` ever gains content, it ships as a distinct
+  paid product with its own pricing, governed by
+  [`LICENSE_POLICY.md`](LICENSE_POLICY.md). Sponsors are not granted
+  preferential access, early builds, or discounted terms.
+- Sponsorship does **not** influence what goes into the engine wheel
+  vs the community wheel. The strict-AND classification is fixed by
+  upstream provenance (PR link, external credit, byte-equivalence
+  with upstream), not by funding source.
+
+What this means in practice: contributing financially to Genesis
+supports the **community wheel and its maintainer's time on the
+public project**. The reserved commercial wheel is a separate
+matter; today it ships nothing, and if that changes, the
+commercial offering will be published as a stand-alone product
+with its own announcement and terms.
 
 ## Security contact
 
