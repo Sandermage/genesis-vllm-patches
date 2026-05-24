@@ -47,6 +47,17 @@ sizing_override:
   enforce_eager: false                           # cudagraph capture enabled
   disable_custom_all_reduce: true                # NCCL fallback
 
+# ─── Override policy (CONFIG-UX.4.DEBT.2A, 2026-05-24) ──────────────────
+# Class `qa` — QA harness profile; evidence is execution-time pass/fail
+# regression signal, not bench TPS. No external bench artifact expected.
+override_policy:
+  override_class: qa
+  reason: "QA harness profile: 27B FP8 KV at max_num_seqs=2 for CI smoke"
+  evidence_refs: []
+  evidence_visibility: public
+  expires_at: '2026-08-22'
+  allowed_to_exceed_hardware_default: false
+
 promotion:
   validation_required:
     - "regression test only — no promotion path; this profile is intentionally frozen"

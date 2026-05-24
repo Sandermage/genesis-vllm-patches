@@ -32,6 +32,16 @@ sizing_override:
   enforce_eager: false                           # cudagraph capture enabled
   disable_custom_all_reduce: true                # informational on TP=1
 
+# ─── Override policy (CONFIG-UX.4.DEBT.2A, 2026-05-24) ──────────────────
+# Class `qa` — single-GPU QA harness profile for 1×A5000 stability smoke.
+override_policy:
+  override_class: qa
+  reason: "QA harness profile: single-GPU 27B TQ for 1×A5000 smoke"
+  evidence_refs: []
+  evidence_visibility: public
+  expires_at: '2026-08-22'
+  allowed_to_exceed_hardware_default: false
+
 promotion:
   validation_required:
     - "single-card stability run on bench_27b.sh"

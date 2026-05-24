@@ -29,6 +29,18 @@ sizing_override:
   enforce_eager: false                           # cudagraph capture enabled
   disable_custom_all_reduce: true                # informational on TP=1
 
+# ─── Override policy (CONFIG-UX.4.DEBT.2A, 2026-05-24) ──────────────────
+# Class `bench` — CPU offload demo profile; util slightly above hw
+# default 0.85 to maximise GPU residency in offload regime. No bench
+# evidence (example/demo, not a tuned production target).
+override_policy:
+  override_class: bench
+  reason: "CPU offload demo on single 3090 with 7B dense; util 0.9 above hw default 0.85 to maximise GPU residency"
+  evidence_refs: []
+  evidence_visibility: public
+  expires_at: '2026-08-22'
+  allowed_to_exceed_hardware_default: true
+
 promotion:
   validation_required:
     - "CPU-offload region loads without OOM on single 3090"

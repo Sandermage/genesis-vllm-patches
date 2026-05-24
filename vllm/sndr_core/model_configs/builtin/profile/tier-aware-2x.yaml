@@ -38,6 +38,19 @@ sizing_override:
   enforce_eager: false                           # cudagraph capture enabled
   disable_custom_all_reduce: true                # NCCL fallback
 
+# ─── Override policy (CONFIG-UX.4.DEBT.2A, 2026-05-24) ──────────────────
+# Class `bench` — PN95 tier-aware experiment kept as example profile;
+# PN95 experiment was sunset, profile preserved for tier-transition
+# coverage documentation. Tier-aware-3090 sibling is deferred to
+# CONFIG-UX.4.DEBT.2C operator investigation.
+override_policy:
+  override_class: bench
+  reason: "PN95 tier-aware experiment on 2×A5000; context 131K + max_num_seqs=4 for tier transition coverage"
+  evidence_refs: []
+  evidence_visibility: public
+  expires_at: '2026-08-22'
+  allowed_to_exceed_hardware_default: false
+
 promotion:
   validation_required:
     - "PN95 tier-aware cache observed promoting GPU↔CPU pages without crash"

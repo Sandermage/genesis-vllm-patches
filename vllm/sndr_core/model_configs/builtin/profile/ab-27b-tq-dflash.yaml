@@ -43,6 +43,17 @@ sizing_override:
   enforce_eager: false                           # cudagraph capture enabled
   disable_custom_all_reduce: true                # NCCL fallback
 
+# ─── Override policy (CONFIG-UX.4.DEBT.2A, 2026-05-24) ──────────────────
+# Class `bench` — A/B comparator harness; evidence is the comparator
+# output itself (not a stand-alone bench JSON).
+override_policy:
+  override_class: bench
+  reason: "A/B comparator: 27B TQ k8v4 vs DFlash at conc=2, isolating spec-decode method effect"
+  evidence_refs: []
+  evidence_visibility: public
+  expires_at: '2026-08-22'
+  allowed_to_exceed_hardware_default: false
+
 promotion:
   validation_required:
     - "A/B vs canonical wave9-27b-tq-k8v4: TPS regression < 5%"
