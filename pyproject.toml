@@ -149,7 +149,15 @@ exclude = [
 
 [tool.setuptools.package-data]
 "vllm.sndr_core" = [
+    # V1 monolithic top-level (12 files; legacy compat, sunset planned).
     "model_configs/builtin/*.yaml",
+    # P0.1 M.1 (audit 2026-05-24): V2 layered configs in subdirs.
+    # Pre-fix wheel inspection: 0/4 V2 subdirs packaged → CLI `sndr preset list`
+    # returned empty on pip-installed wheel. Defended by tests/unit/test_wheel_contents.py (M.2).
+    "model_configs/builtin/model/*.yaml",
+    "model_configs/builtin/hardware/*.yaml",
+    "model_configs/builtin/profile/*.yaml",
+    "model_configs/builtin/presets/*.yaml",
     "model_configs/community/*.yaml.sample",
     "manifests/*.json",
     "configs/moe_tuning/*.yaml",

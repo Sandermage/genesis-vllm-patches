@@ -339,39 +339,42 @@ def _g4_19_import_time_hook():
     ):
         return
     try:
-        # G4_30/G4_43/G4_44/G4_45/G4_50 moved to sndr_private/g4_upstream_tq_wip/
-        # 2026-05-17 — superseded by upstream PR #42637 (Mixed-attention TQ for
-        # Gemma 4). Their env flags still resolve via sndr_private fallback if
-        # explicitly enabled; left here as no-ops to maintain back-compat.
+        # G4_30/G4_43/G4_44/G4_45/G4_50 relocated to integrations/_retired/g4_upstream_tq_wip/
+        # 2026-05-24 (P0.1 M.3b/c) — superseded by upstream PR #42637 (Mixed-attention
+        # TQ for Gemma 4). Their env flags still resolve via _retired/ fallback when
+        # explicitly enabled; will fully retire after PR #42637 cherry-pick lands.
+        # Previous location vllm/sndr_core/sndr_private/g4_upstream_tq_wip/ was an
+        # architectural error (packaged core must not contain sndr_private namespace);
+        # see hard rule #27 + P0_PROJECT_STRUCTURE_R deliverable.
         if g30 or g43 or g44 or g45 or g50:
             try:
                 if g30:
-                    from .sndr_private.g4_upstream_tq_wip import (
+                    from .integrations._retired.g4_upstream_tq_wip import (
                         g4_30_upstream_tq_unblock as _m,
                     )
                     _m.apply()
                 if g43:
-                    from .sndr_private.g4_upstream_tq_wip import (
+                    from .integrations._retired.g4_upstream_tq_wip import (
                         g4_43_unblock_forced_triton as _m,
                     )
                     _m.apply()
                 if g44:
-                    from .sndr_private.g4_upstream_tq_wip import (
+                    from .integrations._retired.g4_upstream_tq_wip import (
                         g4_44_tq_head_dim_512_prefill as _m,
                     )
                     _m.apply()
                 if g45:
-                    from .sndr_private.g4_upstream_tq_wip import (
+                    from .integrations._retired.g4_upstream_tq_wip import (
                         g4_45_unify_page_diag as _m,
                     )
                     _m.apply()
                 if g50:
-                    from .sndr_private.g4_upstream_tq_wip import (
+                    from .integrations._retired.g4_upstream_tq_wip import (
                         g4_50_genesis_native_backend as _m,
                     )
                     _m.apply()
             except ImportError:
-                # sndr_private may be absent in slim distributions; silent no-op
+                # _retired/ module may be absent in slim distributions; silent no-op
                 pass
         # G4_31 active in main — preserves turboquant_* dtype from AWQ override.
         if g31:
