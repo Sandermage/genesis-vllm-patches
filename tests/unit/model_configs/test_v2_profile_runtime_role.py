@@ -173,8 +173,14 @@ class TestExistingProfilesLoadUnchanged:
         assert "GENESIS_ENABLE_G4_75_DRAFTER_HEAD512_TRITON" in p.patches_delta.enable
         assert "SNDR_ALLOW_SPEC_DECODE_KV_ADAPTER" in p.patches_delta.enable
 
-    def test_profile_roles_enum_unchanged(self):
-        assert PROFILE_ROLES == ("default", "structured", "gateway")
+    def test_profile_roles_enum_current_contract(self):
+        # CONFIG-UX.1 (2026-05-24) — operator-approved (§10.8) extension
+        # from 3 production roles to 3 production + 4 non-production roles.
+        # Non-production roles drive OverridePolicy class derivation.
+        assert PROFILE_ROLES == (
+            "default", "structured", "gateway",
+            "bench", "dev", "qa", "diagnostic",
+        )
 
 
 # ─── CompressionPlanConfig ───────────────────────────────────────────────

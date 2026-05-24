@@ -612,9 +612,110 @@ class ValidationArtifactRef:
 # - structured: role producing the MTP / spec-decode upstream
 # - gateway:    role producing the FastAPI reverse-proxy in front of the
 #               above pair
-# None preserves the existing 17 builtin profiles which are pure
-# (model × hardware) operator-tuning presets.
-PROFILE_ROLES = ("default", "structured", "gateway")
+# CONFIG-UX.1 (2026-05-24) extension: non-production roles for the
+# OverridePolicy class derivation rule. Existing 17 builtin profiles
+# leave role=None (treat as `default` for policy purposes).
+# - bench:      A/B comparator or sweep harness
+# - dev:        in-development profile, not for production
+# - qa:         QA harness profile
+# - diagnostic: instrumented profile for incident triage
+PROFILE_ROLES = (
+    "default", "structured", "gateway",
+    "bench", "dev", "qa", "diagnostic",
+)
+PRODUCTION_ROLES = frozenset({"default", "structured", "gateway"})
+NON_PRODUCTION_ROLES = frozenset({"bench", "dev", "qa", "diagnostic"})
+
+
+# ─── OverridePolicy (CONFIG-UX.1, 2026-05-24) ────────────────────────────
+#
+# 4-class taxonomy per CONFIG_UX_R §3.2:
+#
+#   safe_per_launch  → no policy needed (network/log/display knobs)
+#   bench            → bench/dev/qa/diagnostic justification with --why
+#   dev              ↑ (variants of class 2 with different role)
+#   qa               ↑
+#   diagnostic       ↑
+#   production       → production override; requires public evidence
+#   forbidden        → never accepted regardless of justification
+#
+# This dataclass parks the structured justification. Schema plumbing only
+# in CONFIG-UX.1; semantic enforcement (rejecting class=production without
+# public evidence, escalating expired class=bench, etc.) lands in
+# CONFIG-UX.4 via `audit_override_policy.py`.
+
+
+OVERRIDE_POLICY_CLASSES = (
+    "safe_per_launch",
+    "bench",
+    "dev",
+    "qa",
+    "diagnostic",
+    "production",
+    "forbidden",
+)
+
+
+@dataclass
+class OverridePolicy:
+    """Justification for a profile's `sizing_override` block.
+
+    Lives as a top-level field on ProfileDef (sibling to `sizing_override`),
+    NOT nested inside it — per CONFIG_UX_R §3.3 operator decision. Profile
+    role drives the default class if `override_class` is None:
+
+      role ∈ PRODUCTION_ROLES     → "production"
+      role ∈ NON_PRODUCTION_ROLES → matches role exactly (bench/dev/qa/diagnostic)
+      role == None               → "production" (treat as default-role for back-compat)
+
+    Field semantics:
+      override_class:           explicit class declaration; overrides role-derived
+      reason:                   human-readable justification
+      evidence_refs:            list of paths backing the override
+      evidence_visibility:      public / private / mixed for the override evidence
+      validated_by, validated_at: for class=production
+      expires_at:               for time-bounded bench overrides
+      allowed_to_exceed_hardware_default: explicit acknowledgement
+    """
+    override_class: Optional[str] = None
+    reason: Optional[str] = None
+    evidence_refs: list[str] = field(default_factory=list)
+    evidence_visibility: Optional[str] = None
+    validated_by: Optional[str] = None
+    validated_at: Optional[str] = None
+    expires_at: Optional[str] = None
+    allowed_to_exceed_hardware_default: bool = False
+
+    def validate(self) -> None:
+        if self.override_class is not None and self.override_class not in OVERRIDE_POLICY_CLASSES:
+            raise SchemaError(
+                f"override_policy.override_class={self.override_class!r} must be one of "
+                f"{OVERRIDE_POLICY_CLASSES} or null"
+            )
+        if self.evidence_visibility is not None and self.evidence_visibility not in (
+            "public", "private", "mixed",
+        ):
+            raise SchemaError(
+                f"override_policy.evidence_visibility={self.evidence_visibility!r} "
+                f"must be one of {{public, private, mixed}} or null"
+            )
+
+    def effective_class(self, role: Optional[str]) -> str:
+        """Resolve the effective override class given the profile's role.
+
+        Explicit `override_class` always wins. Otherwise derives from role:
+          - PRODUCTION_ROLES   → "production"
+          - NON_PRODUCTION_ROLES → that role name (bench/dev/qa/diagnostic)
+          - None               → "production" (back-compat: treat default)
+        """
+        if self.override_class is not None:
+            return self.override_class
+        if role is None:
+            return "production"
+        if role in NON_PRODUCTION_ROLES:
+            return role
+        # role in PRODUCTION_ROLES (or unknown — caller validated earlier)
+        return "production"
 
 
 @dataclass
@@ -665,12 +766,20 @@ class ProfileDef:
     versions_override: Optional[ProfileVersionsOverride] = None
     promotion: Optional[ProfilePromotion] = None
 
-    role: Optional[Literal["default", "structured", "gateway"]] = None
+    role: Optional[Literal[
+        "default", "structured", "gateway",
+        "bench", "dev", "qa", "diagnostic",
+    ]] = None
     spec_decode_override: Optional[SpecDecodeConfig] = None
     compression_plan: Optional[CompressionPlanConfig] = None
     backend_plan: Optional[BackendPlanConfig] = None
     routing: Optional[RoutingConfig] = None
     validation: Optional[ValidationArtifactRef] = None
+
+    # CONFIG-UX.1 (2026-05-24): structured justification for sizing_override.
+    # Optional + default None → existing 17 profiles unchanged. Compose-layer
+    # wiring (audit-driven enforcement) lands in CONFIG-UX.4.
+    override_policy: Optional["OverridePolicy"] = None
 
     def validate(self) -> None:
         _check_schema_version(self.schema_version)
@@ -702,6 +811,8 @@ class ProfileDef:
             self.routing.validate()
         if self.validation is not None:
             self.validation.validate()
+        if self.override_policy is not None:
+            self.override_policy.validate()
 
 
 # ─── PatchManifest (community SDK) ───────────────────────────────────────
@@ -848,6 +959,9 @@ __all__ = [
     # ProfileDef tree
     "ProfileDef", "PatchesDelta",
     "ProfilePromotion", "ProfileVersionsOverride",
+    "PROFILE_ROLES", "PRODUCTION_ROLES", "NON_PRODUCTION_ROLES",
+    # CONFIG-UX.1 OverridePolicy
+    "OverridePolicy", "OVERRIDE_POLICY_CLASSES",
     # PatchManifest tree
     "PatchManifest", "PatchCompatibility",
     "PatchAnchor", "PatchTargetFile",

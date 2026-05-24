@@ -30,6 +30,7 @@ from .schema_v2 import (
     PatchManifest,
     ProfileDef,
 )
+from .preset_schema import PresetDef, parse_preset_yaml, synth_card_for_legacy
 from .compose import compose
 
 
@@ -39,11 +40,41 @@ __all__ = [
     "load_hardware",
     "load_profile",
     "load_alias",
+    "load_preset_def",
     "compose_by_ids",
     "list_models",
     "list_hardware",
     "list_profiles",
 ]
+
+
+# CONFIG-UX.1 — one-time warning per unannotated preset, similar shape
+# to V1 `_maybe_warn_v1_deprecation`. Operators see one warning per
+# preset per process; CI sweeps that exercise many presets don't flood.
+_UNANNOTATED_PRESET_WARNED: set[str] = set()
+
+
+def _maybe_warn_unannotated(preset_id: str) -> None:
+    """Emit a one-time CONFIG-UX deprecation hint for a card-less preset.
+
+    Silenced by `GENESIS_DISABLE_V1_DEPRECATION_WARNING=1` (same escape
+    hatch the V1 deprecation honors — operators get a single env var to
+    suppress all config-related deprecation chatter during a release).
+    """
+    import os
+    if os.environ.get("GENESIS_DISABLE_V1_DEPRECATION_WARNING"):
+        return
+    if preset_id in _UNANNOTATED_PRESET_WARNED:
+        return
+    _UNANNOTATED_PRESET_WARNED.add(preset_id)
+    import warnings
+    warnings.warn(
+        f"V2 preset {preset_id!r} lacks operator `card:` annotation. "
+        f"Add a card to enable `sndr preset list/show/explain/recommend` "
+        f"(CONFIG-UX.2). Legacy 3-pointer load path remains supported.",
+        DeprecationWarning,
+        stacklevel=3,
+    )
 
 
 # Resolved at import time so tests can monkeypatch.
@@ -267,28 +298,69 @@ def _alias_dir() -> Path:
 
 
 def load_alias(alias: str) -> ModelConfig:
-    """Resolve `presets/<alias>.yaml` (a 3-pointer file) → composed V1 ModelConfig.
+    """Resolve `presets/<alias>.yaml` → composed V1 ModelConfig.
 
-    Alias YAML format:
-      model:    <model_id>            # required
-      hardware: <hardware_id>         # required
-      profile:  <profile_id>          # optional
-      runtime:  <runtime>             # optional override (docker/podman/bare-metal)
+    Two YAML shapes accepted (CONFIG-UX.1):
+
+    1) Legacy 3-pointer (backwards-compat — all 21 builtin presets):
+
+         model:    <model_id>            # required
+         hardware: <hardware_id>         # required
+         profile:  <profile_id>          # optional
+         runtime:  <runtime>             # optional
+
+       Loader emits a one-time DeprecationWarning suggesting `card:`
+       annotation (CONFIG-UX.2 work). Composition path unchanged.
+
+    2) Card-annotated (CONFIG-UX.1 forward-shape):
+
+         model: ...
+         hardware: ...
+         profile: ...
+         card:
+           title: ...
+           summary: ...
+           status: production | production_candidate | ...
+
+       Card validated for shape during load; semantic validation
+       (`validate_for_status`) runs in audit_config_catalog.py
+       (CONFIG-UX.audit phase), not here.
+
+    Composition path is IDENTICAL between the two shapes — card metadata
+    is operator-product concern; runtime mechanics live in model/hardware/
+    profile triplet and are unaffected by the card.
+    """
+    preset = load_preset_def(alias)
+    if not preset.has_card():
+        _maybe_warn_unannotated(alias)
+    return compose_by_ids(
+        model_id=preset.model,
+        hardware_id=preset.hardware,
+        profile_id=preset.profile,
+        runtime=preset.runtime,
+    )
+
+
+def load_preset_def(alias: str) -> PresetDef:
+    """Load `presets/<alias>.yaml` as a typed PresetDef (CONFIG-UX.1).
+
+    Used by tools that need the parsed card (CLI surface in CONFIG-UX.3,
+    audit gates in CONFIG-UX.audit). For composition use `load_alias`.
+
+    Legacy 3-pointer presets load as PresetDef with `card=None`. Caller
+    can call `synth_card_for_legacy(alias)` to materialise a placeholder
+    card if a typed surface is required downstream.
     """
     path = _alias_dir() / f"{alias}.yaml"
     data = _yaml_safe_load(path)
-    model_id = data.get("model")
-    hw_id = data.get("hardware")
-    if not model_id or not hw_id:
+    preset = parse_preset_yaml(alias, data)
+    # Validate shape only — semantic checks deferred to audit gate.
+    preset.validate()
+    if not preset.model or not preset.hardware:
         raise SchemaError(
-            f"alias {alias!r}: `model:` and `hardware:` are required pointers"
+            f"preset {alias!r}: `model:` and `hardware:` are required pointers"
         )
-    return compose_by_ids(
-        model_id=model_id,
-        hardware_id=hw_id,
-        profile_id=data.get("profile"),
-        runtime=data.get("runtime"),
-    )
+    return preset
 
 
 def compose_by_ids(

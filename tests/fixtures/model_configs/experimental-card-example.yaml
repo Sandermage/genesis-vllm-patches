@@ -1,0 +1,94 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# CONFIG-UX.1 sample fixture — demonstrates full PresetCard shape.
+#
+# Lives in tests/fixtures/ (NOT in vllm/sndr_core/model_configs/builtin/
+# presets/) per CONFIG_UX_R §13.4: avoid polluting production preset
+# namespace with fixture-only entries. Loaded by tests via direct file
+# path through parse_preset_yaml(), not via load_alias().
+#
+# This fixture exercises:
+#   - All optional card sub-blocks (concurrency, context, primary_metric,
+#     evidence_refs with mixed visibility, do_not_use, tradeoffs)
+#   - status = experimental (permissive validation path)
+#   - All enum values reachable from a single card
+
+schema_version: 2
+kind: preset
+id: experimental-card-example
+
+# 3-pointer triplet (composition base — same as legacy shape)
+model: qwen3.6-35b-a3b-fp8
+hardware: a5000-2x-24gbvram-16cpu-128gbram
+profile: 35b-balanced
+
+# Full PresetCard (CONFIG-UX.1 forward shape)
+card:
+  # — Identity (required at all statuses)
+  title: "Experimental fixture for CONFIG-UX.1 schema coverage"
+  summary: |
+    Demonstration card used by tests/unit/model_configs/
+    test_preset_schema_v1.py to exercise every card sub-block. NOT a
+    production preset — kept under experimental status so permissive
+    validation applies.
+
+  # — Lifecycle
+  status: experimental
+  audience: dev
+  maturity: draft
+
+  # — Workload contract (optional at experimental status)
+  mode: structured_throughput
+  workload_allow:
+    - structured_json.short
+    - tool_call.short
+  workload_deny:
+    - free_chat
+    - summarization
+
+  # — Operating envelope
+  concurrency:
+    min: 1
+    max: 8
+    canonical: 4
+  K: 4
+  context:
+    max_model_len: 16384
+    typical_input_tokens: 512
+    typical_output_tokens: 2048
+
+  # — Routing metadata
+  routing_family: qwen3-35b-a3b-fp8
+  default_for_family: false
+  fallback_preset: prod-35b
+
+  # — Evidence
+  primary_metric:
+    kind: agg_TPS
+    value: 132.4
+    source: tests/fixtures/model_configs/experimental-card-example.yaml
+    measured_at: 2026-05-24
+  evidence_refs:
+    - type: bench
+      path: external://docs.example.com/bench/exp-fixture-bench-2026-05-24
+      visibility: public
+      note: synthetic public ref for fixture coverage
+    - type: smoke
+      path: external://docs.example.com/smoke/exp-fixture-smoke-2026-05-24
+      visibility: private
+  evidence_visibility: mixed
+
+  # — Operator guidance
+  tradeoffs:
+    - "Not a real production preset; fixture coverage only."
+    - "K=4 fits the structured-JSON envelope but not free-chat."
+  do_not_use:
+    - condition: "any production workload"
+      reason: "This is a test fixture, not a validated production preset."
+    - condition: "context > 16K"
+      reason: "Fixture context envelope tops at 16K for compactness."
+
+  # — Provenance
+  card_version: 1
+  card_updated: 2026-05-24
+  card_author: sander
