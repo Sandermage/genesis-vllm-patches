@@ -81,6 +81,7 @@ from .license import add_argparser as _license_argparser  # license (key generat
 from .profile import add_argparser as _profile_argparser  # profile (V2 profile registry)
 from .gateway import add_argparser as _gateway_argparser  # P1.6 thin gateway wrapper
 from .routing import add_argparser as _routing_argparser  # Phase 7.G4.WORKLOAD-GATE-POLICY.IMPLEMENT
+from .preset import add_argparser as _preset_argparser  # CONFIG-UX.3 native preset surface
 
 __all__ = ["cli_main"]
 
@@ -105,7 +106,11 @@ _BRIDGED: dict[str, str] = {
     "bench": "bench",
     # "migrate": "migrate",  # C9 (UNIFIED_CONFIG plan 2026-05-09): native sndr/cli/migrate.py wins
     "recipe": "recipe",
-    "preset": "preset",
+    # CONFIG-UX.3 (2026-05-24): `preset` graduated from bridged stub to
+    # native CLI module (`cli/preset.py`). The compat.cli `preset`
+    # subcommand remains reachable via direct invocation
+    # (`python -m vllm.sndr_core.compat.cli preset ...`) for back-compat,
+    # but `sndr preset` now resolves to the native CLI.
     "init": "init",
     "pull": "pull",
 }
@@ -234,6 +239,7 @@ def cli_main(argv: list[str] | None = None) -> int:
     _profile_argparser(subparsers)       # profile (V2 profile list/show)
     _gateway_argparser(subparsers)       # gateway (P1.6 thin CLI wrapper)
     _routing_argparser(subparsers)       # routing-table (Phase 7.G4.WORKLOAD-GATE-POLICY.IMPLEMENT)
+    _preset_argparser(subparsers)        # CONFIG-UX.3 preset list/show/explain/recommend
 
     # S2.5 (audit closure 2026-05-08): bench-compare A.json B.json
     p_bcmp = subparsers.add_parser(

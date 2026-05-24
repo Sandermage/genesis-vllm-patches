@@ -101,6 +101,38 @@ PrimaryMetricKind = Literal[
 ]
 
 
+# CONFIG-UX.3 (2026-05-24) — frozen workload taxonomy with `custom:<slug>`
+# escape hatch. `sndr preset recommend` only ranks presets whose
+# `workload_allow` contains an exact match with the operator's --workload
+# argument. Unknown / non-canonical workload strings either match by
+# `custom:<slug>` exact-string or are rejected.
+KNOWN_WORKLOADS = (
+    "free_chat",
+    "structured_json.short",
+    "structured_json.long",
+    "tool_call.short",
+    "tool_call.long",
+    "summarization",
+    "code_gen",
+    "long_context_qa",
+)
+_CUSTOM_WORKLOAD_RE = re.compile(
+    r"^custom:[a-z0-9][a-z0-9._-]*[a-z0-9]$|^custom:[a-z0-9]$"
+)
+
+
+def is_known_workload(w: str) -> bool:
+    """True if `w` is in the canonical taxonomy or a `custom:<slug>` form.
+
+    Used by `sndr preset recommend` to filter operator input. Card YAML
+    files can include any string in `workload_allow` / `workload_deny`;
+    this function only gates the *recommend* surface.
+    """
+    if w in KNOWN_WORKLOADS:
+        return True
+    return bool(_CUSTOM_WORKLOAD_RE.match(w))
+
+
 # CONFIG-UX.R §6.3 — statuses required to satisfy "production-grade" strict
 # validation. Other statuses pass through permissively.
 _STRICT_VALIDATION_STATUSES = frozenset({"production", "production_candidate"})
@@ -617,6 +649,7 @@ __all__ = [
     "EVIDENCE_VISIBILITIES", "EvidenceVisibility",
     "EVIDENCE_TYPES", "EvidenceType",
     "PRIMARY_METRIC_KINDS", "PrimaryMetricKind",
+    "KNOWN_WORKLOADS", "is_known_workload",
     # Dataclasses
     "EvidenceRef", "PrimaryMetric",
     "ConcurrencyEnvelope", "ContextEnvelope", "DoNotUseCondition",
