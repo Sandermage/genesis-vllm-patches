@@ -165,6 +165,14 @@ def _g4_19_import_time_hook():
     g60d = _os.environ.get(
         "GENESIS_ENABLE_G4_60D_TQ_STORE_OVERLAY", ""
     ).strip().lower() in ("1", "true", "yes")
+    # G4_60L — monkey-patch supports_mm_prefix=True on stock
+    # TurboQuantBackend (Phase 7.G4.31B.K4-TURBOQUANT-BACKEND-MM-PREFIX).
+    # Closes the 'partial multimodal token full attention not
+    # supported' rejection for Gemma 4 31B AWQ + TURBOQUANT on the
+    # V2 compose path, which doesn't bind-mount the PR42637 overlay.
+    g60l = _os.environ.get(
+        "GENESIS_ENABLE_G4_60L_TQ_BACKEND_MM_PREFIX", ""
+    ).strip().lower() in ("1", "true", "yes")
     # G4_67 — backport of upstream PR #40914 (TQ K+1 spec-verify routing).
     g67 = _os.environ.get(
         "GENESIS_ENABLE_G4_67_TQ_SPEC_VERIFY_ROUTE", ""
@@ -323,7 +331,7 @@ def _g4_19_import_time_hook():
     ).strip().lower() in ("1", "true", "yes")
     if not (
         g19 or g19b or g19c or g30 or g31 or g32 or g43 or g44 or g45 or g50
-        or g60a or g60b or g60c or g60d or g60e or g60g or g60h or g60k
+        or g60a or g60b or g60c or g60d or g60e or g60g or g60h or g60k or g60l
         or g61 or g62 or g67 or g68 or g69 or g71 or g72
         or pn241 or pn248 or pn282 or pn258 or pn262 or pn262b
         or g73 or g74 or g75 or g76 or pn266 or pn267 or pn268 or pn269
@@ -469,6 +477,18 @@ def _g4_19_import_time_hook():
                 g4_60d_triton_store_overlay_loader as _g4_60d_mod,
             )
             _g4_60d_mod.apply()
+        # G4_60L — supports_mm_prefix=True monkey-patch on stock
+        # TurboQuantBackend. Must apply BEFORE Attention.__init__ on
+        # any Gemma 4 layer (i.e. before model load). Plugin apply-all
+        # runs at engine_core boot, well before model load, so this
+        # ordering is satisfied. Idempotent: if G4_60B already
+        # confirmed bind-mounted overlay, the override is already
+        # present and this no-ops.
+        if g60l:
+            from .integrations.attention.turboquant import (
+                g4_60l_tq_backend_mm_prefix as _g4_60l_mod,
+            )
+            _g4_60l_mod.apply()
         # G4_67 backports PR #40914 — must apply AFTER G4_60b (overlay
         # verifier) so TurboQuantAttentionImpl exists with PR #42637
         # signatures before we monkey-patch its forward method.

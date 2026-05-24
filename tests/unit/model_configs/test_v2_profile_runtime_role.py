@@ -46,16 +46,22 @@ class TestExistingProfilesLoadUnchanged:
         "gemma4-tq-default",                # role=default, no spec/compression/etc.
         "gemma4-tq-mtp-structured-k4",      # role=structured, full structured config
         # Phase 7.G4.26B-A4B.B0 (2026-05-23): 26B-A4B MoE profiles.
-        # K=1 control (no-mtp) uses role=default + spec_decode_override
-        # to K=1 because 26B-A4B ModelDef pre-dates Variant A and still
-        # declares MTP K=4 at model level — null override would inherit
-        # K=4, so K=1 is the closest available MTP-off control. K=4
-        # sibling uses role=structured + routing block. multiconc uses
-        # role=default + sizing_override (max_num_seqs=8); the
-        # multi-conc semantic is sizing not role-class.
-        "gemma4-a4b-no-mtp",                # role=default, spec_decode K=1 control
+        # All four profiles set `role` (default or structured), so they
+        # need exemption from the "role must be None" rule. The
+        # spec_decode_override side of each profile is updated post-
+        # VARIANT-A-FIX (2026-05-23):
+        #
+        #   gemma4-a4b-no-mtp        role=default,    spec_override=null (was K=1)
+        #   gemma4-a4b-mtp-k4        role=structured, spec_override=K=4
+        #   gemma4-a4b-multiconc     role=structured, spec_override=K=4 (was default+K=4)
+        #   gemma4-a4b-multiconc-k1  role=default,    spec_override=null (was K=1)
+        #
+        # The default-role profiles now also satisfy `10_default_clean`
+        # (all runtime-role blocks null when role=default).
+        "gemma4-a4b-no-mtp",                # role=default, no MTP
         "gemma4-a4b-mtp-k4",                # role=structured, MTP K=4
-        "gemma4-a4b-multiconc",             # role=default, max_num_seqs=8
+        "gemma4-a4b-multiconc",             # role=structured, MTP K=4, max_num_seqs=8
+        "gemma4-a4b-multiconc-k1",          # role=default, no MTP, max_num_seqs=8
     })
 
     def test_all_builtin_profiles_load_with_new_fields_default_none(self):
@@ -113,9 +119,13 @@ class TestExistingProfilesLoadUnchanged:
         assert p.validation is None
         assert p.patches_delta.enable == {}
         assert p.patches_delta.disable == []
-        assert p.patches_delta.override == {
-            "GENESIS_ENABLE_G4_19C_ATTN_WRAP": "0",
-        }
+        # Phase 7.G4.G4_19C.UN-DISABLE (2026-05-23): the temporary
+        # GENESIS_ENABLE_G4_19C_ATTN_WRAP=0 override is retired after
+        # iter-3 architectural fix validated G4_19C as fullgraph-safe
+        # on this preset (commit 47acc808 + rig active-path smoke).
+        # patches_delta.override is now empty — the model.patches dict
+        # reaches the launch script unchanged.
+        assert p.patches_delta.override == {}
 
     def test_p1_3_builtin_gemma4_structured_k4_loads(self):
         """gemma4-tq-mtp-structured-k4 (P1.3): full structured config

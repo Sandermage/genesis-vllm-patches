@@ -1,22 +1,49 @@
 # SPDX-License-Identifier: Apache-2.0
-# Genesis V2 alias — Gemma 4 26B-A4B AWQ-4bit, multi-conc throughput.
+# Genesis V2 alias — Gemma 4 26B-A4B AWQ-4bit, short structured-JSON
+# multi-conc preset (NOT a generic free-chat throughput preset).
 # `sndr launch prod-gemma4-26b-a4b-multiconc` resolves to (model, hardware, profile).
 #
-# THE MAIN QUESTION FOR THE 26B-A4B BENCH CYCLE: does Gemma 4 MoE A=4B
-# replicate the Qwen 35B-A3B effect on multi-conc aggregate throughput?
+# ┌─────────────────────────────────────────────────────────────────────┐
+# │ INTENDED USE — read before picking this preset                      │
+# ├─────────────────────────────────────────────────────────────────────┤
+# │ This preset is K=4 MTP + max_num_seqs=8. After B2 + B3 + B4 bench  │
+# │ closure (2026-05-23), it has ONE concrete production niche:        │
+# │                                                                     │
+# │   workload_class    ∈ {structured_json, tool_call}                  │
+# │   expected_output   short (≤ ~200 tokens, e.g. tool args, small    │
+# │                     JSON objects, schema-bounded responses)         │
+# │   concurrency_mode  any 1..8                                        │
+# │                                                                     │
+# │ Empirical evidence (see sndr_private/runs/g4_26b_a4b_*):           │
+# │   B4 conc=8 Mode A:  K=4 235.9 TPS vs K=1 209.1 TPS (+12.8%)        │
+# │   B4 conc=8 Mode B:  K=4 271.4 TPS, schema_rate 100% (xgrammar)     │
+# │   B2 conc=1 short:   K=4 mean elapsed -38% vs K=1                   │
+# │                                                                     │
+# │ DO NOT use for:                                                     │
+# │   - free-chat multi-conc throughput  → use prod-35b-multiconc      │
+# │     (B3 closed K=4 free-chat conc=8 at 408 TPS, MIXED band,        │
+# │     -39% vs Qwen 35B-A3B 672 TPS reference)                        │
+# │   - long-form structured JSON  → use K=1 sibling (B2 closed K=4    │
+# │     long structured at -53% TPS)                                   │
+# │   - code generation / summarization  → K=1 is the policy default   │
+# │                                                                     │
+# │ For free-chat multi-conc throughput, Qwen 35B-A3B is the production │
+# │ baseline (672 TPS @ conc=8). 26B-A4B sits at 408 TPS for that      │
+# │ workload (B3 verdict, MIXED band).                                  │
+# └─────────────────────────────────────────────────────────────────────┘
 #
-# Reference: Phase 7.B.2.B2 measured Qwen 35B-A3B at 672 TPS agg @ conc=8
-# vs Qwen 27B-dense INT4 at 471 TPS @ conc=8 (+43%). The hypothesis here
-# is that 26B-A4B's smaller active-param tile (~4B) lets it batch more
-# efficiently than 31B dense, replicating the architectural advantage
-# on Gemma family.
+# Policy reference: sndr_private/research/gemma4/analysis/
+#                   G4_WORKLOAD_GATE_POLICY_UPDATE_2026-05-23.md
 #
-# Bench harness: tools/multi_conc_bench.py --conc 8 --rounds 5 --max-tok 1024
-# (same harness used for Qwen prod-35b-multiconc baseline in commit d52eb168).
+# Bench harness used at B4: sndr_private/runs/g4_26b_a4b_structured_multiconc_
+#                            2026-05-23/multi_conc_json_bench.py
+# (NOT tools/multi_conc_bench.py — that one is free-chat-shaped and was
+# the harness for B3, where the policy verdict was MIXED.)
 #
 # Sibling presets:
-#   prod-gemma4-26b-a4b-default      — K=1 single-stream control
-#   prod-gemma4-26b-a4b-mtp-k4       — K=4 single-stream structured
+#   prod-gemma4-26b-a4b-default          — K=1 single-stream control
+#   prod-gemma4-26b-a4b-mtp-k4           — K=4 single-stream structured
+#   prod-gemma4-26b-a4b-multiconc-k1     — K=1 multi-conc baseline (B4-PRE comparator)
 
 model: gemma-4-26b-a4b-it-awq
 hardware: a5000-2x-24gbvram-16cpu-128gbram

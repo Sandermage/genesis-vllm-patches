@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 alias — Gemma 4 26B-A4B AWQ-4bit, K=1 multi-conc HISTORICAL
+# BENCH BASELINE (not a production preset).
+# `sndr launch prod-gemma4-26b-a4b-multiconc-k1` resolves to (model, hardware, profile).
+#
+# Purpose: kept committed so the B4 K=1 vs K=4 multi-conc comparison
+# can be reproduced on future vllm-pin bumps. NOT for production
+# multi-conc traffic.
+#
+# B4 result (2026-05-23, Mode A short structured-JSON conc=8):
+#   K=1 (this preset)                      = 209.1 TPS (CV 0.154)
+#   K=4 (prod-gemma4-26b-a4b-multiconc)    = 235.9 TPS (CV 0.180)  +12.8%
+# K=4 sibling wins, so this preset stays as a diagnostic baseline only.
+#
+# Created by Phase 7.G4.26B-A4B.B4-PRE.
+#
+# Sibling presets:
+#   prod-gemma4-26b-a4b-default          — K=1 single-stream control
+#   prod-gemma4-26b-a4b-mtp-k4           — K=4 single-stream structured
+#   prod-gemma4-26b-a4b-multiconc        — K=4 short structured-JSON multi-conc (PRODUCTION CANDIDATE)
+#   prod-gemma4-26b-a4b-multiconc-k1     — K=1 multi-conc baseline (THIS FILE, diagnostic only)
+#
+# For free-chat multi-conc throughput, neither this K=1 preset nor its
+# K=4 sibling is the right choice — use prod-35b-multiconc (Qwen
+# 35B-A3B, 672 TPS @ conc=8) instead.
+#
+# Policy reference:
+#   sndr_private/research/gemma4/analysis/
+#     G4_WORKLOAD_GATE_POLICY_UPDATE_2026-05-23.md
+
+model: gemma-4-26b-a4b-it-awq
+hardware: a5000-2x-24gbvram-16cpu-128gbram
+profile: gemma4-a4b-multiconc-k1

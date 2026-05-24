@@ -38,6 +38,49 @@ backend_plan: null                                # default backend assignments 
 routing: null                                     # default has no workload-class restriction
 validation: null                                  # no functional artifact gate (default is broadly safe)
 
+# ─── Sizing override ───────────────────────────────────────────────────
+# Phase 7.G4.31B.SIZING-FIX (2026-05-23): the hardware default
+# max_model_len=280000 is too large to fit the KV cache pool on
+# 2× A5000 24 GiB at gpu_memory_utilization=0.90 with AWQ-4bit
+# Gemma 4 31B weights. vllm's _check_enough_kv_cache_memory rejects
+# boot.
+#
+# Iteration history (one boot per data point):
+#   • max_model_len=280000 (hardware default):
+#       12.64 GiB KV needed vs 10.97 GiB available
+#       estimated ceiling: 236128
+#   • max_model_len=224000 (first attempt under 236128 ceiling):
+#       10.5 GiB KV needed vs 10.0 GiB available
+#       estimated ceiling: 210656
+#     The available-memory budget varies ~1 GiB between boots
+#     (compile-cache state, allocator fragmentation). The first
+#     ceiling estimate was optimistic; the actual stable ceiling
+#     after warmup-allocator settle is closer to 210K. Need a
+#     larger safety margin.
+#   • max_model_len=200000 (this commit):
+#       expected ~9.4 GiB needed → ~600 MiB margin per card
+#     Well below the 210656 stable ceiling.
+#
+# 200K still serves at 78% of the 31B model's 256K published context
+# (VLLM_ALLOW_LONG_MAX_MODEL_LEN=1 in hardware system_env stays in
+# force for the remaining headroom if a future operator wants to
+# raise it back up after profiling allocator behavior on a fresh
+# vllm pin).
+#
+# All other sizing fields = hardware defaults (compose.py treats
+# sizing_override as full-replacement when set, so every field must
+# be present even if only one differs).
+#
+# This is a CONFIG fix only — no runtime / kernel / registry change.
+sizing_override:
+  max_model_len: 200000
+  gpu_memory_utilization: 0.90
+  max_num_seqs: 2
+  max_num_batched_tokens: 4096
+  enable_chunked_prefill: true
+  enforce_eager: false
+  disable_custom_all_reduce: true
+
 # ─── Patches delta ─────────────────────────────────────────────────────
 # Default profile uses the ModelDef's canonical patches as-is — Gemma 4
 # family guards + fixes + TurboQuant wrapper-stack are already in
@@ -62,8 +105,17 @@ validation: null                                  # no functional artifact gate 
 patches_delta:
   enable: {}
   disable: []
-  override:
-    GENESIS_ENABLE_G4_19C_ATTN_WRAP: '0'         # TEMPORARY — see Phase 7.G4.G4_19C-FULLGRAPH-AUDIT
+  override: {}
+  # G4_19C profile-local disable RETIRED 2026-05-23
+  # (Phase 7.G4.G4_19C.UN-DISABLE).
+  # Iter-3 architectural fix (commit 47acc808) made G4_19C
+  # fullgraph-safe; rig boot of this preset with
+  # `--extra-env GENESIS_ENABLE_G4_19C_ATTN_WRAP=1` reached READY,
+  # confirmed G4_19 registry populated + G4_19C apply()=True +
+  # per-instance _active_forward installed via types.MethodType +
+  # allow_in_graph kernel exercised in vllm fullgraph compile +
+  # cudagraph capture clean. None of the S1-S6 stop criteria fired.
+  # The previous TEMPORARY override is no longer needed.
 
 # ─── Promotion contract ────────────────────────────────────────────────
 # Default profile is already the canonical reference mode; no promotion

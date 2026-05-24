@@ -110,6 +110,18 @@ def add_argparser(subparsers: Any) -> None:
             "launch matrix."
         ),
     )
+    p.add_argument(
+        "--extra-env", action="append", default=[], metavar="KEY=VALUE",
+        help=(
+            "Inject an extra env var into the rendered docker-run (or "
+            "bare-metal export block) for this launch only. Repeatable. "
+            "KEY starting with GENESIS_ or SNDR_ lands in cfg.genesis_env; "
+            "everything else lands in cfg.system_env. Last-wins on conflict "
+            "with the preset's own env. Useful for one-shot operator probes "
+            "(e.g. GENESIS_ENABLE_PN248_ACCEPTANCE_TRACE=1) without editing "
+            "the preset/profile YAML."
+        ),
+    )
     p.set_defaults(func=run_launch)
 
 
@@ -461,6 +473,63 @@ def _run_check_deps(cfg, key: str) -> int:
     return 0
 
 
+def _parse_extra_env(items: list[str]) -> dict[str, str]:
+    """Parse `--extra-env KEY=VALUE` items into a dict.
+
+    Split is on the FIRST `=` only — values may contain further `=`
+    characters (e.g. JSON payloads). Empty values are allowed (some
+    env vars are presence-checked). Empty key or missing `=` are
+    rejected with a helpful message.
+    """
+    out: dict[str, str] = {}
+    for raw in items:
+        if "=" not in raw:
+            _io.fatal(
+                f"--extra-env: expected KEY=VALUE, got {raw!r} "
+                f"(no '=' separator)",
+                2,
+            )
+        k, _, v = raw.partition("=")
+        k = k.strip()
+        if not k:
+            _io.fatal(
+                f"--extra-env: empty key in {raw!r}", 2,
+            )
+        out[k] = v
+    return out
+
+
+def _apply_extra_env(cfg: Any, extra_env: dict[str, str]) -> None:
+    """Merge `--extra-env` overrides into the right env block on cfg.
+
+    GENESIS_* / SNDR_* keys go into cfg.genesis_env (so they get the
+    same rendering + visibility as preset-declared toggles); other
+    keys go into cfg.system_env. Last-wins on conflict with the
+    preset's own env — logged to stderr so the override is visible
+    and auditable.
+    """
+    if not extra_env:
+        return
+    if not hasattr(cfg, "genesis_env") or cfg.genesis_env is None:
+        cfg.genesis_env = {}
+    if not hasattr(cfg, "system_env") or cfg.system_env is None:
+        cfg.system_env = {}
+    for k, v in extra_env.items():
+        target_block = "genesis_env" if (
+            k.startswith("GENESIS_") or k.startswith("SNDR_")
+        ) else "system_env"
+        target = getattr(cfg, target_block)
+        prev = target.get(k)
+        target[k] = v
+        if prev is not None and prev != v:
+            _io.warn(
+                f"  --extra-env override: {target_block}[{k}] "
+                f"{prev!r} → {v!r}"
+            )
+        else:
+            _io.info(f"  --extra-env: {target_block}[{k}]={v!r}")
+
+
 def _maybe_apply_patch_policy(cfg: Any, opts: argparse.Namespace) -> None:
     """Apply --policy filter to cfg.genesis_env in place.
 
@@ -573,6 +642,12 @@ def run_launch(opts: argparse.Namespace) -> int:
     # No-op when --policy isn't passed; otherwise replaces cfg.genesis_env
     # with the policy-filtered + parameter-passthrough union.
     _maybe_apply_patch_policy(cfg, opts)
+
+    # `--extra-env KEY=VALUE` overrides land AFTER policy filtering so an
+    # operator can force-enable a key that policy would have dropped.
+    extra_env_items = getattr(opts, "extra_env", None) or []
+    if extra_env_items:
+        _apply_extra_env(cfg, _parse_extra_env(extra_env_items))
 
     # Surface partial / placeholder / marker_only patches that ended up
     # in the launch env after policy filtering. These are the silent-

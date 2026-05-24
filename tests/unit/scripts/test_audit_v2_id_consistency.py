@@ -92,7 +92,9 @@ class TestLiveRepo:
         # was 24 with 6 models and 15 profiles).
         # Phase 7.G4.26B-A4B.B0 (2026-05-23): +3 Gemma 4 26B-A4B
         # profiles (no new models / hardware) → 33.
-        assert len(results) == 33
+        # Phase 7.G4.26B-A4B.B4-PRE (2026-05-23): +1 multiconc-k1
+        # profile → 34.
+        assert len(results) == 34
 
 
 class TestScriptCLI:

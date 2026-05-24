@@ -163,6 +163,18 @@ patches_delta:
     GENESIS_ENABLE_G4_60G_TQ_DISPATCH: '1'
     GENESIS_ENABLE_G4_60H_TQ_CONFIG_AUGMENT: '1'
     GENESIS_ENABLE_G4_60K_TQ_ENGINE_CONFIG: '1'
+    # ── G4_60L: supports_mm_prefix=True monkey-patch on stock TurboQuantBackend ──
+    # Phase 7.G4.31B.K4-TURBOQUANT-BACKEND-MM-PREFIX (2026-05-23).
+    # Closes the 'partial multimodal token full attention not supported'
+    # rejection that fires on Gemma 4 31B AWQ + TURBOQUANT path on the
+    # current vllm pin (dev371+gbf610c2f5). Stock class missing the
+    # supports_mm_prefix=True classmethod override that PR42637 overlay
+    # adds; the V2 compose path doesn't bind-mount the overlay, so a
+    # Python-side monkey-patch is needed. Idempotent vs G4_60B overlay
+    # bind-mount (if both engaged, G4_60L apply() no-ops). Will retire
+    # automatically via vllm_version_range "<0.21" when PR42637 merges
+    # upstream.
+    GENESIS_ENABLE_G4_60L_TQ_BACKEND_MM_PREFIX: '1'
     GENESIS_ENABLE_G4_61_TQ_SHARED_WORKSPACE: '1'
     GENESIS_ENABLE_G4_62_TQ_KERNEL_WARMUP: '1'
     GENESIS_ENABLE_G4_32_TQ_VALIDATION_BYPASS: '1'

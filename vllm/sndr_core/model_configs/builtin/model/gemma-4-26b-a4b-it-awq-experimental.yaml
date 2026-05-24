@@ -38,10 +38,11 @@ capabilities:
   tool_call_parser: gemma4
   reasoning_parser: null
   enable_auto_tool_choice: true
-  spec_decode:
-    method: mtp
-    num_speculative_tokens: 4
-    model: /models/gemma-4-26B-A4B-it-assistant
+  # Phase 7.G4.26B-A4B.VARIANT-A-FIX (2026-05-23): MTP ownership moved
+  # from ModelDef to ProfileDef. Mirrors the canonical 26B-A4B ModelDef
+  # (gemma-4-26b-a4b-it-awq.yaml). The experimental variant follows the
+  # same convention so future profiles using it inherit no K default.
+  spec_decode: null
   kv_cache_dtype: auto
 
 requires:

@@ -43,7 +43,9 @@ class TestLiveRepo:
         # (17 profile + 17 preset×3 = 68 refs).
         # Phase 7.G4.26B-A4B.B0 (2026-05-23): +3 Gemma 4 26B-A4B
         # profiles + 3 presets (20 profile + 20 preset×3 = 80 refs).
-        assert len(results) == 80
+        # Phase 7.G4.26B-A4B.B4-PRE (2026-05-23): +1 K=1 multiconc
+        # profile + 1 preset alias (21 profile + 21 preset×3 = 84).
+        assert len(results) == 84
 
 
 class TestScriptCLI:
@@ -66,7 +68,8 @@ class TestScriptCLI:
         # was 60 in Wave 10 era with 15 profiles vs current 17).
         # Phase 7.G4.B1.0 (2026-05-23): +2 Gemma 4 31B presets = 68.
         # Phase 7.G4.26B-A4B.B0 (2026-05-23): +3 profiles + 3 presets = 80.
-        assert payload["total"] == 80
+        # Phase 7.G4.26B-A4B.B4-PRE (2026-05-23): +1 profile + 1 preset = 84.
+        assert payload["total"] == 84
 
 
 class TestSyntheticBroken:

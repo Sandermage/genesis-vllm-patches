@@ -155,7 +155,9 @@ class TestLiveRepo:
         # Phase 7.G4.26B-A4B.B0 (2026-05-23): +3 Gemma 4 26B-A4B
         # profiles + 3 preset aliases
         # (10 model + 3 hardware + 20 profile + 20 preset = 53).
-        assert len(results) == 53
+        # Phase 7.G4.26B-A4B.B4-PRE (2026-05-23): +1 K=1 multiconc
+        # profile + 1 preset alias (10 + 3 + 21 + 21 = 55).
+        assert len(results) == 55
 
 
 # ─── CLI ──────────────────────────────────────────────────────────────

@@ -118,6 +118,7 @@ KNOWN_SPEC_ONLY_PATCHES: frozenset[str] = frozenset({
     "G4_60G",          # attention dispatch overlay
     "G4_60H",          # TQ config augment overlay
     "G4_60K",          # arg_utils skip-list plumbing
+    "G4_60L",          # TQ backend supports_mm_prefix override
     "G4_61",           # TQ shared workspace
     "G4_62",           # TQ kernel warmup
     "G4_67",           # TQ spec-verify routing

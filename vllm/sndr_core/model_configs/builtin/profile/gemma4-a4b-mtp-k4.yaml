@@ -27,8 +27,12 @@ status: experimental                              # not yet boot-validated; B0 c
 created: '2026-05-23'
 
 # ─── Runtime role ──────────────────────────────────────────────────────
+# After VARIANT-A-FIX (2026-05-23) the 26B-A4B ModelDef declares
+# spec_decode = null. This profile is now the load-bearing source of
+# the K=4 single-stream config — without this override the rendered
+# launch would emit no --speculative-config flag.
 role: structured                                  # MTP K=4 positive case; workload-gated at request-router
-spec_decode_override:                             # explicit K=4 (matches ModelDef capabilities; explicit for self-documentation)
+spec_decode_override:                             # explicit K=4 (load-bearing post-VARIANT-A-FIX; ModelDef no longer declares K)
   method: mtp
   num_speculative_tokens: 4
   model: /models/gemma-4-26B-A4B-it-assistant
@@ -57,8 +61,11 @@ sizing_override:
 patches_delta:
   enable: {}
   disable: []
-  override:
-    GENESIS_ENABLE_G4_19C_ATTN_WRAP: '0'
+  override: {}
+  # G4_19C profile-local disable RETIRED 2026-05-23 (Phase 7.G4.G4_19C.UN-DISABLE).
+  # Iter-3 architectural fix (commit 47acc808) made the wrapper
+  # fullgraph-safe; on 26B-A4B the wrapper short-circuits at apply()
+  # because kv_cache_dtype=auto (NOT turboquant_*).
 
 # ─── Promotion contract ────────────────────────────────────────────────
 promotion:

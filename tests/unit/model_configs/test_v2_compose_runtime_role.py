@@ -482,3 +482,122 @@ class TestCompressionKvDtypeCompat:
         )
         cfg = compose(model, hardware, profile)
         assert cfg.kv_cache_dtype == "turboquant_4bit_nc"
+
+
+# ─── Phase 7.G4.31B.K4-BACKEND-FIX: --attention-backend emission ────────
+
+
+class TestAttentionBackendEmission:
+    """Phase 7.G4.31B.K4-BACKEND-FIX (2026-05-23): compose() must emit
+    ``--attention-backend <target_default>`` in vllm_extra_args when
+    profile.backend_plan.target_default is set. Prior to this fix the
+    flag was dropped (BACKEND_PLAN_EMISSION_MAP returned None with a
+    "vLLM CLI flag --attention-backend; no env needed" comment but the
+    CLI emission was never wired), so vllm auto-picked an attention
+    backend (TRITON_ATTN) incompatible with profile-declared
+    kv_cache_dtype (turboquant_4bit_nc) → engine init ValueError at
+    attention.py:299.
+    """
+
+    def test_target_default_turboquant_emits_attention_backend(self):
+        """backend_plan.target_default=TURBOQUANT → CLI flag emitted."""
+        model = _make_model(kv_dtype="turboquant_4bit_nc")
+        hardware = _make_hardware()
+        profile = _make_profile(
+            role="structured",
+            backend_plan=BackendPlanConfig(target_default="TURBOQUANT"),
+        )
+        cfg = compose(model, hardware, profile)
+        assert "--attention-backend" in cfg.vllm_extra_args, (
+            "target_default must emit --attention-backend CLI flag; "
+            f"got vllm_extra_args={cfg.vllm_extra_args}"
+        )
+        idx = cfg.vllm_extra_args.index("--attention-backend")
+        assert cfg.vllm_extra_args[idx + 1] == "TURBOQUANT"
+
+    def test_target_default_triton_attn_emits_flag(self):
+        """Same shape for the non-TURBOQUANT enum values to confirm
+        the emission is generic, not hard-coded to TURBOQUANT."""
+        model = _make_model(kv_dtype="auto")
+        hardware = _make_hardware()
+        profile = _make_profile(
+            role="structured",
+            backend_plan=BackendPlanConfig(target_default="TRITON_ATTN"),
+        )
+        cfg = compose(model, hardware, profile)
+        idx = cfg.vllm_extra_args.index("--attention-backend")
+        assert cfg.vllm_extra_args[idx + 1] == "TRITON_ATTN"
+
+    def test_target_default_flash_attn_emits_flag(self):
+        model = _make_model(kv_dtype="auto")
+        hardware = _make_hardware()
+        profile = _make_profile(
+            role="structured",
+            backend_plan=BackendPlanConfig(target_default="FLASH_ATTN"),
+        )
+        cfg = compose(model, hardware, profile)
+        idx = cfg.vllm_extra_args.index("--attention-backend")
+        assert cfg.vllm_extra_args[idx + 1] == "FLASH_ATTN"
+
+    def test_backend_plan_null_skips_emission(self):
+        """Profiles with backend_plan=null (the majority) must NOT
+        receive a --attention-backend flag — preserves vllm auto-pick."""
+        model = _make_model(kv_dtype="auto")
+        hardware = _make_hardware()
+        profile = _make_profile(role="default", backend_plan=None)
+        cfg = compose(model, hardware, profile)
+        assert "--attention-backend" not in cfg.vllm_extra_args, (
+            "backend_plan=null must NOT emit --attention-backend; "
+            f"got vllm_extra_args={cfg.vllm_extra_args}"
+        )
+
+    def test_backend_plan_present_but_target_default_none_skips(self):
+        """A profile with backend_plan present but target_default=None
+        (drafter-only routing — hypothetical future profile) must NOT
+        receive --attention-backend; the target follows vllm auto-pick."""
+        model = _make_model(kv_dtype="auto")
+        hardware = _make_hardware()
+        profile = _make_profile(
+            role="structured",
+            backend_plan=BackendPlanConfig(
+                target_default=None,           # explicitly unset
+                drafter_sliding="TRITON_ATTN",
+            ),
+        )
+        cfg = compose(model, hardware, profile)
+        assert "--attention-backend" not in cfg.vllm_extra_args
+
+    def test_no_profile_no_attention_backend(self):
+        """compose(model, hardware, profile=None) must not emit
+        --attention-backend — backend_plan only lives on profiles."""
+        model = _make_model(kv_dtype="auto")
+        hardware = _make_hardware()
+        cfg = compose(model, hardware, None)
+        assert "--attention-backend" not in cfg.vllm_extra_args
+
+    def test_real_structured_k4_profile_emits_turboquant(self):
+        """End-to-end check against the actual builtin profile that
+        motivated this fix: gemma4-tq-mtp-structured-k4 has
+        backend_plan.target_default=TURBOQUANT, kv_cache_dtype=
+        turboquant_4bit_nc. Composing it must yield --attention-backend
+        TURBOQUANT in vllm_extra_args."""
+        model = load_model("gemma-4-31b-it-awq")
+        hardware = load_hardware("a5000-2x-24gbvram-16cpu-128gbram")
+        profile = load_profile("gemma4-tq-mtp-structured-k4")
+        cfg = compose(model, hardware, profile)
+        assert "--attention-backend" in cfg.vllm_extra_args
+        idx = cfg.vllm_extra_args.index("--attention-backend")
+        assert cfg.vllm_extra_args[idx + 1] == "TURBOQUANT"
+        # Cross-check: kv_cache_dtype is consistent with the target
+        # backend choice.
+        assert cfg.kv_cache_dtype == "turboquant_4bit_nc"
+
+    def test_real_default_31b_profile_does_not_emit(self):
+        """The other 31B profile (gemma4-tq-default, backend_plan=null)
+        must NOT receive --attention-backend — regression guard against
+        the fix leaking into unaffected presets."""
+        model = load_model("gemma-4-31b-it-awq")
+        hardware = load_hardware("a5000-2x-24gbvram-16cpu-128gbram")
+        profile = load_profile("gemma4-tq-default")
+        cfg = compose(model, hardware, profile)
+        assert "--attention-backend" not in cfg.vllm_extra_args

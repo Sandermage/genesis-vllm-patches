@@ -92,7 +92,21 @@ patches:
   # ── Genesis G4 TurboQuant KV cache wrapper-stack (Gemma 4 256K unlock) ──
   GENESIS_ENABLE_G4_19_GEMMA4_TURBOQUANT_KV: '1'          # vector-quant KV (3-bit global / 4-bit sliding); 5.33x compression
   GENESIS_ENABLE_G4_19B_GEMMA4_TQ_KV_SPEC: '1'            # memory accounting hook (effective 37.84 GB)
-  GENESIS_ENABLE_G4_19C_ATTN_WRAP: '1'                    # round-trip wrapper + sliding-skip optimization
+  # Phase 7.G4.31B-MODELDEF.G4_19C-DEFAULT-OFF (2026-05-23):
+  # default flipped '1' → '0'. The iter-3 architectural fix
+  # (commit 47acc808) made the wrapper fullgraph-safe, but the
+  # SEPARATE Lloyd-Max codebook quality regression documented in
+  # g4_19c_attention_wrapper.py §"SERVER A/B RESULT 2026-05-17"
+  # is NOT fixed — running G4_19C on production K/V tensors skews
+  # attention scores → divergent token sampling (rig smoke
+  # 2026-05-23 confirmed: output text "SBBBBBBBBBBBB" / "Sそしてそして…").
+  # Production default must match the wrapper docstring's stated
+  # "Default status of G4_19c: OFF in production launcher until
+  # quality regression is resolved" stance. Operators running the
+  # A/B harness for codebook calibration can force-on via
+  # `sndr launch <preset> --extra-env GENESIS_ENABLE_G4_19C_ATTN_WRAP=1`
+  # (CLI passthrough from Phase 7.G4.CLI-EXTRA-ENV, commit 9d2470fd).
+  GENESIS_ENABLE_G4_19C_ATTN_WRAP: '0'                    # round-trip wrapper OFF by default (codebook quality regression pending)
   GENESIS_ENABLE_G4_31_TQ_DTYPE_PRESERVE: '1'             # preserve turboquant_* against AWQ kv_cache_scheme override
   # ── PR #40914 backport — TQ K+1 spec-verify cudagraph fix ──
   GENESIS_ENABLE_G4_67_TQ_SPEC_VERIFY_ROUTE: '1'          # safe no-op for wrapper path; primes upstream-overlay path

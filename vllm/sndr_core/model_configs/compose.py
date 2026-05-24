@@ -474,6 +474,25 @@ def compose(
     if getattr(model, "chat_template", None):
         vllm_extra_args.extend(["--chat-template", model.chat_template])
 
+    # 4d. Emit --attention-backend from profile.backend_plan.target_default.
+    # Phase 7.G4.31B.K4-BACKEND-FIX (2026-05-23): closes the gap left
+    # by P1.5. BACKEND_PLAN_EMISSION_MAP (above) maps target_default
+    # to None with a "vLLM CLI flag --attention-backend; no env needed"
+    # comment, but the CLI emission was never wired anywhere. Without
+    # this, vllm auto-picks an attention backend that may not support
+    # the profile's kv_cache_dtype — e.g. TRITON_ATTN rejects
+    # turboquant_4bit_nc at attention.py:299 during Gemma4Attention.
+    # __init__ → engine core init fails before any patch chain runs.
+    #
+    # Currently exactly one builtin profile sets backend_plan.target_default:
+    # gemma4-tq-mtp-structured-k4 (β'-A K=4 reference, target_default=
+    # TURBOQUANT). All other profiles have backend_plan=null and skip
+    # this emission, preserving vllm's auto-pick path.
+    if profile is not None and profile.backend_plan is not None:
+        target_backend = profile.backend_plan.target_default
+        if target_backend is not None:
+            vllm_extra_args.extend(["--attention-backend", target_backend])
+
     # 5. Composed key for downstream identification.
     # V1 ModelConfig.key requires strict kebab-case `^[a-z0-9-]+$` —
     # no dots, no underscores. V2 IDs allow dots (e.g. `qwen3.6-fp8`),

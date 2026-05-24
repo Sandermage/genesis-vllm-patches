@@ -94,9 +94,11 @@ class TestWalkers:
         # Phase 7.G4.B1.0 (2026-05-23): +2 Gemma 4 31B presets → 17.
         # Phase 7.G4.26B-A4B.B0 (2026-05-23): +3 Gemma 4 26B-A4B
         # preset aliases (default + mtp-k4 + multiconc) → 20.
+        # Phase 7.G4.26B-A4B.B4-PRE (2026-05-23): +1 multiconc-k1
+        # preset alias → 21.
         # Test name kept as "fifteen" for grep continuity; assertion
         # tracks current fleet.
-        assert len(entries) == 20
+        assert len(entries) == 21
         for e in entries:
             assert e.layer == "resolved-alias"
 

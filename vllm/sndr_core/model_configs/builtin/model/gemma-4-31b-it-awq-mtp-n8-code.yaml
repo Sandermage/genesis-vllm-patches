@@ -72,7 +72,10 @@ patches:
   # ── Genesis G4 TurboQuant KV cache wrapper-stack (256K unlock) ──
   GENESIS_ENABLE_G4_19_GEMMA4_TURBOQUANT_KV: '1'             # vector-quant KV
   GENESIS_ENABLE_G4_19B_GEMMA4_TQ_KV_SPEC: '1'               # memory accounting
-  GENESIS_ENABLE_G4_19C_ATTN_WRAP: '1'                       # round-trip wrapper
+  # Phase 7.G4.31B-MODELDEF.G4_19C-DEFAULT-OFF (2026-05-23):
+  # mirrored from gemma-4-31b-it-awq.yaml — default '1' → '0' until
+  # the Lloyd-Max codebook quality regression is resolved.
+  GENESIS_ENABLE_G4_19C_ATTN_WRAP: '0'                       # round-trip wrapper OFF (codebook quality regression pending)
   GENESIS_ENABLE_G4_31_TQ_DTYPE_PRESERVE: '1'                # AWQ kv_cache_scheme guard
   # ── PR #40914 backport — TQ K+1 spec-verify cudagraph fix ──
   GENESIS_ENABLE_G4_67_TQ_SPEC_VERIFY_ROUTE: '1'             # MORE relevant here: K=8 amplifies cudagraph stress

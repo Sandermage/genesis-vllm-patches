@@ -1,32 +1,30 @@
 # SPDX-License-Identifier: Apache-2.0
 # Genesis V2 profile — gemma4-a4b-no-mtp
-# Role: default control — MTP K=1 baseline for gemma-4-26b-a4b-it-awq.
+# Role: default control — true no-MTP baseline for gemma-4-26b-a4b-it-awq.
 #
-# Naming clarification: "no-mtp" is the DESIGN INTENT (MTP effectively off
-# for production-safe broad-workload use). The MECHANICAL implementation
-# is MTP K=1 (`spec_decode_override.num_speculative_tokens: 1`) because:
+# Phase 7.G4.26B-A4B.VARIANT-A-FIX (2026-05-23): MTP ownership has
+# moved from ModelDef to ProfileDef. The 26B-A4B ModelDef now declares
+# `capabilities.spec_decode = null`. Profiles that want K>1 set
+# `spec_decode_override` explicitly; profiles that want no MTP leave
+# it null (which is exactly the default-role contract).
 #
-#   1. The 26B-A4B ModelDef pre-dates Variant A migration and still
-#      declares `capabilities.spec_decode = {method: mtp, K: 4, model: ...}`
-#      at the model level. compose() reads this default unless the
-#      profile overrides with a non-null SpecDecodeConfig.
-#   2. SpecDecodeConfig.method enum does not include "none" / "off".
-#      Setting spec_decode_override = null would inherit the K=4 default,
-#      which is NOT what we want for a control baseline.
-#   3. MTP K=1 is the established control in Phase 7.G4.B1.1 + B1.2
-#      (hand-launcher ~/start_g4_betaA_k1.sh K=1 produced the negative-
-#      test baseline for free-chat). K=1 keeps the drafter loaded but
-#      speculates 1 token per step — effectively no speculation gain.
+# Before VARIANT-A-FIX (B0..B4 era): this profile mechanically
+# overrode spec_decode_override to K=1 because the ModelDef declared
+# K=4 and SpecDecodeConfig.method had no "off" entry — K=1 was the
+# closest available no-MTP semantic. After VARIANT-A-FIX, the null
+# override IS the canonical no-MTP path. Rendered launch script no
+# longer emits a --speculative-config flag (vanilla decode).
 #
-# When (later) the 26B-A4B ModelDef migrates to Variant A (move MTP
-# out of model.capabilities into structured profile only), this
-# profile should be updated to spec_decode_override: null. Until then,
-# K=1 is the cleanest available "MTP-control" semantic for fair K=1
-# vs K=4 comparison.
+# Closes `10_default_clean` validate-debt on this profile (role=
+# default + spec_decode_override=null + all other runtime-role
+# blocks null is the clean default contract).
 #
-# This profile pairs with gemma4-a4b-mtp-k4 (positive-case structured
-# profile) and gemma4-a4b-multiconc (K=4 + max_num_seqs=8 for the
-# Qwen 35B-A3B multi-conc throughput analog test).
+# This profile pairs with:
+#   gemma4-a4b-mtp-k4    — positive-case K=4 structured (single-stream)
+#   gemma4-a4b-multiconc — positive-case K=4 short-structured (multi-conc)
+# Use this profile for free-chat, code, summarization, and long-form
+# structured-JSON workloads where K=1 is the policy-default per
+# G4_WORKLOAD_GATE_POLICY_UPDATE_2026-05-23.md.
 
 schema_version: 2
 kind: profile
@@ -37,11 +35,12 @@ status: experimental                              # not yet boot-validated; Phas
 created: '2026-05-23'
 
 # ─── Runtime role ──────────────────────────────────────────────────────
-role: default                                     # default control: K=1 baseline, broad workload safe
-spec_decode_override:                             # K=1 control (see header for why not null)
-  method: mtp
-  num_speculative_tokens: 1
-  model: /models/gemma-4-26B-A4B-it-assistant
+# Clean default-role contract: all runtime-role blocks null. ModelDef
+# spec_decode is also null, so the rendered launch emits no
+# --speculative-config flag (vanilla decode). This is the canonical
+# no-MTP path post-VARIANT-A-FIX.
+role: default
+spec_decode_override: null                        # was K=1 pre-VARIANT-A-FIX; now null = vanilla decode (no MTP)
 compression_plan: null
 backend_plan: null
 routing: null
@@ -80,8 +79,13 @@ sizing_override:
 patches_delta:
   enable: {}
   disable: []
-  override:
-    GENESIS_ENABLE_G4_19C_ATTN_WRAP: '0'          # TEMPORARY — see G4_19C-FULLGRAPH-AUDIT
+  override: {}
+  # G4_19C profile-local disable RETIRED 2026-05-23 (Phase 7.G4.G4_19C.UN-DISABLE).
+  # Iter-3 architectural fix (commit 47acc808) made the wrapper
+  # fullgraph-safe; on 26B-A4B specifically the wrapper short-circuits
+  # at apply() because kv_cache_dtype=auto (NOT turboquant_*), so
+  # G4_19 never populates the registry that G4_19c requires. The
+  # override was redundant on 26B-A4B regardless of iter-3.
 
 # ─── Promotion contract ────────────────────────────────────────────────
 promotion:

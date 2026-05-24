@@ -31,10 +31,16 @@ capabilities:
   tool_call_parser: gemma4
   reasoning_parser: null
   enable_auto_tool_choice: true
-  spec_decode:
-    method: mtp                                          # MTP via assistant drafter
-    num_speculative_tokens: 4                            # CHANGED 2026-05-17 per audit: club-3090 26B-A4B default n=4 → 155 narr / 207 code tok/s
-    model: /models/gemma-4-26B-A4B-it-assistant          # google/gemma-4-26B-A4B-it-assistant
+  # Phase 7.G4.26B-A4B.VARIANT-A-FIX (2026-05-23): MTP ownership moved
+  # from ModelDef to ProfileDef. The K-choice is workload-class-dependent
+  # per the WORKLOAD-GATE-POLICY (see sndr_private/research/gemma4/
+  # analysis/G4_WORKLOAD_GATE_POLICY_UPDATE_2026-05-23.md):
+  #   • free-chat / long-form / code / summarization → K=1 (no MTP)
+  #   • short structured JSON / tool_call → K=4 (positive in B2 + B4)
+  # ModelDef therefore leaves spec_decode = null. Each profile sets
+  # spec_decode_override explicitly when it wants K>1. Mirrors the
+  # 31B AWQ ModelDef pattern (gemma-4-31b-it-awq.yaml line 48).
+  spec_decode: null
   kv_cache_dtype: auto                                   # G4_18 makes this per-layer-type when enabled
 
 # ─── Hardware preconditions ────────────────────────────────────────────

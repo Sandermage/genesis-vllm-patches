@@ -4,28 +4,28 @@
 > Source of truth: `vllm/sndr_core/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-05-22T18:59:03Z
-Total entries: **226**
+Generated: 2026-05-23T19:58:07Z
+Total entries: **227**
 
 ## Statistics
 
 ### By tier
-- `tier=community`: **226**
+- `tier=community`: **227**
 
 ### By lifecycle
 - `lifecycle=coordinator`: **2**
-- `lifecycle=experimental`: **157**
+- `lifecycle=experimental`: **158**
 - `lifecycle=legacy`: **33**
 - `lifecycle=research`: **4**
 - `lifecycle=retired`: **15**
 - `lifecycle=stable`: **15**
 
-### Default-on at boot: **52** / 226
+### Default-on at boot: **52** / 227
 
 ### By family
 - `attention.flash`: 2
 - `attention.gdn`: 20
-- `attention.turboquant`: 49
+- `attention.turboquant`: 50
 - `compile_safety`: 13
 - `gemma4`: 18
 - `kernels`: 7
@@ -81,7 +81,7 @@ Total entries: **226**
 | **P60b** | `community` | `experimental` | · | `GENESIS_ENABLE_P60B_TRITON_KERNEL` | [#40738](https://github.com/vllm-project/vllm/pull/40738) | GDN+ngram Triton kernel offset (Phase 2) |
 | **P7b** | `community` | `legacy` | · | `GENESIS_ENABLE_P7B` | — | GDN dual-stream via torch.library.custom_op (opt-in) |
 
-### `attention.turboquant` (49)
+### `attention.turboquant` (50)
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
@@ -122,6 +122,7 @@ Total entries: **226**
 | **G4_60G** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_60G_TQ_DISPATCH` | [#https://github.com/vllm-project/vllm/pull/42637](https://github.com/vllm-project/vllm/pull/https://github.com/vllm-project/vllm/pull/42637) | "Attention.get_kv_cache_spec per-layer TQ-first dispatch (PR |
 | **G4_60H** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_60H_TQ_CONFIG_AUGMENT` | [#https://github.com/vllm-project/vllm/pull/42637](https://github.com/vllm-project/vllm/pull/https://github.com/vllm-project/vllm/pull/42637) | "TurboQuantConfig KV-sharing skip-layer helpers (PR |
 | **G4_60K** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_60K_TQ_ENGINE_CONFIG` | [#https://github.com/vllm-project/vllm/pull/42637](https://github.com/vllm-project/vllm/pull/https://github.com/vllm-project/vllm/pull/42637) | "EngineArgs.create_engine_config TQ skip-layer union + FA2 force (PR |
+| **G4_60L** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_60L_TQ_BACKEND_MM_PREFIX` | [#https://github.com/vllm-project/vllm/pull/42637](https://github.com/vllm-project/vllm/pull/https://github.com/vllm-project/vllm/pull/42637) | TurboQuantBackend supports_mm_prefix=True monkey-patch (Gemma 4 MM-prefix LM ... |
 | **G4_61** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_61_TQ_SHARED_WORKSPACE` | [#https://github.com/vllm-project/vllm/pull/40798](https://github.com/vllm-project/vllm/pull/https://github.com/vllm-project/vllm/pull/40798) | "Share TQ decode workspace across layers (PR |
 | **G4_62** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_62_TQ_KERNEL_WARMUP` | [#https://github.com/vllm-project/vllm/pull/42215](https://github.com/vllm-project/vllm/pull/https://github.com/vllm-project/vllm/pull/42215) | "Warm up TQ decode kernels before lock_workspace (PR |
 | **G4_67** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_67_TQ_SPEC_VERIFY_ROUTE` | [#https://github.com/vllm-project/vllm/pull/40914](https://github.com/vllm-project/vllm/pull/https://github.com/vllm-project/vllm/pull/40914) | "TQ K+1 spec-verify routing through decode kernel (PR |

@@ -16,7 +16,7 @@ env flag to toggle, upstream PR (if backported), and credit.
 
 ## Current state (v12.0.0, 2026-05-22)
 
-**Total PATCH_REGISTRY entries:** 226 — range covers `P1`–`P109` legacy +
+**Total PATCH_REGISTRY entries:** 227 — range covers `P1`–`P109` legacy +
 `PN8`–`PN275` modern + `G4_01`–`G4_78` Gemma 4 family + sub-patches
 (P5b, P7b, P15B, P18b, P38B, P39a, P61c, P67b, P67c, P79d, PN26b,
 PN40-classifier) + library/diagnostic (P51, P102, P103) + the standalone
@@ -32,8 +32,8 @@ added as a registry patch.
 
 | Metric | Count |
 |:-------|:------|
-| Total PATCH_REGISTRY entries | **226** |
-| Tier=community (Apache 2.0, sndr_core) | **226** (all entries) |
+| Total PATCH_REGISTRY entries | **227** |
+| Tier=community (Apache 2.0, sndr_core) | **227** (all entries) |
 | Tier=engine (commercial, sndr_engine) | **0** (PN72 reclassified to community 2026-05-08; sndr_engine namespace reserved but empty) |
 | Default-on at boot | 52 |
 | Lifecycle=experimental | 157 |
@@ -44,7 +44,7 @@ added as a registry patch.
 | Lifecycle=coordinator | 2 (env-flag-only, no real binding) |
 | Implementation status=full | 173 |
 | Implementation status=marker_only / placeholder / partial / retired | 30 (17 + 2 + 7 + 4) |
-| Apply-loop coverage (apply_module set) | 209 / 226 = 92.5% |
+| Apply-loop coverage (apply_module set) | 210 / 227 = 92.5% |
 | Spec-only (intentional, allow-listed) | 17 (P1, P17, P18b, P20, P23, P29, P32, P51, P102, PN60, PN63, PN64, PN256, PN261, G4_70, G4_70B, G4_70C) |
 
 ### Engine tier (the strict-AND boundary)
@@ -677,7 +677,7 @@ noise.
 
 ## Patch plan resolver — `--policy compat|safe|minimal`
 
-Genesis ships **226 patches**; a typical preset enables ~50–80 of
+Genesis ships **227 patches**; a typical preset enables ~50–80 of
 them. Two operator questions follow naturally:
 
 1. Which patches actually need to be on for this deployment?

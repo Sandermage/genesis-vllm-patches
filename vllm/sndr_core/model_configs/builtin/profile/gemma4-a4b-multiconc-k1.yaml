@@ -1,0 +1,100 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 profile — gemma4-a4b-multiconc-k1
+# Role: K=1 multi-conc HISTORICAL BENCH BASELINE (not a production preset).
+#
+# Created by Phase 7.G4.26B-A4B.B4-PRE (2026-05-23) as the K=1 control
+# sibling of `gemma4-a4b-multiconc` for the B4 structured-JSON
+# multi-conc bench. After B4 closed with K=4 winning +12.8% over K=1
+# at conc=8, this profile stays as a diagnostic baseline only — kept
+# committed so the K=1 vs K=4 comparison can be reproduced on future
+# vllm-pin bumps without re-creating the preset infrastructure.
+#
+# Phase 7.G4.26B-A4B.VARIANT-A-FIX (2026-05-23): updated. The 26B-A4B
+# ModelDef now declares `capabilities.spec_decode = null`, so this
+# profile no longer needs the K=1 mechanical override that worked
+# around the prior K=4 ModelDef default. spec_decode_override is now
+# null = vanilla decode (no MTP) = K=1 semantics. Rendered launch no
+# longer emits a --speculative-config flag.
+#
+# Closes `10_default_clean` validate-debt on this profile (role=
+# default + all runtime-role blocks null is the clean default
+# contract).
+#
+# Sizing: identical to gemma4-a4b-multiconc EXCEPT MTP K. Same
+# max_model_len=16K, max_num_seqs=8, gpu_memory_utilization=0.85.
+# This is intentional — the bench isolates the K-axis from all other
+# dimensions.
+
+schema_version: 2
+kind: profile
+id: gemma4-a4b-multiconc-k1
+parent_model: gemma-4-26b-a4b-it-awq
+maintainer: sandermage
+status: experimental                              # B4-PRE creates this; B4 actual is its first bench
+created: '2026-05-23'
+
+# ─── Runtime role ──────────────────────────────────────────────────────
+# Clean default-role contract: all runtime-role blocks null. ModelDef
+# spec_decode is also null, so the rendered launch emits no
+# --speculative-config flag (vanilla decode). K=1 semantic.
+role: default
+spec_decode_override: null                        # was K=1 pre-VARIANT-A-FIX; now null = vanilla decode (no MTP)
+compression_plan: null
+backend_plan: null
+routing: null
+validation: null
+
+# ─── Sizing override ───────────────────────────────────────────────────
+# Identical to gemma4-a4b-multiconc — only K differs between the two.
+sizing_override:
+  max_model_len: 16384
+  gpu_memory_utilization: 0.85
+  max_num_seqs: 8
+  max_num_batched_tokens: 4096
+  enable_chunked_prefill: true
+  enforce_eager: false
+  disable_custom_all_reduce: true
+
+# ─── Patches delta ─────────────────────────────────────────────────────
+# Same profile-local G4_19C disable as siblings — see B1.1-UNBLOCK
+# commit 81949928 for the rationale. For 26B-A4B specifically the
+# disable is semantically moot (kv_cache_dtype: auto, not turboquant)
+# but mechanically required to avoid the Dynamo fullgraph-trace bail
+# observed on 31B.
+patches_delta:
+  enable: {}
+  disable: []
+  override: {}
+  # G4_19C profile-local disable RETIRED 2026-05-23 (Phase 7.G4.G4_19C.UN-DISABLE).
+  # Iter-3 architectural fix (commit 47acc808) made the wrapper
+  # fullgraph-safe; on 26B-A4B the wrapper short-circuits at apply()
+  # because kv_cache_dtype=auto (NOT turboquant_*).
+
+# ─── Promotion contract ────────────────────────────────────────────────
+promotion:
+  validation_required:
+    - "B4 actual: K=1 vs K=4 multi-conc Mode A pass-rate + agg_TPS at conc=8 measured cleanly"
+    - "tools/multi_conc_json_bench.py at conc=8 yields http_2xx_rate >= 0.95 and parse_rate >= 0.30"
+    - "no runtime crash on first boot through V2 compose"
+  promote_to: null
+  notes: |
+    Bench cycle CLOSED 2026-05-23 (Phase 7.G4.26B-A4B.B4).
+
+    B4 actual result: K=4 (sibling profile gemma4-a4b-multiconc)
+    wins +12.8% over this K=1 baseline on Mode A short-structured
+    JSON at conc=8 (235.9 vs 209.1 TPS). Mode B (xgrammar) K=4
+    reached 271.4 TPS / 100% schema match.
+
+    This K=1 profile therefore stays as a HISTORICAL BENCH BASELINE,
+    NOT a production preset. It is kept committed so the K=1 vs K=4
+    comparison can be reproduced on future vllm-pin bumps without
+    needing to re-create the preset infrastructure. Operators should
+    not pick this preset for production multi-conc workloads — use
+    prod-gemma4-26b-a4b-multiconc (K=4 short-structured) for that
+    operational niche, or prod-35b-multiconc for free-chat
+    multi-conc throughput.
+
+    See: sndr_private/runs/g4_26b_a4b_structured_multiconc_2026-05-23/
+         VERDICT_2026-05-23.md
+    See: sndr_private/research/gemma4/analysis/
+         G4_WORKLOAD_GATE_POLICY_UPDATE_2026-05-23.md

@@ -101,17 +101,15 @@ def test_script_rule_selection_runs_only_that_rule():
 
 
 def test_r1_flags_stray_non_whitelisted_file(tmp_path, monkeypatch):
-    """R1 is a directory-level rule post-Phase-2.5: `integrations/gemma4/`
-    must NOT exist. Any reintroduction — even by a single stray file
-    — is flagged because the directory's mere existence is the
-    violation.
+    """R1 must flag a stray .py file inside integrations/gemma4/.
+
+    Phase 7.G4.OVERLAY-PATH-CONSISTENCY (2026-05-23) relaxed R1 from
+    "directory must not exist" to "directory tolerates ONLY README.md
+    + the upstream_overlay_pr42637 symlink". A stray .py file is the
+    primary regression class this rule still catches.
 
     Phase 4.A (2026-05-22): refreshed from the pre-Phase-2.5 fixture
-    that exercised file-level allowlist semantics. R1 was tightened
-    (audit_phase3_relocation.py:117-142) to forbid the directory
-    itself; per-file whitelist is gone. The test's intent — "R1
-    catches a stray addition" — survives, but the granularity shifted
-    to the directory level.
+    that exercised file-level allowlist semantics.
     """
     mod = _load_module()
 
@@ -125,43 +123,180 @@ def test_r1_flags_stray_non_whitelisted_file(tmp_path, monkeypatch):
     monkeypatch.setattr(mod, "GEMMA4_DIR", fake_root)
 
     issues = mod.check_r1_gemma_whitelist()
-    assert any("integrations/gemma4/" in i for i in issues), (
-        f"R1 should have flagged the forbidden directory; got: {issues}"
+    assert any("stray_new_tq_patch.py" in i for i in issues), (
+        f"R1 should have flagged the stray file by name; got: {issues}"
     )
-    assert any("forbidden post-Phase-2.5" in i for i in issues), (
-        f"R1 message should explain the policy; got: {issues}"
+    assert any("tolerates ONLY README.md" in i for i in issues), (
+        f"R1 message should explain the strict carve-out; got: {issues}"
     )
 
 
 def test_r1_flags_unknown_subdirectory(tmp_path, monkeypatch):
+    """Subdirectories are NOT allowed inside gemma4/ — only README.md
+    and the upstream_overlay_pr42637 symlink. Both subdirs in this
+    fixture (kernels and unknown_subdir) must be flagged."""
     mod = _load_module()
     fake_root = tmp_path / "integrations" / "gemma4"
     fake_root.mkdir(parents=True)
-    (fake_root / "kernels").mkdir()                  # allowed
-    (fake_root / "unknown_subdir").mkdir()           # violation
+    (fake_root / "kernels").mkdir()
+    (fake_root / "unknown_subdir").mkdir()
     monkeypatch.setattr(mod, "GEMMA4_DIR", fake_root)
 
     issues = mod.check_r1_gemma_whitelist()
-    assert any("unknown_subdir" in i for i in issues)
-    assert not any("kernels" in i for i in issues)
+    assert any("unknown_subdir" in i for i in issues), (
+        f"R1 should flag unknown_subdir; got: {issues}"
+    )
+    assert any("kernels" in i for i in issues), (
+        f"R1 should ALSO flag kernels — the strict carve-out is "
+        f"README + symlink only; subdirs are forbidden. Got: {issues}"
+    )
 
 
 def test_r1_clean_tree_returns_empty(tmp_path, monkeypatch):
-    """Clean tree under post-Phase-2.5 R1 means the gemma4 directory
-    does NOT exist on disk. R1 must return zero violations.
+    """Clean tree #1: the gemma4 directory does NOT exist on disk.
+    R1 must return zero violations.
 
     Phase 4.A (2026-05-22): refreshed from the pre-Phase-2.5 fixture
     that built an "allowed-but-clean" gemma4/ tree (whitelisted
-    contents). Under the tightened R1, ANY existence of the directory
-    is forbidden — so the clean-tree expectation is the absent-tree
-    expectation. The fixture deliberately does NOT call mkdir.
+    contents).
+    Phase 7.G4.OVERLAY-PATH-CONSISTENCY (2026-05-23): still a valid
+    clean state — the absent-directory case is one of two
+    R1-acceptable states (the other is the strict compat shim, see
+    test_r1_accepts_strict_compat_shim).
     """
     mod = _load_module()
     fake_root = tmp_path / "integrations" / "gemma4"
-    # Intentionally do not create fake_root — the absent-directory
-    # state is what "clean" means under the post-Phase-2.5 R1.
+    # Intentionally do not create fake_root.
     monkeypatch.setattr(mod, "GEMMA4_DIR", fake_root)
     assert mod.check_r1_gemma_whitelist() == []
+
+
+# ─── R1: Phase 7.G4.OVERLAY-PATH-CONSISTENCY strict-carve-out tests ────
+
+
+def _build_valid_compat_shim(tmp_path):
+    """Build a fixture that mirrors the canonical compat shim layout
+    expected by R1: gemma4/ containing exactly README.md + the
+    upstream_overlay_pr42637 symlink → ../attention/turboquant/overlays/pr42637.
+
+    Returns the gemma4/ dir path. The symlink target dir is also
+    created so the symlink resolves, though R1 only checks the raw
+    readlink string.
+    """
+    integrations = tmp_path / "integrations"
+    integrations.mkdir(parents=True)
+    target = integrations / "attention" / "turboquant" / "overlays" / "pr42637"
+    target.mkdir(parents=True)
+    (target / "marker.txt").write_text("real overlay tree\n")
+
+    gemma4 = integrations / "gemma4"
+    gemma4.mkdir()
+    (gemma4 / "README.md").write_text("# compat shim\n")
+    (gemma4 / "upstream_overlay_pr42637").symlink_to(
+        "../attention/turboquant/overlays/pr42637"
+    )
+    return gemma4
+
+
+def test_r1_accepts_strict_compat_shim(tmp_path, monkeypatch):
+    """Clean tree #2 — the strict compat shim: README.md + the
+    canonical symlink. R1 must return zero violations."""
+    mod = _load_module()
+    gemma4 = _build_valid_compat_shim(tmp_path)
+    monkeypatch.setattr(mod, "GEMMA4_DIR", gemma4)
+    assert mod.check_r1_gemma_whitelist() == []
+
+
+def test_r1_rejects_py_file_in_gemma4(tmp_path, monkeypatch):
+    """The carve-out must NOT permit a .py file alongside the shim.
+    This is the primary regression class the rule is designed to
+    catch — someone landing a fresh Gemma patch in the wrong
+    directory.
+
+    Operator-requested test from Phase 7.G4.OVERLAY-PATH-CONSISTENCY.R
+    (2026-05-23) §6.3."""
+    mod = _load_module()
+    gemma4 = _build_valid_compat_shim(tmp_path)
+    (gemma4 / "rogue_g4_patch.py").write_text(
+        '"""Should be in model_compat/gemma4/ — not here."""\n'
+    )
+    monkeypatch.setattr(mod, "GEMMA4_DIR", gemma4)
+
+    issues = mod.check_r1_gemma_whitelist()
+    assert any("rogue_g4_patch.py" in i for i in issues), (
+        f"R1 must reject the .py file even with the valid shim present; "
+        f"got: {issues}"
+    )
+
+
+def test_r1_rejects_symlink_with_wrong_target(tmp_path, monkeypatch):
+    """A symlink with the canonical NAME but a different TARGET must
+    fail — the carve-out is targeted at the specific historical
+    compat path, not a generic 'symlinks allowed' relaxation."""
+    mod = _load_module()
+    integrations = tmp_path / "integrations"
+    integrations.mkdir(parents=True)
+    gemma4 = integrations / "gemma4"
+    gemma4.mkdir()
+    (gemma4 / "README.md").write_text("# compat shim\n")
+    # Symlink with canonical name but pointing somewhere else.
+    (gemma4 / "upstream_overlay_pr42637").symlink_to("../somewhere/else")
+    monkeypatch.setattr(mod, "GEMMA4_DIR", gemma4)
+
+    issues = mod.check_r1_gemma_whitelist()
+    assert any(
+        "unexpected target" in i and "../somewhere/else" in i
+        for i in issues
+    ), (
+        f"R1 must reject a symlink with the right name but wrong "
+        f"target; got: {issues}"
+    )
+
+
+def test_r1_rejects_symlink_with_alternate_name(tmp_path, monkeypatch):
+    """A second symlink (even pointing at the canonical target) must
+    fail — the carve-out permits exactly ONE symlink name."""
+    mod = _load_module()
+    integrations = tmp_path / "integrations"
+    integrations.mkdir(parents=True)
+    target = integrations / "attention" / "turboquant" / "overlays" / "pr42637"
+    target.mkdir(parents=True)
+    gemma4 = integrations / "gemma4"
+    gemma4.mkdir()
+    (gemma4 / "README.md").write_text("# compat shim\n")
+    (gemma4 / "upstream_overlay_pr42637").symlink_to(
+        "../attention/turboquant/overlays/pr42637"
+    )
+    # Second symlink with a different name — even if it points to a
+    # valid place, the strict allowlist forbids it.
+    (gemma4 / "another_overlay").symlink_to(
+        "../attention/turboquant/overlays/pr42637"
+    )
+    monkeypatch.setattr(mod, "GEMMA4_DIR", gemma4)
+
+    issues = mod.check_r1_gemma_whitelist()
+    assert any("another_overlay" in i for i in issues), (
+        f"R1 must reject any symlink name other than "
+        f"upstream_overlay_pr42637; got: {issues}"
+    )
+
+
+def test_r1_rejects_dotfile_or_cache(tmp_path, monkeypatch):
+    """Stray .DS_Store / __pycache__ entries must fail — the
+    allowlist does not silently tolerate filesystem detritus."""
+    mod = _load_module()
+    gemma4 = _build_valid_compat_shim(tmp_path)
+    (gemma4 / ".DS_Store").write_bytes(b"mac garbage")
+    (gemma4 / "__pycache__").mkdir()
+    monkeypatch.setattr(mod, "GEMMA4_DIR", gemma4)
+
+    issues = mod.check_r1_gemma_whitelist()
+    assert any(".DS_Store" in i for i in issues), (
+        f"R1 must reject .DS_Store; got: {issues}"
+    )
+    assert any("__pycache__" in i for i in issues), (
+        f"R1 must reject __pycache__; got: {issues}"
+    )
 
 
 # ─── R2: synthetic shim-as-target ───────────────────────────────────────
