@@ -4851,7 +4851,16 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             ("v12.0.0", "0.20.2rc1.dev338+gbf0d2dc6d"),
             ("v12.0.0", "0.20.2rc1.dev371+gbf610c2f5"),
         ],
-        "credit": "Refuses FP8 e4nv Gemma 4 checkpoint on Ampere SM 8.6 at config-verify time. Ampere tensor cores don't support e4nv natively.",
+        "credit": (
+            "Refuses FP8 e4nv Gemma 4 checkpoint on Ampere SM 8.6 at "
+            "config-verify time. Ampere tensor cores don't support e4nv "
+            "natively. Audit 2026-05-24 (PIN.R-REFS-CLOSED-PR.R): "
+            "upstream issue #41014 verified HTTP 200 + state=open (title "
+            "matches patch purpose); KEEP — G4_12 is the defensive guard "
+            "that closes the bug locally while upstream issue remains "
+            "open. No deep-parity required (genesis_original guard, not "
+            "a backport)."
+        ),
         "upstream_pr": "https://github.com/vllm-project/vllm/issues/41014",
         "requires_patches": [],
         "conflicts_with": [],
@@ -4944,7 +4953,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {"model_arch": ["Gemma4ForConditionalGeneration", "Gemma4ForCausalLM"]},
     },
     "G4_17": {
-        "title": "Gemma 4 vision-tower text-only skip (closes vllm#41565)",
+        "title": "Gemma 4 vision-tower text-only skip",
         "tier": "community",
         "family": "gemma4",
         "env_flag": "GENESIS_ENABLE_G4_17_GEMMA4_VISION_SKIP",
@@ -4954,8 +4963,20 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "source": "genesis_original",
         "apply_module": "vllm.sndr_core.integrations.model_compat.gemma4.g4_17_gemma4_vision_tower_text_only_skip",
         "lifecycle": "experimental",
-        "credit": "Stubs vision tower + multi_modal_projector when GENESIS_GEMMA4_TEXT_ONLY=1. Saves ~2.3 GB VRAM + ~30 sec cold boot.",
-        "upstream_pr": "https://github.com/vllm-project/vllm/issues/41565",
+        "credit": (
+            "Stubs vision tower + multi_modal_projector when "
+            "GENESIS_GEMMA4_TEXT_ONLY=1. Saves ~2.3 GB VRAM + ~30 sec "
+            "cold boot. Audit 2026-05-24 (PIN.R-REFS-CLOSED-PR.R): the "
+            "previously recorded upstream reference vllm#41565 was found "
+            "to be a wrong-number — issue #41565 is the TurboQuant "
+            "`_continuation_prefill` workspace bug (the correct upstream "
+            "tracker for G4_61 / G4_62), not a multimodal-text-only "
+            "report. No matching upstream issue for the vision-tower "
+            "text-only skip was found via `gh search issues` "
+            "(2026-05-24). `upstream_pr=None` (genesis_original, no "
+            "upstream tracker) until a correct upstream issue is located."
+        ),
+        "upstream_pr": None,
         "requires_patches": [],
         "conflicts_with": ["G4_23"],
         "applies_to": {"model_arch": ["Gemma4ForConditionalGeneration"]},

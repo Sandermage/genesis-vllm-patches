@@ -4,7 +4,7 @@
 > Source of truth: `vllm/sndr_core/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-05-23T19:58:07Z
+Generated: 2026-05-24T19:04:50Z
 Total entries: **227**
 
 ## Statistics
@@ -172,7 +172,7 @@ Total entries: **227**
 | **G4_14** | `community` | `stable` | ✓ | `GENESIS_ENABLE_G4_14_GEMMA4_TOOL_CALL_PARSER_PAD` | [#https://github.com/vllm-project/vllm/issues/39392](https://github.com/vllm-project/vllm/pull/https://github.com/vllm-project/vllm/issues/39392) | Gemma 4 tool-call parser pad-token strip (closes vllm#39392) |
 | **G4_15** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_15_GEMMA4_FUSED_RMSNORM` | — | Fused RMSNorm Triton kernels for Gemma 4 (ported from SGLang) |
 | **G4_16** | `community` | `stable` | ✓ | `GENESIS_ENABLE_G4_16_GEMMA4_FULL_AND_PIECEWISE` | — | Gemma 4 FULL_AND_PIECEWISE cudagraph mode (parallel to PN125 for gemma4) |
-| **G4_17** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_17_GEMMA4_VISION_SKIP` | [#https://github.com/vllm-project/vllm/issues/41565](https://github.com/vllm-project/vllm/pull/https://github.com/vllm-project/vllm/issues/41565) | Gemma 4 vision-tower text-only skip (closes vllm#41565) |
+| **G4_17** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_17_GEMMA4_VISION_SKIP` | — | Gemma 4 vision-tower text-only skip |
 | **G4_23** | `community` | `stable` | ✓ | `GENESIS_ENABLE_G4_23_GEMMA4_VISION_FP16_OVERFLOW` | [#https://github.com/vllm-project/vllm/issues/40124](https://github.com/vllm-project/vllm/pull/https://github.com/vllm-project/vllm/issues/40124) | Gemma 4 vision-tower FP16 overflow fix (closes vllm#40124) |
 | **G4_24** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_24_GEMMA4_FUSED_SOFTCAP` | — | Fused softcap Triton kernel route for Gemma 4 (FINAL logits only; G4_24b will... |
 | **G4_25** | `community` | `stable` | ✓ | `GENESIS_ENABLE_G4_25_GEMMA4_RoPE_DUAL_BASE_GUARD` | — | Gemma 4 dual-RoPE base-freq divergence guard (long-context quality) |

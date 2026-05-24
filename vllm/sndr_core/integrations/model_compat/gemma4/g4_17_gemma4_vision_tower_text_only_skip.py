@@ -5,8 +5,7 @@
 WHAT IT FIXES
 ================================================================
 
-vllm-project/vllm#41565 (OPEN as of 2026-05-17, 6 comments): when an
-operator launches the Gemma 4 multimodal model
+When an operator launches the Gemma 4 multimodal model
 (``Gemma4ForConditionalGeneration``) with text-only requests
 (no images), vLLM still loads the **vision tower + multimodal projector**
 into VRAM at boot:
@@ -50,11 +49,17 @@ SAFETY MODEL
 * applies_to:
     - architecture: Gemma4ForConditionalGeneration
 * conflicts_with: any multimodal-required workflow (operator's choice)
-* superseded_by: vllm#41565 when merged (proposed: ``mm_lazy_load=True``)
+* superseded_by: an upstream ``mm_lazy_load=True`` proposal when one
+  is accepted by the vLLM project. The previously-recorded upstream
+  reference ``vllm#41565`` was a wrong-number — issue #41565 is the
+  TurboQuant ``_continuation_prefill`` workspace bug (correct upstream
+  tracker for G4_61 / G4_62), not a multimodal-text-only report. No
+  matching upstream issue for the vision-tower text-only skip was
+  located during the 2026-05-24 PIN.R-REFS-CLOSED-PR.R audit. Treat
+  this patch as ``genesis_original`` with no upstream tracker until
+  a correct upstream issue is found.
 
 Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
-References:
-  * https://github.com/vllm-project/vllm/issues/41565 (OPEN, 6 comments)
 """
 from __future__ import annotations
 
@@ -67,8 +72,8 @@ log = logging.getLogger("genesis.gemma4.g4_17_vision_skip")
 
 GENESIS_G4_17_MARKER = (
     "Genesis G4_17 gemma4 vision-tower skip for text-only inference v1 "
-    "(closes vllm#41565 — saves ~2.3 GB VRAM + ~30 sec cold boot when "
-    "text-only)"
+    "(saves ~2.3 GB VRAM + ~30 sec cold boot when text-only; "
+    "genesis_original, no upstream tracker)"
 )
 
 _ENV_ENABLE = "GENESIS_ENABLE_G4_17_GEMMA4_VISION_SKIP"
@@ -144,7 +149,7 @@ def apply() -> tuple[str, str]:
     if not _env_enabled():
         return "skipped", (
             f"G4_17 disabled (set {_ENV_ENABLE}=1 + {_ENV_TEXT_ONLY}=1 to "
-            "skip vision-tower init on Gemma 4 — closes vllm#41565)"
+            "skip vision-tower init on Gemma 4)"
         )
 
     if _APPLIED:
