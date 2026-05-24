@@ -90,9 +90,11 @@ PROBE_RELOCATIONS = [
         "vllm.sndr_core.integrations.kv_cache.g4_18_per_layer_kv_page_size",
     ),
     # Bucket 3: spec_decode drafter routing → spec_decode/
+    # PIN.R-G4_05-RETIRE.1 (2026-05-24): G4_05 retired post-bucket-3 — superseded by
+    # vllm#39930; canonical target is now _retired/g4_05_dflash_backend_autoselect.
     (
         "vllm.sndr_core.integrations.gemma4.g4_05_gemma4_dflash_backend_autoselect",
-        "vllm.sndr_core.integrations.spec_decode.g4_05_dflash_backend_autoselect",
+        "vllm.sndr_core.integrations._retired.g4_05_dflash_backend_autoselect",
     ),
     (
         "vllm.sndr_core.integrations.gemma4.g4_71_drafter_native_attn_backend",
@@ -260,7 +262,7 @@ REGISTERED_AFTER_BUCKET_2 = {
 }
 
 REGISTERED_AFTER_BUCKET_3 = {
-    "G4_05":  "vllm.sndr_core.integrations.spec_decode.g4_05_dflash_backend_autoselect",
+    "G4_05":  "vllm.sndr_core.integrations._retired.g4_05_dflash_backend_autoselect",
     "G4_71":  "vllm.sndr_core.integrations.spec_decode.g4_71_drafter_native_attn_backend",
     "G4_71B": "vllm.sndr_core.integrations.spec_decode.g4_71b_drafter_sliding_triton",
     "G4_72":  "vllm.sndr_core.integrations.spec_decode.g4_72_drafter_native_kv_cache_spec",

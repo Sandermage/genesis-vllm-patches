@@ -4,7 +4,7 @@
 > Source of truth: `vllm/sndr_core/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-05-24T19:04:50Z
+Generated: 2026-05-24T20:17:46Z
 Total entries: **227**
 
 ## Statistics
@@ -17,10 +17,10 @@ Total entries: **227**
 - `lifecycle=experimental`: **158**
 - `lifecycle=legacy`: **33**
 - `lifecycle=research`: **4**
-- `lifecycle=retired`: **15**
-- `lifecycle=stable`: **15**
+- `lifecycle=retired`: **16**
+- `lifecycle=stable`: **14**
 
-### Default-on at boot: **52** / 227
+### Default-on at boot: **51** / 227
 
 ### By family
 - `attention.flash`: 2
@@ -345,7 +345,7 @@ Total entries: **227**
 | **PN271** | `community` | `experimental` | · | `GENESIS_ENABLE_PN271_KV_CONTRACT_AUDIT` | — | SpecDecode KV-contract audit (model-agnostic, read-only) |
 | **PN274** | `community` | `coordinator` | · | `SNDR_ALLOW_SPEC_DECODE_KV_ADAPTER` | — | Spec-decode KV-adapter safety opt-in (operator-facing control) |
 | **PN275** | `community` | `experimental` | · | `GENESIS_ENABLE_PN275_DFLASH_MAX_CGS_ALIGN` | — | DFlash drafter VllmConfig max_cgs alignment (dev371 compat) |
-| **G4_05** | `community` | `stable` | ✓ | `GENESIS_ENABLE_G4_05_GEMMA4_DFLASH_BACKEND_AUTOSELECT` | [#https://github.com/vllm-project/vllm/pull/42069](https://github.com/vllm-project/vllm/pull/https://github.com/vllm-project/vllm/pull/42069) | DFlash drafter backend autoselect (vendors vllm#42069) |
+| **G4_05** | `community` | `retired` | · | `GENESIS_ENABLE_G4_05_GEMMA4_DFLASH_BACKEND_AUTOSELECT` | [#39930](https://github.com/vllm-project/vllm/pull/39930) | DFlash drafter backend autoselect (retired — superseded by vllm#39930) |
 | **G4_71** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_71_DRAFTER_NATIVE_BACKEND` | — | Force FlashAttn backend for Gemma 4 MTP drafter Attention layers |
 | **G4_71B** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_71B_DRAFTER_SLIDING_TRITON` | — | Per-layer drafter backend force: route head_size=256 sliding to TRITON_ATTN (... |
 | **G4_72** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_72_DRAFTER_NATIVE_SPEC` | — | Force native FullAttentionSpec/SlidingWindowSpec for Gemma 4 MTP drafter layers |

@@ -5781,8 +5781,8 @@ _G4_PATCHES: tuple[tuple[str, str, str], ...] = (
      "g4_03_gemma4_ampere_non_causal_drafter_guard", "model_compat.gemma4"),  # Phase 2.2: relocated 2026-05-22
     ("G4_04", "G4_04 gemma4 AWQ MoE keys remap (vendor #40886)",
      "g4_04_gemma4_awq_moe_keys_remap", "model_compat.gemma4"),  # Phase 2.2: relocated 2026-05-22
-    ("G4_05", "G4_05 gemma4 DFlash drafter backend autoselect (vendor #42069)",
-     "g4_05_dflash_backend_autoselect", "spec_decode"),  # Phase 3 bucket 3: relocated 2026-05-21
+    ("G4_05", "G4_05 gemma4 DFlash drafter backend autoselect (retired — superseded by vllm#39930)",
+     "g4_05_dflash_backend_autoselect", "_retired"),  # PIN.R-G4_05-RETIRE.1 (2026-05-24): superseded by vllm#39930, moved to _retired/
     ("G4_06", "G4_06 gemma4 v_head_size=0 for k_eq_v (vendor #41944)",
      "g4_06_kv_proj_v_head_size_zero", "kv_cache"),  # Phase 3 bucket 2: relocated 2026-05-21
     ("G4_07", "G4_07 gemma4 FP8_BLOCK double-scale fix (custom quant config)",

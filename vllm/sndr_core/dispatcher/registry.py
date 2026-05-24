@@ -4738,19 +4738,58 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {"model_arch": ["Gemma4ForConditionalGeneration"]},
     },
     "G4_05": {
-        "title": "DFlash drafter backend autoselect (vendors vllm#42069)",
+        "title": "DFlash drafter backend autoselect (retired — superseded by vllm#39930)",
         "tier": "community",
         "family": "spec_decode",
         "env_flag": "GENESIS_ENABLE_G4_05_GEMMA4_DFLASH_BACKEND_AUTOSELECT",
-        "default_on": True,
+        "default_on": False,
         "category": "loader",
         "implementation_status": "full",
         "source": "vendor_backport",
-        "apply_module": "vllm.sndr_core.integrations.spec_decode.g4_05_dflash_backend_autoselect",
-        "lifecycle": "stable",
-        "stable_kind": "text-patch",
-        "credit": "Vendors vllm#42069 — 1-line backend=None to let DFlash drafter autoselect a non-causal-capable backend.",
-        "upstream_pr": "https://github.com/vllm-project/vllm/pull/42069",
+        "apply_module": "vllm.sndr_core.integrations._retired.g4_05_dflash_backend_autoselect",
+        "lifecycle": "retired",
+        "credit": (
+            "Originally vendored from vllm#42069 (mikeumus, OPEN at backport "
+            "time; later CLOSED 2026-05-19 by maintainer @MatthewBonanni "
+            "with comment \"This is already fixed by "
+            "https://github.com/vllm-project/vllm/pull/39930\"). "
+            "PIN.R-DEEP-PARITY.2 (2026-05-24) verdict: "
+            "RETIRE_CANDIDATE_AFTER_PARITY. Deep-parity established that "
+            "PR #39930 (merged 2026-04-28 at commit "
+            "fd74c90d9c3b5c35308f1f0ab308469235fa5277) adds "
+            "SpecDecodeConfig.attention_backend (default None=autoselect) "
+            "plus base-class autoselect path in "
+            "LLMBaseProposer._create_draft_vllm_config (verbatim: \"we "
+            "always independently autoselect unless explicitly specified "
+            "in the speculative config\"). Genesis G4_05's backend=None "
+            "insertion in DFlash._create_draft_vllm_config is functionally "
+            "REDUNDANT on all Genesis-supported pins (the first allowlist "
+            "pin 0.20.1rc1.dev16+g7a1eb8ac2 was committed 2h after #39930 "
+            "merged); in the explicit "
+            "--speculative-config.attention_backend=TRITON_ATTN edge case "
+            "G4_05 INVERTS operator intent against upstream's documented "
+            "fail-loudly design. No production Genesis preset uses that "
+            "override (grep clean). Sister patch PN9 retired for the same "
+            "vllm#39930 supersession at the matching boundary. "
+            "Cross-file drift-marker blind spot (G4_05 watched dflash.py "
+            "for `backend=None,` while the supersession landed in "
+            "llm_base_proposer.py) flagged for a separate "
+            "PIN.R-DRIFT-MARKER-AUDIT tooling phase."
+        ),
+        "upstream_pr": 39930,
+        "upstream_pr_relationship": "backport",
+        "superseded_by": (
+            "vllm#39930 (merged 2026-04-28 at commit "
+            "fd74c90d9c3b5c35308f1f0ab308469235fa5277, in dev16+ — "
+            "first known-good Genesis allowlist pin 0.20.1rc1.dev16+g7a1eb8ac2 "
+            "was committed 2026-04-28T04:52:54Z, ~2h after the merge). "
+            "Upstream adds full SpecDecodeConfig.attention_backend field + "
+            "base-class autoselect path that obsoletes Genesis G4_05's "
+            "DFlash-override-layer insertion. Matches PN9's earlier retire "
+            "for the same upstream PR; G4_05 was a parallel "
+            "vendor-backport at the same root cause."
+        ),
+        "vllm_version_range": "<0.20.2rc1.dev9+g01d4d1ad3",
         "requires_patches": [],
         "conflicts_with": [],
         "applies_to": {"model_arch": ["Gemma4ForConditionalGeneration", "Gemma4ForCausalLM"]},

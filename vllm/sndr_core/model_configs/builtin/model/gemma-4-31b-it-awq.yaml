@@ -74,7 +74,7 @@ patches:
   GENESIS_ENABLE_G4_03_GEMMA4_NON_CAUSAL_DRAFTER_GUARD: '1'  # refuses Eagle3/DFlash drafter on Ampere (closes #40382)
   GENESIS_ENABLE_G4_12_GEMMA4_FP8_E4NV_GUARD: '1'         # refuses FP8 e4nv on Ampere (closes #41014)
   # ── Gemma 4 family fixes (default-on stability) ──
-  GENESIS_ENABLE_G4_05_GEMMA4_DFLASH_BACKEND_AUTOSELECT: '1'  # vendors vllm#42069 (DFlash backend=None for drafter autoselect)
+  # G4_05 retired 2026-05-24 (PIN.R-G4_05-RETIRE.1) — superseded by vllm#39930 in dev16+; env removed.
   GENESIS_ENABLE_G4_09_GEMMA4_SWA_PREFILL_CHUNKER: '1'    # closes vllm#39914 engine hang at prefill > 4K
   GENESIS_ENABLE_G4_11_GEMMA4_CHAT_TEMPLATE_INSTALL: '1'  # installs enhanced gemma4.jinja chat template
   GENESIS_ENABLE_G4_14_GEMMA4_TOOL_CALL_PARSER_PAD: '1'   # strips <pad>/<eos> from tool-call JSON (closes #39392)
