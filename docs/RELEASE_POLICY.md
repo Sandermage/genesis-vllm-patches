@@ -140,14 +140,14 @@ some combinations omitted). The remaining ~60 patches in the
 registry are experimental/research opt-in or retired — they stay
 under `require-static` even on hardened deploys.
 
-### Current attachment state (2026-05-16)
+### Current attachment state (2026-05-22)
 
 After running the workflow below against the `prod-27b-dflash-multiconc`
 preset (the active homelab container):
 
-- **81/169 patches** (47.9%) are in `bench_with_baseline`
-  - 44 from `prod-27b-dflash-multiconc.genesis_env`
-  - 37 default-on patches running implicitly in the same container
+- **95/226 patches** (42.0%) are in `bench_with_baseline`
+  - 45 from `prod-27b-dflash-multiconc.genesis_env`
+  - 50 default-on patches running implicitly in the same container
 
 - **28 production-subset patches** remain in `static_only` because
   they are enabled by **other** prod-* presets that have not yet been

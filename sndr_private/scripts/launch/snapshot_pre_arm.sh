@@ -16,19 +16,26 @@ mkdir -p "${OUT_DIR}"
 
 echo "Snapshot dir: ${OUT_DIR}"
 
-# Capture from server (override via env: SSH_HOST="<user>@<host>")
-ssh "${SSH_HOST:-${USER}@127.0.0.1}" "
+# F-017 fix (audit 2026-05-07): env fallback for SSH host / container /
+# API key. Defaults preserve Sander's PROD setup; community/test rigs
+# override via env vars without editing the script.
+SSH_HOST="${GENESIS_SSH_HOST:-${SSH_HOST:-sander@192.168.1.10}}"
+CONTAINER="${GENESIS_CONTAINER:-vllm-server-mtp-test}"
+API_KEY="${GENESIS_API_KEY:-genesis-local}"
+
+# Capture from server
+ssh "${SSH_HOST}" "
 docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Image}}\t{{.ID}}' | head -10
 echo '---ENV---'
-docker inspect vllm-server-mtp-test --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null | grep -E 'GENESIS|VLLM|PYTORCH|NCCL|CUDA' | sort
+docker inspect ${CONTAINER} --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null | grep -E 'GENESIS|VLLM|PYTORCH|NCCL|CUDA' | sort
 echo '---CMD---'
-docker inspect vllm-server-mtp-test --format '{{join .Config.Cmd \" \"}}' 2>/dev/null
+docker inspect ${CONTAINER} --format '{{join .Config.Cmd \" \"}}' 2>/dev/null
 echo '---GPU---'
 nvidia-smi --query-gpu=index,memory.used,memory.total,utilization.gpu,temperature.gpu --format=csv,noheader
 echo '---CONTAINER LOG TAIL---'
-docker logs --tail 50 vllm-server-mtp-test 2>&1
+docker logs --tail 50 ${CONTAINER} 2>&1
 echo '---HEALTH---'
-curl -s -H 'Authorization: Bearer genesis-local' http://localhost:8000/v1/models 2>&1 | head -200
+curl -s -H 'Authorization: Bearer ${API_KEY}' http://localhost:8000/v1/models 2>&1 | head -200
 " > "${OUT_DIR}/server_state.txt" 2>&1 || true
 
 # Capture local state
