@@ -80,6 +80,116 @@ on vLLM nightly pin `0.20.2rc1.dev209+g5536fc0c0`. 152 patches in
 
 ---
 
+## [Unreleased] — CONFIG-UX.5 derived config catalog closure (2026-05-24)
+
+> Closes the CONFIG-UX.5 derived-catalog track end-to-end across two
+> commits: (a) schema + generator + drift audit (CONFIG-UX.5.1) and
+> (b) native `sndr config-catalog` CLI surface (CONFIG-UX.5.2). The
+> catalog is a **derived API over V2 YAML + registry — not a new
+> source of truth**; nothing is committed to git as catalog JSON, and
+> no SQLite engine is introduced. Operators regenerate on demand; CI
+> verifies determinism and redaction.
+
+### Highlights
+
+- **Catalog schema + generator + drift audit (CONFIG-UX.5.1)**. New
+  `vllm/sndr_core/model_configs/catalog_schema.py` defines five row
+  types (`preset`, `profile`, `model`, `hardware`, `baseline`) plus
+  `RedactedEvidenceRef` and the `is_redactable_path` /
+  `is_private_visibility` helpers that gate every output path.
+  `scripts/generate_config_catalog.py` produces a deterministic
+  JSON catalog from the V2 corpus with `--stdout` and `--check`
+  modes; `scripts/audit_generated_config_catalog.py` verifies that
+  regeneration is bit-stable and that no `sndr_private/*` paths or
+  `visibility: private` evidence_refs leak into the public output.
+- **Native CLI surface (CONFIG-UX.5.2)**. New `sndr config-catalog`
+  subcommand with four leaves:
+  `build [--check] [--stdout] [--out PATH]`,
+  `verify [--strict] [--json]`,
+  `show <row_id|row_type/row_id> [--section SECTION]`,
+  `query --row-type {preset,profile,model,hardware,baseline,any}
+  [--field FIELD --equals VALUE | --contains VALUE | --expires-before DATE]
+  [--json]`. Query is AND-only with a fixed five-flag DSL — no
+  expressions, joins, sort, or JSONPath. Collision-aware row id
+  resolution (bare form errors with the candidate list if the same id
+  appears across row types). `--strict-fresh` with `--from PATH`
+  honors the supplied path and exits non-zero on staleness (does not
+  silently fall back to regeneration).
+- **Redaction discipline**. Redaction is applied at output time
+  rather than at build time, so the same generator drives both the
+  public catalog and any private debug view. The CLI defaults to
+  `--redact-private` on every leaf; turning it off requires explicit
+  operator action and is not exercised by any committed code path.
+- **Discoverability**. `make config-catalog` umbrella alias forwards
+  to `sndr config-catalog build`. All five `--help` texts contain the
+  anchor phrase **"derived catalog"** so operators reading the CLI
+  surface see immediately that this is not a new source of truth.
+
+### Migration notes
+
+- No operator action required. The catalog is generated on demand;
+  there is no committed catalog JSON to refresh in `git pull`. No
+  SQLite engine is introduced — the JSON shape is the API.
+- A future `.5.3` SQLite backing could be opened if a concrete
+  consumer emerges (analytics, dashboard, ratchet gate). Operator
+  policy is **no SQLite without a named consumer** — empty schema
+  has no value.
+- Catalog row schemas are versioned by the `schema_version` field
+  in `catalog_schema.py`. Breaking changes to row shape will bump
+  this field and be called out in the corresponding CHANGELOG entry.
+
+### Audit findings
+
+Final state on the live corpus at the closure commit:
+
+- `audit-generated-config-catalog`: **0 findings** (deterministic
+  regeneration + redaction clean across 60 rows).
+- `audit-override-policy`: **0 findings** (CONFIG-UX.4 DEBT closure
+  preserved; no profile newly trips a Class-4 rule).
+- `audit-configs`: **21 / 21 byte-identical compose** across the
+  CONFIG-UX.5.1 + .5.2 commits — catalog work is metadata, not
+  runtime mechanics.
+- pytest baseline across `tests/unit/{model_configs,dispatcher,scripts,cli}`:
+  **2231 passed** (CONFIG-UX.5.1 landed at 2199, CONFIG-UX.5.2 added
+  32 new test gates; one parametric skip when torch is preloaded by
+  another test in the run — verified torch-free import via dedicated
+  subprocess gate). No regression introduced.
+- 12 pre-existing family-contract failures (gemma4 `g4_60`, `pn51`,
+  `pn66`/`pn67`) confirmed unrelated by stash-and-rerun; they
+  pre-date this bundle and are tracked separately.
+- Torch-free import gate verified in an isolated subprocess —
+  `import vllm.sndr_core.cli.config_catalog` does not pull `torch`
+  into `sys.modules`. The corresponding parametric pytest gate
+  skips when torch is already preloaded by another test in the same
+  run, so the subprocess invocation is the authoritative proof.
+
+### Migration help
+
+```bash
+# Build the catalog in-memory and print to stdout
+sndr config-catalog build --stdout
+
+# Verify regeneration is deterministic + redacted (CI mode)
+sndr config-catalog verify --strict --json
+
+# Show a specific row (collision-aware bare form supported)
+sndr config-catalog show preset/prod-35b
+sndr config-catalog show prod-35b              # if id is unambiguous
+
+# Query with the fixed five-flag DSL (AND-only, no expressions)
+sndr config-catalog query --row-type profile \
+                          --field override_class --equals bench
+
+sndr config-catalog query --row-type profile \
+                          --field override_expires_at \
+                          --expires-before 2026-09-01
+
+# Discoverable umbrella alias
+make config-catalog
+```
+
+---
+
 ## [Unreleased] — CONFIG-UX.4 override-policy rollout closure (2026-05-24)
 
 > Closes the CONFIG-UX.4 override-policy track end-to-end. Across six
