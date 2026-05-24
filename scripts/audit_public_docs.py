@@ -88,12 +88,32 @@ def _grep(pattern: re.Pattern, files: list[Path]) -> list[str]:
     return hits
 
 
+# P0.1 M.4/M.6 (2026-05-24): two public docs define the three-zone
+# namespace policy and therefore must mention `sndr_private/` by
+# name — that's their entire purpose. Exempt them from D-1 only.
+# All other public docs continue to be blocked from referencing the
+# private tree. Per-file exemption (not regex relaxation) preserves
+# D-1's strength for every other doc.
+_D1_DEFINITIONAL_EXEMPT = (
+    "docs/CORE_ENGINE_BOUNDARY.md",
+    "docs/LICENSE_POLICY.md",
+)
+
+
 def check_d1_no_internal_links(files: list[Path]) -> list[str]:
     """D-1: public docs must not reference the private maintainer tree
     (`sndr_private/` is the canonical location post-consolidation;
     `docs/_internal/` is the retired legacy path, kept in the regex
-    so a regression cannot silently re-introduce it)."""
-    return _grep(re.compile(r"sndr_private/|docs/_internal"), files)
+    so a regression cannot silently re-introduce it).
+
+    Exempt: the two policy docs that DEFINE the three-zone boundary
+    (`CORE_ENGINE_BOUNDARY.md`, `LICENSE_POLICY.md`) must name the
+    private path to do their job."""
+    filtered = [
+        fp for fp in files
+        if fp.relative_to(REPO_ROOT).as_posix() not in _D1_DEFINITIONAL_EXEMPT
+    ]
+    return _grep(re.compile(r"sndr_private/|docs/_internal"), filtered)
 
 
 def check_d2_no_private_ips(files: list[Path]) -> list[str]:

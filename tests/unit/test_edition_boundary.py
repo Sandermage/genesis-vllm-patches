@@ -3,10 +3,22 @@
 
 Edition tests verify the BOUNDARY between the Apache-licensed
 `vllm.sndr_core` (community) and the commercial `vllm.sndr_engine`
-(paid). Per Sander's rule (2026-05-08):
+(paid). Per Sander's **strict-AND rule** (audit 2026-05-08,
+canonical source `docs/PATCHES.md:50-58`):
 
-  - patches with `upstream_pr` set     → tier=community (backports)
-  - patches without upstream_pr        → tier=engine    (Genesis-original IP)
+  A patch is `tier="engine"` only when ALL FOUR conditions hold:
+    1. NOT present on the public github repo
+    2. NO external author credit in title/credit text
+    3. NO PR link / PR number in title/credit text
+    4. NO `upstream_pr` / `related_upstream_prs` field
+
+  All other patches are `tier="community"`.
+
+  Historical note: the original informal statement was
+  "patches with upstream_pr → community / without → engine".
+  That was the loose form; the strict-AND rule (above) is the
+  operative current rule, enforced by
+  `test_every_engine_patch_passes_strict_AND_rule` below.
 
 The boundary is enforced by:
 

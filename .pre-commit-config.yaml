@@ -102,6 +102,20 @@ repos:
         pass_filenames: false
         files: '(vllm/sndr_core/integrations/.*|vllm/sndr_core/dispatcher/registry\.py|vllm/sndr_core/model_configs/builtin/profile/.*\.yaml|scripts/audit_phase3_relocation\.py|tests/unit/scripts/test_audit_phase3_relocation\.py)$'
 
+      - id: genesis-audit-private-namespace
+        name: Genesis private namespace boundary (hard rule #27)
+        # P0.1 M.7 — forbid `vllm/**/sndr_private` directory anywhere
+        # under the packaged tree. Only allowed private namespaces are:
+        #   - repo-root `sndr_private/`  (gitignored maintainer archive)
+        #   - `vllm/sndr_engine/`        (license-gated commercial wheel)
+        # Cross-checks that the M.2 wheel-contract test still asserts
+        # absence from a built wheel, and that the repo-root archive
+        # stays gitignored. Read-only, no torch / build deps.
+        entry: python3 scripts/audit_private_namespace.py
+        language: system
+        pass_filenames: false
+        files: '(vllm/.*\.py|scripts/audit_private_namespace\.py|tests/unit/test_wheel_contents\.py|\.gitignore)$'
+
       - id: genesis-audit-v2-runtime-pins
         name: Genesis V2 runtime + ModelDef pin harmonization (R-PIN-1..4)
         # P2.6 invariants — locks the runtime image / ModelDef pin

@@ -133,6 +133,9 @@ audit-patch-plan-resolves: ## Phase D (2026-05-16): every V2 preset resolves cle
 audit-engine-boundary: ## §10.3 #5 engine boundary: only optional-discovery `vllm.sndr_engine` imports in sndr_core
 	@$(PYTHON) scripts/audit_engine_boundary.py
 
+audit-private-namespace: ## P0.1 M.7: hard rule #27 — no `sndr_private` under `vllm/`; only repo-root `sndr_private/` allowed (gitignored)
+	@$(PYTHON) scripts/audit_private_namespace.py
+
 audit-config-keys: ## §10.3 #4 / §6.7 canonical env-key registry: every committed YAML's Genesis/SNDR keys in canonical union
 	@$(PYTHON) scripts/audit_config_keys.py
 
