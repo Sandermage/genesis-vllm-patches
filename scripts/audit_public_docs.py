@@ -161,24 +161,15 @@ def check_d5_no_retired_verbs(files: list[Path]) -> list[str]:
 
 # CONFIG-HYGIENE.docs-reconcile.1.GATE-EXTEND (2026-05-24):
 # D-7 / D-8 transition allowlists. Each entry is `(rel_path, line_no)`
-# and suppresses the corresponding finding for that exact site. Lines
-# MUST be removed by `CONFIG-HYGIENE.docs-reconcile.1.MECHANICAL`; the
-# allowlist is fragile (line numbers shift on edit) so any miss
-# surfaces immediately.
-_D7_TRANSITION_ALLOWLIST: frozenset[tuple[str, int]] = frozenset({
-    ("docs/INSTALL.md", 9),    # "Quick start (canonical, v11.0.0+)"
-    ("docs/INSTALL.md", 20),   # install snippet --pin v11.0
-    ("docs/INSTALL.md", 78),   # "v7.52 stack tested" hardware row
-    ("docs/INSTALL.md", 101),  # "Repository layout (v11.0.0)"
-})
+# and suppresses the corresponding finding for that exact site at a
+# transition commit. EMPTIED by
+# CONFIG-HYGIENE.docs-reconcile.1.MECHANICAL (2026-05-24).
+# Scaffolding retained (as empty frozensets) for the next pin-bump or
+# version-bump cycle: operators can add entries here without
+# redesigning the gate or touching pattern logic.
+_D7_TRANSITION_ALLOWLIST: frozenset[tuple[str, int]] = frozenset()
 
-_D8_TRANSITION_ALLOWLIST: frozenset[tuple[str, int]] = frozenset({
-    ("docs/INSTALL.md", 78),   # "vLLM dev212+g7a1eb8ac2" hardware row
-    ("docs/INSTALL.md", 302),  # "currently `0.20.1rc1.dev16+g7a1eb8ac2`"
-    ("docs/INSTALL.md", 306),  # "pip install --pre vllm==0.20.1rc1.dev16+..."
-    ("docs/INSTALL.md", 333),  # "# vllm 0.20.1rc1.dev16+g7a1eb8ac2"
-    ("docs/PATCHES.md", 355),  # PN80 "Not in nightly image as of dev93+g..."
-})
+_D8_TRANSITION_ALLOWLIST: frozenset[tuple[str, int]] = frozenset()
 
 # Files where stale version / pin tokens are intentionally historical
 # (engineering log, attribution log) — exempt at file level from D-7/D-8.

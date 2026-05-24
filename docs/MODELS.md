@@ -43,7 +43,7 @@ your own**, and **how the V2 layered config system works underneath**.
    Wave 10. A dense 35B model would saturate the PCIe Gen4 bus and
    run 3–4× slower. A3B is the highest-throughput configuration the
    SM 8.6 generation can sustain at this parameter count.
-3. **Genesis patch lock-in (226 entries in `PATCH_REGISTRY`).** ~52
+3. **Genesis patch lock-in (227 entries in `PATCH_REGISTRY`).** ~52
    default-on entries are production-eligible. ~30 fire on 35B PROD
    in steady state; the rest are conditional on workload / hardware /
    spec method. Switching architecture (Gemma 4, DeepSeek V4, GLM 5)

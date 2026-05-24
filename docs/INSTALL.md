@@ -6,7 +6,7 @@ verified on 1×/2× RTX 3090, RTX 5090, and consumer-grade Blackwell.
 
 ---
 
-## Quick start (canonical, v11.0.0+)
+## Quick start (canonical, v12.0.0+)
 
 The fastest path is the bootstrap one-liner. It installs Python deps,
 clones the repo into `~/.sndr`, registers the `vllm.general_plugins`
@@ -17,7 +17,7 @@ entry point, picks a preset, and runs a smoke test:
 curl -sSL https://raw.githubusercontent.com/Sandermage/genesis-vllm-patches/main/install.sh | bash
 
 # Fully unattended.
-curl -sSL .../install.sh | bash -s -- --pin v11.0 --workload tool_agent -y
+curl -sSL .../install.sh | bash -s -- --pin v12.0 --workload tool_agent -y
 
 # Bare-metal mode (auto-set on Proxmox VE 8.x kernels).
 curl -sSL .../install.sh | bash -s -- --bare-metal
@@ -75,7 +75,7 @@ curl http://localhost:8000/health -H "Authorization: Bearer genesis-local"
 
 | Hardware | Validation status | Notes |
 |---|---|---|
-| 2× RTX A5000 24GB (Ampere SM 8.6) | **Primary** — full v7.52 stack tested (driver 580.126.09 / CUDA 13.0 / vLLM dev212+g7a1eb8ac2) | Default config targets this |
+| 2× RTX A5000 24GB (Ampere SM 8.6) | **Primary** — full v12.0.0 stack tested (driver ≥ 580.126 / CUDA 13.0 / vLLM `0.20.2rc1.dev371+gbf610c2f5`) | Default config targets this |
 | 1× RTX 3090 24GB | Cross-validated by [@noonghunna](https://github.com/noonghunna/qwen36-27b-single-3090) | Same SM 8.6 family |
 | 2× RTX 3090 24GB | Cross-validated by [@noonghunna](https://github.com/noonghunna/qwen36-dual-3090) | TP=2 PCIe Gen4 (no NVLink) |
 
@@ -98,7 +98,7 @@ curl http://localhost:8000/health -H "Authorization: Bearer genesis-local"
 
 ## Step-by-step setup
 
-### 1. Repository layout (v11.0.0)
+### 1. Repository layout (v12.0.0)
 
 ```
 genesis-vllm-patches/
@@ -299,11 +299,11 @@ pip install --upgrade pip wheel setuptools
 
 ### 2. Install vLLM nightly
 
-Genesis is pinned to a specific vLLM nightly. Find the SHA / version that matches our [`Production baseline`](README.md#production-baseline) — currently `0.20.1rc1.dev16+g7a1eb8ac2`.
+Genesis is pinned to a specific vLLM nightly. Find the SHA / version that matches our [`Production baseline`](README.md#production-baseline) — currently `0.20.2rc1.dev371+gbf610c2f5`.
 
 ```bash
 # Option A — install from a specific nightly wheel (recommended if you can match)
-pip install --pre vllm==0.20.1rc1.dev16+g7a1eb8ac2 \
+pip install --pre vllm==0.20.2rc1.dev371+gbf610c2f5 \
   --extra-index-url https://wheels.vllm.ai/nightly
 
 # Option B — install from source at a specific commit
@@ -330,7 +330,7 @@ print(f'cuda available: {torch.cuda.is_available()}')
 print(f'cuda devices: {torch.cuda.device_count()}')
 "
 # Expect:
-# vllm 0.20.1rc1.dev16+g7a1eb8ac2
+# vllm 0.20.2rc1.dev371+gbf610c2f5
 # torch 2.11.0+cu130 cuda=13.0
 # triton 3.6.0
 # cuda available: True

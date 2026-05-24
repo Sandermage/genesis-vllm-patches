@@ -76,31 +76,16 @@ class TestTransitionAllowlist:
             assert isinstance(line, int) and line > 0
             assert isinstance(found, int) and found > 0
 
-    def test_allowlist_entries_match_expected_pre_mechanical_state(self):
-        """The 13 known stale 226 sites should all be in the allowlist
-        at this commit. Once .MECHANICAL lands, this set shrinks to
-        empty."""
+    def test_allowlist_is_empty_after_mechanical(self):
+        """CONFIG-HYGIENE.docs-reconcile.1.MECHANICAL emptied the
+        transition allowlist. The scaffolding remains (frozenset of
+        3-tuples) so the next counter-bump cycle can populate without
+        redesigning the gate."""
         mod = _import()
-        # Sanity: at this point in the rollout, all entries should
-        # claim 226 (the current pre-fix stale value) and target
-        # docs/BENCHMARKS, docs/FAQ, docs/MODELS, docs/CONFIGURATION,
-        # docs/QUICKSTART, docs/RELEASE_POLICY, or README.md.
-        expected_docs = {
-            "README.md",
-            "docs/BENCHMARKS.md",
-            "docs/FAQ.md",
-            "docs/MODELS.md",
-            "docs/CONFIGURATION.md",
-            "docs/QUICKSTART.md",
-            "docs/RELEASE_POLICY.md",
-        }
-        for rel, _line, found in mod._TRANSITION_ALLOWLIST:
-            assert rel in expected_docs, (
-                f"allowlist entry {rel!r} outside expected MECHANICAL scope"
-            )
-            assert found == 226, (
-                f"allowlist entry {rel} found={found}, expected stale 226"
-            )
+        assert mod._TRANSITION_ALLOWLIST == frozenset(), (
+            "Transition allowlist must be empty post-MECHANICAL; any "
+            "entry implies pending mechanical work outside scope."
+        )
 
 
 # ─── check_doc with synthetic doc + allowlist injection ──────────────
@@ -149,9 +134,9 @@ class TestCheckDocBehavior:
 
 
 class TestLiveCorpus:
-    def test_default_mode_reports_pending_drift_exits_zero(self):
-        """At this point in the rollout, default mode surfaces the 13
-        stale sites as transition-pending and exits 0."""
+    def test_default_mode_clean(self):
+        """Post-MECHANICAL: every doc anchor matches the registry count.
+        Default mode prints the clean summary and exits 0."""
         result = subprocess.run(
             [sys.executable, str(SCRIPT_PATH)],
             capture_output=True, text=True, cwd=REPO_ROOT,
@@ -159,15 +144,13 @@ class TestLiveCorpus:
         assert result.returncode == 0, (
             f"default mode failed:\n{result.stdout}\n{result.stderr}"
         )
-        # Output should mention pending transition sites OR clean state.
         out = result.stdout
         assert "PATCH_REGISTRY count: 227" in out
+        assert "claim 227 patches consistently" in out
 
-    def test_strict_mode_passes_with_allowlist_in_place(self):
-        """--strict must exit 0 as long as every detected mismatch is
-        either resolved OR in the transition allowlist. After
-        CONFIG-HYGIENE.docs-reconcile.1.MECHANICAL lands and the
-        allowlist is empty, this remains green by construction."""
+    def test_strict_mode_passes_on_clean_corpus(self):
+        """--strict exits 0 because every detected anchor matches and
+        the transition allowlist is empty (MECHANICAL closed)."""
         result = subprocess.run(
             [sys.executable, str(SCRIPT_PATH), "--strict"],
             capture_output=True, text=True, cwd=REPO_ROOT,
@@ -176,7 +159,7 @@ class TestLiveCorpus:
             f"--strict mode failed:\n{result.stdout}\n{result.stderr}"
         )
 
-    def test_json_mode_separates_pending_from_errors(self):
+    def test_json_mode_clean_status(self):
         import json as _json
         result = subprocess.run(
             [sys.executable, str(SCRIPT_PATH), "--json"],
@@ -188,7 +171,8 @@ class TestLiveCorpus:
         assert "transition_pending" in data
         assert "errors" in data
         assert "status" in data
-        # In the current rollout state errors should be empty; pending
-        # may be non-empty until .MECHANICAL lands.
+        # Post-MECHANICAL: no drift at all.
         assert data["status"] == "OK"
         assert data["errors"] == []
+        assert data["transition_pending"] == []
+        assert data["mismatches"] == []

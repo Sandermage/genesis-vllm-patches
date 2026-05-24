@@ -88,36 +88,16 @@ DOC_PATTERNS: dict[Path, list[tuple[str, int]]] = {
 
 # CONFIG-HYGIENE.docs-reconcile.1.GATE-EXTEND (2026-05-24):
 # Transition allowlist — sites that are KNOWN to claim a stale registry
-# count at this commit because they fall under
-# CONFIG-HYGIENE.docs-reconcile.1.MECHANICAL fix scope. Each entry is
+# count at a transition commit. Each entry is
 # `(relative_path, line_number, found_value)`. Strict mode treats these
 # as PENDING (informational warning) rather than ERROR.
 #
-# MUST BE EMPTIED by CONFIG-HYGIENE.docs-reconcile.1.MECHANICAL. The
-# allowlist is intentionally fragile: line numbers will shift as docs
-# are edited, surfacing any miss.
-_TRANSITION_ALLOWLIST: frozenset[tuple[str, int, int]] = frozenset({
-    # docs/BENCHMARKS.md — stale 226 (current registry = 227)
-    ("docs/BENCHMARKS.md", 11, 226),
-    ("docs/BENCHMARKS.md", 61, 226),
-    ("docs/BENCHMARKS.md", 119, 226),
-    # docs/FAQ.md
-    ("docs/FAQ.md", 36, 226),
-    ("docs/FAQ.md", 59, 226),
-    # docs/MODELS.md
-    ("docs/MODELS.md", 46, 226),
-    # docs/CONFIGURATION.md
-    ("docs/CONFIGURATION.md", 9, 226),
-    # docs/QUICKSTART.md
-    ("docs/QUICKSTART.md", 8, 226),
-    # docs/RELEASE_POLICY.md (line 122 has "226/226" — both captures)
-    ("docs/RELEASE_POLICY.md", 41, 226),
-    ("docs/RELEASE_POLICY.md", 59, 226),
-    ("docs/RELEASE_POLICY.md", 122, 226),
-    ("docs/RELEASE_POLICY.md", 193, 226),
-    # README.md badge SVG
-    ("README.md", 9, 226),
-})
+# EMPTIED by CONFIG-HYGIENE.docs-reconcile.1.MECHANICAL (2026-05-24).
+# Kept here (as an empty frozenset) so the scaffolding remains
+# discoverable for the NEXT counter-bump cycle (e.g., when the registry
+# advances 227 → 228 and a new round of doc fixes is staged); operators
+# can add transition entries here without redesigning the gate.
+_TRANSITION_ALLOWLIST: frozenset[tuple[str, int, int]] = frozenset()
 
 
 def count_registry_entries(registry_path: Path) -> int:
