@@ -18,9 +18,25 @@ private-information leaks that the docs-stale-scan (§6.3 gate #1) doesn't:
        or NotImplementedError in public docs. The plain English noun
        "placeholder" (used to describe e.g. PN64) does NOT count — only
        actionable markers do.
+  D-7  No stale-as-current Genesis version anchors. Specific phrasings
+       like "(canonical, v11.0.0+)", "Repository layout (v11.0.0)", or
+       "v7.5x stack tested" present a non-current version as if it
+       were the current PROD baseline. Pure historical attribution
+       (CHANGELOG entries, CREDITS attributions, "Removed in v11.0.0")
+       is intentionally allowed.
+  D-8  No stale-as-current vLLM pin anchors in operator-facing text.
+       Specific phrasings like "currently `0.20.1rc1.dev16+gXXXX`",
+       "pip install vllm==0.20.1rc1.dev16+gXXXX", or "Not in nightly
+       image as of dev93+gXXXX" claim a pre-current pin as the active
+       baseline. CHANGELOG history sections and CREDITS attribution
+       are exempt.
 
 Allowlist (intentionally private / historical):
   sndr_private/, _archive/
+
+Transition allowlists (D-7, D-8): see `_D7_TRANSITION_ALLOWLIST` and
+`_D8_TRANSITION_ALLOWLIST`. Both MUST be emptied by
+`CONFIG-HYGIENE.docs-reconcile.1.MECHANICAL`.
 
 Exit code:
   0 — clean.
@@ -143,6 +159,147 @@ def check_d5_no_retired_verbs(files: list[Path]) -> list[str]:
     return _grep(pat, files)
 
 
+# CONFIG-HYGIENE.docs-reconcile.1.GATE-EXTEND (2026-05-24):
+# D-7 / D-8 transition allowlists. Each entry is `(rel_path, line_no)`
+# and suppresses the corresponding finding for that exact site. Lines
+# MUST be removed by `CONFIG-HYGIENE.docs-reconcile.1.MECHANICAL`; the
+# allowlist is fragile (line numbers shift on edit) so any miss
+# surfaces immediately.
+_D7_TRANSITION_ALLOWLIST: frozenset[tuple[str, int]] = frozenset({
+    ("docs/INSTALL.md", 9),    # "Quick start (canonical, v11.0.0+)"
+    ("docs/INSTALL.md", 20),   # install snippet --pin v11.0
+    ("docs/INSTALL.md", 78),   # "v7.52 stack tested" hardware row
+    ("docs/INSTALL.md", 101),  # "Repository layout (v11.0.0)"
+})
+
+_D8_TRANSITION_ALLOWLIST: frozenset[tuple[str, int]] = frozenset({
+    ("docs/INSTALL.md", 78),   # "vLLM dev212+g7a1eb8ac2" hardware row
+    ("docs/INSTALL.md", 302),  # "currently `0.20.1rc1.dev16+g7a1eb8ac2`"
+    ("docs/INSTALL.md", 306),  # "pip install --pre vllm==0.20.1rc1.dev16+..."
+    ("docs/INSTALL.md", 333),  # "# vllm 0.20.1rc1.dev16+g7a1eb8ac2"
+    ("docs/PATCHES.md", 355),  # PN80 "Not in nightly image as of dev93+g..."
+})
+
+# Files where stale version / pin tokens are intentionally historical
+# (engineering log, attribution log) — exempt at file level from D-7/D-8.
+_D7_D8_FILE_EXEMPT = (
+    "CHANGELOG.md",
+    "docs/CREDITS.md",
+)
+
+# Permanent line-level exemption for D-7/D-8: lines whose entire purpose
+# is historical attribution and where the stale token is intentional.
+# Distinct from the transition allowlists — these entries are NOT
+# expected to be cleared by `CONFIG-HYGIENE.docs-reconcile.1.MECHANICAL`.
+_D7_PERMANENT_EXEMPT: frozenset[tuple[str, int]] = frozenset()
+
+_D8_PERMANENT_EXEMPT: frozenset[tuple[str, int]] = frozenset({
+    # "> Previous v7.59 baseline (2026-04-28): vLLM dev212+g8cd174fa3 era —"
+    # Explicit "Previous" prefix — historical baseline marker.
+    ("docs/CONFIGURATION.md", 37),
+})
+
+
+def _grep_with_allowlist(
+    pattern: re.Pattern,
+    files: list[Path],
+    allowlist: frozenset[tuple[str, int]],
+    file_exempt: tuple[str, ...] = (),
+) -> list[str]:
+    """Like `_grep` but applies a `(rel_path, line_no)` allowlist + a
+    file-level exempt list. Used by D-7 and D-8 to suppress known
+    transition-state sites without weakening pattern strength."""
+    hits = []
+    for fp in files:
+        rel = fp.relative_to(REPO_ROOT).as_posix()
+        if rel in file_exempt:
+            continue
+        try:
+            text = fp.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        for i, line in enumerate(text.splitlines(), 1):
+            if "audit-public-docs: allow" in line:
+                continue
+            if (rel, i) in allowlist:
+                continue
+            if pattern.search(line):
+                hits.append(f"{rel}:{i}: {line.strip()[:120]}")
+    return hits
+
+
+def check_d7_no_stale_version_as_current(files: list[Path]) -> list[str]:
+    """D-7: stale-as-current Genesis version anchors.
+
+    Specifically flags phrasings that claim a non-current version
+    (v7.5x or v11.0.x) as if it were the active PROD baseline:
+
+      - "(canonical, v11.0.0+)"
+      - "Repository layout (v11.0.0)"
+      - "v7.5x stack tested"
+      - "install.sh ... --pin v11.0"
+
+    Historical references ("Removed in v11.0.0", "renamed in v11.0.0",
+    "pre-v11 scripts") are not matched — they describe past events
+    accurately. CHANGELOG.md and docs/CREDITS.md are file-level exempt.
+
+    Transition allowlist `_D7_TRANSITION_ALLOWLIST` suppresses the four
+    known stale-as-current sites in docs/INSTALL.md that
+    `CONFIG-HYGIENE.docs-reconcile.1.MECHANICAL` will fix.
+    """
+    pat = re.compile(
+        r"\(canonical,\s*v(?:7\.\d+|11\.\d)"
+        r"|Repository layout\s+\(v(?:7\.\d+|11\.\d)"
+        r"|\bv7\.\d+\s+stack\s+tested\b"
+        r"|--pin\s+v11\.\d"
+    )
+    return _grep_with_allowlist(
+        pat,
+        files,
+        _D7_TRANSITION_ALLOWLIST | _D7_PERMANENT_EXEMPT,
+        _D7_D8_FILE_EXEMPT,
+    )
+
+
+def check_d8_no_stale_pin_as_current(files: list[Path]) -> list[str]:
+    """D-8: stale-as-current vLLM pin anchors.
+
+    Flags pre-current pins (dev16, dev93, dev209, dev212) presented in
+    current-state phrasings:
+
+      - "currently `0.20.1rc1.dev16+gXXXX`"
+      - "pip install --pre vllm==0.20.1rc1.dev16+gXXXX"
+      - "# vllm 0.20.1rc1.dev16+gXXXX" (comment)
+      - "Not in nightly image as of dev93+gXXXX" (active-claim about
+        current upstream-merge state)
+      - "vLLM dev212+g..." in hardware "Primary tested" claim
+
+    The current canonical pin is `0.20.2rc1.dev371+gbf610c2f5` (per
+    docs/USAGE.md, docs/QUICKSTART.md, docs/BENCHMARKS.md). Pre-current
+    pins mentioned in historical context (CHANGELOG.md, docs/CREDITS.md,
+    or BENCHMARKS.md "Wave 7 / v7.72 (dev9) snapshot") are intentionally
+    allowed via file-level exempt OR by being phrased without
+    current-state markers.
+
+    Transition allowlist `_D8_TRANSITION_ALLOWLIST` suppresses the five
+    known stale-as-current sites in docs/INSTALL.md and docs/PATCHES.md
+    that `CONFIG-HYGIENE.docs-reconcile.1.MECHANICAL` will fix.
+    """
+    pat = re.compile(
+        r"currently\s+`?\d+\.\d+\.\d+rc\d+\.dev1\d+\+g"
+        r"|vllm==\d+\.\d+\.\d+rc\d+\.dev1\d+\+g"
+        r"|^#\s*vllm\s+\d+\.\d+\.\d+rc\d+\.dev1\d+\+g"
+        r"|Not in nightly image as of dev\d+\+g"
+        r"|vLLM\s+dev21[0-9]\+g[a-f0-9]+"
+    )
+    return _grep_with_allowlist(
+        pat,
+        files,
+        _D8_TRANSITION_ALLOWLIST | _D8_PERMANENT_EXEMPT,
+        _D7_D8_FILE_EXEMPT,
+    )
+
+
 def check_d6_no_unresolved_todos(files: list[Path]) -> list[str]:
     """D-6: actionable TODO/FIXME/XXX markers, slot-tokens, NotImplementedError.
 
@@ -203,6 +360,8 @@ def main() -> int:
         "D-4 no server container names": check_d4_no_server_container_names(files),
         "D-5 no retired CLI verbs": check_d5_no_retired_verbs(files),
         "D-6 no unresolved TODOs/placeholders": check_d6_no_unresolved_todos(files),
+        "D-7 no stale-version-as-current": check_d7_no_stale_version_as_current(files),
+        "D-8 no stale-pin-as-current": check_d8_no_stale_pin_as_current(files),
     }
     total = sum(len(v) for v in checks.values())
 

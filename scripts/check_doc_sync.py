@@ -43,6 +43,7 @@ DOC_PATTERNS: dict[Path, list[tuple[str, int]]] = {
         (r"\| \*\*TOTAL\*\* \| \*\*(\d+)\*\*", 1),          # total row
         (r"All (\d+) patches table", 1),                    # table claim
         (r"^# (\d+) patches across (\d+) categories", 1),   # rare line
+        (r"registry-(\d+)%20patches-green", 1),             # patches badge img URL
     ],
     REPO_ROOT / "docs" / "PATCHES.md": [
         (r"Total PATCH_REGISTRY entries:\*\* (\d+)", 1),    # header bullet
@@ -55,13 +56,68 @@ DOC_PATTERNS: dict[Path, list[tuple[str, int]]] = {
     REPO_ROOT / "docs" / "MODELS.md": [
         (r"Genesis maintains (\d+) vLLM runtime patches", 1),
         (r"Genesis patch lock-in \((\d+) runtime patches", 1),
+        (r"Genesis patch lock-in \((\d+) entries in `PATCH_REGISTRY`", 1),
     ],
     REPO_ROOT / "docs" / "BENCHMARKS.md": [
-        # BENCHMARKS.md has historical snapshots + current — check current section only
-        # (\d+) patches snapshot is historical, skip; check Wave 8 section
-        (r"Wave 8.*?(\d+) patches", 1),
+        # Current-state claims (historical Wave snapshots are excluded by
+        # specific phrasing — "snapshot", "ago", "pre-v11" markers).
+        (r"Genesis `v12\.0\.0` — (\d+) PATCH_REGISTRY entries", 1),
+        (r"Patches:\s+(\d+) total → ~\d+ APPLY \| ~\d+ SKIP", 1),
+        (r"smaller \(\d+ entries vs (\d+) today\)", 1),
+    ],
+    # CONFIG-HYGIENE.docs-reconcile.1.GATE-EXTEND (2026-05-24): coverage
+    # extended to the 5 files that previously drifted silently.
+    REPO_ROOT / "docs" / "FAQ.md": [
+        (r"\*\*(\d+) entries\*\* — \d+ full-implementation", 1),
+        (r"About \d+ of (\d+) entries are marked `default_on=True`", 1),
+    ],
+    REPO_ROOT / "docs" / "CONFIGURATION.md": [
+        (r"Genesis v12\.0\.0 — registry has \*\*(\d+) entries\*\*", 1),
+    ],
+    REPO_ROOT / "docs" / "QUICKSTART.md": [
+        (r"Genesis `v12\.0\.0` \((\d+) PATCH_REGISTRY entries\)", 1),
+    ],
+    REPO_ROOT / "docs" / "RELEASE_POLICY.md": [
+        (r"operators re-bench all (\d+) entries", 1),
+        (r"Currently 0/(\d+) entries carry", 1),
+        (r"`require-static`, (\d+)/(\d+) covered out-of-the-box", 1),
+        (r"~\d+/(\d+) \(\d+\.\d+%\) in `bench_with_baseline`", 1),
     ],
 }
+
+
+# CONFIG-HYGIENE.docs-reconcile.1.GATE-EXTEND (2026-05-24):
+# Transition allowlist — sites that are KNOWN to claim a stale registry
+# count at this commit because they fall under
+# CONFIG-HYGIENE.docs-reconcile.1.MECHANICAL fix scope. Each entry is
+# `(relative_path, line_number, found_value)`. Strict mode treats these
+# as PENDING (informational warning) rather than ERROR.
+#
+# MUST BE EMPTIED by CONFIG-HYGIENE.docs-reconcile.1.MECHANICAL. The
+# allowlist is intentionally fragile: line numbers will shift as docs
+# are edited, surfacing any miss.
+_TRANSITION_ALLOWLIST: frozenset[tuple[str, int, int]] = frozenset({
+    # docs/BENCHMARKS.md — stale 226 (current registry = 227)
+    ("docs/BENCHMARKS.md", 11, 226),
+    ("docs/BENCHMARKS.md", 61, 226),
+    ("docs/BENCHMARKS.md", 119, 226),
+    # docs/FAQ.md
+    ("docs/FAQ.md", 36, 226),
+    ("docs/FAQ.md", 59, 226),
+    # docs/MODELS.md
+    ("docs/MODELS.md", 46, 226),
+    # docs/CONFIGURATION.md
+    ("docs/CONFIGURATION.md", 9, 226),
+    # docs/QUICKSTART.md
+    ("docs/QUICKSTART.md", 8, 226),
+    # docs/RELEASE_POLICY.md (line 122 has "226/226" — both captures)
+    ("docs/RELEASE_POLICY.md", 41, 226),
+    ("docs/RELEASE_POLICY.md", 59, 226),
+    ("docs/RELEASE_POLICY.md", 122, 226),
+    ("docs/RELEASE_POLICY.md", 193, 226),
+    # README.md badge SVG
+    ("README.md", 9, 226),
+})
 
 
 def count_registry_entries(registry_path: Path) -> int:
@@ -86,23 +142,34 @@ def count_registry_entries(registry_path: Path) -> int:
 
 
 def check_doc(doc_path: Path, expected_count: int, patterns: list[tuple[str, int]]) -> list[dict]:
-    """Return list of mismatches in this doc."""
+    """Return list of mismatches in this doc.
+
+    Each mismatch dict carries `transition_pending=True` when the
+    `(rel_path, line, found_value)` tuple is in `_TRANSITION_ALLOWLIST`
+    — signalling that the stale value is known and scheduled for fix
+    by `CONFIG-HYGIENE.docs-reconcile.1.MECHANICAL`. Strict mode treats
+    those as PENDING (does not fail) and any unallowlisted mismatch as
+    ERROR (fails).
+    """
     mismatches = []
     if not doc_path.is_file():
         return [{"doc": str(doc_path), "error": "file not found"}]
     text = doc_path.read_text()
+    rel = doc_path.relative_to(REPO_ROOT).as_posix()
     for pattern, group_idx in patterns:
         for m in re.finditer(pattern, text, flags=re.M | re.S):
             value = int(m.group(group_idx))
             if value != expected_count:
                 line_no = text[:m.start()].count("\n") + 1
+                transition_pending = (rel, line_no, value) in _TRANSITION_ALLOWLIST
                 mismatches.append({
-                    "doc": str(doc_path.relative_to(REPO_ROOT)),
+                    "doc": rel,
                     "line": line_no,
                     "found": value,
                     "expected": expected_count,
                     "pattern": pattern,
                     "match_text": m.group(0)[:80],
+                    "transition_pending": transition_pending,
                 })
     return mismatches
 
@@ -123,11 +190,20 @@ def main() -> int:
     for doc_path, patterns in DOC_PATTERNS.items():
         all_mismatches.extend(check_doc(doc_path, expected, patterns))
 
+    pending = [mm for mm in all_mismatches if mm.get("transition_pending")]
+    errors = [
+        mm for mm in all_mismatches
+        if not mm.get("transition_pending") and "error" not in mm
+    ]
+    file_errors = [mm for mm in all_mismatches if "error" in mm]
+
     if args.json:
         result = {
             "expected_registry_count": expected,
             "mismatches": all_mismatches,
-            "status": "FAIL" if all_mismatches else "OK",
+            "transition_pending": pending,
+            "errors": errors + file_errors,
+            "status": "FAIL" if errors or file_errors else "OK",
         }
         print(json.dumps(result, indent=2, ensure_ascii=False))
     else:
@@ -136,15 +212,28 @@ def main() -> int:
         if not all_mismatches:
             print(f"✓ All checked docs claim {expected} patches consistently.")
         else:
-            print(f"✗ {len(all_mismatches)} mismatch(es) found:")
-            for mm in all_mismatches:
-                if "error" in mm:
+            if errors or file_errors:
+                print(f"✗ {len(errors) + len(file_errors)} unallowlisted mismatch(es):")
+                for mm in file_errors:
                     print(f"  {mm['doc']}: {mm['error']}")
-                else:
+                for mm in errors:
                     print(f"  {mm['doc']}:{mm['line']}  found={mm['found']}  expected={mm['expected']}")
                     print(f"    match: {mm['match_text']}")
+            if pending:
+                print(
+                    f"\n⚠ {len(pending)} known-stale site(s) PENDING fix by "
+                    "CONFIG-HYGIENE.docs-reconcile.1.MECHANICAL:"
+                )
+                for mm in pending:
+                    print(
+                        f"  {mm['doc']}:{mm['line']}  found={mm['found']}  expected={mm['expected']}"
+                    )
+            if not errors and not file_errors:
+                print(
+                    f"\n✓ No unallowlisted drift; {len(pending)} site(s) pending mechanical fix."
+                )
 
-    if all_mismatches and args.strict:
+    if (errors or file_errors) and args.strict:
         return 1
     return 0
 

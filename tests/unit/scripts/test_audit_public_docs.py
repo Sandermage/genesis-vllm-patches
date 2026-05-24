@@ -207,12 +207,171 @@ class TestD6Markers:
         assert mod.check_d6_no_unresolved_todos(files) == []
 
 
+# ─── D-7: stale-version-as-current (GATE-EXTEND) ──────────────────────
+
+
+class TestD7StaleVersion:
+    """GATE-EXTEND adds D-7 to catch current-state claims that anchor a
+    non-current Genesis version (v7.5x or v11.0.x).
+
+    Historical phrasings (`Removed in v11.0.0`, `renamed in v11.0.0`,
+    `pre-v11 scripts`) must NOT be flagged."""
+
+    @pytest.mark.parametrize("phrasing", [
+        "## Quick start (canonical, v11.0.0+)",
+        "### Repository layout (v11.0.0)",
+        "vLLM v7.52 stack tested on A5000",
+        "install.sh --pin v11.0",
+        "## Quick start (canonical, v7.52+)",
+    ])
+    def test_stale_as_current_phrasings_caught(self, fake_repo, phrasing):
+        mod = _import()
+        files = _scratch_doc(fake_repo, phrasing + "\n")
+        assert mod.check_d7_no_stale_version_as_current(files), (
+            f"phrasing should be caught: {phrasing!r}"
+        )
+
+    @pytest.mark.parametrize("phrasing", [
+        # Historical references — describe past events, not current state.
+        "Removed in v11.0.0:",
+        "namespace has been removed entirely in v11.0.0",
+        "ImportError: pre-v11 scripts",
+        "Update the script: rewrite imports `vllm._genesis.*` → ...",
+        # Current version anchor — must NOT trigger.
+        "## Quick start (canonical, v12.0.0)",
+        "### Repository layout (v12.0.0)",
+    ])
+    def test_historical_or_current_clean(self, fake_repo, phrasing):
+        mod = _import()
+        files = _scratch_doc(fake_repo, phrasing + "\n")
+        assert mod.check_d7_no_stale_version_as_current(files) == [], (
+            f"phrasing should be clean: {phrasing!r}"
+        )
+
+    def test_transition_allowlist_suppresses_known_sites(
+        self, fake_repo, monkeypatch
+    ):
+        """An entry in `_D7_TRANSITION_ALLOWLIST` for (rel, line)
+        suppresses the otherwise-matching pattern at that line.
+        Removed by CONFIG-HYGIENE.docs-reconcile.1.MECHANICAL."""
+        mod = _import()
+        body = "skip\n## Quick start (canonical, v11.0.0+)\nfollow\n"
+        # synthetic doc.md is `fake_repo / "doc.md"`.
+        files = _scratch_doc(fake_repo, body)
+        # Without allowlist — caught.
+        assert mod.check_d7_no_stale_version_as_current(files)
+        # Inject allowlist entry for ("doc.md", 2) — same as the line
+        # the phrasing lives on after the leading "skip\n".
+        monkeypatch.setattr(
+            mod, "_D7_TRANSITION_ALLOWLIST",
+            frozenset({("doc.md", 2)}),
+        )
+        assert mod.check_d7_no_stale_version_as_current(files) == []
+
+
+# ─── D-8: stale-pin-as-current (GATE-EXTEND) ──────────────────────────
+
+
+class TestD8StalePin:
+    """GATE-EXTEND adds D-8 to catch current-state phrasings anchored to
+    a pre-current vLLM pin (dev16, dev93, dev209, dev212).
+
+    Historical pin references (BENCHMARKS Wave 7 snapshot, CHANGELOG,
+    CREDITS attribution, "Previous v7.59 baseline") must NOT be
+    flagged."""
+
+    @pytest.mark.parametrize("phrasing", [
+        "currently `0.20.1rc1.dev16+g7a1eb8ac2`",
+        "pip install --pre vllm==0.20.1rc1.dev16+g7a1eb8ac2",
+        "# vllm 0.20.1rc1.dev16+g7a1eb8ac2",
+        "Not in nightly image as of dev93+g51f22dcfd.",
+        "Primary — full v7.52 stack tested ... vLLM dev212+g7a1eb8ac2",
+    ])
+    def test_stale_pin_caught(self, fake_repo, phrasing):
+        mod = _import()
+        files = _scratch_doc(fake_repo, phrasing + "\n")
+        assert mod.check_d8_no_stale_pin_as_current(files), (
+            f"phrasing should be caught: {phrasing!r}"
+        )
+
+    @pytest.mark.parametrize("phrasing", [
+        # Current pin — must NOT trigger.
+        "vLLM `0.20.2rc1.dev371+gbf610c2f5`",
+        "currently `0.20.2rc1.dev371+gbf610c2f5`",
+        "pip install --pre vllm==0.20.2rc1.dev371+gbf610c2f5",
+        # Historical narrative — should NOT trigger (file exempt OR
+        # phrasing-level safe).
+        "> Previous v7.59 baseline (2026-04-28): vLLM dev212+g8cd174fa3 era —",
+        "Wave 7 / v7.72 (dev9) is pre-v11-rename",
+    ])
+    def test_current_pin_or_historical_clean(self, fake_repo, phrasing):
+        mod = _import()
+        files = _scratch_doc(fake_repo, phrasing + "\n")
+        hits = mod.check_d8_no_stale_pin_as_current(files)
+        # NOTE: the "Previous v7.59 baseline" line is exempted via the
+        # permanent exempt list only when its rel_path:line matches
+        # the production site. In the fake-repo unit test the file
+        # is "doc.md:1", not "docs/CONFIGURATION.md:37" — so the
+        # pattern WILL match here. The live-corpus test in
+        # TestLiveCorpus validates the production exempt path.
+        if "Previous v7.59 baseline" in phrasing:
+            # Allow the unit-fake-repo to fire here; the real exempt is
+            # validated in TestLiveCorpus.
+            return
+        assert hits == [], (
+            f"phrasing should be clean: {phrasing!r}; got hits: {hits}"
+        )
+
+    def test_transition_allowlist_suppresses(self, fake_repo, monkeypatch):
+        mod = _import()
+        files = _scratch_doc(
+            fake_repo,
+            "skip\nbody: currently `0.20.1rc1.dev16+gabc`\n",
+        )
+        assert mod.check_d8_no_stale_pin_as_current(files)
+        monkeypatch.setattr(
+            mod, "_D8_TRANSITION_ALLOWLIST",
+            frozenset({("doc.md", 2)}),
+        )
+        assert mod.check_d8_no_stale_pin_as_current(files) == []
+
+    def test_permanent_exempt_suppresses(self, fake_repo, monkeypatch):
+        mod = _import()
+        files = _scratch_doc(
+            fake_repo,
+            "> Previous v7.59 baseline: vLLM dev212+gabc12345 era —\n",
+        )
+        assert mod.check_d8_no_stale_pin_as_current(files)
+        monkeypatch.setattr(
+            mod, "_D8_PERMANENT_EXEMPT",
+            frozenset({("doc.md", 1)}),
+        )
+        assert mod.check_d8_no_stale_pin_as_current(files) == []
+
+    def test_file_level_exempt_changelog(self, fake_repo):
+        """File-level exempt covers CHANGELOG.md — every pin mention
+        there is intentional engineering history."""
+        mod = _import()
+        target = fake_repo / "CHANGELOG.md"
+        target.write_text(
+            "## Wave 8 — Pinned to `0.20.1rc1.dev16+g7a1eb8ac2`\n"
+        )
+        files = [target]
+        assert mod.check_d8_no_stale_pin_as_current(files) == []
+
+
 # ─── Live committed corpus must be clean ──────────────────────────────
 
 
 class TestLiveCorpus:
     """The actual public docs corpus in this repo must pass every check —
     this is what the gating-tier `make audit-public-docs` verifies on CI.
+
+    D-7 and D-8 are kept clean via:
+      - transition allowlists (sites scheduled for
+        CONFIG-HYGIENE.docs-reconcile.1.MECHANICAL fix)
+      - permanent line-level exempts (genuine historical references)
+      - file-level exempts (CHANGELOG.md, docs/CREDITS.md)
     """
 
     def test_all_checks_clean_on_repo(self):
@@ -225,6 +384,8 @@ class TestLiveCorpus:
             ("D-4", mod.check_d4_no_server_container_names),
             ("D-5", mod.check_d5_no_retired_verbs),
             ("D-6", mod.check_d6_no_unresolved_todos),
+            ("D-7", mod.check_d7_no_stale_version_as_current),
+            ("D-8", mod.check_d8_no_stale_pin_as_current),
         ]:
             hits = check_fn(files)
             assert hits == [], (
