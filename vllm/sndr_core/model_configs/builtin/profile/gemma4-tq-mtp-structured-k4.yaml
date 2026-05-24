@@ -224,6 +224,21 @@ patches_delta:
   override:
     GENESIS_ENABLE_G4_19C_ATTN_WRAP: '0'         # TEMPORARY — see Phase 7.G4.G4_19C-FULLGRAPH-AUDIT
 
+# ─── Override policy (CONFIG-UX.4.DEBT.1, 2026-05-24) ──────────────────
+# Class `bench` — public acceptance artifact is committed (gemma4-tq-mtp-
+# structured-k4.json with config_hash 71c874d7ffedae04), but the
+# acceptance artifact is per-method validation, not a TPS bench. Per-
+# preset config-block cross-validation is deferred to CONFIG-UX.4.
+# Re-evaluate after expires_at.
+override_policy:
+  override_class: bench
+  reason: "Gemma4 31B β'-A K=4 structured control; very tight context 4K + max_num_seqs=1; β'-A acceptance-artifact-gated"
+  evidence_refs:
+    - vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-tq-mtp-structured-k4.json
+  evidence_visibility: public
+  expires_at: '2026-08-22'
+  allowed_to_exceed_hardware_default: true
+
 # ─── Promotion contract ────────────────────────────────────────────────
 # Promotion to canonical model.patches is intentionally NOT planned for
 # this profile: MTP and the per-layer compression plan are workload-

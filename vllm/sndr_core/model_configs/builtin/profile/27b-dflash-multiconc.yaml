@@ -49,6 +49,19 @@ patches_delta:
 # DFlash N=5 (target INT4 + separate Qwen3.6-27B-DFlash drafter at bf16).
 # Stays at model.capabilities default. DO NOT switch to MTP here.
 
+# ─── Override policy (CONFIG-UX.4.DEBT.1, 2026-05-24) ──────────────────
+# Class `bench` — public DFlash multi-conc baseline matches model family
+# (27b_dflash_multiconc.json), but per-preset config-block cross-validation
+# is deferred to CONFIG-UX.4. Re-evaluate after expires_at.
+override_policy:
+  override_class: bench
+  reason: "27B DFlash multi-conc N=5 — max_num_seqs=8 at 385 TPS conc=8 (3.76x scaling) on 2026-05-15"
+  evidence_refs:
+    - tests/integration/baselines/27b_dflash_multiconc.json
+  evidence_visibility: public
+  expires_at: '2026-08-22'
+  allowed_to_exceed_hardware_default: true
+
 promotion:
   validation_required:
     - "tools/multi_conc_bench.py sweep — agg_TPS at conc=8 ≥ 350 on 27B DFlash"

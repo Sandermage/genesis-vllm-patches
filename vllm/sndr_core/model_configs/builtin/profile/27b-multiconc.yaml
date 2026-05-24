@@ -47,6 +47,20 @@ patches_delta:
 # Probabilistic-draft tested 2026-05-15 on dev371+MTP+TQ k8v4 — REGRESSION.
 # Do NOT add rejection_sample_method/draft_sample_method here.
 
+# ─── Override policy (CONFIG-UX.4.DEBT.1, 2026-05-24) ──────────────────
+# Class `bench` — public Wave 9 baseline matches the model family but
+# not the per-preset config block (multi-conc max_num_seqs=8 setup not
+# replayed in committed baseline). Re-evaluate after CONFIG-UX.4 config-
+# block cross-validation lands or public multi-conc bench is published.
+override_policy:
+  override_class: bench
+  reason: "27B multi-conc K=3 — max_num_seqs=8 tested at 379 TPS conc=8 on 2026-05-15 (dev371 multi_conc_bench)"
+  evidence_refs:
+    - tests/integration/baselines/27b_v11_wave9.json
+  evidence_visibility: public
+  expires_at: '2026-08-22'
+  allowed_to_exceed_hardware_default: true
+
 # ─── Promotion contract — bench thresholds for status=validated ─────────
 promotion:
   validation_required:

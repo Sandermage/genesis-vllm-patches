@@ -109,6 +109,19 @@ patches_delta:
   # fullgraph-safe; on 26B-A4B the wrapper short-circuits at apply()
   # because kv_cache_dtype=auto (NOT turboquant_*).
 
+# ─── Override policy (CONFIG-UX.4.DEBT.1, 2026-05-24) ──────────────────
+# Class `bench` — B4 evidence is private (sndr_private/runs/...) so we
+# cannot claim `production` per operator's anti-overclaim discipline.
+# Promote to `production` requires public bench publish + cross-validation.
+override_policy:
+  override_class: bench
+  reason: "Gemma4 26B-A4B short structured-JSON multi-conc K=4 — 235.9 TPS Mode A; structured-only (B4 verdict)"
+  evidence_refs:
+    - sndr_private/runs/g4_26b_a4b_structured_multiconc_2026-05-23/VERDICT_2026-05-23.md
+  evidence_visibility: private
+  expires_at: '2026-08-22'
+  allowed_to_exceed_hardware_default: true
+
 # ─── Promotion contract ────────────────────────────────────────────────
 promotion:
   validation_required:

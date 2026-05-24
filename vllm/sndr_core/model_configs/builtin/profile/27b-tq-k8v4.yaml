@@ -44,6 +44,22 @@ sizing_override:
   enforce_eager: false                           # false = cudagraph capture enabled
   disable_custom_all_reduce: true                # NCCL fallback (consumer Ampere PCIe)
 
+# ─── Override policy (CONFIG-UX.4.DEBT.1, 2026-05-24) ──────────────────
+# Class `bench` with expires_at — operator's anti-overclaim discipline:
+# public model-family baseline exists (27b_v11_wave9.json + 27b_v8.json),
+# but per-preset config-block cross-validation is deferred to CONFIG-UX.4
+# audit work, so we don't auto-claim `production`. Re-evaluate after
+# expires_at + scheduled public bench refresh.
+override_policy:
+  override_class: bench
+  reason: "Wave 9 27B TQ K=3 single-conc — context 262K + max_num_seqs=4 validated against 27b_v11_wave9.json (model-family bench, not config-block validated)"
+  evidence_refs:
+    - tests/integration/baselines/27b_v11_wave9.json
+    - tests/integration/baselines/27b_v8.json
+  evidence_visibility: public
+  expires_at: '2026-08-22'
+  allowed_to_exceed_hardware_default: false
+
 promotion:
   validation_required:
     - "genesis_bench_suite.py --quick passes within 2% of canonical baseline"

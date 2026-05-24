@@ -70,6 +70,19 @@ patches_delta:
   # fullgraph-safe; on 26B-A4B the wrapper short-circuits at apply()
   # because kv_cache_dtype=auto (NOT turboquant_*).
 
+# ─── Override policy (CONFIG-UX.4.DEBT.1, 2026-05-24) ──────────────────
+# Class `bench` — diagnostic baseline for the B4 K=1 vs K=4 comparator.
+# Private evidence only (sndr_private/runs/...); not production traffic.
+# K=4 sibling (gemma4-a4b-multiconc) wins on Mode A structured.
+override_policy:
+  override_class: bench
+  reason: "Gemma4 26B-A4B K=1 multi-conc B4 comparator — 209.1 TPS Mode A (diagnostic baseline)"
+  evidence_refs:
+    - sndr_private/runs/g4_26b_a4b_structured_multiconc_2026-05-23/VERDICT_2026-05-23.md
+  evidence_visibility: private
+  expires_at: '2026-08-22'
+  allowed_to_exceed_hardware_default: true
+
 # ─── Promotion contract ────────────────────────────────────────────────
 promotion:
   validation_required:
