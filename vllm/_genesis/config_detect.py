@@ -143,6 +143,35 @@ def _probe_spec_decode_from_argv() -> dict[str, Any] | None:
     return out
 
 
+def _probe_tq_kv_from_argv() -> str | None:
+    """Fallback: probe argv for --kv-cache-dtype when called before vllm
+    config is constructed (e.g. apply_all phase). Returns the dtype string
+    (e.g. 'turboquant_4bit_nc') or None if flag not found.
+
+    Sources tried in order:
+      1. GENESIS_FORCE_KV_DTYPE env (operator override)
+      2. own sys.argv
+      3. /proc/1/cmdline (Docker entrypoint: apply_all then vllm serve)
+    """
+    import os
+    forced = os.environ.get("GENESIS_FORCE_KV_DTYPE", "").strip()
+    if forced and forced.lower() not in ("0", "false", "no", "off"):
+        return forced
+    import sys
+    import re
+    argv_parts = [" ".join(sys.argv)]
+    try:
+        with open("/proc/1/cmdline", "rb") as f:
+            argv_parts.append(f.read().replace(b"\x00", b" ").decode(errors="replace"))
+    except (OSError, IOError):
+        pass
+    argv = " ".join(argv_parts)
+    m = re.search(r"--kv-cache-dtype[=\s]+(\S+)", argv)
+    if m:
+        return m.group(1).strip("'\"")
+    return None
+
+
 def _probe_spec_decode(cfg: Any) -> dict[str, Any]:
     """Detect whether spec-decode is configured + which method + N."""
     out: dict[str, Any] = {"spec_decode_enabled": False}
@@ -402,6 +431,47 @@ def _recommend_for_patches(profile: dict[str, Any]) -> dict[str, Any]:
     else:
         rec["P37"] = "neutral"  # already opt-in via GENESIS_ENABLE_P37
 
+    # PN34: WorkspaceManager runtime lock relaxation (PN33 companion).
+    #
+    # PN33 fixes _dummy_sampler_run to warm up with K draft tokens, correctly
+    # sizing the rejection-sampler footprint. But the MTP drafter's
+    # _decode_attention runs in a SEPARATE workspace context that is never
+    # warmed up: the drafter forward pass is called during proposal (inference
+    # time), not during the profile_run that locks the workspace. The drafter's
+    # workspace is therefore locked at 0 bytes, and _decode_attention raises:
+    #
+    #   AssertionError: Workspace is locked but allocation from
+    #   'turboquant_attn.py:935:_decode_attention' requires 0.76 MB,
+    #   current size is 0.00 MB. Workspace growth is not allowed after locking.
+    #
+    # This is deterministic for any TQ-KV + spec-decode config. PN34 relaxes
+    # the strict assertion to WARN+grow so the drafter can allocate on-demand.
+    # The workspace manager itself handles growth correctly — the lock is purely
+    # an assertion, not a correctness guarantee (see workspace.py history).
+    #
+    # Auto-enable when all three conditions hold:
+    #   1. TurboQuant KV is active (the problematic attention backend)
+    #   2. Any spec-decode method is configured (drafter forward pass runs)
+    #   3. WorkspaceManager is present (the assertion exists in this vLLM build)
+    #
+    # Retires when vllm#40706 (pre-reserve drafter TQ workspace at warmup) lands.
+    kv_dtype = (profile.get("kv_cache_dtype") or "").lower()
+    workspace_manager_present = profile.get("workspace_manager_present", False)
+    is_tq_kv = "turboquant" in kv_dtype
+    if is_tq_kv and spec_decode and workspace_manager_present:
+        rec["PN34"] = (
+            "apply:TQ KV + spec-decode — MTP drafter _decode_attention runs in "
+            "a workspace context locked at 0 bytes (drafter path not covered by "
+            "PN33 sampler warmup fix). PN34 relaxes AssertionError to WARN+grow. "
+            "See vllm#40706 for upstream root-cause fix."
+        )
+    elif not is_tq_kv:
+        rec["PN34"] = "skip:no TurboQuant KV — workspace lock assertion never triggered"
+    elif not spec_decode:
+        rec["PN34"] = "skip:no spec-decode — no drafter forward pass, workspace lock safe"
+    else:
+        rec["PN34"] = "skip:WorkspaceManager not present in this vLLM build"
+
     return rec
 
 
@@ -458,6 +528,9 @@ def get_runtime_profile() -> dict[str, Any]:
             for k, v in argv_spec.items():
                 if k != "spec_decode_enabled":
                     profile[k] = v
+        argv_kv_dtype = _probe_tq_kv_from_argv()
+        if argv_kv_dtype:
+            profile["kv_cache_dtype"] = argv_kv_dtype
         profile["recommendations"] = _recommend_for_patches(profile)
         # H3 fix: cache the unresolved profile too. Saves ~33 patches × 5
         # source-file-read probes = ~100 ms boot time. Re-probe trigger at
