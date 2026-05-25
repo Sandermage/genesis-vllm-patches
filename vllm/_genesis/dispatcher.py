@@ -2147,6 +2147,23 @@ def should_apply(patch_id: str) -> tuple[bool, str]:
                 f"opt-in only AND empirically deprecated — "
                 f"keeping skip; set {env_flag}=1 only for diagnostics"
             )
+        # Config-detect auto-enable: if the runtime profile strongly recommends
+        # this patch ("apply"), engage it even without the env flag. This allows
+        # patches like PN34 to auto-enable on configs where they are always
+        # required (e.g. TQ + spec-decode) without forcing every operator to
+        # discover and set the env flag manually.
+        # Operators can suppress auto-enable via GENESIS_DISABLE_<PATCH_ID>=1,
+        # e.g. GENESIS_DISABLE_PN34=1 to keep PN34 off even on TQ+spec-decode.
+        disable_env = f"GENESIS_DISABLE_{patch_id}"
+        if os.environ.get(disable_env, "").strip().lower() in ("1", "true", "yes", "on"):
+            return False, f"suppressed via {disable_env}=1"
+        try:
+            from vllm._genesis.config_detect import recommend
+            cd_verdict, cd_reason = recommend(patch_id)
+            if cd_verdict == "apply":
+                return True, f"config-detect auto-enable: {cd_reason}"
+        except Exception:
+            pass
         return False, f"opt-in only — set {env_flag}=1 to engage"
 
     # default_on=True: enforce applies_to as Layer 2 HARD skip.
