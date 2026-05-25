@@ -157,7 +157,7 @@ def apply_patch_34_mamba_deadlock_guard() -> PatchResult:
     smaller than `block_size`; scheduler then loops forever on a
     "0 tokens to process" request.
 
-    CRITICAL for our prod (Qwen3.5-35B-A3B + OpenWebUI multimodal).
+    CRITICAL for our prod (Qwen3.5-35B-A3B + multimodal streaming clients).
 
     Self-retires when upstream PR #40757 or #40709 merges via
     `upstream_drift_markers = ["aligned = num_new_tokens // block_size * block_size"]`.
@@ -1820,8 +1820,8 @@ def apply_patch_N51_qwen3_streaming_thinking_disabled() -> PatchResult:
     launched with `--default-chat-template-kwargs '{"enable_thinking": false}'`
     and the prompt has the empty `<think>\\n\\n</think>\\n\\n` block pre-baked,
     streaming responses currently emit every model token via `delta.reasoning`
-    instead of `delta.content`, breaking Open WebUI / LibreChat / LobeChat /
-    Cline / OpenCode clients that read `delta.content`.
+    instead of `delta.content`, breaking OpenAI-compatible streaming clients
+    that read `delta.content`.
 
     Status: opt-in via GENESIS_ENABLE_PN51_QWEN3_STREAMING_THINKING_DISABLED=1.
 
@@ -2049,8 +2049,8 @@ def apply_patch_64_qwen3coder_mtp_streaming() -> PatchResult:
     Fix scope: streaming code path only. Non-streaming tool calls unaffected.
 
     Status: opt-in via GENESIS_ENABLE_P64_QWEN3CODER_MTP_STREAMING=1.
-    Recommended for any setup using LibreChat / OpenWebUI / SSE clients
-    against MTP-enabled vLLM.
+    Recommended for any setup using OpenAI-compatible streaming / SSE
+    clients against MTP-enabled vLLM.
 
     Credit:
       - Upstream fix: @kotori-yan (vllm#39598).

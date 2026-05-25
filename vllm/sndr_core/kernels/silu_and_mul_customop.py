@@ -28,7 +28,7 @@
 #     `forward_native` body directly, not through a custom_op → must
 #     verify pointer-stable views don't break surrounding compile
 #     context)
-#   - Requires A/B validation against noonghunna's OpenCode reproducer
+#   - Requires A/B validation against noonghunna's long-prefill reproducer
 #     (5,900-char IDE-agent prompt) which we can't run locally
 #
 # When to ship v2:
@@ -48,7 +48,7 @@ PN12 text-patches `SiluAndMul.forward_cuda` to acquire its
 instead of `torch.empty()`. That works in eager mode.
 
 Reported by noonghunna 2026-04-30 in club-3090#16, with confirmation
-from VolandBerlioz on a real OpenCode workload (29K sys+tools prefill,
+from VolandBerlioz on a real long-prefill IDE workload (29K sys+tools prefill,
 24 GB single 3090): when `custom_ops=["none"]` is the default (which is
 typical under V1 `aot_compile_fullgraph`), `SiluAndMul.__call__`
 dispatches to `forward_native`, NOT `forward_cuda`. `forward_native`

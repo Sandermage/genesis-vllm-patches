@@ -19,9 +19,8 @@ the equivalent short-circuit, so when:
 
 then the streaming parser falls through to the final `else:` branch
 and emits every model token via `delta.reasoning` instead of
-`delta.content`. OpenAI-compatible clients that only read
-`delta.content` (Open WebUI, LibreChat, LobeChat, Cline, OpenCode, …)
-see "reasoning only" and never receive the answer.
+`delta.content`. OpenAI-compatible streaming clients that only read
+`delta.content` see "reasoning only" and never receive the answer.
 
 What this fixes
 ---------------
@@ -59,8 +58,8 @@ adds its `_genesis_pre_think_content = \"\"` initialization a few
 lines later, AFTER the comment block).
 
 Status: opt-in (`GENESIS_ENABLE_PN51_QWEN3_STREAMING_THINKING_DISABLED=1`).
-Default OFF until Open WebUI / LibreChat repro proves the fix in
-streaming mode end-to-end.
+Default OFF until an OpenAI-compatible streaming-client repro proves
+the fix in streaming mode end-to-end.
 
 Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
 Backport target: upstream issue #40816 (filed 2026-04-22 by user
@@ -170,7 +169,7 @@ def apply() -> tuple[str, str]:
             "applied",
             "PN51 applied: streaming `enable_thinking=false` now emits "
             "delta.content (was delta.reasoning); fixes vllm#40816 for "
-            "Open WebUI / LibreChat / LobeChat / Cline / OpenCode clients",
+            "OpenAI-compatible streaming clients",
         )
     if result == TextPatchResult.IDEMPOTENT:
         return "applied", "already applied (idempotent)"

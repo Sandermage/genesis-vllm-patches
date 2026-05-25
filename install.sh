@@ -348,7 +348,7 @@ WORKLOAD_OPTIONS=(
   "balanced|Default-safe — chat + occasional long ctx + occasional tools"
   "long_context|Single long prompt (>50K), low concurrency"
   "high_throughput|Many short prompts in parallel, max TPS"
-  "tool_agent|IDE coding agents (Cline / Claude Code / OpenCode)"
+  "tool_agent|IDE coding agents"
 )
 
 pick_workload() {

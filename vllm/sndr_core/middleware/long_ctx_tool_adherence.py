@@ -97,14 +97,14 @@ def _get_threshold_chars() -> int:
 
     Default raised 8000 → 50000 in response to Genesis Issue #9
     (noonghunna 2026-04-29). At 8000 chars (~2K tokens) the threshold
-    fired on every realistic IDE-agent prompt — Cline / Cursor /
-    OpenCode / Copilot Gateway typically build 15-50K-char system
-    prompts — and silently coerced `tool_choice: auto → required` (P68)
-    or appended a "must use a tool" reminder (P69), producing
-    `finish_reason=stop` with empty content for plain-text user
-    messages. 50000 chars (~12.5K tokens) keeps the long-context tool
-    adherence behavior for genuinely long histories while leaving
-    casual IDE-agent flows alone.
+    fired on every realistic IDE coding agent prompt — these
+    typically build 15-50K-char system prompts — and silently
+    coerced `tool_choice: auto → required` (P68) or appended a
+    "must use a tool" reminder (P69), producing `finish_reason=stop`
+    with empty content for plain-text user messages. 50000 chars
+    (~12.5K tokens) keeps the long-context tool adherence behavior
+    for genuinely long histories while leaving casual IDE coding
+    agent flows alone.
     """
     raw = os.environ.get("GENESIS_P68_P69_LONG_CTX_THRESHOLD_CHARS", "50000")
     try:

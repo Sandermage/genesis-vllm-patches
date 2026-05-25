@@ -65,7 +65,7 @@ Risks acknowledged
   Tracked for migration to `MultiFilePatchTransaction` once dry-run learns
   anchor-uniqueness checking; until then operators should grep for the
   specific marker if quality regresses unexpectedly.
-- Test coverage limited to streaming clients (LibreChat, OpenWebUI).
+- Test coverage limited to OpenAI-compatible streaming clients.
   Synthetic streaming reproducer in test suite.
 
 Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.

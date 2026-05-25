@@ -181,7 +181,7 @@ patches:
   # All flags below verified via tools/multi_conc_bench.py on dev371+bf610c2f5.
   # Impact at conc=1: neutral within CV. Impact at conc=8: aggregate 689 TPS (3.21x).
   GENESIS_ENABLE_PN96B: '1'                          # Marlin persistent workspace (renamed 2026-05-15 from PN96 dict-key collision with kv_cache/PN96). +4-5% TPS recovery — was silently unloaded pre-rename.
-  GENESIS_ENABLE_PN51_QWEN3_STREAMING_THINKING_DISABLED: '1'  # vllm#40816 (OPEN). Reactivated after retired-audit 2026-05-15 confirmed upstream streaming entry-point still lacks thinking-disabled short-circuit. Defensive guard for OpenAI clients reading delta.content (Open WebUI, LibreChat, Cline, OpenCode). Zero risk: guard False for thinking-enabled (dominant case).
+  GENESIS_ENABLE_PN51_QWEN3_STREAMING_THINKING_DISABLED: '1'  # vllm#40816 (OPEN). Reactivated after retired-audit 2026-05-15 confirmed upstream streaming entry-point still lacks thinking-disabled short-circuit. Defensive guard for OpenAI-compatible streaming clients reading delta.content. Zero risk: guard False for thinking-enabled (dominant case).
   GENESIS_ENABLE_PN125_HYBRID_FULL_AND_PIECEWISE: '1' # PyTorch blog 2026-05 — forces cudagraph_mode=FULL_AND_PIECEWISE on Qwen3.5/3.6 hybrid_gdn_moe. dev371 v1 already does this by default, but kept ON for upstream-bypass insurance + older pins.
   GENESIS_ENABLE_PN126_V1_DECODE_WARMUP: '1'         # V1 decode kernel warmup orchestrator — pre-JITs decode + spec-decode kernels at boot. Lower TTFT spike on first user request after restart.
   GENESIS_ENABLE_PN127_AUTO_CHAT_TEMPLATE: '1'       # Qwen3.5/3.6 enhanced chat-template auto-install at /tmp/genesis/chat_templates/qwen3.6_enhanced.jinja.
@@ -258,9 +258,9 @@ patches_attribution:
     role: defensive
     note: |
       Qwen3 streaming thinking-disabled short-circuit (vllm#40816
-      OPEN). Defensive guard for OpenAI clients reading delta.content
-      (Open WebUI, LibreChat, Cline, OpenCode). Zero risk: guard is
-      False when thinking is enabled (dominant case).
+      OPEN). Defensive guard for OpenAI-compatible streaming clients
+      reading delta.content. Zero risk: guard is False when thinking
+      is enabled (dominant case).
   PN125:
     role: defensive
     note: |

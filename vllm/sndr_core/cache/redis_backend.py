@@ -9,7 +9,7 @@ deployment on VM 100 we have:
   - vllm-server (2 TP workers + 1 API server)
   - cliproxyapi proxy (independent process, port 8330)
   - genesis-aggregator (independent process)
-  - LibreChat / OpenWebUI / lobechat (independent processes)
+  - OpenAI-compatible streaming clients (independent processes)
 
 Without a shared backing store, each process would keep its own LRU —
 miss rate across the stack would be unnecessarily high, and a restart

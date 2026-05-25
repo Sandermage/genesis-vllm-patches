@@ -107,7 +107,7 @@ genesis_env:
   # Bench validated: single-stream conc=1 = 153 TPS / TTFT 74 ms;
   # multi-conc preset a5000-2x-35b-fp8-dflash-multiconc.yaml gives conc=8 = 562 TPS / TTFT 162 ms.
   GENESIS_ENABLE_PN96B: '1'                            # Marlin persistent workspace (renamed from PN96 dict-key collision). +4-5% TPS recovery on Marlin MoE — was silently unloaded pre-rename.
-  GENESIS_ENABLE_PN51_QWEN3_STREAMING_THINKING_DISABLED: '1'  # vllm#40816 (OPEN) — defensive streaming guard for OpenAI clients reading delta.content (Open WebUI / LibreChat / Cline).
+  GENESIS_ENABLE_PN51_QWEN3_STREAMING_THINKING_DISABLED: '1'  # vllm#40816 (OPEN) — defensive streaming guard for OpenAI-compatible streaming clients reading delta.content.
   GENESIS_ENABLE_PN125_HYBRID_FULL_AND_PIECEWISE: '1'  # PyTorch blog 2026-05 — forces cudagraph_mode=FULL_AND_PIECEWISE on hybrid_gdn_moe target.
   GENESIS_ENABLE_PN126_V1_DECODE_WARMUP: '1'           # V1 decode kernel warmup orchestrator — pre-JITs decode kernels at boot.
   GENESIS_ENABLE_PN127_AUTO_CHAT_TEMPLATE: '1'         # Qwen3.6 enhanced chat-template auto-install.

@@ -30,8 +30,8 @@ Why we need it on Genesis
 - All Genesis configs run with `--enable-chunked-prefill` (start scripts).
 - 27B PROD runs MTP K=3 spec-decode (request preemption common under
   long-context burst).
-- Open WebUI / LibreChat sometimes pass `prompt_logprobs=N` for token-
-  weighting display; bug → silent broken display or 500.
+- OpenAI-compatible streaming clients sometimes pass `prompt_logprobs=N`
+  for token-weighting display; bug → silent broken display or 500.
 
 Multi-file text patch
 ---------------------

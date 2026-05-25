@@ -32,8 +32,8 @@ The fix is two-part:
 RELEVANCE FOR GENESIS
 ================================================================
 
-Our public surface (Proxy-AI gateway + LibreChat / OpenWebUI / Cline /
-OpenCode) accepts user-controlled ``stop_token_ids`` and
+Our public surface (Proxy-AI gateway + OpenAI-compatible streaming
+clients) accepts user-controlled ``stop_token_ids`` and
 ``logprob_token_ids``. Qwen3.6 has a ~152 K vocab, so an out-of-range
 id is plausible at the JSON-schema boundary (clients sometimes pass
 ``stop_token_ids: [-1]`` or arbitrary integers). No existing Genesis

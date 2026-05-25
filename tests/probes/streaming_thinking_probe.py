@@ -64,15 +64,15 @@ PROMPTS = {
         "уровни поддержки/сопротивления, риски. 4-6 параграфов. "
         "В конце — explicit conclusion."
     ),
-    # TOOL — Open WebUI / LibreChat style: prompt + MCP tool available.
-    # Model must EITHER call the tool OR reply with text. Both paths must
-    # work in stream + non-stream × thinking on/off. Tool definition is
-    # injected in `_cell` for this prompt only.
+    # TOOL — OpenAI-compatible streaming-client style: prompt + MCP tool
+    # available. Model must EITHER call the tool OR reply with text. Both
+    # paths must work in stream + non-stream × thinking on/off. Tool
+    # definition is injected in `_cell` for this prompt only.
     "TOOL": (
         "Я хочу узнать текущую цену Bitcoin. У тебя есть инструмент "
         "get_crypto_price — вызови его с symbol=BTC."
     ),
-    # RAG — simulates a real Open WebUI / LibreChat call where the user
+    # RAG — simulates a real OpenAI-compatible streaming-client call where the user
     # query is preceded by retrieved context (RAG documents, conversation
     # memory, past chat). Tests that long-context + thinking + streaming
     # all work together AND the model uses the injected context, not
@@ -201,7 +201,7 @@ def _cell(prompt_kind: str, enable_thinking: bool, stream: bool) -> dict:
     }
     # TOOL prompt also ships an MCP-style tool definition so the
     # response path goes through `extract_tool_calls_streaming` instead
-    # of plain content. Mirrors Open WebUI's per-message tool injection.
+    # of plain content. Mirrors per-message tool injection from streaming clients.
     if prompt_kind == "TOOL":
         body["tools"] = [{
             "type": "function",

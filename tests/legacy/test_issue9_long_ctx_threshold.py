@@ -3,15 +3,15 @@
 
 Issue #9 (noonghunna 2026-04-29): the default
 GENESIS_P68_P69_LONG_CTX_THRESHOLD_CHARS=8000 was crossed by every
-realistic IDE-agent prompt (Cline / Cursor / OpenCode / Copilot Gateway
-typically ship 15-50K-char system prompts). Crossing the threshold:
+realistic IDE coding agent prompt (these typically ship 15-50K-char
+system prompts). Crossing the threshold:
 
 - P68 silently rewrites `tool_choice: auto -> required`
 - P69 appends "must use a tool" reminder to the last user message
 
 Either alone makes the model produce `finish_reason=stop` with empty
-content for plain-text user messages — a silent stall every IDE-agent
-session sees on every casual question.
+content for plain-text user messages — a silent stall every IDE
+coding agent session sees on every casual question.
 
 Fix: raise default 8000 → 50000 (~12.5K tokens). Long-context tool
 adherence still triggers for genuinely long histories; casual flows

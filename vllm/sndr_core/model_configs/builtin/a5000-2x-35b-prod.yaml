@@ -145,7 +145,7 @@ genesis_env:
   GENESIS_ENABLE_PN125_HYBRID_FULL_AND_PIECEWISE: '1' # PR-blog 2026-05 — forces cudagraph_mode=FULL_AND_PIECEWISE on Qwen3.5/3.6 hybrid (dev371 v1 default already, kept on for upstream-bypass insurance).
   GENESIS_ENABLE_PN132_TOPK_TOPP_CONTIGUOUS: '1'     # vllm#42739 backport — guarantee logits contiguous before Triton top-k/top-p kernel (FlashInfer-sampler no-op when VLLM_USE_FLASHINFER_SAMPLER=1).
   GENESIS_ENABLE_PN133_MTP_EMPTY_OUTPUT_FIX: '1'     # vllm#42722 backport — MTP scheduler empty-output fix (avoids num_accepted=-1 Prometheus ValueError on rare K=3 reject-all path).
-  GENESIS_ENABLE_PN51_QWEN3_STREAMING_THINKING_DISABLED: '1'  # vllm#40816 (OPEN) — defensive streaming guard when prompt_is_reasoning_end bypass misses; routes deltas as content for OpenAI clients (Open WebUI / LibreChat / Cline). Reactivated after retired-audit 2026-05-15.
+  GENESIS_ENABLE_PN51_QWEN3_STREAMING_THINKING_DISABLED: '1'  # vllm#40816 (OPEN) — defensive streaming guard when prompt_is_reasoning_end bypass misses; routes deltas as content for OpenAI-compatible streaming clients. Reactivated after retired-audit 2026-05-15.
   GENESIS_LEGACY_P7: '0'                             # P7 legacy GDN dual-stream — OFF when PN204=1 (conflicts_with declared, PN204 supersedes via vllm#42301 + maybe_execute_in_parallel helper).
   GENESIS_ENABLE_PN104_OFFLOAD_PREFETCH_REDIRECT: '0' # cpu_offload → Prefetch redirect. OFF — only relevant with `--cpu-offload-gb > 0`; 35B PROD does not use weight offload.
   GENESIS_ENABLE_PN105_AUTOROUND_OFFLOAD_COMPAT: '0' # AutoRound INT4 + Prefetch compat — OFF on FP8 35B; flag exists for cross-config consistency only.

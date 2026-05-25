@@ -2310,8 +2310,9 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "(field move) + gpu_model_runner.py (read/write per-request). "
             "Affects Genesis configs that combine `--enable-chunked-prefill` "
             "(all of ours) + spec-decode (MTP K=3 on PROD) + clients passing "
-            "`prompt_logprobs=N`. Default OFF until live verify with Open "
-            "WebUI / LibreChat workload that exercises prompt_logprobs."
+            "`prompt_logprobs=N`. Default OFF until live verify with "
+            "an OpenAI-compatible streaming-client workload that "
+            "exercises prompt_logprobs."
         ),
         "upstream_pr": 41411,
         "upstream_pr_relationship": "backport",
@@ -2349,10 +2350,9 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "delta.reasoning instead of delta.content. Mirrors the existing "
             "non-streaming short-circuit at qwen3_reasoning_parser.py:146-148. "
             "Affects ALL OpenAI-compatible streaming clients that read "
-            "delta.content (Open WebUI, LibreChat, LobeChat, Cline, OpenCode). "
-            "Single-line guard at extract_reasoning_streaming entry; no risk "
-            "for thinking-enabled requests (guard False). Default OFF until "
-            "Open WebUI / LibreChat repro proves the fix end-to-end on "
+            "delta.content. Single-line guard at extract_reasoning_streaming "
+            "entry; no risk for thinking-enabled requests (guard False). "
+            "Default OFF until end-to-end streaming repro proves the fix on "
             "Genesis 27B/35B + reasoning-parser qwen3. "
             "[Phase 3D 2026-05-22] Live-network re-research on dev371 "
             "(canonical pin bf610c2f56764e1b30bc6065f4ceace3d6e59036): "
@@ -3321,7 +3321,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "credit": (
             "Genesis-original 2026-05-01 in response to noonghunna's "
             "club-3090#16 (VolandBerlioz/ampersandru cross-rig OOM trace, "
-            "RTX 3090 24 GB + Lorbus 27B + OpenCode 29K prefill). PN12 "
+            "RTX 3090 24 GB + Lorbus 27B + long-prefill IDE workload, 29K). PN12 "
             "patches eager `forward_cuda` but `custom_ops=['none']` (default "
             "under V1 aot_compile_fullgraph) routes dispatch through "
             "`forward_native` which Inductor inlines and lowers to "
@@ -3610,8 +3610,8 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "SamplingParams.verify(). Out-of-vocab ids previously OOB'd "
             "the V2 Triton _bias_kernel and crashed the worker; with "
             "this patch the request bounces with a clear 400 instead. "
-            "Defense-in-depth for the public Proxy-AI surface (Cline / "
-            "OpenWebUI / LibreChat clients sometimes pass malformed "
+            "Defense-in-depth for the public Proxy-AI surface "
+            "(OpenAI-compatible streaming clients sometimes pass malformed "
             "stop_token_ids). Bit-identical for valid inputs."
         ),
         "upstream_pr": 42614,

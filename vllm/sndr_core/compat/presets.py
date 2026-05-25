@@ -64,9 +64,8 @@ WORKLOADS = {
         "expense of per-request latency."
     ),
     "tool_agent": (
-        "IDE coding agents (Cline / Claude Code / OpenCode / Roo), "
-        "function calling, multi-tool. Optimizes for clean tool-call "
-        "parse rate + reasoning quality."
+        "IDE coding agents, function calling, multi-tool. Optimizes "
+        "for clean tool-call parse rate + reasoning quality."
     ),
     "balanced": (
         "Mixed workload — chat, occasional long context, occasional "
@@ -389,7 +388,7 @@ _register(Preset(
     ],
     expected_tps_ref="~104 tok/s @ 256t output, tool-call clean 7/7",
     notes=[
-        "ℹ Tuned for Cline / Claude Code / OpenCode prompts with "
+        "ℹ Tuned for IDE coding agent prompts with "
         "5K+ char system prompts + multi-tool schemas.",
         "ℹ P68/P69 threshold 50K chars — long sys prompts handled.",
     ],
@@ -515,9 +514,9 @@ _register(Preset(
     key="3090-1x-tool-agent",
     title="1× RTX 3090 — IDE coding agents (75K + fp8)",
     description=(
-        "Single 3090 for IDE agents (Cline / Claude Code / OpenCode). "
-        "Uses fp8 KV instead of TQ k8v4 — avoids Cliff 1 mech B which "
-        "fires on 5K+ char system prompts + tool schemas."
+        "Single 3090 for IDE coding agents. Uses fp8 KV instead of "
+        "TQ k8v4 — avoids Cliff 1 mech B which fires on 5K+ char "
+        "system prompts + tool schemas."
     ),
     workload="tool_agent",
     gpu_match_keys=["rtx 3090"],
@@ -555,8 +554,8 @@ _register(Preset(
         "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True",
     },
     verified_on=[
-        "noonghunna/1x-3090: stable on Cline + 5,900-char sys prompt "
-        "+ 10 tool schemas (club-3090 tools-text variant)",
+        "noonghunna/1x-3090: stable on IDE coding agent prompts + "
+        "5,900-char sys prompt + 10 tool schemas (club-3090 tools-text variant)",
     ],
     expected_tps_ref="~70-90 tok/s @ 256t output",
     notes=[

@@ -75,7 +75,7 @@ EXPECTED IMPACT
 ================================================================
 
 - Closes Cliff 1 mech B on inductor-compiled FFN forward
-  (the bug noonghunna's club-3090 hit on real OpenCode).
+  (the bug noonghunna's club-3090 hit on a real long-prefill IDE workload).
 - Reduces per-step allocator churn under torch.compile from
   ~4.7-18 GiB to single pooled buffer (~73-285 MiB).
 - Cost: 1 opaque op per FFN forward = Inductor cannot fuse SiluAndMul

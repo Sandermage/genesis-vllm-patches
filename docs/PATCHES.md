@@ -467,7 +467,7 @@ validation pending) and default-ON (root-cause correctness fixes).
 | PN40 | Spec-decode omnibus (sub-A DFlash K-norm + sub-B persistent buffer pool + sub-C adaptive K controller + sub-D workload classifier + sentinel) | Sander | OFF | `GENESIS_ENABLE_PN40_DFLASH_OMNIBUS` (per-sub: `GENESIS_PN40_ENABLE_SUB_{A,B,C,D}=0` to disable) |
 | PN40-classifier | PN40 sub-D workload classifier middleware (chat_completion serving hook — companion of PN40 sub-D) | Sander | OFF | `GENESIS_ENABLE_PN40_DFLASH_OMNIBUS` (toggled jointly with PN40 master) |
 | PN50 | GDN proj fusion (SGLang#21019 — Qwen3.5/3.6 contiguous-projection Triton kernel; +7.4% TPS claimed) | Yuan Luo (SGLang)/Sander | OFF | `GENESIS_ENABLE_PN50_GDN_FUSED_PROJ` |
-| PN51 | Qwen3 streaming `enable_thinking=false` content routing (vllm#40816 backport — fixes Open WebUI / LibreChat / LobeChat / Cline / OpenCode) | keehawkes/Sander | OFF | `GENESIS_ENABLE_PN51_QWEN3_STREAMING_THINKING_DISABLED` |
+| PN51 | Qwen3 streaming `enable_thinking=false` content routing (vllm#40816 backport — fixes OpenAI-compatible streaming clients) | keehawkes/Sander | OFF | `GENESIS_ENABLE_PN51_QWEN3_STREAMING_THINKING_DISABLED` |
 | PN52 | prompt_logprobs eviction fix during chunked prefill (vllm#41411 backport — multi-file) | Joachim Studnia (Mistral)/Sander | OFF | `GENESIS_ENABLE_PN52_PROMPT_LOGPROBS_EVICTION` |
 | PN54 | GDN contiguous-call deduplication (P0.7 Cliff 2b OOM mitigation) | Sander/MLX-LM#1077 inspiration | OFF | `GENESIS_ENABLE_PN54_GDN_CONTIGUOUS_DEDUP` |
 | PN55 | wake_up crash fix on hybrid (Mamba/DeltaNet) — vllm#41602 backport | kevglynn/Sander | OFF | `GENESIS_ENABLE_PN55_WAKE_UP_HYBRID_KV` |
@@ -582,7 +582,7 @@ are typically **additive**.
 
 | Patch | When to enable | Why off by default |
 | --- | --- | --- |
-| **P59** Qwen3 reasoning embedded tool_call recovery | Streaming clients (LibreChat / OpenWebUI) | Overlaps with P62; dual-apply on same code is redundant. |
+| **P59** Qwen3 reasoning embedded tool_call recovery | OpenAI-compatible streaming clients | Overlaps with P62; dual-apply on same code is redundant. |
 | **P65** TQ spec-decode CG downgrade | Never on Ampere (superseded by P67b) | Forces PIECEWISE which costs ~5% TPS. |
 | **P70** Auto-strict-ngram (`prompt_lookup_min>=8`) | ngram workloads only | We use MTP, not ngram → no-op. |
 | **P71** Block-verify rejection sampler | Hopper / Blackwell experiments | Sampling change; needs retraining. |

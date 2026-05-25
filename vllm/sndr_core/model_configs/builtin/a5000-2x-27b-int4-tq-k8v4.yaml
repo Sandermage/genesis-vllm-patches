@@ -146,7 +146,7 @@ genesis_env:
   GENESIS_ENABLE_P91: '1'                            # Renamed PN72 (registry ID collision); long-prompt tool-call reminder helper companion to P68/P69.
   GENESIS_ENABLE_PN71_THINKING_TAG_NORMALIZE: '1'    # Normalises malformed `<think>`/`</think>` from upstream tokenizer drift; closes a tool-call quality regression on long context.
   GENESIS_ENABLE_PN73_TOOL_ARGS_SAFE_NORMALIZE: '1'  # Tool argument JSON normaliser (Qwen3-Coder edge cases) — required alongside PN56 XML fallback for full tool-call adherence.
-  GENESIS_ENABLE_PN91_DEVELOPER_ROLE: '1'            # OpenAI-style `developer` role passthrough — IDE agents (Cline / Claude Code / OpenCode) rely on it.
+  GENESIS_ENABLE_PN91_DEVELOPER_ROLE: '1'            # OpenAI-style `developer` role passthrough — IDE coding agents rely on it.
   GENESIS_ENABLE_PN92_NIXL_EP_TRIAL_IMPORT: '1'      # Backport of vllm#40154 — trial-import guard for nixl_ep / deep_ep / mori; prevents boot crash on dcacdf9a.
   GENESIS_ENABLE_PN95_TIER_AWARE_CACHE: '1'          # Tier-aware KV cache (GPU hot + CPU pinned warm + disk cold). Required at long context to hold the KV pool beyond plain GPU residency.
   GENESIS_ENABLE_PN96_EMERGENCY_DEMOTE: '1'          # Companion to PN95 — emergency demote path when scheduler hits the free-blocks threshold.
@@ -172,7 +172,7 @@ genesis_env:
   # All flags below validated via tools/multi_conc_bench.py on dev371+bf610c2f5.
   # Single-conc impact: neutral within CV. Multi-conc max_num_seqs=8: 379 TPS aggregate (3.89x scaling — even better than 35B 3.21x).
   GENESIS_ENABLE_PN96B: '1'                          # Marlin persistent workspace (renamed 2026-05-15 from PN96 dict-key collision with kv_cache/PN96). +4-5% TPS recovery on Marlin MoE path — was silently unloaded pre-rename.
-  GENESIS_ENABLE_PN51_QWEN3_STREAMING_THINKING_DISABLED: '1'  # vllm#40816 (OPEN). Reactivated after retired-audit 2026-05-15 confirmed upstream streaming entry-point still lacks thinking-disabled short-circuit. Defensive guard for OpenAI clients reading delta.content (Open WebUI, LibreChat, Cline, OpenCode). Zero risk: guard False for thinking-enabled (dominant case).
+  GENESIS_ENABLE_PN51_QWEN3_STREAMING_THINKING_DISABLED: '1'  # vllm#40816 (OPEN). Reactivated after retired-audit 2026-05-15 confirmed upstream streaming entry-point still lacks thinking-disabled short-circuit. Defensive guard for OpenAI-style streaming clients reading delta.content. Zero risk: guard False for thinking-enabled (dominant case).
   GENESIS_ENABLE_PN125_HYBRID_FULL_AND_PIECEWISE: '1' # PyTorch blog 2026-05 — forces cudagraph_mode=FULL_AND_PIECEWISE on Qwen3.5/3.6 hybrid_gdn_moe. dev371 v1 default already, kept ON for upstream-bypass insurance.
   GENESIS_ENABLE_PN126_V1_DECODE_WARMUP: '1'         # V1 decode kernel warmup orchestrator — pre-JITs decode + spec-decode kernels at boot.
   GENESIS_ENABLE_PN127_AUTO_CHAT_TEMPLATE: '1'       # Qwen3.5/3.6 enhanced chat-template auto-install at /tmp/genesis/chat_templates/qwen3.6_enhanced.jinja.
