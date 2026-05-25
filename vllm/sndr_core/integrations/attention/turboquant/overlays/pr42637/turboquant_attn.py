@@ -707,7 +707,7 @@ class TurboQuantAttentionImpl(AttentionImpl["TurboQuantMetadata"]):
             synth_seq_lens = arange_cache[
                 query_start_pos + chunk_start + 1 : query_start_pos + chunk_end + 1
             ]
-            # [Genesis PN253 — clean stride-0 fix per Codex P2 plan]
+            # [Genesis PN253 — clean stride-0 fix per P2 plan]
             # `block_table.expand(chunk_len, -1)` produces a stride-0 view on
             # batch dim. The TQ Triton decode kernel reads `block_table[bid, ...]`
             # via `bid * stride_bt_b`; with stride 0 ALL chunk rows fetch the
@@ -755,7 +755,7 @@ class TurboQuantAttentionImpl(AttentionImpl["TurboQuantMetadata"]):
             # Workspace buffers are row-shaped (1, Hq, ...) not chunk-shaped.
             # `continue` skips the vectorized call below.
             #
-            # Outcome interpretation (per Codex PN254 plan):
+            # Outcome interpretation (per PN254 plan):
             #   A. Output coherent across MTP K=1/4/8 → H7d CONFIRMED
             #      (kernel q_len>1 bug; production fix = always split or kernel patch)
             #   B. Output partially coherent → H7d partial; another co-factor remains
@@ -1036,7 +1036,7 @@ class TurboQuantAttentionImpl(AttentionImpl["TurboQuantMetadata"]):
         v = value[:N].view(N, self.num_kv_heads, self.head_size)
 
         # [Genesis PN255a — capture-safe diagnostic for K+1 KV write path]
-        # Phase 1 of PN255 per Codex's PN254 review:
+        # Phase 1 of PN255 per PN254 review:
         # before splitting writes (PN255b), prove what the write path
         # actually receives in the K+1 verify route. Three signals matter:
         #   N        — is it 1 (only one row written) or K+1 (correct)?
@@ -1073,7 +1073,7 @@ class TurboQuantAttentionImpl(AttentionImpl["TurboQuantMetadata"]):
                 pass
 
         # [Genesis PN255b — diagnostic split of K+1 KV write into row-by-row stores]
-        # Phase 2 of PN255 per Codex's PN254 review:
+        # Phase 2 of PN255 per PN254 review:
         # ONLY run when PN255a has proven N=K+1 with distinct slots.
         # Tests hypothesis H7g2: triton_turboquant_store has N>1 batch hazard
         # that produces row-correlated / duplicated cache entries.
@@ -1570,7 +1570,7 @@ class TurboQuantAttentionImpl(AttentionImpl["TurboQuantMetadata"]):
                 cached_len = seq_len - q_len
 
                 # [Genesis PN256 — causality test for H7g0 cache-miss hypothesis]
-                # Per Codex PN255 review: PN255a/c proved no observable Python-level
+                # Per PN255 review: PN255a/c proved no observable Python-level
                 # K+1 KV writes for target's K+1 verify, while _decode_prefill_from_cache
                 # is still reached (PN254 fired 432 times). The decode-cache route
                 # assumes current K+1 K/V rows are already in TQ cache; if they are
@@ -1582,7 +1582,7 @@ class TurboQuantAttentionImpl(AttentionImpl["TurboQuantMetadata"]):
                 # _continuation_prefill dequants the cached portion (0..cached_len-1)
                 # and concatenates with the raw current chunk (cached_len..seq_len-1).
                 #
-                # Gate (Codex-recommended, K-agnostic for K=1/4/8):
+                # Gate (K-agnostic for K=1/4/8):
                 #   - env enabled
                 #   - not a kv_sharing layer (drafter handled separately)
                 #   - 2 <= q_len <= 16 (K+1 verify shape)

@@ -200,7 +200,7 @@ def _g4_19_import_time_hook():
     g72 = _os.environ.get(
         "GENESIS_ENABLE_G4_72_DRAFTER_NATIVE_SPEC", ""
     ).strip().lower() in ("1", "true", "yes")
-    # PN241 — Gemma4MTPAttention.forward finite/norm trace (Codex-designed).
+    # PN241 — Gemma4MTPAttention.forward finite/norm trace.
     pn241 = _os.environ.get(
         "GENESIS_ENABLE_PN241_MTP_TRACE", ""
     ).strip().lower() in ("1", "true", "yes")
@@ -539,7 +539,7 @@ def _g4_19_import_time_hook():
                 g4_72_drafter_native_kv_cache_spec as _g4_72_mod,
             )
             _g4_72_mod.apply()
-        # PN241 — Codex-designed finite/norm trace at SpecDecodeBaseProposer
+        # PN241 — finite/norm trace at SpecDecodeBaseProposer
         # boundary (Python orchestration above torch.compile boundary).
         # Logs target_hidden_states (input) + draft_token_ids (output) per
         # propose() call.
