@@ -3,13 +3,33 @@
 
 Backport of the *non-MoE-specific* portion of [vllm#39460](
 https://github.com/vllm-project/vllm/pull/39460) ("[Bugfix][Quantization] Fix
-Gemma4 AutoRound serving gaps on top of GPTQMarlin row groups").
+Gemma4 AutoRound serving gaps on top of GPTQMarlin row groups"). PR closed
+without merge; supersession chain (#39460 → #40281 → #41588) was abandoned
+upstream, so Genesis carries the fix.
+
+================================================================
+TARGET FILE — cross-pin support (refreshed v7.62.2, 2026-05-25)
+================================================================
+
+The GPTQ-Marlin linear method file was renamed upstream between two pins
+in `KNOWN_GOOD_VLLM_PINS`:
+
+  - `0.20.2rc1.dev338+gbf0d2dc6d` (canonical) — file is `gptq_marlin.py`
+  - `0.20.2rc1.dev371+gbf610c2f5` — file is `auto_gptq.py`
+
+The anchor text on the buggy lines is byte-identical across the rename.
+Genesis P91 v7.62.2 resolves the target file with a fallback:
+  1. try `model_executor/layers/quantization/auto_gptq.py` (post-rename)
+  2. fall back to `model_executor/layers/quantization/gptq_marlin.py`
+A single sub-patch set covers both pins. The per-file marker suffix
+(`_auto_gptq` or `_gptq_marlin`) reflects which file was actually patched
+so operator inspection of the marker comment matches the file on disk.
 
 ================================================================
 ROOT CAUSE
 ================================================================
 
-`vllm/model_executor/layers/quantization/gptq_marlin.py:395-402` computes:
+`vllm/model_executor/layers/quantization/{auto_gptq,gptq_marlin}.py` computes:
 
     scales_and_zp_input_dim = 0
     scales_and_zp_size = input_size_per_partition // group_size
@@ -57,21 +77,30 @@ benchmark of Lorbus before/after this patch.
 FIX (text-patch, 3 anchored sub-patches in 2 files)
 ================================================================
 
-1. **gptq_marlin.py L402** — replace `input_size // group_size` with
-   `cdiv(input_size, group_size)` (the `repeat_scales_on_all_ranks` branch).
-2. **gptq_marlin.py L407** — replace `input_size_per_partition // group_size`
-   with `cdiv(input_size_per_partition, group_size)` (the row-parallel branch).
-3. **gptq_marlin.py L470** — register `row_group_size` and
-   `row_input_size_per_partition` on `scales` and `qzeros` so the loader
-   can compute the correct global group offset.
+1. **{auto_gptq,gptq_marlin}.py first floor-div** — replace
+   `input_size // group_size` with `cdiv(input_size, group_size)`
+   (the `repeat_scales_on_all_ranks` branch).
+2. **{auto_gptq,gptq_marlin}.py second floor-div** — replace
+   `input_size_per_partition // group_size` with
+   `cdiv(input_size_per_partition, group_size)` (the row-parallel branch).
+3. **{auto_gptq,gptq_marlin}.py register_parameter block** — register
+   `row_group_size` and `row_input_size_per_partition` on `scales` and
+   `qzeros` so the loader can compute the correct global group offset.
 4. **parameter.py L219-225** — replace the start_idx computation in
    `RowvLLMParameter.load_row_parallel_weight` with the group-aware variant
    from the PR.
 
+Idempotency in v7.62.2 uses the version-agnostic marker base
+(`GENESIS_P91_MARKER_BASE`) so an upgrade from v7.62.1 detects as "already
+applied" instead of re-running anchor matching against an already-mutated
+file.
+
 We deliberately DO NOT port the MoE-side changes (`gate_linear.py`,
 `moe_wna16.py`, `gemma4.py`) — those are Gemma4-specific and unrelated to
 our Qwen3.6-MoE prod path. If Gemma4 enters our model rotation, those
-patches can be added as P91b.
+patches can be added as P91b. P91B (separate patch, NOT this file) covers
+the same bug class in `inc.py` and `compressed_tensors/schemes/*.py` for
+checkpoints that go through those code paths.
 
 ================================================================
 SAFETY MODEL
@@ -105,10 +134,16 @@ from vllm.sndr_core.core import (
 log = logging.getLogger("genesis.wiring.p91_autoround_row_group_cdiv")
 
 
-GENESIS_P91_MARKER = "Genesis P91 AutoRound row-group cdiv (vllm#39460) v7.62.1"
+# Version-independent base string. Idempotency checks grep on this so a
+# pre-existing v7.62.1 marker is recognized as "Genesis P91 already applied
+# (older version)" instead of re-attempting anchor matching on a file whose
+# anchors have already been mutated.
+GENESIS_P91_MARKER_BASE = "Genesis P91 AutoRound row-group cdiv (vllm#39460)"
+GENESIS_P91_MARKER_VERSION = "v7.62.2"
+GENESIS_P91_MARKER = f"{GENESIS_P91_MARKER_BASE} {GENESIS_P91_MARKER_VERSION}"
 
 
-# ─── gptq_marlin.py: 3 sub-patches ─────────────────────────────────────────
+# ─── auto_gptq.py / gptq_marlin.py (cross-pin fallback): 3 sub-patches ────
 
 P91_GM_ANCHOR_FLOOR_INPUT_SIZE = (
     "            scales_and_zp_size = input_size // group_size\n"
@@ -173,33 +208,49 @@ P91_GM_REPLACE_REGISTER_SCALES = (
 )
 
 
-def _make_gm_patcher() -> TextPatcher | None:
+def _make_gptq_patcher() -> TextPatcher | None:
+    """Build the GPTQ-Marlin linear quantization sub-patcher.
+
+    Cross-pin fallback: the file was renamed `gptq_marlin.py` →
+    `auto_gptq.py` between vllm dev338 and dev371. Both pins are in
+    `KNOWN_GOOD_VLLM_PINS`. Try the post-rename path first, fall back to
+    the pre-rename path. The buggy anchor text is byte-identical across
+    the rename, so a single sub-patch set covers both pins; only the
+    `target_file` path and marker suffix differ.
+    """
     target = resolve_vllm_file(
-        "model_executor/layers/quantization/gptq_marlin.py"
+        "model_executor/layers/quantization/auto_gptq.py"
     )
+    file_suffix = "_auto_gptq"
+    if target is None:
+        target = resolve_vllm_file(
+            "model_executor/layers/quantization/gptq_marlin.py"
+        )
+        file_suffix = "_gptq_marlin"
     if target is None:
         return None
     return TextPatcher(
         patch_name=(
-            "P91 gptq_marlin.py — cdiv groups + row-group attrs (vllm#39460)"
+            "P91 auto_gptq.py/gptq_marlin.py — cdiv groups + row-group "
+            "attrs (vllm#39460)"
         ),
         target_file=str(target),
-        marker=GENESIS_P91_MARKER + "_gptq_marlin",
+        marker=GENESIS_P91_MARKER + file_suffix,
         sub_patches=[
             TextPatch(
-                name="p91_gm_floor_input_size_to_cdiv",
+                name="p91_gptq_floor_input_size_to_cdiv",
                 anchor=P91_GM_ANCHOR_FLOOR_INPUT_SIZE,
                 replacement=P91_GM_REPLACE_FLOOR_INPUT_SIZE,
                 required=True,
             ),
             TextPatch(
-                name="p91_gm_floor_partition_to_cdiv",
+                name="p91_gptq_floor_partition_to_cdiv",
                 anchor=P91_GM_ANCHOR_FLOOR_PARTITION,
                 replacement=P91_GM_REPLACE_FLOOR_PARTITION,
                 required=True,
             ),
             TextPatch(
-                name="p91_gm_register_row_group_attrs",
+                name="p91_gptq_register_row_group_attrs",
                 anchor=P91_GM_ANCHOR_REGISTER_SCALES,
                 replacement=P91_GM_REPLACE_REGISTER_SCALES,
                 required=True,
@@ -296,9 +347,9 @@ def apply() -> tuple[str, str]:
     if vllm_install_root() is None:
         return "skipped", "vllm install root not discoverable"
 
-    gm = _make_gm_patcher()
+    gm = _make_gptq_patcher()
     if gm is None:
-        return "skipped", "gptq_marlin.py not found"
+        return "skipped", "neither auto_gptq.py nor gptq_marlin.py found"
     param = _make_param_patcher()
     if param is None:
         return "skipped", "parameter.py not found"
@@ -307,26 +358,32 @@ def apply() -> tuple[str, str]:
         if not os.path.isfile(p.target_file):
             return "skipped", f"target disappeared: {p.target_file}"
 
-    # Idempotency check on both files
+    # Idempotency check on both files. Use the version-agnostic
+    # GENESIS_P91_MARKER_BASE so an upgrade from a prior v7.62.x
+    # detects as "already applied" instead of retrying anchor matches
+    # against a file whose anchors have already been mutated.
     with open(gm.target_file) as f:
         gm_content = f.read()
     with open(param.target_file) as f:
         param_content = f.read()
 
-    gm_already = gm.marker in gm_content
-    param_already = param.marker in param_content
+    gm_already = GENESIS_P91_MARKER_BASE in gm_content
+    param_already = GENESIS_P91_MARKER_BASE in param_content
 
     if gm_already and param_already:
         return "applied", "idempotent (both markers present)"
 
-    # Drift detection
+    # Drift detection — names the actual file resolved by _make_gptq_patcher
+    # (auto_gptq.py post-rename, gptq_marlin.py pre-rename) instead of a
+    # hardcoded pre-rename path that no longer matches dev371+.
+    gm_filename = os.path.basename(gm.target_file)
     for marker in gm.upstream_drift_markers:
         if marker.startswith("[Genesis"):
             continue
         if marker in gm_content and not gm_already:
             return (
                 "skipped",
-                f"upstream drift in gptq_marlin.py: {marker!r} present "
+                f"upstream drift in {gm_filename}: {marker!r} present "
                 "without our marker — upstream may have merged equivalent fix",
             )
     for marker in param.upstream_drift_markers:
@@ -361,7 +418,7 @@ def apply() -> tuple[str, str]:
             _d = f" ({failure.detail})" if (failure and failure.detail) else ""
             return "skipped", (
                 f"{param.patch_name}: {_r}{_d} "
-                "(P91 partial: gptq_marlin.py applied but parameter.py "
+                f"(P91 partial: {gm_filename} applied but parameter.py "
                 "skipped — re-apply needed for matching pair)"
             )
         if result == TextPatchResult.FAILED:
@@ -373,7 +430,7 @@ def apply() -> tuple[str, str]:
 
     return (
         "applied",
-        "P91 applied (DUAL FILE): gptq_marlin.py uses cdiv() for scale rows "
+        f"P91 applied (DUAL FILE): {gm_filename} uses cdiv() for scale rows "
         "and tags scales/qzeros with row_group_size + "
         "row_input_size_per_partition; parameter.py uses group-aware "
         "start_idx for row-parallel scale/zero loading. Fixes silent dequant "
@@ -382,10 +439,15 @@ def apply() -> tuple[str, str]:
 
 
 def is_applied() -> bool:
-    """Return True iff both files contain our marker."""
+    """Return True iff both files contain a Genesis P91 marker (any version).
+
+    Uses the version-agnostic GENESIS_P91_MARKER_BASE so an upgrade from a
+    prior v7.62.x detects as applied even though the precise per-version
+    marker string differs.
+    """
     if vllm_install_root() is None:
         return False
-    gm = _make_gm_patcher()
+    gm = _make_gptq_patcher()
     param = _make_param_patcher()
     if gm is None or param is None:
         return False
@@ -396,7 +458,10 @@ def is_applied() -> bool:
             param_content = f.read()
     except Exception:
         return False
-    return gm.marker in gm_content and param.marker in param_content
+    return (
+        GENESIS_P91_MARKER_BASE in gm_content
+        and GENESIS_P91_MARKER_BASE in param_content
+    )
 
 
 def revert() -> tuple[str, str]:
