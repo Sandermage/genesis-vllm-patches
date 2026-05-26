@@ -3,10 +3,14 @@
 
 Background: worker family had 3/10 patches with dedicated tests (PN52,
 PN55, PN82). Family-level contract covers all 9 patches actually living
-under `integrations/worker/`. The 10th registry entry SPRINT26_CG_DISPATCH_TRACE
-declares family="worker" but its source lives under `integrations/
-observability/sprint26_cudagraph_dispatch_trace.py` — registry/filesystem
-mismatch flagged for separate audit, not covered by THIS contract.
+under `integrations/worker/`. The historical "10th entry" referenced in
+the original audit was the predecessor of PN122 (formerly
+`SPRINT26_CG_DISPATCH_TRACE`, renamed 2026-05-14), which had a
+registry/filesystem mismatch: declared `family="worker"` while its
+source lived under `integrations/observability/`. The 2026-05-11 audit
+resolved it by changing the registry `family` to `"observability"`
+(matching the actual filesystem location); PN122 is now correctly out
+of scope for THIS worker contract.
 
 Worker family characteristics:
   - High mix of PROD-active (P72 profile_run cap, PN67 thinking-budget,

@@ -1004,13 +1004,16 @@ def apply_patch_n119_tq_gqa_grouping() -> PatchResult:
 
 
 @register_patch("Sprint 2.6 v2 — CUDA graph dispatch trace wire-in")
-def apply_patch_sprint26_cudagraph_dispatch_trace() -> PatchResult:
-    """Sprint 2.6 v2: text-patch wire-in for cudagraph dispatch trace.
+def apply_patch_pn122_cudagraph_dispatch_trace() -> PatchResult:
+    """PN122 (formerly SPRINT26_CG_DISPATCH_TRACE) — Sprint 2.6 v2
+    text-patch wire-in for cudagraph dispatch trace.
 
     Hooks `record_dispatch(matched)` into vllm's cudagraph dispatcher
     call site in `gpu_model_runner.py`. Default OFF; opt-in via
-    GENESIS_ENABLE_SPRINT26_CG_DISPATCH_TRACE=1 PLUS the runtime env
-    GENESIS_CUDAGRAPH_DISPATCH_TRACE=1 to actually record.
+    `GENESIS_ENABLE_PN122_CG_DISPATCH_TRACE=1` (legacy
+    `GENESIS_ENABLE_SPRINT26_CG_DISPATCH_TRACE=1` accepted for one
+    release) PLUS the runtime env `GENESIS_CUDAGRAPH_DISPATCH_TRACE=1`
+    to actually record.
     """
     name = "Sprint 2.6 v2 cudagraph dispatch trace"
     if not _state._APPLY_MODE:
