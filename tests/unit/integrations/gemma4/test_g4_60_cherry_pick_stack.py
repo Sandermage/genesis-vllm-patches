@@ -29,9 +29,15 @@ import os
 
 import pytest
 
-# Skip the whole module if vllm/torch absent — patches require them.
+# Skip the whole module if vllm/torch/vllm.v1 absent — patches require
+# them at apply() time and the assertions cover post-apply v1 module
+# state, so an environment without `vllm.v1` cannot meaningfully verify
+# these patches (apply() correctly returns "skipped" with a
+# "not importable" reason in that case).
 vllm = pytest.importorskip("vllm")
 torch = pytest.importorskip("torch")
+pytest.importorskip("vllm.v1")
+pytest.importorskip("vllm.v1.kv_cache_interface")
 
 
 @pytest.fixture(autouse=True)

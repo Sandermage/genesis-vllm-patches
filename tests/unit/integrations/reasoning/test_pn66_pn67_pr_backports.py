@@ -59,13 +59,23 @@ class TestPN67Registration:
         assert meta["upstream_pr"] == 41674
 
     def test_apply_skipped_when_env_disabled(self, monkeypatch):
-        from vllm.sndr_core.integrations.worker import pn67_thinking_budget_inverted_bool as p
+        # PN67 was relocated to `integrations/_retired/` after upstream
+        # vllm#41674 merged (lifecycle=retired). Resolve via the
+        # registry's `apply_module` so the test survives relocation.
+        import importlib
+        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+        module_path = PATCH_REGISTRY["PN67"]["apply_module"]
+        p = importlib.import_module(module_path)
         monkeypatch.delenv("GENESIS_ENABLE_PN67", raising=False)
         status, reason = p.apply()
         assert status == "skipped"
 
     def test_anchor_constants_present(self):
-        from vllm.sndr_core.integrations.worker import pn67_thinking_budget_inverted_bool as p
+        # Same registry-driven import as above — survives relocation.
+        import importlib
+        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+        module_path = PATCH_REGISTRY["PN67"]["apply_module"]
+        p = importlib.import_module(module_path)
         assert p.PN67_OLD
         assert p.PN67_NEW
         # Sanity: removes the inverted `not`
