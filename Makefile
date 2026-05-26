@@ -81,10 +81,16 @@ audit-wheel-contents: ## Wheel-boundary invariants CLI surface — pyproject sha
 audit-retire-eligibility: ## Retire-verdict distribution over PATCH_REGISTRY (offline by default); §9.A.16
 	$(PYTHON) scripts/audit_retire_eligibility.py
 
+audit-external-findings: ## External findings tracker validation — schema + cross-finding rules; offline; no-op on CI (§9.A.7)
+	$(PYTHON) scripts/audit_external_findings.py
+
+audit-external-findings-strict: ## External findings tracker strict — promotes F-4 staleness warnings to errors (operator preflight)
+	$(PYTHON) scripts/audit_external_findings.py --strict-warnings
+
 audit-shim-window: ## Historical-path compatibility shim integrity (E.1/E.2/E.3/E.4/E.5)
 	$(PYTHON) scripts/audit_shim_window.py
 
-gates: test-pin-gate test-iron-rule test-family test-doc-sync audit-phase3 audit-v2-runtime-pins audit-v2-modeldef-vs-hardware-pin audit-ai-attribution audit-links audit-repo-garbage audit-generated-links audit-wheel-contents audit-shim-window ## Run all 13 CI gates fast-fail
+gates: test-pin-gate test-iron-rule test-family test-doc-sync audit-phase3 audit-v2-runtime-pins audit-v2-modeldef-vs-hardware-pin audit-ai-attribution audit-links audit-repo-garbage audit-generated-links audit-wheel-contents audit-external-findings audit-shim-window ## Run all 14 CI gates fast-fail
 
 # ─── Audits ────────────────────────────────────────────────────────────
 

@@ -127,6 +127,20 @@ jobs:
         run: |
           python3 scripts/audit_repo_garbage.py --tracked-only
 
+      - name: External findings tracker validation
+        # §9.A.7 — schema + cross-finding validation of the external
+        # findings tracker (vLLM PRs / club-3090 issues / papers /
+        # other upstream observations operator decided to track
+        # structurally instead of as research-tree URL lists).
+        # Thin wrapper around vllm.sndr_core.findings.validator. The
+        # canonical tracker dir is gitignored (sndr_private/planning/
+        # external_findings/), so CI sees an empty fallback dir and
+        # the audit safely no-ops with exit 0. The gate enforces
+        # format invariants on operator-local trees + catches schema
+        # drift if the findings package is refactored.
+        run: |
+          python3 scripts/audit_external_findings.py
+
       - name: Generated-doc link integrity audit
         # §9.A.4 — verifies docs/PATCHES_AUTO.md + docs/CONFIGS_AUTO.md:
         # generator --check sync; [#NNNN](URL) number/URL consistency;

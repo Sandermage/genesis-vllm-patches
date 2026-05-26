@@ -206,6 +206,21 @@ repos:
         pass_filenames: false
         files: '.*'
 
+      - id: genesis-audit-external-findings
+        name: Genesis external findings tracker validation (§9.A.7)
+        # Thin wrapper around vllm.sndr_core.findings.validator —
+        # validates every YAML in the tracker dir against the schema
+        # + cross-finding rules (F-1 id uniqueness, F-2 transition
+        # legality, F-3 acceptance non-empty, F-4 staleness — warning
+        # only at default). Default mode is offline; --with-network is
+        # reserved for a separate operator-approval phase. CI tree has
+        # no tracker dir → audit safely no-ops (exit 0).
+        # Fires on tracker YAML, the findings package, or the script/test.
+        entry: python3 scripts/audit_external_findings.py
+        language: system
+        pass_filenames: false
+        files: '(sndr_private/planning/external_findings/.*\.yaml|docs/_internal/external_findings/.*\.yaml|vllm/sndr_core/findings/.*\.py|vllm/sndr_core/cli/findings\.py|scripts/audit_external_findings\.py|tests/unit/scripts/test_audit_external_findings\.py|tests/unit/findings/.*\.py)$'
+
       - id: genesis-audit-generated-links
         name: Genesis generated-doc link integrity (§9.A.4)
         # Verifies docs/PATCHES_AUTO.md + docs/CONFIGS_AUTO.md:
