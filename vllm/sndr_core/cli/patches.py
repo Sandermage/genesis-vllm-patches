@@ -78,6 +78,8 @@ from vllm.sndr_core.product_api.patches import diff_upstream as _diff_upstream
 from vllm.sndr_core.product_api.patches import doctor as _doctor
 from vllm.sndr_core.product_api.patches import explain as _explain
 from vllm.sndr_core.product_api.patches import listing as _listing
+from vllm.sndr_core.product_api.patches import plan as _plan
+from vllm.sndr_core.product_api.patches import pn95 as _pn95
 from vllm.sndr_core.product_api.patches import proof_status as _proof_status
 from vllm.sndr_core.product_api.patches import prove as _prove
 from vllm.sndr_core.product_api.patches import release_check as _release_check
@@ -236,99 +238,40 @@ def _run_explain(opts: argparse.Namespace) -> int:
 
 # ─── `sndr patches pn95-status` ─────────────────────────────────────────
 
-
-_PN95_STATUS_HINTS = (
-    # (predicate, severity, message)
-    (
-        lambda s: s["ticks_total"] == 0,
-        "warn",
-        "Zero scheduler ticks recorded. Likely SITE5 anchor missed the "
-        "vllm Scheduler.schedule() entry — re-apply via "
-        "`python3 -m vllm.sndr_core.apply` after a fresh container boot.",
-    ),
-    (
-        lambda s: s["ticks_pressure_check"] > 0 and s["ticks_demote_triggered"] == 0 and s["blocks_demoted_total"] == 0,
-        "warn",
-        "Pressure checks running but no demotes ever fired. Most common "
-        "cause is the multiproc gap: scheduler_tick runs in EngineCore "
-        "process whose _PN95_BLOCK_POOL_REFS is empty (pools live in "
-        "Worker processes). The fall-through eviction-driven path "
-        "(SITE7 demote-on-evict) still works on natural vllm prefix "
-        "eviction. To get proactive coverage call "
-        "vllm.sndr_core.cache._pn95_runtime.worker_side_proactive_demote "
-        "from a Worker-side hook (BlockPool.get_new_blocks or similar).",
-    ),
-    (
-        lambda s: s.get("last_free_mib", -1) >= 0 and s.get("last_free_mib", 0) < 200,
-        "warn",
-        "GPU free memory below 200 MiB — kernel scratch allocations "
-        "(Marlin GEMM, FlashAttention) are at risk of CUDA OOM. PN95 "
-        "manages KV-cache bytes only; this looks like an activation-buffer "
-        "budget issue. Lower --gpu-memory-utilization (e.g. 0.92 → 0.88) "
-        "or reduce --max-num-batched-tokens.",
-    ),
-    (
-        lambda s: s["blocks_demoted_total"] > 0 and s["prefix_store_entries"] == 0,
-        "warn",
-        "Demote counter incremented but prefix store is empty — the CPU "
-        "slab eviction TTL may be too short, or compression is dropping "
-        "entries. Inspect _PN95_PREFIX_STORE in a worker REPL.",
-    ),
-    (
-        lambda s: s["prefix_store_promote_hits"] > 0,
-        "ok",
-        'Prefix store is actively serving cache hits — multi-turn '
-        'workloads are benefiting from CPU offload.',
-    ),
-)
+# Back-compat shim: legacy test code may import the predicate tuple.
+# Canonical location is now ``product_api.patches.pn95.PN95_STATUS_HINTS``.
+_PN95_STATUS_HINTS = _pn95.PN95_STATUS_HINTS
 
 
 def _run_pn95_status(opts: argparse.Namespace) -> int:
-    import os
     path = getattr(opts, "stats_file", "/tmp/pn95_stats.json")
-    if not os.path.isfile(path):
-        msg = (
-            f"PN95 stats file not found at {path}. "
-            "Either PN95 is not enabled in this deployment "
-            "(GENESIS_ENABLE_PN95_TIER_AWARE_CACHE=1) or the worker "
-            "hasn't dumped stats yet — stats land every "
-            "GENESIS_PN95_STATS_INTERVAL ticks (default 100)."
-        )
-        if opts.json:
-            print(json.dumps({"available": False, "reason": msg}, indent=2))
-        else:
-            _io.warn(msg)
-        return 1
-    try:
-        with open(path, "r") as fh:
-            stats = json.load(fh)
-    except (OSError, ValueError) as e:
+    report = _pn95.read_pn95_status(path)
+    if not report.available:
+        if report.parse_error:
+            if opts.json:
+                print(json.dumps(
+                    {"available": False, "reason": report.reason},
+                    indent=2,
+                ))
+            else:
+                _io.warn(
+                    f"PN95 stats file at {path} is not parseable: "
+                    f"{report.reason.removeprefix('parse error: ')}"
+                )
+            return 2
+        # missing-file path
         if opts.json:
             print(json.dumps(
-                {"available": False, "reason": f"parse error: {e}"},
+                {"available": False, "reason": report.reason},
                 indent=2,
             ))
         else:
-            _io.warn(f"PN95 stats file at {path} is not parseable: {e}")
-        return 2
+            _io.warn(report.reason)
+        return 1
 
-    hints: list[dict] = []
-    for predicate, severity, msg in _PN95_STATUS_HINTS:
-        try:
-            hit = predicate(stats)
-        except (KeyError, TypeError):
-            hit = False
-        if hit:
-            hints.append({"severity": severity, "message": msg})
-
-    # Disk-tier stats are best-effort: the module reads env at first
-    # access; we can probe it without forcing init when disabled.
-    disk_stats: dict = {}
-    try:
-        from vllm.sndr_core.cache import _pn95_disk_tier as _dt
-        disk_stats = _dt.disk_tier_stats()
-    except Exception as e:
-        disk_stats = {"error": str(e)}
+    stats = report.stats
+    disk_stats = report.disk_tier
+    hints = list(report.hints)
 
     if opts.json:
         print(json.dumps(
@@ -490,154 +433,29 @@ def _run_plan(opts: argparse.Namespace) -> int:
     if not opts.preset:
         _io.fatal("--preset is required for `sndr patches plan`", 2)
 
-    # accept either V1 monolithic key or V2 alias
-    # so `sndr patches plan --preset prod-35b` works alongside the legacy
-    # `--preset a5000-2x-35b-prod`. memory.py already exports the same
-    # resolver — re-use to avoid divergent lookup paths.
-    try:
-        from vllm.sndr_core.cli.memory import _resolve_preset_v1_or_v2
-        cfg = _resolve_preset_v1_or_v2(opts.preset)
-    except Exception as e:
-        _io.fatal(f"preset {opts.preset!r} not found ({e})", 2)
-    if cfg is None:
-        _io.fatal(f"preset {opts.preset!r} not found", 2)
-
-    # Snapshot current env, overlay preset's env, run should_apply, restore.
-    overlay: dict[str, str] = {}
-    overlay.update(getattr(cfg, "system_env", {}) or {})
-    overlay.update(getattr(cfg, "genesis_env", {}) or {})
-
-    saved: dict[str, Optional[str]] = {}
-    for k, v in overlay.items():
-        saved[k] = os.environ.get(k)
-        os.environ[k] = str(v)
-
-    apply_rows: list[dict[str, Any]] = []
-    skip_rows: list[dict[str, Any]] = []
-    error_rows: list[dict[str, Any]] = []
-
-    try:
-        from vllm.sndr_core.dispatcher import (
-            PATCH_REGISTRY,
-            should_apply,
-        )
-        for pid in sorted(PATCH_REGISTRY):
-            meta = PATCH_REGISTRY[pid]
-            if not isinstance(meta, dict):
-                continue
-            try:
-                applied, reason = should_apply(pid)
-            except Exception as e:
-                error_rows.append({
-                    "patch_id": pid,
-                    "title": meta.get("title", ""),
-                    "tier": meta.get("tier", ""),
-                    "error": f"{type(e).__name__}: {e}",
-                })
-                continue
-            row = {
-                "patch_id": pid,
-                "title": (meta.get("title") or "")[:80],
-                "tier": meta.get("tier", "community"),
-                "default_on": bool(meta.get("default_on", False)),
-                "lifecycle": meta.get("lifecycle"),
-                "reason": reason[:160],
-            }
-            if applied:
-                apply_rows.append(row)
-            else:
-                skip_rows.append(row)
-    finally:
-        # Restore env
-        for k, prev in saved.items():
-            if prev is None:
-                os.environ.pop(k, None)
-            else:
-                os.environ[k] = prev
-
-    # Production-profile gate. `partial`/`placeholder` impl_status =
-    # wiring stub only; `research`/`retired` lifecycle = should not reach
-    # production. Opt-in via `--profile production`.
     profile = getattr(opts, "profile", "any")
-    profile_violations: list[dict[str, Any]] = []
-    if profile == "production":
-        forbidden_status = {"partial", "placeholder"}
-        forbidden_lifecycle = {"research", "retired"}
-        for r in apply_rows:
-            meta = PATCH_REGISTRY.get(r["patch_id"]) or {}
-            impl = meta.get("implementation_status")
-            lc = meta.get("lifecycle")
-            reasons = []
-            if impl in forbidden_status:
-                reasons.append(f"implementation_status={impl}")
-            if lc in forbidden_lifecycle:
-                reasons.append(f"lifecycle={lc}")
-            if reasons:
-                profile_violations.append({
-                    "patch_id": r["patch_id"],
-                    "title": r["title"],
-                    "reasons": reasons,
-                })
-
-    # optional patch_plan resolver layer.
-    # Decoupled from the dispatcher simulator above — operators can
-    # request both views in one JSON payload by passing --policy.
-    #
-    # even when --policy is NOT
-    # passed, we still run the resolver under compat just to collect
-    # advisory warnings (conflicts_with + candidate_when). These are
-    # surfaced as `resolver_warnings` in JSON output and as a
-    # standalone "⚠ advisory" block in human output, so legacy
-    # operators see misconfigurations they'd otherwise miss.
-    resolver_payload = None
-    advisory_warnings: tuple[str, ...] = ()
     policy = getattr(opts, "policy", None)
+    explain = bool(getattr(opts, "explain", False))
 
-    if policy is None:
-        try:
-            from vllm.sndr_core.model_configs.patch_plan import (
-                resolve_patch_plan,
-            )
-            advisory_plan = resolve_patch_plan(cfg, policy="compat")
-            advisory_warnings = advisory_plan.warnings
-        except Exception:
-            # Resolver failure must not break the simulator output —
-            # advisory layer is best-effort.
-            advisory_warnings = ()
-
-    if policy is not None:
-        from vllm.sndr_core.model_configs.patch_plan import (
-            resolve_patch_plan,
+    try:
+        report = _plan.simulate_plan(
+            opts.preset,
+            profile=profile,
+            policy=policy,
+            explain=explain,
         )
-        plan = resolve_patch_plan(cfg, policy=policy)
-        explain = bool(getattr(opts, "explain", False))
+    except _plan.PresetNotFoundError as e:
+        _io.fatal(f"preset {e.preset_key!r} not found ({e.reason})", 2)
 
-        def _decision_dict(d) -> dict[str, Any]:
-            base = {
-                "patch_id": d.patch_id,
-                "env_flag": d.env_flag,
-                "value": d.value,
-                "decision": d.decision,
-                "role": d.role,
-                "reason": d.reason,
-            }
-            if explain:
-                base["note"] = d.note
-                base["bench_evidence"] = d.bench_evidence
-            return base
+    apply_rows: list[dict[str, Any]] = list(report.apply)
+    skip_rows: list[dict[str, Any]] = list(report.skip)
+    error_rows: list[dict[str, Any]] = list(report.errors)
+    profile_violations: list[dict[str, Any]] = list(report.profile_violations)
+    resolver_payload = report.resolver_payload
+    advisory_warnings: tuple[str, ...] = report.advisory_warnings
 
-        resolver_payload = {
-            "policy": plan.policy,
-            "included": [_decision_dict(d) for d in plan.included],
-            "excluded": [_decision_dict(d) for d in plan.excluded],
-            "warnings": list(plan.warnings),
-            # Non-toggle parameter keys (GENESIS_BUFFER_MODE,
-            # GENESIS_PN95_CONFIG_KEY, …) pass through every policy
-            # so dependent patches don't silently noop. Expose
-            # separately for diff tools + traceability.
-            "passthrough": dict(plan.passthrough),
-            "env": plan.env,
-        }
+    # Late re-import for human renderer (`upstream_pr` lookup).
+    from vllm.sndr_core.dispatcher import PATCH_REGISTRY
 
     if opts.json:
         out = {

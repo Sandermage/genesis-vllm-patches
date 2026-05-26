@@ -17,6 +17,8 @@ from . import diff_upstream
 from . import doctor
 from . import explain
 from . import listing
+from . import plan
+from . import pn95
 from . import proof_status
 from . import prove
 from . import release_check
@@ -38,6 +40,8 @@ from .listing import (
     spec_to_row,
     spec_to_row_dict,
 )
+from .plan import PlanReport, PresetNotFoundError, simulate_plan
+from .pn95 import Pn95Report, read_pn95_status
 from .proof_status import ProofStatusResult, UnknownBucketError
 from .prove import (
     DeadDetectResult,
@@ -64,6 +68,8 @@ __all__ = (
     "doctor",
     "explain",
     "listing",
+    "plan",
+    "pn95",
     "proof_status",
     "prove",
     "release_check",
@@ -99,6 +105,13 @@ __all__ = (
     "UnknownBucketError",
     # release_check
     "ReleaseCheckResult",
+    # plan
+    "simulate_plan",
+    "PlanReport",
+    "PresetNotFoundError",
+    # pn95
+    "read_pn95_status",
+    "Pn95Report",
     # types
     "PatchRow",
     "ExplainView",
