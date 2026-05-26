@@ -60,13 +60,11 @@ from typing import Any, Optional
 
 from . import _io
 
-# M.6.1 (2026-05-27): pure-data query layer extracted to
-# ``vllm.sndr_core.product_api.patches``. The CLI is now the thin
-# argparse + rendering shell described in
+# M.6.1–.3 (2026-05-27): pure-data query layer extracted to
+# ``vllm.sndr_core.product_api.patches``. This module is the thin
+# argparse + rendering shell — every handler delegates to the API
+# layer and prints the result. See
 # ``sndr_private/planning/audits/M6_CLI_THIN_SHELL_R_2026-05-27_RU.md``.
-# Module-level ``_matches_filters`` / ``_spec_to_row`` / ``_BUNDLES``
-# remain as back-compat shims so the existing test imports continue to
-# resolve — they're slated for removal in M.6.4 after callers migrate.
 #
 # Submodules imported explicitly (not via package __init__) so the
 # module reference doesn't get shadowed by its re-exported function of
@@ -83,12 +81,6 @@ from vllm.sndr_core.product_api.patches import pn95 as _pn95
 from vllm.sndr_core.product_api.patches import proof_status as _proof_status
 from vllm.sndr_core.product_api.patches import prove as _prove
 from vllm.sndr_core.product_api.patches import release_check as _release_check
-
-# ─── Back-compat shims (slated for removal in M.6.4) ─────────────────────
-
-_matches_filters = _listing.matches_filters
-_spec_to_row = _listing.spec_to_row_dict
-_coerce_iter = _listing._coerce_iter
 
 
 # ─── `sndr patches list` ─────────────────────────────────────────────────
@@ -237,10 +229,6 @@ def _run_explain(opts: argparse.Namespace) -> int:
 
 
 # ─── `sndr patches pn95-status` ─────────────────────────────────────────
-
-# Back-compat shim: legacy test code may import the predicate tuple.
-# Canonical location is now ``product_api.patches.pn95.PN95_STATUS_HINTS``.
-_PN95_STATUS_HINTS = _pn95.PN95_STATUS_HINTS
 
 
 def _run_pn95_status(opts: argparse.Namespace) -> int:
@@ -638,11 +626,6 @@ def _run_diff_upstream(opts: argparse.Namespace) -> int:
 
 
 # ─── `sndr patches bundles ...` ──────────────────────────────────────────
-
-
-# Back-compat shim: legacy tests import ``patches._BUNDLES``. The
-# canonical catalog now lives in ``product_api.patches.bundles``.
-_BUNDLES = _bundles.BUNDLES_CATALOG
 
 
 def _run_bundles_list(opts: argparse.Namespace) -> int:

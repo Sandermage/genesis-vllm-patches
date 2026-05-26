@@ -1,9 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Pure-data query layer for ``sndr patches list`` (M.6.1).
+"""Pure-data query layer for ``sndr patches list`` (M.6.1 / M.6.4).
 
-Reproduces the behavior of ``cli.patches._matches_filters`` /
-``_spec_to_row`` byte-for-byte so the JSON output of the CLI stays
-identical post-refactor.
+Canonical implementation of the list / filter / spec-to-row helpers
+that previously lived as private functions inside
+``vllm.sndr_core.cli.patches``. The CLI's M.6.4 cleanup removed the
+back-compat shims (``_matches_filters``, ``_spec_to_row``,
+``_coerce_iter``); callers reach for ``matches_filters`` /
+``spec_to_row`` / ``spec_to_row_dict`` here directly.
 """
 from __future__ import annotations
 
@@ -93,10 +96,11 @@ def spec_to_row(spec) -> PatchRow:
 
 
 def spec_to_row_dict(spec) -> dict[str, Any]:
-    """Back-compat helper: ``spec_to_row`` rendered as plain dict.
+    """``spec_to_row`` rendered as a plain dict.
 
-    Preserves the shape ``cli.patches._spec_to_row`` returned before
-    M.6.1; callers (legacy tests, JSON renderer) keep dict-style access.
+    Used by the CLI's JSON renderer which serialises rows verbatim;
+    keeps dict-style access for downstream consumers that prefer
+    plain-data over the frozen :class:`PatchRow` dataclass.
     """
     return asdict(spec_to_row(spec))
 

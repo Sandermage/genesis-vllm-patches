@@ -17,6 +17,8 @@ import sys
 import pytest
 
 from vllm.sndr_core.cli import patches as P
+from vllm.sndr_core.product_api.patches import bundles as _api_bundles
+from vllm.sndr_core.product_api.patches import listing as _api_listing
 
 
 def _make_parser() -> argparse.ArgumentParser:
@@ -88,9 +90,9 @@ class TestFilters:
         from vllm.sndr_core.dispatcher.spec import iter_patch_specs
 
         community = [s for s in iter_patch_specs()
-                     if P._matches_filters(s, tier="community")]
+                     if _api_listing.matches_filters(s, tier="community")]
         engine = [s for s in iter_patch_specs()
-                  if P._matches_filters(s, tier="engine")]
+                  if _api_listing.matches_filters(s, tier="engine")]
         # Per memory: 75 engine / 56 community as of 2026-05-08, but
         # the CURRENT registry has tier="community" for nearly all
         # patches because impls live in sndr_engine/. We assert
@@ -102,14 +104,14 @@ class TestFilters:
         from vllm.sndr_core.dispatcher.spec import iter_patch_specs
 
         for s in iter_patch_specs():
-            assert P._matches_filters(s, default_on=True) is bool(s.default_on)
-            assert P._matches_filters(s, default_on=False) is (not s.default_on)
+            assert _api_listing.matches_filters(s, default_on=True) is bool(s.default_on)
+            assert _api_listing.matches_filters(s, default_on=False) is (not s.default_on)
 
     def test_matches_has_upstream(self):
         from vllm.sndr_core.dispatcher.spec import iter_patch_specs
 
         for s in iter_patch_specs():
-            assert P._matches_filters(s, has_upstream=True) is bool(s.upstream_pr)
+            assert _api_listing.matches_filters(s, has_upstream=True) is bool(s.upstream_pr)
 
     def test_classify_skip_known_buckets(self):
         assert P._classify_skip("opt-in only — set X=1") == "opt-in (env unset)"
@@ -341,17 +343,18 @@ class TestBundles:
         assert rc == 2
 
     def test_bundles_catalog_matches_test_smoke(self):
-        """The bundle catalog inside `cli/patches.py` must mirror the
-        `tests/bundles/test_stage7_bundles_smoke.py::BUNDLES` source of
-        truth. Drift detection — adding a bundle in one place but not the
-        other will fail this assertion."""
+        """The canonical bundle catalog in
+        ``product_api.patches.bundles.BUNDLES_CATALOG`` must mirror
+        ``tests/bundles/test_stage7_bundles_smoke.py::BUNDLES``. Drift
+        detection — adding a bundle in one place but not the other
+        fails this assertion."""
         # Import the canonical list from the smoke test to compare.
         # It uses tuples (name, flag, tier).
         from tests.bundles.test_stage7_bundles_smoke import BUNDLES as SMOKE
         smoke_set = {(b[0], b[1], b[2]) for b in SMOKE}
-        cli_set = {(b[0], b[1], b[2]) for b in P._BUNDLES}
-        assert smoke_set == cli_set, (
+        api_set = {(b[0], b[1], b[2]) for b in _api_bundles.BUNDLES_CATALOG}
+        assert smoke_set == api_set, (
             "BUNDLES catalog drift: "
-            f"smoke-only={smoke_set - cli_set}, "
-            f"cli-only={cli_set - smoke_set}"
+            f"smoke-only={smoke_set - api_set}, "
+            f"api-only={api_set - smoke_set}"
         )

@@ -13,10 +13,9 @@ from typing import Optional
 from .types import BundleSpec
 
 
-# Canonical bundle catalog. Tuple-of-tuples (not list-of-BundleSpec) so
-# the legacy back-compat shim in ``cli.patches._BUNDLES`` keeps the same
-# subscriptable shape the smoke test relies on:
-# ``{(b[0], b[1], b[2]) for b in P._BUNDLES}``.
+# Canonical bundle catalog. Tuple-of-tuples (not list-of-BundleSpec)
+# so consumers — including the smoke-test drift detector — keep the
+# stable subscriptable shape ``{(b[0], b[1], b[2]) for b in CATALOG}``.
 BUNDLES_CATALOG: tuple[tuple[str, str, str, str], ...] = (
     (
         "tool_parsing_qwen3coder",

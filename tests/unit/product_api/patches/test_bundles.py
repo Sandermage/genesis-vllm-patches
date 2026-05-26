@@ -1,10 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Tests for ``product_api.patches.bundles`` — M.6.1.
+"""Tests for ``product_api.patches.bundles`` — M.6.1 / M.6.4.
 
-The canonical bundle catalog lives here; ``cli.patches._BUNDLES`` is
-now a back-compat shim re-exporting ``BUNDLES_CATALOG``. Drift detection
-against ``tests/bundles/test_stage7_bundles_smoke.py`` continues via
-``test_patches_cli.py::TestBundles::test_bundles_catalog_matches_test_smoke``.
+The canonical bundle catalog lives here. Drift detection against
+``tests/bundles/test_stage7_bundles_smoke.py`` runs via
+``test_patches_cli.py::TestBundles::test_bundles_catalog_matches_test_smoke``,
+which now reads the catalog directly from this module after M.6.4
+removed the ``cli.patches._BUNDLES`` back-compat shim.
 """
 from __future__ import annotations
 
@@ -21,14 +22,6 @@ class TestCatalog:
         for entry in bundles.BUNDLES_CATALOG:
             assert isinstance(entry, tuple)
             assert len(entry) == 4
-
-    def test_back_compat_shim_in_cli(self):
-        """``cli.patches._BUNDLES`` must be the same object as
-        ``BUNDLES_CATALOG`` so the legacy smoke-test drift detector
-        keeps comparing apples to apples."""
-        from vllm.sndr_core.cli import patches as cli_patches
-
-        assert cli_patches._BUNDLES is bundles.BUNDLES_CATALOG
 
 
 class TestListBundles:
