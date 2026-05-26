@@ -54,10 +54,13 @@ audit-v2-runtime-pins: ## V2 runtime image + ModelDef pin harmonization (R-PIN-1
 audit-v2-modeldef-vs-hardware-pin: ## V2 ModelDef ↔ hardware canonical-pin drift (R-MD-HW-1/2, waiver-aware via pin_hold)
 	$(PYTHON) scripts/audit_v2_modeldef_vs_hardware_pin.py
 
+audit-ai-attribution: ## Attribution-label policy: forbid AI-agent Co-Authored-By / Generated-by / robot-emoji markers (§9.A.6)
+	$(PYTHON) scripts/audit_ai_attribution.py
+
 audit-shim-window: ## Historical-path compatibility shim integrity (E.1/E.2/E.3/E.4/E.5)
 	$(PYTHON) scripts/audit_shim_window.py
 
-gates: test-pin-gate test-iron-rule test-family test-doc-sync audit-phase3 audit-v2-runtime-pins audit-v2-modeldef-vs-hardware-pin audit-shim-window ## Run all 8 CI gates fast-fail
+gates: test-pin-gate test-iron-rule test-family test-doc-sync audit-phase3 audit-v2-runtime-pins audit-v2-modeldef-vs-hardware-pin audit-ai-attribution audit-shim-window ## Run all 9 CI gates fast-fail
 
 # ─── Audits ────────────────────────────────────────────────────────────
 

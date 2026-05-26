@@ -118,6 +118,19 @@ jobs:
         run: |
           python3 scripts/audit_v2_modeldef_vs_hardware_pin.py
 
+      - name: Attribution-label policy audit
+        # §9.A.6 — forbid syntactic AI-attribution constructs in tracked
+        # source (Co-Authored-By trailer with AI agent name, Generated-by
+        # AI markers, robot-emoji Generated, AI-assisted prose, promotional  <!-- audit-ai-attribution: allow -->
+        # "Powered by AI" footers). Bare AI-tool names in legitimate
+        # contexts (HF model IDs, .claude/ paths, gemini-code-assist bot
+        # credits, ANTHROPIC env-var prefixes) are NEVER flagged. Inline
+        # `<!-- audit-ai-attribution: allow -->` waives a line. Automates
+        # the recurring manual grep sweep operator + Claude Code ran on
+        # every commit during 2026-05-26 Track F closure.
+        run: |
+          python3 scripts/audit_ai_attribution.py
+
       - name: Lifecycle audit
         # Ensures no patch was added with an unknown lifecycle state.
         run: |

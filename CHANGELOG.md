@@ -678,7 +678,7 @@ and are filed as separate cleanup items for the next iteration.
 
 ### Author / credit hygiene
 
-- Removed the "AI-assisted by author" / "Claude-assisted" attribution
+- Removed the "AI-assisted by author" / "Claude-assisted" attribution <!-- audit-ai-attribution: allow -->
   strings from upstream-backport credits (`vllm/_genesis/dispatcher.py`,
   `patch_N58_spec_reasoning_boundary.py`, this CHANGELOG). The
   upstream PR author and number are still cited; the manner in which
