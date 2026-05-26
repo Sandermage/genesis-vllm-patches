@@ -318,3 +318,34 @@ class TestLiveCorpus:
             f"strict at stage 3 should be clean post-V1-SUNSET-DFLASH-ALIAS.1, "
             f"got rc={result.returncode}\nstdout:\n{result.stdout}"
         )
+
+    def test_live_all_stages_ready_post_pending_4(self):
+        """After V1-SUNSET-PENDING-4.1 (2026-05-26) the last four
+        ``operator_decision_pending`` entries (qa-27b-tq-1x, long-ctx-27b,
+        qa-27b-tested, prod-35b-dflash) were reclassified to ``deprecated``
+        after their .R audit verified V2 sizing parity. With zero blockers
+        and zero pending decisions, every stage (1..5) must report ready
+        and ``--strict --stage 5`` must exit 0.
+
+        Stage 5 readiness is the §9.T audit-gate unblock. Actual V1 file
+        removal remains a separate operator-approved deletion phase.
+        """
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT_PATH), "--json", "--strict",
+             "--stage", "5"],
+            capture_output=True, text=True, cwd=REPO_ROOT,
+        )
+        assert result.returncode == 0, (
+            f"strict at stage 5 should be clean post-V1-SUNSET-PENDING-4.1, "
+            f"got rc={result.returncode}\nstdout:\n{result.stdout}"
+        )
+        data = json.loads(result.stdout)
+        assert data["counts"]["operator_decision_pending"] == 0
+        assert data["counts"]["blocker_no_v2_alias"] == 0
+        # All 5 stage readiness booleans must be True.
+        stage_ready = {s["stage"]: s["ready"] for s in data["stages"]}
+        for stage in (1, 2, 3, 4, 5):
+            assert stage_ready[stage] is True, (
+                f"stage {stage} must be ready post-PENDING-4.1, "
+                f"got blockers={stage_ready}"
+            )

@@ -159,16 +159,20 @@ class TestBucketDistribution:
           - 2026-05-24 (CONFIG-UX.4.R §3 ship): 3 transparent, 5 needs-choice,
             4 deprecated, 0 tombstone.
           - 2026-05-26 (V1-SUNSET-DFLASH-ALIAS.1): a5000-2x-27b-int4-tq-k8v4-dflash
-            moved from needs_operator_choice → deprecated with V2 alias
-            `experimental-27b-tq-dflash-ab`. New distribution:
-            3 transparent, 4 needs-choice, 5 deprecated, 0 tombstone.
+            moved from needs_operator_choice → deprecated (+1 to deprecated).
+            New distribution: 3 transparent, 4 needs-choice, 5 deprecated.
+          - 2026-05-26 (V1-SUNSET-PENDING-4.1): last 4 needs_operator_choice
+            entries reclassified to deprecated after .R confirmed V2 sizing
+            parity (qa-27b-tq-1x, long-ctx-27b, qa-27b-tested, prod-35b-dflash).
+            Stage 5 audit gate unblocked. Final distribution:
+            3 transparent, 0 needs-choice, 9 deprecated, 0 tombstone.
         """
         mod = _import_audit()
         report = mod.run_audit(stage=0)
         counts = report.count_by_bucket()
         assert counts.get("transparent", 0) == 3
-        assert counts.get("needs_operator_choice", 0) == 4
-        assert counts.get("deprecated", 0) == 5
+        assert counts.get("needs_operator_choice", 0) == 0
+        assert counts.get("deprecated", 0) == 9
         assert counts.get("tombstone", 0) == 0
 
 

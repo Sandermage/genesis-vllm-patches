@@ -25,24 +25,24 @@
       "rationale": "A/B diagnostic config — V2 equivalent is the experimental-tier `experimental-27b-tq-dflash-ab` preset (uses `ab-27b-tq-dflash` profile, same TQ k8v4 model + same 5 DFlash envs PN21/PN23/PN24/PN38/PN40 + same 131K ctx). V1 carries `lifecycle: retired` in its YAML; documented -23.6% TPS regression on MTP path is preserved in the V2 profile docstring. Diagnostic kept for regression / patch-dispatcher coverage testing; not for production. (Reclassified 2026-05-26 from needs_operator_choice → deprecated after V1-SUNSET-DFLASH-ALIAS.R confirmed V2 equivalent already exists.)"
     },
     "a5000-2x-27b-int4-long-ctx": {
-      "bucket": "needs_operator_choice",
+      "bucket": "deprecated",
       "v2_preset": "long-ctx-27b",
-      "rationale": "V2 alias exists but card-less + bench_pending; needs long-context evidence refresh before promotion to production."
+      "rationale": "V2 long-ctx-27b profile sizing-identical to V1 (280K ctx / util 0.90 / seqs 2 / batched 2048 / fp8_e5m2 KV / MTP K=3). V2 preset is card-less and override_policy.bench_pending=true — long-context 32K+ bench refresh against current pin (dev371) deferred. Operator must refresh bench before promoting to production tier; deprecated bucket preserves that caveat in audit warning surface. (Reclassified 2026-05-26 from needs_operator_choice → deprecated after V1-SUNSET-PENDING-4.R verified sizing parity.)"
     },
     "a5000-2x-35b-fp8-dflash": {
-      "bucket": "needs_operator_choice",
+      "bucket": "deprecated",
       "v2_preset": "prod-35b-dflash",
-      "rationale": "V2 alias exists with production_candidate status; operator should verify identical compose before flipping references."
+      "rationale": "V2 prod-35b-dflash is production_candidate / maturity:validated with operator card. Model + KV + dtype + spec_decode + max_num_seqs match V1, BUT max_model_len intentionally trimmed 160K → 65K post-dev371 DFlash drafter memory accounting fix (M5 smoke 2026-05-21 hit _check_enough_kv_cache_memory at 160K; vllm estimated max usable ≈79328 tokens). V1's 160K is stale and unsafe on the current pin; V2 is the correct successor. Wave 10 patches (PN51/PN96b/PN125/PN126-130/PN132/PN133) active in V2 model file. (Reclassified 2026-05-26 from needs_operator_choice → deprecated after V1-SUNSET-PENDING-4.R strict comparison.)"
     },
     "a5000-1x-27b-int4-tested": {
-      "bucket": "needs_operator_choice",
+      "bucket": "deprecated",
       "v2_preset": "qa-27b-tq-1x",
-      "rationale": "qa-tested single-GPU 27B; V2 alias is card-less, awaiting CONFIG-UX.2b annotation."
+      "rationale": "V2 qa-27b-tq-1x profile sizing-identical to V1 (78K ctx / util 0.95 / seqs 1 / TQ k8v4 / MTP K=3). V2 patches_delta explicitly carries V1 single-card additions (PN31 FA varlen) + overrides (P67_NUM_KV_SPLITS=32, P82_THRESHOLD=0.1). V2 preset is card-less + qa- prefix (not production tier); operator must consciously pick. deprecated bucket signals 'V2 path exists; not auto-promoted to transparent'. (Reclassified 2026-05-26 from needs_operator_choice → deprecated after V1-SUNSET-PENDING-4.R confirmed sizing match.)"
     },
     "a5000-2x-27b-int4-tested": {
-      "bucket": "needs_operator_choice",
+      "bucket": "deprecated",
       "v2_preset": "qa-27b-tested",
-      "rationale": "qa-tested rather than prod-tested; V2 alias is card-less, awaiting CONFIG-UX.2b annotation."
+      "rationale": "V2 qa-27b-tested profile sizing-identical to V1 (131K ctx / util 0.90 / seqs 2 / batched 4096 / fp8_e5m2 KV / MTP K=3). V2 explicitly disables 16 Wave 1/7/8 patches (P87/P91/P95/P70_AUTO_STRICT_NGRAM/PN56/PN52/PN30/PN66/PN67/PN82/PN90/P107/PN16/PN16_TOOL_THINK_BUDGET/PN16_CLASSIFIER_MAX_TOKENS/OBSERVABILITY) to preserve the May-5 bench snapshot; promote_to:null marks intentionally frozen. Functional V1 equivalent expressed in V2 explicit-delta form. -48% slower than TQ k8v4 sister — QA / community parity only (noonghunna club-3090 reference). (Reclassified 2026-05-26 from needs_operator_choice → deprecated after V1-SUNSET-PENDING-4.R confirmed V2 disable-list preserves V1 patch set.)"
     },
     "a5000-1x-tier-aware-pn95": {
       "bucket": "deprecated",
