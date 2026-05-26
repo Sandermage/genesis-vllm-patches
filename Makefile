@@ -63,6 +63,9 @@ audit-links: ## Markdown link integrity: in-tree path existence (default); ancho
 audit-links-strict: ## Markdown link integrity STRICT: path + GitHub-slug anchor verification (operator-run; surfaces TOC drift)
 	$(PYTHON) scripts/audit_links.py --anchors
 
+audit-plan-supersession: ## Planning supersession consistency — filename-target verification + status:superseded targets (§9.A.5, operator-run; scans gitignored sndr_private/planning/)
+	$(PYTHON) scripts/audit_plan_supersession.py
+
 audit-shim-window: ## Historical-path compatibility shim integrity (E.1/E.2/E.3/E.4/E.5)
 	$(PYTHON) scripts/audit_shim_window.py
 
