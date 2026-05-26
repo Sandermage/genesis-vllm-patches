@@ -84,6 +84,16 @@ _NUMBERED_PR_LINK = re.compile(
     r"\[#(?P<num>\d+)\]\((?P<url>https?://[^)\s]+)\)"
 )
 
+# `[#<anything-but-digits>](https://...)` — catches the C.5 bug class
+# where the generator put a URL (or other non-numeric token) into the
+# link-text slot. Example shape we caught:
+# ``[#https://github.com/...issues/39407](https://github.com/.../pull/https://...)``
+# Number-prefixed text is the only legitimate shape; any non-digit
+# text after the ``#`` is a generator bug.
+_MALFORMED_HASH_LINK = re.compile(
+    r"\[#(?P<text>[^\]\n]*?)\]\((?P<url>https?://[^)\s]+)\)"
+)
+
 # GitHub PR/issue URL shape.
 _GH_PR_URL = re.compile(
     r"^https?://github\.com/[\w.-]+/[\w.-]+/(?:pull|issues)/\d+/?$"
@@ -168,6 +178,42 @@ def _scan_numbered_pr_links(
     return findings
 
 
+def _scan_malformed_hash_links(
+    doc: GeneratedDoc, text: str,
+) -> list[Finding]:
+    """Detect ``[#<non-numeric>](URL)`` shapes — generator put a URL
+    or other token into the link-text slot where only ``\\d+`` belongs.
+
+    Caught the C.5 bug class on docs/PATCHES_AUTO.md where 28 rows
+    rendered as ``[#https://github.com/...issues/N](https://.../pull/https://...)``
+    because ``generate_patches_md.py`` only dispatched ``int``/``None``
+    branches and let ``str`` URLs fall through the f-string template.
+    """
+    findings: list[Finding] = []
+    for m in _MALFORMED_HASH_LINK.finditer(text):
+        link_text = m.group("text")
+        # Allow purely-numeric text (the legitimate shape) — the
+        # _scan_numbered_pr_links rule already handles those.
+        if link_text.isdigit():
+            continue
+        lineno = text.count("\n", 0, m.start()) + 1
+        findings.append(Finding(
+            doc=doc.rel_path,
+            line=lineno,
+            rule="R-GENLINK-4",
+            detail=(
+                f"malformed link-text [#{link_text[:60]}…] — only "
+                f"numeric tokens are legitimate after the `#` "
+                f"(URL: {m.group('url')[:60]}…)"
+                if len(link_text) > 60 or len(m.group('url')) > 60
+                else f"malformed link-text [#{link_text}] — only "
+                f"numeric tokens are legitimate after the `#` "
+                f"(URL: {m.group('url')})"
+            ),
+        ))
+    return findings
+
+
 def _scan_placeholder_targets(
     doc: GeneratedDoc, text: str,
 ) -> list[Finding]:
@@ -221,7 +267,9 @@ def audit_generated_docs(
         text = doc_path.read_text(encoding="utf-8", errors="replace")
         # 2. Numbered PR link consistency.
         findings.extend(_scan_numbered_pr_links(doc, text))
-        # 3. Placeholder targets.
+        # 3. Malformed link-text after `#` (catches the C.5 bug class).
+        findings.extend(_scan_malformed_hash_links(doc, text))
+        # 4. Placeholder targets.
         findings.extend(_scan_placeholder_targets(doc, text))
     return findings
 

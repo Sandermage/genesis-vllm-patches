@@ -59,6 +59,56 @@ def natural_sort_key(patch_id: str) -> tuple:
     return (prefix_order, num, suffix)
 
 
+# ─── upstream_pr renderer ──────────────────────────────────────────────────
+
+
+# Matches a GitHub PR/issue URL and captures the (pull|issues) segment plus
+# the trailing numeric id. Anchored — extra path/query components reject.
+_GITHUB_PR_OR_ISSUE_URL_RE = re.compile(
+    r"^https?://github\.com/[\w.-]+/[\w.-]+/(?P<kind>pull|issues)/(?P<num>\d+)/?$"
+)
+
+
+def render_upstream_pr(pr) -> str:
+    """Render the registry's ``upstream_pr`` field as a markdown cell.
+
+    Registry has 3 distinct value shapes that this helper dispatches:
+
+      * ``None``               → ``"—"`` (em dash, no reference)
+      * ``int`` (numeric PR)   → ``[#N](https://github.com/vllm-project/vllm/pull/N)``
+      * ``str`` (full URL)     → if it parses as a GitHub PR or issue URL,
+                                 ``[#N](URL)`` with the trailing number lifted
+                                 into the link text and the URL preserved
+                                 verbatim (pull vs issues distinction kept).
+                                 Unknown URL shape falls back to backticks
+                                 so the malformed-link bug class
+                                 (``[#https://...](https://.../pull/https://...)``)
+                                 cannot recur.
+
+    Defensive defaults: any other type (bool, list, dict, etc.) renders
+    as ``"—"`` — matches the ``None`` case rather than producing a
+    malformed cell. The audit (``audit_generated_links.py``) catches
+    that as a follow-up safety net.
+    """
+    if pr is None:
+        return "—"
+    if isinstance(pr, bool):
+        # bool is a subclass of int — guard separately.
+        return "—"
+    if isinstance(pr, int):
+        return f"[#{pr}](https://github.com/vllm-project/vllm/pull/{pr})"
+    if isinstance(pr, str):
+        m = _GITHUB_PR_OR_ISSUE_URL_RE.match(pr.strip())
+        if m:
+            return f"[#{m.group('num')}]({pr.strip()})"
+        # Unknown URL shape — render raw URL inside backticks so it is
+        # operator-visible without being a malformed markdown link.
+        safe = pr.strip().replace("|", "\\|").replace("`", "")
+        return f"`{safe}`"
+    # Defensive — unknown type.
+    return "—"
+
+
 def parse_registry(registry_path: Path) -> dict[str, dict]:
     """Parse PATCH_REGISTRY entries from registry.py source via regex.
 
@@ -194,7 +244,7 @@ def render_markdown(entries: dict[str, dict]) -> str:
             default_on = "✓" if entry.get("default_on") is True else "·"
             env = entry.get("env_flag") or "—"
             pr = entry.get("upstream_pr")
-            pr_md = f"[#{pr}](https://github.com/vllm-project/vllm/pull/{pr})" if pr else "—"
+            pr_md = render_upstream_pr(pr)
             title = (entry.get("title") or "").replace("|", "\\|").replace("\n", " ").strip()
             # Truncate long titles
             if len(title) > 80:

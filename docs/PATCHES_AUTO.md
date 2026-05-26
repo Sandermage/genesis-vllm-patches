@@ -4,7 +4,7 @@
 > Source of truth: `vllm/sndr_core/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-05-25T18:55:46Z
+Generated: 2026-05-26T21:58:04Z
 Total entries: **228**
 
 ## Statistics
@@ -109,23 +109,23 @@ Total entries: **228**
 | **PN118** | `community` | `experimental` | ✓ | `GENESIS_ENABLE_PN118` | [#42551](https://github.com/vllm-project/vllm/pull/42551) | TurboQuant workspace graceful-fallback (vllm#42551, P99-compat) |
 | **PN119** | `community` | `experimental` | ✓ | `GENESIS_ENABLE_PN119` | [#40792](https://github.com/vllm-project/vllm/pull/40792) | TurboQuant k8v4 GQA head grouping kernel (vllm#40792) |
 | **PN261** | `community` | `experimental` | · | `GENESIS_ENABLE_PN261_TQ_NATIVE_CACHE_ASSERT` | — | TQ native cache layout assert (opt-in guard; PR42637 overlay) |
-| **G4_19** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_19_GEMMA4_TURBOQUANT_KV` | [#https://github.com/vllm-project/vllm/issues/38171](https://github.com/vllm-project/vllm/pull/https://github.com/vllm-project/vllm/issues/38171) | Genesis G4-TurboQuant KV cache for Gemma 4 (3/4-bit VQ, unlocks 256K context ... |
-| **G4_19B** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_19B_GEMMA4_TQ_KV_SPEC` | [#https://github.com/vllm-project/vllm/issues/38171](https://github.com/vllm-project/vllm/pull/https://github.com/vllm-project/vllm/issues/38171) | G4-TurboQuant KV spec integration with vLLM v1 _check_enough_kv_cache_memory |
+| **G4_19** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_19_GEMMA4_TURBOQUANT_KV` | [#38171](https://github.com/vllm-project/vllm/issues/38171) | Genesis G4-TurboQuant KV cache for Gemma 4 (3/4-bit VQ, unlocks 256K context ... |
+| **G4_19B** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_19B_GEMMA4_TQ_KV_SPEC` | [#38171](https://github.com/vllm-project/vllm/issues/38171) | G4-TurboQuant KV spec integration with vLLM v1 _check_enough_kv_cache_memory |
 | **G4_19C** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_19C_ATTN_WRAP` | — | Round-trip K/V through G4-TurboQuant inside Gemma4Attention.forward |
 | **G4_31** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_31_TQ_DTYPE_PRESERVE` | — | Preserve turboquant_* kv_cache_dtype against AWQ quant-config override |
 | **G4_32** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_32_TQ_VALIDATION_BYPASS` | — | Bypass TurboQuantAttentionBackend.validate_configuration for Gemma 4 |
-| **G4_60A** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_60A_TQ_SLIDING_SPEC` | [#https://github.com/vllm-project/vllm/pull/42637](https://github.com/vllm-project/vllm/pull/https://github.com/vllm-project/vllm/pull/42637) | "Inject TQSlidingWindowSpec into vllm.v1.kv_cache_interface (PR |
-| **G4_60B** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_60B_TQ_ATTN_OVERLAY` | [#https://github.com/vllm-project/vllm/pull/42637](https://github.com/vllm-project/vllm/pull/https://github.com/vllm-project/vllm/pull/42637) | "Verify turboquant_attn.py PR |
-| **G4_60C** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_60C_TQ_DECODE_OVERLAY` | [#https://github.com/vllm-project/vllm/pull/42637](https://github.com/vllm-project/vllm/pull/https://github.com/vllm-project/vllm/pull/42637) | "Verify triton_turboquant_decode.py PR |
-| **G4_60D** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_60D_TQ_STORE_OVERLAY` | [#https://github.com/vllm-project/vllm/pull/42637](https://github.com/vllm-project/vllm/pull/https://github.com/vllm-project/vllm/pull/42637) | "Verify triton_turboquant_store.py PR |
-| **G4_60E** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_60E_KV_CACHE_UTILS` | [#https://github.com/vllm-project/vllm/pull/42637](https://github.com/vllm-project/vllm/pull/https://github.com/vllm-project/vllm/pull/42637) | "kv_cache_utils.py TQ/native mixed-layout dispatch (PR |
-| **G4_60G** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_60G_TQ_DISPATCH` | [#https://github.com/vllm-project/vllm/pull/42637](https://github.com/vllm-project/vllm/pull/https://github.com/vllm-project/vllm/pull/42637) | "Attention.get_kv_cache_spec per-layer TQ-first dispatch (PR |
-| **G4_60H** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_60H_TQ_CONFIG_AUGMENT` | [#https://github.com/vllm-project/vllm/pull/42637](https://github.com/vllm-project/vllm/pull/https://github.com/vllm-project/vllm/pull/42637) | "TurboQuantConfig KV-sharing skip-layer helpers (PR |
-| **G4_60K** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_60K_TQ_ENGINE_CONFIG` | [#https://github.com/vllm-project/vllm/pull/42637](https://github.com/vllm-project/vllm/pull/https://github.com/vllm-project/vllm/pull/42637) | "EngineArgs.create_engine_config TQ skip-layer union + FA2 force (PR |
-| **G4_60L** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_60L_TQ_BACKEND_MM_PREFIX` | [#https://github.com/vllm-project/vllm/pull/42637](https://github.com/vllm-project/vllm/pull/https://github.com/vllm-project/vllm/pull/42637) | TurboQuantBackend supports_mm_prefix=True monkey-patch (Gemma 4 MM-prefix LM ... |
-| **G4_61** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_61_TQ_SHARED_WORKSPACE` | [#https://github.com/vllm-project/vllm/pull/40798](https://github.com/vllm-project/vllm/pull/https://github.com/vllm-project/vllm/pull/40798) | "Share TQ decode workspace across layers (PR |
-| **G4_62** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_62_TQ_KERNEL_WARMUP` | [#https://github.com/vllm-project/vllm/pull/42215](https://github.com/vllm-project/vllm/pull/https://github.com/vllm-project/vllm/pull/42215) | "Warm up TQ decode kernels before lock_workspace (PR |
-| **G4_67** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_67_TQ_SPEC_VERIFY_ROUTE` | [#https://github.com/vllm-project/vllm/pull/40914](https://github.com/vllm-project/vllm/pull/https://github.com/vllm-project/vllm/pull/40914) | "TQ K+1 spec-verify routing through decode kernel (PR |
+| **G4_60A** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_60A_TQ_SLIDING_SPEC` | [#42637](https://github.com/vllm-project/vllm/pull/42637) | "Inject TQSlidingWindowSpec into vllm.v1.kv_cache_interface (PR |
+| **G4_60B** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_60B_TQ_ATTN_OVERLAY` | [#42637](https://github.com/vllm-project/vllm/pull/42637) | "Verify turboquant_attn.py PR |
+| **G4_60C** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_60C_TQ_DECODE_OVERLAY` | [#42637](https://github.com/vllm-project/vllm/pull/42637) | "Verify triton_turboquant_decode.py PR |
+| **G4_60D** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_60D_TQ_STORE_OVERLAY` | [#42637](https://github.com/vllm-project/vllm/pull/42637) | "Verify triton_turboquant_store.py PR |
+| **G4_60E** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_60E_KV_CACHE_UTILS` | [#42637](https://github.com/vllm-project/vllm/pull/42637) | "kv_cache_utils.py TQ/native mixed-layout dispatch (PR |
+| **G4_60G** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_60G_TQ_DISPATCH` | [#42637](https://github.com/vllm-project/vllm/pull/42637) | "Attention.get_kv_cache_spec per-layer TQ-first dispatch (PR |
+| **G4_60H** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_60H_TQ_CONFIG_AUGMENT` | [#42637](https://github.com/vllm-project/vllm/pull/42637) | "TurboQuantConfig KV-sharing skip-layer helpers (PR |
+| **G4_60K** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_60K_TQ_ENGINE_CONFIG` | [#42637](https://github.com/vllm-project/vllm/pull/42637) | "EngineArgs.create_engine_config TQ skip-layer union + FA2 force (PR |
+| **G4_60L** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_60L_TQ_BACKEND_MM_PREFIX` | [#42637](https://github.com/vllm-project/vllm/pull/42637) | TurboQuantBackend supports_mm_prefix=True monkey-patch (Gemma 4 MM-prefix LM ... |
+| **G4_61** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_61_TQ_SHARED_WORKSPACE` | [#40798](https://github.com/vllm-project/vllm/pull/40798) | "Share TQ decode workspace across layers (PR |
+| **G4_62** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_62_TQ_KERNEL_WARMUP` | [#42215](https://github.com/vllm-project/vllm/pull/42215) | "Warm up TQ decode kernels before lock_workspace (PR |
+| **G4_67** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_67_TQ_SPEC_VERIFY_ROUTE` | [#40914](https://github.com/vllm-project/vllm/pull/40914) | "TQ K+1 spec-verify routing through decode kernel (PR |
 | **G4_68** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_68_TQ_SPEC_CG_DOWNGRADE_OVERLAY` | — | "TQ spec-decode cudagraph downgrade for PR |
 | **G4_69** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_69_SKIP_LAYERS_NATIVE_BACKEND` | — | Per-layer native attention backend dispatch for skip-listed TurboQuant layers |
 | **G4_70** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_70_PN259B_MIXED_ALLOC` | — | PN259-B mixed-allocator path for TQ skip-list layers (PR42637 overlay control) |
@@ -158,22 +158,22 @@ Total entries: **228**
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
-| **G4_01** | `community` | `stable` | ✓ | `GENESIS_ENABLE_G4_01_GEMMA4_FP8_BLOCK_GUARD` | [#https://github.com/vllm-project/vllm/issues/39407](https://github.com/vllm-project/vllm/pull/https://github.com/vllm-project/vllm/issues/39407) | Refuse FP8_BLOCK Gemma 4 checkpoint on Ampere SM 8.6 (closes vllm#39407 user ... |
-| **G4_02** | `community` | `stable` | ✓ | `GENESIS_ENABLE_G4_02_GEMMA4_MARLIN_KDIM_GUARD` | [#https://github.com/vllm-project/vllm/issues/40354](https://github.com/vllm-project/vllm/pull/https://github.com/vllm-project/vllm/issues/40354) | Refuse Marlin MoE with K%64≠0 on Gemma 4 26B-A4B (closes vllm#40354 user pain) |
-| **G4_03** | `community` | `stable` | ✓ | `GENESIS_ENABLE_G4_03_GEMMA4_NON_CAUSAL_DRAFTER_GUARD` | [#https://github.com/vllm-project/vllm/issues/40382](https://github.com/vllm-project/vllm/pull/https://github.com/vllm-project/vllm/issues/40382) | Refuse non-causal drafter (Eagle3/DFlash) on Ampere SM 8.6 (closes vllm#40382... |
-| **G4_04** | `community` | `stable` | ✓ | `GENESIS_ENABLE_G4_04_GEMMA4_AWQ_MOE_KEYS_REMAP` | [#https://github.com/vllm-project/vllm/pull/40886](https://github.com/vllm-project/vllm/pull/https://github.com/vllm-project/vllm/pull/40886) | Gemma 4 AWQ MoE keys remap (vendors vllm#40886) |
-| **G4_07** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_07_GEMMA4_FP8_BLOCK_FIX` | [#https://github.com/vllm-project/vllm/issues/39407](https://github.com/vllm-project/vllm/pull/https://github.com/vllm-project/vllm/issues/39407) | FP8_BLOCK double-scale fix — custom quant config (closes vllm#39407) |
-| **G4_08** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_08_MARLIN_KDIM_PAD` | [#https://github.com/vllm-project/vllm/issues/40354](https://github.com/vllm-project/vllm/pull/https://github.com/vllm-project/vllm/issues/40354) | Marlin K-pad Triton MoE fallback (closes vllm#40354) |
-| **G4_09** | `community` | `stable` | ✓ | `GENESIS_ENABLE_G4_09_GEMMA4_SWA_PREFILL_CHUNKER` | [#https://github.com/vllm-project/vllm/issues/39914](https://github.com/vllm-project/vllm/pull/https://github.com/vllm-project/vllm/issues/39914) | SWA→global prefill chunker (workaround vllm#39914 engine hang) |
-| **G4_10** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_10_GEMMA4_AMPERE_NON_CAUSAL_BACKEND` | [#https://github.com/vllm-project/vllm/issues/40382](https://github.com/vllm-project/vllm/pull/https://github.com/vllm-project/vllm/issues/40382) | Ampere non-causal head_dim=256 Triton attention backend (deep fix for vllm#40... |
+| **G4_01** | `community` | `stable` | ✓ | `GENESIS_ENABLE_G4_01_GEMMA4_FP8_BLOCK_GUARD` | [#39407](https://github.com/vllm-project/vllm/issues/39407) | Refuse FP8_BLOCK Gemma 4 checkpoint on Ampere SM 8.6 (closes vllm#39407 user ... |
+| **G4_02** | `community` | `stable` | ✓ | `GENESIS_ENABLE_G4_02_GEMMA4_MARLIN_KDIM_GUARD` | [#40354](https://github.com/vllm-project/vllm/issues/40354) | Refuse Marlin MoE with K%64≠0 on Gemma 4 26B-A4B (closes vllm#40354 user pain) |
+| **G4_03** | `community` | `stable` | ✓ | `GENESIS_ENABLE_G4_03_GEMMA4_NON_CAUSAL_DRAFTER_GUARD` | [#40382](https://github.com/vllm-project/vllm/issues/40382) | Refuse non-causal drafter (Eagle3/DFlash) on Ampere SM 8.6 (closes vllm#40382... |
+| **G4_04** | `community` | `stable` | ✓ | `GENESIS_ENABLE_G4_04_GEMMA4_AWQ_MOE_KEYS_REMAP` | [#40886](https://github.com/vllm-project/vllm/pull/40886) | Gemma 4 AWQ MoE keys remap (vendors vllm#40886) |
+| **G4_07** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_07_GEMMA4_FP8_BLOCK_FIX` | [#39407](https://github.com/vllm-project/vllm/issues/39407) | FP8_BLOCK double-scale fix — custom quant config (closes vllm#39407) |
+| **G4_08** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_08_MARLIN_KDIM_PAD` | [#40354](https://github.com/vllm-project/vllm/issues/40354) | Marlin K-pad Triton MoE fallback (closes vllm#40354) |
+| **G4_09** | `community` | `stable` | ✓ | `GENESIS_ENABLE_G4_09_GEMMA4_SWA_PREFILL_CHUNKER` | [#39914](https://github.com/vllm-project/vllm/issues/39914) | SWA→global prefill chunker (workaround vllm#39914 engine hang) |
+| **G4_10** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_10_GEMMA4_AMPERE_NON_CAUSAL_BACKEND` | [#40382](https://github.com/vllm-project/vllm/issues/40382) | Ampere non-causal head_dim=256 Triton attention backend (deep fix for vllm#40... |
 | **G4_11** | `community` | `stable` | ✓ | `GENESIS_ENABLE_G4_11_GEMMA4_CHAT_TEMPLATE_INSTALL` | — | Gemma 4 enhanced chat template install |
-| **G4_12** | `community` | `stable` | ✓ | `GENESIS_ENABLE_G4_12_GEMMA4_FP8_E4NV_GUARD` | [#https://github.com/vllm-project/vllm/issues/41014](https://github.com/vllm-project/vllm/pull/https://github.com/vllm-project/vllm/issues/41014) | Refuse FP8 e4nv on Ampere SM 8.6 (closes vllm#41014) |
-| **G4_13** | `community` | `stable` | ✓ | `GENESIS_ENABLE_G4_13_GEMMA4_PER_TOKEN_HEAD_KV_GUARD` | [#https://github.com/vllm-project/vllm/issues/40388](https://github.com/vllm-project/vllm/pull/https://github.com/vllm-project/vllm/issues/40388) | Refuse asymmetric per-layer KV-head config (closes vllm#40388 silent corruption) |
-| **G4_14** | `community` | `stable` | ✓ | `GENESIS_ENABLE_G4_14_GEMMA4_TOOL_CALL_PARSER_PAD` | [#https://github.com/vllm-project/vllm/issues/39392](https://github.com/vllm-project/vllm/pull/https://github.com/vllm-project/vllm/issues/39392) | Gemma 4 tool-call parser pad-token strip (closes vllm#39392) |
+| **G4_12** | `community` | `stable` | ✓ | `GENESIS_ENABLE_G4_12_GEMMA4_FP8_E4NV_GUARD` | [#41014](https://github.com/vllm-project/vllm/issues/41014) | Refuse FP8 e4nv on Ampere SM 8.6 (closes vllm#41014) |
+| **G4_13** | `community` | `stable` | ✓ | `GENESIS_ENABLE_G4_13_GEMMA4_PER_TOKEN_HEAD_KV_GUARD` | [#40388](https://github.com/vllm-project/vllm/issues/40388) | Refuse asymmetric per-layer KV-head config (closes vllm#40388 silent corruption) |
+| **G4_14** | `community` | `stable` | ✓ | `GENESIS_ENABLE_G4_14_GEMMA4_TOOL_CALL_PARSER_PAD` | [#39392](https://github.com/vllm-project/vllm/issues/39392) | Gemma 4 tool-call parser pad-token strip (closes vllm#39392) |
 | **G4_15** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_15_GEMMA4_FUSED_RMSNORM` | — | Fused RMSNorm Triton kernels for Gemma 4 (ported from SGLang) |
 | **G4_16** | `community` | `stable` | ✓ | `GENESIS_ENABLE_G4_16_GEMMA4_FULL_AND_PIECEWISE` | — | Gemma 4 FULL_AND_PIECEWISE cudagraph mode (parallel to PN125 for gemma4) |
 | **G4_17** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_17_GEMMA4_VISION_SKIP` | — | Gemma 4 vision-tower text-only skip |
-| **G4_23** | `community` | `stable` | ✓ | `GENESIS_ENABLE_G4_23_GEMMA4_VISION_FP16_OVERFLOW` | [#https://github.com/vllm-project/vllm/issues/40124](https://github.com/vllm-project/vllm/pull/https://github.com/vllm-project/vllm/issues/40124) | Gemma 4 vision-tower FP16 overflow fix (closes vllm#40124) |
+| **G4_23** | `community` | `stable` | ✓ | `GENESIS_ENABLE_G4_23_GEMMA4_VISION_FP16_OVERFLOW` | [#40124](https://github.com/vllm-project/vllm/issues/40124) | Gemma 4 vision-tower FP16 overflow fix (closes vllm#40124) |
 | **G4_24** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_24_GEMMA4_FUSED_SOFTCAP` | — | Fused softcap Triton kernel route for Gemma 4 (FINAL logits only; G4_24b will... |
 | **G4_25** | `community` | `stable` | ✓ | `GENESIS_ENABLE_G4_25_GEMMA4_RoPE_DUAL_BASE_GUARD` | — | Gemma 4 dual-RoPE base-freq divergence guard (long-context quality) |
 
@@ -203,8 +203,8 @@ Total entries: **228**
 | **PN97** | `community` | `experimental` | · | `GENESIS_ENABLE_PN97_TENSOR_PHYSICAL_CAP` | — | PN97 — physical-cap on KV tensor allocation (Phase 7 PoC) |
 | **PN106** | `community` | `experimental` | · | `GENESIS_ENABLE_PN106_GDN_H_POOL` | — | PN106 — GDN scratch tensor pool (architectural memory mgr) |
 | **PN110** | `community` | `experimental` | ✓ | `GENESIS_ENABLE_PN110` | [#42615](https://github.com/vllm-project/vllm/pull/42615) | BlockPool.free_blocks deduplication (vllm#42615) |
-| **G4_06** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_06_GEMMA4_KV_PROJ_V0` | [#https://github.com/vllm-project/vllm/pull/41944](https://github.com/vllm-project/vllm/pull/https://github.com/vllm-project/vllm/pull/41944) | v_head_size=0 for k_eq_v attention layers (vendors vllm#41944) |
-| **G4_18** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_18_GEMMA4_PER_LAYER_KV_PAGE_SIZE` | [#https://github.com/vllm-project/vllm/pull/40391](https://github.com/vllm-project/vllm/pull/https://github.com/vllm-project/vllm/pull/40391) | Per-layer KV cache page-size for 26B-A4B (vendors WIP vllm#40391) |
+| **G4_06** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_06_GEMMA4_KV_PROJ_V0` | [#41944](https://github.com/vllm-project/vllm/pull/41944) | v_head_size=0 for k_eq_v attention layers (vendors vllm#41944) |
+| **G4_18** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_18_GEMMA4_PER_LAYER_KV_PAGE_SIZE` | [#40391](https://github.com/vllm-project/vllm/pull/40391) | Per-layer KV cache page-size for 26B-A4B (vendors WIP vllm#40391) |
 
 ### `loader` (2)
 

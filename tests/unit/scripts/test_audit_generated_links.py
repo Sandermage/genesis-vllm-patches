@@ -86,6 +86,46 @@ class TestNumberedPrLinkRule:
         assert findings[0].rule == "R-GENLINK-2"
 
 
+class TestMalformedHashLinkRule:
+    """R-GENLINK-4 — `[#<non-numeric>](URL)` shapes catch the C.5 bug."""
+
+    def test_url_in_link_text_flagged(self, audit_mod):
+        doc = audit_mod.GeneratedDoc(
+            rel_path="synthetic.md", generator="x.py",
+        )
+        # Replica of the C.5 malformed shape we caught on 28 rows of
+        # PATCHES_AUTO.md.
+        text = (
+            "| **G4_01** | ... | "
+            "[#https://github.com/vllm-project/vllm/issues/39407]"
+            "(https://github.com/vllm-project/vllm/pull/"
+            "https://github.com/vllm-project/vllm/issues/39407)"
+            " | Refuse ... |\n"
+        )
+        findings = audit_mod._scan_malformed_hash_links(doc, text)
+        assert len(findings) == 1
+        assert findings[0].rule == "R-GENLINK-4"
+        assert "malformed link-text" in findings[0].detail
+
+    def test_numeric_text_not_flagged(self, audit_mod):
+        doc = audit_mod.GeneratedDoc(
+            rel_path="synthetic.md", generator="x.py",
+        )
+        text = "[#41127](https://github.com/vllm-project/vllm/pull/41127)\n"
+        findings = audit_mod._scan_malformed_hash_links(doc, text)
+        assert findings == []
+
+    def test_word_text_in_hash_link_flagged(self, audit_mod):
+        """Even non-URL non-numeric text after `#` is operator-visible
+        malformed (operator likely meant a number)."""
+        doc = audit_mod.GeneratedDoc(
+            rel_path="synthetic.md", generator="x.py",
+        )
+        text = "[#TODO](https://example.com/pull/100)\n"
+        findings = audit_mod._scan_malformed_hash_links(doc, text)
+        assert len(findings) == 1
+
+
 class TestPlaceholderTargetsRule:
     """R-GENLINK-3 — placeholder strings as link targets."""
 
