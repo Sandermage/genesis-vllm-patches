@@ -234,7 +234,7 @@ def main() -> int:
         "--min-coverage", type=float, default=None,
         help=(
             "Optional informational threshold (percent). When set, the "
-            "gate also fails when the overall coverage % is below this "
+            "gate also fails when the overall coverage %% is below this "
             "value. Use to ratchet attribution coverage upward over time. "
             "Default: no coverage floor — only consistency is gating."
         ),
