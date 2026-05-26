@@ -82,6 +82,15 @@ jobs:
         run: |
           python3 scripts/audit_phase3_relocation.py
 
+      - name: Shim-window integrity audit
+        # BUILD-SHIM-WINDOW-AUDIT.2 — verify historical-path compatibility
+        # shims stay in valid shim state (E.1/E.2/E.3/E.4/E.5). Current
+        # manifest: integrations/gemma4/ → attention/turboquant/overlays/
+        # pr42637/. Catches accidental "empty folder, delete" or overlay
+        # gutting that would silently break launcher-path reproducibility.
+        run: |
+          python3 scripts/audit_shim_window.py
+
       - name: V2 runtime + ModelDef pin harmonization
         # P2.6 — locks the runtime image and ModelDef pin discipline so
         # the next pin bump cannot silently regress to a bare mutable

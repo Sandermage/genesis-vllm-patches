@@ -102,6 +102,23 @@ repos:
         pass_filenames: false
         files: '(vllm/sndr_core/integrations/.*|vllm/sndr_core/dispatcher/registry\.py|vllm/sndr_core/model_configs/builtin/profile/.*\.yaml|scripts/audit_phase3_relocation\.py|tests/unit/scripts/test_audit_phase3_relocation\.py)$'
 
+      - id: genesis-audit-shim-window
+        name: Genesis shim-window integrity audit (E.1/E.2/E.3/E.4/E.5)
+        # BUILD-SHIM-WINDOW-AUDIT.2 — verify historical-path
+        # compatibility shims stay in valid shim state:
+        #   E.1  raw tree = exactly declared README + symlinks
+        #   E.2  declared symlinks point to expected canonical targets
+        #   E.3  resolved symlink targets exist + are directories
+        #   E.4  resolved overlay contains required sentinel files
+        #   E.5  README retains retirement-contract wording anchors
+        # Current manifest: integrations/gemma4/ → attention/turboquant/
+        # overlays/pr42637/. Fires on shim dir, overlay target, the
+        # audit script itself, or its test file.
+        entry: python3 scripts/audit_shim_window.py
+        language: system
+        pass_filenames: false
+        files: '(vllm/sndr_core/integrations/gemma4/.*|vllm/sndr_core/integrations/attention/turboquant/overlays/pr42637/.*|scripts/audit_shim_window\.py|tests/unit/scripts/test_audit_shim_window\.py)$'
+
       - id: genesis-audit-private-namespace
         name: Genesis private namespace boundary (hard rule #27)
         # P0.1 M.7 — forbid `vllm/**/sndr_private` directory anywhere

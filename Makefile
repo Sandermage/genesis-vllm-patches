@@ -51,7 +51,10 @@ audit-phase3: ## Phase 3 relocation invariants (R1/R2/R3/R4)
 audit-v2-runtime-pins: ## V2 runtime image + ModelDef pin harmonization (R-PIN-1..4)
 	$(PYTHON) scripts/audit_v2_runtime_pins.py
 
-gates: test-pin-gate test-iron-rule test-family test-doc-sync audit-phase3 audit-v2-runtime-pins ## Run all 6 CI gates fast-fail
+audit-shim-window: ## Historical-path compatibility shim integrity (E.1/E.2/E.3/E.4/E.5)
+	$(PYTHON) scripts/audit_shim_window.py
+
+gates: test-pin-gate test-iron-rule test-family test-doc-sync audit-phase3 audit-v2-runtime-pins audit-shim-window ## Run all 7 CI gates fast-fail
 
 # ─── Audits ────────────────────────────────────────────────────────────
 
