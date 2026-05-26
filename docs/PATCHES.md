@@ -44,7 +44,7 @@ added as a registry patch.
 | Lifecycle=coordinator | 2 (env-flag-only, no real binding) |
 | Implementation status=full | 173 |
 | Implementation status=marker_only / placeholder / partial / retired | 30 (17 + 2 + 7 + 4) |
-| Apply-loop coverage (apply_module set) | 210 / 227 = 92.5% |
+| Apply-loop coverage (apply_module set) | 209 / 228 = 91.7% |
 | Spec-only (intentional, allow-listed) | 17 (P1, P17, P18b, P20, P23, P29, P32, P51, P102, PN60, PN63, PN64, PN256, PN261, G4_70, G4_70B, G4_70C) |
 
 ### Engine tier (the strict-AND boundary)
@@ -677,7 +677,7 @@ noise.
 
 ## Patch plan resolver — `--policy compat|safe|minimal`
 
-Genesis ships **227 patches**; a typical preset enables ~50–80 of
+Genesis ships **228 patches**; a typical preset enables ~50–80 of
 them. Two operator questions follow naturally:
 
 1. Which patches actually need to be on for this deployment?
