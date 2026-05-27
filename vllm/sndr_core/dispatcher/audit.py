@@ -73,56 +73,14 @@ def _coerce_list(value: Any) -> list[str]:
 
 # Canonical enum-like sets for registry-field validation. Keep in sync with
 # the registry.py docstring. Adding a new tier/lifecycle? Update both.
-_VALID_TIERS = frozenset({"community", "engine"})
-_VALID_LIFECYCLES = frozenset({
-    "stable",          # production-ready, default-on or operator-controlled
-    "experimental",    # opt-in only; behavior may change
-    "deprecated",      # empirically disproven; kept for reproducibility
-    "legacy",          # default-on but operator-controllable via SNDR_LEGACY_*
-    "research",        # research-only artifact; never default-on
-    "merged_upstream", # self-retiring marker (vllm has the fix natively now)
-    "retired",         # superseded by another patch; kept as historical alias
-    "coordinator",     # umbrella entry that orchestrates sub-patches (e.g. P5b)
-})
-
-# P2-1 (audit 2026-05-08): orthogonal axis to lifecycle. `lifecycle`
-# answers "what's the operational role of this patch?", whereas
-# `implementation_status` answers "how complete is the actual code?".
-# A patch can be `lifecycle="stable"` AND `implementation_status="full"`
-# (the boring happy path), but it can also be `lifecycle="experimental",
-# implementation_status="marker_only"` (PN62 today: marker is set, no
-# downstream code reads it yet). The new field surfaces in CLI output
-# (`sndr patches`) and lets production presets refuse to enable
-# `marker_only` / `placeholder` patches.
-_VALID_IMPLEMENTATION_STATUSES = frozenset({
-    "full",          # implementation complete; tests cover the fast path
-    "partial",       # main path implemented; some sub-features stubbed
-    "marker_only",   # boot-time marker set, no downstream consumer (e.g. PN62)
-    "placeholder",   # registry entry exists; impl pending future PR
-    "experimental",  # impl exists but lacks A/B / cross-rig validation
-    "retired",       # impl moved to archive; only stub remains
-    # Note: `unknown` is the implicit default for entries that don't yet
-    # set this field; the validator emits an INFO suggesting one of
-    # the explicit values.
-})
-
-# Canonical env_flag prefixes recognized by the runtime (env.py knows
-# both Sander-IP and community brands). Semantic prefix groups:
-#   *_ENABLE_  — gate opt-in; default OFF
-#   *_DISABLE_ — opt-out for default-on legacy patches
-#   *_LEGACY_  — restore legacy behavior on default-on flips
-#   *_ALLOW_   — gate a feature that is otherwise blocked by policy;
-#                semantically distinct from ENABLE_ (operator
-#                permission, not feature switch) — used by coordinator
-#                patches like PN274. Added 2026-05-22 (Phase 3A.6) to
-#                close the false-positive doctor warning on PN274's
-#                SNDR_ALLOW_SPEC_DECODE_KV_ADAPTER.
-# Anything outside these prefix groups surfaces as a WARNING.
-_CANONICAL_ENV_PREFIXES = (
-    "SNDR_ENABLE_", "GENESIS_ENABLE_",
-    "SNDR_DISABLE_", "GENESIS_DISABLE_",
-    "SNDR_LEGACY_", "GENESIS_LEGACY_",
-    "SNDR_ALLOW_", "GENESIS_ALLOW_",
+# M.1.1.T0 (2026-05-27): validator constants centralised in
+# ``dispatcher/_constants.py``. Re-imported here under their historical
+# module-private names so existing call sites continue to resolve.
+from ._constants import (  # noqa: F401
+    _CANONICAL_ENV_PREFIXES,
+    _VALID_IMPLEMENTATION_STATUSES,
+    _VALID_LIFECYCLES,
+    _VALID_TIERS,
 )
 
 

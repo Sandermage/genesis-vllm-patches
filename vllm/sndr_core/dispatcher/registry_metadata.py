@@ -68,8 +68,13 @@ class DerivedMetadata(TypedDict):
 # Etap 0.3: единый mapping impl_status × test_status → production_default.
 # Раньше это правило было размазано по 6 веткам derive_metadata; теперь
 # одна функция — один источник правды, тесты её покрывают независимо.
-_BLOCKED_STATUSES = frozenset({"partial", "placeholder", "retired"})
-_RESEARCH_STATUSES = frozenset({"research"})
+#
+# M.1.1.T0 (2026-05-27): constants centralised in
+# ``dispatcher/_constants.py``; re-imported under the historical names.
+from ._constants import (  # noqa: F401
+    _BLOCKED_STATUSES,
+    _RESEARCH_STATUSES,
+)
 
 
 def _production_default_for(
