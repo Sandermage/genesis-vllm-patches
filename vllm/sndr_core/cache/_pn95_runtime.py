@@ -720,126 +720,22 @@ def pn95_materialize_virtual_block(
         return None
 
 
-def pn106_get_gdn_h_buf(B: int, NT: int, H: int, V: int, K: int,
-                         dtype: Any, device: Any):
-    """Legacy entry-point — delegates to generic named-pool allocator."""
-    return pn106_get_pooled_buf("gdn_h", (B, NT, H, V, K), dtype, device)
-
-
-def _pn106_legacy_h_impl(B: int, NT: int, H: int, V: int, K: int,
-                         dtype: Any, device: Any):
-    """Return a view of the singleton GDN h-state pool sized (B, NT, H, V, K).
-
-    The pool itself is grown on demand to the max (NT × H × V × K) seen
-    so far. Same-shape requests reuse the same backing storage; bigger
-    NT triggers a one-time pool re-grow (PyTorch caching allocator
-    typically reuses the slab even on grow).
-
-    Reused across all 48 GDN layers within a step AND across steps.
-    Saves ~50-120 MiB alloc/free traffic per layer per call (Qwen3.6-27B
-    has 48 GDN layers, so net ~2.4-5.7 GiB allocator traffic eliminated
-    per chunked-prefill step). Steady-state ~200-400 MiB fragmentation
-    reclaimed.
-
-    Safety: this returns a VIEW into a shared buffer. Caller MUST
-    fully overwrite via the downstream Triton kernel (which it does —
-    `chunk_gated_delta_rule_fwd_kernel_h_blockdim64` writes the full
-    h tensor). No stale data risk because the kernel does not read
-    h on input.
-    """
-    import torch
-    elem_per_slot = B * NT * H * V * K
-    elem_bytes = torch.empty(0, dtype=dtype).element_size()
-    bytes_needed = elem_per_slot * elem_bytes
-
-    key = (str(device), str(dtype))
-    pool = _PN106_POOLS.get(key)
-    if pool is None or pool.numel() * pool.element_size() < bytes_needed:
-        # Grow (or allocate). Round up to 1.25x for headroom.
-        target_elems = int(elem_per_slot * 1.25)
-        try:
-            pool = torch.empty(target_elems, dtype=dtype, device=device)
-            _PN106_POOLS[key] = pool
-            _PN95_STATS["pn106_pool_grows"] = (
-                _PN95_STATS.get("pn106_pool_grows", 0) + 1
-            )
-            _PN95_STATS["pn106_pool_bytes"] = pool.numel() * pool.element_size()
-        except Exception:
-            return None
-
-    view = pool[: elem_per_slot].view(B, NT, H, V, K)
-    _PN95_STATS["pn106_h_slices_served"] = (
-        _PN95_STATS.get("pn106_h_slices_served", 0) + 1
-    )
-    return view
+# M.4.2.E — `pn106_get_gdn_h_buf`, `_pn106_legacy_h_impl`,
+# `pn106_get_pooled_buf` extracted to `.pn95.shared_buffers`. State
+# (`_PN106_POOLS`, `_PN106_NAMED_POOLS`) stays defined in this module
+# (see block below); the moved functions reach it via lazy `_rt.X`.
+# The legacy import path stays byte-identical for sibling-patch
+# text-anchor strings (PN106 / PN200 anchor strings hard-code
+# ``from vllm.sndr_core.cache._pn95_runtime import pn106_get_pooled_buf``).
+from .pn95.shared_buffers import (  # noqa: E402
+    pn106_get_gdn_h_buf,
+    _pn106_legacy_h_impl,
+    pn106_get_pooled_buf,
+)
 
 
 _PN106_POOLS: dict = {}
 _PN106_NAMED_POOLS: dict = {}  # name -> torch.Tensor (flat backing buffer)
-
-
-def pn106_get_pooled_buf(name: str, shape: tuple, dtype: Any, device: Any,
-                         zero: bool = False):
-    """Generic named-pool allocator for hot-path scratch tensors.
-
-    Replaces fresh `torch.empty(shape, ...)` / `torch.empty_like(t)` with
-    a view into a persistent flat backing buffer that grows on demand
-    and is reused across calls.
-
-    Args:
-      zero: if True, zero the returned slice before handing back. Use for
-            `torch.zeros(...)` replacements where the kernel expects
-            initialized memory (e.g. gdn core_attn_out — see vllm PR
-            #28182 discussion). Adds ~5-15us overhead per call
-            (memset bandwidth-bound, well under fragmentation cost).
-
-    Args:
-      name: stable pool identifier ('gdn_h', 'gdn_v_new', 'gdn_o', etc.)
-      shape: requested tensor shape (any rank)
-      dtype: torch.dtype
-      device: torch.device
-
-    Returns:
-      A view-tensor of `shape` backed by the named pool, or None if
-      allocation fails.
-
-    Each (name, device, dtype) gets an independent backing buffer.
-    Growth is by 1.25x to amortize re-alloc on slowly-growing peaks.
-
-    Caller MUST overwrite the returned view before reading any element
-    (which is the case for all our patched sites — Triton kernels are
-    write-only on these scratch tensors). No correctness loss.
-    """
-    import torch
-    n_elems = 1
-    for d in shape:
-        n_elems *= int(d)
-    if n_elems <= 0:
-        return None
-    key = (name, str(device), str(dtype))
-    pool = _PN106_NAMED_POOLS.get(key)
-    if pool is None or pool.numel() < n_elems:
-        target = max(n_elems, int(n_elems * 1.25))
-        # Round up to 4K elements to dampen growth churn
-        target = ((target + 4095) // 4096) * 4096
-        try:
-            pool = torch.empty(target, dtype=dtype, device=device)
-        except Exception:
-            return None
-        _PN106_NAMED_POOLS[key] = pool
-        _PN95_STATS[f"pn106_pool_{name}_grows"] = (
-            _PN95_STATS.get(f"pn106_pool_{name}_grows", 0) + 1
-        )
-        _PN95_STATS[f"pn106_pool_{name}_bytes"] = (
-            pool.numel() * pool.element_size()
-        )
-    view = pool[:n_elems].view(*shape)
-    if zero:
-        view.zero_()
-    _PN95_STATS[f"pn106_pool_{name}_slices"] = (
-        _PN95_STATS.get(f"pn106_pool_{name}_slices", 0) + 1
-    )
-    return view
 
 
 _PN201_LAST_EMPTY_CACHE_TICK: int = 0
@@ -852,276 +748,28 @@ _PN203_ACTIVE_WINDOW_TOKENS: int = 32768
 _PN203_ATTENTION_ONLY: bool = True
 
 
-def pn203_cold_prefix_sweep() -> int:
-    """Tier 3.A — sweep cold prefix blocks beyond active window to L2.
-
-    Walks each registered BlockPool's free_block_queue and demotes
-    cached blocks belonging to full-attention layers whose position
-    in the request's KV is older than `_PN203_ACTIVE_WINDOW_TOKENS`.
-    Mamba/GDN blocks left GPU-resident (state is fixed-size per layer
-    regardless of position, and demoting them is unsafe per PN95 design).
-
-    Returns count of blocks swept. Best-effort — fail-silent.
-
-    Coordinates with existing PN95 path: demote_on_evict already captures
-    bytes to L2 (pinned pool if PN95_PINNED_POOL enabled), so this
-    function just adds the window-aware selection policy.
-    """
-    if not _PN203_ENABLED or not _enabled() or _TM is None:
-        return 0
-    swept = 0
-    try:
-        # Window-aware filtering: prefer blocks deep in admit_order (older
-        # positions). We approximate "position" by admit-order index;
-        # blocks admitted earlier are older in the request stream.
-        # Hard mapping (per-request position) requires per-block metadata;
-        # this approximation is good enough for cold-prefix detection.
-        if not _PN95_BLOCK_POOL_REFS:
-            return 0
-        # Use existing LRU walker but cap to window-relative cold candidates.
-        candidates = _select_cold_blocks_via_bpool_lru(target_count=16)
-        for pool, block_id, block_hash in candidates:
-            # Filter: attention-only mode skips Mamba groups (block_hash
-            # carries group_id which we check against _mamba_excluded).
-            if _PN203_ATTENTION_ONLY and _TM is not None:
-                try:
-                    gid_str = getattr(block_hash, "group_id", None)
-                    if gid_str in getattr(_TM, "_mamba_excluded", set()):
-                        continue
-                except Exception:
-                    pass
-            try:
-                if demote_on_evict(block_hash, block_id):
-                    swept += 1
-            except Exception:
-                continue
-        if swept > 0:
-            _PN95_STATS["pn203_cold_prefix_sweeps"] = (
-                _PN95_STATS.get("pn203_cold_prefix_sweeps", 0) + 1
-            )
-            _PN95_STATS["pn203_blocks_swept_total"] = (
-                _PN95_STATS.get("pn203_blocks_swept_total", 0) + swept
-            )
-    except Exception as e:
-        log.warning("[PN203] cold_prefix_sweep failed silently: %s", e)
-    return swept
+# M.4.2.E — `pn203_cold_prefix_sweep`, `pn201_maybe_empty_cache`,
+# `pn106_periodic_empty_cache` extracted to `.pn95.shared_buffers`.
+# State (`_PN201_LAST_EMPTY_CACHE_TICK`, `_PN203_*`) stays defined in
+# this module; the moved functions read/rebind via lazy `_rt.X` (the
+# `global _PN201_LAST_EMPTY_CACHE_TICK` rebind is replicated via
+# `_rt._PN201_LAST_EMPTY_CACHE_TICK = tick` attribute write).
+from .pn95.shared_buffers import (  # noqa: E402
+    pn203_cold_prefix_sweep,
+    pn201_maybe_empty_cache,
+    pn106_periodic_empty_cache,
+)
 
 
-def pn201_maybe_empty_cache(free_mib: int, free_blocks: Optional[int] = None) -> bool:
-    """Threshold-gated empty_cache call for scheduler_tick path (Tier 1.C).
-
-    Defragments the PyTorch CUDA caching allocator when memory pressure
-    is high. Returns True iff empty_cache was actually called this tick.
-
-    Triggered when EITHER:
-      - free_blocks < GENESIS_PN201_EMPTY_CACHE_FREE_BLOCKS_THRESHOLD
-        (default 8 — matches PN95 proactive demote threshold scale)
-      - free_mib < 256
-
-    Cooldown: GENESIS_PN201_EMPTY_CACHE_COOLDOWN ticks (default 50, ~5s
-    at default tick rate). Without cooldown, back-to-back chunks could
-    fire empty_cache continuously, each blocking ~5 ms.
-
-    Architectural note: this hook is the Tier-1.C piece — pure fragmentation
-    reclaim. The Tier-3 CPU offload manager (PN203) will fire from the
-    same scheduler_tick using the same pressure signal but doing real
-    block migration instead of cache discard.
-    """
-    global _PN201_LAST_EMPTY_CACHE_TICK
-    if os.environ.get(
-        "GENESIS_ENABLE_PN201_SCHEDULER_EMPTY_CACHE", "0",
-    ).strip().lower() not in ("1", "true", "yes", "on"):
-        return False
-
-    try:
-        threshold_blocks = int(os.environ.get(
-            "GENESIS_PN201_EMPTY_CACHE_FREE_BLOCKS_THRESHOLD", "8"))
-        cooldown = int(os.environ.get(
-            "GENESIS_PN201_EMPTY_CACHE_COOLDOWN", "50"))
-    except (ValueError, TypeError):
-        threshold_blocks, cooldown = 8, 50
-
-    pressure = free_mib < 256
-    if free_blocks is not None:
-        pressure = pressure or free_blocks < threshold_blocks
-    if not pressure:
-        return False
-
-    tick = _PN95_STATS.get("ticks_total", 0)
-    if tick - _PN201_LAST_EMPTY_CACHE_TICK < cooldown:
-        _PN95_STATS["pn201_empty_cache_cooldowns"] = (
-            _PN95_STATS.get("pn201_empty_cache_cooldowns", 0) + 1
-        )
-        return False
-
-    try:
-        import torch
-        torch.cuda.empty_cache()
-        _PN201_LAST_EMPTY_CACHE_TICK = tick
-        _PN95_STATS["pn201_empty_cache_calls"] = (
-            _PN95_STATS.get("pn201_empty_cache_calls", 0) + 1
-        )
-        log.info(
-            "[PN201] empty_cache fired at tick=%d free_mib=%d free_blocks=%s",
-            tick, free_mib, free_blocks,
-        )
-        return True
-    except Exception as e:
-        log.warning("[PN201] empty_cache failed: %s", e)
-        return False
-
-
-def pn106_periodic_empty_cache() -> None:
-    """Call `torch.cuda.empty_cache()` to defragment the allocator.
-
-    Invoked sparingly (every Nth scheduler tick) to reclaim "reserved but
-    unallocated" memory observed in the OOM crash log (~319 MiB
-    fragmentation). The CUDA caching allocator does not give back
-    reserved-but-free slabs until empty_cache is called. Critical for
-    long-running deployments — fragmentation accumulates as variable-
-    sized chunks pass through the GDN/attention path.
-
-    Env-driven cadence: GENESIS_PN106_EMPTY_CACHE_EVERY_N_TICKS
-    (default 0 = disabled — operator opts in when fragmentation
-    actually hurts).
-    """
-    try:
-        n = int(os.environ.get("GENESIS_PN106_EMPTY_CACHE_EVERY_N_TICKS", "0"))
-    except (ValueError, TypeError):
-        n = 0
-    if n <= 0:
-        return
-    tick = _PN95_STATS.get("ticks_total", 0)
-    if tick == 0 or tick % n != 0:
-        return
-    try:
-        import torch
-        torch.cuda.empty_cache()
-        _PN95_STATS["pn106_empty_cache_calls"] = (
-            _PN95_STATS.get("pn106_empty_cache_calls", 0) + 1
-        )
-    except Exception:
-        pass
-
-
-def pn97_physical_cap_bytes(n_tensors: int) -> Optional[int]:
-    """Return per-KVCacheTensor byte cap for PN97 (Phase 7 PoC).
-
-    Called from the PN97 anchor at `_allocate_kv_cache_tensors`. We
-    compute the maximum bytes that fit in the physical GPU KV budget
-    (gpu_memory_utilization × VRAM − model_weights − workspace),
-    divided evenly across the `n_tensors` KVCacheTensor entries.
-
-    Returns None when PN97 disabled OR VIRT_ENABLE off (no inflation
-    happening, no cap needed) OR torch unavailable.
-
-    Operator can override via `GENESIS_PN97_PHYSICAL_CAP_GIB` (single
-    value, total across all tensors).
-    """
-    if os.environ.get("GENESIS_ENABLE_PN97_TENSOR_PHYSICAL_CAP", "0").strip().lower() not in (
-        "1", "true", "yes", "on",
-    ):
-        return None
-    if n_tensors <= 0:
-        return None
-
-    # Operator override (total bytes across all tensors).
-    env_total = os.environ.get("GENESIS_PN97_PHYSICAL_CAP_GIB", "").strip()
-    if env_total:
-        try:
-            total_bytes = int(float(env_total) * (1 << 30))
-            return total_bytes // n_tensors
-        except (ValueError, TypeError):
-            pass
-
-    # Auto-derive: query torch for free GPU memory and reserve 80% for KV.
-    try:
-        import torch
-        if not torch.cuda.is_available():
-            return None
-        free_bytes, _total = torch.cuda.mem_get_info(0)
-        # 80% of currently-free memory goes to KV (rest = workspace/activations).
-        # This is conservative — operator may bump via env override.
-        per_tensor = int(free_bytes * 0.80) // n_tensors
-        return max(per_tensor, 1 << 30)  # at least 1 GiB per tensor entry
-    except Exception:
-        return None
-
-
-def pn96_emergency_rescue(pool: Any, deficit: int) -> int:
-    """Phase 6 PoC — emergency rescue when get_new_blocks would crash.
-
-    Called from the PN96 anchor BEFORE vllm raises
-    `ValueError("Cannot get N free blocks")`. Walks the pool's
-    free_block_queue looking for ALREADY-CACHED blocks (block_hash
-    set, ref_cnt=0). For each such block, captures the bytes to the
-    PN95 L2 store via demote_on_evict, then marks the slot reusable
-    (by clearing its hash — vllm will pop it from cached_block_hash_to_block
-    on the next eviction pass).
-
-    Returns the number of slots rescued. Best-effort: on any error
-    returns 0 (caller falls through to the upstream ValueError).
-
-    Why this matters: vllm's block pool can have free slots that
-    are "free but reserved for cache reuse" — they show up in
-    free_block_queue but with non-None block_hash. The eviction
-    happens lazily inside `_maybe_evict_cached_block`. PN96 forces
-    eager eviction with byte-preservation so the pool reports enough
-    free slots to satisfy the current allocation request.
-
-    Honest limitation: this ONLY rescues already-free cached blocks.
-    Active blocks (ref_cnt>0, held by a running sequence) are NOT
-    touched — those would need scheduler-level preemption which is
-    Phase 7 work. So PN96 helps multi-prefix workloads but does
-    NOT extend the single-user max_model_len above the GPU pool size.
-    """
-    if not _enabled() or deficit <= 0:
-        return 0
-    rescued = 0
-    try:
-        free_q = getattr(pool, "free_block_queue", None)
-        if free_q is None:
-            return 0
-        head = (getattr(free_q, "fake_free_list_head", None)
-                or getattr(free_q, "_fake_head", None))
-        cur = getattr(head, "next_free_block", None) if head else None
-        walked = 0
-        max_walk = max(deficit * 4, 64)  # cap walk cost
-        while cur is not None and walked < max_walk and rescued < deficit:
-            walked += 1
-            block_hash = getattr(cur, "block_hash", None)
-            ref_cnt = getattr(cur, "ref_cnt", -1)
-            block_id = getattr(cur, "block_id", -1)
-            is_null = getattr(cur, "is_null", False)
-            nxt = getattr(cur, "next_free_block", None)
-            if (block_hash is not None and ref_cnt == 0
-                    and block_id >= 0 and not is_null):
-                # Preserve bytes BEFORE vllm reuses this slot.
-                try:
-                    if demote_on_evict(block_hash, block_id):
-                        rescued += 1
-                        # Clear hash so vllm sees it as a clean free slot.
-                        try:
-                            cur.block_hash = None
-                        except Exception:
-                            pass
-                except Exception:
-                    pass
-            cur = nxt
-        if rescued > 0:
-            _PN95_STATS["pn96_emergency_rescues"] = (
-                _PN95_STATS.get("pn96_emergency_rescues", 0) + 1
-            )
-            _PN95_STATS["pn96_blocks_rescued_total"] = (
-                _PN95_STATS.get("pn96_blocks_rescued_total", 0) + rescued
-            )
-            log.info(
-                "[PN96] emergency rescue: rescued %d slots (deficit was %d, walked %d)",
-                rescued, deficit, walked,
-            )
-    except Exception as e:
-        log.warning("[PN96] emergency_rescue failed silently: %s", e)
-    return rescued
+# M.4.2.E — `pn97_physical_cap_bytes` + `pn96_emergency_rescue`
+# extracted to `.pn95.shared_buffers`. The legacy import path stays
+# byte-identical for sibling-patch text-anchor strings (PN96 / PN97
+# hard-code the ``from vllm.sndr_core.cache._pn95_runtime import …``
+# string).
+from .pn95.shared_buffers import (  # noqa: E402
+    pn97_physical_cap_bytes,
+    pn96_emergency_rescue,
+)
 
 
 def pn95_block_is_physical_resident(pool: Any, block_id: int) -> bool:
