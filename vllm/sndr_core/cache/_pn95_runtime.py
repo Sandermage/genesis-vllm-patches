@@ -1313,97 +1313,15 @@ def pn95_physical_num_blocks_cap() -> Optional[int]:
         return None
 
 
-def _detect_upstream_offload_connector(cfg: Any) -> Optional[str]:
-    """Return the upstream KV-offload connector class name when one is
-    declared on the engine config, else None.
-
-    Mirrors the upstream v1/kv_offload/ framework gate: when an
-    OffloadingConnector is wired in, the upstream offload manager
-    owns block residency. Running PN95 in parallel would double-manage
-    the same blocks and lead to undefined behaviour.
-
-    Probe order:
-      1. cfg.kv_transfer_config.kv_connector  (vLLM v0/v1 standard)
-      2. cfg.kv_transfer_config.connector_class  (newer attribute)
-      3. cfg.cache_config.offload_connector  (PN95 sibling spec)
-
-    A non-empty truthy string is treated as a positive detection; any
-    other shape (None, empty, non-string) is treated as not present.
-    """
-    candidates = (
-        ("kv_transfer_config", "kv_connector"),
-        ("kv_transfer_config", "connector_class"),
-        ("kv_transfer_config", "kv_connector_module_path"),  # PR #40020 surface
-        ("cache_config", "offload_connector"),
-        ("cache_config", "kv_connector"),                    # older alias
-    )
-    for top, attr in candidates:
-        block = getattr(cfg, top, None)
-        if block is None:
-            continue
-        value = getattr(block, attr, None)
-        if isinstance(value, str) and value.strip():
-            return value
-
-    # Fallback scan: any *connector* attribute on kv_transfer_config with
-    # a truthy-string value indicates an offload framework is wired in.
-    # Catches custom user spec names that bypass the well-known attrs above.
-    block = getattr(cfg, "kv_transfer_config", None)
-    if block is not None:
-        try:
-            attrs = vars(block)
-        except TypeError:
-            attrs = {}
-        for k, v in attrs.items():
-            if "connector" in k.lower() and isinstance(v, str) and v.strip():
-                return v
-    return None
-
-
-def init_from_config(cfg: Any) -> bool:
-    """Install the TierManager singleton from a ModelConfig.
-
-    Returns True iff a manager was installed; False when:
-      - PN95 is disabled via env
-      - cfg has no cache_config.tiers
-      - upstream KV-offload connector is wired in (avoid double-manage)
-      - import error / construction error (logged + swallowed)
-
-    Idempotent: re-calling with the same cfg leaves the singleton
-    untouched. Re-calling with a different cfg replaces it (with a
-    warning logged).
-    """
-    if not _enabled():
-        return False
-    global _TM
-    with _LOCK:
-        # Upstream offload coexistence gate. The upstream v1/kv_offload
-        # OffloadingManager assumes exclusive block residency. Letting
-        # PN95 also touch / demote blocks would race the upstream
-        # prepare_load / complete_store handshake. Detect and skip.
-        upstream = _detect_upstream_offload_connector(cfg)
-        if upstream is not None:
-            log.warning(
-                "[PN95] upstream KV offload connector detected (%s) — "
-                "skipping PN95 install to avoid double-managing blocks. "
-                "Disable the upstream connector or unset "
-                "GENESIS_ENABLE_PN95_TIER_AWARE_CACHE to silence this.",
-                upstream,
-            )
-            return False
-        try:
-            from vllm.sndr_core.cache.tier_manager import make_tier_manager
-            new_tm = make_tier_manager(cfg)
-        except Exception as e:
-            log.warning("[PN95] init_from_config: import/build failed: %s", e)
-            return False
-        if new_tm is None:
-            return False
-        if _TM is not None and _TM is not new_tm:
-            log.warning("[PN95] replacing existing TierManager singleton")
-        _TM = new_tm
-        log.info("[PN95] TierManager installed: %s", _TM.stats())
-        return True
+# M.4.2.A — `_detect_upstream_offload_connector` + `init_from_config`
+# extracted to `.pn95.runtime_state`. State ownership (`_TM`, `_LOCK`)
+# stays in this module; the moved functions write through `_rt._TM = ...`
+# via lazy late-import so the 36 reader sites here see the canonical
+# binding.
+from .pn95.runtime_state import (  # noqa: E402
+    _detect_upstream_offload_connector,
+    init_from_config,
+)
 
 
 def _mm_block_overlap_set(
@@ -3190,14 +3108,9 @@ def scheduler_tick() -> None:
         log.warning("[PN95 v1.0 Phase 4.1] scheduler_tick failed: %s", e)
 
 
-def tier_manager() -> Optional[Any]:
-    """Accessor for tests + observability."""
-    return _TM
-
-
-def reset_for_tests() -> None:
-    """Drop the singleton + cached state. Used by pytest fixtures."""
-    global _TM, _LAST_GROUP_IDS_BY_HASH
-    with _LOCK:
-        _TM = None
-        _LAST_GROUP_IDS_BY_HASH = {}
+# M.4.2.A — `tier_manager` + `reset_for_tests` extracted to
+# `.pn95.runtime_state`. State ownership (`_TM`, `_LOCK`,
+# `_LAST_GROUP_IDS_BY_HASH`) stays in this module; the moved functions
+# read/rebind via lazy late-import (`_rt._TM = None` / `return _rt._TM`)
+# so the local module attribute remains the canonical name.
+from .pn95.runtime_state import tier_manager, reset_for_tests  # noqa: E402
