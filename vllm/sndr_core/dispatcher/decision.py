@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Any
+from typing import Any, Optional
 
 from .registry import PATCH_REGISTRY  # noqa: F401 (re-exported)
 
@@ -158,192 +158,216 @@ def _check_applies_to(
 
 
 
-def should_apply(patch_id: str) -> tuple[bool, str]:
-    """Unified gate: returns (apply_decision, reason).
+def _check_tier_gate(meta: dict[str, Any]) -> Optional[tuple[bool, str]]:
+    """Phase 4 (F-010-012 audit fix, 2026-05-08): structured tier gate.
 
-    Combines:
-      - env-flag check (`GENESIS_ENABLE_P<patch>=1` opt-in)
-      - `applies_to` model-compatibility hard-skip (Layer 2, opt-in patches
-        respect env override; default_on patches honor it strictly)
-      - `config_detect.recommend(patch_id)` (model+config-aware decision)
+    ``tier="engine"`` patches require BOTH:
 
-    The decision rule:
+      - ``vllm.sndr_engine`` commercial package present
+      - License key (env ``SNDR_ENGINE_LICENSE_KEY`` OR ``~/.sndr/license.json``)
+      - sndr_engine major version matches sndr_core
 
-      1. If env flag is truthy AND patch is opt-in (default_on=False) → apply,
-         operator override wins over applies_to (logged as override).
-      2. If env flag is unset/falsy AND patch is `default_on=False` → skip (opt-in)
-      3. If applies_to declared and actual model profile mismatches → hard-skip
-         with WARNING-class reason ("MODEL-COMPAT: ..."). For default_on=True
-         patches this kicks in unconditionally; for env-truthy opt-ins it's
-         logged but apply proceeds (override).
-      4. Otherwise consult `config_detect.recommend()`:
-         - "skip:..." → don't apply
-         - "redundant:..." → don't apply
-         - "deprecated:..." → don't apply
-         - "neutral" / "apply" → apply
+    Previous gate (Stage 5, pre-PR38) only checked ``import sndr_engine``.
+    The sndr_engine repo lives alongside sndr_core in this codebase so
+    the import always succeeded — no real boundary. The structured
+    check below adds license + version verification so the boundary
+    becomes the policy choke point rather than a code-presence check.
 
-    Returns:
-        (True, reason) — patch should apply
-        (False, reason) — patch should skip, with human-readable reason
+    ``SNDR_ENABLE_TIER_OVERRIDE=1`` still forces community-only (skips
+    engine patches even if licensed) — useful for CI and pure-community
+    deployments.
+
+    Returns ``None`` when the gate passes (community tier or eligible
+    engine tier); returns ``(False, reason)`` when an engine patch
+    fails the eligibility probe.
     """
-    meta = _live_registry().get(patch_id)
-    if meta is None:
-        return False, f"unknown patch_id {patch_id!r}"
-
-    # ── Phase 4 (F-010-012 audit fix, 2026-05-08): structured tier gate ──
-    # `tier="engine"` patches require BOTH:
-    #   - `vllm.sndr_engine` commercial package present
-    #   - License key (env SNDR_ENGINE_LICENSE_KEY OR ~/.sndr/license.json)
-    #   - sndr_engine major version matches sndr_core
-    #
-    # Previous gate (Stage 5, pre-PR38) only checked `import sndr_engine`.
-    # The sndr_engine repo lives alongside sndr_core in this codebase so
-    # the import always succeeded — no real boundary. The structured
-    # check below adds license + version verification so the boundary
-    # becomes the policy choke point rather than a code-presence check.
-    #
-    # SNDR_ENABLE_TIER_OVERRIDE=1 still forces community-only (skips
-    # engine patches even if licensed) — useful for CI and pure-community
-    # deployments.
     tier = meta.get("tier", "community")
     if tier == "engine":
         from vllm.sndr_core.license import check_engine_tier_eligible
         result = check_engine_tier_eligible()
         if not result.eligible:
             return False, f"tier=engine: {result.reason}"
+    return None
 
-    # F-008 fix (2026-05-07): registry entries currently store env_flag in
-    # full-prefix form (e.g. "GENESIS_ENABLE_P58_..."), but env.is_enabled
-    # expects a *bare* flag name and applies SNDR_↔GENESIS_ alias internally
-    # (SNDR_ENABLE_X wins, GENESIS_ENABLE_X is the legacy fallback). The old
-    # `os.environ.get(env_flag)` literal-lookup ignored the alias, so an
-    # operator who set `SNDR_ENABLE_P58_...=1` saw the patch stay skipped.
-    # Strip the canonical prefix before delegating to env.is_enabled.
+
+def _resolve_env_state(
+    meta: dict[str, Any],
+) -> tuple[bool, bool, Optional[str], Optional[str]]:
+    """Resolve the env-flag state for a patch.
+
+    F-008 fix (2026-05-07): registry entries store ``env_flag`` in
+    full-prefix form (e.g. ``"GENESIS_ENABLE_P58_..."``), but
+    ``env.is_enabled`` expects a *bare* flag name and applies
+    ``SNDR_↔GENESIS_`` alias internally (``SNDR_ENABLE_X`` wins,
+    ``GENESIS_ENABLE_X`` is the legacy fallback). The old
+    ``os.environ.get(env_flag)`` literal-lookup ignored the alias, so
+    an operator who set ``SNDR_ENABLE_P58_...=1`` saw the patch stay
+    skipped. Strip the canonical prefix before delegating to
+    ``env.is_enabled``.
+
+    Returns ``(env_truthy, env_disabled, bare_flag, env_flag)``.
+    When the patch has no ``env_flag`` declared, returns
+    ``(False, False, None, None)`` — caller proceeds to the default
+    strict-opt-in branch.
+    """
     env_flag = meta.get("env_flag")
-    if env_flag:
-        bare_flag = env_flag
-        for _prefix in ("SNDR_ENABLE_", "GENESIS_ENABLE_"):
-            if bare_flag.startswith(_prefix):
-                bare_flag = bare_flag[len(_prefix):]
-                break
-        from vllm.sndr_core.env import is_disabled as _is_disabled
-        from vllm.sndr_core.env import is_enabled as _is_enabled
-        env_truthy = _is_enabled(bare_flag)
-        env_disabled = _is_disabled(bare_flag)
+    if not env_flag:
+        return False, False, None, None
 
-        # F-2026-05-14: explicit operator opt-out via
-        # SNDR_DISABLE_<bare>=1 / GENESIS_DISABLE_<bare>=1.
-        #
-        # Before this gate, the only knobs `should_apply()` consulted were
-        # the ENABLE variants. For `default_on=True` patches that meant
-        # the community had no way to A/B-test the patch's contribution
-        # (or temporarily disable a regressing patch) without editing
-        # `registry.py` — the very workflow operators use during bench
-        # validation. `env.is_disabled()` has existed for a while but
-        # was never wired here.
-        #
-        # Precedence: DISABLE wins over ENABLE when both are set. Intent-
-        # clear opt-out semantics are what operators expect from a kill-
-        # switch — "I said disable, I meant disable, even if some other
-        # env still says enable." A WARNING is emitted on the conflict so
-        # the contradiction is visible.
-        if env_disabled:
-            if env_truthy:
-                log.warning(
-                    "[Genesis dispatcher] %s: both ENABLE and DISABLE env "
-                    "flags set for %s — DISABLE wins. Drop one of the env "
-                    "vars to clear the conflict.",
-                    patch_id, bare_flag,
-                )
-            return False, (
-                f"explicitly disabled by operator (SNDR_DISABLE_{bare_flag}=1 "
-                f"or GENESIS_DISABLE_{bare_flag}=1). Drop the env var to "
-                f"re-engage."
-            )
-    else:
-        env_truthy = False
+    bare_flag = env_flag
+    for _prefix in ("SNDR_ENABLE_", "GENESIS_ENABLE_"):
+        if bare_flag.startswith(_prefix):
+            bare_flag = bare_flag[len(_prefix):]
+            break
 
-    # Operator override: env truthy = always apply (subject to anchor presence)
+    from vllm.sndr_core.env import is_disabled as _is_disabled
+    from vllm.sndr_core.env import is_enabled as _is_enabled
+
+    env_truthy = _is_enabled(bare_flag)
+    env_disabled = _is_disabled(bare_flag)
+    return env_truthy, env_disabled, bare_flag, env_flag
+
+
+def _check_disable_gate(
+    patch_id: str,
+    env_flag: Optional[str],
+    bare_flag: Optional[str],
+    env_truthy: bool,
+    env_disabled: bool,
+) -> Optional[tuple[bool, str]]:
+    """F-2026-05-14: explicit operator opt-out via
+    ``SNDR_DISABLE_<bare>=1`` / ``GENESIS_DISABLE_<bare>=1``.
+
+    Before this gate, the only knobs ``should_apply()`` consulted
+    were the ENABLE variants. For ``default_on=True`` patches that
+    meant the community had no way to A/B-test the patch's
+    contribution (or temporarily disable a regressing patch) without
+    editing ``registry.py`` — the very workflow operators use during
+    bench validation. ``env.is_disabled()`` has existed for a while
+    but was never wired here.
+
+    Precedence: DISABLE wins over ENABLE when both are set. Intent-
+    clear opt-out semantics are what operators expect from a kill-
+    switch — "I said disable, I meant disable, even if some other
+    env still says enable." A WARNING is emitted on the conflict so
+    the contradiction is visible.
+
+    Returns ``None`` when the operator did not request DISABLE;
+    returns ``(False, reason)`` when an opt-out env var is set.
+    """
+    if not env_disabled:
+        return None
     if env_truthy:
-        # Layer 2 applies_to is informational under env-override
-        compat, compat_reason = _check_applies_to(patch_id, meta)
-        if not compat:
-            log.warning(
-                "[Genesis dispatcher] %s: env OVERRIDE applies_to mismatch — "
-                "%s. Proceeding because operator set %s=1.",
-                patch_id, compat_reason, env_flag,
-            )
-        # Still consult config_detect to PRINT the recommendation as info
-        try:
-            from vllm.sndr_core.detection.config_detect import recommend
-            verdict, reason = recommend(patch_id)
-            if verdict == "apply":
-                return True, f"opt-in env + config recommends apply: {reason}"
-            elif verdict == "neutral":
-                return True, "opt-in env (config: neutral)"
-            else:
-                return True, (
-                    f"opt-in env OVERRIDE (config recommends {verdict}: "
-                    f"{reason}) — proceeding because operator forced it"
-                )
-        except Exception as e:
-            return True, f"opt-in env (config_detect probe failed: {e})"
+        log.warning(
+            "[Genesis dispatcher] %s: both ENABLE and DISABLE env "
+            "flags set for %s — DISABLE wins. Drop one of the env "
+            "vars to clear the conflict.",
+            patch_id, bare_flag,
+        )
+    return False, (
+        f"explicitly disabled by operator (SNDR_DISABLE_{bare_flag}=1 "
+        f"or GENESIS_DISABLE_{bare_flag}=1). Drop the env var to "
+        f"re-engage."
+    )
 
-    # Env flag unset/falsy.
-    #
-    # ── STRICT OPT-IN POLICY (Sander directive 2026-05-17) ────────────────
-    # Patches activate ONLY when explicitly listed в operator's config via
-    # env_flag. `default_on=True` becomes INFORMATIONAL (used by recommendation
-    # docs + bench profiles), it does NOT trigger auto-apply anymore.
-    #
-    # Rationale: prior behaviour caused operator surprise — patches active
-    # in production whose env flag was never set in the launch script. With
-    # 200+ patches in registry, implicit activation made it hard to reason
-    # about which patches were live. Strict opt-in makes the active stack
-    # exactly the set of env flags in the config — no hidden auto-applies.
-    #
-    # Backward-compat escape hatch: GENESIS_LEGACY_DEFAULT_ON=1 reverts
-    # to the pre-2026-05-17 semantics (auto-apply when default_on=True).
-    # Intended only for emergency rollback OR ноды where operator does
-    # not control config and relies on registry defaults.
-    # ─────────────────────────────────────────────────────────────────────
-    if os.environ.get("GENESIS_LEGACY_DEFAULT_ON", "").strip().lower() in (
+
+def _resolve_env_override(
+    patch_id: str, meta: dict[str, Any], env_flag: Optional[str],
+) -> tuple[bool, str]:
+    """Env-flag truthy path: operator override always applies (subject
+    to anchor presence). ``applies_to`` is informational under env
+    override; ``config_detect`` is consulted for the reason string but
+    cannot block the apply.
+    """
+    # Layer 2 applies_to is informational under env-override
+    compat, compat_reason = _check_applies_to(patch_id, meta)
+    if not compat:
+        log.warning(
+            "[Genesis dispatcher] %s: env OVERRIDE applies_to mismatch — "
+            "%s. Proceeding because operator set %s=1.",
+            patch_id, compat_reason, env_flag,
+        )
+    # Still consult config_detect to PRINT the recommendation as info
+    try:
+        from vllm.sndr_core.detection.config_detect import recommend
+        verdict, reason = recommend(patch_id)
+        if verdict == "apply":
+            return True, f"opt-in env + config recommends apply: {reason}"
+        elif verdict == "neutral":
+            return True, "opt-in env (config: neutral)"
+        else:
+            return True, (
+                f"opt-in env OVERRIDE (config recommends {verdict}: "
+                f"{reason}) — proceeding because operator forced it"
+            )
+    except Exception as e:
+        return True, f"opt-in env (config_detect probe failed: {e})"
+
+
+def _is_legacy_default_on_mode() -> bool:
+    """Backward-compat escape hatch — ``GENESIS_LEGACY_DEFAULT_ON=1``
+    reverts to pre-2026-05-17 auto-apply semantics."""
+    return os.environ.get("GENESIS_LEGACY_DEFAULT_ON", "").strip().lower() in (
         "1", "true", "yes",
-    ):
-        # Legacy path — preserved for backward compat.
-        if not meta.get("default_on", False):
-            if meta.get("deprecated", False):
-                return False, (
-                    f"opt-in only AND empirically deprecated — "
-                    f"keeping skip; set {env_flag}=1 only for diagnostics"
-                )
-            return False, f"opt-in only — set {env_flag}=1 to engage"
+    )
 
-        # default_on=True: enforce applies_to as Layer 2 HARD skip.
-        compat, compat_reason = _check_applies_to(patch_id, meta)
-        if not compat:
-            log.warning(
-                "[Genesis dispatcher] %s HARD-SKIP — %s. Patch designed for "
-                "a different model class; skipping to avoid overhead. Set "
-                "%s=1 to force-apply if you know what you are doing.",
-                patch_id, compat_reason, env_flag,
+
+def _resolve_legacy_default_on(
+    patch_id: str, meta: dict[str, Any], env_flag: Optional[str],
+) -> tuple[bool, str]:
+    """Legacy path — preserved for backward compat with the
+    pre-2026-05-17 auto-apply behaviour. Opt-in patches stay skipped;
+    ``default_on=True`` patches enforce ``applies_to`` as a Layer-2
+    HARD skip and then consult ``config_detect``.
+    """
+    if not meta.get("default_on", False):
+        if meta.get("deprecated", False):
+            return False, (
+                f"opt-in only AND empirically deprecated — "
+                f"keeping skip; set {env_flag}=1 only for diagnostics"
             )
-            return False, compat_reason
+        return False, f"opt-in only — set {env_flag}=1 to engage"
 
-        # default_on=True patches still consult config_detect
-        try:
-            from vllm.sndr_core.detection.config_detect import recommend
-            verdict, reason = recommend(patch_id)
-            return (
-                verdict in ("apply", "neutral"),
-                f"config_detect: {verdict}:{reason}",
-            )
-        except Exception as e:
-            return False, f"config_detect failed: {e}"
+    # default_on=True: enforce applies_to as Layer 2 HARD skip.
+    compat, compat_reason = _check_applies_to(patch_id, meta)
+    if not compat:
+        log.warning(
+            "[Genesis dispatcher] %s HARD-SKIP — %s. Patch designed for "
+            "a different model class; skipping to avoid overhead. Set "
+            "%s=1 to force-apply if you know what you are doing.",
+            patch_id, compat_reason, env_flag,
+        )
+        return False, compat_reason
 
-    # === STRICT OPT-IN (NEW DEFAULT) ===
-    # Any patch без env_flag explicitly set → SKIP. `default_on` is purely
-    # informational under strict mode.
+    # default_on=True patches still consult config_detect
+    try:
+        from vllm.sndr_core.detection.config_detect import recommend
+        verdict, reason = recommend(patch_id)
+        return (
+            verdict in ("apply", "neutral"),
+            f"config_detect: {verdict}:{reason}",
+        )
+    except Exception as e:
+        return False, f"config_detect failed: {e}"
+
+
+def _resolve_strict_opt_in(
+    meta: dict[str, Any], env_flag: Optional[str],
+) -> tuple[bool, str]:
+    """STRICT OPT-IN POLICY (Sander directive 2026-05-17).
+
+    Patches activate ONLY when explicitly listed in operator's config
+    via ``env_flag``. ``default_on=True`` becomes INFORMATIONAL (used
+    by recommendation docs + bench profiles), it does NOT trigger
+    auto-apply anymore.
+
+    Rationale: prior behaviour caused operator surprise — patches
+    active in production whose env flag was never set in the launch
+    script. With 200+ patches in registry, implicit activation made
+    it hard to reason about which patches were live. Strict opt-in
+    makes the active stack exactly the set of env flags in the
+    config — no hidden auto-applies.
+    """
     if meta.get("deprecated", False):
         return False, (
             f"strict opt-in + deprecated — set {env_flag}=1 only for "
@@ -360,6 +384,70 @@ def should_apply(patch_id: str) -> tuple[bool, str]:
         f"strict opt-in — set {env_flag}=1 in config to engage "
         f"(GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
     )
+
+
+def should_apply(patch_id: str) -> tuple[bool, str]:
+    """Unified gate: returns (apply_decision, reason).
+
+    Combines:
+      - env-flag check (``GENESIS_ENABLE_P<patch>=1`` opt-in)
+      - ``applies_to`` model-compatibility hard-skip (Layer 2, opt-in
+        patches respect env override; default_on patches honor it
+        strictly)
+      - ``config_detect.recommend(patch_id)`` (model+config-aware
+        decision)
+
+    The decision rule:
+
+      1. If env flag is truthy AND patch is opt-in (default_on=False)
+         → apply, operator override wins over applies_to (logged as
+         override).
+      2. If env flag is unset/falsy AND patch is ``default_on=False``
+         → skip (opt-in)
+      3. If applies_to declared and actual model profile mismatches
+         → hard-skip with WARNING-class reason ("MODEL-COMPAT: ...").
+         For default_on=True patches this kicks in unconditionally;
+         for env-truthy opt-ins it's logged but apply proceeds (override).
+      4. Otherwise consult ``config_detect.recommend()``:
+         - "skip:..." → don't apply
+         - "redundant:..." → don't apply
+         - "deprecated:..." → don't apply
+         - "neutral" / "apply" → apply
+
+    M.1.1.T1.B restructure (2026-05-27): the original 175-LOC body is
+    split into private named helpers below. Decision order, reason
+    strings (byte-identical), and the public ``(bool, str)`` contract
+    are preserved; the
+    ``tests/unit/dispatcher/fixtures/decision_no_env.json`` snapshot
+    is the byte-identity guard.
+
+    Returns:
+        (True, reason) — patch should apply
+        (False, reason) — patch should skip, with human-readable reason
+    """
+    meta = _live_registry().get(patch_id)
+    if meta is None:
+        return False, f"unknown patch_id {patch_id!r}"
+
+    tier_decision = _check_tier_gate(meta)
+    if tier_decision is not None:
+        return tier_decision
+
+    env_truthy, env_disabled, bare_flag, env_flag = _resolve_env_state(meta)
+
+    disable_decision = _check_disable_gate(
+        patch_id, env_flag, bare_flag, env_truthy, env_disabled,
+    )
+    if disable_decision is not None:
+        return disable_decision
+
+    if env_truthy:
+        return _resolve_env_override(patch_id, meta, env_flag)
+
+    if _is_legacy_default_on_mode():
+        return _resolve_legacy_default_on(patch_id, meta, env_flag)
+
+    return _resolve_strict_opt_in(meta, env_flag)
 
 
 # ─── Decision logging ─────────────────────────────────────────────────────
