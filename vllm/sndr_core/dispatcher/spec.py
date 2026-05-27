@@ -364,45 +364,72 @@ _REGISTRY_ID_TO_STEM_OVERRIDES: dict[str, str] = {
 _APPLY_MODULE_MAP_CACHE: Optional[dict[str, str]] = None
 
 
-def _build_apply_module_map() -> dict[str, str]:
-    """Walk `vllm/sndr_core/integrations/<family>/<file>.py` and build a
-    `patch_id → dotted_module_path` map. Cached on first call."""
-    global _APPLY_MODULE_MAP_CACHE
-    if _APPLY_MODULE_MAP_CACHE is not None:
-        return _APPLY_MODULE_MAP_CACHE
+def _resolve_patches_dir() -> Optional[Path]:
+    """Locate the on-disk patches tree.
 
+    Path updated 2026-05-11: ``patches/`` → ``integrations/`` (semantic
+    clarity — directory holds runtime integration overlays, not just
+    bug-band-aids). Old ``patches/`` retained briefly as fallback for
+    in-place upgrades; canonical path is now ``integrations/``.
+
+      __file__ = .../vllm/sndr_core/dispatcher/spec.py
+      parents:    [.../dispatcher, .../sndr_core, .../vllm, repo_root]
+
+    Returns the resolved patches directory, or ``None`` if neither
+    layout is present (logs a warning so the empty map is diagnosable).
+    """
+    integrations_dir = Path(__file__).resolve().parent.parent / "integrations"
+    if integrations_dir.is_dir():
+        return integrations_dir
+    legacy_patches_dir = Path(__file__).resolve().parent.parent / "patches"
+    if legacy_patches_dir.is_dir():
+        return legacy_patches_dir
+    log.warning(
+        "[PatchSpec] integrations dir not found at %s "
+        "(legacy %s also absent) — apply_module map empty",
+        integrations_dir, legacy_patches_dir,
+    )
+    return None
+
+
+def _is_patch_impl_file(f: Path) -> bool:
+    """Patch-impl files start with ``p<digit>`` or ``pn<digit>``;
+    skip dunder modules + ``__pycache__`` artefacts + non-patch
+    helpers like ``upstream_compat.py``."""
+    if f.name.startswith("__") or "__pycache__" in f.parts:
+        return False
+    return re.match(r"^p(n)?\d", f.stem) is not None
+
+
+def _register_variants(
+    out: dict[str, str],
+    duplicates: list[tuple[str, str, str]],
+    pid: str,
+    dotted: str,
+) -> None:
+    """Register the canonical patch id under every casing variant the
+    registry might use (e.g. ``"P15B"`` vs ``"P15b"``). First writer
+    wins; subsequent dotted-path collisions on the same variant are
+    recorded in ``duplicates`` and surfaced via a DEBUG log."""
+    for variant in {pid, pid.upper(), pid.lower(),
+                    pid[0] + pid[1:].upper()}:
+        if variant in out:
+            if out[variant] != dotted:
+                duplicates.append((variant, out[variant], dotted))
+        else:
+            out[variant] = dotted
+
+
+def _walk_patch_impl_files(
+    patches_dir: Path, repo_root: Path,
+) -> tuple[dict[str, str], list[tuple[str, str, str]]]:
+    """Primary map construction — walk the patches tree, derive
+    ``patch_id``s from each impl file's stem, and register every
+    casing variant. Returns ``(out, duplicates)``."""
     out: dict[str, str] = {}
     duplicates: list[tuple[str, str, str]] = []
-    # __file__ = .../vllm/sndr_core/dispatcher/spec.py
-    # parents:    [.../dispatcher, .../sndr_core, .../vllm, repo_root]
-    # Path updated 2026-05-11: `patches/` → `integrations/` (semantic
-    # clarity — directory holds runtime integration overlays, not just
-    # bug-band-aids). Old `patches/` retained briefly as fallback for
-    # in-place upgrades; canonical path is now `integrations/`.
-    integrations_dir = Path(__file__).resolve().parent.parent / "integrations"
-    patches_dir = integrations_dir
-    if not integrations_dir.is_dir():
-        # Fallback for old layouts during transition
-        legacy_patches_dir = Path(__file__).resolve().parent.parent / "patches"
-        if legacy_patches_dir.is_dir():
-            patches_dir = legacy_patches_dir
-        else:
-            log.warning(
-                "[PatchSpec] integrations dir not found at %s "
-                "(legacy %s also absent) — apply_module map empty",
-                integrations_dir, legacy_patches_dir,
-            )
-            _APPLY_MODULE_MAP_CACHE = out
-            return out
-
-    repo_root = patches_dir.parent.parent.parent  # repo root, parent of vllm/
-
     for f in sorted(patches_dir.rglob("*.py")):
-        if f.name.startswith("__") or "__pycache__" in f.parts:
-            continue
-        # Skip modules that aren't patch impls (e.g. upstream_compat.py).
-        # Convention: per-patch impl files start with `p<digit>` or `pn<digit>`.
-        if not re.match(r"^p(n)?\d", f.stem):
+        if not _is_patch_impl_file(f):
             continue
         pids = _patch_ids_from_stem(f.stem)
         if not pids:
@@ -410,33 +437,35 @@ def _build_apply_module_map() -> dict[str, str]:
         rel = f.relative_to(repo_root)
         dotted = ".".join(list(rel.parts[:-1]) + [f.stem])
         for pid in pids:
-            # Register canonical case AND uppercase variant so registry
-            # entries with either casing (e.g. "P15B" vs "P15b") resolve.
-            for variant in {pid, pid.upper(), pid.lower(),
-                            pid[0] + pid[1:].upper()}:
-                if variant in out:
-                    if out[variant] != dotted:
-                        duplicates.append((variant, out[variant], dotted))
-                else:
-                    out[variant] = dotted
+            _register_variants(out, duplicates, pid, dotted)
+    return out, duplicates
 
-    if duplicates:
-        for pid, first, second in duplicates[:3]:
-            log.debug(
-                "[PatchSpec] duplicate apply_module for %s: %s vs %s "
-                "(keeping first)", pid, first, second,
-            )
 
-    # Apply explicit overrides for registry-ID → stem mappings that don't
-    # follow the auto-derived convention (e.g. PN40-classifier).
-    # Build a stem→dotted lookup once so each override resolves cleanly.
+def _build_stem_to_dotted_index(
+    patches_dir: Path, repo_root: Path,
+) -> dict[str, str]:
+    """Build a ``stem → dotted_module_path`` lookup so explicit
+    registry-id overrides can resolve to the right file without
+    re-walking. Includes EVERY ``.py`` under ``patches_dir`` except
+    dunder / cache artefacts, not only patch-impl files — overrides
+    point at non-patch-impl modules sometimes (e.g. workload hooks)."""
     stem_to_dotted: dict[str, str] = {}
     for f in patches_dir.rglob("*.py"):
         if f.name.startswith("__") or "__pycache__" in f.parts:
             continue
         rel = f.relative_to(repo_root)
         stem_to_dotted[f.stem] = ".".join(list(rel.parts[:-1]) + [f.stem])
+    return stem_to_dotted
 
+
+def _apply_registry_id_overrides(
+    out: dict[str, str], stem_to_dotted: dict[str, str],
+) -> None:
+    """Apply explicit ``registry_id → stem`` overrides for entries
+    whose canonical filename doesn't follow the ``p<id>_*.py`` /
+    ``pn<id>_*.py`` convention (e.g. ``PN40-classifier``). Stale
+    overrides (target stem absent from the tree) surface as a
+    WARNING."""
     for registry_id, stem in _REGISTRY_ID_TO_STEM_OVERRIDES.items():
         if stem in stem_to_dotted:
             out[registry_id] = stem_to_dotted[stem]
@@ -446,6 +475,45 @@ def _build_apply_module_map() -> dict[str, str]:
                 "not found in patches/ — override is stale",
                 registry_id, stem,
             )
+
+
+def _build_apply_module_map() -> dict[str, str]:
+    """Walk ``vllm/sndr_core/integrations/<family>/<file>.py`` and build
+    a ``patch_id → dotted_module_path`` map. Cached on first call.
+
+    M.1.1.T1.C restructure (2026-05-27): the original 85-LOC monolithic
+    body is split into private helpers above. Cache semantics, walk
+    order, dedup policy, override resolution, and log messages are
+    preserved byte-identical;
+    ``tests/unit/dispatcher/fixtures/spec_set.json`` +
+    ``apply_module_coverage.json`` (228 + 17 entries) are the
+    byte-identity guards.
+    """
+    global _APPLY_MODULE_MAP_CACHE
+    if _APPLY_MODULE_MAP_CACHE is not None:
+        return _APPLY_MODULE_MAP_CACHE
+
+    patches_dir = _resolve_patches_dir()
+    if patches_dir is None:
+        out: dict[str, str] = {}
+        _APPLY_MODULE_MAP_CACHE = out
+        return out
+
+    repo_root = patches_dir.parent.parent.parent  # repo root, parent of vllm/
+
+    out, duplicates = _walk_patch_impl_files(patches_dir, repo_root)
+
+    if duplicates:
+        for pid, first, second in duplicates[:3]:
+            log.debug(
+                "[PatchSpec] duplicate apply_module for %s: %s vs %s "
+                "(keeping first)", pid, first, second,
+            )
+
+    # Apply explicit overrides for registry-ID → stem mappings that
+    # don't follow the auto-derived convention (e.g. PN40-classifier).
+    stem_to_dotted = _build_stem_to_dotted_index(patches_dir, repo_root)
+    _apply_registry_id_overrides(out, stem_to_dotted)
 
     _APPLY_MODULE_MAP_CACHE = out
     return out
