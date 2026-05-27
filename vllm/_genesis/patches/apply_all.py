@@ -4621,6 +4621,33 @@ def apply_patch_N14_dp_gpu_aware_lb() -> PatchResult:
     )
 
 
+@register_patch("N104 dump worker stacks on RPC timeout")
+def apply_patch_N104_dump_stacks_on_timeout() -> PatchResult:
+    """Patch N104: dump worker thread stacks on EngineCore RPC timeout.
+
+    Diagnostic wiring for multiproc_executor.py. Adds:
+      1. `faulthandler` import + SIGUSR2 signal handler in worker_main()
+         that dumps all thread stacks to stderr.
+      2. SIGUSR2 sent to worker processes from `get_response()` just
+         before raising the TimeoutError.
+
+    Auto-applies (no opt-in env). Safe: only affects error path.
+    """
+    name = "N104 dump worker stacks on RPC timeout"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: wiring ready")
+    try:
+        from vllm._genesis.wiring import patch_dump_stacks_on_timeout
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_dump_stacks_on_timeout.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 #                             MAIN ORCHESTRATOR
 # ═══════════════════════════════════════════════════════════════════════════
