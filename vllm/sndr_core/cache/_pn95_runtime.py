@@ -2001,13 +2001,9 @@ from .pn95.metrics import _pn95_record_lookup  # noqa: E402
 from .pn95.gates import _pn95_store_threshold  # noqa: E402
 
 
-def _pn95_should_demote(block_hash: Any) -> bool:
-    """Apply store_threshold gate: skip demote if block hasn't reached
-    threshold lookups yet. Returns True when demote should proceed."""
-    thr = _pn95_store_threshold()
-    if thr <= 1:
-        return True  # default: every block demotes
-    return _PN95_HIT_COUNTS.get(block_hash, 0) >= thr
+# M.4.2.D — `_pn95_should_demote` extracted to `.pn95.demote_policy`.
+# Reads `_PN95_HIT_COUNTS` (stays here) via lazy `_rt.X`.
+from .pn95.demote_policy import _pn95_should_demote  # noqa: E402
 
 
 # ── block_size_factor — PCIe transaction amortization ────────────────────
@@ -2076,34 +2072,16 @@ def pn95_demote_batch(block_id_hash_pairs: list) -> int:
 from .pn95.gates import _pn95_layer_aware_enabled  # noqa: E402
 
 
-def _pn95_record_layer_promote(layer_name: str) -> None:
-    """Bump access count for a layer on promote read. Cheap dict op."""
-    global _PN95_LAYER_ACCESS_COUNTS
-    n = _PN95_LAYER_ACCESS_COUNTS.get(layer_name, 0) + 1
-    if n > _PN95_LAYER_ACCESS_RESET_THRESHOLD:
-        # Halve all counters to preserve relative ordering without overflow.
-        _PN95_LAYER_ACCESS_COUNTS = {
-            k: v // 2 for k, v in _PN95_LAYER_ACCESS_COUNTS.items()
-        }
-        n = _PN95_LAYER_ACCESS_COUNTS.get(layer_name, 0) + 1
-    _PN95_LAYER_ACCESS_COUNTS[layer_name] = n
-
-
-def _pn95_sort_layers_cold_first(eligible_layers: list) -> list:
-    """Sort (layer_name, tensor_view) tuples by ascending access count.
-
-    Layers never observed in promote stay at the front (cold by default).
-    Stable sort preserves the original block-pool ordering as the tiebreaker
-    so behavior is deterministic when no promote history exists.
-
-    No-op if GENESIS_ENABLE_PN95_LAYER_AWARE_DEMOTE != 1.
-    """
-    if not _pn95_layer_aware_enabled() or not _PN95_LAYER_ACCESS_COUNTS:
-        return eligible_layers
-    return sorted(
-        eligible_layers,
-        key=lambda lv: _PN95_LAYER_ACCESS_COUNTS.get(lv[0], 0),
-    )
+# M.4.2.D — `_pn95_record_layer_promote` + `_pn95_sort_layers_cold_first`
+# extracted to `.pn95.demote_policy`. `_PN95_LAYER_ACCESS_COUNTS` +
+# `_PN95_LAYER_ACCESS_RESET_THRESHOLD` stay defined in this module; the
+# moved functions read/rebind them via lazy `_rt.X` (the «halve all
+# counters» overflow path uses explicit attribute mutation that hits
+# the same module-attribute slot the original `global` declaration did).
+from .pn95.demote_policy import (  # noqa: E402
+    _pn95_record_layer_promote,
+    _pn95_sort_layers_cold_first,
+)
 
 # Path C v1.0 Quality-First Sprint Q1 A1 — lossless CPU prefix compression.
 # Reduces effective CPU tier capacity 2-3× via zstd (or 1.5-2× via lz4).
@@ -2493,76 +2471,10 @@ def promote_on_miss(block_pool: Any, block_hash_with_group_id: Any) -> Any:
         return None
 
 
-def _select_cold_blocks_via_bpool_lru(target_count: int) -> list:
-    """Path C v1.0 Phase 4.1 — smart cold-block selection using vllm's
-    own LRU (free_block_queue) instead of dummy block_idx=0 heuristic.
-
-    Walks free_block_queue of registered BlockPools — these blocks are
-    ALREADY in eviction order (head = most-likely-to-be-evicted-next).
-    For each cached block (block_hash != None) we capture its ID + hash
-    as a demote candidate.
-
-    Returns list of (block_pool, block_id, block_hash) tuples.
-
-    Skips:
-    - Non-cached blocks (block_hash is None) — nothing to preserve
-    - Null blocks (block.is_null) — Mamba alignment placeholders
-    - Already-pre-demoted entries (in our prefix store)
-    - Hot ring (last N admits — typically spec-decode targets)
-    """
-    candidates = []
-    if not _PN95_BLOCK_POOL_REFS:
-        return candidates
-
-    # Hot ring: last N admit'ов never demote (typically spec-decode K+1
-    # targets where the model just placed K speculative tokens). Reading
-    # the tail of _admit_order on TM gives us the freshest activity.
-    hot_keys = set()
-    if _TM is not None:
-        ring_size = getattr(_TM, "spec_decode_hot_ring", 0) or 0
-        if ring_size > 0:
-            try:
-                hot_keys = set(_TM._admit_order[-ring_size:])
-            except (AttributeError, TypeError):
-                hot_keys = set()
-
-    for pool in _PN95_BLOCK_POOL_REFS:
-        try:
-            queue = getattr(pool, "free_block_queue", None)
-            if queue is None:
-                continue
-            # Iterate doubly-linked list head → tail (LRU order).
-            # vllm's FreeKVCacheBlockQueue exposes .head / .next pointers.
-            head = getattr(queue, "fake_free_list_head", None) or \
-                   getattr(queue, "_fake_head", None)
-            cur = getattr(head, "next_free_block", None) if head else None
-            walked = 0
-            max_walk = target_count * 8  # bound the scan
-            while cur is not None and walked < max_walk:
-                walked += 1
-                if getattr(cur, "is_null", False):
-                    cur = getattr(cur, "next_free_block", None)
-                    continue
-                blk_hash = getattr(cur, "block_hash", None)
-                if blk_hash is None:
-                    cur = getattr(cur, "next_free_block", None)
-                    continue
-                # Skip if already in CPU prefix store (don't re-copy)
-                if blk_hash in _PN95_PREFIX_STORE:
-                    cur = getattr(cur, "next_free_block", None)
-                    continue
-                # Skip hot ring members
-                blk_id = getattr(cur, "block_id", -1)
-                if (id(pool), blk_id) in hot_keys:
-                    cur = getattr(cur, "next_free_block", None)
-                    continue
-                candidates.append((pool, blk_id, blk_hash))
-                if len(candidates) >= target_count:
-                    return candidates
-                cur = getattr(cur, "next_free_block", None)
-        except Exception:
-            continue
-    return candidates
+# M.4.2.D — `_select_cold_blocks_via_bpool_lru` extracted to
+# `.pn95.demote_policy`. Reads `_PN95_BLOCK_POOL_REFS`, `_TM`, and
+# `_PN95_PREFIX_STORE` (all stay here) via lazy `_rt.X`.
+from .pn95.demote_policy import _select_cold_blocks_via_bpool_lru  # noqa: E402
 
 
 def worker_side_proactive_demote(
