@@ -1895,50 +1895,12 @@ _PN95_PREFIX_STORE_LOCK: threading.Lock = threading.Lock()
 # itself works on byte slabs of equal slot size. Unpack reverses pickle.
 # Pickle overhead is ~5-10 μs per blob, dwarfed by the PCIe transfer savings
 # from non-pageable memory (3-5 GB/s pinned vs ~600 MB/s pageable bounce).
-def _pn95_pack_layer_data(layer_data: list) -> bytes:
-    import pickle
-    return pickle.dumps(layer_data, protocol=pickle.HIGHEST_PROTOCOL)
-
-
-def _pn95_unpack_layer_data(blob: bytes) -> Optional[list]:
-    """Unpickle the layer-data blob from a pinned-pool slot or disk tier.
-
-    Uses a strict allow-list of class lookups (review finding #16):
-    a corrupted slot or a maliciously-crafted disk file MUST NOT be able
-    to invoke arbitrary code via pickle's `__reduce__` / `find_class`.
-    KV payloads are pure (str, bytes) tuples in a list, no custom classes
-    needed; everything else is rejected.
-    """
-    if not blob:
-        return None
-    import io
-    import pickle
-
-    class _PN95SafeUnpickler(pickle.Unpickler):
-        _ALLOWED = frozenset({
-            ("builtins", "str"),
-            ("builtins", "bytes"),
-            ("builtins", "list"),
-            ("builtins", "tuple"),
-            ("builtins", "int"),
-            ("builtins", "float"),
-            ("builtins", "bool"),
-            ("builtins", "dict"),
-            ("builtins", "NoneType"),
-        })
-
-        def find_class(self, module: str, name: str):
-            if (module, name) in self._ALLOWED:
-                return super().find_class(module, name)
-            raise pickle.UnpicklingError(
-                f"[PN95] pickle class not allow-listed: {module}.{name}"
-            )
-
-    try:
-        obj = _PN95SafeUnpickler(io.BytesIO(blob)).load()
-    except (pickle.UnpicklingError, EOFError, TypeError, ValueError):
-        return None
-    return obj if isinstance(obj, list) else None
+# M.4.2.C — `_pn95_pack_layer_data` + `_pn95_unpack_layer_data` extracted
+# to `.pn95.compression`. Pure pickle helpers with no state touch.
+from .pn95.compression import (  # noqa: E402
+    _pn95_pack_layer_data,
+    _pn95_unpack_layer_data,
+)
 
 
 def _pn95_l1_pool(slot_size_hint: int = 0):
@@ -2157,211 +2119,26 @@ _PN95_COMPRESS_MIN_BYTES = 256  # entries smaller skip compression (overhead)
 _PN95_ZSTD_TL = threading.local()
 
 
-def _pn95_init_compression() -> None:
-    """Lazy-init compression backend on first use.
-
-    Reads GENESIS_PN95_CPU_COMPRESS env: 'zstd'|'lz4'|'zlib'|'none'|'auto'.
-    Default 'auto' = prefer zstd > lz4 > zlib > none.
-
-    GENESIS_PN95_COMPRESS_LEVEL controls compression level:
-      zstd: 1-22 (default 3 = balanced speed/ratio)
-      zlib: 1-9 (default 1 = fast)
-      lz4: ignored (single level)
-    """
-    global _PN95_COMPRESS_LIB, _PN95_COMPRESS_LEVEL
-    if _PN95_COMPRESS_LIB is not None:
-        return
-    requested = os.environ.get("GENESIS_PN95_CPU_COMPRESS", "auto").strip().lower()
-    if requested in ("none", "off", "0", "disabled"):
-        _PN95_COMPRESS_LIB = "none"
-        return
-    # Try zstd first (best ratio + decent speed)
-    if requested in ("auto", "zstd"):
-        try:
-            import zstandard  # noqa: F401
-            _PN95_COMPRESS_LIB = "zstd"
-            try:
-                _PN95_COMPRESS_LEVEL = int(os.environ.get(
-                    "GENESIS_PN95_COMPRESS_LEVEL", "3"))
-            except (ValueError, TypeError):
-                _PN95_COMPRESS_LEVEL = 3
-            log.info("[PN95 A1] CPU compression: zstd level=%d",
-                     _PN95_COMPRESS_LEVEL)
-            return
-        except ImportError:
-            if requested == "zstd":
-                log.warning("[PN95 A1] zstandard not installed, trying lz4")
-    # Try lz4 (faster, less compression)
-    if requested in ("auto", "lz4"):
-        try:
-            import lz4.frame  # noqa: F401
-            _PN95_COMPRESS_LIB = "lz4"
-            log.info("[PN95 A1] CPU compression: lz4")
-            return
-        except ImportError:
-            if requested == "lz4":
-                log.warning("[PN95 A1] lz4 not installed, trying zlib")
-    # Fallback to stdlib zlib (always available)
-    if requested in ("auto", "zlib"):
-        _PN95_COMPRESS_LIB = "zlib"
-        try:
-            _PN95_COMPRESS_LEVEL = int(os.environ.get(
-                "GENESIS_PN95_COMPRESS_LEVEL", "1"))
-        except (ValueError, TypeError):
-            _PN95_COMPRESS_LEVEL = 1
-        log.info("[PN95 A1] CPU compression: zlib level=%d (stdlib fallback)",
-                 _PN95_COMPRESS_LEVEL)
-        return
-    _PN95_COMPRESS_LIB = "none"
-
-
-def _pn95_compress_bytes(data: bytes) -> bytes:
-    """Compress bytes via configured backend. Returns compressed OR original
-    if compression disabled / failed / no benefit.
-
-    Compression backend writes a magic header (zstd/lz4/zlib all do); the
-    symmetric _pn95_decompress_bytes auto-detects via magic check.
-    """
-    _pn95_init_compression()
-    lib = _PN95_COMPRESS_LIB
-    if lib in ("none", None):
-        return data
-    if len(data) < _PN95_COMPRESS_MIN_BYTES:
-        return data
-    try:
-        if lib == "zstd":
-            # Sprint Q1 B6 — per-thread cached compressor (avoid alloc per call,
-            # avoid race in B4 ThreadPool path).
-            cctx = getattr(_PN95_ZSTD_TL, "cctx", None)
-            if cctx is None:
-                import zstandard as zstd
-                cctx = zstd.ZstdCompressor(level=_PN95_COMPRESS_LEVEL or 3)
-                _PN95_ZSTD_TL.cctx = cctx
-            compressed = cctx.compress(data)
-        elif lib == "lz4":
-            import lz4.frame
-            compressed = lz4.frame.compress(data)
-        elif lib == "zlib":
-            import zlib
-            compressed = zlib.compress(data, _PN95_COMPRESS_LEVEL or 1)
-        else:
-            return data
-    except Exception:
-        return data
-    # Only use compression if it saved >5% (avoid overhead на already-compressed data)
-    if len(compressed) >= int(len(data) * 0.95):
-        return data
-    return compressed
-
+# M.4.2.C — six compression helpers extracted to `.pn95.compression`.
+# State singletons (`_PN95_COMPRESS_LIB`, `_PN95_COMPRESS_LEVEL`,
+# `_PN95_COMPRESS_MIN_BYTES`, `_PN95_ZSTD_TL`, `_PN95_COMPRESS_POOL`)
+# stay defined in this module — four test files actively rebind them via
+# ``monkeypatch.setattr(rt, ...)`` and direct ``rt._PN95_COMPRESS_POOL = None``
+# writes, so moving the names would break the test contract. The moved
+# functions reach the state through lazy ``_rt.X`` and replicate the
+# original ``global ... = …`` rebinds via explicit attribute mutation.
+# ``_PN95_COMPRESS_POOL`` keeps its definition in this module — see the
+# state-singleton block below.
+from .pn95.compression import (  # noqa: E402
+    _pn95_init_compression,
+    _pn95_compress_bytes,
+    _pn95_compress_pool,
+    _pn95_compress_bytes_batch,
+    _pn95_decompress_bytes_batch,
+    _pn95_decompress_bytes,
+)
 
 _PN95_COMPRESS_POOL: Optional[Any] = None  # ThreadPoolExecutor для parallel compress
-
-
-def _pn95_compress_pool() -> Optional[Any]:
-    """Path C v1.0 Sprint Q1 B4 — lazy-init ThreadPoolExecutor для parallel
-    compression. zstd/lz4/zlib release GIL during compression — multiple
-    threads truly parallel.
-
-    Returns None если threading unavailable (which doesn't happen in CPython).
-    Default 4 workers (env GENESIS_PN95_COMPRESS_THREADS).
-    """
-    global _PN95_COMPRESS_POOL
-    if _PN95_COMPRESS_POOL is None:
-        try:
-            from concurrent.futures import ThreadPoolExecutor
-            try:
-                workers = int(os.environ.get("GENESIS_PN95_COMPRESS_THREADS", "4"))
-            except (ValueError, TypeError):
-                workers = 4
-            workers = max(1, min(workers, 16))  # clamp [1, 16]
-            _PN95_COMPRESS_POOL = ThreadPoolExecutor(
-                max_workers=workers, thread_name_prefix="pn95-compress"
-            )
-        except Exception:
-            return None
-    return _PN95_COMPRESS_POOL
-
-
-def _pn95_compress_bytes_batch(data_list: list) -> list:
-    """Path C v1.0 Sprint Q1 B4 — parallel batched compression.
-
-    Compress N bytes objects concurrently через ThreadPool. zstd/lz4/zlib
-    release Python GIL during native compression → real parallelism.
-
-    For 17-layer demote with ~100KB blocks: sequential = ~1.7ms total,
-    parallel (4 threads) = ~0.5ms total = ~3-4× speedup.
-
-    Returns list of compressed bytes в same order. Empty list if input empty.
-    Falls back к sequential если pool unavailable.
-    """
-    if not data_list:
-        return []
-    pool = _pn95_compress_pool()
-    if pool is None or len(data_list) <= 1:
-        return [_pn95_compress_bytes(d) for d in data_list]
-    # Parallel — submit all, collect ordered results
-    futures = [pool.submit(_pn95_compress_bytes, d) for d in data_list]
-    return [f.result() for f in futures]
-
-
-def _pn95_decompress_bytes_batch(data_list: list) -> list:
-    """Path C v1.0 Sprint Q1 B5 — parallel batched decompression.
-
-    Mirror of B4 (_pn95_compress_bytes_batch) для promote path. zstd/lz4/zlib
-    release Python GIL during decompression → real parallelism.
-
-    For 17-layer promote with mixed compressed sizes:
-    sequential ~340μs total, parallel (4 threads) ~85μs total = ~4× speedup.
-
-    Returns list of decompressed bytes в same order. Backward-compatible:
-    uncompressed entries pass through unchanged (auto-detected via magic bytes
-    в underlying _pn95_decompress_bytes).
-    """
-    if not data_list:
-        return []
-    pool = _pn95_compress_pool()
-    if pool is None or len(data_list) <= 1:
-        return [_pn95_decompress_bytes(d) for d in data_list]
-    # Parallel — submit all, collect ordered results
-    futures = [pool.submit(_pn95_decompress_bytes, d) for d in data_list]
-    return [f.result() for f in futures]
-
-
-def _pn95_decompress_bytes(data: bytes) -> bytes:
-    """Auto-detect compression via magic bytes and decompress. Returns
-    original bytes if no compression detected (backward-compatible —
-    handles uncompressed entries from before A1, mixed-format stores).
-    """
-    if len(data) < 4:
-        return data
-    # zstd frame magic: 28 b5 2f fd
-    if data[:4] == b'\x28\xb5\x2f\xfd':
-        try:
-            # Sprint Q1 B6 — per-thread cached decompressor.
-            dctx = getattr(_PN95_ZSTD_TL, "dctx", None)
-            if dctx is None:
-                import zstandard as zstd
-                dctx = zstd.ZstdDecompressor()
-                _PN95_ZSTD_TL.dctx = dctx
-            return dctx.decompress(data)
-        except Exception:
-            return data
-    # lz4 frame magic: 04 22 4d 18
-    if data[:4] == b'\x04\x22\x4d\x18':
-        try:
-            import lz4.frame
-            return lz4.frame.decompress(data)
-        except Exception:
-            return data
-    # zlib header (RFC 1950): 0x78 (CMF) + check byte (variable)
-    # Common values: 0x78 0x01, 0x78 0x5e, 0x78 0x9c, 0x78 0xda
-    if data[0] == 0x78 and data[1] in (0x01, 0x5e, 0x9c, 0xda):
-        try:
-            import zlib
-            return zlib.decompress(data)
-        except Exception:
-            return data
-    return data
 
 
 def _prefix_store_max_bytes() -> int:
