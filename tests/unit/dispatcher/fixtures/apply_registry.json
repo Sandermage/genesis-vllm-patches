@@ -1,0 +1,750 @@
+[
+  {
+    "name": "P8 KV hybrid reporting (per-token capacity)",
+    "wrapped_name": "apply_patch_8_kv_hybrid_reporting"
+  },
+  {
+    "name": "P3 TurboQuant BF16->FP8 cast (Ampere fix)",
+    "wrapped_name": "apply_patch_3_tq_bf16_cast"
+  },
+  {
+    "name": "P6 TurboQuant-aware attention page size",
+    "wrapped_name": "apply_patch_6_tq_block_size"
+  },
+  {
+    "name": "P15 Qwen3 None/null tool arg parser",
+    "wrapped_name": "apply_patch_15_qwen3_none_null"
+  },
+  {
+    "name": "P12 Qwen3 <tool_call> implicit reasoning end",
+    "wrapped_name": "apply_patch_12_tool_call_reasoning"
+  },
+  {
+    "name": "P27 Qwen3 BEFORE-THINK fallback",
+    "wrapped_name": "apply_patch_27_reasoning_before_think"
+  },
+  {
+    "name": "P34 Mamba zero-collapse deadlock guard",
+    "wrapped_name": "apply_patch_34_mamba_deadlock_guard"
+  },
+  {
+    "name": "P29 tool parser IndexError guard",
+    "wrapped_name": "apply_patch_29_tool_parser_index_guard"
+  },
+  {
+    "name": "P23 Marlin FP32_REDUCE env override",
+    "wrapped_name": "apply_patch_23_marlin_fp32_reduce"
+  },
+  {
+    "name": "P4 TurboQuant hybrid model support",
+    "wrapped_name": "apply_patch_4_tq_hybrid"
+  },
+  {
+    "name": "P5 KV cache page size unification",
+    "wrapped_name": "apply_patch_5_page_size"
+  },
+  {
+    "name": "P5b KV page-size pad-smaller-to-max (env-opt-in)",
+    "wrapped_name": "apply_patch_5b_page_size_pad_smaller"
+  },
+  {
+    "name": "P31 MoE router fp32 softmax",
+    "wrapped_name": "apply_patch_31_router_softmax"
+  },
+  {
+    "name": "P22 TurboQuant shared dequant prealloc",
+    "wrapped_name": "apply_patch_22_tq_dequant_prealloc"
+  },
+  {
+    "name": "P26 TurboQuant prefill output prealloc",
+    "wrapped_name": "apply_patch_26_prefill_output"
+  },
+  {
+    "name": "P61b Qwen3 streaming partial-tag overlap guard",
+    "wrapped_name": "apply_patch_61b_streaming_overlap"
+  },
+  {
+    "name": "PN59 streaming-GDN orchestrator (Variant D Phase 2)",
+    "wrapped_name": "apply_patch_N59_streaming_gdn"
+  },
+  {
+    "name": "PN58 spec-decode reasoning boundary (vllm#40962, narrower alt to P62)",
+    "wrapped_name": "apply_patch_N58_spec_reasoning_boundary"
+  },
+  {
+    "name": "P107 MTP truncation detector (vllm#41467)",
+    "wrapped_name": "apply_patch_107_mtp_truncation_detector"
+  },
+  {
+    "name": "P61c Qwen3Coder deferred-commit (club-3090#72)",
+    "wrapped_name": "apply_patch_61c_qwen3coder_deferred_commit"
+  },
+  {
+    "name": "PN56 Qwen3Coder XML parse fallback (vllm#41466)",
+    "wrapped_name": "apply_patch_N56_qwen3coder_xml_fallback"
+  },
+  {
+    "name": "PN57 TQ centroids disk-persistent cache (vllm#41418-inspired)",
+    "wrapped_name": "apply_patch_N57_tq_centroids_disk_cache"
+  },
+  {
+    "name": "PN55 wake_up hybrid KV crash fix (vllm#41602)",
+    "wrapped_name": "apply_patch_N55_wake_up_hybrid_kv"
+  },
+  {
+    "name": "PN9 Independent drafter attention backend (vllm#39930)",
+    "wrapped_name": "apply_patch_N9_independent_drafter_attn_backend"
+  },
+  {
+    "name": "PN16 Lazy reasoner request hook (per-request enable_thinking)",
+    "wrapped_name": "apply_patch_N16_lazy_reasoner"
+  },
+  {
+    "name": "PN16 V6 — streaming <think> token-budget enforcer (Sprint 4)",
+    "wrapped_name": "apply_patch_N16_v6_streaming_truncator"
+  },
+  {
+    "name": "PN62 Text-only ViT scratch skip (real skip_mm_profiling flip)",
+    "wrapped_name": "apply_patch_N62_text_only_vit_skip"
+  },
+  {
+    "name": "P108 MTP draft-loop stream synchronization (vllm#42603)",
+    "wrapped_name": "apply_patch_108_mtp_draft_stream_sync"
+  },
+  {
+    "name": "P109 sampling_params vocab-range validators (vllm#42614)",
+    "wrapped_name": "apply_patch_109_sampling_params_vocab_bounds"
+  },
+  {
+    "name": "PN110 BlockPool.free_blocks deduplication (vllm#42615)",
+    "wrapped_name": "apply_patch_n110_block_pool_free_dedup"
+  },
+  {
+    "name": "PN111 skip-mamba-postprocess GPU->CPU sync (align-mode; vllm#42574)",
+    "wrapped_name": "apply_patch_n111_skip_mamba_postprocess_sync"
+  },
+  {
+    "name": "PN116 TurboQuant prefill max_seq_len fallback fix (regressor: vllm#41434)",
+    "wrapped_name": "apply_patch_n116_tq_prefill_maxseq_fallback"
+  },
+  {
+    "name": "PN118 TurboQuant workspace graceful-fallback (backport: vllm#42551, P99-compat)",
+    "wrapped_name": "apply_patch_n118_tq_workspace_fallback"
+  },
+  {
+    "name": "PN119 TurboQuant k8v4 GQA head grouping kernel (backport: vllm#40792)",
+    "wrapped_name": "apply_patch_n119_tq_gqa_grouping"
+  },
+  {
+    "name": "Sprint 2.6 v2 — CUDA graph dispatch trace wire-in",
+    "wrapped_name": "apply_patch_pn122_cudagraph_dispatch_trace"
+  },
+  {
+    "name": "PN132 Triton top-k/top-p contiguous fix (vllm#42739)",
+    "wrapped_name": "apply_patch_pn132_triton_topk_topp_contiguous"
+  },
+  {
+    "name": "PN275 DFlash drafter VllmConfig max_cgs alignment (dev371 compat)",
+    "wrapped_name": "apply_patch_pn275_dflash_max_cgs_align"
+  },
+  {
+    "name": "PN133 MTP scheduler empty-output fix (vllm#42722)",
+    "wrapped_name": "apply_patch_pn133_mtp_scheduler_empty_output"
+  },
+  {
+    "name": "PN134 torch.compile fullgraph 2.11 (vllm#42686)",
+    "wrapped_name": "apply_patch_pn134_torch_compile_fullgraph_211"
+  },
+  {
+    "name": "PN128 spec-decode helper kernel warmup (vllm#41481)",
+    "wrapped_name": "apply_patch_pn128_spec_decode_helper_warmup"
+  },
+  {
+    "name": "PN129 V1 slot mapping kernel warmup (vllm#42165)",
+    "wrapped_name": "apply_patch_pn129_slot_mapping_warmup"
+  },
+  {
+    "name": "PN130 TurboQuant decode kernel warmup (vllm#42215)",
+    "wrapped_name": "apply_patch_pn130_tq_decode_warmup"
+  },
+  {
+    "name": "PN127 Qwen 3.5/3.6 chat-template auto-install",
+    "wrapped_name": "apply_patch_pn127_chat_template_qwen36"
+  },
+  {
+    "name": "PN126 V1 decode kernel warmup orchestrator",
+    "wrapped_name": "apply_patch_pn126_v1_decode_kernel_warmup"
+  },
+  {
+    "name": "PN125 hybrid Qwen3.5/3.6 FULL_AND_PIECEWISE cudagraph_mode",
+    "wrapped_name": "apply_patch_pn125_hybrid_full_and_piecewise"
+  },
+  {
+    "name": "PN95 Tier-aware KV cache (Path C v7.73.x, club-3090 #58)",
+    "wrapped_name": "apply_patch_N95_tier_aware_cache"
+  },
+  {
+    "name": "PN90 Probabilistic draft rejection (vllm#40269)",
+    "wrapped_name": "apply_patch_N90_probabilistic_draft_rejection"
+  },
+  {
+    "name": "SNDR_WORKSPACE_001 workspace grow-after-lock graceful fix",
+    "wrapped_name": "apply_patch_sndr_workspace_001"
+  },
+  {
+    "name": "PN202 per-layer KV tensor split (Tier 2.A)",
+    "wrapped_name": "apply_patch_pn202_per_layer_kv_split"
+  },
+  {
+    "name": "PN203 cold-prefix CPU offload (Tier 3.A)",
+    "wrapped_name": "apply_patch_pn203_cold_prefix_offload"
+  },
+  {
+    "name": "PN200 GDN outer-forward scratch pool (Tier 1.B)",
+    "wrapped_name": "apply_patch_pn200_gdn_scratch_reuse"
+  },
+  {
+    "name": "PN201 scheduler empty_cache hook (Tier 1.C)",
+    "wrapped_name": "apply_patch_pn201_scheduler_empty_cache"
+  },
+  {
+    "name": "PN106 GDN scratch pool (architectural memory mgr)",
+    "wrapped_name": "apply_patch_pn106_gdn_h_pool"
+  },
+  {
+    "name": "PN105 PrefetchOffloader AutoRound INT4 compat",
+    "wrapped_name": "apply_patch_pn105_prefetch_autoround_compat"
+  },
+  {
+    "name": "PN104 cpu_offload -> Prefetch backend redirect",
+    "wrapped_name": "apply_patch_pn104_offload_backend_redirect"
+  },
+  {
+    "name": "PN97 KV tensor physical-cap (Phase 7 PoC)",
+    "wrapped_name": "apply_patch_pn97_tensor_physical_cap"
+  },
+  {
+    "name": "PN96 emergency-demote hook (Phase 6 PoC)",
+    "wrapped_name": "apply_patch_pn96_emergency_demote"
+  },
+  {
+    "name": "PN92 nixl_ep/deep_ep/mori trial-import guard (vllm PR #40154)",
+    "wrapped_name": "apply_patch_pn92_nixl_ep_trial_import"
+  },
+  {
+    "name": "PN71 </thinking> hallucination runtime normalizer",
+    "wrapped_name": "apply_patch_pn71_thinking_token_hallucination"
+  },
+  {
+    "name": "PN73 tool_calls.arguments safe normalize",
+    "wrapped_name": "apply_patch_pn73_tool_args_safe_normalize"
+  },
+  {
+    "name": "PN91 developer role pre-render normalizer",
+    "wrapped_name": "apply_patch_pn91_developer_role_normalizer"
+  },
+  {
+    "name": "PN82 Mamba CUDA-graph stale prefill rows (vllm#41873)",
+    "wrapped_name": "apply_patch_N82_mamba_cudagraph_prefill_zero"
+  },
+  {
+    "name": "PN54 GDN contiguous-call dedup (P0.7 Cliff 2b)",
+    "wrapped_name": "apply_patch_N54_gdn_contiguous_dedup"
+  },
+  {
+    "name": "PN52 prompt_logprobs eviction fix (vllm#41411)",
+    "wrapped_name": "apply_patch_N52_prompt_logprobs_eviction"
+  },
+  {
+    "name": "PN50 GDN proj fusion (SGLang#21019 — Qwen3.5/3.6 only)",
+    "wrapped_name": "apply_patch_N50_gdn_fused_proj"
+  },
+  {
+    "name": "PN51 Qwen3 streaming `enable_thinking=false` content routing",
+    "wrapped_name": "apply_patch_N51_qwen3_streaming_thinking_disabled"
+  },
+  {
+    "name": "P62 structured-output spec-decode timing fix",
+    "wrapped_name": "apply_patch_62_struct_out_spec_timing"
+  },
+  {
+    "name": "P61 Qwen3 multi-tool first-occurrence",
+    "wrapped_name": "apply_patch_61_qwen3_multi_tool"
+  },
+  {
+    "name": "P60b GDN+ngram Triton kernel offset",
+    "wrapped_name": "apply_patch_60b_gdn_ngram_triton_kernel"
+  },
+  {
+    "name": "P60 GDN+ngram state recovery",
+    "wrapped_name": "apply_patch_60_gdn_ngram_state_recovery"
+  },
+  {
+    "name": "P63 MTP/Eagle drafter GDN state recovery",
+    "wrapped_name": "apply_patch_63_mtp_gdn_state_recovery"
+  },
+  {
+    "name": "P64 qwen3coder MTP streaming early-return fix",
+    "wrapped_name": "apply_patch_64_qwen3coder_mtp_streaming"
+  },
+  {
+    "name": "P65 TurboQuant spec-decode cudagraph downgrade",
+    "wrapped_name": "apply_patch_65_turboquant_spec_cg_downgrade"
+  },
+  {
+    "name": "P66 cudagraph_capture_sizes spec-decode divisibility filter",
+    "wrapped_name": "apply_patch_66_cudagraph_size_filter"
+  },
+  {
+    "name": "P68/P69 long-context tool-call adherence",
+    "wrapped_name": "apply_patch_68_69_long_ctx_tool_adherence"
+  },
+  {
+    "name": "P70 Auto-strict-ngram (force prompt_lookup_min>=8)",
+    "wrapped_name": "apply_patch_70_auto_strict_ngram"
+  },
+  {
+    "name": "PN72 Frequency-based ngram draft post-filter",
+    "wrapped_name": "apply_patch_N72_frequency_ngram_drafter"
+  },
+  {
+    "name": "PN77 FP8 lm_head compression",
+    "wrapped_name": "apply_patch_N77_fp8_lm_head"
+  },
+  {
+    "name": "PN80 LoRA tensorizer device kwarg (vllm#41845)",
+    "wrapped_name": "apply_patch_N80_lora_tensorizer_device"
+  },
+  {
+    "name": "PN79 In-place SSM state for GDN chunk prefill (vllm#41824)",
+    "wrapped_name": "apply_patch_N79_inplace_ssm_state"
+  },
+  {
+    "name": "PN78 One-shot empty_cache() after CG warmup",
+    "wrapped_name": "apply_patch_N78_post_warmup_cache_release"
+  },
+  {
+    "name": "P67 TurboQuant multi-query kernel for spec-decode K+1",
+    "wrapped_name": "apply_patch_67_tq_multi_query_kernel"
+  },
+  {
+    "name": "P71 Block-verify rejection sampler (vllm#40819 + gemini bug-fixes)",
+    "wrapped_name": "apply_patch_71_block_verify"
+  },
+  {
+    "name": "P78 TurboQuant .tolist() capture-guard (adapted from noonghunna)",
+    "wrapped_name": "apply_patch_78_tolist_capture_guard"
+  },
+  {
+    "name": "P77 Adaptive ngram K controller (EMA + hysteresis + auto-disable)",
+    "wrapped_name": "apply_patch_77_adaptive_ngram_k"
+  },
+  {
+    "name": "P79b Async × spec-decode proposer-sync backport (vllm#40610)",
+    "wrapped_name": "apply_patch_79b_async_proposer_sync"
+  },
+  {
+    "name": "P79c Stale spec_token_ids cleanup for unscheduled requests (vllm#37629)",
+    "wrapped_name": "apply_patch_79c_stale_spec_token_cleanup"
+  },
+  {
+    "name": "PN61 qwen3_vl loader KeyError → text-only auto-fallback",
+    "wrapped_name": "apply_patch_N61_qwen3_vl_keyerror_guard"
+  },
+  {
+    "name": "PN66 Multiturn </think> leak fix in DelegatingParser (vllm#41696)",
+    "wrapped_name": "apply_patch_N66_multiturn_think_leak"
+  },
+  {
+    "name": "PN67 thinking_token_budget inverted bool fix (vllm#41674)",
+    "wrapped_name": "apply_patch_N67_thinking_budget_inverted_bool"
+  },
+  {
+    "name": "PN70 tool schema subset filter (combined `anyOf` xgrammar-clean)",
+    "wrapped_name": "apply_patch_N70_tool_schema_subset_filter"
+  },
+  {
+    "name": "PN65 Genesis structured API access log middleware (operator UX)",
+    "wrapped_name": "apply_patch_N65_access_log"
+  },
+  {
+    "name": "P79d Preempt async-discard backport (vllm#38624)",
+    "wrapped_name": "apply_patch_79d_preempt_async_discard"
+  },
+  {
+    "name": "P81 fp8 block-scaled MM low-M decode tuning (vllm#40925)",
+    "wrapped_name": "apply_patch_81_fp8_block_scaled_m_le_8"
+  },
+  {
+    "name": "P82 SGLang threshold_single OR-clause acceptance (BIASED — opt-in research)",
+    "wrapped_name": "apply_patch_82_sglang_acceptance_threshold"
+  },
+  {
+    "name": "P83 MTP keep-last-cached-block (vllm#38182 mitigation)",
+    "wrapped_name": "apply_patch_83_mtp_keep_last_cached_block"
+  },
+  {
+    "name": "P84 hash_block_size override (vllm#38182 ACTUAL root cause)",
+    "wrapped_name": "apply_patch_84_hash_block_size_override"
+  },
+  {
+    "name": "P100 FlashInfer FULL CUDA graph for spec-decode (vllm#41127 backport v7.62.17)",
+    "wrapped_name": "apply_patch_100_flashinfer_full_cg_specdec"
+  },
+  {
+    "name": "P103 FLA Cliff 2 chunked fwd_h+fwd_o orchestrator (genesis-original v7.62.20)",
+    "wrapped_name": "apply_patch_103_fla_cliff2_chunked"
+  },
+  {
+    "name": "P101 TQ continuation 64-token slicing (vllm#41123 selective v7.62.16)",
+    "wrapped_name": "apply_patch_101_tq_continuation_slicing"
+  },
+  {
+    "name": "P99 WorkspaceManager memoize get_simultaneous (perf hotfix v7.62.15)",
+    "wrapped_name": "apply_patch_99_workspace_manager_memoize"
+  },
+  {
+    "name": "P98 TQ WorkspaceManager revert (vllm#40941 perf hotfix v7.62.14)",
+    "wrapped_name": "apply_patch_98_tq_workspace_revert"
+  },
+  {
+    "name": "P94 Spec-decode prepare_next_token_ids_padded zero-alloc (vllm#41043 backport)",
+    "wrapped_name": "apply_patch_94_spec_decode_zero_alloc"
+  },
+  {
+    "name": "P95 Marlin TP cudagraph cap on Ampere (vllm#40385 backport)",
+    "wrapped_name": "apply_patch_95_marlin_tp_cudagraph_cap"
+  },
+  {
+    "name": "P91 AutoRound row-parallel group cdiv + start-idx fix (vllm#39460 backport)",
+    "wrapped_name": "apply_patch_91_autoround_row_group_cdiv"
+  },
+  {
+    "name": "P91B AutoRound row-group cdiv defensive coverage for INC + compressed-tensors schemes (P91 sibling, vllm#39460-derived)",
+    "wrapped_name": "apply_patch_91b_autoround_row_group_cdiv_multi_scheme"
+  },
+  {
+    "name": "P87 Marlin sub-tile output dim pad-on-load (vllm#40361 backport)",
+    "wrapped_name": "apply_patch_87_marlin_pad_sub_tile"
+  },
+  {
+    "name": "PN8 MTP/draft online-quant propagation (vllm#40849 backport)",
+    "wrapped_name": "apply_patch_N8_mtp_draft_online_quant_propagation"
+  },
+  {
+    "name": "PN11 GDN a/b contiguity in fix_query_key_value_ordering (vllm#41142 backport)",
+    "wrapped_name": "apply_patch_N11_gdn_a_b_contiguous"
+  },
+  {
+    "name": "P67c per-row vote sparse-V integration into P67 split-M kernel",
+    "wrapped_name": "apply_patch_67c_sparse_v"
+  },
+  {
+    "name": "PN35 inputs_embeds optional for text-only (vllm#35975 backport)",
+    "wrapped_name": "apply_patch_N35_inputs_embeds_optional"
+  },
+  {
+    "name": "PN40 DFlash drafter omnibus (sub-A: fused per-layer K-norm)",
+    "wrapped_name": "apply_patch_N40_dflash_omnibus"
+  },
+  {
+    "name": "PN38 DFlash drafter quantization support (PR #40425 backport)",
+    "wrapped_name": "apply_patch_N38_dflash_quant_drafter"
+  },
+  {
+    "name": "PN34 WorkspaceManager runtime lock relaxation (PN33 companion)",
+    "wrapped_name": "apply_patch_N34_workspace_lock_runtime_relax"
+  },
+  {
+    "name": "PN33 spec-decode warmup K-aware sizing (vllm#37521 extended to MTP/ngram)",
+    "wrapped_name": "apply_patch_N33_spec_decode_warmup_k"
+  },
+  {
+    "name": "PN96b Persistent Marlin MoE workspace (Wave 9 dev209 perf-restore)",
+    "wrapped_name": "apply_patch_N96b_marlin_persistent_workspace"
+  },
+  {
+    "name": "PN32 GDN chunked-prefill (Cliff 2 fix for single-24GB-GPU OOM)",
+    "wrapped_name": "apply_patch_N32_gdn_chunked_prefill"
+  },
+  {
+    "name": "PN204 GDN dual-stream input projection (port of vllm#42301)",
+    "wrapped_name": "apply_patch_N204_dual_stream_inproj"
+  },
+  {
+    "name": "PN102 PrefetchOffloader pinned-allocator prewarm pool",
+    "wrapped_name": "apply_patch_N102_pinned_alloc_pool"
+  },
+  {
+    "name": "PN108 GDN fused_recurrent prefill dispatch (Cliff 2 memory-bound fix)",
+    "wrapped_name": "apply_patch_N108_fused_recurrent_prefill"
+  },
+  {
+    "name": "PN31 FA varlen persistent out buffer (issue #15, sister to P38)",
+    "wrapped_name": "apply_patch_N31_fa_varlen_persistent_out"
+  },
+  {
+    "name": "PN30 DS conv state layout + spec-decode AL>1 fix (issue #17)",
+    "wrapped_name": "apply_patch_N30_ds_layout_spec_decode"
+  },
+  {
+    "name": "PN29 GDN chunk_o scale-fold (vllm#41446 pattern (c) backport)",
+    "wrapped_name": "apply_patch_N29_gdn_chunk_o_scale_fold"
+  },
+  {
+    "name": "PN12 FFN intermediate scratch pool (Cliff 1 fix on TQ3)",
+    "wrapped_name": "apply_patch_N12_ffn_intermediate_pool"
+  },
+  {
+    "name": "PN28 merge_attn_states NaN guard (vllm#39148 backport)",
+    "wrapped_name": "apply_patch_N28_merge_attn_states_nan_guard"
+  },
+  {
+    "name": "P15B FA varlen max_seqlen_k clamp on TQ path (Issue #15 fix)",
+    "wrapped_name": "apply_patch_15B_fa_varlen_clamp"
+  },
+  {
+    "name": "P38B P38 compile-safe in-source hook (Issue #14 fix — aot_compile-safe)",
+    "wrapped_name": "apply_patch_38B_compile_safe_hook"
+  },
+  {
+    "name": "PN26b sparse-V tile-skip Genesis kernel (BLASST λ=a/L for SM86, first NVIDIA Ampere implementation)",
+    "wrapped_name": "apply_patch_N26b_sparse_v_kernel"
+  },
+  {
+    "name": "PN27 revert MoERunnerInterface PluggableLayer (vllm#41440 backport)",
+    "wrapped_name": "apply_patch_N27_revert_pluggable_moe"
+  },
+  {
+    "name": "PN26 TQ unified perf pack (centroids prebake + sparse V scaffold)",
+    "wrapped_name": "apply_patch_N26_tq_unified_perf"
+  },
+  {
+    "name": "PN25 SiluAndMul.forward_native opaque-op pool (Cliff 1 mech B compile-path companion to PN12)",
+    "wrapped_name": "apply_patch_N25_silu_inductor_safe_pool"
+  },
+  {
+    "name": "PN13 CUDAGraphWrapper lambda arity (vllm#41235 backport)",
+    "wrapped_name": "apply_patch_N13_cuda_graph_lambda_arity"
+  },
+  {
+    "name": "PN14 TQ decode IOOB safe_page_idx clamp (vllm#40074 backport)",
+    "wrapped_name": "apply_patch_N14_tq_decode_oob_clamp"
+  },
+  {
+    "name": "PN19 Scoped max_split_size_mb during model load (vllm#41268)",
+    "wrapped_name": "apply_patch_N19_scoped_max_split"
+  },
+  {
+    "name": "PN23 DFlash combine_hidden_states dtype cast (vllm#40334 backport)",
+    "wrapped_name": "apply_patch_N23_dflash_combine_hidden_dtype"
+  },
+  {
+    "name": "PN21 DFlash SWA support partial backport (vllm#40898 backport)",
+    "wrapped_name": "apply_patch_N21_dflash_swa_support"
+  },
+  {
+    "name": "PN22 Local argmax for TP draft (vllm#39419 backport)",
+    "wrapped_name": "apply_patch_N22_local_argmax_tp"
+  },
+  {
+    "name": "PN24 DFlash aux layer +1 indexing fix (vllm#40727 backport)",
+    "wrapped_name": "apply_patch_N24_dflash_aux_layer_indexing"
+  },
+  {
+    "name": "PN17 FA2 softmax_lse runtime clamp (Issue #11 Cliff 1 mechanism A)",
+    "wrapped_name": "apply_patch_N17_fa2_softmax_lse_clamp"
+  },
+  {
+    "name": "P86 ngram batch_propose O(N+K) direct-fill (vllm#40876 backport)",
+    "wrapped_name": "apply_patch_86_ngram_batch_propose_linear"
+  },
+  {
+    "name": "P85 Hybrid fine-shadow prefix cache (MambaManager fix for vllm#38182 followup)",
+    "wrapped_name": "apply_patch_85_hybrid_fine_shadow_prefix_cache"
+  },
+  {
+    "name": "P75 Auto-enable Suffix Decoding (vllm#25784 Arctic Inference)",
+    "wrapped_name": "apply_patch_75_suffix_decoding_enable"
+  },
+  {
+    "name": "P74 Auto chunk-clamp via long_prefill_token_threshold (P72 companion)",
+    "wrapped_name": "apply_patch_74_chunk_clamp"
+  },
+  {
+    "name": "P72 profile_run M cap (unblocks --max-num-batched-tokens>4096 on MoE)",
+    "wrapped_name": "apply_patch_72_profile_run_cap"
+  },
+  {
+    "name": "P67b TurboQuant spec-verify forward() routing (FULL CG enable)",
+    "wrapped_name": "apply_patch_67b_spec_verify_routing"
+  },
+  {
+    "name": "P59 Qwen3 reasoning embedded tool_call recovery",
+    "wrapped_name": "apply_patch_59_qwen3_reasoning_tool_call_recovery"
+  },
+  {
+    "name": "P58 async-scheduler -1 placeholder fix",
+    "wrapped_name": "apply_patch_58_async_placeholder_fix"
+  },
+  {
+    "name": "P44 TQ mixed-batch attn_out pool",
+    "wrapped_name": "apply_patch_44_tq_mixed_attn_out"
+  },
+  {
+    "name": "P46 GDN gating buffer pool",
+    "wrapped_name": "apply_patch_46_gdn_gating_buffers"
+  },
+  {
+    "name": "P7b GDN dual-stream via torch.library.custom_op (opt-in)",
+    "wrapped_name": "apply_patch_7b_gdn_dual_stream_customop"
+  },
+  {
+    "name": "P40 TurboQuant GQA-grouped decode stage1 (opt-in)",
+    "wrapped_name": "apply_patch_40_tq_grouped_decode"
+  },
+  {
+    "name": "P39a FLA chunk_scaled_dot_kkt persistent A pool",
+    "wrapped_name": "apply_patch_39a_fla_kkt_buffer"
+  },
+  {
+    "name": "P38 TQ _continuation_prefill persistent workspace",
+    "wrapped_name": "apply_patch_38_tq_continuation_memory"
+  },
+  {
+    "name": "P37 MoE intermediate cache pool (opt-in)",
+    "wrapped_name": "apply_patch_37_moe_intermediate_cache"
+  },
+  {
+    "name": "P36 TurboQuant shared decode buffers",
+    "wrapped_name": "apply_patch_36_tq_shared_decode_buffers"
+  },
+  {
+    "name": "P32/P33 TurboQuant cu_2 + synth_seq_lens preallocs",
+    "wrapped_name": "apply_patch_32_33_tq_bundled_preallocs"
+  },
+  {
+    "name": "P28 GDN core_attn_out prealloc",
+    "wrapped_name": "apply_patch_28_gdn_core_attn"
+  },
+  {
+    "name": "P7 GDN dual-stream in_proj parallelism",
+    "wrapped_name": "apply_patch_7_gdn_dual_stream"
+  },
+  {
+    "name": "P17/P18 Marlin MoE per-SM tuning",
+    "wrapped_name": "apply_patch_17_18_marlin_tuning"
+  },
+  {
+    "name": "P24 fused_moe num_warps/num_stages overlay",
+    "wrapped_name": "apply_patch_24_moe_tune"
+  },
+  {
+    "name": "P14 block_table tail zero-fill",
+    "wrapped_name": "apply_patch_14_block_table_tail_zero"
+  },
+  {
+    "name": "P18b TurboQuant decode stage1 tune",
+    "wrapped_name": "apply_patch_18b_tq_decode_tune"
+  },
+  {
+    "name": "P20 TurboQuant continuation-prefill FP16 rotate",
+    "wrapped_name": "apply_patch_20_tq_continuation_prefill"
+  },
+  {
+    "name": "P1/P2 FP8 kernel dispatcher",
+    "wrapped_name": "apply_patch_1_2_fp8_dispatcher"
+  },
+  {
+    "name": "G4_01 gemma4 Ampere FP8_BLOCK refusal guard",
+    "wrapped_name": "apply_patch_g4_01_gemma4_ampere_fp8_block_guard"
+  },
+  {
+    "name": "G4_02 gemma4 Ampere Marlin K-dim refusal guard",
+    "wrapped_name": "apply_patch_g4_02_gemma4_ampere_marlin_kdim_guard"
+  },
+  {
+    "name": "G4_03 gemma4 Ampere non-causal drafter refusal guard",
+    "wrapped_name": "apply_patch_g4_03_gemma4_ampere_non_causal_drafter_guard"
+  },
+  {
+    "name": "G4_04 gemma4 AWQ MoE keys remap (vendor #40886)",
+    "wrapped_name": "apply_patch_g4_04_gemma4_awq_moe_keys_remap"
+  },
+  {
+    "name": "G4_05 gemma4 DFlash drafter backend autoselect (retired — superseded by vllm#39930)",
+    "wrapped_name": "apply_patch_g4_05_dflash_backend_autoselect"
+  },
+  {
+    "name": "G4_06 gemma4 v_head_size=0 for k_eq_v (vendor #41944)",
+    "wrapped_name": "apply_patch_g4_06_kv_proj_v_head_size_zero"
+  },
+  {
+    "name": "G4_07 gemma4 FP8_BLOCK double-scale fix (custom quant config)",
+    "wrapped_name": "apply_patch_g4_07_gemma4_fp8_block_double_scale_fix"
+  },
+  {
+    "name": "G4_08 gemma4 Marlin K-pad Triton MoE fallback",
+    "wrapped_name": "apply_patch_g4_08_gemma4_marlin_kdim_pad_fallback"
+  },
+  {
+    "name": "G4_09 gemma4 SWA→global prefill chunker (closes #39914)",
+    "wrapped_name": "apply_patch_g4_09_gemma4_swa_global_prefill_chunker"
+  },
+  {
+    "name": "G4_10 gemma4 Ampere non-causal head_dim=256 Triton attn backend",
+    "wrapped_name": "apply_patch_g4_10_gemma4_ampere_non_causal_attn_backend"
+  },
+  {
+    "name": "G4_11 gemma4 enhanced chat template install",
+    "wrapped_name": "apply_patch_g4_11_gemma4_chat_template_install"
+  },
+  {
+    "name": "G4_12 gemma4 FP8 e4nv Ampere refusal guard (closes #41014)",
+    "wrapped_name": "apply_patch_g4_12_gemma4_fp8_e4nv_ampere_guard"
+  },
+  {
+    "name": "G4_13 gemma4 per-token-head KV refusal guard (closes #40388)",
+    "wrapped_name": "apply_patch_g4_13_gemma4_per_token_head_kv_guard"
+  },
+  {
+    "name": "G4_14 gemma4 tool-call-parser pad-token strip (closes #39392)",
+    "wrapped_name": "apply_patch_g4_14_gemma4_tool_call_parser_pad_token"
+  },
+  {
+    "name": "G4_15 gemma4 fused RMSNorm Triton route (ported SGLang)",
+    "wrapped_name": "apply_patch_g4_15_gemma4_fused_rmsnorm_route"
+  },
+  {
+    "name": "G4_16 gemma4 FULL_AND_PIECEWISE cudagraph_mode (parallel PN125)",
+    "wrapped_name": "apply_patch_g4_16_gemma4_full_piecewise_cudagraph"
+  },
+  {
+    "name": "G4_17 gemma4 vision-tower text-only skip (closes #41565)",
+    "wrapped_name": "apply_patch_g4_17_gemma4_vision_tower_text_only_skip"
+  },
+  {
+    "name": "G4_18 gemma4 per-layer KV page-size (vendor WIP #40391)",
+    "wrapped_name": "apply_patch_g4_18_per_layer_kv_page_size"
+  },
+  {
+    "name": "G4_23 gemma4 vision-tower FP16 overflow fix (closes #40124)",
+    "wrapped_name": "apply_patch_g4_23_gemma4_vision_fp16_overflow_fix"
+  },
+  {
+    "name": "G4_24 gemma4 fused softcap Triton route (attention + final logits)",
+    "wrapped_name": "apply_patch_g4_24_gemma4_fused_softcap_route"
+  },
+  {
+    "name": "G4_25 gemma4 dual-RoPE base-freq divergence guard",
+    "wrapped_name": "apply_patch_g4_25_gemma4_rope_dual_base_freq_guard"
+  },
+  {
+    "name": "G4_19 gemma4 Genesis TurboQuant KV cache (3/4-bit VQ, 256K unlock)",
+    "wrapped_name": "apply_patch_g4_19_turboquant_kv_cache"
+  },
+  {
+    "name": "G4_19b gemma4 TQ KV spec integration (compression-aware memory check)",
+    "wrapped_name": "apply_patch_g4_19b_tq_kv_spec_integration"
+  }
+]
