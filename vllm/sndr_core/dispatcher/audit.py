@@ -95,6 +95,243 @@ def _is_canonical_env_flag(flag: str) -> bool:
     return any(flag.startswith(p) for p in _CANONICAL_ENV_PREFIXES)
 
 
+def _audit_tier(pid: str, meta: dict[str, Any]) -> list[ValidationIssue]:
+    """Per-entry: ``tier`` must be one of ``_VALID_TIERS`` when set."""
+    tier = meta.get("tier")
+    if tier is not None and tier not in _VALID_TIERS:
+        return [ValidationIssue(
+            "ERROR", pid,
+            f"tier={tier!r} is not in {sorted(_VALID_TIERS)}",
+        )]
+    return []
+
+
+def _audit_lifecycle(pid: str, meta: dict[str, Any]) -> list[ValidationIssue]:
+    """Per-entry: ``lifecycle`` must be one of ``_VALID_LIFECYCLES`` when
+    set; unset is INFO-class drift signal.
+
+    PR38 §5.5 ratchet (2026-05-08): patches without an explicit
+    lifecycle drift into ambiguity over time. Surface as INFO so the
+    registry self-documents which patches need a decision. Not raised
+    to WARNING because 91 patches today have no lifecycle and we don't
+    want to drown out real issues.
+    """
+    out: list[ValidationIssue] = []
+    lifecycle = meta.get("lifecycle")
+    if lifecycle is not None and lifecycle not in _VALID_LIFECYCLES:
+        out.append(ValidationIssue(
+            "ERROR", pid,
+            f"lifecycle={lifecycle!r} is not in {sorted(_VALID_LIFECYCLES)}",
+        ))
+    if lifecycle is None:
+        out.append(ValidationIssue(
+            "INFO", pid,
+            "lifecycle field unset — pick one of "
+            f"{sorted(_VALID_LIFECYCLES)}. Promoting to "
+            "lifecycle='stable' triggers anchor manifest "
+            "requirements; see "
+            "docs/upstream/STABLE_PROMOTION_CHECKLIST.md.",
+        ))
+    return out
+
+
+def _audit_implementation_status(
+    pid: str, meta: dict[str, Any],
+) -> list[ValidationIssue]:
+    """P2-1 (audit 2026-05-08): ``implementation_status`` enum check."""
+    impl_status = meta.get("implementation_status")
+    if (impl_status is not None
+            and impl_status not in _VALID_IMPLEMENTATION_STATUSES):
+        return [ValidationIssue(
+            "ERROR", pid,
+            f"implementation_status={impl_status!r} is not in "
+            f"{sorted(_VALID_IMPLEMENTATION_STATUSES)}",
+        )]
+    return []
+
+
+def _audit_upstream_pr_relationship(
+    pid: str, meta: dict[str, Any],
+) -> list[ValidationIssue]:
+    """Phase 5.1.C (2026-05-22): ``upstream_pr_relationship`` enum check.
+
+    After the 5.1.B migration every upstream_pr-bearing entry carries
+    an explicit relationship value, so missing-when-set is now an
+    ERROR (escalated from silent in 5.1.A). When the field is present
+    it MUST be one of the canonical values. The reverse case
+    (relationship set without upstream_pr) stays WARNING — likely a
+    copy-paste mistake but not fatal.
+    """
+    out: list[ValidationIssue] = []
+    rel = meta.get("upstream_pr_relationship")
+    upstream_pr_value = meta.get("upstream_pr")
+    if rel is not None and rel not in VALID_UPSTREAM_PR_RELATIONSHIPS:
+        out.append(ValidationIssue(
+            "ERROR", pid,
+            f"upstream_pr_relationship={rel!r} is not in "
+            f"{sorted(VALID_UPSTREAM_PR_RELATIONSHIPS)}",
+        ))
+    if rel is None and isinstance(upstream_pr_value, int):
+        out.append(ValidationIssue(
+            "ERROR", pid,
+            f"upstream_pr is set (#{upstream_pr_value}) but "
+            f"upstream_pr_relationship is missing — pick one of "
+            f"{sorted(VALID_UPSTREAM_PR_RELATIONSHIPS)}. Default "
+            f"choice for plain backports is 'backport'.",
+        ))
+    if rel is not None and upstream_pr_value is None:
+        out.append(ValidationIssue(
+            "WARNING", pid,
+            f"upstream_pr_relationship={rel!r} is set but "
+            f"upstream_pr is None — relationship field has no "
+            f"target; either set upstream_pr or remove the "
+            f"relationship field",
+        ))
+    return out
+
+
+def _audit_env_flag_canonical(
+    pid: str, meta: dict[str, Any],
+) -> list[ValidationIssue]:
+    """``env_flag`` canonical form. WARNING (not ERROR) because the
+    runtime decision now strips the prefix and delegates to
+    ``env.is_enabled`` — so the registry can be drift-fixed gradually
+    without breaking apply behavior."""
+    env_flag = meta.get("env_flag")
+    if env_flag and not _is_canonical_env_flag(env_flag):
+        return [ValidationIssue(
+            "WARNING", pid,
+            f"env_flag={env_flag!r} lacks canonical SNDR_ENABLE_/"
+            f"GENESIS_ENABLE_ prefix — operators may not realize "
+            f"the alias works",
+        )]
+    return []
+
+
+def _audit_apply_module_importable(
+    pid: str, meta: dict[str, Any],
+) -> list[ValidationIssue]:
+    """``apply_module`` is optional today; will become required when
+    the parking-lot ``_per_patch_dispatch.py`` is retired. When
+    present, must import-resolve so we fail fast on typo'd paths."""
+    apply_module = meta.get("apply_module")
+    if not apply_module:
+        return []
+    try:
+        import importlib
+        importlib.import_module(apply_module)
+    except Exception as e:
+        return [ValidationIssue(
+            "ERROR", pid,
+            f"apply_module={apply_module!r} fails to import: "
+            f"{type(e).__name__}: {e}",
+        )]
+    return []
+
+
+def _audit_applies_to_shape(
+    pid: str, meta: dict[str, Any],
+) -> list[ValidationIssue]:
+    """``applies_to``: dict or absent. Field-level type checks happen
+    at ``_check_applies_to`` call time; this layer only catches
+    "someone accidentally wrote a list/string here"."""
+    applies_to = meta.get("applies_to")
+    if applies_to is not None and not isinstance(applies_to, dict):
+        return [ValidationIssue(
+            "ERROR", pid,
+            f"applies_to must be dict or absent, got "
+            f"{type(applies_to).__name__}",
+        )]
+    return []
+
+
+def _audit_entry_contract(
+    pid: str, meta: dict[str, Any],
+) -> list[ValidationIssue]:
+    """Run every per-entry contract check in canonical order.
+
+    Order matters: existing tests + ``audit_registry_contract.py``
+    consume the issue list and ``test_iron_rule_11_enforcement.py``
+    cross-references the order of severities. Preserve the original
+    Phase 1 sequence (tier → lifecycle → impl_status → upstream_pr_*
+    → env_flag → apply_module → applies_to).
+    """
+    out: list[ValidationIssue] = []
+    out.extend(_audit_tier(pid, meta))
+    out.extend(_audit_lifecycle(pid, meta))
+    out.extend(_audit_implementation_status(pid, meta))
+    out.extend(_audit_upstream_pr_relationship(pid, meta))
+    out.extend(_audit_env_flag_canonical(pid, meta))
+    out.extend(_audit_apply_module_importable(pid, meta))
+    out.extend(_audit_applies_to_shape(pid, meta))
+    return out
+
+
+def _audit_references(
+    pid: str, meta: dict[str, Any], keys: set[str],
+) -> list[ValidationIssue]:
+    """Graph layer per-entry: ``requires_patches`` + ``conflicts_with``
+    must reference valid patch_ids and may not self-reference."""
+    out: list[ValidationIssue] = []
+    for ref in _coerce_list(meta.get("requires_patches")):
+        if ref == pid:
+            out.append(ValidationIssue(
+                "ERROR", pid,
+                f"requires_patches contains self-reference {ref!r}",
+            ))
+        elif ref not in keys:
+            out.append(ValidationIssue(
+                "ERROR", pid,
+                f"requires_patches references unknown patch_id {ref!r}",
+            ))
+    for ref in _coerce_list(meta.get("conflicts_with")):
+        if ref == pid:
+            out.append(ValidationIssue(
+                "ERROR", pid,
+                f"conflicts_with contains self-reference {ref!r}",
+            ))
+        elif ref not in keys:
+            out.append(ValidationIssue(
+                "ERROR", pid,
+                f"conflicts_with references unknown patch_id {ref!r}",
+            ))
+    return out
+
+
+def _audit_requires_cycles(
+    registry: dict[str, dict[str, Any]],
+) -> list[ValidationIssue]:
+    """DFS three-color cycle detection on the ``requires_patches`` graph.
+
+    Reports each cycle once at the entry where the back-edge was
+    detected, with the cycle path joined by ``→``.
+    """
+    out: list[ValidationIssue] = []
+    WHITE, GRAY, BLACK = 0, 1, 2
+    color = {pid: WHITE for pid in registry}
+
+    def _walk(pid: str, path: list[str]) -> None:
+        if color[pid] == GRAY:
+            cycle = path[path.index(pid):] + [pid]
+            out.append(ValidationIssue(
+                "ERROR", pid,
+                f"requires_patches cycle detected: {' → '.join(cycle)}",
+            ))
+            return
+        if color[pid] == BLACK:
+            return
+        color[pid] = GRAY
+        for ref in _coerce_list(registry.get(pid, {}).get("requires_patches")):
+            if ref in color:
+                _walk(ref, path + [pid])
+        color[pid] = BLACK
+
+    for pid in list(registry):
+        if color[pid] == WHITE:
+            _walk(pid, [])
+    return out
+
+
 def validate_registry(
     registry: dict[str, dict[str, Any]] | None = None,
 ) -> list[ValidationIssue]:
@@ -115,6 +352,14 @@ def validate_registry(
       - `requires_patches` references valid patch_ids (no self-ref, no cycle)
       - `conflicts_with` references valid patch_ids (no self-ref)
 
+    M.1.1.T2 restructure (2026-05-27): the original 190-LOC body is
+    split into private named helpers above. Error message wording,
+    severity, and check ordering are preserved byte-identical;
+    ``tests/unit/scripts/test_audit_registry_contract.py``,
+    ``tests/unit/dispatcher/test_iron_rule_11_enforcement.py`` and the
+    live ``scripts/audit_registry_contract.py`` invocation are the
+    invariance guards.
+
     Returns a list of `ValidationIssue` (empty list = clean).
     """
     if registry is None:
@@ -125,165 +370,14 @@ def validate_registry(
 
     # 1. Per-entry contract checks (tier, lifecycle, env_flag, applies_to)
     for pid, meta in registry.items():
-        # tier
-        tier = meta.get("tier")
-        if tier is not None and tier not in _VALID_TIERS:
-            issues.append(ValidationIssue(
-                "ERROR", pid,
-                f"tier={tier!r} is not in {sorted(_VALID_TIERS)}",
-            ))
-
-        # lifecycle
-        lifecycle = meta.get("lifecycle")
-        if lifecycle is not None and lifecycle not in _VALID_LIFECYCLES:
-            issues.append(ValidationIssue(
-                "ERROR", pid,
-                f"lifecycle={lifecycle!r} is not in {sorted(_VALID_LIFECYCLES)}",
-            ))
-        # PR38 §5.5 ratchet (2026-05-08): patches without an explicit
-        # lifecycle drift into ambiguity over time. Surface as INFO so
-        # the registry self-documents which patches need a decision.
-        # Not raised to WARNING because 91 patches today have no
-        # lifecycle and we don't want to drown out real issues.
-        if lifecycle is None:
-            issues.append(ValidationIssue(
-                "INFO", pid,
-                "lifecycle field unset — pick one of "
-                f"{sorted(_VALID_LIFECYCLES)}. Promoting to "
-                "lifecycle='stable' triggers anchor manifest "
-                "requirements; see "
-                "docs/upstream/STABLE_PROMOTION_CHECKLIST.md.",
-            ))
-
-        # P2-1 (audit 2026-05-08): implementation_status validation.
-        impl_status = meta.get("implementation_status")
-        if (impl_status is not None
-                and impl_status not in _VALID_IMPLEMENTATION_STATUSES):
-            issues.append(ValidationIssue(
-                "ERROR", pid,
-                f"implementation_status={impl_status!r} is not in "
-                f"{sorted(_VALID_IMPLEMENTATION_STATUSES)}",
-            ))
-
-        # Phase 5.1.C (2026-05-22): upstream_pr_relationship enum check.
-        # After the 5.1.B migration every upstream_pr-bearing entry
-        # carries an explicit relationship value, so missing-when-set
-        # is now an ERROR (escalated from silent in 5.1.A). When the
-        # field is present it MUST be one of the canonical values.
-        # The reverse case (relationship set without upstream_pr) stays
-        # WARNING — likely a copy-paste mistake but not fatal.
-        rel = meta.get("upstream_pr_relationship")
-        upstream_pr_value = meta.get("upstream_pr")
-        if rel is not None and rel not in VALID_UPSTREAM_PR_RELATIONSHIPS:
-            issues.append(ValidationIssue(
-                "ERROR", pid,
-                f"upstream_pr_relationship={rel!r} is not in "
-                f"{sorted(VALID_UPSTREAM_PR_RELATIONSHIPS)}",
-            ))
-        if rel is None and isinstance(upstream_pr_value, int):
-            issues.append(ValidationIssue(
-                "ERROR", pid,
-                f"upstream_pr is set (#{upstream_pr_value}) but "
-                f"upstream_pr_relationship is missing — pick one of "
-                f"{sorted(VALID_UPSTREAM_PR_RELATIONSHIPS)}. Default "
-                f"choice for plain backports is 'backport'.",
-            ))
-        if rel is not None and upstream_pr_value is None:
-            issues.append(ValidationIssue(
-                "WARNING", pid,
-                f"upstream_pr_relationship={rel!r} is set but "
-                f"upstream_pr is None — relationship field has no "
-                f"target; either set upstream_pr or remove the "
-                f"relationship field",
-            ))
-
-        # env_flag canonical form. WARNING (not ERROR) because the
-        # runtime decision now strips the prefix and delegates to
-        # env.is_enabled — so the registry can be drift-fixed gradually
-        # without breaking apply behavior.
-        env_flag = meta.get("env_flag")
-        if env_flag and not _is_canonical_env_flag(env_flag):
-            issues.append(ValidationIssue(
-                "WARNING", pid,
-                f"env_flag={env_flag!r} lacks canonical SNDR_ENABLE_/"
-                f"GENESIS_ENABLE_ prefix — operators may not realize "
-                f"the alias works",
-            ))
-
-        # apply_module (optional today; will become required when the
-        # parking-lot _per_patch_dispatch.py is retired). When present,
-        # must import-resolve so we fail fast on typo'd paths.
-        apply_module = meta.get("apply_module")
-        if apply_module:
-            try:
-                import importlib
-                importlib.import_module(apply_module)
-            except Exception as e:
-                issues.append(ValidationIssue(
-                    "ERROR", pid,
-                    f"apply_module={apply_module!r} fails to import: "
-                    f"{type(e).__name__}: {e}",
-                ))
-
-        # applies_to: dict or absent. Field-level type checks happen at
-        # _check_applies_to call time; this layer only catches "someone
-        # accidentally wrote a list/string here".
-        applies_to = meta.get("applies_to")
-        if applies_to is not None and not isinstance(applies_to, dict):
-            issues.append(ValidationIssue(
-                "ERROR", pid,
-                f"applies_to must be dict or absent, got "
-                f"{type(applies_to).__name__}",
-            ))
+        issues.extend(_audit_entry_contract(pid, meta))
 
     # 2. Reference existence + self-reference (graph layer)
     for pid, meta in registry.items():
-        for ref in _coerce_list(meta.get("requires_patches")):
-            if ref == pid:
-                issues.append(ValidationIssue(
-                    "ERROR", pid,
-                    f"requires_patches contains self-reference {ref!r}",
-                ))
-            elif ref not in keys:
-                issues.append(ValidationIssue(
-                    "ERROR", pid,
-                    f"requires_patches references unknown patch_id {ref!r}",
-                ))
-        for ref in _coerce_list(meta.get("conflicts_with")):
-            if ref == pid:
-                issues.append(ValidationIssue(
-                    "ERROR", pid,
-                    f"conflicts_with contains self-reference {ref!r}",
-                ))
-            elif ref not in keys:
-                issues.append(ValidationIssue(
-                    "ERROR", pid,
-                    f"conflicts_with references unknown patch_id {ref!r}",
-                ))
+        issues.extend(_audit_references(pid, meta, keys))
 
     # 3. Cycle detection on requires_patches graph (DFS three-color).
-    WHITE, GRAY, BLACK = 0, 1, 2
-    color = {pid: WHITE for pid in registry}
-
-    def _walk(pid: str, path: list[str]) -> None:
-        if color[pid] == GRAY:
-            cycle = path[path.index(pid):] + [pid]
-            issues.append(ValidationIssue(
-                "ERROR", pid,
-                f"requires_patches cycle detected: {' → '.join(cycle)}",
-            ))
-            return
-        if color[pid] == BLACK:
-            return
-        color[pid] = GRAY
-        for ref in _coerce_list(registry.get(pid, {}).get("requires_patches")):
-            if ref in color:
-                _walk(ref, path + [pid])
-        color[pid] = BLACK
-
-    for pid in list(registry):
-        if color[pid] == WHITE:
-            _walk(pid, [])
+    issues.extend(_audit_requires_cycles(registry))
 
     return issues
 
