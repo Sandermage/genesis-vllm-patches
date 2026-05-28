@@ -49,7 +49,7 @@ WORKER_PATCHES = [
     ("vllm.sndr_core.integrations._retired.pn52_prompt_logprobs_eviction", "PN52"),
     ("vllm.sndr_core.integrations.worker.pn55_wake_up_hybrid_kv", "PN55"),
     ("vllm.sndr_core.integrations._retired.pn67_thinking_budget_inverted_bool", "PN67"),
-    ("vllm.sndr_core.integrations.worker.pn82_mamba_cudagraph_prefill_zero", "PN82"),
+    ("vllm.sndr_core.integrations._retired.pn82_mamba_cudagraph_prefill_zero", "PN82"),
 ]
 
 

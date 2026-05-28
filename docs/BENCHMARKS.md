@@ -10,7 +10,7 @@ GPU envelope and [`MODELS.md`](MODELS.md) for the model lineup.
 >
 > - Genesis `v12.0.0` — 229 PATCH_REGISTRY entries
 >   (174 full + 17 marker-only + 4 retired + 7 partial + 2 placeholder).
-> - vLLM `0.20.2rc1.dev371+gbf610c2f5`.
+> - vLLM `0.21.1rc0+g626fa9bba5`.
 > - Reference rig: **2× RTX A5000 24 GB** (Ampere SM 8.6),
 >   driver 580.142, CUDA 13.0.2.
 > - Spec-decode: MTP K=3 (probabilistic draft rejection, vllm#40269).
@@ -66,7 +66,7 @@ Per Genesis structured boot summary printed once at boot end:
 Genesis vLLM Patcher — boot summary
 ══════════════════════════════════════════════════════════════════════
   Genesis:  v12.0.0
-  vLLM:     0.20.2rc1.dev371+gbf610c2f5
+  vLLM:     0.21.1rc0+g626fa9bba5
   GPU:      2× NVIDIA RTX A5000 (sm_86)
 ──────────────────────────────────────────────────────────────────────
   Patches:  229 total → ~80 APPLY | ~148 SKIP

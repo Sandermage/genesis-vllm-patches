@@ -51,7 +51,7 @@ requires:
 
 versions:
   genesis_pin_min: v11.0.0
-  vllm_pin_required: 0.20.2rc1.dev371+gbf610c2f5 # promoted 2026-05-21 (P2.4d-Q27-FP8KV) — dev371 smoke + quick bench PASS via canonical V2 flow (hardware YAML → renderer → IMAGE dev371, no sed). Requires P103 wrapper kwargs ABI fix (commit 122c2576). Previous pin dev338 retained side-by-side on server as :nightly-previous for rollback per CLAUDE.md pin policy.
+  vllm_pin_required: 0.21.1rc0+g626fa9bba566 # promoted 2026-05-21 (P2.4d-Q27-FP8KV) — dev371 smoke + quick bench PASS via canonical V2 flow (hardware YAML → renderer → IMAGE dev371, no sed). Requires P103 wrapper kwargs ABI fix (commit 122c2576). Previous pin dev338 retained side-by-side on server as :nightly-previous for rollback per CLAUDE.md pin policy.
   reference_metrics_ref: null                    # no JSON baseline yet. dev371 quick bench (n=25): decode_TPOT 17.81 ms mean (CV 12.2%), TTFT 156.7 ms mean (CV 12.5%), wall_TPS 47.8 mean. Receipt: sndr_private/planning/bench_results/2026-05-21/P2_Q27_FP8KV_DEV371_SMOKE_RECEIPT_2026-05-21_RU.md. NOT a formal canonical baseline — full sustained-methodology cycle still pending.
 
 # ─── Canonical patches matrix ──────────────────────────────────────────

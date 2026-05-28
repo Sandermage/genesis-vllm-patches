@@ -6,7 +6,7 @@ docker compose) and the first-30-minute acceptance walkthrough.
 
 > Stack as of 2026-05-22:
 > Genesis `v12.0.0` (229 PATCH_REGISTRY entries) ·
-> vLLM `0.20.2rc1.dev371+gbf610c2f5` ·
+> vLLM `0.21.1rc0+g626fa9bba5` ·
 > Reference rig: 2× RTX A5000 24 GB · driver ≥ 580.126 · CUDA 13.
 
 ## 1. Prerequisites
@@ -162,7 +162,7 @@ manifest.
 
 **Common failures:**
 
-- `vllm version mismatch (got X, expected 0.20.2rc1.dev371+gbf610c2f5)`
+- `vllm version mismatch (got X, expected 0.21.1rc0+g626fa9bba5)`
   → re-run installer with `--pin <pin>` to align, or
   `pip install vllm==<your-pin>` and accept the drift warning.
 - `NCCL P2P_DISABLE recommended on consumer Ampere` → set

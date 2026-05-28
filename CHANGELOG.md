@@ -80,6 +80,118 @@ on vLLM nightly pin `0.20.2rc1.dev209+g5536fc0c0`. 152 patches in
 
 ---
 
+## [Unreleased] — K.1.R pin bump dev371 → nightly-626fa9bb + PN82 retire (2026-05-28)
+
+### Highlights
+
+K.1.R deep-diff pin bump audit closure. New canonical pin: vllm/vllm-openai
+nightly tag `nightly-626fa9bba5663a5cf6a870debf031ee344ddb822` (multi-arch
+manifest digest `sha256:674922aae790c2cbf45f4e844098d227b80d40a74bfc7797a444d213a221879f`,
+upstream commit 626fa9bba5663a5cf6a870debf031ee344ddb822 from 2026-05-28T04:59:34Z,
+"[BugFix] Fix blocked reasoning parsing with MRV2 (#43808)"). Previous pin
+`0.20.2rc1.dev371+gbf610c2f5` (bf610c2f56764e1b30bc6065f4ceace3d6e59036)
+retained in allowlist as fallback. 362 commits ahead of previous pin;
+closest annotated ancestor is v0.21.1rc0.
+
+PROMOTION_PENDING — repo state reflects the new pin as canonical (docs,
+compose YAMLs, hardware YAMLs, model_configs `vllm_pin_required`,
+README badge), but `PROMOTION_PENDING_VLLM_PINS` includes the new pin
+until the server-side bench cycle on the rig validates 27B + 35B PROD
+presets.
+
+### Patches changed
+
+**Retired (1):**
+
+- **PN82** (`Mamba CUDA-graph stale is_prefilling padded rows`) →
+  superseded by vllm#41873 merged upstream at commit
+  39d5fa96a7c687f9ed7e14a5a52064965356cede on 2026-05-21T22:42:43Z,
+  included in pin window dev371 → 626fa9bb. K.1.R deep-diff confirmed
+  byte-equivalent insertion of `is_prefilling[num_reqs:] = False` at
+  the same post-assignment location in `vllm/v1/worker/gpu_model_runner.py:2270`.
+  Per iron rule #11 case (a) — only delta is comment text (Genesis 3-line
+  in-place vs upstream 2-line, cosmetic). Wiring moved to
+  `integrations/_retired/`, registry entry updated with `lifecycle=retired`,
+  `superseded_by`, and `vllm_version_range: "<0.21.1rc0+g626fa9bba5"`.
+  Test file moved to `tests/unit/integrations/_retired/`; worker family
+  contract updated.
+
+**Already absorbed (8, status confirmed):**
+
+PR audit at K.1.R confirmed 9 other tracked PRs merged upstream prior
+to dev371 (already retired in earlier sessions): P94 (#41043), PN9
+(#39930 / G4_05), PN13 (#41235), PN19 (#41268), PN52 (#41411), PN67
+(#41674 — merged exactly at our previous pin's SHA), PN80 (#41845).
+No re-classification needed; existing `lifecycle=retired` entries cover
+them. PN82 is the only addition for K.1.R.
+
+**Anchor drift (4 files / OPEN PRs, deferred):**
+
+Anchor drift check at 626fa9bb identified shifts in 4 upstream files
+covered by 6 OPEN PR patches: `config/vllm.py` (PN275, P95, P66, P72),
+`model_executor/layers/quantization/auto_gptq.py` (P91),
+`model_executor/layers/quantization/inc.py` (P91B),
+`transformers_utils/configs/speculators/algos.py` (PN21). All affected
+patches carry `upstream_drift_markers` self-skip semantics — runtime
+will surface drift via `apply.shadow` reporter rather than crash. Closer
+anchor re-anchoring deferred to a follow-up slice (does NOT block the
+pin bump under the soft-fail-on-anchor-shift policy).
+
+### Migration notes
+
+**For operators:**
+
+1. **Docker pull** the new image when convenient:
+
+   ```bash
+   docker pull vllm/vllm-openai@sha256:674922aae790c2cbf45f4e844098d227b80d40a74bfc7797a444d213a221879f
+   ```
+
+   The compose YAMLs already reference this digest.
+
+2. **Validate locally first** on a non-PROD container:
+
+   ```bash
+   sndr launch prod-35b --dry-run    # confirm pin matches
+   sndr launch prod-35b              # boot + smoke
+   sndr verify                        # tool-call smoke
+   ```
+
+3. **Rollback path** if needed: previous pin `dev371+bf610c2f5` is in
+   the allowlist (multi-arch digest `sha256:f66782cc770fb92b9c4e608a70aa04b9c51e6f3055e0b82c77a53d7107cd71a7`).
+   Edit compose YAML image: line to revert.
+
+4. **PN82 retire impact**: if you had `GENESIS_ENABLE_PN82_MAMBA_CUDAGRAPH_PREFILL_ZERO=1`
+   in env, leaving it set is harmless (the patch now self-skips with a
+   retirement message). Remove for cleanliness.
+
+### Bench / measurements
+
+K.1.R is a laptop-side audit. Server-side bench cycle pending.
+
+### Audit findings
+
+PR audit summary (72 unique upstream_pr references in registry):
+
+- 50 OPEN upstream
+- 22 CLOSED (10 actually merged, 12 closed-without-merge)
+- 1 merge in pin window dev371→626fa9bb (PN82)
+- 4 files with anchor drift (covered by existing upstream_drift_markers)
+
+### Verified
+
+- `python3 -m pytest tests/unit -q --tb=no` — all green (forthcoming
+  final sweep in Commit 4).
+- `audit_registry_contract.py` — 8 invariants clean.
+- `make gates` — all 14 fast gates green.
+- `apply.shadow --strict` — CLEAN (43 known spec-only).
+- `patches doctor` — 0 errors / 0 warnings.
+
+Refs: `sndr_private/planning/audits/K_1_R_PIN_BUMP_AUDIT_2026-05-28_RU.md`
+(forthcoming deliverable).
+
+---
+
 ## [Unreleased] — CONFIG-UX.5 derived config catalog closure (2026-05-24)
 
 > Closes the CONFIG-UX.5 derived-catalog track end-to-end across two

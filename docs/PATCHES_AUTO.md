@@ -4,7 +4,7 @@
 > Source of truth: `vllm/sndr_core/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-05-28T18:35:33Z
+Generated: 2026-05-28T19:40:49Z
 Total entries: **229**
 
 ## Statistics
@@ -14,10 +14,10 @@ Total entries: **229**
 
 ### By lifecycle
 - `lifecycle=coordinator`: **3**
-- `lifecycle=experimental`: **159**
+- `lifecycle=experimental`: **158**
 - `lifecycle=legacy`: **33**
 - `lifecycle=research`: **4**
-- `lifecycle=retired`: **16**
+- `lifecycle=retired`: **17**
 - `lifecycle=stable`: **14**
 
 ### Default-on at boot: **51** / 229
@@ -388,7 +388,7 @@ Total entries: **229**
 | **PN52** | `community` | `retired` | · | `GENESIS_ENABLE_PN52_PROMPT_LOGPROBS_EVICTION` | [#41411](https://github.com/vllm-project/vllm/pull/41411) | prompt_logprobs eviction fix during chunked prefill (vllm#41411 backport) |
 | **PN55** | `community` | `experimental` | · | `GENESIS_ENABLE_PN55_WAKE_UP_HYBRID_KV` | [#41602](https://github.com/vllm-project/vllm/pull/41602) | wake_up nested KV cache crash fix — vllm#41602+#41896 unified backport |
 | **PN67** | `community` | `retired` | · | `GENESIS_ENABLE_PN67` | [#41674](https://github.com/vllm-project/vllm/pull/41674) | thinking_token_budget inverted-bool fix (vllm#41674 backport, 1-line) |
-| **PN82** | `community` | `experimental` | · | `GENESIS_ENABLE_PN82_MAMBA_CUDAGRAPH_PREFILL_ZERO` | [#41873](https://github.com/vllm-project/vllm/pull/41873) | Mamba CUDA-graph stale `is_prefilling` padded rows — vllm#41873 backport |
+| **PN82** | `community` | `retired` | · | `GENESIS_ENABLE_PN82_MAMBA_CUDAGRAPH_PREFILL_ZERO` | [#41873](https://github.com/vllm-project/vllm/pull/41873) | Mamba CUDA-graph stale `is_prefilling` padded rows — vllm#41873 backport (RET... |
 | **PN92** | `community` | `experimental` | · | `GENESIS_ENABLE_PN92_NIXL_EP_TRIAL_IMPORT` | — | "PN92 — nixl_ep/deep_ep/mori trial-import guard (vllm PR |
 | **P79b** | `community` | `experimental` | · | `GENESIS_ENABLE_P79B_ASYNC_PROPOSER_SYNC` | [#40610](https://github.com/vllm-project/vllm/pull/40610) | Async × spec-decode proposer-sync backport (vllm#40610) |
 | **SNDR_WORKSPACE_001** | `community` | `experimental` | · | `GENESIS_ENABLE_SNDR_WORKSPACE_001` | [#42551](https://github.com/vllm-project/vllm/pull/42551) | SNDR-WORKSPACE-001 — workspace grow-after-lock graceful fix |

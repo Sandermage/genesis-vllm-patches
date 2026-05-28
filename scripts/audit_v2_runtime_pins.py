@@ -78,6 +78,11 @@ MODEL_DIR = (
 ALLOWED_MODELDEF_PINS = frozenset({
     "0.20.2rc1.dev338+gbf0d2dc6d",
     "0.20.2rc1.dev371+gbf610c2f5",
+    # K.1.R 2026-05-28 pin bump target (PROMOTION_PENDING until rig
+    # bench cycle validates 27B + 35B PROD presets). Setuptools_scm-derived
+    # form (closest annotated ancestor tag v0.21.1rc0 + 12-char SHA).
+    "0.21.1rc0+g626fa9bba5",
+    "0.21.1rc0+g626fa9bba566",
 })
 
 # Gemma family ModelDefs are expected to be on dev371 (validated path).
@@ -473,11 +478,16 @@ def check_r_pin_4_modeldef_migration() -> tuple[list[str], list[str]]:
         else:
             family = "unknown"
         is_dflash = _is_dflash_stem(stem)
+        # K.1.R 2026-05-28: the new pin form "0.21.1rc0+g626fa9bba5..." is
+        # classified alongside dev371 (== "current canonical" bucket) so
+        # DFlash gates, P2.4d migration tracking, and the per-family
+        # tables continue to read correctly through the pin bump window.
+        # When the next pin lands, this branch updates again.
         if "dev338" in pin:
             by_family[family]["dev338"].append(stem)
             if is_dflash:
                 dflash_d338.append(stem)
-        elif "dev371" in pin:
+        elif "dev371" in pin or "626fa9bba5" in pin:
             by_family[family]["dev371"].append(stem)
             if is_dflash:
                 dflash_d371.append(stem)
@@ -486,7 +496,7 @@ def check_r_pin_4_modeldef_migration() -> tuple[list[str], list[str]]:
 
         # DFlash dev371 hold enforcement — fail if a DFlash ModelDef is
         # promoted to dev371 while the project-wide hold is in effect.
-        if is_dflash and "dev371" in pin and not DFLASH_DEV371_HOLD_LIFTED:
+        if is_dflash and ("dev371" in pin or "626fa9bba5" in pin) and not DFLASH_DEV371_HOLD_LIFTED:
             errors.append(
                 f"{rel}: DFlash ModelDef promoted to dev371 while the "
                 f"P2.DFlash hold is active. {DFLASH_HOLD_REASON_SHORT}. "

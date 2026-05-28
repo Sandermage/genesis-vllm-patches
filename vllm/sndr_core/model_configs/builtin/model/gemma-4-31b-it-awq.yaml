@@ -57,7 +57,7 @@ requires:
 
 versions:
   genesis_pin_min: v12.0.0                               # G4_NN family lands in v12
-  vllm_pin_required: 0.20.2rc1.dev371+gbf610c2f5         # current PROD baseline (Gemma 4 native model_executor support)
+  vllm_pin_required: 0.21.1rc0+g626fa9bba566         # current PROD baseline (Gemma 4 native model_executor support)
   # Variant A migration (2026-05-20): old baseline at
   # tests/integration/baselines/gemma4_31b_awq_baseline.json was
   # captured with MTP K=4 ON; that file is now the (future) reference
