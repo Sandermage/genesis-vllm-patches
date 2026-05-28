@@ -622,7 +622,25 @@ def boot_audit() -> list[str]:
 
 
 def is_meta_flag(flag: str) -> bool:
-    """Return True if `flag` is one of the apply-behavior meta flags."""
+    """Return True if `flag` is an apply-behavior or orchestration meta flag.
+
+    Two recognized meta families:
+
+      1. Apply-behavior meta (NO_PATCH_CACHE, DISABLE_BOOT_PATCHES,
+         TIER_OVERRIDE, FORCE_REAPPLY, NO_VERIFY, TELEMETRY) — control
+         the dispatcher / apply pipeline itself, not individual patches.
+
+      2. Stage-7 bundle umbrella flags (BUNDLE_*) — orchestration flags
+         that compose 2+ semantically-related patches via
+         MultiFilePatchTransaction (see vllm/sndr_core/bundles/). Setting
+         an umbrella flag triggers atomic apply of the bundle's
+         sub-patches regardless of their individual env flags. They do
+         NOT belong in PATCH_REGISTRY because they are orchestrators,
+         not patches — and so they are correctly absent from the 1:1
+         Flags ↔ registry coverage check.
+    """
+    if flag.startswith("BUNDLE_"):
+        return True
     return flag in (
         Flags.NO_PATCH_CACHE,
         Flags.DISABLE_BOOT_PATCHES,
