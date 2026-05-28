@@ -9,7 +9,7 @@ This product includes software developed by:
   (P75 Suffix Decoding integration via vllm#25784)
 
 Patches credited to upstream contributors are documented in CREDITS.md
-and per-patch docstrings inside vllm/_genesis/wiring/.
+and per-patch docstrings inside `vllm/sndr_core/integrations/<family>/`.
 
 When using or redistributing this work, please retain this NOTICE file
 and the LICENSE file alongside the source. Attribution to the original
