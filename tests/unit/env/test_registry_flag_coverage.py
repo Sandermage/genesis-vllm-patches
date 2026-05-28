@@ -24,11 +24,18 @@ import pytest
 
 
 def _strip_prefix(flag: str) -> str:
-    """Strip SNDR_ENABLE_/GENESIS_ENABLE_/SNDR_LEGACY_/GENESIS_LEGACY_ prefix."""
+    """Strip canonical prefix family.
+
+    Three semantic categories:
+      - ENABLE/LEGACY/DISABLE × {GENESIS, SNDR} — standard patch-toggle
+      - ALLOW × {GENESIS, SNDR} — operator-consent gate (PN274, R3 audit
+        2026-05-21; documented in safety_guard.py / functional_artifact.py).
+    """
     for p in (
         "GENESIS_ENABLE_", "SNDR_ENABLE_",
         "GENESIS_LEGACY_", "SNDR_LEGACY_",
         "GENESIS_DISABLE_", "SNDR_DISABLE_",
+        "GENESIS_ALLOW_", "SNDR_ALLOW_",
     ):
         if flag.startswith(p):
             return flag[len(p):]
@@ -99,14 +106,18 @@ def test_no_orphan_Flags_constants(registry_env_flags, declared_flags):
 
 def test_registry_env_flags_use_canonical_prefix(registry_env_flags):
     """Every registry env_flag must start with one of the canonical
-    prefixes (`GENESIS_ENABLE_`, `SNDR_ENABLE_`, `GENESIS_LEGACY_`,
-    `SNDR_LEGACY_`, `GENESIS_DISABLE_`, `SNDR_DISABLE_`)."""
+    prefixes:
+      - ENABLE/LEGACY/DISABLE × {GENESIS, SNDR} — standard patch-toggle.
+      - ALLOW × {GENESIS, SNDR} — operator-consent semantic (PN274, R3
+        audit 2026-05-21).
+    """
     from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
     invalid: list[tuple[str, str]] = []
     canonical_prefixes = (
         "GENESIS_ENABLE_", "SNDR_ENABLE_",
         "GENESIS_LEGACY_", "SNDR_LEGACY_",
         "GENESIS_DISABLE_", "SNDR_DISABLE_",
+        "GENESIS_ALLOW_", "SNDR_ALLOW_",
     )
     for pid, meta in PATCH_REGISTRY.items():
         flag = meta.get("env_flag")
@@ -164,6 +175,7 @@ def test_registry_family_values_valid(registry_env_flags):
         "model_specific",  # rare — for truly model-tied patches
         "streaming",       # PN200-PN203 — Wave 8 streaming runtime
         "offload",         # PN102/PN104/PN105 — CPU offload tier
+        "gemma4",          # G4_01..G4_25 — Gemma 4 model subsystem (18+ patches)
     }
     bad = [
         (pid, meta.get("family"))

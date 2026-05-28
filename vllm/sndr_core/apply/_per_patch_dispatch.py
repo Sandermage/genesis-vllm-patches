@@ -3454,7 +3454,7 @@ def apply_patch_91_autoround_row_group_cdiv() -> PatchResult:
     "P91B AutoRound row-group cdiv defensive coverage for INC + "
     "compressed-tensors schemes (P91 sibling, vllm#39460-derived)"
 )
-def apply_patch_91b_autoround_row_group_cdiv_multi_scheme() -> PatchResult:
+def apply_patch_91B_autoround_row_group_cdiv_multi_scheme() -> PatchResult:
     """Patch 91B: defensive sibling of P91 covering INC + compressed-tensors
     schemes that vllm#39460 did not touch.
 

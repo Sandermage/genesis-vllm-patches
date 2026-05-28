@@ -92,13 +92,20 @@ class TestRegistryEntryShape:
         Audit 2026-05-08 (noonghunna): env_flag names should follow
         GENESIS_ENABLE_<short>_<descriptive> pattern. We don't enforce
         exact match (some patches predate the convention) but require
-        the GENESIS_ prefix so config audit allowlist works.
+        a recognized prefix so config audit allowlist works.
+
+        Recognized prefixes:
+          - GENESIS_* — canonical for patch-toggle (ENABLE/LEGACY/DISABLE)
+          - SNDR_ALLOW_ — operator-consent gate semantic (PN274, R3 audit
+            2026-05-21; documented in spec_decode/safety_guard.py).
         """
         meta = PATCH_REGISTRY[patch_id]
         flag = meta.get("env_flag")
         if flag is not None:
-            assert flag.startswith("GENESIS_"), (
-                f"{patch_id}: env_flag={flag!r} must start with GENESIS_"
+            allowed_prefixes = ("GENESIS_", "SNDR_ALLOW_")
+            assert flag.startswith(allowed_prefixes), (
+                f"{patch_id}: env_flag={flag!r} must start with one of "
+                f"{allowed_prefixes}"
             )
 
 

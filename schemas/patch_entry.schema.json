@@ -16,7 +16,7 @@
     "env_flag": {
       "type": "string",
       "description": "Master env variable. Must start with 'GENESIS_ENABLE_' or be a shared family flag.",
-      "pattern": "^GENESIS_[A-Z][A-Z0-9_]*$"
+      "pattern": "^(GENESIS_|SNDR_ALLOW_)[A-Z][A-Za-z0-9_]*$"
     },
     "default_on": {
       "type": "boolean",
@@ -121,9 +121,26 @@
       "description": "Top-level pin-range gate for retired patches that should only decide on a specific pin window. Example: '>=0.20.1rc1.dev16,<0.20.2rc1.dev338'. Distinct from applies_to.vllm_version_range — this top-level form gates the entire entry's decision, used by retired entries whose code stays in registry for audit trail."
     },
     "upstream_pr": {
-      "type": ["integer", "null"],
-      "description": "vllm-project/vllm PR number this patch backports. null = Genesis-original or no upstream tracker.",
-      "minimum": 1
+      "type": ["integer", "string", "null"],
+      "description": "vllm-project/vllm PR/issue reference this patch tracks. int = legacy PR-number form; string = full URL or issue-number form (G4_* style); null = Genesis-original or no upstream tracker."
+    },
+    "upstream_pr_relationship": {
+      "type": "string",
+      "enum": ["backport", "related_not_superseding", "different_approach", "vendor_port", "issue_only"],
+      "description": "Iron-rule-#11 categorization of how this patch relates to its `upstream_pr`. backport=byte-equivalent merge-on-merge; related_not_superseding=overlapping bug class but different files (status-based retire does not apply); different_approach=same goal, different implementation; vendor_port=vendor's external PR ported into Genesis; issue_only=upstream is an issue without merged code."
+    },
+    "composes_with": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Patch IDs that participate in a designed composition graph with this one (companion patches that produce a complete capability when applied together). Informational; not enforced by validator. Used by `genesis explain` to surface co-applied surface."
+    },
+    "notes": {
+      "type": "string",
+      "description": "Free-form notes for operator-facing context. Reserve for tactical observations (e.g., 'bench tested 2026-05-XX on dev338'); deep credit/rationale belongs in `credit`."
+    },
+    "retire_after_pin": {
+      "type": "string",
+      "description": "Version pin string after which this patch should be retired. Operator-driven retirement (e.g., when this pin lands and upstream supersedes). Distinct from vllm_version_range (which is a hard gate); this is a documentation hint for the next pin-bump audit."
     },
     "applies_to": {
       "description": "Predicate that gates this patch by hardware / model / version. Either flat-dict legacy form (auto-normalized to all_of) or rich AND/OR/NOT/NONE_OF compound form. See compat/predicates.py.",
@@ -153,7 +170,8 @@
         "moe", "quantization", "kernels", "compile_safety",
         "loader", "middleware", "memory", "observability",
         "offload", "streaming",
-        "lora", "multimodal", "model_specific"
+        "lora", "multimodal", "model_specific",
+        "gemma4"
       ],
       "description": "Stage 5 (2026-05-07): engine subsystem the patch belongs to. Used by Stage 6 reorg (subsystem-first taxonomy of vllm/sndr_core/integrations/) and by `sndr family <X> status` CLI."
     },

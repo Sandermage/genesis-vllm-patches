@@ -160,6 +160,11 @@ _KNOWN_FIELDS = {
     # log. Example: `">=0.20.1rc1.dev16,<0.20.2rc1.dev338"`. Mirrors the
     # semantics of the per-applies_to range but operates at registry level.
     "vllm_version_range",
+    # Iron-rule-#11 categorization (R3 audit 2026-05-21 onwards): explicit
+    # relationship between this patch and its `upstream_pr` to support
+    # deep-diff bookkeeping on pin bumps. Values: backport,
+    # related_not_superseding, different_approach, vendor_port, issue_only.
+    "upstream_pr_relationship",
 }
 
 
@@ -205,18 +210,26 @@ def validate_entry(patch_id: str, meta: dict[str, Any]) -> list[SchemaIssue]:
                     f"{type(meta['default_on']).__name__}",
         ))
 
-    # env_flag pattern
+    # env_flag pattern. Two prefix families recognized:
+    #   GENESIS_<A-Z0-9_>            — canonical patch-toggle (ENABLE/LEGACY/DISABLE).
+    #     Allows mixed-case identifier tails (e.g. `RoPE`) for historical
+    #     compatibility with operator-facing env vars already shipped in
+    #     YAML / docker / docs.
+    #   SNDR_ALLOW_<A-Z0-9_>         — operator-consent gate (R3 audit
+    #     2026-05-21; PN274, safety_guard.py, functional_artifact.py).
     if "env_flag" in meta:
         if not isinstance(meta["env_flag"], str):
             issues.append(SchemaIssue(
                 patch_id=patch_id, field="env_flag", severity="ERROR",
                 message="env_flag must be string",
             ))
-        elif not re.match(r"^GENESIS_[A-Z][A-Z0-9_]*$", meta["env_flag"]):
+        elif not re.match(
+            r"^(GENESIS_|SNDR_ALLOW_)[A-Z][A-Za-z0-9_]*$", meta["env_flag"]
+        ):
             issues.append(SchemaIssue(
                 patch_id=patch_id, field="env_flag", severity="ERROR",
                 message=f"env_flag {meta['env_flag']!r} doesn't match "
-                        f"^GENESIS_[A-Z][A-Z0-9_]*$",
+                        f"^(GENESIS_|SNDR_ALLOW_)[A-Z][A-Za-z0-9_]*$",
             ))
 
     # Lifecycle enum
@@ -248,14 +261,30 @@ def validate_entry(patch_id: str, meta: dict[str, Any]) -> list[SchemaIssue]:
             message="community lifecycle should declare 'community_credit'",
         ))
 
-    # upstream_pr type
+    # upstream_pr type — accepts int (legacy PR-number form), str (URL or
+    # issue-number form used by G4_* entries that link issues alongside
+    # PRs), or null (Genesis-original, no upstream tracker).
     if "upstream_pr" in meta:
         v = meta["upstream_pr"]
-        if v is not None and (not isinstance(v, int) or v < 1):
+        if v is None:
+            pass
+        elif isinstance(v, int):
+            if v < 1:
+                issues.append(SchemaIssue(
+                    patch_id=patch_id, field="upstream_pr", severity="ERROR",
+                    message=f"upstream_pr int must be positive, got {v!r}",
+                ))
+        elif isinstance(v, str):
+            if not v.strip():
+                issues.append(SchemaIssue(
+                    patch_id=patch_id, field="upstream_pr", severity="ERROR",
+                    message="upstream_pr string must be non-empty",
+                ))
+        else:
             issues.append(SchemaIssue(
                 patch_id=patch_id, field="upstream_pr", severity="ERROR",
-                message=f"upstream_pr must be positive int or null, "
-                        f"got {v!r}",
+                message=f"upstream_pr must be int, str (URL), or null, "
+                        f"got {type(v).__name__}: {v!r}",
             ))
 
     # requires_patches / conflicts_with must be list[str]

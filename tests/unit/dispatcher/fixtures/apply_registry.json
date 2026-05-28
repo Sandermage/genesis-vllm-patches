@@ -421,7 +421,7 @@
   },
   {
     "name": "P91B AutoRound row-group cdiv defensive coverage for INC + compressed-tensors schemes (P91 sibling, vllm#39460-derived)",
-    "wrapped_name": "apply_patch_91b_autoround_row_group_cdiv_multi_scheme"
+    "wrapped_name": "apply_patch_91B_autoround_row_group_cdiv_multi_scheme"
   },
   {
     "name": "P87 Marlin sub-tile output dim pad-on-load (vllm#40361 backport)",

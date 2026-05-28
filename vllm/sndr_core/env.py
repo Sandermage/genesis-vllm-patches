@@ -348,7 +348,11 @@ class Flags:
     G4_18_GEMMA4_PER_LAYER_KV_PAGE_SIZE = "G4_18_GEMMA4_PER_LAYER_KV_PAGE_SIZE"
     G4_23_GEMMA4_VISION_FP16_OVERFLOW = "G4_23_GEMMA4_VISION_FP16_OVERFLOW"
     G4_24_GEMMA4_FUSED_SOFTCAP = "G4_24_GEMMA4_FUSED_SOFTCAP"
-    G4_25_GEMMA4_RoPE_DUAL_BASE_GUARD = "G4_25_GEMMA4_RoPE_DUAL_BASE_GUARD"
+    # Attribute name kept all-uppercase so `known_flags()` (which filters
+    # by `name.isupper()`) picks it up; env_var value preserves the
+    # historical mixed-case `RoPE` form to remain compatible with the
+    # operator-facing env var emitted in YAML / docker / docs.
+    G4_25_GEMMA4_ROPE_DUAL_BASE_GUARD = "G4_25_GEMMA4_RoPE_DUAL_BASE_GUARD"
 
     # G4_19 — Genesis-original TurboQuant KV cache for Gemma 4 (256K unlock)
     # Companion to our Qwen 3.5/3.6 P67/PN116/PN118/PN119 stack — parallel
@@ -357,6 +361,59 @@ class Flags:
     G4_19_GEMMA4_TURBOQUANT_KV = "G4_19_GEMMA4_TURBOQUANT_KV"
     # G4_19b — compression-aware KV cache memory check for vLLM v1
     G4_19B_GEMMA4_TQ_KV_SPEC = "G4_19B_GEMMA4_TQ_KV_SPEC"
+    # G4_19c — TurboQuantAttention overlay attribute wrap for spec contract
+    G4_19C_ATTN_WRAP = "G4_19C_ATTN_WRAP"
+
+    # ── G4_31/G4_32 — TQ dtype + validation overlays ───────────────────
+    G4_31_TQ_DTYPE_PRESERVE = "G4_31_TQ_DTYPE_PRESERVE"
+    G4_32_TQ_VALIDATION_BYPASS = "G4_32_TQ_VALIDATION_BYPASS"
+
+    # ── G4_60 series — PR42637 TurboQuant overlay (10 verifiers) ───────
+    # Each entry is a marker verifier introspecting the bind-mounted
+    # overlay surface (vllm/sndr_core/integrations/attention/turboquant/
+    # overlays/pr42637/). See module docstrings for runtime semantics.
+    G4_60A_TQ_SLIDING_SPEC = "G4_60A_TQ_SLIDING_SPEC"
+    G4_60B_TQ_ATTN_OVERLAY = "G4_60B_TQ_ATTN_OVERLAY"
+    G4_60C_TQ_DECODE_OVERLAY = "G4_60C_TQ_DECODE_OVERLAY"
+    G4_60D_TQ_STORE_OVERLAY = "G4_60D_TQ_STORE_OVERLAY"
+    G4_60E_KV_CACHE_UTILS = "G4_60E_KV_CACHE_UTILS"
+    G4_60G_TQ_DISPATCH = "G4_60G_TQ_DISPATCH"
+    G4_60H_TQ_CONFIG_AUGMENT = "G4_60H_TQ_CONFIG_AUGMENT"
+    G4_60K_TQ_ENGINE_CONFIG = "G4_60K_TQ_ENGINE_CONFIG"
+    G4_60L_TQ_BACKEND_MM_PREFIX = "G4_60L_TQ_BACKEND_MM_PREFIX"
+
+    # ── G4_61..G4_69 — TQ workspace / warmup / spec route ──────────────
+    G4_61_TQ_SHARED_WORKSPACE = "G4_61_TQ_SHARED_WORKSPACE"
+    G4_62_TQ_KERNEL_WARMUP = "G4_62_TQ_KERNEL_WARMUP"
+    G4_67_TQ_SPEC_VERIFY_ROUTE = "G4_67_TQ_SPEC_VERIFY_ROUTE"
+    G4_68_TQ_SPEC_CG_DOWNGRADE_OVERLAY = "G4_68_TQ_SPEC_CG_DOWNGRADE_OVERLAY"
+    G4_69_SKIP_LAYERS_NATIVE_BACKEND = "G4_69_SKIP_LAYERS_NATIVE_BACKEND"
+
+    # ── G4_70 series — PN259B/C alloc + routing variants ───────────────
+    G4_70_PN259B_FAIL_FAST = "G4_70_PN259B_FAIL_FAST"
+    G4_70_PN259B_MIXED_ALLOC = "G4_70_PN259B_MIXED_ALLOC"
+    G4_70_PN259C_ROUTE_B = "G4_70_PN259C_ROUTE_B"
+
+    # ── G4_71..G4_78 — DFlash drafter rerouting + Triton kernels ───────
+    G4_71_DRAFTER_NATIVE_BACKEND = "G4_71_DRAFTER_NATIVE_BACKEND"
+    G4_71B_DRAFTER_SLIDING_TRITON = "G4_71B_DRAFTER_SLIDING_TRITON"
+    G4_72_DRAFTER_NATIVE_SPEC = "G4_72_DRAFTER_NATIVE_SPEC"
+    G4_73_DRAFTER_PROFILE_SKIP = "G4_73_DRAFTER_PROFILE_SKIP"
+    G4_74_DRAFTER_HND_LAYOUT = "G4_74_DRAFTER_HND_LAYOUT"
+    G4_75_DRAFTER_HEAD512_TRITON = "G4_75_DRAFTER_HEAD512_TRITON"
+    G4_76_DISABLE_DRAFTER_KV_SHARING = "G4_76_DISABLE_DRAFTER_KV_SHARING"
+    G4_78_DRAFTER_TARGET_KV_BRIDGE = "G4_78_DRAFTER_TARGET_KV_BRIDGE"
+
+    # ── PN spec-decode / TQ telemetry + safety opt-ins (R3 audit) ──────
+    PN256_KPLUS1_RAW_KV = "PN256_KPLUS1_RAW_KV"
+    PN261_TQ_NATIVE_CACHE_ASSERT = "PN261_TQ_NATIVE_CACHE_ASSERT"
+    PN262_FLASH_ATTN_DRAFTER_TRACE = "PN262_FLASH_ATTN_DRAFTER_TRACE"
+    PN262B_KV_ALLOC_TRACE = "PN262B_KV_ALLOC_TRACE"
+    PN271_KV_CONTRACT_AUDIT = "PN271_KV_CONTRACT_AUDIT"
+    PN275_DFLASH_MAX_CGS_ALIGN = "PN275_DFLASH_MAX_CGS_ALIGN"
+    # PN274 uses SNDR_ALLOW_* prefix family for operator consent semantic.
+    # Bare-name lookup still works through Flags introspection.
+    SPEC_DECODE_KV_ADAPTER = "SPEC_DECODE_KV_ADAPTER"
 
     # ── Meta flags (apply behavior, not patch enable) ──────────────────
     NO_PATCH_CACHE = "NO_PATCH_CACHE"           # disable file_cache fast-path

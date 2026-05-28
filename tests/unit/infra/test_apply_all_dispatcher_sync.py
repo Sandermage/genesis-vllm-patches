@@ -98,6 +98,32 @@ _KNOWN_REGISTRY_ONLY = frozenset({
     "PN71", "PN73", "PN91", "PN92", "PN97",  # legacy backports retired/merged
     # Synthetic workspace token — coordinator only, no apply path.
     "SNDR_WORKSPACE_001",
+    # ─── G4_* Gemma 4 model subsystem (R3 audit 2026-05-21 onwards) ───
+    # All G4_* patches use the dispatcher overlay-loader pattern
+    # (apply_module → integrations/<family>/<id>.py with own apply()),
+    # same precedent as the PN104+ block above. Registry entries exist
+    # for `genesis explain`, doc generation, and audit tooling.
+    "G4_01", "G4_02", "G4_03", "G4_04", "G4_05", "G4_06", "G4_07", "G4_08",
+    "G4_09", "G4_10", "G4_11", "G4_12", "G4_13", "G4_14", "G4_15", "G4_16",
+    "G4_17", "G4_18", "G4_19", "G4_19B", "G4_19C", "G4_23", "G4_24", "G4_25",
+    "G4_31", "G4_32",
+    # PR42637 overlay verifier series (10 _G4_60* patches)
+    "G4_60A", "G4_60B", "G4_60C", "G4_60D", "G4_60E", "G4_60G",
+    "G4_60H", "G4_60K", "G4_60L",
+    "G4_61", "G4_62",
+    "G4_67", "G4_68", "G4_69",
+    # PN259B/C alloc + routing variants (G4_70 family)
+    "G4_70", "G4_70B", "G4_70C",
+    # DFlash drafter rerouting + Triton kernels (G4_71..G4_78)
+    "G4_71", "G4_71B", "G4_72", "G4_73", "G4_74", "G4_75", "G4_76", "G4_78",
+    # ─── Spec-decode telemetry / safety opt-ins (R3 audit 2026-05-21) ─
+    # PN256/PN261/PN262/PN262B/PN271/PN275 use overlay loader. PN274 is
+    # coordinator-only (apply_module=None) for operator visibility.
+    "PN256", "PN261", "PN262", "PN262B", "PN271", "PN274", "PN275",
+    # ─── Misc backports without per_patch_dispatch wiring ─────────────
+    # P8 retired tombstone (kv_hybrid_reporting — registered for audit
+    # trail only, retired lifecycle).
+    "P8",
 })
 
 _KNOWN_APPLY_ONLY: frozenset[str] = frozenset({
