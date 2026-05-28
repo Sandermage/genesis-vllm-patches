@@ -46,6 +46,14 @@ EXPECTED_PINS = (
     "0.21.1rc0+gd735968f6d63",         # 2026-05-15 v0.21.1rc0 canonical dev-pin form (PROMOTION_PENDING)
     "0.21.1rc0+gbf610c2f5676",         # 2026-05-15 docker hub nightly SHA — bench validated dev371 +1.76% vs dev338
     "0.20.2rc1.dev371+gbf610c2f5",     # 2026-05-15 — real version string vllm reports for nightly-bf610c2f image
+    # K.1.R 2026-05-28 pin bump target — vllm/vllm-openai:nightly @
+    # sha256:674922aae790c2cbf45f4e844098d227b80d40a74bfc7797a444d213a221879f
+    # = upstream 626fa9bba5663a5cf6a870debf031ee344ddb822 (2026-05-28T04:59:34Z).
+    # PROMOTION_PENDING — awaits server-side bench cycle validation.
+    "0.21.1rc0+g626fa9bba5",                            # setuptools_scm-derived (closest tag base)
+    "0.21.1rc0+g626fa9bba566",                          # setuptools_scm 12-char SHA form
+    "nightly-626fa9bba5663a5cf6a870debf031ee344ddb822", # docker tag form
+    "0.20.2rc1.dev733+g626fa9bba5",                     # internal-version derived (estimated, confirm at first boot)
 )
 
 

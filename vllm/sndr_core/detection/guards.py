@@ -524,6 +524,32 @@ KNOWN_GOOD_VLLM_PINS: tuple[str, ...] = (
     # формате, не tag-based. Добавляю обе формы (commit-based +
     # nightly-tag-based) чтобы pin-gate не warning'овался.
     "0.20.2rc1.dev371+gbf610c2f5",
+    # 2026-05-28 — K.1.R pin bump audit target.
+    # vllm/vllm-openai:nightly Docker Hub tag pushed 2026-05-28T06:17 UTC,
+    # multi-arch manifest digest
+    # sha256:674922aae790c2cbf45f4e844098d227b80d40a74bfc7797a444d213a221879f
+    # (amd64 sha256:0cc9b1e1a15bcd780c4d730f807770b6c4e7b23d77332d956aa945d01c349c01).
+    # Upstream commit 626fa9bba5663a5cf6a870debf031ee344ddb822 (2026-05-28T04:59:34Z),
+    # "[BugFix] Fix blocked reasoning parsing with MRV2 (#43808)". Position:
+    # 362 commits ahead of bf610c2f5 (our previous canonical dev371),
+    # 354 commits ahead of v0.21.1rc0 tag, 13 commits diverged from
+    # v0.22.0rc2 (40cf0206, 2026-05-27T16:30), 18 commits behind
+    # v0.22.0rc3 (799c3afa, 2026-05-28T07:09 — 2 hours after this commit).
+    # Closest annotated ancestor: v0.21.1rc0 (d735968f6d63, 2026-05-15).
+    # Genesis PR audit (72 unique PRs in registry, 10 actually merged
+    # upstream, only PR #41873 → PN82 merged in window dev371→626fa9bb,
+    # case (a) byte-equivalent retire). Anchor drift check: 14/18 OK,
+    # 4 files with anchor shifts (config/vllm.py, auto_gptq.py, inc.py,
+    # algos.py) — covered by patches' upstream_drift_markers self-skip.
+    # See sndr_private/planning/audits/K_1_R_PIN_BUMP_AUDIT_2026-05-28_RU.md.
+    # PROMOTION_PENDING below until first server-side bench cycle on the
+    # rig validates 27B + 35B PROD presets at the new pin. Three form
+    # aliases: docker tag, setuptools_scm derived, internal-version derived
+    # (last form is speculative; will be confirmed at first boot).
+    "0.21.1rc0+g626fa9bba5",   # setuptools_scm-derived (closest tag)
+    "0.21.1rc0+g626fa9bba566", # setuptools_scm 12-char SHA form
+    "nightly-626fa9bba5663a5cf6a870debf031ee344ddb822",  # docker tag form
+    "0.20.2rc1.dev733+g626fa9bba5",  # internal-version derived (estimated)
 )
 
 
@@ -534,6 +560,12 @@ PROMOTION_PENDING_VLLM_PINS: tuple[str, ...] = (
     "0.21.1rc0",
     "0.21.1rc0+gd735968f6d63",
     "0.21.1rc0+gbf610c2f5676",
+    # K.1.R pin bump 2026-05-28 — pending server-side bench validation.
+    # See guards.py allowlist comment + K_1_R_PIN_BUMP_AUDIT_*.md.
+    "0.21.1rc0+g626fa9bba5",
+    "0.21.1rc0+g626fa9bba566",
+    "nightly-626fa9bba5663a5cf6a870debf031ee344ddb822",
+    "0.20.2rc1.dev733+g626fa9bba5",
 )
 
 
