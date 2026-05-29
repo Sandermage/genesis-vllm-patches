@@ -163,13 +163,27 @@ def apply() -> tuple[str, str]:
             f"unparseable; club-3090 #178)"
         )
 
-    try:
-        from vllm.entrypoints.openai.tool_parsers.qwen3coder_tool_parser \
-            import Qwen3CoderToolParser
-    except ImportError as exc:
+    # Two import paths across vLLM versions:
+    #   - Pre-2026-05 nightly: vllm.entrypoints.openai.tool_parsers.*
+    #   - Post-2026-05 (incl. 0.21.1rc1+, our 626fa9bb pin): vllm.tool_parsers.*
+    # Try new path first (matches our PROD pin), fall through to legacy.
+    Qwen3CoderToolParser = None
+    _import_errors = []
+    for candidate in (
+        "vllm.tool_parsers.qwen3coder_tool_parser",
+        "vllm.entrypoints.openai.tool_parsers.qwen3coder_tool_parser",
+    ):
+        try:
+            import importlib
+            module = importlib.import_module(candidate)
+            Qwen3CoderToolParser = module.Qwen3CoderToolParser
+            break
+        except (ImportError, AttributeError) as exc:
+            _import_errors.append(f"{candidate}: {exc}")
+    if Qwen3CoderToolParser is None:
         return "skipped", (
-            f"vllm Qwen3CoderToolParser not importable ({exc}) — likely "
-            f"pin pre-dates the parser, or torch-less env"
+            "vllm Qwen3CoderToolParser not importable from any known "
+            f"path: {'; '.join(_import_errors)}"
         )
 
     # Drift detection: if upstream adds its own validation marker, retire.

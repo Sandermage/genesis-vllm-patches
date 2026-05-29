@@ -4808,6 +4808,62 @@ def apply_patch_N286_fa_layout_revert_sm86() -> PatchResult:
     return _skipped("PN286 FA layout revert SM 8.6", detail)
 
 
+@register_patch("G4_61 TurboQuant shared decode workspace (vllm#40798 cherry-pick)")
+def apply_patch_g4_61_tq_shared_workspace() -> PatchResult:
+    """G4_61 — share TurboQuant decode workspace across layers + capture_model
+    reservation walk. Superset of vllm#40798 head (which only touches
+    metadata-builder __init__).
+
+    Operationally enables: kill per-layer `_tq_*_buf` waste, reserve workspace
+    BEFORE WorkspaceManager.lock_workspace() so the lock catches the
+    pre-sized arena instead of mid-runtime growth attempts. Composes with
+    P98/P99 (workspace revert + memoize) and PN118 (runtime fallback).
+    """
+    name = "G4_61 TQ shared workspace"
+    if not _state._APPLY_MODE:
+        return _applied(name, "dry-run: shared workspace ready")
+    try:
+        from vllm.sndr_core.integrations.attention.turboquant import (
+            g4_61_tq_shared_workspace,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = g4_61_tq_shared_workspace.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch("G4_62 TurboQuant kernel warmup before lock (vllm#42215 cherry-pick)")
+def apply_patch_g4_62_tq_kernel_warmup() -> PatchResult:
+    """G4_62 — warm TurboQuant decode kernels BEFORE WorkspaceManager.lock_
+    workspace(). Companion to G4_61: G4_61 reserves the max-shape arena;
+    G4_62 forces the triton kernels to materialize their constants and
+    autotune state before the workspace gets locked.
+
+    Together they eliminate the "Workspace is locked" AssertionError class
+    that PN118 currently catches as runtime fallback. With G4_61+G4_62 the
+    lock path is structurally non-hit; PN118 stays as belt-and-suspenders.
+    """
+    name = "G4_62 TQ kernel warmup"
+    if not _state._APPLY_MODE:
+        return _applied(name, "dry-run: kernel warmup ready")
+    try:
+        from vllm.sndr_core.integrations.attention.turboquant import (
+            g4_62_tq_kernel_warmup,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = g4_62_tq_kernel_warmup.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
 @register_patch("PN287 qwen3_coder × MTP arg-corruption frequency observer (club-3090 #178)")
 def apply_patch_N287_qwen3coder_args_observer() -> PatchResult:
     """Patch N287: read-only observer that wraps

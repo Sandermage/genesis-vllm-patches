@@ -556,6 +556,14 @@
     "wrapped_name": "apply_patch_N286_fa_layout_revert_sm86"
   },
   {
+    "name": "G4_61 TurboQuant shared decode workspace (vllm#40798 cherry-pick)",
+    "wrapped_name": "apply_patch_g4_61_tq_shared_workspace"
+  },
+  {
+    "name": "G4_62 TurboQuant kernel warmup before lock (vllm#42215 cherry-pick)",
+    "wrapped_name": "apply_patch_g4_62_tq_kernel_warmup"
+  },
+  {
     "name": "PN287 qwen3_coder × MTP arg-corruption frequency observer (club-3090 #178)",
     "wrapped_name": "apply_patch_N287_qwen3coder_args_observer"
   },
