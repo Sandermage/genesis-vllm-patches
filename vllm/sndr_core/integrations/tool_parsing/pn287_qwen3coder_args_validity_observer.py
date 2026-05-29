@@ -87,14 +87,95 @@ _ENV_FLAG = "GENESIS_ENABLE_PN287_QWEN3CODER_ARGS_OBSERVER"
 _CLASS_MARKER = "_GENESIS_PN287_ARGS_OBSERVER_INSTALLED"
 _UPSTREAM_DRIFT_MARKER = "_args_validation_installed"
 
-# Process-level counters for /metrics scrape. Module-global by design —
-# operators inspect via `python3 -c "from ...pn287 import counters; ..."`
-# or a dedicated CLI hook.
+# Process-level counters. Three surfaces, single source of truth:
+#   1. Module-global ``counters`` dict — primary state, backward compat
+#      for unit tests + existing operator CLI inspections
+#   2. prometheus_client.Counter — auto-exposed on vLLM's /metrics endpoint
+#      via the default REGISTRY (see __init.py of vllm/v1/metrics/prometheus)
+#   3. Structured WARN log — per-request (deduplicated)
+#
+# Pattern adopted from external survey 2026-05-30 (per CLAUDE.md
+# "Investigation discipline" rule, Step 4 Search + Step 5 Compare):
+#   - SGLang `cpu_monitor.py` — module-level Counter on default REGISTRY
+#   - LMCache `observability.py` — REGISTRY.unregister idempotency guard
+#   - vLLM `v1/metrics/loggers.py` — `vllm:` namespace convention
+#
+# Multiproc safety: tool parser runs in API-server process (same proc
+# that mounts /metrics endpoint), so single-process Counter just works.
+# Even in multiproc, vLLM's PROMETHEUS_MULTIPROC_DIR + MultiProcessCollector
+# auto-aggregate without explicit wiring.
 counters: dict[str, int] = {
     "tool_calls_total": 0,
     "tool_calls_malformed_args": 0,
     "warnings_emitted": 0,
 }
+
+# Prometheus Counter handles — lazily created on first apply() to avoid
+# import-time cost in torch-less environments (tests, lint, docs build).
+_prom_extract_total: Any = None
+_prom_malformed_total: Any = None
+_prom_warnings_total: Any = None
+
+
+def _setup_prometheus_counters() -> bool:
+    """Idempotent Counter creation on default prometheus_client REGISTRY.
+
+    Returns True on success or already-registered, False if prometheus_client
+    not importable (torch-less env, no monitoring stack).
+
+    Idempotency pattern (LMCache + vLLM canonical):
+    walk REGISTRY._collector_to_names; unregister any collector whose
+    name starts with our prefix. Then re-register fresh Counter objects.
+    Handles patch re-application across worker spawns / hot reload.
+    """
+    global _prom_extract_total, _prom_malformed_total, _prom_warnings_total
+    try:
+        from prometheus_client import REGISTRY, Counter
+    except ImportError:
+        return False
+
+    _PREFIX = "vllm:qwen3_tool_parser_pn287_"
+    # Walk REGISTRY for stale collectors with our prefix (idempotency).
+    for collector in list(REGISTRY._collector_to_names):
+        names = REGISTRY._collector_to_names.get(collector, [])
+        if any(n.startswith(_PREFIX) for n in names):
+            try:
+                REGISTRY.unregister(collector)
+            except (KeyError, ValueError):
+                pass
+
+    try:
+        _prom_extract_total = Counter(
+            name=f"{_PREFIX}extract_total",
+            documentation=(
+                "PN287 Qwen3CoderToolParser tool_call arguments observed "
+                "via extract_tool_calls_streaming wrap. Includes valid + "
+                "malformed; subtract malformed_total for clean count."
+            ),
+        )
+        _prom_malformed_total = Counter(
+            name=f"{_PREFIX}malformed_total",
+            documentation=(
+                "PN287 tool_call.arguments that failed json.loads — likely "
+                "max_tokens truncation mid-JSON-string (club-3090 #178). "
+                "Read-only observation; does NOT mutate output."
+            ),
+        )
+        _prom_warnings_total = Counter(
+            name=f"{_PREFIX}warnings_total",
+            documentation=(
+                "PN287 structured WARN log emissions. Deduplicated per "
+                "(parser-id, tool-name) within a single request — actual "
+                "count of distinct malformed events surfaced to logs."
+            ),
+        )
+        return True
+    except (ValueError, AttributeError) as exc:
+        log.warning(
+            "[PN287] failed to register Prometheus counters: %s. "
+            "Module-global counters dict still active.", exc,
+        )
+        return False
 
 
 def _is_enabled() -> bool:
@@ -127,10 +208,14 @@ def _make_wrapped_streaming(original_fn):
             if not args_str or args_str == "{}":
                 continue
             counters["tool_calls_total"] += 1
+            if _prom_extract_total is not None:
+                _prom_extract_total.inc()
             try:
                 json.loads(args_str)
             except (ValueError, TypeError):
                 counters["tool_calls_malformed_args"] += 1
+                if _prom_malformed_total is not None:
+                    _prom_malformed_total.inc()
                 # Dedup by self-identity + tool name within same request.
                 seen_key = id(self), entry.get("name") or "?"
                 seen_set = getattr(self, "_pn287_seen", None) or set()
@@ -139,6 +224,8 @@ def _make_wrapped_streaming(original_fn):
                 seen_set.add(seen_key)
                 self._pn287_seen = seen_set
                 counters["warnings_emitted"] += 1
+                if _prom_warnings_total is not None:
+                    _prom_warnings_total.inc()
                 # Keep payload preview tight to avoid log floods.
                 preview = args_str[:80].replace("\n", "\\n")
                 log.warning(
@@ -194,9 +281,17 @@ def apply() -> tuple[str, str]:
             f"flipping `lifecycle=retired` in registry"
         )
 
+    # Set up Prometheus Counter integration — auto-exposed на vLLM's
+    # existing /metrics endpoint via default REGISTRY (idempotent across
+    # patch re-apply; safe to call multiple times).
+    prom_ready = _setup_prometheus_counters()
+
     # Idempotency check.
     if getattr(Qwen3CoderToolParser, _CLASS_MARKER, False):
-        return "applied", "already installed (idempotent re-apply)"
+        return "applied", (
+            "already installed (idempotent re-apply). prometheus: "
+            f"{'yes' if prom_ready else 'no (client unavailable)'}"
+        )
 
     original = Qwen3CoderToolParser.extract_tool_calls_streaming
     Qwen3CoderToolParser.extract_tool_calls_streaming = (
@@ -205,11 +300,17 @@ def apply() -> tuple[str, str]:
     Qwen3CoderToolParser._GENESIS_PN287_ORIGINAL = original  # noqa: SLF001
     setattr(Qwen3CoderToolParser, _CLASS_MARKER, True)
 
+    prom_note = (
+        " + Prometheus counters registered on default REGISTRY "
+        "(vllm:qwen3_tool_parser_pn287_*) — auto-exposed на /metrics"
+        if prom_ready
+        else " (prometheus_client unavailable — module-global dict only)"
+    )
     return "applied", (
         "PN287 installed — Qwen3CoderToolParser.extract_tool_calls_"
         "streaming wrapped with args-validity observer. Counters at "
         "vllm.sndr_core.integrations.tool_parsing.pn287_qwen3coder_args_"
-        "validity_observer.counters."
+        "validity_observer.counters" + prom_note + "."
     )
 
 
