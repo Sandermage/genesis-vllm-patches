@@ -128,7 +128,7 @@ patches:
   GENESIS_PN16_TOOL_THINK_BUDGET: '200'              # V8 — prepends short system message capping <think> at 200 tokens for tool-attached requests. Bench: TPS 237.95 (+0.7% vs baseline 236.24) + tool 7/7 (london_think FIXED). Cache-stable.
   GENESIS_PN16_CLASSIFIER_MAX_TOKENS: '0'            # V7 OFF — V7 cap on bench-trivial prompts caused -3.7% wall_TPS measurement artifact. Operators with no-cache workloads may opt in for hard response-length ceiling.
   # ── Sweep tunable ──
-  GENESIS_ENABLE_P82: '1'                            # SGLang acceptance OR-clause backport (vllm#40807-related); allows softer accept threshold
+  GENESIS_ENABLE_P82: '1'                            # SGLang-style spec-decode acceptance OR-clause. Cross-rig: +12% on A5000 FP8 (this stack), +10.5% on club-3090 3090 INT4 (noonghunna ref). Allows softer accept threshold; biased toward small-batch single-stream.
   GENESIS_P82_THRESHOLD_SINGLE: '0.3'                # P82 threshold for single-query (range 0.1-0.5; 0.3 empirically optimum on 35B with MTP K=3)
   # ── Observability + buffer mode ──
   GENESIS_OBSERVABILITY: '1'                         # Per-patch apply timing + RSS delta logged via genesis.observability. Operator UX; zero hot-path overhead (fires only at apply time).
@@ -145,8 +145,8 @@ patches:
   GENESIS_ENABLE_PN12_FFN_INTERMEDIATE_POOL: '1'     # Cliff 1 mitigation — FFN intermediate scratch pool. +0.16% wall_TPS within CV on 35B PROD; declared default-on for hybrid-GDN cliff safety.
   GENESIS_ENABLE_PN14_TQ_DECODE_OOB_CLAMP: '1'       # TQ decode IOOB safe_page_idx clamp (TQ k8v4 defensive). +0.1% wall_TPS within CV; declared for TQ-attached configs to gate against out-of-bound page indices.
   GENESIS_ENABLE_PN25_SILU_INDUCTOR_SAFE: '1'        # Inductor-safe SiLU (avoids torch.compile shape-specialisation regression on MoE silu_and_mul fast-path).
-  GENESIS_ENABLE_PN30_DS_LAYOUT_SPEC_DECODE: '1'     # DeepSeek-style spec-decode tensor layout — matches club-3090 27B+TQ+MTP K=3 reference; declared for cross-config consistency.
-  GENESIS_ENABLE_PN59_STREAMING_GDN: '1'             # Cliff 2b mitigation — streaming-GDN window-iterative driver replaces full h-tensor materialisation. −142 MiB/GPU at boot, −95% per-soak fragmentation. CRITICAL for hybrid GDN long-context survival.
+  GENESIS_ENABLE_PN30_DS_LAYOUT_SPEC_DECODE: '1'     # DeepSeek-style spec-decode tensor layout. Cross-rig parity: matches club-3090 v7.69 reference on 27B+TQ+MTP K=3 (closes DS conv state regression club-3090 #9af1a52). Our 35B PROD bench: neutral on TPS but enables club-3090 long-text cliff closure path; declared for cross-config consistency.
+  GENESIS_ENABLE_PN59_STREAMING_GDN: '1'             # Cliff 2b mitigation — streaming-GDN window-iterative driver replaces full h-tensor materialisation. Empirical: −142 MiB/GPU at boot, −95% per-soak fragmentation; club-3090 #182 confirmed Cliff 2b silently re-opens if v7.72.5 Level 2 markers missing (we verified all 4 present via audit_pn59_cliff2b_markers gate). CRITICAL for hybrid GDN long-context survival on 24 GB cards (A5000/3090) — gate runs in CI.
   GENESIS_ENABLE_PN82_MAMBA_CUDAGRAPH_PREFILL_ZERO: '1'   # Mamba prefill zero-fill under cudagraph capture (avoids stale-state contamination in captured graph).
   GENESIS_LEGACY_P7: '0'                             # Explicit OFF — P7 legacy GDN dual-stream conflicts_with PN204 v2 (PN204 supersedes via vllm#42301 + maybe_execute_in_parallel helper). 0 = use PN204 when armed, fall through to upstream otherwise.
   # ── Wave 9 (2026-05-14) — verified on the dcacdf9a TP=2 ladder.
@@ -201,6 +201,7 @@ patches:
   GENESIS_ENABLE_PN22_LOCAL_ARGMAX_TP: '1'           # vllm#39419 backport — vocab-parallel argmax. +9-30% TPS upstream on TP=2 + draft model. Qwen3 base, bit-exact.
   GENESIS_ENABLE_P108_MTP_DRAFT_STREAM_SYNC: '1'     # vllm#43330 backport — defensive stream sync. Auto-gates by VLLM_ATTENTION_BACKEND. Critical for FlashInfer sampler path on 35B.
   GENESIS_ENABLE_PN286_FA_LAYOUT_REVERT_SM86: '1'    # K.1.R.R.5 — FA layout revert for SM 8.6 Ampere. EMPIRICALLY VALIDATED on 35B: +6.6% TPS (239.17 -> 254.97), CV reduction 22% -> 10% (50% variance reduction). Closes #42095 regression for native FA layers on A5000.
+  GENESIS_ENABLE_PN287_QWEN3CODER_ARGS_OBSERVER: '1' # club-3090 #178 frequency observer — wraps Qwen3CoderToolParser to log structured WARN + counter on unparseable tool_call.arguments. Read-only (no mutation). Server-validated 2026-05-29: 4/24 turns detected on 35B-A3B baseline at depth ~20K context. Composes with P64/PN56/P61c (3-layer defense doesn't cover final-args JSON validity).
 
 notes:
   - "POC migration from a5000-2x-35b-prod (2026-05-12). All 44 canonical

@@ -80,7 +80,7 @@ patches:
   GENESIS_ENABLE_P64_QWEN3CODER_MTP_STREAMING: '1'   # vllm#39598 — qwen3coder MTP streaming early-return removal
   GENESIS_ENABLE_P66_CUDAGRAPH_SIZE_FILTER: '1'      # cudagraph capture size filter — OOM protection on many sizes
   # ── TQ k8v4 KV + MoE ──
-  GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL: '1'      # Genesis-original Triton multi-query kernel; required for spec_decode + TQ k8v4
+  GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL: '1'      # Genesis-original Triton multi-query kernel for spec-decode K+1 verify. Cross-rig: +25-35% on A5000 (Genesis-internal bench); REQUIRED for TQ k8v4 + spec-decode correctness (without it tool-call cascades degenerate; see club-3090 #178-related Class 1 drift docs).
   GENESIS_P67_USE_UPSTREAM: '1'                      # P67 routing: '1'=upstream Genesis kernel, '0'=fork (DEFAULT 1)
   GENESIS_P67_NUM_KV_SPLITS: '32'                    # P67 split-K factor. Wave 8 sweep: P67=16 (132.28 TPS / TTFT 100.9) vs P67=32 (131.48 / TTFT 97.1, CV 4.76% more stable). 32 wins TTFT by 3.7% on 27B@131K. 35B@320K wants 48 — per-model.
   GENESIS_ENABLE_P94: '1'
@@ -91,7 +91,7 @@ patches:
   GENESIS_ENABLE_PN14_TQ_DECODE_OOB_CLAMP: '1'       # GroupAB: out-of-bounds clamp in TQ decode; +9.2% group with PN12+P94
   # ── Hybrid GDN ──
   GENESIS_ENABLE_PN11_GDN_AB_CONTIGUOUS: '1'         # GDN A/B projection contiguity guard
-  GENESIS_ENABLE_PN59_STREAMING_GDN: '1'             # required for ctx ≥ 64K hybrid (Cliff 2b OOM guard)
+  GENESIS_ENABLE_PN59_STREAMING_GDN: '1'             # required for ctx ≥ 64K hybrid (Cliff 2b OOM guard). v7.72.5 Level 2 markers verified via CI gate audit_pn59_cliff2b_markers (4/4 present). club-3090 #182: silently no-ops on v7.72.2 — pre-CI-gate catch path.
   GENESIS_ENABLE_PN82_MAMBA_CUDAGRAPH_PREFILL_ZERO: '1' # vllm#41873 — zeros padded `is_prefilling` rows (CG correctness on hybrid)
   # ── Tool-call safety net ──
   GENESIS_ENABLE_P68_AUTO_FORCE_TOOL: '1'            # auto-set tool_choice=required when prompt mentions tools
@@ -130,7 +130,7 @@ patches:
   GENESIS_PN16_TOOL_THINK_BUDGET: '200'              # V8 — short system msg cap on <think>. 27B bench: TPS ≈baseline noise, TPOT -7%, tool 8/8 (london_think FIXED)
   GENESIS_PN16_CLASSIFIER_MAX_TOKENS: '0'            # V7 OFF — V7 cap caused -3.7% wall_TPS measurement artifact
   # ── Sweep tunable ──
-  GENESIS_ENABLE_P82: '1'                            # SGLang acceptance OR-clause backport; allows softer accept threshold
+  GENESIS_ENABLE_P82: '1'                            # SGLang-style spec-decode acceptance OR-clause. Cross-rig: +12% on A5000 FP8, +10.5% on 3090 INT4 (club-3090 noonghunna ref); biased toward small-batch single-stream. Allows softer accept threshold.
   GENESIS_P82_THRESHOLD_SINGLE: '0.1'                # P82 single-query threshold — 27B sweep 2026-05-09: monotonic 0.1=130.79 / 0.2=127.12 / 0.3=126.64. 27B wins at 0.1 (35B wins at 0.3 — per-model)
   # ── Observability + buffer mode ──
   GENESIS_OBSERVABILITY: '1'                         # Per-patch apply timing + RSS delta logged; zero hot-path overhead
@@ -188,6 +188,7 @@ patches:
   GENESIS_ENABLE_PN22_LOCAL_ARGMAX_TP: '1'           # vllm#39419 backport — local argmax per TP shard for draft model. +9-30% TPS upstream measurement on TP=2. Bit-exact equivalent.
   GENESIS_ENABLE_P108_MTP_DRAFT_STREAM_SYNC: '1'     # vllm#43330 backport — defensive stream sync. Auto-gates by VLLM_ATTENTION_BACKEND; no-op on TQ k8v4 (TURBO_QUANT_*).
   GENESIS_ENABLE_PN286_FA_LAYOUT_REVERT_SM86: '1'    # K.1.R.R.5 — FA layout revert for SM 8.6 Ampere. No-op on 27B MTP (in TQ group). +6.6% TPS on 35B. Self-skips non-SM-8.6.
+  GENESIS_ENABLE_PN287_QWEN3CODER_ARGS_OBSERVER: '1' # club-3090 #178 frequency observer — read-only. 27B coder did NOT exhibit the bug in 24-turn agentic bench 2026-05-29 (0/24 detected — confirms #178 is concentrated on 35B-A3B MoE path). Enabled for parity + future drift detection.
 
 notes:
   - "27B hybrid GDN + TQ k8v4 + MTP K=3. Validated 2026-05-11 on 2× A5000."
