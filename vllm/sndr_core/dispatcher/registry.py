@@ -3452,6 +3452,50 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "lifecycle": "experimental",
         "implementation_status": "full",
     },
+    "PN287": {
+        "title": "qwen3_coder × MTP arg-corruption frequency observer (club-3090 #178)",
+        "tier": "community",
+        "family": "tool_parsing",
+        "env_flag": "GENESIS_ENABLE_PN287_QWEN3CODER_ARGS_OBSERVER",
+        "default_on": False,
+        "category": "observability",
+        "credit": (
+            "Genesis-original 2026-05-29 (club-3090 cross-reference wave). "
+            "Surfaces frequency of the qwen3_coder × MTP arg-corruption bug "
+            "club-3090 maintainer flagged on noonghunna/club-3090#178 as "
+            "\"distinct from streaming bug #145\". Server-validated bench on "
+            "35B-A3B FP8 PROD (pin 626fa9bb, MTP K=3, max_tokens=150, agentic "
+            "12-turn × 2-session) hit the symptom 4/24 times — HTTP 400 "
+            "\"Unterminated string starting at: line 1 column 13\" cascading "
+            "from turn 9 onwards after a truncated tool_call.arguments at "
+            "turn 8 poisoned the chat history. Observation patch wraps "
+            "Qwen3CoderToolParser.extract_tool_calls_streaming via runtime "
+            "monkey-patch (idempotent, opaque to dynamo since not in "
+            "compile path), inspects prev_tool_call_arr post-invocation, "
+            "emits structured WARN log + counter increment when arguments "
+            "field is non-empty and json.loads() raises. Read-only — does "
+            "NOT mutate output. Companion to tools/bench_agentic.py "
+            "JSON-validate defense (client-side cascade prevention, ships "
+            "in same wave). Default OFF — opt-in to surface prod frequency "
+            "before deciding the proper behavior-changing fix (override "
+            "finish_reason → length, auto-close JSON, etc.). After ~weeks "
+            "of prod observation: if frequency negligible, close as "
+            "observed; if meaningful, escalate to PN288 behavior fix or "
+            "file vllm upstream PR. Auto-skips if upstream adds its own "
+            "`_args_validation_installed` marker. Existing P64+PN56+P61C "
+            "3-layer defense does NOT cover this surface — they fix "
+            "streaming-extractor early-return / XML-parse fallback / SSE "
+            "deferred-commit respectively, none validate final args JSON."
+        ),
+        "upstream_pr": None,
+        "applies_to": {
+            "tool_call_parser": "qwen3_coder",
+        },
+        "apply_module": "vllm.sndr_core.integrations.tool_parsing.pn287_qwen3coder_args_validity_observer",
+        "lifecycle": "experimental",
+        "implementation_status": "full",
+        "composes_with": ["P64", "PN56", "P61c"],
+    },
     "PN17": {
         "title": "FA2 softmax_lse runtime clamp (Cliff 1 mechanism A, Issue #11)",
         "tier": "community",
@@ -5661,11 +5705,36 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "env_flag": "GENESIS_ENABLE_G4_19C_ATTN_WRAP",
         "default_on": False,
         "category": "kernel",
-        "implementation_status": "full",
+        "implementation_status": "partial",
         "source": "genesis_original",
-        "apply_module": "vllm.sndr_core.integrations.attention.turboquant.g4_19c_attention_wrapper",
-        "lifecycle": "experimental",
-        "credit": "Phase 3 bucket 4 registration (2026-05-21). G4_19C wraps Gemma4Attention.forward to round-trip K and V through the G4-TurboQuant write+read kernels — completes the TQ KV cache contract started by G4_19 (KV cache registration) and G4_19B (memory accounting). Without G4_19C the TQ cache is allocated but never actually exercised on the hot path. Skip optimization: sliding layers (window=1024) bypass TQ since their cache is already small. Companion to G4_19 (KV cache), G4_19B (spec integration), G4_31 (dtype preservation).",
+        "apply_module": None,
+        "lifecycle": "retired",
+        "retired_waiver": True,
+        "retired_reason": (
+            "2026-05-29 boot failure on rig (dev371+, gemma4-tq-mtp-structured-k4 "
+            "container): `_g4_19c_roundtrip_tensor` custom kernel is invoked from "
+            "Gemma4Attention.forward path that Dynamo traces under torch.compile. "
+            "The kernel was not wrapped as an opaque custom op (no torch.library."
+            "custom_op or allow_in_graph at the entry), so Dynamo attempts to "
+            "fake-tensor-trace through it and raises: 'Cannot access data pointer "
+            "of Tensor (e.g. FakeTensor, FunctionalTensor). If you're using torch."
+            "compile/export/fx, it is likely that we are erroneously tracing into "
+            "a custom kernel.' This crashes the engine core with Worker died. "
+            "Workaround in production: `GENESIS_ENABLE_G4_19C_ATTN_WRAP=0` set on "
+            "the launcher (gemma4 prod uses this). Proper fix requires wrapping "
+            "`_g4_19c_roundtrip_tensor` via torch.library.custom_op with a fake-"
+            "tensor meta — see https://pytorch.org/tutorials/advanced/custom_ops"
+            "_landing_page.html. P7b's import-time-cached opaque-op pattern is "
+            "the reference (vllm/sndr_core/integrations/attention/gdn/p7b_*.py). "
+            "Until then, the TQ KV cache contract for gemma4 is INCOMPLETE on "
+            "the hot path — TQ allocation happens (G4_19) and memory accounting "
+            "is correct (G4_19B) but actual K/V round-tripping does not engage. "
+            "Operationally OK because gemma4-tq-mtp-structured-k4 runs at very "
+            "small max_model_len=4096 / max_num_seqs=1, so TQ compression is not "
+            "the bottleneck. Retirement keeps the wiring intact (no file move) "
+            "for diff against a future fix candidate."
+        ),
+        "credit": "Phase 3 bucket 4 registration (2026-05-21). G4_19C wraps Gemma4Attention.forward to round-trip K and V through the G4-TurboQuant write+read kernels — was intended to complete the TQ KV cache contract started by G4_19 (KV cache registration) and G4_19B (memory accounting). Skip optimization: sliding layers (window=1024) bypass TQ since their cache is already small. Companion to G4_19 (KV cache), G4_19B (spec integration), G4_31 (dtype preservation). RETIRED 2026-05-29 — torch.compile FakeTensor incompatibility.",
         "upstream_pr": None,
         "requires_patches": ["G4_19"],
         "conflicts_with": [],

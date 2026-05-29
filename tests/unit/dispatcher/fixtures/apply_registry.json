@@ -556,6 +556,10 @@
     "wrapped_name": "apply_patch_N286_fa_layout_revert_sm86"
   },
   {
+    "name": "PN287 qwen3_coder × MTP arg-corruption frequency observer (club-3090 #178)",
+    "wrapped_name": "apply_patch_N287_qwen3coder_args_observer"
+  },
+  {
     "name": "PN17 FA2 softmax_lse runtime clamp (Issue #11 Cliff 1 mechanism A)",
     "wrapped_name": "apply_patch_N17_fa2_softmax_lse_clamp"
   },

@@ -16,7 +16,7 @@ env flag to toggle, upstream PR (if backported), and credit.
 
 ## Current state (v12.0.0, 2026-05-22)
 
-**Total PATCH_REGISTRY entries:** 230 — range covers `P1`–`P109` legacy +
+**Total PATCH_REGISTRY entries:** 231 — range covers `P1`–`P109` legacy +
 `PN8`–`PN275` modern + `G4_01`–`G4_78` Gemma 4 family + sub-patches
 (P5b, P7b, P15B, P18b, P38B, P39a, P61c, P67b, P67c, P79d, PN26b,
 PN40-classifier) + library/diagnostic (P51, P102, P103) + the standalone
@@ -32,8 +32,8 @@ added as a registry patch.
 
 | Metric | Count |
 |:-------|:------|
-| Total PATCH_REGISTRY entries | **230** |
-| Tier=community (Apache 2.0, sndr_core) | **230** (all entries) |
+| Total PATCH_REGISTRY entries | **231** |
+| Tier=community (Apache 2.0, sndr_core) | **231** (all entries) |
 | Tier=engine (commercial, sndr_engine) | **0** (PN72 reclassified to community 2026-05-08; sndr_engine namespace reserved but empty) |
 | Default-on at boot | 52 |
 | Lifecycle=experimental | 157 |

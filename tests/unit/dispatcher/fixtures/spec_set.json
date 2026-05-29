@@ -1296,6 +1296,18 @@
     "apply_module": "vllm.sndr_core.integrations.attention.flash.pn286_fa_layout_revert_sm86"
   },
   {
+    "patch_id": "PN287",
+    "family": "tool_parsing",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "GENESIS_ENABLE_PN287_QWEN3CODER_ARGS_OBSERVER",
+    "has_upstream_pr": false,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "vllm.sndr_core.integrations.tool_parsing.pn287_qwen3coder_args_validity_observer"
+  },
+  {
     "patch_id": "PN17",
     "family": "attention.flash",
     "lifecycle": "experimental",
@@ -2558,14 +2570,14 @@
   {
     "patch_id": "G4_19C",
     "family": "attention.turboquant",
-    "lifecycle": "experimental",
+    "lifecycle": "retired",
     "tier": "community",
     "default_on": false,
     "env_flag": "GENESIS_ENABLE_G4_19C_ATTN_WRAP",
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
-    "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.turboquant.g4_19c_attention_wrapper"
+    "has_apply_module": false,
+    "apply_module": null
   },
   {
     "patch_id": "G4_31",

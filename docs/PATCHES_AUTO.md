@@ -4,23 +4,23 @@
 > Source of truth: `vllm/sndr_core/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-05-29T15:09:44Z
-Total entries: **230**
+Generated: 2026-05-29T20:04:47Z
+Total entries: **231**
 
 ## Statistics
 
 ### By tier
-- `tier=community`: **230**
+- `tier=community`: **231**
 
 ### By lifecycle
 - `lifecycle=coordinator`: **3**
 - `lifecycle=experimental`: **159**
 - `lifecycle=legacy`: **33**
 - `lifecycle=research`: **4**
-- `lifecycle=retired`: **17**
+- `lifecycle=retired`: **18**
 - `lifecycle=stable`: **14**
 
-### Default-on at boot: **52** / 230
+### Default-on at boot: **52** / 231
 
 ### By family
 - `attention.flash`: 3
@@ -44,7 +44,7 @@ Total entries: **230**
 - `serving`: 9
 - `spec_decode`: 33
 - `streaming`: 4
-- `tool_parsing`: 5
+- `tool_parsing`: 6
 - `worker`: 11
 
 ## Patches by family
@@ -112,7 +112,7 @@ Total entries: **230**
 | **PN261** | `community` | `experimental` | · | `GENESIS_ENABLE_PN261_TQ_NATIVE_CACHE_ASSERT` | — | TQ native cache layout assert (opt-in guard; PR42637 overlay) |
 | **G4_19** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_19_GEMMA4_TURBOQUANT_KV` | [#38171](https://github.com/vllm-project/vllm/issues/38171) | Genesis G4-TurboQuant KV cache for Gemma 4 (3/4-bit VQ, unlocks 256K context ... |
 | **G4_19B** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_19B_GEMMA4_TQ_KV_SPEC` | [#38171](https://github.com/vllm-project/vllm/issues/38171) | G4-TurboQuant KV spec integration with vLLM v1 _check_enough_kv_cache_memory |
-| **G4_19C** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_19C_ATTN_WRAP` | — | Round-trip K/V through G4-TurboQuant inside Gemma4Attention.forward |
+| **G4_19C** | `community` | `retired` | · | `GENESIS_ENABLE_G4_19C_ATTN_WRAP` | — | Round-trip K/V through G4-TurboQuant inside Gemma4Attention.forward |
 | **G4_31** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_31_TQ_DTYPE_PRESERVE` | — | Preserve turboquant_* kv_cache_dtype against AWQ quant-config override |
 | **G4_32** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_32_TQ_VALIDATION_BYPASS` | — | Bypass TurboQuantAttentionBackend.validate_configuration for Gemma 4 |
 | **G4_60A** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_60A_TQ_SLIDING_SPEC` | [#42637](https://github.com/vllm-project/vllm/pull/42637) | "Inject TQSlidingWindowSpec into vllm.v1.kv_cache_interface (PR |
@@ -368,7 +368,7 @@ Total entries: **230**
 | **PN202** | `community` | `experimental` | · | `GENESIS_ENABLE_PN202_PER_LAYER_KV_SPLIT` | — | PN202 — per-layer KV tensor split (Tier 2.A enabler) |
 | **PN203** | `community` | `experimental` | · | `GENESIS_ENABLE_PN203_COLD_PREFIX_OFFLOAD` | — | PN203 — cold-prefix CPU offload manager (Tier 3.A) |
 
-### `tool_parsing` (5)
+### `tool_parsing` (6)
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
@@ -376,6 +376,7 @@ Total entries: **230**
 | **P29** | `community` | `legacy` | ✓ | `GENESIS_LEGACY_P29` | — | tool parser IndexError guard |
 | **P64** | `community` | `experimental` | · | `GENESIS_ENABLE_P64_QWEN3CODER_MTP_STREAMING` | [#39598](https://github.com/vllm-project/vllm/pull/39598) | qwen3coder MTP streaming early-return fix |
 | **PN56** | `community` | `experimental` | · | `GENESIS_ENABLE_PN56_QWEN3CODER_XML_FALLBACK` | [#41466](https://github.com/vllm-project/vllm/pull/41466) | Qwen3Coder XML parse fallback (vllm#41466 backport) |
+| **PN287** | `community` | `experimental` | · | `GENESIS_ENABLE_PN287_QWEN3CODER_ARGS_OBSERVER` | — | "qwen3_coder × MTP arg-corruption frequency observer (club-3090 |
 | **P61c** | `community` | `experimental` | · | `GENESIS_ENABLE_P61C_QWEN3CODER_DEFERRED_COMMIT` | — | Qwen3Coder deferred-commit until <function= header (club-3090#72) |
 
 ### `worker` (11)

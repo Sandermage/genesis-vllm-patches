@@ -83,6 +83,16 @@ _RETIRED_NO_SUPERSEDE_WAIVER = {
     # spec_decode architecture choice, not a merged vllm PR. Phase 5.3.C
     # (2026-05-22).
     "G4_78": "internal architecture decision (drafter_kv_sharing=physical, P1.8 A2)",
+    # G4_19C torch.compile FakeTensor incompatibility found on rig boot
+    # 2026-05-29 (gemma4-tq-mtp-structured-k4 container). _g4_19c_
+    # roundtrip_tensor custom kernel not wrapped as opaque op; Dynamo
+    # raises "Cannot access data pointer of Tensor (FakeTensor)" during
+    # fake-tensor tracing through Gemma4Attention.forward. No upstream
+    # supersession — fix requires Genesis-side rewrite (wrap kernel via
+    # torch.library.custom_op, see P7b reference pattern). Workaround:
+    # GENESIS_ENABLE_G4_19C_ATTN_WRAP=0 on launcher. Detailed retired_
+    # reason in registry credit.
+    "G4_19C": "torch.compile FakeTensor bug 2026-05-29 (kernel not opaque-wrapped)",
 }
 
 

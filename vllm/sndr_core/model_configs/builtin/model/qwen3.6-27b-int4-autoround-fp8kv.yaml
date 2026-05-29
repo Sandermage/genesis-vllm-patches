@@ -95,6 +95,7 @@ patches:
   GENESIS_ENABLE_P78_TOLIST_CAPTURE_GUARD: '0'       # opt-out on MTP path
   GENESIS_ENABLE_P81_FP8_BLOCK_SCALED_M_LE_8: '0'    # opt-out for fp8_e5m2 KV path (TQ variant differs)
   GENESIS_ENABLE_P82: '0'                            # 27B fp8kv keeps P82 off (TQ sister turns it on)
+  GENESIS_ENABLE_P98: '1'                            # vllm#40941 WorkspaceManager revert — required companion to P99 memoize (cross-config consistency with TQ k8v4 sister; added 2026-05-29 club-3090 wave for consistency).
   GENESIS_ENABLE_P99: '1'                            # WorkspaceManager.get_simultaneous memoize (vllm#40941 perf hotfix — composes with P98)
   GENESIS_ENABLE_P101: '1'                           # vllm#41127 — uniform query_len>1 batches through prefill wrapper
   # ── Hybrid-GDN + Mamba (27B-specific) ──

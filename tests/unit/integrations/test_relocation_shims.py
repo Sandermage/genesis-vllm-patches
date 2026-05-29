@@ -276,7 +276,10 @@ REGISTERED_AFTER_BUCKET_3 = {
 REGISTERED_AFTER_BUCKET_4 = {
     "G4_19":  "vllm.sndr_core.integrations.attention.turboquant.g4_19_turboquant_kv_cache",
     "G4_19B": "vllm.sndr_core.integrations.attention.turboquant.g4_19b_tq_kv_spec_integration",
-    "G4_19C": "vllm.sndr_core.integrations.attention.turboquant.g4_19c_attention_wrapper",
+    # G4_19C removed from ALL_REGISTERED mapping 2026-05-29 — retired
+    # with apply_module=None (torch.compile FakeTensor bug, see registry
+    # retired_reason). File preserved on disk for diff against a future
+    # opaque-op-wrapped fix candidate.
     "G4_31":  "vllm.sndr_core.integrations.attention.turboquant.g4_31_preserve_tq_dtype",
     "G4_32":  "vllm.sndr_core.integrations.attention.turboquant.g4_32_tq_validation_bypass",
     "G4_60A": "vllm.sndr_core.integrations.attention.turboquant.g4_60a_tq_sliding_window_spec",

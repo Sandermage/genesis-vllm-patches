@@ -4808,6 +4808,31 @@ def apply_patch_N286_fa_layout_revert_sm86() -> PatchResult:
     return _skipped("PN286 FA layout revert SM 8.6", detail)
 
 
+@register_patch("PN287 qwen3_coder × MTP arg-corruption frequency observer (club-3090 #178)")
+def apply_patch_N287_qwen3coder_args_observer() -> PatchResult:
+    """Patch N287: read-only observer that wraps
+    ``Qwen3CoderToolParser.extract_tool_calls_streaming`` to log a
+    structured WARN + increment process counter when accumulated
+    ``arguments`` is non-empty and ``json.loads()`` fails. Surfaces the
+    club-3090 #178 frequency in production without behavioral changes.
+    """
+    name = "PN287 qwen3_coder args observer"
+    if not _state._APPLY_MODE:
+        return _applied(name, "dry-run: observer ready")
+    try:
+        from vllm.sndr_core.integrations.tool_parsing import (
+            pn287_qwen3coder_args_validity_observer,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = pn287_qwen3coder_args_validity_observer.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
 @register_patch("PN17 FA2 softmax_lse runtime clamp (Issue #11 Cliff 1 mechanism A)")
 def apply_patch_N17_fa2_softmax_lse_clamp() -> PatchResult:
     """Patch N32: Genesis-original 2026-04-30 — runtime clamp on FA2

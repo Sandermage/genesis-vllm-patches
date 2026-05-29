@@ -1,10 +1,11 @@
 {
-  "total": 230,
+  "total": 231,
   "mapped": 213,
   "unmapped_count": 0,
   "unmapped": [],
-  "intentionally_unmapped_count": 17,
+  "intentionally_unmapped_count": 18,
   "intentionally_unmapped": [
+    "G4_19C",
     "G4_70",
     "G4_70B",
     "G4_70C",
