@@ -53,6 +53,32 @@ to flash_attn).
 
 Status: opt-in via `GENESIS_ENABLE_P65_TURBOQUANT_SPEC_CG_DOWNGRADE=1`.
 
+================================================================
+K.1.R.R.7 (2026-05-29) — STATUS UPDATE
+================================================================
+
+P65 logic is **inlined** into Genesis TQ overlay
+(`overlays/pr42637/turboquant_attn.py:344-359`) — the overlay's
+``get_cudagraph_support`` classmethod conditionally downgrades when
+both ``GENESIS_ENABLE_P65_TURBOQUANT_SPEC_CG_DOWNGRADE=1`` AND
+``vllm_config.speculative_config is not None``.
+
+This file (P65 patch) is a separate TextPatch that tries to apply
+the SAME logic to upstream ``turboquant_attn.py`` — but since the
+overlay BIND-MOUNTS our version at that path, the patch sees the
+already-modified file. The drift marker
+``AttentionCGSupport.UNIFORM_SINGLE_TOKEN_DECODE`` fires
+misleadingly because it matches OUR overlay's content, not upstream.
+
+For our 27B PROD YAML, ``GENESIS_ENABLE_P65_TURBOQUANT_SPEC_CG_DOWNGRADE``
+is NOT set → no downgrade → UNIFORM_BATCH preserved → spec-verify
+cudagraph speedup intact. P65 is effectively dormant.
+
+For audit cleanliness: drift marker should only fire when upstream
+NATIVELY adds the symbol (not when our overlay adds it). Future
+cleanup: remove TextPatch sub-patches, leave only the env+marker
+check infrastructure.
+
 Compatibility
 -------------
 - Affects ONLY when both `kv_cache_dtype` is TurboQuant AND
