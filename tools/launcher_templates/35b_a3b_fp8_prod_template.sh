@@ -94,6 +94,8 @@ docker run -d \
         --enable-auto-tool-choice \
         --tool-call-parser qwen3_coder \
         --reasoning-parser qwen3 \
+        --chat-template /models/Qwen3.6-35B-A3B-FP8/chat_template_enhanced.jinja \
+        --override-generation-config '{\"temperature\":0.6,\"top_p\":0.95,\"top_k\":20}' \
         --api-key genesis-local \
         --served-model-name qwen3.6-35b \
         --speculative-config '{\"method\":\"mtp\",\"num_speculative_tokens\":3}' \

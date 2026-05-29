@@ -129,7 +129,6 @@ genesis-vllm-patches/
 │   │   ├── license.py                 # Ed25519-signed token gate
 │   │   ├── plugin.py                  # vllm.general_plugins entry point
 │   │   ├── version.py                 # SNDR_CORE_VERSION = "11.0.0"
-│   │   ├── wiring/                    # patcher_registry + anchor_manifest builder
 │   │   ├── dispatcher/                # PATCH_REGISTRY spec + decision + audit
 │   │   ├── apply/                     # boot apply loop + per-patch dispatch
 │   │   └── integrations/              # 231 community patches grouped by 23 families
