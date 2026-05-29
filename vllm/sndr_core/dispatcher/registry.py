@@ -3420,7 +3420,22 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "SM 9.0+ (Hopper, Blackwell) skip self-detection. "
             "Genesis contribution: mechanism identification via 5-test "
             "diagnostic, sm-strict gating, monkey-patch + TextPatch hybrid "
-            "design, idempotent apply, drift markers."
+            "design, idempotent apply, drift markers. "
+            "[Empirical validation 2026-05-29 K.1.R.R.5]: "
+            "27B Lorbus INT4 + TQ k8v4 + MTP K=3 — NEUTRAL (119.93 TPS, "
+            "same as baseline); reason: 27B MTP draft layer "
+            "(mtp.layers.0.self_attn.attn) is in TQFullAttentionSpec group "
+            "and uses TQ overlay kernels, not native FA. PN286 patches FA "
+            "backend which is bypassed for TQ-quantized layers. "
+            "35B FP8 dense MoE + MTP K=3 — POSITIVE: 254.97 TPS with PN286 "
+            "vs 239.17 TPS without (+6.6% TPS, 50% variance reduction). "
+            "Reason: 35B uses native FA for attention layers (not TQ), so "
+            "FA backend monkey-patches restore pre-#42095 cache locality "
+            "on A5000 SM 8.6. Combined with prior +3.67% pin improvement: "
+            "net ~+10% TPS for 35B vs dev371 baseline. "
+            "RECOMMENDED for any model that uses native FlashAttention on "
+            "SM 8.6 hardware. Self-skips silently on TQ-only paths. "
+            "Tool-call quality preserved (7/7 on 27B verified)."
         ),
         "upstream_pr": None,
         "applies_to": {
