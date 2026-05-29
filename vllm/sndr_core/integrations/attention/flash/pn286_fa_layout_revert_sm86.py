@@ -147,7 +147,7 @@ import os
 from vllm.sndr_core.core import (
     TextPatch,
     TextPatcher,
-    result_to_wiring_status,
+    TextPatchResult,
 )
 from vllm.sndr_core.detection.guards import resolve_vllm_file
 
@@ -450,12 +450,13 @@ def apply() -> tuple[str, str]:
     if patcher is None:
         return "skipped", "PN286 unbind TextPatcher build failed"
 
-    result = patcher.apply()
-    status, detail = result_to_wiring_status(result)
-
-    if status not in ("applied", "skipped"):
-        return status, detail
-
+    result, failure = patcher.apply()
+    if result == TextPatchResult.FAILED:
+        return "failed", failure.reason if failure else "unknown TextPatch failure"
+    if result == TextPatchResult.SKIPPED:
+        return "skipped", failure.reason if failure else "unknown TextPatch skip"
+    # APPLIED or IDEMPOTENT — proceed
+    detail = "TextPatches applied: forward unbind + do_kv_cache_update unbind"
     _APPLIED = True
     log.warning(
         "[PN286] INSTALLED: FA KV cache layout reverted to pre-#42095 "
