@@ -1284,6 +1284,18 @@
     "apply_module": "vllm.sndr_core.integrations.kernels.pn25_silu_inductor_safe_pool"
   },
   {
+    "patch_id": "PN286",
+    "family": "attention.flash",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "GENESIS_ENABLE_PN286_FA_LAYOUT_REVERT_SM86",
+    "has_upstream_pr": false,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "vllm.sndr_core.integrations.attention.flash.pn286_fa_layout_revert_sm86"
+  },
+  {
     "patch_id": "PN17",
     "family": "attention.flash",
     "lifecycle": "experimental",

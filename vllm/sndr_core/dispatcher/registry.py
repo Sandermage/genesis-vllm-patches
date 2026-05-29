@@ -3389,6 +3389,48 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "lifecycle": "experimental",
         "implementation_status": "full",
     },
+    "PN286": {
+        "title": "FA KV cache layout revert for Ampere SM 8.6 (closes #42095 MTP K=3 regression)",
+        "tier": "community",
+        "family": "attention.flash",
+        "env_flag": "GENESIS_ENABLE_PN286_FA_LAYOUT_REVERT_SM86",
+        "default_on": False,
+        "category": "perf_hotfix",
+        "credit": (
+            "Genesis-original 2026-05-29 (K.1.R.R.5). Upstream vllm#42095 "
+            "(merged 2026-05-27, commit 7e33081ce) flipped FlashAttention "
+            "KV cache layout from (2, num_blocks, ...) to (num_blocks, 2, "
+            "...) — physically interleaving K and V per block. On Hopper "
+            "SM 9.0+ with TMA this is performance-neutral or slightly "
+            "faster. On Ampere SM 8.6 (A5000/A6000) with 6 MB L2 and no "
+            "TMA, the new unbind(1) view has 2x outer stride producing "
+            "L2 prefetch miss amplification during paged decode. "
+            "Under MTP K=3 each accepted token costs 4 KV cache reads, "
+            "amplifying the regression to 9% wall TPS empirically. "
+            "Math derivation (K.1.R.R.5 diagnostic): base TPS 57.75, "
+            "K=1 mult 1.45x (T_K=0.24), K=3 mult 2.07x (T_K=0.17) vs "
+            "dev371 T_K 0.155 -> 31% slower draft step -> 9% wall TPS. "
+            "35B FP8 dense MoE on SAME pin is +3.67% TPS (no MTP, FP8 "
+            "cache fits L2) -- confirms hybrid/SM8.6-specific issue. "
+            "PN286 monkey-patches FlashAttentionBackend.get_kv_cache_shape "
+            "to (2, N, B, H, D), get_kv_cache_stride_order to pre-#42095 "
+            "tuples, GPUModelRunner._update_hybrid_attention_mamba_layout "
+            "to skip FA backends, and TextPatches FA forward/do_kv_cache_"
+            "update to use unbind(0). Strictly SM 8.6 gated; SM 8.0 (A100), "
+            "SM 9.0+ (Hopper, Blackwell) skip self-detection. "
+            "Genesis contribution: mechanism identification via 5-test "
+            "diagnostic, sm-strict gating, monkey-patch + TextPatch hybrid "
+            "design, idempotent apply, drift markers."
+        ),
+        "upstream_pr": None,
+        "applies_to": {
+            "platform": "cuda",
+            "device_capability": "8.6",
+        },
+        "apply_module": "vllm.sndr_core.integrations.attention.flash.pn286_fa_layout_revert_sm86",
+        "lifecycle": "experimental",
+        "implementation_status": "full",
+    },
     "PN17": {
         "title": "FA2 softmax_lse runtime clamp (Cliff 1 mechanism A, Issue #11)",
         "tier": "community",

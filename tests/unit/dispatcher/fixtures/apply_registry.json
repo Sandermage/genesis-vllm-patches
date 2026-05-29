@@ -552,6 +552,10 @@
     "wrapped_name": "apply_patch_N24_dflash_aux_layer_indexing"
   },
   {
+    "name": "PN286 FA KV cache layout revert for Ampere SM 8.6 (K.1.R.R.5)",
+    "wrapped_name": "apply_patch_N286_fa_layout_revert_sm86"
+  },
+  {
     "name": "PN17 FA2 softmax_lse runtime clamp (Issue #11 Cliff 1 mechanism A)",
     "wrapped_name": "apply_patch_N17_fa2_softmax_lse_clamp"
   },

@@ -535,6 +535,11 @@
     "reason": "strict opt-in — set GENESIS_ENABLE_PN25_SILU_INDUCTOR_SAFE=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
   },
   {
+    "patch_id": "PN286",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_PN286_FA_LAYOUT_REVERT_SM86=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
     "patch_id": "PN17",
     "applied": false,
     "reason": "strict opt-in — set GENESIS_ENABLE_PN17_FA2_LSE_CLAMP=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"

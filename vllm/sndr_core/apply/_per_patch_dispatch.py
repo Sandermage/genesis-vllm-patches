@@ -4776,6 +4776,38 @@ def apply_patch_N24_dflash_aux_layer_indexing() -> PatchResult:
     )
 
 
+@register_patch("PN286 FA KV cache layout revert for Ampere SM 8.6 (K.1.R.R.5)")
+def apply_patch_N286_fa_layout_revert_sm86() -> PatchResult:
+    """Patch N286: Genesis-original 2026-05-29 — FlashAttention KV cache
+    layout revert for Ampere SM 8.6, closing the 9% MTP K=3 wall TPS
+    regression introduced by upstream vllm#42095.
+
+    Upstream #42095 flipped FA KV cache shape from (2, num_blocks, ...)
+    to (num_blocks, 2, ...) and unbind(0) -> unbind(1). On Hopper SM 9.0+
+    with TMA this is neutral or slightly faster. On Ampere SM 8.6
+    (A5000/A6000) with 6 MB L2 and no TMA, the new strided view doubles
+    outer stride, hurting L2 prefetch reuse during paged decode. MTP K=3
+    amplifies into 9% wall TPS regression.
+
+    PN286 monkey-patches FA backend shape + stride methods, intercepts
+    GPUModelRunner._update_hybrid_attention_mamba_layout to skip FA,
+    and TextPatches forward/do_kv_cache_update to use unbind(0).
+
+    Strictly SM 8.6 gated. SM 8.0 (A100) and SM 9.0+ (Hopper, Blackwell)
+    self-skip via current_platform.is_device_capability(86) check.
+
+    Status: opt-in via GENESIS_ENABLE_PN286_FA_LAYOUT_REVERT_SM86=1.
+    Default OFF; flip after rig validation confirms gap closure.
+    """
+    from vllm.sndr_core.integrations.attention.flash import (
+        pn286_fa_layout_revert_sm86,
+    )
+    status, detail = pn286_fa_layout_revert_sm86.apply()
+    if status == "applied":
+        return _applied("PN286 FA layout revert SM 8.6", detail)
+    return _skipped("PN286 FA layout revert SM 8.6", detail)
+
+
 @register_patch("PN17 FA2 softmax_lse runtime clamp (Issue #11 Cliff 1 mechanism A)")
 def apply_patch_N17_fa2_softmax_lse_clamp() -> PatchResult:
     """Patch N32: Genesis-original 2026-04-30 — runtime clamp on FA2
