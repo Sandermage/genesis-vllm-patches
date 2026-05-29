@@ -93,7 +93,15 @@ ANCHOR_NEW = (
 
 
 def _make_patcher() -> TextPatcher | None:
-    target = resolve_vllm_file("model_executor/layers/mamba/gdn_linear_attn.py")
+    # K.1.R.R.4 (2026-05-29): #41126 split mamba/gdn_linear_attn.py.
+    # See K.1.R.R.1 / K.1.R.R.2A for the same fallback pattern on
+    # P28 / P46 / P60 / P60b / PN11.
+    target = (
+        resolve_vllm_file("model_executor/layers/mamba/gdn_linear_attn.py")
+        or resolve_vllm_file(
+            "model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py"
+        )
+    )
     if target is None:
         return None
     return TextPatcher(

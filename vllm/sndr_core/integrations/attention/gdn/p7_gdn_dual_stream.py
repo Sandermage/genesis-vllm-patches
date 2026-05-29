@@ -80,7 +80,16 @@ _NEW_INPROJ = (
 
 
 def _make_patcher() -> TextPatcher | None:
-    target = resolve_vllm_file("model_executor/layers/mamba/gdn_linear_attn.py")
+    # K.1.R.R.4 (2026-05-29): upstream PR #41126 split monolithic
+    # mamba/gdn_linear_attn.py → mamba/gdn/qwen_gdn_linear_attn.py.
+    # Try new path as fallback so this patch keeps applying after the
+    # pin bump (was silently skipping on 626fa9bb).
+    target = (
+        resolve_vllm_file("model_executor/layers/mamba/gdn_linear_attn.py")
+        or resolve_vllm_file(
+            "model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py"
+        )
+    )
     if target is None:
         return None
     return TextPatcher(

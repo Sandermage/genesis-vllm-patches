@@ -965,7 +965,14 @@ def _make_gdn_linear_attn_patcher() -> TextPatcher | None:
     No upstream_drift_markers configured: pristine pollution makes any
     marker we'd pick fire on a never-patched file.
     """
-    target = resolve_vllm_file("model_executor/layers/mamba/gdn_linear_attn.py")
+    # K.1.R.R.4 (2026-05-29): #41126 split mamba/gdn_linear_attn.py.
+    # See P7 / PN50 for the same fallback pattern.
+    target = (
+        resolve_vllm_file("model_executor/layers/mamba/gdn_linear_attn.py")
+        or resolve_vllm_file(
+            "model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py"
+        )
+    )
     if target is None:
         return None
     return TextPatcher(
