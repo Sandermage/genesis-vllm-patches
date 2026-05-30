@@ -41,6 +41,15 @@ trust_remote_code: true                          # required for Qwen3 hybrid-GDN
 # container — no new mount slot required.
 chat_template: /models/Qwen3.6-27B-int4-AutoRound/chat_template_enhanced.jinja
 
+# Pin Qwen3.5/3.6 canonical sampling defaults (club-3090 spec). Without
+# this, vllm uses model-supplied generation_config which may not match
+# canonical recommendation. Emitted as `--override-generation-config
+# '<json>'` by compose.py.
+override_generation_config:
+  temperature: 0.6
+  top_p: 0.95
+  top_k: 20
+
 # ─── Capabilities — inherent to this model ─────────────────────────────
 capabilities:
   attention_arch: hybrid_gdn_moe                 # Qwen 3.6 hybrid (gated delta net + MoE); drives PN59/P98/PN11 + PN82

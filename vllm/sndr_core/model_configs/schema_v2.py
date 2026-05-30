@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 # Reuse V1 helper types where possible (HardwareSpec, SpecDecodeConfig,
 # PatchAttribution, ...). This keeps a single source of truth for
@@ -274,6 +274,16 @@ class ModelDef:
     # agentic traces).
     chat_template: Optional[str] = None
 
+    # Optional override for sampling defaults
+    # (`--override-generation-config '<json>'`).
+    # When set, the launch renderer emits the JSON-serialised dict as
+    # the vllm CLI flag value. Used to pin Qwen3.5/3.6 canonical
+    # sampling parameters (temperature=0.6 / top_p=0.95 / top_k=20 per
+    # club-3090 spec) so operators do not have to remember to pass them
+    # via per-request `sampling_params`. None preserves vllm's default
+    # generation_config handling.
+    override_generation_config: Optional[dict[str, Any]] = None
+
     notes: list[str] = field(default_factory=list)
 
     def validate(self) -> None:
@@ -315,6 +325,24 @@ class ModelDef:
                 f"model.chat_template must be str | None (got "
                 f"{type(self.chat_template).__name__})"
             )
+        if self.override_generation_config is not None:
+            if not isinstance(self.override_generation_config, dict):
+                raise SchemaError(
+                    f"model.override_generation_config must be dict | None "
+                    f"(got {type(self.override_generation_config).__name__})"
+                )
+            for k, v in self.override_generation_config.items():
+                if not isinstance(k, str) or not k:
+                    raise SchemaError(
+                        f"model.override_generation_config key {k!r} "
+                        f"must be non-empty str"
+                    )
+                if not isinstance(v, (int, float, str, bool, list)):
+                    raise SchemaError(
+                        f"model.override_generation_config[{k!r}] value "
+                        f"must be int | float | str | bool | list "
+                        f"(got {type(v).__name__})"
+                    )
 
 
 # ─── HardwareDef ──────────────────────────────────────────────────────────

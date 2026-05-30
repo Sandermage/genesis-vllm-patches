@@ -36,6 +36,15 @@ trust_remote_code: true                          # required for Qwen3-A3B custom
 # exposed via the existing /models mount.
 chat_template: /models/Qwen3.6-35B-A3B-FP8/chat_template_enhanced.jinja
 
+# Pin Qwen3.5/3.6 canonical sampling defaults (club-3090 spec). Without
+# this, vllm uses model-supplied generation_config which may not match
+# canonical recommendation. Emitted as `--override-generation-config
+# '<json>'` by compose.py.
+override_generation_config:
+  temperature: 0.6
+  top_p: 0.95
+  top_k: 20
+
 # ─── Capabilities — inherent to this model ─────────────────────────────
 # Different capabilities mean a different model file; do NOT override these
 # from hardware/profile layers (ownership rule, see roadmap §4.2).

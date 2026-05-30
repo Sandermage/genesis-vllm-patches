@@ -474,6 +474,22 @@ def compose(
     if getattr(model, "chat_template", None):
         vllm_extra_args.extend(["--chat-template", model.chat_template])
 
+    # 4c-bis. Optional --override-generation-config — pins sampling
+    # defaults (e.g. Qwen3.5/3.6 canonical
+    # `{temperature: 0.6, top_p: 0.95, top_k: 20}` per club-3090 spec).
+    # Emitted as a single JSON-encoded CLI value; the launch renderer
+    # is responsible for shell-quoting it.
+    if getattr(model, "override_generation_config", None):
+        import json as _json_for_gen_cfg
+        vllm_extra_args.extend([
+            "--override-generation-config",
+            _json_for_gen_cfg.dumps(
+                model.override_generation_config,
+                separators=(",", ":"),
+                sort_keys=True,
+            ),
+        ])
+
     # 4d. Emit --attention-backend from profile.backend_plan.target_default.
     # Phase 7.G4.31B.K4-BACKEND-FIX (2026-05-23): closes the gap left
     # by P1.5. BACKEND_PLAN_EMISSION_MAP (above) maps target_default
