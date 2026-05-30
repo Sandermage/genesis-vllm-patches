@@ -195,7 +195,9 @@ class TestPrivateKeys:
     def test_detects_rsa_marker(self, tmp_path, monkeypatch):
         mod = _import_script()
         f = tmp_path / "leak.txt"
-        f.write_text("-----BEGIN RSA PRIVATE KEY-----\nAAAA\n")
+        # String split prevents this test source line from itself matching
+        # the BEGIN-PRIVATE-KEY regex during the live security_scan run.
+        f.write_text("-----BEGIN " + "RSA PRIVATE " + "KEY-----\nAAAA\n")
         monkeypatch.setattr(mod, "REPO_ROOT", tmp_path)
         result = mod.check_no_private_keys(["leak.txt"])
         assert len(result) == 1
@@ -203,7 +205,7 @@ class TestPrivateKeys:
     def test_detects_openssh_marker(self, tmp_path, monkeypatch):
         mod = _import_script()
         f = tmp_path / "leak.txt"
-        f.write_text("-----BEGIN OPENSSH PRIVATE KEY-----\n")
+        f.write_text("-----BEGIN " + "OPENSSH PRIVATE " + "KEY-----\n")
         monkeypatch.setattr(mod, "REPO_ROOT", tmp_path)
         result = mod.check_no_private_keys(["leak.txt"])
         assert len(result) == 1
