@@ -3646,7 +3646,12 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "title": "Gemma4 tool-parser PR #42006 MTP streaming overlay (vendored from club-3090)",
         "tier": "community",
         "family": "tool_parsing",
-        "env_flag": None,  # operator-side bind-mount, not a Genesis apply()
+        # Informational env_flag — schema validator requires a string;
+        # G4_T1 is operator-side bind-mount only and has no Genesis
+        # apply() path. The flag has no runtime semantics; it exists
+        # so audit_upstream_status and the schema gate can track this
+        # entry uniformly with other registry rows.
+        "env_flag": "GENESIS_INFO_G4_T1_PR42006_OVERLAY_MOUNTED",
         "default_on": False,
         "category": "stability",
         "credit": (

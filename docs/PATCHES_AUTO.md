@@ -4,7 +4,7 @@
 > Source of truth: `vllm/sndr_core/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-05-30T19:50:41Z
+Generated: 2026-05-30T20:05:23Z
 Total entries: **234**
 
 ## Statistics
@@ -379,7 +379,7 @@ Total entries: **234**
 | **P64** | `community` | `experimental` | · | `GENESIS_ENABLE_P64_QWEN3CODER_MTP_STREAMING` | [#39598](https://github.com/vllm-project/vllm/pull/39598) | qwen3coder MTP streaming early-return fix |
 | **PN56** | `community` | `experimental` | · | `GENESIS_ENABLE_PN56_QWEN3CODER_XML_FALLBACK` | [#41466](https://github.com/vllm-project/vllm/pull/41466) | Qwen3Coder XML parse fallback (vllm#41466 backport) |
 | **PN287** | `community` | `experimental` | · | `GENESIS_ENABLE_PN287_QWEN3CODER_ARGS_OBSERVER` | — | "qwen3_coder × MTP arg-corruption frequency observer (club-3090 |
-| **G4_T1** | `community` | `experimental` | · | `—` | [#42006](https://github.com/vllm-project/vllm/pull/42006) | "Gemma4 tool-parser PR |
+| **G4_T1** | `community` | `experimental` | · | `GENESIS_INFO_G4_T1_PR42006_OVERLAY_MOUNTED` | [#42006](https://github.com/vllm-project/vllm/pull/42006) | "Gemma4 tool-parser PR |
 | **P61c** | `community` | `experimental` | · | `GENESIS_ENABLE_P61C_QWEN3CODER_DEFERRED_COMMIT` | — | Qwen3Coder deferred-commit until <function= header (club-3090#72) |
 
 ### `worker` (11)

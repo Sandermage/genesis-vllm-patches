@@ -557,7 +557,7 @@
   {
     "patch_id": "G4_T1",
     "applied": false,
-    "reason": "strict opt-in — set None=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+    "reason": "strict opt-in — set GENESIS_INFO_G4_T1_PR42006_OVERLAY_MOUNTED=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
   },
   {
     "patch_id": "PN17",

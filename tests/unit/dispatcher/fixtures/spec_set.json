@@ -1337,7 +1337,7 @@
     "lifecycle": "experimental",
     "tier": "community",
     "default_on": false,
-    "env_flag": null,
+    "env_flag": "GENESIS_INFO_G4_T1_PR42006_OVERLAY_MOUNTED",
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
