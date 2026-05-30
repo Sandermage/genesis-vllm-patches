@@ -2,78 +2,79 @@
 """PN128 — Spec-decode helper kernel warmup (backport vllm-project/vllm#41481).
 
 ================================================================
-ЗАЧЕМ
+WHY
 ================================================================
 
-vLLM jit_monitor.py логирует Triton kernel JIT во время inference
-(после warmup). На свежем dev371 (bf610c2f) bench показывает 8
-уникальных kernels JIT'ящихся на первом user request:
+vLLM jit_monitor.py logs Triton kernel JIT compilations during
+inference (after the official warmup). On a fresh dev371 (bf610c2f)
+bench, 8 unique kernels JIT-compile on the first user request:
 
-  - _zero_kv_blocks_kernel              ← scheduler  (не покрывает)
-  - _compute_slot_mapping_kernel        ← PN129 (отдельный backport)
-  - eagle_prepare_next_token_padded_kernel  ← ПОКРЫТО PN128
-  - eagle_prepare_inputs_padded_kernel      ← ПОКРЫТО PN128
-  - eagle_step_slot_mapping_metadata_kernel ← ПОКРЫТО PN128
-  - expand_kernel / copy_and_expand_eagle    ← ПОКРЫТО PN128
+  - _zero_kv_blocks_kernel              ← scheduler (not covered)
+  - _compute_slot_mapping_kernel        ← PN129 (separate backport)
+  - eagle_prepare_next_token_padded_kernel  ← COVERED BY PN128
+  - eagle_prepare_inputs_padded_kernel      ← COVERED BY PN128
+  - eagle_step_slot_mapping_metadata_kernel ← COVERED BY PN128
+  - expand_kernel / copy_and_expand_eagle    ← COVERED BY PN128
   - _fwd_kernel_stage2                  ← (V1↔V2 gap)
-  - _tq_grouped_decode_stage1           ← PN130 (отдельный backport)
+  - _tq_grouped_decode_stage1           ← PN130 (separate backport)
 
-PN128 закрывает 4 из 8 — eagle_* + copy_and_expand. PN129 + PN130
-закроют ещё 2. Останутся 2 (V1↔V2 model runner gap).
+PN128 closes 4 of 8 — eagle_* + copy_and_expand. PN129 + PN130
+cover 2 more. 2 remain in the V1↔V2 model runner gap.
 
 ================================================================
-КАК
+HOW
 ================================================================
 
-Upstream PR #41481 (OPEN) добавляет:
-  1. ``SpecDecodeBaseProposer.dry_run_helper_kernels()`` — warmup'ит
-     2 общих kernel (next_token + prepare_inputs) + опц. copy_expand
-  2. ``EagleProposer.dry_run_helper_kernels()`` — дополнительно
-     eagle_step_update_slot_mapping_and_metadata (для K > 1 + не
-     parallel_drafting — наш MTP K=3 попадает)
-  3. ``Worker._warmup_spec_decode_helpers()`` — вызывается из
-     ``compile_or_warm_up_model`` после _dummy_run
+Upstream PR #41481 (OPEN) adds:
+  1. ``SpecDecodeBaseProposer.dry_run_helper_kernels()`` — warms up
+     2 shared kernels (next_token + prepare_inputs) + optional
+     copy_expand
+  2. ``EagleProposer.dry_run_helper_kernels()`` — additionally
+     eagle_step_update_slot_mapping_and_metadata (for K > 1 + non
+     parallel_drafting — our MTP K=3 hits this)
+  3. ``Worker._warmup_spec_decode_helpers()`` — called from
+     ``compile_or_warm_up_model`` after _dummy_run
 
-PN128 backport через runtime monkey-patch (без text-patch):
-  • Wraps Worker.compile_or_warm_up_model, после original вызывает
-    нашу imported-from-vllm helper warmup logic
-  • Logic копирует synthetic-tensor шаблоны прямо из PR кода —
-    не зависит от methods добавленных PR'ом upstream (если они там
-    окажутся при merge, PN128 self-skip через drift detection)
+PN128 backports via runtime monkey-patch (no text-patch):
+  • Wraps Worker.compile_or_warm_up_model; after the original it
+    invokes the imported-from-vllm helper warmup logic
+  • Logic copies synthetic-tensor templates directly from the PR
+    source — does not depend on methods added by the PR upstream
+    (if they do land at merge, PN128 self-skips via drift detection)
 
 ================================================================
 SAFETY
 ================================================================
 
   • Default OFF — opt-in via GENESIS_ENABLE_PN128_SPEC_DECODE_WARMUP=1
-  • Защитные импорты — если kernels не findable в pin → SKIP
-  • try/except внутри каждого Triton invoke — failure -> log + continue
-  • Auto-skip при VLLM_USE_V2_MODEL_RUNNER=1 (V2 native)
-  • Auto-skip при enforce_eager=True
-  • Auto-skip когда spec_decode не активен (метод != mtp/eagle/dflash)
-  • Идемпотентен (marker attribute on wrapped method)
+  • Defensive imports — if kernels are not findable in the pin → SKIP
+  • try/except around each Triton invoke — failure -> log + continue
+  • Auto-skip when VLLM_USE_V2_MODEL_RUNNER=1 (V2 native)
+  • Auto-skip when enforce_eager=True
+  • Auto-skip when spec_decode is inactive (method != mtp/eagle/dflash)
+  • Idempotent (marker attribute on wrapped method)
 
 ================================================================
-ОЖИДАЕМЫЙ ЭФФЕКТ
+EXPECTED EFFECT
 ================================================================
 
-  • TTFT первого user-request -5..-25 секунд (по типу #39790 H100
-    repro показал 25x первая-request регрессию pre-fix)
-  • TTFT CV должен упасть ~30% → 10-15%
+  • TTFT of the first user request -5..-25 s (issue #39790 H100
+    repro showed a 25x first-request regression pre-fix)
+  • TTFT CV should drop from ~30% to 10-15%
   • Steady-state TPS unchanged
-  • Boot time +1-3 секунды (4 dummy Triton invoke + sync)
+  • Boot time +1-3 s (4 dummy Triton invokes + sync)
 
 ================================================================
 COMPOSITION
 ================================================================
 
-  • Stack'ируется с PN126 (V1 decode kernel warmup) — взаимодополняют
-    разные kernels
-  • Не зависит от PN125/PN127
-  • Safe при PN129/PN130 (PN128 trips eagle_*, PN129 — slot_mapping,
-    PN130 — TQ kernels)
-  • Mutually exclusive с VLLM_USE_V2_MODEL_RUNNER=1 (V2 native
-    warmup_kernels уже выполнит ту же работу)
+  • Stacks with PN126 (V1 decode kernel warmup) — complementary
+    kernels
+  • Independent of PN125/PN127
+  • Safe with PN129/PN130 (PN128 trips eagle_*, PN129 → slot_mapping,
+    PN130 → TQ kernels)
+  • Mutually exclusive with VLLM_USE_V2_MODEL_RUNNER=1 (V2 native
+    warmup_kernels already does the same work)
 
 Author: Sandermage 2026-05-15. Backport vllm-project/vllm#41481
 (OPEN as of 2026-05-15) by direct replication of warmup logic.
@@ -112,7 +113,7 @@ def _next_power_of_2(n: int) -> int:
 
 
 def _warmup_eagle_helpers(drafter, model_runner) -> int:
-    """Запекает 4 eagle helper kernels. Возвращает кол-во успешных warmups."""
+    """Bake 4 eagle helper kernels. Return count of successful warmups."""
     import torch
 
     device = drafter.device
@@ -252,7 +253,7 @@ def _warmup_eagle_helpers(drafter, model_runner) -> int:
         log.info("[PN128] kernel 3 skipped (dflash path OR no rejected/masked masks)")
 
     # ===== kernel 4: eagle_step_update_slot_mapping_and_metadata =====
-    # Только для K > 1 + не parallel_drafting (наш MTP K=3 попадает)
+    # Only for K > 1 + non parallel_drafting (our MTP K=3 hits this)
     parallel_drafting = bool(getattr(drafter, "parallel_drafting", False))
     block_size = int(getattr(drafter, "block_size", 0) or 0)
     max_model_len = int(getattr(drafter, "max_model_len", 0) or 0)
@@ -295,14 +296,14 @@ def _warmup_eagle_helpers(drafter, model_runner) -> int:
 
 
 def _run_pn128_warmup(worker) -> None:
-    """Главная entry — извлекает drafter и запускает eagle helper warmup.
+    """Main entry — extracts the drafter and runs eagle helper warmup.
 
-    v2 (2026-05-15 bench finding): первый run использовал только
-    num_reqs=1, но real user request имеет num_reqs до max_num_seqs.
-    Triton JIT cache key включает constexpr — разные BLOCK_SIZE_TOKENS
-    → разные binaries. Итерируем по shape variants чтобы покрыть
-    все возможные num_reqs × num_sampled_per_req комбинации, которые
-    реально могут случиться на inference.
+    v2 (2026-05-15 bench finding): the first run used only num_reqs=1,
+    but real user requests reach num_reqs up to max_num_seqs. The
+    Triton JIT cache key includes constexpr values — different
+    BLOCK_SIZE_TOKENS produce different binaries. Iterate over shape
+    variants to cover all num_reqs x num_sampled_per_req combinations
+    that can actually appear at inference time.
     """
     runner = getattr(worker, "model_runner", None)
     if runner is None:
@@ -313,10 +314,10 @@ def _run_pn128_warmup(worker) -> None:
         log.debug("[PN128] runner.drafter None — no spec-decode active, skip")
         return
 
-    # Shape coverage: num_reqs до max_num_seqs (1 + 2 для max_num_seqs=2 setup).
-    # Real bench iteration на dev371 показал что warmup с num_reqs=1
-    # покрывает только одну Triton specialization; max_num_seqs=2 batch
-    # отдаст другой cache key.
+    # Shape coverage: num_reqs up to max_num_seqs (1 + 2 for max_num_seqs=2 setup).
+    # Real bench iteration on dev371 showed that warmup with num_reqs=1
+    # covers only one Triton specialization; the max_num_seqs=2 batch
+    # yields a different cache key.
     sched_config = getattr(worker, "scheduler_config", None)
     max_num_seqs = int(getattr(sched_config, "max_num_seqs", 2)) if sched_config else 2
 
@@ -336,7 +337,7 @@ def _run_pn128_warmup(worker) -> None:
 
     log.info("[PN128] spec-decode helper warmup complete: %d total warmups", total_warmed)
 
-    # Sync GPU перед jit_monitor activation
+    # Sync GPU before jit_monitor activation
     try:
         import torch
         torch.accelerator.synchronize()
@@ -345,10 +346,10 @@ def _run_pn128_warmup(worker) -> None:
 
 
 def _warmup_eagle_helpers_with_reqs(drafter, model_runner, num_reqs: int) -> int:
-    """Запуск warmup с конкретным num_reqs (форсируем shape variant)."""
-    # Параметризуем глобальный _warmup_eagle_helpers через локальный
-    # override. Простейший вариант — передать через temporary attribute,
-    # но это hacky. Делаем явный duplicate с num_reqs параметром.
+    """Run warmup with a specific num_reqs (force a shape variant)."""
+    # Parametrize the global _warmup_eagle_helpers via a local override.
+    # Simplest path would be a temporary attribute, but that is hacky.
+    # An explicit duplicate that accepts num_reqs is the cleaner option.
     import torch
 
     device = drafter.device
@@ -403,8 +404,8 @@ def apply() -> tuple[str, str]:
     if not _env_enabled():
         return "skipped", (
             f"PN128 disabled (set {_ENV_ENABLE}=1 — backport vllm#41481, "
-            f"warmup'ит eagle_* helper kernels на boot, закрывает 4 из 8 "
-            f"JIT spikes на первом user request)"
+            f"warms up eagle_* helper kernels at boot, closes 4 of 8 "
+            f"JIT spikes on the first user request)"
         )
 
     if _APPLIED:
@@ -453,15 +454,15 @@ def apply() -> tuple[str, str]:
     _APPLIED = True
 
     log.info(
-        "[PN128] installed: Worker.compile_or_warm_up_model теперь warmup'ит "
-        "4 eagle helper kernels после оригинального warmup. Closes 4 of 8 "
+        "[PN128] installed: Worker.compile_or_warm_up_model now warms up "
+        "4 eagle helper kernels after the original warmup. Closes 4 of 8 "
         "JIT spikes (Issue #39790 root cause). Backport vllm#41481."
     )
     return "applied", (
         "PN128 installed: spec-decode helper kernel warmup wired into V1 "
         "compile_or_warm_up_model. Backport vllm-project/vllm#41481. "
-        "Закрывает 4 из 8 JIT warnings (eagle_prepare_next/inputs/copy_expand/"
-        "step_update) на первом user request."
+        "Closes 4 of 8 JIT warnings (eagle_prepare_next/inputs/copy_expand/"
+        "step_update) on the first user request."
     )
 
 

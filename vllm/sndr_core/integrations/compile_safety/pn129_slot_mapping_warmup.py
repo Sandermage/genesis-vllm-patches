@@ -2,67 +2,66 @@
 """PN129 — V1 slot mapping kernel warmup (backport vllm-project/vllm#42165).
 
 ================================================================
-ЗАЧЕМ
+WHY
 ================================================================
 
-`_compute_slot_mapping_kernel` JIT'ится во время первого user-request
-(см. JIT monitor warnings). Это потому что:
-  1. Kernel @triton.jit без `do_not_specialize` → специализирует по
-     `num_tokens` параметру → перекомпилируется на каждом новом
-     batch size
-  2. V1 _dummy_run не вызывает `block_table.compute_slot_mapping()`
-     с настоящими kv blocks → kernel не warmed at boot
+`_compute_slot_mapping_kernel` JIT-compiles during the first user
+request (see JIT monitor warnings). Two root causes:
+  1. The kernel is @triton.jit without `do_not_specialize`, so it
+     specialises on the `num_tokens` parameter and is recompiled on
+     every new batch size.
+  2. V1 _dummy_run does not invoke `block_table.compute_slot_mapping()`
+     with real kv blocks, so the kernel is not warmed at boot.
 
 ================================================================
-КАК
+HOW
 ================================================================
 
-Upstream PR #42165 (OPEN) делает 2 вещи:
+Upstream PR #42165 (OPEN) does two things:
 
-  1. **Структурный fix**: добавляет `do_not_specialize=["num_tokens"]`
-     к `@triton.jit` decorator на `_compute_slot_mapping_kernel`.
-     Single compilation для всех batch sizes — никакого пересборки
-     при изменении num_tokens.
+  1. **Structural fix**: adds `do_not_specialize=["num_tokens"]`
+     to the `@triton.jit` decorator on `_compute_slot_mapping_kernel`.
+     Single compilation for all batch sizes — no recompiles when
+     num_tokens changes.
 
-  2. **Warmup hook**: `warmup_v1_slot_mapping_kernel(model_runner)` —
-     вызывает compute_slot_mapping с synthetic block_id=1 на 1
-     request × 1 token → JIT compiles kernel до активации
-     jit_monitor.
+  2. **Warmup hook**: `warmup_v1_slot_mapping_kernel(model_runner)`
+     invokes compute_slot_mapping with a synthetic block_id=1 over
+     1 request x 1 token, JIT-compiling the kernel before
+     jit_monitor activates.
 
-PN129 backport через runtime monkey-patch:
+PN129 backports via runtime monkey-patch:
   • Monkey-patches `BlockTable._compute_slot_mapping_kernel`'s
-    underlying triton.jit'ed function — добавляет
-    `do_not_specialize` через декоратор reconfig (если возможно
-    через triton API).
-  • Wraps `Worker.compile_or_warm_up_model` для вызова
-    warmup logic ДО `jit_monitor.activate()`.
+    underlying triton.jit'ed function — adds `do_not_specialize`
+    via decorator reconfig (where the Triton API allows it).
+  • Wraps `Worker.compile_or_warm_up_model` to invoke the warmup
+    logic BEFORE `jit_monitor.activate()`.
 
 ================================================================
-NB про do_not_specialize
+NOTE on do_not_specialize
 ================================================================
 
-Triton JIT decorator's `do_not_specialize` контролируется через
-JITFunction.do_not_specialize атрибут. Monkey-patch меняет:
+Triton's `do_not_specialize` is controlled through the private
+JITFunction.do_not_specialize attribute. The monkey-patch sets:
 
   from vllm.v1.worker.block_table import _compute_slot_mapping_kernel
   _compute_slot_mapping_kernel.do_not_specialize = ("num_tokens",)
   _compute_slot_mapping_kernel.cache.clear()  # invalidate stale entries
 
-Это **возможный** механизм — но рискованный (private Triton API).
-Если он не работает на нашей версии Triton, остаётся только
-warmup hook (вторая часть PR). Тогда warmup hit будет одной
-compilation, и при первом user-request с другим num_tokens
-JIT перекомпилируется ещё раз. Не идеально, но даёт +1 фикс
-по сравнению с pre-PN129.
+This is a **possible** mechanism, but risky (private Triton API).
+If it does not work on our Triton version, only the warmup hook
+(part 2 of the PR) remains. The warmup hit then covers a single
+compilation, and a first user request with a different num_tokens
+will JIT-recompile once more. Not ideal, but still +1 fix versus
+pre-PN129.
 
 ================================================================
 SAFETY
 ================================================================
 
   • Default OFF — opt-in via GENESIS_ENABLE_PN129_SLOT_MAPPING_WARMUP=1
-  • Защитные импорты + try/except
+  • Defensive imports + try/except
   • Auto-skip V2_MODEL_RUNNER + enforce_eager
-  • Идемпотентен
+  • Idempotent
 
 Author: Sandermage 2026-05-15. Backport vllm#42165 (OPEN).
 """
@@ -89,11 +88,11 @@ def _env_enabled() -> bool:
 
 
 def _try_apply_do_not_specialize() -> bool:
-    """Попытка добавить do_not_specialize="num_tokens" на упомянутый kernel.
+    """Attempt to add do_not_specialize="num_tokens" on the named kernel.
 
-    Triton public API не имеет post-init способа изменить
-    `do_not_specialize`. Best-effort через private attribute access.
-    Если не работает, warmup hook всё равно даёт частичное закрытие.
+    Triton's public API has no post-init way to change
+    `do_not_specialize`. Best-effort via private attribute access.
+    If this fails the warmup hook still provides partial closure.
     """
     try:
         from vllm.v1.worker.block_table import _compute_slot_mapping_kernel
@@ -101,20 +100,20 @@ def _try_apply_do_not_specialize() -> bool:
         log.warning("[PN129] _compute_slot_mapping_kernel not importable")
         return False
     try:
-        # JITFunction в Triton 3.x хранит specialization config
+        # JITFunction in Triton 3.x carries the specialization config.
         existing = getattr(_compute_slot_mapping_kernel, "do_not_specialize", None)
         if existing and "num_tokens" in existing:
             log.info("[PN129] do_not_specialize='num_tokens' already set")
             return True
-        # Pickle JIT internals — это hacky path. Если упадёт — то ok,
-        # выпадем на warmup-only mode.
+        # Poking JIT internals — a hacky path. If it raises, we
+        # fall back to warmup-only mode.
         if hasattr(_compute_slot_mapping_kernel, "do_not_specialize"):
             new_list = list(existing or []) + ["num_tokens"]
             _compute_slot_mapping_kernel.do_not_specialize = new_list
             # Invalidate stale compiled binaries
             if hasattr(_compute_slot_mapping_kernel, "cache"):
                 _compute_slot_mapping_kernel.cache.clear()
-            log.info("[PN129] do_not_specialize='num_tokens' добавлен — single compilation для всех batch sizes")
+            log.info("[PN129] do_not_specialize='num_tokens' added — single compilation for all batch sizes")
             return True
     except Exception as e:
         log.warning("[PN129] do_not_specialize injection failed: %s — fallback to warmup-only", e)
@@ -122,7 +121,7 @@ def _try_apply_do_not_specialize() -> bool:
 
 
 def _run_slot_mapping_warmup(worker) -> None:
-    """Запускает warmup_v1_slot_mapping_kernel логику на model_runner."""
+    """Run the warmup_v1_slot_mapping_kernel logic on model_runner."""
     import torch
 
     runner = getattr(worker, "model_runner", None)
@@ -131,11 +130,11 @@ def _run_slot_mapping_warmup(worker) -> None:
 
     input_batch = getattr(runner, "input_batch", None)
     if input_batch is None:
-        log.debug("[PN129] input_batch не доступен — skip")
+        log.debug("[PN129] input_batch unavailable — skip")
         return
     block_table = getattr(input_batch, "block_table", None)
     if block_table is None:
-        log.debug("[PN129] block_table не доступен — skip")
+        log.debug("[PN129] block_table unavailable — skip")
         return
     if not getattr(block_table, "block_tables", None):
         log.debug("[PN129] block_tables empty — skip")
@@ -147,11 +146,11 @@ def _run_slot_mapping_warmup(worker) -> None:
         return
 
     device = runner.device
-    log.info("[PN129] starting slot_mapping warmup (block_id=1, 1 req × 1 token)...")
+    log.info("[PN129] starting slot_mapping warmup (block_id=1, 1 req x 1 token)...")
 
-    # Setup ровно как в PR
+    # Setup matches the PR exactly.
     try:
-        # Block 0 — null block. Используем block 1 (safe).
+        # Block 0 is the null block. Use block 1 (safe).
         block_table.add_row(tuple([1] for _ in block_table.block_tables), 0)
         block_table.commit_block_table(1)
         query_start_loc = torch.tensor([0, 1], dtype=torch.int32, device=device)
@@ -160,7 +159,7 @@ def _run_slot_mapping_warmup(worker) -> None:
         try:
             block_table.compute_slot_mapping(1, query_start_loc, positions)
             torch.accelerator.synchronize()
-            log.info("[PN129] slot_mapping warmup ✓ — _compute_slot_mapping_kernel JIT'нулось на boot")
+            log.info("[PN129] slot_mapping warmup ✓ — _compute_slot_mapping_kernel JIT'd at boot")
         finally:
             block_table.clear_row(0)
             block_table.commit_block_table(1)
@@ -174,8 +173,8 @@ def apply() -> tuple[str, str]:
     if not _env_enabled():
         return "skipped", (
             f"PN129 disabled (set {_ENV_ENABLE}=1 — backport vllm#42165, "
-            f"slot_mapping warmup + do_not_specialize, закрывает 1 из 8 "
-            f"JIT spikes + структурный fix против пересборки по batch size)"
+            f"slot_mapping warmup + do_not_specialize, closes 1 of 8 "
+            f"JIT spikes + structural fix preventing recompile-on-batch-size churn)"
         )
 
     if _APPLIED:
@@ -200,10 +199,10 @@ def apply() -> tuple[str, str]:
 
     _ORIGINAL_COMPILE = original
 
-    # Step 1: попытка добавить do_not_specialize (структурный fix)
+    # Step 1: attempt do_not_specialize (structural fix)
     dns_ok = _try_apply_do_not_specialize()
 
-    # Step 2: wrap compile_or_warm_up_model для warmup hook
+    # Step 2: wrap compile_or_warm_up_model for the warmup hook
     def _genesis_pn129_wrapped_compile(self):
         result = original(self)
         try:

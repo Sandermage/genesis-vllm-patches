@@ -1,8 +1,8 @@
 {
   "rule": "English only in code (CLAUDE.md user rule). Baseline captures currently-tolerated counts; new violations or regressions vs this baseline fail audit. Translate + regenerate baseline as you clean files.",
   "totals": {
-    "files": 24,
-    "chars": 6705
+    "files": 21,
+    "chars": 4133
   },
   "files": {
     "scripts/audit_english_only.py": 4,
@@ -20,13 +20,10 @@
     "vllm/sndr_core/dispatcher/registry_metadata.py": 627,
     "vllm/sndr_core/dispatcher/spec.py": 78,
     "vllm/sndr_core/integrations/attention/flash/p100_flashinfer_full_cg_specdec.py": 24,
-    "vllm/sndr_core/integrations/compile_safety/pn128_spec_decode_helper_warmup.py": 983,
-    "vllm/sndr_core/integrations/compile_safety/pn129_slot_mapping_warmup.py": 781,
     "vllm/sndr_core/integrations/compile_safety/pn130_turboquant_decode_warmup.py": 445,
     "vllm/sndr_core/integrations/compile_safety/pn132_triton_topk_topp_contiguous.py": 315,
     "vllm/sndr_core/integrations/compile_safety/pn134_torch_compile_fullgraph_211.py": 333,
     "vllm/sndr_core/integrations/middleware/pn65_access_log.py": 71,
-    "vllm/sndr_core/integrations/serving/pn127_chat_template_qwen36.py": 808,
     "vllm/sndr_core/middleware/lazy_reasoner.py": 44,
     "vllm/sndr_core/model_configs/types/runtime.py": 249
   }
