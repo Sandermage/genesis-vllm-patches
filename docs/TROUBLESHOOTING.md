@@ -969,6 +969,96 @@ consumer GPUs (24 GiB or less), default the launcher to
 `gpu-memory-utilization 0.80` and bench up from there. Don't ship at
 0.92 just because vLLM accepts it.
 
+### Bug Class 15 — qwen3_coder streaming parser drops tool-calls into content
+
+**Symptom**: agent client receives `finish_reason: "stop"` instead of
+`tool_calls`, with `message.tool_calls = []` (or `delta.tool_calls`
+empty across all SSE chunks) and the raw XML
+`<tool_call><function=NAME><parameter=KEY>VALUE</parameter>...</tool_call>`
+leaking through `message.content` (or `delta.content`). The same prompt
+sent in NON-streaming mode correctly returns parsed `tool_calls`.
+
+**Real example (2026-05-31 4-model bench session)**: identical 7-case
+bench harness, same greedy decode (T=0, top_k=1, top_p=1.0), same
+`Connection: close` header per Class 14 guidance:
+
+| Model | Tool-parser | Non-stream | Stream |
+|---|---|---:|---:|
+| qwen3.6-27b-int4-AutoRound + TQ + MTP K=3 | qwen3_coder | 7/7 | 1/7 |
+| qwen3.6-35b-A3B-FP8 + TQ + MTP K=3 | qwen3_coder | 7/7 | 2/14 |
+| gemma4-26b-A4B AWQ + auto KV | gemma4 (base, no overlay) | 7/7 | 6/7 |
+| gemma4-31b AWQ + TQ + MTP K=4 + G4_T1 v2 | gemma4 (PR #42237) | 7/7 | 35/35 |
+
+Both qwen3_coder rows fail streaming heavily. Both gemma4 rows pass
+streaming once the appropriate vendor overlay is mounted (v2 on the
+31B; the 26B has NO overlay yet, hence the residual 1/7 fail on the
+two-tools-one-response case).
+
+**Root cause hypothesis (analog to gemma4 PR #42006/#42237 class)**:
+the qwen3_coder parser's `extract_tool_calls_streaming()` does not
+correctly buffer the XML start/end tag boundaries across SSE deltas
+when MTP K≥3 packs multiple boundary events into one chunk. The
+`extract_tool_calls()` non-streaming method works fine because it
+sees the entire output as a single string. NOT confirmed by reading
+upstream source on this pin yet — flag for the qwen3_coder
+maintainer when filing.
+
+**Detection**:
+
+```bash
+curl -s -X POST http://localhost:8101/v1/chat/completions \
+  -H "Authorization: Bearer genesis-local" \
+  -H "Content-Type: application/json" \
+  -H "Connection: close" \
+  -d '{"model":"qwen3.6-27b","stream":true,"tools":[...],
+       "tool_choice":"auto","messages":[...]}' \
+  | grep "data:" | head -20
+```
+
+If the SSE deltas show `delta.content` carrying `<tool_call>...`
+XML AND `delta.tool_calls` is consistently null/empty for the
+whole stream, you have Class 15.
+
+**Fix options**:
+
+1. **Switch client to non-streaming** — works today, 100% on all 4
+   PROD models. Cost: client loses streaming UX.
+2. **Vendor an upstream qwen3_coder streaming fix** when one
+   exists — analog to G4_T1 v1/v2 vendoring for gemma4. As of
+   2026-05-31, no public PR vendors this fix; file the bug
+   upstream and watch.
+3. **Genesis-original qwen3_coder streaming overlay** —
+   structurally similar to PR #42237 (Hermes/Kimi accumulated-text
+   then rescan pattern). Estimated 2-3 day effort. Worth doing if
+   agent UX requires streaming tool calls on qwen3.6 PROD models.
+
+**Configuration risk matrix** (rig 2026-05-31, all 4 PROD models on
+pin 626fa9bba):
+
+| Model | Stream tool-calls | Path |
+|---|:---:|---|
+| qwen3.6-27b PN95 | broken | client must use non-streaming OR wait for overlay |
+| qwen3.6-35b A3B | broken | same |
+| gemma4-26b AWQ | mostly OK (6/7) | could adopt G4_T1 v2 overlay → 7/7 expected |
+| gemma4-31b AWQ | 100% (35/35) | G4_T1 v2 overlay deployed (see Bug Class 13 notes) |
+
+**Throughput data from the same bench session** (greedy decode,
+200-token completion, `Connection: close`):
+
+| Model | Single TPS | Multi conc=2 | Multi conc=4 | Multi/Single |
+|---|---:|---:|---:|---:|
+| qwen3.6-27B int4 + TQ + MTP K=3 | 92.94 | 101.36 (1.09×) | 245.34 (2.64×) | scales linearly |
+| qwen3.6-35B A3B-FP8 + TQ + MTP K=3 | 173.01 | 87.26 (0.50×) | n/a (max-num-seqs=2) | degrades |
+| gemma4-26B A4B + AWQ | 128.46 | 61.42 (0.48×) | n/a (max-num-seqs=2) | degrades |
+| gemma4-31B AWQ + TQ + MTP K=4 | 16.72 | n/a (max-num-seqs=1) | n/a | single only |
+
+The hybrid-GDN 27B scales linearly with concurrency (Mamba/GDN are
+batch-friendly). MoE A3B (35B) and Dense A4B (26B) show concurrent
+regression to ~0.5× — likely MoE expert routing + shared activation
+contention at batch=2 on 2× A5000. The pattern may differ on
+H100/B100 where the LLMCompressor FP8 path uses a wider compute
+fabric.
+
 ### Observability stack (PN287 + PN288 + PN289 + trace surface)
 
 The enterprise observability flow combines four Genesis surfaces:
