@@ -441,6 +441,7 @@ class Flags:
     PN286_FA_LAYOUT_REVERT_SM86 = "PN286_FA_LAYOUT_REVERT_SM86"
     PN287_QWEN3CODER_ARGS_OBSERVER = "PN287_QWEN3CODER_ARGS_OBSERVER"
     PN288_TOOL_FINISH_REASON_OVERRIDE = "PN288_TOOL_FINISH_REASON_OVERRIDE"
+    PN289_PROCESS_INFO = "PN289_PROCESS_INFO"
 
     # ── Meta flags (apply behavior, not patch enable) ──────────────────
     NO_PATCH_CACHE = "NO_PATCH_CACHE"           # disable file_cache fast-path

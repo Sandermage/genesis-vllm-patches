@@ -1320,6 +1320,18 @@
     "apply_module": "vllm.sndr_core.integrations.serving.pn288_tool_finish_reason_override"
   },
   {
+    "patch_id": "PN289",
+    "family": "observability",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "GENESIS_ENABLE_PN289_PROCESS_INFO",
+    "has_upstream_pr": false,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "vllm.sndr_core.observability.genesis_process_info"
+  },
+  {
     "patch_id": "G4_T1",
     "family": "tool_parsing",
     "lifecycle": "experimental",

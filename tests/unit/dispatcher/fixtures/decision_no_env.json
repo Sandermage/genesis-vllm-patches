@@ -550,6 +550,11 @@
     "reason": "strict opt-in — set GENESIS_ENABLE_PN288_TOOL_FINISH_REASON_OVERRIDE=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
   },
   {
+    "patch_id": "PN289",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_PN289_PROCESS_INFO=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
     "patch_id": "G4_T1",
     "applied": false,
     "reason": "strict opt-in — set None=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"

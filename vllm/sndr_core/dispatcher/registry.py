@@ -3598,6 +3598,50 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "implementation_status": "full",
         "composes_with": ["P64", "PN56", "P61c", "PN287"],
     },
+    "PN289": {
+        "title": "Genesis process-info Prometheus gauge (§6.H10 enterprise observability)",
+        "tier": "community",
+        "family": "observability",
+        "env_flag": "GENESIS_ENABLE_PN289_PROCESS_INFO",
+        "default_on": False,
+        "category": "observability",
+        "credit": (
+            "Genesis-original 2026-05-30 (§6.H10 closure). Canonical "
+            "Prometheus *_info* pattern: emits genesis_process_info "
+            "gauge with value 1 labeled by (preset, profile, "
+            "workload_class, K, backend, patch_hash, model, pin). "
+            "Downstream PromQL queries JOIN against this via "
+            "`* on(instance) group_left(preset, ...) "
+            "genesis_process_info` to pivot vllm-builtin counters "
+            "(num_requests_running, e2e_request_latency_seconds, "
+            "etc.) by Genesis operator metadata. Modifying vLLM's "
+            "core metrics code to add labels directly was out of "
+            "scope and pin-bump fragile — the *_info* pattern is the "
+            "Grafana/Prometheus best-practice for late-binding label "
+            "augmentation. Label values resolved from env "
+            "(GENESIS_PRESET / GENESIS_PROFILE / GENESIS_WORKLOAD_CLASS) "
+            "+ argv (--speculative-config / --attention-backend / "
+            "--served-model-name) + git rev-parse in GENESIS_REPO + "
+            "vllm.__version__. Operator queries: "
+            "(a) `count by (preset, profile, K, backend) "
+            "(genesis_process_info)` for active fleet configs; "
+            "(b) histogram_quantile pivot by preset for per-preset "
+            "p99 latency; (c) `count by (patch_hash) "
+            "(genesis_process_info)` for fleet patch-hash drift "
+            "detection. Cardinality: 1 row per container instance. "
+            "Composes with PN287 (qwen3_coder args observer Counter), "
+            "PN288 (finish_reason override Counter), PN95 Prometheus "
+            "metrics — all use the same labeled-Counter idiom for "
+            "per-request signals; PN289 adds the launch-time process "
+            "metadata that completes the operator's mental model."
+        ),
+        "upstream_pr": None,
+        "applies_to": {},
+        "apply_module": "vllm.sndr_core.observability.genesis_process_info",
+        "lifecycle": "experimental",
+        "implementation_status": "full",
+        "composes_with": ["PN287", "PN288"],
+    },
     "G4_T1": {
         "title": "Gemma4 tool-parser PR #42006 MTP streaming overlay (vendored from club-3090)",
         "tier": "community",
