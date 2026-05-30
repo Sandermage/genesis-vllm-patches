@@ -2,7 +2,7 @@
 """Audit A-06 / A-07 / A-17 — P64 documentation + intentional-deferral test.
 
 Background (audit 2026-05-05):
-  A-06: P64 docstring обещает "3 sub-patches" but Pydantic/null fix
+  A-06: P64 docstring promises "3 sub-patches" but Pydantic/null fix
         (`_create_remaining_args_delta` → SERVING_CRD_NEW) is NOT in
         sub_patches list.
   A-07: P64 QWEN3COD_FNEND_NEW removes `self.json_closed = True` line

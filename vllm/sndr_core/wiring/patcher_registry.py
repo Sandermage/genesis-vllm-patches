@@ -2,7 +2,7 @@
 """Patcher registry — opt-in API for wiring modules to register their
 TextPatcher objects for inclusion in the Site Map anchor manifest.
 
-Part of P2.1 (Узел 2 of design doc, 2026-05-07). The flat
+Part of P2.1 (Node 2 of design doc, 2026-05-07). The flat
 `PATCH_REGISTRY: list[tuple[str, Callable]]` in apply_all.py records
 the apply ENTRY POINTS but does NOT expose the underlying TextPatcher
 objects (each entry point creates patchers dynamically inside its

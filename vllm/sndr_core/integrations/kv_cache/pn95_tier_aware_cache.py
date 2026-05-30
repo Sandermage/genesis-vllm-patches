@@ -231,7 +231,7 @@ PN95_SITE7_NEW = (
 #   4. Mutate block.block_id = donor.physical_block_id
 #
 # Result: caller gets blocks with valid physical block_ids — attention
-# reads tensor[block_id] normally. ZERO patches needed на attention path.
+# reads tensor[block_id] normally. ZERO patches needed on attention path.
 #
 # Anchor: insert AFTER popleft_n line, BEFORE the eviction loop.
 # Env-gated: PN95 disabled OR VIRT=0 → no-op (preserves current behavior).
@@ -726,7 +726,7 @@ def _make_patcher_phase5_block_pool_init() -> TextPatcher | None:
     Phase 4 runs before Phase 5.
 
     Session 2 = METADATA INFRASTRUCTURE ONLY (zero behavior change).
-    Foundation для Sessions 3-4 virtual block tracking.
+    Foundation for Sessions 3-4 virtual block tracking.
     """
     target = resolve_vllm_file("v1/core/block_pool.py")
     if target is None:

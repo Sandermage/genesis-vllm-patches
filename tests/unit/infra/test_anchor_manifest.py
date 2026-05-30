@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Tests for Site Map (anchor offset manifest) — Узлы 1+2 of P2.1.
+"""Tests for Site Map (anchor offset manifest) — Nodes 1+2 of P2.1.
 
 Coverage:
   - TestComputeAnchorMeta — single-anchor offset/length/md5 extraction

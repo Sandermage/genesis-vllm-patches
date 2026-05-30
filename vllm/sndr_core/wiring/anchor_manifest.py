@@ -9,7 +9,7 @@ skip the O(N×M) `anchor in content` scan and jump directly to the
 known offset, verifying via md5 on a 64-byte slice instead of a full
 file linear scan.
 
-This module is the FOUNDATION (Узел 1 of the design doc). It does NOT
+This module is the FOUNDATION (Node 1 of the design doc). It does NOT
 itself integrate into TextPatcher.apply() — that's Phase 3. MVP scope:
 
   - Define manifest JSON schema (v1)

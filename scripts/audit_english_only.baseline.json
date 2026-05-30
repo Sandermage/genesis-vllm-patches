@@ -1,36 +1,28 @@
 {
   "rule": "English only in code (CLAUDE.md user rule). Baseline captures currently-tolerated counts; new violations or regressions vs this baseline fail audit. Translate + regenerate baseline as you clean files.",
   "totals": {
-    "files": 47,
-    "chars": 8369
+    "files": 36,
+    "chars": 8318
   },
   "files": {
     "scripts/audit_english_only.py": 4,
     "scripts/audit_rig_divergence.py": 32,
     "scripts/build_anchor_manifest.py": 18,
-    "tests/legacy/test_audit_a06_a07_a17_p64_clarifications.py": 7,
     "tests/legacy/test_platform_matrix.py": 30,
     "tests/legacy/test_router_softmax.py": 15,
     "tests/probes/streaming_thinking_probe.py": 526,
     "tests/unit/cache/test_pn95_a1_compression.py": 8,
     "tests/unit/cache/test_pn95_b2_batched_demote.py": 11,
-    "tests/unit/cache/test_pn95_b3_batched_promote.py": 4,
-    "tests/unit/cache/test_pn95_b5_parallel_decompress.py": 5,
     "tests/unit/cache/test_pn95_obs1_observability.py": 11,
     "tests/unit/dispatcher/test_spec_metadata_enrichment.py": 17,
-    "tests/unit/infra/test_anchor_manifest.py": 4,
-    "tests/unit/integrations/moe/test_moe_family_contract.py": 5,
     "tests/unit/model_configs/test_preset_schema_v1.py": 10,
     "tools/openai_smoke.py": 355,
     "tools/restart_35b_dev371_multiconc.sh": 41,
     "vllm/sndr_core/apply/orchestrator.py": 43,
     "vllm/sndr_core/cache/pn95/compression.py": 25,
-    "vllm/sndr_core/cache/pn95/gates.py": 4,
-    "vllm/sndr_core/cache/pn95/hooks.py": 4,
     "vllm/sndr_core/cache/pn95/metrics.py": 9,
     "vllm/sndr_core/cache/pn95/prefix_store.py": 58,
     "vllm/sndr_core/cache/pn95/transfer.py": 40,
-    "vllm/sndr_core/cache/pn95/virtual_blocks.py": 5,
     "vllm/sndr_core/detection/guards.py": 131,
     "vllm/sndr_core/dispatcher/registry.py": 662,
     "vllm/sndr_core/dispatcher/registry_metadata.py": 627,
@@ -43,14 +35,11 @@
     "vllm/sndr_core/integrations/compile_safety/pn130_turboquant_decode_warmup.py": 445,
     "vllm/sndr_core/integrations/compile_safety/pn132_triton_topk_topp_contiguous.py": 315,
     "vllm/sndr_core/integrations/compile_safety/pn134_torch_compile_fullgraph_211.py": 333,
-    "vllm/sndr_core/integrations/kv_cache/pn95_tier_aware_cache.py": 5,
     "vllm/sndr_core/integrations/middleware/pn65_access_log.py": 71,
     "vllm/sndr_core/integrations/serving/pn127_chat_template_qwen36.py": 808,
     "vllm/sndr_core/kernels/streaming_gdn_driver.py": 14,
     "vllm/sndr_core/middleware/lazy_reasoner.py": 44,
     "vllm/sndr_core/model_configs/types/compatibility.py": 1474,
-    "vllm/sndr_core/model_configs/types/runtime.py": 249,
-    "vllm/sndr_core/wiring/anchor_manifest.py": 4,
-    "vllm/sndr_core/wiring/patcher_registry.py": 4
+    "vllm/sndr_core/model_configs/types/runtime.py": 249
   }
 }

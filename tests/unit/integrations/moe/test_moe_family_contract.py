@@ -69,8 +69,8 @@ def _get_registry_lifecycle(patch_id: str) -> str | None:
 def _no_torch_import(monkeypatch):
     """Make tests deterministically torch-less.
 
-    Some patches eagerly import torch при module load. We mark expected
-    SKIP behavior на that case, but for now just allow torch via lazy-load.
+    Some patches eagerly import torch at module load. We mark expected
+    SKIP behavior in that case, but for now just allow torch via lazy-load.
     """
     # No-op fixture — pytest-style placeholder for future torch-block strategy
     yield

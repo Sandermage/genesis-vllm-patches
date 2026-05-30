@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 """PN95 Quality-First Sprint Q1 B5 — parallel batched decompression tests.
 
-Mirror of B4 для decompress path. Validates:
-- Output identical к sequential _pn95_decompress_bytes per-element
+Mirror of B4 for decompress path. Validates:
+- Output identical to sequential _pn95_decompress_bytes per-element
 - Order preserved
 - Empty list, single-element edge cases
 - Backward-compatible (uncompressed data passes through)
-- Round-trip с B4 compress batch byte-identical
+- Round-trip with B4 compress batch byte-identical
 """
 from __future__ import annotations
 

@@ -258,8 +258,8 @@ def pn95_phase5_init_block_pool(pool: Any) -> None:
             except Exception:
                 continue
 
-        # Append к pool.blocks list and free_block_queue.
-        # FreeKVCacheBlockQueue uses doubly-linked-list пointers
+        # Append to pool.blocks list and free_block_queue.
+        # FreeKVCacheBlockQueue uses doubly-linked-list pointers
         # (prev_free_block / next_free_block). Use append_n method.
         if hasattr(free_q, "append_n"):
             try:
@@ -277,7 +277,7 @@ def pn95_phase5_init_block_pool(pool: Any) -> None:
         except Exception:
             pass
 
-        # Inflate pool.num_gpu_blocks для scheduler awareness
+        # Inflate pool.num_gpu_blocks for scheduler awareness
         new_logical = n_physical + len(virtual_blocks)
         try:
             pool.num_gpu_blocks = new_logical

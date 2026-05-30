@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 """PN95 Quality-First Sprint Q1 B3 — batched async promote tests.
 
-Mirror of B2 (test_pn95_b2_batched_demote) для CPU→GPU copy direction.
+Mirror of B2 (test_pn95_b2_batched_demote) for CPU→GPU copy direction.
 Validates `_pn95_cpu_to_gpu_copy_batch` correctness:
-- Batch result identical к N sequential _pn95_cpu_to_gpu_copy calls
+- Batch result identical to N sequential _pn95_cpu_to_gpu_copy calls
 - Mismatched len(views) != len(src_bytes_list) → returns 0
 - Empty input handled
 - Stats counters incremented correctly

@@ -44,7 +44,7 @@ def _pn95_async_enabled() -> bool:
 
     Default ON — async stream usage is lossless (stream sync ensures
     correctness). Operator can disable via GENESIS_PN95_ASYNC_STREAM=0
-    for debugging or если cudagraph capture issues observed.
+    for debugging or when cudagraph capture issues are observed.
     """
     return os.environ.get(
         "GENESIS_PN95_ASYNC_STREAM", "1"

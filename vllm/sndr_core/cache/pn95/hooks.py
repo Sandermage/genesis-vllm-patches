@@ -549,7 +549,7 @@ def scheduler_tick() -> None:
     _rt._TICK_COUNTER += 1
     _rt._PN95_STATS["ticks_total"] += 1
 
-    # OBS1 — periodic stats dump к JSON file для operator visibility
+    # OBS1 — periodic stats dump to JSON file for operator visibility
     # Throttled by GENESIS_PN95_STATS_INTERVAL (default 100 ticks),
     # disabled via GENESIS_PN95_STATS_FILE="" env. Fail-silent.
     from .metrics import _pn95_dump_stats_if_due
