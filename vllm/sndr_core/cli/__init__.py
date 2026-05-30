@@ -85,6 +85,9 @@ from .preset import add_argparser as _preset_argparser  # CONFIG-UX.3 native pre
 from .config_catalog import add_argparser as _config_catalog_argparser  # CONFIG-UX.5.2 derived catalog CLI
 from .gui_api import add_argparser as _gui_api_argparser  # GUI Product API daemon
 from .trace import add_argparser as _trace_argparser  # §6.H6 trace catalog CLI
+from .trace import (
+    add_support_bundle_argparser as _support_bundle_argparser,
+)  # §6.H9 support-bundle verb (top-level, sibling of `trace`)
 
 __all__ = ["cli_main"]
 
@@ -246,6 +249,7 @@ def cli_main(argv: list[str] | None = None) -> int:
     _config_catalog_argparser(subparsers) # CONFIG-UX.5.2 derived catalog build/verify/show/query
     _gui_api_argparser(subparsers)       # read-only Product API daemon for GUI/web clients
     _trace_argparser(subparsers)         # §6.H6 trace catalog (sndr trace list)
+    _support_bundle_argparser(subparsers)  # §6.H9 sndr support-bundle
 
     # S2.5 (audit closure 2026-05-08): bench-compare A.json B.json
     p_bcmp = subparsers.add_parser(

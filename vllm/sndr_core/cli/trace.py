@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
-"""§6.H6 + §6.H7 + §6.H8 (UNIFIED_DEVELOPMENT_PLAN) — `sndr trace
-list/collect/summarize`.
+"""§6.H6-H9 (UNIFIED_DEVELOPMENT_PLAN) — `sndr trace list/collect/
+summarize` + `sndr support-bundle`.
 
 Verbs for the plan's §6.H trace surface:
 
@@ -14,7 +14,12 @@ Verbs for the plan's §6.H trace surface:
     dispatches to a per-kind summarizer (generic line-count / size
     / first-last lines plus kind-specific helpers — currently
     `boot` extracts apply/skip/fail counts + failing patch ids).
-  * H9 ``sndr support-bundle`` — bundle all enabled traces (NEXT).
+  * H9 ``sndr support-bundle --container <name>`` — composes H7
+    + H8 + host/container facts into a single ``.tar.gz`` ready
+    for off-rig analysis. ``sndr support-bundle`` is registered
+    under the TOP-level CLI (alongside ``sndr trace``) to match the
+    plan §6.H9 spec; the implementation lives here so it can reuse
+    the trace primitives.
 
 H6 surfaces the operator-facing question "what diagnostic traces exist
 and which are currently being written?" via the catalog at
@@ -45,8 +50,10 @@ from . import _io
 
 
 __all__ = [
-    "add_argparser", "run_list", "run_collect", "run_summarize",
+    "add_argparser", "add_support_bundle_argparser",
+    "run_list", "run_collect", "run_summarize", "run_support_bundle",
     "detect_trace_kind", "summarize_boot_log", "summarize_generic",
+    "collect_host_facts", "collect_container_facts",
 ]
 
 
@@ -170,6 +177,50 @@ def add_argparser(subparsers: Any) -> None:
         help="Machine-readable JSON instead of human view.",
     )
     p_sum.set_defaults(func=run_summarize)
+
+
+def add_support_bundle_argparser(subparsers: Any) -> None:
+    """Register ``sndr support-bundle`` under the TOP-level parser
+    (NOT under ``sndr trace ...``). The plan §6.H9 spec uses the
+    flat form; the implementation lives here so it can reuse the
+    trace primitives without a cross-module import cycle."""
+    p = subparsers.add_parser(
+        "support-bundle",
+        help=(
+            "§6.H9 — bundle all live traces + host/container facts "
+            "into a single .tar.gz for off-rig analysis."
+        ),
+        description=(
+            "Composes `sndr trace collect` + `sndr trace summarize` "
+            "+ host & container metadata into one tarball ready to "
+            "ship off-rig. Output filename defaults to "
+            "`genesis_support_<container>_<UTC-timestamp>.tar.gz` "
+            "in cwd."
+        ),
+    )
+    p.add_argument(
+        "--container", required=True,
+        help="Name of a running vLLM container.",
+    )
+    p.add_argument(
+        "--output", default=None,
+        help=(
+            "Output tarball path. Default: "
+            "`./genesis_support_<container>_<UTC-stamp>.tar.gz`."
+        ),
+    )
+    p.add_argument(
+        "--no-traces", action="store_true",
+        help=(
+            "Skip trace collection (host/container facts only). "
+            "Useful for a fast summary when traces aren't relevant."
+        ),
+    )
+    p.add_argument(
+        "--json", action="store_true",
+        help="Machine-readable JSON report instead of human view.",
+    )
+    p.set_defaults(func=run_support_bundle)
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────
@@ -722,3 +773,263 @@ def run_summarize(args: argparse.Namespace) -> int:
                 print(f"    ✗ {pid}")
 
     return 0
+
+
+# ─── Support bundle (§6.H9) ──────────────────────────────────────────
+
+
+def _run_subprocess_capture(
+    argv: list[str], timeout: int = 10,
+) -> tuple[bool, str]:
+    """Helper: capture stdout of a host command. Returns (ok, output);
+    failure yields (False, "<reason>"). Never raises."""
+    if not shutil.which(argv[0]):
+        return False, f"{argv[0]} not on $PATH"
+    try:
+        r = subprocess.run(
+            argv, capture_output=True, text=True,
+            timeout=timeout, check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return False, f"{argv[0]} raised: {exc}"
+    if r.returncode != 0:
+        return False, (r.stderr or r.stdout).strip()
+    return True, r.stdout
+
+
+def collect_host_facts() -> dict[str, dict]:
+    """Best-effort gather of host-side diagnostic facts.
+
+    Each fact is a dict ``{"ok": bool, "output": str}``. Missing
+    binaries / failures surface as ``{"ok": False, "output": "<reason>"}``
+    rather than raising — the bundle must always be produceable.
+    """
+    out: dict[str, dict] = {}
+    facts = {
+        "uname": ["uname", "-a"],
+        "free_disk": ["df", "-h"],
+        "free_memory": ["free", "-h"],
+        "nvidia_smi": ["nvidia-smi"],
+        "docker_version": ["docker", "--version"],
+    }
+    for key, argv in facts.items():
+        ok, output = _run_subprocess_capture(argv, timeout=10)
+        out[key] = {"ok": ok, "output": output}
+    return out
+
+
+def collect_container_facts(container: str) -> dict[str, dict]:
+    """Best-effort gather of container-side metadata.
+
+    Pulls:
+      * Image name + digest (via ``docker inspect --format``).
+      * Env block (filtered to GENESIS_* / VLLM_* / NCCL_* / CUDA_*).
+      * Process list inside the container (``ps -ef``).
+      * Recent container logs tail (last 200 lines).
+    """
+    out: dict[str, dict] = {}
+
+    # Image + digest.
+    ok, img = _run_subprocess_capture(
+        ["docker", "inspect", container,
+         "--format", "{{.Config.Image}}\n{{.Image}}"],
+        timeout=10,
+    )
+    out["image"] = {"ok": ok, "output": img}
+
+    # Env block — filter to genesis-relevant prefixes.
+    ok, env_raw = _run_subprocess_capture(
+        ["docker", "inspect", container,
+         "--format", "{{range .Config.Env}}{{println .}}{{end}}"],
+        timeout=10,
+    )
+    if ok:
+        wanted_prefixes = ("GENESIS_", "SNDR_", "VLLM_", "NCCL_",
+                            "CUDA_", "TORCH_", "PYTORCH_", "TRITON_")
+        filtered = "\n".join(
+            line for line in env_raw.splitlines()
+            if any(line.startswith(p) for p in wanted_prefixes)
+        )
+        out["env_filtered"] = {"ok": True, "output": filtered}
+    else:
+        out["env_filtered"] = {"ok": False, "output": env_raw}
+
+    # Process list inside container.
+    ok, ps = _run_subprocess_capture(
+        ["docker", "exec", container, "ps", "-ef"], timeout=10,
+    )
+    out["processes"] = {"ok": ok, "output": ps}
+
+    # Tail of container logs (last 200 lines).
+    ok, log_tail = _run_subprocess_capture(
+        ["docker", "logs", "--tail", "200", container], timeout=20,
+    )
+    out["logs_tail"] = {"ok": ok, "output": log_tail}
+
+    return out
+
+
+def _default_bundle_path(container: str) -> str:
+    import datetime
+    stamp = datetime.datetime.now(
+        datetime.timezone.utc,
+    ).strftime("%Y%m%dT%H%M%SZ")
+    safe = container.replace("/", "-").replace("\\", "-")
+    return f"./genesis_support_{safe}_{stamp}.tar.gz"
+
+
+def run_support_bundle(args: argparse.Namespace) -> int:
+    """Build the §6.H9 support bundle."""
+    import os
+    import tarfile
+    import tempfile
+    from vllm.sndr_core.observability.trace_catalog import TRACE_CATALOG
+
+    if not args.no_traces and not shutil.which("docker"):
+        _io.error(
+            "docker binary not on $PATH — support-bundle needs docker "
+            "for trace collection. Re-run with --no-traces to skip "
+            "traces and bundle host facts only."
+        )
+        return 3
+
+    output_path = args.output or _default_bundle_path(args.container)
+
+    # Build the bundle inside a tempdir, then tar.gz to output_path.
+    collected_count = 0
+    failed_collects: list[dict] = []
+    summary_count = 0
+    with tempfile.TemporaryDirectory() as workdir:
+        # 1. Trace collection (H7 reuse).
+        traces_dir = os.path.join(workdir, "traces")
+        summaries_dir = os.path.join(workdir, "summaries")
+        if not args.no_traces:
+            os.makedirs(traces_dir, exist_ok=True)
+            os.makedirs(summaries_dir, exist_ok=True)
+            live_state = _container_ls_tmp(args.container)
+            for spec in TRACE_CATALOG:
+                basename = spec.container_path.split("/")[-1]
+                if basename not in live_state:
+                    continue
+                dst = os.path.join(traces_dir, basename)
+                ok, msg = _docker_cp(
+                    container=args.container,
+                    src=spec.container_path, dst=dst,
+                )
+                if not ok:
+                    failed_collects.append({
+                        "id": spec.id, "error": msg,
+                    })
+                    continue
+                collected_count += 1
+                # 2. Auto-summarize each collected trace (H8 reuse).
+                try:
+                    kind = detect_trace_kind(basename)
+                    if kind == "boot":
+                        summary = summarize_boot_log(dst)
+                    else:
+                        summary = summarize_generic(dst)
+                        summary["kind"] = kind
+                    summary_path = os.path.join(
+                        summaries_dir, f"{spec.id}.json",
+                    )
+                    with open(summary_path, "w",
+                              encoding="utf-8") as fh:
+                        json.dump(
+                            {"id": spec.id, "patch_id": spec.patch_id,
+                             "summary": summary},
+                            fh, indent=2,
+                        )
+                    summary_count += 1
+                except Exception as exc:
+                    failed_collects.append({
+                        "id": spec.id,
+                        "error": f"summarize raised: {exc}",
+                    })
+
+        # 3. Host facts.
+        host_dir = os.path.join(workdir, "host")
+        os.makedirs(host_dir, exist_ok=True)
+        host_facts = collect_host_facts()
+        for key, fact in host_facts.items():
+            with open(os.path.join(host_dir, f"{key}.txt"), "w",
+                      encoding="utf-8") as fh:
+                fh.write(f"# ok={fact['ok']}\n")
+                fh.write(fact["output"])
+
+        # 4. Container facts.
+        container_dir = os.path.join(workdir, "container")
+        os.makedirs(container_dir, exist_ok=True)
+        container_facts: dict[str, dict] = {}
+        if shutil.which("docker"):
+            container_facts = collect_container_facts(args.container)
+            for key, fact in container_facts.items():
+                with open(os.path.join(container_dir, f"{key}.txt"),
+                          "w", encoding="utf-8") as fh:
+                    fh.write(f"# ok={fact['ok']}\n")
+                    fh.write(fact["output"])
+
+        # 5. Manifest.
+        import datetime
+        manifest = {
+            "container": args.container,
+            "created_utc": datetime.datetime.now(
+                datetime.timezone.utc,
+            ).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "trace_collection": {
+                "skipped": bool(args.no_traces),
+                "collected_count": collected_count,
+                "summarized_count": summary_count,
+                "failed": failed_collects,
+            },
+            "host_facts": list(host_facts.keys()),
+            "container_facts": list(container_facts.keys()),
+        }
+        with open(os.path.join(workdir, "manifest.json"), "w",
+                  encoding="utf-8") as fh:
+            json.dump(manifest, fh, indent=2)
+
+        # 6. Tar.gz the workdir → output_path.
+        try:
+            with tarfile.open(output_path, "w:gz") as tar:
+                tar.add(workdir, arcname="genesis_support_bundle")
+        except OSError as exc:
+            _io.error(f"could not write {output_path!r}: {exc}")
+            return 4
+
+    # ── Report ─────────────────────────────────────────────────────
+    final_size = os.path.getsize(output_path)
+    if args.json:
+        print(json.dumps({
+            "container": args.container,
+            "output": output_path,
+            "size_bytes": final_size,
+            "trace_collection": {
+                "skipped": bool(args.no_traces),
+                "collected": collected_count,
+                "summarized": summary_count,
+                "failed": failed_collects,
+            },
+            "host_facts_collected": list(host_facts.keys()),
+            "container_facts_collected": list(container_facts.keys()),
+        }, indent=2))
+        return 0 if not failed_collects else 1
+
+    print(f"sndr support-bundle → {output_path}")
+    print("─" * 70)
+    print(f"  container:       {args.container}")
+    print(f"  bundle size:     {_fmt_size(final_size)} "
+          f"({final_size:,} bytes)")
+    if args.no_traces:
+        print("  traces:          skipped (--no-traces)")
+    else:
+        print(f"  traces collected: {collected_count}")
+        print(f"  traces summarized: {summary_count}")
+    print(f"  host facts:      {len(host_facts)} captured")
+    print(f"  container facts: {len(container_facts)} captured")
+    if failed_collects:
+        print()
+        print(f"  Failures ({len(failed_collects)}):")
+        for f in failed_collects:
+            print(f"    ✗ {f['id']:24s}  {f['error']}")
+    return 0 if not failed_collects else 1
