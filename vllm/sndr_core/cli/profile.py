@@ -945,7 +945,7 @@ PORT={port}
 
 docker rm -f "$CONTAINER" 2>/dev/null || true
 
-GENESIS_REPO=/home/sander/genesis-vllm-patches
+GENESIS_REPO="${{GENESIS_PROJECT_ROOT:-${{HOME}}/genesis-vllm-patches}}"
 TGT=/usr/local/lib/python3.12/dist-packages/vllm
 IMAGE="{image_value}"
 

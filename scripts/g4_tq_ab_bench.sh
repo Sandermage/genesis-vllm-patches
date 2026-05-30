@@ -22,7 +22,7 @@
 # Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
 set -euo pipefail
 
-REPO_ROOT="${REPO_ROOT:-/home/sander/genesis-vllm-patches}"
+REPO_ROOT="${REPO_ROOT:-${GENESIS_PROJECT_ROOT:-${HOME}/genesis-vllm-patches}}"
 CONTAINER="${CONTAINER:-vllm-g4-256k-packed}"
 PORT="${PORT:-8027}"
 SERVED_MODEL="${SERVED_MODEL:-gemma-4-31b-packed}"
