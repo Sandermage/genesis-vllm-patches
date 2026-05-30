@@ -4,7 +4,7 @@
 
 Companion to scripts/generate_patches_md.py: this generates docs/CONFIGS_AUTO.md
 from `vllm/sndr_core/model_configs/builtin/*.yaml` files. Operator-facing
-config inventory с reference_metrics, lifecycle, target hardware.
+config inventory with reference_metrics, lifecycle, target hardware.
 
 Background: docs/CONFIGS.md was identified in 2026-05-11 audit as lacking
 per-config TPS comparison table (Agent A). Manual updates lag behind YAML
@@ -58,7 +58,7 @@ def parse_yaml_top_level(yaml_path: Path) -> dict:
 
     # Extract top-level scalar fields (key: value at indent 0)
     for field in TOP_FIELDS:
-        # Match `field: value` at start of line, capture value до newline or comment
+        # Match `field: value` at start of line, capture value up to newline or comment
         # Handle quoted strings
         m = re.search(rf'^{field}:\s*(.+?)(?:\s+#.*)?$', text, flags=re.M)
         if m:

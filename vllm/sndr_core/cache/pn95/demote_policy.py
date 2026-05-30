@@ -118,7 +118,7 @@ def _select_cold_blocks_via_bpool_lru(target_count: int) -> list:
     if not _rt._PN95_BLOCK_POOL_REFS:
         return candidates
 
-    # Hot ring: last N admit'ов never demote (typically spec-decode K+1
+    # Hot ring: last N admits never demote (typically spec-decode K+1
     # targets where the model just placed K speculative tokens). Reading
     # the tail of _admit_order on TM gives us the freshest activity.
     hot_keys = set()

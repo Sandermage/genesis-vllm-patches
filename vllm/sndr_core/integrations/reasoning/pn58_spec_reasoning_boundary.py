@@ -6,7 +6,7 @@ opt-in safety net for spec-decode + reasoning + structured output.
 
 ## Engineering rationale (read before enabling)
 
-P62 (vllm#36138 sfbemerk) — наш existing **broader** pipeline-level fix.
+P62 (vllm#36138 sfbemerk) — our existing **broader** pipeline-level fix.
 Modifies `update_from_output()`, `update_draft_token_ids()`,
 `update_draft_token_ids_in_output()`, `grammar_bitmask()`. Splits draft
 batches unconstrained/constrained. Per-position bitmasks. Default OFF

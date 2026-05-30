@@ -203,7 +203,7 @@ def _audit_one_preset(
 
     # ── Rule: §2.4 #1 — public-production preset must have public evidence ──
     # Strict validation already emits this when card status=production +
-    # audience=operator; this audit reinforces при production_candidate too
+    # audience=operator; this audit reinforces it for production_candidate too
     # (forward-compat hint: when promoting to production, this becomes
     # blocking). At audit phase scope: warn-only for production_candidate;
     # error already handled via validate_for_status for production+operator.

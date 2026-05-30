@@ -351,7 +351,7 @@ def _audit_one_profile(profile_id: str, report: OverrideReport) -> None:
         )
         return
 
-    # ── Rule: override_policy без sizing_override (unusual) ──────────
+    # ── Rule: override_policy without sizing_override (unusual) ──────────
     if sizing is None and policy is not None:
         report.add(
             profile_id, "warning", "policy_without_sizing",

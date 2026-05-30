@@ -1175,9 +1175,9 @@ def apply_patch_pn122_cudagraph_dispatch_trace() -> PatchResult:
 
 @register_patch("PN132 Triton top-k/top-p contiguous fix (vllm#42739)")
 def apply_patch_pn132_triton_topk_topp_contiguous() -> PatchResult:
-    """PN132: backport vllm#42739 — correctness fix Triton top-k/top-p
-    kernel читает garbage на non-contiguous logits. Defense-in-depth
-    на FlashInfer-default path; fires только на Triton fallback.
+    """PN132: backport vllm#42739 — correctness fix; Triton top-k/top-p
+    kernel reads garbage on non-contiguous logits. Defense-in-depth on
+    the FlashInfer-default path; fires only on the Triton fallback.
 
     Default OFF — opt-in via GENESIS_ENABLE_PN132_TOPK_TOPP_CONTIGUOUS=1.
     """
@@ -1229,8 +1229,8 @@ def apply_patch_pn275_dflash_max_cgs_align() -> PatchResult:
 
 @register_patch("PN133 MTP scheduler empty-output fix (vllm#42722)")
 def apply_patch_pn133_mtp_scheduler_empty_output() -> PatchResult:
-    """PN133: backport vllm#42722 — fix permanently-stuck request
-    в MTP/spec-decode когда generated_token_ids empty.
+    """PN133: backport vllm#42722 — fix permanently-stuck request in
+    MTP/spec-decode when generated_token_ids is empty.
 
     Default OFF — opt-in via GENESIS_ENABLE_PN133_MTP_EMPTY_OUTPUT_FIX=1.
     """
@@ -1254,11 +1254,11 @@ def apply_patch_pn133_mtp_scheduler_empty_output() -> PatchResult:
 @register_patch("PN134 torch.compile fullgraph 2.11 (vllm#42686)")
 def apply_patch_pn134_torch_compile_fullgraph_211() -> PatchResult:
     """PN134: backport vllm#42686 — torch.compile materialization
-    heuristic fix для PyTorch 2.11. Closes vLLM #27828.
+    heuristic fix for PyTorch 2.11. Closes vLLM #27828.
     Expected: -2..-8 ms prefill latency.
 
     Default OFF — opt-in via GENESIS_ENABLE_PN134_TORCH_COMPILE_FULLGRAPH_211=1.
-    Auto-skip когда torch != 2.11.
+    Auto-skip when torch != 2.11.
     """
     name = "PN134 torch.compile fullgraph 2.11"
     if not _state._APPLY_MODE:
@@ -1279,8 +1279,8 @@ def apply_patch_pn134_torch_compile_fullgraph_211() -> PatchResult:
 
 @register_patch("PN128 spec-decode helper kernel warmup (vllm#41481)")
 def apply_patch_pn128_spec_decode_helper_warmup() -> PatchResult:
-    """PN128: backport vllm#41481 — warmup eagle helper kernels на boot.
-    Закрывает 4 из 8 JIT spikes (eagle_prepare_next/inputs/copy_expand/
+    """PN128: backport vllm#41481 — warmup eagle helper kernels at boot.
+    Closes 4 of 8 JIT spikes (eagle_prepare_next/inputs/copy_expand/
     step_update_slot_mapping).
 
     Default OFF — opt-in via GENESIS_ENABLE_PN128_SPEC_DECODE_WARMUP=1.
@@ -1306,8 +1306,8 @@ def apply_patch_pn128_spec_decode_helper_warmup() -> PatchResult:
 @register_patch("PN129 V1 slot mapping kernel warmup (vllm#42165)")
 def apply_patch_pn129_slot_mapping_warmup() -> PatchResult:
     """PN129: backport vllm#42165 — slot_mapping warmup +
-    do_not_specialize='num_tokens'. Закрывает 1 JIT spike +
-    структурный fix против пересборки по batch size.
+    do_not_specialize='num_tokens'. Closes 1 JIT spike + structural
+    fix preventing recompile-on-batch-size churn.
 
     Default OFF — opt-in via GENESIS_ENABLE_PN129_SLOT_MAPPING_WARMUP=1.
     """
@@ -1331,7 +1331,7 @@ def apply_patch_pn129_slot_mapping_warmup() -> PatchResult:
 @register_patch("PN130 TurboQuant decode kernel warmup (vllm#42215)")
 def apply_patch_pn130_tq_decode_warmup() -> PatchResult:
     """PN130: backport vllm#42215 — TQ decode kernel warmup + workspace
-    pre-alloc до lock'a. Закрывает _tq_grouped_decode_stage1 JIT spike.
+    pre-alloc before lock. Closes _tq_grouped_decode_stage1 JIT spike.
 
     Default OFF — opt-in via GENESIS_ENABLE_PN130_TQ_DECODE_WARMUP=1.
     """
@@ -1354,12 +1354,13 @@ def apply_patch_pn130_tq_decode_warmup() -> PatchResult:
 
 @register_patch("PN127 Qwen 3.5/3.6 chat-template auto-install")
 def apply_patch_pn127_chat_template_qwen36() -> PatchResult:
-    """PN127: запекает enhanced chat-template для Qwen 3.5/3.6 как
-    Genesis asset + на apply() копирует в writable location.
-    Закрывает operator-pain (никто не должен искать template-файл).
+    """PN127: bakes the enhanced chat-template for Qwen 3.5/3.6 as a
+    Genesis asset; apply() copies it to a writable location.
+    Closes the operator-pain case (nobody should have to hunt for the
+    template file).
 
     Default OFF — opt-in via GENESIS_ENABLE_PN127_AUTO_CHAT_TEMPLATE=1.
-    Operator получает path через log + использует в --chat-template arg.
+    Operator receives the path via log + uses it in --chat-template arg.
     """
     name = "PN127 Qwen 3.5/3.6 chat-template auto-install"
     if not _state._APPLY_MODE:
@@ -2486,7 +2487,7 @@ def apply_patch_N80_lora_tensorizer_device() -> PatchResult:
     blows up causing OOM. With kwarg, streams directly to GPU.
 
     Not in nightly image as of dev93+g51f22dcfd. Default OFF — Genesis
-    35B/27B PROD не использует LoRA currently. Useful for community
+    35B/27B PROD does not use LoRA currently. Useful for community
     deployments or Sander LoRA workloads.
     """
     name = "PN80 LoRA tensorizer device kwarg (vllm#41845)"
@@ -3203,7 +3204,7 @@ def apply_patch_84_hash_block_size_override() -> PatchResult:
 def apply_patch_100_flashinfer_full_cg_specdec() -> PatchResult:
     """Patch 100: backport of vllm#41127 (FlashInfer FULL CG for spec-decode).
 
-    Per Sander 2026-04-28: 'не ждём, изучаем, импортируем'. 11 sub-patches
+    Per Sander 2026-04-28: 'don't wait — study, import'. 11 sub-patches
     on flashinfer.py. 27B variants (FlashInfer + spec-decode + non-DCP)
     get UNIFORM_BATCH cudagraph instead of PIECEWISE.
 

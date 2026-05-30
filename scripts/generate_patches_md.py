@@ -7,7 +7,7 @@ PATCHES.md remains the curated narrative; this script generates the exhaustive
 table linked from there.
 
 Background: 2026-05-11 audit found PATCHES.md detailed only 21 of 134 entries.
-Manual maintenance impractical при 134 entries × 9 fields. This script reads
+Manual maintenance impractical at 134 entries × 9 fields. This script reads
 registry.py source (regex parse, no torch import) and emits:
   - Statistics block (counts by tier/lifecycle/family/default_on)
   - Full patch table grouped by family, sorted naturally (P1...P107, PN8...PN95)

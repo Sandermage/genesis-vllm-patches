@@ -485,7 +485,7 @@ from .pn95.compression import (  # noqa: E402
     _pn95_decompress_bytes,
 )
 
-_PN95_COMPRESS_POOL: Optional[Any] = None  # ThreadPoolExecutor для parallel compress
+_PN95_COMPRESS_POOL: Optional[Any] = None  # ThreadPoolExecutor for parallel compress
 
 
 # M.4.2.H — prefix-store accounting + register_block_pool extracted to

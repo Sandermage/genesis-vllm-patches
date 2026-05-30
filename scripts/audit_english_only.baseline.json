@@ -1,17 +1,13 @@
 {
   "rule": "English only in code (CLAUDE.md user rule). Baseline captures currently-tolerated counts; new violations or regressions vs this baseline fail audit. Translate + regenerate baseline as you clean files.",
   "totals": {
-    "files": 56,
-    "chars": 8603
+    "files": 47,
+    "chars": 8369
   },
   "files": {
-    "scripts/audit_config_catalog.py": 3,
     "scripts/audit_english_only.py": 4,
-    "scripts/audit_override_policy.py": 3,
     "scripts/audit_rig_divergence.py": 32,
     "scripts/build_anchor_manifest.py": 18,
-    "scripts/generate_configs_md.py": 3,
-    "scripts/generate_patches_md.py": 3,
     "tests/legacy/test_audit_a06_a07_a17_p64_clarifications.py": 7,
     "tests/legacy/test_platform_matrix.py": 30,
     "tests/legacy/test_router_softmax.py": 15,
@@ -19,7 +15,6 @@
     "tests/unit/cache/test_pn95_a1_compression.py": 8,
     "tests/unit/cache/test_pn95_b2_batched_demote.py": 11,
     "tests/unit/cache/test_pn95_b3_batched_promote.py": 4,
-    "tests/unit/cache/test_pn95_b4_parallel_compress.py": 3,
     "tests/unit/cache/test_pn95_b5_parallel_decompress.py": 5,
     "tests/unit/cache/test_pn95_obs1_observability.py": 11,
     "tests/unit/dispatcher/test_spec_metadata_enrichment.py": 17,
@@ -28,11 +23,8 @@
     "tests/unit/model_configs/test_preset_schema_v1.py": 10,
     "tools/openai_smoke.py": 355,
     "tools/restart_35b_dev371_multiconc.sh": 41,
-    "vllm/sndr_core/apply/_per_patch_dispatch.py": 211,
     "vllm/sndr_core/apply/orchestrator.py": 43,
-    "vllm/sndr_core/cache/_pn95_runtime.py": 3,
     "vllm/sndr_core/cache/pn95/compression.py": 25,
-    "vllm/sndr_core/cache/pn95/demote_policy.py": 2,
     "vllm/sndr_core/cache/pn95/gates.py": 4,
     "vllm/sndr_core/cache/pn95/hooks.py": 4,
     "vllm/sndr_core/cache/pn95/metrics.py": 9,
@@ -53,7 +45,6 @@
     "vllm/sndr_core/integrations/compile_safety/pn134_torch_compile_fullgraph_211.py": 333,
     "vllm/sndr_core/integrations/kv_cache/pn95_tier_aware_cache.py": 5,
     "vllm/sndr_core/integrations/middleware/pn65_access_log.py": 71,
-    "vllm/sndr_core/integrations/reasoning/pn58_spec_reasoning_boundary.py": 3,
     "vllm/sndr_core/integrations/serving/pn127_chat_template_qwen36.py": 808,
     "vllm/sndr_core/kernels/streaming_gdn_driver.py": 14,
     "vllm/sndr_core/middleware/lazy_reasoner.py": 44,

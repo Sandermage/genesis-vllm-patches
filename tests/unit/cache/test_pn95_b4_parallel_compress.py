@@ -2,10 +2,10 @@
 """PN95 Quality-First Sprint Q1 B4 — parallel batched compression tests.
 
 Validates `_pn95_compress_bytes_batch` correctness:
-- Output identical к sequential _pn95_compress_bytes calls (per-element)
+- Output identical to sequential _pn95_compress_bytes calls (per-element)
 - Order preserved
 - Empty list, single-element edge cases
-- Decompresses correctly back к original
+- Decompresses correctly back to original
 - Pool lazy-init
 """
 from __future__ import annotations
@@ -83,7 +83,7 @@ def test_compress_batch_preserves_order(monkeypatch):
     payloads = [_kv_like_bytes(5_000, seed=i) for i in (10, 20, 30, 40, 50)]
     out = rt._pn95_compress_bytes_batch(payloads)
 
-    # Decompress each и verify matches expected position
+    # Decompress each and verify matches expected position
     for i, (compressed, original) in enumerate(zip(out, payloads)):
         restored = rt._pn95_decompress_bytes(compressed)
         assert restored == original, f"Position {i}: order violated"
