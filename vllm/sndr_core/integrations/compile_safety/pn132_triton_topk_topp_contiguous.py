@@ -73,7 +73,19 @@ def _env_enabled() -> bool:
 
 
 def apply() -> tuple[str, str]:
-    """Wraps apply_top_k_top_p_triton to ensure logits.is_contiguous()."""
+    """Wraps apply_top_k_top_p_triton to ensure logits.is_contiguous().
+
+    RETIRED 2026-05-30 after iron-rule-#11 deep-diff. Upstream vllm#42739
+    merged 2026-05-23 (commit d19db10974587) solves the SAME bug at the
+    ROOT — the Triton kernel itself now takes `LOGITS_STRIDE_0` and
+    addresses rows via `LOGITS + row_id * LOGITS_STRIDE_0` (stride-aware),
+    with a contiguous-temporary fallback for stride(1) != 1 layouts.
+
+    On any pin that already carries the upstream fix we self-skip via
+    the `mask_value` signature-drift detector below — this is BOTH the
+    audit signal AND the safety guard, because our 3-arg wrapper would
+    drop a 4th positional/keyword argument if PROD ever enabled PN132.
+    """
     global _APPLIED, _ORIGINAL_FN
 
     if not _env_enabled():
@@ -81,7 +93,8 @@ def apply() -> tuple[str, str]:
             f"PN132 disabled (set {_ENV_ENABLE}=1 — backport vllm#42739 "
             f"correctness fix: ensure logits contiguous before Triton "
             f"top-k/top-p kernel. Defense-in-depth on FlashInfer-default "
-            f"path; fires only on Triton fallback)"
+            f"path; fires only on Triton fallback). RETIRED 2026-05-30 "
+            f"— upstream merged + root-cause fix; see registry note."
         )
 
     if _APPLIED:
@@ -99,6 +112,28 @@ def apply() -> tuple[str, str]:
     if getattr(original, "_genesis_pn132_wrapped", False):
         _APPLIED = True
         return "applied", "PN132 already wrapped (idempotent)"
+
+    # Self-skip on post-merge pins. Upstream's vllm#42739 added the
+    # `mask_value: float` kwarg to the function signature. If we see it,
+    # the kernel-level fix is already present — PN132's wrapper would
+    # additionally DROP the kwarg, so refusing to install is also the
+    # safety guarantee. Detection via inspect (cheap, fork-safe).
+    import inspect
+    try:
+        sig = inspect.signature(original)
+        if "mask_value" in sig.parameters:
+            return "skipped", (
+                "upstream vllm#42739 already landed (signature carries "
+                "`mask_value` kwarg) — PN132 retired; root-cause fix in "
+                "the Triton kernel is strictly better than this wrapper. "
+                "Set GENESIS_DISABLE_PN132_TOPK_TOPP_CONTIGUOUS=1 to "
+                "silence even the opt-in."
+            )
+    except (ValueError, TypeError):
+        # Signature inspection failed (e.g. C-extension fn) — fall
+        # through and allow the wrap. Old pins keep the existing
+        # behavior.
+        pass
 
     _ORIGINAL_FN = original
 

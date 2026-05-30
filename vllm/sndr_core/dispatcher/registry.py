@@ -1266,27 +1266,39 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "vllm.sndr_core.integrations.compile_safety."
             "pn132_triton_topk_topp_contiguous"
         ),
-        "lifecycle": "experimental",
+        "lifecycle": "retired",
+        "retired_waiver": True,
         "experimental_note": (
-            "Backport vllm#42739 (merged 2026-05-23). Correctness fix: "
-            "Triton top-k/top-p kernel computes row_ptr = base + row * "
-            "VOCAB assuming contiguous row-major. Non-contiguous views "
-            "(from index_select/slicing) → kernel reads garbage. PN132 "
-            "wraps apply_top_k_top_p_triton with a contiguous() guarantee. "
-            "We run VLLM_USE_FLASHINFER_SAMPLER=1, so the Triton path is "
-            "usually unused (FlashInfer goes first), but fallback can fire "
-            "on unsupported combos. Defense-in-depth. Current pin "
-            "bf610c2f5 (2026-05-15) is before the merge so PN132 still "
-            "applies; bump past commit d19db10974587 triggers retire."
+            "Backport vllm#42739 (merged 2026-05-23, commit "
+            "d19db10974587335ec3a37e0a424abb57430574e). RETIRED 2026-05-30 "
+            "after iron-rule-#11 deep-diff against the upstream merge "
+            "(verified live on pin 626fa9bb 2026-05-28 via the running "
+            "gemma4 container, function source inspection). VERDICT: "
+            "upstream solves the SAME bug at the ROOT — the Triton "
+            "kernel itself now takes `LOGITS_STRIDE_0` and computes row "
+            "pointers via `LOGITS + row_id * LOGITS_STRIDE_0` (stride-aware "
+            "addressing), with a contiguous-temporary fallback for "
+            "stride(1) != 1 layouts. PN132's wrapper added a "
+            "`.contiguous()` guarantee at the Python boundary — a "
+            "WORKAROUND, not the root fix; the kernel-level fix in #42739 "
+            "is strictly superior. PN132 also has signature drift: our "
+            "wrapper exposes `(logits, k, p)` but upstream's post-merge "
+            "signature is `(logits, k, p, mask_value=-inf)` — enabling "
+            "PN132 on 626fa9bb+ would drop the `mask_value` kwarg if a "
+            "caller passes it positionally or as a kwarg. Defense-in-depth "
+            "rationale also moot: VLLM_USE_FLASHINFER_SAMPLER=1 keeps "
+            "Triton on the fallback path, AND the upstream fix removes "
+            "the underlying bug we were defending against. PN132 was "
+            "default_off so no PROD impact from the retire."
         ),
-        "credit": "Backport vllm#42739 by Sandermage 2026-05-15.",
+        "credit": "Backport vllm#42739 by Sandermage 2026-05-15. Retired 2026-05-30 (upstream merged + root-cause fix is strictly better than our wrapper workaround; signature drift detected on post-merge pin).",
         "upstream_pr": 42739,
         "upstream_pr_relationship": "backport",
         "superseded_by": "vllm#42739 (merged 2026-05-23, commit d19db10974587335ec3a37e0a424abb57430574e)",
         "requires_patches": [],
         "conflicts_with": [],
         "applies_to": {
-            "vllm_version_range": (">=0.20.0", "<0.22.0"),
+            "vllm_version_range": (">=0.20.0", "<0.21.1rc0+g626fa9bba5"),
         },
     },
     "PN133": {

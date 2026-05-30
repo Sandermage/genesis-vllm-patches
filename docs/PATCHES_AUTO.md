@@ -4,7 +4,7 @@
 > Source of truth: `vllm/sndr_core/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-05-30T14:51:22Z
+Generated: 2026-05-30T15:01:36Z
 Total entries: **232**
 
 ## Statistics
@@ -14,10 +14,10 @@ Total entries: **232**
 
 ### By lifecycle
 - `lifecycle=coordinator`: **3**
-- `lifecycle=experimental`: **160**
+- `lifecycle=experimental`: **159**
 - `lifecycle=legacy`: **33**
 - `lifecycle=research`: **4**
-- `lifecycle=retired`: **18**
+- `lifecycle=retired`: **19**
 - `lifecycle=stable`: **14**
 
 ### Default-on at boot: **52** / 232
@@ -152,7 +152,7 @@ Total entries: **232**
 | **PN128** | `community` | `experimental` | · | `GENESIS_ENABLE_PN128_SPEC_DECODE_WARMUP` | [#41481](https://github.com/vllm-project/vllm/pull/41481) | Spec-decode helper kernel warmup (backport vllm#41481, 4 eagle kernels) |
 | **PN129** | `community` | `experimental` | · | `GENESIS_ENABLE_PN129_SLOT_MAPPING_WARMUP` | [#42165](https://github.com/vllm-project/vllm/pull/42165) | V1 slot mapping kernel warmup (backport vllm#42165, 1 kernel + do_not_special... |
 | **PN130** | `community` | `experimental` | · | `GENESIS_ENABLE_PN130_TQ_DECODE_WARMUP` | [#42215](https://github.com/vllm-project/vllm/pull/42215) | TurboQuant decode kernel warmup (backport vllm#42215, 1 kernel + workspace pr... |
-| **PN132** | `community` | `experimental` | · | `GENESIS_ENABLE_PN132_TOPK_TOPP_CONTIGUOUS` | [#42739](https://github.com/vllm-project/vllm/pull/42739) | Triton top-k/top-p contiguous logits fix (backport vllm#42739) |
+| **PN132** | `community` | `retired` | · | `GENESIS_ENABLE_PN132_TOPK_TOPP_CONTIGUOUS` | [#42739](https://github.com/vllm-project/vllm/pull/42739) | Triton top-k/top-p contiguous logits fix (backport vllm#42739) |
 | **PN134** | `community` | `retired` | · | `GENESIS_ENABLE_PN134_TORCH_COMPILE_FULLGRAPH_211` | [#42686](https://github.com/vllm-project/vllm/pull/42686) | torch.compile fullgraph patch for PyTorch 2.11 (backport vllm#42686) — BENCH-... |
 
 ### `gemma4` (18)

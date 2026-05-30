@@ -614,7 +614,7 @@
   {
     "patch_id": "PN132",
     "family": "compile_safety",
-    "lifecycle": "experimental",
+    "lifecycle": "retired",
     "tier": "community",
     "default_on": false,
     "env_flag": "GENESIS_ENABLE_PN132_TOPK_TOPP_CONTIGUOUS",
