@@ -1320,6 +1320,18 @@
     "apply_module": "vllm.sndr_core.integrations.serving.pn288_tool_finish_reason_override"
   },
   {
+    "patch_id": "G4_T1",
+    "family": "tool_parsing",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": null,
+    "has_upstream_pr": true,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "vllm.sndr_core.integrations.tool_parsing.g4_t1_gemma4_tool_parser_pr42006_overlay"
+  },
+  {
     "patch_id": "PN17",
     "family": "attention.flash",
     "lifecycle": "experimental",

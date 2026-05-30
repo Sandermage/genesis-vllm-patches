@@ -3598,6 +3598,52 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "implementation_status": "full",
         "composes_with": ["P64", "PN56", "P61c", "PN287"],
     },
+    "G4_T1": {
+        "title": "Gemma4 tool-parser PR #42006 MTP streaming overlay (vendored from club-3090)",
+        "tier": "community",
+        "family": "tool_parsing",
+        "env_flag": None,  # operator-side bind-mount, not a Genesis apply()
+        "default_on": False,
+        "category": "stability",
+        "credit": (
+            "Operator-side overlay 2026-05-30. Vendors upstream vllm "
+            "PR #42006 ([Bugfix] Fix Gemma4 MTP streaming multi-tool "
+            "calls — author @whytem, status OPEN as of 2026-05-30) via "
+            "the bind-mount path documented in the file header. "
+            "Companion to upstream vllm PR #41991 (MERGED 2026-05-08, "
+            "already in our pin 626fa9bb) which covered the infinite-"
+            "loop + array-boundary parser bugs. #42006 fixes the "
+            "remaining 142-line refactor of `_extract_streaming` so "
+            "the streaming SSE path can handle MTP-bundled token "
+            "outputs (`</function>` close + last param in one delta). "
+            "Vendor source: noonghunna/club-3090 stack, 2026-05-08; "
+            "same family as the Qwen3 tool-parser SSE-silence fix in "
+            "club-3090 issue #72. Empirical effect on gemma4-31B "
+            "AWQ-4bit + TQ4bit_nc + MTP K=4 (session 2026-05-30): "
+            "fixes parse of mid-thinking emissions like "
+            "`<|tool_call>call:get_weather{city:<|\"|>London<|\"|>}`; "
+            "tool_calls[] now populated. Residual 2/7 bench failures "
+            "(thinking-then-tool edge prompts) are model-quality "
+            "intrinsic limits (verified identical residual on dev371 "
+            "base pin), NOT parser bugs. NOT a Genesis runtime patch "
+            "— deployed entirely via the launcher's docker `-v` mount "
+            "of vllm/sndr_core/integrations/tool_parsing/"
+            "g4_t1_gemma4_tool_parser_pr42006_overlay.py over "
+            "vllm/tool_parsers/gemma4_tool_parser.py. apply_module is "
+            "the vendored file itself; the registry entry exists so "
+            "audit_upstream_status tracks the PR and so retire-when-"
+            "merged can drop both file and mount in one go."
+        ),
+        "upstream_pr": 42006,
+        "upstream_pr_relationship": "backport",
+        "applies_to": {
+            "tool_call_parser": "gemma4",
+        },
+        "apply_module": "vllm.sndr_core.integrations.tool_parsing.g4_t1_gemma4_tool_parser_pr42006_overlay",
+        "lifecycle": "experimental",
+        "implementation_status": "marker_only",
+        "composes_with": ["PN287", "PN288"],
+    },
     "PN17": {
         "title": "FA2 softmax_lse runtime clamp (Cliff 1 mechanism A, Issue #11)",
         "tier": "community",

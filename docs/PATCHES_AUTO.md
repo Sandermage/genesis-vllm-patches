@@ -4,23 +4,23 @@
 > Source of truth: `vllm/sndr_core/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-05-30T16:47:55Z
-Total entries: **232**
+Generated: 2026-05-30T19:45:38Z
+Total entries: **233**
 
 ## Statistics
 
 ### By tier
-- `tier=community`: **232**
+- `tier=community`: **233**
 
 ### By lifecycle
 - `lifecycle=coordinator`: **3**
-- `lifecycle=experimental`: **159**
+- `lifecycle=experimental`: **160**
 - `lifecycle=legacy`: **33**
 - `lifecycle=research`: **4**
 - `lifecycle=retired`: **19**
 - `lifecycle=stable`: **14**
 
-### Default-on at boot: **52** / 232
+### Default-on at boot: **52** / 233
 
 ### By family
 - `attention.flash`: 3
@@ -44,7 +44,7 @@ Total entries: **232**
 - `serving`: 10
 - `spec_decode`: 33
 - `streaming`: 4
-- `tool_parsing`: 6
+- `tool_parsing`: 7
 - `worker`: 11
 
 ## Patches by family
@@ -369,7 +369,7 @@ Total entries: **232**
 | **PN202** | `community` | `experimental` | · | `GENESIS_ENABLE_PN202_PER_LAYER_KV_SPLIT` | — | PN202 — per-layer KV tensor split (Tier 2.A enabler) |
 | **PN203** | `community` | `experimental` | · | `GENESIS_ENABLE_PN203_COLD_PREFIX_OFFLOAD` | — | PN203 — cold-prefix CPU offload manager (Tier 3.A) |
 
-### `tool_parsing` (6)
+### `tool_parsing` (7)
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
@@ -378,6 +378,7 @@ Total entries: **232**
 | **P64** | `community` | `experimental` | · | `GENESIS_ENABLE_P64_QWEN3CODER_MTP_STREAMING` | [#39598](https://github.com/vllm-project/vllm/pull/39598) | qwen3coder MTP streaming early-return fix |
 | **PN56** | `community` | `experimental` | · | `GENESIS_ENABLE_PN56_QWEN3CODER_XML_FALLBACK` | [#41466](https://github.com/vllm-project/vllm/pull/41466) | Qwen3Coder XML parse fallback (vllm#41466 backport) |
 | **PN287** | `community` | `experimental` | · | `GENESIS_ENABLE_PN287_QWEN3CODER_ARGS_OBSERVER` | — | "qwen3_coder × MTP arg-corruption frequency observer (club-3090 |
+| **G4_T1** | `community` | `experimental` | · | `—` | [#42006](https://github.com/vllm-project/vllm/pull/42006) | "Gemma4 tool-parser PR |
 | **P61c** | `community` | `experimental` | · | `GENESIS_ENABLE_P61C_QWEN3CODER_DEFERRED_COMMIT` | — | Qwen3Coder deferred-commit until <function= header (club-3090#72) |
 
 ### `worker` (11)
