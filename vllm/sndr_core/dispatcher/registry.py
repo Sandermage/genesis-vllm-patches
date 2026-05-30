@@ -381,8 +381,8 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "potentially 2-50 GB depending on LoRA rank), then transfers to "
             "GPU — peak host RAM blows up causing OOM on memory-constrained "
             "rigs. With kwarg, tensorizer streams directly to GPU. Genesis "
-            "35B/27B PROD currently не использует LoRA — patch ready на "
-            "случай community deployments или Sander запустит LoRA workload."
+            "35B/27B PROD does not currently use LoRA — patch ready for "
+            "community deployments or Sander LoRA workloads."
         ),
         "upstream_pr": 41845,
         "upstream_pr_relationship": "backport",
@@ -464,7 +464,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "for documentation; env flag honored but executes no-op."
         ),
         "deprecation_note": (
-            "Investigation 2026-05-07 (MEMORY_DEEP_PLAN Этап 2.1): vllm "
+            "Investigation 2026-05-07 (MEMORY_DEEP_PLAN Phase 2.1): vllm "
             "pin already calls torch.accelerator.empty_cache() inside "
             "GPUModelRunner.capture_model (gpu_model_runner.py:6213 "
             "BEFORE capture, :6244 AFTER capture, before lock_workspace). "
@@ -899,7 +899,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "per worker, ~2.4 GB total at TP=2 — frees KV-cache headroom. "
             "4 sub-patches into qwen3_dflash.py (Site A: F.linear→qkv_proj; "
             "B: pass quant_config to layer; C: conditional fused-KV; D: "
-            "quantized fallback in precompute). Composable с PN40-A "
+            "quantized fallback in precompute). Composable with PN40-A "
             "(different anchor surfaces in same file)."
         ),
         "upstream_pr": 40425,
@@ -1110,17 +1110,17 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "default_on": False,
         "category": "structured_output",
         "credit": (
-            "Backport of vllm#41467 (ToastyTheBot, OPEN). При MTP K≥1 + "
-            "tools + reasoning_parser возможна редкая (~0.25% per author "
-            "on Qwen3.6 27B-FP8) ситуация: модель производит EOS на "
-            "boundary reasoning→tool_call. finish_reason=stop, ни "
-            "tool_calls, ни content. Defensive guard в "
-            "chat_completion_stream_generator detect'ит combo и raise "
-            "GenerationError (retryable) → клиент retries вместо silent "
-            "stop. Author явно ссылается на наш P58/P59/P60/P61/P64 path. "
-            "EXACT наш PROD config (27B Lorbus + MTP K=3 + tools). Defensive "
-            "safety-net, не root-cause fix. Default OFF до live verify "
-            "tool-call sweep на 27B PROD."
+            "Backport of vllm#41467 (ToastyTheBot, OPEN). With MTP K>=1 + "
+            "tools + reasoning_parser a rare (~0.25% per author measurement "
+            "on Qwen3.6 27B-FP8) condition arises: the model emits EOS at "
+            "the reasoning->tool_call boundary. finish_reason=stop, neither "
+            "tool_calls nor content. A defensive guard in "
+            "chat_completion_stream_generator detects the combo and raises "
+            "GenerationError (retryable) — the client retries instead of "
+            "silent stop. Author explicitly references our P58/P59/P60/P61/"
+            "P64 path. EXACT match for our PROD config (27B Lorbus + MTP K=3 "
+            "+ tools). Defensive safety-net, not a root-cause fix. Default "
+            "OFF until live verify tool-call sweep on 27B PROD."
         ),
         "upstream_pr": 41467,
         "upstream_pr_relationship": "backport",
@@ -1272,10 +1272,10 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "Triton top-k/top-p kernel computes row_ptr = base + row * "
             "VOCAB assuming contiguous row-major. Non-contiguous views "
             "(from index_select/slicing) → kernel reads garbage. PN132 "
-            "wraps apply_top_k_top_p_triton с contiguous() guarantee. "
-            "У нас VLLM_USE_FLASHINFER_SAMPLER=1 → Triton path обычно "
-            "не используется (FlashInfer первый), но fallback возможен "
-            "для unsupported combos. Defense-in-depth. Current pin "
+            "wraps apply_top_k_top_p_triton with a contiguous() guarantee. "
+            "We run VLLM_USE_FLASHINFER_SAMPLER=1, so the Triton path is "
+            "usually unused (FlashInfer goes first), but fallback can fire "
+            "on unsupported combos. Defense-in-depth. Current pin "
             "bf610c2f5 (2026-05-15) is before the merge so PN132 still "
             "applies; bump past commit d19db10974587 triggers retire."
         ),
@@ -1309,8 +1309,8 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "generated_token_ids (request abortion, async race, OOM "
             "partial output). Pre-fix: scheduler doesn't account "
             "scheduled draft tokens as rejected → num_computed_tokens "
-            "stays caught up → scheduler stops issuing work для "
-            "unfinished request. Также fixes pre-existing crash через "
+            "stays caught up → scheduler stops issuing work for the "
+            "unfinished request. Also fixes the pre-existing crash via "
             "len([])-1 = -1 → Prometheus counter ValueError."
         ),
         "credit": "Backport vllm#42722 by Sandermage 2026-05-15.",
@@ -1323,7 +1323,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         },
     },
     "PN134": {
-        "title": "torch.compile fullgraph patch для PyTorch 2.11 (backport vllm#42686) — BENCH-VALIDATED REGRESSOR, DO NOT ENABLE",
+        "title": "torch.compile fullgraph patch for PyTorch 2.11 (backport vllm#42686) — BENCH-VALIDATED REGRESSOR, DO NOT ENABLE",
         "tier": "community",
         "family": "compile_safety",
         "env_flag": "GENESIS_ENABLE_PN134_TORCH_COMPILE_FULLGRAPH_211",
@@ -1355,9 +1355,9 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "RETIRED 2026-05-15 — bench-validated regressor. Original "
             "design backport vllm#42686 (OPEN), closes vLLM issue #27828. "
             "Patches torch._inductor.ir.StorageBox.should_realize_on_reuse "
-            "с size-aware cost model для PyTorch 2.11 (fix landed в "
-            "torch 2.12). Theory: без fix Inductor inline'ит residual в "
-            "fused_add_rms_norm каждый раз → cascade re-computation. "
+            "with a size-aware cost model for PyTorch 2.11 (fix landed in "
+            "torch 2.12). Theory: without the fix Inductor inlines residual "
+            "into fused_add_rms_norm every time → cascade re-computation. "
             "Reality on hybrid_gdn_moe: -25% TPS regression."
         ),
         "credit": "Backport vllm#42686 (pytorch#176994 simplified) by Sandermage 2026-05-15. Retired same day after bench regression.",
@@ -1384,17 +1384,17 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         ),
         "lifecycle": "experimental",
         "experimental_note": (
-            "Genesis backport of vllm-project/vllm#41481 (OPEN). Закрывает "
-            "4 из 8 JIT spikes на первом user request: "
+            "Genesis backport of vllm-project/vllm#41481 (OPEN). Closes "
+            "4 of 8 JIT spikes on the first user request: "
             "eagle_prepare_next_token_padded_kernel, "
             "eagle_prepare_inputs_padded_kernel, "
             "copy_and_expand_eagle_inputs_kernel, "
             "eagle_step_slot_mapping_metadata_kernel. Wraps "
-            "Worker.compile_or_warm_up_model + после оригинального "
-            "warmup вызывает 4 dummy Triton kernel invokes с synthetic "
-            "shapes (next_power_of_2(num_spec_tokens + 1)). Auto-skip "
-            "V2_MODEL_RUNNER=1, enforce_eager=True. Issue #39790 H100 "
-            "repro показал 25× первая-request регрессию pre-fix."
+            "Worker.compile_or_warm_up_model and, after the original "
+            "warmup, invokes 4 dummy Triton kernels with synthetic shapes "
+            "(next_power_of_2(num_spec_tokens + 1)). Auto-skip on "
+            "V2_MODEL_RUNNER=1 and enforce_eager=True. Issue #39790 H100 "
+            "repro showed a 25x first-request regression pre-fix."
         ),
         "credit": "Backport of vllm-project/vllm#41481 by Sandermage 2026-05-15.",
         "upstream_pr": 41481,
@@ -1426,12 +1426,12 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         ),
         "lifecycle": "experimental",
         "experimental_note": (
-            "Genesis backport of vllm-project/vllm#42165 (OPEN). Закрывает "
-            "_compute_slot_mapping_kernel JIT spike + (попытка) "
-            "do_not_specialize='num_tokens' через private Triton API. "
-            "Если do_not_specialize injection не работает на нашей "
-            "версии Triton, остаётся warmup hook — kernel JIT'ится на "
-            "boot вместо первого user request. Best-effort fix."
+            "Genesis backport of vllm-project/vllm#42165 (OPEN). Closes "
+            "the _compute_slot_mapping_kernel JIT spike + (attempts) "
+            "do_not_specialize='num_tokens' via the private Triton API. "
+            "If do_not_specialize injection does not work on our Triton "
+            "version, only the warmup hook remains — the kernel JITs at "
+            "boot instead of on the first user request. Best-effort fix."
         ),
         "credit": "Backport of vllm-project/vllm#42165 by Sandermage 2026-05-15.",
         "upstream_pr": 42165,
@@ -1457,12 +1457,12 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         ),
         "lifecycle": "experimental",
         "experimental_note": (
-            "Genesis backport of vllm-project/vllm#42215 (OPEN). Закрывает "
-            "_tq_grouped_decode_stage1 JIT spike + предотвращает workspace "
-            "re-allocation после lock_workspace(). Итерирует Attention "
-            "слои модели, dedupes по config-tuple, вызывает "
-            "impl._decode_attention() с synthetic tensors. Auto-skip "
-            "когда kv_cache_dtype != turboquant_*."
+            "Genesis backport of vllm-project/vllm#42215 (OPEN). Closes "
+            "the _tq_grouped_decode_stage1 JIT spike and prevents workspace "
+            "re-allocation after lock_workspace(). Iterates the model's "
+            "Attention layers, dedupes by config-tuple, calls "
+            "impl._decode_attention() with synthetic tensors. Auto-skip "
+            "when kv_cache_dtype != turboquant_*."
         ),
         "credit": "Backport of vllm-project/vllm#42215 by Sandermage 2026-05-15.",
         "upstream_pr": 42215,
@@ -1488,20 +1488,21 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         ),
         "lifecycle": "experimental",
         "experimental_note": (
-            "Genesis-original 2026-05-15. Закрывает operator pain: enhanced "
-            "chat-template для Qwen 3.5/3.6 hybrid_gdn_moe (interleaved-"
-            "thinking + XML tool_call) ранее жил в HF репозиториях froggeric/"
-            "Sandermage/club-3090 и operator должен был knew где искать и "
-            "копировать .jinja вручную. PN127 запекает enhanced template как "
-            "Genesis asset (vllm/sndr_core/assets/chat_templates/qwen3.6_"
-            "enhanced.jinja) и на apply() копирует в writable location "
-            "(/tmp/genesis/chat_templates/ или GENESIS_CHAT_TEMPLATE_DIR). "
-            "Operator получает каноничный путь через log line; запускает "
-            "vllm с --chat-template <path>. Закрывает 7 bugs в дефолтном "
-            "template: empty <think></think>, </thinking> hallucination, "
-            "unclosed think pre tool_call, no-user-query crash, developer "
-            "role, multi-turn tool-call SSE deadlock (club-3090#72), think→"
-            "tool_call boundary truncation."
+            "Genesis-original 2026-05-15. Closes operator pain: the "
+            "enhanced chat-template for Qwen 3.5/3.6 hybrid_gdn_moe "
+            "(interleaved-thinking + XML tool_call) previously lived in "
+            "HF repos (froggeric / Sandermage / club-3090) and the "
+            "operator had to know where to look and copy the .jinja by "
+            "hand. PN127 bakes the enhanced template as a Genesis asset "
+            "(vllm/sndr_core/assets/chat_templates/qwen3.6_enhanced.jinja) "
+            "and at apply() copies it into a writable location "
+            "(/tmp/genesis/chat_templates/ or GENESIS_CHAT_TEMPLATE_DIR). "
+            "The operator receives the canonical path through a log line "
+            "and launches vllm with --chat-template <path>. Closes 7 bugs "
+            "in the default template: empty <think></think>, </thinking> "
+            "hallucination, unclosed think before tool_call, no-user-query "
+            "crash, developer role, multi-turn tool-call SSE deadlock "
+            "(club-3090#72), think->tool_call boundary truncation."
         ),
         "credit": (
             "Genesis-original — Sandermage. Combines Sandermage v7.62 "
@@ -3978,7 +3979,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "env_flag": "GENESIS_ENABLE_P100",
         "default_on": False,
         "category": "perf_hotfix",
-        "credit": "Backport of vllm#41127 (open 2026-04-28). Per Sander 'не ждём, изучаем, импортируем'. Native FlashInfer can route uniform query_len>1 (1+num_spec_tokens) batches through prefill wrapper in cudagraph mode (zero_rows padding bit-identical). Adds FISpecDecode dataclass + _get_spec_decode_prefill_wrapper method + per-row qo_indptr delta scan in build() + FISpecDecode case in forward(). 11 sub-patches on flashinfer.py. NO-OP for PROD (turboquant_attn). Active for 27B variants (FlashInfer + spec-decode + non-DCP). Expected: +5-10% TPS on Ampere SM 8.6. RECOMMENDED on Blackwell consumer (sm_120) where FlashInfer is the default backend and PIECEWISE downgrade was observed (apnar club-3090#51). Recommendation surfaced via gpu_profile.PATCH_RECOMMENDATIONS rule.",
+        "credit": "Backport of vllm#41127 (open 2026-04-28). Per Sander: 'don't wait — study, import'. Native FlashInfer can route uniform query_len>1 (1+num_spec_tokens) batches through prefill wrapper in cudagraph mode (zero_rows padding bit-identical). Adds FISpecDecode dataclass + _get_spec_decode_prefill_wrapper method + per-row qo_indptr delta scan in build() + FISpecDecode case in forward(). 11 sub-patches on flashinfer.py. NO-OP for PROD (turboquant_attn). Active for 27B variants (FlashInfer + spec-decode + non-DCP). Expected: +5-10% TPS on Ampere SM 8.6. RECOMMENDED on Blackwell consumer (sm_120) where FlashInfer is the default backend and PIECEWISE downgrade was observed (apnar club-3090#51). Recommendation surfaced via gpu_profile.PATCH_RECOMMENDATIONS rule.",
         "upstream_pr": 41127,
         "upstream_pr_relationship": "backport",
         "applies_to": {},  # FlashInfer auto-selected; gating via env_flag only
@@ -4284,8 +4285,8 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "**kwargs: None). Upstream code now matches our PN13 "
             "replacement byte-for-byte. PN13 anchor (pre-fix lambda: "
             "None pattern) no longer matches → silent skip. Per Sander "
-            "rule (2026-05-04): «если код соответствует патчу, патч "
-            "отключаем». Retired."
+            "rule (2026-05-04): 'when upstream code matches a patch, "
+            "retire the patch'. Retired."
         ),
         "category": "compile_safety",
         "credit": "Backport of vllm#41235 by Roi Koren (NVIDIA). RETIRED — upstream natively fixes after vllm v0.20.2.",
@@ -4755,7 +4756,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "env_flag": "GENESIS_ENABLE_PN65",
         "default_on": False,
         "category": "request_middleware",
-        "credit": "Genesis-original 2026-05-05 (Sander request 'по апи лог невзрачный надо тоже проработать'). Replaces uvicorn's bare `INFO: 127.0.0.1:45116 - GET /v1/models 401 Unauthorized` with `[Genesis-API] 200  POST /v1/chat/completions  34ms  prompt=46t  completion=400t  tools=1  client=127.0.0.1`. Suppresses /health polling by default (GENESIS_PN65_LOG_HEALTH=1 to include). Status-aware level (2xx INFO / 4xx WARN / 5xx ERROR + exception type).",
+        "credit": "Genesis-original 2026-05-05 (Sander request: 'the API log is bare — needs polish too'). Replaces uvicorn's bare `INFO: 127.0.0.1:45116 - GET /v1/models 401 Unauthorized` with `[Genesis-API] 200  POST /v1/chat/completions  34ms  prompt=46t  completion=400t  tools=1  client=127.0.0.1`. Suppresses /health polling by default (GENESIS_PN65_LOG_HEALTH=1 to include). Status-aware level (2xx INFO / 4xx WARN / 5xx ERROR + exception type).",
         "upstream_pr": None,
         "applies_to": {},
         "apply_module": "vllm.sndr_core.integrations.middleware.pn65_access_log",

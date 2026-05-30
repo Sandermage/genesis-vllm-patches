@@ -1,40 +1,40 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Метадата-overlay для PATCH_REGISTRY (audit P1-2 closure, 2026-05-12).
+"""Metadata overlay for PATCH_REGISTRY (audit P1-2 closure, 2026-05-12).
 
-Зачем
------
-Реестр в `registry.py` содержит 136 entries, и многие поля метадаты
-(implementation_status, test_status, production_default) одинаковы
-для целых групп патчей. Чтобы не дублировать их в каждом entry,
-этот overlay декларирует группы:
+Why
+---
+The registry in `registry.py` holds 136 entries, and many metadata
+fields (implementation_status, test_status, production_default) are
+identical across whole groups of patches. To avoid duplicating them
+in every entry, this overlay declares the groups:
 
-  - Все `lifecycle=stable` → `implementation_status=full`,
+  - All `lifecycle=stable` → `implementation_status=full`,
     `production_default=eligible`.
-  - Все `lifecycle=experimental` + `default_on=True` → `full`,
-    `eligible`. Если default_on=False, скорее `full` тоже, но
-    осторожнее.
-  - `lifecycle=legacy` → `live` (pre-dispatcher, работает),
+  - All `lifecycle=experimental` + `default_on=True` → `full`,
+    `eligible`. With default_on=False the impl is usually still
+    `full`, but treated more cautiously.
+  - `lifecycle=legacy` → `live` (pre-dispatcher, working),
     `eligible`.
   - `lifecycle=retired` → `retired`, `blocked`.
   - `lifecycle=research` → `research`, `research_only`.
 
-Сверху накладываются explicit overrides per-patch (например,
-PN95.implementation_status=partial — wiring неполный).
+Explicit overrides per-patch are layered on top (e.g.
+PN95.implementation_status=partial — wiring incomplete).
 
 API
 ---
 
-- `derive_metadata(patch_id, registry_meta)` → dict с полями
+- `derive_metadata(patch_id, registry_meta)` → dict with fields
   `implementation_status`, `test_status`, `production_default`.
-- `EXPLICIT_OVERRIDES`: dict[patch_id, dict] — точечные исключения.
+- `EXPLICIT_OVERRIDES`: dict[patch_id, dict] — pinpoint exceptions.
 
-Связано
+Related
 -------
 
-- `dispatcher/spec.py::infer_implementation_status` (старый inference,
-  теперь делегирует сюда).
-- `cli/patches.py::_run_plan --profile production` (использует
-  production_default для блока).
+- `dispatcher/spec.py::infer_implementation_status` (old inference,
+  now delegates here).
+- `cli/patches.py::_run_plan --profile production` (uses
+  production_default for blocking).
 """
 from __future__ import annotations
 
@@ -50,10 +50,10 @@ ImplStatus = Literal[
     "retired", "research", "live", "coordinator",
 ]
 TestStatus = Literal["unit", "integration", "bench", "none"]
-# Etap 0.3 (audit 2026-05-12): `review_required` добавлен для патчей,
-# у которых impl_status=stable/full/live, но test_status=none. Раньше
-# такие патчи получали `eligible` (production-ready), что завышало
-# готовность и могло пропустить непротестированный код в production.
+# Phase 0.3 (audit 2026-05-12): `review_required` added for patches
+# whose impl_status=stable/full/live but test_status=none. Previously
+# such patches received `eligible` (production-ready), which overstated
+# readiness and could let untested code slip into production.
 ProductionDefault = Literal[
     "eligible", "blocked", "research_only", "review_required",
 ]
@@ -65,9 +65,9 @@ class DerivedMetadata(TypedDict):
     production_default: ProductionDefault
 
 
-# Etap 0.3: единый mapping impl_status × test_status → production_default.
-# Раньше это правило было размазано по 6 веткам derive_metadata; теперь
-# одна функция — один источник правды, тесты её покрывают независимо.
+# Phase 0.3: single mapping impl_status × test_status → production_default.
+# Previously this rule was scattered across 6 branches of derive_metadata;
+# now a single function is the source of truth, and tests cover it independently.
 #
 # M.1.1.T0 (2026-05-27): constants centralised in
 # ``dispatcher/_constants.py``; re-imported under the historical names.
@@ -80,15 +80,15 @@ from ._constants import (  # noqa: F401
 def _production_default_for(
     impl_status: str, test_status: str,
 ) -> ProductionDefault:
-    """Compute production_default из (implementation_status, test_status).
+    """Compute production_default from (implementation_status, test_status).
 
-    Правила:
-      - partial/placeholder/retired → blocked (известно сломаны/устарели)
-      - research → research_only (требует explicit research flag)
-      - всё остальное (full/live/scaffold/coordinator):
-          - test_status=none → review_required (нужен test coverage или
-            audited override через EXPLICIT_OVERRIDES)
-          - иначе → eligible
+    Rules:
+      - partial/placeholder/retired → blocked (known broken / stale)
+      - research → research_only (requires an explicit research flag)
+      - everything else (full/live/scaffold/coordinator):
+          - test_status=none → review_required (needs test coverage or
+            an audited override via EXPLICIT_OVERRIDES)
+          - otherwise → eligible
     """
     if impl_status in _BLOCKED_STATUSES:
         return "blocked"
@@ -295,13 +295,13 @@ EXPLICIT_OVERRIDES: dict[str, DerivedMetadata] = {
 
 
 def _file_based_test_status(patch_id: str, family: str = "") -> TestStatus:
-    """Best-effort: ищем `tests/unit/integrations/<family>/test_<id>_*.py`
-    или `tests/legacy/test_<id>*.py`. Возвращаем `unit` если есть,
-    иначе `none`. Integration / bench требуют ручного override через
+    """Best-effort: look for `tests/unit/integrations/<family>/test_<id>_*.py`
+    or `tests/legacy/test_<id>*.py`. Return `unit` if found, otherwise
+    `none`. Integration / bench tiers require a manual override via
     EXPLICIT_OVERRIDES.
     """
     pid_lower = patch_id.lower()
-    # Прямо в integrations
+    # Direct hit in integrations
     if family:
         fam_dir = TESTS_DIR / family.replace(".", "/")
         if fam_dir.is_dir():
@@ -311,7 +311,7 @@ def _file_based_test_status(patch_id: str, family: str = "") -> TestStatus:
             for f in fam_dir.rglob(f"test_{pid_lower}.py"):
                 if f.is_file():
                     return "unit"
-    # Глобально в integrations/
+    # Global search in integrations/
     if TESTS_DIR.is_dir():
         for f in TESTS_DIR.rglob(f"test_{pid_lower}_*.py"):
             return "unit"
@@ -335,7 +335,7 @@ _LIFECYCLE_TO_IMPL: dict[str, ImplStatus] = {
     "stable":      "full",
     "coordinator": "coordinator",
     "legacy":      "live",
-    # experimental / unknown → fallback `live` (см. derive_metadata).
+    # experimental / unknown → fallback `live` (see derive_metadata).
 }
 
 
