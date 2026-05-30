@@ -147,17 +147,22 @@ repos:
         files: '(vllm/sndr_core/model_configs/builtin/presets/.*\.yaml|vllm/sndr_core/model_configs/preset_schema\.py|scripts/audit_config_catalog\.py|tests/unit/scripts/test_audit_config_catalog\.py)$'
 
       - id: genesis-audit-override-policy
-        name: Genesis profile OverridePolicy presence (CONFIG-UX.audit Stage 1)
+        name: Genesis profile OverridePolicy presence + Class-4 hard-enforcement (CONFIG-UX.4)
         # Audits every profile with `sizing_override` for the presence +
-        # shape of `override_policy`. Stage 1: missing policy = warning
-        # (not error); invalid shape = error; effective_class=production
-        # requires reason + evidence_refs; non-production classes need
-        # reason. FORBIDDEN_OVERRIDES list remains empty at this phase —
-        # hard enforcement lands in CONFIG-UX.4.
-        entry: python3 scripts/audit_override_policy.py
+        # shape of `override_policy`. Class-4 hard enforcement (CONFIG-UX.4,
+        # closed 2026-05-30): 4 FORBIDDEN_OVERRIDES rules ALWAYS fire as
+        # ERROR regardless of OverridePolicy justification:
+        #   - gpu_memory_utilization > 1.0 (physics-broken)
+        #   - tensor_parallel_size > hardware.n_gpus (physics-broken)
+        #   - profile narrows kv_cache_dtype below model (evidence-invalidating)
+        #   - profile changes spec_decode method (acceptance-distribution invalidated)
+        # --strict mode also escalates warnings (missing override_policy,
+        # policy-without-sizing) to fatal so CI catches debt accumulation.
+        # Wired into `make gates` as audit-override-policy-strict.
+        entry: python3 scripts/audit_override_policy.py --strict
         language: system
         pass_filenames: false
-        files: '(vllm/sndr_core/model_configs/builtin/profile/.*\.yaml|vllm/sndr_core/model_configs/community/profile/.*\.yaml|vllm/sndr_core/model_configs/schema_v2\.py|scripts/audit_override_policy\.py|tests/unit/scripts/test_audit_override_policy\.py)$'
+        files: '(vllm/sndr_core/model_configs/builtin/profile/.*\.yaml|vllm/sndr_core/model_configs/community/profile/.*\.yaml|vllm/sndr_core/model_configs/schema_v2\.py|scripts/audit_override_policy\.py|tests/unit/scripts/test_audit_override_policy(_class4)?\.py)$'
 
       - id: genesis-audit-v2-runtime-pins
         name: Genesis V2 runtime + ModelDef pin harmonization (R-PIN-1..4)

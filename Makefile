@@ -99,7 +99,7 @@ audit-pn59-cliff2b: ## PN59 streaming-GDN driver carries v7.72.5 Level 2 markers
 audit-english-only: ## English-only-in-code rule (CLAUDE.md) — ratchet-down gate against baseline
 	$(PYTHON) scripts/audit_english_only.py --check
 
-gates: test-pin-gate test-iron-rule test-family test-doc-sync audit-phase3 audit-v2-runtime-pins audit-v2-modeldef-vs-hardware-pin audit-ai-attribution audit-links audit-repo-garbage audit-generated-links audit-wheel-contents audit-external-findings audit-shim-window audit-yaml-status-enum audit-pn59-cliff2b audit-english-only ## Run all 17 CI gates fast-fail
+gates: test-pin-gate test-iron-rule test-family test-doc-sync audit-phase3 audit-v2-runtime-pins audit-v2-modeldef-vs-hardware-pin audit-ai-attribution audit-links audit-repo-garbage audit-generated-links audit-wheel-contents audit-external-findings audit-shim-window audit-yaml-status-enum audit-pn59-cliff2b audit-english-only audit-override-policy-strict ## Run all 18 CI gates fast-fail
 
 # ─── Audits ────────────────────────────────────────────────────────────
 
@@ -195,6 +195,9 @@ audit-config-catalog: ## CONFIG-UX.audit: preset card catalog (Stage 1 warnings;
 
 audit-override-policy: ## CONFIG-UX.audit: profile OverridePolicy presence + shape (Stage 1 warnings)
 	@$(PYTHON) scripts/audit_override_policy.py
+
+audit-override-policy-strict: ## CONFIG-UX.4: profile OverridePolicy hard-enforcement (errors AND warnings fatal)
+	@$(PYTHON) scripts/audit_override_policy.py --strict
 
 audit-v1-migration: ## CONFIG-UX.4.1: V1 monolithic key migration bucket resolution (Stage 0/1 informational)
 	@$(PYTHON) scripts/audit_v1_migration.py
