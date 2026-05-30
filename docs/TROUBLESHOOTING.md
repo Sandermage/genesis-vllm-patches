@@ -897,6 +897,78 @@ pinned to `:nightly-previous` if a 626fa9bb regression is observed
 pin). Such pin pinning MUST be documented in the launcher header
 comment.
 
+### Bug Class 14 — Genesis P38 TQ workspace OOM on first complex request
+
+**Symptom**: container boots cleanly, the first 1-2 inference requests
+succeed (especially short prompts), and then the N-th request — typically
+the first one with a longer-than-trivial prompt or a tool-call with CoT
+preamble — returns HTTP 500 to the client and the container's APIServer
+shuts down. `docker logs` shows
+`torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 1024.00 MiB`
+inside
+`vllm/sndr_core/integrations/attention/turboquant/p38_tq_continuation_memory.py:_genesis_continuation_prefill`,
+specifically at the `GPB.get_or_create(ns_k_full, full_max_shape, ...)`
+call site.
+
+**Real example (2026-05-31 session)**: gemma4-31B AWQ-4bit, TQ k8v4,
+MTP K=4 launched with `--gpu-memory-utilization 0.92` and
+`--max-model-len 4096` (intentionally tiny ctx). The 1st bench prompt
+("What's the weather in Tokyo?") passed in 6.9s. The 2nd prompt
+("Plan an outdoor picnic in Berlin tomorrow, think step by step, then
+check the weather") triggered the workspace allocation, OOMed, and
+killed the container. Same pattern reproduced after lowering to 0.85.
+Was finally resolved at 0.80.
+
+**Root cause**: Genesis P38 TQ continuation prefill allocates its
+`k_full_buf` workspace LAZILY via the Genesis
+`GenericPersistentBuffer.get_or_create` pool, which lives OUTSIDE
+vLLM's `gpu-memory-utilization` accounting. vLLM happily reserves up
+to (utilization × VRAM) for KV cache + activations + cudagraph capture,
+leaving NO margin for the 1 GiB Genesis workspace. The workspace only
+triggers on the FIRST request that needs continuation prefill of a
+long-enough sequence — short tool-call prompts skip the path entirely,
+hiding the trap until the first complex query in production.
+
+**Detection**:
+
+```bash
+ssh sander@192.168.1.10 'docker logs <container> 2>&1 | \
+    grep -A2 "OutOfMemory.*p38_tq_continuation_memory" | head -10'
+```
+
+If that pattern is in the logs, you have Class 14. The container will
+have exited (status `Exited (1)` in `docker ps -a`).
+
+**Fix**: lower `--gpu-memory-utilization` in the launcher to ≤ 0.85
+(empirically 0.80 is safe for AWQ-4bit + TQ k8v4 + MTP K=4 on 24 GiB
+GPUs at `max-num-seqs=1` and `max-model-len 4096`). The exact safe
+ceiling depends on model size, KV dtype, MTP K, and context budget —
+the rule of thumb is "leave ≥ 1.5 GiB free per card after vLLM
+reservation when TQ is enabled".
+
+**Configuration risk audit** (rig 2026-05-31): the current 4 PROD
+launchers carry these `gpu-memory-utilization` values:
+
+| Model | Util | TQ | MTP K | At-risk |
+|---|---:|:---:|:---:|:---|
+| qwen3.6-27b PN95 | 0.92 | yes | 3 | YES — operator should monitor for Class 14 on first long-ctx tool-call |
+| qwen3.6-35b A3B | 0.90 | yes | 3 | LOWER (35B uses 280K ctx + already documented 1.0-1.5 GiB headroom in YAML) |
+| gemma4-26b AWQ | 0.88 | no | 0 | NO (kv_cache_dtype: auto, no TQ workspace) |
+| gemma4-31b AWQ | 0.80 | yes | 4 | NO (post-fix this session) |
+
+The 27B PN95 launcher is the most exposed (Util 0.92 + TQ + MTP). The
+workspace size on 27B is smaller than 31B's (smaller model + fewer
+heads), so it MAY survive higher utilization in practice — empirically
+the 27B has run for weeks at 0.92 without Class 14 reports. But the
+threshold is operator-monitored, not enforced by config. If a Class 14
+event is observed in 27B production logs, lower to 0.85 in the
+launcher per the same fix.
+
+**Prevention going forward**: when introducing TQ + MTP K≥3 on Ampere
+consumer GPUs (24 GiB or less), default the launcher to
+`gpu-memory-utilization 0.80` and bench up from there. Don't ship at
+0.92 just because vLLM accepts it.
+
 ### Observability stack (PN287 + PN288 + PN289 + trace surface)
 
 The enterprise observability flow combines four Genesis surfaces:
