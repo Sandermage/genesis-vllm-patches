@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
-"""§6.H6 + §6.H7 (UNIFIED_DEVELOPMENT_PLAN) — `sndr trace list/collect`.
+"""§6.H6 + §6.H7 + §6.H8 (UNIFIED_DEVELOPMENT_PLAN) — `sndr trace
+list/collect/summarize`.
 
 Verbs for the plan's §6.H trace surface:
 
@@ -8,8 +9,11 @@ Verbs for the plan's §6.H trace surface:
   * H7 ``sndr trace collect --container <name>`` — copy live traces
     out of a container into a host directory; default output is a
     timestamped subfolder under cwd.
-  * H8 ``sndr trace summarize <log-file>`` — quick stat analysis
-    (NEXT).
+  * H8 ``sndr trace summarize <log-file>`` — quick stat analysis on
+    a collected trace; auto-detects trace kind from basename and
+    dispatches to a per-kind summarizer (generic line-count / size
+    / first-last lines plus kind-specific helpers — currently
+    `boot` extracts apply/skip/fail counts + failing patch ids).
   * H9 ``sndr support-bundle`` — bundle all enabled traces (NEXT).
 
 H6 surfaces the operator-facing question "what diagnostic traces exist
@@ -40,7 +44,10 @@ from typing import Any, Optional
 from . import _io
 
 
-__all__ = ["add_argparser", "run_list", "run_collect"]
+__all__ = [
+    "add_argparser", "run_list", "run_collect", "run_summarize",
+    "detect_trace_kind", "summarize_boot_log", "summarize_generic",
+]
 
 
 def add_argparser(subparsers: Any) -> None:
@@ -130,6 +137,39 @@ def add_argparser(subparsers: Any) -> None:
         help="Machine-readable JSON report instead of human view.",
     )
     p_collect.set_defaults(func=run_collect)
+
+    # ── summarize (§6.H8) ───────────────────────────────────────────
+    p_sum = sub.add_parser(
+        "summarize",
+        help=(
+            "Quick stat analysis on a collected trace file (file "
+            "size, line count, kind-specific summary)."
+        ),
+        description=(
+            "Reads the named trace file from disk and emits a summary. "
+            "Trace kind is auto-detected from the basename (`genesis_"
+            "<kind>_*` convention); a per-kind summarizer extracts "
+            "the most operator-actionable signals (e.g. boot log → "
+            "apply/skip/fail counts + failing patch ids). Always also "
+            "emits generic stats (size, line count, first / last line)."
+        ),
+    )
+    p_sum.add_argument(
+        "log_file",
+        help="Path to a trace file on disk (e.g. one collected by H7).",
+    )
+    p_sum.add_argument(
+        "--max-line-preview", type=int, default=160, dest="max_preview",
+        help=(
+            "Truncate first / last line previews to this many chars "
+            "(default: 160). Set 0 to disable truncation."
+        ),
+    )
+    p_sum.add_argument(
+        "--json", action="store_true",
+        help="Machine-readable JSON instead of human view.",
+    )
+    p_sum.set_defaults(func=run_summarize)
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────
@@ -493,4 +533,192 @@ def run_collect(args: argparse.Namespace) -> int:
               f"{len(errors)} failed.")
         return 1
     print(f"  Done: {len(collected)} trace(s) collected.")
+    return 0
+
+
+# ─── Summarize (§6.H8) ───────────────────────────────────────────────
+
+
+# Maps basename pattern → trace kind. Order matters: more-specific
+# substrings first so e.g. `genesis_pn258_oracle_trace.log` resolves
+# to `oracle` rather than the generic `unknown`.
+_KIND_BY_SUBSTRING: tuple[tuple[str, str], ...] = (
+    ("genesis_boot", "boot"),
+    ("genesis_pn248_acceptance", "acceptance"),
+    ("genesis_pn258_oracle", "oracle"),
+    ("genesis_pn260_kernel", "kernel"),
+    ("genesis_pn254_fire", "kernel"),
+    ("genesis_pn255_kv_write", "kv_write"),
+    ("genesis_pn256_route", "routing"),
+    ("genesis_pn261_tq_impl_init", "routing"),
+    ("genesis_pn241_mtp", "mtp"),
+    ("genesis_tq_forward", "tq_forward"),
+)
+
+
+def detect_trace_kind(path: str) -> str:
+    """Look up the trace kind for a filename.
+
+    Returns one of TRACE_CATEGORIES, or ``"unknown"`` if no substring
+    matches. The lookup is on basename only — full host paths work too.
+    """
+    import os
+    base = os.path.basename(path).lower()
+    for substr, kind in _KIND_BY_SUBSTRING:
+        if substr in base:
+            return kind
+    return "unknown"
+
+
+def _read_lines_streaming(path: str, max_lines_first: int = 1,
+                          max_lines_last: int = 1) -> tuple[int, list[str], list[str]]:
+    """Single-pass file reader for size-conscious files.
+
+    Returns ``(total_line_count, first_lines, last_lines)``. Uses a
+    sliding window for last_lines so the function works on multi-GB
+    files without loading them into memory. The ``first_lines`` /
+    ``last_lines`` lists are stripped of trailing newlines.
+    """
+    from collections import deque
+    first: list[str] = []
+    last: deque[str] = deque(maxlen=max(1, max_lines_last))
+    total = 0
+    with open(path, "r", encoding="utf-8", errors="replace") as fh:
+        for line in fh:
+            total += 1
+            if len(first) < max_lines_first:
+                first.append(line.rstrip("\n"))
+            last.append(line.rstrip("\n"))
+    return total, first, list(last)
+
+
+def _truncate(text: str, limit: int) -> str:
+    if limit <= 0 or len(text) <= limit:
+        return text
+    return text[:limit] + "…"
+
+
+def summarize_generic(path: str, max_preview: int = 160) -> dict:
+    """Generic kind-agnostic summary: size, total lines, first / last
+    line preview."""
+    import os
+    size = os.path.getsize(path)
+    total, first, last = _read_lines_streaming(
+        path, max_lines_first=1, max_lines_last=1,
+    )
+    first_line = first[0] if first else ""
+    last_line = last[-1] if last else ""
+    return {
+        "size_bytes": size,
+        "total_lines": total,
+        "first_line": _truncate(first_line, max_preview),
+        "last_line": _truncate(last_line, max_preview),
+    }
+
+
+# Pattern for the boot-log entries written by `python3 -m
+# vllm.sndr_core.apply`. Each line ends with `<PATCH_ID>: <STATUS>`
+# (status ∈ {applied, skipped, failed}); flexible whitespace and
+# optional bracketed prefix `[Genesis]` tolerated.
+_BOOT_ENTRY_RE = re.compile(
+    r"(?:\[Genesis\][^\w]*)?"
+    r"\b(?P<patch_id>[A-Z][A-Za-z0-9_]*)\b"
+    r"\s*[:=]\s*"
+    r"(?P<status>applied|skipped|failed|ok|error)"
+    r"\b",
+    re.IGNORECASE,
+)
+
+
+def summarize_boot_log(path: str, max_preview: int = 160) -> dict:
+    """Per-kind summary for `genesis_boot.log`: counts of apply /
+    skip / fail outcomes + list of failing patches.
+
+    The boot log is the most operator-actionable trace because a single
+    failed apply often explains why a patch didn't fire in PROD. We
+    surface the failing patch ids verbatim so the operator can grep
+    them straight away.
+    """
+    base = summarize_generic(path, max_preview=max_preview)
+    counts = {"applied": 0, "skipped": 0, "failed": 0,
+              "other": 0}
+    failed_patches: list[str] = []
+    skipped_patches: list[str] = []
+    applied_patches: list[str] = []
+    with open(path, "r", encoding="utf-8", errors="replace") as fh:
+        for line in fh:
+            m = _BOOT_ENTRY_RE.search(line)
+            if m is None:
+                continue
+            status = m.group("status").lower()
+            pid = m.group("patch_id")
+            # Normalise the few synonyms that some patches emit.
+            if status in ("ok", "applied"):
+                counts["applied"] += 1
+                applied_patches.append(pid)
+            elif status == "skipped":
+                counts["skipped"] += 1
+                skipped_patches.append(pid)
+            elif status in ("failed", "error"):
+                counts["failed"] += 1
+                failed_patches.append(pid)
+            else:
+                counts["other"] += 1
+    base["kind"] = "boot"
+    base["counts"] = counts
+    base["failed_patches"] = failed_patches
+    base["skipped_patches"] = skipped_patches[:50]  # cap for readability
+    base["applied_patches"] = applied_patches[:50]
+    return base
+
+
+def run_summarize(args: argparse.Namespace) -> int:
+    import os
+    path = args.log_file
+    if not os.path.isfile(path):
+        _io.error(f"trace file {path!r} does not exist (or not a file).")
+        return 2
+
+    kind = detect_trace_kind(path)
+    max_preview = args.max_preview if args.max_preview is not None else 160
+
+    try:
+        if kind == "boot":
+            summary = summarize_boot_log(path, max_preview=max_preview)
+        else:
+            summary = summarize_generic(path, max_preview=max_preview)
+            summary["kind"] = kind
+    except OSError as exc:
+        _io.error(f"could not read {path!r}: {exc}")
+        return 3
+
+    if args.json:
+        out = {"path": path, "summary": summary}
+        print(json.dumps(out, indent=2))
+        return 0
+
+    print(f"sndr trace summarize — {path}")
+    print("─" * 70)
+    print(f"  kind:        {summary['kind']}")
+    print(f"  size:        {_fmt_size(summary['size_bytes'])} "
+          f"({summary['size_bytes']:,} bytes)")
+    print(f"  total lines: {summary['total_lines']:,}")
+    print(f"  first line:  {summary['first_line']!r}")
+    print(f"  last line:   {summary['last_line']!r}")
+
+    if summary["kind"] == "boot":
+        c = summary["counts"]
+        print()
+        print("  Boot apply summary:")
+        print(f"    applied  = {c['applied']}")
+        print(f"    skipped  = {c['skipped']}")
+        print(f"    failed   = {c['failed']}")
+        if c["other"]:
+            print(f"    other    = {c['other']}")
+        if summary["failed_patches"]:
+            print()
+            print(f"  Failed patches ({len(summary['failed_patches'])}):")
+            for pid in summary["failed_patches"]:
+                print(f"    ✗ {pid}")
+
     return 0

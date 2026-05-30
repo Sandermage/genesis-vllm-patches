@@ -562,3 +562,174 @@ def test_docker_cp_timeout_returns_false(monkeypatch) -> None:
     ok, msg = tmod._docker_cp("c", "/tmp/x", "/tmp/y")
     assert ok is False
     assert "raised" in msg or "TimeoutExpired" in msg
+
+
+# ─── summarize (§6.H8) ───────────────────────────────────────────────
+
+
+def test_summarize_subcommand_is_registered() -> None:
+    r = _run("summarize", "--help")
+    assert r.returncode == 0, r.stderr
+    out = r.stdout
+    assert "log_file" in out.lower() or "log_file" in out
+    assert "--json" in out
+    assert "--max-line-preview" in out
+
+
+def test_detect_trace_kind_for_known_basenames() -> None:
+    import vllm.sndr_core.cli.trace as tmod
+    assert tmod.detect_trace_kind("/tmp/genesis_boot.log") == "boot"
+    assert tmod.detect_trace_kind("genesis_boot.log") == "boot"
+    assert tmod.detect_trace_kind(
+        "/x/y/genesis_pn248_acceptance_trace.log"
+    ) == "acceptance"
+    assert tmod.detect_trace_kind(
+        "genesis_pn258_oracle_trace.log"
+    ) == "oracle"
+    assert tmod.detect_trace_kind(
+        "/a/b/genesis_pn260_kernel_trace.log"
+    ) == "kernel"
+    assert tmod.detect_trace_kind(
+        "genesis_pn254_fire.log"
+    ) == "kernel"
+    assert tmod.detect_trace_kind(
+        "genesis_pn255_kv_write.log"
+    ) == "kv_write"
+    assert tmod.detect_trace_kind(
+        "genesis_pn256_route.log"
+    ) == "routing"
+    assert tmod.detect_trace_kind(
+        "genesis_pn241_mtp_trace.log"
+    ) == "mtp"
+    assert tmod.detect_trace_kind(
+        "genesis_tq_forward.log"
+    ) == "tq_forward"
+
+
+def test_detect_trace_kind_unknown_returns_unknown() -> None:
+    import vllm.sndr_core.cli.trace as tmod
+    assert tmod.detect_trace_kind("random.log") == "unknown"
+    assert tmod.detect_trace_kind("") == "unknown"
+    assert tmod.detect_trace_kind("/var/log/messages") == "unknown"
+
+
+def test_summarize_missing_file_returns_2(tmp_path) -> None:
+    nonexistent = tmp_path / "no-such-file.log"
+    r = _run("summarize", str(nonexistent))
+    assert r.returncode == 2
+    combined = r.stdout + r.stderr
+    assert "does not exist" in combined.lower()
+
+
+def test_summarize_generic_returns_size_lines_first_last(tmp_path) -> None:
+    """Generic summary on any file returns the canonical 4-field
+    payload + the detected kind."""
+    import vllm.sndr_core.cli.trace as tmod
+    p = tmp_path / "random.log"
+    p.write_text("first line\nmiddle line\nlast line\n")
+    s = tmod.summarize_generic(str(p))
+    assert s["total_lines"] == 3
+    assert s["first_line"] == "first line"
+    assert s["last_line"] == "last line"
+    # size matches bytes written.
+    assert s["size_bytes"] == len("first line\nmiddle line\nlast line\n")
+
+
+def test_summarize_generic_truncates_long_lines(tmp_path) -> None:
+    import vllm.sndr_core.cli.trace as tmod
+    long_line = "x" * 500
+    p = tmp_path / "x.log"
+    p.write_text(long_line + "\n")
+    s = tmod.summarize_generic(str(p), max_preview=80)
+    assert s["first_line"].endswith("…")
+    assert len(s["first_line"]) <= 81
+
+
+def test_summarize_generic_max_preview_zero_disables_truncation(tmp_path) -> None:
+    import vllm.sndr_core.cli.trace as tmod
+    long_line = "x" * 500
+    p = tmp_path / "x.log"
+    p.write_text(long_line + "\n")
+    s = tmod.summarize_generic(str(p), max_preview=0)
+    assert s["first_line"] == long_line
+
+
+def test_summarize_boot_log_counts_applied_skipped_failed(tmp_path) -> None:
+    """The boot summarizer must parse the canonical `[Genesis] <PID>:
+    <status>` format and produce correct counters + failure list."""
+    import vllm.sndr_core.cli.trace as tmod
+    boot_text = (
+        "[Genesis] PN125: applied (FULL_AND_PIECEWISE flip)\n"
+        "[Genesis] PN286: applied\n"
+        "[Genesis] PN16: skipped (env flag off)\n"
+        "[Genesis] PN999: failed (anchor drift)\n"
+        "[Genesis] PN1000: applied\n"
+        "random line with no patch info\n"
+        "[Genesis] PN1001: error (boot-time crash)\n"
+    )
+    p = tmp_path / "genesis_boot.log"
+    p.write_text(boot_text)
+    s = tmod.summarize_boot_log(str(p))
+    assert s["kind"] == "boot"
+    assert s["counts"]["applied"] == 3
+    assert s["counts"]["skipped"] == 1
+    # `failed` + `error` both fold into failed.
+    assert s["counts"]["failed"] == 2
+    assert s["failed_patches"] == ["PN999", "PN1001"]
+    assert s["skipped_patches"] == ["PN16"]
+    # applied list is capped at 50 but we only have 3 here.
+    assert s["applied_patches"] == ["PN125", "PN286", "PN1000"]
+
+
+def test_summarize_boot_log_handles_zero_failed(tmp_path) -> None:
+    import vllm.sndr_core.cli.trace as tmod
+    p = tmp_path / "genesis_boot.log"
+    p.write_text("[Genesis] PN125: applied\n[Genesis] PN16: skipped\n")
+    s = tmod.summarize_boot_log(str(p))
+    assert s["counts"]["failed"] == 0
+    assert s["failed_patches"] == []
+
+
+def test_summarize_dispatches_to_boot_handler_via_filename(tmp_path) -> None:
+    """End-to-end: a file named genesis_boot.log should automatically
+    surface boot-specific fields in the JSON payload."""
+    p = tmp_path / "genesis_boot.log"
+    p.write_text("[Genesis] PN125: applied\n[Genesis] PN999: failed\n")
+    r = _run("summarize", str(p), "--json")
+    assert r.returncode == 0, r.stderr
+    payload = json.loads(r.stdout)
+    summary = payload["summary"]
+    assert summary["kind"] == "boot"
+    assert summary["counts"]["applied"] == 1
+    assert summary["counts"]["failed"] == 1
+    assert "PN999" in summary["failed_patches"]
+
+
+def test_summarize_unknown_kind_falls_back_to_generic(tmp_path) -> None:
+    """A non-boot file gets generic stats + kind tag = 'unknown' (or
+    the detected kind if known but no specialized handler)."""
+    p = tmp_path / "random.log"
+    p.write_text("alpha\nbeta\ngamma\n")
+    r = _run("summarize", str(p), "--json")
+    assert r.returncode == 0
+    payload = json.loads(r.stdout)
+    summary = payload["summary"]
+    assert summary["kind"] == "unknown"
+    assert summary["total_lines"] == 3
+    assert "counts" not in summary  # no boot-specific fields
+
+
+def test_summarize_human_view_renders_boot_failure_list(tmp_path) -> None:
+    p = tmp_path / "genesis_boot.log"
+    p.write_text(
+        "[Genesis] PN125: applied\n"
+        "[Genesis] PN999: failed\n"
+        "[Genesis] PN1000: failed\n"
+    )
+    r = _run("summarize", str(p))
+    assert r.returncode == 0, r.stderr
+    out = r.stdout
+    # Human view surfaces the failure list under a clear heading.
+    assert "Boot apply summary" in out
+    assert "PN999" in out
+    assert "PN1000" in out
