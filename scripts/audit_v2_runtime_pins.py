@@ -78,9 +78,11 @@ MODEL_DIR = (
 ALLOWED_MODELDEF_PINS = frozenset({
     "0.20.2rc1.dev338+gbf0d2dc6d",
     "0.20.2rc1.dev371+gbf610c2f5",
-    # K.1.R 2026-05-28 pin bump target (PROMOTION_PENDING until rig
-    # bench cycle validates 27B + 35B PROD presets). Setuptools_scm-derived
-    # form (closest annotated ancestor tag v0.21.1rc0 + 12-char SHA).
+    # K.1.R 2026-05-28 pin bump target — PROMOTED 2026-05-30 (K.1.R.R.8.5):
+    # 35B FP8 dense MoE bench 195.74 TPS / 6-7 tool-call on 626fa9bb
+    # with P67 enabled; PN286 default_on flip validated +6.6% TPS.
+    # Setuptools_scm-derived form (closest annotated ancestor tag
+    # v0.21.1rc0 + 12-char SHA).
     "0.21.1rc0+g626fa9bba5",
     "0.21.1rc0+g626fa9bba566",
 })

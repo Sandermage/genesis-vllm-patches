@@ -542,10 +542,13 @@ KNOWN_GOOD_VLLM_PINS: tuple[str, ...] = (
     # 4 files with anchor shifts (config/vllm.py, auto_gptq.py, inc.py,
     # algos.py) — covered by patches' upstream_drift_markers self-skip.
     # See sndr_private/planning/audits/K_1_R_PIN_BUMP_AUDIT_2026-05-28_RU.md.
-    # PROMOTION_PENDING below until first server-side bench cycle on the
-    # rig validates 27B + 35B PROD presets at the new pin. Three form
-    # aliases: docker tag, setuptools_scm derived, internal-version derived
-    # (last form is speculative; will be confirmed at first boot).
+    # PROMOTED 2026-05-30 (K.1.R.R.8.5): server-side validation complete.
+    # 35B FP8 dense MoE bench cycle on 626fa9bb: 195.74 TPS / 6-7 tool-call
+    # with P67 enabled (proper prod config). PN286 default_on flip validated
+    # (+6.6% TPS on 35B). 27B bench narrowed -9% regression to TQ kernel ×
+    # upstream interaction; documented at A11 (stays on dev371 until nsys).
+    # Three form aliases: docker tag, setuptools_scm derived, internal-
+    # version derived (last form confirmed at K.1.R.R.4 first boot).
     "0.21.1rc0+g626fa9bba5",   # setuptools_scm-derived (closest tag)
     "0.21.1rc0+g626fa9bba566", # setuptools_scm 12-char SHA form
     "nightly-626fa9bba5663a5cf6a870debf031ee344ddb822",  # docker tag form
@@ -556,16 +559,13 @@ KNOWN_GOOD_VLLM_PINS: tuple[str, ...] = (
 # Pins that are in allowlist but not yet bench-validated. Audit gate
 # tolerates them but logs a CAVEAT until promoted.
 PROMOTION_PENDING_VLLM_PINS: tuple[str, ...] = (
+    # NOTE: 626fa9bb variants graduated 2026-05-30 (K.1.R.R.8.5 prod
+    # validation). The pre-K.1.R v0.21.0/v0.21.1rc0/d735968 entries below
+    # remain pending — they were intermediate stations never bench-cycled.
     "0.21.0",
     "0.21.1rc0",
     "0.21.1rc0+gd735968f6d63",
     "0.21.1rc0+gbf610c2f5676",
-    # K.1.R pin bump 2026-05-28 — pending server-side bench validation.
-    # See guards.py allowlist comment + K_1_R_PIN_BUMP_AUDIT_*.md.
-    "0.21.1rc0+g626fa9bba5",
-    "0.21.1rc0+g626fa9bba566",
-    "nightly-626fa9bba5663a5cf6a870debf031ee344ddb822",
-    "0.20.2rc1.dev733+g626fa9bba5",
 )
 
 

@@ -49,11 +49,12 @@ EXPECTED_PINS = (
     # K.1.R 2026-05-28 pin bump target — vllm/vllm-openai:nightly @
     # sha256:674922aae790c2cbf45f4e844098d227b80d40a74bfc7797a444d213a221879f
     # = upstream 626fa9bba5663a5cf6a870debf031ee344ddb822 (2026-05-28T04:59:34Z).
-    # PROMOTION_PENDING — awaits server-side bench cycle validation.
+    # PROMOTED 2026-05-30 (K.1.R.R.8.5) — 35B FP8 dense bench 195.74 TPS /
+    # 6-7 tool-call with P67; PN286 default_on flip validated (+6.6% TPS).
     "0.21.1rc0+g626fa9bba5",                            # setuptools_scm-derived (closest tag base)
     "0.21.1rc0+g626fa9bba566",                          # setuptools_scm 12-char SHA form
     "nightly-626fa9bba5663a5cf6a870debf031ee344ddb822", # docker tag form
-    "0.20.2rc1.dev733+g626fa9bba5",                     # internal-version derived (estimated, confirm at first boot)
+    "0.20.2rc1.dev733+g626fa9bba5",                     # internal-version derived (confirmed at K.1.R.R.4 first boot)
 )
 
 
