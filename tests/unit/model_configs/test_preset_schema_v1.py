@@ -84,19 +84,31 @@ class TestGate1LegacyPresetsLoad:
         assert isinstance(pd, PresetDef)
         assert pd.model, f"preset {alias!r}: model pointer missing"
         assert pd.hardware, f"preset {alias!r}: hardware pointer missing"
-        # CONFIG-UX.2 (2026-05-24): 14 prod-* presets now carry `card:`
-        # annotations; 7 non-prod (example-*, qa-*, experimental-*,
-        # long-ctx-*) remain card-less pending CONFIG-UX.2b. Both load
-        # shapes must succeed.
+        # CONFIG-UX.2 (2026-05-24): 14 prod-* presets carry `card:`
+        # annotations (required after CONFIG-UX.2).
+        # CONFIG-UX.2b (2026-05-30): qa-27b-* gained QA-status cards (Iter 47
+        # 9adb9078→). Remaining non-prod (example-*, experimental-*,
+        # long-ctx-*) still card-less pending operator-curated copy.
+        # Contract: prod-* must have a card; everything else may either
+        # carry one (qa-* lifted to CONFIG-UX.2b done) or stay card-less
+        # (pre-2b state).
         if alias.startswith("prod-"):
             assert pd.card is not None, (
                 f"preset {alias!r}: prod-* preset expected to carry "
                 f"a `card:` annotation after CONFIG-UX.2"
             )
-        else:
-            assert pd.card is None, (
-                f"preset {alias!r}: non-prod preset still expected to be "
-                f"card-less until CONFIG-UX.2b. If annotated, update this test."
+        elif pd.card is not None:
+            # Non-prod preset opted into CONFIG-UX.2b — must validate via
+            # the same shape check that load_preset_def applies. The
+            # loader already calls .validate() on the card; arriving here
+            # means it passed. Sanity-assert the status family is
+            # non-production (audience semantic).
+            assert pd.card.status in (
+                "qa", "experimental", "bench_pending", "example",
+                "internal_validated", "historical",
+            ), (
+                f"preset {alias!r}: non-prod alias with card.status="
+                f"{pd.card.status!r} — must be a non-production status"
             )
 
     @pytest.mark.parametrize("alias", _all_builtin_aliases())
