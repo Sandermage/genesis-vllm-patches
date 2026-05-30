@@ -79,29 +79,29 @@ def test_every_registry_env_flag_is_in_Flags_class(registry_env_flags, declared_
 
 
 def test_no_orphan_Flags_constants(registry_env_flags, declared_flags):
-    """Every Flags constant should map to a registry entry (loose check).
+    """Every non-meta Flags constant must map to a registry entry.
 
-    Reports orphan constants as a list. Marked xfail because Flags has
-    intentional meta flags (NO_PATCH_CACHE, FORCE_REAPPLY etc.) that
-    don't correspond to registry entries — those are escape hatches,
-    not patch-enable flags.
+    Meta flags (NO_PATCH_CACHE, FORCE_REAPPLY, DISABLE_BOOT_PATCHES,
+    TIER_OVERRIDE, NO_VERIFY, TELEMETRY etc.) are exempt — those are
+    apply-behavior escape hatches, not patch-enable flags. They are
+    identified via `is_meta_flag()`.
 
-    To turn this into a hard check at Stage 6, the meta-flag set must
-    be carved out via `is_meta_flag()`.
+    Tightened from soft-warning to hard-assert on 2026-05-30 once the
+    orphan count reached zero (Stage 6 target). Any new Flags constant
+    added without a corresponding registry entry now fails CI rather
+    than emitting a skip.
     """
     from vllm.sndr_core.env import is_meta_flag
     orphans = {
         f for f in (declared_flags - registry_env_flags)
         if not is_meta_flag(f)
     }
-    if orphans:
-        # Currently soft warning — Stage 5 has 18+ legacy/test flags that
-        # aren't in registry. Stage 6 cleanup will reduce to zero.
-        pytest.skip(
-            f"{len(orphans)} Flags constant(s) without registry entry: "
-            + ", ".join(sorted(orphans))
-            + " — soft warning, will tighten to hard check at Stage 6."
-        )
+    assert orphans == set(), (
+        f"{len(orphans)} Flags constant(s) without a registry entry:\n  "
+        + "\n  ".join(sorted(orphans))
+        + "\n\nFix: either add a PATCH_REGISTRY entry referencing the "
+        "flag, mark it as a meta-flag in env.py, or remove the orphan."
+    )
 
 
 def test_registry_env_flags_use_canonical_prefix(registry_env_flags):
