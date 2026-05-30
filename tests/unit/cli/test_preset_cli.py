@@ -146,9 +146,30 @@ class TestGate2ShowHumanView:
         assert "35b_v11_wave9.json" in result.stdout
 
     def test_show_card_less_preset_shows_pending(self):
-        result = _run_cli("show", "long-ctx-27b")
-        assert result.returncode == 0
-        assert "no card" in result.stdout.lower() or "annotation pending" in result.stdout.lower()
+        """Graceful-degradation contract for card-less presets.
+
+        CONFIG-UX.2b (Iter 47-48, 2026-05-30) carded all 21 builtin
+        presets. With zero card-less presets in the live fixture, the
+        contract is verified via the synthetic-injection helper rather
+        than a live ``sndr preset show`` invocation. The renderer's
+        card-less branch in ``_render_card_human`` is still required to
+        exist for any future preset added without a card; this test
+        captures stdout to verify the branch fires.
+        ``test_recommend_skips_card_less`` below covers the negative-
+        filter side of the same contract.
+        """
+        import io
+        import contextlib
+        from vllm.sndr_core.cli import preset as preset_mod
+        from vllm.sndr_core.model_configs.preset_schema import PresetDef
+        pd = PresetDef(
+            id="synthetic-card-less", model="m", hardware="h", card=None,
+        )
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            preset_mod._render_card_human("synthetic-card-less", pd)
+        text = buf.getvalue().lower()
+        assert "no card" in text or "annotation pending" in text
 
 
 # ─── Gate 3: explain composed runtime + fallback diff ───────────────────────
@@ -456,15 +477,29 @@ class TestGate12BridgeRemoved:
 
 class TestGate13GracefulDegradation:
     def test_list_includes_card_less_with_marker(self):
-        """Card-less presets appear in `list` but tagged unannotated."""
+        """All builtin presets carry cards post-CONFIG-UX.2b.
+
+        Pre-Iter-48 (2026-05-30): 7 non-prod-* presets (qa-*, example-*,
+        experimental-*, long-ctx-*) were card-less; this test asserted
+        they appeared in ``list`` with ``has_card=False``. Iter 47-48
+        carded all of them. The new invariant: ``has_card`` is True for
+        every preset, AND the JSON shape still exposes ``has_card`` so
+        any future card-less preset surfaces here.
+        """
         result = _run_cli("list", "--json")
         data = json.loads(result.stdout)
+        assert "presets" in data and len(data["presets"]) == 21
+        # has_card key is required on every entry — schema contract.
+        for p in data["presets"]:
+            assert "has_card" in p, (
+                f"preset {p.get('id')!r} missing has_card key"
+            )
         unannotated = [p for p in data["presets"] if not p["has_card"]]
-        # 7 non-prod-* are card-less at this phase
-        assert len(unannotated) == 7
-        names = {p["id"] for p in unannotated}
-        assert "long-ctx-27b" in names
-        assert "experimental-27b-tq-dflash-ab" in names
+        # CONFIG-UX.2b fully closed — zero card-less presets remain.
+        assert len(unannotated) == 0, (
+            f"expected 0 card-less presets post-CONFIG-UX.2b, got "
+            f"{[p['id'] for p in unannotated]}"
+        )
 
     def test_recommend_skips_card_less(self):
         """Recommend must skip card-less presets even if they would
