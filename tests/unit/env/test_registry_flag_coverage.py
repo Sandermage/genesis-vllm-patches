@@ -10,11 +10,12 @@ constant on `vllm.sndr_core.env.Flags`. This guards against:
   - New patches added to registry without a Flags constant — Flags
     must stay 1:1 with registry.
   - Stale Flags constants that no longer correspond to a registry entry
-    (loose coupling — not enforced as ERROR, but logged as orphan).
+    (Stage 6 hardening, 2026-05-30: now enforced as hard-assert via
+    test_no_orphan_Flags_constants; non-meta orphans fail CI).
 
-Stage 6 will tighten this further by validating that every Flags
-constant resolves to exactly one PATCH_REGISTRY entry's env_flag
-(strict 1:1 bidirectional coverage).
+Bidirectional 1:1 coverage between Flags and registry env_flag values
+is now strict. Meta flags (apply-behavior escape hatches) are exempt
+via is_meta_flag().
 """
 from __future__ import annotations
 
