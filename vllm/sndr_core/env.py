@@ -438,6 +438,8 @@ class Flags:
     # PN274 uses SNDR_ALLOW_* prefix family for operator consent semantic.
     # Bare-name lookup still works through Flags introspection.
     SPEC_DECODE_KV_ADAPTER = "SPEC_DECODE_KV_ADAPTER"
+    PN286_FA_LAYOUT_REVERT_SM86 = "PN286_FA_LAYOUT_REVERT_SM86"
+    PN287_QWEN3CODER_ARGS_OBSERVER = "PN287_QWEN3CODER_ARGS_OBSERVER"
 
     # ── Meta flags (apply behavior, not patch enable) ──────────────────
     NO_PATCH_CACHE = "NO_PATCH_CACHE"           # disable file_cache fast-path
