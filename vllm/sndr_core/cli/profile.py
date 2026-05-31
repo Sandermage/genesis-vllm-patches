@@ -729,7 +729,19 @@ def _format_env_flags(env: dict[str, str]) -> str:
 
 
 def _pick_default_hardware(model):
-    """Auto-pick the first hardware that satisfies model.requires.
+    """Auto-pick the hardware best matching model.requires.
+
+    Picks the hardware with the LARGEST total VRAM among satisfying
+    candidates. Rationale: profile YAMLs are typically designed with
+    the max-VRAM rig in mind (sizing_override targets the largest
+    expected hardware), so when a model fits multiple hardware tiers
+    we prefer the most-capable to avoid mis-rendered launchers like
+    a 27B profile that compose-down to TP=1 on `a5000-1x` and then
+    fail at engine init with KV-budget exhaustion. (2026-05-31:
+    previously this picked alphabetically-first, which selected
+    `a5000-1x` over `a5000-2x` for 27B INT4 — see qwen3.6-27b-tq-k8v4
+    profile note.)
+
     Returns the HardwareDef or raises SchemaError if no hardware fits.
     """
     from vllm.sndr_core.model_configs.registry_v2 import (
@@ -754,6 +766,14 @@ def _pick_default_hardware(model):
             f"min_gpu_count={req.min_gpu_count}); pass --hardware <id> "
             f"explicitly."
         )
+    # Prefer largest total VRAM among satisfying candidates so that
+    # multi-GPU profiles aren't accidentally rendered to single-GPU
+    # hardware. Operators who explicitly want a smaller rig pass
+    # --hardware <id>.
+    candidates.sort(
+        key=lambda hw: hw.hardware.min_vram_per_gpu_mib * hw.hardware.n_gpus,
+        reverse=True,
+    )
     return candidates[0]
 
 
