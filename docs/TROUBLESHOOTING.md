@@ -971,9 +971,15 @@ consumer GPUs (24 GiB or less), default the launcher to
 
 ### Bug Class 15 — qwen3_coder streaming parser drops tool-calls into content
 
-**Symptom**: agent client receives `finish_reason: "stop"` instead of
-`tool_calls`, with `message.tool_calls = []` (or `delta.tool_calls`
-empty across all SSE chunks) and the raw XML
+**Status update 2026-05-31**: RESOLVED via Genesis Q3_T1 v1 overlay
+(see commit at end of this section). The class-level diagnostic
+below stays for historical context; the operational fix is now
+shipped via launcher bind-mount on both 27B and 35B launchers.
+
+**Symptom (historical, before fix)**: agent client receives
+`finish_reason: "stop"` instead of `tool_calls`, with
+`message.tool_calls = []` (or `delta.tool_calls` empty across all
+SSE chunks) and the raw XML
 `<tool_call><function=NAME><parameter=KEY>VALUE</parameter>...</tool_call>`
 leaking through `message.content` (or `delta.content`). The same prompt
 sent in NON-streaming mode correctly returns parsed `tool_calls`.
@@ -1019,28 +1025,81 @@ If the SSE deltas show `delta.content` carrying `<tool_call>...`
 XML AND `delta.tool_calls` is consistently null/empty for the
 whole stream, you have Class 15.
 
-**Fix options**:
+**Fix shipped 2026-05-31 — Genesis Q3_T1 v1 overlay**:
 
-1. **Switch client to non-streaming** — works today, 100% on all 4
-   PROD models. Cost: client loses streaming UX.
-2. **Vendor an upstream qwen3_coder streaming fix** when one
-   exists — analog to G4_T1 v1/v2 vendoring for gemma4. As of
-   2026-05-31, no public PR vendors this fix; file the bug
-   upstream and watch.
-3. **Genesis-original qwen3_coder streaming overlay** —
-   structurally similar to PR #42237 (Hermes/Kimi accumulated-text
-   then rescan pattern). Estimated 2-3 day effort. Worth doing if
-   agent UX requires streaming tool calls on qwen3.6 PROD models.
+The Genesis-original Hermes/Kimi-style rewrite of
+`extract_tool_calls_streaming` lives at
+`vllm/sndr_core/integrations/tool_parsing/q3_t1_qwen3coder_tool_parser_overlay.py`.
+It replaces the upstream state machine with the same
+accumulated-text rescan + diff pattern used by G4_T1 v2 (PR #42237
+for gemma4):
 
-**Configuration risk matrix** (rig 2026-05-31, all 4 PROD models on
-pin 626fa9bba):
+1. On each delta, rescan the full accumulated `current_text` for
+   ALL tool-call regions using the upstream parser's existing
+   `tool_call_function_regex` (which already handles both complete
+   and partial function-call forms).
+2. For each region, build the args dict using a STRICT parameter
+   regex that requires the closing `</parameter>` tag — the
+   in-flight last parameter is intentionally excluded so its value
+   cannot flip type (e.g. `""` placeholder becoming `4` once the
+   int value arrives) and break the stable-prefix diff invariant.
+3. Compute `_q3_stable_partial_json_prefix(args_json)` to trim
+   trailing structural chars (`}`, `"`, `]`) for in-flight tool
+   calls so the streamed prefix can be extended by the next
+   delta's re-parsed JSON. When the function regex's complete
+   alternative matches (closing `</function>` present), the full
+   JSON including closing chars is emitted in one final delta.
+4. Diff vs `_q3_streamed_args[index]` and emit only the new tail
+   per index. A defensive common-prefix reset guards against rare
+   re-parse prefix changes from type-coercion flips on partial
+   values.
+
+The non-streaming `extract_tool_calls()` path stays untouched and
+is the byte-for-byte oracle that the streaming JSON matches at
+request finalization.
+
+**Deployment** — bind-mount via launcher `-v`:
+
+```bash
+-v /tmp/qwen3coder_tool_parser_FIXED.py:/usr/local/lib/python3.12/dist-packages/vllm/tool_parsers/qwen3coder_tool_parser.py:ro
+```
+
+The rig launchers (`start_pn95_2xa5000_test.sh` and
+`start_35b_prod_wave8.sh`) mount `/tmp/qwen3coder_tool_parser_FIXED.py`
+which is `scp`-mirrored from the in-repo overlay file.
+
+**Empirical result (2026-05-31, pin 0.21.1rc1.dev354+g626fa9bba,
+`g4_tool_bench.py` with `Connection: close`, greedy decode)**:
+
+| Model | Stream (pre-Q3_T1) | Stream (with Q3_T1) | Non-stream |
+|---|:---:|:---:|:---:|
+| qwen3.6-27b int4 + TQ + MTP K=3 | 1/7 (14%) | **35/35** ✓ | 7/7 ✓ |
+| qwen3.6-35b A3B-FP8 + TQ + MTP K=3 | 2/14 (14%) | **35/35** ✓ | 7/7 ✓ |
+| gemma4-26b A4B AWQ (G4_T1 v2) | 6/7 (86%) | **35/35** ✓ | 7/7 ✓ |
+| gemma4-31b AWQ + TQ + MTP K=4 (G4_T1 v2) | already 35/35 | **35/35** ✓ | 7/7 ✓ |
+
+**Bug Class 15 is RESOLVED at PROD across all 4 models.** Both
+streaming and non-streaming paths now return correctly-parsed
+`tool_calls` arrays with no XML leakage into `delta.content`.
+
+**Retire trigger**: when upstream lands a Hermes/Kimi-style rewrite
+of `qwen3coder_tool_parser:extract_tool_calls_streaming` and our
+pin bumps to include it — diff byte-by-byte against this overlay
+and retire if equivalent. Track:
+
+```bash
+gh search prs --repo vllm-project/vllm \
+  --label tool-calling --state open --search "qwen3 streaming"
+```
+
+**Configuration risk matrix (RESOLVED state)**:
 
 | Model | Stream tool-calls | Path |
 |---|:---:|---|
-| qwen3.6-27b PN95 | broken | client must use non-streaming OR wait for overlay |
-| qwen3.6-35b A3B | broken | same |
-| gemma4-26b AWQ | mostly OK (6/7) | could adopt G4_T1 v2 overlay → 7/7 expected |
-| gemma4-31b AWQ | 100% (35/35) | G4_T1 v2 overlay deployed (see Bug Class 13 notes) |
+| qwen3.6-27b PN95 | 100% | Q3_T1 v1 overlay deployed |
+| qwen3.6-35b A3B | 100% | Q3_T1 v1 overlay deployed |
+| gemma4-26b AWQ | 100% | G4_T1 v2 overlay deployed (commit ca4d9bae) |
+| gemma4-31b AWQ | 100% | G4_T1 v2 overlay deployed (commit a074e900) |
 
 **Throughput data — workload-aware** (greedy decode, `Connection:
 close`, 300-token completion). The first row of TPS the operator
