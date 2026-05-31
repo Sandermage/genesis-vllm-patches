@@ -53,9 +53,21 @@ kind: profile
 id: gemma4-31b-tq-mtp-chat-k3
 parent_model: gemma-4-31b-it-awq
 maintainer: sandermage
-status: experimental                              # promote to `validated` after operator A/B against
-                                                   # gemma4-31b-tq-mtp-structured-k4 confirms aggregator
-                                                   # routing gains predicted by the artifact
+status: experimental                              # promote to `validated` blocked by 2026-05-31 boot regression: vllm
+                                                   # rejects TURBOQUANT attention backend on gemma4 multimodal-
+                                                   # capable target with `ValueError: Selected backend
+                                                   # AttentionBackendEnum.TURBOQUANT is not valid for this
+                                                   # configuration. Reason: ['kv_cache_dtype not supported',
+                                                   # 'partial multimodal token full attention not supported']`.
+                                                   # Reproduces at max_model_len ∈ {32K, 200K} on pin
+                                                   # `0.21.1rc1.dev354+g626fa9bba`, with and without
+                                                   # `--language-model-only`. structured-k4 sibling boots
+                                                   # OK (uses max_model_len=4096 — apparently below the
+                                                   # vllm guard threshold for multimodal-token partial-
+                                                   # attention combinatorics on TURBOQUANT). Earlier
+                                                   # session's "+112% chat / +19% global" bench evidence
+                                                   # is now unverifiable on this pin; investigation needed
+                                                   # before promotion. See CHANGELOG entry of 2026-05-31.
 created: '2026-05-31'
 
 # ─── Runtime role ──────────────────────────────────────────────────────

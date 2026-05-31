@@ -80,6 +80,73 @@ on vLLM nightly pin `0.20.2rc1.dev209+g5536fc0c0`. 152 patches in
 
 ---
 
+## [Unreleased] — chat-K3 promotion blocked by TURBOQUANT + gemma4 multimodal regression (2026-05-31)
+
+### Audit findings
+
+Attempted to promote `gemma4-31b-tq-mtp-chat-k3` profile from
+`status: experimental` → `validated` per Stage K plan (3× bench
+runs × 5 workloads for CV ≤ 5% validation of the earlier session's
+"+112% chat, +19% global" evidence).
+
+**Promotion blocked**. The chat-K3 container does NOT boot on the
+current vllm pin `0.21.1rc1.dev354+g626fa9bba`:
+
+```text
+ValueError: Selected backend AttentionBackendEnum.TURBOQUANT is not
+valid for this configuration. Reason: ['kv_cache_dtype not supported',
+'partial multimodal token full attention not supported']
+```
+
+Reproduced at:
+
+- `max_model_len=200000` (profile default) — fail
+- `max_model_len=32768` — fail
+- with `--language-model-only` — fail
+- without `--language-model-only` — fail
+
+The structured-k4 sibling (same profile family, identical Genesis
+patch stack, same TURBOQUANT backend + turboquant_4bit_nc KV) boots
+cleanly. The only material difference is `max_model_len`:
+structured-k4 uses 4096, chat-k3 uses 200K. Hypothesis: vllm's
+`AttentionBackendEnum.TURBOQUANT` validator on gemma4 (which carries
+multimodal heads even with `--language-model-only`) rejects long
+contexts due to "partial multimodal token full attention" guard;
+4K stays below the trigger threshold.
+
+The earlier session's chat-K3 bench evidence ("+112% chat,
++19% global geomean") was logged into the profile YAML earlier
+today (2026-05-31, same pin) but is now unverifiable — that bench
+either ran on a different transient state OR the profile YAML
+captured a now-stale measurement.
+
+### Profile YAML annotation
+
+Updated `gemma4-31b-tq-mtp-chat-k3.yaml` status comment with the
+boot regression details, blocking promotion until investigation
+resolves the TURBOQUANT+long-context+gemma4-multimodal interaction.
+
+### Operational state
+
+- structured-k4 restored on rig port 8102 (canonical operational)
+- chat-k3 launcher reverted to original (--language-model-only and
+  max_model_len edits backed out via .bak restore)
+- No commit attempted for chat-k3 launcher fix since none worked
+
+### Open follow-ups
+
+- Investigate vllm TURBOQUANT backend validator at
+  `vllm/v1/attention/backends/...` to find the multimodal+long-ctx
+  guard condition + understand why structured-k4 (4K) passes
+- Try alternative backends (FLASH_ATTN, FLASHINFER) on chat-K3
+  config and see if any yields equivalent perf without the
+  multimodal rejection
+- If TURBOQUANT-on-long-ctx is fundamentally unsupported on this
+  pin, redesign chat-K3 profile to use a different backend OR pin
+  guard the profile to a known-working pin range
+
+---
+
 ## [Unreleased] — Renderer auto-pick fix + ProfileDef.target_hardware (2026-05-31)
 
 ### Highlights
