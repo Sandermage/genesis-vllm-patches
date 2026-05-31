@@ -130,7 +130,7 @@ when the operator-facing CLI is too narrow:
 
 ```bash
 # Show a preset's full card + composed config
-sndr config-catalog show preset/prod-35b
+sndr config-catalog show preset/prod-qwen3.6-35b-balanced
 
 # Find every profile with bench-class override_policy expiring soon
 sndr config-catalog query --row-type profile \
@@ -174,29 +174,29 @@ future generator phase.
 
 | Preset | K | Concurrency | Mode | Best for |
 |---|---:|---:|---|---|
-| `prod-27b-tq` ★default | 3 | 1..4 | throughput | Long-context single-stream; 262K context cap. |
-| `prod-27b-tq-multiconc` | 3 | 1..8 | throughput | Multi-conc throughput (379 TPS @ conc=8); 131K context. |
+| `prod-qwen3.6-27b-tq-k8v4` ★default | 3 | 1..4 | throughput | Long-context single-stream; 262K context cap. |
+| `prod-qwen3.6-27b-tq-multiconc` | 3 | 1..8 | throughput | Multi-conc throughput (379 TPS @ conc=8); 131K context. |
 
 ### Qwen 3.6 27B DFlash family — `qwen3_6_27b_int4_dflash`
 
 | Preset | K | Concurrency | Mode | Best for |
 |---|---:|---:|---|---|
-| `prod-27b-dflash` ★default | 5 | 1 | throughput | Single-stream code-gen; bf16 separate drafter; 185K context. |
-| `prod-27b-dflash-multiconc` | 5 | 1..8 | throughput | Multi-conc 385 TPS @ conc=8 (3.76x scaling). |
+| `prod-qwen3.6-27b-dflash` ★default | 5 | 1 | throughput | Single-stream code-gen; bf16 separate drafter; 185K context. |
+| `prod-qwen3.6-27b-dflash-multiconc` | 5 | 1..8 | throughput | Multi-conc 385 TPS @ conc=8 (3.76x scaling). |
 
 ### Qwen 3.6 35B-A3B FP8 family — `qwen3_6_35b_a3b_fp8`
 
 | Preset | K | Concurrency | Mode | Best for |
 |---|---:|---:|---|---|
-| `prod-35b` ★default | 3 | 1..2 | throughput | Balanced single-stream; 280K context. |
-| `prod-35b-multiconc` | 3 | 1..8 | throughput | **Reference free-chat multi-conc** — 689 TPS @ conc=8. |
+| `prod-qwen3.6-35b-balanced` ★default | 3 | 1..2 | throughput | Balanced single-stream; 280K context. |
+| `prod-qwen3.6-35b-multiconc` | 3 | 1..8 | throughput | **Reference free-chat multi-conc** — 689 TPS @ conc=8. |
 
 ### Qwen 3.6 35B-A3B FP8 DFlash family — `qwen3_6_35b_a3b_fp8_dflash`
 
 | Preset | K | Concurrency | Mode | Best for |
 |---|---:|---:|---|---|
-| `prod-35b-dflash` ★default | 3 | 1 | latency | Single-stream DFlash N=3; 65K context. |
-| `prod-35b-dflash-multiconc` | 3 | 1..8 | throughput | TTFT-tuned multi-conc (562 TPS, TTFT 162 ms — vs 689 TPS / 243 ms on `prod-35b-multiconc`). |
+| `prod-qwen3.6-35b-dflash` ★default | 3 | 1 | latency | Single-stream DFlash N=3; 65K context. |
+| `prod-qwen3.6-35b-dflash-multiconc` | 3 | 1..8 | throughput | TTFT-tuned multi-conc (562 TPS, TTFT 162 ms — vs 689 TPS / 243 ms on `prod-qwen3.6-35b-multiconc`). |
 
 ### Gemma 4 26B-A4B MoE family — `gemma4_moe_26b_a4b`
 
@@ -223,13 +223,13 @@ are NOT eligible for production routing — `card.status` and
 
 | Preset | Status | Audience | Mode | Best for |
 |---|---|---|---|---|
-| `qa-27b-tested` | qa | qa | throughput | Regression baseline vs `prod-27b-tq` (fp8 KV variant). |
-| `qa-27b-tq-1x` | qa | qa | throughput | Single-card 78K context; 27B TQ k8v4 QA. |
+| `qa-qwen3.6-27b-tested` | qa | qa | throughput | Regression baseline vs `prod-qwen3.6-27b-tq-k8v4` (fp8 KV variant). |
+| `qa-qwen3.6-27b-tq-1x` | qa | qa | throughput | Single-card 78K context; 27B TQ k8v4 QA. |
 | `example-2x-tier-aware` | example | dev | throughput | Path C tier-aware cache demo (PN95). |
 | `example-3090-dense-cpu-offload` | example | dev | latency | club-3090 Path A dense + CPU offload demo. |
 | `example-3090-tier-aware` | example | dev | long_context | club-3090 Path C tier-aware demo (145K ctx). |
-| `experimental-27b-tq-dflash-ab` | experimental | bench | structured_throughput | dflash A/B experimental variant. |
-| `long-ctx-27b` | bench_pending | bench | long_context | 280K context probe (fp8 KV); bench refresh pending. |
+| `experimental-qwen3.6-27b-tq-dflash-ab` | experimental | bench | structured_throughput | dflash A/B experimental variant. |
+| `long-ctx-qwen3.6-27b` | bench_pending | bench | long_context | 280K context probe (fp8 KV); bench refresh pending. |
 
 ## Workload taxonomy
 
@@ -264,17 +264,17 @@ sndr preset recommend \
   --concurrency 4
 ```
 
-Inspect what `prod-35b-multiconc` actually does at runtime (composed
-config + fallback diff vs `prod-35b`):
+Inspect what `prod-qwen3.6-35b-multiconc` actually does at runtime (composed
+config + fallback diff vs `prod-qwen3.6-35b-balanced`):
 
 ```bash
-sndr preset explain prod-35b-multiconc
+sndr preset explain prod-qwen3.6-35b-multiconc
 ```
 
 Drill into a specific evidence path:
 
 ```bash
-sndr preset show prod-35b --field card.evidence_refs.0.path
+sndr preset show prod-qwen3.6-35b-balanced --field card.evidence_refs.0.path
 # tests/integration/baselines/35b_v11_wave9.json
 ```
 

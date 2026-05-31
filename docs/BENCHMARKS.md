@@ -20,10 +20,10 @@ GPU envelope and [`MODELS.md`](MODELS.md) for the model lineup.
 
 | Model | wall_TPS (sustained) | decode_TPOT | CV% | Tool-call | Method |
 | --- | ---: | ---: | ---: | :---: | --- |
-| **Qwen3.6-27B-int4-AutoRound** (prod-27b-tq) | **130.90** | 7.37 ms | 3.0% | 7/7 | `genesis_bench_suite.py --quick` (5×5×1024) |
-| **Qwen3.6-35B-A3B-FP8** (prod-35b, max_num_seqs=2) | **219.04** | 4.24 ms | 7.2% | 7/7 | same harness |
-| **Qwen3.6-35B-A3B-FP8** (prod-35b-multiconc, max_num_seqs=8) | **672.27** agg | 33.81 ms | 1.2% | — | `tools/multi_conc_bench.py --conc 8 --rounds 5 --max-tok 1024` (non-stream aggregate) |
-| **Qwen3.6-27B-int4-AutoRound** (prod-27b-tq-multiconc, max_num_seqs=8) | **471.10** agg | 51.70 ms | 1.0% | — | same multi-conc harness (non-stream aggregate) |
+| **Qwen3.6-27B-int4-AutoRound** (prod-qwen3.6-27b-tq-k8v4) | **130.90** | 7.37 ms | 3.0% | 7/7 | `genesis_bench_suite.py --quick` (5×5×1024) |
+| **Qwen3.6-35B-A3B-FP8** (prod-qwen3.6-35b-balanced, max_num_seqs=2) | **219.04** | 4.24 ms | 7.2% | 7/7 | same harness |
+| **Qwen3.6-35B-A3B-FP8** (prod-qwen3.6-35b-multiconc, max_num_seqs=8) | **672.27** agg | 33.81 ms | 1.2% | — | `tools/multi_conc_bench.py --conc 8 --rounds 5 --max-tok 1024` (non-stream aggregate) |
+| **Qwen3.6-27B-int4-AutoRound** (prod-qwen3.6-27b-tq-multiconc, max_num_seqs=8) | **471.10** agg | 51.70 ms | 1.0% | — | same multi-conc harness (non-stream aggregate) |
 
 > Multi-conc rows measure non-stream aggregate throughput across 8 concurrent
 > requests (`tools/multi_conc_bench.py`). Decode TPOT is the streaming
@@ -46,7 +46,7 @@ GPU envelope and [`MODELS.md`](MODELS.md) for the model lineup.
 **Wave 10 components on top of Wave 9**: PN116 / PN118 / PN119
 TurboQuant backports, PN125–PN130 warmup-orchestrator family,
 PN132 / PN133 correctness backports, PN204 GDN dual-stream
-consolidation (off in single-conc; on in `prod-35b-multiconc`),
+consolidation (off in single-conc; on in `prod-qwen3.6-35b-multiconc`),
 PN96b Marlin MoE persistent workspace (renamed after the silent
 dict-key collision with kv_cache/PN96 was fixed), PN95 tier-aware
 cache wiring closure.
@@ -57,7 +57,7 @@ no longer crashing on import: each failed `@register_patch` hook
 added ~30–50 ms boot overhead and one log/exception event that
 introduced jitter on the worker decode path.
 
-## What is currently on for `prod-35b`
+## What is currently on for `prod-qwen3.6-35b-balanced`
 
 Per Genesis structured boot summary printed once at boot end:
 
@@ -103,7 +103,7 @@ long-context probe (skippable).
 ```bash
 # 1. Install + boot
 sndr install                # or `bash install.sh --workload tool_agent -y`
-sndr launch a5000-2x-35b-prod    # V1 key, or use V2 alias `prod-35b`
+sndr launch a5000-2x-35b-prod    # V1 key, or use V2 alias `prod-qwen3.6-35b-balanced`
 
 # 2. Wait for the structured boot summary in docker logs
 
@@ -114,11 +114,11 @@ python3 tools/genesis_bench_suite.py \
     --out ~/.sndr/bench-results/35b_wave10.json
 
 # 4. Verify against the preset's reference_metrics
-sndr model-config verify prod-35b
+sndr model-config verify prod-qwen3.6-35b-balanced
 ```
 
 Multi-conc runs flip `max_num_seqs=8` and use the
-`prod-35b-multiconc` V2 alias (35b-multiconc.yaml profile);
+`prod-qwen3.6-35b-multiconc` V2 alias (qwen3.6-35b-multiconc.yaml profile);
 expect aggregate TPS ~675 at the cost of higher TTFT.
 
 ## Historical reference
@@ -279,9 +279,9 @@ cd genesis-vllm-patches
 python3 -m pip install --user requests        # bench dep
 
 # Boot vLLM via the unified launcher (v12.0.0 canonical):
-sndr launch prod-35b              # 35B FP8 + MTP K=3 + TQ k8v4, latency
+sndr launch prod-qwen3.6-35b-balanced              # 35B FP8 + MTP K=3 + TQ k8v4, latency
 # OR inspect resolved args:
-sndr launch prod-35b --dry-run
+sndr launch prod-qwen3.6-35b-balanced --dry-run
 
 # Wait for "Application startup complete", then bench:
 python3 tools/genesis_bench_suite.py --quick --out my_first_run.json
@@ -301,7 +301,7 @@ git clone https://github.com/Sandermage/genesis-vllm-patches.git
 cd genesis-vllm-patches
 docker pull vllm/vllm-openai:0.20.2rc1.dev371   # current Genesis pin
 
-sndr launch prod-35b                            # docker emission
+sndr launch prod-qwen3.6-35b-balanced                            # docker emission
 docker logs -f vllm-server                      # wait for startup
 
 # Bench runs OUTSIDE the container, hitting localhost:8000
@@ -513,7 +513,7 @@ The community is actively interested in cross-rig data.
      (PCIe Gen3 / 4 / 5 x8 / x16).
    - **Container / environment**: Docker / pip / WSL / VM.
    - **Patches active**: which `GENESIS_ENABLE_PXX` envs you set
-     (or "all defaults from `sndr launch prod-35b`").
+     (or "all defaults from `sndr launch prod-qwen3.6-35b-balanced`").
 5. **Optionally attach the full JSON** as a code block or gist link.
 
 We're especially interested in:
@@ -568,14 +568,14 @@ The four PROD-ready configs launched through the unified CLI:
 
 | Config | V2 preset |
 | --- | --- |
-| 35B-A3B-FP8 PROD (TQ k8v4 + MTP K=3, latency) | `sndr launch prod-35b` |
-| 35B-A3B-FP8 multi-conc (TQ k8v4 + max_num_seqs=8) | `sndr launch prod-35b-multiconc` |
-| 35B-A3B-FP8 + DFlash N=3 (latency) | `sndr launch prod-35b-dflash` |
-| 35B-A3B-FP8 + DFlash N=3 (multi-conc) | `sndr launch prod-35b-dflash-multiconc` |
-| 27B-INT4-AutoRound + TQ k8v4 (latency) | `sndr launch prod-27b-tq` |
-| 27B-INT4-AutoRound + TQ k8v4 (multi-conc) | `sndr launch prod-27b-tq-multiconc` |
-| 27B-INT4-AutoRound + DFlash N=5 (latency) | `sndr launch prod-27b-dflash` |
-| 27B-INT4-AutoRound + DFlash N=5 (multi-conc) | `sndr launch prod-27b-dflash-multiconc` |
+| 35B-A3B-FP8 PROD (TQ k8v4 + MTP K=3, latency) | `sndr launch prod-qwen3.6-35b-balanced` |
+| 35B-A3B-FP8 multi-conc (TQ k8v4 + max_num_seqs=8) | `sndr launch prod-qwen3.6-35b-multiconc` |
+| 35B-A3B-FP8 + DFlash N=3 (latency) | `sndr launch prod-qwen3.6-35b-dflash` |
+| 35B-A3B-FP8 + DFlash N=3 (multi-conc) | `sndr launch prod-qwen3.6-35b-dflash-multiconc` |
+| 27B-INT4-AutoRound + TQ k8v4 (latency) | `sndr launch prod-qwen3.6-27b-tq-k8v4` |
+| 27B-INT4-AutoRound + TQ k8v4 (multi-conc) | `sndr launch prod-qwen3.6-27b-tq-multiconc` |
+| 27B-INT4-AutoRound + DFlash N=5 (latency) | `sndr launch prod-qwen3.6-27b-dflash` |
+| 27B-INT4-AutoRound + DFlash N=5 (multi-conc) | `sndr launch prod-qwen3.6-27b-dflash-multiconc` |
 
 V2 presets resolve to a (model, hardware, profile) triplet under
 `vllm/sndr_core/model_configs/builtin/`. The legacy per-config

@@ -3,7 +3,7 @@
 
 model: qwen3.6-27b-int4-autoround-fp8kv
 hardware: a5000-2x-24gbvram-16cpu-128gbram
-profile: 27b-long-ctx
+profile: qwen3.6-27b-long-ctx
 
 card:
   title: "Qwen 3.6 27B INT4 FP8 KV — long-context 280K probe (2× A5000)"
@@ -12,7 +12,7 @@ card:
     ceiling probe on 2× A5000. fp8 KV is preferred over TQ k8v4 at
     extreme context because TQ workspace overhead grows non-linearly
     past ~200K. Bench-pending status — long-ctx 32K+ refresh deferred
-    per profile note. Use prod-27b-tq for typical (<131K) workloads.
+    per profile note. Use prod-qwen3.6-27b-tq-k8v4 for typical (<131K) workloads.
   status: bench_pending
   audience: bench
   maturity: validated
@@ -35,4 +35,4 @@ card:
     typical_output_tokens: 4096
   routing_family: qwen3_6_27b_int4_fp8kv_long_ctx
   default_for_family: true
-  fallback_preset: prod-27b-tq
+  fallback_preset: prod-qwen3.6-27b-tq-k8v4

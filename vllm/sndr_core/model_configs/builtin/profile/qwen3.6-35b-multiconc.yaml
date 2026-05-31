@@ -6,8 +6,8 @@
 
 schema_version: 2
 kind: profile
-id: 35b-multiconc                                # multi-concurrency throughput companion to 35b-balanced (latency profile)
-parent_model: qwen3.6-35b-a3b-fp8                # same model as 35b-balanced — only sizing + a few patches differ
+id: qwen3.6-35b-multiconc                                # multi-concurrency throughput companion to qwen3.6-35b-balanced (latency profile)
+parent_model: qwen3.6-35b-a3b-fp8                # same model as qwen3.6-35b-balanced — only sizing + a few patches differ
 maintainer: sandermage
 status: validated                                # values: experimental|validated|deprecated; validated = Wave 10 bench passed 2026-05-15
 created: '2026-05-15'
@@ -72,8 +72,8 @@ promotion:
     - "PN204 v2 boot — no CUDA driver crash during profile_run on dev371"
   promote_to: null                               # multi-conc-specific; do NOT promote into canonical model.patches
   notes: |
-    35b-multiconc validates on Wave 10 stack (dev371+bf610c2f5) with PN204 v2.
-    Companion to 35b-balanced (latency, max_num_seqs=2). Operator chooses
+    qwen3.6-35b-multiconc validates on Wave 10 stack (dev371+bf610c2f5) with PN204 v2.
+    Companion to qwen3.6-35b-balanced (latency, max_num_seqs=2). Operator chooses
     profile per-workload — both are stable. Launcher artefact:
     tools/restart_35b_dev371_multiconc.sh (production-ready full-env script).
 

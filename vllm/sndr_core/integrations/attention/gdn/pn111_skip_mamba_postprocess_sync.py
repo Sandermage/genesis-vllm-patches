@@ -39,7 +39,7 @@ RELEVANCE FOR GENESIS
 
 The PR targets ``hybrid model + MTP K>=1 + align mode``. Our 27B
 Qwen3.6 hybrid GDN + MTP K=3 stack is exactly the topology — **but**
-our active PROD configs (``prod-27b-tq`` / ``a5000-2x-27b-int4-tq-
+our active PROD configs (``prod-qwen3.6-27b-tq-k8v4`` / ``a5000-2x-27b-int4-tq-
 k8v4.yaml``) do **not** pass ``--mamba-cache-mode align``. Only the
 historical / archived launch scripts (`start_v755/756/757_*.sh`) ran
 align mode.

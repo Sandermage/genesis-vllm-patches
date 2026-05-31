@@ -88,7 +88,7 @@ def get(key: str) -> Optional[ModelConfig]:
 
     Phase 9 (V1 freeze): when the resolved key comes from the V1
     monolithic top-level `builtin/*.yaml` tier AND a V2 alias with the
-    same shape exists (`prod-35b` ↔ `a5000-2x-35b-prod`), this function
+    same shape exists (`prod-qwen3.6-35b-balanced` ↔ `a5000-2x-35b-prod`), this function
     emits a single `DeprecationWarning`. The warning is informational
     only — V1 path keeps working through Phase 9 sunset; Phase 10 will
     sunset V1 loader after operator confirmation.

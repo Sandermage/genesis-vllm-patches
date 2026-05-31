@@ -215,7 +215,7 @@ class TestYamlRoundTrip:
                 "PN204": {
                     "role": "optional_perf",
                     "bench_evidence": "dev371 35B conc=8: 675 vs 689 TPS",
-                    "note": "Enabled in 35b-multiconc profile.",
+                    "note": "Enabled in qwen3.6-35b-multiconc profile.",
                     "candidate_when": {"max_num_seqs_gte": 4},
                 },
             },

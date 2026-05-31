@@ -35,4 +35,4 @@ card:
     typical_output_tokens: 4096
   routing_family: club3090_path_c_tier_aware
   default_for_family: false
-  fallback_preset: prod-27b-tq
+  fallback_preset: prod-qwen3.6-27b-tq-k8v4

@@ -17,9 +17,9 @@ reference follows from §1 below.
 ```bash
 # Install + first boot
 curl -sSL https://raw.githubusercontent.com/Sandermage/genesis-vllm-patches/main/install.sh | bash
-sndr launch prod-35b                            # V2 alias; V1 keys also accepted
-sndr launch prod-35b --dry-run                  # render only, no exec
-sndr launch prod-35b --preflight-only           # gate; never exec vLLM
+sndr launch prod-qwen3.6-35b-balanced                            # V2 alias; V1 keys also accepted
+sndr launch prod-qwen3.6-35b-balanced --dry-run                  # render only, no exec
+sndr launch prod-qwen3.6-35b-balanced --preflight-only           # gate; never exec vLLM
 
 # Health + smoke
 sndr doctor                                     # full system diagnostic
@@ -27,19 +27,19 @@ sndr doctor --json                              # machine-readable
 sndr doctor-system                              # extended host probe
 sndr verify --quick                             # 10-prompt smoke (~60 s)
 sndr self-test                                  # structural sanity (no GPU needed)
-sndr verify prod-35b                            # bench vs reference_metrics
+sndr verify prod-qwen3.6-35b-balanced                            # bench vs reference_metrics
 
 # Browse + diff presets
 sndr config list                                # V1 + V2 inventory
-sndr config show prod-35b
-sndr config diff prod-35b prod-35b-multiconc
-sndr config explain prod-35b
-sndr profile show 35b-balanced                  # V2 profile patches_delta
+sndr config show prod-qwen3.6-35b-balanced
+sndr config diff prod-qwen3.6-35b-balanced prod-qwen3.6-35b-multiconc
+sndr config explain prod-qwen3.6-35b-balanced
+sndr profile show qwen3.6-35b-balanced                  # V2 profile patches_delta
 
 # Patches
 sndr patches list --default-on                  # opt-out catalogue
-sndr patches plan --preset prod-35b             # dispatcher simulation
-sndr patches plan --preset prod-35b --policy compat --explain
+sndr patches plan --preset prod-qwen3.6-35b-balanced             # dispatcher simulation
+sndr patches plan --preset prod-qwen3.6-35b-balanced --policy compat --explain
 sndr patches explain PN67
 sndr patches doctor                             # registry validator
 sndr patches release-check --mode require-static
@@ -48,20 +48,20 @@ sndr patches release-check --mode require-static
 sndr model-config new my-rig --from-running vllm-test-container
 
 # Service lifecycle (docker_compose / systemd / podman_quadlet / k8s / proxmox)
-sndr service install prod-35b
-sndr service start prod-35b
-sndr service status prod-35b
-sndr service logs prod-35b --lines 200
-sndr service stop prod-35b
-sndr service uninstall prod-35b
+sndr service install prod-qwen3.6-35b-balanced
+sndr service start prod-qwen3.6-35b-balanced
+sndr service status prod-qwen3.6-35b-balanced
+sndr service logs prod-qwen3.6-35b-balanced --lines 200
+sndr service stop prod-qwen3.6-35b-balanced
+sndr service uninstall prod-qwen3.6-35b-balanced
 
 # Memory + caveats
-sndr memory --preset prod-35b                   # VRAM waterfall
+sndr memory --preset prod-qwen3.6-35b-balanced                   # VRAM waterfall
 sndr memory --live                              # query running container
 sndr caveats list
 
 # Reporting
-sndr report bundle --preset prod-35b            # tarball for issues
+sndr report bundle --preset prod-qwen3.6-35b-balanced            # tarball for issues
 sndr report cudagraph-coverage                  # hit-rate snapshot
 
 # Uninstall
@@ -84,7 +84,7 @@ For env-var knobs see [`CONFIGURATION.md`](CONFIGURATION.md); for the
 `<preset>` accepts either:
 
 - V1 monolithic key, e.g. `a5000-2x-35b-prod` (legacy presets in `builtin/`).
-- V2 alias, e.g. `prod-35b`, `prod-27b-tq`, `long-ctx-27b` (under `builtin/presets/`).
+- V2 alias, e.g. `prod-qwen3.6-35b-balanced`, `prod-qwen3.6-27b-tq-k8v4`, `long-ctx-qwen3.6-27b` (under `builtin/presets/`).
 
 The same V1+V2 resolver feeds `sndr launch`, `sndr compose`,
 `sndr patches plan`, `sndr memory`, `sndr model-config diagnose`.
@@ -101,9 +101,9 @@ install, host paths, launch script generation, smoke test.
 
 ```bash
 sndr install                              # Interactive wizard
-sndr install --config prod-35b --yes      # Non-interactive, pick preset upfront
-sndr install --config prod-35b --prepare  # Plan only; write nothing
-sndr install --config prod-35b --print-script   # Emit launch script + exit
+sndr install --config prod-qwen3.6-35b-balanced --yes      # Non-interactive, pick preset upfront
+sndr install --config prod-qwen3.6-35b-balanced --prepare  # Plan only; write nothing
+sndr install --config prod-qwen3.6-35b-balanced --print-script   # Emit launch script + exit
 ```
 
 Key flags:
@@ -124,13 +124,13 @@ shell script under your shell (or container runtime).
 
 ```bash
 sndr launch                                       # Interactive preset pick
-sndr launch prod-35b                              # Live launch
-sndr launch prod-35b --dry-run                    # Render + diagnose only
-sndr launch prod-35b --preflight-only             # Preflight gate; no exec
-sndr launch prod-35b --pull                       # `docker pull` before launch
-sndr launch prod-35b --check-deps                 # Validate deps before exec
-sndr launch prod-35b --policy minimal             # Filter env through patch_plan
-sndr launch prod-35b --policy safe --dry-run      # Preview filtered script
+sndr launch prod-qwen3.6-35b-balanced                              # Live launch
+sndr launch prod-qwen3.6-35b-balanced --dry-run                    # Render + diagnose only
+sndr launch prod-qwen3.6-35b-balanced --preflight-only             # Preflight gate; no exec
+sndr launch prod-qwen3.6-35b-balanced --pull                       # `docker pull` before launch
+sndr launch prod-qwen3.6-35b-balanced --check-deps                 # Validate deps before exec
+sndr launch prod-qwen3.6-35b-balanced --policy minimal             # Filter env through patch_plan
+sndr launch prod-qwen3.6-35b-balanced --policy safe --dry-run      # Preview filtered script
 ```
 
 Key flags:
@@ -185,9 +185,9 @@ short bench, compares against `reference_metrics`, exits non-zero on
 out-of-tolerance.
 
 ```bash
-sndr verify prod-35b                  # default tolerance bands
-sndr verify prod-35b --json
-sndr verify prod-35b --strict         # tighter tolerance, fail-fast
+sndr verify prod-qwen3.6-35b-balanced                  # default tolerance bands
+sndr verify prod-qwen3.6-35b-balanced --json
+sndr verify prod-qwen3.6-35b-balanced --strict         # tighter tolerance, fail-fast
 ```
 
 ### `sndr memory` — **stable**
@@ -196,7 +196,7 @@ VRAM budget estimator + live memory diagnostics.
 
 ```bash
 sndr memory                                # plan estimator for active preset
-sndr memory --preset prod-35b              # explicit preset
+sndr memory --preset prod-qwen3.6-35b-balanced              # explicit preset
 sndr memory --live                         # query running container
 sndr memory --json
 ```
@@ -311,11 +311,11 @@ Simulate dispatcher decisions for a preset, optionally filtered by
 the `patch_plan` resolver policy.
 
 ```bash
-sndr patches plan --preset prod-35b                        # legacy simulator
-sndr patches plan --preset prod-35b --policy compat        # resolver view
-sndr patches plan --preset prod-35b --policy safe --explain
-sndr patches plan --preset prod-35b --policy minimal --json
-sndr patches plan --preset prod-35b --profile production   # block partial/placeholder
+sndr patches plan --preset prod-qwen3.6-35b-balanced                        # legacy simulator
+sndr patches plan --preset prod-qwen3.6-35b-balanced --policy compat        # resolver view
+sndr patches plan --preset prod-qwen3.6-35b-balanced --policy safe --explain
+sndr patches plan --preset prod-qwen3.6-35b-balanced --policy minimal --json
+sndr patches plan --preset prod-qwen3.6-35b-balanced --profile production   # block partial/placeholder
 ```
 
 Flags:
@@ -410,11 +410,11 @@ sndr patches pn95 disk-tier-show
 Render preset → `docker-compose.yml` for stdin or file.
 
 ```bash
-sndr compose render prod-35b                       # legacy unfiltered
-sndr compose render prod-35b -o /etc/sndr/compose.yml
-sndr compose render prod-35b --policy compat
-sndr compose render prod-35b --policy safe
-sndr compose render prod-35b --policy minimal
+sndr compose render prod-qwen3.6-35b-balanced                       # legacy unfiltered
+sndr compose render prod-qwen3.6-35b-balanced -o /etc/sndr/compose.yml
+sndr compose render prod-qwen3.6-35b-balanced --policy compat
+sndr compose render prod-qwen3.6-35b-balanced --policy safe
+sndr compose render prod-qwen3.6-35b-balanced --policy minimal
 ```
 
 The rendered header carries a "Patch policy:" block with included /
@@ -427,8 +427,8 @@ commands so anyone reading the file weeks later sees provenance.
 inline if needed).
 
 ```bash
-sndr compose up prod-35b
-sndr compose up prod-35b --detach
+sndr compose up prod-qwen3.6-35b-balanced
+sndr compose up prod-qwen3.6-35b-balanced --detach
 ```
 
 ### `sndr compose down <preset>` — **stable**
@@ -436,14 +436,14 @@ sndr compose up prod-35b --detach
 `docker compose down`.
 
 ```bash
-sndr compose down prod-35b
+sndr compose down prod-qwen3.6-35b-balanced
 ```
 
 ### `sndr compose logs <preset>` — **stable**
 
 ```bash
-sndr compose logs prod-35b
-sndr compose logs prod-35b -n 500 --follow
+sndr compose logs prod-qwen3.6-35b-balanced
+sndr compose logs prod-qwen3.6-35b-balanced -n 500 --follow
 ```
 
 ### `sndr compose plan-diff <preset>` — **stable**
@@ -451,8 +451,8 @@ sndr compose logs prod-35b -n 500 --follow
 A/B between two policies. Read-only — no YAML rendered.
 
 ```bash
-sndr compose plan-diff prod-35b --from compat --to minimal
-sndr compose plan-diff prod-35b --from compat --to safe --json
+sndr compose plan-diff prod-qwen3.6-35b-balanced --from compat --to minimal
+sndr compose plan-diff prod-qwen3.6-35b-balanced --from compat --to safe --json
 ```
 
 Surfaces:
@@ -467,7 +467,7 @@ Surfaces:
 Render systemd/podman quadlet unit for the preset.
 
 ```bash
-sndr quadlet render prod-35b
+sndr quadlet render prod-qwen3.6-35b-balanced
 ```
 
 ### `sndr k8s render <preset>` — **beta**
@@ -475,7 +475,7 @@ sndr quadlet render prod-35b
 Render Kubernetes manifests for the preset.
 
 ```bash
-sndr k8s render prod-35b
+sndr k8s render prod-qwen3.6-35b-balanced
 ```
 
 ---
@@ -552,7 +552,7 @@ Human-readable explanation of a preset's env, mounts, runtime
 command, validation status.
 
 ```bash
-sndr model-config explain prod-35b
+sndr model-config explain prod-qwen3.6-35b-balanced
 ```
 
 ### `sndr model-config new <key>` — **stable**
@@ -561,7 +561,7 @@ Create a user preset from a template.
 
 ```bash
 sndr model-config new my-preset --template a5000-2x-35b-prod
-sndr model-config new my-preset --template prod-35b --force
+sndr model-config new my-preset --template prod-qwen3.6-35b-balanced --force
 ```
 
 ### `sndr model-config promote <key>` — **stable**
@@ -579,7 +579,7 @@ sndr model-config promote my-preset --tier community-prod
 Static audit (audit_rules) against one preset.
 
 ```bash
-sndr model-config audit prod-35b
+sndr model-config audit prod-qwen3.6-35b-balanced
 ```
 
 ### `sndr model-config preflight <key>` — **stable**
@@ -587,7 +587,7 @@ sndr model-config audit prod-35b
 Host preflight (mounts, GPU, container name) without running vLLM.
 
 ```bash
-sndr model-config preflight prod-35b
+sndr model-config preflight prod-qwen3.6-35b-balanced
 ```
 
 ### `sndr model-config diagnose <key>` — **stable**
@@ -595,9 +595,9 @@ sndr model-config preflight prod-35b
 Runtime diagnose against a **running** container.
 
 ```bash
-sndr model-config diagnose prod-35b
-sndr model-config diagnose prod-35b --port 8002
-sndr model-config diagnose prod-35b --policy minimal
+sndr model-config diagnose prod-qwen3.6-35b-balanced
+sndr model-config diagnose prod-qwen3.6-35b-balanced --port 8002
+sndr model-config diagnose prod-qwen3.6-35b-balanced --policy minimal
 ```
 
 `--policy` lets diagnose compare against the policy-filtered env
@@ -610,7 +610,7 @@ missing.
 Bench vs reference_metrics (same as top-level `sndr verify`).
 
 ```bash
-sndr model-config verify prod-35b
+sndr model-config verify prod-qwen3.6-35b-balanced
 ```
 
 ### `sndr model-config diff <a> <b>` — **stable**
@@ -618,7 +618,7 @@ sndr model-config verify prod-35b
 Diff two presets' merged env + sizing + mounts.
 
 ```bash
-sndr model-config diff prod-35b prod-35b-multiconc
+sndr model-config diff prod-qwen3.6-35b-balanced prod-qwen3.6-35b-multiconc
 ```
 
 ---
@@ -665,7 +665,7 @@ sndr profile list --model qwen3.6-35b-a3b-fp8
 Show one profile's `patches_delta` + sizing override + attribution.
 
 ```bash
-sndr profile show 35b-balanced
+sndr profile show qwen3.6-35b-balanced
 ```
 
 ### `sndr profile diff <a> <b>` — **stable**
@@ -673,7 +673,7 @@ sndr profile show 35b-balanced
 Diff two profiles.
 
 ```bash
-sndr profile diff 35b-balanced 35b-multiconc
+sndr profile diff qwen3.6-35b-balanced qwen3.6-35b-multiconc
 ```
 
 ### `sndr preset list` — **stable**
@@ -704,9 +704,9 @@ operating envelope, evidence, tradeoffs, "do not use". For raw YAML
 dump use `sndr config explain <preset_id>`.
 
 ```bash
-sndr preset show prod-35b
-sndr preset show prod-35b --json
-sndr preset show prod-35b --field card.evidence_refs.0.path
+sndr preset show prod-qwen3.6-35b-balanced
+sndr preset show prod-qwen3.6-35b-balanced --json
+sndr preset show prod-qwen3.6-35b-balanced --field card.evidence_refs.0.path
 ```
 
 `--field <dot.path>` walks nested attributes / list indices / dict
@@ -721,7 +721,7 @@ preset's YAML triplet actually composes to the runtime claimed in the
 card.
 
 ```bash
-sndr preset explain prod-35b
+sndr preset explain prod-qwen3.6-35b-balanced
 sndr preset explain prod-gemma4-26b-multiconc --json
 ```
 
@@ -771,7 +771,7 @@ Collect a redacted tar.gz of diagnostic artifacts.
 ```bash
 sndr report bundle                                  # ~/.sndr/reports/<ts>.tar.gz
 sndr report bundle --output /tmp/report.tar.gz
-sndr report bundle --preset prod-35b
+sndr report bundle --preset prod-qwen3.6-35b-balanced
 sndr report bundle --container vllm-server
 sndr report bundle --no-redact                      # internal use only
 sndr report bundle --scope all                      # default
@@ -811,8 +811,8 @@ Requires `GENESIS_CUDAGRAPH_DISPATCH_TRACE=1` at boot.
 Host dependency inventory + per-preset plan.
 
 ```bash
-sndr deps inspect prod-35b
-sndr deps inspect prod-35b --json
+sndr deps inspect prod-qwen3.6-35b-balanced
+sndr deps inspect prod-qwen3.6-35b-balanced --json
 ```
 
 ### `sndr upstream list` / `sndr upstream check` — **stable**
@@ -821,7 +821,7 @@ vLLM pin allowlist + per-preset upstream policy.
 
 ```bash
 sndr upstream list
-sndr upstream check prod-35b
+sndr upstream check prod-qwen3.6-35b-balanced
 ```
 
 ---
@@ -863,9 +863,9 @@ Native preset browser; alternative to `sndr model-config`.
 
 ```bash
 sndr config list
-sndr config show prod-35b
-sndr config diff prod-35b prod-35b-multiconc
-sndr config explain prod-35b
+sndr config show prod-qwen3.6-35b-balanced
+sndr config diff prod-qwen3.6-35b-balanced prod-qwen3.6-35b-multiconc
+sndr config explain prod-qwen3.6-35b-balanced
 ```
 
 `sndr config` is the V1 + V2 preset inventory surface — distinct from
@@ -925,12 +925,12 @@ any finding.
 
 Print a single row from the derived catalog. Collision-aware row IDs:
 when the same `id` exists across row types (e.g. a preset and a
-profile both named `prod-35b`), use the prefixed form:
+profile both named `prod-qwen3.6-35b-balanced`), use the prefixed form:
 
 ```bash
-sndr config-catalog show preset/prod-35b
-sndr config-catalog show prod-35b               # bare form OK if unambiguous
-sndr config-catalog show profile/35b-dflash --section override_policy
+sndr config-catalog show preset/prod-qwen3.6-35b-balanced
+sndr config-catalog show prod-qwen3.6-35b-balanced               # bare form OK if unambiguous
+sndr config-catalog show profile/qwen3.6-35b-dflash --section override_policy
 ```
 
 `--section <SECTION>` narrows the output to a top-level catalog field.
@@ -972,7 +972,7 @@ Flags:
 a previously-emitted catalog JSON file instead of regenerating:
 
 ```bash
-sndr config-catalog show prod-35b --from /tmp/catalog.json --strict-fresh
+sndr config-catalog show prod-qwen3.6-35b-balanced --from /tmp/catalog.json --strict-fresh
 ```
 
 With `--strict-fresh`, the CLI compares the file's mtime against the

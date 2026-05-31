@@ -721,24 +721,24 @@ through every policy unchanged.
 ### CLI surface
 
 ```bash
-sndr patches plan --preset prod-35b
-sndr patches plan --preset prod-35b --policy compat --explain
-sndr patches plan --preset prod-35b --policy minimal --json
+sndr patches plan --preset prod-qwen3.6-35b-balanced
+sndr patches plan --preset prod-qwen3.6-35b-balanced --policy compat --explain
+sndr patches plan --preset prod-qwen3.6-35b-balanced --policy minimal --json
 
 # A/B before flipping
-sndr compose plan-diff prod-35b --from compat --to minimal
+sndr compose plan-diff prod-qwen3.6-35b-balanced --from compat --to minimal
 
 # Render a compose file with the filtered env
-sndr compose render prod-35b --policy minimal -o /etc/sndr/compose.yml
+sndr compose render prod-qwen3.6-35b-balanced --policy minimal -o /etc/sndr/compose.yml
 
 # Launch with the filter applied
-sndr launch prod-35b --policy minimal --dry-run
+sndr launch prod-qwen3.6-35b-balanced --policy minimal --dry-run
 
 # Diagnose against the same policy used at launch
-sndr model-config diagnose prod-35b --policy minimal
+sndr model-config diagnose prod-qwen3.6-35b-balanced --policy minimal
 
 # Capture the plan in a report bundle
-sndr report bundle --preset prod-35b --scope quality
+sndr report bundle --preset prod-qwen3.6-35b-balanced --scope quality
 ```
 
 ### Authoring attribution
@@ -752,7 +752,7 @@ patches_attribution:
     role: optional_perf
     bench_evidence: "dev371 35B conc=8: 689 TPS / TTFT 237 ms"
     note: |
-      Enabled in 35b-multiconc profile via patches_delta.enable.
+      Enabled in qwen3.6-35b-multiconc profile via patches_delta.enable.
       Hopper SM 9.0+ gives +5-10% TPOT per upstream PR.
     candidate_when:
       max_num_seqs_gte: 4
@@ -799,7 +799,7 @@ A `ProfileDef.patches_delta.attribution` map can override or extend
 the model's attribution per patch ID:
 
 ```yaml
-# profile/long-ctx-27b.yaml
+# profile/long-ctx-qwen3.6-27b.yaml
 patches_delta:
   enable:
     GENESIS_ENABLE_PN204_DUAL_STREAM_INPROJ: '1'

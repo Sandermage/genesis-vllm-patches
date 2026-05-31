@@ -53,16 +53,16 @@ class TestGate1LeavesInvokable:
         assert result.returncode == 0
 
     def test_show_prefixed(self):
-        result = _run_cli("show", "preset/prod-35b")
+        result = _run_cli("show", "preset/prod-qwen3.6-35b-balanced")
         assert result.returncode == 0
-        assert "preset/prod-35b" in result.stdout
+        assert "preset/prod-qwen3.6-35b-balanced" in result.stdout
         assert "derived catalog" in result.stdout.lower()
 
     def test_show_bare_unambiguous(self):
-        result = _run_cli("show", "prod-35b")
+        result = _run_cli("show", "prod-qwen3.6-35b-balanced")
         assert result.returncode == 0
-        # Bare 'prod-35b' is unambiguous in current corpus
-        assert "preset/prod-35b" in result.stdout
+        # Bare 'prod-qwen3.6-35b-balanced' is unambiguous in current corpus
+        assert "preset/prod-qwen3.6-35b-balanced" in result.stdout
 
     def test_query_basic(self):
         result = _run_cli(
@@ -157,7 +157,7 @@ class TestGate3RedactionParity:
 class TestGate4FromPath:
     def test_from_missing_file_exits_two(self, tmp_path):
         missing = tmp_path / "nonexistent.json"
-        result = _run_cli("show", "--from", str(missing), "preset/prod-35b")
+        result = _run_cli("show", "--from", str(missing), "preset/prod-qwen3.6-35b-balanced")
         assert result.returncode == 2, (
             f"missing --from file should exit 2 (usage error); got "
             f"rc={result.returncode}"
@@ -173,10 +173,10 @@ class TestGate4FromPath:
         catalog_path.write_text(build.stdout, encoding="utf-8")
 
         result = _run_cli(
-            "show", "--from", str(catalog_path), "preset/prod-35b",
+            "show", "--from", str(catalog_path), "preset/prod-qwen3.6-35b-balanced",
         )
         assert result.returncode == 0
-        assert "preset/prod-35b" in result.stdout
+        assert "preset/prod-qwen3.6-35b-balanced" in result.stdout
 
     def test_from_stale_file_warns_default_mode(self, tmp_path):
         """Stale --from file warns by default but exits 0."""
@@ -189,7 +189,7 @@ class TestGate4FromPath:
         os.utime(catalog_path, (old_mtime, old_mtime))
 
         result = _run_cli(
-            "show", "--from", str(catalog_path), "preset/prod-35b",
+            "show", "--from", str(catalog_path), "preset/prod-qwen3.6-35b-balanced",
         )
         # Default mode: warn but proceed
         assert result.returncode == 0
@@ -208,7 +208,7 @@ class TestGate4FromPath:
 
         result = _run_cli(
             "show", "--from", str(catalog_path), "--strict-fresh",
-            "preset/prod-35b",
+            "preset/prod-qwen3.6-35b-balanced",
         )
         assert result.returncode == 1
 
@@ -315,11 +315,12 @@ class TestGate7QuerySemantics:
         )
         assert result.returncode == 0
         rows = json.loads(result.stdout)
-        # All annotated profiles have expires_at=2026-08-22 — all should match
+        # All annotated profiles have expires_at strictly before 2026-09-01
+        # (currently 2026-08-22 and 2026-08-31 — both pass).
         assert len(rows) > 0
         for r in rows:
             d = r.get("override_expires_at")
-            assert d == "2026-08-22"
+            assert d and d < "2026-09-01"
 
     def test_expires_before_invalid_date_exits_two(self):
         result = _run_cli(
@@ -373,7 +374,7 @@ class TestGate9NeighbouringCLIsUnchanged:
         )
         assert result.returncode == 0
         data = json.loads(result.stdout)
-        assert data["total"] == 21
+        assert data["total"] == 23
 
     def test_sndr_routing_table_help_works(self):
         result = subprocess.run(
@@ -402,7 +403,7 @@ class TestGate10TerminalFormat:
 
     def test_show_human_view_sections(self):
         """show terminal output has 'derived catalog row:' header + fields section."""
-        result = _run_cli("show", "preset/prod-35b")
+        result = _run_cli("show", "preset/prod-qwen3.6-35b-balanced")
         assert result.returncode == 0
         assert "derived catalog row:" in result.stdout
         assert "source:" in result.stdout

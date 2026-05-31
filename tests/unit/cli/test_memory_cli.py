@@ -260,7 +260,7 @@ class TestCtxSweep:
     def test_argparser_accepts_ctx_sweep(self):
         p = _make_parser()
         ns = p.parse_args([
-            "memory", "explain", "prod-35b",
+            "memory", "explain", "prod-qwen3.6-35b-balanced",
             "--ctx-sweep", "4k,16k,64k", "--json",
         ])
         assert ns.ctx_sweep == "4k,16k,64k"
@@ -270,7 +270,7 @@ class TestCtxSweep:
         """Real preset + sweep → JSON with N rows + verdict per row."""
         import argparse
         opts = argparse.Namespace(
-            preset="prod-35b",
+            preset="prod-qwen3.6-35b-balanced",
             gpu_vram=None, ctx=None, seqs=None, kv_dtype=None,
             ctx_sweep="4096,16384,65536",
             json=True,
@@ -278,12 +278,12 @@ class TestCtxSweep:
         rc = M._run_explain(opts)
         out = capsys.readouterr().out
         payload = json.loads(out)
-        assert payload["preset"] == "prod-35b"
+        assert payload["preset"] == "prod-qwen3.6-35b-balanced"
         assert payload["ctx_sweep"] == [4096, 16384, 65536]
         assert len(payload["rows"]) == 3
         for row in payload["rows"]:
             # UNKNOWN is the correct verdict when the dev box has no
-            # readable safetensors for prod-35b — the estimator's critical
+            # readable safetensors for prod-qwen3.6-35b-balanced — the estimator's critical
             # components (Model weights / KV cache) come back zero-byte
             # low-confidence and refusing to claim safety is the whole
             # point of P0.4. The other three verdicts are valid when
@@ -299,7 +299,7 @@ class TestCtxSweep:
     def test_run_explain_sweep_text_mode(self, capsys):
         import argparse
         opts = argparse.Namespace(
-            preset="prod-35b",
+            preset="prod-qwen3.6-35b-balanced",
             gpu_vram=None, ctx=None, seqs=None, kv_dtype=None,
             ctx_sweep="4096,16384",
             json=False,

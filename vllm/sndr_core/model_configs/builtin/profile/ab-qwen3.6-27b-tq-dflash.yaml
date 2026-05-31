@@ -9,11 +9,11 @@
 # — adds overhead without paying back on MTP.
 #
 # Keep this profile for regression / patch-dispatcher coverage testing,
-# NOT for production. For TRUE DFlash use prod-27b-dflash alias.
+# NOT for production. For TRUE DFlash use prod-qwen3.6-27b-dflash alias.
 
 schema_version: 2
 kind: profile
-id: ab-27b-tq-dflash                # experimental- prefix marks A/B-only lifecycle
+id: ab-qwen3.6-27b-tq-dflash                # experimental- prefix marks A/B-only lifecycle
 parent_model: qwen3.6-27b-int4-autoround-tq-k8v4 # parent: TQ k8v4 model (NOT the DFlash model)
 maintainer: sandermage
 status: experimental                             # values: experimental|validated|deprecated
@@ -33,7 +33,7 @@ patches_delta:
   disable: []                                    # no removals
   override: {}                                   # no value overrides
 
-# ─── Sizing override — same as canonical wave9-27b-tq-k8v4 (131K ctx) ──
+# ─── Sizing override — same as canonical wave9-qwen3.6-27b-tq-k8v4 (131K ctx) ──
 sizing_override:
   max_model_len: 131072                          # 128K context (matches 2× TQ production reference)
   gpu_memory_utilization: 0.92                   # 0.92 (matches 2× TQ canonical)
@@ -56,7 +56,7 @@ override_policy:
 
 promotion:
   validation_required:
-    - "A/B vs canonical wave9-27b-tq-k8v4: TPS regression < 5%"
+    - "A/B vs canonical wave9-qwen3.6-27b-tq-k8v4: TPS regression < 5%"
   promote_to: null                               # experiment-only; never promotes
   notes: |
     Diagnostic profile. Confirms patch-dispatcher correctly no-ops the

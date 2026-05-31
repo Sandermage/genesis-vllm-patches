@@ -302,7 +302,7 @@ class TestLiveCorpus:
     def test_live_strict_at_stage_3_is_clean(self):
         """After V1-SUNSET-DFLASH-ALIAS.1 (2026-05-26) the last
         ``blocker_no_v2_alias`` was retired by mapping
-        a5000-2x-27b-int4-tq-k8v4-dflash → ``experimental-27b-tq-dflash-ab``
+        a5000-2x-27b-int4-tq-k8v4-dflash → ``experimental-qwen3.6-27b-tq-dflash-ab``
         in the migration table. Live tree at Stage 3 strict must
         exit 0 — Stage 3 advancement is unblocked.
 
@@ -321,8 +321,8 @@ class TestLiveCorpus:
 
     def test_live_all_stages_ready_post_pending_4(self):
         """After V1-SUNSET-PENDING-4.1 (2026-05-26) the last four
-        ``operator_decision_pending`` entries (qa-27b-tq-1x, long-ctx-27b,
-        qa-27b-tested, prod-35b-dflash) were reclassified to ``deprecated``
+        ``operator_decision_pending`` entries (qa-qwen3.6-27b-tq-1x, long-ctx-qwen3.6-27b,
+        qa-qwen3.6-27b-tested, prod-qwen3.6-35b-dflash) were reclassified to ``deprecated``
         after their .R audit verified V2 sizing parity. With zero blockers
         and zero pending decisions, every stage (1..5) must report ready
         and ``--strict --stage 5`` must exit 0.

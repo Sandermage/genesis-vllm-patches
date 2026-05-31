@@ -205,7 +205,7 @@ notes:
         params per token + DFlash K=3 (smaller K than Q27-DFlash's
         K=5) combined to win.
       Sizing fix sibling commit 7a94349b (chore profile) — trimmed
-        max_model_len 160000 → 65536 on the 35b-dflash profile to
+        max_model_len 160000 → 65536 on the qwen3.6-35b-dflash profile to
         fit the KV cache budget on 2× A5000 24GB + DFlash drafter
         overhead. Orthogonal to PN275 but a hard prerequisite for
         end-to-end deployable smoke on this rig.

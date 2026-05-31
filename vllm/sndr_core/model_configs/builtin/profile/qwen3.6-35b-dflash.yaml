@@ -11,22 +11,22 @@
 #
 # For DFlash MULTI-CONCURRENCY throughput workloads (max_num_seqs=8, agg 562 TPS
 # at TTFT 162ms — best latency profile on 35B), use the COMPANION profile
-# `35b-dflash-multiconc.yaml` which overrides sizing (max_num_seqs=8,
+# `qwen3.6-35b-dflash-multiconc.yaml` which overrides sizing (max_num_seqs=8,
 # max_model_len=100K, max_num_batched_tokens=2048) and trims context from 160K
 # down to 100K to fit 8 concurrent fp16 KV streams.
 #
 # Bench reference (dev371+bf610c2f5, tools/multi_conc_bench.py sweep):
 #   This profile (max_num_seqs=1, 160K)  : single-stream optimized, TTFT 74 ms
-#   35b-dflash-multiconc (max_num_seqs=8, 100K) : agg 562 TPS / TTFT 162 ms ⭐
+#   qwen3.6-35b-dflash-multiconc (max_num_seqs=8, 100K) : agg 562 TPS / TTFT 162 ms ⭐
 #
 # DFlash 256K NOT achievable on consumer Ampere — head_size=256 in drafter
 # forbids TQ k8v4 / fp8 KV compression (page-size mismatch target FP8 head=128
 # vs drafter bf16 head=256). For 256K serving, use MTP+TQ sibling preset
-# `prod-35b` / `prod-35b-multiconc` instead.
+# `prod-qwen3.6-35b-balanced` / `prod-qwen3.6-35b-multiconc` instead.
 
 schema_version: 2
 kind: profile
-id: 35b-dflash                         # canonical wave9 reference for 35B DFlash
+id: qwen3.6-35b-dflash                         # canonical wave9 reference for 35B DFlash
 parent_model: qwen3.6-35b-a3b-fp8-dflash         # parent model file (DFlash variant of 35B)
 maintainer: sandermage
 status: validated                                # values: experimental|validated|deprecated

@@ -150,8 +150,8 @@ def add_argparser(subparsers: Any) -> None:
         help="Display one row from the derived catalog (by preset/profile/model/hardware/baseline id).",
         description=(
             "Display one derived catalog row. Row id forms: prefixed "
-            "(e.g. `preset/prod-35b`, `profile/27b-tq-k8v4`) or bare "
-            "(e.g. `prod-35b`) when unambiguous. Bare-id collisions "
+            "(e.g. `preset/prod-qwen3.6-35b-balanced`, `profile/qwen3.6-27b-tq-k8v4`) or bare "
+            "(e.g. `prod-qwen3.6-35b-balanced`) when unambiguous. Bare-id collisions "
             "across row types error with the candidate list."
         ),
     )
@@ -308,8 +308,8 @@ def _load_catalog(
 
 
 def _resolve_row_id(rows: list[dict], row_id: str) -> dict:
-    """Find one row by id. Accepts prefixed (`preset/prod-35b`) or bare
-    (`prod-35b`) forms; bare-id collisions across row types raise with
+    """Find one row by id. Accepts prefixed (`preset/prod-qwen3.6-35b-balanced`) or bare
+    (`prod-qwen3.6-35b-balanced`) forms; bare-id collisions across row types raise with
     the candidate list.
 
     Returns the matching row dict. Exits nonzero on not-found OR ambiguity.

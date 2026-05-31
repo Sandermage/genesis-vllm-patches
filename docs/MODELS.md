@@ -91,7 +91,7 @@ the A3B baseline.
 | Architecture | `qwen3_5` dense, AutoRound INT4 |
 | VRAM @ INT4 + TQ k8v4 KV | ~14 GB weights + KV that fits on 24 GB |
 | Native context | 256K (320K validated experimentally) |
-| Genesis presets | `a5000-2x-27b-int4-tq-k8v4`, `a5000-1x-27b-int4-tested`, `long-ctx-27b` |
+| Genesis presets | `a5000-2x-27b-int4-tq-k8v4`, `a5000-1x-27b-int4-tested`, `long-ctx-qwen3.6-27b` |
 
 This is the default 27B preset for any 24 GB rig, single or dual GPU.
 Tool-call clean rate consistently 8/8 on Wave 10 (132.93 TPS sustained
@@ -366,7 +366,7 @@ sndr profile diff <id1> <id2>
 
 V2 is additive: the V1 launcher path still works for legacy preset
 keys (`a5000-2x-35b-prod`, `a5000-2x-27b-int4-tq-k8v4`, ...). V2
-aliases (`prod-35b`, `prod-27b-tq`, ...) resolve through
+aliases (`prod-qwen3.6-35b-balanced`, `prod-qwen3.6-27b-tq-k8v4`, ...) resolve through
 `registry_v2` and produce the same V1 `ModelConfig` shape that the
 existing emitters already consume. A byte-identical regression test
 covers each preset. V1 deprecation lands in Phase 9; V2 layered

@@ -37,7 +37,7 @@ def _run_cli(argv: list[str]) -> tuple[int, str]:
 class TestBackwardsCompat:
     def test_dry_run_without_policy_renders_full_env(self):
         rc, out = _run_cli([
-            "launch", "prod-35b", "--dry-run", "-y",
+            "launch", "prod-qwen3.6-35b-balanced", "--dry-run", "-y",
         ])
         assert rc == 0, out[-500:]
         # The 35B PROD config has GENESIS_PN95_CONFIG_KEY (a parameter
@@ -54,7 +54,7 @@ class TestBackwardsCompat:
 class TestPolicyFilters:
     def test_dry_run_with_compat_keeps_parameters(self):
         rc, out = _run_cli([
-            "launch", "prod-35b", "--dry-run", "-y", "--policy", "compat",
+            "launch", "prod-qwen3.6-35b-balanced", "--dry-run", "-y", "--policy", "compat",
         ])
         assert rc == 0, out[-500:]
         # Parameter must survive every policy.
@@ -62,7 +62,7 @@ class TestPolicyFilters:
 
     def test_dry_run_with_minimal_drops_unknown_toggles(self):
         rc, out = _run_cli([
-            "launch", "prod-35b", "--dry-run", "-y", "--policy", "minimal",
+            "launch", "prod-qwen3.6-35b-balanced", "--dry-run", "-y", "--policy", "minimal",
         ])
         assert rc == 0, out[-500:]
         # Parameter still survives minimal.
@@ -81,6 +81,6 @@ class TestPolicyFilters:
 class TestInvalidPolicy:
     def test_bogus_policy_rejected(self):
         rc, _ = _run_cli([
-            "launch", "prod-35b", "--dry-run", "-y", "--policy", "bogus",
+            "launch", "prod-qwen3.6-35b-balanced", "--dry-run", "-y", "--policy", "bogus",
         ])
         assert rc != 0

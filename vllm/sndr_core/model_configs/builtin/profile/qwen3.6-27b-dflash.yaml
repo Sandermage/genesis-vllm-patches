@@ -7,12 +7,12 @@
 # stack inherited automatically.
 #
 # For multi-concurrency throughput workloads (max_num_seqs=8, agg 385 TPS
-# at TTFT 190 ms), use companion profile `27b-dflash-multiconc.yaml` which
+# at TTFT 190 ms), use companion profile `qwen3.6-27b-dflash-multiconc.yaml` which
 # overrides sizing (max_num_seqs=8, max_model_len=80K, gpu_mem=0.85).
 #
 # Bench reference (dev371+bf610c2f5):
 #   This profile (max_num_seqs=1, 185K)  : single-stream, TTFT 102 ms
-#   27b-dflash-multiconc (max_num_seqs=8, 80K) : agg 385 TPS / TTFT 190 ms
+#   qwen3.6-27b-dflash-multiconc (max_num_seqs=8, 80K) : agg 385 TPS / TTFT 190 ms
 #
 # On 27B, DFlash and MTP+TQ are nearly TIED at conc=8 (Δ <2%). Choice
 # depends on context: MTP+TQ supports 262K, DFlash caps at 80K (multi-conc)
@@ -20,7 +20,7 @@
 
 schema_version: 2
 kind: profile
-id: 27b-dflash                             # canonical wave9 reference for 27B DFlash
+id: qwen3.6-27b-dflash                             # canonical wave9 reference for 27B DFlash
 parent_model: qwen3.6-27b-dflash                 # parent model file (DFlash variant)
 maintainer: sandermage
 status: validated                                # values: experimental|validated|deprecated

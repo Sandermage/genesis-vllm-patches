@@ -53,7 +53,7 @@ class TestDefaultPolicy:
     def test_plan_without_policy_runs_simulator(self):
         """No --policy → existing dispatcher-simulator behaviour."""
         rc, out = _run_cli([
-            "patches", "plan", "--preset", "prod-35b", "--json",
+            "patches", "plan", "--preset", "prod-qwen3.6-35b-balanced", "--json",
         ])
         assert rc in (0, 2), f"unexpected rc={rc}: {out[:500]}"
         payload = json.loads(out)
@@ -71,7 +71,7 @@ class TestExplicitPolicy:
     @pytest.mark.parametrize("policy", ["compat", "safe", "minimal"])
     def test_policy_emits_resolver_shape(self, policy):
         rc, out = _run_cli([
-            "patches", "plan", "--preset", "prod-35b",
+            "patches", "plan", "--preset", "prod-qwen3.6-35b-balanced",
             "--policy", policy, "--json",
         ])
         assert rc in (0, 2), f"unexpected rc={rc}: {out[:500]}"
@@ -83,7 +83,7 @@ class TestExplicitPolicy:
 
     def test_explain_adds_role_and_note_fields(self):
         rc, out = _run_cli([
-            "patches", "plan", "--preset", "prod-35b",
+            "patches", "plan", "--preset", "prod-qwen3.6-35b-balanced",
             "--policy", "compat", "--explain", "--json",
         ])
         assert rc in (0, 2), f"unexpected rc={rc}: {out[:500]}"
@@ -111,7 +111,7 @@ class TestMinimalDropsKnownNoOps:
         whose env has truthy entries; we assert the resolver path runs
         cleanly and emits an `env` block keyed by env_flag."""
         rc, out = _run_cli([
-            "patches", "plan", "--preset", "prod-35b",
+            "patches", "plan", "--preset", "prod-qwen3.6-35b-balanced",
             "--policy", "minimal", "--json",
         ])
         assert rc in (0, 2)
@@ -136,7 +136,7 @@ class TestMinimalDropsKnownNoOps:
 class TestInvalidPolicy:
     def test_bogus_policy_rejected(self):
         rc, out = _run_cli([
-            "patches", "plan", "--preset", "prod-35b",
+            "patches", "plan", "--preset", "prod-qwen3.6-35b-balanced",
             "--policy", "bogus",
         ])
         assert rc != 0

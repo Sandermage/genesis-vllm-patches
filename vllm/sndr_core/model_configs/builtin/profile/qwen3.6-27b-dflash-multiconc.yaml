@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 # Genesis V2 profile — Wave 10 27B DFlash MULTI-CONCURRENCY throughput preset.
-# Companion to 27b-dflash (single-stream latency profile).
+# Companion to qwen3.6-27b-dflash (single-stream latency profile).
 # Layers on top of qwen3.6-27b-dflash model.
 
 schema_version: 2
 kind: profile
-id: 27b-dflash-multiconc                         # multi-conc throughput companion to 27b-dflash (single-stream)
+id: qwen3.6-27b-dflash-multiconc                         # multi-conc throughput companion to qwen3.6-27b-dflash (single-stream)
 parent_model: qwen3.6-27b-dflash                 # same model — DFlash N=5 separate drafter (legacy bench used N=5)
 maintainer: sandermage
 status: validated                                # Wave 10 bench passed 2026-05-15 — agg 385 TPS / TTFT 190 ms
@@ -22,7 +22,7 @@ created: '2026-05-15'
 #   conc=4: 268 TPS  TTFT 160 ms  TPOT 39.4 ms
 #   conc=8: 385 TPS  TTFT 190 ms  TPOT 51.5 ms ⭐ optimum (3.76x scaling)
 #
-# Vs MTP+TQ sibling (27b-multiconc):
+# Vs MTP+TQ sibling (qwen3.6-27b-multiconc):
 #   MTP+TQ conc=8: 379 TPS / TTFT 189 ms (3.89x scaling)
 #   DFlash conc=8: 385 TPS / TTFT 190 ms (3.76x scaling)
 # Essentially TIED (Δ <2%). Choose by required context length:
@@ -70,11 +70,11 @@ promotion:
     - "PN204 v2 boot — no CUDA driver crash"
   promote_to: null                               # multi-conc-specific
   notes: |
-    27b-dflash-multiconc — companion to 27b-dflash (single-stream).
+    qwen3.6-27b-dflash-multiconc — companion to qwen3.6-27b-dflash (single-stream).
     DFlash and MTP+TQ are essentially TIED on 27B (Δ <2% TPS, identical TTFT).
     Choose by context length requirement:
       - ≤80K context           → either method works equally well
-      - 80K-262K context        → MTP+TQ wins (prod-27b-tq / prod-27b-tq-multiconc)
+      - 80K-262K context        → MTP+TQ wins (prod-qwen3.6-27b-tq-k8v4 / prod-qwen3.6-27b-tq-multiconc)
       - 262K+ context           → MTP+TQ only
 
     Why nearly tied on 27B (vs 35B where DFlash wins TTFT): 27B is small

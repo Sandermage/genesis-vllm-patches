@@ -4136,7 +4136,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "`applies_to: {is_turboquant: True}`), restoring the prefill-"
             "slice max computation that PR41434 broke. Active across all "
             "TurboQuant ModelDefs (35B-A3B-FP8 + TQ k8v4, 27B INT4 + TQ "
-            "k8v4, qa-27b-fp8kv, etc.) via the applies_to predicate — no "
+            "k8v4, qa-qwen3.6-27b-fp8kv, etc.) via the applies_to predicate — no "
             "explicit YAML enable entries needed. "
             "(5) Retire would CATASTROPHICALLY regress PROD: removing "
             "PN116 re-exposes the measured −9.7% wall_TPS regression on "

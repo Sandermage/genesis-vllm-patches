@@ -20,7 +20,7 @@ were active during the bench. This script does that attachment:
 
   python3 scripts/attach_bench_proof.py \
       --bench tools/bench_results/27b_dflash_multiconc_2026-05-16.json \
-      --preset prod-27b-dflash-multiconc \
+      --preset prod-qwen3.6-27b-dflash-multiconc \
       [--baseline tests/integration/baselines/27b_dflash_multiconc_2026-05-16.json] \
       [--dry-run]
 
@@ -160,7 +160,7 @@ def main(argv: Optional[list[str]] = None) -> int:
                          "tools/genesis_bench_suite.py).")
     ap.add_argument("--preset", required=True,
                     help="V2 preset alias whose patches receive the "
-                         "attachment (e.g. prod-27b-dflash-multiconc).")
+                         "attachment (e.g. prod-qwen3.6-27b-dflash-multiconc).")
     ap.add_argument("--baseline", default=None,
                     help="Optional baseline JSON. When provided, "
                          "delta-percent values are computed and attached "

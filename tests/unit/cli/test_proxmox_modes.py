@@ -22,9 +22,9 @@ from vllm.sndr_core.model_configs.schema import ProxmoxConfig
 
 @pytest.fixture
 def cfg_lxc():
-    """A preset with an explicit proxmox block — prod-35b's cfg
+    """A preset with an explicit proxmox block — prod-qwen3.6-35b-balanced's cfg
     has proxmox=None by default, so we synthesise one for the test."""
-    cfg = load_alias("prod-35b")
+    cfg = load_alias("prod-qwen3.6-35b-balanced")
     cfg.proxmox = ProxmoxConfig(
         mode="lxc", runtime="venv", container_id_or_vmid=100,
     )
@@ -40,7 +40,7 @@ class TestKnownModesRender:
                    return_value=cfg_lxc):
             with redirect_stdout(buf):
                 rc = proxmox_cli.run_render(
-                    argparse.Namespace(config="prod-35b")
+                    argparse.Namespace(config="prod-qwen3.6-35b-balanced")
                 )
         assert rc == 0
         out = buf.getvalue()
@@ -53,7 +53,7 @@ class TestUnknownModeFailsFast:
         with patch("vllm.sndr_core.cli.proxmox._resolve",
                    return_value=cfg_lxc):
             rc = proxmox_cli.run_render(
-                argparse.Namespace(config="prod-35b")
+                argparse.Namespace(config="prod-qwen3.6-35b-balanced")
             )
         # Fail-fast: exit 2 means "operator action required", not
         # silently continuing past a misconfiguration.
@@ -64,6 +64,6 @@ class TestUnknownModeFailsFast:
         with patch("vllm.sndr_core.cli.proxmox._resolve",
                    return_value=cfg_lxc):
             rc = proxmox_cli.run_render(
-                argparse.Namespace(config="prod-35b")
+                argparse.Namespace(config="prod-qwen3.6-35b-balanced")
             )
         assert rc == 2

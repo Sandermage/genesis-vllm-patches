@@ -615,7 +615,7 @@ expectations. Cross-cutting principles:
 
 ### R-001 — V2 alias resolution broken
 
-**Trigger.** `sndr launch prod-35b --preflight-only` returns
+**Trigger.** `sndr launch prod-qwen3.6-35b-balanced --preflight-only` returns
 non-zero with `SchemaError` or `KeyError` from the V2 registry.
 Typically after a YAML edit in `model_configs/builtin/` or a vLLM
 pin bump that renamed an existing field.
@@ -674,8 +674,8 @@ export SNDR_EMITTER_LEGACY=1
 **Smoke.**
 
 ```bash
-sndr launch prod-35b --dry-run --runtime docker > /tmp/dry-docker.txt
-sndr launch prod-35b --dry-run --runtime compose > /tmp/dry-compose.txt
+sndr launch prod-qwen3.6-35b-balanced --dry-run --runtime docker > /tmp/dry-docker.txt
+sndr launch prod-qwen3.6-35b-balanced --dry-run --runtime compose > /tmp/dry-compose.txt
 diff <(sort /tmp/dry-docker.txt) <(sort /tmp/dry-compose.txt)
 # Expect: only format differences, no semantic differences.
 ```
@@ -695,7 +695,7 @@ export SNDR_MEMORY_EXPLAIN_GATING=off
 **Smoke.**
 
 ```bash
-sndr launch prod-35b --preflight-only
+sndr launch prod-qwen3.6-35b-balanced --preflight-only
 ```
 
 **Evidence.** Record the actual VRAM from `nvidia-smi` vs predicted
@@ -779,7 +779,7 @@ export SNDR_LICENSE_REQUIRED=0
 
 ```bash
 sndr license status --json | jq -e '.core == "public (unlicensed)"'
-sndr launch prod-35b --preflight-only
+sndr launch prod-qwen3.6-35b-balanced --preflight-only
 ```
 
 ## Enterprise operator runbook
@@ -1318,8 +1318,8 @@ python -m vllm.sndr_core.integrations.spec_decode.gateway
 
 | Model | Default-role profile | Structured-role profiles |
 |---|---|---|
-| qwen3.6-27B int4 | (none — direct launch) | 27b-tq-k8v4 / 27b-dflash / 27b-multiconc |
-| qwen3.6-35B A3B FP8 | (none — direct launch) | 35b-balanced / 35b-dflash / 35b-multiconc |
+| qwen3.6-27B int4 | (none — direct launch) | qwen3.6-27b-tq-k8v4 / qwen3.6-27b-dflash / qwen3.6-27b-multiconc |
+| qwen3.6-35B A3B FP8 | (none — direct launch) | qwen3.6-35b-balanced / qwen3.6-35b-dflash / qwen3.6-35b-multiconc |
 | gemma4-26B A4B AWQ | gemma4-26b-no-mtp + gemma4-26b-multiconc-k1 | gemma4-26b-mtp-k4 + gemma4-26b-multiconc + **gemma4-26b-mtp-chat-k3** (new 2026-05-31) |
 | gemma4-31B AWQ + TQ | gemma4-31b-tq-default (MTP OFF) | gemma4-31b-tq-mtp-structured-k4 + **gemma4-31b-tq-mtp-chat-k3** (new 2026-05-31) |
 
@@ -1399,8 +1399,8 @@ Activation (each is opt-in via env flag):
 -e GENESIS_ENABLE_PN288_TOOL_FINISH_REASON_OVERRIDE=1
 -e GENESIS_PN288_DRY_RUN=1   # default ON when PN288 enabled — Phase B
 -e GENESIS_ENABLE_PN289_PROCESS_INFO=1
--e GENESIS_PRESET=prod-35b
--e GENESIS_PROFILE=35b-balanced
+-e GENESIS_PRESET=prod-qwen3.6-35b-balanced
+-e GENESIS_PROFILE=qwen3.6-35b-balanced
 -e GENESIS_WORKLOAD_CLASS=free_chat
 ```
 

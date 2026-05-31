@@ -197,7 +197,7 @@ class TestGate3FullCardFixture:
         assert len(pd.card.evidence_refs) == 2
         assert pd.card.evidence_visibility == "mixed"
         assert len(pd.card.do_not_use) == 2
-        assert pd.card.fallback_preset == "prod-35b"
+        assert pd.card.fallback_preset == "prod-qwen3.6-35b-balanced"
 
     def test_fixture_passes_experimental_validation_permissively(self):
         """Experimental status → permissive (no errors even though many

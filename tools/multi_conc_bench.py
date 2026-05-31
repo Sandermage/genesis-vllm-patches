@@ -18,7 +18,7 @@ Examples:
   # Single-concurrency baseline capture with committed JSON
   python3 tools/multi_conc_bench.py \
       --model qwen3.6-35b-a3b --conc 8 --rounds 5 --max-tok 1024 \
-      --out tools/bench_results/prod-35b-multiconc_<pin>_<date>.json
+      --out tools/bench_results/prod-qwen3.6-35b-multiconc_<pin>_<date>.json
 
 JSON output (when ``--out`` is set) carries a ``decode_bench`` block
 with field names compatible with ``scripts/attach_bench_proof.py``:

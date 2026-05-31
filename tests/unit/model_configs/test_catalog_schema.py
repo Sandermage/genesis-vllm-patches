@@ -157,6 +157,6 @@ class TestRowConstruction:
             bench_runs=5,
             match_quality="exact_preset",
             matched_model_ids=["qwen3.6-27b-int4-autoround-tq-k8v4"],
-            matched_preset_ids=["prod-27b-tq"],
+            matched_preset_ids=["prod-qwen3.6-27b-tq-k8v4"],
         )
         assert row.match_quality == "exact_preset"

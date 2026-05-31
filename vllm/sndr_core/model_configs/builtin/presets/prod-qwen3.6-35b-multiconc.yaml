@@ -1,18 +1,18 @@
 # SPDX-License-Identifier: Apache-2.0
 # Genesis V2 alias — operator shortcut for the 35B THROUGHPUT triplet (Wave 10).
-# Companion to `prod-35b` (latency profile). `sndr launch prod-35b-multiconc`
+# Companion to `prod-qwen3.6-35b-balanced` (latency profile). `sndr launch prod-qwen3.6-35b-multiconc`
 # resolves this file to (model, hardware, profile) for the multi-concurrency
 # throughput preset.
 #
 # Bench validated 2026-05-15 on dev371+bf610c2f5 (tools/multi_conc_bench.py):
 #   conc=1  : 215 TPS  TTFT 65 ms  (single-user latency)
 #   conc=8  : 689 TPS  TTFT 243 ms (aggregate throughput, 3.21x scaling) ⭐
-# Use `prod-35b` for latency-critical single-user chat; this preset for
+# Use `prod-qwen3.6-35b-balanced` for latency-critical single-user chat; this preset for
 # agentic / batch / multi-tenant workloads where aggregate TPS dominates.
 
-model: qwen3.6-35b-a3b-fp8                       # same model file as prod-35b
+model: qwen3.6-35b-a3b-fp8                       # same model file as prod-qwen3.6-35b-balanced
 hardware: a5000-2x-24gbvram-16cpu-128gbram       # same rig — Sander's 2× A5000 homelab
-profile: 35b-multiconc                           # THROUGHPUT profile (vs prod-35b's 35b-balanced LATENCY profile)
+profile: qwen3.6-35b-multiconc                           # THROUGHPUT profile (vs prod-qwen3.6-35b-balanced's qwen3.6-35b-balanced LATENCY profile)
 # runtime: docker                                # optional; defaults to hardware.runtime.default
 
 # CONFIG-UX.2 — operator card (2026-05-24)
@@ -46,7 +46,7 @@ card:
     typical_output_tokens: 2048
   routing_family: qwen3_6_35b_a3b_fp8
   default_for_family: false
-  fallback_preset: prod-35b
+  fallback_preset: prod-qwen3.6-35b-balanced
   primary_metric:
     kind: agg_TPS
     value: 689.0
@@ -59,11 +59,11 @@ card:
       note: Wave 9 multi-conc bench; conc=8 = 689 TPS / TTFT 243 ms (3.21x scaling).
   evidence_visibility: public
   tradeoffs:
-    - "Aggregate throughput maximised; single-user TTFT increases vs prod-35b (243 ms vs 65 ms)."
+    - "Aggregate throughput maximised; single-user TTFT increases vs prod-qwen3.6-35b-balanced (243 ms vs 65 ms)."
     - "Multi-conc free-chat reference; prod-gemma4-26b-multiconc loses on free-chat (-39%) but wins on short structured."
   do_not_use:
     - condition: "single-user latency-critical chat"
-      reason: "TTFT triples vs prod-35b; use prod-35b for single-user latency."
+      reason: "TTFT triples vs prod-qwen3.6-35b-balanced; use prod-qwen3.6-35b-balanced for single-user latency."
   card_version: 1
   card_updated: 2026-05-24
   card_author: sander

@@ -398,7 +398,7 @@ class TestProfileDefRuntimeRole:
         presets (the existing 17 builtin shape)."""
         from vllm.sndr_core.model_configs.schema_v2 import HardwareSizing
         p = _bare_profile(
-            id="35b-balanced",
+            id="qwen3.6-35b-balanced",
             sizing_override=HardwareSizing(max_num_seqs=2),
         )
         p.validate()

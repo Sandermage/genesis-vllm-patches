@@ -70,13 +70,13 @@ class TestV1PresetStillWorks:
 
 class TestV2AliasResolution:
     @pytest.mark.parametrize("alias", [
-        "prod-35b",
-        "prod-27b-tq",
-        "long-ctx-27b",
-        "qa-27b-tested",
-        "qa-27b-tq-1x",
-        "prod-27b-dflash",
-        "prod-35b-dflash",
+        "prod-qwen3.6-35b-balanced",
+        "prod-qwen3.6-27b-tq-k8v4",
+        "long-ctx-qwen3.6-27b",
+        "qa-qwen3.6-27b-tested",
+        "qa-qwen3.6-27b-tq-1x",
+        "prod-qwen3.6-27b-dflash",
+        "prod-qwen3.6-35b-dflash",
         "example-2x-tier-aware",
     ])
     def test_v2_alias_resolves_and_emits_verdict(self, alias):
@@ -172,7 +172,7 @@ class TestVerdictComputation:
 
 class TestJSONOutputContract:
     def test_json_includes_verdict_fields(self):
-        rc, out = _run(_default_opts("prod-35b", json_mode=True))
+        rc, out = _run(_default_opts("prod-qwen3.6-35b-balanced", json_mode=True))
         assert rc == 0
         payload = json.loads(out)
         # Phase 4.7 contract: every JSON output carries the verdict block.
@@ -186,7 +186,7 @@ class TestJSONOutputContract:
 
     def test_json_existing_estimator_fields_unchanged(self):
         """Don't break consumers of the existing JSON estimator output."""
-        rc, out = _run(_default_opts("prod-35b", json_mode=True))
+        rc, out = _run(_default_opts("prod-qwen3.6-35b-balanced", json_mode=True))
         assert rc == 0
         payload = json.loads(out)
         # Pre-Phase-4.7 fields still present (key name is `preset`, not `preset_key`).
@@ -209,7 +209,7 @@ class TestResolverHelper:
 
     def test_v2_alias_resolves(self):
         from vllm.sndr_core.cli.memory import _resolve_preset_v1_or_v2
-        cfg = _resolve_preset_v1_or_v2("prod-35b")
+        cfg = _resolve_preset_v1_or_v2("prod-qwen3.6-35b-balanced")
         assert cfg is not None
         # V2 alias produces a composed key with `--` separators (Wave 10
         # canonical separator; was `__` pre-Wave-10 but had to switch to

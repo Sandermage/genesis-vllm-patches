@@ -20,7 +20,7 @@ id: experimental-card-example
 # 3-pointer triplet (composition base — same as legacy shape)
 model: qwen3.6-35b-a3b-fp8
 hardware: a5000-2x-24gbvram-16cpu-128gbram
-profile: 35b-balanced
+profile: qwen3.6-35b-balanced
 
 # Full PresetCard (CONFIG-UX.1 forward shape)
 card:
@@ -60,7 +60,7 @@ card:
   # — Routing metadata
   routing_family: qwen3-35b-a3b-fp8
   default_for_family: false
-  fallback_preset: prod-35b
+  fallback_preset: prod-qwen3.6-35b-balanced
 
   # — Evidence
   primary_metric:

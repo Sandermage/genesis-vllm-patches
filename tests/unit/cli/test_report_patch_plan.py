@@ -27,10 +27,10 @@ class TestCollectorShape:
         assert _collect_patch_plan(None) is None
 
     def test_returns_dict_keyed_by_policy_when_preset_given(self):
-        out = _collect_patch_plan("prod-35b")
+        out = _collect_patch_plan("prod-qwen3.6-35b-balanced")
         assert out is not None
         assert isinstance(out, dict)
-        assert out["preset"] == "prod-35b"
+        assert out["preset"] == "prod-qwen3.6-35b-balanced"
         plans = out["plans"]
         for policy in ("compat", "safe", "minimal"):
             assert policy in plans
@@ -41,7 +41,7 @@ class TestCollectorShape:
 
     def test_compat_minimal_excluded_count_grows(self):
         """Under minimal more toggles are excluded than under compat."""
-        out = _collect_patch_plan("prod-35b")
+        out = _collect_patch_plan("prod-qwen3.6-35b-balanced")
         assert out is not None
         plans = out["plans"]
         assert plans["minimal"]["excluded_count"] > plans["compat"]["excluded_count"]

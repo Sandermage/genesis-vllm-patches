@@ -105,7 +105,7 @@ class TestProfileList:
         assert "ProfileDef registry" in out
         # Known V2 profiles surface.
         assert "wave9-balanced" in out
-        assert "wave9-27b-tq-k8v4" in out
+        assert "wave9-qwen3.6-27b-tq-k8v4" in out
         assert "qa-27b-fp8kv-tested" in out
 
     def test_filter_by_model(self):
@@ -116,7 +116,7 @@ class TestProfileList:
         # Only the 35B-fp8 wave9-balanced profile matches this filter.
         assert "wave9-balanced" in out
         # 27B profiles must not appear under this filter.
-        assert "wave9-27b-tq-k8v4" not in out
+        assert "wave9-qwen3.6-27b-tq-k8v4" not in out
 
     def test_filter_no_match(self):
         from vllm.sndr_core.cli import profile as prof_cli
@@ -182,10 +182,10 @@ class TestProfileDiff:
         assert "GENESIS_ENABLE_PN16_LAZY_REASONER" in removed_keys
 
     def test_diff_dflash_ab_adds_patches(self):
-        """experimental-27b-tq-dflash-ab enables 6 patches (5 DFlash + P100)."""
+        """experimental-qwen3.6-27b-tq-dflash-ab enables 6 patches (5 DFlash + P100)."""
         from vllm.sndr_core.cli import profile as prof_cli
         ns = argparse.Namespace(
-            profile_id="experimental-27b-tq-dflash-ab", json=True
+            profile_id="experimental-qwen3.6-27b-tq-dflash-ab", json=True
         )
         rc, out = _run(prof_cli, "run_diff", ns)
         assert rc == 0

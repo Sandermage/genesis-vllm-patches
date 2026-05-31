@@ -468,8 +468,8 @@ class TestSeverityInvariants:
 class TestHardwareCrossProduct:
     def test_resolve_hardware_ids_for_profile_finds_referencing_presets(self):
         mod = _import_audit()
-        # 27b-tq-k8v4 is referenced by prod-27b-tq preset (a5000-2x-... hardware)
-        hw_ids = mod._resolve_hardware_ids_for_profile("27b-tq-k8v4")
+        # qwen3.6-27b-tq-k8v4 is referenced by prod-qwen3.6-27b-tq-k8v4 preset (a5000-2x-... hardware)
+        hw_ids = mod._resolve_hardware_ids_for_profile("qwen3.6-27b-tq-k8v4")
         assert "a5000-2x-24gbvram-16cpu-128gbram" in hw_ids
 
     def test_resolve_hardware_ids_orphan_profile(self):

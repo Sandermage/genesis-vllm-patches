@@ -67,19 +67,19 @@ class TestGate1ListWorksWithoutGPU:
 
     def test_list_shows_all_21(self):
         result = _run_cli("list")
-        assert "matched 21 / 21 presets" in result.stdout
+        assert "matched 23 / 23 presets" in result.stdout
 
     def test_list_filter_status_prod_candidate(self):
         result = _run_cli("list", "--status", "production_candidate")
         assert result.returncode == 0
-        # 14 prod-* annotated → all production_candidate at Stage 1
-        assert "matched 14 / 21 presets" in result.stdout
+        # 16 prod-* annotated → all production_candidate (Stage 1 + 2× gemma4-31b chat-K3)
+        assert "matched 16 / 23 presets" in result.stdout
 
     def test_list_filter_family(self):
         result = _run_cli("list", "--family", "qwen3_6_35b_a3b_fp8")
         assert result.returncode == 0
-        # prod-35b + prod-35b-multiconc
-        assert "matched 2 / 21 presets" in result.stdout
+        # prod-qwen3.6-35b-balanced + prod-qwen3.6-35b-multiconc
+        assert "matched 2 / 23 presets" in result.stdout
 
     def test_list_filter_no_matches(self):
         result = _run_cli("list", "--family", "nonexistent_family")
@@ -99,10 +99,10 @@ class TestGate1ListWorksWithoutGPU:
 
 class TestGate8And9JSONRoundTrip:
     def test_show_json_roundtrip(self):
-        result = _run_cli("show", "--json", "prod-35b")
+        result = _run_cli("show", "--json", "prod-qwen3.6-35b-balanced")
         assert result.returncode == 0
         data = json.loads(result.stdout)
-        assert data["id"] == "prod-35b"
+        assert data["id"] == "prod-qwen3.6-35b-balanced"
         assert data["model"] == "qwen3.6-35b-a3b-fp8"
         assert data["hardware"] == "a5000-2x-24gbvram-16cpu-128gbram"
         assert data["has_card"] is True
@@ -118,13 +118,13 @@ class TestGate8And9JSONRoundTrip:
         result = _run_cli("list", "--json", "--status", "production_candidate")
         assert result.returncode == 0
         data = json.loads(result.stdout)
-        assert data["matched"] == 14
-        assert data["total"] == 21
+        assert data["matched"] == 16
+        assert data["total"] == 23
         ids = {p["id"] for p in data["presets"]}
         # Spot-check a couple of expected ids
-        assert "prod-35b" in ids
+        assert "prod-qwen3.6-35b-balanced" in ids
         assert "prod-gemma4-26b-multiconc" in ids
-        assert "prod-27b-tq" in ids
+        assert "prod-qwen3.6-27b-tq-k8v4" in ids
 
 
 # ─── Gate 2: show human view ────────────────────────────────────────────────
@@ -140,7 +140,7 @@ class TestGate2ShowHumanView:
         assert "structured_json.short" in result.stdout  # in allow
 
     def test_show_includes_evidence(self):
-        result = _run_cli("show", "prod-35b")
+        result = _run_cli("show", "prod-qwen3.6-35b-balanced")
         assert result.returncode == 0
         assert "Evidence" in result.stdout
         assert "35b_v11_wave9.json" in result.stdout
@@ -177,29 +177,29 @@ class TestGate2ShowHumanView:
 
 class TestGate3Explain:
     def test_explain_shows_composed_runtime(self):
-        result = _run_cli("explain", "prod-35b")
+        result = _run_cli("explain", "prod-qwen3.6-35b-balanced")
         assert result.returncode == 0
         assert "Composed runtime" in result.stdout
         assert "max_model_len" in result.stdout
         assert "spec_decode_method" in result.stdout
 
     def test_explain_shows_fallback_diff(self):
-        result = _run_cli("explain", "prod-27b-tq-multiconc")
+        result = _run_cli("explain", "prod-qwen3.6-27b-tq-multiconc")
         assert result.returncode == 0
         assert "Fallback diff" in result.stdout
-        assert "prod-27b-tq" in result.stdout
+        assert "prod-qwen3.6-27b-tq-k8v4" in result.stdout
 
     def test_explain_self_fallback_clean(self):
         """Family-default presets self-fallback; diff should report no
         field-level differences."""
-        result = _run_cli("explain", "prod-35b")
+        result = _run_cli("explain", "prod-qwen3.6-35b-balanced")
         assert result.returncode == 0
         # self-fallback yields identical compose
         if "Fallback diff" in result.stdout:
             assert "no field-level differences" in result.stdout
 
     def test_explain_json(self):
-        result = _run_cli("explain", "--json", "prod-35b-multiconc")
+        result = _run_cli("explain", "--json", "prod-qwen3.6-35b-multiconc")
         assert result.returncode == 0
         data = json.loads(result.stdout)
         assert "card" in data
@@ -229,7 +229,7 @@ class TestGate4RecommendBasic:
         assert "prod-gemma4-26b-mtp-k4" not in ids
         assert "prod-gemma4-26b-multiconc" not in ids
         # Qwen multi-conc presets should be present
-        assert "prod-35b-multiconc" in ids
+        assert "prod-qwen3.6-35b-multiconc" in ids
         # Top result should have highest TPS
         if data["results"]:
             top = data["results"][0]
@@ -248,7 +248,7 @@ class TestGate4RecommendBasic:
         ids = [r["id"] for r in data["results"]]
         # Both 35B-multiconc AND gemma4 multiconc allow this workload
         assert "prod-gemma4-26b-multiconc" in ids
-        assert "prod-35b-multiconc" in ids
+        assert "prod-qwen3.6-35b-multiconc" in ids
 
     def test_recommend_no_matches(self):
         """Concurrency outside any preset's envelope → empty results."""
@@ -423,27 +423,27 @@ class TestGate10TorchFreeImport:
 
 class TestGate11FieldDrill:
     def test_field_simple_attr(self):
-        result = _run_cli("show", "--field", "card.status", "prod-35b")
+        result = _run_cli("show", "--field", "card.status", "prod-qwen3.6-35b-balanced")
         assert result.returncode == 0
         assert "production_candidate" in result.stdout
 
     def test_field_nested_list_index(self):
         result = _run_cli(
-            "show", "--field", "card.evidence_refs.0.path", "prod-35b",
+            "show", "--field", "card.evidence_refs.0.path", "prod-qwen3.6-35b-balanced",
         )
         assert result.returncode == 0
         assert "35b_v11_wave9.json" in result.stdout
 
     def test_field_invalid_path(self):
         result = _run_cli(
-            "show", "--field", "card.nonexistent_field", "prod-35b",
+            "show", "--field", "card.nonexistent_field", "prod-qwen3.6-35b-balanced",
         )
         assert result.returncode == 1
         assert "nonexistent_field" in result.stderr
 
     def test_field_out_of_range(self):
         result = _run_cli(
-            "show", "--field", "card.evidence_refs.999", "prod-35b",
+            "show", "--field", "card.evidence_refs.999", "prod-qwen3.6-35b-balanced",
         )
         assert result.returncode == 1
         assert "out of range" in result.stderr
@@ -488,7 +488,7 @@ class TestGate13GracefulDegradation:
         """
         result = _run_cli("list", "--json")
         data = json.loads(result.stdout)
-        assert "presets" in data and len(data["presets"]) == 21
+        assert "presets" in data and len(data["presets"]) == 23
         # has_card key is required on every entry — schema contract.
         for p in data["presets"]:
             assert "has_card" in p, (

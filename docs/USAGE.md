@@ -145,20 +145,20 @@ boot summary.
 
 ```bash
 # Boot a preset
-sndr launch prod-35b                  # V2 alias (3-pointer model+hw+profile)
+sndr launch prod-qwen3.6-35b-balanced                  # V2 alias (3-pointer model+hw+profile)
 sndr launch a5000-2x-35b-prod         # V1 monolithic key (legacy form)
 
 # Inspect the rendered command without booting
-sndr launch prod-35b --dry-run
+sndr launch prod-qwen3.6-35b-balanced --dry-run
 
 # Preflight only — env, mounts, GPU, quant args coherent — no boot
-sndr launch prod-35b --preflight-only
+sndr launch prod-qwen3.6-35b-balanced --preflight-only
 
 # Override config port
-sndr launch prod-35b --port 8101
+sndr launch prod-qwen3.6-35b-balanced --port 8101
 
 # Strict image digest mode — refuse to boot if local image ≠ preset's
-sndr launch prod-35b --strict-image on
+sndr launch prod-qwen3.6-35b-balanced --strict-image on
 ```
 
 ### What happens on boot
@@ -241,10 +241,10 @@ in V2 form.
 
 ```bash
 sndr model-config list                # all configs the registry sees
-sndr config diff prod-35b prod-27b-tq # field-by-field diff
-sndr config explain prod-35b          # plain-English walkthrough
-sndr model-config show prod-35b       # the resolved full YAML
-sndr patches plan prod-35b            # preview which patches will apply
+sndr config diff prod-qwen3.6-35b-balanced prod-qwen3.6-27b-tq-k8v4 # field-by-field diff
+sndr config explain prod-qwen3.6-35b-balanced          # plain-English walkthrough
+sndr model-config show prod-qwen3.6-35b-balanced       # the resolved full YAML
+sndr patches plan prod-qwen3.6-35b-balanced            # preview which patches will apply
 ```
 
 The 12 builtin configs and their reference metrics are
@@ -332,7 +332,7 @@ sndr patches list --lifecycle stable             # only stable-promoted
 sndr patches list --family attention.turboquant  # one family
 
 sndr patches explain P67                         # per-patch deep-dive
-sndr patches plan prod-35b                       # which patches the preset enables
+sndr patches plan prod-qwen3.6-35b-balanced                       # which patches the preset enables
 sndr patches doctor                              # registry contract sanity
 ```
 
@@ -420,7 +420,7 @@ python3 vllm/sndr_core/tools/genesis_bench_suite.py \
 # 3. Attach the bench measurements to every patch the preset enables
 python3 scripts/attach_bench_proof.py \
     --bench tools/bench_results/<preset>_<date>.json \
-    --preset prod-27b-dflash-multiconc \
+    --preset prod-qwen3.6-27b-dflash-multiconc \
     --baseline tests/integration/baselines/27b_dflash_multiconc.json
 
 # 4. Gate the release on the subset

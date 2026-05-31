@@ -728,19 +728,19 @@ class TestCandidateWhenOnRealPreset:
     candidate_when mismatch warning."""
 
     def test_pn204_emits_warning_on_latency_preset(self):
-        """PN204 is value='0' (operator-disabled) on prod-35b. So it
+        """PN204 is value='0' (operator-disabled) on prod-qwen3.6-35b-balanced. So it
         won't be in included → candidate_when check skipped. But
-        prod-35b-multiconc enables PN204 (value='1') AND raises
+        prod-qwen3.6-35b-multiconc enables PN204 (value='1') AND raises
         max_num_seqs to 8 → candidate_when matches, no warning.
         Either way the integration must run cleanly. Test the
         defensive scenario: synthetic compose with PN204 enabled
         + max_num_seqs=2 + the model's real attribution."""
         from vllm.sndr_core.model_configs.registry_v2 import load_alias
-        cfg = load_alias("prod-35b")
+        cfg = load_alias("prod-qwen3.6-35b-balanced")
         # Force PN204 enabled to exercise the candidate_when path.
         cfg.genesis_env = dict(cfg.genesis_env)
         cfg.genesis_env["GENESIS_ENABLE_PN204_DUAL_STREAM_INPROJ"] = "1"
-        # max_num_seqs is 2 on prod-35b → candidate_when_gte=4 mismatches.
+        # max_num_seqs is 2 on prod-qwen3.6-35b-balanced → candidate_when_gte=4 mismatches.
         assert cfg.max_num_seqs < 4
         plan = resolve_patch_plan(cfg, policy="compat")
         cw_warns = [

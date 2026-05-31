@@ -1,14 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
 # Genesis V2 profile — Wave 10 multi-concurrency throughput preset for 27B INT4.
-# Companion to 27b-tq-k8v4 (LATENCY profile, max_num_seqs=4).
+# Companion to qwen3.6-27b-tq-k8v4 (LATENCY profile, max_num_seqs=4).
 # Layers on top of qwen3.6-27b-int4-autoround-tq-k8v4 model.
 # All overrides ADDITIVE; nothing removed from canonical wave9 set.
 # Switch between profiles per-workload via `sndr launch --profile`.
 
 schema_version: 2
 kind: profile
-id: 27b-multiconc                                # multi-concurrency throughput companion to 27b-tq-k8v4 (latency profile)
-parent_model: qwen3.6-27b-int4-autoround-tq-k8v4 # same model as 27b-tq-k8v4 — only sizing + 2 patches differ
+id: qwen3.6-27b-multiconc                                # multi-concurrency throughput companion to qwen3.6-27b-tq-k8v4 (latency profile)
+parent_model: qwen3.6-27b-int4-autoround-tq-k8v4 # same model as qwen3.6-27b-tq-k8v4 — only sizing + 2 patches differ
 maintainer: sandermage
 status: validated                                # validated = Wave 10 bench passed 2026-05-15
 created: '2026-05-15'
@@ -70,8 +70,8 @@ promotion:
     - "PN204 v2 boot — no CUDA driver crash during profile_run on dev371"
   promote_to: null                               # multi-conc-specific; do NOT promote into canonical model.patches
   notes: |
-    27b-multiconc validates on Wave 10 stack (dev371+bf610c2f5) with PN204 v2.
-    Companion to 27b-tq-k8v4 (latency, max_num_seqs=4). Operator chooses
+    qwen3.6-27b-multiconc validates on Wave 10 stack (dev371+bf610c2f5) with PN204 v2.
+    Companion to qwen3.6-27b-tq-k8v4 (latency, max_num_seqs=4). Operator chooses
     profile per-workload — both are stable. 27B INT4 has BETTER multi-conc
     scaling (3.89x) than 35B FP8 (3.21x) because INT4 weight fetch is
     cheaper, leaving more SM cycles for parallel KV access.

@@ -87,7 +87,7 @@ class TestComposeFromV2Alias:
     must compose into a complete RuntimeContainerSpec."""
 
     def test_prod_35b_alias_produces_complete_spec(self):
-        cfg = load_alias("prod-35b")
+        cfg = load_alias("prod-qwen3.6-35b-balanced")
         spec = build_runtime_container_spec(cfg, runtime="docker")
         assert isinstance(spec, RuntimeContainerSpec)
         assert spec.runtime == "docker"
@@ -103,13 +103,13 @@ class TestComposeFromV2Alias:
         assert spec.ports[0].container_port == 8000
 
     def test_image_digest_wins_over_tag(self):
-        cfg = load_alias("prod-35b")
+        cfg = load_alias("prod-qwen3.6-35b-balanced")
         spec = build_runtime_container_spec(cfg)
         # effective_image_ref MUST return the digest when both are set.
         assert spec.effective_image_ref() == spec.image_digest
 
     def test_env_merged_from_genesis_plus_system(self):
-        cfg = load_alias("prod-35b")
+        cfg = load_alias("prod-qwen3.6-35b-balanced")
         spec = build_runtime_container_spec(cfg)
         # genesis_env keys (P-codes) present.
         assert "GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL" in spec.env
@@ -118,7 +118,7 @@ class TestComposeFromV2Alias:
         assert "PYTORCH_CUDA_ALLOC_CONF" in spec.env
 
     def test_mounts_parsed_from_v1_strings(self):
-        cfg = load_alias("prod-35b")
+        cfg = load_alias("prod-qwen3.6-35b-balanced")
         spec = build_runtime_container_spec(cfg)
         assert len(spec.mounts) >= 1
         # At least one models mount, read-only.
@@ -127,7 +127,7 @@ class TestComposeFromV2Alias:
         assert models_mounts[0].mode == "ro"
 
     def test_argv_invariant_via_runtime_command_spec(self):
-        cfg = load_alias("prod-35b")
+        cfg = load_alias("prod-qwen3.6-35b-balanced")
         spec = build_runtime_container_spec(cfg)
         argv = spec.command.argv
         # Argv invariants from runtime_command.py:
@@ -143,14 +143,14 @@ class TestComposeAcrossAllAliases:
     """Phase 3 ships 11 V2 aliases. Each must compose into a valid spec."""
 
     @pytest.mark.parametrize("alias", [
-        "prod-35b",
-        "prod-27b-tq",
-        "prod-35b-dflash",
-        "long-ctx-27b",
-        "qa-27b-tested",
-        "qa-27b-tq-1x",
-        "prod-27b-dflash",
-        "experimental-27b-tq-dflash-ab",
+        "prod-qwen3.6-35b-balanced",
+        "prod-qwen3.6-27b-tq-k8v4",
+        "prod-qwen3.6-35b-dflash",
+        "long-ctx-qwen3.6-27b",
+        "qa-qwen3.6-27b-tested",
+        "qa-qwen3.6-27b-tq-1x",
+        "prod-qwen3.6-27b-dflash",
+        "experimental-qwen3.6-27b-tq-dflash-ab",
         "example-2x-tier-aware",
         "example-3090-dense-cpu-offload",
         "example-3090-tier-aware",
@@ -175,17 +175,17 @@ class TestRuntimeParameter:
     """Composer honors the requested runtime backend."""
 
     def test_explicit_compose_runtime(self):
-        cfg = load_alias("prod-35b")
+        cfg = load_alias("prod-qwen3.6-35b-balanced")
         spec = build_runtime_container_spec(cfg, runtime="compose")
         assert spec.runtime == "compose"
 
     def test_explicit_quadlet_runtime(self):
-        cfg = load_alias("prod-35b")
+        cfg = load_alias("prod-qwen3.6-35b-balanced")
         spec = build_runtime_container_spec(cfg, runtime="quadlet")
         assert spec.runtime == "quadlet"
 
     def test_default_runtime_is_docker(self):
-        cfg = load_alias("prod-35b")
+        cfg = load_alias("prod-qwen3.6-35b-balanced")
         spec = build_runtime_container_spec(cfg)
         assert spec.runtime == "docker"
 
@@ -199,9 +199,9 @@ class TestCrossRuntimeSemanticEquivalence:
     `runtime` discriminator field changes."""
 
     @pytest.mark.parametrize("alias", [
-        "prod-35b",
-        "prod-27b-tq",
-        "long-ctx-27b",
+        "prod-qwen3.6-35b-balanced",
+        "prod-qwen3.6-27b-tq-k8v4",
+        "long-ctx-qwen3.6-27b",
     ])
     def test_docker_compose_quadlet_semantic_equality(self, alias):
         cfg = load_alias(alias)
@@ -236,7 +236,7 @@ class TestSecurityExtraction:
         from vllm.sndr_core.model_configs.schema import DockerConfig, ModelConfig
 
         # Build a minimal ModelConfig + DockerConfig with SELinux flag.
-        cfg = load_alias("prod-35b")
+        cfg = load_alias("prod-qwen3.6-35b-balanced")
         # Patch extra_run_flags to include the SELinux opt.
         from dataclasses import replace
         docker = replace(
@@ -252,7 +252,7 @@ class TestSecurityExtraction:
         assert "--security-opt label=disable" not in spec.extra_run_flags
 
     def test_no_security_flag_default_off(self):
-        cfg = load_alias("prod-35b")
+        cfg = load_alias("prod-qwen3.6-35b-balanced")
         spec = build_runtime_container_spec(cfg)
-        # prod-35b V2 hardware default has no SELinux flag.
+        # prod-qwen3.6-35b-balanced V2 hardware default has no SELinux flag.
         assert spec.security.selinux_label_disable is False

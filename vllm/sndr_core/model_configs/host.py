@@ -76,7 +76,7 @@ _DEFAULT_COMPILE_CACHE_CANDIDATES = [
 ]
 
 # builtin configs declare per-config cache
-# subdirectories like `triton-cache-35b-dflash` for bench reproducibility.
+# subdirectories like `triton-cache-qwen3.6-35b-dflash` for bench reproducibility.
 # `cache_root` is the parent of all per-config cache subdirs.
 _DEFAULT_CACHE_ROOT_CANDIDATES = [
     str(Path.home() / ".sndr/cache"),

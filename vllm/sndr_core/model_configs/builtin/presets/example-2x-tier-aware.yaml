@@ -9,9 +9,9 @@ card:
   title: "Path C tier-aware cache example (2× A5000, PN95)"
   summary: |
     Educational example preset demonstrating Path C tier-aware cache
-    (PN95) on 2× A5000. Same model + hardware as prod-27b-tq but with
+    (PN95) on 2× A5000. Same model + hardware as prod-qwen3.6-27b-tq-k8v4 but with
     PN95 multi-tier offload enabled at 4 concurrent streams for
-    tier-transition coverage. Use prod-27b-tq for production — this
+    tier-transition coverage. Use prod-qwen3.6-27b-tq-k8v4 for production — this
     preset is reference / experiment scope only.
   status: example
   audience: dev
@@ -34,4 +34,4 @@ card:
     typical_output_tokens: 4096
   routing_family: qwen3_6_27b_int4_tq_tier_aware
   default_for_family: false
-  fallback_preset: prod-27b-tq
+  fallback_preset: prod-qwen3.6-27b-tq-k8v4

@@ -132,12 +132,12 @@ class TestRedactionEnforcement:
         rows = mod.build_catalog()
         target = next(
             (r for r in rows
-             if r["row_type"] == "preset" and r["id"] == "prod-35b"),
+             if r["row_type"] == "preset" and r["id"] == "prod-qwen3.6-35b-balanced"),
             None,
         )
         assert target is not None
         ev_refs = target["card_evidence_refs"]
-        # prod-35b cites tests/integration/baselines/35b_v11_wave9.json (public)
+        # prod-qwen3.6-35b-balanced cites tests/integration/baselines/35b_v11_wave9.json (public)
         assert any(
             ref.get("path", "").startswith("tests/integration/baselines/")
             for ref in ev_refs

@@ -141,7 +141,7 @@ genesis_env:
   # ── Wave 10 (2026-05-15) — multi-conc unlock + correctness recoveries ──
   # All flags below were enabled via session bench validation on dev371+bf610c2f5.
   # Single-conc impact: neutral within CV. Multi-conc (max_num_seqs=8) impact: matches
-  # 689 TPS aggregate (3.21x single scaling) — see preset a5000-2x-35b-multiconc.yaml.
+  # 689 TPS aggregate (3.21x single scaling) — see preset a5000-2x-qwen3.6-35b-multiconc.yaml.
   GENESIS_ENABLE_PN125_HYBRID_FULL_AND_PIECEWISE: '1' # PR-blog 2026-05 — forces cudagraph_mode=FULL_AND_PIECEWISE on Qwen3.5/3.6 hybrid (dev371 v1 default already, kept on for upstream-bypass insurance).
   GENESIS_ENABLE_PN132_TOPK_TOPP_CONTIGUOUS: '1'     # vllm#42739 backport — guarantee logits contiguous before Triton top-k/top-p kernel (FlashInfer-sampler no-op when VLLM_USE_FLASHINFER_SAMPLER=1).
   GENESIS_ENABLE_PN133_MTP_EMPTY_OUTPUT_FIX: '1'     # vllm#42722 backport — MTP scheduler empty-output fix (avoids num_accepted=-1 Prometheus ValueError on rare K=3 reject-all path).
@@ -164,7 +164,7 @@ genesis_env:
                                                        #   disable on runtime fault. Bench on 35B/dev371/multi-conc=8:
                                                        #   neutral within CV (agg 675 vs 689, TTFT 240 vs 237). Stays OFF
                                                        #   in single-conc latency-critical PROD; ENABLED in multi-conc
-                                                       #   throughput preset (a5000-2x-35b-multiconc.yaml).
+                                                       #   throughput preset (a5000-2x-qwen3.6-35b-multiconc.yaml).
                                                        # GENESIS_LEGACY_P7 must be =0 when PN204=1 (conflicts_with declared).
   GENESIS_ENABLE_SNDR_WORKSPACE_001: '1'             # Workspace grow-after-lock graceful fix — replaces upstream assert with one-shot grow + warn.
 

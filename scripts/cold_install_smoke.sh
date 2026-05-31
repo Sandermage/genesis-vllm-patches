@@ -15,7 +15,7 @@
 #   3. Verify the registry imports without GPU dependencies.
 #   4. Run self-test (8/8 PASS expected).
 #   5. Smoke compose for one V1 preset (`a5000-2x-35b-prod`) and one V2
-#      alias (`prod-35b`) — `--preflight-only`, no live launch.
+#      alias (`prod-qwen3.6-35b-balanced`) — `--preflight-only`, no live launch.
 #
 # Modes:
 #
@@ -189,7 +189,7 @@ if [ "$SKIP_LAUNCH" -eq 0 ]; then
     fi
 
     # V2 alias — composes to V1 ModelConfig via registry_v2.load_alias.
-    V2_ALIAS="prod-35b"
+    V2_ALIAS="prod-qwen3.6-35b-balanced"
     if python3 -m vllm.sndr_core.cli launch "$V2_ALIAS" --preflight-only \
             >>"$SMOKE_LOG" 2>&1; then
         _pass "V2 alias '$V2_ALIAS' preflight OK"

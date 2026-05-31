@@ -342,17 +342,17 @@ class TestDFlashHoldGate:
         # (DFlash) family designation
         assert (
             "qwen3.6-27b-dflash → dev371  (DFlash)" in joined
-        ), f"27b-dflash must appear on dev371 after M8-Q27; got:\n{joined}"
+        ), f"qwen3.6-27b-dflash must appear on dev371 after M8-Q27; got:\n{joined}"
         assert (
             "qwen3.6-35b-a3b-fp8-dflash → dev371  (DFlash)" in joined
-        ), f"35b-dflash must appear on dev371 after M8-Q35; got:\n{joined}"
+        ), f"qwen3.6-35b-dflash must appear on dev371 after M8-Q35; got:\n{joined}"
         # Neither DFlash must remain on dev338 — sprint is closed
         assert (
             "qwen3.6-27b-dflash → dev338" not in joined
-        ), "27b-dflash must NOT remain on dev338 after M8-Q27"
+        ), "qwen3.6-27b-dflash must NOT remain on dev338 after M8-Q27"
         assert (
             "qwen3.6-35b-a3b-fp8-dflash → dev338" not in joined
-        ), "35b-dflash must NOT remain on dev338 after M8-Q35"
+        ), "qwen3.6-35b-dflash must NOT remain on dev338 after M8-Q35"
         # No P2.4d candidate or pre-M7 hold tag should be attached to
         # any DFlash entry anymore
         assert (

@@ -142,11 +142,11 @@ under `require-static` even on hardened deploys.
 
 ### Current attachment state (2026-05-22)
 
-After running the workflow below against the `prod-27b-dflash-multiconc`
+After running the workflow below against the `prod-qwen3.6-27b-dflash-multiconc`
 preset (the active homelab container):
 
 - **95/226 patches** (42.0%) are in `bench_with_baseline`
-  - 45 from `prod-27b-dflash-multiconc.genesis_env`
+  - 45 from `prod-qwen3.6-27b-dflash-multiconc.genesis_env`
   - 50 default-on patches running implicitly in the same container
 
 - **28 production-subset patches** remain in `static_only` because
@@ -166,7 +166,7 @@ For each remaining prod preset, repeat the cycle:
 
 ```bash
 # 1. Boot the preset's container (replaces the previous running one)
-sndr launch <preset>             # e.g., sndr launch prod-27b-tq-multiconc
+sndr launch <preset>             # e.g., sndr launch prod-qwen3.6-27b-tq-multiconc
 
 # 2. Regenerate static proofs (per-host, per-pin)
 sndr patches prove --all
@@ -207,17 +207,17 @@ forward projection above tracks the live registry total.
 ### Per-preset coverage cheatsheet
 
 The list below shows which patches each preset uniquely contributes
-(not already covered by the prod-27b-dflash-multiconc bench). A
+(not already covered by the prod-qwen3.6-27b-dflash-multiconc bench). A
 single bench run per preset closes its row.
 
 | Preset | New patches it covers | Model |
 | --- | --- | --- |
-| `prod-27b-tq` | 22 (P101 P103 P107 P67b P70 P82 P94 P95 P98 P99 PN8 PN12 PN14 PN16 PN17 PN30 PN52 PN56 PN66 PN67 PN82 PN90) | Qwen3.6-27B-int4-AutoRound (TQ k8v4 KV) |
-| `prod-27b-tq-multiconc` | same 22 (max_num_seqs=8) | same |
-| `prod-35b` | +P37 +P71 +P81 (25 total) | Qwen3.6-35B-A3B-FP8 (single-conc) |
-| `prod-35b-multiconc` | same 25 (max_num_seqs=8) | same |
-| `prod-35b-dflash` | 13 (P37 P67b P70 P78 P81 P82 P98 P99 PN8 PN17 PN22 P101 P103) | 35B + DFlash drafter |
-| `prod-35b-dflash-multiconc` | same 13 | same |
+| `prod-qwen3.6-27b-tq-k8v4` | 22 (P101 P103 P107 P67b P70 P82 P94 P95 P98 P99 PN8 PN12 PN14 PN16 PN17 PN30 PN52 PN56 PN66 PN67 PN82 PN90) | Qwen3.6-27B-int4-AutoRound (TQ k8v4 KV) |
+| `prod-qwen3.6-27b-tq-multiconc` | same 22 (max_num_seqs=8) | same |
+| `prod-qwen3.6-35b-balanced` | +P37 +P71 +P81 (25 total) | Qwen3.6-35B-A3B-FP8 (single-conc) |
+| `prod-qwen3.6-35b-multiconc` | same 25 (max_num_seqs=8) | same |
+| `prod-qwen3.6-35b-dflash` | 13 (P37 P67b P70 P78 P81 P82 P98 P99 PN8 PN17 PN22 P101 P103) | 35B + DFlash drafter |
+| `prod-qwen3.6-35b-dflash-multiconc` | same 13 | same |
 
 ### Patches with no test coverage at all (work needed)
 
@@ -247,4 +247,4 @@ empirical evidence of safety on the operator's specific rig.
 | 2026-05-11 | Initial `require-static` policy adopted as the release gate; `require-baseline` introduced as a strict ratchet. |
 | 2026-05-15 | Audit flagged ambiguity (C1): `audit-release-check-strict` Makefile target name suggested it was a release-blocker, but `make_evidence.py --release` only ran `require-static`. |
 | 2026-05-16 | Audit C1 closure — renamed strict target to `audit-release-check-baseline-optional`, added `RELEASE_POLICY.md` (this file) as canonical source of truth, added `bench-attached` ratchet as the bridge between static-only and full-baseline coverage. |
-| 2026-05-16 | Audit R-01 + R-02 + R-04 closure — introduced `vllm.sndr_core.proof.production_subset`, `scripts/attach_bench_proof.py --include-default-on`, `sndr patches release-check --scope production-subset`. First bench cycle against `prod-27b-dflash-multiconc` brought 81/169 patches (47.9%) to `bench_with_baseline`. R-04 triage promoted 37 family-contract-covered patches from `review_required` to `eligible`, leaving 39 honest gaps (33 experimental opt-in outside subset, 6 genuine in-subset test gaps documented above). |
+| 2026-05-16 | Audit R-01 + R-02 + R-04 closure — introduced `vllm.sndr_core.proof.production_subset`, `scripts/attach_bench_proof.py --include-default-on`, `sndr patches release-check --scope production-subset`. First bench cycle against `prod-qwen3.6-27b-dflash-multiconc` brought 81/169 patches (47.9%) to `bench_with_baseline`. R-04 triage promoted 37 family-contract-covered patches from `review_required` to `eligible`, leaving 39 honest gaps (33 experimental opt-in outside subset, 6 genuine in-subset test gaps documented above). |

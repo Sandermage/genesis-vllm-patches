@@ -21,10 +21,10 @@ from vllm.sndr_core.model_configs.schema import ServiceConfig
 
 @pytest.fixture
 def cfg_with_docker():
-    """Preset with a synthesised ServiceConfig. prod-35b's V2 alias
+    """Preset with a synthesised ServiceConfig. prod-qwen3.6-35b-balanced's V2 alias
     leaves cfg.service=None by default, so each test gets a fresh
     ServiceConfig it can mutate independently."""
-    cfg = load_alias("prod-35b")
+    cfg = load_alias("prod-qwen3.6-35b-balanced")
     cfg.service = ServiceConfig(backend="docker_compose")
     return cfg
 
@@ -65,7 +65,7 @@ class TestInstallDockerCompose:
                 return_value="# stub compose\nservices:\n  vllm-server:\n    image: x\n",
             ):
                 args = argparse.Namespace(
-                    config="prod-35b", yes=True, system=False,
+                    config="prod-qwen3.6-35b-balanced", yes=True, system=False,
                 )
                 rc = service_cli.run_install(args)
 
@@ -115,7 +115,7 @@ class TestStartStopDockerCompose:
             with patch("vllm.sndr_core.cli.service._docker_cmd",
                        side_effect=_fake_docker_cmd):
                 args = argparse.Namespace(
-                    config="prod-35b", yes=True, system=False,
+                    config="prod-qwen3.6-35b-balanced", yes=True, system=False,
                 )
                 rc = service_cli.run_start(args)
 
@@ -156,7 +156,7 @@ class TestStartStopDockerCompose:
             with patch("vllm.sndr_core.cli.service._docker_cmd",
                        side_effect=_fake_docker_cmd):
                 args = argparse.Namespace(
-                    config="prod-35b", yes=True, system=False,
+                    config="prod-qwen3.6-35b-balanced", yes=True, system=False,
                 )
                 rc = service_cli.run_start(args)
 
@@ -195,7 +195,7 @@ class TestStartStopDockerCompose:
             with patch("vllm.sndr_core.cli.service._docker_cmd",
                        side_effect=_fake_docker_cmd):
                 args = argparse.Namespace(
-                    config="prod-35b", yes=True, system=False,
+                    config="prod-qwen3.6-35b-balanced", yes=True, system=False,
                 )
                 rc = service_cli.run_stop(args)
 
@@ -224,7 +224,7 @@ class TestPodmanQuadletViaSystemd:
             with patch("vllm.sndr_core.cli.service._systemctl",
                        side_effect=_fake_systemctl):
                 args = argparse.Namespace(
-                    config="prod-35b", yes=True, system=False,
+                    config="prod-qwen3.6-35b-balanced", yes=True, system=False,
                 )
                 rc = service_cli.run_start(args)
 

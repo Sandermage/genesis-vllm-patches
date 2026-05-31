@@ -159,7 +159,7 @@ class TestUnannotatedBackwardCompat:
     def test_positional_signature_still_works(self, fresh_warn_state):
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always", DeprecationWarning)
-            registry_v2._maybe_warn_unannotated("prod-35b")
+            registry_v2._maybe_warn_unannotated("prod-qwen3.6-35b-balanced")
         deprs = [w for w in caught if "card:" in str(w.message)]
         assert deprs
 

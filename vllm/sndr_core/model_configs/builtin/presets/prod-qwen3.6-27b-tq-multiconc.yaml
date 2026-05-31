@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Genesis V2 alias — operator shortcut for the 27B TQ k8v4 THROUGHPUT triplet (Wave 10).
-# Companion to `prod-27b-tq` (latency profile). `sndr launch prod-27b-tq-multiconc`
+# Companion to `prod-qwen3.6-27b-tq-k8v4` (latency profile). `sndr launch prod-qwen3.6-27b-tq-multiconc`
 # resolves this file to (model, hardware, profile).
 #
 # Bench validated 2026-05-15 on dev371+bf610c2f5 (tools/multi_conc_bench.py):
@@ -10,9 +10,9 @@
 # 3.21x) because INT4 weight fetch is cheaper, leaving more SM cycles for
 # parallel KV access. TTFT at conc=8 also lower than 35B (189 ms vs 243 ms).
 
-model: qwen3.6-27b-int4-autoround-tq-k8v4        # same model file as prod-27b-tq
+model: qwen3.6-27b-int4-autoround-tq-k8v4        # same model file as prod-qwen3.6-27b-tq-k8v4
 hardware: a5000-2x-24gbvram-16cpu-128gbram       # same rig — Sander's 2× A5000 homelab
-profile: 27b-multiconc                           # THROUGHPUT profile (vs prod-27b-tq's 27b-tq-k8v4 LATENCY profile)
+profile: qwen3.6-27b-multiconc                           # THROUGHPUT profile (vs prod-qwen3.6-27b-tq-k8v4's qwen3.6-27b-tq-k8v4 LATENCY profile)
 
 # CONFIG-UX.2 — operator card (2026-05-24)
 card:
@@ -21,7 +21,7 @@ card:
     Throughput-tuned multi-conc variant of the qwen3_6_27b_int4_tq family.
     Best multi-conc scaling on this rig (3.89x at conc=8, 379 TPS) — INT4
     weight fetch leaves more SM cycles for parallel KV access. Falls back
-    to prod-27b-tq for single-stream / low-conc workloads.
+    to prod-qwen3.6-27b-tq-k8v4 for single-stream / low-conc workloads.
   status: production_candidate
   audience: operator
   maturity: validated
@@ -46,7 +46,7 @@ card:
     typical_output_tokens: 2048
   routing_family: qwen3_6_27b_int4_tq
   default_for_family: false
-  fallback_preset: prod-27b-tq
+  fallback_preset: prod-qwen3.6-27b-tq-k8v4
   primary_metric:
     kind: agg_TPS
     value: 379.0
@@ -59,14 +59,14 @@ card:
       note: Wave 9 canonical baseline; multi-conc bench at conc=8 = 379 TPS, TTFT 189 ms.
   evidence_visibility: public
   tradeoffs:
-    - "Multi-conc tuned (max_num_seqs=8); single-conc latency benefits from prod-27b-tq instead."
+    - "Multi-conc tuned (max_num_seqs=8); single-conc latency benefits from prod-qwen3.6-27b-tq-k8v4 instead."
     - "Smaller context envelope (131K vs 262K default) to fit max_num_seqs=8."
     - "Best multi-conc scaling on 2x A5000 — 3.89x at conc=8."
   do_not_use:
     - condition: "single-stream latency-critical workloads"
-      reason: "Throughput profile sacrifices single-user latency; use prod-27b-tq for K=3 single-conc."
+      reason: "Throughput profile sacrifices single-user latency; use prod-qwen3.6-27b-tq-k8v4 for K=3 single-conc."
     - condition: "context > 131K"
-      reason: "Sizing tops at 131K for max_num_seqs=8; full 262K available in prod-27b-tq single-conc."
+      reason: "Sizing tops at 131K for max_num_seqs=8; full 262K available in prod-qwen3.6-27b-tq-k8v4 single-conc."
   card_version: 1
   card_updated: 2026-05-24
   card_author: sander

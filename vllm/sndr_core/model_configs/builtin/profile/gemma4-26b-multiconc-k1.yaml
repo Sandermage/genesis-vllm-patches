@@ -104,7 +104,7 @@ promotion:
     needing to re-create the preset infrastructure. Operators should
     not pick this preset for production multi-conc workloads — use
     prod-gemma4-26b-multiconc (K=4 short-structured) for that
-    operational niche, or prod-35b-multiconc for free-chat
+    operational niche, or prod-qwen3.6-35b-multiconc for free-chat
     multi-conc throughput.
 
     See: sndr_private/runs/g4_26b_a4b_structured_multiconc_2026-05-23/

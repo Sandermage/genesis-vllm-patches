@@ -20,7 +20,7 @@
 # │   B2 conc=1 short:   K=4 mean elapsed -38% vs K=1                   │
 # │                                                                     │
 # │ DO NOT use for:                                                     │
-# │   - free-chat multi-conc throughput  → use prod-35b-multiconc      │
+# │   - free-chat multi-conc throughput  → use prod-qwen3.6-35b-multiconc      │
 # │     (B3 closed K=4 free-chat conc=8 at 408 TPS, MIXED band,        │
 # │     -39% vs Qwen 35B-A3B 672 TPS reference)                        │
 # │   - long-form structured JSON  → use K=1 sibling (B2 closed K=4    │
@@ -55,7 +55,7 @@ card:
   summary: |
     K=4 MTP + max_num_seqs=8 for the structured-JSON / tool-call short-
     output niche. B4 closed at 235.9 TPS (Mode A) / 271.4 TPS schema-rate
-    100% (Mode B). Not for free-chat multi-conc — prod-35b-multiconc is
+    100% (Mode B). Not for free-chat multi-conc — prod-qwen3.6-35b-multiconc is
     faster there (672 TPS Qwen 35B-A3B reference; this preset 408 TPS
     MIXED band).
   status: production_candidate
@@ -99,7 +99,7 @@ card:
   evidence_visibility: private
   tradeoffs:
     - "K=4 wins only on short structured output; long-form structured loses -53% TPS."
-    - "Free-chat multi-conc collapses to MIXED band — use prod-35b-multiconc instead."
+    - "Free-chat multi-conc collapses to MIXED band — use prod-qwen3.6-35b-multiconc instead."
     - "16K context envelope to fit max_num_seqs=8 — not for long-context tasks."
   do_not_use:
     - condition: "free-chat multi-conc workloads"

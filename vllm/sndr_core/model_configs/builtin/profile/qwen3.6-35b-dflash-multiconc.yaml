@@ -1,13 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
 # Genesis V2 profile — Wave 10 35B DFlash MULTI-CONCURRENCY throughput preset.
-# Companion to 35b-dflash (single-stream latency profile).
+# Companion to qwen3.6-35b-dflash (single-stream latency profile).
 # Layers on top of qwen3.6-35b-a3b-fp8-dflash model.
 # Designed for latency-sensitive multi-tenant workloads where DFlash's lower
 # TTFT (162 ms @ conc=8) outweighs MTP+TQ's higher aggregate throughput.
 
 schema_version: 2
 kind: profile
-id: 35b-dflash-multiconc                         # multi-conc throughput companion to 35b-dflash (single-stream)
+id: qwen3.6-35b-dflash-multiconc                         # multi-conc throughput companion to qwen3.6-35b-dflash (single-stream)
 parent_model: qwen3.6-35b-a3b-fp8-dflash         # same model — DFlash N=3 separate drafter
 maintainer: sandermage
 status: validated                                # Wave 10 bench passed 2026-05-15 — agg 562 TPS / TTFT 162 ms
@@ -26,12 +26,12 @@ created: '2026-05-15'
 #   conc=4: 359 TPS  TTFT 154 ms  TPOT 27.4 ms
 #   conc=8: 562 TPS  TTFT 162 ms  TPOT 35.9 ms ⭐ optimum
 #
-# Vs MTP+TQ sibling (35b-multiconc):
+# Vs MTP+TQ sibling (qwen3.6-35b-multiconc):
 #   MTP+TQ conc=8: 689 TPS / TTFT 243 ms (+23% TPS / -33% TTFT vs DFlash)
 #   DFlash conc=8: 562 TPS / TTFT 162 ms (DFlash WINS on TTFT)
 #
 # Use this preset when TTFT < 200 ms is hard requirement; use MTP+TQ
-# (prod-35b-multiconc) when aggregate TPS dominates.
+# (prod-qwen3.6-35b-multiconc) when aggregate TPS dominates.
 sizing_override:                                 # V2 canonical key (NOT sizing_delta — schema_v2.py SchemaProfile.sizing_override).
   max_model_len: 100000                          # 100K — DFlash multi-conc cap on this rig (fp16 KV, no TQ allowed). Compare: MTP+TQ supports 280K via TQ k8v4 4-8x compression.
   gpu_memory_utilization: 0.92                   # 0.92 (vs 0.90 in MTP-multiconc) — DFlash drafter needs explicit headroom on first request.
@@ -78,11 +78,11 @@ promotion:
     - "PN204 v2 boot — no CUDA driver crash during profile_run on dev371"
   promote_to: null                               # multi-conc-specific; do NOT promote into canonical model.patches
   notes: |
-    35b-dflash-multiconc validates on Wave 10 stack (dev371+bf610c2f5) with PN204 v2.
-    Companion to 35b-dflash (single-stream). Operator chooses profile per-workload:
-      - Latency-critical single user            → 35b-dflash (max_num_seqs=1, 160K ctx)
-      - Multi-tenant TTFT-bound (≤100K ctx)     → 35b-dflash-multiconc (THIS)
-      - Multi-tenant max throughput / long ctx  → 35b-multiconc (MTP+TQ k8v4, 280K)
+    qwen3.6-35b-dflash-multiconc validates on Wave 10 stack (dev371+bf610c2f5) with PN204 v2.
+    Companion to qwen3.6-35b-dflash (single-stream). Operator chooses profile per-workload:
+      - Latency-critical single user            → qwen3.6-35b-dflash (max_num_seqs=1, 160K ctx)
+      - Multi-tenant TTFT-bound (≤100K ctx)     → qwen3.6-35b-dflash-multiconc (THIS)
+      - Multi-tenant max throughput / long ctx  → qwen3.6-35b-multiconc (MTP+TQ k8v4, 280K)
 
     Why DFlash wins TTFT at conc=8: separate drafter model produces draft
     tokens in parallel with target verification (compute overlap), whereas

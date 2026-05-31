@@ -159,8 +159,8 @@ def test_pin_unknown_on_torchless_env(monkeypatch):
 
 def test_resolve_labels_all_canonical_keys(monkeypatch):
     mod = _import_mod()
-    monkeypatch.setenv("GENESIS_PRESET", "prod-35b")
-    monkeypatch.setenv("GENESIS_PROFILE", "35b-balanced")
+    monkeypatch.setenv("GENESIS_PRESET", "prod-qwen3.6-35b-balanced")
+    monkeypatch.setenv("GENESIS_PROFILE", "qwen3.6-35b-balanced")
     monkeypatch.setenv("GENESIS_WORKLOAD_CLASS", "free_chat")
     argv = [
         "vllm", "serve",
@@ -174,8 +174,8 @@ def test_resolve_labels_all_canonical_keys(monkeypatch):
         "backend", "patch_hash", "model", "pin",
     }
     assert set(labels.keys()) == expected_keys
-    assert labels["preset"] == "prod-35b"
-    assert labels["profile"] == "35b-balanced"
+    assert labels["preset"] == "prod-qwen3.6-35b-balanced"
+    assert labels["profile"] == "qwen3.6-35b-balanced"
     assert labels["workload_class"] == "free_chat"
     assert labels["K"] == "3"
     assert labels["backend"] == "TURBOQUANT"
@@ -220,8 +220,8 @@ def test_apply_skipped_when_prometheus_client_missing(monkeypatch):
 def test_apply_emits_gauge_with_labels(monkeypatch):
     pytest.importorskip("prometheus_client")
     mod = _import_mod()
-    monkeypatch.setenv("GENESIS_PRESET", "prod-27b-tq")
-    monkeypatch.setenv("GENESIS_PROFILE", "27b-long-ctx")
+    monkeypatch.setenv("GENESIS_PRESET", "prod-qwen3.6-27b-tq-k8v4")
+    monkeypatch.setenv("GENESIS_PROFILE", "qwen3.6-27b-long-ctx")
     argv = [
         "vllm", "serve",
         "--served-model-name", "qwen3.6-27b",
@@ -238,8 +238,8 @@ def test_apply_emits_gauge_with_labels(monkeypatch):
     assert len(samples) == 1
     s = samples[0]
     assert s.value == 1.0
-    assert s.labels["preset"] == "prod-27b-tq"
-    assert s.labels["profile"] == "27b-long-ctx"
+    assert s.labels["preset"] == "prod-qwen3.6-27b-tq-k8v4"
+    assert s.labels["profile"] == "qwen3.6-27b-long-ctx"
     assert s.labels["K"] == "3"
     assert s.labels["backend"] == "TURBOQUANT"
     assert s.labels["model"] == "qwen3.6-27b"

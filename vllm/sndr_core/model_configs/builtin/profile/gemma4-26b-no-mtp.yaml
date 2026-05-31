@@ -107,6 +107,6 @@ promotion:
   promote_to: null
   notes: |
     Status experimental until B1 boots cleanly + first bench-suite quick
-    completes. Promotion gate: same shape as prod-27b-tq's path —
+    completes. Promotion gate: same shape as prod-qwen3.6-27b-tq-k8v4's path —
     measured single-stream TPS within 20% of ModelDef projection AND
     no boot blockers AND no schema regression vs K=4 sibling.

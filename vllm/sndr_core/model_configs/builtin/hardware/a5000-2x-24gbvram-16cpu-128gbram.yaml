@@ -22,12 +22,12 @@ hardware:
 # of these multi-conc presets (all inherit this hardware identity but
 # override max_num_seqs=8 + enable PN204 v2 dual-stream):
 #   35B (Qwen3.6-A3B FP8):
-#     V2 launch  → presets/prod-35b-multiconc.yaml (alias)
-#     V2 profile → profile/35b-multiconc.yaml (sizing_override + patches_delta)
-#     V1 flat    → a5000-2x-35b-multiconc.yaml (legacy)
+#     V2 launch  → presets/prod-qwen3.6-35b-multiconc.yaml (alias)
+#     V2 profile → profile/qwen3.6-35b-multiconc.yaml (sizing_override + patches_delta)
+#     V1 flat    → a5000-2x-qwen3.6-35b-multiconc.yaml (legacy)
 #   27B (Qwen3.6 INT4 AutoRound + TQ k8v4):
-#     V2 launch  → presets/prod-27b-tq-multiconc.yaml (alias)
-#     V2 profile → profile/27b-multiconc.yaml (sizing_override + patches_delta)
+#     V2 launch  → presets/prod-qwen3.6-27b-tq-multiconc.yaml (alias)
+#     V2 profile → profile/qwen3.6-27b-multiconc.yaml (sizing_override + patches_delta)
 #     V1 flat    → a5000-2x-27b-int4-multiconc.yaml (legacy)
 # Bench characterisation (Wave 10, dev371+bf610c2f5, tools/multi_conc_bench.py):
 #   max_num_seqs=2 (this default) : 215 TPS single / 339 TPS at conc=2  | TTFT 65ms / 64ms

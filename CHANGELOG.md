@@ -222,8 +222,8 @@ pin bump under the soft-fail-on-anchor-shift policy).
 2. **Validate locally first** on a non-PROD container:
 
    ```bash
-   sndr launch prod-35b --dry-run    # confirm pin matches
-   sndr launch prod-35b              # boot + smoke
+   sndr launch prod-qwen3.6-35b-balanced --dry-run    # confirm pin matches
+   sndr launch prod-qwen3.6-35b-balanced              # boot + smoke
    sndr verify                        # tool-call smoke
    ```
 
@@ -355,8 +355,8 @@ sndr config-catalog build --stdout
 sndr config-catalog verify --strict --json
 
 # Show a specific row (collision-aware bare form supported)
-sndr config-catalog show preset/prod-35b
-sndr config-catalog show prod-35b              # if id is unambiguous
+sndr config-catalog show preset/prod-qwen3.6-35b-balanced
+sndr config-catalog show prod-qwen3.6-35b-balanced              # if id is unambiguous
 
 # Query with the fixed five-flag DSL (AND-only, no expressions)
 sndr config-catalog query --row-type profile \
@@ -488,7 +488,7 @@ make evidence-release
 SNDR_V1_ROLLOUT_STAGE=0 sndr launch <preset>
 
 # Inspect any one profile's new override_policy block
-sndr profile show 27b-tq-k8v4
+sndr profile show qwen3.6-27b-tq-k8v4
 ```
 
 ---
@@ -549,7 +549,7 @@ sndr profile show 27b-tq-k8v4
 
 ### Migration notes
 
-- New preset YAML available: `vllm/sndr_core/model_configs/builtin/a5000-2x-35b-multiconc.yaml`.
+- New preset YAML available: `vllm/sndr_core/model_configs/builtin/a5000-2x-qwen3.6-35b-multiconc.yaml`.
   Use for agentic / batch workloads where throughput matters more than
   per-request TTFT. Pairs with existing `a5000-2x-35b-prod.yaml` (latency
   profile, `max_num_seqs=2`).
@@ -697,8 +697,8 @@ PN133 MTP scheduler) but cost zero and aid cross-config consistency.
 | **27B INT4 TQ k8v4** | 886 s · 113 t/s | 1190 s · 97 t/s | 1487 s · 86 t/s |
 | **35B-A3B FP8**     | 381 s · 263 t/s | 495 s · 233 t/s | 620 s · 207 t/s |
 
-Both runs were against the V2 layered preset (`sndr launch prod-27b-tq` /
-`prod-35b`) after the env-flag matrix synced in commit `77f2ec8` —
+Both runs were against the V2 layered preset (`sndr launch prod-qwen3.6-27b-tq-k8v4` /
+`prod-qwen3.6-35b-balanced`) after the env-flag matrix synced in commit `77f2ec8` —
 i.e. the canonical `python3 -m vllm.sndr_core.cli launch ...` path,
 not the bash launcher. The bash launcher in
 `scripts/launch/start_pn95_2xa5000_nightly_dcacdf9a.sh` is now a

@@ -3,7 +3,7 @@
 
 model: qwen3.6-27b-dflash
 hardware: a5000-2x-24gbvram-16cpu-128gbram
-profile: 27b-dflash
+profile: qwen3.6-27b-dflash
 
 # CONFIG-UX.2 — operator card (2026-05-24)
 card:
@@ -36,7 +36,7 @@ card:
     typical_output_tokens: 4096
   routing_family: qwen3_6_27b_int4_dflash
   default_for_family: true
-  fallback_preset: prod-27b-dflash
+  fallback_preset: prod-qwen3.6-27b-dflash
   primary_metric:
     kind: agg_TPS
     value: 0.0
@@ -49,12 +49,12 @@ card:
       note: Single-stream DFlash N=5 baseline pending public publish.
   evidence_visibility: private
   tradeoffs:
-    - "Single-stream only (max_num_seqs=1); multi-conc variant prod-27b-dflash-multiconc is faster for >1 concurrent."
-    - "K=5 DFlash draft draws on bf16 drafter — different acceptance profile vs MTP K=3 of prod-27b-tq."
+    - "Single-stream only (max_num_seqs=1); multi-conc variant prod-qwen3.6-27b-dflash-multiconc is faster for >1 concurrent."
+    - "K=5 DFlash draft draws on bf16 drafter — different acceptance profile vs MTP K=3 of prod-qwen3.6-27b-tq-k8v4."
     - "Family default falls back to itself (no K=1 27B-dflash sibling yet)."
   do_not_use:
     - condition: "concurrency > 1"
-      reason: "Sized for single-stream code-gen; use prod-27b-dflash-multiconc for multi-conc."
+      reason: "Sized for single-stream code-gen; use prod-qwen3.6-27b-dflash-multiconc for multi-conc."
   card_version: 1
   card_updated: 2026-05-24
   card_author: sander

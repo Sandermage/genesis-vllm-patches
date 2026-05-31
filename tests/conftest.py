@@ -195,8 +195,8 @@ def pytest_ignore_collect(collection_path, config):
 
 _LEGACY_NAMING_DRIFT_FILES: tuple[str, ...] = (
     # Test files that reference the pre-rename V2 profile naming
-    # (`wave9-balanced`, `wave9-27b-tq-k8v4`, etc). The profiles were
-    # renamed to short canonical IDs (`35b-balanced`, `27b-tq-k8v4`)
+    # (`wave9-balanced`, `wave9-qwen3.6-27b-tq-k8v4`, etc). The profiles were
+    # renamed to short canonical IDs (`qwen3.6-35b-balanced`, `qwen3.6-27b-tq-k8v4`)
     # in commit c19c6191, but these test fixtures hardcoded the old
     # strings. They stay in tree for a future rewrite pass that will
     # parametrise the fixture names from `v2_profile_ids` instead of

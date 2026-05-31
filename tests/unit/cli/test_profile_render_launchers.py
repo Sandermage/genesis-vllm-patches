@@ -430,7 +430,7 @@ class TestKvCacheDtypeEmission:
         the flag entirely. The pre-fix rendered launcher was
         `--kv-cache-dtype None`, which vllm argparse rejects."""
         script = render_profile_launcher(
-            "27b-dflash",
+            "qwen3.6-27b-dflash",
             hardware_id="a5000-2x-24gbvram-16cpu-128gbram",
         )
         assert "--kv-cache-dtype None" not in script, (
@@ -446,7 +446,7 @@ class TestKvCacheDtypeEmission:
         """Q35-A3B-FP8-DFlash also declares `kv_cache_dtype: null` for
         the same DFlash head_size=256 constraint."""
         script = render_profile_launcher(
-            "35b-dflash",
+            "qwen3.6-35b-dflash",
             hardware_id="a5000-2x-24gbvram-16cpu-128gbram",
         )
         assert "--kv-cache-dtype None" not in script
@@ -456,14 +456,14 @@ class TestKvCacheDtypeEmission:
         """Q35-balanced uses TQ k8v4 KV — the fix must NOT regress
         explicit-dtype profiles."""
         script = render_profile_launcher(
-            "35b-balanced",
+            "qwen3.6-35b-balanced",
             hardware_id="a5000-2x-24gbvram-16cpu-128gbram",
         )
         assert "  --kv-cache-dtype turboquant_k8v4 \\" in script
 
     def test_27b_tq_k8v4_still_emits_turboquant_k8v4(self):
         script = render_profile_launcher(
-            "27b-tq-k8v4",
+            "qwen3.6-27b-tq-k8v4",
             hardware_id="a5000-2x-24gbvram-16cpu-128gbram",
         )
         assert "  --kv-cache-dtype turboquant_k8v4 \\" in script
@@ -493,7 +493,7 @@ class TestKvCacheDtypeEmission:
             "turboquant_k3v4_nc", "turboquant_k8v4",
         }
         for profile_id in (
-            "35b-balanced", "27b-tq-k8v4",
+            "qwen3.6-35b-balanced", "qwen3.6-27b-tq-k8v4",
             "gemma4-31b-tq-mtp-structured-k4", "gemma4-31b-tq-default",
         ):
             script = render_profile_launcher(

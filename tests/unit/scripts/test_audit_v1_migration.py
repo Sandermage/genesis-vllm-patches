@@ -163,7 +163,7 @@ class TestBucketDistribution:
             New distribution: 3 transparent, 4 needs-choice, 5 deprecated.
           - 2026-05-26 (V1-SUNSET-PENDING-4.1): last 4 needs_operator_choice
             entries reclassified to deprecated after .R confirmed V2 sizing
-            parity (qa-27b-tq-1x, long-ctx-27b, qa-27b-tested, prod-35b-dflash).
+            parity (qa-qwen3.6-27b-tq-1x, long-ctx-qwen3.6-27b, qa-qwen3.6-27b-tested, prod-qwen3.6-35b-dflash).
             Stage 5 audit gate unblocked. Final distribution:
             3 transparent, 0 needs-choice, 9 deprecated, 0 tombstone.
         """

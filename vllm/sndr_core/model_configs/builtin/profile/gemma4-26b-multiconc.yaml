@@ -19,7 +19,7 @@
 #     - free-chat multi-conc throughput
 #       (B3 closed at 408 TPS aggregate @ conc=8 — MIXED band,
 #        -39% below Qwen 35B-A3B 672 TPS reference. For free-chat
-#        multi-conc throughput, use prod-35b-multiconc.)
+#        multi-conc throughput, use prod-qwen3.6-35b-multiconc.)
 #     - long-form structured JSON (>200 tokens output)
 #       (B2 closed long structured K=4 at -53% TPS vs K=1.)
 #     - code generation / summarization
@@ -151,7 +151,7 @@ promotion:
     Current production posture: KEEP THIS PRESET, but treat it as
     a SHORT STRUCTURED-JSON multi-conc preset. Any router or doc
     that lists it as a generic free-chat throughput preset is wrong.
-    For free-chat multi-conc throughput, prod-35b-multiconc (Qwen
+    For free-chat multi-conc throughput, prod-qwen3.6-35b-multiconc (Qwen
     35B-A3B at 672 TPS @ conc=8) remains the production baseline.
 
     Status stays `experimental` until the workload-gate router /

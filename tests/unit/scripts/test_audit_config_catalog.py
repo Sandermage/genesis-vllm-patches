@@ -96,7 +96,7 @@ class TestLiveCorpus:
           will annotate (example-*, qa-*, experimental-*, long-ctx-*).
         - `production_candidate_public_evidence` — for annotated prod-*
           presets whose evidence is currently private-only (gemma4 and
-          35b-dflash variants without public baselines).
+          qwen3.6-35b-dflash variants without public baselines).
 
         Any other warning rule is unexpected and should be investigated.
         """

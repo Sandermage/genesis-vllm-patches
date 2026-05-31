@@ -84,9 +84,9 @@ class TestLivePresets:
         b = production_subset_breakdown()
         matched = set(b["presets_matched"])
         for expected in (
-            "prod-27b-dflash-multiconc",
-            "prod-35b",
-            "prod-35b-multiconc",
+            "prod-qwen3.6-27b-dflash-multiconc",
+            "prod-qwen3.6-35b-balanced",
+            "prod-qwen3.6-35b-multiconc",
         ):
             assert expected in matched, (
                 f"prod-presets walker missed expected alias {expected!r}; "

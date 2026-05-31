@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 # Genesis V2 alias — operator shortcut for the 27B TQ k8v4 production triplet.
-# `sndr launch prod-27b-tq` resolves to (model, hardware, profile).
+# `sndr launch prod-qwen3.6-27b-tq-k8v4` resolves to (model, hardware, profile).
 
 model: qwen3.6-27b-int4-autoround-tq-k8v4
 hardware: a5000-2x-24gbvram-16cpu-128gbram
-profile: 27b-tq-k8v4
+profile: qwen3.6-27b-tq-k8v4
 
 # CONFIG-UX.2 — operator card (2026-05-24)
 card:
@@ -38,7 +38,7 @@ card:
     typical_output_tokens: 4096
   routing_family: qwen3_6_27b_int4_tq
   default_for_family: true
-  fallback_preset: prod-27b-tq
+  fallback_preset: prod-qwen3.6-27b-tq-k8v4
   primary_metric:
     kind: agg_TPS
     value: 0.0
@@ -56,11 +56,11 @@ card:
   evidence_visibility: public
   tradeoffs:
     - "K=3 MTP draft adds ~10-15% TPS on free-chat; loses on very-long-output workloads with low acceptance."
-    - "Family default falls back to itself (no K=1 27B-TQ sibling yet — see CONFIG-UX.2b qa-27b-tq-1x annotation work)."
+    - "Family default falls back to itself (no K=1 27B-TQ sibling yet — see CONFIG-UX.2b qa-qwen3.6-27b-tq-1x annotation work)."
     - "Long-context envelope (262K) means high VRAM pressure; bench measured at lower ctx typically."
   do_not_use:
     - condition: "concurrency > 4 with full context budget"
-      reason: "VRAM headroom tightens at full 262K; multi-conc use prod-27b-tq-multiconc which trims ctx."
+      reason: "VRAM headroom tightens at full 262K; multi-conc use prod-qwen3.6-27b-tq-multiconc which trims ctx."
   card_version: 1
   card_updated: 2026-05-24
   card_author: sander

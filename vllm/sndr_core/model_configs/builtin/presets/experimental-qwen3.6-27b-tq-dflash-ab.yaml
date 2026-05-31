@@ -1,19 +1,19 @@
 # SPDX-License-Identifier: Apache-2.0
 # Genesis V2 alias — A/B diagnostic: 27B-TQ k8v4 + 5 DFlash patches on MTP path.
-# Experimental ONLY — for production-throughput use prod-27b-tq.
+# Experimental ONLY — for production-throughput use prod-qwen3.6-27b-tq-k8v4.
 
 model: qwen3.6-27b-int4-autoround-tq-k8v4
 hardware: a5000-2x-24gbvram-16cpu-128gbram
-profile: ab-27b-tq-dflash
+profile: ab-qwen3.6-27b-tq-dflash
 
 card:
   title: "27B INT4 TQ k8v4 + 5 DFlash patches — A/B diagnostic (2× A5000)"
   summary: |
     A/B diagnostic preset stacking 5 DFlash spec-decode patches on the
     27B TQ k8v4 MTP path. Designed for differential benchmarking against
-    prod-27b-tq baseline — concurrent stream count lowered to 2 so the
+    prod-qwen3.6-27b-tq-k8v4 baseline — concurrent stream count lowered to 2 so the
     sweep includes single-stream comparison points. Experimental only;
-    use prod-27b-tq for production throughput.
+    use prod-qwen3.6-27b-tq-k8v4 for production throughput.
   status: experimental
   audience: bench
   maturity: validated
@@ -36,4 +36,4 @@ card:
     typical_output_tokens: 4096
   routing_family: qwen3_6_27b_int4_tq_dflash_ab
   default_for_family: false
-  fallback_preset: prod-27b-tq
+  fallback_preset: prod-qwen3.6-27b-tq-k8v4

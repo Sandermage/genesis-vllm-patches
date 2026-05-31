@@ -140,8 +140,8 @@ notes:
     dispatch log. Bench characteristics: decode_TPOT 17.81 ms mean vs
     Q27-TQ k8v4 sister 10.03 ms mean — the ~1.78× gap matches the
     documented fp8_e5m2 underperformance of TQ k8v4 (~48% throughput),
-    NOT a regression. Smoke profile used: 27b-long-ctx (full Wave 7+
-    matrix, validated status). The QA-only sibling qa-27b-fp8kv would
+    NOT a regression. Smoke profile used: qwen3.6-27b-long-ctx (full Wave 7+
+    matrix, validated status). The QA-only sibling qa-qwen3.6-27b-fp8kv would
     benefit from this same pin promotion since it composes against
     the same parent ModelDef. Receipt:
     sndr_private/planning/bench_results/2026-05-21/P2_Q27_FP8KV_DEV371_SMOKE_RECEIPT_2026-05-21_RU.md.

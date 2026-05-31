@@ -137,7 +137,7 @@ class TestV2AliasNoWarning:
         from vllm.sndr_core.model_configs.registry_v2 import load_alias
         with warnings.catch_warnings(record=True) as captured:
             warnings.simplefilter("always")
-            cfg = load_alias("prod-35b")
+            cfg = load_alias("prod-qwen3.6-35b-balanced")
             assert cfg is not None
             dep = [w for w in captured
                    if issubclass(w.category, DeprecationWarning)]
@@ -197,9 +197,9 @@ class TestPhase8bAcceptance:
     """
 
     @pytest.mark.parametrize("alias", [
-        "prod-35b", "prod-27b-tq", "prod-35b-dflash", "long-ctx-27b",
-        "qa-27b-tested", "qa-27b-tq-1x", "prod-27b-dflash",
-        "experimental-27b-tq-dflash-ab", "example-2x-tier-aware",
+        "prod-qwen3.6-35b-balanced", "prod-qwen3.6-27b-tq-k8v4", "prod-qwen3.6-35b-dflash", "long-ctx-qwen3.6-27b",
+        "qa-qwen3.6-27b-tested", "qa-qwen3.6-27b-tq-1x", "prod-qwen3.6-27b-dflash",
+        "experimental-qwen3.6-27b-tq-dflash-ab", "example-2x-tier-aware",
         "example-3090-dense-cpu-offload", "example-3090-tier-aware",
     ])
     def test_alias_preflight_path(self, alias):

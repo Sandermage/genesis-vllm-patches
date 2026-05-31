@@ -11,15 +11,15 @@
 # No edit needed here — the inheritance contract works as designed.
 #
 # For multi-conc throughput workloads (max_num_seqs=8, 689 TPS aggregate vs
-# 215 TPS single), use the COMPANION profile `35b-multiconc.yaml` which
+# 215 TPS single), use the COMPANION profile `qwen3.6-35b-multiconc.yaml` which
 # overrides sizing (max_num_seqs=8) and enables PN204 v2 dual-stream.
 # Bench reference (dev371+bf610c2f5, tools/multi_conc_bench.py sweep):
 #   This profile (max_num_seqs=2): conc=1 215 TPS / TTFT 65 ms — LATENCY OPTIMAL
-#   35b-multiconc (max_num_seqs=8): conc=8 689 TPS / TTFT 243 ms — THROUGHPUT OPTIMAL
+#   qwen3.6-35b-multiconc (max_num_seqs=8): conc=8 689 TPS / TTFT 243 ms — THROUGHPUT OPTIMAL
 
 schema_version: 2
 kind: profile
-id: 35b-balanced                               # canonical wave9 reference (no delta — model.patches IS the wave9 set)
+id: qwen3.6-35b-balanced                               # canonical wave9 reference (no delta — model.patches IS the wave9 set)
 parent_model: qwen3.6-35b-a3b-fp8                # parent model file this profile targets
 maintainer: sandermage
 status: validated                                # values: experimental|validated|deprecated; validated = bench-and-update passed

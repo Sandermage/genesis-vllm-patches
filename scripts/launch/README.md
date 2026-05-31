@@ -7,14 +7,14 @@
 > The canonical operator UX is now:
 >
 > ```bash
-> sndr launch prod-35b                  # 35B latency
-> sndr launch prod-35b-multiconc        # 35B throughput (multi-conc)
-> sndr launch prod-35b-dflash           # 35B DFlash N=3 (single-stream)
-> sndr launch prod-35b-dflash-multiconc # 35B DFlash multi-conc
-> sndr launch prod-27b-tq               # 27B + TurboQuant k8v4 (latency)
-> sndr launch prod-27b-tq-multiconc     # 27B + TQ k8v4 multi-conc
-> sndr launch prod-27b-dflash           # 27B DFlash N=5 (single-stream)
-> sndr launch prod-27b-dflash-multiconc # 27B DFlash multi-conc
+> sndr launch prod-qwen3.6-35b-balanced                  # 35B latency
+> sndr launch prod-qwen3.6-35b-multiconc        # 35B throughput (multi-conc)
+> sndr launch prod-qwen3.6-35b-dflash           # 35B DFlash N=3 (single-stream)
+> sndr launch prod-qwen3.6-35b-dflash-multiconc # 35B DFlash multi-conc
+> sndr launch prod-qwen3.6-27b-tq-k8v4               # 27B + TurboQuant k8v4 (latency)
+> sndr launch prod-qwen3.6-27b-tq-multiconc     # 27B + TQ k8v4 multi-conc
+> sndr launch prod-qwen3.6-27b-dflash           # 27B DFlash N=5 (single-stream)
+> sndr launch prod-qwen3.6-27b-dflash-multiconc # 27B DFlash multi-conc
 > ```
 >
 > Each preset resolves to a (model, hardware, profile) triplet under
@@ -44,10 +44,10 @@ by the canonical V2 preset alias.
 
 | Model | Config | V2 preset (canonical) |
 |---|---|---|
-| **35B-A3B-FP8** PROD (TQ k8v4 + MTP K=3, latency) | `--max-model-len 280000 --max-num-seqs 2` | `sndr launch prod-35b` |
-| **35B-A3B-FP8** multi-conc throughput | `--max-num-seqs 8` (3.21x scaling) | `sndr launch prod-35b-multiconc` |
-| **27B-INT4 Lorbus** TQ k8v4 (hybrid + P98) | TQ packed slot + 262K capable | `sndr launch prod-27b-tq` |
-| **27B-INT4 Lorbus** TQ k8v4 multi-conc | 3.89x scaling at conc=8 | `sndr launch prod-27b-tq-multiconc` |
+| **35B-A3B-FP8** PROD (TQ k8v4 + MTP K=3, latency) | `--max-model-len 280000 --max-num-seqs 2` | `sndr launch prod-qwen3.6-35b-balanced` |
+| **35B-A3B-FP8** multi-conc throughput | `--max-num-seqs 8` (3.21x scaling) | `sndr launch prod-qwen3.6-35b-multiconc` |
+| **27B-INT4 Lorbus** TQ k8v4 (hybrid + P98) | TQ packed slot + 262K capable | `sndr launch prod-qwen3.6-27b-tq-k8v4` |
+| **27B-INT4 Lorbus** TQ k8v4 multi-conc | 3.89x scaling at conc=8 | `sndr launch prod-qwen3.6-27b-tq-multiconc` |
 
 ### TP=1 single-card (⚠️ EXPERIMENTAL — NOT TESTED by maintainer)
 

@@ -65,9 +65,9 @@ class TestV2IdFixtures:
     def test_v2_alias_ids(self, v2_alias_ids):
         # All 11 production-confirmed aliases.
         for alias in (
-            "prod-35b", "prod-27b-tq", "prod-35b-dflash",
-            "long-ctx-27b", "qa-27b-tested", "qa-27b-tq-1x",
-            "prod-27b-dflash", "experimental-27b-tq-dflash-ab",
+            "prod-qwen3.6-35b-balanced", "prod-qwen3.6-27b-tq-k8v4", "prod-qwen3.6-35b-dflash",
+            "long-ctx-qwen3.6-27b", "qa-qwen3.6-27b-tested", "qa-qwen3.6-27b-tq-1x",
+            "prod-qwen3.6-27b-dflash", "experimental-qwen3.6-27b-tq-dflash-ab",
             "example-2x-tier-aware", "example-3090-dense-cpu-offload",
             "example-3090-tier-aware",
         ):

@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 # Genesis V2 alias — operator shortcut for the 35B PROD triplet.
-# `sndr launch prod-35b` resolves this file to (model, hardware, profile).
+# `sndr launch prod-qwen3.6-35b-balanced` resolves this file to (model, hardware, profile).
 
 model: qwen3.6-35b-a3b-fp8
 hardware: a5000-2x-24gbvram-16cpu-128gbram
-profile: 35b-balanced
+profile: qwen3.6-35b-balanced
 # runtime: docker      # optional; defaults to hardware.runtime.default
 
 # CONFIG-UX.2 — operator card (2026-05-24)
@@ -39,7 +39,7 @@ card:
     typical_output_tokens: 4096
   routing_family: qwen3_6_35b_a3b_fp8
   default_for_family: true
-  fallback_preset: prod-35b
+  fallback_preset: prod-qwen3.6-35b-balanced
   primary_metric:
     kind: agg_TPS
     value: 0.0
@@ -56,12 +56,12 @@ card:
       note: Wave 8 baseline retained for cross-pin regression comparison.
   evidence_visibility: public
   tradeoffs:
-    - "Single-conc balanced profile (max_num_seqs=2); for high-conc use prod-35b-multiconc."
+    - "Single-conc balanced profile (max_num_seqs=2); for high-conc use prod-qwen3.6-35b-multiconc."
     - "FP8 KV via TurboQuant k8v4 — different tier than INT4 27B variants."
     - "Family default falls back to itself (no K=1 35B sibling yet)."
   do_not_use:
     - condition: "concurrency > 2"
-      reason: "Sized for max_num_seqs=2; use prod-35b-multiconc for higher concurrency."
+      reason: "Sized for max_num_seqs=2; use prod-qwen3.6-35b-multiconc for higher concurrency."
   card_version: 1
   card_updated: 2026-05-24
   card_author: sander

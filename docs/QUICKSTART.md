@@ -70,8 +70,8 @@ pick the preset yourself in the next step.
 
 ```bash
 sndr model-config list           # browse builtin + V2 presets
-sndr config diff prod-35b        # see the resolved YAML for one preset
-sndr patches plan prod-35b       # preview which patches will apply
+sndr config diff prod-qwen3.6-35b-balanced        # see the resolved YAML for one preset
+sndr patches plan prod-qwen3.6-35b-balanced       # preview which patches will apply
 ```
 
 The 12 builtin configs are auto-inventoried in
@@ -79,10 +79,10 @@ The 12 builtin configs are auto-inventoried in
 
 | Hardware | Preset (V1 key / V2 alias) | Notes |
 | --- | --- | --- |
-| 2× RTX A5000 24 GB | `a5000-2x-35b-prod` / `prod-35b` | Flagship — Qwen3.6-35B-A3B-FP8, ~216 TPS sustained. |
-| 2× RTX A5000 multi-conc | `a5000-2x-35b-prod-multiconc` / `prod-35b-multiconc` | `max_num_seqs=8`, aggregate ~675 TPS. |
-| 2× 24 GB (3090 / 4090 / A5000) | `a5000-2x-27b-int4-tq-k8v4` / `prod-27b-tq` | Lorbus 27B int4 + TurboQuant k8v4 (long context). |
-| 2× 24 GB long-context | `a5000-2x-27b-int4-long-ctx` / `long-ctx-27b` | Same model, `--max-model-len 320000`. |
+| 2× RTX A5000 24 GB | `a5000-2x-35b-prod` / `prod-qwen3.6-35b-balanced` | Flagship — Qwen3.6-35B-A3B-FP8, ~216 TPS sustained. |
+| 2× RTX A5000 multi-conc | `a5000-2x-35b-prod-multiconc` / `prod-qwen3.6-35b-multiconc` | `max_num_seqs=8`, aggregate ~675 TPS. |
+| 2× 24 GB (3090 / 4090 / A5000) | `a5000-2x-27b-int4-tq-k8v4` / `prod-qwen3.6-27b-tq-k8v4` | Lorbus 27B int4 + TurboQuant k8v4 (long context). |
+| 2× 24 GB long-context | `a5000-2x-27b-int4-long-ctx` / `long-ctx-qwen3.6-27b` | Same model, `--max-model-len 320000`. |
 | 1× RTX A5000 / 3090 | `a5000-1x-27b-int4-tested` | TP=1, 32K context. |
 | Single 3090 (community) | `single-3090-dense-cpu-offload-example` | CPU-offload preview. |
 
@@ -92,7 +92,7 @@ own, see [`MODELS.md` § Adding a model recipe](MODELS.md).
 ## 4. Launch
 
 ```bash
-sndr launch prod-35b               # V2 alias
+sndr launch prod-qwen3.6-35b-balanced               # V2 alias
 # or
 sndr launch a5000-2x-35b-prod      # V1 monolithic key
 ```
@@ -107,7 +107,7 @@ The launcher:
 Dry-run first if you want to inspect the rendered command:
 
 ```bash
-sndr launch prod-35b --dry-run
+sndr launch prod-qwen3.6-35b-balanced --dry-run
 ```
 
 First boot takes 2–5 minutes (Triton kernel JIT, CUDA graph capture).
@@ -204,7 +204,7 @@ against the inventory in [`CONFIGS_AUTO.md`](CONFIGS_AUTO.md).
 ### 5.4 Preflight the chosen preset
 
 ```bash
-sndr launch prod-35b --preflight-only
+sndr launch prod-qwen3.6-35b-balanced --preflight-only
 ```
 
 Validates env vars, no conflicting Genesis patches enabled,
@@ -220,7 +220,7 @@ Time: ~3 seconds, no GPU load.
 ### 5.5 Boot — `sndr launch <preset>`
 
 ```bash
-sndr launch prod-35b
+sndr launch prod-qwen3.6-35b-balanced
 ```
 
 **Pass signal:** `docker logs <container> | grep "Application
@@ -247,7 +247,7 @@ long context. The cliffs catalogue lives in the same file.
 ### 5.6 Verify against reference metrics — `sndr model-config verify`
 
 ```bash
-sndr model-config verify prod-35b
+sndr model-config verify prod-qwen3.6-35b-balanced
 ```
 
 Runs a 5-dimension benchmark (short_gen, long_gen, tool_call,

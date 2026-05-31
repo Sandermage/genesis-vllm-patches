@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 # Genesis V2 alias — 27B INT4 fp8kv QA / regression-test on 2× A5000.
-# Lifecycle: tested (NOT recommended; use prod-27b-tq for production).
+# Lifecycle: tested (NOT recommended; use prod-qwen3.6-27b-tq-k8v4 for production).
 
 model: qwen3.6-27b-int4-autoround-fp8kv
 hardware: a5000-2x-24gbvram-16cpu-128gbram
-profile: qa-27b-fp8kv
+profile: qa-qwen3.6-27b-fp8kv
 
 card:
   title: "Qwen 3.6 27B INT4 AutoRound + FP8 KV — QA regression baseline (2× A5000)"
@@ -13,7 +13,7 @@ card:
     for community parity with the noonghunna club-3090 default fp8 path
     and as a regression baseline against the TQ k8v4 production sister.
     NOT for production — fp8_e5m2 underperforms TQ k8v4 by ~48% on
-    the same hardware. Use prod-27b-tq for production workloads.
+    the same hardware. Use prod-qwen3.6-27b-tq-k8v4 for production workloads.
   status: qa
   audience: qa
   maturity: tested
@@ -37,4 +37,4 @@ card:
     typical_output_tokens: 4096
   routing_family: qwen3_6_27b_int4_fp8kv
   default_for_family: false
-  fallback_preset: prod-27b-tq
+  fallback_preset: prod-qwen3.6-27b-tq-k8v4

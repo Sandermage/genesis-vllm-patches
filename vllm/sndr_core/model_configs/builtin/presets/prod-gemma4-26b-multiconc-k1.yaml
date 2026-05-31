@@ -21,7 +21,7 @@
 #   prod-gemma4-26b-multiconc-k1     — K=1 multi-conc baseline (THIS FILE, diagnostic only)
 #
 # For free-chat multi-conc throughput, neither this K=1 preset nor its
-# K=4 sibling is the right choice — use prod-35b-multiconc (Qwen
+# K=4 sibling is the right choice — use prod-qwen3.6-35b-multiconc (Qwen
 # 35B-A3B, 672 TPS @ conc=8) instead.
 #
 # Policy reference:
@@ -39,7 +39,7 @@ card:
     K=1 multi-conc diagnostic baseline. Loses to K=4 sibling on structured
     workloads (B4: 209.1 vs 235.9 TPS); kept committed so the comparison
     is reproducible on future vllm-pin bumps. Not for production traffic —
-    use prod-gemma4-26b-multiconc (K=4) instead, or prod-35b-multiconc
+    use prod-gemma4-26b-multiconc (K=4) instead, or prod-qwen3.6-35b-multiconc
     for free-chat multi-conc.
   status: production_candidate
   audience: bench
@@ -76,7 +76,7 @@ card:
   tradeoffs:
     - "Diagnostic comparator — not for production traffic."
     - "K=4 sibling (prod-gemma4-26b-multiconc) wins +12.8% TPS on structured workloads."
-    - "For free-chat multi-conc, prod-35b-multiconc is faster (~672 TPS @ conc=8)."
+    - "For free-chat multi-conc, prod-qwen3.6-35b-multiconc is faster (~672 TPS @ conc=8)."
   do_not_use:
     - condition: "any production workload"
       reason: "Kept as a diagnostic baseline; K=4 sibling is the production candidate for structured."

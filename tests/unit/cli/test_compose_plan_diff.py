@@ -46,12 +46,12 @@ def _run_cli(argv: list[str]) -> tuple[int, str]:
 class TestJsonShape:
     def test_diff_compat_to_minimal_returns_structured_payload(self):
         rc, out = _run_cli([
-            "compose", "plan-diff", "prod-35b",
+            "compose", "plan-diff", "prod-qwen3.6-35b-balanced",
             "--from", "compat", "--to", "minimal", "--json",
         ])
         assert rc == 0, out[:500]
         payload = json.loads(out)
-        assert payload["preset"] == "prod-35b"
+        assert payload["preset"] == "prod-qwen3.6-35b-balanced"
         assert payload["from_policy"] == "compat"
         assert payload["to_policy"] == "minimal"
         diff = payload["diff"]
@@ -63,9 +63,9 @@ class TestJsonShape:
         """Real semantic: under compat every truthy toggle survives;
         under minimal everything role='unknown' (or no_op/regression)
         gets dropped. The diff's newly_excluded list must therefore be
-        non-empty on prod-35b (where most patches lack attribution)."""
+        non-empty on prod-qwen3.6-35b-balanced (where most patches lack attribution)."""
         rc, out = _run_cli([
-            "compose", "plan-diff", "prod-35b",
+            "compose", "plan-diff", "prod-qwen3.6-35b-balanced",
             "--from", "compat", "--to", "minimal", "--json",
         ])
         assert rc == 0
@@ -82,7 +82,7 @@ class TestJsonShape:
     def test_compat_to_compat_yields_empty_newly_diff(self):
         """Same policy on both sides → no toggles cross the boundary."""
         rc, out = _run_cli([
-            "compose", "plan-diff", "prod-35b",
+            "compose", "plan-diff", "prod-qwen3.6-35b-balanced",
             "--from", "compat", "--to", "compat", "--json",
         ])
         assert rc == 0
@@ -98,7 +98,7 @@ class TestJsonShape:
 class TestHumanRenderer:
     def test_human_mode_header_carries_policies_and_counts(self):
         rc, out = _run_cli([
-            "compose", "plan-diff", "prod-35b",
+            "compose", "plan-diff", "prod-qwen3.6-35b-balanced",
             "--from", "compat", "--to", "minimal",
         ])
         assert rc == 0, out[:500]
@@ -115,14 +115,14 @@ class TestHumanRenderer:
 class TestInvalidPolicy:
     def test_invalid_from_policy_rejected(self):
         rc, _ = _run_cli([
-            "compose", "plan-diff", "prod-35b",
+            "compose", "plan-diff", "prod-qwen3.6-35b-balanced",
             "--from", "bogus", "--to", "compat",
         ])
         assert rc != 0
 
     def test_invalid_to_policy_rejected(self):
         rc, _ = _run_cli([
-            "compose", "plan-diff", "prod-35b",
+            "compose", "plan-diff", "prod-qwen3.6-35b-balanced",
             "--from", "compat", "--to", "bogus",
         ])
         assert rc != 0
@@ -134,12 +134,12 @@ class TestInvalidPolicy:
 class TestPresetResolution:
     def test_v2_alias_works(self):
         rc, out = _run_cli([
-            "compose", "plan-diff", "prod-27b-tq",
+            "compose", "plan-diff", "prod-qwen3.6-27b-tq-k8v4",
             "--from", "compat", "--to", "safe", "--json",
         ])
         assert rc == 0, out[:500]
         payload = json.loads(out)
-        assert payload["preset"] == "prod-27b-tq"
+        assert payload["preset"] == "prod-qwen3.6-27b-tq-k8v4"
 
     def test_unknown_preset_returns_error(self):
         rc, _ = _run_cli([

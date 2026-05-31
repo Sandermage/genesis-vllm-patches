@@ -1,0 +1,510 @@
+# SPDX-License-Identifier: Apache-2.0
+"""Enterprise deployment planner for the admin dashboard.
+
+Given a preset and a deployment *target*, this module produces — read-only,
+without any subprocess or host mutation — everything an operator needs to roll
+the preset onto a host:
+
+* the rendered deployment artifact (Docker Compose, Podman Quadlet, Kubernetes
+  manifests, a systemd unit, a bare-metal launch script, or a Proxmox LXC
+  provisioning script);
+* the resolved *fine launch parameters* (image, container, ports, tensor
+  parallelism, KV-cache dtype, context window, the full ``vllm serve`` argv,
+  the Genesis patch flag count and pin);
+* the live host inventory (OS / Python / Docker / NVIDIA / vLLM); and
+* the dependency install plan for that preset on this host (blockers,
+  warnings and the suggested install commands).
+
+All heavy imports (model_configs registry, runtime command builder, deps
+inventory) are done lazily inside functions so the product API stays
+import-cheap and torch-free.
+"""
+from __future__ import annotations
+
+import re
+from typing import Any, Optional
+
+# ``${var}`` placeholders used in preset docker mounts.
+_PLACEHOLDER_RE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
+
+# Conservative, operator-overridable default host paths for the symbolic
+# mounts a preset references. These are *suggestions*; the GUI exposes them as
+# editable fields so the artifact reflects the real host layout.
+_PATH_DEFAULTS: dict[str, str] = {
+    "models_dir": "/mnt/models",
+    "hf_cache": "/mnt/models/hf-cache",
+    "cache_root": "/var/lib/sndr/cache",
+    "genesis_src": "/opt/genesis/vllm/sndr_core",
+    "plugin_src": "/opt/genesis/plugin",
+}
+
+
+def _default_path_for(var: str) -> str:
+    if var in _PATH_DEFAULTS:
+        return _PATH_DEFAULTS[var]
+    if "model" in var:
+        return "/mnt/models"
+    if "cache" in var:
+        return "/var/lib/sndr/cache"
+    return f"/var/lib/sndr/{var}"
+
+
+_TARGETS: tuple[dict[str, str], ...] = (
+    {
+        "id": "compose",
+        "label": "Docker Compose",
+        "filename": "docker-compose.yml",
+        "kind": "yaml",
+        "needs": "docker",
+        "summary": "Single-host Docker stack. Best for one GPU box you control end to end.",
+    },
+    {
+        "id": "quadlet",
+        "label": "Podman Quadlet",
+        "filename": "sndr.container",
+        "kind": "ini",
+        "needs": "podman",
+        "summary": "Rootless Podman managed by systemd via a .container unit. Daemonless, auto-restart.",
+    },
+    {
+        "id": "kubernetes",
+        "label": "Kubernetes",
+        "filename": "sndr-deployment.yaml",
+        "kind": "yaml",
+        "needs": "kubectl",
+        "summary": "ConfigMap + Service + PVC + Deployment with GPU limits and health probes.",
+    },
+    {
+        "id": "systemd",
+        "label": "systemd + Docker",
+        "filename": "sndr-vllm.service",
+        "kind": "ini",
+        "needs": "docker",
+        "summary": "Bare-host systemd unit that runs the pinned container with restart-on-failure.",
+    },
+    {
+        "id": "bare_metal",
+        "label": "Bare metal (native)",
+        "filename": "launch.sh",
+        "kind": "bash",
+        "needs": "",
+        "summary": "Native vllm serve launcher with all Genesis flags exported. No container runtime.",
+    },
+    {
+        "id": "proxmox",
+        "label": "Proxmox LXC",
+        "filename": "provision-lxc.sh",
+        "kind": "bash",
+        "needs": "",
+        "summary": "Provision a GPU-passthrough LXC container, install Docker, then run the stack.",
+    },
+)
+
+_TARGET_BY_ID = {t["id"]: t for t in _TARGETS}
+
+
+def list_targets() -> list[dict[str, str]]:
+    """Static catalogue of supported deployment targets (display metadata)."""
+    return [dict(t) for t in _TARGETS]
+
+
+def list_preset_keys() -> list[str]:
+    from vllm.sndr_core.model_configs import registry as reg
+
+    return list(reg.list_keys())
+
+
+def _resolve_cfg(preset_id: str):
+    """Resolve a preset id to a V1 ``ModelConfig``.
+
+    Accepts both the V2 alias ids the GUI presents (``prod-qwen3.6-35b-multiconc``,
+    composed via ``registry_v2.load_alias``) and the legacy V1 monolithic keys
+    (``a5000-2x-35b-prod``). Raises ``KeyError`` if neither resolves.
+    """
+    from . import presets
+
+    # V2 alias first — this is the namespace the rest of the GUI uses.
+    try:
+        cfg = presets.compose_for(preset_id)
+        if cfg is not None:
+            return cfg
+    except Exception:
+        pass
+
+    from vllm.sndr_core.model_configs import registry as reg
+
+    cfg = reg.get(preset_id)
+    if cfg is None:
+        raise KeyError(preset_id)
+    return cfg
+
+
+def preset_has_docker(preset_id: str) -> bool:
+    try:
+        return getattr(_resolve_cfg(preset_id), "docker", None) is not None
+    except Exception:
+        return False
+
+
+def host_inventory() -> dict[str, Any]:
+    """Live host snapshot — OS / Python / Docker / NVIDIA / vLLM."""
+    from vllm.sndr_core.deps import inspect_host
+
+    return inspect_host().to_dict()
+
+
+def _mount_specs(cfg) -> list[str]:
+    docker = getattr(cfg, "docker", None)
+    return list(getattr(docker, "mounts", None) or []) if docker else []
+
+
+def _placeholders(cfg) -> list[str]:
+    found: list[str] = []
+    for spec in _mount_specs(cfg):
+        for var in _PLACEHOLDER_RE.findall(str(spec)):
+            if var not in found:
+                found.append(var)
+    return found
+
+
+def _host_paths(cfg, overrides: Optional[dict[str, str]]) -> dict[str, str]:
+    table = {var: _default_path_for(var) for var in _placeholders(cfg)}
+    for key, value in (overrides or {}).items():
+        if key in table and value:
+            table[key] = str(value)
+    return table
+
+
+def _mount_vars(cfg, host_paths: dict[str, str]) -> list[dict[str, str]]:
+    out: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for spec in _mount_specs(cfg):
+        text = str(spec)
+        names = _PLACEHOLDER_RE.findall(text)
+        if not names:
+            continue
+        var = names[0]
+        if var in seen:
+            continue
+        seen.add(var)
+        # spec looks like "${var}/sub:/container/path:mode" — pull container path
+        container = ""
+        parts = text.split(":")
+        if len(parts) >= 2:
+            container = parts[1]
+        out.append({"name": var, "value": host_paths.get(var, _default_path_for(var)), "container": container})
+    return out
+
+
+def _runtime_argv(cfg) -> list[str]:
+    from vllm.sndr_core.model_configs.runtime_command import build_runtime_command
+
+    return list(build_runtime_command(cfg).argv)
+
+
+def _genesis_env(cfg) -> dict[str, str]:
+    raw = getattr(cfg, "genesis_env", None) or {}
+    out: dict[str, str] = {}
+    for key, value in raw.items():
+        if isinstance(value, bool):
+            out[str(key)] = "1" if value else "0"
+        else:
+            out[str(key)] = str(value)
+    return out
+
+
+def _parameters(cfg) -> dict[str, Any]:
+    docker = getattr(cfg, "docker", None)
+    hw = getattr(cfg, "hardware", None)
+    genv = _genesis_env(cfg)
+    return {
+        "image": docker.effective_image_ref() if docker else "",
+        "container_name": (docker.container_name if docker else "") or f"sndr-{cfg.key}",
+        "host_port": docker.effective_host_port() if docker else None,
+        "tensor_parallel": int(getattr(hw, "n_gpus", 1) or 1),
+        "min_vram_per_gpu_mib": getattr(hw, "min_vram_per_gpu_mib", None) if hw else None,
+        "model_path": getattr(cfg, "model_path", None),
+        "max_model_len": getattr(cfg, "max_model_len", None),
+        "max_num_seqs": getattr(cfg, "max_num_seqs", None),
+        "gpu_memory_utilization": getattr(cfg, "gpu_memory_utilization", None),
+        "kv_cache_dtype": getattr(cfg, "kv_cache_dtype", None),
+        "genesis_pin": getattr(cfg, "genesis_pin", None),
+        "genesis_env_count": len(genv),
+        "lifecycle": getattr(cfg, "lifecycle", None),
+        "maintainer": getattr(cfg, "maintainer", None),
+        "argv": _runtime_argv(cfg),
+    }
+
+
+def _deps_plan(cfg) -> dict[str, Any]:
+    from vllm.sndr_core.deps import inspect_host, plan_changes
+
+    return plan_changes(cfg, inspect_host()).to_dict()
+
+
+# --------------------------------------------------------------------------
+# Per-target artifact + command renderers
+# --------------------------------------------------------------------------
+
+def _artifact_compose(cfg, host_paths):
+    from vllm.sndr_core.cli.compose import render_compose_yaml
+
+    return render_compose_yaml(cfg, host_paths=host_paths)
+
+
+def _commands_compose(cfg):
+    return [
+        "docker compose -f docker-compose.yml up -d",
+        "docker compose -f docker-compose.yml logs -f",
+        "docker compose -f docker-compose.yml down",
+    ]
+
+
+def _artifact_quadlet(cfg, host_paths):
+    from vllm.sndr_core.cli.quadlet import render_quadlet
+
+    return render_quadlet(cfg, host_paths=host_paths)
+
+
+def _commands_quadlet(cfg):
+    docker = getattr(cfg, "docker", None)
+    unit = (docker.container_name if docker else None) or f"sndr-{cfg.key}"
+    return [
+        "cp sndr.container ~/.config/containers/systemd/",
+        "systemctl --user daemon-reload",
+        f"systemctl --user start {unit}.service",
+        f"systemctl --user status {unit}.service",
+    ]
+
+
+def _dns_1123(value: str, *, max_len: int = 40) -> str:
+    """Coerce a string into a DNS-1123 label (lowercase alphanumerics +
+    hyphens, must start/end alphanumeric). V2 composed keys are long and
+    contain dots/double-hyphens that k8s rejects."""
+    out = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")[:max_len].strip("-")
+    return out or "sndr"
+
+
+def _artifact_kubernetes(cfg, host_paths, name_hint=None):
+    import dataclasses
+
+    from vllm.sndr_core.cli import k8s
+
+    # k8s resource names derive from cfg.key (`sndr-<key>`). V2 composed keys
+    # blow past the DNS-1123 63-char limit, so render with a short safe key
+    # taken from the requested preset id.
+    safe_key = _dns_1123(name_hint or cfg.key)
+    if safe_key != cfg.key:
+        cfg = dataclasses.replace(cfg, key=safe_key)
+
+    # Presets do not ship a kubernetes block by default. Synthesize a sane one
+    # from the docker + hardware blocks so the manifest renders with the right
+    # image and GPU count instead of failing on a missing config.
+    if getattr(cfg, "kubernetes", None) is None:
+        from vllm.sndr_core.model_configs.schema import KubernetesConfig
+
+        docker = getattr(cfg, "docker", None)
+        hw = getattr(cfg, "hardware", None)
+        k8s_cfg = KubernetesConfig(
+            namespace="genesis",
+            image=docker.effective_image_ref() if docker else "vllm/vllm-openai:nightly",
+            gpu_count=int(getattr(hw, "n_gpus", 1) or 1),
+            pvc={"models": "/models"},
+            pvc_size_gib={"models": 1000},
+        )
+        cfg = dataclasses.replace(cfg, kubernetes=k8s_cfg)
+    return k8s._all_yaml(cfg)
+
+
+def _commands_kubernetes(cfg):
+    return [
+        "kubectl apply -f sndr-deployment.yaml",
+        f"kubectl rollout status deploy/sndr-{cfg.key}",
+        f"kubectl logs -f deploy/sndr-{cfg.key}",
+    ]
+
+
+def _systemd_unit(cfg, params) -> str:
+    image = params["image"]
+    name = params["container_name"]
+    port = params["host_port"] or 8000
+    genv = _genesis_env(cfg)
+    env_args = " ".join(f"-e {k}={v}" for k, v in genv.items())
+    serve = " ".join(params["argv"])
+    run = (
+        f"/usr/bin/docker run --rm --name {name} --gpus all "
+        f"-p {port}:8000 {env_args} {image} {serve}"
+    ).strip()
+    return "\n".join(
+        [
+            "[Unit]",
+            f"Description=Genesis vLLM ({cfg.key}) — pin {params['genesis_pin']}",
+            "After=network-online.target docker.service",
+            "Requires=docker.service",
+            "",
+            "[Service]",
+            "Type=simple",
+            f"ExecStartPre=-/usr/bin/docker rm -f {name}",
+            f"ExecStart={run}",
+            f"ExecStop=/usr/bin/docker stop {name}",
+            "Restart=on-failure",
+            "RestartSec=10s",
+            "TimeoutStartSec=900",
+            "",
+            "[Install]",
+            "WantedBy=multi-user.target",
+        ]
+    )
+
+
+def _commands_systemd(cfg):
+    return [
+        "sudo cp sndr-vllm.service /etc/systemd/system/",
+        "sudo systemctl daemon-reload",
+        "sudo systemctl enable --now sndr-vllm.service",
+        "journalctl -u sndr-vllm.service -f",
+    ]
+
+
+def _bare_metal_script(cfg, params) -> str:
+    genv = _genesis_env(cfg)
+    lines = [
+        "#!/usr/bin/env bash",
+        f"# Genesis vLLM bare-metal launcher — preset {cfg.key}",
+        f"# Pin: {params['genesis_pin']}  |  reference image: {params['image']}",
+        "# Requires: NVIDIA driver + CUDA, Python venv with the pinned vLLM build.",
+        "set -euo pipefail",
+        "",
+        "# --- Genesis patch flags ---",
+    ]
+    for key, value in genv.items():
+        lines.append(f"export {key}={value}")
+    if not genv:
+        lines.append("# (this preset ships no Genesis patch flags)")
+    lines += [
+        "",
+        "# --- Launch (native vLLM, no container) ---",
+        "exec " + " ".join(params["argv"]),
+    ]
+    return "\n".join(lines)
+
+
+def _commands_bare_metal(cfg):
+    return [
+        "python -m venv .venv && source .venv/bin/activate",
+        "pip install 'vllm==<pin>'  # match the preset's genesis_pin build",
+        "chmod +x launch.sh && ./launch.sh",
+    ]
+
+
+def _proxmox_script(cfg, params) -> str:
+    name = params["container_name"]
+    port = params["host_port"] or 8000
+    return "\n".join(
+        [
+            "#!/usr/bin/env bash",
+            f"# Genesis vLLM Proxmox LXC provisioner — preset {cfg.key}",
+            "# Run on the Proxmox host. Provisions a GPU-passthrough LXC, installs",
+            "# Docker, and starts the pinned vLLM stack. Review CTID/STORAGE first.",
+            "set -euo pipefail",
+            "",
+            "CTID=${CTID:-9100}",
+            "STORAGE=${STORAGE:-local-lvm}",
+            "BRIDGE=${BRIDGE:-vmbr0}",
+            "TEMPLATE=${TEMPLATE:-local:vztmpl/ubuntu-24.04-standard_24.04-1_amd64.tar.zst}",
+            "",
+            "# 1. Create a privileged LXC (privileged needed for GPU passthrough).",
+            f'pct create "$CTID" "$TEMPLATE" \\',
+            f'  --hostname {name} \\',
+            "  --cores 8 --memory 32768 --swap 8192 \\",
+            '  --rootfs "$STORAGE:64" \\',
+            '  --net0 name=eth0,bridge="$BRIDGE",ip=dhcp \\',
+            "  --features nesting=1 --unprivileged 0 --onboot 1",
+            "",
+            "# 2. GPU passthrough — expose the NVIDIA devices to the container.",
+            'cat >> "/etc/pve/lxc/$CTID.conf" <<EOF',
+            "lxc.cgroup2.devices.allow: c 195:* rwm",
+            "lxc.cgroup2.devices.allow: c 243:* rwm",
+            "lxc.mount.entry: /dev/nvidia0 dev/nvidia0 none bind,optional,create=file",
+            "lxc.mount.entry: /dev/nvidiactl dev/nvidiactl none bind,optional,create=file",
+            "lxc.mount.entry: /dev/nvidia-uvm dev/nvidia-uvm none bind,optional,create=file",
+            "EOF",
+            "",
+            'pct start "$CTID"',
+            "",
+            "# 3. Inside the container: install Docker + NVIDIA container toolkit.",
+            'pct exec "$CTID" -- bash -c "apt-get update && apt-get install -y docker.io"',
+            "",
+            "# 4. Copy docker-compose.yml into the container and bring the stack up.",
+            f'pct push "$CTID" docker-compose.yml /root/docker-compose.yml',
+            'pct exec "$CTID" -- docker compose -f /root/docker-compose.yml up -d',
+            "",
+            f"# vLLM OpenAI API will listen on the container IP, port {port}.",
+        ]
+    )
+
+
+def _commands_proxmox(cfg):
+    return [
+        "chmod +x provision-lxc.sh",
+        "CTID=9100 STORAGE=local-lvm ./provision-lxc.sh",
+        'pct exec "$CTID" -- docker compose logs -f',
+    ]
+
+
+_RENDERERS = {
+    "compose": (_artifact_compose, _commands_compose, True),
+    "quadlet": (_artifact_quadlet, _commands_quadlet, True),
+    "kubernetes": (_artifact_kubernetes, _commands_kubernetes, True),
+    "systemd": (None, _commands_systemd, False),
+    "bare_metal": (None, _commands_bare_metal, False),
+    "proxmox": (None, _commands_proxmox, False),
+}
+
+
+def build_deployment(
+    preset_id: str,
+    target: str,
+    *,
+    host_paths: Optional[dict[str, str]] = None,
+) -> dict[str, Any]:
+    """Build the full read-only deployment plan for ``preset_id`` on ``target``.
+
+    Raises ``KeyError`` for an unknown preset and ``ValueError`` for an unknown
+    target — the HTTP layer maps these to 404 / 400.
+    """
+    if target not in _TARGET_BY_ID:
+        raise ValueError(f"unknown deployment target: {target!r}")
+    cfg = _resolve_cfg(preset_id)
+
+    meta = _TARGET_BY_ID[target]
+    resolved_paths = _host_paths(cfg, host_paths)
+    params = _parameters(cfg)
+
+    art_fn, cmd_fn, needs_paths = _RENDERERS[target]
+    if target == "systemd":
+        content = _systemd_unit(cfg, params)
+    elif target == "bare_metal":
+        content = _bare_metal_script(cfg, params)
+    elif target == "proxmox":
+        content = _proxmox_script(cfg, params)
+    elif target == "kubernetes":
+        content = _artifact_kubernetes(cfg, resolved_paths, name_hint=preset_id)
+    else:
+        content = art_fn(cfg, resolved_paths if needs_paths else None)
+
+    return {
+        "preset_id": preset_id,
+        "preset_label": getattr(cfg, "description", None) or cfg.key,
+        "target": target,
+        "target_label": meta["label"],
+        "artifact": {
+            "kind": meta["kind"],
+            "filename": meta["filename"],
+            "content": content,
+        },
+        "parameters": params,
+        "mount_vars": _mount_vars(cfg, resolved_paths),
+        "dependencies": _deps_plan(cfg),
+        "commands": cmd_fn(cfg),
+    }

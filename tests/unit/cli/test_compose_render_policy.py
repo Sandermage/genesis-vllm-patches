@@ -49,7 +49,7 @@ _HOST_PATHS_STUB = {
 
 @pytest.fixture(scope="module")
 def cfg_prod_35b():
-    return load_alias("prod-35b")
+    return load_alias("prod-qwen3.6-35b-balanced")
 
 
 def _parse(out: str) -> dict:
@@ -206,7 +206,7 @@ class TestCliFlagWiring:
             try:
                 with redirect_stdout(buf):
                     rc = cli_main([
-                        "compose", "render", "prod-35b", "--policy", "safe",
+                        "compose", "render", "prod-qwen3.6-35b-balanced", "--policy", "safe",
                     ])
             except SystemExit as e:
                 rc = int(e.code) if isinstance(e.code, int) else 2
@@ -224,7 +224,7 @@ class TestCliFlagWiring:
         try:
             with redirect_stdout(buf):
                 rc = cli_main([
-                    "compose", "render", "prod-35b", "--policy", "bogus",
+                    "compose", "render", "prod-qwen3.6-35b-balanced", "--policy", "bogus",
                 ])
         except SystemExit as e:
             rc = int(e.code) if isinstance(e.code, int) else 2

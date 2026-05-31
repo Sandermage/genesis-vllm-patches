@@ -150,7 +150,7 @@ host: 0.0.0.0
 
 docker:
   image: vllm/vllm-openai:nightly
-  container_name: vllm-server-35b-dflash
+  container_name: vllm-server-qwen3.6-35b-dflash
   port: 8000
   shm_size: 8g
   memory_limit: 64g
@@ -159,8 +159,8 @@ docker:
   mounts:
     - ${models_dir}:/models:ro
     - ${hf_cache}:/root/.cache/huggingface:ro
-    - ${cache_root}/triton-cache-35b-dflash:/root/.triton/cache
-    - ${cache_root}/compile-cache-35b-dflash:/root/.cache/vllm/torch_compile_cache
+    - ${cache_root}/triton-cache-qwen3.6-35b-dflash:/root/.triton/cache
+    - ${cache_root}/compile-cache-qwen3.6-35b-dflash:/root/.cache/vllm/torch_compile_cache
     - ${genesis_src}:/usr/local/lib/python3.12/dist-packages/vllm/sndr_core:ro
     - ${plugin_src}:/plugin:ro
   extra_run_flags:

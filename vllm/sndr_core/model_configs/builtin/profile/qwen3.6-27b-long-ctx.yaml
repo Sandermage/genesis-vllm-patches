@@ -4,7 +4,7 @@
 
 schema_version: 2
 kind: profile
-id: 27b-long-ctx                     # long-context profile for 27B fp8kv path
+id: qwen3.6-27b-long-ctx                     # long-context profile for 27B fp8kv path
 parent_model: qwen3.6-27b-int4-autoround-fp8kv   # parent model file (fp8_e5m2 KV variant)
 maintainer: sandermage
 status: validated                                # values: experimental|validated|deprecated
