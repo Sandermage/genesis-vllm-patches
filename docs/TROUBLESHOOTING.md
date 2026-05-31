@@ -1082,6 +1082,21 @@ which is `scp`-mirrored from the in-repo overlay file.
 streaming and non-streaming paths now return correctly-parsed
 `tool_calls` arrays with no XML leakage into `delta.content`.
 
+**Production-scale stress test (2026-05-31, 100 runs × 7 cases ×
+4 models = 2800 requests total):**
+
+| Model | Parser overlay | Result | Duration |
+|---|---|---|---|
+| gemma4-31B AWQ + TQ + MTP K=4 | G4_T1 v2 (PR #42237) | **700/700 ✓** | 10 min |
+| qwen3.6-27B int4 + TQ + MTP K=3 | Q3_T1 v1.3 (Hermes-style) | **700/700 ✓** | 27 min |
+| qwen3.6-35B A3B-FP8 + TQ + MTP K=3 | Q3_T1 v1.3 (Hermes-style) | **700/700 ✓** | 9 min |
+| gemma4-26B A4B AWQ + MTP K=3 | G4_T1 v2 (PR #42237) | **700/700 ✓** | 5 min |
+| **TOTAL** | | **2800/2800 = 100%** | ~51 min |
+
+User mandate `тулы должны быть на 100% исправны хоть 5 из 5 хоть
+100 из 100` is empirically validated at production scale across
+all 4 PROD models, both gemma4 and qwen3_coder parser families.
+
 **Retire trigger**: when upstream lands a Hermes/Kimi-style rewrite
 of `qwen3coder_tool_parser:extract_tool_calls_streaming` and our
 pin bumps to include it — diff byte-by-byte against this overlay
