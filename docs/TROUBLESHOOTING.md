@@ -383,9 +383,10 @@ genesis_env:
   GENESIS_ENABLE_PN59_STREAMING_GDN: "1"
 ```
 
-**Prevention.** Single-card 24 GB → use preset
-`a5000-1x-27b-int4-tested` (or the 3090 equivalent when landed).
-`sndr memory explain <preset>` gives a VRAM waterfall before launch.
+**Prevention.** Single-card 24 GB → use V2 preset
+`qa-qwen3.6-27b-tq-1x` (or the 3090 equivalent when landed).
+`sndr preset show qa-qwen3.6-27b-tq-1x` gives the composed config
+before launch. (V1 alias `a5000-1x-27b-int4-tested` retired 2026-06-01.)
 
 **Reference.** club-3090 #58.
 

@@ -71,8 +71,9 @@ per-patch `default_on` flag; production launch scripts under
 
 `Qwen3.6-27B-int4-AutoRound` from Lorbus, TP=1, context up to 32K,
 no prefix-caching, no DFlash. Run `sndr model-config list` to find
-a 1×24GB preset; the `a5000-1x-27b-int4-tested` config is the
-closest validated starting point.
+a 1×24GB preset; the V2 alias `qa-qwen3.6-27b-tq-1x` is the
+closest validated starting point (V1 alias `a5000-1x-27b-int4-tested`
+retired 2026-06-01).
 
 ### Q: I have 2× 24 GiB cards — should I run 27B or 35B?
 

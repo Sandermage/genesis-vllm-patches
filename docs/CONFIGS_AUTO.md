@@ -24,7 +24,7 @@ Total configs: **12**
 | `a5000-2x-27b-int4-tq-k8v4` | `stable` | qwen3.6-27b | `turboquant_k8v4` | — | 262144 | 131.67 | 7.34 | 7/7 | 2026-05-11 |
 | `a5000-2x-35b-fp8-dflash` | `stable` | qwen3.6-35b-a3b | `null` | — | 160000 | 127.2 | — | 9/10 | 2026-05-06 |
 | `a5000-2x-35b-prod` | `stable` | qwen3.6-35b-a3b | `turboquant_k8v4` | MTP K=3 | 320000 | 234.54 | 3.96 | 7/7 | 2026-05-09 |
-| `a5000-1x-27b-int4-tested` | `tested` | qwen3.6-27b | `turboquant_k8v4` | MTP K=3 | 78000 | 66.8 | — | 10/10 | 2026-05-05 |
+| ~~`a5000-1x-27b-int4-tested`~~ → V2 `qa-qwen3.6-27b-tq-1x` | `retired` | qwen3.6-27b | `turboquant_k8v4` | MTP K=3 | 78000 | 66.8 | — | 10/10 | 2026-05-05 (retired 2026-06-01) |
 | `a5000-2x-27b-int4-tested` | `tested` | qwen3.6-27b | `fp8_e5m2` | MTP K=3 | 131072 | 57.4 | — | 10/10 | 2026-05-05 |
 | `a5000-1x-tier-aware-pn95` | `experimental` | qwen3.6-27b | `fp8_e5m2` | MTP K=3 | 200000 | — | — | — | 2026-05-13 |
 | `a5000-2x-tier-aware-example` | `experimental` | qwen3.6-27b | `turboquant_k8v4` | MTP K=3 | 131072 | — | — | — | 2026-05-09 |
@@ -204,11 +204,11 @@ Total configs: **12**
 | `stability_cv_pct` | `6.61` |
 
 
-### `a5000-1x-27b-int4-tested`
+### `a5000-1x-27b-int4-tested` (retired 2026-06-01 — use V2 `qa-qwen3.6-27b-tq-1x`)
 
 **Title**: 1× RTX A5000 — 27B INT4 + fp8 KV (TESTED — QA-only, single-card)
 
-> Single-card variant of a5000-2x-27b-int4-tested. Same model + KV dtype  + spec decode, scaled down (max_model_len 60K due to single-card KV  pool). KEPT FOR QA / single-card regression-test only.
+> Single-card variant of a5000-2x-27b-int4-tested. Same model + KV dtype  + spec decode, scaled down (max_model_len 60K due to single-card KV  pool). KEPT FOR QA / single-card regression-test only. **V1 YAML retired in V1 sunset #3 (2026-06-01); use V2 preset `qa-qwen3.6-27b-tq-1x` going forward.**
 
 **Engine config:**
 

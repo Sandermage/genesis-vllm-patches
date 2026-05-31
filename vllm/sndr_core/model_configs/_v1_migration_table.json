@@ -34,11 +34,6 @@
       "v2_preset": "prod-qwen3.6-35b-dflash",
       "rationale": "V2 prod-qwen3.6-35b-dflash is production_candidate / maturity:validated with operator card. Model + KV + dtype + spec_decode + max_num_seqs match V1, BUT max_model_len intentionally trimmed 160K → 65K post-dev371 DFlash drafter memory accounting fix (M5 smoke 2026-05-21 hit _check_enough_kv_cache_memory at 160K; vllm estimated max usable ≈79328 tokens). V1's 160K is stale and unsafe on the current pin; V2 is the correct successor. Wave 10 patches (PN51/PN96b/PN125/PN126-130/PN132/PN133) active in V2 model file. (Reclassified 2026-05-26 from needs_operator_choice → deprecated after V1-SUNSET-PENDING-4.R strict comparison.)"
     },
-    "a5000-1x-27b-int4-tested": {
-      "bucket": "deprecated",
-      "v2_preset": "qa-qwen3.6-27b-tq-1x",
-      "rationale": "V2 qa-qwen3.6-27b-tq-1x profile sizing-identical to V1 (78K ctx / util 0.95 / seqs 1 / TQ k8v4 / MTP K=3). V2 patches_delta explicitly carries V1 single-card additions (PN31 FA varlen) + overrides (P67_NUM_KV_SPLITS=32, P82_THRESHOLD=0.1). V2 preset is card-less + qa- prefix (not production tier); operator must consciously pick. deprecated bucket signals 'V2 path exists; not auto-promoted to transparent'. (Reclassified 2026-05-26 from needs_operator_choice → deprecated after V1-SUNSET-PENDING-4.R confirmed sizing match.)"
-    },
     "a5000-2x-27b-int4-tested": {
       "bucket": "deprecated",
       "v2_preset": "qa-qwen3.6-27b-tested",

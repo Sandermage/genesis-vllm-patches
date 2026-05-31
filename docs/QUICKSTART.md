@@ -83,8 +83,8 @@ The 12 builtin configs are auto-inventoried in
 | 2× RTX A5000 multi-conc | `a5000-2x-35b-prod-multiconc` / `prod-qwen3.6-35b-multiconc` | `max_num_seqs=8`, aggregate ~675 TPS. |
 | 2× 24 GB (3090 / 4090 / A5000) | `a5000-2x-27b-int4-tq-k8v4` / `prod-qwen3.6-27b-tq-k8v4` | Lorbus 27B int4 + TurboQuant k8v4 (long context). |
 | 2× 24 GB long-context | `a5000-2x-27b-int4-long-ctx` / `long-ctx-qwen3.6-27b` | Same model, `--max-model-len 320000`. |
-| 1× RTX A5000 / 3090 | `a5000-1x-27b-int4-tested` | TP=1, 32K context. |
-| Single 3090 (community) | `single-3090-dense-cpu-offload-example` | CPU-offload preview. |
+| 1× RTX A5000 / 3090 | `qa-qwen3.6-27b-tq-1x` | TP=1, 78K context (V1 alias `a5000-1x-27b-int4-tested` retired 2026-06-01). |
+| Single 3090 (community) | `example-3090-dense-cpu-offload` | CPU-offload preview (V1 alias `single-3090-dense-cpu-offload-example` retired 2026-06-01). |
 
 For other rig shapes see [`HARDWARE.md`](HARDWARE.md). To add your
 own, see [`MODELS.md` § Adding a model recipe](MODELS.md).

@@ -91,7 +91,7 @@ the A3B baseline.
 | Architecture | `qwen3_5` dense, AutoRound INT4 |
 | VRAM @ INT4 + TQ k8v4 KV | ~14 GB weights + KV that fits on 24 GB |
 | Native context | 256K (320K validated experimentally) |
-| Genesis presets | `a5000-2x-27b-int4-tq-k8v4`, `a5000-1x-27b-int4-tested`, `long-ctx-qwen3.6-27b` |
+| Genesis presets | `a5000-2x-27b-int4-tq-k8v4`, `qa-qwen3.6-27b-tq-1x` (V2; V1 alias `a5000-1x-27b-int4-tested` retired 2026-06-01), `long-ctx-qwen3.6-27b` |
 
 This is the default 27B preset for any 24 GB rig, single or dual GPU.
 Tool-call clean rate consistently 8/8 on Wave 10 (132.93 TPS sustained
@@ -176,7 +176,7 @@ output (Entrypoint + Cmd + Env + Mounts) and reverse-engineers a
 
 ```bash
 sndr model-config list
-sndr model-config new my-rig --template a5000-1x-27b-int4-tested
+sndr model-config new my-rig --template qa-qwen3.6-27b-tq-1x  # V1 alias `a5000-1x-27b-int4-tested` retired 2026-06-01
 $EDITOR ~/.sndr/configs/my-rig.yaml
 ```
 

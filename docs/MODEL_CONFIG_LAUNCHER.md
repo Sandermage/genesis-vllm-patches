@@ -45,7 +45,7 @@ Builtin convention (recommended for all tiers):
 |---|---|---|---|---|
 | `a5000-2x-35b-prod` | a5000 | 2x | 35b | prod |
 | `a5000-2x-27b-int4-tested` | a5000 | 2x | 27b-int4 | balanced |
-| `a5000-1x-27b-int4-tested` | a5000 | 1x | 27b-int4 | balanced |
+| ~~`a5000-1x-27b-int4-tested`~~ → V2 `qa-qwen3.6-27b-tq-1x` | a5000 | 1x | 27b-int4 | balanced (V1 retired 2026-06-01) |
 | `a5000-2x-27b-int4-long-ctx` | a5000 | 2x | 27b-int4 | long-ctx |
 
 Why: `model-config list` sorts alphabetically — same hardware groups, then model size, then flavor. Easy skim.
@@ -499,7 +499,6 @@ vllm/sndr_core/model_configs/
     # V1 monolithic — one YAML per (model, hardware, tuning) combo:
     ├── a5000-2x-35b-prod.yaml
     ├── a5000-2x-27b-int4-tested.yaml
-    ├── a5000-1x-27b-int4-tested.yaml
     ├── a5000-2x-27b-int4-long-ctx.yaml
     ├── a5000-2x-27b-int4-tq-k8v4.yaml
     ├── a5000-2x-27b-int4-tq-k8v4-dflash.yaml

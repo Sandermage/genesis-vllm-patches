@@ -40,7 +40,6 @@ BUILTIN_DIR = REPO_ROOT / "vllm" / "sndr_core" / "model_configs" / "builtin"
 #   not a blocker for release. Until that lands the V1 entry stays
 #   here so `make evidence` does not gate on the migration.
 FROZEN_V1_BASELINE: frozenset[str] = frozenset({
-    "a5000-1x-27b-int4-tested.yaml",
     "a5000-1x-tier-aware-pn95.yaml",
     "a5000-2x-27b-dflash-true.yaml",
     "a5000-2x-27b-int4-long-ctx.yaml",
@@ -53,10 +52,11 @@ FROZEN_V1_BASELINE: frozenset[str] = frozenset({
     # single-3090-dense-cpu-offload-EXAMPLE.yaml retired 2026-06-01
     # — V2 equivalent: preset `example-3090-dense-cpu-offload`.
     # First V1 sunset (Phase 9 → Phase 10 transition proof-of-concept).
-    # See CHANGELOG entry 2026-06-01 for the full retirement workflow.
     # single-3090-hybrid-gdn-tier-aware-EXAMPLE.yaml retired 2026-06-01
-    # — V2 equivalent: preset `example-3090-tier-aware`. Second V1
-    # sunset (continues the EXAMPLE namespace cleanup).
+    # — V2 equivalent: preset `example-3090-tier-aware`. Second V1 sunset.
+    # a5000-1x-27b-int4-tested.yaml retired 2026-06-01
+    # — V2 equivalent: preset `qa-qwen3.6-27b-tq-1x`. Third V1 sunset
+    # (first NON-EXAMPLE V1 file — ZERO runtime refs per audit).
 })
 
 
