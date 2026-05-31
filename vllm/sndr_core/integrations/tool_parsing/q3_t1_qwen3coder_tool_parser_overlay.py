@@ -441,10 +441,17 @@ class Qwen3CoderToolParser(ToolParser):
         content = self._q3_extract_leading_content(current_text)
 
         if content or tool_call_deltas:
-            return DeltaMessage(
-                content=content if content else None,
-                tool_calls=tool_call_deltas if tool_call_deltas else None,
-            )
+            # Q3_T1 v1.3 fix (2026-05-31): Pydantic v2 rejects None for
+            # the DeltaMessage.tool_calls field — it must be either a
+            # list or omitted entirely. Build kwargs dict so empty
+            # lists/None get dropped via the `if x:` filter instead
+            # of being passed explicitly. The same applies to content.
+            kwargs: dict[str, Any] = {}
+            if content:
+                kwargs["content"] = content
+            if tool_call_deltas:
+                kwargs["tool_calls"] = tool_call_deltas
+            return DeltaMessage(**kwargs)
         return None
 
     def _q3_ensure_index_state(self, index: int) -> None:
