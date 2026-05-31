@@ -50,7 +50,10 @@ FROZEN_V1_BASELINE: frozenset[str] = frozenset({
     "a5000-2x-35b-fp8-dflash.yaml",
     "a5000-2x-35b-prod.yaml",
     "a5000-2x-tier-aware-EXAMPLE.yaml",
-    "single-3090-dense-cpu-offload-EXAMPLE.yaml",
+    # single-3090-dense-cpu-offload-EXAMPLE.yaml retired 2026-06-01
+    # — V2 equivalent: preset `example-3090-dense-cpu-offload`.
+    # First V1 sunset (Phase 9 → Phase 10 transition proof-of-concept).
+    # See CHANGELOG entry 2026-06-01 for the full retirement workflow.
     "single-3090-hybrid-gdn-tier-aware-EXAMPLE.yaml",
 })
 

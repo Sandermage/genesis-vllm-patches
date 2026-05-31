@@ -54,11 +54,6 @@
       "v2_preset": "example-2x-tier-aware",
       "rationale": "`-example` suffix marks non-prod; direct V2 migration to the example namespace."
     },
-    "single-3090-dense-cpu-offload-example": {
-      "bucket": "deprecated",
-      "v2_preset": "example-3090-dense-cpu-offload",
-      "rationale": "Direct V2 migration; example namespace, single-3090 hardware."
-    },
     "single-3090-hybrid-gdn-tier-aware-example": {
       "bucket": "deprecated",
       "v2_preset": "example-3090-tier-aware",

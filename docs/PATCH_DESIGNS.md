@@ -179,8 +179,8 @@ Translates to `--cpu-offload-gb 16 --swap-space 4` at launch. Uses
 vLLM's stock CPU offload — no Genesis runtime overhead. NOT for
 hybrid-GDN; the schema validator blocks that combination outright.
 
-See `single-3090-dense-cpu-offload-EXAMPLE.yaml` under
-`vllm/sndr_core/model_configs/builtin/`.
+See V2 preset `example-3090-dense-cpu-offload` under
+`vllm/sndr_core/model_configs/builtin/presets/`.
 
 ### When NOT to use PN95
 

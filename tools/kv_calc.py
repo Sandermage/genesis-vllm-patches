@@ -102,7 +102,8 @@ def _suggestions(estimate: MemoryEstimate, kv_dtype: str) -> list[str]:
     out.append(
         "Or use CPU offload: add `offload.cpu_offload_gib: 8` to the "
         "config (Path A — DENSE models only, NOT hybrid GDN). See "
-        "single-3090-dense-cpu-offload-EXAMPLE.yaml for a template."
+        "V2 preset `example-3090-dense-cpu-offload` (in "
+        "builtin/presets/) for a template."
     )
     return out
 

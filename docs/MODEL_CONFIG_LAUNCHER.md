@@ -507,8 +507,9 @@ vllm/sndr_core/model_configs/
     ├── a5000-2x-35b-fp8-dflash.yaml
     ├── a5000-1x-tier-aware-pn95.yaml
     ├── a5000-2x-tier-aware-EXAMPLE.yaml
-    ├── single-3090-dense-cpu-offload-EXAMPLE.yaml
     └── single-3090-hybrid-gdn-tier-aware-EXAMPLE.yaml
+    # single-3090-dense-cpu-offload-EXAMPLE.yaml retired 2026-06-01
+    # — use V2 preset `example-3090-dense-cpu-offload` instead
     # V2 layered — split into model/hardware/profile + composed presets:
     ├── model/      # <id>.yaml  — checkpoint, KV format, spec method, patches
     ├── hardware/   # <id>.yaml  — rig (GPU, VRAM, CPU, RAM, mounts)
