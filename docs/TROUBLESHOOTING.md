@@ -1154,6 +1154,20 @@ when MTP did not yet have a usable acceptance rate (see
 `docs/_internal/GEMMA4_MTP_MODELDEF_MIGRATION_AUDIT_2026-05-20.md`).
 The current empirical state warrants revisiting that choice.
 
+**K=2 sweep on 27B (followup 2026-05-31)**: to verify whether the
+31B K=3-beats-K=4 finding generalizes, ran an analogous K=3 → K=2
+A/B on qwen3.6-27B int4 + TQ + MTP. Result: 27B K=2 was uniformly
+WORSE than K=3 (-7.9% chat, -8.0% code, -8.8% count, -1.7% json
+single; -49% on conc=4 multi). Conclusion: **K-tuning is per-MODEL,
+not universal**. The 27B drafter has higher per-token acceptance
+even on free-form prose so its K=3 already pays for itself; K=2
+leaves spec-decode parallelism on the table. The 31B drafter has
+lower per-token acceptance on chat so K=4 wastes cycles K=3 doesn't.
+Same shape of finding — just inverts which K is "extra" — and
+empirically grounds the operator-decision recommendation above:
+DON'T touch 27B / 35B / 26B K; consider switching ONLY 31B K=4 → K=3
+for chat-heavy traffic.
+
 ### Observability stack (PN287 + PN288 + PN289 + trace surface)
 
 The enterprise observability flow combines four Genesis surfaces:
