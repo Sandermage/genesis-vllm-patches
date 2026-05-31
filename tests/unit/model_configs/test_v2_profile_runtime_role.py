@@ -72,6 +72,16 @@ class TestExistingProfilesLoadUnchanged:
         # delta +105.7% vs K=4. Promote to validated after operator
         # observation window.
         "gemma4-tq-mtp-chat-k3",            # role=structured, MTP K=3 chat-role
+        # 2026-05-31 — gemma4-a4b-mtp-chat-k3 same architecture on
+        # the 26B MoE A4B target (mirror-sibling of
+        # gemma4-a4b-mtp-k4). Bench in
+        # vllm/sndr_core/integrations/spec_decode/artifacts/
+        # gemma4-a4b-mtp-chat-k3.json — global delta +2.4%,
+        # free-form delta +13.0% vs K=4 sibling. Smaller magnitude
+        # than 31B's chat-k3 because the MoE drafter has higher
+        # per-token acceptance on free-form prose; direction
+        # identical (K=3 chat wins, K=4 structured wins).
+        "gemma4-a4b-mtp-chat-k3",           # role=structured, MTP K=3 chat-role (MoE A4B)
     })
 
     def test_all_builtin_profiles_load_with_new_fields_default_none(self):
