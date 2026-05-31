@@ -1868,6 +1868,46 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "upstream_pr_relationship": "backport",
         "implementation_status": "full",
     },
+    "SNDR_MTP_DYNAMIC_K_001": {
+        "title": "SNDR-MTP-DYNAMIC-K-001 — adaptive K MTP proposer (vllm#26504 port to DraftModelProposer base)",
+        "tier": "engine",
+        "family": "spec_decode",
+        "env_flag": "GENESIS_ENABLE_SNDR_MTP_DYNAMIC_K_001",
+        "default_on": False,
+        "lifecycle": "experimental",
+        "category": "perf_hotfix",
+        "apply_module": "vllm.sndr_core.integrations.spec_decode.g_dynamic_k_mtp_proposer",
+        "source": "genesis_original",
+        "credit": (
+            "Genesis-original port of vllm#26504 (whytem's DynamicProposer "
+            "extending EagleProposer) to the DraftModelProposer base used "
+            "by all 4 PROD MTP models (gemma4-31B/26B assistant + qwen3.6-"
+            "27B/35B assistant). Algorithm verbatim from PR #26504: per-seq "
+            "SequenceState with rolling acceptance-rate window (len=10), "
+            "K-adjustment with hysteresis (avg_acc >= threshold+0.05 -> K++ "
+            "up to launcher cap; avg_acc <= threshold-0.05 -> K-- down to "
+            "MIN=1), called via monkey-patch on DraftModelProposer.__init__ "
+            "and .propose. Empirical claim from PR #26504 author: +5-12% "
+            "TPS on mixed workload vs static K. Operator value: removes "
+            "the need for the 31B chat-K=3 + structured-K=4 launcher split "
+            "(commits 284477f9 + 72435282) — a single launcher converges "
+            "to the right K per-sequence at runtime instead of requiring "
+            "the gateway to route per request signal. The workload-class "
+            "semantic split (different compression_plan / drafter behavior) "
+            "stays valid; only the K choice becomes self-adapting. "
+            "Default-off — operator must explicitly set the env flag "
+            "after A/B benching against the static-K baselines."
+        ),
+        "applies_to": {
+            "spec_decode_method": ["mtp"],
+            "vllm_version_range": (">=0.21.0", "<0.22.0"),
+        },
+        "requires_patches": [],
+        "conflicts_with": [],
+        "upstream_pr": 26504,
+        "upstream_pr_relationship": "backport",
+        "implementation_status": "experimental",
+    },
     "PN202": {
         "title": "PN202 — per-layer KV tensor split (Tier 2.A enabler)",
         "tier": "community",

@@ -4,24 +4,24 @@
 > Source of truth: `vllm/sndr_core/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-05-30T20:30:26Z
-Total entries: **234**
+Generated: 2026-05-31T05:45:46Z
+Total entries: **235**
 
 ## Statistics
 
 ### By tier
 - `tier=community`: **233**
-- `tier=engine`: **1**
+- `tier=engine`: **2**
 
 ### By lifecycle
 - `lifecycle=coordinator`: **3**
-- `lifecycle=experimental`: **161**
+- `lifecycle=experimental`: **162**
 - `lifecycle=legacy`: **33**
 - `lifecycle=research`: **4**
 - `lifecycle=retired`: **19**
 - `lifecycle=stable`: **14**
 
-### Default-on at boot: **52** / 234
+### Default-on at boot: **52** / 235
 
 ### By family
 - `attention.flash`: 3
@@ -43,7 +43,7 @@ Total entries: **234**
 - `reasoning`: 9
 - `scheduler`: 8
 - `serving`: 10
-- `spec_decode`: 33
+- `spec_decode`: 34
 - `streaming`: 4
 - `tool_parsing`: 7
 - `worker`: 11
@@ -324,7 +324,7 @@ Total entries: **234**
 | **PN127** | `community` | `experimental` | · | `GENESIS_ENABLE_PN127_AUTO_CHAT_TEMPLATE` | — | Qwen 3.5/3.6 enhanced chat-template auto-install (closes club-3090#53/#72) |
 | **PN288** | `community` | `experimental` | · | `GENESIS_ENABLE_PN288_TOOL_FINISH_REASON_OVERRIDE` | — | qwen3_coder tool_call finish_reason override — Phase B+C with length-band saf... |
 
-### `spec_decode` (33)
+### `spec_decode` (34)
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
@@ -361,6 +361,7 @@ Total entries: **234**
 | **G4_76** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_76_DISABLE_DRAFTER_KV_SHARING` | — | Disable Gemma4Proposer._setup_gemma4_kv_sharing (PN265 — make drafter fully i... |
 | **G4_78** | `community` | `retired` | · | `GENESIS_ENABLE_G4_78_DRAFTER_TARGET_KV_BRIDGE` | — | Drafter K/V bridge from target[58]/[59] (RETIRED — superseded by P1.8 A2 decl... |
 | **PN40-classifier** | `community` | `experimental` | · | `GENESIS_ENABLE_PN40_DFLASH_OMNIBUS` | — | PN40 sub-D workload classifier (chat_completion middleware) |
+| **SNDR_MTP_DYNAMIC_K_001** | `engine` | `experimental` | · | `GENESIS_ENABLE_SNDR_MTP_DYNAMIC_K_001` | [#26504](https://github.com/vllm-project/vllm/pull/26504) | SNDR-MTP-DYNAMIC-K-001 — adaptive K MTP proposer (vllm#26504 port to DraftMod... |
 
 ### `streaming` (4)
 
