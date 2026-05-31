@@ -62,6 +62,16 @@ class TestExistingProfilesLoadUnchanged:
         "gemma4-a4b-mtp-k4",                # role=structured, MTP K=4
         "gemma4-a4b-multiconc",             # role=structured, MTP K=4, max_num_seqs=8
         "gemma4-a4b-multiconc-k1",          # role=default, no MTP, max_num_seqs=8
+        # 2026-05-31 — gemma4-tq-mtp-chat-k3 chat-role MTP K=3 mirror
+        # of structured-k4. Role=structured (carries spec_decode +
+        # compression + backend + routing + validation), partitions
+        # workload classes denied by K=4's artifact (free_chat,
+        # code_gen, summarization). See bench in
+        # vllm/sndr_core/integrations/spec_decode/artifacts/
+        # gemma4-tq-mtp-chat-k3.json — global delta +19%, free-form
+        # delta +105.7% vs K=4. Promote to validated after operator
+        # observation window.
+        "gemma4-tq-mtp-chat-k3",            # role=structured, MTP K=3 chat-role
     })
 
     def test_all_builtin_profiles_load_with_new_fields_default_none(self):
