@@ -35,7 +35,7 @@ Usage:
   python3 genesis_bench_suite.py --compare A.json B.json
 
 For run instructions on bare-metal / Docker / VM / WSL / RunPod see
-docs/BENCHMARK_GUIDE.md in the same repo.
+docs/BENCHMARKS.md in the same repo.
 
 License: Apache-2.0 (matches vLLM upstream).
 """

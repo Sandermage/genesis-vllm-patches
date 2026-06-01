@@ -16,7 +16,7 @@ All argv after the `bench` subcommand is forwarded verbatim to
 
 If the bench script can't be located (e.g. running from a slim
 deployed package), the shim fails with a clear error pointing at
-`docs/BENCHMARK_GUIDE.md` rather than a confusing import traceback.
+`docs/BENCHMARKS.md` rather than a confusing import traceback.
 
 Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
 """
@@ -80,7 +80,7 @@ def _load_bench_module():
             "Could not locate genesis_bench_suite.py. Canonical location "
             "is vllm/sndr_core/tools/genesis_bench_suite.py. Set "
             "GENESIS_REPO_ROOT to point at a Genesis checkout, or run "
-            "the bench directly per docs/BENCHMARK_GUIDE.md."
+            "the bench directly per docs/BENCHMARKS.md."
         )
     spec = importlib.util.spec_from_file_location(
         "genesis_bench_suite", bench_path
@@ -112,7 +112,7 @@ def main(argv: list[str] | None = None) -> int:
             print()
             print(f"Could not load it from this deployment: {e}")
             print()
-            print("See docs/BENCHMARK_GUIDE.md for a manual invocation "
+            print("See docs/BENCHMARKS.md for a manual invocation "
                   "recipe.")
             return 0
 
