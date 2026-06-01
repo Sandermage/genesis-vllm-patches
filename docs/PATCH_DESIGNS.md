@@ -556,10 +556,10 @@ problems forced a hard rename in v11.0.0:
   `drift_marker detected` line instead of silently breaking.
 - **Per-patch observability** — `GENESIS_OBSERVABILITY=1` prints
   `elapsed_ms` and `rss_delta` for every patch on boot.
-- **43-gate `make evidence`** — release-tier audit covering legacy
+- **45-gate `make evidence`** — release-tier audit covering legacy
   imports, hardcoded paths, security scan, community gate, lifecycle
   ratchet, doc sync.
-- **21-family taxonomy** — patches grouped by subsystem
+- **23-family taxonomy** — patches grouped by subsystem
   (`attention.gdn`, `spec_decode`, `kv_cache`, …) instead of one bag.
 
 ### What was removed
