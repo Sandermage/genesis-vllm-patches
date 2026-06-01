@@ -154,6 +154,9 @@ audit-public-paths: ## Etap 6.7: forbid private LAN IPs / home paths / usernames
 audit-docs-stale: ## Supplement §3: forbid stale tokens (wiring/, _genesis, retired CLI verbs) in active public docs
 	@$(PYTHON) scripts/docs_stale_scan.py
 
+audit-source-refs-in-docs: ## docs/*.md `vllm/sndr_core/<path>.{py,yaml}` token resolution (Phase 10.5 E-extension)
+	@$(PYTHON) scripts/audit_source_refs_in_docs.py
+
 audit-dirty-state-dev: ## §6.3 gate #6: dirty-state policy — dev tier (informational)
 	@$(PYTHON) scripts/check_dirty_state.py --tier dev
 
