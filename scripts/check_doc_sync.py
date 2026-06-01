@@ -195,46 +195,77 @@ _PATCHES_MD_STATS_PATTERNS: list[tuple[str, str]] = [
 ]
 
 
-# FAQ.md uses prose form (not table). Pattern captures the 5 buckets
-# from the registry-size answer at FAQ.md:36-37 (drift caught
-# 2026-06-01 — 174/17/4/7/2 had become 177/20/4/8/2).
-_FAQ_MD_BREAKDOWN_PATTERN = (
-    r"\*\*(\d+) entries\*\* — (\d+) full-implementation \+ (\d+) marker-only \+\s*"
-    r"(\d+) retired \+ (\d+) partial \+ (\d+) placeholder"
-)
-_FAQ_BREAKDOWN_KEYS = [
+# Per-doc impl_status breakdown patterns. Each entry is
+# (relative_path, regex_with_6_capture_groups, label).
+# Group order MUST match _IMPL_BREAKDOWN_KEYS:
+#   (total, full, marker_only, retired, partial, placeholder).
+#
+# FAQ.md prose:  "**N entries** - X full-implementation + Y marker-only
+#                + Z retired + W partial + V placeholder"
+# CONFIGURATION.md prose: "registry has **N entries** (X full-
+#                implementation + Y marker_only + Z retired + W partial
+#                + V placeholder)"
+# Drift caught 2026-06-01 — both forms had become stale (174/17/7
+# vs 177/20/8) because earlier check_doc_sync only checked total count.
+_IMPL_BREAKDOWN_KEYS = [
     "total", "impl.full", "impl.marker_only",
     "impl.retired", "impl.partial", "impl.placeholder",
 ]
+_IMPL_BREAKDOWN_SOURCES: list[tuple[str, str]] = [
+    (
+        "docs/FAQ.md",
+        r"\*\*(\d+) entries\*\* — (\d+) full-implementation \+ (\d+) marker-only \+\s*"
+        r"(\d+) retired \+ (\d+) partial \+ (\d+) placeholder",
+    ),
+    (
+        "docs/CONFIGURATION.md",
+        # The prose lives inside a markdown blockquote, so the "full-"
+        # -> "implementation" line break carries a `> ` continuation
+        # marker that `\s*` alone won't cross. [\s>]* admits it.
+        r"registry has \*\*(\d+) entries\*\* \((\d+) full-[\s>]*"
+        r"implementation \+ (\d+) marker_only \+ (\d+) retired \+ "
+        r"(\d+) partial \+ (\d+) placeholder\)",
+    ),
+]
 
 
-def _check_faq_md_breakdown(stats: dict[str, int]) -> list[dict]:
-    """Verify the impl_status breakdown prose in docs/FAQ.md:36-37."""
-    path = REPO_ROOT / "docs" / "FAQ.md"
-    if not path.is_file():
-        return [{"doc": str(path), "error": "file not found"}]
-    text = path.read_text()
-    rel = path.relative_to(REPO_ROOT).as_posix()
-    m = re.search(_FAQ_MD_BREAKDOWN_PATTERN, text)
-    if not m:
-        return [{
-            "doc": rel, "line": 0, "found": None, "expected": stats["total"],
-            "pattern": _FAQ_MD_BREAKDOWN_PATTERN,
-            "match_text": "(prose form not found — wording changed?)",
-            "transition_pending": False,
-        }]
-    line_no = text[:m.start()].count("\n") + 1
+def _check_impl_breakdowns(stats: dict[str, int]) -> list[dict]:
+    """Verify the impl_status breakdown prose across each registered doc.
+
+    Each source emits up to 6 mismatch records (one per bucket whose
+    claimed value drifts from registry ground truth). A source whose
+    prose form has been rewritten (regex no longer matches) emits a
+    single 'pattern not found' record so the gate flags it loudly
+    instead of silently ignoring the section.
+    """
     mismatches: list[dict] = []
-    for i, key in enumerate(_FAQ_BREAKDOWN_KEYS):
-        found = int(m.group(i + 1))
-        expected = stats.get(key, 0)
-        if found != expected:
+    for rel, pattern in _IMPL_BREAKDOWN_SOURCES:
+        path = REPO_ROOT / rel
+        if not path.is_file():
+            mismatches.append({"doc": rel, "error": "file not found"})
+            continue
+        text = path.read_text()
+        m = re.search(pattern, text)
+        if not m:
             mismatches.append({
-                "doc": rel, "line": line_no, "found": found,
-                "expected": expected, "pattern": f"{_FAQ_MD_BREAKDOWN_PATTERN} [{key}]",
-                "match_text": m.group(0)[:80],
+                "doc": rel, "line": 0, "found": None,
+                "expected": stats["total"], "pattern": pattern,
+                "match_text": "(prose form not found — wording changed?)",
                 "transition_pending": False,
             })
+            continue
+        line_no = text[:m.start()].count("\n") + 1
+        for i, key in enumerate(_IMPL_BREAKDOWN_KEYS):
+            found = int(m.group(i + 1))
+            expected = stats.get(key, 0)
+            if found != expected:
+                mismatches.append({
+                    "doc": rel, "line": line_no, "found": found,
+                    "expected": expected,
+                    "pattern": f"{pattern} [{key}]",
+                    "match_text": m.group(0)[:80],
+                    "transition_pending": False,
+                })
     return mismatches
 
 
@@ -349,7 +380,7 @@ def main() -> int:
     try:
         stats = compute_registry_stats(REGISTRY_PATH)
         all_mismatches.extend(_check_patches_md_stats_table(stats))
-        all_mismatches.extend(_check_faq_md_breakdown(stats))
+        all_mismatches.extend(_check_impl_breakdowns(stats))
     except Exception as e:
         print(f"WARN: stats-table check skipped: {e}", file=sys.stderr)
 
