@@ -72,12 +72,19 @@ card:
     measured_at: 2026-05-31
   evidence_refs:
     - type: bench
+      # Phase 10.5 (2026-06-01) — visibility flipped private → public.
+      # The artifact JSON is committed to the public repo at the path
+      # below (vllm/sndr_core/integrations/spec_decode/artifacts/), so
+      # any operator with a public checkout can audit the K=3-vs-K=4
+      # five-class A/B numbers directly. Clears the audit_config_catalog
+      # `production_candidate_public_evidence` warning that previously
+      # gated this preset from promoting to status=production.
       path: vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-26b-mtp-chat-k3.json
-      visibility: private
+      visibility: public
       note: |
         K=3 vs K=4 5-class A/B bench evidence on 26B-A4B; +13% free-form
         mean / +2.4% global geomean delta.
-  evidence_visibility: private
+  evidence_visibility: public
   tradeoffs:
     - "K=3 wins free_chat (+15%) and summarization (+11%) vs K=4 sibling but loses on structured workloads."
     - "Best deployed as a sibling upstream behind the spec_decode gateway, not as a single-launcher replacement for the K=4 preset."

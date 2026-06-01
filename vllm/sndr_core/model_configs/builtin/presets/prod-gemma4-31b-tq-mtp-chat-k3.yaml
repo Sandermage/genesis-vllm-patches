@@ -80,8 +80,15 @@ card:
     measured_at: 2026-05-31
   evidence_refs:
     - type: bench
+      # Phase 10.5 (2026-06-01) — visibility flipped private → public.
+      # The artifact JSON is committed to the public repo at the path
+      # below; any operator with a public checkout can audit the K=3-
+      # vs-K=4 five-class A/B numbers + per-class TPS + acceptance +
+      # VRAM snapshots directly. Clears the audit_config_catalog
+      # `production_candidate_public_evidence` warning that previously
+      # gated this preset from promoting to status=production.
       path: vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-31b-tq-mtp-chat-k3.json
-      visibility: private
+      visibility: public
       note: |
         K=3 vs K=4 5-class A/B bench evidence, +19% global delta,
         +105% free-form delta, -18% structured delta. The artifact JSON
@@ -92,7 +99,7 @@ card:
       path: external://docs.example/pending-gemma4-31b-chat-k3-bench
       visibility: private
       note: B1.X chat-k3 baseline (artifact above is the bench-of-record).
-  evidence_visibility: private
+  evidence_visibility: public
   tradeoffs:
     - "MTP K=3 → chat workloads benefit (free_chat +105%, summarization +99% vs K=4) but structured drops (structured_count -24%, tool_json -21%)."
     - "Best deployed as a sibling upstream behind the spec_decode gateway, not as a single-launcher replacement for the structured K=4 preset."
