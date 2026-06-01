@@ -39,7 +39,7 @@ test-pin-gate: ## Pin-gate adoption test (KNOWN_GOOD_VLLM_PINS drift)
 test-iron-rule: ## Iron-rule-#11 retire provenance meta-test
 	$(PYTEST) tests/unit/dispatcher/test_iron_rule_11_enforcement.py -v
 
-test-family: ## All 22 family contracts (~2300 tests, covers 19/20 families)
+test-family: ## All 23 family contracts (~2300 tests, covers 20/20 families)
 	$(PYTEST) tests/unit/integrations/ -q
 
 test-doc-sync: ## Doc-sync (patch counts consistent across 10 docs)
