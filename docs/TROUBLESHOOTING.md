@@ -1374,6 +1374,14 @@ suite cleanly with no overlap and no gap.
    `gemma4-31b-tq-mtp-chat-k3.status` from `experimental` to `validated`
    and update the operator card maturity from `draft` to `validated`.
 
+   (As of 2026-06-01 the public tree already ships the profile at
+   `status: validated` — promotion completed in commit `16eea839`
+   after a 3× × 5-workload bench cycle met the +50% chat geomean
+   threshold; the preset card `maturity` field stays at `draft` until
+   an operator's own A/B observation window confirms the same gains
+   on their workload. See CHANGELOG 2026-06-01 entry "chat-K3
+   promotion resolved" for the full root-cause analysis.)
+
 ### Observability stack (PN287 + PN288 + PN289 + trace surface)
 
 The enterprise observability flow combines four Genesis surfaces:
