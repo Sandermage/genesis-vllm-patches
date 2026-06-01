@@ -1,0 +1,68 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 profile — QA / regression-test sizing for 27B fp8kv on 2× A5000.
+# Lifecycle: tested (NOT recommended for production — fp8_e5m2 underperforms
+# TQ k8v4 sister by ~48%). Kept for community parity (noonghunna club-3090
+# default fp8 path) + regression on single-card setups.
+
+schema_version: 2
+kind: profile
+id: qa-qwen3.6-27b-fp8kv                          # QA regression profile (qa- prefix marks non-prod lifecycle)
+parent_model: qwen3.6-27b-int4-autoround-fp8kv   # parent model file (fp8_e5m2 KV variant)
+maintainer: sandermage
+status: validated                                # validated as QA-only — NOT production
+created: '2026-05-05'
+
+# ─── Patches delta — roll back to older `tested` subset ────────────────
+# Long-ctx profile keeps the full Wave 1/7 set; tested profile pre-dates them.
+# This delta DISABLES the newer patches to match the May 5 bench snapshot.
+patches_delta:
+  enable: {}                                     # no additions
+  disable:                                       # 16 patches dropped vs canonical model.patches:
+    - GENESIS_ENABLE_P87                                 # AutoRound row-parallel — pre-Wave 7
+    - GENESIS_ENABLE_P91                                 # Marlin pad — pre-Wave 7
+    - GENESIS_ENABLE_P95                                 # Wave 1 (vllm#40385 Marlin TP cudagraph cap)
+    - GENESIS_ENABLE_P70_AUTO_STRICT_NGRAM               # Wave 8 ngram quality cliff closure
+    - GENESIS_ENABLE_PN56_QWEN3CODER_XML_FALLBACK        # Wave 1 (vllm#41466)
+    - GENESIS_ENABLE_PN52_PROMPT_LOGPROBS_EVICTION       # Wave 1 (vllm#41411)
+    - GENESIS_ENABLE_PN30_DS_LAYOUT_SPEC_DECODE          # 27B-specific Wave addition
+    - GENESIS_ENABLE_PN66                                # Wave 1 (vllm#41696 multiturn </think>)
+    - GENESIS_ENABLE_PN67                                # Wave 1 (vllm#41674 thinking_budget bool)
+    - GENESIS_ENABLE_PN82_MAMBA_CUDAGRAPH_PREFILL_ZERO   # 27B-specific hybrid GDN
+    - GENESIS_ENABLE_PN90_PROBABILISTIC_DRAFT            # Wave 3.1
+    - GENESIS_ENABLE_P107_MTP_TRUNCATION_DETECTOR        # Wave 1
+    - GENESIS_ENABLE_PN16_LAZY_REASONER                  # Wave 7 PN16 v2
+    - GENESIS_PN16_TOOL_THINK_BUDGET                     # Wave 7 V8 tool-budget
+    - GENESIS_PN16_CLASSIFIER_MAX_TOKENS                 # Wave 7 V7 classifier
+    - GENESIS_OBSERVABILITY                              # Wave 7 observability
+  override:
+    GENESIS_P82_THRESHOLD_SINGLE: '0.3'                  # restore 0.3 (canonical model has 0.1 — long-ctx-specific tuning)
+
+# ─── Sizing override — tested QA memory regime ─────────────────────────
+sizing_override:
+  max_model_len: 131072                          # 128K context (vs long-ctx 280K — tighter regression range)
+  gpu_memory_utilization: 0.90                   # 0.90 conservative QA budget
+  max_num_seqs: 2                                # 2 concurrent
+  max_num_batched_tokens: 4096                   # 4096 chunks (vs long-ctx 2048 — short ctx has more KV slack)
+  enable_chunked_prefill: true                   # required for spec-decode
+  enforce_eager: false                           # cudagraph capture enabled
+  disable_custom_all_reduce: true                # NCCL fallback
+
+# ─── Override policy (CONFIG-UX.4.DEBT.2A, 2026-05-24) ──────────────────
+# Class `qa` — QA harness profile; evidence is execution-time pass/fail
+# regression signal, not bench TPS. No external bench artifact expected.
+override_policy:
+  override_class: qa
+  reason: "QA harness profile: 27B FP8 KV at max_num_seqs=2 for CI smoke"
+  evidence_refs: []
+  evidence_visibility: public
+  expires_at: '2026-08-22'
+  allowed_to_exceed_hardware_default: false
+
+promotion:
+  validation_required:
+    - "regression test only — no promotion path; this profile is intentionally frozen"
+  promote_to: null                               # null = never promotes (QA-only profile)
+  notes: |
+    QA-only profile. Reproducibly slower than TQ k8v4 sister
+    (57.4 vs 109.8 TPS on bench-and-update). Use only for matching
+    noonghunna club-3090 reference path or for single-card regression.
