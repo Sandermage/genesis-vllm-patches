@@ -80,6 +80,123 @@ on vLLM nightly pin `0.20.2rc1.dev209+g5536fc0c0`. 152 patches in
 
 ---
 
+## [Unreleased] — chat-K3 promotion resolved + TURBOQUANT multimodal regression closed (2026-06-01)
+
+### Highlights
+
+The chat-K3 promotion blocked yesterday (entry below, dated 2026-05-31)
+on the `ValueError: AttentionBackendEnum.TURBOQUANT not valid …
+'partial multimodal token full attention not supported' + 'kv_cache_
+dtype not supported'` rejection at engine init is now resolved. Profile
+promoted `experimental → validated` in commit `16eea839`. The earlier
+diagnosis — that vllm's TURBOQUANT validator on gemma4 rejects long
+contexts because multimodal heads stay in the model even with
+`--language-model-only` — was structurally correct but missed the
+patch-stack root cause: the chat-K3 profile shipped (commit `284477f9`)
+with an incomplete `patches_delta.enable` block that omitted the full
+TQ infrastructure stack the sister `structured-k4` carries.
+
+### Audit findings
+
+Investigation followed the STUDY → ANALYZE → VERIFY → SEARCH → COMPARE
+sequence per Iron Rule #11. Diff of chat-K3 `patches_delta.enable` vs
+structured-k4 surfaced 15 missing entries — the load-bearing ones being
+`G4_60L_TQ_BACKEND_MM_PREFIX` (Python-side `supports_mm_prefix=True`
+monkey-patch on stock `TurboQuantAttentionBackend`, the direct fix for
+the multimodal rejection) and `G4_69_SKIP_LAYERS_NATIVE_BACKEND` (closes
+the second `kv_cache_dtype not supported` rejection by resolving
+per-layer skip-layer `kv_cache_dtype='auto'` against the global
+`--attention-backend TURBOQUANT` correctly).
+
+Sister structured-k4 was unaffected at boot because its
+`max_model_len=4096` apparently stays below the vllm validator's
+`use_mm_prefix` trigger threshold; chat-K3 at `max_model_len=200000`
+hit the guard immediately. structured-k4 still **needs** these patches
+for correctness at any real workload — its 4K context just hides the
+boot-time guard fire on the current pin.
+
+### Patches changed (chat-K3 profile mirror against structured-k4)
+
+| New entries in chat-K3 `patches_delta.enable` | Role |
+|---|---|
+| `G4_60A_TQ_SLIDING_SPEC` | PR42637 mixed-attention TQ overlay |
+| `G4_60B_TQ_ATTN_OVERLAY` | … |
+| `G4_60C_TQ_DECODE_OVERLAY` | … |
+| `G4_60D_TQ_STORE_OVERLAY` | … |
+| `G4_60E_KV_CACHE_UTILS` | … |
+| `G4_60G_TQ_DISPATCH` | … |
+| `G4_60H_TQ_CONFIG_AUGMENT` | … |
+| `G4_60K_TQ_ENGINE_CONFIG` | … |
+| `G4_60L_TQ_BACKEND_MM_PREFIX` | **direct fix for boot rejection** |
+| `G4_61_TQ_SHARED_WORKSPACE` | TQ workspace sharing |
+| `G4_62_TQ_KERNEL_WARMUP` | TQ kernel warmup orchestrator |
+| `G4_32_TQ_VALIDATION_BYPASS` | TQ validation bypass |
+| `P65_TURBOQUANT_SPEC_CG_DOWNGRADE` | spec-decode cudagraph downgrade |
+| `G4_68_TQ_SPEC_CG_DOWNGRADE_OVERLAY` | TQ-specific CG downgrade |
+| `G4_69_SKIP_LAYERS_NATIVE_BACKEND` | **closes 2nd rejection reason** |
+| `G4_70_PN259B_MIXED_ALLOC` | mixed allocator |
+| `G4_70_PN259B_FAIL_FAST` | … |
+| `G4_70_PN259C_ROUTE_B` | … |
+
+### Migration notes
+
+`sizing_override.max_model_len`: 200000 → 65536 (64K). Empirical ceiling
+on pin `0.21.1rc1.dev354+g626fa9bba`. The 200K original deadlocked at
+PN126 prefill warmup with CUDA OOM (model + TQ-KV reached 21.92 GiB of
+23.55 GiB total per card; PN126 wanted 168 MiB headroom, only 136 MiB
+free → engine never started API server). 64K boots clean with the full
+G4_60* TQ infra stack enabled. Operators wanting to re-raise toward
+200K should tune `gpu_memory_utilization` first + walk the progressive
+ladder revalidation on the current pin.
+
+### Bench / measurements
+
+3-run × 5-workload validation on pin `0.21.1rc1.dev354+g626fa9bba`,
+greedy decode `T=0 top_k=1`, max_tokens=350, CV ≤ 5% on every
+workload, target ≥ +50% chat geomean vs default sibling met:
+
+| Workload         |  run1 |  run2 |  run3 |  mean |   CV |
+| ---------------- | ----: | ----: | ----: | ----: | ---: |
+| free_chat        | 44.71 | 44.60 | 44.18 | 44.50 | 0.6% |
+| code_gen         | 43.87 | 44.06 | 43.86 | 43.93 | 0.3% |
+| summarization    | 43.41 | 44.21 | 44.27 | 43.96 | 1.1% |
+| structured_count | 44.35 | 43.79 | 43.79 | 43.98 | 0.7% |
+| tool_json        | 41.77 | 43.79 | 43.51 | 43.02 | 2.6% |
+
+`profile_geomean_tps: 43.608` (+19.0 % vs K=4 — meets
+`promotion_gain_threshold: 0.1`). The artifact's
+`decision: validated_conditional` carries over per its
+`allowed_workloads: [code_gen, free_chat, summarization]` —
+`structured_count` and `tool_json` remain routed to the K=4 sibling.
+
+### Verified
+
+- Commit `16eea839` ships the patches_delta mirror + max_model_len
+  trim. `chat-K3` launcher boots clean TP=2 + 64K context, serves
+  `gemma-4-31b-code`, accepts spec-decode `num_speculative_tokens=3`
+  on the gemma-4-31B-it-assistant drafter.
+- `prod-gemma4-31b-tq-mtp-chat-k3` preset (commit `d8cafb3c`) flipped
+  evidence visibility to public — the artifact JSON
+  `vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-31b-tq-mtp-chat-k3.json`
+  has been in the public tree since the initial promotion commit;
+  the `evidence_visibility: private` marker on the preset card was
+  carried over from the experimental phase and outlived its purpose.
+- `audit_config_catalog` warning count dropped 9 → 7 as a side effect
+  (the 7 remaining are documented operator decisions: 5
+  `external://` placeholders pending public bench publish + 2
+  `sndr_private/` paths held in the private tree).
+
+### Open follow-ups
+
+- gpu_memory_utilization tuning + progressive ladder validation if
+  the operator wants to re-raise `max_model_len` toward 200K on the
+  current pin.
+- Investigate whether the same root cause (`use_mm_prefix` trigger
+  threshold) affects the structured-k4 sibling at its real-workload
+  context (it hides at the 4K boot path but could fire mid-request).
+
+---
+
 ## [Unreleased] — V1 sunset 10× completed in single day session (2026-06-01)
 
 ### Highlights
