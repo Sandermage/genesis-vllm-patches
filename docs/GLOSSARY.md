@@ -93,7 +93,7 @@ NVIDIA mechanism for capturing and replaying a sequence of GPU operations as a s
 PyTorch's TorchDynamo + Inductor stack that traces and compiles graphs at runtime. vLLM uses it for fused element-wise ops and select decode kernels.
 
 ### Triton
-OpenAI's Python-embedded GPU kernel language. Most Genesis hand-written kernels (P67, P40, P104) are Triton. Generated PTX is cached under `~/.triton/cache`.
+OpenAI's Python-embedded GPU kernel language. Most Genesis hand-written kernels (P67, P40, PN26b) are Triton. Generated PTX is cached under `~/.triton/cache`.
 
 ### Tensor Parallel (TP)
 Splits each weight matrix across N GPUs. Communication via all-reduce after each layer. Genesis-validated configs: TP=1 (single 24 GiB card, smaller models) and TP=2 (dual A5000 / dual 3090 / dual 4090).
