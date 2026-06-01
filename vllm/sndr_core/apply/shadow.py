@@ -195,6 +195,15 @@ _LEGACY_NAME_TO_PATCH_ID: dict[str, str] = {
     # SNDR_WORKSPACE_001 starts with `SNDR_`, not `P` / `PN`, so the
     # leading-token regex above can't lift the patch id. Explicit map.
     "SNDR_WORKSPACE_001 workspace grow-after-lock graceful fix": "SNDR_WORKSPACE_001",
+    # SNDR_MTP_DYNAMIC_K_001 — same situation as SNDR_WORKSPACE_001 above:
+    # SNDR_*-prefix patch id (Phase 10.5 sweep 2026-06-01) does not match
+    # the leading-token regex so the legacy register name needs an
+    # explicit map entry. This is a community-tier backport of vllm#26504
+    # (whytem's DynamicProposer adaptive-K MTP) ported to the
+    # DraftModelProposer base used by qwen3.6-27B/35B assistant-model
+    # MTP — closes shadow --strict's spec_only_unexpected +
+    # legacy_unparseable warnings for this entry.
+    "SNDR_MTP_DYNAMIC_K_001 adaptive K MTP proposer (vllm#26504 port to DraftModelProposer)": "SNDR_MTP_DYNAMIC_K_001",
 }
 
 

@@ -4,14 +4,14 @@
 > Source of truth: `vllm/sndr_core/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-06-01T11:24:21Z
+Generated: 2026-06-01T12:44:09Z
 Total entries: **236**
 
 ## Statistics
 
 ### By tier
-- `tier=community`: **234**
-- `tier=engine`: **2**
+- `tier=community`: **235**
+- `tier=engine`: **1**
 
 ### By lifecycle
 - `lifecycle=coordinator`: **4**
@@ -362,7 +362,7 @@ Total entries: **236**
 | **G4_76** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_76_DISABLE_DRAFTER_KV_SHARING` | — | Disable Gemma4Proposer._setup_gemma4_kv_sharing (PN265 — make drafter fully i... |
 | **G4_78** | `community` | `retired` | · | `GENESIS_ENABLE_G4_78_DRAFTER_TARGET_KV_BRIDGE` | — | Drafter K/V bridge from target[58]/[59] (RETIRED — superseded by P1.8 A2 decl... |
 | **PN40-classifier** | `community` | `experimental` | · | `GENESIS_ENABLE_PN40_DFLASH_OMNIBUS` | — | PN40 sub-D workload classifier (chat_completion middleware) |
-| **SNDR_MTP_DYNAMIC_K_001** | `engine` | `experimental` | · | `GENESIS_ENABLE_SNDR_MTP_DYNAMIC_K_001` | [#26504](https://github.com/vllm-project/vllm/pull/26504) | SNDR-MTP-DYNAMIC-K-001 — adaptive K MTP proposer (vllm#26504 port to DraftMod... |
+| **SNDR_MTP_DYNAMIC_K_001** | `community` | `experimental` | · | `GENESIS_ENABLE_SNDR_MTP_DYNAMIC_K_001` | [#26504](https://github.com/vllm-project/vllm/pull/26504) | SNDR-MTP-DYNAMIC-K-001 — adaptive K MTP proposer (vllm#26504 port to DraftMod... |
 
 ### `streaming` (4)
 

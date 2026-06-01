@@ -106,6 +106,126 @@ def test_chat_rag_preview_validates_path(tmp_path):
     assert bad.status_code == 200 and bad.json()["ok"] is False
 
 
+def test_hosts_ssh_check_persists_password_and_reports(monkeypatch, tmp_path):
+    monkeypatch.setenv("SNDR_HOME", str(tmp_path))
+    monkeypatch.setenv("SNDR_SECRETS_BACKEND", "file")
+    from vllm.sndr_core.product_api import secrets_store, ssh_client
+    secrets_store.reset_backend_cache()
+
+    captured = {}
+    def fake_check(target, *, timeout=8.0):
+        captured["target"] = target
+        return {"available": True, "ssh_ok": True, "sftp_ok": True, "latency_ms": 5.0,
+                "banner": "SSH-2.0", "uname": "Linux 6.2", "error": None}
+    monkeypatch.setattr(ssh_client, "check_connectivity", fake_check)
+
+    client = _client()
+    resp = client.post("/api/v1/hosts/ssh-check", json={
+        "host": "192.168.1.10", "host_id": "prod", "user": "sander",
+        "auth_method": "password", "password": "s3cret", "ssh_port": 22,
+    })
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["ssh_ok"] is True and body["sftp_ok"] is True
+    # The password reached the connectivity check but is never echoed back.
+    assert "password" not in body
+    # And it was persisted (encrypted) for reuse, keyed by the host id.
+    assert secrets_store.get_secret("ssh:prod") == "s3cret"
+    # The host list now reports a stored password without leaking it.
+    client.post("/api/v1/hosts", json={"label": "Prod", "host": "192.168.1.10", "id": "prod"})
+    hosts = client.get("/api/v1/hosts").json()["hosts"]
+    prod = next(h for h in hosts if h["id"] == "prod")
+    assert prod["has_ssh_password"] is True
+    assert "password" not in prod
+    # forget clears it.
+    forgot = client.post("/api/v1/hosts/ssh-check", json={"host_id": "prod", "forget_password": True})
+    assert forgot.json()["forgot"] is True
+    assert secrets_store.get_secret("ssh:prod") is None
+
+
+def test_hosts_fetch_api_key_stores_on_profile(monkeypatch, tmp_path):
+    monkeypatch.setenv("SNDR_HOME", str(tmp_path))
+    from vllm.sndr_core.product_api import host_profiles, ssh_client
+
+    monkeypatch.setattr(
+        ssh_client, "discover_api_key",
+        lambda target, **kw: {"available": True, "found": True, "key": "genesis-local", "source": "container:vllm-x", "error": None},
+    )
+    client = _client()
+    client.post("/api/v1/hosts", json={"label": "Prod", "host": "192.168.1.10", "id": "prod", "ssh_user": "sander"})
+    resp = client.post("/api/v1/hosts/fetch-api-key", json={"host_id": "prod"})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["found"] is True and body["source"] == "container:vllm-x"
+    assert "key" not in body and "key_masked" in body  # masked, not leaked
+    # The discovered key is stored ENCRYPTED in the secrets store (never on the
+    # profile / on disk) and surfaced only as a boolean presence flag.
+    from vllm.sndr_core.product_api import secrets_store
+    assert secrets_store.get_secret("apikey:prod") == "genesis-local"
+    prof = next(p for p in host_profiles.list_host_profiles() if p.id == "prod")
+    assert prof.api_key == ""  # not on the profile
+    assert client.get("/api/v1/hosts").json()["hosts"][0]["has_api_key"] is True
+    # Unknown host -> 404.
+    assert client.post("/api/v1/hosts/fetch-api-key", json={"host_id": "nope"}).status_code == 404
+
+
+def test_terminal_gate_enforces_apply_and_known_host():
+    # The PTY terminal's security policy is unit-tested directly (the starlette
+    # 1.0 TestClient cannot drive websockets); the transport is verified live.
+    from vllm.sndr_core.product_api.http_app import terminal_gate
+
+    # apply OFF -> refused regardless of host.
+    off = terminal_gate(False, True, {"prod"}, "prod")
+    assert off and off["type"] == "error" and "SNDR_ENABLE_APPLY" in off["data"]
+    # apply ON but paramiko missing -> refused.
+    no_pm = terminal_gate(True, False, {"prod"}, "prod")
+    assert no_pm and "paramiko" in no_pm["data"]
+    # apply ON, unknown host -> refused.
+    unknown = terminal_gate(True, True, {"prod"}, "ghost")
+    assert unknown and "unknown host" in unknown["data"]
+    # apply ON, known host, paramiko present -> allowed (None).
+    assert terminal_gate(True, True, {"prod"}, "prod") is None
+
+
+def test_calc_kv_endpoint_breakdown_and_curve():
+    client = _client()
+    resp = client.post("/api/v1/calc/kv", json={
+        "model_id": "qwen3.6-27b-int4", "context": 16384, "tp": 2, "gpu_count": 2,
+        "gpu_vram_mib": 24564, "util": 0.9, "kv_dtype": "fp8",
+    })
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["result"]["weights_per_gpu_mib"] > 0 and body["result"]["max_context"] > 0
+    assert "fp8" in body["by_dtype"] and "fp16" in body["by_dtype"]
+    # fp16 KV achieves less context than fp8.
+    assert body["by_dtype"]["fp16"] < body["by_dtype"]["fp8"]
+    assert len(body["curve"]) > 5
+    models = client.get("/api/v1/calc/models").json()
+    assert "qwen3.6-27b-int4" in models["models"]
+
+
+def test_calc_kv_rejects_bad_input_with_400():
+    """Malformed numeric input is a clean 400, not an unhandled 500."""
+    client = _client()
+    bad = client.post("/api/v1/calc/kv", json={"model_id": "qwen3.6-27b-int4", "context": "abc"})
+    assert bad.status_code == 400
+    neg = client.post("/api/v1/calc/kv", json={"model_id": "qwen3.6-27b-int4", "context": -1, "tp": -2})
+    assert neg.status_code == 400
+
+
+def test_baselines_save_diff_delete(monkeypatch, tmp_path):
+    monkeypatch.setenv("SNDR_HOME", str(tmp_path))
+    client = _client()
+    base_result = {"label": "base", "scenarios": [{"name": "code", "metrics": {"tps": 120.0, "ttft_ms": 100.0}}]}
+    saved = client.post("/api/v1/baselines", json={"result": base_result, "label": "prod-27b"}).json()
+    assert saved["id"]
+    assert any(b["id"] == saved["id"] for b in client.get("/api/v1/baselines").json()["baselines"])
+    cur = {"label": "cur", "scenarios": [{"name": "code", "metrics": {"tps": 100.0, "ttft_ms": 100.0}}]}
+    diff = client.post("/api/v1/baselines/diff", json={"current": cur, "baseline_id": saved["id"], "threshold_pct": 5}).json()
+    assert diff["has_regression"] is True and diff["exit_code"] == 3
+    assert client.delete(f"/api/v1/baselines/{saved['id']}").json()["deleted"] is True
+
+
 def test_launch_bench_evidence_dry_run_by_default():
     client = _client()
     la = client.post("/api/v1/launch/apply", json={"preset_id": "prod-qwen3.6-35b-balanced", "runtime_target": "docker"})
@@ -290,13 +410,16 @@ def test_overview_and_catalog_summary_endpoints(tmp_path, monkeypatch):
     overview = client.get("/api/v1/overview")
     assert overview.status_code == 200
     payload = overview.json()
-    assert payload["catalog"]["presets_count"] == 21
+    # chat-K3 promotion (2026-06-01): 21 → 23 preset aliases.
+    assert payload["catalog"]["presets_count"] == 23
     assert payload["capabilities"]["platform"]["sndr_core_version"]
 
     summary = client.get("/api/v1/catalog/summary")
     assert summary.status_code == 200
     # Every builtin preset carries a card.
-    assert summary.json()["preset_cards_count"] == 21
+    # chat-K3 promotion (2026-06-01): 21 → 23 (both new presets ship
+    # with operator cards from the start).
+    assert summary.json()["preset_cards_count"] == 23
 
 
 def test_presets_endpoints_are_read_only_json_views():
@@ -307,7 +430,9 @@ def test_presets_endpoints_are_read_only_json_views():
         params={"status": "production_candidate"},
     )
     assert listed.status_code == 200
-    assert listed.json()["matched"] == 14
+    # chat-K3 promotion (2026-06-01): both new presets land as
+    # production_candidate → +2 → 14 → 16.
+    assert listed.json()["matched"] == 16
 
     preset = client.get("/api/v1/presets/prod-qwen3.6-35b-balanced")
     assert preset.status_code == 200

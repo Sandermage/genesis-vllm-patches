@@ -783,7 +783,7 @@
     "patch_id": "SNDR_MTP_DYNAMIC_K_001",
     "family": "spec_decode",
     "lifecycle": "experimental",
-    "tier": "engine",
+    "tier": "community",
     "default_on": false,
     "env_flag": "GENESIS_ENABLE_SNDR_MTP_DYNAMIC_K_001",
     "has_upstream_pr": true,

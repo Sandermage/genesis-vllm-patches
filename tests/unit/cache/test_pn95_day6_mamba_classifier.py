@@ -155,9 +155,17 @@ def test_init_mamba_handles_malformed_groups():
 
 def test_init_mamba_lazy_init_from_env_config_key():
     """When _TM is None + GENESIS_PN95_CONFIG_KEY is set + cfg has tiers,
-    lazy init succeeds and Mamba exclusion proceeds."""
+    lazy init succeeds and Mamba exclusion proceeds.
+
+    Phase 10.5 (2026-06-01): the old `single-3090-hybrid-gdn-tier-aware-
+    example` key referred to a V1 monolithic config retired in V1 sunset
+    #2. Migrated to `a5000-2x-tier-aware-example` which is the V2-era
+    PN95-internal tier_configs/<key>.yaml replacement carrying the same
+    backward-compat example tier shape (see
+    `vllm/sndr_core/cache/pn95/tier_configs/`).
+    """
     os.environ["GENESIS_ENABLE_PN95_TIER_AWARE_CACHE"] = "1"
-    os.environ["GENESIS_PN95_CONFIG_KEY"] = "single-3090-hybrid-gdn-tier-aware-example"
+    os.environ["GENESIS_PN95_CONFIG_KEY"] = "a5000-2x-tier-aware-example"
     try:
         # Singleton starts as None
         assert P.tier_manager() is None

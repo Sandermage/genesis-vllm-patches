@@ -111,9 +111,12 @@ class TestEnvPrefixes:
         assert "SNDR_" in joined
         assert "GENESIS_" in joined
 
-    def test_includes_all_four_categories(self):
-        # ENABLE / DISABLE / LEGACY / ALLOW × {SNDR_, GENESIS_}
-        for category in ("ENABLE_", "DISABLE_", "LEGACY_", "ALLOW_"):
+    def test_includes_all_five_categories(self):
+        # ENABLE / DISABLE / LEGACY / ALLOW / INFO × {SNDR_, GENESIS_}
+        # INFO category added Phase 10.5 (2026-06-01) for info-marker
+        # patches like G4_T1 (PR42006 vendor overlay mount status —
+        # operator-visible flag with no toggle semantics).
+        for category in ("ENABLE_", "DISABLE_", "LEGACY_", "ALLOW_", "INFO_"):
             assert any(category in p for p in c._CANONICAL_ENV_PREFIXES), (
                 f"missing category {category}"
             )
@@ -122,9 +125,10 @@ class TestEnvPrefixes:
         for p in c._CANONICAL_ENV_PREFIXES:
             assert p.endswith("_"), f"{p} doesn't end with underscore"
 
-    def test_count_is_eight(self):
-        # 4 categories × 2 brands = 8 prefixes
-        assert len(c._CANONICAL_ENV_PREFIXES) == 8
+    def test_count_is_ten(self):
+        # 5 categories × 2 brands = 10 prefixes
+        # (INFO added Phase 10.5 2026-06-01; was 8 = 4×2 before).
+        assert len(c._CANONICAL_ENV_PREFIXES) == 10
 
     def test_no_duplicates(self):
         assert len(set(c._CANONICAL_ENV_PREFIXES)) == len(c._CANONICAL_ENV_PREFIXES)

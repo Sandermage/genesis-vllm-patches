@@ -121,8 +121,32 @@ _KNOWN_REGISTRY_ONLY = frozenset({
     # coordinator-only (apply_module=None) for operator visibility.
     # PN282 (STAGE-6-HARDENING.2C 2026-05-28) — non-dispatcher boot
     # coordinator, registry-only.
+    # PN283 (Phase 10.5 2026-06-01) — sibling coordinator of PN282:
+    # prometheus_client multiprocess-dir bootstrap. Same boot pattern
+    # (boots directly from sndr_core/__init__.py), registry-only, no
+    # apply_patch_* wiring.
     "PN256", "PN261", "PN262", "PN262B", "PN271", "PN274", "PN275",
-    "PN282",
+    "PN282", "PN283",
+    # PN288 (qwen3_coder finish_reason override) + PN289 (Genesis
+    # process-info Prometheus gauge) — both 2026-05-30 spec-driven
+    # additions that ship via dispatcher overlay-loader rather than
+    # apply_patch_* in apply_all.py; the registry entries document the
+    # patches for `genesis explain` + audit tooling. Phase 10.5
+    # enterprise sweep 2026-06-01 — carve-out documented here.
+    "PN288", "PN289",
+    # SNDR_MTP_DYNAMIC_K_001 (Sandermage adaptive K MTP proposer — port
+    # of vllm#26504 DynamicProposer) — wired via @register_patch in
+    # _per_patch_dispatch.py rather than via apply_patch_* in
+    # apply_all.py (the patch_id pattern doesn't match the
+    # apply_patch_<id>_* regex because SNDR_* IDs use the engine-tier
+    # namespace, not the canonical P[N]?\d+ form). Phase 10.5
+    # enterprise sweep 2026-06-01 — carve-out documented here.
+    "SNDR_MTP_DYNAMIC_K_001",
+    # G4_T1 (Gemma4 tool-parser PR #42006 vendor marker) — operator-
+    # side bind-mount overlay; no apply_patch_* wiring by design
+    # (registered only for `genesis explain` + audit visibility of the
+    # mount state via the GENESIS_INFO_* INFO-semantic env flag).
+    "G4_T1",
     # ─── Misc backports without per_patch_dispatch wiring ─────────────
     # P8 retired tombstone (kv_hybrid_reporting — registered for audit
     # trail only, retired lifecycle).

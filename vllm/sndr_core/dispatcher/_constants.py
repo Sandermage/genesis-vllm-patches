@@ -89,6 +89,16 @@ _CANONICAL_ENV_PREFIXES = (
     "SNDR_DISABLE_", "GENESIS_DISABLE_",
     "SNDR_LEGACY_", "GENESIS_LEGACY_",
     "SNDR_ALLOW_", "GENESIS_ALLOW_",
+    # Info-marker semantic (Phase 10.5 2026-06-01): operator-visible
+    # flag that documents an external state (e.g. G4_T1
+    # GENESIS_INFO_G4_T1_PR42006_OVERLAY_MOUNTED — reports whether
+    # the operator has bind-mounted the vendored upstream tool-call
+    # overlay file). No toggle semantics, no boot-time apply gate.
+    # Distinct from ENABLE/DISABLE because the operator does not
+    # "enable" the overlay — it is either bind-mounted at container
+    # launch or it is not, and this flag surfaces that condition
+    # via the audit/explain tooling without implying patch control.
+    "SNDR_INFO_", "GENESIS_INFO_",
 )
 
 

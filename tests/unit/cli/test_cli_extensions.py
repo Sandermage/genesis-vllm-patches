@@ -34,8 +34,18 @@ class TestConfigListAlias:
             rc = cfg_cli.run_list(ns)
         out = buf.getvalue()
         assert rc == 0
-        # Forwarded output includes the model-config table header
-        assert "model configs" in out.lower() or "KEY" in out
+        # Forwarded output includes the model-config table header OR
+        # the legitimate empty-state message — `sndr config list` is a
+        # V1 compat alias forwarding to `compat/model_config_cli::cmd_list`
+        # which only enumerates V1 monolithic builtin/*.yaml entries.
+        # Phase 10.5 (2026-06-01): V1 tier fully retired, so the empty-
+        # state path is the canonical post-sunset surface here. Operators
+        # discover V2 presets via `sndr preset list` (separate verb).
+        assert (
+            "model configs" in out.lower()
+            or "KEY" in out
+            or "(no configs found under" in out
+        )
         # Alias hint is printed only in table mode
         assert "alias of `sndr model-config list`" in out
 

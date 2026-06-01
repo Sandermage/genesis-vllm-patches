@@ -1905,7 +1905,17 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "SNDR_MTP_DYNAMIC_K_001": {
         "title": "SNDR-MTP-DYNAMIC-K-001 — adaptive K MTP proposer (vllm#26504 port to DraftModelProposer base)",
-        "tier": "engine",
+        # Phase 10.5 edition-boundary fix (2026-06-01): tier corrected
+        # from 'engine' to 'community'. P0-3/P0-4 audit (2026-05-08)
+        # policy: public Genesis repo carries no engine-tier patches —
+        # PN72 was the last one and moved community as Genesis-original
+        # community code. SNDR_MTP_DYNAMIC_K_001 title + credit both
+        # reference vllm#26504 (the upstream PR it ports from), which
+        # violates the strict-AND engine-tier rule (no upstream_pr / no
+        # PR ref / no author ref simultaneously). community tier is the
+        # correct classification for backported / PR-derived work, even
+        # when Sandermage authored the port itself.
+        "tier": "community",
         "family": "spec_decode",
         "env_flag": "GENESIS_ENABLE_SNDR_MTP_DYNAMIC_K_001",
         "default_on": False,

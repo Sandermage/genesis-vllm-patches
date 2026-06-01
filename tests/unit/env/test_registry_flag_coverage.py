@@ -27,16 +27,21 @@ import pytest
 def _strip_prefix(flag: str) -> str:
     """Strip canonical prefix family.
 
-    Three semantic categories:
+    Four semantic categories:
       - ENABLE/LEGACY/DISABLE × {GENESIS, SNDR} — standard patch-toggle
       - ALLOW × {GENESIS, SNDR} — operator-consent gate (PN274, R3 audit
         2026-05-21; documented in safety_guard.py / functional_artifact.py).
+      - INFO × {GENESIS, SNDR} — info-marker (no toggle semantics; e.g.
+        G4_T1 PR42006 overlay mount status — operator-visible flag that
+        documents an external vendored-overlay condition rather than
+        gating patch application). Phase 10.5 2026-06-01.
     """
     for p in (
         "GENESIS_ENABLE_", "SNDR_ENABLE_",
         "GENESIS_LEGACY_", "SNDR_LEGACY_",
         "GENESIS_DISABLE_", "SNDR_DISABLE_",
         "GENESIS_ALLOW_", "SNDR_ALLOW_",
+        "GENESIS_INFO_", "SNDR_INFO_",
     ):
         if flag.startswith(p):
             return flag[len(p):]
@@ -111,6 +116,10 @@ def test_registry_env_flags_use_canonical_prefix(registry_env_flags):
       - ENABLE/LEGACY/DISABLE × {GENESIS, SNDR} — standard patch-toggle.
       - ALLOW × {GENESIS, SNDR} — operator-consent semantic (PN274, R3
         audit 2026-05-21).
+      - INFO × {GENESIS, SNDR} — info-marker (G4_T1 PR42006 overlay
+        mount status; Phase 10.5 2026-06-01). No toggle semantics —
+        the operator-visible flag documents an external vendored-
+        overlay condition rather than gating patch application.
     """
     from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
     invalid: list[tuple[str, str]] = []
@@ -119,6 +128,7 @@ def test_registry_env_flags_use_canonical_prefix(registry_env_flags):
         "GENESIS_LEGACY_", "SNDR_LEGACY_",
         "GENESIS_DISABLE_", "SNDR_DISABLE_",
         "GENESIS_ALLOW_", "SNDR_ALLOW_",
+        "GENESIS_INFO_", "SNDR_INFO_",
     )
     for pid, meta in PATCH_REGISTRY.items():
         flag = meta.get("env_flag")

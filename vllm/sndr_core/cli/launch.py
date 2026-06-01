@@ -126,12 +126,26 @@ def add_argparser(subparsers: Any) -> None:
 
 
 def _list_available_configs() -> list[str]:
-    """Return sorted list of available model_config keys."""
+    """Return sorted list of available model_config keys (V1 + V2 aliases).
+
+    Phase 10.5 (2026-06-01): V1 monolithic preset tier fully retired,
+    so the V1 registry is empty by design. V2 alias files under
+    `builtin/presets/<alias>.yaml` are the operator-facing canonical
+    keys post-sunset — include them here so `_resolve_config` does not
+    fatal-on-empty when only V2 aliases exist.
+    """
+    keys: set[str] = set()
     try:
         from vllm.sndr_core.model_configs.registry import list_keys
-        return sorted(list_keys())
+        keys.update(list_keys())
     except Exception:
-        return []
+        pass
+    try:
+        from vllm.sndr_core.model_configs.registry_v2 import list_presets
+        keys.update(list_presets())
+    except Exception:
+        pass
+    return sorted(keys)
 
 
 def _resolve_config(key: str | None, non_interactive: bool):

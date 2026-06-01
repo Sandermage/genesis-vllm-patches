@@ -98,6 +98,14 @@ _TARGETS: tuple[dict[str, str], ...] = (
         "needs": "",
         "summary": "Provision a GPU-passthrough LXC container, install Docker, then run the stack.",
     },
+    {
+        "id": "proxmox_vm",
+        "label": "Proxmox VM (KVM)",
+        "filename": "provision-vm.sh",
+        "kind": "bash",
+        "needs": "",
+        "summary": "Create a KVM VM with NVIDIA PCIe passthrough + cloud-init that installs Docker and runs the pinned stack.",
+    },
 )
 
 _TARGET_BY_ID = {t["id"]: t for t in _TARGETS}
@@ -109,9 +117,23 @@ def list_targets() -> list[dict[str, str]]:
 
 
 def list_preset_keys() -> list[str]:
+    """Return every resolvable preset key (V1 monolithic + V2 aliases).
+
+    Phase 10.5 (2026-06-01): V1 monolithic preset tier fully retired
+    so the V1 registry contributes nothing here. V2 alias files under
+    `builtin/presets/<alias>.yaml` are the operator-facing canonical
+    keys post-sunset — `_resolve_cfg` already accepts both namespaces,
+    so this function now mirrors that union.
+    """
     from vllm.sndr_core.model_configs import registry as reg
 
-    return list(reg.list_keys())
+    keys: set[str] = set(reg.list_keys())
+    try:
+        from vllm.sndr_core.model_configs.registry_v2 import list_presets
+        keys.update(list_presets())
+    except Exception:
+        pass
+    return sorted(keys)
 
 
 def _resolve_cfg(preset_id: str):
@@ -452,6 +474,67 @@ def _commands_proxmox(cfg):
     ]
 
 
+def _proxmox_vm_script(cfg, params) -> str:
+    name = params["container_name"]
+    port = params["host_port"] or 8000
+    return "\n".join(
+        [
+            "#!/usr/bin/env bash",
+            f"# Genesis vLLM Proxmox VM provisioner — preset {cfg.key}",
+            "# Run on the Proxmox host. Creates a KVM VM with NVIDIA PCIe",
+            "# passthrough and a cloud-init that installs Docker + the pinned",
+            "# stack on first boot. Set PCI from: lspci -nn | grep -i nvidia.",
+            "# VFIO passthrough must already be configured on the host.",
+            "set -euo pipefail",
+            "",
+            "VMID=${VMID:-9200}",
+            "STORAGE=${STORAGE:-local-lvm}",
+            "BRIDGE=${BRIDGE:-vmbr0}",
+            "PCI=${PCI:-01:00}    # NVIDIA GPU PCI address",
+            "IMG=${IMG:-noble-server-cloudimg-amd64.img}  # Ubuntu 24.04 cloud image",
+            "",
+            "# 1. Create the VM shell (q35 + UEFI + host CPU for passthrough).",
+            f'qm create "$VMID" --name {name} --memory 49152 --cores 12 \\',
+            '  --cpu host --machine q35 --bios ovmf --ostype l26 \\',
+            '  --net0 virtio,bridge="$BRIDGE" --scsihw virtio-scsi-single',
+            "",
+            "# 2. Import the cloud image as the boot disk + a cloud-init drive.",
+            'qm importdisk "$VMID" "$IMG" "$STORAGE"',
+            'qm set "$VMID" --scsi0 "$STORAGE:vm-$VMID-disk-0" --boot order=scsi0',
+            'qm set "$VMID" --ide2 "$STORAGE:cloudinit" --serial0 socket --vga serial0',
+            'qm disk resize "$VMID" scsi0 200G',
+            "",
+            "# 3. NVIDIA PCIe passthrough.",
+            'qm set "$VMID" --hostpci0 "$PCI,pcie=1"',
+            "",
+            "# 4. cloud-init: user + Docker + the pinned vLLM stack on first boot.",
+            "#    Drop the rendered docker-compose.yml at /root/docker-compose.yml",
+            "#    (scp it in, or inline it into the snippet below).",
+            'qm set "$VMID" --ciuser sndr --sshkeys ~/.ssh/authorized_keys --ipconfig0 ip=dhcp',
+            "cat > /var/lib/vz/snippets/sndr-vendor.yaml <<'CLOUDINIT'",
+            "#cloud-config",
+            "package_update: true",
+            "packages: [docker.io, docker-compose-plugin]",
+            "runcmd:",
+            "  - [systemctl, enable, --now, docker]",
+            "  - [docker, compose, -f, /root/docker-compose.yml, up, -d]",
+            "CLOUDINIT",
+            'qm set "$VMID" --cicustom "vendor=local:snippets/sndr-vendor.yaml"',
+            "",
+            'qm start "$VMID"',
+            f"# After boot, the vLLM OpenAI API listens on the VM IP, port {port}.",
+        ]
+    )
+
+
+def _commands_proxmox_vm(cfg):
+    return [
+        "chmod +x provision-vm.sh",
+        "VMID=9200 STORAGE=local-lvm PCI=01:00 ./provision-vm.sh",
+        'qm terminal "$VMID"   # watch cloud-init, or: ssh sndr@<vm-ip>',
+    ]
+
+
 _RENDERERS = {
     "compose": (_artifact_compose, _commands_compose, True),
     "quadlet": (_artifact_quadlet, _commands_quadlet, True),
@@ -459,6 +542,7 @@ _RENDERERS = {
     "systemd": (None, _commands_systemd, False),
     "bare_metal": (None, _commands_bare_metal, False),
     "proxmox": (None, _commands_proxmox, False),
+    "proxmox_vm": (None, _commands_proxmox_vm, False),
 }
 
 
@@ -488,6 +572,8 @@ def build_deployment(
         content = _bare_metal_script(cfg, params)
     elif target == "proxmox":
         content = _proxmox_script(cfg, params)
+    elif target == "proxmox_vm":
+        content = _proxmox_vm_script(cfg, params)
     elif target == "kubernetes":
         content = _artifact_kubernetes(cfg, resolved_paths, name_hint=preset_id)
     else:

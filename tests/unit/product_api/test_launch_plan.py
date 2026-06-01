@@ -14,7 +14,11 @@ def test_build_launch_plan_returns_backend_owned_artifacts_and_gates():
         mode="remote",
     )
 
-    assert plan.plan_id.startswith("plan_prod_35b_multiconc_")
+    # plan_id slug derives from the preset id; the qwen3.6 → qwen3_6
+    # mass-rename (commit 91daa11d) carried into the slug, so the
+    # `prod-qwen3.6-35b-multiconc` preset id now slugs as
+    # `plan_prod_qwen3_6_35b_multiconc_<hash>`.
+    assert plan.plan_id.startswith("plan_prod_qwen3_6_35b_multiconc_")
     assert plan.preset_id == "prod-qwen3.6-35b-multiconc"
     assert plan.runtime_target == "docker_compose"
     assert plan.patch_policy == "safe"

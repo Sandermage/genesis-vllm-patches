@@ -193,6 +193,39 @@ class Flags:
     # SNDR_ENABLE_SPEC_DECODE_ACCEPTANCE_METRIC as before.
     PN282_SPEC_DECODE_ACCEPTANCE_METRIC = "SPEC_DECODE_ACCEPTANCE_METRIC"
 
+    # PN283 — vLLM v1 multiprocess Prometheus directory bootstrap.
+    # Sibling coordinator of PN282: boot-applied from sndr_core/__init__.py
+    # (not via dispatcher pipeline) so that PROMETHEUS_MULTIPROC_DIR is
+    # writable BEFORE any patch hook (and the first
+    # prometheus_client value-file open) runs. Canonical env name
+    # SNDR_ENABLE_PN283_PROC_BRIDGE — keeps PN282-established SNDR_*
+    # naming for non-dispatcher coordinator boot patches. Phase 10.5
+    # 2026-06-01 registration closes the orphan-flag gap surfaced
+    # by audit_config_keys / audit_v2_env_keys after the chat-K3
+    # profile promotion declared the env in
+    # gemma4-31b-tq-mtp-{chat-k3,structured-k4} profiles.
+    PN283_PROC_BRIDGE = "PN283_PROC_BRIDGE"
+
+    # SNDR_MTP_DYNAMIC_K_001 — Genesis-original adaptive K MTP proposer
+    # (Sandermage port of vllm#26504 DynamicProposer to DraftModelProposer).
+    # Canonical env: GENESIS_ENABLE_SNDR_MTP_DYNAMIC_K_001 (the SNDR_*
+    # prefix appears in the suffix because the patch ID itself uses the
+    # SNDR_* namespace per Sander's tier=engine naming for Genesis-original
+    # patches; the env strips ENABLE_ leaving SNDR_MTP_DYNAMIC_K_001).
+    # Closes Phase 10.5 enterprise sweep 2026-06-01 — bidirectional Flags
+    # ↔ registry coverage check now passes for this entry.
+    SNDR_MTP_DYNAMIC_K_001 = "SNDR_MTP_DYNAMIC_K_001"
+
+    # G4_T1 — Gemma4 tool-parser PR #42006 vendor marker. Operator-side
+    # bind-mount overlay (the upstream gemma4 tool-call parser file) is
+    # active if and only if the operator launcher binds the vendored file
+    # into the container; this flag's env tail
+    # GENESIS_INFO_G4_T1_PR42006_OVERLAY_MOUNTED documents that mount
+    # state for audit/explain tooling. INFO-semantic prefix (no toggle —
+    # the flag reports an external condition rather than gating apply
+    # behavior). Closes Phase 10.5 enterprise sweep 2026-06-01.
+    G4_T1_PR42006_OVERLAY_MOUNTED = "G4_T1_PR42006_OVERLAY_MOUNTED"
+
     # kv_cache family
     P5B = "P5B"  # page size pad smaller
     P85 = "P85"  # hybrid fine shadow prefix cache

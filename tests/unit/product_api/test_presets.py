@@ -26,9 +26,12 @@ def _isolated_home(tmp_path, monkeypatch):
 def test_list_presets_returns_catalog_records():
     result = presets.list_presets()
 
+    # chat-K3 promotion session (2026-06-01): +2 preset aliases
+    # (prod-gemma4-31b-tq-mtp-chat-k3 + prod-gemma4-26b-mtp-chat-k3
+    # promoted from profile-only to operator-facing presets) → 21 → 23.
     assert isinstance(result, PresetListResult)
-    assert result.total == 21
-    assert result.matched == 21
+    assert result.total == 23
+    assert result.matched == 23
     assert result.load_errors == ()
     assert all(isinstance(row, PresetRecord) for row in result.presets)
 
@@ -41,7 +44,10 @@ def test_list_presets_filters_status_and_family():
     by_status = presets.list_presets(status="production_candidate")
     by_family = presets.list_presets(family="qwen3_6_35b_a3b_fp8")
 
-    assert by_status.matched == 14
+    # chat-K3 promotion (2026-06-01): the two new presets ship as
+    # production_candidate, lifting the production_candidate-filter
+    # count by 2 (14 → 16).
+    assert by_status.matched == 16
     assert by_family.matched == 2
     assert {row.id for row in by_family.presets} == {
         "prod-qwen3.6-35b-balanced",
