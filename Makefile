@@ -30,7 +30,7 @@ help: ## Show this help message
 
 # ─── Tests ─────────────────────────────────────────────────────────────
 
-test: ## Full pytest suite (all 1598+ tests)
+test: ## Full pytest suite (all 8400+ tests)
 	$(PYTEST) tests/ -q
 
 test-pin-gate: ## Pin-gate adoption test (KNOWN_GOOD_VLLM_PINS drift)
@@ -39,10 +39,10 @@ test-pin-gate: ## Pin-gate adoption test (KNOWN_GOOD_VLLM_PINS drift)
 test-iron-rule: ## Iron-rule-#11 retire provenance meta-test
 	$(PYTEST) tests/unit/dispatcher/test_iron_rule_11_enforcement.py -v
 
-test-family: ## All 17 family contracts (~700 tests, covers 18/18 families)
+test-family: ## All 22 family contracts (~2300 tests, covers 19/20 families)
 	$(PYTEST) tests/unit/integrations/ -q
 
-test-doc-sync: ## Doc-sync (patch counts consistent across 5 docs)
+test-doc-sync: ## Doc-sync (patch counts consistent across 10 docs)
 	$(PYTHON) scripts/check_doc_sync.py --strict
 
 audit-phase3: ## Phase 3 relocation invariants (R1/R2/R3/R4)

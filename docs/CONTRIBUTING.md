@@ -586,7 +586,7 @@ GitHub Actions runs `python3 -m pytest tests/unit/` on every PR (path updated 20
 
 - **Pin-gate adoption** (`tests/unit/dispatcher/test_pin_gate.py`) — KNOWN_GOOD_VLLM_PINS allowlist drift, version range semantics
 - **Iron rule #11 enforcement** (`tests/unit/dispatcher/test_iron_rule_11_enforcement.py`) — every `lifecycle="retired"` patch carries `superseded_by` + `vllm_version_range` (or explicit waiver)
-- **Family contracts** (`tests/unit/integrations/`) — all 18 family contracts, ~700 tests
+- **Family contracts** (`tests/unit/integrations/`) — 22 family contracts, ~2300 tests, covering 19 of 20 integration family dirs (streaming is the only top-level family without a contract yet)
 - **Upstream-status audit** (`scripts/audit_upstream_status.py --skip-network`) — informational at PR-time; strict weekly gate via [upstream_audit_status.yml](../.github/workflows/upstream_audit_status.yml)
 
 Doc-sync gate also runs (`check_doc_sync.py --strict` + `generate_patches_md.py --check` + `generate_configs_md.py --check`).
