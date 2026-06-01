@@ -41,7 +41,6 @@ BUILTIN_DIR = REPO_ROOT / "vllm" / "sndr_core" / "model_configs" / "builtin"
 #   here so `make evidence` does not gate on the migration.
 FROZEN_V1_BASELINE: frozenset[str] = frozenset({
     "a5000-1x-tier-aware-pn95.yaml",
-    "a5000-2x-27b-dflash-true.yaml",
     "a5000-2x-27b-int4-long-ctx.yaml",
     "a5000-2x-27b-int4-tested.yaml",
     "a5000-2x-27b-int4-tq-k8v4.yaml",
@@ -64,6 +63,10 @@ FROZEN_V1_BASELINE: frozenset[str] = frozenset({
     # (A/B diagnostic, same model + envs + 131K ctx; V1 had
     # `lifecycle: retired` marker already set 2026-05-26). Fifth V1
     # sunset; first time a self-flagged retired V1 file actually deleted.
+    # a5000-2x-27b-dflash-true.yaml retired 2026-06-01
+    # — V2 equivalent: preset `prod-qwen3.6-27b-dflash` (TRANSPARENT
+    # bucket — V2 composes byte-identical config DFlash N=5 single-
+    # stream). Sixth V1 sunset; first TRANSPARENT-bucket V1 retired.
 })
 
 

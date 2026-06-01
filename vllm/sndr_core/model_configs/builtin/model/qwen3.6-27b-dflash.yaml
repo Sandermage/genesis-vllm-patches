@@ -9,7 +9,7 @@
 # Path note: fastest single-stream code-gen path in the 27B family.
 # Bench 2026-05-05 long_gen_sustained_tps 97.6 single-stream.
 # For concurrent serving use qwen3.6-27b-int4-autoround-tq-k8v4.
-# Migrated from a5000-2x-27b-dflash-true.
+# Migrated from a5000-2x-27b-dflash-true (V1 source retired 2026-06-01 in V1 sunset #6).
 
 schema_version: 2
 kind: model
@@ -162,8 +162,9 @@ patches:
   # GENESIS_ENABLE_PN134_TORCH_COMPILE_FULLGRAPH_211: KEEP OFF — retired 2026-05-15 (-25% TPS bench regressor; affects all spec-decode paths via Inductor cache).
 
 notes:
-  - "Migrated from a5000-2x-27b-dflash-true (2026-05-12). Needs separate
-    Qwen3.6-27B-DFlash drafter checkpoint on host (/models/Qwen3.6-27B-DFlash)."
+  - "Migrated from a5000-2x-27b-dflash-true (2026-05-12; V1 source
+    retired 2026-06-01 in V1 sunset #6). Needs separate Qwen3.6-27B-DFlash
+    drafter checkpoint on host (/models/Qwen3.6-27B-DFlash)."
   - "Single-stream optimized; max_num_seqs=1 set in the profile."
   - "Wave 10 (2026-05-15): patches added symmetric to MTP sibling."
   - "P2.DFlash M8-Q27 runtime pin promotion 2026-05-21: dev338 → dev371.

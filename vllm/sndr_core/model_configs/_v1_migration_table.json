@@ -14,11 +14,6 @@
       "v2_preset": "prod-qwen3.6-35b-balanced",
       "rationale": "Direct match — V2 preset composes identical config (FP8 + TQ k8v4 + MTP K=3 balanced)."
     },
-    "a5000-2x-27b-dflash-true": {
-      "bucket": "transparent",
-      "v2_preset": "prod-qwen3.6-27b-dflash",
-      "rationale": "Direct match — V2 preset composes identical config (DFlash N=5 single-stream)."
-    },
     "a5000-2x-27b-int4-long-ctx": {
       "bucket": "deprecated",
       "v2_preset": "long-ctx-qwen3.6-27b",

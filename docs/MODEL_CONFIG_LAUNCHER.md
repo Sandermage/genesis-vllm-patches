@@ -503,7 +503,8 @@ vllm/sndr_core/model_configs/
     ├── a5000-2x-27b-int4-tq-k8v4.yaml
     # a5000-2x-27b-int4-tq-k8v4-dflash.yaml retired 2026-06-01
     # — use V2 preset `experimental-qwen3.6-27b-tq-dflash-ab` instead
-    ├── a5000-2x-27b-dflash-true.yaml
+    # a5000-2x-27b-dflash-true.yaml retired 2026-06-01
+    # — use V2 preset `prod-qwen3.6-27b-dflash` (transparent — byte-identical config)
     # a5000-2x-35b-fp8-dflash.yaml retired 2026-06-01
     # — use V2 preset `prod-qwen3.6-35b-dflash` instead
     ├── a5000-1x-tier-aware-pn95.yaml

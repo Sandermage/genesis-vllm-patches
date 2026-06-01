@@ -19,7 +19,7 @@ Total configs: **12**
 
 | Key | Lifecycle | Model | KV dtype | Spec | Max ctx | TPS | TPOT | Tool | Last validated |
 |---|:---:|---|---|:---:|---:|---:|---:|:---:|---|
-| `a5000-2x-27b-dflash-true` | `stable` | qwen3.6-27b-dflash | `null` | — | 185000 | 97.6 | — | 10/10 | 2026-05-06 |
+| ~~`a5000-2x-27b-dflash-true`~~ → V2 `prod-qwen3.6-27b-dflash` | `retired` | qwen3.6-27b-dflash | `null` | — | 185000 | 97.6 | — | 10/10 | 2026-05-06 (V1 YAML retired 2026-06-01) |
 | `a5000-2x-27b-int4-long-ctx` | `stable` | qwen3.6-27b | `fp8_e5m2` | MTP K=3 | 280000 | 38.6 | — | 10/10 | 2026-05-06 |
 | `a5000-2x-27b-int4-tq-k8v4` | `stable` | qwen3.6-27b | `turboquant_k8v4` | — | 262144 | 131.67 | 7.34 | 7/7 | 2026-05-11 |
 | ~~`a5000-2x-35b-fp8-dflash`~~ → V2 `prod-qwen3.6-35b-dflash` | `retired` | qwen3.6-35b-a3b | `null` | — | 160000 → 65K | 127.2 | — | 9/10 | 2026-05-06 (retired 2026-06-01) |
@@ -34,7 +34,7 @@ Total configs: **12**
 
 ## Per-config details
 
-### `a5000-2x-27b-dflash-true`
+### `a5000-2x-27b-dflash-true` (retired 2026-06-01 — use V2 `prod-qwen3.6-27b-dflash`; original description preserved below)
 
 **Title**: 2× RTX A5000 — 27B INT4 + TRUE DFlash N=5 spec-decode
 

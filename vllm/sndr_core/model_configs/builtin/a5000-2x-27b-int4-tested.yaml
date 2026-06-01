@@ -8,7 +8,8 @@
 # bench-and-update). Kept for QA / regression / community parity (matches
 # noonghunna club-3090 default fp8 path), not as a recommended deployment.
 # Working alternatives: a5000-2x-27b-int4-tq-k8v4 (best concurrency) or
-# a5000-2x-27b-dflash-true (best single-stream).
+# a5000-2x-27b-dflash-true (best single-stream — V1 YAML retired
+# 2026-06-01 in V1 sunset #6; use V2 preset `prod-qwen3.6-27b-dflash`).
 
 key: a5000-2x-27b-int4-tested
 title: 2× RTX A5000 — 27B INT4 + fp8 KV (TESTED — QA-only, not recommended)
@@ -17,7 +18,8 @@ description: >-
   + MTP K=3 + 128K context. KEPT FOR QA + regression-testing only —
   reproducibly slower than TQ k8v4 sister. Use this only when matching
   noonghunna club-3090 reference path; for production prefer
-  a5000-2x-27b-int4-tq-k8v4 (109.8 TPS) or a5000-2x-27b-dflash-true (97 TPS).
+  a5000-2x-27b-int4-tq-k8v4 (109.8 TPS) or a5000-2x-27b-dflash-true (97 TPS;
+  V1 YAML retired 2026-06-01 — use V2 preset prod-qwen3.6-27b-dflash going forward).
 schema_version: 1
 maintainer: sandermage
 last_validated: '2026-05-05'
