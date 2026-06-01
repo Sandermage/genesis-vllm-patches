@@ -1377,7 +1377,7 @@ Post-rename stale refs degrade silently — `module_for` returning `None` doesn'
 
 ### YAML reconciliation (8 active configs)
 - `a5000-2x-27b-int4-tq-k8v4`: Wave 8 + env-name typos fixed (P94/P103 short form) + reference_metrics 132.28 TPS
-- `a5000-2x-27b-int4-long-ctx`: Wave 1+3.1+7+8 sync; P83+P85 dep removed
+- `a5000-2x-27b-int4-long-ctx`: Wave 1+3.1+7+8 sync; P83+P85 dep removed (V1 YAML retired 2026-06-01 in V1 sunset #7; V2 equivalent: preset `long-ctx-qwen3.6-27b` — sizing-identical 280K ctx / util 0.90 / seqs 2 / batched 2048 / fp8_e5m2 KV / MTP K=3; V2 carries `override_policy.bench_pending=true` since long-context 32K+ bench refresh against current pin is deferred)
 - `a5000-1x-27b-int4-tested`: Wave 1+3.1+7+8 sync; P100 removed (retired 2026-06-01 in V1 sunset #3; V2 equivalent: preset `qa-qwen3.6-27b-tq-1x`)
 - `a5000-2x-27b-int4-tq-k8v4-dflash`: `lifecycle: retired` (V1 YAML retired 2026-06-01 in V1 sunset #5; V2 equivalent: preset `experimental-qwen3.6-27b-tq-dflash-ab` — A/B diagnostic, same model + envs + 131K ctx)
 - `a5000-2x-35b-prod`: P61 removed (retired no-op)

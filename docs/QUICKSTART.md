@@ -82,7 +82,7 @@ The 12 builtin configs are auto-inventoried in
 | 2× RTX A5000 24 GB | `a5000-2x-35b-prod` / `prod-qwen3.6-35b-balanced` | Flagship — Qwen3.6-35B-A3B-FP8, ~216 TPS sustained. |
 | 2× RTX A5000 multi-conc | `a5000-2x-35b-prod-multiconc` / `prod-qwen3.6-35b-multiconc` | `max_num_seqs=8`, aggregate ~675 TPS. |
 | 2× 24 GB (3090 / 4090 / A5000) | `a5000-2x-27b-int4-tq-k8v4` / `prod-qwen3.6-27b-tq-k8v4` | Lorbus 27B int4 + TurboQuant k8v4 (long context). |
-| 2× 24 GB long-context | `a5000-2x-27b-int4-long-ctx` / `long-ctx-qwen3.6-27b` | Same model, `--max-model-len 320000`. |
+| 2× 24 GB long-context | `long-ctx-qwen3.6-27b` | Same model, `--max-model-len 320000` (V1 alias `a5000-2x-27b-int4-long-ctx` retired 2026-06-01; V2 is sizing-identical with `override_policy.bench_pending=true` — refresh 32K+ bench on current pin before promoting). |
 | 1× RTX A5000 / 3090 | `qa-qwen3.6-27b-tq-1x` | TP=1, 78K context (V1 alias `a5000-1x-27b-int4-tested` retired 2026-06-01). |
 | Single 3090 (community) | `example-3090-dense-cpu-offload` | CPU-offload preview (V1 alias `single-3090-dense-cpu-offload-example` retired 2026-06-01). |
 

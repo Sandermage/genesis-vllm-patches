@@ -41,7 +41,6 @@ BUILTIN_DIR = REPO_ROOT / "vllm" / "sndr_core" / "model_configs" / "builtin"
 #   here so `make evidence` does not gate on the migration.
 FROZEN_V1_BASELINE: frozenset[str] = frozenset({
     "a5000-1x-tier-aware-pn95.yaml",
-    "a5000-2x-27b-int4-long-ctx.yaml",
     "a5000-2x-27b-int4-tested.yaml",
     "a5000-2x-27b-int4-tq-k8v4.yaml",
     "a5000-2x-35b-prod.yaml",
@@ -67,6 +66,13 @@ FROZEN_V1_BASELINE: frozenset[str] = frozenset({
     # — V2 equivalent: preset `prod-qwen3.6-27b-dflash` (TRANSPARENT
     # bucket — V2 composes byte-identical config DFlash N=5 single-
     # stream). Sixth V1 sunset; first TRANSPARENT-bucket V1 retired.
+    # a5000-2x-27b-int4-long-ctx.yaml retired 2026-06-01
+    # — V2 equivalent: preset `long-ctx-qwen3.6-27b` (sizing-identical
+    # 280K ctx / util 0.90 / seqs 2 / batched 2048 / fp8_e5m2 KV /
+    # MTP K=3; V2 has override_policy.bench_pending=true since long-
+    # context 32K+ bench refresh against current pin is deferred —
+    # operator must refresh bench before promoting to production tier).
+    # Seventh V1 sunset.
 })
 
 

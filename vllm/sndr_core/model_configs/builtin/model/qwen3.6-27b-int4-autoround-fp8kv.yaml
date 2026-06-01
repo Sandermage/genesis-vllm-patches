@@ -12,7 +12,7 @@
 #   • QA / regression / community parity (noonghunna club-3090 reference path)
 # For production throughput use the TQ k8v4 sister model.
 #
-# Migrated from a5000-2x-27b-int4-long-ctx (newer, fuller Wave 7+ patches set).
+# Migrated from a5000-2x-27b-int4-long-ctx (newer, fuller Wave 7+ patches set; V1 source retired 2026-06-01 in V1 sunset #7).
 
 schema_version: 2
 kind: model
@@ -123,7 +123,8 @@ patches:
   GENESIS_BUFFER_MODE: 'shared'                      # Genesis buffer mode (range: 'shared'|'exclusive'|'auto')
 
 notes:
-  - "Migrated from a5000-2x-27b-int4-long-ctx (the newer, fuller Wave 7+ patches set).
+  - "Migrated from a5000-2x-27b-int4-long-ctx (the newer, fuller Wave 7+ patches set;
+    V1 source retired 2026-06-01 in V1 sunset #7).
     The QA-only `tested` profile rolls back to its older subset via patches_delta.disable.
     Long-ctx variant uses 280K context with sizing override; tested variant uses 131K."
   - "Lorbus INT4 routes through AllSparkLinearKernel (not Marlin) for the dense

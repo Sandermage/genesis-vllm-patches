@@ -20,7 +20,7 @@ Total configs: **12**
 | Key | Lifecycle | Model | KV dtype | Spec | Max ctx | TPS | TPOT | Tool | Last validated |
 |---|:---:|---|---|:---:|---:|---:|---:|:---:|---|
 | ~~`a5000-2x-27b-dflash-true`~~ → V2 `prod-qwen3.6-27b-dflash` | `retired` | qwen3.6-27b-dflash | `null` | — | 185000 | 97.6 | — | 10/10 | 2026-05-06 (V1 YAML retired 2026-06-01) |
-| `a5000-2x-27b-int4-long-ctx` | `stable` | qwen3.6-27b | `fp8_e5m2` | MTP K=3 | 280000 | 38.6 | — | 10/10 | 2026-05-06 |
+| ~~`a5000-2x-27b-int4-long-ctx`~~ → V2 `long-ctx-qwen3.6-27b` | `retired` | qwen3.6-27b | `fp8_e5m2` | MTP K=3 | 280000 | 38.6 | — | 10/10 | 2026-05-06 (V1 YAML retired 2026-06-01) |
 | `a5000-2x-27b-int4-tq-k8v4` | `stable` | qwen3.6-27b | `turboquant_k8v4` | — | 262144 | 131.67 | 7.34 | 7/7 | 2026-05-11 |
 | ~~`a5000-2x-35b-fp8-dflash`~~ → V2 `prod-qwen3.6-35b-dflash` | `retired` | qwen3.6-35b-a3b | `null` | — | 160000 → 65K | 127.2 | — | 9/10 | 2026-05-06 (retired 2026-06-01) |
 | `a5000-2x-35b-prod` | `stable` | qwen3.6-35b-a3b | `turboquant_k8v4` | MTP K=3 | 320000 | 234.54 | 3.96 | 7/7 | 2026-05-09 |
@@ -68,7 +68,7 @@ Total configs: **12**
 | `stability_cv_pct` | `2.04` |
 
 
-### `a5000-2x-27b-int4-long-ctx`
+### `a5000-2x-27b-int4-long-ctx` (retired 2026-06-01 — use V2 `long-ctx-qwen3.6-27b`; original description preserved below)
 
 **Title**: 2× RTX A5000 — 27B INT4 + fp8 KV (long context, 256K)
 

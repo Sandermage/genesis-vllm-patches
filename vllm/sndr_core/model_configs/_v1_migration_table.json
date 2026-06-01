@@ -14,11 +14,6 @@
       "v2_preset": "prod-qwen3.6-35b-balanced",
       "rationale": "Direct match — V2 preset composes identical config (FP8 + TQ k8v4 + MTP K=3 balanced)."
     },
-    "a5000-2x-27b-int4-long-ctx": {
-      "bucket": "deprecated",
-      "v2_preset": "long-ctx-qwen3.6-27b",
-      "rationale": "V2 long-ctx-qwen3.6-27b profile sizing-identical to V1 (280K ctx / util 0.90 / seqs 2 / batched 2048 / fp8_e5m2 KV / MTP K=3). V2 preset is card-less and override_policy.bench_pending=true — long-context 32K+ bench refresh against current pin (dev371) deferred. Operator must refresh bench before promoting to production tier; deprecated bucket preserves that caveat in audit warning surface. (Reclassified 2026-05-26 from needs_operator_choice → deprecated after V1-SUNSET-PENDING-4.R verified sizing parity.)"
-    },
     "a5000-2x-27b-int4-tested": {
       "bucket": "deprecated",
       "v2_preset": "qa-qwen3.6-27b-tested",
