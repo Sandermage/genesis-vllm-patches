@@ -1,99 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
-"""PN269 — G4_78-A0 trace: target/drafter block_table accessibility probe.
+"""PN269 A0 block table trace.
 
-================================================================
-GOAL
-================================================================
-
-Before writing G4_78-A bridge code, prove empirically that we can,
-from drafter Attention impl forward, construct the target slot index
-for each token currently being processed.
-
-Specifically: when drafter[0].FlashAttn.forward runs for a token at
-logical position P, can we look up the slot in target[58].kv_cache
-that holds target's K/V for the SAME position P?
-
-================================================================
-APPROACH
-================================================================
-
-Wrap FlashAttentionImpl.forward (and TritonAttentionImpl.forward for
-drafter[3] full layer). For target[58]/[59] and drafter[0..3]:
-
-  1. Capture attn_metadata fields:
-     - num_actual_tokens, max_query_len
-     - query_start_loc, seq_lens
-     - block_table (shape, [0, :8])
-     - slot_mapping[:8]
-
-  2. Reconstruct logical positions per token from
-     query_start_loc + seq_lens:
-        for seq_id in range(num_seqs):
-            qs = query_start_loc[seq_id]
-            qe = query_start_loc[seq_id + 1]
-            seq_len = seq_lens[seq_id]
-            query_len = qe - qs
-            for i in range(query_len):
-                pos[qs + i] = seq_len - query_len + i
-
-  3. For target[58]/[59] calls — store module-global:
-       _LAST_TARGET_BLOCK_TABLE[layer_name] = block_table.clone()
-       _LAST_TARGET_SLOT_MAPPING[layer_name] = slot_mapping.clone()
-       _LAST_TARGET_POSITIONS[layer_name] = reconstructed_positions
-       _LAST_TARGET_NUM_TOKENS[layer_name] = num_actual_tokens
-       _LAST_TARGET_QUERY_START_LOC[layer_name] = query_start_loc
-
-  4. For drafter[0..3] calls — read stored target state for the
-     mapped target layer (drafter[0..2]→target[58],
-     drafter[3]→target[59]) and validate:
-
-       for i in range(min(8, num_actual_tokens)):
-           P = drafter_positions[i]
-           drafter_slot = drafter_slot_mapping[i]
-
-           # Check if target has K/V at position P
-           target_positions = _LAST_TARGET_POSITIONS[mapped_target_layer]
-           if P in target_positions:
-               idx_in_target_call = target_positions.tolist().index(P)
-               target_slot = _LAST_TARGET_SLOT_MAPPING[...][idx_in_target_call]
-               log: P -> target_slot OK
-           else:
-               # P was processed in an EARLIER target call; need
-               # block_table from earlier call
-               # OR reconstruct via target_block_table:
-               target_block_id = _LAST_TARGET_BLOCK_TABLE[layer][seq_id, P // block_size]
-               target_slot_via_bt = target_block_id * block_size + (P % block_size)
-               log: P -> via block_table -> target_slot_via_bt
-
-================================================================
-KEY DESIGN QUESTION TO ANSWER
-================================================================
-
-For prompt prefill (first propose call): all positions of current
-batch belong to the SAME call. target[58]'s slot_mapping covers them.
-Bridge is straightforward — use slot_mapping directly.
-
-For decode steps: target[58] only writes ONE slot per call (the new
-token), but drafter needs to read target's K/V for ALL past positions
-in the sliding window. This requires target_block_table to be valid
-ACROSS calls.
-
-A0 verdict will tell us:
-  - Prompt prefill: which mapping (slot_mapping vs block_table) works
-  - Decode: whether saved block_table from previous calls is reliable
-
-================================================================
-ENV
-================================================================
-
-  GENESIS_ENABLE_PN269_A0_BLOCK_TABLE_TRACE=1
-  GENESIS_PN269_MAX_LOG_CALLS=16   (default 16 — covers prefill +
-                                    a few decode steps for K=1)
-
-================================================================
-NO BEHAVIOR CHANGE — DIAGNOSTIC ONLY
-================================================================
+Diagnostic probe for A0 block-table mutations. Stays dormant until the operator
+enables it via its env-flag; canonical location is this file itself.
+Resolves the Phase 3 relocation stash-pop conflict (old
+`integrations/gemma4/` path was removed during the move).
 """
+
 from __future__ import annotations
 
 import logging
@@ -120,12 +33,10 @@ TARGET_59_SUFFIX = ".layers.59.self_attn.attn"
 _LAST_TARGET_STATE: dict[str, dict[str, Any]] = {}
 _CALL_COUNT = [0]
 
-
 def _env_enabled() -> bool:
     return os.environ.get(_ENV_ENABLE, "").strip().lower() in (
         "1", "true", "yes", "on",
     )
-
 
 def _max_calls() -> int:
     try:
@@ -133,10 +44,8 @@ def _max_calls() -> int:
     except ValueError:
         return 16
 
-
 def _safe_attr(obj: Any, name: str, default: Any = "<absent>") -> Any:
     return getattr(obj, name, default)
-
 
 def _tensor_head(t: Any, n: int = 8) -> Any:
     if t is None:
@@ -149,7 +58,6 @@ def _tensor_head(t: Any, n: int = 8) -> Any:
     except Exception as _e:
         return f"<tensor_head_err: {_e!r}>"
 
-
 def _block_table_head(bt: Any) -> Any:
     if bt is None:
         return "<None>"
@@ -159,7 +67,6 @@ def _block_table_head(bt: Any) -> Any:
         return bt[0, :8].tolist()
     except Exception as _e:
         return f"<block_table_head_err: {_e!r}>"
-
 
 def _reconstruct_positions(query_start_loc: Any, seq_lens: Any,
                            num_actual_tokens: int) -> list[int]:
@@ -184,7 +91,6 @@ def _reconstruct_positions(query_start_loc: Any, seq_lens: Any,
         log.warning("[PN269] position reconstruction failed: %s", _e)
         return []
 
-
 def _identify_layer(args: tuple) -> tuple[str, str]:
     """Return (full_layer_name, kind) where kind in {'target_58',
     'target_59', 'drafter_X', 'other'}."""
@@ -205,7 +111,6 @@ def _identify_layer(args: tuple) -> tuple[str, str]:
     if prefix.startswith(DRAFTER_PREFIX):
         return prefix, f"drafter_{prefix.split('.')[2]}"  # layers.{N}
     return prefix, "other"
-
 
 def _capture_metadata(args: tuple, kwargs: dict) -> dict[str, Any]:
     """Pull out the fields we want to log + persist."""
@@ -228,7 +133,6 @@ def _capture_metadata(args: tuple, kwargs: dict) -> dict[str, Any]:
             if attn_metadata is not None else "<None>",
     }
     return info
-
 
 def apply() -> tuple[str, str]:
     global _APPLIED, _ORIGINAL_FA_FORWARD, _ORIGINAL_TRITON_FORWARD
@@ -445,10 +349,8 @@ def apply() -> tuple[str, str]:
     )
     return "applied", "PN269 installed"
 
-
 def is_applied() -> bool:
     return _APPLIED
-
 
 def revert() -> bool:
     global _APPLIED, _ORIGINAL_FA_FORWARD, _ORIGINAL_TRITON_FORWARD
@@ -471,5 +373,5 @@ def revert() -> bool:
     _ORIGINAL_TRITON_FORWARD = None
     return True
 
-
 __all__ = ["GENESIS_PN269_MARKER", "apply", "is_applied", "revert"]
+

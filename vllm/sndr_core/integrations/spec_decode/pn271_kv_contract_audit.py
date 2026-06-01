@@ -1,105 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
-"""PN271 — SpecDecodeKVContractAudit (read-only, model-agnostic).
+"""PN271 KV contract audit.
 
-================================================================
-WHY
-================================================================
-
-G4_78-A v2 closed the K/V *source* gap for Gemma 4 (drafter no longer
-sees torch.empty memory; bridge copies correct slots), but acceptance
-stayed at 0%. That tells us the *attention numerics* still diverge
-between drafter and target — scale, RoPE, soft-cap, q/k norm, etc.
-
-Locally if-ing each Gemma quirk doesn't scale to other models. The
-broader problem is a class problem:
-
-  "Speculative drafter depends on target KV. Target KV's backend /
-   layout / quantization / attention numerics may not match drafter's
-   runtime contract."
-
-Therefore PN271 is intentionally split:
-
-  (1) Audit (this file)             — model-agnostic field collection
-                                       + compatibility verdict per
-                                       (drafter, target) layer pair.
-  (2) Mapping provider              — pluggable model-specific module
-                                       that returns {drafter -> target}.
-                                       Gemma4MappingProvider re-runs
-                                       vLLM's `_setup_gemma4_kv_sharing`
-                                       logic in read-only mode.
-  (3) Compatibility verdict         — EXACT_COPY / GQA_REPEAT /
-                                       LAYOUT_ADAPTER / DEQUANT /
-                                       UNSUPPORTED, with reasons.
-
-Bridge implementation + production safety guard belong in
-*separate* patches once PN271 settles which divergences exist.
-
-================================================================
-WHAT IS AUDITED PER PAIR (drafter_attn, target_attn)
-================================================================
-
-A. Shape contract
-   - num_kv_heads, num_heads, head_size
-   - kv_cache.shape / ndim
-   - block_size
-   - sliding_window
-B. Layout / dtype
-   - kv_cache.dtype
-   - kv_cache_dtype string
-   - HND vs NHD (axis 0 == 2 => HND, axis 1 == 2 => NHD)
-C. Attention numerics
-   - scale (attribute on Attention object)
-   - logits_soft_cap
-D. Q / K normalization
-   - drafter has q_norm? norm of weight
-   - target has q_norm/k_norm? norms of weights
-E. RoPE
-   - rotary_emb.base (or rope_theta)
-   - rotary_emb.inv_freq[:3] sample
-F. Backend
-   - drafter attn_impl class name
-   - target attn_impl class name
-   - kv_sharing_target_layer_name attribute value
-G. Quantization
-   - quant_config (if any)
-   - kv_cache stored quantized (turboquant_*) vs native
-
-================================================================
-VERDICT RULES (v1 conservative)
-================================================================
-
-For each pair, set verdict to the WORST applicable:
-
-  EXACT_COPY        all of A/B/C/D/E match exactly
-                    drafter expects same num_kv_heads, same head_size,
-                    same scale, same RoPE base, same soft_cap
-
-  GQA_REPEAT        same as EXACT_COPY but drafter_kv_heads ==
-                    target_kv_heads * k for integer k>1
-
-  LAYOUT_ADAPTER    HND vs NHD differ but everything else matches.
-                    A per-call axis swap is enough.
-
-  DEQUANT           target kv_cache_dtype contains "turboquant" or
-                    other quantized form; drafter expects bf16/fp16.
-
-  UNSUPPORTED       head_size differs OR scale ratio differs OR
-                    RoPE base differs OR soft_cap differs
-
-Verdicts are accumulative — a pair may need *both* GQA_REPEAT and
-LAYOUT_ADAPTER and DEQUANT. The audit reports each independently.
-
-================================================================
-ENV
-================================================================
-
-  GENESIS_ENABLE_PN271_KV_CONTRACT_AUDIT=1
-
-================================================================
-NO BEHAVIOR CHANGE — DIAGNOSTIC ONLY
-================================================================
-
-Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
+Runtime guard auditing spec-decode KV contract invariants. Lives at
+spec_decode root (not probes/) per Task F §11.1 — operator decision
+keeps runtime guards separate from diagnostic probes. Stays dormant
+until the operator enables it via its env-flag. Resolves the Phase 3
+relocation stash-pop conflict (old `integrations/gemma4/` path was
+removed during the move).
 """
 from __future__ import annotations
 

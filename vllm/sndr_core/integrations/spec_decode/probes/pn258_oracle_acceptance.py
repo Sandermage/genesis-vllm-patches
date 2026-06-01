@@ -1,79 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
-"""PN258 — Oracle acceptance test for MTP K+1 verify.
+"""PN258 oracle acceptance.
 
-Implements the next-cycle entry point from
-docs/_internal/MTP_TQ_GEMMA4_NEXT_CYCLE_PN258_H8_NOTES_2026-05-18_RU.md.
-
-Purpose
--------
-
-PN256 + P65 (G4_68 inline) restores target row-0 output coherence but
-acceptance remains 0%. Two possibilities:
-
-  Outcome A — Drafter problem only.
-    Target verifier rows 0..K-1 are all correct, but the drafter's own
-    drafts never match. In that case injecting target-greedy oracle
-    tokens as the drafter's drafts will cause every position to accept.
-    Next investigation: H8 drafter debug.
-
-  Outcome B — Verifier rows 1..K-1 still broken.
-    PN256 may have fixed only row-0; rows 1..K-1 produce wrong argmax
-    or the sampler / position mapping / gather is off. Injecting oracle
-    tokens will NOT recover acceptance because the rejection sampler
-    compares against wrong target argmax for those rows.
-
-This module is the causal test that separates these two cases.
-
-Design
-------
-
-Two-pass record/replay around `vllm.v1.sample.rejection_sampler.rejection_sample`:
-
-Pass 1 — RECORD (oracle file does not exist):
-  Run the prompt normally with MTP + PN256 + P65. Each call captures
-  `target_argmax[r, 0]` (row-0 of each request's target argmax) as the
-  "what the model would emit next" oracle. Tokens are appended to
-  `/tmp/genesis_pn258_oracle.txt`, one int per line. After Pass 1 the
-  file contains the full oracle sequence the target chose during MTP
-  generation. Because PN256 fixed row-0, this sequence is the same as
-  the TQ-only greedy continuation of the same prompt (verified by the
-  PN257a test: output text matches TQ-only baseline).
-
-Pass 2 — REPLAY (oracle file exists):
-  Run the same prompt again. At each call, read the next K tokens from
-  the oracle file and substitute them into `draft_token_ids` before
-  calling the original `rejection_sample`. The drafter's actual drafts
-  are discarded for the duration of this run; the oracle "drafter"
-  always proposes the target's own greedy continuation.
-
-If the verifier and rejection sampler are wired correctly (Outcome A),
-all K injected drafts must accept at each call, and `accepted_per_req`
-becomes K (or close to K). If the verifier rows 1..K-1 are broken
-(Outcome B), `accepted_per_req` stays 0 or 1 even with the oracle.
-
-Activation: GENESIS_ENABLE_PN258_ORACLE_ACCEPTANCE=1
-
-Switch between RECORD and REPLAY by deleting or keeping the oracle
-file `/tmp/genesis_pn258_oracle.txt`.
-
-Logging contract per call (matches the mandatory list in
-MTP_TQ_GEMMA4_NEXT_CYCLE_PN258_H8_NOTES_2026-05-18_RU.md section 2):
-
-  + call number
-  + mode (RECORD / REPLAY)
-  + oracle draft token ids that were used (REPLAY) or recorded (RECORD)
-  + draft_token_ids ORIGINAL (drafter's actual proposals before
-    substitution)
-  + draft_token_ids INJECTED (after substitution, REPLAY only)
-  + target rows 0..K-1 argmax (per position)
-  + bonus_token_ids
-  + output_token_ids and accepted_per_req
-
-This satisfies the "rows 1..K argmax" and "pre/post sampler" trace
-requirements.
-
-Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
+Diagnostic probe for ideal-oracle acceptance comparison. Stays dormant until the operator
+enables it via its env-flag; canonical location is this file itself.
+Resolves the Phase 3 relocation stash-pop conflict (old
+`integrations/gemma4/` path was removed during the move).
 """
+
 from __future__ import annotations
 
 import logging
@@ -102,12 +35,10 @@ _ORACLE_LOADED = [False]
 # (Pass 1 RECORD) -> file populated -> restart (Pass 2 REPLAY).
 _MODE_LOCKED = [""]  # "RECORD" or "REPLAY"
 
-
 def _on() -> bool:
     return os.environ.get(_ENV, "").strip().lower() in (
         "1", "true", "yes", "on",
     )
-
 
 def _self_oracle_on() -> bool:
     """SELF-ORACLE mode: at each call, replace drafts with target_argmax
@@ -127,11 +58,9 @@ def _self_oracle_on() -> bool:
         "1", "true", "yes", "on",
     )
 
-
 def _is_replay_mode() -> bool:
     """Returns the LOCKED mode for the current process lifetime."""
     return _MODE_LOCKED[0] == "REPLAY"
-
 
 def _load_oracle_if_needed() -> bool:
     """Load oracle tokens from disk, deduplicating consecutive duplicates.
@@ -170,7 +99,6 @@ def _load_oracle_if_needed() -> bool:
         log.warning("[PN258] failed to load oracle file: %s", e)
         return False
 
-
 def _peek_oracle_tokens(k: int) -> List[int]:
     """Peek next k tokens at current pointer WITHOUT advancing.
 
@@ -184,13 +112,11 @@ def _peek_oracle_tokens(k: int) -> List[int]:
     end = min(start + k, len(_ORACLE_TOKENS))
     return _ORACLE_TOKENS[start:end]
 
-
 def _advance_oracle_pointer(steps: int) -> None:
     """Advance pointer by `steps` (= 1 + accepted_per_req[0] typically)."""
     _ORACLE_POINTER[0] = min(
         _ORACLE_POINTER[0] + steps, len(_ORACLE_TOKENS)
     )
-
 
 def _append_oracle_token(tok: int) -> None:
     try:
@@ -198,7 +124,6 @@ def _append_oracle_token(tok: int) -> None:
             f.write(f"{tok}\n")
     except Exception:
         pass
-
 
 def apply() -> tuple[str, str]:
     global _APPLIED, _ORIGINAL_REJECTION_SAMPLE
@@ -453,10 +378,8 @@ def apply() -> tuple[str, str]:
         f"Trace -> {_LOG_PATH}; oracle -> {_ORACLE_PATH}."
     )
 
-
 def is_applied() -> bool:
     return _APPLIED
-
 
 def revert() -> bool:
     global _APPLIED, _ORIGINAL_REJECTION_SAMPLE
@@ -471,9 +394,9 @@ def revert() -> bool:
     _ORIGINAL_REJECTION_SAMPLE = None
     return True
 
-
 __all__ = [
     "apply",
     "is_applied",
     "revert",
 ]
+

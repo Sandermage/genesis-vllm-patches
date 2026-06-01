@@ -1,124 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
-"""PN267 — TQ→native K/V bridge feasibility trace (G4_78-0 probe).
+"""PN267 KV bridge trace.
 
-================================================================
-GROUNDED MAPPING (CHECKPOINT)
-================================================================
-
-PN266 (committed `13472923`) proved drafter receives full prompt
-context (target_hidden_states.shape=(22,5376)) on first propose call,
-so cold-cache hypothesis is refuted. The remaining hypothesis is
-architectural OOD: Gemma 4 MTP drafter was trained with kv_sharing
-(physical alias to target's K/V), and our G4_76 broke that alias for
-correctness. Without alias, drafter computes its own K/V projections
-from target's hidden_states. Drafter is trained against target's K/V
-values, not these projections, so accepted_per_req mean stays ≈ 0.
-
-The kv_sharing mapping derived offline from configs
-(`/models/gemma-4-31B-it-AWQ-4bit/config.json` target +
-`/models/gemma-4-31B-it-assistant/config.json` draft):
-
-  TARGET: num_hidden_layers=60, hidden_size=5376, head_dim=256,
-          num_kv_heads=16, sliding_window=1024, num_kv_shared_layers=0
-          layer_types: [sliding × 5, full] × 10 (60 layers total)
-          → sliding indices: 0..4, 6..10, 12..16, ..., 54..58 (last=58)
-          → full indices:    5, 11, 17, 23, ..., 53, 59       (last=59)
-
-  DRAFT:  num_hidden_layers=4, hidden_size=1024, head_dim=256,
-          num_kv_heads=16, sliding_window=1024, num_kv_shared_layers=4
-          (ALL drafter layers are kv-shared!)
-          layer_types: ['sliding', 'sliding', 'sliding', 'full']
-
-  Applying _setup_gemma4_kv_sharing (vllm/v1/spec_decode/gemma4.py:283):
-    for each drafter layer N:
-      candidates = target indices of same layer_type
-      target_idx = candidates[-1]    ← LAST of same type
-    →
-      drafter[0] (sliding) → target[58]
-      drafter[1] (sliding) → target[58]   (same!)
-      drafter[2] (sliding) → target[58]   (same!)
-      drafter[3] (full)    → target[59]
-
-  Crucial coincidence: target[58]/[59] are also in
-  `GENESIS_G4_TQ_FORCE_SKIP_LAYERS=58,59` → PN259c put them in their
-  own native bf16 group (not TQ-packed). So a future bridge does NOT
-  need TQ→native dequantization — both source (target) and destination
-  (drafter) are native bf16 with matching dims
-  (num_kv_heads=16, head_dim=256).
-
-================================================================
-G4_78-0 PROBE GOAL
-================================================================
-
-Before designing the bridge, prove empirically:
-
-  P1. target[58] kv_cache shape/stride/dtype/data_ptr at runtime
-  P2. target[59] kv_cache shape/stride/dtype/data_ptr at runtime
-  P3. drafter[0] kv_cache shape/stride/dtype/data_ptr at runtime
-  P4. drafter[0] key/value input shape BEFORE reshape_and_cache_flash
-      (this is the token-major shape we'd substitute)
-  P5. attn_metadata.slot_mapping for drafter[0] at first call
-      (where drafter would write the bridged values)
-  P6. layout match — is target[58] HND `(2, num_blocks, ...)` or NHD
-      `(num_blocks, 2, ...)`? Determines whether bridge needs a
-      layout adapter.
-
-================================================================
-PROBE STRATEGY
-================================================================
-
-Wrap two functions:
-
-  1. `GPUModelRunner.initialize_kv_cache_tensors` (post-call) —
-     walk `compilation_config.static_forward_context` and find:
-       - `language_model.model.layers.58.self_attn.attn`
-       - `language_model.model.layers.59.self_attn.attn`
-     Save module-global references. Log their kv_cache shape/stride
-     /dtype/data_ptr.
-
-  2. `FlashAttentionImpl.forward` AND `TritonAttentionImpl.forward`
-     — drafter-only (via layer prefix on args[0], the Attention
-     wrapper). Log first 6 calls:
-       - layer prefix
-       - query/key/value input shapes
-       - kv_cache shape/stride/data_ptr
-       - attn_metadata slot_mapping head
-       - target[58]/[59] kv_cache state at same moment
-         (proves data is available for substitution)
-
-================================================================
-NOT-DOING
-================================================================
-
-  * NO substitution of key/value (that's G4_78-A, separate patch).
-  * NO modification of cache values.
-  * NO impact on production path — diagnostic only.
-  * Limited to first 6 forward calls per layer to avoid log spam
-    during long generations.
-
-================================================================
-ENV
-================================================================
-
-  GENESIS_ENABLE_PN267_KV_BRIDGE_TRACE=1
-
-================================================================
-ACCEPTANCE FOR G4_78-0
-================================================================
-
-After one short chat prompt (e.g. "Tell me a fun fact"):
-
-  * target[58]/[59] references captured at post-bind time
-  * shape/stride/dtype/data_ptr logged for all three caches
-  * drafter[0] forward intercepted with full args dump
-  * one slot_mapping snapshot logged
-
-Verdict: with these data points, can we write the bridge in G4_78-A
-without further investigation? If yes → proceed. If layout mismatch
-or block_table is opaque → another diagnostic round.
-
-Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
+Diagnostic probe for spec-decode KV bridge events. Stays dormant until the operator
+enables it via its env-flag; canonical location is this file itself.
+Resolves the Phase 3 relocation stash-pop conflict (old
+`integrations/gemma4/` path was removed during the move).
 """
+
 from __future__ import annotations
 
 import logging
@@ -150,12 +38,10 @@ DRAFTER_PREFIX = "draft_model."
 TARGET_58_NAME = "language_model.model.layers.58.self_attn.attn"
 TARGET_59_NAME = "language_model.model.layers.59.self_attn.attn"
 
-
 def _env_enabled() -> bool:
     return os.environ.get(_ENV_ENABLE, "").strip().lower() in (
         "1", "true", "yes", "on",
     )
-
 
 def _safe_tensor_info(t: Any, name: str = "<?>") -> str:
     if t is None:
@@ -173,7 +59,6 @@ def _safe_tensor_info(t: Any, name: str = "<?>") -> str:
     except Exception as _e:  # noqa: BLE001
         return f"{name}: introspection-failed: {_e!r}"
 
-
 def _resolve_target_refs(fwd_ctx: dict) -> None:
     """Walk static_forward_context once to find target[58]/[59]."""
     global _TARGET_58_ATTN, _TARGET_59_ATTN
@@ -188,7 +73,6 @@ def _resolve_target_refs(fwd_ctx: dict) -> None:
             _TARGET_59_ATTN = attn
         if isinstance(name, str) and name.startswith(DRAFTER_PREFIX):
             _DRAFTER_ATTNS[name] = attn
-
 
 def apply() -> tuple[str, str]:
     global _APPLIED, _ORIGINAL_INIT_TENSORS, _ORIGINAL_FA_FORWARD, _ORIGINAL_TRITON_FORWARD
@@ -357,10 +241,8 @@ def apply() -> tuple[str, str]:
     )
     return "applied", "PN267 installed (trace-only, no behavior change)"
 
-
 def is_applied() -> bool:
     return _APPLIED
-
 
 def revert() -> bool:
     """Best-effort revert (test isolation only)."""
@@ -391,5 +273,5 @@ def revert() -> bool:
     _ORIGINAL_TRITON_FORWARD = None
     return True
 
-
 __all__ = ["GENESIS_PN267_MARKER", "apply", "is_applied", "revert"]
+

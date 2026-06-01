@@ -1,32 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
-"""PN241 — Finite/norm trace at SpecDecodeBaseProposer.propose boundary.
+"""PN241 MTP trace.
 
-Hooks the Python orchestration layer above the torch.compile fullgraph
-boundary. Instrumenting inside Gemma4MTPAttention.forward is unsafe:
-vLLM v1 compiles MTP forward with fullgraph=True; any disabled
-function inside triggers gb0098/gb0099. Hooking propose() side-steps
-the compile boundary.
-
-Purpose
--------
-Bracket each call to `SpecDecodeBaseProposer.propose()` with
-finite/norm checks on:
-  * target_hidden_states (input to drafter)
-  * returned draft_token_ids
-Logged to /tmp/genesis_pn241_mtp_trace.log inside container.
-
-Hypothesis under test:
-  If target_hidden_states are finite on entry but draft_token_ids show
-  signs of degenerate sampling (all same token, or token IDs at end
-  of vocab), the drafter's attention is corrupting state — confirming
-  the kv_dummy/KV-sharing bug.
-
-Activation
-----------
-GENESIS_ENABLE_PN241_MTP_TRACE=1
-
-Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
+Diagnostic probe for MTP draft propose() invocations. Stays dormant until the operator
+enables it via its env-flag; canonical location is this file itself.
+Resolves the Phase 3 relocation stash-pop conflict (old
+`integrations/gemma4/` path was removed during the move).
 """
+
 from __future__ import annotations
 
 import logging
@@ -42,12 +22,10 @@ _CALL_IDX = [0]
 _APPLIED = False
 _ORIGINAL_PROPOSE = None
 
-
 def _on() -> bool:
     return os.environ.get(_ENV, "").strip().lower() in (
         "1", "true", "yes", "on",
     )
-
 
 def _tensor_stats(name: str, t):
     """Return (name, finite_str, norm_str). Forces GPU sync; only call
@@ -73,7 +51,6 @@ def _tensor_stats(name: str, t):
         return f"{name}.shape={tuple(t.shape)} finite={finite} norm={norm:.4e}{extra}"
     except Exception as e:
         return f"{name}.err={e!r}"
-
 
 def apply() -> tuple[str, str]:
     """Wrap SpecDecodeBaseProposer.propose with finite/norm tracing."""
@@ -227,10 +204,8 @@ def apply() -> tuple[str, str]:
     )
     return "applied", "PN241 proposer trace installed"
 
-
 def is_applied() -> bool:
     return _APPLIED
-
 
 def revert() -> bool:
     global _APPLIED, _ORIGINAL_PROPOSE
@@ -246,3 +221,4 @@ def revert() -> bool:
     _APPLIED = False
     _ORIGINAL_PROPOSE = None
     return True
+

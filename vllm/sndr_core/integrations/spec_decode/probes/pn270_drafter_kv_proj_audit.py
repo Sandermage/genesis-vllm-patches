@@ -1,72 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
-"""PN270 — Drafter K/V projection audit (read-only).
+"""PN270 drafter KV-proj audit.
 
-================================================================
-WHY
-================================================================
-
-G4_78-A v1 verdict (2026-05-19): bridge mechanically correct
-(target_slot match byte-exact for prefill + decode), output coherent,
-no crash — but acceptance stays 0/9 calls. PN269 + G4_78 traces
-revealed a suspicious signal:
-
-  drafter's key stats ≈ drafter's value stats
-    e.g., prompt prefill: K mean=2.86e-3 std=0.122
-                          V mean=2.86e-3 std=0.122  (IDENTICAL stats)
-
-If drafter's k_proj and v_proj produce identical output, then EITHER:
-  (a) they share weights (tied)
-  (b) one is missing / stubbed / identity, and the other is computed
-  (c) kv_sharing originally skipped the projections entirely;
-      G4_76 disabled sharing but the projections never existed in
-      the loaded checkpoint
-  (d) coincidence (unlikely — exactly identical mean+std at multiple
-      call sites is not a coincidence)
-
-If (a/b/c) is true, then G4_78's FA-forward K/V substitution is
-applied AFTER the broken projection — too late. The right hook
-would be at the Attention.forward / kv_proj boundary, or by
-redesigning kv_sharing as bridge rather than alias.
-
-PN270 settles the question with weight-level inspection.
-
-================================================================
-WHAT IT CHECKS
-================================================================
-
-After model load (hooked at GPUModelRunner.initialize_kv_cache_tensors,
-which runs strictly after model.load_model()), walks the loaded model
-with `named_modules()`, filters to `draft_model.layers.0..3.self_attn`,
-and for each layer dumps:
-
-  PER PROJECTION (q_proj, k_proj, v_proj, qkv_proj, kv_proj):
-    - exists / missing
-    - module class name
-    - weight.shape / dtype / data_ptr
-    - weight.float().norm()
-    - parameter name in state_dict (if attributable)
-
-  PER LAYER:
-    - k_proj.weight.data_ptr() == v_proj.weight.data_ptr() (tied storage)
-    - torch.allclose(k_proj.weight, v_proj.weight) (shape permitting)
-    - attn submodule attributes:
-        kv_sharing_target_layer_name
-        attn_type
-        num_kv_heads, num_heads, head_size
-        kv_cache_dtype
-
-================================================================
-ENV
-================================================================
-
-  GENESIS_ENABLE_PN270_DRAFTER_KV_PROJ_AUDIT=1
-
-================================================================
-NO BEHAVIOR CHANGE — DIAGNOSTIC ONLY
-================================================================
-
-Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
+Diagnostic probe for drafter KV projection alignment. Stays dormant until the operator
+enables it via its env-flag; canonical location is this file itself.
+Resolves the Phase 3 relocation stash-pop conflict (old
+`integrations/gemma4/` path was removed during the move).
 """
+
 from __future__ import annotations
 
 import logging
@@ -84,7 +24,6 @@ _DUMPED = False  # one-shot guard
 
 DRAFTER_SELF_ATTN_PREFIX = "draft_model.layers."
 DRAFTER_SELF_ATTN_SUFFIX = ".self_attn"
-
 
 def _unwrap_model(m: Any) -> Any:
     """Strip common wrappers (CUDAGraphWrapper, torch.compile, etc.) to
@@ -104,7 +43,6 @@ def _unwrap_model(m: Any) -> Any:
         else:
             return m
     return m
-
 
 def _find_drafter_attached(runner: Any) -> list[tuple[str, Any]]:
     """Search GPUModelRunner for the drafter sub-model. Returns
@@ -132,19 +70,16 @@ def _find_drafter_attached(runner: Any) -> list[tuple[str, Any]]:
         candidates.append(("model", rm))
     return candidates
 
-
 def _env_enabled() -> bool:
     return os.environ.get(_ENV_ENABLE, "").strip().lower() in (
         "1", "true", "yes", "on",
     )
-
 
 def _safe(value: Any, default: str = "<?>") -> str:
     try:
         return repr(value)
     except Exception:
         return default
-
 
 def _module_attrs(mod: Any, names: tuple[str, ...]) -> dict[str, Any]:
     out: dict[str, Any] = {}
@@ -154,7 +89,6 @@ def _module_attrs(mod: Any, names: tuple[str, ...]) -> dict[str, Any]:
         except Exception as _e:
             out[n] = f"<err: {_e!r}>"
     return out
-
 
 def _describe_param(proj_name: str, full_name: str, proj: Any) -> dict[str, Any]:
     """Return a dict summarizing one projection module."""
@@ -189,7 +123,6 @@ def _describe_param(proj_name: str, full_name: str, proj: Any) -> dict[str, Any]
     except Exception as _e:
         info["err"] = f"{_e!r}"
     return info
-
 
 def _dump_drafter_audit(runner: Any) -> None:
     """Find drafter sub-model on the runner and log full audit."""
@@ -331,7 +264,6 @@ def _dump_drafter_audit(runner: Any) -> None:
 
     log.warning("[PN270] === Drafter K/V projection audit END ===")
 
-
 def apply() -> tuple[str, str]:
     global _APPLIED, _ORIGINAL_INIT_TENSORS
 
@@ -377,10 +309,8 @@ def apply() -> tuple[str, str]:
     )
     return "applied", "PN270 installed (audit-only)"
 
-
 def is_applied() -> bool:
     return _APPLIED
-
 
 def revert() -> bool:
     global _APPLIED, _ORIGINAL_INIT_TENSORS, _DUMPED
@@ -396,5 +326,5 @@ def revert() -> bool:
     _DUMPED = False
     return True
 
-
 __all__ = ["GENESIS_PN270_MARKER", "apply", "is_applied", "revert"]
+

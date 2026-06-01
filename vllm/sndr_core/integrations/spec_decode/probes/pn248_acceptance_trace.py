@@ -1,28 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
-"""PN248 — Per-step acceptance trace for MTP rejection sampling.
+"""PN248 acceptance trace.
 
-Hooks `vllm.v1.sample.rejection_sampler.rejection_sample` (module-level
-function, called from Python orchestration above torch.compile boundary).
-
-Logs per-call:
-  - draft_token_ids (what drafter proposed)
-  - target_argmax (target's top-1 token per position)
-  - num_draft_tokens, max_spec_len
-  - output_token_ids (accept/reject mask: accepted draft IDs or
-    PLACEHOLDER_TOKEN_ID for rejected; col 0 = bonus/recovered)
-
-Goal: directly test Hypothesis D (cross-quantization verifier loop).
-
-If D is correct: trace will show drafts being ACCEPTED that shouldn't
-be, OR target argmax stuck on same token regardless of context.
-
-If D is wrong: drafts being REJECTED properly but next_tok somehow
-still stuck — different mechanism.
-
-Activation: GENESIS_ENABLE_PN248_ACCEPTANCE_TRACE=1
-
-Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
+Diagnostic probe for spec-decode acceptance rate per step. Stays dormant until the operator
+enables it via its env-flag; canonical location is this file itself.
+Resolves the Phase 3 relocation stash-pop conflict (old
+`integrations/gemma4/` path was removed during the move).
 """
+
 from __future__ import annotations
 
 import logging
@@ -38,12 +22,10 @@ _CALL_IDX = [0]
 _APPLIED = False
 _ORIGINAL_REJECTION_SAMPLE = None
 
-
 def _on() -> bool:
     return os.environ.get(_ENV, "").strip().lower() in (
         "1", "true", "yes", "on",
     )
-
 
 def apply() -> tuple[str, str]:
     global _APPLIED, _ORIGINAL_REJECTION_SAMPLE
@@ -160,10 +142,8 @@ def apply() -> tuple[str, str]:
     )
     return "applied", "PN248 acceptance trace installed"
 
-
 def is_applied() -> bool:
     return _APPLIED
-
 
 def revert() -> bool:
     global _APPLIED, _ORIGINAL_REJECTION_SAMPLE
@@ -177,3 +157,4 @@ def revert() -> bool:
     _APPLIED = False
     _ORIGINAL_REJECTION_SAMPLE = None
     return True
+

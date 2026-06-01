@@ -1,93 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
-"""PN262-B — KV cache allocator/reshape/proposer-init diagnostic trace.
+"""PN262-B KV cache allocator trace.
 
-================================================================
-PROBLEM (PN262-A finding)
-================================================================
-
-PN262-A fail-fast at FlashAttn.forward showed::
-
-    shape=(8192, 8, 256)  stride=(2048, 256, 1)  dtype=torch.bfloat16
-    contiguous=True       ndim=3                 kv_sharing=None
-    VLLM_KV_CACHE_LAYOUT='<unset>'
-
-Identical with PN259c ON or OFF. So:
-
-  * Not a view/transpose (contiguous=True).
-  * Not aliasing (kv_sharing=None).
-  * Not the global layout env.
-  * Not PN259c (A/B identical).
-
-The wrong shape comes from ``attn_backend.get_kv_cache_shape()`` in
-``GpuModelRunner._reshape_kv_cache_tensors`` (line ~6846) — where the
-``attn_backend`` is the GROUP's backend, not per-layer. Even though
-G4_71 forced FlashAttn impl per-layer and G4_72 forced native spec
-per-layer, the *AttentionGroup* into which drafter layers were sorted
-at config-build time may still carry a TurboQuant backend AND/OR a
-TQ-flavored ``kv_cache_spec``, and that group-level state drives the
-physical shape.
-
-SpecDecodeBaseProposer.initialize_attn_backend (line ~1535) adds a second
-risk: it iterates ``self._draft_attn_layer_names``, calls
-``all_attn_layers[layer_name].get_attn_backend()`` (per-layer, honors
-G4_71), but uses ``layer_kv_cache_spec = kv_cache_spec`` from the
-GROUP — only doing per-layer lookup when the group spec is a
-``UniformTypeKVCacheSpecs`` instance. If drafter's group spec is the
-old TQ spec (or a plain non-uniform TQ spec), the metadata builder is
-created with the wrong contract.
-
-================================================================
-FIX (DIAGNOSTIC ONLY)
-================================================================
-
-Wraps two functions and logs the disambiguating state. No behaviour
-change.
-
-  1. ``GpuModelRunner._reshape_kv_cache_tensors`` — pre-call: iterate
-     ``self.kv_cache_config.kv_cache_groups`` and dump each group's
-     id / layer_names / spec class / backend class. Post-call: for
-     every drafter layer in the returned ``kv_caches`` dict, log
-     final ``shape``/``stride``/``dtype``/``is_contiguous``/``data_ptr``.
-
-  2. ``SpecDecodeBaseProposer.initialize_attn_backend`` — pre-call: log the
-     selected ``kv_cache_gid``, group spec class, group layer_names.
-     Post-call: log each ``AttentionGroup`` in ``self.draft_attn_groups``
-     with backend.full_cls_name(), kv_cache_spec class,
-     layer_names, kv_cache_group_id.
-
-Together these cover all four spots the wrong shape can originate.
-
-================================================================
-ENV FLAGS
-================================================================
-
-  GENESIS_ENABLE_PN262B_KV_ALLOC_TRACE=1   (opt-in)
-  GENESIS_PN262B_PREFIX=draft_model.       (drafter prefix filter)
-
-================================================================
-ACCEPTANCE
-================================================================
-
-  Gate: K=2 boot with PN262-A trace OFF (or fail-fast OFF), PN262-B
-  ON. Expected output:
-
-    [PN262-B/reshape:groups] gid=0 backend=<...> spec=<...> layers=[...]
-    [PN262-B/reshape:groups] gid=1 backend=<...> spec=<...> layers=[...]
-    ...
-    [PN262-B/reshape:drafter] layer=draft_model.layers.0.... shape=(...)
-    [PN262-B/proposer:init] kv_cache_gid=<int> group_spec=<class>
-                            group_layers=[...]
-    [PN262-B/proposer:groups] backend_full=<...> spec=<...>
-                              layers=[...] group_id=<int>
-
-After analyzing these lines we know exactly which of:
-  (e1) wrong group backend
-  (e2) wrong group spec
-  (e3) UniformTypeKVCacheSpecs missing per-layer entries for drafter
-to fix.
-
-Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
+Diagnostic probe for KV cache reshape / proposer-init events. Stays dormant until the operator
+enables it via its env-flag; canonical location is this file itself.
+Resolves the Phase 3 relocation stash-pop conflict (old
+`integrations/gemma4/` path was removed during the move).
 """
+
 from __future__ import annotations
 
 import logging
@@ -107,16 +26,13 @@ _ORIGINAL_RESHAPE = None
 _ORIGINAL_PROPOSER_INIT = None
 _LOG_COUNT = [0]
 
-
 def _env_enabled() -> bool:
     return os.environ.get(_ENV_ENABLE, "").strip().lower() in (
         "1", "true", "yes", "on",
     )
 
-
 def _drafter_prefix() -> str:
     return os.environ.get(_ENV_PREFIX, "draft_model.").strip()
-
 
 def _safe_cls(obj) -> str:
     if obj is None:
@@ -126,7 +42,6 @@ def _safe_cls(obj) -> str:
         return f"{cls.__module__}.{cls.__qualname__}"
     except Exception:
         return f"<{type(obj).__name__}>"
-
 
 def _backend_full_name(attn_backend) -> str:
     if attn_backend is None:
@@ -139,7 +54,6 @@ def _backend_full_name(attn_backend) -> str:
         except Exception:
             return repr(attn_backend)
 
-
 def _truncate_layers(names, limit: int = 6) -> str:
     try:
         names = list(names)
@@ -149,11 +63,9 @@ def _truncate_layers(names, limit: int = 6) -> str:
         return repr(names)
     return repr(names[:limit]) + f" ...+{len(names) - limit}"
 
-
 def _emit(line: str) -> None:
     log.warning(line)
     _LOG_COUNT[0] += 1
-
 
 def apply() -> tuple[str, str]:
     """Install diagnostic wraps on reshape + proposer init."""
@@ -388,14 +300,11 @@ def apply() -> tuple[str, str]:
         f"{drafter_prefix!r}"
     )
 
-
 def is_applied() -> bool:
     return _APPLIED
 
-
 def log_count() -> int:
     return _LOG_COUNT[0]
-
 
 def revert() -> bool:
     """Best-effort revert (test isolation only)."""
@@ -419,7 +328,6 @@ def revert() -> bool:
     _ORIGINAL_PROPOSER_INIT = None
     return True
 
-
 __all__ = [
     "GENESIS_PN262B_MARKER",
     "apply",
@@ -427,3 +335,4 @@ __all__ = [
     "log_count",
     "revert",
 ]
+

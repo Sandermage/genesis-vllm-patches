@@ -1,24 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
-"""PN266 — SpecDecodeBaseProposer.propose() input-shape trace.
+"""PN266 propose() input trace — G4_77 design probe.
 
-Diagnostic to answer the G4_77 design question:
-At first propose() call per request, what shape is target_hidden_states?
-Is the prompt context flowing into drafter's first forward (which would
-mean drafter is warmed-up automatically by propose), or is propose only
-seeing decode-time tokens?
-
-Logs per call:
-  - call_idx (global)
-  - target_token_ids.shape
-  - target_token_ids[:8] (first tokens)
-  - target_positions.shape
-  - target_positions[:8] (first positions)
-  - target_hidden_states.shape
-  - next_token_ids
-  - batch_size from common_attn_metadata
-
-ENV:
-  GENESIS_ENABLE_PN266_PROPOSE_TRACE=1
+Wraps `SpecDecodeBaseProposer.propose` to log first 8 invocations'
+input tensor shapes + sample heads. Stays dormant until the operator
+sets `GENESIS_ENABLE_PN266_PROPOSE_TRACE=1`. Resolves the Phase 3
+relocation conflict (stash-pop from old `integrations/gemma4/` path
+left markers); canonical location is this file itself.
 """
 from __future__ import annotations
 
