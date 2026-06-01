@@ -501,7 +501,7 @@ def compose(
     # __init__ → engine core init fails before any patch chain runs.
     #
     # Currently exactly one builtin profile sets backend_plan.target_default:
-    # gemma4-tq-mtp-structured-k4 (β'-A K=4 reference, target_default=
+    # gemma4-31b-tq-mtp-structured-k4 (β'-A K=4 reference, target_default=
     # TURBOQUANT). All other profiles have backend_plan=null and skip
     # this emission, preserving vllm's auto-pick path.
     if profile is not None and profile.backend_plan is not None:
@@ -598,4 +598,16 @@ def compose(
         # API + host (defaults; V2 doesn't introduce a separate concept)
         api_key="genesis-local",
         host="0.0.0.0",
+
+        # Y1 (Phase 10 — 2026-06-01): in-container python package pins
+        # forwarded from V2 ModelDef. When the model declares
+        # `package_versions:` block, the composed V1 ModelConfig
+        # surfaces it via `cfg.package_versions` — the renderer
+        # honors `python_packages` when SNDR_DEV_INSTALL_RUNTIME_DEPS=1
+        # is set inside the container. Migration enabler for V1 sunset
+        # of a5000-2x-35b-prod and a5000-2x-27b-int4-tq-k8v4 (both V1
+        # files declared identical pins; V2 ModelDef now hosts the
+        # same data so V2 alias resolves through compose with the
+        # same `cfg.package_versions` API).
+        package_versions=model.package_versions,
     )

@@ -139,8 +139,16 @@ def test_package_versions_yaml_roundtrip():
 # ─── Builtin configs declare the block (post-Y1+B6 acceptance criteria)
 
 def test_builtin_35b_prod_declares_package_versions():
-    from vllm.sndr_core.model_configs.registry import get
-    cfg = get("a5000-2x-35b-prod")
+    # Phase 10 (2026-06-01): test fixture migrated from V1 get() →
+    # V2 load_alias() via the ModelDef.package_versions schema
+    # extension. Both V1 PROD files (a5000-2x-35b-prod.yaml,
+    # a5000-2x-27b-int4-tq-k8v4.yaml) carried the same package pins
+    # block; that data now lives in the V2 ModelDef YAMLs (qwen3.6-
+    # 35b-a3b-fp8.yaml, qwen3.6-27b-int4-autoround-tq-k8v4.yaml) and
+    # is forwarded into the composed cfg via compose.py:603.
+    # V1 file source-of-truth was retired in Phase 10 V1 sunset.
+    from vllm.sndr_core.model_configs.registry_v2 import load_alias
+    cfg = load_alias("prod-qwen3.6-35b-balanced")
     assert cfg is not None
     assert cfg.package_versions is not None
     pkgs = cfg.package_versions.python_packages
@@ -150,8 +158,10 @@ def test_builtin_35b_prod_declares_package_versions():
 
 
 def test_builtin_27b_tq_k8v4_declares_package_versions():
-    from vllm.sndr_core.model_configs.registry import get
-    cfg = get("a5000-2x-27b-int4-tq-k8v4")
+    # Phase 10 migration: V2 alias replaces V1 key (see comment on the
+    # 35B test above for full rationale).
+    from vllm.sndr_core.model_configs.registry_v2 import load_alias
+    cfg = load_alias("prod-qwen3.6-27b-tq-k8v4")
     assert cfg is not None
     assert cfg.package_versions is not None
     pkgs = cfg.package_versions.python_packages

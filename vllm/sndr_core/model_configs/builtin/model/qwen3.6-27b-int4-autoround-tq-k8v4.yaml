@@ -77,6 +77,24 @@ versions:
   vllm_pin_required: 0.21.1rc0+g626fa9bba566 # promoted 2026-05-21 (P2.4d-Q27) — dev371 smoke PASS + quick bench (decode_TPOT 10.03 ms / TTFT 111 ms / wall_TPS 81.6 mean). Requires P103 wrapper kwargs ABI fix (commit 122c2576). Previous pin dev338 retained side-by-side on server as :nightly-previous for rollback per CLAUDE.md pin policy.
   reference_metrics_ref: null   # Phase 5.2.D (2026-05-22): formalize receipt-only state. The prior dev338 Wave-9 baseline (tests/integration/baselines/27b_v11_wave9.json) is no longer authoritative for this dev371-promoted ModelDef; keeping that reference produced a sticky audit mismatch in audit_v2_vllm_pin_consistency. Current dev371 runtime evidence: sndr_private/planning/bench_results/2026-05-21/P2_Q27_TQ_DEV371_SMOKE_RECEIPT_2026-05-21_RU.md (smoke + quick bench: decode_TPOT 10.03 ms / TTFT 111 ms / wall_TPS 81.6 mean). A formal canonical baseline JSON requires the full sustained-methodology cycle and is deferred to Phase 7.
 
+# Y1 (Phase 10 — 2026-06-01): in-container python package pins. Migrated
+# from V1 a5000-2x-27b-int4-tq-k8v4.yaml `package_versions:` block as
+# part of the V2 ModelDef schema extension that unblocks V1 sunset of
+# the V1 PROD file. Identical pins to qwen3.6-35b-a3b-fp8.yaml (both V1
+# PROD files declared the same versions; V2 hosts them at the model
+# level so V2-composed configs surface the same cfg.package_versions
+# API that V1 callers expect). Forwarded into ModelConfig via
+# compose.py:603.
+package_versions:
+  python_packages:
+    pandas: '2.2.3'
+    scipy: '1.14.1'
+    xxhash: '3.5.0'
+  notes: >-
+    Pinned post-B6 fix; supply-chain reproducibility. Installed only when
+    SNDR_DEV_INSTALL_RUNTIME_DEPS=1 is set inside the container (otherwise
+    the wheel-baked runtime stack is used).
+
 # ─── Canonical patches matrix (52 entries) ─────────────────────────────
 patches:
   # ── Spec-decode + structured-output safety net ──

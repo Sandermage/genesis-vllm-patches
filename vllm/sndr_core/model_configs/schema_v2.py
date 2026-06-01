@@ -36,6 +36,9 @@ from .schema import (
     SchemaError,
     SpecDecodeConfig,
 )
+# Phase 10 (2026-06-01): PackageVersions reused from V1 types/packages.py
+# for ModelDef.package_versions field (V1→V2 schema migration).
+from .types.packages import PackageVersions
 
 SCHEMA_VERSION_V2 = 2
 
@@ -284,12 +287,35 @@ class ModelDef:
     # generation_config handling.
     override_generation_config: Optional[dict[str, Any]] = None
 
+    # Y1 (Phase 10 — 2026-06-01): in-container python package pins.
+    # Operators declare runtime packages the container needs alongside
+    # vLLM itself (pandas, scipy, xxhash, etc.). When V1 ModelConfig
+    # is composed from this V2 ModelDef, `cfg.package_versions` carries
+    # forward this block — the renderer honors it when
+    # `SNDR_DEV_INSTALL_RUNTIME_DEPS=1` is set inside the container.
+    #
+    # Migrated from V1 a5000-2x-35b-prod.yaml + a5000-2x-27b-int4-tq-
+    # k8v4.yaml `package_versions:` block (V1 sunset Phase 10 enabler).
+    # Both V1 PROD files declared identical pins; this V2 field hosts
+    # them at the model level so V2-composed configs surface the same
+    # `cfg.package_versions` API that V1 callers (test_package_versions,
+    # bench renderer, etc.) expect.
+    #
+    # Forward-reference quoted to avoid runtime import cycle —
+    # PackageVersions lives in `types/packages.py` and is imported
+    # lazily by `compose()` when populating the composed ModelConfig.
+    package_versions: Optional["PackageVersions"] = None
+
     notes: list[str] = field(default_factory=list)
 
     def validate(self) -> None:
         _check_schema_version(self.schema_version)
         _check_kind(self.kind, "model")
         _check_id(self.id, "model.id")
+        if self.package_versions is not None:
+            # Reuse V1 PackageVersions.validate() — same dataclass shared
+            # across V1/V2 to keep validation rules single-source.
+            self.package_versions.validate()
         if not self.model_path:
             raise SchemaError("model.model_path required")
         if not self.title or not self.maintainer:
