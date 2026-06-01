@@ -578,7 +578,7 @@ class TestNewFamilyFamilyRegistry(
 
 For nested families (e.g. `attention.gdn`), pass `filesystem_dir="attention/gdn"` to `make_family_registry_class()`.
 
-The factory enforces 6 invariants per patch (module importable / Genesis marker / apply() callable / env_flag documented / no top-level torch / family field matches) + 2 family-level checks (registry has all entries + filesystem matches). Refining invariants in [_family_contract_helpers.py](../tests/unit/integrations/_family_contract_helpers.py) propagates to all 22 family contracts at once.
+The factory enforces 6 invariants per patch (module importable / Genesis marker / apply() callable / env_flag documented / no top-level torch / family field matches) + 2 family-level checks (registry has all entries + filesystem matches). Refining invariants in [_family_contract_helpers.py](../tests/unit/integrations/_family_contract_helpers.py) propagates to all 23 family contracts at once.
 
 ### CI
 
