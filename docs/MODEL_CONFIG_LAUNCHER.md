@@ -491,7 +491,7 @@ vllm/sndr_core/model_configs/
 ├── __init__.py                 # exports ModelConfig + sub-components
 ├── schema.py                   # dataclasses + validation (V1 monolithic + V2 layered)
 ├── registry.py                 # 3-tier loader (user > community > builtin)
-├── audit_rules.py              # 16 rules (R-001 through R-016)
+├── audit_rules.py              # 19 rules (R-001 through R-019)
 ├── preflight.py                # pre-launch env checks
 ├── diagnose.py                 # runtime checks
 ├── verify.py                   # bench-vs-reference gate

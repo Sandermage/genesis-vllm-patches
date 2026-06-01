@@ -550,7 +550,7 @@ problems forced a hard rename in v11.0.0:
 - **Single CLI entry point** — `sndr launch <preset>` replaces 18
   ad-hoc `start_*.sh` / `bare_metal_*.sh` scripts.
 - **Schema-driven model configs** with `audit_rules.py` checks
-  (R-001 … R-018) and a `make evidence` release gate that runs them.
+  (R-001 … R-019) and a `make evidence` release gate that runs them.
 - **Anchor-manifest fast-path** — text patches record the anchor
   SHA; on upstream drift the patch self-skips with a clear
   `drift_marker detected` line instead of silently breaking.

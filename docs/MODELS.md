@@ -204,7 +204,7 @@ test_started_at: '2026-05-16'       # today's ISO date
 ### Step 5 — local validation + boot
 
 ```bash
-sndr model-config validate my-rig     # ~50 ms offline lint (schema + 18 audit rules)
+sndr model-config validate my-rig     # ~50 ms offline lint (schema + 19 audit rules)
 sndr model-config preflight my-rig    # ~3 s sanity (mounts/GPU/pin/quant args)
 sndr launch my-rig                    # boot
 sndr model-config verify my-rig       # bench + diff vs reference_metrics
@@ -382,7 +382,7 @@ pipeline:
                   │  YAML edit / submit                          │
                   └────────────────┬─────────────────────────────┘
                                    ↓
-   1. validate    schema + 18 audit rules (offline, ~50 ms)
+   1. validate    schema + 19 audit rules (offline, ~50 ms)
                                    ↓
    2. preflight   env + dependencies + hardware sanity (~3 s)
                                    ↓
