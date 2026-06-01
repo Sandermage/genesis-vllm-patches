@@ -5,7 +5,7 @@ How to find, inspect, and choose between Genesis V2 presets using
 [`CLI_REFERENCE.md`](CLI_REFERENCE.md) §8 (flag-level surface) and
 [`MODELS.md`](MODELS.md) (model-side catalog).
 
-> Quick reference table of the 14 currently-annotated production
+> Quick reference table of the 16 currently-annotated production
 > presets is in §6 below. Card schema reference lives next to the
 > Python types in [`preset_schema.py`](../vllm/sndr_core/model_configs/preset_schema.py).
 
@@ -93,7 +93,7 @@ strictest to most permissive:
 | `historical` | Kept for reproducibility / regression diffs only. |
 | `tombstone` | Empirically broken or superseded; `get()` raises with reason. |
 
-At the time of writing, all 14 prod-\* presets sit at
+At the time of writing, all 16 prod-\* presets sit at
 `production_candidate` — public baseline JSONs in
 [`tests/integration/baselines/`](../tests/integration/baselines/) cover
 the model family but lack the per-preset `config` block cross-validation
@@ -110,7 +110,7 @@ maturity** of any `sizing_override` block on the underlying *profile*
 - A `production_candidate` preset CAN compose a profile carrying
   `override_policy.class: bench` (sizing override has bench evidence
   but not full production cross-validation). This is the common state
-  for the 14 prod-\* presets today.
+  for the 16 prod-\* presets today.
 - A `production` preset MUST compose a profile carrying
   `override_policy.class: production` (or no `sizing_override` at all).
   This is the gating contract for the promotion step.
@@ -156,13 +156,15 @@ into the private maintainer tree; the audit gate
 [`audit_public_docs.py`](../scripts/audit_public_docs.py) enforces.
 Private evidence in a card is fine because cards live next to source.
 
-## Quick reference — 14 production-facing presets (21 carded total)
+## Quick reference — 16 production-facing presets (23 carded total)
 
-Manually curated from the cards (last refresh 2026-05-30). After
-CONFIG-UX.2b closure (2026-05-30), **all 21 builtin presets carry
-operator cards**:
+Manually curated from the cards (last refresh 2026-06-01). After
+CONFIG-UX.2b closure (2026-05-30), **all 23 builtin presets carry
+operator cards** (the 2 most recent — `prod-gemma4-26b-mtp-chat-k3`
+and `prod-gemma4-31b-tq-mtp-chat-k3` — landed 2026-06-01 as chat-K3
+mirror siblings of the K=4 structured-role presets):
 
-- 14 `production_candidate` — listed below by family
+- 16 `production_candidate` — listed below by family
 - 7 non-production (2 `qa`, 3 `example`, 1 `experimental`,
   1 `bench_pending`) — listed at the end of this section under
   [Non-production presets](#non-production-presets-7-carded)
@@ -204,6 +206,7 @@ future generator phase.
 |---|---:|---:|---|---|
 | `prod-gemma4-26b-default` ★default | 1 | 1..2 | throughput | K=1 control / MTP off baseline; serves as fallback for K=4 siblings. |
 | `prod-gemma4-26b-mtp-k4` | 4 | 1..2 | structured_throughput | K=4 single-stream structured (tool_call / structured_json.short). |
+| `prod-gemma4-26b-mtp-chat-k3` | 3 | 1..2 | throughput | K=3 chat-role mirror of `mtp-k4`; serves free-chat + summarization (denies structured/tool workloads). |
 | `prod-gemma4-26b-multiconc` | 4 | 1..8 | structured_throughput | K=4 multi-conc structured (235.9 TPS @ conc=8 Mode A). |
 | `prod-gemma4-26b-multiconc-k1` | 1 | 1..8 | throughput | K=1 multi-conc B4 comparator (diagnostic baseline). |
 
@@ -213,6 +216,7 @@ future generator phase.
 |---|---:|---:|---|---|
 | `prod-gemma4-31b-tq-default` ★default | 1 | 1..2 | throughput | Dense 31B, MTP off, broad workload coverage. |
 | `prod-gemma4-31b-tq-mtp-structured-k4` | 4 | 1 | structured_throughput | β'-A control: K=4 structured + acceptance artefact gate. |
+| `prod-gemma4-31b-tq-mtp-chat-k3` | 3 | 1..2 | throughput | K=3 chat-role mirror of `mtp-structured-k4`; serves free-chat + summarization + code-gen. |
 
 ### Non-production presets (7 carded)
 
