@@ -213,37 +213,29 @@ class TestR013:
 
 
 class TestBuiltinConfigsClean:
-    @_skip_if_no_v1_35b_ar
-    def test_a5000_2x_35b_prod_audit_clean_or_info_only(self):
-        # Phase 10 (2026-06-01): keeping V1 get() fixture intentionally.
-        # Attempted migration to V2 load_alias('prod-qwen3.6-35b-balanced')
-        # exposed a pre-existing V2 model YAML inconsistency: the V2
-        # ModelDef qwen3.6-35b-a3b-fp8.yaml declares env var
-        # `GENESIS_ENABLE_P108_MTP_DRAFT_STREAM_SYNC` (descriptive suffix
-        # carried from V1 file commentary), but the PATCH_REGISTRY P108
-        # entry uses the canonical `GENESIS_ENABLE_P108` env_flag.
-        # Audit rule R-011 catches the mismatch in V2-composed configs.
-        # V1 path wasn't affected because V1 35b-prod.yaml did NOT
-        # declare any P108 variant (V2 was over-eager during migration).
-        # Out-of-scope fix for Phase 10 (V2 model YAML cleanup is a
-        # separate effort); revert to V1 fixture to keep gate green.
-        # When V1 file finally retires, this test should migrate either
-        # via the V2 YAML cleanup OR by retiring the test (audit of a
-        # specific V1 file's snapshot becomes obsolete once V1 is gone).
-        from vllm.sndr_core.model_configs import get
-        cfg = get("a5000-2x-35b-prod")
+    def test_prod_qwen3_6_35b_balanced_audit_clean_or_info_only(self):
+        # Phase 10.5 D.1 (2026-06-01): migrated to V2 alias
+        # `prod-qwen3.6-35b-balanced` after the P108 env_var cleanup
+        # (`GENESIS_ENABLE_P108_MTP_DRAFT_STREAM_SYNC` → canonical
+        # `GENESIS_ENABLE_P108` across all 6 V2 model YAMLs) closed
+        # the audit-rule R-011 mismatch that previously blocked the
+        # V1 → V2 migration. Same fixture role; V2 composes the
+        # byte-equivalent ModelConfig and the audit pass surfaces only
+        # warnings (info/warning OK, no errors).
+        from vllm.sndr_core.model_configs.registry_v2 import load_alias
+        cfg = load_alias("prod-qwen3.6-35b-balanced")
         assert cfg is not None
         issues = audit(cfg)
         # No errors; warnings allowed
         errors = [i for i in issues if i[1] == "error"]
-        assert errors == [], f"Builtin 35B config has errors: {errors}"
+        assert errors == [], f"V2 prod-qwen3.6-35b-balanced has errors: {errors}"
 
-    @_skip_if_no_v1_27b_ar
-    def test_a5000_2x_27b_int4_balanced_no_errors(self):
-        # Phase 10 (2026-06-01): same V2 model YAML P108 env_var
-        # mismatch as the 35B test above. Reverted to V1 fixture.
-        from vllm.sndr_core.model_configs import get
-        cfg = get("a5000-2x-27b-int4-tq-k8v4")
+    def test_prod_qwen3_6_27b_tq_k8v4_no_errors(self):
+        # Phase 10.5 D.1 (2026-06-01): same migration as the 35B test
+        # above — V2 alias `prod-qwen3.6-27b-tq-k8v4` now passes the
+        # audit cleanly after the P108 env_var rename.
+        from vllm.sndr_core.model_configs.registry_v2 import load_alias
+        cfg = load_alias("prod-qwen3.6-27b-tq-k8v4")
         issues = audit(cfg)
         errors = [i for i in issues if i[1] == "error"]
         assert errors == [], f"Builtin 27B config has errors: {errors}"

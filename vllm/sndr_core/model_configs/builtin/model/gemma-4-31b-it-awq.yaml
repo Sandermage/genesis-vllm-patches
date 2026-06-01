@@ -116,7 +116,7 @@ patches:
   GENESIS_ENABLE_G4_67_TQ_SPEC_VERIFY_ROUTE: '1'          # safe no-op for wrapper path; primes upstream-overlay path
   # ── Qwen-applicable patches (general-purpose, MTP-aware) ──
   GENESIS_ENABLE_PN33_SPEC_DECODE_WARMUP_K: '1'           # MTP K-aware warmup sizing (vllm#37521)
-  GENESIS_ENABLE_P108_MTP_DRAFT_STREAM_SYNC: '1'          # MTP draft-loop stream synchronization (vllm#42603)
+  GENESIS_ENABLE_P108: '1'          # MTP draft-loop stream synchronization (vllm#42603)
   GENESIS_ENABLE_P109_SAMPLING_PARAMS_VOCAB_RANGE_VALIDATORS: '1'  # sampler safety (vllm#42614)
   GENESIS_ENABLE_PN110_BLOCK_POOL_FREE_DEDUP: '1'         # BlockPool.free_blocks dedup (vllm#42615)
   # ── Cross-family supporting patches (Genesis-wide quality) ──

@@ -213,7 +213,7 @@ patches:
   # GENESIS_ENABLE_PN134_TORCH_COMPILE_FULLGRAPH_211: KEEP OFF — retired 2026-05-15 (-25% TPS bench regressor on hybrid_gdn_moe).
   # K.1.R.R.6 (2026-05-29) — Wave 1 additions per Stream 4 MTP optimization research:
   GENESIS_ENABLE_PN22_LOCAL_ARGMAX_TP: '1'           # vllm#39419 backport — local argmax per TP shard for draft model. +9-30% TPS upstream measurement on TP=2. Bit-exact equivalent.
-  GENESIS_ENABLE_P108_MTP_DRAFT_STREAM_SYNC: '1'     # vllm#43330 backport — defensive stream sync (cudaErrorIllegalAddress race fix LLMBaseProposer.propose vs FlashInfer attention). −14% MTP TPS overhead; defensive. Auto-gates by VLLM_ATTENTION_BACKEND; no-op on TQ k8v4 (TURBO_QUANT_*).
+  GENESIS_ENABLE_P108: '1'     # vllm#43330 backport — defensive stream sync (cudaErrorIllegalAddress race fix LLMBaseProposer.propose vs FlashInfer attention). −14% MTP TPS overhead; defensive. Auto-gates by VLLM_ATTENTION_BACKEND; no-op on TQ k8v4 (TURBO_QUANT_*).
   GENESIS_ENABLE_PN286_FA_LAYOUT_REVERT_SM86: '1'    # K.1.R.R.5 — FA layout revert for SM 8.6 Ampere. No-op on 27B MTP (in TQ group). +6.6% TPS on 35B. Self-skips non-SM-8.6.
   GENESIS_ENABLE_PN287_QWEN3CODER_ARGS_OBSERVER: '1' # club-3090 #178 frequency observer — read-only. 27B coder did NOT exhibit the bug in 24-turn agentic bench 2026-05-29 (0/24 detected — confirms #178 is concentrated on 35B-A3B MoE path). Enabled for parity + future drift detection.
 

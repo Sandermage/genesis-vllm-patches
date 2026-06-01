@@ -85,7 +85,7 @@ patches:
   GENESIS_ENABLE_G4_67_TQ_SPEC_VERIFY_ROUTE: '1'             # MORE relevant here: K=8 amplifies cudagraph stress
   # ── Qwen-applicable patches (MTP/general-purpose) ──
   GENESIS_ENABLE_PN33_SPEC_DECODE_WARMUP_K: '1'              # MTP K-aware warmup (K=8 needs even more sizing)
-  GENESIS_ENABLE_P108_MTP_DRAFT_STREAM_SYNC: '1'             # MTP stream sync
+  GENESIS_ENABLE_P108: '1'             # MTP stream sync
   GENESIS_ENABLE_P109_SAMPLING_PARAMS_VOCAB_RANGE_VALIDATORS: '1'
   GENESIS_ENABLE_PN110_BLOCK_POOL_FREE_DEDUP: '1'
   # ── Cross-family supporting patches ──
