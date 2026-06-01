@@ -33,7 +33,7 @@ sndr verify                                # post-apply smoke
 ```
 
 Behind the scenes the wizard runs 11 steps — see
-[README §Steps the installer runs (in order)](../README.md#steps-the-installer-runs-in-order).
+[INSTALL.md § Step-by-step setup](#step-by-step-setup).
 
 ---
 
@@ -306,7 +306,7 @@ pip install --upgrade pip wheel setuptools
 
 ### 2. Install vLLM nightly
 
-Genesis is pinned to a specific vLLM nightly. Find the SHA / version that matches our [`Production baseline`](README.md#production-baseline) — currently `0.21.1rc0+g626fa9bba5`.
+Genesis is pinned to a specific vLLM nightly. Find the SHA / version that matches our [`Production baseline`](#quick-start-canonical-v1200) — currently `0.21.1rc0+g626fa9bba5`.
 
 ```bash
 # Option A — install from a specific nightly wheel (recommended if you can match)
@@ -582,7 +582,7 @@ sudo systemctl restart genesis-vllm
 | `ImportError: No module named 'vllm.sndr_core'` | Symlink missing or wrong path | Re-run step 3 (`ln -s` into `$VLLM_DIR`). |
 | `ImportError: No module named 'vllm._genesis'` (pre-v11 scripts) | Pre-v11 namespace removed in v11.0.0; no alias is provided | Update the script: rewrite imports `vllm._genesis.*` → `vllm.sndr_core.*`. |
 | Boot hangs on `Capturing CUDA graphs` | Driver mismatch (570 instead of 580) or stale Triton cache | `apt install nvidia-driver-580-server`, reboot. `rm -rf ~/.triton/cache/*` |
-| `apply_all` reports `required_anchor_missing` for many patches | vLLM nightly drifted from Genesis pin | Pin to the SHA in [`Production baseline`](README.md#production-baseline), or accept that some patches will skip (read each SKIP reason) |
+| `apply_all` reports `required_anchor_missing` for many patches | vLLM nightly drifted from Genesis pin | Pin to the SHA in [`Production baseline`](#quick-start-canonical-v1200), or accept that some patches will skip (read each SKIP reason) |
 | Patches re-apply on every restart and accumulate | You're running `apply_all` from multiple processes simultaneously | Add a lockfile, or run apply_all once at boot before launching workers |
 | `pip install --upgrade vllm` silently undid Genesis | Expected — `pip` reinstalls vLLM's own files cleanly | Re-run step 6 (apply_all) after upgrade |
 

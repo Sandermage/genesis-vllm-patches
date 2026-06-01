@@ -196,8 +196,8 @@ Common overrides:
 ```
 
 For per-GPU recommendations (which patches to enable) see the
-[per-GPU table in the main README](../../README.md#per-gpu-recommendations) and
-the auto-detection at boot via `vllm/sndr_core/gpu_profile.py`.
+[Supported GPU Classes in docs/HARDWARE.md](../../docs/HARDWARE.md#supported-gpu-classes) and
+the auto-detection at boot via `vllm/sndr_core/runtime/gpu_profile.py`.
 
 ---
 

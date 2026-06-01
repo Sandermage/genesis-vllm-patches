@@ -23,12 +23,12 @@ Cliffs that aren't documented hurt every operator after you.
 | --- | --- |
 | Boot loop, `[FAIL]` lines in `docker logs` | [R/W layer trap](#9-container-rw-layer-trap-on-compose-stopstart) |
 | OOM at long context (>50K tokens) | [Cliff 1](#cliff-1-fa2-softmax_lse-over-allocation), [Cliff 2](#cliff-2-gdn-fwd_h-blow-up), [OOM recipes](#oom-recipes) |
-| Garbage tokens / tool-call cascade (27B + TQ) | [Cliff 3](#cliff-3-turboquant--specverify-k1--full-cudagraph), [Cliff 4](#cliff-4-non-powerof2-gqa--p67) |
+| Garbage tokens / tool-call cascade (27B + TQ) | [Cliff 3](#cliff-3-turboquant--spec-verify-k1--full-cudagraph), [Cliff 4](#cliff-4-non-power-of-2-gqa--p67) |
 | TPS dropped after vLLM pin bump | [Cliff 8](#cliff-8-anchor-drift-on-vllm-pin-bumps) |
-| Prefix-cache + MTP crash | [Recipe 6](#6-turboquant--specdecode--prefixcaching-crash) |
+| Prefix-cache + MTP crash | [Recipe 6](#6-turboquant--spec-decode--prefix-caching-crash) |
 | Driver / CUDA / NCCL mismatch | `sndr doctor`, then [`INSTALL.md`](INSTALL.md) |
 | V2 alias resolution broken | [R-001](#r-001--v2-alias-resolution-broken) |
-| `sndr memory explain` mis-predicts | [R-004](#r-004--sndr-memory-explain-mispredicting-oom) |
+| `sndr memory explain` mis-predicts | [R-004](#r-004--sndr-memory-explain-mis-predicting-oom) |
 | Want to roll back the whole release | [Rollback playbook](#rollback-playbook) |
 
 ## Named cliffs
@@ -104,7 +104,7 @@ reserved+fragmented budget exceeds free → OOM in the next
 2. Drop `--max-model-len` below the cliff (e.g. 96K vs 180K).
 3. Use `fp8_e5m2` KV instead of `turboquant_k8v4` (K activation peak
    < V activation peak on the soak path; see
-   [TQ vs fp8_e5m2 trade-off](#tq-k8v4-vs-fp8_e5m2-tradeoff)).
+   [TQ vs fp8_e5m2 trade-off](#tq-k8v4-vs-fp8_e5m2-trade-off)).
 4. Disable MTP for high-cliff sessions (MTP K=3 adds ~600 MiB / draft
    step).
 5. Force `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True,max_split_size_mb:256,garbage_collection_threshold:0.6`
