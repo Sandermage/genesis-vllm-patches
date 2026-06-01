@@ -83,6 +83,16 @@ DOC_PATTERNS: dict[Path, list[tuple[str, int]]] = {
         (r"`require-static`, (\d+)/(\d+) covered out-of-the-box", 1),
         (r"~\d+/(\d+) \(\d+\.\d+%\) in `bench_with_baseline`", 1),
     ],
+    # Phase 10.5 extension (2026-06-01): USAGE.md previously drifted
+    # silently (231 → 236 stale by 5 entries) because the file wasn't
+    # in this allowlist. Patterns target the three count-claim sites:
+    # the "Stack as of …" header bullet, the "applies N small surgical
+    # changes" prose intro, and the "## 5. Patches …" section opener.
+    REPO_ROOT / "docs" / "USAGE.md": [
+        (r"Genesis `v12\.0\.0` \((\d+) PATCH_REGISTRY entries\)", 1),
+        (r"applies (\d+) small surgical", 1),
+        (r"The patch registry is the heart of Genesis\. (\d+) entries live in", 1),
+    ],
 }
 
 
