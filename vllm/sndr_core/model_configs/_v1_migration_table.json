@@ -19,11 +19,6 @@
       "v2_preset": "prod-qwen3.6-27b-dflash",
       "rationale": "Direct match — V2 preset composes identical config (DFlash N=5 single-stream)."
     },
-    "a5000-2x-27b-int4-tq-k8v4-dflash": {
-      "bucket": "deprecated",
-      "v2_preset": "experimental-qwen3.6-27b-tq-dflash-ab",
-      "rationale": "A/B diagnostic config — V2 equivalent is the experimental-tier `experimental-qwen3.6-27b-tq-dflash-ab` preset (uses `ab-qwen3.6-27b-tq-dflash` profile, same TQ k8v4 model + same 5 DFlash envs PN21/PN23/PN24/PN38/PN40 + same 131K ctx). V1 carries `lifecycle: retired` in its YAML; documented -23.6% TPS regression on MTP path is preserved in the V2 profile docstring. Diagnostic kept for regression / patch-dispatcher coverage testing; not for production. (Reclassified 2026-05-26 from needs_operator_choice → deprecated after V1-SUNSET-DFLASH-ALIAS.R confirmed V2 equivalent already exists.)"
-    },
     "a5000-2x-27b-int4-long-ctx": {
       "bucket": "deprecated",
       "v2_preset": "long-ctx-qwen3.6-27b",

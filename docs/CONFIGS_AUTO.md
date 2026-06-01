@@ -30,7 +30,7 @@ Total configs: **12**
 | `a5000-2x-tier-aware-example` | `experimental` | qwen3.6-27b | `turboquant_k8v4` | MTP K=3 | 131072 | — | — | — | 2026-05-09 |
 | `single-3090-dense-cpu-offload-example` | `community-test` | qwen3.6-7b | `fp8_e5m2` | — | 65536 | — | — | — | 2026-05-09 |
 | `single-3090-hybrid-gdn-tier-aware-example` | `community-test` | qwen3.6-27b | `turboquant_k8v4` | MTP K=3 | 145000 | — | — | — | 2026-05-09 |
-| `a5000-2x-27b-int4-tq-k8v4-dflash` | `retired` | qwen3.6-27b | `turboquant_k8v4` | MTP K=3 | 131072 | 83.9 | — | 10/10 | 2026-05-06 |
+| ~~`a5000-2x-27b-int4-tq-k8v4-dflash`~~ → V2 `experimental-qwen3.6-27b-tq-dflash-ab` | `retired` | qwen3.6-27b | `turboquant_k8v4` | MTP K=3 | 131072 | 83.9 | — | 10/10 | 2026-05-06 (V1 YAML retired 2026-06-01) |
 
 ## Per-config details
 
@@ -368,7 +368,7 @@ Total configs: **12**
 | `enabled_patches` (genesis_env) | 4 |
 
 
-### `a5000-2x-27b-int4-tq-k8v4-dflash`
+### `a5000-2x-27b-int4-tq-k8v4-dflash` (retired 2026-06-01 — use V2 `experimental-qwen3.6-27b-tq-dflash-ab`)
 
 **Title**: 2× RTX A5000 — 27B INT4 + TQ k8v4 + DFlash patches
 

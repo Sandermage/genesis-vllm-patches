@@ -100,7 +100,7 @@ class TestMigrationTable:
         mod = _import_audit()
         table = mod.load_migration_table()
         on_disk = set(mod.list_v1_keys_on_disk())
-        assert len(on_disk) == 8  # 2026-06-01: 4× V1 sunsets — 2× EXAMPLE + a5000-1x-27b-int4-tested + a5000-2x-35b-fp8-dflash
+        assert len(on_disk) == 7  # 2026-06-01: 5× V1 sunsets — 2× EXAMPLE + a5000-1x-27b-int4-tested + a5000-2x-35b-fp8-dflash + a5000-2x-27b-int4-tq-k8v4-dflash
         missing = on_disk - set(table.keys())
         assert not missing, (
             f"V1 keys on disk but missing from migration table: {sorted(missing)}"
@@ -185,13 +185,19 @@ class TestBucketDistribution:
             production_candidate with corrected max_model_len 65K
             replacing V1's stale unsafe 160K). New distribution:
             3 transparent, 0 needs-choice, 5 deprecated, 0 tombstone.
+          - 2026-06-01 (V1-SUNSET-#5): a5000-2x-27b-int4-tq-k8v4-dflash
+            retired — already had `lifecycle: retired` marker in YAML
+            since 2026-05-26; V2 equivalent `experimental-qwen3.6-27b-
+            tq-dflash-ab` already shipped; deletion completes the
+            sunset that the lifecycle marker started. New distribution:
+            3 transparent, 0 needs-choice, 4 deprecated, 0 tombstone.
         """
         mod = _import_audit()
         report = mod.run_audit(stage=0)
         counts = report.count_by_bucket()
         assert counts.get("transparent", 0) == 3
         assert counts.get("needs_operator_choice", 0) == 0
-        assert counts.get("deprecated", 0) == 5
+        assert counts.get("deprecated", 0) == 4
         assert counts.get("tombstone", 0) == 0
 
 
@@ -203,19 +209,20 @@ class TestSeverityPerStage:
         """At Stage 0, non-tombstone buckets all emit warn (regardless of strict)."""
         mod = _import_audit()
         report = mod.run_audit(stage=0)
-        # 8 warnings (was 12 pre-2026-06-01; 4× V1 sunsets: 2× EXAMPLE
-        # files + a5000-1x-27b-int4-tested + a5000-2x-35b-fp8-dflash
+        # 7 warnings (was 12 pre-2026-06-01; 5× V1 sunsets in single
+        # day session: 2× EXAMPLE + a5000-1x-27b-int4-tested +
+        # a5000-2x-35b-fp8-dflash + a5000-2x-27b-int4-tq-k8v4-dflash
         # retired). Tombstone empty.
         counts = report.count_by_severity()
         assert counts.get("error", 0) == 0
-        assert counts.get("warn", 0) == 8
+        assert counts.get("warn", 0) == 7
 
     def test_stage_2_default_all_warn(self):
         mod = _import_audit()
         report = mod.run_audit(stage=2, strict_mode=False)
         counts = report.count_by_severity()
         assert counts.get("error", 0) == 0
-        assert counts.get("warn", 0) == 8
+        assert counts.get("warn", 0) == 7
 
     def test_stage_2_strict_non_transparent_error(self):
         """Stage 2 + strict: non-transparent buckets emit ERROR;
@@ -223,16 +230,16 @@ class TestSeverityPerStage:
         mod = _import_audit()
         report = mod.run_audit(stage=2, strict_mode=True)
         counts = report.count_by_severity()
-        # transparent (3) stay warn; deprecated (5) → error
-        # (was deprecated=9 at original ship; 4× retired 2026-06-01)
-        assert counts.get("error", 0) == 5
+        # transparent (3) stay warn; deprecated (4) → error
+        # (was deprecated=9 at original ship; 5× retired 2026-06-01)
+        assert counts.get("error", 0) == 4
         assert counts.get("warn", 0) == 3
 
     def test_stage_3_non_transparent_error(self):
         mod = _import_audit()
         report = mod.run_audit(stage=3)
         counts = report.count_by_severity()
-        assert counts.get("error", 0) == 5
+        assert counts.get("error", 0) == 4
         assert counts.get("warn", 0) == 3
 
 
@@ -253,8 +260,8 @@ class TestJSONOutput:
         # Operators reverting with SNDR_V1_ROLLOUT_STAGE=0 still see
         # functionally identical behavior for non-tombstone buckets.
         assert data["stage"] == DEFAULT_STAGE
-        assert data["v1_keys_on_disk"] == 8  # 2026-06-01: 4× V1 sunsets
-        assert data["table_entries"] == 8
+        assert data["v1_keys_on_disk"] == 7  # 2026-06-01: 5× V1 sunsets
+        assert data["table_entries"] == 7
 
     def test_json_finding_shape(self):
         result = _run_cli("--json")
