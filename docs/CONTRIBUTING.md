@@ -701,7 +701,7 @@ Genesis release train.
 
 A working scaffold is in
 [`tools/examples/genesis-plugin-hello-world/`](../tools/examples/genesis-plugin-hello-world/),
-tested in CI (`tests/compat/test_plugin_example.py`).
+tested in CI (`tests/unit/compat/test_plugin_example.py`).
 
 Minimal layout:
 

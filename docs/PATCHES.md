@@ -837,7 +837,7 @@ passed:
 - `sndr compose render` produces byte-identical output to
   pre-2026-05-16;
 - `sndr launch` exports the full `genesis_env` matrix;
-- `sndr diagnose` compares against the raw matrix.
+- `sndr model-config diagnose` compares against the raw matrix.
 
 The resolver still runs in the background under `sndr patches plan`
 without `--policy` to surface advisory warnings (conflicts +
