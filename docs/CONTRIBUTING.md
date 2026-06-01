@@ -33,7 +33,7 @@ Step-by-step. Read [PATCHES.md](PATCHES.md) (which absorbs the former `COMPATIBI
 
 ### 1. Pick the right directory
 
-`vllm/sndr_core/integrations/` (path updated 2026-05-11 audit; was `wiring/` pre-v11) is split by `family` — same vocabulary as registry's `family` field. Current 20 family directories on disk (the registry adds two further sub-family tags — `attention.gdn`, `attention.flash`, `attention.turboquant` — that all live under `integrations/attention/`):
+`vllm/sndr_core/integrations/` (path updated 2026-05-11 audit; was `wiring/` pre-v11) is split by `family` — same vocabulary as registry's `family` field. Current 20 top-level family directories on disk; the registry adds three further sub-family tags (`attention.gdn`, `attention.flash`, `attention.turboquant`) that all live under `integrations/attention/`, bringing the canonical PATCH_REGISTRY family count to 23:
 
 | Directory | What goes here |
 | --- | --- |
@@ -126,7 +126,7 @@ Add an entry to `PATCH_REGISTRY` dict with full metadata:
 "PNN": {
     "title": "TurboQuant multi-query Triton kernel",
     "tier": "community",                          # community (Apache 2.0) or engine (commercial — sndr_engine namespace, currently empty)
-    "family": "attention.turboquant",             # one of 19 families — see docs/PATCHES_AUTO.md "By family" section
+    "family": "attention.turboquant",             # one of 23 families — see docs/PATCHES_AUTO.md "By family" section
     "env_flag": "GENESIS_ENABLE_PNN",              # MUST match exactly env.py Flags class constant — verify before commit!
     "default_on": False,                          # False unless validated on 2+ models
     "category": "kernels",
@@ -852,7 +852,7 @@ quick "I want to change X, where is X" reference.
 | `compat/` | Operator-facing wrappers (bench, doctor, install, model_config_cli, plugins, ...). |
 | `core/` | `TextPatcher`, anchor manifest, drift markers. |
 | `dispatcher/` | `registry.py` (PATCH_REGISTRY) + `spec.py` (PatchSpec) + `registry_metadata.py` (derived production_default). |
-| `integrations/` | 21 family subdirectories of wiring modules (one per patch). |
+| `integrations/` | 20 top-level family subdirectories of wiring modules (one per patch); 23 PATCH_REGISTRY family-name values total when sub-families under `attention/` (flash, gdn, turboquant) are counted separately. |
 | `kernels/` | Triton / CUDA kernel source (`p67_multi_query_kernel.py`, …). |
 | `locations/` | `project_paths.py` + `vllm_targets.py` — portable filesystem layout. |
 | `middleware/` | Per-request hooks (lazy reasoner, observability). |

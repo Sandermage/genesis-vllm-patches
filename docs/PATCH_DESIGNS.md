@@ -535,7 +535,7 @@ problems forced a hard rename in v11.0.0:
 | --- | --- | --- |
 | `vllm/_genesis/` (235 files, flat) | `vllm/sndr_core/` (family-organised) | Clear hierarchy. |
 | `apply_all.py` 4 542 lines | `apply/{orchestrator,verify,shadow,_per_patch_dispatch}.py` | PRs localised. |
-| Flat `_genesis/patches/` | `integrations/<family>/<patch>.py` across 21 families | Review by area. |
+| Flat `_genesis/patches/` | `integrations/<family>/<patch>.py` across 23 families | Review by area. |
 | `import _genesis` side-effects on boot | Lazy `vllm.sndr_core.__init__` (torch-less importable) | CI / preflight without CUDA. |
 | Boot summary scattered across uvicorn INFO | Structured boot summary + per-patch `elapsed_ms` + `rss_delta` | Observability. |
 | Hardcoded paths (`/home/<user>/...`, LAN IPs) | Portable env vars (`$GENESIS_MODELS_DIR`, …) | Reproducibility. |
