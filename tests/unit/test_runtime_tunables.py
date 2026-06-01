@@ -99,7 +99,13 @@ class TestAuditRulesIntegration:
         cfg = ModelConfig.__new__(ModelConfig)
         cfg.key = "test"
         cfg.genesis_env = {
-            "GENESIS_PN95_CONFIG_KEY": "a5000-2x-tier-aware-example",
+            # 2026-06-01: PN95 architectural unblock changed CONFIG_KEY
+            # canonical value from V1 `a5000-2x-tier-aware-example` to
+            # PN95-internal `a5000-2x-tier-aware`. Test fixture mirrors
+            # production env (qwen3.6-27b/35b model files updated in
+            # the same commit). V1 fallback still works for backward
+            # compat.
+            "GENESIS_PN95_CONFIG_KEY": "a5000-2x-tier-aware",
             "GENESIS_PN95_TICK_EVERY": "1",
             "GENESIS_PN95_DEMOTE_FREE_MIB_THRESHOLD": "1024",
         }

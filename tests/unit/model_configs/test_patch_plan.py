@@ -311,9 +311,15 @@ class TestNonToggleGenesisKeys:
     untouched, regardless of policy."""
 
     def test_non_toggle_passes_through_compat(self):
+        # 2026-06-01: PN95 architectural unblock changed CONFIG_KEY
+        # canonical value from V1 `a5000-2x-tier-aware-example` to
+        # PN95-internal `a5000-2x-tier-aware`. Test fixture asserts the
+        # value passes through patch_plan resolution intact regardless
+        # of which canonical name is used — both are acceptable as
+        # PN95 resolves either key.
         cfg = _make_cfg(genesis_env={
             "GENESIS_ENABLE_PN95": "1",
-            "GENESIS_PN95_CONFIG_KEY": "a5000-2x-tier-aware-example",
+            "GENESIS_PN95_CONFIG_KEY": "a5000-2x-tier-aware",
             "GENESIS_PN95_TICK_EVERY": "100",
             "GENESIS_BUFFER_MODE": "shared",
         })
@@ -322,7 +328,7 @@ class TestNonToggleGenesisKeys:
         # Toggle made it through
         assert env["GENESIS_ENABLE_PN95"] == "1"
         # Non-toggles MUST pass through with values intact
-        assert env["GENESIS_PN95_CONFIG_KEY"] == "a5000-2x-tier-aware-example"
+        assert env["GENESIS_PN95_CONFIG_KEY"] == "a5000-2x-tier-aware"
         assert env["GENESIS_PN95_TICK_EVERY"] == "100"
         assert env["GENESIS_BUFFER_MODE"] == "shared"
 

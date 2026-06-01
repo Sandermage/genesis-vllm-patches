@@ -18,7 +18,7 @@ created: '2026-05-09'
 patches_delta:
   enable:
     GENESIS_ENABLE_PN95_TIER_AWARE_CACHE: '1'            # PN95 tier-aware cache (GPU+CPU tiers, vision page demotion, Mamba SSM GPU-resident)
-    GENESIS_PN95_CONFIG_KEY: a5000-2x-tier-aware-example # PN95 config key — looks up tier specs by name (lifecycle field)
+    GENESIS_PN95_CONFIG_KEY: a5000-2x-tier-aware         # PN95 config key — resolves to vllm/sndr_core/cache/pn95/tier_configs/<key>.yaml (PN95-internal V2 source after 2026-06-01 architectural unblock) with V1 builtin/<key>.yaml fallback. Same tier specs by name.
     GENESIS_PN95_TICK_EVERY: '100'                       # PN95 page-move evaluation every N decode steps (range 50-500)
     GENESIS_PN95_DEMOTE_FREE_MIB_THRESHOLD: '2048'       # PN95 demotion threshold — start moving pages when free VRAM drops below 2 GiB
     GENESIS_ENABLE_PN16_LAZY_REASONER: '1'               # PN16 v2 — cache-safe

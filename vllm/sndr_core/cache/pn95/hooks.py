@@ -231,9 +231,17 @@ def register_kv_caches(kv_caches: Any, kv_cache_groups: Any) -> int:
         cfg_key = os.environ.get("GENESIS_PN95_CONFIG_KEY", "").strip()
         if cfg_key:
             try:
-                from vllm.sndr_core.model_configs.registry import get
                 from .runtime_state import init_from_config
-                cfg = get(cfg_key)
+                from .tier_config_loader import load_by_key
+                # Resolution order (V1→V2 architectural unblock 2026-06-01):
+                #   1. PN95-internal tier_configs/<key>.yaml (preferred)
+                #   2. V1 ModelConfig.get(<key>) fallback (backward compat
+                #      for operators still pointing at V1 keys like
+                #      `a5000-2x-tier-aware-example`)
+                cfg = load_by_key(cfg_key)
+                if cfg is None:
+                    from vllm.sndr_core.model_configs.registry import get
+                    cfg = get(cfg_key)
                 if cfg is not None:
                     init_from_config(cfg)
             except Exception as e:
@@ -438,10 +446,21 @@ def init_mamba_exclusions_from_kv_groups(kv_cache_groups: Any) -> int:
             log.info("[PN95] lazy init: cfg_key=%r", cfg_key)
             if cfg_key:
                 try:
-                    from vllm.sndr_core.model_configs.registry import get
                     from .runtime_state import init_from_config
-                    cfg = get(cfg_key)
+                    from .tier_config_loader import load_by_key
+                    # Resolution order (V1→V2 architectural unblock 2026-06-01):
+                    #   1. PN95-internal tier_configs/<key>.yaml (preferred)
+                    #   2. V1 ModelConfig.get(<key>) fallback (backward
+                    #      compat for operators still pointing at V1 keys
+                    #      like `a5000-2x-tier-aware-example`)
+                    cfg = load_by_key(cfg_key)
+                    cfg_source = "tier_configs/" + cfg_key + ".yaml"
+                    if cfg is None:
+                        from vllm.sndr_core.model_configs.registry import get
+                        cfg = get(cfg_key)
+                        cfg_source = "V1 builtin/" + cfg_key + ".yaml"
                     if cfg is not None:
+                        log.info("[PN95] resolved cfg from %s", cfg_source)
                         init_from_config(cfg)
                         log.info("[PN95] singleton installed: %s",
                                  _rt._TM.stats() if _rt._TM else "FAILED")
