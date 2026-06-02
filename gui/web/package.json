@@ -1,0 +1,31 @@
+{
+  "name": "sndr-gui-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5173",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 4173",
+    "typecheck": "tsc -b",
+    "gen:api": "openapi-typescript ${SNDR_API_BASE:-http://127.0.0.1:8765}/openapi.json -o src/api/schema.gen.ts",
+    "check:api": "openapi-typescript ${SNDR_API_BASE:-http://127.0.0.1:8765}/openapi.json -o /tmp/sndr-schema.check.ts && diff -q src/api/schema.gen.ts /tmp/sndr-schema.check.ts",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
+    "lucide-react": "^0.468.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.60.0",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^6.0.2",
+    "openapi-typescript": "^7.13.0",
+    "typescript": "^5.6.3",
+    "vite": "^8.0.14"
+  }
+}
