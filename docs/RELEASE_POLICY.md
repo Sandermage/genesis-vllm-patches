@@ -38,7 +38,7 @@ runs under `evidence/patch_proof/`.
 Why this is the gate: every patch the registry advertises must at least
 *resolve* before release; bench data quality varies per patch and is
 hardware-bound, so making it mandatory would block every release until
-operators re-bench all 236 entries on their rig. See
+operators re-bench all 237 entries on their rig. See
 `audit_release_check_baseline-optional` rationale in the Makefile for
 the historical decision.
 
@@ -56,7 +56,7 @@ comparison (`bench_with_baseline`). This is the strictest mode and
 takes the longest to satisfy because every patch needs a reference
 bench run.
 
-Currently 0/236 entries carry `bench_with_baseline`. Operators who
+Currently 0/237 entries carry `bench_with_baseline`. Operators who
 want to adopt this gate should:
 
 1. Promote the **default-on patches in production presets** first
@@ -119,7 +119,7 @@ target date for re-enabling the strict gate.
 ## Operator runbook — promoting the production subset to `bench_with_baseline`
 
 This section is the step-by-step recipe for going from the public
-release gate (`require-static`, 236/236 covered out-of-the-box) to
+release gate (`require-static`, 237/237 covered out-of-the-box) to
 the hardened ratchet (`require-bench` or `require-baseline`) on the
 practical subset that actually ships in production presets.
 
