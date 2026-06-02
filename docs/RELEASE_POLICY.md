@@ -140,6 +140,20 @@ some combinations omitted). The remaining ~60 patches in the
 registry are experimental/research opt-in or retired — they stay
 under `require-static` even on hardened deploys.
 
+> **Note** (2026-06-02): The bench-attachment percentages in this section are a
+> Wave 10-era snapshot (registry count = 169, bench-with-baseline = 81). The
+> registry has grown to 236 entries since (Phase 6 P3.7 Product API
+> materialization, Phase 10 V1 sunset retirements, and ongoing patch additions).
+> Re-deriving the percentages requires re-running the bench-attachment workflow
+> against the current preset roster (`sndr patches release-check --mode
+> require-bench-attached` against all 16 `prod-*` presets on the rig) —
+> deferred until next bench window. Trend direction (most patches are
+> `static_only` proof, no measurement attached) still holds; the absolute
+> denominators have shifted upward.
+>
+> See Phase 6.D operator deferral note in commit `297e09f7` for the original
+> rationale.
+
 ### Current attachment state (2026-05-22)
 
 After running the workflow below against the `prod-qwen3.6-27b-dflash-multiconc`
