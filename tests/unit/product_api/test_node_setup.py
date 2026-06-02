@@ -32,6 +32,15 @@ def test_setup_node_script_is_self_contained():
     assert "run_server(host='0.0.0.0', port=$PORT)" in s     # API daemon, not cli
 
 
+def test_setup_node_mounts_docker_sock_without_auto_exec():
+    """The sidecar mounts the docker socket (so it can report + manage the host's
+    engine containers), but in-container exec stays OFF by default — the operator
+    opts into SNDR_ENABLE_EXEC deliberately."""
+    s = node_setup.setup_node_script(admin_password="secret")
+    assert "-v /var/run/docker.sock:/var/run/docker.sock" in s
+    assert "-e SNDR_ENABLE_EXEC" not in s  # never auto-enabled as an env var
+
+
 def test_setup_node_password_is_shell_escaped():
     s = node_setup.setup_node_script(admin_password="a'b")
     assert "SNDR_ADMIN_PASSWORD='a'\\''b'" in s              # no shell injection
