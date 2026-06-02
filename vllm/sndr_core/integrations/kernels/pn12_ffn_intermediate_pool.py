@@ -92,12 +92,33 @@ from vllm.sndr_core.core import (
     TextPatcher,
     result_to_wiring_status,
 )
+# v11.1.0 P3.3: expose the FFN intermediate scratch pool through
+# PersistentBufferRegistry so operators can `sndr patches show
+# buffer_registry` and see this pool listed. Byte-equivalent — the
+# actual torch.empty() still happens inside FFNIntermediateCache
+# (process-wide pool, allocate-once-keep-forever). The registry hook
+# only exposes the pool name; tensor storage ownership is unchanged.
+from vllm.sndr_core.runtime.persistent_buffer_registry import (
+    PersistentBufferRegistry,
+    POOL_FFN_INTERMEDIATE_SCRATCH,
+)
 
 log = logging.getLogger("genesis.wiring.pN12_ffn_intermediate_pool")
 
 GENESIS_PN12_MARKER = (
     "Genesis PN12 FFN intermediate scratch pool (Cliff 1 fix) v7.62.x"
 )
+
+
+def ensure_pool_registered() -> None:
+    """Idempotent registry hook — exposes POOL_FFN_INTERMEDIATE_SCRATCH
+    in PersistentBufferRegistry for operator visibility. No allocation,
+    no behavior change.
+
+    The real FFN intermediate scratch tensors are owned by the
+    FFNIntermediateCache pool inside vLLM's patched SiluAndMul module.
+    """
+    PersistentBufferRegistry().get_pool(POOL_FFN_INTERMEDIATE_SCRATCH)
 
 
 # ─── Sub-patch: replace SiluAndMul.forward_cuda body ──────────────────────
@@ -207,6 +228,13 @@ def apply() -> tuple[str, str]:
 
     if vllm_install_root() is None:
         return "skipped", "vllm install root not discoverable"
+
+    # v11.1.0 P3.3: expose the pool name in the registry — no allocation,
+    # purely operator-visibility surface.
+    try:
+        ensure_pool_registered()
+    except Exception as e:
+        log.debug("[PN12] registry pool registration failed (proceeding): %s", e)
 
     patcher = _make_patcher()
     if patcher is None:
