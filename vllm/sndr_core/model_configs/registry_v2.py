@@ -30,7 +30,7 @@ from .schema_v2 import (
     PatchManifest,
     ProfileDef,
 )
-from .preset_schema import PresetDef, parse_preset_yaml, synth_card_for_legacy
+from .preset_schema import PresetDef, parse_preset_yaml
 from .compose import compose
 
 
@@ -45,6 +45,7 @@ __all__ = [
     "list_models",
     "list_hardware",
     "list_profiles",
+    "list_presets",
 ]
 
 
@@ -318,6 +319,48 @@ def list_profiles(parent_model: Optional[str] = None) -> list[str]:
     return out
 
 
+def _user_presets_dir() -> Optional[Path]:
+    """Operator-local preset dir (``model_configs_user_dir()/presets``).
+
+    Presets written by the GUI / Product API land here. They participate in
+    listing and resolution so the operator's edits take effect. Returns None
+    if the location cannot be resolved (keeps builtin-only behavior intact).
+    """
+    try:
+        from vllm.sndr_core.locations.project_paths import model_configs_user_dir
+
+        return model_configs_user_dir() / "presets"
+    except Exception:
+        return None
+
+
+def _preset_path(alias: str) -> Path:
+    """Resolve a preset alias to a YAML path, operator-local dir taking
+    precedence over the builtin catalog (operator edits win)."""
+    user_dir = _user_presets_dir()
+    if user_dir is not None:
+        candidate = user_dir / f"{alias}.yaml"
+        if candidate.is_file():
+            return candidate
+    return _alias_dir() / f"{alias}.yaml"
+
+
+def list_presets() -> list[str]:
+    """List preset alias ids: builtin catalog plus operator-local presets.
+
+    Presets are operator-facing catalog entries, so GUI/Product API callers
+    need the same stable listing primitive that models, hardware, and
+    profiles already expose. Operator-local presets (written under
+    ``model_configs_user_dir()/presets``) are included so the GUI edit loop is
+    closed: a saved preset shows up in the catalog and composes.
+    """
+    ids = set(_list_yaml_ids(_alias_dir()))
+    user_dir = _user_presets_dir()
+    if user_dir is not None:
+        ids.update(_list_yaml_ids(user_dir))
+    return sorted(ids)
+
+
 # ─── Alias + compose entry points ────────────────────────────────────────
 
 
@@ -379,7 +422,7 @@ def load_preset_def(alias: str) -> PresetDef:
     can call `synth_card_for_legacy(alias)` to materialise a placeholder
     card if a typed surface is required downstream.
     """
-    path = _alias_dir() / f"{alias}.yaml"
+    path = _preset_path(alias)
     data = _yaml_safe_load(path)
     preset = parse_preset_yaml(alias, data)
     # Validate shape only — semantic checks deferred to audit gate.
