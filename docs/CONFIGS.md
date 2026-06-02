@@ -61,39 +61,47 @@ Write these five things down. The rest of this guide refers back to them.
 
 ---
 
-## Step 2: Pick a base launch script
+## Step 2: Pick a V2 preset
 
-Genesis ships launch scripts in **two locations** for two deployment modes:
+Genesis ships 23 V2 presets — 16 production-facing (`prod-*`) and 7 non-production (qa / example / experimental / bench_pending). All accessed via `sndr launch <preset-alias>`. The pre-V11 launch shell scripts (`start_*.sh`, `bare_metal_*.sh`) were retired during Phase 10 V1 sunset 2026-06-01 (commit `607385f1`); every shipped V1 monolithic YAML was deleted at the same time.
 
-- `scripts/*.sh` — Docker container launch (recommended for most users; uses `docker run`).
-- `scripts/launch/*.sh` — both Docker (`start_*`) and bare-metal (`bare_metal_*`, host shell with vLLM installed via pip) variants.
+Browse the catalog:
 
-Pick the closest match to your config:
+```bash
+sndr preset list                           # all presets
+sndr preset list --family qwen3.6          # filter by model family
+sndr preset list --workload free_chat      # filter by workload class
+sndr preset recommend --workload tool_call # ranked by workload fit
+```
 
-| Your config | Start with |
+Pick the closest match to your hardware + workload:
+
+| Your situation | Preset |
 |---|---|
-| Qwen3-family + INT4 + hybrid + 1× 24GB short ctx | `scripts/launch/start_27b_int4_no_TQ_short_single_card.sh` |
-| Qwen3-family + INT4 + hybrid + 1× 24GB long ctx (256K) | `scripts/launch/start_27b_int4_no_TQ_long_256K_single_card.sh` |
-| Qwen3-family + INT4 + hybrid + 2× 24GB short ctx | `scripts/start_27b_int4_fp8_e5m2_short.sh` |
-| Qwen3-family + INT4 + hybrid + 2× 24GB long ctx (256K) | `scripts/start_27b_int4_fp8_e5m2_long_256K.sh` |
-| Qwen3-family + INT4 + hybrid + TurboQuant k8v4 (5× KV pool) | `scripts/start_27b_int4_TQ_k8v4.sh` |
-| Qwen3-family + MoE + FP8 (2× 24GB) | `scripts/start_35b_fp8_PROD.sh` |
-| Qwen3-family + MoE + FP8 + 1× 48GB | `scripts/launch/start_35b_fp8_PROD_single_card.sh` |
-| Coding-agent workload (DFlash drafter) | `scripts/start_27b_int4_DFLASH.sh` |
-| Bare-metal (no Docker), 27B INT4 + TQ k8v4 | `scripts/launch/bare_metal_27b_int4_TQ_k8v4.sh` |
-| Bare-metal (no Docker), 35B FP8 PROD | `scripts/launch/bare_metal_35b_fp8_PROD.sh` |
-| Llama / Mistral / Gemma dense | `scripts/start_35b_fp8_PROD.sh` (drop MoE-specific flags) |
+| 2× 24 GB GPU, Qwen3.6-35B-A3B-FP8, single-stream | `prod-qwen3.6-35b-balanced` |
+| 2× 24 GB GPU, Qwen3.6-35B-A3B-FP8, multi-conc throughput | `prod-qwen3.6-35b-multiconc` |
+| 2× 24 GB GPU, Qwen3.6-27B int4 TurboQuant k8v4 (long context) | `prod-qwen3.6-27b-tq-k8v4` |
+| 2× 24 GB GPU, Qwen3.6-27B int4 TurboQuant multi-conc | `prod-qwen3.6-27b-tq-multiconc` |
+| 2× 24 GB GPU, Qwen3.6-27B DFlash (coding agent) | `prod-qwen3.6-27b-dflash` or `prod-qwen3.6-27b-dflash-multiconc` |
+| 2× 24 GB GPU, Gemma 4 26B-A4B AWQ | `prod-gemma4-26b-default` (K=1) or `prod-gemma4-26b-mtp-k4` (K=4 structured) |
+| 2× 24 GB GPU, Gemma 4 31B TQ + MTP K=4 structured | `prod-gemma4-31b-tq-mtp-structured-k4` |
+| 1× 24 GB GPU, qa / smoke | `qa-qwen3.6-27b-tq-1x` |
+| Single 3090 community demo | `example-3090-dense-cpu-offload` |
+| Long-context probe (280K+, bench-pending) | `long-ctx-qwen3.6-27b` |
 
-**Naming convention:**
+Inspect a preset before launching:
 
-- `start_*` = Docker container launch (uses `docker run`, mounts /models, applies patches inside container)
-- `bare_metal_*` = host shell launch (assumes vLLM already installed via `pip install`)
-- `_no_TQ_*` historical name for fp8_e5m2 KV cache (without TurboQuant) — file IS for fp8 KV
-- `_TQ_k8v4_*` = TurboQuant 8-bit-key 4-bit-value KV cache (5× pool, requires P4 + P67 + P98)
-- `_DFLASH_*` = DFlash speculator (coding-agent workload)
-- `_single_card` suffix = TP=1 variant; without suffix = TP=2
+```bash
+sndr preset show prod-qwen3.6-35b-balanced       # card + composed config
+sndr preset explain prod-qwen3.6-35b-balanced    # composed runtime + fallback
+sndr launch prod-qwen3.6-35b-balanced --preflight-only  # dry-run launch plan
+```
 
-**Rule of thumb:** start with a script that matches your *attention type* (hybrid vs. dense), *KV dtype* (auto / fp8_e5m2 / turboquant), and *card count*. The rest you'll edit in step 3.
+Launch:
+
+```bash
+sndr launch prod-qwen3.6-35b-balanced
+```
 
 ### Step 2b: Docker compose mirror (if you don't use the bash scripts directly)
 
@@ -422,31 +430,46 @@ To show that generic patches work outside Qwen3-family, here's a minimal walkthr
 - **Hybrid:** no
 - **Spec-decode:** ngram only (no MTP module shipped)
 
-### Pick a base script
+### Pick a base preset
 
-`start_35b_fp8_PROD.sh` — it's the closest pure-attention dense launcher in-tree. We'll strip MoE flags.
+`prod-qwen3.6-35b-balanced` — it's the closest pure-attention dense preset for 2× 24 GB. We'll override model + flags via the V2 layered triplet.
 
-### Copy and edit
+### Build your own preset via the V2 layered triplet
 
 ```bash
-cp scripts/start_35b_fp8_PROD.sh scripts/start_llama3_70b_awq.sh
+# 1. Add your model definition
+sndr config new model my-llama3-70b --based-on qwen3.6-35b-a3b-fp8
+sndr config edit model my-llama3-70b   # edit the generated YAML
+
+# 2. Compose hardware × profile × model into a preset
+sndr config new preset my-llama3-70b-prod \
+  --model my-llama3-70b \
+  --hardware a5000-2x-24gbvram-16cpu-128gbram \
+  --profile qwen3.6-35b-balanced
+
+# 3. Launch
+sndr launch my-llama3-70b-prod
 ```
 
-Edits:
+Then edit your generated model YAML to set:
 
-```bash
---model meta-llama/Meta-Llama-3-70B-Instruct
---served-model-name llama-3-70b
---quantization awq                            # if AWQ checkpoint
---max-model-len 8192                          # Llama-3 native ctx
---max-num-seqs 8
---gpu-memory-utilization 0.90
+```yaml
+model: meta-llama/Meta-Llama-3-70B-Instruct
+served_model_name: llama-3-70b
+quantization: awq                            # if AWQ checkpoint
+max_model_len: 8192                          # Llama-3 native ctx
+max_num_seqs: 8
+gpu_memory_utilization: 0.90
 
 # Spec-decode:
---speculative-config '{"method": "ngram", "num_speculative_tokens": 5, "prompt_lookup_min": 2, "prompt_lookup_max": 5}'
+speculative_config:
+  method: ngram
+  num_speculative_tokens: 5
+  prompt_lookup_min: 2
+  prompt_lookup_max: 5
 
 # KV cache:
---kv-cache-dtype fp8_e5m2                     # 2× KV capacity, generic patch coverage
+kv_cache_dtype: fp8_e5m2                     # 2× KV capacity, generic patch coverage
 ```
 
 ### Genesis env flags
