@@ -2021,7 +2021,22 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "multi-turn agentic workload (bench_agentic.py), wider "
             "K-range workloads (k1+k4 mixed) where adaptive K saves "
             "cycles vs fixed K=3, 27B Lorbus INT4 preset for "
-            "different drafter-path comparison."
+            "different drafter-path comparison. "
+            "SECOND EMPIRICAL BENCH (2026-06-03, BOTH "
+            "qwen3.6-35b-multiconc + qwen3.6-27b-multiconc presets, "
+            "same pin + same n=25 protocol): 35B Δwall_TPS=-1.66% "
+            "(t=-0.570 p=0.5688 NOT_SIGNIFICANT, OFF=214.04 ON=210.48); "
+            "27B Δwall_TPS=+0.21% (t=+0.088 p=0.9295 NOT_SIGNIFICANT, "
+            "OFF=118.54 ON=118.78). Both qwen3.6-applicable production "
+            "presets confirm K_001 effect indistinguishable from noise "
+            "under short-prompt batched workload. Default OFF empirically "
+            "ratified across full qwen3.6 production scope. Outstanding "
+            "open question: multi-turn agentic workload where per-seq "
+            "SequenceState has room to accumulate hysteresis signal — "
+            "this remains the only viable hypothesis for the +5-12% "
+            "forecast. Evidence: "
+            "evidence/bench/v11.2.0_k001_validation/{35b,27b}_k001_"
+            "{off,on}.json + SUMMARY.md."
         ),
         "applies_to": {
             "spec_decode_method": ["mtp"],
