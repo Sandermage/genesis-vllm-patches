@@ -730,3 +730,139 @@ def test_launch_plan_endpoint_is_read_only_json_contract():
         params={"preset_id": "not-a-real-preset"},
     )
     assert missing.status_code == 404
+
+
+# ─── Container management endpoints ───────────────────────────────────
+
+from vllm.sndr_core.product_api import container_ops as _co  # noqa: E402
+
+
+class _FakeControl:
+    """Stand-in for a ContainerControl backend — records mutating calls."""
+
+    def __init__(self) -> None:
+        self.calls: list = []
+
+    def list_managed(self):
+        return [_co.ManagedContainer(name="vllm-35b-prod", id="abc", image="img",
+                                     state="running", status="Up 2h", ports="8101->8101/tcp",
+                                     created="", labels={})]
+
+    def inspect(self, name):
+        return {"Name": name, "State": {"Running": True}}
+
+    def logs(self, name, *, tail=200):
+        return f"log of {name} (tail={tail})"
+
+    def stats(self, name):
+        return {"cpu_pct": 12.5, "mem_usage": 100, "mem_limit": 1000, "mem_pct": 10.0}
+
+    def start(self, name): self.calls.append(("start", name))
+    def stop(self, name): self.calls.append(("stop", name))
+    def restart(self, name): self.calls.append(("restart", name))
+
+    def exec(self, name, argv, **kw):
+        self.calls.append(("exec", name, list(argv)))
+        return _co.ExecResult(exit_code=0, stdout="done", stderr="")
+
+
+def _patch_local(monkeypatch, control):
+    """Pretend the docker socket is mounted and hand out a fake socket control."""
+    monkeypatch.setattr("vllm.sndr_core.deps.checkers._docker_socket_present", lambda *a, **k: True)
+    monkeypatch.setattr(_co, "SocketContainerControl", lambda **kw: control)
+
+
+def test_containers_list_requires_mounted_socket(monkeypatch):
+    monkeypatch.setattr("vllm.sndr_core.deps.checkers._docker_socket_present", lambda *a, **k: False)
+    resp = _client().get("/api/v1/containers")
+    assert resp.status_code == 503
+    assert "socket" in resp.json()["detail"].lower()
+
+
+def test_containers_list_scoped(monkeypatch):
+    _patch_local(monkeypatch, _FakeControl())
+    resp = _client().get("/api/v1/containers")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["source"] == "socket"
+    assert [c["name"] for c in body["containers"]] == ["vllm-35b-prod"]
+
+
+def test_container_logs_and_stats(monkeypatch):
+    _patch_local(monkeypatch, _FakeControl())
+    c = _client()
+    logs = c.get("/api/v1/containers/vllm-35b-prod/logs", params={"tail": 50})
+    assert logs.status_code == 200 and "tail=50" in logs.json()["logs"]
+    stats = c.get("/api/v1/containers/vllm-35b-prod/stats")
+    assert stats.status_code == 200 and stats.json()["stats"]["cpu_pct"] == 12.5
+
+
+def test_container_action_blocked_when_apply_off(monkeypatch):
+    fake = _FakeControl()
+    _patch_local(monkeypatch, fake)
+    # default app: apply OFF
+    resp = _client().post("/api/v1/containers/vllm-35b-prod/action", json={"action": "restart", "confirm": True})
+    assert resp.status_code == 403
+    assert fake.calls == []  # never reached the backend
+
+
+def test_container_action_runs_when_apply_on(monkeypatch):
+    fake = _FakeControl()
+    _patch_local(monkeypatch, fake)
+    client = TestClient(create_app(allowed_origins=(), enable_apply=True))
+    # confirm required
+    assert client.post("/api/v1/containers/vllm-35b-prod/action", json={"action": "restart"}).status_code == 400
+    ok = client.post("/api/v1/containers/vllm-35b-prod/action", json={"action": "restart", "confirm": True})
+    assert ok.status_code == 200 and ok.json()["action"] == "restart"
+    assert ("restart", "vllm-35b-prod") in fake.calls
+
+
+def test_container_action_rejects_foreign_container(monkeypatch):
+    fake = _FakeControl()
+    # real control would raise NotManagedError; simulate by using the real socket
+    # control path is hard here, so assert the unsupported-name guard via a real
+    # backend call: use a control that raises.
+    class _Guarding(_FakeControl):
+        def restart(self, name):
+            raise _co.NotManagedError(f"container not managed by SNDR: {name!r}")
+    _patch_local(monkeypatch, _Guarding())
+    client = TestClient(create_app(allowed_origins=(), enable_apply=True))
+    resp = client.post("/api/v1/containers/postgres/action", json={"action": "restart", "confirm": True})
+    assert resp.status_code == 403
+
+
+def test_container_exec_requires_exec_flag(monkeypatch):
+    fake = _FakeControl()
+    _patch_local(monkeypatch, fake)
+    client = TestClient(create_app(allowed_origins=(), enable_apply=True))
+    # apply on but EXEC off → blocked
+    blocked = client.post("/api/v1/containers/vllm-35b-prod/exec", json={"argv": ["ls"], "confirm": True})
+    assert blocked.status_code == 403
+    assert fake.calls == []
+    # turn EXEC on
+    monkeypatch.setenv("SNDR_ENABLE_EXEC", "1")
+    ok = client.post("/api/v1/containers/vllm-35b-prod/exec", json={"argv": ["echo", "hi"], "confirm": True})
+    assert ok.status_code == 200 and ok.json()["exit_code"] == 0
+    assert ("exec", "vllm-35b-prod", ["echo", "hi"]) in fake.calls
+
+
+def test_container_exec_validates_argv(monkeypatch):
+    _patch_local(monkeypatch, _FakeControl())
+    monkeypatch.setenv("SNDR_ENABLE_EXEC", "1")
+    client = TestClient(create_app(allowed_origins=(), enable_apply=True))
+    bad = client.post("/api/v1/containers/vllm-35b-prod/exec", json={"argv": "ls", "confirm": True})
+    assert bad.status_code == 400
+
+
+def test_host_containers_unknown_host_404():
+    resp = _client().get("/api/v1/hosts/does-not-exist/containers")
+    assert resp.status_code == 404
+
+
+def test_container_endpoints_registered():
+    paths = _client().get("/openapi.json").json()["paths"]
+    assert "/api/v1/containers" in paths
+    assert "/api/v1/containers/{name}/action" in paths
+    assert "/api/v1/containers/{name}/exec" in paths
+    assert "/api/v1/hosts/{host_id}/containers" in paths
+    assert "/api/v1/hosts/{host_id}/containers/{name}/exec" in paths
