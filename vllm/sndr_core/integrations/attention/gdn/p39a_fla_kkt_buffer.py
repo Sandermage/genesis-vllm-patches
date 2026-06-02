@@ -39,10 +39,33 @@ import logging
 from typing import Any
 
 from vllm.sndr_core.detection.guards import is_nvidia_cuda, is_sm_at_least
+# v11.1.0 P3.3: surface the FLA KKT persistent A pool through
+# PersistentBufferRegistry so operators can `sndr patches show
+# buffer_registry` and see this pool listed. Byte-equivalent — the
+# actual torch.empty() still happens inside FlaKktBufferManager.acquire
+# (allocate-once-keep-forever, pointer-stable via the
+# reserve-before-cudagraph pattern). The registry hook only exposes
+# the pool name; tensor storage ownership is unchanged.
+from vllm.sndr_core.runtime.persistent_buffer_registry import (
+    PersistentBufferRegistry,
+    POOL_FLA_KKT_PERSISTENT_A,
+)
 
 log = logging.getLogger("genesis.wiring.p39a_fla_kkt")
 
 _GENESIS_P39A_MARKER_ATTR = "_genesis_p39a_wrapped"
+
+
+def ensure_pool_registered() -> None:
+    """Idempotent registry hook — exposes POOL_FLA_KKT_PERSISTENT_A in
+    PersistentBufferRegistry for operator visibility. No allocation,
+    no behavior change.
+
+    The real FLA KKT `A` tensor (B, T, H, BT, fp32) is owned by
+    vllm.sndr_core.kernels.fla_kkt_buffer.FlaKktBufferManager via the
+    reserve-before-cudagraph pattern (P39b).
+    """
+    PersistentBufferRegistry().get_pool(POOL_FLA_KKT_PERSISTENT_A)
 
 # Module paths we target. Primary + candidates for future renames.
 _CANDIDATE_MODULE_PATHS = (
@@ -147,6 +170,13 @@ def apply() -> tuple[str, str]:
         from vllm.sndr_core.kernels.fla_kkt_buffer import FlaKktBufferManager
     except Exception as e:
         return "failed", f"kernel import failed: {e}"
+
+    # v11.1.0 P3.3: expose the pool name in the registry — no allocation,
+    # purely operator-visibility surface.
+    try:
+        ensure_pool_registered()
+    except Exception as e:
+        log.debug("[P39a] registry pool registration failed (proceeding): %s", e)
 
     # P39b: resolve `max_num_batched_tokens` + `max_num_seqs` ONCE at
     # apply time so the pool can be grown to its final size on the very
