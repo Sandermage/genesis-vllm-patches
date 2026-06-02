@@ -924,6 +924,40 @@ function query(params: Record<string, string | number | boolean | undefined | nu
   return value ? `?${value}` : "";
 }
 
+// ─── Container management ────────────────────────────────────────────
+export interface ManagedContainer {
+  name: string;
+  id: string;
+  image: string;
+  state: string;
+  status: string;
+  ports: string;
+  created: string;
+  labels: Record<string, string>;
+}
+export interface ContainerStats {
+  cpu_pct: number;
+  mem_usage: number;
+  mem_limit: number;
+  mem_pct: number;
+}
+export interface ContainerExecResult {
+  ok: boolean;
+  container: string;
+  exit_code: number;
+  stdout: string;
+  stderr: string;
+}
+export type ContainerAction = "start" | "stop" | "restart";
+
+// A container source: the local daemon's host (socket) or a registered host (SSH).
+export type ContainerSource = { kind: "local" } | { kind: "host"; hostId: string };
+function containerBase(src: ContainerSource): string {
+  return src.kind === "host"
+    ? `/api/v1/hosts/${encodeURIComponent(src.hostId)}/containers`
+    : "/api/v1/containers";
+}
+
 export const api = {
   get baseUrl() {
     return getApiBase();
@@ -1193,5 +1227,21 @@ export const api = {
   updateCheck: () => request<UpdateCheck>("/api/v1/update/check"),
   updatePlan: (target_pin?: string) => postJson<UpdatePlan>("/api/v1/update/plan", { target_pin }),
   updateApply: (confirm: boolean, target_pin?: string) => postJson<UpdateApplyResult>("/api/v1/update/apply", { confirm, target_pin }),
-  hostInventory: () => request<HostInventory>("/api/v1/host/inventory")
+  hostInventory: () => request<HostInventory>("/api/v1/host/inventory"),
+
+  // Container management — one shape over both transports (local socket / host SSH).
+  containers: (src: ContainerSource) =>
+    request<{ containers: ManagedContainer[]; source: string }>(containerBase(src)),
+  containerInspect: (src: ContainerSource, name: string) =>
+    request<Record<string, unknown>>(`${containerBase(src)}/${encodeURIComponent(name)}`),
+  containerLogs: (src: ContainerSource, name: string, tail = 200) =>
+    request<{ container: string; logs: string }>(`${containerBase(src)}/${encodeURIComponent(name)}/logs${query({ tail })}`),
+  containerStats: (src: ContainerSource, name: string) =>
+    request<{ container: string; stats: ContainerStats }>(`${containerBase(src)}/${encodeURIComponent(name)}/stats`),
+  containerAction: (src: ContainerSource, name: string, action: ContainerAction) =>
+    postJson<{ ok: boolean; action: string; container: string }>(
+      `${containerBase(src)}/${encodeURIComponent(name)}/action`, { action, confirm: true }),
+  containerExec: (src: ContainerSource, name: string, argv: string[]) =>
+    postJson<ContainerExecResult>(
+      `${containerBase(src)}/${encodeURIComponent(name)}/exec`, { argv, confirm: true })
 };
