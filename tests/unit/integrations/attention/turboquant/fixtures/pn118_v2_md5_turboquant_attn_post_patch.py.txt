@@ -1,0 +1,2027 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: Copyright contributors to the vLLM project
+"""TurboQuant attention backend for vLLM.
+
+Prefill: Standard scaled dot-product attention on uncompressed K/V,
+         then quantize K and store K+V into combined cache slot.
+Decode:  Compute TQ attention scores from compressed cache,
+         unpack FP16 values, softmax + weighted sum.
+
+Cache layout (no leading 2 dimension):
+  (num_blocks, block_size, num_kv_heads, slot_size)
+  where slot_size = key_packed_size + value_fp16_size
+
+Per-head per-position slot layout:
+  [key_packed (kps bytes) | value_fp16 (D*2 bytes)]
+  For turboquant_k3v4_nc head_dim=256: [100 bytes key | 512 bytes value] = 612
+"""
+
+import functools
+import math
+from dataclasses import dataclass
+from typing import Any, ClassVar
+
+import torch
+import torch.nn.functional as F
+
+from vllm.config import get_current_vllm_config
+from vllm.config.cache import CacheDType
+from vllm.model_executor.layers.quantization.turboquant.centroids import (
+    get_centroids,
+)
+from vllm.platforms.interface import DeviceCapability
+from vllm.triton_utils import triton
+from vllm.v1.attention.backend import (
+    AttentionBackend,
+    AttentionCGSupport,
+    AttentionImpl,
+    AttentionLayer,
+    AttentionMetadata,
+    AttentionMetadataBuilder,
+    AttentionType,
+    CommonAttentionMetadata,
+    MultipleOf,
+)
+from vllm.v1.attention.backends.fa_utils import (
+    get_flash_attn_version,
+    is_flash_attn_varlen_func_available,
+)
+from vllm.v1.attention.backends.utils import split_decodes_and_prefills
+from vllm.v1.attention.ops.triton_turboquant_decode import (
+    _tq_full_dequant_kv,
+    _use_fp8_e4b15,
+    triton_turboquant_decode_attention,
+)
+from vllm.v1.attention.ops.triton_turboquant_store import triton_turboquant_store
+from vllm.v1.worker.workspace import (
+    current_workspace_manager,
+    is_workspace_manager_initialized,
+)
+
+_HAS_FLASH_ATTN = is_flash_attn_varlen_func_available()
+if _HAS_FLASH_ATTN:
+    from vllm.v1.attention.backends.fa_utils import flash_attn_varlen_func
+
+# Continuation prefill: for small continuation chunks (q_len ≤ threshold),
+# use the TQ decode kernel directly instead of full-dequant + flash_attn.
+# do_kv_cache_update already stored all tokens to TQ cache, so the decode
+# kernel can read them efficiently. This avoids O(cached_len) dequant work
+# per continuation, eliminating the O(N²/chunk_size) collapse at long context.
+_CONTINUATION_DECODE_THRESHOLD = 128
+
+
+def _get_turboquant_decode_workspace_shapes(
+    *,
+    batch_size: int,
+    num_heads: int,
+    head_size: int,
+    max_num_kv_splits: int,
+) -> tuple[tuple[tuple[int, ...], torch.dtype], ...]:
+    return (
+        ((batch_size, num_heads, max_num_kv_splits, head_size + 1), torch.float32),
+        ((batch_size, num_heads, head_size), torch.float32),
+        ((batch_size, num_heads), torch.float32),
+    )
+
+
+def _get_turboquant_dequant_workspace_cache_len(
+    *,
+    vllm_config: Any,
+    sliding_window: int | None,
+) -> int:
+    max_model_len = vllm_config.model_config.max_model_len
+    dcp_world_size = vllm_config.parallel_config.decode_context_parallel_size
+    pcp_world_size = vllm_config.parallel_config.prefill_context_parallel_size
+    parallel_size = dcp_world_size * pcp_world_size
+    if parallel_size > 1:
+        max_model_len = (max_model_len + parallel_size - 1) // parallel_size
+    if sliding_window is not None:
+        return min(max_model_len, sliding_window)
+    return max_model_len
+
+
+def _get_turboquant_dequant_workspace_shapes(
+    *,
+    cache_len: int,
+    block_size: int,
+    num_kv_heads: int,
+    head_size: int,
+) -> tuple[tuple[tuple[int, ...], torch.dtype], ...]:
+    alloc_len = math.ceil(cache_len / block_size) * block_size
+    buf_shape = (1, num_kv_heads, alloc_len, head_size)
+    return (
+        (buf_shape, torch.float16),
+        (buf_shape, torch.float16),
+    )
+
+
+def reserve_turboquant_decode_workspace(
+    *,
+    vllm_config: Any,
+    num_heads: int,
+    head_size: int,
+) -> bool:
+    """Pre-grow WorkspaceManager for TurboQuant decode scratch buffers."""
+    if not is_workspace_manager_initialized():
+        return False
+
+    batch_size = max(
+        vllm_config.scheduler_config.max_num_seqs,
+        _CONTINUATION_DECODE_THRESHOLD,
+    )
+    max_num_kv_splits = vllm_config.attention_config.tq_max_kv_splits_for_cuda_graph
+    current_workspace_manager().get_simultaneous(
+        *_get_turboquant_decode_workspace_shapes(
+            batch_size=batch_size,
+            num_heads=num_heads,
+            head_size=head_size,
+            max_num_kv_splits=max_num_kv_splits,
+        )
+    )
+    return True
+
+
+def reserve_turboquant_dequant_workspace(
+    *,
+    vllm_config: Any,
+    num_kv_heads: int,
+    head_size: int,
+    sliding_window: int | None,
+) -> bool:
+    """Pre-grow WorkspaceManager for cached K/V dequant scratch buffers."""
+    if not is_workspace_manager_initialized():
+        return False
+
+    cache_len = _get_turboquant_dequant_workspace_cache_len(
+        vllm_config=vllm_config,
+        sliding_window=sliding_window,
+    )
+    current_workspace_manager().get_simultaneous(
+        *_get_turboquant_dequant_workspace_shapes(
+            cache_len=cache_len,
+            block_size=vllm_config.cache_config.block_size,
+            num_kv_heads=num_kv_heads,
+            head_size=head_size,
+        )
+    )
+    return True
+
+
+def _build_hadamard(d: int, device_str: str) -> torch.Tensor:
+    """Orthonormal Hadamard matrix (Sylvester construction), cached per (d, device).
+
+    Precomputed D×D matrix enables matmul-based WHT — single cuBLAS GEMM
+    instead of log2(D) butterfly kernel launches. 64KB for D=128.
+    """
+    # Normalize device string so "cuda" and "cuda:0" hit the same cache entry.
+    return _build_hadamard_cached(d, str(torch.device(device_str)))
+
+
+@functools.cache
+def _build_hadamard_cached(d: int, device_str: str) -> torch.Tensor:
+    H = torch.tensor([[1.0]])
+    while H.shape[0] < d:
+        H = torch.cat([torch.cat([H, H], 1), torch.cat([H, -H], 1)], 0)
+    return (H / math.sqrt(d)).to(torch.device(device_str))
+
+
+class TurboQuantAttentionBackend(AttentionBackend):
+    """Attention backend using TurboQuant KV-cache compression."""
+
+    accept_output_buffer: bool = True
+    forward_includes_kv_cache_update: bool = False
+
+    supported_dtypes: ClassVar[list[torch.dtype]] = [
+        torch.float16,
+        torch.bfloat16,
+    ]
+    supported_kv_cache_dtypes: ClassVar[list[CacheDType]] = [
+        "turboquant_k8v4",
+        "turboquant_4bit_nc",
+        "turboquant_k3v4_nc",
+        "turboquant_3bit_nc",
+    ]
+
+    @staticmethod
+    def get_name() -> str:
+        return "TURBOQUANT"
+
+    @staticmethod
+    def get_supported_kernel_block_sizes() -> list[int | MultipleOf]:
+        return [16, 32, 64, 128]
+
+    @classmethod
+    def supports_attn_type(cls, attn_type: str) -> bool:
+        return attn_type == AttentionType.DECODER
+
+    @classmethod
+    def supports_per_head_quant_scales(cls) -> bool:
+        return False
+
+    @classmethod
+    def supports_mm_prefix(cls) -> bool:
+        return True
+
+    @staticmethod
+    def get_impl_cls() -> type["TurboQuantAttentionImpl"]:
+        return TurboQuantAttentionImpl
+
+    @staticmethod
+    def get_builder_cls() -> type["TurboQuantMetadataBuilder"]:
+        return TurboQuantMetadataBuilder
+
+    @staticmethod
+    def get_kv_cache_shape(
+        num_blocks: int,
+        block_size: int,
+        num_kv_heads: int,
+        head_size: int,
+        cache_dtype_str: str = "turboquant_4bit_nc",
+    ) -> tuple[int, ...]:
+        """Combined K+V cache shape — no leading 2 dimension.
+
+        Standard attention backends use (2, num_blocks, block_size, num_kv_heads,
+        head_dim) with a leading 2 to separate K and V. TurboQuant packs K+V
+        into a single interleaved slot per head per position, so the cache is:
+
+            (num_blocks, block_size, num_kv_heads, slot_size_aligned)
+
+        Each slot = [key_packed | value_packed | padding].
+        This is safe because TQ has its own get_kv_cache_shape override and
+        never shares cache tensors with other backends. Layers that fall back
+        to native dtype via kv_cache_dtype_skip_layers get their own
+        standard-shaped cache allocation.
+
+        head_size is the model's real head_dim. slot_size_aligned is computed
+        from the TQ config to ensure correct cache allocation for all head dims.
+        """
+        from vllm.model_executor.layers.quantization.turboquant.config import (
+            TurboQuantConfig,
+        )
+
+        tq_config = TurboQuantConfig.from_cache_dtype(cache_dtype_str, head_size)
+        return (num_blocks, block_size, num_kv_heads, tq_config.slot_size_aligned)
+
+    @classmethod
+    def supports_kv_cache_dtype(cls, kv_cache_dtype: CacheDType | None) -> bool:
+        if kv_cache_dtype is None:
+            return False
+        return kv_cache_dtype in cls.supported_kv_cache_dtypes
+
+    @classmethod
+    def supports_combination(
+        cls,
+        head_size: int,
+        dtype: torch.dtype,
+        kv_cache_dtype: CacheDType | None,
+        block_size: int | None,
+        use_mla: bool,
+        has_sink: bool,
+        use_sparse: bool,
+        device_capability: DeviceCapability,
+    ) -> str | None:
+        if kv_cache_dtype == "turboquant_k8v4" and head_size > 256:
+            return "turboquant_k8v4 requires FlashAttention-compatible head_size <= 256"
+        return None
+
+    @classmethod
+    def supports_head_size(cls, head_size: int) -> bool:
+        # head_size from spec is effective_head_size (padded_slot//2),
+        # not the model's actual head_dim. Accept any positive value.
+        return head_size > 0
+
+
+@dataclass
+class TurboQuantMetadata(AttentionMetadata):
+    """Metadata for TurboQuant attention."""
+
+    seq_lens: torch.Tensor  # (num_reqs,) — total context length per request
+    slot_mapping: torch.Tensor  # (num_tokens,) — cache slot for each token
+    block_table: torch.Tensor  # (num_reqs, max_num_blocks)
+    query_start_loc: torch.Tensor  # (num_reqs + 1,) — cu_seqlens for queries
+    num_actual_tokens: int = 0  # actual tokens (excluding padding)
+    max_query_len: int = 0  # longest query in batch
+    max_seq_len: int = 0  # longest context in batch
+    is_prefill: bool = False
+    num_decodes: int = 0  # number of decode requests (first in batch)
+    num_decode_tokens: int = 0  # tokens from decode requests
+    # CPU-resident copies used by the prefill path for per-request iteration
+    # without per-step D2H syncs.
+    query_start_loc_cpu: torch.Tensor | None = None
+    seq_lens_cpu: torch.Tensor | None = None
+    mm_prefix_range: dict[int, list[tuple[int, int]]] | None = None
+    mm_prefix_range_tensor: torch.Tensor | None = None
+
+
+class TurboQuantMetadataBuilder(AttentionMetadataBuilder[TurboQuantMetadata]):
+    """Builds TurboQuantMetadata from scheduler output."""
+
+    # [Genesis P65 v2 inlined for PR #42637 overlay — see
+    # vllm/sndr_core/integrations/attention/turboquant/p65_turboquant_spec_cg_downgrade.py]
+    # Context-aware cudagraph support downgrade. Keep UNIFORM_BATCH as the
+    # ClassVar default (full capabilities for non-spec-decode setups), and
+    # override `get_cudagraph_support` classmethod to downgrade to
+    # UNIFORM_SINGLE_TOKEN_DECODE only when speculative_config is active.
+    #
+    # Under spec-decode, K+1 batches hit the cache-read continuation route in
+    # _decode_prefill_from_cache that assumes current K+1 K/V rows are already
+    # written to TQ cache (PN255 proved no observable writes happen). The
+    # captured CUDA graph replays this broken route and the Python-level PN256
+    # fix never executes (PN256 route log shows 0 target language_model fires
+    # under cudagraph mode, 960 under --enforce-eager). The downgrade forces
+    # spec-verify K+1 batches to eager so PN256's raw-KV _continuation_prefill
+    # route takes effect for target's K+1 verify.
+    #
+    # NOTE: vLLM compilation.py:1356 globally flips cudagraph_mode to
+    # PIECEWISE when our backend declares < UNIFORM_BATCH AND uniform_decode
+    # _query_len > 1. So under spec-decode this also affects 1-token decode.
+    # A finer-grained per-batch dispatch would require upstream architecture
+    # change or the proper raw-KV-aware multi-query kernel.
+    # Reference: noonghunna #40880 + Genesis investigation 2026-04-25 +
+    # PN255/PN256/PN257 cycle 2026-05-18.
+    _cudagraph_support: ClassVar[AttentionCGSupport] = AttentionCGSupport.UNIFORM_BATCH
+
+    @classmethod
+    def get_cudagraph_support(
+        cls,
+        vllm_config,
+        kv_cache_spec,
+    ) -> AttentionCGSupport:
+        """[Genesis P65 v2] Context-aware downgrade for spec-decode only."""
+        import os as _os_p65
+        if (
+            _os_p65.environ.get(
+                "GENESIS_ENABLE_P65_TURBOQUANT_SPEC_CG_DOWNGRADE", ""
+            ).strip() == "1"
+            and vllm_config.speculative_config is not None
+        ):
+            return AttentionCGSupport.UNIFORM_SINGLE_TOKEN_DECODE
+        return cls._cudagraph_support
+
+    def __init__(self, kv_cache_spec, layer_names, vllm_config, device):
+        super().__init__(kv_cache_spec, layer_names, vllm_config, device)
+        # PR #42637 declares supports_spec_as_decode=False. PN243 (flip to
+        # True) was attempted 2026-05-18 → crashes with empty-tensor max()
+        # because TQ metadata builder doesn't yet handle K+1 multi-query
+        # decode. Variant B per docs/_internal/GEMMA4_TQ_MTP_G4_67_
+        # DIAGNOSIS_2026-05-18_RU.md — requires kernel/metadata changes.
+        # Keep False for now; MTP×TQ degenerate output remains a known
+        # issue tracked for follow-up.
+        self._init_reorder_batch_threshold(1, supports_spec_as_decode=False)
+
+    def build_for_cudagraph_capture(
+        self, common_attn_metadata: CommonAttentionMetadata
+    ) -> TurboQuantMetadata:
+        attn_metadata = self.build(0, common_attn_metadata)
+        # Set seq_lens to 1 so CUDA graph capture is fast
+        # (real seq_lens are filled at replay time).
+        attn_metadata.seq_lens.fill_(1)
+        return attn_metadata
+
+    def build(self, common_prefix_len, common_attn_metadata, fast_build=False):
+        """Build TurboQuantMetadata from common attention metadata."""
+        cam = common_attn_metadata
+
+        # With reorder_batch_threshold=1, the model runner guarantees
+        # decodes come first in the batch. split_decodes_and_prefills
+        # finds the boundary (operates on CPU tensors — no GPU sync).
+        assert self.reorder_batch_threshold is not None
+        num_decodes, num_prefills, num_decode_tokens, _ = split_decodes_and_prefills(
+            cam, decode_threshold=self.reorder_batch_threshold
+        )
+
+        return TurboQuantMetadata(
+            seq_lens=cam.seq_lens,
+            slot_mapping=cam.slot_mapping,
+            block_table=cam.block_table_tensor,
+            query_start_loc=cam.query_start_loc,
+            num_actual_tokens=cam.num_actual_tokens,
+            max_query_len=cam.max_query_len,
+            max_seq_len=cam.max_seq_len,
+            is_prefill=(cam.max_query_len > 1),
+            num_decodes=num_decodes,
+            num_decode_tokens=num_decode_tokens,
+            query_start_loc_cpu=cam.query_start_loc_cpu,
+            seq_lens_cpu=cam.seq_lens_cpu_upper_bound,
+        )
+
+
+class TurboQuantAttentionImpl(AttentionImpl["TurboQuantMetadata"]):
+    """TurboQuant attention implementation.
+
+    Vectorized PyTorch: batch quantize/store, vectorized bit-unpack
+    decode with einsum scores and value gather.
+    """
+
+    supports_quant_query_input: bool = False
+
+    def __init__(
+        self,
+        num_heads: int,
+        head_size: int,
+        scale: float,
+        num_kv_heads: int | None = None,
+        alibi_slopes: list[float] | None = None,
+        sliding_window: int | None = None,
+        kv_cache_dtype: str = "auto",
+        logits_soft_cap: float | None = None,
+        attn_type: str = AttentionType.DECODER,
+        kv_sharing_target_layer_name: str | None = None,
+        **kwargs,
+    ):
+        self.num_heads = num_heads
+        self.head_size = head_size
+        self.scale = scale
+        self.num_kv_heads = num_kv_heads if num_kv_heads is not None else num_heads
+        self.num_kv_groups = num_heads // self.num_kv_heads
+        self.kv_cache_dtype = kv_cache_dtype
+        self.sliding_window = sliding_window
+        self.kv_sharing_target_layer_name = kv_sharing_target_layer_name
+
+        # [Genesis PN261 diagnostic] Log every TurboQuantAttentionImpl
+        # instantiation — captures prefix (so we see drafter vs target),
+        # kv_cache_dtype, kv_sharing_target_layer_name, head_size,
+        # sliding_window. Capped at 80 hits to keep log bounded. Env-gated.
+        import os as _os_pn261_init
+        if _os_pn261_init.environ.get(
+            "GENESIS_ENABLE_PN261_TQ_IMPL_INIT_TRACE", ""
+        ).strip().lower() in ("1", "true", "yes", "on"):
+            _pn261_hits = getattr(
+                TurboQuantAttentionImpl, "_pn261_init_hits", 0
+            )
+            if _pn261_hits < 80:
+                TurboQuantAttentionImpl._pn261_init_hits = _pn261_hits + 1
+                _pn261_prefix = kwargs.get("prefix") or kwargs.get("layer_name") or "?"
+                try:
+                    with open("/tmp/genesis_pn261_tq_impl_init.log", "a") as _f:
+                        _f.write(
+                            f"[PN261 TQ-impl-init {_pn261_hits + 1}] "
+                            f"prefix={_pn261_prefix!r} "
+                            f"kv_cache_dtype={kv_cache_dtype!r} "
+                            f"kv_sharing_target={kv_sharing_target_layer_name!r} "
+                            f"head_size={head_size} "
+                            f"num_heads={num_heads} "
+                            f"num_kv_heads={num_kv_heads} "
+                            f"sliding_window={sliding_window} "
+                            f"attn_type={attn_type}\n"
+                        )
+                except Exception:
+                    pass
+
+        from vllm.model_executor.layers.quantization.turboquant.config import (
+            TurboQuantConfig,
+        )
+
+        self.tq_config = TurboQuantConfig.from_cache_dtype(kv_cache_dtype, head_size)
+
+        # Pre-compute kernel constants from config (avoid repeated arithmetic)
+        cfg = self.tq_config
+        self._mse_bytes = (
+            math.ceil(head_size * cfg.key_mse_bits / 8)
+            if not cfg.key_fp8
+            else head_size
+        )
+        self._val_data_bytes = math.ceil(head_size * cfg.effective_value_quant_bits / 8)
+        self._n_centroids = cfg.n_centroids if not cfg.key_fp8 else 1
+
+        # Detect flash-attn version (FA2/3/4) for prefill paths.
+        self.fa_version = get_flash_attn_version(head_size=head_size)
+        # vllm_flash_attn rejects head dimensions above 256 at runtime.
+        # Gemma4 global-attention layers use global_head_dim=512, so TQ must
+        # fall back to SDPA for those prefill/continuation paths.
+        self._can_use_flash_attn = _HAS_FLASH_ATTN and head_size <= 256
+
+        # Fixed NUM_KV_SPLITS (grid dims must be constant for cudagraph,
+        # and benchmarks show no regression vs dynamic in eager mode).
+        vllm_config = get_current_vllm_config()
+        self.max_num_kv_splits = (
+            vllm_config.attention_config.tq_max_kv_splits_for_cuda_graph
+        )
+        reserve_turboquant_decode_workspace(
+            vllm_config=vllm_config,
+            num_heads=self.num_heads,
+            head_size=self.head_size,
+        )
+        reserve_turboquant_dequant_workspace(
+            vllm_config=vllm_config,
+            num_kv_heads=self.num_kv_heads,
+            head_size=self.head_size,
+            sliding_window=self.sliding_window,
+        )
+
+    def _flash_attn_varlen(
+        self,
+        q: torch.Tensor,
+        k: torch.Tensor,
+        v: torch.Tensor,
+        cu_seqlens_q: torch.Tensor,
+        cu_seqlens_k: torch.Tensor,
+        max_seqlen_q: int,
+        max_seqlen_k: int,
+    ) -> torch.Tensor:
+        # fa_utils.get_flash_attn_version() returns None on backends that
+        # should not pass an explicit fa_version kwarg.
+        if self.fa_version is None:
+            return flash_attn_varlen_func(
+                q=q,
+                k=k,
+                v=v,
+                cu_seqlens_q=cu_seqlens_q,
+                cu_seqlens_k=cu_seqlens_k,
+                max_seqlen_q=max_seqlen_q,
+                max_seqlen_k=max_seqlen_k,
+                softmax_scale=self.scale,
+                causal=True,
+            )
+        return flash_attn_varlen_func(
+            q=q,
+            k=k,
+            v=v,
+            cu_seqlens_q=cu_seqlens_q,
+            cu_seqlens_k=cu_seqlens_k,
+            max_seqlen_q=max_seqlen_q,
+            max_seqlen_k=max_seqlen_k,
+            softmax_scale=self.scale,
+            causal=True,
+            fa_version=self.fa_version,
+        )
+
+    def _needs_sliding_window_mask(self, seq_len: int) -> bool:
+        return self.sliding_window is not None and seq_len > self.sliding_window
+
+    def _can_use_flash_prefill(
+        self,
+        seq_len: int,
+        mm_prefix_ranges: torch.Tensor | None,
+    ) -> bool:
+        return (
+            self._can_use_flash_attn
+            and not self._needs_sliding_window_mask(seq_len)
+            and mm_prefix_ranges is None
+        )
+
+    def _get_arange_cache(
+        self,
+        max_value: int,
+        *,
+        device: torch.device,
+        dtype: torch.dtype,
+    ) -> torch.Tensor:
+        arange_cache: torch.Tensor | None = getattr(self, "_arange_cache", None)
+        if (
+            arange_cache is None
+            or arange_cache.shape[0] <= max_value
+            or arange_cache.device != device
+            or arange_cache.dtype != dtype
+        ):
+            arange_cache = torch.arange(
+                0,
+                max_value + 1,
+                device=device,
+                dtype=dtype,
+            )
+            self._arange_cache = arange_cache
+        return arange_cache
+
+    def _get_mm_prefix_ranges(
+        self,
+        attn_metadata: TurboQuantMetadata,
+        req_idx: int,
+    ) -> torch.Tensor | None:
+        mm_prefix_range_tensor = getattr(attn_metadata, "mm_prefix_range_tensor", None)
+        if mm_prefix_range_tensor is None:
+            return None
+        return mm_prefix_range_tensor[req_idx]
+
+    def _sdpa_with_causal_and_sliding_mask(
+        self,
+        query: torch.Tensor,
+        key: torch.Tensor,
+        value: torch.Tensor,
+        *,
+        query_start_pos: int,
+        mm_prefix_ranges: torch.Tensor | None = None,
+    ) -> torch.Tensor:
+        """Run SDPA with causal/sliding mask and optional mm-prefix ranges."""
+        q_len = query.shape[0]
+        kv_len = key.shape[0]
+        device = query.device
+        q_t = query.transpose(0, 1).unsqueeze(0)
+        k_t = key.transpose(0, 1).unsqueeze(0)
+        v_t = value.transpose(0, 1).unsqueeze(0)
+
+        q_pos = torch.arange(q_len, device=device).unsqueeze(1) + query_start_pos
+        k_pos = torch.arange(kv_len, device=device).unsqueeze(0)
+        mask = k_pos <= q_pos
+        if self.sliding_window is not None:
+            mask = mask & ((q_pos - k_pos) < self.sliding_window)
+        if mm_prefix_ranges is not None:
+            starts = mm_prefix_ranges[:, 0]
+            ends = mm_prefix_ranges[:, 1]
+            valid = starts < ends
+            q_in_range = (
+                (q_pos[..., None] >= starts) & (q_pos[..., None] <= ends) & valid
+            )
+            k_in_range = (
+                (k_pos[..., None] >= starts) & (k_pos[..., None] <= ends) & valid
+            )
+            mask = mask | (q_in_range & k_in_range).any(dim=-1)
+
+        out = F.scaled_dot_product_attention(
+            q_t,
+            k_t,
+            v_t,
+            attn_mask=mask,
+            scale=self.scale,
+            enable_gqa=(key.shape[1] < query.shape[1]),
+        )
+        return out[0].transpose(0, 1)
+
+    def _sdpa_causal_prefill(
+        self,
+        query: torch.Tensor,
+        key: torch.Tensor,
+        value: torch.Tensor,
+    ) -> torch.Tensor:
+        q_t = query.transpose(0, 1).unsqueeze(0)
+        k_t = key.transpose(0, 1).unsqueeze(0)
+        v_t = value.transpose(0, 1).unsqueeze(0)
+        out = F.scaled_dot_product_attention(
+            q_t,
+            k_t,
+            v_t,
+            is_causal=True,
+            scale=self.scale,
+            enable_gqa=(key.shape[1] < query.shape[1]),
+        )
+        return out[0].transpose(0, 1)
+
+    def _decode_prefill_from_cache(
+        self,
+        query: torch.Tensor,
+        kv_cache: torch.Tensor,
+        block_table: torch.Tensor,
+        *,
+        query_start_pos: int,
+        Pi: torch.Tensor,
+        centroids: torch.Tensor,
+        PiT: torch.Tensor | None = None,
+        mm_prefix_ranges: torch.Tensor | None = None,
+        seq_lens_dtype: torch.dtype = torch.int32,
+        layer: Any = None,
+    ) -> torch.Tensor:
+        q_len, Hq, D = query.shape
+        out = torch.empty_like(query)
+        arange_cache = self._get_arange_cache(
+            query_start_pos + q_len,
+            device=query.device,
+            dtype=seq_lens_dtype,
+        )
+
+        # GENESIS DIAG: log decode-prefill-from-cache entry.
+        # Never log while CUDA graph capture is active: .tolist() and file I/O
+        # can invalidate capture, surfacing later as cudaErrorStreamCaptureInvalidated.
+        import os as _os
+        _diag = _os.environ.get("GENESIS_TQ_FORWARD_DIAG", "").strip() == "1"
+        if _diag and torch.cuda.is_available():
+            try:
+                _diag = not torch.cuda.is_current_stream_capturing()
+            except Exception:
+                _diag = False
+        if _diag:
+            try:
+                with open("/tmp/genesis_tq_forward.log", "a") as _f:
+                    _f.write(
+                        f"[decode_prefill_from_cache] q.shape={tuple(query.shape)} "
+                        f"query_start_pos={query_start_pos} q_len={q_len} D={D} Hq={Hq} "
+                        f"block_table.shape={tuple(block_table.shape)} "
+                        f"mm_prefix={mm_prefix_ranges is not None}\n"
+                    )
+            except Exception:
+                pass
+
+        for chunk_start in range(0, q_len, _CONTINUATION_DECODE_THRESHOLD):
+            chunk_end = min(chunk_start + _CONTINUATION_DECODE_THRESHOLD, q_len)
+            chunk = query[chunk_start:chunk_end]
+            chunk_len = chunk_end - chunk_start
+            synth_seq_lens = arange_cache[
+                query_start_pos + chunk_start + 1 : query_start_pos + chunk_end + 1
+            ]
+            # [Genesis PN253 — clean stride-0 fix per P2 plan]
+            # `block_table.expand(chunk_len, -1)` produces a stride-0 view on
+            # batch dim. The TQ Triton decode kernel reads `block_table[bid, ...]`
+            # via `bid * stride_bt_b`; with stride 0 ALL chunk rows fetch the
+            # same K/V blocks. For q_len=1 decode this is correct, but for
+            # multi-query continuation prefill (K+1 MTP verify path) it is the
+            # suspected source of degenerate row-0 logits.
+            #
+            # Use `repeat_interleave().contiguous()` to materialise a real
+            # (chunk_len, max_num_blocks) tensor with proper row stride while
+            # keeping the SAME block IDs per row (semantically identical to
+            # `.expand()` but with safe memory layout for the kernel).
+            #
+            # Preserves all other kwargs (sliding_window, mm_prefix_range,
+            # PiT, buffers, etc.) — this is a one-line, isolated A/B test
+            # vs. G4_67's whole-route replacement.
+            synth_block_table = (
+                block_table
+                .repeat_interleave(chunk_len, dim=0)
+                .contiguous()
+            )
+            if _diag:
+                try:
+                    with open("/tmp/genesis_tq_forward.log", "a") as _f:
+                        _f.write(
+                            f"  chunk[{chunk_start}:{chunk_end}] chunk_len={chunk_len} "
+                            f"synth_seq_lens={synth_seq_lens.tolist()} "
+                            f"synth_block_table.shape={tuple(synth_block_table.shape)} "
+                            f"synth_block_table[0,:3]={synth_block_table[0,:3].tolist()}\n"
+                        )
+                except Exception:
+                    pass
+
+            # [Genesis PN254 — diagnostic split of K+1 verify into K+1 q_len=1 calls]
+            # Hypothesis H7d: TQ decode kernel has a vectorized hazard at
+            # q_len > 1 that survives PN253's stride-0 fix. The K+1 MTP verify
+            # path is the only place where this kernel is called with q_len > 1
+            # in production (otherwise q_len=1 decode is its only customer).
+            #
+            # When env-gated, replace the single vectorized call with K+1
+            # independent q_len=1 calls. Each row uses a `(1, max_num_blocks)`
+            # contiguous block_table and a `(1,)` seq_lens slice — the exact
+            # shape the kernel was originally designed for.
+            #
+            # Capture-safe: no .tolist(), no file I/O inside the inner loop.
+            # Workspace buffers are row-shaped (1, Hq, ...) not chunk-shaped.
+            # `continue` skips the vectorized call below.
+            #
+            # Outcome interpretation (per PN254 plan):
+            #   A. Output coherent across MTP K=1/4/8 → H7d CONFIRMED
+            #      (kernel q_len>1 bug; production fix = always split or kernel patch)
+            #   B. Output partially coherent → H7d partial; another co-factor remains
+            #   C. Output still degenerate → H7d REFUTED → H7f (target full forward)
+            #   D. Row-specific success (only row 0 wrong) → row-binding bug
+            _pn254_split = (
+                _os.environ.get("GENESIS_ENABLE_PN254_SPLIT_KPLUS1", "").strip() == "1"
+                and chunk_len > 1
+            )
+            if _pn254_split:
+                # One-time capture-safe sentinel to confirm PN254 actually fires.
+                if torch.cuda.is_available():
+                    try:
+                        _capturing = torch.cuda.is_current_stream_capturing()
+                    except Exception:
+                        _capturing = True
+                else:
+                    _capturing = False
+                if not _capturing:
+                    try:
+                        _layer_name_pn254 = (
+                            getattr(layer, "layer_name", None)
+                            or getattr(layer, "prefix", "?")
+                        )
+                        with open("/tmp/genesis_pn254_fire.log", "a") as _ff:
+                            _ff.write(
+                                f"[PN254 fire] layer={_layer_name_pn254} "
+                                f"chunk_len={chunk_len} "
+                                f"q_len={q_len} q.shape={tuple(query.shape)} "
+                                f"block_table.shape={tuple(block_table.shape)}\n"
+                            )
+                    except Exception:
+                        pass
+                base_block_table = block_table[:1].contiguous()
+                for _pos in range(chunk_len):
+                    _row_query = chunk[_pos : _pos + 1]
+                    _row_seq_lens = synth_seq_lens[_pos : _pos + 1].contiguous()
+                    _row_block_table = base_block_table
+                    _row_mm_prefix_range = None
+                    if mm_prefix_ranges is not None:
+                        _row_mm_prefix_range = (
+                            mm_prefix_ranges.unsqueeze(0).contiguous()
+                        )
+                    _row_mid_o = _row_out_buf = _row_lse = None
+                    if is_workspace_manager_initialized():
+                        _row_mid_o, _row_out_buf, _row_lse = (
+                            current_workspace_manager().get_simultaneous(
+                                (
+                                    (1, Hq, self.max_num_kv_splits, D + 1),
+                                    torch.float32,
+                                ),
+                                ((1, Hq, D), query.dtype),
+                                ((1, Hq), torch.float32),
+                            )
+                        )
+                    # [Genesis PN260] caller-side meta stamp.
+                    try:
+                        from vllm.v1.attention.ops.triton_turboquant_decode import (
+                            _pn260_set_caller_meta as _pn260_stamp,
+                        )
+                        _pn260_stamp(
+                            call_site="pn254_split_row",
+                            layer_name=(
+                                getattr(layer, "layer_name", None)
+                                or getattr(layer, "prefix", "?")
+                            ),
+                            q_len=1,
+                            seq_len=int(synth_seq_lens[_pos].item())
+                            if hasattr(synth_seq_lens, "item")
+                            else -1,
+                            cached_len=query_start_pos + chunk_start + _pos,
+                            pn256_fired_for_this_layer=False,
+                            kv_sharing_target_layer_name=getattr(
+                                self, "kv_sharing_target_layer_name", None
+                            ),
+                            is_drafter=getattr(
+                                self, "kv_sharing_target_layer_name", None
+                            ) is not None,
+                        )
+                    except Exception:
+                        pass
+                    out[chunk_start + _pos : chunk_start + _pos + 1] = (
+                        triton_turboquant_decode_attention(
+                            query=_row_query,
+                            kv_cache=kv_cache,
+                            block_table=_row_block_table,
+                            seq_lens=_row_seq_lens,
+                            Pi=Pi,
+                            centroids=centroids,
+                            scale=self.scale,
+                            mse_bits=self.tq_config.key_mse_bits,
+                            key_packed_size=self.tq_config.key_packed_size,
+                            value_quant_bits=self.tq_config.effective_value_quant_bits,
+                            key_fp8=self.tq_config.key_fp8,
+                            norm_correction=self.tq_config.norm_correction,
+                            PiT=PiT,
+                            mid_o_buf=_row_mid_o,
+                            output_buf=_row_out_buf,
+                            lse_buf=_row_lse,
+                            buf_holder=layer,
+                            max_num_kv_splits=self.max_num_kv_splits,
+                            sliding_window=self.sliding_window,
+                            mm_prefix_range=_row_mm_prefix_range,
+                        )
+                    )
+                continue
+
+            mm_prefix_range = None
+            if mm_prefix_ranges is not None:
+                mm_prefix_range = (
+                    mm_prefix_ranges.unsqueeze(0).expand(chunk_len, -1, -1).contiguous()
+                )
+
+            mid_o_buf = output_buf = lse_buf = None
+            if is_workspace_manager_initialized():
+                mid_o_buf, output_buf, lse_buf = (
+                    current_workspace_manager().get_simultaneous(
+                        (
+                            (chunk_len, Hq, self.max_num_kv_splits, D + 1),
+                            torch.float32,
+                        ),
+                        ((chunk_len, Hq, D), query.dtype),
+                        ((chunk_len, Hq), torch.float32),
+                    )
+                )
+
+            # [Genesis PN260] caller-side meta stamp for the vectorized
+            # chunk call inside _decode_prefill_from_cache. This is the
+            # path PN256 is supposed to bypass for K+1 verify.
+            try:
+                from vllm.v1.attention.ops.triton_turboquant_decode import (
+                    _pn260_set_caller_meta as _pn260_stamp,
+                )
+                _pn260_stamp(
+                    call_site="decode_prefill_from_cache_vectorized",
+                    layer_name=(
+                        getattr(layer, "layer_name", None)
+                        or getattr(layer, "prefix", "?")
+                    ),
+                    q_len=chunk_len,
+                    seq_len=int(synth_seq_lens[-1].item())
+                    if synth_seq_lens.numel() > 0
+                    else -1,
+                    cached_len=query_start_pos + chunk_start,
+                    pn256_fired_for_this_layer=False,
+                    kv_sharing_target_layer_name=getattr(
+                        self, "kv_sharing_target_layer_name", None
+                    ),
+                    is_drafter=getattr(
+                        self, "kv_sharing_target_layer_name", None
+                    ) is not None,
+                )
+            except Exception:
+                pass
+            out[chunk_start:chunk_end] = triton_turboquant_decode_attention(
+                query=chunk,
+                kv_cache=kv_cache,
+                block_table=synth_block_table,
+                seq_lens=synth_seq_lens,
+                Pi=Pi,
+                centroids=centroids,
+                scale=self.scale,
+                mse_bits=self.tq_config.key_mse_bits,
+                key_packed_size=self.tq_config.key_packed_size,
+                value_quant_bits=self.tq_config.effective_value_quant_bits,
+                key_fp8=self.tq_config.key_fp8,
+                norm_correction=self.tq_config.norm_correction,
+                PiT=PiT,
+                mid_o_buf=mid_o_buf,
+                output_buf=output_buf,
+                lse_buf=lse_buf,
+                buf_holder=layer,
+                max_num_kv_splits=self.max_num_kv_splits,
+                sliding_window=self.sliding_window,
+                mm_prefix_range=mm_prefix_range,
+            )
+
+        return out
+
+    def _ensure_on_device(self, layer, device):
+        """One-time derivation of TQ buffers (rotation matrix, midpoints).
+
+        The Hadamard rotation is shared across all layers: random sign
+        flips do not improve Lloyd-Max quantization quality because the
+        quantizer is symmetric around zero (sign-flipping a coordinate
+        maps it to the mirror centroid with identical distortion).
+        """
+        if not hasattr(layer, "_tq_cached"):
+            D = self.head_size
+
+            # Pure Hadamard: orthonormal + symmetric (H = H^T), enabling
+            # in-kernel butterfly fusion and trivial inverse for continuation.
+            H = _build_hadamard(D, str(device))
+            layer._tq_PiT = H
+            layer._tq_Pi = H
+            # fp16 copy for rotation in continuation prefill path
+            layer._tq_Pi_half = H.to(torch.float16)
+
+            # Centroids for Lloyd-Max quantization.
+            layer._tq_centroids = get_centroids(D, self.tq_config.centroid_bits).to(
+                device=device, dtype=torch.float32
+            )
+
+            c_sorted, _ = layer._tq_centroids.sort()
+            layer._tq_midpoints = (c_sorted[:-1] + c_sorted[1:]) / 2
+            layer._tq_cached = True
+
+    def do_kv_cache_update(
+        self,
+        layer: torch.nn.Module,
+        key: torch.Tensor,
+        value: torch.Tensor,
+        kv_cache: torch.Tensor,
+        slot_mapping: torch.Tensor,
+    ) -> None:
+        """Store compressed K/V into the combined TQ cache.
+
+        Called as a separate custom op (unified_kv_cache_update) BEFORE
+        the attention forward, matching FlashAttention's split pattern.
+        slot_mapping is already sliced to num_actual_tokens by the caller.
+
+        [Genesis PN242] KV-sharing layers (e.g. Gemma 4 MTP drafter) call
+        with `kv_dummy = torch.empty(...)` — uninitialized memory — and
+        rely on `kv_sharing_target_layer_name` to read K/V from the target
+        layer's existing cache. Stock vLLM backends skip the cache write
+        in this case; PR #42637 overlay did NOT, causing the drafter's
+        uninitialized K/V to be written to the target's TQ KV cache and
+        corrupting next decode step. Add the skip here.
+        Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
+        """
+        # [Genesis PN255a-entry — log EVERY entry, including early returns]
+        # Placed BEFORE any return so we can distinguish:
+        #   - no call at all (verify path bypasses this op entirely)
+        #   - call with N=0 (slot_mapping empty for verify positions)
+        #   - call short-circuited by PN242 kv_sharing early return
+        import os as _os_pn255
+        _pn255_entry = (
+            _os_pn255.environ.get("GENESIS_ENABLE_PN255_KV_WRITE_DIAG", "")
+            .strip() == "1"
+        )
+        if _pn255_entry and torch.cuda.is_available():
+            try:
+                _pn255_entry = not torch.cuda.is_current_stream_capturing()
+            except Exception:
+                _pn255_entry = False
+        if _pn255_entry:
+            try:
+                _layer_name = getattr(layer, "layer_name", None) or getattr(
+                    layer, "prefix", "?"
+                )
+                _kv_share_target = getattr(
+                    self, "kv_sharing_target_layer_name", None
+                )
+                _N_entry = slot_mapping.shape[0]
+                with open("/tmp/genesis_pn255_kv_write.log", "a") as _f:
+                    _f.write(
+                        f"[PN255a entry] layer={_layer_name} "
+                        f"key.shape={tuple(key.shape)} "
+                        f"slot_mapping.shape={tuple(slot_mapping.shape)} "
+                        f"N_entry={_N_entry} kv_share_target={_kv_share_target}\n"
+                    )
+            except Exception:
+                pass
+
+        # PN242 — skip cache write for KV-sharing layers (drafter reads
+        # from target's cache only; its raw K/V is uninitialized).
+        if getattr(self, "kv_sharing_target_layer_name", None) is not None:
+            return
+
+        N = slot_mapping.shape[0]
+        if N <= 0:
+            return
+
+        device = key.device
+        self._ensure_on_device(layer, device)
+
+        k = key[:N].view(N, self.num_kv_heads, self.head_size)
+        v = value[:N].view(N, self.num_kv_heads, self.head_size)
+
+        # [Genesis PN255a — capture-safe diagnostic for K+1 KV write path]
+        # Phase 1 of PN255 per PN254 review:
+        # before splitting writes (PN255b), prove what the write path
+        # actually receives in the K+1 verify route. Three signals matter:
+        #   N        — is it 1 (only one row written) or K+1 (correct)?
+        #   slots    — distinct positions, or colliding overwrites?
+        #   kv_share — confirm path is NOT short-circuited by PN242
+        # Capture-safe: never .tolist() or write while CUDA graph capturing.
+        import os as _os_pn255
+        _pn255_diag = (
+            _os_pn255.environ.get("GENESIS_ENABLE_PN255_KV_WRITE_DIAG", "")
+            .strip() == "1"
+        )
+        if _pn255_diag and torch.cuda.is_available():
+            try:
+                _pn255_diag = not torch.cuda.is_current_stream_capturing()
+            except Exception:
+                _pn255_diag = False
+        if _pn255_diag:
+            try:
+                _layer_name = getattr(layer, "layer_name", None) or getattr(
+                    layer, "prefix", "?"
+                )
+                _slot_head = slot_mapping[: min(N, 8)].detach().cpu().tolist()
+                with open("/tmp/genesis_pn255_kv_write.log", "a") as _f:
+                    _f.write(
+                        f"[PN255a write] layer={_layer_name} "
+                        f"key.shape={tuple(key.shape)} "
+                        f"value.shape={tuple(value.shape)} "
+                        f"slot_mapping.shape={tuple(slot_mapping.shape)} "
+                        f"N={N} k_view.shape={tuple(k.shape)} "
+                        f"v_view.shape={tuple(v.shape)} "
+                        f"slots[:8]={_slot_head}\n"
+                    )
+            except Exception:
+                pass
+
+        # [Genesis PN255b — diagnostic split of K+1 KV write into row-by-row stores]
+        # Phase 2 of PN255 per PN254 review:
+        # ONLY run when PN255a has proven N=K+1 with distinct slots.
+        # Tests hypothesis H7g2: triton_turboquant_store has N>1 batch hazard
+        # that produces row-correlated / duplicated cache entries.
+        #
+        # Capture-safe: slicing + contiguous + no host sync inside the loop.
+        # Guard `N <= 16` prevents accidental split of long prefill writes.
+        _pn255_split = (
+            _os_pn255.environ.get("GENESIS_ENABLE_PN255_SPLIT_KV_UPDATE", "")
+            .strip() == "1"
+            and N > 1
+            and N <= 16
+        )
+        if _pn255_split:
+            if _pn255_diag:
+                try:
+                    with open("/tmp/genesis_pn255_kv_write.log", "a") as _f:
+                        _f.write(f"[PN255b split] N={N} firing row-by-row\n")
+                except Exception:
+                    pass
+            for _i in range(N):
+                self._store_kv(
+                    k[_i : _i + 1].contiguous(),
+                    v[_i : _i + 1].contiguous(),
+                    kv_cache,
+                    slot_mapping[_i : _i + 1].contiguous(),
+                    layer,
+                )
+            return
+
+        self._store_kv(k, v, kv_cache, slot_mapping, layer)
+
+    def forward(
+        self,
+        layer: AttentionLayer,
+        query: torch.Tensor,
+        key: torch.Tensor,
+        value: torch.Tensor,
+        kv_cache: torch.Tensor,
+        attn_metadata: "TurboQuantMetadata",
+        output: torch.Tensor | None = None,
+        output_scale: torch.Tensor | None = None,
+        output_block_scale: torch.Tensor | None = None,
+    ) -> torch.Tensor:
+        # GENESIS DIAG removed (forced GPU→CPU sync broke cudagraph capture).
+        import os as _os
+        num_tokens = query.shape[0]
+
+        if output is None:
+            output = torch.zeros(
+                num_tokens,
+                self.num_heads * self.head_size,
+                dtype=query.dtype,
+                device=query.device,
+            )
+
+        if attn_metadata is None:
+            return output.fill_(0)
+
+        # =================================================================
+        # Genesis PN240 — DECODE-path MTP K+1 spec-verify routing fix.
+        # Per docs/_internal/GEMMA4_TQ_MTP_G4_67_DIAGNOSIS_2026-05-18_RU.md
+        # variant A. When MTP K>0 + TQ overlay, runner schedules forward()
+        # with query.shape[0] = B*(K+1) but metadata.num_actual_tokens = B
+        # (because supports_spec_as_decode=False). Default path slices
+        # q[:num_actual_tokens] → drops K extra query positions → output
+        # remains uninitialised at padding rows → MTP draft verification
+        # logits at those rows are garbage → NaN cascade.
+        #
+        # Fix: route through _continuation_prefill() per request using raw
+        # key/value from input tensors (NOT cache — do_kv_cache_update only
+        # stored num_actual_tokens rows in TQ cache).
+        #
+        # Activation: GENESIS_ENABLE_PN240_TQ_SPEC_DECODE_FIX=1 (opt-in).
+        # Skips on prefill batches, non-padded decode, missing seq_lens_cpu.
+        # Falls through to default path on any condition unmet.
+        #
+        # Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
+        # =================================================================
+        _pn240_fix = _os.environ.get(
+            "GENESIS_ENABLE_PN240_TQ_SPEC_DECODE_FIX", ""
+        ).strip().lower() in ("1", "true", "yes", "on")
+        if (
+            _pn240_fix
+            and not attn_metadata.is_prefill
+            and attn_metadata.num_actual_tokens > 0
+            and num_tokens > attn_metadata.num_actual_tokens
+            and num_tokens % attn_metadata.num_actual_tokens == 0
+            and key is not None
+            and value is not None
+            and getattr(attn_metadata, "seq_lens", None) is not None
+            and getattr(attn_metadata, "block_table", None) is not None
+            and getattr(attn_metadata, "seq_lens_cpu", None) is not None
+        ):
+            _B_pn240 = attn_metadata.num_actual_tokens
+            _K1_pn240 = num_tokens // _B_pn240
+            if 2 <= _K1_pn240 <= 16:
+                _tq_layer_pn240: Any = layer
+                self._ensure_on_device(_tq_layer_pn240, query.device)
+                _Pi_pn240 = _tq_layer_pn240._tq_Pi
+                _centroids_pn240 = _tq_layer_pn240._tq_centroids
+                if _Pi_pn240 is not None and _centroids_pn240 is not None:
+                    _q_full_pn240 = query.view(
+                        num_tokens, self.num_heads, self.head_size
+                    )
+                    _k_full_pn240 = key.view(
+                        num_tokens, self.num_kv_heads, self.head_size
+                    )
+                    _v_full_pn240 = value.view(
+                        num_tokens, self.num_kv_heads, self.head_size
+                    )
+                    _bt_pn240 = attn_metadata.block_table
+                    _slc_pn240 = attn_metadata.seq_lens_cpu
+                    _attn_out_pn240 = torch.empty(
+                        num_tokens,
+                        self.num_heads,
+                        self.head_size,
+                        device=query.device,
+                        dtype=query.dtype,
+                    )
+                    # Bypass P38's persistent-pool path (allocates max_model_len
+                    # sized buffers ~1 GB which OOMs on a fully-loaded GPU). For
+                    # K+1=5 spec-verify we need a tiny per-call alloc. Resolve
+                    # the captured upstream _continuation_prefill saved by P38
+                    # at apply-time; fall back to self._continuation_prefill if
+                    # P38 didn't run.
+                    _impl_method = getattr(
+                        type(self), "_continuation_prefill", None
+                    )
+                    _cp_fn = getattr(
+                        _impl_method, "_genesis_p38_original", None
+                    )
+                    if _cp_fn is None:
+                        _cp_fn = self._continuation_prefill
+                    for _b_pn240 in range(_B_pn240):
+                        _seq_len_b_pn240 = int(_slc_pn240[_b_pn240])
+                        _cached_len_b_pn240 = max(
+                            _seq_len_b_pn240 - _K1_pn240, 0
+                        )
+                        _s_pn240 = _b_pn240 * _K1_pn240
+                        _e_pn240 = (_b_pn240 + 1) * _K1_pn240
+                        # Captured original is unbound when fetched from class,
+                        # so pass `self` explicitly when calling.
+                        if _cp_fn is self._continuation_prefill:
+                            _attn_out_pn240[_s_pn240:_e_pn240] = _cp_fn(
+                                layer,
+                                _q_full_pn240[_s_pn240:_e_pn240],
+                                _k_full_pn240[_s_pn240:_e_pn240],
+                                _v_full_pn240[_s_pn240:_e_pn240],
+                                kv_cache,
+                                _bt_pn240[_b_pn240 : _b_pn240 + 1],
+                                _cached_len_b_pn240,
+                                _seq_len_b_pn240,
+                                _Pi_pn240,
+                                _centroids_pn240,
+                            )
+                        else:
+                            _attn_out_pn240[_s_pn240:_e_pn240] = _cp_fn(
+                                self,
+                                layer,
+                                _q_full_pn240[_s_pn240:_e_pn240],
+                                _k_full_pn240[_s_pn240:_e_pn240],
+                                _v_full_pn240[_s_pn240:_e_pn240],
+                                kv_cache,
+                                _bt_pn240[_b_pn240 : _b_pn240 + 1],
+                                _cached_len_b_pn240,
+                                _seq_len_b_pn240,
+                                _Pi_pn240,
+                                _centroids_pn240,
+                            )
+                    if output.ndim == 3:
+                        output[:num_tokens] = _attn_out_pn240.to(output.dtype)
+                    else:
+                        output[:num_tokens] = (
+                            _attn_out_pn240.reshape(num_tokens, -1)
+                            .to(output.dtype)
+                        )
+                    return output
+        # === End Genesis PN240 — falls through to default path below ===
+
+        # [Genesis PN255c — attn_metadata classification sentinel]
+        # Diagnose why PN240 doesn't fire for our K+1 verify path.
+        # We need: attn_metadata.is_prefill, num_decodes, num_actual_tokens,
+        # num_tokens (= query.shape[0]) — to determine which branch handles
+        # K+1 verify and why the K/V writes never enter do_kv_cache_update.
+        _pn255c_diag = (
+            _os.environ.get("GENESIS_ENABLE_PN255_KV_WRITE_DIAG", "")
+            .strip() == "1"
+        )
+        if _pn255c_diag and torch.cuda.is_available():
+            try:
+                _pn255c_diag = not torch.cuda.is_current_stream_capturing()
+            except Exception:
+                _pn255c_diag = False
+        if _pn255c_diag:
+            try:
+                _layer_name = getattr(layer, "layer_name", None) or getattr(
+                    layer, "prefix", "?"
+                )
+                with open("/tmp/genesis_pn255_kv_write.log", "a") as _f:
+                    _f.write(
+                        f"[PN255c metadata] layer={_layer_name} "
+                        f"is_prefill={attn_metadata.is_prefill} "
+                        f"num_decodes={attn_metadata.num_decodes} "
+                        f"num_decode_tokens={attn_metadata.num_decode_tokens} "
+                        f"num_actual_tokens={attn_metadata.num_actual_tokens} "
+                        f"num_tokens={num_tokens} "
+                        f"max_query_len={getattr(attn_metadata, 'max_query_len', None)} "
+                        f"key_is_None={key is None}\n"
+                    )
+            except Exception:
+                pass
+
+        # Slice to actual tokens
+        N = attn_metadata.num_actual_tokens
+        if N <= 0:
+            return output.fill_(0)
+
+        q = query[:N].view(N, self.num_heads, self.head_size)
+
+        # Get TQ buffers, ensure on device (one-time migration).
+        # Use Any-typed alias for dynamic _tq_* attrs set by _ensure_on_device.
+        tq_layer: Any = layer
+        device = q.device
+        self._ensure_on_device(tq_layer, device)
+        Pi = tq_layer._tq_Pi
+        PiT = tq_layer._tq_PiT
+        centroids = tq_layer._tq_centroids
+
+        # Compute attention (KV cache was already updated by do_kv_cache_update)
+        # With reorder_batch_threshold=1, decodes come first in the batch.
+        # num_decodes/num_decode_tokens from metadata give the split point.
+        num_decodes = attn_metadata.num_decodes
+        num_decode_tokens = attn_metadata.num_decode_tokens
+        mm_prefix_range_tensor = attn_metadata.mm_prefix_range_tensor
+
+        if not attn_metadata.is_prefill:
+            # Pure decode batch — fast path
+            attn_out = self._decode_attention(
+                q, kv_cache, attn_metadata, Pi, centroids, PiT, layer
+            )
+        elif num_decodes == 0:
+            # Pure prefill batch
+            k = key[:N].view(N, self.num_kv_heads, self.head_size)
+            v = value[:N].view(N, self.num_kv_heads, self.head_size)
+            attn_out = self._prefill_attention(
+                q,
+                k,
+                v,
+                kv_cache,
+                attn_metadata,
+                Pi,
+                centroids,
+                PiT,
+                layer=layer,
+            )
+        else:
+            # Mixed batch: decodes first (guaranteed by reorder_batch).
+            attn_out = torch.zeros(
+                N, self.num_heads, self.head_size, device=device, dtype=q.dtype
+            )
+
+            # --- Decode portion (first num_decodes requests) ---
+            # Use full-batch max_seq_len as safe upper bound (no GPU sync).
+            decode_meta = TurboQuantMetadata(
+                seq_lens=attn_metadata.seq_lens[:num_decodes],
+                slot_mapping=attn_metadata.slot_mapping[:num_decode_tokens],
+                block_table=attn_metadata.block_table[:num_decodes],
+                query_start_loc=attn_metadata.query_start_loc[: num_decodes + 1],
+                num_actual_tokens=num_decode_tokens,
+                max_query_len=1,
+                max_seq_len=attn_metadata.max_seq_len,
+                is_prefill=False,
+                mm_prefix_range_tensor=mm_prefix_range_tensor[:num_decodes]
+                if mm_prefix_range_tensor is not None
+                else None,
+            )
+            attn_out[:num_decode_tokens] = self._decode_attention(
+                q[:num_decode_tokens], kv_cache, decode_meta, Pi, centroids, PiT, layer
+            )
+
+            # --- Prefill portion (remaining requests) ---
+            # CRITICAL: use prefill-specific max_seq_len so flash_attn's
+            # fast path (max_query_len == max_seq_len) triggers for
+            # first-chunk prefills. Using full-batch max_seq_len breaks
+            # this because decode requests inflate max_seq_len.
+            prefill_seq_lens = attn_metadata.seq_lens[num_decodes:]
+            # Use the CPU-resident `seq_lens` upper-bound from the metadata
+            # (populated in the builder) to compute the prefill sub-batch
+            # max without a GPU→CPU sync.
+            if attn_metadata.seq_lens_cpu is not None:
+                prefill_max_seq = int(attn_metadata.seq_lens_cpu[num_decodes:].max())
+            else:
+                prefill_max_seq = attn_metadata.max_seq_len
+            prefill_qsl = (
+                attn_metadata.query_start_loc[num_decodes:] - num_decode_tokens
+            )
+            prefill_qsl_cpu = None
+            if attn_metadata.query_start_loc_cpu is not None:
+                prefill_qsl_cpu = (
+                    attn_metadata.query_start_loc_cpu[num_decodes:] - num_decode_tokens
+                )
+            prefill_meta = TurboQuantMetadata(
+                seq_lens=prefill_seq_lens,
+                slot_mapping=attn_metadata.slot_mapping[num_decode_tokens:N],
+                block_table=attn_metadata.block_table[num_decodes:],
+                query_start_loc=prefill_qsl,
+                num_actual_tokens=N - num_decode_tokens,
+                max_query_len=attn_metadata.max_query_len,
+                max_seq_len=prefill_max_seq,
+                is_prefill=True,
+                query_start_loc_cpu=prefill_qsl_cpu,
+                seq_lens_cpu=attn_metadata.seq_lens_cpu[num_decodes:]
+                if attn_metadata.seq_lens_cpu is not None
+                else None,
+                mm_prefix_range_tensor=mm_prefix_range_tensor[num_decodes:]
+                if mm_prefix_range_tensor is not None
+                else None,
+            )
+            k = key[:N].view(N, self.num_kv_heads, self.head_size)
+            v = value[:N].view(N, self.num_kv_heads, self.head_size)
+            attn_out[num_decode_tokens:] = self._prefill_attention(
+                q[num_decode_tokens:],
+                k[num_decode_tokens:],
+                v[num_decode_tokens:],
+                kv_cache,
+                prefill_meta,
+                Pi,
+                centroids,
+                PiT,
+                layer=layer,
+            )
+
+        # Write into output buffer: attn_out is (N, Hq, D)
+        # output may be 2D (N, Hq*D) or 3D (N, Hq, D)
+        if output.ndim == 3:
+            output[:N] = attn_out.to(output.dtype)
+        else:
+            output[:N] = attn_out.reshape(N, -1).to(output.dtype)
+        return output
+
+    # ------------------------------------------------------------------ #
+    #  Store K/V into combined cache (vectorized)                         #
+    # ------------------------------------------------------------------ #
+    def _store_kv(
+        self,
+        key: torch.Tensor,  # (N, Hk, D)
+        value: torch.Tensor,  # (N, Hk, D)
+        kv_cache: torch.Tensor,  # (num_blocks, block_size, Hk, slot_size)
+        slot_mapping: torch.Tensor,
+        layer: Any,
+    ):
+        """Quantize + store via fused Triton kernel."""
+        triton_turboquant_store(
+            key,
+            value,
+            kv_cache,
+            slot_mapping,
+            layer._tq_PiT,
+            layer._tq_midpoints,
+            mse_bits=self.tq_config.key_mse_bits,
+            key_packed_size=self.tq_config.key_packed_size,
+            value_quant_bits=self.tq_config.effective_value_quant_bits,
+            key_fp8=self.tq_config.key_fp8,
+        )
+
+    # ------------------------------------------------------------------ #
+    #  Prefill: SDPA on raw Q/K/V with causal mask                        #
+    # ------------------------------------------------------------------ #
+    def _prefill_attention(
+        self,
+        query: torch.Tensor,  # (N, Hq, D)
+        key: torch.Tensor,  # (N, Hk, D)
+        value: torch.Tensor,  # (N, Hk, D)
+        kv_cache: torch.Tensor,  # (num_blocks, block_size, Hk, slot_size)
+        attn_metadata: TurboQuantMetadata,
+        Pi: torch.Tensor,
+        centroids: torch.Tensor,
+        PiT: torch.Tensor | None = None,
+        layer: Any = None,
+    ) -> torch.Tensor:
+        N, Hq, D = query.shape
+        mm_prefix_range_tensor = getattr(attn_metadata, "mm_prefix_range_tensor", None)
+
+        # Fast path: use flash_attn for first-chunk prefills (all K/V in batch).
+        # max_query_len == max_seq_len means no request has prior cached KV.
+        # Both are Python ints — no GPU sync.
+        if (
+            self._can_use_flash_attn
+            and attn_metadata.max_query_len == attn_metadata.max_seq_len
+            and not self._needs_sliding_window_mask(attn_metadata.max_seq_len)
+            and mm_prefix_range_tensor is None
+        ):
+            return self._flash_attn_varlen(
+                q=query,
+                k=key,
+                v=value,
+                cu_seqlens_q=attn_metadata.query_start_loc,
+                cu_seqlens_k=attn_metadata.query_start_loc,
+                max_seqlen_q=attn_metadata.max_query_len,
+                max_seqlen_k=attn_metadata.max_query_len,
+            )
+
+        # Continuation or no flash_attn: per-request attention.
+        # For continuation chunks (seq_len > q_len), we must attend to
+        # previously cached K/V from the TQ cache, not just the current
+        # chunk's raw K/V.
+        query_start_loc = attn_metadata.query_start_loc
+        num_reqs = query_start_loc.shape[0] - 1
+
+        output = torch.zeros(N, Hq, D, device=query.device, dtype=query.dtype)
+
+        # Prefer the CPU-resident copies from the metadata if populated —
+        # otherwise `.tolist()` on GPU tensors forces a synchronizing copy.
+        if attn_metadata.query_start_loc_cpu is not None:
+            qsl = attn_metadata.query_start_loc_cpu.tolist()
+        else:
+            qsl = query_start_loc.tolist()
+        if attn_metadata.seq_lens_cpu is not None:
+            seq_lens_list = attn_metadata.seq_lens_cpu.tolist()
+        else:
+            seq_lens_list = attn_metadata.seq_lens.tolist()
+
+        # Pre-allocate cu_seqlens for single-request flash_attn calls
+        # to avoid per-request host→device tensor creation.
+        if not hasattr(self, "_cu_2"):
+            self._cu_2 = torch.zeros(2, device=query.device, dtype=torch.int32)
+        arange_cache = self._get_arange_cache(
+            attn_metadata.max_seq_len,
+            device=query.device,
+            dtype=attn_metadata.seq_lens.dtype,
+        )
+
+        for i in range(num_reqs):
+            q_start = qsl[i]
+            q_end = qsl[i + 1]
+            q_len = q_end - q_start
+            if q_len <= 0:
+                continue
+
+            seq_len = seq_lens_list[i]
+            q_seq = query[q_start:q_end]  # (q_len, Hq, D)
+            k_seq = key[q_start:q_end]  # (q_len, Hk, D)
+            v_seq = value[q_start:q_end]  # (q_len, Hk, D)
+            mm_prefix_ranges = self._get_mm_prefix_ranges(attn_metadata, i)
+
+            if self.kv_sharing_target_layer_name is not None:
+                # KV-sharing layers reuse the target layer's cache. Their raw
+                # K/V tensors are intentionally not normalized/rotated by the
+                # model, so prefill must read from the shared TQ cache instead.
+                out = self._cache_prefill_attention(
+                    layer,
+                    q_seq,
+                    kv_cache,
+                    attn_metadata.block_table[i : i + 1],
+                    seq_len,
+                    seq_len - q_len,
+                    Pi,
+                    centroids,
+                    mm_prefix_ranges=mm_prefix_ranges,
+                )
+            elif q_len == seq_len:
+                # First-chunk prefill: all K/V are in the current batch.
+                if self._needs_sliding_window_mask(seq_len) or (
+                    mm_prefix_ranges is not None
+                ):
+                    out = self._sdpa_with_causal_and_sliding_mask(
+                        q_seq,
+                        k_seq,
+                        v_seq,
+                        query_start_pos=0,
+                        mm_prefix_ranges=mm_prefix_ranges,
+                    )
+                elif self._can_use_flash_attn:
+                    # Assign to slice to avoid gpu/cpu sync.
+                    self._cu_2[1:2] = q_len
+                    cu = self._cu_2
+                    out = self._flash_attn_varlen(
+                        q=q_seq,
+                        k=k_seq,
+                        v=v_seq,
+                        cu_seqlens_q=cu,
+                        cu_seqlens_k=cu,
+                        max_seqlen_q=q_len,
+                        max_seqlen_k=q_len,
+                    )
+                else:
+                    out = self._sdpa_causal_prefill(q_seq, k_seq, v_seq)
+            else:
+                # Continuation chunk: tokens already stored to TQ cache
+                # by do_kv_cache_update. Use decode kernel directly to
+                # avoid O(cached_len) full-dequant per continuation.
+                # For large continuations, use flash-attn when that path is
+                # available; otherwise run decode kernel chunks.
+                cached_len = seq_len - q_len
+
+                # [Genesis PN256 — causality test for H7g0 cache-miss hypothesis]
+                # Per PN255 review: PN255a/c proved no observable Python-level
+                # K+1 KV writes for target's K+1 verify, while _decode_prefill_from_cache
+                # is still reached (PN254 fired 432 times). The decode-cache route
+                # assumes current K+1 K/V rows are already in TQ cache; if they are
+                # not, attention reads garbage and produces degenerate logits.
+                #
+                # PN256 routes the K+1 verify continuation through
+                # _continuation_prefill() with raw k_seq/v_seq from forward args,
+                # exactly like PN240 already does for the decode-style padded case.
+                # _continuation_prefill dequants the cached portion (0..cached_len-1)
+                # and concatenates with the raw current chunk (cached_len..seq_len-1).
+                #
+                # Gate (K-agnostic for K=1/4/8):
+                #   - env enabled
+                #   - not a kv_sharing layer (drafter handled separately)
+                #   - 2 <= q_len <= 16 (K+1 verify shape)
+                #   - seq_len > q_len (continuation, not first chunk)
+                #   - key/value present in forward args
+                #
+                # Uses PN240's P38-safe resolver to avoid the persistent-pool path
+                # that can OOM under loaded GPU — this keeps PN256 a correctness
+                # test, not a memory-pressure test.
+                #
+                # Two env knobs:
+                #   GENESIS_ENABLE_PN256_KPLUS1_RAW_KV_TRACE=1 — trace only, no behavior change
+                #   GENESIS_ENABLE_PN256_KPLUS1_RAW_KV=1       — actual route change
+                import os as _os_pn256
+                _pn256_trace = (
+                    _os_pn256.environ.get(
+                        "GENESIS_ENABLE_PN256_KPLUS1_RAW_KV_TRACE", ""
+                    ).strip() == "1"
+                )
+                _pn256_raw_kv = (
+                    _os_pn256.environ.get(
+                        "GENESIS_ENABLE_PN256_KPLUS1_RAW_KV", ""
+                    ).strip() == "1"
+                    and self.kv_sharing_target_layer_name is None
+                    and 2 <= q_len <= 16
+                    and seq_len > q_len
+                    and k_seq is not None
+                    and v_seq is not None
+                )
+                if (_pn256_trace or _pn256_raw_kv) and torch.cuda.is_available():
+                    try:
+                        _pn256_capture = torch.cuda.is_current_stream_capturing()
+                    except Exception:
+                        _pn256_capture = True
+                else:
+                    _pn256_capture = False
+                if (_pn256_trace or _pn256_raw_kv) and not _pn256_capture:
+                    try:
+                        _layer_name_pn256 = (
+                            getattr(layer, "layer_name", None)
+                            or getattr(layer, "prefix", "?")
+                        )
+                        with open("/tmp/genesis_pn256_route.log", "a") as _f:
+                            _f.write(
+                                f"[PN256 route] layer={_layer_name_pn256} "
+                                f"q_len={q_len} seq_len={seq_len} "
+                                f"cached_len={cached_len} "
+                                f"is_prefill={attn_metadata.is_prefill} "
+                                f"num_decodes={attn_metadata.num_decodes} "
+                                f"num_actual_tokens={attn_metadata.num_actual_tokens} "
+                                f"bt.shape={tuple(attn_metadata.block_table[i:i+1].shape)} "
+                                f"raw_kv_fire={_pn256_raw_kv}\n"
+                            )
+                    except Exception:
+                        pass
+
+                if _pn256_raw_kv:
+                    # P38-safe resolver: PN240 sets _genesis_p38_original on the
+                    # bound method when P38 wraps _continuation_prefill with the
+                    # persistent-pool allocator. We want the original (small,
+                    # per-call) allocator to keep PN256 a pure correctness test.
+                    _impl_method_pn256 = getattr(
+                        type(self), "_continuation_prefill", None
+                    )
+                    _cp_fn_pn256 = getattr(
+                        _impl_method_pn256, "_genesis_p38_original", None
+                    )
+                    if _cp_fn_pn256 is None:
+                        _cp_fn_pn256 = self._continuation_prefill
+                    _bt_pn256 = attn_metadata.block_table[i : i + 1]
+                    if _cp_fn_pn256 is self._continuation_prefill:
+                        out = _cp_fn_pn256(
+                            layer,
+                            q_seq,
+                            k_seq,
+                            v_seq,
+                            kv_cache,
+                            _bt_pn256,
+                            cached_len,
+                            seq_len,
+                            Pi,
+                            centroids,
+                            mm_prefix_ranges=mm_prefix_ranges,
+                        )
+                    else:
+                        out = _cp_fn_pn256(
+                            self,
+                            layer,
+                            q_seq,
+                            k_seq,
+                            v_seq,
+                            kv_cache,
+                            _bt_pn256,
+                            cached_len,
+                            seq_len,
+                            Pi,
+                            centroids,
+                            mm_prefix_ranges=mm_prefix_ranges,
+                        )
+                elif q_len <= _CONTINUATION_DECODE_THRESHOLD or not (
+                    self._can_use_flash_prefill(seq_len, mm_prefix_ranges)
+                ):
+                    out = self._decode_prefill_from_cache(
+                        q_seq,
+                        kv_cache,
+                        attn_metadata.block_table[i : i + 1],
+                        query_start_pos=cached_len,
+                        Pi=Pi,
+                        centroids=centroids,
+                        PiT=PiT,
+                        mm_prefix_ranges=mm_prefix_ranges,
+                        seq_lens_dtype=arange_cache.dtype,
+                        layer=layer,
+                    )
+                else:
+                    # Large continuation: dequant cached K/V and use
+                    # flash_attn for better throughput.
+                    out = self._continuation_prefill(
+                        layer,
+                        q_seq,
+                        k_seq,
+                        v_seq,
+                        kv_cache,
+                        attn_metadata.block_table[i : i + 1],
+                        cached_len,
+                        seq_len,
+                        Pi,
+                        centroids,
+                        mm_prefix_ranges=mm_prefix_ranges,
+                    )
+
+            output[q_start:q_end] = out.to(query.dtype)
+
+        return output
+
+    def _dequant_cached_kv(
+        self,
+        layer: Any,
+        kv_cache: torch.Tensor,  # (num_blocks, block_size, Hk, slot_size)
+        block_table: torch.Tensor,  # (1, max_num_blocks)
+        cache_len: int,
+        output_dtype: torch.dtype,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Dequantize the first cache_len tokens from a single request cache."""
+        assert cache_len > 0
+
+        Hk = self.num_kv_heads
+        D = self.head_size
+        device = kv_cache.device
+        block_size = kv_cache.shape[1]
+        BLOCK_D = triton.next_power_of_2(D)
+
+        alloc_len = math.ceil(cache_len / block_size) * block_size
+        buf_shape = (1, Hk, alloc_len, D)
+        # Use WorkspaceManager for dequant buffers. It is shared across layers
+        # and avoids per-layer allocations that would break CUDA graph capture.
+        k_buf, v_buf = current_workspace_manager().get_simultaneous(
+            (buf_shape, torch.float16),
+            (buf_shape, torch.float16),
+        )
+        # Skip zeroing: the kernel writes all positions up to alloc_len, and
+        # callers only read the first cache_len positions.
+        k_cached = k_buf[:, :, :alloc_len, :]
+        v_cached = v_buf[:, :, :alloc_len, :]
+
+        grid = (alloc_len, Hk)
+        _tq_full_dequant_kv[grid](
+            kv_cache,
+            block_table,
+            layer._tq_centroids,
+            k_cached,
+            v_cached,
+            k_cached.stride(0),
+            k_cached.stride(1),
+            k_cached.stride(2),
+            v_cached.stride(0),
+            v_cached.stride(1),
+            v_cached.stride(2),
+            kv_cache.stride(0),
+            kv_cache.stride(1),
+            kv_cache.stride(2),
+            block_table.stride(0),
+            HEAD_DIM=D,
+            BLOCK_SIZE=block_size,
+            NUM_KV_HEADS=Hk,
+            MSE_BYTES=self._mse_bytes,
+            KPS=self.tq_config.key_packed_size,
+            VQB=self.tq_config.effective_value_quant_bits,
+            VAL_DATA_BYTES=self._val_data_bytes,
+            MSE_BITS=self.tq_config.key_mse_bits,
+            KEY_FP8=1 if self.tq_config.key_fp8 else 0,
+            BLOCK_D=BLOCK_D,
+            NORM_CORRECTION=1 if self.tq_config.norm_correction else 0,
+            FP8_E4B15=_use_fp8_e4b15(device.index or 0),
+            num_warps=4,
+        )
+
+        if not self.tq_config.key_fp8:
+            Pi_half = layer._tq_Pi_half
+            k_flat = k_cached[0, :, :cache_len, :].reshape(-1, D)
+            k_flat = k_flat @ Pi_half
+            k_cached_trim = k_flat.reshape(Hk, cache_len, D).transpose(0, 1)
+        else:
+            k_cached_trim = k_cached[0, :, :cache_len, :].transpose(0, 1)
+
+        v_cached_trim = v_cached[0, :, :cache_len, :].transpose(0, 1)
+        return k_cached_trim.to(output_dtype), v_cached_trim.to(output_dtype)
+
+    def _prefill_attention_with_kv(
+        self,
+        query: torch.Tensor,
+        key: torch.Tensor,
+        value: torch.Tensor,
+        *,
+        query_start_pos: int,
+        mm_prefix_ranges: torch.Tensor | None = None,
+    ) -> torch.Tensor:
+        q_len = query.shape[0]
+        seq_len = key.shape[0]
+        device = query.device
+
+        if (
+            self._can_use_flash_attn
+            and not self._needs_sliding_window_mask(seq_len)
+            and mm_prefix_ranges is None
+        ):
+            # Reuse pre-allocated cu_seqlens (avoid host→device transfer).
+            if not hasattr(self, "_cu_2_q"):
+                self._cu_2_q = torch.zeros(2, device=device, dtype=torch.int32)
+                self._cu_2_k = torch.zeros(2, device=device, dtype=torch.int32)
+            self._cu_2_q[1:2] = q_len
+            self._cu_2_k[1:2] = seq_len
+            return self._flash_attn_varlen(
+                q=query,
+                k=key,
+                v=value,
+                cu_seqlens_q=self._cu_2_q,
+                cu_seqlens_k=self._cu_2_k,
+                max_seqlen_q=q_len,
+                max_seqlen_k=seq_len,
+            )
+        return self._sdpa_with_causal_and_sliding_mask(
+            query,
+            key,
+            value,
+            query_start_pos=query_start_pos,
+            mm_prefix_ranges=mm_prefix_ranges,
+        )
+
+    def _cache_prefill_attention(
+        self,
+        layer: Any,
+        query: torch.Tensor,  # (q_len, Hq, D)
+        kv_cache: torch.Tensor,  # (num_blocks, block_size, Hk, slot_size)
+        block_table: torch.Tensor,  # (1, max_num_blocks)
+        seq_len: int,
+        query_start_pos: int,
+        Pi: torch.Tensor,
+        centroids: torch.Tensor,
+        mm_prefix_ranges: torch.Tensor | None = None,
+    ) -> torch.Tensor:
+        if not self._can_use_flash_prefill(seq_len, mm_prefix_ranges):
+            return self._decode_prefill_from_cache(
+                query,
+                kv_cache,
+                block_table,
+                query_start_pos=query_start_pos,
+                Pi=Pi,
+                centroids=centroids,
+                PiT=getattr(layer, "_tq_PiT", None),
+                mm_prefix_ranges=mm_prefix_ranges,
+                layer=layer,
+            )
+
+        k_full, v_full = self._dequant_cached_kv(
+            layer,
+            kv_cache,
+            block_table,
+            seq_len,
+            query.dtype,
+        )
+        return self._prefill_attention_with_kv(
+            query,
+            k_full,
+            v_full,
+            query_start_pos=query_start_pos,
+            mm_prefix_ranges=mm_prefix_ranges,
+        )
+
+    def _continuation_prefill(
+        self,
+        layer: Any,
+        query: torch.Tensor,  # (q_len, Hq, D)
+        key_chunk: torch.Tensor,  # (q_len, Hk, D)
+        val_chunk: torch.Tensor,  # (q_len, Hk, D)
+        kv_cache: torch.Tensor,  # (num_blocks, block_size, Hk, slot_size)
+        block_table: torch.Tensor,  # (1, max_num_blocks)
+        cached_len: int,
+        seq_len: int,
+        Pi: torch.Tensor,
+        centroids: torch.Tensor,
+        mm_prefix_ranges: torch.Tensor | None = None,
+    ) -> torch.Tensor:
+        """Handle continuation chunk by dequanting cached K/V from TQ cache.
+
+        Dequants previously cached K/V, concatenates with the current
+        chunk's raw K/V, then runs flash_attn with causal masking.
+        """
+        q_len, _, D = query.shape
+        Hk = key_chunk.shape[1]
+        device = query.device
+        k_cached_trim, v_cached_trim = self._dequant_cached_kv(
+            layer,
+            kv_cache,
+            block_table,
+            cached_len,
+            query.dtype,
+        )
+
+        # Concatenate cached + current chunk K/V (match query dtype)
+        # Pre-allocate full K/V buffer, copy into slices (no cat alloc)
+        qdtype = query.dtype
+        k_full = torch.empty(seq_len, Hk, D, dtype=qdtype, device=device)
+        v_full = torch.empty(seq_len, Hk, D, dtype=qdtype, device=device)
+        k_full[:cached_len] = k_cached_trim.to(qdtype)
+        k_full[cached_len:] = key_chunk
+        v_full[:cached_len] = v_cached_trim.to(qdtype)
+        v_full[cached_len:] = val_chunk
+
+        # Attention: q_len queries attending to seq_len K/V with causal mask
+        return self._prefill_attention_with_kv(
+            query,
+            k_full,
+            v_full,
+            query_start_pos=cached_len,
+            mm_prefix_ranges=mm_prefix_ranges,
+        )
+
+    # ------------------------------------------------------------------ #
+    #  Decode: Triton TQ decode attention                                 #
+    # ------------------------------------------------------------------ #
+    def _decode_attention(
+        self,
+        query: torch.Tensor,  # (B, Hq, D)
+        kv_cache: torch.Tensor,  # (num_blocks, block_size, Hk, slot_size)
+        attn_metadata: TurboQuantMetadata,
+        Pi: torch.Tensor,
+        centroids: torch.Tensor,
+        PiT: torch.Tensor | None = None,
+        layer: torch.nn.Module | None = None,
+    ) -> torch.Tensor:
+        # Acquire shared decode scratch buffers from WorkspaceManager.
+        # Layers execute sequentially so one set of buffers is sufficient.
+        # Falls back to kernel-internal allocation if workspace unavailable.
+        B = query.shape[0]
+        D = self.head_size
+        S = self.max_num_kv_splits
+        Hq = self.num_heads
+        mid_o_buf = output_buf = lse_buf = None
+        # ════════════════════════════════════════════════════════════
+        # [Genesis PN118 — backport of vllm#42551]
+        # Use try_get_simultaneous: returns None if workspace is locked
+        # and undersized (instead of raising AssertionError). Caller
+        # falls back to torch.empty so the engine keeps serving.
+        # ════════════════════════════════════════════════════════════
+        if is_workspace_manager_initialized():
+            manager = current_workspace_manager()
+            if hasattr(manager, 'try_get_simultaneous'):
+                bufs = manager.try_get_simultaneous(
+                    ((B, Hq, S, D + 1), torch.float32),
+                    ((B, Hq, D), query.dtype),
+                    ((B, Hq), torch.float32),
+                )
+                if bufs is not None:
+                    mid_o_buf, output_buf, lse_buf = bufs
+            else:
+                # PN118 workspace-side not applied — use legacy path.
+                mid_o_buf, output_buf, lse_buf = manager.get_simultaneous(
+                    ((B, Hq, S, D + 1), torch.float32),
+                    ((B, Hq, D), query.dtype),
+                    ((B, Hq), torch.float32),
+                )
+        if mid_o_buf is None:
+            # Fallback path: workspace was locked at an undersized
+            # snapshot; allocate scratch buffers directly per call.
+            mid_o_buf = torch.empty(
+                (B, Hq, S, D + 1), dtype=torch.float32, device=query.device
+            )
+            output_buf = torch.empty((B, Hq, D), dtype=query.dtype, device=query.device)
+            lse_buf = torch.empty((B, Hq), dtype=torch.float32, device=query.device)
+
+        # [Genesis PN260] caller-side meta stamp for the pure-decode
+        # path (q_len=1 per token typically; padded to K+1 for spec).
+        try:
+            from vllm.v1.attention.ops.triton_turboquant_decode import (
+                _pn260_set_caller_meta as _pn260_stamp,
+            )
+            _pn260_stamp(
+                call_site="decode_attention_pure",
+                layer_name=(
+                    getattr(layer, "layer_name", None)
+                    or getattr(layer, "prefix", "?")
+                ),
+                q_len=int(query.shape[0]),
+                seq_len=-1,  # per-request, not single value
+                cached_len=-1,  # not directly available here
+                pn256_fired_for_this_layer=False,
+                kv_sharing_target_layer_name=getattr(
+                    self, "kv_sharing_target_layer_name", None
+                ),
+                is_drafter=getattr(
+                    self, "kv_sharing_target_layer_name", None
+                ) is not None,
+            )
+        except Exception:
+            pass
+
+        result = triton_turboquant_decode_attention(
+            query=query,
+            kv_cache=kv_cache,
+            block_table=attn_metadata.block_table,
+            seq_lens=attn_metadata.seq_lens,
+            Pi=Pi,
+            centroids=centroids,
+            scale=self.scale,
+            mse_bits=self.tq_config.key_mse_bits,
+            key_packed_size=self.tq_config.key_packed_size,
+            value_quant_bits=self.tq_config.effective_value_quant_bits,
+            key_fp8=self.tq_config.key_fp8,
+            norm_correction=self.tq_config.norm_correction,
+            PiT=PiT,
+            mid_o_buf=mid_o_buf,
+            output_buf=output_buf,
+            lse_buf=lse_buf,
+            buf_holder=layer,
+            max_num_kv_splits=self.max_num_kv_splits,
+            sliding_window=self.sliding_window,
+            mm_prefix_range=attn_metadata.mm_prefix_range_tensor,
+        )
+        return result
+
+# Genesis PN118 v2 (md5+full-file PoC, turboquant_attn.py scope) marker — DO NOT REMOVE

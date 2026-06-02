@@ -4296,6 +4296,43 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "conflicts_with": [],
         "requires_patches": [],
     },
+    "PN118_V2_MD5_TURBOQUANT_ATTN": {
+        "title": "PN118 v2 — md5+full-file PoC (PN119 reference pattern, turboquant_attn.py scope)",
+        "tier": "community",
+        "family": "attention.turboquant",
+        "env_flag": "GENESIS_ENABLE_PN118_V2_MD5_TURBOQUANT_ATTN",
+        "default_on": False,
+        "category": "perf_hotfix",
+        "credit": (
+            "Genesis PoC sibling to PN118_V2_MD5_WORKSPACE — applies the "
+            "PN119 md5+full-file pattern to pn118's second target file "
+            "(v1/attention/backends/turboquant_attn.py). Together the two "
+            "v2 patches replace pn118's anchor-based coverage of its full "
+            "2-file scope with md5+full-file replacements (one v2 patch "
+            "per target). Master plan Phase 6 P3.1 continuation in "
+            "v11.2.0 — closes the deferred 'pn118 multi-file md5' work "
+            "from v11.1.0. Drift finding during scout (2026-06-02): "
+            "pn118's TQ_ANCHOR_INIT_OLD does not match current upstream — "
+            "pn118 silently no-ops on that anchor at the current pin. "
+            "This silent partial-apply is exactly the failure mode "
+            "md5+full-file pattern prevents. Composes with PN118 + "
+            "PN118_V2_MD5_WORKSPACE — all three can be enabled "
+            "simultaneously via Genesis marker detection; pn118 detects "
+            "both v2 markers and skips re-anchoring on both files. "
+            "Default OFF — operators opt-in for A/B validation."
+        ),
+        "upstream_pr": 42551,
+        "upstream_pr_relationship": "alternative_pattern",
+        "applies_to": {
+            "is_turboquant": True,  # second target file of PN118 (turboquant_attn.py)
+        },
+        "implementation_status": "full",
+        "apply_module": "vllm.sndr_core.integrations.attention.turboquant.pn118_v2_md5_turboquant_attn",
+        "source": "vllm_pr_backport",
+        "lifecycle": "experimental",
+        "conflicts_with": [],
+        "requires_patches": [],
+    },
     "PN119": {
         "title": "TurboQuant k8v4 GQA head grouping kernel (vllm#40792)",
         "tier": "community",

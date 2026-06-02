@@ -1137,6 +1137,27 @@ def apply_patch_n118_v2_md5_workspace() -> PatchResult:
 
 
 @register_patch(
+    "PN118_V2_MD5_TURBOQUANT_ATTN md5+full-file PoC (PN119 ref pattern, turboquant_attn.py scope)"
+)
+def apply_patch_n118_v2_md5_turboquant_attn() -> PatchResult:
+    """PN118 v2 PoC sibling — md5 guard + full-file replacement of
+    turboquant_attn.py.
+
+    Closes the deferred 'pn118 multi-file md5' work from v11.1.0 — this
+    is the second file of pn118's 2-file scope. Together with
+    PN118_V2_MD5_WORKSPACE, the two v2 patches replace pn118's
+    anchor-based coverage with md5+full-file replacements.
+
+    Default OFF; opt-in via GENESIS_ENABLE_PN118_V2_MD5_TURBOQUANT_ATTN=1.
+    Composes with both PN118 and PN118_V2_MD5_WORKSPACE.
+    """
+    return _wiring_text_patch(
+        "PN118_V2_MD5_TURBOQUANT_ATTN md5+full-file PoC (PN119 ref pattern, turboquant_attn.py scope)",
+        "pn118_v2_md5_turboquant_attn",
+    )
+
+
+@register_patch(
     "PN119 TurboQuant k8v4 GQA head grouping kernel (backport: vllm#40792)"
 )
 def apply_patch_n119_tq_gqa_grouping() -> PatchResult:

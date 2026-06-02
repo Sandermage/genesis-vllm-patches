@@ -109,6 +109,13 @@ class Flags:
     # v2 ran). Default OFF — opt-in to A/B test the md5 pattern.
     # v11.1.0 Phase 6 P3.1 closeout PoC.
     PN118_V2_MD5_WORKSPACE = "PN118_V2_MD5_WORKSPACE"
+    # PN118 v2 — md5+full-file PoC, turboquant_attn.py scope (sibling
+    # to workspace.py v2 patch above). Together the two v2 patches
+    # cover pn118's full 2-file scope via md5+full-file pattern,
+    # closing the master plan's P3.1 single-file PoC validation.
+    # Companion to PN118 (composes, does NOT conflict). Default OFF.
+    # v11.2.0 Phase 6 P3.1 continuation.
+    PN118_V2_MD5_TURBOQUANT_ATTN = "PN118_V2_MD5_TURBOQUANT_ATTN"
 
     # GDN spec-decode subfamily
     P60_GDN_NGRAM_FIX = "P60_GDN_NGRAM_FIX"
