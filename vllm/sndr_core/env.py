@@ -102,6 +102,13 @@ class Flags:
     PN116 = "PN116"  # TurboQuant prefill max_seq_len fallback fix (regressor vllm#41434)
     PN119 = "PN119"  # TurboQuant k8v4 GQA head grouping kernel (backport vllm#40792)
     PN118 = "PN118"  # TurboQuant workspace graceful-fallback (backport vllm#42551, P99-compat)
+    # PN118 v2 — md5+full-file PoC of the PN119 reference pattern,
+    # scoped to workspace.py (one of pn118's two target files).
+    # Companion to PN118 (not a replacement; composes via Genesis
+    # marker that prevents pn118 from re-anchoring workspace.py once
+    # v2 ran). Default OFF — opt-in to A/B test the md5 pattern.
+    # v11.1.0 Phase 6 P3.1 closeout PoC.
+    PN118_V2_MD5_WORKSPACE = "PN118_V2_MD5_WORKSPACE"
 
     # GDN spec-decode subfamily
     P60_GDN_NGRAM_FIX = "P60_GDN_NGRAM_FIX"
