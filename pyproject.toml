@@ -87,6 +87,31 @@ dev = [
 http = [
     "requests>=2.28",
 ]
+# `pip install vllm-sndr-core[gui-api]` for the local read-only Product
+# API daemon consumed by GUI/web/desktop clients. Authentication (local
+# accounts, TOTP 2FA, sessions, OAuth) uses only the standard library — no
+# extra dependency. The optional PAM backend (system-account login on a host)
+# needs `python-pam`; install the `gui-auth-pam` extra to enable it.
+gui-api = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.27",
+]
+# `pip install vllm-sndr-core[gui-remote]` for the GUI's remote-host features:
+# SSH/SFTP connectivity + checks, an embedded PTY terminal, and encrypted
+# at-rest storage of SSH passwords / engine API keys. All optional — the daemon
+# imports and runs without these; the remote features simply report unavailable.
+gui-remote = [
+    "paramiko>=3.0",       # SSH/SFTP transport + interactive PTY channel
+    "cryptography>=41.0",  # Fernet encryption for the at-rest secrets fallback
+    "keyring>=24.0",       # OS keychain backend (preferred over the file fallback)
+    "websockets>=12.0",    # PTY terminal transport (uvicorn websocket protocol)
+]
+# `pip install vllm-sndr-core[gui-auth-pam]` to authenticate GUI logins against
+# the host's system accounts via PAM (host deployments only; in a container PAM
+# sees the container's users unless host auth files are bind-mounted).
+gui-auth-pam = [
+    "python-pam>=2.0",
+]
 # `pip install vllm-sndr-core[telemetry]` for opt-in usage reporting.
 # Telemetry stays opt-in — base install does not include it.
 telemetry = [
@@ -169,6 +194,10 @@ exclude = [
     # Was at repo-root `schemas/`; relocated into the package so wheel
     # installs work without the source tree present.
     "schemas/*.json",
+    # GUI integration: the built web UI bundled into the package so
+    # `sndr gui-api` serves UI + API from one process (built by `make gui-build`).
+    "product_api/web_static/*",
+    "product_api/web_static/assets/*",
 ]
 
 

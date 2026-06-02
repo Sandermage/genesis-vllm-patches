@@ -32,11 +32,11 @@ Four leaves:
 """
 from __future__ import annotations
 
-import argparse
-import dataclasses
 import json
-import sys
+from dataclasses import asdict
 from typing import Any, Optional
+
+from vllm.sndr_core.product_api import presets as preset_api
 
 from . import _io
 
@@ -51,17 +51,7 @@ __all__ = [
 
 
 # Status priority for `recommend` ranking — higher index = lower priority.
-_STATUS_RANK: dict[str, int] = {
-    "production": 0,
-    "production_candidate": 1,
-    "internal_validated": 2,
-    "bench_pending": 3,
-    "experimental": 4,
-    "qa": 5,
-    "example": 6,
-    "historical": 7,
-    "tombstone": 8,
-}
+_STATUS_RANK: dict[str, int] = preset_api.STATUS_RANK
 
 
 # ─── argparse registration ──────────────────────────────────────────────────
@@ -151,35 +141,14 @@ def _load_corpus() -> list[tuple[str, Any]]:
     has no torch dependency but the import chain through plugin loaders
     can be heavy at startup if vllm pulls anything in.
     """
-    import warnings
-    from vllm.sndr_core.model_configs.registry_v2 import (
-        _alias_dir, load_preset_def,
-    )
-    out: list[tuple[str, Any]] = []
-    with warnings.catch_warnings():
-        # The loader emits a one-time DeprecationWarning per card-less
-        # preset; that's CONFIG-UX.1 surface, not CLI feedback.
-        warnings.simplefilter("ignore", DeprecationWarning)
-        for path in sorted(_alias_dir().glob("*.yaml")):
-            if path.stem.startswith("_") or not path.is_file():
-                continue
-            try:
-                pd = load_preset_def(path.stem)
-            except Exception:  # pragma: no cover — corpus is well-formed
-                continue
-            out.append((path.stem, pd))
-    return out
+    return list(preset_api.load_corpus())
 
 
 def _compose_for(preset_id: str):
     """Compose to V1 ModelConfig (for `show` / `explain` hardware lookup).
 
     Lazy import + warning suppression mirror _load_corpus."""
-    import warnings
-    from vllm.sndr_core.model_configs.registry_v2 import load_alias
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", DeprecationWarning)
-        return load_alias(preset_id)
+    return preset_api.compose_for(preset_id)
 
 
 def _hardware_id_of(preset_id: str, pd) -> Optional[str]:
@@ -189,22 +158,12 @@ def _hardware_id_of(preset_id: str, pd) -> Optional[str]:
 
 def _card_dict(card) -> dict:
     """Serialize a PresetCard dataclass to a plain dict (JSON-safe)."""
-    if card is None:
-        return {}
-    return dataclasses.asdict(card)
+    return preset_api.card_to_dict(card)
 
 
 def _preset_dict(alias_id: str, pd) -> dict:
     """Full JSON view: triplet + card."""
-    return {
-        "id": alias_id,
-        "model": pd.model,
-        "hardware": pd.hardware,
-        "profile": pd.profile,
-        "runtime": pd.runtime,
-        "card": _card_dict(pd.card),
-        "has_card": pd.has_card(),
-    }
+    return asdict(preset_api.preset_to_record(alias_id, pd))
 
 
 def _drill(obj: Any, path: str) -> Any:
@@ -214,64 +173,21 @@ def _drill(obj: Any, path: str) -> Any:
     Raises KeyError if the path can't be resolved (with the segment that
     failed) so the CLI can emit a precise error.
     """
-    cur = obj
-    walked: list[str] = []
-    for seg in path.split("."):
-        walked.append(seg)
-        if seg.isdigit() and isinstance(cur, (list, tuple)):
-            idx = int(seg)
-            if idx >= len(cur):
-                raise KeyError(
-                    f".".join(walked) + f": list index {idx} out of range "
-                    f"(len={len(cur)})"
-                )
-            cur = cur[idx]
-        elif isinstance(cur, dict):
-            if seg not in cur:
-                raise KeyError(f"{'.'.join(walked)}: key {seg!r} not in dict")
-            cur = cur[seg]
-        elif dataclasses.is_dataclass(cur):
-            if not hasattr(cur, seg):
-                raise KeyError(
-                    f"{'.'.join(walked)}: attribute {seg!r} not on "
-                    f"{type(cur).__name__}"
-                )
-            cur = getattr(cur, seg)
-        else:
-            raise KeyError(
-                f"{'.'.join(walked)}: cannot drill into "
-                f"{type(cur).__name__} (segment {seg!r})"
-            )
-    return cur
+    return preset_api.drill_field(obj, path)
 
 
 # ─── list ───────────────────────────────────────────────────────────────────
 
 
 def _passes_list_filters(alias_id: str, pd, args) -> bool:
-    card = pd.card
-
-    if args.hardware and pd.hardware != args.hardware:
-        return False
-    if args.family:
-        fam = card.routing_family if card else None
-        if fam != args.family:
-            return False
-    if args.mode:
-        mode = card.mode if card else None
-        if mode != args.mode:
-            return False
-    if args.status:
-        status = card.status if card else None
-        if status != args.status:
-            return False
-    if args.workload:
-        # Card-less presets can't match an explicit workload filter.
-        if not card:
-            return False
-        if args.workload not in card.workload_allow:
-            return False
-    return True
+    return preset_api.passes_list_filters(
+        pd,
+        family=args.family,
+        workload=args.workload,
+        hardware=args.hardware,
+        mode=args.mode,
+        status=args.status,
+    )
 
 
 def run_list(args) -> int:
@@ -380,7 +296,7 @@ def run_show(args) -> int:
 
 def _render_card_human(alias_id: str, pd) -> None:
     print(f"\n  preset: {alias_id}")
-    print(f"  composed from:")
+    print("  composed from:")
     print(f"    model    = {pd.model}")
     print(f"    hardware = {pd.hardware}")
     print(f"    profile  = {pd.profile or '(none)'}")
@@ -400,21 +316,21 @@ def _render_card_human(alias_id: str, pd) -> None:
         print(f"    maturity:  {card.maturity}")
     if card.mode:
         print(f"    mode:      {card.mode}")
-    print(f"\n  Summary:")
+    print("\n  Summary:")
     for line in str(card.summary).strip().splitlines():
         print(f"    {line}")
 
     if card.workload_allow:
-        print(f"\n  Workload allow:")
+        print("\n  Workload allow:")
         for w in card.workload_allow:
             print(f"    + {w}")
     if card.workload_deny:
-        print(f"\n  Workload deny:")
+        print("\n  Workload deny:")
         for w in card.workload_deny:
             print(f"    − {w}")
 
     if card.concurrency or card.K is not None or card.context:
-        print(f"\n  Operating envelope:")
+        print("\n  Operating envelope:")
         if card.concurrency:
             print(f"    concurrency: min={card.concurrency.min} canonical="
                   f"{card.concurrency.canonical} max={card.concurrency.max}")
@@ -429,7 +345,7 @@ def _render_card_human(alias_id: str, pd) -> None:
                      if ctx.typical_output_tokens else ""))
 
     if card.routing_family or card.fallback_preset:
-        print(f"\n  Routing:")
+        print("\n  Routing:")
         if card.routing_family:
             tag = " (default for family)" if card.default_for_family else ""
             print(f"    family:   {card.routing_family}{tag}")
@@ -447,12 +363,12 @@ def _render_card_human(alias_id: str, pd) -> None:
             print(f"    {ev.type}: {ev.path}{vis}{note}")
 
     if card.tradeoffs:
-        print(f"\n  Tradeoffs:")
+        print("\n  Tradeoffs:")
         for t in card.tradeoffs:
             print(f"    • {t}")
 
     if card.do_not_use:
-        print(f"\n  Do not use:")
+        print("\n  Do not use:")
         for dnu in card.do_not_use:
             print(f"    ✗ {dnu.condition}")
             print(f"        — {dnu.reason}")
@@ -508,7 +424,7 @@ def run_explain(args) -> int:
     _render_card_human(args.preset_id, pd)
 
     # Composed runtime
-    print(f"\n  Composed runtime (dry-run):")
+    print("\n  Composed runtime (dry-run):")
     cs = _composed_summary(cfg)
     for k in ("composed_key", "kv_cache_dtype", "max_model_len", "max_num_seqs",
               "gpu_memory_utilization", "spec_decode_method", "spec_decode_K",
@@ -531,38 +447,13 @@ def run_explain(args) -> int:
 
 def _composed_summary(cfg) -> dict:
     """Pull a few fields out of the composed V1 ModelConfig for display."""
-    sd = cfg.spec_decode
-    return {
-        "composed_key": cfg.key,
-        "kv_cache_dtype": cfg.kv_cache_dtype,
-        "max_model_len": cfg.max_model_len,
-        "max_num_seqs": cfg.max_num_seqs,
-        "gpu_memory_utilization": cfg.gpu_memory_utilization,
-        "spec_decode_method": sd.method if sd else None,
-        "spec_decode_K": sd.num_speculative_tokens if sd else None,
-        "enabled_patches_count": sum(
-            1 for v in (cfg.genesis_env or {}).values()
-            if str(v) in ("1", "true", "True")
-        ),
-    }
+    return preset_api.composed_summary(cfg)
 
 
 def _summarize_diff(cfg_a, cfg_b, fallback_id: str) -> dict:
     """Single-row delta between two composed configs (only the fields
     operators care about — sizing + spec-decode + KV)."""
-    a = _composed_summary(cfg_a)
-    b = _composed_summary(cfg_b)
-    diffs: list[str] = []
-    for k in (
-        "max_model_len", "max_num_seqs", "gpu_memory_utilization",
-        "kv_cache_dtype", "spec_decode_method", "spec_decode_K",
-        "enabled_patches_count",
-    ):
-        if a.get(k) != b.get(k):
-            diffs.append(f"{k:24s} this={a[k]}  vs  fallback={b[k]}")
-    if not diffs:
-        diffs.append("(no field-level differences in summary view)")
-    return {"fallback_preset": fallback_id, "diffs": diffs}
+    return preset_api.summarize_diff(cfg_a, cfg_b, fallback_id)
 
 
 # ─── recommend ──────────────────────────────────────────────────────────────
@@ -573,38 +464,17 @@ def _passes_recommend_filters(
     hardware: Optional[str], concurrency: Optional[int],
 ) -> bool:
     """Filter rules per CONFIG_UX_R §5.2.4 + operator safety amendment."""
-    card = pd.card
-    if card is None:
-        return False  # unannotated → not recommended
-    # Safety: workload in deny list excludes the preset.
-    if workload in card.workload_deny:
-        return False
-    # Allow list — must contain exact match.
-    if workload not in card.workload_allow:
-        return False
-    if hardware is not None and pd.hardware != hardware:
-        return False
-    if concurrency is not None:
-        if card.concurrency is None:
-            return False
-        if not (card.concurrency.min <= concurrency <= card.concurrency.max):
-            return False
-    # Skip tombstones from recommendations.
-    if card.status == "tombstone":
-        return False
-    return True
+    return preset_api.passes_recommend_filters(
+        alias_id,
+        pd,
+        workload=workload,
+        hardware=hardware,
+        concurrency=concurrency,
+    )
 
 
 def _recommend_sort_key(alias_id: str, pd) -> tuple:
-    card = pd.card
-    status_rank = _STATUS_RANK.get(card.status, 99) if card else 99
-    not_default = 0 if (card and card.default_for_family) else 1
-    metric_value = (
-        -(card.primary_metric.value)
-        if (card and card.primary_metric and card.primary_metric.value is not None)
-        else 0.0
-    )
-    return (status_rank, not_default, metric_value, alias_id)
+    return preset_api.recommend_sort_key(alias_id, pd)
 
 
 def run_recommend(args) -> int:
