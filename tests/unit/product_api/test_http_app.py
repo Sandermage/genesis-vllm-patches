@@ -200,6 +200,9 @@ def test_calc_kv_endpoint_breakdown_and_curve():
     # fp16 KV achieves less context than fp8.
     assert body["by_dtype"]["fp16"] < body["by_dtype"]["fp8"]
     assert len(body["curve"]) > 5
+    # Max context scales with tensor-parallel width (more GPUs → more context).
+    assert set(body["by_tp"]) == {"1", "2", "4", "8"}
+    assert body["by_tp"]["8"] >= body["by_tp"]["1"]
     models = client.get("/api/v1/calc/models").json()
     assert "qwen3.6-27b-int4" in models["models"]
 
