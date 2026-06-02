@@ -587,7 +587,7 @@ P0-1 fix).
 pip install vllm-sndr-core pyyaml pytest cryptography
 
 sndr --help
-sndr launch --dry-run a5000-2x-35b-prod
+sndr launch --dry-run prod-qwen3.6-35b-balanced
 sndr install --dry-run --non-interactive
 python -m vllm.sndr_core.compat.schema_validator --quiet
 python -m vllm.sndr_core.apply.shadow --strict
@@ -669,7 +669,7 @@ export GENESIS_SDK_SKIP_VALIDATOR=anchor_md5
 **Smoke.**
 
 ```bash
-GENESIS_ENABLE_PN<n>=1 sndr launch a5000-2x-35b-prod --preflight-only
+GENESIS_ENABLE_PN<n>=1 sndr launch prod-qwen3.6-35b-balanced --preflight-only
 ```
 
 ### R-003 — RuntimeCommandSpec emitter divergence
@@ -775,8 +775,10 @@ remove the V1 loader; if V1 is gone, revert the freeze SHA.
 
 **Revert.** `git revert --no-edit <SHA_OF_PHASE_9_FREEZE>`.
 
-**Smoke.** `sndr launch a5000-2x-35b-prod --preflight-only` exits
-rc=0 with the deprecation warning printed but launch succeeds.
+**Smoke.** `sndr launch prod-qwen3.6-35b-balanced --preflight-only` exits
+rc=0 with the deprecation warning printed but launch succeeds. (For
+emergency V1-key smoke after a `git checkout` restore of a V1 YAML,
+see "Restoring a V1 baseline from history" below.)
 
 ### R-008 — License/security gate locking out unlicensed core
 
@@ -797,6 +799,26 @@ export SNDR_LICENSE_REQUIRED=0
 sndr license status --json | jq -e '.core == "public (unlicensed)"'
 sndr launch prod-qwen3.6-35b-balanced --preflight-only
 ```
+
+### Restoring a V1 baseline from history (emergency rollback)
+
+Phase 10 V1 sunset (`607385f1`, 2026-06-01) deleted every shipped V1 monolithic YAML. The V1+V2 resolver (`_resolve_preset_v1_or_v2`) still accepts a V1 key as an opaque arg for back-compat dispatch, but no V1 file is shipped so a bare V1 key resolves to a clean "preset not found" error.
+
+If an emergency rollback to a V1 baseline is required (e.g. an unreproducible V2 regression and the operator wants to bisect against the last-known-good V1 config), restore the file from history:
+
+```bash
+# Restore the canonical 35B V1 baseline (was deleted in 607385f1)
+git checkout 607385f1~ -- vllm/sndr_core/model_configs/builtin/a5000-2x-35b-prod.yaml
+
+# Verify the V1 key now resolves
+sndr launch a5000-2x-35b-prod --preflight-only
+
+# When the V1 bisect is complete, remove the restored file (commit deletion):
+git rm vllm/sndr_core/model_configs/builtin/a5000-2x-35b-prod.yaml
+git commit -m "revert: remove emergency-restored V1 baseline post-rollback"
+```
+
+This path is documented because the V2 schema migration is recent (2026-06-01); the V1 baseline file content is byte-equivalent across the last 12 dev tip commits before its deletion. Operators bisecting V2 schema bugs MAY need this recovery hatch until the V2 schema has gone through a couple of pin bumps without operator-facing incidents.
 
 ## Enterprise operator runbook
 
