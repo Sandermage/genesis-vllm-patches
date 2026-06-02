@@ -114,8 +114,39 @@ class UserPreset:
     size_bytes: int
 
 
-def collect_v2_config_catalog() -> V2ConfigCatalog:
-    """Return V2 models, hardware, profiles and presets as GUI records."""
+import threading as _threading
+import time as _time
+
+# The V2 catalog reads + parses every model/hardware/profile/preset YAML, so it
+# is the slowest read endpoint (~0.5s). Configs change rarely (and only via the
+# apply path), so we cache it with a short TTL and let apply invalidate it. The
+# daemon also warms this at startup so the first GUI load is instant.
+_CATALOG_CACHE: dict[str, Any] = {"data": None, "ts": 0.0}
+_CATALOG_LOCK = _threading.Lock()
+_CATALOG_TTL = 60.0
+
+
+def invalidate_v2_config_catalog() -> None:
+    """Drop the cached catalog (call after a config apply changes the YAMLs)."""
+    with _CATALOG_LOCK:
+        _CATALOG_CACHE["data"] = None
+
+
+def collect_v2_config_catalog(*, max_age: float = _CATALOG_TTL) -> V2ConfigCatalog:
+    """Return V2 models, hardware, profiles and presets as GUI records (cached)."""
+    with _CATALOG_LOCK:
+        cached = _CATALOG_CACHE["data"]
+        if cached is not None and (_time.time() - _CATALOG_CACHE["ts"]) < max_age:
+            return cached
+    result = _build_v2_config_catalog()
+    with _CATALOG_LOCK:
+        _CATALOG_CACHE["data"] = result
+        _CATALOG_CACHE["ts"] = _time.time()
+    return result
+
+
+def _build_v2_config_catalog() -> V2ConfigCatalog:
+    """Read + parse the V2 corpus from disk (the uncached build)."""
     from vllm.sndr_core.model_configs.registry_v2 import (
         list_hardware,
         list_models,

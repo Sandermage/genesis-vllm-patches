@@ -2312,8 +2312,11 @@ pre, .code-block, .cli-mirror pre, .artifact-preview pre {
 
 /* ── Hosts fleet (enterprise) ──────────────────────────────────────────── */
 .fleet-toolbar { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); margin-bottom: 12px; }
-.fleet-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(440px, 1fr)); gap: var(--sp-3); }
-@media (max-width: 980px) { .fleet-grid { grid-template-columns: 1fr; } }
+.fleet-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(560px, 1fr)); gap: var(--sp-4); align-items: start; }
+@media (max-width: 1180px) { .fleet-grid { grid-template-columns: 1fr; } }
+/* Keep an expanded card from running two screens tall: the discovery block
+   (engines + models + live patches + GPUs + advice) scrolls past ~340px. */
+.fleet-card .fleet-disco { max-height: 340px; overflow-y: auto; padding-right: 4px; }
 .fleet-card { display: flex; flex-direction: column; gap: 10px; padding: 14px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface); box-shadow: var(--shadow-sm); }
 .fleet-card.this-host { border-left: 3px solid var(--accent); }
 .fleet-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
@@ -3203,7 +3206,7 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 .fleet-empty svg { color: var(--text-muted); }
 .fleet-empty strong { font-size: 14px; color: var(--text); }
 .fleet-empty span { font-size: 12.5px; line-height: 1.5; }
-.fleet-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+.fleet-overview-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
 .fleet-server { display: flex; flex-direction: column; gap: 8px; padding: 14px; text-align: left; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); cursor: pointer; transition: border-color .12s, box-shadow .12s, transform .05s; }
 .fleet-server:hover { border-color: var(--border-strong); box-shadow: var(--shadow-sm); }
 .fleet-server:active { transform: translateY(1px); }

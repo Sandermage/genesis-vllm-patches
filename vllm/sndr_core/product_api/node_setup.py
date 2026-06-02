@@ -91,19 +91,40 @@ find "$SRC/product_api" "$SRC/model_configs" -name '__pycache__' -type d -prune 
 echo "[setup] daemon code + corpus deployed"
 # 2) Run the management daemon as a sidecar from the engine image (it has the
 #    sndr_core deps). LAN-bound so the central GUI can switch straight to it.
+#    We mount /var/run/docker.sock so the daemon can report the host's docker and
+#    manage the engine containers (scoped to a whitelist). SNDR_ENABLE_EXEC is
+#    deliberately NOT set — in-container exec stays off until the operator opts in.
 docker rm -f "$NAME" >/dev/null 2>&1 || true
-docker run -d --name "$NAME" --restart unless-stopped --network host \\
-  --entrypoint python3 \\
-  -e SNDR_ADMIN_PASSWORD={pw} \\
-  -e SNDR_ENABLE_APPLY=1 \\
-  -e SNDR_ALLOW_ALL_ORIGINS={allow} \\
-  -e SNDR_RUNTIME_HOST=127.0.0.1 \\
-  -e SNDR_OPENAI_BASE_URL=http://127.0.0.1:$ENGINE_PORT/v1 \\
-  -e SNDR_METRICS_URL=http://127.0.0.1:$ENGINE_PORT/metrics \\
-  -e PYTHONDONTWRITEBYTECODE=1 \\
-  -v "$SRC":"$DST":ro \\
-  "$IMAGE" \\
-  -c "from vllm.sndr_core.product_api.http_app import run_server; run_server(host='0.0.0.0', port=$PORT)"
+# --gpus gives the daemon READ access to nvidia-smi (real card data in the
+# inventory, fast) — it only queries, never allocates CUDA, so it does NOT
+# reserve GPU memory. We TRY --gpus all and fall back to a CPU-only run if the
+# nvidia container runtime isn't wired the way we guessed: detecting GPU support
+# by parsing `docker info` is unreliable (the toolkit often works via a prestart
+# hook on the default runtime without registering a named "nvidia" runtime), so
+# the only robust signal is whether `docker run --gpus all` actually succeeds.
+run_daemon() {{  # $1 = extra run args (e.g. "--gpus all" or "")
+  docker run -d --name "$NAME" --restart unless-stopped --network host $1 \\
+    --entrypoint python3 \\
+    -e SNDR_ADMIN_PASSWORD={pw} \\
+    -e SNDR_ENABLE_APPLY=1 \\
+    -e SNDR_ALLOW_ALL_ORIGINS={allow} \\
+    -e SNDR_RUNTIME_HOST=127.0.0.1 \\
+    -e SNDR_OPENAI_BASE_URL=http://127.0.0.1:$ENGINE_PORT/v1 \\
+    -e SNDR_METRICS_URL=http://127.0.0.1:$ENGINE_PORT/metrics \\
+    -e PYTHONDONTWRITEBYTECODE=1 \\
+    -v "$SRC":"$DST":ro \\
+    -v /var/run/docker.sock:/var/run/docker.sock \\
+    "$IMAGE" \\
+    -c "from vllm.sndr_core.product_api.http_app import run_server; run_server(host='0.0.0.0', port=$PORT)"
+}}
+if run_daemon "--gpus all" 2>/tmp/sndr_run_err; then
+  echo "[setup] daemon started with GPU access (--gpus all) — inventory will show real cards"
+else
+  echo "[setup] --gpus all not supported here, retrying CPU-only (inventory GPU data unavailable):"
+  sed 's/^/[setup]   /' /tmp/sndr_run_err 2>/dev/null | tail -3
+  docker rm -f "$NAME" >/dev/null 2>&1 || true
+  run_daemon ""
+fi
 # 3) Health-check.
 sleep 6
 docker ps --filter name="$NAME" --format 'STATUS: {{{{.Status}}}}'

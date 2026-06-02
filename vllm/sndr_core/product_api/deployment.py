@@ -176,11 +176,41 @@ def preset_has_docker(preset_id: str) -> bool:
         return False
 
 
-def host_inventory() -> dict[str, Any]:
-    """Live host snapshot — OS / Python / Docker / NVIDIA / vLLM."""
+import threading as _threading
+import time as _time
+
+_INV_CACHE: dict[str, Any] = {"data": None, "ts": 0.0}
+_INV_LOCK = _threading.Lock()
+_INV_TTL = 300.0
+
+
+def host_inventory(*, max_age: float = _INV_TTL) -> dict[str, Any]:
+    """Live host snapshot — OS / Python / Docker / NVIDIA / vLLM — cached.
+
+    ``inspect_host`` shells out to ``nvidia-smi`` / ``docker``, which can take
+    several seconds (e.g. inside a GPU-less management-daemon sidecar where
+    nvidia-smi has no device to talk to). The GUI hits this on the Hosts page, so
+    we collect at most once per TTL and serve the cached copy — and the daemon
+    warms it in the background at startup (see ``create_app``)."""
+    with _INV_LOCK:
+        cached = _INV_CACHE["data"]
+        if cached is not None and (_time.time() - _INV_CACHE["ts"]) < max_age:
+            return cached
     from vllm.sndr_core.deps import inspect_host
 
-    return inspect_host().to_dict()
+    data = inspect_host().to_dict()
+    with _INV_LOCK:
+        _INV_CACHE["data"] = data
+        _INV_CACHE["ts"] = _time.time()
+    return data
+
+
+def warm_host_inventory() -> None:
+    """Populate the inventory cache off the request path (daemon startup)."""
+    try:
+        host_inventory()
+    except Exception:  # noqa: BLE001 - best-effort warm-up, never fatal
+        pass
 
 
 def _mount_specs(cfg) -> list[str]:

@@ -58,6 +58,7 @@ class DockerInfo:
     daemon_running: bool = False
     server_version: Optional[str] = None
     nvidia_runtime_present: bool = False
+    via: Optional[str] = None           # how we reached docker: "cli" | "socket"
     notes: str = ""
 
     def to_dict(self) -> dict:
@@ -68,17 +69,74 @@ class DockerInfo:
             "daemon_running": self.daemon_running,
             "server_version": self.server_version,
             "nvidia_runtime_present": self.nvidia_runtime_present,
+            "via": self.via,
             "notes": self.notes,
         }
 
 
+_DOCKER_SOCK = "/var/run/docker.sock"
+
+
+def _docker_socket_version(sock_path: str = _DOCKER_SOCK, timeout: float = 3.0) -> Optional[str]:
+    """Ping the Docker Engine API over the unix socket; return the server version.
+
+    Used when there's no docker CLI on PATH but the socket is mounted (the node
+    management daemon's sidecar). Pure stdlib, no third-party SDK."""
+    import http.client
+    import json as _json
+    import socket as _socket
+
+    class _UnixConn(http.client.HTTPConnection):
+        def connect(self) -> None:  # type: ignore[override]
+            s = _socket.socket(_socket.AF_UNIX, _socket.SOCK_STREAM)
+            s.settimeout(timeout)
+            s.connect(sock_path)
+            self.sock = s
+
+    conn = _UnixConn("localhost", timeout=timeout)
+    try:
+        conn.request("GET", "/version", headers={"Host": "localhost"})
+        resp = conn.getresponse()
+        if resp.status != 200:
+            return None
+        return str(_json.loads(resp.read().decode("utf-8", "replace")).get("Version") or "") or None
+    except Exception:
+        return None
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+def _docker_socket_present(sock_path: str = _DOCKER_SOCK) -> bool:
+    """True when ``sock_path`` exists and is a unix socket."""
+    import stat as _stat
+    try:
+        return _stat.S_ISSOCK(os.stat(sock_path).st_mode)
+    except OSError:
+        return False
+
+
 def check_docker() -> DockerInfo:
-    """Probe Docker presence + daemon liveness + nvidia runtime."""
+    """Probe Docker presence + daemon liveness + nvidia runtime.
+
+    Prefers the docker CLI; when it's absent but ``/var/run/docker.sock`` is
+    mounted (e.g. inside the node management daemon's sidecar), falls back to the
+    Engine API over the socket so we report the host's docker truthfully instead
+    of a misleading "not installed"."""
     bin_ = shutil.which("docker")
     if bin_ is None:
+        if _docker_socket_present():
+            server = _docker_socket_version()
+            return DockerInfo(
+                installed=True, via="socket", daemon_running=server is not None,
+                server_version=server,
+                notes="reached via mounted /var/run/docker.sock (no docker CLI in this context)",
+            )
         return DockerInfo(installed=False, notes="`docker` not on PATH")
 
-    info = DockerInfo(installed=True, binary_path=bin_)
+    info = DockerInfo(installed=True, binary_path=bin_, via="cli")
     rc, out, err = _run([bin_, "--version"])
     if rc == 0:
         # eg. "Docker version 27.2.0, build 3ab4256"

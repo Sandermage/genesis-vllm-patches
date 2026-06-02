@@ -278,6 +278,8 @@ def create_app(
             raise HTTPException(status_code=409, detail=body)
         if result.status == "blocked":
             raise HTTPException(status_code=422, detail=body)
+        from .config_editor import invalidate_v2_config_catalog  # config changed → drop the cache
+        invalidate_v2_config_catalog()
         return body
 
     @app.get("/api/v1/configs/v2/user-presets")
@@ -301,6 +303,8 @@ def create_app(
             raise HTTPException(status_code=409, detail=body)
         if result.status == "blocked":
             raise HTTPException(status_code=422, detail=body)
+        from .config_editor import invalidate_v2_config_catalog  # config changed → drop the cache
+        invalidate_v2_config_catalog()
         return body
 
     @app.get("/api/v1/configs/v2/layer/{kind}/{layer_id}")
@@ -637,6 +641,20 @@ def create_app(
         except KeyError:
             raise HTTPException(status_code=404, detail=f"Unknown preset: {payload.get('preset_id')}")
 
+    def _ssh_target_for(host_id: str):
+        """Resolve a stored host profile + build its SSH target dict (creds stay
+        server-side, keyed by host_id). Raises 404 for an unknown host."""
+        profile = next((p for p in list_host_profiles() if p.id == host_id), None)
+        if profile is None:
+            raise HTTPException(status_code=404, detail=f"unknown host: {host_id}")
+        target = {
+            "host": profile.host, "port": profile.ssh_port or 22,
+            "user": profile.ssh_user or (profile.ssh_target.split("@", 1)[0] if "@" in profile.ssh_target else None),
+            "auth_method": profile.ssh_auth or "agent", "key_path": profile.ssh_key_path,
+            "secret_id": f"ssh:{host_id}",
+        }
+        return profile, target
+
     @app.post("/api/v1/install/apply")
     async def install_apply(payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
         """Execute an install plan on a host over SSH — MUTATING, double-gated.
@@ -652,14 +670,7 @@ def create_app(
             raise HTTPException(status_code=400, detail="explicit confirm:true is required to run on a host")
 
         host_id = str(payload.get("host_id") or "").strip()
-        profile = next((p for p in list_host_profiles() if p.id == host_id), None)
-        if profile is None:
-            raise HTTPException(status_code=404, detail=f"unknown host: {host_id}")
-        ssh_target = {
-            "host": profile.host, "port": profile.ssh_port or 22,
-            "user": profile.ssh_user or (profile.ssh_target.split("@", 1)[0] if "@" in profile.ssh_target else None),
-            "auth_method": profile.ssh_auth or "agent", "key_path": profile.ssh_key_path, "secret_id": f"ssh:{host_id}",
-        }
+        profile, ssh_target = _ssh_target_for(host_id)
         try:
             return installer.apply_install_plan(
                 host={"label": profile.label, "host": profile.host},
@@ -688,14 +699,7 @@ def create_app(
             raise HTTPException(status_code=400, detail="explicit confirm:true is required to run on a host")
 
         host_id = str(payload.get("host_id") or "").strip()
-        profile = next((p for p in list_host_profiles() if p.id == host_id), None)
-        if profile is None:
-            raise HTTPException(status_code=404, detail=f"unknown host: {host_id}")
-        ssh_target = {
-            "host": profile.host, "port": profile.ssh_port or 22,
-            "user": profile.ssh_user or (profile.ssh_target.split("@", 1)[0] if "@" in profile.ssh_target else None),
-            "auth_method": profile.ssh_auth or "agent", "key_path": profile.ssh_key_path, "secret_id": f"ssh:{host_id}",
-        }
+        profile, ssh_target = _ssh_target_for(host_id)
         try:
             result = node_setup.setup_node(
                 ssh_target=ssh_target, run_apply=ssh_client.run_apply,
@@ -709,6 +713,116 @@ def create_app(
         if not result.get("applied") and "password" in (result.get("error") or ""):
             raise HTTPException(status_code=400, detail=result["error"])
         return result
+
+    # ─── Container management (scoped to vLLM/engine containers) ──────────
+    #
+    # One REST shape over two transports (Approach A): the LOCAL family talks the
+    # docker socket mounted into this daemon (the node case); the HOST family runs
+    # docker over SSH to a registered host (the central-GUI case). Read ops are
+    # ungated; lifecycle needs apply+confirm; exec additionally needs
+    # SNDR_ENABLE_EXEC. The whitelist lives in container_ops, enforced by both
+    # backends, so neither channel can escape the engine-container scope.
+
+    def _container_op(fn):
+        from . import container_ops as _co
+        try:
+            return fn()
+        except _co.NotManagedError as exc:
+            raise HTTPException(status_code=403, detail=str(exc))
+        except _co.ContainerOpError as exc:
+            raise HTTPException(status_code=exc.status, detail=str(exc))
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+    def _local_control():
+        from . import container_ops as _co
+        from vllm.sndr_core.deps import checkers
+        if not checkers._docker_socket_present():
+            raise HTTPException(
+                status_code=503,
+                detail="docker socket not mounted — reinstall the node to enable container management")
+        return _co.SocketContainerControl()
+
+    def _host_control(host_id: str):
+        from . import container_ops as _co
+        _profile, target = _ssh_target_for(host_id)
+        return _co.SshContainerControl(target=target)
+
+    def _do_action(control, name: str, payload: dict[str, Any]) -> dict[str, Any]:
+        from . import container_ops as _co
+        action = str(payload.get("action", "")).strip().lower()
+        if action not in ("start", "stop", "restart"):
+            raise HTTPException(status_code=400, detail=f"unsupported action: {action!r}")
+        gate = _co.gate_lifecycle(apply_on=apply_on, confirm=bool(payload.get("confirm")))
+        if not gate.allowed:
+            raise HTTPException(status_code=gate.status, detail=gate.reason)
+        _container_op(lambda: getattr(control, action)(name))
+        return {"ok": True, "action": action, "container": name}
+
+    def _do_exec(control, name: str, payload: dict[str, Any]) -> dict[str, Any]:
+        from . import container_ops as _co
+        argv = payload.get("argv")
+        if not isinstance(argv, list) or not all(isinstance(a, str) for a in argv) or not argv:
+            raise HTTPException(status_code=400, detail="argv must be a non-empty list of strings")
+        gate = _co.gate_exec(apply_on=apply_on, exec_on=_co.exec_enabled(), confirm=bool(payload.get("confirm")))
+        if not gate.allowed:
+            raise HTTPException(status_code=gate.status, detail=gate.reason)
+        result = _container_op(lambda: control.exec(name, argv))
+        return {"ok": True, "container": name, **result.to_dict()}
+
+    # Local family (this daemon's host, via the docker socket) ------------
+    @app.get("/api/v1/containers")
+    async def containers_list() -> dict[str, Any]:
+        control = _local_control()
+        items = _container_op(control.list_managed)
+        return {"containers": [c.to_dict() for c in items], "source": "socket"}
+
+    @app.get("/api/v1/containers/{name}")
+    async def container_inspect(name: str) -> dict[str, Any]:
+        return _container_op(lambda: _local_control().inspect(name))
+
+    @app.get("/api/v1/containers/{name}/logs")
+    async def container_logs(name: str, tail: int = Query(default=200, ge=1, le=5000)) -> dict[str, Any]:
+        return {"container": name, "logs": _container_op(lambda: _local_control().logs(name, tail=tail))}
+
+    @app.get("/api/v1/containers/{name}/stats")
+    async def container_stats(name: str) -> dict[str, Any]:
+        return {"container": name, "stats": _container_op(lambda: _local_control().stats(name))}
+
+    @app.post("/api/v1/containers/{name}/action")
+    async def container_action(name: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+        return _do_action(_local_control(), name, payload)
+
+    @app.post("/api/v1/containers/{name}/exec")
+    async def container_exec(name: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+        return _do_exec(_local_control(), name, payload)
+
+    # Host family (a registered host, via SSH) ----------------------------
+    @app.get("/api/v1/hosts/{host_id}/containers")
+    async def host_containers_list(host_id: str) -> dict[str, Any]:
+        control = _host_control(host_id)
+        items = _container_op(control.list_managed)
+        return {"containers": [c.to_dict() for c in items], "source": "ssh"}
+
+    @app.get("/api/v1/hosts/{host_id}/containers/{name}")
+    async def host_container_inspect(host_id: str, name: str) -> dict[str, Any]:
+        return _container_op(lambda: _host_control(host_id).inspect(name))
+
+    @app.get("/api/v1/hosts/{host_id}/containers/{name}/logs")
+    async def host_container_logs(host_id: str, name: str, tail: int = Query(default=200, ge=1, le=5000)) -> dict[str, Any]:
+        return {"container": name, "logs": _container_op(lambda: _host_control(host_id).logs(name, tail=tail))}
+
+    @app.get("/api/v1/hosts/{host_id}/containers/{name}/stats")
+    async def host_container_stats(host_id: str, name: str) -> dict[str, Any]:
+        return {"container": name, "stats": _container_op(lambda: _host_control(host_id).stats(name))}
+
+    @app.post("/api/v1/hosts/{host_id}/containers/{name}/action")
+    async def host_container_action(host_id: str, name: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+        return _do_action(_host_control(host_id), name, payload)
+
+    @app.post("/api/v1/hosts/{host_id}/containers/{name}/exec")
+    async def host_container_exec(host_id: str, name: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+        return _do_exec(_host_control(host_id), name, payload)
 
     @app.get("/api/v1/operations")
     async def operations_list() -> dict[str, Any]:
@@ -1687,6 +1801,22 @@ def create_app(
         from starlette.staticfiles import StaticFiles
 
         app.mount("/", StaticFiles(directory=str(static_dir), html=True), name="ui")
+
+    # Warm the slow read paths off the request thread so the first GUI load is
+    # instant: the host-inventory probe (nvidia-smi/docker shell-outs) and the
+    # V2 config catalog (reads + parses every config YAML).
+    import threading as _threading
+
+    def _warm() -> None:
+        from . import config_editor, deployment
+
+        deployment.warm_host_inventory()
+        try:
+            config_editor.collect_v2_config_catalog()
+        except Exception:  # noqa: BLE001 - best-effort warm-up
+            pass
+
+    _threading.Thread(target=_warm, daemon=True).start()
 
     return app
 

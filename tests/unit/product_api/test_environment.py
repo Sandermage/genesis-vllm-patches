@@ -2,6 +2,7 @@
 """Tests for the runtime environment / version report."""
 from __future__ import annotations
 
+import importlib.util
 from dataclasses import asdict
 
 from vllm.sndr_core.product_api.environment import collect_environment_report
@@ -15,6 +16,17 @@ def test_environment_report_has_project_and_engine_fields():
     # engine_version is None when vllm dist metadata is absent (dev source tree).
     assert report.engine_version is None or isinstance(report.engine_version, str)
     assert report.python_version
+
+
+def test_engine_installed_reflects_vllm_not_commercial_tier():
+    """``engine_installed`` describes the vLLM RUNTIME (engine_name/engine_version),
+    not the optional commercial ``vllm.sndr_engine`` tier. Regression guard: these
+    were wired to the wrong package, so a stock vLLM install reported "no"."""
+    report = collect_environment_report()
+    vllm_importable = importlib.util.find_spec("vllm") is not None
+    assert report.engine_installed == vllm_importable
+    # The test suite runs against a real vLLM source tree, so this must be True.
+    assert report.engine_installed is True
 
 
 def test_environment_report_lists_dependencies_and_tools():

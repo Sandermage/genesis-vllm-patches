@@ -63,7 +63,7 @@ export function FleetPanel({ onOpenHost }: { onOpenHost: (id: string) => void })
 
       {loading && hosts === null && <div className="fleet-loading"><Loader2 size={18} className="spin" /> Sweeping the fleet over SSH…</div>}
 
-      <div className="fleet-grid">
+      <div className="fleet-overview-grid">
         {(hosts || []).map((h) => {
           const st = statusOf(h);
           return (

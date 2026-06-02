@@ -55,7 +55,12 @@ def collect_environment_report() -> EnvironmentReport:
     from vllm.sndr_core.version import SNDR_CORE_VERSION
 
     engine_version = _pkg_version("vllm")
-    engine_installed = importlib.util.find_spec("vllm.sndr_engine") is not None
+    # "engine" in THIS report means the vLLM runtime (see engine_name/engine_version
+    # below) — NOT the optional commercial vllm.sndr_engine tier, which is surfaced
+    # separately via the capabilities/platform report. vLLM counts as installed if
+    # its dist metadata is present OR it's importable (source/editable installs and
+    # the in-image mount expose no metadata but are perfectly importable).
+    engine_installed = engine_version is not None or importlib.util.find_spec("vllm") is not None
 
     dependencies = tuple(
         DependencyInfo(name=name, version=_pkg_version(name), present=_pkg_version(name) is not None, kind="python")
