@@ -70,7 +70,7 @@ import {
   X,
   Wrench
 } from "lucide-react";
-import { Component, Fragment, Suspense, lazy, useEffect, useMemo, useRef, useState, type ReactNode, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { Component, Fragment, Suspense, lazy, useEffect, useMemo, useRef, useState, type ReactNode, type KeyboardEvent as ReactKeyboardEvent, type RefObject } from "react";
 import {
   AlertConfig,
   BundleSpec,
@@ -381,6 +381,35 @@ function useFetch<T>(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [...deps, enabled, nonce]);
   return { data, state, error, reload: () => setNonce((value) => value + 1) };
+}
+
+// Accessibility hook for modal dialogs: traps Tab focus inside the dialog while
+// it is open and restores focus to the previously-focused element (the trigger)
+// on close. Respects an element that already holds focus inside the dialog
+// (e.g. an autofocused search input), so it never fights an explicit autoFocus.
+function useDialogFocus<T extends HTMLElement>(ref: RefObject<T | null>) {
+  useEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    const selector = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    const focusables = () => Array.from(node.querySelectorAll<HTMLElement>(selector)).filter((el) => el.offsetParent !== null || el === document.activeElement);
+    if (!node.contains(document.activeElement)) focusables()[0]?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Tab") return;
+      const items = focusables();
+      if (items.length === 0) { event.preventDefault(); return; }
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    node.addEventListener("keydown", onKeyDown);
+    return () => {
+      node.removeEventListener("keydown", onKeyDown);
+      previouslyFocused?.focus?.();
+    };
+  }, [ref]);
 }
 
 export default function App() {
@@ -1728,6 +1757,8 @@ export default function App() {
 // Keyboard-shortcut reference overlay (opened with `?`). Documents the global
 // chords so power users can discover them without leaving the keyboard.
 function ShortcutsModal({ onClose }: { onClose: () => void }) {
+  const dialogRef = useRef<HTMLElement>(null);
+  useDialogFocus(dialogRef);
   const groups: Array<{ title: string; rows: Array<[string[], string]> }> = [
     { title: "Global", rows: [
       [["⌘", "K"], "Open command palette"],
@@ -1754,7 +1785,7 @@ function ShortcutsModal({ onClose }: { onClose: () => void }) {
   ];
   return (
     <div className="dialog-backdrop" role="presentation" onClick={onClose}>
-      <section className="shortcuts-dialog" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts" onClick={(event) => event.stopPropagation()}>
+      <section ref={dialogRef} className="shortcuts-dialog" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts" onClick={(event) => event.stopPropagation()}>
         <div className="shortcuts-head">
           <Command size={16} />
           <strong>Keyboard shortcuts</strong>
@@ -9916,9 +9947,16 @@ function EndpointRows({ host }: { host: string }) {
 }
 
 function InfoDialog({ message, onClose }: { message: string; onClose: () => void }) {
+  const dialogRef = useRef<HTMLElement>(null);
+  useDialogFocus(dialogRef);
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
   return (
     <div className="dialog-backdrop" role="presentation" onClick={onClose}>
-      <section className="info-dialog" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
+      <section ref={dialogRef} className="info-dialog" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
         <div className="module-card-title">
           <Command size={18} />
           <h2>GUI Action Preview</h2>
@@ -10031,6 +10069,8 @@ function CommandPalette({
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLElement>(null);
+  useDialogFocus(dialogRef);
   const commands: Array<{ icon: ReactNode; title: string; detail: string; keep?: boolean; run: () => void }> = [
     { icon: <RefreshCw size={16} />, title: "Sync Catalog", detail: "Refresh overview, presets, patch registry and doctor state", run: onRefresh },
     { icon: <Rocket size={16} />, title: "Open Launch Plan", detail: "Recommendation builder and launch composer", run: () => onSection("launch-plan") },
@@ -10074,7 +10114,7 @@ function CommandPalette({
   };
   return (
     <div className="dialog-backdrop" role="presentation" onClick={onClose}>
-      <section className="command-dialog" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
+      <section ref={dialogRef} className="command-dialog" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
         <div className="command-search">
           <Search size={16} />
           {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
@@ -10591,6 +10631,13 @@ const _JOB_TERMINAL = new Set(["succeeded", "failed", "done", "error", "cancelle
 function JobMonitorModal({ jobId, onClose }: { jobId: string; onClose: () => void }) {
   const [job, setJob] = useState<Job | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const dialogRef = useRef<HTMLElement>(null);
+  useDialogFocus(dialogRef);
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
   useEffect(() => {
     let cancelled = false;
@@ -10617,7 +10664,7 @@ function JobMonitorModal({ jobId, onClose }: { jobId: string; onClose: () => voi
 
   return (
     <div className="dialog-backdrop" role="presentation" onClick={onClose}>
-      <section className="job-monitor" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
+      <section ref={dialogRef} className="job-monitor" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
         <header className="job-monitor-head">
           <div className="job-monitor-title">
             <Activity size={18} className={running ? "spin" : ""} />
