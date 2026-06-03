@@ -756,8 +756,36 @@ def _run_via_specs(stats: PatchStats) -> None:
             ))
             n_applied += 1
             continue
+        # v11.4.0 (Phase 6 P3.4 observability parity): wrap mod.apply()
+        # in measure_patch_apply() context so PatchMetrics + observability
+        # spans fire for the spec-driven path identically to the legacy
+        # @register_patch-instrumented path. Without this wrap,
+        # GENESIS_OBSERVABILITY=1 boots that use SNDR_APPLY_VIA_SPECS=1
+        # would lose per-patch elapsed_ms + rss_delta_kb telemetry.
+        # The context manager is a no-op when observability is off.
         try:
-            status, reason = mod.apply()
+            from vllm.sndr_core.observability.patch_metrics import (
+                measure_patch_apply,
+            )
+            _patch_metric_cm = measure_patch_apply(display)
+        except ImportError:
+            # Observability stack absent — fall back to a no-op context.
+            from contextlib import nullcontext
+            _patch_metric_cm = nullcontext()
+
+        try:
+            with _patch_metric_cm as _metric:
+                status, reason = mod.apply()
+                # Mirror the legacy instrumentation behavior — populate
+                # metric fields with the result for observability emit.
+                if _metric is not None:
+                    try:
+                        _metric.status = status
+                        _metric.reason = reason or ""
+                    except Exception:
+                        # Best-effort: older metric implementations may
+                        # not expose these attributes.
+                        pass
         except Exception as e:
             stats.results.append(_failed(
                 display, f"apply() raised: {type(e).__name__}: {e}"
