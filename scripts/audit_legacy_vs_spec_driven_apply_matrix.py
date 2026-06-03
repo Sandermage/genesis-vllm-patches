@@ -96,6 +96,46 @@ _COMBINED_LEGACY_TOKEN_TO_SPEC_ID: dict[str, str] = {
 }
 
 
+def _extract_legacy_patch_id(name: str, spec_id_set: set[str]) -> str:
+    """Extract canonical patch ID from a legacy `@register_patch(name)`
+    string, with fallbacks.
+
+    Strategy (in order):
+      1. Combined-token normalization (`P1/P2` → `P1`).
+      2. First-token literal match against the spec registry.
+      3. Multi-token underscore-join probe — e.g. `"PN16 V6 — ..."` →
+         try `"PN16_V6"` against the spec set; if found, use it. This
+         handles ID-with-underscore-vs-name-with-space drift introduced
+         by version-suffixed patches (V6, B, B1, etc.) that the master
+         plan §3 phase 2 registered with space-separated titles.
+      4. Fall back to bare first token.
+    """
+    if not name:
+        return ""
+    head = name.split()[0]
+    if head in _COMBINED_LEGACY_TOKEN_TO_SPEC_ID:
+        return _COMBINED_LEGACY_TOKEN_TO_SPEC_ID[head]
+    # Multi-token underscore probe FIRST — try longest match against
+    # spec set before falling back to bare first token. This is needed
+    # because some IDs co-exist (`PN16` AND `PN16_V6`); the registered
+    # title `"PN16 V6 — ..."` should map to `PN16_V6`, while
+    # `"PN16 Lazy ..."` should map to `PN16`. Probe order: longest →
+    # shortest, return on first spec match.
+    tokens = name.split()
+    probe_max = min(4, len(tokens))
+    for n in range(probe_max, 1, -1):
+        # If any of tokens[1..n] looks like a separator, skip this n
+        # (don't stop — a shorter probe may still match).
+        if any(t in ("—", "-", "–", "/") for t in tokens[1:n]):
+            continue
+        candidate = "_".join(tokens[:n])
+        if candidate in spec_id_set:
+            return candidate
+    if head in spec_id_set:
+        return head
+    return head
+
+
 def _enumerate_legacy_path() -> list[dict[str, Any]]:
     """Build the legacy apply-matrix preview without booting vLLM.
 
@@ -106,30 +146,91 @@ def _enumerate_legacy_path() -> list[dict[str, Any]]:
     (registration happens but no patch fn is called) — then enumerate
     the list.
 
-    v11.3.0 (BUG #6 audit follow-through): combined legacy tokens
-    (P1/P2, P17/P18, P32/P33, P68/P69) are normalized to their canonical
-    spec ID via `_COMBINED_LEGACY_TOKEN_TO_SPEC_ID`. Without this
-    normalization the first-token extractor reports false legacy-only
-    entries that confuse v12_0_safe gating.
+    v11.3.0 (BUG #6+#7 audit follow-through): patch ID extraction
+    uses `_extract_legacy_patch_id` — combined-token map for
+    bundle-registered patches (P1/P2, P17/P18, P32/P33, P68/P69) plus
+    multi-token underscore probe for space-vs-underscore drift in
+    version-suffixed patches (PN16 V6 → PN16_V6).
     """
     # Importing apply triggers @register_patch decorators.
     from vllm.sndr_core.apply import _state, _per_patch_dispatch  # noqa: F401
+    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY as _SPEC
+    spec_id_set = set(_SPEC.keys())
     matrix: list[dict[str, Any]] = []
     for name, fn in _state.PATCH_REGISTRY:
-        # name typically looks like "P67 Multi-query attn — kernel switch"
-        # We extract the patch_id (first whitespace-delimited token)
-        head = name.split()[0] if name else ""
-        # Normalize combined legacy tokens to the canonical spec ID.
-        canonical = _COMBINED_LEGACY_TOKEN_TO_SPEC_ID.get(head, head)
+        head_raw = name.split()[0] if name else ""
+        canonical = _extract_legacy_patch_id(name, spec_id_set)
         matrix.append({
             "patch_id": canonical,
-            "raw_legacy_token": head,
+            "raw_legacy_token": head_raw,
             "display_name": name,
             "source": "legacy_apply_patch_register",
             "fn_module": getattr(fn, "__module__", None),
             "fn_qualname": getattr(fn, "__qualname__", None),
         })
     return matrix
+
+
+# ─── Third apply path: manual orchestration in vllm/sndr_core/__init__.py ────
+#
+# A non-trivial set of patches (~41 modules at v11.3.0) apply via
+# explicit `if <env_flag>: from .integrations.<...> import (mod); mod.apply()`
+# blocks in sndr_core/__init__.py — the SNDR plugin's manual
+# orchestration block. These do NOT go through the legacy
+# `@register_patch` decorator and do NOT need `SNDR_APPLY_VIA_SPECS=1`
+# to fire. Discovered via runtime logs on prod gemma4-31b container.
+#
+# The audit must enumerate this third path so spec-only IDs that are
+# actually applied via manual orchestration are not flagged as
+# "would-silently-not-apply on v12.0.0 flip" — they ALREADY apply.
+
+import re as _re_for_init_parser
+
+
+def _enumerate_manual_orchestration_modules() -> set[str]:
+    """Parse vllm/sndr_core/__init__.py for `mod.apply()` calls and
+    return the set of fully-qualified apply_module paths covered.
+
+    Pattern detected:
+      `from .integrations.<sub> import (<name> as _<alias>,...)` block
+      AND `_<alias>.apply()` call later in the file. Both must match
+      for the module to count as actively applied via manual
+      orchestration.
+
+    No runtime evaluation — pure text scan. Resilient to commented-out
+    blocks since they would also lack the matching `.apply()` call.
+    """
+    init_path = REPO_ROOT / "vllm" / "sndr_core" / "__init__.py"
+    try:
+        text = init_path.read_text(encoding="utf-8")
+    except OSError:
+        return set()
+
+    # Alias resolution: build alias → full module path from import
+    # blocks. Multi-line imports use the
+    # `from .integrations.<sub> import (\n    <name> as _<alias>,\n)`
+    # shape; regex handles both single-line and multi-line forms.
+    alias_re = _re_for_init_parser.compile(
+        r"from\s+\.integrations\.([\w\.]+)\s+import\s*\(\s*\n\s*"
+        r"(\w+)\s+as\s+(_\w+)",
+        _re_for_init_parser.M,
+    )
+    alias_to_full: dict[str, str] = {}
+    for m in alias_re.finditer(text):
+        sub_path = m.group(1)
+        name = m.group(2)
+        alias = m.group(3)
+        alias_to_full[alias] = (
+            f"vllm.sndr_core.integrations.{sub_path}.{name}"
+        )
+
+    apply_re = _re_for_init_parser.compile(r"(_\w+)\.apply\(\)")
+    applied_modules: set[str] = set()
+    for m in apply_re.finditer(text):
+        alias = m.group(1)
+        if alias in alias_to_full:
+            applied_modules.add(alias_to_full[alias])
+    return applied_modules
 
 
 def _enumerate_spec_driven_path(registry: dict) -> list[dict[str, Any]]:
@@ -195,6 +296,15 @@ def _diff_matrices(
     from `legacy_only_drift` (spec doesn't have the ID at all, OR has
     it without the policy env prefix). Only the latter blocks
     v12_0_safe.
+
+    v11.3.0 BUG #7 audit follow-through: spec-only IDs are
+    cross-checked against the manual orchestration apply path in
+    `vllm/sndr_core/__init__.py`. Spec IDs whose apply_module is
+    already called by manual orchestration are NOT silent-no-op
+    risks — they apply through path 3, independent of the legacy
+    vs spec-driven flag. The diff exposes
+    `spec_only_via_manual_orchestration` (covered) and
+    `spec_only_truly_orphan` (apply only via SNDR_APPLY_VIA_SPECS=1).
     """
     legacy_ids = [m["patch_id"] for m in legacy]
     spec_ids = [m["patch_id"] for m in spec_driven]
@@ -248,6 +358,46 @@ def _diff_matrices(
                 }
                 break
 
+    # BUG #7: classify spec_only via manual orchestration coverage.
+    manual_modules = _enumerate_manual_orchestration_modules()
+    spec_only_via_manual: list[str] = []
+    spec_only_truly_orphan: list[str] = []
+    for pid in spec_only:
+        meta = registry.get(pid, {})
+        if not isinstance(meta, dict):
+            continue
+        mod = meta.get("apply_module")
+        impl = meta.get("implementation_status", "")
+        lifecycle = meta.get("lifecycle", "")
+        # Coordinator/marker_only/placeholder entries don't apply at
+        # all — they're metadata. Not an orphan risk.
+        if mod is None or impl in ("marker_only", "placeholder"):
+            spec_only_via_manual.append(pid)  # zero-apply, no risk
+            continue
+        if mod in manual_modules:
+            spec_only_via_manual.append(pid)
+        else:
+            # P68/P69 bundle special-case: P69 shares apply_module with
+            # P68. P68 has a legacy bundle hook (`P68/P69 ...`), so
+            # P69's apply_module is invoked transitively.
+            shared_with = []
+            for other_pid, other_meta in registry.items():
+                if other_pid == pid:
+                    continue
+                if (
+                    isinstance(other_meta, dict)
+                    and other_meta.get("apply_module") == mod
+                ):
+                    shared_with.append(other_pid)
+            if shared_with and any(
+                _COMBINED_LEGACY_TOKEN_TO_SPEC_ID.get(f"{pid}/{s}") or
+                _COMBINED_LEGACY_TOKEN_TO_SPEC_ID.get(f"{s}/{pid}")
+                for s in shared_with
+            ):
+                spec_only_via_manual.append(pid)
+            else:
+                spec_only_truly_orphan.append(pid)
+
     return {
         "legacy_total": len(legacy),
         "spec_driven_total": len(spec_driven),
@@ -260,6 +410,10 @@ def _diff_matrices(
         "legacy_only_drift_ids": legacy_only_drift[:30],
         "spec_only_count": len(spec_only),
         "spec_only_ids": spec_only[:30],
+        "spec_only_via_manual_count": len(spec_only_via_manual),
+        "spec_only_via_manual_ids": spec_only_via_manual[:30],
+        "spec_only_truly_orphan_count": len(spec_only_truly_orphan),
+        "spec_only_truly_orphan_ids": spec_only_truly_orphan[:30],
         "order_divergent": order_divergent,
         "first_order_divergence": first_swap,
         # v12_0_safe: only DRIFT blocks the flip (intentional legacy
@@ -315,12 +469,27 @@ def _print_human(diff: dict[str, Any]) -> None:
     if diff["spec_only_count"] > 0:
         print(
             "Spec-only IDs (in dispatcher.PATCH_REGISTRY but no "
-            "legacy apply_patch_* function — auto-derive expected):"
+            "legacy apply_patch_* function):"
         )
-        for pid in diff["spec_only_ids"]:
-            print(f"  - {pid}")
-        if diff["spec_only_count"] > 30:
-            print(f"  ... +{diff['spec_only_count'] - 30} more")
+        print(
+            f"  covered by __init__.py manual orchestration OR "
+            f"marker_only/coordinator (no v12.0.0 risk): "
+            f"{diff['spec_only_via_manual_count']}"
+        )
+        for pid in diff["spec_only_via_manual_ids"][:10]:
+            print(f"    · {pid}")
+        if diff["spec_only_via_manual_count"] > 10:
+            print(
+                f"    ... +{diff['spec_only_via_manual_count'] - 10} more"
+            )
+        print(
+            f"  truly orphan (would only apply via "
+            f"SNDR_APPLY_VIA_SPECS=1 — silent no-op in legacy mode "
+            f"unless an operator opts in): "
+            f"{diff['spec_only_truly_orphan_count']}"
+        )
+        for pid in diff["spec_only_truly_orphan_ids"]:
+            print(f"    ! {pid}")
         print()
     if diff["order_divergent"]:
         print("ORDER DIVERGENCE DETECTED:")

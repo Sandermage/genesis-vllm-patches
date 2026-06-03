@@ -105,6 +105,51 @@ def test_intentional_legacy_baseline():
     )
 
 
+def test_spec_only_truly_orphan_baseline():
+    """v11.3.0 baseline for spec-only-truly-orphan patches — those
+    that apply ONLY through the spec-driven path (SNDR_APPLY_VIA_SPECS=1).
+
+    Why pin: an operator who enables one of these via env (e.g.
+    `GENESIS_ENABLE_PN289_PROCESS_INFO=1`) without also setting
+    `SNDR_APPLY_VIA_SPECS=1` gets a silent no-op. Bug class #5 + #7
+    from the v11.3.0 audit-driven discovery sweep.
+
+    Either:
+      (a) add a legacy `@register_patch` hook in
+          `vllm/sndr_core/apply/_per_patch_dispatch.py`, or
+      (b) add a manual orchestration call in
+          `vllm/sndr_core/__init__.py`, or
+      (c) accept the orphan state — document in this baseline so a
+          NEW orphan addition (not part of baseline) triggers review.
+
+    Baseline at v11.3.0 (BUG #7 audit, commit pending):
+      - PN288: tool finish_reason override (not in any production YAML)
+      - PN289: §6.H10 Prometheus process_info gauge (BUG #4 just-fixed
+               tier=community; not in any production YAML)
+      - PN40-classifier: DFlash sub-D workload classifier hook
+        (env GENESIS_ENABLE_PN40_DFLASH_OMNIBUS — IS in production
+        DFlash YAMLs, but the same env enables PN40 omnibus which
+        has a legacy hook; classifier currently routes through there
+        too — BUG #8 audit follow-up).
+    """
+    audit = _import_audit_module()
+    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+    legacy = audit._enumerate_legacy_path()
+    spec = audit._enumerate_spec_driven_path(PATCH_REGISTRY)
+    diff = audit._diff_matrices(legacy, spec, PATCH_REGISTRY)
+    expected = {"PN288", "PN289", "PN40-classifier"}
+    actual = set(diff["spec_only_truly_orphan_ids"])
+    new_orphans = sorted(actual - expected)
+    fixed_orphans = sorted(expected - actual)
+    assert actual == expected, (
+        f"spec_only_truly_orphan baseline changed:\n"
+        f"  NEW orphans (review — add legacy hook or manual call): "
+        f"{new_orphans}\n"
+        f"  RESOLVED orphans (good — update this test's `expected`): "
+        f"{fixed_orphans}"
+    )
+
+
 def test_no_apply_module_entry_must_have_legacy_env_or_known_lifecycle():
     """Policy invariant: a spec entry with apply_module=None and
     lifecycle='legacy' MUST use the GENESIS_LEGACY_* env_flag
