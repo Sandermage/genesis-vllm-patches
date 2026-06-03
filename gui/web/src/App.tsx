@@ -1411,6 +1411,8 @@ export default function App() {
                   <PlanChip label="Hardware" value={selectedPresetRecord?.hardware ?? recommendForm.hardware} />
                   <ChevronRight size={18} />
                   <PlanChip label="Profile" value={selectedPresetRecord?.profile ?? "-"} />
+                  <ChevronRight size={18} />
+                  <PlanChip label="Baseline" value={primaryMetricValue > 0 ? `${primaryMetricValue.toLocaleString()} ${primaryMetricKind.replace(/^agg_/, "")}` : "pending"} />
                 </div>
 
                 <div className="option-block">
