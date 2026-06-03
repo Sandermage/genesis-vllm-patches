@@ -102,8 +102,8 @@ patches:
   # ── Qwen-applicable patches (MTP/general-purpose, added 2026-05-17) ──
   GENESIS_ENABLE_PN33_SPEC_DECODE_WARMUP_K: '1'              # MTP K-aware warmup
   GENESIS_ENABLE_P108: '1'             # MTP draft stream sync
-  GENESIS_ENABLE_P109_SAMPLING_PARAMS_VOCAB_RANGE_VALIDATORS: '1'
-  GENESIS_ENABLE_PN110_BLOCK_POOL_FREE_DEDUP: '1'
+  GENESIS_ENABLE_P109: '1'             # sampler safety (vllm#42614) — short form matches registry env_flag
+  GENESIS_ENABLE_PN110: '1'            # BlockPool.free_blocks dedup (vllm#42615) — short form matches registry env_flag
 
   # ── Cross-family ──
   GENESIS_ENABLE_PN126_V1_DECODE_WARMUP: '1'

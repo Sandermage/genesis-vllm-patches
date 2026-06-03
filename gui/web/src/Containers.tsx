@@ -122,6 +122,7 @@ export function ContainersPanel({ hosts, onNavigate, initialHostId }: { hosts: H
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [open, setOpen] = useState<{ name: string; tab?: Tab } | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{ name: string; action: ContainerAction } | null>(null);
   const [queryText, setQueryText] = useState("");
   const [filter, setFilter] = useState<StateFilter>("all");
   const [sort, setSort] = useState<SortKey>("state");
@@ -170,11 +171,18 @@ export function ContainersPanel({ hosts, onNavigate, initialHostId }: { hosts: H
     return () => { alive = false; window.clearInterval(t); };
   }, [items, source, open]);
 
-  async function act(name: string, action: ContainerAction) {
+  async function runAct(name: string, action: ContainerAction) {
     setBusy(`${name}:${action}`); setErr(null);
     try { await api.containerAction(source, name, action); await load(); }
     catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(null); }
+  }
+  // Disruptive actions (stop/restart) require an explicit confirmation — a
+  // misclick on a production engine container would drop live inference.
+  // start is non-destructive and runs immediately.
+  function act(name: string, action: ContainerAction) {
+    if (action === "start") { void runAct(name, action); return; }
+    setConfirmAction({ name, action });
   }
 
   const view = useMemo(() => {
@@ -191,10 +199,28 @@ export function ContainersPanel({ hosts, onNavigate, initialHostId }: { hosts: H
     });
   }, [items, queryText, filter, sort, stats]);
 
+  // Confirmation overlay for disruptive actions — rendered in both the open
+  // (ContainerPage) and list views so a stop/restart triggered from either
+  // surface is gated the same way.
+  const confirmModal = confirmAction && (
+    <ConfirmActionModal
+      name={confirmAction.name}
+      action={confirmAction.action}
+      busy={busy === `${confirmAction.name}:${confirmAction.action}`}
+      onConfirm={() => { const a = confirmAction; setConfirmAction(null); void runAct(a.name, a.action); }}
+      onCancel={() => setConfirmAction(null)}
+    />
+  );
+
   if (open) {
-    return <ContainerPage source={source} name={open.name} initialTab={open.tab} busy={busy}
-      onBack={() => { setOpen(null); void load(); }}
-      onAct={(a) => act(open.name, a)} onNavigate={onNavigate} />;
+    return (
+      <>
+        <ContainerPage source={source} name={open.name} initialTab={open.tab} busy={busy}
+          onBack={() => { setOpen(null); void load(); }}
+          onAct={(a) => act(open.name, a)} onNavigate={onNavigate} />
+        {confirmModal}
+      </>
+    );
   }
 
   const running = (items || []).filter((c) => stateClass(c.state) === "online");
@@ -228,6 +254,7 @@ export function ContainersPanel({ hosts, onNavigate, initialHostId }: { hosts: H
         </button>
       </div>
       {alertsOpen && <AlertsModal onClose={() => setAlertsOpen(false)} />}
+      {confirmModal}
 
       {items !== null && (
         <div className="containers-summary">
@@ -996,6 +1023,45 @@ function UpdatePanel({ source, name, onClose }: { source: ContainerSource; name:
                 )}
               </div>
             )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Confirmation gate for disruptive container actions (stop / restart). Cancel
+// is the autofocused default and Esc cancels, so the destructive path always
+// takes a deliberate second action.
+function ConfirmActionModal({ name, action, busy, onConfirm, onCancel }: {
+  name: string; action: ContainerAction; busy: boolean;
+  onConfirm: () => void; onCancel: () => void;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onCancel(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onCancel]);
+  const verb = action === "stop" ? "Stop" : "Restart";
+  return (
+    <div className="container-drawer-backdrop" onClick={onCancel}>
+      <div className="container-modal confirm-modal" role="dialog" aria-modal="true" aria-label={`${verb} ${name}`} onClick={(e) => e.stopPropagation()}>
+        <div className="container-modal-head">
+          <AlertTriangle size={16} /><strong>{verb} {name}?</strong>
+          <div className="container-modal-acts"><button className="ghost-button" onClick={onCancel} aria-label="Cancel"><X size={15} /></button></div>
+        </div>
+        <div className="container-modal-body">
+          <p className="confirm-msg">
+            {action === "stop"
+              ? "This stops the container. If it serves a live engine, in-flight inference is dropped until it is started again."
+              : "This restarts the container. The engine is briefly unavailable and any in-flight inference is interrupted."}
+          </p>
+          <div className="confirm-actions">
+            {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
+            <button className="ghost-button" onClick={onCancel} disabled={busy} autoFocus>Cancel</button>
+            <button className={`primary-button ${action === "stop" ? "danger" : ""}`} onClick={onConfirm} disabled={busy}>
+              {busy ? <Loader2 size={13} className="spin" /> : action === "stop" ? <Square size={13} /> : <RotateCw size={13} />} {verb}
+            </button>
           </div>
         </div>
       </div>

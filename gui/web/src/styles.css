@@ -3495,6 +3495,14 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 .container-tabs button.active { color: var(--text); border-bottom-color: var(--accent); }
 .container-modal-body { flex: 1; overflow: auto; padding: 16px; }
 
+/* Confirmation gate for disruptive container actions (stop / restart). */
+.container-modal.confirm-modal { width: min(440px, 100%); height: auto; }
+.confirm-modal .container-modal-body { flex: none; }
+.confirm-msg { font-size: 13px; line-height: 1.55; color: var(--text-2); margin: 0 0 16px; }
+.confirm-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.primary-button.danger { background: var(--danger); color: #fff; }
+.primary-button.danger:hover { filter: brightness(1.05); }
+
 .kv { display: flex; flex-direction: column; gap: 1px; }
 .kv-row { display: grid; grid-template-columns: 150px 1fr; gap: 10px; padding: 6px 4px; border-bottom: 1px solid var(--border); font-size: 13px; }
 .kv-key { color: var(--text-muted); }
