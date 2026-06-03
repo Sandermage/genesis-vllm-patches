@@ -2,6 +2,7 @@ import {
   Activity,
   AlertCircle,
   BarChart3,
+  Bell,
   Box,
   CheckCircle2,
   ChevronDown,
@@ -44,6 +45,7 @@ import {
   Rocket,
   Rows3,
   Search,
+  Send,
   Server,
   Settings,
   ShieldCheck,
@@ -67,8 +69,9 @@ import {
   X,
   Wrench
 } from "lucide-react";
-import { Component, Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Component, Fragment, Suspense, lazy, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
+  AlertConfig,
   BundleSpec,
   DeployTarget,
   DeployTargetsResult,
@@ -130,12 +133,15 @@ import {
 } from "./api";
 import { AccountMenu, LoginScreen, SecurityPanel, UserAdminPanel } from "./Auth";
 import { ChatConsole, EngineBenchPanel, EngineMetricsPanel, EnginePlayground, EngineStatusCard, ModelManagementPanel, type ChatTarget } from "./Engine";
-import { TerminalModal } from "./Terminal";
+// Lazy: the xterm-based terminal is heavy and rarely opened — keep it out of the
+// initial bundle so the app loads fast; the chunk fetches only when a terminal opens.
+const TerminalModal = lazy(() => import("./Terminal").then((m) => ({ default: m.TerminalModal })));
 import { UpdatesPanel } from "./Updates";
 import { KvCalcPanel, BaselinePanel } from "./Planner";
 import { InstallWizard } from "./Installer";
 import { CopilotPanel } from "./Copilot";
 import { FleetPanel } from "./Fleet";
+import { ContainersPanel } from "./Containers";
 
 type LoadState = "idle" | "loading" | "ready" | "error";
 type RuntimeMode = "local" | "remote";
@@ -152,6 +158,7 @@ type SectionId =
   | "copilot"
   | "launch-plan"
   | "services"
+  | "containers"
   | "doctor"
   | "patches"
   | "benchmarks"
@@ -256,28 +263,49 @@ const workloadChoices = [
   { id: "long_context_qa", label: "Long context" }
 ];
 
-const navItems: NavItem[] = [
-  { id: "overview", icon: <Home size={17} />, label: "Overview" },
-  { id: "setup", icon: <Settings size={17} />, label: "Setup" },
-  { id: "fleet", icon: <LayoutGrid size={17} />, label: "Fleet" },
-  { id: "hosts", icon: <Server size={17} />, label: "Hosts" },
-  { id: "models", icon: <Box size={17} />, label: "Models" },
-  { id: "configs", icon: <SlidersHorizontal size={17} />, label: "Configs" },
-  { id: "presets", icon: <Database size={17} />, label: "Presets" },
-  { id: "planner", icon: <Gauge size={17} />, label: "Planner" },
-  { id: "copilot", icon: <Sparkles size={17} />, label: "Copilot" },
-  { id: "launch-plan", icon: <Rocket size={17} />, label: "Launch Plan" },
-  { id: "services", icon: <Network size={17} />, label: "Services" },
-  { id: "doctor", icon: <ShieldCheck size={17} />, label: "Doctor" },
-  { id: "patches", icon: <Wrench size={17} />, label: "Patches" },
-  { id: "benchmarks", icon: <BarChart3 size={17} />, label: "Benchmarks" },
-  { id: "evidence", icon: <FileText size={17} />, label: "Evidence" },
-  { id: "clients", icon: <Link2 size={17} />, label: "Clients" },
-  { id: "chat", icon: <MessageSquare size={17} />, label: "Chat" },
-  { id: "reports", icon: <Table2 size={17} />, label: "Reports" },
-  { id: "operations", icon: <Terminal size={17} />, label: "Operations" },
-  { id: "advanced", icon: <SlidersHorizontal size={17} />, label: "Advanced" }
+// Sidebar grouped into a logical workflow: see → your servers → define what to
+// run → deploy it → use it → prove it → tools. Each group renders under a small
+// header so related sections sit together instead of in one long scatter.
+type NavGroup = { label?: string; items: NavItem[] };
+const navGroups: NavGroup[] = [
+  { items: [
+    { id: "overview", icon: <Home size={17} />, label: "Overview" },
+  ] },
+  { label: "Infrastructure", items: [
+    { id: "fleet", icon: <LayoutGrid size={17} />, label: "Fleet" },
+    { id: "hosts", icon: <Server size={17} />, label: "Hosts" },
+    { id: "containers", icon: <Boxes size={17} />, label: "Containers" },
+    { id: "setup", icon: <Settings size={17} />, label: "Setup" },
+  ] },
+  { label: "Models & Config", items: [
+    { id: "models", icon: <Box size={17} />, label: "Models" },
+    { id: "presets", icon: <Database size={17} />, label: "Presets" },
+    { id: "configs", icon: <SlidersHorizontal size={17} />, label: "Configs" },
+    { id: "planner", icon: <Gauge size={17} />, label: "Planner" },
+  ] },
+  { label: "Deploy", items: [
+    { id: "launch-plan", icon: <Rocket size={17} />, label: "Launch Plan" },
+    { id: "services", icon: <Network size={17} />, label: "Services" },
+  ] },
+  { label: "Engine", items: [
+    { id: "chat", icon: <MessageSquare size={17} />, label: "Chat" },
+    { id: "clients", icon: <Link2 size={17} />, label: "Clients" },
+  ] },
+  { label: "Validate", items: [
+    { id: "doctor", icon: <ShieldCheck size={17} />, label: "Doctor" },
+    { id: "patches", icon: <Wrench size={17} />, label: "Patches" },
+    { id: "benchmarks", icon: <BarChart3 size={17} />, label: "Benchmarks" },
+    { id: "evidence", icon: <FileText size={17} />, label: "Evidence" },
+    { id: "reports", icon: <Table2 size={17} />, label: "Reports" },
+  ] },
+  { label: "Tools", items: [
+    { id: "copilot", icon: <Sparkles size={17} />, label: "Copilot" },
+    { id: "operations", icon: <Terminal size={17} />, label: "Operations" },
+    { id: "advanced", icon: <SlidersHorizontal size={17} />, label: "Advanced" },
+  ] },
 ];
+// Flat list (command palette / lookups) — preserves the grouped order.
+const navItems: NavItem[] = navGroups.flatMap((g) => g.items);
 
 type FetchState = "idle" | "loading" | "ready" | "error";
 
@@ -373,6 +401,10 @@ export default function App() {
   async function loadAll() {
     setState("loading");
     setError(null);
+    // Kick off the auxiliary surfaces (hosts/env/bundles/…) in PARALLEL with the
+    // critical path — they're independent, so overlapping them shaves the startup
+    // wall-clock instead of running them after the dashboard is ready.
+    void loadAux();
     try {
       const [overviewData, presetData, recommendationData, patchData, doctorData, configCatalogData] = await Promise.all([
         api.overview(),
@@ -421,7 +453,6 @@ export default function App() {
         })
       );
       setState("ready");
-      void loadAux();
     } catch (err) {
       setState("error");
       setError(err instanceof Error ? err.message : String(err));
@@ -628,7 +659,11 @@ export default function App() {
     try {
       const ctrl = new AbortController();
       const t = window.setTimeout(() => ctrl.abort(), 3000);
-      const res = await fetch(`${url}/api/v1/health`, { signal: ctrl.signal, headers: getApiToken() ? { Authorization: `Bearer ${getApiToken()}` } : {} });
+      // /api/v1/health is auth-exempt, so DON'T send an Authorization header: it
+      // would turn the cross-origin probe into a non-simple request needing a CORS
+      // preflight (OPTIONS), which a remote daemon may not answer — making a live
+      // daemon look unreachable. A plain GET to the public health route is enough.
+      const res = await fetch(`${url}/api/v1/health`, { signal: ctrl.signal });
       window.clearTimeout(t);
       return res.ok;
     } catch { return false; }
@@ -680,10 +715,21 @@ export default function App() {
   // if the host has no daemon (an engine box). The caller (host card) reflects a
   // false result by disabling its button — no error toast, the label explains.
   async function addHostAsServer(profile: HostProfile): Promise<boolean> {
-    const url = normalizeBaseUrl(`http://${profile.host}:${profile.port || 8765}`);
+    const port = profile.port || 8765;
+    const url = normalizeBaseUrl(`http://${profile.host}:${port}`);
     // Probe for an actual SNDR daemon before re-pointing the GUI — a GPU server
     // usually runs the engine, not the daemon, so switching would blank the UI.
-    if (!(await probeDaemon(url))) return false;
+    if (!(await probeDaemon(url))) {
+      // Explicit feedback (was previously silent → looked like the button did
+      // nothing): say WHERE we looked and the likely fixes.
+      toast(
+        `No SNDR daemon reachable at ${profile.host}:${port}. ` +
+        `Check the daemon port (8765 by default, not the engine port ${profile.engine_port || 8000}), ` +
+        `that the node daemon is running, and that it allows this origin — or "Set up as node" below.`,
+        "error",
+      );
+      return false;
+    }
     switchServer(url);  // the host is already in the registry — just connect
     toast(`Connected to ${profile.label} daemon (${url})`, "success");
     return true;
@@ -870,15 +916,20 @@ export default function App() {
         </div>
 
         <nav className="side-nav" aria-label="SNDR sections">
-          {navItems.map((item) => (
-            <button
-              className={activeSection === item.id ? "active" : ""}
-              key={item.id}
-              onClick={() => setActiveSection(item.id)}
-            >
-              {item.icon}
-              <span>{item.label}</span>
-            </button>
+          {navGroups.map((group, gi) => (
+            <div className="side-nav-group" key={group.label ?? `g${gi}`}>
+              {group.label && <div className="side-nav-header">{group.label}</div>}
+              {group.items.map((item) => (
+                <button
+                  className={activeSection === item.id ? "active" : ""}
+                  key={item.id}
+                  onClick={() => setActiveSection(item.id)}
+                >
+                  {item.icon}
+                  <span>{item.label}</span>
+                </button>
+              ))}
+            </div>
           ))}
         </nav>
 
@@ -1501,6 +1552,7 @@ export default function App() {
             onFocusHost={setFocusHostId}
             installIntent={installIntent}
             onSetupNode={(id) => { setInstallIntent({ hostId: id, target: "sndr_daemon" }); setActiveSection("setup"); }}
+            onContainers={(id) => { setFocusHostId(id); setActiveSection("containers"); }}
           />
         )}
         </SectionErrorBoundary>
@@ -2118,6 +2170,79 @@ function ApiTokenField() {
   );
 }
 
+// Telegram alerts / notifications settings — the global home for the engine
+// health-watch config (also reachable from the Containers panel's bell button).
+function NotificationSettings() {
+  const [cfg, setCfg] = useState<AlertConfig | null>(null);
+  const [chatId, setChatId] = useState("");
+  const [token, setToken] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  function reload() {
+    api.alertsConfig().then((c) => { setCfg(c); setChatId(c.chat_id); }).catch((e) => setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) }));
+  }
+  useEffect(reload, []);
+
+  async function save(enabled?: boolean) {
+    setBusy(true); setMsg(null);
+    try {
+      const next = await api.alertsSetConfig({ enabled: enabled ?? cfg?.enabled, chat_id: chatId, ...(token ? { bot_token: token } : {}) });
+      setCfg(next); setToken(""); setMsg({ ok: true, text: "Saved." });
+    } catch (e) { setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) }); }
+    finally { setBusy(false); }
+  }
+  async function test() {
+    setBusy(true); setMsg(null);
+    try { const r = await api.alertsTest(); setMsg({ ok: r.ok, text: r.ok ? "Test sent — check Telegram." : (r.error || "Send failed") }); }
+    catch (e) { setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) }); }
+    finally { setBusy(false); }
+  }
+
+  if (!cfg) return <div className="notif-loading"><Loader2 size={16} className="spin" /> Loading…</div>;
+  return (
+    <div className="notif">
+      <div className="notif-grid">
+        <div className="notif-fields">
+          <label className="notif-row"><span>Enabled</span>
+            <button className={`toggle ${cfg.enabled ? "on" : ""}`} disabled={busy} onClick={() => void save(!cfg.enabled)}><span className="toggle-knob" /></button>
+          </label>
+          <label className="notif-row"><span>Telegram chat ID</span>
+            <input value={chatId} onChange={(e) => setChatId(e.target.value)} placeholder="e.g. 123456789" />
+          </label>
+          <label className="notif-row"><span>Bot token</span>
+            <input type="password" value={token} onChange={(e) => setToken(e.target.value)} placeholder={cfg.has_token ? "•••••• (stored — leave blank to keep)" : "123456:ABC-DEF…"} />
+          </label>
+          <div className="notif-status">
+            <span className={`sev ${cfg.has_token ? "clean" : "low"}`}>{cfg.has_token ? "token stored" : "no token"}</span>
+            <span className={`sev ${cfg.configured ? "clean" : "low"}`}>{cfg.configured ? "configured" : "incomplete"}</span>
+            <span className={`sev ${cfg.enabled ? "clean" : "low"}`}>{cfg.enabled ? "watching" : "off"}</span>
+          </div>
+          <div className="notif-actions">
+            <button className="primary-button" disabled={busy} onClick={() => void save()}>{busy ? <Loader2 size={13} className="spin" /> : <Settings size={13} />} Save</button>
+            <button className="ghost-button" disabled={busy || !cfg.configured} onClick={() => void test()}><Send size={13} /> Send test</button>
+          </div>
+          {msg && <div className={msg.ok ? "notif-ok" : "notif-err"}>{!msg.ok && <AlertTriangle size={13} />} {msg.text}</div>}
+        </div>
+        <div className="notif-help">
+          <h4><Bell size={14} /> What fires</h4>
+          <ul>
+            <li><b>🔴 DOWN</b> — a managed engine container exits / OOM-kills / is stopped.</li>
+            <li><b>🟢 Recovered</b> — it comes back to running.</li>
+          </ul>
+          <h4>Set up Telegram</h4>
+          <ol>
+            <li>Message <code>@BotFather</code> → <code>/newbot</code> → copy the <b>bot token</b>.</li>
+            <li>Message your new bot once, then open <code>api.telegram.org/bot&lt;token&gt;/getUpdates</code> and copy your <b>chat ID</b>.</li>
+            <li>Paste both above, enable, and <b>Send test</b>.</li>
+          </ol>
+          <p className="notif-note">Token is stored encrypted. Env <code>SNDR_TELEGRAM_BOT_TOKEN</code> / <code>SNDR_TELEGRAM_CHAT_ID</code> / <code>SNDR_ALERTS=1</code> also work for headless deploys. Saving requires the daemon to run with <code>SNDR_ENABLE_APPLY=1</code>.</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AppearanceSettings({
   settings,
   onSettings
@@ -2309,7 +2434,8 @@ function SectionWorkspace({
   onFocusConsumed,
   onFocusHost,
   installIntent,
-  onSetupNode
+  onSetupNode,
+  onContainers
 }: {
   sectionId: SectionId;
   overview: ProductOverview | null;
@@ -2358,6 +2484,7 @@ function SectionWorkspace({
   onFocusHost: (id: string) => void;
   installIntent: { hostId?: string; target?: string } | null;
   onSetupNode: (id: string) => void;
+  onContainers: (id: string) => void;
 }) {
   const spec = sectionSpec(sectionId);
   // Controlled tab for the Presets section so catalog action buttons can jump
@@ -2366,7 +2493,10 @@ function SectionWorkspace({
   // Setup tabs are controlled so "Set up as node" can jump to the Install tab,
   // while Deploy / Guided stay clickable (the bug was a controlled tab with no
   // change handler — it got stuck).
-  const [setupTab, setSetupTab] = useState("deploy");
+  // Setup flows in a logical order: orient (Guided) → install the daemon on a
+  // server (Install) → render deploy artifacts for a model (Deploy). Default to
+  // the guided entry point; jump to Install when a node-setup intent arrives.
+  const [setupTab, setSetupTab] = useState("guided");
   useEffect(() => { if (installIntent) setSetupTab("install"); }, [installIntent]);
   const card = (explain?.card ?? selectedPresetRecord?.card ?? {}) as Record<string, unknown>;
   const composed = (explain?.composed ?? {}) as Record<string, unknown>;
@@ -2406,6 +2536,15 @@ function SectionWorkspace({
               label: "Summary",
               icon: <Activity size={15} />,
               render: () => (
+                <>
+                <div className="ov-hero">
+                  <OvKpi icon={<Database size={15} />} label="Presets" value={overview?.catalog.presets_count ?? "—"} sub={`${overview?.catalog.preset_cards_count ?? 0} cards`} />
+                  <OvKpi icon={<Box size={15} />} label="Models" value={overview?.catalog.models_count ?? "—"} />
+                  <OvKpi icon={<Wrench size={15} />} label="Patches" value={patchRows.length || patches?.total || "—"} sub={`${patchRows.filter((p) => p.default_on).length} default-on`} />
+                  <OvKpi icon={<Server size={15} />} label="Hosts" value={hostProfiles.length} onClick={() => onSection("hosts")} />
+                  <OvKpi icon={<ShieldCheck size={15} />} label="Doctor" value={doctorReport ? (doctorReport.findings.length ? `${doctorReport.findings.length} findings` : "clean") : "—"} tone={doctorReport?.findings?.some((f) => f.severity === "blocked") ? "warn" : "ok"} onClick={() => onSection("doctor")} />
+                  <OvKpi icon={<Rocket size={15} />} label="Engine" value={environment?.engine_installed ? "ready" : "—"} tone={environment?.engine_installed ? "ok" : undefined} onClick={() => onSection("services")} />
+                </div>
                 <ModuleGrid>
                   {settings.showConnectionMap && (
                     <ModuleCard title="Control Plane Connections" icon={<Route size={18} />} wide>
@@ -2468,6 +2607,7 @@ function SectionWorkspace({
                     />
                   </ModuleCard>
                 </ModuleGrid>
+                </>
               )
             },
             {
@@ -2510,39 +2650,56 @@ function SectionWorkspace({
           activeTab={setupTab}
           onTabChange={setSetupTab}
           tabs={[
-            {
-              id: "deploy",
-              label: "Deploy",
-              icon: <Rocket size={15} />,
-              render: () => (
-                <DeploymentConsole
-                  presets={presets}
-                  selectedPreset={selectedPreset}
-                  onSelectPreset={onPreset}
-                />
-              )
-            },
-            {
-              id: "install",
-              label: "Install onto host",
-              icon: <Server size={15} />,
-              render: () => <InstallWizard initial={installIntent || undefined} />
-            },
+            // 1) Orient: where you are + what to do next (read-only, safe).
             {
               id: "guided",
-              label: "Guided setup",
+              label: "1 · Guided setup",
               icon: <ShieldCheck size={15} />,
               render: () => (
-                <SetupWizard
-                  environment={environment}
-                  overview={overview}
-                  doctorReport={doctorReport}
-                  gateCounts={gateCounts}
-                  selectedPreset={selectedPreset}
-                  runtimeMode={runtimeMode}
-                  apiBase={apiBase}
-                  onSection={onSection}
-                />
+                <>
+                  <TabIntro icon={<ShieldCheck size={16} />} title="Start here — guided setup"
+                    text="A read-only checklist of where you stand: environment, engine, dependencies and launch gates, with a clear next step. Nothing is changed here — it just tells you what to do." />
+                  <SetupWizard
+                    environment={environment}
+                    overview={overview}
+                    doctorReport={doctorReport}
+                    gateCounts={gateCounts}
+                    selectedPreset={selectedPreset}
+                    runtimeMode={runtimeMode}
+                    apiBase={apiBase}
+                    onSection={onSection}
+                  />
+                </>
+              )
+            },
+            // 2) Install the SNDR daemon / engine onto a GPU server over SSH.
+            {
+              id: "install",
+              label: "2 · Install onto host",
+              icon: <Server size={15} />,
+              render: () => (
+                <>
+                  <TabIntro icon={<Server size={16} />} title="Install onto a GPU host (over SSH)"
+                    text="Pick a registered host and a preset, preview the exact install plan, then apply it over SSH — it ships the daemon/engine onto that server so the GUI can manage it. Gated: review the plan before it runs." />
+                  <InstallWizard initial={installIntent || undefined} />
+                </>
+              )
+            },
+            // 3) Render deploy artifacts (compose/systemd/run) for a chosen model.
+            {
+              id: "deploy",
+              label: "3 · Deploy a model",
+              icon: <Rocket size={15} />,
+              render: () => (
+                <>
+                  <TabIntro icon={<Rocket size={16} />} title="Deploy a model preset"
+                    text="Turn a preset into ready-to-run artifacts — docker-compose, systemd unit or a docker run line, with the right image, GPUs, ports and patch env baked in. Copy them to the host, or use Install above to push over SSH." />
+                  <DeploymentConsole
+                    presets={presets}
+                    selectedPreset={selectedPreset}
+                    onSelectPreset={onPreset}
+                  />
+                </>
               )
             }
           ]}
@@ -2553,6 +2710,14 @@ function SectionWorkspace({
         <ModuleGrid>
           <ModuleCard title="Fleet overview" icon={<LayoutGrid size={18} />} desc="Every registered GPU/engine host at a glance — a single concurrent SSH sweep shows status, running model, vLLM version, GPUs and live patch count per server. Click a server to drill into its card." wide>
             <FleetPanel onOpenHost={(id) => { onFocusHost(id); onSection("hosts"); }} />
+          </ModuleCard>
+        </ModuleGrid>
+      )}
+
+      {sectionId === "containers" && (
+        <ModuleGrid>
+          <ModuleCard title="Containers" icon={<Boxes size={18} />} desc="Manage the vLLM/engine containers on a server — list, live CPU/memory, logs, start/stop/restart, and (when SNDR_ENABLE_EXEC is on) exec inside. Pick the local daemon's host (docker socket) or a registered host (over SSH). Scoped to engine containers only." wide>
+            <ContainersPanel hosts={hostProfiles.map((h) => ({ id: h.id, label: h.label }))} onNavigate={(section) => onSection(section as SectionId)} initialHostId={focusHostId ?? undefined} />
           </ModuleCard>
         </ModuleGrid>
       )}
@@ -2571,6 +2736,7 @@ function SectionWorkspace({
           focusHostId={focusHostId}
           onFocusConsumed={onFocusConsumed}
           onSetupNode={onSetupNode}
+          onContainers={onContainers}
         />
       )}
 
@@ -2613,6 +2779,18 @@ function SectionWorkspace({
               icon: <Database size={15} />,
               render: () => (
                 <div className="preset-catalog-view">
+                  {presets?.load_errors && presets.load_errors.length > 0 && (
+                    <div className="preset-load-errors">
+                      <AlertTriangle size={15} />
+                      <div>
+                        <strong>{presets.load_errors.length} preset{presets.load_errors.length > 1 ? "s" : ""} failed to load</strong>
+                        {presets.load_errors.slice(0, 6).map((e, i) => (
+                          <div key={i} className="preset-load-error"><code>{e.preset ?? e.id ?? e.file ?? "?"}</code> — {e.error ?? e.message ?? JSON.stringify(e)}</div>
+                        ))}
+                        {presets.load_errors.length > 6 && <div className="muted">+{presets.load_errors.length - 6} more</div>}
+                      </div>
+                    </div>
+                  )}
                   <PresetSummaryStrip presets={filteredPresets} selectedPreset={selectedPreset} />
                   <div className="preset-catalog-split">
                     <ModuleCard
@@ -3268,6 +3446,18 @@ function SectionWorkspace({
               )
             },
             {
+              id: "notifications",
+              label: "Notifications",
+              icon: <Bell size={15} />,
+              render: () => (
+                <ModuleGrid>
+                  <ModuleCard title="Alerts & notifications" icon={<Bell size={18} />} desc="Get a Telegram push when a managed engine container goes DOWN (crash / OOM / stop) or recovers. The daemon watches over the docker socket; gated behind apply." wide>
+                    <NotificationSettings />
+                  </ModuleCard>
+                </ModuleGrid>
+              )
+            },
+            {
               id: "api",
               label: "API & Schema",
               icon: <Settings size={15} />,
@@ -3444,6 +3634,12 @@ function sectionSpec(sectionId: SectionId) {
       title: "Services",
       description: "Service lifecycle, rendered launch artifacts, status, logs and safe write API boundary.",
       dialog: "Services quick action: preview start/stop/restart commands without executing lifecycle writes."
+    },
+    containers: {
+      kicker: "Docker control",
+      title: "Containers",
+      description: "Manage the vLLM/engine containers on a server — live CPU/memory, logs, start/stop/restart, and gated exec — over the local docker socket or a registered host via SSH.",
+      dialog: "Containers quick action: list the engine containers and refresh their live stats."
     },
     doctor: {
       kicker: "Diagnostics",
@@ -5452,6 +5648,34 @@ function ModuleGrid({ children, className }: { children: ReactNode; className?: 
   return <section className={`module-grid${className ? ` ${className}` : ""}`}>{children}</section>;
 }
 
+// Short explanatory banner at the top of a tab — what it does + when to use it.
+function TabIntro({ icon, title, text }: { icon: ReactNode; title: string; text: string }) {
+  return (
+    <div className="tab-intro">
+      <span className="tab-intro-icon">{icon}</span>
+      <div className="tab-intro-body">
+        <strong>{title}</strong>
+        <span>{text}</span>
+      </div>
+    </div>
+  );
+}
+
+// Overview hero KPI tile — bold headline numbers, optionally click-through to a section.
+function OvKpi({ icon, label, value, sub, tone, onClick }: { icon: ReactNode; label: string; value: ReactNode; sub?: string; tone?: "ok" | "warn"; onClick?: () => void }) {
+  const Tag = onClick ? "button" : "div";
+  return (
+    <Tag className={`ov-kpi ${tone ?? ""} ${onClick ? "clickable" : ""}`} onClick={onClick}>
+      <span className="ov-kpi-icon">{icon}</span>
+      <span className="ov-kpi-body">
+        <span className="ov-kpi-label">{label}</span>
+        <strong className="ov-kpi-value">{value}</strong>
+        {sub && <span className="ov-kpi-sub">{sub}</span>}
+      </span>
+    </Tag>
+  );
+}
+
 function TabbedSection({
   id,
   tabs,
@@ -6149,7 +6373,8 @@ function FleetHostCard({
   onTerminal,
   focused,
   onFocusConsumed,
-  onSetupNode
+  onSetupNode,
+  onContainers
 }: {
   profile: HostProfile;
   onEdit: (profile: HostProfile) => void;
@@ -6161,6 +6386,7 @@ function FleetHostCard({
   focused?: boolean;
   onFocusConsumed?: () => void;
   onSetupNode?: (id: string) => void;
+  onContainers?: (id: string) => void;
 }) {
   const [probe, setProbe] = useState<HostProbe | null>(null);
   const [busy, setBusy] = useState(false);
@@ -6189,6 +6415,7 @@ function FleetHostCard({
   }
   // null = unknown, false = probed and no daemon (engine box), true = daemon found.
   const [daemonOk, setDaemonOk] = useState<boolean | null>(null);
+  const [connecting, setConnecting] = useState(false);
   const cardRef = useRef<HTMLElement | null>(null);
   const isSsh = profile.transport === "ssh" || !!profile.ssh_user;
   // Opened from the connection switcher → scroll into view and auto-discover so
@@ -6298,12 +6525,19 @@ function FleetHostCard({
         </button>
         <button
           className="ghost-button"
-          onClick={async () => { setDaemonOk(await onAddServer(profile)); }}
+          disabled={connecting}
+          onClick={async () => { setConnecting(true); try { setDaemonOk(await onAddServer(profile)); } finally { setConnecting(false); } }}
           title={daemonOk === false
-            ? "No SNDR daemon here — set it up as a node below."
-            : `Connect the GUI to the SNDR daemon at http://${profile.host}:${profile.port}`}>
-          <PlugZap size={14} /> Connect daemon
+            ? "No SNDR daemon reachable here — check the daemon port (8765), or set it up as a node below."
+            : `Connect the GUI to the SNDR daemon at http://${profile.host}:${profile.port || 8765}`}>
+          {connecting ? <Loader2 size={14} className="spin" /> : <PlugZap size={14} />} {connecting ? "Connecting…" : "Connect daemon"}
         </button>
+        {onContainers && (
+          <button className="ghost-button" onClick={() => onContainers(profile.id)}
+            title={`Manage the containers on ${profile.host} in the Containers section`}>
+            <Boxes size={14} /> Containers
+          </button>
+        )}
         {isSsh && (
           <button
             className={`ghost-button ${nodeForm ? "active" : ""}`}
@@ -6773,7 +7007,8 @@ function HostsSection({
   onAddServer,
   focusHostId,
   onFocusConsumed,
-  onSetupNode
+  onSetupNode,
+  onContainers
 }: {
   hostProfiles: HostProfile[];
   environment: EnvironmentReport | null;
@@ -6787,6 +7022,7 @@ function HostsSection({
   focusHostId: string | null;
   onFocusConsumed: () => void;
   onSetupNode: (id: string) => void;
+  onContainers: (id: string) => void;
 }) {
   const [inventory, setInventory] = useState<HostInventory | null>(null);
   const [modal, setModal] = useState<{ profile: HostProfile | null } | null>(null);
@@ -6818,7 +7054,7 @@ function HostsSection({
                   <div className="fleet-grid">
                     <ThisHostCard inventory={inventory} environment={environment} apiBase={apiBase} />
                     {hostProfiles.map((profile) => (
-                      <FleetHostCard key={profile.id} profile={profile} onEdit={(p) => setModal({ profile: p })} onDelete={(id) => void remove(id)} onChat={onChatWithHost} onAddServer={onAddServer} onRefresh={onHostsRefresh} onTerminal={setTerminalHost} focused={focusHostId === profile.id} onFocusConsumed={onFocusConsumed} onSetupNode={onSetupNode} />
+                      <FleetHostCard key={profile.id} profile={profile} onEdit={(p) => setModal({ profile: p })} onDelete={(id) => void remove(id)} onChat={onChatWithHost} onAddServer={onAddServer} onRefresh={onHostsRefresh} onTerminal={setTerminalHost} focused={focusHostId === profile.id} onFocusConsumed={onFocusConsumed} onSetupNode={onSetupNode} onContainers={onContainers} />
                     ))}
                   </div>
                   {hostProfiles.length === 0 && <p className="muted">No remote hosts yet — add your GPU box to probe its engine from here.</p>}
@@ -6890,7 +7126,7 @@ function HostsSection({
         ]}
       />
       {modal && <HostFormModal initial={modal.profile} onClose={() => setModal(null)} onSaved={onHostsRefresh} />}
-      {terminalHost && <TerminalModal host={terminalHost} onClose={() => setTerminalHost(null)} />}
+      {terminalHost && <Suspense fallback={null}><TerminalModal host={terminalHost} onClose={() => setTerminalHost(null)} /></Suspense>}
     </>
   );
 }

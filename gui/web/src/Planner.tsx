@@ -5,6 +5,17 @@ import { api, type CalcModels, type HostModelConfig, type HostProfile, type KvCa
 const fmtGb = (m: number) => (Math.abs(m) >= 1024 ? `${(m / 1024).toFixed(1)} GB` : `${Math.round(m)} MB`);
 const fmtCtx = (c: number) => (c >= 1000 ? `${Math.round(c / 1000)}K` : String(c));
 
+// Enterprise KPI tile — the key numbers, legible at a glance (app .metric look).
+function Kpi({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: "ok" | "bad" | "accent" }) {
+  return (
+    <div className={`kpi ${tone ?? ""}`}>
+      <span className="kpi-label">{label}</span>
+      <strong className="kpi-value">{value}</strong>
+      {sub && <span className="kpi-sub">{sub}</span>}
+    </div>
+  );
+}
+
 // ── KV / VRAM fit calculator ────────────────────────────────────────────────
 export function KvCalcPanel() {
   const [meta, setMeta] = useState<CalcModels | null>(null);
@@ -146,6 +157,14 @@ export function KvCalcPanel() {
 
       {calc && r && (
         <>
+          <div className="kpi-strip">
+            <Kpi label="Weights / GPU" value={fmtGb(r.weights_per_gpu_mib)} />
+            <Kpi label="KV cache / GPU" value={fmtGb(r.kv_per_gpu_mib)} tone="accent" />
+            <Kpi label="Overhead" value={fmtGb(r.overhead_mib)} />
+            <Kpi label="Total / GPU" value={fmtGb(r.total_per_gpu_mib)} sub={`of ${fmtGb(r.budget_per_gpu_mib)} budget`} />
+            <Kpi label="Headroom" value={r.fits ? fmtGb(r.headroom_mib) : `−${fmtGb(-r.headroom_mib)}`} tone={r.fits ? "ok" : "bad"} />
+            <Kpi label="Max context" value={`${fmtCtx(r.max_context)} tok`} />
+          </div>
           <VramChart curve={calc.curve} budget={budget} ctx={ctx} maxCtx={r.max_context} />
           <div className="kvcalc-grid">
             <VramDonut r={r} />
@@ -165,38 +184,63 @@ export function KvCalcPanel() {
   );
 }
 
-// Stacked VRAM-vs-context area chart with axes, budget line + max-ctx boundary.
+// Stacked VRAM-vs-context area chart: gradient layers, budget + max-ctx markers,
+// and a live cursor callout showing the exact breakdown at the chosen context.
 function VramChart({ curve, budget, ctx, maxCtx }: { curve: KvCalcResult["curve"]; budget: number; ctx: number; maxCtx: number }) {
-  const W = 1000, H = 200, L = 44, R = 12, T = 12, B = 24;
+  const W = 1000, H = 230, L = 50, R = 16, T = 16, B = 28;
   const maxX = curve[curve.length - 1]?.context || 1;
   const maxY = Math.max(budget * 1.12, ...curve.map((p) => p.total_mib));
   const x = (c: number) => L + (c / maxX) * (W - L - R);
   const y = (m: number) => H - B - (m / maxY) * (H - T - B);
-  const area = (sel: (p: KvCalcResult["curve"][0]) => number, base: (p: KvCalcResult["curve"][0]) => number) => {
+  type P = KvCalcResult["curve"][0];
+  const area = (sel: (p: P) => number, base: (p: P) => number) => {
     const top = curve.map((p) => `${x(p.context).toFixed(1)},${y(base(p) + sel(p)).toFixed(1)}`);
     const bot = [...curve].reverse().map((p) => `${x(p.context).toFixed(1)},${y(base(p)).toFixed(1)}`);
     return `M${top.join(" L")} L${bot.join(" L")} Z`;
   };
-  const w = (p: KvCalcResult["curve"][0]) => p.weights_mib;
-  const o = (p: KvCalcResult["curve"][0]) => p.overhead_mib;
+  const w = (p: P) => p.weights_mib;
+  const o = (p: P) => p.overhead_mib;
   const xticks = [0, 0.25, 0.5, 0.75, 1].map((f) => Math.round(maxX * f));
   const yticks = [0, 0.25, 0.5, 0.75, 1].map((f) => Math.round(maxY * f));
+  // Nearest sampled point to the cursor → exact values for the callout.
+  const cur = curve.reduce((a, b) => Math.abs(b.context - ctx) < Math.abs(a.context - ctx) ? b : a, curve[0]) || curve[0];
+  const over = cur ? cur.total_mib > budget : false;
+  const cx = x(cur?.context ?? ctx);
+  const calloutLeft = cx > W * 0.6;
   return (
     <div className="vram-chart-wrap">
-      <div className="kvcalc-label">Per-GPU VRAM as context grows — weights + KV + overhead vs budget</div>
+      <div className="vram-chart-head">
+        <span className="kvcalc-label">Per-GPU VRAM as context grows</span>
+        <span className="vram-chart-sub">weights + KV + overhead vs the GPU budget</span>
+      </div>
       <svg className="vram-chart" viewBox={`0 0 ${W} ${H}`}>
-        {yticks.map((t, i) => <g key={i}><line x1={L} y1={y(t)} x2={W - R} y2={y(t)} className="vc-grid" /><text x={L - 6} y={y(t) + 3} className="vc-ytick">{(t / 1024).toFixed(0)}G</text></g>)}
-        {xticks.map((t, i) => <text key={i} x={x(t)} y={H - 8} className="vc-xtick">{fmtCtx(t)}</text>)}
-        <path d={area(w, () => 0)} className="vc-weights" />
-        <path d={area(o, w)} className="vc-overhead" />
-        <path d={area((p) => p.kv_mib, (p) => p.weights_mib + p.overhead_mib)} className="vc-kv" />
+        <defs>
+          <linearGradient id="g-weights" x1="0" x2="0" y1="0" y2="1"><stop offset="0" className="gs-weights-0" /><stop offset="1" className="gs-weights-1" /></linearGradient>
+          <linearGradient id="g-overhead" x1="0" x2="0" y1="0" y2="1"><stop offset="0" className="gs-overhead-0" /><stop offset="1" className="gs-overhead-1" /></linearGradient>
+          <linearGradient id="g-kv" x1="0" x2="0" y1="0" y2="1"><stop offset="0" className="gs-kv-0" /><stop offset="1" className="gs-kv-1" /></linearGradient>
+        </defs>
+        {yticks.map((t, i) => <g key={i}><line x1={L} y1={y(t)} x2={W - R} y2={y(t)} className="vc-grid" /><text x={L - 8} y={y(t) + 3} className="vc-ytick">{(t / 1024).toFixed(0)}G</text></g>)}
+        {xticks.map((t, i) => <text key={i} x={x(t)} y={H - 9} className="vc-xtick">{fmtCtx(t)}</text>)}
+        <path d={area(w, () => 0)} fill="url(#g-weights)" className="vc-line-weights" />
+        <path d={area(o, w)} fill="url(#g-overhead)" className="vc-line-overhead" />
+        <path d={area((p) => p.kv_mib, (p) => p.weights_mib + p.overhead_mib)} fill="url(#g-kv)" className="vc-line-kv" />
         <line x1={L} y1={y(budget)} x2={W - R} y2={y(budget)} className="vc-budget" />
-        <text x={W - R} y={y(budget) - 4} className="vc-budget-lbl">budget {(budget / 1024).toFixed(1)}G</text>
-        {maxCtx > 0 && maxCtx <= maxX && <line x1={x(maxCtx)} y1={T} x2={x(maxCtx)} y2={H - B} className="vc-maxctx" />}
-        {maxCtx > 0 && maxCtx <= maxX && <text x={x(maxCtx) + 3} y={T + 10} className="vc-maxctx-lbl">max {fmtCtx(maxCtx)}</text>}
-        <line x1={x(ctx)} y1={T} x2={x(ctx)} y2={H - B} className="vc-cursor" />
+        <text x={W - R} y={y(budget) - 5} className="vc-budget-lbl">budget {(budget / 1024).toFixed(1)}G</text>
+        {maxCtx > 0 && maxCtx <= maxX && <><line x1={x(maxCtx)} y1={T} x2={x(maxCtx)} y2={H - B} className="vc-maxctx" /><text x={x(maxCtx) + 4} y={T + 11} className="vc-maxctx-lbl">max {fmtCtx(maxCtx)}</text></>}
+        {/* cursor + point + callout */}
+        <line x1={cx} y1={T} x2={cx} y2={H - B} className="vc-cursor" />
+        {cur && <circle cx={cx} cy={y(cur.total_mib)} r={4} className={`vc-dot ${over ? "over" : "ok"}`} />}
+        {cur && (
+          <g transform={`translate(${calloutLeft ? cx - 156 : cx + 10}, ${T + 6})`}>
+            <rect width={146} height={74} rx={7} className="vc-callout" />
+            <text x={10} y={17} className="vc-callout-ctx">{fmtCtx(cur.context)} ctx · {(cur.total_mib / 1024).toFixed(1)}G total</text>
+            <text x={10} y={33} className="vc-callout-row"><tspan className="vc-sw-weights">■</tspan> weights {(cur.weights_mib / 1024).toFixed(1)}G</text>
+            <text x={10} y={48} className="vc-callout-row"><tspan className="vc-sw-kv">■</tspan> KV {(cur.kv_mib / 1024).toFixed(1)}G</text>
+            <text x={10} y={63} className="vc-callout-row"><tspan className="vc-sw-overhead">■</tspan> overhead {(cur.overhead_mib / 1024).toFixed(1)}G</text>
+          </g>
+        )}
       </svg>
-      <div className="vram-chart-legend"><span><i className="vc-weights" /> weights</span><span><i className="vc-kv" /> KV cache</span><span><i className="vc-overhead" /> overhead</span></div>
+      <div className="vram-chart-legend"><span><i className="vc-weights" /> weights</span><span><i className="vc-kv" /> KV cache</span><span><i className="vc-overhead" /> overhead</span><span className="vc-legend-budget"><i /> budget</span></div>
     </div>
   );
 }

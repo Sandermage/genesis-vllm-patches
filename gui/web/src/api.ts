@@ -934,12 +934,18 @@ export interface ManagedContainer {
   ports: string;
   created: string;
   labels: Record<string, string>;
+  networks?: string;
 }
 export interface ContainerStats {
   cpu_pct: number;
   mem_usage: number;
   mem_limit: number;
   mem_pct: number;
+  net_rx?: number;
+  net_tx?: number;
+  blk_read?: number;
+  blk_write?: number;
+  pids?: number;
 }
 export interface ContainerExecResult {
   ok: boolean;
@@ -949,6 +955,33 @@ export interface ContainerExecResult {
   stderr: string;
 }
 export type ContainerAction = "start" | "stop" | "restart";
+export interface ContainerTop { titles: string[]; processes: string[][]; }
+export interface ContainerChange { kind: "added" | "modified" | "deleted"; path: string; }
+export interface FsEntry {
+  name: string; is_dir: boolean; is_link: boolean; link_target?: string | null;
+  perms: string; owner: string; group: string; size: number; mtime: string;
+}
+export interface ContainerUpdatePlan {
+  container: string; image: string; is_engine: boolean;
+  supported_pins: string[]; canonical_pin: string | null;
+  guarded_update: boolean; policy: string; commands: string[];
+}
+export interface ImageScan {
+  available: boolean; image: string; reason?: string; scanner?: string;
+  counts?: { critical: number; high: number; medium: number; low: number; negligible: number; unknown: number };
+  total?: number; error?: string;
+}
+export interface DiskType { type: string; total_count: number; active: number; size: number; reclaimable: number; }
+export interface SystemDf { types: DiskType[]; total_size: number; }
+export interface AlertConfig { enabled: boolean; chat_id: string; has_token: boolean; configured: boolean; channel: string; }
+export interface DockerNetwork { name: string; driver: string; scope: string; }
+export interface DriftItem { field: string; expected: string; actual: string | null; kind: "image" | "missing" | "changed"; }
+export interface SourceReport {
+  container: string; preset_id: string | null; linked_by: "label" | "name" | null;
+  preset_title: string | null; drift: DriftItem[]; drift_count: number;
+  live_patches: { flag: string; value: string }[]; live_patch_count: number;
+}
+export interface ContainerSettings { cpus?: number | null; memory?: number | null; restart_policy?: string | null; }
 
 // A container source: the local daemon's host (socket) or a registered host (SSH).
 export type ContainerSource = { kind: "local" } | { kind: "host"; hostId: string };
@@ -1238,10 +1271,72 @@ export const api = {
     request<{ container: string; logs: string }>(`${containerBase(src)}/${encodeURIComponent(name)}/logs${query({ tail })}`),
   containerStats: (src: ContainerSource, name: string) =>
     request<{ container: string; stats: ContainerStats }>(`${containerBase(src)}/${encodeURIComponent(name)}/stats`),
+  // Batched: stats for ALL managed containers in one request (one SSH connection).
+  containersStats: (src: ContainerSource) =>
+    request<{ stats: Record<string, ContainerStats> }>(`${containerBase(src)}/stats`),
   containerAction: (src: ContainerSource, name: string, action: ContainerAction) =>
     postJson<{ ok: boolean; action: string; container: string }>(
       `${containerBase(src)}/${encodeURIComponent(name)}/action`, { action, confirm: true }),
   containerExec: (src: ContainerSource, name: string, argv: string[]) =>
     postJson<ContainerExecResult>(
-      `${containerBase(src)}/${encodeURIComponent(name)}/exec`, { argv, confirm: true })
+      `${containerBase(src)}/${encodeURIComponent(name)}/exec`, { argv, confirm: true }),
+  containerTop: (src: ContainerSource, name: string) =>
+    request<ContainerTop & { container: string }>(`${containerBase(src)}/${encodeURIComponent(name)}/top`),
+  containerChanges: (src: ContainerSource, name: string) =>
+    request<{ container: string; changes: ContainerChange[] }>(`${containerBase(src)}/${encodeURIComponent(name)}/changes`),
+  containerFs: (src: ContainerSource, name: string, path: string) =>
+    request<{ path: string; entries: FsEntry[] }>(`${containerBase(src)}/${encodeURIComponent(name)}/fs${query({ path })}`),
+  containerFile: (src: ContainerSource, name: string, path: string, maxBytes?: number) =>
+    request<{ path: string; content: string; truncated: boolean }>(`${containerBase(src)}/${encodeURIComponent(name)}/file${query({ path, max_bytes: maxBytes })}`),
+  containerUpdatePlan: (src: ContainerSource, name: string) =>
+    request<ContainerUpdatePlan>(`${containerBase(src)}/${encodeURIComponent(name)}/update-plan`),
+  containerPull: (src: ContainerSource, name: string, restart = false) =>
+    postJson<{ ok: boolean; container: string; image: string; output: string; restarted?: boolean }>(
+      `${containerBase(src)}/${encodeURIComponent(name)}/pull`, { confirm: true, restart }),
+  containerScan: (src: ContainerSource, name: string) =>
+    request<ImageScan>(`${containerBase(src)}/${encodeURIComponent(name)}/scan`),
+  containerSource: (src: ContainerSource, name: string) =>
+    request<SourceReport>(`${containerBase(src)}/${encodeURIComponent(name)}/source`),
+  systemDf: (src: ContainerSource) =>
+    request<SystemDf>(src.kind === "host" ? `/api/v1/hosts/${encodeURIComponent(src.hostId)}/system/df` : "/api/v1/system/df"),
+  containerSettings: (src: ContainerSource, name: string, s: ContainerSettings) =>
+    postJson<{ ok: boolean; container: string; updated: boolean }>(
+      `${containerBase(src)}/${encodeURIComponent(name)}/settings`, { ...s, confirm: true }),
+  containerNetwork: (src: ContainerSource, name: string, network: string, action: "connect" | "disconnect") =>
+    postJson<{ ok: boolean; network: string; action: string }>(
+      `${containerBase(src)}/${encodeURIComponent(name)}/network`, { network, action, confirm: true }),
+  systemNetworks: (src: ContainerSource) =>
+    request<{ networks: DockerNetwork[] }>(src.kind === "host" ? `/api/v1/hosts/${encodeURIComponent(src.hostId)}/system/networks` : "/api/v1/system/networks"),
+  alertsConfig: () => request<AlertConfig>("/api/v1/alerts/config"),
+  alertsSetConfig: (cfg: { enabled?: boolean; chat_id?: string; bot_token?: string }) => postJson<AlertConfig>("/api/v1/alerts/config", cfg),
+  alertsTest: () => postJson<{ ok: boolean; error?: string }>("/api/v1/alerts/test", {}),
+  // Live log stream (ND-JSON over fetch — bearer auth via header, no token in URL).
+  containerLogStream: async (
+    src: ContainerSource, name: string, tail: number,
+    handlers: { onLine: (text: string) => void; onError: (msg: string) => void },
+    signal?: AbortSignal
+  ) => {
+    const url = `${getApiBase()}${containerBase(src)}/${encodeURIComponent(name)}/logs/stream${query({ tail })}`;
+    const response = await fetch(url, {
+      credentials: sameOriginApi() ? "include" : "omit",
+      headers: { ...authHeaders() },
+      signal
+    });
+    if (!response.ok || !response.body) { handlers.onError(`Stream failed (${response.status})`); return; }
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let nl: number;
+      while ((nl = buffer.indexOf("\n")) >= 0) {
+        const line = buffer.slice(0, nl).trim();
+        buffer = buffer.slice(nl + 1);
+        if (!line) continue;
+        try { const o = JSON.parse(line); if (typeof o.line === "string") handlers.onLine(o.line); } catch { /* skip */ }
+      }
+    }
+  }
 };
