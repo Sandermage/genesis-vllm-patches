@@ -1,16 +1,25 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
-  Activity, AlertTriangle, CircuitBoard, Cpu, Fan, Gauge, HardDrive, MemoryStick,
-  RefreshCw, Server, Thermometer, Zap,
+  Activity, AlertTriangle, ArrowDown, ArrowUp, CircuitBoard, Cpu, Fan, Gauge,
+  HardDrive, MemoryStick, Network, RefreshCw, Server, Thermometer, Zap,
 } from "lucide-react";
-import { api, type GpuInfo, type HardwareTelemetry } from "./api";
+import { api, type GpuInfo, type HardwareSystem, type HardwareTelemetry } from "./api";
 
 type HostOption = { id: string; label: string };
 type Source = { kind: "local" } | { kind: "host"; hostId: string };
+type NetRate = { rx: number; tx: number };
 
 const num = (v: number | null | undefined, d = 0) => (typeof v === "number" && !Number.isNaN(v) ? v : d);
 const gib1 = (mib: number | null | undefined) => (num(mib) / 1024).toFixed(1);
 const clamp = (v: number, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, v));
+
+// Human-readable byte-rate (bytes/sec → KB/s, MB/s, GB/s).
+function rate(bps: number): string {
+  if (bps >= 1e9) return `${(bps / 1e9).toFixed(1)} GB/s`;
+  if (bps >= 1e6) return `${(bps / 1e6).toFixed(1)} MB/s`;
+  if (bps >= 1e3) return `${(bps / 1e3).toFixed(0)} KB/s`;
+  return `${Math.round(bps)} B/s`;
+}
 
 // Tone thresholds shared by the ring gauges + bars (util / temp / power).
 function tone(pct: number): "ok" | "warn" | "hot" {
@@ -179,26 +188,88 @@ function GpuCard({ gpu, index }: { gpu: GpuInfo; index: number }) {
   );
 }
 
+// Host-level facts: CPU, RAM, disk free, and live network throughput.
+function HostPanel({ system, gpuCount, netRate }: { system: HardwareSystem; gpuCount: number; netRate: NetRate | null }) {
+  const ramTotal = num(system.ram_total_gb);
+  const ramUsed = num(system.ram_used_gb);
+  const ramFree = Math.max(0, ramTotal - ramUsed);
+  const ramPct = ramTotal ? clamp((ramUsed / ramTotal) * 100) : 0;
+  const disk = system.disk;
+  const diskUsed = num(disk?.used_gb);
+  const diskTotal = num(disk?.total_gb);
+  const diskPct = disk?.used_pct != null ? clamp(disk.used_pct) : diskTotal ? clamp((diskUsed / diskTotal) * 100) : 0;
+  const iface = system.net?.[0]?.name;
+  const hasNet = (system.net?.length ?? 0) > 0;
+
+  return (
+    <div className="hw-host">
+      <div className="hw-host-head">
+        <span className="hw-host-name"><HardDrive size={15} /> {system.hostname ?? "host"}</span>
+        {system.cpu && <span className="hw-host-cpu"><Cpu size={13} /> {system.cpu}{system.cpu_count ? ` · ${system.cpu_count} cores` : ""}</span>}
+        {system.primary_ip && <span className="hw-host-ip"><Network size={12} /> {system.primary_ip}</span>}
+        <span className="hw-host-gpus"><Activity size={12} /> {gpuCount} GPU{gpuCount === 1 ? "" : "s"}</span>
+      </div>
+      <div className="hw-host-grid">
+        {ramTotal > 0 && (
+          <Bar label="System memory" value={`${ramUsed.toFixed(1)} / ${ramTotal.toFixed(1)} GB`} pct={ramPct} tint
+            sub={`${ramFree.toFixed(1)} GB available · ${Math.round(ramPct)}% used`} />
+        )}
+        {disk && diskTotal > 0 && (
+          <Bar label={`Disk · ${disk.mount}`} value={`${diskUsed.toFixed(0)} / ${diskTotal.toFixed(0)} GB`} pct={diskPct} tint
+            sub={`${num(disk.free_gb).toFixed(0)} GB free · ${Math.round(diskPct)}% used`} />
+        )}
+        {hasNet && (
+          <div className="hw-net">
+            <span className="hw-bar-label">Network{iface ? ` · ${iface}` : ""}</span>
+            <div className="hw-net-rates">
+              <span className="hw-net-r down"><ArrowDown size={14} /> {netRate ? rate(netRate.rx) : "measuring…"}</span>
+              <span className="hw-net-r up"><ArrowUp size={14} /> {netRate ? rate(netRate.tx) : "measuring…"}</span>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function HardwarePanel({ hosts, initialHostId }: { hosts: HostOption[]; initialHostId?: string }) {
   const [source, setSource] = useState<Source>(
     initialHostId && hosts.some((h) => h.id === initialHostId) ? { kind: "host", hostId: initialHostId } : { kind: "local" });
   const [data, setData] = useState<HardwareTelemetry | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [netRate, setNetRate] = useState<NetRate | null>(null);
   const loadingRef = useRef(false);
   loadingRef.current = loading;
+  // Previous cumulative RX/TX sample + timestamp, to derive live throughput.
+  const prevNet = useRef<{ t: number; rx: number; tx: number } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true); setErr(null);
     try {
       const r = source.kind === "host" ? await api.hostGpuRemote(source.hostId) : await api.hostGpu();
       setData(r);
+      const ifs = r.system?.net ?? [];
+      if (ifs.length) {
+        const rx = ifs.reduce((s, i) => s + num(i.rx_bytes), 0);
+        const tx = ifs.reduce((s, i) => s + num(i.tx_bytes), 0);
+        const now = Date.now();
+        const prev = prevNet.current;
+        if (prev && now > prev.t) {
+          const dt = (now - prev.t) / 1000;
+          setNetRate({ rx: Math.max(0, (rx - prev.rx) / dt), tx: Math.max(0, (tx - prev.tx) / dt) });
+        }
+        prevNet.current = { t: now, rx, tx };
+      } else {
+        prevNet.current = null;
+      }
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e)); setData(null);
     } finally { setLoading(false); }
   }, [source]);
 
-  useEffect(() => { setData(null); void load(); }, [load]);
+  // New source → drop stale data + network baseline.
+  useEffect(() => { setData(null); setNetRate(null); prevNet.current = null; void load(); }, [load]);
   // Live refresh every 4s while the tab is visible and no request is in flight.
   useEffect(() => {
     const t = window.setInterval(() => { if (!loadingRef.current && !document.hidden) void load(); }, 4000);
@@ -225,13 +296,8 @@ export function HardwarePanel({ hosts, initialHostId }: { hosts: HostOption[]; i
         </button>
       </div>
 
-      {sys && (sys.cpu || sys.ram_total_gb) && (
-        <div className="hw-system">
-          <span className="hw-sys-item"><HardDrive size={13} /> {sys.hostname ?? "host"}</span>
-          {sys.cpu && <span className="hw-sys-item"><Cpu size={13} /> {sys.cpu}{sys.cpu_count ? ` · ${sys.cpu_count} cores` : ""}</span>}
-          {sys.ram_total_gb && <span className="hw-sys-item"><MemoryStick size={13} /> RAM {sys.ram_used_gb ?? "?"} / {sys.ram_total_gb} GB</span>}
-          {gpus.length > 0 && <span className="hw-sys-item"><Activity size={13} /> {gpus.length} GPU{gpus.length > 1 ? "s" : ""}</span>}
-        </div>
+      {sys && (sys.cpu || sys.ram_total_gb || sys.disk || sys.net) && (
+        <HostPanel system={sys} gpuCount={gpus.length} netRate={netRate} />
       )}
 
       {err && <div className="hw-empty err"><AlertTriangle size={22} /><strong>Telemetry unavailable</strong><span>{err}</span></div>}

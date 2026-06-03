@@ -330,9 +330,12 @@ export type GpuInfo = {
   compute_mode: string | null; pstate: string | null;
   ecc_corrected: string | null; ecc_uncorrected: string | null;
 };
+export type NetInterface = { name: string; rx_bytes: number; tx_bytes: number };
+export type DiskInfo = { mount: string; total_gb: number | null; used_gb: number | null; free_gb: number | null; used_pct?: number };
 export type HardwareSystem = {
   hostname: string | null; cpu: string | null; cpu_count: number | null;
   ram_total_gb?: number; ram_available_gb?: number; ram_used_gb?: number;
+  primary_ip?: string | null; net?: NetInterface[]; disk?: DiskInfo | null;
 };
 export type HardwareTelemetry = { gpus: GpuInfo[]; system: HardwareSystem; error: string | null };
 

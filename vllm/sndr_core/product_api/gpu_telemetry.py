@@ -121,6 +121,58 @@ def parse_system(cpuinfo: str, meminfo: str, *, hostname: str = "", cpu_count: O
     return out
 
 
+def _kb_to_gb(kb: Optional[float]) -> Optional[float]:
+    return round(kb / 1024 / 1024, 1) if kb is not None else None
+
+
+def parse_net(netdev: str, ip_line: str = "") -> dict[str, Any]:
+    """Parse /proc/net/dev into per-interface cumulative RX/TX byte counters.
+
+    Counters are cumulative since boot; the GUI diffs successive polls to derive
+    live throughput. The first address from ``hostname -I`` is the primary IP.
+    """
+    ifaces: list[dict[str, Any]] = []
+    for line in (netdev or "").splitlines():
+        if ":" not in line:
+            continue  # skip the two header rows
+        name, _, rest = line.partition(":")
+        name = name.strip()
+        if not name or name == "lo":
+            continue
+        cols = rest.split()
+        if len(cols) < 16:
+            continue
+        rx, tx = _i(cols[0]), _i(cols[8])
+        if rx is None or tx is None:
+            continue
+        ifaces.append({"name": name, "rx_bytes": rx, "tx_bytes": tx})
+    ifaces.sort(key=lambda d: d["rx_bytes"] + d["tx_bytes"], reverse=True)
+    parts = (ip_line or "").split()
+    return {"interfaces": ifaces[:4], "primary_ip": parts[0] if parts else None}
+
+
+def parse_disk(df_text: str) -> Optional[dict[str, Any]]:
+    """Parse ``df -kP <mount>`` (1K blocks, POSIX) into total/used/free GB."""
+    lines = [ln for ln in (df_text or "").splitlines() if ln.strip()]
+    if len(lines) < 2:
+        return None
+    cols = lines[1].split()
+    if len(cols) < 6:
+        return None
+    total, used, avail = _f(cols[1]), _f(cols[2]), _f(cols[3])
+    if total is None:
+        return None
+    out: dict[str, Any] = {
+        "mount": cols[5],
+        "total_gb": _kb_to_gb(total),
+        "used_gb": _kb_to_gb(used),
+        "free_gb": _kb_to_gb(avail),
+    }
+    if total and used is not None:
+        out["used_pct"] = round(used / total * 100, 1)
+    return out
+
+
 @dataclass(frozen=True)
 class HardwareTelemetry:
     gpus: tuple[dict[str, Any], ...]
@@ -154,6 +206,27 @@ def collect(run: Runner) -> HardwareTelemetry:
         )
     except Exception:  # noqa: BLE001
         pass
+
+    # Network — best-effort, independent of the CPU/RAM probe above.
+    try:
+        _, netdev, _ = run(["cat", "/proc/net/dev"])
+        _, ip_out, _ = run(["hostname", "-I"])
+        net = parse_net(netdev, ip_out)
+        if net["interfaces"] or net["primary_ip"]:
+            system["net"] = net["interfaces"]
+            system["primary_ip"] = net["primary_ip"]
+    except Exception:  # noqa: BLE001
+        pass
+
+    # Root filesystem free space (the container's / when daemon runs in one).
+    try:
+        _, df_out, _ = run(["df", "-kP", "/"])
+        disk = parse_disk(df_out)
+        if disk:
+            system["disk"] = disk
+    except Exception:  # noqa: BLE001
+        pass
+
     return HardwareTelemetry(gpus=gpus, system=system, error=error)
 
 

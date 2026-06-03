@@ -50,8 +50,47 @@ def test_parse_system():
     assert s["ram_used_gb"] == 31.2
 
 
+_NETDEV = (
+    "Inter-|   Receive                                                |  Transmit\n"
+    " face |bytes    packets errs drop fifo frame compressed multicast|bytes    packets errs drop fifo colls carrier compressed\n"
+    "    lo: 1000 10 0 0 0 0 0 0 1000 10 0 0 0 0 0 0\n"
+    "  eth0: 5000000000 40 0 0 0 0 0 0 2000000000 30 0 0 0 0 0 0\n"
+    "  eth1: 100 1 0 0 0 0 0 0 200 2 0 0 0 0 0 0\n"
+)
+
+
+def test_parse_net():
+    net = G.parse_net(_NETDEV, "192.168.1.10 172.17.0.1\n")
+    names = [i["name"] for i in net["interfaces"]]
+    assert "lo" not in names              # loopback dropped
+    assert names[0] == "eth0"             # busiest first
+    assert net["interfaces"][0]["rx_bytes"] == 5000000000
+    assert net["interfaces"][0]["tx_bytes"] == 2000000000
+    assert net["primary_ip"] == "192.168.1.10"
+
+
+def test_parse_net_empty():
+    assert G.parse_net("", "") == {"interfaces": [], "primary_ip": None}
+
+
+def test_parse_disk():
+    df = (
+        "Filesystem     1024-blocks      Used  Available Capacity Mounted on\n"
+        "/dev/sda1        209715200 104857600  104857600      50% /\n"
+    )
+    d = G.parse_disk(df)
+    assert d["mount"] == "/"
+    assert d["total_gb"] == 200.0 and d["free_gb"] == 100.0
+    assert d["used_pct"] == 50.0
+
+
+def test_parse_disk_garbage():
+    assert G.parse_disk("") is None
+    assert G.parse_disk("only one line\n") is None
+
+
 def test_collect_with_runner():
-    """collect() drives a runner; GPU + system both populate."""
+    """collect() drives a runner; GPU + system + net + disk all populate."""
     def run(argv):
         cmd = argv[0]
         if cmd == "nvidia-smi":
@@ -60,10 +99,16 @@ def test_collect_with_runner():
             return 0, "model name\t: Test CPU\n", ""
         if argv[:2] == ["cat", "/proc/meminfo"]:
             return 0, "MemTotal: 1048576 kB\nMemAvailable: 524288 kB\n", ""
+        if argv[:2] == ["cat", "/proc/net/dev"]:
+            return 0, _NETDEV, ""
+        if argv == ["hostname", "-I"]:
+            return 0, "10.0.0.5\n", ""
         if cmd == "hostname":
             return 0, "node-1\n", ""
         if cmd == "nproc":
             return 0, "8\n", ""
+        if cmd == "df":
+            return 0, "Filesystem 1024-blocks Used Available Capacity Mounted on\n/dev/sda1 209715200 104857600 104857600 50% /\n", ""
         return 127, "", "unknown"
 
     t = G.collect(run)
@@ -71,6 +116,9 @@ def test_collect_with_runner():
     assert len(t.gpus) == 1 and t.gpus[0]["name"] == "NVIDIA RTX A5000"
     assert t.system["cpu"] == "Test CPU" and t.system["cpu_count"] == 8
     assert t.system["ram_total_gb"] == 1.0
+    assert t.system["primary_ip"] == "10.0.0.5"
+    assert t.system["net"][0]["name"] == "eth0"
+    assert t.system["disk"]["free_gb"] == 100.0
 
 
 def test_collect_reports_error_when_no_gpu():
