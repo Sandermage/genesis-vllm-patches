@@ -302,7 +302,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {
             # [Genesis pin-gate 2026-05-11] PROD-active (GroupAB component
             # +9.2% on 27B). Validated dev9 → dev93.
-            "vllm_version_range": (">=0.20.0", "<0.21.0"),
+            "vllm_version_range": (">=0.20.0", "<0.22.0"),
         },
         "apply_module": "vllm.sndr_core.integrations.spec_decode.p70_auto_strict_ngram",
         "lifecycle": "experimental",
@@ -598,7 +598,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             # [Genesis pin-gate 2026-05-11] PROD-active (caps profile_run
             # M to GENESIS_PROFILE_RUN_CAP_M, unblocks batched_tokens>4096
             # on MoE). Validated dev9 → dev93.
-            "vllm_version_range": (">=0.20.0", "<0.21.0"),
+            "vllm_version_range": (">=0.20.0", "<0.22.0"),
         },
         "apply_module": "vllm.sndr_core.integrations.worker.p72_profile_run_cap",
         "lifecycle": "experimental",
@@ -754,7 +754,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {
             # [Genesis pin-gate 2026-05-11] PROD-active (Sprint 1 winner
             # +5.23% TPS at thr=0.1). Validated dev9 → dev93.
-            "vllm_version_range": (">=0.20.0", "<0.21.0"),
+            "vllm_version_range": (">=0.20.0", "<0.22.0"),
         },
         "apply_module": "vllm.sndr_core.integrations.spec_decode.p82_sglang_acceptance_threshold",
         "lifecycle": "research",
@@ -1194,7 +1194,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {
             # [Genesis pin-gate 2026-05-11] Defensive safety-net (default
             # OFF). Validated dev9 → dev93. Self-retires when #41467 merges.
-            "vllm_version_range": (">=0.20.0", "<0.21.0"),
+            "vllm_version_range": (">=0.20.0", "<0.22.0"),
         },
         "apply_module": "vllm.sndr_core.integrations.serving.p107_mtp_truncation_detector",
         "lifecycle": "experimental",
@@ -1752,7 +1752,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
                 "Qwen3MoeForCausalLM",
             ],
             # Valid for pins where MambaModelConfig.verify_and_update_config exists.
-            "vllm_version_range": (">=0.20.0", "<0.21.0"),
+            "vllm_version_range": (">=0.20.0", "<0.22.0"),
         },
     },
     "PN96b": {
@@ -1925,7 +1925,11 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             # rejection_sampler path). On future pins, drift detector
             # auto-skips if anchors moved — pin-gate prevents the attempt
             # when version is known-incompatible.
-            "vllm_version_range": (">=0.20.2rc1.dev9", "<0.21.0"),
+            # v11.3.0 BUG #14 fix: upper bound bumped to <0.22.0 — PN90
+            # self-skips via _PROPOSER_DRIFT_MARKERS on dev371+ regardless
+            # of range; bumping eliminates the spurious version-mismatch
+            # WARN log that stacks on top of the drift-marker skip.
+            "vllm_version_range": (">=0.20.2rc1.dev9", "<0.22.0"),
         },
         "requires_patches": [],
         "conflicts_with": [],
@@ -1962,7 +1966,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "(duplicate of this patch with the same fault site)."
         ),
         "applies_to": {
-            "vllm_version_range": (">=0.20.2rc1.dev9", "<0.21.0"),
+            "vllm_version_range": (">=0.20.2rc1.dev9", "<0.22.0"),
         },
         "requires_patches": [],
         "conflicts_with": [],
@@ -2219,7 +2223,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "Cooldown (default 50 ticks ~= 5s) prevents hot-path stall. "
             "No text-patch — runtime hook in existing scheduler_tick path."
         ),
-        "applies_to": {"vllm_version_range": (">=0.20.2rc1.dev9", "<0.21.0")},
+        "applies_to": {"vllm_version_range": (">=0.20.2rc1.dev9", "<0.22.0")},
         "requires_patches": [],
         "conflicts_with": [],
         "implementation_status": "full",
@@ -2247,7 +2251,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "site observed at chunk_o.py:168 on Qwen3.6-27B + 156K context."
         ),
         "applies_to": {
-            "vllm_version_range": (">=0.20.2rc1.dev9", "<0.21.0"),
+            "vllm_version_range": (">=0.20.2rc1.dev9", "<0.22.0"),
         },
         "requires_patches": [],
         "conflicts_with": [],
@@ -2365,7 +2369,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "(Phase 7 / scheduler refactor)."
         ),
         "applies_to": {
-            "vllm_version_range": (">=0.20.2rc1.dev9", "<0.21.0"),
+            "vllm_version_range": (">=0.20.2rc1.dev9", "<0.22.0"),
         },
         "requires_patches": [],
         "conflicts_with": [],
@@ -2392,7 +2396,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "import. Until upstream PR lands."
         ),
         "applies_to": {
-            "vllm_version_range": (">=0.20.2rc1.dev209", "<0.21.0"),
+            "vllm_version_range": (">=0.20.2rc1.dev209", "<0.22.0"),
         },
         "requires_patches": [],
         "conflicts_with": [],
@@ -2420,7 +2424,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "the prompt side); PN71 handles the live-generation side."
         ),
         "applies_to": {
-            "vllm_version_range": (">=0.20.2rc1.dev9", "<0.21.0"),
+            "vllm_version_range": (">=0.20.2rc1.dev9", "<0.22.0"),
         },
         "requires_patches": [],
         "conflicts_with": [],
@@ -2469,7 +2473,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "complements froggeric/enhanced jinja but does not require them."
         ),
         "applies_to": {
-            "vllm_version_range": (">=0.20.2rc1.dev9", "<0.21.0"),
+            "vllm_version_range": (">=0.20.2rc1.dev9", "<0.22.0"),
         },
         "requires_patches": [],
         "conflicts_with": [],
@@ -3236,7 +3240,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
 
             # [Genesis pin-gate 2026-05-11] PROD-active (GroupAB component).
             # Validated dev9 → dev93. Self-retires when #34207 merges.
-            "vllm_version_range": (">=0.20.0", "<0.21.0"),
+            "vllm_version_range": (">=0.20.0", "<0.22.0"),
         },
         "apply_module": "vllm.sndr_core.integrations.kernels.pn12_ffn_intermediate_pool",
         "lifecycle": "experimental",
@@ -4063,7 +4067,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {
             # [Genesis pin-gate 2026-05-11] PROD-active (V2 rearchitecture,
             # Wave 6 closure). V1 retired, V5/V7 cache-safe paths active.
-            "vllm_version_range": (">=0.20.0", "<0.21.0"),
+            "vllm_version_range": (">=0.20.0", "<0.22.0"),
         },
         # v11.3.0 BUG #9 fix: PN16 spec apply_module is the canonical
         # lazy-reasoner module (`pn16_lazy_reasoner`) — V2/V3/V5/V7
@@ -4145,7 +4149,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             # [Genesis pin-gate 2026-05-11] Defensive on Ampere; load-
             # bearing on planned Blackwell upgrade. Validated dev9 → dev93.
             # Self-retires via marker when #40074 merges.
-            "vllm_version_range": (">=0.20.0", "<0.21.0"),
+            "vllm_version_range": (">=0.20.0", "<0.22.0"),
         },
         "apply_module": "vllm.sndr_core.integrations.attention.turboquant.pn14_tq_decode_oob_clamp",
         "lifecycle": "experimental",
@@ -4564,7 +4568,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             ],
             # [Genesis pin-gate 2026-05-11] PROD-active (GroupAB component
             # + long-context single-GPU users). Validated dev9 → dev93.
-            "vllm_version_range": (">=0.20.0", "<0.21.0"),
+            "vllm_version_range": (">=0.20.0", "<0.22.0"),
         },
         "apply_module": "vllm.sndr_core.integrations.attention.gdn.p103_fla_cliff2_chunked",
         "lifecycle": "experimental",

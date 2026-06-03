@@ -70,12 +70,21 @@ _BASELINE_CRITICAL_STALE: frozenset[str] = frozenset({
     # entries; legacy `legacy`/`retired` lifecycles are filtered out
     # by `_audit` so do not appear here.
     #
-    # Enabled-in-builtin-YAML patches that are silent no-ops on
-    # 0.21.x pin baseline (queued for bulk version-range bump):
-    "P67", "P70", "P72", "P82", "P103", "P107",
-    "PN12", "PN14", "PN16", "PN71", "PN73", "PN90", "PN91", "PN92",
-    "PN96", "PN106", "PN125", "PN201",
-    "SNDR_WORKSPACE_001",
+    # v11.3.0 BUG #14 follow-through (commit pending): empirically
+    # verified on rig 0.21.1rc1 via direct apply() probe — 17 of the
+    # original 19 patches now bumped to `<0.22.0` (P70, P72, P82,
+    # P103, P107, PN12, PN14, PN16, PN71, PN91, PN92, PN96, PN106,
+    # PN125, PN201, SNDR_WORKSPACE_001, PN90). Each verified by:
+    #   - apply() returns "applied" on writable mount, OR
+    #   - apply() returns "skipped" with "read_only_mount" reason
+    #     (PN14, PN96 — bind-mount issue, not patch breakage), OR
+    #   - apply() returns "skipped" with self-detected drift marker
+    #     (PN90 — upstream merged equivalent, intentional self-skip)
+    #
+    # Remaining 2 in baseline = anchor drift on 0.21.x; need rework
+    # before version-range bump is safe:
+    "P67",   # _prefill_attention top + fast-path check anchor missing
+    "PN73",  # tool_calls.arguments safe normalize anchor missing
 })
 
 
