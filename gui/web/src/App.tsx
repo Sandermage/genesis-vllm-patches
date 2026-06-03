@@ -5560,6 +5560,7 @@ function V2ConfigWorkbench({
             <select value={runtime} onChange={(event) => { setRuntime(event.target.value); void runPreview({ runtime: event.target.value }); }}>
               {["docker", "podman", "kubernetes", "systemd", "bare"].map((item) => (<option key={item} value={item}>{item}</option>))}
             </select>
+            <small>Container / orchestration target</small>
           </label>
           <label className="config-select-card">
             <span><PackageCheck size={16} /> Draft id</span>
@@ -5567,6 +5568,7 @@ function V2ConfigWorkbench({
               value={draftPresetId}
               onChange={(event) => { setDraftPresetId(event.target.value); setConfigPlan(null); setPlanState("idle"); setPlanError(null); }}
             />
+            <small>Operator-local config name</small>
           </label>
         </div>
         <div className="config-control-actions">
