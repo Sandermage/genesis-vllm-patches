@@ -13,7 +13,8 @@ The PATCH_REGISTRY `upstream_pr` field historically accepts:
 
 Downstream consumers expect `Optional[int]`:
   - `PatchSpec.upstream_pr: Optional[int]` typed dataclass field
-  - `scripts/audit_upstream_status.py` regex `r"upstream_pr"\s*:\s*(\d+)`
+  - `scripts/audit_upstream_status.py` regex
+    ``r'"upstream_pr"\\s*:\\s*(\\d+)'``
     — silently SKIPS URL forms (only matches integer)
   - `infer_source()` checks `isinstance(meta.get("upstream_pr"), int)`
     — returns wrong source for URL-form entries

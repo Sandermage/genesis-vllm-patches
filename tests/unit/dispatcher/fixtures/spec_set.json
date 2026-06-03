@@ -537,7 +537,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.spec_decode.pn40_workload_classifier_hook"
+    "apply_module": "vllm.sndr_core.integrations.spec_decode.pn40_dflash_omnibus"
   },
   {
     "patch_id": "PN50",
@@ -1329,7 +1329,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.turboquant.pn26_sparse_v_kernel"
+    "apply_module": "vllm.sndr_core.integrations.attention.turboquant.pn26_tq_unified_perf"
   },
   {
     "patch_id": "PN25",
@@ -1425,7 +1425,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.middleware.pn16_v6_streaming_truncator"
+    "apply_module": "vllm.sndr_core.integrations.middleware.pn16_lazy_reasoner"
   },
   {
     "patch_id": "PN16_V6",
@@ -2202,7 +2202,7 @@
     "tier": "community",
     "default_on": true,
     "env_flag": "GENESIS_ENABLE_G4_01_GEMMA4_FP8_BLOCK_GUARD",
-    "has_upstream_pr": true,
+    "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
     "apply_module": "vllm.sndr_core.integrations.model_compat.gemma4.g4_01_gemma4_ampere_fp8_block_guard"
@@ -2214,7 +2214,7 @@
     "tier": "community",
     "default_on": true,
     "env_flag": "GENESIS_ENABLE_G4_02_GEMMA4_MARLIN_KDIM_GUARD",
-    "has_upstream_pr": true,
+    "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
     "apply_module": "vllm.sndr_core.integrations.model_compat.gemma4.g4_02_gemma4_ampere_marlin_kdim_guard"
@@ -2226,7 +2226,7 @@
     "tier": "community",
     "default_on": true,
     "env_flag": "GENESIS_ENABLE_G4_03_GEMMA4_NON_CAUSAL_DRAFTER_GUARD",
-    "has_upstream_pr": true,
+    "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
     "apply_module": "vllm.sndr_core.integrations.model_compat.gemma4.g4_03_gemma4_ampere_non_causal_drafter_guard"
@@ -2274,7 +2274,7 @@
     "tier": "community",
     "default_on": false,
     "env_flag": "GENESIS_ENABLE_G4_07_GEMMA4_FP8_BLOCK_FIX",
-    "has_upstream_pr": true,
+    "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
     "apply_module": "vllm.sndr_core.integrations.model_compat.gemma4.g4_07_gemma4_fp8_block_double_scale_fix"
@@ -2286,7 +2286,7 @@
     "tier": "community",
     "default_on": false,
     "env_flag": "GENESIS_ENABLE_G4_08_MARLIN_KDIM_PAD",
-    "has_upstream_pr": true,
+    "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
     "apply_module": "vllm.sndr_core.integrations.model_compat.gemma4.g4_08_gemma4_marlin_kdim_pad_fallback"
@@ -2298,7 +2298,7 @@
     "tier": "community",
     "default_on": true,
     "env_flag": "GENESIS_ENABLE_G4_09_GEMMA4_SWA_PREFILL_CHUNKER",
-    "has_upstream_pr": true,
+    "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
     "apply_module": "vllm.sndr_core.integrations.model_compat.gemma4.g4_09_gemma4_swa_global_prefill_chunker"
@@ -2310,7 +2310,7 @@
     "tier": "community",
     "default_on": false,
     "env_flag": "GENESIS_ENABLE_G4_10_GEMMA4_AMPERE_NON_CAUSAL_BACKEND",
-    "has_upstream_pr": true,
+    "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
     "apply_module": "vllm.sndr_core.integrations.model_compat.gemma4.g4_10_gemma4_ampere_non_causal_attn_backend"
@@ -2334,7 +2334,7 @@
     "tier": "community",
     "default_on": true,
     "env_flag": "GENESIS_ENABLE_G4_12_GEMMA4_FP8_E4NV_GUARD",
-    "has_upstream_pr": true,
+    "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
     "apply_module": "vllm.sndr_core.integrations.model_compat.gemma4.g4_12_gemma4_fp8_e4nv_ampere_guard"
@@ -2346,7 +2346,7 @@
     "tier": "community",
     "default_on": true,
     "env_flag": "GENESIS_ENABLE_G4_13_GEMMA4_PER_TOKEN_HEAD_KV_GUARD",
-    "has_upstream_pr": true,
+    "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
     "apply_module": "vllm.sndr_core.integrations.model_compat.gemma4.g4_13_gemma4_per_token_head_kv_guard"
@@ -2358,7 +2358,7 @@
     "tier": "community",
     "default_on": true,
     "env_flag": "GENESIS_ENABLE_G4_14_GEMMA4_TOOL_CALL_PARSER_PAD",
-    "has_upstream_pr": true,
+    "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
     "apply_module": "vllm.sndr_core.integrations.model_compat.gemma4.g4_14_gemma4_tool_call_parser_pad_token"
@@ -2418,7 +2418,7 @@
     "tier": "community",
     "default_on": true,
     "env_flag": "GENESIS_ENABLE_G4_23_GEMMA4_VISION_FP16_OVERFLOW",
-    "has_upstream_pr": true,
+    "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
     "apply_module": "vllm.sndr_core.integrations.model_compat.gemma4.g4_23_gemma4_vision_fp16_overflow_fix"
@@ -2442,7 +2442,7 @@
     "tier": "community",
     "default_on": false,
     "env_flag": "GENESIS_ENABLE_G4_19_GEMMA4_TURBOQUANT_KV",
-    "has_upstream_pr": true,
+    "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
     "apply_module": "vllm.sndr_core.integrations.attention.turboquant.g4_19_turboquant_kv_cache"
@@ -2454,7 +2454,7 @@
     "tier": "community",
     "default_on": false,
     "env_flag": "GENESIS_ENABLE_G4_19B_GEMMA4_TQ_KV_SPEC",
-    "has_upstream_pr": true,
+    "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
     "apply_module": "vllm.sndr_core.integrations.attention.turboquant.g4_19b_tq_kv_spec_integration"

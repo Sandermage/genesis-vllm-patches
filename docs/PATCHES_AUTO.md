@@ -4,14 +4,13 @@
 > Source of truth: `vllm/sndr_core/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-06-03T01:30:42Z
+Generated: 2026-06-03T12:44:52Z
 Total entries: **241**
 
 ## Statistics
 
 ### By tier
-- `tier=community`: **240**
-- `tier=engine`: **1**
+- `tier=community`: **241**
 
 ### By lifecycle
 - `lifecycle=coordinator`: **4**
@@ -267,7 +266,7 @@ Total entries: **241**
 | **PN122** | `community` | `experimental` | · | `GENESIS_ENABLE_PN122_CG_DISPATCH_TRACE` | — | Sprint 2.6 v2 — CUDA graph dispatch trace wire-in (formerly SPRINT26_CG_DISPA... |
 | **PN282** | `community` | `coordinator` | · | `SNDR_ENABLE_SPEC_DECODE_ACCEPTANCE_METRIC` | — | Spec-decode acceptance proxy metric (Prometheus, non-dispatcher boot patch) |
 | **PN283** | `community` | `coordinator` | · | `SNDR_ENABLE_PN283_PROC_BRIDGE` | — | vLLM v1 multiprocess Prometheus directory bootstrap (non-dispatcher boot patch) |
-| **PN289** | `engine` | `experimental` | · | `GENESIS_ENABLE_PN289_PROCESS_INFO` | — | Genesis process-info Prometheus gauge (§6.H10 enterprise observability) |
+| **PN289** | `community` | `experimental` | · | `GENESIS_ENABLE_PN289_PROCESS_INFO` | — | Genesis process-info Prometheus gauge (§6.H10 enterprise observability) |
 
 ### `offload` (3)
 

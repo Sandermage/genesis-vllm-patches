@@ -152,7 +152,7 @@
     "wrapped_name": "apply_patch_n119_tq_gqa_grouping"
   },
   {
-    "name": "Sprint 2.6 v2 — CUDA graph dispatch trace wire-in",
+    "name": "PN122 cudagraph dispatch trace (formerly Sprint 2.6 v2)",
     "wrapped_name": "apply_patch_pn122_cudagraph_dispatch_trace"
   },
   {
@@ -784,7 +784,7 @@
     "wrapped_name": "apply_patch_g4_19_turboquant_kv_cache"
   },
   {
-    "name": "G4_19b gemma4 TQ KV spec integration (compression-aware memory check)",
+    "name": "G4_19B gemma4 TQ KV spec integration (compression-aware memory check)",
     "wrapped_name": "apply_patch_g4_19b_tq_kv_spec_integration"
   }
 ]
