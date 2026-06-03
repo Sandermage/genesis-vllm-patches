@@ -1,0 +1,66 @@
+# Python dependency vulnerability audit — pip-audit (PyPA; PyPI Advisory DB + OSV).
+#
+# Scans the daemon's RUNTIME dependency tree — the network-facing attack surface
+# (fastapi, uvicorn/starlette, paramiko, cryptography, websockets, requests,
+# pyyaml, keyring + their transitive deps) — for known CVEs/advisories. Dev- and
+# test-only deps (pytest, torch) are excluded: they never ship in the product.
+# Complements the frontend's `npm audit` (gui_web CI).
+#
+# Triggered:
+#   - push to main / PRs that change pyproject.toml — catch a newly-introduced
+#     vulnerable dependency before it merges
+#   - weekly (Mon 08:00 UTC) — catch CVEs disclosed in already-resolved deps
+#   - manual workflow_dispatch
+#
+# The job FAILS on any known vulnerability (security gate). To accept a triaged,
+# unfixable, or not-applicable advisory, append it to the pip-audit command as
+#   --ignore-vuln GHSA-xxxx-xxxx-xxxx
+# WITH an inline comment justifying it (and an advisory link). Keep the allowlist
+# minimal and revisit it on every failure.
+#
+# `--strict` is intentionally NOT used: the local project (vllm-sndr-core) isn't
+# on PyPI, so it is auto-skipped — under --strict that skip would fail the run.
+#
+# Author: Sandermage (Sander) Barzov Aleksandr.
+name: Python dependency audit
+
+on:
+  push:
+    branches: [ main ]
+    paths: [ "pyproject.toml", ".github/workflows/pip_audit.yml" ]
+  pull_request:
+    paths: [ "pyproject.toml", ".github/workflows/pip_audit.yml" ]
+  schedule:
+    - cron: "0 8 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: pip-audit (runtime deps)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install pip-audit + the daemon's runtime dependencies
+        run: |
+          python -m pip install --upgrade pip pip-audit
+          # Install only the network-facing runtime extras (the attack surface);
+          # dev/torch are deliberately excluded. pip-audit then resolves the full
+          # transitive tree from the installed environment.
+          pip install ".[gui-api,gui-remote,http,license,telemetry]"
+
+      - name: Audit installed dependency tree
+        run: |
+          # Exits 0 when clean, 1 on any known vulnerability. --desc prints the
+          # advisory detail so a failing run is self-explanatory in the logs.
+          # Allowlist (justify each; keep minimal):
+          #   --ignore-vuln GHSA-xxxx-xxxx-xxxx  # <reason + advisory link>
+          pip-audit --desc
