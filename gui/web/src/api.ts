@@ -338,6 +338,12 @@ export type HardwareSystem = {
   primary_ip?: string | null; net?: NetInterface[]; disk?: DiskInfo | null; platform?: string | null;
 };
 export type HardwareTelemetry = { gpus: GpuInfo[]; system: HardwareSystem; error: string | null };
+export type AlertLevel = "critical" | "warn" | "info" | "ok";
+export type Alert = {
+  key: string; level: AlertLevel; category: string; title: string; detail: string; host: string;
+  first_seen: number; last_seen: number; resolved_at?: number;
+};
+export type AlertsSnapshot = { active: Alert[]; recent: Alert[]; counts: { critical: number; warn: number; info: number } };
 
 export type DeployParameters = {
   image: string;
@@ -1286,6 +1292,7 @@ export const api = {
   hostInventory: () => request<HostInventory>("/api/v1/host/inventory"),
   hostGpu: () => request<HardwareTelemetry>("/api/v1/host/gpu"),
   hostGpuRemote: (hostId: string) => request<HardwareTelemetry>(`/api/v1/hosts/${encodeURIComponent(hostId)}/gpu`),
+  alerts: () => request<AlertsSnapshot>("/api/v1/alerts"),
 
   // Container management — one shape over both transports (local socket / host SSH).
   containers: (src: ContainerSource) =>

@@ -138,6 +138,7 @@ import { AccountMenu, LoginScreen, SecurityPanel, UserAdminPanel } from "./Auth"
 // fetched on first visit. One Suspense boundary around SectionWorkspace covers
 // them all. `ChatTarget` is a type, so it stays a plain type import.
 import type { ChatTarget } from "./Engine";
+import { AlertsBell } from "./Alerts";
 const ChatConsole = lazy(() => import("./Engine").then((m) => ({ default: m.ChatConsole })));
 const EngineBenchPanel = lazy(() => import("./Engine").then((m) => ({ default: m.EngineBenchPanel })));
 const EngineMetricsPanel = lazy(() => import("./Engine").then((m) => ({ default: m.EngineMetricsPanel })));
@@ -1093,6 +1094,7 @@ export default function App() {
           </div>
 
           <div className="topbar-actions">
+            <AlertsBell onOpenHardware={() => setActiveSection("hardware")} />
             <ServerSwitcher apiBase={apiBase} connectionTone={connectionTone} onSwitch={(url) => void switchServerGuarded(url)} hostProfiles={hostProfiles} onManageHosts={() => setActiveSection("hosts")} onOpenHost={(id) => { setFocusHostId(id); setActiveSection("hosts"); }} />
             <button className="tool-button" onClick={() => void loadAll()}>
               <RefreshCw size={16} />

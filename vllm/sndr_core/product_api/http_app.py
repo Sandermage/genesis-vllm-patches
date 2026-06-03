@@ -1660,6 +1660,20 @@ def create_app(
         _profile, target = _ssh_target_for(host_id)
         return _dataclass_payload(gpu_telemetry.collect_remote(target))
 
+    @app.get("/api/v1/alerts")
+    async def alerts_route() -> dict[str, Any]:
+        """Evaluate hardware-threshold rules over the daemon host's live telemetry
+        and merge into the shared alert store. The GUI polls this for its bell."""
+        import time as _t
+
+        from . import alerts as alerts_mod
+        from . import gpu_telemetry
+
+        tele = _dataclass_payload(gpu_telemetry.collect_local())
+        host = (tele.get("system") or {}).get("hostname") or "local"
+        alerts_mod.STORE.update(alerts_mod.evaluate_hardware(host, tele), now=_t.time())
+        return alerts_mod.STORE.snapshot()
+
     @app.get("/api/v1/jobs")
     async def jobs_list() -> dict[str, Any]:
         return {"jobs": [_dataclass_payload(job) for job in list_jobs()]}
