@@ -54,6 +54,31 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_PIN = "0.21.1rc1.dev354+g626fa9bba"
 
 
+# v11.3.0 BUG #14 baseline allowlist — known patches with stale
+# upper bounds whose verification on the current pin is queued for a
+# bulk-update PR. Each entry documents the patch's status. `--strict`
+# mode exits 1 only on CRITICAL entries NOT in this allowlist — new
+# additions force review without blocking known-debt entries.
+#
+# Cleanup workflow when bumping a range:
+#   1. Verify patch applies cleanly on the new pin (anchor + smoke).
+#   2. Update `applies_to.vllm_version_range` in registry.py.
+#   3. Remove the patch ID from this set + add a one-line "verified
+#      on pin <X> via bench <Y>" note in commit message.
+_BASELINE_CRITICAL_STALE: frozenset[str] = frozenset({
+    # Default-on (always-skip without env override) — currently 0
+    # entries; legacy `legacy`/`retired` lifecycles are filtered out
+    # by `_audit` so do not appear here.
+    #
+    # Enabled-in-builtin-YAML patches that are silent no-ops on
+    # 0.21.x pin baseline (queued for bulk version-range bump):
+    "P67", "P70", "P72", "P82", "P103", "P107",
+    "PN12", "PN14", "PN16", "PN71", "PN73", "PN90", "PN91", "PN92",
+    "PN96", "PN106", "PN125", "PN201",
+    "SNDR_WORKSPACE_001",
+})
+
+
 def _resolve_current_pin(override: str | None = None) -> str:
     if override:
         return override
@@ -143,8 +168,44 @@ def _import_registry():
     return PATCH_REGISTRY
 
 
+def _build_builtin_yaml_env_map() -> dict[str, list[str]]:
+    """v11.3.0 BUG #14 helper: walk every model_configs/builtin/**.yaml
+    and return {env_flag → [yaml_filename, ...]} for truthy
+    `GENESIS_ENABLE_<X>: '1'` lines.
+
+    Used by the severity classifier to escalate opt-in patches that
+    are enabled by some builtin YAML — those are operationally critical
+    when the version range excludes the current pin (operators set the
+    flag expecting the patch; the patch silently no-ops).
+    """
+    out: dict[str, list[str]] = {}
+    yaml_dir = REPO_ROOT / "vllm" / "sndr_core" / "model_configs" / "builtin"
+    if not yaml_dir.is_dir():
+        return out
+    flag_re = re.compile(
+        r"^\s*(GENESIS_ENABLE_[A-Z0-9_]+)\s*:\s*['\"]?([^'\"\s#]+)"
+    )
+    for yp in yaml_dir.rglob("*.yaml"):
+        try:
+            text = yp.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        rel = yp.name
+        for line in text.splitlines():
+            m = flag_re.match(line)
+            if not m:
+                continue
+            value = m.group(2).strip()
+            if value not in ("1", "true", "True"):
+                continue
+            flag = m.group(1)
+            out.setdefault(flag, []).append(rel)
+    return out
+
+
 def _audit(pin: str) -> dict:
     registry = _import_registry()
+    builtin_yaml_envs = _build_builtin_yaml_env_map()
     rows: list[dict] = []
     for pid, meta in registry.items():
         if not isinstance(meta, dict):
@@ -160,17 +221,38 @@ def _audit(pin: str) -> dict:
             continue
         if not _check_range_excludes_pin(rng, pin):
             continue
-        # Severity classification
+        # v11.3.0 BUG #14 severity escalation: pre-compute enabled-in-prod
+        # status. Patches that are opt-in (default_on=False) BUT enabled
+        # by some builtin model/profile YAML are operationally CRITICAL
+        # even though the legacy severity tagged them WARN — operators
+        # set the env flag expecting the patch to apply, but on the
+        # current pin it silently no-ops via version-range mismatch.
         default_on = bool(meta.get("default_on"))
-        severity = "CRITICAL" if default_on else "WARN"
+        env_flag = meta.get("env_flag")
+        enabled_in_yamls = bool(env_flag) and (env_flag in builtin_yaml_envs)
+        if default_on:
+            severity = "CRITICAL"
+            severity_reason = "default_on=True; silently skips on every boot"
+        elif enabled_in_yamls:
+            severity = "CRITICAL"
+            severity_reason = (
+                f"enabled in {len(builtin_yaml_envs.get(env_flag, []))} "
+                f"builtin YAML(s); silent no-op on this pin"
+            )
+        else:
+            severity = "WARN"
+            severity_reason = "opt-in only; not enabled by any builtin YAML"
         rows.append({
             "patch_id": pid,
             "severity": severity,
+            "severity_reason": severity_reason,
             "vllm_version_range": rng,
             "lifecycle": lifecycle,
             "default_on": default_on,
-            "env_flag": meta.get("env_flag"),
+            "env_flag": env_flag,
             "family": meta.get("family"),
+            "enabled_in_yamls": enabled_in_yamls,
+            "yaml_consumers": builtin_yaml_envs.get(env_flag, []),
         })
     # Sort by severity (CRITICAL first) then patch_id
     rows.sort(key=lambda r: (0 if r["severity"] == "CRITICAL" else 1,
@@ -190,14 +272,17 @@ def _print_human(result: dict) -> None:
     print("=" * 70)
     print()
     print(f"Total stale ranges:    {result['total_stale_ranges']}")
-    print(f"  CRITICAL (default_on, silent skip): {result['critical_count']}")
-    print(f"  WARN     (opt-in, WARN log noise):  {result['warn_count']}")
+    print(f"  CRITICAL: {result['critical_count']} "
+          f"(default_on=True silent-skip OR enabled-in-builtin-YAML silent-no-op)")
+    print(f"  WARN:     {result['warn_count']} "
+          f"(opt-in only, not enabled by any YAML)")
     print()
     if result["critical_count"] > 0:
         print(
-            "⚠⚠⚠ CRITICAL entries — default_on=True + range excludes "
-            "current pin → patch silently skips for every operator. "
-            "Investigate immediately."
+            "⚠⚠⚠ CRITICAL entries — patch silently skips when version "
+            "range excludes current pin. v11.3.0 BUG #14 escalation: "
+            "opt-in patches that are ENABLED IN BUILTIN YAMLs are also "
+            "critical (operator-visible silent no-op)."
         )
         print()
     if result["rows"]:
@@ -249,8 +334,30 @@ def main() -> int:
     else:
         _print_human(result)
 
-    if args.strict and result["critical_count"] > 0:
-        return 1
+    if args.strict:
+        # v11.3.0 BUG #14: --strict fails on CRITICAL entries NOT in
+        # baseline allowlist. Baseline entries surface as INFO in the
+        # human report but don't block CI.
+        new_critical = [
+            r for r in result["rows"]
+            if r["severity"] == "CRITICAL"
+            and r["patch_id"] not in _BASELINE_CRITICAL_STALE
+        ]
+        if new_critical:
+            print(
+                f"\n⚠ --strict failed: {len(new_critical)} CRITICAL "
+                f"stale-range entries not in v11.3.0 baseline allowlist:"
+            )
+            for r in new_critical:
+                print(
+                    f"  - {r['patch_id']}: {r['vllm_version_range']} "
+                    f"({r['severity_reason']})"
+                )
+            print(
+                "\nEither bump the upper bound in registry.py (recommended) "
+                "OR add to _BASELINE_CRITICAL_STALE with a justification."
+            )
+            return 1
     return 0
 
 
