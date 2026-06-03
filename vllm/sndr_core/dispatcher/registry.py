@@ -473,7 +473,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "opt-in for PoC validation."
         ),
         "upstream_pr": 41824,
-        "upstream_pr_relationship": "alternative_pattern",
+        "upstream_pr_relationship": "backport",
         "applies_to": {"model_class": ["qwen3_5", "qwen3_6", "qwen3_next"]},
         "implementation_status": "full",
         "apply_module": "vllm.sndr_core.integrations.attention.gdn.pn79_v2_md5_chunk",
@@ -496,7 +496,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "PN79 + PN79_V2_MD5_CHUNK. Default OFF."
         ),
         "upstream_pr": 41824,
-        "upstream_pr_relationship": "alternative_pattern",
+        "upstream_pr_relationship": "backport",
         "applies_to": {"model_class": ["qwen3_5", "qwen3_6", "qwen3_next"]},
         "implementation_status": "full",
         "apply_module": "vllm.sndr_core.integrations.attention.gdn.pn79_v2_md5_chunk_delta_h",
@@ -2030,13 +2030,26 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "OFF=118.54 ON=118.78). Both qwen3.6-applicable production "
             "presets confirm K_001 effect indistinguishable from noise "
             "under short-prompt batched workload. Default OFF empirically "
-            "ratified across full qwen3.6 production scope. Outstanding "
-            "open question: multi-turn agentic workload where per-seq "
-            "SequenceState has room to accumulate hysteresis signal — "
-            "this remains the only viable hypothesis for the +5-12% "
-            "forecast. Evidence: "
+            "ratified across full qwen3.6 production scope. "
+            "THIRD EMPIRICAL BENCH (2026-06-03, multi-turn workload via "
+            "tools/bench_multiturn_tps.py — explicitly designed to "
+            "exercise per-seq SequenceState window-maturation, the only "
+            "remaining viable hypothesis for the +5-12% forecast): "
+            "qwen3.6-35b-multiconc, 12 turns × 2 sessions = n=24 per arm, "
+            "same pin. OVERALL: Δwall_TPS=+1.40% (t=+0.169 p=0.8656 "
+            "NOT_SIGNIFICANT, OFF=47.34 ON=48.01). LATE WINDOW (turns "
+            "10-12, SequenceState matured): Δ=+1.20% (t=+0.906 p=0.3651 "
+            "NOT_SIGNIFICANT, OFF=43.19 ON=43.71). The multi-turn "
+            "hypothesis is now ALSO FALSIFIED — K_001 produces no "
+            "measurable improvement even with mature SequenceState "
+            "across 24 conversation turns. PR #26504 author's +5-12% "
+            "forecast does not materialize on Genesis's qwen3.6 stack "
+            "on any tested workload. Default OFF is the empirically "
+            "correct setting. Evidence: "
             "evidence/bench/v11.2.0_k001_validation/{35b,27b}_k001_"
-            "{off,on}.json + SUMMARY.md."
+            "{off,on}.json + 35b_multiturn_k001_{off,on}.json + "
+            "SUMMARY.md + tools/bench_multiturn_tps.py for the "
+            "reusable multi-turn measurement harness."
         ),
         "applies_to": {
             "spec_decode_method": ["mtp"],
@@ -4356,7 +4369,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "is not yet validated."
         ),
         "upstream_pr": 42551,
-        "upstream_pr_relationship": "alternative_pattern",
+        "upstream_pr_relationship": "backport",
         "applies_to": {
             "is_turboquant": True,  # same target file as PN118 (workspace.py)
         },
@@ -4393,7 +4406,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "Default OFF — operators opt-in for A/B validation."
         ),
         "upstream_pr": 42551,
-        "upstream_pr_relationship": "alternative_pattern",
+        "upstream_pr_relationship": "backport",
         "applies_to": {
             "is_turboquant": True,  # second target file of PN118 (turboquant_attn.py)
         },

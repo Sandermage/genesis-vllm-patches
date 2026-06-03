@@ -20,7 +20,7 @@ import pytest
 def test_hadamard_matrix_orthonormal_128():
     """H @ H^T should be the identity (up to fp32 noise) for block_size=128."""
     pytest.importorskip("torch")
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant import (
+    from vllm.sndr_core.integrations.attention.turboquant.kernels import (
         g4_tq_packed_wht_triton as mod,
     )
     H = mod._build_hadamard_matrix(128).numpy()
@@ -38,7 +38,7 @@ def test_hadamard_matrix_orthonormal_128():
 @pytest.mark.parametrize("block_size", [2, 4, 8, 16, 32, 64, 128, 256])
 def test_hadamard_matrix_orthonormal_various_sizes(block_size):
     pytest.importorskip("torch")
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant import (
+    from vllm.sndr_core.integrations.attention.turboquant.kernels import (
         g4_tq_packed_wht_triton as mod,
     )
     H = mod._build_hadamard_matrix(block_size).numpy()
@@ -51,7 +51,7 @@ def test_hadamard_matrix_orthonormal_various_sizes(block_size):
 
 def test_hadamard_matrix_rejects_non_power_of_2():
     pytest.importorskip("torch")
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant import (
+    from vllm.sndr_core.integrations.attention.turboquant.kernels import (
         g4_tq_packed_wht_triton as mod,
     )
     with pytest.raises(ValueError, match="power of 2"):
@@ -64,7 +64,7 @@ def test_hadamard_cache_shares_one_tensor():
     """``get_hadamard_matrix`` returns the same tensor on repeated calls."""
     pytest.importorskip("torch")
     import torch
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant import (
+    from vllm.sndr_core.integrations.attention.turboquant.kernels import (
         g4_tq_packed_wht_triton as mod,
     )
     mod.clear_hadamard_cache()
@@ -77,7 +77,7 @@ def test_hadamard_cache_shares_one_tensor():
 def test_config_validates_wht_mode():
     """G4TurboQuantConfig rejects an unknown wht_mode at construction."""
     pytest.importorskip("torch")
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_cache import (
+    from vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_cache import (
         G4TurboQuantConfig,
     )
     G4TurboQuantConfig(wht_mode="signs_only")  # ok
@@ -89,7 +89,7 @@ def test_config_validates_wht_mode():
 def test_config_default_wht_mode_is_signs_only():
     """Default mode keeps existing 256K boot path stable."""
     pytest.importorskip("torch")
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_cache import (
+    from vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_cache import (
         G4TurboQuantConfig,
     )
     cfg = G4TurboQuantConfig()
@@ -101,7 +101,7 @@ def test_config_default_wht_mode_is_signs_only():
 
 def test_packed_wht_marker_present():
     pytest.importorskip("torch")
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant import (
+    from vllm.sndr_core.integrations.attention.turboquant.kernels import (
         g4_tq_packed_wht_triton as mod,
     )
     assert mod.GENESIS_G4_TQ_PACKED_WHT_MARKER.startswith("Genesis G4")
@@ -110,7 +110,7 @@ def test_packed_wht_marker_present():
 
 def test_packed_wht_public_api_present():
     pytest.importorskip("torch")
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant import (
+    from vllm.sndr_core.integrations.attention.turboquant.kernels import (
         g4_tq_packed_wht_triton as mod,
     )
     for name in (
@@ -137,7 +137,7 @@ def _quantize_3bit(x: np.ndarray) -> np.ndarray:
 
 def _roundtrip(x: np.ndarray, signs: np.ndarray, mode: str) -> np.ndarray:
     pytest.importorskip("torch")
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_rotor import (
+    from vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_rotor import (
         randomized_hadamard_apply_blocked,
     )
     BLOCK = 128
@@ -168,7 +168,7 @@ def _roundtrip(x: np.ndarray, signs: np.ndarray, mode: str) -> np.ndarray:
 def test_roundtrip_full_wht_at_least_matches_signs_only_on_gaussian():
     """On a Gaussian input full-WHT shouldn't be worse than signs-only."""
     pytest.importorskip("torch")
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_rotor import (
+    from vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_rotor import (
         build_randomized_hadamard_seed,
     )
     rng = np.random.default_rng(0xC0FFEE)
@@ -187,7 +187,7 @@ def test_roundtrip_full_wht_at_least_matches_signs_only_on_gaussian():
 def test_roundtrip_full_wht_beats_signs_only_on_heavy_tailed():
     """On heavy-tailed inputs full-WHT should give measurably lower MSE."""
     pytest.importorskip("torch")
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_rotor import (
+    from vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_rotor import (
         build_randomized_hadamard_seed,
     )
     rng = np.random.default_rng(0xBEEF)
@@ -213,7 +213,7 @@ def test_roundtrip_full_wht_beats_signs_only_on_heavy_tailed():
 def test_roundtrip_handles_nan_inf_input():
     """Quantizer must not crash on NaN/Inf in numpy reference path."""
     pytest.importorskip("torch")
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_rotor import (
+    from vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_rotor import (
         build_randomized_hadamard_seed,
     )
     rng = np.random.default_rng(123)

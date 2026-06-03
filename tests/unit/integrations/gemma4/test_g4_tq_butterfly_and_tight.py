@@ -46,7 +46,7 @@ def _fwht_butterfly_via_reshape(x_in: np.ndarray) -> np.ndarray:
 def test_butterfly_matches_orthonormal_hadamard(block_size):
     """Reshape-form butterfly must agree with x · H, H = Sylvester / √n."""
     pytest.importorskip("torch")
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant import (
+    from vllm.sndr_core.integrations.attention.turboquant.kernels import (
         g4_tq_packed_wht_triton as mod,
     )
     # Hadamard helper stores fp32, butterfly is fp64 — compare with fp32
@@ -92,7 +92,7 @@ def test_butterfly_preserves_l2_norm():
 
 def test_tight_module_imports():
     pytest.importorskip("torch")
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant import (
+    from vllm.sndr_core.integrations.attention.turboquant.kernels import (
         g4_tq_tight_triton as mod,
     )
     assert mod.GENESIS_G4_TQ_TIGHT_MARKER.startswith("Genesis G4")
@@ -101,7 +101,7 @@ def test_tight_module_imports():
 
 def test_tight_public_api_present():
     pytest.importorskip("torch")
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant import (
+    from vllm.sndr_core.integrations.attention.turboquant.kernels import (
         g4_tq_tight_triton as mod,
     )
     for name in ("g4_tq_write_tight_3bit", "g4_tq_read_tight_3bit"):
@@ -115,7 +115,7 @@ def test_tight_public_api_present():
 def test_tight_pack_format_round_trip(seed):
     """8 indices → 3 bytes round-trip via numpy reference, every byte
     layout bit matches the Triton kernel's packing arithmetic."""
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_packing import (
+    from vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_packing import (
         pack_indices_3bit_tight,
         unpack_indices_3bit_tight,
     )
@@ -150,7 +150,7 @@ def test_tight_compression_ratio_correct():
 
 def test_g4tq_config_accepts_tight_pack_mode():
     pytest.importorskip("torch")
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_cache import (
+    from vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_cache import (
         G4TurboQuantConfig,
     )
     cfg = G4TurboQuantConfig(pack_mode="tight")
@@ -163,7 +163,7 @@ def test_g4tq_config_accepts_tight_pack_mode():
 def test_g4tq_kv_cache_size_tight_pack_arithmetic():
     """``kv_cache_size_bytes`` accounting for tight pack mode."""
     pytest.importorskip("torch")
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_cache import (
+    from vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_cache import (
         G4TurboQuantConfig, kv_cache_size_bytes,
     )
     cfg_uint32 = G4TurboQuantConfig(pack_mode="uint32")
@@ -194,10 +194,10 @@ def test_tight_signs_only_roundtrip_numpy():
     """Numpy reference: quantize → tight-pack → tight-unpack → dequantize.
     Verifies the bytes round-trip even if the Triton kernel can't run."""
     pytest.importorskip("torch")
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_packing import (
+    from vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_packing import (
         pack_indices_3bit_tight, unpack_indices_3bit_tight,
     )
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_rotor import (
+    from vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_rotor import (
         build_randomized_hadamard_seed,
     )
     B3 = np.array([-1.84375, -1.05860, -0.50977, 0.0,

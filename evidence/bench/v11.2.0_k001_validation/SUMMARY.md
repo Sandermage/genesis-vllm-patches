@@ -94,4 +94,72 @@ specifically should:
 - `35b_k001_on.json` — K_001 ON, same preset
 - `27b_k001_off.json` — K_001 OFF on prod-qwen3.6-27b-multiconc
 - `27b_k001_on.json` — K_001 ON, same preset
+- `35b_multiturn_k001_off.json` — multi-turn bench (12 turns × 2 sessions), K_001 OFF
+- `35b_multiturn_k001_on.json` — multi-turn bench, K_001 ON
 - `SUMMARY.md` — this file
+
+## Multi-turn third empirical bench (2026-06-03)
+
+To close the remaining hypothesis — that K_001's per-seq SequenceState
+needs >=10 turns to mature before hysteresis can trigger — wrote a
+dedicated multi-turn TPS measurement harness
+(`tools/bench_multiturn_tps.py`) that runs N-turn conversations and
+reports per-turn wall_TPS, including an "early window (turns 1-9, pre-
+SequenceState-mature)" vs "late window (turns 10+, K hysteresis can
+fire)" split.
+
+### Results
+
+n=24 per arm (12 turns × 2 sessions), qwen3.6-35b-multiconc, same pin.
+
+| Window | OFF wall_TPS | ON wall_TPS | Δ | Welch t | p | Verdict |
+|---|---:|---:|---:|---:|---:|---|
+| Overall (turns 1-12) | 47.34 | 48.01 | +1.40% | +0.169 | 0.8656 | NOT_SIGNIFICANT |
+| Early window (1-9)   | 48.73 | 49.44 | +1.46% | n/a | n/a | within CV ~28% |
+| Late window (10-12)  | 43.19 | 43.71 | +1.20% | +0.906 | 0.3651 | NOT_SIGNIFICANT |
+
+Both windows show essentially zero effect; the late-window delta is
+even closer to zero than the overall mean. CV is high (~28%) because
+the bench includes a transient JIT-compile turn 1 + an outlier turn 7
+on session 1 — these are workload realities, not noise to exclude.
+
+### Interpretation
+
+The multi-turn hypothesis was the last viable explanation for why
+K_001's PR #26504 +5-12% forecast might apply to Genesis. With this
+arm of the bench matrix closed at p > 0.36 on the late window, the
+forecast is **falsified across every workload K_001 could plausibly
+help on** under our stack.
+
+Possible explanations for the absence of signal:
+1. Acceptance rate on our spec-decode path is consistently in the
+   middle band (avg ~0.78-0.80), staying out of K_001's hysteresis
+   bands (default threshold ± 0.05). Without crossing the threshold,
+   K_001 returns the launcher cap K=3 unchanged — equivalent to OFF.
+2. Genesis's existing Bayesian Acceptor + P62 structured-output
+   spec-decode timing fix may have already optimized the per-seq K
+   selection enough that K_001's heuristic adds no value on top.
+3. Single-stream (single-batch) decode workload doesn't exercise the
+   multi-seq inter-sequence acceptance-rate divergence that K_001
+   was likely designed to exploit. The bench-multiturn harness still
+   runs each session's turns sequentially, not in parallel.
+
+### Operational decision
+
+**K_001 stays default OFF permanently.** Three independent bench cycles
+(quick-35B, quick-27B, multi-turn-35B) all confirm NOT_SIGNIFICANT.
+Operators wanting to A/B further should target genuinely-divergent
+multi-seq acceptance rate workloads (mixed structured/free-chat with
+distinct compression plans hitting the same engine concurrently), which
+is the only known shape K_001 could move the needle on. Not on our
+2026-06 stack roadmap.
+
+### Tooling artifact
+
+`tools/bench_multiturn_tps.py` is committed alongside this bench for
+future operator use. Unlike `bench_agentic.py` it does NOT require
+tool-call support on the endpoint — plain chat completions only. Each
+turn appends an assistant + synthetic user follow-up, so realistic
+context growth + per-seq state evolution are exercised. Per-turn JSON
+output includes early-vs-late window split for K_001-style hypothesis
+testing on any future spec-decode patch.

@@ -142,6 +142,16 @@ _KNOWN_REGISTRY_ONLY = frozenset({
     # namespace, not the canonical P[N]?\d+ form). Phase 10.5
     # enterprise sweep 2026-06-01 — carve-out documented here.
     "SNDR_MTP_DYNAMIC_K_001",
+    # v11.1.0/v11.2.0 md5+full-file PoC siblings (Phase 6 P3.1) — wired
+    # via @register_patch in _per_patch_dispatch.py using compound IDs
+    # (PN<base>_V2_MD5_<file>). The regex captures only the base
+    # numeric prefix (PN118 / PN79) so the compound IDs look registry-
+    # only. Each compound ID has its own apply_patch_n<n>_v2_md5_*
+    # function under the dispatch helper module.
+    "PN118_V2_MD5_WORKSPACE",
+    "PN118_V2_MD5_TURBOQUANT_ATTN",
+    "PN79_V2_MD5_CHUNK",
+    "PN79_V2_MD5_CHUNK_DELTA_H",
     # G4_T1 (Gemma4 tool-parser PR #42006 vendor marker) — operator-
     # side bind-mount overlay; no apply_patch_* wiring by design
     # (registered only for `genesis explain` + audit visibility of the

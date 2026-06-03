@@ -7,20 +7,20 @@ import pytest
 
 def test_module_imports():
     pytest.importorskip("torch")
-    from vllm.sndr_core.integrations.gemma4 import g4_19c_attention_wrapper as mod
+    from vllm.sndr_core.integrations.attention.turboquant import g4_19c_attention_wrapper as mod
     assert mod.GENESIS_G4_19C_MARKER.startswith("Genesis G4_19c")
 
 
 def test_public_api_present():
     pytest.importorskip("torch")
-    from vllm.sndr_core.integrations.gemma4 import g4_19c_attention_wrapper as mod
+    from vllm.sndr_core.integrations.attention.turboquant import g4_19c_attention_wrapper as mod
     for name in ("apply", "is_applied", "revert", "GENESIS_G4_19C_MARKER"):
         assert hasattr(mod, name), f"missing public symbol {name!r}"
 
 
 def test_extract_layer_idx_from_prefix():
     pytest.importorskip("torch")
-    from vllm.sndr_core.integrations.gemma4.g4_19c_attention_wrapper import (
+    from vllm.sndr_core.integrations.attention.turboquant.g4_19c_attention_wrapper import (
         _extract_layer_idx,
     )
     assert _extract_layer_idx("model.layers.5.self_attn") == 5
@@ -32,10 +32,10 @@ def test_extract_layer_idx_from_prefix():
 
 def test_select_bits_with_layer_types():
     pytest.importorskip("torch")
-    from vllm.sndr_core.integrations.gemma4.g4_19c_attention_wrapper import (
+    from vllm.sndr_core.integrations.attention.turboquant.g4_19c_attention_wrapper import (
         _select_bits,
     )
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_cache import (
+    from vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_cache import (
         G4TurboQuantConfig,
     )
     cfg = G4TurboQuantConfig(
@@ -52,10 +52,10 @@ def test_select_bits_with_layer_types():
 
 def test_select_bits_without_layer_types():
     pytest.importorskip("torch")
-    from vllm.sndr_core.integrations.gemma4.g4_19c_attention_wrapper import (
+    from vllm.sndr_core.integrations.attention.turboquant.g4_19c_attention_wrapper import (
         _select_bits,
     )
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_cache import (
+    from vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_cache import (
         G4TurboQuantConfig,
     )
     cfg = G4TurboQuantConfig(
@@ -68,10 +68,10 @@ def test_select_bits_without_layer_types():
 
 def test_select_bits_out_of_range_layer_idx():
     pytest.importorskip("torch")
-    from vllm.sndr_core.integrations.gemma4.g4_19c_attention_wrapper import (
+    from vllm.sndr_core.integrations.attention.turboquant.g4_19c_attention_wrapper import (
         _select_bits,
     )
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_cache import (
+    from vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_cache import (
         G4TurboQuantConfig,
     )
     cfg = G4TurboQuantConfig(
@@ -86,10 +86,10 @@ def test_select_bits_out_of_range_layer_idx():
 def test_resolve_kernels_dispatch():
     """All 4 (pack, wht) combos resolve to a (write_fn, read_fn, name) triple."""
     pytest.importorskip("torch")
-    from vllm.sndr_core.integrations.gemma4.g4_19c_attention_wrapper import (
+    from vllm.sndr_core.integrations.attention.turboquant.g4_19c_attention_wrapper import (
         _resolve_kernels,
     )
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_cache import (
+    from vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_cache import (
         G4TurboQuantConfig,
     )
     combos = [
@@ -109,7 +109,7 @@ def test_resolve_kernels_dispatch():
 def test_apply_skips_when_env_disabled(monkeypatch):
     pytest.importorskip("torch")
     monkeypatch.delenv("GENESIS_ENABLE_G4_19C_ATTN_WRAP", raising=False)
-    from vllm.sndr_core.integrations.gemma4 import g4_19c_attention_wrapper as mod
+    from vllm.sndr_core.integrations.attention.turboquant import g4_19c_attention_wrapper as mod
     import importlib
     mod = importlib.reload(mod)
     status, msg = mod.apply()
@@ -121,8 +121,8 @@ def test_apply_skips_when_registry_empty(monkeypatch):
     """G4_19c requires G4_19 to have populated the registry."""
     pytest.importorskip("torch")
     monkeypatch.setenv("GENESIS_ENABLE_G4_19C_ATTN_WRAP", "1")
-    from vllm.sndr_core.integrations.gemma4 import g4_19_config_registry as reg
-    from vllm.sndr_core.integrations.gemma4 import g4_19c_attention_wrapper as mod
+    from vllm.sndr_core.integrations.attention.turboquant import g4_19_config_registry as reg
+    from vllm.sndr_core.integrations.attention.turboquant import g4_19c_attention_wrapper as mod
     reg.clear_active_config()
     import importlib
     mod = importlib.reload(mod)

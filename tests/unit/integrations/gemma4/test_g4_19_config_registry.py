@@ -11,7 +11,7 @@ import pytest
 def _reset_registry():
     """Each test starts with an empty registry."""
     pytest.importorskip("torch")
-    from vllm.sndr_core.integrations.gemma4 import g4_19_config_registry as reg
+    from vllm.sndr_core.integrations.attention.turboquant import g4_19_config_registry as reg
     reg.clear_active_config()
     yield
     reg.clear_active_config()
@@ -19,15 +19,15 @@ def _reset_registry():
 
 def test_registry_initial_state_empty():
     pytest.importorskip("torch")
-    from vllm.sndr_core.integrations.gemma4 import g4_19_config_registry as reg
+    from vllm.sndr_core.integrations.attention.turboquant import g4_19_config_registry as reg
     assert reg.get_active_config() is None
     assert reg.is_active() is False
 
 
 def test_set_and_get_round_trip():
     pytest.importorskip("torch")
-    from vllm.sndr_core.integrations.gemma4 import g4_19_config_registry as reg
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_cache import (
+    from vllm.sndr_core.integrations.attention.turboquant import g4_19_config_registry as reg
+    from vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_cache import (
         G4TurboQuantConfig,
     )
     cfg = G4TurboQuantConfig(pack_mode="tight", wht_mode="full_wht")
@@ -38,8 +38,8 @@ def test_set_and_get_round_trip():
 
 def test_clear_drops_config():
     pytest.importorskip("torch")
-    from vllm.sndr_core.integrations.gemma4 import g4_19_config_registry as reg
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_cache import (
+    from vllm.sndr_core.integrations.attention.turboquant import g4_19_config_registry as reg
+    from vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_cache import (
         G4TurboQuantConfig,
     )
     reg.set_active_config(G4TurboQuantConfig())
@@ -51,8 +51,8 @@ def test_clear_drops_config():
 
 def test_set_idempotent_same_object():
     pytest.importorskip("torch")
-    from vllm.sndr_core.integrations.gemma4 import g4_19_config_registry as reg
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_cache import (
+    from vllm.sndr_core.integrations.attention.turboquant import g4_19_config_registry as reg
+    from vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_cache import (
         G4TurboQuantConfig,
     )
     cfg = G4TurboQuantConfig()
@@ -63,8 +63,8 @@ def test_set_idempotent_same_object():
 
 def test_set_overwrites_with_different_config():
     pytest.importorskip("torch")
-    from vllm.sndr_core.integrations.gemma4 import g4_19_config_registry as reg
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_cache import (
+    from vllm.sndr_core.integrations.attention.turboquant import g4_19_config_registry as reg
+    from vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_cache import (
         G4TurboQuantConfig,
     )
     a = G4TurboQuantConfig(pack_mode="uint32")
@@ -78,8 +78,8 @@ def test_registry_thread_safe():
     """Concurrent set + get calls — singleton must remain consistent
     (last writer wins; readers never see torn state)."""
     pytest.importorskip("torch")
-    from vllm.sndr_core.integrations.gemma4 import g4_19_config_registry as reg
-    from vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_cache import (
+    from vllm.sndr_core.integrations.attention.turboquant import g4_19_config_registry as reg
+    from vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_cache import (
         G4TurboQuantConfig,
     )
 
@@ -117,7 +117,7 @@ def test_registry_thread_safe():
 
 def test_marker_present():
     pytest.importorskip("torch")
-    from vllm.sndr_core.integrations.gemma4 import g4_19_config_registry as reg
+    from vllm.sndr_core.integrations.attention.turboquant import g4_19_config_registry as reg
     assert reg.GENESIS_G4_19_REGISTRY_MARKER.startswith("Genesis G4_19")
 
 
@@ -133,9 +133,9 @@ def test_g4_19_apply_publishes_to_registry(monkeypatch):
     monkeypatch.setenv("GENESIS_G4_TQ_BITS_GLOBAL", "3")
     monkeypatch.setenv("GENESIS_G4_TQ_BITS_SLIDING", "4")
 
-    from vllm.sndr_core.integrations.gemma4 import (
+    from vllm.sndr_core.integrations.attention.turboquant import (
         g4_19_config_registry as reg,
-        g4_19_gemma4_turboquant_kv_cache as g4_19,
+        g4_19_turboquant_kv_cache as g4_19,
     )
     reg.clear_active_config()
 

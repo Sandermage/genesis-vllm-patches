@@ -4,29 +4,29 @@
 > Source of truth: `vllm/sndr_core/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-06-01T12:44:09Z
-Total entries: **236**
+Generated: 2026-06-02T23:57:12Z
+Total entries: **240**
 
 ## Statistics
 
 ### By tier
-- `tier=community`: **235**
+- `tier=community`: **239**
 - `tier=engine`: **1**
 
 ### By lifecycle
 - `lifecycle=coordinator`: **4**
-- `lifecycle=experimental`: **162**
+- `lifecycle=experimental`: **166**
 - `lifecycle=legacy`: **33**
 - `lifecycle=research`: **4**
 - `lifecycle=retired`: **19**
 - `lifecycle=stable`: **14**
 
-### Default-on at boot: **52** / 236
+### Default-on at boot: **52** / 240
 
 ### By family
 - `attention.flash`: 3
-- `attention.gdn`: 20
-- `attention.turboquant`: 50
+- `attention.gdn`: 22
+- `attention.turboquant`: 52
 - `compile_safety`: 13
 - `gemma4`: 18
 - `kernels`: 7
@@ -58,7 +58,7 @@ Total entries: **236**
 | **PN17** | `community` | `experimental` | · | `GENESIS_ENABLE_PN17_FA2_LSE_CLAMP` | — | "FA2 softmax_lse runtime clamp (Cliff 1 mechanism A, Issue |
 | **PN286** | `community` | `experimental` | ✓ | `GENESIS_ENABLE_PN286_FA_LAYOUT_REVERT_SM86` | — | "FA KV cache layout revert for Ampere SM 8.6 (closes |
 
-### `attention.gdn` (20)
+### `attention.gdn` (22)
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
@@ -82,8 +82,10 @@ Total entries: **236**
 | **P39a** | `community` | `legacy` | ✓ | `GENESIS_LEGACY_P39A` | — | FLA chunk_scaled_dot_kkt persistent A pool |
 | **P60b** | `community` | `experimental` | · | `GENESIS_ENABLE_P60B_TRITON_KERNEL` | [#40738](https://github.com/vllm-project/vllm/pull/40738) | GDN+ngram Triton kernel offset (Phase 2) |
 | **P7b** | `community` | `legacy` | · | `GENESIS_ENABLE_P7B` | — | GDN dual-stream via torch.library.custom_op (opt-in) |
+| **PN79_V2_MD5_CHUNK** | `community` | `experimental` | · | `GENESIS_ENABLE_PN79_V2_MD5_CHUNK` | [#41824](https://github.com/vllm-project/vllm/pull/41824) | PN79 v2 — md5+full-file PoC (PN119 reference pattern, chunk.py scope) |
+| **PN79_V2_MD5_CHUNK_DELTA_H** | `community` | `experimental` | · | `GENESIS_ENABLE_PN79_V2_MD5_CHUNK_DELTA_H` | [#41824](https://github.com/vllm-project/vllm/pull/41824) | PN79 v2 — md5+full-file PoC (PN119 reference pattern, chunk_delta_h.py scope) |
 
-### `attention.turboquant` (50)
+### `attention.turboquant` (52)
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
@@ -136,6 +138,8 @@ Total entries: **236**
 | **P18b** | `community` | `legacy` | ✓ | `GENESIS_LEGACY_P18B` | — | TurboQuant decode stage1 tune |
 | **P67b** | `community` | `experimental` | · | `GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL` | — | TurboQuant spec-verify forward() routing (FULL CG enable) |
 | **P67c** | `community` | `experimental` | · | `GENESIS_ENABLE_P67_SPARSE_V` | — | Per-row vote sparse-V integration into P67 split-M kernel |
+| **PN118_V2_MD5_TURBOQUANT_ATTN** | `community` | `experimental` | · | `GENESIS_ENABLE_PN118_V2_MD5_TURBOQUANT_ATTN` | [#42551](https://github.com/vllm-project/vllm/pull/42551) | PN118 v2 — md5+full-file PoC (PN119 reference pattern, turboquant_attn.py scope) |
+| **PN118_V2_MD5_WORKSPACE** | `community` | `experimental` | · | `GENESIS_ENABLE_PN118_V2_MD5_WORKSPACE` | [#42551](https://github.com/vllm-project/vllm/pull/42551) | PN118 v2 — md5+full-file PoC (PN119 reference pattern, workspace.py scope only) |
 | **PN26b** | `community` | `research` | · | `GENESIS_ENABLE_PN26_SPARSE_V` | [#41422](https://github.com/vllm-project/vllm/pull/41422) | Sparse-V tile-skip Genesis kernel (BLASST λ=a/L for SM86) |
 
 ### `compile_safety` (13)

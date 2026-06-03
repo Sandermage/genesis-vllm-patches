@@ -1,0 +1,423 @@
+{
+  "model": "qwen3.6-35b-a3b",
+  "url": "http://localhost:8102/v1",
+  "config": {
+    "turns": 12,
+    "sessions": 2,
+    "max_tokens": 150,
+    "temperature": 0.3
+  },
+  "per_turn": [
+    {
+      "error": null,
+      "ttft_ms": 1821.9830279995222,
+      "decode_tps": 35.86771456033895,
+      "decode_tpot_ms": 27.880226333287453,
+      "wall_tps": 14.03296561603063,
+      "completion_tokens": 42,
+      "completion_text": "Here's a thinking process:\n\n1.  **Understand the User Request:** The user wants a Python function to compute the n-th Fibonacci number.\n\n2.  **Identify Key Requirements:**\n   - Input: An integer `n` (typically non-negative, as Fibonacci is usually defined for n >= 0)\n   - Output: The n-th Fibonacci number\n   - Language: Python\n   - Considerations: Efficiency, edge cases, clarity\n\n3.  **Recall Fibonacci Definition:**\n   - F(0) = 0\n   - F(1) = 1\n   - F(n) = F(n-1) + F(n-2) for n >= 2\n\n4",
+      "elapsed_s": 2.9929525339975953,
+      "finish_reason": "length",
+      "turn": 1,
+      "session": 1
+    },
+    {
+      "error": null,
+      "ttft_ms": 147.79171600821428,
+      "decode_tps": 71.71150001277974,
+      "decode_tpot_ms": 13.944764784194858,
+      "wall_tps": 59.3731093737802,
+      "completion_tokens": 51,
+      "completion_text": "Here's a thinking process:\n\n1.  **Analyze User Input:** The user said \"Can you explain that in more detail?\" referring to my previous response where I started explaining the Fibonacci function but got cut off. I need to provide a complete, detailed explanation of the Fibonacci function implementation in Python, covering different approaches, their trade-offs, and best practices.\n\n2.  **Identify Key Components to Cover:**\n   - Definition of Fibonacci sequence\n   - Different implementation approaches (recursive, iterative, memoized, matrix exponentiation, Binet's formula)\n   - Time and space complexity for each\n   - Code examples for each\n   - Recommendations on which to use when\n   - Edge cases and input validation\n\n",
+      "elapsed_s": 0.858974720002152,
+      "finish_reason": "length",
+      "turn": 2,
+      "session": 1
+    },
+    {
+      "error": null,
+      "ttft_ms": 133.57788600842468,
+      "decode_tps": 69.0349314682069,
+      "decode_tpot_ms": 14.485420333335687,
+      "wall_tps": 58.46382362224264,
+      "completion_tokens": 51,
+      "completion_text": "Here's a thinking process:\n\n1.  **Analyze User Input:** The user is asking about \"edge cases\" in the context of computing the n-th Fibonacci number. They want to know what edge cases exist, how to handle them, and why they matter.\n\n2.  **Identify Key Edge Cases for Fibonacci:**\n   - Negative inputs (`n < 0`)\n   - Zero (`n = 0`)\n   - One (`n = 1`)\n   - Large inputs (`n` very large, causing performance/memory issues)\n   - Non-integer inputs (strings, floats, None)\n   - Very large `n` causing integer overflow (though Python handles arbitrarily large integers, it's",
+      "elapsed_s": 0.8723343230085447,
+      "finish_reason": "length",
+      "turn": 3,
+      "session": 1
+    },
+    {
+      "error": null,
+      "ttft_ms": 132.9844180145301,
+      "decode_tps": 70.48354377015887,
+      "decode_tpot_ms": 14.18770888224518,
+      "wall_tps": 59.54065637400348,
+      "completion_tokens": 51,
+      "completion_text": "Here's a thinking process:\n\n1.  **Analyze User Input:** The user asks \"Is there a simpler way to express that?\" referring to the previous discussion about edge cases for the Fibonacci function. They want a more concise, straightforward explanation or implementation.\n\n2.  **Identify Core Need:** The user wants simplicity. They likely want:\n   - A clean, minimal code example\n   - Clear handling of edge cases without overcomplicating things\n   - A straightforward explanation that's easy to understand\n\n3.  **Determine the Best Approach:**\n   - Focus on the most common/practical implementation\n   - Show a clean, robust version with minimal boilerplate\n   - Explain edge cases concisely",
+      "elapsed_s": 0.8565575710090343,
+      "finish_reason": "length",
+      "turn": 4,
+      "session": 1
+    },
+    {
+      "error": null,
+      "ttft_ms": 148.3968849934172,
+      "decode_tps": 68.63459713180984,
+      "decode_tpot_ms": 14.569911411872097,
+      "wall_tps": 57.209369557226935,
+      "completion_tokens": 51,
+      "completion_text": "Here's a thinking process:\n\n1.  **Analyze User Input:** The user asks \"What are the tradeoffs of this approach?\" referring to the previous context. Since the conversation has been about Fibonacci implementations and edge cases, I need to identify which \"approach\" they're referring to. Given the flow, they're likely asking about the iterative approach (which is the most common practical solution) or possibly the recursive/memoized approaches. I should clarify which approach I'm discussing and then provide a balanced trade-off analysis.\n\n2.  **Identify the Target Approach:** I'll assume they're asking about the **iterative approach** (O(n) time, O(1) space) since it's the most practical",
+      "elapsed_s": 0.8914623669988941,
+      "finish_reason": "length",
+      "turn": 5,
+      "session": 1
+    },
+    {
+      "error": null,
+      "ttft_ms": 171.94453801494092,
+      "decode_tps": 70.72664299317337,
+      "decode_tpot_ms": 14.138943369566139,
+      "wall_tps": 55.938209864364346,
+      "completion_tokens": 46,
+      "completion_text": "Here's a thinking process:\n\n1.  **Analyze User Input:**\n   - User asks: \"Can you walk through a concrete example?\"\n   - Context: We've been discussing Fibonacci implementations, trade-offs, and edge cases. The user wants a concrete walkthrough of how the code works step-by-step.\n   - I need to pick a specific approach (likely the iterative one, as it's the most practical and commonly used) and walk through it with a specific input value.\n\n2.  **Choose the Approach & Input:**\n   - Approach: Iterative Fibonacci (O(n) time, O(1) space)\n   - Input: Let's pick `n = 5` (small enough to",
+      "elapsed_s": 0.8223359330149833,
+      "finish_reason": "length",
+      "turn": 6,
+      "session": 1
+    },
+    {
+      "error": null,
+      "ttft_ms": 13285.306704987306,
+      "decode_tps": 66.47075603961743,
+      "decode_tpot_ms": 15.044209808656113,
+      "wall_tps": 3.3589700010264623,
+      "completion_tokens": 47,
+      "completion_text": "Here's a thinking process:\n\n1.  **Analyze User Input:**\n   - User asks: \"How does this scale with input size?\"\n   - Context: We've been discussing Fibonacci implementations, specifically focusing on the iterative approach. The user wants to understand how performance/time/space changes as the input `n` grows.\n\n2.  **Identify Key Concepts to Cover:**\n   - Time complexity scaling\n   - Space complexity scaling\n   - Practical limits (when does it become slow?)\n   - Comparison with other approaches (briefly, for context)\n   - Real-world implications\n\n3.  **Determine the Focus:**\n   - Focus on the iterative approach (O(n) time, O",
+      "elapsed_s": 13.992384565994143,
+      "finish_reason": "length",
+      "turn": 7,
+      "session": 1
+    },
+    {
+      "error": null,
+      "ttft_ms": 272.54776799236424,
+      "decode_tps": 64.91184045093554,
+      "decode_tpot_ms": 15.405509889306915,
+      "wall_tps": 46.59370443848646,
+      "completion_tokens": 45,
+      "completion_text": "Here's a thinking process:\n\n1.  **Analyze User Input:**\n   - User asks: \"What error conditions should I handle?\"\n   - Context: We've been discussing Fibonacci implementations, specifically focusing on the iterative approach and its practical usage.\n   - Goal: Provide a clear, concise list of error conditions to handle, explain why they matter, and show how to handle them in code.\n\n2.  **Identify Key Error Conditions:**\n   - Non-integer inputs (strings, floats, None, etc.)\n   - Negative numbers\n   - Very large numbers (though Python handles big ints, it's worth noting performance/memory implications)\n   - Type mismatches in function signatures (if using type",
+      "elapsed_s": 0.9657957130111754,
+      "finish_reason": "length",
+      "turn": 8,
+      "session": 1
+    },
+    {
+      "error": null,
+      "ttft_ms": 303.9495280245319,
+      "decode_tps": 64.65478121144604,
+      "decode_tpot_ms": 15.466760249789028,
+      "wall_tps": 45.87357536920361,
+      "completion_tokens": 48,
+      "completion_text": "Here's a thinking process:\n\n1.  **Analyze User Input:** The user asks \"Is there a standard library function for this?\" referring to computing the Fibonacci sequence.\n2.  **Identify Core Question:** Does Python's standard library have a built-in function for Fibonacci numbers?\n3.  **Knowledge Retrieval:**\n   - I know Python's standard library (`math`, `operator`, `itertools`, etc.) does *not* have a built-in Fibonacci function.\n   - I should verify this mentally: `math` has factorials, combinations, etc., but not Fibonacci. `itertools` has combinations/permutations, but not Fibonacci.\n   - I should confirm this is still true in modern",
+      "elapsed_s": 1.0463540200144053,
+      "finish_reason": "length",
+      "turn": 9,
+      "session": 1
+    },
+    {
+      "error": null,
+      "ttft_ms": 355.4671909951139,
+      "decode_tps": 64.8968639211973,
+      "decode_tpot_ms": 15.409065085398826,
+      "wall_tps": 43.53088249798206,
+      "completion_tokens": 47,
+      "completion_text": "Here's a thinking process:\n\n1.  **Analyze User Input:**\n   - User asks: \"Could you compare this to the alternative approach?\"\n   - Context: We've been discussing Fibonacci implementations. The user likely wants a comparison between the iterative approach (which I've been focusing on) and another common approach, most likely the recursive approach (specifically naive recursion vs. memoized recursion) or perhaps the matrix exponentiation approach.\n   - I need to clarify which \"alternative\" I'm comparing to, but typically, the main comparison is between:\n     a) Iterative (O(n) time, O(1) space)\n     b) Naive Recursive (O(2^n) time, O",
+      "elapsed_s": 1.0796932500088587,
+      "finish_reason": "length",
+      "turn": 10,
+      "session": 1
+    },
+    {
+      "error": null,
+      "ttft_ms": 372.1035149937961,
+      "decode_tps": 65.49861639185008,
+      "decode_tpot_ms": 15.267498079920188,
+      "wall_tps": 44.03430233793718,
+      "completion_tokens": 50,
+      "completion_text": "Here's a thinking process:\n\n1.  **Analyze User Input:**\n   - User asks: \"What testing strategy would you recommend?\"\n   - Context: We've been discussing Fibonacci implementations, specifically focusing on iterative vs. recursive approaches, edge cases, and performance.\n   - Goal: Provide a clear, practical testing strategy for a Fibonacci function, covering unit tests, edge cases, performance testing, and best practices.\n\n2.  **Identify Key Components of a Good Testing Strategy:**\n   - Unit tests for basic cases\n   - Edge case testing\n   - Performance/behavioral testing\n   - Property-based testing (optional but powerful)\n   - Framework recommendations (pytest is standard)\n\n3. ",
+      "elapsed_s": 1.1354784189898055,
+      "finish_reason": "length",
+      "turn": 11,
+      "session": 1
+    },
+    {
+      "error": null,
+      "ttft_ms": 404.68029701150954,
+      "decode_tps": 68.19188357584524,
+      "decode_tpot_ms": 14.66450180816266,
+      "wall_tps": 42.96506946636145,
+      "completion_tokens": 47,
+      "completion_text": "Here's a thinking process:\n\n1.  **Analyze User Input:**\n   - User asks: \"Are there any performance pitfalls?\"\n   - Context: We've been discussing Fibonacci implementations, specifically focusing on iterative vs. recursive approaches, edge cases, and testing.\n   - Goal: Identify and explain performance pitfalls specific to Fibonacci computation, especially in Python.\n\n2.  **Identify Key Performance Pitfalls:**\n   - **Naive Recursion:** Exponential time complexity O(2^n) due to repeated calculations. Stack overflow for large n.\n   - **Memory/Space Issues:** Storing too many intermediate results unnecessarily.\n   - **Integer Size Growth:** Python handles arbitrarily large integers, but operations on",
+      "elapsed_s": 1.0939118819951545,
+      "finish_reason": "length",
+      "turn": 12,
+      "session": 1
+    },
+    {
+      "error": null,
+      "ttft_ms": 57.4370060057845,
+      "decode_tps": 70.72132426853548,
+      "decode_tpot_ms": 14.140006714281911,
+      "wall_tps": 65.30744241499191,
+      "completion_tokens": 49,
+      "completion_text": "Here's a thinking process:\n\n1.  **Understand User Query:** The user wants to know the differences between a B-tree and a Binary Search Tree (BST).\n\n2.  **Identify Key Concepts:**\n   - **Binary Search Tree (BST):**\n     - Each node has at most 2 children (left and right)\n     - Left child < parent < right child\n     - Height can be O(n) in worst case (unbalanced)\n     - Typically used in memory for fast lookups, insertions, deletions\n     - Each node stores 1 key\n   - **B-tree:**\n     - Self-balancing tree\n     - Each node can have multiple children (up to M",
+      "elapsed_s": 0.7502973350055981,
+      "finish_reason": "length",
+      "turn": 1,
+      "session": 2
+    },
+    {
+      "error": null,
+      "ttft_ms": 131.90455897711217,
+      "decode_tps": 70.61235979862253,
+      "decode_tpot_ms": 14.161826666774383,
+      "wall_tps": 59.13717100905771,
+      "completion_tokens": 48,
+      "completion_text": "Here's a thinking process:\n\n1.  **Analyze User Request:**\n   - The user asked for more detail on the comparison between B-trees and Binary Search Trees (BSTs).\n   - I need to expand on the key differences, covering structure, properties, performance, use cases, and implementation details.\n   - I should maintain clarity, use examples if helpful, and structure the response logically.\n\n2.  **Identify Key Areas to Cover:**\n   - Structure & Node Composition\n   - Balance & Height\n   - Search/Insert/Delete Operations\n   - Performance Characteristics (Time Complexity)\n   - Memory & Storage Implications\n   - Typical Use Cases\n   - Visual/Conceptual Comparison\n\n",
+      "elapsed_s": 0.8116722389822826,
+      "finish_reason": "length",
+      "turn": 2,
+      "session": 2
+    },
+    {
+      "error": null,
+      "ttft_ms": 243.97166998824105,
+      "decode_tps": 67.13426200879512,
+      "decode_tpot_ms": 14.895523836532114,
+      "wall_tps": 50.31563625109982,
+      "completion_tokens": 49,
+      "completion_text": "Here's a thinking process:\n\n1.  **Understand User Request:** The user is asking about \"edge cases\" in the context of comparing B-trees and Binary Search Trees (BSTs). This means I need to identify scenarios where the standard behavior of these data structures breaks down, behaves unexpectedly, or requires special handling.\n\n2.  **Identify Key Concepts for \"Edge Cases\":**\n   - What are common edge cases in BSTs?\n     - Empty tree\n     - Single node\n     - Skewed trees (worst-case performance)\n     - Duplicate keys (how are they handled?)\n     - Deletion of leaf/internal nodes\n   - What are common edge cases in B-trees?\n",
+      "elapsed_s": 0.9738523379783146,
+      "finish_reason": "length",
+      "turn": 3,
+      "session": 2
+    },
+    {
+      "error": null,
+      "ttft_ms": 130.9738759882748,
+      "decode_tps": 67.69138082447961,
+      "decode_tpot_ms": 14.772929549080265,
+      "wall_tps": 57.66665236024611,
+      "completion_tokens": 51,
+      "completion_text": "Here's a thinking process:\n\n1.  **Analyze User Input:**\n   - User says: \"Is there a simpler way to express that?\"\n   - Context: We were discussing edge cases in BSTs vs B-trees.\n   - Goal: Simplify the explanation of edge cases for both data structures, making it more accessible and concise.\n\n2.  **Identify Core Concepts to Simplify:**\n   - BST edge cases: Empty tree, skewed tree, duplicates, deletion complexities.\n   - B-tree edge cases: Full nodes, underflow during deletion, root splitting/merging.\n   - Need to translate these into plain, intuitive language without losing accuracy.\n\n3.  **Draft -",
+      "elapsed_s": 0.8843932829913683,
+      "finish_reason": "length",
+      "turn": 4,
+      "session": 2
+    },
+    {
+      "error": null,
+      "ttft_ms": 150.02860201639123,
+      "decode_tps": 68.17103516804816,
+      "decode_tpot_ms": 14.668986579636112,
+      "wall_tps": 56.594509320122505,
+      "completion_tokens": 50,
+      "completion_text": "Here's a thinking process:\n\n1.  **Analyze User Input:**\n   - User asks: \"What are the tradeoffs of this approach?\"\n   - Context: We've been discussing BSTs vs. B-trees, focusing on edge cases and simplifying the explanation. The \"approach\" likely refers to using B-trees (or the general concept of multi-way trees vs. binary trees) for data storage/indexing.\n   - I need to clearly outline the tradeoffs of using B-trees (or multi-way trees in general) compared to BSTs (or other alternatives), focusing on practical implications.\n\n2.  **Identify Key Tradeoffs:**\n   - **B-trees vs. BST",
+      "elapsed_s": 0.8834779309981968,
+      "finish_reason": "length",
+      "turn": 5,
+      "session": 2
+    },
+    {
+      "error": null,
+      "ttft_ms": 169.32467100559734,
+      "decode_tps": 67.73514183817231,
+      "decode_tpot_ms": 14.763385339756496,
+      "wall_tps": 55.0967867736461,
+      "completion_tokens": 50,
+      "completion_text": "Here's a thinking process:\n\n1.  **Analyze User Request:**\n   - User wants a concrete example to illustrate the concepts discussed (BST vs. B-tree, tradeoffs, edge cases).\n   - Need to pick a realistic scenario and walk through how data would be inserted/organized in both structures.\n   - Should highlight the differences in structure, performance, and behavior under specific conditions.\n\n2.  **Choose a Scenario:**\n   - Let's use a small dataset: `[10, 20, 5, 15, 30, 25, 35]`\n   - This is small enough to trace manually but large enough to show differences.\n   -",
+      "elapsed_s": 0.9074939379934222,
+      "finish_reason": "length",
+      "turn": 6,
+      "session": 2
+    },
+    {
+      "error": null,
+      "ttft_ms": 247.51795700285584,
+      "decode_tps": 67.1505027326984,
+      "decode_tpot_ms": 14.891921270949146,
+      "wall_tps": 49.87893043044554,
+      "completion_tokens": 48,
+      "completion_text": "Here's a thinking process:\n\n1.  **Analyze User Input:**\n   - User asks: \"How does this scale with input size?\"\n   - Context: We've been discussing BSTs vs. B-trees, their tradeoffs, edge cases, and just walked through a concrete example.\n   - Goal: Explain how the performance, structure, and behavior of both data structures change as the number of elements (N) grows significantly.\n\n2.  **Identify Key Aspects to Cover for Scaling:**\n   - Time complexity (search, insert, delete)\n   - Space/Memory usage\n   - Tree height/depth\n   - I/O operations (crucial for B-trees)\n",
+      "elapsed_s": 0.9623301780084148,
+      "finish_reason": "length",
+      "turn": 7,
+      "session": 2
+    },
+    {
+      "error": null,
+      "ttft_ms": 273.1268419884145,
+      "decode_tps": 66.74366961280026,
+      "decode_tpot_ms": 14.982694325938253,
+      "wall_tps": 47.800611711786,
+      "completion_tokens": 46,
+      "completion_text": "Here's a thinking process:\n\n1.  **Analyze User Input:**\n   - User asks: \"What error conditions should I handle?\"\n   - Context: We've been discussing BSTs vs. B-trees, their tradeoffs, scaling, and concrete examples. The user is likely asking about error handling/edge cases in the context of implementing these data structures.\n   - Goal: Provide a clear, structured list of error conditions to handle for both BSTs and B-trees, explaining why they matter and how to handle them.\n\n2.  **Identify Key Error Conditions for BSTs:**\n   - Empty tree operations (e.g., searching/deleting from empty tree)\n   - Duplicate keys (how",
+      "elapsed_s": 0.9623307809815742,
+      "finish_reason": "length",
+      "turn": 8,
+      "session": 2
+    },
+    {
+      "error": null,
+      "ttft_ms": 301.9768089870922,
+      "decode_tps": 67.03345433324765,
+      "decode_tpot_ms": 14.91792434011586,
+      "wall_tps": 47.715704822751576,
+      "completion_tokens": 50,
+      "completion_text": "Here's a thinking process:\n\n1.  **Analyze User Input:**\n   - User asks: \"Is there a standard library function for this?\"\n   - Context: We've been discussing BSTs vs. B-trees, their tradeoffs, scaling, error handling, etc. The user is likely asking if programming languages have built-in standard library implementations for these data structures.\n   - Key question: Which language? The user didn't specify, so I should cover major languages (Python, Java, C++, C#, etc.) and clarify that \"this\" likely refers to BSTs/B-trees or balanced tree structures.\n\n2.  **Identify Key Languages & Their Standard Libraries:**\n   - **Python:**",
+      "elapsed_s": 1.0478730259928852,
+      "finish_reason": "length",
+      "turn": 9,
+      "session": 2
+    },
+    {
+      "error": null,
+      "ttft_ms": 341.6895680129528,
+      "decode_tps": 64.4476399875024,
+      "decode_tpot_ms": 15.516471979329557,
+      "wall_tps": 44.179359166376955,
+      "completion_tokens": 48,
+      "completion_text": "Here's a thinking process:\n\n1.  **Analyze User Input:**\n   - User asks: \"Could you compare this to the alternative approach?\"\n   - Context: We've been discussing BSTs vs. B-trees, their tradeoffs, scaling, error handling, and standard library implementations. The user is now asking for a comparison between \"this\" (likely the B-tree approach or the general concept of using tree structures for storage/indexing) and \"the alternative approach.\"\n   - I need to clarify what \"this\" and \"the alternative\" refer to, but based on context, it's almost certainly comparing **B-trees (or multi-way trees)** vs. **Binary Search Trees (BSTs)**, or",
+      "elapsed_s": 1.0864802230207715,
+      "finish_reason": "length",
+      "turn": 10,
+      "session": 2
+    },
+    {
+      "error": null,
+      "ttft_ms": 365.94839999452233,
+      "decode_tps": 65.99698611683526,
+      "decode_tpot_ms": 15.152207075482025,
+      "wall_tps": 45.33729934922672,
+      "completion_tokens": 53,
+      "completion_text": "Here's a thinking process:\n\n1.  **Analyze User Input:**\n   - User asks: \"What testing strategy would you recommend?\"\n   - Context: We've been discussing BSTs vs. B-trees, their tradeoffs, scaling, error handling, standard libraries, and comparing approaches. The user is now asking about testing strategies for these data structures.\n   - Goal: Provide a comprehensive, practical testing strategy for implementing/using BSTs and B-trees, covering unit tests, edge cases, property-based testing, performance testing, and integration testing.\n\n2.  **Identify Key Testing Dimensions:**\n   - **Unit Testing:** Core functionality (insert, delete, search, traversal)\n   - **",
+      "elapsed_s": 1.1690153749950696,
+      "finish_reason": "length",
+      "turn": 11,
+      "session": 2
+    },
+    {
+      "error": null,
+      "ttft_ms": 401.80446798331104,
+      "decode_tps": 64.60942299639973,
+      "decode_tpot_ms": 15.477618490041671,
+      "wall_tps": 42.23381457897063,
+      "completion_tokens": 49,
+      "completion_text": "Here's a thinking process:\n\n1.  **Analyze User Input:**\n   - User asks: \"Are there any performance pitfalls?\"\n   - Context: We've been discussing BSTs vs. B-trees, their tradeoffs, scaling, error handling, standard libraries, and testing. The user is now asking about performance pitfalls specifically.\n   - Goal: Identify and explain common performance pitfalls when using BSTs and B-trees, explaining why they happen and how to mitigate them.\n\n2.  **Identify Key Performance Pitfalls:**\n   - *BST-specific pitfalls:*\n     - Skewed trees (degenerate to O(n) operations)\n     - Cache inefficiency (pointer chasing, poor locality)\n",
+      "elapsed_s": 1.160207773995353,
+      "finish_reason": "length",
+      "turn": 12,
+      "session": 2
+    }
+  ],
+  "overall": {
+    "wall_TPS": {
+      "mean": 48.0074,
+      "std": 13.8927,
+      "cv": 0.2894,
+      "n": 24,
+      "min": 3.359,
+      "max": 65.3074
+    },
+    "decode_TPOT_ms": {
+      "mean": 15.3669,
+      "std": 2.7073,
+      "cv": 0.1762,
+      "n": 24,
+      "min": 13.9448,
+      "max": 27.8802
+    },
+    "TTFT_ms": {
+      "mean": 848.6016,
+      "std": 2670.5148,
+      "cv": 3.147,
+      "n": 24,
+      "min": 57.437,
+      "max": 13285.3067
+    }
+  },
+  "by_session": {
+    "1": {
+      "wall_TPS": {
+        "mean": 44.2429,
+        "std": 18.0015,
+        "cv": 0.4069,
+        "n": 12,
+        "min": 3.359,
+        "max": 59.5407
+      },
+      "TTFT_ms": {
+        "mean": 1462.5611,
+        "std": 3752.0199,
+        "cv": 2.5654,
+        "n": 12,
+        "min": 132.9844,
+        "max": 13285.3067
+      },
+      "decode_TPOT_ms": {
+        "mean": 15.872,
+        "std": 3.8195,
+        "cv": 0.2406,
+        "n": 12,
+        "min": 13.9448,
+        "max": 27.8802
+      }
+    },
+    "2": {
+      "wall_TPS": {
+        "mean": 51.772,
+        "std": 6.9705,
+        "cv": 0.1346,
+        "n": 12,
+        "min": 42.2338,
+        "max": 65.3074
+      },
+      "TTFT_ms": {
+        "mean": 234.642,
+        "std": 107.4672,
+        "cv": 0.458,
+        "n": 12,
+        "min": 57.437,
+        "max": 401.8045
+      },
+      "decode_TPOT_ms": {
+        "mean": 14.8618,
+        "std": 0.424,
+        "cv": 0.0285,
+        "n": 12,
+        "min": 14.14,
+        "max": 15.5165
+      }
+    }
+  },
+  "early_window_turns_1_9": {
+    "mean": 49.4388,
+    "std": 15.8781,
+    "cv": 0.3212,
+    "n": 18,
+    "min": 3.359,
+    "max": 65.3074
+  },
+  "late_window_turns_10plus": {
+    "mean": 43.7135,
+    "std": 1.0714,
+    "cv": 0.0245,
+    "n": 6,
+    "min": 42.2338,
+    "max": 45.3373
+  },
+  "k001_signal_delta_pct": -11.581,
+  "error_count": 0,
+  "success_count": 24
+}
