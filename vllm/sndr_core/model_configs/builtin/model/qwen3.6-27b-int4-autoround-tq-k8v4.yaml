@@ -149,6 +149,12 @@ patches:
   # ── Spec decode quality ──
   GENESIS_ENABLE_PN30_DS_LAYOUT_SPEC_DECODE: '1'     # issue #17 — DS conv state + spec-decode accept_len>1 protection
   GENESIS_ENABLE_PN33_SPEC_DECODE_WARMUP_K: '1'  # K-aware MTP warmup — closes eagle_prepare_* JIT spikes (vllm#37521)
+  GENESIS_ENABLE_PN35_INPUTS_EMBEDS_OPTIONAL: '1'  # text-only inputs_embeds skip (vllm#35975)
+  GENESIS_ENABLE_PN116_TQ_PREFILL_MAXSEQ: '1'  # TQ prefill max_seq_len fallback (vllm#41434)
+  GENESIS_ENABLE_PN118_TQ_WORKSPACE_FALLBACK: '1'  # TQ workspace graceful-fallback (vllm#42551)
+  GENESIS_ENABLE_PN119_TQ_GQA_GROUPING: '1'  # TQ k8v4 GQA head grouping (vllm#40792)
+  GENESIS_ENABLE_P109: '1'  # sampling_params vocab-range validators (vllm#42614)
+  GENESIS_ENABLE_PN110: '1'  # BlockPool.free_blocks dedup (vllm#42615)
   GENESIS_ENABLE_PN90_PROBABILISTIC_DRAFT: '1'       # vllm#40269 — propagate draft_probs; min(1, target/draft) accept. Bench 27B INT4+TQ: TPS 124.63 vs 116.01 (+7.4%), accept 0.788 vs 0.697 (+13.1% rel), tool 7/7
   GENESIS_ENABLE_P107_MTP_TRUNCATION_DETECTOR: '1'   # vllm#41467 — defensive at think→tool_call boundary
   # ── Compatibility shims ──

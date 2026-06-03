@@ -173,6 +173,12 @@ patches:
   GENESIS_ENABLE_PN25_SILU_INDUCTOR_SAFE: '1'        # Inductor-safe SiLU (avoids torch.compile shape-specialisation regression on MoE silu_and_mul fast-path).
   GENESIS_ENABLE_PN30_DS_LAYOUT_SPEC_DECODE: '1'     # DeepSeek-style spec-decode tensor layout. Cross-rig parity: matches club-3090 v7.69 reference on 27B+TQ+MTP K=3 (closes DS conv state regression club-3090 #9af1a52). Our 35B PROD bench: neutral on TPS but enables club-3090 long-text cliff closure path; declared for cross-config consistency.
   GENESIS_ENABLE_PN33_SPEC_DECODE_WARMUP_K: '1'  # K-aware MTP warmup — closes eagle_prepare_* JIT spikes (vllm#37521)
+  GENESIS_ENABLE_PN35_INPUTS_EMBEDS_OPTIONAL: '1'  # text-only inputs_embeds skip
+  GENESIS_ENABLE_PN116_TQ_PREFILL_MAXSEQ: '1'  # TQ prefill max_seq_len fallback
+  GENESIS_ENABLE_PN118_TQ_WORKSPACE_FALLBACK: '1'  # TQ workspace graceful-fallback
+  GENESIS_ENABLE_PN119_TQ_GQA_GROUPING: '1'  # TQ k8v4 GQA head grouping
+  GENESIS_ENABLE_P109: '1'  # sampling_params vocab-range validators
+  GENESIS_ENABLE_PN110: '1'  # BlockPool.free_blocks dedup
   GENESIS_ENABLE_PN59_STREAMING_GDN: '1'             # Cliff 2b mitigation — streaming-GDN window-iterative driver replaces full h-tensor materialisation. Empirical: −142 MiB/GPU at boot, −95% per-soak fragmentation; club-3090 #182 confirmed Cliff 2b silently re-opens if v7.72.5 Level 2 markers missing (we verified all 4 present via audit_pn59_cliff2b_markers gate). CRITICAL for hybrid GDN long-context survival on 24 GB cards (A5000/3090) — gate runs in CI.
   GENESIS_ENABLE_PN82_MAMBA_CUDAGRAPH_PREFILL_ZERO: '1'   # Mamba prefill zero-fill under cudagraph capture (avoids stale-state contamination in captured graph).
   GENESIS_LEGACY_P7: '0'                             # Explicit OFF — P7 legacy GDN dual-stream conflicts_with PN204 v2 (PN204 supersedes via vllm#42301 + maybe_execute_in_parallel helper). 0 = use PN204 when armed, fall through to upstream otherwise.

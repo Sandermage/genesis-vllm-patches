@@ -84,6 +84,11 @@ patches:
   #   P2_DFLASH_M5_RETRY_Q35_PASS_2026-05-21_RU.md (Q35-DFlash E2E PASS).
   GENESIS_ENABLE_PN275_DFLASH_MAX_CGS_ALIGN: '1'
   GENESIS_ENABLE_PN33_SPEC_DECODE_WARMUP_K: '1'  # K-aware MTP warmup — closes eagle_prepare_* JIT spikes (vllm#37521)
+  GENESIS_ENABLE_PN35_INPUTS_EMBEDS_OPTIONAL: '1'  # text-only inputs_embeds skip
+  GENESIS_ENABLE_PN286_FA_LAYOUT_REVERT_SM86: '1'  # Ampere SM 8.6 FA KV layout revert
+  GENESIS_ENABLE_P108: '1'  # MTP draft stream sync
+  GENESIS_ENABLE_P109: '1'  # sampling_params vocab-range validators
+  GENESIS_ENABLE_PN110: '1'  # BlockPool.free_blocks dedup
 
   # ── Spec-decode + structured-output safety net ──
   GENESIS_ENABLE_P58_ASYNC_PLACEHOLDER_FIX: '1'      # vllm#40807 — async-scheduler placeholder fix

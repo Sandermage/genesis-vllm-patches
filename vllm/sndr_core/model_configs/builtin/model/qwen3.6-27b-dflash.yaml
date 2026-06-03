@@ -108,6 +108,11 @@ patches:
   GENESIS_ENABLE_PN24_DFLASH_AUX_LAYER_FIX: '1'      # DFlash auxiliary layer indexing fix
   GENESIS_ENABLE_PN38_DFLASH_QUANT_DRAFTER: '1'      # DFlash separate drafter quantization
   GENESIS_ENABLE_PN33_SPEC_DECODE_WARMUP_K: '1'  # K-aware MTP warmup — closes eagle_prepare_* JIT spikes (vllm#37521)
+  GENESIS_ENABLE_PN35_INPUTS_EMBEDS_OPTIONAL: '1'  # text-only inputs_embeds skip
+  GENESIS_ENABLE_PN286_FA_LAYOUT_REVERT_SM86: '1'  # Ampere SM 8.6 FA KV layout revert
+  GENESIS_ENABLE_P108: '1'  # MTP draft stream sync
+  GENESIS_ENABLE_P109: '1'  # sampling_params vocab-range validators
+  GENESIS_ENABLE_PN110: '1'  # BlockPool.free_blocks dedup
   GENESIS_ENABLE_PN40_DFLASH_OMNIBUS: '1'            # DFlash 4-part omnibus optimization
   # ── Memory + buffer ──
   GENESIS_PREALLOC_TOKEN_BUDGET: '4096'              # Genesis prealloc — token budget for shared scratch pools
