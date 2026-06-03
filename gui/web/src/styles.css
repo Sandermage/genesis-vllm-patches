@@ -1844,6 +1844,20 @@ pre, .code-block, .cli-mirror pre, .artifact-preview pre {
 .configs-top-tabs button { display: inline-flex; align-items: center; gap: 7px; padding: 7px 16px; border-radius: var(--r-xs); font-size: 12.5px; font-weight: 600; color: var(--text-muted); }
 .configs-top-tabs button.active { background: var(--surface); color: var(--accent-text); box-shadow: var(--shadow-sm); }
 
+/* ── Unified secondary tab-tray look ───────────────────────────────
+   All in-panel tab trays share one geometry so they read as the same
+   component family (consistency pass — was 3px/4px trays + 6-7px buttons). */
+.artifact-tabs, .console-tabs, .config-mode-tabs, .configs-top-tabs {
+  padding: 3px; gap: 3px; border-radius: var(--r-sm);
+}
+.artifact-tabs button, .console-tabs button, .config-mode-tabs button, .configs-top-tabs button {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 13px; border-radius: var(--r-xs); font-size: 12px; font-weight: 600;
+  transition: background .14s ease, color .14s ease, box-shadow .14s ease;
+}
+.artifact-tabs button:not(.active):hover, .console-tabs button:not(.active):hover,
+.config-mode-tabs button:not(.active):hover, .configs-top-tabs button:not(.active):hover { color: var(--text); }
+
 .element-editor { display: grid; gap: var(--gap); align-items: start; grid-template-columns: 394px minmax(0, 1fr) minmax(0, 1.1fr); }
 .element-rail, .element-form-panel, .element-yaml-panel {
   display: flex; flex-direction: column; gap: var(--sp-3);
