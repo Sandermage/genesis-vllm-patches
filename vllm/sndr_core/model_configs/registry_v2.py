@@ -412,6 +412,14 @@ def load_alias(alias: str) -> ModelConfig:
     )
 
 
+# Per-alias parse cache for preset defs, keyed by alias and validated against the
+# resolved file's mtime. The GUI's overview/presets/catalog endpoints each parse
+# the whole preset set per request (~tens of ms); this serves repeated reads from
+# memory while a file edit (new mtime) is picked up live. Preset defs are treated
+# as read-only, so sharing the cached object is safe. Bounded by preset count.
+_PRESET_DEF_CACHE: dict[str, tuple[int, "PresetDef"]] = {}
+
+
 def load_preset_def(alias: str) -> PresetDef:
     """Load `presets/<alias>.yaml` as a typed PresetDef (CONFIG-UX.1).
 
@@ -421,8 +429,17 @@ def load_preset_def(alias: str) -> PresetDef:
     Legacy 3-pointer presets load as PresetDef with `card=None`. Caller
     can call `synth_card_for_legacy(alias)` to materialise a placeholder
     card if a typed surface is required downstream.
+
+    Cached per-alias and invalidated when the resolved YAML's mtime changes.
     """
     path = _preset_path(alias)
+    try:
+        mtime = path.stat().st_mtime_ns
+    except OSError:
+        mtime = -1
+    cached = _PRESET_DEF_CACHE.get(alias)
+    if cached is not None and cached[0] == mtime:
+        return cached[1]
     data = _yaml_safe_load(path)
     preset = parse_preset_yaml(alias, data)
     # Validate shape only — semantic checks deferred to audit gate.
@@ -431,6 +448,7 @@ def load_preset_def(alias: str) -> PresetDef:
         raise SchemaError(
             f"preset {alias!r}: `model:` and `hardware:` are required pointers"
         )
+    _PRESET_DEF_CACHE[alias] = (mtime, preset)
     return preset
 
 
