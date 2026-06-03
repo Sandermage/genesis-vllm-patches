@@ -188,6 +188,40 @@ def create_app(
             allow_headers=["*"],
         )
 
+    # ── Security response headers (defense-in-depth) ──────────────────────
+    # Applied to every response. The bundled SPA loads only same-origin
+    # script/css (no inline <script>), so a strict script-src 'self' holds;
+    # style-src keeps 'unsafe-inline' for React inline styles + ANSI log colours;
+    # connect-src stays open (the app's job is talking to API daemons + the
+    # terminal WebSocket). The strict CSP is skipped for the Swagger UI, which
+    # loads its assets from a CDN and uses inline scripts. Set SNDR_DISABLE_CSP=1
+    # to drop only the CSP header (other headers stay) if a deployment needs it.
+    _csp = (
+        "default-src 'self'; "
+        "script-src 'self'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data:; "
+        "font-src 'self' data:; "
+        "connect-src 'self' http: https: ws: wss:; "
+        "frame-ancestors 'none'; base-uri 'self'; form-action 'self'; "
+        "object-src 'none'"
+    )
+    _csp_off = (os.environ.get("SNDR_DISABLE_CSP") or "").strip().lower() in ("1", "true", "yes", "on")
+    _csp_skip = ("/docs", "/redoc", "/openapi.json")
+
+    @app.middleware("http")
+    async def _security_headers(request, call_next):  # type: ignore[no-untyped-def]
+        response = await call_next(request)
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("Referrer-Policy", "no-referrer")
+        response.headers.setdefault(
+            "Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()"
+        )
+        if not _csp_off and not any(request.url.path.startswith(p) for p in _csp_skip):
+            response.headers.setdefault("Content-Security-Policy", _csp)
+        return response
+
     @app.get("/api/v1/health")
     async def health() -> dict[str, Any]:
         return {
