@@ -257,12 +257,20 @@ a { color: var(--accent-text); }
 
 .brand-row {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto 1fr auto auto;
   align-items: center;
   gap: var(--sp-3);
   padding-bottom: var(--sp-3);
   border-bottom: 1px solid var(--border);
 }
+.sidebar-toggle {
+  display: grid; place-items: center;
+  width: 28px; height: 28px;
+  border-radius: var(--r-sm);
+  color: var(--text-muted);
+  transition: background 0.12s, color 0.12s;
+}
+.sidebar-toggle:hover { background: var(--surface-2); color: var(--text); }
 .brand-mark {
   display: grid;
   place-items: center;
@@ -309,6 +317,16 @@ a { color: var(--accent-text); }
 .side-nav button.active svg { color: var(--accent-text); }
 /* Carbon: subtle orange glow on the active item (PegaProx-style). */
 html[data-theme="carbon"] .side-nav button.active { box-shadow: inset 3px 0 0 var(--accent), 0 0 18px -8px var(--accent); }
+
+/* ── Collapsible sidebar (icon-rail mode, persisted preference) ───── */
+.desktop-shell:has(.sidebar.collapsed) { grid-template-columns: 68px minmax(0, 1fr); }
+.sidebar.collapsed { padding-left: 10px; padding-right: 10px; }
+.sidebar.collapsed .brand-row { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); }
+.sidebar.collapsed .brand-row > div:not(.brand-mark),
+.sidebar.collapsed .brand-row small { display: none; }
+.sidebar.collapsed .side-nav-header { display: none; }
+.sidebar.collapsed .side-nav button { justify-content: center; padding: 9px; gap: 0; }
+.sidebar.collapsed .side-nav button span { display: none; }
 
 .daemon-card {
   margin-top: auto;

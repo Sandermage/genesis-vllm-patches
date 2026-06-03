@@ -205,6 +205,7 @@ type GuiSettings = {
   detailMode: DetailMode;
   showConnectionMap: boolean;
   autoRefresh: boolean;
+  sidebarCollapsed: boolean;
 };
 
 type RuntimeConfigDraft = {
@@ -239,7 +240,8 @@ const defaultGuiSettings: GuiSettings = {
   accent: "teal",
   detailMode: "engineer",
   showConnectionMap: true,
-  autoRefresh: false
+  autoRefresh: false,
+  sidebarCollapsed: false
 };
 
 const THEME_CYCLE: ThemeMode[] = ["light", "dark", "carbon", "lime"];
@@ -1045,7 +1047,7 @@ export default function App() {
 
   return (
     <main className={shellClass}>
-      <aside className="sidebar">
+      <aside className={`sidebar${settings.sidebarCollapsed ? " collapsed" : ""}`}>
         <div className="brand-row">
           <div className="brand-mark">S</div>
           <div>
@@ -1053,6 +1055,15 @@ export default function App() {
             <span>Control Center</span>
           </div>
           <small>v{overview?.capabilities.platform.sndr_core_version ?? environment?.sndr_core_version ?? "—"}</small>
+          <button
+            className="sidebar-toggle"
+            title={settings.sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-label={settings.sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-pressed={settings.sidebarCollapsed}
+            onClick={() => updateSettings({ sidebarCollapsed: !settings.sidebarCollapsed })}
+          >
+            <PanelLeft size={16} />
+          </button>
         </div>
 
         <nav className="side-nav" aria-label="SNDR sections">
@@ -1064,6 +1075,8 @@ export default function App() {
                   className={activeSection === item.id ? "active" : ""}
                   key={item.id}
                   onClick={() => setActiveSection(item.id)}
+                  title={settings.sidebarCollapsed ? item.label : undefined}
+                  aria-label={item.label}
                 >
                   {item.icon}
                   <span>{item.label}</span>
@@ -10168,7 +10181,11 @@ function loadGuiSettings(): GuiSettings {
       autoRefresh:
         typeof parsed.autoRefresh === "boolean"
           ? parsed.autoRefresh
-          : defaultGuiSettings.autoRefresh
+          : defaultGuiSettings.autoRefresh,
+      sidebarCollapsed:
+        typeof parsed.sidebarCollapsed === "boolean"
+          ? parsed.sidebarCollapsed
+          : defaultGuiSettings.sidebarCollapsed
     };
   } catch {
     return defaultGuiSettings;
