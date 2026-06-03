@@ -3969,3 +3969,11 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 .resolved-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; font-size: 12px; padding: 2px 0; border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent); }
 .resolved-row code { font-family: var(--mono); font-size: 11px; color: var(--text-muted); }
 .resolved-row span { color: var(--text); font-variant-numeric: tabular-nums; text-align: right; word-break: break-word; }
+
+/* model KV-cache footprint */
+.kv-footprint { margin-top: var(--sp-3); padding-top: var(--sp-3); border-top: 1px solid var(--border); }
+.kv-footprint-head { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: var(--text-muted); margin-bottom: 6px; }
+.kv-footprint-rows { display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; color: var(--text-muted); }
+.kv-footprint-rows > div { display: flex; align-items: baseline; gap: 8px; }
+.kv-footprint-rows span { font-family: var(--mono); font-size: 11px; min-width: 34px; color: var(--accent-text); }
+.kv-footprint-rows b { color: var(--text); font-variant-numeric: tabular-nums; }

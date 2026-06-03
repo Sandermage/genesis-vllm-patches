@@ -31,6 +31,7 @@ import {
   AlertTriangle,
   ListChecks,
   Moon,
+  MemoryStick,
   Monitor,
   MessageSquare,
   MousePointerClick,
@@ -4211,16 +4212,31 @@ function ModelsWorkbench({
                     />
                   </ModuleCard>
                   <ModuleCard title="Architecture" icon={<Cpu size={18} />} desc="Real transformer dimensions — the basis for KV-cache and VRAM sizing.">
-                    {arch ? (
-                      <InfoRows rows={[
-                        ["Parameters", `${arch.params_b}B${arch.is_moe && arch.active_params_b ? ` · ${arch.active_params_b}B active (MoE)` : ""}`],
-                        ["Type", arch.is_moe ? "Mixture-of-Experts" : "Dense"],
-                        ["Layers", String(arch.num_layers)],
-                        ["KV heads", String(arch.num_kv_heads)],
-                        ["Head dim", String(arch.head_dim)],
-                        ["Weight precision", `${arch.weight_bits}-bit`]
-                      ]} />
-                    ) : <p className="muted">No architecture metadata for this model id ({activeId || "—"}).</p>}
+                    {arch ? (() => {
+                      // KV bytes/token = 2 (K+V) × layers × kv_heads × head_dim × elem_bytes.
+                      const kvTok = (elem: number) => 2 * arch.num_layers * arch.num_kv_heads * arch.head_dim * elem;
+                      const mbPerK = (elem: number) => (kvTok(elem) * 1024) / (1024 * 1024);
+                      const gbAt = (ctx: number, elem: number) => (kvTok(elem) * ctx) / (1024 ** 3);
+                      return (
+                        <>
+                          <InfoRows rows={[
+                            ["Parameters", `${arch.params_b}B${arch.is_moe && arch.active_params_b ? ` · ${arch.active_params_b}B active (MoE)` : ""}`],
+                            ["Type", arch.is_moe ? "Mixture-of-Experts" : "Dense"],
+                            ["Layers", String(arch.num_layers)],
+                            ["KV heads", String(arch.num_kv_heads)],
+                            ["Head dim", String(arch.head_dim)],
+                            ["Weight precision", `${arch.weight_bits}-bit`]
+                          ]} />
+                          <div className="kv-footprint">
+                            <div className="kv-footprint-head"><MemoryStick size={13} /> KV-cache footprint (1 request)</div>
+                            <div className="kv-footprint-rows">
+                              <div><span>fp8</span><b>{mbPerK(1).toFixed(1)} MB</b> / 1K · <b>{gbAt(32768, 1).toFixed(1)} GB</b> @ 32K</div>
+                              <div><span>fp16</span><b>{mbPerK(2).toFixed(1)} MB</b> / 1K · <b>{gbAt(32768, 2).toFixed(1)} GB</b> @ 32K</div>
+                            </div>
+                          </div>
+                        </>
+                      );
+                    })() : <p className="muted">No architecture metadata for this model id ({activeId || "—"}).</p>}
                   </ModuleCard>
                   <ModuleCard
                     title="Local Cache"
