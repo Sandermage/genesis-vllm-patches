@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
-  Activity, AlertTriangle, ArrowDown, ArrowUp, CircuitBoard, Cpu, Fan, Gauge,
+  Activity, AlertTriangle, ArrowDown, ArrowUp, Cpu, Fan, Gauge,
   HardDrive, MemoryStick, Network, RefreshCw, Server, Thermometer, Zap,
 } from "lucide-react";
 import { api, type GpuInfo, type HardwareSystem, type HardwareTelemetry } from "./api";
@@ -78,12 +78,12 @@ function Row({ k, v, unit }: { k: string; v: ReactNode; unit?: string }) {
   );
 }
 
-// A compact quick-fact tile (live derived numbers under the gauges).
-function Stat({ label, value, unit, t }: { label: string; value: string; unit?: string; t?: "ok" | "warn" | "hot" }) {
+// A compact metric tile (temp / power / vram / fan under the gauge).
+function Tile({ icon, label, value, t }: { icon: ReactNode; label: string; value: string; t?: "ok" | "warn" | "hot" }) {
   return (
-    <div className="hw-stat">
-      <span className="hw-stat-l">{label}</span>
-      <strong className={`hw-stat-v ${t ?? ""}`}>{value}{unit ? <em className="hw-row-u"> {unit}</em> : null}</strong>
+    <div className="hw-tile">
+      <strong className={`hw-tile-v ${t ?? ""}`}>{value}</strong>
+      <span className="hw-tile-l">{icon} {label}</span>
     </div>
   );
 }
@@ -93,7 +93,6 @@ function GpuCard({ gpu, index }: { gpu: GpuInfo; index: number }) {
   const temp = num(gpu.temp_gpu);
   const power = num(gpu.power);
   const powerMax = num(gpu.power_max_limit) || num(gpu.power_default_limit);
-  const powerHeadroom = powerMax ? Math.max(0, powerMax - power) : 0;
   const memUsed = num(gpu.mem_used);
   const memTotal = num(gpu.mem_total) || 1;
   const memFree = gpu.mem_free != null ? num(gpu.mem_free) : Math.max(0, memTotal - memUsed);
@@ -101,12 +100,11 @@ function GpuCard({ gpu, index }: { gpu: GpuInfo; index: number }) {
   const memBw = num(gpu.mem_util);
   const tempPct = clamp((temp / 90) * 100); // ~90°C as the visual ceiling
   const powerPct = powerMax ? clamp((power / powerMax) * 100) : 0;
-  const clkPct = num(gpu.clock_gpu_max) ? clamp((num(gpu.clock_gpu) / num(gpu.clock_gpu_max)) * 100) : 0;
   const fan = gpu.fan_speed;
   const eccUnc = num(Number(gpu.ecc_uncorrected));
   const pcieFull = !!gpu.pcie_gen && gpu.pcie_gen === gpu.pcie_gen_max && gpu.pcie_width === gpu.pcie_width_max;
 
-  // A coarse health verdict surfaced as a pill in the header.
+  // A coarse health verdict surfaced as a status dot in the header.
   const status: { t: "ok" | "warn" | "hot"; label: string } =
     eccUnc > 0 ? { t: "hot", label: "ECC fault" }
     : temp >= 84 ? { t: "hot", label: "Hot" }
@@ -118,71 +116,31 @@ function GpuCard({ gpu, index }: { gpu: GpuInfo; index: number }) {
     <div className="hw-gpu">
       <div className="hw-gpu-head">
         <span className="hw-gpu-idx">{index}</span>
-        <div className="hw-gpu-id">
-          <strong className="hw-gpu-name" title={gpu.name ?? ""}>{(gpu.name ?? "GPU").replace(/^NVIDIA\s+/i, "")}</strong>
-          <span className="hw-gpu-meta">
-            {gpu.driver_version ? `driver ${gpu.driver_version}` : "driver —"}
-            {gpu.compute_mode ? ` · ${gpu.compute_mode} compute` : ""}
-          </span>
-        </div>
-        <span className={`hw-status ${status.t}`}><i className="hw-dot" />{status.label}</span>
+        <strong className="hw-gpu-name" title={gpu.name ?? ""}>{(gpu.name ?? "GPU").replace(/^NVIDIA\s+/i, "")}</strong>
         {gpu.pstate && <span className={`hw-pstate ${gpu.pstate === "P0" ? "ok" : ""}`} title="performance state">{gpu.pstate}</span>}
+        <span className={`hw-status-dot ${status.t}`} title={status.label} />
       </div>
 
-      <div className="hw-rings">
+      <div className="hw-hero">
         <Ring label="GPU util" icon={<Gauge size={11} />} value={`${util}%`} pct={util} sub="utilization" />
-        <Ring label="Temp" icon={<Thermometer size={11} />} value={`${temp}°`} pct={tempPct} sub={`${temp} °C`} />
-        <Ring label="Power" icon={<Zap size={11} />} value={`${Math.round(powerPct)}%`} pct={powerPct}
-          sub={powerMax ? `${Math.round(power)} / ${Math.round(powerMax)} W` : `${Math.round(power)} W`} />
-        <Ring label="VRAM" icon={<MemoryStick size={11} />} value={`${Math.round(memPct)}%`} pct={memPct}
-          sub={`${gib1(memUsed)} / ${gib1(memTotal)} GB`} />
       </div>
 
-      <div className="hw-statstrip">
-        <Stat label="Power draw" value={`${Math.round(power)}`} unit="W" t={tone(powerPct)} />
-        <Stat label="Headroom" value={`${Math.round(powerHeadroom)}`} unit="W" />
-        <Stat label="VRAM free" value={gib1(memFree)} unit="GB" />
-        <Stat label="Bandwidth" value={`${memBw}`} unit="%" t={tone(memBw)} />
+      <div className="hw-tiles">
+        <Tile icon={<Thermometer size={11} />} label="Temp" value={`${temp}°`} t={tone(tempPct)} />
+        <Tile icon={<Zap size={11} />} label="Power" value={`${Math.round(power)}W`} t={tone(powerPct)} />
+        <Tile icon={<MemoryStick size={11} />} label="VRAM" value={`${Math.round(memPct)}%`} t={tone(memPct)} />
+        <Tile icon={<Fan size={11} />} label="Fan" value={fan != null ? `${fan}%` : "—"} />
       </div>
 
-      <div className="hw-block">
-        <Bar label="VRAM" value={`${gib1(memUsed)} / ${gib1(memTotal)} GB`} pct={memPct} tint
-          sub={`${gib1(memFree)} GB free · ${Math.round(memPct)}% used`} />
-        <Bar label="Memory bandwidth" value={`${memBw}%`} pct={memBw} sub="memory controller load" />
-        <Bar label="Core clock" value={`${num(gpu.clock_gpu)} / ${num(gpu.clock_gpu_max)} MHz`} pct={clkPct} sub={`${Math.round(clkPct)}% of max boost`} />
-      </div>
+      <Bar label="VRAM" value={`${gib1(memUsed)} / ${gib1(memTotal)} GB`} pct={memPct} tint sub={`${gib1(memFree)} GB free`} />
 
-      <div className="hw-grid">
-        <div className="hw-sect">
-          <div className="hw-sect-t"><Gauge size={12} /> Clocks</div>
-          <Row k="Graphics" v={`${num(gpu.clock_gpu)} / ${num(gpu.clock_gpu_max)}`} unit="MHz" />
-          <Row k="Memory" v={`${num(gpu.clock_mem)} / ${num(gpu.clock_mem_max)}`} unit="MHz" />
-          <Row k="SM" v={`${num(gpu.clock_sm)}`} unit="MHz" />
-        </div>
-        <div className="hw-sect">
-          <div className="hw-sect-t"><Fan size={12} /> Thermal &amp; power</div>
-          <Row k="Fan" v={fan != null ? `${fan}` : "—"} unit={fan != null ? "%" : ""} />
-          <Row k="GPU temp" v={`${temp}`} unit="°C" />
-          {gpu.temp_mem ? <Row k="Mem temp" v={`${gpu.temp_mem}`} unit="°C" /> : <Row k="Power limit" v={powerMax ? `${Math.round(powerMax)}` : "—"} unit={powerMax ? "W" : ""} />}
-          <Row k="Default limit" v={gpu.power_default_limit != null ? `${Math.round(num(gpu.power_default_limit))}` : "—"} unit={gpu.power_default_limit != null ? "W" : ""} />
-        </div>
-        <div className="hw-sect">
-          <div className="hw-sect-t"><CircuitBoard size={12} /> Bus &amp; link</div>
-          <Row k="PCIe" v={gpu.pcie_gen ? `gen${gpu.pcie_gen}×${num(gpu.pcie_width)}` : "—"} />
-          <Row k="Max link" v={gpu.pcie_gen_max ? `gen${num(gpu.pcie_gen_max)}×${num(gpu.pcie_width_max)}` : "—"} />
-          <Row k="Link state" v={<span className={pcieFull ? "" : "hw-warn-t"}>{gpu.pcie_gen ? (pcieFull ? "full" : "degraded") : "—"}</span>} />
-        </div>
-        <div className="hw-sect">
-          <div className="hw-sect-t"><Activity size={12} /> Reliability</div>
-          <Row k="P-state" v={gpu.pstate ?? "—"} />
-          <Row k="ECC corrected" v={gpu.ecc_corrected ?? "—"} />
-          <Row k="ECC uncorrected" v={<span className={eccUnc > 0 ? "hw-bad" : ""}>{gpu.ecc_uncorrected ?? "—"}</span>} />
-        </div>
-      </div>
-
-      <div className="hw-foot">
-        {gpu.vbios_version && <span className="hw-foot-i"><CircuitBoard size={10} /> vBIOS {gpu.vbios_version}</span>}
-        {gpu.uuid && <span className="hw-foot-i hw-uuid" title="GPU UUID"><Server size={10} /> {gpu.uuid}</span>}
+      <div className="hw-meta">
+        <Row k="Clock" v={`${num(gpu.clock_gpu)} / ${num(gpu.clock_gpu_max)}`} unit="MHz" />
+        <Row k="PCIe" v={<span className={gpu.pcie_gen && !pcieFull ? "hw-warn-t" : ""}>{gpu.pcie_gen ? `gen${gpu.pcie_gen}×${num(gpu.pcie_width)}` : "—"}</span>} />
+        <Row k="Bandwidth" v={`${memBw}`} unit="%" />
+        <Row k="Power limit" v={powerMax ? `${Math.round(powerMax)}` : "—"} unit={powerMax ? "W" : ""} />
+        <Row k="ECC c/u" v={<span className={eccUnc > 0 ? "hw-bad" : ""}>{gpu.ecc_corrected ?? "0"} / {gpu.ecc_uncorrected ?? "0"}</span>} />
+        {gpu.driver_version && <Row k="Driver" v={gpu.driver_version} />}
       </div>
     </div>
   );
