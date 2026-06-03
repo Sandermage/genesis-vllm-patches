@@ -57,4 +57,9 @@ export default tseslint.config(
       "@typescript-eslint/no-non-null-assertion": "off",
     },
   },
+  {
+    // Node dev scripts (screenshot sweep, etc.) — Node globals, not browser.
+    files: ["scripts/**/*.{mjs,js,ts}"],
+    languageOptions: { globals: { ...globals.node } },
+  },
 );
