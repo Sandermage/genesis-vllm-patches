@@ -70,8 +70,9 @@ import {
   X,
   Wrench
 } from "lucide-react";
-import { Component, Fragment, Suspense, lazy, useEffect, useMemo, useRef, useState, type ReactNode, type KeyboardEvent as ReactKeyboardEvent, type RefObject } from "react";
+import { Component, Fragment, Suspense, lazy, useEffect, useMemo, useRef, useState, type ReactNode, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { sectionFromHash, recordIdFromHash, buildHash, replaceHash } from "./route";
+import { useDialogFocus, useEscapeKey } from "./dialog";
 import {
   AlertConfig,
   BundleSpec,
@@ -371,38 +372,6 @@ function useFetch<T>(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [...deps, enabled, nonce]);
   return { data, state, error, reload: () => setNonce((value) => value + 1) };
-}
-
-// Accessibility hook for modal dialogs: traps Tab focus inside the dialog while
-// it is open and restores focus to the previously-focused element (the trigger)
-// on close. Respects an element that already holds focus inside the dialog
-// (e.g. an autofocused search input), so it never fights an explicit autoFocus.
-// `active` lets callers that render the dialog inline (`{open && <section/>}`)
-// re-arm the trap when it opens; components that mount/unmount can omit it.
-function useDialogFocus<T extends HTMLElement>(ref: RefObject<T | null>, active: boolean = true) {
-  useEffect(() => {
-    if (!active) return;
-    const node = ref.current;
-    if (!node) return;
-    const previouslyFocused = document.activeElement as HTMLElement | null;
-    const selector = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
-    const focusables = () => Array.from(node.querySelectorAll<HTMLElement>(selector)).filter((el) => el.offsetParent !== null || el === document.activeElement);
-    if (!node.contains(document.activeElement)) focusables()[0]?.focus();
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Tab") return;
-      const items = focusables();
-      if (items.length === 0) { event.preventDefault(); return; }
-      const first = items[0];
-      const last = items[items.length - 1];
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
-    };
-    node.addEventListener("keydown", onKeyDown);
-    return () => {
-      node.removeEventListener("keydown", onKeyDown);
-      previouslyFocused?.focus?.();
-    };
-  }, [ref, active]);
 }
 
 export default function App() {
@@ -7399,11 +7368,7 @@ function HostFormModal({
   const [error, setError] = useState<string | null>(null);
   const dialogRef = useRef<HTMLElement>(null);
   useDialogFocus(dialogRef);
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  useEscapeKey(onClose);
   const set = (patch: Partial<typeof form>) => setForm((prev) => ({ ...prev, ...patch }));
   async function save() {
     setBusy(true);
@@ -10031,11 +9996,7 @@ function ConfirmDialog({ title, message, confirmLabel = "Confirm", danger, onCon
 }) {
   const dialogRef = useRef<HTMLElement>(null);
   useDialogFocus(dialogRef);
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") onCancel(); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onCancel]);
+  useEscapeKey(onCancel);
   return (
     <div className="dialog-backdrop" role="presentation" onClick={onCancel}>
       <section ref={dialogRef} className="info-dialog confirm-dialog" role="dialog" aria-modal="true" aria-label={title} onClick={(event) => event.stopPropagation()}>
@@ -10057,11 +10018,7 @@ function ConfirmDialog({ title, message, confirmLabel = "Confirm", danger, onCon
 function InfoDialog({ message, onClose }: { message: string; onClose: () => void }) {
   const dialogRef = useRef<HTMLElement>(null);
   useDialogFocus(dialogRef);
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  useEscapeKey(onClose);
   return (
     <div className="dialog-backdrop" role="presentation" onClick={onClose}>
       <section ref={dialogRef} className="info-dialog" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
@@ -10745,11 +10702,7 @@ function JobMonitorModal({ jobId, onClose }: { jobId: string; onClose: () => voi
   const [error, setError] = useState<string | null>(null);
   const dialogRef = useRef<HTMLElement>(null);
   useDialogFocus(dialogRef);
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  useEscapeKey(onClose);
 
   useEffect(() => {
     let cancelled = false;

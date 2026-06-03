@@ -12,6 +12,7 @@ import {
   type ManagedContainer, type SourceReport, type SystemDf,
 } from "./api";
 import { hashParam, buildHash, replaceHash } from "./route";
+import { useDialogFocus, useEscapeKey } from "./dialog";
 
 type HostOption = { id: string; label: string };
 type NavFn = (section: string) => void;
@@ -1113,15 +1114,13 @@ function ConfirmActionModal({ name, action, busy, onConfirm, onCancel }: {
   name: string; action: ContainerAction; busy: boolean;
   onConfirm: () => void; onCancel: () => void;
 }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onCancel(); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onCancel]);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useDialogFocus(dialogRef);
+  useEscapeKey(onCancel);
   const verb = action === "stop" ? "Stop" : "Restart";
   return (
     <div className="container-drawer-backdrop" onClick={onCancel}>
-      <div className="container-modal confirm-modal" role="dialog" aria-modal="true" aria-label={`${verb} ${name}`} onClick={(e) => e.stopPropagation()}>
+      <div ref={dialogRef} className="container-modal confirm-modal" role="dialog" aria-modal="true" aria-label={`${verb} ${name}`} onClick={(e) => e.stopPropagation()}>
         <div className="container-modal-head">
           <AlertTriangle size={16} /><strong>{verb} {name}?</strong>
           <div className="container-modal-acts"><button className="ghost-button" onClick={onCancel} aria-label="Cancel"><X size={15} /></button></div>
