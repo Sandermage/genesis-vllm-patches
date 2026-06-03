@@ -462,6 +462,11 @@ export type CopilotResult = {
 export type CopilotChatOpts = { host?: string; port?: number; host_id?: string; model?: string; max_steps?: number };
 
 export type BaselineRec = { id: string; label: string; saved_at: number; scenarios: string[] };
+export type BaselineTrend = {
+  metric: string; scenario: string | null;
+  points: Array<{ saved_at: number; label: string; value: number }>;
+  lower_is_better: boolean; metrics_available: string[];
+};
 export type BaselineDiff = {
   threshold_pct: number; regressed: number; improved: number; has_regression: boolean; exit_code: number; verdict: string;
   scenarios: Array<{ name: string; status: string; metrics: Array<{ metric: string; current: number; baseline: number; delta: number; pct: number; lower_is_better: boolean; regression: boolean; improvement: boolean }> }>;
@@ -1287,6 +1292,7 @@ export const api = {
   copilotChat: (messages: Array<{ role: string; content: string }>, opts?: CopilotChatOpts) =>
     postJson<CopilotResult>("/api/v1/copilot/chat", { messages, ...(opts || {}) }),
   baselines: () => request<{ baselines: BaselineRec[] }>("/api/v1/baselines"),
+  baselineTrend: (metric?: string, scenario?: string) => request<BaselineTrend>(`/api/v1/baselines/trend${query({ metric, scenario })}`),
   baselineSave: (result: unknown, label?: string) => postJson<{ id: string; label: string; saved_at: number }>("/api/v1/baselines", { result, label }),
   baselineDelete: (id: string) => request<{ deleted: boolean }>(`/api/v1/baselines/${encodeURIComponent(id)}`, { method: "DELETE" }),
   baselineDiff: (current: unknown, baseline_id: string, threshold_pct = 5) => postJson<BaselineDiff>("/api/v1/baselines/diff", { current, baseline_id, threshold_pct }),

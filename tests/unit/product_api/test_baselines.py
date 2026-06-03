@@ -21,6 +21,31 @@ def test_save_list_get_delete(monkeypatch, tmp_path):
     assert bl.get_baseline(rec["id"]) is None
 
 
+def test_trend_orders_points_and_picks_default_metric(monkeypatch, tmp_path):
+    monkeypatch.setenv("SNDR_HOME", str(tmp_path))
+    # Saved out of chronological order — trend must sort by saved_at.
+    bl.save_baseline(_result("run2", 124.0, 105.0), label="run2", stamp=2000)
+    bl.save_baseline(_result("run1", 118.0, 112.0), label="run1", stamp=1000)
+    bl.save_baseline(_result("run3", 131.0, 101.0), label="run3", stamp=3000)
+
+    tr = bl.trend("tps")
+    assert tr["metric"] == "tps" and tr["lower_is_better"] is False
+    assert [p["value"] for p in tr["points"]] == [118.0, 124.0, 131.0]
+    assert [p["label"] for p in tr["points"]] == ["run1", "run2", "run3"]
+    assert "tps" in tr["metrics_available"] and "ttft_ms" in tr["metrics_available"]
+
+    # No metric given → auto-pick a throughput-like one (tps).
+    assert bl.trend()["metric"] == "tps"
+    # Latency metric is lower-is-better.
+    assert bl.trend("ttft_ms")["lower_is_better"] is True
+
+
+def test_trend_empty_when_no_store(monkeypatch, tmp_path):
+    monkeypatch.setenv("SNDR_HOME", str(tmp_path))
+    tr = bl.trend("tps")
+    assert tr["points"] == [] and tr["metrics_available"] == []
+
+
 def test_diff_flags_regressions_by_metric_direction():
     base = _result("base", tps=120.0, ttft=100.0, tool=0.95)
     # tps DOWN (higher-is-better → regression), ttft UP (lower-is-better →

@@ -108,6 +108,63 @@ def delete_baseline(baseline_id: str) -> bool:
         return False
 
 
+# ── trend ────────────────────────────────────────────────────────────────────
+
+
+def _metric_value(scenarios: list[dict[str, Any]], metric: str, scenario: Optional[str]) -> Optional[float]:
+    """Mean of ``metric`` across matching scenarios (or one named scenario)."""
+    vals: list[float] = []
+    for sc in scenarios:
+        if scenario and sc.get("name") != scenario:
+            continue
+        mv = (sc.get("metrics") or {}).get(metric)
+        if isinstance(mv, (int, float)):
+            vals.append(float(mv))
+    return round(sum(vals) / len(vals), 4) if vals else None
+
+
+def trend(metric: Optional[str] = None, *, scenario: Optional[str] = None) -> dict[str, Any]:
+    """Time-ordered series of one metric across all saved baselines.
+
+    Turns the baseline store (named reference points) into a regression trend:
+    how a metric evolved run-over-run. Picks a throughput-like metric by default.
+    """
+    d = _store_dir()
+    recs: list[dict[str, Any]] = []
+    metrics_seen: set[str] = set()
+    if d.is_dir():
+        for path in sorted(d.glob("*.json")):
+            try:
+                rec = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            for sc in rec.get("result", {}).get("scenarios", []):
+                metrics_seen.update((sc.get("metrics") or {}).keys())
+            recs.append(rec)
+    recs.sort(key=lambda r: r.get("saved_at", 0))
+
+    available = sorted(metrics_seen)
+    if not metric:
+        metric = next((m for m in available if re.search(r"tps|throughput|tok", m, re.I)), available[0] if available else "")
+
+    points: list[dict[str, Any]] = []
+    for rec in recs:
+        value = _metric_value(rec.get("result", {}).get("scenarios", []), metric, scenario)
+        if value is not None:
+            points.append({
+                "saved_at": rec.get("saved_at", 0),
+                "label": rec.get("label") or rec.get("id", ""),
+                "value": value,
+            })
+    return {
+        "metric": metric,
+        "scenario": scenario,
+        "points": points,
+        "lower_is_better": _lower_is_better(metric) if metric else False,
+        "metrics_available": available,
+    }
+
+
 # ── diff ─────────────────────────────────────────────────────────────────────
 
 

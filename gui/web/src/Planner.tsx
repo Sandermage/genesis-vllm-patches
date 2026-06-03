@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2, CircleAlert, GitCompare, Save, Server, Sparkles, Trash2, TrendingDown, TrendingUp } from "lucide-react";
-import { api, type CalcModels, type HostModelConfig, type HostProfile, type KvCalcResult, type KvEstimate, type BaselineDiff, type BaselineRec } from "./api";
+import { api, type CalcModels, type HostModelConfig, type HostProfile, type KvCalcResult, type KvEstimate, type BaselineDiff, type BaselineRec, type BaselineTrend } from "./api";
 
 const fmtGb = (m: number) => (Math.abs(m) >= 1024 ? `${(m / 1024).toFixed(1)} GB` : `${Math.round(m)} MB`);
 const fmtCtx = (c: number) => (c >= 1000 ? `${Math.round(c / 1000)}K` : String(c));
@@ -352,6 +352,61 @@ function TpScalingBars({ byTp, activeTp, onPick }: { byTp: Record<string, number
 }
 
 // ── Baseline regression diff ────────────────────────────────────────────────
+// Regression trend: one metric charted across saved baselines over time.
+function BaselineTrendChart({ reloadKey }: { reloadKey: number }) {
+  const [metric, setMetric] = useState<string>("");
+  const [data, setData] = useState<BaselineTrend | null>(null);
+  useEffect(() => {
+    let alive = true;
+    api.baselineTrend(metric || undefined)
+      .then((t) => { if (alive) { setData(t); if (!metric && t.metric) setMetric(t.metric); } })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [metric, reloadKey]);
+
+  const pts = data?.points ?? [];
+  const metrics = data?.metrics_available ?? [];
+  if (pts.length < 2) {
+    return (
+      <div className="baseline-trend">
+        <div className="baseline-trend-head"><strong>Regression trend</strong></div>
+        <div className="baseline-trend-empty muted">Save at least 2 baselines to chart how {data?.metric || "a metric"} moves run-over-run.</div>
+      </div>
+    );
+  }
+  const vals = pts.map((p) => p.value);
+  const min = Math.min(...vals), max = Math.max(...vals), span = max - min || 1;
+  const W = 100, H = 38, step = W / (pts.length - 1);
+  const xy = (v: number, i: number) => ({ x: i * step, y: H - ((v - min) / span) * H });
+  const line = pts.map((p, i) => { const c = xy(p.value, i); return `${c.x.toFixed(1)},${c.y.toFixed(1)}`; }).join(" ");
+  const first = vals[0], last = vals[vals.length - 1];
+  const delta = first ? ((last - first) / first) * 100 : 0;
+  const flat = Math.abs(delta) < 1;
+  const better = data?.lower_is_better ? delta < 0 : delta > 0;
+  const tone = flat ? "" : better ? "imp" : "reg";
+
+  return (
+    <div className="baseline-trend">
+      <div className="baseline-trend-head">
+        <strong>Regression trend</strong>
+        <select value={metric} onChange={(e) => setMetric(e.target.value)} aria-label="metric">
+          {metrics.map((m) => <option key={m} value={m}>{m}</option>)}
+        </select>
+        <span className={`baseline-trend-delta ${tone}`}>
+          {delta > 0 ? "+" : ""}{delta.toFixed(1)}% over {pts.length} runs
+        </span>
+      </div>
+      <svg className={`baseline-trend-svg ${tone}`} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true">
+        <polyline points={line} />
+      </svg>
+      <div className="baseline-trend-foot">
+        <span>{pts[0].label}: {first}</span>
+        <span>{pts[pts.length - 1].label}: {last}</span>
+      </div>
+    </div>
+  );
+}
+
 export function BaselinePanel() {
   const [list, setList] = useState<BaselineRec[]>([]);
   const [draft, setDraft] = useState('{"label":"new run","scenarios":[{"name":"code","metrics":{"tps":120,"ttft_ms":110,"tool_call_success":0.95}}]}');
@@ -407,6 +462,7 @@ export function BaselinePanel() {
           ))}
         </div>
       )}
+      <BaselineTrendChart reloadKey={list.length} />
     </div>
   );
 }

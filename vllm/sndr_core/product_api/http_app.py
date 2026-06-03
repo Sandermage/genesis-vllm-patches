@@ -2052,6 +2052,13 @@ def create_app(
 
         return {"baselines": baselines.list_baselines()}
 
+    @app.get("/api/v1/baselines/trend")
+    def baselines_trend(metric: Optional[str] = None, scenario: Optional[str] = None) -> dict[str, Any]:
+        """Time-ordered series of one metric across saved baselines (regression trend)."""
+        from . import baselines
+
+        return baselines.trend(metric, scenario=scenario)
+
     @app.post("/api/v1/baselines")
     def baselines_save(payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
         from . import baselines

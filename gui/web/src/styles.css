@@ -2651,6 +2651,20 @@ pre, .code-block, .cli-mirror pre, .artifact-preview pre {
 .baseline-list { display: flex; flex-wrap: wrap; gap: 6px; }
 .baseline-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; padding: 3px 4px 3px 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-2); }
 .baseline-chip .icon-only { width: 18px; height: 18px; }
+.baseline-trend { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: var(--r-sm); border: 1px solid var(--border); background: var(--surface-inset); }
+.baseline-trend-head { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+.baseline-trend-head strong { flex: none; }
+.baseline-trend-head select { height: 28px; padding: 0 8px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface); color: var(--text); font-size: 12px; }
+.baseline-trend-delta { margin-left: auto; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text-muted); }
+.baseline-trend-delta.imp { color: var(--ok); }
+.baseline-trend-delta.reg { color: var(--danger); }
+.baseline-trend-empty { font-size: 12.5px; padding: 4px 0; }
+.baseline-trend-svg { width: 100%; height: 64px; display: block; }
+.baseline-trend-svg polyline { fill: none; stroke: var(--accent); stroke-width: 1.5; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+.baseline-trend-svg.imp polyline { stroke: var(--ok); }
+.baseline-trend-svg.reg polyline { stroke: var(--danger); }
+.baseline-trend-foot { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--text-faint); font-family: var(--mono); }
+
 .baseline-diff { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: var(--r-sm); border: 1px solid var(--border); }
 .baseline-diff.regress { border-color: color-mix(in srgb, var(--danger) 40%, var(--border)); background: var(--danger-soft); }
 .baseline-diff.improve { border-color: color-mix(in srgb, var(--ok) 40%, var(--border)); background: var(--ok-soft, var(--accent-soft)); }
