@@ -5014,6 +5014,26 @@ function CompositionChain({ model, hardware, profile, composed }: {
   );
 }
 
+// The full resolved runtime config (every scalar the layers compose to) — the
+// composer previously surfaced only a handful of key fields.
+function ResolvedConfig({ composed }: { composed: Record<string, any> }) {
+  const entries = Object.entries(composed || {})
+    .filter(([, v]) => v !== null && v !== undefined && v !== "" && typeof v !== "object")
+    .sort((a, b) => a[0].localeCompare(b[0]));
+  const envCount = Object.keys((composed?.genesis_env as Record<string, unknown>) ?? {}).length;
+  if (!entries.length) return null;
+  return (
+    <details className="resolved-config" open>
+      <summary>Resolved runtime config — {entries.length} parameters{envCount ? ` · ${envCount} patch flags` : ""}</summary>
+      <div className="resolved-grid">
+        {entries.map(([k, v]) => (
+          <div key={k} className="resolved-row"><code>{k}</code><span>{typeof v === "boolean" ? (v ? "yes" : "no") : String(v)}</span></div>
+        ))}
+      </div>
+    </details>
+  );
+}
+
 function V2ConfigWorkbench({
   catalog,
   preview,
@@ -5282,6 +5302,7 @@ function V2ConfigWorkbench({
               <ModuleGrid>
                 <ModuleCard title="Layer Inspector" icon={<SlidersHorizontal size={18} />} desc="A preset is composed from three layers — model + hardware + profile — resolved to one runtime config." wide>
                   <CompositionChain model={selectedModel} hardware={selectedHardware} profile={selectedProfile} composed={preview?.composed ?? {}} />
+                  <ResolvedConfig composed={preview?.composed ?? {}} />
                   <div className="config-layers-row">
                     <ConfigItemInspector title="Model" item={selectedModel} />
                     <ConfigItemInspector title="Hardware" item={selectedHardware} />

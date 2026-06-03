@@ -3960,3 +3960,12 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 .comp-layer-fact { font-size: 11px; color: var(--text-muted); }
 .comp-arrow { color: var(--text-muted); align-self: center; flex: none; }
 @media (max-width: 720px) { .comp-arrow { transform: rotate(90deg); } .comp-layer { min-width: 100%; } }
+
+/* resolved runtime config grid */
+.resolved-config { margin-bottom: var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface-inset); }
+.resolved-config > summary { cursor: pointer; padding: 8px 12px; font-size: 12px; font-weight: 600; color: var(--text-muted); user-select: none; }
+.resolved-config[open] > summary { border-bottom: 1px solid var(--border); }
+.resolved-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1px 14px; padding: 8px 12px; }
+.resolved-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; font-size: 12px; padding: 2px 0; border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent); }
+.resolved-row code { font-family: var(--mono); font-size: 11px; color: var(--text-muted); }
+.resolved-row span { color: var(--text); font-variant-numeric: tabular-nums; text-align: right; word-break: break-word; }
