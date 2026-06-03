@@ -3947,3 +3947,16 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 /* deploy: copy-as-script header row */
 .deploy-cmd-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); flex-wrap: wrap; }
 .deploy-cmd-actions { display: flex; align-items: center; gap: var(--sp-2); }
+
+/* ═══ Config composition chain (model → hardware → profile → runtime) ═══ */
+.comp-chain { display: flex; align-items: stretch; gap: 4px; flex-wrap: wrap; margin-bottom: var(--sp-3); }
+.comp-layer { flex: 1; min-width: 140px; display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface); box-shadow: var(--shadow-sm); }
+.comp-layer.empty { border-style: dashed; border-color: color-mix(in srgb, var(--warn) 45%, var(--border)); }
+.comp-layer.none { opacity: 0.7; border-style: dashed; }
+.comp-layer.result { background: var(--accent-soft); border-color: var(--accent-ring); }
+.comp-layer-head { display: flex; align-items: center; gap: 5px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; color: var(--text-muted); }
+.comp-layer.result .comp-layer-head { color: var(--accent-text); }
+.comp-layer-id { font-family: var(--mono); font-size: 12px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.comp-layer-fact { font-size: 11px; color: var(--text-muted); }
+.comp-arrow { color: var(--text-muted); align-self: center; flex: none; }
+@media (max-width: 720px) { .comp-arrow { transform: rotate(90deg); } .comp-layer { min-width: 100%; } }

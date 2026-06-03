@@ -4974,6 +4974,46 @@ function ConfigsSection(props: {
   );
 }
 
+// Visual composition chain — a preset = model + hardware + profile, resolved to
+// the runtime config. Makes the layering explicit instead of three side-by-side
+// cards the operator has to mentally stitch together.
+function CompositionChain({ model, hardware, profile, composed }: {
+  model: V2ConfigItem | null; hardware: V2ConfigItem | null; profile: V2ConfigItem | null; composed: Record<string, any>;
+}) {
+  const layers = [
+    { kind: "Model", icon: <Box size={13} />, item: model, optional: false,
+      fact: model ? [model.fields?.quantization || model.fields?.dtype, model.fields?.attention_arch].filter(Boolean).join(" · ") : "" },
+    { kind: "Hardware", icon: <Server size={13} />, item: hardware, optional: false,
+      fact: hardware ? `${hardware.fields?.n_gpus ?? "?"}× GPU${hardware.fields?.min_vram_per_gpu_mib ? ` · ${Math.round(hardware.fields.min_vram_per_gpu_mib / 1024)}GB` : ""}` : "" },
+    { kind: "Profile", icon: <SlidersHorizontal size={13} />, item: profile, optional: true,
+      fact: profile ? String(profile.fields?.role || profile.status || "override") : "" }
+  ];
+  const resultFacts = [
+    composed?.max_model_len && `${(Number(composed.max_model_len) / 1024).toFixed(0)}K ctx`,
+    composed?.max_num_seqs && `${composed.max_num_seqs} seq`,
+    composed?.kv_cache_dtype && `KV ${composed.kv_cache_dtype}`
+  ].filter(Boolean) as string[];
+  return (
+    <div className="comp-chain">
+      {layers.map((l) => (
+        <Fragment key={l.kind}>
+          <div className={`comp-layer ${l.item ? "" : l.optional ? "none" : "empty"}`}>
+            <div className="comp-layer-head">{l.icon} {l.kind}{l.optional && !l.item ? " (none)" : ""}</div>
+            <code className="comp-layer-id">{l.item?.id ?? (l.optional ? "—" : "pick one")}</code>
+            {l.fact && <div className="comp-layer-fact">{l.fact}</div>}
+          </div>
+          <ChevronRight className="comp-arrow" size={16} />
+        </Fragment>
+      ))}
+      <div className="comp-layer result">
+        <div className="comp-layer-head"><Rocket size={13} /> Composed</div>
+        <code className="comp-layer-id">runtime config</code>
+        <div className="comp-layer-fact">{resultFacts.length ? resultFacts.join(" · ") : "preview to resolve"}</div>
+      </div>
+    </div>
+  );
+}
+
 function V2ConfigWorkbench({
   catalog,
   preview,
@@ -5240,7 +5280,8 @@ function V2ConfigWorkbench({
             id: "layers", label: "Layers", icon: <SlidersHorizontal size={15} />,
             render: () => (
               <ModuleGrid>
-                <ModuleCard title="Layer Inspector" icon={<SlidersHorizontal size={18} />} desc="Composed layers: model, hardware and profile." wide>
+                <ModuleCard title="Layer Inspector" icon={<SlidersHorizontal size={18} />} desc="A preset is composed from three layers — model + hardware + profile — resolved to one runtime config." wide>
+                  <CompositionChain model={selectedModel} hardware={selectedHardware} profile={selectedProfile} composed={preview?.composed ?? {}} />
                   <div className="config-layers-row">
                     <ConfigItemInspector title="Model" item={selectedModel} />
                     <ConfigItemInspector title="Hardware" item={selectedHardware} />
