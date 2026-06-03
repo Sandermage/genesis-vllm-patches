@@ -7818,7 +7818,7 @@ function PresetRecommendPanel({
           {result.results.length > 0 ? (
             <div className="patch-table-scroll">
               <table className="module-table rec-table">
-                <thead><tr><th>#</th><th>Preset</th><th>Model</th><th>Hardware</th><th>Profile</th><th></th></tr></thead>
+                <thead><tr><th>#</th><th>Preset</th><th>Model</th><th>Hardware</th><th>Profile</th><th>Baseline</th><th></th></tr></thead>
                 <tbody>
                   {result.results.map((rec) => (
                     <tr key={rec.id}>
@@ -7827,6 +7827,7 @@ function PresetRecommendPanel({
                       <td>{rec.model}</td>
                       <td>{rec.hardware}</td>
                       <td>{rec.profile ?? "—"}</td>
+                      <td><PresetBaselineCell card={rec.card} /></td>
                       <td><button className="ghost-button" onClick={() => onSelect(rec.id)}><FileText size={13} /> Inspect</button></td>
                     </tr>
                   ))}
