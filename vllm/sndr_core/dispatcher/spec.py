@@ -605,7 +605,7 @@ def patch_spec_for(
         env_flag=meta.get("env_flag"),
         default_on=bool(meta.get("default_on", False)),
         lifecycle=str(meta.get("lifecycle", "stable")),
-        upstream_pr=meta.get("upstream_pr"),
+        upstream_pr=normalize_upstream_pr(meta.get("upstream_pr")),
         apply_module=apply_module,
         category=category,
         implementation_status=implementation_status,
@@ -616,6 +616,62 @@ def patch_spec_for(
         related_upstream_prs=_coerce_tuple(meta.get("related_upstream_prs")),
         upstream_pr_relationship=upstream_pr_relationship,
     )
+
+
+_UPSTREAM_URL_PR_RE = re.compile(
+    r"github\.com/vllm-project/vllm/pull/(\d+)"
+)
+_UPSTREAM_URL_ISSUE_RE = re.compile(
+    r"github\.com/vllm-project/vllm/issues/(\d+)"
+)
+
+
+def normalize_upstream_pr(value: Any) -> Optional[int]:
+    """Coerce `upstream_pr` registry value to `Optional[int]`.
+
+    The registry stores three forms historically:
+      - int (canonical, e.g. 41043)
+      - str int ("41043") — accepted from JSON-typed YAML
+      - URL str (e.g. "https://github.com/vllm-project/vllm/pull/40886"
+        — 4 G4_* entries; or .../issues/39407 — 24 G4_* entries point
+        at the issue tracking the problem, NOT at a PR)
+      - None (Genesis-original, no upstream link)
+
+    v11.3.0 BUG #13 fix: this normalizer extracts the PR number from
+    `pull/<N>` URLs so consumers (audit-upstream-status, PatchSpec,
+    docs generators) see a clean int. Issue URLs (no PR number) are
+    deliberately returned as None — issue ≠ PR; the registry should
+    use `related_upstream_prs` for tracking-by-issue, or a separate
+    `upstream_issue` field. Existing 24 issue-URL entries are flagged
+    by `test_no_issue_url_in_upstream_pr_field` (advisory).
+    """
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return None  # bool is technically int subclass — exclude
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        s = value.strip()
+        if not s:
+            return None
+        if s.isdigit():
+            return int(s)
+        m = _UPSTREAM_URL_PR_RE.search(s)
+        if m:
+            return int(m.group(1))
+        # Issue URL → not a PR, return None (advisory test surfaces this)
+        return None
+    return None
+
+
+def is_issue_url_not_pr(value: Any) -> bool:
+    """Return True if `value` is a github.com issue URL — i.e. it
+    points at an issue rather than a PR. Used by the BUG #13 audit
+    to surface advisory warnings."""
+    if not isinstance(value, str):
+        return False
+    return bool(_UPSTREAM_URL_ISSUE_RE.search(value.strip()))
 
 
 def _topological_order(

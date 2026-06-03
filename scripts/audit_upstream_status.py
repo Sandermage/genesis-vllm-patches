@@ -107,8 +107,22 @@ def _load_registry_entries() -> dict[str, str]:
 
 
 def _extract_upstream_pr(body: str) -> Optional[int]:
+    # v11.3.0 BUG #13 fix: also accept URL-string form
+    # `"upstream_pr": "https://github.com/vllm-project/vllm/pull/<N>"`
+    # — 4 G4_* entries use this form and were previously invisible to
+    # the upstream audit gate. Issue URLs (no PR number) deliberately
+    # stay None — see normalize_upstream_pr in dispatcher/spec.py.
     m = re.search(r'"upstream_pr"\s*:\s*(\d+)', body)
-    return int(m.group(1)) if m else None
+    if m:
+        return int(m.group(1))
+    m = re.search(
+        r'"upstream_pr"\s*:\s*"[^"]*github\.com/vllm-project/vllm/'
+        r'pull/(\d+)[^"]*"',
+        body,
+    )
+    if m:
+        return int(m.group(1))
+    return None
 
 
 def _extract_lifecycle(body: str) -> Optional[str]:
