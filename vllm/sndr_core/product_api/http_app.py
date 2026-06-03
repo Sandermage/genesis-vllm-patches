@@ -670,6 +670,7 @@ def create_app(
                 target=str(payload.get("target", "")).strip(),
                 host_paths=host_paths,
                 image_override=str(payload.get("image_override") or "").strip() or None,
+                with_daemon=bool(payload.get("with_daemon")),
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
@@ -716,6 +717,7 @@ def create_app(
                 apply_enabled=True,
                 confirm=True,
                 image_override=str(payload.get("image_override") or "").strip() or None,
+                with_daemon=bool(payload.get("with_daemon")),
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))

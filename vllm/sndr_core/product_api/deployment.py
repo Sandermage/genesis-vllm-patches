@@ -457,11 +457,10 @@ def _commands_bare_metal(cfg):
     ]
 
 
-def _proxmox_script(cfg, params) -> str:
+def _proxmox_script(cfg, params, *, with_daemon: bool = False) -> str:
     name = params["container_name"]
     port = params["host_port"] or 8000
-    return "\n".join(
-        [
+    lines = [
             "#!/usr/bin/env bash",
             f"# Genesis vLLM Proxmox LXC provisioner — preset {cfg.key}",
             "# Run on the Proxmox host. Provisions a GPU-passthrough LXC, installs",
@@ -498,10 +497,14 @@ def _proxmox_script(cfg, params) -> str:
             "# 4. Copy docker-compose.yml into the container and bring the stack up.",
             f'pct push "$CTID" docker-compose.yml /root/docker-compose.yml',
             'pct exec "$CTID" -- docker compose -f /root/docker-compose.yml up -d',
+    ]
+    if with_daemon:
+        lines += _proxmox_lxc_daemon_block()
+    lines += [
             "",
             f"# vLLM OpenAI API will listen on the container IP, port {port}.",
-        ]
-    )
+    ]
+    return "\n".join(lines)
 
 
 def _commands_proxmox(cfg):
@@ -512,9 +515,11 @@ def _commands_proxmox(cfg):
     ]
 
 
-def _proxmox_vm_script(cfg, params) -> str:
+def _proxmox_vm_script(cfg, params, *, with_daemon: bool = False) -> str:
     name = params["container_name"]
     port = params["host_port"] or 8000
+    write_files = ["write_files:", *_cloudinit_daemon_writefile()] if with_daemon else []
+    daemon_runcmd = ["  - [bash, /root/run-sndr-daemon.sh]"] if with_daemon else []
     return "\n".join(
         [
             "#!/usr/bin/env bash",
@@ -553,9 +558,11 @@ def _proxmox_vm_script(cfg, params) -> str:
             "#cloud-config",
             "package_update: true",
             "packages: [docker.io, docker-compose-plugin]",
+            *write_files,
             "runcmd:",
             "  - [systemctl, enable, --now, docker]",
             "  - [docker, compose, -f, /root/docker-compose.yml, up, -d]",
+            *daemon_runcmd,
             "CLOUDINIT",
             'qm set "$VMID" --cicustom "vendor=local:snippets/sndr-vendor.yaml"',
             "",
@@ -626,6 +633,71 @@ def _commands_sndr_daemon(cfg):
     ]
 
 
+def _daemon_native_unit() -> str:
+    """A systemd unit that runs the management daemon natively (no Docker) —
+    for the bare-metal engine path, where sndr_core is on the host via pip."""
+    return (
+        "[Unit]\n"
+        "Description=SNDR management daemon (GUI Product API)\n"
+        "After=network-online.target\nWants=network-online.target\n\n"
+        "[Service]\nType=simple\n"
+        "Environment=SNDR_BIND=0.0.0.0\nEnvironment=SNDR_GUI_PORT=8765\n"
+        "ExecStart=/usr/bin/env python3 -m vllm.sndr_core.cli gui-api\n"
+        "Restart=on-failure\nRestartSec=3\n\n"
+        "[Install]\nWantedBy=multi-user.target\n"
+    )
+
+
+def _daemon_install_commands(target: str) -> list[str]:
+    """Steps to ALSO install the SNDR management daemon after the engine, so a
+    single apply lands GUI(daemon) + sndr_core + engine. Docker-based engine
+    targets get a sidecar container built from the engine image; the bare-metal
+    target gets a native systemd unit (no Docker on the host)."""
+    if target == "bare_metal":
+        unit = _daemon_native_unit()
+        return [
+            "# --- SNDR management daemon (native systemd, no Docker) ---",
+            f"sudo tee /etc/systemd/system/sndr-daemon.service >/dev/null <<'SNDR_DAEMON_EOF'\n{unit}SNDR_DAEMON_EOF",
+            "sudo systemctl daemon-reload && sudo systemctl enable --now sndr-daemon.service",
+            "sleep 3; curl -sf http://127.0.0.1:8765/api/v1/health >/dev/null "
+            "&& echo 'daemon healthy on 127.0.0.1:8765' "
+            "|| sudo journalctl -u sndr-daemon --no-pager -n 25",
+        ]
+    # Docker-based engine (compose / quadlet / kubernetes / systemd): sidecar.
+    script = _sndr_daemon_script(None, None)
+    return [
+        "# --- SNDR management daemon (sidecar container from the engine image) ---",
+        f"cat > run-sndr-daemon.sh <<'SNDR_DAEMON_EOF'\n{script}SNDR_DAEMON_EOF",
+        *_commands_sndr_daemon(None),
+    ]
+
+
+def _proxmox_lxc_daemon_block() -> list[str]:
+    """Script lines that install the daemon sidecar INSIDE a provisioned LXC.
+
+    The script is materialised on the Proxmox host with a *quoted* heredoc (no
+    host-side expansion), pushed into the container, and run there — so the new
+    container hosts its own management daemon, reachable by the central GUI
+    without a manual post-provision SSH."""
+    script = _sndr_daemon_script(None, None)
+    return [
+        "",
+        "# 5. Install the SNDR management daemon (sidecar) INSIDE the container.",
+        f"cat > /tmp/run-sndr-daemon.sh <<'SNDR_DAEMON_EOF'\n{script}SNDR_DAEMON_EOF",
+        'pct push "$CTID" /tmp/run-sndr-daemon.sh /root/run-sndr-daemon.sh',
+        'pct exec "$CTID" -- bash /root/run-sndr-daemon.sh',
+    ]
+
+
+def _cloudinit_daemon_writefile() -> list[str]:
+    """cloud-init ``write_files`` lines for the daemon script (indented under
+    ``content: |``), to run the daemon sidecar inside a provisioned VM."""
+    script = _sndr_daemon_script(None, None)
+    body = ["  - path: /root/run-sndr-daemon.sh", "    permissions: '0755'", "    content: |"]
+    body += [f"      {line}" for line in script.splitlines()]
+    return body
+
+
 _RENDERERS = {
     "compose": (_artifact_compose, _commands_compose, True),
     "quadlet": (_artifact_quadlet, _commands_quadlet, True),
@@ -667,13 +739,17 @@ def build_deployment(
     *,
     host_paths: Optional[dict[str, str]] = None,
     image_override: Optional[str] = None,
+    with_daemon: bool = False,
 ) -> dict[str, Any]:
     """Build the full read-only deployment plan for ``preset_id`` on ``target``.
 
     ``image_override`` pins the engine image/tag at install time (e.g. a specific
-    vLLM nightly), overriding the preset's image. Raises ``KeyError`` for an
-    unknown preset and ``ValueError`` for an unknown target — the HTTP layer maps
-    these to 404 / 400.
+    vLLM nightly), overriding the preset's image. ``with_daemon`` also installs
+    the SNDR management daemon (GUI Product API) so one apply lands
+    GUI(daemon) + sndr_core + engine — a sidecar container for docker-based
+    targets, a native systemd unit for bare-metal, and inside the guest for
+    Proxmox. Raises ``KeyError`` for an unknown preset and ``ValueError`` for an
+    unknown target — the HTTP layer maps these to 404 / 400.
     """
     if target not in _TARGET_BY_ID:
         raise ValueError(f"unknown deployment target: {target!r}")
@@ -689,15 +765,21 @@ def build_deployment(
     elif target == "bare_metal":
         content = _bare_metal_script(cfg, params)
     elif target == "proxmox":
-        content = _proxmox_script(cfg, params)
+        content = _proxmox_script(cfg, params, with_daemon=with_daemon)
     elif target == "proxmox_vm":
-        content = _proxmox_vm_script(cfg, params)
+        content = _proxmox_vm_script(cfg, params, with_daemon=with_daemon)
     elif target == "sndr_daemon":
         content = _sndr_daemon_script(cfg, params)
     elif target == "kubernetes":
         content = _artifact_kubernetes(cfg, resolved_paths, name_hint=preset_id)
     else:
         content = art_fn(cfg, resolved_paths if needs_paths else None)
+
+    commands = cmd_fn(cfg)
+    # Docker-based + bare-metal engine targets append the daemon-install steps
+    # (Proxmox embeds the daemon inside its provision script above instead).
+    if with_daemon and target in ("compose", "quadlet", "kubernetes", "systemd", "bare_metal"):
+        commands = list(commands) + _daemon_install_commands(target)
 
     return {
         "preset_id": preset_id,
@@ -711,7 +793,8 @@ def build_deployment(
         },
         "parameters": params,
         "image_override": (image_override or "").strip() or None,
+        "with_daemon": bool(with_daemon),
         "mount_vars": _mount_vars(cfg, resolved_paths),
         "dependencies": _deps_plan(cfg),
-        "commands": cmd_fn(cfg),
+        "commands": commands,
     }

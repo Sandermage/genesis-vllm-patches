@@ -3246,6 +3246,9 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 .install-plan-head strong { font-size: 13.5px; color: var(--text); }
 .install-dry { font-size: 10.5px; font-weight: 600; padding: 2px 8px; border-radius: var(--r-pill); background: var(--surface-2); color: var(--text-muted); border: 1px solid var(--border); }
 .install-opt { font-style: normal; color: var(--text-faint); font-weight: 400; }
+.install-daemon-toggle { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; font-size: 12.5px; color: var(--text-2); padding: 9px 11px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface-inset); cursor: pointer; }
+.install-daemon-toggle input { accent-color: var(--accent); }
+.install-daemon-toggle svg { color: var(--accent-text); flex: none; }
 .install-pin { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 700; font-family: var(--mono); padding: 2px 9px; border-radius: var(--r-pill); background: var(--accent-soft); color: var(--accent-text); }
 .install-pin svg { flex: none; }
 .install-danger-count { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; color: var(--warn, #d68a00); }

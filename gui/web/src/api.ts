@@ -432,7 +432,7 @@ export type InstallStep = { order: number; kind: string; title: string; danger: 
 export type InstallPlan = {
   host: { label: string; host: string }; preset_id: string; target: string; target_label: string;
   artifact: { kind: string; filename: string; content: string };
-  parameters?: Record<string, unknown>; dependencies?: Record<string, unknown>; image_override?: string | null;
+  parameters?: Record<string, unknown>; dependencies?: Record<string, unknown>; image_override?: string | null; with_daemon?: boolean;
   steps: InstallStep[]; danger_count: number; provisions_infra: boolean;
   dry_run: boolean; can_apply: boolean; notes: string;
 };
@@ -1298,8 +1298,8 @@ export const api = {
   modelConfig: (host_id: string, container?: string) => postJson<HostModelConfig>("/api/v1/hosts/model-config", { host_id, container }),
   sndrState: (host_id: string, container?: string) => postJson<HostSndrState>("/api/v1/hosts/sndr-state", { host_id, container }),
   installTargets: () => request<InstallTargets>("/api/v1/install/targets"),
-  installPlan: (host_id: string, preset_id: string, target: string, image_override?: string) => postJson<InstallPlan>("/api/v1/install/plan", { host_id, preset_id, target, image_override: image_override || undefined }),
-  installApply: (host_id: string, preset_id: string, target: string, image_override?: string) => postJson<InstallApplyResult>("/api/v1/install/apply", { host_id, preset_id, target, confirm: true, image_override: image_override || undefined }),
+  installPlan: (host_id: string, preset_id: string, target: string, image_override?: string, with_daemon?: boolean) => postJson<InstallPlan>("/api/v1/install/plan", { host_id, preset_id, target, image_override: image_override || undefined, with_daemon: with_daemon || undefined }),
+  installApply: (host_id: string, preset_id: string, target: string, image_override?: string, with_daemon?: boolean) => postJson<InstallApplyResult>("/api/v1/install/apply", { host_id, preset_id, target, confirm: true, image_override: image_override || undefined, with_daemon: with_daemon || undefined }),
   installNode: (host_id: string, admin_password: string, engine_port?: number) =>
     postJson<NodeSetupResult>("/api/v1/install/node", { host_id, admin_password, engine_port, confirm: true }),
   calcModels: () => request<CalcModels>("/api/v1/calc/models"),

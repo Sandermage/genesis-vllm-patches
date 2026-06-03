@@ -17,6 +17,7 @@ export function InstallWizard({ initial }: { initial?: { hostId?: string; target
   const [target, setTarget] = useState(initial?.target || "compose");
   const [presetId, setPresetId] = useState("");
   const [pin, setPin] = useState("");
+  const [withDaemon, setWithDaemon] = useState(false);
   const [plan, setPlan] = useState<InstallPlan | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -33,14 +34,14 @@ export function InstallWizard({ initial }: { initial?: { hostId?: string; target
   async function buildPlan() {
     if (!hostId || !presetId || !target) return;
     setLoading(true); setErr(null); setPlan(null); setApplied(null); setConfirming(false);
-    try { setPlan(await api.installPlan(hostId, presetId, target, pin.trim() || undefined)); }
+    try { setPlan(await api.installPlan(hostId, presetId, target, pin.trim() || undefined, withDaemon)); }
     catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
     finally { setLoading(false); }
   }
 
   async function runApply() {
     setApplying(true); setErr(null); setConfirming(false);
-    try { setApplied(await api.installApply(hostId, presetId, target, pin.trim() || undefined)); }
+    try { setApplied(await api.installApply(hostId, presetId, target, pin.trim() || undefined, withDaemon)); }
     catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
     finally { setApplying(false); }
   }
@@ -89,6 +90,12 @@ export function InstallWizard({ initial }: { initial?: { hostId?: string; target
         </div>
       </div>
 
+      <label className="install-daemon-toggle">
+        <input type="checkbox" checked={withDaemon} onChange={(e) => { setWithDaemon(e.target.checked); setPlan(null); }} />
+        <Cpu size={13} /> Also install the SNDR management daemon (GUI + sndr_core) alongside the engine
+        <span className="install-opt"> — one apply lands GUI + core + engine; sidecar for containers, native systemd for bare-metal, inside the guest for Proxmox</span>
+      </label>
+
       <div className="install-actions">
         <button className="primary-action" onClick={() => void buildPlan()} disabled={!hostId || !presetId || loading}>
           {loading ? <Loader2 size={14} className="spin" /> : <Rocket size={14} />} Build install plan (dry-run)
@@ -102,6 +109,7 @@ export function InstallWizard({ initial }: { initial?: { hostId?: string; target
             <strong>{plan.target_label} → {plan.host.label}</strong>
             <span className="install-dry">dry-run · nothing executed</span>
             {plan.image_override && <span className="install-pin"><Tag size={12} /> pinned: {plan.image_override}</span>}
+            {plan.with_daemon && <span className="install-pin"><Cpu size={12} /> + SNDR daemon</span>}
             {plan.danger_count > 0 && <span className="install-danger-count"><ShieldAlert size={12} /> {plan.danger_count} infra-mutating step{plan.danger_count > 1 ? "s" : ""}</span>}
           </div>
           {plan.provisions_infra && <div className="install-infra-warn"><ShieldAlert size={14} /> This target <b>provisions infrastructure</b> on the Proxmox host (creates a {plan.target === "proxmox_vm" ? "VM" : "container"}). Review every step; run only on the Proxmox node.</div>}

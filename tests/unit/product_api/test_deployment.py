@@ -73,6 +73,38 @@ def test_image_override_pins_engine_at_install_time():
     assert dep.build_deployment(preset, "compose", image_override="  ")["parameters"]["image"] == base["parameters"]["image"]
 
 
+def test_with_daemon_container_appends_sidecar():
+    preset = _a_preset()
+    base = dep.build_deployment(preset, "compose")
+    wd = dep.build_deployment(preset, "compose", with_daemon=True)
+    assert wd["with_daemon"] is True
+    assert len(wd["commands"]) > len(base["commands"])
+    joined = "\n".join(wd["commands"])
+    assert "run-sndr-daemon.sh" in joined          # sidecar script materialised
+    assert "127.0.0.1:8765/api/v1/health" in joined  # health probe appended
+
+
+def test_with_daemon_bare_metal_uses_native_systemd():
+    preset = _a_preset()
+    wd = dep.build_deployment(preset, "bare_metal", with_daemon=True)
+    joined = "\n".join(wd["commands"])
+    assert "/etc/systemd/system/sndr-daemon.service" in joined
+    assert "vllm.sndr_core.cli gui-api" in joined   # native daemon entrypoint
+    assert "systemctl enable --now sndr-daemon" in joined
+
+
+def test_with_daemon_proxmox_embeds_inside_guest():
+    preset = _a_preset()
+    lxc = dep.build_deployment(preset, "proxmox", with_daemon=True)["artifact"]["content"]
+    assert "pct push" in lxc and "run-sndr-daemon.sh" in lxc
+    assert 'pct exec "$CTID" -- bash /root/run-sndr-daemon.sh' in lxc
+    vm = dep.build_deployment(preset, "proxmox_vm", with_daemon=True)["artifact"]["content"]
+    assert "write_files:" in vm and "/root/run-sndr-daemon.sh" in vm
+    assert "[bash, /root/run-sndr-daemon.sh]" in vm
+    # without the flag the daemon block is absent
+    assert "run-sndr-daemon.sh" not in dep.build_deployment(preset, "proxmox")["artifact"]["content"]
+
+
 def test_mount_vars_overridable():
     preset = _a_preset()
     base = dep.build_deployment(preset, "compose")
