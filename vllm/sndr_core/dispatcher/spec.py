@@ -196,6 +196,14 @@ _FAMILY_TO_CATEGORY: dict[str, str] = {
     "quantization": "quantization",
     "worker": "kernel",
     "gdn": "gdn",
+    # v11.3.0 BUG #12 fix: add 4 families that 29 patches use but the
+    # original map (master plan §1.1 P0.2) didn't cover. Resolved
+    # `infer_category()` → "uncategorized" warnings for 18 gemma4 + 4
+    # observability + 4 streaming + 3 offload patches.
+    "gemma4": "model_correctness",  # model-family specific compat patches
+    "observability": "observability",  # logging/metrics/tracing patches
+    "streaming": "kv_cache",  # PN200-203 streaming KV cache (per P0.2)
+    "offload": "memory",  # P104/P105/PN102 CPU/disk offload (per P0.2)
 }
 
 
