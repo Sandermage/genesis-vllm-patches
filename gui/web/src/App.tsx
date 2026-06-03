@@ -4102,6 +4102,19 @@ function ModelsWorkbench({
   }, [visible]);
   const modelPresets = presets.filter((preset) => preset.model === activeId);
   const { data: cacheReport } = useFetch((signal) => api.modelsCache(signal), []);
+  // Real transformer dims (layers / KV heads / head_dim / params / quant) — used
+  // for KV+VRAM math; surfaced here so the catalog isn't just curated metadata.
+  // calcModels keys by family ("qwen3.6-27b-int4"), the catalog by full variant;
+  // match on the "<family>-<size>" base (e.g. qwen3.6-27b, gemma-4-31b).
+  const { data: archMeta } = useFetch(() => api.calcModels(), []);
+  const arch = (() => {
+    if (!archMeta || !activeId) return null;
+    if (archMeta.models[activeId]) return archMeta.models[activeId];
+    const base = (id: string) => (id.toLowerCase().match(/^(.+?-\d+b)/)?.[1] ?? id.toLowerCase());
+    const t = base(activeId);
+    for (const [k, v] of Object.entries(archMeta.models)) if (base(k) === t) return v;
+    return null;
+  })();
   const { data: fullDef, state: defState } = useFetch(
     (signal) => api.v2Layer("model", activeId, signal),
     [activeId],
@@ -4196,6 +4209,18 @@ function ModelsWorkbench({
                         ["Validated", dval(def.last_validated)]
                       ]}
                     />
+                  </ModuleCard>
+                  <ModuleCard title="Architecture" icon={<Cpu size={18} />} desc="Real transformer dimensions — the basis for KV-cache and VRAM sizing.">
+                    {arch ? (
+                      <InfoRows rows={[
+                        ["Parameters", `${arch.params_b}B${arch.is_moe && arch.active_params_b ? ` · ${arch.active_params_b}B active (MoE)` : ""}`],
+                        ["Type", arch.is_moe ? "Mixture-of-Experts" : "Dense"],
+                        ["Layers", String(arch.num_layers)],
+                        ["KV heads", String(arch.num_kv_heads)],
+                        ["Head dim", String(arch.head_dim)],
+                        ["Weight precision", `${arch.weight_bits}-bit`]
+                      ]} />
+                    ) : <p className="muted">No architecture metadata for this model id ({activeId || "—"}).</p>}
                   </ModuleCard>
                   <ModuleCard
                     title="Local Cache"
