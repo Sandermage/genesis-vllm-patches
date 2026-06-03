@@ -324,6 +324,20 @@ function sectionFromHash(): SectionId | null {
   const raw = window.location.hash.replace(/^#\/?/, "").split("?")[0];
   return SECTION_IDS.has(raw as SectionId) ? (raw as SectionId) : null;
 }
+// Read the `?id=` record selector from the hash (e.g. `#presets?id=prod-35b`),
+// so a shared link can deep-link straight to a specific preset, not just the
+// section. Returns null when absent.
+function recordIdFromHash(): string | null {
+  if (typeof window === "undefined") return null;
+  const qIndex = window.location.hash.indexOf("?");
+  if (qIndex === -1) return null;
+  const id = new URLSearchParams(window.location.hash.slice(qIndex + 1)).get("id");
+  return id ? decodeURIComponent(id) : null;
+}
+// Compose the canonical hash for a route — section, plus an optional record id.
+function buildHash(section: SectionId, recordId?: string | null): string {
+  return recordId ? `${section}?id=${encodeURIComponent(recordId)}` : section;
+}
 
 type FetchState = "idle" | "loading" | "ready" | "error";
 
@@ -383,7 +397,7 @@ export default function App() {
   const [doctorReport, setDoctorReport] = useState<DoctorReport | null>(null);
   const [environment, setEnvironment] = useState<EnvironmentReport | null>(null);
   const [hostProfiles, setHostProfiles] = useState<HostProfile[]>([]);
-  const [selectedPreset, setSelectedPreset] = useState<string>("prod-35b-multiconc");
+  const [selectedPreset, setSelectedPreset] = useState<string>(() => recordIdFromHash() ?? "prod-35b-multiconc");
   const [explain, setExplain] = useState<PresetExplainResult | null>(null);
   const [launchPlan, setLaunchPlan] = useState<LaunchPlanResult | null>(null);
   const [recommend, setRecommend] = useState<PresetRecommendResult | null>(null);
@@ -439,7 +453,11 @@ export default function App() {
       setPatchDoctor(doctorData);
       setConfigCatalog(configCatalogData);
 
+      // A deep-link (#presets?id=…) wins over the recommendation default so a
+      // shared/bookmarked link lands on the exact preset it points at.
+      const hashId = recordIdFromHash();
       const nextPreset =
+        (hashId && presetData.presets.some((preset) => preset.id === hashId) ? hashId : null) ??
         recommendationData.results[0]?.id ??
         overviewData.catalog.default_presets[0] ??
         presetData.presets.find((preset) => preset.has_card)?.id ??
@@ -773,26 +791,43 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  // URL deep-linking: keep the location hash in sync with the active section so
-  // every view is bookmarkable/shareable and survives a page refresh. Writing
-  // the hash also pushes a history entry, which makes browser Back/Forward walk
-  // the section history (the hashchange listener below closes the loop).
+  // URL deep-linking: keep the location hash in sync with the active route
+  // (section + the selected preset on the Presets view) so every view is
+  // bookmarkable/shareable and survives a page refresh.
+  //   - a SECTION change pushes a history entry (Back returns to the prior
+  //     section), so browser Back/Forward walks the section history;
+  //   - a same-section RECORD change (clicking through presets) is written with
+  //     replaceState so it doesn't flood the Back stack with every click.
+  // The hashchange listener below closes the loop; equality guards stop the two
+  // effects from ping-ponging.
+  const routeRecordId = activeSection === "presets" ? selectedPreset : null;
   useEffect(() => {
+    const desired = buildHash(activeSection, routeRecordId);
+    const current = window.location.hash.replace(/^#\/?/, "");
+    if (current === desired) return;
     if (sectionFromHash() !== activeSection) {
-      window.location.hash = activeSection;
+      window.location.hash = desired; // section change → push
+    } else {
+      const base = `${window.location.pathname}${window.location.search}`;
+      window.history.replaceState(null, "", `${base}#${desired}`); // record change → replace
     }
-  }, [activeSection]);
+  }, [activeSection, routeRecordId]);
 
-  // Browser Back/Forward (and manual hash edits) drive the active section.
-  // Guarded by the equality check above so the two effects never ping-pong.
+  // Browser Back/Forward (and manual hash edits) drive the active section and,
+  // on the Presets view, the selected preset. Guarded against the writer above.
   useEffect(() => {
     const onHashChange = () => {
       const next = sectionFromHash();
       if (next) setActiveSection(next);
+      const rec = recordIdFromHash();
+      if (rec && next === "presets" && rec !== selectedPreset) {
+        void loadExplain(rec); // restores selection + explain payload together
+      }
     };
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPreset]);
 
   useEffect(() => {
     // Defer the initial data load until auth status is known. When auth is
