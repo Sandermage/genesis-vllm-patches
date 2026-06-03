@@ -2342,6 +2342,7 @@ function ApiTokenManager({ enabled }: { enabled: boolean }) {
   async function revoke(id: string) {
     try { await api.apiTokenRevoke(id); load(); toast("Token revoked", "success"); } catch { toast("Failed to revoke token", "error"); }
   }
+  const [confirmRevoke, setConfirmRevoke] = useState<{ id: string; label: string } | null>(null);
   const stamp = (ts: number) => new Date(ts * 1000).toLocaleDateString([], { month: "short", day: "2-digit", year: "numeric" });
   if (unavailable) {
     return <p className="muted">API token management requires authentication. Start the daemon with auth enabled (<code>SNDR_AUTH=on</code>) and sign in to mint revocable Bearer tokens.</p>;
@@ -2369,12 +2370,22 @@ function ApiTokenManager({ enabled }: { enabled: boolean }) {
                 <td><code>{token.prefix}…</code></td>
                 <td className="muted">{stamp(token.created_at)}</td>
                 <td className="muted">{token.last_used ? stamp(token.last_used) : "never"}</td>
-                <td><button className="icon-only danger" onClick={() => void revoke(token.id)} aria-label={`Revoke ${token.label}`}><Trash2 size={14} /></button></td>
+                <td><button className="icon-only danger" onClick={() => setConfirmRevoke({ id: token.id, label: token.label })} aria-label={`Revoke ${token.label}`}><Trash2 size={14} /></button></td>
               </tr>
             ))}
           </tbody>
         </table>
       ) : <p className="muted">No API tokens yet. Create one for programmatic / CI access — it authenticates as you via <code>Authorization: Bearer …</code>.</p>}
+      {confirmRevoke && (
+        <ConfirmDialog
+          title="Revoke API token?"
+          message={<>Revoking <strong>{confirmRevoke.label}</strong> immediately breaks any CI job or script that authenticates with it. This cannot be undone.</>}
+          confirmLabel="Revoke"
+          danger
+          onConfirm={() => { const id = confirmRevoke.id; setConfirmRevoke(null); void revoke(id); }}
+          onCancel={() => setConfirmRevoke(null)}
+        />
+      )}
     </div>
   );
 }
@@ -7524,6 +7535,8 @@ function HostsSection({
 }) {
   const [inventory, setInventory] = useState<HostInventory | null>(null);
   const [modal, setModal] = useState<{ profile: HostProfile | null } | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<{ id: string; label: string } | null>(null);
+  const askDelete = (id: string) => setConfirmDelete({ id, label: hostProfiles.find((h) => h.id === id)?.label ?? id });
   const [terminalHost, setTerminalHost] = useState<HostProfile | null>(null);
   useEffect(() => {
     let cancelled = false;
@@ -7552,7 +7565,7 @@ function HostsSection({
                   <div className="fleet-grid">
                     <ThisHostCard inventory={inventory} environment={environment} apiBase={apiBase} />
                     {hostProfiles.map((profile) => (
-                      <FleetHostCard key={profile.id} profile={profile} onEdit={(p) => setModal({ profile: p })} onDelete={(id) => void remove(id)} onChat={onChatWithHost} onAddServer={onAddServer} onRefresh={onHostsRefresh} onTerminal={setTerminalHost} focused={focusHostId === profile.id} onFocusConsumed={onFocusConsumed} onSetupNode={onSetupNode} onContainers={onContainers} />
+                      <FleetHostCard key={profile.id} profile={profile} onEdit={(p) => setModal({ profile: p })} onDelete={askDelete} onChat={onChatWithHost} onAddServer={onAddServer} onRefresh={onHostsRefresh} onTerminal={setTerminalHost} focused={focusHostId === profile.id} onFocusConsumed={onFocusConsumed} onSetupNode={onSetupNode} onContainers={onContainers} />
                     ))}
                   </div>
                   {hostProfiles.length === 0 && <p className="muted">No remote hosts yet — add your GPU box to probe its engine from here.</p>}
@@ -7592,7 +7605,7 @@ function HostsSection({
                     <span className="muted">{hostProfiles.length} profile{hostProfiles.length === 1 ? "" : "s"}</span>
                     <button className="primary-action" onClick={() => setModal({ profile: null })}><Server size={15} /> Add host</button>
                   </div>
-                  <HostProfileTable profiles={hostProfiles} onEdit={(p) => setModal({ profile: p })} onDelete={(id) => void remove(id)} />
+                  <HostProfileTable profiles={hostProfiles} onEdit={(p) => setModal({ profile: p })} onDelete={askDelete} />
                 </ModuleCard>
               </ModuleGrid>
             )
@@ -7624,6 +7637,16 @@ function HostsSection({
         ]}
       />
       {modal && <HostFormModal initial={modal.profile} onClose={() => setModal(null)} onSaved={onHostsRefresh} />}
+      {confirmDelete && (
+        <ConfirmDialog
+          title="Remove host profile?"
+          message={<>This deletes the saved profile <strong>{confirmDelete.label}</strong> (connection details, SSH target, stored key reference). The remote host is not touched, but the profile must be re-added to manage it from here.</>}
+          confirmLabel="Remove host"
+          danger
+          onConfirm={() => { const id = confirmDelete.id; setConfirmDelete(null); void remove(id); }}
+          onCancel={() => setConfirmDelete(null)}
+        />
+      )}
       {terminalHost && <Suspense fallback={null}><TerminalModal host={terminalHost} onClose={() => setTerminalHost(null)} /></Suspense>}
     </>
   );
@@ -9997,6 +10020,42 @@ function EndpointRows({ host }: { host: string }) {
           </div>
         </label>
       ))}
+    </div>
+  );
+}
+
+// Reusable confirmation dialog for destructive/irreversible actions. Focus is
+// trapped, Cancel is the autofocused default, Esc/backdrop cancel, and the
+// confirm button can be styled as danger. Keeps destructive paths deliberate.
+function ConfirmDialog({ title, message, confirmLabel = "Confirm", danger, onConfirm, onCancel }: {
+  title: string;
+  message: ReactNode;
+  confirmLabel?: string;
+  danger?: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const dialogRef = useRef<HTMLElement>(null);
+  useDialogFocus(dialogRef);
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") onCancel(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onCancel]);
+  return (
+    <div className="dialog-backdrop" role="presentation" onClick={onCancel}>
+      <section ref={dialogRef} className="info-dialog confirm-dialog" role="dialog" aria-modal="true" aria-label={title} onClick={(event) => event.stopPropagation()}>
+        <div className="module-card-title">
+          <AlertTriangle size={18} />
+          <h2>{title}</h2>
+        </div>
+        <p>{message}</p>
+        <div className="confirm-actions">
+          {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
+          <button className="ghost-button" onClick={onCancel} autoFocus>Cancel</button>
+          <button className={`primary-action${danger ? " danger" : ""}`} onClick={onConfirm}>{confirmLabel}</button>
+        </div>
+      </section>
     </div>
   );
 }
