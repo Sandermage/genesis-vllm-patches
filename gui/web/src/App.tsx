@@ -5237,7 +5237,7 @@ function ConfigElementEditor({ catalog }: { catalog: V2ConfigCatalog | null }) {
             ))}
           </div>
         ) : (
-          <p className="muted">Loading definition…</p>
+          <div className="skel-grid"><Skeleton variant="line" count={6} /></div>
         )}
         {applyResult && (
           <div className={`element-apply ${applyResult.status}`}>
@@ -9695,7 +9695,7 @@ function BundlesPanel({ bundles }: { bundles: BundleSpec[] }) {
 
 function UpstreamDiffPanel({ report }: { report: DiffUpstreamReport | null }) {
   if (!report) {
-    return <p className="muted">Loading upstream relationship data…</p>;
+    return <div className="skel-grid"><Skeleton variant="line" count={5} /></div>;
   }
   const active = report.has_upstream_pr;
   return (
@@ -9739,7 +9739,7 @@ function UpstreamDiffPanel({ report }: { report: DiffUpstreamReport | null }) {
 
 function ProofStatusPanel({ report }: { report: ProofStatusReport | null }) {
   if (!report) {
-    return <p className="muted">Loading proof artifact status…</p>;
+    return <div className="skel-grid"><Skeleton variant="line" count={5} /></div>;
   }
   if (!report.available) {
     return (
