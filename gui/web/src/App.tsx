@@ -8199,6 +8199,7 @@ function PresetCatalogTable({
   onEdit?: (id: string) => void;
 }) {
   const [statusFilter, setStatusFilter] = useState("all");
+  const [benchFilter, setBenchFilter] = useState<"all" | "proven" | "pending">("all");
   const [sortKey, setSortKey] = useState<"id" | "model" | "status" | "baseline">("id");
   const [sortDir, setSortDir] = useState<1 | -1>(1);
 
@@ -8213,8 +8214,10 @@ function PresetCatalogTable({
     return acc;
   }, {});
 
+  const provenCount = presets.filter((preset) => baselineOf(preset) > 0).length;
   const rows = presets
     .filter((preset) => statusFilter === "all" || statusOf(preset) === statusFilter)
+    .filter((preset) => benchFilter === "all" || (benchFilter === "proven") === (baselineOf(preset) > 0))
     .sort((a, b) => {
       if (sortKey === "baseline") return (baselineOf(a) - baselineOf(b)) * sortDir;
       const va = sortKey === "status" ? statusOf(a) : String(a[sortKey] ?? "");
@@ -8240,6 +8243,11 @@ function PresetCatalogTable({
             {status.replace(/_/g, " ")} <em>{counts[status]}</em>
           </button>
         ))}
+        <span className="filter-chips-sep" aria-hidden="true" />
+        <span className="filter-chips-label">Baseline</span>
+        <button className={benchFilter === "all" ? "active" : ""} onClick={() => setBenchFilter("all")}>any <em>{presets.length}</em></button>
+        <button className={benchFilter === "proven" ? "active" : ""} onClick={() => setBenchFilter("proven")}>bench-proven <em>{provenCount}</em></button>
+        <button className={benchFilter === "pending" ? "active" : ""} onClick={() => setBenchFilter("pending")}>pending <em>{presets.length - provenCount}</em></button>
       </div>
       <div className="catalog-scroll">
         <table className="module-table">
@@ -8286,16 +8294,19 @@ function PresetCatalogTable({
                 </td>
               </tr>
             ))}
-            {rows.length === 0 && (
+            {rows.length === 0 && (() => {
+              const filtered = statusFilter !== "all" || benchFilter !== "all";
+              return (
               <tr><td colSpan={7}>
                 <EmptyState
                   icon={<Database size={22} />}
                   title="No presets for this filter"
-                  message={statusFilter === "all" ? "The preset catalog is empty." : <>No presets with status “{statusFilter.replace(/_/g, " ")}”.</>}
-                  action={statusFilter === "all" ? undefined : { label: "Show all presets", icon: <X size={14} />, onClick: () => setStatusFilter("all") }}
+                  message={filtered ? "No presets match the active filters." : "The preset catalog is empty."}
+                  action={filtered ? { label: "Clear filters", icon: <X size={14} />, onClick: () => { setStatusFilter("all"); setBenchFilter("all"); } } : undefined}
                 />
               </td></tr>
-            )}
+              );
+            })()}
           </tbody>
         </table>
       </div>
