@@ -26,6 +26,13 @@ from typing import Any, Optional
 
 from .registry import PATCH_REGISTRY  # noqa: F401 (re-exported)
 
+# v11.3.0 hot-path optimization: hoist per-decision imports to module
+# level. should_apply() is called for every patch at boot AND from
+# inside many patch apply()/runtime hooks. Cumulative ~200+ patches ×
+# 4 processes × per-call attr-lookup = ~10ms saved at boot.
+from vllm.sndr_core.env import is_disabled as _env_is_disabled
+from vllm.sndr_core.env import is_enabled as _env_is_enabled
+
 log = logging.getLogger("genesis.dispatcher")
 
 
@@ -220,11 +227,9 @@ def _resolve_env_state(
             bare_flag = bare_flag[len(_prefix):]
             break
 
-    from vllm.sndr_core.env import is_disabled as _is_disabled
-    from vllm.sndr_core.env import is_enabled as _is_enabled
-
-    env_truthy = _is_enabled(bare_flag)
-    env_disabled = _is_disabled(bare_flag)
+    # v11.3.0: use module-level imports (was per-call).
+    env_truthy = _env_is_enabled(bare_flag)
+    env_disabled = _env_is_disabled(bare_flag)
     return env_truthy, env_disabled, bare_flag, env_flag
 
 
