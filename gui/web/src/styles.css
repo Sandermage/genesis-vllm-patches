@@ -3977,3 +3977,7 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 .kv-footprint-rows > div { display: flex; align-items: baseline; gap: 8px; }
 .kv-footprint-rows span { font-family: var(--mono); font-size: 11px; min-width: 34px; color: var(--accent-text); }
 .kv-footprint-rows b { color: var(--text); font-variant-numeric: tabular-nums; }
+
+/* config composition conflict warning */
+.comp-conflict { display: flex; align-items: flex-start; gap: 6px; font-size: 12.5px; color: var(--warn); background: var(--warn-soft); border: 1px solid color-mix(in srgb, var(--warn) 30%, var(--border)); border-radius: var(--r-sm); padding: 8px 11px; margin-bottom: var(--sp-3); line-height: 1.5; }
+.comp-conflict code { font-family: var(--mono); font-size: 11px; color: var(--text); }

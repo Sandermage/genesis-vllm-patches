@@ -5318,6 +5318,11 @@ function V2ConfigWorkbench({
               <ModuleGrid>
                 <ModuleCard title="Layer Inspector" icon={<SlidersHorizontal size={18} />} desc="A preset is composed from three layers — model + hardware + profile — resolved to one runtime config." wide>
                   <CompositionChain model={selectedModel} hardware={selectedHardware} profile={selectedProfile} composed={preview?.composed ?? {}} />
+                  {selectedProfile?.parent_model && modelId && selectedProfile.parent_model !== modelId && (
+                    <div className="comp-conflict">
+                      <AlertTriangle size={13} /> Profile <code>{selectedProfile.id}</code> targets model <code>{selectedProfile.parent_model}</code>, but the composer has <code>{modelId}</code> — sizing/patches from this profile may not apply cleanly.
+                    </div>
+                  )}
                   <ResolvedConfig composed={preview?.composed ?? {}} />
                   <div className="config-layers-row">
                     <ConfigItemInspector title="Model" item={selectedModel} />
