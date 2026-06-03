@@ -1038,7 +1038,18 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {
             "spec_method": ["dflash", "mtp"],  # C+D universal across both
         },
-        "apply_module": "vllm.sndr_core.integrations.spec_decode.pn40_workload_classifier_hook",
+        # v11.3.0 BUG #8 fix: PN40 spec apply_module is now the canonical
+        # omnibus orchestrator (`pn40_dflash_omnibus`). The omnibus wires
+        # sub-A K-norm Triton kernel + sub-B persistent K/V pool + sub-C
+        # adaptive K/N controller + sub-D classifier_hook (called
+        # internally at line 381-382). Previously incorrectly pointed at
+        # sub-D classifier_hook only, which on v12.0.0 spec-mode flip
+        # would drop sub-A/B/C — silent regression of K-norm fusion and
+        # adaptive K/N control. The standalone `PN40-classifier` spec
+        # entry stays for callers wanting classifier-only activation
+        # (sub-D's apply is idempotent via marker — safe if omnibus
+        # already ran).
+        "apply_module": "vllm.sndr_core.integrations.spec_decode.pn40_dflash_omnibus",
         "lifecycle": "experimental",
         "implementation_status": "full",
     },
