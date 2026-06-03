@@ -228,6 +228,30 @@
     "apply_module": "vllm.sndr_core.integrations.attention.gdn.pn79_inplace_ssm_state"
   },
   {
+    "patch_id": "PN79_V2_MD5_CHUNK",
+    "family": "attention.gdn",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "GENESIS_ENABLE_PN79_V2_MD5_CHUNK",
+    "has_upstream_pr": true,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "vllm.sndr_core.integrations.attention.gdn.pn79_v2_md5_chunk"
+  },
+  {
+    "patch_id": "PN79_V2_MD5_CHUNK_DELTA_H",
+    "family": "attention.gdn",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "GENESIS_ENABLE_PN79_V2_MD5_CHUNK_DELTA_H",
+    "has_upstream_pr": true,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "vllm.sndr_core.integrations.attention.gdn.pn79_v2_md5_chunk_delta_h"
+  },
+  {
     "patch_id": "PN78",
     "family": "memory",
     "lifecycle": "retired",
@@ -1498,6 +1522,30 @@
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
     "apply_module": "vllm.sndr_core.integrations.attention.turboquant.pn118_tq_workspace_fallback"
+  },
+  {
+    "patch_id": "PN118_V2_MD5_WORKSPACE",
+    "family": "attention.turboquant",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "GENESIS_ENABLE_PN118_V2_MD5_WORKSPACE",
+    "has_upstream_pr": true,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "vllm.sndr_core.integrations.attention.turboquant.pn118_v2_md5_workspace"
+  },
+  {
+    "patch_id": "PN118_V2_MD5_TURBOQUANT_ATTN",
+    "family": "attention.turboquant",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "GENESIS_ENABLE_PN118_V2_MD5_TURBOQUANT_ATTN",
+    "has_upstream_pr": true,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "vllm.sndr_core.integrations.attention.turboquant.pn118_v2_md5_turboquant_attn"
   },
   {
     "patch_id": "PN119",

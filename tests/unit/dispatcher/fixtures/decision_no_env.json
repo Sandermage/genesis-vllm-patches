@@ -95,6 +95,16 @@
     "reason": "strict opt-in — set GENESIS_ENABLE_PN79_INPLACE_SSM_STATE=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
   },
   {
+    "patch_id": "PN79_V2_MD5_CHUNK",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_PN79_V2_MD5_CHUNK=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
+    "patch_id": "PN79_V2_MD5_CHUNK_DELTA_H",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_PN79_V2_MD5_CHUNK_DELTA_H=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
     "patch_id": "PN78",
     "applied": false,
     "reason": "strict opt-in — set GENESIS_ENABLE_PN78_POST_WARMUP_CACHE_RELEASE=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
@@ -623,6 +633,16 @@
     "patch_id": "PN118",
     "applied": false,
     "reason": "strict opt-in: patch has default_on=True (informational) but env_flag=GENESIS_ENABLE_PN118 unset. Add GENESIS_ENABLE_PN118=1 to launch config to engage. Set GENESIS_LEGACY_DEFAULT_ON=1 to revert to pre-2026-05-17 auto-apply semantics."
+  },
+  {
+    "patch_id": "PN118_V2_MD5_WORKSPACE",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_PN118_V2_MD5_WORKSPACE=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
+    "patch_id": "PN118_V2_MD5_TURBOQUANT_ATTN",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_PN118_V2_MD5_TURBOQUANT_ATTN=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
   },
   {
     "patch_id": "PN119",

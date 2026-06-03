@@ -132,6 +132,22 @@
     "wrapped_name": "apply_patch_n118_tq_workspace_fallback"
   },
   {
+    "name": "PN118_V2_MD5_WORKSPACE md5+full-file PoC (PN119 ref pattern, workspace.py scope)",
+    "wrapped_name": "apply_patch_n118_v2_md5_workspace"
+  },
+  {
+    "name": "PN118_V2_MD5_TURBOQUANT_ATTN md5+full-file PoC (PN119 ref pattern, turboquant_attn.py scope)",
+    "wrapped_name": "apply_patch_n118_v2_md5_turboquant_attn"
+  },
+  {
+    "name": "PN79_V2_MD5_CHUNK md5+full-file PoC (PN119 ref pattern, chunk.py scope)",
+    "wrapped_name": "apply_patch_n79_v2_md5_chunk"
+  },
+  {
+    "name": "PN79_V2_MD5_CHUNK_DELTA_H md5+full-file PoC (PN119 ref pattern, chunk_delta_h.py scope)",
+    "wrapped_name": "apply_patch_n79_v2_md5_chunk_delta_h"
+  },
+  {
     "name": "PN119 TurboQuant k8v4 GQA head grouping kernel (backport: vllm#40792)",
     "wrapped_name": "apply_patch_n119_tq_gqa_grouping"
   },
