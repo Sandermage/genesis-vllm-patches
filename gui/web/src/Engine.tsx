@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { ArrowRight, Bot, BookText, ChevronDown, CircleAlert, Copy, Database, Download, Heart, Loader2, Pencil, Plus, RefreshCw, Search, Send, SlidersHorizontal, Sparkles, Square, TimerReset, Trash2, User, X, Zap } from "lucide-react";
 import type { ReactNode } from "react";
 import { EngineBenchResult, EngineChatResult, EngineMetrics, EngineStatus, HubModel, Job, ModelCacheReport, RagDoc, api } from "./api";
+import { SkeletonMetrics } from "./Skeleton";
 
 function fmtCount(n: number | null): string {
   if (n === null || n === undefined) return "—";
@@ -111,7 +112,7 @@ function TrendRow({ label, values, unit, color }: { label: string; values: Array
 export function EngineMetricsPanel({ host }: { host?: string }) {
   const { data, loading, reload } = usePoll<EngineMetrics>(() => api.engineMetrics(host), 3000);
   if (loading && !data) {
-    return <p className="muted"><Loader2 size={14} className="spin" /> Reading engine metrics…</p>;
+    return <SkeletonMetrics count={6} />;
   }
   if (!data?.reachable) {
     return (

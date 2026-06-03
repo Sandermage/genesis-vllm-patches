@@ -73,6 +73,7 @@ import {
 import { Component, Fragment, Suspense, lazy, useEffect, useMemo, useRef, useState, type ReactNode, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { sectionFromHash, recordIdFromHash, buildHash, replaceHash } from "./route";
 import { useDialogFocus, useEscapeKey } from "./dialog";
+import { Skeleton, SkeletonMetrics, SkeletonLines, SkeletonCards, SkeletonTable } from "./Skeleton";
 import {
   AlertConfig,
   BundleSpec,
@@ -1619,7 +1620,7 @@ export default function App() {
         />
           </section>
         ) : (
-          <Suspense fallback={<div className="skel-grid cards"><Skeleton variant="card" count={6} /></div>}>
+          <Suspense fallback={<SkeletonCards count={6} />}>
           <SectionWorkspace
             sectionId={activeSection}
             overview={overview}
@@ -2405,7 +2406,7 @@ function NotificationSettings() {
     finally { setBusy(false); }
   }
 
-  if (!cfg) return <div className="notif-loading"><Loader2 size={16} className="spin" /> Loading…</div>;
+  if (!cfg) return <SkeletonLines count={4} />;
   return (
     <div className="notif">
       <div className="notif-grid">
@@ -2939,7 +2940,7 @@ function SectionWorkspace({
       {sectionId === "containers" && (
         <ModuleGrid>
           <ModuleCard title="Containers" icon={<Boxes size={18} />} desc="Manage the vLLM/engine containers on a server — list, live CPU/memory, logs, start/stop/restart, and (when SNDR_ENABLE_EXEC is on) exec inside. Pick the local daemon's host (docker socket) or a registered host (over SSH). Scoped to engine containers only." wide>
-            <Suspense fallback={<div className="skel-grid cards"><Skeleton variant="card" count={6} /></div>}>
+            <Suspense fallback={<SkeletonCards count={6} />}>
               <ContainersPanel hosts={hostProfiles.map((h) => ({ id: h.id, label: h.label }))} onNavigate={(section) => onSection(section as SectionId)} initialHostId={focusHostId ?? undefined} />
             </Suspense>
           </ModuleCard>
@@ -5237,7 +5238,7 @@ function ConfigElementEditor({ catalog }: { catalog: V2ConfigCatalog | null }) {
             ))}
           </div>
         ) : (
-          <div className="skel-grid"><Skeleton variant="line" count={6} /></div>
+          <SkeletonLines count={6} />
         )}
         {applyResult && (
           <div className={`element-apply ${applyResult.status}`}>
@@ -7182,7 +7183,7 @@ function HostInventoryPanel({ inventory, environment }: { inventory: HostInvento
 const CRITICAL_LIBS = ["vllm", "torch", "transformers"];
 
 function DependencyStackPanel({ env }: { env: EnvironmentReport | null }) {
-  if (!env) return <div className="skel-grid"><Skeleton variant="line" count={5} /></div>;
+  if (!env) return <SkeletonLines count={5} />;
   const libsPresent = env.dependencies.filter((dep) => dep.present).length;
   const toolsPresent = env.tools.filter((tool) => tool.present).length;
   const criticalDeps = CRITICAL_LIBS
@@ -7240,28 +7241,6 @@ function DependencyStackPanel({ env }: { env: EnvironmentReport | null }) {
           ? "Serving-critical libraries present — this host can run the engine."
           : `Missing ${missing.length ? missing.join(", ") : "dependencies"} — install the pinned build before serving here.`}</span>
       </div>
-    </div>
-  );
-}
-
-// Reusable skeleton placeholder — a shimmering, content-shaped block shown
-// while data is in flight. `count` repeats the block; `variant` picks the size.
-function Skeleton({ variant = "line", count = 1, className = "" }: { variant?: "line" | "metric" | "card"; count?: number; className?: string }) {
-  const cls = variant === "metric" ? "skel-metric" : variant === "card" ? "skel-card" : "skel-line";
-  return (
-    <>
-      {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className={`skeleton ${cls} ${className}`.trim()} aria-hidden="true" />
-      ))}
-    </>
-  );
-}
-// A responsive grid of metric-sized skeletons — the canonical "catalog is
-// loading" placeholder used wherever a metric/tile strip is awaited.
-function SkeletonMetrics({ count = 4 }: { count?: number }) {
-  return (
-    <div className="skel-grid metrics" role="status" aria-label="Loading…">
-      <Skeleton variant="metric" count={count} />
     </div>
   );
 }
@@ -8040,7 +8019,7 @@ function OperationsConsole({ onMonitor }: { onMonitor: (id: string) => void }) {
     }
   }
 
-  if (!data) return <ModuleGrid><ModuleCard title="Operations" icon={<Terminal size={18} />} wide><p className="muted">{error ?? "Loading operations…"}</p></ModuleCard></ModuleGrid>;
+  if (!data) return <ModuleGrid><ModuleCard title="Operations" icon={<Terminal size={18} />} wide>{error ? <p className="muted">{error}</p> : <SkeletonCards count={4} />}</ModuleCard></ModuleGrid>;
 
   const groups: string[] = [];
   data.operations.forEach((op) => { if (!groups.includes(op.group)) groups.push(op.group); });
@@ -9100,7 +9079,7 @@ function DeploymentConsole({
             ]}
           />
         ) : (
-          <p className="muted">{loading ? "Resolving preset…" : "Select a preset to resolve launch parameters."}</p>
+          loading ? <SkeletonLines count={5} /> : <p className="muted">Select a preset to resolve launch parameters.</p>
         )}
       </ModuleCard>
 
@@ -9208,7 +9187,7 @@ function DeploymentConsole({
             <CodeBlock lines={plan.commands} />
           </>
         ) : (
-          <p className="muted">{loading ? "Rendering artifact…" : "Select a preset and target to render the deployment artifact."}</p>
+          loading ? <SkeletonLines count={5} /> : <p className="muted">Select a preset and target to render the deployment artifact.</p>
         )}
       </ModuleCard>
     </ModuleGrid>
@@ -9713,7 +9692,7 @@ function BundlesPanel({ bundles }: { bundles: BundleSpec[] }) {
 
 function UpstreamDiffPanel({ report }: { report: DiffUpstreamReport | null }) {
   if (!report) {
-    return <div className="skel-grid"><Skeleton variant="line" count={5} /></div>;
+    return <SkeletonLines count={5} />;
   }
   const active = report.has_upstream_pr;
   return (
@@ -9757,7 +9736,7 @@ function UpstreamDiffPanel({ report }: { report: DiffUpstreamReport | null }) {
 
 function ProofStatusPanel({ report }: { report: ProofStatusReport | null }) {
   if (!report) {
-    return <div className="skel-grid"><Skeleton variant="line" count={5} /></div>;
+    return <SkeletonLines count={5} />;
   }
   if (!report.available) {
     return (
@@ -10104,7 +10083,7 @@ function AuditLogPanel() {
   const rows = events.filter((event) => !filter || `${event.kind} ${event.message}`.toLowerCase().includes(filter.toLowerCase()));
   const stamp = (ts: number) => new Date(ts * 1000).toLocaleString([], { month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" });
   const tone = (kind: string) => kind === "auth" ? "warn" : kind.startsWith("op") || kind === "job" ? "info" : "muted";
-  if (state === "loading") return <div className="skel-grid"><Skeleton variant="line" count={8} /></div>;
+  if (state === "loading") return <SkeletonTable rows={6} cols={4} />;
   return (
     <div className="audit-log">
       <div className="audit-bar">
@@ -10652,7 +10631,7 @@ function JobsTable({ onMonitor }: { onMonitor?: (id: string) => void }) {
     return () => { cancelled = true; clearInterval(timer); };
   }, []);
 
-  if (state === "loading") return <div className="skel-grid"><Skeleton variant="line" count={6} /></div>;
+  if (state === "loading") return <SkeletonTable rows={5} cols={6} />;
   if (jobs.length === 0) {
     return (
       <p className="muted">

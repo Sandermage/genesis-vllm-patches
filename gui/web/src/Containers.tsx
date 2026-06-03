@@ -13,6 +13,7 @@ import {
 } from "./api";
 import { hashParam, buildHash, replaceHash } from "./route";
 import { useDialogFocus, useEscapeKey } from "./dialog";
+import { SkeletonLines, SkeletonCards } from "./Skeleton";
 
 type HostOption = { id: string; label: string };
 type NavFn = (section: string) => void;
@@ -339,7 +340,7 @@ export function ContainersPanel({ hosts, onNavigate, initialHostId }: { hosts: H
       )}
 
       {err && <div className="containers-err"><AlertTriangle size={14} /> {err}</div>}
-      {loading && items === null && <div className="containers-loading"><Loader2 size={18} className="spin" /> Querying containers…</div>}
+      {loading && items === null && <SkeletonCards count={6} />}
       {items !== null && view.length === 0 && !err && (
         <div className="containers-empty"><Boxes size={22} /><strong>{items.length === 0 ? "No managed containers" : "Nothing matches the filter"}</strong>
           <span>Only vLLM/engine containers (<code>vllm*</code> / <code>sndr-daemon</code> or label <code>sndr.managed=true</code>).</span></div>
@@ -1213,6 +1214,8 @@ function AlertsModal({ onClose }: { onClose: () => void }) {
 }
 
 // ─── small shared bits ────────────────────────────────────────────────
-function Loading({ label = "Loading…" }: { label?: string }) { return <div className="containers-loading"><Loader2 size={16} className="spin" /> {label}</div>; }
+// Content placeholder for in-flight detail panels (inspect, files, stats, …).
+// Renders shimmer lines instead of a spinner so the panel holds its layout.
+function Loading(_props: { label?: string }) { return <SkeletonLines count={4} />; }
 function NotRunning() { return <div className="containers-empty"><Activity size={20} /><strong>Container not running</strong><span>Start it to see live data.</span></div>; }
 function ErrBox({ msg }: { msg: string }) { return <div className="containers-err"><AlertTriangle size={13} /> {msg}</div>; }

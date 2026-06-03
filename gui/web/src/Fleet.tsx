@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, Box, ChevronRight, Cpu, Link2, Loader2, RefreshCw, Server, ShieldCheck } from "lucide-react";
 import { api, type FleetHost } from "./api";
+import { SkeletonCards } from "./Skeleton";
 
 type Status = "online" | "partial" | "offline";
 
@@ -61,7 +62,7 @@ export function FleetPanel({ onOpenHost }: { onOpenHost: (id: string) => void })
           <span>Add a GPU server in <b>Hosts</b> — it shows up here with its live state.</span></div>
       )}
 
-      {loading && hosts === null && <div className="fleet-loading"><Loader2 size={18} className="spin" /> Sweeping the fleet over SSH…</div>}
+      {loading && hosts === null && <SkeletonCards count={4} />}
 
       <div className="fleet-overview-grid">
         {(hosts || []).map((h) => {
