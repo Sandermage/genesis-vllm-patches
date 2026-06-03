@@ -154,6 +154,38 @@ under `require-static` even on hardened deploys.
 > See Phase 6.D operator deferral note in commit `297e09f7` for the original
 > rationale.
 
+> **Update** (2026-06-03): partial re-derivation completed against the active
+> `prod-gemma4-31b-tq-mtp-structured-k4` container on pin
+> `0.21.1rc1.dev354+g626fa9bba` (registry 240 entries, production_subset 152):
+>
+> | Bucket | Before bench-attach | After bench-attach |
+> |---|---:|---:|
+> | dead (no proof) | 152 (100%) | 115 (75.7%) |
+> | static_only (proof, no bench) | 0 (0%) | 37 (24.3%) |
+> | bench_with_baseline | 0 (0%) | 0 (0%) |
+>
+> Workflow performed: `bench_multiturn_tps`-derived bench JSON attached via
+> `sndr patches bench-attach G4_NN .../gemma_prod.json` to each of the 37
+> active `G4_*` patches in the production-subset. Bench-attach without
+> `--baseline` populates the bench_delta block with timestamp + measured
+> headline metrics, but *_pct deltas remain null — these patches are now
+> in `static_only` bucket (proof + bench timestamp but no comparison
+> baseline). To promote to `bench_with_baseline`, the bench needs a
+> baseline JSON (run with K_001=OFF for example, then attach with
+> `--baseline /path/to/baseline.json`).
+>
+> The remaining 115 patches are in `dead` because the Gemma preset's
+> active env doesn't enable them (the production-subset includes ALL
+> patches enabled by ANY prod-* preset, not just the currently-running
+> one). Promoting them requires booting each of the other 15 prod-*
+> presets in turn and running the same attach workflow.
+>
+> Trend direction (most patches are `static_only` or `dead`, very few in
+> `bench_with_baseline`) holds. Path to enterprise-grade gating:
+> automate the per-preset boot + bench + attach cycle as a CI workflow.
+> See `tools/bench_multiturn_tps.py` for the reusable measurement harness
+> + `scripts/attach_bench_proof.py` (legacy) for the attach helper.
+
 ### Current attachment state (2026-05-22)
 
 After running the workflow below against the `prod-qwen3.6-27b-dflash-multiconc`

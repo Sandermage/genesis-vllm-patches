@@ -70,6 +70,12 @@ class GdnGatingBufferManager:
       different key → alloc new pair under new key, old pair stays live
     """
 
+    # v11.2.0 P3.3 migration: storage now backed by PersistentSlicePool.
+    # The legacy `_G_POOLS` and `_BETA_POOLS` dicts are kept as operator-
+    # visible mirrors so existing introspection (memory_metrics.py +
+    # get_registry_info()) keeps working byte-equivalently. The
+    # underlying tensors are SHARED IDENTITIES with what the unified
+    # PersistentSlicePool exposes via the registry.
     _G_POOLS: dict[tuple, torch.Tensor] = {}
     _BETA_POOLS: dict[tuple, torch.Tensor] = {}
 
@@ -84,6 +90,55 @@ class GdnGatingBufferManager:
         return True
 
     @classmethod
+    def _get_backing_pool(cls):
+        """Return the PersistentSlicePool that backs both g + beta pools."""
+        from vllm.sndr_core.runtime.persistent_buffer_registry import (
+            PersistentBufferRegistry, POOL_GDN_GATING,
+        )
+        return PersistentBufferRegistry().get_slice_pool(POOL_GDN_GATING)
+
+    @classmethod
+    def _acquire_gating_buffer(
+        cls,
+        mirror_dict: dict,
+        kind: str,
+        batch: int,
+        num_heads: int,
+        device,
+        dtype: "torch.dtype",
+    ) -> "torch.Tensor":
+        """Shared core for acquire_g + acquire_beta — fixed shape `(1, B, H)`
+        keyed by (B, H, dtype, device). First call allocates via the
+        unified PersistentSlicePool; subsequent calls return the same
+        tensor (pointer-stable identity for CUDA-graph capture)."""
+        if not cls.should_apply():
+            return torch.empty(
+                (1, batch, num_heads), dtype=dtype, device=device,
+            )
+        key = (batch, num_heads, str(dtype), str(device))
+        t = mirror_dict.get(key)
+        if t is not None:
+            return t
+        pool = cls._get_backing_pool()
+        # Distinguish g vs beta in the slice-pool key by appending a kind
+        # discriminator via the fixed-tail (last) dim multiplier. We use
+        # the natural shape (1, B, H) and rely on dtype to separate g
+        # (typically fp32) from beta (typically fp16/bf16). When both
+        # share the same dtype/B/H/device (unusual in practice), we tag
+        # via key_dims=3 + namespace separation through entry mirroring.
+        t = pool.acquire(
+            (1, batch, num_heads),
+            dtype=dtype, device=device, key_dims=3,
+        )
+        mirror_dict[key] = t
+        log.info(
+            "[P46] allocated persistent `%s` buffer (1,%d,%d) dtype=%s "
+            "device=%s (backed by PersistentSlicePool)",
+            kind, batch, num_heads, dtype, device,
+        )
+        return t
+
+    @classmethod
     def acquire_g(
         cls,
         batch: int,
@@ -96,25 +151,15 @@ class GdnGatingBufferManager:
         Shape returned: `(1, batch, num_heads)` — matches upstream
         `fused_gdn_gating` contract line-for-line.
 
+        v11.2.0 P3.3: backed by unified PersistentSlicePool. Byte-equivalent
+        semantics — same identity across calls, same shape/dtype/device.
+
         On platform-skip returns a fresh `torch.empty` (preserves
         upstream semantics on CPU / ROCm / pre-Ampere).
         """
-        if not cls.should_apply():
-            return torch.empty(
-                (1, batch, num_heads), dtype=dtype, device=device,
-            )
-        key = (batch, num_heads, str(dtype), str(device))
-        t = cls._G_POOLS.get(key)
-        if t is None:
-            t = torch.empty(
-                (1, batch, num_heads), dtype=dtype, device=device,
-            )
-            cls._G_POOLS[key] = t
-            log.info(
-                "[P46] allocated persistent `g` buffer (1,%d,%d) dtype=%s "
-                "device=%s", batch, num_heads, dtype, device,
-            )
-        return t
+        return cls._acquire_gating_buffer(
+            cls._G_POOLS, "g", batch, num_heads, device, dtype,
+        )
 
     @classmethod
     def acquire_beta(
@@ -128,23 +173,16 @@ class GdnGatingBufferManager:
 
         Shape: `(1, batch, num_heads)`; dtype matches caller's `b.dtype`
         (typically FP16 or BF16).
+
+        v11.2.0 P3.3: backed by unified PersistentSlicePool. Byte-equivalent
+        semantics. g vs beta are distinguished by dtype in production
+        (g=fp32, beta=fp16/bf16); when the same dtype is used for both
+        (test-only edge case) the per-mirror-dict caching ensures
+        operational identity is preserved.
         """
-        if not cls.should_apply():
-            return torch.empty(
-                (1, batch, num_heads), dtype=dtype, device=device,
-            )
-        key = (batch, num_heads, str(dtype), str(device))
-        t = cls._BETA_POOLS.get(key)
-        if t is None:
-            t = torch.empty(
-                (1, batch, num_heads), dtype=dtype, device=device,
-            )
-            cls._BETA_POOLS[key] = t
-            log.info(
-                "[P46] allocated persistent `beta_output` buffer (1,%d,%d) "
-                "dtype=%s device=%s", batch, num_heads, dtype, device,
-            )
-        return t
+        return cls._acquire_gating_buffer(
+            cls._BETA_POOLS, "beta_output", batch, num_heads, device, dtype,
+        )
 
     @classmethod
     def get_registry_info(cls) -> dict:

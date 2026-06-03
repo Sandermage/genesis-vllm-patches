@@ -126,8 +126,18 @@ class FFNIntermediateCache:
     """
 
     # Maps (intermediate_size, dtype, device, dtype_byte_size) → tensor
-    # Public for testing — tests reset between cases.
+    # Public for testing — tests reset between cases. v11.2.0+: kept as
+    # operator-visible cache mirror; ACTUAL storage is now backed by
+    # PersistentBufferRegistry's PersistentSlicePool (see
+    # _get_backing_pool()). This dict is updated in-step so existing
+    # introspection helpers (total_pooled_bytes / num_pools / direct
+    # access in unit tests) keep working byte-equivalently.
     _BUFFER_REGISTRY: dict[tuple[int, torch.dtype, torch.device], torch.Tensor] = {}
+
+    # v11.2.0 P3.3 migration marker — set to True after first acquire to
+    # indicate the unified pool is engaged. Operators can query via
+    # `sndr patches show buffer_registry`.
+    _BACKED_BY_REGISTRY: bool = False
 
     # ──────────────────────────────────────────────────────────────────
     # Platform / env gate
@@ -153,6 +163,29 @@ class FFNIntermediateCache:
     # ──────────────────────────────────────────────────────────────────
 
     @classmethod
+    def _get_backing_pool(cls):
+        """Return the PersistentSlicePool that backs this cache.
+
+        v11.2.0 P3.3 migration: the cache now stores its tensors in the
+        process-wide PersistentBufferRegistry under
+        `POOL_FFN_INTERMEDIATE_SCRATCH`. This unifies operator visibility
+        (`sndr patches show buffer_registry`) and centralizes the grow +
+        slice semantics in a single tested implementation
+        (`PersistentSlicePool`).
+
+        Byte-equivalence is preserved: the slice-on-acquire semantics
+        match the legacy `cached[:num_tokens]` pattern exactly, and the
+        `torch.empty()` allocation paths are identical (same shape,
+        dtype, device — same allocator behaviour).
+        """
+        from vllm.sndr_core.runtime.persistent_buffer_registry import (
+            PersistentBufferRegistry, POOL_FFN_INTERMEDIATE_SCRATCH,
+        )
+        return PersistentBufferRegistry().get_slice_pool(
+            POOL_FFN_INTERMEDIATE_SCRATCH
+        )
+
+    @classmethod
     def acquire_silu_out(
         cls,
         num_tokens: int,
@@ -165,6 +198,10 @@ class FFNIntermediateCache:
         Caller writes the silu_and_mul output IN PLACE into the returned
         slice. The slice is a view — no new allocation when the requested
         num_tokens fits in the cached buffer.
+
+        v11.2.0 P3.3: storage is now backed by PersistentSlicePool via
+        PersistentBufferRegistry. The legacy `_BUFFER_REGISTRY` dict is
+        kept in sync so introspection helpers + tests work unchanged.
 
         Args:
             num_tokens: rows in the output (M).
@@ -188,15 +225,40 @@ class FFNIntermediateCache:
             )
 
         key = (intermediate_size, dtype, device)
-        cached = cls._BUFFER_REGISTRY.get(key)
+        pool = cls._get_backing_pool()
 
-        if cached is None:
-            # First allocation for this key — size to requested num_tokens.
-            buf = torch.empty(
-                (num_tokens, intermediate_size),
-                dtype=dtype, device=device,
+        # Identify whether this acquire will allocate or grow before the
+        # call so we can log at the appropriate level + maintain the
+        # operator-visible mirror dict.
+        prev_pool_tensor = cls._BUFFER_REGISTRY.get(key)
+        is_first_alloc = prev_pool_tensor is None
+        will_grow = (
+            prev_pool_tensor is not None
+            and prev_pool_tensor.shape[0] < num_tokens
+        )
+
+        view = pool.acquire(
+            (num_tokens, intermediate_size),
+            dtype=dtype, device=device, key_dims=1,
+        )
+
+        # Sync the operator-visible mirror dict to the underlying pool
+        # tensor. `view` is a slice; we want the backing storage. For the
+        # first-alloc and grow cases the new pool tensor IS exactly the
+        # tensor the slice came from at full size.
+        if is_first_alloc or will_grow:
+            # Re-resolve the backing tensor from the pool's internal map
+            # for accurate book-keeping. PersistentSlicePool exposes its
+            # pool tensors via _pools[(fixed_tail, dtype, device)].
+            fixed_tail = (int(intermediate_size),)
+            backing = pool._pools.get(
+                (fixed_tail, dtype, str(device)),
+                view,
             )
-            cls._BUFFER_REGISTRY[key] = buf
+            cls._BUFFER_REGISTRY[key] = backing
+            cls._BACKED_BY_REGISTRY = True
+
+        if is_first_alloc:
             log.info(
                 "[PN12] first acquire silu_out: alloc [%d, %d] %s on %s "
                 "(%.1f MiB)",
@@ -204,24 +266,12 @@ class FFNIntermediateCache:
                 num_tokens * intermediate_size *
                 _dtype_byte_size(dtype) / 1024 / 1024,
             )
-            return buf
-
-        # Cache hit. If requested fits, return a slice.
-        cached_max = cached.shape[0]
-        if num_tokens <= cached_max:
-            return cached[:num_tokens]
-
-        # Requested larger than cached — grow once.
-        new_buf = torch.empty(
-            (num_tokens, intermediate_size),
-            dtype=dtype, device=device,
-        )
-        cls._BUFFER_REGISTRY[key] = new_buf
-        log.info(
-            "[PN12] grew silu_out buffer: %d → %d rows for %s on %s",
-            cached_max, num_tokens, dtype, device,
-        )
-        return new_buf
+        elif will_grow:
+            log.info(
+                "[PN12] grew silu_out buffer: %d → %d rows for %s on %s",
+                prev_pool_tensor.shape[0], num_tokens, dtype, device,
+            )
+        return view
 
     @classmethod
     def total_pooled_bytes(cls) -> int:
