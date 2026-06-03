@@ -1645,6 +1645,21 @@ def create_app(
 
         return deployment.host_inventory()
 
+    @app.get("/api/v1/host/gpu")
+    async def host_gpu_route() -> dict[str, Any]:
+        """Rich live GPU + hardware telemetry for the daemon host (nvidia-smi)."""
+        from . import gpu_telemetry
+
+        return _dataclass_payload(gpu_telemetry.collect_local())
+
+    @app.get("/api/v1/hosts/{host_id}/gpu")
+    async def host_gpu_remote_route(host_id: str) -> dict[str, Any]:
+        """Rich live GPU + hardware telemetry for a registered host (over SSH)."""
+        from . import gpu_telemetry
+
+        _profile, target = _ssh_target_for(host_id)
+        return _dataclass_payload(gpu_telemetry.collect_remote(target))
+
     @app.get("/api/v1/jobs")
     async def jobs_list() -> dict[str, Any]:
         return {"jobs": [_dataclass_payload(job) for job in list_jobs()]}
