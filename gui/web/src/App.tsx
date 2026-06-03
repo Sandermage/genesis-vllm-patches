@@ -71,6 +71,7 @@ import {
   Wrench
 } from "lucide-react";
 import { Component, Fragment, Suspense, lazy, useEffect, useMemo, useRef, useState, type ReactNode, type KeyboardEvent as ReactKeyboardEvent, type RefObject } from "react";
+import { sectionFromHash, recordIdFromHash, buildHash, replaceHash } from "./route";
 import {
   AlertConfig,
   BundleSpec,
@@ -310,36 +311,10 @@ const navGroups: NavGroup[] = [
 // Flat list (command palette / lookups) — preserves the grouped order.
 const navItems: NavItem[] = navGroups.flatMap((g) => g.items);
 
-// Runtime set of every routable section — used to validate the URL hash so a
-// hand-typed/bookmarked `#section` deep-link can't drop us on an unknown view.
-// Includes non-nav sections (launch-plan, chat) reachable only programmatically.
-const SECTION_IDS = new Set<SectionId>([
-  "overview", "setup", "fleet", "hosts", "models", "configs", "presets",
-  "planner", "copilot", "launch-plan", "services", "containers", "doctor",
-  "patches", "benchmarks", "evidence", "clients", "chat", "reports",
-  "operations", "advanced",
-]);
-// Parse the current location hash into a valid SectionId (or null). Tolerates
-// a leading `#`/`#/` and an optional `?query` suffix so deep-links stay robust.
-function sectionFromHash(): SectionId | null {
-  if (typeof window === "undefined") return null;
-  const raw = window.location.hash.replace(/^#\/?/, "").split("?")[0];
-  return SECTION_IDS.has(raw as SectionId) ? (raw as SectionId) : null;
-}
-// Read the `?id=` record selector from the hash (e.g. `#presets?id=prod-35b`),
-// so a shared link can deep-link straight to a specific preset, not just the
-// section. Returns null when absent.
-function recordIdFromHash(): string | null {
-  if (typeof window === "undefined") return null;
-  const qIndex = window.location.hash.indexOf("?");
-  if (qIndex === -1) return null;
-  const id = new URLSearchParams(window.location.hash.slice(qIndex + 1)).get("id");
-  return id ? decodeURIComponent(id) : null;
-}
-// Compose the canonical hash for a route — section, plus an optional record id.
-function buildHash(section: SectionId, recordId?: string | null): string {
-  return recordId ? `${section}?id=${encodeURIComponent(recordId)}` : section;
-}
+// Hash-routing helpers (sectionFromHash / recordIdFromHash / buildHash /
+// replaceHash) live in ./route so ContainersPanel can share them without a
+// circular import. sectionFromHash returns a plain string; callers cast to
+// SectionId after the SECTION_IDS validation guarantees membership.
 
 type FetchState = "idle" | "loading" | "ready" | "error";
 
@@ -450,7 +425,7 @@ export default function App() {
   const [launchSshTarget, setLaunchSshTarget] = useState("");
   const [launchTab, setLaunchTab] = useState("recommend");
   const [recommendForm, setRecommendForm] = useState<RecommendForm>(defaultRecommend);
-  const [activeSection, setActiveSection] = useState<SectionId>(() => sectionFromHash() ?? "launch-plan");
+  const [activeSection, setActiveSection] = useState<SectionId>(() => (sectionFromHash() as SectionId | null) ?? "launch-plan");
   // When a host is opened from the connection switcher, focus + auto-discover it.
   const [focusHostId, setFocusHostId] = useState<string | null>(null);
   // "Set up as node" from an engine card → prefill the installer (daemon target).
@@ -862,34 +837,36 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  // URL deep-linking: keep the location hash in sync with the active route
-  // (section + the selected preset on the Presets view) so every view is
-  // bookmarkable/shareable and survives a page refresh.
-  //   - a SECTION change pushes a history entry (Back returns to the prior
-  //     section), so browser Back/Forward walks the section history;
-  //   - a same-section RECORD change (clicking through presets) is written with
-  //     replaceState so it doesn't flood the Back stack with every click.
-  // The hashchange listener below closes the loop; equality guards stop the two
-  // effects from ping-ponging.
-  const routeRecordId = activeSection === "presets" ? selectedPreset : null;
+  // URL deep-linking: keep the location hash in sync with the active route so
+  // every view is bookmarkable/shareable and survives a page refresh.
+  //   - On a SECTION change we write the canonical hash for the new section
+  //     (with ?id= for the preset view) via location.hash, which pushes a
+  //     history entry — so browser Back/Forward walks the section history.
+  //   - While STAYING on the Presets view, a preset change is mirrored with
+  //     replaceState so clicking through presets doesn't flood the Back stack.
+  //   - Other sections own their own deep-link params (e.g. ContainersPanel
+  //     manages #containers?c=…&src=…); we deliberately leave their params
+  //     untouched here so we never clobber a container deep-link on load.
+  // The hashchange listener below closes the loop.
   useEffect(() => {
-    const desired = buildHash(activeSection, routeRecordId);
-    const current = window.location.hash.replace(/^#\/?/, "");
-    if (current === desired) return;
-    if (sectionFromHash() !== activeSection) {
-      window.location.hash = desired; // section change → push
-    } else {
-      const base = `${window.location.pathname}${window.location.search}`;
-      window.history.replaceState(null, "", `${base}#${desired}`); // record change → replace
+    const currentSection = sectionFromHash();
+    if (currentSection !== activeSection) {
+      // Section changed → write the canonical hash for the new section (push).
+      window.location.hash = buildHash(activeSection, activeSection === "presets" ? { id: selectedPreset } : undefined);
+      return;
     }
-  }, [activeSection, routeRecordId]);
+    if (activeSection === "presets") {
+      const desired = buildHash("presets", { id: selectedPreset });
+      if (window.location.hash.replace(/^#\/?/, "") !== desired) replaceHash(desired);
+    }
+  }, [activeSection, selectedPreset]);
 
   // Browser Back/Forward (and manual hash edits) drive the active section and,
   // on the Presets view, the selected preset. Guarded against the writer above.
   useEffect(() => {
     const onHashChange = () => {
       const next = sectionFromHash();
-      if (next) setActiveSection(next);
+      if (next) setActiveSection(next as SectionId);
       const rec = recordIdFromHash();
       if (rec && next === "presets" && rec !== selectedPreset) {
         void loadExplain(rec); // restores selection + explain payload together

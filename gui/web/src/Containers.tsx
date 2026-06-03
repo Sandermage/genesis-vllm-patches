@@ -11,10 +11,29 @@ import {
   type ContainerUpdatePlan, type DockerNetwork, type FsEntry, type ImageScan,
   type ManagedContainer, type SourceReport, type SystemDf,
 } from "./api";
+import { hashParam, buildHash, replaceHash } from "./route";
 
 type HostOption = { id: string; label: string };
 type NavFn = (section: string) => void;
 type StateFilter = "all" | "running" | "stopped";
+
+// ── Container source ⇄ hash-param helpers (deep-linking) ──────────────
+// The hash encodes the source as `local` (daemon socket) or a host id.
+// Resolve a `src` hash value to a source, or null when it can't be resolved yet
+// (e.g. a host id whose profile hasn't loaded). null lets the caller fall back.
+function sourceFromKey(key: string | null, hosts: HostOption[]): ContainerSource | null {
+  if (key === "local") return { kind: "local" };
+  if (key && hosts.some((h) => h.id === key)) return { kind: "host", hostId: key };
+  return null;
+}
+function defaultSource(initialHostId: string | undefined, hosts: HostOption[]): ContainerSource {
+  return initialHostId && hosts.some((h) => h.id === initialHostId) ? { kind: "host", hostId: initialHostId } : { kind: "local" };
+}
+// Fire a toast via the shared ToastHost (App listens for `sndr-toast`). Avoids
+// importing from App.tsx, which would create a circular dependency.
+function toast(message: string, tone: "success" | "error" | "info" = "info") {
+  window.dispatchEvent(new CustomEvent("sndr-toast", { detail: { id: `${Date.now()}-${message.length}`, message, tone } }));
+}
 type SortKey = "name" | "cpu" | "mem" | "state";
 type Inspect = Record<string, any>;
 
@@ -107,21 +126,40 @@ function Bar({ pct, kind, label }: { pct: number; kind: "ok" | "warn" | "hot"; l
 // ─── panel: list ⟷ full-page detail ──────────────────────────────────
 
 export function ContainersPanel({ hosts, onNavigate, initialHostId }: { hosts: HostOption[]; onNavigate?: NavFn; initialHostId?: string }) {
-  const [source, setSource] = useState<ContainerSource>(
-    initialHostId && hosts.some((h) => h.id === initialHostId) ? { kind: "host", hostId: initialHostId } : { kind: "local" });
-  // Cross-section link: when arriving from a Host card, switch to that host.
+  // Deep-link: `#containers?c=<name>&src=<local|hostId>` restores the open
+  // container and its source. `src` is captured once on mount so a late hosts[]
+  // load can still resolve a host source even after the sync effect rewrites it.
+  const [source, setSource] = useState<ContainerSource>(() => sourceFromKey(hashParam("src"), hosts) ?? defaultSource(initialHostId, hosts));
+  const pendingSrcRef = useRef<string | null>(typeof window !== "undefined" ? hashParam("src") : null);
+  // When the source-reset effect should KEEP the open container across a source
+  // change — set only while applying a deep-link host source (the source switch
+  // is part of restoring the link, not a user navigating away).
+  const keepOpenRef = useRef(false);
+  // Cross-section link: arriving from a Host card switches to that host. A
+  // deep-link `src=` host is reconciled here too, once the host list arrives.
   useEffect(() => {
-    if (initialHostId && hosts.some((h) => h.id === initialHostId)) {
+    const deepHost = pendingSrcRef.current;
+    if (deepHost && deepHost !== "local" && hosts.some((h) => h.id === deepHost)) {
+      setSource((cur) => {
+        if (cur.kind === "host" && cur.hostId === deepHost) return cur; // already there
+        keepOpenRef.current = true; // changing source → preserve the deep-linked container
+        return { kind: "host", hostId: deepHost };
+      });
+      pendingSrcRef.current = null;
+    } else if (initialHostId && hosts.some((h) => h.id === initialHostId)) {
       setSource((cur) => (cur.kind === "host" && cur.hostId === initialHostId ? cur : { kind: "host", hostId: initialHostId }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialHostId]);
+  }, [initialHostId, hosts]);
   const [items, setItems] = useState<ManagedContainer[] | null>(null);
   const [stats, setStats] = useState<Record<string, ContainerStats>>({});
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
-  const [open, setOpen] = useState<{ name: string; tab?: Tab } | null>(null);
+  const [open, setOpen] = useState<{ name: string; tab?: Tab } | null>(() => {
+    const c = hashParam("c");
+    return c ? { name: c } : null;
+  });
   const [confirmAction, setConfirmAction] = useState<{ name: string; action: ContainerAction } | null>(null);
   const [queryText, setQueryText] = useState("");
   const [filter, setFilter] = useState<StateFilter>("all");
@@ -139,7 +177,39 @@ export function ContainersPanel({ hosts, onNavigate, initialHostId }: { hosts: H
     finally { setLoading(false); }
   }, [source]);
 
-  useEffect(() => { setItems(null); setStats({}); setDf(null); histRef.current = {}; setOpen(null); void load(); }, [load]);
+  // Reset + reload whenever the source changes. The first run (mount) must NOT
+  // clear `open`, or it would discard a container restored from the deep-link.
+  const firstLoadRef = useRef(true);
+  useEffect(() => {
+    setItems(null); setStats({}); setDf(null); histRef.current = {};
+    if (firstLoadRef.current) firstLoadRef.current = false;
+    else if (keepOpenRef.current) keepOpenRef.current = false; // deep-link source restore — keep open
+    else setOpen(null);
+    void load();
+  }, [load]);
+
+  // Mirror the open container + source into the hash so the view is shareable
+  // (#containers?c=…&src=…). Skips the first run: on a deep-link load the inbound
+  // hash is already correct, and on a fresh nav we let App push the bare
+  // `#containers` section entry (preserving Back/Forward). Once we've written a
+  // deep-link, closing the container rewrites the bare section to drop `c`.
+  const syncedRef = useRef(false);
+  const lastWriteRef = useRef("");
+  useEffect(() => {
+    if (!syncedRef.current) {
+      syncedRef.current = true;
+      lastWriteRef.current = (hashParam("c") || hashParam("src")) ? window.location.hash.replace(/^#\/?/, "") : "";
+      return;
+    }
+    const params: Record<string, string | undefined> = {};
+    if (open?.name) params.c = open.name;
+    if (source.kind === "host") params.src = source.hostId;
+    const hasParams = !!(params.c || params.src);
+    if (!hasParams && !lastWriteRef.current) return; // nothing of ours to manage
+    const desired = buildHash("containers", params);
+    if (window.location.hash.replace(/^#\/?/, "") !== desired) replaceHash(desired);
+    lastWriteRef.current = hasParams ? desired : "";
+  }, [open, source]);
 
   // Disk usage (`docker system df`) is heavy — fetch it ONCE per source, deferred,
   // so the container list + first stats win the SSH pool first (server caches it).
@@ -415,6 +485,12 @@ function ContainerPage({ source, name, busy, onBack, onAct, initialTab, onNaviga
           ) : (
             <button disabled={busy !== null} onClick={() => onAct("start")}><Play size={14} /> Start</button>
           )}
+          <button title="Copy a shareable link to this container" onClick={() => {
+            void navigator.clipboard?.writeText(window.location.href).then(
+              () => toast(`Link to ${name} copied`, "success"),
+              () => toast("Could not copy link", "error"),
+            );
+          }}><Copy size={14} /> Copy link</button>
           <button className="primary-button" onClick={() => setShowUpdate(true)}><Wrench size={14} /> Update</button>
         </div>
       </div>
