@@ -116,15 +116,6 @@ function Sparkline({ data, kind, tall }: { data: number[]; kind: "ok" | "warn" |
     </svg>
   );
 }
-function Bar({ pct, kind, label }: { pct: number; kind: "ok" | "warn" | "hot"; label: string }) {
-  return (
-    <div className="cbar" title={`${pct.toFixed(1)}%`}>
-      <div className={`cbar-fill ${kind}`} style={{ width: `${Math.min(100, Math.max(0, pct))}%` }} />
-      <span className="cbar-label">{label}</span>
-    </div>
-  );
-}
-
 // ─── panel: list ⟷ full-page detail ──────────────────────────────────
 
 export function ContainersPanel({ hosts, onNavigate, initialHostId }: { hosts: HostOption[]; onNavigate?: NavFn; initialHostId?: string }) {

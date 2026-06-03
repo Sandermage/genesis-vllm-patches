@@ -88,7 +88,6 @@ import {
   HostSndrState,
   NodeSetupResult,
   SshCheckResult,
-  Operation,
   OperationsResult,
   DiffUpstreamReport,
   DoctorFinding,
@@ -102,7 +101,6 @@ import {
   FitCheck,
   LaunchPlanResult,
   MemoryFitReport,
-  ModelCacheReport,
   ReportBundleResult,
   ProofStatusReport,
   UserPresetList,
@@ -116,7 +114,6 @@ import {
   PatchExplainResult,
   PatchListResult,
   PatchRow,
-  PlatformSnapshot,
   PresetListResult,
   PresetRecord,
   PresetRecommendation,
@@ -910,8 +907,6 @@ export default function App() {
   const card = (explain?.card ?? selectedPresetRecord?.card ?? {}) as Record<string, unknown>;
   const composed = (explain?.composed ?? {}) as Record<string, unknown>;
   const metric = asRecord(card.primary_metric);
-  const workloadAllow = asStringArray(card.workload_allow);
-  const workloadDeny = asStringArray(card.workload_deny);
   const evidenceRefs = Array.isArray(card.evidence_refs) ? card.evidence_refs : [];
   const primaryMetricValue = asNumber(metric.value);
   const primaryMetricKind = asText(metric.kind, "Metric");
@@ -940,7 +935,6 @@ export default function App() {
   const featureRows = overview?.capabilities.features ?? [];
   const patchRows = patches?.patches ?? [];
   const patchSummary = patches?.summary ?? null;
-  const doctorCoverage = patchDoctor?.coverage ?? null;
   const gates = useMemo(
     () =>
       launchPlan?.gates.map((gate) => ({
@@ -2711,10 +2705,8 @@ function SectionWorkspace({
   const composed = (explain?.composed ?? {}) as Record<string, unknown>;
   const familyCounts = overview?.catalog.family_counts ?? {};
   const workloadCounts = overview?.catalog.workload_counts ?? {};
-  const cardPresets = (presets?.presets ?? []).filter((preset) => preset.has_card);
   const patchRows = patches?.patches ?? [];
   const patchSummary = patches?.summary ?? null;
-  const coverage = patchDoctor?.coverage ?? null;
 
   return (
     <section className={`section-workspace section-${sectionId}`}>
@@ -9838,20 +9830,6 @@ function ProofStatusPanel({ report }: { report: ProofStatusReport | null }) {
       <p className="proof-foot muted">{patches.length} patches indexed · {totalArtefacts} artifact file{totalArtefacts === 1 ? "" : "s"}</p>
     </div>
   );
-}
-
-function buildDoctorLines(report: PatchDoctorReport | null, gates: Gate[]): string[] {
-  const lines = ["$ sndr patches doctor"];
-  if (report) {
-    lines.push(`registry_size: ${report.registry_size}`);
-    lines.push(`coverage: ${report.coverage.mapped}/${report.coverage.total} apply modules mapped`);
-    lines.push(`validation_issues: ${report.issues.length}`);
-    if (report.coverage.intentionally_unmapped.length) {
-      lines.push(`intentionally_unmapped: ${report.coverage.intentionally_unmapped.length}`);
-    }
-  }
-  gates.forEach((gate) => lines.push(`${gate.id}: ${gate.status}`));
-  return lines;
 }
 
 function AdminSurfaceMatrix({
