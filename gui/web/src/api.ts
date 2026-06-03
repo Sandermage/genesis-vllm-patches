@@ -349,6 +349,23 @@ export type HostReliability = {
   state: "closed" | "open" | "half_open"; consecutive_fails: number; last_ok: number | null;
 };
 export type ReliabilitySnapshot = Record<string, HostReliability | null>;
+export type RoutingArtifact = {
+  profile: string; model_id: string; decision: string; k: number | null;
+  allowed_workloads: string[]; denied_workloads: string[]; workload_classes: string[];
+  delta_tps_per_class: Record<string, number>;
+  profile_tps_per_class: Record<string, number>;
+  baseline_tps_per_class: Record<string, number>;
+  profile_delta_global: number | null; acceptance_mean: number | null;
+  vram_free_mib_min: number | null; vllm_pin: string; notes: string;
+};
+export type RoutingArtifacts = { available: boolean; reason?: string; artifacts: RoutingArtifact[] };
+export type RoutingActive = { available: boolean; reason?: string; profile?: string | null; source?: string; artifact?: RoutingArtifact | null; candidates?: string[] };
+export type RoutingSignals = { response_format?: unknown; tool_choice?: unknown; workload_class?: string };
+export type RoutingClassify = {
+  available: boolean; reason?: string;
+  profile?: string; signal?: string; workload_class?: string | null;
+  accepted?: boolean; expected_delta_tps?: number | null; active_profile?: string | null;
+};
 
 export type DeployParameters = {
   image: string;
@@ -1305,6 +1322,9 @@ export const api = {
   hostGpuRemote: (hostId: string) => request<HardwareTelemetry>(`/api/v1/hosts/${encodeURIComponent(hostId)}/gpu`),
   alerts: () => request<AlertsSnapshot>("/api/v1/alerts"),
   hostsReliability: () => request<ReliabilitySnapshot>("/api/v1/hosts/reliability"),
+  routingArtifacts: () => request<RoutingArtifacts>("/api/v1/routing/artifacts"),
+  routingActive: () => request<RoutingActive>("/api/v1/routing/active"),
+  routingClassify: (signals: RoutingSignals, profile?: string) => postJson<RoutingClassify>("/api/v1/routing/classify", { signals, profile }),
 
   // Container management — one shape over both transports (local socket / host SSH).
   containers: (src: ContainerSource) =>

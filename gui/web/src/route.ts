@@ -11,7 +11,7 @@
 // hand-typed/bookmarked deep-link can be validated before we trust it.
 export const SECTION_IDS = new Set<string>([
   "overview", "setup", "fleet", "hosts", "hardware", "models", "configs", "presets",
-  "planner", "copilot", "launch-plan", "services", "containers", "doctor",
+  "planner", "copilot", "launch-plan", "services", "containers", "routing", "doctor",
   "patches", "benchmarks", "evidence", "clients", "chat", "reports",
   "operations", "advanced",
 ]);

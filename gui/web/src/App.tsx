@@ -161,6 +161,7 @@ import { FleetPanel } from "./Fleet";
 const ContainersPanel = lazy(() => import("./Containers").then((m) => ({ default: m.ContainersPanel })));
 // Lazy-loaded: the GPU/hardware telemetry dashboard only renders on its section.
 const HardwarePanel = lazy(() => import("./Hardware").then((m) => ({ default: m.HardwarePanel })));
+const RoutingPanel = lazy(() => import("./Routing").then((m) => ({ default: m.RoutingPanel })));
 
 type LoadState = "idle" | "loading" | "ready" | "error";
 type RuntimeMode = "local" | "remote";
@@ -179,6 +180,7 @@ type SectionId =
   | "launch-plan"
   | "services"
   | "containers"
+  | "routing"
   | "doctor"
   | "patches"
   | "benchmarks"
@@ -312,6 +314,7 @@ const navGroups: NavGroup[] = [
   ] },
   { label: "Engine", items: [
     { id: "chat", icon: <MessageSquare size={17} />, label: "Chat" },
+    { id: "routing", icon: <Route size={17} />, label: "Routing" },
     { id: "clients", icon: <Link2 size={17} />, label: "Clients" },
   ] },
   { label: "Validate", items: [
@@ -2965,6 +2968,16 @@ function SectionWorkspace({
         </ModuleGrid>
       )}
 
+      {sectionId === "routing" && (
+        <ModuleGrid>
+          <ModuleCard title="Workload routing" icon={<Route size={18} />} desc="The deterministic spec-decode router — the same brain the gateway uses. Per bench-validated profile: which workloads are allowed/denied and their measured TPS delta. Classify a request shape by its response_format / tool_choice / workload_class signals and see which profile it resolves to." wide>
+            <Suspense fallback={<SkeletonCards count={2} />}>
+              <RoutingPanel />
+            </Suspense>
+          </ModuleCard>
+        </ModuleGrid>
+      )}
+
       {sectionId === "hosts" && (
         <HostsSection
           hostProfiles={hostProfiles}
@@ -3876,6 +3889,11 @@ function sectionSpec(sectionId: SectionId) {
       kicker: "GPU telemetry",
       title: "GPU & Hardware",
       description: "Live per-GPU utilisation, VRAM, temperature, power, clocks, fan, PCIe, pstate and ECC over nvidia-smi — for the daemon host or a registered host via SSH.",
+    },
+    routing: {
+      kicker: "Spec-decode routing",
+      title: "Workload routing",
+      description: "Per bench-validated profile: which workloads are allowed/denied and their measured TPS delta — plus a classifier that predicts how a request's signals resolve to a profile. One source of truth, shared with the gateway.",
     },
     doctor: {
       kicker: "Diagnostics",
