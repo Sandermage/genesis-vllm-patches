@@ -3997,3 +3997,37 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 .src-engine { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; padding: 2px 9px; border-radius: 999px; }
 .src-engine.ok { background: rgba(21,128,61,0.14); color: var(--ok); }
 .src-engine.bad { background: rgba(190,18,60,0.14); color: var(--danger); }
+
+/* ── Skeleton loaders ──────────────────────────────────────────────
+   Content-shaped placeholders shown while data is in flight. A moving
+   highlight sweep reads as "loading" without the blank-screen jank of a
+   spinner, matching the perceived-performance pattern in Coolify/Portainer. */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--surface-2);
+  border-radius: var(--r-sm);
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--text) 8%, transparent),
+    transparent
+  );
+  animation: skeleton-sweep 1.3s ease-in-out infinite;
+}
+@keyframes skeleton-sweep { 100% { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after { animation: none; }
+}
+.skel-line { height: 12px; border-radius: 6px; margin: 6px 0; }
+.skel-metric { height: 64px; }
+.skel-card { height: 120px; }
+.skel-grid { display: grid; gap: var(--gap); }
+.skel-grid.metrics { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.skel-grid.cards { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }

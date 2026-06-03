@@ -3772,7 +3772,7 @@ function PatchMatrixViewer({
   const attributionRows = Object.entries(attribution);
 
   if (loading && entries.length === 0) {
-    return <p className="muted">Loading patch matrix…</p>;
+    return <div className="skel-grid cards" role="status" aria-label="Loading patch matrix…"><Skeleton variant="card" count={6} /></div>;
   }
   if (entries.length === 0) {
     return <p className="muted">This model defines no canonical patch overrides.</p>;
@@ -6946,7 +6946,7 @@ function ThisHostCard({ inventory, environment, apiBase }: { inventory: HostInve
 
 // Detailed inventory grid for the Inventory tab.
 function HostInventoryPanel({ inventory, environment }: { inventory: HostInventory | null; environment: EnvironmentReport | null }) {
-  if (!inventory) return <p className="muted">Loading host inventory…</p>;
+  if (!inventory) return <SkeletonMetrics count={6} />;
   const { os, python, docker, nvidia, vllm } = inventory;
   const vram = nvidia.gpu_total_vram_mib ?? [];
   const total = totalVramGiB(vram);
@@ -6999,7 +6999,7 @@ function HostInventoryPanel({ inventory, environment }: { inventory: HostInvento
 const CRITICAL_LIBS = ["vllm", "torch", "transformers"];
 
 function DependencyStackPanel({ env }: { env: EnvironmentReport | null }) {
-  if (!env) return <p className="muted">Loading dependency stack…</p>;
+  if (!env) return <div className="skel-grid"><Skeleton variant="line" count={5} /></div>;
   const libsPresent = env.dependencies.filter((dep) => dep.present).length;
   const toolsPresent = env.tools.filter((tool) => tool.present).length;
   const criticalDeps = CRITICAL_LIBS
@@ -7061,11 +7061,33 @@ function DependencyStackPanel({ env }: { env: EnvironmentReport | null }) {
   );
 }
 
+// Reusable skeleton placeholder — a shimmering, content-shaped block shown
+// while data is in flight. `count` repeats the block; `variant` picks the size.
+function Skeleton({ variant = "line", count = 1, className = "" }: { variant?: "line" | "metric" | "card"; count?: number; className?: string }) {
+  const cls = variant === "metric" ? "skel-metric" : variant === "card" ? "skel-card" : "skel-line";
+  return (
+    <>
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} className={`skeleton ${cls} ${className}`.trim()} aria-hidden="true" />
+      ))}
+    </>
+  );
+}
+// A responsive grid of metric-sized skeletons — the canonical "catalog is
+// loading" placeholder used wherever a metric/tile strip is awaited.
+function SkeletonMetrics({ count = 4 }: { count?: number }) {
+  return (
+    <div className="skel-grid metrics" role="status" aria-label="Loading…">
+      <Skeleton variant="metric" count={count} />
+    </div>
+  );
+}
+
 // Project & catalog snapshot — fills the row beside the dependency stack with
 // the most useful project parameters: catalog counts, annotation coverage,
 // capability readiness and the workload/lifecycle distribution.
 function ProjectCatalogPanel({ overview, environment }: { overview: ProductOverview | null; environment: EnvironmentReport | null }) {
-  if (!overview) return <p className="muted">Loading catalog…</p>;
+  if (!overview) return <SkeletonMetrics count={4} />;
   const catalog = overview.catalog;
   const features = overview.capabilities.features ?? [];
   const capsReady = features.filter((feature) => feature.status === "available").length;
