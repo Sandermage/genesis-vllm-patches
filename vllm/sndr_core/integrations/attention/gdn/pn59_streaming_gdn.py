@@ -57,7 +57,7 @@ from vllm.sndr_core.core import (
 
 log = logging.getLogger("genesis.wiring.pn59_streaming_gdn")
 
-GENESIS_PN59_MARKER = "Genesis PN59 streaming GDN orchestrator (Variant D Phase 2)"
+GENESIS_PN59_MARKER = "Genesis PN59 streaming GDN orchestrator (Variant D Phase 2)_v11.3.0_hotpath"
 
 
 def _is_enabled() -> bool:
@@ -101,15 +101,22 @@ ANCHOR_NEW = (
     "    chunk_offsets: torch.Tensor | None = None,\n"
     "    core_attn_out: torch.Tensor | None = None,\n"
     "):\n"
-    "    # [Genesis PN59 Variant D Phase 2] streaming-GDN dispatch.\n"
-    "    # When GENESIS_ENABLE_PN59_STREAMING_GDN=1 AND eligible single-seq\n"
-    "    # long-T prefill, route through window-iterative driver to avoid\n"
-    "    # full (B, NT, H, V, K) materialization (Cliff 2b OOM trigger).\n"
-    "    # Strict no-regression: any failure → vanilla fallback below.\n"
+    "    # [Genesis PN59 v2 Variant D Phase 2 — hot-path optimized]\n"
+    "    # Streaming-GDN dispatch — cache the streaming fn callable in\n"
+    "    # upstream-file globals (this runs per chunk_gated_delta_rule_fwd\n"
+    "    # call — high frequency on GDN/Mamba-heavy models).\n"
+    "    _genesis_pn59_streaming = globals().get('_GENESIS_PN59_streaming_fn')\n"
+    "    if _genesis_pn59_streaming is None:\n"
+    "        try:\n"
+    "            from vllm.sndr_core.kernels.streaming_gdn_driver import (\n"
+    "                streaming_chunk_gated_delta_rule_fwd as _genesis_pn59_streaming,\n"
+    "            )\n"
+    "        except Exception:\n"
+    "            _genesis_pn59_streaming = False\n"
+    "        globals()['_GENESIS_PN59_streaming_fn'] = _genesis_pn59_streaming\n"
     "    try:\n"
-    "        from vllm.sndr_core.kernels.streaming_gdn_driver import (\n"
-    "            streaming_chunk_gated_delta_rule_fwd as _genesis_pn59_streaming,\n"
-    "        )\n"
+    "        if not _genesis_pn59_streaming:\n"
+    "            raise ImportError('PN59 streaming driver not available')\n"
     "        return _genesis_pn59_streaming(\n"
     "            q=q, k=k, v=v, g=g, beta=beta, scale=scale,\n"
     "            initial_state=initial_state,\n"
