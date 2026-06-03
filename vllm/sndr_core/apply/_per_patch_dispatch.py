@@ -1230,10 +1230,10 @@ def apply_patch_n119_tq_gqa_grouping() -> PatchResult:
     return _failed(name, reason)
 
 
-@register_patch("Sprint 2.6 v2 — CUDA graph dispatch trace wire-in")
+@register_patch("PN122 cudagraph dispatch trace (formerly Sprint 2.6 v2)")
 def apply_patch_pn122_cudagraph_dispatch_trace() -> PatchResult:
-    """PN122 (formerly SPRINT26_CG_DISPATCH_TRACE) — Sprint 2.6 v2
-    text-patch wire-in for cudagraph dispatch trace.
+    """PN122 (formerly SPRINT26_CG_DISPATCH_TRACE) — text-patch wire-in
+    for cudagraph dispatch trace.
 
     Hooks `record_dispatch(matched)` into vllm's cudagraph dispatcher
     call site in `gpu_model_runner.py`. Default OFF; opt-in via
@@ -1241,8 +1241,13 @@ def apply_patch_pn122_cudagraph_dispatch_trace() -> PatchResult:
     `GENESIS_ENABLE_SPRINT26_CG_DISPATCH_TRACE=1` accepted for one
     release) PLUS the runtime env `GENESIS_CUDAGRAPH_DISPATCH_TRACE=1`
     to actually record.
+
+    v11.3.0 cleanup (BUG #6 — legacy↔spec divergence audit): the
+    `@register_patch` title now leads with the canonical ID `PN122` so
+    the legacy↔spec audit first-token extractor matches the spec
+    registry. Master plan §13.1 follow-up #4.
     """
-    name = "Sprint 2.6 v2 cudagraph dispatch trace"
+    name = "PN122 cudagraph dispatch trace"
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
@@ -6266,8 +6271,12 @@ _G4_PATCHES: tuple[tuple[str, str, str], ...] = (
      "g4_25_gemma4_rope_dual_base_freq_guard", "model_compat.gemma4"),  # Phase 2.2: relocated 2026-05-22
     ("G4_19", "G4_19 gemma4 Genesis TurboQuant KV cache (3/4-bit VQ, 256K unlock)",
      "g4_19_turboquant_kv_cache", "attention.turboquant"),  # Phase 3 bucket 4: relocated 2026-05-21
-    ("G4_19B", "G4_19b gemma4 TQ KV spec integration (compression-aware memory check)",
+    ("G4_19B", "G4_19B gemma4 TQ KV spec integration (compression-aware memory check)",
      "g4_19b_tq_kv_spec_integration", "attention.turboquant"),  # Phase 3 bucket 4: relocated 2026-05-21
+    # v11.3.0 cleanup (BUG #6 — legacy↔spec divergence audit): title casing
+    # synced to spec registry ID "G4_19B" so the legacy↔spec first-token
+    # extractor matches. The module filename `g4_19b_*.py` stays lowercase
+    # (filesystem-naming convention, separate from registry-ID convention).
 )
 
 

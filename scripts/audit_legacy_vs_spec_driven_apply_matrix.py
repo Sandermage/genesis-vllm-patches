@@ -75,6 +75,27 @@ def _import_or_die():
         )
 
 
+# ─── Combined-ID pseudo-entries (legacy historical bundling) ───────────
+#
+# Several historical legacy @register_patch("...") registrations bundle
+# what the master plan tracked as TWO conceptual patch IDs under ONE
+# callable. The spec registry only carries the first ID (with
+# lifecycle="legacy" + apply_module=None — informational entry) because
+# the second ID has no independent code path. The audit must treat the
+# combined token as the bundle representative, NOT as a true legacy-only
+# id, so v12_0_safe stays accurate.
+#
+# Each entry maps the legacy combined token (first whitespace-delimited
+# token of the @register_patch title) to the canonical spec ID it
+# represents.
+_COMBINED_LEGACY_TOKEN_TO_SPEC_ID: dict[str, str] = {
+    "P1/P2":   "P1",   # FP8 kernel dispatcher (Ampere=Marlin vs Ada+=Triton)
+    "P17/P18": "P17",  # Marlin MoE per-SM block_size_m tuning
+    "P32/P33": "P32",  # TurboQuant cu_2 + synth_seq_lens preallocs
+    "P68/P69": "P68",  # long-context tool-call adherence bundle (P69 has own spec)
+}
+
+
 def _enumerate_legacy_path() -> list[dict[str, Any]]:
     """Build the legacy apply-matrix preview without booting vLLM.
 
@@ -84,6 +105,12 @@ def _enumerate_legacy_path() -> list[dict[str, Any]]:
     that module — which is import-side-effect-free at this level
     (registration happens but no patch fn is called) — then enumerate
     the list.
+
+    v11.3.0 (BUG #6 audit follow-through): combined legacy tokens
+    (P1/P2, P17/P18, P32/P33, P68/P69) are normalized to their canonical
+    spec ID via `_COMBINED_LEGACY_TOKEN_TO_SPEC_ID`. Without this
+    normalization the first-token extractor reports false legacy-only
+    entries that confuse v12_0_safe gating.
     """
     # Importing apply triggers @register_patch decorators.
     from vllm.sndr_core.apply import _state, _per_patch_dispatch  # noqa: F401
@@ -92,8 +119,11 @@ def _enumerate_legacy_path() -> list[dict[str, Any]]:
         # name typically looks like "P67 Multi-query attn — kernel switch"
         # We extract the patch_id (first whitespace-delimited token)
         head = name.split()[0] if name else ""
+        # Normalize combined legacy tokens to the canonical spec ID.
+        canonical = _COMBINED_LEGACY_TOKEN_TO_SPEC_ID.get(head, head)
         matrix.append({
-            "patch_id": head,
+            "patch_id": canonical,
+            "raw_legacy_token": head,
             "display_name": name,
             "source": "legacy_apply_patch_register",
             "fn_module": getattr(fn, "__module__", None),
@@ -112,13 +142,33 @@ def _enumerate_spec_driven_path(registry: dict) -> list[dict[str, Any]]:
 
     No vLLM boot — we just iterate the spec generator and project the
     fields. The actual import of `spec.apply_module` is NOT triggered
-    (that's only needed at apply-time)."""
+    (that's only needed at apply-time).
+
+    v11.3.0 BUG #6 audit follow-through: also exposes the set of
+    informational entries (apply_module=None) classified by their
+    env_flag convention. Entries with `GENESIS_LEGACY_*` env are policy
+    — known not-yet-migrated legacy bundle representatives, applied
+    only via the legacy path. Entries WITHOUT that prefix (and no
+    apply_module) are either coordinator/research/metadata-only or a
+    drift bug. The audit surfaces the breakdown for operator review.
+    """
     from vllm.sndr_core.dispatcher.spec import iter_patch_specs
     matrix: list[dict[str, Any]] = []
-    skipped_informational: list[str] = []
+    skipped_informational: list[dict[str, Any]] = []
     for spec in iter_patch_specs():
         if spec.apply_module is None:
-            skipped_informational.append(spec.patch_id)
+            env_flag = registry.get(spec.patch_id, {}).get("env_flag", "")
+            policy = (
+                "legacy_intentional"
+                if env_flag.startswith("GENESIS_LEGACY_")
+                else "non_legacy_informational"
+            )
+            skipped_informational.append({
+                "patch_id": spec.patch_id,
+                "lifecycle": spec.lifecycle,
+                "env_flag": env_flag,
+                "policy": policy,
+            })
             continue
         matrix.append({
             "patch_id": spec.patch_id,
@@ -128,7 +178,6 @@ def _enumerate_spec_driven_path(registry: dict) -> list[dict[str, Any]]:
             "lifecycle": spec.lifecycle,
             "default_on": spec.default_on,
         })
-    # Stash on module for diagnostic — caller can access via Globals.
     globals()["_LAST_SKIPPED_INFORMATIONAL"] = skipped_informational
     return matrix
 
@@ -136,8 +185,17 @@ def _enumerate_spec_driven_path(registry: dict) -> list[dict[str, Any]]:
 def _diff_matrices(
     legacy: list[dict[str, Any]],
     spec_driven: list[dict[str, Any]],
+    registry: dict,
 ) -> dict[str, Any]:
-    """Compute the structural diff between the two apply matrices."""
+    """Compute the structural diff between the two apply matrices.
+
+    v11.3.0 BUG #6 audit follow-through: the diff now distinguishes
+    `legacy_only_intentional` (spec has the ID but no apply_module on
+    purpose — informational entry with GENESIS_LEGACY_* env policy)
+    from `legacy_only_drift` (spec doesn't have the ID at all, OR has
+    it without the policy env prefix). Only the latter blocks
+    v12_0_safe.
+    """
     legacy_ids = [m["patch_id"] for m in legacy]
     spec_ids = [m["patch_id"] for m in spec_driven]
 
@@ -147,6 +205,26 @@ def _diff_matrices(
     legacy_only = sorted(legacy_set - spec_set)
     spec_only = sorted(spec_set - legacy_set)
     common = legacy_set & spec_set
+
+    # Classify legacy_only: intentional vs drift.
+    # Intentional: spec has the ID with apply_module=None AND
+    # env_flag starts with GENESIS_LEGACY_ (operator can't accidentally
+    # enable in spec mode; legacy path still applies).
+    legacy_only_intentional: list[str] = []
+    legacy_only_drift: list[str] = []
+    for pid in legacy_only:
+        spec_entry = registry.get(pid)
+        if (
+            spec_entry
+            and isinstance(spec_entry, dict)
+            and spec_entry.get("apply_module") is None
+            and str(spec_entry.get("env_flag", "")).startswith(
+                "GENESIS_LEGACY_"
+            )
+        ):
+            legacy_only_intentional.append(pid)
+        else:
+            legacy_only_drift.append(pid)
 
     # Order divergence — for IDs in both paths, do they appear in the
     # same relative order?
@@ -176,13 +254,25 @@ def _diff_matrices(
         "common_count": len(common),
         "legacy_only_count": len(legacy_only),
         "legacy_only_ids": legacy_only[:30],
+        "legacy_only_intentional_count": len(legacy_only_intentional),
+        "legacy_only_intentional_ids": legacy_only_intentional[:30],
+        "legacy_only_drift_count": len(legacy_only_drift),
+        "legacy_only_drift_ids": legacy_only_drift[:30],
         "spec_only_count": len(spec_only),
         "spec_only_ids": spec_only[:30],
         "order_divergent": order_divergent,
         "first_order_divergence": first_swap,
-        "v12_0_safe": (
-            len(legacy_only) == 0
-            and len(spec_only) == 0
+        # v12_0_safe: only DRIFT blocks the flip (intentional legacy
+        # entries are policy — they ALWAYS skip in spec mode but the
+        # legacy path still applies them). spec_only entries are NEW
+        # patches added directly to spec-driven without a legacy hook;
+        # they WILL START applying on flip, which is the desired
+        # behavior change for that direction. Order divergence is a
+        # separate policy concern (dict-insertion vs decorator-call
+        # order) — track via v12_0_strict_order.
+        "v12_0_safe": len(legacy_only_drift) == 0,
+        "v12_0_strict_order": (
+            len(legacy_only_drift) == 0
             and not order_divergent
         ),
     }
@@ -205,8 +295,20 @@ def _print_human(diff: dict[str, Any]) -> None:
             f"Legacy-only IDs (in apply._state.PATCH_REGISTRY but not "
             f"in iter_patch_specs()):"
         )
-        for pid in diff["legacy_only_ids"]:
-            print(f"  - {pid}")
+        print(
+            f"  intentional (spec entry with GENESIS_LEGACY_* env, "
+            f"apply_module=None — policy): "
+            f"{diff['legacy_only_intentional_count']}"
+        )
+        for pid in diff["legacy_only_intentional_ids"]:
+            print(f"    · {pid}")
+        print(
+            f"  drift (no matching spec entry, OR spec entry without "
+            f"GENESIS_LEGACY_* policy env — needs migration): "
+            f"{diff['legacy_only_drift_count']}"
+        )
+        for pid in diff["legacy_only_drift_ids"]:
+            print(f"    ! {pid}")
         if diff["legacy_only_count"] > 30:
             print(f"  ... +{diff['legacy_only_count'] - 30} more")
         print()
@@ -235,17 +337,26 @@ def _print_human(diff: dict[str, Any]) -> None:
         print()
     if diff["v12_0_safe"]:
         print(
-            "✓ Apply matrices are STRUCTURALLY identical — v12.0.0 "
-            "default flip is safe at the static-analysis level."
+            "✓ Apply matrices have NO DRIFT — v12.0.0 default flip is "
+            "structurally safe (intentional-legacy entries policy-skip "
+            "in spec mode; legacy path still applies them)."
         )
-        print(
-            "  Next validation step: empirical rig comparison (boot once "
-            "with each path, diff actual side effects)."
-        )
+        if diff["order_divergent"]:
+            print(
+                "  Note: order divergence remains. Audit per-patch "
+                "dependency chains before assuming v12_0_safe_with_order."
+            )
+        else:
+            print(
+                "  Apply order also matches. Next validation step: "
+                "empirical rig comparison (boot once with each path, "
+                "diff actual side effects)."
+            )
     else:
         print(
-            "⚠ Apply matrices differ. v12.0.0 default flip would change "
-            "boot behaviour. Investigate before flipping the default."
+            "⚠ Apply matrices have DRIFT. v12.0.0 default flip would "
+            "change boot behaviour. Investigate `legacy_only_drift_ids` "
+            "before flipping the default."
         )
 
 
@@ -265,7 +376,7 @@ def main() -> int:
     from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
     legacy = _enumerate_legacy_path()
     spec_driven = _enumerate_spec_driven_path(PATCH_REGISTRY)
-    diff = _diff_matrices(legacy, spec_driven)
+    diff = _diff_matrices(legacy, spec_driven, PATCH_REGISTRY)
 
     if args.json:
         print(json.dumps(
