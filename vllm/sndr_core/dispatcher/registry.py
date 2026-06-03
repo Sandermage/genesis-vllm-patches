@@ -3632,7 +3632,16 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {},
         "conflicts_with": [],
         "requires_patches": [],
-        "apply_module": "vllm.sndr_core.integrations.attention.turboquant.pn26_sparse_v_kernel",
+        # v11.3.0 BUG #10 fix: PN26 spec apply_module is the canonical
+        # unified-perf orchestrator (`pn26_tq_unified_perf`) which wires
+        # the centroids prebake — the safe/drop-in component. The
+        # sparse-V kernel sub-component has its own spec entry (`PN26b`,
+        # env GENESIS_ENABLE_PN26_SPARSE_V) for opt-in activation after
+        # NVIDIA Ampere validation. Previously incorrectly pointed at
+        # `pn26_sparse_v_kernel` — on v12.0.0 spec-flip an operator with
+        # GENESIS_ENABLE_PN26_TQ_UNIFIED=1 would activate the risky
+        # sparse-V path instead of the safe centroids prebake.
+        "apply_module": "vllm.sndr_core.integrations.attention.turboquant.pn26_tq_unified_perf",
         "lifecycle": "experimental",
         "implementation_status": "full",
     },
@@ -4056,7 +4065,16 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             # Wave 6 closure). V1 retired, V5/V7 cache-safe paths active.
             "vllm_version_range": (">=0.20.0", "<0.21.0"),
         },
-        "apply_module": "vllm.sndr_core.integrations.middleware.pn16_v6_streaming_truncator",
+        # v11.3.0 BUG #9 fix: PN16 spec apply_module is the canonical
+        # lazy-reasoner module (`pn16_lazy_reasoner`) — V2/V3/V5/V7
+        # paths for per-request enable_thinking gating. PN16_V6 is a
+        # separately-registered SECOND version (streaming-truncator
+        # token-budget enforcer) under env GENESIS_ENABLE_PN16_V6_*.
+        # Previously incorrectly pointed at the V6 module — on v12.0.0
+        # spec-flip an operator with GENESIS_ENABLE_PN16_LAZY_REASONER=1
+        # would activate the streaming truncator (different function,
+        # different anchor file) instead of the lazy reasoner hook.
+        "apply_module": "vllm.sndr_core.integrations.middleware.pn16_lazy_reasoner",
         "lifecycle": "experimental",
         "implementation_status": "full",
     },
