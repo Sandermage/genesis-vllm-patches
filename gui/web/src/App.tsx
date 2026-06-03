@@ -8197,11 +8197,13 @@ function PresetCatalogTable({
   onEdit?: (id: string) => void;
 }) {
   const [statusFilter, setStatusFilter] = useState("all");
-  const [sortKey, setSortKey] = useState<"id" | "model" | "status">("id");
+  const [sortKey, setSortKey] = useState<"id" | "model" | "status" | "baseline">("id");
   const [sortDir, setSortDir] = useState<1 | -1>(1);
 
   const statusOf = (preset: PresetRecord) =>
     preset.has_card ? asText(preset.card?.status, "available") : "missing";
+  // Measured reference throughput (0 = pending) — used for the Baseline sort.
+  const baselineOf = (preset: PresetRecord) => asNumber(asRecord(preset.card?.primary_metric).value);
   const statuses = Array.from(new Set(presets.map(statusOf))).sort();
   const counts = presets.reduce<Record<string, number>>((acc, preset) => {
     const key = statusOf(preset);
@@ -8212,14 +8214,16 @@ function PresetCatalogTable({
   const rows = presets
     .filter((preset) => statusFilter === "all" || statusOf(preset) === statusFilter)
     .sort((a, b) => {
+      if (sortKey === "baseline") return (baselineOf(a) - baselineOf(b)) * sortDir;
       const va = sortKey === "status" ? statusOf(a) : String(a[sortKey] ?? "");
       const vb = sortKey === "status" ? statusOf(b) : String(b[sortKey] ?? "");
       return va.localeCompare(vb) * sortDir;
     });
 
-  const toggleSort = (key: "id" | "model" | "status") => {
+  const toggleSort = (key: "id" | "model" | "status" | "baseline") => {
     if (sortKey === key) setSortDir((dir) => (dir === 1 ? -1 : 1));
-    else { setSortKey(key); setSortDir(1); }
+    // Baseline defaults to descending — operators want the fastest presets first.
+    else { setSortKey(key); setSortDir(key === "baseline" ? -1 : 1); }
   };
   const caret = (key: string) => (sortKey === key ? (sortDir === 1 ? " ↑" : " ↓") : "");
 
@@ -8244,7 +8248,7 @@ function PresetCatalogTable({
               <th>Hardware</th>
               <th>Profile</th>
               <th className="sortable" onClick={() => toggleSort("status")}>Card{caret("status")}</th>
-              <th>Baseline</th>
+              <th className="sortable" onClick={() => toggleSort("baseline")}>Baseline{caret("baseline")}</th>
               <th aria-label="Actions" />
             </tr>
           </thead>
