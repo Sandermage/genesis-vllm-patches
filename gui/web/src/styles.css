@@ -4197,7 +4197,7 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 .hw-empty.err > svg { color: var(--danger); }
 
 /* Medium GPU cards — informative, 3-4 per row */
-.hw-gpus { display: grid; grid-template-columns: repeat(auto-fill, minmax(362px, 1fr)); gap: var(--sp-3); }
+.hw-gpus { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: var(--sp-3); }
 .hw-gpu { display: flex; flex-direction: column; gap: var(--sp-3); padding: var(--sp-4); border: 1px solid var(--border); border-radius: var(--r-lg); background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 4%, var(--surface)), var(--surface) 96px); box-shadow: var(--shadow-sm); transition: box-shadow .14s, border-color .14s, transform .14s; }
 .hw-gpu:hover { box-shadow: var(--shadow); border-color: var(--border-strong); transform: translateY(-1px); }
 
@@ -4216,8 +4216,8 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 /* Ring gauges — util / temp / power */
 .hw-rings { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-2); padding: var(--sp-2) 0; }
 .hw-ring { display: flex; flex-direction: column; align-items: center; gap: 4px; }
-.hw-ring-dial { position: relative; width: 98px; height: 98px; }
-.hw-ring-svg { width: 98px; height: 98px; transform: rotate(-90deg); }
+.hw-ring-dial { position: relative; width: 103px; height: 103px; }
+.hw-ring-svg { width: 103px; height: 103px; transform: rotate(-90deg); }
 .hw-ring-bg { fill: none; stroke: var(--surface-inset); stroke-width: 6; }
 .hw-ring-fg { fill: none; stroke: var(--accent); stroke-width: 6; stroke-linecap: round; transition: stroke-dashoffset .5s ease, stroke .3s; }
 .hw-ring-svg.warn .hw-ring-fg { stroke: var(--warn); }
