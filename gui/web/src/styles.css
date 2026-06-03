@@ -3265,8 +3265,35 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 .fleet-server-models { display: flex; flex-wrap: wrap; gap: 5px; }
 .fleet-server-model { display: inline-flex; align-items: center; gap: 4px; font-family: var(--mono); font-size: 10.5px; padding: 2px 8px; border-radius: var(--r-pill); background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent-strong, var(--accent)); }
 .fleet-server-model svg { flex: none; opacity: 0.8; }
-.fleet-server-meta { display: flex; flex-wrap: wrap; gap: 5px 12px; font-size: 11px; color: var(--text-2); margin-top: auto; }
+.fleet-server-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 5px 12px; font-size: 11px; color: var(--text-2); margin-top: auto; padding-top: 2px; }
 .fleet-server-meta span { display: inline-flex; align-items: center; gap: 4px; }
+.fleet-server-meta svg { color: var(--text-muted); }
+.fleet-server-open { margin-left: auto; color: var(--text-faint); }
+
+/* GPU block — model + total VRAM + interconnect, plus per-GPU utilisation bars */
+.fleet-gpu { display: flex; flex-direction: column; gap: 5px; padding: 7px 9px; border-radius: var(--r-sm); background: var(--surface-2); }
+.fleet-gpu-head { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-2); }
+.fleet-gpu-head svg { color: var(--text-muted); flex: none; }
+.fleet-gpu-vram { font-weight: 700; color: var(--text); }
+.fleet-gpu-ic { margin-left: auto; display: inline-flex; align-items: center; gap: 3px; color: var(--text-muted); }
+.fleet-gpu-bars { display: flex; gap: 4px; }
+.fleet-gpu-bar { position: relative; flex: 1; height: 15px; border-radius: 4px; background: var(--surface-inset); overflow: hidden; display: flex; align-items: center; justify-content: center; }
+.fleet-gpu-fill { position: absolute; left: 0; top: 0; bottom: 0; background: color-mix(in srgb, var(--accent) 42%, transparent); transition: width .3s ease; }
+.fleet-gpu-bar span { position: relative; font-size: 9px; font-weight: 700; color: var(--text-2); font-variant-numeric: tabular-nums; }
+
+/* Engines — per-container reachability dot, name, port, version, patch count */
+.fleet-eng { display: flex; flex-direction: column; gap: 3px; }
+.fleet-eng-head { display: flex; align-items: center; gap: 5px; font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; color: var(--text-muted); }
+.fleet-eng-head svg { flex: none; }
+.fleet-eng-row { display: flex; align-items: center; gap: 6px; font-size: 11px; min-width: 0; }
+.fleet-eng-dot { width: 6px; height: 6px; border-radius: 50%; flex: none; }
+.fleet-eng-dot.up { background: var(--ok); box-shadow: 0 0 5px var(--ok); }
+.fleet-eng-dot.down { background: var(--text-faint); }
+.fleet-eng-name { font-family: var(--mono); font-size: 10.5px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.fleet-eng-port { font-family: var(--mono); font-size: 10px; color: var(--text-muted); flex: none; }
+.fleet-eng-ver { font-size: 10px; color: var(--text-muted); flex: none; }
+.fleet-eng-patches { margin-left: auto; display: inline-flex; align-items: center; gap: 2px; font-size: 10px; color: var(--accent-text); flex: none; }
+.fleet-eng-patches svg { flex: none; }
 .fleet-server-patches { color: var(--ok); }
 
 /* ── Host card: sndr_core identity (light Path B, read over SSH) ──────────── */
