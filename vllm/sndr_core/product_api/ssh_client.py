@@ -197,6 +197,49 @@ def discover_api_key(target: dict[str, Any], *, containers: tuple[str, ...] = ()
 _PORT_RE = re.compile(r"(?:\d{1,3}(?:\.\d{1,3}){3}|:::):(\d+)->(\d+)/tcp")
 
 
+def _engine_port_candidates(ports: str) -> list[int]:
+    """Published host ports from a ``docker ps`` Ports string, ordered API-first.
+
+    A vLLM container may publish several ports (OpenAI API, the metrics server,
+    custom layouts like ``-p 8102:8102``). The old logic kept a single guess and
+    broke on the metrics port (container 8001), so a probe could hit the wrong
+    port and report the engine as down. Here we return *every* distinct host
+    port, ranked so the OpenAI endpoint is tried first:
+
+      0. mapping whose CONTAINER port is 8000 (the canonical vLLM port)
+      1. any other mapping (e.g. a custom ``host:host`` layout)
+      2. the metrics mapping (container 8001) last
+
+    The caller probes them in order and keeps the first that answers ``/health``.
+    IPv4/IPv6 duplicates of the same mapping collapse to one.
+    """
+    maps: list[tuple[int, int]] = []
+    seen: set[tuple[int, int]] = set()
+    for m in _PORT_RE.finditer(ports or ""):
+        pair = (int(m.group(1)), int(m.group(2)))
+        if pair in seen:
+            continue
+        seen.add(pair)
+        maps.append(pair)
+
+    def _rank(pair: tuple[int, int]) -> tuple[int, int]:
+        host_p, container_p = pair
+        if container_p == 8000:
+            return (0, host_p)
+        if container_p == 8001:
+            return (2, host_p)
+        return (1, host_p)
+
+    ordered: list[int] = []
+    hp_seen: set[int] = set()
+    for host_p, _container_p in sorted(maps, key=_rank):
+        if host_p in hp_seen:
+            continue
+        hp_seen.add(host_p)
+        ordered.append(host_p)
+    return ordered
+
+
 def discover_host(target: dict[str, Any], *, timeout: float = 12.0) -> dict[str, Any]:
     """Auto-discover what's running on a host over SSH (read-only).
 
@@ -229,12 +272,11 @@ def discover_host(target: dict[str, Any], *, timeout: float = 12.0) -> dict[str,
                 name, ports, image, status = parts[0], parts[1], parts[2], parts[3]
                 if "vllm" not in (name + " " + image).lower():
                     continue
-                host_port = None
-                for m in _PORT_RE.finditer(ports):
-                    host_port = int(m.group(1))
-                    if m.group(2) in ("8000", "8001"):  # the OpenAI/metrics port — prefer it
-                        break
-                entry = {"container": name, "host_port": host_port, "image": image,
+                # Every published host port, API-first; the caller probes each so
+                # a custom/metrics mapping can't hide a running engine.
+                candidates = _engine_port_candidates(ports)
+                entry = {"container": name, "host_port": candidates[0] if candidates else None,
+                         "host_ports": candidates, "image": image,
                          "status": status, "ports": ports}
                 # Active Genesis patch flags on the running container — the real
                 # runtime patch state of this host ("what's actually enabled").

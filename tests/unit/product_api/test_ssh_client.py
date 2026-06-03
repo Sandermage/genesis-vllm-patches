@@ -281,3 +281,18 @@ def test_discover_host_captures_active_genesis_flags(fake_paramiko):
     out = ssh_client.discover_host({"host": "192.168.1.10", "user": "sander", "auth_method": "agent"})
     flags = out["engines"][0]["genesis_flags"]
     assert flags == ["GENESIS_ENABLE_P94", "GENESIS_ENABLE_P82"]  # only the =1 ones
+
+
+def test_engine_port_candidates_prefers_api_over_metrics():
+    f = ssh_client._engine_port_candidates
+    # Canonical -p 8102:8000 (+ IPv6 dup) → single API port.
+    assert f("0.0.0.0:8102->8000/tcp, :::8102->8000/tcp") == [8102]
+    # Metrics mapping listed first must NOT win; container-8000 is API-first.
+    assert f("0.0.0.0:8103->8001/tcp, 0.0.0.0:8102->8000/tcp") == [8102, 8103]
+    # Custom -p 8102:8102 layout (no container-8000) → still surfaced.
+    assert f("0.0.0.0:8102->8102/tcp") == [8102]
+    # Custom API + metrics: API-first, metrics last.
+    assert f("0.0.0.0:8102->8102/tcp, 0.0.0.0:9102->8001/tcp") == [8102, 9102]
+    # No published ports.
+    assert f("") == []
+    assert f("8000/tcp") == []  # exposed but not published → no host port

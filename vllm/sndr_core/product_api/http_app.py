@@ -1433,15 +1433,25 @@ def create_app(
         }
         disco = ssh_client.discover_host(target)
         engine_key = _resolve_host_api_key(profile)  # from the encrypted secrets store
-        # Enrich each engine with a live probe (version + served models).
+        # Enrich each engine with a live probe (version + served models). Probe
+        # every published port (API-first) and keep the first that answers
+        # /health — so a custom or metrics-first port mapping can't make a
+        # running engine look unreachable.
         for eng in disco.get("engines", []):
-            port = eng.get("host_port")
-            if not port:
+            candidates = eng.get("host_ports") or ([eng["host_port"]] if eng.get("host_port") else [])
+            best = None
+            for port in candidates:
+                pr = engine_client.probe_host(profile.host, port, api_key=engine_key or None)
+                if pr.get("reachable"):
+                    best = pr
+                    eng["host_port"] = port  # pin to the port that actually responded
+                    break
+                best = best or pr
+            if best is None:
                 continue
-            probe = engine_client.probe_host(profile.host, port, api_key=engine_key or None)
-            eng["reachable"] = probe.get("reachable", False)
-            eng["version"] = probe.get("version")
-            eng["models"] = probe.get("models", [])
+            eng["reachable"] = best.get("reachable", False)
+            eng["version"] = best.get("version")
+            eng["models"] = best.get("models", [])
         # Auto-set the profile's engine port to the first reachable engine if the
         # current one isn't among what we found.
         found_ports = [e["host_port"] for e in disco.get("engines", []) if e.get("host_port")]
