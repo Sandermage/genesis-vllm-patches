@@ -1626,6 +1626,10 @@ pre, .code-block, .cli-mirror pre, .artifact-preview pre {
 .command-list { display: flex; flex-direction: column; gap: 4px; max-height: 60vh; overflow: auto; }
 .command-list button { display: flex; align-items: center; gap: var(--sp-3); padding: 10px 12px; border-radius: var(--r-sm); text-align: left; color: var(--text-2); }
 .command-list button:hover { background: var(--surface-2); }
+/* Keyboard-highlighted row (↑/↓ navigation) — accent-tinted with a ring so it
+   reads as "selected" distinctly from the lighter hover state. */
+.command-list button.active { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-ring); color: var(--text); }
+.command-list button.active small { color: var(--accent-text); }
 .command-list button svg:first-child { color: var(--accent-text); flex: none; }
 .command-list span { flex: 1; }
 .command-list strong { display: block; font-size: 13px; }

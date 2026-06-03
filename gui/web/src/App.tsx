@@ -70,7 +70,7 @@ import {
   X,
   Wrench
 } from "lucide-react";
-import { Component, Fragment, Suspense, lazy, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Component, Fragment, Suspense, lazy, useEffect, useMemo, useRef, useState, type ReactNode, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import {
   AlertConfig,
   BundleSpec,
@@ -9830,6 +9830,8 @@ function CommandPalette({
   searchItems: Array<{ icon: ReactNode; title: string; detail: string; keep?: boolean; run: () => void }>;
 }) {
   const [query, setQuery] = useState("");
+  const [active, setActive] = useState(0);
+  const listRef = useRef<HTMLDivElement>(null);
   const commands: Array<{ icon: ReactNode; title: string; detail: string; keep?: boolean; run: () => void }> = [
     { icon: <RefreshCw size={16} />, title: "Sync Catalog", detail: "Refresh overview, presets, patch registry and doctor state", run: onRefresh },
     { icon: <Rocket size={16} />, title: "Open Launch Plan", detail: "Recommendation builder and launch composer", run: () => onSection("launch-plan") },
@@ -9843,6 +9845,33 @@ function CommandPalette({
   const all = [...commands, ...searchItems];
   const q = query.trim().toLowerCase();
   const shown = (q ? all.filter((item) => `${item.title} ${item.detail}`.toLowerCase().includes(q)) : commands).slice(0, 40);
+  // Keep the highlighted index in range as the filtered set shrinks/grows.
+  const activeIndex = Math.min(active, Math.max(0, shown.length - 1));
+  // Reset the highlight to the top whenever the query changes.
+  useEffect(() => { setActive(0); }, [q]);
+  // Scroll the highlighted row into view as it moves past the visible window.
+  useEffect(() => {
+    const row = listRef.current?.children[activeIndex] as HTMLElement | undefined;
+    row?.scrollIntoView({ block: "nearest" });
+  }, [activeIndex]);
+  const runAt = (index: number) => {
+    const item = shown[index];
+    if (!item) return;
+    item.run();
+    if (!item.keep) onClose();
+  };
+  const onKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setActive((i) => Math.min(i + 1, shown.length - 1));
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setActive((i) => Math.max(i - 1, 0));
+    } else if (event.key === "Enter") {
+      event.preventDefault();
+      runAt(activeIndex);
+    }
+  };
   return (
     <div className="dialog-backdrop" role="presentation" onClick={onClose}>
       <section className="command-dialog" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
@@ -9850,14 +9879,20 @@ function CommandPalette({
           <Search size={16} />
           {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
           <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search commands, sections, presets, models, configs, patches…" spellCheck={false}
-            onKeyDown={(event) => { if (event.key === "Enter" && shown[0]) { shown[0].run(); if (!shown[0].keep) onClose(); } }} />
+            role="combobox" aria-expanded aria-controls="command-list" aria-activedescendant={shown[activeIndex] ? `command-item-${activeIndex}` : undefined}
+            onKeyDown={onKeyDown} />
           <kbd>esc</kbd>
         </div>
-        <div className="command-list">
+        <div className="command-list" id="command-list" role="listbox" ref={listRef}>
           {shown.map((item, index) => (
             <button
               key={`${item.title}-${index}`}
-              onClick={() => { item.run(); if (!item.keep) onClose(); }}
+              id={`command-item-${index}`}
+              role="option"
+              aria-selected={index === activeIndex}
+              className={index === activeIndex ? "active" : ""}
+              onMouseMove={() => setActive(index)}
+              onClick={() => runAt(index)}
             >
               {item.icon}
               <span>
