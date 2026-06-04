@@ -302,8 +302,7 @@ const navGroups: NavGroup[] = [
     { id: "overview", icon: <Home size={17} />, label: "Overview" },
   ] },
   { label: "Infrastructure", items: [
-    { id: "fleet", icon: <LayoutGrid size={17} />, label: "Fleet" },
-    { id: "hosts", icon: <Server size={17} />, label: "Hosts" },
+    { id: "hosts", icon: <LayoutGrid size={17} />, label: "Fleet" },
     { id: "containers", icon: <Boxes size={17} />, label: "Containers" },
     { id: "hardware", icon: <Cpu size={17} />, label: "Hardware" },
     { id: "setup", icon: <Settings size={17} />, label: "Setup" },
@@ -326,14 +325,12 @@ const navGroups: NavGroup[] = [
   { label: "Validate", items: [
     { id: "doctor", icon: <ShieldCheck size={17} />, label: "Doctor" },
     { id: "patches", icon: <Wrench size={17} />, label: "Patches" },
-    { id: "flags", icon: <SlidersHorizontal size={17} />, label: "Flags" },
     { id: "benchmarks", icon: <BarChart3 size={17} />, label: "Benchmarks" },
     { id: "evidence", icon: <FileText size={17} />, label: "Evidence" },
     { id: "reports", icon: <Table2 size={17} />, label: "Reports" },
   ] },
   { label: "Tools", items: [
     { id: "copilot", icon: <Sparkles size={17} />, label: "Copilot" },
-    { id: "operations", icon: <Terminal size={17} />, label: "Operations" },
     { id: "advanced", icon: <SlidersHorizontal size={17} />, label: "Advanced" },
   ] },
 ];
@@ -3343,6 +3340,20 @@ function SectionWorkspace({
               )
             },
             {
+              id: "flags",
+              label: "Flags",
+              icon: <SlidersHorizontal size={15} />,
+              render: () => (
+                <ModuleGrid>
+                  <ModuleCard title="Env-flag matrix" icon={<SlidersHorizontal size={18} />} desc="Every GENESIS_ENABLE_* flag with its effective default — searchable, filterable by family. Name a running engine container to overlay its live ON/OFF state and flag drift." wide>
+                    <Suspense fallback={<SkeletonCards count={2} />}>
+                      <FlagsPanel />
+                    </Suspense>
+                  </ModuleCard>
+                </ModuleGrid>
+              )
+            },
+            {
               id: "upstream",
               label: "Upstream & policy",
               icon: <GitBranch size={15} />,
@@ -3713,6 +3724,12 @@ function SectionWorkspace({
         <TabbedSection
           id="advanced"
           tabs={[
+            {
+              id: "operations",
+              label: "Operations",
+              icon: <Terminal size={15} />,
+              render: () => <OperationsConsole onMonitor={onMonitorJob} />
+            },
             {
               id: "appearance",
               label: "Appearance",
@@ -7677,6 +7694,20 @@ function HostsSection({
                     <span className="muted">{hostProfiles.length} saved host{hostProfiles.length === 1 ? "" : "s"}</span>
                     <button className="primary-action" onClick={() => setModal({ profile: null })}><Server size={15} /> Add host</button>
                   </div>
+                  {(() => {
+                    const fl = Object.values(fleetById);
+                    const online = fl.filter((h) => h.engines.some((e) => e.reachable)).length;
+                    const gpus = fl.reduce((n, h) => n + (h.gpu_count || 0), 0);
+                    const livePatches = fl.reduce((n, h) => n + (h.active_patches || 0), 0);
+                    return (
+                      <div className="fleet-kpis">
+                        <span className="fleet-kpi"><strong>{hostProfiles.length}</strong> servers</span>
+                        <span className="fleet-kpi ok"><strong>{online}</strong> online</span>
+                        <span className="fleet-kpi"><strong>{gpus}</strong> GPUs</span>
+                        <span className="fleet-kpi"><strong>{livePatches}</strong> live patches</span>
+                      </div>
+                    );
+                  })()}
                   <div className="fleet-grid">
                     <ThisHostCard inventory={inventory} environment={environment} apiBase={apiBase} />
                     {hostProfiles.map((profile) => (

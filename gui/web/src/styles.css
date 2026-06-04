@@ -2470,6 +2470,12 @@ pre, .code-block, .cli-mirror pre, .artifact-preview pre {
 .fleet-rel-state { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; color: var(--warn); flex: none; padding: 2px 7px; border-radius: var(--r-pill); background: color-mix(in srgb, var(--warn) 14%, transparent); }
 .fleet-rel.open .fleet-rel-state { color: var(--danger); background: color-mix(in srgb, var(--danger) 14%, transparent); }
 
+/* Fleet KPI strip (merged Fleet+Hosts overview) */
+.fleet-kpis { display: flex; flex-wrap: wrap; gap: var(--sp-3) var(--sp-5); padding: 9px var(--sp-4); border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface-inset); margin-bottom: var(--sp-3); }
+.fleet-kpi { font-size: 12px; color: var(--text-2); }
+.fleet-kpi strong { font-family: var(--mono); font-size: 14px; color: var(--text); margin-right: 3px; }
+.fleet-kpi.ok strong { color: var(--ok); }
+
 /* Live host status — GPU util + containers + patches, enriched from the fleet sweep */
 .fleet-live { display: flex; flex-direction: column; gap: var(--sp-3); padding: var(--sp-3); border-radius: var(--r-sm); background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 3%, var(--surface-inset)), var(--surface-inset)); border: 1px solid var(--border); }
 .fleet-live-sect { display: flex; flex-direction: column; gap: 5px; }
