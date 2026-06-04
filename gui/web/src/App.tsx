@@ -23,6 +23,7 @@ import {
   GitCompare,
   HardDrive,
   Home,
+  BadgeCheck,
   KeyRound,
   Layers3,
   Link2,
@@ -165,6 +166,7 @@ const ContainersPanel = lazy(() => import("./Containers").then((m) => ({ default
 const HardwarePanel = lazy(() => import("./Hardware").then((m) => ({ default: m.HardwarePanel })));
 const RoutingPanel = lazy(() => import("./Routing").then((m) => ({ default: m.RoutingPanel })));
 const FlagsPanel = lazy(() => import("./Flags").then((m) => ({ default: m.FlagsPanel })));
+const LicensePanel = lazy(() => import("./License").then((m) => ({ default: m.LicensePanel })));
 
 type LoadState = "idle" | "loading" | "ready" | "error";
 type RuntimeMode = "local" | "remote";
@@ -3719,6 +3721,20 @@ function SectionWorkspace({
                 <ModuleGrid>
                   <ModuleCard title="Appearance and Operator Mode" icon={<Palette size={18} />} wide>
                     <AppearanceSettings settings={settings} onSettings={onSettings} />
+                  </ModuleCard>
+                </ModuleGrid>
+              )
+            },
+            {
+              id: "license",
+              label: "License & modules",
+              icon: <BadgeCheck size={15} />,
+              render: () => (
+                <ModuleGrid>
+                  <ModuleCard title="License & SNDR Engine" icon={<BadgeCheck size={18} />} desc="Active tier (community vs commercial SNDR Engine), the signed license token (subject / expiry / signature), whether the vllm.sndr_engine overlay is installed, and how many engine-tier patches it unlocks." wide>
+                    <Suspense fallback={<SkeletonCards count={1} />}>
+                      <LicensePanel />
+                    </Suspense>
                   </ModuleCard>
                 </ModuleGrid>
               )

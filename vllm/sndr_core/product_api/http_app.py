@@ -591,6 +591,14 @@ def create_app(
     async def patches_doctor() -> dict[str, Any]:
         return _dataclass_payload(run_patch_doctor())
 
+    @app.get("/api/v1/license")
+    async def license_status() -> dict[str, Any]:
+        """License + sndr_engine tier status — installed?, entitled?, subject/expiry,
+        and how many engine-tier patches it unlocks. Read-only."""
+        from . import licensing
+
+        return licensing.status()
+
     @app.get("/api/v1/flags/matrix")
     async def flags_matrix(container: Optional[str] = None) -> dict[str, Any]:
         """The full GENESIS_ENABLE_* catalogue with defaults; when ``container``

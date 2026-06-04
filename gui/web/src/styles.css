@@ -4398,6 +4398,38 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 
 @media (max-width: 400px) { .hw-gpus { grid-template-columns: 1fr; } }
 
+/* License & sndr_engine panel */
+.lic { display: flex; flex-direction: column; gap: var(--gap); }
+.lic-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; padding: var(--sp-6); border: 1px dashed var(--border); border-radius: var(--r-lg); color: var(--text-muted); }
+.lic-empty strong { color: var(--text); font-size: 14px; }
+.lic-head { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; }
+.lic-tier { display: inline-flex; align-items: center; gap: 11px; padding: 11px 15px; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); flex: 1; min-width: 240px; }
+.lic-tier.engine { background: linear-gradient(180deg, color-mix(in srgb, var(--ok) 8%, var(--surface)), var(--surface)); border-color: color-mix(in srgb, var(--ok) 35%, var(--border)); }
+.lic-tier > svg { color: var(--text-muted); flex: none; }
+.lic-tier.engine > svg { color: var(--ok); }
+.lic-tier-id { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; }
+.lic-tier-id strong { font-size: 15px; color: var(--text); }
+.lic-tier-id span { font-size: 11px; color: var(--text-muted); }
+.lic-pill { font-family: var(--mono); font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: var(--r-pill); background: var(--surface-inset); color: var(--text-2); flex: none; }
+.lic-pill.ok { background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--ok); }
+.lic-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--sp-3); }
+.lic-card { display: flex; flex-direction: column; gap: 6px; padding: var(--sp-4); border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); }
+.lic-card-t { display: inline-flex; align-items: center; gap: 6px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--text-muted); font-weight: 700; margin-bottom: 3px; }
+.lic-card-t svg { color: var(--accent-text); }
+.lic-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 12.5px; }
+.lic-row span { color: var(--text-muted); }
+.lic-row strong { color: var(--text); display: inline-flex; align-items: center; gap: 4px; }
+.lic-row strong.mono { font-family: var(--mono); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 160px; }
+.lic-row.ok strong { color: var(--ok); }
+.lic-row.bad strong { color: var(--danger); }
+.lic-row.off strong { color: var(--text-faint); }
+.lic-hint { font-size: 11px; color: var(--text-muted); line-height: 1.45; padding-top: 4px; }
+.lic-hint code { font-family: var(--mono); }
+.lic-status { display: flex; align-items: center; gap: 10px; padding: 10px 13px; border-radius: var(--r-sm); border: 1px solid var(--border); border-left: 3px solid var(--warn); background: var(--surface-inset); }
+.lic-status.ok { border-left-color: var(--ok); }
+.lic-status-code { font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--text-2); padding: 2px 8px; border-radius: var(--r-pill); background: var(--surface); flex: none; }
+.lic-status-msg { font-size: 12px; color: var(--text-2); line-height: 1.4; }
+
 /* Workload routing panel */
 .rt { display: flex; flex-direction: column; gap: var(--gap); }
 .rt-bar-top { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; }

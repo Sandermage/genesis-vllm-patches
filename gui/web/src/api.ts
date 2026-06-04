@@ -361,6 +361,14 @@ export type RoutingArtifact = {
 export type RoutingArtifacts = { available: boolean; reason?: string; artifacts: RoutingArtifact[] };
 export type RoutingActive = { available: boolean; reason?: string; profile?: string | null; source?: string; artifact?: RoutingArtifact | null; candidates?: string[] };
 export type RoutingSignals = { response_format?: unknown; tool_choice?: unknown; workload_class?: string };
+export type LicenseEngine = { installed: boolean; module: string | null; version: string | null };
+export type LicenseInfo = { subject: string | null; expires: string | null; signature_valid: boolean | null; path: string | null };
+export type LicenseStatus = {
+  available: boolean; reason?: string;
+  core?: string; tier?: string; engine?: LicenseEngine; license?: LicenseInfo;
+  eligible?: boolean; status?: string;
+  premium_patches_enabled?: number; engine_tier_patches?: number;
+};
 export type FlagRow = {
   env_flag: string; patch_id: string | null; title: string | null; family: string | null;
   tier: string | null; lifecycle: string | null; default_on: boolean;
@@ -1334,6 +1342,7 @@ export const api = {
   alerts: () => request<AlertsSnapshot>("/api/v1/alerts"),
   hostsReliability: () => request<ReliabilitySnapshot>("/api/v1/hosts/reliability"),
   flagsMatrix: (container?: string) => request<FlagMatrix>(`/api/v1/flags/matrix${query({ container })}`),
+  license: () => request<LicenseStatus>("/api/v1/license"),
   routingArtifacts: () => request<RoutingArtifacts>("/api/v1/routing/artifacts"),
   routingActive: () => request<RoutingActive>("/api/v1/routing/active"),
   routingClassify: (signals: RoutingSignals, profile?: string) => postJson<RoutingClassify>("/api/v1/routing/classify", { signals, profile }),
