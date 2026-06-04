@@ -2246,7 +2246,20 @@ def create_app(
     if static_dir is not None:
         from starlette.staticfiles import StaticFiles
 
-        app.mount("/", StaticFiles(directory=str(static_dir), html=True), name="ui")
+        class _UiStatic(StaticFiles):
+            """Serve the SPA with correct caching: ``index.html`` (and any HTML)
+            must revalidate so a fresh deploy is picked up immediately, while the
+            content-hashed assets are immutable and cached for a year."""
+
+            async def get_response(self, path: str, scope):  # type: ignore[override]
+                resp = await super().get_response(path, scope)
+                if path.endswith(".html") or path in ("", "."):
+                    resp.headers["Cache-Control"] = "no-cache"
+                elif "assets/" in path:
+                    resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+                return resp
+
+        app.mount("/", _UiStatic(directory=str(static_dir), html=True), name="ui")
 
     # Warm the slow read paths off the request thread so the first GUI load is
     # instant: the host-inventory probe (nvidia-smi/docker shell-outs) and the
