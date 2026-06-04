@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { Box, RefreshCw, Search, ToggleLeft, ToggleRight } from "lucide-react";
 import { api, type FlagMatrix, type FlagRow } from "./api";
 
@@ -75,7 +75,7 @@ export function FlagsPanel() {
   );
 }
 
-function FlagRowView({ f, hasLive }: { f: FlagRow; hasLive: boolean }) {
+const FlagRowView = memo(function FlagRowView({ f, hasLive }: { f: FlagRow; hasLive: boolean }) {
   return (
     <div className={`fm-row${f.drift && f.drift !== "in_sync" ? ` drift-${f.drift}` : ""}`}>
       <span className="fm-flag" title={f.title ?? ""}>{f.env_flag.replace(/^GENESIS_ENABLE_/, "")}</span>
@@ -90,4 +90,4 @@ function FlagRowView({ f, hasLive }: { f: FlagRow; hasLive: boolean }) {
       )}
     </div>
   );
-}
+});

@@ -540,7 +540,7 @@ function inlineMd(text: string): ReactNode[] {
     if (tok.startsWith("**")) nodes.push(<strong key={key++}>{tok.slice(2, -2)}</strong>);
     else if (tok.startsWith("`")) nodes.push(<code className="md-inline" key={key++}>{tok.slice(1, -1)}</code>);
     else if (tok.startsWith("*")) nodes.push(<em key={key++}>{tok.slice(1, -1)}</em>);
-    else { const mm = tok.match(/\[([^\]]+)\]\(([^)]+)\)/); if (mm) nodes.push(<a key={key++} href={mm[2]} target="_blank" rel="noreferrer">{mm[1]}</a>); }
+    else { const mm = tok.match(/\[([^\]]+)\]\(([^)]+)\)/); if (mm) { const url = mm[2].trim(); const safe = /^https?:\/\//i.test(url); nodes.push(safe ? <a key={key++} href={url} target="_blank" rel="noreferrer">{mm[1]}</a> : <span key={key++}>{mm[1]}</span>); } }
     last = m.index + tok.length;
   }
   if (last < text.length) nodes.push(text.slice(last));
@@ -726,7 +726,9 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
   const set = (patch: Partial<ChatSettings>) => setSettings((prev) => ({ ...prev, ...patch }));
 
   useEffect(() => {
-    try { window.localStorage.setItem(CHAT_KEY, JSON.stringify({ conversations, activeId, settings })); } catch { /* quota */ }
+    // Never persist the engine API key to localStorage (XSS-extractable secret);
+    // it lives only in memory for the session.
+    try { window.localStorage.setItem(CHAT_KEY, JSON.stringify({ conversations, activeId, settings: { ...settings, apiKey: "" } })); } catch { /* quota */ }
   }, [conversations, activeId, settings]);
 
   async function refreshStatus(over?: { host?: string; port?: number; apiKey?: string; hostId?: string }) {
@@ -806,8 +808,8 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
       await api.engineChatStream(
         { messages: payloadMessages, model: settings.model || undefined, max_tokens: settings.maxTokens, temperature: settings.temperature, top_p: settings.topP, presence_penalty: settings.presencePenalty, frequency_penalty: settings.frequencyPenalty, stop: stopSeqs.length ? stopSeqs : undefined, host: settings.host, port: settings.port, apiKey: settings.apiKey || undefined, hostId: settings.hostId || undefined, chat_template_kwargs: settings.thinking ? { enable_thinking: true } : undefined },
         {
-          onDelta: (text) => patchActive((c) => { const msgs = c.messages.slice(); const last = msgs[msgs.length - 1]; msgs[msgs.length - 1] = { ...last, content: last.content + text }; return { ...c, messages: msgs }; }),
-          onDone: (meta) => patchActive((c) => { const msgs = c.messages.slice(); const last = msgs[msgs.length - 1]; const secs = (meta.latency_ms ?? (Date.now() - started)) / 1000; msgs[msgs.length - 1] = { ...last, stat: { tokens: meta.tokens, ttft_ms: meta.ttft_ms, latency_ms: meta.latency_ms, tps: meta.tokens && secs ? Math.round((meta.tokens / secs) * 10) / 10 : undefined } }; return { ...c, messages: msgs, updatedAt: Date.now() }; }),
+          onDelta: (text) => patchActive((c) => { const msgs = c.messages.slice(); const last = msgs[msgs.length - 1]; if (!last) return c; msgs[msgs.length - 1] = { ...last, content: (last.content ?? "") + text }; return { ...c, messages: msgs }; }),
+          onDone: (meta) => patchActive((c) => { const msgs = c.messages.slice(); const last = msgs[msgs.length - 1]; if (!last) return c; const secs = (meta.latency_ms ?? (Date.now() - started)) / 1000; msgs[msgs.length - 1] = { ...last, stat: { tokens: meta.tokens, ttft_ms: meta.ttft_ms, latency_ms: meta.latency_ms, tps: meta.tokens && secs ? Math.round((meta.tokens / secs) * 10) / 10 : undefined } }; return { ...c, messages: msgs, updatedAt: Date.now() }; }),
           onError: (msg) => setError(msg)
         },
         controller.signal

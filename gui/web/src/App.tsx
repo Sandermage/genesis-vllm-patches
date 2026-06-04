@@ -2715,6 +2715,9 @@ function SectionWorkspace({
   applyEnabled?: boolean;
 }) {
   const spec = sectionSpec(sectionId);
+  // Stable host option list — recompute only when profiles change, so the lazy
+  // Containers/Hardware panels don't see a fresh array prop on every render.
+  const hostOptions = useMemo(() => hostProfiles.map((h) => ({ id: h.id, label: h.label })), [hostProfiles]);
   // Controlled tab for the Presets section so catalog action buttons can jump
   // straight to Selected / Edit / Policy.
   const [presetTab, setPresetTab] = useState("catalog");
@@ -2960,7 +2963,7 @@ function SectionWorkspace({
         <ModuleGrid>
           <ModuleCard title="Containers" icon={<Boxes size={18} />} desc="Manage the vLLM/engine containers on a server — list, live CPU/memory, logs, start/stop/restart, and (when SNDR_ENABLE_EXEC is on) exec inside. Pick the local daemon's host (docker socket) or a registered host (over SSH). Scoped to engine containers only." wide>
             <Suspense fallback={<SkeletonCards count={6} />}>
-              <ContainersPanel hosts={hostProfiles.map((h) => ({ id: h.id, label: h.label }))} onNavigate={(section) => onSection(section as SectionId)} initialHostId={focusHostId ?? undefined} />
+              <ContainersPanel hosts={hostOptions} onNavigate={(section) => onSection(section as SectionId)} initialHostId={focusHostId ?? undefined} />
             </Suspense>
           </ModuleCard>
         </ModuleGrid>
@@ -2970,7 +2973,7 @@ function SectionWorkspace({
         <ModuleGrid>
           <ModuleCard title="GPU & Hardware" icon={<Cpu size={18} />} desc="Live per-GPU telemetry over nvidia-smi — utilisation, VRAM, temperature, power vs limits, clocks, fan, PCIe link, pstate and ECC — plus host CPU/RAM. Pick the local daemon host or a registered host (over SSH)." wide>
             <Suspense fallback={<SkeletonCards count={2} />}>
-              <HardwarePanel hosts={hostProfiles.map((h) => ({ id: h.id, label: h.label }))} initialHostId={focusHostId ?? undefined} />
+              <HardwarePanel hosts={hostOptions} initialHostId={focusHostId ?? undefined} />
             </Suspense>
           </ModuleCard>
         </ModuleGrid>
@@ -10267,7 +10270,8 @@ function AuditLogPanel() {
       .then((result) => { if (!cancelled) { setEvents(result.events.slice().reverse()); setState("ready"); } })
       .catch(() => { if (!cancelled) setState("ready"); });
     load();
-    const timer = window.setInterval(load, 5000);
+    // Skip the poll while the tab is hidden — no point hammering the daemon in the background.
+    const timer = window.setInterval(() => { if (!document.hidden) load(); }, 5000);
     return () => { cancelled = true; window.clearInterval(timer); };
   }, []);
   const rows = events.filter((event) => !filter || `${event.kind} ${event.message}`.toLowerCase().includes(filter.toLowerCase()));
