@@ -67,6 +67,7 @@ import {
   Plus,
   Check,
   Loader2,
+  Lock,
   X,
   Wrench
 } from "lucide-react";
@@ -82,6 +83,7 @@ import {
   DependencyInfo,
   DeploymentPlan,
   EngineStatus,
+  FleetHost,
   HostInventory,
   HostReliability,
   ReliabilitySnapshot,
@@ -1683,6 +1685,7 @@ export default function App() {
             onSetupNode={(id) => { setInstallIntent({ hostId: id, target: "sndr_daemon" }); setActiveSection("setup"); }}
             onContainers={(id) => { setFocusHostId(id); setActiveSection("containers"); }}
             onHardware={(id) => { setFocusHostId(id); setActiveSection("hardware"); }}
+            applyEnabled={applyEnabled}
           />
           </Suspense>
         )}
@@ -2657,7 +2660,8 @@ function SectionWorkspace({
   installIntent,
   onSetupNode,
   onContainers,
-  onHardware
+  onHardware,
+  applyEnabled
 }: {
   sectionId: SectionId;
   overview: ProductOverview | null;
@@ -2708,6 +2712,7 @@ function SectionWorkspace({
   onSetupNode: (id: string) => void;
   onContainers: (id: string) => void;
   onHardware: (id: string) => void;
+  applyEnabled?: boolean;
 }) {
   const spec = sectionSpec(sectionId);
   // Controlled tab for the Presets section so catalog action buttons can jump
@@ -3007,6 +3012,7 @@ function SectionWorkspace({
           onSetupNode={onSetupNode}
           onContainers={onContainers}
           onHardware={onHardware}
+          applyEnabled={applyEnabled}
         />
       )}
 
@@ -6823,6 +6829,28 @@ function totalVramGiB(vram: number[]): number {
   return vram.length ? Math.round(vram.reduce((acc, value) => acc + (value || 0), 0) / 1024) : 0;
 }
 
+// Actionable guidance when the daemon is read-only (apply gated off). Shows the
+// exact restart command with a copy button, instead of a bare "apply is disabled".
+function ApplyDisabledNote({ what }: { what: string }) {
+  const cmd = "python3 -m vllm.sndr_core.cli gui-api --enable-apply";
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="apply-gate">
+      <Lock size={14} />
+      <div className="apply-gate-body">
+        <strong>{what} needs apply — the daemon is read-only.</strong>
+        <span>Restart it with apply enabled (or set <code>SNDR_ENABLE_APPLY=1</code>):</span>
+        <div className="apply-gate-cmdrow">
+          <code className="apply-gate-cmd">{cmd}</code>
+          <button className="apply-gate-copy" onClick={() => { navigator.clipboard?.writeText(cmd); setCopied(true); window.setTimeout(() => setCopied(false), 1500); }}>
+            {copied ? <CheckCircle2 size={12} /> : <Copy size={12} />} {copied ? "copied" : "copy"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Bar sparkline of reachability samples (1 = reachable, 0 = down).
 function RelSpark({ samples }: { samples: number[] }) {
   if (!samples.length) return null;
@@ -6847,7 +6875,9 @@ function FleetHostCard({
   onFocusConsumed,
   onContainers,
   onHardware,
-  reliability
+  reliability,
+  fleet,
+  applyEnabled
 }: {
   profile: HostProfile;
   onEdit: (profile: HostProfile) => void;
@@ -6862,6 +6892,8 @@ function FleetHostCard({
   onContainers?: (id: string) => void;
   onHardware?: (id: string) => void;
   reliability?: HostReliability | null;
+  fleet?: FleetHost | null;
+  applyEnabled?: boolean;
 }) {
   const [probe, setProbe] = useState<HostProbe | null>(null);
   const [busy, setBusy] = useState(false);
@@ -6973,6 +7005,48 @@ function FleetHostCard({
         {profile.notes && <div><dt>Notes</dt><dd>{profile.notes}</dd></div>}
         {probe && !probe.reachable && probe.error && <div><dt>Probe</dt><dd className="fleet-err">{probe.error}</dd></div>}
       </dl>
+      {fleet && (fleet.gpus.length > 0 || fleet.engines.length > 0) && (() => {
+        const totalVram = fleet.gpus.reduce((n, g) => n + (parseInt(g.memory_total_mib || "0", 10) || 0), 0);
+        const sg = (name: string) => name.replace(/^NVIDIA\s+/i, "").replace(/\s+(GPU|Graphics)$/i, "");
+        const sv = (v: string) => v.replace(/^(\d+\.\d+\.\d+).*/, "$1");
+        return (
+          <div className="fleet-live">
+            {fleet.gpus.length > 0 && (
+              <div className="fleet-live-sect">
+                <div className="fleet-live-t"><Cpu size={12} /> {fleet.gpus.length}× {sg(fleet.gpus[0].name)}
+                  {totalVram > 0 && <span className="fleet-live-vram">{Math.round(totalVram / 1024)} GB</span>}
+                  {fleet.interconnect && <span className="fleet-live-ic"><Link2 size={10} /> {fleet.interconnect}</span>}
+                </div>
+                <div className="fleet-live-bars">
+                  {fleet.gpus.map((g, i) => {
+                    const u = Math.max(0, Math.min(100, parseInt(g.utilization || "0", 10) || 0));
+                    return <div key={i} className="fleet-live-bar" title={`GPU ${i} · ${sg(g.name)} · ${Math.round((parseInt(g.memory_total_mib || "0", 10) || 0) / 1024)} GB · ${u}% util`}>
+                      <div className="fleet-live-fill" style={{ width: `${Math.max(u, 2)}%` }} /><span>{u}%</span></div>;
+                  })}
+                </div>
+              </div>
+            )}
+            {fleet.engines.length > 0 && (
+              <div className="fleet-live-sect">
+                <div className="fleet-live-t"><Boxes size={11} /> {fleet.engines.length} container{fleet.engines.length > 1 ? "s" : ""}
+                  {fleet.active_patches > 0 && <span className="fleet-live-patches"><ShieldCheck size={10} /> {fleet.active_patches} patches</span>}
+                  {fleet.vllm_version && <span className="fleet-live-ver">vLLM {sv(fleet.vllm_version)}</span>}
+                </div>
+                {fleet.engines.slice(0, 4).map((e, i) => (
+                  <div key={i} className="fleet-live-eng" title={`${e.container ?? "container"}${e.port ? " · :" + e.port : ""} · ${e.reachable ? "reachable" : "unreachable"}`}>
+                    <span className={`fleet-live-dot ${e.reachable ? "up" : "down"}`} />
+                    <code className="fleet-live-cname">{e.container ?? "—"}</code>
+                    {e.port && <span className="fleet-live-port">:{e.port}</span>}
+                    {e.reachable && e.version && <span className="fleet-live-evr">{sv(e.version)}</span>}
+                    {e.patches > 0 && <span className="fleet-live-ep"><ShieldCheck size={9} /> {e.patches}</span>}
+                    {e.models[0] && <span className="fleet-live-emodel" title={e.models.join(", ")}>{e.models[0].split("/").pop()}</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })()}
       {reliability && reliability.checks > 1 && (
         <div className={`fleet-rel ${reliability.state}`} title={`${reliability.checks} reachability checks · breaker ${reliability.state}`}>
           <span className="fleet-rel-up">{reliability.uptime_pct}% up</span>
@@ -7049,8 +7123,9 @@ function FleetHostCard({
               <input type="number" value={profile.engine_port || 8102} readOnly title="The node's vLLM engine port (from the card)" />
             </label>
           </div>
+          {applyEnabled === false && <ApplyDisabledNote what="Installing a node over SSH" />}
           <div className="node-setup-actions">
-            <button className="primary-action danger" onClick={() => void installNode()} disabled={nodePw.length < 4 || nodeBusy}>
+            <button className="primary-action danger" onClick={() => void installNode()} disabled={nodePw.length < 4 || nodeBusy || applyEnabled === false}>
               {nodeBusy ? <Loader2 size={14} className="spin" /> : <Rocket size={14} />} Install node over SSH
             </button>
             <button className="ghost-button" onClick={() => setNodeForm(false)} disabled={nodeBusy}>Cancel</button>
@@ -7060,8 +7135,9 @@ function FleetHostCard({
               <div className="node-setup-result-head">
                 {nodeResult.ok ? <CheckCircle2 size={14} /> : <AlertTriangle size={14} />}
                 <strong>{nodeResult.ok ? `Node ready on :${nodeResult.port} — switch to it from the top menu (login: root)` : "Setup failed"}</strong>
-                {nodeResult.error && <span className="node-setup-err">{nodeResult.error}</span>}
+                {nodeResult.error && !/apply is disabled/i.test(nodeResult.error) && <span className="node-setup-err">{nodeResult.error}</span>}
               </div>
+              {nodeResult.error && /apply is disabled/i.test(nodeResult.error) && <ApplyDisabledNote what="Installing a node over SSH" />}
               <ol className="node-setup-steps">
                 {nodeResult.steps.map((s, i) => (
                   <li key={i} className={s.rc === 0 ? "ok" : "fail"}>
@@ -7523,7 +7599,8 @@ function HostsSection({
   onFocusConsumed,
   onSetupNode,
   onContainers,
-  onHardware
+  onHardware,
+  applyEnabled
 }: {
   hostProfiles: HostProfile[];
   environment: EnvironmentReport | null;
@@ -7539,6 +7616,7 @@ function HostsSection({
   onSetupNode: (id: string) => void;
   onContainers: (id: string) => void;
   onHardware: (id: string) => void;
+  applyEnabled?: boolean;
 }) {
   const [inventory, setInventory] = useState<HostInventory | null>(null);
   const [modal, setModal] = useState<{ profile: HostProfile | null } | null>(null);
@@ -7546,13 +7624,20 @@ function HostsSection({
   const askDelete = (id: string) => setConfirmDelete({ id, label: hostProfiles.find((h) => h.id === id)?.label ?? id });
   const [terminalHost, setTerminalHost] = useState<HostProfile | null>(null);
   const [reliability, setReliability] = useState<ReliabilitySnapshot>({});
+  const [fleetById, setFleetById] = useState<Record<string, FleetHost>>({});
   useEffect(() => {
     let cancelled = false;
     api.hostInventory().then((data) => { if (!cancelled) setInventory(data); }).catch(() => {});
     const loadRel = () => api.hostsReliability().then((r) => { if (!cancelled) setReliability(r); }).catch(() => {});
+    // Live fleet sweep (GPU util / containers / patches) to enrich each card.
+    const loadFleet = () => api.fleetOverview().then((r) => {
+      if (!cancelled) setFleetById(Object.fromEntries(r.hosts.map((h) => [h.id, h])));
+    }).catch(() => {});
     void loadRel();
+    void loadFleet();
+    const tf = window.setInterval(() => { if (!document.hidden) void loadFleet(); }, 60000);
     const t = window.setInterval(() => { if (!document.hidden) void loadRel(); }, 8000);
-    return () => { cancelled = true; window.clearInterval(t); };
+    return () => { cancelled = true; window.clearInterval(t); window.clearInterval(tf); };
   }, []);
   async function remove(id: string) {
     try { await api.hostDelete(id); onHostsRefresh(); toast(`Host removed: ${id}`, "success"); } catch { toast("Failed to remove host", "error"); }
@@ -7576,7 +7661,7 @@ function HostsSection({
                   <div className="fleet-grid">
                     <ThisHostCard inventory={inventory} environment={environment} apiBase={apiBase} />
                     {hostProfiles.map((profile) => (
-                      <FleetHostCard key={profile.id} profile={profile} onEdit={(p) => setModal({ profile: p })} onDelete={askDelete} onChat={onChatWithHost} onAddServer={onAddServer} onRefresh={onHostsRefresh} onTerminal={setTerminalHost} focused={focusHostId === profile.id} onFocusConsumed={onFocusConsumed} onSetupNode={onSetupNode} onContainers={onContainers} onHardware={onHardware} reliability={reliability[profile.id] ?? null} />
+                      <FleetHostCard key={profile.id} profile={profile} onEdit={(p) => setModal({ profile: p })} onDelete={askDelete} onChat={onChatWithHost} onAddServer={onAddServer} onRefresh={onHostsRefresh} onTerminal={setTerminalHost} focused={focusHostId === profile.id} onFocusConsumed={onFocusConsumed} onSetupNode={onSetupNode} onContainers={onContainers} onHardware={onHardware} reliability={reliability[profile.id] ?? null} fleet={fleetById[profile.id] ?? null} applyEnabled={applyEnabled} />
                     ))}
                   </div>
                   {hostProfiles.length === 0 && <p className="muted">No remote hosts yet — add your GPU box to probe its engine from here.</p>}

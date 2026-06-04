@@ -2469,6 +2469,40 @@ pre, .code-block, .cli-mirror pre, .artifact-preview pre {
 .fleet-rel-svg rect.down { fill: var(--danger); }
 .fleet-rel-state { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; color: var(--warn); flex: none; padding: 2px 7px; border-radius: var(--r-pill); background: color-mix(in srgb, var(--warn) 14%, transparent); }
 .fleet-rel.open .fleet-rel-state { color: var(--danger); background: color-mix(in srgb, var(--danger) 14%, transparent); }
+
+/* Live host status — GPU util + containers + patches, enriched from the fleet sweep */
+.fleet-live { display: flex; flex-direction: column; gap: var(--sp-3); padding: var(--sp-3); border-radius: var(--r-sm); background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 3%, var(--surface-inset)), var(--surface-inset)); border: 1px solid var(--border); }
+.fleet-live-sect { display: flex; flex-direction: column; gap: 5px; }
+.fleet-live-t { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; color: var(--text-2); flex-wrap: wrap; }
+.fleet-live-t svg { color: var(--accent-text); }
+.fleet-live-vram { font-family: var(--mono); font-size: 10.5px; color: var(--text-muted); }
+.fleet-live-ic { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; color: var(--text-muted); padding: 1px 6px; border-radius: var(--r-pill); background: var(--surface); }
+.fleet-live-patches, .fleet-live-ver { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; color: var(--accent-text); margin-left: auto; }
+.fleet-live-ver { color: var(--text-muted); margin-left: 0; }
+.fleet-live-bars { display: flex; flex-direction: column; gap: 3px; }
+.fleet-live-bar { position: relative; height: 14px; border-radius: 4px; background: var(--surface); overflow: hidden; }
+.fleet-live-fill { position: absolute; inset: 0 auto 0 0; background: color-mix(in srgb, var(--accent) 55%, transparent); border-radius: 4px; transition: width .35s ease; }
+.fleet-live-bar span { position: absolute; right: 6px; top: 0; bottom: 0; display: flex; align-items: center; font-family: var(--mono); font-size: 9.5px; font-weight: 700; color: var(--text); }
+.fleet-live-eng { display: flex; align-items: center; gap: 6px; font-size: 11px; padding: 3px 0; }
+.fleet-live-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.fleet-live-dot.up { background: var(--ok); }
+.fleet-live-dot.down { background: var(--danger); }
+.fleet-live-cname { font-family: var(--mono); font-size: 10.5px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fleet-live-port { font-family: var(--mono); font-size: 10px; color: var(--text-muted); }
+.fleet-live-evr { font-family: var(--mono); font-size: 9.5px; color: var(--text-muted); }
+.fleet-live-ep { display: inline-flex; align-items: center; gap: 2px; font-size: 9.5px; color: var(--accent-text); }
+.fleet-live-emodel { font-size: 9.5px; color: var(--text-muted); margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 120px; }
+
+/* Apply-gate actionable note (read-only daemon → how to enable) */
+.apply-gate { display: flex; gap: 9px; padding: 10px 12px; border-radius: var(--r-sm); border: 1px solid color-mix(in srgb, var(--warn) 35%, var(--border)); background: color-mix(in srgb, var(--warn) 7%, transparent); }
+.apply-gate > svg { color: var(--warn); flex: none; margin-top: 1px; }
+.apply-gate-body { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text-2); min-width: 0; }
+.apply-gate-body strong { color: var(--text); font-size: 12.5px; }
+.apply-gate-body code { font-family: var(--mono); font-size: 11px; }
+.apply-gate-cmdrow { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin-top: 2px; }
+.apply-gate-cmd { padding: 4px 9px; border-radius: var(--r-sm); background: var(--surface-inset); border: 1px solid var(--border); color: var(--text); overflow-x: auto; }
+.apply-gate-copy { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; padding: 4px 9px; border-radius: var(--r-sm); border: 1px solid var(--border); background: var(--surface); color: var(--text-2); cursor: pointer; }
+
 .fleet-tags { display: flex; flex-wrap: wrap; gap: 5px; }
 .fleet-tag { font-size: 10px; font-weight: 600; color: var(--text-muted); background: var(--surface-2); border: 1px solid var(--border); padding: 1px 7px; border-radius: 999px; }
 .fleet-card-actions { display: flex; align-items: center; gap: 7px; margin-top: auto; padding-top: 4px; }
