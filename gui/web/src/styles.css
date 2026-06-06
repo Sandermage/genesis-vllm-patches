@@ -2059,6 +2059,16 @@ button.chip { font-family: inherit; line-height: 1.2; }
 .chip-link:active { transform: translateY(1px); }
 .chip-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .chip-unknown { opacity: .55; font-style: italic; }
+.chip-link.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.proof-drilldown { margin-top: 14px; border-top: 1px solid var(--border); padding-top: 12px; }
+.proof-drill-head { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+.proof-drill-head h5 { margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted-text); }
+.proof-drill-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.proof-drill-table th { text-align: left; font-weight: 600; color: var(--muted-text); padding: 4px 8px; border-bottom: 1px solid var(--border); }
+.proof-drill-table td { padding: 4px 8px; border-bottom: 1px solid var(--border-soft, var(--border)); white-space: nowrap; }
+.proof-drill-table tr:hover td { background: var(--accent-soft); }
+.proof-drill-more { margin-top: 8px; font-size: 12px; background: none; border: 1px solid var(--border); border-radius: var(--r-sm, 6px); padding: 4px 10px; cursor: pointer; color: var(--accent-text); }
+.proof-drill-more:hover { background: var(--accent-soft); }
 .preset-quick-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 2px; }
 .primary-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 34px; padding: 0 14px; border-radius: var(--r-sm); font-size: 12.5px; font-weight: 600; background: var(--accent); color: var(--accent-contrast); box-shadow: var(--shadow-sm); transition: background .12s, transform .06s; }
 .primary-button:hover { background: var(--accent-strong); }

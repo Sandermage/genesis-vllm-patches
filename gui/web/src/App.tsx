@@ -10012,6 +10012,104 @@ function UpstreamDiffPanel({ report }: { report: DiffUpstreamReport | null }) {
   );
 }
 
+// Per-patch proof drill-down — the aggregate panel only ever showed bucket
+// totals; operators couldn't see WHICH patches fell into dead/static_failed.
+// This filterable table surfaces problematic buckets first so coverage gaps
+// are actionable. Pure view over report.patches (no new endpoint).
+const PROOF_PROBLEM_BUCKETS = new Set(["dead", "static_failed"]);
+
+function ProofPatchDrilldown({
+  patches,
+  colors
+}: {
+  patches: Array<Record<string, unknown>>;
+  colors: Record<string, string>;
+}) {
+  const [bucket, setBucket] = useState<string>("all");
+  const [expanded, setExpanded] = useState(false);
+  if (!patches.length) return null;
+  const patchBucket = (p: Record<string, unknown>) => asText(p.bucket, "unknown");
+  const problemRank = (b: string) => (PROOF_PROBLEM_BUCKETS.has(b) ? 0 : 1);
+  const buckets = Array.from(new Set(patches.map(patchBucket))).sort(
+    (a, b) => problemRank(a) - problemRank(b) || a.localeCompare(b)
+  );
+  const filtered = patches
+    .filter((p) => bucket === "all" || patchBucket(p) === bucket)
+    .slice()
+    .sort((a, b) => {
+      const ab = patchBucket(a);
+      const bb = patchBucket(b);
+      return (
+        problemRank(ab) - problemRank(bb) ||
+        ab.localeCompare(bb) ||
+        asText(a.patch_id ?? a.id, "").localeCompare(asText(b.patch_id ?? b.id, ""))
+      );
+    });
+  const LIMIT = 12;
+  const shown = expanded ? filtered : filtered.slice(0, LIMIT);
+  return (
+    <div className="proof-drilldown">
+      <div className="proof-drill-head">
+        <h5>Per-patch proof</h5>
+        <div className="chip-row">
+          <button
+            type="button"
+            className={`chip chip-link ${bucket === "all" ? "active" : ""}`}
+            onClick={() => setBucket("all")}
+          >
+            all ({patches.length})
+          </button>
+          {buckets.map((b) => {
+            const n = patches.filter((p) => patchBucket(p) === b).length;
+            return (
+              <button
+                type="button"
+                key={b}
+                className={`chip chip-link ${bucket === b ? "active" : ""} ${PROOF_PROBLEM_BUCKETS.has(b) ? "danger" : ""}`}
+                onClick={() => setBucket(b)}
+              >
+                {b.replace(/_/g, " ")} ({n})
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <table className="proof-drill-table">
+        <thead>
+          <tr>
+            <th>Patch</th><th>Bucket</th><th>Family</th><th>Tier</th><th>Lifecycle</th><th>Artifacts</th>
+          </tr>
+        </thead>
+        <tbody>
+          {shown.map((p, index) => {
+            const id = asText(p.patch_id ?? p.id, `#${index}`);
+            const b = patchBucket(p);
+            const arte = Array.isArray(p.artefacts) ? p.artefacts.length : 0;
+            return (
+              <tr key={id}>
+                <td><strong>{id}</strong></td>
+                <td>
+                  <span className="proof-bucket-dot" style={{ background: colors[b] ?? "var(--border-strong)" }} />
+                  {" "}{b.replace(/_/g, " ")}
+                </td>
+                <td>{asText(p.family, "-")}</td>
+                <td>{asText(p.tier, "-")}</td>
+                <td>{asText(p.lifecycle, "-")}</td>
+                <td>{arte}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      {filtered.length > LIMIT && (
+        <button type="button" className="proof-drill-more" onClick={() => setExpanded((v) => !v)}>
+          {expanded ? "Show fewer" : `Show all ${filtered.length}`}
+        </button>
+      )}
+    </div>
+  );
+}
+
 function ProofStatusPanel({ report }: { report: ProofStatusReport | null }) {
   if (!report) {
     return <SkeletonLines count={5} />;
@@ -10096,6 +10194,7 @@ function ProofStatusPanel({ report }: { report: ProofStatusReport | null }) {
           <BarList rows={bar(byLifecycle)} />
         </div>
       </div>
+      <ProofPatchDrilldown patches={patches} colors={proofColors} />
       <p className="proof-foot muted">{patches.length} patches indexed · {totalArtefacts} artifact file{totalArtefacts === 1 ? "" : "s"}</p>
     </div>
   );
