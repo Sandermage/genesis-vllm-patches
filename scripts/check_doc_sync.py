@@ -211,24 +211,27 @@ _PATCHES_MD_STATS_PATTERNS: list[tuple[str, str]] = [
 #                + V placeholder)"
 # Drift caught 2026-06-01 — both forms had become stale (174/17/7
 # vs 177/20/8) because earlier check_doc_sync only checked total count.
+# Group order MUST match the doc prose order (below). v12.x docs added the
+# `experimental` impl_status so the six categories now sum to total.
 _IMPL_BREAKDOWN_KEYS = [
-    "total", "impl.full", "impl.marker_only",
-    "impl.retired", "impl.partial", "impl.placeholder",
+    "total", "impl.full", "impl.experimental", "impl.marker_only",
+    "impl.partial", "impl.retired", "impl.placeholder",
 ]
 _IMPL_BREAKDOWN_SOURCES: list[tuple[str, str]] = [
     (
         "docs/FAQ.md",
-        r"\*\*(\d+) entries\*\* — (\d+) full-implementation \+ (\d+) marker-only \+\s*"
-        r"(\d+) retired \+ (\d+) partial \+ (\d+) placeholder",
+        # "**252 entries**: 192 full-implementation, 26 experimental,
+        #  20 marker-only, 8 partial, 4 retired, 2 placeholder"
+        r"\*\*(\d+) entries\*\*: (\d+) full-implementation,\s*(\d+) experimental,\s*"
+        r"(\d+) marker-only,\s*(\d+) partial,\s*(\d+) retired,\s*(\d+) placeholder",
     ),
     (
         "docs/CONFIGURATION.md",
-        # The prose lives inside a markdown blockquote, so the "full-"
-        # -> "implementation" line break carries a `> ` continuation
-        # marker that `\s*` alone won't cross. [\s>]* admits it.
-        r"registry has \*\*(\d+) entries\*\* \((\d+) full-[\s>]*"
-        r"implementation \+ (\d+) marker_only \+ (\d+) retired \+ "
-        r"(\d+) partial \+ (\d+) placeholder\)",
+        # Same prose inside a markdown blockquote, so line breaks carry a
+        # `> ` continuation marker — [\s>]* admits it between fields.
+        r"registry has \*\*(\d+) entries\*\*: (\d+) full-implementation,[\s>]*"
+        r"(\d+) experimental,[\s>]*(\d+) marker_only,[\s>]*(\d+) partial,[\s>]*"
+        r"(\d+) retired,[\s>]*(\d+) placeholder",
     ),
 ]
 
