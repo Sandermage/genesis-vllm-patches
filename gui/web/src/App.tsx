@@ -73,7 +73,7 @@ import {
 } from "lucide-react";
 import { Component, Fragment, Suspense, lazy, useEffect, useMemo, useRef, useState, type ReactNode, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { sectionFromHash, recordIdFromHash, buildHash, replaceHash } from "./route";
-import { type SectionId, type RuntimeMode, type Gate, GATE_TARGET } from "./nav";
+import { type SectionId, type RuntimeMode, type Gate } from "./nav";
 import { useFetch } from "./hooks/useFetch";
 import { asRecord, asText, asNumber, asStringArray, countRecord } from "./lib/coerce";
 import { formatAppliesTo, formatTokens, formatVram, totalVramGiB } from "./lib/format";
@@ -97,6 +97,7 @@ import { ModuleGrid, ModuleCard } from "./components/layout";
 import { toast, ToastHost } from "./components/toast";
 import { OperationsConsole } from "./sections/operations";
 import { DeploymentConsole } from "./sections/deployment";
+import { GateRow } from "./sections/gate-row";
 import { ProofStatusPanel } from "./sections/proof";
 import { CodeBlock, CopyButton } from "./components/code-block";
 import { useDialogFocus, useEscapeKey, closeOnBackdrop } from "./dialog";
@@ -8724,41 +8725,6 @@ function KeyValue({ label, value }: { label: string; value: string | number }) {
 
 // GATE_TARGET moved to ./nav.
 
-function GateRow({ gate, onNavigate }: { gate: Gate; onNavigate?: (section: SectionId) => void }) {
-  const [open, setOpen] = useState(false);
-  const target = GATE_TARGET[gate.id];
-  return (
-    <div className={`gate-row ${gate.status} ${open ? "open" : ""}`}>
-      <button className="gate-main" onClick={() => setOpen((value) => !value)} aria-expanded={open}>
-        <span className="gate-icon">
-          {gate.status === "pass" && <CheckCircle2 size={16} />}
-          {gate.status === "warning" && <CircleAlert size={16} />}
-          {gate.status === "blocked" && <AlertCircle size={16} />}
-          {gate.status === "planned" && <Clock3 size={16} />}
-        </span>
-        <div>
-          <strong>{gate.label}</strong>
-          <small>{gate.detail}</small>
-        </div>
-        <span className="gate-status">{gate.status}</span>
-        <ChevronRight className="gate-caret" size={16} />
-      </button>
-      {open && (
-        <div className="gate-detail">
-          <p>{gate.detail}</p>
-          <div className="gate-detail-actions">
-            <span className="gate-action-hint"><Wrench size={13} /> {gate.action}</span>
-            {target && onNavigate && (
-              <button className="ghost-button" onClick={() => onNavigate(target.section)}>
-                <ChevronRight size={14} /> {target.label}
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
 
 function JobsTable({ onMonitor }: { onMonitor?: (id: string) => void }) {
   const [jobs, setJobs] = useState<Job[]>([]);
