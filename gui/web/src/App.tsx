@@ -73,6 +73,7 @@ import {
 } from "lucide-react";
 import { Component, Fragment, Suspense, lazy, useEffect, useMemo, useRef, useState, type ReactNode, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { sectionFromHash, recordIdFromHash, buildHash, replaceHash } from "./route";
+import { type SectionId, type RuntimeMode, type Gate, GATE_TARGET } from "./nav";
 import { useFetch } from "./hooks/useFetch";
 import { asRecord, asText, asNumber, asStringArray, countRecord } from "./lib/coerce";
 import { formatAppliesTo, formatTokens, formatVram, totalVramGiB } from "./lib/format";
@@ -183,34 +184,10 @@ const FlagsPanel = lazy(() => import("./Flags").then((m) => ({ default: m.FlagsP
 const LicensePanel = lazy(() => import("./License").then((m) => ({ default: m.LicensePanel })));
 
 type LoadState = "idle" | "loading" | "ready" | "error";
-type RuntimeMode = "local" | "remote";
 // GateStatus is now owned by ./components/primitives (re-imported above) so the
 // RailCheck primitive and the gate logic share one source of truth.
-type SectionId =
-  | "overview"
-  | "setup"
-  | "fleet"
-  | "hosts"
-  | "hardware"
-  | "models"
-  | "configs"
-  | "presets"
-  | "planner"
-  | "copilot"
-  | "launch-plan"
-  | "services"
-  | "containers"
-  | "routing"
-  | "doctor"
-  | "patches"
-  | "flags"
-  | "benchmarks"
-  | "evidence"
-  | "clients"
-  | "chat"
-  | "reports"
-  | "operations"
-  | "advanced";
+// RuntimeMode moved to ./nav.
+// SectionId / RuntimeMode / Gate / GATE_TARGET now live in ./nav (imported above).
 type ArtifactTab = "compose" | "systemd" | "commands" | "env";
 type ConsoleTab = "jobs" | "events" | "logs" | "cli";
 type ThemeMode = "light" | "dark" | "carbon" | "lime";
@@ -232,13 +209,7 @@ type NavItem = {
   label: string;
 };
 
-type Gate = {
-  id: string;
-  label: string;
-  detail: string;
-  status: GateStatus;
-  action: string;
-};
+// Gate type moved to ./nav.
 
 type GuiSettings = {
   theme: ThemeMode;
@@ -8751,25 +8722,11 @@ function KeyValue({ label, value }: { label: string; value: string | number }) {
   );
 }
 
-const _GATE_TARGET: Record<string, { section: SectionId; label: string }> = {
-  catalog: { section: "configs", label: "Open Configs" },
-  "preset-card": { section: "presets", label: "Open Presets" },
-  preset_card: { section: "presets", label: "Open Presets" },
-  runtime: { section: "hosts", label: "Open Hosts" },
-  engine: { section: "doctor", label: "Open Doctor" },
-  engine_package: { section: "doctor", label: "Open Doctor" },
-  patch_doctor: { section: "patches", label: "Open Patch Doctor" },
-  "service-api": { section: "services", label: "Open Services" },
-  service_lifecycle: { section: "services", label: "Open Services" },
-  evidence: { section: "evidence", label: "Open Evidence" },
-  evidence_orchestration: { section: "evidence", label: "Open Evidence" },
-  "release-proof": { section: "reports", label: "Open Reports" },
-  release_proof: { section: "reports", label: "Open Reports" }
-};
+// GATE_TARGET moved to ./nav.
 
 function GateRow({ gate, onNavigate }: { gate: Gate; onNavigate?: (section: SectionId) => void }) {
   const [open, setOpen] = useState(false);
-  const target = _GATE_TARGET[gate.id];
+  const target = GATE_TARGET[gate.id];
   return (
     <div className={`gate-row ${gate.status} ${open ? "open" : ""}`}>
       <button className="gate-main" onClick={() => setOpen((value) => !value)} aria-expanded={open}>
