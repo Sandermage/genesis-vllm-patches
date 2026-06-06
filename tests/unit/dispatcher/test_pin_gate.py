@@ -199,11 +199,12 @@ class TestDispatcherWiringPresent:
     def test_decision_source_references_vllm_version_range(self):
         """decision.py extracts vllm_version_range from applies_to keys."""
         from pathlib import Path
-        decision_path = (
-            Path(__file__).resolve().parents[3]
-            / "vllm" / "sndr_core" / "dispatcher" / "decision.py"
-        )
-        text = decision_path.read_text()
+        # Resolve the canonical module rather than a hardcoded path: v12.x
+        # turned vllm/sndr_core/dispatcher/decision.py into a re-export shim,
+        # so the real source lives at sndr/dispatcher/decision.py. Reading via
+        # __file__ follows the implementation wherever it moves.
+        import sndr.dispatcher.decision as _decision
+        text = Path(_decision.__file__).read_text()
         assert '"vllm_version_range"' in text, (
             "decision.py no longer treats vllm_version_range as a "
             "version-key. Pin-gate wiring regressed."
@@ -217,11 +218,8 @@ class TestDispatcherWiringPresent:
         """decision.py reason format includes 'VERSION:' prefix for the
         orchestrator log to be greppable by operators."""
         from pathlib import Path
-        decision_path = (
-            Path(__file__).resolve().parents[3]
-            / "vllm" / "sndr_core" / "dispatcher" / "decision.py"
-        )
-        text = decision_path.read_text()
+        import sndr.dispatcher.decision as _decision
+        text = Path(_decision.__file__).read_text()
         assert '"VERSION:' in text, (
             "decision.py no longer emits 'VERSION:' reason prefix on "
             "version-gate failure. Operator-grep continuity regressed."
