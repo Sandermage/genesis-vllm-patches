@@ -52,3 +52,16 @@ export function DoctorStat({ tone, value, label }: { tone: string; value: number
     </div>
   );
 }
+
+export function KpiGrid({ rows }: { rows: Array<[string, string | number]> }) {
+  return (
+    <div className="kpi-grid">
+      {rows.map(([label, value]) => (
+        <div key={label}>
+          <strong>{value}</strong>
+          <span>{label}</span>
+        </div>
+      ))}
+    </div>
+  );
+}

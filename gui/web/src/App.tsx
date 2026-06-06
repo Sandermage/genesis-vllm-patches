@@ -77,11 +77,12 @@ import { sectionFromHash, recordIdFromHash, buildHash, replaceHash } from "./rou
 import { useFetch } from "./hooks/useFetch";
 import { asRecord, asText, asNumber, asStringArray, countRecord } from "./lib/coerce";
 import { formatAppliesTo, fmtParam, shortWorkload, formatTokens, formatVram } from "./lib/format";
-import { StatusBadge, StatusPill, InfoRows, CompactList, DoctorStat } from "./components/primitives";
+import { StatusBadge, StatusPill, InfoRows, CompactList, DoctorStat, KpiGrid } from "./components/primitives";
 import { SegmentBar, PercentBar, BarList, OvKpi, segmentsFromCounts } from "./components/charts";
 import { CaveatsPanel, ConfigKeysPanel, TracesPanel } from "./sections/diagnostics";
 import { DoctorSummary, DoctorFindings } from "./sections/doctor";
 import { ConfigComparePanel, ConfigPlanPanel, ConfigApplyPanel } from "./sections/config";
+import { BundlesPanel, UpstreamDiffPanel } from "./sections/registry";
 import { ProofStatusPanel } from "./sections/proof";
 import { CodeBlock, CopyButton } from "./components/code-block";
 import { useDialogFocus, useEscapeKey, closeOnBackdrop } from "./dialog";
@@ -6112,18 +6113,7 @@ function ModuleCard({
 
 // InfoRows extracted to ./components/primitives.
 
-function KpiGrid({ rows }: { rows: Array<[string, string | number]> }) {
-  return (
-    <div className="kpi-grid">
-      {rows.map(([label, value]) => (
-        <div key={label}>
-          <strong>{value}</strong>
-          <span>{label}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
+// KpiGrid extracted to ./components/primitives.
 
 function RuntimeEnvelopePanel({
   card,
@@ -9490,77 +9480,7 @@ function DoctorCoveragePanel({ report }: { report: PatchDoctorReport | null }) {
   );
 }
 
-function BundlesPanel({ bundles }: { bundles: BundleSpec[] }) {
-  if (!bundles.length) {
-    return <p className="muted">No multi-patch bundles reported by the registry.</p>;
-  }
-  return (
-    <table className="module-table">
-      <thead>
-        <tr>
-          <th>Bundle</th>
-          <th>Tier</th>
-          <th>Umbrella flag</th>
-          <th>Description</th>
-        </tr>
-      </thead>
-      <tbody>
-        {bundles.map((bundle) => (
-          <tr key={bundle.name}>
-            <td><strong>{bundle.name}</strong></td>
-            <td><StatusBadge status={bundle.tier} /></td>
-            <td><code>{bundle.umbrella_flag}</code></td>
-            <td>{bundle.description}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  );
-}
-
-function UpstreamDiffPanel({ report }: { report: DiffUpstreamReport | null }) {
-  if (!report) {
-    return <SkeletonLines count={5} />;
-  }
-  const active = report.has_upstream_pr;
-  return (
-    <div className="runtime-envelope">
-      <KpiGrid
-        rows={[
-          ["Active upstream PRs", active.length],
-          ["Merged upstream", report.merged_upstream.length]
-        ]}
-      />
-      {active.length === 0 ? (
-        <p className="muted">No patches currently track an open upstream PR.</p>
-      ) : (
-        <div className="patch-table-scroll">
-          <table className="module-table patch-table">
-            <thead>
-              <tr>
-                <th>Patch</th>
-                <th>Upstream PR</th>
-                <th>Lifecycle</th>
-              </tr>
-            </thead>
-            <tbody>
-              {active.map((row, index) => (
-                <tr key={`${String(row.patch_id)}-${index}`}>
-                  <td>
-                    <strong>{String(row.patch_id)}</strong>
-                    <small>{String(row.title ?? "")}</small>
-                  </td>
-                  <td>{row.upstream_pr ? `#${row.upstream_pr}` : "-"}</td>
-                  <td><StatusBadge status={String(row.lifecycle ?? "unknown")} /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
+// BundlesPanel + UpstreamDiffPanel extracted to ./sections/registry.
 
 // Per-patch proof drill-down — the aggregate panel only ever showed bucket
 // totals; operators couldn't see WHICH patches fell into dead/static_failed.
