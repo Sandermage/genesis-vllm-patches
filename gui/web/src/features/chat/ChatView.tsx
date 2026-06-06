@@ -79,16 +79,18 @@ export function ChatView(): JSX.Element {
 
       <Tile style={{ marginBottom: 16, display: 'flex', gap: 12, alignItems: 'flex-end' }}>
         <div style={{ flex: '1 1 0' }}>
-          <label className="cds--label">Endpoint</label>
+          <label className="cds--label" htmlFor="chat-endpoint">Endpoint</label>
           <input
+            id="chat-endpoint"
             className="cds--text-input"
             value={endpoint}
             onChange={(e) => setEndpoint(e.target.value)}
           />
         </div>
         <div style={{ flex: '1 1 0' }}>
-          <label className="cds--label">Model</label>
+          <label className="cds--label" htmlFor="chat-model">Model</label>
           <input
+            id="chat-model"
             className="cds--text-input"
             value={model}
             onChange={(e) => setModel(e.target.value)}
