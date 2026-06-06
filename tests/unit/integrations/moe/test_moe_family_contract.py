@@ -42,7 +42,7 @@ MOE_PATCHES = [
 
 def _get_registry_env_flag(patch_id: str) -> str | None:
     """Read env_flag for patch from registry.py source (no torch import)."""
-    registry_path = Path(__file__).resolve().parents[4] / "vllm" / "sndr_core" / "dispatcher" / "registry.py"
+    registry_path = Path(__file__).resolve().parents[4] / "sndr" / "dispatcher" / "registry.py"
     text = registry_path.read_text()
     # Find `"PATCH_ID": { ... "env_flag": "VALUE", ... }`
     m = re.search(rf'"{patch_id}":\s*\{{(.*?)^    \}}', text, flags=re.M | re.S)
@@ -55,7 +55,7 @@ def _get_registry_env_flag(patch_id: str) -> str | None:
 
 def _get_registry_lifecycle(patch_id: str) -> str | None:
     """Read lifecycle for patch from registry.py source."""
-    registry_path = Path(__file__).resolve().parents[4] / "vllm" / "sndr_core" / "dispatcher" / "registry.py"
+    registry_path = Path(__file__).resolve().parents[4] / "sndr" / "dispatcher" / "registry.py"
     text = registry_path.read_text()
     m = re.search(rf'"{patch_id}":\s*\{{(.*?)^    \}}', text, flags=re.M | re.S)
     if not m:
@@ -180,7 +180,7 @@ class TestMoEFamilyRegistry:
     def test_all_patches_listed_in_registry(self):
         """Every MoE patch in MOE_PATCHES must have entry in PATCH_REGISTRY."""
         # Read registry.py source (no torch import needed)
-        registry_path = Path(__file__).resolve().parents[4] / "vllm" / "sndr_core" / "dispatcher" / "registry.py"
+        registry_path = Path(__file__).resolve().parents[4] / "sndr" / "dispatcher" / "registry.py"
         assert registry_path.is_file(), f"Registry not found at {registry_path}"
         text = registry_path.read_text()
         for module_path, patch_id in MOE_PATCHES:

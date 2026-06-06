@@ -49,7 +49,7 @@ UNREGISTERED_PROBES = [
 def _get_registry_field(patch_id: str, field: str) -> str | None:
     registry_path = (
         Path(__file__).resolve().parents[5]
-        / "vllm" / "sndr_core" / "dispatcher" / "registry.py"
+        / "sndr" / "dispatcher" / "registry.py"
     )
     text = registry_path.read_text()
     m = re.search(rf'"{patch_id}":\s*\{{(.*?)^    \}}', text, flags=re.M | re.S)

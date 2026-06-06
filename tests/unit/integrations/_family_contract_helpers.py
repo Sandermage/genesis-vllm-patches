@@ -68,7 +68,7 @@ def _registry_path() -> Path:
     canonical = repo_root / "sndr" / "dispatcher" / "registry.py"
     if canonical.is_file():
         return canonical
-    return repo_root / "vllm" / "sndr_core" / "dispatcher" / "registry.py"
+    return repo_root / "sndr" / "dispatcher" / "registry.py"
 
 
 def get_registry_field(patch_id: str, field: str) -> str | None:
@@ -271,21 +271,30 @@ def make_family_registry_class(
 
         def test_family_count_matches_filesystem(self):
             from vllm.sndr_core.dispatcher import PATCH_REGISTRY
-            fam_dir = (
-                _registry_path().parent.parent / "integrations" / fs_dir
-            )
-            retired_dir = (
-                _registry_path().parent.parent / "integrations" / "_retired"
-            )
+            # v12.x: patch modules moved to sndr/engines/vllm/patches/; the
+            # registry sits at sndr/dispatcher/registry.py so parent.parent
+            # is the sndr/ package root. Retired patches live under
+            # patches/_retired/ or the engine's _archive/.
+            sndr_root = _registry_path().parent.parent
+            patches_root = sndr_root / "engines" / "vllm" / "patches"
+            if not patches_root.is_dir():
+                patches_root = sndr_root / "integrations"  # pre-v12.x layout
+            fam_dir = patches_root / fs_dir
+            retired_dirs = [
+                patches_root / "_retired",
+                patches_root.parent / "_archive",
+            ]
             files = {
                 f.stem for f in fam_dir.glob("*.py")
                 if f.name != "__init__.py"
             }
-            retired_files = (
-                {f.stem for f in retired_dir.glob("*.py")
-                 if f.name != "__init__.py"}
-                if retired_dir.exists() else set()
-            )
+            retired_files: set[str] = set()
+            for rd in retired_dirs:
+                if rd.exists():
+                    retired_files |= {
+                        f.stem for f in rd.glob("*.py")
+                        if f.name != "__init__.py"
+                    }
             for module_path, patch_id in patches:
                 file_stem = module_path.rsplit(".", 1)[-1]
                 meta = PATCH_REGISTRY.get(patch_id, {})

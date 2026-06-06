@@ -47,7 +47,7 @@ REASONING_PATCHES = [
 def _get_registry_field(patch_id: str, field: str) -> str | None:
     registry_path = (
         Path(__file__).resolve().parents[4]
-        / "vllm" / "sndr_core" / "dispatcher" / "registry.py"
+        / "sndr" / "dispatcher" / "registry.py"
     )
     text = registry_path.read_text()
     m = re.search(rf'"{patch_id}":\s*\{{(.*?)^    \}}', text, flags=re.M | re.S)
@@ -159,7 +159,7 @@ class TestReasoningFamilyRegistry:
     def test_all_patches_listed_in_registry(self):
         registry_path = (
             Path(__file__).resolve().parents[4]
-            / "vllm" / "sndr_core" / "dispatcher" / "registry.py"
+            / "sndr" / "dispatcher" / "registry.py"
         )
         text = registry_path.read_text()
         for _module_path, patch_id in REASONING_PATCHES:

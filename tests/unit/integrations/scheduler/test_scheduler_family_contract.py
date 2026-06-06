@@ -55,7 +55,7 @@ def _get_registry_field(patch_id: str, field: str) -> str | None:
     """Read a string field for patch_id from registry.py source (no torch)."""
     registry_path = (
         Path(__file__).resolve().parents[4]
-        / "vllm" / "sndr_core" / "dispatcher" / "registry.py"
+        / "sndr" / "dispatcher" / "registry.py"
     )
     text = registry_path.read_text()
     m = re.search(rf'"{patch_id}":\s*\{{(.*?)^    \}}', text, flags=re.M | re.S)
@@ -173,7 +173,7 @@ class TestSchedulerFamilyRegistry:
         """Every scheduler patch in SCHEDULER_PATCHES must have a registry entry."""
         registry_path = (
             Path(__file__).resolve().parents[4]
-            / "vllm" / "sndr_core" / "dispatcher" / "registry.py"
+            / "sndr" / "dispatcher" / "registry.py"
         )
         assert registry_path.is_file(), f"Registry not found at {registry_path}"
         text = registry_path.read_text()
