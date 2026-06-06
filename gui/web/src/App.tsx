@@ -75,6 +75,7 @@ import {
 import { Component, Fragment, Suspense, lazy, useEffect, useMemo, useRef, useState, type ReactNode, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { sectionFromHash, recordIdFromHash, buildHash, replaceHash } from "./route";
 import { useFetch } from "./hooks/useFetch";
+import { asRecord, asText, asNumber, asStringArray, countRecord } from "./lib/coerce";
 import { useDialogFocus, useEscapeKey, closeOnBackdrop } from "./dialog";
 import { Skeleton, SkeletonMetrics, SkeletonLines, SkeletonCards, SkeletonTable } from "./Skeleton";
 import {
@@ -11539,12 +11540,7 @@ function runtimeHost(mode: RuntimeMode) {
   return mode === "remote" ? "gpu-build-01" : "127.0.0.1";
 }
 
-function countRecord(values: string[]) {
-  return values.reduce<Record<string, number>>((acc, value) => {
-    acc[value] = (acc[value] ?? 0) + 1;
-    return acc;
-  }, {});
-}
+// countRecord extracted to ./lib/coerce.
 
 function buildRuntimeDraft(
   composed: Record<string, unknown>,
@@ -11812,23 +11808,7 @@ function patchDefaultExplanation(value: string) {
   return explanations[value] ?? "Default behavior is registry-defined and should be treated conservatively.";
 }
 
-function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
-}
-
-function asText(value: unknown, fallback: string) {
-  return typeof value === "string" && value.trim() ? value : fallback;
-}
-
-function asNumber(value: unknown) {
-  return typeof value === "number" && Number.isFinite(value) ? value : 0;
-}
-
-function asStringArray(value: unknown) {
-  return Array.isArray(value) ? value.map((item) => String(item)) : [];
-}
+// asRecord / asText / asNumber / asStringArray extracted to ./lib/coerce.
 
 function shortWorkload(value: string) {
   const labels: Record<string, string> = {
