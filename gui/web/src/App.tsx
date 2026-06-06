@@ -93,6 +93,8 @@ import { EndpointExplorer, ReportGenerator } from "./sections/api-explorer";
 import { ConfirmDialog, InfoDialog } from "./components/dialogs";
 import { CatalogCard, ModelFitCard, ModelFitMatrix, KvEnvelopeCard, type CatalogBadge } from "./sections/catalog-cards";
 import { RecommendationRow } from "./sections/recommendation-row";
+import { ModuleGrid, ModuleCard } from "./components/layout";
+import { toast, ToastHost } from "./components/toast";
 import { ProofStatusPanel } from "./sections/proof";
 import { CodeBlock, CopyButton } from "./components/code-block";
 import { useDialogFocus, useEscapeKey, closeOnBackdrop } from "./dialog";
@@ -5729,9 +5731,7 @@ function ConfigItemInspector({ title, item }: { title: string; item: V2ConfigIte
   );
 }
 
-function ModuleGrid({ children, className }: { children: ReactNode; className?: string }) {
-  return <section className={`module-grid${className ? ` ${className}` : ""}`}>{children}</section>;
-}
+// ModuleGrid extracted to ./components/layout.
 
 // Short explanatory banner at the top of a tab — what it does + when to use it.
 function TabIntro({ icon, title, text }: { icon: ReactNode; title: string; text: string }) {
@@ -5820,32 +5820,7 @@ function TabbedSection({
   );
 }
 
-function ModuleCard({
-  title,
-  icon,
-  desc,
-  children,
-  wide = false
-}: {
-  title: string;
-  icon: ReactNode;
-  desc?: string;
-  children: ReactNode;
-  wide?: boolean;
-}) {
-  return (
-    <section className={`module-card ${wide ? "wide" : ""}`}>
-      <div className="module-card-title">
-        <span className="module-card-icon">{icon}</span>
-        <div className="module-card-heading">
-          <h2>{title}</h2>
-          {desc && <p>{desc}</p>}
-        </div>
-      </div>
-      {children}
-    </section>
-  );
-}
+// ModuleCard extracted to ./components/layout.
 
 // InfoRows extracted to ./components/primitives.
 
@@ -8905,41 +8880,7 @@ function EndpointRows({ host }: { host: string }) {
 // confirm button can be styled as danger. Keeps destructive paths deliberate.
 // ConfirmDialog + InfoDialog extracted to ./components/dialogs.
 
-// ── Toast notifications (PegaProx-style transient feedback) ───────────────
-type ToastTone = "info" | "success" | "error";
-function toast(message: string, tone: ToastTone = "info") {
-  window.dispatchEvent(new CustomEvent("sndr-toast", { detail: { message, tone, id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}` } }));
-}
-function ToastHost() {
-  const [items, setItems] = useState<Array<{ id: string; message: string; tone: ToastTone }>>([]);
-  useEffect(() => {
-    const onToast = (event: Event) => {
-      const detail = (event as CustomEvent).detail as { id: string; message: string; tone: ToastTone };
-      setItems((prev) => [...prev.slice(-3), detail]);
-      // Errors linger long enough to actually read a failure; transient
-      // success/info notices clear quickly.
-      const ttl = detail.tone === "error" ? 8000 : 4200;
-      window.setTimeout(() => setItems((prev) => prev.filter((item) => item.id !== detail.id)), ttl);
-    };
-    window.addEventListener("sndr-toast", onToast);
-    return () => window.removeEventListener("sndr-toast", onToast);
-  }, []);
-  if (items.length === 0) return null;
-  return (
-    <div className="toast-host" role="region" aria-label="Notifications">
-      {items.map((item) => (
-        // Errors announce assertively (role=alert); success/info politely
-        // (role=status). The per-toast role carries the right aria-live, so the
-        // container itself stays a plain labelled region.
-        <div key={item.id} className={`toast toast-${item.tone}`} role={item.tone === "error" ? "alert" : "status"} aria-atomic="true">
-          {item.tone === "success" ? <CheckCircle2 size={15} /> : item.tone === "error" ? <AlertCircle size={15} /> : <Activity size={15} />}
-          <span>{item.message}</span>
-          <button className="icon-only" onClick={() => setItems((prev) => prev.filter((x) => x.id !== item.id))} aria-label="Dismiss"><X size={13} /></button>
-        </div>
-      ))}
-    </div>
-  );
-}
+// toast + ToastHost (+ ToastTone) extracted to ./components/toast.
 
 // ── Audit log (surfaces the daemon's recorded events: auth, jobs, system) ──
 // AuditLogPanel extracted to ./sections/audit-log.
