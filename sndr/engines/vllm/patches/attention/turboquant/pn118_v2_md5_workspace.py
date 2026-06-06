@@ -86,8 +86,15 @@ PN118_V2_MD5_WORKSPACE_PRE_PATCH_MD5 = "439f0c086cc50f467960b6e610bdf803"
 
 
 # Bundled fixtures (referenced by tests + by apply path).
+# v12.x moved this module deeper; walk up to the repo root that holds
+# tests/unit/integrations instead of a fixed parents[N].
+_REPO_ROOT = next(
+    (p for p in Path(__file__).resolve().parents
+     if (p / "tests" / "unit" / "integrations").is_dir()),
+    Path(__file__).resolve().parents[5],
+)
 _TESTS_FIXTURE_DIR = (
-    Path(__file__).resolve().parents[5]
+    _REPO_ROOT
     / "tests"
     / "unit"
     / "integrations"

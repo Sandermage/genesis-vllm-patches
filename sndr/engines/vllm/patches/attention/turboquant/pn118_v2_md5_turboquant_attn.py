@@ -110,8 +110,16 @@ PN118_V2_MD5_TQ_ATTN_PRE_PATCH_MD5 = "8ee234caac59bf099d717e56d7cfa00c"
 
 
 # Bundled fixtures (referenced by tests + by apply path).
+# v12.x moved this module deeper; walk up to the repo root that holds
+# tests/unit/integrations instead of a fixed parents[N] (which now points
+# at the sndr/ package, leaving the fixture unreadable -> empty md5).
+_REPO_ROOT = next(
+    (p for p in Path(__file__).resolve().parents
+     if (p / "tests" / "unit" / "integrations").is_dir()),
+    Path(__file__).resolve().parents[5],
+)
 _TESTS_FIXTURE_DIR = (
-    Path(__file__).resolve().parents[5]
+    _REPO_ROOT
     / "tests"
     / "unit"
     / "integrations"

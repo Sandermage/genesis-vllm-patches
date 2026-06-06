@@ -101,8 +101,17 @@ PN79_V2_MD5_CHUNK_PRE_PATCH_MD5 = "2949617813535680de692d4c24a7b809"
 
 
 # Bundled fixtures (referenced by tests + by apply path).
+# v12.x moved this module deeper (sndr/engines/vllm/patches/...), so the
+# fixed parents[5] no longer reached the repo root and the fixture went
+# unreadable (empty post-patch content -> md5 mismatch). Walk up to the
+# directory that actually holds tests/unit/integrations.
+_REPO_ROOT = next(
+    (p for p in Path(__file__).resolve().parents
+     if (p / "tests" / "unit" / "integrations").is_dir()),
+    Path(__file__).resolve().parents[5],
+)
 _TESTS_FIXTURE_DIR = (
-    Path(__file__).resolve().parents[5]
+    _REPO_ROOT
     / "tests"
     / "unit"
     / "integrations"

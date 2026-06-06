@@ -96,8 +96,15 @@ PN79_V2_MD5_CHUNK_DELTA_H_PRE_PATCH_MD5 = "71b7a5017e8cb4c08617c19f5b5f7d4b"
 
 
 # Bundled fixtures (referenced by tests + by apply path).
+# v12.x moved this module deeper; walk up to the repo root that holds
+# tests/unit/integrations instead of a fixed parents[N].
+_REPO_ROOT = next(
+    (p for p in Path(__file__).resolve().parents
+     if (p / "tests" / "unit" / "integrations").is_dir()),
+    Path(__file__).resolve().parents[5],
+)
 _TESTS_FIXTURE_DIR = (
-    Path(__file__).resolve().parents[5]
+    _REPO_ROOT
     / "tests"
     / "unit"
     / "integrations"
