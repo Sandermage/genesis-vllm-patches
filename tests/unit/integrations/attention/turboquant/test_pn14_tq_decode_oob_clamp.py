@@ -283,7 +283,7 @@ class TestPn14UpstreamCompat:
     def test_pn14_marker_present_in_compat(self):
         """upstream_compat must declare the #40074 marker so other
         tooling knows what symbol to grep for to detect upstream merge."""
-        from sndr.engines.vllm.patches.upstream_compat import all_markers
+        from sndr.engines.vllm.upstream_compat import all_markers
         markers = all_markers()
         # Locate the entry by EXACT key (other entries may mention 40074
         # in their description as cross-references — those don't count).
