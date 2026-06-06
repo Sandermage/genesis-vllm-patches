@@ -90,6 +90,7 @@ import { BenchmarkBaselinePanel, EvidenceRows } from "./sections/bench";
 import { AuditLogPanel } from "./sections/audit-log";
 import { RuntimeEndpoint, BenchmarkCard, EvidenceCard, PatchMatrix } from "./sections/rail-cards";
 import { EndpointExplorer, ReportGenerator } from "./sections/api-explorer";
+import { ConfirmDialog, InfoDialog } from "./components/dialogs";
 import { ProofStatusPanel } from "./sections/proof";
 import { CodeBlock, CopyButton } from "./components/code-block";
 import { useDialogFocus, useEscapeKey, closeOnBackdrop } from "./dialog";
@@ -9134,51 +9135,7 @@ function EndpointRows({ host }: { host: string }) {
 // Reusable confirmation dialog for destructive/irreversible actions. Focus is
 // trapped, Cancel is the autofocused default, Esc/backdrop cancel, and the
 // confirm button can be styled as danger. Keeps destructive paths deliberate.
-function ConfirmDialog({ title, message, confirmLabel = "Confirm", danger, onConfirm, onCancel }: {
-  title: string;
-  message: ReactNode;
-  confirmLabel?: string;
-  danger?: boolean;
-  onConfirm: () => void;
-  onCancel: () => void;
-}) {
-  const dialogRef = useRef<HTMLElement>(null);
-  useDialogFocus(dialogRef);
-  useEscapeKey(onCancel);
-  return (
-    <div className="dialog-backdrop" role="presentation" onClick={closeOnBackdrop(onCancel)}>
-      <section ref={dialogRef} className="info-dialog confirm-dialog" role="dialog" aria-modal="true" aria-label={title}>
-        <div className="module-card-title">
-          <AlertTriangle size={18} />
-          <h2>{title}</h2>
-        </div>
-        <p>{message}</p>
-        <div className="confirm-actions">
-          <button className="ghost-button" onClick={onCancel} autoFocus>Cancel</button>
-          <button className={`primary-action${danger ? " danger" : ""}`} onClick={onConfirm}>{confirmLabel}</button>
-        </div>
-      </section>
-    </div>
-  );
-}
-
-function InfoDialog({ message, onClose }: { message: string; onClose: () => void }) {
-  const dialogRef = useRef<HTMLElement>(null);
-  useDialogFocus(dialogRef);
-  useEscapeKey(onClose);
-  return (
-    <div className="dialog-backdrop" role="presentation" onClick={closeOnBackdrop(onClose)}>
-      <section ref={dialogRef} className="info-dialog" role="dialog" aria-modal="true">
-        <div className="module-card-title">
-          <Command size={18} />
-          <h2>GUI Action Preview</h2>
-        </div>
-        <p>{message}</p>
-        <button className="primary-action" onClick={onClose}>Close</button>
-      </section>
-    </div>
-  );
-}
+// ConfirmDialog + InfoDialog extracted to ./components/dialogs.
 
 // ── Toast notifications (PegaProx-style transient feedback) ───────────────
 type ToastTone = "info" | "success" | "error";
