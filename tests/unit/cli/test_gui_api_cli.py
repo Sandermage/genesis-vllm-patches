@@ -9,9 +9,18 @@ import sys
 from vllm.sndr_core.cli.gui_api import run_gui_api
 
 
-def test_gui_api_help_exits_zero():
+import pytest
+
+
+@pytest.mark.parametrize("module", ["vllm.sndr_core.cli", "sndr.cli"])
+def test_gui_api_help_exits_zero(module):
+    """Both the legacy shim path and the modern ``sndr.cli`` package must
+    actually dispatch ``cli_main`` for ``python -m``. A ``from ... import *``
+    shim does NOT inherit the target's ``if __name__ == '__main__'`` block,
+    so a regressed shim imports and exits 0 with empty stdout — this asserts
+    the argparse help is really produced."""
     result = subprocess.run(
-        [sys.executable, "-m", "vllm.sndr_core.cli", "gui-api", "--help"],
+        [sys.executable, "-m", module, "gui-api", "--help"],
         capture_output=True,
         text=True,
     )

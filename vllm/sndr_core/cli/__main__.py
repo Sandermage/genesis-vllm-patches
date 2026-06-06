@@ -1,14 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Backward-compatibility shim.
+"""Backward-compatibility entry point for ``python -m vllm.sndr_core.cli``.
 
-Canonical location: ``sndr.cli.legacy.__main__``.
-
-This file re-exports the entire public surface from the new location so
-existing imports continue to work during v12.x migration window. Will be
-removed in v13.0.
+Canonical location: ``sndr.cli.legacy``. A bare ``from ... import *`` does
+NOT re-run the target module's ``if __name__ == "__main__"`` block (that
+only fires when the target is itself the main module), so this shim has to
+dispatch ``cli_main`` explicitly — otherwise the command imports and exits
+0 without running anything. Will be removed in v13.0.
 """
-from sndr.cli.legacy.__main__ import *  # noqa: F401,F403
-try:
-    from sndr.cli.legacy.__main__ import __all__  # noqa: F401
-except ImportError:
-    pass
+import sys
+
+from sndr.cli.legacy import cli_main
+
+if __name__ == "__main__":
+    sys.exit(cli_main())
