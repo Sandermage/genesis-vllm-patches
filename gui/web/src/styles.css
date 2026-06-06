@@ -4459,6 +4459,14 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 .lic-card-t svg { color: var(--accent-text); }
 .lic-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 12.5px; }
 .lic-row span { color: var(--text-muted); }
+.lic-expiry { display: flex; flex-direction: column; gap: 4px; margin: 2px 0 4px; }
+.lic-expiry-bar { height: 6px; border-radius: 999px; background: var(--border); overflow: hidden; }
+.lic-expiry-bar span { display: block; height: 100%; border-radius: 999px; background: var(--ok, #3ba55d); transition: width .3s ease; }
+.lic-expiry.soon .lic-expiry-bar span { background: var(--warn, #d99b32); }
+.lic-expiry.expired .lic-expiry-bar span { background: var(--danger, #d9534f); }
+.lic-expiry-label { font-size: 11px; color: var(--text-muted); }
+.lic-expiry.soon .lic-expiry-label { color: var(--warn, #d99b32); }
+.lic-expiry.expired .lic-expiry-label { color: var(--danger, #d9534f); font-weight: 600; }
 .lic-row strong { color: var(--text); display: inline-flex; align-items: center; gap: 4px; }
 .lic-row strong.mono { font-family: var(--mono); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 160px; }
 .lic-row.ok strong { color: var(--ok); }
