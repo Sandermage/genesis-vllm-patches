@@ -29,7 +29,11 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-REGISTRY_PATH = REPO_ROOT / "vllm" / "sndr_core" / "dispatcher" / "registry.py"
+# v12.x moved the registry to sndr/dispatcher/registry.py; the old
+# vllm/sndr_core path is now a re-export shim with no literal to count.
+REGISTRY_PATH = REPO_ROOT / "sndr" / "dispatcher" / "registry.py"
+if not REGISTRY_PATH.is_file():
+    REGISTRY_PATH = REPO_ROOT / "vllm" / "sndr_core" / "dispatcher" / "registry.py"
 
 # Doc files to check. Each entry: (path_relative_to_repo, [(regex, expected_capture_group_index)])
 DOC_PATTERNS: dict[Path, list[tuple[str, int]]] = {
