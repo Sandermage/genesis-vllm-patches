@@ -432,10 +432,10 @@ doctor: ## Run sndr doctor (genesis CLI health check)
 
 gui-build: ## Build the web UI and bundle it into the package for the daemon to serve
 	cd gui/web && npm ci && npm run build
-	rm -rf vllm/sndr_core/product_api/web_static
-	cp -R gui/web/dist vllm/sndr_core/product_api/web_static
-	@echo "✓ GUI built and copied to vllm/sndr_core/product_api/web_static"
-	@echo "  Run: $(PYTHON) -m vllm.sndr_core.cli gui-api  → serves UI + API on one port"
+	rm -rf sndr/product_api/legacy/web_static
+	cp -R gui/web/dist sndr/product_api/legacy/web_static
+	@echo "✓ GUI built and copied to sndr/product_api/legacy/web_static (the path the daemon serves from)"
+	@echo "  Run: $(PYTHON) -m sndr.cli gui-api  → serves UI + API on one port"
 
 # ─── Integration (gated on GENESIS_INTEGRATION_ENDPOINT) ─────────────
 #
