@@ -576,12 +576,18 @@ class TestSelfInstallTextPatch:
             + p._PN275_SELF_INSTALL_ANCHOR
         )
         import vllm.sndr_core.detection.guards as guards
+        import sndr.engines.vllm.detection.guards as _canon_guards
         orig = guards.vllm_install_root
-        guards.vllm_install_root = lambda: tmp_path
+        _orig_canon = _canon_guards.vllm_install_root
+        # v12.x: the patch imports vllm_install_root from the shim for its
+        # own gate, but resolve_vllm_file (canonical) calls the CANONICAL
+        # vllm_install_root internally — mock both so the temp tree is seen.
+        guards.vllm_install_root = _canon_guards.vllm_install_root = lambda: tmp_path
         try:
             patcher = p._make_self_install_text_patcher()
         finally:
             guards.vllm_install_root = orig
+            _canon_guards.vllm_install_root = _orig_canon
 
         assert patcher is not None
         for m in patcher.upstream_drift_markers:
@@ -735,12 +741,18 @@ class TestValidatorWaiverTextPatch:
             + "\n            return\n"
         )
         import vllm.sndr_core.detection.guards as guards
+        import sndr.engines.vllm.detection.guards as _canon_guards
         orig = guards.vllm_install_root
-        guards.vllm_install_root = lambda: tmp_path
+        _orig_canon = _canon_guards.vllm_install_root
+        # v12.x: the patch imports vllm_install_root from the shim for its
+        # own gate, but resolve_vllm_file (canonical) calls the CANONICAL
+        # vllm_install_root internally — mock both so the temp tree is seen.
+        guards.vllm_install_root = _canon_guards.vllm_install_root = lambda: tmp_path
         try:
             patcher = p._make_validator_waiver_text_patcher()
         finally:
             guards.vllm_install_root = orig
+            _canon_guards.vllm_install_root = _orig_canon
 
         assert patcher is not None
         for m in patcher.upstream_drift_markers:

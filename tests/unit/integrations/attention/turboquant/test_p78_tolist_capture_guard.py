@@ -96,10 +96,18 @@ def test_replacement_contains_env_check():
     without re-applying the patch."""
     from pathlib import Path
     repo_root = Path(__file__).resolve().parents[5]
-    src = (
+    # v12.x: real source moved to sndr/; vllm/sndr_core/... is now a
+    # re-export shim that carries no replacement block. Read canonical.
+    src_path = (
         repo_root
-        / "vllm/sndr_core/integrations/attention/turboquant/p78_tolist_capture_guard.py"
-    ).read_text(encoding="utf-8")
+        / "sndr/engines/vllm/patches/attention/turboquant/p78_tolist_capture_guard.py"
+    )
+    if not src_path.is_file():
+        src_path = (
+            repo_root
+            / "vllm/sndr_core/integrations/attention/turboquant/p78_tolist_capture_guard.py"
+        )
+    src = src_path.read_text(encoding="utf-8")
     assert ENV_FLAG in src, (
         f"P78 wiring must reference {ENV_FLAG} in its replacement block"
     )

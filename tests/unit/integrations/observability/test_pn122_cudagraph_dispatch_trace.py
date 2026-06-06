@@ -45,11 +45,20 @@ def test_legacy_env_documented():
     so operators with old launch scripts can grep their way back."""
     from pathlib import Path
     repo_root = Path(__file__).resolve().parents[4]
-    src = (
+    # v12.x: real source moved to sndr/; vllm/sndr_core/... is a re-export
+    # shim that carries no docstring/source markers. Read canonical.
+    src_path = (
         repo_root
-        / "vllm/sndr_core/integrations/observability/"
+        / "sndr/engines/vllm/patches/observability/"
           "pn122_sprint26_cudagraph_dispatch_trace.py"
-    ).read_text(encoding="utf-8")
+    )
+    if not src_path.is_file():
+        src_path = (
+            repo_root
+            / "vllm/sndr_core/integrations/observability/"
+              "pn122_sprint26_cudagraph_dispatch_trace.py"
+        )
+    src = src_path.read_text(encoding="utf-8")
     assert LEGACY_ENV_FLAG in src, (
         f"PN122 wiring must document the legacy {LEGACY_ENV_FLAG} env "
         "so v7.x operators can locate the migrated patch"
