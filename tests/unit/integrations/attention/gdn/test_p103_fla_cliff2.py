@@ -262,12 +262,17 @@ def test_p103_self_install_text_patcher_builds_with_specific_drift_marker():
         with open(os.path.join(ops_dir, "chunk.py"), "w") as f:
             f.write("# placeholder\n")
 
+        import sndr.engines.vllm.detection.guards as _canon_guards
         orig = guards.vllm_install_root
-        guards.vllm_install_root = lambda: td
+        _orig_canon = _canon_guards.vllm_install_root
+        # v12.x: mock both shim + canonical — resolve_vllm_file (canonical)
+        # calls the canonical vllm_install_root internally.
+        guards.vllm_install_root = _canon_guards.vllm_install_root = lambda: td
         try:
             patcher = p103._make_self_install_text_patcher()
         finally:
             guards.vllm_install_root = orig
+            _canon_guards.vllm_install_root = _orig_canon
 
     assert patcher is not None
 
