@@ -37,7 +37,7 @@ forces the Triton MoE backend (`VLLM_FORCED_FP8_MOE_BACKEND=triton`) AND
 patches the QuantKey check to accept our scheme. Neither is the default.
 
 **Where this DOES help on consumer Ampere:** the Marlin MoE path has its
-own per-SM tuning surface ([`vllm/sndr_core/kernels/marlin_tuning.py`](../../kernels/marlin_tuning.py))
+own per-SM tuning surface ([`sndr/engines/vllm/kernels_legacy/marlin_tuning.py`](../../engines/vllm/kernels_legacy/marlin_tuning.py))
 with our P17/P18/PN64 patches feeding `BLOCK_SIZE_M`, `num_warps`, `num_stages`.
 That's the path Genesis actively tunes for Ampere consumer; the Triton JSON
 files in THIS directory are for the ORTHOGONAL Triton backend path used on
@@ -172,7 +172,7 @@ the SM 8.x QuantKey reject) and as the Genesis-side home for any other
 community-contributed MoE configs we find useful.
 
 For the path actually exercised on Ampere FP8 PROD see Genesis P17/P18/PN64
-in [`kernels/marlin_tuning.py`](../../kernels/marlin_tuning.py) — that's where
+in [`marlin_tuning.py`](../../engines/vllm/kernels_legacy/marlin_tuning.py) — that's where
 real A5000/A6000 uplift comes from.
 
 ---
