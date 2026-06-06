@@ -3264,6 +3264,9 @@ function SectionWorkspace({
                   <ModuleCard title="Findings" icon={<Stethoscope size={18} />} desc="Grouped by category — expand a row for evidence, action and CLI." wide>
                     <DoctorFindings report={doctorReport} />
                   </ModuleCard>
+                  <ModuleCard title="Host caveats" icon={<AlertTriangle size={18} />} desc="Known host-condition issues (kernel, virtualization, GPU, pin) evaluated live against this host — triggered caveats first." wide>
+                    <CaveatsPanel />
+                  </ModuleCard>
                 </ModuleGrid>
               )
             },
@@ -3729,6 +3732,18 @@ function SectionWorkspace({
               label: "Operations",
               icon: <Terminal size={15} />,
               render: () => <OperationsConsole onMonitor={onMonitorJob} />
+            },
+            {
+              id: "config-keys",
+              label: "Config keys",
+              icon: <SlidersHorizontal size={15} />,
+              render: () => (
+                <ModuleGrid>
+                  <ModuleCard title="Config-key glossary" icon={<SlidersHorizontal size={18} />} desc="Every GENESIS_ENABLE_* flag, V1/V2 config key and policy key with provenance — searchable operator reference (mirrors `sndr config-keys`)." wide>
+                    <ConfigKeysPanel />
+                  </ModuleCard>
+                </ModuleGrid>
+              )
             },
             {
               id: "appearance",
@@ -9068,6 +9083,82 @@ const SEVERITY_META: Record<string, { tone: string; label: string }> = {
   warning: { tone: "warn", label: "Warning" },
   blocked: { tone: "danger", label: "Blocked" }
 };
+
+// Host caveats — known host-condition issues evaluated live against the
+// daemon host (kernel/virtualization/GPU/pin). Surfaces the CLI `sndr
+// caveats` registry the GUI never exposed.
+function CaveatsPanel() {
+  const { data, state, error } = useFetch(() => api.caveats(), []);
+  if (state === "loading") return <SkeletonLines count={4} />;
+  if (state === "error") return <p className="muted">Caveats unavailable: {error}</p>;
+  if (!data) return null;
+  const sevTone: Record<string, string> = { error: "danger", warning: "warn", info: "info" };
+  return (
+    <div className="caveats-panel">
+      <div className="caveats-head">
+        {data.triggered_count > 0
+          ? <span className="chip danger"><AlertTriangle size={11} /> {data.triggered_count} triggered on this host</span>
+          : <span className="chip ok">none triggered{data.host_facts_available ? "" : " (host probe unavailable)"}</span>}
+        <span className="muted">{data.total} known caveats</span>
+      </div>
+      <div className="caveats-list">
+        {data.caveats.map((c) => (
+          <div className={`caveat-row ${c.triggered ? "triggered" : ""}`} key={c.id}>
+            <span className={`status-badge ${sevTone[c.severity] ?? "info"}`}>{c.severity}</span>
+            <div className="caveat-body">
+              <div className="caveat-title">
+                <strong>{c.title}</strong>
+                {c.triggered === true && <span className="chip danger">fires here</span>}
+                {c.triggered === null && <span className="chip" title="host facts unavailable">not evaluated</span>}
+              </div>
+              <p className="muted">{c.message}</p>
+              {c.docs_url && <a href={c.docs_url} target="_blank" rel="noreferrer" className="caveat-doc">docs →</a>}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Config-key glossary — every GENESIS_ENABLE_* / V1 / V2 / policy key with
+// provenance, filterable. Surfaces the CLI `sndr config-keys` registry.
+function ConfigKeysPanel() {
+  const { data, state, error } = useFetch(() => api.configKeys(), []);
+  const [q, setQ] = useState("");
+  const [src, setSrc] = useState("all");
+  if (state === "loading") return <SkeletonLines count={6} />;
+  if (state === "error") return <p className="muted">Config keys unavailable: {error}</p>;
+  if (!data) return null;
+  const needle = q.trim().toLowerCase();
+  const entries = Object.entries(data.keys)
+    .filter(([k, v]) => (src === "all" || v.source === src) && (!needle || k.toLowerCase().includes(needle)))
+    .sort((a, b) => a[0].localeCompare(b[0]));
+  const sources = Object.keys(data.by_source).sort();
+  return (
+    <div className="configkeys-panel">
+      <div className="ck-controls">
+        <input className="ck-search" placeholder="Filter keys…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Filter config keys" />
+        <div className="chip-row">
+          <button type="button" className={`chip chip-link ${src === "all" ? "active" : ""}`} onClick={() => setSrc("all")}>all ({data.total})</button>
+          {sources.map((s) => (
+            <button type="button" key={s} className={`chip chip-link ${src === s ? "active" : ""}`} onClick={() => setSrc(s)}>{s} ({data.by_source[s]})</button>
+          ))}
+        </div>
+      </div>
+      <div className="ck-list">
+        {entries.slice(0, 200).map(([k, v]) => (
+          <div className="ck-row" key={k}>
+            <code className="ck-key">{k}</code>
+            <span className="ck-src">{v.source}</span>
+          </div>
+        ))}
+        {entries.length > 200 && <p className="muted">+{entries.length - 200} more — refine the filter</p>}
+        {entries.length === 0 && <p className="muted">No keys match.</p>}
+      </div>
+    </div>
+  );
+}
 
 function DoctorSummary({ report }: { report: DoctorReport | null }) {
   if (!report) return <p className="muted">Running diagnostics…</p>;

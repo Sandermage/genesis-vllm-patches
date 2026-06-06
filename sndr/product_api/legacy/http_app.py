@@ -1208,6 +1208,63 @@ def create_app(
             raise HTTPException(status_code=404, detail=f"Unknown operation: {op_id}")
         return _dataclass_payload(job)
 
+    @app.get("/api/v1/caveats")
+    async def caveats_list() -> dict[str, Any]:
+        """Runtime caveats registry — known host-condition issues — each
+        evaluated against the live host so the GUI can flag which ones fire.
+        Read-only; host probe is best-effort (caveats still listed if it fails)."""
+        try:
+            from vllm.sndr_core.caveats import KNOWN_CAVEATS
+        except Exception as exc:  # noqa: BLE001
+            return {"caveats": [], "total": 0, "triggered_count": 0,
+                    "host_facts_available": False, "facts_error": str(exc)}
+
+        facts: dict[str, Any] | None = None
+        facts_error: str | None = None
+        try:
+            from vllm.sndr_core.deps.checkers import inspect_host
+            from vllm.sndr_core.detection.guards import KNOWN_GOOD_VLLM_PINS
+            facts = inspect_host().to_dict()
+            pin = facts.get("vllm", {}).get("version")
+            facts["vllm_pin_in_allowlist"] = (pin in KNOWN_GOOD_VLLM_PINS) if pin else None
+        except Exception as exc:  # noqa: BLE001 - host probe best-effort
+            facts_error = str(exc)
+
+        items: list[dict[str, Any]] = []
+        for c in KNOWN_CAVEATS:
+            triggered = c.matches(facts) if facts is not None else None
+            items.append({
+                "id": c.id, "severity": c.severity, "title": c.title,
+                "message": c.message, "docs_url": c.docs_url,
+                "triggered": triggered,
+            })
+        sev_order = {"error": 0, "warning": 1, "info": 2}
+        items.sort(key=lambda x: (
+            0 if x["triggered"] else 1,
+            sev_order.get(x["severity"], 9),
+            x["id"],
+        ))
+        return {
+            "caveats": items,
+            "total": len(items),
+            "triggered_count": sum(1 for x in items if x["triggered"]),
+            "host_facts_available": facts is not None,
+            "facts_error": facts_error,
+        }
+
+    @app.get("/api/v1/config-keys")
+    async def config_keys_list() -> dict[str, Any]:
+        """Canonical config / env-key glossary (GENESIS_ENABLE_* flags + V1/V2
+        config keys + policy keys) with provenance — operator reference. Read-only."""
+        from sndr.cli.legacy.config_keys import load_canonical_registry
+
+        canon = load_canonical_registry()
+        by_source: dict[str, int] = {}
+        for meta in canon.values():
+            src = str(meta.get("source", "unknown"))
+            by_source[src] = by_source.get(src, 0) + 1
+        return {"keys": canon, "total": len(canon), "by_source": by_source}
+
     @app.get("/api/v1/doctor")
     async def doctor() -> dict[str, Any]:
         return _dataclass_payload(collect_doctor_report())

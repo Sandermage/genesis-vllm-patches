@@ -580,6 +580,20 @@ export type Operation = {
 
 export type OperationsResult = { operations: Operation[]; apply_enabled: boolean };
 
+export type Caveat = {
+  id: string; severity: string; title: string; message: string;
+  docs_url: string | null; triggered: boolean | null;
+};
+export type CaveatsResult = {
+  caveats: Caveat[]; total: number; triggered_count: number;
+  host_facts_available: boolean; facts_error: string | null;
+};
+export type ConfigKeyMeta = { source: string } & Record<string, string>;
+export type ConfigKeysResult = {
+  keys: Record<string, ConfigKeyMeta>; total: number;
+  by_source: Record<string, number>;
+};
+
 export type ServiceStep = { order: number; title: string; command: string };
 
 export type ServiceActionPlan = {
@@ -1180,6 +1194,8 @@ export const api = {
   environment: () => request<EnvironmentReport>("/api/v1/environment"),
   operations: () => request<OperationsResult>("/api/v1/operations"),
   operationRun: (operation: string) => postJson<Job>("/api/v1/operations/run", { operation }),
+  caveats: () => request<CaveatsResult>("/api/v1/caveats"),
+  configKeys: () => request<ConfigKeysResult>("/api/v1/config-keys"),
   deployTargets: () => request<DeployTargetsResult>("/api/v1/deploy/targets"),
   deployPlan: (payload: { preset_id: string; target: string; host_paths?: Record<string, string> }) =>
     postJson<DeploymentPlan>("/api/v1/deploy/plan", payload),
