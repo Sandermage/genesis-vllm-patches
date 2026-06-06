@@ -12,3 +12,9 @@ try:
     from sndr.deps.checkers import __all__  # noqa: F401
 except ImportError:
     pass
+
+# `import *` skips underscore-prefixed names, but some consumers (the
+# product_api container watcher + its tests) reference these private
+# helpers through this shim path. Re-export them explicitly so the shim
+# is a faithful stand-in until it is removed in v13.0.
+from sndr.deps.checkers import _docker_socket_present  # noqa: F401
