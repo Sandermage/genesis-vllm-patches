@@ -1,0 +1,84 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 profile — DFlash 35B SINGLE-STREAM latency-mode sizing on 2× A5000 rig.
+# Includes sizing override appropriate for DFlash (single-stream optimized,
+# tighter context window than MTP PROD).
+#
+# WAVE 10 (2026-05-15) INHERITANCE NOTE:
+# Model file qwen3.6-35b-a3b-fp8-dflash.yaml was updated 2026-05-15 with the
+# Wave 10 patches symmetric to the MTP sibling (PN51, PN96b, PN125, PN126-130,
+# PN132, PN133). Because patches_delta is empty, this latency profile
+# AUTOMATICALLY inherits the full Wave 10 stack. No edit needed here.
+#
+# For DFlash MULTI-CONCURRENCY throughput workloads (max_num_seqs=8, agg 562 TPS
+# at TTFT 162ms — best latency profile on 35B), use the COMPANION profile
+# `qwen3.6-35b-dflash-multiconc.yaml` which overrides sizing (max_num_seqs=8,
+# max_model_len=100K, max_num_batched_tokens=2048) and trims context from 160K
+# down to 100K to fit 8 concurrent fp16 KV streams.
+#
+# Bench reference (dev371+bf610c2f5, tools/multi_conc_bench.py sweep):
+#   This profile (max_num_seqs=1, 160K)  : single-stream optimized, TTFT 74 ms
+#   qwen3.6-35b-dflash-multiconc (max_num_seqs=8, 100K) : agg 562 TPS / TTFT 162 ms ⭐
+#
+# DFlash 256K NOT achievable on consumer Ampere — head_size=256 in drafter
+# forbids TQ k8v4 / fp8 KV compression (page-size mismatch target FP8 head=128
+# vs drafter bf16 head=256). For 256K serving, use MTP+TQ sibling preset
+# `prod-qwen3.6-35b-balanced` / `prod-qwen3.6-35b-multiconc` instead.
+
+schema_version: 2
+kind: profile
+id: qwen3.6-35b-dflash                         # canonical wave9 reference for 35B DFlash
+parent_model: qwen3.6-35b-a3b-fp8-dflash         # parent model file (DFlash variant of 35B)
+maintainer: sandermage
+status: validated                                # values: experimental|validated|deprecated
+created: '2026-05-06'
+
+# ─── Empty patches delta — canonical matrix lives in model file ────────
+patches_delta:
+  enable: {}                                     # no additions on top of model.patches
+  disable: []                                    # no removals
+  override: {}                                   # no value overrides
+
+# ─── Sizing override — DFlash is single-stream optimized ───────────────
+# 65K context cap on 2× A5000 24GB. Empirical: M5 smoke 2026-05-21 hit
+# `_check_enough_kv_cache_memory` at vllm/v1/core/kv_cache_utils.py:729
+# with the previous 160000 setting — 3.81 GiB KV cache required vs
+# 1.95 GiB available, vllm estimated max usable ≈ 79328 tokens for the
+# parent + DFlash drafter combination. 65536 is the round-numbered
+# headroom-safe cap; ModelDef docstring also documents "DFlash cap on
+# this rig is 100000" but that figure pre-dates the dev371 drafter
+# memory accounting and is now optimistic. Lift this only after a
+# formal memory bench (genesis_bench_suite + memory probe) validates
+# a higher cap; do not chase the vllm-suggested 79328 directly because
+# the spec-decode drafter's KV growth across acceptance branches is
+# not flat. Receipt:
+# sndr_private/planning/bench_results/2026-05-21/P2_DFLASH_M5_Q35_DEV371_COMPAT_PASS_SIZING_FAIL_2026-05-21_RU.md
+sizing_override:
+  max_model_len: 65536                           # 64K context — see comment block above for the 160K → 65K rationale
+  gpu_memory_utilization: 0.92                   # 0.92 (vs 0.90 MTP) — leaves headroom for separate drafter
+  max_num_seqs: 1                                # 1 = DFlash is single-stream optimized
+  max_num_batched_tokens: 2048                   # 2048 (vs 4096) — smaller chunks for single-stream
+  enable_chunked_prefill: true                   # required for spec-decode + long ctx
+  enforce_eager: false                           # false = cudagraph capture enabled
+  disable_custom_all_reduce: true                # NCCL fallback (consumer Ampere PCIe)
+
+# ─── Override policy (CONFIG-UX.4.DEBT.2B, 2026-05-24) ──────────────────
+# bench_pending — no public single-stream DFlash baseline yet for 35B.
+# Future-reader note: NOT production-validated.
+override_policy:
+  override_class: bench
+  reason: "bench_pending: 35B DFlash N=3 single-stream — context 65K, gpu_mem_util 0.92 for drafter overhead; public single-stream DFlash baseline not yet published"
+  evidence_refs: []
+  evidence_visibility: public
+  expires_at: '2026-08-22'
+  allowed_to_exceed_hardware_default: true
+
+promotion:
+  validation_required:
+    - "genesis_bench_suite.py --quick passes for DFlash single-stream"
+    - "tool-call regression ≥9/10 (DFlash matched MTP at 9/10 in legacy bench)"
+    - "200-min soak CV within tolerance"
+  promote_to: qwen3.6-35b-a3b-fp8-dflash         # target model file for promote operations
+  notes: |
+    wave9-35b-fp8-dflash captures single-stream sizing for the DFlash N=3
+    path. Re-bench whenever vllm pin bumps or any patch in model.patches
+    changes (especially PN23/PN24/PN40 — DFlash family).

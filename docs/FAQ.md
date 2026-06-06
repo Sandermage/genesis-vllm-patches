@@ -33,10 +33,10 @@ documented in [`RELEASE_POLICY.md`](RELEASE_POLICY.md).
 
 ### Q: How big is the patch registry today?
 
-**241 entries** — 181 full-implementation + 20 marker-only +
-4 retired + 8 partial + 2 placeholder. The current state is always
+**252 entries**: 192 full-implementation, 26 experimental, 20 marker-only,
+8 partial, 4 retired, 2 placeholder. The current state is always
 in [`PATCHES_AUTO.md`](PATCHES_AUTO.md) (auto-generated from
-`vllm/sndr_core/dispatcher/registry.py`) and the narrative
+`sndr/dispatcher/registry.py`) and the narrative
 explanations in [`PATCHES.md`](PATCHES.md).
 
 ### Q: How do I update vLLM without losing patches?
@@ -56,7 +56,7 @@ global "enable all" switch — by design.
 
 ### Q: Which patches are ON by default?
 
-About 52 of 241 entries are marked `default_on=True` in the
+About 52 of 252 entries are marked `default_on=True` in the
 registry — production-eligible Wave 10 backports + legacy
 pre-dispatcher overlays that have been validated against the
 v11 baselines. The full list is in [`PATCHES_AUTO.md`](PATCHES_AUTO.md);

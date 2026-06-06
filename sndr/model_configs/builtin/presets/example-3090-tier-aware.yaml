@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 alias — club-3090 #58 Path C reference (HYBRID-GDN + tier-aware).
+
+model: qwen3.6-27b-int4-autoround-tq-k8v4
+hardware: single-3090-24gbvram
+profile: tier-aware-3090
+
+card:
+  title: "Club-3090 #58 Path C — hybrid-GDN 27B + tier-aware (single RTX 3090, 145K)"
+  summary: |
+    Educational reference for the club-3090 issue #58 Path C pattern:
+    hybrid-GDN 27B INT4 + TQ k8v4 + PN95 tier-aware cache on a single
+    RTX 3090. 145K context is intentionally over hardware VRAM ceiling
+    — Path C demonstrates page-tier transitions during long-context
+    decode. Single-stream by design (tier-aware adds per-seq overhead).
+  status: example
+  audience: dev
+  maturity: validated
+  mode: long_context
+  workload_allow:
+    - club3090_reference
+    - tier_aware_demo
+  workload_deny:
+    - free_chat
+    - structured_json.long
+    - tool_call.long
+  concurrency:
+    min: 1
+    max: 1
+    canonical: 1
+  K: 3
+  context:
+    max_model_len: 145000
+    typical_input_tokens: 8192
+    typical_output_tokens: 4096
+  routing_family: club3090_path_c_tier_aware
+  default_for_family: false
+  fallback_preset: prod-qwen3.6-27b-tq-k8v4

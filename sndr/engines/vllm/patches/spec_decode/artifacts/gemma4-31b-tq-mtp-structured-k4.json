@@ -1,0 +1,115 @@
+{
+  "allowed_workloads": [
+    "structured_count",
+    "tool_json"
+  ],
+  "config_hash": "71c874d7ffedae04",
+  "created_at": "2026-05-20T00:00:00Z",
+  "decision": "validated_conditional",
+  "denied_workloads": [
+    "code_gen",
+    "free_chat",
+    "summarization"
+  ],
+  "kv_plan": {
+    "bridge_enabled": false,
+    "drafter_kv_cache_dtype_reset_to": "auto",
+    "drafter_layers": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "drafter_layers_backend": "TRITON_ATTN",
+    "genesis_patches": [
+      "G4_69 skip-list",
+      "G4_71b drafter head=256 -> Triton",
+      "G4_75 drafter head=512 -> Triton",
+      "G4_76 disable_drafter_kv_sharing=OFF (allow native sharing)"
+    ],
+    "physical_kv_sharing": true,
+    "skip_list": "58,59",
+    "target_native_layers": [
+      58,
+      59
+    ],
+    "target_tq_layers_range": "0..57"
+  },
+  "metrics": {
+    "acceptance": {
+      "calls": 2602,
+      "distribution": {
+        "k=0": 970,
+        "k=1": 440,
+        "k=2": 150,
+        "k=3": 100,
+        "k=4": 942
+      },
+      "max": 4,
+      "mean": 1.8478093774019984
+    },
+    "baseline_free_mean_tps": 43.75917251372544,
+    "baseline_geomean_tps": 42.97645667251865,
+    "baseline_structured_mean_tps": 42.56501362391409,
+    "baseline_tps_per_class": {
+      "code_gen": 43.50299027841948,
+      "free_chat": 44.52917181452465,
+      "structured_count": 45.5017471520648,
+      "summarization": 42.989173212926225,
+      "tool_json": 38.69030344125798
+    },
+    "delta_tps_per_class": {
+      "code_gen": 0.07361425645052141,
+      "free_chat": -0.527521131005921,
+      "structured_count": 0.2891373809434842,
+      "summarization": -0.49314995704486375,
+      "tool_json": 0.36231444540920005
+    },
+    "profile_delta_free": -0.5106379466806227,
+    "profile_delta_global": -0.14702295806195048,
+    "profile_delta_structured": 0.23788513562687544,
+    "profile_free_mean_tps": 21.414078512873537,
+    "profile_geomean_tps": 36.65793088550371,
+    "profile_structured_mean_tps": 52.690597662798695,
+    "profile_tps_per_class": {
+      "code_gen": 46.70543056113959,
+      "free_chat": 21.03909273616963,
+      "structured_count": 58.65800315196546,
+      "summarization": 21.78906428957745,
+      "tool_json": 52.70835927529103
+    },
+    "promotion_gain_threshold": 0.1,
+    "vram_free_mib_min": 2034,
+    "vram_snapshot": [
+      {
+        "free_mib": 2034,
+        "total_mib": 24564,
+        "used_mib": 22079
+      },
+      {
+        "free_mib": 2724,
+        "total_mib": 24564,
+        "used_mib": 21389
+      }
+    ]
+  },
+  "model_id": "gemma-4-31B-it-AWQ-4bit",
+  "notes": "\u03b2\u2032-A K=4 first measurement. structured +24%, free-form -51%, global -14.7%. Validated as conditional profile only.",
+  "patch_hash": "eb4334c1a2097a98060077513c027568c53d05af",
+  "profile": "gemma4-31b-tq-mtp-structured-k4",
+  "prompt_suite": [
+    "code_gen",
+    "free_chat",
+    "structured_count",
+    "summarization",
+    "tool_json"
+  ],
+  "vllm_pin": "0.20.2rc1.dev371+gbf610c2f5",
+  "workload_classes": [
+    "code_gen",
+    "free_chat",
+    "structured_count",
+    "summarization",
+    "tool_json"
+  ]
+}

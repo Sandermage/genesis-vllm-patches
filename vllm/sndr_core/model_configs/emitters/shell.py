@@ -1,15 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Shell-quoting helper shared by every emitter — M.5.2.
+"""Backward-compatibility shim.
 
-Single source of truth so launch-script / docker-run / quadlet
-emitters all quote consistently. Previously inlined in
-``model_configs/schema.py`` as ``_shell_quote``.
+Canonical location: ``sndr.model_configs.emitters.shell``.
+
+This file re-exports the entire public surface from the new location so
+existing imports continue to work during v12.x migration window. Will be
+removed in v13.0.
 """
-from __future__ import annotations
-
-import shlex
-
-
-def shell_quote(value: str) -> str:
-    """Quote a value so generated shell commands preserve it exactly."""
-    return shlex.quote(str(value))
+from sndr.model_configs.emitters.shell import *  # noqa: F401,F403
+try:
+    from sndr.model_configs.emitters.shell import __all__  # noqa: F401
+except ImportError:
+    pass

@@ -1,0 +1,78 @@
+engine: vllm
+pin: 0.22.1_da1daf40b
+full_version: 0.22.1rc1.dev195+gda1daf40b
+upstream_sha: da1daf40bf18e5eaae04f26a80a537c8168a8bc2
+generated_at: '2026-06-06T08:55:00Z'
+generated_by: sndr.tools.populate_manifest_md5 v1.0
+notes: |
+  Baseline manifest for the v0.22.1 pin promoted in the K.2 audit
+  (2026-06-05). md5 fields populated 2026-06-06 from the live
+  vllm/vllm-openai:nightly-da1daf40bf18e5eaae04f26a80a537c8168a8bc2
+  image via `tools/populate_manifest_md5.py`.
+
+  Note: ``v1/spec_decode/mtp_proposer.py`` was REMOVED from upstream in
+  this pin (relocated to ``v1/worker/gpu/spec_decode/mtp/``). The file
+  is retained in this manifest with ``missing: true`` so drift detection
+  can flag patches that still reference the legacy path.
+files:
+  v1/attention/ops/triton_turboquant_store.py:
+    md5: 4d950e21eb609221a85854454b1e98c5
+    size_bytes: 16881
+    anchors:
+      tq_store.fp8_key_cast:
+        md5_of_snippet: ''
+        used_by_patches:
+          - P3
+  v1/attention/ops/triton_turboquant_decode.py:
+    md5: e93d6f9eb591e0b68a50b0fc2eb689c3
+    size_bytes: 22796
+    anchors: {}
+  v1/spec_decode/mtp_proposer.py:
+    md5: ''
+    size_bytes: 0
+    missing: true
+    anchors: {}
+  v1/attention/backends/flash_attn.py:
+    md5: e3c9cf02cba93a37513a1ee72c30a30b
+    size_bytes: 47789
+    anchors:
+      fa_layout.kv_layout_check:
+        md5_of_snippet: ''
+        used_by_patches:
+          - PN286
+  v1/worker/gpu_model_runner.py:
+    md5: 538458cbc8bf21e0036c02c3417953cf
+    size_bytes: 334461
+    anchors: {}
+  model_executor/layers/fla/ops/chunk_o.py:
+    md5: b89c8b97225142ee4afa86d26250661c
+    size_bytes: 5392
+    anchors:
+      fla.chunk_o.num_warps:
+        md5_of_snippet: ''
+        used_by_patches:
+          - PN298
+  model_executor/layers/fla/ops/chunk_scaled_dot_kkt.py:
+    md5: e857824f12a9b3593372b74d8d467aa1
+    size_bytes: 4909
+    anchors:
+      fla.chunk_kkt.num_warps:
+        md5_of_snippet: ''
+        used_by_patches:
+          - PN299
+  model_executor/layers/fla/ops/wy_fast.py:
+    md5: 0bc82d04d42266c3656955da013c5caa
+    size_bytes: 4424
+    anchors:
+      fla.wy_fast.num_warps:
+        md5_of_snippet: ''
+        used_by_patches:
+          - PN299
+  model_executor/layers/fla/ops/l2norm.py:
+    md5: 438cae24d1fbab0a263815b3a8f4cfd1
+    size_bytes: 4077
+    anchors:
+      fla.l2norm.num_warps:
+        md5_of_snippet: ''
+        used_by_patches:
+          - PN299

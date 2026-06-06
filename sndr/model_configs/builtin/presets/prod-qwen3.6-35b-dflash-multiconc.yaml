@@ -1,0 +1,79 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 alias — operator shortcut for 35B FP8 + DFlash N=3 MULTI-CONCURRENCY (Wave 10).
+# Companion to `prod-qwen3.6-35b-dflash` (single-stream latency).
+# `sndr launch prod-qwen3.6-35b-dflash-multiconc` resolves to (model, hardware, profile).
+#
+# Bench validated 2026-05-15 on dev371+bf610c2f5 (tools/multi_conc_bench.py):
+#   conc=1 : 153 TPS  TTFT  74 ms  (single-user, DFlash drafter overhead)
+#   conc=4 : 359 TPS  TTFT 154 ms
+#   conc=8 : 562 TPS  TTFT 162 ms ⭐ best DFlash agg
+#
+# vs MTP+TQ sibling `prod-qwen3.6-35b-multiconc` (max_num_seqs=8, 280K ctx):
+#   MTP+TQ conc=8: 689 TPS / TTFT 243 ms  (throughput +23%, but TTFT +50%)
+#
+# Use this preset when TTFT < 200 ms is a hard requirement at multi-tenant
+# load. Trade-off: -18% aggregate TPS, lower context cap (100K vs 280K).
+
+model: qwen3.6-35b-a3b-fp8-dflash                # DFlash variant of 35B-A3B-FP8 (target FP8 + bf16 separate drafter)
+hardware: a5000-2x-24gbvram-16cpu-128gbram       # same rig — 2× A5000 24GB
+profile: qwen3.6-35b-dflash-multiconc                    # MULTI-CONC profile (vs prod-qwen3.6-35b-dflash's qwen3.6-35b-dflash single-stream)
+
+# CONFIG-UX.2 — operator card (2026-05-24)
+card:
+  title: "Qwen 3.6 35B-A3B FP8 DFlash — multi-conc TTFT-tuned"
+  summary: |
+    DFlash N=3 multi-conc preset. TTFT-tuned alternative to
+    prod-qwen3.6-35b-multiconc (562 TPS @ conc=8 vs 689 TPS but TTFT 162 ms vs
+    243 ms). Use when TTFT < 200 ms is a hard requirement at multi-
+    tenant load. Trade-off: -18% aggregate TPS, lower context cap (100K
+    vs 280K).
+  status: production_candidate
+  audience: operator
+  maturity: validated
+  mode: throughput
+  workload_allow:
+    - free_chat
+    - structured_json.short
+    - tool_call.short
+    - code_gen
+  workload_deny:
+    - structured_json.long
+    - tool_call.long
+  concurrency:
+    min: 1
+    max: 8
+    canonical: 8
+  K: 3
+  context:
+    max_model_len: 100000
+    typical_input_tokens: 2048
+    typical_output_tokens: 2048
+  routing_family: qwen3_6_35b_a3b_fp8_dflash
+  default_for_family: false
+  fallback_preset: prod-qwen3.6-35b-dflash
+  primary_metric:
+    kind: agg_TPS
+    value: 562.0
+    source: external://docs.example/pending-35b-dflash-multiconc-bench
+    measured_at: 2026-05-15
+  evidence_refs:
+    - type: bench
+      path: external://docs.example/pending-35b-dflash-multiconc-bench
+      visibility: private
+      note: Multi-conc DFlash bench; conc=8 = 562 TPS / TTFT 162 ms (best DFlash agg).
+  evidence_visibility: private
+  tradeoffs:
+    - "TTFT-tuned: 162 ms at conc=8 vs prod-qwen3.6-35b-multiconc's 243 ms (+50% there)."
+    - "-18% aggregate TPS vs MTP+TQ multi-conc (562 vs 689) — choose by TTFT requirement."
+    - "Smaller context envelope (100K vs 280K) — long-context multi-conc use prod-qwen3.6-35b-multiconc."
+    - "Requires Qwen3.6-35B-A3B-FP8-DFlash drafter on host disk."
+  do_not_use:
+    - condition: "aggregate throughput is the only goal (no TTFT cap)"
+      reason: "MTP+TQ prod-qwen3.6-35b-multiconc wins on aggregate TPS by +23%."
+    - condition: "context > 100K multi-conc"
+      reason: "Sizing tops at 100K; long-context multi-conc use prod-qwen3.6-35b-multiconc."
+    - condition: "drafter not present on host"
+      reason: "DFlash needs Qwen3.6-35B-A3B-FP8-DFlash drafter weights."
+  card_version: 1
+  card_updated: 2026-05-24
+  card_author: sander

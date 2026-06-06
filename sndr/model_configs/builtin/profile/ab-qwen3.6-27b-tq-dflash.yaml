@@ -1,0 +1,63 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 profile — A/B experiment: 27B-TQ k8v4 model + 5 DFlash family patches.
+# Lifecycle: experimental. Tests whether DFlash optimizations (PN21/PN23/PN24/PN38/PN40)
+# help, hurt, or no-op on the MTP path (different spec_decode method).
+#
+# 2026-05-06 FINDING: on MTP path = -23.6% regression vs canonical 27B-TQ
+# (83.9 vs 109.8 TPS). PN21/PN23/PN24/PN38 are gated `spec_method=[dflash]`
+# so do not fire on MTP; only PN40 composes via sub-D workload classifier
+# — adds overhead without paying back on MTP.
+#
+# Keep this profile for regression / patch-dispatcher coverage testing,
+# NOT for production. For TRUE DFlash use prod-qwen3.6-27b-dflash alias.
+
+schema_version: 2
+kind: profile
+id: ab-qwen3.6-27b-tq-dflash                # experimental- prefix marks A/B-only lifecycle
+parent_model: qwen3.6-27b-int4-autoround-tq-k8v4 # parent: TQ k8v4 model (NOT the DFlash model)
+maintainer: sandermage
+status: experimental                             # values: experimental|validated|deprecated
+created: '2026-05-06'
+
+# ─── Patches delta — enable 5 DFlash family patches on canonical 27B-TQ ──
+# Also adds P100 (Blackwell-only no-op on Ampere, but kept for parity with
+# the legacy V1 yaml — sentinel coverage).
+patches_delta:
+  enable:
+    GENESIS_ENABLE_PN21_DFLASH_SWA: '1'                  # DFlash SWA — dispatcher should gate to dflash-only, expect no-op on MTP
+    GENESIS_ENABLE_PN23_DFLASH_DTYPE_FIX: '1'            # DFlash dtype guard — same dispatcher gate
+    GENESIS_ENABLE_PN24_DFLASH_AUX_LAYER_FIX: '1'        # DFlash aux layer fix — same dispatcher gate
+    GENESIS_ENABLE_PN38_DFLASH_QUANT_DRAFTER: '1'        # DFlash drafter quant — same dispatcher gate
+    GENESIS_ENABLE_PN40_DFLASH_OMNIBUS: '1'              # DFlash 4-part omnibus — sub-D workload classifier; the ONLY one that composes on MTP (and adds overhead)
+    GENESIS_ENABLE_P100: '1'                             # Blackwell-only no-op on Ampere SM 8.6; kept for parity with legacy V1
+  disable: []                                    # no removals
+  override: {}                                   # no value overrides
+
+# ─── Sizing override — same as canonical wave9-qwen3.6-27b-tq-k8v4 (131K ctx) ──
+sizing_override:
+  max_model_len: 131072                          # 128K context (matches 2× TQ production reference)
+  gpu_memory_utilization: 0.92                   # 0.92 (matches 2× TQ canonical)
+  max_num_seqs: 2                                # 2 concurrent (lower than canonical 4 — A/B compares single-stream too)
+  max_num_batched_tokens: 4096                   # standard 4096 chunks
+  enable_chunked_prefill: true                   # required for spec-decode
+  enforce_eager: false                           # cudagraph capture enabled
+  disable_custom_all_reduce: true                # NCCL fallback
+
+# ─── Override policy (CONFIG-UX.4.DEBT.2A, 2026-05-24) ──────────────────
+# Class `bench` — A/B comparator harness; evidence is the comparator
+# output itself (not a stand-alone bench JSON).
+override_policy:
+  override_class: bench
+  reason: "A/B comparator: 27B TQ k8v4 vs DFlash at conc=2, isolating spec-decode method effect"
+  evidence_refs: []
+  evidence_visibility: public
+  expires_at: '2026-08-22'
+  allowed_to_exceed_hardware_default: false
+
+promotion:
+  validation_required:
+    - "A/B vs canonical wave9-qwen3.6-27b-tq-k8v4: TPS regression < 5%"
+  promote_to: null                               # experiment-only; never promotes
+  notes: |
+    Diagnostic profile. Confirms patch-dispatcher correctly no-ops the
+    DFlash family on MTP path. Keep for regression coverage.

@@ -1,0 +1,46 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# ┌──────────────────────────────────────────────────────────────────┐
+# │ BACKWARD-COMPAT ALIAS for a5000-2x-tier-aware.yaml.              │
+# │                                                                   │
+# │ Operators with GENESIS_PN95_CONFIG_KEY=a5000-2x-tier-aware-      │
+# │ example (the V1 legacy value) keep working after the V1 source   │
+# │ file `vllm/sndr_core/model_configs/builtin/a5000-2x-tier-aware-  │
+# │ EXAMPLE.yaml` retired in V1 sunset on 2026-06-01.                │
+# │                                                                   │
+# │ Both `a5000-2x-tier-aware` and `a5000-2x-tier-aware-example`     │
+# │ resolve to the SAME tier_specs (this file is a duplicate of the  │
+# │ canonical PN95-internal config). When operators flip env values  │
+# │ from the legacy to the canonical name, this alias YAML can be    │
+# │ retired (separate cleanup task).                                  │
+# │                                                                   │
+# │ Canonical version: vllm/sndr_core/cache/pn95/tier_configs/       │
+# │                    a5000-2x-tier-aware.yaml                      │
+# └──────────────────────────────────────────────────────────────────┘
+
+eviction_policy: lru
+tiers:
+  - device: gpu
+    capacity_gib: 22.0  # ~92% of 24 GiB; tier_low_water_pct triggers demote when <8% free
+    eviction_policy: lru
+    promote_on_hit: true
+    demote_threshold_pct: 0.92
+    low_water_pct: 0.75
+  - device: cpu
+    capacity_gib: 8.0   # per-worker; 2 workers = 16 GiB total pinned RAM
+    eviction_policy: lru
+    promote_on_hit: true
+    vision_first: true
+    pinned: true
+    notes: >-
+      8 GiB per worker × 2 TP workers = 16 GiB pinned host RAM total.
+      Lazy-allocated on first store(). Bump to 16-24 GiB per worker
+      if host has 96+ GiB RAM AND `ulimit -l unlimited` is set.
+exclude_mamba_ssm: true
+vision_demote_first: true
+tier_low_water_pct: 0.05
+async_demote: true
+notes: >-
+  Per-worker tiers — total resources scale with n_gpus. Sandermage rig:
+  2× A5000 + 64 GiB host = comfortable headroom. Increase cpu tier
+  capacity for longer-context workloads (more demote candidates).

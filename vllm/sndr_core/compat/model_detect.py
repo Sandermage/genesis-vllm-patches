@@ -1,18 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Compat re-export shim — `vllm.sndr_core.compat.model_detect`.
+"""Backward-compatibility shim.
 
-See `compat/gpu_profile.py` for the migration rationale.
+Canonical location: ``sndr.compat.model_detect``.
 
-Author: Sandermage(Sander) Barzov Aleksandr.
+This file re-exports the entire public surface from the new location so
+existing imports continue to work during v12.x migration window. Will be
+removed in v13.0.
 """
-from __future__ import annotations
-
-from vllm.sndr_core.detection.model_detect import *  # noqa: F401, F403
-from vllm.sndr_core.detection import model_detect as _legacy
-
-__all__ = list(getattr(_legacy, "__all__", [
-    name for name in dir(_legacy) if not name.startswith("_")
-]))
-
-for _name in __all__:
-    globals()[_name] = getattr(_legacy, _name)
+from sndr.compat.model_detect import *  # noqa: F401,F403
+try:
+    from sndr.compat.model_detect import __all__  # noqa: F401
+except ImportError:
+    pass

@@ -135,6 +135,11 @@ Changelog = "https://github.com/Sandermage/genesis-vllm-patches/blob/main/CHANGE
 # `genesis` → `vllm.sndr_core.compat.cli:main` since v11.0.0.
 sndr = "vllm.sndr_core.cli:cli_main"
 genesis = "vllm.sndr_core.compat.cli:main"
+# v12.0 sndr-platform: new modular CLI (engines.list / engines.info / pins.list / health).
+# `sndr-v2` is provided alongside `sndr` during the v12.x window — once the
+# legacy command tree is fully retired in v13.0, `sndr` will repoint to the
+# v2 entry point and `sndr-v2` will be removed.
+sndr-v2 = "sndr.cli.main:main"
 
 [project.entry-points."vllm.general_plugins"]
 # P0-6 fix (audit 2026-05-08): canonical entry point lives in the core
@@ -154,12 +159,22 @@ genesis_v7 = "vllm.sndr_core.plugin:register"
 # ─── Setuptools package layout ────────────────────────────────────────────
 
 [tool.setuptools.packages.find]
+# v12.0 sndr-platform: namespace-package mode is required because
+#   1. `vllm/` is a PEP 420 implicit namespace (no top-level __init__.py),
+#      so we extend the upstream `vllm.*` namespace with `vllm.sndr_core.*`.
+#   2. `sndr/` is a regular package (has __init__.py), but namespaces=true
+#      remains backward-compatible for regular packages.
+namespaces = true
 where = ["."]
 # E-04 fix (audit 2026-05-08): the Apache wheel no longer includes
 # `vllm.sndr_engine*`. Engine code is built separately via
 # `pyproject-engine.toml` under a commercial license.
 include = [
     "vllm.sndr_core*",
+    # v12.0 sndr-platform: new top-level package (multi-engine architecture).
+    # Co-exists with vllm.sndr_core* for backward compatibility — shims in
+    # vllm/sndr_core/ re-export from sndr/. Both must ship in the wheel.
+    "sndr*",
 ]
 # Explicit exclusions: tests, internal docs, dev scripts, engine pkg,
 # archived legacy folders.
@@ -170,9 +185,27 @@ exclude = [
     "snapshots*",
     "vllm.sndr_engine*",
     "tools.genesis_vllm_plugin.tests*",
+    # The commercial engine tier remains a separate wheel.
+    "sndr.engine*",
+    # `sndr_private/` carries internal planning docs, license-server source,
+    # and pre-release patch drafts — must not ship in the Apache wheel.
+    "sndr_private*",
 ]
 
 [tool.setuptools.package-data]
+# v12.0: sndr-platform data files (per-pin manifests, GUI bundles, schemas).
+"sndr" = [
+    # Per-pin manifest YAMLs — drift detector + manifest_gen consume these.
+    "engines/*/pins/*/manifest.yaml",
+    # Bundled launcher / config templates for the universal launcher.
+    "engines/*/launchers/*.sh.j2",
+    "engines/*/configs/*.yaml",
+    # JSON schemas for license tokens and config validation.
+    "schemas/*.json",
+    # GUI static bundle (served by product_api when `sndr serve gui` runs).
+    "product_api/web_static/*",
+    "product_api/web_static/assets/*",
+]
 "vllm.sndr_core" = [
     # V1 monolithic top-level (12 files; legacy compat, sunset planned).
     "model_configs/builtin/*.yaml",

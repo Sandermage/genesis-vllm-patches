@@ -1,0 +1,274 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 profile — gemma4-31b-tq-mtp-chat-k3
+# Role: default — MTP K=3 chat-role runtime for gemma-4-31b-it-awq
+# targeting free_chat / code_gen / summarization workloads.
+#
+# Bench-validated mirror-sibling of `gemma4-31b-tq-mtp-structured-k4`:
+# where K=4 is the validated structured-role profile (+24% structured,
+# -51% free-form, -14.7% global per its artifact), K=3 is the opposite
+# trade-off — chat workloads benefit from a smaller spec-decode lookahead
+# because free-form prose has lower per-token predictability, and the
+# K=4 lookahead wastes time on draft-rejection cycles that K=3 avoids.
+#
+# Bench evidence (2026-05-31, vllm pin 0.21.1rc1.dev354+g626fa9bba,
+# 5 prompt classes × 3 samples × greedy decode T=0 top_k=1,
+# Connection: close, max_tokens=350):
+#
+#   free_chat:        44.71 TPS  (vs K=4's 21.04, +112%)
+#   code_gen:         43.87 TPS  (vs K=4's 46.70, -6%)
+#   structured_count: 44.35 TPS  (vs K=4's 58.65, -24%)
+#   summarization:    43.41 TPS  (vs K=4's 21.79, +99%)
+#   tool_json:        41.77 TPS  (vs K=4's 52.71, -21%)
+#
+#   profile_free_mean_tps:        44.058   (+105.7% vs K=4)
+#   profile_structured_mean_tps:  43.057   (-18.3% vs K=4)
+#   profile_geomean_tps:          43.608   (+19.0% vs K=4 — meets
+#                                            promotion_gain_threshold 0.1)
+#
+# Decision: validated_conditional. Allowed workloads are the K=4
+# artifact's denied set (free_chat, code_gen, summarization); denied
+# workloads are the K=4 artifact's allowed set (structured_count,
+# tool_json). The two profiles partition cleanly at the
+# request_router boundary so a gateway can route per request signal
+# without overlap.
+#
+# Composition expectations (verified by P1.3 gates):
+#   compose(gemma-4-31b-it-awq, hw, gemma4-31b-tq-mtp-chat-k3).spec_decode
+#     == {method: mtp, num_speculative_tokens: 3, ...}
+#   compose(...).genesis_env carries SNDR_G4_TQ_FORCE_SKIP_LAYERS=58,59
+#   compose(...).genesis_env inherits model.patches as-is (26 entries)
+#   compose(...).genesis_env adds G4_71b/G4_75 from patches_delta.enable
+#
+# Architectural cross-references:
+#   docs/_internal/SNDR_RUNTIME_PROFILES_DESIGN_DECISIONS_2026-05-20.md
+#   docs/_internal/DEPLOYMENT_PROFILE_ROUTING_PLAN_2026-05-20.md
+#   docs/_internal/GEMMA4_MTP_MODELDEF_MIGRATION_AUDIT_2026-05-20.md
+#   vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-31b-tq-mtp-chat-k3.json
+#   vllm/sndr_core/integrations/spec_decode/request_router.py
+#   vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-31b-tq-mtp-structured-k4.json
+#     (mirror-sibling — denied set of K=4 = allowed set of this profile)
+
+schema_version: 2
+kind: profile
+id: gemma4-31b-tq-mtp-chat-k3
+parent_model: gemma-4-31b-it-awq
+maintainer: sandermage
+status: validated                                 # promoted experimental → validated 2026-06-01 after
+                                                   # all 5 workloads bench at CV ≤ 5% on pin `626fa9bba`
+                                                   # (mean: free_chat 44.50, code_gen 43.93, summarize
+                                                   # 43.96, count 43.98, tool_json 43.02). Earlier
+                                                   # blocking ValueError `partial multimodal token full
+                                                   # attention not supported` resolved by adding the full
+                                                   # TQ infra stack (G4_60A-L, G4_61/62, G4_32, P65,
+                                                   # G4_68, G4_69, G4_70) to `patches_delta.enable` —
+                                                   # earlier 284477f9 commit shipped an incomplete patch
+                                                   # delta that omitted the G4_60L `supports_mm_prefix=
+                                                   # True` monkey-patch on stock TurboQuantAttentionBackend.
+                                                   # See CHANGELOG entry of 2026-06-01 for the full root-
+                                                   # cause analysis.
+created: '2026-05-31'
+
+# ─── Runtime role ──────────────────────────────────────────────────────
+# role=structured because this profile carries spec_decode_override +
+# compression_plan + backend_plan + routing + validation — the same
+# runtime-role block stack used by gemma4-31b-tq-mtp-structured-k4. The
+# `default` role is reserved for production-safe MTP-OFF (the existing
+# gemma4-31b-tq-default profile keeps that slot); both K=3 and K=4 are
+# workload-gated structured-role siblings that the request_router
+# dispatches between based on signal + artifact intersection.
+#
+# `[10_default_clean]` validator enforces this: a profile with any
+# runtime-role block set MUST declare role=structured (or one of the
+# other non-default roles); role=default + spec_decode_override is a
+# schema error by design.
+role: structured
+
+# Runtime sizing — chat-role uses larger context budget than structured
+# K=4 (which intentionally caps at 4K to fit β'-A bench) because
+# free-form chat / summarization frequently exceeds 4K input tokens.
+# Values match the prior `gemma4-31b-tq-default` envelope:
+#
+#   max_model_len:        200000  — well below 256K hard ceiling
+#   gpu_memory_utilization: 0.90  — same as default; leaves headroom
+#                                    for P38 TQ workspace (Bug Class 14)
+#   max_num_seqs:           2     — accept concurrency up to 2
+#   max_num_batched_tokens: 4096  — hardware default
+#
+# Diff vs structured-k4 sizing:
+#   max_model_len:        4096    →  200000  (chat tolerates long ctx)
+#   gpu_memory_utilization: 0.92  →  0.90    (back off slightly; K=3
+#                                              uses less VRAM than K=4)
+#   max_num_seqs:           1     →  2       (chat is concurrency-friendly)
+#   max_num_batched_tokens: 8192  →  4096    (chat uses smaller chunks)
+sizing_override:
+  max_model_len: 65536                            # 64K — empirical ceiling on pin `626fa9bba` 2026-05-31. 200K (original) deadlocks at PN126 prefill warmup due to CUDA OOM (model+TQ-KV reaches 21.92 GiB of 23.55 GiB total, leaves 136 MB; PN126 wants 168 MB → fail; engine never starts API server). 64K boots clean with all G4_60* TQ infra patches enabled. Re-raise toward 200K only after gpu_memory_utilization tuning + progressive ladder validation on current pin.
+  gpu_memory_utilization: 0.90
+  max_num_seqs: 2
+  max_num_batched_tokens: 4096
+  enable_chunked_prefill: true
+  enforce_eager: false
+  disable_custom_all_reduce: true
+
+# MTP K=3 via the gemma-4-31B-it-assistant drafter. Same drafter as
+# structured-k4 — the model+assistant pair is shared infrastructure;
+# only the speculation depth differs.
+spec_decode_override:
+  method: mtp
+  num_speculative_tokens: 3
+  model: /models/gemma-4-31B-it-assistant
+  attention_backend: FLASH_ATTN                   # match structured-k4 to keep KV layout consistent
+
+# Per-layer KV compression plan — identical to structured-k4. Layers
+# 58/59 stay native (uncompressed bf16) as KV-sharing sources for the
+# MTP drafter; other target layers use turboquant_4bit_nc. compose()
+# renders native_source_layers into the existing G4_60K reader's env
+# (SNDR_G4_TQ_FORCE_SKIP_LAYERS canonical + GENESIS_ legacy alias).
+compression_plan:
+  strategy: per_layer
+  default_kv_dtype: turboquant_4bit_nc
+  native_source_layers: [58, 59]
+
+# Backend assignments — identical to structured-k4. The K-axis is the
+# ONLY runtime difference between the two profiles; everything else
+# (compression, drafter routing, kv_sharing) is shared.
+backend_plan:
+  target_default: TURBOQUANT
+  target_native_layers: TRITON_ATTN
+  drafter_sliding: TRITON_ATTN
+  drafter_full: TRITON_ATTN
+  drafter_kv_sharing: physical
+
+# Operator-declared intent. Mirror-complement of structured-k4's
+# intended_workloads. Runtime effective set is:
+#   effective_allowed = intended_workloads ∩ artifact.allowed_workloads
+# The artifact's allowed_workloads is the cryptographic gate.
+routing:
+  intended_workloads:
+    - free_chat
+    - code_gen
+    - summarization
+
+# Pin-invariant reference to the bench evidence file.
+# config_hash was computed from (model_id, kv_plan, K=3,
+# drafter_backend=FLASH_ATTN) via
+# vllm.sndr_core.integrations.spec_decode.functional_artifact.compute_config_hash.
+validation:
+  artifact_id: gemma4-31b-tq-mtp-chat-k3
+  config_hash: aba0bb6b158f7632
+
+# ─── Patches delta — TQ infra stack mirroring structured-k4 sibling ───
+# 2026-05-31: this profile is the chat-role mirror of structured-k4 and
+# must share the same TQ infrastructure patch stack — the K=3 vs K=4
+# difference is captured entirely in `spec_decode_override`, not in
+# the patch stack. Earlier session (initial 284477f9 commit) shipped a
+# tiny patches_delta with only drafter-routing patches; that omission
+# caused chat-K3 to fail engine init on the current pin with
+# `ValueError: AttentionBackendEnum.TURBOQUANT not valid: [kv_cache_dtype
+# not supported, partial multimodal token full attention not supported]`
+# because the load-bearing G4_60L (supports_mm_prefix=True monkey-patch
+# on stock TurboQuantAttentionBackend) and the G4_69+G4_70 skip-list/
+# native-backend stack were missing. Sister structured-k4 was unaffected
+# because its `--max-model-len 4096` happened to stay below the vllm
+# validator's "partial multimodal token full attention" guard threshold
+# (the structured-k4 still NEEDS these patches in real workloads, it
+# just didn't fire the guard at 4K context).
+#
+# Full mirror against structured-k4 below. K=3 vs K=4 is in
+# spec_decode_override; everything else identical.
+patches_delta:
+  enable:
+    # ── PR42637 Mixed-attention TQ for Gemma 4 (G4_60a..k stack) ──
+    GENESIS_ENABLE_G4_60A_TQ_SLIDING_SPEC: '1'
+    GENESIS_ENABLE_G4_60B_TQ_ATTN_OVERLAY: '1'
+    GENESIS_ENABLE_G4_60C_TQ_DECODE_OVERLAY: '1'
+    GENESIS_ENABLE_G4_60D_TQ_STORE_OVERLAY: '1'
+    GENESIS_ENABLE_G4_60E_KV_CACHE_UTILS: '1'
+    GENESIS_ENABLE_G4_60G_TQ_DISPATCH: '1'
+    GENESIS_ENABLE_G4_60H_TQ_CONFIG_AUGMENT: '1'
+    GENESIS_ENABLE_G4_60K_TQ_ENGINE_CONFIG: '1'
+    # ── G4_60L: supports_mm_prefix=True monkey-patch on stock TurboQuantBackend ──
+    # Direct fix for the "partial multimodal token full attention not
+    # supported" rejection at engine init on this pin. Stock vllm class
+    # missing the supports_mm_prefix=True classmethod override that
+    # PR42637 overlay adds; this patch installs the same override via
+    # Python-side monkey-patch.
+    GENESIS_ENABLE_G4_60L_TQ_BACKEND_MM_PREFIX: '1'
+    GENESIS_ENABLE_G4_61_TQ_SHARED_WORKSPACE: '1'
+    GENESIS_ENABLE_G4_62_TQ_KERNEL_WARMUP: '1'
+    GENESIS_ENABLE_G4_32_TQ_VALIDATION_BYPASS: '1'
+    # ── TQ+MTP spec-verify correctness on PR42637 overlay ──
+    # Without these the target verifier can reuse the wrong cudagraph /
+    # allocator shape and the drafter reads invalid KV bytes.
+    GENESIS_ENABLE_P65_TURBOQUANT_SPEC_CG_DOWNGRADE: '1'
+    GENESIS_ENABLE_G4_68_TQ_SPEC_CG_DOWNGRADE_OVERLAY: '1'
+    # ── Skip-list / native-backend / mixed-allocator stack ──
+    # G4_69 closes the second observed rejection reason
+    # ('kv_cache_dtype not supported') by resolving per-layer skip-layer
+    # kv_cache_dtype='auto' against the global --attention-backend
+    # TURBOQUANT correctly.
+    GENESIS_ENABLE_G4_69_SKIP_LAYERS_NATIVE_BACKEND: '1'
+    GENESIS_ENABLE_G4_70_PN259B_MIXED_ALLOC: '1'
+    GENESIS_ENABLE_G4_70_PN259B_FAIL_FAST: '1'
+    GENESIS_ENABLE_G4_70_PN259C_ROUTE_B: '1'
+    # ── Drafter Triton routing — required for ANY MTP path on gemma4-31b ──
+    # The drafter would otherwise try to share TQ-compressed KV with
+    # the target and crash. G4_76=0 enables native kv_sharing.
+    GENESIS_ENABLE_G4_71B_DRAFTER_SLIDING_TRITON: '1'
+    GENESIS_ENABLE_G4_75_DRAFTER_HEAD512_TRITON: '1'
+    # ── Legacy drafter routes explicitly OFF (control-A parity) ──
+    GENESIS_ENABLE_G4_71_DRAFTER_NATIVE_BACKEND: '0'
+    GENESIS_ENABLE_G4_72_DRAFTER_NATIVE_SPEC: '0'
+    GENESIS_ENABLE_G4_73_DRAFTER_PROFILE_SKIP: '0'
+    GENESIS_ENABLE_G4_74_DRAFTER_HND_LAYOUT: '0'
+    GENESIS_ENABLE_G4_78_DRAFTER_TARGET_KV_BRIDGE: '0'
+    # ── Profile-specific extras ──
+    SNDR_G4_TQ_FORCE_SKIP_LAYERS: '58,59'
+    # Observability — operator-optional, default-on to match
+    # structured-k4 profile. Disable via patches_delta.override at
+    # the preset layer if telemetry overhead is a concern in
+    # production.
+    SNDR_ENABLE_SPEC_DECODE_ACCEPTANCE_METRIC: '1'
+    SNDR_ENABLE_PN283_PROC_BRIDGE: '1'
+  disable: []
+  override: {}
+
+# ─── Override policy (CONFIG-UX.1) ─────────────────────────────────────
+# `sizing_override` reaches beyond hardware defaults (max_num_seqs=2 is
+# the hardware default already, but enable_chunked_prefill and the
+# explicit disable_custom_all_reduce do exceed it). Per CONFIG-UX.1
+# every sizing_override block now needs an override_policy declaring
+# the rationale + evidence + expiry.
+#
+# `override_class: bench` matches structured-k4 — both profiles are
+# bench-validated A/B siblings, neither carries production traffic
+# until promoted by the operator after the multi-day observation
+# window plan.
+override_policy:
+  override_class: bench
+  reason: "Gemma4 31B chat-K=3 mirror of β'-A K=4 structured control; +19% global / +105% chat geomean vs K=4; partitions denied workload classes of K=4 (free_chat, code_gen, summarization)"
+  evidence_refs:
+    - vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-31b-tq-mtp-chat-k3.json
+  evidence_visibility: public
+  expires_at: '2026-08-31'
+  allowed_to_exceed_hardware_default: true
+
+# ─── Promotion contract ────────────────────────────────────────────────
+# Like structured-k4, chat-k3 stays a profile permanently — K-tuning
+# is workload-conditional, not an inherent model property. Promotion
+# here means moving status from `experimental` to `validated` after the
+# operator A/B observation window confirms aggregator gains.
+promotion:
+  validation_required:
+    - "functional artifact gemma4-31b-tq-mtp-chat-k3.json present and config_hash matches"
+    - "router intersects routing.intended_workloads ∩ artifact.allowed_workloads to {free_chat, code_gen, summarization}"
+    - "structured workloads (structured_count, tool_json) NOT in artifact.allowed_workloads (denial preserved — K=4 sibling owns those)"
+    - "no KERNEL_STORAGE_DTYPE_MISMATCH verdict from PN271/PN271b at boot"
+    - "aggregator-measured chat workload gain ≥ +50% over default profile during observation window"
+  promote_to: null                                 # K=3 stays profile-side; do not promote into model.patches
+  notes: |
+    Companion to gemma4-31b-tq-mtp-structured-k4. The two profiles together
+    implement the role-split deployment topology documented in
+    `docs/_internal/DEPLOYMENT_PROFILE_ROUTING_PLAN_2026-05-20.md`:
+    a request_router-aware gateway dispatches per request signal
+    (response_format / tool_choice / workload_class) between this
+    chat-friendly upstream and the structured K=4 sibling.

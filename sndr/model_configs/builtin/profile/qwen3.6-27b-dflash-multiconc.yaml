@@ -1,0 +1,83 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 profile — Wave 10 27B DFlash MULTI-CONCURRENCY throughput preset.
+# Companion to qwen3.6-27b-dflash (single-stream latency profile).
+# Layers on top of qwen3.6-27b-dflash model.
+
+schema_version: 2
+kind: profile
+id: qwen3.6-27b-dflash-multiconc                         # multi-conc throughput companion to qwen3.6-27b-dflash (single-stream)
+parent_model: qwen3.6-27b-dflash                 # same model — DFlash N=5 separate drafter (legacy bench used N=5)
+maintainer: sandermage
+status: validated                                # Wave 10 bench passed 2026-05-15 — agg 385 TPS / TTFT 190 ms
+created: '2026-05-15'
+
+# ─── Sizing override — DFlash multi-conc throughput regime ─────────────
+# Single-stream profile sets max_num_seqs=1 (max ctx 185K). Multi-conc raises
+# max_num_seqs=8 + lowers max_model_len to 80K (DFlash fp16 KV without TQ
+# compression — page-size mismatch target INT4 vs drafter bf16 forbids fp8).
+#
+# Bench reference 2026-05-15 (tools/multi_conc_bench.py on dev371+bf610c2f5):
+#   conc=1: 102 TPS  TTFT 102 ms  TPOT 30.1 ms
+#   conc=2: 146 TPS  TTFT 109 ms  TPOT 32.9 ms
+#   conc=4: 268 TPS  TTFT 160 ms  TPOT 39.4 ms
+#   conc=8: 385 TPS  TTFT 190 ms  TPOT 51.5 ms ⭐ optimum (3.76x scaling)
+#
+# Vs MTP+TQ sibling (qwen3.6-27b-multiconc):
+#   MTP+TQ conc=8: 379 TPS / TTFT 189 ms (3.89x scaling)
+#   DFlash conc=8: 385 TPS / TTFT 190 ms (3.76x scaling)
+# Essentially TIED (Δ <2%). Choose by required context length:
+#   MTP+TQ supports 262K, DFlash multi-conc capped at 80K on this rig.
+sizing_override:                                 # V2 canonical key.
+  max_model_len: 80000                           # 80K — DFlash 27B multi-conc cap (fp16 KV, no TQ allowed on Ampere head_size=256).
+  gpu_memory_utilization: 0.85                   # 0.85 (vs latency 0.95) — leaves headroom for 8 concurrent decode buffers + drafter overhead.
+  max_num_seqs: 8                                # OVERRIDE from latency 1 → 8 (multi-conc throughput optimum on 27B DFlash).
+  max_num_batched_tokens: 2048                   # 2048 (vs latency 8192) — multi-conc chunked-prefill: smaller chunks better balance.
+  enable_chunked_prefill: true                   # Required for spec-decode + long ctx.
+  enforce_eager: false                           # cudagraph capture enabled.
+  disable_custom_all_reduce: true                # NCCL fallback (consumer Ampere PCIe — no NVLink).
+  scheduler_reserve_full_isl: false              # Sprint 1 flag — allow scheduler to pack more sequences.
+
+# ─── Patches delta — Wave 10 additions vs canonical model.patches ──────
+patches_delta:
+  enable:
+    GENESIS_ENABLE_PN204_DUAL_STREAM_INPROJ: '1' # v2 redesign 2026-05-15 — is_compiling() guard + arming hook. Bench-neutral on Ampere.
+    GENESIS_LEGACY_P7: '0'                       # P7 OFF — required when PN204=1 (registry conflicts_with).
+  disable: []
+  override: {}
+
+# ─── Spec-decode reaffirmation ──────────────────────────────────────────
+# DFlash N=5 (target INT4 + separate Qwen3.6-27B-DFlash drafter at bf16).
+# Stays at model.capabilities default. DO NOT switch to MTP here.
+
+# ─── Override policy (CONFIG-UX.4.DEBT.1, 2026-05-24) ──────────────────
+# Class `bench` — public DFlash multi-conc baseline matches model family
+# (27b_dflash_multiconc.json), but per-preset config-block cross-validation
+# is deferred to CONFIG-UX.4. Re-evaluate after expires_at.
+override_policy:
+  override_class: bench
+  reason: "27B DFlash multi-conc N=5 — max_num_seqs=8 at 385 TPS conc=8 (3.76x scaling) on 2026-05-15"
+  evidence_refs:
+    - tests/integration/baselines/27b_dflash_multiconc.json
+  evidence_visibility: public
+  expires_at: '2026-08-22'
+  allowed_to_exceed_hardware_default: true
+
+promotion:
+  validation_required:
+    - "tools/multi_conc_bench.py sweep — agg_TPS at conc=8 ≥ 350 on 27B DFlash"
+    - "tools/multi_conc_bench.py sweep — TTFT med at conc=8 ≤ 220 ms"
+    - "tool-call regression suite — 7/7 at conc=4"
+    - "PN204 v2 boot — no CUDA driver crash"
+  promote_to: null                               # multi-conc-specific
+  notes: |
+    qwen3.6-27b-dflash-multiconc — companion to qwen3.6-27b-dflash (single-stream).
+    DFlash and MTP+TQ are essentially TIED on 27B (Δ <2% TPS, identical TTFT).
+    Choose by context length requirement:
+      - ≤80K context           → either method works equally well
+      - 80K-262K context        → MTP+TQ wins (prod-qwen3.6-27b-tq-k8v4 / prod-qwen3.6-27b-tq-multiconc)
+      - 262K+ context           → MTP+TQ only
+
+    Why nearly tied on 27B (vs 35B where DFlash wins TTFT): 27B is small
+    enough that target-only verify time dominates over drafter compute,
+    so the overlap benefit of separate drafter is smaller. On 35B with
+    8× larger weight + KV pressure, the overlap matters more.

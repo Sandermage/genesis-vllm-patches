@@ -1,0 +1,315 @@
+# SPDX-License-Identifier: Apache-2.0
+# Status: ⚠️ Production w/ caveats
+# Caveats: single-stream path only (bf16 KV, no TQ k8v4); requires separate
+#   /models/Qwen3.6-35B-A3B-DFlash drafter checkpoint. For multi-conc serving
+#   use sister qwen3.6-35b-a3b-fp8 (TQ k8v4 + MTP K=3 + 644 TPS @ conc=8).
+# Genesis V2 model definition — Qwen 3.6 35B-A3B FP8 + DFlash N=3 spec-decode.
+# Sister of qwen3.6-35b-a3b-fp8 (MTP K=3 + TQ k8v4 KV).
+# Same target checkpoint, but DFlash needs a SEPARATE drafter model,
+# default-fp16 KV (no TQ), bfloat16 dtype, single-stream sizing.
+# Migrated from legacy a5000-2x-35b-fp8-dflash.yaml (Phase 3, 2026-05-12; V1 source retired 2026-06-01 in V1 sunset #4).
+#
+# Per-line comment style — same W-B exemplar discipline as 35B PROD.
+
+schema_version: 2
+kind: model
+id: qwen3.6-35b-a3b-fp8-dflash                   # canonical ID; differs from MTP variant by spec method + KV
+title: Qwen 3.6 35B-A3B FP8 + DFlash N=3 (Sander single-stream reference)
+maintainer: sandermage
+last_validated: '2026-05-21'                     # P2.DFlash M8-Q35 dev371 smoke + quick bench PASS
+license: apache-2.0
+
+# ─── Identity ──────────────────────────────────────────────────────────
+model_path: /models/Qwen3.6-35B-A3B-FP8          # same checkpoint as MTP variant (different spec/KV path)
+served_model_name: qwen3.6-35b-a3b               # OpenAI-API model name
+quantization: null                               # null = FP8 native (no --quantization arg needed)
+dtype: bfloat16                                  # bfloat16 (NOT float16) — DFlash drafter expects bf16; deviation from MTP variant
+trust_remote_code: true                          # required for Qwen3 hybrid-GDN custom modeling code
+
+# 2026-05-14 chat-template override — same Qwen3.6 family bug as the
+# MTP sister (club-3090 disc #53). Chat-template gates input prompt
+# rendering only; DFlash drafter affects verify-side spec decode and
+# does not change template handling.
+chat_template: /models/Qwen3.6-35B-A3B-FP8/chat_template_enhanced.jinja
+
+# ─── Capabilities — DFlash variant ─────────────────────────────────────
+# DFlash needs head_size=256 + non-causal attn. No Ampere backend supports
+# that with fp8/turbo KV → KV must stay at default fp16 (different from
+# MTP variant which uses TQ k8v4).
+capabilities:
+  attention_arch: hybrid_gdn_moe                 # same arch as MTP variant
+  tool_call_parser: qwen3_coder                  # qwen3_coder tool-call parser
+  reasoning_parser: qwen3                        # qwen3 </think> parser
+  enable_auto_tool_choice: true                  # P68/P69 dependency
+  spec_decode:
+    method: dflash                               # DFlash N=3 with separate drafter (range: mtp|dflash|ngram|null)
+    num_speculative_tokens: 3                    # DFlash N-value (3 is z-lab reference)
+    model: /models/Qwen3.6-35B-A3B-DFlash        # z-lab separate drafter checkpoint (NOT integrated like MTP)
+  kv_cache_dtype: null                           # null = default fp16; DFlash head_size=256 constraint forbids TQ/fp8 on Ampere
+
+# ─── Hardware preconditions composer enforces ──────────────────────────
+requires:
+  min_total_vram_mib: 44000                      # 2 × 22 GB minimum (weights + KV + drafter overhead)
+  min_gpu_count: 2                               # DFlash 35B needs TP=2
+  min_cuda_capability: [8, 6]                    # Ampere SM 8.6
+  rig_arch_blocklist: []
+
+versions:
+  genesis_pin_min: v11.0.0                       # minimum sndr_core version
+  vllm_pin_required: 0.21.1rc0+g626fa9bba566 # promoted 2026-05-21 (P2.DFlash M8-Q35) — dev371 smoke + quick bench PASS via canonical V2 flow. Requires PN275 wired in via this ModelDef's patches matrix (M6 commit 12d901a5) — that patch closes the dev371 cross-validator at vllm/config/vllm.py:1703-1715 that broke DFlash drafter VllmConfig rebuilds on dev371 + P95 + P66 combination. Previous pin dev338 retained side-by-side on server as :nightly-previous for rollback per CLAUDE.md pin policy.
+  reference_metrics_ref: null                    # no JSON baseline yet. dev371 quick bench (n=25): decode_TPOT 8.73 ms mean (CV 13.4%), TTFT 153.5 ms mean, wall_TPS 83.7 mean — the FASTEST decode TPOT in the Qwen lineup thanks to A3B MoE 3B active params + DFlash K=3. Receipt: sndr_private/planning/bench_results/2026-05-21/P2_DFLASH_M5_RETRY_Q35_PASS_2026-05-21_RU.md. NOT a formal canonical baseline — full sustained-methodology cycle still pending.
+
+# ─── Canonical patches matrix (37 entries) ─────────────────────────────
+# Notable differences vs MTP variant:
+#   • P67_NUM_KV_SPLITS=32 (vs 48 — non-TQ path uses smaller split count)
+#   • P78_TOLIST_CAPTURE_GUARD=1 (ON for DFlash; OFF in MTP)
+#   • DFlash family enabled: PN23/PN24/PN40
+#   • TQ-specific patches dropped: P95, PN52, PN66, PN67, PN77, PN8
+patches:
+  # ── dev371 DFlash compatibility (required) ──
+  # PN275 closes the dev371 boot defect for DFlash spec_decode paths:
+  # P95 (Marlin TP cudagraph cap) sets max_cudagraph_capture_size=8
+  # post-init while P66 keeps cudagraph_capture_sizes at 6, producing
+  # a mid-rebuild desync that dev371's new cross-validator at
+  # vllm/config/vllm.py:1703-1715 rejects. PN275 ships a 3-layer fix:
+  #   (a) utils.replace text-patch self-install (catches workers'
+  #       _create_draft_vllm_config → replace() chain)
+  #   (b) vllm/config/vllm.py validator waiver (catches EngineCore's
+  #       _perform_handshakes → direct __post_init__ entry point)
+  #   (c) in-process setattr wrap (defense-in-depth for already-imported
+  #       module state in APIServer + EngineCore)
+  # Env-off behavior is byte-identical to upstream. Required for DFlash
+  # ModelDef pin promotion to dev371.
+  # Evidence: sndr_private/planning/bench_results/2026-05-21/
+  #   P2_DFLASH_M5_RETRY_Q35_PASS_2026-05-21_RU.md (Q35-DFlash E2E PASS).
+  GENESIS_ENABLE_PN275_DFLASH_MAX_CGS_ALIGN: '1'
+  GENESIS_ENABLE_PN33_SPEC_DECODE_WARMUP_K: '1'  # K-aware MTP warmup — closes eagle_prepare_* JIT spikes (vllm#37521)
+  GENESIS_ENABLE_PN35_INPUTS_EMBEDS_OPTIONAL: '1'  # text-only inputs_embeds skip
+  # PN286_FA_LAYOUT_REVERT_SM86 disabled on DFlash — incompatible with DFlash KV layout
+  # (caused "key_cache, value_cache = kv_cache.unbind(1)" ValueError at boot 2026-06-03).
+  # GENESIS_ENABLE_PN286_FA_LAYOUT_REVERT_SM86: "0"
+  GENESIS_ENABLE_P108: '1'  # MTP draft stream sync
+  GENESIS_ENABLE_P109: '1'  # sampling_params vocab-range validators
+  GENESIS_ENABLE_PN110: '1'  # BlockPool.free_blocks dedup
+
+  # ── Spec-decode + structured-output safety net ──
+  GENESIS_ENABLE_P58_ASYNC_PLACEHOLDER_FIX: '1'      # vllm#40807 — async-scheduler placeholder fix
+  GENESIS_ENABLE_P60_GDN_NGRAM_FIX: '1'              # vllm#40738 (Phase 1) — GDN+ngram SSM state recovery on rollback
+  GENESIS_ENABLE_P60B_TRITON_KERNEL: '1'             # Phase 2 — Triton kernel offset fix for GDN+ngram
+  GENESIS_ENABLE_P61B_STREAMING_OVERLAP: '1'         # vllm#40783 — Qwen3 streaming partial-tag overlap guard
+  GENESIS_ENABLE_P62_STRUCT_OUT_SPEC_TIMING: '1'     # vllm#36138 — structured-output spec-decode timing fix
+  GENESIS_ENABLE_P64_QWEN3CODER_MTP_STREAMING: '1'   # vllm#39598 — MTP streaming early-return removal (composes with DFlash via dispatcher)
+  GENESIS_ENABLE_P66_CUDAGRAPH_SIZE_FILTER: '1'      # cudagraph capture size filter — OOM protection
+  # ── TQ kernel still helps even without TQ KV (smaller splits) ──
+  GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL: '1'      # Genesis-original Triton multi-query kernel
+  GENESIS_P67_USE_UPSTREAM: '1'                      # P67 routing: '1'=upstream Genesis kernel
+  GENESIS_P67_NUM_KV_SPLITS: '32'                    # 32 (vs 48 in MTP) — non-TQ KV path uses smaller split count
+  # ── Tool-call safety net ──
+  GENESIS_ENABLE_P68_AUTO_FORCE_TOOL: '1'            # auto tool_choice on tool-mention prompts
+  GENESIS_ENABLE_P69_LONG_CTX_TOOL_REMINDER: '1'     # long-ctx tool-format reminder
+  GENESIS_ENABLE_P70_AUTO_STRICT_NGRAM: '1'          # auto-set prompt_lookup_min=8
+  GENESIS_P68_P69_LONG_CTX_THRESHOLD_CHARS: '50000'  # threshold in chars (≈12K tokens)
+  # ── Memory / KV cache management ──
+  GENESIS_ENABLE_P37: '1'                            # MoE intermediate cache pool
+  GENESIS_TQ_MAX_MODEL_LEN: '320000'                 # TQ cap — informational on non-TQ path
+  GENESIS_ENABLE_P72_PROFILE_RUN_CAP: '1'            # caps profile_run M dim
+  GENESIS_PROFILE_RUN_CAP_M: '4096'                  # must equal max_num_batched_tokens
+  GENESIS_ENABLE_P74_CHUNK_CLAMP: '1'                # chunked-prefill chunk-size clamp
+  # ── FP8 + MoE ──
+  GENESIS_ENABLE_P81_FP8_BLOCK_SCALED_M_LE_8: '1'    # FP8 block-scaled MM optimization for M≤8 (35B FP8 native)
+  GENESIS_ENABLE_P82: '1'                            # SGLang acceptance OR-clause backport
+  GENESIS_P82_THRESHOLD_SINGLE: '0.3'                # 0.3 = optimum for 35B with FP8 path (range 0.1-0.5)
+  GENESIS_ENABLE_P98: '1'                            # vllm#40941 WorkspaceManager fix (hybrid GDN essential)
+  GENESIS_ENABLE_P99: '1'                            # WorkspaceManager.get_simultaneous memoize (vllm#40941 perf hotfix — composes with P98)
+  GENESIS_ENABLE_P101: '1'                           # vllm#41127 — uniform query_len>1 batches through prefill wrapper
+  # ── DFlash-specific safeguards ──
+  GENESIS_ENABLE_P78_TOLIST_CAPTURE_GUARD: '1'       # ON for DFlash (OFF in MTP) — protects against tolist capture in cudagraph mode
+  GENESIS_ENABLE_PN8_MTP_DRAFT_ONLINE_QUANT: '1'     # MTP draft online quant — also helps DFlash separate drafter mem
+  GENESIS_ENABLE_PN11_GDN_AB_CONTIGUOUS: '1'         # GDN A/B contiguity guard
+  GENESIS_ENABLE_PN17_FA2_LSE_CLAMP: '1'             # FA2 softmax_lse long-ctx clamp
+  GENESIS_ENABLE_PN19_SCOPED_MAX_SPLIT: '1'          # vllm#41268 — max_split_size_mb=20 scope-restored
+  GENESIS_ENABLE_PN22_LOCAL_ARGMAX_TP: '1'           # local argmax under TP — sampling correctness on DFlash path
+  # ── DFlash family (separate drafter optimizations) ──
+  GENESIS_ENABLE_PN23_DFLASH_DTYPE_FIX: '1'          # DFlash dtype guard — drafter bf16 mismatch fix
+  GENESIS_ENABLE_PN24_DFLASH_AUX_LAYER_FIX: '1'      # DFlash auxiliary layer indexing fix
+  GENESIS_ENABLE_PN40_DFLASH_OMNIBUS: '1'            # DFlash 4-part omnibus optimization (composes with MTP via dispatcher gate)
+  # ── Misc + buffer mode ──
+  GENESIS_ENABLE_P103: '1'                           # FLA Cliff 2 chunked prefill — hybrid GDN applicable
+  GENESIS_PREALLOC_TOKEN_BUDGET: '4096'              # Genesis prealloc framework — token budget for shared scratch pools
+  GENESIS_BUFFER_MODE: 'shared'                      # Genesis buffer mode (range: 'shared'|'exclusive'|'auto')
+  # ── Wave 9 (2026-05-14) — same matrix verified on 35B-A3B-FP8 256K
+  #    ladder (sibling `qwen3.6-35b-a3b-fp8` model). The dflash path
+  #    here adds DFlash drafter on top; it is NOT yet bench-verified
+  #    on the new env-flag matrix, so the entries below mirror the
+  #    verified neighbour conservatively.
+  GENESIS_ENABLE_P87: '1'                            # Spec-decode rejection ratio sanity guard.
+  GENESIS_ENABLE_P91: '1'                            # Long-prompt tool-call reminder helper (renamed PN72).
+  GENESIS_ENABLE_PN71_THINKING_TAG_NORMALIZE: '1'    # Normalises malformed `<think>` from tokenizer drift.
+  GENESIS_ENABLE_PN73_TOOL_ARGS_SAFE_NORMALIZE: '1'  # Tool argument JSON normaliser (Qwen3-Coder edge cases).
+  GENESIS_ENABLE_PN91_DEVELOPER_ROLE: '1'            # OpenAI `developer` role passthrough for IDE agents.
+  GENESIS_ENABLE_PN92_NIXL_EP_TRIAL_IMPORT: '1'      # Backport vllm#40154 — trial-import guard for nixl_ep / deep_ep / mori.
+  GENESIS_ENABLE_PN95_TIER_AWARE_CACHE: '1'          # Tier-aware KV cache (GPU + CPU pinned + disk cold).
+  GENESIS_ENABLE_PN96_EMERGENCY_DEMOTE: '1'          # Companion to PN95 — emergency demote on free-blocks threshold.
+  GENESIS_ENABLE_PN102_PARAM_POOL: '0'               # PrefetchOffloader pinned-allocator prewarm. OFF — 35B FP8 PROD does not weight-offload.
+  GENESIS_ENABLE_PN104_OFFLOAD_PREFETCH_REDIRECT: '0' # cpu_offload → Prefetch redirect. OFF — same.
+  GENESIS_ENABLE_PN105_AUTOROUND_OFFLOAD_COMPAT: '0' # AutoRound INT4 + Prefetch compat. OFF — irrelevant on FP8 35B.
+  GENESIS_ENABLE_PN106_GDN_H_POOL: '1'               # GDN inner chunk-state `h` pool.
+  GENESIS_ENABLE_PN108_FUSED_RECURRENT_PREFILL: '0' # TOMBSTONED — fla recurrent kernel cannot serve single-seq prefill.
+  GENESIS_ENABLE_PN200_GDN_SCRATCH_REUSE: '0'        # GDN `core_attn_out` pool. OFF — anchor ordering dependency on P28.
+  GENESIS_ENABLE_PN201_SCHEDULER_EMPTY_CACHE: '1'    # Scheduler-tick `empty_cache()` hook, threshold-gated.
+  GENESIS_ENABLE_PN204_DUAL_STREAM_INPROJ: '0'       # vllm#42301 port — OFF in single-conc DFlash profile.
+                                                       # v1 history: eager torch.cuda.Event allocation raised type error.
+                                                       # v1 lazy-init follow-up: dev371 profile_run crashed via
+                                                       #   torch/_inductor/runtime/static_triton_launcher.py:291 CUDA invalid argument.
+                                                       # v2 fix 2026-05-15: torch.compiler.is_compiling() guard + _PN204_ARMED hook
+                                                       #   + explicit device=hidden_states.device on Stream + per-layer fallback.
+                                                       # Bench dev371: neutral within CV on Ampere; future-proof for Hopper +5-10%.
+                                                       # Re-enable in DFlash multi-conc preset if/when bench validates the combo
+                                                       # (DFlash drafter overhead may compete with dual-stream benefits — re-test
+                                                       # before promoting). Requires GENESIS_LEGACY_P7=0.
+  GENESIS_ENABLE_SNDR_WORKSPACE_001: '1'             # Workspace grow-after-lock graceful fix.
+
+  # ── Wave 10 (2026-05-15) — multi-conc unlock + correctness recoveries ──
+  # Inherited from MTP sibling qwen3.6-35b-a3b-fp8.yaml. DFlash uses different
+  # spec-decode path (separate drafter model, not MTP integrated), but most
+  # Wave 10 patches apply identically — they target hybrid_gdn_moe forward
+  # pass / serving layer / Marlin MoE workspace, independent of spec-decode method.
+  # Multi-conc bench on DFlash NOT YET EXECUTED — apply with caution and re-bench
+  # before promoting DFlash multi-conc to validated status.
+  GENESIS_ENABLE_PN96B: '1'                          # Marlin persistent workspace (renamed 2026-05-15 from PN96 dict-key collision). +4-5% TPS recovery on Marlin MoE — was silently unloaded pre-rename. APPLIES on DFlash (same MoE expert path).
+  GENESIS_ENABLE_PN51_QWEN3_STREAMING_THINKING_DISABLED: '1'  # vllm#40816 (OPEN). Defensive streaming guard for OpenAI clients reading delta.content. Reasoning-parser qwen3 used identically on DFlash.
+  GENESIS_ENABLE_PN125_HYBRID_FULL_AND_PIECEWISE: '1' # PyTorch blog 2026-05 — forces cudagraph_mode=FULL_AND_PIECEWISE on Qwen3.5/3.6 hybrid_gdn_moe. Applies on DFlash target model (separate drafter has its own config).
+  GENESIS_ENABLE_PN126_V1_DECODE_WARMUP: '1'         # V1 decode kernel warmup orchestrator — pre-JITs decode kernels at boot. DFlash benefits from this on target model warmup.
+  GENESIS_ENABLE_PN127_AUTO_CHAT_TEMPLATE: '1'       # Qwen3.5/3.6 enhanced chat-template auto-install.
+  GENESIS_ENABLE_PN128_SPEC_DECODE_WARMUP: '1'       # vllm#41481 backport — pre-JITs 4 eagle helper kernels. NOTE: eagle helpers are MTP-specific; on DFlash this becomes no-op (eagle kernels not in code path) but cost zero — keep ON for compatibility.
+  GENESIS_ENABLE_PN129_SLOT_MAPPING_WARMUP: '1'      # vllm#42165 backport — pre-JITs _compute_slot_mapping_kernel. Applies on both MTP + DFlash decode paths.
+  GENESIS_ENABLE_PN130_TQ_DECODE_WARMUP: '1'         # vllm#42215 backport — pre-JITs _tq_grouped_decode_stage1. NOTE: DFlash uses fp16/null KV (head_size=256 forbids TQ on Ampere), so this is no-op on DFlash target — keep ON for compatibility (it self-detects and skips).
+  GENESIS_ENABLE_PN132_TOPK_TOPP_CONTIGUOUS: '1'     # vllm#42739 backport — Triton top-k/top-p contiguous fix (no-op when FlashInfer sampler active).
+  GENESIS_ENABLE_PN133_MTP_EMPTY_OUTPUT_FIX: '1'     # vllm#42722 backport — MTP scheduler empty-output guard. NOTE: targets MTP scheduler — no-op on DFlash spec-decode path but cost zero — keep ON.
+  # GENESIS_ENABLE_PN134_TORCH_COMPILE_FULLGRAPH_211: KEEP OFF — retired 2026-05-15 (-25% TPS bench regressor on hybrid_gdn_moe; affects ALL spec-decode paths including DFlash via Inductor cache blow-up).
+
+notes:
+  - "Migrated from legacy a5000-2x-35b-fp8-dflash (2026-05-12; V1 source retired 2026-06-01 in V1 sunset #4). Needs separate
+    Qwen3.6-35B-A3B-DFlash drafter checkpoint on host (/models/Qwen3.6-35B-A3B-DFlash)."
+  - "Use this variant for single-stream code-gen throughput. For concurrent serving
+    use MTP variant qwen3.6-35b-a3b-fp8."
+  - "P2.DFlash M8-Q35 runtime pin promotion 2026-05-21: dev338 → dev371.
+    SECOND and FINAL DFlash variant promoted off dev338, closing the
+    DFlash Candidate A sprint. Full sprint chain:
+      M1 root-cause investigation (P2_DFLASH_CANDIDATE_A_DESIGN_REFINED)
+      M2..M2f PN275 implementation (commits 40e60ec5 → 387a9a63):
+        utils.replace text-patch self-install + validator waiver +
+        in-process setattr wrap (3-layer fix for dev371 cross-validator)
+      M5 retry Q35-DFlash dev371 E2E smoke PASS:
+        container booted on dev371, /v1/models served, two coherent
+        text completions (Paris + TCP/UDP, both factually correct
+        with constraints honored), system_fingerprint reported
+        dev371+gbf610c2f5, 272 Genesis patches applied / 0 failed,
+        0 validator raises, 0 waiver firings (wrapper pre-empted
+        the desync on the replace-mediated path).
+      Quick bench (5 prompts × 5 runs = n=25): decode_TPOT 8.73 ms
+        mean (CV 13.4%), TTFT 153.5 ms mean, wall_TPS 83.7 mean.
+        Fastest decode TPOT in the Qwen lineup — A3B MoE 3B active
+        params per token + DFlash K=3 (smaller K than Q27-DFlash's
+        K=5) combined to win.
+      Sizing fix sibling commit 7a94349b (chore profile) — trimmed
+        max_model_len 160000 → 65536 on the qwen3.6-35b-dflash profile to
+        fit the KV cache budget on 2× A5000 24GB + DFlash drafter
+        overhead. Orthogonal to PN275 but a hard prerequisite for
+        end-to-end deployable smoke on this rig.
+      M6 wired GENESIS_ENABLE_PN275_DFLASH_MAX_CGS_ALIGN=1 into this
+        ModelDef's patches matrix (commit 12d901a5) — PN275 is now a
+        hard ModelDef-level requirement of the dev371 boot.
+      M7 lifted DFLASH_DEV371_HOLD_LIFTED (commit 43fe70b7) — audit
+        permitted DFlash dev371 promotions.
+      M8-Q27 (commit 7e310b25) — Q27-DFlash promoted first; this
+        commit completes the pair.
+    Receipt:
+    sndr_private/planning/bench_results/2026-05-21/P2_DFLASH_M5_RETRY_Q35_PASS_2026-05-21_RU.md.
+    Bench artifact: bench_q35_dflash_dev371.json in the same dir.
+    Sprint closure: with this commit, both DFlash variants are on
+    dev371 and the DFlash Candidate A sprint is complete."
+  - "Wave 10 (2026-05-15): patches added symmetric to MTP sibling. Multi-conc
+    bench on DFlash variant pending — see commit log + tools/multi_conc_bench.py
+    for methodology."
+  - |
+    Wave 10 multi-conc bench result (2026-05-15, dev371+bf610c2f5, 2× A5000):
+    Configuration: max_num_seqs=8, max_model_len=100000 (DFlash cap on this rig
+    because head_size=256 forbids TQ/fp8 KV → fp16 KV at 256K exceeds 24GB VRAM),
+    dtype=bfloat16, gpu_memory_utilization=0.92, all Wave 10 patches active.
+
+      conc=1: 153 TPS  TTFT  74 ms  TPOT 20.0 ms
+      conc=2: 226 TPS  TTFT  85 ms  TPOT 23.1 ms
+      conc=4: 359 TPS  TTFT 154 ms  TPOT 27.4 ms
+      conc=8: 562 TPS  TTFT 162 ms  TPOT 35.9 ms (3.66x scaling)
+
+    Vs MTP+TQ k8v4 sibling (qwen3.6-35b-a3b-fp8.yaml):
+      MTP+TQ conc=8: 689 TPS / TTFT 243 ms — wins throughput +23%
+      DFlash conc=8: 562 TPS / TTFT 162 ms — wins TTFT -33%
+
+    Conclusion: DFlash is the LATENCY-WIN preset on 35B (TTFT 162 ms much
+    closer to user target 100-120 ms than MTP's 243 ms). MTP+TQ remains
+    the THROUGHPUT-WIN preset (689 vs 562 aggregate, plus 256K context
+    supported via TQ k8v4 compression).
+
+# ── patches_attribution (Phase D backfill, 2026-05-16) ─────────────────
+# 35B MoE FP8 with DFlash drafter (latency-optimised). Load-bearing
+# entries focus on DFlash path correctness + 35B MoE specifics.
+patches_attribution:
+  P67:
+    role: load_bearing
+    note: |
+      TurboQuant multi-query attention kernel. Same hot-path patch
+      as MTP+TQ sibling (~30% decode TPS without it).
+  PN22:
+    role: load_bearing
+    note: "DFlash local argmax + TP support. Required for TP=2 multi-GPU DFlash."
+  PN23:
+    role: load_bearing
+    note: "DFlash combine_hidden dtype fix — silent NaN without it."
+  PN24:
+    role: load_bearing
+    note: "DFlash aux-layer indexing in V1 gpu_model_runner."
+  PN95:
+    role: load_bearing
+    note: |
+      Tier-aware KV cache, CONFIG_KEY-gated. 35B-A3B: 30/41 Mamba
+      layers excluded, 11 attention + 1 MTP eligible for demote.
+  PN201:
+    role: load_bearing
+    note: |
+      Scheduler-tick empty_cache hedge. Same long-soak fragmentation
+      protection as the MTP+TQ sibling.
+  PN51:
+    role: defensive
+    note: "Qwen3 streaming thinking-disabled short-circuit (vllm#40816)."
+  PN125:
+    role: defensive
+    note: "Forces FULL_AND_PIECEWISE on hybrid_gdn_moe."
+  PN126:
+    role: defensive
+    bench_evidence: "Eliminates 5-25s TTFT spike on first decode"
+    note: "V1 decode kernel warmup. Boot-only cost."
+  PN132:
+    role: defensive
+    bench_evidence: "no-op when VLLM_USE_FLASHINFER_SAMPLER=1"
+    note: "Triton top-k/top-p contiguous fix (vllm#42739)."
+  PN133:
+    role: defensive
+    bench_evidence: "No-op on DFlash spec-decode path but cost zero"
+    note: "MTP scheduler empty-output guard (vllm#42722)."
+  PN96b:
+    role: optional_perf
+    bench_evidence: "Marlin MoE workspace persistent pool +4-5% TPS recovery"
+    note: "Renamed 2026-05-15 from PN96 (dict-key collision fix)."
+  PN106:
+    role: optional_perf
+    bench_evidence: "GDN inner chunk-state h-pool — +0.5-1% on long-context decode"
+    note: |
+      Reuses inner GDN chunk-state h alloc across iterations.
+      Effect modest at conc=1; compounds with PN95 at higher conc.
+  PN134:
+    role: suspected_regression
+    note: |
+      Retired 2026-05-15 (-25% TPS regressor on hybrid_gdn_moe;
+      affects DFlash via Inductor cache blow-up). Keep OFF.

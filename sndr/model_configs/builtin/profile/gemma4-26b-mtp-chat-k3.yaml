@@ -1,0 +1,139 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 profile — gemma4-26b-mtp-chat-k3
+# Role: structured — MTP K=3 chat-role for gemma-4-26b-a4b-it-awq
+# targeting free_chat + summarization workloads.
+#
+# Mirror-sibling of `gemma4-26b-mtp-k4` (the K=4 structured-role
+# profile for the same MoE A4B model). The two together implement
+# the same workload-class partition for the 26B MoE arch that
+# `gemma4-31b-tq-mtp-chat-k3` + `gemma4-31b-tq-mtp-structured-k4` implement
+# for the 31B dense arch.
+#
+# Bench evidence (2026-05-31, vllm pin 0.21.1rc1.dev354+g626fa9bba,
+# 5 prompt classes × 3 samples × greedy decode T=0 top_k=1,
+# Connection: close, max_tokens=350):
+#
+#   Class             K=3 (this)   K=4 (sibling)   K=3 Δ vs K=4
+#   code_gen          215.99       226.66          -4.7%
+#   free_chat         150.94       131.24          +15.0%
+#   structured_count  229.05       246.19          -7.0%
+#   summarization     139.85       126.10          +10.9%
+#   tool_json         227.78       228.82          -0.5%
+#
+#   profile_free_mean_tps:   K=3 145.40   K=4 128.67   +13.0%
+#   profile_struct_mean_tps: K=3 228.41   K=4 237.51   -3.8%
+#   profile_geomean_tps:     K=3 188.48   K=4 184.07   +2.4%
+#
+# Compared to the 31B dense case (where K=3 vs K=4 was +112% / +99%
+# on chat / summarization), the 26B MoE arch sees a much smaller
+# K-axis effect — the assistant drafter on MoE has higher per-token
+# acceptance on free-form prose than the 31B drafter does. But the
+# *direction* is identical: K=3 wins chat, K=4 wins structured. So
+# the same role-split deployment topology applies, just with
+# narrower gains and tighter allowed_workloads (only free_chat +
+# summarization rather than the full 3-class chat set used on 31B).
+#
+# Architectural cross-references:
+#   docs/_internal/SNDR_RUNTIME_PROFILES_DESIGN_DECISIONS_2026-05-20.md
+#   docs/_internal/DEPLOYMENT_PROFILE_ROUTING_PLAN_2026-05-20.md
+#   vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-26b-mtp-chat-k3.json
+#   vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-26b-mtp-k4.json (sibling)
+#   vllm/sndr_core/model_configs/builtin/profile/gemma4-26b-mtp-k4.yaml (structured K=4)
+
+schema_version: 2
+kind: profile
+id: gemma4-26b-mtp-chat-k3
+parent_model: gemma-4-26b-a4b-it-awq
+maintainer: sandermage
+status: validated                                 # promoted experimental → validated 2026-06-01 after all 5
+                                                   # workloads bench at CV ≤ 5% on pin `626fa9bba` (mean:
+                                                   # free_chat 149.65 CV=2.5%, code_gen 213.19 CV=0.5%,
+                                                   # summarize 162.58 CV=0.4%, count 224.69 CV=1.3%,
+                                                   # tool_json 220.87 CV=0.2%). 26B-A4B path needed NO
+                                                   # patches_delta additions (no TQ stack — uses
+                                                   # kv_cache_dtype=auto), unlike the 31B sibling which
+                                                   # required adding G4_60A-L + G4_61/62 + G4_32 + P65 +
+                                                   # G4_68 + G4_69 + G4_70 patches (commit 16eea839).
+                                                   # See CHANGELOG 2026-06-01.
+created: '2026-05-31'
+
+# ─── Runtime role ──────────────────────────────────────────────────────
+# role=structured per the 10_default_clean validator contract — any
+# profile that carries spec_decode_override + routing + validation
+# blocks MUST declare role=structured (or one of the other non-default
+# roles); role=default + spec_decode_override fails schema validation.
+# The default-role slot for 26B-A4B remains held by gemma4-26b-no-mtp.
+role: structured
+
+# MTP K=3 — same drafter model as the K=4 sibling. The K-axis is the
+# only delta between this profile and gemma4-26b-mtp-k4.
+spec_decode_override:
+  method: mtp
+  num_speculative_tokens: 3
+  model: /models/gemma-4-26B-A4B-it-assistant
+
+# 26B-A4B uses kv_cache_dtype=auto (no TQ stack) — no per-layer
+# compression plan needed, MoE expert routing handles spreading.
+compression_plan: null
+backend_plan: null
+
+# Operator-declared intent. Mirror-complement of K=4 sibling's
+# intended_workloads (which is [structured_count, tool_json]).
+# Narrower than the 31B chat-k3 set because K=3 only beats K=4 by
+# meaningful margins on free_chat + summarization on this MoE arch
+# — code_gen actually favors K=4 (+4.9%) so it's left to the
+# structured-K=4 sibling.
+routing:
+  intended_workloads:
+    - free_chat
+    - summarization
+
+validation:
+  artifact_id: gemma4-26b-mtp-chat-k3
+  config_hash: 717c7edc75754aea
+
+# ─── Sizing override ───────────────────────────────────────────────────
+# Same regime as the K=4 sibling — fair K-axis A/B test isolates
+# acceptance behavior from sizing knobs.
+sizing_override:
+  max_model_len: 32768
+  gpu_memory_utilization: 0.92                     # bumped 0.85→0.92 per club-3090 reference config (138-207 TPS validated)
+  max_num_seqs: 2
+  max_num_batched_tokens: 4096
+  enable_chunked_prefill: true
+  enable_prefix_caching: true                      # ADDED — club-3090 config has this; helps decode cache reuse on repeated prefixes
+  enforce_eager: false
+  disable_custom_all_reduce: true
+
+# ─── Patches delta ─────────────────────────────────────────────────────
+# Empty — 26B-A4B inherits the canonical ModelDef patches dict.
+patches_delta:
+  enable: {}
+  disable: []
+  override: {}
+
+# ─── Override policy ───────────────────────────────────────────────────
+override_policy:
+  override_class: bench
+  reason: "Gemma4 26B-A4B chat-K=3 mirror of K=4 sibling; +13% free-form / +2.4% global vs K=4; partitions free_chat + summarization off the K=4 path where K=3 wins ≥ 7%"
+  evidence_refs:
+    - vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-26b-mtp-chat-k3.json
+  evidence_visibility: public
+  expires_at: '2026-08-31'
+  allowed_to_exceed_hardware_default: false
+
+# ─── Promotion contract ────────────────────────────────────────────────
+promotion:
+  validation_required:
+    - "functional artifact gemma4-26b-mtp-chat-k3.json present and config_hash matches"
+    - "router intersects routing.intended_workloads ∩ artifact.allowed_workloads to {free_chat, summarization}"
+    - "structured workloads (structured_count, tool_json, code_gen) NOT in artifact.allowed_workloads"
+    - "no measurable quality regression vs K=4 sibling on free-chat acceptance distribution (PN248 mean delta within ±0.3)"
+    - "aggregator-measured chat workload gain ≥ +10% over K=4 sibling during observation window"
+  promote_to: null
+  notes: |
+    Companion to gemma4-26b-mtp-k4. Together implement the same
+    role-split deployment topology as gemma4-31b-tq-mtp-chat-k3 +
+    gemma4-31b-tq-mtp-structured-k4 do for the 31B dense arch, but with
+    smaller K-axis trade-offs because the 26B-A4B drafter has higher
+    per-token acceptance on free-form prose than the 31B drafter.

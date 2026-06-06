@@ -1,0 +1,50 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 profile — 256K long-context sizing for 27B fp8kv on 2× A5000.
+# Trades TPS for stable 256K context (v791 progressive probe 16K→256K passed).
+
+schema_version: 2
+kind: profile
+id: qwen3.6-27b-long-ctx                     # long-context profile for 27B fp8kv path
+parent_model: qwen3.6-27b-int4-autoround-fp8kv   # parent model file (fp8_e5m2 KV variant)
+maintainer: sandermage
+status: validated                                # values: experimental|validated|deprecated
+created: '2026-05-06'
+
+# ─── Empty patches delta — canonical matrix lives in model file ────────
+patches_delta:
+  enable: {}                                     # no additions on top of model.patches
+  disable: []                                    # no removals
+  override: {}                                   # no value overrides
+
+# ─── Sizing override — long-context memory regime ──────────────────────
+# util 0.90 / seqs 2 / batched 2048 — fits 256K context window
+# (v791 progressive probe 16K→256K all passed, 121s prefill at 256K).
+sizing_override:
+  max_model_len: 280000                          # 280K context (sustained probe ceiling — v791 reference)
+  gpu_memory_utilization: 0.90                   # 0.90 — leaves margin for long-ctx KV peak
+  max_num_seqs: 2                                # 2 concurrent — modest since long ctx eats KV
+  max_num_batched_tokens: 2048                   # 2048 (vs 4096 in short ctx) — smaller chunks fit 256K KV pool
+  enable_chunked_prefill: true                   # required for long ctx (256K prefill chunked)
+  enforce_eager: false                           # false = cudagraph capture enabled
+  disable_custom_all_reduce: true                # NCCL fallback (consumer Ampere PCIe)
+
+# ─── Override policy (CONFIG-UX.4.DEBT.2B, 2026-05-24) ──────────────────
+# bench_pending — long-context profile sizing diverges from hw default
+# only on batch chunk size (2048 vs hw 4096). No long-ctx 32K+ public
+# bench refresh yet; v791 probe reference is operator-internal.
+override_policy:
+  override_class: bench
+  reason: "bench_pending: 27B long-context profile — max_model_len=280K full context, batch 2048 to fit KV pool; long-ctx 32K+ bench refresh deferred"
+  evidence_refs: []
+  evidence_visibility: public
+  expires_at: '2026-08-22'
+  allowed_to_exceed_hardware_default: false
+
+promotion:
+  validation_required:
+    - "16K→256K progressive probe stability (v791 reference baseline)"
+    - "bench-and-update fills reference_metrics for this memory regime"
+  promote_to: qwen3.6-27b-int4-autoround-fp8kv   # target model file for promote operations
+  notes: |
+    Long-context profile. Validated stability only; long_gen TPS is
+    generation-length dependent on this stack (~85-100 tok/s @ 512t).

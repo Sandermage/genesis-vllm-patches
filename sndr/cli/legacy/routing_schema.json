@@ -1,0 +1,188 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/Sandermage/genesis-vllm-patches/blob/main/vllm/sndr_core/cli/routing_schema.json",
+  "title": "Genesis Workload-Gate Routing Table",
+  "description": "Contract emitted by `sndr routing-table --json`. Read by external callers (aggregators, proxies) at startup to dispatch incoming requests to the correct preset based on workload class, output length, concurrency mode, and model family. Schema v1 frozen 2026-05-23 by Phase 7.G4.WORKLOAD-GATE-POLICY.IMPLEMENT.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "generated_by",
+    "generated_at",
+    "presets",
+    "routing_rules",
+    "workload_class_detection",
+    "concurrency_mode_detection",
+    "fallback",
+    "coverage_gaps"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Frozen at 1 for the lifetime of this schema. Consumers must warn-and-degrade-gracefully on unknown versions, not crash."
+    },
+    "generated_by": {
+      "type": "string",
+      "description": "Identifying string of the emitter (e.g. 'vllm-sndr-core/12.0.0')."
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 UTC timestamp of emission."
+    },
+    "vllm_pin": {
+      "type": ["string", "null"],
+      "description": "vLLM pin the table was generated against (informational; rules may need re-validation on pin bump)."
+    },
+    "presets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "preset_key",
+          "model",
+          "served_model_name",
+          "model_family",
+          "spec_decode_K",
+          "max_num_seqs",
+          "role",
+          "intended_workloads",
+          "default_for_family"
+        ],
+        "properties": {
+          "preset_key":          { "type": "string" },
+          "model":               { "type": "string" },
+          "served_model_name":   { "type": ["string", "null"] },
+          "model_family":        { "type": "string" },
+          "spec_decode_K":       { "type": "integer", "minimum": 1 },
+          "max_num_seqs":        { "type": "integer", "minimum": 1 },
+          "role":                { "type": ["string", "null"], "enum": ["default", "structured", "gateway", null] },
+          "intended_workloads":  { "type": "array", "items": { "type": "string" } },
+          "default_for_family":  { "type": "boolean" }
+        }
+      }
+    },
+    "routing_rules": {
+      "type": "array",
+      "description": "Evaluated top-to-bottom; first match wins. Multi-conc rules must precede single-stream rules for the same workload to avoid ambiguous matches.",
+      "items": {
+        "type": "object",
+        "required": ["model_family", "when", "preset_key", "evidence"],
+        "properties": {
+          "model_family": { "type": "string" },
+          "when": {
+            "type": "object",
+            "description": "All listed predicates must match (AND). Each axis is an array of permitted values (OR within axis).",
+            "properties": {
+              "workload_class":          { "type": "array", "items": { "type": "string" } },
+              "expected_output_length":  { "type": "array", "items": { "enum": ["short", "medium", "long"] } },
+              "concurrency_mode":        { "type": "array", "items": { "enum": ["single_stream", "multi_conc"] } }
+            }
+          },
+          "preset_key":   { "type": "string" },
+          "evidence":     {
+            "type": "string",
+            "description": "Bench-source citation for this rule. Non-empty by invariant. 'measured' tags imply direct A/B evidence; 'inferred' implies cross-workload reasoning."
+          },
+          "evidence_tag": {
+            "type": ["string", "null"],
+            "enum": ["measured", "inferred", null],
+            "description": "Provenance class. 'measured' = direct A/B bench; 'inferred' = generalized from similar workload."
+          }
+        }
+      }
+    },
+    "workload_class_detection": {
+      "type": "object",
+      "required": ["evaluation_order", "classes"],
+      "properties": {
+        "evaluation_order": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Class names in priority order. First class whose trigger matches wins."
+        },
+        "classes": {
+          "type": "object",
+          "patternProperties": {
+            "^[a-z_]+$": {
+              "type": "object",
+              "required": ["trigger", "priority"],
+              "properties": {
+                "trigger":   { "type": "string", "description": "Plain-language detection rule the caller must implement." },
+                "priority":  { "type": "integer", "description": "Higher = evaluated earlier." },
+                "subtype":   { "type": ["object", "null"] }
+              }
+            }
+          }
+        }
+      }
+    },
+    "concurrency_mode_detection": {
+      "type": "object",
+      "required": ["single_stream", "multi_conc", "owner", "fallback"],
+      "properties": {
+        "single_stream": { "type": "string" },
+        "multi_conc":    { "type": "string" },
+        "owner":         { "type": "string", "description": "Component responsible for tracking in-flight requests per upstream (typically the aggregator)." },
+        "fallback":      { "type": "string" }
+      }
+    },
+    "length_detection": {
+      "type": "object",
+      "required": ["short_threshold_tokens", "caller_hint_wins"],
+      "properties": {
+        "short_threshold_tokens": {
+          "type": "integer",
+          "const": 256,
+          "description": "max_tokens <= this value classifies as 'short'. Frozen at 256 in schema v1 (conservative)."
+        },
+        "caller_hint_wins": {
+          "type": "boolean",
+          "const": true,
+          "description": "If the caller passes expected_length=short|medium|long explicitly, that wins over the max_tokens bucket."
+        },
+        "buckets": {
+          "type": "object",
+          "properties": {
+            "short":   { "type": "string" },
+            "medium":  { "type": "string" },
+            "long":    { "type": "string" }
+          }
+        }
+      }
+    },
+    "fallback": {
+      "type": "object",
+      "required": [
+        "no_rule_matched",
+        "model_family_unknown",
+        "classification_failed",
+        "default_K"
+      ],
+      "properties": {
+        "no_rule_matched":        { "type": "string" },
+        "model_family_unknown":   { "type": "string" },
+        "classification_failed":  { "type": "string" },
+        "default_K":              {
+          "type": "integer",
+          "const": 1,
+          "description": "Frozen at K=1 in schema v1 — the 'K=1 everywhere unless evidenced otherwise' stance from WORKLOAD-GATE-POLICY.UPDATE §3."
+        }
+      }
+    },
+    "coverage_gaps": {
+      "type": "array",
+      "description": "Explicit list of model_family × workload × concurrency cells that lack a measured rule. Consumers must treat these as fallback-to-default (NOT silent K=1 with K=4 sizing). Operator-facing notice that more bench work is queued.",
+      "items": {
+        "type": "object",
+        "required": ["model_family", "missing_cell", "fallback_preset", "next_phase"],
+        "properties": {
+          "model_family":       { "type": "string" },
+          "missing_cell":       { "type": "string" },
+          "fallback_preset":    { "type": "string" },
+          "next_phase":         { "type": "string", "description": "Phase ID that would close this gap." }
+        }
+      }
+    }
+  }
+}

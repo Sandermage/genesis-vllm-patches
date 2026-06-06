@@ -317,6 +317,16 @@ def _check_markers(upstream_root: Path) -> list[dict]:
 
 
 def main(argv: list[str]) -> int:
+    # Recognise the conventional ``--help/-h`` flags so the tool plays well
+    # with the rest of the CLI surface (Phase 8 utility hardening).
+    if len(argv) >= 2 and argv[1] in ("-h", "--help"):
+        print("usage: check_upstream_drift.py <upstream-vllm-clone-path>")
+        print()
+        print("Compare every Genesis text-patch's anchor against the live")
+        print("upstream tree at <upstream-vllm-clone-path>. Exits 1 if any")
+        print("anchor has drifted, 0 if clean, 2 on invocation error.")
+        return 0
+
     if len(argv) < 2:
         print("usage: check_upstream_drift.py <upstream-vllm-clone-path>",
               file=sys.stderr)

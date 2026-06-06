@@ -1,0 +1,76 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 alias — Gemma 4 26B-A4B AWQ-4bit, MTP K=4 (structured).
+# `sndr launch prod-gemma4-26b-mtp-k4` resolves to (model, hardware, profile).
+#
+# Structured-role preset for the MoE A=4B target. MTP K=4 via the
+# 26B-A4B-it-assistant drafter. Designed for tool_json / structured_count
+# workloads where speculation gain dominates drafter overhead.
+#
+# Sibling presets:
+#   prod-gemma4-26b-default      — K=1 control (effective MTP-off)
+#   prod-gemma4-26b-multiconc    — K=4 + conc=8
+#
+# Hypothesis under test (Phase 7.G4.26B-A4B.B1):
+#   Does the workload gate from B1.1 + B1.2 (validated on 31B dense)
+#   generalize to 26B-A4B MoE arch? If yes, K=4 should help tool_json
+#   AND hurt free_chat with PN248 acceptance distribution mirroring
+#   the 31B pattern (high k=4 on JSON, high k=0 on free-chat).
+
+model: gemma-4-26b-a4b-it-awq
+hardware: a5000-2x-24gbvram-16cpu-128gbram
+profile: gemma4-26b-mtp-k4                        # K=4 + assistant; same single-stream sizing as default sibling
+
+# CONFIG-UX.2 — operator card (2026-05-24)
+card:
+  title: "Gemma 4 26B-A4B AWQ — single-stream K=4 structured"
+  summary: |
+    K=4 MTP single-stream preset for structured-JSON / tool-call workloads.
+    Uses the 26B-A4B-it-assistant drafter. Designed for workloads where
+    speculation gain dominates drafter overhead. Free-chat should use the
+    K=1 default sibling instead — K=4 acceptance collapses on free-form
+    output.
+  status: production_candidate
+  audience: operator
+  maturity: validated
+  mode: structured_throughput
+  workload_allow:
+    - structured_json.short
+    - tool_call.short
+    - tool_call.long
+  workload_deny:
+    - free_chat
+    - summarization
+  concurrency:
+    min: 1
+    max: 2
+    canonical: 2
+  K: 4
+  context:
+    max_model_len: 32768
+    typical_input_tokens: 1024
+    typical_output_tokens: 2048
+  routing_family: gemma4_moe_26b_a4b
+  default_for_family: false
+  fallback_preset: prod-gemma4-26b-default
+  primary_metric:
+    kind: agg_TPS
+    value: 0.0
+    source: external://docs.example/pending-gemma4-26b-a4b-mtp-k4-bench
+    measured_at: 2026-05-23
+  evidence_refs:
+    - type: bench
+      path: external://docs.example/pending-gemma4-26b-a4b-mtp-k4-bench
+      visibility: private
+      note: B1 K=4 structured baseline; private bench artifacts in sndr_private/runs/.
+  evidence_visibility: private
+  tradeoffs:
+    - "K=4 expects structured output; free-chat workloads collapse acceptance to ~k=0."
+    - "Falls back to prod-gemma4-26b-default for free-chat or operators uncertain about workload shape."
+  do_not_use:
+    - condition: "free-chat / open-ended generation"
+      reason: "Acceptance distribution collapses on free-form output; K=1 sibling is faster there."
+    - condition: "high-concurrency (>2)"
+      reason: "Single-stream sizing; use prod-gemma4-26b-multiconc for concurrency >2."
+  card_version: 1
+  card_updated: 2026-05-24
+  card_author: sander

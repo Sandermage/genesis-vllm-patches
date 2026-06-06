@@ -1,12 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
-"""PN95 runtime split package — M.4.1 onwards.
+"""Backward-compatibility shim.
 
-The legacy ``vllm.sndr_core.cache._pn95_runtime`` monolith was 3390 LOC
-mixing 11 distinct concerns. M.4.1 extracts the env-gates + metrics
-concerns into ``pn95.gates`` and ``pn95.metrics``; the legacy module
-keeps byte-identical re-exports so existing tests and text-patch
-anchors are unaffected.
+Canonical location: ``sndr.cache.pn95``.
 
-See ``sndr_private/planning/audits/M4_PN95_SPLIT_R_2026-05-27_RU.md``
-for the full decomposition plan.
+This file re-exports the entire public surface from the new location so
+existing imports continue to work during v12.x migration window. Will be
+removed in v13.0.
 """
+from sndr.cache.pn95 import *  # noqa: F401,F403
+try:
+    from sndr.cache.pn95 import __all__  # noqa: F401
+except ImportError:
+    pass

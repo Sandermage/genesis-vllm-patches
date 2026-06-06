@@ -1,0 +1,168 @@
+# SPDX-License-Identifier: Apache-2.0
+# ─── COMMUNITY-CONFIG EXAMPLE: portable mounts via ${var} symbolic refs ───
+#
+# This file is a NON-LOADABLE sample (.sample suffix excludes it from
+# registry.load_all() — registry only loads `*.yaml`). Copy it as a
+# starting point for your own community config:
+#
+#   cp EXAMPLE_symbolic_mounts.yaml.sample community-rtx3090-qwen3.6-27b.yaml
+#
+# Then edit the fields below. The interesting bit (vs builtin configs) is
+# `docker.mounts:` — uses ${var} references that resolve at render-time
+# via ~/.genesis/host.yaml. This makes your config portable: another
+# operator on different hardware/paths can use it unchanged once they have
+# their own host.yaml.
+#
+# Validation flow:
+#   1. genesis model-config validate <key>           # R-019 catches typos
+#   2. genesis model-config preflight <key>          # env + paths sanity
+#   3. ./scripts/launch.sh <key>                     # boot
+#   4. genesis model-config verify <key>             # bench vs reference
+#
+# See docs/CONFIGS_FOR_COMMUNITY.md for the complete contribution guide.
+
+key: example-symbolic-mounts
+title: Example community config — demonstrates ${var} mounts
+description: >-
+  Reference template for community contributions. Shows how to use
+  symbolic mount references that resolve via ~/.genesis/host.yaml at
+  render time. Replace placeholder values with your hardware/model.
+schema_version: 1
+maintainer: example-handle    # your GitHub handle here
+
+# ── Provenance + lifecycle ──
+last_validated: '2026-05-06'
+genesis_pin: <commit-sha-of-genesis-vllm-patches-when-tested>
+vllm_pin_required: 0.20.2rc1.dev9+g01d4d1ad3
+lifecycle: community-test       # MUST start as community-test
+community_submitted: true       # MUST be true for community-* lifecycles
+test_started_at: '2026-05-06'
+verified_by: []                 # populated by `genesis model-config promote`
+
+# ── Hardware ──
+hardware:
+  gpu_match_keys: [rtx 3090]    # lowercase substring of nvidia-smi GPU name
+  n_gpus: 2
+  min_vram_per_gpu_mib: 22000
+  cuda_capability_min: [8, 6]   # Ampere SM 8.6 baseline
+
+# ── Model ──
+model_path: /models/Qwen3.6-27B-int4-AutoRound   # or HF model id
+served_model_name: qwen3.6-27b
+quantization: null               # AutoRound INT4 metadata in checkpoint
+kv_cache_dtype: turboquant_k8v4
+
+# ── vLLM serve args ──
+max_model_len: 131072
+gpu_memory_utilization: 0.92
+max_num_seqs: 2
+max_num_batched_tokens: 4096
+enable_chunked_prefill: true
+dtype: float16
+cudagraph_mode: FULL_AND_PIECEWISE
+disable_custom_all_reduce: true
+language_model_only: true
+trust_remote_code: true
+
+# ── Tool calling + reasoning ──
+enable_auto_tool_choice: true
+tool_call_parser: qwen3_coder
+reasoning_parser: qwen3
+
+# ── Spec decoding ──
+spec_decode:
+  method: mtp
+  num_speculative_tokens: 3
+
+# ── Genesis env (P*/PN*) ──
+# Comment density: see a5000-2x-35b-prod.yaml for full per-env-var commentary
+# (W-B exemplar 2026-05-06). Run `genesis explain <patch-id>` for runtime details.
+genesis_env:
+  GENESIS_ENABLE_P58_ASYNC_PLACEHOLDER_FIX: '1'
+  GENESIS_ENABLE_P60_GDN_NGRAM_FIX: '1'
+  GENESIS_ENABLE_P61_QWEN3_MULTI_TOOL: '1'
+  GENESIS_ENABLE_P61B_STREAMING_OVERLAP: '1'
+  GENESIS_ENABLE_P61C_QWEN3CODER_DEFERRED_COMMIT: '1'   # closes club-3090#72 SSE silence
+  GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL: '1'
+  GENESIS_ENABLE_P82: '1'
+  GENESIS_ENABLE_P98: '1'                              # CRITICAL for hybrid GDN + TQ k8v4
+  GENESIS_ENABLE_PN8_MTP_DRAFT_ONLINE_QUANT: '1'
+  GENESIS_ENABLE_PN11_GDN_AB_CONTIGUOUS: '1'
+  GENESIS_ENABLE_PN59_STREAMING_GDN: '1'               # required for ctx >= 64K hybrid
+  GENESIS_ENABLE_PN77_FP8_LM_HEAD: '1'                 # FP8 lm_head Marlin tier (~242 MiB/rank saving)
+  GENESIS_BUFFER_MODE: shared
+
+# ── System env ──
+system_env:
+  PYTORCH_CUDA_ALLOC_CONF: 'expandable_segments:True,max_split_size_mb:256'
+  VLLM_NO_USAGE_STATS: '1'
+  VLLM_LOGGING_LEVEL: WARNING
+  VLLM_FLOAT32_MATMUL_PRECISION: high
+  VLLM_USE_FLASHINFER_SAMPLER: '1'
+  VLLM_USE_FUSED_MOE_GROUPED_TOPK: '1'
+  VLLM_WORKER_MULTIPROC_METHOD: spawn
+  NCCL_P2P_DISABLE: '1'                                # consumer Ampere — no NVLink
+  OMP_NUM_THREADS: '1'
+
+vllm_extra_args: []
+
+api_key: genesis-local
+host: 0.0.0.0
+
+# ── Container deployment ──
+docker:
+  image: vllm/vllm-openai:nightly
+  container_name: vllm-server-community
+  port: 8000
+  shm_size: 8g
+  memory_limit: 64g
+  network: genesis-vllm-patches_default
+  gpus: all
+  # ⚠️  PORTABLE MOUNTS via ${var} — resolved at render time via host.yaml.
+  # Each operator has different paths (/nfs/X vs /data/X vs ~/X). Symbolic
+  # refs make this config travel between rigs unchanged. Audit rule R-019
+  # catches missing vars at `genesis model-config validate <key>` time.
+  mounts:
+    - ${models_dir}:/models:ro
+    - ${hf_cache}:/root/.cache/huggingface:ro
+    - ${triton_cache}:/root/.triton/cache
+    - ${compile_cache}:/root/.cache/vllm/torch_compile_cache
+    - ${genesis_src}:/usr/local/lib/python3.12/dist-packages/vllm/sndr_core:ro
+    - ${plugin_src}:/plugin:ro
+  extra_run_flags:
+    - --security-opt label=disable
+
+# ── Multi-runtime declaration ──
+# Boolean flags say which runtimes you have validated this config on. The
+# first community submission usually only declares `docker: true`. As the
+# config gets cross-rig validation on more runtimes, additional flags can
+# be flipped to true via separate PRs.
+deploy:
+  docker: true
+  podman: false           # set true if you've tested on podman
+  kubernetes: false       # set true if you've validated against the k8s manifest
+  lxc_proxmox: false      # most operators use bare_metal instead
+  bare_metal: false       # set true if you've validated venv launch
+  default: docker
+
+# ── Reference metrics (populated by `bench-and-update`) ──
+# Don't fill manually — run on YOUR rig:
+#   genesis model-config bench-and-update example-symbolic-mounts
+# That writes reference_metrics back into this YAML.
+reference_metrics: null
+
+# ── Verify tolerances (operator-tunable) ──
+verify_tolerances:
+  tps_drop_pct_max: 7.0
+  tool_call_min: 9/10
+  stability_cv_pct_max: 8.0
+  vram_increase_mib_max: 2000
+
+# ── Per-rig verifications (populated by `promote`) ──
+verified_on: []
+
+# ── Operator notes (free-form, surface to `model-config show`) ──
+notes:
+  - 'ℹ This is the EXAMPLE community config — copy + edit, do not deploy as-is'
+  - 'ℹ Required ${var} in mounts: models_dir, hf_cache, triton_cache, compile_cache, genesis_src, plugin_src'
+  - 'ℹ Run `genesis model-config validate` to catch missing ${var} via R-019 audit rule'

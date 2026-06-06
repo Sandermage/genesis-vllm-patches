@@ -1,0 +1,85 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 alias — Gemma 4 26B-A4B AWQ-4bit, K=1 multi-conc HISTORICAL
+# BENCH BASELINE (not a production preset).
+# `sndr launch prod-gemma4-26b-multiconc-k1` resolves to (model, hardware, profile).
+#
+# Purpose: kept committed so the B4 K=1 vs K=4 multi-conc comparison
+# can be reproduced on future vllm-pin bumps. NOT for production
+# multi-conc traffic.
+#
+# B4 result (2026-05-23, Mode A short structured-JSON conc=8):
+#   K=1 (this preset)                      = 209.1 TPS (CV 0.154)
+#   K=4 (prod-gemma4-26b-multiconc)    = 235.9 TPS (CV 0.180)  +12.8%
+# K=4 sibling wins, so this preset stays as a diagnostic baseline only.
+#
+# Created by Phase 7.G4.26B-A4B.B4-PRE.
+#
+# Sibling presets:
+#   prod-gemma4-26b-default          — K=1 single-stream control
+#   prod-gemma4-26b-mtp-k4           — K=4 single-stream structured
+#   prod-gemma4-26b-multiconc        — K=4 short structured-JSON multi-conc (PRODUCTION CANDIDATE)
+#   prod-gemma4-26b-multiconc-k1     — K=1 multi-conc baseline (THIS FILE, diagnostic only)
+#
+# For free-chat multi-conc throughput, neither this K=1 preset nor its
+# K=4 sibling is the right choice — use prod-qwen3.6-35b-multiconc (Qwen
+# 35B-A3B, 672 TPS @ conc=8) instead.
+#
+# Policy reference:
+#   sndr_private/research/gemma4/analysis/
+#     G4_WORKLOAD_GATE_POLICY_UPDATE_2026-05-23.md
+
+model: gemma-4-26b-a4b-it-awq
+hardware: a5000-2x-24gbvram-16cpu-128gbram
+profile: gemma4-26b-multiconc-k1
+
+# CONFIG-UX.2 — operator card (2026-05-24)
+card:
+  title: "Gemma 4 26B-A4B AWQ — K=1 multi-conc B4 comparator"
+  summary: |
+    K=1 multi-conc diagnostic baseline. Loses to K=4 sibling on structured
+    workloads (B4: 209.1 vs 235.9 TPS); kept committed so the comparison
+    is reproducible on future vllm-pin bumps. Not for production traffic —
+    use prod-gemma4-26b-multiconc (K=4) instead, or prod-qwen3.6-35b-multiconc
+    for free-chat multi-conc.
+  status: production_candidate
+  audience: bench
+  maturity: validated
+  mode: throughput
+  workload_allow:
+    - structured_json.short
+    - tool_call.short
+  workload_deny:
+    - free_chat
+    - structured_json.long
+  concurrency:
+    min: 1
+    max: 8
+    canonical: 8
+  K: 1
+  context:
+    max_model_len: 16384
+    typical_input_tokens: 512
+    typical_output_tokens: 2048
+  routing_family: gemma4_moe_26b_a4b
+  default_for_family: false
+  primary_metric:
+    kind: agg_TPS
+    value: 209.1
+    source: sndr_private/runs/g4_26b_a4b_structured_multiconc_2026-05-23/VERDICT_2026-05-23.md
+    measured_at: 2026-05-23
+  evidence_refs:
+    - type: bench
+      path: sndr_private/runs/g4_26b_a4b_structured_multiconc_2026-05-23/VERDICT_2026-05-23.md
+      visibility: private
+      note: B4 K=1 comparator vs K=4; CV 0.154 across 5 runs.
+  evidence_visibility: private
+  tradeoffs:
+    - "Diagnostic comparator — not for production traffic."
+    - "K=4 sibling (prod-gemma4-26b-multiconc) wins +12.8% TPS on structured workloads."
+    - "For free-chat multi-conc, prod-qwen3.6-35b-multiconc is faster (~672 TPS @ conc=8)."
+  do_not_use:
+    - condition: "any production workload"
+      reason: "Kept as a diagnostic baseline; K=4 sibling is the production candidate for structured."
+  card_version: 1
+  card_updated: 2026-05-24
+  card_author: sander

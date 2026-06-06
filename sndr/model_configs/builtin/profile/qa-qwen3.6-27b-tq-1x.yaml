@@ -1,0 +1,53 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 profile — 27B INT4 TQ k8v4 single-card QA on 1× A5000 (78K ctx).
+# Lifecycle: tested. Single-card community parity; recommend the 2× sister for production.
+
+schema_version: 2
+kind: profile
+id: qa-qwen3.6-27b-tq-1x                          # single-card QA profile for 27B TQ k8v4
+parent_model: qwen3.6-27b-int4-autoround-tq-k8v4 # parent model file (shared with 2× sister)
+maintainer: sandermage
+status: validated                                # validated as single-card QA — NOT 2× production
+created: '2026-05-07'
+target_hardware: a5000-1x-24gbvram-16cpu-128gbram # 2026-05-31: profile semantics target single-card rig — without this, `sndr profile render-launchers` auto-picks the largest-VRAM hardware (2× A5000), which contradicts the "1x" intent in the profile name. Operator can still override with --hardware.
+
+# ─── Patches delta — 1× single-card specific ───────────────────────────
+# Adds PN31 (FA varlen persistent out, designed for 1× 24GB single-GPU).
+# Overrides P67_NUM_KV_SPLITS to 32 (TP=1 — smaller split count than 2× TP=2 which uses 32 too; explicit here for clarity).
+# Overrides P82 threshold (single-card sweep observed 0.1 wins).
+patches_delta:
+  enable:
+    GENESIS_ENABLE_PN31_FA_VARLEN_PERSISTENT_OUT: '1'    # FA varlen persistent output buffer — designed for 1×24GB single-GPU
+  disable: []                                            # no removals
+  override:
+    GENESIS_P67_NUM_KV_SPLITS: '32'                      # P67 split-K factor: 32 explicit for TP=1 (canonical model also uses 32; explicit here for self-documentation)
+    GENESIS_P82_THRESHOLD_SINGLE: '0.1'                  # P82 threshold — single-card sweep wins at 0.1 (canonical model also has 0.1; explicit here)
+
+# ─── Sizing override — single-card memory regime ───────────────────────
+sizing_override:
+  max_model_len: 78000                           # 78K ctx ceiling on single A5000 (vs 131K on 2× rig)
+  gpu_memory_utilization: 0.95                   # 0.95 (vs 0.92 on 2× rig) — no all-reduce overhead, can push higher
+  max_num_seqs: 1                                # 1 = single-stream (vs 4 on 2× rig)
+  max_num_batched_tokens: 4096                   # same chunk size as 2× rig
+  enable_chunked_prefill: true                   # required for spec-decode
+  enforce_eager: false                           # cudagraph capture enabled
+  disable_custom_all_reduce: true                # informational on TP=1
+
+# ─── Override policy (CONFIG-UX.4.DEBT.2A, 2026-05-24) ──────────────────
+# Class `qa` — single-GPU QA harness profile for 1×A5000 stability smoke.
+override_policy:
+  override_class: qa
+  reason: "QA harness profile: single-GPU 27B TQ for 1×A5000 smoke"
+  evidence_refs: []
+  evidence_visibility: public
+  expires_at: '2026-08-22'
+  allowed_to_exceed_hardware_default: false
+
+promotion:
+  validation_required:
+    - "single-card stability run on bench_27b.sh"
+    - "tool-call regression 10/10"
+  promote_to: null                               # single-card is a deployment variant, not a promotion target
+  notes: |
+    Single-card profile. The 2× sister (wave9-qwen3.6-27b-tq-k8v4) is the
+    canonical production reference.

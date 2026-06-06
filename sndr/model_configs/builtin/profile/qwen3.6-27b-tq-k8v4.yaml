@@ -1,0 +1,73 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 profile — wave9 validated set for 27B-TQ-k8v4 on A5000 2× rig (LATENCY mode).
+# Includes sizing override appropriate for the smaller 27B model
+# (max_num_seqs=4 vs 35B's 2; max_model_len=131072 vs 35B's 320000).
+#
+# WAVE 10 (2026-05-15) INHERITANCE NOTE:
+# Model file qwen3.6-27b-int4-autoround-tq-k8v4.yaml was updated 2026-05-15
+# with Wave 10 patches (PN51, PN96b, PN125, PN126-130, PN132, PN133). Because
+# patches_delta is empty, this latency profile AUTOMATICALLY inherits the
+# full Wave 10 stack. No edit needed here — the inheritance contract works.
+#
+# For multi-conc throughput workloads on 27B (max_num_seqs=8, 379 TPS
+# aggregate vs 97 TPS single — best-in-class 3.89x scaling), use the
+# COMPANION profile `qwen3.6-27b-multiconc.yaml` which overrides sizing (max_num_seqs=8,
+# max_model_len=131K, gpu_memory_utilization=0.85) and enables PN204 v2.
+# Bench reference (dev371+bf610c2f5, tools/multi_conc_bench.py sweep):
+#   This profile (max_num_seqs=4): conc=4 265 TPS / TTFT 159 ms — LATENCY-BALANCED
+#   qwen3.6-27b-multiconc (max_num_seqs=8): conc=8 379 TPS / TTFT 189 ms — THROUGHPUT OPTIMAL
+
+schema_version: 2
+kind: profile
+id: qwen3.6-27b-tq-k8v4                            # canonical wave9 reference for 27B TQ k8v4
+parent_model: qwen3.6-27b-int4-autoround-tq-k8v4 # parent model file this profile targets
+maintainer: sandermage
+status: validated                                # values: experimental|validated|deprecated
+created: '2026-05-11'
+
+# ─── Empty patches delta — canonical matrix lives in model file ────────
+patches_delta:
+  enable: {}                                     # no additions on top of model.patches
+  disable: []                                    # no removals
+  override: {}                                   # no value overrides
+
+# ─── Sizing override — operator tuning for 27B on 2× A5000 ─────────────
+# 27B leaves more VRAM for KV cache + sequences than 35B, so we run
+# 2× more concurrent sequences (max_num_seqs=4) and lower max_model_len
+# (131072 fits the larger seq count without OOM).
+sizing_override:
+  max_model_len: 262144                          # 256K context — raised 2026-05-14 after TP=2 progressive ladder PASSed 200K/230K/256K on the dcacdf9a pin; re-verified booting on pin `626fa9bba` 2026-05-31 with TP=2 + this profile's defaults (initial 27b-tq-k8v4 boot failure on 2026-05-31 was misdiagnosed as KV-drift but was actually `sndr profile render-launchers` auto-pick of `a5000-1x` instead of `a5000-2x` hardware — re-render with `--hardware a5000-2x-24gbvram-16cpu-128gbram` gives correct TP=2). Concurrency stays at max_num_seqs=4 (verified during the ladder).
+  gpu_memory_utilization: 0.92                   # 0.92 (vs 0.90 in 35B) — 27B leaves more headroom
+  max_num_seqs: 4                                # 4 concurrent (vs 35B's 2) — 27B has 2× the spare KV pool
+  max_num_batched_tokens: 4096                   # chunked prefill chunk size (must equal GENESIS_PROFILE_RUN_CAP_M)
+  enable_chunked_prefill: true
+  enable_prefix_caching: true                    # ADDED — club-3090 inspired; helps decode cache reuse                   # required for spec-decode + long ctx
+  enforce_eager: false                           # false = cudagraph capture enabled
+  disable_custom_all_reduce: true                # NCCL fallback (consumer Ampere PCIe)
+
+# ─── Override policy (CONFIG-UX.4.DEBT.1, 2026-05-24) ──────────────────
+# Class `bench` with expires_at — operator's anti-overclaim discipline:
+# public model-family baseline exists (27b_v11_wave9.json + 27b_v8.json),
+# but per-preset config-block cross-validation is deferred to CONFIG-UX.4
+# audit work, so we don't auto-claim `production`. Re-evaluate after
+# expires_at + scheduled public bench refresh.
+override_policy:
+  override_class: bench
+  reason: "Wave 9 27B TQ K=3 single-conc — context 262K + max_num_seqs=4 validated against 27b_v11_wave9.json (model-family bench, not config-block validated)"
+  evidence_refs:
+    - tests/integration/baselines/27b_v11_wave9.json
+    - tests/integration/baselines/27b_v8.json
+  evidence_visibility: public
+  expires_at: '2026-08-22'
+  allowed_to_exceed_hardware_default: false
+
+promotion:
+  validation_required:
+    - "genesis_bench_suite.py --quick passes within 2% of canonical baseline"
+    - "tool-call regression 10/10 (matches Wave 9 dev209 live-PROD bench)"
+    - "200-min soak CV within tolerance"
+  promote_to: qwen3.6-27b-int4-autoround-tq-k8v4 # target model file for promote operations
+  notes: |
+    wave9-qwen3.6-27b-tq-k8v4 captures the validated patches set + sizing for
+    the 27B Lorbus + TQ k8v4 path on 2× A5000. Re-bench whenever vllm
+    pin bumps or any patch in model.patches changes.

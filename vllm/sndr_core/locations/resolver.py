@@ -1,20 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
-"""SNDR Core — resolve_vllm_file() forwarding.
+"""Backward-compatibility shim.
 
-v10 (2026-05-07): canonical impl now lives at
-`vllm.sndr_core.detection.guards.resolve_vllm_file` — `vllm._genesis.guards`
-is a sys.modules redirect to that module. The wiring tests monkey-patch
-`guards.vllm_install_root` and expect `resolve_vllm_file()` to honor
-the patch — which still works because both module names resolve to the
-same module object.
+Canonical location: ``sndr.engines.vllm.locations.resolver``.
 
-Recommended usage pattern (new code):
-
-    from vllm.sndr_core.locations import engine_targets, resolve_vllm_file
-    target = resolve_vllm_file(engine_targets.QWEN3CODER_TOOL_PARSER)
+This file re-exports the entire public surface from the new location so
+existing imports continue to work during v12.x migration window. Will be
+removed in v13.0.
 """
-from __future__ import annotations
-
-from vllm.sndr_core.detection.guards import resolve_vllm_file  # noqa: F401
-
-__all__ = ["resolve_vllm_file"]
+from sndr.engines.vllm.locations.resolver import *  # noqa: F401,F403
+try:
+    from sndr.engines.vllm.locations.resolver import __all__  # noqa: F401
+except ImportError:
+    pass

@@ -53,7 +53,7 @@ _REPO = Path(__file__).resolve().parent.parent
 if str(_REPO) not in sys.path:
     sys.path.insert(0, str(_REPO))
 
-from vllm.sndr_core.runtime.memory_estimator import (  # noqa: E402
+from sndr.runtime.memory_estimator import (  # noqa: E402
     MemoryEstimate, MemoryComponent, read_model_shape,
     estimate_kv_cache, estimate_weights, estimate_activations,
     estimate_cuda_graph_reserve, estimate_marlin_scratch,
@@ -167,13 +167,13 @@ def _parse_ctx(s: Optional[str]) -> Optional[int]:
 def _resolve_preset(key: str):
     """Returns (cfg, ctx, kv_dtype, tp_size, max_num_seqs) from registry."""
     try:
-        from vllm.sndr_core.model_configs.registry import get
+        from sndr.model_configs.registry import get
     except ImportError as e:
         print(f"ERROR: registry not importable: {e}", file=sys.stderr)
         return None
     cfg = get(key)
     if cfg is None:
-        from vllm.sndr_core.model_configs.registry import list_keys
+        from sndr.model_configs.registry import list_keys
         print(f"ERROR: unknown preset key {key!r}", file=sys.stderr)
         print(f"Available: {', '.join(sorted(list_keys()))}", file=sys.stderr)
         return None

@@ -6,12 +6,12 @@ patches that are platform-gated (e.g. Ampere SM 8.0+) are noted.
 
 > **Current PROD baseline (v12.0.0 current registry; pin bumped 2026-05-15):**
 >
-> - Genesis v12.0.0 — registry has **241 entries** (181 full-
->   implementation + 20 marker_only + 4 retired + 8 partial + 2 placeholder).
+> - Genesis v12.0.0 — registry has **252 entries**: 192 full-implementation,
+>   26 experimental, 20 marker_only, 8 partial, 4 retired, 2 placeholder.
 >   Wave 10 additions: PN125-PN130 warmup-orchestrator family, PN132
->   (top-k/top-p contiguous), PN133, PN204 v2 (GDN dual-stream consolidated).
->   Wave 8/9 baselines retained in this doc remain numerically representative
->   for the 27B/35B PROD configs (no breaking config change since dev209).
+>   (top-k/top-p contiguous), PN133, PN204 v2 (GDN dual-stream consolidated),
+>   PN298/PN299 FLA arch-aware NUM_WARPS prune. Updated 2026-06-04 — counts
+>   auto-derived from ``PATCH_REGISTRY``.
 > - vLLM `0.21.1rc0+g626fa9bba5` (bumped from dev209→dev338→dev371;
 >   canonical bench numbers below measured on dev93/dev209 — re-bench on
 >   dev371 shows 35B sustained ~208-216 TPS at max_num_seqs=2 and ~689

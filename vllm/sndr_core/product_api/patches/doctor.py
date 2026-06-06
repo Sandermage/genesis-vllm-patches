@@ -1,24 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Pure-data query layer for ``sndr patches doctor`` (M.6.1)."""
-from __future__ import annotations
+"""Backward-compatibility shim.
 
-from .types import DoctorReport
+Canonical location: ``sndr.product_api.legacy.patches.doctor``.
 
-
-def run_doctor() -> DoctorReport:
-    """Run the registry validator + apply_module coverage probe.
-
-    Returns a frozen snapshot containing the size of ``PATCH_REGISTRY``,
-    the tuple of validation issues (severity / patch_id / message), and
-    the coverage report (``mapped``, ``unmapped``, ``intentionally_unmapped``).
-    """
-    from vllm.sndr_core.dispatcher import PATCH_REGISTRY, validate_registry
-    from vllm.sndr_core.dispatcher.spec import validate_apply_module_coverage
-
-    issues = tuple(validate_registry())
-    coverage = validate_apply_module_coverage()
-    return DoctorReport(
-        registry_size=len(PATCH_REGISTRY),
-        issues=issues,
-        coverage=coverage,
-    )
+This file re-exports the entire public surface from the new location so
+existing imports continue to work during v12.x migration window. Will be
+removed in v13.0.
+"""
+from sndr.product_api.legacy.patches.doctor import *  # noqa: F401,F403
+try:
+    from sndr.product_api.legacy.patches.doctor import __all__  # noqa: F401
+except ImportError:
+    pass

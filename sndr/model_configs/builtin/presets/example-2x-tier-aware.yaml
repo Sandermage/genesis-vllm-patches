@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 alias — Path C tier-aware cache example on 2× A5000.
+
+model: qwen3.6-27b-int4-autoround-tq-k8v4
+hardware: a5000-2x-24gbvram-16cpu-128gbram
+profile: tier-aware-2x
+
+card:
+  title: "Path C tier-aware cache example (2× A5000, PN95)"
+  summary: |
+    Educational example preset demonstrating Path C tier-aware cache
+    (PN95) on 2× A5000. Same model + hardware as prod-qwen3.6-27b-tq-k8v4 but with
+    PN95 multi-tier offload enabled at 4 concurrent streams for
+    tier-transition coverage. Use prod-qwen3.6-27b-tq-k8v4 for production — this
+    preset is reference / experiment scope only.
+  status: example
+  audience: dev
+  maturity: validated
+  mode: throughput
+  workload_allow:
+    - tier_aware_demo
+  workload_deny:
+    - free_chat
+    - structured_json.long
+    - tool_call.long
+  concurrency:
+    min: 1
+    max: 4
+    canonical: 4
+  K: 3
+  context:
+    max_model_len: 131072
+    typical_input_tokens: 4096
+    typical_output_tokens: 4096
+  routing_family: qwen3_6_27b_int4_tq_tier_aware
+  default_for_family: false
+  fallback_preset: prod-qwen3.6-27b-tq-k8v4

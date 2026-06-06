@@ -1,0 +1,67 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 alias — operator shortcut for the 35B PROD triplet.
+# `sndr launch prod-qwen3.6-35b-balanced` resolves this file to (model, hardware, profile).
+
+model: qwen3.6-35b-a3b-fp8
+hardware: a5000-2x-24gbvram-16cpu-128gbram
+profile: qwen3.6-35b-balanced
+# runtime: docker      # optional; defaults to hardware.runtime.default
+
+# CONFIG-UX.2 — operator card (2026-05-24)
+card:
+  title: "Qwen 3.6 35B-A3B FP8 — balanced default (K=3 MTP)"
+  summary: |
+    Family default for qwen3_6_35b_a3b_fp8. FP8 target + TurboQuant k8v4
+    KV + MTP K=3 balanced single-conc profile. Public baseline coverage
+    in 35b_v11_wave9.json (Wave 9). Production baseline for free-chat
+    multi-conc reference (~672 TPS at conc=8 in multi-conc sibling).
+  status: production_candidate
+  audience: operator
+  maturity: validated
+  mode: throughput
+  workload_allow:
+    - free_chat
+    - structured_json.short
+    - tool_call.short
+    - summarization
+    - code_gen
+  workload_deny:
+    - structured_json.long
+    - tool_call.long
+  concurrency:
+    min: 1
+    max: 2
+    canonical: 2
+  K: 3
+  context:
+    max_model_len: 280000
+    typical_input_tokens: 4096
+    typical_output_tokens: 4096
+  routing_family: qwen3_6_35b_a3b_fp8
+  default_for_family: true
+  fallback_preset: prod-qwen3.6-35b-balanced
+  primary_metric:
+    kind: agg_TPS
+    value: 0.0
+    source: tests/integration/baselines/35b_v11_wave9.json
+    measured_at: 2026-05-15
+  evidence_refs:
+    - type: bench
+      path: tests/integration/baselines/35b_v11_wave9.json
+      visibility: public
+      note: Wave 9 canonical baseline for Qwen 3.6 35B-A3B (vllm dev338+).
+    - type: bench
+      path: tests/integration/baselines/35b_v8only.json
+      visibility: public
+      note: Wave 8 baseline retained for cross-pin regression comparison.
+  evidence_visibility: public
+  tradeoffs:
+    - "Single-conc balanced profile (max_num_seqs=2); for high-conc use prod-qwen3.6-35b-multiconc."
+    - "FP8 KV via TurboQuant k8v4 — different tier than INT4 27B variants."
+    - "Family default falls back to itself (no K=1 35B sibling yet)."
+  do_not_use:
+    - condition: "concurrency > 2"
+      reason: "Sized for max_num_seqs=2; use prod-qwen3.6-35b-multiconc for higher concurrency."
+  card_version: 1
+  card_updated: 2026-05-24
+  card_author: sander

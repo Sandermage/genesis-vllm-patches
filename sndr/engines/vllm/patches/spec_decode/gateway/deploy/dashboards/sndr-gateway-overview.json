@@ -1,0 +1,141 @@
+{
+  "_comment": [
+    "SNDR spec-decode gateway — Grafana dashboard skeleton.",
+    "Import via Grafana UI: Dashboards -> Import -> Upload JSON file.",
+    "Prometheus data-source UID needs to be substituted ($DS_PROM).",
+    "Six panels, ordered to match deploy/README.md G4/G5 observability sections.",
+    "D2c v2 — Panel 5 wired to PN282 metric (sndr_spec_decode_*) on the",
+    "structured upstream. Mean-acceptance (Panel 5b) deferred; PromQL on",
+    "k as a string label needs a recording rule for clean arithmetic."
+  ],
+  "title": "SNDR gateway — overview",
+  "uid": "sndr-gateway-overview",
+  "schemaVersion": 39,
+  "version": 2,
+  "tags": ["sndr", "spec-decode", "gateway"],
+  "timezone": "browser",
+  "time": {"from": "now-1h", "to": "now"},
+  "refresh": "30s",
+  "templating": {
+    "list": [
+      {
+        "name": "ds",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": {"text": "Prometheus", "value": "${DS_PROM}"}
+      },
+      {
+        "name": "upstream",
+        "type": "query",
+        "datasource": {"type": "prometheus", "uid": "${ds}"},
+        "query": "label_values(sndr_upstream_health_state, upstream)",
+        "includeAll": true,
+        "current": {"text": "All", "value": "$__all"}
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Traffic split (5m rate, stacked)",
+      "type": "timeseries",
+      "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "${ds}"},
+      "targets": [
+        {
+          "expr": "rate(genesis_routed_default_total[5m])",
+          "legendFormat": "default"
+        },
+        {
+          "expr": "rate(genesis_routed_structured_total[5m])",
+          "legendFormat": "structured"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {"custom": {"stacking": {"mode": "normal"}}}
+      }
+    },
+    {
+      "id": 2,
+      "title": "Fallback reasons (5m rate, stacked)",
+      "type": "timeseries",
+      "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "${ds}"},
+      "targets": [
+        {
+          "expr": "sum by (reason) (rate(genesis_fallback_total[5m]))",
+          "legendFormat": "{{reason}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {"custom": {"stacking": {"mode": "normal"}}}
+      }
+    },
+    {
+      "id": 3,
+      "title": "Latency p50 / p95 by upstream + stream",
+      "type": "timeseries",
+      "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "${ds}"},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum by (upstream, stream, le) (rate(sndr_route_latency_seconds_bucket[5m])))",
+          "legendFormat": "{{upstream}}/{{stream}} p50"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (upstream, stream, le) (rate(sndr_route_latency_seconds_bucket[5m])))",
+          "legendFormat": "{{upstream}}/{{stream}} p95"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "s"}}
+    },
+    {
+      "id": 4,
+      "title": "Upstream health (1=up, 0.5=degraded, 0=down)",
+      "type": "timeseries",
+      "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "${ds}"},
+      "targets": [
+        {
+          "expr": "sndr_upstream_health_state{upstream=~\"$upstream\"}",
+          "legendFormat": "{{upstream}}"
+        }
+      ],
+      "fieldConfig": {"defaults": {"min": 0, "max": 1}}
+    },
+    {
+      "id": 5,
+      "title": "Structured acceptance — per-k distribution (5m rate, stacked)",
+      "type": "timeseries",
+      "gridPos": {"x": 0, "y": 16, "w": 12, "h": 6},
+      "datasource": {"type": "prometheus", "uid": "${ds}"},
+      "targets": [
+        {
+          "expr": "sum by (k) (rate(sndr_spec_decode_accepted_per_call_total{profile=\"gemma4-31b-tq-mtp-structured-k4\"}[5m]))",
+          "legendFormat": "k={{k}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {"custom": {"stacking": {"mode": "normal"}}}
+      },
+      "description": "Per-rejection_sample-call distribution of accepted draft tokens (PN282 metric on the structured upstream). Healthy beta'-A K=4 shows mass at k in {2,3,4}; sustained collapse to k=0 is the rollback-L1 signal. Profile label is hardcoded to gemma4-31b-tq-mtp-structured-k4 until a second structured profile exists."
+    },
+    {
+      "id": 6,
+      "title": "Errors (upstream + streaming)",
+      "type": "timeseries",
+      "gridPos": {"x": 12, "y": 16, "w": 12, "h": 6},
+      "datasource": {"type": "prometheus", "uid": "${ds}"},
+      "targets": [
+        {
+          "expr": "sum by (upstream) (rate(genesis_upstream_error_total[5m]))",
+          "legendFormat": "{{upstream}} upstream"
+        },
+        {
+          "expr": "sum by (upstream, reason) (rate(sndr_streaming_error_total[5m]))",
+          "legendFormat": "{{upstream}} stream/{{reason}}"
+        }
+      ]
+    }
+  ]
+}

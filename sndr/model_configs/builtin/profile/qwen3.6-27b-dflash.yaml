@@ -1,0 +1,64 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 profile — 27B-DFlash SINGLE-STREAM latency-mode sizing on 2× A5000.
+#
+# WAVE 10 (2026-05-15) INHERITANCE NOTE:
+# Model file qwen3.6-27b-dflash.yaml was updated 2026-05-15 with Wave 10
+# patches symmetric to MTP sibling. Empty patches_delta means full Wave 10
+# stack inherited automatically.
+#
+# For multi-concurrency throughput workloads (max_num_seqs=8, agg 385 TPS
+# at TTFT 190 ms), use companion profile `qwen3.6-27b-dflash-multiconc.yaml` which
+# overrides sizing (max_num_seqs=8, max_model_len=80K, gpu_mem=0.85).
+#
+# Bench reference (dev371+bf610c2f5):
+#   This profile (max_num_seqs=1, 185K)  : single-stream, TTFT 102 ms
+#   qwen3.6-27b-dflash-multiconc (max_num_seqs=8, 80K) : agg 385 TPS / TTFT 190 ms
+#
+# On 27B, DFlash and MTP+TQ are nearly TIED at conc=8 (Δ <2%). Choice
+# depends on context: MTP+TQ supports 262K, DFlash caps at 80K (multi-conc)
+# / 185K (single-stream).
+
+schema_version: 2
+kind: profile
+id: qwen3.6-27b-dflash                             # canonical wave9 reference for 27B DFlash
+parent_model: qwen3.6-27b-dflash                 # parent model file (DFlash variant)
+maintainer: sandermage
+status: validated                                # values: experimental|validated|deprecated
+created: '2026-05-06'
+
+# ─── Empty patches delta — canonical matrix lives in model file ────────
+patches_delta:
+  enable: {}                                     # no additions
+  disable: []                                    # no removals
+  override: {}                                   # no value overrides
+
+# ─── Sizing override — DFlash is single-stream optimized; 185K context ──
+sizing_override:
+  max_model_len: 185000                          # 185K context (DFlash-fp16 KV ceiling — head_size=256 constraint shrinks pool)
+  gpu_memory_utilization: 0.95                   # 0.95 — push high since single-stream has no concurrent KV peak
+  max_num_seqs: 1                                # 1 = single-stream optimized (DFlash design point)
+  max_num_batched_tokens: 8192                   # 8192 — larger chunks since single-stream tolerates them
+  enable_chunked_prefill: true                   # required for long ctx
+  enforce_eager: false                           # cudagraph capture enabled
+  disable_custom_all_reduce: true                # NCCL fallback
+
+# ─── Override policy (CONFIG-UX.4.DEBT.2B, 2026-05-24) ──────────────────
+# bench_pending — no public single-stream DFlash baseline yet; sizing
+# is operator-tuned for the DFlash drafter+target footprint on 2×A5000.
+# Future-reader note: this is NOT a production-validated override.
+override_policy:
+  override_class: bench
+  reason: "bench_pending: 27B DFlash N=5 single-stream — context 185K, gpu_mem_util 0.95 to fit drafter + target on 2×A5000; public single-stream DFlash baseline not yet published"
+  evidence_refs: []
+  evidence_visibility: public
+  expires_at: '2026-08-22'
+  allowed_to_exceed_hardware_default: true
+
+promotion:
+  validation_required:
+    - "bench long_gen single-stream ≥90 TPS (May-5 baseline 97.6)"
+    - "tool-call 10/10"
+  promote_to: qwen3.6-27b-dflash                 # target model file for promote operations
+  notes: |
+    Validated single-stream wave9 profile. Re-bench whenever DFlash
+    family patches (PN21/PN23/PN24/PN38/PN40) change.

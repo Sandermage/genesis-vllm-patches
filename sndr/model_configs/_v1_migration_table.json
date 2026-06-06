@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-06-01",
+  "phase": "CONFIG-UX.10.5",
+  "notes": "V1 monolithic preset tier fully retired 2026-06-01. All 12 original entries went through the sunset cascade (sunsets #1–#10 + Phase 10 Step 4 final delete of the last 2 transparent-bucket files a5000-2x-35b-prod and a5000-2x-27b-int4-tq-k8v4). Empty entries map preserves the audit contract (audit_v1_migration.py + audit_no_new_v1.py keep working with zero live V1 fixtures).",
+  "entries": {}
+}

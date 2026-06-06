@@ -1,0 +1,98 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis bench methodology contract (Phase 6, Roadmap V2 §5).
+#
+# This file is the SINGLE source of truth for what counts as a valid
+# bench artefact. `sndr bench validate <result.json>` reads this and
+# checks that the artefact's methodology fingerprint matches.
+#
+# Without a fixed methodology, "bench delta < 2%" claims are noise.
+# This contract fixes:
+#   • prompt set (committed corpus + SHA)
+#   • warmup count
+#   • N runs + statistics (median + p95)
+#   • CV tolerance
+#   • GPU clock state recording
+#   • tool-call corpus
+#   • soak rules
+#   • per-artefact mandatory fields (so old artefacts auto-fail)
+
+schema_version: 1
+methodology_id: wave9-baseline
+maintainer: sandermage
+created: '2026-05-12'
+
+# ─── Prompt corpus ─────────────────────────────────────────────────────
+# Fixed seed prompts. Every bench result must carry the corpus SHA so
+# we can detect drift if the corpus is edited.
+prompt_corpus:
+  path: tools/bench_corpus/v1/
+  sha:  null              # null until corpus tree exists; populate via tools/seed_bench_corpus.py
+  scenarios:
+    - long_gen_512t       # 3 prompts × 512-token generation
+    - long_gen_2048t      # 3 prompts × 2048-token generation
+    - tool_call           # 10 fixed scenarios (Wave 9 dev209 reference set)
+    - stability_5x        # 5 short runs for CV measurement
+
+# ─── Measurement protocol ──────────────────────────────────────────────
+measurement:
+  warmup_runs: 3                  # discarded before any timing capture
+  measure_runs: 10                # main capture; report median + p95
+  cv_warn_pct: 5.0                # flag if coefficient-of-variation > 5%
+  cv_fail_pct: 10.0               # release blocked if > 10%
+  per_request_timeout_s: 600      # safety cap per request
+
+# ─── Sequence count ────────────────────────────────────────────────────
+# Default tracks the alias's max_num_seqs (recorded in result JSON).
+sequence_count:
+  policy: from_alias              # `from_alias` | `fixed`
+  fixed_value: null
+
+# ─── GPU clock state ───────────────────────────────────────────────────
+# Lock GPU clocks during bench to remove thermal throttling noise.
+# Result JSON must capture `nvidia-smi -q -d CLOCK` snapshots before
+# warmup and after the last measure run.
+gpu_clock:
+  lock_mode: base                 # values: `base` | `boost` | `none`
+  capture_pre: true               # snapshot before warmup
+  capture_post: true              # snapshot after last measure run
+  required_in_artefact: true
+
+# ─── Tolerances ────────────────────────────────────────────────────────
+# Used by `sndr bench compare` and the release-tier patch-proof gate.
+tolerances:
+  median_tps_regression_warn_pct: 2.0    # any -2% on median TPS warns
+  median_tps_regression_fail_pct: 5.0    # any -5% blocks release
+  p95_tps_regression_fail_pct: 7.0       # p95 sensitivity slightly looser
+  ttft_regression_warn_pct: 5.0
+  ttft_regression_fail_pct: 15.0
+  tool_call_min_score: 9                 # out of 10 — Wave 9 baseline
+  tool_call_must_match_baseline: true    # zero-tolerance regressions allowed
+
+# ─── Soak test ─────────────────────────────────────────────────────────
+soak:
+  enabled: false                  # off by default; release CI may enable
+  duration_min: 200               # 3 hours 20 min canonical
+  rolling_window_min: 10
+  rolling_cv_fail_pct: 3.0
+
+# ─── Mandatory artefact fields ─────────────────────────────────────────
+# Every bench result JSON must carry these fields; `sndr bench validate`
+# rejects artefacts missing any of them.
+required_artefact_fields:
+  - schema_version              # int matching this file's schema_version
+  - methodology_id              # string matching this file's methodology_id
+  - methodology_sha             # SHA256 of this YAML at bench-time
+  - composed_key                # <model>__<hardware>__<profile> or V1 key
+  - vllm_pin                    # exact vllm version recorded
+  - genesis_pin                 # sndr_core version
+  - host_id                     # local | server | <hostname>
+  - measured_at                 # ISO-8601 timestamp
+  - corpus_sha                  # SHA of prompt corpus dir
+  - warmup_runs                 # int matching measurement.warmup_runs
+  - measure_runs                # int matching measurement.measure_runs
+  - median_tps                  # float
+  - p95_tps                     # float
+  - cv_pct                      # float — coefficient of variation
+  - tool_call_score             # "N/10"
+  - gpu_clock_pre               # raw nvidia-smi output (string)
+  - gpu_clock_post              # raw nvidia-smi output (string)

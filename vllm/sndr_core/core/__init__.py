@@ -1,26 +1,21 @@
 # SPDX-License-Identifier: Apache-2.0
-"""SNDR Core patcher infrastructure (canonical home).
+"""Backward-compatibility shim: vllm.sndr_core.core.
 
-Public API for text-patching primitives that all SNDR Core / Genesis
-patches use. Migration target for the legacy `vllm/_genesis/wiring/`
-infrastructure.
+The canonical location of these primitives is :mod:`sndr.kernel`.
 
-Contents (Stage 3 — current):
-  - `text_patch` — TextPatch, TextPatcher, TextPatchResult, TextPatchFailure,
-                   result_to_wiring_status (the per-file patcher).
-  - `multi_file` — MultiFilePatchTransaction (atomic multi-file commits).
-  - `manifest_cache` — internal manifest caching helpers used by TextPatcher.
+This shim re-exports the public API so that all existing imports continue
+to work during the v12.x migration window::
 
-Future (Stage 4):
-  - `file_cache` — Layer 0 fast-path (was: wiring/file_cache.py).
-  - `manifest` — Site Map anchor manifest (was: wiring/anchor_manifest.py).
+    # OLD (still works, but deprecated):
+    from vllm.sndr_core.core import TextPatcher, TextPatch
 
-Future (Stage 8):
-  - `sub_patch` — SubPatch dataclass with per-sub drift markers.
-  - `markers` — marker discovery / composition.
+    # NEW (preferred):
+    from sndr.kernel import TextPatcher, TextPatch
+
+Will be removed in v13.0.
 """
-from .multi_file import MultiFilePatchTransaction  # noqa: F401
-from .text_patch import (  # noqa: F401
+from sndr.kernel import (  # noqa: F401
+    MultiFilePatchTransaction,
     TextPatch,
     TextPatchFailure,
     TextPatchResult,

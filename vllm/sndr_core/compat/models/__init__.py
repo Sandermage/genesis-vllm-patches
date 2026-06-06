@@ -1,23 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Genesis models — curated registry of supported models + download tools.
+"""Backward-compatibility shim.
 
-Re-exports the registry data and the pull tool for `from
-vllm.sndr_core.compat.models import SUPPORTED_MODELS, pull_model`.
+Canonical location: ``sndr.compat.models``.
+
+This file re-exports the entire public surface from the new location so
+existing imports continue to work during v12.x migration window. Will be
+removed in v13.0.
 """
-from __future__ import annotations
-
-from vllm.sndr_core.compat.models.registry import (
-    SUPPORTED_MODELS,
-    ModelEntry,
-    get_model,
-    list_models,
-    list_recommended_for_hardware,
-)
-
-__all__ = [
-    "SUPPORTED_MODELS",
-    "ModelEntry",
-    "get_model",
-    "list_models",
-    "list_recommended_for_hardware",
-]
+from sndr.compat.models import *  # noqa: F401,F403
+try:
+    from sndr.compat.models import __all__  # noqa: F401
+except ImportError:
+    pass

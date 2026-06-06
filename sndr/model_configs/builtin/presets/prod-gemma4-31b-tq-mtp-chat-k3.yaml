@@ -1,0 +1,113 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 alias — operator shortcut for the Gemma 4 31B AWQ chat-K=3 triplet.
+# `sndr launch prod-gemma4-31b-tq-mtp-chat-k3` resolves to (model, hardware, profile).
+#
+# Chat-role preset: MTP K=3 — empirically validated 2026-05-31 as the
+# default-role replacement for `gemma4-31b-tq-default` (MTP OFF). Pairs
+# with `prod-gemma4-31b-tq-mtp-structured-k4` which is the structured-
+# role sibling (MTP K=4 gated on tool_json + structured_count workloads).
+#
+# The two presets together deliver the role-split deployment topology
+# documented in `docs/_internal/DEPLOYMENT_PROFILE_ROUTING_PLAN_2026-05-20.md`:
+#   - chat-k3 on port 8101 (or operator-chosen `chat` upstream port)
+#   - structured-k4 on port 8102 (or operator-chosen `structured` upstream)
+#   - gateway on port 8100 routes per request signal (response_format,
+#     tool_choice, workload_class) per request_router.py rules
+#
+# Bench status (2026-05-31, pin 0.21.1rc1.dev354+g626fa9bba):
+#   profile_free_mean_tps:       44.058   (+105.7% vs MTP-OFF / K=4 structured)
+#   profile_structured_mean_tps: 43.057   (-18.3% vs K=4 structured)
+#   profile_geomean_tps:         43.608   (+19.0% vs K=4 structured)
+#   Decision: validated_conditional. See artifact at
+#   vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-31b-tq-mtp-chat-k3.json
+#
+# Hand-launcher reference: the rig carries `~/start_gemma4-31b_k3.sh`
+# (created 2026-05-31) as a manual K=3 control before this preset
+# landed. After this preset lands, the canonical way to start the
+# chat-k3 upstream is:
+#   sndr launch prod-gemma4-31b-tq-mtp-chat-k3 --port 8113
+
+model: gemma-4-31b-it-awq                        # cyankiwi/gemma-4-31B-it-AWQ-4bit + native gemma4_dense
+hardware: a5000-2x-24gbvram-16cpu-128gbram       # Sander 2× A5000 homelab
+profile: gemma4-31b-tq-mtp-chat-k3                   # chat role: MTP K=3, +19% global / +105% chat vs K=4
+
+# CONFIG-UX.2 — operator card
+card:
+  title: "Gemma 4 31B AWQ — TQ + MTP K=3 chat-role"
+  summary: |
+    Dense 31B gemma4_dense_31b_tq family chat-role default. MTP K=3
+    speculation pays for itself on free-form prose where the K=4
+    sibling regresses (chat acceptance is too low for K=4 to recover
+    cost). Mirror-sibling of the K=4 structured-role profile — together
+    they partition workload classes per request_router signals.
+  status: production_candidate
+  audience: operator
+  maturity: draft                                  # `draft` matches card.maturity enum; ProfileDef.status remains
+                                                    # `experimental` until operator A/B vs structured-k4 confirms gain
+  mode: throughput
+  workload_allow:
+    - free_chat
+    - summarization
+    - code_gen
+  workload_deny:
+    - structured_json.long
+    - tool_call.long
+  concurrency:
+    min: 1
+    max: 2
+    canonical: 2
+  K: 3
+  # 2026-06-01: fallback_preset added to satisfy audit_config_catalog
+  # `card_strict_validation` rule (K>1 production_candidate requires a
+  # K=1 fallback pointer of same routing_family). Points at the K=4
+  # structured-role sibling — mirrors the 26b chat-k3 → mtp-k4 pattern
+  # (chat-k3 denies structured_json.long + tool_call.long, exactly the
+  # workloads the structured-k4 sibling handles; the gateway router
+  # already routes those workload signals to structured-k4, so this
+  # fallback formalises the cross-role partnership in metadata form).
+  fallback_preset: prod-gemma4-31b-tq-mtp-structured-k4
+  context:
+    max_model_len: 200000
+    typical_input_tokens: 2048
+    typical_output_tokens: 2048
+  routing_family: gemma4_dense_31b_tq
+  default_for_family: false                        # default_for_family stays with gemma4-31b-tq-default
+                                                    # until operator promotes this profile
+  primary_metric:
+    kind: agg_TPS
+    value: 43.608117
+    source: vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-31b-tq-mtp-chat-k3.json
+    measured_at: 2026-05-31
+  evidence_refs:
+    - type: bench
+      # Phase 10.5 (2026-06-01) — visibility flipped private → public.
+      # The artifact JSON is committed to the public repo at the path
+      # below; any operator with a public checkout can audit the K=3-
+      # vs-K=4 five-class A/B numbers + per-class TPS + acceptance +
+      # VRAM snapshots directly. Clears the audit_config_catalog
+      # `production_candidate_public_evidence` warning that previously
+      # gated this preset from promoting to status=production.
+      path: vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-31b-tq-mtp-chat-k3.json
+      visibility: public
+      note: |
+        K=3 vs K=4 5-class A/B bench evidence, +19% global delta,
+        +105% free-form delta, -18% structured delta. The artifact JSON
+        is structured per FunctionalArtifact schema with
+        decision=validated_conditional + per-class TPS + acceptance
+        + VRAM snapshots.
+    - type: bench
+      path: external://docs.example/pending-gemma4-31b-chat-k3-bench
+      visibility: private
+      note: B1.X chat-k3 baseline (artifact above is the bench-of-record).
+  evidence_visibility: public
+  tradeoffs:
+    - "MTP K=3 → chat workloads benefit (free_chat +105%, summarization +99% vs K=4) but structured drops (structured_count -24%, tool_json -21%)."
+    - "Best deployed as a sibling upstream behind the spec_decode gateway, not as a single-launcher replacement for the structured K=4 preset."
+  do_not_use:
+    - condition: "structured workloads (tool_json, structured_count)"
+      reason: "Use prod-gemma4-31b-tq-mtp-structured-k4 K=4 sibling for structured workloads. The chat-k3 artifact denies these workload classes."
+    - condition: "high-concurrency (>2)"
+      reason: "Single-conc bench-validated only; sizing matches the canonical chat-role default."
+  card_version: 1
+  card_updated: 2026-05-31
+  card_author: sander

@@ -1,18 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
-"""SNDR Core apply — `python -m vllm.sndr_core.apply` entry point.
+"""Backward-compatibility shim.
 
-v10 (2026-05-07): F-019 fix. The model_config launch script renderer
-prefers `python -m vllm.sndr_core.apply` over the legacy
-`python -m vllm.sndr_core.apply_all` form. Both still work
-(legacy is a forward-shim). Adding this module enables direct package
-execution since `apply` is a package, not a module.
+Canonical location: ``sndr.apply.__main__``.
+
+This file re-exports the entire public surface from the new location so
+existing imports continue to work during v12.x migration window. Will be
+removed in v13.0.
 """
-from __future__ import annotations
-
-import sys
-
-from vllm.sndr_core.apply import main
-
-
-if __name__ == "__main__":
-    sys.exit(main())
+from sndr.apply.__main__ import *  # noqa: F401,F403
+try:
+    from sndr.apply.__main__ import __all__  # noqa: F401
+except ImportError:
+    pass

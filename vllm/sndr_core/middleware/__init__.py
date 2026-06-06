@@ -1,23 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Genesis middleware subpackage — v7.8+.
+"""Backward-compatibility shim.
 
-Drop-in middleware modules for the deployment layer (cliproxyapi /
-FastAPI sidecar). They bridge the Genesis internal caches / metrics
-to external HTTP-facing surfaces without touching the vLLM engine.
+Canonical location: ``sndr.engines.vllm.middleware``.
 
-Current members:
-  - `response_cache_middleware` — P50 cliproxyapi integration for
-    P41 `ResponseCacheLRU` / `RedisResponseCache`. Short-circuits
-    `POST /v1/chat/completions` + `POST /v1/completions` on cache
-    hit without forwarding to vLLM.
+This file re-exports the entire public surface from the new location so
+existing imports continue to work during v12.x migration window. Will be
+removed in v13.0.
 """
-
-from vllm.sndr_core.middleware.response_cache_middleware import (
-    ResponseCacheMiddleware,
-    build_cache_key_from_request,
-)
-
-__all__ = [
-    "ResponseCacheMiddleware",
-    "build_cache_key_from_request",
-]
+from sndr.engines.vllm.middleware import *  # noqa: F401,F403
+try:
+    from sndr.engines.vllm.middleware import __all__  # noqa: F401
+except ImportError:
+    pass

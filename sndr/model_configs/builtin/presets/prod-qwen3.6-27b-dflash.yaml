@@ -1,0 +1,60 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 alias — 27B INT4 + TRUE DFlash N=5 single-stream code-gen on 2× A5000.
+
+model: qwen3.6-27b-dflash
+hardware: a5000-2x-24gbvram-16cpu-128gbram
+profile: qwen3.6-27b-dflash
+
+# CONFIG-UX.2 — operator card (2026-05-24)
+card:
+  title: "Qwen 3.6 27B INT4 — TRUE DFlash N=5 single-stream code-gen"
+  summary: |
+    DFlash N=5 family default for qwen3_6_27b_int4_dflash. Bf16 separate
+    drafter (vs MTP K=3 of the TQ family). Long-context single-stream
+    code-gen / structured workloads. Public single-stream baseline pending;
+    multi-conc sibling has 27b_dflash_multiconc.json baseline.
+  status: production_candidate
+  audience: operator
+  maturity: validated
+  mode: throughput
+  workload_allow:
+    - code_gen
+    - free_chat
+    - structured_json.short
+    - tool_call.short
+  workload_deny:
+    - structured_json.long
+    - tool_call.long
+  concurrency:
+    min: 1
+    max: 1
+    canonical: 1
+  K: 5
+  context:
+    max_model_len: 185000
+    typical_input_tokens: 4096
+    typical_output_tokens: 4096
+  routing_family: qwen3_6_27b_int4_dflash
+  default_for_family: true
+  fallback_preset: prod-qwen3.6-27b-dflash
+  primary_metric:
+    kind: agg_TPS
+    value: 0.0
+    source: external://docs.example/pending-27b-dflash-bench
+    measured_at: 2026-05-23
+  evidence_refs:
+    - type: bench
+      path: external://docs.example/pending-27b-dflash-bench
+      visibility: private
+      note: Single-stream DFlash N=5 baseline pending public publish.
+  evidence_visibility: private
+  tradeoffs:
+    - "Single-stream only (max_num_seqs=1); multi-conc variant prod-qwen3.6-27b-dflash-multiconc is faster for >1 concurrent."
+    - "K=5 DFlash draft draws on bf16 drafter — different acceptance profile vs MTP K=3 of prod-qwen3.6-27b-tq-k8v4."
+    - "Family default falls back to itself (no K=1 27B-dflash sibling yet)."
+  do_not_use:
+    - condition: "concurrency > 1"
+      reason: "Sized for single-stream code-gen; use prod-qwen3.6-27b-dflash-multiconc for multi-conc."
+  card_version: 1
+  card_updated: 2026-05-24
+  card_author: sander

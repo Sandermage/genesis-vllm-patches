@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 alias — club-3090 #58 Path A reference (DENSE + CPU offload).
+
+model: qwen3.6-7b-dense
+hardware: single-3090-24gbvram
+profile: cpu-offload-3090
+
+card:
+  title: "Club-3090 #58 Path A — dense 7B + CPU offload (single RTX 3090)"
+  summary: |
+    Educational reference for the club-3090 issue #58 Path A pattern:
+    DENSE 7B model with CPU offload on a single RTX 3090 24 GB.
+    Latency-bound (single-stream, PCIe-throttled by offload). For
+    production on consumer 3090, use the tier-aware sister preset
+    (example-3090-tier-aware) which keeps everything in VRAM via
+    PN95 multi-tier offload.
+  status: example
+  audience: dev
+  maturity: validated
+  mode: latency
+  workload_allow:
+    - club3090_reference
+  workload_deny:
+    - free_chat
+    - structured_json.long
+    - tool_call.long
+  concurrency:
+    min: 1
+    max: 1
+    canonical: 1
+  context:
+    max_model_len: 65536
+    typical_input_tokens: 2048
+    typical_output_tokens: 2048
+  routing_family: club3090_path_a_dense_offload
+  default_for_family: false
+  fallback_preset: example-3090-tier-aware

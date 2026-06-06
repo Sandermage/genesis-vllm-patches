@@ -1,0 +1,112 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 profile — gemma4-26b-no-mtp
+# Role: default control — true no-MTP baseline for gemma-4-26b-a4b-it-awq.
+#
+# Phase 7.G4.26B-A4B.VARIANT-A-FIX (2026-05-23): MTP ownership has
+# moved from ModelDef to ProfileDef. The 26B-A4B ModelDef now declares
+# `capabilities.spec_decode = null`. Profiles that want K>1 set
+# `spec_decode_override` explicitly; profiles that want no MTP leave
+# it null (which is exactly the default-role contract).
+#
+# Before VARIANT-A-FIX (B0..B4 era): this profile mechanically
+# overrode spec_decode_override to K=1 because the ModelDef declared
+# K=4 and SpecDecodeConfig.method had no "off" entry — K=1 was the
+# closest available no-MTP semantic. After VARIANT-A-FIX, the null
+# override IS the canonical no-MTP path. Rendered launch script no
+# longer emits a --speculative-config flag (vanilla decode).
+#
+# Closes `10_default_clean` validate-debt on this profile (role=
+# default + spec_decode_override=null + all other runtime-role
+# blocks null is the clean default contract).
+#
+# This profile pairs with:
+#   gemma4-26b-mtp-k4    — positive-case K=4 structured (single-stream)
+#   gemma4-26b-multiconc — positive-case K=4 short-structured (multi-conc)
+# Use this profile for free-chat, code, summarization, and long-form
+# structured-JSON workloads where K=1 is the policy-default per
+# G4_WORKLOAD_GATE_POLICY_UPDATE_2026-05-23.md.
+
+schema_version: 2
+kind: profile
+id: gemma4-26b-no-mtp
+parent_model: gemma-4-26b-a4b-it-awq
+maintainer: sandermage
+status: experimental                              # not yet boot-validated; Phase 7.G4.26B-A4B.B0 creates this file
+created: '2026-05-23'
+
+# ─── Runtime role ──────────────────────────────────────────────────────
+# Clean default-role contract: all runtime-role blocks null. ModelDef
+# spec_decode is also null, so the rendered launch emits no
+# --speculative-config flag (vanilla decode). This is the canonical
+# no-MTP path post-VARIANT-A-FIX.
+role: default
+spec_decode_override: null                        # was K=1 pre-VARIANT-A-FIX; now null = vanilla decode (no MTP)
+compression_plan: null
+backend_plan: null
+routing: null
+validation: null
+
+# ─── Sizing override ───────────────────────────────────────────────────
+# Hardware default max_model_len is 280K (28B+ A100/H100 class). On
+# 2x A5000 24GB with AWQ-4bit 26B-A4B + MTP K=1 + assistant 832 MB,
+# the KV pool budget at 280K context overflows. Explicit bound here
+# to avoid the same class of "12.64 GiB KV needed, 10 GiB available"
+# failure seen in 31B B1.1 default-preset boot attempt.
+sizing_override:
+  max_model_len: 32768                            # 32K — fits comfortably; conservative for single-stream control
+  gpu_memory_utilization: 0.85                    # leave headroom for MTP K=1 + assistant + MoE expert cache
+  max_num_seqs: 2                                  # single-stream regime (control baseline)
+  max_num_batched_tokens: 4096                    # chunked prefill chunk size
+  enable_chunked_prefill: true                    # required for spec-decode + AWQ MoE
+  enforce_eager: false                            # cudagraph capture enabled
+  disable_custom_all_reduce: true                 # NCCL fallback on 2x A5000 PCIe
+
+# ─── Patches delta ─────────────────────────────────────────────────────
+# Profile-local override disables G4_19C attention K/V round-trip
+# wrapper. See Phase 7.G4.B1.1-UNBLOCK commit 81949928 for full
+# context: G4_19C has unresolved Dynamo fullgraph-trace issues
+# (lock context manager, @torch._dynamo.disable in fullgraph,
+# log.warning in compile region, init-order vs config-registry race).
+# Three narrow fix iterations (1864f5b1, 3b135087) closed individual
+# surfaces but more remain. Phase 7.G4.G4_19C-FULLGRAPH-AUDIT will
+# ship a coherent fix. Until then, profile-local disable is the
+# canonical unblock pattern (proven on 31B presets).
+#
+# Note: 26B-A4B uses kv_cache_dtype: auto (NOT turboquant_4bit_nc),
+# so G4_19C's design purpose (inject TQ quantization noise into K/V)
+# is structurally moot on this profile. Disabling it has zero
+# semantic effect on the runtime KV cache.
+patches_delta:
+  enable: {}
+  disable: []
+  override: {}
+  # G4_19C profile-local disable RETIRED 2026-05-23 (Phase 7.G4.G4_19C.UN-DISABLE).
+  # Iter-3 architectural fix (commit 47acc808) made the wrapper
+  # fullgraph-safe; on 26B-A4B specifically the wrapper short-circuits
+  # at apply() because kv_cache_dtype=auto (NOT turboquant_*), so
+  # G4_19 never populates the registry that G4_19c requires. The
+  # override was redundant on 26B-A4B regardless of iter-3.
+
+# ─── Override policy (CONFIG-UX.4.DEBT.2B, 2026-05-24) ──────────────────
+# bench_pending — B1 single-stream baseline pending public publish.
+# Future-reader note: NOT production-validated.
+override_policy:
+  override_class: bench
+  reason: "bench_pending: Gemma4 26B-A4B single-stream K=1 control (MTP off); operator-tuned context 32K + gpu_mem_util 0.85 for MoE expert routing; B1 single-stream baseline pending public publish"
+  evidence_refs: []
+  evidence_visibility: public
+  expires_at: '2026-08-22'
+  allowed_to_exceed_hardware_default: false
+
+# ─── Promotion contract ────────────────────────────────────────────────
+promotion:
+  validation_required:
+    - "26B-A4B B1 smoke: boot prod-gemma4-26b-default through V2 compose without G4_08/G4_18 runtime failures"
+    - "26B-A4B B1 free-chat bench: K=1 wall_TPS baseline established (no spec-decode regression vs ModelDef declared ~120-160 TPS projection)"
+    - "26B-A4B B1 structured JSON pass-rate: parse 10/10 + schema_pass close to K=4 sibling (within 1-2 cases CV)"
+  promote_to: null
+  notes: |
+    Status experimental until B1 boots cleanly + first bench-suite quick
+    completes. Promotion gate: same shape as prod-qwen3.6-27b-tq-k8v4's path —
+    measured single-stream TPS within 20% of ModelDef projection AND
+    no boot blockers AND no schema regression vs K=4 sibling.

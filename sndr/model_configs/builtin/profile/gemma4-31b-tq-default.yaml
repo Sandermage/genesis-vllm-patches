@@ -1,0 +1,145 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 profile — gemma4-31b-tq-default
+# Role: default — production-safe MTP-OFF runtime for gemma-4-31b-it-awq.
+#
+# This profile pairs with `gemma4-31b-tq-mtp-structured-k4` (the structured-
+# role sibling). Together they implement the post-Variant-A architecture
+# where MTP is a workload-conditional runtime behavior rather than an
+# inherent ModelDef capability:
+#
+#   default     → MTP OFF, TQ-only, broad workload safe
+#                 (chat, free-form, summarization, code_gen — anything)
+#   structured  → MTP K=4, β'-A K=4 validated_conditional artifact,
+#                 ONLY for tool_json + structured_count workloads
+#
+# Composition expectations (verified by P1.3 gates):
+#   compose(gemma-4-31b-it-awq, hw, gemma4-31b-tq-default).spec_decode == None
+#   compose(...).genesis_env has no SNDR_G4_TQ_FORCE_SKIP_LAYERS
+#   compose(...).genesis_env inherits model.patches as-is (27 entries)
+#
+# Empty patches_delta = inherit the ModelDef's canonical patches dict.
+# The new runtime-role fields are all null because the default profile
+# has nothing role-specific to add (no MTP, no compression plan, no
+# routing constraint, no artifact validation gate).
+
+schema_version: 2
+kind: profile
+id: gemma4-31b-tq-default
+parent_model: gemma-4-31b-it-awq                 # post-Variant-A: ModelDef has spec_decode=null
+maintainer: sandermage
+status: validated                                 # canonical default mode for Gemma 4 31B AWQ
+created: '2026-05-20'
+
+# ─── Runtime role (P1.1+P1.2+P1.2b+Variant A architecture) ────────────
+role: default                                     # production-safe TQ-only MTP-OFF
+spec_decode_override: null                        # MTP OFF; inherits model's spec_decode=null
+compression_plan: null                            # no per-layer compression plan; TQ via canonical patches
+backend_plan: null                                # default backend assignments via model.patches
+routing: null                                     # default has no workload-class restriction
+validation: null                                  # no functional artifact gate (default is broadly safe)
+
+# ─── Sizing override ───────────────────────────────────────────────────
+# Phase 7.G4.31B.SIZING-FIX (2026-05-23): the hardware default
+# max_model_len=280000 is too large to fit the KV cache pool on
+# 2× A5000 24 GiB at gpu_memory_utilization=0.90 with AWQ-4bit
+# Gemma 4 31B weights. vllm's _check_enough_kv_cache_memory rejects
+# boot.
+#
+# Iteration history (one boot per data point):
+#   • max_model_len=280000 (hardware default):
+#       12.64 GiB KV needed vs 10.97 GiB available
+#       estimated ceiling: 236128
+#   • max_model_len=224000 (first attempt under 236128 ceiling):
+#       10.5 GiB KV needed vs 10.0 GiB available
+#       estimated ceiling: 210656
+#     The available-memory budget varies ~1 GiB between boots
+#     (compile-cache state, allocator fragmentation). The first
+#     ceiling estimate was optimistic; the actual stable ceiling
+#     after warmup-allocator settle is closer to 210K. Need a
+#     larger safety margin.
+#   • max_model_len=200000 (this commit):
+#       expected ~9.4 GiB needed → ~600 MiB margin per card
+#     Well below the 210656 stable ceiling.
+#
+# 200K still serves at 78% of the 31B model's 256K published context
+# (VLLM_ALLOW_LONG_MAX_MODEL_LEN=1 in hardware system_env stays in
+# force for the remaining headroom if a future operator wants to
+# raise it back up after profiling allocator behavior on a fresh
+# vllm pin).
+#
+# All other sizing fields = hardware defaults (compose.py treats
+# sizing_override as full-replacement when set, so every field must
+# be present even if only one differs).
+#
+# This is a CONFIG fix only — no runtime / kernel / registry change.
+sizing_override:
+  max_model_len: 200000
+  gpu_memory_utilization: 0.90
+  max_num_seqs: 2
+  max_num_batched_tokens: 4096
+  enable_chunked_prefill: true
+  enforce_eager: false
+  disable_custom_all_reduce: true
+
+# ─── Patches delta ─────────────────────────────────────────────────────
+# Default profile uses the ModelDef's canonical patches as-is — Gemma 4
+# family guards + fixes + TurboQuant wrapper-stack are already in
+# model.patches.
+#
+# The only delta is a TEMPORARY profile-local override that disables
+# G4_19C (the attention K/V round-trip wrapper) pending the dedicated
+# fullgraph audit phase. Three iterations of fixes (commits 1864f5b1,
+# 3b135087) closed individual Dynamo-incompat surfaces but the wrapper
+# still has unresolved fullgraph-trace issues (lock context manager,
+# disable-in-fullgraph, log.warning in compile region, init-order vs
+# config-registry-populate). Each iteration cost a boot/sync round
+# trip; Phase 7.G4.G4_19C-FULLGRAPH-AUDIT will inspect the full
+# wrapper surface in one pass and ship a real fix.
+#
+# Until then, this preset boots without the K/V round-trip wrap.
+# The TurboQuant KV cache itself (--kv-cache-dtype turboquant_4bit_nc
+# at engine arg level, populated by other G4_* patches) is unaffected.
+# This is functionally CLOSER to the hand-launcher beta'-A reference
+# than the broken-but-enabled state, because beta'-A also doesn't run
+# G4_19C (overlay-based install path bypasses the wrapper entirely).
+patches_delta:
+  enable: {}
+  disable: []
+  override: {}
+  # G4_19C profile-local disable RETIRED 2026-05-23
+  # (Phase 7.G4.G4_19C.UN-DISABLE).
+  # Iter-3 architectural fix (commit 47acc808) made G4_19C
+  # fullgraph-safe; rig boot of this preset with
+  # `--extra-env GENESIS_ENABLE_G4_19C_ATTN_WRAP=1` reached READY,
+  # confirmed G4_19 registry populated + G4_19C apply()=True +
+  # per-instance _active_forward installed via types.MethodType +
+  # allow_in_graph kernel exercised in vllm fullgraph compile +
+  # cudagraph capture clean. None of the S1-S6 stop criteria fired.
+  # The previous TEMPORARY override is no longer needed.
+
+# ─── Override policy (CONFIG-UX.4.DEBT.2B, 2026-05-24) ──────────────────
+# bench_pending — operator-supplied wording (CONFIG-UX.4.DEBT.2B locked
+# scope) deliberately avoids any production-validation claim. Preserves
+# G4_19/G4_19C posture context without overclaiming.
+override_policy:
+  override_class: bench
+  reason: "bench_pending: sizing override retained for the current 31B TQ default serving envelope; preset-level public baseline cross-validation is still required before production-class override policy"
+  evidence_refs: []
+  evidence_visibility: public
+  expires_at: '2026-08-22'
+  allowed_to_exceed_hardware_default: false
+
+# ─── Promotion contract ────────────────────────────────────────────────
+# Default profile is already the canonical reference mode; no promotion
+# path. Lifecycle is `validated` because TQ-only MTP-OFF posture matches
+# how Gemma 4 31B AWQ has run in every production-eligible test since
+# the AWQ checkpoint shipped (2026-05-17+).
+promotion:
+  validation_required: []
+  promote_to: null
+  notes: |
+    Default profile = canonical production-safe mode for gemma-4-31b-it-awq.
+    No delta to promote; the model's canonical patches already encode
+    everything the default role needs. This profile exists as the
+    explicit "MTP OFF default" anchor so render-launchers (P1.5) can
+    target it by name rather than relying on profile=None semantics.

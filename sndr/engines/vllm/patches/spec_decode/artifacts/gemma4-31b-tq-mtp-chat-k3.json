@@ -1,0 +1,97 @@
+{
+  "allowed_workloads": [
+    "code_gen",
+    "free_chat",
+    "summarization"
+  ],
+  "config_hash": "aba0bb6b158f7632",
+  "created_at": "2026-05-31T03:00:00Z",
+  "decision": "validated_conditional",
+  "denied_workloads": [
+    "structured_count",
+    "tool_json"
+  ],
+  "kv_plan": {
+    "bridge_enabled": false,
+    "drafter_kv_cache_dtype_reset_to": "auto",
+    "drafter_layers": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "drafter_layers_backend": "TRITON_ATTN",
+    "genesis_patches": [
+      "G4_69 skip-list",
+      "G4_71b drafter head=256 -> Triton",
+      "G4_75 drafter head=512 -> Triton",
+      "G4_76 disable_drafter_kv_sharing=OFF (allow native sharing)"
+    ],
+    "physical_kv_sharing": true,
+    "skip_list": "58,59",
+    "target_native_layers": [
+      58,
+      59
+    ],
+    "target_tq_layers_range": "0..57"
+  },
+  "metrics": {
+    "acceptance": {
+      "calls": 0,
+      "note": "PN248 acceptance distribution not recorded for K=3 chat artifact creation bench (greedy-decode workloads have implicit ~100% target-track acceptance). Operator may collect a PN248 sample later via SNDR_ENABLE_SPEC_DECODE_ACCEPTANCE_METRIC=1 and refresh this block; the workload-class TPS measurements below are the load-bearing evidence for the decision."
+    },
+    "per_class": {
+      "code_gen": 0.43,
+      "free_chat": 0.40,
+      "structured_count": 0.34,
+      "summarization": 0.41,
+      "tool_json": 0.32
+    },
+    "profile_delta_free": 1.0574440302679107,
+    "profile_delta_global": 0.18959571064743164,
+    "profile_delta_structured": -0.18282967151841967,
+    "profile_free_mean_tps": 44.058268,
+    "profile_geomean_tps": 43.60811734260522,
+    "profile_structured_mean_tps": 43.057193,
+    "profile_tps_per_class": {
+      "code_gen": 43.870598,
+      "free_chat": 44.707174,
+      "structured_count": 44.345394,
+      "summarization": 43.409362,
+      "tool_json": 41.768992
+    },
+    "promotion_gain_threshold": 0.1,
+    "vram_free_mib_min": 4330,
+    "vram_snapshot": [
+      {
+        "free_mib": 4330,
+        "total_mib": 24564,
+        "used_mib": 19783
+      },
+      {
+        "free_mib": 5021,
+        "total_mib": 24564,
+        "used_mib": 19092
+      }
+    ]
+  },
+  "model_id": "gemma-4-31B-it-AWQ-4bit",
+  "notes": "K=3 chat-role bench 2026-05-31 on pin 0.21.1rc1.dev354+g626fa9bba. Mirror-sibling of gemma4-31b-tq-mtp-structured-k4: where K=4 is +24% structured / -51% free-form / -14.7% global, K=3 is the opposite trade-off: +105.7% free-form / -18.3% structured / +19% global. Global delta 19% exceeds promotion_gain_threshold 0.1 → validated_conditional eligible. Allowed workloads are the K=4 artifact's denied set (free_chat, code_gen, summarization); denied workloads are the K=4 artifact's allowed set (structured_count, tool_json) so the two profiles partition cleanly at the request_router boundary.",
+  "patch_hash": "0ab6fc8be0ecebcf928f0439e60c0e53f1e67516",
+  "profile": "gemma4-31b-tq-mtp-chat-k3",
+  "prompt_suite": [
+    "code_gen",
+    "free_chat",
+    "structured_count",
+    "summarization",
+    "tool_json"
+  ],
+  "vllm_pin": "0.21.1rc1.dev354+g626fa9bba",
+  "workload_classes": [
+    "code_gen",
+    "free_chat",
+    "structured_count",
+    "summarization",
+    "tool_json"
+  ]
+}

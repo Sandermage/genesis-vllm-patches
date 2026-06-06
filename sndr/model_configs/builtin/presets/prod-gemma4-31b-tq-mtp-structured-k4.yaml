@@ -1,0 +1,94 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 alias — operator shortcut for the Gemma 4 31B AWQ structured K=4 triplet.
+# `sndr launch prod-gemma4-31b-tq-mtp-structured-k4` resolves to (model, hardware, profile).
+#
+# Structured-role preset: MTP K=4 via gemma-4-31B-it-assistant drafter,
+# β'-A K=4 validated_conditional acceptance artifact, gated to
+# tool_json + structured_count workloads (free chat / summarization /
+# code generation are denied by artifact and fall back to
+# prod-gemma4-31b-tq-default at request-router time).
+#
+# Profile sizing (verbatim from gemma4-31b-tq-mtp-structured-k4 — β'-A control):
+#   max_model_len:        4096
+#   max_num_seqs:         1
+#   max_num_batched_tokens: 8192
+#   gpu_memory_utilization: 0.92
+#   enable_chunked_prefill: true
+#
+# Acceptance artifact reference:
+#   vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-31b-tq-mtp-structured-k4.json
+#   config_hash: 71c874d7ffedae04
+#   decision: validated_conditional
+#
+# Hand-launcher reference: the β'-A control on this rig
+# (~/start_g4_betaA_k1.sh) renders the same K=4 spec-decode config; the
+# V2-composed launcher emitted by this preset should be functionally
+# equivalent. md5 of hand-launcher (immutable per standing constraint):
+#   085cdccee8c80aa9b70aef1092d4dfae
+
+model: gemma-4-31b-it-awq                            # same model as the default sibling
+hardware: a5000-2x-24gbvram-16cpu-128gbram           # same rig
+profile: gemma4-31b-tq-mtp-structured-k4                 # structured role: MTP K=4 + TQ + native target[58,59]
+
+# CONFIG-UX.2 — operator card (2026-05-24)
+card:
+  title: "Gemma 4 31B AWQ — structured K=4 (β'-A control)"
+  summary: |
+    Dense 31B structured-role preset. MTP K=4 via gemma-4-31B-it-assistant
+    drafter, β'-A validated_conditional acceptance artifact (config_hash
+    71c874d7ffedae04), gated to tool_json + structured_count workloads.
+    Free chat / summarization / code generation fall back to the K=1
+    default sibling at request-router time.
+  status: production_candidate
+  audience: operator
+  maturity: validated
+  mode: structured_throughput
+  workload_allow:
+    - structured_json.short
+    - tool_call.short
+  workload_deny:
+    - free_chat
+    - structured_json.long
+    - summarization
+    - code_gen
+  concurrency:
+    min: 1
+    max: 1
+    canonical: 1
+  K: 4
+  context:
+    max_model_len: 4096
+    typical_input_tokens: 1024
+    typical_output_tokens: 1024
+  routing_family: gemma4_dense_31b_tq
+  default_for_family: false
+  fallback_preset: prod-gemma4-31b-tq-default
+  primary_metric:
+    kind: agg_TPS
+    value: 0.0
+    source: external://docs.example/pending-gemma4-31b-tq-mtp-structured-k4-bench
+    measured_at: 2026-05-23
+  evidence_refs:
+    - type: structured_eval
+      path: vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-31b-tq-mtp-structured-k4.json
+      visibility: public
+      note: β'-A validated_conditional acceptance artifact (config_hash 71c874d7ffedae04).
+    - type: bench
+      path: external://docs.example/pending-gemma4-31b-tq-mtp-structured-k4-bench
+      visibility: private
+      note: B1.2 K=4 structured baseline pending public publish.
+  evidence_visibility: mixed
+  tradeoffs:
+    - "Single-stream only (max_num_seqs=1); not for high-conc."
+    - "4K context envelope — tuned for short structured / tool args."
+    - "Free chat / summarization / code gen denied by acceptance artifact."
+  do_not_use:
+    - condition: "free chat / summarization / code generation"
+      reason: "Acceptance artifact denies these workload classes."
+    - condition: "concurrency > 1"
+      reason: "Sized for max_num_seqs=1; multi-conc requires a separate profile."
+    - condition: "context > 4K"
+      reason: "Profile pinned to max_model_len=4096 for the β'-A control envelope."
+  card_version: 1
+  card_updated: 2026-05-24
+  card_author: sander

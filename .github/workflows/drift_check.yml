@@ -1,0 +1,77 @@
+name: Daily drift detection
+
+on:
+  schedule:
+    # 06:00 UTC every day. Picks a quiet window before the working day starts.
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    inputs:
+      pin:
+        description: 'Pin to check (default: auto-detect)'
+        required: false
+        default: 'auto'
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install sndr-platform (community)
+        run: pip install -e .
+
+      - name: List pins to check
+        id: pins
+        run: |
+          pins=$(ls sndr/engines/vllm/pins/ 2>/dev/null | grep -v __pycache__ || true)
+          echo "pins<<EOF" >> $GITHUB_OUTPUT
+          echo "$pins" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Run drift check per pin
+        id: check
+        run: |
+          mkdir -p drift_reports
+          drift_found=false
+          for pin in ${{ steps.pins.outputs.pins }}; do
+            echo "=== Checking pin: $pin ==="
+            # NOTE: we cannot run a real GPU container in github-hosted runners,
+            # so the check operates against the committed manifests as a smoke
+            # test. A self-hosted GPU runner is required for full drift detection.
+            python3 -c "
+          import yaml, sys
+          from pathlib import Path
+          m = yaml.safe_load(Path('sndr/engines/vllm/pins/$pin/manifest.yaml').read_text())
+          assert m['engine'] == 'vllm'
+          assert m['pin'] == '$pin'
+          print(f'manifest valid: {len(m[\"files\"])} files tracked')
+          " || drift_found=true
+          done
+          if [ "$drift_found" = "true" ]; then
+            echo "drift_found=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Open issue on drift
+        if: steps.check.outputs.drift_found == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue create \
+            --title "Drift detected $(date +%F)" \
+            --label "genesis-drift" \
+            --body "Daily drift detection found one or more anchor mismatches. See workflow run for details."
+
+      - name: Upload drift reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: drift-reports-${{ github.run_id }}
+          path: drift_reports/
+          retention-days: 30

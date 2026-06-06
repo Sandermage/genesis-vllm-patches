@@ -1,24 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
-"""SNDR Core dispatcher — pin validation (re-export from guards).
+"""Backward-compatibility shim.
 
-KNOWN_GOOD_VLLM_PINS allowlist + pin-validation helpers. Currently
-re-exports from `vllm._genesis.guards` (Stage 4 will move impl here).
+Canonical location: ``sndr.dispatcher.pins``.
 
-Used by:
-  - apply orchestrator boot-time check (warn if running pin not in allowlist)
-  - model_configs/audit_rules.py (validate `vllm_pin_required` field)
-  - manifest_cache (verify manifest pin matches running vllm)
+This file re-exports the entire public surface from the new location so
+existing imports continue to work during v12.x migration window. Will be
+removed in v13.0.
 """
-from __future__ import annotations
-
-from vllm.sndr_core.detection.guards import (  # noqa: F401
-    KNOWN_GOOD_VLLM_PINS,
-    is_genesis_pin_validated,
-    assert_vllm_pin_allowed,
-)
-
-__all__ = [
-    "KNOWN_GOOD_VLLM_PINS",
-    "is_genesis_pin_validated",
-    "assert_vllm_pin_allowed",
-]
+from sndr.dispatcher.pins import *  # noqa: F401,F403
+try:
+    from sndr.dispatcher.pins import __all__  # noqa: F401
+except ImportError:
+    pass

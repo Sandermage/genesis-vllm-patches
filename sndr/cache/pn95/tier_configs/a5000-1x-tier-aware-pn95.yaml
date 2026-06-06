@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# ┌──────────────────────────────────────────────────────────────────┐
+# │ BACKWARD-COMPAT ALIAS for a5000-1x-pn95-long-ctx.yaml.           │
+# │                                                                   │
+# │ Operators with GENESIS_PN95_CONFIG_KEY=a5000-1x-tier-aware-pn95  │
+# │ (the V1 legacy value) keep working after the V1 source file      │
+# │ `vllm/sndr_core/model_configs/builtin/a5000-1x-tier-aware-pn95.  │
+# │ yaml` retired in V1 sunset on 2026-06-01.                        │
+# │                                                                   │
+# │ Both `a5000-1x-pn95-long-ctx` and `a5000-1x-tier-aware-pn95`     │
+# │ resolve to the SAME tier_specs (this file is a duplicate of the  │
+# │ canonical PN95-internal config). When operators flip env values  │
+# │ from the legacy to the canonical name, this alias YAML can be    │
+# │ retired (separate cleanup task).                                  │
+# │                                                                   │
+# │ Canonical version: vllm/sndr_core/cache/pn95/tier_configs/       │
+# │                    a5000-1x-pn95-long-ctx.yaml                   │
+# └──────────────────────────────────────────────────────────────────┘
+
+eviction_policy: lru
+tiers:
+  - device: gpu
+    capacity_gib: 5.0
+    eviction_policy: lru
+    promote_on_hit: true
+    demote_threshold_pct: 0.92
+    low_water_pct: 0.75
+  - device: cpu
+    capacity_gib: 32.0
+    eviction_policy: lru
+    promote_on_hit: true
+    vision_first: false
+    pinned: true
+    notes: >-
+      32 GiB pinned host RAM as PN95 L2 tier. Backed by the new
+      _pn95_pinned_pool L1 (env GENESIS_PN95_PINNED_POOL_MB) which
+      sits on top as a fast PCIe DMA path. Layer-aware demote
+      prioritises cold layers when free pressure hits.
+exclude_mamba_ssm: true
+vision_demote_first: false
+tier_low_water_pct: 0.05
+async_demote: true

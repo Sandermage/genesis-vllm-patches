@@ -1,0 +1,64 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 alias — operator shortcut for the 35B FP8 + DFlash N=3 single-stream triplet.
+# `sndr launch prod-qwen3.6-35b-dflash` resolves to (model, hardware, profile).
+
+model: qwen3.6-35b-a3b-fp8-dflash
+hardware: a5000-2x-24gbvram-16cpu-128gbram
+profile: qwen3.6-35b-dflash
+
+# CONFIG-UX.2 — operator card (2026-05-24)
+card:
+  title: "Qwen 3.6 35B-A3B FP8 — DFlash N=3 single-stream"
+  summary: |
+    DFlash N=3 single-stream variant of the 35B-A3B FP8 target. Family
+    default for qwen3_6_35b_a3b_fp8_dflash. Bf16 separate drafter; for
+    single-user latency-critical workloads where DFlash acceptance shape
+    beats MTP K=3 of prod-qwen3.6-35b-balanced. Public single-stream baseline pending.
+  status: production_candidate
+  audience: operator
+  maturity: validated
+  mode: latency
+  workload_allow:
+    - free_chat
+    - structured_json.short
+    - tool_call.short
+    - code_gen
+  workload_deny:
+    - structured_json.long
+    - tool_call.long
+  concurrency:
+    min: 1
+    max: 1
+    canonical: 1
+  K: 3
+  context:
+    max_model_len: 65536
+    typical_input_tokens: 2048
+    typical_output_tokens: 2048
+  routing_family: qwen3_6_35b_a3b_fp8_dflash
+  default_for_family: true
+  fallback_preset: prod-qwen3.6-35b-dflash
+  primary_metric:
+    kind: agg_TPS
+    value: 0.0
+    source: external://docs.example/pending-35b-dflash-bench
+    measured_at: 2026-05-23
+  evidence_refs:
+    - type: bench
+      path: external://docs.example/pending-35b-dflash-bench
+      visibility: private
+      note: Single-stream DFlash N=3 baseline pending public publish.
+  evidence_visibility: private
+  tradeoffs:
+    - "Single-stream only (max_num_seqs=1); for multi-conc use prod-qwen3.6-35b-dflash-multiconc."
+    - "65K context envelope — shorter than prod-qwen3.6-35b-balanced's 280K balanced."
+    - "DFlash uses bf16 drafter — different acceptance shape than MTP K=3 prod-qwen3.6-35b-balanced."
+    - "Family default falls back to itself."
+  do_not_use:
+    - condition: "concurrency > 1"
+      reason: "Sized for single-stream; use prod-qwen3.6-35b-dflash-multiconc for multi-conc."
+    - condition: "context > 65K"
+      reason: "Sizing tops at 65K; long-context use prod-qwen3.6-35b-balanced's MTP+TQ family (280K)."
+  card_version: 1
+  card_updated: 2026-05-24
+  card_author: sander

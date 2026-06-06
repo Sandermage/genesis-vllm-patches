@@ -1,0 +1,66 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 alias — operator shortcut for the 27B TQ k8v4 production triplet.
+# `sndr launch prod-qwen3.6-27b-tq-k8v4` resolves to (model, hardware, profile).
+
+model: qwen3.6-27b-int4-autoround-tq-k8v4
+hardware: a5000-2x-24gbvram-16cpu-128gbram
+profile: qwen3.6-27b-tq-k8v4
+
+# CONFIG-UX.2 — operator card (2026-05-24)
+card:
+  title: "Qwen 3.6 27B INT4 AutoRound — TQ k8v4 family default (K=3 MTP)"
+  summary: |
+    Family default for the qwen3_6_27b_int4_tq family. INT4 AutoRound +
+    TurboQuant k8v4 KV + MTP K=3 single-conc latency-balanced profile.
+    Public baseline coverage in 27b_v11_wave9.json (Wave 9). Use for
+    long-context single-stream inference; multi-conc variant available.
+  status: production_candidate
+  audience: operator
+  maturity: validated
+  mode: throughput
+  workload_allow:
+    - free_chat
+    - structured_json.short
+    - tool_call.short
+    - summarization
+    - code_gen
+  workload_deny:
+    - structured_json.long
+    - tool_call.long
+  concurrency:
+    min: 1
+    max: 4
+    canonical: 4
+  K: 3
+  context:
+    max_model_len: 262144
+    typical_input_tokens: 4096
+    typical_output_tokens: 4096
+  routing_family: qwen3_6_27b_int4_tq
+  default_for_family: true
+  fallback_preset: prod-qwen3.6-27b-tq-k8v4
+  primary_metric:
+    kind: agg_TPS
+    value: 0.0
+    source: tests/integration/baselines/27b_v11_wave9.json
+    measured_at: 2026-05-15
+  evidence_refs:
+    - type: bench
+      path: tests/integration/baselines/27b_v11_wave9.json
+      visibility: public
+      note: Wave 9 canonical bench harness for Qwen 3.6 27B (vllm dev338+).
+    - type: bench
+      path: tests/integration/baselines/27b_v8.json
+      visibility: public
+      note: Wave 8 baseline retained for cross-pin regression comparison.
+  evidence_visibility: public
+  tradeoffs:
+    - "K=3 MTP draft adds ~10-15% TPS on free-chat; loses on very-long-output workloads with low acceptance."
+    - "Family default falls back to itself (no K=1 27B-TQ sibling yet — see CONFIG-UX.2b qa-qwen3.6-27b-tq-1x annotation work)."
+    - "Long-context envelope (262K) means high VRAM pressure; bench measured at lower ctx typically."
+  do_not_use:
+    - condition: "concurrency > 4 with full context budget"
+      reason: "VRAM headroom tightens at full 262K; multi-conc use prod-qwen3.6-27b-tq-multiconc which trims ctx."
+  card_version: 1
+  card_updated: 2026-05-24
+  card_author: sander

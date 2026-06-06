@@ -1,0 +1,91 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 profile — Wave 10 35B DFlash MULTI-CONCURRENCY throughput preset.
+# Companion to qwen3.6-35b-dflash (single-stream latency profile).
+# Layers on top of qwen3.6-35b-a3b-fp8-dflash model.
+# Designed for latency-sensitive multi-tenant workloads where DFlash's lower
+# TTFT (162 ms @ conc=8) outweighs MTP+TQ's higher aggregate throughput.
+
+schema_version: 2
+kind: profile
+id: qwen3.6-35b-dflash-multiconc                         # multi-conc throughput companion to qwen3.6-35b-dflash (single-stream)
+parent_model: qwen3.6-35b-a3b-fp8-dflash         # same model — DFlash N=3 separate drafter
+maintainer: sandermage
+status: validated                                # Wave 10 bench passed 2026-05-15 — agg 562 TPS / TTFT 162 ms
+created: '2026-05-15'
+
+# ─── Sizing override — DFlash multi-conc throughput regime ─────────────
+# Single-stream profile sets max_num_seqs=1 (max ctx 160K) — DFlash's design
+# point. Multi-conc raises max_num_seqs=8 BUT must lower max_model_len to
+# 100K because DFlash forbids TQ/fp8 KV compression (page-size mismatch
+# target FP8 head=128 vs drafter bf16 head=256). With fp16 KV at 8
+# concurrent streams, 100K is the safe ceiling on 2×24GB Ampere.
+#
+# Bench reference 2026-05-15 (tools/multi_conc_bench.py on dev371+bf610c2f5):
+#   conc=1: 153 TPS  TTFT  74 ms  TPOT 20.0 ms
+#   conc=2: 226 TPS  TTFT  85 ms  TPOT 23.1 ms
+#   conc=4: 359 TPS  TTFT 154 ms  TPOT 27.4 ms
+#   conc=8: 562 TPS  TTFT 162 ms  TPOT 35.9 ms ⭐ optimum
+#
+# Vs MTP+TQ sibling (qwen3.6-35b-multiconc):
+#   MTP+TQ conc=8: 689 TPS / TTFT 243 ms (+23% TPS / -33% TTFT vs DFlash)
+#   DFlash conc=8: 562 TPS / TTFT 162 ms (DFlash WINS on TTFT)
+#
+# Use this preset when TTFT < 200 ms is hard requirement; use MTP+TQ
+# (prod-qwen3.6-35b-multiconc) when aggregate TPS dominates.
+sizing_override:                                 # V2 canonical key (NOT sizing_delta — schema_v2.py SchemaProfile.sizing_override).
+  max_model_len: 100000                          # 100K — DFlash multi-conc cap on this rig (fp16 KV, no TQ allowed). Compare: MTP+TQ supports 280K via TQ k8v4 4-8x compression.
+  gpu_memory_utilization: 0.92                   # 0.92 (vs 0.90 in MTP-multiconc) — DFlash drafter needs explicit headroom on first request.
+  max_num_seqs: 8                                # OVERRIDE from latency 1 → 8 (multi-conc throughput optimum).
+  max_num_batched_tokens: 2048                   # 2048 (vs 4096 MTP) — DFlash drafter overhead favors smaller chunks at high concurrency.
+  enable_chunked_prefill: true                   # Required for spec-decode + long ctx (avoids degenerate single-token chunks).
+  enforce_eager: false                           # cudagraph capture enabled (production).
+  disable_custom_all_reduce: true                # NCCL fallback (consumer Ampere PCIe — no NVLink).
+  scheduler_reserve_full_isl: false              # Sprint 1 flag — allows scheduler to pack more sequences (helps multi-conc throughput).
+
+# ─── Patches delta — Wave 10 additions vs canonical model.patches ──────
+# Wave 10 patches (PN51, PN96b, PN125, PN126-130, PN132, PN133) already in
+# model.patches as of 2026-05-15 update — inherited automatically.
+# This delta only changes PN204 (multi-conc specific) + LEGACY_P7 (conflict).
+patches_delta:
+  enable:
+    GENESIS_ENABLE_PN204_DUAL_STREAM_INPROJ: '1' # v2 redesign 2026-05-15 — is_compiling() guard + arming hook. Bench-neutral on Ampere within CV; future-proof for Hopper +5-10%.
+    GENESIS_LEGACY_P7: '0'                       # P7 OFF — required when PN204=1 (registry conflicts_with declared).
+  disable: []                                    # nothing removed from model.patches
+  override: {}                                   # no value overrides
+
+# ─── Spec-decode reaffirmation ──────────────────────────────────────────
+# Spec-decode method stays at DFlash N=3 (model.capabilities.spec_decode default).
+# DFlash drafter at /models/Qwen3.6-35B-A3B-DFlash (bf16) — separate from target.
+# DO NOT change to MTP here (would require different model file altogether).
+
+# ─── Override policy (CONFIG-UX.4.DEBT.2B, 2026-05-24) ──────────────────
+# bench_pending — TTFT-tuned multi-conc bench remained private; no public
+# baseline cross-validation. Future-reader note: NOT production-validated.
+override_policy:
+  override_class: bench
+  reason: "bench_pending: 35B DFlash multi-conc N=3 — TTFT-tuned 562 TPS @ conc=8; TTFT-tuned bench private, public publish pending"
+  evidence_refs: []
+  evidence_visibility: public
+  expires_at: '2026-08-22'
+  allowed_to_exceed_hardware_default: true
+
+# ─── Promotion contract — bench thresholds for status=validated ─────────
+promotion:
+  validation_required:
+    - "tools/multi_conc_bench.py sweep — agg_TPS at conc=8 ≥ 500 on 35B DFlash"
+    - "tools/multi_conc_bench.py sweep — TTFT med at conc=8 ≤ 200 ms"
+    - "tool-call regression suite — 7/7 at conc=4"
+    - "PN204 v2 boot — no CUDA driver crash during profile_run on dev371"
+  promote_to: null                               # multi-conc-specific; do NOT promote into canonical model.patches
+  notes: |
+    qwen3.6-35b-dflash-multiconc validates on Wave 10 stack (dev371+bf610c2f5) with PN204 v2.
+    Companion to qwen3.6-35b-dflash (single-stream). Operator chooses profile per-workload:
+      - Latency-critical single user            → qwen3.6-35b-dflash (max_num_seqs=1, 160K ctx)
+      - Multi-tenant TTFT-bound (≤100K ctx)     → qwen3.6-35b-dflash-multiconc (THIS)
+      - Multi-tenant max throughput / long ctx  → qwen3.6-35b-multiconc (MTP+TQ k8v4, 280K)
+
+    Why DFlash wins TTFT at conc=8: separate drafter model produces draft
+    tokens in parallel with target verification (compute overlap), whereas
+    MTP integrated drafter must finish target's MTP layer first then verify.
+    The drafter overhead costs aggregate throughput (-18%) but saves prefill+
+    verify wall time on FIRST token emission (-33% TTFT).

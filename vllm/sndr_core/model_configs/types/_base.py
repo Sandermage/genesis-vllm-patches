@@ -1,15 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Shared base types for ``model_configs.types`` modules — M.5.1.
+"""Backward-compatibility shim.
 
-Single source of truth for :class:`SchemaError`. Every sub-component
-dataclass in the ``types/`` package imports it from here, and
-``schema.py`` re-exports it under its historical name so existing
-``from vllm.sndr_core.model_configs.schema import SchemaError`` and
-``isinstance(e, SchemaError)`` checks continue to resolve to the same
-class object across the M.5.1 boundary.
+Canonical location: ``sndr.model_configs.types._base``.
+
+This file re-exports the entire public surface from the new location so
+existing imports continue to work during v12.x migration window. Will be
+removed in v13.0.
 """
-from __future__ import annotations
-
-
-class SchemaError(ValueError):
-    """Raised when a ModelConfig (or sub-component) fails validation."""
+from sndr.model_configs.types._base import *  # noqa: F401,F403
+try:
+    from sndr.model_configs.types._base import __all__  # noqa: F401
+except ImportError:
+    pass

@@ -1,0 +1,82 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 profile — Wave 10 multi-concurrency throughput preset.
+# Layers on top of qwen3.6-35b-a3b-fp8 model + a5000-2x-24gbvram hardware.
+# All overrides ADDITIVE; nothing removed from the canonical wave9-balanced
+# set. Switch between profiles per-workload via `sndr launch --profile`.
+
+schema_version: 2
+kind: profile
+id: qwen3.6-35b-multiconc                                # multi-concurrency throughput companion to qwen3.6-35b-balanced (latency profile)
+parent_model: qwen3.6-35b-a3b-fp8                # same model as qwen3.6-35b-balanced — only sizing + a few patches differ
+maintainer: sandermage
+status: validated                                # values: experimental|validated|deprecated; validated = Wave 10 bench passed 2026-05-15
+created: '2026-05-15'
+
+# ─── Sizing overrides — multi-conc throughput regime ───────────────────
+# Hardware default: max_num_seqs=2 (latency single-user). Multi-conc:
+# raises to 8 for 3.21x aggregate throughput scaling on this hardware.
+# Bench reference 2026-05-15 (tools/multi_conc_bench.py sweep, n=2 warm):
+#   conc=1: 215 TPS  TTFT  65 ms  TPOT 14.3 ms
+#   conc=4: 478 TPS  TTFT 146 ms  TPOT 22.4 ms  (good compromise — close to 100-120 ms TTFT target)
+#   conc=8: 689 TPS  TTFT 243 ms  TPOT 31.7 ms ⭐ throughput optimum
+sizing_override:                                 # V2 canonical key (NOT sizing_delta — schema_v2.py SchemaProfile.sizing_override).
+  # When sizing_override is present, profile sizing fully REPLACES hardware
+  # sizing — so we must restate ALL fields, not just the deltas.
+  max_model_len: 280000                          # inherited from hardware default
+  gpu_memory_utilization: 0.90                   # inherited from hardware default
+  max_num_seqs: 8                                # OVERRIDE from hardware default 2 → 8 (multi-conc optimum, 3.21x scaling).
+  max_num_batched_tokens: 4096                   # inherited; bench 2026-05-15 confirmed 8192 regresses TTFT.
+  enable_chunked_prefill: true                   # inherited
+  enforce_eager: false                           # inherited
+  disable_custom_all_reduce: true                # inherited (NCCL fallback on consumer Ampere PCIe).
+  scheduler_reserve_full_isl: false              # Sprint 1 flag — allow scheduler to pack more sequences (helps multi-conc).
+
+# ─── Patches delta — Wave 10 additions vs wave9-balanced ────────────────
+# NOTE: the new Wave 10 patches (PN51, PN96b, PN125-130, PN132/133) are
+# already enabled in model.patches via the Wave 10 update 2026-05-15;
+# this delta only changes PN204 (multi-conc specific) + LEGACY_P7 (conflict).
+patches_delta:
+  enable:
+    GENESIS_ENABLE_PN204_DUAL_STREAM_INPROJ: '1' # v2 redesign 2026-05-15 — is_compiling() guard + arming hook. Bench-neutral on Ampere within CV; future-proof for Hopper +5-10%.
+    GENESIS_LEGACY_P7: '0'                       # P7 OFF — required when PN204=1 (registry conflicts_with declared; mutual exclusivity).
+  disable: []                                    # nothing removed from model.patches
+  override: {}                                   # no value overrides — model.patches values are canonical
+
+# ─── Spec-decode override — explicit reaffirmation, NOT change ──────────
+# Spec-decode method stays at K=3 MTP (model.capabilities.spec_decode default).
+# Probabilistic-draft tested 2026-05-15 — DELIVERED REGRESSION not gain
+# (-5.9% TPS, -10% accept_rate on dev371+MTP+TQ k8v4). Comments in model
+# YAML document the experimental rollback. Do NOT add rejection_sample_method
+# / draft_sample_method here.
+
+# ─── Override policy (CONFIG-UX.4.DEBT.1, 2026-05-24) ──────────────────
+# Class `bench` — public Wave 9 baseline matches the 35B model family
+# (35b_v11_wave9.json). Per-preset config-block cross-validation deferred
+# to CONFIG-UX.4 — multi-conc max_num_seqs=8 sizing not replayed in the
+# committed baseline. Re-evaluate after expires_at.
+override_policy:
+  override_class: bench
+  reason: "35B multi-conc K=3 — max_num_seqs=8 at 689 TPS conc=8 (3.21x scaling) on 2026-05-15"
+  evidence_refs:
+    - tests/integration/baselines/35b_v11_wave9.json
+  evidence_visibility: public
+  expires_at: '2026-08-22'
+  allowed_to_exceed_hardware_default: true
+
+# ─── Promotion contract — bench thresholds for status=validated ─────────
+promotion:
+  validation_required:
+    - "tools/multi_conc_bench.py sweep — agg_TPS at conc=8 ≥ 600"
+    - "tools/multi_conc_bench.py sweep — TTFT med at conc=8 ≤ 280 ms"
+    - "tool-call regression suite — 7/7 at conc=4"
+    - "PN204 v2 boot — no CUDA driver crash during profile_run on dev371"
+  promote_to: null                               # multi-conc-specific; do NOT promote into canonical model.patches
+  notes: |
+    qwen3.6-35b-multiconc validates on Wave 10 stack (dev371+bf610c2f5) with PN204 v2.
+    Companion to qwen3.6-35b-balanced (latency, max_num_seqs=2). Operator chooses
+    profile per-workload — both are stable. Launcher artefact:
+    tools/restart_35b_dev371_multiconc.sh (production-ready full-env script).
+
+    Architectural roadmap to break the 689 TPS / 243 ms TTFT ceiling:
+    see docs/GDN_KERNEL_FUSION_DESIGN.md (3-phase plan, expected TTFT
+    -25..-36% if Phase 1 fuse chunk_local_cumsum+chunk_scaled_dot_kkt_fwd).

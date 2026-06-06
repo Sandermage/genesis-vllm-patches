@@ -1,0 +1,186 @@
+# SPDX-License-Identifier: Apache-2.0
+# ─── COMMUNITY-CONFIG SAMPLE: Gemma 4 26B-A4B AWQ-4bit (sparse MoE + SWA) ───
+#
+# This is a NON-LOADABLE skeleton (.sample suffix excludes from registry).
+# Phase E 2026-05-06: research-stage config, NOT YET booted/validated.
+# Architecture insights for future operator who picks this up:
+#
+#   Architecture:    Gemma4ForConditionalGeneration (sparse MoE)
+#   Vocab:           262144 tokens
+#   Hidden:          2816
+#   Layers:          30 (25 sliding_attention + 5 full_attention, ratio 5:1)
+#   Experts:         128 routed
+#   Top-k routing:   8 experts/token
+#   MoE intermediate: 704 (smaller than 35B-A3B's 512)
+#   Heads:           16 attention, 8 KV (GQA=2), head_dim=256
+#   Sliding window:  1024 tokens (SWA architecture)
+#   tie_word_embeddings: TRUE  ← PN77 saves 2× (lm_head shared with embedding)
+#   Quantization:    compressed-tensors AWQ 4-bit
+#   Disk size:       17 GiB
+#
+# Critical differences from current Genesis 35B/27B fleet:
+#
+#   1. SWA (sliding_window_attention) ≠ GDN. PN59 streaming-GDN does NOT
+#      apply. Need separate SWA streaming/chunk research before long-ctx.
+#   2. tie_word_embeddings=True. PN77 single text-patch covers both
+#      embedding lookup AND lm_head projection (same weight matrix).
+#   3. AWQ 4-bit weight quantization (compressed-tensors). Routes through
+#      Marlin only if `output_size_per_partition % 64 == 0` — vocab=262144
+#      is divisible, OK. moe_intermediate=704 is also divisible.
+#   4. NO MTP head in current downloaded checkpoint (`tp_speculative_layer`
+#      absent). Speculative decoding via:
+#      - Prompt-lookup ngram (built into vLLM, no draft model needed)
+#      - EAGLE3 trained head (would require external training)
+#
+# Decisions for first community-test boot:
+#
+#   - DISABLE all GDN-specific patches (PN59, PN8, PN11, PN12, PN13, P67,
+#     P98, P103) — Gemma 4 doesn't have GDN layers
+#   - DISABLE TQ k8v4 (TurboQuant) — designed for AutoRound INT4 hybrid,
+#     not for AWQ 4-bit dense MoE; would silently no-op or break
+#   - ENABLE PN77 (FP8 lm_head) — applies cleanly on tied embedding
+#   - ENABLE P82, P101, P58 — generic spec-decode + cudagraph patches
+#   - DISABLE MTP — model has no MTP head; use ngram OR no spec-decode
+#   - max_model_len: start with 32K (1024 SWA × ~32 sliding windows reach)
+#                    scale up after measuring actual long-ctx behavior
+#
+# To validate this config:
+#   1. cp gemma-4-26b-a4b-awq.yaml.sample → community/gemma-4-26b-...yaml
+#   2. genesis model-config validate <key>
+#   3. genesis model-config preflight <key>
+#   4. ./scripts/launch.sh <key> --runtime docker (or --force)
+#   5. genesis model-config bench-and-update <key>
+#   6. promote to community-dev once verify passes
+
+key: gemma-4-26b-a4b-awq-community-test
+title: Community sample — Gemma 4 26B-A4B AWQ-4bit on 2× A5000 (UNTESTED)
+description: >-
+  Skeleton config for Gemma 4 26B sparse MoE (128 experts, top-8) +
+  SWA + AWQ-4bit. NOT yet boot-validated. Use as starting point for
+  community community-test contribution. Architecture insights inline.
+schema_version: 1
+maintainer: example-handle    # YOUR github handle
+
+last_validated: ~              # null until first verify
+genesis_pin: ~
+vllm_pin_required: 0.20.2rc1.dev9+g01d4d1ad3
+lifecycle: community-test
+community_submitted: true
+test_started_at: '2026-05-06'
+verified_by: []
+
+hardware:
+  gpu_match_keys: [rtx a5000, rtx 3090, rtx 4090, rtx a6000]
+  n_gpus: 2
+  min_vram_per_gpu_mib: 22000
+  cuda_capability_min: [8, 6]
+
+model_path: /models/gemma-4-26B-A4B-it-AWQ-4bit
+served_model_name: gemma-4-26b
+quantization: compressed-tensors      # AWQ 4-bit metadata in checkpoint
+kv_cache_dtype: ~                     # use vLLM default (auto-fp16)
+
+# Conservative starting params — operator scales after first verify
+max_model_len: 32768                  # 32K — start safe; SWA may need different bookkeeping
+gpu_memory_utilization: 0.88          # leave headroom for AWQ kernel scratch
+max_num_seqs: 4                       # AWQ + SWA may have different KV math
+max_num_batched_tokens: 4096
+enable_chunked_prefill: true
+dtype: float16
+cudagraph_mode: FULL_AND_PIECEWISE
+disable_custom_all_reduce: true
+language_model_only: true
+trust_remote_code: true
+
+enable_auto_tool_choice: true
+tool_call_parser: ~                   # Gemma uses different tool-call format — operator selects
+reasoning_parser: ~                   # ditto
+
+# NO MTP head in checkpoint → no spec_decode unless ngram added manually
+spec_decode: ~
+
+# Genesis env — minimal viable set for non-GDN, non-TQ stack
+genesis_env:
+  # Generic spec-decode + cudagraph + structured output (model-agnostic)
+  GENESIS_ENABLE_P58_ASYNC_PLACEHOLDER_FIX: '1'
+  GENESIS_ENABLE_P66_CUDAGRAPH_SIZE_FILTER: '1'
+  GENESIS_ENABLE_P101: '1'                          # vllm#41127 prefill wrapper for spec-decode
+  GENESIS_ENABLE_P82: '1'                           # SGLang acceptance OR-clause (cheap, generic)
+  GENESIS_P82_THRESHOLD_SINGLE: '0.3'
+  # FP8 lm_head — extends to embedding via tie_word_embeddings=True (2× win on Gemma)
+  GENESIS_ENABLE_PN77_FP8_LM_HEAD: '1'
+  # Memory hygiene
+  GENESIS_ENABLE_PN19_SCOPED_MAX_SPLIT: '1'
+  GENESIS_ENABLE_PN25_SILU_INDUCTOR_SAFE: '1'      # Cliff 1B — generic SiLU pool safety
+  GENESIS_PREALLOC_TOKEN_BUDGET: '4096'
+  GENESIS_BUFFER_MODE: shared
+  # NO PN8/PN11/PN12/PN13/PN59/P67 — those are GDN-specific
+  # NO P98 — TQ-specific
+  # NO P103 — GDN spec-decode hybrid
+
+system_env:
+  PYTORCH_CUDA_ALLOC_CONF: 'expandable_segments:True,max_split_size_mb:256'
+  VLLM_NO_USAGE_STATS: '1'
+  VLLM_LOGGING_LEVEL: WARNING
+  VLLM_FLOAT32_MATMUL_PRECISION: high
+  VLLM_USE_FLASHINFER_SAMPLER: '1'
+  VLLM_USE_FUSED_MOE_GROUPED_TOPK: '1'              # 128-expert MoE benefits from this
+  VLLM_USE_FLASHINFER_MOE_FP8: '0'                  # Hopper-only; disable on Ampere
+  VLLM_MARLIN_USE_ATOMIC_ADD: '1'                   # AWQ → Marlin path
+  VLLM_WORKER_MULTIPROC_METHOD: spawn
+  NCCL_P2P_DISABLE: '1'
+  OMP_NUM_THREADS: '1'
+  CUDA_DEVICE_MAX_CONNECTIONS: '8'
+
+vllm_extra_args: []
+
+api_key: genesis-local
+host: 0.0.0.0
+
+# Multi-runtime declaration — start with docker only (others untested)
+deploy:
+  docker: true
+  podman: false
+  kubernetes: false
+  lxc_proxmox: false
+  bare_metal: false
+  default: docker
+
+# Container deployment with symbolic mounts (portable for community)
+docker:
+  image: vllm/vllm-openai:nightly
+  container_name: vllm-gemma-4-26b-community
+  port: 8001                            # different from PROD 8000 to avoid conflict
+  shm_size: 8g
+  memory_limit: 64g
+  network: genesis-vllm-patches_default
+  gpus: all
+  mounts:
+    - ${models_dir}:/models:ro
+    - ${hf_cache}:/root/.cache/huggingface:ro
+    - ${triton_cache}:/root/.triton/cache
+    - ${compile_cache}:/root/.cache/vllm/torch_compile_cache
+    - ${genesis_src}:/usr/local/lib/python3.12/dist-packages/vllm/sndr_core:ro
+    - ${plugin_src}:/plugin:ro
+  extra_run_flags:
+    - --security-opt label=disable
+
+reference_metrics: ~                    # populated after first bench-and-update
+
+verify_tolerances:
+  tps_drop_pct_max: 10.0                # wider tolerance for first community config
+  tool_call_min: 8/10                   # Gemma tool-call format differs; expect lower than Qwen3
+  stability_cv_pct_max: 10.0
+  vram_increase_mib_max: 3000
+
+verified_on: []
+
+notes:
+  - 'ℹ Gemma 4 sparse MoE (128 experts, top-8 routing) — different from Qwen3 dense MoE'
+  - 'ℹ SWA (sliding_window=1024) ≠ GDN — most Genesis Cliff 2 patches do NOT apply'
+  - 'ℹ tie_word_embeddings=True → PN77 saves 2× (lm_head + embedding shared)'
+  - 'ℹ AWQ 4-bit (compressed-tensors) — routes through Marlin path; vocab and intermediate are 64-divisible'
+  - 'ℹ Disabled: GDN-specific patches (PN8/PN11/PN59/P67/P103/P98) + TQ k8v4 + MTP'
+  - 'ℹ Tool-call parser absent — operator must select Gemma-compatible parser when validated'
+  - '⚠ NOT YET BOOT-VALIDATED — first contribution should run validate→preflight→launch→verify'
+  - '⚠ max_model_len=32K is conservative — scale up only after measuring actual SWA behavior'

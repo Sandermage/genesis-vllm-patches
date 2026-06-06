@@ -1,0 +1,77 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 alias — operator shortcut for 27B INT4 + DFlash N=5 MULTI-CONCURRENCY (Wave 10).
+# Companion to `prod-qwen3.6-27b-dflash` (single-stream code-gen).
+# `sndr launch prod-qwen3.6-27b-dflash-multiconc` resolves to (model, hardware, profile).
+#
+# Bench validated 2026-05-15 on dev371+bf610c2f5 (tools/multi_conc_bench.py):
+#   conc=1 : 102 TPS  TTFT 102 ms
+#   conc=4 : 268 TPS  TTFT 160 ms
+#   conc=8 : 385 TPS  TTFT 190 ms ⭐ (3.76x scaling)
+#
+# vs MTP+TQ sibling `prod-qwen3.6-27b-tq-multiconc`:
+#   MTP+TQ conc=8: 379 TPS / TTFT 189 ms — essentially TIED (Δ <2%)
+#
+# On 27B both methods are equivalent in throughput AND latency. Choose by:
+#   - context length cap: DFlash multi-conc 80K vs MTP+TQ multi-conc 262K
+#   - target weight quant: DFlash uses INT4 target, MTP+TQ uses INT4 target too
+#   - drafter availability: DFlash needs Qwen3.6-27B-DFlash on host disk
+
+model: qwen3.6-27b-dflash                        # DFlash variant of 27B (target INT4 + bf16 separate drafter)
+hardware: a5000-2x-24gbvram-16cpu-128gbram       # same rig — 2× A5000 24GB
+profile: qwen3.6-27b-dflash-multiconc                    # MULTI-CONC profile (vs prod-qwen3.6-27b-dflash's qwen3.6-27b-dflash single-stream)
+
+# CONFIG-UX.2 — operator card (2026-05-24)
+card:
+  title: "Qwen 3.6 27B INT4 DFlash — multi-conc N=5"
+  summary: |
+    DFlash N=5 multi-conc — 385 TPS at conc=8 (3.76x scaling); essentially
+    tied with prod-qwen3.6-27b-tq-multiconc (379 TPS) on this rig. Choose by
+    context cap (80K here vs 131K MTP+TQ), drafter availability (needs
+    Qwen3.6-27B-DFlash on host disk), or quant preference.
+  status: production_candidate
+  audience: operator
+  maturity: validated
+  mode: throughput
+  workload_allow:
+    - code_gen
+    - free_chat
+    - structured_json.short
+    - tool_call.short
+  workload_deny:
+    - structured_json.long
+    - tool_call.long
+  concurrency:
+    min: 1
+    max: 8
+    canonical: 8
+  K: 5
+  context:
+    max_model_len: 80000
+    typical_input_tokens: 2048
+    typical_output_tokens: 2048
+  routing_family: qwen3_6_27b_int4_dflash
+  default_for_family: false
+  fallback_preset: prod-qwen3.6-27b-dflash
+  primary_metric:
+    kind: agg_TPS
+    value: 385.0
+    source: tests/integration/baselines/27b_dflash_multiconc.json
+    measured_at: 2026-05-15
+  evidence_refs:
+    - type: bench
+      path: tests/integration/baselines/27b_dflash_multiconc.json
+      visibility: public
+      note: Multi-conc DFlash baseline; conc=8 = 385 TPS / TTFT 190 ms (3.76x scaling).
+  evidence_visibility: public
+  tradeoffs:
+    - "Essentially tied with prod-qwen3.6-27b-tq-multiconc (Δ <2%) — choose by quant/drafter/context."
+    - "Smaller context envelope (80K) — for 131K+ multi-conc use prod-qwen3.6-27b-tq-multiconc."
+    - "Requires Qwen3.6-27B-DFlash drafter on host disk."
+  do_not_use:
+    - condition: "context > 80K"
+      reason: "DFlash multi-conc sized for 80K; longer context use MTP+TQ family."
+    - condition: "drafter not present on host"
+      reason: "DFlash needs Qwen3.6-27B-DFlash drafter weights; fail-fast at boot if missing."
+  card_version: 1
+  card_updated: 2026-05-24
+  card_author: sander

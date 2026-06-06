@@ -1,0 +1,60 @@
+# Ruff configuration for sndr-platform.
+# https://docs.astral.sh/ruff/
+#
+# Engineering principle: every contributor sees identical lint errors locally.
+# CI runs `ruff check --no-fix` and `ruff format --check`; both must pass.
+
+target-version = "py310"
+line-length = 88
+indent-width = 4
+
+# Apply to the new sndr/ tree first. Legacy vllm/sndr_core/ is excluded
+# during the refactor; it will be migrated phase by phase.
+include = ["sndr/**/*.py", "tools/**/*.py", "tests/**/*.py"]
+exclude = [
+    ".git",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    "build",
+    "dist",
+    "*.egg-info",
+    "vllm/",                  # legacy, migrated incrementally
+    "sndr_engine/",
+    "sndr_private/",
+    "gui/web/node_modules/",
+    "gui/web/dist/",
+]
+
+[lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort
+    "B",      # bugbear
+    "C4",     # comprehensions
+    "UP",     # pyupgrade
+    "N",      # pep8-naming
+    "SIM",    # simplify
+    "RET",    # return
+    "TCH",    # type-checking
+    "TID",    # tidy imports
+    "PT",     # pytest style
+    "PIE",    # misc
+    "PL",     # pylint subset
+]
+ignore = [
+    "E501",   # handled by formatter
+    "PLR0913",# too many arguments — sometimes necessary
+    "PLR2004",# magic constants — too noisy for tests
+]
+
+[lint.per-file-ignores]
+"tests/**/*.py" = ["PLR2004", "N802", "N803"]   # test names are looser
+"sndr/exceptions.py" = ["N818"]                 # we don't use "Error" suffix everywhere
+
+[format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = true

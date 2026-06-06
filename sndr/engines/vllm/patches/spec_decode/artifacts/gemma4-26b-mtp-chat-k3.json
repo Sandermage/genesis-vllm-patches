@@ -1,0 +1,62 @@
+{
+  "allowed_workloads": [
+    "free_chat",
+    "summarization"
+  ],
+  "config_hash": "717c7edc75754aea",
+  "created_at": "2026-05-31T05:50:00Z",
+  "decision": "validated_conditional",
+  "denied_workloads": [
+    "code_gen",
+    "structured_count",
+    "tool_json"
+  ],
+  "kv_plan": {
+    "drafter": "/models/gemma-4-26B-A4B-it-assistant",
+    "kv_cache_dtype": "auto",
+    "model_arch": "gemma4_a4b_moe",
+    "physical_kv_sharing": false,
+    "target_tq_layers_range": "none"
+  },
+  "metrics": {
+    "acceptance": {
+      "calls": 0,
+      "note": "PN248 acceptance distribution not recorded for this artifact-creation bench. Operator may collect via SNDR_ENABLE_SPEC_DECODE_ACCEPTANCE_METRIC=1 and refresh; per-class TPS measurements below are the load-bearing evidence."
+    },
+    "profile_delta_free": 0.13070562054488843,
+    "profile_delta_global": 0.023978559300931757,
+    "profile_delta_structured": -0.03828059135246036,
+    "profile_free_mean_tps": 145.3983,
+    "profile_geomean_tps": 188.48199,
+    "profile_structured_mean_tps": 228.4124,
+    "profile_tps_per_class": {
+      "code_gen": 215.99,
+      "free_chat": 150.94,
+      "structured_count": 229.05,
+      "summarization": 139.85,
+      "tool_json": 227.78
+    },
+    "promotion_gain_threshold": 0.1,
+    "vram_free_mib_min": 0,
+    "vram_snapshot": []
+  },
+  "model_id": "gemma-4-26B-A4B-it-AWQ",
+  "notes": "K=3 chat-role bench 2026-05-31 on pin 0.21.1rc1.dev354+g626fa9bba. Mirror-sibling of gemma4-26b-mtp-k4: K=4 was measured against the same prompt suite and shows the inverse trade-off (free_chat -13.0%, summarization -9.8%, code_gen +4.9%, structured_count +7.5%, tool_json +0.5%; geomean -2.3%). K=3 chat profile is +13.1% on free-form mean and +2.4% on global geomean vs the K=4 sibling — modest but consistent in the same direction as 31B (where K=3 vs K=4 was +105.7% / +19.0% — much larger because the 31B drafter has lower per-token acceptance on chat). Allowed_workloads narrowed to free_chat + summarization (where K=3 wins ≥ +7% vs K=4); code_gen excluded because K=4 wins it (+4.9%); structured workloads delegated to the K=4 sibling.",
+  "patch_hash": "284477f9c91b07bd13a68a02aaf83fbbe1dc8e7b",
+  "profile": "gemma4-26b-mtp-chat-k3",
+  "prompt_suite": [
+    "code_gen",
+    "free_chat",
+    "structured_count",
+    "summarization",
+    "tool_json"
+  ],
+  "vllm_pin": "0.21.1rc1.dev354+g626fa9bba",
+  "workload_classes": [
+    "code_gen",
+    "free_chat",
+    "structured_count",
+    "summarization",
+    "tool_json"
+  ]
+}

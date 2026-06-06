@@ -1,0 +1,226 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# SNDR spec-decode gateway — Prometheus alerting templates.
+#
+# These are TEMPLATES. Operator imports into their Alertmanager /
+# Prometheus rules / Grafana alerts config. Severity labels follow the
+# common (info | warning | critical) convention; rebind to your team's
+# routing as needed.
+#
+# All rules query metrics defined in
+# vllm/sndr_core/integrations/spec_decode/gateway/metrics.py.
+# Names use the SNDR canonical surface where available; genesis_* names
+# are referenced for back-compat. None of these rules trigger automated
+# action — they alert humans.
+
+groups:
+  - name: sndr-gateway
+    interval: 30s
+    rules:
+
+      # --- Liveness ---
+      - alert: SNDRGatewayDown
+        expr: up{job="sndr-gateway"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: sndr
+        annotations:
+          summary: "SNDR gateway is not reporting metrics"
+          description: |
+            Prometheus has not been able to scrape sndr-gateway for >1
+            minute. Either the process is down, the network is broken,
+            or the scrape config is wrong. Operator should:
+              1. curl http://gateway:8100/healthz
+              2. docker logs sndr-gateway
+              3. confirm gateway image is current
+
+      # --- Upstream health ---
+      - alert: SNDRStructuredUpstreamDownNonTransient
+        expr: sndr_upstream_health_state{upstream="structured"} < 1
+        for: 2m
+        labels:
+          severity: warning
+          team: sndr
+        annotations:
+          summary: "Structured upstream {{ $labels.upstream }} is degraded/down >2min"
+          description: |
+            The structured (β′-A K=4) upstream has been below 'up' state
+            for at least 2 minutes. Gateway is automatically falling back
+            to default; metrics will show sndr_routed_default_total
+            increasing and sndr_routed_structured_total flat. Investigate:
+              1. docker logs sndr-gemma4-structured-k4
+              2. nvidia-smi (VRAM headroom?)
+              3. sndr_upstream_probe_failures_total counter increases
+          runbook_url: "deploy/README.md#rollback-levels"
+
+      - alert: SNDRDefaultUpstreamDown
+        expr: sndr_upstream_health_state{upstream="default"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: sndr
+        annotations:
+          summary: "Default upstream is DOWN — production traffic affected"
+          description: |
+            The default upstream (production-safe TQ-only MTP-OFF) has
+            been marked DOWN by gateway health probes. No fallback
+            possible. Gateway returns 503 to clients. This is the
+            production-impact alert.
+
+      # --- Fallback rate ---
+      - alert: SNDRHighFallbackRate
+        expr: |
+          (
+            sum(rate(genesis_fallback_total[5m]))
+            /
+            (sum(rate(genesis_routed_default_total[5m]))
+              + sum(rate(genesis_routed_structured_total[5m]))
+              + 1e-9)
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          team: sndr
+        annotations:
+          summary: "Fallback rate >5% over 5m"
+          description: |
+            More than 5% of requests are falling back to default.
+            Check fallback reason breakdown:
+              sum by (reason) (rate(genesis_fallback_total[5m]))
+            Typical reasons:
+              structured_down       -> see SNDRStructuredUpstreamDownNonTransient
+              force                 -> someone hit /admin/force-default
+              no_artifact           -> gateway lost its artifact (process restart?)
+              router_denied         -> normal for free-chat traffic
+              router_error          -> code path failure, investigate logs
+
+      # --- Latency ---
+      - alert: SNDRLatencyP95Exceeds
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (upstream, stream, le) (
+              rate(sndr_route_latency_seconds_bucket[5m])
+            )
+          ) > 60
+        for: 5m
+        labels:
+          severity: warning
+          team: sndr
+        annotations:
+          summary: "p95 route latency >60s on upstream={{ $labels.upstream }} stream={{ $labels.stream }}"
+          description: |
+            End-to-end gateway latency at p95 has exceeded 60s.
+            Likely causes:
+              - upstream is overloaded / OOM thrashing
+              - cold-start (one-shot after structured boot — clears in <5min)
+              - network slow
+            Cold-start expected on first ~3 minutes of structured boot;
+            if persistent, investigate the upstream container.
+
+      # --- Probe failures ---
+      - alert: SNDRProbeFailuresHigh
+        expr: rate(sndr_upstream_probe_failures_total[5m]) > 0.5
+        for: 5m
+        labels:
+          severity: info
+          team: sndr
+        annotations:
+          summary: "Upstream {{ $labels.upstream }} probe failures >0.5/s"
+          description: |
+            Health probes to upstream are failing at >0.5/s sustained.
+            Typically pairs with SNDRStructuredUpstreamDownNonTransient.
+            If probe failures rise but state stays 'up', check probe
+            timeout vs. upstream latency.
+
+      # --- Structured acceptance collapse (commented-out template) ---
+      #
+      # Status: TEMPLATE — disabled by default. Uncomment + reload
+      #   Prometheus only after operator approval.
+      #
+      # Data source: PN282 (commit b1999ff6) + PN283 (commit abc5fe5d).
+      #   Conditional on the structured launcher setting:
+      #     PROMETHEUS_MULTIPROC_DIR=/tmp/sndr-prom-mp
+      #     SNDR_ENABLE_SPEC_DECODE_ACCEPTANCE_METRIC=1
+      #     SNDR_SPEC_DECODE_PROFILE_LABEL=gemma4-31b-tq-mtp-structured-k4
+      #   Otherwise no series and the alert never fires (vector
+      #   matching returns empty → alert is silently inert).
+      #
+      # Numerator/denominator semantics validated 2026-05-20:
+      #   - sndr_spec_decode_calls_total: rejection_sample call count
+      #     (per call, NOT per request outcome)
+      #   - sndr_spec_decode_accepted_per_call_total{k}: increments
+      #     once per request per call
+      #   - For batch_size=1: ratio == fraction of calls with zero
+      #     accepted draft tokens. β'-A K=4 healthy reference shows
+      #     k=0 share = 24/106 = 22.6% on the canonical workload
+      #     (mean 1.79/4). The 60% threshold is well above; sustained
+      #     breach indicates kernel/storage mismatch, drafter regression,
+      #     or workload-class regression at the gateway router.
+      #
+      # When enabling, choose the response level deliberately:
+      #   - severity: warning + paging channel → page on-call
+      #   - severity: info + dashboard-only → silent observability
+      # Recommended first enable: severity=warning, 5m sustained, with
+      #   the L1 force-default rollback (POST /admin/force-default) as
+      #   the response action.
+      #
+      # - alert: SNDRStructuredAcceptanceCollapsed
+      #   expr: |
+      #     (
+      #       sum by (profile) (rate(sndr_spec_decode_accepted_per_call_total{
+      #         k="0", profile="gemma4-31b-tq-mtp-structured-k4"}[5m]))
+      #       /
+      #       sum by (profile) (rate(sndr_spec_decode_calls_total{
+      #         profile="gemma4-31b-tq-mtp-structured-k4"}[5m]))
+      #     ) > 0.60
+      #   for: 5m
+      #   labels:
+      #     severity: warning
+      #     team: sndr
+      #   annotations:
+      #     summary: "Structured acceptance collapsed (>60% k=0 for 5m)"
+      #     description: |
+      #       More than 60% of rejection_sample calls landed at k=0 (zero
+      #       drafts accepted) on profile {{ $labels.profile }} over the
+      #       past 5m. Healthy β'-A K=4 reference: k=0 share 22.6%.
+      #       Sustained breach indicates one of:
+      #         - Drafter ↔ target divergence (kernel/storage mismatch)
+      #         - Workload classifier sent the wrong workload class to
+      #           the structured upstream
+      #         - PN271 / PN272 / PN274 guard regression
+      #       Cross-references during incident response:
+      #         - sndr_routed_structured_total — is traffic still landing
+      #           on structured (collapse + still routing = bad for users)?
+      #         - vllm:spec_decode_num_accepted_tokens_total — does
+      #           upstream agree?
+      #         - /tmp/genesis_pn248_acceptance_trace.log inside the
+      #           structured container — byte-level cross-check
+      #       Operator action: consider L1 rollback (POST
+      #       /admin/force-default on the gateway). See production cutover
+      #       runbook §5 (rollback decision tree).
+
+      # --- VRAM headroom (placeholder) ---
+      # vLLM does not (yet) expose VRAM as a Prometheus metric out of
+      # the box. To enable this alert, install a nvidia-smi exporter
+      # alongside the upstream container and rebind the expr.
+      - alert: SNDRVramHeadroomLow
+        expr: |
+          (
+            min by (upstream) (nvidia_gpu_memory_free_bytes{job=~"sndr-.*"})
+            /
+            1024 / 1024
+          ) < 500
+        for: 5m
+        labels:
+          severity: warning
+          team: sndr
+          template: "true"
+        annotations:
+          summary: "PLACEHOLDER: free VRAM <500 MiB on upstream={{ $labels.upstream }}"
+          description: |
+            This alert is a template. Wire a nvidia-smi exporter (e.g.
+            nvidia/dcgm-exporter) to populate nvidia_gpu_memory_free_bytes
+            for the sndr-* containers, then drop the `template: "true"`
+            label.

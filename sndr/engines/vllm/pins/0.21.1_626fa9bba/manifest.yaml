@@ -1,0 +1,77 @@
+engine: vllm
+pin: 0.21.1_626fa9bba
+full_version: 0.21.1rc1.dev354+g626fa9bba566
+upstream_sha: 626fa9bba5663a5cf6a870debf031ee344ddb822
+generated_at: '2026-06-06T08:47:38+00:00'
+generated_by: sndr.tools.populate_manifest_md5 v1.0
+notes: 'Baseline manifest for the canonical v0.21.1 pin (currently running on
+
+  production 35B + 27B). md5 fields populated 2026-06-06 from the live
+
+  35B container by tools/populate_manifest_md5.py. File coverage matches
+
+  the v0.22.1 manifest so drift comparison is apples-to-apples.
+
+  '
+files:
+  v1/attention/ops/triton_turboquant_store.py:
+    md5: 61a64dccd7a8acd17ac4d562e232f21f
+    size_bytes: 17152
+    anchors:
+      tq_store.fp8_key_cast:
+        md5_of_snippet: ''
+        used_by_patches:
+        - P3
+  v1/attention/ops/triton_turboquant_decode.py:
+    md5: a682a05f4f68820c0a7cec6c93a35ec6
+    size_bytes: 23289
+    anchors: {}
+  v1/spec_decode/mtp_proposer.py:
+    md5: ''
+    size_bytes: 0
+    anchors: {}
+    missing: true
+  v1/attention/backends/flash_attn.py:
+    md5: 8de274081dbf11ee85698bdaebc0539e
+    size_bytes: 50371
+    anchors:
+      fa_layout.kv_layout_check:
+        md5_of_snippet: ''
+        used_by_patches:
+        - PN286
+  v1/worker/gpu_model_runner.py:
+    md5: 84125bc2832a9707ff03901561008ea4
+    size_bytes: 332898
+    anchors: {}
+  model_executor/layers/fla/ops/chunk_o.py:
+    md5: 35ecb3bf8840710c2fb9696b9c0cb4a6
+    size_bytes: 7243
+    anchors:
+      fla.chunk_o.num_warps:
+        md5_of_snippet: ''
+        used_by_patches:
+        - PN298
+  model_executor/layers/fla/ops/chunk_scaled_dot_kkt.py:
+    md5: 98aa00a59736d1a4724b66f25b5d9e16
+    size_bytes: 5472
+    anchors:
+      fla.chunk_kkt.num_warps:
+        md5_of_snippet: ''
+        used_by_patches:
+        - PN299
+  model_executor/layers/fla/ops/wy_fast.py:
+    md5: 4cc6a27991f1c2cb07077a4cb0719f40
+    size_bytes: 4884
+    anchors:
+      fla.wy_fast.num_warps:
+        md5_of_snippet: ''
+        used_by_patches:
+        - PN299
+  model_executor/layers/fla/ops/l2norm.py:
+    md5: 55b6b2df72e2ee4da08136f4b0bfb304
+    size_bytes: 4626
+    anchors:
+      fla.l2norm.num_warps:
+        md5_of_snippet: ''
+        used_by_patches:
+        - PN299

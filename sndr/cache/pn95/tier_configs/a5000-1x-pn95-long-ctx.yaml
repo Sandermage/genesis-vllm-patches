@@ -1,0 +1,48 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# ┌──────────────────────────────────────────────────────────────────┐
+# │ PN95 tier-aware cache config — single A5000 24 GB long-context.  │
+# │                                                                   │
+# │ Origin: extracted from V1 a5000-1x-tier-aware-pn95.yaml on        │
+# │ 2026-06-01 as part of the PN95 architectural unblock.             │
+# │                                                                   │
+# │ Loader: vllm/sndr_core/cache/pn95/tier_config_loader.load_by_key │
+# │ Reader: vllm/sndr_core/cache/pn95/hooks.py:lazy_init via         │
+# │         GENESIS_PN95_CONFIG_KEY env var                          │
+# │                                                                   │
+# │ Workload target: max_model_len 200K on ONE A5000 24 GB card via  │
+# │ PN95 multi-tier offload. GPU tier ~5 GiB (after model+workspace) │
+# │ + CPU pinned tier 32 GiB as L2 (backed by _pn95_pinned_pool L1   │
+# │ for fast PCIe DMA).                                              │
+# │                                                                   │
+# │ vLLM's pre-flight KV check would refuse boot at 200K otherwise   │
+# │ (only ~3-4 GiB GPU KV after model + workspace, vs ~7 GiB needed  │
+# │ for 200K nominal); GENESIS_PN95_VIRT_ENABLE=1 inflates vLLM's    │
+# │ view of available memory by the CPU tier capacity so the         │
+# │ pre-flight passes. Physical GPU allocation is still capped to    │
+# │ the real value by anchor #10.                                    │
+# └──────────────────────────────────────────────────────────────────┘
+
+eviction_policy: lru
+tiers:
+  - device: gpu
+    capacity_gib: 5.0
+    eviction_policy: lru
+    promote_on_hit: true
+    demote_threshold_pct: 0.92
+    low_water_pct: 0.75
+  - device: cpu
+    capacity_gib: 32.0
+    eviction_policy: lru
+    promote_on_hit: true
+    vision_first: false
+    pinned: true
+    notes: >-
+      32 GiB pinned host RAM as PN95 L2 tier. Backed by the new
+      _pn95_pinned_pool L1 (env GENESIS_PN95_PINNED_POOL_MB) which
+      sits on top as a fast PCIe DMA path. Layer-aware demote
+      prioritises cold layers when free pressure hits.
+exclude_mamba_ssm: true
+vision_demote_first: false
+tier_low_water_pct: 0.05
+async_demote: true

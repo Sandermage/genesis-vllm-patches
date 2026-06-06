@@ -1,30 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
-"""SNDR Core — wiring infrastructure (file cache, rebind, anchor manifest, patcher registry).
+"""Backward-compatibility shim.
 
-v10 (2026-05-07): canonical home for wiring-layer infrastructure that
-all per-patch wirings depend on.
+Canonical location: ``sndr.engines.vllm.wiring``.
 
-PR38 cleanup (2026-05-08): legacy `vllm._genesis.wiring` is being
-removed; this package now re-exports the public surface (`AttributeRebinder`,
-`WiringRegistry`, `TextPatch`, `TextPatcher`, `TextPatchResult`) at
-package level so `from vllm.sndr_core.wiring import X` works the same
-as the legacy form.
+This file re-exports the entire public surface from the new location so
+existing imports continue to work during v12.x migration window. Will be
+removed in v13.0.
 """
-from __future__ import annotations
-
-from vllm.sndr_core.wiring.rebind import AttributeRebinder, WiringRegistry
-from vllm.sndr_core.core import text_patch  # noqa: F401  (legacy submodule path)
-from vllm.sndr_core.core.text_patch import (
-    TextPatch,
-    TextPatcher,
-    TextPatchResult,
-)
-
-__all__ = [
-    "AttributeRebinder",
-    "WiringRegistry",
-    "TextPatch",
-    "TextPatcher",
-    "TextPatchResult",
-    "text_patch",
-]
+from sndr.engines.vllm.wiring import *  # noqa: F401,F403
+try:
+    from sndr.engines.vllm.wiring import __all__  # noqa: F401
+except ImportError:
+    pass

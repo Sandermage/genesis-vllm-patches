@@ -1,29 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
-"""GUI authentication subsystem.
+"""Backward-compatibility shim.
 
-Pluggable, dependency-light auth for the SNDR Product API daemon:
+Canonical location: ``sndr.product_api.legacy.auth``.
 
-* local accounts (scrypt-hashed passwords) persisted under ``$SNDR_HOME/auth``
-* optional system login via PAM (host deployments)
-* optional Google / Apple OAuth (OIDC) when credentials are configured
-* TOTP two-factor (RFC 6238)
-* HMAC-signed session tokens
-
-The configuration adapts to the deployment context (container vs host) — see
-:func:`config.load_config`.
+This file re-exports the entire public surface from the new location so
+existing imports continue to work during v12.x migration window. Will be
+removed in v13.0.
 """
-from __future__ import annotations
-
-from .config import AuthConfig, load_config
-from .service import AuthError, AuthService, LoginResult
-from .store import User, UserStore
-
-__all__ = [
-    "AuthConfig",
-    "load_config",
-    "AuthError",
-    "AuthService",
-    "LoginResult",
-    "User",
-    "UserStore",
-]
+from sndr.product_api.legacy.auth import *  # noqa: F401,F403
+try:
+    from sndr.product_api.legacy.auth import __all__  # noqa: F401
+except ImportError:
+    pass

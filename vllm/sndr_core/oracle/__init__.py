@@ -1,7 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Genesis decision oracles — single source of truth for routing logic."""
-from __future__ import annotations
+"""Backward-compatibility shim.
 
-from vllm.sndr_core.oracle.moe_select import select_moe_expert_impl
+Canonical location: ``sndr.oracle``.
 
-__all__ = ["select_moe_expert_impl"]
+This file re-exports the entire public surface from the new location so
+existing imports continue to work during v12.x migration window. Will be
+removed in v13.0.
+"""
+from sndr.oracle import *  # noqa: F401,F403
+try:
+    from sndr.oracle import __all__  # noqa: F401
+except ImportError:
+    pass
