@@ -1,17 +1,20 @@
-# SGLang Engine Adapter (Skeleton)
+# SGLang Engine Adapter
 
-**Status**: Skeleton only. No patches ported. No detection implemented.
-**Target release**: v13.0 (after vLLM adapter stable in v12)
+**Status**: Functional adapter. Detects a live SGLang install, normalizes
+pins, and discovers per-pin manifests (`pins/`) + community patches
+(`patches/`). No pins/patches ship yet — those light up as they are added,
+with no adapter change. Runtime introspection (`get_runtime_config` /
+`get_model_profile`) lands with the first ported SGLang pin.
 
 ## Purpose
 
-This directory holds the future SGLang engine adapter for `sndr-platform`.
-The skeleton serves three purposes:
+This directory holds the SGLang engine adapter for `sndr-platform`. It:
 
-1. **Demonstrate** how the `EngineAdapter` ABC accommodates a non-vLLM
-   engine without changes to engine-agnostic code.
-2. **Reserve** the namespace `sndr.engines.sglang.*` so future patches can
-   land here cleanly.
+1. **Proves** the `EngineAdapter` ABC accommodates a non-vLLM engine with no
+   changes to engine-agnostic code — a real, registered second engine
+   (`list_engines()` → `['sglang', 'vllm']`).
+2. **Reserves + structures** the namespace `sndr.engines.sglang.*` (adapter,
+   `pins/`, `patches/`) so future manifests/patches land here cleanly.
 3. **Document** the porting guide for the eventual contributor.
 
 ## How to start porting
