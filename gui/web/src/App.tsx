@@ -81,6 +81,7 @@ import { StatusBadge, StatusPill, InfoRows, CompactList, DoctorStat } from "./co
 import { SegmentBar, PercentBar, BarList, OvKpi, segmentsFromCounts } from "./components/charts";
 import { CaveatsPanel, ConfigKeysPanel, TracesPanel } from "./sections/diagnostics";
 import { ProofStatusPanel } from "./sections/proof";
+import { CodeBlock, CopyButton } from "./components/code-block";
 import { useDialogFocus, useEscapeKey, closeOnBackdrop } from "./dialog";
 import { Skeleton, SkeletonMetrics, SkeletonLines, SkeletonCards, SkeletonTable } from "./Skeleton";
 import {
@@ -7679,44 +7680,7 @@ function HostProfileTable({
   );
 }
 
-function CodeBlock({ lines, title }: { lines: string[]; title?: string }) {
-  const [expanded, setExpanded] = useState(false);
-  const dialogRef = useRef<HTMLElement>(null);
-  useDialogFocus(dialogRef, expanded);
-  useEffect(() => {
-    if (!expanded) return;
-    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") setExpanded(false); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [expanded]);
-  const body = lines.map((line, index) => <span key={index}>{line || " "}</span>);
-  const joined = lines.join("\n");
-  return (
-    <>
-      <div className="code-wrap">
-        <div className="code-actions">
-          <button className="icon-only" title="Expand" aria-label="Expand to fullscreen" onClick={() => setExpanded(true)}><Maximize2 size={13} /></button>
-          <CopyButton value={joined} label="code block" />
-        </div>
-        <pre className="code-block">{body}</pre>
-      </div>
-      {expanded && (
-        <div className="dialog-backdrop" role="presentation" onClick={closeOnBackdrop(() => setExpanded(false))}>
-          <section ref={dialogRef} className="code-expand" role="dialog" aria-modal="true">
-            <header className="code-expand-head">
-              <Terminal size={15} />
-              <strong>{title ?? "Output"}</strong>
-              <span className="muted">{lines.length} lines</span>
-              <CopyButton value={joined} label="code block" />
-              <button className="icon-only" onClick={() => setExpanded(false)} aria-label="Close"><X size={16} /></button>
-            </header>
-            <pre className="code-block code-expand-pre">{body}</pre>
-          </section>
-        </div>
-      )}
-    </>
-  );
-}
+// CodeBlock + CopyButton extracted to ./components/code-block.
 // Editable text field (YAML / config) with copy + a fullscreen-edit expand.
 function CodeEditorField({ value, onChange, label }: { value: string; onChange: (next: string) => void; label?: string }) {
   const [expanded, setExpanded] = useState(false);
@@ -10297,28 +10261,7 @@ function RecommendationRow({
   );
 }
 
-function CopyButton({ value, label }: { value: string; label: string }) {
-  const [done, setDone] = useState(false);
-  async function copy() {
-    try {
-      await navigator.clipboard.writeText(value);
-    } catch {
-      // Clipboard API can be blocked; fall back to a transient confirmation.
-    }
-    setDone(true);
-    window.setTimeout(() => setDone(false), 1200);
-  }
-  return (
-    <button
-      className={`icon-only ${done ? "done" : ""}`}
-      onClick={() => void copy()}
-      aria-label={`Copy ${label}`}
-      title={`Copy ${label}`}
-    >
-      {done ? <CheckCircle2 size={14} /> : <Copy size={14} />}
-    </button>
-  );
-}
+// CopyButton extracted to ./components/code-block.
 
 function RuntimeEndpoint({
   host,
