@@ -108,10 +108,11 @@ import { RuntimeEnvelopePanel, PresetPolicyGraph } from "./sections/preset-insig
 import { PatchMatrixViewer } from "./sections/patch-matrix";
 import { PatchSummaryPanel, PatchLifecycleGraph, PatchRegistryInsight, PatchModelSupport } from "./sections/patch-overview";
 import { PatchExplainPanel } from "./sections/patch-explain";
+import { ProjectCatalogPanel } from "./sections/project-catalog";
 import { ProofStatusPanel } from "./sections/proof";
 import { CodeBlock, CopyButton } from "./components/code-block";
 import { useDialogFocus, useEscapeKey, closeOnBackdrop } from "./dialog";
-import { SkeletonMetrics, SkeletonLines, SkeletonCards } from "./Skeleton";
+import { SkeletonLines, SkeletonCards } from "./Skeleton";
 import {
   AlertConfig,
   BundleSpec,
@@ -6216,64 +6217,7 @@ function EmptyState({ icon, title, message, action }: {
 // Project & catalog snapshot — fills the row beside the dependency stack with
 // the most useful project parameters: catalog counts, annotation coverage,
 // capability readiness and the workload/lifecycle distribution.
-function ProjectCatalogPanel({ overview, environment }: { overview: ProductOverview | null; environment: EnvironmentReport | null }) {
-  if (!overview) return <SkeletonMetrics count={4} />;
-  const catalog = overview.catalog;
-  const features = overview.capabilities.features ?? [];
-  const capsReady = features.filter((feature) => feature.status === "available").length;
-  const tiles: Array<[string, number]> = [
-    ["Presets", catalog.presets_count],
-    ["Models", catalog.models_count],
-    ["Profiles", catalog.profiles_count],
-    ["Hardware", catalog.hardware_count]
-  ];
-  const annotated = catalog.presets_count ? Math.round((catalog.preset_cards_count / catalog.presets_count) * 100) : 0;
-  const lifecycle = Object.entries(catalog.status_counts || {});
-  const workloads = Object.entries(catalog.workload_counts || {}).slice(0, 6);
-  const families = Object.entries(catalog.family_counts || {}).slice(0, 8);
-  return (
-    <div className="project-catalog">
-      <div className="catalog-tiles">
-        {tiles.map(([label, value]) => (
-          <div className="catalog-tile" key={label}>
-            <strong>{value}</strong>
-            <span>{label}</span>
-          </div>
-        ))}
-      </div>
-      <InfoRows rows={[
-        ["Engine target", `${environment?.engine_name ?? "vLLM"} ${environment?.engine_version ?? "(not installed)"}`.trim()],
-        ["Annotated presets", `${catalog.preset_cards_count}/${catalog.presets_count} · ${annotated}%`],
-        ["Capabilities ready", `${capsReady}/${features.length}`],
-        ["Load errors", String(catalog.preset_load_error_count)]
-      ]} />
-      {lifecycle.length > 0 && (
-        <div className="catalog-dist">
-          <span className="catalog-dist-label">Lifecycle</span>
-          <div className="fleet-caps">
-            {lifecycle.map(([key, value]) => <span className="cap-chip neutral" key={key}>{key} · {value}</span>)}
-          </div>
-        </div>
-      )}
-      {workloads.length > 0 && (
-        <div className="catalog-dist">
-          <span className="catalog-dist-label">Workloads</span>
-          <div className="fleet-caps">
-            {workloads.map(([key, value]) => <span className="cap-chip neutral" key={key}>{key.replace(/_/g, " ")} · {value}</span>)}
-          </div>
-        </div>
-      )}
-      {families.length > 0 && (
-        <div className="catalog-dist">
-          <span className="catalog-dist-label">Patch families</span>
-          <div className="fleet-caps">
-            {families.map(([key, value]) => <span className="cap-chip neutral" key={key}>{key} · {value}</span>)}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+// ProjectCatalogPanel extracted to ./sections/project-catalog.
 
 // Add/edit modal for a host profile.
 function HostFormModal({
