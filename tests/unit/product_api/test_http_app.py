@@ -14,12 +14,25 @@ def _client() -> TestClient:
     return TestClient(create_app(allowed_origins=()))
 
 
+def test_health_reflects_apply_state_when_enabled():
+    from fastapi.testclient import TestClient
+    from vllm.sndr_core.product_api.http_app import create_app as _ca
+    client = TestClient(_ca(allowed_origins=(), enable_apply=True))
+    body = client.get("/api/v1/health").json()
+    # With apply on, health must NOT claim read-only (the misleading hardcoded
+    # True masked that mutating endpoints were live).
+    assert body["read_only"] is False
+    assert body["apply_enabled"] is True
+
+
 def test_health_and_openapi_are_available():
     client = _client()
 
     health = client.get("/api/v1/health")
     assert health.status_code == 200
+    # Default app has no apply -> read_only true, apply_enabled false.
     assert health.json()["read_only"] is True
+    assert health.json()["apply_enabled"] is False
 
     openapi = client.get("/openapi.json")
     assert openapi.status_code == 200

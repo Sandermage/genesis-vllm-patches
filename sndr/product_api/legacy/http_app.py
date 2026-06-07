@@ -224,11 +224,17 @@ def create_app(
 
     @app.get("/api/v1/health")
     async def health() -> dict[str, Any]:
+        # read_only must reflect the ACTUAL apply gate (apply_on) — reporting a
+        # constant True is misleading: a daemon started with SNDR_ENABLE_APPLY=1
+        # would still announce itself read-only, masking that mutating endpoints
+        # (node install, container ops, terminal) are live. apply_enabled is the
+        # positive form so monitors don't have to invert it.
         return {
             "status": "ok",
             "service": "sndr-product-api",
             "version": SNDR_CORE_VERSION,
-            "read_only": True,
+            "read_only": not apply_on,
+            "apply_enabled": apply_on,
             "auth_required": auth_config.enabled,
         }
 
