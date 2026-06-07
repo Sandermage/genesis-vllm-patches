@@ -78,6 +78,50 @@ DEFAULT_ALLOWED_ORIGINS: tuple[str, ...] = (
 )
 
 
+# Light per-container version probe (run inside a container via `docker exec`).
+# Reads versions through importlib.metadata so it does NOT `import vllm` (which
+# loads torch/CUDA and made a cold synchronous probe block past the request
+# window). Emits one flat JSON object on stdout. See _do_sndr_state.
+_SNDR_VERSION_PROBE = b"""
+import json
+o = {"vllm": None, "sndr": None, "configs": None, "patches": None}
+# vLLM is pip-installed in the engine image, so its dist metadata is the running
+# version (and reading it avoids a heavy `import vllm`).
+try:
+    from importlib.metadata import version
+    o["vllm"] = version("vllm")
+except Exception:
+    o["vllm"] = None
+# SNDR Core is MOUNTED into the container at runtime, so the source __version__
+# is what's actually running - prefer it over the image's (stale) pip metadata.
+try:
+    from sndr.version import SNDR_CORE_VERSION
+    o["sndr"] = SNDR_CORE_VERSION
+except Exception:
+    try:
+        from vllm.sndr_core.version import SNDR_CORE_VERSION as _v
+        o["sndr"] = _v
+    except Exception:
+        try:
+            from importlib.metadata import version as _ver
+            o["sndr"] = _ver("vllm-sndr-core")
+        except Exception:
+            o["sndr"] = None
+try:
+    import os, glob, sndr
+    d = os.path.join(os.path.dirname(sndr.__file__), "model_configs", "builtin")
+    o["configs"] = len(glob.glob(d + "/**/*.yaml", recursive=True)) or None
+except Exception:
+    pass
+try:
+    from sndr.dispatcher.spec import iter_patch_specs
+    o["patches"] = sum(1 for _ in iter_patch_specs())
+except Exception:
+    pass
+print(json.dumps(o))
+"""
+
+
 def _require_fastapi():
     try:
         from fastapi import Body, FastAPI, Header, HTTPException, Query
@@ -1041,6 +1085,53 @@ def create_app(
             "commands": commands,
         }
 
+    def _do_sndr_state(control, name: str) -> dict[str, Any]:
+        """Read-only: the project versions running INSIDE this container — SNDR
+        Core version, vLLM build, builtin-config count and patch-registry size —
+        by running the introspection probe in it. Works for both the local socket
+        control and the SSH control (both implement ``exec``). The same data the
+        Hosts fleet view shows, but per-container in the Containers tab."""
+        import base64
+        import json as _json
+        result: dict[str, Any] = {"ok": False, "container": name, "vllm_version": None,
+                                  "sndr_version": None, "configs": None, "patches": None, "error": None}
+        # Ship the probe as base64 over stdin (not `python3 -c <multiline>`): the
+        # SSH control joins argv into a shell command, so a multi-line arg would
+        # break — a single base64 token is shell-safe for both controls.
+        # Use a LIGHT probe: read versions via importlib.metadata (no heavy
+        # `import vllm`, which loads torch/CUDA and made a cold call block past
+        # the request window). Suppress stderr — the socket control merges it into
+        # stdout, and patch-registry warnings would pollute the JSON.
+        b64 = base64.b64encode(_SNDR_VERSION_PROBE).decode("ascii")
+        try:
+            res = control.exec(name, ["sh", "-c", f"echo {b64} | base64 -d | python3 - 2>/dev/null"], timeout=25.0)
+        except Exception as exc:  # container gone / docker error / SSH down
+            result["error"] = f"{type(exc).__name__}: {exc}"[:300]
+            return result
+        if res.exit_code != 0 or not (res.stdout or "").strip():
+            result["error"] = ((res.stderr or res.stdout or "introspection failed").strip())[:300]
+            return result
+        # The probe emits one flat JSON object, but it may be surrounded by log
+        # lines (e.g. "[PatchSpec] … stale") or docker stream frame bytes. Scan
+        # for the last brace-delimited block that parses and looks like the probe.
+        import re
+        data = None
+        for m in reversed(list(re.finditer(r"\{[^{}]*\}", res.stdout))):
+            try:
+                d = _json.loads(m.group(0))
+            except Exception:
+                continue
+            if isinstance(d, dict) and ("vllm" in d or "sndr" in d):
+                data = d
+                break
+        if data is None:
+            snippet = (res.stdout or "").strip().replace("\n", " ")[:160]
+            result["error"] = f"unparseable introspection output: {snippet}"
+            return result
+        result.update(ok=True, vllm_version=data.get("vllm"), sndr_version=data.get("sndr"),
+                      configs=data.get("configs"), patches=data.get("patches"))
+        return result
+
     # Local family (this daemon's host, via the docker socket) ------------
     @app.get("/api/v1/containers")
     async def containers_list() -> dict[str, Any]:
@@ -1094,6 +1185,10 @@ def create_app(
     @app.get("/api/v1/containers/{name}/update-plan")
     async def container_update_plan(name: str) -> dict[str, Any]:
         return _do_update_plan(_local_control(), name)
+
+    @app.get("/api/v1/containers/{name}/sndr-state")
+    async def container_sndr_state(name: str) -> dict[str, Any]:
+        return _do_sndr_state(_local_control(), name)
 
     @app.post("/api/v1/containers/{name}/pull")
     async def container_pull(name: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
@@ -1187,6 +1282,10 @@ def create_app(
     @app.get("/api/v1/hosts/{host_id}/containers/{name}/update-plan")
     async def host_container_update_plan(host_id: str, name: str) -> dict[str, Any]:
         return _do_update_plan(_host_control(host_id), name)
+
+    @app.get("/api/v1/hosts/{host_id}/containers/{name}/sndr-state")
+    async def host_container_sndr_state(host_id: str, name: str) -> dict[str, Any]:
+        return _do_sndr_state(_host_control(host_id), name)
 
     @app.post("/api/v1/hosts/{host_id}/containers/{name}/pull")
     async def host_container_pull(host_id: str, name: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:

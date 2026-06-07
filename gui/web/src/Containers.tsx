@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import {
   api, type AlertConfig, type ContainerAction, type ContainerSource, type ContainerStats,
-  type ContainerUpdatePlan, type DockerNetwork, type FsEntry, type ImageScan,
+  type ContainerUpdatePlan, type DockerNetwork, type FsEntry, type HostSndrState, type ImageScan,
   type ManagedContainer, type SourceReport, type SystemDf,
 } from "./api";
 import { hashParam, buildHash, replaceHash } from "./route";
@@ -495,6 +495,8 @@ function ContainerPage({ source, name, busy, onBack, onAct, initialTab, onNaviga
         </div>
       </div>
       <code className="cpage-sub">{image}{inspect?.Id ? ` · ${String(inspect.Id).slice(0, 12)}` : ""}</code>
+
+      <ContainerVersions source={source} name={name} online={online} />
 
       {err && <div className="containers-err"><AlertTriangle size={13} /> {err}</div>}
 
@@ -1028,6 +1030,46 @@ function ExecTab({ source, name }: { source: ContainerSource; name: string }) {
         <input aria-label="Exec command" value={cmd} onChange={(e) => setCmd(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !running) void run(); }} placeholder="python3 -c 'print(1)'" autoFocus />
         <button className="primary-button" disabled={running || !cmd.trim()} onClick={() => void run()}>{running ? <Loader2 size={13} className="spin" /> : <Play size={13} />} Run</button>
       </div>
+    </div>
+  );
+}
+
+// Project versions running INSIDE the container — SNDR Core + vLLM build +
+// builtin-config / patch-registry counts — introspected on demand. The probe
+// imports vLLM in-container, so it's heavy: auto-run once for online containers,
+// refreshable by hand.
+function ContainerVersions({ source, name, online }: { source: ContainerSource; name: string; online: boolean }) {
+  const [state, setState] = useState<HostSndrState | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const load = useCallback(() => {
+    setLoading(true); setErr(null);
+    api.containerSndrState(source, name)
+      .then((s) => { setState(s); if (!s.ok && s.error) setErr(s.error); })
+      .catch((e) => setErr(e instanceof Error ? e.message : String(e)))
+      .finally(() => setLoading(false));
+  }, [source, name]);
+  useEffect(() => { if (online) load(); else setState(null); }, [online, load]);
+
+  if (!online && !state) return null;
+  return (
+    <div className="cpage-versions">
+      <span className="cpage-versions-label">Versions</span>
+      {loading && !state ? (
+        <span className="muted"><Loader2 size={12} className="spin" /> probing…</span>
+      ) : state?.ok ? (
+        <>
+          <span className="ver-chip">SNDR {state.sndr_version ?? "—"}</span>
+          <span className="ver-chip">vLLM {state.vllm_version ?? "—"}</span>
+          {state.configs != null && <span className="ver-chip">{state.configs} configs</span>}
+          {state.patches != null && <span className="ver-chip">{state.patches} patches</span>}
+        </>
+      ) : (
+        <span className="muted">{err ?? "no SNDR runtime in this container"}</span>
+      )}
+      <button className="ghost-button cpage-versions-refresh" onClick={load} disabled={loading} title="Re-probe versions">
+        <RefreshCw size={12} /> {loading ? "…" : "Refresh"}
+      </button>
     </div>
   );
 }

@@ -1416,6 +1416,10 @@ export const api = {
     request<{ path: string; content: string; truncated: boolean }>(`${containerBase(src)}/${encodeURIComponent(name)}/file${query({ path, max_bytes: maxBytes })}`),
   containerUpdatePlan: (src: ContainerSource, name: string) =>
     request<ContainerUpdatePlan>(`${containerBase(src)}/${encodeURIComponent(name)}/update-plan`),
+  // Project versions running INSIDE a container (SNDR Core + vLLM + config/patch
+  // counts), introspected via a probe. Same shape as the Hosts fleet view.
+  containerSndrState: (src: ContainerSource, name: string) =>
+    request<HostSndrState>(`${containerBase(src)}/${encodeURIComponent(name)}/sndr-state`),
   containerPull: (src: ContainerSource, name: string, restart = false) =>
     postJson<{ ok: boolean; container: string; image: string; output: string; restarted?: boolean }>(
       `${containerBase(src)}/${encodeURIComponent(name)}/pull`, { confirm: true, restart }),
