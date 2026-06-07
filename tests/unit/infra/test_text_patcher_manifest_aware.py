@@ -76,7 +76,7 @@ class TestPatchIdField:
 class TestRelPathDerivation:
 
     def test_canonical_install_path(self):
-        from vllm.sndr_core.core.text_patch import _derive_rel_path_from_target
+        from sndr.kernel.text_patch import _derive_rel_path_from_target
         rel = _derive_rel_path_from_target(
             "/usr/local/lib/python3.12/dist-packages/vllm/"
             "model_executor/layers/fla/ops/chunk.py"
@@ -92,7 +92,7 @@ class TestRelPathDerivation:
         `vllm/sndr_core/tests/...` after the `_genesis/` shim removal.
         Before they lived at `vllm/_genesis/tests/pristine_fixtures/`.
         """
-        from vllm.sndr_core.core.text_patch import _derive_rel_path_from_target
+        from sndr.kernel.text_patch import _derive_rel_path_from_target
         rel = _derive_rel_path_from_target(
             "/home/dev/genesis-vllm-patches/vllm/sndr_core/tests/"
             "pristine_fixtures/chunk.py"
@@ -102,15 +102,15 @@ class TestRelPathDerivation:
         assert rel == "sndr_core/tests/pristine_fixtures/chunk.py"
 
     def test_no_vllm_segment_returns_none(self):
-        from vllm.sndr_core.core.text_patch import _derive_rel_path_from_target
+        from sndr.kernel.text_patch import _derive_rel_path_from_target
         assert _derive_rel_path_from_target("/tmp/random/path.py") is None
 
     def test_empty_path_returns_none(self):
-        from vllm.sndr_core.core.text_patch import _derive_rel_path_from_target
+        from sndr.kernel.text_patch import _derive_rel_path_from_target
         assert _derive_rel_path_from_target("") is None
 
     def test_just_vllm_no_suffix(self):
-        from vllm.sndr_core.core.text_patch import _derive_rel_path_from_target
+        from sndr.kernel.text_patch import _derive_rel_path_from_target
         # `/usr/.../vllm` with nothing after — None (degenerate)
         assert _derive_rel_path_from_target("/path/to/vllm") is None
 

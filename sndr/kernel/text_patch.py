@@ -605,6 +605,25 @@ def result_to_wiring_status(
     return "failed", f"{patch_name}: {reason} ({detail})"
 
 
+def marker_present_in_target(patcher: "TextPatcher") -> bool:
+    """True iff the patcher's idempotency ``marker`` is already present in its
+    ``target_file`` — i.e. the patch has been applied.
+
+    Best-effort idempotency probe for ``is_applied()`` hooks: returns False if
+    the marker is empty or the target file is missing/unreadable, so callers
+    never raise from a probe.
+    """
+    marker = getattr(patcher, "marker", "") or ""
+    target = getattr(patcher, "target_file", None)
+    if not marker or not target:
+        return False
+    try:
+        with open(target, "r", encoding="utf-8", errors="ignore") as fh:
+            return marker in fh.read()
+    except OSError:
+        return False
+
+
 # PR38 cleanup (2026-05-08): tests historically imported a few helpers
 # from the legacy `vllm/_genesis/wiring/text_patch.py` monolith that
 # Stage 3 split into siblings (`multi_file.py`, `manifest_cache.py`).

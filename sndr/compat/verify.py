@@ -416,10 +416,7 @@ def _check_preset_for_current_gpu() -> CheckResult:
 def _check_apply_all_dry_run() -> CheckResult:
     """Run apply_all in dry-run mode against the current vllm install."""
     try:
-        from vllm.sndr_core.apply import (
-            run_apply_all,
-            set_apply_mode,
-        )
+        from sndr.apply import run as _run_apply
     except ImportError as e:
         return CheckResult(
             "B1 apply_all dry-run",
@@ -428,8 +425,9 @@ def _check_apply_all_dry_run() -> CheckResult:
         )
 
     try:
-        set_apply_mode(False)  # dry-run
-        results = run_apply_all()
+        # apply=False is the dry-run path (the old set_apply_mode(False)); the
+        # per-patch outcomes live on the returned PatchStats.results.
+        results = _run_apply(verbose=False, apply=False).results
     except Exception as e:  # noqa: BLE001
         return CheckResult(
             "B1 apply_all dry-run",

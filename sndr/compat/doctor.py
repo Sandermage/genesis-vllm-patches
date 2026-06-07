@@ -58,14 +58,15 @@ def _section_hardware() -> dict[str, Any]:
 
     # Fold in our gpu_profile classification if available (datasheet bw/L2/etc)
     try:
-        from vllm.sndr_core.compat.gpu_profile import (
-            detect_gpu_class as _classify,
+        from sndr.runtime.gpu_profile import (
+            detect_current_gpu as _classify,
         )
         if out["gpus"]:
             try:
+                # Datasheet-augmented spec for the live GPU (bw / L2 / arch).
                 out["gpu_class"] = _classify()
             except Exception as e:
-                log.debug("gpu_profile.detect_gpu_class failed: %s", e,
+                log.debug("gpu_profile.detect_current_gpu failed: %s", e,
                           exc_info=True)
     except Exception as e:
         log.debug("torch CUDA section probe failed: %s", e, exc_info=True)

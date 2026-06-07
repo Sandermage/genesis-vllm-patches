@@ -36,7 +36,7 @@ from typing import Any
 
 from fastapi import FastAPI, Request, Response
 
-from ....env import get_sndr_env, get_sndr_env_float, get_sndr_env_int
+from sndr.env import get_sndr_env, get_sndr_env_float, get_sndr_env_int
 from .upstream import UpstreamState, run_health_loop
 
 log = logging.getLogger("genesis.spec_decode.gateway.app")

@@ -65,14 +65,14 @@ def register() -> None:
             )
         try:
             if _G4_19_ENABLED:
-                from vllm.sndr_core.integrations.gemma4 import (
-                    g4_19_gemma4_turboquant_kv_cache as _g4_19,
+                from sndr.engines.vllm.patches.attention.turboquant import (
+                    g4_19_turboquant_kv_cache as _g4_19,
                 )
                 s, m = _g4_19.apply()
                 log.info("[Genesis plugin] G4_19: %s — %s", s, m[:200])
             if _G4_19B_ENABLED:
-                from vllm.sndr_core.integrations.gemma4 import (
-                    g4_19b_gemma4_tq_kv_spec_integration as _g4_19b,
+                from sndr.engines.vllm.patches.attention.turboquant import (
+                    g4_19b_tq_kv_spec_integration as _g4_19b,
                 )
                 s, m = _g4_19b.apply()
                 log.info("[Genesis plugin] G4_19b: %s — %s", s, m[:200])

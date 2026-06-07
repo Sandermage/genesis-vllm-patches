@@ -32,6 +32,7 @@ from sndr.kernel.text_patch import (
     TextPatchFailure,
     TextPatchResult,
     TextPatcher,
+    marker_present_in_target,
     result_to_wiring_status,
 )
 
@@ -41,5 +42,6 @@ __all__ = [
     "TextPatchFailure",
     "TextPatchResult",
     "TextPatcher",
+    "marker_present_in_target",
     "result_to_wiring_status",
 ]
