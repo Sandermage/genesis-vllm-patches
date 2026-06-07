@@ -122,6 +122,30 @@ print(json.dumps(o))
 """
 
 
+def _own_container_id() -> str:
+    """The container id THIS daemon runs in, read from /proc (empty if not in a
+    container). Unlike ``socket.gethostname()`` this works under ``--network
+    host``, where the hostname is the HOST's, not the container id. Used to
+    refuse recreating our own container (which would kill the request)."""
+    import re
+    for path in ("/proc/self/cgroup", "/proc/self/mountinfo"):
+        try:
+            with open(path, encoding="utf-8") as fh:
+                m = re.search(r"[0-9a-f]{64}", fh.read())
+                if m:
+                    return m.group(0)
+        except Exception:
+            continue
+    return ""
+
+
+def _is_management_daemon(name: str) -> bool:
+    """Name looks like the SNDR management daemon (never safe to recreate from
+    the panel — it serves the very request doing the recreate)."""
+    nm = (name or "").lower()
+    return "sndr-daemon" in nm or "sndr_daemon" in nm or nm.endswith("-daemon")
+
+
 def _require_fastapi():
     try:
         from fastapi import Body, FastAPI, Header, HTTPException, Query
@@ -977,6 +1001,49 @@ def create_app(
         _audit("pull", name, source, {"image": result.get("image"), "restarted": bool(payload.get("restart"))})
         return {"ok": True, "container": name, **result}
 
+    def _do_recreate(control, name: str, source: str, payload: dict[str, Any]) -> dict[str, Any]:
+        """Recreate a container so a new (or rolled-back) image actually takes
+        effect — unlike a plain restart. Guarded: never recreates the management
+        daemon from itself (it would kill the request), and never engines (those
+        follow the pin policy / manual commands). Records the prior image so a
+        rollback can recreate from it."""
+        from . import container_ops as _co, update_prefs
+        # Self-protection — NEVER recreate the daemon's own container (it serves
+        # this request). Two independent checks, because a single one is brittle:
+        #   1) name looks like a management daemon (covers a remote daemon too),
+        #   2) the target id == our own container id read from /proc (robust
+        #      under --network host, where gethostname() is the HOST's name).
+        if _is_management_daemon(name):
+            raise HTTPException(status_code=400,
+                                detail="the SNDR management daemon can't be recreated from the panel — recreate it from the host / reinstall the node")
+        inspect = _container_op(lambda: control.inspect(name))
+        cid = str(inspect.get("Id") or "")
+        own = _own_container_id()
+        if own and cid and (cid == own or cid.startswith(own) or own.startswith(cid)):
+            raise HTTPException(status_code=400,
+                                detail="cannot recreate the management daemon from itself — recreate it from the host")
+        image = str((inspect.get("Config") or {}).get("Image") or "")
+        if _is_engine_container(name, image):
+            raise HTTPException(status_code=400,
+                                detail="vLLM engines update via the pin policy (manual commands), not in-panel recreate")
+        gate = _co.gate_lifecycle(apply_on=apply_on, confirm=bool(payload.get("confirm")))
+        if not gate.allowed:
+            raise HTTPException(status_code=gate.status, detail=gate.reason)
+        if payload.get("rollback"):
+            prev = update_prefs.get_previous(source, name)
+            if not prev:
+                raise HTTPException(status_code=400, detail="no previous image recorded for rollback")
+            result = _container_op(lambda: control.recreate(name, image=prev))
+            _audit("rollback", name, source, {"image": result.get("image")})
+            return {"ok": True, "container": name, "rolled_back": True, **result}
+        # apply latest: remember the running image as 'previous', pull, recreate
+        prev_running = str(inspect.get("Image") or "")
+        _container_op(lambda: control.pull(name))
+        result = _container_op(lambda: control.recreate(name))
+        update_prefs.set_previous(source, name, prev_running)
+        _audit("recreate", name, source, {"image": result.get("image")})
+        return {"ok": True, "container": name, **result}
+
     def _require_apply(detail: str) -> None:
         if not apply_on:
             raise HTTPException(status_code=403, detail=detail)
@@ -1113,6 +1180,8 @@ def create_app(
             "update_available": update_available,
             "running_image_id": running_sha[:19],
             "latest_image_id": latest_sha[:19],
+            # Rollback availability — a prior image was recorded at last update.
+            "has_previous": bool(update_prefs.get_previous(source, name)),
         }
 
     def _do_set_update_mode(control, name: str, source: str, payload: dict[str, Any]) -> dict[str, Any]:
@@ -1236,6 +1305,10 @@ def create_app(
     async def container_pull(name: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
         return _do_pull(_local_control(), name, payload, source="local")
 
+    @app.post("/api/v1/containers/{name}/recreate")
+    async def container_recreate(name: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+        return _do_recreate(_local_control(), name, "local", payload)
+
     @app.get("/api/v1/containers/{name}/scan")
     async def container_scan(name: str) -> dict[str, Any]:
         return _container_op(lambda: _local_control().scan_image(name))
@@ -1336,6 +1409,10 @@ def create_app(
     @app.post("/api/v1/hosts/{host_id}/containers/{name}/pull")
     async def host_container_pull(host_id: str, name: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
         return _do_pull(_host_control(host_id), name, payload, source=host_id)
+
+    @app.post("/api/v1/hosts/{host_id}/containers/{name}/recreate")
+    async def host_container_recreate(host_id: str, name: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+        return _do_recreate(_host_control(host_id), name, host_id, payload)
 
     @app.get("/api/v1/hosts/{host_id}/containers/{name}/scan")
     async def host_container_scan(host_id: str, name: str) -> dict[str, Any]:

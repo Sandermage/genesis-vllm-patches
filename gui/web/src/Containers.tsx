@@ -1200,21 +1200,29 @@ function UpdatePanel({ source, name, onClose }: { source: ContainerSource; name:
 
   async function guardedUpdate() {
     setBusy(true); setErr(null); setDone(null);
-    try { const r = await api.containerPull(source, name, true); setDone(`Pulled ${r.image}${r.restarted ? " and restarted" : ""}.`); }
+    // Recreate (not pull+restart): a plain restart re-runs the SAME image.
+    try { const r = await api.containerRecreate(source, name); setDone(`Recreated onto ${r.image}.`); }
     catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(false); }
   }
 
   async function downloadOnly() {
     setBusy(true); setErr(null); setDone(null);
-    try { const r = await api.containerPull(source, name, false); setDone(`Downloaded ${r.image} — click Apply (restart) when ready.`); }
+    try { const r = await api.containerPull(source, name, false); setDone(`Downloaded ${r.image} — click Apply (recreate) when ready.`); }
     catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(false); }
   }
 
   async function applyRestart() {
     setBusy(true); setErr(null); setDone(null);
-    try { await api.containerAction(source, name, "restart"); setDone("Restarted onto the downloaded image."); }
+    try { const r = await api.containerRecreate(source, name); setDone(`Applied — recreated onto ${r.image}.`); }
+    catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
+    finally { setBusy(false); }
+  }
+
+  async function rollback() {
+    setBusy(true); setErr(null); setDone(null);
+    try { const r = await api.containerRecreate(source, name, true); setDone(`Rolled back onto ${r.image}.`); }
     catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(false); }
   }
@@ -1246,20 +1254,27 @@ function UpdatePanel({ source, name, onClose }: { source: ContainerSource; name:
             <div className="upd">
               {mode === "semi" ? (
                 <>
-                  <p className="upd-note">Semi-auto: download <code>{plan.image}</code> now, then apply (restart) when ready.</p>
+                  <p className="upd-note">Semi-auto: download <code>{plan.image}</code> now, then apply (recreate) when ready.</p>
                   <div className="upd-actions">
                     <button className="ghost-button" disabled={busy} onClick={downloadOnly}>{busy ? <Loader2 size={13} className="spin" /> : <DownloadCloud size={13} />} Download now</button>
-                    <button className="primary-button" disabled={busy} onClick={applyRestart}><RotateCw size={13} /> Apply (restart)</button>
+                    <button className="primary-button" disabled={busy} onClick={applyRestart}><RotateCw size={13} /> Apply (recreate)</button>
                   </div>
                 </>
               ) : (
                 <>
-                  <p className="upd-note">{mode === "auto" ? <>Automatic — the daemon applies on schedule. You can also apply <code>{plan.image}</code> now:</> : <>Pull the latest <code>{plan.image}</code> and restart the container.</>}</p>
-                  <button className="primary-button" disabled={busy} onClick={guardedUpdate}>{busy ? <Loader2 size={13} className="spin" /> : <DownloadCloud size={13} />} Pull image + restart</button>
+                  <p className="upd-note">{mode === "auto" ? <>Automatic — the daemon applies on schedule. You can also apply <code>{plan.image}</code> now:</> : <>Pull the latest <code>{plan.image}</code> and recreate the container (a plain restart keeps the old image).</>}</p>
+                  <button className="primary-button" disabled={busy} onClick={guardedUpdate}>{busy ? <Loader2 size={13} className="spin" /> : <DownloadCloud size={13} />} Pull image + recreate</button>
                 </>
               )}
+              <div className="upd-actions">
+                {plan.has_previous && (
+                  <button className="ghost-button" disabled={busy} onClick={rollback} title="Recreate from the image that ran before the last update">
+                    <RotateCw size={13} /> Roll back to previous
+                  </button>
+                )}
+              </div>
               {done && <div className="upd-done">{done}</div>}
-              <p className="upd-hint">Requires the daemon to run with apply enabled (SNDR_ENABLE_APPLY=1).</p>
+              <p className="upd-hint">Recreate = stop + recreate with the same config so the new image takes effect. Requires apply enabled (SNDR_ENABLE_APPLY=1).</p>
             </div>
           )}
           </>

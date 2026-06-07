@@ -504,6 +504,19 @@ class ContainerControl(ABC):
 
     def _raw_image_id(self, ref: str) -> str:  # overridden by socket / ssh controls
         return ""
+
+    # Recreate = stop + remove + create-with-same-config + start, so a new (or a
+    # rolled-back) image actually takes effect — a plain restart re-runs the same
+    # image. Only the socket control implements it (it can rebuild the create
+    # payload from inspect); others raise so the caller falls back to manual.
+    def recreate(self, name: str, *, image: Optional[str] = None) -> dict[str, Any]:
+        self._ensure(name)
+        return self._raw_recreate(name, image=image)
+
+    def _raw_recreate(self, name: str, *, image: Optional[str] = None) -> dict[str, Any]:
+        raise ContainerOpError(
+            "in-place recreate is not supported for this container source — "
+            "recreate it from the host (or via its start script)", status=400)
     @abstractmethod
     def _raw_list_stats(self) -> dict[str, dict[str, Any]]: ...
     @abstractmethod
@@ -971,6 +984,53 @@ class SocketContainerControl(ContainerControl):
         if status == 200 and isinstance(data, dict):
             return str(data.get("Id") or "")
         return ""
+
+    def _raw_recreate(self, name: str, *, image: Optional[str] = None) -> dict[str, Any]:
+        from urllib.parse import quote
+        insp = self._raw_inspect(name)
+        cfg = dict(insp.get("Config") or {})
+        host_cfg = dict(insp.get("HostConfig") or {})
+        prev_image_id = str(insp.get("Image") or "")
+        target = image or cfg.get("Image")
+        cfg["Image"] = target
+        # Drop inspect-only keys the create API derives itself, so the new
+        # container gets a fresh hostname rather than the old container id.
+        for k in ("Hostname", "Domainname"):
+            cfg.pop(k, None)
+        body: dict[str, Any] = {**cfg, "HostConfig": host_cfg}
+        # Re-attach named networks (skip host/none/container modes — those carry
+        # no per-endpoint config and the API rejects an EndpointsConfig for them).
+        net_mode = str(host_cfg.get("NetworkMode") or "")
+        nets = (insp.get("NetworkSettings") or {}).get("Networks") or {}
+        if nets and net_mode not in ("host", "none") and not net_mode.startswith("container:"):
+            body["NetworkingConfig"] = {"EndpointsConfig": {k: {} for k in nets}}
+        bak = f"{name}__sndrbak"
+        # Free the name + port bindings: stop the old, move it aside.
+        self._raw_lifecycle(name, "stop")
+        s_rn, _ = self._json("POST", f"/containers/{name}/rename?name={quote(bak)}")
+        if s_rn not in (200, 204):
+            self._raw_lifecycle(name, "start")
+            raise ContainerOpError(f"recreate: could not rename old container ({s_rn})")
+        created = False
+        try:
+            s_cr, body_cr = self._json("POST", f"/containers/create?name={quote(name)}", body)
+            if s_cr not in (200, 201):
+                raise ContainerOpError(f"recreate: create returned {s_cr}: {str(body_cr)[:200]}")
+            created = True
+            self._raw_lifecycle(name, "start")
+        except Exception:
+            # Restore the original so nothing is lost.
+            if created:
+                self._json("DELETE", f"/containers/{quote(name)}?force=1")
+            self._json("POST", f"/containers/{quote(bak)}/rename?name={quote(name)}")
+            try:
+                self._raw_lifecycle(name, "start")
+            except Exception:
+                pass
+            raise
+        # Success — discard the backup.
+        self._json("DELETE", f"/containers/{quote(bak)}?force=1")
+        return {"recreated": True, "image": target, "previous_image_id": prev_image_id}
 
     def _raw_logs(self, name: str, *, tail: int) -> str:
         status, raw = self._transport(

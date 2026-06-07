@@ -1078,6 +1078,7 @@ export interface ContainerUpdatePlan {
   guarded_update: boolean; policy: string; commands: string[];
   mode: UpdateMode; is_critical: boolean; modes: UpdateMode[];
   update_available?: boolean; running_image_id?: string; latest_image_id?: string;
+  has_previous?: boolean;
 }
 export interface ImageScan {
   available: boolean; image: string; reason?: string; scanner?: string;
@@ -1431,6 +1432,11 @@ export const api = {
   containerSetUpdateMode: (src: ContainerSource, name: string, mode: UpdateMode) =>
     postJson<{ ok: boolean; mode: UpdateMode; error: string | null }>(
       `${containerBase(src)}/${encodeURIComponent(name)}/update-mode`, { mode }),
+  // Recreate (stop+rm+create+start) so a new — or rolled-back — image actually
+  // takes effect. Guarded server-side: refused for the management daemon + engines.
+  containerRecreate: (src: ContainerSource, name: string, rollback = false) =>
+    postJson<{ ok: boolean; container: string; recreated?: boolean; image?: string; rolled_back?: boolean; previous_image_id?: string }>(
+      `${containerBase(src)}/${encodeURIComponent(name)}/recreate`, { confirm: true, rollback }),
   containerScan: (src: ContainerSource, name: string) =>
     request<ImageScan>(`${containerBase(src)}/${encodeURIComponent(name)}/scan`),
   containerSource: (src: ContainerSource, name: string) =>

@@ -67,17 +67,40 @@ def get_mode(source: str, container: str) -> str:
     return normalize_mode(entry.get("mode"))
 
 
+def _update(source: str, container: str, **fields) -> dict:
+    with _lock:
+        data = _load()
+        entry = dict(data.get(_key(source, container)) or {})
+        entry.update(fields)
+        data[_key(source, container)] = entry
+        _save(data)
+        return entry
+
+
 def set_mode(source: str, container: str, mode: str, *, is_critical: bool = False) -> dict:
     """Persist the update mode. ``auto`` is refused for critical containers."""
     m = normalize_mode(mode)
     if m == "auto" and is_critical:
         return {"ok": False, "mode": get_mode(source, container),
                 "error": "automatic updates are blocked for critical containers (e.g. vLLM engines) — use manual or semi"}
-    with _lock:
-        data = _load()
-        data[_key(source, container)] = {"mode": m}
-        _save(data)
+    _update(source, container, mode=m)
     return {"ok": True, "mode": m, "error": None}
 
 
-__all__ = ["VALID_MODES", "DEFAULT_MODE", "get_mode", "set_mode", "normalize_mode"]
+def set_previous(source: str, container: str, image_id: str) -> None:
+    """Record the image a container ran BEFORE an update, so we can roll back to
+    it. Retained until the next successful update overwrites it (the image must
+    still exist locally — don't prune between update and a possible rollback)."""
+    if image_id:
+        _update(source, container, previous_image=image_id)
+
+
+def get_previous(source: str, container: str) -> Optional[str]:
+    with _lock:
+        entry = _load().get(_key(source, container)) or {}
+    val = entry.get("previous_image")
+    return val if isinstance(val, str) and val else None
+
+
+__all__ = ["VALID_MODES", "DEFAULT_MODE", "get_mode", "set_mode",
+           "set_previous", "get_previous", "normalize_mode"]

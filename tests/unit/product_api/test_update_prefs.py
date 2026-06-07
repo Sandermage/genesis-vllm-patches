@@ -47,3 +47,19 @@ def test_keys_do_not_collide_across_sources():
     up.set_mode("host-a", "c1", "auto")
     assert up.get_mode("local", "c1") == "semi"
     assert up.get_mode("host-a", "c1") == "auto"
+
+
+def test_previous_image_roundtrip_and_default():
+    assert up.get_previous("local", "c2") is None
+    up.set_previous("local", "c2", "sha256:abc123")
+    assert up.get_previous("local", "c2") == "sha256:abc123"
+    # empty is ignored (never clobbers a real previous)
+    up.set_previous("local", "c2", "")
+    assert up.get_previous("local", "c2") == "sha256:abc123"
+
+
+def test_mode_and_previous_coexist():
+    up.set_mode("local", "c3", "semi")
+    up.set_previous("local", "c3", "sha256:deadbeef")
+    assert up.get_mode("local", "c3") == "semi"
+    assert up.get_previous("local", "c3") == "sha256:deadbeef"
