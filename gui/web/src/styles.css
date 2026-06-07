@@ -3973,6 +3973,20 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 .k8s-tabs button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 .k8s-restarts { color: var(--warn, #d97706); font-weight: 700; }
 .k8s-evmsg { max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; }
+.k8s-intro { border: 1px solid var(--border); border-radius: var(--r-md, 10px); background: var(--surface-2); margin-bottom: 14px; overflow: hidden; }
+.k8s-intro-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px; cursor: pointer; font-size: 12.5px; }
+.k8s-intro-head svg:first-child { color: var(--accent); flex: none; }
+.k8s-intro-head span { flex: 1; }
+.k8s-intro-head .rot { transform: rotate(180deg); transition: transform .15s; }
+.k8s-intro-body { padding: 4px 14px 14px 34px; display: flex; flex-direction: column; gap: 8px; font-size: 12.5px; line-height: 1.5; color: var(--text-muted); border-top: 1px solid var(--border); }
+.k8s-intro-body b { color: var(--text); }
+.k8s-deploy { display: flex; flex-direction: column; gap: 12px; }
+.k8s-deploy-bar { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
+.k8s-deploy-bar label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--text-muted); font-weight: 600; }
+.k8s-deploy-bar select { min-width: 280px; }
+.k8s-deploy-cmds { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; }
+.k8s-deploy-cmds code { font-family: var(--mono); background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 3px 8px; }
+.k8s-yaml { max-height: 460px; overflow: auto; margin: 0; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--r-md, 10px); background: var(--surface-inset, var(--surface-2)); font-family: var(--mono); font-size: 11.5px; line-height: 1.5; white-space: pre; }
 .upd-avail-banner {
   display: flex; align-items: center; gap: 6px; font-size: 12.5px;
   padding: 8px 12px; margin-bottom: 12px; border-radius: var(--r-md, 10px);

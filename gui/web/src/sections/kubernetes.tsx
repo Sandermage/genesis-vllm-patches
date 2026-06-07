@@ -2,11 +2,12 @@
 // Kubernetes mode (read-only, P1) — cluster status + nodes with GPU. Degrades to
 // a clear "connect a cluster" card when no kubeconfig/client is configured (the
 // operator's setup is Docker by default, so this is the common state).
-import { useEffect, useState } from "react";
-import { Boxes, Cpu, RefreshCw, Loader2, AlertTriangle, ShieldCheck, ShieldAlert, Server } from "lucide-react";
-import { api, type K8sStatus, type K8sNode, type K8sPod, type K8sEvent } from "../api";
+import { useEffect, useState, type ReactNode } from "react";
+import { Boxes, Cpu, RefreshCw, Loader2, AlertTriangle, ShieldCheck, ShieldAlert, Server, Info, ChevronDown, Rocket, Copy } from "lucide-react";
+import { api, type K8sStatus, type K8sNode, type K8sPod, type K8sEvent, type DeploymentPlan } from "../api";
+import { onKeyActivate } from "../dialog";
 
-type K8sTab = "nodes" | "pods" | "events";
+type K8sTab = "nodes" | "pods" | "events" | "deploy";
 
 export function KubernetesPanel() {
   const [status, setStatus] = useState<K8sStatus | null>(null);
@@ -31,75 +32,155 @@ export function KubernetesPanel() {
   }
   useEffect(() => { void load(); }, []);
 
+  const clusterGated = (body: ReactNode) =>
+    !status ? <div className="containers-empty"><Loader2 size={20} className="spin" /></div>
+      : !status.available ? <ConnectCard error={status.error} /> : body;
+
   return (
     <div className="k8s">
       <div className="section-head">
-        <div><h2><Boxes size={18} /> Kubernetes</h2><p className="muted">Read-only cluster view — honours your kubeconfig &amp; RBAC.</p></div>
+        <div><h2><Boxes size={18} /> Kubernetes</h2><p className="muted">Monitor your cluster and deploy vLLM to it — honours your kubeconfig &amp; RBAC.</p></div>
         <button className="ghost-button" onClick={() => void load()} disabled={loading}>
           {loading ? <Loader2 size={14} className="spin" /> : <RefreshCw size={14} />} Refresh
         </button>
       </div>
 
+      <K8sIntro available={status?.available} />
       {err && <div className="containers-err"><AlertTriangle size={13} /> {err}</div>}
 
-      {!status ? <div className="containers-empty"><Loader2 size={20} className="spin" /></div>
-        : !status.available ? (
-          <div className="k8s-disconnected">
-            <Server size={24} />
-            <strong>No cluster connected</strong>
-            <p className="muted">{status.error}</p>
-            <p className="upd-hint">Install the client and point the daemon at a kubeconfig:</p>
-            <code className="apply-gate-cmd">pip install 'vllm-sndr-core[k8s]'  ·  export KUBECONFIG=/path/to/config</code>
+      {status?.available && (
+        <div className="k8s-kpis">
+          <Kpi label="Server" value={status.version ?? "—"} />
+          <Kpi label="Nodes" value={`${status.nodes_ready ?? 0}/${status.node_count ?? 0} ready`} />
+          <Kpi label="GPU nodes" value={String(status.gpu_node_count ?? 0)} accent />
+          <Kpi label="Namespaces" value={String(status.namespace_count ?? 0)} />
+        </div>
+      )}
+
+      <div className="k8s-tabs">
+        {(["nodes", "pods", "events", "deploy"] as K8sTab[]).map((t) => (
+          <button key={t} className={tab === t ? "active" : ""} onClick={() => setTab(t)}>
+            {t === "deploy" ? "deploy vLLM" : t}
+            {t === "nodes" && nodes ? ` (${nodes.length})` : ""}{t === "pods" && pods ? ` (${pods.length})` : ""}
+            {t === "events" && events ? ` (${events.filter((e) => e.type === "Warning").length}⚠)` : ""}
+          </button>
+        ))}
+      </div>
+
+      {tab === "deploy" && <K8sDeploy />}
+
+      {tab === "nodes" && clusterGated(
+        <div className="containers-table-wrap">
+          <table className="containers-table">
+            <thead><tr><th>Node</th><th>Status</th><th>Roles</th><th>Kubelet</th><th>GPU (free / alloc)</th><th>GPU labels</th><th>Taints</th></tr></thead>
+            <tbody>{(nodes ?? []).map((n) => <NodeRow key={n.name} n={n} />)}</tbody>
+          </table>
+          {nodes && nodes.length === 0 && <div className="containers-empty"><strong>Cluster has no nodes</strong></div>}
+        </div>
+      )}
+      {tab === "pods" && clusterGated(
+        <div className="containers-table-wrap">
+          <table className="containers-table">
+            <thead><tr><th>Pod</th><th>Namespace</th><th>Phase</th><th>Ready</th><th>Restarts</th><th>GPU</th><th>Node</th></tr></thead>
+            <tbody>{(pods ?? []).map((p) => <PodRow key={`${p.namespace}/${p.name}`} p={p} />)}</tbody>
+          </table>
+          {pods && pods.length === 0 && <div className="containers-empty"><strong>No pods</strong></div>}
+        </div>
+      )}
+      {tab === "events" && clusterGated(
+        <div className="containers-table-wrap">
+          <table className="containers-table">
+            <thead><tr><th>Type</th><th>Reason</th><th>Object</th><th>Message</th><th>×</th></tr></thead>
+            <tbody>{(events ?? []).map((e, i) => <EventRow key={i} e={e} />)}</tbody>
+          </table>
+          {events && events.length === 0 && <div className="containers-empty"><strong>No recent events</strong></div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ConnectCard({ error }: { error: string | null }) {
+  return (
+    <div className="k8s-disconnected">
+      <Server size={24} />
+      <strong>No cluster connected</strong>
+      <p className="muted">{error}</p>
+      <p className="upd-hint">Install the client and point the daemon at a kubeconfig (the Deploy tab works without a cluster):</p>
+      <code className="apply-gate-cmd">pip install 'vllm-sndr-core[k8s]'  ·  export KUBECONFIG=/path/to/config</code>
+    </div>
+  );
+}
+
+// What k8s mode is + the GPU prerequisites — so it's a real, explained option.
+function K8sIntro({ available }: { available?: boolean }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="k8s-intro">
+      <div className="k8s-intro-head" role="button" tabIndex={0} onClick={() => setOpen((v) => !v)} onKeyDown={onKeyActivate(() => setOpen((v) => !v))}>
+        <Info size={14} />
+        <span><strong>Run vLLM on Kubernetes</strong> — {available ? "monitor this cluster (nodes · pods · events) and deploy presets to it." : "generate a ready-to-apply manifest from any preset; connect a kubeconfig to also monitor the cluster."}</span>
+        <ChevronDown size={15} className={open ? "rot" : ""} />
+      </div>
+      {open && (
+        <div className="k8s-intro-body">
+          <p><b>Monitor</b> — the Nodes / Pods / Events tabs read the cluster through your kubeconfig (your RBAC, never a god-mode account). Nodes show <code>nvidia.com/gpu</code> capacity / allocatable / requested / free; Events surface <code>FailedScheduling: Insufficient nvidia.com/gpu</code> so you see why a pod is stuck pending.</p>
+          <p><b>Deploy</b> — pick a preset on the Deploy tab to render a complete manifest (ConfigMap + Service + PVC + Deployment with GPU limits, node tolerations and health probes), then <code>kubectl apply</code> it. No live cluster needed to generate it.</p>
+          <p><b>GPU prerequisite</b> — for the scheduler to place GPU pods, the cluster needs the NVIDIA device plugin (or the gpu-operator) so nodes advertise <code>nvidia.com/gpu</code>. Without it a GPU pod stays Pending (and the Events tab shows exactly that).</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function K8sDeploy() {
+  const [presets, setPresets] = useState<{ id: string; label: string }[]>([]);
+  const [preset, setPreset] = useState("");
+  const [plan, setPlan] = useState<DeploymentPlan | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    api.presets({}).then((r) => {
+      const items = r.presets.map((p) => ({ id: p.id, label: `${p.id} · ${p.model}` }));
+      setPresets(items);
+      if (items[0]) setPreset(items[0].id);
+    }).catch((e) => setErr(e instanceof Error ? e.message : String(e)));
+  }, []);
+  async function generate() {
+    if (!preset) return;
+    setBusy(true); setErr(null); setPlan(null);
+    try { setPlan(await api.deployPlan({ preset_id: preset, target: "kubernetes" })); }
+    catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
+    finally { setBusy(false); }
+  }
+  const yaml = plan?.artifact?.content ?? "";
+  return (
+    <div className="k8s-deploy">
+      <div className="k8s-deploy-bar">
+        <label>Preset
+          <select value={preset} onChange={(e) => setPreset(e.target.value)} aria-label="Preset to deploy">
+            {presets.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+          </select>
+        </label>
+        <button className="primary-button" disabled={!preset || busy} onClick={() => void generate()}>
+          {busy ? <Loader2 size={14} className="spin" /> : <Rocket size={14} />} Generate manifest
+        </button>
+      </div>
+      {err && <div className="containers-err"><AlertTriangle size={13} /> {err}</div>}
+      {plan && (
+        <>
+          <div className="k8s-deploy-cmds">
+            <span className="muted">Apply &amp; watch:</span>
+            <code>kubectl apply -f {plan.artifact.filename}</code>
+            <code>kubectl rollout status deploy/sndr-{plan.preset_id.slice(0, 30)}</code>
+            <button className="ghost-button" onClick={() => { navigator.clipboard?.writeText(yaml); setCopied(true); window.setTimeout(() => setCopied(false), 1500); }}>
+              {copied ? <ShieldCheck size={13} /> : <Copy size={13} />} {copied ? "copied" : "copy YAML"}
+            </button>
           </div>
-        ) : (
-          <>
-            <div className="k8s-kpis">
-              <Kpi label="Server" value={status.version ?? "—"} />
-              <Kpi label="Nodes" value={`${status.nodes_ready ?? 0}/${status.node_count ?? 0} ready`} />
-              <Kpi label="GPU nodes" value={String(status.gpu_node_count ?? 0)} accent />
-              <Kpi label="Namespaces" value={String(status.namespace_count ?? 0)} />
-            </div>
-
-            <div className="k8s-tabs">
-              {(["nodes", "pods", "events"] as K8sTab[]).map((t) => (
-                <button key={t} className={tab === t ? "active" : ""} onClick={() => setTab(t)}>
-                  {t}{t === "nodes" && nodes ? ` (${nodes.length})` : ""}{t === "pods" && pods ? ` (${pods.length})` : ""}
-                  {t === "events" && events ? ` (${events.filter((e) => e.type === "Warning").length}⚠)` : ""}
-                </button>
-              ))}
-            </div>
-
-            {tab === "nodes" && (
-              <div className="containers-table-wrap">
-                <table className="containers-table">
-                  <thead><tr><th>Node</th><th>Status</th><th>Roles</th><th>Kubelet</th><th>GPU (free / alloc)</th><th>GPU labels</th><th>Taints</th></tr></thead>
-                  <tbody>{(nodes ?? []).map((n) => <NodeRow key={n.name} n={n} />)}</tbody>
-                </table>
-                {nodes && nodes.length === 0 && <div className="containers-empty"><strong>Cluster has no nodes</strong></div>}
-              </div>
-            )}
-
-            {tab === "pods" && (
-              <div className="containers-table-wrap">
-                <table className="containers-table">
-                  <thead><tr><th>Pod</th><th>Namespace</th><th>Phase</th><th>Ready</th><th>Restarts</th><th>GPU</th><th>Node</th></tr></thead>
-                  <tbody>{(pods ?? []).map((p) => <PodRow key={`${p.namespace}/${p.name}`} p={p} />)}</tbody>
-                </table>
-                {pods && pods.length === 0 && <div className="containers-empty"><strong>No pods</strong></div>}
-              </div>
-            )}
-
-            {tab === "events" && (
-              <div className="containers-table-wrap">
-                <table className="containers-table">
-                  <thead><tr><th>Type</th><th>Reason</th><th>Object</th><th>Message</th><th>×</th></tr></thead>
-                  <tbody>{(events ?? []).map((e, i) => <EventRow key={i} e={e} />)}</tbody>
-                </table>
-                {events && events.length === 0 && <div className="containers-empty"><strong>No recent events</strong></div>}
-              </div>
-            )}
-          </>
-        )}
+          <pre className="k8s-yaml"><code>{yaml}</code></pre>
+        </>
+      )}
     </div>
   );
 }

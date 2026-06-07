@@ -1,1 +1,0 @@
-import{an as e}from"./index-Cn9O4EC2.js";var t=e(`ArrowUp`,[[`path`,{d:`m5 12 7-7 7 7`,key:`hav0vg`}],[`path`,{d:`M12 19V5`,key:`x0mq9r`}]]);export{t};
