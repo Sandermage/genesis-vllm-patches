@@ -3892,7 +3892,14 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 .upd-seg .seg-btn:hover:not(:disabled):not(.active) { background: var(--surface-2); color: var(--text); }
 .upd-seg .seg-btn.active { background: var(--accent); color: #fff; }
 .upd-seg .seg-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.upd-seg .seg-btn.blocked { color: var(--text-muted); }
+.upd-seg .seg-btn.blocked { color: var(--text-muted); display: inline-flex; align-items: center; gap: 4px; }
+.upd-lock-note {
+  display: flex; gap: 8px; align-items: flex-start; font-size: 12px; line-height: 1.45;
+  padding: 9px 12px; border-radius: var(--r-md, 10px); color: var(--text);
+  background: color-mix(in srgb, var(--warn, #f59e0b) 11%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warn, #f59e0b) 38%, transparent);
+}
+.upd-lock-note svg { flex: none; margin-top: 1px; color: var(--warn, #d97706); }
 .upd-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .stats-gpu { margin-top: 14px; }
 .stats-gpu-head { display: flex; align-items: center; gap: 6px; font-size: 12px; margin-bottom: 8px; }
@@ -4101,7 +4108,9 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 .ccard {
   position: relative; overflow: hidden; display: flex; flex-direction: column; gap: var(--sp-2);
   min-height: 234px; padding: var(--sp-3) var(--sp-4); padding-left: calc(var(--sp-4) + 5px);
-  border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border); border-radius: var(--r-lg);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface-2) 30%, var(--surface)), var(--surface));
+  box-shadow: var(--shadow-sm);
   transition: box-shadow .16s ease, transform .16s ease, border-color .16s ease;
 }
 .ccard:hover { box-shadow: var(--shadow); transform: translateY(-2px); border-color: color-mix(in srgb, var(--accent) 30%, var(--border)); }
@@ -4120,6 +4129,20 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 }
 .ccard-ver-chip.vllm { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 38%, transparent); }
 .ccard-ver-chip.sndr { color: var(--ok, #16a34a); border-color: color-mix(in srgb, var(--ok, #16a34a) 38%, transparent); }
+/* Container-kind avatar — a colour-coded rounded icon for instant identity. */
+.ccard-avatar {
+  position: relative; flex: none; display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: 9px; color: #fff;
+  background: linear-gradient(135deg, var(--text-muted), color-mix(in srgb, var(--text-muted) 70%, #000));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 1px 2px rgba(0,0,0,.2);
+}
+.ccard-avatar.engine { background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 92%, #fff), color-mix(in srgb, var(--accent) 70%, #000)); }
+.ccard-avatar.daemon { background: linear-gradient(135deg, color-mix(in srgb, var(--ok, #16a34a) 92%, #fff), color-mix(in srgb, var(--ok, #16a34a) 65%, #000)); }
+.ccard-avatar.generic { background: linear-gradient(135deg, color-mix(in srgb, var(--info, #3b82f6) 90%, #fff), color-mix(in srgb, var(--info, #3b82f6) 68%, #000)); }
+.ccard-avatar-dot { position: absolute; right: -2px; bottom: -2px; width: 9px; height: 9px; border-radius: 50%; border: 2px solid var(--surface); background: var(--text-muted); }
+.ccard-avatar-dot.online { background: var(--ok); }
+.ccard-avatar-dot.partial { background: var(--warn); }
+.ccard-avatar-dot.offline { background: var(--danger); }
 .container-dot.online { background: var(--ok); box-shadow: 0 0 6px var(--ok); animation: dot-pulse 2.2s ease-in-out infinite; }
 @keyframes dot-pulse { 0%, 100% { box-shadow: 0 0 4px var(--ok); } 50% { box-shadow: 0 0 9px var(--ok); } }
 
@@ -4142,7 +4165,8 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 .ccard-id { opacity: 0.65; }
 
 .ccard-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2); }
-.ccard-metric { background: var(--surface-inset); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 7px 9px 5px; }
+.ccard-metric { background: var(--surface-inset); border: 1px solid var(--border); border-radius: var(--r-md, 10px); padding: 8px 10px 6px; transition: border-color .14s; }
+.ccard:hover .ccard-metric { border-color: color-mix(in srgb, var(--border) 60%, var(--accent)); }
 .ccard-metric-h { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 3px; }
 .ccard-metric-h span { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); font-weight: 700; }
 .ccard-metric-h b { font-size: 15px; font-variant-numeric: tabular-nums; }

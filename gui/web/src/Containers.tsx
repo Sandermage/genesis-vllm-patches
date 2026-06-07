@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity, AlertTriangle, ArrowDownUp, ArrowLeft, ArrowUp, Bell, Box, Boxes, ChevronRight,
   Clock, Copy, Cpu, Database, Download, DownloadCloud, File as FileIcon, FileArchive, FileCode,
-  FileText, Folder, GitCompare, HardDrive, Heart, Home, Layers, LayoutGrid, List, Loader2, MemoryStick, MoreVertical,
+  FileText, Folder, GitCompare, HardDrive, Heart, Home, Layers, LayoutGrid, List, Loader2, Lock, MemoryStick, MoreVertical,
   Network, Play, RefreshCw, RotateCw, Search, Send, Server, Settings, ShieldAlert, ShieldCheck,
   Square, TerminalSquare, Wrench, X,
 } from "lucide-react";
@@ -464,6 +464,11 @@ function ContainerCard({ c, source, stats, history, busy, selected, onToggleSele
   const ports = (c.ports || "").split(",").map((p) => p.trim()).filter(Boolean);
   const [menu, setMenu] = useState(false);
   const acting = busy?.startsWith(`${c.name}:`) ?? false;
+  // Visual identity by container kind (like CasaOS app icons): a GPU engine, the
+  // management daemon, or a generic managed container.
+  const kind = /sndr[-_]?daemon/i.test(c.name) ? "daemon"
+    : /vllm/i.test(`${c.name} ${c.image}`) ? "engine" : "generic";
+  const KindIcon = kind === "engine" ? Cpu : kind === "daemon" ? ShieldCheck : Box;
   // At-a-glance update status, fetched lazily per card (cheap: local inspect +
   // image-id) so the operator sees what needs updating without opening each one.
   const [upd, setUpd] = useState<ContainerUpdatePlan | null>(null);
@@ -485,7 +490,10 @@ function ContainerCard({ c, source, stats, history, busy, selected, onToggleSele
           <input type="checkbox" className="ccard-select" checked={!!selected} onChange={onToggleSelect}
             aria-label={`Select ${c.name}`} onClick={(e) => e.stopPropagation()} />
         )}
-        <span className={`container-dot ${st}`} />
+        <span className={`ccard-avatar ${kind}`} title={kind === "engine" ? "vLLM engine" : kind === "daemon" ? "Management daemon" : "Managed container"}>
+          <KindIcon size={15} />
+          <span className={`ccard-avatar-dot ${st}`} />
+        </span>
         <span className="ccard-name" title={c.name} role="button" tabIndex={0} onClick={() => onOpen()} onKeyDown={onKeyActivate(() => onOpen())}>{c.name}</span>
         <span className={`container-badge ${st}`}>{c.state || "—"}</span>
         {upd?.update_available && (
@@ -1289,12 +1297,22 @@ function UpdateModeSelector({ plan, mode, onChange, busy }: { plan: ContainerUpd
               className={`seg-btn ${mode === m ? "active" : ""}${blocked ? " blocked" : ""}`}
               title={blocked ? "Critical container (vLLM engine) — automatic updates are blocked by the pin policy" : MODE_DESC[m]}
               onClick={() => onChange(m)}>
-              {MODE_LABEL[m]}{blocked && " 🔒"}
+              {MODE_LABEL[m]}{blocked && <Lock size={11} />}
             </button>
           );
         })}
       </div>
       <p className="upd-hint">{MODE_DESC[mode]}</p>
+      {plan.is_critical && (
+        <div className="upd-lock-note">
+          <Lock size={13} />
+          <span>
+            <strong>Automatic is locked for vLLM engines.</strong> The pin policy requires deliberate image moves —
+            an unattended auto-pull could drop live inference (warm KV cache) or land a build that regresses a patch.
+            Use <b>Manual</b> (apply by hand) or <b>Semi-auto</b> (download now, apply when traffic allows).
+          </span>
+        </div>
+      )}
     </div>
   );
 }
