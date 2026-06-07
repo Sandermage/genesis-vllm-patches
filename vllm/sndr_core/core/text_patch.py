@@ -21,4 +21,10 @@ only ONE copy, regardless of which import path is used.
 # from the upstream module so that any new exports added in sndr.kernel.text_patch
 # automatically flow through.
 from sndr.kernel.text_patch import *  # noqa: F401,F403
+# Full back-compat: mirror the canonical module's entire namespace (names
+# outside __all__ + private helpers) so legacy imports keep resolving.
+import sndr.kernel.text_patch as _sndr_src  # noqa: E402
+globals().update({_k: _v for _k, _v in vars(_sndr_src).items() if not _k.startswith("__")})
+del _sndr_src
+
 from sndr.kernel.text_patch import __all__  # noqa: F401
