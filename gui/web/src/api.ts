@@ -1077,6 +1077,7 @@ export interface ContainerUpdatePlan {
   supported_pins: string[]; canonical_pin: string | null;
   guarded_update: boolean; policy: string; commands: string[];
   mode: UpdateMode; is_critical: boolean; modes: UpdateMode[];
+  update_available?: boolean; running_image_id?: string; latest_image_id?: string;
 }
 export interface ImageScan {
   available: boolean; image: string; reason?: string; scanner?: string;

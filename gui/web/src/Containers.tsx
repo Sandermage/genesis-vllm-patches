@@ -457,9 +457,12 @@ function ContainerPage({ source, name, busy, onBack, onAct, initialTab, onNaviga
   const [inspect, setInspect] = useState<Inspect | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [showUpdate, setShowUpdate] = useState(false);
+  const [updPlan, setUpdPlan] = useState<ContainerUpdatePlan | null>(null);
 
   const reloadInspect = useCallback(() => {
     api.containerInspect(source, name).then(setInspect).catch((e) => setErr(e instanceof Error ? e.message : String(e)));
+    // Cheap (local inspect + image-id) — drives the "Update available" pill + mode badge.
+    api.containerUpdatePlan(source, name).then(setUpdPlan).catch(() => setUpdPlan(null));
   }, [source, name]);
   useEffect(() => { reloadInspect(); }, [reloadInspect]);
 
@@ -491,7 +494,12 @@ function ContainerPage({ source, name, busy, onBack, onAct, initialTab, onNaviga
               () => toast("Could not copy link", "error"),
             );
           }}><Copy size={14} /> Copy link</button>
-          <button className="primary-button" onClick={() => setShowUpdate(true)}><Wrench size={14} /> Update</button>
+          {updPlan?.update_available && (
+            <span className="upd-avail-pill" title={`A newer local image exists for ${updPlan.image}. Running ${updPlan.running_image_id}, latest ${updPlan.latest_image_id}.`}>
+              <ArrowUp size={12} /> Update available
+            </span>
+          )}
+          <button className={`primary-button${updPlan?.update_available ? " has-update" : ""}`} onClick={() => setShowUpdate(true)}><Wrench size={14} /> Update{updPlan?.mode && updPlan.mode !== "manual" ? ` · ${updPlan.mode}` : ""}</button>
         </div>
       </div>
       <code className="cpage-sub">{image}{inspect?.Id ? ` · ${String(inspect.Id).slice(0, 12)}` : ""}</code>
@@ -1163,6 +1171,9 @@ function UpdatePanel({ source, name, onClose }: { source: ContainerSource; name:
           {!plan ? <Loading /> : (
           <>
           <UpdateModeSelector plan={plan} mode={mode} onChange={(m) => void changeMode(m)} busy={busy} />
+          {plan.update_available && (
+            <div className="upd-avail-banner"><ArrowUp size={13} /> A newer image is available locally for <code>{plan.image}</code> — apply it below.</div>
+          )}
           {plan.is_engine ? (
             <div className="upd">
               <p className="upd-note"><AlertTriangle size={13} /> This is a vLLM engine. {plan.policy} Run these on the GPU host:</p>

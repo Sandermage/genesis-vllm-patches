@@ -1078,6 +1078,16 @@ def create_app(
         inspect = _container_op(lambda: control.inspect(name))
         image = str((inspect.get("Config") or {}).get("Image") or "")
         is_engine = _is_engine_container(name, image)
+        # Update detection (local): the container runs a specific image sha
+        # (.Image); compare it to the current local image id of its tag. If they
+        # differ, a newer image was pulled but this container wasn't recreated.
+        running_sha = str(inspect.get("Image") or "")
+        latest_sha = ""
+        try:
+            latest_sha = control.image_id(image)
+        except Exception:
+            latest_sha = ""
+        update_available = bool(latest_sha) and bool(running_sha) and latest_sha != running_sha
         pins = updater.supported_pins()
         canonical = pins[0] if pins else None
         commands: list[str] = []
@@ -1099,6 +1109,10 @@ def create_app(
             "mode": update_prefs.get_mode(source, name),
             "is_critical": is_engine,
             "modes": list(update_prefs.VALID_MODES),
+            # Update detection — a newer local image exists for this tag.
+            "update_available": update_available,
+            "running_image_id": running_sha[:19],
+            "latest_image_id": latest_sha[:19],
         }
 
     def _do_set_update_mode(control, name: str, source: str, payload: dict[str, Any]) -> dict[str, Any]:

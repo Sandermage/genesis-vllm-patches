@@ -489,6 +489,21 @@ class ContainerControl(ABC):
     def _raw_scan_image(self, name: str) -> dict[str, Any]: ...
     @abstractmethod
     def _raw_stream_logs(self, name: str, *, tail: int): ...
+
+    # Image identity (not a managed-container op — no whitelist guard needed;
+    # the ref comes from an already-guarded container's own config). Used to
+    # detect "a newer image was pulled but this container wasn't recreated".
+    def image_id(self, ref: str) -> str:
+        """Resolve an image reference (tag) to its local image Id, '' if unknown."""
+        if not ref:
+            return ""
+        try:
+            return self._raw_image_id(ref)
+        except Exception:
+            return ""
+
+    def _raw_image_id(self, ref: str) -> str:  # overridden by socket / ssh controls
+        return ""
     @abstractmethod
     def _raw_list_stats(self) -> dict[str, dict[str, Any]]: ...
     @abstractmethod
@@ -662,6 +677,10 @@ class SshContainerControl(ContainerControl):
         except json.JSONDecodeError as exc:
             raise ContainerOpError(f"could not parse docker inspect output: {exc}") from exc
         return data[0] if isinstance(data, list) and data else {}
+
+    def _raw_image_id(self, ref: str) -> str:
+        rc, out, _ = self._docker("image", "inspect", "--format", "{{.Id}}", ref)
+        return out.strip() if rc == 0 else ""
 
     def _raw_logs(self, name: str, *, tail: int) -> str:
         rc, out, err = self._docker("logs", "--tail", str(int(tail)), name)
@@ -945,6 +964,13 @@ class SocketContainerControl(ContainerControl):
         if status != 200 or not isinstance(data, dict):
             raise ContainerOpError(f"docker API inspect returned {status}")
         return data
+
+    def _raw_image_id(self, ref: str) -> str:
+        from urllib.parse import quote
+        status, data = self._json("GET", f"/images/{quote(ref, safe='/:@')}/json")
+        if status == 200 and isinstance(data, dict):
+            return str(data.get("Id") or "")
+        return ""
 
     def _raw_logs(self, name: str, *, tail: int) -> str:
         status, raw = self._transport(
