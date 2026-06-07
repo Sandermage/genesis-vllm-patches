@@ -242,7 +242,7 @@ const navGroups: NavGroup[] = [
     { id: "services", icon: <Network size={17} />, label: "Services" },
   ] },
   { label: "Engine", items: [
-    { id: "chat", icon: <MessageSquare size={17} />, label: "Chat" },
+    { id: "chat", icon: <MessageSquare size={17} />, label: "Chat & Copilot" },
     { id: "routing", icon: <Route size={17} />, label: "Routing" },
     { id: "clients", icon: <Link2 size={17} />, label: "Clients" },
   ] },
@@ -254,7 +254,6 @@ const navGroups: NavGroup[] = [
     { id: "reports", icon: <Table2 size={17} />, label: "Reports" },
   ] },
   { label: "Tools", items: [
-    { id: "copilot", icon: <Sparkles size={17} />, label: "Copilot" },
     { id: "advanced", icon: <SlidersHorizontal size={17} />, label: "Advanced" },
   ] },
 ];
@@ -2520,28 +2519,26 @@ function SectionWorkspace({
           tabs={[
             {
               id: "proof",
-              label: "Proof",
+              label: "Proof status",
               icon: <ShieldCheck size={15} />,
               render: () => (
                 <ModuleGrid>
-                  <ModuleCard title="Evidence Report" icon={<FileText size={18} />} desc="Evidence references attached to the selected preset card." wide>
-                    <EvidenceRows card={card} />
-                  </ModuleCard>
-                  <ModuleCard title="Proof Artifact Status" icon={<ShieldCheck size={18} />} desc="Proof artifacts across the catalog by lifecycle." wide>
+                  <ModuleCard title="Proof artifact status" icon={<ShieldCheck size={18} />} desc="Release-gate evidence across the whole patch catalog — every patch bucketed by the strongest proof it carries (measured baseline → bench attached → static-only → failed → dead), with family / tier / lifecycle breakdowns." wide>
                     <ProofStatusPanel report={proofStatus} />
                   </ModuleCard>
                 </ModuleGrid>
               )
             },
             {
-              id: "coverage",
-              label: "Coverage",
-              icon: <Activity size={15} />,
+              id: "collect",
+              label: "Collect & coverage",
+              icon: <SquareTerminal size={15} />,
               render: () => (
                 <ModuleGrid>
-                  <ModuleCard title="Evidence Coverage" icon={<Activity size={18} />} desc="This preset's references grouped by visibility and type." wide>
-                    {refs.length ? (
-                      <div className="evidence-coverage">
+                  <ModuleCard title={`Preset evidence · ${selectedPreset}`} icon={<FileText size={18} />} desc="Evidence references the selected preset card exposes, and how they break down by visibility and type." wide>
+                    <EvidenceRows card={card} />
+                    {refs.length > 0 && (
+                      <div className="evidence-coverage" style={{ marginTop: "var(--sp-3)" }}>
                         <PercentBar
                           value={byVisibility.public ?? 0}
                           max={refs.length}
@@ -2556,26 +2553,15 @@ function SectionWorkspace({
                           ]}
                         />
                       </div>
-                    ) : (
-                      <p className="muted">This preset exposes no evidence references yet.</p>
                     )}
                   </ModuleCard>
-                </ModuleGrid>
-              )
-            },
-            {
-              id: "bundle",
-              label: "Bundle",
-              icon: <SquareTerminal size={15} />,
-              render: () => (
-                <ModuleGrid>
-                  <ModuleCard title="Report Bundle Commands" icon={<SquareTerminal size={18} />} desc="Queue evidence collection as a job, or copy the commands to run on the rig." wide>
+                  <ModuleCard title="Collect & attach evidence" icon={<SquareTerminal size={18} />} desc="Queue a dry-run evidence-collection job for this preset, or copy the exact CLI to run on the rig where the engine lives." wide>
                     <QueueJobButton
                       label={`Queue evidence (${selectedPreset})`}
                       run={() => api.evidenceAttach({ preset_id: selectedPreset })}
                       onMonitor={onMonitorJob}
                     />
-                    <CodeBlock lines={[`sndr evidence collect --preset ${selectedPreset}`, "sndr report create --format html,pdf", "sndr proof attach --release-check"]} />
+                    <CodeBlock lines={[`sndr evidence collect --preset ${selectedPreset}`, "sndr patches bench-attach <PATCH_ID> bench.json --baseline baseline.json", "sndr patches release-check --mode require-bench"]} />
                   </ModuleCard>
                 </ModuleGrid>
               )
@@ -2697,20 +2683,36 @@ function SectionWorkspace({
         </ModuleGrid>
       )}
 
-      {sectionId === "copilot" && (
-        <ModuleGrid>
-          <ModuleCard title="Ops Copilot" icon={<Sparkles size={18} />} desc="A read-only tool-calling assistant over the Product API. It answers from real catalog/doctor/preset/patch/capacity data and proposes changes for you to review & apply — it never mutates anything itself." wide>
-            <CopilotPanel onNavigate={(section) => onSection(section as SectionId)} />
-          </ModuleCard>
-        </ModuleGrid>
-      )}
-
-      {sectionId === "chat" && (
-        <ModuleGrid>
-          <ModuleCard title="Local model chat" icon={<MessageSquare size={18} />} desc="Multi-turn streaming conversation with a running local vLLM model. Set the engine host/port, pick the model, tune the system prompt and sampling." wide>
-            <ChatConsole defaultHost={runtimeMode === "remote" ? "192.168.1.10" : "127.0.0.1"} target={chatTarget} />
-          </ModuleCard>
-        </ModuleGrid>
+      {(sectionId === "chat" || sectionId === "copilot") && (
+        <TabbedSection
+          id="chat"
+          tabs={[
+            {
+              id: "model",
+              label: "Model chat",
+              icon: <MessageSquare size={15} />,
+              render: () => (
+                <ModuleGrid>
+                  <ModuleCard title="Local model chat" icon={<MessageSquare size={18} />} desc="Multi-turn streaming conversation with a running vLLM model. Set the engine host/port, pick the model, tune the system prompt and sampling — a direct line to the inference server." wide>
+                    <ChatConsole defaultHost={runtimeMode === "remote" ? "192.168.1.10" : "127.0.0.1"} target={chatTarget} />
+                  </ModuleCard>
+                </ModuleGrid>
+              )
+            },
+            {
+              id: "copilot",
+              label: "Ops Copilot",
+              icon: <Sparkles size={15} />,
+              render: () => (
+                <ModuleGrid>
+                  <ModuleCard title="Ops Copilot" icon={<Sparkles size={18} />} desc="An assistant that can read this control plane. Ask it about your presets, patches, doctor findings, hosts or VRAM fit in plain language — it calls read-only Product API tools, answers from the real live data, and proposes changes (with the exact section/CLI) for you to review and apply. It never mutates anything itself." wide>
+                    <CopilotPanel onNavigate={(section) => onSection(section as SectionId)} />
+                  </ModuleCard>
+                </ModuleGrid>
+              )
+            }
+          ]}
+        />
       )}
 
       {sectionId === "reports" && (
@@ -2718,15 +2720,25 @@ function SectionWorkspace({
           id="reports"
           tabs={[
             {
-              id: "templates",
-              label: "Templates",
+              id: "generate",
+              label: "Generate",
               icon: <Table2 size={15} />,
               render: () => (
                 <ModuleGrid>
-                  <ModuleCard title="Report Types" icon={<Table2 size={18} />} desc="Generate a redacted snapshot bundle into the operator-local reports dir." wide>
+                  <ModuleCard title="Generate a report" icon={<Table2 size={18} />} desc="Capture a redacted snapshot bundle (preset, gates, patches, proof) into the operator-local reports dir — a shareable hand-off / sign-off artifact." wide>
                     <ReportGenerator selectedPreset={selectedPreset} />
                   </ModuleCard>
-                  <ModuleCard title="Export Formats" icon={<SquareTerminal size={18} />} desc="Formats the report CLI can render from a snapshot." wide>
+                  <ModuleCard title="What this snapshot captures" icon={<FileText size={18} />} desc="The live state baked into a report generated right now." wide>
+                    <InfoRows
+                      rows={[
+                        ["Preset", selectedPreset],
+                        ["Runtime target", targetTitle(runtimeTargets, runtimeTarget)],
+                        ["Patch policy", patchPolicy],
+                        ["Readiness gates", `${gateCounts.pass} ok / ${gateCounts.warning} warn / ${gateCounts.blocked} blocked`],
+                        ["Proof artifacts", proofStatus?.available ? String(proofStatus.total) : "unavailable"],
+                        ["Evidence visibility", asText(card.evidence_visibility, "-")]
+                      ]}
+                    />
                     <CompactList
                       rows={[
                         ["HTML", "Shareable operator review page"],
@@ -2740,33 +2752,12 @@ function SectionWorkspace({
               )
             },
             {
-              id: "snapshot",
-              label: "Snapshot",
-              icon: <FileText size={15} />,
-              render: () => (
-                <ModuleGrid>
-                  <ModuleCard title="Current Snapshot" icon={<FileText size={18} />} desc="The live state a generated report would capture right now." wide>
-                    <InfoRows
-                      rows={[
-                        ["Preset", selectedPreset],
-                        ["Runtime target", targetTitle(runtimeTargets, runtimeTarget)],
-                        ["Patch policy", patchPolicy],
-                        ["Readiness gates", `${gateCounts.pass} ok / ${gateCounts.warning} warn / ${gateCounts.blocked} blocked`],
-                        ["Proof artifacts", proofStatus?.available ? String(proofStatus.total) : "unavailable"],
-                        ["Evidence visibility", asText(card.evidence_visibility, "-")]
-                      ]}
-                    />
-                  </ModuleCard>
-                </ModuleGrid>
-              )
-            },
-            {
               id: "activity",
-              label: "Activity",
+              label: "Activity log",
               icon: <Clock3 size={15} />,
               render: () => (
                 <ModuleGrid>
-                  <ModuleCard title="Recent Activity" icon={<Clock3 size={18} />} desc="Session actions reflected in the control center." wide>
+                  <ModuleCard title="Recent activity" icon={<Clock3 size={18} />} desc="A live feed of control-center actions this session — what was selected, planned, queued or applied." wide>
                     <EventLog events={events} />
                   </ModuleCard>
                 </ModuleGrid>
