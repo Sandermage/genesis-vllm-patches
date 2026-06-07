@@ -341,18 +341,18 @@ def _cli_mirror(
     host: str,
 ) -> tuple[str, ...]:
     return (
-        f"python -m vllm.sndr_core.cli preset explain {preset_id}",
+        f"python -m sndr.cli preset explain {preset_id}",
         (
-            "python -m vllm.sndr_core.cli launch plan "
+            "python -m sndr.cli launch plan "
             f"--preset {preset_id} "
             f"--runtime-target {runtime_target} "
             f"--patch-policy {patch_policy} --dry-run"
         ),
         (
-            "python -m vllm.sndr_core.cli service render "
+            "python -m sndr.cli service render "
             f"--preset {preset_id} --target {runtime_target}"
         ),
-        "python -m vllm.sndr_core.cli patches doctor",
+        "python -m sndr.cli patches doctor",
         f"curl http://{host}:8000/health",
     )
 
@@ -432,7 +432,7 @@ def _compose_yaml(
             "    command:",
             "      - python",
             "      - -m",
-            "      - vllm.sndr_core.cli",
+            "      - sndr.cli",
             "      - launch",
             "      - plan",
             f"      - --preset={preset_id}",
@@ -470,7 +470,7 @@ def _systemd_unit(
             f"Environment=SNDR_RUNTIME_TARGET={runtime_target}",
             f"Environment=SNDR_PATCH_POLICY={patch_policy}",
             (
-                "ExecStart=/usr/bin/python -m vllm.sndr_core.cli "
+                "ExecStart=/usr/bin/python -m sndr.cli "
                 f"launch plan --preset {preset_id} "
                 f"--runtime-target {runtime_target} "
                 f"--patch-policy {patch_policy} --dry-run"

@@ -404,6 +404,23 @@ html[data-theme="carbon"] .side-nav button.active { box-shadow: inset 3px 0 0 va
 .topbar-actions { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
 
 .host-title { font-weight: 700; font-size: 14px; }
+.host-title-input {
+  font-family: inherit;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
+  padding: 2px 9px;
+  width: 13ch;
+  min-width: 9ch;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+.host-title-input:hover { border-color: var(--accent); }
+.host-title-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent);
+}
 .host-spec {
   font-size: 11.5px;
   color: var(--text-muted);

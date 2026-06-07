@@ -25,7 +25,7 @@ def test_catalog_is_nonempty_and_well_formed():
         assert op["id"] and op["label"] and op["group"]
         # every command targets the installed sndr_core package (no injection,
         # no arbitrary scripts) — it must invoke the CLI module.
-        assert "vllm.sndr_core.cli" in op["command"]
+        assert "sndr.cli" in op["command"]
         assert op["mutating"] is False
 
 
@@ -41,7 +41,7 @@ def test_dry_run_when_apply_off(monkeypatch, tmp_path):
     job = ops.run_operation("doctor", apply_on=False)
     assert job.dry_run is True
     # the exact command is mirrored so the operator can copy/run it
-    assert any("vllm.sndr_core.cli doctor" in line for line in job.cli_mirror)
+    assert any("sndr.cli doctor" in line for line in job.cli_mirror)
 
 
 def test_executes_when_apply_on(monkeypatch, tmp_path):

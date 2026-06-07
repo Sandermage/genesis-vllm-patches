@@ -89,7 +89,7 @@ def test_with_daemon_bare_metal_uses_native_systemd():
     wd = dep.build_deployment(preset, "bare_metal", with_daemon=True)
     joined = "\n".join(wd["commands"])
     assert "/etc/systemd/system/sndr-daemon.service" in joined
-    assert "vllm.sndr_core.cli gui-api" in joined   # native daemon entrypoint
+    assert "sndr.cli gui-api" in joined   # native daemon entrypoint (canonical, no vllm namespace)
     assert "systemctl enable --now sndr-daemon" in joined
 
 
@@ -177,8 +177,13 @@ def test_sndr_daemon_target_renders_gui_api_launcher():
 
     assert any(t["id"] == "sndr_daemon" for t in deployment.list_targets())
     script = deployment._sndr_daemon_script(None, {})
-    # Launches the Product API directly (immune to per-node cli/ divergence).
-    assert "product_api.http_app import run_server" in script
+    # Launches the Product API directly (immune to per-node cli/ divergence),
+    # importing the canonical top-level `sndr` package (no vllm namespace).
+    assert "sndr.product_api.legacy.http_app import run_server" in script
+    # v12: also mounts the canonical sndr/ tree (the vllm.sndr_core.* tree is a
+    # shim that imports from sndr.*), else the daemon dies with No module 'sndr'.
+    assert '-v "${SNDR_SRC}:${SNDR_DEST}:ro"' in script
+    assert 'SNDR_SRC="${REPO_ROOT}/sndr"' in script
     # Runs as a sidecar from the vLLM image, re-mounting the host's sndr_core
     # (it's mounted into the engine at runtime, not baked into the image), bound
     # to the LAN so the central GUI can switch to it directly (no tunnel).

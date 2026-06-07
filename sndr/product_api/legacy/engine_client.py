@@ -21,6 +21,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import socket
 import time
 import urllib.error
 import urllib.request
@@ -493,6 +494,16 @@ class EngineError(Exception):
 
 def _describe(exc: Exception) -> str:
     reason = getattr(exc, "reason", None)
+    # A DNS / name-resolution failure (socket.gaierror, surfaced through
+    # urllib.error.URLError) means the engine host string can't be resolved at
+    # all — typically an unconfigured/placeholder host like "gpu-build-01", a
+    # typo, or a remote name that doesn't resolve from this machine. The raw
+    # OS message ("[Errno 8] nodename nor servname provided, or not known" /
+    # "[Errno -2] Name or service not known") is opaque to operators, so map it
+    # to a clear, actionable sentence instead.
+    if isinstance(exc, socket.gaierror) or isinstance(reason, socket.gaierror):
+        return ("cannot resolve the engine host — check the host/address is "
+                "correct and reachable from here")
     if reason is not None:
         return f"{type(exc).__name__}: {reason}"
     return f"{type(exc).__name__}: {exc}"

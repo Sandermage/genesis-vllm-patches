@@ -2,7 +2,10 @@
 """Unit tests for the pin-gated self-updater (no real git / no mutation)."""
 from __future__ import annotations
 
-from vllm.sndr_core.product_api import updater
+# Import the CANONICAL module (not the vllm.sndr_core.* shim): build_plan /
+# apply_plan read their own module globals (collect_status, run_steps), so
+# monkeypatching must target the same module the code actually executes in.
+from sndr.product_api.legacy import updater
 
 
 def test_supported_pins_scans_yaml(tmp_path):
@@ -84,7 +87,7 @@ def test_apply_runs_only_local_steps(monkeypatch):
         ],
     })
     captured = {}
-    from vllm.sndr_core.product_api import runtime_exec
+    from sndr.product_api.legacy import runtime_exec
 
     class _R:
         def __init__(self, order, title, command, status="ok"):

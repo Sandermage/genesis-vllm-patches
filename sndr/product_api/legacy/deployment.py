@@ -605,16 +605,26 @@ def _sndr_daemon_script(cfg, params) -> str:
         "# Replicate the host->container mount that puts sndr_core inside vllm.\n"
         "MNT=$(docker inspect \"$ENGINE\" --format '{{range .Mounts}}{{.Source}}:{{.Destination}}{{println}}{{end}}' | grep '/vllm/sndr_core$' | head -1)\n"
         'if [ -z "$MNT" ]; then echo "could not find the sndr_core mount on $ENGINE"; exit 1; fi\n'
-        'echo "[sndr] image=$IMAGE  mount=$MNT  bind=$BIND:$PORT"\n'
+        "# Post-migration (v12) the canonical package is the top-level `sndr/`; the\n"
+        "# `vllm.sndr_core.*` tree is now a thin shim that imports from `sndr.*`. So the\n"
+        "# daemon needs the host `sndr/` dir ALSO mounted as a sibling of vllm/ in the\n"
+        "# container's site-packages, else it dies with `No module named 'sndr'`.\n"
+        "# Derive both paths from the existing sndr_core mount (src:dest split):\n"
+        'MNT_SRC="${MNT%%:*}"; MNT_DEST="${MNT##*:}"\n'
+        'REPO_ROOT="${MNT_SRC%/vllm/sndr_core}"; SITE_PKGS="${MNT_DEST%/vllm/sndr_core}"\n'
+        'SNDR_SRC="${REPO_ROOT}/sndr"; SNDR_DEST="${SITE_PKGS}/sndr"\n'
+        'if [ ! -d "$SNDR_SRC" ]; then echo "canonical sndr/ package not found at $SNDR_SRC"; exit 1; fi\n'
+        'echo "[sndr] image=$IMAGE  sndr_core=$MNT  sndr=$SNDR_SRC:$SNDR_DEST  bind=$BIND:$PORT"\n'
         'docker rm -f "$NAME" >/dev/null 2>&1 || true\n'
-        "# Launch the Product API directly (not via the full `sndr` CLI) so the\n"
-        "# daemon needs only product_api/, immune to cli/ divergence between nodes.\n"
+        "# Launch the Product API directly (not via the full `sndr` CLI) so the daemon\n"
+        "# needs only product_api/ + its deps, immune to cli/ divergence between nodes.\n"
+        "# Import the canonical `sndr.product_api.legacy.http_app` (no vllm namespace).\n"
         'docker run -d --name "$NAME" --restart unless-stopped --network host \\\n'
         "  --entrypoint python3 \\\n"
         '  -e SNDR_BIND="$BIND" -e SNDR_GUI_PORT="$PORT" -e SNDR_ENABLE_APPLY="${SNDR_ENABLE_APPLY:-}" \\\n'
-        '  -v "${MNT}:ro" \\\n'
+        '  -v "${MNT}:ro" -v "${SNDR_SRC}:${SNDR_DEST}:ro" \\\n'
         '  "$IMAGE" \\\n'
-        "  -c \"import os; from vllm.sndr_core.product_api.http_app import run_server; "
+        "  -c \"import os; from sndr.product_api.legacy.http_app import run_server; "
         "run_server(host=os.environ.get('SNDR_BIND','0.0.0.0'), port=int(os.environ.get('SNDR_GUI_PORT') or 8765), "
         "enable_apply=bool(os.environ.get('SNDR_ENABLE_APPLY')))\"\n"
         'echo "[sndr] container \'$NAME\' started — connect the GUI to http://<this-host>:$PORT"\n'
@@ -642,7 +652,7 @@ def _daemon_native_unit() -> str:
         "After=network-online.target\nWants=network-online.target\n\n"
         "[Service]\nType=simple\n"
         "Environment=SNDR_BIND=0.0.0.0\nEnvironment=SNDR_GUI_PORT=8765\n"
-        "ExecStart=/usr/bin/env python3 -m vllm.sndr_core.cli gui-api\n"
+        "ExecStart=/usr/bin/env python3 -m sndr.cli gui-api\n"
         "Restart=on-failure\nRestartSec=3\n\n"
         "[Install]\nWantedBy=multi-user.target\n"
     )

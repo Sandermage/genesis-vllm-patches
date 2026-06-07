@@ -54,7 +54,7 @@ import { sectionFromHash, recordIdFromHash, buildHash, replaceHash } from "./rou
 import { type SectionId, type RuntimeMode, type Gate } from "./nav";
 import {
   type ConsoleTab, type AccentMode, type GuiSettings,
-  nextTheme, themeLabel, themeIcon, VALID_THEMES
+  nextTheme, themeLabel, themeIcon, VALID_THEMES, DEFAULT_REMOTE_HOST
 } from "./settings";
 // useFetch now used only inside extracted sections.
 import { asRecord, asText, asNumber, countRecord } from "./lib/coerce";
@@ -213,7 +213,8 @@ const defaultGuiSettings: GuiSettings = {
   detailMode: "engineer",
   showConnectionMap: true,
   autoRefresh: false,
-  sidebarCollapsed: false
+  sidebarCollapsed: false,
+  remoteHost: DEFAULT_REMOTE_HOST
 };
 
 
@@ -360,7 +361,7 @@ export default function App() {
           preset_id: nextPreset,
           runtime_target: runtimeTarget,
           patch_policy: patchPolicy,
-          host: runtimeHost(runtimeMode),
+          host: runtimeHost(runtimeMode, settings.remoteHost),
           mode: runtimeMode
         })
       ]);
@@ -434,7 +435,7 @@ export default function App() {
           preset_id: id,
           runtime_target: runtimeTarget,
           patch_policy: patchPolicy,
-          host: runtimeHost(runtimeMode),
+          host: runtimeHost(runtimeMode, settings.remoteHost),
           mode: runtimeMode
         })
       ]);
@@ -467,7 +468,7 @@ export default function App() {
           preset_id: id,
           runtime_target: target,
           patch_policy: policy,
-          host: runtimeHost(mode),
+          host: runtimeHost(mode, settings.remoteHost),
           mode
         })
       );
@@ -508,7 +509,7 @@ export default function App() {
       const job = await api.launchApply({
         preset_id: selectedPreset,
         runtime_target: runtimeTarget,
-        host: runtimeMode === "remote" ? "gpu-build-01" : "127.0.0.1",
+        host: runtimeHost(runtimeMode, settings.remoteHost),
         transport: sshTarget ? "ssh" : "local",
         ssh_target: sshTarget,
         confirm: launchConfirm
@@ -859,7 +860,7 @@ export default function App() {
     apiBase
   });
   const planId = launchPlan?.plan_id ?? `plan_${selectedPreset.replace(/[^a-zA-Z0-9]+/g, "_")}`;
-  const endpointHost = runtimeMode === "remote" ? "gpu-build-01" : "127.0.0.1";
+  const endpointHost = runtimeHost(runtimeMode, settings.remoteHost);
   const connectionTone: "success" | "warning" | "danger" =
     state === "error" ? "danger" : state === "loading" ? "warning" : "success";
   const connectionLabel =
@@ -978,7 +979,20 @@ export default function App() {
               </button>
             </div>
             <StatusPill tone={connectionTone}>{connectionLabel}</StatusPill>
-            <span className="host-title">{endpointHost}</span>
+            {runtimeMode === "remote" ? (
+              <input
+                className="host-title host-title-input"
+                value={settings.remoteHost}
+                onChange={(e) => updateSettings({ remoteHost: e.target.value })}
+                onBlur={(e) => updateSettings({ remoteHost: e.target.value.trim() || DEFAULT_REMOTE_HOST })}
+                spellCheck={false}
+                aria-label="Remote engine host"
+                title="Engine host for Remote GPU mode — set the address of your GPU node (e.g. 192.168.1.10)"
+                placeholder={DEFAULT_REMOTE_HOST}
+              />
+            ) : (
+              <span className="host-title">{endpointHost}</span>
+            )}
             <span className="host-spec">{selectedPresetRecord?.hardware ?? recommendForm.hardware}</span>
             <span className="host-spec">{engineReady ? "vLLM engine ready" : "Engine not installed"}</span>
           </div>
@@ -2264,7 +2278,7 @@ function SectionWorkspace({
                     <ServiceLifecyclePlanner
                       selectedPreset={selectedPreset}
                       runtimeTarget={runtimeTarget}
-                      host={runtimeMode === "remote" ? "gpu-build-01" : "127.0.0.1"}
+                      host={runtimeHost(runtimeMode, settings.remoteHost)}
                     />
                   </ModuleCard>
                 </ModuleGrid>
@@ -2572,7 +2586,7 @@ function SectionWorkspace({
       })()}
 
       {sectionId === "clients" && (() => {
-        const clientHost = runtimeMode === "remote" ? "gpu-build-01" : "127.0.0.1";
+        const clientHost = runtimeHost(runtimeMode, settings.remoteHost);
         const baseUrl = `http://${clientHost}:8000/v1`;
         const modelName = String(composed.served_model_name ?? selectedPreset);
         return (
@@ -3192,7 +3206,11 @@ function loadGuiSettings(): GuiSettings {
       sidebarCollapsed:
         typeof parsed.sidebarCollapsed === "boolean"
           ? parsed.sidebarCollapsed
-          : defaultGuiSettings.sidebarCollapsed
+          : defaultGuiSettings.sidebarCollapsed,
+      remoteHost:
+        typeof parsed.remoteHost === "string" && parsed.remoteHost.trim()
+          ? parsed.remoteHost.trim()
+          : defaultGuiSettings.remoteHost
     };
   } catch {
     return defaultGuiSettings;
@@ -3418,8 +3436,8 @@ function buildCliMirror({
 
 // targetTitle moved to ./lib/format.
 
-function runtimeHost(mode: RuntimeMode) {
-  return mode === "remote" ? "gpu-build-01" : "127.0.0.1";
+function runtimeHost(mode: RuntimeMode, remoteHost: string = DEFAULT_REMOTE_HOST) {
+  return mode === "remote" ? (remoteHost.trim() || DEFAULT_REMOTE_HOST) : "127.0.0.1";
 }
 
 // countRecord extracted to ./lib/coerce.

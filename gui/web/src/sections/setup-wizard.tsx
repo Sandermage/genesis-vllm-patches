@@ -118,7 +118,7 @@ export function SetupWizard({
           {cur.key === "detect" && (
             <>
               <EnvironmentPanel env={env} />
-              <CodeBlock lines={["python -m vllm.sndr_core.cli gui-api --host 127.0.0.1 --port 8765", "python -m vllm.sndr_core.cli doctor --all"]} />
+              <CodeBlock lines={["python -m sndr.cli gui-api --host 127.0.0.1 --port 8765", "python -m sndr.cli doctor --all"]} />
             </>
           )}
           {cur.key === "mode" && (
@@ -131,7 +131,7 @@ export function SetupWizard({
               ]} />
               <CodeBlock lines={runtimeMode === "remote"
                 ? [`ssh -L 8765:127.0.0.1:8765 user@${host}`, "# then open http://127.0.0.1:8765 locally"]
-                : ["python -m vllm.sndr_core.cli gui-api --host 127.0.0.1 --port 8765"]} />
+                : ["python -m sndr.cli gui-api --host 127.0.0.1 --port 8765"]} />
             </>
           )}
           {cur.key === "preset" && (

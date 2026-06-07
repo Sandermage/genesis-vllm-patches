@@ -397,7 +397,7 @@ def create_app(
         if apply_on:
             from .background_exec import run_background_command
 
-            exec_cmd = cli if repo_id else f"python3 -m vllm.sndr_core.cli model pull {model_id}"
+            exec_cmd = cli if repo_id else f"python3 -m sndr.cli model pull {model_id}"
             job = run_background_command(kind="model.download", title=f"download {label}", summary=summary, command=exec_cmd)
             return _dataclass_payload(job)
         job = create_dry_run_job(

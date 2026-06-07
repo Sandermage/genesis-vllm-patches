@@ -70,7 +70,7 @@ def collect_doctor_report() -> DoctorReport:
         else "Engine package is not importable here — live runtime checks are limited.",
         evidence=f"engine_installed={platform.engine_installed}",
         action="" if platform.engine_installed else "Install the engine package on the GPU host to enable live checks.",
-        cli="python -m vllm.sndr_core.cli doctor --all",
+        cli="python -m sndr.cli doctor --all",
     ))
     findings.append(DoctorFinding(
         category="environment",
@@ -129,7 +129,7 @@ def collect_doctor_report() -> DoctorReport:
             f"profiles={catalog.profiles_count}, presets={catalog.presets_count}"
         ),
         action="" if catalog.preset_load_error_count == 0 else "Inspect failing preset YAML and re-validate.",
-        cli="python -m vllm.sndr_core.cli preset list",
+        cli="python -m sndr.cli preset list",
     ))
     if catalog.unannotated_presets_count:
         findings.append(DoctorFinding(
@@ -161,7 +161,7 @@ def collect_doctor_report() -> DoctorReport:
             detail="Registry passes validation." if not issues else f"{len(issues)} validation issue(s).",
             evidence=f"registry_size={patch_doctor.registry_size}",
             action="" if not issues else "Resolve registry validation issues before release.",
-            cli="python -m vllm.sndr_core.cli patches doctor",
+            cli="python -m sndr.cli patches doctor",
         ))
         findings.append(DoctorFinding(
             category="patches",
@@ -191,7 +191,7 @@ def collect_doctor_report() -> DoctorReport:
             detail=f"{total} proof artifact(s) tracked." + (f" {dead} dead." if dead else ""),
             evidence=", ".join(f"{k}={v}" for k, v in counts.items()) or "no buckets",
             action="Re-prove dead patches." if dead else "",
-            cli="python -m vllm.sndr_core.cli patches prove --all",
+            cli="python -m sndr.cli patches prove --all",
         ))
     except Exception as exc:  # pragma: no cover - environment dependent
         warnings.append(f"proof status unavailable: {type(exc).__name__}: {exc}")

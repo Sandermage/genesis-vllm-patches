@@ -33,14 +33,18 @@ export function tunnelCommand(profile: HostProfile): string {
 // Actionable guidance when the daemon is read-only (apply gated off). Shows the
 // exact restart command with a copy button, instead of a bare "apply is disabled".
 function ApplyDisabledNote({ what }: { what: string }) {
-  const cmd = "python3 -m vllm.sndr_core.cli gui-api --enable-apply";
+  // Canonical entrypoint: `sndr.cli` is the top-level package — importable
+  // without the `vllm` namespace, unlike the `vllm.sndr_core.cli` shim (which
+  // raises ModuleNotFoundError on nodes where vllm isn't installed). Run it
+  // from the SNDR install directory, or after `pip install vllm-sndr-core[gui-api]`.
+  const cmd = "python3 -m sndr.cli gui-api --enable-apply";
   const [copied, setCopied] = useState(false);
   return (
     <div className="apply-gate">
       <Lock size={14} />
       <div className="apply-gate-body">
         <strong>{what} needs apply — the daemon is read-only.</strong>
-        <span>Restart it with apply enabled (or set <code>SNDR_ENABLE_APPLY=1</code>):</span>
+        <span>Restart it with apply enabled (or set <code>SNDR_ENABLE_APPLY=1</code>) — run from the SNDR install dir, or after <code>pip install vllm-sndr-core[gui-api]</code>:</span>
         <div className="apply-gate-cmdrow">
           <code className="apply-gate-cmd">{cmd}</code>
           <button className="apply-gate-copy" onClick={() => { navigator.clipboard?.writeText(cmd); setCopied(true); window.setTimeout(() => setCopied(false), 1500); }}>

@@ -14,7 +14,7 @@ Safety model (matches the rest of the Product API):
 * Every operation here is read-only (no host/registry mutation). Execution
   still respects the apply gate: with ``--enable-apply`` it runs for real and
   streams output; otherwise it returns a dry-run job mirroring the command.
-* Commands invoke the installed package (``python -m vllm.sndr_core.cli``), so
+* Commands invoke the installed package (``python -m sndr.cli``), so
   they work wherever the daemon runs — no dependence on the dev repo / Makefile.
 """
 from __future__ import annotations
@@ -22,7 +22,7 @@ from __future__ import annotations
 import sys
 from dataclasses import asdict, dataclass
 
-_CLI = f"{sys.executable} -m vllm.sndr_core.cli"
+_CLI = f"{sys.executable} -m sndr.cli"
 
 
 @dataclass(frozen=True)

@@ -101,6 +101,41 @@ def test_engine_metrics_unreachable(monkeypatch):
     assert out["reachable"] is False and "Connection refused" in out["error"]
 
 
+def test_describe_dns_failure_is_operator_friendly():
+    # urllib raises URLError(reason=socket.gaierror(8, "nodename nor servname
+    # provided, or not known")) when the engine host can't be resolved (e.g. an
+    # unconfigured placeholder host). The raw repr is opaque to operators; the
+    # description must name the resolution problem clearly.
+    import socket
+    import urllib.error
+    exc = urllib.error.URLError(socket.gaierror(8, "nodename nor servname provided, or not known"))
+    msg = ec._describe(exc)
+    assert "resolve" in msg.lower()
+    assert "[Errno 8]" not in msg
+    assert "nodename" not in msg.lower()
+
+
+def test_describe_name_or_service_not_known_linux():
+    # The Linux/glibc spelling of the same failure must be normalised too.
+    import socket
+    import urllib.error
+    exc = urllib.error.URLError(socket.gaierror(-2, "Name or service not known"))
+    assert "resolve" in ec._describe(exc).lower()
+
+
+def test_engine_status_dns_failure_surfaces_clean_error(monkeypatch):
+    import socket
+    import urllib.error
+
+    def boom(url, timeout=3.0, api_key=None):
+        raise urllib.error.URLError(socket.gaierror(8, "nodename nor servname provided, or not known"))
+    monkeypatch.setattr(ec, "_get", boom)
+    out = ec.engine_status("gpu-build-01")
+    assert out["reachable"] is False
+    assert "resolve" in out["error"].lower()
+    assert "nodename" not in out["error"].lower()
+
+
 def test_engine_status(monkeypatch):
     def fake_get(url, timeout=3.0, api_key=None):
         if url.endswith("/health"):

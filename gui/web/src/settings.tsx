@@ -22,7 +22,14 @@ export type GuiSettings = {
   showConnectionMap: boolean;
   autoRefresh: boolean;
   sidebarCollapsed: boolean;
+  /** Engine host used in "Remote GPU" runtime mode (reachability probes,
+   *  lifecycle planner, endpoint rows). Operator-editable so it can point at a
+   *  real GPU node instead of an unresolvable placeholder. */
+  remoteHost: string;
 };
+
+/** Fallback remote-host label when the operator hasn't set a real one yet. */
+export const DEFAULT_REMOTE_HOST = "gpu-build-01";
 
 export const THEME_CYCLE: ThemeMode[] = ["light", "dark", "carbon", "lime"];
 export const VALID_THEMES = new Set<ThemeMode>(THEME_CYCLE);

@@ -169,7 +169,7 @@ def build_plan(target_pin: Optional[str] = None) -> dict[str, Any]:
                 f"&& docker tag vllm/vllm-openai:{tgt} vllm/vllm-openai:nightly  "
                 f"# keep the prior pin as :nightly-previous for rollback"},
         {"order": 6, "title": "Restart the daemon", "kind": "local",
-         "cmd": "# restart: re-run `python3 -m vllm.sndr_core.cli gui-api ...`"},
+         "cmd": "# restart: re-run `python3 -m sndr.cli gui-api ...`"},
     ]
 
     blocked: list[str] = []
