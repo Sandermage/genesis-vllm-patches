@@ -40,10 +40,14 @@ log = logging.getLogger("genesis.compat.categories")
 
 
 # PR38 cleanup (2026-05-08): legacy `_genesis/wiring/` removed. Walk the
-# canonical `sndr_core/integrations/` tree with the post-flip naming
-# convention (`p67_*.py`, `pn14_*.py`).
+# `vllm/sndr_core/integrations/` tree with the post-flip naming convention
+# (`p67_*.py`, `pn14_*.py`). NOTE: this module lives under `sndr/compat/` after
+# the sndr-platform relocation, but the wiring tree it indexes (and the dotted
+# module paths it derives below, anchored at `_WIRING_DIR.parent.parent.parent`)
+# is still the repo-root `vllm/sndr_core/integrations/` shim tree, so the path is
+# anchored to the repo root rather than relative to this file's package.
 _WIRING_DIR = (
-    Path(__file__).resolve().parent.parent / "integrations"
+    Path(__file__).resolve().parents[2] / "vllm" / "sndr_core" / "integrations"
 )
 
 
