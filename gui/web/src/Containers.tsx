@@ -60,6 +60,11 @@ function splitArgv(line: string): string[] {
   return m.map((t) => t.replace(/^['"]|['"]$/g, ""));
 }
 // "Up 2 hours" → "Up 2h", "Exited (137) 3 minutes ago" → "Exited (137) 3m ago".
+// Trim a long build version for a chip: 0.21.1rc1.dev354+g626fa9bba -> 0.21.1rc1.
+function shortVer(v: string): string {
+  return v.replace(/\.dev\d+.*$/, "").replace(/\+.*$/, "") || v;
+}
+
 function compactStatus(s: string): string {
   return (s || "").replace(/\bAbout an?\b/i, "1").replace(/\ban?\b/gi, "1")
     .replace(/\s*hours?\b/gi, "h").replace(/\s*minutes?\b/gi, "m")
@@ -462,11 +467,15 @@ function ContainerCard({ c, source, stats, history, busy, selected, onToggleSele
   // At-a-glance update status, fetched lazily per card (cheap: local inspect +
   // image-id) so the operator sees what needs updating without opening each one.
   const [upd, setUpd] = useState<ContainerUpdatePlan | null>(null);
+  const [ver, setVer] = useState<HostSndrState | null>(null);
   useEffect(() => {
     let alive = true;
     api.containerUpdatePlan(source, c.name).then((p) => alive && setUpd(p)).catch(() => {});
+    // Live project versions running inside the container (cached server-side,
+    // ~0.16s) — the unique at-a-glance value vs a generic container manager.
+    if (online) api.containerSndrState(source, c.name).then((s) => alive && setVer(s.ok ? s : null)).catch(() => {});
     return () => { alive = false; };
-  }, [source, c.name]);
+  }, [source, c.name, online]);
 
   return (
     <div className={`ccard ${st}${selected ? " selected" : ""}`}>
@@ -509,6 +518,13 @@ function ContainerCard({ c, source, stats, history, busy, selected, onToggleSele
         <div className="ccard-tags">
           {c.labels?.["sndr.preset"] && <span className="ccard-tag preset" title="Source preset"><Database size={10} /> {c.labels["sndr.preset"]}</span>}
           {c.networks && <span className="ccard-tag net" title="Networks"><Network size={10} /> {c.networks}</span>}
+        </div>
+      )}
+      {ver?.ok && (ver.vllm_version || ver.sndr_version) && (
+        <div className="ccard-ver" title="Project versions running inside this container">
+          {ver.vllm_version && <span className="ccard-ver-chip vllm"><Box size={10} /> vLLM {shortVer(ver.vllm_version)}</span>}
+          {ver.sndr_version && <span className="ccard-ver-chip sndr"><ShieldCheck size={10} /> SNDR {ver.sndr_version}</span>}
+          {ver.patches != null && <span className="ccard-ver-chip" title={`${ver.patches} patches · ${ver.configs ?? "?"} configs`}><Layers size={10} /> {ver.patches}p</span>}
         </div>
       )}
 

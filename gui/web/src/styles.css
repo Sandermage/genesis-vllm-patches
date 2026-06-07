@@ -4104,11 +4104,24 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
   border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); box-shadow: var(--shadow-sm);
   transition: box-shadow .16s ease, transform .16s ease, border-color .16s ease;
 }
-.ccard:hover { box-shadow: var(--shadow); transform: translateY(-1px); }
+.ccard:hover { box-shadow: var(--shadow); transform: translateY(-2px); border-color: color-mix(in srgb, var(--accent) 30%, var(--border)); }
+/* A running card gets a faint top glow so live containers read instantly. */
+.ccard.online::after { content: ""; position: absolute; inset: 0 0 auto 0; height: 2px; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--ok) 60%, transparent), transparent); }
 .ccard-edge { position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: var(--text-muted); }
-.ccard-edge.online { background: var(--ok); }
+.ccard-edge.online { background: linear-gradient(var(--ok), color-mix(in srgb, var(--ok) 55%, transparent)); }
 .ccard-edge.partial { background: var(--warn); }
 .ccard-edge.offline { background: var(--danger); }
+/* Live project versions running inside the container — the differentiator chip. */
+.ccard-ver { display: flex; flex-wrap: wrap; gap: 5px; }
+.ccard-ver-chip {
+  display: inline-flex; align-items: center; gap: 3px; font-size: 10.5px; font-weight: 600; font-family: var(--mono);
+  padding: 2px 8px; border-radius: var(--r-pill); color: var(--text-muted);
+  background: var(--surface-2); border: 1px solid var(--border);
+}
+.ccard-ver-chip.vllm { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 38%, transparent); }
+.ccard-ver-chip.sndr { color: var(--ok, #16a34a); border-color: color-mix(in srgb, var(--ok, #16a34a) 38%, transparent); }
+.container-dot.online { background: var(--ok); box-shadow: 0 0 6px var(--ok); animation: dot-pulse 2.2s ease-in-out infinite; }
+@keyframes dot-pulse { 0%, 100% { box-shadow: 0 0 4px var(--ok); } 50% { box-shadow: 0 0 9px var(--ok); } }
 
 .ccard-top { display: flex; align-items: center; gap: var(--sp-2); }
 .ccard-name { flex: 1; min-width: 0; font-size: 14px; font-weight: 700; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
