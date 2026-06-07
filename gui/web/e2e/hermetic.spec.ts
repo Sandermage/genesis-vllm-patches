@@ -7,20 +7,35 @@
 //   2. the real, CSS-composed DOM is free of structural accessibility
 //      violations across every navigable section.
 //
-// Scan policy: fail on critical/serious axe violations for structural rules
-// (roles, names, landmarks, ARIA validity). color-contrast is NOT gated here:
-// the secondary-text, active-state and status-badge contrast were brought to
-// WCAG AA on the default (light) theme plus dark/carbon (see styles.css), but
-// full AA across the stylised `lime` palette and every stat-label remains a
-// tracked design-token initiative, so gating all four themes would be brittle.
+// Scan policy: fail on critical/serious axe violations — including color-contrast.
+// Every navigable section is scanned in the default (light) theme here; the
+// "every theme is WCAG AA" test below boots each of the four themes natively and
+// scans them too. All four (light/dark/carbon/lime) are contrast-clean.
 import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { mockApi } from "./fixtures";
 
+const THEMES = ["light", "dark", "carbon", "lime"] as const;
+
+// Freeze CSS transitions/animations so contrast is measured at final colours,
+// not mid-fade (entrance animations briefly render text at reduced opacity,
+// which would make the contrast scan flaky). Call before goto().
+async function freezeUi(page: import("@playwright/test").Page) {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.addInitScript(() => {
+    const css = "*,*::before,*::after{transition:none!important;animation:none!important}";
+    const apply = () => {
+      const style = document.createElement("style");
+      style.textContent = css;
+      document.head.appendChild(style);
+    };
+    if (document.head) apply();
+    else document.addEventListener("DOMContentLoaded", apply);
+  });
+}
+
 async function scan(page: import("@playwright/test").Page) {
-  const results = await new AxeBuilder({ page })
-    .disableRules(["color-contrast"])
-    .analyze();
+  const results = await new AxeBuilder({ page }).analyze();
   const serious = results.violations.filter(
     (v) => v.impact === "critical" || v.impact === "serious",
   );
@@ -47,6 +62,7 @@ test("production bundle boots and the shell renders without API", async ({ page 
 
 test("Overview is accessible (axe, real DOM)", async ({ page }) => {
   await mockApi(page);
+  await freezeUi(page);
   await page.goto("/");
   await expect(page.locator('.side-nav button:has-text("Overview")')).toBeVisible();
   await scan(page);
@@ -54,6 +70,7 @@ test("Overview is accessible (axe, real DOM)", async ({ page }) => {
 
 test("every nav entry routes to real content and stays accessible", async ({ page }) => {
   await mockApi(page);
+  await freezeUi(page);
   await page.goto("/");
   await expect(page.locator(".side-nav")).toBeVisible();
 
@@ -77,6 +94,34 @@ test("every nav entry routes to real content and stays accessible", async ({ pag
     await expect(workspace.locator(".section-heading").first()).toBeVisible();
     await expect(workspace.locator(".error-boundary")).toHaveCount(0);
     await scan(page);
+  }
+});
+
+test("every theme is WCAG AA (color-contrast across all sections)", async ({ page }) => {
+  test.setTimeout(180_000); // 4 themes x 20 sections of axe scans
+  await mockApi(page);
+  await freezeUi(page);
+  // Boot each theme natively via persisted settings (no dataset injection, so no
+  // mid-transition colour artefacts), then contrast-scan every section.
+  const SECTIONS = ["Overview", "Setup", "Fleet", "Hosts", "Models", "Configs", "Presets", "Planner", "Copilot", "Launch Plan", "Services", "Doctor", "Patches", "Benchmarks", "Evidence", "Clients", "Chat", "Reports", "Operations", "Advanced"];
+  for (const theme of THEMES) {
+    await page.addInitScript((t) => {
+      window.localStorage.setItem("sndr.gui.settings", JSON.stringify({ theme: t, density: "comfortable", accent: "teal" }));
+    }, theme);
+    await page.goto("/");
+    await expect(page.locator('.side-nav button:has-text("Overview")')).toBeVisible();
+    await page.waitForTimeout(300);
+    for (const label of SECTIONS) {
+      const button = page.locator(".side-nav button", { hasText: label }).first();
+      if ((await button.count()) === 0) continue;
+      await button.click();
+      await page.waitForTimeout(180);
+      const results = await new AxeBuilder({ page }).withRules(["color-contrast"]).analyze();
+      const nodes = results.violations.flatMap((v) =>
+        v.nodes.map((n) => `[${theme}/${label}] ${n.html.slice(0, 80)} — ${(n.any?.[0]?.data as { contrastRatio?: number } | undefined)?.contrastRatio}`),
+      );
+      expect(nodes, nodes.join("\n")).toHaveLength(0);
+    }
   }
 });
 
