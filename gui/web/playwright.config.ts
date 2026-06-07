@@ -5,6 +5,10 @@ import { defineConfig, devices } from "@playwright/test";
 // Override the UI origin with PLAYWRIGHT_BASE_URL when Vite falls back ports.
 export default defineConfig({
   testDir: "./e2e",
+  // The hermetic spec is its own CI tier (playwright.hermetic.config.ts, mocked
+  // daemon + vite preview). This dev-box config covers the integration specs
+  // that need a live daemon, so it ignores the hermetic one to avoid overlap.
+  testIgnore: /hermetic\.spec\.ts/,
   timeout: 30_000,
   fullyParallel: true,
   reporter: [["list"]],
