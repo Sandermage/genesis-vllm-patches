@@ -2115,6 +2115,20 @@ def create_app(
         from . import k8s_client
         return k8s_client.list_nodes()
 
+    @app.get("/api/v1/k8s/pods")
+    async def k8s_pods_route(namespace: Optional[str] = None) -> dict[str, Any]:
+        """Pods (all namespaces or one) — phase, ready, restarts, GPU request,
+        node, pending reason. GPU + non-running pods sort first."""
+        from . import k8s_client
+        return k8s_client.list_pods(namespace=namespace)
+
+    @app.get("/api/v1/k8s/events")
+    async def k8s_events_route(warnings_only: bool = False) -> dict[str, Any]:
+        """Cluster events — surfaces Warning events like FailedScheduling
+        'Insufficient nvidia.com/gpu' (why a vLLM pod is stuck pending)."""
+        from . import k8s_client
+        return k8s_client.list_events(warnings_only=warnings_only)
+
     @app.get("/api/v1/alerts")
     async def alerts_route() -> dict[str, Any]:
         """Evaluate hardware-threshold rules over the daemon host's live telemetry

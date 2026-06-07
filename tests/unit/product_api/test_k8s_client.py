@@ -97,3 +97,46 @@ def test_cluster_status_and_list_nodes_degrade_gracefully(monkeypatch):
     ls = k8s.list_nodes()
     assert cs["available"] is False and cs["error"]
     assert ls["available"] is False and ls["nodes"] == []
+
+
+def _pod(name, *, ns="default", node="gpu-a", phase="Running", ready=1, total=1,
+         restarts=0, gpu=0, reason=None):
+    cstat = [NS(ready=(i < ready), restart_count=restarts) for i in range(total)]
+    ctrs = [NS(image="vllm/vllm-openai:nightly",
+               resources=NS(requests={k8s.GPU_RESOURCE: str(gpu)} if gpu else {})) for _ in range(total)]
+    return NS(metadata=NS(name=name, namespace=ns),
+              spec=NS(node_name=node, containers=ctrs),
+              status=NS(phase=phase, container_statuses=cstat, reason=reason))
+
+
+def test_shape_pod_ready_restarts_and_gpu():
+    s = k8s.shape_pod(_pod("vllm-0", ready=1, total=1, restarts=3, gpu=2))
+    assert s["ready"] == "1/1" and s["ready_ok"] is True
+    assert s["restarts"] == 3 and s["gpu_request"] == 2
+    assert s["node"] == "gpu-a" and s["namespace"] == "default"
+
+
+def test_shape_pod_not_fully_ready():
+    s = k8s.shape_pod(_pod("vllm-0", ready=0, total=2))
+    assert s["ready"] == "0/2" and s["ready_ok"] is False
+
+
+def test_shape_pod_pending_reason_surfaced():
+    s = k8s.shape_pod(_pod("vllm-0", phase="Pending", node=None, ready=0, total=1, reason="Unschedulable"))
+    assert s["phase"] == "Pending" and s["reason"] == "Unschedulable" and s["node"] is None
+
+
+def test_shape_event_warning_with_object():
+    ev = NS(type="Warning", reason="FailedScheduling",
+            message="0/3 nodes are available: 3 Insufficient nvidia.com/gpu.",
+            involved_object=NS(kind="Pod", name="vllm-0"),
+            metadata=NS(namespace="default"), count=5)
+    s = k8s.shape_event(ev)
+    assert s["type"] == "Warning" and s["reason"] == "FailedScheduling"
+    assert s["object"] == "Pod/vllm-0" and "nvidia.com/gpu" in s["message"] and s["count"] == 5
+
+
+def test_list_pods_and_events_degrade_gracefully(monkeypatch):
+    monkeypatch.setattr(k8s, "_kubernetes", lambda: None)
+    assert k8s.list_pods()["available"] is False and k8s.list_pods()["pods"] == []
+    assert k8s.list_events()["available"] is False and k8s.list_events()["events"] == []

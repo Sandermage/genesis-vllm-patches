@@ -359,6 +359,16 @@ export type K8sNode = {
   pressures: string[]; taints: K8sTaint[]; gpu_labels: Record<string, string>; label_count: number;
 };
 export type K8sNodesResult = { available: boolean; error: string | null; nodes: K8sNode[] };
+export type K8sPod = {
+  name: string | null; namespace: string | null; node: string | null; phase: string | null;
+  ready: string; ready_ok: boolean; restarts: number; gpu_request: number; reason: string | null; images: (string | null)[];
+};
+export type K8sPodsResult = { available: boolean; error: string | null; pods: K8sPod[] };
+export type K8sEvent = {
+  type: string | null; reason: string | null; message: string | null;
+  object: string | null; namespace: string | null; count: number | null;
+};
+export type K8sEventsResult = { available: boolean; error: string | null; events: K8sEvent[] };
 export type AlertLevel = "critical" | "warn" | "info" | "ok";
 export type Alert = {
   key: string; level: AlertLevel; category: string; title: string; detail: string; host: string;
@@ -1401,6 +1411,8 @@ export const api = {
   hostGpuRemote: (hostId: string) => request<HardwareTelemetry>(`/api/v1/hosts/${encodeURIComponent(hostId)}/gpu`),
   k8sStatus: () => request<K8sStatus>("/api/v1/k8s/status"),
   k8sNodes: () => request<K8sNodesResult>("/api/v1/k8s/nodes"),
+  k8sPods: () => request<K8sPodsResult>("/api/v1/k8s/pods"),
+  k8sEvents: (warningsOnly = false) => request<K8sEventsResult>(`/api/v1/k8s/events${warningsOnly ? "?warnings_only=true" : ""}`),
   alerts: () => request<AlertsSnapshot>("/api/v1/alerts"),
   hostsReliability: () => request<ReliabilitySnapshot>("/api/v1/hosts/reliability"),
   flagsMatrix: (container?: string) => request<FlagMatrix>(`/api/v1/flags/matrix${query({ container })}`),

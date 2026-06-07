@@ -127,6 +127,49 @@ def shape_node(node: Any) -> dict[str, Any]:
     }
 
 
+def shape_pod(pod: Any) -> dict[str, Any]:
+    """Shape a V1Pod-like object into the dict the GUI pods table renders. Pure."""
+    meta = getattr(pod, "metadata", None)
+    spec = getattr(pod, "spec", None)
+    status = getattr(pod, "status", None)
+    containers = getattr(spec, "containers", None) or []
+    cstatuses = getattr(status, "container_statuses", None) or []
+    ready = sum(1 for cs in cstatuses if getattr(cs, "ready", False))
+    restarts = sum(int(getattr(cs, "restart_count", 0) or 0) for cs in cstatuses)
+    gpu = 0
+    for ctr in containers:
+        req = getattr(getattr(ctr, "resources", None), "requests", None) or {}
+        gpu += _quantity_to_int(req.get(GPU_RESOURCE)) or 0
+    # A pending pod's reason (e.g. "Unschedulable") is the actionable signal.
+    reason = getattr(status, "reason", None)
+    return {
+        "name": getattr(meta, "name", None),
+        "namespace": getattr(meta, "namespace", None),
+        "node": getattr(spec, "node_name", None),
+        "phase": getattr(status, "phase", None),
+        "ready": f"{ready}/{len(containers)}",
+        "ready_ok": ready == len(containers) and len(containers) > 0,
+        "restarts": restarts,
+        "gpu_request": gpu,
+        "reason": reason,
+        "images": [getattr(c, "image", None) for c in containers],
+    }
+
+
+def shape_event(ev: Any) -> dict[str, Any]:
+    """Shape a CoreV1Event/EventsV1Event-like object. Pure. The GPU operator most
+    cares about Warning events like FailedScheduling 'Insufficient nvidia.com/gpu'."""
+    obj = getattr(ev, "involved_object", None) or getattr(ev, "regarding", None)
+    return {
+        "type": getattr(ev, "type", None),
+        "reason": getattr(ev, "reason", None),
+        "message": getattr(ev, "message", None) or getattr(ev, "note", None),
+        "object": f"{getattr(obj, 'kind', '')}/{getattr(obj, 'name', '')}".strip("/") if obj else None,
+        "namespace": getattr(getattr(ev, "metadata", None), "namespace", None),
+        "count": getattr(ev, "count", None),
+    }
+
+
 def gpu_requested_by_node(pods: Any) -> dict[str, int]:
     """Sum nvidia.com/gpu requested across all (non-terminal) pods, keyed by the
     node they're scheduled on. Pure over a V1PodList-like ``.items``."""
@@ -194,7 +237,42 @@ def list_nodes(context: Optional[str] = None) -> dict[str, Any]:
         return {"available": False, "error": f"{type(exc).__name__}: {exc}"[:300], "nodes": []}
 
 
+def list_pods(context: Optional[str] = None, namespace: Optional[str] = None) -> dict[str, Any]:
+    avail = availability()
+    if not avail["available"]:
+        return {"available": False, "error": avail["error"], "pods": []}
+    try:
+        k = _load(context)
+        core = k.client.CoreV1Api()
+        raw = (core.list_namespaced_pod(namespace) if namespace
+               else core.list_pod_for_all_namespaces())
+        pods = [shape_pod(p) for p in raw.items]
+        # GPU pods + non-running first — that's what an operator scans for.
+        pods.sort(key=lambda p: (p["phase"] == "Running", -(p["gpu_request"] or 0), p["name"] or ""))
+        return {"available": True, "error": None, "pods": pods}
+    except Exception as exc:
+        return {"available": False, "error": f"{type(exc).__name__}: {exc}"[:300], "pods": []}
+
+
+def list_events(context: Optional[str] = None, *, warnings_only: bool = False, limit: int = 100) -> dict[str, Any]:
+    avail = availability()
+    if not avail["available"]:
+        return {"available": False, "error": avail["error"], "events": []}
+    try:
+        k = _load(context)
+        core = k.client.CoreV1Api()
+        raw = core.list_event_for_all_namespaces()
+        events = [shape_event(e) for e in raw.items]
+        if warnings_only:
+            events = [e for e in events if e["type"] == "Warning"]
+        # Most recent / highest-count first; cap.
+        events.sort(key=lambda e: (e["type"] != "Warning", -(e["count"] or 0)))
+        return {"available": True, "error": None, "events": events[:limit]}
+    except Exception as exc:
+        return {"available": False, "error": f"{type(exc).__name__}: {exc}"[:300], "events": []}
+
+
 __all__ = [
-    "GPU_RESOURCE", "availability", "cluster_status", "list_nodes",
-    "shape_node", "gpu_requested_by_node",
+    "GPU_RESOURCE", "availability", "cluster_status", "list_nodes", "list_pods", "list_events",
+    "shape_node", "shape_pod", "shape_event", "gpu_requested_by_node",
 ]
