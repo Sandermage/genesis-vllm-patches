@@ -40,7 +40,9 @@ PLAYWRIGHT_BASE_URL=http://127.0.0.1:5174 npm run test:e2e
 
 ## Accessibility
 
-`hermetic.spec.ts` gates the structural axe rules on every section. `color-contrast`
-is improved to WCAG AA on the default (light) theme plus dark/carbon (see
-`src/styles.css`) but is not yet gated across the stylised `lime` palette and the
-full set of stat-label classes — a tracked design-token initiative.
+`hermetic.spec.ts` gates the structural axe rules **and** `color-contrast` on every
+section. All four themes (light/dark/carbon/lime) pass WCAG AA: the per-section
+scan covers the default theme, and the dedicated "every theme is WCAG AA" test
+boots each theme natively (via persisted settings) and scans all sections. A
+`freezeUi()` helper disables CSS transitions/animations during scans so contrast
+is read at final colours, not mid-fade.
