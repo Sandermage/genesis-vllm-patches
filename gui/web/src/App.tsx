@@ -104,6 +104,7 @@ import { ServiceLifecyclePlanner } from "./sections/services";
 import { CommandPalette } from "./sections/command-palette";
 import { EventLog, OperationalConsole } from "./sections/operational-console";
 import { LaunchPanel } from "./sections/launch-panel";
+import { RuntimeEnvelopePanel, PresetPolicyGraph } from "./sections/preset-insight";
 import { ProofStatusPanel } from "./sections/proof";
 import { CodeBlock, CopyButton } from "./components/code-block";
 import { useDialogFocus, useEscapeKey, closeOnBackdrop } from "./dialog";
@@ -5554,72 +5555,7 @@ function TabbedSection({
 
 // KpiGrid extracted to ./components/primitives.
 
-function RuntimeEnvelopePanel({
-  card,
-  composed,
-  patchCount
-}: {
-  card: Record<string, unknown>;
-  composed: Record<string, unknown>;
-  patchCount: number;
-}) {
-  const metric = asRecord(card.primary_metric);
-  const context = asNumber(composed.max_model_len);
-  const sequences = asNumber(composed.max_num_seqs);
-  const patches = asNumber(composed.enabled_patches_count);
-  return (
-    <div className="runtime-envelope">
-      <BarList
-        rows={[
-          ["Context", Math.min(100, Math.round(context / 4096)), formatTokens(context)],
-          ["Concurrency", Math.min(100, sequences * 10), String(sequences || "-")],
-          ["Enabled patches", patchCount ? Math.round((patches / patchCount) * 100) : 0, String(patches || 0)],
-          ["Metric", Math.min(100, Math.round(asNumber(metric.value) / 8)), String(asNumber(metric.value) || "pending")]
-        ]}
-      />
-      <InfoRows
-        rows={[
-          ["KV Cache", asText(composed.kv_cache_dtype, "-")],
-          ["Spec Decode", asText(composed.spec_decode_method, "-")],
-          ["Spec K", String(asNumber(composed.spec_decode_K) || "-")],
-          ["Evidence", asText(card.evidence_visibility, "unknown")]
-        ]}
-      />
-    </div>
-  );
-}
-
-function PresetPolicyGraph({
-  card,
-  presets
-}: {
-  card: Record<string, unknown>;
-  presets: PresetRecord[];
-}) {
-  const allow = asStringArray(card.workload_allow);
-  const deny = asStringArray(card.workload_deny);
-  const statuses = countRecord(
-    presets
-      .filter((preset) => preset.has_card)
-      .map((preset) => asText(preset.card?.status, "unknown"))
-  );
-  const maxStatus = Math.max(1, ...Object.values(statuses));
-  return (
-    <div className="policy-graph">
-      <div className="policy-pill-grid">
-        {allow.map((item) => <span className="policy-pill allow" key={`allow-${item}`}>{item}</span>)}
-        {deny.map((item) => <span className="policy-pill deny" key={`deny-${item}`}>{item}</span>)}
-      </div>
-      <BarList
-        rows={Object.entries(statuses).map(([status, value]) => [
-          status,
-          Math.round((value / maxStatus) * 100),
-          String(value)
-        ])}
-      />
-    </div>
-  );
-}
+// RuntimeEnvelopePanel + PresetPolicyGraph extracted to ./sections/preset-insight.
 
 function ConfigDraftEditor({
   selectedPreset,
