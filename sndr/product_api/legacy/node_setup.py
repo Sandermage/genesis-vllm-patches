@@ -29,29 +29,33 @@ _BUNDLE_NAME = "sndr-daemon-bundle.tar.gz"
 
 
 def node_bundle() -> bytes:
-    """tar.gz of the daemon code + its data, shipped to a node so its management
-    daemon runs a CONSISTENT set: the ``product_api`` package (.py — the API) AND
-    ``model_configs`` (.py + .yaml — the preset/config corpus the API reads). They
-    must match: fresh API code against a node's stale corpus crashes the catalog
-    (the 500 we hit). Arcnames are relative to ``sndr_core`` so the node script
-    unpacks both into place. Excludes ``web_static`` (the central GUI is the UI)
-    and ``__pycache__`` (stale bytecode must not travel)."""
-    product_api_root = os.path.dirname(os.path.abspath(__file__))  # .../sndr_core/product_api
-    sndr_core_root = os.path.dirname(product_api_root)              # .../sndr_core
+    """tar.gz of the canonical ``sndr`` package, shipped to a node so its
+    management daemon runs a CONSISTENT set with the central one.
+
+    Post-v12 the daemon imports the canonical top-level ``sndr`` package
+    (``sndr.product_api.legacy.http_app`` + its corpus under ``sndr.model_configs``);
+    the ``vllm.sndr_core.*`` tree is only a thin shim that re-exports from
+    ``sndr.*`` and is already provided by the engine's existing sndr_core mount.
+    So the node needs ``sndr/`` ADDED — and it must be the central daemon's exact
+    code (.py + .yaml/.yml), else fresh API code runs against a node's stale
+    corpus and the catalog 500s. Arcnames are relative to the repo root
+    (``sndr/...``) so the node script unpacks it next to ``vllm/``. Excludes
+    ``web_static`` (the central GUI is the UI) and ``__pycache__`` (stale
+    bytecode must not travel)."""
+    # node_setup.py = <repo>/sndr/product_api/legacy/node_setup.py
+    here = os.path.dirname(os.path.abspath(__file__))   # .../sndr/product_api/legacy
+    sndr_pkg = os.path.dirname(os.path.dirname(here))   # .../sndr  (canonical package root)
+    repo_root = os.path.dirname(sndr_pkg)               # repo root (contains sndr/ + vllm/)
     buf = io.BytesIO()
     with tarfile.open(fileobj=buf, mode="w:gz") as tar:
-        for sub in ("product_api", "model_configs"):
-            base = os.path.join(sndr_core_root, sub)
-            if not os.path.isdir(base):
-                continue
-            for dirpath, dirnames, filenames in os.walk(base):
-                dirnames[:] = [d for d in dirnames if d not in ("__pycache__", "web_static")]
-                for name in sorted(filenames):
-                    if not name.endswith((".py", ".yaml", ".yml")):
-                        continue
-                    full = os.path.join(dirpath, name)
-                    arc = os.path.relpath(full, sndr_core_root)  # e.g. product_api/http_app.py
-                    tar.add(full, arcname=arc)
+        for dirpath, dirnames, filenames in os.walk(sndr_pkg):
+            dirnames[:] = [d for d in dirnames if d not in ("__pycache__", "web_static")]
+            for name in sorted(filenames):
+                if not name.endswith((".py", ".yaml", ".yml")):
+                    continue
+                full = os.path.join(dirpath, name)
+                arc = os.path.relpath(full, repo_root)  # e.g. sndr/product_api/legacy/http_app.py
+                tar.add(full, arcname=arc)
     return buf.getvalue()
 
 
@@ -83,12 +87,22 @@ DST=$(docker inspect "$ENGINE" --format '{{{{range .Mounts}}}}{{{{.Source}}}} {{
 [ -z "$SRC" ] && {{ echo "[setup] could not find the sndr_core mount on $ENGINE"; exit 1; }}
 echo "[setup] engine=$ENGINE image=$IMAGE"
 echo "[setup] sndr_core: $SRC -> $DST"
-# 1) Deploy the daemon code + corpus into the node's sndr_core (consistent set)
-#    and drop stale bytecode so the fresh .py is what runs (mounted read-only).
-tar -xzf {_BUNDLE_NAME} -C "$SRC"
-find "$SRC/product_api" "$SRC/model_configs" -name '*.pyc' -delete 2>/dev/null || true
-find "$SRC/product_api" "$SRC/model_configs" -name '__pycache__' -type d -prune -exec rm -rf {{}} + 2>/dev/null || true
-echo "[setup] daemon code + corpus deployed"
+# v12: the canonical package is the top-level sndr/ (the vllm.sndr_core.* tree is
+# a shim that imports from sndr.*). The engine mount already provides
+# vllm/sndr_core; derive the host repo root + container site-packages from it and
+# add the canonical sndr/ package next to vllm/ so `import sndr` resolves — else
+# the daemon dies on `from sndr.version import ...` (No module named 'sndr').
+REPO_ROOT=$(dirname "$(dirname "$SRC")")
+SITE_PKGS=$(dirname "$(dirname "$DST")")
+SNDR_SRC="$REPO_ROOT/sndr"
+SNDR_DST="$SITE_PKGS/sndr"
+# 1) Deploy the canonical sndr/ package (consistent set) next to vllm/ and drop
+#    stale bytecode so the fresh .py is what runs (mounted read-only).
+tar -xzf {_BUNDLE_NAME} -C "$REPO_ROOT"
+[ -d "$SNDR_SRC" ] || {{ echo "[setup] sndr/ package missing at $SNDR_SRC after unpack"; exit 1; }}
+find "$SNDR_SRC" -name '*.pyc' -delete 2>/dev/null || true
+find "$SNDR_SRC" -name '__pycache__' -type d -prune -exec rm -rf {{}} + 2>/dev/null || true
+echo "[setup] canonical sndr/ deployed: $SNDR_SRC -> $SNDR_DST"
 # 2) Run the management daemon as a sidecar from the engine image (it has the
 #    sndr_core deps). LAN-bound so the central GUI can switch straight to it.
 #    We mount /var/run/docker.sock so the daemon can report the host's docker and
@@ -113,9 +127,10 @@ run_daemon() {{  # $1 = extra run args (e.g. "--gpus all" or "")
     -e SNDR_METRICS_URL=http://127.0.0.1:$ENGINE_PORT/metrics \\
     -e PYTHONDONTWRITEBYTECODE=1 \\
     -v "$SRC":"$DST":ro \\
+    -v "$SNDR_SRC":"$SNDR_DST":ro \\
     -v /var/run/docker.sock:/var/run/docker.sock \\
     "$IMAGE" \\
-    -c "from vllm.sndr_core.product_api.http_app import run_server; run_server(host='0.0.0.0', port=$PORT)"
+    -c "import os; from sndr.product_api.legacy.http_app import run_server; run_server(host='0.0.0.0', port=$PORT, enable_apply=bool(os.environ.get('SNDR_ENABLE_APPLY')))"
 }}
 if run_daemon "--gpus all" 2>/tmp/sndr_run_err; then
   echo "[setup] daemon started with GPU access (--gpus all) — inventory will show real cards"

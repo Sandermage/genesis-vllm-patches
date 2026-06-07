@@ -13,10 +13,14 @@ def test_node_bundle_ships_code_AND_corpus_consistently():
     assert data[:2] == b"\x1f\x8b"  # gzip magic
     with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tar:
         names = tar.getnames()
-    # Daemon code (product_api/*.py) AND the corpus (model_configs/*.yaml) — the
-    # mismatch of fresh code vs a node's stale corpus is what 500s the catalog.
-    assert "product_api/http_app.py" in names and "product_api/node_setup.py" in names
-    assert any(n.startswith("model_configs/") and n.endswith(".yaml") for n in names)
+    # The canonical sndr/ package: daemon code (sndr/product_api/legacy/*.py) AND
+    # the corpus (sndr/model_configs/**/*.yaml) — fresh code vs a node's stale
+    # corpus is what 500s the catalog. Arcnames are repo-root-relative (sndr/...)
+    # so the node script unpacks it next to vllm/.
+    assert "sndr/product_api/legacy/http_app.py" in names
+    assert "sndr/product_api/legacy/node_setup.py" in names
+    assert "sndr/version.py" in names  # the import that crashed the old daemon
+    assert any(n.startswith("sndr/model_configs/") and n.endswith(".yaml") for n in names)
     assert all(n.endswith((".py", ".yaml", ".yml")) for n in names)
     assert not any("__pycache__" in n or "web_static" in n for n in names)  # excluded
 
@@ -29,7 +33,12 @@ def test_setup_node_script_is_self_contained():
     assert "SNDR_ADMIN_PASSWORD='secret'" in s               # password embedded + quoted
     assert "ENGINE_PORT=8102" in s                           # engine port wired
     assert "SNDR_OPENAI_BASE_URL=http://127.0.0.1:$ENGINE_PORT/v1" in s
-    assert "run_server(host='0.0.0.0', port=$PORT)" in s     # API daemon, not cli
+    # v12: mounts the canonical sndr/ package next to vllm/ and imports it
+    # directly (no vllm namespace), with apply wired from SNDR_ENABLE_APPLY.
+    assert '-v "$SNDR_SRC":"$SNDR_DST":ro' in s
+    assert "from sndr.product_api.legacy.http_app import run_server" in s
+    assert "enable_apply=bool(os.environ.get('SNDR_ENABLE_APPLY'))" in s
+    assert "vllm.sndr_core.product_api.http_app import" not in s  # not the shim path
 
 
 def test_setup_node_mounts_docker_sock_without_auto_exec():
