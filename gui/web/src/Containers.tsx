@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity, AlertTriangle, ArrowDownUp, ArrowLeft, ArrowUp, Bell, Box, Boxes, ChevronRight,
   Clock, Copy, Cpu, Database, Download, DownloadCloud, File as FileIcon, FileArchive, FileCode,
-  FileText, Folder, GitCompare, HardDrive, Heart, Home, Layers, LayoutGrid, List, Loader2, Lock, MemoryStick, MoreVertical,
+  FileText, Folder, GitCompare, HardDrive, Heart, Home, Layers, LayoutGrid, Link2, List, Loader2, Lock, MemoryStick, MoreVertical,
   Network, Play, RefreshCw, RotateCw, Search, Send, Server, Settings, ShieldAlert, ShieldCheck,
   Square, TerminalSquare, Wrench, X,
 } from "lucide-react";
@@ -654,7 +654,7 @@ function ContainerPage({ source, name, busy, onBack, onAct, initialTab, onNaviga
           ))}
         </nav>
         <div className="cpage-content">
-          {tab === "overview" && <OverviewTab source={source} name={name} inspect={inspect} online={online} onNavigate={onNavigate} />}
+          {tab === "overview" && <OverviewTab source={source} name={name} inspect={inspect} online={online} onNavigate={onNavigate} onOpen={(t) => setTab(t ?? "overview")} />}
           {tab === "config" && <ConfigTab source={source} name={name} inspect={inspect} onChanged={reloadInspect} />}
           {tab === "processes" && <ProcessesTab source={source} name={name} online={online} />}
           {tab === "files" && <FilesTab source={source} name={name} />}
@@ -772,35 +772,153 @@ function SourceCard({ source, name, onNavigate }: { source: ContainerSource; nam
   );
 }
 
-function OverviewTab({ source, name, inspect, online, onNavigate }: { source: ContainerSource; name: string; inspect: Inspect | null; online: boolean; onNavigate?: NavFn }) {
+function uptimeFrom(startedAt?: string): string {
+  if (!startedAt || String(startedAt).startsWith("0001")) return "—";
+  const ms = Date.now() - new Date(startedAt).getTime();
+  if (ms < 0) return "—";
+  const d = Math.floor(ms / 86400000), h = Math.floor((ms % 86400000) / 3600000), m = Math.floor((ms % 3600000) / 60000);
+  return d > 0 ? `${d}d ${h}h` : h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
+function OverviewTab({ source, name, inspect, online, onNavigate, onOpen }: { source: ContainerSource; name: string; inspect: Inspect | null; online: boolean; onNavigate?: NavFn; onOpen?: (tab?: Tab) => void }) {
   const { s, hist } = useLiveStats(source, name, online, 3000);
+  const [ver, setVer] = useState<HostSndrState | null>(null);
+  const [envOpen, setEnvOpen] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    if (online) api.containerSndrState(source, name).then((x) => alive && setVer(x.ok ? x : null)).catch(() => {});
+    return () => { alive = false; };
+  }, [source, name, online]);
   if (!inspect) return <Loading />;
-  const cfg = inspect.Config ?? {}, state = inspect.State ?? {}, net = inspect.NetworkSettings ?? {};
+  const cfg = inspect.Config ?? {}, state = inspect.State ?? {}, net = inspect.NetworkSettings ?? {}, hostCfg = inspect.HostConfig ?? {};
   const cmd = [...(cfg.Entrypoint ?? []), ...(cfg.Cmd ?? [])].join(" ") || "—";
   const networks = Object.keys(net.Networks ?? {});
   const ip = net.IPAddress || (networks.length ? net.Networks[networks[0]]?.IPAddress : "") || "—";
   const cpu = s?.cpu_pct ?? 0, memPct = s?.mem_pct ?? 0;
+  const isEngine = /vllm/i.test(`${name} ${cfg.Image ?? ""}`) && !/daemon/i.test(name);
+  const health = state.Health?.Status as string | undefined;
+  const restartPolicy = hostCfg.RestartPolicy?.Name || "no";
+  const mounts: { src: string; dst: string; rw: boolean; type?: string }[] =
+    (inspect.Mounts ?? []).map((m: Record<string, unknown>) => ({ src: String(m.Source ?? m.Name ?? ""), dst: String(m.Destination ?? ""), rw: m.RW !== false, type: m.Type as string }));
+  const ports: { container: string; host: string; ip: string }[] =
+    Object.entries(net.Ports ?? {}).flatMap(([cport, binds]) => ((binds as Record<string, string>[]) ?? []).map((b) => ({ container: cport, host: String(b.HostPort ?? ""), ip: String(b.HostIp ?? "") })));
+  const env: [string, string][] = (cfg.Env ?? []).map((e: string) => { const i = e.indexOf("="); return [e.slice(0, i), e.slice(i + 1)] as [string, string]; });
+  const sndrEnv = env.filter(([k]) => /^(GENESIS|SNDR)_/.test(k));
+  const labels = Object.entries(cfg.Labels ?? {}) as [string, string][];
+  const gpus = hostCfg.DeviceRequests?.some?.((d: Record<string, unknown>) => String(d.Driver ?? "").includes("nvidia") || (d.Capabilities as string[][])?.some?.((c) => c.includes("gpu"))) || /--gpus/.test(cmd);
+
   return (
     <div className="ov">
       <SourceCard source={source} name={name} onNavigate={onNavigate} />
+
+      {/* Versions running inside — the differentiator, front and centre. */}
+      {ver?.ok && (ver.vllm_version || ver.sndr_version) && (
+        <div className="ov-versions">
+          <div className="ov-versions-head"><ShieldCheck size={13} /> <strong>Running inside</strong></div>
+          <div className="ov-versions-grid">
+            {ver.vllm_version && <div className="ov-vchip"><span>vLLM</span><b>{ver.vllm_version}</b></div>}
+            {ver.sndr_version && <div className="ov-vchip"><span>SNDR Core</span><b>{ver.sndr_version}</b></div>}
+            {ver.configs != null && <div className="ov-vchip"><span>Configs</span><b>{ver.configs}</b></div>}
+            {ver.patches != null && <div className="ov-vchip"><span>Patches</span><b>{ver.patches}</b></div>}
+          </div>
+        </div>
+      )}
+
+      {/* Quick actions row */}
+      <div className="ov-quick">
+        <button className="ghost-button" onClick={() => onOpen?.("logs")}><FileText size={13} /> Logs</button>
+        <button className="ghost-button" onClick={() => onOpen?.("exec")}><TerminalSquare size={13} /> Exec</button>
+        <button className="ghost-button" onClick={() => onOpen?.("stats")}><Cpu size={13} /> Stats</button>
+        <button className="ghost-button" onClick={() => onOpen?.("config")}><Settings size={13} /> Config &amp; edit</button>
+        <button className="ghost-button" onClick={() => onOpen?.("files")}><Folder size={13} /> Files</button>
+      </div>
+
       {online && (
         <div className="ov-live">
           <div className="ov-metric"><div className="ov-metric-h"><Cpu size={13} /> CPU <b>{cpu.toFixed(1)}%</b></div><Sparkline data={hist.cpu} kind={pctClass(cpu)} tall /></div>
           <div className="ov-metric"><div className="ov-metric-h"><MemoryStick size={13} /> Memory <b>{fmtBytes(s?.mem_usage)}{s?.mem_limit ? ` / ${fmtBytes(s?.mem_limit)}` : ""}</b></div><Sparkline data={hist.mem} kind={pctClass(memPct)} tall /></div>
         </div>
       )}
-      <div className="kv">
-        <Row label="Image">{cfg.Image || inspect.Image}</Row>
-        <Row label="Command"><code className="kv-cmd">{cmd}</code></Row>
-        <Row label="Created">{inspect.Created ? new Date(inspect.Created).toLocaleString() : "—"}</Row>
-        <Row label="Started">{state.StartedAt && !String(state.StartedAt).startsWith("0001") ? new Date(state.StartedAt).toLocaleString() : "—"}</Row>
-        <Row label="Restart count">{inspect.RestartCount ?? 0}</Row>
-        <Row label="Health">{state.Health?.Status ?? "—"}</Row>
-        <Row label="IP / network">{ip}{networks.length ? ` · ${networks.join(", ")}` : ""}</Row>
-        {s && <Row label="Network I/O">↓ {fmtBytes(s.net_rx)} / ↑ {fmtBytes(s.net_tx)}</Row>}
-        {s && <Row label="Block I/O">↓ {fmtBytes(s.blk_read)} / ↑ {fmtBytes(s.blk_write)}</Row>}
-        {s?.pids ? <Row label="Processes">{s.pids}</Row> : null}
+
+      {/* GPU telemetry for engine containers — our differentiator */}
+      {isEngine && online && <ContainerGpu source={source} />}
+
+      <div className="ov-cols">
+        <section className="ov-sec">
+          <h4><Box size={13} /> Identity &amp; runtime</h4>
+          <div className="kv">
+            <Row label="Image">{cfg.Image || inspect.Image}</Row>
+            <Row label="Container id">{inspect.Id ? String(inspect.Id).slice(0, 16) : "—"}</Row>
+            <Row label="Command"><code className="kv-cmd">{cmd}</code></Row>
+            <Row label="Created">{inspect.Created ? new Date(inspect.Created).toLocaleString() : "—"}</Row>
+            <Row label="Uptime">{online ? uptimeFrom(state.StartedAt) : "stopped"}</Row>
+            <Row label="Restart count">{inspect.RestartCount ?? 0}</Row>
+            <Row label="Restart policy">{restartPolicy}</Row>
+            <Row label="Health">{health ? <span className={`health-badge ${health}`}><Heart size={11} /> {health}</span> : "no healthcheck"}</Row>
+            <Row label="GPU access">{gpus ? <span className="ov-yes"><Cpu size={11} /> yes</span> : "no"}</Row>
+          </div>
+        </section>
+
+        <section className="ov-sec">
+          <h4><Network size={13} /> Network</h4>
+          <div className="kv">
+            <Row label="IP">{ip}</Row>
+            <Row label="Networks">{networks.join(", ") || "—"}</Row>
+            {s && <Row label="Network I/O">↓ {fmtBytes(s.net_rx)} / ↑ {fmtBytes(s.net_tx)}</Row>}
+            {s && <Row label="Block I/O">↓ {fmtBytes(s.blk_read)} / ↑ {fmtBytes(s.blk_write)}</Row>}
+            {s?.pids ? <Row label="Processes">{s.pids}</Row> : null}
+          </div>
+          <div className="ov-ports">
+            {ports.length ? ports.map((p, i) => (
+              <a key={i} className="ov-port" href={`http://${p.ip && p.ip !== "0.0.0.0" ? p.ip : "127.0.0.1"}:${p.host}`} target="_blank" rel="noreferrer" title={`${p.host} → ${p.container}`}>
+                <Link2 size={10} /> {p.host}<span className="muted"> → {p.container}</span>
+              </a>
+            )) : <span className="muted ov-noports">no published ports</span>}
+          </div>
+        </section>
       </div>
+
+      <div className="ov-cols">
+        <section className="ov-sec">
+          <h4><HardDrive size={13} /> Mounts <span className="ov-count">{mounts.length}</span></h4>
+          {mounts.length ? (
+            <div className="ov-mounts">
+              {mounts.map((m, i) => (
+                <div key={i} className="ov-mount">
+                  <code className="ov-mount-dst">{m.dst}</code>
+                  <span className={`ov-mount-mode ${m.rw ? "rw" : "ro"}`}>{m.rw ? "rw" : "ro"}</span>
+                  <code className="ov-mount-src muted" title={m.src}>{m.src}</code>
+                </div>
+              ))}
+            </div>
+          ) : <span className="muted">none</span>}
+        </section>
+
+        <section className="ov-sec">
+          <h4><Database size={13} /> Labels <span className="ov-count">{labels.length}</span></h4>
+          {labels.length ? (
+            <div className="ov-labels">
+              {labels.slice(0, 8).map(([k, v]) => <span key={k} className="ov-label" title={`${k}=${v}`}><b>{k.split(".").pop()}</b> {v.slice(0, 28)}</span>)}
+              {labels.length > 8 && <span className="muted">+{labels.length - 8} more</span>}
+            </div>
+          ) : <span className="muted">none</span>}
+        </section>
+      </div>
+
+      <section className="ov-sec">
+        <h4 role="button" tabIndex={0} className="ov-env-head" onClick={() => setEnvOpen((v) => !v)} onKeyDown={onKeyActivate(() => setEnvOpen((v) => !v))}>
+          <Settings size={13} /> Environment <span className="ov-count">{env.length}</span>
+          {sndrEnv.length > 0 && <span className="ov-env-sndr">{sndrEnv.length} SNDR flags</span>}
+          <ChevronRight size={14} className={`ov-env-caret ${envOpen ? "open" : ""}`} />
+        </h4>
+        {envOpen && (
+          <div className="ov-env">
+            {(env.length ? env : [["—", ""] as [string, string]]).map(([k, v]) => (
+              <div key={k} className={`ov-env-row ${/^(GENESIS|SNDR)_/.test(k) ? "sndr" : ""}`}><code className="ov-env-k">{k}</code><code className="ov-env-v">{v}</code></div>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

@@ -124,9 +124,19 @@ function K8sIntro({ available }: { available?: boolean }) {
       </div>
       {open && (
         <div className="k8s-intro-body">
-          <p><b>Monitor</b> — the Nodes / Pods / Events tabs read the cluster through your kubeconfig (your RBAC, never a god-mode account). Nodes show <code>nvidia.com/gpu</code> capacity / allocatable / requested / free; Events surface <code>FailedScheduling: Insufficient nvidia.com/gpu</code> so you see why a pod is stuck pending.</p>
-          <p><b>Deploy</b> — pick a preset on the Deploy tab to render a complete manifest (ConfigMap + Service + PVC + Deployment with GPU limits, node tolerations and health probes), then <code>kubectl apply</code> it. No live cluster needed to generate it.</p>
-          <p><b>GPU prerequisite</b> — for the scheduler to place GPU pods, the cluster needs the NVIDIA device plugin (or the gpu-operator) so nodes advertise <code>nvidia.com/gpu</code>. Without it a GPU pod stays Pending (and the Events tab shows exactly that).</p>
+          <p className="k8s-intro-lead">Kubernetes is a cluster orchestrator. Today you run vLLM as Docker containers you start/stop per host (the Containers tab). Kubernetes lets you treat <b>several GPU servers as one pool</b> and have it keep your engines running for you.</p>
+          <p><b>What it gives you over plain Docker:</b></p>
+          <ul className="k8s-intro-list">
+            <li><b>Self-healing</b> — if an engine crashes or a node reboots, k8s restarts/reschedules it automatically. No manual SSH-and-restart.</li>
+            <li><b>GPU-aware scheduling</b> — you declare "this engine needs 2 GPUs" and k8s places it on a node that has them free, across the whole fleet.</li>
+            <li><b>Scale</b> — run N replicas of an engine behind one Service/endpoint; bump the count to add capacity.</li>
+            <li><b>Rolling updates &amp; rollback</b> — swap the image with zero-downtime, roll back if a build is bad.</li>
+            <li><b>Declarative</b> — the whole deployment is one YAML you version, review, and re-apply identically anywhere.</li>
+          </ul>
+          <p className="muted"><b>When NOT to bother:</b> for a single GPU box, plain Docker (the Containers tab) is simpler and enough. Kubernetes pays off once you have a <b>fleet</b> of GPU hosts to schedule across.</p>
+          <hr className="k8s-intro-sep" />
+          <p><b>This panel:</b> <b>Deploy</b> renders a ready manifest from any preset (no cluster needed to generate it) — <code>kubectl apply</code> and you're running. <b>Nodes/Pods/Events</b> read a connected cluster via your kubeconfig (your RBAC) to show GPU capacity/free per node and why a pod is pending (e.g. <code>Insufficient nvidia.com/gpu</code>).</p>
+          <p className="muted"><b>GPU prerequisite:</b> the cluster needs the NVIDIA device plugin / gpu-operator so nodes advertise <code>nvidia.com/gpu</code> — otherwise GPU pods stay Pending (the Events tab shows exactly that).</p>
         </div>
       )}
     </div>
