@@ -70,6 +70,7 @@ import { ModelsWorkbench } from "./sections/models-workbench";
 import { ApiTokenManager, NotificationSettings, AppearanceSettings, ApiTokenField } from "./sections/settings-panels";
 import { ConfigsSection } from "./sections/configs-workbench";
 import { CapabilityTable } from "./components/capability-table";
+import { PlanChip, KeyValue, ArtifactPreview, type ArtifactTab } from "./components/display-bits";
 import { HostsSection } from "./sections/hosts-section";
 import { PresetSelectedView, PresetSummaryStrip } from "./sections/preset-views";
 import { StatusBadge, StatusPill, InfoRows, CompactList, KpiGrid, type GateStatus } from "./components/primitives";
@@ -115,7 +116,6 @@ import {
   EnvironmentReport,
   HostProfile,
   Job,
-  LaunchPlanArtifact,
   BackendEvent,
   LaunchPlanResult,
   ProofStatusReport,
@@ -173,7 +173,7 @@ type LoadState = "idle" | "loading" | "ready" | "error";
 // RailCheck primitive and the gate logic share one source of truth.
 // RuntimeMode moved to ./nav.
 // SectionId / RuntimeMode / Gate / GATE_TARGET now live in ./nav (imported above).
-type ArtifactTab = "compose" | "systemd" | "commands" | "env";
+// ArtifactTab moved to ./components/display-bits.
 // ConsoleTab / ThemeMode / DensityMode / AccentMode / DetailMode / GuiSettings +
 // theme helpers (nextTheme/themeLabel/themeIcon/THEME_CYCLE/VALID_THEMES) now
 // live in ./settings (imported above).
@@ -3548,69 +3548,7 @@ function isAccent(value: unknown): value is AccentMode {
 
 // RuntimeEndpoint + BenchmarkCard + EvidenceCard + PatchMatrix extracted to ./sections/rail-cards.
 
-function PlanChip({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="plan-chip">
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  );
-}
-
-function ArtifactPreview({
-  artifacts,
-  activeTab,
-  setActiveTab
-}: {
-  artifacts: LaunchPlanArtifact[];
-  activeTab: ArtifactTab;
-  setActiveTab: (tab: ArtifactTab) => void;
-}) {
-  const artifactByKind = new Map(
-    artifacts.map((artifact) => [artifact.kind, artifact])
-  );
-  const activeArtifact = artifactByKind.get(activeTab);
-  const tabs: Array<{ id: ArtifactTab; label: string }> = [
-    { id: "compose", label: "Compose" },
-    { id: "systemd", label: "systemd Unit" },
-    { id: "commands", label: "CLI Commands" },
-    { id: "env", label: "Environment Diff" }
-  ];
-  const fallback = [
-    "# Waiting for launch plan Product API",
-    "# Backend endpoint: /api/v1/launch/plan",
-    "# Generated artifacts are intentionally not composed in React."
-  ].join("\n");
-  const title = activeArtifact?.title ?? "Product API Artifact";
-  const content = activeArtifact?.content ?? fallback;
-
-  return (
-    <section className="artifact-preview">
-      <div className="artifact-tabs">
-        {tabs.map((tab) => (
-          <button
-            className={activeTab === tab.id ? "active" : ""}
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-      <strong className="artifact-title">{title}</strong>
-      <CodeBlock lines={content.split("\n")} title={title} />
-    </section>
-  );
-}
-
-function KeyValue({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="key-value">
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  );
-}
+// PlanChip + KeyValue + ArtifactPreview (+ ArtifactTab) extracted to ./components/display-bits.
 
 // GATE_TARGET moved to ./nav.
 
