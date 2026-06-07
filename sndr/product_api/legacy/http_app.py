@@ -2100,6 +2100,21 @@ def create_app(
         _profile, target = _ssh_target_for(host_id)
         return _dataclass_payload(gpu_telemetry.collect_remote(target))
 
+    # ── Kubernetes mode (read-only, P1) — degrades gracefully when no cluster ──
+    @app.get("/api/v1/k8s/status")
+    async def k8s_status_route() -> dict[str, Any]:
+        """Cluster reachability + version + node/GPU/namespace counts (or a
+        structured {available:false, error} when k8s isn't configured)."""
+        from . import k8s_client
+        return k8s_client.cluster_status()
+
+    @app.get("/api/v1/k8s/nodes")
+    async def k8s_nodes_route() -> dict[str, Any]:
+        """Nodes with GPU capacity/allocatable/requested/free, conditions,
+        taints and GPU labels — the GPU-fleet operator's primary view."""
+        from . import k8s_client
+        return k8s_client.list_nodes()
+
     @app.get("/api/v1/alerts")
     async def alerts_route() -> dict[str, Any]:
         """Evaluate hardware-threshold rules over the daemon host's live telemetry

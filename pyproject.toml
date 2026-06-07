@@ -96,6 +96,13 @@ gui-api = [
     "fastapi>=0.110",
     "uvicorn[standard]>=0.27",
 ]
+# `pip install vllm-sndr-core[k8s]` for the GUI's read-only Kubernetes mode
+# (cluster status, nodes with GPU capacity, pods/logs/exec). The daemon imports
+# and runs without it — k8s endpoints report a structured "not configured" so
+# the GUI shows "connect a cluster" rather than failing.
+k8s = [
+    "kubernetes>=29.0",
+]
 # `pip install vllm-sndr-core[gui-remote]` for the GUI's remote-host features:
 # SSH/SFTP connectivity + checks, an embedded PTY terminal, and encrypted
 # at-rest storage of SSH passwords / engine API keys. All optional — the daemon

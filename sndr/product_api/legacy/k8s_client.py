@@ -1,0 +1,200 @@
+# SPDX-License-Identifier: Apache-2.0
+"""Read-only Kubernetes client for the admin panel (k8s mode, P1).
+
+Honours the operator's kubeconfig/RBAC — acts as the user's credential, never a
+god-mode service account (Headlamp's posture). Degrades gracefully: when the
+``kubernetes`` client isn't installed, no kubeconfig is present, or the cluster
+is unreachable, every call returns a structured ``{available: False, error}``
+instead of raising, so the GUI can render "connect a cluster" cleanly.
+
+The data-shaping functions (``shape_node`` etc.) are PURE — they take a node-like
+object and return a plain dict — so they are unit-testable with lightweight
+mocks, without a live cluster or the kubernetes package installed (the GPU-fleet
+operator's #1 view, node GPU capacity, is shaped here and fully tested).
+"""
+from __future__ import annotations
+
+import os
+from typing import Any, Optional
+
+GPU_RESOURCE = "nvidia.com/gpu"
+
+# GFD / gpu-operator node labels worth surfacing (product, memory, count, driver).
+_GPU_LABEL_PREFIXES = ("nvidia.com/gpu", "nvidia.com/cuda", "feature.node.kubernetes.io/pci-10de")
+
+
+def _kubernetes():
+    """Import the kubernetes client lazily; None if it isn't installed."""
+    try:
+        import kubernetes  # noqa: F401
+        return kubernetes
+    except Exception:
+        return None
+
+
+def availability() -> dict[str, Any]:
+    """Why k8s mode is or isn't usable, without touching the network."""
+    if _kubernetes() is None:
+        return {"available": False,
+                "error": "the 'kubernetes' Python client is not installed — pip install 'vllm-sndr-core[k8s]'"}
+    cfg = _kubeconfig_path()
+    in_cluster = os.path.exists("/var/run/secrets/kubernetes.io/serviceaccount/token")
+    if not cfg and not in_cluster:
+        return {"available": False,
+                "error": "no kubeconfig found (set KUBECONFIG or ~/.kube/config), and not running in-cluster"}
+    return {"available": True, "error": None, "kubeconfig": cfg, "in_cluster": in_cluster}
+
+
+def _kubeconfig_path() -> Optional[str]:
+    env = os.environ.get("KUBECONFIG", "").strip()
+    if env:
+        first = env.split(os.pathsep)[0]
+        return first if os.path.exists(first) else None
+    default = os.path.expanduser("~/.kube/config")
+    return default if os.path.exists(default) else None
+
+
+def _load(context: Optional[str] = None):
+    """Load kube config (file or in-cluster) and return the kubernetes module, or
+    raise a Containerless RuntimeError-equivalent via the caller's try/except."""
+    k = _kubernetes()
+    if k is None:
+        raise RuntimeError("kubernetes client not installed")
+    from kubernetes import config as _cfg
+    if os.path.exists("/var/run/secrets/kubernetes.io/serviceaccount/token"):
+        _cfg.load_incluster_config()
+    else:
+        _cfg.load_kube_config(context=context)
+    return k
+
+
+# ── pure shaping (unit-tested without a cluster) ─────────────────────────────
+
+def _quantity_to_int(value: Any) -> Optional[int]:
+    """k8s integer resource quantities (e.g. nvidia.com/gpu: '2') -> int."""
+    if value is None:
+        return None
+    try:
+        return int(str(value))
+    except (TypeError, ValueError):
+        return None
+
+
+def shape_node(node: Any) -> dict[str, Any]:
+    """Shape a V1Node-like object into the dict the GUI nodes table renders.
+    Pure: only reads attributes, never calls the API."""
+    meta = getattr(node, "metadata", None)
+    status = getattr(node, "status", None)
+    spec = getattr(node, "spec", None)
+    labels = dict(getattr(meta, "labels", None) or {})
+    capacity = dict(getattr(status, "capacity", None) or {})
+    allocatable = dict(getattr(status, "allocatable", None) or {})
+
+    conditions = getattr(status, "conditions", None) or []
+    cond_map = {getattr(c, "type", None): getattr(c, "status", None) for c in conditions}
+    ready = cond_map.get("Ready") == "True"
+    # Non-Ready pressure conditions that are True are the actionable warnings.
+    pressures = [t for t in ("MemoryPressure", "DiskPressure", "PIDPressure")
+                 if cond_map.get(t) == "True"]
+
+    roles = sorted(
+        k.split("/", 1)[1] or "master"
+        for k in labels
+        if k.startswith("node-role.kubernetes.io/")
+    ) or (["worker"] if labels else [])
+
+    node_info = getattr(status, "node_info", None)
+    taints = getattr(spec, "taints", None) or []
+    gpu_labels = {k: v for k, v in labels.items()
+                  if any(k.startswith(p) for p in _GPU_LABEL_PREFIXES)}
+
+    return {
+        "name": getattr(meta, "name", None),
+        "ready": ready,
+        "schedulable": not bool(getattr(spec, "unschedulable", False)),
+        "roles": roles,
+        "kubelet_version": getattr(node_info, "kubelet_version", None) if node_info else None,
+        "os_image": getattr(node_info, "os_image", None) if node_info else None,
+        "cpu_capacity": str(capacity.get("cpu")) if capacity.get("cpu") is not None else None,
+        "mem_capacity": str(capacity.get("memory")) if capacity.get("memory") is not None else None,
+        "gpu_capacity": _quantity_to_int(capacity.get(GPU_RESOURCE)),
+        "gpu_allocatable": _quantity_to_int(allocatable.get(GPU_RESOURCE)),
+        "pressures": pressures,
+        "taints": [{"key": getattr(t, "key", None), "value": getattr(t, "value", None),
+                    "effect": getattr(t, "effect", None)} for t in taints],
+        "gpu_labels": gpu_labels,
+        "label_count": len(labels),
+    }
+
+
+def gpu_requested_by_node(pods: Any) -> dict[str, int]:
+    """Sum nvidia.com/gpu requested across all (non-terminal) pods, keyed by the
+    node they're scheduled on. Pure over a V1PodList-like ``.items``."""
+    out: dict[str, int] = {}
+    for pod in getattr(pods, "items", None) or []:
+        spec = getattr(pod, "spec", None)
+        node_name = getattr(spec, "node_name", None)
+        phase = getattr(getattr(pod, "status", None), "phase", None)
+        if not node_name or phase in ("Succeeded", "Failed"):
+            continue
+        total = 0
+        for ctr in (getattr(spec, "containers", None) or []):
+            res = getattr(ctr, "resources", None)
+            req = getattr(res, "requests", None) or {}
+            total += _quantity_to_int(req.get(GPU_RESOURCE)) or 0
+        if total:
+            out[node_name] = out.get(node_name, 0) + total
+    return out
+
+
+# ── live calls (graceful) ────────────────────────────────────────────────────
+
+def cluster_status(context: Optional[str] = None) -> dict[str, Any]:
+    avail = availability()
+    if not avail["available"]:
+        return {"available": False, "error": avail["error"]}
+    try:
+        k = _load(context)
+        ver = k.client.VersionApi().get_code()
+        core = k.client.CoreV1Api()
+        nodes = core.list_node().items
+        ns = core.list_namespace().items
+        ready = sum(1 for n in nodes if shape_node(n)["ready"])
+        gpu_nodes = sum(1 for n in nodes if (shape_node(n)["gpu_capacity"] or 0) > 0)
+        return {
+            "available": True, "error": None,
+            "version": getattr(ver, "git_version", None),
+            "platform": getattr(ver, "platform", None),
+            "node_count": len(nodes), "nodes_ready": ready,
+            "gpu_node_count": gpu_nodes, "namespace_count": len(ns),
+        }
+    except Exception as exc:
+        return {"available": False, "error": f"{type(exc).__name__}: {exc}"[:300]}
+
+
+def list_nodes(context: Optional[str] = None) -> dict[str, Any]:
+    avail = availability()
+    if not avail["available"]:
+        return {"available": False, "error": avail["error"], "nodes": []}
+    try:
+        k = _load(context)
+        core = k.client.CoreV1Api()
+        nodes = [shape_node(n) for n in core.list_node().items]
+        # Annotate GPU pressure: requested vs allocatable per node.
+        try:
+            req = gpu_requested_by_node(core.list_pod_for_all_namespaces())
+        except Exception:
+            req = {}
+        for n in nodes:
+            n["gpu_requested"] = req.get(n["name"], 0)
+            alloc = n.get("gpu_allocatable") or 0
+            n["gpu_free"] = max(0, alloc - n["gpu_requested"]) if alloc else None
+        return {"available": True, "error": None, "nodes": nodes}
+    except Exception as exc:
+        return {"available": False, "error": f"{type(exc).__name__}: {exc}"[:300], "nodes": []}
+
+
+__all__ = [
+    "GPU_RESOURCE", "availability", "cluster_status", "list_nodes",
+    "shape_node", "gpu_requested_by_node",
+]
