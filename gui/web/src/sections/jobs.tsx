@@ -12,7 +12,33 @@ import { Activity, ChevronRight, X, CheckCircle2, AlertCircle, Circle, Terminal 
 import { api, type Job } from "../api";
 import { SkeletonTable } from "../Skeleton";
 import { CodeBlock, CopyButton } from "../components/code-block";
+import { StatusPill } from "../components/primitives";
 import { useDialogFocus, useEscapeKey, closeOnBackdrop } from "../dialog";
+
+/** Tone for a job's executor outcome: queued dry-run, succeeded, or failed. */
+export function jobTone(job: Job): "neutral" | "success" | "danger" {
+  return job.dry_run ? "neutral" : job.status === "succeeded" ? "success" : "danger";
+}
+
+// Shared executor-job result card. Used by the Launch Plan, Configs apply queue
+// and the Services lifecycle planner so the three apply paths render identically.
+export function JobResultBlock({ job, showNote = false }: { job: Job; showNote?: boolean }) {
+  return (
+    <div className="service-job">
+      <div className="service-job-head">
+        <div>
+          <strong>{job.job_id}</strong>
+          <span>{job.kind}</span>
+        </div>
+        <StatusPill tone={jobTone(job)}>
+          {job.dry_run ? "dry-run recorded" : `executed: ${job.status}`}
+        </StatusPill>
+      </div>
+      <CodeBlock lines={job.log} />
+      {showNote && job.note && <p className="service-reason">{job.note}</p>}
+    </div>
+  );
+}
 
 export function JobsTable({ onMonitor }: { onMonitor?: (id: string) => void }) {
   const [jobs, setJobs] = useState<Job[]>([]);
