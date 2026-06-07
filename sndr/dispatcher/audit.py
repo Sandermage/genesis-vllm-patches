@@ -220,6 +220,27 @@ def _audit_apply_module_importable(
     try:
         import importlib
         importlib.import_module(apply_module)
+    except ModuleNotFoundError as e:
+        # Distinguish a genuinely-broken patch path from a missing engine-runtime
+        # dependency. The control-plane host (GUI/CLI daemon) has no GPU stack, so
+        # patch modules that `import torch`/`triton`/`vllm` fail to import here —
+        # that is an environment limitation, NOT a patch defect. Only a missing
+        # module under the patch's OWN top-level package (typo'd apply_module
+        # path) is a real error operators must fix.
+        missing_top = (e.name or "").split(".")[0]
+        apply_top = apply_module.split(".")[0]
+        if missing_top and missing_top != apply_top:
+            return [ValidationIssue(
+                "INFO", pid,
+                f"apply_module={apply_module!r} not import-verified on this host: "
+                f"needs engine runtime dependency {missing_top!r} (present only on "
+                f"the GPU/engine host).",
+            )]
+        return [ValidationIssue(
+            "ERROR", pid,
+            f"apply_module={apply_module!r} fails to import: "
+            f"{type(e).__name__}: {e}",
+        )]
     except Exception as e:
         return [ValidationIssue(
             "ERROR", pid,
