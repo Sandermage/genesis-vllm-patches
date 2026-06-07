@@ -3930,6 +3930,24 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 .bulk-count { font-weight: 700; font-size: 12.5px; }
 .bulk-hint { font-size: 11px; color: var(--text-muted); margin-left: auto; }
 .ghost-button.danger { color: var(--danger, #dc2626); }
+.ghost-button.icon-only { padding: 6px 8px; }
+.containers-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--r-md, 10px); }
+.containers-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.containers-table thead th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); padding: 8px 10px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--surface-2); }
+.containers-table td { padding: 7px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.containers-table tr.crow:hover td { background: var(--surface-2); }
+.containers-table tr.crow.selected td { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.crow-name { display: flex; align-items: center; gap: 7px; font-weight: 600; white-space: nowrap; }
+.crow-name [role="button"] { cursor: pointer; }
+.crow-image { max-width: 280px; }
+.crow-image code { font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; max-width: 280px; }
+.crow-ports { font-size: 11px; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crow-acts { display: flex; gap: 4px; }
+.crow-sel { width: 28px; }
+.icon-btn { display: inline-flex; padding: 4px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text-muted); cursor: pointer; }
+.icon-btn:hover:not(:disabled) { color: var(--text); border-color: var(--accent); }
+.icon-btn.danger:hover:not(:disabled) { color: var(--danger, #dc2626); }
+.icon-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .upd-avail-banner {
   display: flex; align-items: center; gap: 6px; font-size: 12.5px;
   padding: 8px 12px; margin-bottom: 12px; border-radius: var(--r-md, 10px);

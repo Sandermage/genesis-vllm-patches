@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity, AlertTriangle, ArrowDownUp, ArrowLeft, ArrowUp, Bell, Box, Boxes, ChevronRight,
   Clock, Copy, Cpu, Database, Download, DownloadCloud, File as FileIcon, FileArchive, FileCode,
-  FileText, Folder, GitCompare, HardDrive, Heart, Home, Layers, Loader2, MemoryStick, MoreVertical,
+  FileText, Folder, GitCompare, HardDrive, Heart, Home, Layers, LayoutGrid, List, Loader2, MemoryStick, MoreVertical,
   Network, Play, RefreshCw, RotateCw, Search, Send, Server, Settings, ShieldAlert, ShieldCheck,
   Square, TerminalSquare, Wrench, X,
 } from "lucide-react";
@@ -158,6 +158,8 @@ export function ContainersPanel({ hosts, onNavigate, initialHostId }: { hosts: H
   const [queryText, setQueryText] = useState("");
   const [filter, setFilter] = useState<StateFilter>("all");
   const [sort, setSort] = useState<SortKey>("state");
+  const [viewMode, setViewMode] = useState<"cards" | "table">(() => (localStorage.getItem("sndr.containers.view") === "table" ? "table" : "cards"));
+  useEffect(() => { localStorage.setItem("sndr.containers.view", viewMode); }, [viewMode]);
   const [df, setDf] = useState<SystemDf | null>(null);
   const [alertsOpen, setAlertsOpen] = useState(false);
   const histRef = useRef<Record<string, { cpu: number[]; mem: number[] }>>({});
@@ -330,6 +332,10 @@ export function ContainersPanel({ hosts, onNavigate, initialHostId }: { hosts: H
             <option value="state">state</option><option value="name">name</option><option value="cpu">cpu</option><option value="mem">memory</option>
           </select>
         </label>
+        <button className="ghost-button icon-only" onClick={() => setViewMode((m) => (m === "cards" ? "table" : "cards"))}
+          title={viewMode === "cards" ? "Switch to dense table view" : "Switch to card view"}>
+          {viewMode === "cards" ? <List size={15} /> : <LayoutGrid size={15} />}
+        </button>
         <button className="ghost-button" onClick={() => setAlertsOpen(true)} title="Engine health alerts → Telegram"><Bell size={14} /> Alerts</button>
         <button className="ghost-button" onClick={() => void load()} disabled={loading}>
           {loading ? <Loader2 size={14} className="spin" /> : <RefreshCw size={14} />} Refresh
@@ -373,6 +379,24 @@ export function ContainersPanel({ hosts, onNavigate, initialHostId }: { hosts: H
         </div>
       )}
 
+      {viewMode === "table" ? (
+        <div className="containers-table-wrap">
+          <table className="containers-table">
+            <thead>
+              <tr>
+                <th></th><th>Name</th><th>State</th><th>Image</th><th>CPU</th><th>MEM</th><th>Ports</th><th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {view.map((c) => (
+                <ContainerRow key={c.id || c.name} c={c} source={source} stats={stats[c.name]} busy={busy}
+                  selected={selected.has(c.name)} onToggleSelect={() => toggleSelect(c.name)}
+                  onAct={act} onOpen={(tab) => setOpen({ name: c.name, tab })} />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
       <div className="containers-grid">
         {view.map((c) => (
           <ContainerCard key={c.id || c.name} c={c} source={source} stats={stats[c.name]} history={histRef.current[c.name]}
@@ -380,7 +404,47 @@ export function ContainersPanel({ hosts, onNavigate, initialHostId }: { hosts: H
             onAct={act} onOpen={(tab) => setOpen({ name: c.name, tab })} />
         ))}
       </div>
+      )}
     </div>
+  );
+}
+
+function ContainerRow({ c, source, stats, busy, selected, onToggleSelect, onAct, onOpen }: {
+  c: ManagedContainer; source: ContainerSource; stats?: ContainerStats;
+  busy: string | null; selected?: boolean; onToggleSelect?: () => void;
+  onAct: (n: string, a: ContainerAction) => void; onOpen: (tab?: Tab) => void;
+}) {
+  const st = stateClass(c.state);
+  const online = st === "online";
+  const cpu = stats?.cpu_pct ?? 0, memPct = stats?.mem_pct ?? 0;
+  const acting = busy?.startsWith(`${c.name}:`) ?? false;
+  const [upd, setUpd] = useState<ContainerUpdatePlan | null>(null);
+  useEffect(() => { let alive = true; api.containerUpdatePlan(source, c.name).then((p) => alive && setUpd(p)).catch(() => {}); return () => { alive = false; }; }, [source, c.name]);
+  return (
+    <tr className={`crow ${st}${selected ? " selected" : ""}`}>
+      <td className="crow-sel">{onToggleSelect && <input type="checkbox" checked={!!selected} onChange={onToggleSelect} aria-label={`Select ${c.name}`} />}</td>
+      <td className="crow-name">
+        <span className={`container-dot ${st}`} />
+        <span role="button" tabIndex={0} onClick={() => onOpen()} onKeyDown={onKeyActivate(() => onOpen())}>{c.name}</span>
+        {upd?.update_available && <span className="ccard-upd-pill" title="Update available" role="button" tabIndex={0} onClick={() => onOpen("config")} onKeyDown={onKeyActivate(() => onOpen("config"))}><ArrowUp size={10} /></span>}
+        {upd && upd.mode !== "manual" && <span className={`ccard-mode-badge ${upd.mode}`}>{upd.mode}</span>}
+      </td>
+      <td><span className={`container-badge ${st}`}>{c.state || "—"}</span></td>
+      <td className="crow-image"><code title={c.image}>{c.image}</code></td>
+      <td className={online ? "" : "muted"}>{online ? `${cpu.toFixed(0)}%` : "—"}</td>
+      <td className={online ? "" : "muted"}>{online ? `${memPct.toFixed(0)}%` : "—"}</td>
+      <td className="crow-ports muted">{c.ports || "—"}</td>
+      <td className="crow-acts">
+        {acting ? <Loader2 size={13} className="spin" /> : online ? (
+          <>
+            <button className="icon-btn" title="Restart" disabled={!!busy} onClick={() => onAct(c.name, "restart")}><RotateCw size={13} /></button>
+            <button className="icon-btn danger" title="Stop" disabled={!!busy} onClick={() => onAct(c.name, "stop")}><Square size={13} /></button>
+          </>
+        ) : (
+          <button className="icon-btn" title="Start" disabled={!!busy} onClick={() => onAct(c.name, "start")}><Play size={13} /></button>
+        )}
+      </td>
+    </tr>
   );
 }
 
