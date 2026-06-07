@@ -58,6 +58,8 @@ __all__ = [
     "DEFAULT_PROOF_DIR",
     "classify_proof",
     "summarize_proof_status",
+    "build_proof_for_patch",
+    "PROOF_STATUS_BUCKETS",
 ]
 
 

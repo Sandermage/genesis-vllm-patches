@@ -344,7 +344,7 @@ class TestFilters:
 
 class TestCLI:
     def test_cli_report_default_passes(self, tmp_path, capsys):
-        from vllm.sndr_core.cli.patches import _run_release_check
+        from sndr.cli.legacy.patches import _run_release_check
         rc = _run_release_check(_make_args(out_dir=str(tmp_path)))
         out = capsys.readouterr().out
         assert rc == 0
@@ -353,7 +353,7 @@ class TestCLI:
     def test_cli_require_baseline_blocks_when_no_artefacts(
         self, tmp_path, capsys,
     ):
-        from vllm.sndr_core.cli.patches import _run_release_check
+        from sndr.cli.legacy.patches import _run_release_check
         rc = _run_release_check(_make_args(
             mode="require-baseline", out_dir=str(tmp_path),
         ))
@@ -361,7 +361,7 @@ class TestCLI:
         assert "BLOCKED" in capsys.readouterr().out
 
     def test_cli_json_blocked_returns_1(self, tmp_path, capsys):
-        from vllm.sndr_core.cli.patches import _run_release_check
+        from sndr.cli.legacy.patches import _run_release_check
         rc = _run_release_check(_make_args(
             mode="require-static",
             out_dir=str(tmp_path),
@@ -374,7 +374,7 @@ class TestCLI:
         assert payload["policy"]["mode"] == "require-static"
 
     def test_cli_bad_threshold_returns_2(self, tmp_path, capsys):
-        from vllm.sndr_core.cli.patches import _run_release_check
+        from sndr.cli.legacy.patches import _run_release_check
         rc = _run_release_check(_make_args(
             mode="report",
             max_regression_pct=-1.0,
@@ -383,7 +383,7 @@ class TestCLI:
         assert rc == 2
 
     def test_cli_show_passing_flag(self, tmp_path, capsys):
-        from vllm.sndr_core.cli.patches import _run_release_check
+        from sndr.cli.legacy.patches import _run_release_check
         rc = _run_release_check(_make_args(
             mode="report",
             out_dir=str(tmp_path),

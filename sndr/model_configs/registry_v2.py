@@ -46,6 +46,7 @@ __all__ = [
     "list_hardware",
     "list_profiles",
     "list_presets",
+    "load_patch_manifest",
 ]
 
 
