@@ -3,7 +3,7 @@
 // this-host inventory, host-profile CRUD (HostFormModal + table), runtime-target
 // matrix and an SSH terminal modal. Extracted from App.tsx (modularization) with
 // no behavior change.
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
 import { lazy, Suspense, useEffect, useState } from "react";
 import { Cpu, Database, Network, PackageCheck, Pencil, Server, SlidersHorizontal, Trash2 } from "lucide-react";
 import {

@@ -3,7 +3,7 @@
 // path get/set on plain objects, and a small YAML serializer. Extracted from
 // App.tsx (modularization) with no behavior change. Kept type-light (any) to
 // match the dynamic config payloads these operate on.
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
 
 /** Read a dotted path out of a nested object; undefined if any segment is missing. */
 export function getIn(obj: any, path: string): any {

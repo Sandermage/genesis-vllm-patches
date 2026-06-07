@@ -2,7 +2,7 @@
 // Layer editor — load a model/hardware/profile/preset definition, edit its
 // curated + discovered fields with a live YAML mirror, and save an operator-local
 // copy. Extracted from App.tsx (modularization) with no behavior change.
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
 import { useEffect, useMemo, useState } from "react";
 import { AlertCircle, CheckCircle2, Code2, PackageCheck } from "lucide-react";
 import { api, type V2LayerApplyResult } from "../api";

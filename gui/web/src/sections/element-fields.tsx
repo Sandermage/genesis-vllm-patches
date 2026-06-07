@@ -3,7 +3,7 @@
 // discovery of extra scalar fields, grouping, per-field validation and the
 // ElementField input dispatcher. Extracted from App.tsx (modularization) with
 // no behavior change. Shared by LayerEditor and ConfigElementEditor.
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
 import { AlertTriangle } from "lucide-react";
 import { TextField, NumberField, BoolField, SelectField } from "../components/form-fields";
 

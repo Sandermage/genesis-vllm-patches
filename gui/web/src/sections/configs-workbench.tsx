@@ -3,7 +3,7 @@
 // (compose/preview/plan/apply), composition chain, resolved config, and the
 // model/hardware/profile selectors + inspectors. Extracted from App.tsx
 // (modularization) with no behavior change.
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   AlertCircle, AlertTriangle, Box, CheckCircle2, ChevronRight, Code2, Cpu, Database, FileText,

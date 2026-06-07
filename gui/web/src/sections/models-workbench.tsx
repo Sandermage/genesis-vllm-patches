@@ -3,7 +3,7 @@
 // fit cards/matrix, KV envelope, patch matrix, runtime envelope and the layer /
 // draft / management editors. Extracted from App.tsx (modularization) with no
 // behavior change. itemBadges is exported because the catalog views reuse it.
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
 import { lazy, useMemo, useState } from "react";
 import {
   Box, Boxes, Code2, Cpu, Database, Download, FileText, Gauge, GitBranch, HardDrive,
