@@ -45,9 +45,11 @@ export default defineConfig(({ mode }) => {
           "src/api.ts",
           "src/**/*.d.ts",
         ],
-        // Regression floor locked at the current level (the untested App shell
-        // dominates the denominator); raised as shell coverage lands.
-        thresholds: { lines: 30, functions: 26, statements: 27, branches: 24 },
+        // Regression floor locked just under the measured level. Raised after
+        // the App shell test (App.shell.test.tsx) began exercising the boot
+        // orchestration + SectionWorkspace routing — lines 30->36, branches
+        // 24->29. Bump again as more shell paths land.
+        thresholds: { lines: 35, functions: 28, statements: 32, branches: 28 },
       },
     },
   };
