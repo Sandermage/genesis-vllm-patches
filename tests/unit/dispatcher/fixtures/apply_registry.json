@@ -36,6 +36,14 @@
     "wrapped_name": "apply_patch_23_marlin_fp32_reduce"
   },
   {
+    "name": "P23_WIRE Marlin FP32_REDUCE env wire (2026-06-04 fix-wire)",
+    "wrapped_name": "apply_patch_23_wire_marlin_fp32_reduce"
+  },
+  {
+    "name": "P29_HEAL qwen3coder index heal (2026-06-04 fix-wire)",
+    "wrapped_name": "apply_patch_29_heal_qwen3coder_index"
+  },
+  {
     "name": "P4 TurboQuant hybrid model support",
     "wrapped_name": "apply_patch_4_tq_hybrid"
   },
@@ -578,6 +586,42 @@
   {
     "name": "PN286 FA KV cache layout revert for Ampere SM 8.6 (K.1.R.R.5)",
     "wrapped_name": "apply_patch_N286_fa_layout_revert_sm86"
+  },
+  {
+    "name": "PN296 Genesis GPU Architecture Profile boot init + auto-set follow-on envs",
+    "wrapped_name": "apply_patch_N296_arch_profile_init"
+  },
+  {
+    "name": "PN302 Genesis Model Profile boot init (architecture/quant/topology/spec)",
+    "wrapped_name": "apply_patch_N302_model_profile_init"
+  },
+  {
+    "name": "PN300 Universal Triton Autotune Arch-Aware Wrapper (covers ALL vllm kernels)",
+    "wrapped_name": "apply_patch_N300_universal_triton_autotune_wrapper"
+  },
+  {
+    "name": "PN299 FLA multi-file arch-aware NUM_WARPS prune (kkt+wy_fast+l2norm)",
+    "wrapped_name": "apply_patch_N299_fla_multi_arch_warps"
+  },
+  {
+    "name": "PN298 FLA chunk_o NUM_WARPS arch-aware prune (SM 8.6 spilling fix)",
+    "wrapped_name": "apply_patch_N298_fla_chunk_o_arch_warps"
+  },
+  {
+    "name": "PN294 unsplit MTP attn groups (vllm#43543 TTFT cold-path skip)",
+    "wrapped_name": "apply_patch_N294_unsplit_attn_groups_mtp"
+  },
+  {
+    "name": "PN293 mamba_attn prefill fastpath (vllm#42430 TTFT cold-path skip)",
+    "wrapped_name": "apply_patch_N293_mamba_attn_prefill_fastpath"
+  },
+  {
+    "name": "PN292 Revert PR#40172 fused Triton Mamba postprocess (A11 -18% root cause)",
+    "wrapped_name": "apply_patch_N292_revert_fused_mamba_postprocess"
+  },
+  {
+    "name": "PN290 num_accepted_tokens D2H race fix (vllm Issue #41190)",
+    "wrapped_name": "apply_patch_N290_num_accepted_tokens_race"
   },
   {
     "name": "G4_61 TurboQuant shared decode workspace (vllm#40798 cherry-pick)",

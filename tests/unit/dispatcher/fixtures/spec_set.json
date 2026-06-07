@@ -9,7 +9,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.scheduler.p58_async_scheduler_placeholder_fix"
+    "apply_module": "sndr.engines.vllm.patches.scheduler.p58_async_scheduler_placeholder_fix"
   },
   {
     "patch_id": "P59",
@@ -21,7 +21,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.reasoning.p59_qwen3_reasoning_tool_call_recovery"
+    "apply_module": "sndr.engines.vllm.patches.reasoning.p59_qwen3_reasoning_tool_call_recovery"
   },
   {
     "patch_id": "P60",
@@ -33,7 +33,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.gdn.p60_gdn_ngram_state_recovery"
+    "apply_module": "sndr.engines.vllm.patches.attention.gdn.p60_gdn_ngram_state_recovery"
   },
   {
     "patch_id": "P60b",
@@ -45,7 +45,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.gdn.p60b_gdn_ngram_triton_kernel"
+    "apply_module": "sndr.engines.vllm.patches.attention.gdn.p60b_gdn_ngram_triton_kernel"
   },
   {
     "patch_id": "P61",
@@ -57,7 +57,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "related_not_superseding",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations._retired.p61_qwen3_multi_tool_first_occurrence"
+    "apply_module": "sndr.engines.vllm._archive.p61_qwen3_multi_tool_first_occurrence"
   },
   {
     "patch_id": "P62",
@@ -69,7 +69,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.serving.p62_structured_output_spec_decode_timing"
+    "apply_module": "sndr.engines.vllm.patches.serving.p62_structured_output_spec_decode_timing"
   },
   {
     "patch_id": "P61c",
@@ -81,7 +81,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.tool_parsing.p61c_qwen3coder_deferred_commit"
+    "apply_module": "sndr.engines.vllm.patches.tool_parsing.p61c_qwen3coder_deferred_commit"
   },
   {
     "patch_id": "P61b",
@@ -93,7 +93,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.reasoning.p61b_qwen3_streaming_overlap_guard"
+    "apply_module": "sndr.engines.vllm.patches.reasoning.p61b_qwen3_streaming_overlap_guard"
   },
   {
     "patch_id": "P63",
@@ -105,7 +105,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations._retired.p63_mtp_gdn_state_recovery"
+    "apply_module": "sndr.engines.vllm._archive.p63_mtp_gdn_state_recovery"
   },
   {
     "patch_id": "P64",
@@ -117,7 +117,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.tool_parsing.p64_qwen3coder_mtp_streaming"
+    "apply_module": "sndr.engines.vllm.patches.tool_parsing.p64_qwen3coder_mtp_streaming"
   },
   {
     "patch_id": "P65",
@@ -129,7 +129,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.turboquant.p65_turboquant_spec_cg_downgrade"
+    "apply_module": "sndr.engines.vllm.patches.attention.turboquant.p65_turboquant_spec_cg_downgrade"
   },
   {
     "patch_id": "P66",
@@ -141,7 +141,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "related_not_superseding",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.compile_safety.p66_cudagraph_size_divisibility_filter"
+    "apply_module": "sndr.engines.vllm.patches.compile_safety.p66_cudagraph_size_divisibility_filter"
   },
   {
     "patch_id": "P68",
@@ -153,7 +153,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.serving.p68_69_long_ctx_tool_adherence"
+    "apply_module": "sndr.engines.vllm.patches.serving.p68_69_long_ctx_tool_adherence"
   },
   {
     "patch_id": "P69",
@@ -165,7 +165,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.serving.p68_69_long_ctx_tool_adherence"
+    "apply_module": "sndr.engines.vllm.patches.serving.p68_69_long_ctx_tool_adherence"
   },
   {
     "patch_id": "P70",
@@ -177,7 +177,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.spec_decode.p70_auto_strict_ngram"
+    "apply_module": "sndr.engines.vllm.patches.spec_decode.p70_auto_strict_ngram"
   },
   {
     "patch_id": "PN72",
@@ -189,7 +189,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.spec_decode.pn72_frequency_ngram_drafter"
+    "apply_module": "sndr.engines.vllm.patches.spec_decode.pn72_frequency_ngram_drafter"
   },
   {
     "patch_id": "PN77",
@@ -201,7 +201,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.quantization.pn77_fp8_lm_head"
+    "apply_module": "sndr.engines.vllm.patches.quantization.pn77_fp8_lm_head"
   },
   {
     "patch_id": "PN80",
@@ -213,7 +213,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations._retired.pn80_lora_tensorizer_device"
+    "apply_module": "sndr.engines.vllm._archive.pn80_lora_tensorizer_device"
   },
   {
     "patch_id": "PN79",
@@ -225,7 +225,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.gdn.pn79_inplace_ssm_state"
+    "apply_module": "sndr.engines.vllm.patches.attention.gdn.pn79_inplace_ssm_state"
   },
   {
     "patch_id": "PN79_V2_MD5_CHUNK",
@@ -237,7 +237,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.gdn.pn79_v2_md5_chunk"
+    "apply_module": "sndr.engines.vllm.patches.attention.gdn.pn79_v2_md5_chunk"
   },
   {
     "patch_id": "PN79_V2_MD5_CHUNK_DELTA_H",
@@ -249,7 +249,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.gdn.pn79_v2_md5_chunk_delta_h"
+    "apply_module": "sndr.engines.vllm.patches.attention.gdn.pn79_v2_md5_chunk_delta_h"
   },
   {
     "patch_id": "PN78",
@@ -261,7 +261,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations._retired.pn78_post_warmup_cache_release"
+    "apply_module": "sndr.engines.vllm._archive.pn78_post_warmup_cache_release"
   },
   {
     "patch_id": "P67",
@@ -273,7 +273,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.turboquant.p67_tq_multi_query_kernel"
+    "apply_module": "sndr.engines.vllm.patches.attention.turboquant.p67_tq_multi_query_kernel"
   },
   {
     "patch_id": "P67b",
@@ -285,7 +285,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.turboquant.p67b_spec_verify_routing"
+    "apply_module": "sndr.engines.vllm.patches.attention.turboquant.p67b_spec_verify_routing"
   },
   {
     "patch_id": "P72",
@@ -297,7 +297,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.worker.p72_profile_run_cap"
+    "apply_module": "sndr.engines.vllm.patches.worker.p72_profile_run_cap"
   },
   {
     "patch_id": "P71",
@@ -309,7 +309,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.spec_decode.p71_block_verify"
+    "apply_module": "sndr.engines.vllm.patches.spec_decode.p71_block_verify"
   },
   {
     "patch_id": "P74",
@@ -321,7 +321,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.scheduler.p74_chunk_clamp"
+    "apply_module": "sndr.engines.vllm.patches.scheduler.p74_chunk_clamp"
   },
   {
     "patch_id": "P75",
@@ -333,7 +333,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "enables_upstream",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.spec_decode.p75_suffix_decoding_enable"
+    "apply_module": "sndr.engines.vllm.patches.spec_decode.p75_suffix_decoding_enable"
   },
   {
     "patch_id": "P77",
@@ -345,7 +345,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.spec_decode.p77_adaptive_ngram_k"
+    "apply_module": "sndr.engines.vllm.patches.spec_decode.p77_adaptive_ngram_k"
   },
   {
     "patch_id": "P78",
@@ -357,7 +357,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.turboquant.p78_tolist_capture_guard"
+    "apply_module": "sndr.engines.vllm.patches.attention.turboquant.p78_tolist_capture_guard"
   },
   {
     "patch_id": "P79b",
@@ -369,7 +369,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.worker.p79b_async_proposer_sync"
+    "apply_module": "sndr.engines.vllm.patches.worker.p79b_async_proposer_sync"
   },
   {
     "patch_id": "P79c",
@@ -381,7 +381,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.scheduler.p79c_stale_spec_token_cleanup"
+    "apply_module": "sndr.engines.vllm.patches.scheduler.p79c_stale_spec_token_cleanup"
   },
   {
     "patch_id": "P79d",
@@ -393,7 +393,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.scheduler.p79d_preempt_async_discard"
+    "apply_module": "sndr.engines.vllm.patches.scheduler.p79d_preempt_async_discard"
   },
   {
     "patch_id": "P81",
@@ -405,7 +405,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.quantization.p81_fp8_block_scaled_m_le_8"
+    "apply_module": "sndr.engines.vllm.patches.quantization.p81_fp8_block_scaled_m_le_8"
   },
   {
     "patch_id": "P82",
@@ -417,7 +417,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.spec_decode.p82_sglang_acceptance_threshold"
+    "apply_module": "sndr.engines.vllm.patches.spec_decode.p82_sglang_acceptance_threshold"
   },
   {
     "patch_id": "P83",
@@ -429,7 +429,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.kv_cache.p83_mtp_keep_last_cached_block"
+    "apply_module": "sndr.engines.vllm.patches.kv_cache.p83_mtp_keep_last_cached_block"
   },
   {
     "patch_id": "P84",
@@ -441,7 +441,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.scheduler.p84_hash_block_size_override"
+    "apply_module": "sndr.engines.vllm.patches.scheduler.p84_hash_block_size_override"
   },
   {
     "patch_id": "P85",
@@ -453,7 +453,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.kv_cache.p85_hybrid_fine_shadow_prefix_cache"
+    "apply_module": "sndr.engines.vllm.patches.kv_cache.p85_hybrid_fine_shadow_prefix_cache"
   },
   {
     "patch_id": "P86",
@@ -465,7 +465,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.spec_decode.p86_ngram_batch_propose_linear"
+    "apply_module": "sndr.engines.vllm.patches.spec_decode.p86_ngram_batch_propose_linear"
   },
   {
     "patch_id": "P87",
@@ -477,7 +477,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.kernels.p87_marlin_pad_sub_tile"
+    "apply_module": "sndr.engines.vllm.patches.kernels.p87_marlin_pad_sub_tile"
   },
   {
     "patch_id": "PN8",
@@ -489,7 +489,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.loader.pn8_mtp_draft_online_quant_propagation"
+    "apply_module": "sndr.engines.vllm.patches.loader.pn8_mtp_draft_online_quant_propagation"
   },
   {
     "patch_id": "PN9",
@@ -501,7 +501,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations._retired.pn9_independent_drafter_attn_backend"
+    "apply_module": "sndr.engines.vllm._archive.pn9_independent_drafter_attn_backend"
   },
   {
     "patch_id": "PN38",
@@ -513,7 +513,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.spec_decode.pn38_dflash_quant_drafter"
+    "apply_module": "sndr.engines.vllm.patches.spec_decode.pn38_dflash_quant_drafter"
   },
   {
     "patch_id": "PN40-classifier",
@@ -525,7 +525,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.spec_decode.pn40_workload_classifier_hook"
+    "apply_module": "sndr.engines.vllm.patches.spec_decode.pn40_workload_classifier_hook"
   },
   {
     "patch_id": "PN40",
@@ -537,7 +537,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.spec_decode.pn40_dflash_omnibus"
+    "apply_module": "sndr.engines.vllm.patches.spec_decode.pn40_dflash_omnibus"
   },
   {
     "patch_id": "PN50",
@@ -549,7 +549,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.gdn.pn50_gdn_fused_proj"
+    "apply_module": "sndr.engines.vllm.patches.attention.gdn.pn50_gdn_fused_proj"
   },
   {
     "patch_id": "PN59",
@@ -561,7 +561,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.gdn.pn59_streaming_gdn"
+    "apply_module": "sndr.engines.vllm.patches.attention.gdn.pn59_streaming_gdn"
   },
   {
     "patch_id": "PN58",
@@ -573,7 +573,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.reasoning.pn58_spec_reasoning_boundary"
+    "apply_module": "sndr.engines.vllm.patches.reasoning.pn58_spec_reasoning_boundary"
   },
   {
     "patch_id": "P107",
@@ -585,7 +585,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.serving.p107_mtp_truncation_detector"
+    "apply_module": "sndr.engines.vllm.patches.serving.p107_mtp_truncation_detector"
   },
   {
     "patch_id": "PN56",
@@ -597,7 +597,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.tool_parsing.pn56_qwen3coder_xml_fallback"
+    "apply_module": "sndr.engines.vllm.patches.tool_parsing.pn56_qwen3coder_xml_fallback"
   },
   {
     "patch_id": "PN57",
@@ -609,7 +609,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.turboquant.pn57_tq_centroids_disk_cache"
+    "apply_module": "sndr.engines.vllm.patches.attention.turboquant.pn57_tq_centroids_disk_cache"
   },
   {
     "patch_id": "PN282",
@@ -765,7 +765,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.moe.pn96b_marlin_persistent_workspace"
+    "apply_module": "sndr.engines.vllm.patches.moe.pn96b_marlin_persistent_workspace"
   },
   {
     "patch_id": "PN95",
@@ -777,7 +777,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.kv_cache.pn95_tier_aware_cache"
+    "apply_module": "sndr.engines.vllm.patches.kv_cache.pn95_tier_aware_cache"
   },
   {
     "patch_id": "PN90",
@@ -789,7 +789,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "related_not_superseding",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.spec_decode.pn90_probabilistic_draft_rejection"
+    "apply_module": "sndr.engines.vllm.patches.spec_decode.pn90_probabilistic_draft_rejection"
   },
   {
     "patch_id": "SNDR_WORKSPACE_001",
@@ -801,7 +801,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.worker.sndr_workspace_001_grow_after_lock"
+    "apply_module": "sndr.engines.vllm.patches.worker.sndr_workspace_001_grow_after_lock"
   },
   {
     "patch_id": "SNDR_MTP_DYNAMIC_K_001",
@@ -813,7 +813,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.spec_decode.g_dynamic_k_mtp_proposer"
+    "apply_module": "sndr.engines.vllm.patches.spec_decode.g_dynamic_k_mtp_proposer"
   },
   {
     "patch_id": "SNDR_EAGLE3_AUX_HIDDEN_001",
@@ -837,7 +837,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.streaming.pn202_per_layer_kv_split"
+    "apply_module": "sndr.engines.vllm.patches.streaming.pn202_per_layer_kv_split"
   },
   {
     "patch_id": "PN203",
@@ -849,7 +849,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.streaming.pn203_cold_prefix_offload"
+    "apply_module": "sndr.engines.vllm.patches.streaming.pn203_cold_prefix_offload"
   },
   {
     "patch_id": "PN200",
@@ -861,7 +861,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.streaming.pn200_gdn_scratch_reuse"
+    "apply_module": "sndr.engines.vllm.patches.streaming.pn200_gdn_scratch_reuse"
   },
   {
     "patch_id": "PN201",
@@ -873,7 +873,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.streaming.pn201_scheduler_empty_cache"
+    "apply_module": "sndr.engines.vllm.patches.streaming.pn201_scheduler_empty_cache"
   },
   {
     "patch_id": "PN106",
@@ -885,7 +885,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.kv_cache.pn106_gdn_h_pool"
+    "apply_module": "sndr.engines.vllm.patches.kv_cache.pn106_gdn_h_pool"
   },
   {
     "patch_id": "PN105",
@@ -897,7 +897,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.offload.pn105_prefetch_autoround_compat"
+    "apply_module": "sndr.engines.vllm.patches.offload.pn105_prefetch_autoround_compat"
   },
   {
     "patch_id": "PN104",
@@ -909,7 +909,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.offload.pn104_offload_backend_redirect"
+    "apply_module": "sndr.engines.vllm.patches.offload.pn104_offload_backend_redirect"
   },
   {
     "patch_id": "PN97",
@@ -921,7 +921,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.kv_cache.pn97_tensor_physical_cap"
+    "apply_module": "sndr.engines.vllm.patches.kv_cache.pn97_tensor_physical_cap"
   },
   {
     "patch_id": "PN96",
@@ -933,7 +933,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.kv_cache.pn96_emergency_demote"
+    "apply_module": "sndr.engines.vllm.patches.kv_cache.pn96_emergency_demote"
   },
   {
     "patch_id": "PN92",
@@ -945,7 +945,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.worker.pn92_nixl_ep_trial_import"
+    "apply_module": "sndr.engines.vllm.patches.worker.pn92_nixl_ep_trial_import"
   },
   {
     "patch_id": "PN71",
@@ -957,7 +957,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.reasoning.pn71_thinking_token_hallucination"
+    "apply_module": "sndr.engines.vllm.patches.reasoning.pn71_thinking_token_hallucination"
   },
   {
     "patch_id": "PN73",
@@ -969,7 +969,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.serving.pn73_tool_args_safe_normalize"
+    "apply_module": "sndr.engines.vllm.patches.serving.pn73_tool_args_safe_normalize"
   },
   {
     "patch_id": "PN91",
@@ -981,7 +981,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.serving.pn91_developer_role_normalizer"
+    "apply_module": "sndr.engines.vllm.patches.serving.pn91_developer_role_normalizer"
   },
   {
     "patch_id": "PN82",
@@ -993,7 +993,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations._retired.pn82_mamba_cudagraph_prefill_zero"
+    "apply_module": "sndr.engines.vllm._archive.pn82_mamba_cudagraph_prefill_zero"
   },
   {
     "patch_id": "PN55",
@@ -1005,7 +1005,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.worker.pn55_wake_up_hybrid_kv"
+    "apply_module": "sndr.engines.vllm.patches.worker.pn55_wake_up_hybrid_kv"
   },
   {
     "patch_id": "PN54",
@@ -1017,7 +1017,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.gdn.pn54_gdn_contiguous_dedup"
+    "apply_module": "sndr.engines.vllm.patches.attention.gdn.pn54_gdn_contiguous_dedup"
   },
   {
     "patch_id": "PN52",
@@ -1029,7 +1029,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations._retired.pn52_prompt_logprobs_eviction"
+    "apply_module": "sndr.engines.vllm._archive.pn52_prompt_logprobs_eviction"
   },
   {
     "patch_id": "PN51",
@@ -1041,7 +1041,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "defensive_overlay",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.reasoning.pn51_qwen3_streaming_thinking_disabled"
+    "apply_module": "sndr.engines.vllm.patches.reasoning.pn51_qwen3_streaming_thinking_disabled"
   },
   {
     "patch_id": "PN35",
@@ -1053,7 +1053,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.worker.pn35_inputs_embeds_optional"
+    "apply_module": "sndr.engines.vllm.patches.worker.pn35_inputs_embeds_optional"
   },
   {
     "patch_id": "PN34",
@@ -1077,7 +1077,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.worker.pn33_spec_decode_warmup_k"
+    "apply_module": "sndr.engines.vllm.patches.worker.pn33_spec_decode_warmup_k"
   },
   {
     "patch_id": "PN32",
@@ -1089,7 +1089,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.gdn.pn32_gdn_chunked_prefill"
+    "apply_module": "sndr.engines.vllm.patches.attention.gdn.pn32_gdn_chunked_prefill"
   },
   {
     "patch_id": "PN102",
@@ -1101,7 +1101,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.offload.pn102_pinned_alloc_pool"
+    "apply_module": "sndr.engines.vllm.patches.offload.pn102_pinned_alloc_pool"
   },
   {
     "patch_id": "PN204",
@@ -1113,7 +1113,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.gdn.pn204_dual_stream_inproj"
+    "apply_module": "sndr.engines.vllm.patches.attention.gdn.pn204_dual_stream_inproj"
   },
   {
     "patch_id": "PN108",
@@ -1125,7 +1125,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations._retired.pn108_fused_recurrent_prefill"
+    "apply_module": "sndr.engines.vllm._archive.pn108_fused_recurrent_prefill"
   },
   {
     "patch_id": "PN31",
@@ -1137,7 +1137,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.turboquant.pn31_fa_varlen_persistent_out"
+    "apply_module": "sndr.engines.vllm.patches.attention.turboquant.pn31_fa_varlen_persistent_out"
   },
   {
     "patch_id": "PN30",
@@ -1149,7 +1149,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.gdn.pn30_ds_layout_spec_decode_align"
+    "apply_module": "sndr.engines.vllm.patches.attention.gdn.pn30_ds_layout_spec_decode_align"
   },
   {
     "patch_id": "P67c",
@@ -1161,7 +1161,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.turboquant.p67c_sparse_v"
+    "apply_module": "sndr.engines.vllm.patches.attention.turboquant.p67c_sparse_v"
   },
   {
     "patch_id": "PN29",
@@ -1173,7 +1173,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.gdn.pn29_gdn_chunk_o_scale_fold"
+    "apply_module": "sndr.engines.vllm.patches.attention.gdn.pn29_gdn_chunk_o_scale_fold"
   },
   {
     "patch_id": "PN11",
@@ -1185,7 +1185,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.gdn.pn11_gdn_a_b_contiguous"
+    "apply_module": "sndr.engines.vllm.patches.attention.gdn.pn11_gdn_a_b_contiguous"
   },
   {
     "patch_id": "PN12",
@@ -1197,7 +1197,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.kernels.pn12_ffn_intermediate_pool"
+    "apply_module": "sndr.engines.vllm.patches.kernels.pn12_ffn_intermediate_pool"
   },
   {
     "patch_id": "PN19",
@@ -1209,7 +1209,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations._retired.pn19_scoped_max_split"
+    "apply_module": "sndr.engines.vllm._archive.pn19_scoped_max_split"
   },
   {
     "patch_id": "PN23",
@@ -1221,7 +1221,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.spec_decode.pn23_dflash_combine_hidden_dtype"
+    "apply_module": "sndr.engines.vllm.patches.spec_decode.pn23_dflash_combine_hidden_dtype"
   },
   {
     "patch_id": "PN21",
@@ -1233,7 +1233,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.spec_decode.pn21_dflash_swa_support"
+    "apply_module": "sndr.engines.vllm.patches.spec_decode.pn21_dflash_swa_support"
   },
   {
     "patch_id": "PN22",
@@ -1245,7 +1245,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.spec_decode.pn22_local_argmax_tp"
+    "apply_module": "sndr.engines.vllm.patches.spec_decode.pn22_local_argmax_tp"
   },
   {
     "patch_id": "PN24",
@@ -1257,7 +1257,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "related_not_superseding",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.worker.pn24_dflash_aux_layer_indexing"
+    "apply_module": "sndr.engines.vllm.patches.worker.pn24_dflash_aux_layer_indexing"
   },
   {
     "patch_id": "PN28",
@@ -1269,7 +1269,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.kernels.pn28_merge_attn_states_nan_guard"
+    "apply_module": "sndr.engines.vllm.patches.kernels.pn28_merge_attn_states_nan_guard"
   },
   {
     "patch_id": "P15B",
@@ -1281,7 +1281,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.memory.p15b_fa_varlen_clamp"
+    "apply_module": "sndr.engines.vllm.patches.memory.p15b_fa_varlen_clamp"
   },
   {
     "patch_id": "P38B",
@@ -1293,7 +1293,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.memory.p38b_compile_safe_hook"
+    "apply_module": "sndr.engines.vllm.patches.memory.p38b_compile_safe_hook"
   },
   {
     "patch_id": "PN26b",
@@ -1305,7 +1305,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.turboquant.pn26_sparse_v_kernel"
+    "apply_module": "sndr.engines.vllm.patches.attention.turboquant.pn26_sparse_v_kernel"
   },
   {
     "patch_id": "PN27",
@@ -1317,7 +1317,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.moe.pn27_revert_pluggable_moe"
+    "apply_module": "sndr.engines.vllm.patches.moe.pn27_revert_pluggable_moe"
   },
   {
     "patch_id": "PN26",
@@ -1329,7 +1329,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.turboquant.pn26_tq_unified_perf"
+    "apply_module": "sndr.engines.vllm.patches.attention.turboquant.pn26_tq_unified_perf"
   },
   {
     "patch_id": "PN25",
@@ -1341,7 +1341,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.kernels.pn25_silu_inductor_safe_pool"
+    "apply_module": "sndr.engines.vllm.patches.kernels.pn25_silu_inductor_safe_pool"
   },
   {
     "patch_id": "PN286",
@@ -1353,7 +1353,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.flash.pn286_fa_layout_revert_sm86"
+    "apply_module": "sndr.engines.vllm.patches.attention.flash.pn286_fa_layout_revert_sm86"
   },
   {
     "patch_id": "PN287",
@@ -1365,7 +1365,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.tool_parsing.pn287_qwen3coder_args_validity_observer"
+    "apply_module": "sndr.engines.vllm.patches.tool_parsing.pn287_qwen3coder_args_validity_observer"
   },
   {
     "patch_id": "PN288",
@@ -1377,7 +1377,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.serving.pn288_tool_finish_reason_override"
+    "apply_module": "sndr.engines.vllm.patches.serving.pn288_tool_finish_reason_override"
   },
   {
     "patch_id": "PN289",
@@ -1389,7 +1389,115 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.observability.genesis_process_info"
+    "apply_module": "sndr.observability.genesis_process_info"
+  },
+  {
+    "patch_id": "PN302",
+    "family": "detection",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "GENESIS_ENABLE_PN302_MODEL_PROFILE_INIT",
+    "has_upstream_pr": false,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "sndr.engines.vllm.patches.detection.pn302_model_profile_init"
+  },
+  {
+    "patch_id": "PN300",
+    "family": "detection",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "GENESIS_ENABLE_PN300_UNIVERSAL_TRITON_AUTOTUNE_WRAPPER",
+    "has_upstream_pr": false,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "sndr.engines.vllm.patches.detection.pn300_universal_triton_autotune_wrapper"
+  },
+  {
+    "patch_id": "PN299",
+    "family": "attention.gdn",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "GENESIS_ENABLE_PN299_FLA_MULTI_ARCH_WARPS",
+    "has_upstream_pr": false,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "sndr.engines.vllm.patches.attention.gdn.pn299_fla_multi_arch_warps"
+  },
+  {
+    "patch_id": "PN298",
+    "family": "attention.gdn",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "GENESIS_ENABLE_PN298_FLA_CHUNK_O_ARCH_WARPS",
+    "has_upstream_pr": false,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "sndr.engines.vllm.patches.attention.gdn.pn298_fla_chunk_o_arch_warps"
+  },
+  {
+    "patch_id": "PN296",
+    "family": "detection",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "GENESIS_ENABLE_PN296_ARCH_PROFILE_INIT",
+    "has_upstream_pr": false,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "sndr.engines.vllm.patches.detection.pn296_arch_profile_init"
+  },
+  {
+    "patch_id": "PN294",
+    "family": "worker",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "GENESIS_ENABLE_PN294_UNSPLIT_MTP_ATTN_GROUPS",
+    "has_upstream_pr": true,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "sndr.engines.vllm.patches.worker.pn294_unsplit_attn_groups_mtp"
+  },
+  {
+    "patch_id": "PN293",
+    "family": "attention.gdn",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "GENESIS_ENABLE_PN293_MAMBA_ATTN_PREFILL_FASTPATH",
+    "has_upstream_pr": true,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "sndr.engines.vllm.patches.attention.gdn.pn293_mamba_attn_prefill_fastpath"
+  },
+  {
+    "patch_id": "PN292",
+    "family": "worker",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "GENESIS_ENABLE_PN292_REVERT_FUSED_MAMBA_POSTPROCESS",
+    "has_upstream_pr": false,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "sndr.engines.vllm.patches.worker.pn292_revert_fused_mamba_postprocess"
+  },
+  {
+    "patch_id": "PN290",
+    "family": "spec_decode",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "GENESIS_ENABLE_PN290_NUM_ACCEPTED_TOKENS_RACE",
+    "has_upstream_pr": false,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "sndr.engines.vllm.patches.spec_decode.pn290_num_accepted_tokens_race"
   },
   {
     "patch_id": "G4_T1",
@@ -1401,7 +1509,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.tool_parsing.g4_t1_pr42006_marker"
+    "apply_module": "sndr.engines.vllm.patches.tool_parsing.g4_t1_pr42006_marker"
   },
   {
     "patch_id": "PN17",
@@ -1413,7 +1521,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.flash.pn17_fa2_softmax_lse_clamp"
+    "apply_module": "sndr.engines.vllm.patches.attention.flash.pn17_fa2_softmax_lse_clamp"
   },
   {
     "patch_id": "PN16",
@@ -1425,7 +1533,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.middleware.pn16_lazy_reasoner"
+    "apply_module": "sndr.engines.vllm.patches.middleware.pn16_lazy_reasoner"
   },
   {
     "patch_id": "PN16_V6",
@@ -1449,7 +1557,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.turboquant.pn14_tq_decode_oob_clamp"
+    "apply_module": "sndr.engines.vllm.patches.attention.turboquant.pn14_tq_decode_oob_clamp"
   },
   {
     "patch_id": "P94",
@@ -1461,7 +1569,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations._retired.p94_spec_decode_zero_alloc"
+    "apply_module": "sndr.engines.vllm._archive.p94_spec_decode_zero_alloc"
   },
   {
     "patch_id": "P108",
@@ -1473,7 +1581,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "defensive_overlay",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.spec_decode.p108_mtp_draft_stream_sync"
+    "apply_module": "sndr.engines.vllm.patches.spec_decode.p108_mtp_draft_stream_sync"
   },
   {
     "patch_id": "P109",
@@ -1485,7 +1593,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.serving.p109_sampling_params_vocab_bounds"
+    "apply_module": "sndr.engines.vllm.patches.serving.p109_sampling_params_vocab_bounds"
   },
   {
     "patch_id": "PN110",
@@ -1497,7 +1605,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.kv_cache.pn110_block_pool_free_dedup"
+    "apply_module": "sndr.engines.vllm.patches.kv_cache.pn110_block_pool_free_dedup"
   },
   {
     "patch_id": "PN111",
@@ -1509,7 +1617,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.gdn.pn111_skip_mamba_postprocess_sync"
+    "apply_module": "sndr.engines.vllm.patches.attention.gdn.pn111_skip_mamba_postprocess_sync"
   },
   {
     "patch_id": "PN116",
@@ -1521,7 +1629,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "counter_regression",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.turboquant.pn116_tq_prefill_maxseq_fallback"
+    "apply_module": "sndr.engines.vllm.patches.attention.turboquant.pn116_tq_prefill_maxseq_fallback"
   },
   {
     "patch_id": "PN118",
@@ -1533,7 +1641,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.turboquant.pn118_tq_workspace_fallback"
+    "apply_module": "sndr.engines.vllm.patches.attention.turboquant.pn118_tq_workspace_fallback"
   },
   {
     "patch_id": "PN118_V2_MD5_WORKSPACE",
@@ -1545,7 +1653,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.turboquant.pn118_v2_md5_workspace"
+    "apply_module": "sndr.engines.vllm.patches.attention.turboquant.pn118_v2_md5_workspace"
   },
   {
     "patch_id": "PN118_V2_MD5_TURBOQUANT_ATTN",
@@ -1557,7 +1665,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.turboquant.pn118_v2_md5_turboquant_attn"
+    "apply_module": "sndr.engines.vllm.patches.attention.turboquant.pn118_v2_md5_turboquant_attn"
   },
   {
     "patch_id": "PN119",
@@ -1569,7 +1677,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.turboquant.pn119_tq_gqa_grouping"
+    "apply_module": "sndr.engines.vllm.patches.attention.turboquant.pn119_tq_gqa_grouping"
   },
   {
     "patch_id": "P100",
@@ -1581,7 +1689,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.flash.p100_flashinfer_full_cg_specdec"
+    "apply_module": "sndr.engines.vllm.patches.attention.flash.p100_flashinfer_full_cg_specdec"
   },
   {
     "patch_id": "P103",
@@ -1593,7 +1701,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.gdn.p103_fla_cliff2_chunked"
+    "apply_module": "sndr.engines.vllm.patches.attention.gdn.p103_fla_cliff2_chunked"
   },
   {
     "patch_id": "P101",
@@ -1605,7 +1713,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.turboquant.p101_tq_continuation_slicing"
+    "apply_module": "sndr.engines.vllm.patches.attention.turboquant.p101_tq_continuation_slicing"
   },
   {
     "patch_id": "P99",
@@ -1617,7 +1725,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "enables_upstream",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.turboquant.p99_workspace_manager_memoize"
+    "apply_module": "sndr.engines.vllm.patches.attention.turboquant.p99_workspace_manager_memoize"
   },
   {
     "patch_id": "P98",
@@ -1629,7 +1737,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "intentional_inverse",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.turboquant.p98_tq_workspace_revert"
+    "apply_module": "sndr.engines.vllm.patches.attention.turboquant.p98_tq_workspace_revert"
   },
   {
     "patch_id": "P95",
@@ -1641,7 +1749,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.compile_safety.p95_marlin_tp_cudagraph_cap"
+    "apply_module": "sndr.engines.vllm.patches.compile_safety.p95_marlin_tp_cudagraph_cap"
   },
   {
     "patch_id": "P91",
@@ -1653,7 +1761,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.quantization.p91_autoround_row_group_cdiv"
+    "apply_module": "sndr.engines.vllm.patches.quantization.p91_autoround_row_group_cdiv"
   },
   {
     "patch_id": "P91B",
@@ -1665,7 +1773,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "related_not_superseding",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.quantization.p91b_autoround_row_group_cdiv_multi_scheme"
+    "apply_module": "sndr.engines.vllm.patches.quantization.p91b_autoround_row_group_cdiv_multi_scheme"
   },
   {
     "patch_id": "P1",
@@ -1689,7 +1797,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.turboquant.p3_tq_bf16_cast"
+    "apply_module": "sndr.engines.vllm.patches.attention.turboquant.p3_tq_bf16_cast"
   },
   {
     "patch_id": "P4",
@@ -1701,7 +1809,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.scheduler.p4_tq_hybrid"
+    "apply_module": "sndr.engines.vllm.patches.scheduler.p4_tq_hybrid"
   },
   {
     "patch_id": "P5",
@@ -1713,7 +1821,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.kv_cache.p5_page_size"
+    "apply_module": "sndr.engines.vllm.patches.kv_cache.p5_page_size"
   },
   {
     "patch_id": "P5b",
@@ -1725,7 +1833,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.memory.p5b_page_size_pad_smaller"
+    "apply_module": "sndr.engines.vllm.patches.memory.p5b_page_size_pad_smaller"
   },
   {
     "patch_id": "P6",
@@ -1737,7 +1845,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.compile_safety.p6_tq_block_size_align"
+    "apply_module": "sndr.engines.vllm.patches.compile_safety.p6_tq_block_size_align"
   },
   {
     "patch_id": "P7",
@@ -1749,7 +1857,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.gdn.p7_gdn_dual_stream"
+    "apply_module": "sndr.engines.vllm.patches.attention.gdn.p7_gdn_dual_stream"
   },
   {
     "patch_id": "P7b",
@@ -1761,7 +1869,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.gdn.p7b_gdn_dual_stream_customop"
+    "apply_module": "sndr.engines.vllm.patches.attention.gdn.p7b_gdn_dual_stream_customop"
   },
   {
     "patch_id": "PN13",
@@ -1773,7 +1881,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations._retired.pn13_cuda_graph_lambda_arity"
+    "apply_module": "sndr.engines.vllm._archive.pn13_cuda_graph_lambda_arity"
   },
   {
     "patch_id": "P8",
@@ -1785,7 +1893,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations._retired.p8_kv_hybrid_reporting"
+    "apply_module": "sndr.engines.vllm._archive.p8_kv_hybrid_reporting"
   },
   {
     "patch_id": "P12",
@@ -1797,7 +1905,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.reasoning.p12_tool_call_reasoning"
+    "apply_module": "sndr.engines.vllm.patches.reasoning.p12_tool_call_reasoning"
   },
   {
     "patch_id": "P14",
@@ -1809,7 +1917,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.kv_cache.p14_block_table"
+    "apply_module": "sndr.engines.vllm.patches.kv_cache.p14_block_table"
   },
   {
     "patch_id": "P15",
@@ -1821,7 +1929,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.tool_parsing.p15_qwen3_none_null"
+    "apply_module": "sndr.engines.vllm.patches.tool_parsing.p15_qwen3_none_null"
   },
   {
     "patch_id": "P17",
@@ -1869,7 +1977,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.turboquant.p22_tq_prealloc"
+    "apply_module": "sndr.engines.vllm.patches.attention.turboquant.p22_tq_prealloc"
   },
   {
     "patch_id": "P23",
@@ -1880,8 +1988,20 @@
     "env_flag": "GENESIS_LEGACY_P23",
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
-    "has_apply_module": false,
-    "apply_module": null
+    "has_apply_module": true,
+    "apply_module": "vllm.sndr_core.integrations.kernels.p23_marlin_fp32_reduce_wire"
+  },
+  {
+    "patch_id": "P23_WIRE",
+    "family": "kernels",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "GENESIS_ENABLE_P23_MARLIN_FP32_REDUCE_WIRE",
+    "has_upstream_pr": false,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "sndr.engines.vllm.patches.kernels.p23_marlin_fp32_reduce_wire"
   },
   {
     "patch_id": "P24",
@@ -1893,7 +2013,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.moe.p24_moe_tune"
+    "apply_module": "sndr.engines.vllm.patches.moe.p24_moe_tune"
   },
   {
     "patch_id": "P26",
@@ -1905,7 +2025,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.turboquant.p26_prefill_output"
+    "apply_module": "sndr.engines.vllm.patches.attention.turboquant.p26_prefill_output"
   },
   {
     "patch_id": "P27",
@@ -1917,7 +2037,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.reasoning.p27_reasoning_before_think"
+    "apply_module": "sndr.engines.vllm.patches.reasoning.p27_reasoning_before_think"
   },
   {
     "patch_id": "P28",
@@ -1929,7 +2049,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.gdn.p28_gdn_core_attn"
+    "apply_module": "sndr.engines.vllm.patches.attention.gdn.p28_gdn_core_attn"
   },
   {
     "patch_id": "P29",
@@ -1940,8 +2060,20 @@
     "env_flag": "GENESIS_LEGACY_P29",
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
-    "has_apply_module": false,
-    "apply_module": null
+    "has_apply_module": true,
+    "apply_module": "vllm.sndr_core.integrations.tool_parsing.p29_qwen3coder_index_heal"
+  },
+  {
+    "patch_id": "P29_HEAL",
+    "family": "tool_parsing",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "GENESIS_ENABLE_P29_QWEN3CODER_INDEX_HEAL",
+    "has_upstream_pr": false,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "sndr.engines.vllm.patches.tool_parsing.p29_qwen3coder_index_heal"
   },
   {
     "patch_id": "P31",
@@ -1953,7 +2085,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.moe.p31_router_softmax"
+    "apply_module": "sndr.engines.vllm.patches.moe.p31_router_softmax"
   },
   {
     "patch_id": "P32",
@@ -1977,7 +2109,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.scheduler.p34_mamba_deadlock_guard"
+    "apply_module": "sndr.engines.vllm.patches.scheduler.p34_mamba_deadlock_guard"
   },
   {
     "patch_id": "P36",
@@ -1989,7 +2121,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.kernels.p36_tq_shared_decode_buffers"
+    "apply_module": "sndr.engines.vllm.patches.kernels.p36_tq_shared_decode_buffers"
   },
   {
     "patch_id": "P37",
@@ -2001,7 +2133,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.moe.p37_moe_intermediate_cache"
+    "apply_module": "sndr.engines.vllm.patches.moe.p37_moe_intermediate_cache"
   },
   {
     "patch_id": "P38",
@@ -2013,7 +2145,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.turboquant.p38_tq_continuation_memory"
+    "apply_module": "sndr.engines.vllm.patches.attention.turboquant.p38_tq_continuation_memory"
   },
   {
     "patch_id": "P39a",
@@ -2025,7 +2157,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.gdn.p39a_fla_kkt_buffer"
+    "apply_module": "sndr.engines.vllm.patches.attention.gdn.p39a_fla_kkt_buffer"
   },
   {
     "patch_id": "P40",
@@ -2037,7 +2169,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.turboquant.p40_tq_grouped_decode"
+    "apply_module": "sndr.engines.vllm.patches.attention.turboquant.p40_tq_grouped_decode"
   },
   {
     "patch_id": "P44",
@@ -2049,7 +2181,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.turboquant.p44_tq_mixed_attn_out"
+    "apply_module": "sndr.engines.vllm.patches.attention.turboquant.p44_tq_mixed_attn_out"
   },
   {
     "patch_id": "P46",
@@ -2061,7 +2193,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.gdn.p46_gdn_gating_buffers"
+    "apply_module": "sndr.engines.vllm.patches.attention.gdn.p46_gdn_gating_buffers"
   },
   {
     "patch_id": "P51",
@@ -2109,7 +2241,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.loader.pn61_qwen3_vl_keyerror_guard"
+    "apply_module": "sndr.engines.vllm.patches.loader.pn61_qwen3_vl_keyerror_guard"
   },
   {
     "patch_id": "PN62",
@@ -2121,7 +2253,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.multimodal.pn62_text_only_vit_skip"
+    "apply_module": "sndr.engines.vllm.patches.multimodal.pn62_text_only_vit_skip"
   },
   {
     "patch_id": "PN63",
@@ -2157,7 +2289,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.middleware.pn65_access_log"
+    "apply_module": "sndr.engines.vllm.patches.middleware.pn65_access_log"
   },
   {
     "patch_id": "PN66",
@@ -2169,7 +2301,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.reasoning.pn66_multiturn_think_leak"
+    "apply_module": "sndr.engines.vllm.patches.reasoning.pn66_multiturn_think_leak"
   },
   {
     "patch_id": "PN67",
@@ -2181,7 +2313,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations._retired.pn67_thinking_budget_inverted_bool"
+    "apply_module": "sndr.engines.vllm._archive.pn67_thinking_budget_inverted_bool"
   },
   {
     "patch_id": "PN70",
@@ -2193,7 +2325,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.serving.pn70_tool_schema_subset_filter"
+    "apply_module": "sndr.engines.vllm.patches.serving.pn70_tool_schema_subset_filter"
   },
   {
     "patch_id": "G4_01",
@@ -2205,7 +2337,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.model_compat.gemma4.g4_01_gemma4_ampere_fp8_block_guard"
+    "apply_module": "sndr.engines.vllm.patches.model_compat.gemma4.g4_01_gemma4_ampere_fp8_block_guard"
   },
   {
     "patch_id": "G4_02",
@@ -2217,7 +2349,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.model_compat.gemma4.g4_02_gemma4_ampere_marlin_kdim_guard"
+    "apply_module": "sndr.engines.vllm.patches.model_compat.gemma4.g4_02_gemma4_ampere_marlin_kdim_guard"
   },
   {
     "patch_id": "G4_03",
@@ -2229,7 +2361,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.model_compat.gemma4.g4_03_gemma4_ampere_non_causal_drafter_guard"
+    "apply_module": "sndr.engines.vllm.patches.model_compat.gemma4.g4_03_gemma4_ampere_non_causal_drafter_guard"
   },
   {
     "patch_id": "G4_04",
@@ -2241,7 +2373,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.model_compat.gemma4.g4_04_gemma4_awq_moe_keys_remap"
+    "apply_module": "sndr.engines.vllm.patches.model_compat.gemma4.g4_04_gemma4_awq_moe_keys_remap"
   },
   {
     "patch_id": "G4_05",
@@ -2253,7 +2385,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations._retired.g4_05_dflash_backend_autoselect"
+    "apply_module": "sndr.engines.vllm._archive.g4_05_dflash_backend_autoselect"
   },
   {
     "patch_id": "G4_06",
@@ -2265,7 +2397,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.kv_cache.g4_06_kv_proj_v_head_size_zero"
+    "apply_module": "sndr.engines.vllm.patches.kv_cache.g4_06_kv_proj_v_head_size_zero"
   },
   {
     "patch_id": "G4_07",
@@ -2277,7 +2409,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.model_compat.gemma4.g4_07_gemma4_fp8_block_double_scale_fix"
+    "apply_module": "sndr.engines.vllm.patches.model_compat.gemma4.g4_07_gemma4_fp8_block_double_scale_fix"
   },
   {
     "patch_id": "G4_08",
@@ -2289,7 +2421,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.model_compat.gemma4.g4_08_gemma4_marlin_kdim_pad_fallback"
+    "apply_module": "sndr.engines.vllm.patches.model_compat.gemma4.g4_08_gemma4_marlin_kdim_pad_fallback"
   },
   {
     "patch_id": "G4_09",
@@ -2301,7 +2433,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.model_compat.gemma4.g4_09_gemma4_swa_global_prefill_chunker"
+    "apply_module": "sndr.engines.vllm.patches.model_compat.gemma4.g4_09_gemma4_swa_global_prefill_chunker"
   },
   {
     "patch_id": "G4_10",
@@ -2313,7 +2445,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.model_compat.gemma4.g4_10_gemma4_ampere_non_causal_attn_backend"
+    "apply_module": "sndr.engines.vllm.patches.model_compat.gemma4.g4_10_gemma4_ampere_non_causal_attn_backend"
   },
   {
     "patch_id": "G4_11",
@@ -2325,7 +2457,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.model_compat.gemma4.g4_11_gemma4_chat_template_install"
+    "apply_module": "sndr.engines.vllm.patches.model_compat.gemma4.g4_11_gemma4_chat_template_install"
   },
   {
     "patch_id": "G4_12",
@@ -2337,7 +2469,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.model_compat.gemma4.g4_12_gemma4_fp8_e4nv_ampere_guard"
+    "apply_module": "sndr.engines.vllm.patches.model_compat.gemma4.g4_12_gemma4_fp8_e4nv_ampere_guard"
   },
   {
     "patch_id": "G4_13",
@@ -2349,7 +2481,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.model_compat.gemma4.g4_13_gemma4_per_token_head_kv_guard"
+    "apply_module": "sndr.engines.vllm.patches.model_compat.gemma4.g4_13_gemma4_per_token_head_kv_guard"
   },
   {
     "patch_id": "G4_14",
@@ -2361,7 +2493,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.model_compat.gemma4.g4_14_gemma4_tool_call_parser_pad_token"
+    "apply_module": "sndr.engines.vllm.patches.model_compat.gemma4.g4_14_gemma4_tool_call_parser_pad_token"
   },
   {
     "patch_id": "G4_15",
@@ -2373,7 +2505,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.model_compat.gemma4.g4_15_gemma4_fused_rmsnorm_route"
+    "apply_module": "sndr.engines.vllm.patches.model_compat.gemma4.g4_15_gemma4_fused_rmsnorm_route"
   },
   {
     "patch_id": "G4_16",
@@ -2385,7 +2517,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.model_compat.gemma4.g4_16_gemma4_full_piecewise_cudagraph"
+    "apply_module": "sndr.engines.vllm.patches.model_compat.gemma4.g4_16_gemma4_full_piecewise_cudagraph"
   },
   {
     "patch_id": "G4_17",
@@ -2397,7 +2529,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.model_compat.gemma4.g4_17_gemma4_vision_tower_text_only_skip"
+    "apply_module": "sndr.engines.vllm.patches.model_compat.gemma4.g4_17_gemma4_vision_tower_text_only_skip"
   },
   {
     "patch_id": "G4_18",
@@ -2409,7 +2541,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.kv_cache.g4_18_per_layer_kv_page_size"
+    "apply_module": "sndr.engines.vllm.patches.kv_cache.g4_18_per_layer_kv_page_size"
   },
   {
     "patch_id": "G4_23",
@@ -2421,7 +2553,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.model_compat.gemma4.g4_23_gemma4_vision_fp16_overflow_fix"
+    "apply_module": "sndr.engines.vllm.patches.model_compat.gemma4.g4_23_gemma4_vision_fp16_overflow_fix"
   },
   {
     "patch_id": "G4_24",
@@ -2433,7 +2565,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.model_compat.gemma4.g4_24_gemma4_fused_softcap_route"
+    "apply_module": "sndr.engines.vllm.patches.model_compat.gemma4.g4_24_gemma4_fused_softcap_route"
   },
   {
     "patch_id": "G4_19",
@@ -2445,7 +2577,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.turboquant.g4_19_turboquant_kv_cache"
+    "apply_module": "sndr.engines.vllm.patches.attention.turboquant.g4_19_turboquant_kv_cache"
   },
   {
     "patch_id": "G4_19B",
@@ -2457,7 +2589,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.turboquant.g4_19b_tq_kv_spec_integration"
+    "apply_module": "sndr.engines.vllm.patches.attention.turboquant.g4_19b_tq_kv_spec_integration"
   },
   {
     "patch_id": "G4_60A",
@@ -2469,7 +2601,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.turboquant.g4_60a_tq_sliding_window_spec"
+    "apply_module": "sndr.engines.vllm.patches.attention.turboquant.g4_60a_tq_sliding_window_spec"
   },
   {
     "patch_id": "G4_60E",
@@ -2481,7 +2613,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.turboquant.g4_60e_kv_cache_utils"
+    "apply_module": "sndr.engines.vllm.patches.attention.turboquant.g4_60e_kv_cache_utils"
   },
   {
     "patch_id": "G4_60G",
@@ -2493,7 +2625,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.turboquant.g4_60g_attention_dispatch"
+    "apply_module": "sndr.engines.vllm.patches.attention.turboquant.g4_60g_attention_dispatch"
   },
   {
     "patch_id": "G4_60L",
@@ -2505,7 +2637,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.turboquant.g4_60l_tq_backend_mm_prefix"
+    "apply_module": "sndr.engines.vllm.patches.attention.turboquant.g4_60l_tq_backend_mm_prefix"
   },
   {
     "patch_id": "G4_60H",
@@ -2517,7 +2649,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.turboquant.g4_60h_turboquant_config_augment"
+    "apply_module": "sndr.engines.vllm.patches.attention.turboquant.g4_60h_turboquant_config_augment"
   },
   {
     "patch_id": "G4_60B",
@@ -2529,7 +2661,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.turboquant.g4_60b_turboquant_attn_overlay_loader"
+    "apply_module": "sndr.engines.vllm.patches.attention.turboquant.g4_60b_turboquant_attn_overlay_loader"
   },
   {
     "patch_id": "G4_60C",
@@ -2541,7 +2673,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.turboquant.g4_60c_triton_decode_overlay_loader"
+    "apply_module": "sndr.engines.vllm.patches.attention.turboquant.g4_60c_triton_decode_overlay_loader"
   },
   {
     "patch_id": "G4_60D",
@@ -2553,7 +2685,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.turboquant.g4_60d_triton_store_overlay_loader"
+    "apply_module": "sndr.engines.vllm.patches.attention.turboquant.g4_60d_triton_store_overlay_loader"
   },
   {
     "patch_id": "G4_61",
@@ -2565,7 +2697,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.turboquant.g4_61_tq_shared_workspace"
+    "apply_module": "sndr.engines.vllm.patches.attention.turboquant.g4_61_tq_shared_workspace"
   },
   {
     "patch_id": "G4_71",
@@ -2577,7 +2709,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.spec_decode.g4_71_drafter_native_attn_backend"
+    "apply_module": "sndr.engines.vllm.patches.spec_decode.g4_71_drafter_native_attn_backend"
   },
   {
     "patch_id": "G4_72",
@@ -2589,7 +2721,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.spec_decode.g4_72_drafter_native_kv_cache_spec"
+    "apply_module": "sndr.engines.vllm.patches.spec_decode.g4_72_drafter_native_kv_cache_spec"
   },
   {
     "patch_id": "G4_76",
@@ -2601,7 +2733,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.spec_decode.g4_76_disable_drafter_kv_sharing"
+    "apply_module": "sndr.engines.vllm.patches.spec_decode.g4_76_disable_drafter_kv_sharing"
   },
   {
     "patch_id": "G4_75",
@@ -2613,7 +2745,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.spec_decode.g4_75_drafter_head512_triton"
+    "apply_module": "sndr.engines.vllm.patches.spec_decode.g4_75_drafter_head512_triton"
   },
   {
     "patch_id": "G4_74",
@@ -2625,7 +2757,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.spec_decode.g4_74_drafter_hnd_layout"
+    "apply_module": "sndr.engines.vllm.patches.spec_decode.g4_74_drafter_hnd_layout"
   },
   {
     "patch_id": "G4_73",
@@ -2637,7 +2769,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.spec_decode.g4_73_drafter_profile_skip"
+    "apply_module": "sndr.engines.vllm.patches.spec_decode.g4_73_drafter_profile_skip"
   },
   {
     "patch_id": "G4_71B",
@@ -2649,7 +2781,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.spec_decode.g4_71b_drafter_sliding_triton"
+    "apply_module": "sndr.engines.vllm.patches.spec_decode.g4_71b_drafter_sliding_triton"
   },
   {
     "patch_id": "G4_78",
@@ -2661,7 +2793,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations._retired.g4_78_drafter_target_kv_bridge"
+    "apply_module": "sndr.engines.vllm._archive.g4_78_drafter_target_kv_bridge"
   },
   {
     "patch_id": "PN262B",
@@ -2673,7 +2805,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.spec_decode.probes.pn262b_kv_alloc_trace"
+    "apply_module": "sndr.engines.vllm.patches.spec_decode.probes.pn262b_kv_alloc_trace"
   },
   {
     "patch_id": "PN262",
@@ -2685,7 +2817,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.spec_decode.probes.pn262_flash_attn_drafter_trace"
+    "apply_module": "sndr.engines.vllm.patches.spec_decode.probes.pn262_flash_attn_drafter_trace"
   },
   {
     "patch_id": "G4_19C",
@@ -2709,7 +2841,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.turboquant.g4_31_preserve_tq_dtype"
+    "apply_module": "sndr.engines.vllm.patches.attention.turboquant.g4_31_preserve_tq_dtype"
   },
   {
     "patch_id": "G4_32",
@@ -2721,7 +2853,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.turboquant.g4_32_tq_validation_bypass"
+    "apply_module": "sndr.engines.vllm.patches.attention.turboquant.g4_32_tq_validation_bypass"
   },
   {
     "patch_id": "G4_70",
@@ -2793,7 +2925,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.spec_decode.pn271_kv_contract_audit"
+    "apply_module": "sndr.engines.vllm.patches.spec_decode.pn271_kv_contract_audit"
   },
   {
     "patch_id": "PN274",
@@ -2817,7 +2949,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.spec_decode.pn275_dflash_max_cgs_align"
+    "apply_module": "sndr.engines.vllm.patches.spec_decode.pn275_dflash_max_cgs_align"
   },
   {
     "patch_id": "G4_69",
@@ -2829,7 +2961,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.turboquant.g4_69_skip_layers_native_backend"
+    "apply_module": "sndr.engines.vllm.patches.attention.turboquant.g4_69_skip_layers_native_backend"
   },
   {
     "patch_id": "G4_68",
@@ -2841,7 +2973,7 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.turboquant.g4_68_tq_spec_cg_downgrade_overlay"
+    "apply_module": "sndr.engines.vllm.patches.attention.turboquant.g4_68_tq_spec_cg_downgrade_overlay"
   },
   {
     "patch_id": "G4_67",
@@ -2853,7 +2985,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.turboquant.g4_67_tq_spec_verify_routing"
+    "apply_module": "sndr.engines.vllm.patches.attention.turboquant.g4_67_tq_spec_verify_routing"
   },
   {
     "patch_id": "G4_62",
@@ -2865,7 +2997,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.turboquant.g4_62_tq_kernel_warmup"
+    "apply_module": "sndr.engines.vllm.patches.attention.turboquant.g4_62_tq_kernel_warmup"
   },
   {
     "patch_id": "G4_60K",
@@ -2877,7 +3009,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.attention.turboquant.g4_60k_arg_utils"
+    "apply_module": "sndr.engines.vllm.patches.attention.turboquant.g4_60k_arg_utils"
   },
   {
     "patch_id": "G4_25",
@@ -2889,6 +3021,6 @@
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.model_compat.gemma4.g4_25_gemma4_rope_dual_base_freq_guard"
+    "apply_module": "sndr.engines.vllm.patches.model_compat.gemma4.g4_25_gemma4_rope_dual_base_freq_guard"
   }
 ]

@@ -194,8 +194,10 @@ class TestIterPatchSpecs:
         from vllm.sndr_core.dispatcher import iter_patch_specs
         specs = {s.patch_id: s for s in iter_patch_specs()}
         assert "PN82" in specs
+        # Registry apply_module uses canonical sndr.* paths post-migration; the
+        # retired patch now lives under sndr.engines.vllm._archive/.
         assert specs["PN82"].apply_module == (
-            "vllm.sndr_core.integrations._retired."
+            "sndr.engines.vllm._archive."
             "pn82_mamba_cudagraph_prefill_zero"
         )
         assert specs["PN82"].upstream_pr == 41873
