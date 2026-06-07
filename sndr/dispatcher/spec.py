@@ -380,16 +380,20 @@ def _resolve_patches_dir() -> Optional[Path]:
     bug-band-aids). Old ``patches/`` retained briefly as fallback for
     in-place upgrades; canonical path is now ``integrations/``.
 
-      __file__ = .../vllm/sndr_core/dispatcher/spec.py
-      parents:    [.../dispatcher, .../sndr_core, .../vllm, repo_root]
+    After the sndr-platform relocation this module lives at
+    ``sndr/dispatcher/spec.py``, but the wiring tree it indexes — and the dotted
+    module paths derived below (``repo_root = patches_dir.parent.parent.parent``)
+    — is still the repo-root ``vllm/sndr_core/integrations/`` shim tree, so we
+    anchor at the repo root (``parents[2]``) rather than relative to this file.
 
     Returns the resolved patches directory, or ``None`` if neither
     layout is present (logs a warning so the empty map is diagnosable).
     """
-    integrations_dir = Path(__file__).resolve().parent.parent / "integrations"
+    _repo_root = Path(__file__).resolve().parents[2]
+    integrations_dir = _repo_root / "vllm" / "sndr_core" / "integrations"
     if integrations_dir.is_dir():
         return integrations_dir
-    legacy_patches_dir = Path(__file__).resolve().parent.parent / "patches"
+    legacy_patches_dir = _repo_root / "vllm" / "sndr_core" / "patches"
     if legacy_patches_dir.is_dir():
         return legacy_patches_dir
     log.warning(
