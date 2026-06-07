@@ -63,13 +63,13 @@ import { formatTokens, targetTitle } from "./lib/format";
 import { LayerEditor } from "./sections/layer-editor";
 import { ConfigDraftEditor } from "./sections/config-draft-editor";
 import { ModelsWorkbench } from "./sections/models-workbench";
-import { ApiTokenManager, NotificationSettings, AppearanceSettings, ApiTokenField } from "./sections/settings-panels";
-import { ConfigsSection } from "./sections/configs-workbench";
+// settings-panels lazy-loaded below.
+// ConfigsSection lazy-loaded below.
 import { CapabilityTable } from "./components/capability-table";
 import { PlanChip, KeyValue, ArtifactPreview, type ArtifactTab } from "./components/display-bits";
 import { Step, Metric, PanelHeader, TabIntro, CodeTabs } from "./components/shell-bits";
 import { ServerSwitcher, ConnectionMap } from "./sections/connection-bar";
-import { HostsSection } from "./sections/hosts-section";
+// HostsSection lazy-loaded below.
 import { PresetSelectedView, PresetSummaryStrip } from "./sections/preset-views";
 import { StatusBadge, StatusPill, InfoRows, CompactList, KpiGrid, type GateStatus } from "./components/primitives";
 import { PercentBar, BarList, OvKpi } from "./components/charts";
@@ -87,17 +87,17 @@ import { RecommendationRow } from "./sections/recommendation-row";
 import { ModuleGrid, ModuleCard } from "./components/layout";
 import { toast, ToastHost } from "./components/toast";
 import { OperationsConsole } from "./sections/operations";
-import { DeploymentConsole } from "./sections/deployment";
+// DeploymentConsole lazy-loaded below.
 import { GateRow } from "./sections/gate-row";
 import { SetupWizard } from "./sections/setup-wizard";
 import { JobMonitorModal, QueueJobButton } from "./sections/jobs";
-import { ServiceLifecyclePlanner } from "./sections/services";
+// ServiceLifecyclePlanner lazy-loaded below.
 import { CommandPalette } from "./sections/command-palette";
 import { EventLog, OperationalConsole } from "./sections/operational-console";
 import { LaunchPanel } from "./sections/launch-panel";
 import { PresetPolicyGraph } from "./sections/preset-insight";
 import { PatchSummaryPanel, PatchLifecycleGraph, PatchRegistryInsight, PatchModelSupport } from "./sections/patch-overview";
-import { PatchInventoryControl } from "./sections/patch-inventory";
+// PatchInventoryControl lazy-loaded below.
 import { PresetRecommendPanel } from "./sections/preset-recommend";
 import { type RecommendForm, defaultRecommend, workloadChoices } from "./recommend";
 import { TabbedSection } from "./components/tabbed-section";
@@ -147,6 +147,20 @@ const EngineBenchPanel = lazy(() => import("./Engine").then((m) => ({ default: m
 const EngineMetricsPanel = lazy(() => import("./Engine").then((m) => ({ default: m.EngineMetricsPanel })));
 const EnginePlayground = lazy(() => import("./Engine").then((m) => ({ default: m.EnginePlayground })));
 const EngineStatusCard = lazy(() => import("./Engine").then((m) => ({ default: m.EngineStatusCard })));
+
+// Heavy tab-content sections — only rendered for their own section, so they are
+// code-split out of the initial bundle and fetched on first visit. The Suspense
+// boundary around SectionWorkspace covers them all. (configs-workbench alone is
+// ~1000 lines; this is the bulk of the initial-bundle saving.)
+const ConfigsSection = lazy(() => import("./sections/configs-workbench").then((m) => ({ default: m.ConfigsSection })));
+const HostsSection = lazy(() => import("./sections/hosts-section").then((m) => ({ default: m.HostsSection })));
+const DeploymentConsole = lazy(() => import("./sections/deployment").then((m) => ({ default: m.DeploymentConsole })));
+const ServiceLifecyclePlanner = lazy(() => import("./sections/services").then((m) => ({ default: m.ServiceLifecyclePlanner })));
+const PatchInventoryControl = lazy(() => import("./sections/patch-inventory").then((m) => ({ default: m.PatchInventoryControl })));
+const ApiTokenManager = lazy(() => import("./sections/settings-panels").then((m) => ({ default: m.ApiTokenManager })));
+const NotificationSettings = lazy(() => import("./sections/settings-panels").then((m) => ({ default: m.NotificationSettings })));
+const AppearanceSettings = lazy(() => import("./sections/settings-panels").then((m) => ({ default: m.AppearanceSettings })));
+const ApiTokenField = lazy(() => import("./sections/settings-panels").then((m) => ({ default: m.ApiTokenField })));
 // ModelManagementPanel is lazy-loaded inside ./sections/models-workbench now.
 // Lazy: the xterm-based terminal is heavy and rarely opened — keep it out of the
 // initial bundle so the app loads fast; the chunk fetches only when a terminal opens.
