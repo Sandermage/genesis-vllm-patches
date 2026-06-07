@@ -47,7 +47,6 @@ import {
   Table2,
   TimerReset,
   Terminal,
-  X,
   Wrench
 } from "lucide-react";
 import { Component, Suspense, lazy, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -83,7 +82,7 @@ import { BenchmarkBaselinePanel, EvidenceRows } from "./sections/bench";
 import { AuditLogPanel } from "./sections/audit-log";
 import { RuntimeEndpoint, BenchmarkCard, EvidenceCard, PatchMatrix, EndpointRows } from "./sections/rail-cards";
 import { EndpointExplorer, ReportGenerator } from "./sections/api-explorer";
-import { InfoDialog } from "./components/dialogs";
+import { InfoDialog, ShortcutsModal } from "./components/dialogs";
 import { RecommendationRow } from "./sections/recommendation-row";
 import { ModuleGrid, ModuleCard } from "./components/layout";
 import { toast, ToastHost } from "./components/toast";
@@ -91,7 +90,7 @@ import { OperationsConsole } from "./sections/operations";
 import { DeploymentConsole } from "./sections/deployment";
 import { GateRow } from "./sections/gate-row";
 import { SetupWizard } from "./sections/setup-wizard";
-import { JobMonitorModal, JobResultBlock } from "./sections/jobs";
+import { JobMonitorModal, QueueJobButton } from "./sections/jobs";
 import { ServiceLifecyclePlanner } from "./sections/services";
 import { CommandPalette } from "./sections/command-palette";
 import { EventLog, OperationalConsole } from "./sections/operational-console";
@@ -106,7 +105,7 @@ import { PresetQuickPanel } from "./sections/preset-quick";
 import { PresetCatalogTable } from "./sections/preset-catalog";
 import { ProofStatusPanel } from "./sections/proof";
 import { CodeBlock } from "./components/code-block";
-import { useDialogFocus, closeOnBackdrop } from "./dialog";
+// dialog helpers now used only inside extracted modals.
 import { SkeletonCards } from "./Skeleton";
 import {
   BundleSpec,
@@ -1618,76 +1617,7 @@ export default function App() {
 
 // Keyboard-shortcut reference overlay (opened with `?`). Documents the global
 // chords so power users can discover them without leaving the keyboard.
-function ShortcutsModal({ onClose }: { onClose: () => void }) {
-  const dialogRef = useRef<HTMLElement>(null);
-  useDialogFocus(dialogRef);
-  const groups: Array<{ title: string; rows: Array<[string[], string]> }> = [
-    { title: "Global", rows: [
-      [["⌘", "K"], "Open command palette"],
-      [["?"], "Toggle this shortcuts help"],
-      [["Esc"], "Close palette / dialog"],
-    ] },
-    { title: "Command palette", rows: [
-      [["↑", "↓"], "Move between results"],
-      [["↵"], "Run highlighted result"],
-    ] },
-    { title: "Go to (press g, then…)", rows: [
-      [["g", "o"], "Overview"],
-      [["g", "s"], "Setup"],
-      [["g", "f"], "Fleet"],
-      [["g", "h"], "Hosts"],
-      [["g", "m"], "Models"],
-      [["g", "c"], "Configs"],
-      [["g", "p"], "Presets"],
-      [["g", "n"], "Containers"],
-      [["g", "d"], "Doctor"],
-      [["g", "l"], "Launch Plan"],
-      [["g", "b"], "Benchmarks"],
-    ] },
-  ];
-  return (
-    <div className="dialog-backdrop" role="presentation" onClick={closeOnBackdrop(onClose)}>
-      <section ref={dialogRef} className="shortcuts-dialog" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts">
-        <div className="shortcuts-head">
-          <Command size={16} />
-          <strong>Keyboard shortcuts</strong>
-          <button className="icon-only" onClick={onClose} aria-label="Close"><X size={15} /></button>
-        </div>
-        <div className="shortcuts-grid">
-          {groups.map((group) => (
-            <div className="shortcuts-group" key={group.title}>
-              <h4>{group.title}</h4>
-              {group.rows.map(([keys, label]) => (
-                <div className="shortcuts-row" key={label}>
-                  <span className="shortcuts-keys">
-                    {keys.map((key, i) => <kbd key={i}>{key}</kbd>)}
-                  </span>
-                  <span className="shortcuts-label">{label}</span>
-                </div>
-              ))}
-            </div>
-          ))}
-        </div>
-      </section>
-    </div>
-  );
-}
-
-// LaunchParam + LaunchPanel extracted to ./sections/launch-panel.
-
-// Step + Metric + PanelHeader extracted to ./components/shell-bits.
-
-// StatusBadge / StatusPill extracted to ./components/primitives.
-
-// Switch the standalone GUI between multiple daemon servers. The active server's
-// baseUrl IS the api base — selecting one re-points every API call. Each server
-// is health-pinged so you can see which are up before switching.
-// Connection switcher — a reflection of the host registry (single source of
-// truth). The targets are "This host" (the local daemon serving the GUI) plus
-// every host profile: connecting points the GUI's Product API at that host's
-// daemon. There is no separate server list — you create and manage connections
-// as host cards in the Hosts section.
-// ConnTarget + ServerSwitcher extracted to ./sections/connection-bar.
+// ShortcutsModal extracted to ./components/dialogs.
 class SectionErrorBoundary extends Component<{ section: string; children: ReactNode }, { error: Error | null }> {
   state: { error: Error | null } = { error: null };
   static getDerivedStateFromError(error: Error) {
@@ -3192,42 +3122,7 @@ function WorkflowSteps({ rows }: { rows: Array<[string, string, string]> }) {
   );
 }
 
-function QueueJobButton({ label, run, onMonitor }: { label: string; run: () => Promise<Job>; onMonitor?: (id: string) => void }) {
-  const [job, setJob] = useState<Job | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  return (
-    <div className="queue-job">
-      <button
-        className="primary-action"
-        disabled={busy}
-        onClick={async () => {
-          setBusy(true);
-          setError(null);
-          try {
-            const result = await run();
-            setJob(result);
-            // Consistent across the GUI: open the live job monitor when available.
-            onMonitor?.(result.job_id);
-          } catch (err) {
-            setError(err instanceof Error ? err.message : String(err));
-          } finally {
-            setBusy(false);
-          }
-        }}
-      >
-        <Play size={15} /> {busy ? "Queuing…" : label}
-      </button>
-      {error && <div className="config-plan-error"><AlertCircle size={14} /><span>{error}</span></div>}
-      {job && !onMonitor && <JobResultBlock job={job} />}
-      {job && onMonitor && (
-        <button className="ghost-button queue-job-reopen" onClick={() => onMonitor(job.job_id)}>
-          <Activity size={14} /> View job {job.job_id}
-        </button>
-      )}
-    </div>
-  );
-}
+// QueueJobButton extracted to ./sections/jobs.
 
 // EndpointExplorer + ReportGenerator extracted to ./sections/api-explorer.
 

@@ -8,7 +8,7 @@ vi.mock("../dialog", () => ({
   closeOnBackdrop: (fn: () => void) => () => fn(),
 }));
 
-import { ConfirmDialog, InfoDialog } from "./dialogs";
+import { ConfirmDialog, InfoDialog, ShortcutsModal } from "./dialogs";
 
 afterEach(cleanup);
 
@@ -32,6 +32,17 @@ describe("InfoDialog", () => {
     render(<InfoDialog message="dry-run output" onClose={onClose} />);
     expect(screen.getByText("dry-run output")).toBeTruthy();
     fireEvent.click(screen.getByText("Close"));
+    expect(onClose).toHaveBeenCalled();
+  });
+});
+
+describe("ShortcutsModal", () => {
+  it("renders the keyboard shortcuts reference + closes", () => {
+    const onClose = vi.fn();
+    render(<ShortcutsModal onClose={onClose} />);
+    expect(screen.getByText("Keyboard shortcuts")).toBeTruthy();
+    expect(screen.getByText("Open command palette")).toBeTruthy();
+    fireEvent.click(screen.getByLabelText("Close"));
     expect(onClose).toHaveBeenCalled();
   });
 });

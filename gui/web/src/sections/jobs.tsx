@@ -8,7 +8,7 @@
 //     screen-reader table navigation announces real column relationships;
 //   * Progress is a real role="progressbar" with aria-valuenow/min/max.
 import { useEffect, useRef, useState, Fragment } from "react";
-import { Activity, ChevronRight, X, CheckCircle2, AlertCircle, Circle, Terminal } from "lucide-react";
+import { Activity, ChevronRight, X, CheckCircle2, AlertCircle, Circle, Terminal, Play } from "lucide-react";
 import { api, type Job } from "../api";
 import { SkeletonTable } from "../Skeleton";
 import { CodeBlock, CopyButton } from "../components/code-block";
@@ -205,6 +205,44 @@ export function JobMonitorModal({ jobId, onClose }: { jobId: string; onClose: ()
           <button className="primary-action" onClick={onClose}>Close</button>
         </div>
       </section>
+    </div>
+  );
+}
+
+// Queue-a-dry-run-job button — runs an async job and opens its monitor.
+export function QueueJobButton({ label, run, onMonitor }: { label: string; run: () => Promise<Job>; onMonitor?: (id: string) => void }) {
+  const [job, setJob] = useState<Job | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <div className="queue-job">
+      <button
+        className="primary-action"
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true);
+          setError(null);
+          try {
+            const result = await run();
+            setJob(result);
+            // Consistent across the GUI: open the live job monitor when available.
+            onMonitor?.(result.job_id);
+          } catch (err) {
+            setError(err instanceof Error ? err.message : String(err));
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <Play size={15} /> {busy ? "Queuing…" : label}
+      </button>
+      {error && <div className="config-plan-error"><AlertCircle size={14} /><span>{error}</span></div>}
+      {job && !onMonitor && <JobResultBlock job={job} />}
+      {job && onMonitor && (
+        <button className="ghost-button queue-job-reopen" onClick={() => onMonitor(job.job_id)}>
+          <Activity size={14} /> View job {job.job_id}
+        </button>
+      )}
     </div>
   );
 }
