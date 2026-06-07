@@ -346,7 +346,7 @@ export function ContainersPanel({ hosts, onNavigate, initialHostId }: { hosts: H
 
       <div className="containers-grid">
         {view.map((c) => (
-          <ContainerCard key={c.id || c.name} c={c} stats={stats[c.name]} history={histRef.current[c.name]}
+          <ContainerCard key={c.id || c.name} c={c} source={source} stats={stats[c.name]} history={histRef.current[c.name]}
             busy={busy} onAct={act} onOpen={(tab) => setOpen({ name: c.name, tab })} />
         ))}
       </div>
@@ -354,8 +354,8 @@ export function ContainersPanel({ hosts, onNavigate, initialHostId }: { hosts: H
   );
 }
 
-function ContainerCard({ c, stats, history, busy, onAct, onOpen }: {
-  c: ManagedContainer; stats?: ContainerStats; history?: { cpu: number[]; mem: number[] };
+function ContainerCard({ c, source, stats, history, busy, onAct, onOpen }: {
+  c: ManagedContainer; source: ContainerSource; stats?: ContainerStats; history?: { cpu: number[]; mem: number[] };
   busy: string | null; onAct: (n: string, a: ContainerAction) => void; onOpen: (tab?: Tab) => void;
 }) {
   const st = stateClass(c.state);
@@ -364,6 +364,14 @@ function ContainerCard({ c, stats, history, busy, onAct, onOpen }: {
   const ports = (c.ports || "").split(",").map((p) => p.trim()).filter(Boolean);
   const [menu, setMenu] = useState(false);
   const acting = busy?.startsWith(`${c.name}:`) ?? false;
+  // At-a-glance update status, fetched lazily per card (cheap: local inspect +
+  // image-id) so the operator sees what needs updating without opening each one.
+  const [upd, setUpd] = useState<ContainerUpdatePlan | null>(null);
+  useEffect(() => {
+    let alive = true;
+    api.containerUpdatePlan(source, c.name).then((p) => alive && setUpd(p)).catch(() => {});
+    return () => { alive = false; };
+  }, [source, c.name]);
 
   return (
     <div className={`ccard ${st}`}>
@@ -372,6 +380,14 @@ function ContainerCard({ c, stats, history, busy, onAct, onOpen }: {
         <span className={`container-dot ${st}`} />
         <span className="ccard-name" title={c.name} role="button" tabIndex={0} onClick={() => onOpen()} onKeyDown={onKeyActivate(() => onOpen())}>{c.name}</span>
         <span className={`container-badge ${st}`}>{c.state || "—"}</span>
+        {upd?.update_available && (
+          <span className="ccard-upd-pill" title="A newer local image exists — open Update" role="button" tabIndex={0} onClick={() => onOpen("config")} onKeyDown={onKeyActivate(() => onOpen("config"))}>
+            <ArrowUp size={11} /> update
+          </span>
+        )}
+        {upd && upd.mode && upd.mode !== "manual" && (
+          <span className={`ccard-mode-badge ${upd.mode}`} title={`Update mode: ${upd.mode}`}>{upd.mode}</span>
+        )}
         <div className="ccard-menu-wrap">
           <button className="ccard-kebab" onClick={() => setMenu((v) => !v)} title="More"><MoreVertical size={15} /></button>
           {menu && (

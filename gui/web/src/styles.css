@@ -3907,6 +3907,18 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
   border: 1px solid color-mix(in srgb, var(--warn, #f59e0b) 45%, transparent);
 }
 .primary-button.has-update { box-shadow: 0 0 0 2px color-mix(in srgb, var(--warn, #f59e0b) 45%, transparent); }
+.ccard-upd-pill {
+  display: inline-flex; align-items: center; gap: 3px; font-size: 10px; font-weight: 700; cursor: pointer;
+  padding: 1px 7px; border-radius: var(--r-pill); white-space: nowrap;
+  color: var(--warn, #b45309); background: color-mix(in srgb, var(--warn, #f59e0b) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warn, #f59e0b) 45%, transparent);
+}
+.ccard-mode-badge {
+  font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
+  padding: 1px 6px; border-radius: var(--r-pill); color: var(--text-muted);
+  background: var(--surface-2); border: 1px solid var(--border);
+}
+.ccard-mode-badge.auto { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
 .upd-avail-banner {
   display: flex; align-items: center; gap: 6px; font-size: 12.5px;
   padding: 8px 12px; margin-bottom: 12px; border-radius: var(--r-md, 10px);
