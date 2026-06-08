@@ -29,7 +29,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-# Ensure the repo root is on sys.path so `vllm.sndr_core.*` resolves
+# Ensure the repo root is on sys.path so `sndr.*` resolves
 # whether the script is invoked via `make audit-configs` (cwd=repo) or
 # directly from elsewhere. Idempotent.
 if str(REPO_ROOT) not in sys.path:
@@ -40,7 +40,7 @@ def _alias_ids() -> list[str]:
     """Enumerate every preset alias YAML under builtin/presets/."""
     presets_dir = (
         REPO_ROOT
-        / "vllm" / "sndr_core" / "model_configs" / "builtin" / "presets"
+        / "sndr" / "model_configs" / "builtin" / "presets"
     )
     if not presets_dir.is_dir():
         return []
@@ -51,7 +51,7 @@ def _alias_ids() -> list[str]:
 def _verify_alias(alias_id: str) -> tuple[bool, str]:
     """Try to compose one alias. Return (ok, summary_line)."""
     try:
-        from vllm.sndr_core.model_configs.registry_v2 import load_alias
+        from sndr.model_configs.registry_v2 import load_alias
     except ImportError as e:
         return False, f"registry_v2 not importable: {e}"
     try:
@@ -86,7 +86,7 @@ def main() -> int:
     if not alias_ids:
         sys.stderr.write(
             "audit-configs: no presets found under "
-            "vllm/sndr_core/model_configs/builtin/presets/\n"
+            "sndr/model_configs/builtin/presets/\n"
         )
         return 2
 

@@ -97,6 +97,11 @@ class CatalogReport:
 
 
 def _preset_dir() -> Path:
+    # v12.1 (2026-06-09): canonical path is sndr/. Legacy vllm/sndr_core/
+    # was archived to sndr_private/archive/ in commit 6bf9c04c.
+    canonical = REPO_ROOT / "sndr" / "model_configs" / "builtin" / "presets"
+    if canonical.is_dir():
+        return canonical
     return (
         REPO_ROOT / "vllm" / "sndr_core" / "model_configs"
         / "builtin" / "presets"
@@ -125,11 +130,11 @@ def _audit_one_preset(
     Imports happen lazily so the script can be invoked without
     triggering the full sndr_core import chain at script startup.
     """
-    from vllm.sndr_core.model_configs.preset_schema import (
+    from sndr.model_configs.preset_schema import (
         validate_for_status,
     )
-    from vllm.sndr_core.model_configs.registry_v2 import load_preset_def
-    from vllm.sndr_core.model_configs.schema import SchemaError
+    from sndr.model_configs.registry_v2 import load_preset_def
+    from sndr.model_configs.schema import SchemaError
 
     try:
         preset = load_preset_def(preset_id)

@@ -136,13 +136,20 @@ def _audit_one(path: Path) -> list[Violation]:
 def _enumerate_yamls(root: Path) -> list[Path]:
     """Find all builtin model YAMLs (excluding `_retired/`, `_deprecated/`,
     inherits-only profiles, hardware/profile/preset configs).
+
+    v12.1 (2026-06-09): canonical path is ``sndr/model_configs/builtin/
+    model``. Legacy ``vllm/sndr_core/model_configs/...`` was archived to
+    ``sndr_private/archive/`` (commit 6bf9c04c). Falls back to the
+    legacy path only if the canonical doesn't exist — keeps the script
+    portable across the v11→v12 transition window.
     """
-    builtin_model_dir = (
-        root / "vllm" / "sndr_core" / "model_configs" / "builtin" / "model"
-    )
-    if not builtin_model_dir.is_dir():
-        return []
-    return sorted(p for p in builtin_model_dir.glob("*.yaml") if p.is_file())
+    canonical = root / "sndr" / "model_configs" / "builtin" / "model"
+    if canonical.is_dir():
+        return sorted(p for p in canonical.glob("*.yaml") if p.is_file())
+    legacy = root / "vllm" / "sndr_core" / "model_configs" / "builtin" / "model"
+    if legacy.is_dir():
+        return sorted(p for p in legacy.glob("*.yaml") if p.is_file())
+    return []
 
 
 def _format_report(violations: list[Violation], total: int) -> str:
