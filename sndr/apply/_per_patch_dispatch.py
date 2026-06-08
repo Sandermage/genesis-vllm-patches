@@ -5111,6 +5111,45 @@ def apply_patch_N299_fla_multi_arch_warps() -> PatchResult:
     return _skipped("PN299 FLA multi arch warps", detail)
 
 
+@register_patch("PN299D Mamba2 SSU fallback heuristic arch-aware NUM_WARPS cap")
+def apply_patch_N299D_mamba_ssm() -> PatchResult:
+    """PN299D: defensive cap on the selective_state_update fallback heuristic
+    in model_executor/layers/mamba/ops/mamba_ssm.py. The dstate>128 +
+    not-Blackwell branch leaves num_warps=8 — spills on SM 8.6 (100 KB
+    shared). PN299D caps via GENESIS_TRITON_AUTOTUNE_MAX_WARPS (PN296
+    auto-sets =4 on Ampere). No-op when tuned JSON config is found
+    (heuristic bypassed). Opt-in via GENESIS_ENABLE_PN299D=1.
+    Composes with PN296+PN298+PN299+PN299B+PN299C."""
+    from sndr.engines.vllm.patches.attention.gdn import (
+        pn299d_mamba_ssm_arch_warps as _wiring,
+    )
+    status, detail = _wiring.apply()
+    if status == "applied":
+        return _applied("PN299D Mamba2 SSU fallback arch warps", detail)
+    if status == "failed":
+        return _failed("PN299D Mamba2 SSU fallback arch warps", detail)
+    return _skipped("PN299D Mamba2 SSU fallback arch warps", detail)
+
+
+@register_patch("PN299C FLA layernorm_guard arch-aware NUM_WARPS heuristic cap")
+def apply_patch_N299C_fla_layernorm_guard() -> PatchResult:
+    """PN299C: caps the runtime ``num_warps = min(max(BLOCK_N // 256, 1), 8)``
+    heuristic in fla/ops/layernorm_guard.py with the same env PN296
+    auto-sets (GENESIS_TRITON_AUTOTUNE_MAX_WARPS=4 on SM 8.6). Hot path
+    on Qwen3.6 hybrid where the heuristic picks num_warps=8 for
+    BLOCK_N=8192 (hidden=5120 case). Opt-in via GENESIS_ENABLE_PN299C=1.
+    Composes with PN296+PN298+PN299+PN299B."""
+    from sndr.engines.vllm.patches.attention.gdn import (
+        pn299c_fla_layernorm_guard_arch_warps as _wiring,
+    )
+    status, detail = _wiring.apply()
+    if status == "applied":
+        return _applied("PN299C FLA layernorm_guard arch warps", detail)
+    if status == "failed":
+        return _failed("PN299C FLA layernorm_guard arch warps", detail)
+    return _skipped("PN299C FLA layernorm_guard arch warps", detail)
+
+
 @register_patch("PN299B FLA extended arch-aware NUM_WARPS prune (kda+cumsum+solve_tril)")
 def apply_patch_N299B_fla_kda_cumsum_solve_tril() -> PatchResult:
     """PN299B: closes the PN299 coverage gap on 3 more FLA ops files —

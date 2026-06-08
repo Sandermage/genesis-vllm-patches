@@ -3977,6 +3977,66 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "implementation_status": "full",
         "composes_with": ["PN296"],
     },
+    "PN299D": {
+        "title": "Mamba2 SSU fallback heuristic arch-aware NUM_WARPS cap (SM 8.6)",
+        "tier": "community",
+        "family": "attention.gdn",
+        "env_flag": "GENESIS_ENABLE_PN299D",
+        "default_on": False,
+        "apply_module": "sndr.engines.vllm.patches.attention.gdn.pn299d_mamba_ssm_arch_warps",
+        "lifecycle": "experimental",
+        "category": "kernel_perf",
+        "credit": (
+            "Genesis-original 2026-06-08 — defensive cap on the "
+            "selective_state_update FALLBACK heuristic in "
+            "model_executor/layers/mamba/ops/mamba_ssm.py. The fallback "
+            "path runs whenever the tuned JSON config for the live "
+            "(headdim, dstate, cache_dtype, device) combo is missing. "
+            "Two branches leave the function with num_warps=8: "
+            "(a) dstate>128 AND not Blackwell — stays at initial (4,8); "
+            "(b) dstate>128 AND Blackwell — (32,8). On SM 8.6 Ampere "
+            "where path (a) fires, 8 warps spill the 100 KB shared/SM "
+            "and trigger autotune eviction-recompile. Some Qwen3.6 "
+            "Mamba block variants ship dstate=256 → fallback path "
+            "hits this. PN299D caps via GENESIS_TRITON_AUTOTUNE_MAX_"
+            "WARPS (PN296 auto-sets =4 on Ampere). No-op when tuned "
+            "config JSON is found (heuristic bypassed). Composes with "
+            "PN296+PN298+PN299+PN299B+PN299C."
+        ),
+        "upstream_pr": None,
+        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
+        "implementation_status": "full",
+        "composes_with": ["PN296", "PN298", "PN299", "PN299B", "PN299C"],
+    },
+    "PN299C": {
+        "title": "FLA layernorm_guard arch-aware NUM_WARPS heuristic cap (SM 8.6)",
+        "tier": "community",
+        "family": "attention.gdn",
+        "env_flag": "GENESIS_ENABLE_PN299C",
+        "default_on": False,
+        "apply_module": "sndr.engines.vllm.patches.attention.gdn.pn299c_fla_layernorm_guard_arch_warps",
+        "lifecycle": "experimental",
+        "category": "kernel_perf",
+        "credit": (
+            "Genesis-original 2026-06-08 — closes the LAST num_warps=8 "
+            "site in vllm/model_executor/layers/fla/ops/ after PN298 + "
+            "PN299 + PN299B coverage. layernorm_guard.py uses a runtime "
+            "HEURISTIC, not a config-list autotune: "
+            "``num_warps = min(max(BLOCK_N // 256, 1), 8)``. For "
+            "Qwen3.6-A3B (hidden 5120 → BLOCK_N = 8192) this picks "
+            "num_warps=8 unconditionally — spills on SM 8.6 (100 KB "
+            "shared/SM). PN299C caps the heuristic with the same env "
+            "PN296 auto-sets (GENESIS_TRITON_AUTOTUNE_MAX_WARPS=4 on "
+            "Ampere). On Hopper+ the env stays at the upstream default "
+            "'8' so behaviour is identical. Kernel fires per LN per "
+            "layer per token — hot path. Composes with PN296+PN298+"
+            "PN299+PN299B."
+        ),
+        "upstream_pr": None,
+        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
+        "implementation_status": "full",
+        "composes_with": ["PN296", "PN298", "PN299", "PN299B"],
+    },
     "PN299B": {
         "title": "FLA extended (kda+cumsum+solve_tril) arch-aware NUM_WARPS prune",
         "tier": "community",
