@@ -1021,7 +1021,7 @@ docker run -d --name "$CONTAINER" \\
   -v "$LAUNCHER_DIR":"$LAUNCHER_DIR":ro \\
   -v ${{GENESIS_REPO}}:${{GENESIS_REPO}}:rw \\
   -v /nfs/genesis/models:/models:ro \\
-  -v ${{GENESIS_REPO}}/vllm/sndr_core:${{TGT}}/sndr_core:ro \\
+  -v ${{GENESIS_REPO}}/sndr:/usr/local/lib/python3.12/dist-packages/sndr:ro \\
 {overlay_mounts}  ${{IMAGE}}
 
 echo "$CONTAINER on port $PORT ({profile_id}, role={role})"

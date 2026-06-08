@@ -103,17 +103,27 @@ def _resolve_install_dir() -> Path:
 
 
 def _read_packaged_template() -> str | None:
-    """Read the template baked into the Genesis package."""
-    try:
-        from importlib.resources import files
-        asset = files("vllm.sndr_core.assets.chat_templates") / _TEMPLATE_FILENAME
-        return asset.read_text(encoding="utf-8")
-    except (ModuleNotFoundError, FileNotFoundError, OSError) as e:
-        log.warning(
-            "[PN127] packaged template asset not readable: %s. Genesis "
-            "install may be missing assets/chat_templates/. Skip.", e,
-        )
-        return None
+    """Read the template baked into the Genesis package.
+
+    v12 (2026-06-08): canonical asset path is ``sndr.assets.chat_templates``.
+    The legacy ``vllm.sndr_core.assets.chat_templates`` path is preserved as
+    a fallback for the v12.x transition window (shipped only when the
+    legacy compat tree is bind-mounted). After the legacy tree is deleted
+    in v13.0, only the canonical path remains.
+    """
+    from importlib.resources import files
+    for pkg in ("sndr.assets.chat_templates", "vllm.sndr_core.assets.chat_templates"):
+        try:
+            asset = files(pkg) / _TEMPLATE_FILENAME
+            return asset.read_text(encoding="utf-8")
+        except (ModuleNotFoundError, FileNotFoundError, OSError):
+            continue
+    log.warning(
+        "[PN127] packaged template asset not readable from sndr.assets nor "
+        "vllm.sndr_core.assets — install may be missing the chat_templates "
+        "package data. Skip.",
+    )
+    return None
 
 
 def _sha256_short(content: str) -> str:
