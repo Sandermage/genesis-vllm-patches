@@ -44,12 +44,20 @@ def _is_enabled() -> bool:
     ).strip().lower() in ("1", "true", "yes", "on")
 
 
-# Anchor on stable finish_reason_ if/else block (lines 1084-1093 pristine)
+# Anchor on stable finish_reason_ if/else block.
+# v2 (2026-06-08): upstream refactored the leading conditional and DROPPED
+# the ``auto_tools_called`` OR-clause from the if-head — live file at
+# vllm/entrypoints/openai/chat_completion/serving.py:820-826 now reads
+# ``if (tools_streamed[i] and ...) or (self.use_harmony and ...):``. The
+# ``auto_tools_called`` variable still exists in the surrounding function
+# (used in our injected detector at L91-96 below), so the semantics of
+# the detector are unchanged — we just shrink the anchor's leading
+# conditional to match the new shape. P107's misleading ``# likely
+# upstream merged`` skip-message was wrong (PR #41467 still OPEN); the
+# anchor drift was code-shape refactor, not behavioral upstreaming.
 ANCHOR_OLD = (
-    "                        if (\n"
-    "                            auto_tools_called\n"
-    "                            or (tools_streamed[i] and not tool_choice_function_name)\n"
-    "                            or (self.use_harmony and harmony_tools_streamed[i])\n"
+    "                        if (tools_streamed[i] and not tool_choice_function_name) or (\n"
+    "                            self.use_harmony and harmony_tools_streamed[i]\n"
     "                        ):\n"
     "                            finish_reason_ = \"tool_calls\"\n"
     "                        else:\n"
@@ -60,10 +68,8 @@ ANCHOR_OLD = (
 )
 
 ANCHOR_NEW = (
-    "                        if (\n"
-    "                            auto_tools_called\n"
-    "                            or (tools_streamed[i] and not tool_choice_function_name)\n"
-    "                            or (self.use_harmony and harmony_tools_streamed[i])\n"
+    "                        if (tools_streamed[i] and not tool_choice_function_name) or (\n"
+    "                            self.use_harmony and harmony_tools_streamed[i]\n"
     "                        ):\n"
     "                            finish_reason_ = \"tool_calls\"\n"
     "                        else:\n"

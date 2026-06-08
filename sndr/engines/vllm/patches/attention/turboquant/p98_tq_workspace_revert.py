@@ -136,19 +136,32 @@ def _make_patcher() -> TextPatcher | None:
     target = resolve_vllm_file("v1/attention/backends/turboquant_attn.py")
     if target is None:
         return None
+    # v2 (2026-06-08): SPLIT — decode-revert sub-patch is RETIRED.
+    # PN118 (backport of vllm#42551, try_get_simultaneous + torch.empty
+    # fallback) has fully rewritten the _decode_attention region. The
+    # P98 decode anchor cannot match any more, AND a "per-layer cached
+    # buffer that wraps PN118's fallback" hybrid would defeat PN118's
+    # "keep serving when workspace locked" semantics. The dequant
+    # sub-patch (continuation prefill dequant buffers) is independent
+    # of PN118 and still anchors cleanly on dev259.
+    #
+    # Result: P98 now reverts WorkspaceManager only on the dequant
+    # path (continuation prefill `_continuation_prefill` and similar).
+    # The decode path stays on PN118's try_get_simultaneous design.
+    # Expected impact reduced from the docstring's combined
+    # "+15-25 %" to a dequant-only "single-digit % on long-context"
+    # — the prefill weight in our 5×5×1024 sustained bench is small,
+    # so the bench may not reflect the real long-context win.
     return TextPatcher(
         patch_name=(
-            "P98 turboquant_attn.py — revert WorkspaceManager (perf hotfix)"
+            "P98 turboquant_attn.py — revert WorkspaceManager "
+            "(perf hotfix, dequant-only after PN118 supersession)"
         ),
         target_file=str(target),
         marker=GENESIS_P98_MARKER,
         sub_patches=[
-            TextPatch(
-                name="p98_decode_workspace_revert",
-                anchor=P98_DECODE_OLD,
-                replacement=P98_DECODE_NEW,
-                required=True,
-            ),
+            # p98_decode_workspace_revert — RETIRED 2026-06-08
+            # (PN118 superseded; see TextPatcher docstring above).
             TextPatch(
                 name="p98_dequant_workspace_revert",
                 anchor=P98_DEQUANT_OLD,

@@ -180,17 +180,12 @@ def _make_patcher() -> TextPatcher | None:
                 replacement=_NEW_NONSTREAM,
                 required=True,
             ),
-            # Two alternate return-block anchors — one matches pre-#35687
-            # baseline, one matches post-#35687 upstream layout. EXACTLY
-            # ONE is expected to match any given file; both are optional
-            # (siblings continue). If both miss, the whole patch yields a
-            # no_applicable_sub_patches skip (benign).
-            TextPatch(
-                name="p27_nonstream_return_baseline",
-                anchor=_OLD_NONSTREAM_RETURN_BASELINE,
-                replacement=_NEW_NONSTREAM_RETURN_BASELINE,
-                required=False,
-            ),
+            # p27_nonstream_return_baseline sub-patch RETIRED 2026-06-08
+            # (archive-drift forensics). Superseded by vllm-project/vllm#35687
+            # (MERGED 2026-04-24) which restructured the return shape and
+            # removed the pre-merge ``final_content = content or None``
+            # alias the anchor matched. Sibling p27_nonstream_return_pr35687
+            # below (post-merge anchor) is the active path on dev259+.
             TextPatch(
                 name="p27_nonstream_return_pr35687",
                 anchor=_OLD_NONSTREAM_RETURN_PR35687,

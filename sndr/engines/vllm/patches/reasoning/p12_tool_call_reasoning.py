@@ -216,25 +216,15 @@ def _make_patcher() -> TextPatcher | None:
         target_file=target,
         marker=GENESIS_P12_MARKER,
         sub_patches=[
-            # Legacy sub-patches: targeted at the pre-#35687 file. On
-            # dev371 (post-merge) these anchors are gone — required=False
-            # lets them silently self-skip while sub 3 still applies the
-            # FIRST-occurrence flip on top of the merged upstream code.
-            TextPatch(
-                name="p12_init_tool_call_tokens",
-                anchor=_OLD_INIT,
-                replacement=_NEW_INIT,
-                required=False,
-            ),
-            TextPatch(
-                name="p12_serving_layer_hooks",
-                anchor=_OLD_METHODS_ANCHOR,
-                replacement=_NEW_METHODS_BLOCK,
-                required=False,
-            ),
-            # dev371+ sub: required=False so older pins (still on legacy)
-            # don't fail. At least ONE of {init/methods, last_to_first}
-            # must match for the patch as a whole to count as applied.
+            # p12_init_tool_call_tokens + p12_serving_layer_hooks
+            # sub-patches RETIRED 2026-06-08 (archive-drift forensics).
+            # Superseded by vllm-project/vllm#35687 (MERGED 2026-04-24).
+            # Live qwen3_reasoning_parser.py on dev259+ ships with the
+            # is_reasoning_end / is_reasoning_end_streaming /
+            # extract_content_ids methods upstream — anchors gone.
+            # Removed from sub_patches list to clean boot-log noise; the
+            # FIRST-occurrence flip below is the only surviving Genesis
+            # win on top of the merged upstream code.
             TextPatch(
                 name="p12_last_to_first_occurrence",
                 anchor=_OLD_LAST_OCCURRENCE_BODY,

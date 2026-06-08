@@ -59,11 +59,18 @@ def _enabled() -> bool:
 # `function["arguments"]` instead of `item["function"]["arguments"]`.
 # Original anchor on dev209+g5536fc0c0 inspected 2026-05-13.
 # Functional semantics identical — only variable alias changed.
+# v3 (2026-06-08, archive-drift forensics): upstream rewrote the inner
+# block to ``parsed = json.loads(content); function["arguments"] = parsed
+# if parsed is not None else {}`` — this only handles the ``null`` case
+# and still raises ``JSONDecodeError`` on malformed JSON. PN73's
+# defensive value (no 500 on glitchy ``arguments`` string) is unchanged;
+# anchor updated to the new two-line shape.
 PN73_OLD = (
     "                # if arguments is None or empty string, set to {}\n"
     "                if content := function.get(\"arguments\"):\n"
     "                    if not isinstance(content, (dict, list)):\n"
-    "                        function[\"arguments\"] = json.loads(content)\n"
+    "                        parsed = json.loads(content)\n"
+    "                        function[\"arguments\"] = parsed if parsed is not None else {}\n"
     "                else:\n"
     "                    function[\"arguments\"] = {}\n"
 )
@@ -74,12 +81,13 @@ PN73_NEW = (
     "                        # [Genesis PN73] safe normalize: on JSON-decode\n"
     "                        # failure keep the string as-is rather than 500.\n"
     "                        # Non-string scalars are coerced via str().\n"
+    "                        # Preserves upstream's null→{} handling.\n"
     "                        try:\n"
     "                            if isinstance(content, str):\n"
-    "                                function[\"arguments\"] = json.loads(content)\n"
+    "                                parsed = json.loads(content)\n"
     "                            else:\n"
-    "                                # int/float/bool/None coerced to JSON-loadable string\n"
-    "                                function[\"arguments\"] = json.loads(str(content))\n"
+    "                                parsed = json.loads(str(content))\n"
+    "                            function[\"arguments\"] = parsed if parsed is not None else {}\n"
     "                        except (json.JSONDecodeError, TypeError, ValueError):\n"
     "                            import logging as _g_pn73_log\n"
     "                            _g_pn73_log.getLogger(\"genesis.pn73\").warning(\n"

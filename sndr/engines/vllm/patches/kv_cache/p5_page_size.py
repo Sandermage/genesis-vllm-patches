@@ -365,13 +365,15 @@ def _make_patcher() -> TextPatcher | None:
     #   v1 → v2                (when P5B env is flipped on an already-
     #                           patched container; becomes no-op if
     #                           active_body==v1)
+    # p5_import_math sub-patch RETIRED 2026-06-08 (archive-drift forensics).
+    # Upstream baseline now contains ``import math`` at vllm/v1/core/
+    # kv_cache_utils.py:9 (independent commit history; not a single PR but
+    # included by current pin 0.22.1rc1.dev259+g303916e93). The anchor
+    # ``import copy\\nimport hashlib\\nimport os\\n`` can no longer match.
+    # Removed from sub_patches to clean boot-log "soft skip" noise; the
+    # ``math.lcm(*smaller_sizes)`` call in the v1 LCM body keeps working
+    # because the import is now provided upstream.
     sub_patches = [
-        TextPatch(
-            name="p5_import_math",
-            anchor=_IMPORT_OLD,
-            replacement=_IMPORT_NEW,
-            required=False,
-        ),
         TextPatch(
             name=f"p5_{body_name}_from_baseline",
             anchor=_BASELINE_FN,
