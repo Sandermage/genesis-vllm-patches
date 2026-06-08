@@ -164,9 +164,25 @@ def _resolve_cfg(preset_id: str):
     from vllm.sndr_core.model_configs import registry as reg
 
     cfg = reg.get(preset_id)
-    if cfg is None:
-        raise KeyError(preset_id)
-    return cfg
+    if cfg is not None:
+        return cfg
+
+    # Final fallback: a raw V2 profile id — what a rendered launcher's
+    # `sndr.preset` label carries (e.g. `qwen3.6-35b-balanced`). Compose it
+    # exactly as the launcher did (same parent model + the same auto-picked
+    # hardware) so a profile-launched engine links AND its live runtime can be
+    # diffed against the YAML it came from.
+    try:
+        from vllm.sndr_core.model_configs.registry_v2 import (
+            compose_by_ids, load_model, load_profile,
+        )
+        from vllm.sndr_core.cli.profile import _pick_default_hardware
+        profile = load_profile(preset_id)
+        hw_id = profile.target_hardware or _pick_default_hardware(load_model(profile.parent_model)).id
+        return compose_by_ids(profile.parent_model, hw_id, preset_id)
+    except Exception:
+        pass
+    raise KeyError(preset_id)
 
 
 def preset_has_docker(preset_id: str) -> bool:

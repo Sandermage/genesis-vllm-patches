@@ -4651,6 +4651,7 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 .src-engine { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; padding: 2px 9px; border-radius: 999px; }
 .src-engine.ok { background: rgba(21,128,61,0.14); color: var(--ok); }
 .src-engine.bad { background: rgba(190,18,60,0.14); color: var(--danger); }
+.src-model { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-family: var(--mono); padding: 2px 9px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent-strong, var(--accent)); max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ── Skeleton loaders ──────────────────────────────────────────────
    Content-shaped placeholders shown while data is in flight. A moving

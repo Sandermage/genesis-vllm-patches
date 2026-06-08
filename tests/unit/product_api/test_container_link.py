@@ -68,6 +68,39 @@ def test_source_report_includes_live_patches():
     assert rep["live_patch_count"] == 1 and rep["live_patches"][0]["flag"] == "GENESIS_ENABLE_P82"
 
 
+def test_source_report_surfaces_launcher_identity_labels():
+    # A launcher-stamped engine carries served-model / pin / role labels so the
+    # GUI shows them without querying the engine's api-key-protected /v1/models.
+    rep = cl.source_report("vllm-x", {"Config": {"Env": [], "Labels": {
+        "sndr.served-model": "qwen3.6-35b-a3b",
+        "sndr.pin": "nightly-626fa9bba",
+        "sndr.role": "tuning",
+    }}})
+    assert rep["served_model"] == "qwen3.6-35b-a3b"
+    assert rep["pin"] == "nightly-626fa9bba"
+    assert rep["role"] == "tuning"
+
+
+def test_source_report_identity_none_when_unlabelled():
+    rep = cl.source_report("vllm-x", {"Config": {"Env": [], "Labels": {}}})
+    assert rep["served_model"] is None and rep["pin"] is None and rep["role"] is None
+
+
+def test_compute_drift_ignores_tag_vs_digest_same_repo():
+    # The catalog may pin by digest while the launcher deploys the equivalent
+    # tag — same repo, different ref scheme is NOT image drift.
+    insp = {"Config": {"Image": "vllm/vllm-openai:nightly-626fa9b", "Env": []}}
+    drift = cl.compute_drift("vllm/vllm-openai@sha256:674922aa", {}, insp)
+    assert not any(d["field"] == "image" for d in drift)
+
+
+def test_compute_drift_flags_real_image_change():
+    # Different repo IS drift.
+    insp = {"Config": {"Image": "vllm/other:nightly", "Env": []}}
+    drift = cl.compute_drift("vllm/vllm-openai:nightly", {}, insp)
+    assert any(d["field"] == "image" for d in drift)
+
+
 def test_reconcile_patches_in_sync_missing_extra():
     expected = {"GENESIS_ENABLE_P82": "1", "GENESIS_ENABLE_PN90": "1", "GENESIS_ENABLE_OFF": "0"}
     inspect = {"Config": {"Env": ["GENESIS_ENABLE_P82=1", "PN95_EXTRA=true"]}}  # P82 on, PN90 missing, PN95 extra

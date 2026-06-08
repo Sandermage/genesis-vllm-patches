@@ -1123,6 +1123,8 @@ export interface SourceReport {
   preset_title: string | null; drift: DriftItem[]; drift_count: number;
   live_patches: { flag: string; value: string }[]; live_patch_count: number;
   patch_sync?: { in_sync: string[]; missing: string[]; extra: string[] };
+  // Identity stamped on the container by the launcher (sndr.* labels).
+  served_model?: string | null; pin?: string | null; role?: string | null;
 }
 export interface ContainerSettings { cpus?: number | null; memory?: number | null; restart_policy?: string | null; }
 

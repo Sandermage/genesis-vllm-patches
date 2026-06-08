@@ -206,6 +206,15 @@ socket (mount `/var/run/docker.sock` into the daemon) or a registered SSH host.
 - **Install SNDR daemon on this node** ships the canonical package and launches
   the sidecar daemon (double-gated: apply-mode **and** an explicit confirm).
 
+**Source linking & drift** — `sndr profile render-launchers` stamps every engine
+container with identity labels (`sndr.preset`, `sndr.pin`, `sndr.served-model`,
+`sndr.patch-count`, `sndr.role`). The detail page then links the running engine
+back to its preset/profile, shows the served model + pin (no engine api-key
+needed), lists live Genesis patches, and **diffs the live runtime against the
+YAML** (image + `GENESIS_*` flags) — surfacing config drift. Containers launched
+by hand without the label fall back to a container-name match, or show "no
+linked preset".
+
 **Inference panel** (engine containers) scrapes the engine's Prometheus
 `/metrics` (the daemon's configured engine): running/waiting requests, KV-cache
 utilization, generation tokens/s, TTFT/TPOT/E2E latency, success/preemptions,

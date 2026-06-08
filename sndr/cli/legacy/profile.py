@@ -976,6 +976,22 @@ def render_profile_launcher(
 
     inner = "\n".join(inner_run)
 
+    # SNDR identity labels — stamp the running container so the Control Center
+    # links it back to this profile (sndr.preset), shows the served model and
+    # pin without an engine api-key, and can diff live runtime vs the YAML.
+    # `sndr.preset` is the authoritative link key read by container_link.py.
+    _enabled = [k[len("GENESIS_ENABLE_"):] for k, v in sorted(cfg.genesis_env.items())
+                if k.startswith("GENESIS_ENABLE_")
+                and str(v).strip().lower() not in ("", "0", "false", "no")]
+    _pin = image_value.rsplit(":", 1)[-1] if ":" in image_value else ""
+    sndr_labels = (
+        f'  --label sndr.preset="{profile_id}" \\\n'
+        f'  --label sndr.pin="{_pin}" \\\n'
+        f'  --label sndr.served-model="{cfg.served_model_name}" \\\n'
+        f'  --label sndr.patch-count="{len(_enabled)}" \\\n'
+        f'  --label sndr.role="{role}" \\\n'
+    )
+
     # Outer script.
     k_default = spec_decode_k_default or "0"
     script = f"""{header}
@@ -1000,7 +1016,7 @@ chmod +x "$LAUNCHER_DIR/run.sh"
 docker run -d --name "$CONTAINER" \\
   --gpus all --ipc=host -p ${{PORT}}:${{PORT}} \\
   --entrypoint "$LAUNCHER_DIR/run.sh" \\
-{system_env_lines}
+{sndr_labels}{system_env_lines}
 {genesis_env_lines}
   -v "$LAUNCHER_DIR":"$LAUNCHER_DIR":ro \\
   -v ${{GENESIS_REPO}}:${{GENESIS_REPO}}:rw \\

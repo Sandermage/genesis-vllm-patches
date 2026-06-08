@@ -721,6 +721,7 @@ function SourceCard({ source, name, onNavigate }: { source: ContainerSource; nam
             ? <span className="src-engine ok" title={`engine /health on :${engine.port}`}><span className="live-dot on" /> engine serving{engine.port ? ` :${engine.port}` : ""}</span>
             : <span className="src-engine bad" title="container is up but the engine isn't answering /health"><AlertTriangle size={11} /> engine not responding</span>
         )}
+        {rep.served_model && <span className="src-model" title={`served model${rep.pin ? ` · pin ${rep.pin}` : ""}`}><Box size={11} /> {rep.served_model}</span>}
         {rep.preset_id ? (
           <>
             <span className="src-label">Source config</span>

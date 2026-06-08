@@ -98,6 +98,24 @@ def reconcile_patches(expected_env: dict[str, str], inspect: dict[str, Any]) -> 
     }
 
 
+def _same_image_ref(expected: str, actual: str) -> bool:
+    """Whether two image refs denote the same image for drift purposes.
+
+    A tag ref (``repo:nightly-abc``) and a digest ref (``repo@sha256:…``) to the
+    same repo are NOT string-comparable — the catalog may pin by digest while the
+    launcher deploys the equivalent tag. Treat same-repo as a match when either
+    side is digest-pinned, so we never raise a phantom 'image' drift on a pure
+    tag-vs-digest representation difference (genuine repo/tag changes still flag,
+    and functional drift is caught by the GENESIS_* patch diff regardless)."""
+    if expected == actual:
+        return True
+    exp_repo = expected.split("@", 1)[0].rsplit(":", 1)[0]
+    act_repo = actual.split("@", 1)[0].rsplit(":", 1)[0]
+    if exp_repo == act_repo and ("@sha256:" in expected or "@sha256:" in actual):
+        return True
+    return False
+
+
 def compute_drift(expected_image: str, expected_env: dict[str, str],
                   inspect: dict[str, Any]) -> list[dict[str, Any]]:
     """Diff a running container's runtime against its preset's declared config.
@@ -108,7 +126,7 @@ def compute_drift(expected_image: str, expected_env: dict[str, str],
     actual_image = str(cfg.get("Image") or "")
     actual_env = parse_env(cfg.get("Env"))
     drift: list[dict[str, Any]] = []
-    if expected_image and actual_image and expected_image != actual_image:
+    if expected_image and actual_image and not _same_image_ref(expected_image, actual_image):
         drift.append({"field": "image", "expected": expected_image, "actual": actual_image, "kind": "image"})
     for key, exp in (expected_env or {}).items():
         act = actual_env.get(key)
@@ -156,6 +174,12 @@ def source_report(name: str, inspect: dict[str, Any]) -> dict[str, Any]:
         "container": name, "preset_id": preset_id, "linked_by": linked_by,
         "preset_title": None, "drift": [], "drift_count": 0,
         "live_patches": patches, "live_patch_count": len(patches),
+        # Identity stamped on the container by the launcher (no engine api-key
+        # needed): served model, pin, role. None when the engine predates the
+        # labels or was launched by hand.
+        "served_model": labels.get("sndr.served-model") or None,
+        "pin": labels.get("sndr.pin") or None,
+        "role": labels.get("sndr.role") or None,
     }
     if not preset_id:
         return report

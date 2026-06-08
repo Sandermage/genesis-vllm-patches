@@ -101,6 +101,17 @@ class TestDefaultProfileRender:
         assert "SNDR_G4_TQ_FORCE_SKIP_LAYERS" not in script
         assert "GENESIS_G4_TQ_FORCE_SKIP_LAYERS" not in script
 
+    def test_launcher_stamps_sndr_identity_labels(self):
+        # The docker run must carry sndr.preset (authoritative container->preset
+        # link), plus served-model / pin / patch-count / role so the Control
+        # Center links the engine and shows its identity without an api-key.
+        script = render_profile_launcher("gemma4-31b-tq-default")
+        assert '--label sndr.preset="gemma4-31b-tq-default"' in script
+        assert "--label sndr.pin=" in script
+        assert "--label sndr.served-model=" in script
+        assert "--label sndr.patch-count=" in script
+        assert "--label sndr.role=" in script
+
     def test_disable_log_stats_emitted_by_default(self):
         # Default (sizing.disable_log_stats=True) preserves the historical
         # launcher: the vLLM stat logger stays off.
