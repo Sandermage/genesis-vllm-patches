@@ -356,7 +356,7 @@ export function ModelsWorkbench({
                       <p className="muted">No presets reference this model yet.</p>
                     )}
                   </ModuleCard>
-                  <ModuleCard title="Notes" icon={<FileText size={18} />} desc="Maintainer notes and migration history.">
+                  <ModuleCard title="Notes" icon={<FileText size={18} />} desc="Maintainer notes and migration history." wide>
                     {notes.length ? (
                       <ul className="model-notes">{notes.map((note, index) => (<li key={index}>{note}</li>))}</ul>
                     ) : (

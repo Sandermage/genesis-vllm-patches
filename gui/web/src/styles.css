@@ -1512,8 +1512,10 @@ pre, .code-block, .cli-mirror pre, .artifact-preview pre {
 .model-preset-chips small { font-size: 10.5px; color: var(--text-muted); }
 .model-tuner-panel { min-width: 0; }
 .model-tuner-panel .param-editor { grid-template-columns: minmax(0, 1fr); }
-.model-notes { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 5px; }
-.model-notes li { font-size: 12px; color: var(--text-2); }
+.model-notes { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 7px; }
+/* Cap line length for readability (maintainer notes are long, technical
+   paragraphs) and break long tokens so nothing overflows at any width. */
+.model-notes li { font-size: 12px; color: var(--text-2); line-height: 1.6; max-width: 92ch; overflow-wrap: anywhere; }
 
 .patch-matrix { display: flex; flex-direction: column; gap: var(--sp-3); }
 .patch-matrix-toolbar { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); flex-wrap: wrap; }
@@ -2456,7 +2458,14 @@ button.chip { font-family: inherit; line-height: 1.2; }
 
 /* ============================================================ Models — summary strip + key facts */
 .models-view { display: flex; flex-direction: column; gap: var(--gap); }
-.model-summary-strip { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+/* Adaptive stat strip — fills on a normal screen, caps + left-packs on an
+   ultrawide so the 8 tiles don't stretch into sparse half-metre boxes. */
+.model-summary-strip { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
+[data-viewport="ultra"] .model-summary-strip { grid-template-columns: repeat(auto-fit, minmax(150px, 190px)); justify-content: start; }
+/* Models detail: 2-up normally, 3-up on an ultrawide (so InfoRows cards aren't
+   stretched to a metre wide), 1-up when compact. Wide cards still span the row. */
+[data-viewport="ultra"] .section-models .model-detail-tabbed .module-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+[data-viewport="compact"] .section-models .model-detail-tabbed .module-grid { grid-template-columns: minmax(0, 1fr); }
 .model-keyfacts { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 0 2px; }
 .model-keyfact { display: flex; flex-direction: column; gap: 1px; padding: 7px 12px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface-2); min-width: 84px; }
 .model-keyfact span { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; color: var(--text-muted); }
