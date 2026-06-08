@@ -1,0 +1,1 @@
+import{cn as e}from"./index-CaG1nL3b.js";var t=e(`ArrowRight`,[[`path`,{d:`M5 12h14`,key:`1ays0h`}],[`path`,{d:`m12 5 7 7-7 7`,key:`xquz4c`}]]);export{t};
