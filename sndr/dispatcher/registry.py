@@ -3977,6 +3977,40 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "implementation_status": "full",
         "composes_with": ["PN296"],
     },
+    "PN340": {
+        "title": "MTP decode bubbles reduction in GDN backend (vendor of vllm#43955)",
+        "tier": "community",
+        "family": "attention.gdn",
+        "env_flag": "GENESIS_ENABLE_PN340",
+        "default_on": False,
+        "apply_module": "sndr.engines.vllm.patches.attention.gdn.pn340_mtp_decode_bubbles_gdn_attn",
+        "lifecycle": "experimental",
+        "category": "perf_hotfix",
+        "credit": (
+            "Genesis vendoring of OPEN upstream PR vllm#43955 (Nekofish-L, "
+            "REVIEW_REQUIRED as of 2026-06-09). The PR identifies that "
+            "the GDN backend's metadata-build hot path launches a tiny "
+            "CUDA kernel (torch.arange) on every call, plus does CPU-mask "
+            "indexing (block_table_tensor[spec_sequence_masks_cpu, ...]) "
+            "when a simple forward slice would suffice (spec rows are "
+            "already compacted to the front of the batch; padded rows "
+            "live at the back). Three sub-patches: (a) preallocate a "
+            "spec_token_arange buffer at __init__, (b) build() slices "
+            "into it instead of running torch.arange, (c) conditional "
+            "copy_ that skips the no-op device-to-device copy when "
+            "spec_token_indx already points at the preallocated arange. "
+            "Author's profile screenshots show measurably smaller inter-"
+            "step gaps. Direct hit for our Qwen3.6-A3B FP8 + TQ k8v4 + "
+            "MTP K=3 stack — fires every decode step. Risk: medium-low "
+            "(open PR, anchors may rebase before upstream merges; three "
+            "sub-patches each required=False so partial drift is safe)."
+        ),
+        "upstream_pr": 43955,
+        "upstream_pr_relationship": "open_backport",
+        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
+        "implementation_status": "full",
+        "composes_with": ["PN125", "PN204", "PN286"],
+    },
     "PN299E": {
         "title": "KV cache writer arch-aware NUM_WARPS+NUM_STAGES cap (SM 8.6)",
         "tier": "community",

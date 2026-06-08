@@ -5111,6 +5111,26 @@ def apply_patch_N299_fla_multi_arch_warps() -> PatchResult:
     return _skipped("PN299 FLA multi arch warps", detail)
 
 
+@register_patch("PN340 MTP decode bubbles reduction (vendor of OPEN vllm#43955)")
+def apply_patch_N340_mtp_decode_bubbles() -> PatchResult:
+    """PN340: vendors the gdn_attn.py portion of OPEN PR vllm#43955
+    (Nekofish-L). Three sub-patches: (a) __init__ adds preallocated
+    spec_token_arange buffer; (b) build() slices into it instead of
+    running torch.arange + CPU-mask indexing; (c) build() skips no-op
+    copies when spec_token_indx is already the preallocated buffer.
+    Direct hit for Qwen3.6-A3B FP8 + TQ k8v4 + MTP K=3 hot path.
+    Opt-in via GENESIS_ENABLE_PN340=1. Composes with PN125+PN204+PN286."""
+    from sndr.engines.vllm.patches.attention.gdn import (
+        pn340_mtp_decode_bubbles_gdn_attn as _wiring,
+    )
+    status, detail = _wiring.apply()
+    if status == "applied":
+        return _applied("PN340 MTP decode bubbles", detail)
+    if status == "failed":
+        return _failed("PN340 MTP decode bubbles", detail)
+    return _skipped("PN340 MTP decode bubbles", detail)
+
+
 @register_patch("PN299E KV cache writer arch-aware NUM_WARPS+NUM_STAGES cap")
 def apply_patch_N299E_kv_cache_writer() -> PatchResult:
     """PN299E: caps num_warps + num_stages in 3 launchers of
