@@ -583,6 +583,7 @@ function V2ConfigWorkbench({
           {
             id: "composition", label: "Composition", icon: <SlidersHorizontal size={15} />,
             render: () => (
+              <>
               <ModuleGrid>
                 <ModuleCard title="Layer Inspector" icon={<SlidersHorizontal size={18} />} desc="A preset is composed from three layers — model + hardware + profile — resolved to one runtime config." wide>
                   <CompositionChain model={selectedModel} hardware={selectedHardware} profile={selectedProfile} composed={preview?.composed ?? {}} />
@@ -606,6 +607,8 @@ function V2ConfigWorkbench({
                     defaultHardware={hardwareId}
                   />
                 </ModuleCard>
+              </ModuleGrid>
+              <ModuleGrid className="config-aux-grid">
                 <ModuleCard title="Compose Messages" icon={<FileText size={18} />} desc="Notes emitted while composing this configuration.">
                   {(preview?.messages ?? []).length
                     ? <CompactList rows={(preview?.messages ?? []).map((message, index) => [`Message ${index + 1}`, message])} />
@@ -634,6 +637,7 @@ function V2ConfigWorkbench({
                   <UserPresetsPanel presets={userPresets} />
                 </ModuleCard>
               </ModuleGrid>
+              </>
             )
           },
           {

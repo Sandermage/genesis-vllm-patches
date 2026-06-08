@@ -1646,6 +1646,14 @@ pre, .code-block, .cli-mirror pre, .artifact-preview pre {
 .gate-detail-actions { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); flex-wrap: wrap; margin-top: var(--sp-2); }
 .config-layers-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--sp-3); align-items: start; }
 .config-layers-row .config-item-inspector.card { margin-bottom: 0; }
+/* Composition's secondary cards. On a wide screen the substantial Preset
+   Templates card (a searchable list) grows to fill, while the two small status
+   cards (Compose Messages, User Presets) stay compact on the sides — so the row
+   fills the width without stretching the thin cards or leaving a trailing gap.
+   Narrower screens fall back to a compact auto-fit that wraps. */
+.section-configs .config-aux-grid { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); align-items: start; }
+[data-viewport="wide"] .section-configs .config-aux-grid,
+[data-viewport="ultra"] .section-configs .config-aux-grid { grid-template-columns: minmax(280px, 360px) minmax(420px, 1fr) minmax(280px, 360px); }
 .config-workbench .preset-template-list { max-height: 360px; overflow: auto; }
 .config-toolbar { display: flex; align-items: flex-end; gap: var(--sp-3); flex-wrap: wrap; padding: var(--pad-card); border-radius: var(--r-lg); border: 1px solid var(--border); background: var(--surface); box-shadow: var(--shadow-sm); }
 .config-toolbar > div:first-child strong { display: block; font-size: 14px; }
