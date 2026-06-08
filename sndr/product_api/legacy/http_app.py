@@ -2159,9 +2159,16 @@ def create_app(
     @app.get("/api/v1/proxmox/guests/{node}/{kind}/{vmid}")
     async def proxmox_guest_detail_route(node: str, kind: str, vmid: int) -> dict[str, Any]:
         """Rich detail for one guest: CPU topology, memory, OS, BIOS, boot order,
-        GPU passthrough, disks, networks and guest-agent IPs. Read-only."""
+        passthrough devices (resolved names), disks, networks, guest-agent IPs."""
         from . import proxmox_client
         return proxmox_client.guest_detail(node, kind, vmid)
+
+    @app.get("/api/v1/proxmox/nodes/{node}")
+    async def proxmox_node_detail_route(node: str) -> dict[str, Any]:
+        """Rich detail for a Proxmox node: CPU model/topology, kernel, PVE
+        version, load average, swap, root fs and display GPUs present."""
+        from . import proxmox_client
+        return proxmox_client.node_detail(node)
 
     @app.get("/api/v1/alerts")
     async def alerts_route() -> dict[str, Any]:

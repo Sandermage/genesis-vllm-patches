@@ -399,6 +399,7 @@ export type ProxmoxGuest = {
 };
 export type ProxmoxDisk = { id: string; volume: string; size: string | null; storage: string | null };
 export type ProxmoxNet = { id: string; model: string | null; mac: string | null; bridge: string | null; ip: string | null; name: string | null };
+export type ProxmoxDevice = { address: string; name: string; kind: "gpu" | "audio" | "usb" | "net" | "storage" | "pci" | string };
 export type ProxmoxGuestDetail = {
   available: boolean; error: string | null; vmid: number; kind: string; node: string;
   cores: number | null; sockets: number | null; cpu_type: string | null;
@@ -407,7 +408,16 @@ export type ProxmoxGuestDetail = {
   onboot: boolean; boot_order: string | null; agent_enabled: boolean;
   qmpstatus: string | null; ha_managed: boolean | null; unprivileged: boolean | null;
   features: string | null; description: string | null; tags: string[];
-  gpus: string[]; disks: ProxmoxDisk[]; networks: ProxmoxNet[]; agent_ips: string[];
+  devices: ProxmoxDevice[]; disks: ProxmoxDisk[]; networks: ProxmoxNet[]; agent_ips: string[];
+};
+export type ProxmoxNodeDetail = {
+  available: boolean; error: string | null; node: string;
+  cpu_model: string | null; cpu_cores: number | null; cpu_threads: number | null;
+  cpu_sockets: number | null; cpu_mhz: string | null; cpu_vendor: string | null;
+  kernel: string | null; pve_version: string | null; loadavg: string[];
+  swap_total: number | null; swap_used: number | null;
+  rootfs_total: number | null; rootfs_used: number | null;
+  gpus: string[]; uptime: number | null;
 };
 export type ProxmoxNodesResult = { available: boolean; error: string | null; nodes: ProxmoxNode[] };
 export type ProxmoxGuestsResult = { available: boolean; error: string | null; guests: ProxmoxGuest[] };
@@ -1463,6 +1473,8 @@ export const api = {
   proxmoxGuests: () => request<ProxmoxGuestsResult>("/api/v1/proxmox/guests"),
   proxmoxGuestDetail: (node: string, kind: string, vmid: number) =>
     request<ProxmoxGuestDetail>(`/api/v1/proxmox/guests/${encodeURIComponent(node)}/${kind}/${vmid}`),
+  proxmoxNodeDetail: (node: string) =>
+    request<ProxmoxNodeDetail>(`/api/v1/proxmox/nodes/${encodeURIComponent(node)}`),
   alerts: () => request<AlertsSnapshot>("/api/v1/alerts"),
   hostsReliability: () => request<ReliabilitySnapshot>("/api/v1/hosts/reliability"),
   flagsMatrix: (container?: string) => request<FlagMatrix>(`/api/v1/flags/matrix${query({ container })}`),

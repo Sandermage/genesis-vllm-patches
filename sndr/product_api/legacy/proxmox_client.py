@@ -173,6 +173,38 @@ def _parse_pve_opts(value: Any) -> dict[str, str]:
     return out
 
 
+def _pci_kind(cls: Any) -> str:
+    """Coarse device class from a PCI class code like ``0x030000``."""
+    c = str(cls or "")
+    head = c[2:4] if c.startswith("0x") else c[:2]
+    return {"03": "gpu", "04": "audio", "0c": "usb", "02": "net", "01": "storage"}.get(head, "pci")
+
+
+def _pretty_pci(dev: dict[str, Any]) -> str:
+    """A short human label, e.g. ``NVIDIA RTX A5000`` from a PCI hardware entry."""
+    name = dev.get("device_name") or dev.get("id") or "device"
+    m = re.search(r"\[([^\]]+)\]", name)
+    short = m.group(1) if m else name
+    vendor = dev.get("vendor_name") or ""
+    if "NVIDIA" in vendor:
+        v = "NVIDIA"
+    elif "AMD" in vendor or "ATI" in vendor:
+        v = "AMD"
+    elif "Intel" in vendor:
+        v = "Intel"
+    else:
+        v = vendor.split()[0] if vendor else ""
+    return f"{v} {short}".strip()
+
+
+def _pci_index(node: str) -> dict[str, dict[str, Any]]:
+    """Map of PCI id → hardware entry for a node (best-effort, empty on error)."""
+    try:
+        return {str(d.get("id")): d for d in (_api_get(f"nodes/{node}/hardware/pci") or [])}
+    except Exception:
+        return {}
+
+
 def guest_detail(node: str, kind: str, vmid: int) -> dict[str, Any]:
     """Rich per-guest detail: CPU topology, memory, OS, BIOS, boot, GPU
     passthrough, disks, networks and (via the guest agent) IPs. Read-only."""
@@ -186,12 +218,27 @@ def guest_detail(node: str, kind: str, vmid: int) -> dict[str, Any]:
             st = _api_get(f"nodes/{node}/{typ}/{vmid}/status/current") or {}
         except Exception:
             st = {}
-        # GPU passthrough: VM hostpciN entries, or LXC dev entries naming nvidia.
-        gpus = [str(v).split(",")[0] for k, v in sorted(cfg.items())
-                if k.startswith("hostpci")]
+        # Passthrough devices — resolve each address to a real name (e.g. an
+        # "RTX A5000") via the node's PCI inventory, and classify it.
+        pci = _pci_index(node)
+
+        def _resolve(addr: str) -> dict[str, Any]:
+            entry = pci.get(addr) or pci.get(addr + ".0") or next(
+                (d for i, d in pci.items() if i.startswith(addr)), None)
+            if entry:
+                return {"address": addr, "name": _pretty_pci(entry), "kind": _pci_kind(entry.get("class"))}
+            return {"address": addr, "name": addr, "kind": "pci"}
+
+        devices: list[dict[str, Any]] = []
+        for k, v in sorted(cfg.items()):
+            if k.startswith("hostpci"):
+                devices.append(_resolve(str(v).split(",")[0]))
+            elif k.startswith("usb") and k[3:].isdigit():
+                devices.append({"address": str(v).split(",")[0], "name": f"USB {str(v).split(',')[0]}", "kind": "usb"})
         if kind == "lxc":
-            gpus += [str(v) for k, v in sorted(cfg.items())
-                     if k.startswith("dev") and "nvidia" in str(v).lower()]
+            for k, v in sorted(cfg.items()):
+                if k.startswith("dev") and "nvidia" in str(v).lower():
+                    devices.append({"address": str(v), "name": "NVIDIA GPU device", "kind": "gpu"})
         # Disks: scsiN/virtioN/sataN/ideN/rootfs/mpN (skip cdrom 'none').
         disks = []
         for k in sorted(cfg):
@@ -242,7 +289,36 @@ def guest_detail(node: str, kind: str, vmid: int) -> dict[str, Any]:
             "features": cfg.get("features"),
             "description": (str(cfg.get("description")).strip() or None) if cfg.get("description") else None,
             "tags": _tag_list(cfg.get("tags")),
-            "gpus": gpus, "disks": disks, "networks": nets, "agent_ips": agent_ips,
+            "devices": devices, "disks": disks, "networks": nets, "agent_ips": agent_ips,
+        }
+    except Exception as exc:
+        return {"available": False, "error": _describe(exc)}
+
+
+def node_detail(node: str) -> dict[str, Any]:
+    """Rich detail for a Proxmox node: CPU model/topology, kernel, PVE version,
+    load average, swap, root filesystem and the display GPUs present. Read-only."""
+    a = availability()
+    if not a["available"]:
+        return {"available": False, "error": a["error"]}
+    try:
+        st = _api_get(f"nodes/{node}/status") or {}
+        ci = st.get("cpuinfo") or {}
+        ck = st.get("current-kernel") or {}
+        rootfs = st.get("rootfs") or {}
+        swap = st.get("swap") or {}
+        gpus = sorted({_pretty_pci(d) for d in _pci_index(node).values()
+                       if _pci_kind(d.get("class")) == "gpu"})
+        return {
+            "available": True, "error": None, "node": node,
+            "cpu_model": ci.get("model"), "cpu_cores": ci.get("cores"), "cpu_threads": ci.get("cpus"),
+            "cpu_sockets": ci.get("sockets"), "cpu_mhz": ci.get("mhz"), "cpu_vendor": ci.get("vendor"),
+            "kernel": ck.get("release") or st.get("kversion"),
+            "pve_version": st.get("pveversion"),
+            "loadavg": st.get("loadavg") or [],
+            "swap_total": swap.get("total"), "swap_used": swap.get("used"),
+            "rootfs_total": rootfs.get("total"), "rootfs_used": rootfs.get("used"),
+            "gpus": gpus, "uptime": st.get("uptime"),
         }
     except Exception as exc:
         return {"available": False, "error": _describe(exc)}

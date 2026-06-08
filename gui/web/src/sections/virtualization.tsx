@@ -11,7 +11,7 @@ import {
   HardDrive, Network,
 } from "lucide-react";
 import {
-  api, type ProxmoxStatus, type ProxmoxNode, type ProxmoxGuest, type ProxmoxGuestDetail,
+  api, type ProxmoxStatus, type ProxmoxNode, type ProxmoxGuest, type ProxmoxGuestDetail, type ProxmoxNodeDetail,
   type KubeVirtResult, type K8sStatus, type K8sNode, type K8sPod, type K8sEvent,
   type DeploymentPlan,
 } from "../api";
@@ -249,21 +249,44 @@ function ProxmoxHosts({ lang, nodes }: { lang: Lang; nodes: ProxmoxNode[] }) {
   return (
     <div className="virt-pane">
       <div className="virt-nodes">
-        {nodes.map((n) => (
-          <div key={n.name} className={`virt-node ${n.online ? "online" : "offline"}`}>
-            <div className="virt-node-h">
-              <span className={`container-dot ${n.online ? "online" : "offline"}`} /><strong>{n.name}</strong>
-              <span className={`container-badge ${n.online ? "online" : "offline"}`}>{n.status}</span>
-              {n.uptime ? <span className="virt-node-up">{fmtUptime(n.uptime)}</span> : null}
-            </div>
-            <div className="virt-node-meters">
-              <Meter label={`${t(lang, "common.cpu")} · ${n.cpu_cores ?? "?"}c`} pct={n.cpu_pct} text={n.cpu_pct == null ? "—" : `${n.cpu_pct.toFixed(0)}%`} />
-              <Meter label={t(lang, "common.memory")} pct={n.mem_pct} text={`${fmtBytes(n.mem_used)} / ${fmtBytes(n.mem_total)}`} />
-              <Meter label={t(lang, "common.disk")} pct={n.disk_pct} text={`${fmtBytes(n.disk_used)} / ${fmtBytes(n.disk_total)}`} />
-            </div>
-          </div>
-        ))}
+        {nodes.map((n) => <NodeCard key={n.name} n={n} lang={lang} />)}
       </div>
+    </div>
+  );
+}
+
+// A Proxmox host node: live CPU/RAM/disk meters plus, lazily, the rich facts
+// (CPU model, kernel, PVE version, load average, swap and the GPUs present).
+function NodeCard({ n, lang }: { n: ProxmoxNode; lang: Lang }) {
+  const [d, setD] = useState<ProxmoxNodeDetail | null>(null);
+  useEffect(() => {
+    let alive = true;
+    if (n.online && n.name) api.proxmoxNodeDetail(n.name).then((r) => alive && setD(r)).catch(() => {});
+    return () => { alive = false; };
+  }, [n.name, n.online]);
+  const pve = d?.pve_version ? d.pve_version.replace("pve-manager/", "").split("/")[0] : null;
+  return (
+    <div className={`virt-node ${n.online ? "online" : "offline"}`}>
+      <div className="virt-node-h">
+        <span className={`container-dot ${n.online ? "online" : "offline"}`} /><strong>{n.name}</strong>
+        <span className={`container-badge ${n.online ? "online" : "offline"}`}>{n.status}</span>
+        {pve ? <span className="px-node-pve">PVE {pve}</span> : null}
+        {n.uptime ? <span className="virt-node-up">{fmtUptime(n.uptime)}</span> : null}
+      </div>
+      <div className="virt-node-meters">
+        <Meter label={`${t(lang, "common.cpu")} · ${n.cpu_cores ?? d?.cpu_threads ?? "?"}t`} pct={n.cpu_pct} text={n.cpu_pct == null ? "—" : `${n.cpu_pct.toFixed(0)}%`} />
+        <Meter label={t(lang, "common.memory")} pct={n.mem_pct} text={`${fmtBytes(n.mem_used)} / ${fmtBytes(n.mem_total)}`} />
+        <Meter label={t(lang, "common.disk")} pct={n.disk_pct} text={`${fmtBytes(n.disk_used)} / ${fmtBytes(n.disk_total)}`} />
+      </div>
+      {d?.available ? (
+        <div className="px-node-facts">
+          {d.cpu_model ? <span title="CPU"><Cpu size={11} /> {d.cpu_model.replace(/\s*\d+-Core Processor/i, "")}{d.cpu_cores ? ` · ${d.cpu_cores}c/${d.cpu_threads}t` : ""}</span> : null}
+          {d.kernel ? <span title="kernel"><Layers size={11} /> {d.kernel}</span> : null}
+          {d.loadavg.length === 3 ? <span title="load 1 / 5 / 15 min"><Activity size={11} /> {d.loadavg.join(" ")}</span> : null}
+          {d.swap_total ? <span title="swap">swap {fmtBytes(d.swap_used)} / {fmtBytes(d.swap_total)}</span> : null}
+          {d.gpus.length > 0 ? <span title="GPUs on host"><Boxes size={11} /> {d.gpus.join(" · ")}</span> : null}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -335,9 +358,20 @@ function GuestCard({ g, lang }: { g: ProxmoxGuest; lang: Lang }) {
 function GuestDetailBody({ d }: { d: ProxmoxGuestDetail }) {
   return (
     <>
-      {d.gpus.length > 0 && (
-        <div className="px-gpu-row"><Cpu size={13} /> <strong>GPU passthrough</strong>{d.gpus.map((g) => <code key={g} className="px-gpu-chip">{g}</code>)}</div>
-      )}
+      {(() => {
+        const gpus = d.devices.filter((x) => x.kind === "gpu");
+        const others = d.devices.filter((x) => x.kind !== "gpu");
+        return (
+          <>
+            {gpus.length > 0 && (
+              <div className="px-gpu-row"><Cpu size={13} /> <strong>GPU passthrough</strong>{gpus.map((g) => <code key={g.address} className="px-gpu-chip" title={g.address}>{g.name}</code>)}</div>
+            )}
+            {others.length > 0 && (
+              <div className="px-detail-list"><span className="px-detail-l"><Plug size={11} /> Devices</span>{others.map((o) => <code key={o.address} title={o.address}>{o.kind}: {o.name}</code>)}</div>
+            )}
+          </>
+        );
+      })()}
       <div className="px-facts">
         <GFact l="CPU" v={`${d.cores ?? "?"} cores${d.sockets && d.sockets > 1 ? ` × ${d.sockets}` : ""}${d.cpu_type ? ` · ${d.cpu_type}` : ""}`} />
         <GFact l="Memory" v={`${fmtGiB(d.memory_mb)}${d.swap_mb ? ` + ${fmtGiB(d.swap_mb)} swap` : ""}${d.balloon ? "" : d.kind === "vm" ? " · no balloon" : ""}`} />
