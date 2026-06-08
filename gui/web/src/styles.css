@@ -4159,7 +4159,9 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 .k8s-yaml { max-height: 460px; overflow: auto; margin: 0; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--r-md, 10px); background: var(--surface-inset, var(--surface-2)); font-family: var(--mono); font-size: 11.5px; line-height: 1.5; white-space: pre; }
 
 /* ── Virtualization (Proxmox VE + KubeVirt + k8s nodes) ──────────────── */
-.virt { display: flex; flex-direction: column; gap: 14px; max-width: 1440px; }
+/* Fully fluid — fills the content width; every inner grid is auto-fit so cards
+   reflow with the viewport (more per row on a wide monitor, fewer when narrow). */
+.virt { display: flex; flex-direction: column; gap: 14px; width: 100%; }
 .virt-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 9px; }
 .virt-sum { border: 1px solid var(--border); border-radius: var(--r-md, 10px); background: var(--surface-2); padding: 9px 12px; display: flex; flex-direction: column; gap: 4px; }
 .virt-sum-h { display: flex; align-items: center; gap: 5px; font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-muted); }
@@ -4176,7 +4178,9 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 .virt-clusterline { display: flex; align-items: center; gap: 6px; font-size: 11px; margin-bottom: 2px; }
 .virt-node-meters.one { grid-template-columns: 1fr; }
 .virt-pane { display: flex; flex-direction: column; gap: 12px; }
-.virt-nodes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap: 10px; }
+/* auto-fill (not auto-fit): a single node card keeps a sensible width instead of
+   stretching across the whole monitor; many nodes fill the row. */
+.virt-nodes { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr)); gap: 10px; }
 .virt-node { border: 1px solid var(--border); border-radius: var(--r-md, 10px); background: var(--surface); padding: 11px 13px; display: flex; flex-direction: column; gap: 9px; }
 .virt-node.offline { opacity: 0.7; }
 .virt-node.skel { height: 120px; background: linear-gradient(90deg, var(--surface-2), var(--surface), var(--surface-2)); background-size: 200% 100%; animation: sndr-shimmer 1.3s infinite; }
