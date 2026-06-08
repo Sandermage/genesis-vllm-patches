@@ -125,13 +125,15 @@ export function OvKpi({
 }) {
   const Tag = onClick ? "button" : "div";
   return (
+    // Layout: icon · (label + sub) on the left, the value pushed to the right so
+    // a wide tile is filled rather than left-packed. `.ov-hero .ov-kpi` styles it.
     <Tag className={`ov-kpi ${tone ?? ""} ${onClick ? "clickable" : ""}`} onClick={onClick}>
       <span className="ov-kpi-icon">{icon}</span>
       <span className="ov-kpi-body">
         <span className="ov-kpi-label">{label}</span>
-        <strong className="ov-kpi-value">{value}</strong>
         {sub && <span className="ov-kpi-sub">{sub}</span>}
       </span>
+      <strong className="ov-kpi-value">{value}</strong>
     </Tag>
   );
 }

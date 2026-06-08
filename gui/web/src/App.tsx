@@ -108,6 +108,7 @@ import { ProofStatusPanel } from "./sections/proof";
 import { CodeBlock } from "./components/code-block";
 // dialog helpers now used only inside extracted modals.
 import { SkeletonCards } from "./Skeleton";
+import { useViewport, type ViewportTier } from "./hooks/useViewport";
 import { useLang, t } from "./i18n";
 import {
   BundleSpec,
@@ -286,6 +287,7 @@ const navItems: NavItem[] = navGroups.flatMap((g) => g.items);
 
 export default function App() {
   const [navLang] = useLang();
+  const viewport = useViewport();
   const [overview, setOverview] = useState<ProductOverview | null>(null);
   const [presets, setPresets] = useState<PresetListResult | null>(null);
   const [patches, setPatches] = useState<PatchListResult | null>(null);
@@ -897,7 +899,7 @@ export default function App() {
   // burst of requests (and 401s) before we know whether a login is required.
   if (authState === null) {
     return (
-      <main className={shellClass}>
+      <main className={shellClass} data-viewport={viewport.tier}>
         <div className="login-backdrop">
           <div className="auth-loading"><span className="auth-spinner" /> Connecting…</div>
         </div>
@@ -909,14 +911,14 @@ export default function App() {
   // session, the whole shell is replaced by the sign-in screen.
   if (authState?.auth_required && !authState.user) {
     return (
-      <main className={shellClass}>
+      <main className={shellClass} data-viewport={viewport.tier}>
         <LoginScreen status={authState} onAuthenticated={onAuthenticated} />
       </main>
     );
   }
 
   return (
-    <main className={shellClass}>
+    <main className={shellClass} data-viewport={viewport.tier}>
       <aside className={`sidebar${settings.sidebarCollapsed ? " collapsed" : ""}`}>
         <div className="brand-row">
           <div className="brand-mark">S</div>
@@ -1550,6 +1552,7 @@ export default function App() {
           <Suspense fallback={<SkeletonCards count={6} />}>
           <SectionWorkspace
             sectionId={activeSection}
+            viewport={viewport.tier}
             overview={overview}
             presets={presets}
             filteredPresets={filteredPresets}
@@ -1700,6 +1703,7 @@ class SectionErrorBoundary extends Component<{ section: string; children: ReactN
 // Settings tab panels (ApiTokenManager/NotificationSettings/AppearanceSettings + primitives) extracted to ./sections/settings-panels.
 function SectionWorkspace({
   sectionId,
+  viewport,
   overview,
   presets,
   filteredPresets,
@@ -1751,6 +1755,7 @@ function SectionWorkspace({
   applyEnabled
 }: {
   sectionId: SectionId;
+  viewport: ViewportTier;
   overview: ProductOverview | null;
   presets: PresetListResult | null;
   filteredPresets: PresetRecord[];
@@ -1822,6 +1827,11 @@ function SectionWorkspace({
   const workloadCounts = overview?.catalog.workload_counts ?? {};
   const patchRows = patches?.patches ?? [];
   const patchSummary = patches?.summary ?? null;
+  // Presets that carry a measured primary metric — a catalog-health signal that
+  // isn't shown anywhere else (the hero shows raw counts, not bench coverage).
+  const benchProven = (presets?.presets ?? []).filter(
+    (p) => asNumber(asRecord(p.card?.primary_metric).value) > 0
+  ).length;
 
   return (
     <section className={`section-workspace section-${sectionId}`}>
@@ -1870,12 +1880,19 @@ function SectionWorkspace({
               render: () => (
                 <>
                 <div className="ov-hero">
-                  <OvKpi icon={<Database size={15} />} label="Presets" value={overview?.catalog.presets_count ?? "—"} sub={`${(presets?.presets ?? []).filter((p) => asNumber(asRecord(p.card?.primary_metric).value) > 0).length} bench-proven`} onClick={() => onSection("presets")} />
-                  <OvKpi icon={<Box size={15} />} label="Models" value={overview?.catalog.models_count ?? "—"} />
-                  <OvKpi icon={<Wrench size={15} />} label="Patches" value={patchRows.length || patches?.total || "—"} sub={`${patchRows.filter((p) => p.default_on).length} default-on`} />
-                  <OvKpi icon={<Server size={15} />} label="Hosts" value={hostProfiles.length} onClick={() => onSection("hosts")} />
-                  <OvKpi icon={<ShieldCheck size={15} />} label="Doctor" value={doctorReport ? (doctorReport.findings.length ? `${doctorReport.findings.length} findings` : "clean") : "—"} tone={doctorReport?.findings?.some((f) => f.severity === "blocked") ? "warn" : "ok"} onClick={() => onSection("doctor")} />
-                  <OvKpi icon={<Rocket size={15} />} label="Engine" value={environment?.engine_installed ? "ready" : "—"} tone={environment?.engine_installed ? "ok" : undefined} onClick={() => onSection("services")} />
+                  <OvKpi icon={<Database size={15} />} label="Presets" value={overview?.catalog.presets_count ?? "—"} sub={`${benchProven} bench-proven`} onClick={() => onSection("presets")} />
+                  <OvKpi icon={<Box size={15} />} label="Models" value={overview?.catalog.models_count ?? "—"} sub={`${Object.keys(familyCounts).length} families`} onClick={() => onSection("models")} />
+                  <OvKpi icon={<Wrench size={15} />} label="Patches" value={patchRows.length || patches?.total || "—"} sub={`${patchRows.filter((p) => p.default_on).length} default-on`} onClick={() => onSection("patches")} />
+                  <OvKpi icon={<Server size={15} />} label="Hosts" value={hostProfiles.length} sub={runtimeMode === "remote" ? "remote + local" : "local fleet"} onClick={() => onSection("hosts")} />
+                  <OvKpi icon={<ShieldCheck size={15} />} label="Doctor" value={doctorReport ? (doctorReport.findings.length ? `${doctorReport.findings.length} findings` : "clean") : "—"} sub={doctorReport && doctorReport.findings.length ? `${doctorReport.findings.filter((f) => f.severity === "blocked").length} blocked · ${doctorReport.findings.filter((f) => f.severity === "warning").length} warn` : undefined} tone={doctorReport?.findings?.some((f) => f.severity === "blocked") ? "warn" : "ok"} onClick={() => onSection("doctor")} />
+                  <OvKpi icon={<Rocket size={15} />} label="Engine" value={environment?.engine_installed ? "ready" : "—"} sub={environment?.engine_installed ? `${environment.engine_name ?? "vLLM"} ${environment.engine_version ?? ""}`.trim() : "not installed"} tone={environment?.engine_installed ? "ok" : undefined} onClick={() => onSection("services")} />
+                  {viewport === "ultra" && (
+                    <>
+                      <OvKpi icon={<GitBranch size={15} />} label="Profiles" value={overview?.catalog.profiles_count ?? "—"} sub="runtime recipes" onClick={() => onSection("configs")} />
+                      <OvKpi icon={<Cpu size={15} />} label="Hardware" value={overview?.catalog.hardware_count ?? "—"} sub="defined targets" />
+                      <OvKpi icon={<FileText size={15} />} label="Preset cards" value={overview?.catalog.preset_cards_count ?? "—"} sub={`${overview?.catalog.unannotated_presets_count ?? 0} unannotated`} onClick={() => onSection("presets")} />
+                    </>
+                  )}
                 </div>
                 <ModuleGrid>
                   {settings.showConnectionMap && (
@@ -1900,13 +1917,13 @@ function SectionWorkspace({
                       ]}
                     />
                   </ModuleCard>
-                  <ModuleCard title="Catalog Health" icon={<Database size={18} />}>
+                  <ModuleCard title="Catalog Health" icon={<Database size={18} />} desc="Annotation coverage and load integrity — not raw counts (those are above).">
                     <KpiGrid
                       rows={[
-                        ["Presets", overview?.catalog.presets_count ?? 0],
-                        ["Cards", overview?.catalog.preset_cards_count ?? 0],
-                        ["Models", overview?.catalog.models_count ?? 0],
-                        ["Patches", patchRows.length || patches?.total || 0]
+                        ["Card coverage", `${overview?.catalog.preset_cards_count ?? 0}/${overview?.catalog.presets_count ?? 0}`],
+                        ["Bench-proven", benchProven],
+                        ["Unannotated", overview?.catalog.unannotated_presets_count ?? 0],
+                        ["Load errors", overview?.catalog.preset_load_error_count ?? 0]
                       ]}
                     />
                   </ModuleCard>
@@ -1927,14 +1944,14 @@ function SectionWorkspace({
                       ]}
                     />
                   </ModuleCard>
-                  <ModuleCard title="Engine & Versions" icon={<Cpu size={18} />} desc="What is installed in the API daemon's shell.">
+                  <ModuleCard title="Engine & API" icon={<Cpu size={18} />} desc="The inference engine and the API surface it exposes (core/OS live in Platform Snapshot).">
                     <InfoRows
                       rows={[
-                        ["SNDR Core", environment?.sndr_core_version ?? overview?.capabilities.platform.sndr_core_version ?? "-"],
-                        ["Engine", `${environment?.engine_name ?? "vLLM"} ${environment?.engine_version ?? (environment?.engine_installed ? "" : "(not installed)")}`.trim()],
-                        ["Engine installed", environment?.engine_installed ? "yes" : "no"],
-                        ["Doctor findings", doctorReport ? `${doctorReport.findings.length} (${doctorReport.findings.filter((f) => f.severity === "blocked").length} blocked · ${doctorReport.findings.filter((f) => f.severity === "warning").length} warn)` : "-"],
-                        ["Platform", `${overview?.capabilities.platform.os_name ?? "-"} / ${overview?.capabilities.platform.machine ?? "-"}`]
+                        ["Engine", `${environment?.engine_name ?? "vLLM"} ${environment?.engine_version ?? ""}`.trim() || "vLLM"],
+                        ["Installed", environment?.engine_installed ? "yes" : "not installed"],
+                        ["Runtime targets", `${runtimeTargets.length} available`],
+                        ["Capabilities", `${featureRows.length} features`],
+                        ["OpenAI API", environment?.engine_installed ? "ready" : "engine off"]
                       ]}
                     />
                   </ModuleCard>

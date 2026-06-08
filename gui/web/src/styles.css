@@ -4596,7 +4596,7 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 .vram-chart-legend span { display: inline-flex; align-items: center; gap: 5px; }
 
 /* ═══ Overview hero KPIs ═══ */
-.ov-hero { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--sp-3); margin-bottom: var(--gap); }
+.ov-hero { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--sp-3); margin-bottom: var(--gap); }
 .ov-kpi { display: flex; align-items: center; gap: var(--sp-3); text-align: left; padding: var(--sp-3) var(--sp-4); border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); box-shadow: var(--shadow-sm); transition: box-shadow .16s, transform .16s, border-color .16s; }
 .ov-kpi.clickable { cursor: pointer; }
 .ov-kpi.clickable:hover { box-shadow: var(--shadow); transform: translateY(-1px); border-color: var(--accent-ring); }
@@ -4609,6 +4609,26 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 .ov-kpi.ok .ov-kpi-value { color: var(--ok); }
 .ov-kpi.warn .ov-kpi-icon { background: var(--warn-soft); color: var(--warn); }
 .ov-kpi.warn .ov-kpi-value { color: var(--warn); }
+
+/* Enrich the Overview hero tiles. `.ov-kpi` is shared with the Containers
+   KpiTile, so every wide-screen tweak is scoped under `.ov-hero`: the body grows
+   and the value is pushed to the right edge so a wide tile is filled instead of
+   left-packed, the value scales gently with the viewport, and label/sub clamp
+   with an ellipsis rather than overflowing. */
+/* The Containers `.ov-kpi` rule (above) declares `flex-direction: column`, which
+   leaks here because the overview `.ov-kpi` rule doesn't reset it — force a row. */
+.ov-hero .ov-kpi { flex-direction: row; align-items: center; }
+.ov-hero .ov-kpi-body { flex: 1 1 auto; }
+.ov-hero .ov-kpi-label,
+.ov-hero .ov-kpi-sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.ov-hero .ov-kpi-value { margin-left: auto; padding-left: var(--sp-3); text-align: right; white-space: nowrap; font-size: clamp(20px, 1.4vw, 26px); }
+.ov-hero .ov-kpi.clickable::after { content: "\203A"; flex: none; margin-left: 2px; font-size: 18px; line-height: 1; color: var(--text-muted); opacity: 0.5; }
+
+/* Overview content grid fills the width fluidly (more columns on wide/ultra, a
+   single column when compact) instead of a fixed 2-col layout that strands
+   whitespace at 3440. Scoped to `.section-overview` so no other section moves. */
+.section-overview .module-grid { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+[data-viewport="compact"] .section-overview .module-grid { grid-template-columns: minmax(0, 1fr); }
 
 /* ═══ Tab intro banner ═══ */
 .tab-intro { display: flex; align-items: flex-start; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4); border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: var(--r-lg); background: var(--surface-2); box-shadow: var(--shadow-sm); margin-bottom: var(--gap); }

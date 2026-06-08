@@ -355,7 +355,7 @@ export function ContainersPanel({ hosts, onNavigate, initialHostId }: { hosts: H
           <span className="csum"><b>{stopped}</b> stopped</span>
           <span className="csum"><Cpu size={12} /> <b>{sumCpu.toFixed(0)}%</b> CPU</span>
           <span className="csum"><MemoryStick size={12} /> <b>{fmtBytes(sumMem)}</b></span>
-          {df && <span className="csum" title={df.types.map((t) => `${t.type}: ${fmtBytes(t.size)} (${fmtBytes(t.reclaimable)} reclaimable)`).join("\n")}><Database size={12} /> <b>{fmtBytes(df.total_size)}</b> disk</span>}
+          {df && Array.isArray(df.types) && <span className="csum" title={df.types.map((t) => `${t.type}: ${fmtBytes(t.size)} (${fmtBytes(t.reclaimable)} reclaimable)`).join("\n")}><Database size={12} /> <b>{fmtBytes(df.total_size ?? 0)}</b> disk</span>}
           <span className="containers-auto">live · 4s</span>
         </div>
       )}

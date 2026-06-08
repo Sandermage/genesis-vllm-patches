@@ -76,7 +76,7 @@ export const RESPONSES: Record<string, unknown> = {
   copilotTools: { tools: [] },
   servicePlan: { plan_id: "", preset_id: "", action: "status", runtime_target: "docker", host: "", container_name: "", mutating: false, actionable: false, action_reason: "", steps: [], side_effects: [], gates: [], cli_mirror: [], rollback: "" },
   containersStats: { stats: {} },
-  systemDf: { images: [], containers: [], volumes: [], build_cache: [], layers_size: 0 },
+  systemDf: { types: [], total_size: 0 },
   containers: { containers: [], source: "local" },
   baselineTrend: { points: [], metric: "", scenario: "" },
   baselines: { baselines: [] },
