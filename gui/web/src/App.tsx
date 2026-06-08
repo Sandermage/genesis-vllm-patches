@@ -22,6 +22,7 @@ import {
   Layers3,
   Link2,
   LayoutGrid,
+  Languages,
   Boxes,
   Layers,
   AlertTriangle,
@@ -108,6 +109,7 @@ import { ProofStatusPanel } from "./sections/proof";
 import { CodeBlock } from "./components/code-block";
 // dialog helpers now used only inside extracted modals.
 import { SkeletonCards } from "./Skeleton";
+import { useLang, t } from "./i18n";
 import {
   BundleSpec,
   DiffUpstreamReport,
@@ -176,6 +178,19 @@ import { FleetPanel } from "./Fleet";
 // Containers section, so it is code-split out of the initial bundle.
 const ContainersPanel = lazy(() => import("./Containers").then((m) => ({ default: m.ContainersPanel })));
 const KubernetesPanel = lazy(() => import("./sections/kubernetes").then((m) => ({ default: m.KubernetesPanel })));
+const VirtualizationPanel = lazy(() => import("./sections/virtualization").then((m) => ({ default: m.VirtualizationPanel })));
+
+// EN/RU language switch — flips the new bilingual surfaces (Virtualization, nav)
+// live and persists the choice. Self-contained so it needs no App state.
+function LangToggle() {
+  const [lang, set] = useLang();
+  return (
+    <button className="tool-button" title={lang === "en" ? "Язык: English → Русский" : "Language: Русский → English"}
+      onClick={() => set(lang === "en" ? "ru" : "en")}>
+      <Languages size={16} /> {lang === "en" ? "EN" : "RU"}
+    </button>
+  );
+}
 // Lazy-loaded: the GPU/hardware telemetry dashboard only renders on its section.
 const HardwarePanel = lazy(() => import("./Hardware").then((m) => ({ default: m.HardwarePanel })));
 const RoutingPanel = lazy(() => import("./Routing").then((m) => ({ default: m.RoutingPanel })));
@@ -232,6 +247,7 @@ const navGroups: NavGroup[] = [
     { id: "hosts", icon: <LayoutGrid size={17} />, label: "Fleet" },
     { id: "containers", icon: <Boxes size={17} />, label: "Containers" },
     { id: "kubernetes", icon: <Layers size={17} />, label: "Kubernetes" },
+    { id: "virtualization", icon: <Server size={17} />, label: "Virtualization" },
     { id: "hardware", icon: <Cpu size={17} />, label: "Hardware" },
     { id: "setup", icon: <Settings size={17} />, label: "Setup" },
   ] },
@@ -272,6 +288,7 @@ const navItems: NavItem[] = navGroups.flatMap((g) => g.items);
 // useFetch + FetchState extracted to ./hooks/useFetch (modularization slice).
 
 export default function App() {
+  const [navLang] = useLang();
   const [overview, setOverview] = useState<ProductOverview | null>(null);
   const [presets, setPresets] = useState<PresetListResult | null>(null);
   const [patches, setPatches] = useState<PatchListResult | null>(null);
@@ -935,7 +952,7 @@ export default function App() {
                   aria-label={item.label}
                 >
                   {item.icon}
-                  <span>{item.label}</span>
+                  <span>{t(navLang, `nav.${item.id}`, item.label)}</span>
                 </button>
               ))}
             </div>
@@ -1007,6 +1024,7 @@ export default function App() {
               <RefreshCw size={16} />
               Sync Catalog
             </button>
+            <LangToggle />
             <button
               className="tool-button"
               title={`Theme: ${themeLabel(settings.theme)} — switch to ${themeLabel(nextTheme(settings.theme))}`}
@@ -2051,6 +2069,16 @@ function SectionWorkspace({
         </ModuleGrid>
       )}
 
+      {sectionId === "virtualization" && (
+        <ModuleGrid>
+          <ModuleCard title="Virtualization" icon={<Server size={18} />} desc="One pane over compute — Proxmox VE hosts & guests, KubeVirt VMs, and Kubernetes nodes — each linked back to the SNDR preset it runs. Read-only; degrades to a connect/not-installed card per source." wide>
+            <Suspense fallback={<SkeletonCards count={4} />}>
+              <VirtualizationPanel />
+            </Suspense>
+          </ModuleCard>
+        </ModuleGrid>
+      )}
+
       {sectionId === "hardware" && (
         <ModuleGrid>
           <ModuleCard title="GPU & Hardware" icon={<Cpu size={18} />} desc="Live per-GPU telemetry over nvidia-smi — utilisation, VRAM, temperature, power vs limits, clocks, fan, PCIe link, pstate and ECC — plus host CPU/RAM. Pick the local daemon host or a registered host (over SSH)." wide>
@@ -3046,6 +3074,11 @@ function sectionSpec(sectionId: SectionId) {
       kicker: "Cluster",
       title: "Kubernetes",
       description: "Read-only Kubernetes view — cluster status and nodes with GPU capacity/allocatable/requested, conditions, taints and labels. Honours your kubeconfig + RBAC.",
+    },
+    virtualization: {
+      kicker: "Compute",
+      title: "Virtualization",
+      description: "Proxmox VE hosts & guests, KubeVirt VMs and Kubernetes nodes in one pane — each linked back to the SNDR preset it runs.",
     },
     hardware: {
       kicker: "GPU telemetry",

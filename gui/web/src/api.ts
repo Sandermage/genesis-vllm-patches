@@ -372,6 +372,32 @@ export type K8sEvent = {
   object: string | null; namespace: string | null; count: number | null;
 };
 export type K8sEventsResult = { available: boolean; error: string | null; events: K8sEvent[] };
+export type KubeVirtVM = {
+  name: string | null; namespace: string | null; kind: "kubevirt"; phase: string | null; running: boolean;
+  node: string | null; cpu_cores: number | null; memory: string | null; ip: string | null;
+  gpu_count: number; ready: boolean; sndr_preset: string | null;
+};
+export type KubeVirtResult = { available: boolean; installed?: boolean; error: string | null; vms: KubeVirtVM[] };
+export type ProxmoxStatus = {
+  available: boolean; configured?: boolean; error: string | null; host?: string;
+  node_count?: number; nodes_online?: number; vm_count?: number; vm_running?: number;
+  lxc_count?: number; lxc_running?: number; sndr_managed?: number;
+};
+export type ProxmoxNode = {
+  name: string | null; status: string | null; online: boolean;
+  cpu_pct: number | null; cpu_cores: number | null;
+  mem_used: number | null; mem_total: number | null; mem_pct: number | null;
+  disk_used: number | null; disk_total: number | null; disk_pct: number | null;
+  uptime: number | null; level: string;
+};
+export type ProxmoxGuest = {
+  vmid: number | null; name: string | null; kind: "vm" | "lxc" | string; status: string | null; running: boolean;
+  node: string | null; cpu_pct: number | null; cpu_cores: number | null;
+  mem_used: number | null; mem_total: number | null; mem_pct: number | null; disk_total: number | null;
+  uptime: number | null; tags: string[]; sndr_preset: string | null; template: boolean;
+};
+export type ProxmoxNodesResult = { available: boolean; error: string | null; nodes: ProxmoxNode[] };
+export type ProxmoxGuestsResult = { available: boolean; error: string | null; guests: ProxmoxGuest[] };
 export type AlertLevel = "critical" | "warn" | "info" | "ok";
 export type Alert = {
   key: string; level: AlertLevel; category: string; title: string; detail: string; host: string;
@@ -1418,6 +1444,10 @@ export const api = {
   k8sNodes: () => request<K8sNodesResult>("/api/v1/k8s/nodes"),
   k8sPods: () => request<K8sPodsResult>("/api/v1/k8s/pods"),
   k8sEvents: (warningsOnly = false) => request<K8sEventsResult>(`/api/v1/k8s/events${warningsOnly ? "?warnings_only=true" : ""}`),
+  k8sKubevirt: () => request<KubeVirtResult>("/api/v1/k8s/kubevirt"),
+  proxmoxStatus: () => request<ProxmoxStatus>("/api/v1/proxmox/status"),
+  proxmoxNodes: () => request<ProxmoxNodesResult>("/api/v1/proxmox/nodes"),
+  proxmoxGuests: () => request<ProxmoxGuestsResult>("/api/v1/proxmox/guests"),
   alerts: () => request<AlertsSnapshot>("/api/v1/alerts"),
   hostsReliability: () => request<ReliabilitySnapshot>("/api/v1/hosts/reliability"),
   flagsMatrix: (container?: string) => request<FlagMatrix>(`/api/v1/flags/matrix${query({ container })}`),

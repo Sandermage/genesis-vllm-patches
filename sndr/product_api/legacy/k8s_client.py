@@ -288,7 +288,56 @@ def list_events(context: Optional[str] = None, *, warnings_only: bool = False, l
         return {"available": False, "error": f"{type(exc).__name__}: {exc}"[:300], "events": []}
 
 
+def shape_kubevirt(vm: dict[str, Any]) -> dict[str, Any]:
+    """Shape a KubeVirt VirtualMachineInstance (a CustomObjectsApi dict). Pure.
+
+    KubeVirt runs VMs as first-class k8s objects; this surfaces the same vitals
+    as a Proxmox guest so the unified Virtualization view reads consistently."""
+    meta = vm.get("metadata") or {}
+    status = vm.get("status") or {}
+    domain = (vm.get("spec") or {}).get("domain") or {}
+    ifaces = status.get("interfaces") or []
+    ip = next((i.get("ipAddress") for i in ifaces if i.get("ipAddress")), None)
+    conds = status.get("conditions") or []
+    gpus = (domain.get("devices") or {}).get("gpus") or []
+    labels = meta.get("labels") or {}
+    return {
+        "name": meta.get("name"), "namespace": meta.get("namespace"),
+        "kind": "kubevirt",
+        "phase": status.get("phase"),
+        "running": status.get("phase") == "Running",
+        "node": status.get("nodeName"),
+        "cpu_cores": (domain.get("cpu") or {}).get("cores"),
+        "memory": ((domain.get("resources") or {}).get("requests") or {}).get("memory"),
+        "ip": ip,
+        "gpu_count": len(gpus),
+        "ready": any(c.get("type") == "Ready" and c.get("status") == "True" for c in conds),
+        "sndr_preset": labels.get("sndr.io/preset"),
+    }
+
+
+def list_kubevirt_vms(context: Optional[str] = None) -> dict[str, Any]:
+    """KubeVirt VMs (VirtualMachineInstances). Degrades cleanly when the KubeVirt
+    CRD isn't installed (the common case on a plain cluster) — ``installed: False``
+    rather than an error, so the UI says "KubeVirt not installed" not "broken"."""
+    avail = availability()
+    if not avail["available"]:
+        return {"available": False, "error": avail["error"], "vms": []}
+    try:
+        k = _load(context)
+        obj = k.client.CustomObjectsApi().list_cluster_custom_object(
+            "kubevirt.io", "v1", "virtualmachineinstances")
+        return {"available": True, "installed": True, "error": None,
+                "vms": [shape_kubevirt(v) for v in (obj.get("items") or [])]}
+    except Exception as exc:
+        msg = f"{type(exc).__name__}: {exc}"
+        if "404" in msg or "could not find" in msg.lower() or "NotFound" in msg:
+            return {"available": True, "installed": False, "error": None, "vms": []}
+        return {"available": False, "error": msg[:300], "vms": []}
+
+
 __all__ = [
     "GPU_RESOURCE", "availability", "cluster_status", "list_nodes", "list_pods", "list_events",
-    "shape_node", "shape_pod", "shape_event", "gpu_requested_by_node",
+    "list_kubevirt_vms", "shape_node", "shape_pod", "shape_event", "shape_kubevirt",
+    "gpu_requested_by_node",
 ]

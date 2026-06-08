@@ -2129,6 +2129,33 @@ def create_app(
         from . import k8s_client
         return k8s_client.list_events(warnings_only=warnings_only)
 
+    @app.get("/api/v1/k8s/kubevirt")
+    async def k8s_kubevirt_route() -> dict[str, Any]:
+        """KubeVirt VMs (VirtualMachineInstances). {installed:false} when the
+        KubeVirt CRD isn't present — VMs-as-pods for the Virtualization view."""
+        from . import k8s_client
+        return k8s_client.list_kubevirt_vms()
+
+    @app.get("/api/v1/proxmox/status")
+    async def proxmox_status_route() -> dict[str, Any]:
+        """Proxmox VE reachability + node/VM/LXC counts (or {available:false,
+        error} when Proxmox isn't configured) — mirrors the k8s status shape."""
+        from . import proxmox_client
+        return proxmox_client.cluster_status()
+
+    @app.get("/api/v1/proxmox/nodes")
+    async def proxmox_nodes_route() -> dict[str, Any]:
+        """Proxmox host nodes with CPU / memory / disk utilization."""
+        from . import proxmox_client
+        return proxmox_client.list_nodes()
+
+    @app.get("/api/v1/proxmox/guests")
+    async def proxmox_guests_route() -> dict[str, Any]:
+        """Proxmox VMs (qemu) + containers (lxc) with resources, uptime, and the
+        SNDR preset they host (via the `sndr-preset-<id>` tag)."""
+        from . import proxmox_client
+        return proxmox_client.list_guests()
+
     @app.get("/api/v1/alerts")
     async def alerts_route() -> dict[str, Any]:
         """Evaluate hardware-threshold rules over the daemon host's live telemetry

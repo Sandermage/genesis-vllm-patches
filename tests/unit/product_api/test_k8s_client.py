@@ -163,3 +163,24 @@ def test_list_pods_and_events_degrade_gracefully(monkeypatch):
     monkeypatch.setattr(k8s, "_kubernetes", lambda: None)
     assert k8s.list_pods()["available"] is False and k8s.list_pods()["pods"] == []
     assert k8s.list_events()["available"] is False and k8s.list_events()["events"] == []
+
+
+def test_shape_kubevirt_vmi():
+    vmi = {
+        "metadata": {"name": "vllm-vm", "namespace": "default", "labels": {"sndr.io/preset": "qwen3.6-35b-balanced"}},
+        "status": {"phase": "Running", "nodeName": "pve1",
+                   "interfaces": [{"ipAddress": "10.0.0.9"}],
+                   "conditions": [{"type": "Ready", "status": "True"}]},
+        "spec": {"domain": {"cpu": {"cores": 8}, "resources": {"requests": {"memory": "48Gi"}},
+                            "devices": {"gpus": [{"name": "gpu0"}, {"name": "gpu1"}]}}},
+    }
+    s = k8s.shape_kubevirt(vmi)
+    assert s["name"] == "vllm-vm" and s["kind"] == "kubevirt" and s["running"] is True
+    assert s["cpu_cores"] == 8 and s["memory"] == "48Gi" and s["ip"] == "10.0.0.9"
+    assert s["gpu_count"] == 2 and s["ready"] is True and s["sndr_preset"] == "qwen3.6-35b-balanced"
+
+
+def test_list_kubevirt_degrades_without_kubernetes(monkeypatch):
+    monkeypatch.setattr(k8s, "_kubernetes", lambda: None)
+    r = k8s.list_kubevirt_vms()
+    assert r["available"] is False and r["vms"] == []

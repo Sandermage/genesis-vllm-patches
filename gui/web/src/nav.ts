@@ -20,6 +20,7 @@ export type SectionId =
   | "services"
   | "containers"
   | "kubernetes"
+  | "virtualization"
   | "routing"
   | "doctor"
   | "patches"

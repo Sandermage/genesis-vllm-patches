@@ -4157,6 +4157,48 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 .k8s-deploy-cmds { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; }
 .k8s-deploy-cmds code { font-family: var(--mono); background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 3px 8px; }
 .k8s-yaml { max-height: 460px; overflow: auto; margin: 0; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--r-md, 10px); background: var(--surface-inset, var(--surface-2)); font-family: var(--mono); font-size: 11.5px; line-height: 1.5; white-space: pre; }
+
+/* ── Virtualization (Proxmox VE + KubeVirt + k8s nodes) ──────────────── */
+.virt { display: flex; flex-direction: column; gap: 14px; max-width: 1440px; }
+.virt-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 9px; }
+.virt-sum { border: 1px solid var(--border); border-radius: var(--r-md, 10px); background: var(--surface-2); padding: 9px 12px; display: flex; flex-direction: column; gap: 4px; }
+.virt-sum-h { display: flex; align-items: center; gap: 5px; font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-muted); }
+.virt-sum-v { font-size: 21px; font-weight: 800; font-variant-numeric: tabular-nums; display: flex; align-items: baseline; gap: 6px; }
+.virt-sum-v em { font-size: 10px; font-weight: 600; font-style: normal; color: var(--text-muted); text-transform: uppercase; }
+.virt-sum.ok .virt-sum-v { color: var(--ok, #16a34a); }
+.virt-sum.accent .virt-sum-v { color: var(--accent); }
+.virt-sum.muted .virt-sum-v { color: var(--text-muted); }
+.virt-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.virt-pane { display: flex; flex-direction: column; gap: 12px; }
+.virt-nodes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap: 10px; }
+.virt-node { border: 1px solid var(--border); border-radius: var(--r-md, 10px); background: var(--surface); padding: 11px 13px; display: flex; flex-direction: column; gap: 9px; }
+.virt-node.offline { opacity: 0.7; }
+.virt-node.skel { height: 120px; background: linear-gradient(90deg, var(--surface-2), var(--surface), var(--surface-2)); background-size: 200% 100%; animation: sndr-shimmer 1.3s infinite; }
+.virt-node-h { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.virt-node-h strong { font-weight: 700; }
+.virt-node-up { margin-left: auto; font-size: 10.5px; color: var(--text-muted); font-family: var(--mono); }
+.virt-node-meters { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+@media (max-width: 620px) { .virt-node-meters { grid-template-columns: 1fr; } }
+.virt-node-facts { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11px; }
+.virt-meter { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.virt-meter-top { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; }
+.virt-meter-l { font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-muted); }
+.virt-meter-v { font-family: var(--mono); font-size: 10px; color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.virt-meter-track { height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
+.virt-meter-fill { display: block; height: 100%; border-radius: 3px; transition: width 0.4s ease; }
+.virt-meter-fill.ok { background: linear-gradient(90deg, var(--ok, #16a34a), color-mix(in srgb, var(--ok, #16a34a) 70%, #0a0)); }
+.virt-meter-fill.warn { background: var(--warn, #d97706); }
+.virt-meter-fill.hot { background: var(--danger, #dc2626); }
+.virt-guests td, .virt-guests th { vertical-align: middle; }
+.virt-guests .crow.virt-managed { box-shadow: inset 3px 0 0 var(--accent); }
+.virt-kind { display: inline-flex; align-items: center; font-size: 8.5px; font-weight: 800; letter-spacing: 0.04em; padding: 1px 5px; border-radius: 4px; margin-right: 5px; }
+.virt-kind.vm { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.virt-kind.lxc { color: var(--info, #2563eb); background: color-mix(in srgb, var(--info, #2563eb) 14%, transparent); }
+.virt-dim { color: var(--text-muted); font-size: 10px; }
+.virt-connect { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; padding: var(--sp-6) var(--sp-4); border: 1px dashed var(--border); border-radius: var(--r-lg); background: var(--surface); }
+.virt-connect strong { font-size: 14px; color: var(--text); }
+.virt-connect-cmd { margin: 6px 0 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--r-md, 10px); background: var(--surface-2); font-family: var(--mono); font-size: 11px; line-height: 1.6; text-align: left; white-space: pre; overflow-x: auto; max-width: 100%; }
+@keyframes sndr-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 .upd-avail-banner {
   display: flex; align-items: center; gap: 6px; font-size: 12.5px;
   padding: 8px 12px; margin-bottom: 12px; border-radius: var(--r-md, 10px);

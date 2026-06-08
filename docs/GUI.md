@@ -92,6 +92,8 @@ python3 -m vllm.sndr_core.cli gui-api [--host H] [--port P] [--log-level L] [--e
 | `SNDR_OAUTH_GOOGLE_CLIENT_ID` / `_SECRET` | _(unset)_ | Enable Google sign-in when both are set. |
 | `SNDR_OAUTH_APPLE_CLIENT_ID` / `_SECRET` | _(unset)_ | Enable Apple sign-in when both are set. |
 | `SNDR_IN_CONTAINER` | auto-detected | Force container-context detection (otherwise inferred from `/.dockerenv`, cgroups). |
+| `SNDR_PROXMOX_HOST` / `_TOKEN_ID` / `_TOKEN_SECRET` | _(unset)_ | Connect the **Virtualization** panel to a Proxmox VE cluster (API token; e.g. `https://pve:8006`, `root@pam!sndr`, secret). Read-only. |
+| `SNDR_PROXMOX_VERIFY_SSL` | `1` | Set `0` to accept a self-signed Proxmox certificate. |
 
 The full authentication model, OAuth setup, container persistence and endpoint
 list live in [`docs/GUI_SECURITY.md`](GUI_SECURITY.md).
@@ -155,6 +157,7 @@ setup, the PAM-in-container caveat and the endpoint list:
 | Hosts | Local/remote host profiles and runtime target matrix |
 | Containers | Live container management over the local docker socket (or a registered SSH host): cards/table list, **per-container detail** with live CPU/mem + GPU telemetry, a merged **Inference** panel (live vLLM `/metrics`), logs, exec, file browser, filesystem changes, processes, stats; start/stop/restart/recreate; **update modes** (manual/semi/auto) with pin-policy gating; install the SNDR daemon onto a node |
 | Kubernetes | Read-only cluster view — nodes/pods/events with **GPU free/allocatable per node** and why a pod is `Pending` — plus **deploy a preset**: renders an SNDR-identity-stamped manifest (`sndr.io/preset`, `sndr.io/pin`, `sndr.io/patches` labels) so pods map back to the preset that defined them |
+| Virtualization | One pane over compute — **Proxmox VE** hosts & guests (VMs + LXC), **KubeVirt** VMs, and **Kubernetes nodes** — each linked back to the SNDR preset it runs (Proxmox tag `sndr-preset-<id>`). Read-only; degrades to a connect/not-installed card per source. Bilingual (EN/RU) |
 | Models | Catalog **summary strip + per-model key-facts**, identity/provenance, **capabilities + generation/sampling config**, requirements, hardware fit, patch matrix, cache + Hugging Face search/download |
 | Configs | Graphical V2 composition editor (model/hardware/profile/preset) + per-element editor |
 | Presets | Catalog, selected card, workload rules, policy graph |
@@ -278,7 +281,13 @@ Config files and where they are written:
 | `sndr/model_configs/builtin/{models,hardware,profile,presets}/*.yaml` | V2 catalog (model, hardware/rig, profile, preset definitions) |
 | `…/hardware/<rig>.yaml` → `sizing.disable_log_stats` | Engine stat-logger toggle. `false` exposes live vLLM metrics to the Inference panel; also settable as a profile `sizing_override`. After changing it, re-render + restart the engine |
 | host `start_*.sh` (generated) | Engine launch scripts produced by `sndr profile render-launchers <profile>` |
-| `/etc/rancher/k3s/k3s.yaml` or `~/.kube/config` | kubeconfig the daemon reads for Kubernetes mode |
+| `/etc/rancher/k3s/k3s.yaml` or `~/.kube/config` | kubeconfig the daemon reads for Kubernetes / KubeVirt / Virtualization |
+| `SNDR_PROXMOX_*` (env) | Proxmox VE connection for the Virtualization panel (host + API token) |
+
+The UI is bilingual (English / Russian) — toggle with the **EN/RU** button in the
+top bar; the choice persists in `localStorage` (`sndr.gui.lang`). New surfaces
+(Virtualization, the sidebar nav) are fully translated; other screens adopt
+translations incrementally and fall back to English.
 
 ## Verifying it works
 
