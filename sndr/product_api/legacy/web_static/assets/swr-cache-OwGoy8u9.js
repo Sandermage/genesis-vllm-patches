@@ -1,0 +1,1 @@
+var e=new Map;function t(t,n){let r=e.get(t);if(r&&Date.now()-r.at<n)return r.value}function n(t){return e.get(t)?.value}function r(t,n){e.set(t,{value:n,at:Date.now()})}export{n,r,t};
