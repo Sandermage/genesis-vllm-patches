@@ -5249,6 +5249,45 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "kernel_perf",
         "credit": "Pre-dispatcher legacy patch. Tuned launch config for TQ decode stage1 kernel on SM86.",
     },
+    "P18B_TEXT": {
+        "title": "TurboQuant decode stage1 kernel-literal tune (TEXT-PATCH)",
+        "tier": "community",
+        "family": "attention.turboquant",
+        "env_flag": "GENESIS_ENABLE_P18B_TEXT",
+        "default_on": True,
+        "category": "kernel_perf",
+        "credit": (
+            "Genesis-original 2026-06-08. Kernels-audit agent flagged "
+            "the original P18b (kernels_legacy/tq_decode_tune.py + "
+            "_per_patch_dispatch.py:6275) as DEAD CODE: it only logs "
+            "the resolved VLLM_TQ_DECODE_{BLOCK_KV,NUM_WARPS,NUM_STAGES} "
+            "env vars and never patches the actual Triton launcher. "
+            "Result: 35B + 27B production has been running the upstream "
+            "H100 defaults (num_warps=4/1, num_stages=2/1) regardless "
+            "of env overrides — under-utilising Ampere SM 8.6 "
+            "(RTX A5000 / 3090) shared-memory budgets. "
+            "This patch is the missing text-patch half: rewrites the "
+            "two launch-parameter blocks of "
+            "vllm/v1/attention/ops/triton_turboquant_decode.py in place "
+            "at boot, using the values from resolve_decode_tune(). "
+            "SM-8.6-validated default is num_warps=8 num_stages=3 "
+            "(per master plan section 15.1 empirical note: num_stages=2 "
+            "measured -2% to -9% on A5000). "
+            "Two sub-patches: GQA branch (line ~790) and MHA branch "
+            "(line ~830). Both required=False — partial-apply is allowed."
+        ),
+        "applies_to": {
+            "is_turboquant": True,
+            "sm_min": (8, 0),
+            "sm_max": (9, 0),  # H100+ keep upstream defaults (already H100-tuned)
+        },
+        "implementation_status": "full",
+        "apply_module": "sndr.engines.vllm.patches.attention.turboquant.p18b_kernel_literals_textpatch",
+        "source": "genesis_original",
+        "lifecycle": "experimental",
+        "conflicts_with": [],
+        "requires_patches": [],
+    },
     "P20": {
         "title": "TurboQuant continuation-prefill FP16 rotate",
         "tier": "community",

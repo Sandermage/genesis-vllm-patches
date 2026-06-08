@@ -1119,6 +1119,46 @@ def apply_patch_n116_tq_prefill_maxseq_fallback() -> PatchResult:
 
 
 @register_patch(
+    "P18B_TEXT TurboQuant decode stage1 kernel-literal tune (SM 8.6 num_warps/num_stages override)"
+)
+def apply_patch_18b_text_kernel_literals() -> PatchResult:
+    """P18B_TEXT: real text-patch half of the legacy P18b dispatch hook.
+
+    Original P18b (kernels_legacy/tq_decode_tune.py + ``apply_patch_18b_tq_decode_tune``
+    above at line ~6275) only LOGS the resolved ``VLLM_TQ_DECODE_*`` env
+    values. The Triton launcher in ``triton_turboquant_decode.py`` still
+    runs the upstream H100 defaults (``num_warps=4 num_stages=2`` on GQA,
+    ``num_warps=1 num_stages=1`` on MHA).
+
+    This patch text-patches those two launch blocks at boot using the
+    values from ``resolve_decode_tune()`` — SM-8.6-validated default
+    is ``num_warps=8 num_stages=3``.
+
+    Operator override: ``GENESIS_DISABLE_P18B_TEXT=1`` keeps upstream
+    literals. ``VLLM_TQ_DECODE_NUM_WARPS`` / ``VLLM_TQ_DECODE_NUM_STAGES``
+    flow through ``resolve_decode_tune()`` and tune the replacement.
+    """
+    name = (
+        "P18B_TEXT TurboQuant decode stage1 kernel-literal tune "
+        "(SM 8.6 num_warps/num_stages override)"
+    )
+    if not _state._APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from sndr.engines.vllm.patches.attention.turboquant import (
+            p18b_kernel_literals_textpatch as _wiring,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = _wiring.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch(
     "PN118 TurboQuant workspace graceful-fallback (backport: vllm#42551, P99-compat)"
 )
 def apply_patch_n118_tq_workspace_fallback() -> PatchResult:
