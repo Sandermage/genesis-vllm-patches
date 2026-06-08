@@ -1115,7 +1115,10 @@ pre, .code-block, .cli-mirror pre, .artifact-preview pre {
 .section-heading p { color: var(--text-muted); font-size: 13px; max-width: 70ch; }
 .section-actions { display: flex; gap: var(--sp-2); }
 
-.module-grid { display: grid; gap: var(--gap); grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+/* Adaptive across the GUI: 2 cards on a normal screen, more columns on a wide
+   monitor, one column when narrow. auto-fit collapses empty tracks so a 2-card
+   grid still pairs side-by-side; `.module-card.wide` keeps spanning the row. */
+.module-grid { display: grid; gap: var(--gap); grid-template-columns: repeat(auto-fit, minmax(min(440px, 100%), 1fr)); align-items: start; }
 .module-card { display: flex; flex-direction: column; gap: var(--sp-3); padding: var(--pad-card); border-radius: var(--r-lg); border: 1px solid var(--border); background: var(--surface); box-shadow: var(--shadow-sm); min-width: 0; }
 .module-card.wide { grid-column: 1 / -1; }
 .module-card-title { display: flex; align-items: flex-start; gap: 10px; }
@@ -4012,12 +4015,13 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 .k8s-intro-list li { line-height: 1.45; }
 .k8s-intro-sep { border: none; border-top: 1px solid var(--border); margin: 4px 0; }
 /* Compact container Overview — dense dashboard, one cohesive project style */
-.ov { display: flex; flex-direction: column; gap: 14px; max-width: 1760px; }
+.ov { display: flex; flex-direction: column; gap: 14px; }
 /* Adaptive two-column dashboard: live stats + container facts (left), runtime +
-   SNDR info (right). Fluid — the side column is clamped (stays readable, never
-   balloons) while the main column grows with the viewport; everything inside
-   reflows via auto-fit grids. Collapses to one column on narrow screens. */
-.ov-dash { display: grid; grid-template-columns: minmax(0, 1fr) clamp(290px, 27%, 440px); gap: 14px; align-items: start; }
+   SNDR info (right). Fully fluid — fills the whole content width; the side
+   column is clamped (stays readable, never balloons) while the main column
+   grows with the viewport and everything inside reflows via auto-fit grids.
+   Collapses to one column on narrow screens. */
+.ov-dash { display: grid; grid-template-columns: minmax(0, 1fr) clamp(290px, 25%, 460px); gap: 14px; align-items: start; }
 @media (max-width: 980px) { .ov-dash { grid-template-columns: 1fr; } }
 .ov-dash-main, .ov-dash-side { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 .ov-card { border: 1px solid var(--border); border-radius: var(--r-md, 10px); background: var(--surface); overflow: hidden; }
