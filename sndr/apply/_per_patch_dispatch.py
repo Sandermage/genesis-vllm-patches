@@ -887,7 +887,7 @@ def apply_patch_N9_independent_drafter_attn_backend() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from sndr.engines.vllm.patches._retired import (
+        from sndr.engines.vllm._archive import (
             pn9_independent_drafter_attn_backend as _wiring,
         )
     except Exception as e:
@@ -2092,7 +2092,7 @@ def apply_patch_N52_prompt_logprobs_eviction() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from sndr.engines.vllm.patches._retired import pn52_prompt_logprobs_eviction  # moved to _retired/ 2026-05-14
+        from sndr.engines.vllm._archive import pn52_prompt_logprobs_eviction  # moved to _retired/ 2026-05-14
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn52_prompt_logprobs_eviction.apply()
@@ -2215,7 +2215,7 @@ def apply_patch_61_qwen3_multi_tool() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from sndr.engines.vllm.patches._retired import p61_qwen3_multi_tool_first_occurrence  # moved to _retired/ 2026-05-14
+        from sndr.engines.vllm._archive import p61_qwen3_multi_tool_first_occurrence  # moved to _retired/ 2026-05-14
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p61_qwen3_multi_tool_first_occurrence.apply()
@@ -2343,7 +2343,7 @@ def apply_patch_63_mtp_gdn_state_recovery() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from sndr.engines.vllm.patches._retired import p63_mtp_gdn_state_recovery  # moved to _retired/ 2026-05-14
+        from sndr.engines.vllm._archive import p63_mtp_gdn_state_recovery  # moved to _retired/ 2026-05-14
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p63_mtp_gdn_state_recovery.apply()
@@ -2680,7 +2680,7 @@ def apply_patch_N80_lora_tensorizer_device() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: 1-line LoRA tensorizer device kwarg")
     try:
-        from sndr.engines.vllm.patches._retired import pn80_lora_tensorizer_device  # moved to _retired/ 2026-05-14
+        from sndr.engines.vllm._archive import pn80_lora_tensorizer_device  # moved to _retired/ 2026-05-14
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn80_lora_tensorizer_device.apply()
@@ -2782,7 +2782,7 @@ def apply_patch_N78_post_warmup_cache_release() -> PatchResult:
             "would be redundant 3rd call. Runtime apply() returns skipped."
         ))
     try:
-        from sndr.engines.vllm.patches._retired import pn78_post_warmup_cache_release  # moved to _retired/ 2026-05-14
+        from sndr.engines.vllm._archive import pn78_post_warmup_cache_release  # moved to _retired/ 2026-05-14
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn78_post_warmup_cache_release.apply()
@@ -3110,7 +3110,7 @@ def apply_patch_N67_thinking_budget_inverted_bool() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from sndr.engines.vllm.patches._retired import pn67_thinking_budget_inverted_bool
+        from sndr.engines.vllm._archive import pn67_thinking_budget_inverted_bool
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn67_thinking_budget_inverted_bool.apply()
@@ -3554,7 +3554,7 @@ def apply_patch_94_spec_decode_zero_alloc() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from sndr.engines.vllm.patches._retired import p94_spec_decode_zero_alloc  # moved to _retired/ 2026-05-14
+        from sndr.engines.vllm._archive import p94_spec_decode_zero_alloc  # moved to _retired/ 2026-05-14
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p94_spec_decode_zero_alloc.apply()
@@ -3817,7 +3817,7 @@ def _legacy_apply_patch_N9_independent_drafter_attn_backend() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from sndr.engines.vllm.patches._retired import pn9_independent_drafter_attn_backend  # moved to _retired/ 2026-05-14
+        from sndr.engines.vllm._archive import pn9_independent_drafter_attn_backend  # moved to _retired/ 2026-05-14
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn9_independent_drafter_attn_backend.apply()
@@ -4339,7 +4339,7 @@ def apply_patch_N108_fused_recurrent_prefill() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from sndr.engines.vllm.patches._retired import (  # moved to _retired/ 2026-05-14
+        from sndr.engines.vllm._archive import (  # moved to _retired/ 2026-05-14
             pn108_fused_recurrent_prefill,
         )
     except Exception as e:
@@ -4806,7 +4806,7 @@ def apply_patch_N13_cuda_graph_lambda_arity() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from sndr.engines.vllm.patches._retired import pn13_cuda_graph_lambda_arity  # moved to _retired/ 2026-05-14
+        from sndr.engines.vllm._archive import pn13_cuda_graph_lambda_arity  # moved to _retired/ 2026-05-14
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn13_cuda_graph_lambda_arity.apply()
