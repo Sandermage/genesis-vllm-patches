@@ -270,7 +270,13 @@ export function ModelsWorkbench({
               label: "Overview",
               icon: <Box size={15} />,
               render: () => (
+                <>
                 <ModuleGrid>
+                  <ModuleCard title="Fit envelope" icon={<Gauge size={18} />} desc="Does it fit? Context × concurrency headroom on a representative rig." wide>
+                    <KvEnvelopeCard modelKey={archKey} tp={envHw.tp} vram={envHw.vram} rigLabel={envHw.label} />
+                  </ModuleCard>
+                </ModuleGrid>
+                <ModuleGrid className="models-row">
                   <ModuleCard title="Identity" icon={<Box size={18} />} desc="Serving name, precision, provenance and trust settings.">
                     <InfoRows
                       rows={[
@@ -311,9 +317,6 @@ export function ModelsWorkbench({
                         </>
                       );
                     })() : <p className="muted">No architecture metadata for this model id ({activeId || "—"}).</p>}
-                  </ModuleCard>
-                  <ModuleCard title="Fit envelope" icon={<Gauge size={18} />} desc="Does it fit? Context × concurrency headroom on a representative rig." wide>
-                    <KvEnvelopeCard modelKey={archKey} tp={envHw.tp} vram={envHw.vram} rigLabel={envHw.label} />
                   </ModuleCard>
                   <ModuleCard
                     title="Local Cache"
@@ -356,6 +359,8 @@ export function ModelsWorkbench({
                       <p className="muted">No presets reference this model yet.</p>
                     )}
                   </ModuleCard>
+                </ModuleGrid>
+                <ModuleGrid>
                   <ModuleCard title="Notes" icon={<FileText size={18} />} desc="Maintainer notes and migration history." wide>
                     {notes.length ? (
                       <ul className="model-notes">{notes.map((note, index) => (<li key={index}>{note}</li>))}</ul>
@@ -364,6 +369,7 @@ export function ModelsWorkbench({
                     )}
                   </ModuleCard>
                 </ModuleGrid>
+                </>
               )
             },
             {
@@ -371,7 +377,7 @@ export function ModelsWorkbench({
               label: "Capabilities",
               icon: <Layers3 size={15} />,
               render: () => (
-                <ModuleGrid>
+                <ModuleGrid className="models-row3">
                   <ModuleCard title="Capabilities" icon={<Layers3 size={18} />} desc="Attention arch, parsers and speculative decode.">
                     <InfoRows
                       rows={[
@@ -394,7 +400,7 @@ export function ModelsWorkbench({
                       ]}
                     />
                   </ModuleCard>
-                  <ModuleCard title="Generation & Serving" icon={<SlidersHorizontal size={18} />} desc="Chat template, tool/reasoning parsing and sampling defaults." wide>
+                  <ModuleCard title="Generation & Serving" icon={<SlidersHorizontal size={18} />} desc="Chat template, tool/reasoning parsing and sampling defaults.">
                     <InfoRows
                       rows={[
                         ["Served name", dval(def.served_model_name)],
@@ -450,25 +456,16 @@ export function ModelsWorkbench({
               )
             },
             {
-              id: "patches",
-              label: "Patch matrix",
-              icon: <Wrench size={15} />,
-              render: () => (
-                <ModuleGrid>
-                  <ModuleCard title="Patch Matrix" icon={<Wrench size={18} />} desc="Canonical env-flag overrides shipped with this model." wide>
-                    <PatchMatrixViewer patches={patchMatrix} attribution={attribution} loading={defState === "loading"} />
-                  </ModuleCard>
-                </ModuleGrid>
-              )
-            },
-            {
               id: "runtime",
-              label: "Runtime",
+              label: "Runtime & patches",
               icon: <SlidersHorizontal size={15} />,
               render: () => (
                 <ModuleGrid>
                   <ModuleCard title="Runtime Envelope" icon={<SlidersHorizontal size={18} />} desc={`Composed runtime for ${selectedPreset}.`} wide>
                     <RuntimeEnvelopePanel card={card} composed={composed} patchCount={patchCount} />
+                  </ModuleCard>
+                  <ModuleCard title="Patch Matrix" icon={<Wrench size={18} />} desc="Canonical env-flag overrides shipped with this model — the patches baked into its composed runtime." wide>
+                    <PatchMatrixViewer patches={patchMatrix} attribution={attribution} loading={defState === "loading"} />
                   </ModuleCard>
                   <ModuleCard title="Config Draft" icon={<Code2 size={18} />} desc="Local runtime draft (diff + YAML preview)." wide>
                     <ConfigDraftEditor
