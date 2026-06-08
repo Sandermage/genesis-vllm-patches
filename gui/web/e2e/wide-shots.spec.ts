@@ -159,6 +159,69 @@ test("containers logs scroll box", async ({ page }) => {
   console.log(`logs box height: ${box?.height} (viewport 1000)`);
 });
 
+// Capture the three Setup tabs (Guided / Install onto host / Deploy) with a
+// realistic install mock, so the display + the install wizard can be reviewed.
+test("setup tabs", async ({ page }) => {
+  const base = RESPONSES as Record<string, any>;
+  const installTargets = {
+    apply_enabled: false,
+    hosts: [
+      { id: "gpu-build-01", label: "gpu-build-01", host: "192.168.1.10", port: 8765, engine_port: 8000, gpu_arch: "A5000", gpus: 2 },
+      { id: "gpu-build-02", label: "gpu-build-02", host: "192.168.1.11", port: 8765, engine_port: 8000, gpu_arch: "A6000", gpus: 1 },
+    ],
+    targets: [
+      { id: "compose", label: "Docker Compose", filename: "docker-compose.yml", kind: "compose", needs: "docker", summary: "Run the engine as a compose service" },
+      { id: "systemd", label: "systemd unit", filename: "sndr-engine.service", kind: "systemd", needs: "systemd", summary: "Native systemd service on the host" },
+      { id: "quadlet", label: "Podman Quadlet", filename: "sndr.container", kind: "quadlet", needs: "podman", summary: "Rootless Podman via Quadlet" },
+      { id: "kubernetes", label: "Kubernetes", filename: "sndr.yaml", kind: "k8s", needs: "kubectl", summary: "Deployment + Service manifest" },
+      { id: "proxmox_vm", label: "Proxmox VM", filename: "provision.sh", kind: "proxmox", needs: "proxmox", summary: "Provision a GPU-passthrough VM" },
+    ],
+  };
+  const plan = {
+    host: { label: "gpu-build-01", host: "192.168.1.10" }, preset_id: "preset-0", target: "compose",
+    target_label: "Docker Compose", artifact: { kind: "compose", filename: "docker-compose.yml", content: "services:\n  vllm:\n    image: vllm/vllm-openai:nightly\n    runtime: nvidia\n    ports:\n      - \"8000:8000\"\n    environment:\n      - GENESIS_ENABLE_PN90=1\n    command: --model qwen3.6-35b --tensor-parallel-size 2\n" },
+    image_override: null, with_daemon: false,
+    steps: [
+      { order: 1, kind: "upload", title: "Upload docker-compose.yml to /opt/sndr", danger: false, cmd: "scp docker-compose.yml gpu-build-01:/opt/sndr/" },
+      { order: 2, kind: "remote-exec", title: "Pull the engine image", danger: false, cmd: "docker compose pull" },
+      { order: 3, kind: "remote-exec", title: "Start the engine", danger: false, cmd: "docker compose up -d" },
+    ],
+    danger_count: 0, provisions_infra: false, dry_run: true, can_apply: false, notes: "Review the plan, then run over SSH.",
+  };
+  const presets = { ...base.presets, total: 6, matched: 6, presets: Array.from({ length: 6 }, (_, i) => ({ id: `preset-${i}`, model: "qwen3.6-35b", hardware: "a5000x2", profile: "fp8", has_card: true, card: { primary_metric: { value: 120 }, title: `Preset ${i}` } })) };
+  const environment = { ...base.environment, engine_installed: true, engine_version: "0.20.2", tools: [{ name: "docker", present: true }, { name: "nvidia-smi", present: true }] };
+  const doctor = { ...base.doctor, summary: { ok: 12, warning: 2, blocked: 0 }, findings: Array.from({ length: 14 }, (_, i) => ({ id: `f-${i}`, severity: i < 2 ? "warning" : "info", title: `Check ${i}` })) };
+  await page.route("**/api/**", (route) => {
+    const p = new URL(route.request().url()).pathname;
+    let body: any = {};
+    if (p.includes("/install/targets")) body = installTargets;
+    else if (p.includes("/install/plan")) body = plan;
+    else if (p.includes("/presets/recommend")) body = base.recommendPresets;
+    else if (p.endsWith("/presets")) body = presets;
+    else if (p.includes("/environment")) body = environment;
+    else if (p.includes("/doctor")) body = doctor;
+    else if (p.includes("/auth/status")) body = base.authStatus;
+    else { const hit = URL_TABLE.find(([s]) => p.includes(s)); body = hit ? base[hit[1]] : {}; }
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body ?? {}) });
+  });
+  await bootDark(page);
+  await page.setViewportSize({ width: 1920, height: 1100 });
+  await page.goto("/");
+  await page.locator('.side-nav button:has-text("Setup")').first().click();
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: `${OUT}/setup-guided.png`, fullPage: false });
+  await page.locator('.section-tabs button:has-text("Install onto host")').first().click();
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: `${OUT}/setup-install.png`, fullPage: false });
+  await page.locator('.installer button:has-text("Build install plan")').first().click();
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: `${OUT}/setup-install-plan.png`, fullPage: true });
+  await page.locator('.section-tabs button:has-text("Deploy a model")').first().click();
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: `${OUT}/setup-deploy.png`, fullPage: false });
+  console.log("shot: setup-guided / setup-install / setup-install-plan / setup-deploy");
+});
+
 // High-fidelity element clip of the Overview hero tiles, for inspecting tile
 // internals (value alignment, click affordance, text clamp) up close.
 test("overview hero tile clip", async ({ page }) => {

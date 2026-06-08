@@ -88,7 +88,7 @@ export function DeploymentConsole({
   const deps = plan?.dependencies;
   const presetList = presets?.presets ?? [];
 
-  const depTone = deps && deps.n_blockers > 0 ? "blocked" : deps && deps.n_warnings > 0 ? "warning" : "pass";
+  const depTone = deps && (deps.n_blockers ?? 0) > 0 ? "blocked" : deps && (deps.n_warnings ?? 0) > 0 ? "warning" : "pass";
   const dockerOk = host?.docker.installed && host.docker.daemon_running;
   const gpuOk = host?.nvidia.installed && host.nvidia.n_gpus > 0;
 
@@ -176,7 +176,7 @@ export function DeploymentConsole({
                   : `${deps.n_blockers} blocker${deps.n_blockers === 1 ? "" : "s"} · ${deps.n_warnings} warning${deps.n_warnings === 1 ? "" : "s"}`}
               </strong>
             </div>
-            {deps.items.map((item, index) => (
+            {(deps.items ?? []).map((item, index) => (
               <div className={`deploy-dep-item sev-${item.severity}`} key={`${item.scope}-${index}`}>
                 <div className="deploy-dep-row">
                   <span className={`sev-dot sev-${item.severity === "blocker" ? "danger" : item.severity === "warning" ? "warn" : "info"}`} />
@@ -187,12 +187,12 @@ export function DeploymentConsole({
                 {item.suggested_command && <CodeBlock lines={[item.suggested_command]} />}
               </div>
             ))}
-            {deps.items.length === 0 && <p className="muted">No host changes required for this preset.</p>}
+            {(deps.items ?? []).length === 0 && <p className="muted">No host changes required for this preset.</p>}
           </div>
         )}
       </ModuleCard>
 
-      {plan && plan.mount_vars.length > 0 && (
+      {plan && (plan.mount_vars?.length ?? 0) > 0 && (
         <ModuleCard
           title="Storage & mount paths"
           icon={<HardDrive size={18} />}
@@ -200,7 +200,7 @@ export function DeploymentConsole({
           wide
         >
           <div className="deploy-mounts">
-            {plan.mount_vars.map((mount) => (
+            {(plan.mount_vars ?? []).map((mount) => (
               <label className="deploy-field" key={mount.name}>
                 <span>{mount.name} <em className="deploy-mount-target">→ {mount.container}</em></span>
                 <input
@@ -222,7 +222,7 @@ export function DeploymentConsole({
         wide
       >
         {error && <div className="inline-error"><AlertCircle size={15} /> {error}</div>}
-        {plan ? (
+        {plan?.artifact ? (
           <>
             <div className="deploy-artifact-bar">
               <span className="deploy-artifact-name"><Terminal size={14} /> {plan.artifact.filename}</span>
@@ -246,7 +246,7 @@ export function DeploymentConsole({
                   `cat > ${plan.artifact.filename} <<'${eof}'`,
                   plan.artifact.content.replace(/\n$/, ""),
                   eof, "",
-                  ...plan.commands,
+                  ...(plan.commands ?? []),
                 ].join("\n");
                 return (
                   <div className="deploy-cmd-actions">
@@ -256,7 +256,7 @@ export function DeploymentConsole({
                 );
               })()}
             </div>
-            <CodeBlock lines={plan.commands} />
+            <CodeBlock lines={plan.commands ?? []} />
           </>
         ) : (
           loading ? <SkeletonLines count={5} /> : <p className="muted">Select a preset and target to render the deployment artifact.</p>

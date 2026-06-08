@@ -125,6 +125,23 @@ test("every theme is WCAG AA (color-contrast across all sections)", async ({ pag
   }
 });
 
+test("Setup subtabs render without crashing", async ({ page }) => {
+  // The 'every nav entry' test only checks each section's DEFAULT tab; the Setup
+  // sub-tabs (Guided / Install onto host / Deploy a model) host their own panels
+  // (SetupWizard / InstallWizard / DeploymentConsole) that must also survive the
+  // empty hermetic data instead of falling back to the error boundary.
+  await mockApi(page);
+  await freezeUi(page);
+  await page.goto("/");
+  await page.locator('.side-nav button:has-text("Setup")').first().click();
+  for (const tab of ["Guided setup", "Install onto host", "Deploy a model"]) {
+    await page.locator(".section-tabs button", { hasText: tab }).first().click();
+    const workspace = page.locator(".main-shell .section-workspace").first();
+    await expect(workspace.locator(".error-boundary")).toHaveCount(0);
+    await scan(page);
+  }
+});
+
 test("no horizontal overflow at tablet width", async ({ page }) => {
   await mockApi(page);
   await page.setViewportSize({ width: 768, height: 900 });

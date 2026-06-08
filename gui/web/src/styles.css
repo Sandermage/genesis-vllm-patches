@@ -3372,8 +3372,18 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 .installer { display: flex; flex-direction: column; gap: var(--sp-4); }
 .install-steps { display: flex; gap: var(--sp-4); list-style: none; margin: 0; padding: 0; flex-wrap: wrap; }
 .install-steps li { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--text-muted); }
+/* Stepper progress: completed steps go accent, the current step is highlighted. */
+.install-steps li.done { color: var(--text); }
+.install-steps li.active { color: var(--accent-text); }
 .install-num { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background: var(--surface-2); border: 1px solid var(--border); font-size: 11px; color: var(--text-2); }
-.install-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-4); }
+.install-steps li.done .install-num { background: var(--ok-soft, rgba(21,128,61,0.14)); border-color: color-mix(in srgb, var(--ok, #16a34a) 40%, transparent); color: var(--ok, #16a34a); }
+.install-steps li.active .install-num { background: var(--accent-soft); border-color: var(--accent-ring); color: var(--accent-text); }
+.install-empty { display: flex; align-items: flex-start; gap: 10px; padding: 11px 14px; border: 1px solid color-mix(in srgb, var(--warn, #d97706) 32%, var(--border)); border-radius: var(--r-sm); background: var(--warn-soft, rgba(217,119,6,0.08)); color: var(--text); }
+.install-empty strong { display: block; font-size: 13px; }
+.install-empty span { font-size: 12px; color: var(--text-muted); }
+/* Host / preset / pin sit in one row on a wide screen and wrap cleanly when
+   narrow — was a fixed 2-col grid that orphaned the third field onto its own row. */
+.install-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--sp-4); }
 .install-targets { display: flex; flex-direction: column; gap: 7px; }
 .install-label { font-size: 11px; color: var(--text-muted); font-weight: 600; }
 .install-target-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--sp-3); }

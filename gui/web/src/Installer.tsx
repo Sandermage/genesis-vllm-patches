@@ -49,14 +49,32 @@ export function InstallWizard({ initial }: { initial?: { hostId?: string; target
   const targets = meta?.targets ?? [];
   const applyOn = meta?.apply_enabled ?? false;
 
+  // Live progress for the stepper: each step is "done" once its input is set,
+  // and the first incomplete step is "active".
+  const stepDone = [!!hostId, !!target, !!presetId, !!plan];
+  const activeStep = stepDone.findIndex((s) => !s);
+  const stepLabels = ["Host", "Target", "Preset", "Review & install"];
+  const noHosts = !!meta && meta.hosts.length === 0;
+
   return (
     <div className="installer">
       <ol className="install-steps">
-        <li><span className="install-num">1</span> Host</li>
-        <li><span className="install-num">2</span> Target</li>
-        <li><span className="install-num">3</span> Preset</li>
-        <li><span className="install-num">4</span> Review &amp; install</li>
+        {stepLabels.map((label, i) => (
+          <li key={label} className={`${stepDone[i] ? "done" : ""}${i === activeStep ? " active" : ""}`}>
+            <span className="install-num">{stepDone[i] ? <CheckCircle2 size={12} /> : i + 1}</span> {label}
+          </li>
+        ))}
       </ol>
+
+      {noHosts && (
+        <div className="install-empty">
+          <Server size={16} />
+          <div>
+            <strong>No hosts registered yet</strong>
+            <span>Add a GPU host in <b>Fleet</b> first — then return here to preview and install onto it over SSH.</span>
+          </div>
+        </div>
+      )}
 
       <div className="install-row">
         <label className="param-field"><span><Server size={11} /> Host (from registry)</span>
