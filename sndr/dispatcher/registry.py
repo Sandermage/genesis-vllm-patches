@@ -3977,6 +3977,43 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "implementation_status": "full",
         "composes_with": ["PN296"],
     },
+    "PN341": {
+        "title": "MTP decode bubbles reduction in gpu_model_runner (vendor of vllm#43955, sister to PN340)",
+        "tier": "community",
+        "family": "attention.gdn",
+        "env_flag": "GENESIS_ENABLE_PN341",
+        "default_on": False,
+        "apply_module": "sndr.engines.vllm.patches.attention.gdn.pn341_mtp_decode_bubbles_gpu_runner",
+        "lifecycle": "experimental",
+        "category": "perf_hotfix",
+        "credit": (
+            "Genesis vendoring of OPEN upstream PR vllm#43955 — second "
+            "half (gpu_model_runner.py portion). Sister to PN340 which "
+            "vendored the gdn_attn.py portion of the same PR. "
+            "Closes the per-step ``num_accepted_tokens_event."
+            "synchronize()`` CPU bubble on hybrid + MTP K=3 decode steps. "
+            "Four sub-patches: (a) __init__ flag gating the GPU-only "
+            "path on hybrid + spec_tokens > 0 + mamba_cache_mode != "
+            "'align'; (b) _update_states_after_model_execute early "
+            "return that captures the req_ids dict snapshot; "
+            "(c) _compute_prev_positions optional prev_req_id_to_index "
+            "param so the GPU-only path can pass its captured dict; "
+            "(d) _prepare_inputs new branch that does GPU gather + "
+            "masked_fill_ instead of waiting on the event. Net effect: "
+            "no CPU-GPU round-trip, no NumPy intermediate, no event "
+            "synchronize on every decode step. Our 35B PROD config "
+            "(hybrid + MTP K=3 + mamba_cache_mode='none') is the target. "
+            "Risk: medium-high (touches the sampling-adjacent code "
+            "path). Each sub-patch required=False to soft-skip on "
+            "anchor drift. Composes with PN125 + PN204 + PN286 + PN340."
+        ),
+        "upstream_pr": 43955,
+        "upstream_pr_relationship": "backport",
+        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
+        "implementation_status": "full",
+        "composes_with": ["PN125", "PN204", "PN286", "PN340"],
+        "requires_patches": [],  # PN340 + PN341 are independent halves of #43955
+    },
     "PN340": {
         "title": "MTP decode bubbles reduction in GDN backend (vendor of vllm#43955)",
         "tier": "community",
@@ -4006,7 +4043,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "sub-patches each required=False so partial drift is safe)."
         ),
         "upstream_pr": 43955,
-        "upstream_pr_relationship": "open_backport",
+        "upstream_pr_relationship": "backport",
         "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
         "implementation_status": "full",
         "composes_with": ["PN125", "PN204", "PN286"],

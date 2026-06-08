@@ -5111,6 +5111,24 @@ def apply_patch_N299_fla_multi_arch_warps() -> PatchResult:
     return _skipped("PN299 FLA multi arch warps", detail)
 
 
+@register_patch("PN341 MTP decode bubbles in gpu_model_runner (vendor of OPEN vllm#43955)")
+def apply_patch_N341_mtp_decode_bubbles_gpu_runner() -> PatchResult:
+    """PN341: vendors the gpu_model_runner.py portion of OPEN PR
+    vllm#43955. Sister to PN340. Four sub-patches close the
+    per-step num_accepted_tokens_event.synchronize() CPU bubble on
+    hybrid + MTP K=3 path. Opt-in via GENESIS_ENABLE_PN341=1.
+    Composes with PN125 + PN204 + PN286 + PN340."""
+    from sndr.engines.vllm.patches.attention.gdn import (
+        pn341_mtp_decode_bubbles_gpu_runner as _wiring,
+    )
+    status, detail = _wiring.apply()
+    if status == "applied":
+        return _applied("PN341 MTP decode bubbles (gpu_runner)", detail)
+    if status == "failed":
+        return _failed("PN341 MTP decode bubbles (gpu_runner)", detail)
+    return _skipped("PN341 MTP decode bubbles (gpu_runner)", detail)
+
+
 @register_patch("PN340 MTP decode bubbles reduction (vendor of OPEN vllm#43955)")
 def apply_patch_N340_mtp_decode_bubbles() -> PatchResult:
     """PN340: vendors the gdn_attn.py portion of OPEN PR vllm#43955
