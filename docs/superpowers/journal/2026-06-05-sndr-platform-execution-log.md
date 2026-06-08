@@ -1673,3 +1673,173 @@ FastAPI TestClient — 11/11 endpoints return HTTP 200.
 All phases 0-10, 12, 12b code-level work is **complete**. Phase 7 is
 production-ready. Phase 11 awaits the user's release decision.
 
+
+---
+
+## 2026-06-08 — Phase α complete; Phase β stuck on plugin discovery
+
+User mandate (2026-06-08): "приступай к полной реализации этого плана и
+всех действий и решений.. доведи проект до энтерпрайз уровня".
+
+Plan: 6 phases (α α β γ δ ε ζ) to fully retire ``vllm/sndr_core/``,
+mount sndr/ in production launchers, delete the legacy tree, push the
+result. Phase α completed; Phase β stuck and deferred. Production 35B
+restored on the legacy launcher.
+
+Phase α — code-level migration (DONE)
+======================================
+
+1. **Inverse shim removal** in three canonical-tree files
+   (``sndr/plugin.py``, ``sndr/license.py``) that had inline
+   ``from vllm.sndr_core.<X> import Y`` calls inside function bodies.
+
+2. **New migrator** ``tools/migrate_vllm_sndr_core_to_sndr.py`` that
+   walks .py files and rewrites ``from/import vllm.sndr_core.<X>``
+   to the canonical ``sndr.<X>`` path, honouring the rename map
+   (integrations → engines/vllm/patches, kernels → kernels_legacy,
+   locations / middleware / wiring under engines/vllm, paths →
+   locations, core → kernel, detection → engines/vllm/detection).
+
+3. **Mass migration** applied to:
+   - ``sndr/`` (357 files, 1373 import sites)
+   - ``tools/`` (6 files, 13 import sites)
+
+4. **Manual fixes** for hardware-only detection (gpu_arch_profile,
+   gpu_class_map, perf_model) that should stay at
+   ``sndr.detection.*`` — the migrator's blanket ``detection``
+   mapping over-routed these to ``sndr.engines.vllm.detection``.
+   Seven callsites corrected.
+
+5. **String-and-template fixes** that the import-only migrator can't
+   catch:
+   - ``sndr/dispatcher/{registry,spec,audit,decision,_apply_module_overlay}.py``
+     — apply_module string values in PATCH_REGISTRY entries.
+   - ``sndr/apply/_per_patch_dispatch.py`` — f-string template
+     ``f"vllm.sndr_core.integrations.{family_dotted}.{module_attr}"``
+     for the Gemma 4 family dispatcher → repointed to
+     ``sndr.engines.vllm.patches``.
+   - ``sndr/apply/_state.py`` — UNRESOLVED fallback template.
+   - ``sndr/apply/orchestrator.py`` — bundle module loader
+     ``__import__(f"vllm.sndr_core.bundles.{bundle_name}", ...)``
+     → ``sndr.bundles.<bundle_name>``.
+
+6. **pyproject.toml** overhaul:
+   - Package renamed ``vllm-sndr-core`` → ``sndr-platform``.
+   - Version bumped 11.0.0 → 12.0.0.
+   - ``sndr`` console script → ``sndr.cli.main:main``.
+   - ``genesis`` console script → ``sndr.cli.legacy:cli_main``.
+   - ``genesis_v7`` vLLM plugin → ``sndr.plugin:register``.
+   - ``vllm.sndr_core*`` removed from ``packages.find.include``.
+   - ``[tool.setuptools.package-data]`` rewritten with
+     ``sndr.<subpackage>`` keys.
+
+Local verification: ``grep -r 'from vllm.sndr_core' sndr/`` → 0 hits.
+Layer rules: 731 files scanned, 0 violations.
+validate_all_configs: 423 OK / 0 fail.
+
+Phase β — production launcher swap (STUCK)
+===========================================
+
+Built ``/tmp/start_27b_SNDR_PLATFORM.sh`` mounting both ``sndr/`` and
+the legacy ``vllm/sndr_core/`` (the latter as transitional safety net
+during the swap window). 27B booted, but with **Apply 0 / 0 / 0 / 0** —
+the Genesis vLLM plugin did not fire at all under the new
+``sndr.plugin:register`` entry point. First inference request crashed
+the engine with HTTP 500.
+
+Cleared a root-owned stale ``vllm_sndr_core.egg-info`` on the server
+via ``docker run --rm alpine rm -rf …`` and re-ran ``pip install -e``
+via a one-shot ``python:3.12`` container. The host-side
+``sndr_platform.egg-info/entry_points.txt`` afterwards looks correct::
+
+    [console_scripts]
+    genesis = sndr.cli.legacy:cli_main
+    sndr = sndr.cli.main:main
+
+    [vllm.general_plugins]
+    genesis_v7 = sndr.plugin:register
+
+Yet the engine container still booted with no Genesis output. Probe
+attempts to ``docker exec`` and inspect ``importlib.metadata`` failed
+because the container terminated between the engine-init complete log
+line and the first inference call — there is a deferred-crash path that
+needs to be caught with ``CUDA_LAUNCH_BLOCKING=1`` + ``docker exec``
+attached during the failure window.
+
+Three working hypotheses:
+
+1. **vLLM v0.21 changed plugin discovery.** Earlier sessions on the
+   same pin showed the plugin firing; the launcher hasn't changed
+   semantically (just the mount + entry point name). vLLM may now
+   cache discovery results or only honour entry points from
+   "approved" package names. Needs source inspection.
+
+2. **Editable-install metadata ordering.** With both
+   ``sndr_platform.egg-info`` (canonical) and the previously-installed
+   ``vllm_sndr_core`` metadata coexisting in earlier boots, the OLD
+   entry point name ``genesis_v7 = vllm.sndr_core.plugin:register``
+   may have been preferred. The OLD shim (``vllm/sndr_core/plugin.py``)
+   does ``from sndr.plugin import *`` — which doesn't expose
+   ``register`` (it's a top-level function, not in ``__all__``).
+   Plausible silent failure. Needs verification with a fresh container
+   that has NO prior ``vllm-sndr-core`` install.
+
+3. **Container site-packages collision.** The container's
+   ``/usr/local/lib/python3.12/dist-packages/sndr`` is the bind-mounted
+   host repo. The ``pip install -e`` runs at boot but the egg-info
+   lands in ``${GENESIS_REPO}/sndr_platform.egg-info`` (on the host
+   bind-mount). vLLM's ``importlib.metadata`` may look at a different
+   metadata path than where pip wrote.
+
+Phase β next steps (deferred to a focused debug session)::
+
+1. Reset the 27B container layer: ``docker exec`` into a fresh boot
+   immediately after pip-install completes; dump
+   ``importlib.metadata.entry_points(group="vllm.general_plugins")``
+   to a host log before the engine starts.
+
+2. Try a launcher variant that completely skips ``pip install -e`` and
+   relies only on the bind-mount + a manually-pre-installed
+   ``sndr_platform`` wheel in dist-packages.
+
+3. If plugin discovery actively works (entries present) but
+   ``register()`` never gets called, instrument
+   ``sndr/plugin.py:register`` with a top-level ``print()`` and an
+   ``open("/tmp/genesis_register_fired", "w")`` to confirm reach.
+
+Phase γ / δ — blocked on β
+==========================
+
+Cannot ``git rm -r vllm/sndr_core/`` until the new launcher is
+bench-validated. Until then, both the production 35B + the test 27B
+need the legacy bind-mount to import patches.
+
+Phase ε — cleanup (DONE)
+========================
+
+* Removed local ``build/`` (22 MB).
+* Removed local stale ``vllm_sndr_core.egg-info``.
+* Removed server-side stale ``vllm_sndr_core.egg-info`` via root
+  docker container.
+* Server-side ``build/`` + ``snapshots/`` removed via the same
+  docker root container.
+
+Phase ζ — commit + push (DONE)
+==============================
+
+Single commit ``7cfe468c refactor(v12): canonical sndr.* paths
+everywhere — Phase α cleanup`` (~400 files). Pushed to
+``sndr-dev/feat/v12-sndr-platform``. Branch HEAD::
+
+    7cfe468c  refactor(v12): canonical sndr.* paths everywhere — Phase α cleanup
+    aa5dd024  test(workspace): sync test env flags to canonical short form
+    4316a043  feat(v12): sndr-platform multi-engine refactor
+    a2c8078c  fix(gui): no-cache on index.html so deploys are picked up immediately
+
+Production
+==========
+
+* 35B-A3B-FP8 restored on the legacy launcher
+  (start_35b_NO_PN300_PN302.sh) — HTTP 200 on chat smoke.
+* 27B test container torn down.
+* Server filesystem cleaned (no stale egg-info, no stray build trees).
