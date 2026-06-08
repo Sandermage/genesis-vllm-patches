@@ -45,6 +45,7 @@ sizing:
   enable_chunked_prefill: true                   # required for spec-decode + long ctx (avoids degenerate single-token chunks via P74)
   enforce_eager: false                           # false = cudagraph capture enabled (production); true = debug-only
   disable_custom_all_reduce: true                # disable custom all-reduce (NCCL fallback — required on consumer Ampere PCIe)
+  disable_log_stats: false                        # 2026-06-08: expose vLLM stat logger (num_requests/kv_cache/throughput/TTFT) so the GUI Inference panel shows live metrics. Small overhead; set true to suppress.
   # Multi-conc throughput-mode additional flags (NOT enabled here — see preset):
   #   scheduler_reserve_full_isl: false          # --no-scheduler-reserve-full-isl — Sprint 1 flag, allows packing more sequences
   # Anti-patterns confirmed BAD on dev371 (do NOT enable):
