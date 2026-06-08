@@ -1136,7 +1136,7 @@ pre, .code-block, .cli-mirror pre, .artifact-preview pre {
 .info-rows span { color: var(--text-muted); }
 .info-rows strong { text-align: right; word-break: break-word; font-weight: 600; }
 
-.kpi-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-2); }
+.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr)); gap: var(--sp-2); }
 .kpi-grid > div { padding: var(--sp-3); border-radius: var(--r-sm); background: var(--surface-2); border: 1px solid var(--border); text-align: center; }
 .kpi-grid strong { display: block; font-size: 22px; font-weight: 800; color: var(--accent-text); }
 .kpi-grid span { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.3px; }
@@ -1184,7 +1184,7 @@ pre, .code-block, .cli-mirror pre, .artifact-preview pre {
 .policy-pill.deny { background: var(--danger-soft); color: var(--danger); }
 
 .patch-summary-grid { display: grid; gap: var(--sp-3); grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
-.patch-graph-grid { display: grid; gap: var(--sp-4); grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.patch-graph-grid { display: grid; gap: var(--sp-4); grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr)); }
 .patch-graph-grid strong { display: block; font-size: 12px; margin-bottom: var(--sp-2); }
 
 /* Distribution + percent charts (horizontal, not circular) */
@@ -1216,7 +1216,7 @@ pre, .code-block, .cli-mirror pre, .artifact-preview pre {
 
 /* Doctor — diagnostics */
 .doctor-summary { display: flex; flex-direction: column; gap: var(--sp-4); }
-.doctor-stat-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--sp-3); }
+.doctor-stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr)); gap: var(--sp-3); }
 .doctor-stat { display: flex; flex-direction: column; gap: 2px; padding: var(--sp-3) var(--sp-4); border-radius: var(--r); border: 1px solid var(--border); border-left-width: 3px; background: var(--surface-2); }
 .doctor-stat strong { font-size: 26px; font-weight: 800; line-height: 1; }
 .doctor-stat span { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.3px; }
