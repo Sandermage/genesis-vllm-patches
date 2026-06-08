@@ -107,6 +107,28 @@ GENESIS_PN125_MARKER = (
 _ENV_ENABLE = "GENESIS_ENABLE_PN125_HYBRID_FULL_AND_PIECEWISE"
 _ENV_DISABLE = "GENESIS_DISABLE_PN125_HYBRID_FULL_AND_PIECEWISE"
 
+# Allocator-safety threshold (2026-06-08, cudagraph allocator triage):
+# FULL_AND_PIECEWISE captures the full Mamba graph in addition to the
+# piecewise partials. The full-graph capture allocates transient
+# temporaries that scale with ``max_model_len`` (KV cache layout, GDN
+# state buffers, attention scratch). On 2× A5000 24 GB at
+# gpu_memory_utilization=0.90 the headroom available AFTER weights +
+# steady-state KV is ~3 GiB. At max_model_len=280 K the full capture
+# fits with ~500 MiB margin; at 320 K it exceeds 24 GiB during capture
+# and the allocator either OOMs outright or silently drops the full
+# graph (forced PIECEWISE), losing the dispatch benefit.
+#
+# Above this threshold PN125 leaves cudagraph_mode at the upstream
+# default (PIECEWISE only). The dispatch path is correct + cudagraph-
+# safe; the cost is the FULL→PIECEWISE perf gap on pure decode (≤3 %
+# TPS in our bench history) — a fair trade for being able to run a
+# 320 K context request without an OOM at capture.
+#
+# Operator override: GENESIS_PN125_FULL_GRAPH_MAX_CONTEXT (int chars).
+# Default 300_000 (3.6 % above our validated 280 K ceiling).
+_ENV_MAX_CONTEXT_FOR_FULL = "GENESIS_PN125_FULL_GRAPH_MAX_CONTEXT"
+_DEFAULT_MAX_CONTEXT_FOR_FULL = 300_000
+
 _APPLIED = False
 _ORIGINAL_VERIFY: object = None
 
@@ -117,6 +139,45 @@ def _env_enabled() -> bool:
         return False
     val = os.environ.get(_ENV_ENABLE, "").strip().lower()
     return val in ("1", "true", "yes", "on")
+
+
+def _full_graph_max_context() -> int:
+    """Resolve the max ``max_model_len`` at which we still install
+    FULL_AND_PIECEWISE. Higher contexts stay on PIECEWISE-only.
+
+    Operator override via ``GENESIS_PN125_FULL_GRAPH_MAX_CONTEXT`` env
+    (int). Invalid values fall back to the default (never raise — guard
+    rail discipline)."""
+    raw = os.environ.get(_ENV_MAX_CONTEXT_FOR_FULL, "").strip()
+    if not raw:
+        return _DEFAULT_MAX_CONTEXT_FOR_FULL
+    try:
+        v = int(raw)
+        if v > 0:
+            return v
+    except ValueError:
+        pass
+    return _DEFAULT_MAX_CONTEXT_FOR_FULL
+
+
+def _resolve_max_model_len(vllm_config) -> int:
+    """Read ``max_model_len`` defensively from a vllm config tree.
+
+    The attribute lives on ``vllm_config.model_config.max_model_len`` in
+    every current pin we ship, but the path is sometimes lazy-populated
+    by the model loader. Falls back to 0 (which keeps FULL_AND_PIECEWISE
+    enabled — the safe default for the historical contract) on any
+    AttributeError / None."""
+    try:
+        mc = getattr(vllm_config, "model_config", None)
+        if mc is None:
+            return 0
+        v = getattr(mc, "max_model_len", None)
+        if v is None:
+            return 0
+        return int(v)
+    except (AttributeError, TypeError, ValueError):
+        return 0
 
 
 def apply() -> tuple[str, str]:
@@ -169,9 +230,33 @@ def apply() -> tuple[str, str]:
         consistency for Mamba layers. Both are required for hybrid_gdn_moe.
         Failures inside Mamba step are swallowed (logged) so this patch
         never breaks boot.
+
+        Allocator-safety gate (2026-06-08): if ``max_model_len`` exceeds
+        ``GENESIS_PN125_FULL_GRAPH_MAX_CONTEXT`` (default 300 000), we
+        DO NOT call MambaModelConfig.verify_and_update_config. The
+        upstream default (PIECEWISE-only cudagraph_mode) is used. This
+        avoids the OOM observed during FULL graph capture on 24 GB
+        cards at 320 K context, where the transient capture-time temp
+        buffers exceed available VRAM headroom.
         """
         # Run original Qwen3.5 verify (idempotent in upstream)
         result = original(vllm_config)
+
+        # Allocator-safety gate: skip FULL_AND_PIECEWISE on long contexts.
+        max_model_len = _resolve_max_model_len(vllm_config)
+        full_graph_cap = _full_graph_max_context()
+        if max_model_len > full_graph_cap > 0:
+            log.warning(
+                "[PN125] allocator-safety gate engaged: max_model_len=%d "
+                "exceeds %s=%d — leaving cudagraph_mode at PIECEWISE "
+                "(upstream default) to avoid FULL-graph capture OOM on "
+                "24 GB cards. Override: set %s=%d (or higher) to force "
+                "FULL_AND_PIECEWISE at this context length.",
+                max_model_len, _ENV_MAX_CONTEXT_FOR_FULL, full_graph_cap,
+                _ENV_MAX_CONTEXT_FOR_FULL, max_model_len + 1,
+            )
+            return result
+
         # Then run MambaModelConfig.verify_and_update_config to set
         # cudagraph_mode = FULL_AND_PIECEWISE and align prefix caching.
         try:
