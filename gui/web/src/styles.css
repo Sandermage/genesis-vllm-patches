@@ -2466,6 +2466,14 @@ button.chip { font-family: inherit; line-height: 1.2; }
    stretched to a metre wide), 1-up when compact. Wide cards still span the row. */
 [data-viewport="ultra"] .section-models .model-detail-tabbed .module-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 [data-viewport="compact"] .section-models .model-detail-tabbed .module-grid { grid-template-columns: minmax(0, 1fr); }
+/* Models detail spec cards: convert the sparse "label …… value" InfoRows into a
+   dense multi-column spec grid (uppercase label over the value), so the cards
+   read as a tidy datasheet instead of stretched rows with big empty gaps.
+   Scoped to the Models detail — the shared InfoRows component is untouched. */
+.model-detail-tabbed .info-rows { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 11px 20px; }
+.model-detail-tabbed .info-rows > div { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 0; border-bottom: none; }
+.model-detail-tabbed .info-rows > div > span { font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
+.model-detail-tabbed .info-rows > div > strong { text-align: left; font-size: 13px; font-weight: 600; max-width: 100%; overflow-wrap: anywhere; }
 .model-keyfacts { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 0 2px; }
 .model-keyfact { display: flex; flex-direction: column; gap: 1px; padding: 7px 12px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface-2); min-width: 84px; }
 .model-keyfact span { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; color: var(--text-muted); }
