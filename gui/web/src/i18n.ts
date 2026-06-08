@@ -64,6 +64,13 @@ const EN: Dict = {
   "virt.sndrManaged": "SNDR-managed", "virt.preset": "preset", "virt.node": "node", "virt.tags": "tags",
   "virt.value": "What it gives you",
   "virt.valueBody": "Your GPU engines run inside Proxmox VMs/LXC and (optionally) KubeVirt. This view connects each guest to the SNDR preset it hosts — so the infrastructure (where it runs) and the engine (what runs) are one story, the same way Containers and Kubernetes already are.",
+  // routing
+  "rt.title": "Spec-decode workload routing",
+  "rt.intro": "The deterministic router the gateway uses: it classifies each request by its shape — response_format, tool_choice, and workload_class — and resolves it to the bench-validated profile that serves that shape fastest, falling back safely when a profile denies it.",
+  "rt.how": "How it decides", "rt.live": "Live engine", "rt.classifier": "Request classifier",
+  "rt.howBody": "Each profile is bench-validated per workload class (free-chat, code-gen, tool-calls, structured-JSON, summarization, long-context) with a measured TPS delta vs baseline. A request's signals pick the class; the router routes to the allowed profile with the best delta, or the safe baseline when the spec-decode path is denied for that shape. Bench artifacts populate the per-workload table; the classifier below works live regardless.",
+  "rt.classifierHelp": "Pick a request shape and see which profile it resolves to and why — the same decision the gateway makes.",
+  "rt.liveHelp": "Live from the active engine's /metrics — what it is actually serving right now.",
 };
 
 const RU: Dict = {
@@ -95,6 +102,13 @@ const RU: Dict = {
   "virt.sndrManaged": "Под управлением SNDR", "virt.preset": "пресет", "virt.node": "нода", "virt.tags": "теги",
   "virt.value": "Что это даёт",
   "virt.valueBody": "Твои GPU-движки живут внутри Proxmox VM/LXC и (опционально) KubeVirt. Эта панель связывает каждого гостя с пресетом SNDR, который на нём крутится — инфраструктура (где работает) и движок (что работает) становятся одной историей, как уже сделано для Контейнеров и Kubernetes.",
+  // routing
+  "rt.title": "Маршрутизация по типам нагрузки (spec-decode)",
+  "rt.intro": "Детерминированный маршрутизатор, который использует шлюз: он классифицирует каждый запрос по его форме — response_format, tool_choice и workload_class — и направляет на bench-валидированный профиль, который обслуживает эту форму быстрее всего, безопасно откатываясь, когда профиль её отклоняет.",
+  "rt.how": "Как принимается решение", "rt.live": "Живой движок", "rt.classifier": "Классификатор запросов",
+  "rt.howBody": "Каждый профиль bench-валидирован по классам нагрузки (free-chat, code-gen, tool-calls, structured-JSON, суммаризация, long-context) с измеренной дельтой TPS относительно базы. Сигналы запроса выбирают класс; маршрутизатор направляет на разрешённый профиль с лучшей дельтой, либо на безопасную базу, когда spec-decode-путь отклонён для этой формы. Bench-артефакты наполняют таблицу по нагрузкам; классификатор ниже работает вживую в любом случае.",
+  "rt.classifierHelp": "Выбери форму запроса и увидь, в какой профиль он разрешается и почему — то же решение, что принимает шлюз.",
+  "rt.liveHelp": "Вживую из /metrics активного движка — что он реально обслуживает прямо сейчас.",
 };
 
 const DICT: Record<Lang, Dict> = { en: EN, ru: RU };

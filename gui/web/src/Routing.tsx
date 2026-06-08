@@ -1,6 +1,58 @@
-import { useEffect, useState } from "react";
-import { AlertTriangle, ArrowRight, Ban, Check, Cpu, Route, Workflow } from "lucide-react";
-import { api, type RoutingActive, type RoutingArtifact, type RoutingArtifacts, type RoutingClassify, type RoutingSignals } from "./api";
+import { useEffect, useState, type ReactNode } from "react";
+import { AlertTriangle, ArrowRight, Ban, Check, Cpu, Route, Workflow, Info, ChevronDown, Activity, Database, Zap, Clock, Layers } from "lucide-react";
+import { api, type RoutingActive, type RoutingArtifact, type RoutingArtifacts, type RoutingClassify, type RoutingSignals, type EngineMetrics } from "./api";
+import { useLang, t, type Lang } from "./i18n";
+import { onKeyActivate } from "./dialog";
+
+// Workload classes the router knows — used by the classifier when no bench
+// artifact is loaded (the classify endpoint works against the active profile).
+const DEFAULT_WORKLOADS = ["free_chat", "code_gen", "tool_calls", "structured_json", "summarization", "long_context"];
+
+function RoutingIntro({ lang }: { lang: Lang }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="k8s-intro rt-intro">
+      <div className="k8s-intro-head" role="button" tabIndex={0} onClick={() => setOpen((v) => !v)} onKeyDown={onKeyActivate(() => setOpen((v) => !v))}>
+        <Info size={14} />
+        <span><strong>{t(lang, "rt.title")}</strong> — {t(lang, "rt.intro")}</span>
+        <ChevronDown size={15} className={open ? "rot" : ""} />
+      </div>
+      {open && <div className="k8s-intro-body"><p><b>{t(lang, "rt.how")}.</b> {t(lang, "rt.howBody")}</p></div>}
+    </div>
+  );
+}
+
+// Live online data — what the active engine is actually serving right now.
+function RoutingLive({ lang }: { lang: Lang }) {
+  const [m, setM] = useState<EngineMetrics | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const pull = () => { if (!document.hidden) api.engineMetrics().then((r) => { if (alive) setM(r); }).catch(() => {}); };
+    pull();
+    const id = window.setInterval(pull, 3000);
+    return () => { alive = false; window.clearInterval(id); };
+  }, []);
+  if (!m?.reachable || Object.keys(m.kpis).length === 0) return null;
+  const k = m.kpis;
+  const sec = (v?: number) => (v == null ? "—" : v >= 1 ? `${v.toFixed(2)} s` : `${Math.round(v * 1000)} ms`);
+  const accept = k.spec_decode_acceptance_rate;
+  const cells: { icon: ReactNode; l: string; v: string; tone?: string }[] = [
+    { icon: <Activity size={13} />, l: "Running", v: String(Math.round(k.requests_running ?? 0)) },
+    { icon: <Clock size={13} />, l: "Waiting", v: String(Math.round(k.requests_waiting ?? 0)), tone: (k.requests_waiting ?? 0) > 0 ? "warn" : "" },
+    { icon: <Database size={13} />, l: "KV-cache", v: k.kv_cache_usage != null ? `${(k.kv_cache_usage * 100).toFixed(0)}%` : "—" },
+    { icon: <Zap size={13} />, l: "tok/s", v: k.generation_toks_per_s != null ? k.generation_toks_per_s.toFixed(0) : "—" },
+    { icon: <Clock size={13} />, l: "TTFT", v: sec(k.ttft_avg_s) },
+    { icon: <Layers size={13} />, l: "MTP accept", v: accept != null ? `${(accept * 100).toFixed(0)}%` : "—" },
+  ];
+  return (
+    <div className="rt-section rt-live">
+      <div className="rt-section-t"><Activity size={13} /> {t(lang, "rt.live")} <span className="muted">· {t(lang, "rt.liveHelp")}</span></div>
+      <div className="rt-live-grid">
+        {cells.map((c) => <div key={c.l} className="rt-live-cell"><span className="rt-live-l">{c.icon} {c.l}</span><b className={`rt-live-v tone-${c.tone || "n"}`}>{c.v}</b></div>)}
+      </div>
+    </div>
+  );
+}
 
 const pctTone = (v: number) => (v > 0.01 ? "ok" : v < -0.01 ? "hot" : "");
 const fmtPct = (v: number | null | undefined) => (typeof v === "number" ? `${v > 0 ? "+" : ""}${(v * 100).toFixed(0)}%` : "—");
@@ -100,6 +152,7 @@ function Classifier({ profile, workloadClasses }: { profile: string; workloadCla
 }
 
 export function RoutingPanel() {
+  const [lang] = useLang();
   const [arts, setArts] = useState<RoutingArtifacts | null>(null);
   const [active, setActive] = useState<RoutingActive | null>(null);
   const [profile, setProfile] = useState<string>("");
@@ -125,6 +178,8 @@ export function RoutingPanel() {
 
   return (
     <div className="rt">
+      <RoutingIntro lang={lang} />
+
       <div className="rt-bar-top">
         <label className="rt-source">
           <Route size={14} />
@@ -135,6 +190,8 @@ export function RoutingPanel() {
         </label>
         {active?.source && <span className="rt-source-tag">active: {active.source}</span>}
       </div>
+
+      <RoutingLive lang={lang} />
 
       {art && (
         <div className="rt-profile">
@@ -159,16 +216,14 @@ export function RoutingPanel() {
         </div>
       )}
 
-      {art && (
-        <div className="rt-section">
-          <div className="rt-section-t"><Workflow size={13} /> Request classifier — predict routing for a request shape</div>
-          <Classifier profile={art.profile} workloadClasses={art.workload_classes} />
-        </div>
+      {arts && list.length === 0 && (
+        <div className="rt-note"><AlertTriangle size={14} /> <span>No bench-validated artifacts in this deployment — the per-workload TPS table appears once profiles are benched. The classifier below works live against the active profile regardless.</span></div>
       )}
 
-      {arts && list.length === 0 && (
-        <div className="rt-empty"><AlertTriangle size={20} /><strong>No artifacts</strong><span>No bench-validated profiles found in the artifacts directory.</span></div>
-      )}
+      <div className="rt-section">
+        <div className="rt-section-t"><Workflow size={13} /> {t(lang, "rt.classifier")} <span className="muted">· {t(lang, "rt.classifierHelp")}</span></div>
+        <Classifier profile={art?.profile ?? profile} workloadClasses={art?.workload_classes ?? DEFAULT_WORKLOADS} />
+      </div>
     </div>
   );
 }
