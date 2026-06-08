@@ -859,7 +859,7 @@ function Fact({ label, children }: { label: string; children: React.ReactNode })
 // KV-cache saturation, throughput, latency, MTP spec-decode acceptance) rather
 // than a generic container view. Reuses the same proven engine_client path the
 // Engine page uses (daemon's configured SNDR_METRICS_URL = this node's engine).
-function InferenceCard({ online, ver }: { online: boolean; ver: HostSndrState | null }) {
+function InferenceCard({ online, ver, onMetrics }: { online: boolean; ver: HostSndrState | null; onMetrics?: (m: EngineMetrics) => void }) {
   const [m, setM] = useState<EngineMetrics | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [live, setLive] = useState(true);
@@ -869,7 +869,9 @@ function InferenceCard({ online, ver }: { online: boolean; ver: HostSndrState | 
     let alive = true;
     async function pull() {
       if (document.hidden) return;
-      try { const r = await api.engineMetrics(); if (alive) { setM(r); setLoaded(true); } }
+      // Surface metrics to the parent so the Overview KPI row can show the key
+      // inference numbers (KV-cache / queue / throughput) without a second poll.
+      try { const r = await api.engineMetrics(); if (alive) { setM(r); setLoaded(true); onMetrics?.(r); } }
       catch { if (alive) setLoaded(true); }
     }
     void pull();
@@ -945,6 +947,9 @@ function InferenceCard({ online, ver }: { online: boolean; ver: HostSndrState | 
 function OverviewTab({ source, name, inspect, online, ver, onNavigate, onOpen }: { source: ContainerSource; name: string; inspect: Inspect | null; online: boolean; ver: HostSndrState | null; onNavigate?: NavFn; onOpen?: (tab?: Tab) => void }) {
   const { s, hist } = useLiveStats(source, name, online, 3000);
   const [more, setMore] = useState<"env" | "mounts" | "labels" | "">("");
+  // Engine inference metrics, lifted from the InferenceCard's poll so the key
+  // numbers (KV-cache / queue / throughput) also show in the top KPI row.
+  const [engineM, setEngineM] = useState<EngineMetrics | null>(null);
   if (!inspect) return <Loading />;
   const cfg = inspect.Config ?? {}, state = inspect.State ?? {}, net = inspect.NetworkSettings ?? {}, hostCfg = inspect.HostConfig ?? {};
   const cmd = [...(cfg.Entrypoint ?? []), ...(cfg.Cmd ?? [])].join(" ") || "—";
@@ -981,11 +986,26 @@ function OverviewTab({ source, name, inspect, online, ver, onNavigate, onOpen }:
             <KpiTile icon={<Clock size={12} />} label="Uptime" value={online ? uptimeFrom(state.StartedAt) : "stopped"} />
             <KpiTile icon={<RotateCw size={12} />} label="Restarts" value={String(restarts)} tone={restarts > 0 ? "warn" : undefined} />
             <KpiTile icon={<Heart size={12} />} label="Health" value={health ?? "none"} tone={health === "healthy" ? "ok" : health === "unhealthy" ? "hot" : undefined} />
+            {(() => {
+              // Promote the headline inference metrics to the top row for an
+              // engine container — KV-cache pressure, request queue and gen rate.
+              const ek = engineM?.kpis ?? {};
+              if (!(isEngine && online && engineM?.reachable && Object.keys(ek).length > 0)) return null;
+              const kvPct = ek.kv_cache_usage != null ? ek.kv_cache_usage * 100 : null;
+              const waiting = ek.requests_waiting ?? 0;
+              return (
+                <>
+                  <KpiTile icon={<Database size={12} />} label="KV-cache" value={kvPct == null ? "—" : `${kvPct.toFixed(0)}%`} tone={kvPct == null ? undefined : kvPct >= 90 ? "hot" : kvPct >= 70 ? "warn" : "ok"} />
+                  <KpiTile icon={<Layers size={12} />} label="Queue" value={String(waiting)} tone={waiting >= 10 ? "hot" : waiting > 0 ? "warn" : undefined} />
+                  <KpiTile icon={<Gauge size={12} />} label="Tok/s" value={ek.generation_toks_per_s != null ? `${ek.generation_toks_per_s.toFixed(0)}` : "—"} />
+                </>
+              );
+            })()}
           </div>
 
           {isEngine && online ? <ContainerGpu source={source} /> : null}
 
-          {isEngine ? <InferenceCard online={online} ver={ver} /> : null}
+          {isEngine ? <InferenceCard online={online} ver={ver} onMetrics={setEngineM} /> : null}
 
           <div className="ov-card">
             <div className="ov-card-h"><Box size={12} /> Container</div>
@@ -1165,20 +1185,22 @@ function EditableSettings({ source, name, inspect, onChanged }: { source: Contai
         <button className="ghost-button" disabled={changeCount === 0 || busy} onClick={reset}>Reset</button>
       </div>
 
-      <div className="cfg-nets">
-        <span className="cfg-nets-label"><Network size={12} /> Networks</span>
-        {connected.length ? connected.map((n) => (
-          <span key={n} className="net-chip">{n}<button title="Disconnect" disabled={busy} onClick={() => void net(n, "disconnect")}><X size={11} /></button></span>
-        )) : <span className="cfg-nets-empty">none</span>}
-        {attachable.length > 0 && (
-          <span className="cfg-nets-attach">
-            <select aria-label="Attach network" value={attach} onChange={(e) => setAttach(e.target.value)}>
-              <option value="">attach…</option>
-              {attachable.map((n) => <option key={n.name} value={n.name}>{n.name}</option>)}
-            </select>
-            {attach && <button className="ghost-button" disabled={busy} onClick={() => void net(attach, "connect")}>Attach</button>}
-          </span>
-        )}
+      <div className="cfg-field cfg-nets-field">
+        <div className="cfg-field-head"><Network size={12} /> Networks <span className="cfg-cur">{connected.length} attached · applied live</span></div>
+        <div className="cfg-nets">
+          {connected.length ? connected.map((n) => (
+            <span key={n} className="net-chip">{n}<button title="Disconnect" disabled={busy} onClick={() => void net(n, "disconnect")}><X size={11} /></button></span>
+          )) : <span className="cfg-nets-empty">none attached</span>}
+          {attachable.length > 0 && (
+            <span className="cfg-nets-attach">
+              <select aria-label="Attach network" value={attach} onChange={(e) => setAttach(e.target.value)}>
+                <option value="">attach…</option>
+                {attachable.map((n) => <option key={n.name} value={n.name}>{n.name}</option>)}
+              </select>
+              {attach && <button className="cfg-chip cfg-attach-btn" disabled={busy} onClick={() => void net(attach, "connect")}>Attach</button>}
+            </span>
+          )}
+        </div>
       </div>
       {msg && <div className={msg.ok ? "upd-done" : "containers-err"}>{!msg.ok && <AlertTriangle size={12} />} {msg.text}</div>}
       <p className="upd-hint">Live edits require apply enabled (SNDR_ENABLE_APPLY=1). cpus/memory/restart apply without recreating; env/ports/image changes need a rebuild.</p>

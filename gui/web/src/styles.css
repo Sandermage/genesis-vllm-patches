@@ -4475,14 +4475,16 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 .containers-search.sm { padding: 3px 8px; }
 .containers-search.sm input { width: 110px; font-size: 12px; }
 .env-row-sndr .env-k { color: var(--accent-text); }
+/* Networks live inside a cfg-field card now, so chips sit on surface-2 and the
+   attach select matches the field inputs — consistent with the rest of the editor. */
 .cfg-nets { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.cfg-nets-label { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text-muted); }
 .cfg-nets-empty { font-size: 12px; color: var(--text-muted); font-style: italic; }
-.net-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-family: var(--mono); background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 3px 5px 3px 10px; }
+.net-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-family: var(--mono); background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-pill); padding: 3px 5px 3px 10px; }
 .net-chip button { display: grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; border: none; background: var(--surface-3); color: var(--text-muted); cursor: pointer; }
 .net-chip button:hover { background: var(--danger); color: #fff; }
 .cfg-nets-attach { display: inline-flex; align-items: center; gap: 6px; }
-.cfg-nets-attach select { background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 5px 8px; font-size: 12px; }
+.cfg-nets-attach select { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 6px 9px; font-size: 12px; }
+.cfg-attach-btn { padding: 5px 11px; }
 
 /* ═══ Container ↔ config source + drift ═══ */
 .src-card { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-lg); padding: var(--sp-3) var(--sp-4); display: flex; flex-direction: column; gap: var(--sp-2); }
