@@ -275,6 +275,52 @@ test("containers config + overview tabs", async ({ page }) => {
   console.log(`stats tab count (expect 0): ${statsCount}`);
 });
 
+// Capture the reworked Virtualization → Proxmox (Hosts + Create-guest) views.
+test("virtualization proxmox", async ({ page }) => {
+  const base = RESPONSES as Record<string, any>;
+  const pxStatus = { available: true, node_count: 2, nodes_online: 2, vm_count: 3, vm_running: 2, lxc_count: 4, lxc_running: 3, sndr_managed: 2 };
+  const pxNodes = { nodes: [
+    { name: "pve-01", online: true, status: "online", uptime: 864000, cpu_pct: 42, cpu_cores: 32, mem_pct: 61, mem_used: 82_000_000_000, mem_total: 134_000_000_000, disk_pct: 38, disk_used: 400_000_000_000, disk_total: 1_000_000_000_000 },
+    { name: "pve-02", online: true, status: "online", uptime: 432000, cpu_pct: 18, cpu_cores: 16, mem_pct: 33, mem_used: 21_000_000_000, mem_total: 64_000_000_000, disk_pct: 22, disk_used: 200_000_000_000, disk_total: 900_000_000_000 },
+  ] };
+  const pxGuests = { guests: [
+    { kind: "lxc", vmid: 101, name: "vllm-35b", running: true, status: "running", cpu_pct: 55, cpu_cores: 16, mem_pct: 70, mem_total: 64_000_000_000, node: "pve-01", uptime: 86400, sndr_preset: "prod-35b-multiconc" },
+    { kind: "vm", vmid: 200, name: "build-vm", running: false, status: "stopped", cpu_pct: null, cpu_cores: 8, mem_pct: null, mem_total: 32_000_000_000, node: "pve-02", uptime: 0, sndr_preset: null },
+  ] };
+  const plan = { preset_id: "prod-35b-multiconc", preset_label: "Prod 35B", target: "proxmox", target_label: "Proxmox LXC",
+    artifact: { kind: "bash", filename: "provision-lxc.sh", content: "#!/usr/bin/env bash\nset -euo pipefail\n# Create a GPU-passthrough LXC for the SNDR engine\npct create 9000 local:vztmpl/ubuntu-22.04.tar.zst \\\n  --hostname vllm-35b --cores 16 --memory 65536 \\\n  --net0 name=eth0,bridge=vmbr0,ip=dhcp \\\n  --features nesting=1 --unprivileged 0\npct set 9000 -mp0 /data/models,mp=/models\n# GPU passthrough\necho 'lxc.cgroup2.devices.allow: c 195:* rwm' >> /etc/pve/lxc/9000.conf\npct start 9000\n" },
+    parameters: {}, mount_vars: [], dependencies: { is_ready: true, n_blockers: 0, n_warnings: 0, items: [] },
+    commands: ["scp provision-lxc.sh root@pve-01:/tmp/", "ssh root@pve-01 bash /tmp/provision-lxc.sh"] };
+  const presets = { ...base.presets, total: 3, matched: 3, presets: Array.from({ length: 3 }, (_, i) => ({ id: `preset-${i}`, model: "qwen3.6-35b", hardware: "a5000x2", profile: "fp8", has_card: true, card: { primary_metric: { value: 120 } } })) };
+  await page.route("**/api/**", (route) => {
+    const p = new URL(route.request().url()).pathname;
+    let body: any = {};
+    if (p.includes("/proxmox/status")) body = pxStatus;
+    else if (p.includes("/proxmox/nodes")) body = pxNodes;
+    else if (p.includes("/proxmox/guests")) body = pxGuests;
+    else if (p.includes("/deploy/plan")) body = plan;
+    else if (p.includes("/presets/recommend")) body = base.recommendPresets;
+    else if (p.endsWith("/presets")) body = presets;
+    else if (p.includes("/auth/status")) body = base.authStatus;
+    else { const hit = URL_TABLE.find(([s]) => p.includes(s)); body = hit ? base[hit[1]] : {}; }
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body ?? {}) });
+  });
+  await bootDark(page);
+  await page.setViewportSize({ width: 1920, height: 1100 });
+  await page.goto("/");
+  await page.locator('.side-nav button:has-text("Virtualization")').first().click();
+  await page.waitForTimeout(600);
+  await page.locator('.virt-providers button:has-text("Proxmox")').first().click();
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: `${OUT}/virt-px-hosts.png`, fullPage: false });
+  await page.locator('.virt-subtabs button:has-text("Create")').first().click();
+  await page.waitForTimeout(400);
+  await page.locator('.px-create button:has-text("Generate")').first().click();
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: `${OUT}/virt-px-create.png`, fullPage: true });
+  console.log("shot: virt-px-hosts / virt-px-create");
+});
+
 // High-fidelity element clip of the Overview hero tiles, for inspecting tile
 // internals (value alignment, click affordance, text clamp) up close.
 test("overview hero tile clip", async ({ page }) => {

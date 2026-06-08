@@ -4198,6 +4198,30 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 .virt-clusterline { display: flex; align-items: center; gap: 6px; font-size: 11px; margin-bottom: 2px; }
 .virt-node-meters.one { grid-template-columns: 1fr; }
 .virt-pane { display: flex; flex-direction: column; gap: 12px; }
+/* Inline explanation line — what a surface is / how to act on it. */
+.virt-explain { display: flex; align-items: flex-start; gap: 8px; padding: 9px 12px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface-2); color: var(--text-muted); font-size: 12px; line-height: 1.5; }
+.virt-explain svg { flex: none; margin-top: 2px; color: var(--accent-text); }
+.virt-explain b { color: var(--text); }
+/* Proxmox — create a guest (provision-script generator) */
+.px-create { display: flex; flex-direction: column; gap: 12px; }
+.px-create-form { display: flex; flex-direction: column; gap: 13px; padding: 14px; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); box-shadow: var(--shadow-sm); }
+.px-field { display: flex; flex-direction: column; gap: 5px; font-size: 11px; color: var(--text-muted); font-weight: 600; max-width: 360px; }
+.px-field select { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 8px 10px; font-size: 13px; }
+.px-field-l { font-size: 11px; color: var(--text-muted); font-weight: 600; }
+.px-gtype { display: flex; flex-direction: column; gap: 7px; }
+.px-gtype-opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; }
+.px-gtype-opt { display: flex; flex-direction: column; gap: 4px; text-align: left; padding: 11px 13px; border: 1px solid var(--border); border-radius: var(--r-md, 10px); background: var(--surface-2); cursor: pointer; transition: border-color .12s, box-shadow .12s, background .12s; }
+.px-gtype-opt:hover { border-color: var(--border-strong); }
+.px-gtype-opt.active { border-color: var(--accent-ring); box-shadow: 0 0 0 1px var(--accent-ring) inset; background: var(--accent-soft); }
+.px-gtype-head { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: var(--text); }
+.px-gtype-opt small { font-size: 11.5px; color: var(--text-muted); line-height: 1.45; }
+.px-gen { align-self: flex-start; }
+.px-plan { display: flex; flex-direction: column; gap: 10px; }
+.px-plan-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.px-plan-head strong { font-family: var(--mono); font-size: 13px; }
+.px-plan-acts { margin-left: auto; display: inline-flex; gap: 6px; }
+.px-cmds { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; }
+.px-cmds code { font-family: var(--mono); background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 3px 8px; }
 /* auto-fill (not auto-fit): a single node card keeps a sensible width instead of
    stretching across the whole monitor; many nodes fill the row. */
 .virt-nodes { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr)); gap: 10px; }

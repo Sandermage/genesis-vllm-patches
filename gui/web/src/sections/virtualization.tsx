@@ -7,11 +7,12 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { cachePeek, cacheSet } from "../lib/swr-cache";
 import {
   Server, Cpu, Boxes, Monitor, Layers, RefreshCw, Loader2, Package, ChevronDown,
-  Plug, Info, ShieldCheck, ShieldAlert, Activity, AlertTriangle,
+  Plug, Info, ShieldCheck, ShieldAlert, Activity, AlertTriangle, Rocket, Copy,
 } from "lucide-react";
 import {
   api, type ProxmoxStatus, type ProxmoxNode, type ProxmoxGuest,
   type KubeVirtResult, type K8sStatus, type K8sNode, type K8sPod, type K8sEvent,
+  type DeploymentPlan,
 } from "../api";
 import { useLang, t, type Lang } from "../i18n";
 import { onKeyActivate } from "../dialog";
@@ -149,20 +150,24 @@ export function VirtualizationPanel() {
 
       {provider === "kubernetes" && (
         <div className="virt-pane">
+          <Explain text={t(lang, "virt.k8sAbout")} />
           <div className="k8s-tabs virt-subtabs">
             <button className={k8sTab === "nodes" ? "active" : ""} onClick={() => setK8sTab("nodes")}>{t(lang, "virt.nodes")}{k8sNodes ? ` (${k8sNodes.length})` : ""}</button>
             <button className={k8sTab === "pods" ? "active" : ""} onClick={() => setK8sTab("pods")}>{t(lang, "virt.pods")}{k8sPods ? ` (${k8sPods.length})` : ""}</button>
             <button className={k8sTab === "events" ? "active" : ""} onClick={() => setK8sTab("events")}>{t(lang, "virt.events")}{warnEvents ? ` (${warnEvents}⚠)` : ""}</button>
             <button className={k8sTab === "kubevirt" ? "active" : ""} onClick={() => setK8sTab("kubevirt")}>{t(lang, "virt.kubevirt")}</button>
-            <button className={k8sTab === "deploy" ? "active" : ""} onClick={() => setK8sTab("deploy")}>{t(lang, "virt.deploy")}</button>
+            <button className={k8sTab === "deploy" ? "active" : ""} onClick={() => setK8sTab("deploy")}><Rocket size={13} /> {t(lang, "virt.deploy")}</button>
           </div>
+          {k8sStatus?.available && (k8sTab === "nodes" || k8sTab === "pods" || k8sTab === "events") && (
+            <Explain text={t(lang, k8sTab === "nodes" ? "virt.tabNodesHelp" : k8sTab === "pods" ? "virt.tabPodsHelp" : "virt.tabEventsHelp")} />
+          )}
 
           {k8sTab === "deploy" ? <K8sDeploy />
             : !k8sStatus ? <SkeletonBlock />
             : !k8sStatus.available && k8sTab !== "kubevirt" ? <ConnectCard icon={<Plug size={22} />} title={t(lang, "virt.k8sNotConnected")} body={k8sStatus.error || ""} cmds={["pip install 'vllm-sndr-core[k8s]'", "export KUBECONFIG=/etc/rancher/k3s/k3s.yaml"]} />
             : k8sTab === "nodes" ? <K8sNodesView lang={lang} status={k8sStatus} nodes={k8sNodes} />
             : k8sTab === "pods" ? <PodsTable lang={lang} pods={k8sPods} />
-            : k8sTab === "events" ? <EventsTable lang={lang} events={k8sEvents} />
+            : k8sTab === "events" ? <EventsTable events={k8sEvents} />
             : <KubeVirtView lang={lang} kv={kv} />}
         </div>
       )}
@@ -204,13 +209,42 @@ function ConnectCard({ icon, title, body, cmds }: { icon: ReactNode; title: stri
   );
 }
 
+// A short, inline explanation line — what a surface is / how to act on it.
+function Explain({ text }: { text: string }) {
+  return <div className="virt-explain"><Info size={13} /><span>{text}</span></div>;
+}
+
 // ── Proxmox ──────────────────────────────────────────────────────────────────
+type PxTab = "hosts" | "guests" | "create";
 function ProxmoxView({ lang, status, nodes, guests, loading }: { lang: Lang; status: ProxmoxStatus | null; nodes: ProxmoxNode[]; guests: ProxmoxGuest[]; loading: boolean }) {
-  if (loading && !status) return <SkeletonBlock />;
-  if (!status?.available) {
-    return <ConnectCard icon={<Plug size={22} />} title={t(lang, "virt.proxmoxNotConfigured")} body={status?.error || t(lang, "virt.proxmoxConnectHelp")}
-      cmds={["export SNDR_PROXMOX_HOST=https://pve.local:8006", "export SNDR_PROXMOX_TOKEN_ID='root@pam!sndr'", "export SNDR_PROXMOX_TOKEN_SECRET=<secret>"]} />;
-  }
+  const [pxTab, setPxTab] = useState<PxTab>("hosts");
+  const connected = !!status?.available;
+  // Create only needs a preset (it renders a provision script), so it stays
+  // available even when read-only Proxmox monitoring isn't configured.
+  const monitorBody = (() => {
+    if (pxTab === "create") return <ProxmoxDeploy lang={lang} />;
+    if (loading && !status) return <SkeletonBlock />;
+    if (!connected) {
+      return <ConnectCard icon={<Plug size={22} />} title={t(lang, "virt.proxmoxNotConfigured")} body={status?.error || t(lang, "virt.proxmoxConnectHelp")}
+        cmds={["export SNDR_PROXMOX_HOST=https://pve.local:8006", "export SNDR_PROXMOX_TOKEN_ID='root@pam!sndr'", "export SNDR_PROXMOX_TOKEN_SECRET=<secret>"]} />;
+    }
+    if (pxTab === "hosts") return <><Explain text={t(lang, "virt.tabHostsHelp")} /><ProxmoxHosts lang={lang} nodes={nodes} /></>;
+    return <><Explain text={t(lang, "virt.tabGuestsHelp")} /><ProxmoxGuests lang={lang} guests={guests} /></>;
+  })();
+  return (
+    <div className="virt-pane">
+      <Explain text={t(lang, "virt.proxmoxAbout")} />
+      <div className="k8s-tabs virt-subtabs">
+        <button className={pxTab === "hosts" ? "active" : ""} onClick={() => setPxTab("hosts")}>{t(lang, "virt.hosts")}{connected ? ` (${nodes.length})` : ""}</button>
+        <button className={pxTab === "guests" ? "active" : ""} onClick={() => setPxTab("guests")}>{t(lang, "virt.guests")}{connected ? ` (${guests.length})` : ""}</button>
+        <button className={pxTab === "create" ? "active" : ""} onClick={() => setPxTab("create")}><Rocket size={13} /> {t(lang, "virt.create")}</button>
+      </div>
+      {monitorBody}
+    </div>
+  );
+}
+
+function ProxmoxHosts({ lang, nodes }: { lang: Lang; nodes: ProxmoxNode[] }) {
   return (
     <div className="virt-pane">
       <div className="virt-nodes">
@@ -229,23 +263,102 @@ function ProxmoxView({ lang, status, nodes, guests, loading }: { lang: Lang; sta
           </div>
         ))}
       </div>
-      {guests.length === 0 ? (
-        <div className="empty-state"><div className="empty-state-icon"><Monitor size={20} /></div><p className="empty-state-msg">{t(lang, "virt.noGuests")}</p></div>
-      ) : (
-        <table className="containers-table virt-guests">
-          <thead><tr><th>{t(lang, "virt.guests")}</th><th></th><th>{t(lang, "common.cpu")}</th><th>{t(lang, "common.memory")}</th><th>{t(lang, "virt.node")}</th><th>{t(lang, "common.uptime")}</th><th>SNDR</th></tr></thead>
-          <tbody>{guests.map((g) => (
-            <tr key={`${g.kind}-${g.vmid}`} className={`crow ${g.running ? "online" : "offline"}${g.sndr_preset ? " virt-managed" : ""}`}>
-              <td className="crow-name"><span className={`container-dot ${g.running ? "online" : "offline"}`} /><span className={`virt-kind ${g.kind}`}>{g.kind === "vm" ? "VM" : "LXC"}</span>{g.name} <span className="muted">#{g.vmid}</span></td>
-              <td><span className={`container-badge ${g.running ? "online" : "offline"}`}>{g.status}</span></td>
-              <td className="muted">{g.cpu_pct == null ? "—" : `${g.cpu_pct.toFixed(0)}%`}<span className="virt-dim"> /{g.cpu_cores ?? "?"}c</span></td>
-              <td className="muted">{g.mem_pct == null ? "—" : `${g.mem_pct.toFixed(0)}%`}<span className="virt-dim"> {fmtBytes(g.mem_total)}</span></td>
-              <td className="muted">{g.node ?? "—"}</td>
-              <td className="muted">{fmtUptime(g.uptime)}</td>
-              <td>{g.sndr_preset ? <span className="k8s-sndr-chip preset"><Package size={9} /> {g.sndr_preset}</span> : <span className="muted">—</span>}</td>
-            </tr>
-          ))}</tbody>
-        </table>
+    </div>
+  );
+}
+
+function ProxmoxGuests({ lang, guests }: { lang: Lang; guests: ProxmoxGuest[] }) {
+  if (guests.length === 0) {
+    return <div className="empty-state"><div className="empty-state-icon"><Monitor size={20} /></div><p className="empty-state-msg">{t(lang, "virt.noGuests")}</p></div>;
+  }
+  return (
+    <table className="containers-table virt-guests">
+      <thead><tr><th>{t(lang, "virt.guests")}</th><th></th><th>{t(lang, "common.cpu")}</th><th>{t(lang, "common.memory")}</th><th>{t(lang, "virt.node")}</th><th>{t(lang, "common.uptime")}</th><th>SNDR</th></tr></thead>
+      <tbody>{guests.map((g) => (
+        <tr key={`${g.kind}-${g.vmid}`} className={`crow ${g.running ? "online" : "offline"}${g.sndr_preset ? " virt-managed" : ""}`}>
+          <td className="crow-name"><span className={`container-dot ${g.running ? "online" : "offline"}`} /><span className={`virt-kind ${g.kind}`}>{g.kind === "vm" ? "VM" : "LXC"}</span>{g.name} <span className="muted">#{g.vmid}</span></td>
+          <td><span className={`container-badge ${g.running ? "online" : "offline"}`}>{g.status}</span></td>
+          <td className="muted">{g.cpu_pct == null ? "—" : `${g.cpu_pct.toFixed(0)}%`}<span className="virt-dim"> /{g.cpu_cores ?? "?"}c</span></td>
+          <td className="muted">{g.mem_pct == null ? "—" : `${g.mem_pct.toFixed(0)}%`}<span className="virt-dim"> {fmtBytes(g.mem_total)}</span></td>
+          <td className="muted">{g.node ?? "—"}</td>
+          <td className="muted">{fmtUptime(g.uptime)}</td>
+          <td>{g.sndr_preset ? <span className="k8s-sndr-chip preset"><Package size={9} /> {g.sndr_preset}</span> : <span className="muted">—</span>}</td>
+        </tr>
+      ))}</tbody>
+    </table>
+  );
+}
+
+// Create a Proxmox guest: pick a preset + guest type, generate the provision
+// script via the existing deploy machinery (pct create / qm create). Read-only —
+// the operator runs the script on the node (or applies it over SSH from Install).
+function ProxmoxDeploy({ lang }: { lang: Lang }) {
+  const [presets, setPresets] = useState<{ id: string; label: string }[]>([]);
+  const [preset, setPreset] = useState("");
+  const [gtype, setGtype] = useState<"proxmox" | "proxmox_vm">("proxmox");
+  const [plan, setPlan] = useState<DeploymentPlan | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    api.presets({}).then((r) => {
+      const items = r.presets.map((p) => ({ id: p.id, label: `${p.id} · ${p.model}` }));
+      setPresets(items);
+      if (items[0]) setPreset(items[0].id);
+    }).catch((e) => setErr(e instanceof Error ? e.message : String(e)));
+  }, []);
+  async function generate() {
+    if (!preset) return;
+    setBusy(true); setErr(null); setPlan(null);
+    try { setPlan(await api.deployPlan({ preset_id: preset, target: gtype })); }
+    catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
+    finally { setBusy(false); }
+  }
+  const script = plan?.artifact?.content ?? "";
+  return (
+    <div className="px-create">
+      <Explain text={t(lang, "virt.pxCreateBody")} />
+      <div className="px-create-form">
+        <label className="px-field"><span>{t(lang, "virt.preset")}</span>
+          <select value={preset} onChange={(e) => { setPreset(e.target.value); setPlan(null); }} aria-label="Preset to provision">
+            {presets.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+          </select>
+        </label>
+        <div className="px-gtype">
+          <span className="px-field-l">{t(lang, "virt.guestType")}</span>
+          <div className="px-gtype-opts">
+            <button type="button" className={`px-gtype-opt ${gtype === "proxmox" ? "active" : ""}`} onClick={() => { setGtype("proxmox"); setPlan(null); }}>
+              <span className="px-gtype-head"><Boxes size={15} /> {t(lang, "virt.pxLxc")}</span>
+              <small>{t(lang, "virt.pxLxcHelp")}</small>
+            </button>
+            <button type="button" className={`px-gtype-opt ${gtype === "proxmox_vm" ? "active" : ""}`} onClick={() => { setGtype("proxmox_vm"); setPlan(null); }}>
+              <span className="px-gtype-head"><Monitor size={15} /> {t(lang, "virt.pxVm")}</span>
+              <small>{t(lang, "virt.pxVmHelp")}</small>
+            </button>
+          </div>
+        </div>
+        <button className="primary-button px-gen" disabled={!preset || busy} onClick={() => void generate()}>
+          {busy ? <Loader2 size={14} className="spin" /> : <Rocket size={14} />} {t(lang, "virt.generate")}
+        </button>
+      </div>
+      {err && <div className="containers-err"><AlertTriangle size={13} /> {err}</div>}
+      {plan?.artifact && (
+        <div className="px-plan">
+          <div className="px-plan-head">
+            <strong>{plan.artifact.filename}</strong>
+            <span className="install-dry">dry-run · nothing executed here</span>
+            <div className="px-plan-acts">
+              <button className="ghost-button" onClick={() => { void navigator.clipboard?.writeText(script); setCopied(true); window.setTimeout(() => setCopied(false), 1500); }}>
+                {copied ? <ShieldCheck size={13} /> : <Copy size={13} />} {copied ? t(lang, "virt.copied") : t(lang, "virt.copyScript")}
+              </button>
+              <button className="ghost-button" onClick={() => { window.location.hash = "setup"; }} title={t(lang, "virt.pxApplySsh")}><ShieldAlert size={13} /> {t(lang, "virt.pxApplySsh")}</button>
+            </div>
+          </div>
+          {plan.commands && plan.commands.length > 0 && (
+            <div className="px-cmds"><span className="muted">{t(lang, "virt.pxRunOnNode")}:</span>{plan.commands.map((c, i) => <code key={i}>{c}</code>)}</div>
+          )}
+          <pre className="k8s-yaml"><code>{script}</code></pre>
+        </div>
       )}
     </div>
   );
@@ -304,7 +417,7 @@ function PodsTable({ lang, pods }: { lang: Lang; pods: K8sPod[] | null }) {
   );
 }
 
-function EventsTable({ lang, events }: { lang: Lang; events: K8sEvent[] | null }) {
+function EventsTable({ events }: { events: K8sEvent[] | null }) {
   if (events == null) return <SkeletonBlock />;
   if (events.length === 0) return <div className="empty-state"><div className="empty-state-icon"><AlertTriangle size={20} /></div><p className="empty-state-msg">No recent events</p></div>;
   return (
