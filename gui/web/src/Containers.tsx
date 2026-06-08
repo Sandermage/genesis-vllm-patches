@@ -201,7 +201,7 @@ export function ContainersPanel({ hosts, onNavigate, initialHostId }: { hosts: H
     else if (keepOpenRef.current) keepOpenRef.current = false; // deep-link source restore — keep open
     else setOpen(null);
     void load();
-  }, [load]);
+  }, [load, source]);
 
   // Mirror the open container + source into the hash so the view is shareable
   // (#containers?c=…&src=…). Skips the first run: on a deep-link load the inbound
@@ -229,7 +229,12 @@ export function ContainersPanel({ hosts, onNavigate, initialHostId }: { hosts: H
   // Disk usage (`docker system df`) is heavy — fetch it ONCE per source, deferred,
   // so the container list + first stats win the SSH pool first (server caches it).
   useEffect(() => {
-    const t = window.setTimeout(() => { api.systemDf(source).then(setDf).catch(() => setDf(null)); }, 600);
+    // Disk usage is the heaviest single call (`docker system df`); cache it so
+    // re-opening the section shows the last value instantly and only revalidates.
+    const key = `cdf:${srcKey(source)}`;
+    const stale = cachePeek<SystemDf>(key);
+    if (stale) setDf(stale);
+    const t = window.setTimeout(() => { api.systemDf(source).then((d) => { cacheSet(key, d); setDf(d); }).catch(() => { if (!stale) setDf(null); }); }, 600);
     return () => window.clearTimeout(t);
   }, [source]);
 
@@ -549,7 +554,7 @@ function ContainerCard({ c, source, stats, history, busy, selected, onToggleSele
               <div className="ccard-menu-back" role="presentation" onClick={() => setMenu(false)} />
               <div className="ccard-menu">
                 <button onClick={() => onOpen("config")}><Settings size={13} /> Config</button>
-                <button onClick={() => onOpen("stats")}><Cpu size={13} /> Stats</button>
+                <button onClick={() => onOpen("overview")}><Cpu size={13} /> Stats</button>
                 <button onClick={() => onOpen("processes")}><Activity size={13} /> Processes</button>
                 <button onClick={() => onOpen("files")}><Folder size={13} /> Files</button>
                 <button onClick={() => onOpen("changes")}><GitCompare size={13} /> Changes</button>
@@ -614,7 +619,7 @@ function ContainerCard({ c, source, stats, history, busy, selected, onToggleSele
 
 // ─── full-page container view ─────────────────────────────────────────
 
-type Tab = "overview" | "config" | "processes" | "files" | "changes" | "logs" | "stats" | "exec";
+type Tab = "overview" | "config" | "processes" | "files" | "changes" | "logs" | "exec";
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: "overview", label: "Overview", icon: <Box size={15} /> },
   { id: "config", label: "Config", icon: <Settings size={15} /> },
@@ -622,7 +627,6 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: "files", label: "Files", icon: <Folder size={15} /> },
   { id: "changes", label: "Changes", icon: <GitCompare size={15} /> },
   { id: "logs", label: "Logs", icon: <FileText size={15} /> },
-  { id: "stats", label: "Stats", icon: <Cpu size={15} /> },
   { id: "exec", label: "Exec", icon: <TerminalSquare size={15} /> },
 ];
 
@@ -638,12 +642,21 @@ function ContainerPage({ source, name, busy, onBack, onAct, initialTab, onNaviga
   const [ver, setVer] = useState<HostSndrState | null>(null);
 
   const reloadInspect = useCallback(() => {
-    // Fire all three in parallel — inspect drives the body, the others (cheap,
-    // cached server-side) drive the version chips + update pill. Fetched ONCE
-    // here and passed down, so the header strip and Overview never double-fetch.
-    api.containerInspect(source, name).then(setInspect).catch((e) => setErr(e instanceof Error ? e.message : String(e)));
-    api.containerUpdatePlan(source, name).then(setUpdPlan).catch(() => setUpdPlan(null));
-    api.containerSndrState(source, name).then((s) => setVer(s.ok ? s : null)).catch(() => setVer(null));
+    const k = srcKey(source);
+    // Inspect: paint the cached value instantly (fast re-open), then always
+    // revalidate — so a settings edit still reflects immediately on reload.
+    const insKey = `cinspect:${k}:${name}`;
+    const insStale = cachePeek<Inspect>(insKey);
+    if (insStale) setInspect(insStale);
+    api.containerInspect(source, name).then((v) => { cacheSet(insKey, v); setInspect(v); }).catch((e) => setErr(e instanceof Error ? e.message : String(e)));
+    // Update plan + SNDR version share the list cards' cache (revalidate if stale).
+    const planKey = `cplan:${k}:${name}`, verKey = `cver:${k}:${name}`;
+    const planStale = cachePeek<ContainerUpdatePlan>(planKey);
+    if (planStale) setUpdPlan(planStale);
+    if (!cacheGet(planKey, 120_000)) api.containerUpdatePlan(source, name).then((p) => { cacheSet(planKey, p); setUpdPlan(p); }).catch(() => setUpdPlan(null));
+    const verStale = cachePeek<HostSndrState>(verKey);
+    if (verStale) setVer(verStale.ok ? verStale : null);
+    if (!cacheGet(verKey, 60_000)) api.containerSndrState(source, name).then((s) => { cacheSet(verKey, s); setVer(s.ok ? s : null); }).catch(() => setVer(null));
   }, [source, name]);
   useEffect(() => { reloadInspect(); }, [reloadInspect]);
 
@@ -702,7 +715,6 @@ function ContainerPage({ source, name, busy, onBack, onAct, initialTab, onNaviga
           {tab === "files" && <FilesTab source={source} name={name} />}
           {tab === "changes" && <ChangesTab source={source} name={name} />}
           {tab === "logs" && <LogsTab source={source} name={name} />}
-          {tab === "stats" && <StatsTab source={source} name={name} online={online} />}
           {tab === "exec" && <ExecTab source={source} name={name} />}
         </div>
       </div>
@@ -741,7 +753,12 @@ function useLiveStats(source: ContainerSource, name: string, online: boolean, pe
 function SourceCard({ source, name, onNavigate }: { source: ContainerSource; name: string; onNavigate?: NavFn }) {
   const [rep, setRep] = useState<SourceReport | null>(null);
   const [engine, setEngine] = useState<{ reachable: boolean; port: number | null } | null>(null);
-  useEffect(() => { api.containerSource(source, name).then(setRep).catch(() => setRep(null)); }, [source, name]);
+  useEffect(() => {
+    const key = `csource:${srcKey(source)}:${name}`;
+    const stale = cachePeek<SourceReport>(key);
+    if (stale) setRep(stale);
+    api.containerSource(source, name).then((r) => { cacheSet(key, r); setRep(r); }).catch(() => { if (!stale) setRep(null); });
+  }, [source, name]);
   // Engine readiness — is the vLLM API inside actually serving (not just the
   // container running)? The live half of the proof, alongside config drift.
   useEffect(() => {
@@ -960,7 +977,7 @@ function OverviewTab({ source, name, inspect, online, ver, onNavigate, onOpen }:
         <div className="ov-dash-main">
           <div className="ov-kpis">
             <KpiTile icon={<Cpu size={12} />} label="CPU" value={online ? `${cpu.toFixed(0)}%` : "—"} spark={online ? hist.cpu : []} tone={cpu > 85 ? "hot" : cpu > 60 ? "warn" : "ok"} />
-            <KpiTile icon={<MemoryStick size={12} />} label="Memory" value={online ? `${memPct.toFixed(0)}%` : "—"} sub={online ? fmtBytes(s?.mem_usage) : undefined} spark={online ? hist.mem : []} tone={memPct > 85 ? "hot" : memPct > 60 ? "warn" : "ok"} />
+            <KpiTile icon={<MemoryStick size={12} />} label="Memory" value={online ? `${memPct.toFixed(0)}%` : "—"} sub={online ? `${fmtBytes(s?.mem_usage)}${s?.mem_limit ? ` / ${fmtBytes(s.mem_limit)}` : ""}` : undefined} spark={online ? hist.mem : []} tone={memPct > 85 ? "hot" : memPct > 60 ? "warn" : "ok"} />
             <KpiTile icon={<Clock size={12} />} label="Uptime" value={online ? uptimeFrom(state.StartedAt) : "stopped"} />
             <KpiTile icon={<RotateCw size={12} />} label="Restarts" value={String(restarts)} tone={restarts > 0 ? "warn" : undefined} />
             <KpiTile icon={<Heart size={12} />} label="Health" value={health ?? "none"} tone={health === "healthy" ? "ok" : health === "unhealthy" ? "hot" : undefined} />
@@ -1053,9 +1070,13 @@ const SECRET_RE = /(KEY|TOKEN|SECRET|PASS|PASSWORD|CREDENTIAL)/i;
 
 function EditableSettings({ source, name, inspect, onChanged }: { source: ContainerSource; name: string; inspect: Inspect; onChanged: () => void }) {
   const host = inspect.HostConfig ?? {};
-  const [rp, setRp] = useState<string>(host.RestartPolicy?.Name || "no");
-  const [cpus, setCpus] = useState<string>(host.NanoCpus ? (host.NanoCpus / 1e9).toString() : "");
-  const [memGiB, setMemGiB] = useState<string>(host.Memory ? (host.Memory / 1024 ** 3).toFixed(1) : "");
+  // Original (live) values — drive the "now: …" hints, dirty detection and reset.
+  const origRp = host.RestartPolicy?.Name || "no";
+  const origCpus = host.NanoCpus ? String(host.NanoCpus / 1e9) : "";
+  const origMem = host.Memory ? (host.Memory / 1024 ** 3).toFixed(1) : "";
+  const [rp, setRp] = useState<string>(origRp);
+  const [cpus, setCpus] = useState<string>(origCpus);
+  const [memGiB, setMemGiB] = useState<string>(origMem);
   const [nets, setNets] = useState<DockerNetwork[]>([]);
   const [attach, setAttach] = useState("");
   const [busy, setBusy] = useState(false);
@@ -1064,15 +1085,28 @@ function EditableSettings({ source, name, inspect, onChanged }: { source: Contai
 
   useEffect(() => { api.systemNetworks(source).then((r) => setNets(r.networks)).catch(() => setNets([])); }, [source]);
 
+  // Live validation + dirty state so Apply only fires real, valid changes.
+  const cpuNum = cpus.trim() === "" ? null : Number(cpus);
+  const memNum = memGiB.trim() === "" ? null : Number(memGiB);
+  const cpuErr = cpuNum !== null && (!isFinite(cpuNum) || cpuNum < 0 || cpuNum > 1024);
+  const memErr = memNum !== null && (!isFinite(memNum) || memNum < 0);
+  const changeCount = [rp !== origRp, cpus !== origCpus, memGiB !== origMem].filter(Boolean).length;
+  const canApply = changeCount > 0 && !cpuErr && !memErr && !busy;
+  const fmtCur = (v: string) => (v === "" ? "unlimited" : v);
+  const CPU_PRESETS = ["0.5", "1", "2", "4", ""];
+  const MEM_PRESETS = ["1", "2", "4", "8", "16", ""];
+
+  function reset() { setRp(origRp); setCpus(origCpus); setMemGiB(origMem); setMsg(null); }
+
   async function saveSettings() {
     setBusy(true); setMsg(null);
     try {
       await api.containerSettings(source, name, {
         restart_policy: rp,
-        cpus: cpus ? Number(cpus) : null,
-        memory: memGiB ? Math.round(Number(memGiB) * 1024 ** 3) : null,
+        cpus: cpuNum,
+        memory: memNum !== null ? Math.round(memNum * 1024 ** 3) : null,
       });
-      setMsg({ ok: true, text: "Settings updated (live)." }); onChanged();
+      setMsg({ ok: true, text: `Applied ${changeCount} change${changeCount === 1 ? "" : "s"} (live).` }); onChanged();
     } catch (e) { setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) }); }
     finally { setBusy(false); }
   }
@@ -1086,17 +1120,51 @@ function EditableSettings({ source, name, inspect, onChanged }: { source: Contai
 
   return (
     <section className="cfg-edit">
-      <h4><Wrench size={13} /> Live settings <span>docker update — no recreate</span></h4>
-      <div className="cfg-edit-grid">
-        <label><span>Restart policy</span>
-          <select value={rp} onChange={(e) => setRp(e.target.value)}>
-            {["no", "always", "unless-stopped", "on-failure"].map((p) => <option key={p} value={p}>{p}</option>)}
-          </select>
-        </label>
-        <label><span>CPUs</span><input value={cpus} onChange={(e) => setCpus(e.target.value)} placeholder="unlimited" inputMode="decimal" /></label>
-        <label><span>Memory (GiB)</span><input value={memGiB} onChange={(e) => setMemGiB(e.target.value)} placeholder="unlimited" inputMode="decimal" /></label>
-        <button className="primary-button" disabled={busy} onClick={() => void saveSettings()}>{busy ? <Loader2 size={13} className="spin" /> : <Settings size={13} />} Apply</button>
+      <div className="cfg-edit-top">
+        <h4><Wrench size={13} /> Live settings <span>docker update — no recreate</span></h4>
+        {changeCount > 0 && <span className="cfg-edit-dirty">{changeCount} pending change{changeCount === 1 ? "" : "s"}</span>}
       </div>
+
+      <div className="cfg-edit-fields">
+        <div className="cfg-field">
+          <div className="cfg-field-head"><RotateCw size={12} /> Restart policy <span className="cfg-cur">now: {origRp}</span></div>
+          <div className="cfg-chips">
+            {["no", "always", "unless-stopped", "on-failure"].map((p) => (
+              <button key={p} type="button" className={`cfg-chip ${rp === p ? "active" : ""}`} onClick={() => setRp(p)}>{p}</button>
+            ))}
+          </div>
+        </div>
+
+        <div className={`cfg-field${cpuErr ? " err" : ""}`}>
+          <div className="cfg-field-head"><Cpu size={12} /> CPUs <span className="cfg-cur">now: {fmtCur(origCpus)}</span></div>
+          <div className="cfg-field-row">
+            <input value={cpus} onChange={(e) => setCpus(e.target.value)} placeholder="unlimited" inputMode="decimal" aria-label="CPU limit (cores)" />
+            <div className="cfg-chips">
+              {CPU_PRESETS.map((p) => <button key={p || "unl"} type="button" className={`cfg-chip ${cpus === p ? "active" : ""}`} onClick={() => setCpus(p)}>{p === "" ? "∞" : p}</button>)}
+            </div>
+          </div>
+          {cpuErr && <span className="cfg-err-msg"><AlertTriangle size={10} /> 0–1024 cores</span>}
+        </div>
+
+        <div className={`cfg-field${memErr ? " err" : ""}`}>
+          <div className="cfg-field-head"><MemoryStick size={12} /> Memory (GiB) <span className="cfg-cur">now: {fmtCur(origMem)}</span></div>
+          <div className="cfg-field-row">
+            <input value={memGiB} onChange={(e) => setMemGiB(e.target.value)} placeholder="unlimited" inputMode="decimal" aria-label="Memory limit (GiB)" />
+            <div className="cfg-chips">
+              {MEM_PRESETS.map((p) => <button key={p || "unl"} type="button" className={`cfg-chip ${memGiB === p ? "active" : ""}`} onClick={() => setMemGiB(p)}>{p === "" ? "∞" : p}</button>)}
+            </div>
+          </div>
+          {memErr && <span className="cfg-err-msg"><AlertTriangle size={10} /> must be ≥ 0</span>}
+        </div>
+      </div>
+
+      <div className="cfg-edit-actions">
+        <button className="primary-button" disabled={!canApply} onClick={() => void saveSettings()}>
+          {busy ? <Loader2 size={13} className="spin" /> : <Settings size={13} />} Apply{changeCount ? ` ${changeCount} change${changeCount === 1 ? "" : "s"}` : ""}
+        </button>
+        <button className="ghost-button" disabled={changeCount === 0 || busy} onClick={reset}>Reset</button>
+      </div>
+
       <div className="cfg-nets">
         <span className="cfg-nets-label"><Network size={12} /> Networks</span>
         {connected.length ? connected.map((n) => (
@@ -1114,6 +1182,30 @@ function EditableSettings({ source, name, inspect, onChanged }: { source: Contai
       </div>
       {msg && <div className={msg.ok ? "upd-done" : "containers-err"}>{!msg.ok && <AlertTriangle size={12} />} {msg.text}</div>}
       <p className="upd-hint">Live edits require apply enabled (SNDR_ENABLE_APPLY=1). cpus/memory/restart apply without recreating; env/ports/image changes need a rebuild.</p>
+    </section>
+  );
+}
+
+// Read-only environment with a live filter, copy-all and secret masking — a
+// container's env list is often long, so make it searchable instead of a dump.
+function EnvSection({ env }: { env: string[] }) {
+  const [q, setQ] = useState("");
+  const rows = env.map((e) => { const i = e.indexOf("="); return { k: i >= 0 ? e.slice(0, i) : e, v: i >= 0 ? e.slice(i + 1) : "" }; });
+  const needle = q.trim().toLowerCase();
+  const filtered = needle ? rows.filter((r) => `${r.k}=${r.v}`.toLowerCase().includes(needle)) : rows;
+  return (
+    <section>
+      <h4><Layers size={13} /> Environment <span>({env.length})</span>
+        <span className="cfg-env-tools">
+          <label className="containers-search sm"><Search size={11} /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="filter…" aria-label="Filter environment" /></label>
+          <button className="ghost-button icon-only" title="Copy all env" onClick={() => void navigator.clipboard?.writeText(env.join("\n"))}><Copy size={12} /></button>
+        </span>
+      </h4>
+      <div className="inspect-mono">
+        {filtered.length === 0 ? <em>{needle ? "no match" : "none"}</em> : filtered.map(({ k, v }) => (
+          <div key={k} className={/^(GENESIS|SNDR)_/.test(k) ? "env-row-sndr" : ""}><span className="env-k">{k}</span>=<span className="env-v">{SECRET_RE.test(k) ? "••••••••" : v}</span></div>
+        ))}
+      </div>
     </section>
   );
 }
@@ -1139,10 +1231,7 @@ function ConfigTab({ source, name, inspect, onChanged }: { source: ContainerSour
         <Row label="Privileged">{host.Privileged ? "yes" : "no"}</Row>
         <Row label="Ports">{ports.join(", ") || "—"}</Row>
       </div></section>
-      <section><h4><Layers size={13} /> Environment <span>({env.length})</span></h4><div className="inspect-mono">
-        {env.length === 0 ? <em>none</em> : env.map((e) => { const i = e.indexOf("="); const k = i >= 0 ? e.slice(0, i) : e; const v = i >= 0 ? e.slice(i + 1) : "";
-          return <div key={e}><span className="env-k">{k}</span>=<span className="env-v">{SECRET_RE.test(k) ? "••••••••" : v}</span></div>; })}
-      </div></section>
+      <EnvSection env={env} />
       <section><h4><HardDrive size={13} /> Mounts <span>({mounts.length})</span></h4><div className="inspect-mono">
         {mounts.length === 0 ? <em>none</em> : mounts.map((m, i) => <div key={i}><span className="env-k">{m.Source}</span> → {m.Destination} <span className="env-v">{m.RW ? "rw" : "ro"}{m.Type ? ` (${m.Type})` : ""}</span></div>)}
       </div></section>
@@ -1428,26 +1517,6 @@ function GpuBar({ label, pct, text }: { label: string; pct: number; text: string
   );
 }
 
-function StatsTab({ source, name, online }: { source: ContainerSource; name: string; online: boolean }) {
-  const { s, hist } = useLiveStats(source, name, online, 2000);
-  if (!online) return <NotRunning />;
-  if (!s) return <Loading label="Sampling…" />;
-  const cpu = s.cpu_pct ?? 0, memPct = s.mem_pct ?? 0;
-  return (
-    <div className="stats-tab">
-      <div className="stats-big">
-        <div className="stats-metric"><div className="stats-metric-head"><Cpu size={13} /> CPU <b>{cpu.toFixed(1)}%</b></div><Sparkline data={hist.cpu} kind={pctClass(cpu)} tall /></div>
-        <div className="stats-metric"><div className="stats-metric-head"><MemoryStick size={13} /> Memory <b>{fmtBytes(s.mem_usage)}{s.mem_limit ? ` / ${fmtBytes(s.mem_limit)}` : ""}</b> ({memPct.toFixed(1)}%)</div><Sparkline data={hist.mem} kind={pctClass(memPct)} tall /></div>
-      </div>
-      <ContainerGpu source={source} />
-      <div className="kv">
-        <Row label="Network RX / TX">{fmtBytes(s.net_rx)} / {fmtBytes(s.net_tx)}</Row>
-        <Row label="Block read / write">{fmtBytes(s.blk_read)} / {fmtBytes(s.blk_write)}</Row>
-        <Row label="Processes">{s.pids ?? 0}</Row>
-      </div>
-    </div>
-  );
-}
 
 function LogsTab({ source, name }: { source: ContainerSource; name: string }) {
   const [logs, setLogs] = useState("");

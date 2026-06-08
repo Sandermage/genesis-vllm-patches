@@ -222,6 +222,58 @@ test("setup tabs", async ({ page }) => {
   console.log("shot: setup-guided / setup-install / setup-install-plan / setup-deploy");
 });
 
+// Capture the container detail Config tab (visual live-settings editor) + Overview.
+test("containers config + overview tabs", async ({ page }) => {
+  const inspect = {
+    Id: "abc123def456789", Name: "/vllm-prod", Image: "sha256:deadbeef",
+    Created: "2026-06-08T10:00:00Z",
+    Config: {
+      Image: "vllm/vllm-openai:nightly", Entrypoint: ["python", "-m", "vllm.entrypoints.openai.api_server"],
+      Cmd: ["--model", "qwen3.6-35b", "--tensor-parallel-size", "2"], WorkingDir: "/app",
+      Env: ["PATH=/usr/bin", "GENESIS_ENABLE_PN90=1", "SNDR_PIN=nightly-abc", "HF_TOKEN=secrethidden", "CUDA_VISIBLE_DEVICES=0,1", "VLLM_USE_V1=1"],
+      Labels: { "sndr.preset": "prod-35b-multiconc", "sndr.role": "engine" }, ExposedPorts: { "8000/tcp": {} },
+    },
+    State: { Running: true, Status: "running", StartedAt: "2026-06-08T10:01:00Z", Health: { Status: "healthy" }, Pid: 4242 },
+    HostConfig: { RestartPolicy: { Name: "unless-stopped" }, NanoCpus: 4_000_000_000, Memory: 17_179_869_184, NetworkMode: "bridge", Privileged: false },
+    NetworkSettings: { Ports: { "8000/tcp": [{ HostPort: "8000", HostIp: "0.0.0.0" }] }, Networks: { bridge: { IPAddress: "172.17.0.2" } }, IPAddress: "172.17.0.2" },
+    Mounts: [{ Source: "/data/models", Destination: "/models", RW: false, Type: "bind" }],
+    RestartCount: 0,
+  };
+  const containers = { containers: [{ name: "vllm-prod", id: "abc123def456", image: "vllm/vllm-openai:nightly", state: "running", status: "Up 2 hours", ports: "8000/tcp", created: "2h" }], source: "local" };
+  await page.route("**/api/**", (route) => {
+    const p = new URL(route.request().url()).pathname;
+    let body: any = {};
+    if (p.endsWith("/update-plan")) body = { update_available: false, mode: "manual" };
+    else if (p.endsWith("/sndr-state")) body = { ok: true, vllm_version: "0.20.2", sndr_version: "12.0.0", patches: 18, configs: 5 };
+    else if (p.endsWith("/containers/stats")) body = { stats: { "vllm-prod": { cpu_pct: 34, mem_pct: 58, mem_usage: 9_000_000_000, mem_limit: 17_179_869_184, net_rx: 1234, net_tx: 5678, blk_read: 1000, blk_write: 2000, pids: 24 } } };
+    else if (p.endsWith("/stats")) body = { container: "vllm-prod", stats: { cpu_pct: 34, mem_pct: 58, mem_usage: 9_000_000_000, mem_limit: 17_179_869_184, net_rx: 1234, net_tx: 5678, blk_read: 1000, blk_write: 2000, pids: 24 } };
+    else if (p.endsWith("/source")) body = { container: "vllm-prod", preset_id: "prod-35b-multiconc", preset_title: "Prod 35B", linked_by: "label", drift: [], drift_count: 0, live_patches: [], live_patch_count: 0, served_model: "qwen3.6-35b" };
+    else if (p.endsWith("/engine")) body = { reachable: true, port: 8000 };
+    else if (p.endsWith("/networks")) body = { networks: [{ name: "bridge", driver: "bridge", scope: "local" }, { name: "sndr-net", driver: "bridge", scope: "local" }] };
+    else if (p.endsWith("/system/df")) body = { types: [], total_size: 0 };
+    else if (p.endsWith("/api/v1/containers")) body = containers;
+    else if (p.includes("/containers/vllm-prod")) body = inspect;
+    else if (p.includes("/auth/status")) body = (RESPONSES as Record<string, any>).authStatus;
+    else { const hit = URL_TABLE.find(([s]) => p.includes(s)); body = hit ? (RESPONSES as Record<string, any>)[hit[1]] : {}; }
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body ?? {}) });
+  });
+  await bootDark(page);
+  await page.addInitScript(() => window.localStorage.setItem("sndr.containers.view", "table"));
+  await page.setViewportSize({ width: 1920, height: 1100 });
+  await page.goto("/");
+  await page.locator('.side-nav button:has-text("Containers")').first().click();
+  await page.waitForTimeout(700);
+  await page.locator('.crow-name [role="button"]').first().click();
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: `${OUT}/container-overview.png`, fullPage: false });
+  await page.locator('.cpage-rail button:has-text("Config")').first().click();
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: `${OUT}/container-config.png`, fullPage: true });
+  // The Stats tab must be gone (merged into Overview).
+  const statsCount = await page.locator('.cpage-rail button:has-text("Stats")').count();
+  console.log(`stats tab count (expect 0): ${statsCount}`);
+});
+
 // High-fidelity element clip of the Overview hero tiles, for inspecting tile
 // internals (value alignment, click affordance, text clamp) up close.
 test("overview hero tile clip", async ({ page }) => {

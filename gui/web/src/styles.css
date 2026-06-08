@@ -4454,13 +4454,27 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 .cfg-edit { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-lg); padding: var(--sp-3) var(--sp-4); display: flex; flex-direction: column; gap: var(--sp-3); }
 .cfg-edit h4 { display: flex; align-items: center; gap: 6px; font-size: 13px; margin: 0; }
 .cfg-edit h4 span { color: var(--text-muted); font-weight: 400; font-size: 11px; }
-.cfg-edit-grid { display: grid; grid-template-columns: 1.4fr 1fr 1fr auto; gap: var(--sp-3); align-items: end; }
-.cfg-edit-grid label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--text-muted); }
-.cfg-edit-grid select, .cfg-edit-grid input {
-  background: var(--surface); color: var(--text); border: 1px solid var(--border);
-  border-radius: var(--r-sm); padding: 7px 10px; font-size: 13px;
-}
-.cfg-edit-grid .primary-button { height: 34px; }
+/* Visual live-settings editor: a field card per resource with the current value,
+   quick presets, validation and dirty-state. */
+.cfg-edit-top { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); flex-wrap: wrap; }
+.cfg-edit-dirty { font-size: 11px; font-weight: 700; color: var(--accent-text); background: var(--accent-soft); border: 1px solid var(--accent-ring); border-radius: var(--r-pill); padding: 2px 9px; }
+.cfg-edit-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: var(--sp-3); }
+.cfg-field { display: flex; flex-direction: column; gap: 7px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface); }
+.cfg-field.err { border-color: color-mix(in srgb, var(--danger) 55%, var(--border)); }
+.cfg-field-head { display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 600; color: var(--text); }
+.cfg-cur { margin-left: auto; font-size: 10.5px; font-weight: 400; color: var(--text-muted); font-family: var(--mono); }
+.cfg-field-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cfg-field-row input { width: 78px; flex: none; background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 6px 9px; font-size: 13px; font-variant-numeric: tabular-nums; }
+.cfg-chips { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+.cfg-chip { font-size: 11px; font-weight: 600; padding: 4px 9px; border-radius: var(--r-pill); border: 1px solid var(--border); background: var(--surface-2); color: var(--text-muted); cursor: pointer; transition: background .12s, color .12s, border-color .12s; }
+.cfg-chip:hover { border-color: var(--border-strong); color: var(--text); }
+.cfg-chip.active { background: var(--accent-soft); color: var(--accent-text); border-color: var(--accent-ring); }
+.cfg-err-msg { display: inline-flex; align-items: center; gap: 4px; font-size: 10.5px; color: var(--danger); }
+.cfg-edit-actions { display: flex; align-items: center; gap: 8px; }
+.cfg-env-tools { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; font-weight: 400; }
+.containers-search.sm { padding: 3px 8px; }
+.containers-search.sm input { width: 110px; font-size: 12px; }
+.env-row-sndr .env-k { color: var(--accent-text); }
 .cfg-nets { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .cfg-nets-label { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text-muted); }
 .cfg-nets-empty { font-size: 12px; color: var(--text-muted); font-style: italic; }
