@@ -3977,6 +3977,35 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "implementation_status": "full",
         "composes_with": ["PN296"],
     },
+    "PN299B": {
+        "title": "FLA extended (kda+cumsum+solve_tril) arch-aware NUM_WARPS prune",
+        "tier": "community",
+        "family": "attention.gdn",
+        "env_flag": "GENESIS_ENABLE_PN299B",
+        "default_on": False,
+        "apply_module": "sndr.engines.vllm.patches.attention.gdn.pn299b_fla_kda_cumsum_solve_tril_arch_warps",
+        "lifecycle": "experimental",
+        "category": "kernel_perf",
+        "credit": (
+            "Genesis-original 2026-06-08 — closes a gap in PN299 coverage. "
+            "Kernels-audit agent flagged 3 more FLA files with num_warps=8 "
+            "autotune configs that PN299 doesn't touch: cumsum.py (2 sites), "
+            "kda.py (5 sites — the Qwen3.6 KDA path), and solve_tril.py "
+            "(3 sites). All 10 sub-patches use the same arch-aware filter "
+            "pattern as PN299 (PN296 auto-sets GENESIS_TRITON_AUTOTUNE_MAX_"
+            "WARPS=4 on Ampere SM 8.6, the filter list comprehension drops "
+            "8-warp configs). Same per-sub required=False — partial-apply "
+            "across upstream layout drift. kda.py is particularly important "
+            "on Qwen3.6 hybrid_gdn_moe because the Kimi Delta Attention "
+            "kernels run on every hybrid block; cold-start autotune spill-"
+            "evictions there add 50-200 ms TTFT and contribute to the "
+            "post-dev93 TPS gap. Composes with PN296 + PN298 + PN299."
+        ),
+        "upstream_pr": None,
+        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
+        "implementation_status": "full",
+        "composes_with": ["PN296", "PN298", "PN299"],
+    },
     "PN299": {
         "title": "FLA multi-file (kkt+wy_fast+l2norm) arch-aware NUM_WARPS prune",
         "tier": "community",

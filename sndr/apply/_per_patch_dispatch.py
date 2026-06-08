@@ -5111,6 +5111,27 @@ def apply_patch_N299_fla_multi_arch_warps() -> PatchResult:
     return _skipped("PN299 FLA multi arch warps", detail)
 
 
+@register_patch("PN299B FLA extended arch-aware NUM_WARPS prune (kda+cumsum+solve_tril)")
+def apply_patch_N299B_fla_kda_cumsum_solve_tril() -> PatchResult:
+    """PN299B: closes the PN299 coverage gap on 3 more FLA ops files —
+    cumsum.py (2 sites), kda.py (5 sites — Qwen3.6 KDA hot path), and
+    solve_tril.py (3 sites). All use the same arch-aware filter pattern
+    as PN299 (reads GENESIS_TRITON_AUTOTUNE_MAX_WARPS auto-set by PN296
+    to 4 on Ampere SM 8.6). kda.py blocks were flagged by the kernels-
+    audit agent 2026-06-08 as a likely contributor to the post-dev93
+    autotune-eviction TTFT inflation on Qwen3.6 hybrid_gdn_moe.
+    Opt-in via GENESIS_ENABLE_PN299B=1. Composes with PN296+PN298+PN299."""
+    from sndr.engines.vllm.patches.attention.gdn import (
+        pn299b_fla_kda_cumsum_solve_tril_arch_warps as _wiring,
+    )
+    status, detail = _wiring.apply()
+    if status == "applied":
+        return _applied("PN299B FLA kda+cumsum+solve_tril arch warps", detail)
+    if status == "failed":
+        return _failed("PN299B FLA kda+cumsum+solve_tril arch warps", detail)
+    return _skipped("PN299B FLA kda+cumsum+solve_tril arch warps", detail)
+
+
 @register_patch("PN298 FLA chunk_o NUM_WARPS arch-aware prune (SM 8.6 spilling fix)")
 def apply_patch_N298_fla_chunk_o_arch_warps() -> PatchResult:
     """PN298: first patch built on PN296 arch profile foundation. Patches
