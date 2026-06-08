@@ -73,7 +73,7 @@ class FlaKktBufferManager:
     @classmethod
     def should_apply(cls) -> bool:
         """Same platform gate as TurboQuantBufferManager."""
-        from vllm.sndr_core.detection.guards import is_nvidia_cuda, is_sm_at_least
+        from sndr.engines.vllm.detection.guards import is_nvidia_cuda, is_sm_at_least
         if not is_nvidia_cuda():
             return False
         if not is_sm_at_least(8, 0):
@@ -97,7 +97,7 @@ class FlaKktBufferManager:
             return None
         key = (B_max, T_max, H, BT, str(device), str(dtype))
         if key not in cls._A_POOLS:
-            from vllm.sndr_core.runtime.prealloc import GenesisPreallocBuffer as GPB
+            from sndr.runtime.prealloc import GenesisPreallocBuffer as GPB
             shape = (B_max, T_max, H, BT)
             cls._A_POOLS[key] = GPB.get_or_create(
                 namespace=f"fla_kkt_a|{key}",
@@ -173,7 +173,7 @@ class FlaKktBufferManager:
         if pool is None or pool.shape[0] < needed_B or pool.shape[1] < needed_T:
             new_B = needed_B if pool is None else max(pool.shape[0], needed_B)
             new_T = needed_T if pool is None else max(pool.shape[1], needed_T)
-            from vllm.sndr_core.runtime.prealloc import GenesisPreallocBuffer as GPB
+            from sndr.runtime.prealloc import GenesisPreallocBuffer as GPB
 
             # Release any prior GPB entry at this key so the registry
             # doesn't accumulate stale tensors on each grow. Safe —

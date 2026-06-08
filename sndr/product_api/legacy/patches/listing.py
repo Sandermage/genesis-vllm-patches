@@ -119,7 +119,7 @@ def list_patches(
     ``patch_id`` so the CLI's ASCII table + JSON ``patches`` array are
     deterministic.
     """
-    from vllm.sndr_core.dispatcher.spec import iter_patch_specs
+    from sndr.dispatcher.spec import iter_patch_specs
 
     rows: list[PatchRow] = []
     for spec in iter_patch_specs():

@@ -43,7 +43,7 @@ import os
 
 import torch
 
-from vllm.sndr_core.kernels.gdn_scratch_pool import GdnScratchPool
+from sndr.engines.vllm.kernels_legacy.gdn_scratch_pool import GdnScratchPool
 
 log = logging.getLogger("genesis.kernels.streaming_gdn_driver")
 
@@ -155,7 +155,7 @@ def _mem_trace_agg_record(phase: str, peak_mib: float, alloc_mib: float) -> None
 def get_mem_trace_summary() -> dict:
     """Return aggregated mem-trace stats. For diagnostic queries via Python.
 
-    Useful: `from vllm.sndr_core.kernels.streaming_gdn_driver import
+    Useful: `from sndr.engines.vllm.kernels_legacy.streaming_gdn_driver import
     get_mem_trace_summary; print(get_mem_trace_summary())` after a benchmark
     to see whether Phase A or Phase B is the dominant allocator. Drives
     optimization priority decisions empirically vs hand-wavy.

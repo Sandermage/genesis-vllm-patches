@@ -9,9 +9,9 @@ public symbol from the legacy `vllm._genesis.gpu_profile` module.
 Both import paths work simultaneously during the migration window:
 
     # Legacy (still works)
-    from vllm.sndr_core.runtime.gpu_profile import detect_gpu_class
+    from sndr.runtime.gpu_profile import detect_gpu_class
     # New (preferred for new code)
-    from vllm.sndr_core.compat.gpu_profile import detect_gpu_class
+    from sndr.compat.gpu_profile import detect_gpu_class
 
 When the migration is complete, the legacy module will become a thin
 shim pointing at this one (so the source of truth lives under compat/).
@@ -24,8 +24,8 @@ from __future__ import annotations
 # and module-level constants — so wildcard imports / hasattr checks keep
 # working. We use `from ... import *` then re-export via __all__ if the
 # legacy module has it.
-from vllm.sndr_core.runtime.gpu_profile import *  # noqa: F401, F403
-from vllm.sndr_core.runtime import gpu_profile as _legacy
+from sndr.runtime.gpu_profile import *  # noqa: F401, F403
+from sndr.runtime import gpu_profile as _legacy
 
 # If the legacy module declared __all__, mirror it. Otherwise, copy
 # every public attribute.

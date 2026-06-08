@@ -70,7 +70,7 @@ def pn95_prefetch_blocks(block_hashes: list) -> dict:
     # Late import — every state singleton + helper this function reads
     # or mutates stays in `_pn95_runtime` for M.4.2.B (see module
     # docstring for the rationale).
-    from vllm.sndr_core.cache import _pn95_runtime as _rt
+    from sndr.cache import _pn95_runtime as _rt
     pool = _rt._pn95_l1_pool()
     if pool is None:
         return {}
@@ -103,7 +103,7 @@ def pn95_prefetch_blocks(block_hashes: list) -> dict:
         if layer_data is None:
             if _disk is None:
                 try:
-                    from vllm.sndr_core.cache import _pn95_disk_tier as _disk_mod
+                    from sndr.cache import _pn95_disk_tier as _disk_mod
                     _disk = _disk_mod
                 except ImportError:
                     _disk = False
@@ -150,5 +150,5 @@ def pn95_prefetch_blocks(block_hashes: list) -> dict:
 
 def pn95_get_prefetch_stats() -> dict:
     """Snapshot of prefetch API counters — surfaced via sndr patches pn95-status."""
-    from vllm.sndr_core.cache import _pn95_runtime as _rt
+    from sndr.cache import _pn95_runtime as _rt
     return dict(_rt._PN95_PREFETCH_STATS)

@@ -43,7 +43,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from vllm.sndr_core.detection.guards import is_nvidia_cuda, is_sm_at_least
+from sndr.engines.vllm.detection.guards import is_nvidia_cuda, is_sm_at_least
 
 log = logging.getLogger("genesis.wiring.p40_tq_grouped_decode")
 
@@ -58,7 +58,7 @@ _UPSTREAM_DRIFT_SYMBOL = "_tq_grouped_decode_stage1"
 
 def should_apply() -> bool:
     """Platform + env gate. Must mirror `tq_grouped_decode.should_apply`."""
-    from vllm.sndr_core.kernels.tq_grouped_decode import should_apply as k_should
+    from sndr.engines.vllm.kernels_legacy.tq_grouped_decode import should_apply as k_should
     if not is_nvidia_cuda():
         return False
     if not is_sm_at_least(8, 0):
@@ -91,7 +91,7 @@ def apply() -> tuple[str, str]:
     Skipped automatically if upstream PR #40792 active.
     """
     try:
-        from vllm.sndr_core.detection import config_detect
+        from sndr.engines.vllm.detection import config_detect
         ok, reason = config_detect.should_apply("P40")
         if not ok:
             return "skipped", reason
@@ -130,7 +130,7 @@ def apply() -> tuple[str, str]:
     # Pre-import our kernel builder to surface compile errors EARLY
     # (rather than on first request).
     try:
-        from vllm.sndr_core.kernels.tq_grouped_decode import (
+        from sndr.engines.vllm.kernels_legacy.tq_grouped_decode import (
             get_grouped_kernel,
             should_use_grouped_kernel,
             BLOCK_H, BLOCK_KV, NUM_WARPS, NUM_STAGES,
@@ -217,7 +217,7 @@ def apply() -> tuple[str, str]:
         # buf_holder mechanism doesn't pre-attach (e.g. spec-decode verify
         # path where layer's mid_o_buf is None on first call). Toggle via
         # GENESIS_BUFFER_MODE=per_layer to revert to legacy.
-        from vllm.sndr_core.runtime.buffer_mode import buffer_mode_for
+        from sndr.runtime.buffer_mode import buffer_mode_for
         _p40_mode = buffer_mode_for("P40")
 
         if (
@@ -227,7 +227,7 @@ def apply() -> tuple[str, str]:
         ):
             mid_o = mid_o_buf[:B, :Hq, :NUM_KV_SPLITS, :]
         elif _p40_mode == "shared":
-            from vllm.sndr_core.runtime.prealloc import GenesisPreallocBuffer as GPB
+            from sndr.runtime.prealloc import GenesisPreallocBuffer as GPB
             # MAX-size singleton: pre-allocate worst-case (max_num_seqs × Hq
             # × max_num_kv_splits × (D+1)) once, reuse forever via slicing.
             # Hq + D are model-fixed, so namespace by them only.
@@ -288,7 +288,7 @@ def apply() -> tuple[str, str]:
         if output_buf is not None and output_buf.shape[0] >= B:
             output = output_buf[:B, :Hq, :D]
         elif _p40_mode == "shared":
-            from vllm.sndr_core.runtime.prealloc import GenesisPreallocBuffer as GPB
+            from sndr.runtime.prealloc import GenesisPreallocBuffer as GPB
             ns = f"p40_output|Hq={Hq}|D={D}|fp32"
             max_B = max(B, 8)
             shape = (max_B, Hq, D)
@@ -304,7 +304,7 @@ def apply() -> tuple[str, str]:
         if lse_buf is not None and lse_buf.shape[0] >= B:
             lse = lse_buf[:B, :Hq]
         elif _p40_mode == "shared":
-            from vllm.sndr_core.runtime.prealloc import GenesisPreallocBuffer as GPB
+            from sndr.runtime.prealloc import GenesisPreallocBuffer as GPB
             ns = f"p40_lse|Hq={Hq}|fp32"
             max_B = max(B, 8)
             shape = (max_B, Hq)

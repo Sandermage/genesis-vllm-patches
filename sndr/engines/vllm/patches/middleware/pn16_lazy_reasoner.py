@@ -20,8 +20,8 @@ from __future__ import annotations
 import logging
 import os
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
-from vllm.sndr_core.core import (
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
+from sndr.kernel import (
     TextPatch,
     TextPatcher,
     result_to_wiring_status,
@@ -48,7 +48,7 @@ PN16_REPLACEMENT = (
     "        # force enable_thinking=False (variant 1), else allow with\n"
     "        # optional max-thinking-tokens cap (variant 4, Phase 2 TODO).\n"
     "        try:\n"
-    "            from vllm.sndr_core.middleware.lazy_reasoner import (\n"
+    "            from sndr.engines.vllm.middleware.lazy_reasoner import (\n"
     "                apply_hook as _genesis_pN16_apply_hook,\n"
     "            )\n"
     "            _genesis_pN16_apply_hook(self, request)\n"
@@ -90,7 +90,7 @@ def _make_patcher() -> TextPatcher | None:
 
 def apply() -> tuple[str, str]:
     """Apply PN16 — lazy-reasoner hook injection."""
-    from vllm.sndr_core.dispatcher import log_decision, should_apply
+    from sndr.dispatcher import log_decision, should_apply
 
     decision, reason = should_apply("PN16")
     log_decision("PN16", decision, reason)

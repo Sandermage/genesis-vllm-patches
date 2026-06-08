@@ -25,7 +25,7 @@ from typing import Any, Optional
 def _modules() -> "tuple[Any, Any]":
     """Lazily import the router + artifact modules; (None, None) if absent."""
     try:
-        from vllm.sndr_core.integrations.spec_decode import (  # noqa: PLC0415
+        from sndr.engines.vllm.patches.spec_decode import (  # noqa: PLC0415
             functional_artifact,
             request_router,
         )

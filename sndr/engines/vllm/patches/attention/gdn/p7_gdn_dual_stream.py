@@ -44,8 +44,8 @@ from __future__ import annotations
 
 import logging
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
-from vllm.sndr_core.core import (
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
+from sndr.kernel import (
     TextPatch, TextPatcher, TextPatchResult,
 )
 
@@ -71,7 +71,7 @@ _OLD_INPROJ = (
 _NEW_INPROJ = (
     "            # [Genesis P7] Dispatch in_proj_qkvz and in_proj_ba in parallel on\n"
     "            # an auxiliary CUDA stream (SM≥8.0); sequential fallback elsewhere.\n"
-    "            from vllm.sndr_core.kernels.gdn_dual_stream import DualStreamDispatcher\n"
+    "            from sndr.engines.vllm.kernels_legacy.gdn_dual_stream import DualStreamDispatcher\n"
     "            (mixed_qkvz, _), (ba, _) = DualStreamDispatcher.maybe_parallel(\n"
     "                lambda: self.in_proj_qkvz(hidden_states),\n"
     "                lambda: self.in_proj_ba(hidden_states),\n"
@@ -152,7 +152,7 @@ def apply() -> tuple[str, str]:
             "Re-enable with GENESIS_ENABLE_P7=1 + --enforce-eager.",
         )
 
-    from vllm.sndr_core.detection.guards import is_cpu_only, is_intel_xpu
+    from sndr.engines.vllm.detection.guards import is_cpu_only, is_intel_xpu
     if vllm_install_root() is None:
         return "skipped", "vllm install root not discoverable"
 

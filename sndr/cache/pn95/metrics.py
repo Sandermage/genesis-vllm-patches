@@ -9,7 +9,7 @@ this module operates on (``_PN95_STATS``, ``_PN95_PREFIX_STORE``,
 existing tests rebind several of these via ``monkeypatch.setattr`` —
 moving the ownership would break a documented test-contract alias.
 Each function therefore late-imports its state via
-``from vllm.sndr_core.cache import _pn95_runtime as _rt`` inside the
+``from sndr.cache import _pn95_runtime as _rt`` inside the
 body, which resolves at call time after both modules are loaded.
 
 Full state-ownership redistribution is deferred to M.4.2 where the
@@ -32,7 +32,7 @@ def get_pn95_stats() -> dict:
     Used by the `sndr report` CLI and operator-facing tools to surface
     PN95 activity without needing access to the EngineCore worker process.
     """
-    from vllm.sndr_core.cache import _pn95_runtime as _rt
+    from sndr.cache import _pn95_runtime as _rt
     from .gates import _pn95_async_enabled, _pn95_layer_aware_enabled
 
     snapshot = dict(_rt._PN95_STATS)
@@ -134,7 +134,7 @@ def _pn95_dump_stats_if_due() -> None:
             interval = int(os.environ.get("GENESIS_PN95_STATS_INTERVAL", "50"))
         except (ValueError, TypeError):
             interval = 50
-        from vllm.sndr_core.cache import _pn95_runtime as _rt
+        from sndr.cache import _pn95_runtime as _rt
         if interval <= 0 or _rt._TICK_COUNTER % interval != 0:
             return
         import json
@@ -151,7 +151,7 @@ def _pn95_dump_stats_if_due() -> None:
 def _pn95_record_lookup(block_hash: Any) -> int:
     """Bump hit counter for a block_hash on every promote query. Returns
     post-bump count. Bounded by _PN95_HIT_TRACKER_MAX (LRU eviction)."""
-    from vllm.sndr_core.cache import _pn95_runtime as _rt
+    from sndr.cache import _pn95_runtime as _rt
     n = _rt._PN95_HIT_COUNTS.get(block_hash, 0) + 1
     if n == 1 and len(_rt._PN95_HIT_COUNTS) >= _rt._PN95_HIT_TRACKER_MAX:
         # FIFO drop — keep tracker bounded, lose oldest counter.

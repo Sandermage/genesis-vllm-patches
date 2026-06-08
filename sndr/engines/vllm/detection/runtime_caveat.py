@@ -16,7 +16,7 @@ Background:
   launches cleanly past the failure point.
 
 Usage:
-    from vllm.sndr_core.detection.runtime_caveat import probe_caveats
+    from sndr.engines.vllm.detection.runtime_caveat import probe_caveats
     cav = probe_caveats()
     if cav.proxmox_detected:
         # auto-flip to bare-metal in the wizard

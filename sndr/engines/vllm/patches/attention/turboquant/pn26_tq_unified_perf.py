@@ -99,8 +99,8 @@ from __future__ import annotations
 import logging
 import os
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
-from vllm.sndr_core.core import (
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
+from sndr.kernel import (
     TextPatch,
     TextPatcher,
     TextPatchResult,
@@ -328,7 +328,7 @@ def apply() -> tuple[str, str]:
     we pre-baked our tables, the on-import self-check catches it and
     disables prebake (falls through to solver). No silent drift.
     """
-    from vllm.sndr_core.dispatcher import log_decision, should_apply
+    from sndr.dispatcher import log_decision, should_apply
 
     decision, reason = should_apply("PN26")
     log_decision("PN26", decision, reason)

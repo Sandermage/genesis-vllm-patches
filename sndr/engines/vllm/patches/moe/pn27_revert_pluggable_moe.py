@@ -123,7 +123,7 @@ from __future__ import annotations
 import logging
 import os
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
 
 log = logging.getLogger("genesis.wiring.pn27_revert_pluggable_moe")
 
@@ -327,7 +327,7 @@ def apply() -> tuple[str, str]:
     behavior. PN27 becomes active when we pin-bump past `b55b2652`
     (2026-04-30) without #41440 having merged yet.
     """
-    from vllm.sndr_core.dispatcher import log_decision, should_apply
+    from sndr.dispatcher import log_decision, should_apply
 
     decision, reason = should_apply("PN27")
     log_decision("PN27", decision, reason)

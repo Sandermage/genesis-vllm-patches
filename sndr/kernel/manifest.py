@@ -73,9 +73,9 @@ def cached_load_manifest() -> Optional[dict]:
     try:
         # Prefer canonical sndr_core version; fall back to legacy alias.
         try:
-            from vllm.sndr_core import GENESIS_VERSION as gver
+            from sndr import GENESIS_VERSION as gver
         except Exception:
-            from vllm.sndr_core.version import __version__ as gver
+            from sndr.version import __version__ as gver
         genesis_pin = gver
     except Exception:
         genesis_pin = None
@@ -85,8 +85,8 @@ def cached_load_manifest() -> Optional[dict]:
     # Honors `SNDR_MANIFEST_DIR` env override; falls back to auto-detect
     # of legacy/canonical location.
     try:
-        from vllm.sndr_core.wiring.anchor_manifest import load_manifest_for_pins
-        from vllm.sndr_core.locations.project_paths import manifest_json_path
+        from sndr.engines.vllm.wiring.anchor_manifest import load_manifest_for_pins
+        from sndr.engines.vllm.locations.project_paths import manifest_json_path
         manifest = load_manifest_for_pins(
             str(manifest_json_path()),
             vllm_pin=vllm_pin, genesis_pin=genesis_pin,

@@ -25,7 +25,7 @@ Lazy import contract (audit A-02 fix 2026-05-06):
   kernel sub-modules — Python evaluates `__init__.py` first regardless
   of which sub-module is being imported. The fix below uses PEP 562
   module-level `__getattr__` to resolve attributes lazily, so
-  `from vllm.sndr_core.kernels.ngram_frequency_filter import ...`
+  `from sndr.engines.vllm.kernels_legacy.ngram_frequency_filter import ...`
   no longer transitively imports torch.
 
 Author: Sandermage(Sander)-Barzov Aleksandr, Ukraine, Odessa
@@ -47,6 +47,6 @@ def __getattr__(name: str):
     imports.
     """
     if name == "router_softmax":
-        from vllm.sndr_core.kernels.router_softmax import router_softmax as _fn
+        from sndr.engines.vllm.kernels_legacy.router_softmax import router_softmax as _fn
         return _fn
     raise AttributeError(f"module 'vllm.sndr_core.kernels' has no attribute {name!r}")

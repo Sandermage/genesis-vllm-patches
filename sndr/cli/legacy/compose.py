@@ -156,7 +156,7 @@ def _resolve(key: str):
     `sndr compose render a5000-2x-35b-prod`.
     """
     try:
-        from vllm.sndr_core.cli.memory import _resolve_preset_v1_or_v2
+        from sndr.cli.memory import _resolve_preset_v1_or_v2
         return _resolve_preset_v1_or_v2(key)
     except Exception as e:
         _io.error(f"unknown preset key {key!r} ({e})")
@@ -176,7 +176,7 @@ def _load_host_paths() -> dict[str, str]:
     and producing literal `${var}` mount strings.
     """
     try:
-        from vllm.sndr_core.model_configs.host import load_host_config
+        from sndr.model_configs.host import load_host_config
     except ImportError:
         return {}
     try:
@@ -229,7 +229,7 @@ def _container_command(cfg) -> list[str]:
     independent command builders that diverged from bare-metal. Now
     they all go through `vllm.sndr_core.model_configs.runtime_command`.
     """
-    from vllm.sndr_core.model_configs.runtime_command import (
+    from sndr.model_configs.runtime_command import (
         build_runtime_command,
     )
     return build_runtime_command(cfg).argv
@@ -285,7 +285,7 @@ def render_compose_yaml(
     # render byte-for-byte.
     plan = None
     if policy is not None:
-        from vllm.sndr_core.model_configs.patch_plan import (
+        from sndr.model_configs.patch_plan import (
             resolve_patch_plan,
         )
         plan = resolve_patch_plan(cfg, policy=policy)
@@ -411,7 +411,7 @@ def run_compose_plan_diff(args: argparse.Namespace) -> int:
     for, with role attribution attached for triage.
     """
     import json as _json
-    from vllm.sndr_core.model_configs.patch_plan import resolve_patch_plan
+    from sndr.model_configs.patch_plan import resolve_patch_plan
 
     cfg = _resolve(args.config)
     if cfg is None:

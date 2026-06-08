@@ -114,7 +114,7 @@ def evaluate(rule: Any, profile: dict[str, Any]) -> tuple[bool, str]:
 
     if version_constraints:
         try:
-            from vllm.sndr_core.compat.version_check import (
+            from sndr.compat.version_check import (
                 check_version_constraints,
             )
             vc_ok, vc_results = check_version_constraints(version_constraints)

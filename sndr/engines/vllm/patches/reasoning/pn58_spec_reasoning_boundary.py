@@ -69,8 +69,8 @@ from __future__ import annotations
 import logging
 import os
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
-from vllm.sndr_core.core import (
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
+from sndr.kernel import (
     TextPatch,
     TextPatcher,
 )
@@ -379,7 +379,7 @@ def _make_sched_patcher() -> TextPatcher | None:
 
 
 def apply() -> tuple[str, str]:
-    from vllm.sndr_core.dispatcher import log_decision, should_apply
+    from sndr.dispatcher import log_decision, should_apply
 
     decision, reason = should_apply("PN58")
     log_decision("PN58", decision, reason)
@@ -403,7 +403,7 @@ def apply() -> tuple[str, str]:
     # validate-all-then-write-all atomicity across 5 files (envs, abs_parser,
     # basic_parser, struct_out, scheduler). Phase 1 dry-run prevents
     # partial state if P62 left scheduler.py modified.
-    from vllm.sndr_core.core import MultiFilePatchTransaction
+    from sndr.kernel import MultiFilePatchTransaction
 
     patchers = [
         _make_envs_patcher(),

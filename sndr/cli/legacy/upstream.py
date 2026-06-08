@@ -88,7 +88,7 @@ def add_argparser(subparsers: Any) -> None:
 def _running_pin() -> Optional[str]:
     """Return the running vllm pin, or None if not importable."""
     try:
-        from vllm.sndr_core.detection.guards import (
+        from sndr.engines.vllm.detection.guards import (
             get_vllm_full_version_string,
         )
         return get_vllm_full_version_string()
@@ -99,19 +99,19 @@ def _running_pin() -> Optional[str]:
 def _known_good() -> tuple[str, ...]:
     """Return the project KNOWN_GOOD_VLLM_PINS allowlist."""
     try:
-        from vllm.sndr_core.detection.guards import KNOWN_GOOD_VLLM_PINS
+        from sndr.engines.vllm.detection.guards import KNOWN_GOOD_VLLM_PINS
         return KNOWN_GOOD_VLLM_PINS
     except Exception:
         return ()
 
 
 def _resolve_cfg(key: str):
-    from vllm.sndr_core.model_configs.registry import get
+    from sndr.model_configs.registry import get
     cfg = get(key)
     if cfg is None:
         _io.warn(f"unknown preset key {key!r}")
         try:
-            from vllm.sndr_core.model_configs.registry import list_keys
+            from sndr.model_configs.registry import list_keys
             _io.info(f"available: {', '.join(sorted(list_keys()))}")
         except Exception:
             pass

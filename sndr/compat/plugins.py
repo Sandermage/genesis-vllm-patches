@@ -143,7 +143,7 @@ def _validate_plugin(plugin: dict[str, Any]) -> tuple[bool, list[str]]:
     the SHAPE of one PATCH_REGISTRY VALUE.
     """
     try:
-        from vllm.sndr_core.compat.schema_validator import validate_entry
+        from sndr.compat.schema_validator import validate_entry
     except Exception as e:
         return False, [f"schema_validator import failed: {e}"]
 
@@ -166,7 +166,7 @@ def _check_collision(plugin: dict[str, Any]) -> tuple[bool, str | None]:
     if not pid:
         return False, "plugin has no patch_id"
     try:
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+        from sndr.dispatcher import PATCH_REGISTRY
     except Exception:
         return True, None  # conservative pass if dispatcher unavailable
     if pid in PATCH_REGISTRY:
@@ -239,7 +239,7 @@ def register_plugins() -> int:
         return 0
 
     try:
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+        from sndr.dispatcher import PATCH_REGISTRY
     except Exception as e:
         log.warning("PATCH_REGISTRY unavailable, skipping plugin register: %s", e)
         return 0
@@ -278,7 +278,7 @@ def unregister_plugins() -> int:
     Returns the count removed. Useful for tests + dynamic plugin
     refresh."""
     try:
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+        from sndr.dispatcher import PATCH_REGISTRY
     except Exception:
         return 0
     n = 0

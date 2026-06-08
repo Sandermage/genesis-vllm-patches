@@ -66,7 +66,7 @@ def _build_env_flag_to_patch_id() -> dict[str, tuple[str, ...]]:
     always the alphabetical first, regardless of registry dict
     iteration order).
     """
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+    from sndr.dispatcher.registry import PATCH_REGISTRY
     families: dict[str, list[str]] = {}
     for pid, meta in PATCH_REGISTRY.items():
         flag = meta.get("env_flag") if isinstance(meta, dict) else None
@@ -498,7 +498,7 @@ def _detect_conflict_warnings(
     if len(included) < 2:
         return ()
     try:
-        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        from sndr.dispatcher.registry import PATCH_REGISTRY
     except Exception:
         # Resolver stays usable even when registry can't load.
         return ()

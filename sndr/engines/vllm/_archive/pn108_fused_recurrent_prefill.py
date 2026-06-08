@@ -146,8 +146,8 @@ from __future__ import annotations
 
 import logging
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
-from vllm.sndr_core.core import (
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
+from sndr.kernel import (
     TextPatch,
     TextPatcher,
     result_to_wiring_status,
@@ -338,7 +338,7 @@ def apply() -> tuple[str, str]:
     prefill branch). Boot-time dep-graph in core/conflicts.py will
     refuse to apply both at once.
     """
-    from vllm.sndr_core.dispatcher import log_decision, should_apply
+    from sndr.dispatcher import log_decision, should_apply
 
     decision, reason = should_apply("PN108")
     log_decision("PN108", decision, reason)

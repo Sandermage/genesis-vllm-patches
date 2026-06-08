@@ -12,8 +12,8 @@ def run_doctor() -> DoctorReport:
     the tuple of validation issues (severity / patch_id / message), and
     the coverage report (``mapped``, ``unmapped``, ``intentionally_unmapped``).
     """
-    from vllm.sndr_core.dispatcher import PATCH_REGISTRY, validate_registry
-    from vllm.sndr_core.dispatcher.spec import validate_apply_module_coverage
+    from sndr.dispatcher import PATCH_REGISTRY, validate_registry
+    from sndr.dispatcher.spec import validate_apply_module_coverage
 
     issues = tuple(validate_registry())
     coverage = validate_apply_module_coverage()

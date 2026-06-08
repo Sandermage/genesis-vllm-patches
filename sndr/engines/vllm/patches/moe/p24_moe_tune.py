@@ -57,8 +57,8 @@ import logging
 # desired anyway. _AUDIT_A19_EXEMPT documents this intentional design.
 _AUDIT_A19_EXEMPT = True  # tightly coupled subpatches
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root  # noqa: E402
-from vllm.sndr_core.core import (  # noqa: E402
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root  # noqa: E402
+from sndr.kernel import (  # noqa: E402
     TextPatch, TextPatcher, TextPatchResult,
 )
 
@@ -108,7 +108,7 @@ _NEW_FP8_CFG = (
     "        }\n"
     "        # [Genesis P24] per-SM / env override for num_warps + num_stages\n"
     "        try:\n"
-    "            from vllm.sndr_core.kernels.marlin_tuning import (\n"
+    "            from sndr.engines.vllm.kernels_legacy.marlin_tuning import (\n"
     "                get_num_warps_override as _genesis_num_warps_override,\n"
     "                get_num_stages_override as _genesis_num_stages_override,\n"
     "            )\n"
@@ -149,7 +149,7 @@ _NEW_GEN_CFG = (
     "        }\n"
     "        # [Genesis P24] per-SM / env override for num_warps + num_stages\n"
     "        try:\n"
-    "            from vllm.sndr_core.kernels.marlin_tuning import (\n"
+    "            from sndr.engines.vllm.kernels_legacy.marlin_tuning import (\n"
     "                get_num_warps_override as _genesis_num_warps_override,\n"
     "                get_num_stages_override as _genesis_num_stages_override,\n"
     "            )\n"
@@ -198,7 +198,7 @@ def apply() -> tuple[str, str]:
     # Triton fused_moe — dense models never hit this code path, so the
     # text-patch is dead weight there.
     try:
-        from vllm.sndr_core.detection.model_detect import is_moe_model, log_skip
+        from sndr.engines.vllm.detection.model_detect import is_moe_model, log_skip
         if not is_moe_model():
             log_skip(
                 "P24 MoE num_warps/num_stages overlay",

@@ -98,12 +98,12 @@ def add_argparser(subparsers: Any) -> None:
 def _resolve_config(key: str):
     """Resolve a config key via the registry; print a friendly error
     and return None if the key isn't found."""
-    from vllm.sndr_core.model_configs.registry import get
+    from sndr.model_configs.registry import get
     cfg = get(key)
     if cfg is None:
         _io.warn(f"unknown config key {key!r}")
         try:
-            from vllm.sndr_core.model_configs.registry import list_keys
+            from sndr.model_configs.registry import list_keys
             keys = list_keys()
             _io.info(f"available keys: {', '.join(sorted(keys))}")
         except Exception:
@@ -116,7 +116,7 @@ def _maybe_report(*, report: bool, plan_obj, inventory, dest_str: Optional[str])
     if not report:
         return
     from pathlib import Path
-    from vllm.sndr_core.deps import report_inventory, report_plan
+    from sndr.deps import report_inventory, report_plan
     dest = Path(dest_str).expanduser() if dest_str else None
     inv_json, inv_md = report_inventory(inventory, dest=dest)
     _io.info(f"wrote inventory: {inv_md}")
@@ -126,7 +126,7 @@ def _maybe_report(*, report: bool, plan_obj, inventory, dest_str: Optional[str])
 
 
 def run_check(args: argparse.Namespace) -> int:
-    from vllm.sndr_core.deps import inspect_host, plan_changes
+    from sndr.deps import inspect_host, plan_changes
     inv = inspect_host()
     plan = None
     cfg = None
@@ -156,7 +156,7 @@ def run_check(args: argparse.Namespace) -> int:
 
 
 def run_plan(args: argparse.Namespace) -> int:
-    from vllm.sndr_core.deps import inspect_host, plan_changes
+    from sndr.deps import inspect_host, plan_changes
     cfg = _resolve_config(args.config)
     if cfg is None:
         return 2

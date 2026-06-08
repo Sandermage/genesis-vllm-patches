@@ -39,10 +39,10 @@ from __future__ import annotations
 
 import logging
 
-from vllm.sndr_core.detection.guards import (
+from sndr.engines.vllm.detection.guards import (
     is_nvidia_cuda, is_sm_at_least, resolve_vllm_file, vllm_install_root,
 )
-from vllm.sndr_core.core import (
+from sndr.kernel import (
     TextPatch, TextPatcher, TextPatchResult,
 )
 
@@ -73,7 +73,7 @@ _NEW_MIXED_ATTN_OUT = (
     "            # Scheduler budget resolved at `_ensure_on_device` time, stashed\n"
     "            # on the impl as `_max_num_batched_tokens`. Fallback to 4096\n"
     "            # if the attr isn't populated yet (pre-warmup path).\n"
-    "            from vllm.sndr_core.kernels.dequant_buffer import (\n"
+    "            from sndr.engines.vllm.kernels_legacy.dequant_buffer import (\n"
     "                TurboQuantBufferManager as _GenesisTQBufP44,\n"
     "            )\n"
     "            attn_out = _GenesisTQBufP44.acquire_mixed_attn_out(\n"

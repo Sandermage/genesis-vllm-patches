@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import sys
 
-from vllm.sndr_core.apply import main
+from sndr.apply import main
 
 
 if __name__ == "__main__":

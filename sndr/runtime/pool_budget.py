@@ -68,7 +68,7 @@ USAGE PATTERN
 
 In a pool manager (e.g. `GdnScratchPool.acquire_o_output`):
 
-    from vllm.sndr_core.runtime.pool_budget import check, record
+    from sndr.runtime.pool_budget import check, record
 
     bytes_requested = B * T_binned * H * V * dtype_size
     check("PN59", bytes_requested)   # raises if cap exceeded
@@ -77,7 +77,7 @@ In a pool manager (e.g. `GdnScratchPool.acquire_o_output`):
 
 For cross-pool budget enforcement (post-warmup hook in apply_all):
 
-    from vllm.sndr_core.runtime.pool_budget import assert_total_under_budget
+    from sndr.runtime.pool_budget import assert_total_under_budget
     assert_total_under_budget()  # raises if cumulative > GENESIS_POOL_TOTAL_MAX_MIB
 
 Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.

@@ -124,7 +124,7 @@ def main(argv=None) -> int:
     # Step 2: model selection
     print()
     print("[2/4] Selecting model…")
-    from vllm.sndr_core.compat.models.registry import (
+    from sndr.compat.models.registry import (
         list_recommended_for_hardware, get_model,
     )
 
@@ -198,7 +198,7 @@ def main(argv=None) -> int:
             print(f"    python3 -m vllm.sndr_core.compat.models.pull {chosen.key}")
             return 0
 
-    from vllm.sndr_core.compat.models.pull import main as pull_main
+    from sndr.compat.models.pull import main as pull_main
     return pull_main([chosen.key, "--workload", workload])
 
 

@@ -94,8 +94,8 @@ def apply() -> tuple[str, str]:
         return "applied", "PN133 already installed (idempotent)"
 
     try:
-        from vllm.sndr_core.detection.guards import resolve_vllm_file
-        from vllm.sndr_core.core import TextPatcher, TextPatch
+        from sndr.engines.vllm.detection.guards import resolve_vllm_file
+        from sndr.kernel import TextPatcher, TextPatch
     except ImportError as e:
         return "skipped", f"genesis core not importable: {e}"
 
@@ -153,7 +153,7 @@ def apply() -> tuple[str, str]:
             return "skipped", f"upstream_merged — drift marker {m!r} present"
 
     result, failure = patcher.apply()
-    from vllm.sndr_core.core import result_to_wiring_status
+    from sndr.kernel import result_to_wiring_status
     status, reason = result_to_wiring_status(
         result, failure,
         applied_message=(

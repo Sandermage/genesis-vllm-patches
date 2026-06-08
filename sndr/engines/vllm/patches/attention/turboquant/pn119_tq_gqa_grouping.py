@@ -77,7 +77,7 @@ import logging
 import subprocess
 from pathlib import Path
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
 
 log = logging.getLogger("genesis.wiring.pn119_tq_gqa_grouping")
 
@@ -110,7 +110,7 @@ def _file_md5(path: Path) -> str:
 
 def apply() -> tuple[str, str]:
     """Apply PN119 — TurboQuant k8v4 GQA head grouping kernel."""
-    from vllm.sndr_core.dispatcher import log_decision, should_apply
+    from sndr.dispatcher import log_decision, should_apply
 
     decision, reason = should_apply("PN119")
     log_decision("PN119", decision, reason)

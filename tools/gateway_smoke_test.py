@@ -36,10 +36,10 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from vllm.sndr_core.integrations.spec_decode.functional_artifact import (
+from sndr.engines.vllm.patches.spec_decode.functional_artifact import (
     find_matching,
 )
-from vllm.sndr_core.integrations.spec_decode.request_router import (
+from sndr.engines.vllm.patches.spec_decode.request_router import (
     select_profile,
 )
 

@@ -66,7 +66,7 @@ def apply() -> tuple[str, str]:
     """
     global _APPLIED, _ORIGINAL_REJECTION_SAMPLE
 
-    from vllm.sndr_core.observability.spec_decode_metrics import is_enabled
+    from sndr.observability.spec_decode_metrics import is_enabled
 
     if _APPLIED:
         return "applied", "PN282 already installed (idempotent)"
@@ -122,7 +122,7 @@ def apply() -> tuple[str, str]:
                 sum(1 for x in row[1:] if x != placeholder)
                 for row in rows
             ]
-            from vllm.sndr_core.observability.spec_decode_metrics import (
+            from sndr.observability.spec_decode_metrics import (
                 record_acceptance,
             )
             record_acceptance(accepted_per_req, int(max_spec_len))

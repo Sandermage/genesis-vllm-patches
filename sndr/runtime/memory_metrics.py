@@ -29,7 +29,7 @@ Use at runtime
 --------------
 1. From inside vLLM container (exec):
     docker exec vllm-integration-v7 python3 -c \\
-      "from vllm.sndr_core.runtime.memory_metrics import genesis_memory_summary; \\
+      "from sndr.runtime.memory_metrics import genesis_memory_summary; \\
        import json; print(json.dumps(genesis_memory_summary(), indent=2, default=str))"
 
 2. As a post-warmup hook (already wired by caller — no auto-invoke
@@ -92,7 +92,7 @@ def genesis_memory_summary() -> dict[str, Any]:
 
     # ── TurboQuantBufferManager (P22/P26/P32/P33) ──────────────────────
     try:
-        from vllm.sndr_core.kernels.dequant_buffer import (
+        from sndr.engines.vllm.kernels_legacy.dequant_buffer import (
             TurboQuantBufferManager as _TQM,
         )
         info = _safe_call(_TQM.get_registry_info)
@@ -103,7 +103,7 @@ def genesis_memory_summary() -> dict[str, Any]:
 
     # ── GdnCoreAttnManager (P28) ────────────────────────────────────────
     try:
-        from vllm.sndr_core.kernels.gdn_core_attn_manager import (
+        from sndr.engines.vllm.kernels_legacy.gdn_core_attn_manager import (
             GdnCoreAttnManager as _GDN,
         )
         info = _safe_call(_GDN.get_registry_info)
@@ -114,7 +114,7 @@ def genesis_memory_summary() -> dict[str, Any]:
 
     # ── P37 Shared MoE intermediate cache pool ──────────────────────────
     try:
-        from vllm.sndr_core.kernels.moe_intermediate_cache import (
+        from sndr.engines.vllm.kernels_legacy.moe_intermediate_cache import (
             get_registry_info as _moe_info,
         )
         info = _safe_call(_moe_info)
@@ -128,7 +128,7 @@ def genesis_memory_summary() -> dict[str, Any]:
 
     # ── P39a FLA KKT persistent A pool ──────────────────────────────────
     try:
-        from vllm.sndr_core.kernels.fla_kkt_buffer import (
+        from sndr.engines.vllm.kernels_legacy.fla_kkt_buffer import (
             FlaKktBufferManager as _FLA,
         )
         info = _safe_call(_FLA.get_registry_info)
@@ -141,7 +141,7 @@ def genesis_memory_summary() -> dict[str, Any]:
 
     # ── P46 GDN gating g / beta_output buffers ─────────────────────────
     try:
-        from vllm.sndr_core.kernels.gdn_gating_buffer import (
+        from sndr.engines.vllm.kernels_legacy.gdn_gating_buffer import (
             GdnGatingBufferManager as _GAT,
         )
         info = _safe_call(_GAT.get_registry_info)
@@ -154,7 +154,7 @@ def genesis_memory_summary() -> dict[str, Any]:
 
     # ── GenesisPreallocBuffer framework ────────────────────────────────
     try:
-        from vllm.sndr_core.runtime.prealloc import GenesisPreallocBuffer as _GPB
+        from sndr.runtime.prealloc import GenesisPreallocBuffer as _GPB
         info = _safe_call(_GPB.get_registry_info)
         out["per_pool"]["prealloc_framework"] = info
         # Prealloc framework's total already includes TQ+GDN pools that

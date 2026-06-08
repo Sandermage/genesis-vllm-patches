@@ -90,12 +90,12 @@ from __future__ import annotations
 import logging
 import os
 
-from vllm.sndr_core.core.text_patch import (
+from sndr.kernel.text_patch import (
     TextPatch,
     TextPatcher,
     result_to_wiring_status,
 )
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
 
 log = logging.getLogger("genesis.wiring.pn292_revert_fused_mamba_postprocess")
 
@@ -184,7 +184,7 @@ PN292_SITE2_REPLACEMENT = (
 
 def apply() -> tuple[str, str]:
     """Apply PN292 — revert PR40172 fused Mamba postprocess on Ampere SM 8.6."""
-    from vllm.sndr_core.dispatcher import log_decision, should_apply
+    from sndr.dispatcher import log_decision, should_apply
 
     decision, reason = should_apply("PN292")
     log_decision("PN292", decision, reason)

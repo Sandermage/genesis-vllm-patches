@@ -108,7 +108,7 @@ def init_from_config(cfg: Any) -> bool:
     # Late import — `_TM` and `_LOCK` ownership stays in `_pn95_runtime`
     # during M.4.2.A; we mutate the module attribute directly so the
     # 36 reader sites in that file see the canonical binding.
-    from vllm.sndr_core.cache import _pn95_runtime as _rt
+    from sndr.cache import _pn95_runtime as _rt
     with _rt._LOCK:
         # Upstream offload coexistence gate. The upstream v1/kv_offload
         # OffloadingManager assumes exclusive block residency. Letting
@@ -125,7 +125,7 @@ def init_from_config(cfg: Any) -> bool:
             )
             return False
         try:
-            from vllm.sndr_core.cache.tier_manager import make_tier_manager
+            from sndr.cache.tier_manager import make_tier_manager
             new_tm = make_tier_manager(cfg)
         except Exception as e:
             log.warning("[PN95] init_from_config: import/build failed: %s", e)
@@ -153,13 +153,13 @@ def init_from_config(cfg: Any) -> bool:
 
 def tier_manager() -> Optional[Any]:
     """Accessor for tests + observability."""
-    from vllm.sndr_core.cache import _pn95_runtime as _rt
+    from sndr.cache import _pn95_runtime as _rt
     return _rt._TM
 
 
 def reset_for_tests() -> None:
     """Drop the singleton + cached state. Used by pytest fixtures."""
-    from vllm.sndr_core.cache import _pn95_runtime as _rt
+    from sndr.cache import _pn95_runtime as _rt
     with _rt._LOCK:
         _rt._TM = None
         _rt._LAST_GROUP_IDS_BY_HASH = {}

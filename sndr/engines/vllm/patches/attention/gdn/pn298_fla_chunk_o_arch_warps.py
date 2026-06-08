@@ -54,12 +54,12 @@ from __future__ import annotations
 import logging
 import os
 
-from vllm.sndr_core.core import (
+from sndr.kernel import (
     TextPatch,
     TextPatcher,
     TextPatchResult,
 )
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
 
 log = logging.getLogger("genesis.wiring.pn298_fla_chunk_o_arch_warps")
 
@@ -80,7 +80,7 @@ PN298_NEW = (
     "# with BV=128 — spills registers). is_nvidia_hopper covers SM 9.0+\n"
     "# but Ampere consumer also benefits. A100 (SM 8.0, 164KB) keeps 8.\n"
     "try:\n"
-    "    from vllm.sndr_core.detection.gpu_arch_profile import (\n"
+    "    from sndr.detection.gpu_arch_profile import (\n"
     "        get_gpu_arch_profile as _genesis_pn298_get_profile,\n"
     "    )\n"
     "    _genesis_pn298_prof = _genesis_pn298_get_profile()\n"

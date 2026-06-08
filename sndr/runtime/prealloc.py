@@ -30,7 +30,7 @@ Usage
 -----
 From any Genesis kernel module:
 
-    from vllm.sndr_core.runtime.prealloc import GenesisPreallocBuffer as GPB
+    from sndr.runtime.prealloc import GenesisPreallocBuffer as GPB
 
     # In Attention.__init__ or _ensure_on_device:
     self._dequant_buf = GPB.get_or_create(

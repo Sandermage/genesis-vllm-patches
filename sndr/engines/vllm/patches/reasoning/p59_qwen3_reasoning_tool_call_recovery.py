@@ -110,8 +110,8 @@ import logging
 _AUDIT_A19_EXEMPT = True  # tightly coupled subpatches
 import os  # noqa: E402  — import after A-19 exemption marker
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root  # noqa: E402
-from vllm.sndr_core.core import (  # noqa: E402
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root  # noqa: E402
+from sndr.kernel import (  # noqa: E402
     TextPatcher,
     TextPatchResult,
     TextPatch,
@@ -352,7 +352,7 @@ def apply() -> tuple[str, str]:
     All-or-nothing: if any required anchor drifts, abort the whole group.
     Idempotent + auto-no-op once #39055 lands upstream.
     """
-    from vllm.sndr_core.dispatcher import should_apply, log_decision
+    from sndr.dispatcher import should_apply, log_decision
     decision, reason = should_apply("P59")
     log_decision("P59", decision, reason)
     if not decision:

@@ -110,7 +110,7 @@ def _g4_19c_roundtrip_impl(
     random-Hadamard seed tensor (attached to the layer as
     ``self._g4_19c_signs``).
     """
-    from vllm.sndr_core.integrations.attention.turboquant import (
+    from sndr.engines.vllm.patches.attention.turboquant import (
         g4_19c_per_layer_forward as _pl,
     )
     orig_shape = x.shape

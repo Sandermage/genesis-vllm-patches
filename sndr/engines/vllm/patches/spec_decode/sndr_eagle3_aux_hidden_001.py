@@ -49,7 +49,7 @@ Operator usage (when checkpoint exists)
 
 In the drafter wire-up (future patch, e.g. SNDR_EAGLE3_DRAFTER_001):
 
-    from vllm.sndr_core.integrations.spec_decode.sndr_eagle3_aux_hidden_001 import (
+    from sndr.engines.vllm.patches.spec_decode.sndr_eagle3_aux_hidden_001 import (
         register_aux_hidden_state_hooks,
         pop_aux_hidden_states,
     )

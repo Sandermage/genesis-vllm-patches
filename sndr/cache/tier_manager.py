@@ -37,7 +37,7 @@ import os
 from dataclasses import dataclass
 from typing import Any, Hashable, Iterable, Optional
 
-from vllm.sndr_core.cache.eviction_policies import (
+from sndr.cache.eviction_policies import (
     EvictionPolicy, make_policy,
 )
 

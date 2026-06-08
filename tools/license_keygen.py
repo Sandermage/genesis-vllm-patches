@@ -160,7 +160,7 @@ def cmd_verify_token(args: argparse.Namespace) -> int:
         p = Path(args.public_key)
         b64 = p.read_text().strip() if p.is_file() else args.public_key
     else:
-        from vllm.sndr_core.license import _TRUST_ANCHOR_PUBKEY_B64URL
+        from sndr.license import _TRUST_ANCHOR_PUBKEY_B64URL
         b64 = _TRUST_ANCHOR_PUBKEY_B64URL
 
     pad = "=" * (-len(b64) % 4)

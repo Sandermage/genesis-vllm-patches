@@ -37,12 +37,12 @@ from __future__ import annotations
 import logging
 import os
 
-from vllm.sndr_core.core import (
+from sndr.kernel import (
     TextPatch,
     TextPatcher,
     TextPatchResult,
 )
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
 
 log = logging.getLogger("genesis.wiring.pn299_fla_multi_arch_warps")
 

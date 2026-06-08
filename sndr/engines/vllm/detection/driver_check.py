@@ -12,7 +12,7 @@ reasons to run older drivers (locked-down systems, vendor support
 windows, etc.).
 
 Usage:
-    from vllm.sndr_core.detection.driver_check import probe_driver
+    from sndr.engines.vllm.detection.driver_check import probe_driver
     info = probe_driver()
     if info.below_recommended:
         warn(info.recommendation)

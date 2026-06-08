@@ -82,7 +82,7 @@ def pn95_extra_logical_memory_bytes() -> int:
     """
     if not _phase5_virt_enabled():
         return 0
-    from vllm.sndr_core.cache import _pn95_runtime as _rt
+    from sndr.cache import _pn95_runtime as _rt
     tm = _rt._TM
     if tm is None:
         return 0
@@ -128,7 +128,7 @@ def pn95_phase5_init_block_pool(pool: Any) -> None:
     """
     if not _enabled():
         return
-    from vllm.sndr_core.cache import _pn95_runtime as _rt
+    from sndr.cache import _pn95_runtime as _rt
     try:
         pool_id = id(pool)
 
@@ -313,7 +313,7 @@ def pn95_block_is_physical_resident(pool: Any, block_id: int) -> bool:
     For pools without Phase-5 metadata (which is the normal case while
     VIRT_ENABLE=0) every block is physical by definition; we return True.
     """
-    from vllm.sndr_core.cache import _pn95_runtime as _rt
+    from sndr.cache import _pn95_runtime as _rt
     pool_id = id(pool)
     physical_num = _rt._PN95_POOL_LOGICAL_NUM_BLOCKS.get(pool_id, -1)
     if physical_num <= 0:
@@ -339,7 +339,7 @@ def pn95_guard_get_new_blocks(pool: Any, blocks: list) -> None:
     do we surface the error. On normal (VIRT=0) deployments this is a
     fast no-op (the pool has no virtual blocks).
     """
-    from vllm.sndr_core.cache import _pn95_runtime as _rt
+    from sndr.cache import _pn95_runtime as _rt
     if not _enabled() or _rt._TM is None:
         return
     pool_id = id(pool)
@@ -406,7 +406,7 @@ def pn95_anchor12_post_popleft(pool: Any, popped_blocks: list) -> bool:
     """
     if not _enabled() or not _phase5_virt_enabled():
         return True
-    from vllm.sndr_core.cache import _pn95_runtime as _rt
+    from sndr.cache import _pn95_runtime as _rt
     # Best-effort materialization but NEVER raise — return True even on
     # partial failure to avoid crashing engine_core. With Anchor #11
     # rolled back to no-inflation, this loop typically finds no virtual
@@ -448,7 +448,7 @@ def pn95_block_metadata(pool: Any, block_id: int) -> Optional[dict]:
     """
     if not _enabled():
         return None
-    from vllm.sndr_core.cache import _pn95_runtime as _rt
+    from sndr.cache import _pn95_runtime as _rt
     return _rt._PN95_BLOCK_METADATA.get((id(pool), block_id))
 
 
@@ -461,7 +461,7 @@ def pn95_pool_logical_num_blocks(pool: Any) -> Optional[int]:
     """
     if not _enabled():
         return None
-    from vllm.sndr_core.cache import _pn95_runtime as _rt
+    from sndr.cache import _pn95_runtime as _rt
     return _rt._PN95_POOL_LOGICAL_NUM_BLOCKS.get(id(pool))
 
 
@@ -491,7 +491,7 @@ def pn95_physical_num_blocks_cap() -> Optional[int]:
     """
     if not _phase5_virt_enabled():
         return None
-    from vllm.sndr_core.cache import _pn95_runtime as _rt
+    from sndr.cache import _pn95_runtime as _rt
     tm = _rt._TM
     if tm is None or len(tm.tiers) < 1:
         return None

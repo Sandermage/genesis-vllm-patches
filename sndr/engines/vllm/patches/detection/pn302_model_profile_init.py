@@ -12,7 +12,7 @@ Auto-sets follow-on env vars based on model characteristics:
   - GENESIS_MODEL_HAS_MTP
 
 These env stamps let downstream patches make model-aware decisions
-WITHOUT having to import vllm.sndr_core.detection.model_profile (which
+WITHOUT having to import sndr.engines.vllm.detection.model_profile (which
 requires VllmConfig instance).
 
 Composes with PN296 (arch profile) for unified decision matrix:
@@ -163,7 +163,7 @@ def apply(vllm_config=None) -> tuple[str, str]:
         )
 
     try:
-        from vllm.sndr_core.detection.model_profile import get_model_profile
+        from sndr.engines.vllm.detection.model_profile import get_model_profile
     except Exception as e:
         return "failed", f"model_profile module import failed: {e}"
 
@@ -192,7 +192,7 @@ def apply(vllm_config=None) -> tuple[str, str]:
 
     # Combined info line with arch (if available) for unified visibility
     try:
-        from vllm.sndr_core.detection.gpu_arch_profile import (
+        from sndr.detection.gpu_arch_profile import (
             get_gpu_arch_profile,
         )
         arch = get_gpu_arch_profile()

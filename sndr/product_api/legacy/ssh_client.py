@@ -499,19 +499,19 @@ try:
     o["sndr"] = version("vllm-sndr-core")
 except Exception:
     try:
-        import vllm.sndr_core as s
+        import sndr as s
         o["sndr"] = getattr(s, "__version__", None)
     except Exception:
         o["sndr"] = None
 try:
     import os, glob
-    import vllm.sndr_core as s2
+    import sndr as s2
     d = os.path.join(os.path.dirname(s2.__file__), "model_configs", "builtin")
     o["configs"] = len(glob.glob(d + "/**/*.yaml", recursive=True))
 except Exception:
     o["configs"] = None
 try:
-    from vllm.sndr_core.dispatcher.spec import iter_patch_specs
+    from sndr.dispatcher.spec import iter_patch_specs
     o["patches"] = sum(1 for _ in iter_patch_specs())
 except Exception:
     o["patches"] = None

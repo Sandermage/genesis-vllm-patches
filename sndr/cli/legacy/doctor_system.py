@@ -88,8 +88,8 @@ def add_argparser(subparsers: Any) -> None:
 
 def _build_facts(cfg=None) -> dict:
     """Compose the full facts dict that downstream matchers consume."""
-    from vllm.sndr_core.deps.checkers import inspect_host
-    from vllm.sndr_core.detection.guards import KNOWN_GOOD_VLLM_PINS
+    from sndr.deps.checkers import inspect_host
+    from sndr.engines.vllm.detection.guards import KNOWN_GOOD_VLLM_PINS
     inv = inspect_host()
     facts = inv.to_dict()
     pin = facts.get("vllm", {}).get("version")
@@ -154,7 +154,7 @@ def _build_facts(cfg=None) -> dict:
 def run_doctor_system(args: argparse.Namespace) -> int:
     cfg = None
     if args.config:
-        from vllm.sndr_core.model_configs.registry import get
+        from sndr.model_configs.registry import get
         cfg = get(args.config)
         if cfg is None:
             _io.warn(f"unknown preset key {args.config!r}")
@@ -162,7 +162,7 @@ def run_doctor_system(args: argparse.Namespace) -> int:
 
     facts = _build_facts(cfg)
 
-    from vllm.sndr_core.caveats import match_caveats
+    from sndr.caveats import match_caveats
     triggered = match_caveats(facts)
 
     has_error = any(c.severity == "error" for c in triggered)

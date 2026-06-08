@@ -136,7 +136,7 @@ def _warmup_one_tq_layer(layer, impl, *, device, block_size, block_table_stride,
     # from the backend's ``get_kv_cache_shape`` keeps the warmup tensor
     # in lockstep with whatever layout the kernels actually expect.
     try:
-        from vllm.sndr_core.integrations.spec_decode.layout_introspect import (
+        from sndr.engines.vllm.patches.spec_decode.layout_introspect import (
             build_warmup_kv_cache,
         )
         from vllm.v1.attention.backends.turboquant_attn import (

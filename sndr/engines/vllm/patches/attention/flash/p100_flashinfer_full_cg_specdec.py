@@ -83,8 +83,8 @@ from __future__ import annotations
 import logging
 import os
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
-from vllm.sndr_core.core import (
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
+from sndr.kernel import (
     TextPatch,
     TextPatcher,
 )
@@ -679,7 +679,7 @@ def apply() -> tuple[str, str]:
     Expected: +5-10% TPS on Ampere SM 8.6 (per agent estimate vs author's
     +2-3% on SM120). 27B 63 → 67-70 TPS.
     """
-    from vllm.sndr_core.dispatcher import log_decision, should_apply
+    from sndr.dispatcher import log_decision, should_apply
 
     decision, reason = should_apply("P100")
     log_decision("P100", decision, reason)
@@ -713,7 +713,7 @@ def apply() -> tuple[str, str]:
     result, failure = patcher.apply()
     # Audit P1 fix 2026-05-05: 11-subpatch hotfix MUST surface SKIPPED honestly
     # — was the highest-blast-radius silent-mask in the original 35-file set.
-    from vllm.sndr_core.core import result_to_wiring_status
+    from sndr.kernel import result_to_wiring_status
     return result_to_wiring_status(
         result, failure,
         applied_message=(

@@ -128,7 +128,7 @@ def _detect_genesis_pin() -> str:
     except Exception:
         try:
             # Fallback to in-tree version.py if installed package not present.
-            from vllm.sndr_core.version import __version__
+            from sndr.version import __version__
             return __version__
         except Exception:
             return "unknown"
@@ -302,7 +302,7 @@ def _resolved_apply_modules() -> dict[str, Optional[str]]:
     `apply_module` key in registry.py.
     """
     try:
-        from vllm.sndr_core.dispatcher.spec import iter_patch_specs
+        from sndr.dispatcher.spec import iter_patch_specs
     except ImportError:
         return {}
     return {s.patch_id: s.apply_module for s in iter_patch_specs()}
@@ -320,17 +320,17 @@ def static_checks_for_patch(
     """Run every static check against one patch. Lazy-imports registries
     so the function works in tests with stubbed dependencies."""
     if registry is None:
-        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        from sndr.dispatcher.registry import PATCH_REGISTRY
         registry = PATCH_REGISTRY
     if canonical_keys is None:
-        from vllm.sndr_core.cli.config_keys import load_canonical_registry
+        from sndr.cli.config_keys import load_canonical_registry
         canonical_keys = set(load_canonical_registry().keys())
     if known_spec_only is None:
-        from vllm.sndr_core.apply.shadow import KNOWN_SPEC_ONLY_PATCHES
+        from sndr.apply.shadow import KNOWN_SPEC_ONLY_PATCHES
         known_spec_only = KNOWN_SPEC_ONLY_PATCHES
     if legacy_names is None:
         try:
-            from vllm.sndr_core.apply._state import PATCH_REGISTRY as LEG
+            from sndr.apply._state import PATCH_REGISTRY as LEG
             # Legacy register is a list of (name, callable) tuples.
             legacy_names = {name for name, _fn in LEG}
         except Exception:
@@ -425,7 +425,7 @@ def list_dead_patches(
     static failures are fixed.
     """
     if registry is None:
-        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        from sndr.dispatcher.registry import PATCH_REGISTRY
         registry = PATCH_REGISTRY
 
     dead: list[dict] = []
@@ -552,7 +552,7 @@ def summarize_proof_status(
     evidence available across pins.
     """
     if registry is None:
-        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        from sndr.dispatcher.registry import PATCH_REGISTRY
         registry = PATCH_REGISTRY
 
     counts: dict[str, int] = {b: 0 for b in PROOF_STATUS_BUCKETS}

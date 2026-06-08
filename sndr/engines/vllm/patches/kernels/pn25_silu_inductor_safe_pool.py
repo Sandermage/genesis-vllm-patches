@@ -92,8 +92,8 @@ from __future__ import annotations
 
 import logging
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
-from vllm.sndr_core.core import (
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
+from sndr.kernel import (
     TextPatch,
     TextPatcher,
     result_to_wiring_status,
@@ -165,7 +165,7 @@ PN25_IMPORT_REPLACEMENT = (
     "# cached global — never registers from inside a Dynamo trace, which\n"
     "# was the v7.66 failure mode on TP=1 spawn workers.\n"
     "try:\n"
-    "    from vllm.sndr_core.kernels.silu_and_mul_customop import (\n"
+    "    from sndr.engines.vllm.kernels_legacy.silu_and_mul_customop import (\n"
     "        get_op_callable as _genesis_pn25_get_op_callable,\n"
     "    )\n"
     "    _GENESIS_PN25_SILU_AND_MUL_OP = _genesis_pn25_get_op_callable()\n"
@@ -261,7 +261,7 @@ def apply() -> tuple[str, str]:
        indirection through the (failed) op call is a no-op cost wise.
     2. Apply the text-patch to `forward_native`.
     """
-    from vllm.sndr_core.dispatcher import log_decision, should_apply
+    from sndr.dispatcher import log_decision, should_apply
 
     decision, reason = should_apply("PN25")
     log_decision("PN25", decision, reason)
@@ -273,7 +273,7 @@ def apply() -> tuple[str, str]:
 
     # Pre-register op (best-effort; failure is soft).
     try:
-        from vllm.sndr_core.kernels.silu_and_mul_customop import (
+        from sndr.engines.vllm.kernels_legacy.silu_and_mul_customop import (
             _register_op_once,
         )
         _register_op_once()

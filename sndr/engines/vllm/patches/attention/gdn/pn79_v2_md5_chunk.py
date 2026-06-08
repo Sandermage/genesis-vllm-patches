@@ -81,7 +81,7 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
 
 log = logging.getLogger("genesis.wiring.pn79_v2_md5_chunk")
 
@@ -215,7 +215,7 @@ def apply() -> tuple[str, str]:
     Returns (status, reason) tuple in the wiring convention used by
     _wiring_text_patch in apply/_state.py.
     """
-    from vllm.sndr_core.dispatcher import log_decision, should_apply
+    from sndr.dispatcher import log_decision, should_apply
 
     decision, reason = should_apply("PN79_V2_MD5_CHUNK")
     log_decision("PN79_V2_MD5_CHUNK", decision, reason)

@@ -98,7 +98,7 @@ Defaults: all three are default_on=False. Enable per workload:
   GENESIS_ENABLE_PN50_GDN_FUSED_PROJ=1            # Qwen3.5/3.6 kernel fusion
 
 To diagnose which are currently reachable on the live pin, call:
-  python -c 'from vllm.sndr_core.integrations.attention.gdn._contiguity_policy import audit_contiguity_state; print(audit_contiguity_state())'
+  python -c 'from sndr.engines.vllm.patches.attention.gdn._contiguity_policy import audit_contiguity_state; print(audit_contiguity_state())'
 """
 
 
@@ -121,7 +121,7 @@ def verify_patch_composition() -> dict:
       }
     """
     try:
-        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        from sndr.dispatcher.registry import PATCH_REGISTRY
     except ImportError:
         # Registry not importable (vllm not in env) — return minimal info
         return {

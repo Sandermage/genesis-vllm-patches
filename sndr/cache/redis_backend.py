@@ -57,7 +57,7 @@ import json
 import logging
 from typing import Any, Mapping, Optional
 
-from vllm.sndr_core.cache.response_cache import _stable_key
+from sndr.cache.response_cache import _stable_key
 
 log = logging.getLogger("genesis.cache.redis_backend")
 

@@ -38,8 +38,8 @@ from __future__ import annotations
 import logging
 import os
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
-from vllm.sndr_core.core import TextPatch, TextPatcher
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
+from sndr.kernel import TextPatch, TextPatcher
 
 log = logging.getLogger("genesis.wiring.pn106_gdn_h_pool")
 
@@ -71,7 +71,7 @@ PN106_H_NEW = (
     "            if _g_pn106_os.environ.get(\n"
     "                \"GENESIS_ENABLE_PN106_GDN_H_POOL\", \"0\",\n"
     "            ).strip().lower() in (\"1\", \"true\", \"yes\", \"on\"):\n"
-    "                from vllm.sndr_core.cache._pn95_runtime import pn106_get_pooled_buf as _g_pn106_get\n"
+    "                from sndr.cache._pn95_runtime import pn106_get_pooled_buf as _g_pn106_get\n"
     "            else:\n"
     "                _g_pn106_get = False\n"
     "        except Exception:\n"
@@ -103,7 +103,7 @@ PN106_VNEW_NEW = (
     "                if _g_pn106_os.environ.get(\n"
     "                    \"GENESIS_ENABLE_PN106_GDN_H_POOL\", \"0\",\n"
     "                ).strip().lower() in (\"1\", \"true\", \"yes\", \"on\"):\n"
-    "                    from vllm.sndr_core.cache._pn95_runtime import pn106_get_pooled_buf as _g_pn106_get\n"
+    "                    from sndr.cache._pn95_runtime import pn106_get_pooled_buf as _g_pn106_get\n"
     "                else:\n"
     "                    _g_pn106_get = False\n"
     "            except Exception:\n"
@@ -134,7 +134,7 @@ PN106_O_NEW = (
     "                if _g_pn106_os.environ.get(\n"
     "                    \"GENESIS_ENABLE_PN106_GDN_H_POOL\", \"0\",\n"
     "                ).strip().lower() in (\"1\", \"true\", \"yes\", \"on\"):\n"
-    "                    from vllm.sndr_core.cache._pn95_runtime import pn106_get_pooled_buf as _g_pn106_get\n"
+    "                    from sndr.cache._pn95_runtime import pn106_get_pooled_buf as _g_pn106_get\n"
     "                else:\n"
     "                    _g_pn106_get = False\n"
     "            except Exception:\n"
@@ -225,7 +225,7 @@ def _apply_one(patcher) -> tuple[str, str]:
         if m in content:
             return "skipped", f"drift marker {m!r} already in file"
     result, failure = patcher.apply()
-    from vllm.sndr_core.core import result_to_wiring_status
+    from sndr.kernel import result_to_wiring_status
     return result_to_wiring_status(
         result, failure,
         applied_message=f"{patcher.patch_name}: applied",

@@ -86,8 +86,8 @@ from __future__ import annotations
 
 import logging
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
-from vllm.sndr_core.core import (
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
+from sndr.kernel import (
     TextPatch,
     TextPatcher,
     result_to_wiring_status,
@@ -98,7 +98,7 @@ from vllm.sndr_core.core import (
 # actual torch.empty() still happens inside FFNIntermediateCache
 # (process-wide pool, allocate-once-keep-forever). The registry hook
 # only exposes the pool name; tensor storage ownership is unchanged.
-from vllm.sndr_core.runtime.persistent_buffer_registry import (
+from sndr.runtime.persistent_buffer_registry import (
     PersistentBufferRegistry,
     POOL_FFN_INTERMEDIATE_SCRATCH,
 )
@@ -172,7 +172,7 @@ PN12_SILU_REPLACEMENT = (
     "        _acquire = getattr(self, '_pn12_acquire_fn', None)\n"
     "        if _acquire is None:\n"
     "            try:\n"
-    "                from vllm.sndr_core.kernels.ffn_intermediate_cache import (\n"
+    "                from sndr.engines.vllm.kernels_legacy.ffn_intermediate_cache import (\n"
     "                    FFNIntermediateCache as _PN12_Cache,\n"
     "                )\n"
     "                if _PN12_Cache.is_production_eligible():\n"
@@ -238,7 +238,7 @@ def _make_patcher() -> TextPatcher | None:
 
 def apply() -> tuple[str, str]:
     """Apply PN12 — FFN intermediate scratch pool (text-patch)."""
-    from vllm.sndr_core.dispatcher import log_decision, should_apply
+    from sndr.dispatcher import log_decision, should_apply
 
     decision, reason = should_apply("PN12")
     log_decision("PN12", decision, reason)

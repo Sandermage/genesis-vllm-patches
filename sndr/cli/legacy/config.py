@@ -127,12 +127,12 @@ def add_argparser(subparsers: Any) -> None:
 
 
 def _resolve(key: str):
-    from vllm.sndr_core.model_configs.registry import get
+    from sndr.model_configs.registry import get
     cfg = get(key)
     if cfg is None:
         _io.warn(f"unknown preset key {key!r}")
         try:
-            from vllm.sndr_core.model_configs.registry import list_keys
+            from sndr.model_configs.registry import list_keys
             _io.info(f"available: {', '.join(sorted(list_keys()))}")
         except Exception:
             pass
@@ -315,7 +315,7 @@ def run_explain(args: argparse.Namespace) -> int:
 def _detect_hardware_block() -> dict:
     """Auto-fill the `hardware` section from `deps.inspect_host()`."""
     try:
-        from vllm.sndr_core.deps import inspect_host
+        from sndr.deps import inspect_host
         inv = inspect_host()
         nv = inv.nvidia
         if not nv.installed or nv.n_gpus == 0:
@@ -411,7 +411,7 @@ def run_new(args: argparse.Namespace) -> int:
     if args.out:
         out_path = Path(args.out).expanduser()
     else:
-        from vllm.sndr_core.locations.project_paths import model_configs_user_dir
+        from sndr.engines.vllm.locations.project_paths import model_configs_user_dir
         out_path = model_configs_user_dir() / f"{key}.yaml"
     if out_path.exists() and not args.force:
         _io.error(f"output exists: {out_path} — pass --force to overwrite")
@@ -422,7 +422,7 @@ def run_new(args: argparse.Namespace) -> int:
         cfg = _resolve(args.from_template)
         if cfg is None:
             return 2
-        from vllm.sndr_core.model_configs.schema import dump_yaml
+        from sndr.model_configs.schema import dump_yaml
         body = dump_yaml(cfg)
         # Replace key + title to mark as scratch
         body = body.replace(
@@ -471,7 +471,7 @@ def run_checksum(args: argparse.Namespace) -> int:
     reordering) produce the same digest.
     """
     import hashlib
-    from vllm.sndr_core.model_configs.registry import path_for
+    from sndr.model_configs.registry import path_for
 
     key = args.config_key
     p = path_for(key)
@@ -513,7 +513,7 @@ def run_list(args: argparse.Namespace) -> int:
     function constructs an argparse Namespace matching its `cmd_list`
     signature and dispatches.
     """
-    from vllm.sndr_core.compat.model_config_cli import cmd_list as _cmd_list
+    from sndr.compat.model_config_cli import cmd_list as _cmd_list
 
     bridged_ns = argparse.Namespace(
         json=getattr(args, "json", False),

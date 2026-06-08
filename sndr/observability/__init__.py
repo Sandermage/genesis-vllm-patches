@@ -21,7 +21,7 @@ from sndr.observability.logging import (  # noqa: F401
     set_trace_id,
 )
 
-# Per-patch instrumentation (migrated from vllm.sndr_core.observability in
+# Per-patch instrumentation (migrated from sndr.observability in
 # Phase 5/8). Re-exported here so existing call sites continue to work.
 from sndr.observability.patch_metrics import (  # noqa: F401
     PatchApplyMetric,

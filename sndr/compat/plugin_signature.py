@@ -24,7 +24,7 @@ Usage
 ─────
 
 ```python
-from vllm.sndr_core.compat.plugin_signature import verify_plugin
+from sndr.compat.plugin_signature import verify_plugin
 
 ok, reason = verify_plugin(plugin_dir="/path/to/installed/plugin")
 if not ok:

@@ -25,8 +25,8 @@ from __future__ import annotations
 import logging
 import os
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
-from vllm.sndr_core.core import (
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
+from sndr.kernel import (
     TextPatcher,
     TextPatch,
 )
@@ -53,7 +53,7 @@ SPRINT26_SITE1_NEW = (
     "        )\n"
     "        # [Genesis Sprint 2.6 v2] cudagraph dispatch trace — fail-silent\n"
     "        try:\n"
-    "            from vllm.sndr_core.observability.cudagraph_dispatch import record_dispatch as _g_s26_rec\n"
+    "            from sndr.observability.cudagraph_dispatch import record_dispatch as _g_s26_rec\n"
     "            from vllm.v1.cudagraph_dispatcher import CUDAGraphMode as _g_s26_CGM\n"
     "            _g_s26_rec(matched=getattr(batch_desc, 'cudagraph_mode', None) != _g_s26_CGM.NONE)\n"
     "        except Exception:\n"
@@ -88,7 +88,7 @@ def _make_patcher() -> TextPatcher | None:
 
 def apply() -> tuple[str, str]:
     """Apply PN122 cudagraph dispatch trace wire-in (formerly SPRINT26_CG_DISPATCH_TRACE)."""
-    from vllm.sndr_core.dispatcher import should_apply, log_decision
+    from sndr.dispatcher import should_apply, log_decision
     decision, reason = should_apply("PN122")  # renamed from SPRINT26_CG_DISPATCH_TRACE 2026-05-14
     log_decision("PN122", decision, reason)
     if not decision:
@@ -118,7 +118,7 @@ def apply() -> tuple[str, str]:
             )
 
     result, failure = patcher.apply()
-    from vllm.sndr_core.core import result_to_wiring_status
+    from sndr.kernel import result_to_wiring_status
     return result_to_wiring_status(
         result, failure,
         applied_message=(

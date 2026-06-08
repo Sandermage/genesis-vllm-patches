@@ -379,7 +379,7 @@ def capture_from_running(
     """
     # Lazy imports so the captor module stays cheap to import in CLI
     # arg-parse paths (e.g. --help) that never hit the captor codepath.
-    from vllm.sndr_core.model_configs.schema import (
+    from sndr.model_configs.schema import (
         DockerConfig, HardwareSpec, ModelConfig, SpecDecodeConfig,
     )
 

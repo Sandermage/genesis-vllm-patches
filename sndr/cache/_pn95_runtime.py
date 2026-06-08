@@ -103,7 +103,7 @@ from .pn95.prefix_store import pn95_materialize_virtual_block  # noqa: E402
 # (see block below); the moved functions reach it via lazy `_rt.X`.
 # The legacy import path stays byte-identical for sibling-patch
 # text-anchor strings (PN106 / PN200 anchor strings hard-code
-# ``from vllm.sndr_core.cache._pn95_runtime import pn106_get_pooled_buf``).
+# ``from sndr.cache._pn95_runtime import pn106_get_pooled_buf``).
 from .pn95.shared_buffers import (  # noqa: E402
     pn106_get_gdn_h_buf,
     _pn106_legacy_h_impl,
@@ -141,7 +141,7 @@ from .pn95.shared_buffers import (  # noqa: E402
 # M.4.2.E — `pn97_physical_cap_bytes` + `pn96_emergency_rescue`
 # extracted to `.pn95.shared_buffers`. The legacy import path stays
 # byte-identical for sibling-patch text-anchor strings (PN96 / PN97
-# hard-code the ``from vllm.sndr_core.cache._pn95_runtime import …``
+# hard-code the ``from sndr.cache._pn95_runtime import …``
 # string).
 from .pn95.shared_buffers import (  # noqa: E402
     pn97_physical_cap_bytes,

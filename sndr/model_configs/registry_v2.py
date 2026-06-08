@@ -328,7 +328,7 @@ def _user_presets_dir() -> Optional[Path]:
     if the location cannot be resolved (keeps builtin-only behavior intact).
     """
     try:
-        from vllm.sndr_core.locations.project_paths import model_configs_user_dir
+        from sndr.engines.vllm.locations.project_paths import model_configs_user_dir
 
         return model_configs_user_dir() / "presets"
     except Exception:

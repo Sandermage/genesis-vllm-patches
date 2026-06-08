@@ -97,7 +97,7 @@ import os
 
 import torch
 
-from vllm.sndr_core.detection.guards import is_nvidia_cuda
+from sndr.engines.vllm.detection.guards import is_nvidia_cuda
 
 log = logging.getLogger("genesis.kernels.gdn_scratch_pool")
 
@@ -432,7 +432,7 @@ class GdnScratchPool:
         # PN59 streaming-GDN session).
         buf_bytes = B * T_binned * H * V * _dtype_byte_size(dtype)
         try:
-            from vllm.sndr_core.runtime import pool_budget as _pb
+            from sndr.runtime import pool_budget as _pb
             _pb.check("gdn_scratch_o", buf_bytes)
         except Exception as _e:
             if type(_e).__name__ == "PoolBudgetExceeded":
@@ -455,7 +455,7 @@ class GdnScratchPool:
 
         # Record actual allocation post-success (best-effort)
         try:
-            from vllm.sndr_core.runtime import pool_budget as _pb
+            from sndr.runtime import pool_budget as _pb
             _pb.record("gdn_scratch_o", buf_bytes)
         except Exception as _e:
             log.debug(

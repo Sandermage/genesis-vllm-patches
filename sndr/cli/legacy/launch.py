@@ -136,12 +136,12 @@ def _list_available_configs() -> list[str]:
     """
     keys: set[str] = set()
     try:
-        from vllm.sndr_core.model_configs.registry import list_keys
+        from sndr.model_configs.registry import list_keys
         keys.update(list_keys())
     except Exception:
         pass
     try:
-        from vllm.sndr_core.model_configs.registry_v2 import list_presets
+        from sndr.model_configs.registry_v2 import list_presets
         keys.update(list_presets())
     except Exception:
         pass
@@ -184,10 +184,10 @@ def _resolve_config(key: str | None, non_interactive: bool):
     # Falls through to legacy V1 registry on miss so existing presets
     # keep working unchanged.
     try:
-        from vllm.sndr_core.model_configs.registry_v2 import (
+        from sndr.model_configs.registry_v2 import (
             load_alias as _v2_load_alias,
         )
-        from vllm.sndr_core.model_configs.schema import SchemaError as _SchemaError
+        from sndr.model_configs.schema import SchemaError as _SchemaError
         try:
             cfg = _v2_load_alias(key)
             return cfg, key
@@ -197,7 +197,7 @@ def _resolve_config(key: str | None, non_interactive: bool):
         pass
 
     try:
-        from vllm.sndr_core.model_configs.registry import get as get_config
+        from sndr.model_configs.registry import get as get_config
         cfg = get_config(key)
         if cfg is None:
             raise RuntimeError(f"key {key!r} not in V1 registry")
@@ -256,7 +256,7 @@ def _emit_preflight_render_diagnostic(
     editing host.yaml.
     """
     import re
-    from vllm.sndr_core.model_configs.host import _ENV_OVERRIDES
+    from sndr.model_configs.host import _ENV_OVERRIDES
 
     known = set((host_paths or {}).keys())
     mounts = list(getattr(cfg.docker, "mounts", []) or []) if getattr(cfg, "docker", None) else []
@@ -287,7 +287,7 @@ def _load_host_paths() -> dict[str, str] | None:
     """Best-effort load of host.yaml symbolic mount mapping. Returns
     None if not configured — the renderer will then probe defaults."""
     try:
-        from vllm.sndr_core.model_configs.host import load_host_config
+        from sndr.model_configs.host import load_host_config
         hc = load_host_config()
         return dict(hc.paths) if hc and hc.paths else None
     except Exception:
@@ -389,7 +389,7 @@ def _run_apply_phase() -> int:
     on failure (caller should abort the launch in that case)."""
     _io.step(1, 2, "Applying SNDR patches at boot")
     try:
-        from vllm.sndr_core.apply import run as apply_run
+        from sndr.apply import run as apply_run
         stats = apply_run(verbose=False, apply=True)
     except Exception as e:
         _io.error(f"apply phase crashed: {type(e).__name__}: {e}")
@@ -445,7 +445,7 @@ def _run_check_deps(cfg, key: str) -> int:
     # ─── Canonical planner check (same path as `sndr deps plan`) ──────
     plan = None
     try:
-        from vllm.sndr_core.deps import inspect_host, plan_changes
+        from sndr.deps import inspect_host, plan_changes
         inv = inspect_host()
         plan = plan_changes(cfg, inv)
     except Exception as e:
@@ -463,8 +463,8 @@ def _run_check_deps(cfg, key: str) -> int:
 
     # ─── Legacy caveat matcher (secondary; env-flag combos etc.) ──────
     try:
-        from vllm.sndr_core.deps.checkers import inspect_host as _inspect_host
-        from vllm.sndr_core.caveats import match_caveats
+        from sndr.deps.checkers import inspect_host as _inspect_host
+        from sndr.caveats import match_caveats
         facts = _inspect_host().to_dict()
         facts.setdefault("genesis_env", dict(getattr(cfg, "genesis_env", {}) or {}))
         triggered = match_caveats(facts)
@@ -558,7 +558,7 @@ def _maybe_apply_patch_policy(cfg: Any, opts: argparse.Namespace) -> None:
     policy = getattr(opts, "policy", None)
     if policy is None:
         return
-    from vllm.sndr_core.model_configs.patch_plan import resolve_patch_plan
+    from sndr.model_configs.patch_plan import resolve_patch_plan
     plan = resolve_patch_plan(cfg, policy=policy)
     _io.info(
         f"  patch plan policy={policy}: "
@@ -585,7 +585,7 @@ def _warn_about_non_full_enabled_patches(cfg: Any) -> None:
     "feature is on" mistakes.
     """
     try:
-        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        from sndr.dispatcher.registry import PATCH_REGISTRY
     except Exception:
         return
     flag_to_meta: dict[str, tuple[str, dict]] = {}

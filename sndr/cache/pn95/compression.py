@@ -124,7 +124,7 @@ def _pn95_init_compression() -> None:
       zlib: 1-9 (default 1 = fast)
       lz4: ignored (single level)
     """
-    from vllm.sndr_core.cache import _pn95_runtime as _rt
+    from sndr.cache import _pn95_runtime as _rt
     if _rt._PN95_COMPRESS_LIB is not None:
         return
     requested = os.environ.get("GENESIS_PN95_CPU_COMPRESS", "auto").strip().lower()
@@ -179,7 +179,7 @@ def _pn95_compress_bytes(data: bytes) -> bytes:
     symmetric _pn95_decompress_bytes auto-detects via magic check.
     """
     _pn95_init_compression()
-    from vllm.sndr_core.cache import _pn95_runtime as _rt
+    from sndr.cache import _pn95_runtime as _rt
     lib = _rt._PN95_COMPRESS_LIB
     if lib in ("none", None):
         return data
@@ -219,7 +219,7 @@ def _pn95_compress_pool():
     Returns None if threading unavailable (which doesn't happen in CPython).
     Default 4 workers (env GENESIS_PN95_COMPRESS_THREADS).
     """
-    from vllm.sndr_core.cache import _pn95_runtime as _rt
+    from sndr.cache import _pn95_runtime as _rt
     if _rt._PN95_COMPRESS_POOL is None:
         try:
             from concurrent.futures import ThreadPoolExecutor
@@ -288,7 +288,7 @@ def _pn95_decompress_bytes(data: bytes) -> bytes:
     """
     if len(data) < 4:
         return data
-    from vllm.sndr_core.cache import _pn95_runtime as _rt
+    from sndr.cache import _pn95_runtime as _rt
     # zstd frame magic: 28 b5 2f fd
     if data[:4] == b'\x28\xb5\x2f\xfd':
         try:

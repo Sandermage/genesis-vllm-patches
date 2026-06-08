@@ -58,8 +58,8 @@ from __future__ import annotations
 import logging
 import os
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
-from vllm.sndr_core.core import (
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
+from sndr.kernel import (
     TextPatch, TextPatcher, TextPatchResult,
 )
 
@@ -111,7 +111,7 @@ _NEW = (
     "        _g_p37_acq13 = globals().get('_GENESIS_P37_acquire_cache13')\n"
     "        if _g_p37_acq13 is None:\n"
     "            try:\n"
-    "                from vllm.sndr_core.kernels.moe_intermediate_cache import (\n"
+    "                from sndr.engines.vllm.kernels_legacy.moe_intermediate_cache import (\n"
     "                    acquire_cache13 as _g_p37_acq13,\n"
     "                )\n"
     "            except Exception:\n"
@@ -135,7 +135,7 @@ _NEW = (
     "        _g_p37_acq2 = globals().get('_GENESIS_P37_acquire_cache2')\n"
     "        if _g_p37_acq2 is None:\n"
     "            try:\n"
-    "                from vllm.sndr_core.kernels.moe_intermediate_cache import (\n"
+    "                from sndr.engines.vllm.kernels_legacy.moe_intermediate_cache import (\n"
     "                    acquire_cache2 as _g_p37_acq2,\n"
     "                )\n"
     "            except Exception:\n"
@@ -200,7 +200,7 @@ def apply() -> tuple[str, str]:
     marginal at low concurrency).
     """
     try:
-        from vllm.sndr_core.detection import config_detect
+        from sndr.engines.vllm.detection import config_detect
         ok, reason = config_detect.should_apply("P37")
         if not ok:
             return "skipped", reason
@@ -211,7 +211,7 @@ def apply() -> tuple[str, str]:
     # even when the text-patch is disabled — this keeps the manager API
     # usable for operators who pre-acquire buffers manually.
     try:
-        from vllm.sndr_core.kernels.moe_intermediate_cache import warm_up
+        from sndr.engines.vllm.kernels_legacy.moe_intermediate_cache import warm_up
         warm_up()
     except Exception as e:
         log.info("[Genesis P37] warm_up failed (non-fatal): %s", e)
@@ -228,7 +228,7 @@ def apply() -> tuple[str, str]:
     # has no MoE layers, skip the text-patch entirely. The manager API is
     # still registered (warm_up ran above) so tests / manual callers work.
     try:
-        from vllm.sndr_core.detection.model_detect import is_moe_model, log_skip
+        from sndr.engines.vllm.detection.model_detect import is_moe_model, log_skip
         if not is_moe_model():
             log_skip("P37 MoE intermediate cache pool", "dense model (no MoE layers)")
             return "skipped", "P52 dispatch: model has no MoE layers"

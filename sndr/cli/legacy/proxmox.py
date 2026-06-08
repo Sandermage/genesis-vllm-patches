@@ -60,7 +60,7 @@ def add_argparser(subparsers: Any) -> None:
 
 
 def _resolve(key: str):
-    from vllm.sndr_core.model_configs.registry import get
+    from sndr.model_configs.registry import get
     cfg = get(key)
     if cfg is None:
         _io.warn(f"unknown preset key {key!r}")
@@ -99,7 +99,7 @@ def run_doctor(args: argparse.Namespace) -> int:
         print(f"  kernel:     {kernel}")
         # Caveat check via genesis caveats registry
         try:
-            from vllm.sndr_core.caveats import match_caveats
+            from sndr.caveats import match_caveats
             facts = {"virtualization": "pve",
                       "os": {"system": "Linux", "release": kernel}}
             triggered = match_caveats(facts)

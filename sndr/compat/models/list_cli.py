@@ -46,7 +46,7 @@ def main(argv=None) -> int:
     p.add_argument("--json", action="store_true", help="Output as JSON")
     args = p.parse_args(argv)
 
-    from vllm.sndr_core.compat.models.registry import list_models
+    from sndr.compat.models.registry import list_models
 
     models = list_models(status_filter=args.status)
     if not models:

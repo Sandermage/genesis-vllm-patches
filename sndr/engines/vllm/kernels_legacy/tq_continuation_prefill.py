@@ -156,7 +156,7 @@ def continuation_prefill_v_view(
 
 def should_apply() -> bool:
     """Platform guard — TurboQuant is NVIDIA CUDA + SM 8.0+ only."""
-    from vllm.sndr_core.detection.guards import is_nvidia_cuda, is_sm_at_least
+    from sndr.engines.vllm.detection.guards import is_nvidia_cuda, is_sm_at_least
     if not is_nvidia_cuda():
         return False
     if not is_sm_at_least(8, 0):

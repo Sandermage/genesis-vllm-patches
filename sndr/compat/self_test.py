@@ -64,7 +64,7 @@ def _check(name: str, fn: Callable[[], tuple[str, str]]) -> dict[str, str]:
 
 def _check_version() -> tuple[str, str]:
     """VERSION constant present + readable."""
-    from vllm.sndr_core.version import __version__
+    from sndr.version import __version__
     if not isinstance(__version__, str):
         return "fail", f"__version__ is {type(__version__).__name__}, want str"
     if not __version__:
@@ -116,7 +116,7 @@ def _check_wiring_imports() -> tuple[str, str]:
     (i.e. a real vllm install); those are SKIPPED rather than failed
     when vllm isn't importable here.
     """
-    from vllm.sndr_core.locations.project_paths import wiring_dir as _wiring_dir
+    from sndr.engines.vllm.locations.project_paths import wiring_dir as _wiring_dir
 
     root = _wiring_dir()
     if root is None or not root.is_dir():
@@ -168,8 +168,8 @@ def _check_wiring_imports() -> tuple[str, str]:
 
 def _check_schema_validator() -> tuple[str, str]:
     """PATCH_REGISTRY schema-validates."""
-    from vllm.sndr_core.compat.schema_validator import validate_registry
-    from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+    from sndr.compat.schema_validator import validate_registry
+    from sndr.dispatcher import PATCH_REGISTRY
     issues = validate_registry(PATCH_REGISTRY)
     errors = [i for i in issues if i.severity == "ERROR"]
     if errors:
@@ -184,8 +184,8 @@ def _check_schema_validator() -> tuple[str, str]:
 
 def _check_lifecycle_audit() -> tuple[str, str]:
     """Lifecycle audit clean (no unknown states)."""
-    from vllm.sndr_core.compat.lifecycle import audit_registry
-    from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+    from sndr.compat.lifecycle import audit_registry
+    from sndr.dispatcher import PATCH_REGISTRY
     entries = audit_registry(PATCH_REGISTRY)
     errors = [e for e in entries if e.severity == "error"]
     if errors:
@@ -198,8 +198,8 @@ def _check_lifecycle_audit() -> tuple[str, str]:
 
 def _check_categories_build() -> tuple[str, str]:
     """Categories index builds without errors + every patch placed."""
-    from vllm.sndr_core.compat.categories import _build_categories
-    from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+    from sndr.compat.categories import _build_categories
+    from sndr.dispatcher import PATCH_REGISTRY
 
     cats = _build_categories()
     placed = sum(len(v) for v in cats.values())
@@ -213,8 +213,8 @@ def _check_categories_build() -> tuple[str, str]:
 
 def _check_predicates_evaluate() -> tuple[str, str]:
     """Predicates evaluator works on real entries."""
-    from vllm.sndr_core.compat.predicates import evaluate
-    from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+    from sndr.compat.predicates import evaluate
+    from sndr.dispatcher import PATCH_REGISTRY
 
     failures = []
     for pid, meta in PATCH_REGISTRY.items():

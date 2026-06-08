@@ -5,7 +5,7 @@ Facade over the platform-detection helpers currently living in
 `vllm/_genesis/guards.py`. This module groups them under a coherent
 name + makes them discoverable from the canonical SNDR Core path:
 
-    from vllm.sndr_core.detection.gpu_detect import (
+    from sndr.engines.vllm.detection.gpu_detect import (
         is_ampere_any, is_ada_lovelace, is_blackwell,
         get_compute_capability, get_gpu_name,
     )

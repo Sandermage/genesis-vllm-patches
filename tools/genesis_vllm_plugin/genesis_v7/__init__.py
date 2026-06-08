@@ -74,7 +74,7 @@ def register() -> None:
             )
 
     try:
-        from vllm.sndr_core.apply.orchestrator import run
+        from sndr.apply.orchestrator import run
     except ImportError as e:
         log.warning(
             "[Genesis plugin] vllm.sndr_core not importable — skipping. "

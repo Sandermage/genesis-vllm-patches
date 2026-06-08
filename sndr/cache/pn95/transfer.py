@@ -94,7 +94,7 @@ def _pn95_stream() -> Optional[Any]:
     # State `_PN95_CUDA_STREAM` stays in `_pn95_runtime` (5 test sites
     # rebind it via monkeypatch). Late-import keeps the cross-module
     # rebind path visible to those tests.
-    from vllm.sndr_core.cache import _pn95_runtime as _rt
+    from sndr.cache import _pn95_runtime as _rt
     if _rt._PN95_CUDA_STREAM is None:
         try:
             import torch
@@ -121,7 +121,7 @@ def _pn95_gpu_to_cpu_bytes(view: Any) -> bytes:
     Default stream NOT blocked during transfer (only synchronizes pn95 stream).
     """
     import torch
-    from vllm.sndr_core.cache import _pn95_runtime as _rt
+    from sndr.cache import _pn95_runtime as _rt
     stream = _pn95_stream() if _pn95_async_enabled() else None
     if stream is None:
         # Synchronous fallback — current behavior
@@ -156,7 +156,7 @@ def _pn95_cpu_to_gpu_copy(view: Any, src_bytes: bytes) -> int:
     """
     import numpy as np
     import torch
-    from vllm.sndr_core.cache import _pn95_runtime as _rt
+    from sndr.cache import _pn95_runtime as _rt
     # np.frombuffer returns read-only array; torch.from_numpy then warns.
     # .copy() makes writable copy — safe for torch consumption.
     src_arr = np.frombuffer(src_bytes, dtype=np.uint8).copy()
@@ -213,7 +213,7 @@ def _pn95_gpu_to_cpu_bytes_batch(views: list) -> list:
     if _pn95_use_stream_pool() and _pn95_async_enabled():
         return _pn95_gpu_to_cpu_bytes_batch_v2(views)
     import torch
-    from vllm.sndr_core.cache import _pn95_runtime as _rt
+    from sndr.cache import _pn95_runtime as _rt
     stream = _pn95_stream() if _pn95_async_enabled() else None
     if stream is None:
         # Synchronous fallback — equivalent to N sequential _pn95_gpu_to_cpu_bytes calls.
@@ -264,7 +264,7 @@ def _pn95_cpu_to_gpu_copy_batch(views: list, src_bytes_list: list) -> int:
         return _pn95_cpu_to_gpu_copy_batch_v2(views, src_bytes_list)
     import numpy as np
     import torch
-    from vllm.sndr_core.cache import _pn95_runtime as _rt
+    from sndr.cache import _pn95_runtime as _rt
     stream = _pn95_stream() if _pn95_async_enabled() else None
 
     if stream is None:
@@ -329,8 +329,8 @@ def _pn95_gpu_to_cpu_bytes_batch_v2(views: list) -> list:
     if not views:
         return []
     import torch
-    from vllm.sndr_core.cache import _pn95_runtime as _rt
-    from vllm.sndr_core.cache import _pn95_stream_pool as sp
+    from sndr.cache import _pn95_runtime as _rt
+    from sndr.cache import _pn95_stream_pool as sp
     st = sp._state()
     stream = st.acquire_stream()
     end_evt = st.acquire_event()
@@ -369,8 +369,8 @@ def _pn95_cpu_to_gpu_copy_batch_v2(views: list, src_bytes_list: list) -> int:
         return 0
     import numpy as np
     import torch
-    from vllm.sndr_core.cache import _pn95_runtime as _rt
-    from vllm.sndr_core.cache import _pn95_stream_pool as sp
+    from sndr.cache import _pn95_runtime as _rt
+    from sndr.cache import _pn95_stream_pool as sp
     st = sp._state()
     stream = st.acquire_stream()
     end_evt = st.acquire_event()

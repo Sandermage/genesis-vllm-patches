@@ -105,10 +105,10 @@ def _discover_presets() -> list[dict[str, Any]]:
     Defensive: a missing profile or model yields an entry with
     spec_decode_K=DEFAULT_K and role=None — never crashes the emit.
     """
-    from vllm.sndr_core.model_configs.registry_v2 import (
+    from sndr.model_configs.registry_v2 import (
         load_profile, load_model,
     )
-    from vllm.sndr_core.model_configs.schema import SchemaError
+    from sndr.model_configs.schema import SchemaError
 
     rows: list[dict[str, Any]] = []
     for preset_path in _list_preset_paths():

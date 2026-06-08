@@ -48,8 +48,8 @@ from __future__ import annotations
 import logging
 import os
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
-from vllm.sndr_core.core.text_patch import (
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
+from sndr.kernel.text_patch import (
     TextPatch,
     TextPatcher,
     result_to_wiring_status,
@@ -79,7 +79,7 @@ PN24_REPLACEMENT = (
 
 def apply() -> tuple[str, str]:
     """Apply PN24 — DFlash aux layer +1 shift (vllm#40727)."""
-    from vllm.sndr_core.dispatcher import should_apply, log_decision
+    from sndr.dispatcher import should_apply, log_decision
     decision, reason = should_apply("PN24")
     log_decision("PN24", decision, reason)
     if not decision:

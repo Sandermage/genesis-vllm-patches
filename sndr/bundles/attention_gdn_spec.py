@@ -24,7 +24,7 @@ Targets: v1/attention/backends/gdn_attn.py
 """
 from __future__ import annotations
 
-from vllm.sndr_core.env import Flags
+from sndr.env import Flags
 
 from ._common import run_bundle
 

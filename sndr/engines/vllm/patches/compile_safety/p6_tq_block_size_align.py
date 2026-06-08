@@ -43,12 +43,12 @@ from __future__ import annotations
 
 import logging
 
-from vllm.sndr_core.detection.guards import (
+from sndr.engines.vllm.detection.guards import (
     is_nvidia_cuda,
     resolve_vllm_file,
     vllm_install_root,
 )
-from vllm.sndr_core.core import (
+from sndr.kernel import (
     TextPatch, TextPatcher, TextPatchResult,
 )
 

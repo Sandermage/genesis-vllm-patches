@@ -54,7 +54,7 @@ from . import _io
 def _collect_doctor() -> dict[str, Any]:
     """Run the doctor module and return its JSON-serializable report."""
     try:
-        from vllm.sndr_core.compat.doctor import collect_report
+        from sndr.compat.doctor import collect_report
         report = collect_report()
         # Ensure JSON-serializable (collect_report may include Path objects).
         return json.loads(json.dumps(report, default=str))
@@ -67,8 +67,8 @@ def _collect_doctor() -> dict[str, Any]:
 def _collect_patches() -> dict[str, Any]:
     """Snapshot of PATCH_REGISTRY + apply_module coverage."""
     try:
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
-        from vllm.sndr_core.dispatcher.spec import iter_patch_specs
+        from sndr.dispatcher import PATCH_REGISTRY
+        from sndr.dispatcher.spec import iter_patch_specs
         specs = {s.patch_id: s.apply_module for s in iter_patch_specs()}
         out: dict[str, Any] = {
             "total": len(PATCH_REGISTRY),
@@ -110,14 +110,14 @@ def _collect_launch_dryrun(preset_key: str | None) -> str:
     if not preset_key:
         return "(no --preset specified; rendered script omitted)\n"
     try:
-        from vllm.sndr_core.model_configs.registry import get as _get_cfg
+        from sndr.model_configs.registry import get as _get_cfg
         cfg = _get_cfg(preset_key)
     except Exception as e:
         return f"(failed to load preset {preset_key!r}: {e})\n"
     if cfg is None:
         return f"(preset {preset_key!r} not found)\n"
     try:
-        from vllm.sndr_core.model_configs.host import load_host_config
+        from sndr.model_configs.host import load_host_config
         host_paths = dict(load_host_config().paths) or {}
     except Exception:
         host_paths = {}
@@ -310,8 +310,8 @@ def _collect_patch_plan(preset: str | None) -> dict[str, Any] | None:
     if not preset:
         return None
     try:
-        from vllm.sndr_core.cli.memory import _resolve_preset_v1_or_v2
-        from vllm.sndr_core.model_configs.patch_plan import resolve_patch_plan
+        from sndr.cli.memory import _resolve_preset_v1_or_v2
+        from sndr.model_configs.patch_plan import resolve_patch_plan
     except Exception as e:
         return {"preset": preset, "error": f"import failed: {e}"}
 
@@ -347,7 +347,7 @@ def _maybe_redact(artifacts: dict[str, Any], do_redact: bool
     """Apply redaction in-place. Returns (redacted_artifacts, hit_counts)."""
     if not do_redact:
         return artifacts, {}
-    from vllm.sndr_core.runtime.redact import Redactor, load_user_rules, DEFAULT_RULES
+    from sndr.runtime.redact import Redactor, load_user_rules, DEFAULT_RULES
     user_rules = load_user_rules()
     rules = DEFAULT_RULES + user_rules
     r = Redactor(rules=rules)
@@ -356,7 +356,7 @@ def _maybe_redact(artifacts: dict[str, Any], do_redact: bool
         if isinstance(artifact, str):
             out[name] = r.redact(artifact)
         elif isinstance(artifact, (dict, list)):
-            from vllm.sndr_core.runtime.redact import _walk
+            from sndr.runtime.redact import _walk
             out[name] = _walk(artifact, r)
         else:
             out[name] = artifact
@@ -476,7 +476,7 @@ def add_argparser(subparsers: Any) -> None:
 def run_cudagraph_coverage(opts: argparse.Namespace) -> int:
     """`sndr report cudagraph-coverage` — print current hit-rate."""
     import json as _json
-    from vllm.sndr_core.observability import (
+    from sndr.observability import (
         get_cudagraph_summary,
         emit_cudagraph_summary,
     )

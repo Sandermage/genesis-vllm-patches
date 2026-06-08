@@ -60,7 +60,7 @@ class DualStreamDispatcher:
 
         cls._initialized = True
 
-        from vllm.sndr_core.detection.guards import (
+        from sndr.engines.vllm.detection.guards import (
             is_nvidia_cuda, is_sm_at_least, is_amd_rocm
         )
 

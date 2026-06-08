@@ -55,8 +55,8 @@ from __future__ import annotations
 import logging
 import os
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
-from vllm.sndr_core.core import (
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
+from sndr.kernel import (
     TextPatcher,
     TextPatchResult,
     TextPatch,
@@ -133,7 +133,7 @@ def _make_patcher() -> TextPatcher | None:
 
 def apply() -> tuple[str, str]:
     """Apply P68/P69 hook injection."""
-    from vllm.sndr_core.dispatcher import should_apply, log_decision
+    from sndr.dispatcher import should_apply, log_decision
     # The wiring is shared — apply if EITHER P68 or P69 is enabled.
     p68_decision, p68_reason = should_apply("P68")
     p69_decision, p69_reason = should_apply("P69")

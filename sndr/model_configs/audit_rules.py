@@ -175,12 +175,12 @@ def _check_symbolic_mounts_resolvable_R019(cfg) -> Optional[str]:
     # Merge: auto-detect first, host.yaml overrides on collision.
     available: dict[str, str] = {}
     try:
-        from vllm.sndr_core.model_configs.host import detect_paths
+        from sndr.model_configs.host import detect_paths
         available.update(detect_paths())
     except Exception:
         pass
     try:
-        from vllm.sndr_core.model_configs.host import load_host_config
+        from sndr.model_configs.host import load_host_config
         available.update(load_host_config().paths)
     except Exception:
         pass
@@ -605,7 +605,7 @@ def _check_qwen3_tool_stack(cfg) -> Optional[str]:
 def _check_env_keys_exist(cfg) -> Optional[str]:
     """Validate every key in genesis_env against PATCH_REGISTRY env_flags."""
     try:
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+        from sndr.dispatcher import PATCH_REGISTRY
     except Exception:
         return None  # registry not available; skip
 
@@ -619,7 +619,7 @@ def _check_env_keys_exist(cfg) -> Optional[str]:
     # Tunable knobs (vs patch-enable flags) live in their own registry —
     # see `vllm/sndr_core/runtime_tunables.py::TUNABLE_KNOBS` for the
     # canonical list with type / default / doc per knob.
-    from vllm.sndr_core.runtime_tunables import is_known_tunable
+    from sndr.runtime_tunables import is_known_tunable
 
     # Stub keys used as marker placeholders (e.g. _DUP suffix).
     stub_suffixes = ("_DUP",)
@@ -718,7 +718,7 @@ def _estimate_model_size_bytes(cfg) -> int:
 def _check_pin_in_allowlist(cfg) -> Optional[str]:
     """vllm_pin_required must appear in KNOWN_GOOD_VLLM_PINS."""
     try:
-        from vllm.sndr_core.detection.guards import KNOWN_GOOD_VLLM_PINS
+        from sndr.engines.vllm.detection.guards import KNOWN_GOOD_VLLM_PINS
     except Exception:
         return None
     if cfg.vllm_pin_required in KNOWN_GOOD_VLLM_PINS:
@@ -739,7 +739,7 @@ def _check_known_good_genesis_pin(cfg) -> Optional[str]:
     if cfg.enforce_eager:
         return None
     try:
-        from vllm.sndr_core.detection.guards import is_genesis_pin_validated
+        from sndr.engines.vllm.detection.guards import is_genesis_pin_validated
     except Exception:
         return None
     if is_genesis_pin_validated(cfg.genesis_pin):

@@ -35,8 +35,8 @@ from __future__ import annotations
 import logging
 import os
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
-from vllm.sndr_core.core import (
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
+from sndr.kernel import (
     TextPatch,
     TextPatcher,
     result_to_wiring_status,
@@ -63,7 +63,7 @@ PN40_HOOK_REPLACEMENT = (
     "        # Cheap (no GPU sync) — tags request as code/long_ctx/short_ctx/\n"
     "        # free_form for downstream observability + future routing.\n"
     "        try:\n"
-    "            from vllm.sndr_core.kernels.pn40_dflash_omnibus import (\n"
+    "            from sndr.engines.vllm.kernels_legacy.pn40_dflash_omnibus import (\n"
     "                classify_workload as _genesis_pn40_classify,\n"
     "                env_enabled as _genesis_pn40_enabled,\n"
     "                sub_d_enabled as _genesis_pn40_sub_d_enabled,\n"
@@ -127,7 +127,7 @@ def _make_patcher() -> TextPatcher | None:
 
 def apply() -> tuple[str, str]:
     """Apply PN40 sub-D workload classifier hook."""
-    from vllm.sndr_core.dispatcher import log_decision, should_apply
+    from sndr.dispatcher import log_decision, should_apply
 
     decision, reason = should_apply("PN40")
     log_decision("PN40-classifier", decision, reason)

@@ -6,12 +6,12 @@ semantic-similarity cache shim. Import entries only when enabled via
 the corresponding env gate; module import itself is cheap and
 side-effect-free."""
 
-from vllm.sndr_core.cache.response_cache import (
+from sndr.cache.response_cache import (
     ResponseCacheLRU,
     is_p41_enabled,
     get_default_cache,
 )
-from vllm.sndr_core.cache.eviction_policies import (
+from sndr.cache.eviction_policies import (
     ARCPolicy,
     EvictionPolicy,
     LRUPolicy,

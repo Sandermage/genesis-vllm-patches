@@ -68,7 +68,7 @@ def add_argparser(subparsers: Any) -> None:
 
 
 def _resolve(key: str):
-    from vllm.sndr_core.model_configs.registry import get
+    from sndr.model_configs.registry import get
     cfg = get(key)
     if cfg is None:
         _io.warn(f"unknown preset key {key!r}")
@@ -287,7 +287,7 @@ def run_install(args: argparse.Namespace) -> int:
         # Render the compose YAML to the canonical path. The compose
         # CLI already has render logic; service install delegates to
         # it so the two surfaces stay aligned.
-        from vllm.sndr_core.cli.compose import render_compose_yaml
+        from sndr.cli.compose import render_compose_yaml
         try:
             yaml_body = render_compose_yaml(cfg)
         except Exception as e:
@@ -316,7 +316,7 @@ def run_install(args: argparse.Namespace) -> int:
         # Render the Deployment+Service+ConfigMap manifest and either
         # apply it directly (operator passed --yes) or write it next to
         # the compose / quadlet artefacts under ~/.sndr/k8s/.
-        from vllm.sndr_core.compat.model_config_cli import _render_kubernetes
+        from sndr.compat.model_config_cli import _render_kubernetes
         manifest = _render_kubernetes(cfg)
         target_dir = Path.home() / ".sndr" / "k8s"
         target_dir.mkdir(parents=True, exist_ok=True)
@@ -338,7 +338,7 @@ def run_install(args: argparse.Namespace) -> int:
         # (operator passed --yes, we run it on the local PVE host) or
         # leave it on disk for the operator to scp + execute on their PVE
         # box. The renderer is idempotent so re-runs are safe.
-        from vllm.sndr_core.compat.model_config_cli import _render_lxc_proxmox
+        from sndr.compat.model_config_cli import _render_lxc_proxmox
         script_body = _render_lxc_proxmox(cfg)
         target_dir = Path.home() / ".sndr" / "proxmox"
         target_dir.mkdir(parents=True, exist_ok=True)

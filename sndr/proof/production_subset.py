@@ -49,7 +49,7 @@ def _enabled_env_keys_for_preset(alias: str) -> set[str]:
     subset computation is best-effort, never raises.
     """
     try:
-        from vllm.sndr_core.model_configs import registry_v2
+        from sndr.model_configs import registry_v2
     except ImportError:
         return set()
     try:
@@ -69,7 +69,7 @@ def _list_production_preset_aliases() -> list[str]:
     """Return every V2 preset alias whose name matches the production
     glob list. Deterministic order (sorted)."""
     try:
-        from vllm.sndr_core.model_configs import registry_v2
+        from sndr.model_configs import registry_v2
     except ImportError:
         return []
     try:
@@ -104,7 +104,7 @@ def get_production_subset(
     169 entries) — no caching, callers are free to memoize.
     """
     if registry is None:
-        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        from sndr.dispatcher.registry import PATCH_REGISTRY
         registry = PATCH_REGISTRY
 
     env_to_pid: dict[str, str] = {}
@@ -136,7 +136,7 @@ def production_subset_breakdown(
     """Diagnostic helper — return the subset as a structured dict so
     operators can inspect the source of each inclusion."""
     if registry is None:
-        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        from sndr.dispatcher.registry import PATCH_REGISTRY
         registry = PATCH_REGISTRY
 
     aliases = _list_production_preset_aliases()

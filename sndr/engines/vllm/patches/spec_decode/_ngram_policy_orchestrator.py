@@ -152,7 +152,7 @@ pluggable DecisionStrategy class; until then this module provides the
 unified documentation + audit surface only.
 
 To diagnose the live stack on a running container:
-  python -c 'from vllm.sndr_core.integrations.spec_decode._ngram_policy_orchestrator import audit_ngram_stack_state; import json; print(json.dumps(audit_ngram_stack_state(), indent=2, default=str))'
+  python -c 'from sndr.engines.vllm.patches.spec_decode._ngram_policy_orchestrator import audit_ngram_stack_state; import json; print(json.dumps(audit_ngram_stack_state(), indent=2, default=str))'
 """
 
 
@@ -176,7 +176,7 @@ def verify_patch_composition() -> dict:
       }
     """
     try:
-        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        from sndr.dispatcher.registry import PATCH_REGISTRY
     except ImportError:
         return {
             "composable": True,

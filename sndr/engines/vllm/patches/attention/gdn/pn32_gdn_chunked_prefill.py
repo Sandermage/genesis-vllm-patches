@@ -152,8 +152,8 @@ from __future__ import annotations
 
 import logging
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
-from vllm.sndr_core.core import (
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
+from sndr.kernel import (
     TextPatch,
     TextPatcher,
     result_to_wiring_status,
@@ -391,7 +391,7 @@ def apply() -> tuple[str, str]:
     inside _forward_core where chunk-local cu_seqlens can be built
     correctly.
     """
-    from vllm.sndr_core.dispatcher import log_decision, should_apply
+    from sndr.dispatcher import log_decision, should_apply
 
     decision, reason = should_apply("PN32")
     log_decision("PN32", decision, reason)

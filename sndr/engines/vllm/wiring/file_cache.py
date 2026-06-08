@@ -104,7 +104,7 @@ def _detect_pins() -> tuple[Optional[str], Optional[str]]:
     except Exception:
         pass
     try:
-        from vllm.sndr_core.version import __version__ as gver
+        from sndr.version import __version__ as gver
         genesis_pin = gver
     except Exception:
         pass

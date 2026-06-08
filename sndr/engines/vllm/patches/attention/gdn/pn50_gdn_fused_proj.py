@@ -30,8 +30,8 @@ from __future__ import annotations
 import logging
 import os
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
-from vllm.sndr_core.core import (
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
+from sndr.kernel import (
     TextPatch,
     TextPatcher,
     TextPatchResult,
@@ -77,7 +77,7 @@ ANCHOR_NEW = (
     "            # 2 explicit copies. Wrapper falls through to original\n"
     "            # PyTorch chain on any constraint violation (non-contig,\n"
     "            # non-pow2 head_dim, kernel failure, etc.) — strict no-regression.\n"
-    "            from vllm.sndr_core.kernels.pn50_gdn_fused_proj import (\n"
+    "            from sndr.engines.vllm.kernels_legacy.pn50_gdn_fused_proj import (\n"
     "                fused_qkvzba_split_reshape_cat_contiguous as _pn50_fused,\n"
     "            )\n"
     "            _pn50_num_heads_qk = (self.key_dim // self.head_k_dim) // self.tp_size\n"
@@ -124,7 +124,7 @@ def _make_patcher() -> TextPatcher | None:
 
 
 def apply() -> tuple[str, str]:
-    from vllm.sndr_core.dispatcher import log_decision, should_apply
+    from sndr.dispatcher import log_decision, should_apply
 
     decision, reason = should_apply("PN50")
     log_decision("PN50", decision, reason)

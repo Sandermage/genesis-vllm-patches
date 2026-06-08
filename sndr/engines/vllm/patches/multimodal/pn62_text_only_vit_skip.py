@@ -207,7 +207,7 @@ def _wrap_profile_run(original_profile_run):
 
 def apply() -> tuple[str, str]:
     """Apply PN62 — install class-rebind wrapper around profile_run."""
-    from vllm.sndr_core.dispatcher import should_apply, log_decision
+    from sndr.dispatcher import should_apply, log_decision
 
     decision, reason = should_apply("PN62")
     log_decision("PN62", decision, reason)

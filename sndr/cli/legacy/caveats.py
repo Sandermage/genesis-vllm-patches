@@ -61,8 +61,8 @@ def add_argparser(subparsers: Any) -> None:
 
 def _facts_from_inventory() -> dict:
     """Build the `facts` dict that caveat match_fns expect."""
-    from vllm.sndr_core.deps.checkers import inspect_host
-    from vllm.sndr_core.detection.guards import KNOWN_GOOD_VLLM_PINS
+    from sndr.deps.checkers import inspect_host
+    from sndr.engines.vllm.detection.guards import KNOWN_GOOD_VLLM_PINS
     inv = inspect_host()
     facts = inv.to_dict()
     # Augment with vllm pin allowlist membership
@@ -86,7 +86,7 @@ def _facts_from_inventory() -> dict:
 # ─── list
 
 def run_list(args: argparse.Namespace) -> int:
-    from vllm.sndr_core.caveats import KNOWN_CAVEATS
+    from sndr.caveats import KNOWN_CAVEATS
     if args.json:
         out = [
             {"id": c.id, "severity": c.severity, "title": c.title,
@@ -112,7 +112,7 @@ def run_list(args: argparse.Namespace) -> int:
 # ─── check
 
 def run_check(args: argparse.Namespace) -> int:
-    from vllm.sndr_core.caveats import match_caveats
+    from sndr.caveats import match_caveats
     facts = _facts_from_inventory()
     triggered = match_caveats(facts)
 
@@ -162,7 +162,7 @@ def run_check(args: argparse.Namespace) -> int:
 # ─── explain
 
 def run_explain(args: argparse.Namespace) -> int:
-    from vllm.sndr_core.caveats import get_caveat, list_caveat_ids
+    from sndr.caveats import get_caveat, list_caveat_ids
     c = get_caveat(args.caveat_id)
     if c is None:
         _io.warn(f"unknown caveat id {args.caveat_id!r}")

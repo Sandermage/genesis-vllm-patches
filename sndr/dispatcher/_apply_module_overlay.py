@@ -25,7 +25,7 @@ from typing import Any
 # re-generate via `python3 scripts/discover_apply_modules.py --emit-py
 # vllm/sndr_core/dispatcher/_apply_module_overlay.py`).
 APPLY_MODULE_OVERLAY: dict[str, str] = {
-    pid: "vllm.sndr_core.apply._per_patch_dispatch"
+    pid: "sndr.apply._per_patch_dispatch"
     for pid in (
         "P1", "P100", "P101", "P103", "P107", "P12",
         "P14", "P15", "P15B", "P17", "P18b", "P20",
@@ -94,7 +94,7 @@ def apply_overlay(registry: dict[str, dict[str, Any]]) -> int:
     overwrites:
 
       1. an explicit `apply_module` value already declared in `registry.py`
-         (e.g. PN95's `vllm.sndr_core.integrations.kv_cache.pn95_tier_aware_cache`)
+         (e.g. PN95's `sndr.engines.vllm.patches.kv_cache.pn95_tier_aware_cache`)
       2. patches that have an on-disk integration-tree module under
          `integrations/<family>/<patch_id>_*.py` (Stage 6 migrated patches
          like PN82 → `integrations/worker/pn82_mamba_cudagraph_prefill_zero.py`).

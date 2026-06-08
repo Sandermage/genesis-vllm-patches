@@ -20,8 +20,8 @@ from __future__ import annotations
 import logging
 import os
 
-from vllm.sndr_core.locations import resolve_vllm_file, vllm_install_root
-from vllm.sndr_core.core import (
+from sndr.engines.vllm.locations import resolve_vllm_file, vllm_install_root
+from sndr.kernel import (
     TextPatch, TextPatcher, result_to_wiring_status,
 )
 
@@ -78,7 +78,7 @@ def _make_patcher() -> "TextPatcher | None":
 
 def apply() -> tuple[str, str]:
     """Apply PN80. Returns (status, reason) per wiring contract."""
-    from vllm.sndr_core.dispatcher import log_decision, should_apply
+    from sndr.dispatcher import log_decision, should_apply
 
     decision, reason = should_apply("PN80")
     log_decision("PN80", decision, reason)

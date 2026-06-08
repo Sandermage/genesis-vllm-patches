@@ -34,7 +34,7 @@ def verify_live_rebinds() -> dict[str, Any]:
     diagnostic probes in validate_integration.sh (grep file for markers).
 
     Usage (end-of-register hook or test):
-      from vllm.sndr_core.apply import verify_live_rebinds
+      from sndr.apply import verify_live_rebinds
       results = verify_live_rebinds()
       for name, r in results.items():
           if not r["ok"]:
@@ -46,7 +46,7 @@ def verify_live_rebinds() -> dict[str, Any]:
     def _check(patch_id: str):
         """Resolve patch_id via `compat.categories.module_for`, import the
         wiring module, and invoke `is_applied()`."""
-        from vllm.sndr_core.compat.categories import module_for
+        from sndr.compat.categories import module_for
         dotted = module_for(patch_id)
         if dotted is None:
             results[patch_id] = {

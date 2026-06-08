@@ -179,7 +179,7 @@ def doctor_report() -> DoctorReport:
 def config_catalog() -> ConfigCatalog:
     """Build a snapshot of the V2 catalog."""
     try:
-        from vllm.sndr_core.model_configs.registry_v2 import (
+        from sndr.model_configs.registry_v2 import (
             list_hardware, list_models, list_presets, list_profiles,
             load_hardware, load_model, load_preset_def, load_profile,
         )

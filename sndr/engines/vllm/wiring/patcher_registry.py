@@ -37,7 +37,7 @@ import threading
 from typing import TYPE_CHECKING, Iterator, Optional
 
 if TYPE_CHECKING:
-    from vllm.sndr_core.core.text_patch import TextPatcher
+    from sndr.kernel.text_patch import TextPatcher
 
 log = logging.getLogger("genesis.wiring.patcher_registry")
 

@@ -18,7 +18,7 @@ def collect_catalog_summary() -> CatalogSummary:
     the existing registry surfaces and returns compact counts for GUI
     navigation, filters, and health badges.
     """
-    from vllm.sndr_core.model_configs.registry_v2 import (
+    from sndr.model_configs.registry_v2 import (
         list_hardware,
         list_models,
         list_presets,

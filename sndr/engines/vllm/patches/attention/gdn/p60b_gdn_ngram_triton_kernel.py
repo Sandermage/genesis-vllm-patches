@@ -56,8 +56,8 @@ from __future__ import annotations
 import logging
 import os
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
-from vllm.sndr_core.core import (
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
+from sndr.kernel import (
     TextPatcher,
     TextPatchResult,
     TextPatch,
@@ -328,7 +328,7 @@ def _clear_triton_cache() -> tuple[bool, str]:
     env vars set.
     """
     try:
-        from vllm.sndr_core.locations.project_paths import triton_cache_dir
+        from sndr.engines.vllm.locations.project_paths import triton_cache_dir
         canonical = str(triton_cache_dir())
     except Exception:
         canonical = ""
@@ -361,7 +361,7 @@ def _clear_triton_cache() -> tuple[bool, str]:
 
 def apply() -> tuple[str, str]:
     """Apply P60b (Phase 2) Triton kernel patch + gdn caller passthrough."""
-    from vllm.sndr_core.dispatcher import should_apply, log_decision
+    from sndr.dispatcher import should_apply, log_decision
     decision, reason = should_apply("P60b")
     log_decision("P60b", decision, reason)
     if not decision:

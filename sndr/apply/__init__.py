@@ -27,13 +27,13 @@ from .verify import verify_live_rebinds  # noqa: F401
 
 # PR38 cleanup (2026-05-08): legacy `vllm/_genesis/patches/apply_all.py`
 # was the all-in-one entry. Tests historically did
-# `from vllm.sndr_core.apply import register_patch, run, ...`
+# `from sndr.apply import register_patch, run, ...`
 # After Stage-3 split + PR38 _genesis removal, the same symbols live on
 # `vllm.sndr_core.apply` (this package). Tests now import from here, but
 # some still reach for an `apply_all` *attribute* (the legacy module
 # object). Expose this package itself as `apply_all` so that pattern
 # keeps working — `getattr(vllm.sndr_core.apply, "apply_all")` returns
-# this module, and `from vllm.sndr_core.apply import apply_all` rebinds
+# this module, and `from sndr.apply import apply_all` rebinds
 # it as a local name.
 apply_all = _sys.modules[__name__]
 
@@ -45,13 +45,13 @@ def __getattr__(name):
     PR38 cleanup (2026-05-08): tests historically did
     `from vllm._genesis.patches import apply_all` then
     `assert hasattr(apply_all, "apply_patch_NXX")`. After migration,
-    they do `from vllm.sndr_core.apply import apply_all` (which is now
+    they do `from sndr.apply import apply_all` (which is now
     THIS package) then the same hasattr check. This `__getattr__`
     forwards lookups for any `apply_patch_*` name into the parking-lot
     dispatch module so the contract holds.
     """
     if name.startswith("apply_patch_"):
-        from vllm.sndr_core.apply import _per_patch_dispatch
+        from sndr.apply import _per_patch_dispatch
         if hasattr(_per_patch_dispatch, name):
             return getattr(_per_patch_dispatch, name)
     raise AttributeError(
@@ -63,7 +63,7 @@ def __dir__():
     """Include `apply_patch_*` names in dir() for tab-completion + introspection."""
     base = list(globals().keys())
     try:
-        from vllm.sndr_core.apply import _per_patch_dispatch
+        from sndr.apply import _per_patch_dispatch
         base += [n for n in dir(_per_patch_dispatch) if n.startswith("apply_patch_")]
     except ImportError:
         pass

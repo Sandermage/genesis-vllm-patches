@@ -98,8 +98,8 @@ from __future__ import annotations
 import logging
 import os
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
-from vllm.sndr_core.core import (
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
+from sndr.kernel import (
     TextPatch,
     TextPatcher,
 )
@@ -290,7 +290,7 @@ def apply() -> tuple[str, str]:
         return "skipped", "v1/worker/gpu_worker.py not found"
 
     result, failure = p.apply()
-    from vllm.sndr_core.core import result_to_wiring_status
+    from sndr.kernel import result_to_wiring_status
     return result_to_wiring_status(result, failure, applied_message='PN19 applied: max_split_size_mb=20 scoped to model load (vllm#41268 backport, MatthewBonanni). Frees 200-500 MiB load-time fragmentation.', patch_name='PN19 scoped max_split_size_mb')
 
 

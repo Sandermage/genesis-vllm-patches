@@ -83,16 +83,16 @@ def add_argparser(subparsers: Any) -> None:
 
 def run_pull(args: argparse.Namespace) -> int:
     """Forward to `compat.models.pull.main(argv)`."""
-    from vllm.sndr_core.compat.models import pull as _pull
+    from sndr.compat.models import pull as _pull
     return _pull.main(args.args or [])
 
 
 def run_list(args: argparse.Namespace) -> int:
     """Forward to `compat.models.list_cli` if it has a main entry point."""
     try:
-        from vllm.sndr_core.compat.models import list_cli as _list
+        from sndr.compat.models import list_cli as _list
     except ImportError:
-        from vllm.sndr_core.cli import _io
+        from sndr.cli import _io
         _io.error("compat.models.list_cli not importable")
         return 2
 
@@ -109,7 +109,7 @@ def run_list(args: argparse.Namespace) -> int:
         finally:
             sys.argv = old_argv
 
-    from vllm.sndr_core.cli import _io
+    from sndr.cli import _io
     _io.error("compat.models.list_cli has no callable entry point")
     return 2
 
@@ -118,14 +118,14 @@ def run_list_v2(args: argparse.Namespace) -> int:
     """List V2 layered model files (builtin/model/*.yaml)."""
     import json
     from pathlib import Path
-    from vllm.sndr_core.model_configs.registry_v2 import load_model
+    from sndr.model_configs.registry_v2 import load_model
 
     model_dir = (
         Path(__file__).resolve().parents[1]
         / "model_configs" / "builtin" / "model"
     )
     if not model_dir.is_dir():
-        from vllm.sndr_core.cli import _io
+        from sndr.cli import _io
         _io.error(f"V2 model registry not found: {model_dir}")
         return 2
 

@@ -50,7 +50,7 @@ def proof_status(
     Raises :class:`UnknownBucketError` if ``bucket_filter`` contains a
     name not in :data:`vllm.sndr_core.proof.PROOF_STATUS_BUCKETS`.
     """
-    from vllm.sndr_core.proof import (
+    from sndr.proof import (
         DEFAULT_PROOF_DIR,
         PROOF_STATUS_BUCKETS,
         summarize_proof_status,

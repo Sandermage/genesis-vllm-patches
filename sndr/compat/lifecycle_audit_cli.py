@@ -45,8 +45,8 @@ def main(argv=None) -> int:
                         help="Only print rows with severity != 'ok'")
     args = parser.parse_args(argv)
 
-    from vllm.sndr_core.dispatcher import PATCH_REGISTRY
-    from vllm.sndr_core.compat.lifecycle import (
+    from sndr.dispatcher import PATCH_REGISTRY
+    from sndr.compat.lifecycle import (
         audit_registry, format_audit_table,
     )
 

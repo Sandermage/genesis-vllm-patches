@@ -45,8 +45,8 @@ from __future__ import annotations
 import logging
 import os
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
-from vllm.sndr_core.core import TextPatch, TextPatcher
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
+from sndr.kernel import TextPatch, TextPatcher
 
 log = logging.getLogger("genesis.wiring.pn200_gdn_scratch_reuse")
 
@@ -79,7 +79,7 @@ PN200_CORE_ATTN_NEW = (
     "            if _g_pn200_os.environ.get(\n"
     "                \"GENESIS_ENABLE_PN200_GDN_SCRATCH_REUSE\", \"0\",\n"
     "            ).strip().lower() in (\"1\", \"true\", \"yes\", \"on\"):\n"
-    "                from vllm.sndr_core.cache._pn95_runtime import pn106_get_pooled_buf as _g_pn200_get\n"
+    "                from sndr.cache._pn95_runtime import pn106_get_pooled_buf as _g_pn200_get\n"
     "                core_attn_out = _g_pn200_get(\n"
     "                    \"gdn_core_attn_out\",\n"
     "                    (num_tokens, self.num_v_heads // self.tp_size, self.head_v_dim),\n"
@@ -148,7 +148,7 @@ def apply() -> tuple[str, str]:
         if m in content:
             return "skipped", f"drift marker {m!r} already in file"
     result, failure = patcher.apply()
-    from vllm.sndr_core.core import result_to_wiring_status
+    from sndr.kernel import result_to_wiring_status
     return result_to_wiring_status(
         result, failure,
         applied_message="PN200 GDN core_attn_out routed through pool — saves ~1 GiB alloc traffic per step",

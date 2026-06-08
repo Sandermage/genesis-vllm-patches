@@ -94,7 +94,7 @@ def setup(write_fn: Callable, read_fn: Callable, block_size: int) -> None:
     # because this file already does too; we keep the import local so
     # any registration failure stays contained.
     try:
-        from vllm.sndr_core.kernels.g4_19c_roundtrip_customop import (
+        from sndr.engines.vllm.kernels_legacy.g4_19c_roundtrip_customop import (
             _register_op_once,
         )
         _OP_REGISTERED = _register_op_once()

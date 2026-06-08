@@ -28,8 +28,8 @@ from __future__ import annotations
 import logging
 import os
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
-from vllm.sndr_core.core import (
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
+from sndr.kernel import (
     TextPatcher,
     TextPatch,
 )
@@ -60,7 +60,7 @@ PN95_SITE1_NEW = (
     "        _g_pn95_admit = globals().get('_GENESIS_PN95_admit_fn')\n"
     "        if _g_pn95_admit is None:\n"
     "            try:\n"
-    "                from vllm.sndr_core.cache._pn95_runtime import notify_admit as _g_pn95_admit\n"
+    "                from sndr.cache._pn95_runtime import notify_admit as _g_pn95_admit\n"
     "            except Exception:\n"
     "                _g_pn95_admit = False\n"
     "            globals()['_GENESIS_PN95_admit_fn'] = _g_pn95_admit\n"
@@ -94,7 +94,7 @@ PN95_SITE2_NEW = (
     "        _g_pn95_touch = globals().get('_GENESIS_PN95_touch_fn')\n"
     "        if _g_pn95_touch is None:\n"
     "            try:\n"
-    "                from vllm.sndr_core.cache._pn95_runtime import notify_touch as _g_pn95_touch\n"
+    "                from sndr.cache._pn95_runtime import notify_touch as _g_pn95_touch\n"
     "            except Exception:\n"
     "                _g_pn95_touch = False\n"
     "            globals()['_GENESIS_PN95_touch_fn'] = _g_pn95_touch\n"
@@ -128,7 +128,7 @@ PN95_SITE3_NEW = (
     "        )\n"
     "        # [Genesis PN95] Mamba SSM exclusion + lazy TierManager init\n"
     "        try:\n"
-    "            from vllm.sndr_core.cache._pn95_runtime import init_mamba_exclusions_from_kv_groups as _g_pn95_init\n"
+    "            from sndr.cache._pn95_runtime import init_mamba_exclusions_from_kv_groups as _g_pn95_init\n"
     "            _g_pn95_init(kv_cache_config.kv_cache_groups)\n"
     "        except Exception:\n"
     "            pass\n"
@@ -157,7 +157,7 @@ PN95_SITE4_NEW = (
     "        )\n"
     "        # [Genesis PN95 v1.0 Phase 1] register kv_caches refs into TierManager\n"
     "        try:\n"
-    "            from vllm.sndr_core.cache._pn95_runtime import register_kv_caches as _g_pn95_reg\n"
+    "            from sndr.cache._pn95_runtime import register_kv_caches as _g_pn95_reg\n"
     "            _g_pn95_reg(kv_caches, self.kv_cache_config.kv_cache_groups)\n"
     "        except Exception:\n"
     "            pass\n"
@@ -176,7 +176,7 @@ PN95_SITE5_NEW = (
     "        _g_pn95_tick = globals().get('_GENESIS_PN95_tick_fn')\n"
     "        if _g_pn95_tick is None:\n"
     "            try:\n"
-    "                from vllm.sndr_core.cache._pn95_runtime import scheduler_tick as _g_pn95_tick\n"
+    "                from sndr.cache._pn95_runtime import scheduler_tick as _g_pn95_tick\n"
     "            except Exception:\n"
     "                _g_pn95_tick = False\n"
     "            globals()['_GENESIS_PN95_tick_fn'] = _g_pn95_tick\n"
@@ -202,7 +202,7 @@ PN95_SITE6_NEW = (
     "        self.metrics_collector = metrics_collector\n"
     "        # [Genesis PN95 v1.0 Phase 4] register BlockPool for promote-on-miss\n"
     "        try:\n"
-    "            from vllm.sndr_core.cache._pn95_runtime import register_block_pool as _g_pn95_regpool\n"
+    "            from sndr.cache._pn95_runtime import register_block_pool as _g_pn95_regpool\n"
     "            _g_pn95_regpool(self)\n"
     "        except Exception:\n"
     "            pass\n"
@@ -234,7 +234,7 @@ PN95_SITE7_NEW = (
     "\n"
     "        # [Genesis PN95 v1.0 Phase 4] demote-on-evict — fail-silent\n"
     "        try:\n"
-    "            from vllm.sndr_core.cache._pn95_runtime import demote_on_evict as _g_pn95_demote_ev\n"
+    "            from sndr.cache._pn95_runtime import demote_on_evict as _g_pn95_demote_ev\n"
     "            _g_pn95_demote_ev(block_hash, block.block_id)\n"
     "        except Exception:\n"
     "            pass\n"
@@ -271,7 +271,7 @@ PN95_SITE11_NEW = (
     "\n"
     "        # [Genesis PN95 v1.0 Phase 5 Anchor #12] virtual block materialization\n"
     "        try:\n"
-    "            from vllm.sndr_core.cache._pn95_runtime import pn95_anchor12_post_popleft as _g_pn95_a12\n"
+    "            from sndr.cache._pn95_runtime import pn95_anchor12_post_popleft as _g_pn95_a12\n"
     "            if not _g_pn95_a12(self, ret):\n"
     "                # Virtual materialization failed — return blocks to queue\n"
     "                # and raise (caller will retry or scheduler will queue request)\n"
@@ -325,7 +325,7 @@ PN95_SITE13_NEW = (
     "            _g_pn95_thr = int(_g_pn95_os.environ.get(\n"
     "                \"GENESIS_PN95_PROACTIVE_FREE_BLOCKS_THRESHOLD\", \"32\"))\n"
     "            if self.get_num_free_blocks() <= _g_pn95_thr:\n"
-    "                from vllm.sndr_core.cache._pn95_runtime import (\n"
+    "                from sndr.cache._pn95_runtime import (\n"
     "                    worker_side_proactive_demote as _g_pn95_wpd,\n"
     "                )\n"
     "                _g_pn95_wpd(self, target_count=min(8, _g_pn95_thr))\n"
@@ -355,7 +355,7 @@ PN95_SITE13_NEW = (
 PN95_SITE10_OLD = (
     "        # [Genesis PN95 v1.0 Phase 4] register BlockPool for promote-on-miss\n"
     "        try:\n"
-    "            from vllm.sndr_core.cache._pn95_runtime import register_block_pool as _g_pn95_regpool\n"
+    "            from sndr.cache._pn95_runtime import register_block_pool as _g_pn95_regpool\n"
     "            _g_pn95_regpool(self)\n"
     "        except Exception:\n"
     "            pass\n"
@@ -363,13 +363,13 @@ PN95_SITE10_OLD = (
 PN95_SITE10_NEW = (
     "        # [Genesis PN95 v1.0 Phase 4] register BlockPool for promote-on-miss\n"
     "        try:\n"
-    "            from vllm.sndr_core.cache._pn95_runtime import register_block_pool as _g_pn95_regpool\n"
+    "            from sndr.cache._pn95_runtime import register_block_pool as _g_pn95_regpool\n"
     "            _g_pn95_regpool(self)\n"
     "        except Exception:\n"
     "            pass\n"
     "        # [Genesis PN95 v1.0 Phase 5 Anchor #11] init block metadata side-table\n"
     "        try:\n"
-    "            from vllm.sndr_core.cache._pn95_runtime import pn95_phase5_init_block_pool as _g_pn95_p5init\n"
+    "            from sndr.cache._pn95_runtime import pn95_phase5_init_block_pool as _g_pn95_p5init\n"
     "            _g_pn95_p5init(self)\n"
     "        except Exception:\n"
     "            pass\n"
@@ -419,7 +419,7 @@ PN95_SITE9_NEW = (
     "    # propagate to caller; downstream tensor alloc uses original.\n"
     "    available_memory_for_check = available_memory\n"
     "    try:\n"
-    "        from vllm.sndr_core.cache._pn95_runtime import pn95_extra_logical_memory_bytes as _g_pn95_extra\n"
+    "        from sndr.cache._pn95_runtime import pn95_extra_logical_memory_bytes as _g_pn95_extra\n"
     "        _extra = _g_pn95_extra()\n"
     "        if _extra > 0:\n"
     "            available_memory_for_check = available_memory + _extra\n"
@@ -465,7 +465,7 @@ PN95_SITE8_NEW = (
     "            if not block:\n"
     "                # [Genesis PN95 v1.0 Phase 4] promote-on-miss — fail-silent\n"
     "                try:\n"
-    "                    from vllm.sndr_core.cache._pn95_runtime import promote_on_miss as _g_pn95_promote_m\n"
+    "                    from sndr.cache._pn95_runtime import promote_on_miss as _g_pn95_promote_m\n"
     "                    block = _g_pn95_promote_m(self, block_hash_with_group_id)\n"
     "                except Exception:\n"
     "                    block = None\n"
@@ -872,7 +872,7 @@ def _apply_one(patcher: TextPatcher | None, label: str) -> tuple[str, str]:
             )
 
     result, failure = patcher.apply()
-    from vllm.sndr_core.core import result_to_wiring_status
+    from sndr.kernel import result_to_wiring_status
     return result_to_wiring_status(
         result, failure,
         applied_message=(
@@ -892,7 +892,7 @@ def apply() -> tuple[str, str]:
       - "skipped" if either is skipped (with reasons concatenated)
       - "failed" if either returns "failed"
     """
-    from vllm.sndr_core.dispatcher import should_apply, log_decision
+    from sndr.dispatcher import should_apply, log_decision
     decision, reason = should_apply("PN95")
     log_decision("PN95", decision, reason)
     if not decision:

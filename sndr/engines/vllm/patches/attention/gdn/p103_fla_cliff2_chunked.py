@@ -117,7 +117,7 @@ import logging
 import os
 from typing import Any
 
-from vllm.sndr_core.detection.guards import is_nvidia_cuda, is_sm_at_least
+from sndr.engines.vllm.detection.guards import is_nvidia_cuda, is_sm_at_least
 
 log = logging.getLogger("genesis.wiring.p103_fla_cliff2_chunked")
 
@@ -424,7 +424,7 @@ _P103_SELF_INSTALL_BLOCK = (
     "    if _genesis_p103_os.environ.get(\n"
     "        \"GENESIS_ENABLE_P103\", \"\"\n"
     "    ).strip().lower() in (\"1\", \"true\", \"yes\", \"on\"):\n"
-    "        from vllm.sndr_core.integrations.attention.gdn.p103_fla_cliff2_chunked "
+    "        from sndr.engines.vllm.patches.attention.gdn.p103_fla_cliff2_chunked "
     "import (\n"
     "            _genesis_p103_install_at_import as "
     "_genesis_p103_install,\n"
@@ -474,8 +474,8 @@ _GENESIS_P103_SELF_INSTALL_MARKER = (
 def _make_self_install_text_patcher():
     """Build the v7.69 text-patch that appends the self-install hook to
     chunk.py. Returns None if vllm tree is not resolvable."""
-    from vllm.sndr_core.detection.guards import resolve_vllm_file
-    from vllm.sndr_core.core import TextPatch, TextPatcher
+    from sndr.engines.vllm.detection.guards import resolve_vllm_file
+    from sndr.kernel import TextPatch, TextPatcher
 
     target = resolve_vllm_file(
         "model_executor/layers/fla/ops/chunk.py"
@@ -526,7 +526,7 @@ def apply() -> tuple[str, str]:
 
     # Hybrid-active dispatch gate — Cliff 2 only triggers on FLA-GDN models
     try:
-        from vllm.sndr_core.detection.model_detect import is_hybrid_model, log_skip
+        from sndr.engines.vllm.detection.model_detect import is_hybrid_model, log_skip
         if not is_hybrid_model():
             log_skip(
                 "P103 FLA Cliff 2 chunked",
@@ -541,8 +541,8 @@ def apply() -> tuple[str, str]:
     text_patch_status = "skipped"
     text_patch_reason = "vllm tree not resolvable"
     try:
-        from vllm.sndr_core.detection.guards import vllm_install_root
-        from vllm.sndr_core.core import TextPatchResult
+        from sndr.engines.vllm.detection.guards import vllm_install_root
+        from sndr.kernel import TextPatchResult
 
         if vllm_install_root() is not None:
             patcher = _make_self_install_text_patcher()

@@ -46,8 +46,8 @@ from __future__ import annotations
 import logging
 import os
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
-from vllm.sndr_core.core.text_patch import (
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
+from sndr.kernel.text_patch import (
     TextPatch,
     TextPatcher,
     result_to_wiring_status,
@@ -80,7 +80,7 @@ PN23_REPLACEMENT = (
 
 def apply() -> tuple[str, str]:
     """Apply PN23 — DFlash combine_hidden_states dtype cast (vllm#40334)."""
-    from vllm.sndr_core.dispatcher import should_apply, log_decision
+    from sndr.dispatcher import should_apply, log_decision
     decision, reason = should_apply("PN23")
     log_decision("PN23", decision, reason)
     if not decision:

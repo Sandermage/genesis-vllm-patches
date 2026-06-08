@@ -4,7 +4,7 @@
 The five public hooks here are the surface that vllm's source itself
 calls into after the PN95 text-patches have been applied. Every name
 in this file is referenced by an embedded
-``from vllm.sndr_core.cache._pn95_runtime import <name>`` string
+``from sndr.cache._pn95_runtime import <name>`` string
 inside ``integrations/kv_cache/pn95_tier_aware_cache.py``:
 
   pn95_tier_aware_cache.py:61   notify_admit                 (Anchor 1)
@@ -92,7 +92,7 @@ def notify_admit(request: Any, prev_n_cached: int, new_n_cached: int,
     coarse `has_mm_input` boolean when block_size is 0 or mm_features
     is missing (callers from older patch versions get a clean degrade).
     """
-    from vllm.sndr_core.cache import _pn95_runtime as _rt
+    from sndr.cache import _pn95_runtime as _rt
     if _rt._TM is None:
         return
     try:
@@ -158,7 +158,7 @@ def notify_touch(block_hash: Any, group_ids: list,
     requires a real cuda buffer reference — Day 7 (live integration)
     swaps in the real promote path.
     """
-    from vllm.sndr_core.cache import _pn95_runtime as _rt
+    from sndr.cache import _pn95_runtime as _rt
     if _rt._TM is None:
         return
     try:
@@ -201,7 +201,7 @@ def register_kv_caches(kv_caches: Any, kv_cache_groups: Any) -> int:
     Returns the count of layer tensors successfully registered.
     Fail-silent: never raises.
     """
-    from vllm.sndr_core.cache import _pn95_runtime as _rt
+    from sndr.cache import _pn95_runtime as _rt
     # DEBUG sentinel for live verification
     try:
         with open("/tmp/pn95_init_called.log", "a") as fh:
@@ -250,7 +250,7 @@ def register_kv_caches(kv_caches: Any, kv_cache_groups: Any) -> int:
                 cfg = load_by_key(cfg_key)
                 cfg_source = f"tier_configs/{cfg_key}.yaml"
                 if cfg is None:
-                    from vllm.sndr_core.model_configs.registry import get
+                    from sndr.model_configs.registry import get
                     cfg = get(cfg_key)
                     cfg_source = f"V1 builtin/{cfg_key}.yaml"
                 if cfg is None:
@@ -449,7 +449,7 @@ def init_mamba_exclusions_from_kv_groups(kv_cache_groups: Any) -> int:
     if no manager has been installed yet — so workers spawned with
     `VLLM_WORKER_MULTIPROC_METHOD=spawn` get the singleton on first use.
     """
-    from vllm.sndr_core.cache import _pn95_runtime as _rt
+    from sndr.cache import _pn95_runtime as _rt
     n_groups = len(list(kv_cache_groups or []))
     # DEBUG sentinel — writes to /tmp to prove the hook fired
     try:
@@ -485,7 +485,7 @@ def init_mamba_exclusions_from_kv_groups(kv_cache_groups: Any) -> int:
                     cfg = load_by_key(cfg_key)
                     cfg_source = "tier_configs/" + cfg_key + ".yaml"
                     if cfg is None:
-                        from vllm.sndr_core.model_configs.registry import get
+                        from sndr.model_configs.registry import get
                         cfg = get(cfg_key)
                         cfg_source = "V1 builtin/" + cfg_key + ".yaml"
                     if cfg is not None:
@@ -544,7 +544,7 @@ def init_mamba_exclusions_from_kv_groups(kv_cache_groups: Any) -> int:
 
 def _refresh_env_cache() -> None:
     """Re-read env vars into module-local cache. Called once on first tick."""
-    from vllm.sndr_core.cache import _pn95_runtime as _rt
+    from sndr.cache import _pn95_runtime as _rt
     # Path C Phase 3 default: TICK_EVERY=10 (was 100 — too slow for single-stream
     # workloads where Scheduler.schedule() fires only ~30 times per long request).
     _rt._TICK_EVERY_CACHED = max(1, _read_env_int("GENESIS_PN95_TICK_EVERY", 10))
@@ -591,7 +591,7 @@ def scheduler_tick() -> None:
 
     Fail-silent — never raises into scheduler hot path.
     """
-    from vllm.sndr_core.cache import _pn95_runtime as _rt
+    from sndr.cache import _pn95_runtime as _rt
     if not _enabled() or _rt._TM is None:
         return
     _rt._TICK_COUNTER += 1

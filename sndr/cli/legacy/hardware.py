@@ -55,7 +55,7 @@ def _hw_summary(hw_id: str) -> dict:
     """Lightweight summary derived from a HardwareDef without rendering
     the full nested structure. Used by `list` to avoid loading every file
     fully when only the index is needed."""
-    from vllm.sndr_core.model_configs.registry_v2 import load_hardware
+    from sndr.model_configs.registry_v2 import load_hardware
     hw = load_hardware(hw_id)
     return {
         "id": hw.id,
@@ -72,8 +72,8 @@ def _hw_summary(hw_id: str) -> dict:
 # ─── list
 
 def run_list(args: argparse.Namespace) -> int:
-    from vllm.sndr_core.model_configs.registry_v2 import list_hardware
-    from vllm.sndr_core.model_configs.schema import SchemaError
+    from sndr.model_configs.registry_v2 import list_hardware
+    from sndr.model_configs.schema import SchemaError
 
     ids = list_hardware()
     summaries: list[dict] = []
@@ -116,8 +116,8 @@ def run_list(args: argparse.Namespace) -> int:
 # ─── show
 
 def run_show(args: argparse.Namespace) -> int:
-    from vllm.sndr_core.model_configs.registry_v2 import load_hardware
-    from vllm.sndr_core.model_configs.schema import SchemaError
+    from sndr.model_configs.registry_v2 import load_hardware
+    from sndr.model_configs.schema import SchemaError
 
     try:
         hw = load_hardware(args.hw_id)

@@ -46,7 +46,7 @@ Computed decisions:
   - Whether to use FlashInfer GDN prefill (NO on SM < 9.0 — kernel only avail)
 
 Usage from a Genesis patch:
-  from vllm.sndr_core.detection.gpu_arch_profile import get_gpu_arch_profile
+  from sndr.detection.gpu_arch_profile import get_gpu_arch_profile
   prof = get_gpu_arch_profile()
   if prof.is_ampere_consumer:
       block_size_m = 4

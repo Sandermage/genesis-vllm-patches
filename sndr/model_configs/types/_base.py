@@ -4,7 +4,7 @@
 Single source of truth for :class:`SchemaError`. Every sub-component
 dataclass in the ``types/`` package imports it from here, and
 ``schema.py`` re-exports it under its historical name so existing
-``from vllm.sndr_core.model_configs.schema import SchemaError`` and
+``from sndr.model_configs.schema import SchemaError`` and
 ``isinstance(e, SchemaError)`` checks continue to resolve to the same
 class object across the M.5.1 boundary.
 """

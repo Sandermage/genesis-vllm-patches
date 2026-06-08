@@ -75,8 +75,8 @@ from __future__ import annotations
 
 import logging
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
-from vllm.sndr_core.core import (
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
+from sndr.kernel import (
     TextPatch, TextPatcher, TextPatchResult,
 )
 # v11.1.0 P3.3: surface the TQ shared decode pool through
@@ -86,7 +86,7 @@ from vllm.sndr_core.core import (
 # GenesisPreallocBuffer.get_or_create (allocate-once-keep-forever,
 # pointer-stable, CUDA-graph safe). The registry hook only exposes
 # the pool name; tensor storage ownership is unchanged.
-from vllm.sndr_core.runtime.persistent_buffer_registry import (
+from sndr.runtime.persistent_buffer_registry import (
     PersistentBufferRegistry,
     POOL_TQ_DECODE_SHARED,
 )
@@ -166,7 +166,7 @@ _NEW = (
     "        # original per-layer register_buffer path on non-NVIDIA / pre-Ampere\n"
     "        # (manager returns None).\n"
     "        try:\n"
-    "            from vllm.sndr_core.kernels.dequant_buffer import (\n"
+    "            from sndr.engines.vllm.kernels_legacy.dequant_buffer import (\n"
     "                TurboQuantBufferManager as _GenesisTQBuf,\n"
     "            )\n"
     "            _target_device = (\n"
@@ -244,7 +244,7 @@ def apply() -> tuple[str, str]:
     Override via `GENESIS_FORCE_APPLY_P36=1`.
     """
     try:
-        from vllm.sndr_core.detection import config_detect
+        from sndr.engines.vllm.detection import config_detect
         ok, reason = config_detect.should_apply("P36")
         if not ok:
             return "skipped", reason

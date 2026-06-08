@@ -144,12 +144,12 @@ from __future__ import annotations
 import logging
 import os
 
-from vllm.sndr_core.core import (
+from sndr.kernel import (
     TextPatch,
     TextPatcher,
     TextPatchResult,
 )
-from vllm.sndr_core.detection.guards import resolve_vllm_file
+from sndr.engines.vllm.detection.guards import resolve_vllm_file
 
 log = logging.getLogger("genesis.attention.flash.pn286_fa_layout_revert_sm86")
 

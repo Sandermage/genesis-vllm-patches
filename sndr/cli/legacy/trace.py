@@ -228,7 +228,7 @@ def add_support_bundle_argparser(subparsers: Any) -> None:
 
 
 def _categories() -> tuple[str, ...]:
-    from vllm.sndr_core.observability.trace_catalog import TRACE_CATEGORIES
+    from sndr.observability.trace_catalog import TRACE_CATEGORIES
     return TRACE_CATEGORIES
 
 
@@ -333,7 +333,7 @@ def _default_output_dir(container: str) -> str:
 
 
 def run_list(args: argparse.Namespace) -> int:
-    from vllm.sndr_core.observability.trace_catalog import (
+    from sndr.observability.trace_catalog import (
         TRACE_CATALOG, TRACE_CATEGORIES, iter_by_category,
     )
 
@@ -464,7 +464,7 @@ def run_list(args: argparse.Namespace) -> int:
 def run_collect(args: argparse.Namespace) -> int:
     """Copy every present trace from a container into a host directory."""
     import os
-    from vllm.sndr_core.observability.trace_catalog import (
+    from sndr.observability.trace_catalog import (
         TRACE_CATALOG, find_by_id,
     )
 
@@ -1016,7 +1016,7 @@ def run_support_bundle(args: argparse.Namespace) -> int:
     import os
     import tarfile
     import tempfile
-    from vllm.sndr_core.observability.trace_catalog import TRACE_CATALOG
+    from sndr.observability.trace_catalog import TRACE_CATALOG
 
     if not args.no_traces and not shutil.which("docker"):
         _io.error(

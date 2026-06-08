@@ -241,7 +241,7 @@ class Genesis_FP8_LMHead_EmbeddingMethod:
             return  # Idempotent
 
         try:
-            from vllm.sndr_core.kernels.lm_head_fp8_compressor import compress
+            from sndr.engines.vllm.kernels_legacy.lm_head_fp8_compressor import compress
             from vllm.model_executor.utils import replace_parameter
         except Exception as e:
             log.warning(
@@ -435,7 +435,7 @@ class Genesis_FP8_LMHead_EmbeddingMethod:
 
     def _apply_cast_back(self, layer, x, bias):
         """Fallback — decompress to x.dtype, normal GEMM."""
-        from vllm.sndr_core.kernels.lm_head_fp8_compressor import decompress
+        from sndr.engines.vllm.kernels_legacy.lm_head_fp8_compressor import decompress
         weight = decompress(layer.weight, layer.weight_scale, output_dtype=x.dtype)
         import vllm.envs as envs
         from vllm.model_executor.layers.utils import dispatch_unquantized_gemm
@@ -460,7 +460,7 @@ class Genesis_FP8_LMHead_EmbeddingMethod:
         """
         import torch.nn.functional as F
         if layer.weight.dtype == torch.float8_e4m3fn:
-            from vllm.sndr_core.kernels.lm_head_fp8_compressor import decompress
+            from sndr.engines.vllm.kernels_legacy.lm_head_fp8_compressor import decompress
             weight = decompress(
                 layer.weight, layer.weight_scale, output_dtype=torch.bfloat16,
             )

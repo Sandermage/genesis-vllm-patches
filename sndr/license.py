@@ -538,7 +538,7 @@ def check_engine_tier_eligible(
       6. Engine version major matches core version major
     """
     if not skip_override_check:
-        from vllm.sndr_core.env import Flags, is_enabled
+        from sndr.env import Flags, is_enabled
         if is_enabled(Flags.TIER_OVERRIDE):
             return EligibilityResult(
                 eligible=False,
@@ -643,7 +643,7 @@ def check_engine_tier_eligible(
         license_detail = "legacy unsigned key (dev mode)"
 
     # Engine package vs core major-version compat (independent of token).
-    from vllm.sndr_core.version import SNDR_CORE_VERSION
+    from sndr.version import SNDR_CORE_VERSION
     if not _versions_compatible(SNDR_CORE_VERSION, engine_version):
         return EligibilityResult(
             eligible=False,

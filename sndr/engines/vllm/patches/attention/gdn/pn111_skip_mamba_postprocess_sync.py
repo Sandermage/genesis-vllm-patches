@@ -82,13 +82,13 @@ from __future__ import annotations
 
 import logging
 
-from vllm.sndr_core.core import (
+from sndr.kernel import (
     MultiFilePatchTransaction,
     TextPatch,
     TextPatcher,
     TextPatchResult,
 )
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
 
 log = logging.getLogger("genesis.wiring.pn111_skip_mamba_postprocess_sync")
 
@@ -269,7 +269,7 @@ def apply() -> tuple[str, str]:
     Two-file transaction. If either anchor fails, NEITHER file is
     written (MultiFilePatchTransaction semantics). Default OFF.
     """
-    from vllm.sndr_core.dispatcher import log_decision, should_apply
+    from sndr.dispatcher import log_decision, should_apply
 
     decision, reason = should_apply("PN111")
     log_decision("PN111", decision, reason)

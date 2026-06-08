@@ -75,8 +75,8 @@ from __future__ import annotations
 import logging
 import os
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
-from vllm.sndr_core.core import (
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
+from sndr.kernel import (
     TextPatcher,
     TextPatchResult,
     TextPatch,
@@ -146,7 +146,7 @@ P77_NEW = (
     "        _genesis_p77_orig_k = self.k\n"
     "        _genesis_p77_controller = None\n"
     "        try:\n"
-    "            from vllm.sndr_core.kernels.adaptive_ngram_controller import (\n"
+    "            from sndr.engines.vllm.kernels_legacy.adaptive_ngram_controller import (\n"
     "                is_active as _genesis_p77_is_active,\n"
     "                get_controller as _genesis_p77_get_controller,\n"
     "            )\n"
@@ -268,7 +268,7 @@ def _make_patcher() -> TextPatcher | None:
 
 def apply() -> tuple[str, str]:
     """Apply P77 — adaptive ngram K wiring."""
-    from vllm.sndr_core.dispatcher import should_apply, log_decision
+    from sndr.dispatcher import should_apply, log_decision
     decision, reason = should_apply("P77")
     log_decision("P77", decision, reason)
     if not decision:

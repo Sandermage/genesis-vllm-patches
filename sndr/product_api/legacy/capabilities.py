@@ -14,8 +14,8 @@ import shutil
 from collections.abc import Callable
 from typing import Optional
 
-from vllm.sndr_core.brand import PUBLIC_BRAND_COMMUNITY, PKG_NAME_CORE
-from vllm.sndr_core.version import SNDR_CORE_VERSION
+from sndr.brand import PUBLIC_BRAND_COMMUNITY, PKG_NAME_CORE
+from sndr.version import SNDR_CORE_VERSION
 
 from .types import (
     PlatformSnapshot,

@@ -36,7 +36,7 @@ import json
 from dataclasses import asdict
 from typing import Any, Optional
 
-from vllm.sndr_core.product_api import presets as preset_api
+from sndr.product_api import presets as preset_api
 
 from . import _io
 
@@ -262,7 +262,7 @@ def run_list(args) -> int:
 
 def run_show(args) -> int:
     try:
-        from vllm.sndr_core.model_configs.registry_v2 import load_preset_def
+        from sndr.model_configs.registry_v2 import load_preset_def
         import warnings
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
@@ -381,7 +381,7 @@ def _render_card_human(alias_id: str, pd) -> None:
 
 def run_explain(args) -> int:
     try:
-        from vllm.sndr_core.model_configs.registry_v2 import load_preset_def
+        from sndr.model_configs.registry_v2 import load_preset_def
         import warnings
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
@@ -478,7 +478,7 @@ def _recommend_sort_key(alias_id: str, pd) -> tuple:
 
 
 def run_recommend(args) -> int:
-    from vllm.sndr_core.model_configs.preset_schema import is_known_workload
+    from sndr.model_configs.preset_schema import is_known_workload
 
     if not is_known_workload(args.workload):
         _io.error(

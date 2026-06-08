@@ -69,7 +69,7 @@ def estimate_fit(*, model_id: str, hardware_id: str) -> FitReport:
     Raises whatever ``load_model`` / ``load_hardware`` raise for unknown ids
     (the HTTP layer maps that to a 404).
     """
-    from vllm.sndr_core.model_configs.registry_v2 import load_hardware, load_model
+    from sndr.model_configs.registry_v2 import load_hardware, load_model
 
     model = load_model(model_id)
     hw = load_hardware(hardware_id)

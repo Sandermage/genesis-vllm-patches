@@ -18,8 +18,8 @@ def diff_upstream() -> DiffReport:
     Mirrors the bucket shape ``cli.patches._run_diff_upstream`` emitted
     pre-M.6.1.
     """
-    from vllm.sndr_core.dispatcher import PATCH_REGISTRY
-    from vllm.sndr_core.dispatcher.spec import iter_patch_specs
+    from sndr.dispatcher import PATCH_REGISTRY
+    from sndr.dispatcher.spec import iter_patch_specs
 
     merged_upstream: list[dict[str, Any]] = []
     has_upstream_pr: list[dict[str, Any]] = []

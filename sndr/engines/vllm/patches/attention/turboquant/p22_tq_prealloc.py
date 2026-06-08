@@ -75,7 +75,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from vllm.sndr_core.detection.guards import is_nvidia_cuda, is_sm_at_least
+from sndr.engines.vllm.detection.guards import is_nvidia_cuda, is_sm_at_least
 
 log = logging.getLogger("genesis.wiring.p22_tq_prealloc")
 
@@ -204,7 +204,7 @@ def apply() -> tuple[str, str]:
     # set in __init__ so we can't check them here — runtime fallbacks
     # in `ensure_turboquant_buffers` handle those.
     try:
-        from vllm.sndr_core.runtime.interface_guard import (
+        from sndr.runtime.interface_guard import (
             validate_impl,
         )
         validate_impl(
@@ -224,7 +224,7 @@ def apply() -> tuple[str, str]:
     # Import the helper here so any kernel-import error bubbles up cleanly
     # before we touch the live class.
     try:
-        from vllm.sndr_core.kernels.dequant_buffer import (
+        from sndr.engines.vllm.kernels_legacy.dequant_buffer import (
             ensure_turboquant_buffers,
         )
     except Exception as e:

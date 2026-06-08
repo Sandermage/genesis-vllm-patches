@@ -10,7 +10,7 @@ fallback during warmup.
 
 Example usage in a Genesis kernel:
 
-    from vllm.sndr_core.utils.warmup_state import is_warmup_active
+    from sndr.utils.warmup_state import is_warmup_active
 
     def my_kernel_dispatch(q, k, v, ...):
         if is_warmup_active() and _shape_is_edge_case(q.shape):

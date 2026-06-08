@@ -95,7 +95,7 @@ def resolve_max_batched_tokens(hint: Optional[int] = None) -> int:
         return _ENV_BUDGET
     # Try central resolver (consults vllm scheduler_config)
     try:
-        from vllm.sndr_core.runtime.prealloc_budget import resolve_token_budget
+        from sndr.runtime.prealloc_budget import resolve_token_budget
         return resolve_token_budget(domain_env=_ENV_MAX_BT)
     except Exception as e:
         log.warning(
@@ -114,7 +114,7 @@ def should_apply() -> bool:
     global _SHOULD_APPLY_CACHED
     if _SHOULD_APPLY_CACHED is None:
         try:
-            from vllm.sndr_core.detection.guards import is_nvidia_cuda, is_sm_at_least
+            from sndr.engines.vllm.detection.guards import is_nvidia_cuda, is_sm_at_least
             _SHOULD_APPLY_CACHED = bool(
                 is_nvidia_cuda() and is_sm_at_least(8, 0)
             )

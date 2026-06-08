@@ -10,11 +10,11 @@ same module object.
 
 Recommended usage pattern (new code):
 
-    from vllm.sndr_core.locations import engine_targets, resolve_vllm_file
+    from sndr.engines.vllm.locations import engine_targets, resolve_vllm_file
     target = resolve_vllm_file(engine_targets.QWEN3CODER_TOOL_PARSER)
 """
 from __future__ import annotations
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file  # noqa: F401
+from sndr.engines.vllm.detection.guards import resolve_vllm_file  # noqa: F401
 
 __all__ = ["resolve_vllm_file"]

@@ -40,7 +40,7 @@ fallback) on mismatch instead of propagating the exception.
 Usage pattern in a wiring patch
 -------------------------------
 ```python
-from vllm.sndr_core.runtime.interface_guard import (
+from sndr.runtime.interface_guard import (
     validate_impl, GenesisInterfaceMismatch,
 )
 

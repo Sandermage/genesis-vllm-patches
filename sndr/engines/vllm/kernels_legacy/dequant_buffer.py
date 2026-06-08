@@ -221,7 +221,7 @@ class TurboQuantBufferManager:
           - NVIDIA Hopper (9.0) — works
           - NVIDIA Blackwell (10.0) — works
         """
-        from vllm.sndr_core.detection.guards import is_nvidia_cuda, is_sm_at_least
+        from sndr.engines.vllm.detection.guards import is_nvidia_cuda, is_sm_at_least
         if not is_nvidia_cuda():
             return False
         if not is_sm_at_least(8, 0):
@@ -282,7 +282,7 @@ class TurboQuantBufferManager:
             # GENESIS_POOL_TOTAL_MAX_MIB (asserted post-warmup elsewhere).
             # Two buffers (K + V) so pass total bytes for both.
             try:
-                from vllm.sndr_core.runtime import pool_budget as _pb
+                from sndr.runtime import pool_budget as _pb
                 _pb.check("dequant_kv", buf_bytes * 2)
             except Exception as _e:
                 # PoolBudgetExceeded propagates (intentional — caller fails
@@ -299,7 +299,7 @@ class TurboQuantBufferManager:
 
             # Use GenesisPreallocBuffer framework (consistent tracking across
             # all Genesis prealloc — appears in get_registry_info())
-            from vllm.sndr_core.runtime.prealloc import GenesisPreallocBuffer as GPB
+            from sndr.runtime.prealloc import GenesisPreallocBuffer as GPB
 
             cls._K_BUFFERS[key] = GPB.get_or_create(
                 namespace=f"tq_k_dequant|{key}",
@@ -312,7 +312,7 @@ class TurboQuantBufferManager:
 
             # Record actual allocation post-success (K + V combined)
             try:
-                from vllm.sndr_core.runtime import pool_budget as _pb
+                from sndr.runtime import pool_budget as _pb
                 _pb.record("dequant_kv", buf_bytes * 2)
             except Exception as _e:
                 log.debug(
@@ -357,7 +357,7 @@ class TurboQuantBufferManager:
         dev_key = str(device)
 
         if dev_key not in cls._CU_Q_BUFFERS:
-            from vllm.sndr_core.runtime.prealloc import GenesisPreallocBuffer as GPB
+            from sndr.runtime.prealloc import GenesisPreallocBuffer as GPB
 
             cls._CU_Q_BUFFERS[dev_key] = GPB.get_or_create(
                 namespace=f"tq_cu_q|{dev_key}",
@@ -388,7 +388,7 @@ class TurboQuantBufferManager:
 
         dev_key = str(device)
         if dev_key not in cls._CU_2_BUFFERS:
-            from vllm.sndr_core.runtime.prealloc import GenesisPreallocBuffer as GPB
+            from sndr.runtime.prealloc import GenesisPreallocBuffer as GPB
             cls._CU_2_BUFFERS[dev_key] = GPB.get_or_create(
                 namespace=f"tq_cu_2|{dev_key}",
                 shape=(2,), dtype=torch.int32, device=device,
@@ -423,7 +423,7 @@ class TurboQuantBufferManager:
         rounded = ((max_batch + 7) // 8) * 8
         key = (rounded, str(device))
         if key not in cls._SYNTH_SEQ_LENS_BUFFERS:
-            from vllm.sndr_core.runtime.prealloc import GenesisPreallocBuffer as GPB
+            from sndr.runtime.prealloc import GenesisPreallocBuffer as GPB
             cls._SYNTH_SEQ_LENS_BUFFERS[key] = GPB.get_or_create(
                 namespace=f"tq_synth_seq_lens|{key}",
                 shape=(rounded,), dtype=torch.int32, device=device,
@@ -460,7 +460,7 @@ class TurboQuantBufferManager:
             return None
         key = (max_batched_tokens, num_q_heads, head_size, str(device), str(dtype))
         if key not in cls._PREFILL_OUT_BUFFERS:
-            from vllm.sndr_core.runtime.prealloc import GenesisPreallocBuffer as GPB
+            from sndr.runtime.prealloc import GenesisPreallocBuffer as GPB
             cls._PREFILL_OUT_BUFFERS[key] = GPB.get_or_create(
                 namespace=f"tq_prefill_out|{key}",
                 shape=(max_batched_tokens, num_q_heads, head_size),
@@ -509,7 +509,7 @@ class TurboQuantBufferManager:
             # at runtime when scheduler dispatched chunk > 4096 (P28 incident).
             # Now consult central resolver (which probes vllm scheduler_config).
             try:
-                from vllm.sndr_core.runtime.prealloc_budget import resolve_token_budget
+                from sndr.runtime.prealloc_budget import resolve_token_budget
                 max_n = resolve_token_budget(domain_env=_ENV_TQ_MAX_BT)
             except Exception:
                 max_n = 4096  # final safety net
@@ -568,7 +568,7 @@ class TurboQuantBufferManager:
         key = (max_num_seqs, num_q_heads, tq_max_kv_splits, head_size,
                str(device), str(dtype))
         if key not in cls._DECODE_MID_O_BUFFERS:
-            from vllm.sndr_core.runtime.prealloc import GenesisPreallocBuffer as GPB
+            from sndr.runtime.prealloc import GenesisPreallocBuffer as GPB
             cls._DECODE_MID_O_BUFFERS[key] = GPB.get_or_create(
                 namespace=f"tq_shared_decode_mid_o|{key}",
                 shape=(max_num_seqs, num_q_heads, tq_max_kv_splits, head_size + 1),
@@ -593,7 +593,7 @@ class TurboQuantBufferManager:
             return None
         key = (max_num_seqs, num_q_heads, head_size, str(device), str(dtype))
         if key not in cls._DECODE_OUTPUT_BUFFERS:
-            from vllm.sndr_core.runtime.prealloc import GenesisPreallocBuffer as GPB
+            from sndr.runtime.prealloc import GenesisPreallocBuffer as GPB
             cls._DECODE_OUTPUT_BUFFERS[key] = GPB.get_or_create(
                 namespace=f"tq_shared_decode_output|{key}",
                 shape=(max_num_seqs, num_q_heads, head_size),
@@ -617,7 +617,7 @@ class TurboQuantBufferManager:
             return None
         key = (max_num_seqs, num_q_heads, str(device), str(dtype))
         if key not in cls._DECODE_LSE_BUFFERS:
-            from vllm.sndr_core.runtime.prealloc import GenesisPreallocBuffer as GPB
+            from sndr.runtime.prealloc import GenesisPreallocBuffer as GPB
             cls._DECODE_LSE_BUFFERS[key] = GPB.get_or_create(
                 namespace=f"tq_shared_decode_lse|{key}",
                 shape=(max_num_seqs, num_q_heads),
@@ -680,7 +680,7 @@ class TurboQuantBufferManager:
             str(device), str(dtype),
         )
         if key not in cls._MIXED_ATTN_OUT_BUFFERS:
-            from vllm.sndr_core.runtime.prealloc import GenesisPreallocBuffer as GPB
+            from sndr.runtime.prealloc import GenesisPreallocBuffer as GPB
             cls._MIXED_ATTN_OUT_BUFFERS[key] = GPB.get_or_create(
                 namespace=f"tq_mixed_attn_out|{key}",
                 shape=(max_num_batched_tokens, num_q_heads, head_size),
@@ -716,7 +716,7 @@ class TurboQuantBufferManager:
             # at runtime when scheduler dispatched chunk > 4096 (P28 incident).
             # Now consult central resolver (which probes vllm scheduler_config).
             try:
-                from vllm.sndr_core.runtime.prealloc_budget import resolve_token_budget
+                from sndr.runtime.prealloc_budget import resolve_token_budget
                 max_n = resolve_token_budget(domain_env=_ENV_TQ_MAX_BT)
             except Exception:
                 max_n = 4096  # final safety net
@@ -765,7 +765,7 @@ class TurboQuantBufferManager:
             return None, None
         key = (num_kv_heads, head_size, max_alloc_len, str(device), str(dtype))
         if key not in cls._P38_K_DEQUANT_4D_BUFFERS:
-            from vllm.sndr_core.runtime.prealloc import GenesisPreallocBuffer as GPB
+            from sndr.runtime.prealloc import GenesisPreallocBuffer as GPB
             shape = (1, num_kv_heads, max_alloc_len, head_size)
             cls._P38_K_DEQUANT_4D_BUFFERS[key] = GPB.get_or_create(
                 namespace=f"tq_k_dequant_4d|{key}",
@@ -813,7 +813,7 @@ class TurboQuantBufferManager:
             return None, None
         key = (num_kv_heads, head_size, max_seq_cap, str(device), str(dtype))
         if key not in cls._P38_K_FULL_BUFFERS:
-            from vllm.sndr_core.runtime.prealloc import GenesisPreallocBuffer as GPB
+            from sndr.runtime.prealloc import GenesisPreallocBuffer as GPB
             shape = (max_seq_cap, num_kv_heads, head_size)
             cls._P38_K_FULL_BUFFERS[key] = GPB.get_or_create(
                 namespace=f"tq_k_full|{key}",

@@ -59,7 +59,7 @@ def should_apply() -> bool:
     """Platform gate: NVIDIA CUDA SM≥8.0 + env opt-in."""
     if not is_p7b_enabled():
         return False
-    from vllm.sndr_core.detection.guards import is_nvidia_cuda, is_sm_at_least
+    from sndr.engines.vllm.detection.guards import is_nvidia_cuda, is_sm_at_least
     if not is_nvidia_cuda():
         return False
     if not is_sm_at_least(8, 0):

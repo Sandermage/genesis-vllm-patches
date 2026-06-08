@@ -326,7 +326,7 @@ def apply_patch_29_tool_parser_index_guard() -> PatchResult:
     """
     name = "P29 tool parser IndexError guard"
     try:
-        from vllm.sndr_core.detection.guards import resolve_vllm_file
+        from sndr.engines.vllm.detection.guards import resolve_vllm_file
     except Exception as e:
         return _failed(name, f"guards import failed: {e}")
 
@@ -373,7 +373,7 @@ def apply_patch_23_marlin_fp32_reduce() -> PatchResult:
     additional text-patch on fused_marlin_moe.py)."""
     name = "P23 Marlin FP32_REDUCE env override"
     try:
-        from vllm.sndr_core.kernels.marlin_fp32_reduce import (
+        from sndr.engines.vllm.kernels_legacy.marlin_fp32_reduce import (
             should_disable_fp32_reduce,
             log_decision,
         )
@@ -383,7 +383,7 @@ def apply_patch_23_marlin_fp32_reduce() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: kernel helper ready")
 
-    from vllm.sndr_core.detection.guards import is_nvidia_cuda
+    from sndr.engines.vllm.detection.guards import is_nvidia_cuda
     if not is_nvidia_cuda():
         return _skipped(name, "non-NVIDIA — no Marlin path")
 
@@ -402,7 +402,7 @@ def apply_patch_23_wire_marlin_fp32_reduce() -> PatchResult:
     """P23_WIRE: companion to P23 — text-patches upstream Marlin sites to
     actually read VLLM_MARLIN_FP32_REDUCE env. Without this, P23's decision
     was inert. Opt-in via GENESIS_ENABLE_P23_MARLIN_FP32_REDUCE_WIRE=1."""
-    from vllm.sndr_core.integrations.kernels import (
+    from sndr.engines.vllm.patches.kernels import (
         p23_marlin_fp32_reduce_wire,
     )
     status, detail = p23_marlin_fp32_reduce_wire.apply()
@@ -419,7 +419,7 @@ def apply_patch_29_heal_qwen3coder_index() -> PatchResult:
     qwen3coder_tool_parser.py (lines 287 + 442) that upstream's bounded-
     index guard does NOT cover. Adds heal-on-advance + heal-on-write
     guards. Opt-in via GENESIS_ENABLE_P29_QWEN3CODER_INDEX_HEAL=1."""
-    from vllm.sndr_core.integrations.tool_parsing import (
+    from sndr.engines.vllm.patches.tool_parsing import (
         p29_qwen3coder_index_heal,
     )
     status, detail = p29_qwen3coder_index_heal.apply()
@@ -458,7 +458,7 @@ def apply_patch_4_tq_hybrid() -> PatchResult:
         # symbol must match the imported module
         # name (`p4_tq_hybrid`), NOT the legacy `patch_4_tq_hybrid` name.
         try:
-            from vllm.sndr_core.integrations.scheduler import p4_tq_hybrid
+            from sndr.engines.vllm.patches.scheduler import p4_tq_hybrid
             assert callable(p4_tq_hybrid.apply)
         except Exception as e:
             return _failed(name, f"wiring import failed: {e}")
@@ -466,7 +466,7 @@ def apply_patch_4_tq_hybrid() -> PatchResult:
 
     # Real apply path: run the text-patcher.
     try:
-        from vllm.sndr_core.integrations.scheduler import p4_tq_hybrid
+        from sndr.engines.vllm.patches.scheduler import p4_tq_hybrid
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
 
@@ -499,14 +499,14 @@ def apply_patch_5_page_size() -> PatchResult:
         # symbol must match the imported module
         # name (`p5_page_size`), NOT the legacy `patch_5_page_size`.
         try:
-            from vllm.sndr_core.integrations.kv_cache import p5_page_size
+            from sndr.engines.vllm.patches.kv_cache import p5_page_size
             assert callable(p5_page_size.apply)
         except Exception as e:
             return _failed(name, f"wiring import failed: {e}")
         return _applied(name, "dry-run: wiring ready (pass apply=True to execute)")
 
     try:
-        from vllm.sndr_core.integrations.kv_cache import p5_page_size
+        from sndr.engines.vllm.patches.kv_cache import p5_page_size
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
 
@@ -538,7 +538,7 @@ def apply_patch_5b_page_size_pad_smaller() -> PatchResult:
     Platform guard: NVIDIA CUDA + SM ≥ 8.0 (shared with TurboQuant).
     """
     name = "P5b KV page-size pad-smaller-to-max (env-opt-in)"
-    from vllm.sndr_core.detection.guards import is_nvidia_cuda, is_amd_rocm, is_cpu_only
+    from sndr.engines.vllm.detection.guards import is_nvidia_cuda, is_amd_rocm, is_cpu_only
 
     if not is_nvidia_cuda():
         if is_amd_rocm():
@@ -551,7 +551,7 @@ def apply_patch_5b_page_size_pad_smaller() -> PatchResult:
         return _applied(name, "dry-run: env-opt-in scaffold ready")
 
     try:
-        from vllm.sndr_core.integrations.memory import p5b_page_size_pad_smaller
+        from sndr.engines.vllm.patches.memory import p5b_page_size_pad_smaller
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
 
@@ -580,7 +580,7 @@ def apply_patch_31_router_softmax() -> PatchResult:
     The actual monkey-patch binding happens when vLLM's MoE modules import.
     """
     name = "P31 MoE router fp32 softmax"
-    from vllm.sndr_core.detection.guards import is_cpu_only
+    from sndr.engines.vllm.detection.guards import is_cpu_only
 
     if is_cpu_only():
         return _skipped(
@@ -591,7 +591,7 @@ def apply_patch_31_router_softmax() -> PatchResult:
     # Audit closure 2026-05-08 (P1-1): on no-torch hosts return skipped
     # instead of failed. router_softmax requires torch.
     try:
-        from vllm.sndr_core.kernels.router_softmax import router_softmax
+        from sndr.engines.vllm.kernels_legacy.router_softmax import router_softmax
         assert callable(router_softmax)
     except ImportError as e:
         return _skipped(name, f"torch runtime unavailable on this host: {e}")
@@ -605,7 +605,7 @@ def apply_patch_31_router_softmax() -> PatchResult:
     # grouped-MoE families; Qwen3.6 uses fused-CUDA-kernel softmax that's
     # out of scope for Python-level rebind).
     try:
-        from vllm.sndr_core.integrations.moe import p31_router_softmax
+        from sndr.engines.vllm.patches.moe import p31_router_softmax
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
 
@@ -632,7 +632,7 @@ def apply_patch_22_tq_dequant_prealloc() -> PatchResult:
     We verify manager is importable and platform-compatible here.
     """
     name = "P22 TurboQuant shared dequant prealloc"
-    from vllm.sndr_core.detection.guards import (
+    from sndr.engines.vllm.detection.guards import (
         is_nvidia_cuda, is_sm_at_least, is_amd_rocm, is_cpu_only,
     )
 
@@ -653,7 +653,7 @@ def apply_patch_22_tq_dequant_prealloc() -> PatchResult:
 
     # Now safe to import torch-heavy kernel module — platform check passed.
     try:
-        from vllm.sndr_core.kernels.dequant_buffer import (
+        from sndr.engines.vllm.kernels_legacy.dequant_buffer import (
             TurboQuantBufferManager, ensure_turboquant_buffers,
         )
     except ImportError as e:
@@ -669,7 +669,7 @@ def apply_patch_22_tq_dequant_prealloc() -> PatchResult:
 
     # Live wiring: rebind TurboQuantAttentionImpl._ensure_on_device.
     try:
-        from vllm.sndr_core.integrations.attention.turboquant import p22_tq_prealloc
+        from sndr.engines.vllm.patches.attention.turboquant import p22_tq_prealloc
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
 
@@ -726,7 +726,7 @@ def apply_patch_61b_streaming_overlap() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.reasoning import p61b_qwen3_streaming_overlap_guard
+        from sndr.engines.vllm.patches.reasoning import p61b_qwen3_streaming_overlap_guard
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p61b_qwen3_streaming_overlap_guard.apply()
@@ -749,7 +749,7 @@ def apply_patch_N59_streaming_gdn() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.attention.gdn import pn59_streaming_gdn
+        from sndr.engines.vllm.patches.attention.gdn import pn59_streaming_gdn
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn59_streaming_gdn.apply()
@@ -772,7 +772,7 @@ def apply_patch_N58_spec_reasoning_boundary() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.reasoning import pn58_spec_reasoning_boundary
+        from sndr.engines.vllm.patches.reasoning import pn58_spec_reasoning_boundary
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn58_spec_reasoning_boundary.apply()
@@ -790,7 +790,7 @@ def apply_patch_107_mtp_truncation_detector() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.serving import p107_mtp_truncation_detector
+        from sndr.engines.vllm.patches.serving import p107_mtp_truncation_detector
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p107_mtp_truncation_detector.apply()
@@ -808,7 +808,7 @@ def apply_patch_61c_qwen3coder_deferred_commit() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.tool_parsing import p61c_qwen3coder_deferred_commit
+        from sndr.engines.vllm.patches.tool_parsing import p61c_qwen3coder_deferred_commit
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p61c_qwen3coder_deferred_commit.apply()
@@ -826,7 +826,7 @@ def apply_patch_N56_qwen3coder_xml_fallback() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.tool_parsing import pn56_qwen3coder_xml_fallback
+        from sndr.engines.vllm.patches.tool_parsing import pn56_qwen3coder_xml_fallback
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn56_qwen3coder_xml_fallback.apply()
@@ -844,7 +844,7 @@ def apply_patch_N57_tq_centroids_disk_cache() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.attention.turboquant import pn57_tq_centroids_disk_cache
+        from sndr.engines.vllm.patches.attention.turboquant import pn57_tq_centroids_disk_cache
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn57_tq_centroids_disk_cache.apply()
@@ -865,7 +865,7 @@ def apply_patch_N55_wake_up_hybrid_kv() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.worker import pn55_wake_up_hybrid_kv
+        from sndr.engines.vllm.patches.worker import pn55_wake_up_hybrid_kv
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn55_wake_up_hybrid_kv.apply()
@@ -887,7 +887,7 @@ def apply_patch_N9_independent_drafter_attn_backend() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations._retired import (
+        from sndr.engines.vllm.patches._retired import (
             pn9_independent_drafter_attn_backend as _wiring,
         )
     except Exception as e:
@@ -910,7 +910,7 @@ def apply_patch_N16_lazy_reasoner() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.middleware import (
+        from sndr.engines.vllm.patches.middleware import (
             pn16_lazy_reasoner as _wiring,
         )
     except Exception as e:
@@ -934,7 +934,7 @@ def apply_patch_N16_v6_streaming_truncator() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: class-rebind ready")
     try:
-        from vllm.sndr_core.integrations.middleware import (
+        from sndr.engines.vllm.patches.middleware import (
             pn16_v6_streaming_truncator as _wiring,
         )
     except Exception as e:
@@ -959,7 +959,7 @@ def apply_patch_N62_text_only_vit_skip() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: profile_run wrap ready")
     try:
-        from vllm.sndr_core.integrations.multimodal import (
+        from sndr.engines.vllm.patches.multimodal import (
             pn62_text_only_vit_skip as _wiring,
         )
     except Exception as e:
@@ -999,7 +999,7 @@ def apply_patch_108_mtp_draft_stream_sync() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.spec_decode import (
+        from sndr.engines.vllm.patches.spec_decode import (
             p108_mtp_draft_stream_sync as _wiring,
         )
     except Exception as e:
@@ -1022,7 +1022,7 @@ def apply_patch_109_sampling_params_vocab_bounds() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.serving import (
+        from sndr.engines.vllm.patches.serving import (
             p109_sampling_params_vocab_bounds as _wiring,
         )
     except Exception as e:
@@ -1046,7 +1046,7 @@ def apply_patch_n110_block_pool_free_dedup() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.kv_cache import (
+        from sndr.engines.vllm.patches.kv_cache import (
             pn110_block_pool_free_dedup as _wiring,
         )
     except Exception as e:
@@ -1073,7 +1073,7 @@ def apply_patch_n111_skip_mamba_postprocess_sync() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.attention.gdn import (
+        from sndr.engines.vllm.patches.attention.gdn import (
             pn111_skip_mamba_postprocess_sync as _wiring,
         )
     except Exception as e:
@@ -1105,7 +1105,7 @@ def apply_patch_n116_tq_prefill_maxseq_fallback() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.attention.turboquant import (
+        from sndr.engines.vllm.patches.attention.turboquant import (
             pn116_tq_prefill_maxseq_fallback as _wiring,
         )
     except Exception as e:
@@ -1135,7 +1135,7 @@ def apply_patch_n118_tq_workspace_fallback() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.attention.turboquant import (
+        from sndr.engines.vllm.patches.attention.turboquant import (
             pn118_tq_workspace_fallback as _wiring,
         )
     except Exception as e:
@@ -1251,7 +1251,7 @@ def apply_patch_n119_tq_gqa_grouping() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.attention.turboquant import (
+        from sndr.engines.vllm.patches.attention.turboquant import (
             pn119_tq_gqa_grouping as _wiring,
         )
     except Exception as e:
@@ -1285,7 +1285,7 @@ def apply_patch_pn122_cudagraph_dispatch_trace() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.observability import (
+        from sndr.engines.vllm.patches.observability import (
             pn122_sprint26_cudagraph_dispatch_trace as _wiring,  # renamed 2026-05-14 (was sprint26_*)
         )
     except Exception as e:
@@ -1310,7 +1310,7 @@ def apply_patch_pn132_triton_topk_topp_contiguous() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: runtime hook ready")
     try:
-        from vllm.sndr_core.integrations.compile_safety import (
+        from sndr.engines.vllm.patches.compile_safety import (
             pn132_triton_topk_topp_contiguous as _wiring,
         )
     except Exception as e:
@@ -1339,7 +1339,7 @@ def apply_patch_pn275_dflash_max_cgs_align() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: runtime hook ready")
     try:
-        from vllm.sndr_core.integrations.spec_decode import (
+        from sndr.engines.vllm.patches.spec_decode import (
             pn275_dflash_max_cgs_align as _wiring,
         )
     except Exception as e:
@@ -1363,7 +1363,7 @@ def apply_patch_pn133_mtp_scheduler_empty_output() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.spec_decode import (
+        from sndr.engines.vllm.patches.spec_decode import (
             pn133_mtp_scheduler_empty_output as _wiring,
         )
     except Exception as e:
@@ -1389,7 +1389,7 @@ def apply_patch_pn134_torch_compile_fullgraph_211() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: runtime hook ready")
     try:
-        from vllm.sndr_core.integrations.compile_safety import (
+        from sndr.engines.vllm.patches.compile_safety import (
             pn134_torch_compile_fullgraph_211 as _wiring,
         )
     except Exception as e:
@@ -1415,7 +1415,7 @@ def apply_patch_pn128_spec_decode_helper_warmup() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: runtime hook ready")
     try:
-        from vllm.sndr_core.integrations.compile_safety import (
+        from sndr.engines.vllm.patches.compile_safety import (
             pn128_spec_decode_helper_warmup as _wiring,
         )
     except Exception as e:
@@ -1440,7 +1440,7 @@ def apply_patch_pn129_slot_mapping_warmup() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: runtime hook ready")
     try:
-        from vllm.sndr_core.integrations.compile_safety import (
+        from sndr.engines.vllm.patches.compile_safety import (
             pn129_slot_mapping_warmup as _wiring,
         )
     except Exception as e:
@@ -1464,7 +1464,7 @@ def apply_patch_pn130_tq_decode_warmup() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: runtime hook ready")
     try:
-        from vllm.sndr_core.integrations.compile_safety import (
+        from sndr.engines.vllm.patches.compile_safety import (
             pn130_turboquant_decode_warmup as _wiring,
         )
     except Exception as e:
@@ -1491,7 +1491,7 @@ def apply_patch_pn127_chat_template_qwen36() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: asset ready")
     try:
-        from vllm.sndr_core.integrations.serving import (
+        from sndr.engines.vllm.patches.serving import (
             pn127_chat_template_qwen36 as _wiring,
         )
     except Exception as e:
@@ -1519,7 +1519,7 @@ def apply_patch_pn126_v1_decode_kernel_warmup() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: runtime hook ready")
     try:
-        from vllm.sndr_core.integrations.compile_safety import (
+        from sndr.engines.vllm.patches.compile_safety import (
             pn126_v1_decode_kernel_warmup as _wiring,
         )
     except Exception as e:
@@ -1546,7 +1546,7 @@ def apply_patch_pn125_hybrid_full_and_piecewise() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: runtime hook ready")
     try:
-        from vllm.sndr_core.integrations.compile_safety import (
+        from sndr.engines.vllm.patches.compile_safety import (
             pn125_hybrid_full_and_piecewise as _wiring,
         )
     except Exception as e:
@@ -1573,7 +1573,7 @@ def apply_patch_N95_tier_aware_cache() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.kv_cache import (
+        from sndr.engines.vllm.patches.kv_cache import (
             pn95_tier_aware_cache as _wiring,
         )
     except Exception as e:
@@ -1596,7 +1596,7 @@ def apply_patch_N90_probabilistic_draft_rejection() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.spec_decode import (
+        from sndr.engines.vllm.patches.spec_decode import (
             pn90_probabilistic_draft_rejection as _wiring,
         )
     except Exception as e:
@@ -1631,7 +1631,7 @@ def apply_patch_sndr_workspace_001() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.worker import (
+        from sndr.engines.vllm.patches.worker import (
             sndr_workspace_001_grow_after_lock as _wiring,
         )
     except Exception as e:
@@ -1659,7 +1659,7 @@ def apply_patch_sndr_mtp_dynamic_k_001() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: monkey-patch ready")
     try:
-        from vllm.sndr_core.integrations.spec_decode import (
+        from sndr.engines.vllm.patches.spec_decode import (
             g_dynamic_k_mtp_proposer as _wiring,
         )
     except Exception as e:
@@ -1692,7 +1692,7 @@ def apply_patch_sndr_eagle3_aux_hidden_001() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: API surface ready")
     try:
-        from vllm.sndr_core.integrations.spec_decode import (
+        from sndr.engines.vllm.patches.spec_decode import (
             sndr_eagle3_aux_hidden_001 as _wiring,
         )
     except Exception as e:
@@ -1714,7 +1714,7 @@ def apply_patch_pn202_per_layer_kv_split() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.streaming import (
+        from sndr.engines.vllm.patches.streaming import (
             pn202_per_layer_kv_split as _wiring,
         )
     except Exception as e:
@@ -1737,7 +1737,7 @@ def apply_patch_pn203_cold_prefix_offload() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: runtime hook ready")
     try:
-        from vllm.sndr_core.integrations.streaming import (
+        from sndr.engines.vllm.patches.streaming import (
             pn203_cold_prefix_offload as _wiring,
         )
     except Exception as e:
@@ -1760,7 +1760,7 @@ def apply_patch_pn200_gdn_scratch_reuse() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.streaming import (
+        from sndr.engines.vllm.patches.streaming import (
             pn200_gdn_scratch_reuse as _wiring,
         )
     except Exception as e:
@@ -1783,7 +1783,7 @@ def apply_patch_pn201_scheduler_empty_cache() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: runtime hook ready")
     try:
-        from vllm.sndr_core.integrations.streaming import (
+        from sndr.engines.vllm.patches.streaming import (
             pn201_scheduler_empty_cache as _wiring,
         )
     except Exception as e:
@@ -1808,7 +1808,7 @@ def apply_patch_pn106_gdn_h_pool() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.kv_cache import (
+        from sndr.engines.vllm.patches.kv_cache import (
             pn106_gdn_h_pool as _wiring,
         )
     except Exception as e:
@@ -1831,7 +1831,7 @@ def apply_patch_pn105_prefetch_autoround_compat() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.offload import (
+        from sndr.engines.vllm.patches.offload import (
             pn105_prefetch_autoround_compat as _wiring,
         )
     except Exception as e:
@@ -1854,7 +1854,7 @@ def apply_patch_pn104_offload_backend_redirect() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: monkey-patch ready")
     try:
-        from vllm.sndr_core.integrations.offload import (
+        from sndr.engines.vllm.patches.offload import (
             pn104_offload_backend_redirect as _wiring,
         )
     except Exception as e:
@@ -1879,7 +1879,7 @@ def apply_patch_pn97_tensor_physical_cap() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.kv_cache import (
+        from sndr.engines.vllm.patches.kv_cache import (
             pn97_tensor_physical_cap as _wiring,
         )
     except Exception as e:
@@ -1906,7 +1906,7 @@ def apply_patch_pn96_emergency_demote() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.kv_cache import (
+        from sndr.engines.vllm.patches.kv_cache import (
             pn96_emergency_demote as _wiring,
         )
     except Exception as e:
@@ -1934,7 +1934,7 @@ def apply_patch_pn92_nixl_ep_trial_import() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.worker import (
+        from sndr.engines.vllm.patches.worker import (
             pn92_nixl_ep_trial_import as _wiring,
         )
     except Exception as e:
@@ -1959,7 +1959,7 @@ def apply_patch_pn71_thinking_token_hallucination() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.reasoning import (
+        from sndr.engines.vllm.patches.reasoning import (
             pn71_thinking_token_hallucination as _wiring,
         )
     except Exception as e:
@@ -1985,7 +1985,7 @@ def apply_patch_pn73_tool_args_safe_normalize() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.serving import (
+        from sndr.engines.vllm.patches.serving import (
             pn73_tool_args_safe_normalize as _wiring,
         )
     except Exception as e:
@@ -2011,7 +2011,7 @@ def apply_patch_pn91_developer_role_normalizer() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.serving import (
+        from sndr.engines.vllm.patches.serving import (
             pn91_developer_role_normalizer as _wiring,
         )
     except Exception as e:
@@ -2061,7 +2061,7 @@ def apply_patch_N54_gdn_contiguous_dedup() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.attention.gdn import pn54_gdn_contiguous_dedup
+        from sndr.engines.vllm.patches.attention.gdn import pn54_gdn_contiguous_dedup
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn54_gdn_contiguous_dedup.apply()
@@ -2092,7 +2092,7 @@ def apply_patch_N52_prompt_logprobs_eviction() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations._retired import pn52_prompt_logprobs_eviction  # moved to _retired/ 2026-05-14
+        from sndr.engines.vllm.patches._retired import pn52_prompt_logprobs_eviction  # moved to _retired/ 2026-05-14
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn52_prompt_logprobs_eviction.apply()
@@ -2123,7 +2123,7 @@ def apply_patch_N50_gdn_fused_proj() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.attention.gdn import pn50_gdn_fused_proj
+        from sndr.engines.vllm.patches.attention.gdn import pn50_gdn_fused_proj
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn50_gdn_fused_proj.apply()
@@ -2155,7 +2155,7 @@ def apply_patch_N51_qwen3_streaming_thinking_disabled() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.reasoning import pn51_qwen3_streaming_thinking_disabled  # reactivated 2026-05-15 after retired-audit gap confirm
+        from sndr.engines.vllm.patches.reasoning import pn51_qwen3_streaming_thinking_disabled  # reactivated 2026-05-15 after retired-audit gap confirm
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn51_qwen3_streaming_thinking_disabled.apply()
@@ -2189,7 +2189,7 @@ def apply_patch_62_struct_out_spec_timing() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.serving import p62_structured_output_spec_decode_timing
+        from sndr.engines.vllm.patches.serving import p62_structured_output_spec_decode_timing
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p62_structured_output_spec_decode_timing.apply()
@@ -2215,7 +2215,7 @@ def apply_patch_61_qwen3_multi_tool() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations._retired import p61_qwen3_multi_tool_first_occurrence  # moved to _retired/ 2026-05-14
+        from sndr.engines.vllm.patches._retired import p61_qwen3_multi_tool_first_occurrence  # moved to _retired/ 2026-05-14
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p61_qwen3_multi_tool_first_occurrence.apply()
@@ -2255,7 +2255,7 @@ def apply_patch_60b_gdn_ngram_triton_kernel() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.attention.gdn import p60b_gdn_ngram_triton_kernel
+        from sndr.engines.vllm.patches.attention.gdn import p60b_gdn_ngram_triton_kernel
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p60b_gdn_ngram_triton_kernel.apply()
@@ -2298,7 +2298,7 @@ def apply_patch_60_gdn_ngram_state_recovery() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.attention.gdn import p60_gdn_ngram_state_recovery
+        from sndr.engines.vllm.patches.attention.gdn import p60_gdn_ngram_state_recovery
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p60_gdn_ngram_state_recovery.apply()
@@ -2343,7 +2343,7 @@ def apply_patch_63_mtp_gdn_state_recovery() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations._retired import p63_mtp_gdn_state_recovery  # moved to _retired/ 2026-05-14
+        from sndr.engines.vllm.patches._retired import p63_mtp_gdn_state_recovery  # moved to _retired/ 2026-05-14
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p63_mtp_gdn_state_recovery.apply()
@@ -2383,7 +2383,7 @@ def apply_patch_64_qwen3coder_mtp_streaming() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.tool_parsing import p64_qwen3coder_mtp_streaming
+        from sndr.engines.vllm.patches.tool_parsing import p64_qwen3coder_mtp_streaming
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p64_qwen3coder_mtp_streaming.apply()
@@ -2431,7 +2431,7 @@ def apply_patch_65_turboquant_spec_cg_downgrade() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.attention.turboquant import p65_turboquant_spec_cg_downgrade
+        from sndr.engines.vllm.patches.attention.turboquant import p65_turboquant_spec_cg_downgrade
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p65_turboquant_spec_cg_downgrade.apply()
@@ -2480,7 +2480,7 @@ def apply_patch_66_cudagraph_size_filter() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.compile_safety import p66_cudagraph_size_divisibility_filter
+        from sndr.engines.vllm.patches.compile_safety import p66_cudagraph_size_divisibility_filter
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p66_cudagraph_size_divisibility_filter.apply()
@@ -2528,7 +2528,7 @@ def apply_patch_68_69_long_ctx_tool_adherence() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.serving import p68_69_long_ctx_tool_adherence
+        from sndr.engines.vllm.patches.serving import p68_69_long_ctx_tool_adherence
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p68_69_long_ctx_tool_adherence.apply()
@@ -2566,7 +2566,7 @@ def apply_patch_70_auto_strict_ngram() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.spec_decode import p70_auto_strict_ngram
+        from sndr.engines.vllm.patches.spec_decode import p70_auto_strict_ngram
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p70_auto_strict_ngram.apply()
@@ -2605,7 +2605,7 @@ def apply_patch_N72_frequency_ngram_drafter() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: wrapper ready")
     try:
-        from vllm.sndr_core.integrations.spec_decode import pn72_frequency_ngram_drafter
+        from sndr.engines.vllm.patches.spec_decode import pn72_frequency_ngram_drafter
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn72_frequency_ngram_drafter.apply()
@@ -2652,7 +2652,7 @@ def apply_patch_N77_fp8_lm_head() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: wrapper ready")
     try:
-        from vllm.sndr_core.integrations.quantization import pn77_fp8_lm_head
+        from sndr.engines.vllm.patches.quantization import pn77_fp8_lm_head
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn77_fp8_lm_head.apply()
@@ -2680,7 +2680,7 @@ def apply_patch_N80_lora_tensorizer_device() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: 1-line LoRA tensorizer device kwarg")
     try:
-        from vllm.sndr_core.integrations._retired import pn80_lora_tensorizer_device  # moved to _retired/ 2026-05-14
+        from sndr.engines.vllm.patches._retired import pn80_lora_tensorizer_device  # moved to _retired/ 2026-05-14
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn80_lora_tensorizer_device.apply()
@@ -2739,7 +2739,7 @@ def apply_patch_N79_inplace_ssm_state() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: full impl 2026-05-07 — 17 anchors atomic")
     try:
-        from vllm.sndr_core.integrations.attention.gdn import pn79_inplace_ssm_state
+        from sndr.engines.vllm.patches.attention.gdn import pn79_inplace_ssm_state
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn79_inplace_ssm_state.apply()
@@ -2782,7 +2782,7 @@ def apply_patch_N78_post_warmup_cache_release() -> PatchResult:
             "would be redundant 3rd call. Runtime apply() returns skipped."
         ))
     try:
-        from vllm.sndr_core.integrations._retired import pn78_post_warmup_cache_release  # moved to _retired/ 2026-05-14
+        from sndr.engines.vllm.patches._retired import pn78_post_warmup_cache_release  # moved to _retired/ 2026-05-14
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn78_post_warmup_cache_release.apply()
@@ -2835,7 +2835,7 @@ def apply_patch_67_tq_multi_query_kernel() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.attention.turboquant import p67_tq_multi_query_kernel
+        from sndr.engines.vllm.patches.attention.turboquant import p67_tq_multi_query_kernel
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p67_tq_multi_query_kernel.apply()
@@ -2881,7 +2881,7 @@ def apply_patch_71_block_verify() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.spec_decode import p71_block_verify
+        from sndr.engines.vllm.patches.spec_decode import p71_block_verify
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p71_block_verify.apply()
@@ -2915,7 +2915,7 @@ def apply_patch_78_tolist_capture_guard() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.attention.turboquant import p78_tolist_capture_guard
+        from sndr.engines.vllm.patches.attention.turboquant import p78_tolist_capture_guard
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p78_tolist_capture_guard.apply()
@@ -2959,7 +2959,7 @@ def apply_patch_77_adaptive_ngram_k() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.spec_decode import p77_adaptive_ngram_k
+        from sndr.engines.vllm.patches.spec_decode import p77_adaptive_ngram_k
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p77_adaptive_ngram_k.apply()
@@ -2995,7 +2995,7 @@ def apply_patch_79b_async_proposer_sync() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.worker import p79b_async_proposer_sync
+        from sndr.engines.vllm.patches.worker import p79b_async_proposer_sync
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p79b_async_proposer_sync.apply()
@@ -3031,7 +3031,7 @@ def apply_patch_79c_stale_spec_token_cleanup() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.scheduler import p79c_stale_spec_token_cleanup
+        from sndr.engines.vllm.patches.scheduler import p79c_stale_spec_token_cleanup
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p79c_stale_spec_token_cleanup.apply()
@@ -3058,7 +3058,7 @@ def apply_patch_N61_qwen3_vl_keyerror_guard() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: class-rebind ready")
     try:
-        from vllm.sndr_core.integrations.loader import pn61_qwen3_vl_keyerror_guard
+        from sndr.engines.vllm.patches.loader import pn61_qwen3_vl_keyerror_guard
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn61_qwen3_vl_keyerror_guard.apply()
@@ -3084,7 +3084,7 @@ def apply_patch_N66_multiturn_think_leak() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.reasoning import pn66_multiturn_think_leak
+        from sndr.engines.vllm.patches.reasoning import pn66_multiturn_think_leak
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn66_multiturn_think_leak.apply()
@@ -3110,7 +3110,7 @@ def apply_patch_N67_thinking_budget_inverted_bool() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations._retired import pn67_thinking_budget_inverted_bool
+        from sndr.engines.vllm.patches._retired import pn67_thinking_budget_inverted_bool
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn67_thinking_budget_inverted_bool.apply()
@@ -3139,7 +3139,7 @@ def apply_patch_N70_tool_schema_subset_filter() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: class-rebind wrapper ready")
     try:
-        from vllm.sndr_core.integrations.serving import pn70_tool_schema_subset_filter
+        from sndr.engines.vllm.patches.serving import pn70_tool_schema_subset_filter
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn70_tool_schema_subset_filter.apply()
@@ -3167,7 +3167,7 @@ def apply_patch_N65_access_log() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: middleware install ready")
     try:
-        from vllm.sndr_core.integrations.middleware import pn65_access_log
+        from sndr.engines.vllm.patches.middleware import pn65_access_log
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn65_access_log.apply()
@@ -3186,7 +3186,7 @@ def _dedupe_apply_patch_N62_text_only_vit_skip_marker() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: class-rebind ready")
     try:
-        from vllm.sndr_core.integrations.multimodal import pn62_text_only_vit_skip
+        from sndr.engines.vllm.patches.multimodal import pn62_text_only_vit_skip
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn62_text_only_vit_skip.apply()
@@ -3220,7 +3220,7 @@ def apply_patch_79d_preempt_async_discard() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.scheduler import p79d_preempt_async_discard
+        from sndr.engines.vllm.patches.scheduler import p79d_preempt_async_discard
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p79d_preempt_async_discard.apply()
@@ -3254,7 +3254,7 @@ def apply_patch_81_fp8_block_scaled_m_le_8() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.quantization import p81_fp8_block_scaled_m_le_8
+        from sndr.engines.vllm.patches.quantization import p81_fp8_block_scaled_m_le_8
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p81_fp8_block_scaled_m_le_8.apply()
@@ -3293,7 +3293,7 @@ def apply_patch_82_sglang_acceptance_threshold() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.spec_decode import p82_sglang_acceptance_threshold
+        from sndr.engines.vllm.patches.spec_decode import p82_sglang_acceptance_threshold
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p82_sglang_acceptance_threshold.apply()
@@ -3332,7 +3332,7 @@ def apply_patch_83_mtp_keep_last_cached_block() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.kv_cache import p83_mtp_keep_last_cached_block
+        from sndr.engines.vllm.patches.kv_cache import p83_mtp_keep_last_cached_block
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p83_mtp_keep_last_cached_block.apply()
@@ -3373,7 +3373,7 @@ def apply_patch_84_hash_block_size_override() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.scheduler import p84_hash_block_size_override
+        from sndr.engines.vllm.patches.scheduler import p84_hash_block_size_override
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p84_hash_block_size_override.apply()
@@ -3403,7 +3403,7 @@ def apply_patch_100_flashinfer_full_cg_specdec() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.attention.flash import p100_flashinfer_full_cg_specdec
+        from sndr.engines.vllm.patches.attention.flash import p100_flashinfer_full_cg_specdec
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p100_flashinfer_full_cg_specdec.apply()
@@ -3434,7 +3434,7 @@ def apply_patch_103_fla_cliff2_chunked() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: monkey-patch ready")
     try:
-        from vllm.sndr_core.integrations.attention.gdn import p103_fla_cliff2_chunked
+        from sndr.engines.vllm.patches.attention.gdn import p103_fla_cliff2_chunked
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p103_fla_cliff2_chunked.apply()
@@ -3463,7 +3463,7 @@ def apply_patch_101_tq_continuation_slicing() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.attention.turboquant import p101_tq_continuation_slicing
+        from sndr.engines.vllm.patches.attention.turboquant import p101_tq_continuation_slicing
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p101_tq_continuation_slicing.apply()
@@ -3490,7 +3490,7 @@ def apply_patch_99_workspace_manager_memoize() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.attention.turboquant import p99_workspace_manager_memoize
+        from sndr.engines.vllm.patches.attention.turboquant import p99_workspace_manager_memoize
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p99_workspace_manager_memoize.apply()
@@ -3520,7 +3520,7 @@ def apply_patch_98_tq_workspace_revert() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.attention.turboquant import p98_tq_workspace_revert
+        from sndr.engines.vllm.patches.attention.turboquant import p98_tq_workspace_revert
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p98_tq_workspace_revert.apply()
@@ -3554,7 +3554,7 @@ def apply_patch_94_spec_decode_zero_alloc() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations._retired import p94_spec_decode_zero_alloc  # moved to _retired/ 2026-05-14
+        from sndr.engines.vllm.patches._retired import p94_spec_decode_zero_alloc  # moved to _retired/ 2026-05-14
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p94_spec_decode_zero_alloc.apply()
@@ -3618,7 +3618,7 @@ def apply_patch_91_autoround_row_group_cdiv() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.quantization import p91_autoround_row_group_cdiv
+        from sndr.engines.vllm.patches.quantization import p91_autoround_row_group_cdiv
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p91_autoround_row_group_cdiv.apply()
@@ -3668,7 +3668,7 @@ def apply_patch_91B_autoround_row_group_cdiv_multi_scheme() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.quantization import (
+        from sndr.engines.vllm.patches.quantization import (
             p91b_autoround_row_group_cdiv_multi_scheme as p91b_mod,
         )
     except Exception as e:
@@ -3725,7 +3725,7 @@ def apply_patch_87_marlin_pad_sub_tile() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: class-rebind ready")
     try:
-        from vllm.sndr_core.integrations.kernels import p87_marlin_pad_sub_tile
+        from sndr.engines.vllm.patches.kernels import p87_marlin_pad_sub_tile
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p87_marlin_pad_sub_tile.apply()
@@ -3766,7 +3766,7 @@ def apply_patch_N8_mtp_draft_online_quant_propagation() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.loader import pn8_mtp_draft_online_quant_propagation
+        from sndr.engines.vllm.patches.loader import pn8_mtp_draft_online_quant_propagation
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn8_mtp_draft_online_quant_propagation.apply()
@@ -3817,7 +3817,7 @@ def _legacy_apply_patch_N9_independent_drafter_attn_backend() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations._retired import pn9_independent_drafter_attn_backend  # moved to _retired/ 2026-05-14
+        from sndr.engines.vllm.patches._retired import pn9_independent_drafter_attn_backend  # moved to _retired/ 2026-05-14
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn9_independent_drafter_attn_backend.apply()
@@ -3852,7 +3852,7 @@ def apply_patch_N11_gdn_a_b_contiguous() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.attention.gdn import pn11_gdn_a_b_contiguous
+        from sndr.engines.vllm.patches.attention.gdn import pn11_gdn_a_b_contiguous
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn11_gdn_a_b_contiguous.apply()
@@ -3896,7 +3896,7 @@ def apply_patch_67c_sparse_v() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: kernel-side constexpr ready")
     try:
-        from vllm.sndr_core.integrations.attention.turboquant import p67c_sparse_v
+        from sndr.engines.vllm.patches.attention.turboquant import p67c_sparse_v
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p67c_sparse_v.apply()
@@ -3945,7 +3945,7 @@ def apply_patch_N35_inputs_embeds_optional() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.worker import pn35_inputs_embeds_optional
+        from sndr.engines.vllm.patches.worker import pn35_inputs_embeds_optional
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn35_inputs_embeds_optional.apply()
@@ -3999,7 +3999,7 @@ def apply_patch_N40_dflash_omnibus() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.spec_decode import pn40_dflash_omnibus
+        from sndr.engines.vllm.patches.spec_decode import pn40_dflash_omnibus
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn40_dflash_omnibus.apply()
@@ -4050,7 +4050,7 @@ def apply_patch_N38_dflash_quant_drafter() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.spec_decode import pn38_dflash_quant_drafter
+        from sndr.engines.vllm.patches.spec_decode import pn38_dflash_quant_drafter
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn38_dflash_quant_drafter.apply()
@@ -4100,7 +4100,7 @@ def apply_patch_N34_workspace_lock_runtime_relax() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.attention.turboquant import pn34_workspace_lock_runtime_relax
+        from sndr.engines.vllm.patches.attention.turboquant import pn34_workspace_lock_runtime_relax
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn34_workspace_lock_runtime_relax.apply()
@@ -4145,7 +4145,7 @@ def apply_patch_N33_spec_decode_warmup_k() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.worker import pn33_spec_decode_warmup_k
+        from sndr.engines.vllm.patches.worker import pn33_spec_decode_warmup_k
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn33_spec_decode_warmup_k.apply()
@@ -4174,7 +4174,7 @@ def apply_patch_N96b_marlin_persistent_workspace() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: runtime hook ready")
     try:
-        from vllm.sndr_core.integrations.moe import (
+        from sndr.engines.vllm.patches.moe import (
             pn96b_marlin_persistent_workspace,
         )
     except Exception as e:
@@ -4227,7 +4227,7 @@ def apply_patch_N32_gdn_chunked_prefill() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.attention.gdn import pn32_gdn_chunked_prefill
+        from sndr.engines.vllm.patches.attention.gdn import pn32_gdn_chunked_prefill
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn32_gdn_chunked_prefill.apply()
@@ -4264,7 +4264,7 @@ def apply_patch_N204_dual_stream_inproj() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.attention.gdn import (
+        from sndr.engines.vllm.patches.attention.gdn import (
             pn204_dual_stream_inproj,
         )
     except Exception as e:
@@ -4298,7 +4298,7 @@ def apply_patch_N102_pinned_alloc_pool() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: runtime monkey-patch ready")
     try:
-        from vllm.sndr_core.integrations.offload import (
+        from sndr.engines.vllm.patches.offload import (
             pn102_pinned_alloc_pool,
         )
     except Exception as e:
@@ -4339,7 +4339,7 @@ def apply_patch_N108_fused_recurrent_prefill() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations._retired import (  # moved to _retired/ 2026-05-14
+        from sndr.engines.vllm.patches._retired import (  # moved to _retired/ 2026-05-14
             pn108_fused_recurrent_prefill,
         )
     except Exception as e:
@@ -4375,7 +4375,7 @@ def apply_patch_N31_fa_varlen_persistent_out() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.attention.turboquant import pn31_fa_varlen_persistent_out
+        from sndr.engines.vllm.patches.attention.turboquant import pn31_fa_varlen_persistent_out
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn31_fa_varlen_persistent_out.apply()
@@ -4412,7 +4412,7 @@ def apply_patch_N30_ds_layout_spec_decode() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: two-file text-patch ready")
     try:
-        from vllm.sndr_core.integrations.attention.gdn import pn30_ds_layout_spec_decode_align
+        from sndr.engines.vllm.patches.attention.gdn import pn30_ds_layout_spec_decode_align
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn30_ds_layout_spec_decode_align.apply()
@@ -4448,7 +4448,7 @@ def apply_patch_N29_gdn_chunk_o_scale_fold() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.attention.gdn import pn29_gdn_chunk_o_scale_fold
+        from sndr.engines.vllm.patches.attention.gdn import pn29_gdn_chunk_o_scale_fold
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn29_gdn_chunk_o_scale_fold.apply()
@@ -4480,7 +4480,7 @@ def apply_patch_N12_ffn_intermediate_pool() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.kernels import pn12_ffn_intermediate_pool
+        from sndr.engines.vllm.patches.kernels import pn12_ffn_intermediate_pool
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn12_ffn_intermediate_pool.apply()
@@ -4518,7 +4518,7 @@ def apply_patch_N28_merge_attn_states_nan_guard() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.kernels import pn28_merge_attn_states_nan_guard
+        from sndr.engines.vllm.patches.kernels import pn28_merge_attn_states_nan_guard
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn28_merge_attn_states_nan_guard.apply()
@@ -4551,7 +4551,7 @@ def apply_patch_15B_fa_varlen_clamp() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.memory import p15b_fa_varlen_clamp
+        from sndr.engines.vllm.patches.memory import p15b_fa_varlen_clamp
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p15b_fa_varlen_clamp.apply()
@@ -4593,7 +4593,7 @@ def apply_patch_38B_compile_safe_hook() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch + dispatcher ready")
     try:
-        from vllm.sndr_core.integrations.memory import p38b_compile_safe_hook
+        from sndr.engines.vllm.patches.memory import p38b_compile_safe_hook
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p38b_compile_safe_hook.apply()
@@ -4645,7 +4645,7 @@ def apply_patch_N26b_sparse_v_kernel() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: kernel + dispatcher ready")
     try:
-        from vllm.sndr_core.integrations.attention.turboquant import pn26_sparse_v_kernel
+        from sndr.engines.vllm.patches.attention.turboquant import pn26_sparse_v_kernel
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn26_sparse_v_kernel.apply()
@@ -4682,7 +4682,7 @@ def apply_patch_N27_revert_pluggable_moe() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.moe import pn27_revert_pluggable_moe
+        from sndr.engines.vllm.patches.moe import pn27_revert_pluggable_moe
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn27_revert_pluggable_moe.apply()
@@ -4726,7 +4726,7 @@ def apply_patch_N26_tq_unified_perf() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.attention.turboquant import pn26_tq_unified_perf
+        from sndr.engines.vllm.patches.attention.turboquant import pn26_tq_unified_perf
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn26_tq_unified_perf.apply()
@@ -4773,7 +4773,7 @@ def apply_patch_N25_silu_inductor_safe_pool() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.kernels import pn25_silu_inductor_safe_pool
+        from sndr.engines.vllm.patches.kernels import pn25_silu_inductor_safe_pool
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn25_silu_inductor_safe_pool.apply()
@@ -4806,7 +4806,7 @@ def apply_patch_N13_cuda_graph_lambda_arity() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations._retired import pn13_cuda_graph_lambda_arity  # moved to _retired/ 2026-05-14
+        from sndr.engines.vllm.patches._retired import pn13_cuda_graph_lambda_arity  # moved to _retired/ 2026-05-14
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn13_cuda_graph_lambda_arity.apply()
@@ -4842,7 +4842,7 @@ def apply_patch_N14_tq_decode_oob_clamp() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.attention.turboquant import pn14_tq_decode_oob_clamp
+        from sndr.engines.vllm.patches.attention.turboquant import pn14_tq_decode_oob_clamp
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn14_tq_decode_oob_clamp.apply()
@@ -4986,7 +4986,7 @@ def apply_patch_N286_fa_layout_revert_sm86() -> PatchResult:
     Status: opt-in via GENESIS_ENABLE_PN286_FA_LAYOUT_REVERT_SM86=1.
     Default OFF; flip after rig validation confirms gap closure.
     """
-    from vllm.sndr_core.integrations.attention.flash import (
+    from sndr.engines.vllm.patches.attention.flash import (
         pn286_fa_layout_revert_sm86,
     )
     status, detail = pn286_fa_layout_revert_sm86.apply()
@@ -5007,7 +5007,7 @@ def apply_patch_N296_arch_profile_init() -> PatchResult:
     overrides preserved (only sets if not already set in launcher).
     MUST run BEFORE PN298/PN299/PN300/PN302 (they read its env stamps).
     Opt-in via GENESIS_ENABLE_PN296_ARCH_PROFILE_INIT=1."""
-    from vllm.sndr_core.integrations.detection import (
+    from sndr.engines.vllm.patches.detection import (
         pn296_arch_profile_init,
     )
     status, detail = pn296_arch_profile_init.apply()
@@ -5024,7 +5024,7 @@ def apply_patch_N302_model_profile_init() -> PatchResult:
     spec-decode. Emits GENESIS_MODEL_* env stamps for downstream
     model-aware patches. Composes with PN296 for unified 2D dispatch.
     Opt-in via GENESIS_ENABLE_PN302_MODEL_PROFILE_INIT=1."""
-    from vllm.sndr_core.integrations.detection import (
+    from sndr.engines.vllm.patches.detection import (
         pn302_model_profile_init,
     )
     status, detail = pn302_model_profile_init.apply()
@@ -5042,7 +5042,7 @@ def apply_patch_N300_universal_triton_autotune_wrapper() -> PatchResult:
     arch profile. Replaces per-file patches with one universal solution.
     Coverage: ALL @triton.autotune decorators across vllm package.
     No-op on SM 9.0+. Opt-in via GENESIS_ENABLE_PN300_UNIVERSAL_TRITON_AUTOTUNE_WRAPPER=1."""
-    from vllm.sndr_core.integrations.detection import (
+    from sndr.engines.vllm.patches.detection import (
         pn300_universal_triton_autotune_wrapper,
     )
     status, detail = pn300_universal_triton_autotune_wrapper.apply()
@@ -5060,7 +5060,7 @@ def apply_patch_N299_fla_multi_arch_warps() -> PatchResult:
     per GDN layer on prefill. Reads GENESIS_TRITON_AUTOTUNE_MAX_WARPS
     auto-set by PN296. On SM 8.6 drops num_warps=8/16/32 configs.
     Opt-in via GENESIS_ENABLE_PN299_FLA_MULTI_ARCH_WARPS=1."""
-    from vllm.sndr_core.integrations.attention.gdn import (
+    from sndr.engines.vllm.patches.attention.gdn import (
         pn299_fla_multi_arch_warps,
     )
     status, detail = pn299_fla_multi_arch_warps.apply()
@@ -5079,7 +5079,7 @@ def apply_patch_N298_fla_chunk_o_arch_warps() -> PatchResult:
     shared) drops num_warps=8 configs that spill registers. Kernel runs
     per layer per prefill on 27B (48 GDN layers) and 35B (30 GDN layers).
     Opt-in via GENESIS_ENABLE_PN298_FLA_CHUNK_O_ARCH_WARPS=1."""
-    from vllm.sndr_core.integrations.attention.gdn import (
+    from sndr.engines.vllm.patches.attention.gdn import (
         pn298_fla_chunk_o_arch_warps,
     )
     status, detail = pn298_fla_chunk_o_arch_warps.apply()
@@ -5101,7 +5101,7 @@ def apply_patch_N294_unsplit_attn_groups_mtp() -> PatchResult:
     PN294 forces num_heads_q=0 in AttentionGroupKey when enabled →
     one bucket, one build. Bit-identical for same-head groups.
     Opt-in via GENESIS_ENABLE_PN294_UNSPLIT_MTP_ATTN_GROUPS=1."""
-    from vllm.sndr_core.integrations.worker import (
+    from sndr.engines.vllm.patches.worker import (
         pn294_unsplit_attn_groups_mtp,
     )
     status, detail = pn294_unsplit_attn_groups_mtp.apply()
@@ -5120,7 +5120,7 @@ def apply_patch_N293_mamba_attn_prefill_fastpath() -> PatchResult:
     when num_accepted_tokens is None or min(query_lens) > 1 (warm bench case).
     Bit-identical to upstream on true-positive cases.
     Opt-in via GENESIS_ENABLE_PN293_MAMBA_ATTN_PREFILL_FASTPATH=1."""
-    from vllm.sndr_core.integrations.attention.gdn import (
+    from sndr.engines.vllm.patches.attention.gdn import (
         pn293_mamba_attn_prefill_fastpath,
     )
     status, detail = pn293_mamba_attn_prefill_fastpath.apply()
@@ -5138,7 +5138,7 @@ def apply_patch_N292_revert_fused_mamba_postprocess() -> PatchResult:
     Restores dev371 .cpu()-sync + Python postprocess_mamba path.
     Closes the A11 -18% TPS regression on Qwen3.6 27B + MTP K=3.
     Opt-in via GENESIS_ENABLE_PN292_REVERT_FUSED_MAMBA_POSTPROCESS=1."""
-    from vllm.sndr_core.integrations.worker import (
+    from sndr.engines.vllm.patches.worker import (
         pn292_revert_fused_mamba_postprocess,
     )
     status, detail = pn292_revert_fused_mamba_postprocess.apply()
@@ -5162,7 +5162,7 @@ def apply_patch_N290_num_accepted_tokens_race() -> PatchResult:
     Status: opt-in via GENESIS_ENABLE_PN290_NUM_ACCEPTED_TOKENS_RACE=1.
     Default OFF; flip after rig validation confirms crash gone.
     """
-    from vllm.sndr_core.integrations.spec_decode import (
+    from sndr.engines.vllm.patches.spec_decode import (
         pn290_num_accepted_tokens_race,
     )
     status, detail = pn290_num_accepted_tokens_race.apply()
@@ -5188,7 +5188,7 @@ def apply_patch_g4_61_tq_shared_workspace() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: shared workspace ready")
     try:
-        from vllm.sndr_core.integrations.attention.turboquant import (
+        from sndr.engines.vllm.patches.attention.turboquant import (
             g4_61_tq_shared_workspace,
         )
     except Exception as e:
@@ -5216,7 +5216,7 @@ def apply_patch_g4_62_tq_kernel_warmup() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: kernel warmup ready")
     try:
-        from vllm.sndr_core.integrations.attention.turboquant import (
+        from sndr.engines.vllm.patches.attention.turboquant import (
             g4_62_tq_kernel_warmup,
         )
     except Exception as e:
@@ -5241,7 +5241,7 @@ def apply_patch_N287_qwen3coder_args_observer() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: observer ready")
     try:
-        from vllm.sndr_core.integrations.tool_parsing import (
+        from sndr.engines.vllm.patches.tool_parsing import (
             pn287_qwen3coder_args_validity_observer,
         )
     except Exception as e:
@@ -5311,7 +5311,7 @@ def _legacy_apply_patch_N16_lazy_reasoner() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.middleware import pn16_lazy_reasoner
+        from sndr.engines.vllm.patches.middleware import pn16_lazy_reasoner
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn16_lazy_reasoner.apply()
@@ -5357,7 +5357,7 @@ def apply_patch_86_ngram_batch_propose_linear() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.spec_decode import p86_ngram_batch_propose_linear
+        from sndr.engines.vllm.patches.spec_decode import p86_ngram_batch_propose_linear
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p86_ngram_batch_propose_linear.apply()
@@ -5404,7 +5404,7 @@ def apply_patch_85_hybrid_fine_shadow_prefix_cache() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.kv_cache import p85_hybrid_fine_shadow_prefix_cache
+        from sndr.engines.vllm.patches.kv_cache import p85_hybrid_fine_shadow_prefix_cache
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p85_hybrid_fine_shadow_prefix_cache.apply()
@@ -5441,7 +5441,7 @@ def apply_patch_75_suffix_decoding_enable() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.spec_decode import p75_suffix_decoding_enable
+        from sndr.engines.vllm.patches.spec_decode import p75_suffix_decoding_enable
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p75_suffix_decoding_enable.apply()
@@ -5478,7 +5478,7 @@ def apply_patch_74_chunk_clamp() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.scheduler import p74_chunk_clamp
+        from sndr.engines.vllm.patches.scheduler import p74_chunk_clamp
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p74_chunk_clamp.apply()
@@ -5518,7 +5518,7 @@ def apply_patch_72_profile_run_cap() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.worker import p72_profile_run_cap
+        from sndr.engines.vllm.patches.worker import p72_profile_run_cap
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p72_profile_run_cap.apply()
@@ -5547,7 +5547,7 @@ def apply_patch_67b_spec_verify_routing() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.attention.turboquant import p67b_spec_verify_routing
+        from sndr.engines.vllm.patches.attention.turboquant import p67b_spec_verify_routing
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p67b_spec_verify_routing.apply()
@@ -5587,7 +5587,7 @@ def apply_patch_59_qwen3_reasoning_tool_call_recovery() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.reasoning import p59_qwen3_reasoning_tool_call_recovery
+        from sndr.engines.vllm.patches.reasoning import p59_qwen3_reasoning_tool_call_recovery
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p59_qwen3_reasoning_tool_call_recovery.apply()
@@ -5635,7 +5635,7 @@ def apply_patch_58_async_placeholder_fix() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.scheduler import p58_async_scheduler_placeholder_fix
+        from sndr.engines.vllm.patches.scheduler import p58_async_scheduler_placeholder_fix
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p58_async_scheduler_placeholder_fix.apply()
@@ -5665,7 +5665,7 @@ def apply_patch_44_tq_mixed_attn_out() -> PatchResult:
     Platform guard: NVIDIA CUDA + SM ≥ 8.0. Default-on.
     """
     name = "P44 TQ mixed-batch attn_out pool"
-    from vllm.sndr_core.detection.guards import (
+    from sndr.engines.vllm.detection.guards import (
         is_nvidia_cuda, is_sm_at_least, is_amd_rocm, is_cpu_only,
     )
     if not is_nvidia_cuda():
@@ -5679,7 +5679,7 @@ def apply_patch_44_tq_mixed_attn_out() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.attention.turboquant import p44_tq_mixed_attn_out
+        from sndr.engines.vllm.patches.attention.turboquant import p44_tq_mixed_attn_out
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p44_tq_mixed_attn_out.apply()
@@ -5709,7 +5709,7 @@ def apply_patch_46_gdn_gating_buffers() -> PatchResult:
     Platform guard: NVIDIA CUDA + SM ≥ 8.0. Default-on — no env gate.
     """
     name = "P46 GDN gating buffer pool"
-    from vllm.sndr_core.detection.guards import (
+    from sndr.engines.vllm.detection.guards import (
         is_nvidia_cuda, is_sm_at_least, is_amd_rocm, is_cpu_only,
     )
 
@@ -5727,7 +5727,7 @@ def apply_patch_46_gdn_gating_buffers() -> PatchResult:
         return _applied(name, "dry-run: text-patch ready")
 
     try:
-        from vllm.sndr_core.integrations.attention.gdn import p46_gdn_gating_buffers
+        from sndr.engines.vllm.patches.attention.gdn import p46_gdn_gating_buffers
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
 
@@ -5761,7 +5761,7 @@ def apply_patch_7b_gdn_dual_stream_customop() -> PatchResult:
     Platform guard: NVIDIA CUDA + SM ≥ 8.0.
     """
     name = "P7b GDN dual-stream via torch.library.custom_op (opt-in)"
-    from vllm.sndr_core.detection.guards import (
+    from sndr.engines.vllm.detection.guards import (
         is_nvidia_cuda, is_sm_at_least, is_amd_rocm, is_cpu_only,
     )
 
@@ -5779,7 +5779,7 @@ def apply_patch_7b_gdn_dual_stream_customop() -> PatchResult:
         return _applied(name, "dry-run: env-opt-in scaffold ready")
 
     try:
-        from vllm.sndr_core.integrations.attention.gdn import p7b_gdn_dual_stream_customop
+        from sndr.engines.vllm.patches.attention.gdn import p7b_gdn_dual_stream_customop
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
 
@@ -5815,7 +5815,7 @@ def apply_patch_40_tq_grouped_decode() -> PatchResult:
     Platform guard: NVIDIA CUDA + SM ≥ 8.0.
     """
     name = "P40 TurboQuant GQA-grouped decode stage1 (opt-in)"
-    from vllm.sndr_core.detection.guards import (
+    from sndr.engines.vllm.detection.guards import (
         is_nvidia_cuda, is_sm_at_least, is_amd_rocm, is_cpu_only,
     )
 
@@ -5833,7 +5833,7 @@ def apply_patch_40_tq_grouped_decode() -> PatchResult:
         return _applied(name, "dry-run: rebind ready (pass apply=True for live wiring)")
 
     try:
-        from vllm.sndr_core.integrations.attention.turboquant import p40_tq_grouped_decode
+        from sndr.engines.vllm.patches.attention.turboquant import p40_tq_grouped_decode
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
 
@@ -5873,7 +5873,7 @@ def apply_patch_39a_fla_kkt_buffer() -> PatchResult:
     the user requested, at chunk=4096.
     """
     name = "P39a FLA chunk_scaled_dot_kkt persistent A pool"
-    from vllm.sndr_core.detection.guards import (
+    from sndr.engines.vllm.detection.guards import (
         is_nvidia_cuda, is_sm_at_least, is_amd_rocm, is_cpu_only,
     )
 
@@ -5891,7 +5891,7 @@ def apply_patch_39a_fla_kkt_buffer() -> PatchResult:
         return _applied(name, "dry-run: rebind ready (pass apply=True for live wiring)")
 
     try:
-        from vllm.sndr_core.integrations.attention.gdn import p39a_fla_kkt_buffer
+        from sndr.engines.vllm.patches.attention.gdn import p39a_fla_kkt_buffer
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
 
@@ -5930,7 +5930,7 @@ def apply_patch_38_tq_continuation_memory() -> PatchResult:
     Platform guard: NVIDIA CUDA + SM ≥ 8.0 (shared with P22).
     """
     name = "P38 TQ _continuation_prefill persistent workspace"
-    from vllm.sndr_core.detection.guards import (
+    from sndr.engines.vllm.detection.guards import (
         is_nvidia_cuda, is_sm_at_least, is_amd_rocm, is_cpu_only,
     )
 
@@ -5948,7 +5948,7 @@ def apply_patch_38_tq_continuation_memory() -> PatchResult:
         return _applied(name, "dry-run: rebind ready (pass apply=True for live wiring)")
 
     try:
-        from vllm.sndr_core.integrations.attention.turboquant import p38_tq_continuation_memory
+        from sndr.engines.vllm.patches.attention.turboquant import p38_tq_continuation_memory
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
 
@@ -6031,7 +6031,7 @@ def apply_patch_32_33_tq_bundled_preallocs() -> PatchResult:
 
     # Audit closure 2026-05-08 (P1-1): no-torch hosts return skipped.
     try:
-        from vllm.sndr_core.kernels.dequant_buffer import (
+        from sndr.engines.vllm.kernels_legacy.dequant_buffer import (
             TurboQuantBufferManager,
         )
     except ImportError as e:
@@ -6078,7 +6078,7 @@ def apply_patch_28_gdn_core_attn() -> PatchResult:
     name = "P28 GDN core_attn_out prealloc"
     # Audit closure 2026-05-08 (P1-1): no-torch hosts return skipped.
     try:
-        from vllm.sndr_core.kernels.gdn_core_attn_manager import (
+        from sndr.engines.vllm.kernels_legacy.gdn_core_attn_manager import (
             GdnCoreAttnManager,
         )
     except ImportError as e:
@@ -6118,12 +6118,12 @@ def apply_patch_7_gdn_dual_stream() -> PatchResult:
     or sequential execution based on platform.
     """
     name = "P7 GDN dual-stream in_proj parallelism"
-    from vllm.sndr_core.detection.guards import is_cpu_only, is_intel_xpu
+    from sndr.engines.vllm.detection.guards import is_cpu_only, is_intel_xpu
 
     # Audit closure 2026-05-08 (P1-1): defer torch-heavy import; on
     # no-torch hosts return skipped.
     try:
-        from vllm.sndr_core.kernels.gdn_dual_stream import DualStreamDispatcher
+        from sndr.engines.vllm.kernels_legacy.gdn_dual_stream import DualStreamDispatcher
     except ImportError as e:
         return _skipped(name, f"torch runtime unavailable on this host: {e}")
 
@@ -6168,7 +6168,7 @@ def apply_patch_17_18_marlin_tuning() -> PatchResult:
       VLLM_MARLIN_MOE_NUM_STAGES    → pipeline stages (1-8)
     """
     name = "P17/P18 Marlin MoE per-SM tuning"
-    from vllm.sndr_core.detection.guards import is_nvidia_cuda, get_compute_capability
+    from sndr.engines.vllm.detection.guards import is_nvidia_cuda, get_compute_capability
 
     if not is_nvidia_cuda():
         return _skipped(name, "non-NVIDIA — Marlin is CUDA-only")
@@ -6176,7 +6176,7 @@ def apply_patch_17_18_marlin_tuning() -> PatchResult:
     # Audit closure 2026-05-08 (P1-1): defer torch-heavy kernel import
     # to AFTER platform check.
     try:
-        from vllm.sndr_core.kernels.marlin_tuning import (
+        from sndr.engines.vllm.kernels_legacy.marlin_tuning import (
             get_optimal_block_size_m,
             get_num_warps_override,
             get_num_stages_override,
@@ -6251,7 +6251,7 @@ def apply_patch_14_block_table_tail_zero() -> PatchResult:
     name = "P14 block_table tail zero-fill"
 
     try:
-        from vllm.sndr_core.kernels.block_table_zero import zero_block_table_tail
+        from sndr.engines.vllm.kernels_legacy.block_table_zero import zero_block_table_tail
         assert callable(zero_block_table_tail)
     except Exception as e:
         return _failed(name, f"kernel import failed: {e}")
@@ -6260,7 +6260,7 @@ def apply_patch_14_block_table_tail_zero() -> PatchResult:
         return _applied(name, "dry-run: kernel ready (pass apply=True for live wiring)")
 
     try:
-        from vllm.sndr_core.integrations.kv_cache import p14_block_table
+        from sndr.engines.vllm.patches.kv_cache import p14_block_table
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
 
@@ -6287,7 +6287,7 @@ def apply_patch_18b_tq_decode_tune() -> PatchResult:
     patcher for those literals).
     """
     name = "P18b TurboQuant decode stage1 tune"
-    from vllm.sndr_core.kernels import tq_decode_tune as t
+    from sndr.engines.vllm.kernels_legacy import tq_decode_tune as t
 
     if not t.should_apply():
         return _skipped(
@@ -6325,7 +6325,7 @@ def apply_patch_20_tq_continuation_prefill() -> PatchResult:
     name = "P20 TurboQuant continuation-prefill FP16 rotate"
     # Audit closure 2026-05-08 (P1-1): defer torch-heavy kernel import.
     try:
-        from vllm.sndr_core.kernels import tq_continuation_prefill as t
+        from sndr.engines.vllm.kernels_legacy import tq_continuation_prefill as t
     except ImportError as e:
         return _skipped(name, f"torch runtime unavailable on this host: {e}")
 
@@ -6365,8 +6365,8 @@ def apply_patch_1_2_fp8_dispatcher() -> PatchResult:
     kernel dispatcher via monkey-patch on `TritonBlockFP8ScaledMMKernel`.
     """
     name = "P1/P2 FP8 kernel dispatcher"
-    from vllm.sndr_core.detection.guards import is_nvidia_cuda, get_compute_capability
-    from vllm.sndr_core.kernels.fp8_dispatcher import (
+    from sndr.engines.vllm.detection.guards import is_nvidia_cuda, get_compute_capability
+    from sndr.engines.vllm.kernels_legacy.fp8_dispatcher import (
         requires_marlin_fp8_fallback,
         fp8_triton_kernel_supported,
         log_dispatcher_decision,
@@ -6414,7 +6414,7 @@ def _g4_dispatch_factory(name: str, module_attr: str, family_pkg: str = "gemma4"
     """
     family_dotted = family_pkg.replace("/", ".")
     full_module_path = (
-        f"vllm.sndr_core.integrations.{family_dotted}.{module_attr}"
+        f"sndr.engines.vllm.patches.{family_dotted}.{module_attr}"
     )
 
     def _g4_dispatch():

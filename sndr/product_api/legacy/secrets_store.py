@@ -33,7 +33,7 @@ _KEYRING_KEY_NAME = "secrets-fernet-key"
 
 
 def _state_dir() -> Path:
-    from vllm.sndr_core.locations.project_paths import install_root
+    from sndr.engines.vllm.locations.project_paths import install_root
 
     return install_root() / "gui"
 

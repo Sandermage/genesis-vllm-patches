@@ -61,7 +61,7 @@ _ORIGINAL_PROPOSE = None
 def should_apply() -> bool:
     """Single source of truth — ask the helper module."""
     try:
-        from vllm.sndr_core.kernels.ngram_frequency_filter import is_enabled
+        from sndr.engines.vllm.kernels_legacy.ngram_frequency_filter import is_enabled
     except Exception:
         return False
     return is_enabled()
@@ -109,7 +109,7 @@ def apply() -> tuple[str, str]:
     original_propose = _ORIGINAL_PROPOSE
 
     try:
-        from vllm.sndr_core.kernels.ngram_frequency_filter import (
+        from sndr.engines.vllm.kernels_legacy.ngram_frequency_filter import (
             filter_with_env, record_filter_call,
         )
     except Exception as e:
@@ -134,7 +134,7 @@ def apply() -> tuple[str, str]:
         )
         # Defensive: if env flipped to OFF mid-process (unlikely), bypass
         try:
-            from vllm.sndr_core.kernels.ngram_frequency_filter import is_enabled
+            from sndr.engines.vllm.kernels_legacy.ngram_frequency_filter import is_enabled
             if not is_enabled():
                 return drafts
             in_count = sum(1 for d in drafts if d)

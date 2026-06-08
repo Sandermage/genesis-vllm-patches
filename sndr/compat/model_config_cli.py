@@ -23,18 +23,18 @@ import argparse
 import sys
 from pathlib import Path
 
-from vllm.sndr_core.model_configs import (
+from sndr.model_configs import (
     load_all, get, list_keys, dump_yaml,
 )
-from vllm.sndr_core.model_configs.registry import source_of, path_for
-from vllm.sndr_core.model_configs.audit_rules import audit
-from vllm.sndr_core.model_configs.preflight import (
+from sndr.model_configs.registry import source_of, path_for
+from sndr.model_configs.audit_rules import audit
+from sndr.model_configs.preflight import (
     preflight_all, has_blockers as preflight_blockers,
 )
-from vllm.sndr_core.model_configs.diagnose import (
+from sndr.model_configs.diagnose import (
     diagnose_all,
 )
-from vllm.sndr_core.model_configs.verify import (
+from sndr.model_configs.verify import (
     verify, bench_metrics,
 )
 
@@ -182,8 +182,8 @@ def cmd_render(args) -> int:
         # Resolve symbolic mounts in cfg.docker.mounts via host.yaml
         if cfg.docker is not None and cfg.docker.mounts:
             try:
-                from vllm.sndr_core.model_configs.host import load_host_config
-                from vllm.sndr_core.model_configs.schema import (
+                from sndr.model_configs.host import load_host_config
+                from sndr.model_configs.schema import (
                     resolve_symbolic_mounts,
                 )
                 hc = load_host_config()
@@ -231,8 +231,8 @@ def cmd_render(args) -> int:
         # Same symbolic-mount resolution as docker path.
         if cfg.docker is not None and cfg.docker.mounts:
             try:
-                from vllm.sndr_core.model_configs.host import load_host_config
-                from vllm.sndr_core.model_configs.schema import (
+                from sndr.model_configs.host import load_host_config
+                from sndr.model_configs.schema import (
                     resolve_symbolic_mounts,
                 )
                 hc = load_host_config()
@@ -769,7 +769,7 @@ def _render_bare_metal(cfg, *, mode: str = "wheel") -> str:
         backward compatibility with operators relying on silent retry.
         Marked deprecated; emits a runtime WARN line.
     """
-    from vllm.sndr_core.model_configs.host import load_host_config
+    from sndr.model_configs.host import load_host_config
 
     if mode not in ("wheel", "dev", "dev_legacy"):
         raise ValueError(
@@ -817,7 +817,7 @@ def _render_bare_metal(cfg, *, mode: str = "wheel") -> str:
         lines.extend([
             "# Wheel mode (production): verify vllm-sndr-core importable WITHOUT",
             "# attempting any editable install. Fail-fast posture.",
-            "python3 -c 'import vllm.sndr_core' || {",
+            "python3 -c 'import sndr' || {",
             "  echo \"ERROR: vllm.sndr_core not importable in this venv.\" >&2",
             "  echo \"Install the wheel:  pip install vllm-sndr-core\" >&2",
             "  exit 1",
@@ -902,7 +902,7 @@ def cmd_audit(args) -> int:
     issues = audit(cfg)
     e = w = 0
     if not issues:
-        from vllm.sndr_core.model_configs.audit_rules import RULES
+        from sndr.model_configs.audit_rules import RULES
         print(f"  ✓ all {len(RULES)} rules pass")
         return 0
     for rid, sev, title, msg in issues:
@@ -1075,7 +1075,7 @@ def cmd_new(args) -> int:
         new_cfg.reference_metrics = None
         new_cfg.verified_on = []
         new_cfg.lifecycle = "experimental"
-        from vllm.sndr_core.model_configs.registry import _user_dir
+        from sndr.model_configs.registry import _user_dir
         out_dir = _user_dir()
         out_dir.mkdir(parents=True, exist_ok=True)
         out_path = out_dir / f"{args.key}.yaml"
@@ -1094,10 +1094,10 @@ def cmd_new(args) -> int:
         # parses Entrypoint + Cmd + Config.Env + Mounts + HostConfig and
         # reverse-engineers a ModelConfig YAML. Read-only; no engine-side
         # introspection — works against any vllm/vllm-openai derivative.
-        from vllm.sndr_core.compat.from_running import (
+        from sndr.compat.from_running import (
             CaptureError, capture_from_running,
         )
-        from vllm.sndr_core.model_configs.registry import _user_dir
+        from sndr.model_configs.registry import _user_dir
         try:
             new_cfg = capture_from_running(
                 args.from_running,

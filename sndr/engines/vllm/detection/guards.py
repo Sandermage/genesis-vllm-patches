@@ -836,7 +836,7 @@ def genesis_no_patch_cache() -> bool:
 #
 # vllm.sndr_core.locations.vllm_install AND vllm.sndr_core.locations.resolver
 # remain as canonical-name re-exports OF the impls below. Import
-# `from vllm.sndr_core.locations import resolve_vllm_file` continues to
+# `from sndr.engines.vllm.locations import resolve_vllm_file` continues to
 # work transparently. Test mocks against `guards.vllm_install_root`
 # also propagate (via the re-export forward).
 

@@ -57,7 +57,7 @@ def _dir_size_mib(path: str, *, cap_entries: int = 20000) -> int | None:
 
 def collect_model_cache_report() -> ModelCacheReport:
     """Build the read-only model cache-status report (daemon-host scoped)."""
-    from vllm.sndr_core.model_configs.registry_v2 import list_models, load_model
+    from sndr.model_configs.registry_v2 import list_models, load_model
 
     entries: list[ModelCacheEntry] = []
     for model_id in list_models():

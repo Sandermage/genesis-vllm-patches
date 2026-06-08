@@ -54,8 +54,8 @@ from __future__ import annotations
 
 import logging
 
-from vllm.sndr_core.core import TextPatch, TextPatcher
-from vllm.sndr_core.detection.guards import resolve_vllm_file
+from sndr.kernel import TextPatch, TextPatcher
+from sndr.engines.vllm.detection.guards import resolve_vllm_file
 
 from ._gemma4_detect import env_truthy
 
@@ -169,7 +169,7 @@ def apply() -> tuple[str, str]:
         return "skipped", "vllm/model_executor/models/gemma4.py not resolvable in this pin"
 
     result, failure = patcher.apply()
-    from vllm.sndr_core.core import result_to_wiring_status
+    from sndr.kernel import result_to_wiring_status
     return result_to_wiring_status(
         result, failure,
         applied_message=(
@@ -182,7 +182,7 @@ def apply() -> tuple[str, str]:
 
 
 def is_applied() -> bool:
-    from vllm.sndr_core.core import marker_present_in_target
+    from sndr.kernel import marker_present_in_target
     patcher = _make_patcher()
     if patcher is None:
         return False
@@ -231,7 +231,7 @@ def register_for_manifest(*, pristine_root) -> None:
     `tests/unit/infra/conftest.py` (STABLE ratchet seed). Idempotent:
     re-registering with the same patcher is a no-op.
     """
-    from vllm.sndr_core.wiring.patcher_registry import register_text_patcher
+    from sndr.engines.vllm.wiring.patcher_registry import register_text_patcher
 
     register_text_patcher(
         "G4_04.Sub-1",

@@ -119,7 +119,7 @@ def dump_structured_boot_summary() -> str:
 
     # Genesis version
     try:
-        from vllm.sndr_core.version import __version__ as _gver
+        from sndr.version import __version__ as _gver
         _gver_str = _gver.lstrip("v")  # avoid "vv7.63.x" if module already prefixes
         lines.append(f"  Genesis:  v{_gver_str}")
     except Exception:
@@ -147,7 +147,7 @@ def dump_structured_boot_summary() -> str:
 
     # Model profile (if loaded)
     try:
-        from vllm.sndr_core.detection.model_detect import get_model_profile
+        from sndr.engines.vllm.detection.model_detect import get_model_profile
         profile = get_model_profile()
         if profile.get("resolved", False):
             mc = profile.get("model_class", "unknown")

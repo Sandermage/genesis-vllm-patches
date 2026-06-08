@@ -89,7 +89,7 @@ def add_argparser(subparsers: Any) -> None:
 def _collect_registry_env_flags() -> dict[str, dict[str, str]]:
     """Walk PATCH_REGISTRY and return `{key: {patch_id, family, source}}`."""
     try:
-        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        from sndr.dispatcher.registry import PATCH_REGISTRY
     except ImportError:
         return {}
     out: dict[str, dict[str, str]] = {}
@@ -111,7 +111,7 @@ def _collect_v2_keys() -> dict[str, dict[str, str]]:
     """Walk every V2 `builtin/model/*.yaml` patches block."""
     out: dict[str, dict[str, str]] = {}
     try:
-        from vllm.sndr_core.model_configs.registry_v2 import (
+        from sndr.model_configs.registry_v2 import (
             list_models, load_model,
         )
     except ImportError:
@@ -184,7 +184,7 @@ def _collect_v1_keys() -> dict[str, dict[str, str]]:
     """Walk every V1 monolithic `builtin/*.yaml` genesis_env block."""
     out: dict[str, dict[str, str]] = {}
     try:
-        from vllm.sndr_core.model_configs.registry import (
+        from sndr.model_configs.registry import (
             _BUILTIN_DIR,
         )
     except ImportError:

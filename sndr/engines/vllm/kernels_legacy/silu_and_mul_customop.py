@@ -144,7 +144,7 @@ def should_apply() -> bool:
     """Platform gate: NVIDIA CUDA + env opt-in."""
     if not is_pn25_enabled():
         return False
-    from vllm.sndr_core.detection.guards import is_nvidia_cuda
+    from sndr.engines.vllm.detection.guards import is_nvidia_cuda
     if not is_nvidia_cuda():
         return False
     if not torch.cuda.is_available():
@@ -245,7 +245,7 @@ def _silu_and_mul_pooled_impl(x: torch.Tensor) -> torch.Tensor:
 
     if has_cuda_op and x.dim() == 2:
         try:
-            from vllm.sndr_core.kernels.ffn_intermediate_cache import (
+            from sndr.engines.vllm.kernels_legacy.ffn_intermediate_cache import (
                 FFNIntermediateCache as _Cache,
             )
             if _Cache.is_production_eligible():

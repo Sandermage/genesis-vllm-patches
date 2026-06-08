@@ -37,10 +37,10 @@ from __future__ import annotations
 
 import logging
 
-from vllm.sndr_core.detection.guards import (
+from sndr.engines.vllm.detection.guards import (
     is_nvidia_cuda, is_sm_at_least, resolve_vllm_file, vllm_install_root,
 )
-from vllm.sndr_core.core import (
+from sndr.kernel import (
     TextPatch, TextPatcher, TextPatchResult,
 )
 # v11.1.0 P3.3: surface the GDN gating buffer pool through
@@ -51,7 +51,7 @@ from vllm.sndr_core.core import (
 # allocate-once-keep-forever, pointer-stable for CUDA-graph capture).
 # The registry hook only exposes the pool name; tensor storage
 # ownership is unchanged.
-from vllm.sndr_core.runtime.persistent_buffer_registry import (
+from sndr.runtime.persistent_buffer_registry import (
     PersistentBufferRegistry,
     POOL_GDN_GATING,
 )
@@ -99,7 +99,7 @@ _OLD_G = (
 )
 _NEW_G = (
     "    # [Genesis P46] persistent `g` buffer (one-per-shape-key pool)\n"
-    "    from vllm.sndr_core.kernels.gdn_gating_buffer import (\n"
+    "    from sndr.engines.vllm.kernels_legacy.gdn_gating_buffer import (\n"
     "        GdnGatingBufferManager as _GenesisGdnGatingBuf,\n"
     "    )\n"
     "    g = _GenesisGdnGatingBuf.acquire_g(\n"
@@ -178,7 +178,7 @@ def apply() -> tuple[str, str]:
     # on hybrid linear-attention layers. On pure-attention models the
     # text-patch target file won't even be imported.
     try:
-        from vllm.sndr_core.detection.model_detect import is_hybrid_model, log_skip
+        from sndr.engines.vllm.detection.model_detect import is_hybrid_model, log_skip
         if not is_hybrid_model():
             log_skip(
                 "P46 GDN gating buffer pool",

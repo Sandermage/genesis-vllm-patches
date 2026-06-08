@@ -141,7 +141,7 @@ def run_gateway(args: argparse.Namespace) -> int:
     # / uvicorn / httpx imports until the operator actually runs the
     # gateway subcommand.
     try:
-        from vllm.sndr_core.integrations.spec_decode.gateway.app import main
+        from sndr.engines.vllm.patches.spec_decode.gateway.app import main
     except ImportError as e:
         # Heavy deps missing (fastapi / uvicorn / httpx). Distinct from
         # exit code 2 (which is for tooling failure) to make the error

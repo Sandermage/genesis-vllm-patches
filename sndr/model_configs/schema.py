@@ -10,9 +10,9 @@ PatchAttribution — 23 classes in total) were relocated into the
 ``vllm.sndr_core.model_configs.types`` package and re-exported below.
 Historical import paths continue to resolve unchanged:
 
-  * ``from vllm.sndr_core.model_configs.schema import HardwareSpec``
-  * ``from vllm.sndr_core.model_configs.schema import SchemaError``
-  * ``from vllm.sndr_core.model_configs.schema import COMPATIBILITY_MATRIX``
+  * ``from sndr.model_configs.schema import HardwareSpec``
+  * ``from sndr.model_configs.schema import SchemaError``
+  * ``from sndr.model_configs.schema import COMPATIBILITY_MATRIX``
 
 ``ModelConfig`` itself + YAML I/O + emitter methods
 (``to_launch_script`` / ``_build_vllm_cmd`` / ``_build_docker_cmd``)
@@ -548,8 +548,8 @@ class ModelConfig:
 # The implementations live in ``emitters.yaml_io``; the names below are
 # preserved at module scope so existing import paths continue to work:
 #
-#   from vllm.sndr_core.model_configs.schema import dump_yaml, load_yaml
-#   from vllm.sndr_core.model_configs import dump_yaml, load_yaml
+#   from sndr.model_configs.schema import dump_yaml, load_yaml
+#   from sndr.model_configs import dump_yaml, load_yaml
 #
 # The private helpers ``_to_plain_dict`` / ``_from_plain_dict`` /
 # ``_shell_quote`` retain their leading-underscore names here too, for

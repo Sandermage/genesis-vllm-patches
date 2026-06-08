@@ -50,7 +50,7 @@ class CachePathFinding:
 
 def _read_patch_source(patch_id: str) -> str | None:
     """Read patch source for guard inspection. Returns None if not found."""
-    from vllm.sndr_core.locations.project_paths import wiring_dir
+    from sndr.engines.vllm.locations.project_paths import wiring_dir
 
     root = wiring_dir()
     if root is None or not root.is_dir():

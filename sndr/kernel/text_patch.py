@@ -189,7 +189,7 @@ class TextPatcher:
         """
         # G1: env opt-out
         try:
-            from vllm.sndr_core.detection.guards import genesis_no_patch_cache
+            from sndr.engines.vllm.detection.guards import genesis_no_patch_cache
             if genesis_no_patch_cache():
                 return None
         except Exception:
@@ -308,8 +308,8 @@ class TextPatcher:
         # Single os.stat() check (~10μs) replaces ~160μs of disk read +
         # marker scan when (mtime_ns, size_bytes, marker) match cache.
         try:
-            from vllm.sndr_core.detection.guards import genesis_no_patch_cache
-            from vllm.sndr_core.wiring.file_cache import (
+            from sndr.engines.vllm.detection.guards import genesis_no_patch_cache
+            from sndr.engines.vllm.wiring.file_cache import (
                 is_marker_cached_present,
             )
             if not genesis_no_patch_cache():
@@ -349,7 +349,7 @@ class TextPatcher:
             )
             # P2.2: warm Layer 0 cache so next boot's Layer 0 hits.
             try:
-                from vllm.sndr_core.wiring.file_cache import record_apply_result
+                from sndr.engines.vllm.wiring.file_cache import record_apply_result
                 record_apply_result(
                     self.target_file, self.marker,
                     post_apply_content=content,
@@ -462,7 +462,7 @@ class TextPatcher:
         # P2.2: record apply result in persistent cache so next boot's
         # Layer 0 can short-circuit Layer 1+2 entirely.
         try:
-            from vllm.sndr_core.wiring.file_cache import record_apply_result
+            from sndr.engines.vllm.wiring.file_cache import record_apply_result
             record_apply_result(
                 self.target_file, self.marker, post_apply_content=reread,
             )
@@ -628,7 +628,7 @@ def marker_present_in_target(patcher: "TextPatcher") -> bool:
 # from the legacy `vllm/_genesis/wiring/text_patch.py` monolith that
 # Stage 3 split into siblings (`multi_file.py`, `manifest_cache.py`).
 # Lazy `__getattr__` re-exports them on demand so
-# `from vllm.sndr_core.core.text_patch import MultiFilePatchTransaction`
+# `from sndr.kernel.text_patch import MultiFilePatchTransaction`
 # keeps working without creating a circular import (multi_file.py
 # imports TextPatcher from this module at load time).
 _LAZY_REEXPORTS = {

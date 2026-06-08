@@ -107,7 +107,7 @@ def _read_disk_tier_stats() -> dict[str, Any]:
     so the renderer can decide whether to surface the section.
     """
     try:
-        from vllm.sndr_core.cache import _pn95_disk_tier as _dt
+        from sndr.cache import _pn95_disk_tier as _dt
 
         return _dt.disk_tier_stats()
     except Exception as e:

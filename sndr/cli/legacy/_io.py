@@ -6,7 +6,7 @@ Rustup/uv-style output — colored when stdout is a TTY, plain otherwise
 
 Usage:
 
-    from vllm.sndr_core.cli import _io
+    from sndr.cli import _io
     _io.step(1, 8, "Detecting hardware")
     _io.success("Found 2× RTX A5000 (Ampere SM 8.6)")
     _io.info("Free disk: 287 GiB")

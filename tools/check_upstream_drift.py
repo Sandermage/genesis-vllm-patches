@@ -109,7 +109,7 @@ def _list_wiring_modules() -> list[tuple[str, str]]:
     they either don't apply text patches or don't apply at all.
     """
     try:
-        from vllm.sndr_core.dispatcher.spec import iter_patch_specs
+        from sndr.dispatcher.spec import iter_patch_specs
     except Exception as exc:  # pragma: no cover — defensive
         print(f"check_upstream_drift: iter_patch_specs unavailable: {exc}",
               file=sys.stderr)
@@ -261,7 +261,7 @@ def _check_markers(upstream_root: Path) -> list[dict]:
     upstream source. A match where `verified_in_main_*` is False means
     the upstream PR has just merged."""
     try:
-        from vllm.sndr_core.integrations.upstream_compat import UPSTREAM_MARKERS
+        from sndr.engines.vllm.patches.upstream_compat import UPSTREAM_MARKERS
     except Exception as e:
         return [{"error": f"upstream_compat import failed: {e}"}]
 

@@ -114,7 +114,7 @@ def simulate_plan(
     other failures from the underlying resolver propagate as their
     original exceptions; the env overlay is restored regardless.
     """
-    from vllm.sndr_core.cli.memory import _resolve_preset_v1_or_v2
+    from sndr.cli.memory import _resolve_preset_v1_or_v2
 
     try:
         cfg = _resolve_preset_v1_or_v2(preset_key)
@@ -128,7 +128,7 @@ def simulate_plan(
     error_rows: list[dict[str, Any]] = []
 
     with preset_env_overlay(cfg):
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY, should_apply
+        from sndr.dispatcher import PATCH_REGISTRY, should_apply
 
         for pid in sorted(PATCH_REGISTRY):
             meta = PATCH_REGISTRY[pid]
@@ -161,7 +161,7 @@ def simulate_plan(
     # wiring stub; ``research``/``retired`` lifecycle = should not reach
     # production. Read PATCH_REGISTRY outside the env overlay (it's a
     # module-level dict — env doesn't affect it).
-    from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+    from sndr.dispatcher import PATCH_REGISTRY
 
     profile_violations: list[dict[str, Any]] = []
     if profile == "production":
@@ -190,14 +190,14 @@ def simulate_plan(
     advisory_warnings: tuple[str, ...] = ()
     if policy is None:
         try:
-            from vllm.sndr_core.model_configs.patch_plan import resolve_patch_plan
+            from sndr.model_configs.patch_plan import resolve_patch_plan
 
             advisory_plan = resolve_patch_plan(cfg, policy="compat")
             advisory_warnings = tuple(advisory_plan.warnings)
         except Exception:
             advisory_warnings = ()
     else:
-        from vllm.sndr_core.model_configs.patch_plan import resolve_patch_plan
+        from sndr.model_configs.patch_plan import resolve_patch_plan
 
         plan = resolve_patch_plan(cfg, policy=policy)
         resolver_payload = {

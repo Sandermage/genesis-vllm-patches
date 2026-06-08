@@ -31,7 +31,7 @@ detection is the dispatcher's job at Stage 8.
 """
 from __future__ import annotations
 
-from vllm.sndr_core.env import Flags
+from sndr.env import Flags
 
 from ._common import run_bundle
 

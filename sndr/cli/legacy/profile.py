@@ -126,7 +126,7 @@ def add_argparser(subparsers: Any) -> None:
 
 
 def _profile_summary(profile_id: str) -> dict:
-    from vllm.sndr_core.model_configs.registry_v2 import load_profile
+    from sndr.model_configs.registry_v2 import load_profile
     p = load_profile(profile_id)
     delta = p.patches_delta
     sz = p.sizing_override
@@ -146,8 +146,8 @@ def _profile_summary(profile_id: str) -> dict:
 # ─── list
 
 def run_list(args: argparse.Namespace) -> int:
-    from vllm.sndr_core.model_configs.registry_v2 import list_profiles
-    from vllm.sndr_core.model_configs.schema import SchemaError
+    from sndr.model_configs.registry_v2 import list_profiles
+    from sndr.model_configs.schema import SchemaError
 
     ids = list_profiles(parent_model=args.model)
     summaries: list[dict] = []
@@ -199,8 +199,8 @@ def run_list(args: argparse.Namespace) -> int:
 # ─── show
 
 def run_show(args: argparse.Namespace) -> int:
-    from vllm.sndr_core.model_configs.registry_v2 import load_profile
-    from vllm.sndr_core.model_configs.schema import SchemaError
+    from sndr.model_configs.registry_v2 import load_profile
+    from sndr.model_configs.schema import SchemaError
 
     try:
         p = load_profile(args.profile_id)
@@ -267,9 +267,9 @@ def run_diff(args: argparse.Namespace) -> int:
     """Show what the patches matrix looks like AFTER apply_patches_delta
     is run on the parent model's canonical patches. This is the
     same delta the composer applies in compose()."""
-    from vllm.sndr_core.model_configs.compose import apply_patches_delta
-    from vllm.sndr_core.model_configs.registry_v2 import load_model, load_profile
-    from vllm.sndr_core.model_configs.schema import SchemaError
+    from sndr.model_configs.compose import apply_patches_delta
+    from sndr.model_configs.registry_v2 import load_model, load_profile
+    from sndr.model_configs.schema import SchemaError
 
     try:
         p = load_profile(args.profile_id)
@@ -382,14 +382,14 @@ def validate_profile(profile_id: str) -> tuple[list[dict], str]:
           * ``unloadable`` — profile YAML could not be loaded at all
                            (special case; nothing else was checked)
     """
-    from vllm.sndr_core.model_configs.compose import (
+    from sndr.model_configs.compose import (
         _check_compression_kv_dtype_compat,
     )
-    from vllm.sndr_core.model_configs.registry_v2 import (
+    from sndr.model_configs.registry_v2 import (
         load_model, load_profile,
     )
-    from vllm.sndr_core.model_configs.schema import SchemaError
-    from vllm.sndr_core.model_configs.schema_v2 import PROFILE_ROLES
+    from sndr.model_configs.schema import SchemaError
+    from sndr.model_configs.schema_v2 import PROFILE_ROLES
 
     issues: list[dict] = []
 
@@ -525,7 +525,7 @@ def run_validate(args: argparse.Namespace) -> int:
       * 1 — at least one profile has ERRORs and --strict was provided
       * 2 — tooling failure (registry unloadable, etc.)
     """
-    from vllm.sndr_core.model_configs.registry_v2 import list_profiles
+    from sndr.model_configs.registry_v2 import list_profiles
 
     try:
         if args.profile_id is not None:
@@ -616,7 +616,7 @@ def run_validate(args: argparse.Namespace) -> int:
 # consistency check so both layers reference the same dict (no parallel
 # maps that can drift). Re-exported here as _BACKEND_PLAN_MAP for
 # back-compat with the existing P1.5 test surface.
-from vllm.sndr_core.model_configs.compose import (
+from sndr.model_configs.compose import (
     BACKEND_PLAN_EMISSION_MAP as _BACKEND_PLAN_MAP,
 )
 
@@ -633,7 +633,7 @@ def _validate_backend_plan_consistency(profile, genesis_env: dict) -> None:
     and are not env-checked here. Multi-env mappings (e.g. drafter_kv_sharing
     emits BOTH SNDR canonical AND GENESIS legacy alias) check every entry.
     """
-    from vllm.sndr_core.model_configs.schema import SchemaError
+    from sndr.model_configs.schema import SchemaError
 
     bp = profile.backend_plan
     if bp is None:
@@ -744,10 +744,10 @@ def _pick_default_hardware(model):
 
     Returns the HardwareDef or raises SchemaError if no hardware fits.
     """
-    from vllm.sndr_core.model_configs.registry_v2 import (
+    from sndr.model_configs.registry_v2 import (
         list_hardware, load_hardware,
     )
-    from vllm.sndr_core.model_configs.schema import SchemaError
+    from sndr.model_configs.schema import SchemaError
 
     req = model.requires
     candidates = []
@@ -796,8 +796,8 @@ def render_profile_launcher(
     """
     from datetime import datetime, timezone
 
-    from vllm.sndr_core.model_configs.compose import compose
-    from vllm.sndr_core.model_configs.registry_v2 import (
+    from sndr.model_configs.compose import compose
+    from sndr.model_configs.registry_v2 import (
         load_hardware, load_model, load_profile,
     )
 
@@ -1039,7 +1039,7 @@ def run_render_launchers(args: argparse.Namespace) -> int:
     """
     import pathlib
 
-    from vllm.sndr_core.model_configs.schema import SchemaError
+    from sndr.model_configs.schema import SchemaError
 
     try:
         script = render_profile_launcher(args.profile_id, args.hardware)

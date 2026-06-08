@@ -71,8 +71,8 @@ def release_check(
     Raises :class:`vllm.sndr_core.proof.release_check.ReleaseCheckError`
     on invalid policy inputs.
     """
-    from vllm.sndr_core.proof import DEFAULT_PROOF_DIR
-    from vllm.sndr_core.proof.release_check import (
+    from sndr.proof import DEFAULT_PROOF_DIR
+    from sndr.proof.release_check import (
         ReleasePolicy,
         evaluate_release,
     )
@@ -83,7 +83,7 @@ def release_check(
         frozenset(patch_filter) if patch_filter is not None else None
     )
     if resolved_patch_filter is None and scope == "production-subset":
-        from vllm.sndr_core.proof.production_subset import get_production_subset
+        from sndr.proof.production_subset import get_production_subset
 
         resolved_patch_filter = get_production_subset()
 

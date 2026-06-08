@@ -87,7 +87,7 @@ def should_disable_fp32_reduce() -> bool:
         return True   # user wants it OFF → disabled
 
     # AUTO path
-    from vllm.sndr_core.detection.guards import is_nvidia_cuda, is_sm_at_least
+    from sndr.engines.vllm.detection.guards import is_nvidia_cuda, is_sm_at_least
 
     if not is_nvidia_cuda():
         return False  # no Marlin off-NVIDIA, decision moot
@@ -100,7 +100,7 @@ def should_disable_fp32_reduce() -> bool:
 
 def log_decision() -> None:
     """Log the FP32_REDUCE decision at engine start for observability."""
-    from vllm.sndr_core.detection.guards import get_compute_capability
+    from sndr.engines.vllm.detection.guards import get_compute_capability
 
     cc = get_compute_capability()
     override = get_fp32_reduce_override()

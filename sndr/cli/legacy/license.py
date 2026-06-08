@@ -64,7 +64,7 @@ def add_argparser(subparsers: Any) -> None:
 
 
 def run_status(args: argparse.Namespace) -> int:
-    from vllm.sndr_core.license import core_license_status
+    from sndr.license import core_license_status
     status = core_license_status()
 
     if args.json:
@@ -103,7 +103,7 @@ def run_status(args: argparse.Namespace) -> int:
 
 
 def run_verify(args: argparse.Namespace) -> int:
-    from vllm.sndr_core.license import verify_license_file
+    from sndr.license import verify_license_file
     result = verify_license_file(args.file)
 
     if args.json:

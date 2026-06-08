@@ -396,7 +396,7 @@ def get_default_cache() -> Optional[ResponseCacheLRU]:
             # Redis backend: shared across processes + restart-survivable.
             # Import lazily — `redis` is not a hard dep.
             try:
-                from vllm.sndr_core.cache.redis_backend import (
+                from sndr.cache.redis_backend import (
                     RedisResponseCache,
                 )
                 url = os.environ.get(

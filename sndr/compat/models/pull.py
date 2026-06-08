@@ -64,7 +64,7 @@ def _resolve_models_dir(override: str | None = None) -> Path:
     # Only honor it when explicitly set (env present) — the default
     # value for pull-time differs (HF cache, not /models).
     if os.environ.get("SNDR_MODELS_DIR") or os.environ.get("GENESIS_MODELS_DIR"):
-        from vllm.sndr_core.locations.project_paths import models_dir
+        from sndr.engines.vllm.locations.project_paths import models_dir
         return models_dir().expanduser().resolve()
     env_hf = os.environ.get("HUGGINGFACE_HUB_CACHE")
     if env_hf:
@@ -199,7 +199,7 @@ def generate_launch_script(
     for patch_id in config.recommended_genesis_patches:
         # Convert patch_id "P67" → env flag (look up in PATCH_REGISTRY).
         try:
-            from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+            from sndr.dispatcher import PATCH_REGISTRY
             meta = PATCH_REGISTRY.get(patch_id)
             if meta and meta.get("env_flag"):
                 env_lines.append(f"  -e {meta['env_flag']}=1 \\")
@@ -312,7 +312,7 @@ def pull_via_artifacts(
     2 on bad inputs (unknown cfg_key / no artifacts block).
     """
     try:
-        from vllm.sndr_core.model_configs.registry import get
+        from sndr.model_configs.registry import get
     except ImportError:
         print("ERROR: model_configs registry not importable", file=sys.stderr)
         return 2
@@ -320,7 +320,7 @@ def pull_via_artifacts(
     if cfg is None:
         print(f"ERROR: unknown preset key {cfg_key!r}", file=sys.stderr)
         try:
-            from vllm.sndr_core.model_configs.registry import list_keys
+            from sndr.model_configs.registry import list_keys
             print(f"available: {', '.join(sorted(list_keys()))}",
                   file=sys.stderr)
         except Exception:
@@ -474,7 +474,7 @@ def main(argv=None) -> int:
               file=sys.stderr)
         return 2
 
-    from vllm.sndr_core.compat.models.registry import get_model
+    from sndr.compat.models.registry import get_model
 
     entry = get_model(args.model_key)
     if entry is None:

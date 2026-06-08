@@ -267,7 +267,7 @@ _PN275_SELF_INSTALL_BLOCK = (
     "    if _genesis_pn275_os.environ.get(\n"
     "        \"GENESIS_ENABLE_PN275_DFLASH_MAX_CGS_ALIGN\", \"\"\n"
     "    ).strip().lower() in (\"1\", \"true\", \"yes\", \"on\"):\n"
-    "        from vllm.sndr_core.integrations.spec_decode."
+    "        from sndr.engines.vllm.patches.spec_decode."
     "pn275_dflash_max_cgs_align "
     "import (\n"
     "            _genesis_pn275_install_at_import as "
@@ -405,8 +405,8 @@ def _make_validator_waiver_text_patcher():
     `max_cudagraph_capture_size` cross-validator at
     ``vllm/config/vllm.py:1709-1715``. Returns None if vllm tree is
     not resolvable (torch-less host, partial install)."""
-    from vllm.sndr_core.detection.guards import resolve_vllm_file
-    from vllm.sndr_core.core import TextPatch, TextPatcher
+    from sndr.engines.vllm.detection.guards import resolve_vllm_file
+    from sndr.kernel import TextPatch, TextPatcher
 
     target = resolve_vllm_file("config/vllm.py")
     if target is None:
@@ -438,8 +438,8 @@ def _make_self_install_text_patcher():
     """Build the TextPatcher that appends the self-install block to
     ``vllm/config/utils.py``. Returns None if vllm tree is not
     resolvable (torch-less host, partial install)."""
-    from vllm.sndr_core.detection.guards import resolve_vllm_file
-    from vllm.sndr_core.core import TextPatch, TextPatcher
+    from sndr.engines.vllm.detection.guards import resolve_vllm_file
+    from sndr.kernel import TextPatch, TextPatcher
 
     target = resolve_vllm_file("config/utils.py")
     if target is None:
@@ -492,8 +492,8 @@ def apply() -> tuple[str, str]:
     text_patch_status = "skipped"
     text_patch_reason = "vllm tree not resolvable"
     try:
-        from vllm.sndr_core.detection.guards import vllm_install_root
-        from vllm.sndr_core.core import TextPatchResult
+        from sndr.engines.vllm.detection.guards import vllm_install_root
+        from sndr.kernel import TextPatchResult
 
         if vllm_install_root() is not None:
             patcher = _make_self_install_text_patcher()
@@ -535,8 +535,8 @@ def apply() -> tuple[str, str]:
     validator_status = "skipped"
     validator_reason = "vllm tree not resolvable"
     try:
-        from vllm.sndr_core.detection.guards import vllm_install_root
-        from vllm.sndr_core.core import TextPatchResult
+        from sndr.engines.vllm.detection.guards import vllm_install_root
+        from sndr.kernel import TextPatchResult
 
         if vllm_install_root() is not None:
             patcher = _make_validator_waiver_text_patcher()

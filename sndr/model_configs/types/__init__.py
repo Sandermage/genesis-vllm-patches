@@ -5,7 +5,7 @@ M.5.1 (2026-05-27): relocated from the 2768-LOC ``model_configs/schema.py``
 monolith into thematic modules so each dataclass lives next to a focused
 test surface. ``model_configs/schema.py`` re-exports every public name
 listed in ``__all__`` below, so the historical import paths
-(``from vllm.sndr_core.model_configs.schema import HardwareSpec`` etc.)
+(``from sndr.model_configs.schema import HardwareSpec`` etc.)
 continue to resolve.
 
 Subsequent M.5 phases (M.5.2: emitter extraction, M.5.3: ModelConfig

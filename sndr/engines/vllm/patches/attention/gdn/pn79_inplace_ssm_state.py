@@ -168,8 +168,8 @@ from __future__ import annotations
 import logging
 import os
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
-from vllm.sndr_core.core import (
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
+from sndr.kernel import (
     MultiFilePatchTransaction,
     TextPatch,
     TextPatcher,
@@ -1136,7 +1136,7 @@ def apply() -> tuple[str, str]:
     They're applied serially against unique returns; PN79 marker insertion
     blocks 3B from re-firing on already-patched 3A region.
     """
-    from vllm.sndr_core.dispatcher import log_decision, should_apply
+    from sndr.dispatcher import log_decision, should_apply
 
     decision, reason = should_apply("PN79")
     log_decision("PN79", decision, reason)
@@ -1200,7 +1200,7 @@ def register_for_manifest(*, pristine_root) -> None:
         pristine_root: Path to pristine_fixtures/ directory containing
             chunk.py, chunk_delta_h.py, gdn_linear_attn.py, olmo_hybrid.py.
     """
-    from vllm.sndr_core.wiring.patcher_registry import register_text_patcher
+    from sndr.engines.vllm.wiring.patcher_registry import register_text_patcher
 
     chunk_subs = [
         TextPatch(name="1A", anchor=ANCHOR_1A_IMPORT_OLD,

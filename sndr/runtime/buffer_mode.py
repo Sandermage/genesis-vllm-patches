@@ -26,10 +26,10 @@ Env precedence (most specific wins):
 
 Usage in a patch:
 
-    from vllm.sndr_core.runtime.buffer_mode import buffer_mode_for
+    from sndr.runtime.buffer_mode import buffer_mode_for
 
     if buffer_mode_for("P38") == "shared":
-        from vllm.sndr_core.runtime.prealloc import GenesisPreallocBuffer as GPB
+        from sndr.runtime.prealloc import GenesisPreallocBuffer as GPB
         k_buf = GPB.get_or_create("p38_k_dequant", shape, dtype, device)
     else:
         k_buf = getattr(layer, "_tq_k_dequant_buf", None)

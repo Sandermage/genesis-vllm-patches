@@ -61,8 +61,8 @@ from __future__ import annotations
 import logging
 import os
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
-from vllm.sndr_core.core import TextPatch, TextPatcher, result_to_wiring_status
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
+from sndr.kernel import TextPatch, TextPatcher, result_to_wiring_status
 
 log = logging.getLogger("genesis.wiring.pn204_dual_stream_inproj")
 
@@ -109,7 +109,7 @@ PN204_FWD_NEW = (
     "                _g_pn204_compiling = torch.compiler.is_compiling()\n"
     "            except Exception:\n"
     "                _g_pn204_compiling = False\n"
-    "            from vllm.sndr_core.integrations.attention.gdn import (\n"
+    "            from sndr.engines.vllm.patches.attention.gdn import (\n"
     "                pn204_dual_stream_inproj as _g_pn204_mod,\n"
     "            )\n"
     "            _g_pn204_armed = getattr(_g_pn204_mod, '_PN204_ARMED', False)\n"

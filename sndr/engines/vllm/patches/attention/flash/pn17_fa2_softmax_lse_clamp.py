@@ -88,8 +88,8 @@ from __future__ import annotations
 import logging
 import os
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
-from vllm.sndr_core.core import (
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
+from sndr.kernel import (
     TextPatch,
     TextPatcher,
 )
@@ -218,7 +218,7 @@ def apply() -> tuple[str, str]:
         return "skipped", "v1/attention/backends/flash_attn.py not found"
 
     result, failure = p.apply()
-    from vllm.sndr_core.core import result_to_wiring_status
+    from sndr.kernel import result_to_wiring_status
     return result_to_wiring_status(result, failure, applied_message='PN17 applied: FA2 softmax_lse buffer now clamped to actual seqused_k at runtime, freeing 50-100 MiB on long-ctx (Cliff 1 mechanism A fix per noonghunna Genesis Issue #11).', patch_name='PN17 FA2 softmax_lse runtime clamp')
 
 

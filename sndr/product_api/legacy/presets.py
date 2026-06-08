@@ -148,7 +148,7 @@ def preset_to_record(alias_id: str, preset_def: Any) -> PresetRecord:
 
 def load_preset(preset_id: str) -> Any:
     """Load one typed ``PresetDef`` without surfacing deprecation warnings."""
-    from vllm.sndr_core.model_configs.registry_v2 import load_preset_def
+    from sndr.model_configs.registry_v2 import load_preset_def
 
     try:
         with warnings.catch_warnings():
@@ -167,7 +167,7 @@ def load_corpus() -> tuple[tuple[str, Any], ...]:
     Invalid rows are skipped here to preserve the historical CLI behavior.
     Use :func:`list_presets` to receive structured load errors.
     """
-    from vllm.sndr_core.model_configs.registry_v2 import list_presets as list_ids
+    from sndr.model_configs.registry_v2 import list_presets as list_ids
 
     out: list[tuple[str, Any]] = []
     for preset_id in list_ids():
@@ -179,7 +179,7 @@ def load_corpus() -> tuple[tuple[str, Any], ...]:
 
 
 def _load_corpus_with_errors() -> tuple[tuple[tuple[str, Any], ...], tuple[PresetLoadIssue, ...], int]:
-    from vllm.sndr_core.model_configs.registry_v2 import list_presets as list_ids
+    from sndr.model_configs.registry_v2 import list_presets as list_ids
 
     preset_ids = list_ids()
     loaded: list[tuple[str, Any]] = []
@@ -308,7 +308,7 @@ def drill_field(obj: Any, path: str) -> Any:
 
 def compose_for(preset_id: str) -> Any:
     """Compose a preset to the V1 ModelConfig runtime shape."""
-    from vllm.sndr_core.model_configs.registry_v2 import load_alias
+    from sndr.model_configs.registry_v2 import load_alias
 
     try:
         with warnings.catch_warnings():
@@ -438,7 +438,7 @@ def recommend_presets(
     top: int = 5,
 ) -> PresetRecommendResult:
     """Return ranked annotated presets for a workload query."""
-    from vllm.sndr_core.model_configs.preset_schema import is_known_workload
+    from sndr.model_configs.preset_schema import is_known_workload
 
     if not is_known_workload(workload):
         raise UnknownWorkloadError(workload)

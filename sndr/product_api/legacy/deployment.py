@@ -133,11 +133,11 @@ def list_preset_keys() -> list[str]:
     keys post-sunset — `_resolve_cfg` already accepts both namespaces,
     so this function now mirrors that union.
     """
-    from vllm.sndr_core.model_configs import registry as reg
+    from sndr.model_configs import registry as reg
 
     keys: set[str] = set(reg.list_keys())
     try:
-        from vllm.sndr_core.model_configs.registry_v2 import list_presets
+        from sndr.model_configs.registry_v2 import list_presets
         keys.update(list_presets())
     except Exception:
         pass
@@ -161,7 +161,7 @@ def _resolve_cfg(preset_id: str):
     except Exception:
         pass
 
-    from vllm.sndr_core.model_configs import registry as reg
+    from sndr.model_configs import registry as reg
 
     cfg = reg.get(preset_id)
     if cfg is not None:
@@ -173,10 +173,10 @@ def _resolve_cfg(preset_id: str):
     # hardware) so a profile-launched engine links AND its live runtime can be
     # diffed against the YAML it came from.
     try:
-        from vllm.sndr_core.model_configs.registry_v2 import (
+        from sndr.model_configs.registry_v2 import (
             compose_by_ids, load_model, load_profile,
         )
-        from vllm.sndr_core.cli.profile import _pick_default_hardware
+        from sndr.cli.profile import _pick_default_hardware
         profile = load_profile(preset_id)
         hw_id = profile.target_hardware or _pick_default_hardware(load_model(profile.parent_model)).id
         return compose_by_ids(profile.parent_model, hw_id, preset_id)
@@ -212,7 +212,7 @@ def host_inventory(*, max_age: float = _INV_TTL) -> dict[str, Any]:
         cached = _INV_CACHE["data"]
         if cached is not None and (_time.time() - _INV_CACHE["ts"]) < max_age:
             return cached
-    from vllm.sndr_core.deps import inspect_host
+    from sndr.deps import inspect_host
 
     data = inspect_host().to_dict()
     with _INV_LOCK:
@@ -273,7 +273,7 @@ def _mount_vars(cfg, host_paths: dict[str, str]) -> list[dict[str, str]]:
 
 
 def _runtime_argv(cfg) -> list[str]:
-    from vllm.sndr_core.model_configs.runtime_command import build_runtime_command
+    from sndr.model_configs.runtime_command import build_runtime_command
 
     return list(build_runtime_command(cfg).argv)
 
@@ -313,7 +313,7 @@ def _parameters(cfg) -> dict[str, Any]:
 
 
 def _deps_plan(cfg) -> dict[str, Any]:
-    from vllm.sndr_core.deps import inspect_host, plan_changes
+    from sndr.deps import inspect_host, plan_changes
 
     return plan_changes(cfg, inspect_host()).to_dict()
 
@@ -323,7 +323,7 @@ def _deps_plan(cfg) -> dict[str, Any]:
 # --------------------------------------------------------------------------
 
 def _artifact_compose(cfg, host_paths):
-    from vllm.sndr_core.cli.compose import render_compose_yaml
+    from sndr.cli.compose import render_compose_yaml
 
     return render_compose_yaml(cfg, host_paths=host_paths)
 
@@ -337,7 +337,7 @@ def _commands_compose(cfg):
 
 
 def _artifact_quadlet(cfg, host_paths):
-    from vllm.sndr_core.cli.quadlet import render_quadlet
+    from sndr.cli.quadlet import render_quadlet
 
     return render_quadlet(cfg, host_paths=host_paths)
 
@@ -364,7 +364,7 @@ def _dns_1123(value: str, *, max_len: int = 40) -> str:
 def _artifact_kubernetes(cfg, host_paths, name_hint=None):
     import dataclasses
 
-    from vllm.sndr_core.cli import k8s
+    from sndr.cli import k8s
 
     # k8s resource names derive from cfg.key (`sndr-<key>`). V2 composed keys
     # blow past the DNS-1123 63-char limit, so render with a short safe key
@@ -377,7 +377,7 @@ def _artifact_kubernetes(cfg, host_paths, name_hint=None):
     # from the docker + hardware blocks so the manifest renders with the right
     # image and GPU count instead of failing on a missing config.
     if getattr(cfg, "kubernetes", None) is None:
-        from vllm.sndr_core.model_configs.schema import KubernetesConfig
+        from sndr.model_configs.schema import KubernetesConfig
 
         docker = getattr(cfg, "docker", None)
         hw = getattr(cfg, "hardware", None)

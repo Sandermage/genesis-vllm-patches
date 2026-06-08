@@ -194,7 +194,7 @@ def diagnose_boot_summary(cfg) -> list[DiagnoseFinding]:
 
     # Map env flag key → patch ID (e.g. GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL → P67)
     try:
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+        from sndr.dispatcher import PATCH_REGISTRY
         flag_to_pid = {}
         for pid, meta in PATCH_REGISTRY.items():
             flag = meta.get("env_flag")
@@ -308,7 +308,7 @@ def diagnose_all(
 
     expected_env: Optional[dict[str, str]] = None
     if policy is not None:
-        from vllm.sndr_core.model_configs.patch_plan import resolve_patch_plan
+        from sndr.model_configs.patch_plan import resolve_patch_plan
         plan = resolve_patch_plan(cfg, policy=policy)
         expected_env = plan.env
 

@@ -58,7 +58,7 @@ from .gates import _pn95_layer_aware_enabled, _pn95_store_threshold
 def _pn95_should_demote(block_hash: Any) -> bool:
     """Apply store_threshold gate: skip demote if block hasn't reached
     threshold lookups yet. Returns True when demote should proceed."""
-    from vllm.sndr_core.cache import _pn95_runtime as _rt
+    from sndr.cache import _pn95_runtime as _rt
     thr = _pn95_store_threshold()
     if thr <= 1:
         return True  # default: every block demotes
@@ -67,7 +67,7 @@ def _pn95_should_demote(block_hash: Any) -> bool:
 
 def _pn95_record_layer_promote(layer_name: str) -> None:
     """Bump access count for a layer on promote read. Cheap dict op."""
-    from vllm.sndr_core.cache import _pn95_runtime as _rt
+    from sndr.cache import _pn95_runtime as _rt
     n = _rt._PN95_LAYER_ACCESS_COUNTS.get(layer_name, 0) + 1
     if n > _rt._PN95_LAYER_ACCESS_RESET_THRESHOLD:
         # Halve all counters to preserve relative ordering without overflow.
@@ -87,7 +87,7 @@ def _pn95_sort_layers_cold_first(eligible_layers: list) -> list:
 
     No-op if GENESIS_ENABLE_PN95_LAYER_AWARE_DEMOTE != 1.
     """
-    from vllm.sndr_core.cache import _pn95_runtime as _rt
+    from sndr.cache import _pn95_runtime as _rt
     if not _pn95_layer_aware_enabled() or not _rt._PN95_LAYER_ACCESS_COUNTS:
         return eligible_layers
     return sorted(
@@ -113,7 +113,7 @@ def _select_cold_blocks_via_bpool_lru(target_count: int) -> list:
     - Already-pre-demoted entries (in our prefix store)
     - Hot ring (last N admits — typically spec-decode targets)
     """
-    from vllm.sndr_core.cache import _pn95_runtime as _rt
+    from sndr.cache import _pn95_runtime as _rt
     candidates = []
     if not _rt._PN95_BLOCK_POOL_REFS:
         return candidates

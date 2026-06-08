@@ -82,7 +82,7 @@ class GdnGatingBufferManager:
     @classmethod
     def should_apply(cls) -> bool:
         """Same platform gate as rest of P2x — NVIDIA SM ≥ 8.0."""
-        from vllm.sndr_core.detection.guards import is_nvidia_cuda, is_sm_at_least
+        from sndr.engines.vllm.detection.guards import is_nvidia_cuda, is_sm_at_least
         if not is_nvidia_cuda():
             return False
         if not is_sm_at_least(8, 0):
@@ -92,7 +92,7 @@ class GdnGatingBufferManager:
     @classmethod
     def _get_backing_pool(cls):
         """Return the PersistentSlicePool that backs both g + beta pools."""
-        from vllm.sndr_core.runtime.persistent_buffer_registry import (
+        from sndr.runtime.persistent_buffer_registry import (
             PersistentBufferRegistry, POOL_GDN_GATING,
         )
         return PersistentBufferRegistry().get_slice_pool(POOL_GDN_GATING)

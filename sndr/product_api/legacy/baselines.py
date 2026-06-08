@@ -27,7 +27,7 @@ def _lower_is_better(metric: str) -> bool:
 
 
 def _store_dir() -> Path:
-    from vllm.sndr_core.locations.project_paths import install_root
+    from sndr.engines.vllm.locations.project_paths import install_root
 
     return install_root() / "gui" / "baselines"
 

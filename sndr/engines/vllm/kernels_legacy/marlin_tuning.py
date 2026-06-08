@@ -87,7 +87,7 @@ def get_optimal_block_size_m() -> Optional[int]:
     Falls back to hardcoded per-arch table.
     Returns None if platform doesn't support Marlin.
     """
-    from vllm.sndr_core.detection.guards import is_nvidia_cuda, get_compute_capability
+    from sndr.engines.vllm.detection.guards import is_nvidia_cuda, get_compute_capability
 
     if not is_nvidia_cuda():
         return None
@@ -130,7 +130,7 @@ def get_num_warps_override() -> Optional[int]:
     if env in ("2", "4", "8"):
         return int(env)
 
-    from vllm.sndr_core.detection.guards import is_nvidia_cuda, get_compute_capability
+    from sndr.engines.vllm.detection.guards import is_nvidia_cuda, get_compute_capability
     if not is_nvidia_cuda():
         return None
     cc = get_compute_capability()
@@ -153,7 +153,7 @@ def get_num_stages_override() -> Optional[int]:
     if env.isdigit() and 1 <= int(env) <= 8:
         return int(env)
 
-    from vllm.sndr_core.detection.guards import is_nvidia_cuda, get_compute_capability
+    from sndr.engines.vllm.detection.guards import is_nvidia_cuda, get_compute_capability
     if not is_nvidia_cuda():
         return None
     cc = get_compute_capability()
@@ -170,7 +170,7 @@ def log_selected_tuning(
     selected_bsm: int,
 ) -> None:
     """Log tuning decision for observability at engine start."""
-    from vllm.sndr_core.detection.guards import get_compute_capability
+    from sndr.engines.vllm.detection.guards import get_compute_capability
 
     cc = get_compute_capability()
     log.info(

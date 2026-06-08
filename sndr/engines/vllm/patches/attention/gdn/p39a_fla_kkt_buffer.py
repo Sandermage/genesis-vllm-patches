@@ -38,7 +38,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from vllm.sndr_core.detection.guards import is_nvidia_cuda, is_sm_at_least
+from sndr.engines.vllm.detection.guards import is_nvidia_cuda, is_sm_at_least
 # v11.1.0 P3.3: surface the FLA KKT persistent A pool through
 # PersistentBufferRegistry so operators can `sndr patches show
 # buffer_registry` and see this pool listed. Byte-equivalent — the
@@ -46,7 +46,7 @@ from vllm.sndr_core.detection.guards import is_nvidia_cuda, is_sm_at_least
 # (allocate-once-keep-forever, pointer-stable via the
 # reserve-before-cudagraph pattern). The registry hook only exposes
 # the pool name; tensor storage ownership is unchanged.
-from vllm.sndr_core.runtime.persistent_buffer_registry import (
+from sndr.runtime.persistent_buffer_registry import (
     PersistentBufferRegistry,
     POOL_FLA_KKT_PERSISTENT_A,
 )
@@ -122,7 +122,7 @@ def apply() -> tuple[str, str]:
     # imported — the target-import check below would skip, but we log
     # the dispatch reason up-front.
     try:
-        from vllm.sndr_core.detection.model_detect import is_hybrid_model, log_skip
+        from sndr.engines.vllm.detection.model_detect import is_hybrid_model, log_skip
         if not is_hybrid_model():
             log_skip(
                 "P39a FLA chunk_scaled_dot_kkt pool",
@@ -154,7 +154,7 @@ def apply() -> tuple[str, str]:
     # (the regular Python wrapper) and `prepare_chunk_indices` (also
     # plain Python), `required_methods` works fine.
     try:
-        from vllm.sndr_core.runtime.interface_guard import (
+        from sndr.runtime.interface_guard import (
             validate_impl, ANY,
         )
         validate_impl(
@@ -177,7 +177,7 @@ def apply() -> tuple[str, str]:
         return "applied", "already wrapped (idempotent)"
 
     try:
-        from vllm.sndr_core.kernels.fla_kkt_buffer import FlaKktBufferManager
+        from sndr.engines.vllm.kernels_legacy.fla_kkt_buffer import FlaKktBufferManager
     except Exception as e:
         return "failed", f"kernel import failed: {e}"
 

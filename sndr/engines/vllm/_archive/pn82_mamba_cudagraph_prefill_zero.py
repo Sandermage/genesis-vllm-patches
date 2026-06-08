@@ -87,8 +87,8 @@ from __future__ import annotations
 import logging
 import os
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
-from vllm.sndr_core.core import (
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
+from sndr.kernel import (
     TextPatch, TextPatcher, TextPatchResult,
 )
 
@@ -161,7 +161,7 @@ def apply() -> tuple[str, str]:
     Default OFF; opt in via GENESIS_ENABLE_PN82_MAMBA_CUDAGRAPH_PREFILL_ZERO=1
     after smoke validation on hybrid + CUDA-graph configs.
     """
-    from vllm.sndr_core.dispatcher import log_decision, should_apply
+    from sndr.dispatcher import log_decision, should_apply
 
     decision, reason = should_apply("PN82")
     log_decision("PN82", decision, reason)

@@ -178,7 +178,7 @@ def apply() -> tuple[str, str]:
     """Apply PN70 — wrap `_get_json_schema_from_tools` so vLLM's combined
     schema build path filters out xgrammar-incompat tools instead of
     400-ing the request."""
-    from vllm.sndr_core.dispatcher import should_apply, log_decision
+    from sndr.dispatcher import should_apply, log_decision
     decision, reason = should_apply("PN70")
     log_decision("PN70", decision, reason)
     if not decision:

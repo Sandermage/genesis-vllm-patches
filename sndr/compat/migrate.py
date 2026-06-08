@@ -56,7 +56,7 @@ def _make_patcher_for_patch(patch_id: str, upstream_root: Path):
     """Locate the wiring module for `patch_id`, redirect its
     resolve_vllm_file to the upstream tree, and return the patcher.
     Returns (patcher, error_str | None)."""
-    from vllm.sndr_core.compat.categories import module_for
+    from sndr.compat.categories import module_for
     mod_path = module_for(patch_id)
     if mod_path is None:
         return None, f"no wiring module found for patch {patch_id!r}"
@@ -281,7 +281,7 @@ def generate_runbook(
 
     if patch_ids is None:
         # Walk all patches in PATCH_REGISTRY
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+        from sndr.dispatcher import PATCH_REGISTRY
         patch_ids = sorted(PATCH_REGISTRY.keys())
 
     results = []

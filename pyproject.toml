@@ -37,11 +37,11 @@ build-backend = "setuptools.build_meta"
 
 
 [project]
-name = "vllm-sndr-core"
-# Source of truth: vllm/sndr_core/version.py SNDR_CORE_VERSION.
+name = "sndr-platform"
+# Source of truth: sndr/version.py __version__.
 # Bump there + here together on each release.
-version = "11.0.0"
-description = "SNDR Core / Genesis runtime patcher for vLLM — Apache-licensed community tier."
+version = "12.0.0"
+description = "sndr-platform — multi-engine inference patch orchestrator (vLLM + SGLang)."
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "Apache-2.0"}
@@ -135,32 +135,24 @@ Issues = "https://github.com/Sandermage/genesis-vllm-patches/issues"
 Changelog = "https://github.com/Sandermage/genesis-vllm-patches/blob/main/CHANGELOG.md"
 
 [project.scripts]
-# Phase 3 (F-003 audit fix, 2026-05-08): canonical CLI entry point.
-# `sndr` is the new name; `genesis` is preserved as a back-compat alias
-# (operators trained on the legacy command keep using it without a
-# rename). The plugin package `tools/genesis_vllm_plugin/` also maps
-# `genesis` → `vllm.sndr_core.compat.cli:main` since v11.0.0.
-sndr = "vllm.sndr_core.cli:cli_main"
-genesis = "vllm.sndr_core.compat.cli:main"
-# v12.0 sndr-platform: new modular CLI (engines.list / engines.info / pins.list / health).
-# `sndr-v2` is provided alongside `sndr` during the v12.x window — once the
-# legacy command tree is fully retired in v13.0, `sndr` will repoint to the
-# v2 entry point and `sndr-v2` will be removed.
-sndr-v2 = "sndr.cli.main:main"
+# v12.0 sndr-platform: canonical CLI entry points all live under sndr.cli.*
+# The legacy ``vllm.sndr_core.cli`` and ``vllm.sndr_core.compat.cli`` modules
+# are removed in v12.0 — the entry-point targets now reference the canonical
+# sndr.cli tree directly.
+#
+# Two console scripts:
+#   ``sndr``    — modular CLI (engines.list / engines.info / pins.list / health)
+#   ``genesis`` — legacy command tree, retained as alias for operators trained
+#                 on it. Removed in v13.0.
+sndr = "sndr.cli.main:main"
+genesis = "sndr.cli.legacy:cli_main"
 
 [project.entry-points."vllm.general_plugins"]
-# P0-6 fix (audit 2026-05-08): canonical entry point lives in the core
-# package. Previously this said `genesis_v7:register`, but the
-# `genesis_v7` package was NOT in the core wheel — it shipped only
-# from `tools/genesis_vllm_plugin/`. After `pip install vllm-sndr-core`
-# the entry point pointed at a non-existent module and vllm logged a
-# plugin-failed-to-load warning at boot.
-#
-# `vllm.sndr_core.plugin:register` is canonical; the standalone
-# `tools/genesis_vllm_plugin/` package now thin-re-exports from this
-# module for back-compat with v7.x operators who installed it
-# separately.
-genesis_v7 = "vllm.sndr_core.plugin:register"
+# v12.0: the canonical plugin registration lives in ``sndr.plugin``. vLLM
+# discovers it via setuptools entry points and calls ``register()`` at engine
+# init. Replaces the v11 ``vllm.sndr_core.plugin:register`` target — the
+# legacy module was a shim that imported from ``sndr.plugin`` anyway.
+genesis_v7 = "sndr.plugin:register"
 
 
 # ─── Setuptools package layout ────────────────────────────────────────────
@@ -177,10 +169,9 @@ where = ["."]
 # `vllm.sndr_engine*`. Engine code is built separately via
 # `pyproject-engine.toml` under a commercial license.
 include = [
-    "vllm.sndr_core*",
-    # v12.0 sndr-platform: new top-level package (multi-engine architecture).
-    # Co-exists with vllm.sndr_core* for backward compatibility — shims in
-    # vllm/sndr_core/ re-export from sndr/. Both must ship in the wheel.
+    # v12.0 sndr-platform: top-level multi-engine package. The legacy
+    # ``vllm.sndr_core*`` shim tree was removed at the v12.0 release —
+    # operators on v11 import paths must vendor it themselves or upgrade.
     "sndr*",
 ]
 # Explicit exclusions: tests, internal docs, dev scripts, engine pkg,
@@ -215,31 +206,24 @@ exclude = [
     "product_api/legacy/web_static/*",
     "product_api/legacy/web_static/assets/*",
 ]
-"vllm.sndr_core" = [
+"sndr.model_configs" = [
     # V1 monolithic top-level (12 files; legacy compat, sunset planned).
-    "model_configs/builtin/*.yaml",
+    "builtin/*.yaml",
     # P0.1 M.1 (audit 2026-05-24): V2 layered configs in subdirs.
-    # Pre-fix wheel inspection: 0/4 V2 subdirs packaged → CLI `sndr preset list`
-    # returned empty on pip-installed wheel. Defended by tests/unit/test_wheel_contents.py (M.2).
-    "model_configs/builtin/model/*.yaml",
-    "model_configs/builtin/hardware/*.yaml",
-    "model_configs/builtin/profile/*.yaml",
-    "model_configs/builtin/presets/*.yaml",
-    "model_configs/community/*.yaml.sample",
-    # CONFIG-UX.4.1 (audit 2026-05-24): V1 migration table — frozen
-    # JSON resource consumed by `_rollout.py` + `audit_v1_migration.py`.
-    "model_configs/_v1_migration_table.json",
-    "manifests/*.json",
-    "configs/moe_tuning/*.yaml",
-    "configs/moe_tuning/*.json",
-    # P1-2 (audit 2026-05-08): JSON schema for PATCH_REGISTRY entries.
-    # Was at repo-root `schemas/`; relocated into the package so wheel
-    # installs work without the source tree present.
-    "schemas/*.json",
-    # NOTE: the GUI bundle moved to the `sndr` package in v12.x
-    # (sndr/product_api/legacy/web_static); it is packaged under the
-    # "sndr" key above, not here.
+    "builtin/model/*.yaml",
+    "builtin/hardware/*.yaml",
+    "builtin/profile/*.yaml",
+    "builtin/presets/*.yaml",
+    "community/*.yaml.sample",
+    # CONFIG-UX.4.1 (audit 2026-05-24): V1 migration table.
+    "_v1_migration_table.json",
 ]
+"sndr.manifests" = ["*.json"]
+"sndr.configs" = [
+    "moe_tuning/*.yaml",
+    "moe_tuning/*.json",
+]
+"sndr.schemas" = ["*.json"]
 
 
 # ─── Pytest config (mirrors the standalone pytest.ini at repo root) ──────

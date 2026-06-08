@@ -37,7 +37,7 @@ Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
 """
 from __future__ import annotations
 
-from vllm.sndr_core.env import Flags
+from sndr.env import Flags
 
 from ._common import run_bundle
 

@@ -19,8 +19,8 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from vllm.sndr_core.model_configs.schema import SchemaError
-from vllm.sndr_core.model_configs.schema_v2 import PatchManifest
+from sndr.model_configs.schema import SchemaError
+from sndr.model_configs.schema_v2 import PatchManifest
 
 from .manifest import (
     DEFAULT_PLUGINS_DIR,
@@ -116,7 +116,7 @@ def discover_entry_points() -> list[tuple[str, PatchManifest]]:
                 log.warning("entry-point %s: invalid manifest: %s", ep.name, e)
                 continue
         elif isinstance(obj, dict):
-            from vllm.sndr_core.model_configs.registry_v2 import _dataclass_from_dict
+            from sndr.model_configs.registry_v2 import _dataclass_from_dict
             try:
                 manifest = _dataclass_from_dict(PatchManifest, obj)
                 manifest.validate()

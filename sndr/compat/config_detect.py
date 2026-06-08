@@ -7,8 +7,8 @@ Author: Sandermage(Sander) Barzov Aleksandr.
 """
 from __future__ import annotations
 
-from vllm.sndr_core.detection.config_detect import *  # noqa: F401, F403
-from vllm.sndr_core.detection import config_detect as _legacy
+from sndr.engines.vllm.detection.config_detect import *  # noqa: F401, F403
+from sndr.engines.vllm.detection import config_detect as _legacy
 
 __all__ = list(getattr(_legacy, "__all__", [
     name for name in dir(_legacy) if not name.startswith("_")

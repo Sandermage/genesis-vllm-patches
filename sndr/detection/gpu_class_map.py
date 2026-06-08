@@ -11,7 +11,7 @@ preserved by walking the patterns in declared order and stopping on the
 first substring match.
 
 Usage:
-    from vllm.sndr_core.detection.gpu_class_map import classify_gpu
+    from sndr.detection.gpu_class_map import classify_gpu
     hint = classify_gpu("NVIDIA GeForce RTX 4070 Ti SUPER")
     # → "rtx 4070 ti super"
 """

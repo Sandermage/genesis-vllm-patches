@@ -538,7 +538,7 @@ def is_enabled(flag: str, default: bool = False) -> bool:
     Returns: bool — True if flag is enabled, False otherwise.
 
     Usage:
-      from vllm.sndr_core.env import Flags, is_enabled
+      from sndr.env import Flags, is_enabled
       if not is_enabled(Flags.P61C_QWEN3CODER_DEFERRED_COMMIT):
           return "skipped", "P61C disabled"
     """

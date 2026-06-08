@@ -65,7 +65,7 @@ def _levenshtein(a: str, b: str) -> int:
 def collect_known_flags() -> set[str]:
     """Walk PATCH_REGISTRY and return all `env_flag` values."""
     try:
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+        from sndr.dispatcher import PATCH_REGISTRY
     except Exception:
         return set()
     flags: set[str] = set()

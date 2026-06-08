@@ -84,7 +84,7 @@ def apply() -> tuple[str, str]:
         )
 
     try:
-        from vllm.sndr_core.kernels.block_table_zero import zero_block_table_tail
+        from sndr.engines.vllm.kernels_legacy.block_table_zero import zero_block_table_tail
     except Exception as e:
         return "failed", f"genesis kernel import failed: {e}"
 

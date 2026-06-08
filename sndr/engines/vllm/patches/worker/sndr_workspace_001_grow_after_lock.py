@@ -40,8 +40,8 @@ from __future__ import annotations
 import logging
 import os
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
-from vllm.sndr_core.core import TextPatcher, TextPatch
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
+from sndr.kernel import TextPatcher, TextPatch
 
 log = logging.getLogger("genesis.sndr_workspace_001")
 
@@ -128,7 +128,7 @@ def apply() -> tuple[str, str]:
         if m in content:
             return "skipped", f"drift marker {m!r} already in file"
     result, failure = patcher.apply()
-    from vllm.sndr_core.core import result_to_wiring_status
+    from sndr.kernel import result_to_wiring_status
     return result_to_wiring_status(
         result, failure,
         applied_message="SNDR-WORKSPACE-001: workspace grow-after-lock guard installed (logs + grows instead of raising AssertionError)",

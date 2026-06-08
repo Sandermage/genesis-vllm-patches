@@ -1121,7 +1121,7 @@ pre, .code-block, .cli-mirror pre, .artifact-preview pre {
 /* Adaptive across the GUI: 2 cards on a normal screen, more columns on a wide
    monitor, one column when narrow. auto-fit collapses empty tracks so a 2-card
    grid still pairs side-by-side; `.module-card.wide` keeps spanning the row. */
-.module-grid { display: grid; gap: var(--gap); grid-template-columns: repeat(auto-fit, minmax(min(440px, 100%), 1fr)); align-items: start; }
+.module-grid { display: grid; gap: var(--gap); grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
 .module-card { display: flex; flex-direction: column; gap: var(--sp-3); padding: var(--pad-card); border-radius: var(--r-lg); border: 1px solid var(--border); background: var(--surface); box-shadow: var(--shadow-sm); min-width: 0; }
 .module-card.wide { grid-column: 1 / -1; }
 .module-card-title { display: flex; align-items: flex-start; gap: 10px; }
@@ -1133,13 +1133,11 @@ pre, .code-block, .cli-mirror pre, .artifact-preview pre {
 .module-card-title:not(:has(.module-card-icon)) svg { color: var(--accent-text); }
 .module-card-title:not(:has(.module-card-icon)) h2 { font-size: 14px; font-weight: 700; }
 
-/* Responsive key-value grid: one column on a narrow card, flowing into 2-3-4
-   columns on a wide card so the facts FILL the width with data instead of one
-   stretched column with a big label↔value gap. Used across most detail cards. */
-.info-rows { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(230px, 100%), 1fr)); gap: 0 26px; }
-.info-rows > div { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-3); padding: 7px 0; border-bottom: 1px dashed var(--border); font-size: 12.5px; min-width: 0; }
-.info-rows span { color: var(--text-muted); flex: none; }
-.info-rows strong { text-align: right; word-break: break-word; font-weight: 600; min-width: 0; }
+.info-rows { display: flex; flex-direction: column; }
+.info-rows > div { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); padding: 7px 0; border-bottom: 1px dashed var(--border); font-size: 12.5px; }
+.info-rows > div:last-child { border-bottom: none; }
+.info-rows span { color: var(--text-muted); }
+.info-rows strong { text-align: right; word-break: break-word; font-weight: 600; }
 
 .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr)); gap: var(--sp-2); }
 .kpi-grid > div { padding: var(--sp-3); border-radius: var(--r-sm); background: var(--surface-2); border: 1px solid var(--border); text-align: center; }

@@ -155,8 +155,8 @@ from __future__ import annotations
 import logging
 import os
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
-from vllm.sndr_core.core import (
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
+from sndr.kernel import (
     TextPatch,
     TextPatcher,
     TextPatchResult,
@@ -368,7 +368,7 @@ def _make_param_patcher() -> TextPatcher | None:
 
 def apply() -> tuple[str, str]:
     """Apply P91 — AutoRound row-parallel group cdiv + start-idx fix."""
-    from vllm.sndr_core.dispatcher import log_decision, should_apply
+    from sndr.dispatcher import log_decision, should_apply
 
     decision, reason = should_apply("P91")
     log_decision("P91", decision, reason)

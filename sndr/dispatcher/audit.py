@@ -31,12 +31,12 @@ log = logging.getLogger("genesis.dispatcher")
 def _live_registry() -> dict[str, dict[str, Any]]:
     """Resolve the registry through the canonical SNDR Core dispatcher.
 
-    PR38 cleanup (2026-05-08): `vllm.sndr_core.dispatcher.__init__.py`
+    PR38 cleanup (2026-05-08): `sndr.dispatcher.__init__.py`
     re-exports `PATCH_REGISTRY` from `.registry` at package level.
     Tests now monkey-patch the canonical package directly:
 
         monkeypatch.setattr(
-            vllm.sndr_core.dispatcher, "PATCH_REGISTRY", fake_registry,
+            sndr.dispatcher, "PATCH_REGISTRY", fake_registry,
         )
 
     `_live_registry()` reads the same attribute on the same package
@@ -44,7 +44,7 @@ def _live_registry() -> dict[str, dict[str, Any]]:
     shim. The previous Stage 3 indirection through `_genesis.dispatcher`
     is gone now that `_genesis/` is being removed.
     """
-    from vllm.sndr_core import dispatcher as _canonical
+    from sndr import dispatcher as _canonical
     return _canonical.PATCH_REGISTRY
 
 

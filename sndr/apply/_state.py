@@ -195,7 +195,7 @@ def register_patch(name: str):
     def decorator(fn: Callable[[], PatchResult]) -> Callable[[], PatchResult]:
         # Late import to avoid a circular dep during module init —
         # observability lives outside apply/.
-        from vllm.sndr_core.observability import measure_patch_apply
+        from sndr.observability import measure_patch_apply
 
         def _instrumented_apply() -> PatchResult:
             with measure_patch_apply(name) as _metric:
@@ -256,7 +256,7 @@ def _resolve_wiring_module(stem: str) -> str:
     """
     global _WIRING_STEM_INDEX
     if _WIRING_STEM_INDEX is None:
-        from vllm.sndr_core.locations.project_paths import wiring_dir as _wiring_dir
+        from sndr.engines.vllm.locations.project_paths import wiring_dir as _wiring_dir
         wd = _wiring_dir()
         idx: dict[str, str] = {}
         if wd is not None and wd.is_dir():
@@ -323,7 +323,7 @@ def _resolve_wiring_module(stem: str) -> str:
     # in the message — easier to diagnose than silently returning an
     # alias that doesn't exist.
     return _WIRING_STEM_INDEX.get(
-        stem, f"vllm.sndr_core.integrations.UNRESOLVED.{stem}"
+        stem, f"sndr.engines.vllm.patches.UNRESOLVED.{stem}"
     )
 
 

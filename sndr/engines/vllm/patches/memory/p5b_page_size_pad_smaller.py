@@ -59,8 +59,8 @@ from __future__ import annotations
 
 import logging
 
-from vllm.sndr_core.detection.guards import is_nvidia_cuda, is_sm_at_least
-from vllm.sndr_core.kernels.page_size_padded import is_p5b_enabled
+from sndr.engines.vllm.detection.guards import is_nvidia_cuda, is_sm_at_least
+from sndr.engines.vllm.kernels_legacy.page_size_padded import is_p5b_enabled
 
 log = logging.getLogger("genesis.wiring.p5b_page_size_pad_smaller")
 

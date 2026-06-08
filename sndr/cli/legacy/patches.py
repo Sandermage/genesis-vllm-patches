@@ -70,17 +70,17 @@ from . import _io
 # module reference doesn't get shadowed by its re-exported function of
 # the same name (e.g. ``product_api.patches.diff_upstream`` is both a
 # module and a function).
-from vllm.sndr_core.product_api.patches import bench_attach as _bench_attach
-from vllm.sndr_core.product_api.patches import bundles as _bundles
-from vllm.sndr_core.product_api.patches import diff_upstream as _diff_upstream
-from vllm.sndr_core.product_api.patches import doctor as _doctor
-from vllm.sndr_core.product_api.patches import explain as _explain
-from vllm.sndr_core.product_api.patches import listing as _listing
-from vllm.sndr_core.product_api.patches import plan as _plan
-from vllm.sndr_core.product_api.patches import pn95 as _pn95
-from vllm.sndr_core.product_api.patches import proof_status as _proof_status
-from vllm.sndr_core.product_api.patches import prove as _prove
-from vllm.sndr_core.product_api.patches import release_check as _release_check
+from sndr.product_api.patches import bench_attach as _bench_attach
+from sndr.product_api.patches import bundles as _bundles
+from sndr.product_api.patches import diff_upstream as _diff_upstream
+from sndr.product_api.patches import doctor as _doctor
+from sndr.product_api.patches import explain as _explain
+from sndr.product_api.patches import listing as _listing
+from sndr.product_api.patches import plan as _plan
+from sndr.product_api.patches import pn95 as _pn95
+from sndr.product_api.patches import proof_status as _proof_status
+from sndr.product_api.patches import prove as _prove
+from sndr.product_api.patches import release_check as _release_check
 
 
 # ─── `sndr patches list` ─────────────────────────────────────────────────
@@ -443,7 +443,7 @@ def _run_plan(opts: argparse.Namespace) -> int:
     advisory_warnings: tuple[str, ...] = report.advisory_warnings
 
     # Late re-import for human renderer (`upstream_pr` lookup).
-    from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+    from sndr.dispatcher import PATCH_REGISTRY
 
     if opts.json:
         out = {
@@ -1122,7 +1122,7 @@ def _run_bench_attach(args: argparse.Namespace) -> int:
     """`sndr patches bench-attach <patch_id> <bench.json> [--baseline X.json]`."""
     import json as _json
     from pathlib import Path
-    from vllm.sndr_core.proof.bench_attach import BenchAttachError
+    from sndr.proof.bench_attach import BenchAttachError
 
     out_dir = Path(args.out_dir) if args.out_dir else None
     bench = Path(args.bench_path)
@@ -1192,7 +1192,7 @@ def _run_proof_status(args: argparse.Namespace) -> int:
     """`sndr patches proof-status` — bucket summary of patch proof state."""
     import json as _json
     from pathlib import Path
-    from vllm.sndr_core.proof import DEFAULT_PROOF_DIR, PROOF_STATUS_BUCKETS
+    from sndr.proof import DEFAULT_PROOF_DIR, PROOF_STATUS_BUCKETS
 
     out_dir = Path(args.out_dir) if args.out_dir else DEFAULT_PROOF_DIR
     bucket_filter: Optional[list[str]] = list(args.bucket) if args.bucket else None
@@ -1258,8 +1258,8 @@ def _run_release_check(args: argparse.Namespace) -> int:
     """
     import json as _json
     from pathlib import Path
-    from vllm.sndr_core.proof import DEFAULT_PROOF_DIR
-    from vllm.sndr_core.proof.release_check import ReleaseCheckError
+    from sndr.proof import DEFAULT_PROOF_DIR
+    from sndr.proof.release_check import ReleaseCheckError
 
     out_dir = Path(args.out_dir) if args.out_dir else DEFAULT_PROOF_DIR
 

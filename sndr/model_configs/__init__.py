@@ -15,7 +15,7 @@ Layout:
 
 Use (V2 path, canonical — V1 monolithic preset tier 100% retired
 2026-06-01 after the Phase 10 sunset cascade):
-    from vllm.sndr_core.model_configs.registry_v2 import load_alias
+    from sndr.model_configs.registry_v2 import load_alias
     cfg = load_alias('prod-qwen3.6-35b-balanced')  # V2 preset alias
     print(cfg.to_launch_script())
 

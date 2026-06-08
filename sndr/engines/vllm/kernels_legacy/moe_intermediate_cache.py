@@ -112,7 +112,7 @@ def warm_up() -> bool:
     """
     global _SHOULD_APPLY_CACHED
     try:
-        from vllm.sndr_core.detection.guards import is_nvidia_cuda, is_sm_at_least
+        from sndr.engines.vllm.detection.guards import is_nvidia_cuda, is_sm_at_least
         _SHOULD_APPLY_CACHED = bool(
             is_nvidia_cuda() and is_sm_at_least(8, 0)
         )
@@ -177,12 +177,12 @@ def _resolve_max_batched_tokens(m_hint: Optional[int] = None) -> int:
             p <<= 1
         # Floor by central resolver (prevents chunk-overflow regression)
         try:
-            from vllm.sndr_core.runtime.prealloc_budget import resolve_token_budget
+            from sndr.runtime.prealloc_budget import resolve_token_budget
             return max(p, resolve_token_budget(domain_env=_ENV_MAX_BT_OVERRIDE))
         except Exception:
             return max(p, 4096)
     try:
-        from vllm.sndr_core.runtime.prealloc_budget import resolve_token_budget
+        from sndr.runtime.prealloc_budget import resolve_token_budget
         return resolve_token_budget(domain_env=_ENV_MAX_BT_OVERRIDE)
     except Exception:
         return 4096

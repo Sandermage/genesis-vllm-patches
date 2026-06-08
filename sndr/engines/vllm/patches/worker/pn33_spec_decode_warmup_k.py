@@ -129,8 +129,8 @@ from __future__ import annotations
 import logging
 import os
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
-from vllm.sndr_core.core import (
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
+from sndr.kernel import (
     TextPatch, TextPatcher, TextPatchResult,
 )
 
@@ -229,7 +229,7 @@ def apply() -> tuple[str, str]:
     Default ON when spec-decode is active. Env override
     GENESIS_DISABLE_PN33_SPEC_DECODE_WARMUP_K=1 reverts to [0].
     """
-    from vllm.sndr_core.dispatcher import log_decision, should_apply
+    from sndr.dispatcher import log_decision, should_apply
 
     decision, reason = should_apply("PN33")
     log_decision("PN33", decision, reason)
@@ -349,7 +349,7 @@ def register_for_manifest(*, pristine_root) -> None:
         pristine_root: Path to pristine_fixtures/ directory containing
             gpu_model_runner.py extracted from the pristine vllm install.
     """
-    from vllm.sndr_core.wiring.patcher_registry import register_text_patcher
+    from sndr.engines.vllm.wiring.patcher_registry import register_text_patcher
 
     register_text_patcher(
         "PN33.Sub-1",

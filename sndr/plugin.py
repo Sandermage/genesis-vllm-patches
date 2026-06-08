@@ -127,11 +127,11 @@ def register() -> None:
 
     # ── apply_all = canonical auto-wire of all PATCH_REGISTRY entries ────
     try:
-        from vllm.sndr_core.apply import run
+        from sndr.apply import run
     except ImportError as e:
         log.warning(
-            "[Genesis plugin] vllm.sndr_core.apply not importable — "
-            "skipping (cause: %s). Check that vllm-sndr-core is installed "
+            "[Genesis plugin] sndr.apply not importable — "
+            "skipping (cause: %s). Check that the sndr package is installed "
             "in the same environment vllm uses for plugin discovery.", e,
         )
         return

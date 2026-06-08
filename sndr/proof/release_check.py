@@ -205,7 +205,7 @@ def evaluate_release(
         }
     """
     if registry is None:
-        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        from sndr.dispatcher.registry import PATCH_REGISTRY
         registry = PATCH_REGISTRY
 
     allowed = policy.allowed_buckets

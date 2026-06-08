@@ -22,7 +22,7 @@ Targets: v1/worker/gpu_model_runner.py
 """
 from __future__ import annotations
 
-from vllm.sndr_core.env import Flags
+from sndr.env import Flags
 
 from ._common import run_bundle
 

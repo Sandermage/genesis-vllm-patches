@@ -42,7 +42,7 @@ Migration status:
     Stage 13       — boot-time audit becomes mandatory; orphan paths
         block release.
 
-Back-compat: `from vllm.sndr_core.paths import ...` continues to work
+Back-compat: `from sndr.engines.vllm.locations import ...` continues to work
 via lazy alias in `vllm/sndr_core/__init__.py.__getattr__`. Same for
 `engine_targets` and `sndr_paths` symbol aliases below.
 """

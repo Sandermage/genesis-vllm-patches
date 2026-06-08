@@ -47,8 +47,8 @@ app (typical pattern shown below; actual cliproxyapi API may differ
 slightly — adapt to its hook):
 
     from fastapi import FastAPI
-    from vllm.sndr_core.middleware import ResponseCacheMiddleware
-    from vllm.sndr_core.cache.response_cache import get_default_cache
+    from sndr.engines.vllm.middleware import ResponseCacheMiddleware
+    from sndr.cache.response_cache import get_default_cache
 
     app = FastAPI()
     cache = get_default_cache()  # None if GENESIS_ENABLE_P41_* unset

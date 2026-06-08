@@ -135,8 +135,8 @@ def step_detect_hardware(opts: argparse.Namespace) -> StepResult:
     """GPU(s), class hint, driver version, CUDA runtime, RAM, free disk."""
     _io.step(2, 11, "Detecting hardware")
 
-    from vllm.sndr_core.detection.gpu_class_map import classify_gpu
-    from vllm.sndr_core.detection.driver_check import probe_driver
+    from sndr.detection.gpu_class_map import classify_gpu
+    from sndr.engines.vllm.detection.driver_check import probe_driver
 
     out: dict[str, Any] = {}
 
@@ -250,7 +250,7 @@ def step_detect_vllm(opts: argparse.Namespace) -> StepResult:
 def step_runtime_caveat(opts: argparse.Namespace) -> StepResult:
     """Detect Proxmox VE host → auto-flip to bare-metal mode."""
     _io.step(4, 11, "Container-runtime caveat probe")
-    from vllm.sndr_core.detection.runtime_caveat import probe_caveats
+    from sndr.engines.vllm.detection.runtime_caveat import probe_caveats
 
     cav = probe_caveats()
     out: dict[str, Any] = {
@@ -521,7 +521,7 @@ def step_detect_host_paths(
         return StepResult({"written": False, "reason": "dry-run"})
 
     try:
-        from vllm.sndr_core.model_configs.host import detect_and_save
+        from sndr.model_configs.host import detect_and_save
         hc, path = detect_and_save(create_missing_caches=True)
     except Exception as e:
         _io.warn(f"host path auto-detect failed ({type(e).__name__}: {e})")
@@ -569,7 +569,7 @@ def step_generate_launch(
                      f"{workload['workload']}.sh")
 
     try:
-        from vllm.sndr_core.model_configs.host import load_host_config
+        from sndr.model_configs.host import load_host_config
         host_paths = dict(load_host_config().paths) if home else None
     except Exception:
         host_paths = None
@@ -596,7 +596,7 @@ def _match_preset(
     and silently matched nothing on every detected GPU.
     """
     try:
-        from vllm.sndr_core.model_configs.registry import get, list_keys
+        from sndr.model_configs.registry import get, list_keys
     except ImportError:
         return (None, None)
 
@@ -700,7 +700,7 @@ def step_smoke_test(opts: argparse.Namespace) -> StepResult:
 
     _io.step(11, 11, "Smoke test (dispatcher dry-run)")
     try:
-        from vllm.sndr_core.apply import run
+        from sndr.apply import run
         stats = run(verbose=False, apply=False)
     except Exception as e:
         _io.warn(f"smoke test crashed: {type(e).__name__}: {e}")
@@ -930,12 +930,12 @@ def run_install_prepare(opts: argparse.Namespace, cfg_key: str) -> int:
 
     Exit codes: 0 on success, 2 on bad inputs, 1 on subprocess fail.
     """
-    from vllm.sndr_core.model_configs.registry import get
+    from sndr.model_configs.registry import get
     cfg = get(cfg_key)
     if cfg is None:
         _io.error(f"unknown preset key {cfg_key!r}")
         try:
-            from vllm.sndr_core.model_configs.registry import list_keys
+            from sndr.model_configs.registry import list_keys
             _io.info(f"available: {', '.join(sorted(list_keys()))}")
         except Exception:
             pass

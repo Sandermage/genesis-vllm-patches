@@ -139,7 +139,7 @@ def _build_module_index() -> dict[str, str]:
     # without the letter — we propagate the bare-numeric candidate pool
     # to those variants so they can still resolve.
     try:
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+        from sndr.dispatcher import PATCH_REGISTRY
     except Exception:
         PATCH_REGISTRY = {}  # type: ignore[assignment]
 
@@ -201,7 +201,7 @@ def _build_categories() -> dict[str, list[str]]:
     Patches with no `category` are grouped under 'uncategorized'.
     """
     try:
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+        from sndr.dispatcher import PATCH_REGISTRY
     except Exception as e:
         log.debug("PATCH_REGISTRY import failed: %s", e)
         return {}

@@ -76,8 +76,8 @@ from __future__ import annotations
 import logging
 import os
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file
-from vllm.sndr_core.core import (
+from sndr.engines.vllm.detection.guards import resolve_vllm_file
+from sndr.kernel import (
     TextPatch,
     TextPatcher,
     TextPatchResult,
@@ -120,7 +120,7 @@ PN77_PWAL_NEW = (
     "        if isinstance(quant_method, QuantizeMethodBase):\n"
     "            # [Genesis PN77] swap UnquantizedEmbeddingMethod → FP8 method on lm_head\n"
     "            try:\n"
-    "                from vllm.sndr_core.kernels.lm_head_fp8_method import (\n"
+    "                from sndr.engines.vllm.kernels_legacy.lm_head_fp8_method import (\n"
     "                    maybe_swap_pn77_quant_method as _pn77_swap,\n"
     "                )\n"
     "                quant_method = _pn77_swap(module, quant_method)\n"

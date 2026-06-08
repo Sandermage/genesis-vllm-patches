@@ -104,8 +104,8 @@ def _resolve_preset_v1_or_v2(key: str):
     Returns a V1 `ModelConfig`. V2 aliases compose into V1 via the V2
     composer so the existing memory estimator pipeline works unchanged.
     """
-    from vllm.sndr_core.model_configs.registry import get as get_config
-    from vllm.sndr_core.model_configs.schema import SchemaError
+    from sndr.model_configs.registry import get as get_config
+    from sndr.model_configs.schema import SchemaError
 
     # V1 lookup first (existing path; keeps `sndr memory explain a5000-2x-35b-prod` working).
     try:
@@ -116,7 +116,7 @@ def _resolve_preset_v1_or_v2(key: str):
         pass
     # V2 alias fallback (`prod-qwen3.6-35b-balanced`, `long-ctx-qwen3.6-27b`, etc.).
     try:
-        from vllm.sndr_core.model_configs.registry_v2 import load_alias
+        from sndr.model_configs.registry_v2 import load_alias
         return load_alias(key)
     except SchemaError as e:
         raise SchemaError(
@@ -230,11 +230,11 @@ def _parse_ctx_sweep(s: str) -> list[int]:
 
 
 def _run_explain(opts: argparse.Namespace) -> int:
-    from vllm.sndr_core.runtime.memory_estimator import (
+    from sndr.runtime.memory_estimator import (
         estimate_for_config,
         render_waterfall,
     )
-    from vllm.sndr_core.model_configs.schema import SchemaError
+    from sndr.model_configs.schema import SchemaError
 
     # accept both V1 preset keys AND V2 aliases.
     try:
@@ -381,7 +381,7 @@ def _run_explain(opts: argparse.Namespace) -> int:
 
 def _run_simulate(opts: argparse.Namespace) -> int:
     """Estimator without a preset — pure ctx/seqs/model knobs."""
-    from vllm.sndr_core.runtime.memory_estimator import (
+    from sndr.runtime.memory_estimator import (
         read_model_shape,
         estimate_weights,
         estimate_kv_cache,
@@ -469,11 +469,11 @@ def _run_simulate(opts: argparse.Namespace) -> int:
 
 def _run_doctor(opts: argparse.Namespace) -> int:
     """For each registered preset, compute utilization and flag risky ones."""
-    from vllm.sndr_core.model_configs.registry import (
+    from sndr.model_configs.registry import (
         list_keys,
         get as get_config,
     )
-    from vllm.sndr_core.runtime.memory_estimator import (
+    from sndr.runtime.memory_estimator import (
         estimate_for_config,
     )
 
@@ -618,8 +618,8 @@ def _run_report(opts: argparse.Namespace) -> int:
     preset = getattr(opts, "preset", None)
     if preset:
         try:
-            from vllm.sndr_core.model_configs.registry import get
-            from vllm.sndr_core.runtime.memory_estimator import (
+            from sndr.model_configs.registry import get
+            from sndr.runtime.memory_estimator import (
                 estimate_for_config,
             )
             cfg = get(preset)
@@ -663,7 +663,7 @@ def _run_report(opts: argparse.Namespace) -> int:
     if live is None:
         # Backward-compat: Phase 1 behavior (delegate to summary)
         try:
-            from vllm.sndr_core.runtime.memory_metrics import (
+            from sndr.runtime.memory_metrics import (
                 genesis_memory_summary,
             )
             report = genesis_memory_summary()

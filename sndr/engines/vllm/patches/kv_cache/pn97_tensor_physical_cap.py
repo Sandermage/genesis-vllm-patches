@@ -31,8 +31,8 @@ from __future__ import annotations
 import logging
 import os
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
-from vllm.sndr_core.core import TextPatch, TextPatcher
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
+from sndr.kernel import TextPatch, TextPatcher
 
 log = logging.getLogger("genesis.wiring.pn97_tensor_physical_cap")
 
@@ -65,7 +65,7 @@ PN97_NEW = (
     "        # NOTE: this is partial Phase 7 — full virtual addressing\n"
     "        # requires PN98 (attention-side block_id translation).\n"
     "        try:\n"
-    "            from vllm.sndr_core.cache._pn95_runtime import pn97_physical_cap_bytes as _g_pn97_cap\n"
+    "            from sndr.cache._pn95_runtime import pn97_physical_cap_bytes as _g_pn97_cap\n"
     "            _pn97_per_tensor_cap = _g_pn97_cap(len(kv_cache_config.kv_cache_tensors))\n"
     "        except Exception:\n"
     "            _pn97_per_tensor_cap = None\n"
@@ -127,7 +127,7 @@ def apply() -> tuple[str, str]:
         if m in content:
             return "skipped", f"drift marker {m!r} already in file"
     result, failure = patcher.apply()
-    from vllm.sndr_core.core import result_to_wiring_status
+    from sndr.kernel import result_to_wiring_status
     return result_to_wiring_status(
         result, failure,
         applied_message="PN97 KV tensor physical-cap installed",

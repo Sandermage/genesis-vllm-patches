@@ -69,8 +69,8 @@ from __future__ import annotations
 import logging
 import os
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
-from vllm.sndr_core.core import (
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
+from sndr.kernel import (
     TextPatcher,
     TextPatchResult,
     TextPatch,
@@ -117,7 +117,7 @@ P71_NEW = (
     "            and not synthetic_mode\n"
     "        )\n"
     "        if _genesis_p71_eligible:\n"
-    "            from vllm.sndr_core.kernels.block_verify_sampler import (\n"
+    "            from sndr.engines.vllm.kernels_legacy.block_verify_sampler import (\n"
     "                call_block_verify_sample as _genesis_p71_call,\n"
     "            )\n"
     "            _genesis_p71_use_pt = _genesis_p71_os.environ.get(\n"
@@ -180,7 +180,7 @@ def _make_patcher() -> TextPatcher | None:
 
 def apply() -> tuple[str, str]:
     """Apply P71 — block-verify rejection sampling."""
-    from vllm.sndr_core.dispatcher import should_apply, log_decision
+    from sndr.dispatcher import should_apply, log_decision
     decision, reason = should_apply("P71")
     log_decision("P71", decision, reason)
     if not decision:

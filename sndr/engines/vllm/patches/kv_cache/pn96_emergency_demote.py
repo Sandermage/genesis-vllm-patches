@@ -41,8 +41,8 @@ from __future__ import annotations
 import logging
 import os
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
-from vllm.sndr_core.core import TextPatch, TextPatcher
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
+from sndr.kernel import TextPatch, TextPatcher
 
 log = logging.getLogger("genesis.wiring.pn96_emergency_demote")
 
@@ -96,7 +96,7 @@ PN96_NEW = (
     "        try:\n"
     "            _free = self.get_num_free_blocks()\n"
     "            if num_blocks > _free:\n"
-    "                from vllm.sndr_core.cache._pn95_runtime import (\n"
+    "                from sndr.cache._pn95_runtime import (\n"
     "                    pn96_emergency_rescue as _g_pn96_rescue,\n"
     "                )\n"
     "                _g_pn96_rescue(self, deficit=num_blocks - _free)\n"
@@ -150,7 +150,7 @@ def apply() -> tuple[str, str]:
         if m in content:
             return "skipped", f"drift marker {m!r} already in file"
     result, failure = patcher.apply()
-    from vllm.sndr_core.core import result_to_wiring_status
+    from sndr.kernel import result_to_wiring_status
     return result_to_wiring_status(
         result, failure,
         applied_message="PN96 emergency-demote hook installed",

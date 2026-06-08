@@ -7,14 +7,14 @@ all per-patch wirings depend on.
 PR38 cleanup (2026-05-08): legacy `vllm._genesis.wiring` is being
 removed; this package now re-exports the public surface (`AttributeRebinder`,
 `WiringRegistry`, `TextPatch`, `TextPatcher`, `TextPatchResult`) at
-package level so `from vllm.sndr_core.wiring import X` works the same
+package level so `from sndr.engines.vllm.wiring import X` works the same
 as the legacy form.
 """
 from __future__ import annotations
 
-from vllm.sndr_core.wiring.rebind import AttributeRebinder, WiringRegistry
-from vllm.sndr_core.core import text_patch  # noqa: F401  (legacy submodule path)
-from vllm.sndr_core.core.text_patch import (
+from sndr.engines.vllm.wiring.rebind import AttributeRebinder, WiringRegistry
+from sndr.kernel import text_patch  # noqa: F401  (legacy submodule path)
+from sndr.kernel.text_patch import (
     TextPatch,
     TextPatcher,
     TextPatchResult,

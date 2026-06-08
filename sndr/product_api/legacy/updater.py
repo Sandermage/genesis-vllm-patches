@@ -25,7 +25,7 @@ import subprocess
 from pathlib import Path
 from typing import Any, Optional
 
-from vllm.sndr_core.version import SNDR_CORE_VERSION
+from sndr.version import SNDR_CORE_VERSION
 
 _PIN_RE = re.compile(r"^\s*vllm_pin_required:\s*([^\s#]+)")
 

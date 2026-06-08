@@ -41,7 +41,7 @@ import json
 import logging
 import os
 
-from vllm.sndr_core.middleware.think_streaming_truncator import (
+from sndr.engines.vllm.middleware.think_streaming_truncator import (
     ThinkStreamingTruncator,
     max_thinking_stream_tokens,
 )
@@ -124,7 +124,7 @@ def _wrap_stream_generator(original_method):
 
 def apply() -> tuple[str, str]:
     """Apply PN16 V6 — class-rebind streaming generator with budget filter."""
-    from vllm.sndr_core.dispatcher import should_apply, log_decision
+    from sndr.dispatcher import should_apply, log_decision
 
     decision, reason = should_apply("PN16_V6")
     log_decision("PN16_V6", decision, reason)

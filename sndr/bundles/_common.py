@@ -21,9 +21,9 @@ from __future__ import annotations
 import logging
 from typing import Callable, Optional
 
-from vllm.sndr_core.core.multi_file import MultiFilePatchTransaction
-from vllm.sndr_core.core.text_patch import TextPatcher
-from vllm.sndr_core.env import Flags, is_enabled
+from sndr.kernel.multi_file import MultiFilePatchTransaction
+from sndr.kernel.text_patch import TextPatcher
+from sndr.env import Flags, is_enabled
 
 log = logging.getLogger("genesis.bundles")
 

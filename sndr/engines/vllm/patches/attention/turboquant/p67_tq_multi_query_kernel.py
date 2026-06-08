@@ -40,8 +40,8 @@ from __future__ import annotations
 import logging
 import os
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
-from vllm.sndr_core.core import (
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
+from sndr.kernel import (
     TextPatcher,
     TextPatchResult,
     TextPatch,
@@ -120,7 +120,7 @@ P67_NEW = (
     "            # on the attention layer instance so each layer caches once.\n"
     "            _genesis_p67_refs = getattr(self, '_genesis_p67_refs', None)\n"
     "            if _genesis_p67_refs is None:\n"
-    "                from vllm.sndr_core.kernels.p67_multi_query_kernel import (\n"
+    "                from sndr.engines.vllm.kernels_legacy.p67_multi_query_kernel import (\n"
     "                    is_active as _genesis_p67_is_active,\n"
     "                    call_p67_attention as _genesis_p67_call,\n"
     "                )\n"
@@ -320,7 +320,7 @@ def _make_patcher() -> TextPatcher | None:
 
 def apply() -> tuple[str, str]:
     """Apply P67 hook injection."""
-    from vllm.sndr_core.dispatcher import should_apply, log_decision
+    from sndr.dispatcher import should_apply, log_decision
     decision, reason = should_apply("P67")
     log_decision("P67", decision, reason)
     if not decision:
@@ -337,7 +337,7 @@ def apply() -> tuple[str, str]:
     # This safety gate refuses to apply P67 even when env flag is set if the
     # config lacks speculative_config — operator may not know this is unsafe.
     try:
-        from vllm.sndr_core.detection.config_detect import recommend
+        from sndr.engines.vllm.detection.config_detect import recommend
         cd_verdict, cd_reason = recommend("P67")
         if cd_verdict.startswith("skip"):
             return "skipped", (
@@ -393,7 +393,7 @@ def apply() -> tuple[str, str]:
     # Diagnostic info for log
     diag = ""
     try:
-        from vllm.sndr_core.kernels.p67_multi_query_kernel import diagnostic_info
+        from sndr.engines.vllm.kernels_legacy.p67_multi_query_kernel import diagnostic_info
         diag = f" Diag: {diagnostic_info()}"
     except Exception:
         # Diagnostic helper is optional — apply already succeeded, log without diag

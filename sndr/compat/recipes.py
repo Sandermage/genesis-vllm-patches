@@ -166,7 +166,7 @@ def validate_recipe(recipe: dict[str, Any]) -> list[str]:
     envs = recipe.get("envs") or {}
     if envs:
         try:
-            from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+            from sndr.dispatcher import PATCH_REGISTRY
             known_flags = {
                 meta.get("env_flag") for meta in PATCH_REGISTRY.values()
                 if meta.get("env_flag")

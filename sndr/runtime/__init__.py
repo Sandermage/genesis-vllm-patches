@@ -6,13 +6,13 @@ Eager imports broke torch-less environments (CLI, schema validator,
 doctor, pre-commit hooks, registry audit) because `prealloc.py`
 imports torch at module top-level. The legacy `vllm/_genesis/__init__.py`
 documents the same trap (v7 G-002 fix). Apply the same pattern here so
-`import vllm.sndr_core` and `python -m vllm.sndr_core.cli --help` work
+`import sndr` and `python -m vllm.sndr_core.cli --help` work
 without torch installed.
 
 Canonical imports (preferred for new code):
 
-    from vllm.sndr_core.runtime import buffer_mode, prealloc, pool_budget
-    from vllm.sndr_core.runtime.gpu_profile import detect_gpu
+    from sndr.runtime import buffer_mode, prealloc, pool_budget
+    from sndr.runtime.gpu_profile import detect_gpu
 
 Migration history:
   - Original location: vllm/_genesis/<module>.py (Stage 0).
@@ -41,7 +41,7 @@ _LAZY_SUBMODULES = (
 def __getattr__(name: str):
     """Lazy submodule loader. `prealloc` (and any future torch-using
     submodule) is loaded only on first attribute access, so simple
-    `import vllm.sndr_core.runtime` does not pull torch."""
+    `import sndr.runtime` does not pull torch."""
     if name in _LAZY_SUBMODULES:
         return importlib.import_module(f"vllm.sndr_core.runtime.{name}")
     raise AttributeError(f"module 'vllm.sndr_core.runtime' has no attribute {name!r}")

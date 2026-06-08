@@ -99,12 +99,12 @@ def add_argparser(subparsers: Any) -> None:
 def _resolve_root(opts: argparse.Namespace) -> Path:
     if opts.root:
         return Path(opts.root).expanduser().resolve()
-    from vllm.sndr_core.findings.registry import DEFAULT_FINDINGS_DIR
+    from sndr.findings.registry import DEFAULT_FINDINGS_DIR
     return DEFAULT_FINDINGS_DIR
 
 
 def _find_path_by_id(root: Path, finding_id: str) -> Optional[Path]:
-    from vllm.sndr_core.findings.registry import discover_findings
+    from sndr.findings.registry import discover_findings
     for path, f in discover_findings(root):
         if f.id == finding_id:
             return path
@@ -130,7 +130,7 @@ def _finding_summary(f) -> dict:
 
 
 def run_list(opts: argparse.Namespace) -> int:
-    from vllm.sndr_core.findings import discover_findings, is_due_for_review
+    from sndr.findings import discover_findings, is_due_for_review
 
     root = _resolve_root(opts)
     findings = [f for _path, f in discover_findings(root)]
@@ -168,7 +168,7 @@ def run_list(opts: argparse.Namespace) -> int:
 
 
 def run_add(opts: argparse.Namespace) -> int:
-    from vllm.sndr_core.findings.schema import (
+    from sndr.findings.schema import (
         VALID_CADENCES, VALID_CATEGORIES, VALID_RISKS, VALID_SOURCES,
         VALID_STATUSES,
     )
@@ -232,7 +232,7 @@ review_cadence: {opts.review_cadence}
 
 
 def run_update(opts: argparse.Namespace) -> int:
-    from vllm.sndr_core.findings import (
+    from sndr.findings import (
         is_valid_transition, load_finding,
     )
 
@@ -253,7 +253,7 @@ def run_update(opts: argparse.Namespace) -> int:
     changes = []
     if opts.status and opts.status != f.status:
         if not is_valid_transition(f.status, opts.status):
-            from vllm.sndr_core.findings.schema import ALLOWED_TRANSITIONS
+            from sndr.findings.schema import ALLOWED_TRANSITIONS
             allowed = sorted(ALLOWED_TRANSITIONS.get(f.status, frozenset()))
             _io.warn(
                 f"illegal transition {f.status!r} → {opts.status!r}; "
@@ -298,7 +298,7 @@ def run_update(opts: argparse.Namespace) -> int:
 
 
 def run_validate(opts: argparse.Namespace) -> int:
-    from vllm.sndr_core.findings import validate_directory
+    from sndr.findings import validate_directory
 
     root = _resolve_root(opts)
     result = validate_directory(root)

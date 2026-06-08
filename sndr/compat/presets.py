@@ -18,7 +18,7 @@ A preset bundles:
   - Notes (gotchas, conflicts, when NOT to pick this preset)
 
 Usage:
-    from vllm.sndr_core.compat.presets import (
+    from sndr.compat.presets import (
         list_presets,
         get_preset,
         match_preset,
@@ -948,7 +948,7 @@ def auto_match() -> Optional[Preset]:
     Returns None if no CUDA / unknown GPU / no preset for this rig.
     """
     try:
-        from vllm.sndr_core.runtime.gpu_profile import detect_current_gpu
+        from sndr.runtime.gpu_profile import detect_current_gpu
     except ImportError:
         return None
     gpu = detect_current_gpu()

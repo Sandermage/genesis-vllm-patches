@@ -318,7 +318,7 @@ def apply() -> tuple[str, str]:
     attach to the logger, not to a handler — re-creating handlers
     doesn't drop logger-level filters.
     """
-    from vllm.sndr_core.dispatcher import should_apply, log_decision
+    from sndr.dispatcher import should_apply, log_decision
 
     decision, reason = should_apply("PN65")
     log_decision("PN65", decision, reason)

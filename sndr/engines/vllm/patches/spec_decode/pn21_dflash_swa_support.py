@@ -118,8 +118,8 @@ from __future__ import annotations
 import logging
 import os
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
-from vllm.sndr_core.core.text_patch import (
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
+from sndr.kernel.text_patch import (
     TextPatch,
     TextPatcher,
     TextPatchResult,
@@ -289,7 +289,7 @@ def apply() -> tuple[str, str]:
     against upstream merge auto-activation. When upstream PR #40898 merges,
     drift markers will detect and PN21 will auto-no-op cleanly.
     """
-    from vllm.sndr_core.dispatcher import should_apply, log_decision
+    from sndr.dispatcher import should_apply, log_decision
     decision, reason = should_apply("PN21")
     log_decision("PN21", decision, reason)
     if not decision:

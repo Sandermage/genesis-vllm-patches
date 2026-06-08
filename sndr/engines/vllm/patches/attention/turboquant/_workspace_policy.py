@@ -164,7 +164,7 @@ v12.x+ may consolidate into a WorkspaceFacade class extending
 TurboQuantBufferManager.
 
 To diagnose live state on a running container:
-  python -c 'from vllm.sndr_core.integrations.attention.turboquant._workspace_policy import audit_workspace_state; import json; print(json.dumps(audit_workspace_state(), indent=2, default=str))'
+  python -c 'from sndr.engines.vllm.patches.attention.turboquant._workspace_policy import audit_workspace_state; import json; print(json.dumps(audit_workspace_state(), indent=2, default=str))'
 """
 
 
@@ -176,7 +176,7 @@ def verify_patch_composition() -> dict:
     """Verify all 4 workspace patches are present, composable, and
     correctly default_on configured (PN118 should be the only default_on)."""
     try:
-        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        from sndr.dispatcher.registry import PATCH_REGISTRY
     except ImportError:
         return {
             "composable": True,

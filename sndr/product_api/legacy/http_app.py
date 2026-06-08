@@ -11,7 +11,7 @@ import os
 from dataclasses import asdict, is_dataclass
 from typing import Any, Optional
 
-from vllm.sndr_core.version import SNDR_CORE_VERSION
+from sndr.version import SNDR_CORE_VERSION
 
 # Module-level so the websocket route's ``websocket: WebSocket`` annotation
 # resolves via get_type_hints (which only sees module globals, not the local
@@ -99,7 +99,7 @@ try:
     o["sndr"] = SNDR_CORE_VERSION
 except Exception:
     try:
-        from vllm.sndr_core.version import SNDR_CORE_VERSION as _v
+        from sndr.version import SNDR_CORE_VERSION as _v
         o["sndr"] = _v
     except Exception:
         try:
@@ -937,7 +937,7 @@ def create_app(
 
     def _local_control():
         from . import container_ops as _co
-        from vllm.sndr_core.deps import checkers
+        from sndr.deps import checkers
         if not checkers._docker_socket_present():
             raise HTTPException(
                 status_code=503,
@@ -1523,7 +1523,7 @@ def create_app(
         evaluated against the live host so the GUI can flag which ones fire.
         Read-only; host probe is best-effort (caveats still listed if it fails)."""
         try:
-            from vllm.sndr_core.caveats import KNOWN_CAVEATS
+            from sndr.caveats import KNOWN_CAVEATS
         except Exception as exc:  # noqa: BLE001
             return {"caveats": [], "total": 0, "triggered_count": 0,
                     "host_facts_available": False, "facts_error": str(exc)}
@@ -1531,8 +1531,8 @@ def create_app(
         facts: dict[str, Any] | None = None
         facts_error: str | None = None
         try:
-            from vllm.sndr_core.deps.checkers import inspect_host
-            from vllm.sndr_core.detection.guards import KNOWN_GOOD_VLLM_PINS
+            from sndr.deps.checkers import inspect_host
+            from sndr.engines.vllm.detection.guards import KNOWN_GOOD_VLLM_PINS
             facts = inspect_host().to_dict()
             pin = facts.get("vllm", {}).get("version")
             facts["vllm_pin_in_allowlist"] = (pin in KNOWN_GOOD_VLLM_PINS) if pin else None
@@ -2728,7 +2728,7 @@ def create_app(
     # enabled AND the local docker socket is reachable (the node case).
     try:
         from . import container_watch
-        from vllm.sndr_core.deps import checkers as _checkers
+        from sndr.deps import checkers as _checkers
 
         def _watch_control():
             from . import container_ops as _co

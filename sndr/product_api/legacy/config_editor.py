@@ -11,7 +11,7 @@ import shutil
 from pathlib import Path
 from typing import Any, Optional
 
-from vllm.sndr_core.model_configs.schema import SchemaError
+from sndr.model_configs.schema import SchemaError
 
 from .presets import composed_summary
 
@@ -147,7 +147,7 @@ def collect_v2_config_catalog(*, max_age: float = _CATALOG_TTL) -> V2ConfigCatal
 
 def _build_v2_config_catalog() -> V2ConfigCatalog:
     """Read + parse the V2 corpus from disk (the uncached build)."""
-    from vllm.sndr_core.model_configs.registry_v2 import (
+    from sndr.model_configs.registry_v2 import (
         list_hardware,
         list_models,
         list_presets,
@@ -190,7 +190,7 @@ def preview_v2_config(
     runtime: Optional[str] = None,
 ) -> V2ConfigPreview:
     """Compose a selected V2 triplet without writing any config files."""
-    from vllm.sndr_core.model_configs.registry_v2 import (
+    from sndr.model_configs.registry_v2 import (
         compose_by_ids,
         load_profile,
     )
@@ -258,8 +258,8 @@ def plan_v2_config_edit(
     runtime: Optional[str] = None,
 ) -> V2ConfigPlan:
     """Build a non-mutating save plan for a V2 preset draft."""
-    from vllm.sndr_core.locations.project_paths import model_configs_user_dir
-    from vllm.sndr_core.model_configs.schema_v2 import _check_id
+    from sndr.engines.vllm.locations.project_paths import model_configs_user_dir
+    from sndr.model_configs.schema_v2 import _check_id
 
     safe_preset_id = (preset_id or _default_draft_preset_id(
         model_id=model_id,
@@ -348,7 +348,7 @@ def get_v2_layer(kind: str, layer_id: str) -> dict[str, Any]:
     requires, versions, sizing, runtime, patch matrix, deltas) so the GUI can
     render and inspect the complete config — not just the dashboard subset.
     """
-    from vllm.sndr_core.model_configs.registry_v2 import (
+    from sndr.model_configs.registry_v2 import (
         load_hardware,
         load_model,
         load_preset_def,
@@ -403,8 +403,8 @@ def apply_v2_layer(*, kind: str, layer_id: str, yaml_text: str) -> V2LayerApplyR
     Operator-local only — never the repo builtin catalog, never a remote host.
     Atomic write with backup + an exclusive lock; refuses bad kind/id/empty body.
     """
-    from vllm.sndr_core.locations.project_paths import model_configs_user_dir
-    from vllm.sndr_core.model_configs.schema_v2 import _check_id
+    from sndr.engines.vllm.locations.project_paths import model_configs_user_dir
+    from sndr.model_configs.schema_v2 import _check_id
 
     normalized = kind.lower()
     safe_id = (layer_id or "").strip()
@@ -578,7 +578,7 @@ def apply_v2_config_plan(
 
 def list_user_presets() -> tuple[UserPreset, ...]:
     """List preset YAMLs in the operator-local config dir (read-only)."""
-    from vllm.sndr_core.locations.project_paths import model_configs_user_dir
+    from sndr.engines.vllm.locations.project_paths import model_configs_user_dir
 
     presets_dir = model_configs_user_dir() / "presets"
     if not presets_dir.is_dir():
@@ -723,7 +723,7 @@ def _preset_item(preset_id: str, obj: Any) -> V2ConfigItem:
 
 
 def _source_path(layer: str, item_id: str) -> str:
-    from vllm.sndr_core.model_configs.registry_v2 import REPO_ROOT_HINT
+    from sndr.model_configs.registry_v2 import REPO_ROOT_HINT
 
     filename = f"{item_id}.yaml"
     if layer == "presets":

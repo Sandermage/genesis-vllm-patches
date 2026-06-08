@@ -14,9 +14,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from vllm.sndr_core.model_configs.registry_v2 import load_patch_manifest
-from vllm.sndr_core.model_configs.schema import SchemaError
-from vllm.sndr_core.model_configs.schema_v2 import PatchManifest
+from sndr.model_configs.registry_v2 import load_patch_manifest
+from sndr.model_configs.schema import SchemaError
+from sndr.model_configs.schema_v2 import PatchManifest
 
 
 __all__ = [

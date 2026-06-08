@@ -75,12 +75,12 @@ from __future__ import annotations
 
 import logging
 
-from vllm.sndr_core.detection.guards import (
+from sndr.engines.vllm.detection.guards import (
     is_nvidia_cuda,
     resolve_vllm_file,
     vllm_install_root,
 )
-from vllm.sndr_core.core import (
+from sndr.kernel import (
     TextPatch, TextPatcher, TextPatchResult,
 )
 
@@ -351,7 +351,7 @@ def _make_patcher() -> TextPatcher | None:
       - Re-apply on v1-patched container: _V1_FN → v2 body (when P5B=1)
       - Re-apply on v2-patched container: idempotent (marker match)
     """
-    from vllm.sndr_core.kernels.page_size_padded import is_p5b_enabled
+    from sndr.engines.vllm.kernels_legacy.page_size_padded import is_p5b_enabled
 
     target = resolve_vllm_file("v1/core/kv_cache_utils.py")
     if target is None:

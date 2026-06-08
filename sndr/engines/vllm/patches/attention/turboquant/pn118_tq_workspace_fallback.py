@@ -68,7 +68,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
 
 log = logging.getLogger("genesis.wiring.pn118_tq_workspace_fallback")
 
@@ -302,7 +302,7 @@ def _resolve_targets() -> tuple[Path | None, Path | None]:
 
 def apply() -> tuple[str, str]:
     """Apply PN118 — TQ workspace graceful-fallback fix."""
-    from vllm.sndr_core.dispatcher import log_decision, should_apply
+    from sndr.dispatcher import log_decision, should_apply
 
     decision, reason = should_apply("PN118")
     log_decision("PN118", decision, reason)

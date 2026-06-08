@@ -83,8 +83,8 @@ import logging
 _AUDIT_A19_EXEMPT = True  # tightly coupled subpatches
 import os  # noqa: E402  — import after A-19 exemption marker
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root  # noqa: E402
-from vllm.sndr_core.core import (  # noqa: E402
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root  # noqa: E402
+from sndr.kernel import (  # noqa: E402
     TextPatcher,
     TextPatchResult,
     TextPatch,
@@ -300,7 +300,7 @@ def _make_patcher() -> TextPatcher | None:
 
 def apply() -> tuple[str, str]:
     """Apply P83 — MTP keep-last-cached-block."""
-    from vllm.sndr_core.dispatcher import should_apply, log_decision
+    from sndr.dispatcher import should_apply, log_decision
     decision, reason = should_apply("P83")
     log_decision("P83", decision, reason)
     if not decision:

@@ -49,10 +49,10 @@ from __future__ import annotations
 import logging
 import os
 
-from vllm.sndr_core.detection.guards import (
+from sndr.engines.vllm.detection.guards import (
     resolve_vllm_file, vllm_install_root, is_nvidia_cuda, is_sm_at_least,
 )
-from vllm.sndr_core.core import (
+from sndr.kernel import (
     TextPatch, TextPatcher, TextPatchResult,
 )
 
@@ -125,7 +125,7 @@ _P7B_IMPORT_REPLACEMENT = (
     "# Same pattern as PN25 v7.68 (silu_and_mul) — fixes the dynamo\n"
     "# 'instantiate_user_defined_class_object' crash class on TP=1 spawn.\n"
     "try:\n"
-    "    from vllm.sndr_core.kernels.gdn_dual_stream_customop import (\n"
+    "    from sndr.engines.vllm.kernels_legacy.gdn_dual_stream_customop import (\n"
     "        dual_linear_parallel as _genesis_p7b_dual_linear_op,\n"
     "    )\n"
     "    _GENESIS_P7B_DUAL_LINEAR_OP = _genesis_p7b_dual_linear_op\n"

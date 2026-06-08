@@ -126,7 +126,7 @@ def _make_bridge_handler(compat_cmd: str):
     """Build a `func(args)` that re-dispatches to compat.cli with the
     original argv tail. Lazy-imports `compat.cli` only on first call."""
     def _bridge(args: argparse.Namespace) -> int:
-        from vllm.sndr_core.compat import cli as _compat_cli
+        from sndr.compat import cli as _compat_cli
         # Reconstruct argv for the compat parser:
         #   sndr <compat_cmd> [extra...]
         # The args namespace carries `_extra_argv` populated by the
@@ -168,7 +168,7 @@ def cli_main(argv: list[str] | None = None) -> int:
     # involving argparse here. This guarantees `--help` and any
     # subcommand-specific flags pass through verbatim.
     if argv and argv[0] in _BRIDGED:
-        from vllm.sndr_core.compat import cli as _compat_cli
+        from sndr.compat import cli as _compat_cli
         return _compat_cli.main([_BRIDGED[argv[0]], *argv[1:]])
 
     # S2.5 (audit closure 2026-05-08): `sndr bench-compare A.json B.json`
@@ -182,10 +182,10 @@ def cli_main(argv: list[str] | None = None) -> int:
     if (len(argv) >= 2 and argv[0] == "model"
             and argv[1] in ("pull", "list")):
         if argv[1] == "pull":
-            from vllm.sndr_core.compat.models import pull as _pull
+            from sndr.compat.models import pull as _pull
             return _pull.main(argv[2:])
         else:  # list
-            from vllm.sndr_core.compat.models import list_cli as _list
+            from sndr.compat.models import list_cli as _list
             if hasattr(_list, "main"):
                 return _list.main(argv[2:])
             old_argv = sys.argv
@@ -272,7 +272,7 @@ def cli_main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.version:
-        from vllm.sndr_core import SNDR_CORE_VERSION
+        from sndr import SNDR_CORE_VERSION
         print(f"SNDR Core {SNDR_CORE_VERSION}")
         return 0
 

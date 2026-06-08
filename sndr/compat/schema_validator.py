@@ -380,7 +380,7 @@ def main(argv=None) -> int:
                         help="Print only issue lines (skip header / summary)")
     args = parser.parse_args(argv)
 
-    from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+    from sndr.dispatcher import PATCH_REGISTRY
 
     issues = validate_registry(PATCH_REGISTRY)
 

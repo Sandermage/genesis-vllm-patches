@@ -82,7 +82,7 @@ def apply() -> tuple[str, str]:
         )
 
     try:
-        from vllm.sndr_core.detection.gpu_arch_profile import (
+        from sndr.detection.gpu_arch_profile import (
             get_gpu_arch_profile,
         )
     except Exception as e:

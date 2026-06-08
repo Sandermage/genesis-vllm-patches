@@ -25,7 +25,7 @@ lot.
 Usage
 ─────
 
-    from vllm.sndr_core.dispatcher.spec import iter_patch_specs
+    from sndr.dispatcher.spec import iter_patch_specs
 
     for spec in iter_patch_specs():
         if spec.apply_module is None:
@@ -234,7 +234,7 @@ def infer_implementation_status(meta: dict, patch_id: str = "") -> str:
         return explicit
     if patch_id:
         try:
-            from vllm.sndr_core.dispatcher.registry_metadata import (
+            from sndr.dispatcher.registry_metadata import (
                 derive_metadata,
             )
             return derive_metadata(patch_id, meta)["implementation_status"]
@@ -285,7 +285,7 @@ class PatchSpec:
 
     Fields mirror the registry dict keys, plus a derived `apply_module`
     that points at the canonical patch implementation under
-    `vllm.sndr_core.integrations.<family>.<filename>`. `apply_module=None`
+    `sndr.engines.vllm.patches.<family>.<filename>`. `apply_module=None`
     means the registry entry has no on-disk implementation (informational
     entries, legacy stubs, plugin entries).
 
@@ -759,7 +759,7 @@ def iter_patch_specs(
     """Yield `PatchSpec` for every registry entry.
 
     Args:
-        registry: defaults to `vllm.sndr_core.dispatcher.PATCH_REGISTRY`
+        registry: defaults to `sndr.dispatcher.PATCH_REGISTRY`
             (the canonical source of truth).
         topo_sort: if True, yield specs in a stable topological order
             respecting `requires_patches` (dependency-first). Default
@@ -773,7 +773,7 @@ def iter_patch_specs(
             With topo_sort=True these are corrected before dispatch.
     """
     if registry is None:
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+        from sndr.dispatcher import PATCH_REGISTRY
         registry = PATCH_REGISTRY
     apply_map = _build_apply_module_map()
     if topo_sort:
@@ -856,7 +856,7 @@ def validate_apply_module_coverage(
         # Inspect the raw registry meta to classify the unmapped entry.
         # `PatchSpec` doesn't carry lifecycle / impl_status directly,
         # so re-read from the registry dict.
-        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY as _REG
+        from sndr.dispatcher.registry import PATCH_REGISTRY as _REG
         meta = _REG.get(spec.patch_id, {}) if registry is None else (registry.get(spec.patch_id, {}))
         lc = meta.get("lifecycle")
         impl = meta.get("implementation_status")

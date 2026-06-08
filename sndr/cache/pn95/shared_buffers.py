@@ -15,7 +15,7 @@ embedded in sibling patches' apply()-time source-rewrite strings:
    _pn95_runtime; their helpers below are called from there.)
 
 Because the import path in the text anchors is hard-coded
-``from vllm.sndr_core.cache._pn95_runtime import <name> as _g_…``,
+``from sndr.cache._pn95_runtime import <name> as _g_…``,
 the legacy module MUST keep working re-exports of every symbol moved
 here — otherwise the anchor regenerates with a new hash and
 ``apply.shadow --strict`` reports drift. This file is therefore the
@@ -113,7 +113,7 @@ def _pn106_legacy_h_impl(B: int, NT: int, H: int, V: int, K: int,
     h on input.
     """
     import torch
-    from vllm.sndr_core.cache import _pn95_runtime as _rt
+    from sndr.cache import _pn95_runtime as _rt
     elem_per_slot = B * NT * H * V * K
     elem_bytes = torch.empty(0, dtype=dtype).element_size()
     bytes_needed = elem_per_slot * elem_bytes
@@ -173,7 +173,7 @@ def pn106_get_pooled_buf(name: str, shape: tuple, dtype: Any, device: Any,
     write-only on these scratch tensors). No correctness loss.
     """
     import torch
-    from vllm.sndr_core.cache import _pn95_runtime as _rt
+    from sndr.cache import _pn95_runtime as _rt
     n_elems = 1
     for d in shape:
         n_elems *= int(d)
@@ -223,7 +223,7 @@ def pn203_cold_prefix_sweep() -> int:
     bytes to L2 (pinned pool if PN95_PINNED_POOL enabled), so this
     function just adds the window-aware selection policy.
     """
-    from vllm.sndr_core.cache import _pn95_runtime as _rt
+    from sndr.cache import _pn95_runtime as _rt
     if not _rt._PN203_ENABLED or not _enabled() or _rt._TM is None:
         return 0
     swept = 0
@@ -284,7 +284,7 @@ def pn201_maybe_empty_cache(free_mib: int, free_blocks: Optional[int] = None) ->
     same scheduler_tick using the same pressure signal but doing real
     block migration instead of cache discard.
     """
-    from vllm.sndr_core.cache import _pn95_runtime as _rt
+    from sndr.cache import _pn95_runtime as _rt
     if os.environ.get(
         "GENESIS_ENABLE_PN201_SCHEDULER_EMPTY_CACHE", "0",
     ).strip().lower() not in ("1", "true", "yes", "on"):
@@ -342,7 +342,7 @@ def pn106_periodic_empty_cache() -> None:
     (default 0 = disabled — operator opts in when fragmentation
     actually hurts).
     """
-    from vllm.sndr_core.cache import _pn95_runtime as _rt
+    from sndr.cache import _pn95_runtime as _rt
     try:
         n = int(os.environ.get("GENESIS_PN106_EMPTY_CACHE_EVERY_N_TICKS", "0"))
     except (ValueError, TypeError):
@@ -439,7 +439,7 @@ def pn96_emergency_rescue(pool: Any, deficit: int) -> int:
     Phase 7 work. So PN96 helps multi-prefix workloads but does
     NOT extend the single-user max_model_len above the GPU pool size.
     """
-    from vllm.sndr_core.cache import _pn95_runtime as _rt
+    from sndr.cache import _pn95_runtime as _rt
     if not _enabled() or deficit <= 0:
         return 0
     rescued = 0

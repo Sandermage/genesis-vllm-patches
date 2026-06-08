@@ -167,8 +167,8 @@ def _legacy_apply_names() -> list[str]:
     `_per_patch_dispatch.py` (via `@register_patch`)."""
     # Force-import the parking lot module so the @register_patch
     # decorators run and populate `_state.PATCH_REGISTRY`.
-    from vllm.sndr_core.apply import _per_patch_dispatch  # noqa: F401
-    from vllm.sndr_core.apply._state import (
+    from sndr.apply import _per_patch_dispatch  # noqa: F401
+    from sndr.apply._state import (
         PATCH_REGISTRY as APPLY_REGISTRY,
     )
     return [name for name, _fn in APPLY_REGISTRY]
@@ -287,7 +287,7 @@ def compare_apply_orders() -> ApplyOrderDiff:
     Pure function — no side effects on either registry. Safe to call
     in shadow mode during a real boot or off-line via the CLI.
     """
-    from vllm.sndr_core.dispatcher.spec import iter_patch_specs
+    from sndr.dispatcher.spec import iter_patch_specs
 
     # Legacy: list of names → set of (pid_or_None, name)
     legacy_names = _legacy_apply_names()

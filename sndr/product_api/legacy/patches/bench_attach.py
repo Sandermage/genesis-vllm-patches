@@ -23,7 +23,7 @@ class _BenchAttachErrorProxy:
 
 
 def _bench_attach_error_cls():
-    from vllm.sndr_core.proof.bench_attach import BenchAttachError as _Err
+    from sndr.proof.bench_attach import BenchAttachError as _Err
 
     return _Err
 
@@ -50,8 +50,8 @@ def attach_bench(
     Raises :class:`vllm.sndr_core.proof.bench_attach.BenchAttachError`
     on operator-visible failure (missing file, unrecognised shape, etc.).
     """
-    from vllm.sndr_core.proof import DEFAULT_PROOF_DIR, load_proof_artefact
-    from vllm.sndr_core.proof.bench_attach import attach_bench as _attach_bench
+    from sndr.proof import DEFAULT_PROOF_DIR, load_proof_artefact
+    from sndr.proof.bench_attach import attach_bench as _attach_bench
 
     target_dir = Path(out_dir) if out_dir is not None else DEFAULT_PROOF_DIR
     target = _attach_bench(

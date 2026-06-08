@@ -44,8 +44,8 @@ References:
 """
 from __future__ import annotations
 
-from vllm.sndr_core.core import TextPatch, TextPatcher
-from vllm.sndr_core.detection.guards import resolve_vllm_file
+from sndr.kernel import TextPatch, TextPatcher
+from sndr.engines.vllm.detection.guards import resolve_vllm_file
 
 from sndr.engines.vllm.patches.model_compat.gemma4._gemma4_detect import env_truthy
 
@@ -144,7 +144,7 @@ def apply() -> tuple[str, str]:
     if patcher is None:
         return "skipped", "vllm/v1/spec_decode/dflash.py not resolvable in this pin"
     result, failure = patcher.apply()
-    from vllm.sndr_core.core import result_to_wiring_status
+    from sndr.kernel import result_to_wiring_status
     return result_to_wiring_status(
         result, failure,
         applied_message=(
@@ -158,7 +158,7 @@ def apply() -> tuple[str, str]:
 
 
 def is_applied() -> bool:
-    from vllm.sndr_core.core import marker_present_in_target
+    from sndr.kernel import marker_present_in_target
     patcher = _make_patcher()
     if patcher is None:
         return False

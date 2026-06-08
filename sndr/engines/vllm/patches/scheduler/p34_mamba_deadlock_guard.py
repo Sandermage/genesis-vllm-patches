@@ -59,8 +59,8 @@ from __future__ import annotations
 
 import logging
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
-from vllm.sndr_core.core import (
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
+from sndr.kernel import (
     TextPatch, TextPatcher, TextPatchResult,
 )
 
@@ -134,7 +134,7 @@ def apply() -> tuple[str, str]:
     # never reaches the guarded branch, so the text-patch is harmless
     # but noise — skip to keep dispatch logs clean.
     try:
-        from vllm.sndr_core.detection.model_detect import is_hybrid_model, log_skip
+        from sndr.engines.vllm.detection.model_detect import is_hybrid_model, log_skip
         if not is_hybrid_model():
             log_skip(
                 "P34 Mamba zero-collapse deadlock guard",

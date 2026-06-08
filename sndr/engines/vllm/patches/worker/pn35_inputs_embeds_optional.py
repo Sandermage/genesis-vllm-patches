@@ -88,8 +88,8 @@ from __future__ import annotations
 
 import logging
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
-from vllm.sndr_core.core import (
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
+from sndr.kernel import (
     TextPatch,
     TextPatcher,
     TextPatchResult,
@@ -218,7 +218,7 @@ def apply() -> tuple[str, str]:
 
     Never raises. Returns (status, reason).
     """
-    from vllm.sndr_core.dispatcher import log_decision, should_apply
+    from sndr.dispatcher import log_decision, should_apply
 
     decision, reason = should_apply("PN35")
     log_decision("PN35", decision, reason)
@@ -350,7 +350,7 @@ def register_for_manifest(*, pristine_root) -> None:
             gpu_model_runner.py + llm_base_proposer.py extracted from
             the canonical pristine vllm install at the current pin.
     """
-    from vllm.sndr_core.wiring.patcher_registry import register_text_patcher
+    from sndr.engines.vllm.wiring.patcher_registry import register_text_patcher
 
     register_text_patcher(
         "PN35.Sub-1",

@@ -38,10 +38,10 @@ from __future__ import annotations
 import logging
 import os
 
-from vllm.sndr_core.detection.guards import (
+from sndr.engines.vllm.detection.guards import (
     resolve_vllm_file, vllm_install_root,
 )
-from vllm.sndr_core.core import (
+from sndr.kernel import (
     TextPatch, TextPatcher, TextPatchResult,
 )
 
@@ -75,7 +75,7 @@ PN288_STREAMING_NEW = (
     "                        # decision. Phase B (dry-run) by default — see\n"
     "                        # vllm.sndr_core.middleware.pn288_finish_reason_override.\n"
     "                        try:\n"
-    "                            from vllm.sndr_core.middleware.pn288_finish_reason_override import (  # noqa: E501\n"
+    "                            from sndr.engines.vllm.middleware.pn288_finish_reason_override import (  # noqa: E501\n"
     "                                decide_streaming_finish_reason as _genesis_pn288_decide_streaming,\n"
     "                            )\n"
     "                            finish_reason_ = _genesis_pn288_decide_streaming(\n"
@@ -119,7 +119,7 @@ PN288_NONSTREAMING_NEW = (
     "            # [Genesis PN288] args-validity-aware bool. Phase B dry-run\n"
     "            # default — see vllm.sndr_core.middleware.pn288_finish_reason_override.\n"
     "            try:\n"
-    "                from vllm.sndr_core.middleware.pn288_finish_reason_override import (  # noqa: E501\n"
+    "                from sndr.engines.vllm.middleware.pn288_finish_reason_override import (  # noqa: E501\n"
     "                    decide_non_streaming_is_tool_calls as _genesis_pn288_decide_non_streaming,\n"
     "                )\n"
     "                is_finish_reason_tool_calls = _genesis_pn288_decide_non_streaming(\n"
@@ -183,8 +183,8 @@ def apply() -> tuple[str, str]:
     request time via the middleware's ``is_dry_run()`` check, which
     reads ``GENESIS_PN288_DRY_RUN`` live on every call.
     """
-    from vllm.sndr_core.dispatcher import should_apply, log_decision
-    from vllm.sndr_core.middleware.pn288_finish_reason_override import (
+    from sndr.dispatcher import should_apply, log_decision
+    from sndr.engines.vllm.middleware.pn288_finish_reason_override import (
         setup_prometheus_counters,
     )
 

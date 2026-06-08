@@ -106,7 +106,7 @@ def apply() -> tuple[str, str]:
     if _APPLIED:
         return "applied", "PN203 already initialized"
     try:
-        from vllm.sndr_core.cache import _pn95_runtime as _runtime
+        from sndr.cache import _pn95_runtime as _runtime
     except Exception as e:
         return "skipped", f"PN95 runtime unavailable: {e}"
     # Register PN203's window-aware demote policy as a hook in scheduler_tick.

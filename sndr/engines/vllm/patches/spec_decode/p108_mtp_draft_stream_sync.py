@@ -78,12 +78,12 @@ from __future__ import annotations
 import logging
 import os
 
-from vllm.sndr_core.core import (
+from sndr.kernel import (
     TextPatch,
     TextPatcher,
     TextPatchResult,
 )
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
 
 log = logging.getLogger("genesis.wiring.p108_mtp_draft_stream_sync")
 
@@ -183,7 +183,7 @@ def _make_patcher() -> TextPatcher | None:
 
 def apply() -> tuple[str, str]:
     """Apply P108 — MTP draft-loop stream synchronization."""
-    from vllm.sndr_core.dispatcher import log_decision, should_apply
+    from sndr.dispatcher import log_decision, should_apply
 
     decision, reason = should_apply("P108")
     log_decision("P108", decision, reason)

@@ -188,7 +188,7 @@ def _check_genesis_importable() -> CheckResult:
 
 def _check_dispatcher_loads() -> CheckResult:
     try:
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+        from sndr.dispatcher import PATCH_REGISTRY
 
         n = len(PATCH_REGISTRY)
         if n < 50:
@@ -242,7 +242,7 @@ def _check_apply_all_importable() -> CheckResult:
 
 def _check_cli_routes() -> CheckResult:
     try:
-        from vllm.sndr_core.compat.cli import KNOWN_SUBCOMMANDS
+        from sndr.compat.cli import KNOWN_SUBCOMMANDS
 
         required = {"doctor", "preset", "verify"}
         missing = required - KNOWN_SUBCOMMANDS
@@ -267,7 +267,7 @@ def _check_cli_routes() -> CheckResult:
 
 def _check_gpu_detected() -> CheckResult:
     try:
-        from vllm.sndr_core.runtime.gpu_profile import detect_current_gpu
+        from sndr.runtime.gpu_profile import detect_current_gpu
     except ImportError as e:
         return CheckResult(
             "C5 GPU detected",
@@ -387,7 +387,7 @@ def _check_plugin_entry_point() -> CheckResult:
 
 def _check_preset_for_current_gpu() -> CheckResult:
     try:
-        from vllm.sndr_core.compat.presets import auto_match
+        from sndr.compat.presets import auto_match
     except ImportError:
         return CheckResult(
             "C9 preset for this rig",
@@ -466,7 +466,7 @@ def _check_p103_self_install_hook() -> CheckResult:
         )
 
     try:
-        from vllm.sndr_core.detection.guards import resolve_vllm_file
+        from sndr.engines.vllm.detection.guards import resolve_vllm_file
     except ImportError as e:
         return CheckResult(
             "B2 P103 self-install hook",

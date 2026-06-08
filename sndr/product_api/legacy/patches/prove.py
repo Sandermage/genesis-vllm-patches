@@ -61,7 +61,7 @@ def prove_one(
     check (P-1 patch-in-registry) passed — otherwise we'd persist a
     "patch not found" failure as evidence, which is misleading.
     """
-    from vllm.sndr_core.proof import (
+    from sndr.proof import (
         DEFAULT_PROOF_DIR,
         build_proof_for_patch,
         write_proof_artefact,
@@ -85,8 +85,8 @@ def prove_all(
     no_write: bool = False,
 ) -> ProveAllResult:
     """Sweep every PATCH_REGISTRY entry and report coverage."""
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
-    from vllm.sndr_core.proof import (
+    from sndr.dispatcher.registry import PATCH_REGISTRY
+    from sndr.proof import (
         DEFAULT_PROOF_DIR,
         build_proof_for_patch,
         write_proof_artefact,
@@ -123,8 +123,8 @@ def prove_all(
 
 def dead_detect(*, out_dir: Optional[Path] = None) -> DeadDetectResult:
     """List patches with no passing proof artefact."""
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
-    from vllm.sndr_core.proof import DEFAULT_PROOF_DIR, list_dead_patches
+    from sndr.dispatcher.registry import PATCH_REGISTRY
+    from sndr.proof import DEFAULT_PROOF_DIR, list_dead_patches
 
     target_dir = Path(out_dir) if out_dir is not None else DEFAULT_PROOF_DIR
     dead = list(list_dead_patches(out_dir=target_dir))

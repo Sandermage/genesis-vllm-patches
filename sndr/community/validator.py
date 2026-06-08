@@ -30,8 +30,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
-from vllm.sndr_core.model_configs.schema import SchemaError
-from vllm.sndr_core.model_configs.schema_v2 import PatchManifest
+from sndr.model_configs.schema import SchemaError
+from sndr.model_configs.schema_v2 import PatchManifest
 
 from .manifest import REPO_ROOT, list_manifest_paths, load_manifest
 

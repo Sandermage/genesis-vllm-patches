@@ -6,8 +6,8 @@ cleanly replaced without touching the surrounding file body.
 
 Example
 -------
-    from vllm.sndr_core.wiring import AttributeRebinder
-    from vllm.sndr_core.kernels.router_softmax import router_softmax
+    from sndr.engines.vllm.wiring import AttributeRebinder
+    from sndr.engines.vllm.kernels_legacy.router_softmax import router_softmax
     import vllm.model_executor.layers.fused_moe as fm
 
     rebinder = AttributeRebinder(

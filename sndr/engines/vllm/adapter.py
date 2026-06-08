@@ -74,7 +74,7 @@ class VllmEngine(EngineAdapter):
 
         # Fallback to legacy path during Phase 1 transition
         try:
-            from vllm.sndr_core.detection.guards import resolve_vllm_file as legacy
+            from sndr.engines.vllm.detection.guards import resolve_vllm_file as legacy
             result = legacy(relative_path)
             return Path(result) if result else None
         except ImportError:
@@ -124,7 +124,7 @@ class VllmEngine(EngineAdapter):
             return None
 
         try:
-            from vllm.sndr_core.detection import model_detect
+            from sndr.engines.vllm.detection import model_detect
             mp = model_detect.get_model_profile()
             return ModelProfile(
                 architectures=tuple(mp.get("architectures") or ()),
@@ -147,7 +147,7 @@ class VllmEngine(EngineAdapter):
         Phase 4 will use sndr.engines.vllm.patches.registry.
         """
         try:
-            from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+            from sndr.dispatcher.registry import PATCH_REGISTRY
             return list(PATCH_REGISTRY.items())
         except ImportError:
             return []

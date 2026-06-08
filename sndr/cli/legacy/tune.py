@@ -72,7 +72,7 @@ def add_argparser(subparsers: Any) -> None:
 
 
 def _resolve(key: str):
-    from vllm.sndr_core.model_configs.registry import get
+    from sndr.model_configs.registry import get
     cfg = get(key)
     if cfg is None:
         _io.warn(f"unknown preset key {key!r}")

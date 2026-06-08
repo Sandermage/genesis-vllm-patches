@@ -38,7 +38,7 @@ def _user_dir() -> Path:
       5. ~/.sndr/model_configs/  (canonical default)
       6. ~/.genesis/model_configs/  (legacy default — only if it exists)
     """
-    from vllm.sndr_core.locations.project_paths import model_configs_user_dir
+    from sndr.engines.vllm.locations.project_paths import model_configs_user_dir
     return model_configs_user_dir()
 
 

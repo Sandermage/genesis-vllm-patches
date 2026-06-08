@@ -76,7 +76,7 @@ _ENABLED_AT_IMPORT: bool = _read_env_enabled()
 
 def should_apply() -> bool:
     """Platform gate: NVIDIA CUDA + SM ≥ 8.0 (Ampere+) + opt-in env."""
-    from vllm.sndr_core.detection.guards import is_nvidia_cuda, is_sm_at_least
+    from sndr.engines.vllm.detection.guards import is_nvidia_cuda, is_sm_at_least
     if not _ENABLED_AT_IMPORT:
         return False
     if not is_nvidia_cuda():

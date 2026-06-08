@@ -87,7 +87,7 @@ import os
 
 import torch
 
-from vllm.sndr_core.detection.guards import is_nvidia_cuda
+from sndr.engines.vllm.detection.guards import is_nvidia_cuda
 
 log = logging.getLogger("genesis.kernels.ffn_intermediate_cache")
 
@@ -208,7 +208,7 @@ class FFNIntermediateCache:
         `PersistentBufferRegistry()._reset_for_tests()`).
         """
         if cls._CACHED_POOL is None:
-            from vllm.sndr_core.runtime.persistent_buffer_registry import (
+            from sndr.runtime.persistent_buffer_registry import (
                 PersistentBufferRegistry, POOL_FFN_INTERMEDIATE_SCRATCH,
             )
             cls._CACHED_POOL = PersistentBufferRegistry().get_slice_pool(

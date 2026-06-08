@@ -145,7 +145,7 @@ def _section_environment() -> dict[str, Any]:
 
 def _section_software() -> dict[str, Any]:
     """Versions of vllm / torch / triton / cuda / driver / python."""
-    from vllm.sndr_core.compat.version_check import detect_versions
+    from sndr.compat.version_check import detect_versions
     p = detect_versions()
     return {
         "vllm": p.vllm, "vllm_commit": p.vllm_commit,
@@ -161,7 +161,7 @@ def _section_model_profile() -> dict[str, Any]:
     """Resolve the model profile via model_detect.get_model_profile."""
     out: dict[str, Any] = {"resolved": False, "errors": []}
     try:
-        from vllm.sndr_core.compat.model_detect import get_model_profile
+        from sndr.compat.model_detect import get_model_profile
         profile = get_model_profile()
         out.update(profile)
     except Exception as e:
@@ -171,7 +171,7 @@ def _section_model_profile() -> dict[str, Any]:
 
 def _section_patches() -> dict[str, Any]:
     """Walk every patch in PATCH_REGISTRY and decide apply/skip with reason."""
-    from vllm.sndr_core.dispatcher import PATCH_REGISTRY, should_apply
+    from sndr.dispatcher import PATCH_REGISTRY, should_apply
 
     decisions = []
     apply_count = 0
@@ -205,8 +205,8 @@ def _section_patches() -> dict[str, Any]:
 
 def _section_lifecycle() -> dict[str, Any]:
     """Run the lifecycle audit on the registry."""
-    from vllm.sndr_core.dispatcher import PATCH_REGISTRY
-    from vllm.sndr_core.compat.lifecycle import audit_registry
+    from sndr.dispatcher import PATCH_REGISTRY
+    from sndr.compat.lifecycle import audit_registry
 
     entries = audit_registry(PATCH_REGISTRY)
     by_state: dict[str, list[dict]] = {}
@@ -223,7 +223,7 @@ def _section_lifecycle() -> dict[str, Any]:
 def _section_validator() -> dict[str, Any]:
     """Run the A3/D2 validator on the live registry + apply set."""
     try:
-        from vllm.sndr_core.dispatcher import (
+        from sndr.dispatcher import (
             validate_registry, validate_apply_plan, get_apply_matrix,
         )
         static = validate_registry()
@@ -478,7 +478,7 @@ def _section_preflight() -> dict[str, Any]:
     """
     findings: list[dict[str, Any]] = []
     try:
-        from vllm.sndr_core.compat.preflight_checks import (
+        from sndr.compat.preflight_checks import (
             check_grammar_rejection_pattern,
             check_quant_arg,
             check_spec_decode_token_loop,
@@ -490,7 +490,7 @@ def _section_preflight() -> dict[str, Any]:
 
     # PN60 quant validator — only when we can locate config.json on disk.
     try:
-        from vllm.sndr_core.detection.model_detect import get_model_profile
+        from sndr.engines.vllm.detection.model_detect import get_model_profile
         profile = get_model_profile()
         model_dir = profile.get("model_dir") or profile.get("model_path")
         cli_quant = os.environ.get("GENESIS_DOCTOR_CLI_QUANT", None)
@@ -651,7 +651,7 @@ def _section_image() -> dict[str, Any]:
 
     # Try to load expected digest from host.yaml
     try:
-        from vllm.sndr_core.model_configs.host import load_host_config
+        from sndr.model_configs.host import load_host_config
         hc = load_host_config()
         if hc and hasattr(hc, "expected_image_digest"):
             out["expected_digest"] = getattr(hc, "expected_image_digest", None)
@@ -667,7 +667,7 @@ def _section_image() -> dict[str, Any]:
     # has no `expected_digest` pin, we can still classify the running
     # image as known-good / pin-match / unknown / historical.
     try:
-        from vllm.sndr_core.compat.image_allowlist import (
+        from sndr.compat.image_allowlist import (
             status_for as _allowlist_status,
             lookup_by_digest as _allowlist_lookup,
         )
@@ -774,7 +774,7 @@ def _section_license() -> dict[str, Any]:
         "errors": [],
     }
     try:
-        from vllm.sndr_core.license import (
+        from sndr.license import (
             check_engine_tier_eligible,
             _engine_overlay_available,
         )
@@ -810,14 +810,14 @@ def _section_engine() -> dict[str, Any]:
         "errors": [],
     }
     try:
-        from vllm.sndr_core.license import _engine_overlay_available
+        from sndr.license import _engine_overlay_available
         out["engine_available"] = bool(_engine_overlay_available())
     except Exception as e:
         out["errors"].append(f"overlay probe failed: {e}")
 
     if out["engine_available"]:
         try:
-            from vllm.sndr_core.license import _engine_package_version
+            from sndr.license import _engine_package_version
             out["version"] = _engine_package_version()
         except Exception as e:
             out["errors"].append(f"engine version probe failed: {e}")
@@ -942,7 +942,7 @@ def main(argv=None) -> int:
     if args.redact:
         # Apply the same redactor used by `sndr report bundle`.
         try:
-            from vllm.sndr_core.runtime.redact import redact_dict
+            from sndr.runtime.redact import redact_dict
             report = redact_dict(report)
         except Exception as e:
             log.warning("redaction failed (%s) — emitting unredacted output", e)

@@ -361,7 +361,7 @@ def should_apply() -> bool:
     if not is_pn26_sparse_v_enabled():
         return False
     try:
-        from vllm.sndr_core.detection.guards import is_nvidia_cuda, is_sm_at_least
+        from sndr.engines.vllm.detection.guards import is_nvidia_cuda, is_sm_at_least
     except ImportError:
         return False
     if not is_nvidia_cuda():

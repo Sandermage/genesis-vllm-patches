@@ -67,13 +67,13 @@ Sibling-patch text-anchor imports (CRITICAL — preserved via
 ``_pn95_runtime`` re-export shim, no anchor regen):
 
   pn95_tier_aware_cache.py:181 / :334 / :342
-    ``from vllm.sndr_core.cache._pn95_runtime import register_block_pool
+    ``from sndr.cache._pn95_runtime import register_block_pool
        as _g_pn95_regpool`` (×3)
   pn95_tier_aware_cache.py:213
-    ``from vllm.sndr_core.cache._pn95_runtime import demote_on_evict
+    ``from sndr.cache._pn95_runtime import demote_on_evict
        as _g_pn95_demote_ev``
   pn95_tier_aware_cache.py:437
-    ``from vllm.sndr_core.cache._pn95_runtime import promote_on_miss
+    ``from sndr.cache._pn95_runtime import promote_on_miss
        as _g_pn95_promote_m``
 
 This file pulls in transfer / compression / demote_policy /
@@ -97,7 +97,7 @@ log = logging.getLogger("genesis.pn95")
 
 def _prefix_store_max_bytes() -> int:
     """Read GENESIS_PN95_PREFIX_STORE_GIB env var (default 4 GiB)."""
-    from vllm.sndr_core.cache import _pn95_runtime as _rt
+    from sndr.cache import _pn95_runtime as _rt
     if _rt._PN95_PREFIX_STORE_MAX_BYTES_CACHED is None:
         gib = float(os.environ.get("GENESIS_PN95_PREFIX_STORE_GIB", "4"))
         _rt._PN95_PREFIX_STORE_MAX_BYTES_CACHED = int(gib * (1 << 30))
@@ -113,10 +113,10 @@ def _prefix_store_evict_until_fit(needed_bytes: int) -> None:
     disabled (default) the behaviour matches the legacy implementation
     — victims are discarded.
     """
-    from vllm.sndr_core.cache import _pn95_runtime as _rt
+    from sndr.cache import _pn95_runtime as _rt
     max_bytes = _prefix_store_max_bytes()
     try:
-        from vllm.sndr_core.cache import _pn95_disk_tier as _disk
+        from sndr.cache import _pn95_disk_tier as _disk
     except ImportError:
         _disk = None
     disk_active = _disk is not None and _disk._enabled()
@@ -152,7 +152,7 @@ def _pn95_l1_pool(slot_size_hint: int = 0):
     Safe to call from hot paths — returns fast None when feature OFF.
     """
     try:
-        from vllm.sndr_core.cache import _pn95_pinned_pool as _ppool
+        from sndr.cache import _pn95_pinned_pool as _ppool
     except ImportError:
         return None
     return _ppool.get_pool(slot_size_hint)
@@ -172,7 +172,7 @@ def register_block_pool(block_pool: Any) -> None:
     """
     if not _enabled():
         return
-    from vllm.sndr_core.cache import _pn95_runtime as _rt
+    from sndr.cache import _pn95_runtime as _rt
     try:
         if block_pool not in _rt._PN95_BLOCK_POOL_REFS:
             _rt._PN95_BLOCK_POOL_REFS.append(block_pool)
@@ -197,7 +197,7 @@ def demote_on_evict(block_hash: Any, block_id: int) -> bool:
     active block_table — no concurrent readers. The cudaMemcpyDeviceToHost
     is safe even if it takes 10-50ms.
     """
-    from vllm.sndr_core.cache import _pn95_runtime as _rt
+    from sndr.cache import _pn95_runtime as _rt
     if not _enabled() or _rt._TM is None:
         return False
     views = getattr(_rt._TM, "_attention_views", None)
@@ -332,7 +332,7 @@ def promote_on_miss(block_pool: Any, block_hash_with_group_id: Any) -> Any:
     eviction will trigger our demote_on_evict (recursive but bounded by
     prefix store capacity). cudaMemcpyHostToDevice is sync.
     """
-    from vllm.sndr_core.cache import _pn95_runtime as _rt
+    from sndr.cache import _pn95_runtime as _rt
     if not _enabled() or _rt._TM is None:
         return None
     # OBS1 — track all lookup attempts (for hit_rate calculation)
@@ -373,7 +373,7 @@ def promote_on_miss(block_pool: Any, block_hash_with_group_id: Any) -> Any:
         # warm end) so subsequent lookups stay fast and we don't pay
         # the unpickle cost twice.
         try:
-            from vllm.sndr_core.cache import _pn95_disk_tier as _disk
+            from sndr.cache import _pn95_disk_tier as _disk
         except ImportError:
             _disk = None
         if _disk is not None and _disk._enabled():
@@ -492,7 +492,7 @@ def pn95_demote_batch(block_id_hash_pairs: list) -> int:
     the proactive scheduler a way to amortize when it knows N blocks
     will be evicted as a batch.
     """
-    from vllm.sndr_core.cache import _pn95_runtime as _rt
+    from sndr.cache import _pn95_runtime as _rt
     from .gates import _pn95_block_size_factor
     from .demote_policy import _pn95_should_demote
     if not block_id_hash_pairs:
@@ -575,7 +575,7 @@ def worker_side_proactive_demote(
       - block_pool has no free_block_queue / no cached blocks
       - all candidates already in CPU prefix store
     """
-    from vllm.sndr_core.cache import _pn95_runtime as _rt
+    from sndr.cache import _pn95_runtime as _rt
     if not _enabled() or _rt._TM is None:
         return 0
     if block_pool is None:
@@ -676,7 +676,7 @@ def pn95_materialize_virtual_block(
     Race safety: relies on the ref_cnt=0 invariant — donors are not
     active in request block_tables. vllm v1 GIL serializes access.
     """
-    from vllm.sndr_core.cache import _pn95_runtime as _rt
+    from sndr.cache import _pn95_runtime as _rt
     if not _enabled() or not _phase5_virt_enabled():
         return None
     if _rt._TM is None:

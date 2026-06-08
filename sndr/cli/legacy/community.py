@@ -91,7 +91,7 @@ def _resolve_root(opts: argparse.Namespace) -> Path:
     (`plugins/community/` under the repo root)."""
     if opts.root:
         return Path(opts.root).expanduser().resolve()
-    from vllm.sndr_core.community.manifest import DEFAULT_PLUGINS_DIR
+    from sndr.community.manifest import DEFAULT_PLUGINS_DIR
     return DEFAULT_PLUGINS_DIR
 
 
@@ -115,7 +115,7 @@ def _manifest_summary(m) -> dict:
 
 
 def run_list(opts: argparse.Namespace) -> int:
-    from vllm.sndr_core.community import discover_all
+    from sndr.community import discover_all
 
     root = _resolve_root(opts)
     manifests = discover_all(root)
@@ -150,7 +150,7 @@ def run_list(opts: argparse.Namespace) -> int:
 
 
 def run_validate(opts: argparse.Namespace) -> int:
-    from vllm.sndr_core.community import validate_directory
+    from sndr.community import validate_directory
 
     root = _resolve_root(opts)
     result = validate_directory(root)
@@ -196,7 +196,7 @@ def run_validate(opts: argparse.Namespace) -> int:
 
 
 def run_new_patch(opts: argparse.Namespace) -> int:
-    from vllm.sndr_core.community.scaffold import (
+    from sndr.community.scaffold import (
         ScaffoldError,
         ScaffoldRequest,
         scaffold_patch,

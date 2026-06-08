@@ -54,8 +54,8 @@ from __future__ import annotations
 
 import logging
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
-from vllm.sndr_core.core import (
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
+from sndr.kernel import (
     TextPatch, TextPatcher, TextPatchResult,
 )
 
@@ -179,7 +179,7 @@ def _wrap_gdn_init() -> bool:
 
     orig_init = cls.__init__
 
-    from vllm.sndr_core.kernels.gdn_core_attn_manager import attach_buffer
+    from sndr.engines.vllm.kernels_legacy.gdn_core_attn_manager import attach_buffer
 
     def _genesis_wrapped_init(self, *args, **kwargs):
         orig_init(self, *args, **kwargs)
@@ -236,7 +236,7 @@ def apply() -> tuple[str, str]:
     # Step 0: warm up the module-level caches (should_apply, env budget)
     # so traced forward paths never have to do device probes or env reads.
     try:
-        from vllm.sndr_core.kernels.gdn_core_attn_manager import warm_up
+        from sndr.engines.vllm.kernels_legacy.gdn_core_attn_manager import warm_up
         warm_up()
     except Exception as e:
         log.info("[Genesis P28] warm_up failed (non-fatal): %s", e)
@@ -246,7 +246,7 @@ def apply() -> tuple[str, str]:
     # models the text-patch anchor won't even match, but skipping early
     # keeps dispatch logs clean.
     try:
-        from vllm.sndr_core.detection.model_detect import is_hybrid_model, log_skip
+        from sndr.engines.vllm.detection.model_detect import is_hybrid_model, log_skip
         if not is_hybrid_model():
             log_skip("P28 GDN core-attn forward rewire", "pure-attention model (no GDN)")
             return "skipped", "P53 dispatch: model has no hybrid linear-attention layers"

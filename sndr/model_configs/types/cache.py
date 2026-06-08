@@ -106,7 +106,7 @@ class CacheTier:
     notes: str = ""
 
     def validate(self) -> None:
-        from vllm.sndr_core.cache.eviction_policies import list_policies
+        from sndr.cache.eviction_policies import list_policies
         valid_devices = {"gpu", "cpu", "nvme"}
         if self.device not in valid_devices:
             raise SchemaError(
@@ -184,7 +184,7 @@ class CacheConfig:
     async_demote: bool = True
 
     def validate(self) -> None:
-        from vllm.sndr_core.cache.eviction_policies import list_policies
+        from sndr.cache.eviction_policies import list_policies
         valid = list_policies()
         if self.eviction_policy not in valid:
             raise SchemaError(

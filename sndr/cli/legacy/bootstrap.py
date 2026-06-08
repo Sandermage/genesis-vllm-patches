@@ -60,7 +60,7 @@ def add_argparser(subparsers: Any) -> None:
 
 
 def _resolve(key: str):
-    from vllm.sndr_core.model_configs.registry import get
+    from sndr.model_configs.registry import get
     cfg = get(key)
     if cfg is None:
         _io.warn(f"unknown preset key {key!r}")
@@ -117,7 +117,7 @@ def run_doctor(args: argparse.Namespace) -> int:
     cfg = _resolve(args.config)
     if cfg is None:
         return 2
-    from vllm.sndr_core.deps import inspect_host, plan_changes
+    from sndr.deps import inspect_host, plan_changes
     inv = inspect_host()
     plan = plan_changes(cfg, inv)
     scope = _scope_set(args.scope, cfg)
@@ -157,7 +157,7 @@ def run_plan(args: argparse.Namespace) -> int:
     cfg = _resolve(args.config)
     if cfg is None:
         return 2
-    from vllm.sndr_core.deps import inspect_host, plan_changes
+    from sndr.deps import inspect_host, plan_changes
     inv = inspect_host()
     plan = plan_changes(cfg, inv)
     scope = _scope_set(args.scope, cfg)
@@ -193,7 +193,7 @@ def run_apply(args: argparse.Namespace) -> int:
     cfg = _resolve(args.config)
     if cfg is None:
         return 2
-    from vllm.sndr_core.deps import inspect_host, plan_changes, apply
+    from sndr.deps import inspect_host, plan_changes, apply
     inv = inspect_host()
     plan = plan_changes(cfg, inv)
     scope = _scope_set(args.scope, cfg)
@@ -246,7 +246,7 @@ def run_status(args: argparse.Namespace) -> int:
     cfg = _resolve(args.config)
     if cfg is None:
         return 2
-    from vllm.sndr_core.deps import inspect_host, plan_changes
+    from sndr.deps import inspect_host, plan_changes
     inv = inspect_host()
     plan = plan_changes(cfg, inv)
     if plan.is_ready():

@@ -11,7 +11,7 @@ Used by:
 """
 from __future__ import annotations
 
-from vllm.sndr_core.detection.guards import (  # noqa: F401
+from sndr.engines.vllm.detection.guards import (  # noqa: F401
     KNOWN_GOOD_VLLM_PINS,
     is_genesis_pin_validated,
     assert_vllm_pin_allowed,

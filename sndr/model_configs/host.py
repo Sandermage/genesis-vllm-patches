@@ -29,7 +29,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
-from vllm.sndr_core.model_configs.schema import SchemaError
+from sndr.model_configs.schema import SchemaError
 
 
 @dataclass

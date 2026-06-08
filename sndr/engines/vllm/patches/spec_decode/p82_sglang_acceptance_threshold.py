@@ -79,8 +79,8 @@ from __future__ import annotations
 import logging
 import os
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
-from vllm.sndr_core.core import (
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
+from sndr.kernel import (
     TextPatcher,
     TextPatch,
 )
@@ -341,7 +341,7 @@ def _make_patcher(threshold: float, min_draft_pos: int = 0) -> TextPatcher | Non
 
 def apply() -> tuple[str, str]:
     """Apply P82 — SGLang threshold_single OR-clause acceptance."""
-    from vllm.sndr_core.dispatcher import should_apply, log_decision
+    from sndr.dispatcher import should_apply, log_decision
     decision, reason = should_apply("P82")
     log_decision("P82", decision, reason)
     if not decision:
@@ -407,7 +407,7 @@ def apply() -> tuple[str, str]:
     result, failure = patcher.apply()
     # Audit P1 fix 2026-05-05: route SKIPPED to "skipped" (was masked as "applied")
     # via the centralized helper that already lives in text_patch.py.
-    from vllm.sndr_core.core import result_to_wiring_status
+    from sndr.kernel import result_to_wiring_status
     pos_note = (
         f", min_draft_pos={min_draft_pos}"
         if min_draft_pos > 0

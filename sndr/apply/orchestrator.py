@@ -78,7 +78,7 @@ def _validate_dependency_graph() -> None:
       • dep_unknown: requires_patches references a patch_id not in the
         registry. Schema drift — logged as ERROR regardless of env.
     """
-    from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+    from sndr.dispatcher import PATCH_REGISTRY
 
     # 1. Build set of currently-enabled patches.
     #
@@ -206,7 +206,7 @@ def run(verbose: bool = True, apply: bool = False) -> PatchStats:
 
     # Platform diagnostic — helps debugging on unexpected hardware
     try:
-        from vllm.sndr_core.detection.guards import platform_summary
+        from sndr.engines.vllm.detection.guards import platform_summary
         summary = platform_summary()
         if verbose:
             log.info("Genesis platform: %s",
@@ -218,7 +218,7 @@ def run(verbose: bool = True, apply: bool = False) -> PatchStats:
     # BOTH plugin auto-load (run() called from register()) AND CLI PRE-pass
     # (run() called from main()). Strict mode = sys.exit(2) on unknown pin.
     try:
-        from vllm.sndr_core.detection.guards import (
+        from sndr.engines.vllm.detection.guards import (
             assert_vllm_pin_allowed,
             get_vllm_full_version_string,
             KNOWN_GOOD_VLLM_PINS,
@@ -250,7 +250,7 @@ def run(verbose: bool = True, apply: bool = False) -> PatchStats:
     # overhead).
     try:
         import os as _os
-        from vllm.sndr_core.kernels.fla_tp_device_index_guard import (
+        from sndr.engines.vllm.kernels_legacy.fla_tp_device_index_guard import (
             check_index_overflow,
         )
 
@@ -309,7 +309,7 @@ def run(verbose: bool = True, apply: bool = False) -> PatchStats:
     # some environments set these globally and other GPUs in the cluster use
     # them. On the local Ampere rank, we just advise unsetting.
     try:
-        from vllm.sndr_core.detection.guards import detect_pdl_env_misconfig
+        from sndr.engines.vllm.detection.guards import detect_pdl_env_misconfig
         bad = detect_pdl_env_misconfig()
         if bad:
             log.warning(
@@ -351,7 +351,7 @@ def run(verbose: bool = True, apply: bool = False) -> PatchStats:
     # The registry IS the contract — silent drift is the failure mode this
     # block was added to catch.
     try:
-        from vllm.sndr_core.dispatcher import (
+        from sndr.dispatcher import (
             PATCH_REGISTRY as _GENESIS_DISPATCHER_REGISTRY,
             validate_registry,
         )
@@ -391,7 +391,7 @@ def run(verbose: bool = True, apply: bool = False) -> PatchStats:
 
     # GPU profile + per-patch recommendations (suggest-only, never auto-enables)
     try:
-        from vllm.sndr_core.runtime.gpu_profile import print_recommendations
+        from sndr.runtime.gpu_profile import print_recommendations
         rec_text = print_recommendations(stream=None)
         for line in rec_text.split("\n"):
             log.info(line)
@@ -402,7 +402,7 @@ def run(verbose: bool = True, apply: bool = False) -> PatchStats:
     # via setuptools entry-points. OPT-IN: only fires when
     # GENESIS_ALLOW_PLUGINS=1. Default behavior: zero foreign code loaded.
     try:
-        from vllm.sndr_core.compat.plugins import (
+        from sndr.compat.plugins import (
             register_plugins as _register_genesis_plugins,
         )
         n_plugins = _register_genesis_plugins()
@@ -428,7 +428,7 @@ def run(verbose: bool = True, apply: bool = False) -> PatchStats:
     # (GENESIS_TELEMETRY_UPLOAD=1) and is currently a no-op until the
     # community dashboard is live.
     try:
-        from vllm.sndr_core.compat.telemetry import (
+        from sndr.compat.telemetry import (
             is_enabled as _telemetry_is_enabled,
             collect_report as _telemetry_collect_report,
             save_report as _telemetry_save_report,
@@ -534,7 +534,7 @@ def run(verbose: bool = True, apply: bool = False) -> PatchStats:
     # block. Only matters for patches that route through dispatcher.should_apply
     # (P56-P62 currently); other patches get only the per-line INFO above.
     try:
-        from vllm.sndr_core.dispatcher import log_apply_matrix
+        from sndr.dispatcher import log_apply_matrix
         log_apply_matrix()
     except Exception as e:
         log.debug("[Genesis] dispatcher matrix dump failed (non-fatal): %s", e)
@@ -546,7 +546,7 @@ def run(verbose: bool = True, apply: bool = False) -> PatchStats:
     # boot here because operators may have legitimate reasons for unusual
     # combinations during diagnosis.
     try:
-        from vllm.sndr_core.dispatcher import (
+        from sndr.dispatcher import (
             validate_registry, validate_apply_plan,
             log_validation_issues, get_apply_matrix,
         )
@@ -568,7 +568,7 @@ def run(verbose: bool = True, apply: bool = False) -> PatchStats:
     # included in the boot-time validation pass (G-007 fix).
     if apply:
         try:
-            from vllm.sndr_core.compat.plugins import apply_all_plugins
+            from sndr.compat.plugins import apply_all_plugins
             plugin_stats = apply_all_plugins()
             if plugin_stats.get("total", 0) > 0:
                 log.info(
@@ -580,7 +580,7 @@ def run(verbose: bool = True, apply: bool = False) -> PatchStats:
                 # G-007 fix: re-validate registry now that plugin entries
                 # were potentially added during register_plugins().
                 try:
-                    from vllm.sndr_core.dispatcher import validate_registry
+                    from sndr.dispatcher import validate_registry
                     post_plugin_issues = validate_registry()
                     n_plugin_err = sum(
                         1 for i in post_plugin_issues if i.severity == "ERROR"
@@ -638,7 +638,7 @@ def run(verbose: bool = True, apply: bool = False) -> PatchStats:
     # silent debug log that hid the bug).
     # ─────────────────────────────────────────────────────────────────
     try:
-        from vllm.sndr_core.dispatcher import log_structured_boot_summary
+        from sndr.dispatcher import log_structured_boot_summary
         log_structured_boot_summary()
     except Exception as e:
         log.warning(
@@ -648,7 +648,7 @@ def run(verbose: bool = True, apply: bool = False) -> PatchStats:
             type(e).__name__, e,
         )
         try:
-            from vllm.sndr_core.dispatcher import log_apply_matrix
+            from sndr.dispatcher import log_apply_matrix
             log_apply_matrix()
         except Exception as e2:
             log.warning(
@@ -686,8 +686,8 @@ def _run_via_specs(stats: PatchStats) -> None:
     """
     import importlib
     import os as _os_for_topo
-    from vllm.sndr_core.dispatcher.spec import iter_patch_specs
-    from vllm.sndr_core.dispatcher.decision import should_apply
+    from sndr.dispatcher.spec import iter_patch_specs
+    from sndr.dispatcher.decision import should_apply
 
     # v11.3.0 BUG #11: opt-in topological sort by `requires_patches`.
     # Default OFF — keeps current behavior (registry-insertion order).
@@ -779,7 +779,7 @@ def _run_via_specs(stats: PatchStats) -> None:
         # would lose per-patch elapsed_ms + rss_delta_kb telemetry.
         # The context manager is a no-op when observability is off.
         try:
-            from vllm.sndr_core.observability.patch_metrics import (
+            from sndr.observability.patch_metrics import (
                 measure_patch_apply,
             )
             _patch_metric_cm = measure_patch_apply(display)
@@ -869,7 +869,7 @@ def _run_bundles(stats: PatchStats) -> None:
     for bundle_name in BUNDLE_MODULES:
         try:
             mod = __import__(
-                f"vllm.sndr_core.bundles.{bundle_name}",
+                f"sndr.bundles.{bundle_name}",
                 fromlist=["apply"],
             )
             status, reason = mod.apply()
@@ -934,7 +934,7 @@ def main() -> int:
     if verify:
         log.info("[Genesis] Post-register rebind verification:")
         # Imported here (not at module top) to keep cold-import light.
-        from vllm.sndr_core.apply.verify import verify_live_rebinds
+        from sndr.apply.verify import verify_live_rebinds
         results = verify_live_rebinds()
         any_failed = False
         for patch_id, r in results.items():

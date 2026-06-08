@@ -33,7 +33,7 @@ Migration pattern (per pool):
 
   # After (thin wrapper, byte-equivalent)
   def _ensure_buffer(layer, shape, dtype):
-      from vllm.sndr_core.runtime.persistent_buffer_registry import (
+      from sndr.runtime.persistent_buffer_registry import (
           PersistentBufferRegistry, POOL_TQ_DECODE_SHARED,
       )
       pool = PersistentBufferRegistry().get_pool(POOL_TQ_DECODE_SHARED)

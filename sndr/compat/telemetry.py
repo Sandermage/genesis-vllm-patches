@@ -176,7 +176,7 @@ def _detect_hardware() -> dict[str, Any]:
 def _detect_software() -> dict[str, Any]:
     """Capture version strings — no env values, no paths."""
     try:
-        from vllm.sndr_core.compat.version_check import detect_versions
+        from sndr.compat.version_check import detect_versions
         p = detect_versions()
         return {
             "vllm": p.vllm, "torch": p.torch, "triton": p.triton,
@@ -193,7 +193,7 @@ def _detect_software() -> dict[str, Any]:
 def _detect_model() -> dict[str, Any]:
     """Categorical model info — no model name / path."""
     try:
-        from vllm.sndr_core.compat.model_detect import get_model_profile
+        from sndr.compat.model_detect import get_model_profile
         profile = get_model_profile() or {}
     except Exception:
         return {"resolved": False}
@@ -214,10 +214,10 @@ def _summarize_patches() -> dict[str, Any]:
         "applied": [], "skip_count": 0, "lifecycle_stats": {},
     }
     try:
-        from vllm.sndr_core.dispatcher import (
+        from sndr.dispatcher import (
             PATCH_REGISTRY, get_apply_matrix,
         )
-        from vllm.sndr_core.compat.lifecycle import get_state
+        from sndr.compat.lifecycle import get_state
     except Exception:
         return out
 
@@ -239,7 +239,7 @@ def _summarize_plugins() -> dict[str, Any]:
     """Plugin count by default; names only with extra opt-in."""
     out: dict[str, Any] = {"count": 0}
     try:
-        from vllm.sndr_core.compat.plugins import discover_plugins
+        from sndr.compat.plugins import discover_plugins
         plugins = discover_plugins()
     except Exception:
         return out
@@ -260,7 +260,7 @@ def _detect_genesis_version() -> dict[str, str]:
 
     # Pull canonical version
     try:
-        from vllm.sndr_core.version import __version__ as canonical_version
+        from sndr.version import __version__ as canonical_version
         out["version"] = canonical_version
     except Exception as e:
         log.debug("__version__ import failed: %s", e)

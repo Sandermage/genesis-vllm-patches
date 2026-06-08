@@ -47,7 +47,7 @@ def explain_patch(patch_id: str) -> dict[str, Any]:
     category, lifecycle, dependencies, applies_to, upstream, decision,
     credit, notes. On unknown patch_id, returns {"error": "..."}.
     """
-    from vllm.sndr_core.dispatcher import PATCH_REGISTRY, should_apply
+    from sndr.dispatcher import PATCH_REGISTRY, should_apply
 
     if not patch_id:
         return {"error": "empty patch_id"}
@@ -60,7 +60,7 @@ def explain_patch(patch_id: str) -> dict[str, Any]:
         }
 
     # ─── Lifecycle section ──────────────────────────────────────────────
-    from vllm.sndr_core.compat.lifecycle import get_state
+    from sndr.compat.lifecycle import get_state
     lc_state = get_state(meta)
     lifecycle: dict[str, Any] = {"state": lc_state}
     for field in ("stable_since", "since_version", "deprecated_since",
@@ -81,7 +81,7 @@ def explain_patch(patch_id: str) -> dict[str, Any]:
     if applies_to_block["rule"]:
         # Build a flat profile dict (model_detect aliases + version stuff)
         try:
-            from vllm.sndr_core.detection.model_detect import get_model_profile
+            from sndr.engines.vllm.detection.model_detect import get_model_profile
             profile = get_model_profile() or {}
         except Exception:
             profile = {}
@@ -94,7 +94,7 @@ def explain_patch(patch_id: str) -> dict[str, Any]:
                 flat_profile[applies_key] = profile[profile_key]
 
         try:
-            from vllm.sndr_core.compat.predicates import explain as predicate_explain
+            from sndr.compat.predicates import explain as predicate_explain
             applies_to_block["explanation"] = predicate_explain(
                 applies_to_block["rule"], flat_profile,
             )
@@ -113,7 +113,7 @@ def explain_patch(patch_id: str) -> dict[str, Any]:
         "merged_status": "unknown",
     }
     try:
-        from vllm.sndr_core.integrations.upstream_compat import UPSTREAM_MARKERS
+        from sndr.engines.vllm.patches.upstream_compat import UPSTREAM_MARKERS
 
         # Match priority:
         #   1. EXACT key match — `PR_<num>_*` where num == meta.upstream_pr.
@@ -311,7 +311,7 @@ def _wrap(text: str, *, width: int = 70, indent: int = 4) -> list[str]:
 
 
 def _list_patches() -> int:
-    from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+    from sndr.dispatcher import PATCH_REGISTRY
     print(f"Genesis patches — {len(PATCH_REGISTRY)} entries")
     print("─" * 72)
     for pid, meta in sorted(PATCH_REGISTRY.items()):

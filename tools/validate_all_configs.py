@@ -104,7 +104,7 @@ def phase_v2_schema() -> None:
     """
     section("Phase 2 — V2 schema validation (per-file via load_*)")
     try:
-        from vllm.sndr_core.model_configs.registry_v2 import (
+        from sndr.model_configs.registry_v2 import (
             list_hardware,
             list_models,
             list_presets,
@@ -147,7 +147,7 @@ def phase_v2_compose() -> None:
     """
     section("Phase 3 — V2 compose (model × hardware × profile)")
     try:
-        from vllm.sndr_core.model_configs.registry_v2 import (
+        from sndr.model_configs.registry_v2 import (
             compose_by_ids,
             list_hardware,
             list_models,

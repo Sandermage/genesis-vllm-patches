@@ -12,7 +12,7 @@ Current members:
     hit without forwarding to vLLM.
 """
 
-from vllm.sndr_core.middleware.response_cache_middleware import (
+from sndr.engines.vllm.middleware.response_cache_middleware import (
     ResponseCacheMiddleware,
     build_cache_key_from_request,
 )

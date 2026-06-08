@@ -83,7 +83,7 @@ class CompatibilityMatrix:
     Usage
     -----
 
-      from vllm.sndr_core.model_configs.schema import COMPATIBILITY_MATRIX
+      from sndr.model_configs.schema import COMPATIBILITY_MATRIX
       forbidden, discouraged = COMPATIBILITY_MATRIX.evaluate(cfg)
       for rule, _msg in forbidden:
           # hard error

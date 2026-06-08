@@ -124,7 +124,7 @@ except ImportError:  # pragma: no cover
     torch = None  # type: ignore[assignment]
     F = None  # type: ignore[assignment]
 
-from vllm.sndr_core.detection.guards import is_nvidia_cuda, is_sm_at_least
+from sndr.engines.vllm.detection.guards import is_nvidia_cuda, is_sm_at_least
 
 log = logging.getLogger("genesis.wiring.p38_tq_continuation_memory")
 
@@ -307,7 +307,7 @@ def _genesis_continuation_prefill(
     # (sequential exec ⇒ safe). Saves ~13-25 GB on long-context. Set
     # GENESIS_BUFFER_MODE=per_layer (or _MODE_P38=per_layer) for legacy
     # per-layer attached buffers if the shared path ever regresses.
-    from vllm.sndr_core.runtime.buffer_mode import buffer_mode_for, log_mode_decision
+    from sndr.runtime.buffer_mode import buffer_mode_for, log_mode_decision
     mode = buffer_mode_for("P38")
     global _P38_MODE_LOGGED
     if not _P38_MODE_LOGGED:
@@ -321,7 +321,7 @@ def _genesis_continuation_prefill(
         # multiple registry entries (one per rounded_len) which never GC'd
         # — defeated the purpose of singleton pool. Now we allocate ONCE
         # under TQ_MAX_MODEL_LEN and reuse forever via slicing.
-        from vllm.sndr_core.runtime.prealloc import GenesisPreallocBuffer as GPB
+        from sndr.runtime.prealloc import GenesisPreallocBuffer as GPB
         # Maximum size we'll ever need (env-controllable; defaults to engine
         # max_model_len). Rounded to block_size so dequant kernel grid math
         # stays clean.
@@ -418,7 +418,7 @@ def _genesis_continuation_prefill(
     # × dim, fp16). Shared singleton via GenesisPreallocBuffer is the
     # default; per-layer attached attribute path retained for rollback.
     if mode == "shared":
-        from vllm.sndr_core.runtime.prealloc import GenesisPreallocBuffer as GPB
+        from sndr.runtime.prealloc import GenesisPreallocBuffer as GPB
         # ONE namespace per shape signature — max-size alloc once, slice forever.
         # Use the same TQ_MAX env as dequant buffers above for consistency.
         ns_k_full = f"p38_k_full|Hk={Hk}|D={D}|{qdtype}"
@@ -573,7 +573,7 @@ def apply() -> tuple[str, str]:
     # model class with the same name — we skip rather than rebinding
     # into a class that would crash on first forward.
     try:
-        from vllm.sndr_core.runtime.interface_guard import (
+        from sndr.runtime.interface_guard import (
             validate_impl,
         )
         validate_impl(

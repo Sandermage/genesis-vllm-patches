@@ -28,8 +28,8 @@ from __future__ import annotations
 import logging
 import os
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
-from vllm.sndr_core.core import (
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
+from sndr.kernel import (
     TextPatcher,
     TextPatchResult,
     TextPatch,
@@ -110,7 +110,7 @@ P67B_NEW = (
     "            # 64 layers × 200 requests saves ~2ms TTFT after first request.\n"
     "            _genesis_p67b_refs = getattr(self, '_genesis_p67b_refs', None)\n"
     "            if _genesis_p67b_refs is None:\n"
-    "                from vllm.sndr_core.kernels.p67_multi_query_kernel import (\n"
+    "                from sndr.engines.vllm.kernels_legacy.p67_multi_query_kernel import (\n"
     "                    is_active as _genesis_p67b_active,\n"
     "                    call_p67_attention as _genesis_p67b_call,\n"
     "                )\n"
@@ -333,7 +333,7 @@ def _make_patcher() -> TextPatcher | None:
 
 def apply() -> tuple[str, str]:
     """Apply P67b — forward() spec-verify routing."""
-    from vllm.sndr_core.dispatcher import should_apply, log_decision
+    from sndr.dispatcher import should_apply, log_decision
     # Reuse P67 env flag — P67b is meaningless without P67 kernel
     decision, reason = should_apply("P67")
     log_decision("P67b", decision, reason)
@@ -347,7 +347,7 @@ def apply() -> tuple[str, str]:
     # overflow. Refuse to apply P67b unless spec-decode is actually
     # configured. See V756_STABILITY_INVESTIGATION_20260427.md.
     try:
-        from vllm.sndr_core.detection.config_detect import recommend
+        from sndr.engines.vllm.detection.config_detect import recommend
         cd_verdict, cd_reason = recommend("P67")
         if cd_verdict.startswith("skip"):
             return "skipped", (

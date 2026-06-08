@@ -1335,7 +1335,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "implementation_status": "full",
         "source": "genesis_original",
         "apply_module": (
-            "vllm.sndr_core.integrations.observability."
+            "sndr.engines.vllm.patches.observability."
             "pn122_sprint26_cudagraph_dispatch_trace"
         ),
         "lifecycle": "experimental",
@@ -1365,7 +1365,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "implementation_status": "full",
         "source": "vllm_pr_backport",
         "apply_module": (
-            "vllm.sndr_core.integrations.compile_safety."
+            "sndr.engines.vllm.patches.compile_safety."
             "pn132_triton_topk_topp_contiguous"
         ),
         "lifecycle": "retired",
@@ -1413,7 +1413,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "implementation_status": "full",
         "source": "vllm_pr_backport",
         "apply_module": (
-            "vllm.sndr_core.integrations.spec_decode."
+            "sndr.engines.vllm.patches.spec_decode."
             "pn133_mtp_scheduler_empty_output"
         ),
         "lifecycle": "experimental",
@@ -1446,7 +1446,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "implementation_status": "full",
         "source": "vllm_pr_backport",
         "apply_module": (
-            "vllm.sndr_core.integrations.compile_safety."
+            "sndr.engines.vllm.patches.compile_safety."
             "pn134_torch_compile_fullgraph_211"
         ),
         "lifecycle": "retired",
@@ -1493,7 +1493,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "implementation_status": "full",
         "source": "vllm_pr_backport",
         "apply_module": (
-            "vllm.sndr_core.integrations.compile_safety."
+            "sndr.engines.vllm.patches.compile_safety."
             "pn128_spec_decode_helper_warmup"
         ),
         "lifecycle": "experimental",
@@ -1535,7 +1535,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "implementation_status": "full",
         "source": "vllm_pr_backport",
         "apply_module": (
-            "vllm.sndr_core.integrations.compile_safety."
+            "sndr.engines.vllm.patches.compile_safety."
             "pn129_slot_mapping_warmup"
         ),
         "lifecycle": "experimental",
@@ -1566,7 +1566,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "implementation_status": "full",
         "source": "vllm_pr_backport",
         "apply_module": (
-            "vllm.sndr_core.integrations.compile_safety."
+            "sndr.engines.vllm.patches.compile_safety."
             "pn130_turboquant_decode_warmup"
         ),
         "lifecycle": "experimental",
@@ -1597,7 +1597,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "implementation_status": "full",
         "source": "genesis_original",
         "apply_module": (
-            "vllm.sndr_core.integrations.serving."
+            "sndr.engines.vllm.patches.serving."
             "pn127_chat_template_qwen36"
         ),
         "lifecycle": "experimental",
@@ -1646,7 +1646,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "implementation_status": "full",
         "source": "genesis_original",
         "apply_module": (
-            "vllm.sndr_core.integrations.compile_safety."
+            "sndr.engines.vllm.patches.compile_safety."
             "pn126_v1_decode_kernel_warmup"
         ),
         "lifecycle": "experimental",
@@ -1705,7 +1705,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "implementation_status": "full",
         "source": "genesis_original",
         "apply_module": (
-            "vllm.sndr_core.integrations.compile_safety."
+            "sndr.engines.vllm.patches.compile_safety."
             "pn125_hybrid_full_and_piecewise"
         ),
         "lifecycle": "experimental",
@@ -2090,7 +2090,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "lifecycle": "experimental",
         "category": "perf_hotfix",
         "apply_module": (
-            "vllm.sndr_core.integrations.spec_decode."
+            "sndr.engines.vllm.patches.spec_decode."
             "sndr_eagle3_aux_hidden_001"
         ),
         "source": "genesis_original",
@@ -3815,7 +3815,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "(serving.py:884-893 streaming if-block + serving.py:1306-1310 "
             "non-streaming bool, both verified live on pin 626fa9bb 2026-05-30). "
             "Decision logic lives in the companion middleware module "
-            "vllm.sndr_core.middleware.pn288_finish_reason_override so it "
+            "sndr.engines.vllm.middleware.pn288_finish_reason_override so it "
             "is unit-testable without applying the overlay; both call sites "
             "are wrapped in try/except so any failure falls back to upstream. "
             "Phase B (this commit): full text-patch + helper + Prometheus "
@@ -4047,7 +4047,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "generic defaults not tuned for our resource budget (e.g. "
             "100KB shared/SM on A5000 vs 228KB on H100). Genesis env vars "
             "must be set MANUALLY in launcher to compensate. PN296 boots "
-            "the architecture profiler (`vllm.sndr_core.detection."
+            "the architecture profiler (`sndr.engines.vllm.detection."
             "gpu_arch_profile.get_gpu_arch_profile()`), logs the full "
             "profile (device, SM, shared mem, L2, num SMs, HBM BW, TMA, "
             "FP32 TCs, FP8 native), and AUTO-SETS follow-on env vars when "
@@ -4336,7 +4336,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "custom logits processors with speculative_config set. "
             "V6 (streaming-side `<think>` truncator) — future work for "
             "deterministic TTFT bounding. "
-            "Stats via `vllm.sndr_core.middleware.lazy_reasoner.get_stats()`."
+            "Stats via `sndr.engines.vllm.middleware.lazy_reasoner.get_stats()`."
         ),
         "upstream_pr": None,
         "applies_to": {
@@ -4369,7 +4369,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         # Explicit apply_module — registry sub-id "PN16_V6" doesn't auto-resolve
         # via the pn{digit}_ regex; spell it out so iter_patch_specs() finds it.
         "apply_module": (
-            "vllm.sndr_core.integrations.middleware.pn16_v6_streaming_truncator"
+            "sndr.engines.vllm.patches.middleware.pn16_v6_streaming_truncator"
         ),
         "credit": (
             "Genesis-original Sprint 4 closure 2026-05-09 — deep fix for "

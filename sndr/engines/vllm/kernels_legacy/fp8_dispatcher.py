@@ -38,7 +38,7 @@ def requires_marlin_fp8_fallback() -> bool:
         False on NVIDIA SM ≥ 8.9 (Ada/Hopper/Blackwell) — native FP8 works.
         False on non-NVIDIA — different backend, doesn't apply.
     """
-    from vllm.sndr_core.detection.guards import is_nvidia_cuda, is_sm_at_least
+    from sndr.engines.vllm.detection.guards import is_nvidia_cuda, is_sm_at_least
 
     if not is_nvidia_cuda():
         return False
@@ -53,7 +53,7 @@ def fp8_triton_kernel_supported() -> bool:
 
     Mirror of upstream `TritonBlockFP8ScaledMMKernel.is_supported()` logic.
     """
-    from vllm.sndr_core.detection.guards import is_nvidia_cuda, is_sm_at_least
+    from sndr.engines.vllm.detection.guards import is_nvidia_cuda, is_sm_at_least
 
     if not is_nvidia_cuda():
         return False
@@ -71,7 +71,7 @@ def should_skip_triton_fp8(compute_capability: tuple[int, int] | None = None) ->
         True if SM < 8.9 (should fall back to Marlin).
     """
     if compute_capability is None:
-        from vllm.sndr_core.detection.guards import get_compute_capability
+        from sndr.engines.vllm.detection.guards import get_compute_capability
         compute_capability = get_compute_capability()
 
     if compute_capability is None:
@@ -82,7 +82,7 @@ def should_skip_triton_fp8(compute_capability: tuple[int, int] | None = None) ->
 
 def log_dispatcher_decision() -> None:
     """Log the FP8 kernel routing decision at engine start."""
-    from vllm.sndr_core.detection.guards import get_compute_capability
+    from sndr.engines.vllm.detection.guards import get_compute_capability
 
     cc = get_compute_capability()
     if cc is None:

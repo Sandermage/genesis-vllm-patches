@@ -28,7 +28,7 @@ def _engine_tier_patch_count() -> int:
 def status() -> dict[str, Any]:
     """Full license + sndr_engine status for the GUI."""
     try:
-        from vllm.sndr_core import license as lic
+        from sndr import license as lic
     except Exception as exc:  # noqa: BLE001 — license layer should always be present
         return {"available": False, "reason": f"{type(exc).__name__}: {exc}"}
 

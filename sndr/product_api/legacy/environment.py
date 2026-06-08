@@ -92,8 +92,8 @@ def _daemon_launch_context() -> tuple[str, Optional[str], bool, str]:
 
 def collect_environment_report() -> EnvironmentReport:
     """Build the read-only environment / version report."""
-    from vllm.sndr_core.brand import PKG_NAME_CORE, PUBLIC_BRAND_COMMUNITY
-    from vllm.sndr_core.version import SNDR_CORE_VERSION
+    from sndr.brand import PKG_NAME_CORE, PUBLIC_BRAND_COMMUNITY
+    from sndr.version import SNDR_CORE_VERSION
 
     engine_version = _pkg_version("vllm")
     # "engine" in THIS report means the vLLM runtime (see engine_name/engine_version

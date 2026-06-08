@@ -51,7 +51,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from vllm.sndr_core.detection.guards import is_cpu_only
+from sndr.engines.vllm.detection.guards import is_cpu_only
 
 log = logging.getLogger("genesis.wiring.p31_router_softmax")
 
@@ -86,7 +86,7 @@ def apply() -> tuple[str, str]:
     # models that use grouped routing. Skip the rebind on dense models to
     # keep dispatch logs clean.
     try:
-        from vllm.sndr_core.detection.model_detect import is_moe_model, log_skip
+        from sndr.engines.vllm.detection.model_detect import is_moe_model, log_skip
         if not is_moe_model():
             log_skip("P31 router softmax fp32", "dense model (no grouped routing)")
             return "skipped", "P52 dispatch: model has no MoE layers"

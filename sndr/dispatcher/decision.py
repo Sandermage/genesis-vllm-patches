@@ -7,7 +7,7 @@ function as the first gate.
 
 Wiring usage:
 
-    from vllm.sndr_core.dispatcher import should_apply, log_decision
+    from sndr.dispatcher import should_apply, log_decision
 
     decision, reason = should_apply("P60")
     if not decision:
@@ -30,8 +30,8 @@ from .registry import PATCH_REGISTRY  # noqa: F401 (re-exported)
 # level. should_apply() is called for every patch at boot AND from
 # inside many patch apply()/runtime hooks. Cumulative ~200+ patches ×
 # 4 processes × per-call attr-lookup = ~10ms saved at boot.
-from vllm.sndr_core.env import is_disabled as _env_is_disabled
-from vllm.sndr_core.env import is_enabled as _env_is_enabled
+from sndr.env import is_disabled as _env_is_disabled
+from sndr.env import is_enabled as _env_is_enabled
 
 log = logging.getLogger("genesis.dispatcher")
 
@@ -39,13 +39,13 @@ log = logging.getLogger("genesis.dispatcher")
 def _live_registry() -> dict[str, dict[str, Any]]:
     """Resolve registry via the canonical SNDR Core dispatcher package.
 
-    PR38 cleanup (2026-05-08): `vllm.sndr_core.dispatcher` re-exports
+    PR38 cleanup (2026-05-08): `sndr.dispatcher` re-exports
     `PATCH_REGISTRY` from `.registry` at package level. Tests now do
-    `monkeypatch.setattr(vllm.sndr_core.dispatcher, "PATCH_REGISTRY", fake)`
+    `monkeypatch.setattr(sndr.dispatcher, "PATCH_REGISTRY", fake)`
     and this reader sees the patched attribute on the same package
     module — same identity, monkey-patch propagates.
     """
-    from vllm.sndr_core import dispatcher as _canonical
+    from sndr import dispatcher as _canonical
     return _canonical.PATCH_REGISTRY
 
 
@@ -76,7 +76,7 @@ def _check_applies_to(
         return True, "no applies_to declared (model-class agnostic)"
 
     try:
-        from vllm.sndr_core.detection.model_detect import get_model_profile
+        from sndr.engines.vllm.detection.model_detect import get_model_profile
         profile = get_model_profile()
     except Exception as e:
         return True, f"model_detect probe failed ({e}) — conservative apply"
@@ -108,7 +108,7 @@ def _check_applies_to(
     compound_keys = ("all_of", "any_of", "not", "none_of")
     if any(k in applies_to for k in compound_keys):
         try:
-            from vllm.sndr_core.compat.predicates import evaluate
+            from sndr.compat.predicates import evaluate
             ok, reason = evaluate(applies_to, flat_profile)
             return ok, ("applies_to satisfied" if ok
                         else f"MODEL-COMPAT: {reason}")
@@ -133,7 +133,7 @@ def _check_applies_to(
     # Version range checks
     if version_constraints:
         try:
-            from vllm.sndr_core.compat.version_check import (
+            from sndr.compat.version_check import (
                 check_version_constraints,
             )
             v_ok, v_results = check_version_constraints(version_constraints)
@@ -219,7 +219,7 @@ def _check_tier_gate(meta: dict[str, Any]) -> Optional[tuple[bool, str]]:
     """
     tier = meta.get("tier", "community")
     if tier == "engine":
-        from vllm.sndr_core.license import check_engine_tier_eligible
+        from sndr.license import check_engine_tier_eligible
         result = check_engine_tier_eligible()
         if not result.eligible:
             return False, f"tier=engine: {result.reason}"
@@ -323,7 +323,7 @@ def _resolve_env_override(
         )
     # Still consult config_detect to PRINT the recommendation as info
     try:
-        from vllm.sndr_core.detection.config_detect import recommend
+        from sndr.engines.vllm.detection.config_detect import recommend
         verdict, reason = recommend(patch_id)
         if verdict == "apply":
             return True, f"opt-in env + config recommends apply: {reason}"
@@ -375,7 +375,7 @@ def _resolve_legacy_default_on(
 
     # default_on=True patches still consult config_detect
     try:
-        from vllm.sndr_core.detection.config_detect import recommend
+        from sndr.engines.vllm.detection.config_detect import recommend
         verdict, reason = recommend(patch_id)
         return (
             verdict in ("apply", "neutral"),

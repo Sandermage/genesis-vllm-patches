@@ -48,8 +48,8 @@ from __future__ import annotations
 import logging
 import os
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
-from vllm.sndr_core.core import (
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
+from sndr.kernel import (
     TextPatch,
     TextPatcher,
     TextPatchResult,
@@ -108,7 +108,7 @@ ANCHOR_NEW = (
     "    _genesis_pn59_streaming = globals().get('_GENESIS_PN59_streaming_fn')\n"
     "    if _genesis_pn59_streaming is None:\n"
     "        try:\n"
-    "            from vllm.sndr_core.kernels.streaming_gdn_driver import (\n"
+    "            from sndr.engines.vllm.kernels_legacy.streaming_gdn_driver import (\n"
     "                streaming_chunk_gated_delta_rule_fwd as _genesis_pn59_streaming,\n"
     "            )\n"
     "        except Exception:\n"
@@ -190,7 +190,7 @@ def _make_patcher() -> TextPatcher | None:
 
 
 def apply() -> tuple[str, str]:
-    from vllm.sndr_core.dispatcher import log_decision, should_apply
+    from sndr.dispatcher import log_decision, should_apply
 
     decision, reason = should_apply("PN59")
     log_decision("PN59", decision, reason)

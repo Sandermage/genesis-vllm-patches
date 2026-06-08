@@ -40,8 +40,8 @@ import logging
 _AUDIT_A19_EXEMPT = True  # tightly coupled subpatches
 import os  # noqa: E402  — import after A-19 exemption marker
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root  # noqa: E402
-from vllm.sndr_core.core import (  # noqa: E402
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root  # noqa: E402
+from sndr.kernel import (  # noqa: E402
     TextPatch,
     TextPatcher,
     TextPatchResult,
@@ -71,7 +71,7 @@ PN40_A_REPLACEMENT = (
     "        # else falls through to per-layer ops.rms_norm loop (baseline).\n"
     "        all_k_normed = torch.empty_like(all_k)\n"
     "        try:\n"
-    "            from vllm.sndr_core.kernels.pn40_dflash_omnibus import (\n"
+    "            from sndr.engines.vllm.kernels_legacy.pn40_dflash_omnibus import (\n"
     "                fused_k_norm as _genesis_pn40_fused_k_norm,\n"
     "                is_sub_a_eligible as _genesis_pn40_eligible,\n"
     "            )\n"
@@ -171,7 +171,7 @@ PN40_SCHED_REPLACEMENT = (
     "                # sentinel. v1 observe-only (no runtime K override yet).\n"
     "                # Defensive: never raises (engine hot path).\n"
     "                try:\n"
-    "                    from vllm.sndr_core.kernels.pn40_dflash_omnibus import (\n"
+    "                    from sndr.engines.vllm.kernels_legacy.pn40_dflash_omnibus import (\n"
     "                        pn40_observe_accepted_len as _genesis_pn40_observe,\n"
     "                    )\n"
     "                    _genesis_pn40_spec_method = (\n"
@@ -290,7 +290,7 @@ PN40_K_TRIM_REPLACEMENT = (
     "            # NOTE: Inserted BEFORE P62/P58 hooks (which extend this\n"
     "            # area). Both patches compose additively — see PN40 design.\n"
     "            try:\n"
-    "                from vllm.sndr_core.kernels.pn40_dflash_omnibus import (\n"
+    "                from sndr.engines.vllm.kernels_legacy.pn40_dflash_omnibus import (\n"
     "                    pn40_get_recommended_k as _genesis_pn40_get_k,\n"
     "                    env_enabled as _genesis_pn40_master_enabled,\n"
     "                    sub_c_enabled as _genesis_pn40_sub_c_enabled,\n"
@@ -338,7 +338,7 @@ def apply() -> tuple[str, str]:
     Each sub-patch independently degrades to "skipped" if its target is
     missing — no cascading failure.
     """
-    from vllm.sndr_core.dispatcher import log_decision, should_apply
+    from sndr.dispatcher import log_decision, should_apply
 
     decision, reason = should_apply("PN40")
     log_decision("PN40", decision, reason)
@@ -378,7 +378,7 @@ def apply() -> tuple[str, str]:
     # Sub-D: workload classifier hook (per-request entry point).
     # Lives in middleware/ — different file from sched + DFlash patches.
     try:
-        from vllm.sndr_core.integrations.spec_decode import pn40_workload_classifier_hook
+        from sndr.engines.vllm.patches.spec_decode import pn40_workload_classifier_hook
         cls_status, cls_reason = pn40_workload_classifier_hook.apply()
         # Translate string → fake TextPatchResult for aggregation
         if cls_status == "applied":

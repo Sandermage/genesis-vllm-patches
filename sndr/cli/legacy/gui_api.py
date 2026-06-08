@@ -68,7 +68,7 @@ def add_argparser(subparsers: Any) -> None:
 
 def run_gui_api(args) -> int:
     try:
-        from vllm.sndr_core.product_api.http_app import run_server
+        from sndr.product_api.http_app import run_server
     except RuntimeError as exc:
         print(f"sndr gui-api: {exc}")
         return 3

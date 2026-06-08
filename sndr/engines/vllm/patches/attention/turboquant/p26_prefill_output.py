@@ -45,8 +45,8 @@ from __future__ import annotations
 
 import logging
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
-from vllm.sndr_core.core import (
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
+from sndr.kernel import (
     TextPatch, TextPatcher, TextPatchResult,
 )
 
@@ -74,7 +74,7 @@ _NEW_OUTPUT = (
     "        # [Genesis P26] Shared, profiler-visible prefill output pool.\n"
     "        # First call reserves max_num_batched_tokens × Hq × D (picked up\n"
     "        # by profile_run warmup); subsequent calls return a zeroed slice.\n"
-    "        from vllm.sndr_core.kernels.dequant_buffer import (\n"
+    "        from sndr.engines.vllm.kernels_legacy.dequant_buffer import (\n"
     "            TurboQuantBufferManager as _GenesisTQBuf,\n"
     "        )\n"
     "        output = _GenesisTQBuf.acquire_prefill_output(\n"

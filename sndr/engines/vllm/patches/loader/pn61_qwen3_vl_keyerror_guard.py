@@ -154,7 +154,7 @@ def _wrap_load_weights(original_load_weights):
 
 def apply() -> tuple[str, str]:
     """Apply PN61 — install class-rebind wrapper around qwen3_vl loader."""
-    from vllm.sndr_core.dispatcher import should_apply, log_decision
+    from sndr.dispatcher import should_apply, log_decision
     decision, reason = should_apply("PN61")
     log_decision("PN61", decision, reason)
     if not decision:
