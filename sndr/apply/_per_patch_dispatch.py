@@ -5111,6 +5111,48 @@ def apply_patch_N299_fla_multi_arch_warps() -> PatchResult:
     return _skipped("PN299 FLA multi arch warps", detail)
 
 
+@register_patch("PN353A TurboQuant workspace reserve before CG capture (vendor of OPEN vllm#44053)")
+def apply_patch_N353A_tq_builder_workspace_reserve() -> PatchResult:
+    """PN353A: vendors OPEN PR vllm#44053 (Bot1822). Reserves TQ workspace
+    in TurboQuantMetadataBuilder.__init__ BEFORE CG capture lock. Covers
+    decode mid_o/output/lse buffers + continuation-prefill K/V dequant
+    buffers. Bug present in our pin (__init__ has only super + 1 line).
+    Composes with PN118 (different vector — both grow same workspace).
+    Bug fix, no perf cost. Opt-in via GENESIS_ENABLE_PN353A=1."""
+    from sndr.engines.vllm.patches.attention.turboquant import (
+        pn353a_tq_builder_workspace_reserve as _wiring,
+    )
+    status, detail = _wiring.apply()
+    if status == "applied":
+        return _applied("PN353A TQ workspace reserve", detail)
+    if status == "failed":
+        return _failed("PN353A TQ workspace reserve", detail)
+    return _skipped("PN353A TQ workspace reserve", detail)
+
+
+@register_patch("PN350 Fused GDN Q/K/V split Triton kernel (SGLang#26206 + TRTLLM#12966)")
+def apply_patch_N350_gdn_qkv_fused_split() -> PatchResult:
+    """PN350: convergent port of SGLang #26206 + TRT-LLM #12966 fused
+    GDN post-conv Q/K/V split Triton kernel. Replaces upstream torch.cat-
+    based split (1 full-buffer memcpy + 4-5 ATen launches per layer call)
+    with a single Triton launch (1 read + 3 writes per token row).
+    Per-layer kernel speedup ~5.7× (18.97ms → 3.33ms on B200). End-to-end
+    Qwen3.6-35B-A3B output TPS +2.66 % (SGLang author bench). On Ampere
+    SM 8.6 the per-layer μs savings carry; %-gain compresses to
+    +1-1.5 % single-stream wall_TPS. Strict no-regression fallback on
+    any kernel exception. Opt-in via GENESIS_ENABLE_PN350=1. Composes
+    with PN340 + PN341 + PN345 + PN54 + PN29 + PN204 + P28."""
+    from sndr.engines.vllm.patches.attention.gdn import (
+        pn350_gdn_qkv_fused_split as _wiring,
+    )
+    status, detail = _wiring.apply()
+    if status == "applied":
+        return _applied("PN350 fused GDN QKV split kernel", detail)
+    if status == "failed":
+        return _failed("PN350 fused GDN QKV split kernel", detail)
+    return _skipped("PN350 fused GDN QKV split kernel", detail)
+
+
 @register_patch("PN349 Gemma 4 KV-shared k_norm/v_norm skip (vendor of OPEN vllm#44797)")
 def apply_patch_N349_gemma4_kv_shared_norm_skip() -> PatchResult:
     """PN349: vendors OPEN PR vllm#44797. Gemma4Attention.__init__ now

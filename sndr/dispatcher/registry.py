@@ -3977,6 +3977,48 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "implementation_status": "full",
         "composes_with": ["PN296"],
     },
+    "PN350": {
+        "title": "Fused GDN Q/K/V split Triton kernel (SGLang#26206 + TRT-LLM#12966 convergent)",
+        "tier": "community",
+        "family": "attention.gdn",
+        "env_flag": "GENESIS_ENABLE_PN350",
+        "default_on": False,
+        "apply_module": "sndr.engines.vllm.patches.attention.gdn.pn350_gdn_qkv_fused_split",
+        "lifecycle": "experimental",
+        "category": "kernel_perf",
+        "credit": (
+            "Genesis convergent port of SGLang PR #26206 (Qwen3.6-35B-A3B "
+            "+2.66% output TPS on B200) and TensorRT-LLM PR #12966 — both "
+            "engines independently introduced the same fused GDN post-conv "
+            "Q/K/V split Triton kernel. Replaces upstream "
+            "Qwen3_GatedDeltaNet.rearrange_mixed_qkv torch.cat-based path "
+            "(1 full-buffer memcpy + 4-5 ATen kernel launches per call) "
+            "with a single Triton launch — 1 program per token row, 1 read "
+            "+ 3 writes. Per-layer split time 18.97ms → 3.33ms (5.7× "
+            "kernel speedup, SGLang bench). End-to-end Qwen3.6-35B-A3B "
+            "+2.66% output TPS. On Ampere SM 8.6 the kernel speedup carries "
+            "(memory-bandwidth-bound, no SM-specific intrinsics). Absolute "
+            "μs savings per layer scale with bandwidth ratio (768 GB/s "
+            "A5000 vs 8 TB/s B200 ≈ 10×). As fraction of slower A5000 "
+            "forward → +1-1.5% single-stream wall_TPS estimated. Strict "
+            "no-regression fallback: kernel exception or env "
+            "GENESIS_DISABLE_PN350=1 routes back to upstream cat-based "
+            "split. Kernel module: sndr/engines/vllm/kernels/pn350_gdn_qkv_"
+            "fused_split.py (~80 LOC pure Triton). Integration: 1 text-"
+            "patch on qwen_gdn_linear_attn.py replacing rearrange_mixed_qkv "
+            "body. Shmem budget: 16 KiB per program at qkv_dim=8192 BF16 "
+            "≪ 99 KiB A5000 opt-in. No autotune (single-config kernel). "
+            "Composes with PN340+PN341+PN345 (different files), PN204 "
+            "(in_proj upstream of conv), PN54 (.contiguous() dedup — "
+            "PN350 outputs already contiguous), PN29 (chunk_o downstream), "
+            "P28 (gdn_core pool downstream). No anchor overlap."
+        ),
+        "upstream_pr": 26206,  # SGLang #26206; TRT-LLM #12966 convergent algorithm
+        "upstream_pr_relationship": "backport",
+        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
+        "implementation_status": "full",
+        "composes_with": ["PN340", "PN341", "PN345", "PN204", "PN54", "PN29", "P28"],
+    },
     "PN349": {
         "title": "Gemma 4 KV-shared k_norm/v_norm skip (vendor of OPEN vllm#44797)",
         "tier": "community",
@@ -4042,6 +4084,81 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "implementation_status": "full",
         "composes_with": ["PN29", "PN298", "PN299", "PN299B", "PN299C", "PN299D", "PN299E", "PN345"],
     },
+    "PN353A": {
+        "title": "TurboQuant MetadataBuilder workspace reserve (backport OPEN vllm#44053)",
+        "tier": "community",
+        "family": "attention.turboquant",
+        "env_flag": "GENESIS_ENABLE_PN353A",
+        "default_on": False,
+        "apply_module": "sndr.engines.vllm.patches.attention.turboquant.pn353a_tq_builder_workspace_reserve",
+        "lifecycle": "experimental",
+        "category": "stability",
+        "credit": (
+            "Genesis backport of OPEN vllm#44053 (Bot1822, 2026-06-04, "
+            "supersedes #40798). Closes long-context "
+            "AssertionError: workspace locked, cannot grow on TQ + chunked "
+            "prefill. Reserves max decode + continuation-prefill scratch "
+            "from TurboQuantMetadataBuilder.__init__ BEFORE CUDA-graph "
+            "capture lock. Composes additively with PN118 (PN118 covers "
+            "per-ubatch decode slots via its custom reserve(); PN353A "
+            "covers continuation-prefill K/V dequant buffers PN118 misses, "
+            "plus reserves via stock get_simultaneous so it does not "
+            "require PN118's WorkspaceManager method additions). Direct "
+            "hit for our PROD 35B-A3B FP8 + MTP K=3 + TQ k8v4 + 320K ctx."
+        ),
+        "upstream_pr": 44053,
+        "upstream_pr_relationship": "backport",
+        "applies_to": {
+            "is_turboquant": True,
+            "vllm_version_range": (">=0.21.0", "<0.23.0"),
+        },
+        "implementation_status": "full",
+        "composes_with": ["PN118", "PN353B"],
+        "conflicts_with": [],
+    },
+    "PN353B": {
+        "title": "TurboQuant prefill CUDA-graph capture safety (backport OPEN vllm#43747, closes vllm#40807)",
+        "tier": "community",
+        "family": "attention.turboquant",
+        "env_flag": "GENESIS_ENABLE_PN353B",
+        "default_on": False,
+        "apply_module": "sndr.engines.vllm.patches.attention.turboquant.pn353b_tq_prefill_cg_capture_safety",
+        "lifecycle": "experimental",
+        "category": "spec_decode",
+        "credit": (
+            "Genesis backport of OPEN vllm#43747 (oneraghavan, 2026-05-15) "
+            "closing vllm#40807 (noonghunna). Three coupled fixes for the "
+            "engine-init crash on TQ + MTP + chunked-prefill (our exact "
+            "PROD config): (1) downgrade _cudagraph_support from "
+            "UNIFORM_BATCH to UNIFORM_SINGLE_TOKEN_DECODE so spec-decode "
+            "K+1 verify batches fall to PIECEWISE instead of hitting the "
+            "continuation .tolist() crash; (2) build_for_cudagraph_capture "
+            "always populates seq_lens_cpu / query_start_loc_cpu so "
+            "_prefill_attention reads from CPU tensors even on the "
+            "fallback branch; (3) defense-in-depth zero-return in "
+            "_prefill_attention continuation when "
+            "torch.cuda.is_current_stream_capturing() is True. Conflicts "
+            "with P65 (P65 also downgrades the same ClassVar via a "
+            "classmethod approach; P65 is DEFAULT OFF so no live conflict "
+            "today). Supersedes-in-effect: with PN353B applied, P65's "
+            "downgrade is redundant. Composes with P78 Sites C/D/E "
+            "(P78 covers Site E forward-path while PN353B covers "
+            "build_for_cudagraph_capture + continuation early-return — "
+            "different methods, additive). Composes with PN116 / P101 "
+            "(different code paths). Risk LOW-MEDIUM: ~5-8 %% TPS hit "
+            "on K+1 batches but crash without it. Direct hit for our "
+            "PROD 35B-A3B FP8 + MTP K=3 + TQ k8v4."
+        ),
+        "upstream_pr": 43747,
+        "upstream_pr_relationship": "backport",
+        "applies_to": {
+            "is_turboquant": True,
+            "vllm_version_range": (">=0.21.0", "<0.23.0"),
+        },
+        "implementation_status": "full",
+        "composes_with": ["P78", "P101", "PN116", "PN118", "PN353A"],
+        "conflicts_with": ["P65"],
+    },
     "PN361": {
         "title": "Spec-decode fail-closed on missing draft probs (vendor of OPEN vllm#44869)",
         "tier": "community",
@@ -4072,6 +4189,43 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
         "implementation_status": "full",
         "composes_with": ["PN340", "PN341"],
+    },
+    "PN357": {
+        "title": "Optimize remapped greedy draft token selection (vendor of OPEN vllm#43349)",
+        "tier": "community",
+        "family": "spec_decode",
+        "env_flag": "GENESIS_ENABLE_PN357",
+        "default_on": False,
+        "apply_module": "sndr.engines.vllm.patches.spec_decode.pn357_draft_greedy_speedup",
+        "lifecycle": "experimental",
+        "category": "spec_decode",
+        "credit": (
+            "Genesis vendor of OPEN PR vllm#43349 (yewentao256, 2026-06-XX). "
+            "Bypasses dense [N_tokens, target_vocab] scatter in greedy "
+            "spec-decode draft path for Eagle3 / DFlash / Eagle3-DeepSeek "
+            "models that use draft_id_to_target_id remap. Replaces "
+            "compute_logits().argmax() with argmax-in-draft-vocab + "
+            "remap-add. Bit-identical to prior path (PR author "
+            "mismatch_count tests). Author measures 37-81% kernel speedup "
+            "across batch 16-1024 on Llama_eagle3. Adds class attribute "
+            "supports_remapped_top_tokens=True + new get_top_tokens method "
+            "+ proposer-side auto-resolver for use_local_argmax_reduction. "
+            "MTP IMPACT: zero — MTP draft model has no draft_id_to_target_id "
+            "(shares target lm_head), so auto-resolver returns False and "
+            "the existing MTP path is unchanged. Patch is INSURANCE for "
+            "when we A/B 27B + DFlash drafting. Supersedes PN22's "
+            "if-fallback branch when both are on (PN357 detects PN22 "
+            "marker and swaps the dense-scatter fallback). Composes with "
+            "PN22, PN340, PN341, PN348, PN361. Disable via "
+            "GENESIS_DISABLE_PN357=1. Auto-no-op when vllm#43349 merges "
+            "(drift markers on supports_remapped_top_tokens class attr "
+            "and _resolve_local_argmax_reduction method name)."
+        ),
+        "upstream_pr": 43349,
+        "upstream_pr_relationship": "backport",
+        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
+        "implementation_status": "full",
+        "composes_with": ["PN22", "PN340", "PN341", "PN348", "PN361"],
     },
     "PN346": {
         "title": "Mamba/GDN cache hit boundary fix for MTP + prefix caching (vendor of OPEN vllm#43650)",
