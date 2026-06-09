@@ -565,6 +565,19 @@ KNOWN_GOOD_VLLM_PINS: tuple[str, ...] = (
     "0.22.1rc1.dev195+gda1daf40b",
     "0.22.1rc1.dev195+gda1daf40bf18e5eaae04f26a80a537c8168a8bc2",
     "nightly-da1daf40bf18e5eaae04f26a80a537c8168a8bc2",
+    # ── PROD pin K.1.R.R.8.5 ratified 2026-06-09 ───────────────────────
+    # Image: vllm/vllm-openai:nightly-303916e93 (sha256:bf610c2f5...)
+    # PROD container: vllm-qwen3.6-35b-balanced-k3 on sander@192.168.1.10
+    # Session 2026-06-09: shipped PN340/341/345/346/347/348/350/361 (text-
+    # patches verified via runtime probe) + PN126/128/130 (warmup, runtime
+    # log evidence in Worker_TP* logs). PN50 re-anchored against the
+    # split_ba helper (vllm#41126 rename). Sustained bench: wall_TPS
+    # 218.56 (best in session, +18.56 vs 199 start), TPOT 4.464 ms,
+    # Stability CV 0.41 %.
+    "0.22.1rc1.dev259+g303916e93",
+    "0.22.1rc1.dev259+g303916e93d66",
+    "nightly-303916e93",
+    "nightly-303916e93d66",
 )
 
 

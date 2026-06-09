@@ -4508,7 +4508,12 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "upstream_issue": 44110,
         "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
         "implementation_status": "full",
-        "composes_with": ["PN77", "PN81", "PN91", "PN91B", "P87"],
+        # Composes with: PN77 (FP8 lm_head — different layer), P81 (FP8 block-
+        # scaled M≤8 — different branch), P91/P91B (AutoRound INT4 — different
+        # scheme), P87 (Marlin INT4 sub-tile pad — different kernel). NO overlap.
+        # Fixed 2026-06-09: previous list referenced PN81/PN91/PN91B which do
+        # not exist (correct prefixes are P, not PN).
+        "composes_with": ["PN77", "P81", "P91", "P91B", "P87"],
     },
     "PN348": {
         "title": "Qwen3.5/3.6 MTP backbone dedup (vendor of OPEN vllm#44644) — ~1 GiB/worker freed",
@@ -4897,7 +4902,10 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "upstream_pr": "https://github.com/vllm-project/vllm/pull/43543",
         "applies_to": {},
         "implementation_status": "full",
-        "composes_with": ["PN293", "PN295"],
+        # Fixed 2026-06-09: removed PN295 (never landed; was planned follow-up
+        # but no module exists in registry). Composes with PN293 only — the
+        # PR43543 cold-path skip companion.
+        "composes_with": ["PN293"],
     },
     "PN293": {
         "title": "mamba_attn _compute_common_metadata prefill fast-path (vllm#42430 cold-path skip)",

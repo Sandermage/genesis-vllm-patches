@@ -1,19 +1,29 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""Wave 10 back-compat shim — genesis_bench_suite.py moved into sndr_core.
+"""Back-compat shim — genesis_bench_suite.py moved into sndr/.
 
-The canonical file is now at:
-    vllm/sndr_core/tools/genesis_bench_suite.py
+History:
+* Wave 10 (2026-05-15): moved from ``tools/`` into ``vllm/sndr_core/tools/``
+  inside the legacy ``vllm.sndr_core`` namespace.
+* Wave 12 (2026-06-01+): ``vllm/sndr_core/`` was removed from the wheel;
+  the canonical file lives at ``sndr/extras/tools/genesis_bench_suite.py``.
 
 This shim preserves the legacy operator UX so existing commands still work:
     python3 tools/genesis_bench_suite.py --quick
     bash some_old_script.sh                              # which calls the above
 
-It loads the real script from the new canonical location and forwards argv.
-If the canonical file is missing (slim deployment), it falls back to a
-helpful error pointing at docs/BENCHMARK_GUIDE.md.
+Search order (tried in sequence; first hit wins):
 
-Sander 2026-05-15.
+  1. ``sndr/extras/tools/genesis_bench_suite.py`` — Wave 12+ canonical
+  2. ``vllm/sndr_core/tools/genesis_bench_suite.py`` — legacy bind-mount
+  3. ``sndr_private/archive/v11_vllm_sndr_core_shims/tools/genesis_bench_suite.py``
+     — archived v11 copy (only present on dev box)
+
+Fix history: updated 2026-06-09 to add the Wave 12+ canonical path.
+
+For new bench harness see ``tools/genesis_full_bench.py`` (richer
+multi-metric report — runs decode-TPOT, sustained aggregate, stability
+CV, quality regression and tool-call regression in one pass).
 """
 from __future__ import annotations
 
@@ -24,10 +34,19 @@ from pathlib import Path
 
 def _find_real_script() -> Path | None:
     here = Path(__file__).resolve().parent  # repo/tools/
-    # repo/vllm/sndr_core/tools/genesis_bench_suite.py
-    canonical = here.parent / "vllm" / "sndr_core" / "tools" / "genesis_bench_suite.py"
-    if canonical.is_file():
-        return canonical
+    repo = here.parent
+    candidates = [
+        # Wave 12+ canonical (2026-06-01+)
+        repo / "sndr" / "extras" / "tools" / "genesis_bench_suite.py",
+        # Wave 10 legacy (2026-05-15 ← removed in Wave 12)
+        repo / "vllm" / "sndr_core" / "tools" / "genesis_bench_suite.py",
+        # v11 archive (only on dev box, not committed to wheel)
+        repo / "sndr_private" / "archive" / "v11_vllm_sndr_core_shims"
+             / "tools" / "genesis_bench_suite.py",
+    ]
+    for c in candidates:
+        if c.is_file():
+            return c
     return None
 
 
@@ -35,11 +54,12 @@ def main() -> int:
     target = _find_real_script()
     if target is None:
         sys.stderr.write(
-            "ERROR: canonical genesis_bench_suite.py not found at "
-            "vllm/sndr_core/tools/genesis_bench_suite.py.\n"
-            "Genesis Wave 10 (2026-05-15) moved this script INSIDE the\n"
-            "sndr_core package. See docs/BENCHMARK_GUIDE.md for the new\n"
-            "invocation, or use: python3 -m vllm.sndr_core.compat.cli bench …\n"
+            "ERROR: canonical genesis_bench_suite.py not found at any of:\n"
+            "  - sndr/extras/tools/genesis_bench_suite.py  (Wave 12+ canonical)\n"
+            "  - vllm/sndr_core/tools/genesis_bench_suite.py  (Wave 10 legacy)\n"
+            "Genesis Wave 12 (2026-06-01+) removed vllm/sndr_core/ from the\n"
+            "wheel. See docs/BENCHMARK_GUIDE.md or use:\n"
+            "  python3 tools/genesis_full_bench.py  (multi-metric harness)\n"
         )
         return 2
 
