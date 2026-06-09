@@ -104,7 +104,19 @@ log = logging.getLogger("genesis.wiring.pn364_hybrid_gdn_mamba_warmup")
 
 GENESIS_PN364_MARKER = "_genesis_pn364_hybrid_gdn_warmup_installed"
 
-_WRAPPER_INSTALLED = False
+# NOTE 2026-06-09: removed module-level ``_WRAPPER_INSTALLED`` global.
+# It used to gate apply()'s early-return as an idempotency check, but
+# module state is inherited across ``fork()`` in multiprocessing — the
+# parent process set it True, child Worker subprocesses inherited True
+# but had a FRESH unwrapped Worker class, so the early-return prevented
+# wrap installation on the actually-running engine workers. This was the
+# root cause of PN364 reporting "applied=True" in boot trace while
+# emitting zero ``[PN364] Pass`` log lines from Worker_TP* processes.
+#
+# Idempotency now uses the per-class ``GENESIS_PN364_MARKER`` attr on
+# Worker.compile_or_warm_up_model, which is correctly per-process
+# (a fresh Worker class in each subprocess has no marker until apply()
+# wraps it in THAT process).
 
 
 def _is_hybrid_gdn_model(model) -> bool:
@@ -112,21 +124,57 @@ def _is_hybrid_gdn_model(model) -> bool:
 
     PR43642 ships ``has_hybrid_gdn_mamba_mrope()`` in
     ``vllm.model_executor.warmup.kernel_warmup``. Since that helper
-    doesn't exist in our pin, we duck-type detect by walking the model
-    looking for ``GatedDeltaNet`` or ``MambaMixer`` attributes.
+    doesn't exist in our pin, we duck-type detect by walking the model.
+
+    CRITICAL FIX 2026-06-09 (silent failure root cause #2):
+
+    Original substring match against an exact-name set:
+
+        gdn_signatures = {
+            "Qwen3GatedDeltaNet",     # NOT in our pin (renamed)
+            "Qwen3_5GatedDeltaNet",   # NOT in our pin (renamed)
+            "GatedDeltaNet",          # NOT in our pin (different shape)
+            "MambaMixer",
+            "MambaMixer2",
+        }
+        return bool(cls_names & gdn_signatures)
+
+    Real class names in our pin (verified 2026-06-09):
+      * QwenGatedDeltaNetAttention  (Qwen3.5/3.6 GDN attention)
+      * GatedDeltaNetAttention      (base class)
+      * OlmoHybridGatedDeltaNetAttention
+      * KimiGatedDeltaNetAttention
+      * ChunkGatedDeltaRule
+
+    Note the ``Attention`` suffix — every concrete class has it. Our
+    old exact-match set NEVER fired on the real pin → auto-skip
+    "non-hybrid-GDN model" branch always taken → ``_do_extra_warmups``
+    never called → silent failure (no ``[PN364] Pass`` logs ever
+    emitted from Worker_TP processes).
+
+    Fix: use substring match on the ``GatedDelta`` / ``Mamba`` stem so
+    naming drift on minor refactors doesn't break the detection.
     """
     try:
         cls_names = {type(m).__name__ for m in model.modules()}
-    except Exception:  # noqa: BLE001
+    except Exception as e:  # noqa: BLE001
+        log.info(
+            "[PN364] _is_hybrid_gdn_model: model.modules() failed (%r); "
+            "treating as non-hybrid",
+            e,
+        )
         return False
-    gdn_signatures = {
-        "Qwen3GatedDeltaNet",
-        "Qwen3_5GatedDeltaNet",
-        "GatedDeltaNet",
-        "MambaMixer",
-        "MambaMixer2",
-    }
-    return bool(cls_names & gdn_signatures)
+    # Substring stems: any module class name containing these is a GDN
+    # or Mamba layer. Robust to vllm renames (vllm#41126 split base, etc.).
+    gdn_stems = ("GatedDelta", "Mamba")
+    has_gdn = any(any(stem in cn for stem in gdn_stems) for cn in cls_names)
+    if not has_gdn:
+        log.info(
+            "[PN364] _is_hybrid_gdn_model: no GatedDelta/Mamba class found "
+            "in model module tree; sample class names: %s",
+            sorted(cls_names)[:8],
+        )
+    return has_gdn
 
 
 def _do_extra_warmups(worker) -> None:
@@ -238,23 +286,32 @@ def _wrap_compile_or_warm_up(worker_cls) -> None:
         return
 
     def wrapped(self, *args, **kwargs):
+        # CRITICAL: log entry FIRST so operator can verify the wrap fires.
+        # Previously all early-exits used log.debug (invisible at INFO
+        # level) which made it impossible to distinguish "wrap fires +
+        # auto-skips" from "wrap never fires". One of the two PN364
+        # silent-failure root causes uncovered 2026-06-09.
+        log.info("[PN364] wrapped compile_or_warm_up_model called")
         result = original(self, *args, **kwargs)
-        # Auto-skip conditions
+        # Auto-skip conditions — all logged at INFO so we can see them.
         if os.environ.get("VLLM_USE_V2_MODEL_RUNNER", "").strip() == "1":
-            log.debug("[PN364] V2 model runner detected — V2 has builtin warmup; skip")
+            log.info("[PN364] auto-skip: V2 model runner detected (has builtin warmup)")
             return result
         if self.model_config is not None and self.model_config.enforce_eager:
-            log.debug("[PN364] enforce_eager=True — skip")
+            log.info("[PN364] auto-skip: enforce_eager=True (no cudagraphs to warm)")
             return result
         try:
             model = self.model_runner.model
             if not _is_hybrid_gdn_model(model):
-                log.debug(
-                    "[PN364] non-hybrid-GDN model — skip GDN-specific warmup"
+                log.info(
+                    "[PN364] auto-skip: non-hybrid-GDN model — "
+                    "GDN-specific warmup not applicable"
                 )
                 return result
-        except Exception:  # noqa: BLE001
-            log.debug("[PN364] could not introspect model — skip")
+        except Exception as e:  # noqa: BLE001
+            log.info(
+                "[PN364] auto-skip: could not introspect model — %r", e
+            )
             return result
 
         log.info("[PN364] running extra hybrid-GDN-Mamba warmup passes")
@@ -278,24 +335,73 @@ def _env_disabled() -> bool:
 
 
 def apply() -> tuple[str, str]:
-    """Install PN364 wrapper on Worker.compile_or_warm_up_model."""
-    global _WRAPPER_INSTALLED
+    """Install PN364 wrapper on Worker.compile_or_warm_up_model.
+
+    CRITICAL FIX 2026-06-09 (silent failure root cause):
+
+    Prior version used a module-level ``_WRAPPER_INSTALLED`` global as
+    the idempotency check BEFORE importing the Worker class:
+
+        if _WRAPPER_INSTALLED:
+            return "applied", "..."  # early return
+
+    Bug: Python multiprocessing ``fork()`` copies module state. Parent
+    process apply() sets _WRAPPER_INSTALLED=True. Worker subprocesses
+    fork from a state where _WRAPPER_INSTALLED is already True but the
+    Worker class in the child process is FRESH (per-process class
+    object). The early-return prevents the wrap from being installed
+    on the worker's Worker class → ``compile_or_warm_up_model`` runs
+    UNWRAPPED in workers → no ``[PN364] Pass`` log lines → silent
+    failure.
+
+    Runtime probe (``tools/verify_patches_runtime.py``) caught this in
+    Iter N+5 by checking for the wrap marker attr on
+    Worker.compile_or_warm_up_model and finding it absent.
+
+    Comparison with PN126/PN128/PN130 (all WORK): they all check the
+    Worker class marker FIRST, not a module-level flag. Their
+    idempotency is per-class (fresh in each child process), not
+    per-module-state (inherited across fork).
+
+    Fix: drop ``_WRAPPER_INSTALLED`` early-return entirely. The
+    ``_wrap_compile_or_warm_up`` helper already has its own
+    per-class idempotency check via ``GENESIS_PN364_MARKER`` —
+    that's the only correct one.
+    """
     if _env_disabled():
         return "skipped", "PN364 disabled via GENESIS_DISABLE_PN364=1"
-
-    if _WRAPPER_INSTALLED:
-        return "applied", "PN364 wrapper already installed (idempotent)"
 
     try:
         from vllm.v1.worker.gpu_worker import Worker as V1Worker
     except ImportError as e:
-        return "failed", f"PN364: cannot import vllm.v1.worker.gpu_worker.Worker — {e!r}"
+        return "failed", (
+            f"PN364: cannot import vllm.v1.worker.gpu_worker.Worker — {e!r}"
+        )
+
+    # Per-class idempotency check FIRST (works across fork — Worker class
+    # is a fresh object in each subprocess; the wrap marker attr lives on
+    # the bound method, not module state).
+    target = V1Worker.compile_or_warm_up_model
+    if getattr(target, GENESIS_PN364_MARKER, False):
+        return "applied", (
+            "PN364 already wrapped (idempotent) — wrap marker present "
+            "on Worker.compile_or_warm_up_model in this process."
+        )
 
     try:
         _wrap_compile_or_warm_up(V1Worker)
-        _WRAPPER_INSTALLED = True
     except Exception as e:  # noqa: BLE001
         return "failed", f"PN364: wrapper install raised {e!r}"
+
+    # Verify the wrap actually took effect (defensive — would catch any
+    # silent setattr failure on a frozen / __slots__ class).
+    if not getattr(V1Worker.compile_or_warm_up_model, GENESIS_PN364_MARKER, False):
+        return "failed", (
+            "PN364: setattr completed but wrap marker is NOT visible on "
+            "V1Worker.compile_or_warm_up_model afterwards — possible class "
+            "freezing / __slots__ rejection. Investigate vllm Worker class "
+            "shape."
+        )
 
     return "applied", (
         "PN364 installed: extra warmup passes wired into "
@@ -310,9 +416,13 @@ def apply() -> tuple[str, str]:
 
 
 def is_applied() -> bool:
-    """Detect via attribute on the installed wrapper."""
-    if _WRAPPER_INSTALLED:
-        return True
+    """Detect via attribute on the wrapped method, NOT module state.
+
+    Critical: module state (``_WRAPPER_INSTALLED``) is inherited across
+    ``fork()`` and gives false positives in worker subprocesses where
+    the actual Worker class is fresh and unwrapped. The wrap marker on
+    the bound method is the only reliable per-process signal.
+    """
     try:
         from vllm.v1.worker.gpu_worker import Worker as V1Worker
     except ImportError:
