@@ -4071,6 +4071,45 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "implementation_status": "full",
         "composes_with": ["PN340", "PN341", "PN345", "PN204", "PN54", "PN29", "P28"],
     },
+    "PN352": {
+        "title": "Triton moe_sum for unsupported topk (counterpart of OPEN vllm#44557)",
+        "tier": "community",
+        "family": "moe",
+        "env_flag": "GENESIS_ENABLE_PN352",
+        "default_on": False,
+        "apply_module": "sndr.engines.vllm.patches.moe.pn352_moe_sum_topk8",
+        "lifecycle": "experimental",
+        "category": "kernel_perf",
+        "credit": (
+            "Genesis counterpart of OPEN vllm PR #44557 (xyang16, 'Support "
+            "more topk values in moe_sum kernel'). The PR extends the "
+            "compiled CUDA switch in csrc/moe/moe_align_sum_kernels.cu — "
+            "unvendorable onto a prebuilt nightly wheel — so Genesis ships "
+            "the equivalent as a Triton kernel routed from the single hot "
+            "Python call site (fused_experts -> ops.moe_sum). Verified at "
+            "pin g303916e93: the compiled switch covers topk 2/3/4 only; "
+            "topk=8 (Qwen3.6-35B-A3B num_experts_per_tok=8, 40 layers) "
+            "falls back to at::sum_out generic TensorIterator reduce per "
+            "layer per step. PR author measures ~-700 us per decode step "
+            "on a 40-layer topk=8 MoE; est -1-3 % decode TPOT on our "
+            "shape. fp32 accumulation (ATen acc_type parity for "
+            "half/bf16). Text install is always-on (runtime branch is "
+            "env-gated and bit-equivalent when GENESIS_ENABLE_PN352 is "
+            "unset); GENESIS_DISABLE_PN352_INSTALL=1 skips even the text "
+            "for hygiene. Single-strike disable on any Triton failure -> "
+            "upstream fallback. Iron-rule-#12 log on first hot-path call. "
+            "Self-skips when upstream lands moe_sum_kernel<scalar_t, 8> "
+            "(drift marker). Kernel: sndr/engines/vllm/kernels_legacy/"
+            "pn352_moe_sum_topk.py. Composes with P24 (fused_moe config "
+            "overlay — different site), PN96b (Marlin workspace), P31 "
+            "(router softmax)."
+        ),
+        "upstream_pr": 44557,
+        "upstream_pr_relationship": "counterpart",
+        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
+        "implementation_status": "full",
+        "composes_with": ["P24", "PN96b", "P31"],
+    },
     "PN365": {
         "title": "Fused GDN qkv|z|b|a single-GEMM input projection (port of OPEN vllm#42746)",
         "tier": "community",

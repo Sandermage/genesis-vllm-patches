@@ -5179,6 +5179,29 @@ def apply_patch_N350_gdn_qkv_fused_split() -> PatchResult:
     return _skipped("PN350 fused GDN QKV split kernel", detail)
 
 
+@register_patch("PN352 Triton moe_sum for unsupported topk (counterpart of OPEN vllm#44557)")
+def apply_patch_N352_moe_sum_topk8() -> PatchResult:
+    """PN352: routes moe_sum for topk not in (2,3,4) through a Genesis
+    Triton kernel instead of the compiled op's at::sum_out fallback.
+    Counterpart of OPEN vllm#44557 (csrc change — unvendorable on a
+    prebuilt wheel). Direct hit on Qwen3.6-35B-A3B: num_experts_per_tok=8
+    x 40 layers — every MoE layer's reduction takes the generic
+    TensorIterator path today. PR author: ~-700 us/decode step on a
+    40-layer topk=8 MoE; est -1-3 % decode TPOT on our shape. Text
+    install always-on (runtime branch env-gated via
+    GENESIS_ENABLE_PN352, bit-equivalent when unset). fp32 accumulate.
+    Single-strike disable -> upstream fallback on any Triton failure."""
+    from sndr.engines.vllm.patches.moe import (
+        pn352_moe_sum_topk8 as _wiring,
+    )
+    status, detail = _wiring.apply()
+    if status == "applied":
+        return _applied("PN352 triton moe_sum topk8", detail)
+    if status == "failed":
+        return _failed("PN352 triton moe_sum topk8", detail)
+    return _skipped("PN352 triton moe_sum topk8", detail)
+
+
 @register_patch("PN365 Fused GDN qkv|z|b|a single-GEMM input projection (port of OPEN vllm#42746)")
 def apply_patch_N365_gdn_qkvz_ba_fuse_gemm() -> PatchResult:
     """PN365: collapses the 2 GDN input GEMMs (in_proj_qkvz + in_proj_ba)

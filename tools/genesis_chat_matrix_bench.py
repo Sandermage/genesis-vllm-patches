@@ -59,16 +59,26 @@ def _sse_stream(url: str, api_key: str, payload: dict, timeout: float = 600.0):
 
 
 def measure_chat(base_url: str, api_key: str, payload: dict):
-    """One streaming chat request -> dict(ttft_ms, tpot_ms, wall_tps, tokens)."""
+    """One streaming chat request -> dict(ttft_ms, tpot_ms, wall_tps, tokens).
+
+    Token counts come from the final `usage` chunk (stream_options), NOT
+    from counting SSE deltas — with MTP spec-decode one delta can carry
+    several accepted tokens, so chunk-count understates tokens ~3x.
+    """
     url = base_url.rstrip("/") + "/chat/completions"
     payload = dict(payload)
     payload["stream"] = True
+    payload["stream_options"] = {"include_usage": True}
     t0 = time.perf_counter()
     first = None
     last = None
     n_chunks = 0
     finish = None
+    completion_tokens = None
     for t, data in _sse_stream(url, api_key, payload):
+        usage = data.get("usage")
+        if usage and usage.get("completion_tokens"):
+            completion_tokens = usage["completion_tokens"]
         choices = data.get("choices") or []
         if not choices:
             continue
@@ -85,8 +95,7 @@ def measure_chat(base_url: str, api_key: str, payload: dict):
     ttft = first - t0
     decode_s = last - first
     wall = last - t0
-    # chunks ~= tokens for vLLM streaming (1 token per delta)
-    tokens = n_chunks
+    tokens = completion_tokens or n_chunks
     return {
         "ttft_ms": ttft * 1e3,
         "tpot_ms": (decode_s / max(tokens - 1, 1)) * 1e3,
