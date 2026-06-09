@@ -121,6 +121,34 @@ HOT_PATH_PATCHES = [
      "Genesis PN361",
      None),
 
+    # PN50 — GDN proj fusion text-patch (re-anchored 2026-06-09 against
+    # vllm#41126 split_ba helper rename).
+    ("PN50",
+     "vllm.model_executor.layers.mamba.gdn.qwen_gdn_linear_attn",
+     None,
+     "Genesis PN50",
+     None),
+
+    # PN353A — TQ workspace reserve (drift-skipped per agent finding;
+    # upstream may have absorbed equivalent). We still probe for marker
+    # in case it lands.
+    ("PN353A",
+     "vllm.v1.attention.backends.turboquant_attn",
+     None,
+     "Genesis PN353A",
+     None),
+
+    # PN362 — env_override.py text-patch. Install code is gated by
+    # VLLM_TRITON_FORCE_FIRST_CONFIG=1 (not set in PROD by design —
+    # this is a bench-A/B reproducibility tool, not a PROD perf knob).
+    # The text-patch marker should be present in env_override.py module
+    # file even when the env trigger is off.
+    ("PN362",
+     "vllm.env_override",
+     None,
+     "Genesis PN362",
+     None),
+
     # PN364 — hybrid GDN/Mamba warmup wrapper.
     # Hook lives on the V1 Worker class — verify via class attr.
     # NOTE: monkey-patch wrap attr is PER-PROCESS. docker exec creates a
@@ -146,9 +174,14 @@ BEHAVIORAL_EVIDENCE = {
     "PN128": ["[PN128] num_reqs", "[PN128] spec-decode helper warmup complete"],
     # Note: PN130 uses unicode ✓ in log but grep on it through ssh-quote
     # is unreliable. Use a stable substring instead.
-    "PN130": ["[PN130] TQ decode warmup", "[PN130] starting TQ decode warmup"],
+    "PN129": ["[PN129] starting slot_mapping warmup"],
+    "PN130": ["[PN130] starting TQ decode warmup"],
     "PN364": ["[PN364] wrapped compile_or_warm_up_model called",
               "[PN364] Pass 1 done"],
+    # PN50 — text-patch on qwen_gdn_linear_attn.py (re-anchored 2026-06-09
+    # against split_ba helper rename from vllm#41126). Boot trace evidence
+    # is the apply_all log line, not a per-call hot-path log.
+    "PN50":  ["PN50 applied: GDN proj fusion active"],
 }
 
 
