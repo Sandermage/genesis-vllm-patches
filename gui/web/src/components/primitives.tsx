@@ -4,6 +4,7 @@
 // no behavior change.
 import { type ReactNode } from "react";
 import { CheckCircle2, CircleAlert } from "lucide-react";
+import { tr } from "../i18n";
 
 /** Readiness-gate status shared by RailCheck and the launch-plan gate logic. */
 export type GateStatus = "pass" | "warning" | "blocked" | "planned";
@@ -43,7 +44,7 @@ export function CompactList({ rows }: { rows: Array<[string, string]> }) {
           <span>{label}</span>
           <strong>{value}</strong>
         </div>
-      )) : <p className="muted">No rows for this view.</p>}
+      )) : <p className="muted">{tr("No rows for this view.")}</p>}
     </div>
   );
 }

@@ -281,10 +281,10 @@ function NodeCard({ n, lang }: { n: ProxmoxNode; lang: Lang }) {
       {d?.available ? (
         <div className="px-node-facts">
           {d.cpu_model ? <span title="CPU"><Cpu size={11} /> {d.cpu_model.replace(/\s*\d+-Core Processor/i, "")}{d.cpu_cores ? ` · ${d.cpu_cores}c/${d.cpu_threads}t` : ""}</span> : null}
-          {d.kernel ? <span title="kernel"><Layers size={11} /> {d.kernel}</span> : null}
-          {d.loadavg.length === 3 ? <span title="load 1 / 5 / 15 min"><Activity size={11} /> {d.loadavg.join(" ")}</span> : null}
-          {d.swap_total ? <span title="swap">swap {fmtBytes(d.swap_used)} / {fmtBytes(d.swap_total)}</span> : null}
-          {d.gpus.length > 0 ? <span title="GPUs on host"><Boxes size={11} /> {d.gpus.join(" · ")}</span> : null}
+          {d.kernel ? <span title={tr("kernel")}><Layers size={11} /> {d.kernel}</span> : null}
+          {d.loadavg.length === 3 ? <span title={tr("load 1 / 5 / 15 min")}><Activity size={11} /> {d.loadavg.join(" ")}</span> : null}
+          {d.swap_total ? <span title={tr("swap")}>swap {fmtBytes(d.swap_used)} / {fmtBytes(d.swap_total)}</span> : null}
+          {d.gpus.length > 0 ? <span title={tr("GPUs on host")}><Boxes size={11} /> {d.gpus.join(" · ")}</span> : null}
         </div>
       ) : null}
     </div>
@@ -339,8 +339,8 @@ function GuestCard({ g, lang }: { g: ProxmoxGuest; lang: Lang }) {
         <Meter label={`${t(lang, "common.cpu")} · ${g.cpu_cores ?? "?"}c`} pct={g.cpu_pct} text={g.cpu_pct == null ? "—" : `${g.cpu_pct.toFixed(0)}%`} />
         <Meter label={t(lang, "common.memory")} pct={g.mem_pct} text={`${fmtBytes(g.mem_used)} / ${fmtBytes(g.mem_total)}`} />
         <div className="px-guest-io">
-          <span title="network in / out"><Network size={10} /> ↓{fmtBytes(g.net_in)} ↑{fmtBytes(g.net_out)}</span>
-          <span title="disk read / write"><HardDrive size={10} /> r{fmtBytes(g.disk_read)} w{fmtBytes(g.disk_write)}</span>
+          <span title={tr("network in / out")}><Network size={10} /> ↓{fmtBytes(g.net_in)} ↑{fmtBytes(g.net_out)}</span>
+          <span title={tr("disk read / write")}><HardDrive size={10} /> r{fmtBytes(g.disk_read)} w{fmtBytes(g.disk_write)}</span>
           <span title="uptime">{fmtUptime(g.uptime)}</span>
         </div>
       </div>
@@ -427,7 +427,7 @@ function ProxmoxDeploy({ lang }: { lang: Lang }) {
       <Explain text={t(lang, "virt.pxCreateBody")} />
       <div className="px-create-form">
         <label className="px-field"><span>{t(lang, "virt.preset")}</span>
-          <select value={preset} onChange={(e) => { setPreset(e.target.value); setPlan(null); }} aria-label="Preset to provision">
+          <select value={preset} onChange={(e) => { setPreset(e.target.value); setPlan(null); }} aria-label={tr("Preset to provision")}>
             {presets.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
           </select>
         </label>

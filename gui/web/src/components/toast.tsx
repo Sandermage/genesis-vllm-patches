@@ -4,6 +4,7 @@
 // (modularization) with no behavior change.
 import { useEffect, useState } from "react";
 import { CheckCircle2, AlertCircle, Activity, X } from "lucide-react";
+import { tr } from "../i18n";
 
 export type ToastTone = "info" | "success" | "error";
 
@@ -27,7 +28,7 @@ export function ToastHost() {
   }, []);
   if (items.length === 0) return null;
   return (
-    <div className="toast-host" role="region" aria-label="Notifications">
+    <div className="toast-host" role="region" aria-label={tr("Notifications")}>
       {items.map((item) => (
         // Errors announce assertively (role=alert); success/info politely
         // (role=status). The per-toast role carries the right aria-live, so the
@@ -35,7 +36,7 @@ export function ToastHost() {
         <div key={item.id} className={`toast toast-${item.tone}`} role={item.tone === "error" ? "alert" : "status"} aria-atomic="true">
           {item.tone === "success" ? <CheckCircle2 size={15} /> : item.tone === "error" ? <AlertCircle size={15} /> : <Activity size={15} />}
           <span>{item.message}</span>
-          <button className="icon-only" onClick={() => setItems((prev) => prev.filter((x) => x.id !== item.id))} aria-label="Dismiss"><X size={13} /></button>
+          <button className="icon-only" onClick={() => setItems((prev) => prev.filter((x) => x.id !== item.id))} aria-label={tr("Dismiss")}><X size={13} /></button>
         </div>
       ))}
     </div>

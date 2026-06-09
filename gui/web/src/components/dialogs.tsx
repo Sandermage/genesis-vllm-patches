@@ -4,9 +4,10 @@
 // (modularization) with no behavior change.
 import { useRef, type ReactNode } from "react";
 import { AlertTriangle, Command, X } from "lucide-react";
+import { tr } from "../i18n";
 import { useDialogFocus, useEscapeKey, closeOnBackdrop } from "../dialog";
 
-export function ConfirmDialog({ title, message, confirmLabel = "Confirm", danger, onConfirm, onCancel }: {
+export function ConfirmDialog({ title, message, confirmLabel, danger, onConfirm, onCancel }: {
   title: string;
   message: ReactNode;
   confirmLabel?: string;
@@ -26,8 +27,8 @@ export function ConfirmDialog({ title, message, confirmLabel = "Confirm", danger
         </div>
         <p>{message}</p>
         <div className="confirm-actions">
-          <button className="ghost-button" onClick={onCancel} autoFocus>Cancel</button>
-          <button className={`primary-action${danger ? " danger" : ""}`} onClick={onConfirm}>{confirmLabel}</button>
+          <button className="ghost-button" onClick={onCancel} autoFocus>{tr("Cancel")}</button>
+          <button className={`primary-action${danger ? " danger" : ""}`} onClick={onConfirm}>{confirmLabel ? tr(confirmLabel) : tr("Confirm")}</button>
         </div>
       </section>
     </div>
@@ -40,13 +41,13 @@ export function InfoDialog({ message, onClose }: { message: string; onClose: () 
   useEscapeKey(onClose);
   return (
     <div className="dialog-backdrop" role="presentation" onClick={closeOnBackdrop(onClose)}>
-      <section ref={dialogRef} className="info-dialog" role="dialog" aria-modal="true" aria-label="GUI Action Preview">
+      <section ref={dialogRef} className="info-dialog" role="dialog" aria-modal="true" aria-label={tr("GUI Action Preview")}>
         <div className="module-card-title">
           <Command size={18} />
-          <h2>GUI Action Preview</h2>
+          <h2>{tr("GUI Action Preview")}</h2>
         </div>
         <p>{message}</p>
-        <button className="primary-action" onClick={onClose}>Close</button>
+        <button className="primary-action" onClick={onClose}>{tr("Close")}</button>
       </section>
     </div>
   );
@@ -57,36 +58,36 @@ export function ShortcutsModal({ onClose }: { onClose: () => void }) {
   const dialogRef = useRef<HTMLElement>(null);
   useDialogFocus(dialogRef);
   const groups: Array<{ title: string; rows: Array<[string[], string]> }> = [
-    { title: "Global", rows: [
-      [["⌘", "K"], "Open command palette"],
-      [["?"], "Toggle this shortcuts help"],
-      [["Esc"], "Close palette / dialog"],
+    { title: tr("Global"), rows: [
+      [["⌘", "K"], tr("Open command palette")],
+      [["?"], tr("Toggle this shortcuts help")],
+      [["Esc"], tr("Close palette / dialog")],
     ] },
-    { title: "Command palette", rows: [
-      [["↑", "↓"], "Move between results"],
-      [["↵"], "Run highlighted result"],
+    { title: tr("Command palette"), rows: [
+      [["↑", "↓"], tr("Move between results")],
+      [["↵"], tr("Run highlighted result")],
     ] },
-    { title: "Go to (press g, then…)", rows: [
-      [["g", "o"], "Overview"],
-      [["g", "s"], "Setup"],
-      [["g", "f"], "Fleet"],
-      [["g", "h"], "Hosts"],
-      [["g", "m"], "Models"],
-      [["g", "c"], "Configs"],
-      [["g", "p"], "Presets"],
-      [["g", "n"], "Containers"],
-      [["g", "d"], "Doctor"],
-      [["g", "l"], "Launch Plan"],
-      [["g", "b"], "Benchmarks"],
+    { title: tr("Go to (press g, then…)"), rows: [
+      [["g", "o"], tr("Overview")],
+      [["g", "s"], tr("Setup")],
+      [["g", "f"], tr("Fleet")],
+      [["g", "h"], tr("Hosts")],
+      [["g", "m"], tr("Models")],
+      [["g", "c"], tr("Configs")],
+      [["g", "p"], tr("Presets")],
+      [["g", "n"], tr("Containers")],
+      [["g", "d"], tr("Doctor")],
+      [["g", "l"], tr("Launch Plan")],
+      [["g", "b"], tr("Benchmarks")],
     ] },
   ];
   return (
     <div className="dialog-backdrop" role="presentation" onClick={closeOnBackdrop(onClose)}>
-      <section ref={dialogRef} className="shortcuts-dialog" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts">
+      <section ref={dialogRef} className="shortcuts-dialog" role="dialog" aria-modal="true" aria-label={tr("Keyboard shortcuts")}>
         <div className="shortcuts-head">
           <Command size={16} />
-          <strong>Keyboard shortcuts</strong>
-          <button className="icon-only" onClick={onClose} aria-label="Close"><X size={15} /></button>
+          <strong>{tr("Keyboard shortcuts")}</strong>
+          <button className="icon-only" onClick={onClose} aria-label={tr("Close")}><X size={15} /></button>
         </div>
         <div className="shortcuts-grid">
           {groups.map((group) => (

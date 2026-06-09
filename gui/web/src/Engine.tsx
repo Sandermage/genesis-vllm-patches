@@ -255,7 +255,7 @@ export function ModelManagementPanel() {
       </table>
 
       <div className="hub-search">
-        <h4><Search size={14} /> Hugging Face Hub</h4>
+        <h4><Search size={14} /> {tr("Hugging Face Hub")}</h4>
         <form className="hub-search-bar" onSubmit={searchHub}>
           <input
             aria-label={tr("Search Hugging Face Hub")}

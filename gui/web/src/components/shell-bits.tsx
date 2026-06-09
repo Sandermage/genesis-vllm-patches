@@ -3,6 +3,7 @@
 // header, tab intro banner and a code-tabs viewer. Extracted from App.tsx
 // (modularization) with no behavior change.
 import { useState, type ReactNode } from "react";
+import { tr } from "../i18n";
 import { CodeBlock } from "./code-block";
 
 export function Step({
@@ -102,7 +103,7 @@ export function CodeTabs({ tabs }: { tabs: Array<{ id: string; label: string; li
   const current = tabs.find((tab) => tab.id === active) ?? tabs[0];
   return (
     <div className="code-tabs">
-      <div className="code-tabs-bar" role="tablist" aria-label="Code view">
+      <div className="code-tabs-bar" role="tablist" aria-label={tr("Code view")}>
         {tabs.map((tab) => (
           <button
             key={tab.id}

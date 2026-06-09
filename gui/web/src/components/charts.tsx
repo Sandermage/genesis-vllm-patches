@@ -3,6 +3,7 @@
 // Props-only, no closure/data deps. Extracted from App.tsx (modularization)
 // with no behavior change.
 import { type ReactNode } from "react";
+import { tr } from "../i18n";
 
 export const CHART_PALETTE = [
   "var(--accent)",
@@ -33,7 +34,7 @@ export function SegmentBar({
         <strong>{total}</strong>
         <span>{totalLabel}</span>
       </div>
-      <div className="segment-track" role="img" aria-label={`${totalLabel} distribution`}>
+      <div className="segment-track" role="img" aria-label={`${totalLabel} ${tr("distribution")}`}>
         {segments.map((seg, index) => (
           <span
             key={seg.label}

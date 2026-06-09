@@ -3,6 +3,7 @@
 // (modularization) with no behavior change.
 import { useEffect, useRef, useState } from "react";
 import { CheckCircle2, Copy, Maximize2, Terminal, X } from "lucide-react";
+import { tr } from "../i18n";
 import { useDialogFocus, closeOnBackdrop } from "../dialog";
 
 export function CopyButton({ value, label }: { value: string; label: string }) {
@@ -20,8 +21,8 @@ export function CopyButton({ value, label }: { value: string; label: string }) {
     <button
       className={`icon-only ${done ? "done" : ""}`}
       onClick={() => void copy()}
-      aria-label={`Copy ${label}`}
-      title={`Copy ${label}`}
+      aria-label={`${tr("Copy")} ${tr(label)}`}
+      title={`${tr("Copy")} ${tr(label)}`}
     >
       {done ? <CheckCircle2 size={14} /> : <Copy size={14} />}
     </button>
@@ -44,20 +45,20 @@ export function CodeBlock({ lines, title }: { lines: string[]; title?: string })
     <>
       <div className="code-wrap">
         <div className="code-actions">
-          <button className="icon-only" title="Expand" aria-label="Expand to fullscreen" onClick={() => setExpanded(true)}><Maximize2 size={13} /></button>
+          <button className="icon-only" title={tr("Expand")} aria-label={tr("Expand to fullscreen")} onClick={() => setExpanded(true)}><Maximize2 size={13} /></button>
           <CopyButton value={joined} label="code block" />
         </div>
         <pre className="code-block">{body}</pre>
       </div>
       {expanded && (
         <div className="dialog-backdrop" role="presentation" onClick={closeOnBackdrop(() => setExpanded(false))}>
-          <section ref={dialogRef} className="code-expand" role="dialog" aria-modal="true" aria-label={`${title ?? "Output"} — expanded`}>
+          <section ref={dialogRef} className="code-expand" role="dialog" aria-modal="true" aria-label={`${title ?? tr("Output")} — ${tr("expanded")}`}>
             <header className="code-expand-head">
               <Terminal size={15} />
-              <strong>{title ?? "Output"}</strong>
-              <span className="muted">{lines.length} lines</span>
+              <strong>{title ?? tr("Output")}</strong>
+              <span className="muted">{lines.length} {tr("lines")}</span>
               <CopyButton value={joined} label="code block" />
-              <button className="icon-only" onClick={() => setExpanded(false)} aria-label="Close"><X size={16} /></button>
+              <button className="icon-only" onClick={() => setExpanded(false)} aria-label={tr("Close")}><X size={16} /></button>
             </header>
             <pre className="code-block code-expand-pre">{body}</pre>
           </section>

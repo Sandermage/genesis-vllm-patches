@@ -3,6 +3,7 @@
 // and the launch-artifact tabbed preview. Extracted from App.tsx (modularization)
 // with no behavior change.
 import { type LaunchPlanArtifact } from "../api";
+import { tr } from "../i18n";
 import { CodeBlock } from "./code-block";
 
 /** Which launch-plan artifact tab is shown in ArtifactPreview. */
@@ -40,22 +41,22 @@ export function ArtifactPreview({
   );
   const activeArtifact = artifactByKind.get(activeTab);
   const tabs: Array<{ id: ArtifactTab; label: string }> = [
-    { id: "compose", label: "Compose" },
-    { id: "systemd", label: "systemd Unit" },
-    { id: "commands", label: "CLI Commands" },
-    { id: "env", label: "Environment Diff" }
+    { id: "compose", label: tr("Compose") },
+    { id: "systemd", label: tr("systemd Unit") },
+    { id: "commands", label: tr("CLI Commands") },
+    { id: "env", label: tr("Environment Diff") }
   ];
   const fallback = [
     "# Waiting for launch plan Product API",
     "# Backend endpoint: /api/v1/launch/plan",
     "# Generated artifacts are intentionally not composed in React."
   ].join("\n");
-  const title = activeArtifact?.title ?? "Product API Artifact";
+  const title = activeArtifact?.title ?? tr("Product API Artifact");
   const content = activeArtifact?.content ?? fallback;
 
   return (
     <section className="artifact-preview">
-      <div className="artifact-tabs" role="tablist" aria-label="Launch artifact">
+      <div className="artifact-tabs" role="tablist" aria-label={tr("Launch artifact")}>
         {tabs.map((tab) => (
           <button
             role="tab"
