@@ -141,29 +141,71 @@ _INIT_WRAPPED_ATTR = "_genesis_p28_init_wrapped"
 
 # Candidate class names across vLLM versions. Older baselines named the
 # class `GatedDeltaNet`; post-2026-04 renamed to `GatedDeltaNetAttention`
-# (to reflect the PluggableLayer / MambaBase mixin). We try both and use
-# whichever imports cleanly.
-_CANDIDATE_CLASS_NAMES = ("GatedDeltaNetAttention", "GatedDeltaNet")
+# (to reflect the PluggableLayer / MambaBase mixin); 2026-05+ upstream
+# split per-model (Qwen / Olmo / Kimi) with shared base `GatedDeltaNetAttention`
+# in `mamba.gdn.base`.
+# MODEL-SPECIFIC subclasses come FIRST — their __init__ sets per-model
+# attrs (num_v_heads, head_v_dim) that attach_buffer reads. If we resolved
+# the shared base class (GatedDeltaNetAttention) by mistake, the wrap
+# would fire BEFORE the subclass __init__ assigns those attrs.
+_CANDIDATE_CLASS_NAMES = (
+    "QwenGatedDeltaNetAttention",
+    "OlmoGatedDeltaNetAttention",
+    "KimiGatedDeltaNetAttention",
+    "GatedDeltaNetAttention",  # shared base / legacy single-file fallback
+    "GatedDeltaNet",           # pre-2026 name
+)
+
+# Candidate module paths, newest first. MUST wrap a class whose
+# __init__ actually sets `num_v_heads` / `head_v_dim` on the instance
+# (those are checked by attach_buffer). The 2026-05+ split moved those
+# attribute assignments into PER-MODEL subclasses (e.g.
+# QwenGatedDeltaNetAttention.__init__ sets them; the shared base does
+# NOT). Wrapping the base would fire BEFORE the subclass sets attrs,
+# so attach_buffer would always log "module missing num_v_heads/head_v_dim".
+# Order matters: try concrete subclasses first.
+_CANDIDATE_MODULES = (
+    "vllm.model_executor.layers.mamba.gdn.qwen_gdn_linear_attn",
+    "vllm.model_executor.layers.mamba.gdn.olmo_gdn_linear_attn",
+    "vllm.model_executor.layers.mamba.gdn.kimi_gdn_linear_attn",
+    "vllm.model_executor.layers.mamba.gdn.base",          # legacy fallback
+    "vllm.model_executor.layers.mamba.gdn_linear_attn",   # pre-2026 single file
+)
 
 
 def _resolve_gdn_class():
-    """Import the GDN class, trying known names. Returns class or None."""
-    try:
-        import importlib
-        mod = importlib.import_module(
-            "vllm.model_executor.layers.mamba.gdn_linear_attn"
-        )
-    except Exception as e:
-        log.info("[Genesis P28] gdn_linear_attn module not importable: %s", e)
-        return None
-    for name in _CANDIDATE_CLASS_NAMES:
-        cls = getattr(mod, name, None)
-        if cls is not None:
-            return cls
-    log.info(
-        "[Genesis P28] none of %s found in gdn_linear_attn "
-        "(upstream may have renamed the class — update _CANDIDATE_CLASS_NAMES)",
-        list(_CANDIDATE_CLASS_NAMES),
+    """Import the GDN class. Returns first match across known module
+    paths × class names, or None.
+
+    Fix (2026-06-09): pin 0.22.1rc1.dev259+ split GDN into per-model
+    files under `mamba.gdn.*`. Previously hardcoded the legacy single-
+    file path; the runtime resolver silently returned None so the
+    __init__ wrap never installed and `_genesis_gdn_core_attn_buf`
+    was never attached. The text-patched `forward_cuda` then fell
+    back to eager `torch.empty_like` allocation per call on the GDN
+    decode hot path (30 layers × 1 per token).
+    """
+    import importlib
+    last_err = None
+    for mod_path in _CANDIDATE_MODULES:
+        try:
+            mod = importlib.import_module(mod_path)
+        except Exception as e:  # noqa: BLE001
+            last_err = e
+            continue
+        for cls_name in _CANDIDATE_CLASS_NAMES:
+            cls = getattr(mod, cls_name, None)
+            if cls is not None:
+                log.info(
+                    "[Genesis P28] resolved %s.%s for __init__ wrap",
+                    mod_path, cls_name,
+                )
+                return cls
+    log.warning(
+        "[Genesis P28] no GDN class found across modules %s × names %s "
+        "(last error: %s) — __init__ wrap CANNOT install, decode hot path "
+        "will fall back to eager allocation",
+        list(_CANDIDATE_MODULES), list(_CANDIDATE_CLASS_NAMES), last_err,
     )
     return None
 
