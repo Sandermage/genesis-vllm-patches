@@ -609,6 +609,42 @@ def apply() -> tuple[str, str]:
             "Set GENESIS_ENABLE_PN204_DUAL_STREAM_INPROJ=0 and restart.",
         )
 
+    # FP8 + Marlin incompatibility guard (2026-06-10, learned the hard way
+    # on PROD: crash-loop at weight load).
+    #
+    # Upstream itself notes "ba_proj doesn't support blockwise fp8
+    # quantization" — in FP8 checkpoints the ba projection stays
+    # UNQUANTIZED while qkvz is FP8. Fusing both into one
+    # MergedColumnParallelLinear forces a single quant treatment; on the
+    # Ampere Marlin path prepare_fp8_layer_for_marlin() then repacks the
+    # fused weight whose per-TP shard N = (12288 + 64) / tp = 6176 is NOT
+    # divisible by Marlin tile_n_size=64:
+    #   RuntimeError: size_n = 6176 is not divisible by tile_n_size = 64
+    # (gptq_marlin_repack, marlin_utils_fp8.py:127). Boot dies in a loop.
+    #
+    # vllm#42746's author bench was NVFP4 on sm_120 — a quant path where
+    # the fused layout packs cleanly. Until the port grows an FP8-aware
+    # layout (e.g. pad ba shard to 64 or keep ba unquantized inside the
+    # merged Linear), refuse the fusion whenever the model quant config
+    # is FP8 — the Marlin repack constraint makes it unbootable on
+    # SM 8.6/8.9 and silently risky elsewhere.
+    try:
+        from vllm.config import get_current_vllm_config
+        _cfg = get_current_vllm_config()
+        _quant = getattr(getattr(_cfg, "model_config", None),
+                         "quantization", None)
+    except Exception:  # noqa: BLE001
+        _quant = None
+    if _quant is not None and "fp8" in str(_quant).lower():
+        return "skipped", (
+            "PN365 refused on FP8-quantized model: fused qkvz+ba shard "
+            "N=6176 violates Marlin tile_n_size=64 divisibility "
+            "(gptq_marlin_repack RuntimeError at weight load; ba_proj is "
+            "unquantized in FP8 checkpoints by upstream design). "
+            "vllm#42746 targets NVFP4 — port needs an FP8-aware layout "
+            "before it can fuse here."
+        )
+
     gdn_patcher = _make_gdn_patcher()
     if gdn_patcher is None:
         return "skipped", (
