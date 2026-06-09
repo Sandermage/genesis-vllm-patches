@@ -51,13 +51,6 @@ export default tseslint.config(
     },
   },
   {
-    // Tests may use non-null assertions and looser typing freely.
-    files: ["**/*.{test,spec}.{ts,tsx}", "e2e/**/*.ts"],
-    rules: {
-      "@typescript-eslint/no-non-null-assertion": "off",
-    },
-  },
-  {
     // Node dev scripts (screenshot sweep, etc.) — Node globals, not browser.
     files: ["scripts/**/*.{mjs,js,ts}"],
     languageOptions: { globals: { ...globals.node } },

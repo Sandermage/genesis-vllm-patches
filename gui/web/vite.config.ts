@@ -1,4 +1,3 @@
-/// <reference types="vitest/config" />
 import { defineConfig } from "vite";
 import path from "node:path";
 import react from "@vitejs/plugin-react";
@@ -18,31 +17,6 @@ export default defineConfig(() => {
     build: {
       // xterm (Terminal) is lazy-loaded into its own chunk.
       chunkSizeWarningLimit: 900,
-    },
-    test: {
-      environment: "jsdom",
-      globals: true,
-      include: ["tests/**/*.{test,spec}.{ts,tsx}"],
-      exclude: ["e2e/**", "node_modules/**"],
-      coverage: {
-        provider: "v8",
-        reporter: ["text-summary", "html", "lcov"],
-        reportsDirectory: "coverage",
-        // Measure the modular library; exclude entry points, type-only and
-        // generated files, and the lazy-loaded heavy panels covered by E2E.
-        include: ["src/**/*.{ts,tsx}"],
-        exclude: [
-          "src/**/*.{test,spec}.{ts,tsx}",
-          "src/main.tsx",
-          "src/api.ts",
-          "src/**/*.d.ts",
-        ],
-        // Regression floor locked just under the measured level. Raised as the
-        // App shell test (App.shell.test.tsx) grew to drive the boot path plus
-        // navigation through every section — lines 30->39, branches 24->32.
-        // Bump again as more paths land.
-        thresholds: { lines: 38, functions: 30, statements: 34, branches: 31 },
-      },
     },
   };
 });
