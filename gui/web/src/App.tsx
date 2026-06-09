@@ -773,7 +773,7 @@ export default function App() {
   useEffect(() => {
     if (!settings.autoRefresh) return;
     const id = window.setInterval(() => {
-      void loadAll();
+      if (!document.hidden) void loadAll();
     }, AUTO_REFRESH_INTERVAL_MS);
     return () => window.clearInterval(id);
     // Re-arm the interval only when the toggle changes; loadAll reads the

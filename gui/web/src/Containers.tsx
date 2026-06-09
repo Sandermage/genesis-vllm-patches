@@ -1275,7 +1275,7 @@ function ProcessesTab({ source, name, online }: { source: ContainerSource; name:
     api.containerTop(source, name).then((d) => setData({ titles: d.titles, processes: d.processes })).catch((e) => setErr(e instanceof Error ? e.message : String(e)));
   }, [source, name]);
   useEffect(() => { if (online) load(); }, [load, online]);
-  useEffect(() => { if (!live || !online) return; const t = window.setInterval(load, 2500); return () => window.clearInterval(t); }, [live, online, load]);
+  useEffect(() => { if (!live || !online) return; const t = window.setInterval(() => { if (!document.hidden) load(); }, 2500); return () => window.clearInterval(t); }, [live, online, load]);
   if (!online) return <NotRunning />;
   if (err) return <ErrBox msg={err} />;
   if (!data) return <Loading />;

@@ -15,7 +15,7 @@ export function NumberField({ label, value, onChange }: { label: string; value: 
   return (
     <label className="param-field">
       <span>{label}</span>
-      <input type="number" value={value} onChange={(event) => onChange(Number(event.target.value))} />
+      <input type="number" value={value} onChange={(event) => { const n = Number(event.target.value); if (Number.isFinite(n)) onChange(n); }} />
     </label>
   );
 }

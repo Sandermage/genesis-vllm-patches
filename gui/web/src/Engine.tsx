@@ -24,7 +24,17 @@ function usePoll<T>(fetcher: () => Promise<T>, intervalMs: number, enabled = tru
   useEffect(() => {
     if (!enabled) return;
     let cancelled = false;
-    const tick = () => saved.current().then((value) => { if (!cancelled) { setData(value); setLoading(false); } }).catch(() => { if (!cancelled) setLoading(false); });
+    let inFlight = false;
+    // Skip ticks while the tab is hidden or a prior request is still pending —
+    // avoids polling a backgrounded tab and stacking requests on a slow engine.
+    const tick = () => {
+      if (inFlight || document.hidden) return;
+      inFlight = true;
+      saved.current()
+        .then((value) => { if (!cancelled) { setData(value); setLoading(false); } })
+        .catch(() => { if (!cancelled) setLoading(false); })
+        .finally(() => { inFlight = false; });
+    };
     tick();
     const id = setInterval(tick, intervalMs);
     return () => { cancelled = true; clearInterval(id); };
@@ -625,7 +635,10 @@ function loadChatState(): { conversations: Conversation[]; activeId: string; set
 
 // Mirror App.tsx's toast bus without importing across the module boundary.
 function chatToast(message: string, tone: "info" | "ok" | "warn" | "danger" = "info") {
-  window.dispatchEvent(new CustomEvent("sndr-toast", { detail: { message, tone, id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}` } }));
+  // Map the local tone vocabulary onto ToastHost's ToastTone, else ok/warn/danger
+  // render with the neutral info icon and an unstyled class.
+  const mapped = tone === "ok" ? "success" : tone === "danger" ? "error" : "info";
+  window.dispatchEvent(new CustomEvent("sndr-toast", { detail: { message, tone: mapped, id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}` } }));
 }
 
 const PROJECT_SUGGESTIONS = [

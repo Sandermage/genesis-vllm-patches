@@ -244,6 +244,13 @@ def create_app(
     # SNDR_GUI_TOKEN still works as a service/API bearer token.
     auth_config = _install_auth(app, bind_host=bind_host, apply_on=apply_on)
 
+    # gzip the static bundle (index JS ~650 KB → ~190 KB) and every JSON
+    # response. Added before CORS so CORS/security headers wrap it (the body is
+    # compressed inside; the headers they add are not). minimum_size skips tiny
+    # payloads where the gzip framing would cost more than it saves.
+    from starlette.middleware.gzip import GZipMiddleware  # noqa: PLC0415
+    app.add_middleware(GZipMiddleware, minimum_size=512)
+
     if allowed_origins is not None:
         # CORS is installed LAST so it is the OUTERMOST middleware — it must wrap
         # the auth middleware so even a 401 (auth-required) response carries the
