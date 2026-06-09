@@ -374,6 +374,57 @@ PN365_FWD_SPLIT_NEW = (
 
 
 # =============================================================================
+# Anchor C (PN50-aware variant) — v2 2026-06-10.
+#
+# On files where PN50 (SGLang#21019 fused split kernel) is text-applied,
+# the else-branch of the split block is PN50's `_pn50_fused(...)` call, so
+# the pristine PN365_FWD_SPLIT_OLD anchor cannot match. Compose the
+# PN50-state anchor from the upstream if-side + PN50's own ANCHOR_NEW
+# (imported — single source of truth, no text duplication). The NEW text
+# wraps the whole composed block in the same short-circuit guard; PN50's
+# kernel still runs on the non-fused path. When PN365's fused path ran,
+# both the interleaved split AND PN50's kernel are skipped — the
+# single-GEMM split already produced mixed_qkv, z, b, a.
+#
+# Discovered via PROD anchor pre-verification 2026-06-10: B2 was blocked
+# by PN50 text (and B by dormant PN204 residue — reverted separately;
+# see docs/superpowers/journal/2026-06-10-* "stale text-patch residue").
+# =============================================================================
+from sndr.engines.vllm.patches.attention.gdn.pn50_gdn_fused_proj import (
+    ANCHOR_NEW as _PN50_ELSE_NEW,
+)
+
+_PN365_FWD_SPLIT_IF_SIDE = (
+    "        if self.gqa_interleaved_layout:\n"
+    "            # Qwen3-Next: unpack the interleaved GQA layout\n"
+    "            query, key, value, z, b, a = self.fix_query_key_value_ordering(\n"
+    "                mixed_qkvz, ba\n"
+    "            )\n"
+    "            query, key, value = map(\n"
+    "                lambda x: rearrange(x, \"l p d -> l (p d)\"), (query, key, value)\n"
+    "            )\n"
+    "            mixed_qkv = torch.cat((query, key, value), dim=-1)\n"
+)
+
+# PN50's ANCHOR_NEW carries no trailing newline — normalize on compose.
+PN365_FWD_SPLIT_OLD_PN50 = _PN365_FWD_SPLIT_IF_SIDE + _PN50_ELSE_NEW + "\n"
+
+
+def _indent4(text: str) -> str:
+    """Indent every non-blank line by 4 spaces (guard-wrapping helper)."""
+    return "".join(
+        ("    " + line if line.strip() else line)
+        for line in text.splitlines(keepends=True)
+    )
+
+
+PN365_FWD_SPLIT_NEW_PN50 = (
+    "        if not _g_pn365_short_circuit:\n"
+    + _indent4(PN365_FWD_SPLIT_OLD_PN50)
+)
+
+
+# =============================================================================
 # Anchor D: Qwen3_5Model.load_weights — extend stacked_params_mapping.
 #
 # We add the fused mapping entries when ANY GDN layer was built with the
@@ -465,6 +516,28 @@ def _make_gdn_patcher() -> TextPatcher | None:
     target = resolve_vllm_file(_GDN_TARGET_REL)
     if target is None:
         return None
+
+    # v2 (2026-06-10): the split block has TWO possible on-disk states —
+    # pristine upstream, or PN50-patched (fused split kernel). Select the
+    # matching anchor pair by inspecting the target content. PN50 applies
+    # at an earlier ordinal than PN365, so on a PN50-enabled deployment
+    # the PN50 state is what this builder sees.
+    split_old, split_new = PN365_FWD_SPLIT_OLD, PN365_FWD_SPLIT_NEW
+    try:
+        content = open(target, encoding="utf-8").read()
+        if (PN365_FWD_SPLIT_OLD not in content
+                and PN365_FWD_SPLIT_OLD_PN50 in content):
+            split_old, split_new = (
+                PN365_FWD_SPLIT_OLD_PN50, PN365_FWD_SPLIT_NEW_PN50,
+            )
+            log.info(
+                "[PN365] split block is PN50-patched — using PN50-aware "
+                "anchor variant for pn365_fwd_cuda_split_shortcircuit"
+            )
+    except OSError as e:
+        log.warning("[PN365] could not pre-read %s (%s) — using pristine "
+                    "anchor variant", target, e)
+
     return TextPatcher(
         patch_name=(
             "PN365 qwen_gdn_linear_attn.py — fused qkv|z|b|a single-GEMM "
@@ -487,8 +560,8 @@ def _make_gdn_patcher() -> TextPatcher | None:
             ),
             TextPatch(
                 name="pn365_fwd_cuda_split_shortcircuit",
-                anchor=PN365_FWD_SPLIT_OLD,
-                replacement=PN365_FWD_SPLIT_NEW,
+                anchor=split_old,
+                replacement=split_new,
                 required=True,
             ),
         ],
