@@ -5111,6 +5111,30 @@ def apply_patch_N299_fla_multi_arch_warps() -> PatchResult:
     return _skipped("PN299 FLA multi arch warps", detail)
 
 
+@register_patch("PN345 Shmem-aware Triton autotune pruner (vendor of OPEN vllm#43047)")
+def apply_patch_N345_shmem_aware_autotune_pruner() -> PatchResult:
+    """PN345: vendors OPEN PR vllm#43047 (shmem-aware autotune pruner)
+    on chunk_delta_h.py + chunk_o.py FLA kernels. Adds a precise
+    per-config + per-num_stages shmem-budget filter via Triton's
+    early_config_prune hook. On A5000 (99 KiB opt-in budget), drops
+    configs that would OOR at JIT time (e.g. BV=64 BT=64 num_stages=4
+    needs 160 KiB > 99 KiB). 4 sub-patches across 2 files.
+    Composes with PN298+PN299+PN299B+PN299C+PN299D+PN299E (those are
+    coarse env-based warps cap on 6 OTHER files; no anchor overlap).
+    Closes vllm#36598 + partially #38918 + #36802 + #41063 + #32826.
+    Opt-in via GENESIS_ENABLE_PN345=1. Author claim +3-7% GDN prefill
+    TPS on SM_120; A5000 SM 8.6 same budget so win expected to carry."""
+    from sndr.engines.vllm.patches.attention.gdn import (
+        pn345_shmem_aware_autotune_pruner as _wiring,
+    )
+    status, detail = _wiring.apply()
+    if status == "applied":
+        return _applied("PN345 shmem-aware autotune pruner", detail)
+    if status == "failed":
+        return _failed("PN345 shmem-aware autotune pruner", detail)
+    return _skipped("PN345 shmem-aware autotune pruner", detail)
+
+
 @register_patch("PN341 MTP decode bubbles in gpu_model_runner (vendor of OPEN vllm#43955)")
 def apply_patch_N341_mtp_decode_bubbles_gpu_runner() -> PatchResult:
     """PN341: vendors the gpu_model_runner.py portion of OPEN PR

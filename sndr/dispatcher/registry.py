@@ -3977,6 +3977,48 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "implementation_status": "full",
         "composes_with": ["PN296"],
     },
+    "PN345": {
+        "title": "Shmem-aware Triton autotune pruner (vendor of vllm#43047) for FLA chunk kernels",
+        "tier": "community",
+        "family": "attention.gdn",
+        "env_flag": "GENESIS_ENABLE_PN345",
+        "default_on": False,
+        "apply_module": "sndr.engines.vllm.patches.attention.gdn.pn345_shmem_aware_autotune_pruner",
+        "lifecycle": "experimental",
+        "category": "kernel_perf",
+        "credit": (
+            "Genesis vendoring of OPEN upstream PR vllm#43047 (shmem-aware "
+            "autotune pruner). Triton autotune configs in chunk_delta_h.py "
+            "and chunk_o.py were tuned for the largest opt-in shared-memory "
+            "budget H100/H200 support (228 KiB). Smaller-budget GPUs hit "
+            "triton.runtime.errors.OutOfResources at JIT time on configs "
+            "that don't fit: Turing T4 ~64 KiB, Ampere A100 ~163 KiB, "
+            "consumer Ampere A5000/3090 ~99 KiB (VERIFIED via "
+            "torch.cuda.get_device_properties.shared_memory_per_block_optin "
+            "= 101376 bytes on our PROD), Blackwell SM_120 ~99 KiB. "
+            "Concrete math: chunk_gated_delta_rule_fwd_kernel_h_blockdim64 "
+            "at BV=64 BT=64 num_stages=4 needs 4*64*64*4 (persistent fp32 "
+            "b_h) + 4*(2*64*64*2 + 64*64*2) (per-stage bf16 b_w/b_k/b_v) "
+            "+ 4096 = 160 KiB — exceeds A5000 budget by 64 KiB. The pruner "
+            "drops it; smaller BV=32 num_stages=2 config (76 KiB) survives. "
+            "Same shape for chunk_fwd_kernel_o. Author's SM_120 bench "
+            "claims +3-7% GDN prefill TPS. We inline a minimal helper "
+            "(~30 LOC) into each file as text-patch (no new file). Four "
+            "sub-patches total across 2 files. STRICTLY DIFFERENT FROM "
+            "Genesis PN298+PN299+PN299B+PN299C+PN299D+PN299E coarse "
+            "env-based warps cap on 6 OTHER files — no anchor overlap, "
+            "approaches compose (PN29x coarse pre-filter + PN345 precise "
+            "shmem-budget filter). Closes upstream #36598; partially "
+            "addresses #38918 + #36802 + #41063 + #32826. Risk: low "
+            "(no-op when configs fit; on estimator failure keeps config). "
+            "Composes with PN125 + PN204 + PN286 + PN340 + PN341 + PN29x."
+        ),
+        "upstream_pr": 43047,
+        "upstream_pr_relationship": "backport",
+        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
+        "implementation_status": "full",
+        "composes_with": ["PN125", "PN204", "PN286", "PN340", "PN341"],
+    },
     "PN341": {
         "title": "MTP decode bubbles reduction in gpu_model_runner (vendor of vllm#43955, sister to PN340)",
         "tier": "community",
