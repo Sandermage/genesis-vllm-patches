@@ -27,7 +27,7 @@ and copy the markdown into the iteration's journal entry.
 Six measurement blocks
 ======================
 
-1. **Per-request decode bench** (serial, max_tokens=200, n=50)
+1. **Per-request decode bench** (serial, max_tokens=int(GLOBAL_MAX_TOKENS), n=50)
    Methodology: thc1006 ``bench_decode_tpot_clean_ab.py`` style.
    Reports: decode_TPOT_ms (the fair MTP A/B metric), wall_TPS
    per-request, TTFT, accept_rate. Single-stream — what an
@@ -107,6 +107,10 @@ QUALITY_PROMPTS = [
     ("recall",   "Define TCP, UDP, and HTTP/2 in one paragraph each."),
 ]
 QUALITY_PROMPT_TEXTS = [p for _, p in QUALITY_PROMPTS]
+
+# Default decode-length. Override via --max-tokens at CLI. Affects whether
+# wall_TPS is TTFT-amortized (long tokens) or TTFT-dominated (short tokens).
+GLOBAL_MAX_TOKENS = 200
 
 TOOL_PROMPT = "What's the weather in Odessa, Ukraine right now?"
 TOOL_SPEC = [{
@@ -272,7 +276,7 @@ def block1_per_request_decode(url: str, api_key: str, model: str,
     results: list[StreamResult] = []
     for trial in range(runs):
         for kind, prompt in QUALITY_PROMPTS:
-            r = _fire_streaming(url, api_key, model, prompt, kind, max_tokens=200)
+            r = _fire_streaming(url, api_key, model, prompt, kind, max_tokens=int(GLOBAL_MAX_TOKENS))
             results.append(r)
     ok = [r for r in results if r.error is None and r.completion_tokens > 0]
     if not ok:
@@ -582,10 +586,17 @@ def main() -> int:
                          "for faster iteration")
     ap.add_argument("--full", action="store_true",
                     help="Run everything; overrides --quick")
+    ap.add_argument("--max-tokens", type=int, default=200,
+                    help="Decode token budget per request. Historic 228 TPS "
+                         "baseline was measured with 1024; defaults to 200 "
+                         "for quick iteration. Use 1024 for sustained wall_TPS "
+                         "amortization comparable to historic measurements.")
     ap.add_argument("--skip-tools", action="store_true",
                     help="Skip block 6 (tool-call regression)")
     args = ap.parse_args()
 
+    global GLOBAL_MAX_TOKENS
+    GLOBAL_MAX_TOKENS = args.max_tokens
     do_sweep = args.full or not args.quick
     do_stability = args.full or not args.quick
     do_tools = not args.skip_tools
