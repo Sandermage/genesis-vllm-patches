@@ -16,6 +16,7 @@ __all__ = [
     "pn12_ffn_intermediate_pool",
     "pn25_silu_inductor_safe_pool",
     "pn28_merge_attn_states_nan_guard",
+    "pn362_triton_force_first_config",
 ]
 
 def __getattr__(name: str):

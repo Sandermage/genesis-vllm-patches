@@ -5111,6 +5111,32 @@ def apply_patch_N299_fla_multi_arch_warps() -> PatchResult:
     return _skipped("PN299 FLA multi arch warps", detail)
 
 
+@register_patch("PN364 Hybrid GDN/Mamba/MRoPE startup warmup (vendor of OPEN vllm#43642)")
+def apply_patch_N364_hybrid_gdn_mamba_warmup() -> PatchResult:
+    """PN364: vendors OPEN PR vllm#43642 (hybrid GDN/Mamba/MRoPE
+    kernel warmup). Closes the LAST 4-5 first-request JIT-spike
+    kernels that PN126/PN128/PN129/PN130 do NOT cover:
+    _causal_conv1d_update_kernel (DECODE shape distinct from PN126),
+    fused_recurrent_gated_delta_rule_packed_decode_kernel,
+    MRotaryEmbedding.forward_cuda first-shape, _kv_block_zeroer
+    warmup, extra capture-size shapes. Wraps Worker.compile_or_warm_up_model
+    AFTER PN126's chain with single-token-decode shape (max_num_seqs × 1,
+    distinct from PN126 Pass 2's spec-decode-uniform shape). Expected:
+    TTFT -200-1500 ms on first user request; CV tightening on bench
+    mean (less variance from mid-bench JIT events). No effect on
+    steady-state wall_TPS in mean. Auto-skip on V2 / enforce_eager /
+    non-hybrid. Opt-in via GENESIS_ENABLE_PN364_HYBRID_GDN_WARMUP=1."""
+    from sndr.engines.vllm.patches.compile_safety import (
+        pn364_hybrid_gdn_mamba_warmup as _wiring,
+    )
+    status, detail = _wiring.apply()
+    if status == "applied":
+        return _applied("PN364 hybrid GDN/Mamba warmup", detail)
+    if status == "failed":
+        return _failed("PN364 hybrid GDN/Mamba warmup", detail)
+    return _skipped("PN364 hybrid GDN/Mamba warmup", detail)
+
+
 @register_patch("PN353A TurboQuant workspace reserve before CG capture (vendor of OPEN vllm#44053)")
 def apply_patch_N353A_tq_builder_workspace_reserve() -> PatchResult:
     """PN353A: vendors OPEN PR vllm#44053 (Bot1822). Reserves TQ workspace
@@ -5213,6 +5239,29 @@ def apply_patch_N361_spec_decode_fail_closed_missing_probs() -> PatchResult:
     return _skipped("PN361 Spec-decode fail-closed missing probs", detail)
 
 
+@register_patch("PN363 force_max_spec_tokens for suffix decoding FULL CG (vendor of OPEN vllm#43114)")
+def apply_patch_N363_force_max_spec_tokens() -> PatchResult:
+    """PN363: vendors OPEN PR vllm#43114. Pads SuffixDecodingProposer
+    draft lists to num_speculative_tokens with eos_token_id so target
+    batches are uniform → CUDAGraphMode.FULL instead of PIECEWISE.
+    Author measured -15% avg ITL on MiniMaxM2 TP8+EP at 8-concurrency.
+
+    NO-OP for Genesis PROD MTP K=3 path (different proposer). Default
+    OFF — opt-in via GENESIS_ENABLE_PN363=1, intended for A/B benches
+    that enable suffix decoding via P75. UNSAFE with probabilistic
+    rejection — patch only honoured with GREEDY rejection sampler.
+    MTP-side adaptation deferred to PN364 — see PN363 module docstring."""
+    from sndr.engines.vllm.patches.spec_decode import (
+        pn363_force_max_spec_tokens as _wiring,
+    )
+    status, detail = _wiring.apply()
+    if status == "applied":
+        return _applied("PN363 force_max_spec_tokens (suffix)", detail)
+    if status == "failed":
+        return _failed("PN363 force_max_spec_tokens (suffix)", detail)
+    return _skipped("PN363 force_max_spec_tokens (suffix)", detail)
+
+
 @register_patch("PN346 Mamba/GDN cache hit boundary fix (vendor of OPEN vllm#43650)")
 def apply_patch_N346_mamba_mtp_apc_boundary() -> PatchResult:
     """PN346: vendors OPEN PR vllm#43650 (6-LOC fix). Adds a boundary
@@ -5272,6 +5321,32 @@ def apply_patch_N348_qwen3_mtp_backbone_dedup() -> PatchResult:
     if status == "failed":
         return _failed("PN348 Qwen3 MTP backbone dedup", detail)
     return _skipped("PN348 Qwen3 MTP backbone dedup", detail)
+
+
+@register_patch("PN362 Triton autotune determinism — VLLM_TRITON_FORCE_FIRST_CONFIG (vendor of OPEN vllm#42425)")
+def apply_patch_N362_triton_force_first_config() -> PatchResult:
+    """PN362: vendors OPEN PR vllm#42425 (Francesco Fusco / IBM).
+    Adds the VLLM_TRITON_FORCE_FIRST_CONFIG env knob: monkey-patches
+    triton.runtime.autotuner.Autotuner.run to pick first VALID config
+    instead of benchmarking all candidates. Eliminates autotune
+    run-to-run variance — the SAME jitter that produced the false
+    "199 vs 228 wall_TPS regression" alarm on 2026-06-09. Default off
+    (no PROD behaviour change); opt-in for bench A/B and determinism
+    debugging via VLLM_TRITON_FORCE_FIRST_CONFIG=1. Composes with
+    PN345 (PN345 drops OOR configs pre-autotune; PN362 picks first
+    surviving at runtime). Single text-patch sub-patch into
+    env_override.py inlining the upstream 107-LOC helper. Detects
+    post-merge state via vllm/triton_utils/force_first_config.py
+    existence + skips. Opt-out via GENESIS_DISABLE_PN362=1."""
+    from sndr.engines.vllm.patches.kernels import (
+        pn362_triton_force_first_config as _wiring,
+    )
+    status, detail = _wiring.apply()
+    if status == "applied":
+        return _applied("PN362 Triton force-first-config", detail)
+    if status == "failed":
+        return _failed("PN362 Triton force-first-config", detail)
+    return _skipped("PN362 Triton force-first-config", detail)
 
 
 @register_patch("PN345 Shmem-aware Triton autotune pruner (vendor of OPEN vllm#43047)")

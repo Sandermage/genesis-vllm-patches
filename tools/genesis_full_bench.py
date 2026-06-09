@@ -90,6 +90,7 @@ from __future__ import annotations
 import argparse
 import concurrent.futures
 import json
+import os
 import statistics
 import sys
 import time
@@ -593,7 +594,28 @@ def main() -> int:
                          "amortization comparable to historic measurements.")
     ap.add_argument("--skip-tools", action="store_true",
                     help="Skip block 6 (tool-call regression)")
+    ap.add_argument(
+        "--triton-force-first", action="store_true",
+        help="Set VLLM_TRITON_FORCE_FIRST_CONFIG=1 in this bench process "
+             "environment AND record it in the report. Removes Triton "
+             "autotune variance across container restarts — required when "
+             "the bench is the 'B' side of an A/B regression hunt. "
+             "Reminder: the SERVER-side container must also have been "
+             "started with VLLM_TRITON_FORCE_FIRST_CONFIG=1 (and Genesis "
+             "PN362 applied or upstream vllm#42425 merged) for the knob "
+             "to affect the actual kernel launches. This client-side flag "
+             "exists so the bench JSON records the methodology — DO NOT "
+             "assume it changes the server's behaviour by itself.")
     args = ap.parse_args()
+
+    if args.triton_force_first:
+        os.environ["VLLM_TRITON_FORCE_FIRST_CONFIG"] = "1"
+        print(
+            "  [PN362] VLLM_TRITON_FORCE_FIRST_CONFIG=1 set in bench env. "
+            "Verify the SERVER container has the same env var + PN362 "
+            "applied — otherwise this flag is methodology-only.",
+            file=sys.stderr, flush=True,
+        )
 
     global GLOBAL_MAX_TOKENS
     GLOBAL_MAX_TOKENS = args.max_tokens
@@ -655,6 +677,16 @@ def main() -> int:
         "quick_mode": args.quick,
         "full_mode": args.full,
         "skip_tools": args.skip_tools,
+        "triton_force_first_config": bool(args.triton_force_first),
+        "vllm_triton_force_first_config_env": os.environ.get(
+            "VLLM_TRITON_FORCE_FIRST_CONFIG", ""),
+        "methodology_note": (
+            "VLLM_TRITON_FORCE_FIRST_CONFIG removes Triton autotune "
+            "variance — required for A/B regression hunts (PN362 / "
+            "vllm#42425). Bench-side flag does NOT affect server "
+            "behaviour unless server was started with the same env "
+            "var AND PN362 was applied."
+        ),
     }
 
     md = render_markdown(report)

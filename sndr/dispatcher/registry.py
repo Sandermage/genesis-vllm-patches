@@ -3977,6 +3977,48 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "implementation_status": "full",
         "composes_with": ["PN296"],
     },
+    "PN362": {
+        "title": "Triton autotune determinism — VLLM_TRITON_FORCE_FIRST_CONFIG (vendor of vllm#42425)",
+        "tier": "community",
+        "family": "kernels",
+        "env_flag": "GENESIS_ENABLE_PN362",
+        "default_on": False,
+        "apply_module": "sndr.engines.vllm.patches.kernels.pn362_triton_force_first_config",
+        "lifecycle": "experimental",
+        "category": "bench_methodology",
+        "credit": (
+            "Genesis vendoring of OPEN upstream PR vllm#42425 "
+            "(Francesco Fusco / IBM, OPEN as of 2026-06-09). Adds the "
+            "VLLM_TRITON_FORCE_FIRST_CONFIG env knob: monkey-patches "
+            "triton.runtime.autotuner.Autotuner.run to pick the first "
+            "VALID config (walking past OutOfResources / "
+            "CompileTimeAssertionFailure / PTXASError) instead of "
+            "benchmarking all candidates. Kills run-to-run autotune "
+            "variance — the SAME jitter that produced the false "
+            "'199 vs 228 wall_TPS regression' alarm on 2026-06-09. "
+            "Author cites GDN prefill + MTP non-determinism (PR "
+            "#40172 debugging) as motivation — exactly our hybrid + "
+            "MTP K=3 hot path. Default off (no PROD behaviour "
+            "change); opt-in for bench A/B and determinism debugging. "
+            "Composes cleanly with PN345 (shmem-aware pre-autotune "
+            "pruner): PN345 drops OOR configs at decorator time; "
+            "PN362 picks first surviving at runtime. No anchor "
+            "overlap — PN345 patches FLA kernel source files, PN362 "
+            "patches env_override.py only. Implementation: single "
+            "text-patch sub-patch inlining the upstream 107-LOC "
+            "force_first_config.install() helper into env_override.py "
+            "after _patch_inductor_fallback_allow_list() (the file's "
+            "canonical last call). Detects post-merge state via "
+            "vllm/triton_utils/force_first_config.py existence "
+            "and skips. Risk: very low — opt-in, default off, "
+            "additive only."
+        ),
+        "upstream_pr": 42425,
+        "upstream_pr_relationship": "backport",
+        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
+        "implementation_status": "full",
+        "composes_with": ["PN345", "PN340", "PN341"],
+    },
     "PN350": {
         "title": "Fused GDN Q/K/V split Triton kernel (SGLang#26206 + TRT-LLM#12966 convergent)",
         "tier": "community",
@@ -4158,6 +4200,96 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "implementation_status": "full",
         "composes_with": ["P78", "P101", "PN116", "PN118", "PN353A"],
         "conflicts_with": ["P65"],
+    },
+    "PN364": {
+        "title": "Hybrid GDN/Mamba/MRoPE startup warmup (vendor of OPEN vllm#43642)",
+        "tier": "community",
+        "family": "compile_safety",
+        "env_flag": "GENESIS_ENABLE_PN364_HYBRID_GDN_WARMUP",
+        "default_on": False,
+        "apply_module": "sndr.engines.vllm.patches.compile_safety.pn364_hybrid_gdn_mamba_warmup",
+        "lifecycle": "experimental",
+        "category": "ttft_warmup",
+        "credit": (
+            "Genesis backport of OPEN PR vllm#43642 (hybrid GDN/Mamba/MRoPE "
+            "kernel warmup). Closes the LAST 4-5 first-request JIT-spike "
+            "kernels that PN126/PN128/PN129/PN130 do NOT cover: "
+            "_causal_conv1d_update_kernel (DECODE shape, different from "
+            "PN126 Pass 1 prefill), "
+            "fused_recurrent_gated_delta_rule_packed_decode_kernel, "
+            "MRotaryEmbedding.forward_cuda first-shape, _kv_block_zeroer "
+            "warmup, extra capture-size single-token-decode shapes. "
+            "Wraps Worker.compile_or_warm_up_model AFTER PN126's chain "
+            "to issue extra warmup passes with single-token decode shape "
+            "(num_tokens = max_num_seqs × 1, distinct from PN126's "
+            "spec-decode-uniform max_num_seqs × (1+num_spec) shape). "
+            "Per previous-session journal section 'Next actionable steps "
+            "#1', 10 JIT-spike kernels were listed as still firing on "
+            "first user request; PN126/128/129/130 covered 6, PN364 "
+            "closes the remaining 4-5. Expected: TTFT -200-1500 ms on "
+            "first user request after restart; CV tightening on bench "
+            "mean (less variance from mid-bench JIT events). No effect "
+            "on steady-state wall_TPS in mean. Auto-skip on V2 model "
+            "runner (V2 has equivalent built-in), enforce_eager=True "
+            "(no cudagraphs), or non-hybrid models. Strict no-regression "
+            "fallback: try/except wraps every pass, partial completion "
+            "acceptable, engine continues. Composes with PN126/PN128/"
+            "PN129/PN130 (same wrapper-chaining pattern, distinct "
+            "kernel-target sets, zero overlap)."
+        ),
+        "upstream_pr": 43642,
+        "upstream_pr_relationship": "backport",
+        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
+        "implementation_status": "full",
+        "composes_with": ["PN126", "PN128", "PN129", "PN130"],
+    },
+    "PN363": {
+        "title": "force_max_spec_tokens for suffix decoding — FULL CG dispatch (vendor of OPEN vllm#43114)",
+        "tier": "community",
+        "family": "spec_decode",
+        "env_flag": "GENESIS_ENABLE_PN363",
+        "default_on": False,
+        "apply_module": "sndr.engines.vllm.patches.spec_decode.pn363_force_max_spec_tokens",
+        "lifecycle": "experimental",
+        "category": "spec_decode",
+        "credit": (
+            "Genesis vendor of OPEN PR vllm#43114 (Csrayz, 2026-05-19, "
+            "last touched 2026-06-01). Adds force_max_spec_tokens=True "
+            "path to SuffixDecodingProposer so short draft lists get "
+            "padded to num_speculative_tokens with eos_token_id. "
+            "Padding gives the target side uniform num_scheduled_tokens "
+            "per request → get_uniform_token_count() returns a non-None "
+            "value → dispatcher selects CUDAGraphMode.FULL instead of "
+            "PIECEWISE. Author measured ~88% of decode steps were "
+            "PIECEWISE without padding and ~99.7% become FULL after, "
+            "with avg ITL -15% at 8-concurrency on MiniMaxM2 (TP8+EP). "
+            "Bit-equivalent output on the GREEDY rejection sampler "
+            "(pad token is rejected deterministically). UNSAFE for "
+            "PROBABILISTIC rejection (draft_p == 0 for eos pad token "
+            "breaks the min(1, target_p/draft_p) ratio). Genesis PROD "
+            "uses MTP K=3 with draft_sample_method=probabilistic so "
+            "(a) SuffixDecodingProposer is not instantiated and "
+            "(b) even if it were, probabilistic mode would force this "
+            "patch into a NO-OP at runtime. Ships as DEFAULT OFF for "
+            "audit clarity + A/B reuse (suffix is a candidate bench "
+            "lever for chat workloads via P75). MTP-side adaptation "
+            "(scheduler num_scheduled_tokens padding + draft_probs "
+            "one-hot injection) deferred to PN364 — see PN363 module "
+            "docstring 'PN364 design note' for the correct "
+            "probabilistic-safe approach. Composes cleanly with "
+            "PN340 / PN341 / PN348 / PN357 / PN361 / PN133 / "
+            "G_DYNAMIC_K_MTP (all different files or different "
+            "anchors). Composes with P75 (extends the suffix proposer "
+            "P75 enables). Disable via GENESIS_DISABLE_PN363=1. "
+            "Auto-no-op when vllm#43114 merges (drift marker: "
+            "'[Genesis PN363' on every injected block; TextPatcher "
+            "idempotency guards re-apply)."
+        ),
+        "upstream_pr": 43114,
+        "upstream_pr_relationship": "backport",
+        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
+        "implementation_status": "full",
+        "composes_with": ["P75", "PN340", "PN341", "PN348", "PN357", "PN361"],
     },
     "PN361": {
         "title": "Spec-decode fail-closed on missing draft probs (vendor of OPEN vllm#44869)",
