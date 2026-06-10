@@ -6,11 +6,11 @@ patches that are platform-gated (e.g. Ampere SM 8.0+) are noted.
 
 > **Current PROD baseline (v12.0.0 current registry; pin bumped 2026-05-15):**
 >
-> - Genesis v12.0.0 — registry has **276 entries**: 216 full-implementation,
+> - Genesis v12.0.0 — registry has **278 entries**: 218 full-implementation,
 >   26 experimental, 20 marker_only, 8 partial, 4 retired, 2 placeholder.
 >   Wave 10 additions: PN125-PN130 warmup-orchestrator family, PN132
 >   (top-k/top-p contiguous), PN133, PN204 v2 (GDN dual-stream consolidated),
->   PN298/PN299 FLA arch-aware NUM_WARPS prune. Updated 2026-06-04 — counts
+>   PN298/PN299 FLA arch-aware NUM_WARPS prune. Updated 2026-06-10 — counts
 >   auto-derived from ``PATCH_REGISTRY``.
 > - vLLM `0.21.1rc0+g626fa9bba5` (bumped from dev209→dev338→dev371;
 >   canonical bench numbers below measured on dev93/dev209 — re-bench on

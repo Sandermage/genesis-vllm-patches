@@ -620,12 +620,20 @@
     "wrapped_name": "apply_patch_N350_gdn_qkv_fused_split"
   },
   {
+    "name": "PN354 GDN chunked-prefill exp2 gate decay (extends vllm#43195 KDA pattern)",
+    "wrapped_name": "apply_patch_N354_gdn_use_exp2"
+  },
+  {
     "name": "PN367 CUDA graph memory estimate clamp (vendor of OPEN vllm#45076)",
     "wrapped_name": "apply_patch_N367_cudagraph_mem_clamp"
   },
   {
     "name": "PN352 Triton moe_sum for unsupported topk (counterpart of OPEN vllm#44557)",
     "wrapped_name": "apply_patch_N352_moe_sum_topk8"
+  },
+  {
+    "name": "PN368 Marlin MoE w13 reduce-mode wire (env-gated atomic-add, dense-path heuristic parity)",
+    "wrapped_name": "apply_patch_N368_marlin_moe_atomic_add_wire"
   },
   {
     "name": "PN365 Fused GDN qkv|z|b|a single-GEMM input projection (port of OPEN vllm#42746)",

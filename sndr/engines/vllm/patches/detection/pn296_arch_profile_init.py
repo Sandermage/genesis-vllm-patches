@@ -99,7 +99,9 @@ def apply() -> tuple[str, str]:
         if _auto_set(
             "VLLM_MARLIN_FP32_REDUCE", "0",
             f"SM {profile.sm_string} has no FP32 tensor cores — "
-            f"FP32 reduce is pure overhead on this arch (+1.5-3% TGS gained)",
+            f"FP32 reduce is pure overhead on this arch (advisory: env is "
+            f"inert unless a wire patch consumes it, e.g. P23_WIRE; "
+            f"+1.5-3% TGS when wired)",
         ):
             auto_set_count += 1
     else:

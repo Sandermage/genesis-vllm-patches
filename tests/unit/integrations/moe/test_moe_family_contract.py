@@ -37,6 +37,7 @@ MOE_PATCHES = [
     ("sndr.engines.vllm.patches.moe.p31_router_softmax", "P31"),
     ("sndr.engines.vllm.patches.moe.p37_moe_intermediate_cache", "P37"),
     ("sndr.engines.vllm.patches.moe.pn27_revert_pluggable_moe", "PN27"),
+    ("sndr.engines.vllm.patches.moe.pn368_marlin_moe_atomic_add_wire", "PN368"),
 ]
 
 

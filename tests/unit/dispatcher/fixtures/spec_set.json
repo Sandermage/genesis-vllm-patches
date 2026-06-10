@@ -1440,6 +1440,18 @@
     "apply_module": "sndr.engines.vllm.patches.attention.gdn.pn350_gdn_qkv_fused_split"
   },
   {
+    "patch_id": "PN354",
+    "family": "attention.gdn",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "GENESIS_ENABLE_PN354_GDN_USE_EXP2",
+    "has_upstream_pr": true,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "sndr.engines.vllm.patches.attention.gdn.pn354_gdn_use_exp2"
+  },
+  {
     "patch_id": "PN367",
     "family": "compile_safety",
     "lifecycle": "experimental",
@@ -1462,6 +1474,18 @@
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
     "apply_module": "sndr.engines.vllm.patches.moe.pn352_moe_sum_topk8"
+  },
+  {
+    "patch_id": "PN368",
+    "family": "moe",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "GENESIS_ENABLE_PN368_MARLIN_MOE_ATOMIC_ADD",
+    "has_upstream_pr": false,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "sndr.engines.vllm.patches.moe.pn368_marlin_moe_atomic_add_wire"
   },
   {
     "patch_id": "PN365",

@@ -5179,6 +5179,32 @@ def apply_patch_N350_gdn_qkv_fused_split() -> PatchResult:
     return _skipped("PN350 fused GDN QKV split kernel", detail)
 
 
+@register_patch("PN354 GDN chunked-prefill exp2 gate decay (extends vllm#43195 KDA pattern)")
+def apply_patch_N354_gdn_use_exp2() -> PatchResult:
+    """PN354: extends MERGED vllm#43195 (KDA-only exp2 gate decay) to the
+    GDN chunked-prefill consumers. Pre-scales the chunk-local cumulative
+    gate once (g = g * RCP_LN2) after chunk_local_cumsum in chunk.py and
+    adds USE_EXP2 dual branches (chunk_delta_h.py pattern) to chunk_o
+    (2 exp sites) + chunk_scaled_dot_kkt (1) + wy_fast (1 raw tl.exp).
+    One fewer fp32 fmul per element per exp site. Decode paths stay
+    natural-base (state domain unchanged — exp2(g*RCP_LN2) == exp(g);
+    KDA ships exactly this prefill/decode split). Runtime-conditional:
+    env read ONCE at import in the patched files; flag off => no
+    pre-scale + no use_exp2 kwarg => bit-identical to upstream. The PN59
+    streaming driver carries the same threading via direct in-repo edit.
+    Opt-in via GENESIS_ENABLE_PN354_GDN_USE_EXP2=1. Composes with
+    PN59 + P103 + PN29 + PN106 + PN298 + PN299 + PN345 + PN350."""
+    from sndr.engines.vllm.patches.attention.gdn import (
+        pn354_gdn_use_exp2 as _wiring,
+    )
+    status, detail = _wiring.apply()
+    if status == "applied":
+        return _applied("PN354 GDN exp2 gate decay", detail)
+    if status == "failed":
+        return _failed("PN354 GDN exp2 gate decay", detail)
+    return _skipped("PN354 GDN exp2 gate decay", detail)
+
+
 @register_patch("PN367 CUDA graph memory estimate clamp (vendor of OPEN vllm#45076)")
 def apply_patch_N367_cudagraph_mem_clamp() -> PatchResult:
     """PN367: clamps the decoder cudagraph memory profiling deltas to
@@ -5220,6 +5246,29 @@ def apply_patch_N352_moe_sum_topk8() -> PatchResult:
     if status == "failed":
         return _failed("PN352 triton moe_sum topk8", detail)
     return _skipped("PN352 triton moe_sum topk8", detail)
+
+
+@register_patch("PN368 Marlin MoE w13 reduce-mode wire (env-gated atomic-add, dense-path heuristic parity)")
+def apply_patch_N368_marlin_moe_atomic_add_wire() -> PatchResult:
+    """PN368: wires upstream's own dense-path reduce-mode heuristic
+    (should_use_atomic_add_reduce) into the MoE Marlin w13 GEMM, where
+    upstream hardcodes use_atomic_add=False. On 35B-A3B-FP8 / SM 8.6 /
+    --dtype float16 the heuristic approves atomic-add for w13 (n=512,
+    k=2048) — w2 fails it and stays untouched. use_fp32_reduce stays
+    True like the dense path: the kernel consults it only when
+    use_atomic_add is False (verified in moe ops.cu + marlin_template.h
+    at pin g303916e93). Runtime branch env-gated via
+    GENESIS_ENABLE_PN368_MARLIN_MOE_ATOMIC_ADD (+ requires upstream's
+    VLLM_MARLIN_USE_ATOMIC_ADD=1); bit-identical when unset."""
+    from sndr.engines.vllm.patches.moe import (
+        pn368_marlin_moe_atomic_add_wire as _wiring,
+    )
+    status, detail = _wiring.apply()
+    if status == "applied":
+        return _applied("PN368 marlin moe w13 atomic-add wire", detail)
+    if status == "failed":
+        return _failed("PN368 marlin moe w13 atomic-add wire", detail)
+    return _skipped("PN368 marlin moe w13 atomic-add wire", detail)
 
 
 @register_patch("PN365 Fused GDN qkv|z|b|a single-GEMM input projection (port of OPEN vllm#42746)")

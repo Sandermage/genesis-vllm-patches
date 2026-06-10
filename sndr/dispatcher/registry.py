@@ -4090,6 +4090,53 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "implementation_status": "full",
         "composes_with": ["PN340", "PN341", "PN345", "PN204", "PN54", "PN29", "P28"],
     },
+    "PN354": {
+        "title": "GDN chunked-prefill exp2 gate decay (extends vllm#43195 KDA pattern to GDN)",
+        "tier": "community",
+        "family": "attention.gdn",
+        "env_flag": "GENESIS_ENABLE_PN354_GDN_USE_EXP2",
+        "default_on": False,
+        "apply_module": "sndr.engines.vllm.patches.attention.gdn.pn354_gdn_use_exp2",
+        "lifecycle": "experimental",
+        "category": "kernel_perf",
+        "credit": (
+            "Genesis extension of MERGED vllm#43195 (KDA-only in our "
+            "pin) to the GDN chunked-prefill consumers. #43195 scales "
+            "the chunk-local cumulative gate ONCE after cumsum "
+            "(g = g * RCP_LN2, RCP_LN2=1.4426950216 from "
+            "vllm.utils.math_utils) and uses exp2 in every downstream "
+            "consumer — one fewer fp32 fmul per element per exp site "
+            "(exp(x) lowers to exp2(x*log2e) on NVIDIA; the pre-scale "
+            "hoists the multiply out of the kernels). chunk_delta_h.py "
+            "ALREADY carries the USE_EXP2 dual branches upstream (KDA "
+            "uses them); PN354 adds the same constexpr+wrapper plumbing "
+            "to the remaining GDN-path exp sites: chunk_o.py (2 sites), "
+            "chunk_scaled_dot_kkt.py (1 site), wy_fast.py (1 raw "
+            "tl.exp site), pre-scales g once in chunk.py after "
+            "chunk_local_cumsum (template: kda.py g = g * RCP_LN2 "
+            "after cumsum), and threads use_exp2 through the PN59 "
+            "streaming driver (our file, direct edit) — its vanilla "
+            "AND windowed paths. Decode paths (fused_recurrent / "
+            "fused_sigmoid_gating) stay natural-base — zero-win there, "
+            "upstream keeps them on exp too. State values are domain-"
+            "unchanged (exp2(g*RCP_LN2) == exp(g) numerically) so "
+            "prefill-ON/decode-OFF mixing is safe — KDA ships exactly "
+            "this split. Runtime-conditional text: env read ONCE at "
+            "module import in the patched files; flag off -> no "
+            "pre-scale, NO use_exp2 kwarg passed (empty splat) -> "
+            "bit-identical to upstream in every partial-apply state. "
+            "Consumer kernels patched FIRST, chunk.py dispatcher only "
+            "when all consumers live. P103's own chunked path stays "
+            "natural-base end-to-end (self-consistent, correct, "
+            "un-optimized when it engages). Anchors verified unique "
+            "against live pin 0.22.1rc1.dev259+g303916e93."
+        ),
+        "upstream_pr": 43195,
+        "upstream_pr_relationship": "backport",
+        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
+        "implementation_status": "full",
+        "composes_with": ["PN59", "P103", "PN29", "PN106", "PN298", "PN299", "PN345", "PN350"],
+    },
     "PN367": {
         "title": "CUDA graph memory estimate clamp (vendor of OPEN vllm#45076)",
         "tier": "community",
@@ -4164,6 +4211,52 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
         "implementation_status": "full",
         "composes_with": ["P24", "PN96b", "P31"],
+    },
+    "PN368": {
+        "title": "Marlin MoE w13 reduce-mode wire (env-gated atomic-add, dense-path heuristic parity)",
+        "tier": "community",
+        "family": "moe",
+        "env_flag": "GENESIS_ENABLE_PN368_MARLIN_MOE_ATOMIC_ADD",
+        "default_on": False,
+        "apply_module": "sndr.engines.vllm.patches.moe.pn368_marlin_moe_atomic_add_wire",
+        "lifecycle": "experimental",
+        "category": "kernel_perf",
+        "credit": (
+            "Genesis-original 2026-06-10 — wires upstream's OWN dense-"
+            "path reduce-mode heuristic (should_use_atomic_add_reduce, "
+            "marlin_utils.py) into the MoE Marlin w13 GEMM, where "
+            "upstream hardcodes use_atomic_add=False, "
+            "use_fp32_reduce=True at both moe_wna16_marlin_gemm call "
+            "sites (experts/marlin_moe.py). Verified at pin g303916e93 "
+            "(0.22.1rc1.dev259, live container 2026-06-10): Qwen3.6-35B-"
+            "A3B-FP8 runs MarlinExperts on SM 8.6 (TritonExperts "
+            "excluded — supports_fp8() False on Ampere); for the w13 "
+            "GEMM the heuristic APPROVES atomic-add (n=w13_num_shards*N"
+            "=512<2048, k=K=2048>=2048, --dtype float16, PROD launcher "
+            "sets VLLM_MARLIN_USE_ATOMIC_ADD=1; the sm8x refusal applies "
+            "only to bfloat16). The w2 GEMM (n=2048, k=256) fails the "
+            "heuristic — v1 deliberately leaves it untouched. Mutual-"
+            "exclusion VERIFIED in csrc at the same commit: the fp32 "
+            "global-reduce c_tmp buffer is allocated only under "
+            "use_fp32_reduce && !use_atomic_add (moe ops.cu L692) and "
+            "the kernel consults use_fp32_reduce only inside the "
+            "!use_atomic_add global-reduce branch (marlin_template.h "
+            "L2162-2165) — so use_fp32_reduce stays True, exactly like "
+            "the dense path (which passes the heuristic result alongside "
+            "USE_FP32_REDUCE_DEFAULT=True). Heuristic replicated inline "
+            "in the patched text (it ignores m at this pin) so the "
+            "upstream function name stays a clean drift marker. Text "
+            "install always-on (runtime branch env-gated, bit-identical "
+            "when unset); GENESIS_DISABLE_PN368_INSTALL=1 skips even the "
+            "text. First enabled call logs the resolved reduce mode "
+            "(iron rule #3 ON-vs-OFF observability). Composes with P37 "
+            "(same file, disjoint anchors), PN96b (Marlin workspace "
+            "runtime hook), PN352 (fused_moe.py — different file), P24."
+        ),
+        "upstream_pr": None,
+        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
+        "implementation_status": "full",
+        "composes_with": ["P37", "PN96b", "PN352", "P24"],
     },
     "PN365": {
         "title": "Fused GDN qkv|z|b|a single-GEMM input projection (port of OPEN vllm#42746)",

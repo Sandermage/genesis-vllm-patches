@@ -4,28 +4,28 @@
 > Source of truth: `sndr/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-06-10T01:59:24Z
-Total entries: **276**
+Generated: 2026-06-10T09:42:16Z
+Total entries: **278**
 
 ## Statistics
 
 ### By tier
-- `tier=community`: **276**
+- `tier=community`: **278**
 
 ### By lifecycle
 - `lifecycle=coordinator`: **4**
-- `lifecycle=experimental`: **202**
+- `lifecycle=experimental`: **204**
 - `lifecycle=legacy`: **33**
 - `lifecycle=research`: **4**
 - `lifecycle=retired`: **19**
 - `lifecycle=stable`: **14**
 
-### Default-on at boot: **54** / 276
+### Default-on at boot: **54** / 278
 
 ### By family
 - `attention`: 1
 - `attention.flash`: 3
-- `attention.gdn`: 33
+- `attention.gdn`: 34
 - `attention.turboquant`: 56
 - `compile_safety`: 15
 - `detection`: 3
@@ -37,7 +37,7 @@ Total entries: **276**
 - `memory`: 5
 - `middleware`: 3
 - `model_compat.gemma4`: 1
-- `moe`: 7
+- `moe`: 8
 - `multimodal`: 1
 - `observability`: 4
 - `offload`: 3
@@ -67,7 +67,7 @@ Total entries: **276**
 | **PN17** | `community` | `experimental` | · | `GENESIS_ENABLE_PN17_FA2_LSE_CLAMP` | — | "FA2 softmax_lse runtime clamp (Cliff 1 mechanism A, Issue |
 | **PN286** | `community` | `experimental` | ✓ | `GENESIS_ENABLE_PN286_FA_LAYOUT_REVERT_SM86` | — | "FA KV cache layout revert for Ampere SM 8.6 (closes |
 
-### `attention.gdn` (33)
+### `attention.gdn` (34)
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
@@ -98,6 +98,7 @@ Total entries: **276**
 | **PN341** | `community` | `experimental` | · | `GENESIS_ENABLE_PN341` | [#43955](https://github.com/vllm-project/vllm/pull/43955) | MTP decode bubbles reduction in gpu_model_runner (vendor of vllm#43955, siste... |
 | **PN345** | `community` | `experimental` | · | `GENESIS_ENABLE_PN345` | [#43047](https://github.com/vllm-project/vllm/pull/43047) | Shmem-aware Triton autotune pruner (vendor of vllm#43047) for FLA chunk kernels |
 | **PN350** | `community` | `experimental` | · | `GENESIS_ENABLE_PN350` | [#26206](https://github.com/vllm-project/vllm/pull/26206) | Fused GDN Q/K/V split Triton kernel (SGLang#26206 + TRT-LLM#12966 convergent) |
+| **PN354** | `community` | `experimental` | · | `GENESIS_ENABLE_PN354_GDN_USE_EXP2` | [#43195](https://github.com/vllm-project/vllm/pull/43195) | GDN chunked-prefill exp2 gate decay (extends vllm#43195 KDA pattern to GDN) |
 | **PN365** | `community` | `experimental` | · | `GENESIS_ENABLE_PN365_GDN_GEMM_FUSE` | [#42746](https://github.com/vllm-project/vllm/pull/42746) | Fused GDN qkv\|z\|b\|a single-GEMM input projection (port of OPEN vllm#42746) |
 | **P39a** | `community` | `legacy` | ✓ | `GENESIS_LEGACY_P39A` | — | FLA chunk_scaled_dot_kkt persistent A pool |
 | **P60b** | `community` | `experimental` | · | `GENESIS_ENABLE_P60B_TRITON_KERNEL` | [#40738](https://github.com/vllm-project/vllm/pull/40738) | GDN+ngram Triton kernel offset (Phase 2) |
@@ -286,7 +287,7 @@ Total entries: **276**
 |---|---|---|:---:|---|:---:|---|
 | **PN349** | `community` | `experimental` | · | `GENESIS_ENABLE_PN349` | [#44797](https://github.com/vllm-project/vllm/pull/44797) | Gemma 4 KV-shared k_norm/v_norm skip (vendor of OPEN vllm#44797) |
 
-### `moe` (7)
+### `moe` (8)
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
@@ -296,6 +297,7 @@ Total entries: **276**
 | **P37** | `community` | `legacy` | · | `GENESIS_ENABLE_P37` | — | MoE intermediate cache pool (opt-in) |
 | **PN27** | `community` | `experimental` | · | `GENESIS_ENABLE_PN27_REVERT_PLUGGABLE_MOE` | [#41440](https://github.com/vllm-project/vllm/pull/41440) | Revert MoERunnerInterface PluggableLayer (vllm#41440) |
 | **PN352** | `community` | `experimental` | · | `GENESIS_ENABLE_PN352` | [#44557](https://github.com/vllm-project/vllm/pull/44557) | Triton moe_sum for unsupported topk (counterpart of OPEN vllm#44557) |
+| **PN368** | `community` | `experimental` | · | `GENESIS_ENABLE_PN368_MARLIN_MOE_ATOMIC_ADD` | — | Marlin MoE w13 reduce-mode wire (env-gated atomic-add, dense-path heuristic p... |
 | **PN96b** | `community` | `experimental` | ✓ | `GENESIS_ENABLE_PN96B` | — | Persistent Marlin MoE workspace (Wave 9 dev209 perf-restore) |
 
 ### `multimodal` (1)

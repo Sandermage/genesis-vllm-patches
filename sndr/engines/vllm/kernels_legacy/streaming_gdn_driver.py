@@ -48,6 +48,26 @@ from sndr.engines.vllm.kernels_legacy.gdn_scratch_pool import GdnScratchPool
 log = logging.getLogger("genesis.kernels.streaming_gdn_driver")
 
 
+# ─── [Genesis PN354] GDN chunked-prefill exp2 (vllm#43195 KDA pattern) ──
+# Scale the chunk-local cumulative gate ONCE after cumsum and use exp2 in
+# every downstream consumer (one fewer fp32 fmul per element per exp
+# site). exp2(g * RCP_LN2) == exp(g) — state domain unchanged, so
+# prefill-exp2 / decode-exp mixing is safe (upstream KDA ships exactly
+# this split). Env read ONCE at module import — consistent with the
+# PN354 text patches on the FLA files (chunk.py reads the same flag at
+# import). With the flag off, no pre-scale runs and NO use_exp2 kwarg is
+# passed at all (empty splat) — bit-identical to the pre-PN354 driver
+# and compatible with an unpatched upstream FLA tree.
+_PN354_USE_EXP2 = os.environ.get(
+    "GENESIS_ENABLE_PN354_GDN_USE_EXP2", "0",
+).strip().lower() in ("1", "true", "yes", "on")
+try:
+    from vllm.utils.math_utils import RCP_LN2 as _PN354_RCP_LN2
+except Exception:  # noqa: BLE001
+    _PN354_RCP_LN2 = 1.4426950216  # fp32 1/ln(2) (vllm's own constant)
+_PN354_KW = {"use_exp2": True} if _PN354_USE_EXP2 else {}
+
+
 # Hot-path bypass threshold — below this, vanilla path wins on overhead.
 # Threshold = window_nt × _FLA_CHUNK_SIZE × _BYPASS_T_MULTIPLIER.
 # Default: window_nt=4, CHUNK=64, MULTIPLIER=4 → threshold=1024 tokens.
@@ -364,26 +384,33 @@ def _vanilla_path(
         g, chunk_size=_FLA_CHUNK_SIZE, cu_seqlens=cu_seqlens,
         chunk_indices=chunk_indices,
     )
+    # [Genesis PN354] pre-scale once -> exp2 in all downstream consumers.
+    if _PN354_USE_EXP2:
+        g = g * _PN354_RCP_LN2
     A = chunk_scaled_dot_kkt_fwd(
         k=k, beta=beta, g=g,
         cu_seqlens=cu_seqlens, chunk_indices=chunk_indices,
         output_dtype=torch.float32,
+        **_PN354_KW,
     )
     A = solve_tril(A=A, cu_seqlens=cu_seqlens,
                    chunk_indices=chunk_indices, output_dtype=k.dtype)
     w, u = recompute_w_u_fwd(
         k=k, v=v, beta=beta, A=A, g_cumsum=g,
         cu_seqlens=cu_seqlens, chunk_indices=chunk_indices,
+        **_PN354_KW,
     )
     h, v_new, final_state = chunk_gated_delta_rule_fwd_h(
         k=k, w=w, u=u, g=g,
         initial_state=initial_state, output_final_state=output_final_state,
         cu_seqlens=cu_seqlens, chunk_indices=chunk_indices,
         chunk_offsets=chunk_offsets,
+        **_PN354_KW,
     )
     o = chunk_fwd_o(
         q=q, k=k, v=v_new, h=h, g=g, scale=scale,
         cu_seqlens=cu_seqlens, chunk_indices=chunk_indices,
+        **_PN354_KW,
     )
     if SUPPRESS_LEVEL < 3:
         return g, o, A, final_state, None, None, None
@@ -498,16 +525,22 @@ def _streaming_path(
     g_full = chunk_local_cumsum(
         g, chunk_size=BT, cu_seqlens=cu_seqlens, chunk_indices=chunk_indices,
     )
+    # [Genesis PN354] pre-scale once -> exp2 in all downstream consumers
+    # (covers every window slice below — the driver has zero torch.exp).
+    if _PN354_USE_EXP2:
+        g_full = g_full * _PN354_RCP_LN2
     A = chunk_scaled_dot_kkt_fwd(
         k=k, beta=beta, g=g_full,
         cu_seqlens=cu_seqlens, chunk_indices=chunk_indices,
         output_dtype=torch.float32,
+        **_PN354_KW,
     )
     A = solve_tril(A=A, cu_seqlens=cu_seqlens,
                    chunk_indices=chunk_indices, output_dtype=k.dtype)
     w, u = recompute_w_u_fwd(
         k=k, v=v, beta=beta, A=A, g_cumsum=g_full,
         cu_seqlens=cu_seqlens, chunk_indices=chunk_indices,
+        **_PN354_KW,
     )
 
     if _trace or _agg:
@@ -594,6 +627,7 @@ def _streaming_path(
             cu_seqlens=cu_w,          # ← was: None (silently dropped metadata)
             chunk_indices=ci_w,       # ← was: None
             chunk_offsets=co_w,       # ← was: None
+            **_PN354_KW,              # [Genesis PN354] g_w pre-scaled above
         )
 
         # Consume h_w via chunk_fwd_o for this window
@@ -601,6 +635,7 @@ def _streaming_path(
             q=q_w, k=k_w, v=v_new_w, h=h_w, g=g_w, scale=scale,
             cu_seqlens=cu_w,
             chunk_indices=ci_w,
+            **_PN354_KW,              # [Genesis PN354] g_w pre-scaled above
         )
 
         # Write window's o into o_full

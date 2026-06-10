@@ -535,6 +535,7 @@ class Flags:
     PN341 = "PN341"  # PN341: MTP decode bubbles reduction in gpu_model_runner
     PN345 = "PN345"  # PN345: Shmem-aware Triton autotune pruner
     PN350 = "PN350"  # PN350: Fused GDN Q/K/V split Triton kernel
+    PN354_GDN_USE_EXP2 = "PN354_GDN_USE_EXP2"  # PN354: GDN chunked-prefill exp2 gate decay (vllm#43195 pattern)
     PN365_GDN_GEMM_FUSE = "PN365_GDN_GEMM_FUSE"  # PN365: Fused GDN qkv|z|b|a single-GEMM input projection
     # attention.turboquant family
     P18B_TEXT = "P18B_TEXT"  # P18B_TEXT: TurboQuant decode stage1 kernel-literal tune
@@ -560,6 +561,7 @@ class Flags:
     PN349 = "PN349"  # PN349: Gemma 4 KV-shared k_norm/v_norm skip
     # moe family
     PN352 = "PN352"  # PN352: Triton moe_sum for unsupported topk
+    PN368_MARLIN_MOE_ATOMIC_ADD = "PN368_MARLIN_MOE_ATOMIC_ADD"  # PN368: Marlin MoE w13 atomic-add reduce-mode wire
     # quantization.marlin family
     PN347 = "PN347"  # PN347: MarlinFP8 N==K silent corruption correctness fix
     # spec_decode family
