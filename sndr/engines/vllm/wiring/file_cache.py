@@ -364,6 +364,21 @@ def record_apply_result(
                 existing_markers = []
             if marker not in existing_markers:
                 existing_markers.append(marker)
+            # PRUNE FIX 2026-06-10 (P82 false-IDEMPOTENT post-mortem):
+            # when the target file is RESTORED to pristine (operator
+            # copies the wheel original back to give another patch clean
+            # anchors) and ONE patch re-applies, this entry refreshed
+            # mtime/size while KEEPING markers of patches whose text the
+            # restore wiped. Layer-0 then reported those patches
+            # IDEMPOTENT forever -> silent no-op (P82 ran vanilla on
+            # PROD for a day). With post-apply content in hand, drop any
+            # recorded marker that is no longer actually present.
+            if post_apply_content is not None:
+                existing_markers = [
+                    m for m in existing_markers if m in post_apply_content
+                ]
+                if marker not in existing_markers:
+                    existing_markers.append(marker)
             entry["markers"] = existing_markers
 
         _save_cache_atomic(cache)

@@ -393,8 +393,16 @@ def _make_patcher() -> TextPatcher | None:
             ),
         ],
         upstream_drift_markers=[
-            "[Genesis PN369",
-            "genesis_pn369_relaxed_ok",
+            # SELF-COLLISION FIX 2026-06-10: "[Genesis PN369" and
+            # "genesis_pn369_relaxed_ok" were listed here and tripped
+            # TextPatcher Layer 3 against P71 v7.43's OWN baked threading
+            # text (P71 applies at an earlier ordinal and mentions PN369
+            # by name) -> deterministic false "upstream merged" skip on
+            # every boot; SIG/BODY/LAUNCH never applied and the whole
+            # cell A/B measured vanilla acceptance (root cause of the
+            # zero-effect verdict). OUR OWN text strings must NEVER be
+            # drift markers — idempotency is the patch marker's job.
+            #
             # Upstream's own relaxed acceptance landing (all 4 upstream
             # relaxed-acceptance PRs are closed unmerged as of 2026-06-10;
             # these markers fire if any of them is resurrected and merged):
