@@ -134,7 +134,7 @@ routing:
 # excluding the vLLM pin — stable across pin bumps.
 validation:
   artifact_id: gemma4-31b-tq-mtp-structured-k4
-  config_hash: 71c874d7ffedae04                  # see vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-31b-tq-mtp-structured-k4.json
+  config_hash: 71c874d7ffedae04                  # see sndr/engines/vllm/patches/spec_decode/artifacts/gemma4-31b-tq-mtp-structured-k4.json
 
 # ─── Patches delta — structured-specific runtime gates ────────────────
 # These envs are enabled by `start_g4_betaA_k1.sh` on the server but
@@ -235,7 +235,7 @@ override_policy:
   override_class: bench
   reason: "Gemma4 31B β'-A K=4 structured control; very tight context 4K + max_num_seqs=1; β'-A acceptance-artifact-gated"
   evidence_refs:
-    - vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-31b-tq-mtp-structured-k4.json
+    - sndr/engines/vllm/patches/spec_decode/artifacts/gemma4-31b-tq-mtp-structured-k4.json
   evidence_visibility: public
   expires_at: '2026-08-22'
   allowed_to_exceed_hardware_default: true

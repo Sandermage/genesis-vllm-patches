@@ -173,7 +173,7 @@ def collect_capabilities(
             kind="feature",
             status="available",
             detail="Read-only Product API summary for models, hardware, profiles and presets.",
-            module="vllm.sndr_core.product_api.overview",
+            module="sndr.product_api.legacy.overview",
         ),
         ProductCapability(
             id="preset_catalog",
@@ -181,7 +181,7 @@ def collect_capabilities(
             kind="feature",
             status="available",
             detail="Typed Product API exposes V2 preset records, explain payloads and recommendations.",
-            module="vllm.sndr_core.product_api.presets",
+            module="sndr.product_api.legacy.presets",
         ),
         ProductCapability(
             id="patch_inventory",
@@ -189,7 +189,7 @@ def collect_capabilities(
             kind="feature",
             status="available",
             detail="Typed Product API exists for patch list/explain/doctor/diff/bundle surfaces.",
-            module="vllm.sndr_core.product_api.patches",
+            module="sndr.product_api.legacy.patches",
         ),
         ProductCapability(
             id="patch_plan",
@@ -197,7 +197,7 @@ def collect_capabilities(
             kind="feature",
             status="available",
             detail="Typed Product API can simulate preset patch decisions with environment restoration.",
-            module="vllm.sndr_core.product_api.patches.plan",
+            module="sndr.product_api.legacy.patches.plan",
         ),
         ProductCapability(
             id="service_lifecycle",
@@ -210,7 +210,7 @@ def collect_capabilities(
                 "start/stop/restart execution is gated behind --enable-apply "
                 "and requires an explicit confirm."
             ),
-            module="vllm.sndr_core.product_api.runtime_exec",
+            module="sndr.product_api.legacy.runtime_exec",
         ),
         ProductCapability(
             id="benchmark_runs",
@@ -229,7 +229,7 @@ def collect_capabilities(
             kind="feature",
             status="available",
             detail="Read-only FastAPI/OpenAPI daemon exposes Product API snapshots for GUI/web clients.",
-            module="vllm.sndr_core.product_api.http_app",
+            module="sndr.product_api.legacy.http_app",
         ),
         ProductCapability(
             id="desktop_remote",

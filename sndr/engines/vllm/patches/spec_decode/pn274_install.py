@@ -54,7 +54,10 @@ _ORIGINAL_CREATE_ENGINE_CONFIG = None
 
 
 def _env_disabled() -> bool:
-    from ...env import get_sndr_env_bool
+    # Absolute import: the v12 move to sndr/engines/vllm/patches/ added a
+    # nesting level, so the old `...env` relative path no longer reaches
+    # the platform-level sndr/env.py module.
+    from sndr.env import get_sndr_env_bool
     return get_sndr_env_bool(_ENV_DISABLE)
 
 

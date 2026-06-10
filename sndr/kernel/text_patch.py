@@ -632,14 +632,14 @@ def marker_present_in_target(patcher: "TextPatcher") -> bool:
 # keeps working without creating a circular import (multi_file.py
 # imports TextPatcher from this module at load time).
 _LAZY_REEXPORTS = {
-    "MultiFilePatchTransaction": ("vllm.sndr_core.core.multi_file", "MultiFilePatchTransaction"),
-    "_reset_manifest_cache_for_tests": ("vllm.sndr_core.core.manifest_cache", "_reset_manifest_cache_for_tests"),
-    "cached_load_manifest": ("vllm.sndr_core.core.manifest_cache", "cached_load_manifest"),
-    "derive_rel_path_from_target": ("vllm.sndr_core.core.manifest_cache", "derive_rel_path_from_target"),
+    "MultiFilePatchTransaction": ("sndr.kernel.multi_file", "MultiFilePatchTransaction"),
+    "_reset_manifest_cache_for_tests": ("sndr.kernel.manifest", "_reset_manifest_cache_for_tests"),
+    "cached_load_manifest": ("sndr.kernel.manifest", "cached_load_manifest"),
+    "derive_rel_path_from_target": ("sndr.kernel.manifest", "derive_rel_path_from_target"),
     # Legacy private-name aliases (single underscore prefix in pre-Stage-3
     # text_patch.py monolith). Map to the public Stage-3-renamed names.
-    "_cached_load_manifest": ("vllm.sndr_core.core.manifest_cache", "cached_load_manifest"),
-    "_derive_rel_path_from_target": ("vllm.sndr_core.core.manifest_cache", "derive_rel_path_from_target"),
+    "_cached_load_manifest": ("sndr.kernel.manifest", "cached_load_manifest"),
+    "_derive_rel_path_from_target": ("sndr.kernel.manifest", "derive_rel_path_from_target"),
 }
 
 
@@ -647,7 +647,7 @@ def __getattr__(name):
     target = _LAZY_REEXPORTS.get(name)
     if target is None:
         raise AttributeError(
-            f"module 'vllm.sndr_core.core.text_patch' has no attribute {name!r}"
+            f"module 'sndr.kernel.text_patch' has no attribute {name!r}"
         )
     import importlib
     mod = importlib.import_module(target[0])

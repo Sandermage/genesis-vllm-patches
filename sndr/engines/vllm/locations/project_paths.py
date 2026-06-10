@@ -145,6 +145,9 @@ def wiring_dir() -> Optional[Path]:
     # Walk up looking for a "vllm/sndr_core" sibling — handles both
     # editable install (repo root) and wheel-mounted layouts.
     for ancestor in here.parents:
+        canonical = ancestor / "sndr" / "engines" / "vllm" / "patches"
+        if canonical.is_dir():
+            return canonical
         legacy_root = ancestor / "vllm" / "sndr_core"
         if legacy_root.is_dir():
             canonical = legacy_root / "integrations"
@@ -169,22 +172,34 @@ def manifest_dir() -> Path:
 
     Honored env: `SNDR_MANIFEST_DIR`.
 
-    Default precedence (v10 hard flip 2026-05-07):
-      1. `vllm/sndr_core/manifests/` — canonical home.
-      2. `vllm/_genesis/manifests/` — legacy fallback (still kept in
-         sync during transition; tooling that hardcodes the legacy
-         path keeps working).
+    Default precedence (v12 rename 2026-06-04+):
+      1. `sndr/manifests/` — canonical v12 home (this package root).
+      2. `vllm/sndr_core/manifests/` — v11 legacy fallback via
+         repo-root walk (pre-v12 checkouts only).
+
+    Bug v12.0 (same class as the `wiring_dir` fix): the pre-rename code
+    derived the path from `_vllm_namespace_root()`, which after the
+    refactor resolves to `sndr/engines/` — so both probes targeted
+    paths that never exist. Resolve relative to this file instead.
     """
     p = _env_path("SNDR_MANIFEST_DIR")
     if p is not None:
         return p
 
-    vllm = _vllm_namespace_root()
-    canonical = vllm / "sndr_core" / "manifests"
-    legacy = vllm / "_genesis" / "manifests"
-    if canonical.exists():
-        return canonical
-    return legacy
+    # v12 canonical: sndr/manifests/ — this file lives at
+    # sndr/engines/vllm/locations/project_paths.py, so the package
+    # root `sndr/` is parents[3] (valid for editable + wheel layouts).
+    v12_canonical = Path(__file__).resolve().parents[3] / "manifests"
+    if v12_canonical.is_dir():
+        return v12_canonical
+
+    # v11 legacy fallback: vllm/sndr_core/manifests/ (pre-v12 trees).
+    for ancestor in Path(__file__).resolve().parents:
+        legacy = ancestor / "vllm" / "sndr_core" / "manifests"
+        if legacy.is_dir():
+            return legacy
+
+    return v12_canonical  # canonical for write-mode callers
 
 
 def manifest_json_path() -> Path:

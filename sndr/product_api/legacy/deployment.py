@@ -176,7 +176,7 @@ def _resolve_cfg(preset_id: str):
         from sndr.model_configs.registry_v2 import (
             compose_by_ids, load_model, load_profile,
         )
-        from sndr.cli.profile import _pick_default_hardware
+        from sndr.cli.legacy.profile import _pick_default_hardware
         profile = load_profile(preset_id)
         hw_id = profile.target_hardware or _pick_default_hardware(load_model(profile.parent_model)).id
         return compose_by_ids(profile.parent_model, hw_id, preset_id)
@@ -323,7 +323,7 @@ def _deps_plan(cfg) -> dict[str, Any]:
 # --------------------------------------------------------------------------
 
 def _artifact_compose(cfg, host_paths):
-    from sndr.cli.compose import render_compose_yaml
+    from sndr.cli.legacy.compose import render_compose_yaml
 
     return render_compose_yaml(cfg, host_paths=host_paths)
 
@@ -337,7 +337,7 @@ def _commands_compose(cfg):
 
 
 def _artifact_quadlet(cfg, host_paths):
-    from sndr.cli.quadlet import render_quadlet
+    from sndr.cli.legacy.quadlet import render_quadlet
 
     return render_quadlet(cfg, host_paths=host_paths)
 
@@ -364,7 +364,7 @@ def _dns_1123(value: str, *, max_len: int = 40) -> str:
 def _artifact_kubernetes(cfg, host_paths, name_hint=None):
     import dataclasses
 
-    from sndr.cli import k8s
+    from sndr.cli.legacy import k8s
 
     # k8s resource names derive from cfg.key (`sndr-<key>`). V2 composed keys
     # blow past the DNS-1123 63-char limit, so render with a short safe key

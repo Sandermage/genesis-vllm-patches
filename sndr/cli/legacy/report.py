@@ -310,7 +310,7 @@ def _collect_patch_plan(preset: str | None) -> dict[str, Any] | None:
     if not preset:
         return None
     try:
-        from sndr.cli.memory import _resolve_preset_v1_or_v2
+        from sndr.cli.legacy.memory import _resolve_preset_v1_or_v2
         from sndr.model_configs.patch_plan import resolve_patch_plan
     except Exception as e:
         return {"preset": preset, "error": f"import failed: {e}"}

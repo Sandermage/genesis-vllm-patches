@@ -267,7 +267,8 @@ def verify_signature(manifest: PluginManifest) -> tuple[bool, str]:
 # Module prefixes plugins are NOT permitted to patch unless the operator
 # explicitly opts in via SNDR_PLUGIN_ALLOW_CORE=1.
 _PROTECTED_MODULES = (
-    "vllm.sndr_core",          # Genesis core
+    "sndr.",                    # Genesis core (v12 canonical namespace)
+    "vllm.sndr_core",           # Genesis core (v11 shim namespace, compat window)
     "vllm.sndr_engine",         # Genesis engine
     "vllm.v1.core",             # vllm KV cache manager
     "vllm.v1.sample.rejection_sampler",  # spec-decode verify

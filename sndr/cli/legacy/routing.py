@@ -94,7 +94,7 @@ def _load_preset_yaml(path: Path) -> dict[str, Any]:
 
 
 def _list_preset_paths() -> list[Path]:
-    presets_dir = _REPO_ROOT / "vllm" / "sndr_core" / "model_configs" / "builtin" / "presets"
+    presets_dir = _REPO_ROOT / "sndr" / "model_configs" / "builtin" / "presets"
     return sorted(p for p in presets_dir.glob("*.yaml") if p.is_file())
 
 

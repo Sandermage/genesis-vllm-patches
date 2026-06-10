@@ -113,7 +113,7 @@ def explain_patch(patch_id: str) -> dict[str, Any]:
         "merged_status": "unknown",
     }
     try:
-        from sndr.engines.vllm.patches.upstream_compat import UPSTREAM_MARKERS
+        from sndr.engines.vllm.upstream_compat import UPSTREAM_MARKERS
 
         # Match priority:
         #   1. EXACT key match — `PR_<num>_*` where num == meta.upstream_pr.

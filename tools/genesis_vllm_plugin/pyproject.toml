@@ -13,7 +13,7 @@ authors = [
 license = {text = "Apache-2.0"}
 readme = "README.md"
 # No runtime deps — the plugin assumes vllm is available at import time.
-# Our orchestrator imports vllm.sndr_core/* which is mounted in the container.
+# Our orchestrator imports sndr/* which is mounted in the container.
 dependencies = []
 
 [project.entry-points."vllm.general_plugins"]
@@ -24,21 +24,22 @@ dependencies = []
 genesis_v7 = "genesis_v7:register"
 
 [project.scripts]
-# Two console commands are exposed, routing to the two CLI dispatchers:
+# Two console commands are exposed, routing to the two CLI dispatchers
+# (v12: the ``vllm.sndr_core`` namespace moved to top-level ``sndr``):
 #
-#   `sndr`     — canonical post-rebrand CLI (``vllm.sndr_core.cli``).
+#   `sndr`     — post-rebrand command tree (``sndr.cli.legacy``).
 #                Subcommands: launch, doctor, verify, model-config,
 #                patches, memory, install, deps, model, upstream, ...
 #                Operators should default to this command.
 #
-#   `genesis`  — legacy compat-layer CLI (``vllm.sndr_core.compat.cli``).
+#   `genesis`  — legacy compat-layer CLI (``sndr.compat.cli``).
 #                Subcommands: doctor, verify, preset, explain, ...
 #                Kept for back-compat with v7.x operators and docs.
 #
-# Both require ``vllm.sndr_core`` on PYTHONPATH (install.sh wires it
-# in; alternatively set PYTHONPATH manually).
-sndr    = "vllm.sndr_core.cli:cli_main"
-genesis = "vllm.sndr_core.compat.cli:main"
+# Both require ``sndr`` on PYTHONPATH (install.sh wires it in;
+# alternatively set PYTHONPATH manually).
+sndr    = "sndr.cli.legacy:cli_main"
+genesis = "sndr.compat.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

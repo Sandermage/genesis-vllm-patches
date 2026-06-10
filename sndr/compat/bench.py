@@ -1,15 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0
 """Genesis bench — unified-CLI shim for `genesis_bench_suite.py`.
 
-The real benchmark suite lives at `vllm/sndr_core/tools/genesis_bench_suite.py`
-(canonical post-Wave-10) — it needs to ship as a single self-contained
+The real benchmark suite lives at `sndr/extras/tools/genesis_bench_suite.py`
+(canonical post-v12) — it needs to ship as a single self-contained
 script people can curl, run, and share without installing the full
 Genesis package. This module is a thin pass-through that lets it be
 reached via the unified CLI:
 
-    python3 -m vllm.sndr_core.compat.cli bench --quick
-    python3 -m vllm.sndr_core.compat.cli bench --mode standard --ctx 8k
-    python3 -m vllm.sndr_core.compat.cli bench --compare a.json b.json
+    python3 -m sndr.compat.cli bench --quick
+    python3 -m sndr.compat.cli bench --mode standard --ctx 8k
+    python3 -m sndr.compat.cli bench --compare a.json b.json
 
 All argv after the `bench` subcommand is forwarded verbatim to
 `genesis_bench_suite.main()`.
@@ -33,10 +33,10 @@ log = logging.getLogger("genesis.compat.bench")
 def _locate_bench_module() -> Path | None:
     """Find genesis_bench_suite.py on disk.
 
-    Wave 10 (2026-05-15) refactor: the canonical home is now INSIDE
-    the package at `vllm/sndr_core/tools/genesis_bench_suite.py`.
-    This makes sndr_core self-contained — no runtime imports from
-    outside the package. Operator-side fallback locations stay in
+    Wave 10 (2026-05-15) made the package self-contained; the v12
+    relocation moved the canonical home to
+    `sndr/extras/tools/genesis_bench_suite.py` — no runtime imports
+    from outside the package. Operator-side fallback locations stay in
     the search order for slim deployments / dev checkouts.
 
     Search order (first-hit wins):
@@ -70,7 +70,7 @@ def _locate_bench_module() -> Path | None:
 def _load_bench_module():
     """Import genesis_bench_suite.py as a module.
 
-    The script lives in vllm/sndr_core/tools/ (canonical post-Wave-10).
+    The script lives in sndr/extras/tools/ (canonical post-v12).
     It is intentionally not a regular package submodule because operators
     can also run it standalone via `python3 …/genesis_bench_suite.py …`,
     so we use an explicit `spec_from_file_location` loader.
@@ -79,7 +79,7 @@ def _load_bench_module():
     if bench_path is None:
         raise FileNotFoundError(
             "Could not locate genesis_bench_suite.py. Canonical location "
-            "is vllm/sndr_core/tools/genesis_bench_suite.py. Set "
+            "is sndr/extras/tools/genesis_bench_suite.py. Set "
             "GENESIS_REPO_ROOT to point at a Genesis checkout, or run "
             "the bench directly per docs/BENCHMARKS.md."
         )
@@ -109,7 +109,7 @@ def main(argv: list[str] | None = None) -> int:
             print("genesis bench — Genesis Benchmark Suite (shim)")
             print()
             print("The full benchmark suite lives at "
-                  "vllm/sndr_core/tools/genesis_bench_suite.py.")
+                  "sndr/extras/tools/genesis_bench_suite.py.")
             print()
             print(f"Could not load it from this deployment: {e}")
             print()

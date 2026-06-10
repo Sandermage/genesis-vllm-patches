@@ -231,7 +231,7 @@ def _newest_source_mtime() -> float:
     Used to detect a stale --from file: if file mtime < youngest source
     mtime, the file is stale relative to the actual corpus state.
     """
-    builtin = _REPO_ROOT / "vllm" / "sndr_core" / "model_configs" / "builtin"
+    builtin = _REPO_ROOT / "sndr" / "model_configs" / "builtin"
     baselines = _REPO_ROOT / "tests" / "integration" / "baselines"
     mtimes: list[float] = [0.0]
     if builtin.is_dir():

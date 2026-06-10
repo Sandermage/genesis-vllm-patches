@@ -287,7 +287,7 @@ def run_install(args: argparse.Namespace) -> int:
         # Render the compose YAML to the canonical path. The compose
         # CLI already has render logic; service install delegates to
         # it so the two surfaces stay aligned.
-        from sndr.cli.compose import render_compose_yaml
+        from sndr.cli.legacy.compose import render_compose_yaml
         try:
             yaml_body = render_compose_yaml(cfg)
         except Exception as e:

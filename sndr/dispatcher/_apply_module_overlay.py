@@ -69,7 +69,7 @@ def _has_integration_tree_module(patch_id: str) -> bool:
     # repo-root vllm/sndr_core/integrations/ shim tree (same anchor as
     # dispatcher.spec._resolve_patches_dir / compat.categories._WIRING_DIR).
     integrations_dir = (
-        Path(__file__).resolve().parents[2] / "vllm" / "sndr_core" / "integrations"
+        Path(__file__).resolve().parents[2] / "sndr" / "engines" / "vllm" / "patches"
     )
     if not integrations_dir.is_dir():
         return False

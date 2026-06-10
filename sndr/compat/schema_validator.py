@@ -166,6 +166,12 @@ _KNOWN_FIELDS = {
     # deep-diff bookkeeping on pin bumps. Values: backport,
     # related_not_superseding, different_approach, vendor_port, issue_only.
     "upstream_pr_relationship",
+    # Companion issue number for the upstream PR (June 2026 vendor wave:
+    # PN346 #43559, PN347 #44110). `normalize_upstream_pr` in
+    # dispatcher/spec.py deliberately rejects issue refs inside
+    # `upstream_pr`; this separate field is the sanctioned home for
+    # tracking-by-issue (int, URL str, or null).
+    "upstream_issue",
 }
 
 

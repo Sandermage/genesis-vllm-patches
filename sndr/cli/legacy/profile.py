@@ -344,11 +344,14 @@ _SEV_INFO = "INFO"
 
 
 def _artifacts_dir():
-    """Path to the spec_decode functional artifacts directory."""
-    import pathlib
-    here = pathlib.Path(__file__).resolve()
-    # cli/ → sndr_core/ → integrations/spec_decode/artifacts/
-    return here.parent.parent / "integrations" / "spec_decode" / "artifacts"
+    """Path to the spec_decode functional artifacts directory.
+
+    Single source of truth is the owning module's ``_ARTIFACTS_DIR``
+    (same pattern as product_api routing) — a hand-derived relative
+    path here broke on the v12 tree move.
+    """
+    from sndr.engines.vllm.patches.spec_decode import functional_artifact
+    return functional_artifact._ARTIFACTS_DIR
 
 
 def _read_artifact(artifact_id: str):

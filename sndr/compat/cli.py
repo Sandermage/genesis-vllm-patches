@@ -3,14 +3,14 @@
 
 One entry-point that routes to all 14 sub-CLIs:
 
-    python3 -m vllm.sndr_core.compat.cli doctor
-    python3 -m vllm.sndr_core.compat.cli explain PN14
-    python3 -m vllm.sndr_core.compat.cli categories --category spec_decode
-    python3 -m vllm.sndr_core.compat.cli recipe save my-prod \\
+    python3 -m sndr.compat.cli doctor
+    python3 -m sndr.compat.cli explain PN14
+    python3 -m sndr.compat.cli categories --category spec_decode
+    python3 -m sndr.compat.cli recipe save my-prod \\
         --from-container vllm-server-mtp-test
-    python3 -m vllm.sndr_core.compat.cli plugins list
-    python3 -m vllm.sndr_core.compat.cli telemetry status
-    python3 -m vllm.sndr_core.compat.cli update-channel check
+    python3 -m sndr.compat.cli plugins list
+    python3 -m sndr.compat.cli telemetry status
+    python3 -m sndr.compat.cli update-channel check
     ...
 
 Each subcommand is a thin pass-through to the corresponding
@@ -38,33 +38,33 @@ log = logging.getLogger("genesis.compat.cli")
 # Order here is the order shown in --help. Group by purpose.
 _SUBCOMMAND_MAP: dict[str, str] = {
     # Diagnostic
-    "doctor":          "vllm.sndr_core.compat.doctor",
-    "explain":         "vllm.sndr_core.compat.explain",
-    "init":            "vllm.sndr_core.compat.init_wizard",
+    "doctor":          "sndr.compat.doctor",
+    "explain":         "sndr.compat.explain",
+    "init":            "sndr.compat.init_wizard",
     # Models
-    "list-models":     "vllm.sndr_core.compat.models.list_cli",
-    "pull":            "vllm.sndr_core.compat.models.pull",
+    "list-models":     "sndr.compat.models.list_cli",
+    "pull":            "sndr.compat.models.pull",
     # Registry validation
-    "lifecycle-audit": "vllm.sndr_core.compat.lifecycle_audit_cli",
-    "validate-schema": "vllm.sndr_core.compat.schema_validator",
+    "lifecycle-audit": "sndr.compat.lifecycle_audit_cli",
+    "validate-schema": "sndr.compat.schema_validator",
     # Navigation + migration
-    "categories":      "vllm.sndr_core.compat.categories",
-    "migrate":         "vllm.sndr_core.compat.migrate",
+    "categories":      "sndr.compat.categories",
+    "migrate":         "sndr.compat.migrate",
     # Deploy / share
-    "recipe":          "vllm.sndr_core.compat.recipes",
-    "preset":          "vllm.sndr_core.compat.presets",
+    "recipe":          "sndr.compat.recipes",
+    "preset":          "sndr.compat.presets",
     # Community + telemetry + updates
-    "plugins":         "vllm.sndr_core.compat.plugins",
-    "telemetry":       "vllm.sndr_core.compat.telemetry",
-    "update-channel":  "vllm.sndr_core.compat.update_channel",
+    "plugins":         "sndr.compat.plugins",
+    "telemetry":       "sndr.compat.telemetry",
+    "update-channel":  "sndr.compat.update_channel",
     # Operator sanity check
-    "self-test":       "vllm.sndr_core.compat.self_test",
-    "verify":          "vllm.sndr_core.compat.verify",
-    "preflight":       "vllm.sndr_core.compat.preflight_checks",
+    "self-test":       "sndr.compat.self_test",
+    "verify":          "sndr.compat.verify",
+    "preflight":       "sndr.compat.preflight_checks",
     # Benchmarking
-    "bench":           "vllm.sndr_core.compat.bench",
+    "bench":           "sndr.compat.bench",
     # Vetted model configs (single-source-of-truth for launch+verify)
-    "model-config":    "vllm.sndr_core.compat.model_config_cli",
+    "model-config":    "sndr.compat.model_config_cli",
 }
 
 
@@ -136,7 +136,7 @@ def _print_help() -> None:
     print("genesis — unified CLI for the Genesis vLLM compat layer")
     print()
     print("Usage:")
-    print("  python3 -m vllm.sndr_core.compat.cli <subcommand> [args...]")
+    print("  python3 -m sndr.compat.cli <subcommand> [args...]")
     print()
     print("Available subcommands:")
     width = max(len(s) for s in _SUBCOMMAND_MAP)
@@ -145,7 +145,7 @@ def _print_help() -> None:
         print(f"  {sub:<{width}}  {desc}")
     print()
     print("For per-subcommand help:")
-    print("  python3 -m vllm.sndr_core.compat.cli <subcommand> --help")
+    print("  python3 -m sndr.compat.cli <subcommand> --help")
     print()
     print("The legacy per-module form continues to work, e.g.:")
     print("  python3 -m vllm.sndr_core.compat.doctor")
@@ -175,7 +175,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Available subcommands: {', '.join(sorted(_SUBCOMMAND_MAP))}",
               file=sys.stderr)
         print(file=sys.stderr)
-        print("Run `python3 -m vllm.sndr_core.compat.cli --help` for full help.",
+        print("Run `python3 -m sndr.compat.cli --help` for full help.",
               file=sys.stderr)
         return 2
 

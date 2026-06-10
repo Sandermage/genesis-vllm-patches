@@ -16,7 +16,7 @@
 #   enable_chunked_prefill: true
 #
 # Acceptance artifact reference:
-#   vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-31b-tq-mtp-structured-k4.json
+#   sndr/engines/vllm/patches/spec_decode/artifacts/gemma4-31b-tq-mtp-structured-k4.json
 #   config_hash: 71c874d7ffedae04
 #   decision: validated_conditional
 #
@@ -70,7 +70,7 @@ card:
     measured_at: 2026-05-23
   evidence_refs:
     - type: structured_eval
-      path: vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-31b-tq-mtp-structured-k4.json
+      path: sndr/engines/vllm/patches/spec_decode/artifacts/gemma4-31b-tq-mtp-structured-k4.json
       visibility: public
       note: β'-A validated_conditional acceptance artifact (config_hash 71c874d7ffedae04).
     - type: bench

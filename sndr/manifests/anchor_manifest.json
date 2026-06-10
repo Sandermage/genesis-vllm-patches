@@ -207,11 +207,11 @@
       "size_bytes": 316188
     }
   },
-  "generated_at": "2026-05-28T18:10:24Z",
+  "generated_at": "2026-06-10T05:00:00Z",
   "generated_by": "vllm.sndr_core.wiring.anchor_manifest.assemble_manifest",
   "manifest_version": 1,
   "pins": {
-    "genesis": "11.0.0",
+    "genesis": "12.0.0.dev0",
     "vllm": "unknown"
   }
 }

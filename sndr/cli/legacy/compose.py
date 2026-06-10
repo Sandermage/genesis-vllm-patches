@@ -156,7 +156,7 @@ def _resolve(key: str):
     `sndr compose render a5000-2x-35b-prod`.
     """
     try:
-        from sndr.cli.memory import _resolve_preset_v1_or_v2
+        from sndr.cli.legacy.memory import _resolve_preset_v1_or_v2
         return _resolve_preset_v1_or_v2(key)
     except Exception as e:
         _io.error(f"unknown preset key {key!r} ({e})")

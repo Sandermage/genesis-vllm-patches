@@ -44,7 +44,7 @@ _DEFAULT_METHODOLOGY_PATH = (
     Path(__file__).resolve().parents[2] / "extras" / "tools" / "bench_methodology.yaml"
 )
 _LEGACY_METHODOLOGY_PATH = (
-    Path(__file__).resolve().parents[3] / "vllm" / "sndr_core" / "tools" / "bench_methodology.yaml"
+    Path(__file__).resolve().parents[3] / "sndr" / "extras" / "tools" / "bench_methodology.yaml"
 )
 
 
@@ -66,7 +66,7 @@ def add_argparser(subparsers: Any) -> None:
     p_val.add_argument("artefact",
                        help="Path to a genesis_bench_suite.py JSON result.")
     p_val.add_argument("--methodology", default=None,
-                       help="Path to methodology YAML (default: vllm/sndr_core/tools/bench_methodology.yaml).")
+                       help="Path to methodology YAML (default: sndr/extras/tools/bench_methodology.yaml).")
     p_val.add_argument("--json", action="store_true",
                        help="Emit machine-readable JSON.")
     p_val.set_defaults(func=run_validate)

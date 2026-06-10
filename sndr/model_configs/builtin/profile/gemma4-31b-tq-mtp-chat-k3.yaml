@@ -43,9 +43,9 @@
 #   docs/_internal/SNDR_RUNTIME_PROFILES_DESIGN_DECISIONS_2026-05-20.md
 #   docs/_internal/DEPLOYMENT_PROFILE_ROUTING_PLAN_2026-05-20.md
 #   docs/_internal/GEMMA4_MTP_MODELDEF_MIGRATION_AUDIT_2026-05-20.md
-#   vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-31b-tq-mtp-chat-k3.json
-#   vllm/sndr_core/integrations/spec_decode/request_router.py
-#   vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-31b-tq-mtp-structured-k4.json
+#   sndr/engines/vllm/patches/spec_decode/artifacts/gemma4-31b-tq-mtp-chat-k3.json
+#   sndr/engines/vllm/patches/spec_decode/request_router.py
+#   sndr/engines/vllm/patches/spec_decode/artifacts/gemma4-31b-tq-mtp-structured-k4.json
 #     (mirror-sibling — denied set of K=4 = allowed set of this profile)
 
 schema_version: 2
@@ -247,7 +247,7 @@ override_policy:
   override_class: bench
   reason: "Gemma4 31B chat-K=3 mirror of β'-A K=4 structured control; +19% global / +105% chat geomean vs K=4; partitions denied workload classes of K=4 (free_chat, code_gen, summarization)"
   evidence_refs:
-    - vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-31b-tq-mtp-chat-k3.json
+    - sndr/engines/vllm/patches/spec_decode/artifacts/gemma4-31b-tq-mtp-chat-k3.json
   evidence_visibility: public
   expires_at: '2026-08-31'
   allowed_to_exceed_hardware_default: true

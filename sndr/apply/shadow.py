@@ -156,6 +156,13 @@ KNOWN_SPEC_ONLY_PATCHES: frozenset[str] = frozenset({
     "G4_T1",           # Gemma4 tool-parser PR #42006 vendor marker;
                        # apply_module is the marker stub, actual
                        # vendored file is operator-side bind-mount
+    # ── Iteration N+3 (2026-06, commit 1bfbf695) — spec-driven from
+    # inception, SYNCED but DEFERRED (intentional; see commit msg):
+    "PN353B",          # TQ prefill CG capture safety (vendor of OPEN
+                       # vllm#43747); apply_module set, registry-driven
+                       # canonical path, no legacy entry by design
+    "PN357",           # remapped greedy draft selection speedup
+                       # (vendor of OPEN vllm#43349); same class
 })
 
 

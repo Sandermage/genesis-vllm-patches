@@ -36,9 +36,9 @@
 # Architectural cross-references:
 #   docs/_internal/SNDR_RUNTIME_PROFILES_DESIGN_DECISIONS_2026-05-20.md
 #   docs/_internal/DEPLOYMENT_PROFILE_ROUTING_PLAN_2026-05-20.md
-#   vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-26b-mtp-chat-k3.json
-#   vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-26b-mtp-k4.json (sibling)
-#   vllm/sndr_core/model_configs/builtin/profile/gemma4-26b-mtp-k4.yaml (structured K=4)
+#   sndr/engines/vllm/patches/spec_decode/artifacts/gemma4-26b-mtp-chat-k3.json
+#   sndr/engines/vllm/patches/spec_decode/artifacts/gemma4-26b-mtp-k4.json (sibling)
+#   sndr/model_configs/builtin/profile/gemma4-26b-mtp-k4.yaml (structured K=4)
 
 schema_version: 2
 kind: profile
@@ -117,7 +117,7 @@ override_policy:
   override_class: bench
   reason: "Gemma4 26B-A4B chat-K=3 mirror of K=4 sibling; +13% free-form / +2.4% global vs K=4; partitions free_chat + summarization off the K=4 path where K=3 wins ≥ 7%"
   evidence_refs:
-    - vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-26b-mtp-chat-k3.json
+    - sndr/engines/vllm/patches/spec_decode/artifacts/gemma4-26b-mtp-chat-k3.json
   evidence_visibility: public
   expires_at: '2026-08-31'
   allowed_to_exceed_hardware_default: false

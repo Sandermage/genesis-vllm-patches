@@ -58,7 +58,7 @@ PN95_STATUS_HINTS: tuple[tuple[Callable[[dict[str, Any]], bool], str, str], ...]
         "Worker processes). The fall-through eviction-driven path "
         "(SITE7 demote-on-evict) still works on natural vllm prefix "
         "eviction. To get proactive coverage call "
-        "vllm.sndr_core.cache._pn95_runtime.worker_side_proactive_demote "
+        "sndr.cache._pn95_runtime.worker_side_proactive_demote "
         "from a Worker-side hook (BlockPool.get_new_blocks or similar).",
     ),
     (

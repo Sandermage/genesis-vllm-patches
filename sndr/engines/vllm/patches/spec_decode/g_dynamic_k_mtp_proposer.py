@@ -76,8 +76,10 @@ from collections import deque
 from collections.abc import Sequence
 from typing import Any
 
-import numpy as np
-import torch
+# NOTE: torch / numpy are imported lazily inside
+# `_install_dynamic_k_methods` (apply time, inside the container).
+# Top-level heavy imports would break torch-less collection on dev
+# machines and the registry apply_module importability gate.
 
 # Constants — verbatim from PR #26504
 MIN_SPEC_TOKENS = 1
@@ -121,6 +123,9 @@ def _install_dynamic_k_methods(target_cls: type) -> None:
     """
     if getattr(target_cls, "_sndr_dynamic_k_installed", False):
         return
+
+    import numpy as np
+    import torch
 
     original_init = target_cls.__init__
     original_propose = target_cls.propose

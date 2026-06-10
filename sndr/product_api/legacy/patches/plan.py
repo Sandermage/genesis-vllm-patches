@@ -114,7 +114,7 @@ def simulate_plan(
     other failures from the underlying resolver propagate as their
     original exceptions; the env overlay is restored regardless.
     """
-    from sndr.cli.memory import _resolve_preset_v1_or_v2
+    from sndr.cli.legacy.memory import _resolve_preset_v1_or_v2
 
     try:
         cfg = _resolve_preset_v1_or_v2(preset_key)

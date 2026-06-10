@@ -521,6 +521,59 @@ class Flags:
     NO_VERIFY = "NO_VERIFY"                     # skip post-apply verify
     TELEMETRY = "TELEMETRY"                     # opt-in telemetry
 
+    # ── 2026-06 vendor wave (PN290+ / June sessions) ──
+    # attention family
+    PN351 = "PN351"  # PN351: Triton unified_attention head_dim>=512 tune
+    # attention.gdn family
+    PN293_MAMBA_ATTN_PREFILL_FASTPATH = "PN293_MAMBA_ATTN_PREFILL_FASTPATH"  # PN293: mamba_attn _compute_common_metadata prefill fast-path
+    PN298_FLA_CHUNK_O_ARCH_WARPS = "PN298_FLA_CHUNK_O_ARCH_WARPS"  # PN298: FLA chunk_o NUM_WARPS arch-aware prune
+    PN299B = "PN299B"  # PN299B: FLA extended
+    PN299C = "PN299C"  # PN299C: FLA layernorm_guard arch-aware NUM_WARPS heuristic cap
+    PN299D = "PN299D"  # PN299D: Mamba2 SSU fallback heuristic arch-aware NUM_WARPS cap
+    PN299_FLA_MULTI_ARCH_WARPS = "PN299_FLA_MULTI_ARCH_WARPS"  # PN299: FLA multi-file
+    PN340 = "PN340"  # PN340: MTP decode bubbles reduction in GDN backend
+    PN341 = "PN341"  # PN341: MTP decode bubbles reduction in gpu_model_runner
+    PN345 = "PN345"  # PN345: Shmem-aware Triton autotune pruner
+    PN350 = "PN350"  # PN350: Fused GDN Q/K/V split Triton kernel
+    PN365_GDN_GEMM_FUSE = "PN365_GDN_GEMM_FUSE"  # PN365: Fused GDN qkv|z|b|a single-GEMM input projection
+    # attention.turboquant family
+    P18B_TEXT = "P18B_TEXT"  # P18B_TEXT: TurboQuant decode stage1 kernel-literal tune
+    PN299E = "PN299E"  # PN299E: KV cache writer arch-aware NUM_WARPS+NUM_STAGES cap
+    PN353A = "PN353A"  # PN353A: TurboQuant MetadataBuilder workspace reserve
+    PN353B = "PN353B"  # PN353B: TurboQuant prefill CUDA-graph capture safety
+    # compile_safety family
+    PN364_HYBRID_GDN_WARMUP = "PN364_HYBRID_GDN_WARMUP"  # PN364: Hybrid GDN/Mamba/MRoPE startup warmup
+    PN367 = "PN367"  # PN367: CUDA graph memory estimate clamp
+    # detection family
+    PN296_ARCH_PROFILE_INIT = "PN296_ARCH_PROFILE_INIT"  # PN296: Genesis GPU Architecture Profile boot-time initializer
+    PN300_UNIVERSAL_TRITON_AUTOTUNE_WRAPPER = "PN300_UNIVERSAL_TRITON_AUTOTUNE_WRAPPER"  # PN300: Universal Triton Autotune Arch-Aware Wrapper
+    PN302_MODEL_PROFILE_INIT = "PN302_MODEL_PROFILE_INIT"  # PN302: Genesis Model Profile boot-time initializer
+    # gemma4 family
+    G4_08_MARLIN_KDIM_PAD = "G4_08_MARLIN_KDIM_PAD"  # G4_08: Marlin K-pad Triton MoE fallback
+    G4_25_GEMMA4_RoPE_DUAL_BASE_GUARD = "G4_25_GEMMA4_RoPE_DUAL_BASE_GUARD"  # G4_25: Gemma 4 dual-RoPE base-freq divergence guard
+    # kernels family
+    P23_MARLIN_FP32_REDUCE_WIRE = "P23_MARLIN_FP32_REDUCE_WIRE"  # P23_WIRE: Marlin FP32_REDUCE env wire
+    PN362 = "PN362"  # PN362: Triton autotune determinism — VLLM_TRITON_FORCE_FIRST_CONF
+    # kv_cache family
+    PN346 = "PN346"  # PN346: Mamba/GDN cache hit boundary fix for MTP + prefix caching
+    # model_compat.gemma4 family
+    PN349 = "PN349"  # PN349: Gemma 4 KV-shared k_norm/v_norm skip
+    # moe family
+    PN352 = "PN352"  # PN352: Triton moe_sum for unsupported topk
+    # quantization.marlin family
+    PN347 = "PN347"  # PN347: MarlinFP8 N==K silent corruption correctness fix
+    # spec_decode family
+    PN290_NUM_ACCEPTED_TOKENS_RACE = "PN290_NUM_ACCEPTED_TOKENS_RACE"  # PN290: num_accepted_tokens D2H race fix
+    PN348 = "PN348"  # PN348: Qwen3.5/3.6 MTP backbone dedup
+    PN357 = "PN357"  # PN357: Optimize remapped greedy draft token selection
+    PN361 = "PN361"  # PN361: Spec-decode fail-closed on missing draft probs
+    PN363 = "PN363"  # PN363: force_max_spec_tokens for suffix decoding — FULL CG dispat
+    # tool_parsing family
+    P29_QWEN3CODER_INDEX_HEAL = "P29_QWEN3CODER_INDEX_HEAL"  # P29_HEAL: qwen3coder tool parser index heal
+    # worker family
+    PN292_REVERT_FUSED_MAMBA_POSTPROCESS = "PN292_REVERT_FUSED_MAMBA_POSTPROCESS"  # PN292: Revert PR#40172 fused Triton Mamba postprocess
+    PN294_UNSPLIT_MTP_ATTN_GROUPS = "PN294_UNSPLIT_MTP_ATTN_GROUPS"  # PN294: Unsplit MTP draft+target attention groups
+
 
 # ── Public API ──────────────────────────────────────────────────────────
 

@@ -19,7 +19,7 @@
 #   profile_structured_mean_tps: 43.057   (-18.3% vs K=4 structured)
 #   profile_geomean_tps:         43.608   (+19.0% vs K=4 structured)
 #   Decision: validated_conditional. See artifact at
-#   vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-31b-tq-mtp-chat-k3.json
+#   sndr/engines/vllm/patches/spec_decode/artifacts/gemma4-31b-tq-mtp-chat-k3.json
 #
 # Hand-launcher reference: the rig carries `~/start_gemma4-31b_k3.sh`
 # (created 2026-05-31) as a manual K=3 control before this preset
@@ -76,7 +76,7 @@ card:
   primary_metric:
     kind: agg_TPS
     value: 43.608117
-    source: vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-31b-tq-mtp-chat-k3.json
+    source: sndr/engines/vllm/patches/spec_decode/artifacts/gemma4-31b-tq-mtp-chat-k3.json
     measured_at: 2026-05-31
   evidence_refs:
     - type: bench
@@ -87,7 +87,7 @@ card:
       # VRAM snapshots directly. Clears the audit_config_catalog
       # `production_candidate_public_evidence` warning that previously
       # gated this preset from promoting to status=production.
-      path: vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-31b-tq-mtp-chat-k3.json
+      path: sndr/engines/vllm/patches/spec_decode/artifacts/gemma4-31b-tq-mtp-chat-k3.json
       visibility: public
       note: |
         K=3 vs K=4 5-class A/B bench evidence, +19% global delta,

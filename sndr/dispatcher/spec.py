@@ -97,6 +97,10 @@ VALID_CATEGORIES = (
     "stability",          # boot/runtime stability guards (P34, PN61)
     "hybrid",             # GDN/Mamba hybrid path (PN32, PN59)
     "config_auto_tune",   # auto-tune config/profile from detected hw (PN296, PN302)
+    # 2026-06-10 vendor-wave descriptors (PN346/PN347/PN349/PN362/PN364)
+    "correctness",        # output/cache correctness fixes (PN346, PN347, PN349)
+    "bench_methodology",  # bench reproducibility aids (PN362 autotune determinism)
+    "ttft_warmup",        # startup warmup reducing first-request latency (PN364)
 )
 
 # `implementation_status` describes how the patch is wired into vllm.
@@ -205,6 +209,14 @@ _FAMILY_TO_CATEGORY: dict[str, str] = {
     "observability": "observability",  # logging/metrics/tracing patches
     "streaming": "kv_cache",  # PN200-203 streaming KV cache (per P0.2)
     "offload": "memory",  # P104/P105/PN102 CPU/disk offload (per P0.2)
+    # v12 follow-up (2026-06-10): two families shipped without map
+    # entries (caught by test_no_uncategorized_families):
+    "detection": "config_auto_tune",  # PN296/PN302 arch+model profile
+    #   boot initializers, PN300 autotune wrapper (its explicit
+    #   category='kernel_perf' field still wins for PN300 itself).
+    "model_compat": "model_correctness",  # root for model_compat.* —
+    #   covers `model_compat.gemma4` (PN349) and future per-model
+    #   subfamilies via the prefix fallback in infer_category().
 }
 
 
@@ -391,6 +403,9 @@ def _resolve_patches_dir() -> Optional[Path]:
     layout is present (logs a warning so the empty map is diagnosable).
     """
     _repo_root = Path(__file__).resolve().parents[2]
+    canonical_dir = _repo_root / "sndr" / "engines" / "vllm" / "patches"
+    if canonical_dir.is_dir():
+        return canonical_dir
     integrations_dir = _repo_root / "vllm" / "sndr_core" / "integrations"
     if integrations_dir.is_dir():
         return integrations_dir
@@ -512,9 +527,25 @@ def _build_apply_module_map() -> dict[str, str]:
         _APPLY_MODULE_MAP_CACHE = out
         return out
 
-    repo_root = patches_dir.parent.parent.parent  # repo root, parent of vllm/
+    # Anchor at the repo root (same anchor `_resolve_patches_dir` builds
+    # its candidates from) so the dotted path keeps the full package
+    # prefix for every supported layout. The pre-v12 `parent.parent.parent`
+    # walk-up assumed the 3-level `vllm/sndr_core/integrations` tree and
+    # silently dropped the `sndr.` prefix on the 4-level
+    # `sndr/engines/vllm/patches` layout.
+    repo_root = Path(__file__).resolve().parents[2]
 
     out, duplicates = _walk_patch_impl_files(patches_dir, repo_root)
+
+    # v12 moved retired impl files from ``patches/_retired/`` (covered by
+    # the walk above) to the sibling ``engines/vllm/_archive/`` — keep
+    # them in the coverage map so retired patch ids still resolve.
+    archive_dir = patches_dir.parent / "_archive"
+    if archive_dir.is_dir():
+        archive_out, archive_dups = _walk_patch_impl_files(archive_dir, repo_root)
+        for pid, dotted in archive_out.items():
+            out.setdefault(pid, dotted)
+        duplicates.extend(archive_dups)
 
     if duplicates:
         for pid, first, second in duplicates[:3]:

@@ -124,6 +124,10 @@
       "type": ["integer", "string", "null"],
       "description": "vllm-project/vllm PR/issue reference this patch tracks. int = legacy PR-number form; string = full URL or issue-number form (G4_* style); null = Genesis-original or no upstream tracker."
     },
+    "upstream_issue": {
+      "type": ["integer", "string", "null"],
+      "description": "Companion vllm-project/vllm ISSUE number for the upstream PR (e.g. PN346 tracks PR #43650 which closes issue #43559). normalize_upstream_pr deliberately rejects issue refs inside `upstream_pr`; this field is the sanctioned home for tracking-by-issue."
+    },
     "upstream_pr_relationship": {
       "type": "string",
       "enum": ["backport", "related_not_superseding", "different_approach", "vendor_port", "issue_only"],

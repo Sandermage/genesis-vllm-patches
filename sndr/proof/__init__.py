@@ -41,7 +41,9 @@ from pathlib import Path
 from typing import Optional
 
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+# v12: this file lives at sndr/proof/__init__.py — repo root is two
+# levels up (was parents[3] when the package sat at vllm/sndr_core/).
+REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_PROOF_DIR = REPO_ROOT / "evidence" / "patch_proof"
 
 log = logging.getLogger("genesis.patches.prove")
@@ -323,7 +325,7 @@ def static_checks_for_patch(
         from sndr.dispatcher.registry import PATCH_REGISTRY
         registry = PATCH_REGISTRY
     if canonical_keys is None:
-        from sndr.cli.config_keys import load_canonical_registry
+        from sndr.cli.legacy.config_keys import load_canonical_registry
         canonical_keys = set(load_canonical_registry().keys())
     if known_spec_only is None:
         from sndr.apply.shadow import KNOWN_SPEC_ONLY_PATCHES

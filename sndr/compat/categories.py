@@ -40,14 +40,12 @@ log = logging.getLogger("genesis.compat.categories")
 
 
 # PR38 cleanup (2026-05-08): legacy `_genesis/wiring/` removed. Walk the
-# `vllm/sndr_core/integrations/` tree with the post-flip naming convention
-# (`p67_*.py`, `pn14_*.py`). NOTE: this module lives under `sndr/compat/` after
-# the sndr-platform relocation, but the wiring tree it indexes (and the dotted
-# module paths it derives below, anchored at `_WIRING_DIR.parent.parent.parent`)
-# is still the repo-root `vllm/sndr_core/integrations/` shim tree, so the path is
-# anchored to the repo root rather than relative to this file's package.
+# canonical patches tree with the post-flip naming convention
+# (`p67_*.py`, `pn14_*.py`). v12: the tree lives at
+# `sndr/engines/vllm/patches/`; dotted module paths below are derived
+# repo-root-anchored via `_WIRING_DIR.parents[3]`.
 _WIRING_DIR = (
-    Path(__file__).resolve().parents[2] / "vllm" / "sndr_core" / "integrations"
+    Path(__file__).resolve().parents[2] / "sndr" / "engines" / "vllm" / "patches"
 )
 
 
@@ -87,7 +85,13 @@ def _build_module_index() -> dict[str, str]:
     # Match canonical filenames: `p67_*.py`, `pn14_*.py`, `p67b_*.py`,
     # `p68_69_*.py` (compound). Numbers can be followed by an optional
     # letter (suffix variants like `b`, `c`).
-    for f in sorted(_WIRING_DIR.rglob("p*.py")):
+    # v12 moved retired wiring modules to the sibling ``_archive`` dir —
+    # include them so retired patch ids (PN13, P8, ...) keep resolving.
+    _archive = _WIRING_DIR.parent / "_archive"
+    _walk_files = list(_WIRING_DIR.rglob("p*.py"))
+    if _archive.is_dir():
+        _walk_files.extend(_archive.rglob("p*.py"))
+    for f in sorted(_walk_files):
         if f.name.startswith("__"):
             continue
         stem = f.stem  # e.g. "p67_tq_multi_query_kernel"
@@ -120,10 +124,10 @@ def _build_module_index() -> dict[str, str]:
                 ids.append("P" + comp_token.upper())
 
         # Compute dotted module path from path parts.
-        # _WIRING_DIR = repo_root/vllm/sndr_core/integrations
-        # parents:    [.../patches, .../sndr_core, .../vllm, repo_root]
-        rel = f.relative_to(_WIRING_DIR.parent.parent.parent)  # repo-root anchored
-        # rel example: vllm/sndr_core/integrations/spec_decode/p67_*.py
+        # _WIRING_DIR = repo_root/sndr/engines/vllm/patches
+        # parents:    [.../vllm, .../engines, .../sndr, repo_root]
+        rel = f.relative_to(_WIRING_DIR.parents[3])  # repo-root anchored
+        # rel example: sndr/engines/vllm/patches/spec_decode/p67_*.py
         parts = list(rel.parts[:-1]) + [stem]
         module_path = ".".join(parts)
         for pid in ids:
@@ -300,7 +304,7 @@ def _format_text(cats: dict[str, list[str]],
             # backwards-compat output during transition.
             short = mod
             for prefix in (
-                "vllm.sndr_core.integrations.",
+                "sndr.engines.vllm.patches.",
                 "vllm._genesis.wiring.",
             ):
                 if short.startswith(prefix):

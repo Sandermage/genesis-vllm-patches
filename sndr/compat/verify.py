@@ -166,21 +166,21 @@ def _run_check(
 
 def _check_genesis_importable() -> CheckResult:
     try:
-        importlib.import_module("vllm.sndr_core")
+        importlib.import_module("sndr")
         return CheckResult(
-            "C1 sndr_core package importable",
+            "C1 sndr package importable",
             PASS,
-            "vllm.sndr_core imports OK",
+            "sndr imports OK",
         )
     except ImportError as e:
         return CheckResult(
-            "C1 sndr_core package importable",
+            "C1 sndr package importable",
             FAIL,
             str(e),
             hint=(
-                "SNDR Core source not on PYTHONPATH. Either:\n"
-                "  • run install.sh (it symlinks vllm/sndr_core into "
-                "the vllm install)\n"
+                "SNDR source not on PYTHONPATH. Either:\n"
+                "  • run install.sh (it mounts/symlinks sndr/ into "
+                "the engine environment)\n"
                 "  • export PYTHONPATH=$GENESIS_HOME:$PYTHONPATH"
             ),
         )
@@ -211,21 +211,21 @@ def _check_dispatcher_loads() -> CheckResult:
 
 
 def _check_apply_all_importable() -> CheckResult:
-    """C3 — `vllm.sndr_core.apply` package importable.
+    """C3 — `sndr.apply` package importable.
 
     PR38 cleanup (2026-05-08): legacy `vllm._genesis.patches.apply_all`
-    monolith split into `vllm.sndr_core.apply` package + canonical entry
-    `apply_all` attribute referring to that package itself. Either form
-    works; this check resolves the package.
+    monolith split into the apply package + canonical entry `apply_all`
+    attribute referring to that package itself (v12: `sndr.apply`).
+    Either form works; this check resolves the package.
     """
     try:
-        mod = importlib.import_module("vllm.sndr_core.apply")
+        mod = importlib.import_module("sndr.apply")
         # Sanity-check: the canonical apply_all attribute should exist.
         if not hasattr(mod, "apply_all"):
             return CheckResult(
                 "C3 apply package importable",
                 FAIL,
-                "vllm.sndr_core.apply imports but lacks `apply_all` attribute",
+                "sndr.apply imports but lacks `apply_all` attribute",
             )
         return CheckResult(
             "C3 apply package importable",

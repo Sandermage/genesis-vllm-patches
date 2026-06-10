@@ -226,7 +226,9 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "credit": "Genesis-original (root cause for noonghunna #40880). Fallback safety-net workaround that downgrades cudagraph PIECEWISE → ~30% TPS hit. SUPERSEDED by P67/P67b root-cause fix (TurboQuant multi-query kernel for spec-decode K+1 verify). Default OFF; opt-in only when P67 unavailable or unstable.",
         "upstream_pr": None,
         "applies_to": {"is_turboquant": [True]},
-        "conflicts_with": ["P67", "P67b"],
+        # PN353B added 2026-06-10: it downgrades the same cudagraph
+        # ClassVar (see PN353B credit), so the conflict is mutual.
+        "conflicts_with": ["P67", "P67b", "PN353B"],
         # NOTE: P67/P67b is the root-cause fix (multi-query kernel) and
         # P65 is the safety-net fallback. Relationship explained in
         # `credit`. Not using `superseded_by` because P65 has no pin-gate

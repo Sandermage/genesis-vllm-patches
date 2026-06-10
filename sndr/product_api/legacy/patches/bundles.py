@@ -63,7 +63,7 @@ def list_bundles() -> list[BundleSpec]:
             umbrella_flag=flag,
             tier=tier,
             description=desc,
-            module_path=f"vllm.sndr_core.bundles.{name}",
+            module_path=f"sndr.bundles.{name}",
             has_apply=None,
         )
         for name, flag, tier, desc in BUNDLES_CATALOG
@@ -82,7 +82,7 @@ def explain_bundle(name: str) -> Optional[BundleSpec]:
     if match is None:
         return None
     bname, bflag, btier, bdesc = match
-    module_path = f"vllm.sndr_core.bundles.{bname}"
+    module_path = f"sndr.bundles.{bname}"
     has_apply: Optional[bool] = None
     import_error: Optional[str] = None
     try:

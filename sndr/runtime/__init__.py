@@ -43,8 +43,8 @@ def __getattr__(name: str):
     submodule) is loaded only on first attribute access, so simple
     `import sndr.runtime` does not pull torch."""
     if name in _LAZY_SUBMODULES:
-        return importlib.import_module(f"vllm.sndr_core.runtime.{name}")
-    raise AttributeError(f"module 'vllm.sndr_core.runtime' has no attribute {name!r}")
+        return importlib.import_module(f"sndr.runtime.{name}")
+    raise AttributeError(f"module 'sndr.runtime' has no attribute {name!r}")
 
 
 def __dir__():
