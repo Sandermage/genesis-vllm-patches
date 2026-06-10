@@ -83,7 +83,10 @@ def measure_chat(base_url: str, api_key: str, payload: dict):
         if not choices:
             continue
         delta = choices[0].get("delta") or {}
-        if delta.get("content") or delta.get("reasoning_content") or delta.get("tool_calls"):
+        # vllm 0.22.x renamed the reasoning-parser SSE field
+        # reasoning_content -> reasoning; accept both.
+        if (delta.get("content") or delta.get("reasoning_content")
+                or delta.get("reasoning") or delta.get("tool_calls")):
             if first is None:
                 first = t
             last = t

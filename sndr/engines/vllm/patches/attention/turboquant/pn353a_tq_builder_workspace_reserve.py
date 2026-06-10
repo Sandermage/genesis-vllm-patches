@@ -224,7 +224,13 @@ def _make_patcher() -> TextPatcher | None:
             "[Genesis PN353A",
             # If upstream lands the same fix, our patch becomes redundant.
             "def _reserve_workspace",
-            "tq_max_kv_splits_for_cuda_graph",
+            # FIXED 2026-06-11 (preflight triage, verified byte-level):
+            # "tq_max_kv_splits_for_cuda_graph" removed — it is a
+            # PRE-EXISTING pin API name (config/attention.py, read by our
+            # own replacement), present in every pin since dev259, so the
+            # marker fired unconditionally and PN353A could never apply
+            # despite GENESIS_ENABLE_PN353A=1 (self-collision class, same
+            # family as the PN369 incident).
         ],
     )
 

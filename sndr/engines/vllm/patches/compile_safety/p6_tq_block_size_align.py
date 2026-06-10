@@ -67,6 +67,14 @@ GENESIS_P6_MARKER = "Genesis P6 TQ-aware block size alignment v7.0"
 #     root cause. When that PR merges, our P6 becomes a no-op. Markers
 #     below tracking a code comment that upstream uses in the PR body.
 UPSTREAM_DRIFT_MARKERS = [
+    # FIXED 2026-06-11 (preflight triage): vllm#39931 merged a CORRECTED
+    # superset of this patch (lcm-based page unification instead of our
+    # max-based one) on pin 0.22.1rc1.dev259+. The original markers below
+    # never matched the merged form (lazy in-branch import, no top-level
+    # "TQFullAttentionSpec," line), so an enabled P6 would have re-applied
+    # on top of upstream and injected a dead duplicate elif. The lcm line
+    # is unique to the merged implementation (our replacement used max).
+    "attn_page_size_1_token = lcm(tq_page, skip_page)",
     "TQFullAttentionSpec,",
     "from vllm.v1.kv_cache_interface import (\n            FullAttentionSpec,\n            MambaSpec,\n            MLAAttentionSpec,\n            TQFullAttentionSpec,",
     # PR #36701 signatures — removes the FA block-size restriction.
