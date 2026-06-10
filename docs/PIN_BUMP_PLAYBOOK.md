@@ -95,6 +95,7 @@ Verdict vocabulary:
 | --- | --- | --- |
 | `OK` | every required anchor matches exactly once | none |
 | `DRIFT_ANCHOR` | required anchor absent | re-derive anchor (step 3) |
+| `CHAINED_ANCHOR` | anchors target ANOTHER patch's post-apply output (P18B-on-PN119 class) — not upstream drift | verify the provider's verdict instead; `chained_on` names it |
 | `AMBIGUOUS_ANCHOR` | anchor matches >1 location | tighten anchor |
 | `DRIFT_FILE_MOVED` | target file gone; up to 3 moved-to candidates listed | re-point target |
 | `UPSTREAM_MERGED` | patcher-level drift marker present in pristine file | iron-rule-#11 deep diff (step 4) |
@@ -103,6 +104,16 @@ Verdict vocabulary:
 | `UNBUILDABLE` | builder needs args we refuse to guess | wire an explicit probe |
 | `IMPORT_FAIL` | wiring module failed to import | fix module |
 | `RUNTIME_BINDING` | no text patcher; static binding result attached | check `binding_ok` |
+
+md5-gated diff patches (PN119 class) are evaluated natively when the
+module follows the convention `<NAME>_PRE_PATCH_MD5` +
+`<NAME>_DIFF_PATH` + `_target_path()` (resolving through
+`resolve_vllm_file` so the alternate-root seam redirects it): md5
+match → `OK`, mismatch → `DRIFT_ANCHOR` (the patch self-retires —
+regenerate diff + md5), marker in pristine → `STALE_RESIDUE`. The
+diff's post-apply text also feeds the chain pass, so dependents like
+P18B_TEXT classify as `CHAINED_ANCHOR` instead of false drift. New
+md5+diff patches MUST follow this attribute convention.
 
 Plus three tree-wide passes:
 

@@ -6386,7 +6386,11 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "source": "genesis_original",
         "lifecycle": "experimental",
         "conflicts_with": [],
-        "requires_patches": [],
+        # PN119's replacement CREATES the GQA/MHA launcher blocks this
+        # patch anchors on (verified vs pristine 0.22.1 tree 2026-06-10:
+        # pristine has a single 8-space launcher; the 12-space if/else
+        # is PN119 output). Preflight reports this as CHAINED_ANCHOR.
+        "requires_patches": ["PN119"],
     },
     "P20": {
         "title": "TurboQuant continuation-prefill FP16 rotate",

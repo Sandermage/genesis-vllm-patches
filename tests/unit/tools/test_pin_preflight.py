@@ -637,3 +637,145 @@ class TestOutOfRangeDetail:
     def test_unknown_pid_marked(self, pf):
         detail = pf.classify_out_of_range(["NOPE"], registry=self.REG)
         assert detail[0]["enforcement"] == "UNKNOWN_PATCH"
+
+
+# ─── patch-chain awareness (P18B-on-PN119 class) ──────────────────────────
+
+
+class TestChainedAnchor:
+    """A patch whose anchors target ANOTHER patch's post-apply output
+    (live example: P18B_TEXT tunes the GQA/MHA launcher blocks that
+    PN119's replacement creates) must NOT read as upstream drift.
+    Pristine evaluation of the dependent patch misses every anchor;
+    the reclassify pass must flip it to CHAINED_ANCHOR naming the
+    provider, and it must not count as actionable.
+    """
+
+    def _rows(self, pf, kernel, mini_tree):
+        TextPatch, TextPatcher = kernel
+        target = mini_tree / "v1" / "sample" / "sampler.py"
+        provider = TextPatcher(
+            patch_name="PROVIDER adds tuned block",
+            target_file=str(target),
+            marker="GENESIS_PROVIDER_MARKER",
+            sub_patches=[TextPatch(
+                name="prov_sub",
+                anchor="    probs = logits.softmax(dim=-1)\n",
+                replacement=("    probs = logits.softmax(dim=-1)\n"
+                             "    tuned_block(num_warps=4)\n"),
+            )],
+        )
+        dependent = TextPatcher(
+            patch_name="DEPENDENT tunes provider output",
+            target_file=str(target),
+            marker="GENESIS_DEPENDENT_MARKER",
+            sub_patches=[TextPatch(
+                name="dep_sub",
+                anchor="    tuned_block(num_warps=4)\n",
+                replacement="    tuned_block(num_warps=8)\n",
+            )],
+        )
+        r1 = pf.evaluate_patcher(provider, mini_tree)
+        r1["patch_ids"] = ["PROV"]
+        r2 = pf.evaluate_patcher(dependent, mini_tree)
+        r2["patch_ids"] = ["DEP"]
+        return [r1, r2]
+
+    def test_dependent_reclassified(self, pf, kernel, mini_tree):
+        rows = self._rows(pf, kernel, mini_tree)
+        assert rows[1]["verdict"] == pf.DRIFT_ANCHOR  # pre-pass state
+        n = pf.reclassify_chained(rows)
+        assert n == 1
+        assert rows[0]["verdict"] == pf.OK
+        assert rows[1]["verdict"] == pf.CHAINED_ANCHOR
+        assert rows[1]["chained_on"] == ["PROV"]
+
+    def test_chained_not_actionable(self, pf, kernel, mini_tree):
+        rows = self._rows(pf, kernel, mini_tree)
+        pf.reclassify_chained(rows)
+        assert pf.CHAINED_ANCHOR not in pf.ACTIONABLE_VERDICTS
+        assert pf.count_actionable(rows, []) == 0
+
+    def test_unprovided_anchor_stays_drift(self, pf, kernel, mini_tree):
+        rows = self._rows(pf, kernel, mini_tree)
+        # Break the chain: provider no longer emits what dependent needs.
+        rows[0]["_replacement_blob"] = "something else entirely\n"
+        pf.reclassify_chained(rows)
+        assert rows[1]["verdict"] == pf.DRIFT_ANCHOR
+
+    def test_private_keys_stripped(self, pf, kernel, mini_tree):
+        rows = self._rows(pf, kernel, mini_tree)
+        pf.reclassify_chained(rows)
+        for r in rows:
+            assert "_replacement_blob" not in r
+            assert "_missing_anchors" not in r
+
+
+# ─── md5-gated diff patches (PN119 class) ─────────────────────────────────
+
+
+class TestMd5DiffPatch:
+    """PN119-style patches (md5 gate + bundled unified diff, applied via
+    `patch`) expose no TextPatcher builder and previously fell through
+    to RUNTIME_BINDING — making their replacement content invisible to
+    the chain pass (P18B's provider). Convention probed statically:
+    module attrs ``*_PRE_PATCH_MD5`` + ``*_DIFF_PATH`` + ``_target_path``.
+    """
+
+    DIFF = (
+        "--- a/x.py\n"
+        "+++ b/x.py\n"
+        "@@ -1,3 +1,5 @@\n"
+        " line_one\n"
+        "-line_two\n"
+        "+line_two_replaced\n"
+        "+line_two_added(num_warps=4)\n"
+        " line_three\n"
+    )
+
+    def _fake_mod(self, tmp_path, target: Path, md5_value: str):
+        import types
+        diff_path = tmp_path / "fake.diff"
+        diff_path.write_text(self.DIFF)
+        mod = types.ModuleType("fake_pn119_like")
+        mod.FAKE_PRE_PATCH_MD5 = md5_value
+        mod.FAKE_DIFF_PATH = diff_path
+        mod._target_path = lambda: target
+        mod.GENESIS_FAKE_MARKER = "Genesis FAKE md5 diff marker"
+        return mod
+
+    def test_md5_match_is_ok_and_provides_blob(self, pf, tmp_path, mini_tree):
+        import hashlib
+        target = mini_tree / "v1" / "sample" / "sampler.py"
+        md5 = hashlib.md5(target.read_bytes()).hexdigest()
+        mod = self._fake_mod(tmp_path, target, md5)
+        row = pf.evaluate_md5_diff_patch(mod, mini_tree)
+        assert row is not None
+        assert row["verdict"] == pf.OK
+        # post-apply reconstruction: added AND context lines, minus removed
+        blob = row["_replacement_blob"]
+        assert "line_two_added(num_warps=4)" in blob
+        assert "line_one\nline_two_replaced" in blob
+        assert "line_two\n" not in blob
+
+    def test_md5_mismatch_is_drift(self, pf, tmp_path, mini_tree):
+        target = mini_tree / "v1" / "sample" / "sampler.py"
+        mod = self._fake_mod(tmp_path, target, "0" * 32)
+        row = pf.evaluate_md5_diff_patch(mod, mini_tree)
+        assert row["verdict"] == pf.DRIFT_ANCHOR
+        assert "md5" in row["detail"]
+
+    def test_marker_in_pristine_is_stale(self, pf, tmp_path, mini_tree):
+        import hashlib
+        target = mini_tree / "v1" / "sample" / "sampler.py"
+        target.write_text(
+            target.read_text() + "# Genesis FAKE md5 diff marker\n")
+        md5 = hashlib.md5(target.read_bytes()).hexdigest()
+        mod = self._fake_mod(tmp_path, target, md5)
+        row = pf.evaluate_md5_diff_patch(mod, mini_tree)
+        assert row["verdict"] == pf.STALE_RESIDUE
+
+    def test_non_md5_module_returns_none(self, pf, mini_tree):
+        import types
+        mod = types.ModuleType("plain_binding_module")
+        assert pf.evaluate_md5_diff_patch(mod, mini_tree) is None

@@ -87,9 +87,14 @@ GENESIS_PN119_MARKER = (
 GENESIS_PN119_MARKER_LINE = f"# {GENESIS_PN119_MARKER}\n"
 
 # Expected md5 of the pre-patch ``triton_turboquant_decode.py`` against
-# which the bundled ``pn119_kernel.diff`` was authored. Computed against
-# vllm 0.20.2rc1.dev338+gbf0d2dc6d (our current PROD pin). If a future
-# pin bump changes the file we'll see a mismatch and self-skip cleanly.
+# which the bundled ``pn119_kernel.diff`` was authored. Originally
+# computed against vllm 0.20.2rc1.dev338+gbf0d2dc6d; re-verified
+# byte-identical on 0.22.1rc1.dev259+g303916e93 (pristine extract,
+# 2026-06-10) — upstream has not touched the file between those pins.
+# If a future pin bump changes the file we'll see a mismatch and
+# self-skip cleanly. NOTE: P18B_TEXT anchors on THIS patch's output
+# (requires_patches chain) — when regenerating the diff for a new pin,
+# re-check P18B_TEXT's anchors against the new post-apply content.
 PN119_PRE_PATCH_MD5 = "e93d6f9eb591e0b68a50b0fc2eb689c3"
 
 # Path to the bundled diff (sibling of this module).

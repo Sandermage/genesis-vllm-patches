@@ -65,6 +65,7 @@ os.environ["GENESIS_NO_PATCH_CACHE"] = "1"
 
 import argparse
 import ast
+import hashlib
 import importlib
 import inspect
 import json
@@ -85,6 +86,7 @@ if str(REPO_ROOT) not in sys.path:
 
 OK = "OK"
 DRIFT_ANCHOR = "DRIFT_ANCHOR"
+CHAINED_ANCHOR = "CHAINED_ANCHOR"
 AMBIGUOUS_ANCHOR = "AMBIGUOUS_ANCHOR"
 DRIFT_FILE_MOVED = "DRIFT_FILE_MOVED"
 UPSTREAM_MERGED = "UPSTREAM_MERGED"
@@ -342,6 +344,13 @@ def evaluate_patcher(patcher: Any, candidate_root: Path) -> dict:
         row["detail"] = f"target unreadable: {e}"
         return row
 
+    # Private field for the chain reclassify pass (stripped before report
+    # assembly): what this patcher EMITS — it may provide the anchors a
+    # later patcher on the same file targets (P18B-on-PN119 class).
+    row["_replacement_blob"] = "\n".join(
+        getattr(s, "replacement", "") or ""
+        for s in (getattr(patcher, "sub_patches", None) or []))
+
     marker = getattr(patcher, "marker", "") or ""
     if marker and marker in content:
         row["verdict"] = STALE_RESIDUE
@@ -357,9 +366,14 @@ def evaluate_patcher(patcher: Any, candidate_root: Path) -> dict:
             row["detail"] = f"upstream drift marker {dm!r} present in {rel}"
             return row
 
-    outcome = evaluate_layer5(getattr(patcher, "sub_patches", None) or [], content)
+    subs = getattr(patcher, "sub_patches", None) or []
+    outcome = evaluate_layer5(subs, content)
     row["applied_subs"] = outcome.applied
     row["sub_merged"] = [list(t) for t in outcome.sub_merged]
+    row["_missing_anchors"] = [
+        getattr(s, "anchor", "") for s in subs
+        if getattr(s, "anchor", "") and getattr(s, "anchor", "") not in content
+    ]
 
     if outcome.status == "success":
         row["verdict"] = SUB_UPSTREAM_MERGED if outcome.sub_merged else OK
@@ -381,6 +395,99 @@ def evaluate_patcher(patcher: Any, candidate_root: Path) -> dict:
         # required_anchor_missing | no_applicable_sub_patches (pure miss)
         row["verdict"] = DRIFT_ANCHOR
     row["detail"] = f"{outcome.reason}: {outcome.detail or ''}".strip(": ")
+    return row
+
+
+def _diff_post_apply_text(diff_text: str) -> str:
+    """Reconstruct the post-apply content segments of a unified diff:
+    added ('+') and context (' ') lines, removed ('-') lines and
+    headers dropped. Good enough for substring chain-matching — NOT a
+    full patch engine."""
+    out: list[str] = []
+    for line in diff_text.splitlines():
+        if line.startswith(("+++", "---", "@@", "diff ", "index ")):
+            continue
+        if line.startswith("+"):
+            out.append(line[1:])
+        elif line.startswith(" "):
+            out.append(line[1:])
+        elif line == "":
+            out.append("")
+    return "\n".join(out)
+
+
+def evaluate_md5_diff_patch(mod: Any, candidate_root: Path) -> Optional[dict]:
+    """READ-ONLY verdict for a PN119-class md5-gated diff patch.
+
+    Convention (see PIN_BUMP_PLAYBOOK): the module exposes
+    ``<NAME>_PRE_PATCH_MD5`` (hex str), ``<NAME>_DIFF_PATH`` (Path to a
+    bundled unified diff) and ``_target_path()`` (resolves through
+    ``resolve_vllm_file`` so the preflight's alternate-root seam
+    redirects it into the candidate tree). Markers are module attrs
+    named ``GENESIS_*_MARKER``.
+
+    Returns None when the module doesn't follow the convention (caller
+    falls through to the runtime-binding row).
+    """
+    md5_attrs = [a for a in dir(mod) if a.endswith("_PRE_PATCH_MD5")]
+    diff_attrs = [a for a in dir(mod) if a.endswith("_DIFF_PATH")]
+    target_fn = getattr(mod, "_target_path", None)
+    if not (md5_attrs and diff_attrs and callable(target_fn)):
+        return None
+
+    expected_md5 = str(getattr(mod, md5_attrs[0]))
+    diff_path = Path(getattr(mod, diff_attrs[0]))
+    row: dict[str, Any] = {
+        "patch_name": f"{mod.__name__} (md5-gated diff)",
+        "verdict": None, "detail": "", "applied_subs": [],
+        "sub_merged": [],
+    }
+
+    try:
+        target = target_fn()
+    except Exception as e:  # noqa: BLE001
+        row["verdict"] = DRIFT_FILE_MOVED
+        row["detail"] = f"_target_path() raised {type(e).__name__}: {e}"
+        return row
+    if target is None or not Path(target).is_file():
+        row["verdict"] = DRIFT_FILE_MOVED
+        row["detail"] = "target not found under candidate root"
+        return row
+    target = Path(target)
+    try:
+        row["target"] = target.relative_to(candidate_root).as_posix()
+    except ValueError:
+        row["target"] = str(target)
+
+    if diff_path.is_file():
+        row["_replacement_blob"] = _diff_post_apply_text(
+            diff_path.read_text(encoding="utf-8", errors="ignore"))
+    else:
+        row["verdict"] = UNBUILDABLE
+        row["detail"] = f"bundled diff missing: {diff_path}"
+        return row
+
+    content = target.read_text(encoding="utf-8", errors="ignore")
+    for attr in dir(mod):
+        if attr.startswith("GENESIS_") and "_MARKER" in attr:
+            val = getattr(mod, attr)
+            if isinstance(val, str) and val.strip() and val.strip() in content:
+                row["verdict"] = STALE_RESIDUE
+                row["detail"] = (
+                    f"marker {val.strip()!r} present in PRISTINE candidate "
+                    "file — extraction residue or collision")
+                return row
+
+    actual_md5 = hashlib.md5(target.read_bytes()).hexdigest()
+    if actual_md5 == expected_md5:
+        row["verdict"] = OK
+        row["detail"] = "md5 gate matches — bundled diff will apply"
+    else:
+        row["verdict"] = DRIFT_ANCHOR
+        row["detail"] = (
+            f"md5 gate mismatch: candidate {actual_md5} != expected "
+            f"{expected_md5} — patch self-retires on this pin; regenerate "
+            "diff + md5 (and re-verify dependents via the chain pass)")
     return row
 
 
@@ -577,6 +684,10 @@ def evaluate_module(
 
     builders = builder_names(mod)
     if not builders:
+        md5_row = evaluate_md5_diff_patch(mod, candidate_root)
+        if md5_row is not None:
+            md5_row.update(base)
+            return [md5_row]
         return [_runtime_binding_row(base, mod, candidate_root)]
 
     rows: list[dict] = []
@@ -766,6 +877,65 @@ def manifest_staleness(
     return out
 
 
+def reclassify_chained(rows: list[dict]) -> int:
+    """Patch-chain pass (P18B-on-PN119 class, found 2026-06-10).
+
+    A patcher whose anchors target ANOTHER patcher's post-apply output
+    misses every anchor on a pristine tree and reads as DRIFT_ANCHOR —
+    a false positive. For each DRIFT_ANCHOR row, if EVERY missing
+    anchor is a substring of a same-target sibling's replacement text,
+    flip the verdict to CHAINED_ANCHOR (informational, not actionable)
+    and record the provider patch ids in ``chained_on``.
+
+    Strips the private ``_replacement_blob`` / ``_missing_anchors``
+    working fields from all rows. Returns the number reclassified.
+
+    Limitation (v1): providers that early-return before Layer 5 with
+    dynamically-built replacements may not expose a blob; a chained
+    dependent then stays DRIFT_ANCHOR (fail-noisy, never fail-silent).
+    """
+    providers: dict[str, list[dict]] = {}
+    for r in rows:
+        if r.get("_replacement_blob"):
+            providers.setdefault(r.get("target") or "", []).append(r)
+
+    n = 0
+    for r in rows:
+        if r.get("verdict") != DRIFT_ANCHOR:
+            continue
+        missing = r.get("_missing_anchors") or []
+        if not missing:
+            continue
+        sibs = [p for p in providers.get(r.get("target") or "", [])
+                if p is not r]
+        chained_on: list[str] = []
+        for anchor in missing:
+            hit = next(
+                (p for p in sibs if anchor in p["_replacement_blob"]), None)
+            if hit is None:
+                chained_on = []
+                break
+            name = (",".join(hit.get("patch_ids") or [])
+                    or hit.get("patch_name") or "?")
+            if name not in chained_on:
+                chained_on.append(name)
+        if chained_on:
+            r["verdict"] = CHAINED_ANCHOR
+            r["chained_on"] = chained_on
+            r["detail"] = (
+                "anchors target post-apply content of: "
+                + ", ".join(chained_on)
+                + " — apply-order chain, not upstream drift; verify the "
+                "provider's own verdict instead"
+            )
+            n += 1
+
+    for r in rows:
+        r.pop("_replacement_blob", None)
+        r.pop("_missing_anchors", None)
+    return n
+
+
 def classify_out_of_range(
     pids: list[str], registry: Optional[dict] = None,
 ) -> list[dict]:
@@ -951,6 +1121,8 @@ def run_preflight(
         if fail_fast and count_actionable(rows, []):
             break
 
+    chained = reclassify_chained(rows)
+
     markers = check_upstream_markers(candidate_root)
     out_of_range = sorted({
         pid for r in rows
@@ -989,6 +1161,7 @@ def run_preflight(
                 1 for m in markers if m.get("newly_merged")),
             "out_of_range_patches": out_of_range,
             "out_of_range_detail": classify_out_of_range(out_of_range),
+            "chained_anchors": chained,
             "actionable": count_actionable(rows, markers),
         },
         "notes": [
