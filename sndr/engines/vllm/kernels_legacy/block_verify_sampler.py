@@ -59,6 +59,25 @@ GENESIS-SPECIFIC NOTES
   If P67b enables FULL_AND_PIECEWISE for spec-decode, P71 forces fallback
   to PIECEWISE for the rejection_sample call — unavoidable.
 
+================================================================
+PN369 — RELAXED-ACCEPTANCE TAIL EXTENSION (2026-06-10)
+================================================================
+
+This file also hosts the shared PN369 relaxed-acceptance helpers
+(`compute_relaxed_ok_mask` + `relaxed_ok_mask`) and the BLOCK-VERIFY TAIL
+EXTENSION: after the Sun-2024 block rule fixes `accepted_len`, the kernel
+extends forward while `relaxed_ok[start_idx + accepted_len] != 0`. The
+recovered token is then written at the NEW first-rejected position; the
+bonus token fires when the extension reaches the full draft length —
+both reuse the existing precomputed buffers (recovered tokens exist for
+ALL positions; bonus only triggers on full accept), so no structural
+change is needed. BIASED rule (same trade class as P82) — see
+`patches/spec_decode/pn369_relaxed_acceptance.py` for the full banner.
+Gated at runtime by GENESIS_ENABLE_PN369_RELAXED_ACCEPTANCE (mask is
+None when off -> constexpr-pruned, bit-identical block rule). Tunables:
+GENESIS_PN369_RELAXED_TOPK (default 4), GENESIS_PN369_RELAXED_DELTA
+(default 0.2).
+
 Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
 Bug-fixes: gemini-code-assist review on vllm#40819 (cited in code).
 """
@@ -80,6 +99,90 @@ _BLOCK_VERIFY_VOCAB_BLOCK = 8192
 
 # PLACEHOLDER_TOKEN_ID matches upstream (vllm/v1/sample/rejection_sampler.py).
 PLACEHOLDER_TOKEN_ID = -1
+
+
+# ════════════════════════════════════════════════════════════════════════
+# Genesis PN369 — relaxed-acceptance mask (shared by BOTH accept paths:
+# the upstream per-token kernel via the PN369 wiring text-patch, and the
+# P71 block-verify tail extension below).
+# ════════════════════════════════════════════════════════════════════════
+
+# (enabled, topk, delta) — parsed once per process at first hot-path use.
+_pn369_config_cache: tuple[bool, int, float] | None = None
+
+
+def _pn369_config() -> tuple[bool, int, float]:
+    """Cached PN369 runtime config (enabled, relaxed_topk, relaxed_delta).
+
+    Env parsing lives in the torch-free wiring module
+    (`patches/spec_decode/pn369_relaxed_acceptance.py`) so it stays unit-
+    testable without torch. We import it lazily HERE (not at module top)
+    and cache the parsed tuple so the hot path pays a tuple lookup, not a
+    per-step env read.
+    """
+    global _pn369_config_cache
+    if _pn369_config_cache is None:
+        from sndr.engines.vllm.patches.spec_decode.pn369_relaxed_acceptance import (
+            is_pn369_runtime_enabled,
+            read_relaxed_delta,
+            read_relaxed_topk,
+        )
+        _pn369_config_cache = (
+            is_pn369_runtime_enabled(),
+            read_relaxed_topk(),
+            read_relaxed_delta(),
+        )
+    return _pn369_config_cache
+
+
+def _pn369_reset_config_cache() -> None:
+    """Test hook: drop the cached config so env changes are re-read."""
+    global _pn369_config_cache
+    _pn369_config_cache = None
+
+
+def relaxed_ok_mask(
+    target_probs: torch.Tensor,      # [num_tokens, vocab_size] (post-processing)
+    draft_token_ids: torch.Tensor,   # [num_tokens]
+    relaxed_topk: int,
+    relaxed_delta: float,
+) -> torch.Tensor:
+    """Vectorized PN369 relaxed-acceptance mask (explicit params).
+
+    For each draft position i:
+        relaxed_ok[i] = (draft_token_ids[i] in topK(target_probs[i]))
+                        and (target_probs[i, draft_token_ids[i]]
+                             >= top1_prob[i] - relaxed_delta)
+
+    Returns an int32 [num_tokens] tensor (1 = relaxed window passes).
+    Computed from POST-temperature / POST-top-k/p target_probs — the
+    TRT-LLM defaults (topk=10 / delta=0.6) do NOT transfer because TRT
+    applies the window pre-truncation. Cost: one topk(K<=32) over the
+    already-materialized target_probs — negligible next to the softmax.
+    """
+    k = max(1, min(int(relaxed_topk), target_probs.shape[-1]))
+    topk_vals, topk_ids = target_probs.topk(k, dim=-1)        # [N, k] each
+    draft_ids = draft_token_ids.to(torch.int64).unsqueeze(1)  # [N, 1]
+    draft_target_prob = target_probs.gather(1, draft_ids).squeeze(1)  # [N]
+    in_topk = (topk_ids == draft_ids).any(dim=1)              # [N]
+    within_delta = draft_target_prob >= (topk_vals[:, 0] - relaxed_delta)
+    return (in_topk & within_delta).to(torch.int32).contiguous()
+
+
+def compute_relaxed_ok_mask(
+    target_probs: torch.Tensor,      # [num_tokens, vocab_size]
+    draft_token_ids: torch.Tensor,   # [num_tokens]
+) -> torch.Tensor | None:
+    """Env-gated PN369 mask entry point (hot path).
+
+    Returns None when GENESIS_ENABLE_PN369_RELAXED_ACCEPTANCE is off, so
+    callers thread `relaxed_ok=None` -> constexpr-pruned kernels that are
+    bit-identical to the strict rule. Config is read once per process.
+    """
+    enabled, topk, delta = _pn369_config()
+    if not enabled:
+        return None
+    return relaxed_ok_mask(target_probs, draft_token_ids, topk, delta)
 
 
 def generate_rejection_q(
@@ -119,10 +222,16 @@ def rejection_random_sample_block_verify_pytorch(
     is_greedy: torch.Tensor,             # [batch_size]
     max_spec_len: int,
     vocab_size: int,
+    relaxed_ok: torch.Tensor | None = None,  # [num_tokens] int32 or None (PN369)
 ) -> None:
     """PyTorch reference for the block-verify acceptance kernel.
 
     Writes accept/recover/bonus tokens in-place on `output_token_ids`.
+
+    PN369: when `relaxed_ok` is provided, the block-rule acceptance length
+    is TAIL-EXTENDED forward while the relaxed window holds (mirrors the
+    Triton kernel). `relaxed_ok=None` keeps the strict Sun-2024 rule
+    bit-identical to the pre-PN369 behavior.
     """
     del vocab_size  # parity with triton signature
     batch_size = output_token_ids.shape[0]
@@ -228,6 +337,26 @@ def rejection_random_sample_block_verify_pytorch(
         .max(dim=1)
         .values
     )
+
+    # ─── [Genesis PN369] Relaxed-acceptance TAIL EXTENSION ─────────────
+    # After the block rule fixes the accepted length, extend forward
+    # while the relaxed window (top-K + delta, precomputed torch-side)
+    # holds at the next position. Greedy rows never extend; positions
+    # beyond a request's draft count never extend (valid_mask guard).
+    # Downstream writes are untouched: the recovered token lands at the
+    # NEW first-rejected position and the bonus fires on full extension.
+    if relaxed_ok is not None:
+        relaxed_grid = (relaxed_ok[global_token_indices] != 0) & valid_mask
+        non_greedy_vec = ~is_greedy
+        for _ in range(max_spec_len):
+            cand_pos = last_accept_i.clamp(max=max_spec_len - 1)
+            can_extend = (
+                (last_accept_i < gamma)
+                & relaxed_grid.gather(1, cand_pos.unsqueeze(1)).squeeze(1)
+                & non_greedy_vec
+            )
+            last_accept_i = last_accept_i + can_extend.to(torch.long)
+    # ────────────────────────────────────────────────────────────────────
 
     # Write accepted draft tokens.
     accept_span = (i_indices <= last_accept_i[:, None]) & valid_mask & non_greedy_mask
@@ -421,11 +550,23 @@ if _TRITON_OK:
         max_spec_len,
         vocab_size,
         BLOCK_SIZE: tl.constexpr,
+        # [Genesis PN369] relaxed-acceptance inputs. Defaults keep existing
+        # launch sites source-compatible; constexpr False prunes the tail-
+        # extension branch entirely (bit-identical strict block rule).
+        relaxed_ok_ptr=None,           # [num_tokens] int32 or None
+        RELAXED_MODE: tl.constexpr = False,
     ):
         """Block-verify acceptance rule — one program per request.
 
         Emits accepted draft tokens, recovered token at first rejection, or
         bonus token if every draft is accepted.
+
+        PN369 (RELAXED_MODE=True): after the Sun-2024 block rule fixes
+        `accepted_len`, extend forward while
+        `relaxed_ok[start_idx + accepted_len] != 0`. The recovered token
+        is written at the NEW first-rejected position; the bonus token
+        fires when the extension reaches the full draft length. Both
+        reuse the existing store logic below unchanged.
         """
         req_idx = tl.program_id(0)
         is_greedy = tl.load(is_greedy_ptr + req_idx)
@@ -492,6 +633,23 @@ if _TRITON_OK:
             if uniform_prob_shared <= h_block:
                 accepted_len = pos + 1
 
+        # ─── [Genesis PN369] Relaxed-acceptance TAIL EXTENSION ──────────
+        # Walk forward from the block-rule accepted length while the
+        # relaxed window (top-K + delta, precomputed torch-side) holds.
+        # Contiguous extension only: the first position that fails the
+        # window stops the walk. constexpr-pruned when RELAXED_MODE=False.
+        if RELAXED_MODE:
+            _pn369_ext = 0
+            _pn369_walking = True
+            for _pn369_pos in range(accepted_len, num_draft_tokens):
+                if _pn369_walking:
+                    if tl.load(relaxed_ok_ptr + start_idx + _pn369_pos) != 0:
+                        _pn369_ext += 1
+                    else:
+                        _pn369_walking = False
+            accepted_len += _pn369_ext
+        # ────────────────────────────────────────────────────────────────
+
         for pos in range(accepted_len):
             draft_token_id = tl.load(draft_token_ids_ptr + start_idx + pos)
             tl.store(
@@ -531,6 +689,7 @@ def call_block_verify_sample(
     max_spec_len: int,
     vocab_size: int,
     use_pytorch: bool = False,
+    relaxed_ok: torch.Tensor | None = None,  # [num_tokens] int32 or None (PN369)
 ) -> torch.Tensor:
     """Block-verify rejection sampling entry point.
 
@@ -540,6 +699,9 @@ def call_block_verify_sample(
 
     On any exception, the wiring patch's outer try/except falls back to the
     upstream per-token rejection sampler — no engine impact.
+
+    PN369: pass `relaxed_ok` (from `compute_relaxed_ok_mask`) to enable the
+    relaxed-acceptance tail extension. None keeps the strict block rule.
     """
     # ── A4 audit (PN13 follow-up) — defensive preconditions ────────────
     # Fail loudly with informative messages on shape / device / dtype
@@ -549,10 +711,28 @@ def call_block_verify_sample(
             f"output_token_ids must be at least 1-D, got shape "
             f"{tuple(output_token_ids.shape)}"
         )
-    if cu_num_draft_tokens.shape[0] != output_token_ids.shape[0] + 1:
+    # [Genesis PN369 audit 2026-06-10] CONTRACT FIX. The original A4 check
+    # required len(cu) == batch_size + 1 — that contract is WRONG for the
+    # upstream caller: SpecDecodeMetadata builds cu_num_draft_tokens as
+    # np.cumsum(num_draft_tokens) with NO leading zero, i.e. [batch_size]
+    # (verified live at pin 0.22.1rc1.dev259+g303916e93 in
+    # vllm/v1/spec_decode/metadata.py and in every kernel's
+    # `start_idx = 0 if req_idx == 0 else load(cu_ptr + req_idx - 1)`
+    # indexing — including OUR OWN Triton/PyTorch impls in this file).
+    # The old check was therefore unsatisfiable: EVERY call raised
+    # ValueError and silently fell back to the per-token path (the
+    # documented 27B "cu_num_draft_tokens length 1 must equal
+    # batch_size + 1 = 2" failure was THIS bug, not a GQA shape issue).
+    if cu_num_draft_tokens.shape[0] != output_token_ids.shape[0]:
         raise ValueError(
             f"cu_num_draft_tokens length {cu_num_draft_tokens.shape[0]} "
-            f"must equal batch_size + 1 = {output_token_ids.shape[0] + 1}"
+            f"must equal batch_size = {output_token_ids.shape[0]} "
+            "(upstream cumsum layout, no leading zero)"
+        )
+    if relaxed_ok is not None and relaxed_ok.shape != draft_token_ids.shape:
+        raise ValueError(
+            f"relaxed_ok shape {tuple(relaxed_ok.shape)} must match "
+            f"draft_token_ids shape {tuple(draft_token_ids.shape)}"
         )
     if draft_probs.shape != target_probs.shape:
         raise ValueError(
@@ -608,6 +788,7 @@ def call_block_verify_sample(
             is_greedy,
             max_spec_len,
             vocab_size,
+            relaxed_ok=relaxed_ok,
         )
     else:
         sample_recovered_tokens_block_verify_kernel[(batch_size, max_spec_len)](
@@ -633,6 +814,8 @@ def call_block_verify_sample(
             max_spec_len,
             vocab_size,
             BLOCK_SIZE=_BLOCK_VERIFY_VOCAB_BLOCK,
+            relaxed_ok_ptr=relaxed_ok,
+            RELAXED_MODE=relaxed_ok is not None,
         )
 
     return output_token_ids

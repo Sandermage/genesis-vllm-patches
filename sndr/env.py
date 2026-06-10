@@ -570,6 +570,7 @@ class Flags:
     PN357 = "PN357"  # PN357: Optimize remapped greedy draft token selection
     PN361 = "PN361"  # PN361: Spec-decode fail-closed on missing draft probs
     PN363 = "PN363"  # PN363: force_max_spec_tokens for suffix decoding — FULL CG dispat
+    PN369_RELAXED_ACCEPTANCE = "PN369_RELAXED_ACCEPTANCE"  # PN369: relaxed acceptance for MTP spec-decode (top-K + delta window)
     # tool_parsing family
     P29_QWEN3CODER_INDEX_HEAL = "P29_QWEN3CODER_INDEX_HEAL"  # P29_HEAL: qwen3coder tool parser index heal
     # worker family

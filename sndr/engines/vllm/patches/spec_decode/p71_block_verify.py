@@ -29,6 +29,33 @@ We backport with TWO critical bug-fixes from gemini-bot's review of #40819:
 Both fixes are inside `vllm/_genesis/kernels/block_verify_sampler.py`.
 
 ================================================================
+PN369 RELAXED-ACCEPTANCE THREADING (2026-06-10, marker v7.43)
+================================================================
+
+The injected branch now also computes the PN369 relaxed-acceptance mask
+(`compute_relaxed_ok_mask` — returns None when
+GENESIS_ENABLE_PN369_RELAXED_ACCEPTANCE is off) and threads it into
+`call_block_verify_sample(relaxed_ok=...)` so the block-verify kernel can
+TAIL-EXTEND the Sun-2024 accepted length while the relaxed window holds.
+Bit-identical to v7.42 behavior when PN369 is disabled. See
+`pn369_relaxed_acceptance.py` for the trade-off banner.
+
+Marker bumped v7.42 -> v7.43: a container fs holding the v7.42 bake will
+NOT re-patch in place (anchor already consumed); the operator must reset
+the container fs (docker compose down && up -d, NOT stop/start) to pick
+up the v7.43 text. On a stale fs P71 apply() reports SKIPPED with an
+anchor-drift reason and the old v7.42 text stays active (without PN369
+threading) — safe, just stale.
+
+Also in v7.43: the kernel-side A4 precondition was FIXED (it required
+len(cu_num_draft_tokens) == batch_size + 1, but upstream passes a cumsum
+WITHOUT leading zero, i.e. [batch_size] — verified live at pin
+0.22.1rc1.dev259). The old check made EVERY call_block_verify_sample
+call raise -> permanent silent fallback to the per-token path. The
+documented 27B failure ("length 1 must equal batch_size + 1 = 2") was
+this contract bug, not a GQA shape issue.
+
+================================================================
 SAFETY MODEL
 ================================================================
 
@@ -78,7 +105,10 @@ from sndr.kernel import (
 
 log = logging.getLogger("genesis.wiring.p71_block_verify")
 
-GENESIS_P71_MARKER = "Genesis P71 block-verify rejection sampling vllm#40819 v7.42_with_gemini_fixes"
+# v7.43 (2026-06-10): PN369 relaxed_ok threading added to the injected
+# branch. Marker bump forces a fresh bake on clean container fs; stale
+# v7.42 bakes SKIP (anchor consumed) and keep the old text — see docstring.
+GENESIS_P71_MARKER = "Genesis P71 block-verify rejection sampling vllm#40819 v7.43_pn369_relaxed_tail"
 
 
 # ─── Sub-patch: inject block-verify branch BEFORE sample_recovered_tokens ───
@@ -119,10 +149,17 @@ P71_NEW = (
     "        if _genesis_p71_eligible:\n"
     "            from sndr.engines.vllm.kernels_legacy.block_verify_sampler import (\n"
     "                call_block_verify_sample as _genesis_p71_call,\n"
+    "                compute_relaxed_ok_mask as _genesis_pn369_mask_fn,\n"
     "            )\n"
     "            _genesis_p71_use_pt = _genesis_p71_os.environ.get(\n"
     "                'GENESIS_P71_USE_PYTORCH', '0') == '1'\n"
     "            assert uniform_probs is not None\n"
+    "            # [Genesis PN369] relaxed-acceptance mask for the tail\n"
+    "            # extension; None when PN369 is disabled at runtime ->\n"
+    "            # strict Sun-2024 block rule, bit-identical to v7.42.\n"
+    "            _genesis_pn369_relaxed_ok = _genesis_pn369_mask_fn(\n"
+    "                target_probs, draft_token_ids\n"
+    "            )\n"
     "            _genesis_p71_call(\n"
     "                output_token_ids=output_token_ids,\n"
     "                cu_num_draft_tokens=cu_num_draft_tokens,\n"
@@ -137,6 +174,7 @@ P71_NEW = (
     "                max_spec_len=max_spec_len,\n"
     "                vocab_size=vocab_size,\n"
     "                use_pytorch=_genesis_p71_use_pt,\n"
+    "                relaxed_ok=_genesis_pn369_relaxed_ok,\n"
     "            )\n"
     "            return output_token_ids\n"
     "    except Exception as _genesis_p71_err:\n"
@@ -222,8 +260,10 @@ def apply() -> tuple[str, str]:
             f"({failure.detail if failure else ''})"
         )
     return "applied", (
-        "P71 applied: block-verify rejection sampling branch installed. "
+        "P71 applied: block-verify rejection sampling branch installed (v7.43). "
         "Activates when GENESIS_ENABLE_P71_BLOCK_VERIFY=1 + max_spec_len>=3 + "
         "draft_probs available + not synthetic_mode. "
-        "Bug-fixes from gemini review: shared u per request, denom==0 → 1.0."
+        "Bug-fixes from gemini review: shared u per request, denom==0 → 1.0. "
+        "PN369 relaxed tail extension threaded (fires only when "
+        "GENESIS_ENABLE_PN369_RELAXED_ACCEPTANCE=1; strict block rule otherwise)."
     )

@@ -4,23 +4,23 @@
 > Source of truth: `sndr/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-06-10T09:42:16Z
-Total entries: **278**
+Generated: 2026-06-10T12:01:21Z
+Total entries: **279**
 
 ## Statistics
 
 ### By tier
-- `tier=community`: **278**
+- `tier=community`: **279**
 
 ### By lifecycle
 - `lifecycle=coordinator`: **4**
 - `lifecycle=experimental`: **204**
 - `lifecycle=legacy`: **33**
-- `lifecycle=research`: **4**
+- `lifecycle=research`: **5**
 - `lifecycle=retired`: **19**
 - `lifecycle=stable`: **14**
 
-### Default-on at boot: **54** / 278
+### Default-on at boot: **54** / 279
 
 ### By family
 - `attention`: 1
@@ -46,7 +46,7 @@ Total entries: **278**
 - `reasoning`: 9
 - `scheduler`: 8
 - `serving`: 10
-- `spec_decode`: 40
+- `spec_decode`: 41
 - `streaming`: 4
 - `tool_parsing`: 8
 - `worker`: 13
@@ -381,7 +381,7 @@ Total entries: **278**
 | **PN127** | `community` | `experimental` | · | `GENESIS_ENABLE_PN127_AUTO_CHAT_TEMPLATE` | — | Qwen 3.5/3.6 enhanced chat-template auto-install (closes club-3090#53/#72) |
 | **PN288** | `community` | `experimental` | · | `GENESIS_ENABLE_PN288_TOOL_FINISH_REASON_OVERRIDE` | — | qwen3_coder tool_call finish_reason override — Phase B+C with length-band saf... |
 
-### `spec_decode` (40)
+### `spec_decode` (41)
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
@@ -413,6 +413,7 @@ Total entries: **278**
 | **PN357** | `community` | `experimental` | · | `GENESIS_ENABLE_PN357` | [#43349](https://github.com/vllm-project/vllm/pull/43349) | Optimize remapped greedy draft token selection (vendor of OPEN vllm#43349) |
 | **PN361** | `community` | `experimental` | · | `GENESIS_ENABLE_PN361` | [#44869](https://github.com/vllm-project/vllm/pull/44869) | Spec-decode fail-closed on missing draft probs (vendor of OPEN vllm#44869) |
 | **PN363** | `community` | `experimental` | · | `GENESIS_ENABLE_PN363` | [#43114](https://github.com/vllm-project/vllm/pull/43114) | force_max_spec_tokens for suffix decoding — FULL CG dispatch (vendor of OPEN ... |
+| **PN369** | `community` | `research` | · | `GENESIS_ENABLE_PN369_RELAXED_ACCEPTANCE` | — | Relaxed acceptance for MTP spec-decode (TRT-LLM-style top-K + delta window, B... |
 | **G4_05** | `community` | `retired` | · | `GENESIS_ENABLE_G4_05_GEMMA4_DFLASH_BACKEND_AUTOSELECT` | [#39930](https://github.com/vllm-project/vllm/pull/39930) | DFlash drafter backend autoselect (retired — superseded by vllm#39930) |
 | **G4_71** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_71_DRAFTER_NATIVE_BACKEND` | — | Force FlashAttn backend for Gemma 4 MTP drafter Attention layers |
 | **G4_71B** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_71B_DRAFTER_SLIDING_TRITON` | — | Per-layer drafter backend force: route head_size=256 sliding to TRITON_ATTN (... |

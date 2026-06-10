@@ -5382,6 +5382,29 @@ def apply_patch_N363_force_max_spec_tokens() -> PatchResult:
     return _skipped("PN363 force_max_spec_tokens (suffix)", detail)
 
 
+@register_patch("PN369 Relaxed acceptance for MTP spec-decode (TRT-LLM-style top-K + delta window)")
+def apply_patch_N369_relaxed_acceptance() -> PatchResult:
+    """PN369: TRT-LLM-style relaxed acceptance, adapted for post-
+    processing target_probs. Accepts a strictly-rejected draft token when
+    it is inside the target's top-K AND within delta of the top-1
+    probability. OR-composes into the per-token random kernel (three-OR
+    stack with P82) and tail-extends the P71 block-verify accepted
+    length (threaded via p71_block_verify marker v7.43). Greedy (temp=0)
+    and synthetic paths stay strict. BIASED — same trade class as P82;
+    default OFF, opt-in via GENESIS_ENABLE_PN369_RELAXED_ACCEPTANCE=1.
+    Runtime knobs: GENESIS_PN369_RELAXED_TOPK (default 4, clamp 1-32),
+    GENESIS_PN369_RELAXED_DELTA (default 0.2, clamp 0.0-1.0)."""
+    from sndr.engines.vllm.patches.spec_decode import (
+        pn369_relaxed_acceptance as _wiring,
+    )
+    status, detail = _wiring.apply()
+    if status == "applied":
+        return _applied("PN369 relaxed acceptance (MTP spec-decode)", detail)
+    if status == "failed":
+        return _failed("PN369 relaxed acceptance (MTP spec-decode)", detail)
+    return _skipped("PN369 relaxed acceptance (MTP spec-decode)", detail)
+
+
 @register_patch("PN346 Mamba/GDN cache hit boundary fix (vendor of OPEN vllm#43650)")
 def apply_patch_N346_mamba_mtp_apc_boundary() -> PatchResult:
     """PN346: vendors OPEN PR vllm#43650 (6-LOC fix). Adds a boundary

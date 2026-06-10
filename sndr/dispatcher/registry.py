@@ -4258,6 +4258,67 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "implementation_status": "full",
         "composes_with": ["P37", "PN96b", "PN352", "P24"],
     },
+    "PN369": {
+        "title": "Relaxed acceptance for MTP spec-decode (TRT-LLM-style top-K + delta window, BIASED — opt-in research)",
+        "tier": "community",
+        "family": "spec_decode",
+        "env_flag": "GENESIS_ENABLE_PN369_RELAXED_ACCEPTANCE",
+        "default_on": False,
+        "apply_module": "sndr.engines.vllm.patches.spec_decode.pn369_relaxed_acceptance",
+        "lifecycle": "research",
+        "category": "spec_decode",
+        "credit": (
+            "Genesis-original 2026-06-10, algorithm adapted from "
+            "TensorRT-LLM relaxed acceptance (NVIDIA). Accept a draft "
+            "token the strict ratio test rejects IF it is in the "
+            "target's top-K AND within delta of the top-1 probability. "
+            "Targets the accept-rate-bound decode on flat distributions "
+            "(creative prose ~0.72 accept / 191 TPS vs math ~0.79 / 253 "
+            "TPS on 35B PROD). Mask computed torch-side from POST-"
+            "temperature post-top-k/p target_probs (TRT's 10/0.6 "
+            "defaults do NOT transfer; ours: topk=4, delta=0.2, runtime-"
+            "tuned via GENESIS_PN369_RELAXED_TOPK / _DELTA, clamped "
+            "1-32 / 0.0-1.0, read once per process). Two accept paths "
+            "patched: (1) upstream per-token random kernel — OR-compose "
+            "before the `if accepted:` site (three-OR-clause stack with "
+            "P82: strict OR P82-threshold OR PN369-window; strict "
+            "superset of accepts); (2) P71 block-verify — TAIL EXTENSION "
+            "after the Sun-2024 block rule fixes accepted_len, walked "
+            "while relaxed_ok holds; recovered token at the NEW first-"
+            "rejected position, bonus on full extension (both reuse "
+            "precomputed buffers — no structural change). GREEDY (temp=0) "
+            "stays STRICT (exact-argmax; tool-call/agentic structural "
+            "safety). Synthetic mode untouched. ngram (NO_DRAFT_PROBS) "
+            "supported (mask depends only on target_probs). Verified at "
+            "pin g303916e93 (0.22.1rc1.dev259, live container "
+            "2026-06-10): all 3 anchors count=1 on pristine AND on the "
+            "P82+P71-patched live file (disjoint regions, apply-order "
+            "independent); all 4 upstream relaxed-acceptance PRs closed "
+            "unmerged as of 2026-06-10 (drift markers: relaxed_topk / "
+            "use_relaxed_acceptance / relax_ratio + #41258 lazy-recovery "
+            "markers). PROD finding during implementation: the P71 "
+            "branch never fired on PROD (draft_sample_method defaults to "
+            "'greedy' -> draft_probs None) AND the kernel A4 "
+            "precondition was unsatisfiable (required len(cu)==B+1 vs "
+            "upstream's [B] cumsum) — fixed in block_verify_sampler.py "
+            "v7.43. BIASED rule (same trade class as P82): promotion "
+            "requires quality harness + canonical bench A/B over the "
+            "topk x delta grid."
+        ),
+        "upstream_pr": None,
+        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
+        "implementation_status": "full",
+        "composes_with": ["P82", "P71", "PN90", "PN361"],
+        "research_note": (
+            "BIASED rule — deliberately breaks distribution-exactness "
+            "for speed on flat distributions. Default OFF. A/B matrix "
+            "for the operator: topk in {2, 4, 8} x delta in {0.1, 0.2, "
+            "0.4} starting at (4, 0.2); delta=0.0 is the near-strict "
+            "degenerate (window passes only ties with top-1). Promote "
+            "only with quality harness >= baseline AND canonical bench "
+            "TPS win on creative-prose workload."
+        ),
+    },
     "PN365": {
         "title": "Fused GDN qkv|z|b|a single-GEMM input projection (port of OPEN vllm#42746)",
         "tier": "community",
