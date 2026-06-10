@@ -1,5 +1,29 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Wiring for PN79 — in-place SSM state for GDN chunk prefill (vllm#41824 backport).
+"""PN79 — In-place SSM state for GDN chunk prefill (vllm#41824 backport).
+
+STATUS 2026-06-10: PARKED after PROD IMA — kernel-level bug in the
+re-anchored in-place path.
+====================================================================
+K.2 re-anchor applied cleanly (18/18 sub-patches, 4 files atomic) and
+short decode traffic was healthy (accuracy spot-check passed), but the
+FIRST 8K chunked prefill produced CUDA illegal memory access
+(async-reported at rejection_sampler; engine death). The in-place
+chunk_delta_h kernel (state_idx rebase / stride math on the
+IS_CONTINUOUS_BATCHING branch) is the suspect — exactly the multi-chunk
+prefill path the patch modifies. Reverted on PROD (text + env).
+
+Revert lesson (operational): docker start boots with the OLD launcher
+env — flip the env BEFORE any start/restart, or the boot apply re-races
+the revert (caught twice tonight: PN352, PN79).
+
+To resume: reproduce in isolation with a standalone multi-chunk varlen
+test against the pristine kernel (cache_steps > 1, multiple sequences,
+ssm_state_indices permuted), compare in-place vs gather/scatter outputs
+per chunk, and audit the 2D/2F stride constexprs (stride_init_state_*)
+against the actual ssm_state layout [num_blocks, H, V, K] vs the
+kernel's assumed [N, H, V, K].
+
+Wiring for PN79 — in-place SSM state for GDN chunk prefill (vllm#41824 backport).
 
 ================================================================
 What it does
