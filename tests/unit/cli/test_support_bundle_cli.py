@@ -27,7 +27,7 @@ def _run(*args: str, env_extra: dict | None = None,
     if env_extra:
         env.update(env_extra)
     return subprocess.run(
-        [sys.executable, "-m", "vllm.sndr_core.cli", "support-bundle", *args],
+        [sys.executable, "-m", "sndr.cli.legacy", "support-bundle", *args],
         capture_output=True, text=True, cwd=REPO_ROOT,
         env=env, check=False, input=text_in,
     )
@@ -69,7 +69,7 @@ def test_support_bundle_no_docker_returns_3() -> None:
 
 
 def test_collect_host_facts_returns_expected_keys() -> None:
-    import vllm.sndr_core.cli.trace as tmod
+    import sndr.cli.legacy.trace as tmod
     facts = tmod.collect_host_facts()
     expected = {"uname", "free_disk", "free_memory",
                 "nvidia_smi", "docker_version"}
@@ -83,7 +83,7 @@ def test_collect_host_facts_handles_missing_binary(monkeypatch) -> None:
     """Even when every command is absent (no $PATH binaries), the
     function returns a complete dict with `ok: False` everywhere —
     never raises."""
-    import vllm.sndr_core.cli.trace as tmod
+    import sndr.cli.legacy.trace as tmod
     monkeypatch.setattr(tmod.shutil, "which", lambda name: None)
     facts = tmod.collect_host_facts()
     assert set(facts.keys()) == {
@@ -104,7 +104,7 @@ def test_collect_container_facts_filters_env_to_relevant_prefixes(
     """The env dump must surface GENESIS_ / SNDR_ / VLLM_ / NCCL_ /
     CUDA_ / TORCH_ / PYTORCH_ / TRITON_ — and only those — so the
     bundle stays small and operator-readable."""
-    import vllm.sndr_core.cli.trace as tmod
+    import sndr.cli.legacy.trace as tmod
     monkeypatch.setattr(tmod.shutil, "which", lambda name: "/usr/bin/docker")
 
     calls: list[list[str]] = []
@@ -152,7 +152,7 @@ def test_collect_container_facts_returns_all_keys_even_on_failure(
     """Every key must always be present in the dict, even when the
     underlying subprocess fails — the bundling code iterates the
     keys and writes one file per."""
-    import vllm.sndr_core.cli.trace as tmod
+    import sndr.cli.legacy.trace as tmod
     monkeypatch.setattr(tmod.shutil, "which", lambda name: "/usr/bin/docker")
 
     class FakeFail:
@@ -175,7 +175,7 @@ def _stub_docker(monkeypatch, live_traces: dict[str, tuple[int, str]]):
     a hermetic test: docker present, _container_ls_tmp returns the
     given live trace inventory, docker cp writes a small file with
     valid boot content for the boot log."""
-    import vllm.sndr_core.cli.trace as tmod
+    import sndr.cli.legacy.trace as tmod
     monkeypatch.setattr(tmod.shutil, "which", lambda name: "/usr/bin/docker")
     monkeypatch.setattr(
         tmod, "_container_ls_tmp", lambda c: live_traces,
@@ -226,7 +226,7 @@ def _stub_docker(monkeypatch, live_traces: dict[str, tuple[int, str]]):
 def test_support_bundle_creates_tar_gz_with_expected_layout(
     monkeypatch, tmp_path,
 ) -> None:
-    import vllm.sndr_core.cli.trace as tmod
+    import sndr.cli.legacy.trace as tmod
     _stub_docker(monkeypatch, {
         "genesis_boot.log": (12345, "2026-05-30 14:00:00 +0000"),
         "genesis_pn248_acceptance_trace.log":
@@ -273,7 +273,7 @@ def test_support_bundle_creates_tar_gz_with_expected_layout(
 def test_support_bundle_json_report_matches_actual_state(
     monkeypatch, tmp_path,
 ) -> None:
-    import vllm.sndr_core.cli.trace as tmod
+    import sndr.cli.legacy.trace as tmod
     _stub_docker(monkeypatch, {
         "genesis_boot.log": (12345, "2026-05-30 14:00:00 +0000"),
     })
@@ -300,7 +300,7 @@ def test_support_bundle_json_report_matches_actual_state(
 
 
 def test_support_bundle_no_traces_skips_collection(monkeypatch, tmp_path) -> None:
-    import vllm.sndr_core.cli.trace as tmod
+    import sndr.cli.legacy.trace as tmod
     # docker present (the --no-traces guard short-circuits PATH check
     # only when docker is missing).
     monkeypatch.setattr(tmod.shutil, "which", lambda name: "/usr/bin/docker")
@@ -342,7 +342,7 @@ def test_support_bundle_manifest_records_failed_collects(
     """When a docker cp fails for one trace, the manifest must list it
     under `trace_collection.failed` AND the exit code must be 1 (the
     operator needs to know not everything got through)."""
-    import vllm.sndr_core.cli.trace as tmod
+    import sndr.cli.legacy.trace as tmod
     monkeypatch.setattr(tmod.shutil, "which", lambda name: "/usr/bin/docker")
     monkeypatch.setattr(
         tmod, "_container_ls_tmp",
@@ -385,7 +385,7 @@ def test_support_bundle_manifest_records_failed_collects(
 def test_manifest_includes_canonical_fields(monkeypatch, tmp_path) -> None:
     """The manifest is the single entry point for downstream tooling.
     Lock the field set so refactors don't silently break that contract."""
-    import vllm.sndr_core.cli.trace as tmod
+    import sndr.cli.legacy.trace as tmod
     _stub_docker(monkeypatch, {
         "genesis_boot.log": (1024, "2026-05-30 14:00:00 +0000"),
     })

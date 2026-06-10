@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Tests for ``vllm.sndr_core.proof.production_subset``.
+"""Tests for ``sndr.proof.production_subset``.
 
 The subset definition is what hardened-release policy uses to scope
 ``require-bench`` / ``require-baseline`` gating. Drift here silently
@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.proof.production_subset import (
+from sndr.proof.production_subset import (
     PRODUCTION_PRESET_PATTERN,
     get_production_subset,
     production_subset_breakdown,
@@ -71,7 +71,7 @@ class TestLivePresets:
         )
 
     def test_live_subset_smaller_than_registry(self):
-        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        from sndr.dispatcher.registry import PATCH_REGISTRY
         subset = get_production_subset()
         # Subset never exceeds full registry; if it equals registry,
         # the boundary collapsed and the gate degenerates to
@@ -115,7 +115,7 @@ class TestPN26bResearchExclusion:
     it should be OUT of the subset."""
 
     def test_pn26b_not_in_default_on_subset(self):
-        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        from sndr.dispatcher.registry import PATCH_REGISTRY
         meta = PATCH_REGISTRY.get("PN26b") or {}
         # Assumes PN26b stays research + default_on=False. If a future
         # operator promotes PN26b to default_on=True, this test

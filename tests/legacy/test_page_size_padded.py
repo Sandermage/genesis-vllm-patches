@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""TDD tests for vllm.sndr_core.kernels.page_size_padded (Patch 5b helpers).
+"""TDD tests for sndr.engines.vllm.kernels_legacy.page_size_padded (Patch 5b helpers).
 
 P5b is scaffolding for the future pad-smaller-to-max KV unification
 strategy. These tests verify the helpers behave correctly BEFORE we wire
@@ -14,19 +14,19 @@ import pytest
 
 class TestIsP5bEnabled:
     def test_disabled_by_default(self, monkeypatch):
-        from vllm.sndr_core.kernels.page_size_padded import is_p5b_enabled
+        from sndr.engines.vllm.kernels_legacy.page_size_padded import is_p5b_enabled
         monkeypatch.delenv("GENESIS_ENABLE_P5B", raising=False)
         assert is_p5b_enabled() is False
 
     @pytest.mark.parametrize("v", ["1", "true", "yes", "on", "TRUE", "Yes"])
     def test_enabled_values(self, monkeypatch, v):
-        from vllm.sndr_core.kernels.page_size_padded import is_p5b_enabled
+        from sndr.engines.vllm.kernels_legacy.page_size_padded import is_p5b_enabled
         monkeypatch.setenv("GENESIS_ENABLE_P5B", v)
         assert is_p5b_enabled() is True
 
     @pytest.mark.parametrize("v", ["0", "false", "no", "", "maybe", "off"])
     def test_disabled_values(self, monkeypatch, v):
-        from vllm.sndr_core.kernels.page_size_padded import is_p5b_enabled
+        from sndr.engines.vllm.kernels_legacy.page_size_padded import is_p5b_enabled
         monkeypatch.setenv("GENESIS_ENABLE_P5B", v)
         assert is_p5b_enabled() is False
 
@@ -41,14 +41,14 @@ class _FakeSpec:
 
 class TestComputeRealPageSizeBytes:
     def test_uses_real_attr_when_present(self):
-        from vllm.sndr_core.kernels.page_size_padded import (
+        from sndr.engines.vllm.kernels_legacy.page_size_padded import (
             compute_real_page_size_bytes,
         )
         s = _FakeSpec(page_size_bytes=1073152, real_page_size_bytes=813248)
         assert compute_real_page_size_bytes(s) == 813248
 
     def test_uses_natural_alias(self):
-        from vllm.sndr_core.kernels.page_size_padded import (
+        from sndr.engines.vllm.kernels_legacy.page_size_padded import (
             compute_real_page_size_bytes,
         )
         s = _FakeSpec(
@@ -57,14 +57,14 @@ class TestComputeRealPageSizeBytes:
         assert compute_real_page_size_bytes(s) == 900000
 
     def test_falls_back_to_page_size_bytes(self):
-        from vllm.sndr_core.kernels.page_size_padded import (
+        from sndr.engines.vllm.kernels_legacy.page_size_padded import (
             compute_real_page_size_bytes,
         )
         s = _FakeSpec(page_size_bytes=42)
         assert compute_real_page_size_bytes(s) == 42
 
     def test_real_takes_precedence_over_natural(self):
-        from vllm.sndr_core.kernels.page_size_padded import (
+        from sndr.engines.vllm.kernels_legacy.page_size_padded import (
             compute_real_page_size_bytes,
         )
         s = _FakeSpec(
@@ -77,12 +77,12 @@ class TestComputeRealPageSizeBytes:
 
 class TestClampToRealShape:
     def test_unchanged_when_no_padding(self):
-        from vllm.sndr_core.kernels.page_size_padded import clamp_to_real_shape
+        from sndr.engines.vllm.kernels_legacy.page_size_padded import clamp_to_real_shape
         s = _FakeSpec(page_size_bytes=1024)  # no real_* attr → natural==stated
         assert clamp_to_real_shape((4, 16, 1024), s) == (4, 16, 1024)
 
     def test_scales_last_dim_down(self):
-        from vllm.sndr_core.kernels.page_size_padded import clamp_to_real_shape
+        from sndr.engines.vllm.kernels_legacy.page_size_padded import clamp_to_real_shape
         # Padded 1073152, natural 813248 → ratio 813248/1073152
         s = _FakeSpec(
             page_size_bytes=1073152, real_page_size_bytes=813248,
@@ -93,7 +93,7 @@ class TestClampToRealShape:
         assert scaled[-1] == int(512 * 813248 / 1073152)
 
     def test_zero_stated_returns_unchanged(self):
-        from vllm.sndr_core.kernels.page_size_padded import clamp_to_real_shape
+        from sndr.engines.vllm.kernels_legacy.page_size_padded import clamp_to_real_shape
         s = _FakeSpec(page_size_bytes=0, real_page_size_bytes=42)
         assert clamp_to_real_shape((4, 16, 1024), s) == (4, 16, 1024)
 
@@ -110,7 +110,7 @@ class TestP5bEnvGatedRegistration:
     def test_is_registered(self):
         """v7.4 change: P5b IS registered (was deliberately absent in
         v7.3). Guards against accidental removal on refactors."""
-        from vllm.sndr_core.apply import apply_all
+        from sndr.apply import apply_all
         names = [n for n, _ in apply_all.PATCH_REGISTRY]
         p5b_names = [n for n in names if n.lower().startswith("p5b")]
         assert len(p5b_names) == 1, (
@@ -125,8 +125,8 @@ class TestP5bEnvGatedRegistration:
         """Default-OFF behaviour: even with NVIDIA+SM8.0, skip until
         GENESIS_ENABLE_P5B env is set."""
         monkeypatch.delenv("GENESIS_ENABLE_P5B", raising=False)
-        from vllm.sndr_core.integrations.memory import p5b_page_size_pad_smaller as p5b
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.patches.memory import p5b_page_size_pad_smaller as p5b
+        from sndr.engines.vllm.detection import guards
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(
             guards, "is_sm_at_least", lambda major, minor=0: True,

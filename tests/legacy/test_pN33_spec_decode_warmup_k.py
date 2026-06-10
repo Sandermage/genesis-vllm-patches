@@ -13,7 +13,7 @@ from __future__ import annotations
 
 
 def test_pn33_wiring_imports():
-    from vllm.sndr_core.integrations.worker import pn33_spec_decode_warmup_k as mod
+    from sndr.engines.vllm.patches.worker import pn33_spec_decode_warmup_k as mod
     assert hasattr(mod, "apply")
     assert hasattr(mod, "GENESIS_PN33_MARKER")
     assert hasattr(mod, "PN33_ANCHOR")
@@ -21,7 +21,7 @@ def test_pn33_wiring_imports():
 
 
 def test_pn33_dispatcher_registry():
-    from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+    from sndr.dispatcher import PATCH_REGISTRY
     assert "PN33" in PATCH_REGISTRY
     e = PATCH_REGISTRY["PN33"]
     assert e["env_flag"] == "GENESIS_ENABLE_PN33_SPEC_DECODE_WARMUP_K"
@@ -32,7 +32,7 @@ def test_pn33_dispatcher_registry():
 
 
 def test_pn33_anchor_matches_canonical_upstream():
-    from vllm.sndr_core.integrations.worker.pn33_spec_decode_warmup_k import (
+    from sndr.engines.vllm.patches.worker.pn33_spec_decode_warmup_k import (
         PN33_ANCHOR,
     )
     # Anchor is the original 1-draft-token warmup line in
@@ -42,7 +42,7 @@ def test_pn33_anchor_matches_canonical_upstream():
 
 
 def test_pn33_replacement_uses_num_speculative_tokens():
-    from vllm.sndr_core.integrations.worker.pn33_spec_decode_warmup_k import (
+    from sndr.engines.vllm.patches.worker.pn33_spec_decode_warmup_k import (
         PN33_REPLACEMENT,
     )
     # Reads num_speculative_tokens from speculative_config (defensive)
@@ -56,7 +56,7 @@ def test_pn33_replacement_uses_num_speculative_tokens():
 def test_pn33_replacement_extends_beyond_eagle_only():
     """Genesis extends upstream #37521 beyond use_eagle() to cover
     MTP/ngram. Replacement must NOT gate on use_eagle()."""
-    from vllm.sndr_core.integrations.worker.pn33_spec_decode_warmup_k import (
+    from sndr.engines.vllm.patches.worker.pn33_spec_decode_warmup_k import (
         PN33_REPLACEMENT,
     )
     # Upstream PR gates on use_eagle(); Genesis covers all methods so
@@ -71,7 +71,7 @@ def test_pn33_replacement_extends_beyond_eagle_only():
 def test_pn33_replacement_falls_through_when_K_is_1():
     """When num_speculative_tokens <= 1, replacement preserves
     original [0] behavior (no regression for non-spec-decode or K=1)."""
-    from vllm.sndr_core.integrations.worker.pn33_spec_decode_warmup_k import (
+    from sndr.engines.vllm.patches.worker.pn33_spec_decode_warmup_k import (
         PN33_REPLACEMENT,
     )
     # The else branch falls through to [0] — verify presence
@@ -83,7 +83,7 @@ def test_pn33_replacement_falls_through_when_K_is_1():
 def test_pn33_replacement_honors_disable_env():
     """Operator can disable PN33 via env if K-sized warmup OOMs on a
     tight rig. Disable env reverts to original [0]."""
-    from vllm.sndr_core.integrations.worker.pn33_spec_decode_warmup_k import (
+    from sndr.engines.vllm.patches.worker.pn33_spec_decode_warmup_k import (
         PN33_REPLACEMENT,
     )
     assert "GENESIS_DISABLE_PN33_SPEC_DECODE_WARMUP_K" in PN33_REPLACEMENT
@@ -100,13 +100,13 @@ def test_pn33_skips_when_env_off(monkeypatch):
     # ENABLE env is unset AND default_on=True, it still applies.
     # When the env is explicitly set to "0", it should skip.
     monkeypatch.setenv("GENESIS_ENABLE_PN33_SPEC_DECODE_WARMUP_K", "0")
-    from vllm.sndr_core.integrations.worker.pn33_spec_decode_warmup_k import apply
+    from sndr.engines.vllm.patches.worker.pn33_spec_decode_warmup_k import apply
     status, _reason = apply()
     assert status == "skipped"
 
 
 def test_pn33_register_in_apply_all():
-    from vllm.sndr_core.apply import (
+    from sndr.apply import (
         PATCH_REGISTRY as APPLY_REGISTRY,
     )
     names = [name for name, _ in APPLY_REGISTRY]
@@ -121,7 +121,7 @@ def test_pn33_register_in_apply_all():
 
 
 def test_pn33_marker_unique():
-    from vllm.sndr_core.integrations.worker.pn33_spec_decode_warmup_k import (
+    from sndr.engines.vllm.patches.worker.pn33_spec_decode_warmup_k import (
         GENESIS_PN33_MARKER,
     )
     assert "PN33" in GENESIS_PN33_MARKER
@@ -135,7 +135,7 @@ def test_pn33_documents_root_cause_coupling():
     mid-stream OOM AND noonghunna's workspace-lock bug — they share
     one root cause (warmup undercounted)."""
     import inspect
-    from vllm.sndr_core.integrations.worker import pn33_spec_decode_warmup_k as mod
+    from sndr.engines.vllm.patches.worker import pn33_spec_decode_warmup_k as mod
     src = inspect.getsource(mod)
     assert "ampersandru" in src
     assert "noonghunna" in src
@@ -149,7 +149,7 @@ def test_pn33_documents_upstream_relation():
     """Source must reference upstream PR #37521 + explain the Genesis
     extension (EAGLE-only → all spec-decode methods)."""
     import inspect
-    from vllm.sndr_core.integrations.worker import pn33_spec_decode_warmup_k as mod
+    from sndr.engines.vllm.patches.worker import pn33_spec_decode_warmup_k as mod
     src = inspect.getsource(mod)
     assert "37521" in src
     assert "EAGLE" in src or "use_eagle" in src

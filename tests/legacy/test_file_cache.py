@@ -36,7 +36,7 @@ def _isolated_cache(monkeypatch, tmp_path):
     test_cache = tmp_path / "test_files_md5.json"
     monkeypatch.setenv("GENESIS_FILE_CACHE_PATH", str(test_cache))
     monkeypatch.delenv("GENESIS_NO_PATCH_CACHE", raising=False)
-    from vllm.sndr_core.wiring import file_cache
+    from sndr.engines.vllm.wiring import file_cache
     file_cache._reset_for_tests()
     yield test_cache
     file_cache._reset_for_tests()
@@ -50,20 +50,20 @@ def _isolated_cache(monkeypatch, tmp_path):
 class TestCachePathResolution:
 
     def test_env_override_wins(self, monkeypatch, tmp_path):
-        from vllm.sndr_core.wiring import file_cache
+        from sndr.engines.vllm.wiring import file_cache
         monkeypatch.setenv("GENESIS_FILE_CACHE_PATH",
                            str(tmp_path / "custom.json"))
         assert file_cache._resolve_cache_path() == tmp_path / "custom.json"
 
     def test_xdg_cache_home_when_no_env(self, monkeypatch, tmp_path):
-        from vllm.sndr_core.wiring import file_cache
+        from sndr.engines.vllm.wiring import file_cache
         monkeypatch.delenv("GENESIS_FILE_CACHE_PATH", raising=False)
         monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
         assert file_cache._resolve_cache_path() == \
             tmp_path / "genesis" / "files_md5.json"
 
     def test_home_fallback_when_no_xdg(self, monkeypatch, tmp_path):
-        from vllm.sndr_core.wiring import file_cache
+        from sndr.engines.vllm.wiring import file_cache
         monkeypatch.delenv("GENESIS_FILE_CACHE_PATH", raising=False)
         monkeypatch.delenv("XDG_CACHE_HOME", raising=False)
         monkeypatch.setenv("HOME", str(tmp_path))
@@ -79,7 +79,7 @@ class TestCachePathResolution:
 class TestEmptyCacheAndPins:
 
     def test_new_empty_has_required_fields(self):
-        from vllm.sndr_core.wiring.file_cache import _new_empty_cache
+        from sndr.engines.vllm.wiring.file_cache import _new_empty_cache
         c = _new_empty_cache()
         assert c["cache_version"] == 1
         assert "pins" in c
@@ -88,8 +88,8 @@ class TestEmptyCacheAndPins:
         assert c["files"] == {}
 
     def test_validate_cache_accepts_well_formed(self):
-        from vllm.sndr_core.wiring.file_cache import _new_empty_cache
-        from vllm.sndr_core.wiring.file_cache import _validate_cache
+        from sndr.engines.vllm.wiring.file_cache import _new_empty_cache
+        from sndr.engines.vllm.wiring.file_cache import _validate_cache
         assert _validate_cache(_new_empty_cache()) is True
 
     @pytest.mark.parametrize("bad", [
@@ -99,7 +99,7 @@ class TestEmptyCacheAndPins:
         {"cache_version": 1, "pins": {}, "files": "not-dict"},
     ])
     def test_validate_cache_rejects_malformed(self, bad):
-        from vllm.sndr_core.wiring.file_cache import _validate_cache
+        from sndr.engines.vllm.wiring.file_cache import _validate_cache
         assert _validate_cache(bad) is False
 
 
@@ -111,22 +111,22 @@ class TestEmptyCacheAndPins:
 class TestLoadFromDisk:
 
     def test_absent_returns_none(self, _isolated_cache):
-        from vllm.sndr_core.wiring.file_cache import _load_cache_from_disk
+        from sndr.engines.vllm.wiring.file_cache import _load_cache_from_disk
         # Cache file path set by fixture but file doesn't exist
         assert _load_cache_from_disk() is None
 
     def test_corrupted_json_returns_none(self, _isolated_cache):
-        from vllm.sndr_core.wiring.file_cache import _load_cache_from_disk
+        from sndr.engines.vllm.wiring.file_cache import _load_cache_from_disk
         _isolated_cache.write_text("not valid json {")
         assert _load_cache_from_disk() is None
 
     def test_invalid_schema_returns_none(self, _isolated_cache):
-        from vllm.sndr_core.wiring.file_cache import _load_cache_from_disk
+        from sndr.engines.vllm.wiring.file_cache import _load_cache_from_disk
         _isolated_cache.write_text(json.dumps({"cache_version": 99}))
         assert _load_cache_from_disk() is None
 
     def test_pin_mismatch_returns_none(self, _isolated_cache):
-        from vllm.sndr_core.wiring.file_cache import _load_cache_from_disk
+        from sndr.engines.vllm.wiring.file_cache import _load_cache_from_disk
         _isolated_cache.write_text(json.dumps({
             "cache_version": 1,
             "pins": {"vllm": "WRONG_PIN", "genesis": "WRONG"},
@@ -144,12 +144,12 @@ class TestLoadFromDisk:
 class TestGetCacheEntry:
 
     def test_miss_returns_none(self):
-        from vllm.sndr_core.wiring.file_cache import get_cache_entry
+        from sndr.engines.vllm.wiring.file_cache import get_cache_entry
         assert get_cache_entry("/nonexistent/file.py") is None
 
     def test_after_record_returns_entry(self, tmp_path):
-        from vllm.sndr_core.wiring.file_cache import get_cache_entry
-        from vllm.sndr_core.wiring.file_cache import record_apply_result
+        from sndr.engines.vllm.wiring.file_cache import get_cache_entry
+        from sndr.engines.vllm.wiring.file_cache import record_apply_result
         target = tmp_path / "f.py"
         target.write_text("hello")
         record_apply_result(str(target), "MARKER",
@@ -168,30 +168,30 @@ class TestGetCacheEntry:
 class TestIsMarkerCachedPresent:
 
     def test_returns_true_when_all_match(self, tmp_path):
-        from vllm.sndr_core.wiring.file_cache import is_marker_cached_present
-        from vllm.sndr_core.wiring.file_cache import record_apply_result
+        from sndr.engines.vllm.wiring.file_cache import is_marker_cached_present
+        from sndr.engines.vllm.wiring.file_cache import record_apply_result
         target = tmp_path / "f.py"
         target.write_text("body")
         record_apply_result(str(target), "M", post_apply_content="body")
         assert is_marker_cached_present(str(target), "M") is True
 
     def test_false_when_no_entry(self, tmp_path):
-        from vllm.sndr_core.wiring.file_cache import is_marker_cached_present
+        from sndr.engines.vllm.wiring.file_cache import is_marker_cached_present
         target = tmp_path / "f.py"
         target.write_text("body")
         assert is_marker_cached_present(str(target), "M") is False
 
     def test_false_when_marker_unknown(self, tmp_path):
-        from vllm.sndr_core.wiring.file_cache import is_marker_cached_present
-        from vllm.sndr_core.wiring.file_cache import record_apply_result
+        from sndr.engines.vllm.wiring.file_cache import is_marker_cached_present
+        from sndr.engines.vllm.wiring.file_cache import record_apply_result
         target = tmp_path / "f.py"
         target.write_text("body")
         record_apply_result(str(target), "M1", post_apply_content="body")
         assert is_marker_cached_present(str(target), "M2") is False
 
     def test_false_when_mtime_changed(self, tmp_path):
-        from vllm.sndr_core.wiring.file_cache import is_marker_cached_present
-        from vllm.sndr_core.wiring.file_cache import record_apply_result
+        from sndr.engines.vllm.wiring.file_cache import is_marker_cached_present
+        from sndr.engines.vllm.wiring.file_cache import record_apply_result
         target = tmp_path / "f.py"
         target.write_text("v1")
         record_apply_result(str(target), "M", post_apply_content="v1")
@@ -201,21 +201,21 @@ class TestIsMarkerCachedPresent:
         assert is_marker_cached_present(str(target), "M") is False
 
     def test_false_when_size_changed(self, tmp_path):
-        from vllm.sndr_core.wiring.file_cache import is_marker_cached_present
-        from vllm.sndr_core.wiring.file_cache import record_apply_result
+        from sndr.engines.vllm.wiring.file_cache import is_marker_cached_present
+        from sndr.engines.vllm.wiring.file_cache import record_apply_result
         target = tmp_path / "f.py"
         target.write_text("short")
         record_apply_result(str(target), "M", post_apply_content="short")
         # Manually corrupt cache to simulate size mismatch (mtime stays
         # if we just overwrite the cache JSON with a wrong size_bytes)
-        from vllm.sndr_core.wiring import file_cache
+        from sndr.engines.vllm.wiring import file_cache
         cache = file_cache._ensure_loaded()
         cache["files"][str(target)]["size_bytes"] = 999
         assert is_marker_cached_present(str(target), "M") is False
 
     def test_false_when_file_disappeared(self, tmp_path):
-        from vllm.sndr_core.wiring.file_cache import is_marker_cached_present
-        from vllm.sndr_core.wiring.file_cache import record_apply_result
+        from sndr.engines.vllm.wiring.file_cache import is_marker_cached_present
+        from sndr.engines.vllm.wiring.file_cache import record_apply_result
         target = tmp_path / "gone.py"
         target.write_text("x")
         record_apply_result(str(target), "M", post_apply_content="x")
@@ -231,8 +231,8 @@ class TestIsMarkerCachedPresent:
 class TestRecordApplyResult:
 
     def test_creates_entry_with_md5(self, tmp_path):
-        from vllm.sndr_core.wiring.file_cache import get_cache_entry
-        from vllm.sndr_core.wiring.file_cache import record_apply_result
+        from sndr.engines.vllm.wiring.file_cache import get_cache_entry
+        from sndr.engines.vllm.wiring.file_cache import record_apply_result
         target = tmp_path / "f.py"
         target.write_text("payload")
         record_apply_result(str(target), "M", post_apply_content="payload")
@@ -241,8 +241,8 @@ class TestRecordApplyResult:
         assert len(entry["md5_post_apply"]) == 32
 
     def test_multiple_markers_accumulate(self, tmp_path):
-        from vllm.sndr_core.wiring.file_cache import get_cache_entry
-        from vllm.sndr_core.wiring.file_cache import record_apply_result
+        from sndr.engines.vllm.wiring.file_cache import get_cache_entry
+        from sndr.engines.vllm.wiring.file_cache import record_apply_result
         target = tmp_path / "f.py"
         target.write_text("x")
         record_apply_result(str(target), "M1", post_apply_content="x")
@@ -254,8 +254,8 @@ class TestRecordApplyResult:
         assert "M3" in markers
 
     def test_duplicate_marker_not_added_twice(self, tmp_path):
-        from vllm.sndr_core.wiring.file_cache import get_cache_entry
-        from vllm.sndr_core.wiring.file_cache import record_apply_result
+        from sndr.engines.vllm.wiring.file_cache import get_cache_entry
+        from sndr.engines.vllm.wiring.file_cache import record_apply_result
         target = tmp_path / "f.py"
         target.write_text("x")
         record_apply_result(str(target), "M", post_apply_content="x")
@@ -266,7 +266,7 @@ class TestRecordApplyResult:
     def test_disk_persistence(self, tmp_path, _isolated_cache):
         """After record_apply_result, restart-equivalent (re-load from
         disk) sees the entry."""
-        from vllm.sndr_core.wiring import file_cache
+        from sndr.engines.vllm.wiring import file_cache
         target = tmp_path / "f.py"
         target.write_text("hi")
         file_cache.record_apply_result(str(target), "M",
@@ -278,7 +278,7 @@ class TestRecordApplyResult:
         assert "M" in entry["markers"]
 
     def test_no_raise_on_missing_target(self, tmp_path):
-        from vllm.sndr_core.wiring.file_cache import record_apply_result
+        from sndr.engines.vllm.wiring.file_cache import record_apply_result
         # Target doesn't exist — must not raise
         record_apply_result(str(tmp_path / "nonexistent.py"), "M")
 
@@ -291,9 +291,9 @@ class TestRecordApplyResult:
 class TestInvalidate:
 
     def test_invalidate_removes_entry(self, tmp_path):
-        from vllm.sndr_core.wiring.file_cache import get_cache_entry
-        from vllm.sndr_core.wiring.file_cache import invalidate_file
-        from vllm.sndr_core.wiring.file_cache import record_apply_result
+        from sndr.engines.vllm.wiring.file_cache import get_cache_entry
+        from sndr.engines.vllm.wiring.file_cache import invalidate_file
+        from sndr.engines.vllm.wiring.file_cache import record_apply_result
         target = tmp_path / "f.py"
         target.write_text("x")
         record_apply_result(str(target), "M", post_apply_content="x")
@@ -302,13 +302,13 @@ class TestInvalidate:
         assert get_cache_entry(str(target)) is None
 
     def test_invalidate_unknown_path_no_raise(self):
-        from vllm.sndr_core.wiring.file_cache import invalidate_file
+        from sndr.engines.vllm.wiring.file_cache import invalidate_file
         invalidate_file("/totally/fake/path.py")  # no exception expected
 
     def test_clear_wipes_all(self, tmp_path):
-        from vllm.sndr_core.wiring.file_cache import clear_cache
-        from vllm.sndr_core.wiring.file_cache import get_cache_entry
-        from vllm.sndr_core.wiring.file_cache import record_apply_result
+        from sndr.engines.vllm.wiring.file_cache import clear_cache
+        from sndr.engines.vllm.wiring.file_cache import get_cache_entry
+        from sndr.engines.vllm.wiring.file_cache import record_apply_result
         for n in range(3):
             t = tmp_path / f"f{n}.py"
             t.write_text(str(n))
@@ -328,20 +328,20 @@ class TestNoRaiseInvariant:
     path — even bizarre filesystem state must produce graceful False/None."""
 
     def test_is_marker_cached_present_no_raise(self):
-        from vllm.sndr_core.wiring.file_cache import is_marker_cached_present
+        from sndr.engines.vllm.wiring.file_cache import is_marker_cached_present
         # Various malformed inputs — none should raise
         assert is_marker_cached_present("", "M") is False
         assert is_marker_cached_present("/dev/null", "M") is False
         assert is_marker_cached_present("/proc/self/mem", "M") is False
 
     def test_record_apply_result_no_raise(self):
-        from vllm.sndr_core.wiring.file_cache import record_apply_result
+        from sndr.engines.vllm.wiring.file_cache import record_apply_result
         # Bad inputs — never raise
         record_apply_result("", "M")
         record_apply_result("/dev/null", "M")
 
     def test_get_entry_no_raise(self):
-        from vllm.sndr_core.wiring.file_cache import get_cache_entry
+        from sndr.engines.vllm.wiring.file_cache import get_cache_entry
         assert get_cache_entry("/dev/null") is None
 
 
@@ -353,7 +353,7 @@ class TestNoRaiseInvariant:
 class TestAtomicWrite:
 
     def test_no_tmp_after_save(self, tmp_path, _isolated_cache):
-        from vllm.sndr_core.wiring import file_cache
+        from sndr.engines.vllm.wiring import file_cache
         target = tmp_path / "f.py"
         target.write_text("x")
         file_cache.record_apply_result(str(target), "M",
@@ -364,7 +364,7 @@ class TestAtomicWrite:
         assert not cache_path.with_suffix(cache_path.suffix + ".tmp").exists()
 
     def test_overwrites_atomically(self, tmp_path, _isolated_cache):
-        from vllm.sndr_core.wiring import file_cache
+        from sndr.engines.vllm.wiring import file_cache
         target = tmp_path / "f.py"
         target.write_text("v1")
         file_cache.record_apply_result(str(target), "M",

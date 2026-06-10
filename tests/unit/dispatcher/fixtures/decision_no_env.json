@@ -590,6 +590,121 @@
     "reason": "strict opt-in — set GENESIS_ENABLE_PN300_UNIVERSAL_TRITON_AUTOTUNE_WRAPPER=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
   },
   {
+    "patch_id": "PN362",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_PN362=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
+    "patch_id": "PN350",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_PN350=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
+    "patch_id": "PN367",
+    "applied": false,
+    "reason": "strict opt-in: patch has default_on=True (informational) but env_flag=GENESIS_ENABLE_PN367 unset. Add GENESIS_ENABLE_PN367=1 to launch config to engage. Set GENESIS_LEGACY_DEFAULT_ON=1 to revert to pre-2026-05-17 auto-apply semantics."
+  },
+  {
+    "patch_id": "PN352",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_PN352=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
+    "patch_id": "PN365",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_PN365_GDN_GEMM_FUSE=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
+    "patch_id": "PN349",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_PN349=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
+    "patch_id": "PN351",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_PN351=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
+    "patch_id": "PN353A",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_PN353A=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
+    "patch_id": "PN353B",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_PN353B=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
+    "patch_id": "PN364",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_PN364_HYBRID_GDN_WARMUP=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
+    "patch_id": "PN363",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_PN363=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
+    "patch_id": "PN361",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_PN361=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
+    "patch_id": "PN357",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_PN357=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
+    "patch_id": "PN346",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_PN346=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
+    "patch_id": "PN347",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_PN347=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
+    "patch_id": "PN348",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_PN348=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
+    "patch_id": "PN345",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_PN345=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
+    "patch_id": "PN341",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_PN341=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
+    "patch_id": "PN340",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_PN340=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
+    "patch_id": "PN299E",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_PN299E=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
+    "patch_id": "PN299D",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_PN299D=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
+    "patch_id": "PN299C",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_PN299C=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
+    "patch_id": "PN299B",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_PN299B=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
     "patch_id": "PN299",
     "applied": false,
     "reason": "strict opt-in — set GENESIS_ENABLE_PN299_FLA_MULTI_ARCH_WARPS=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
@@ -813,6 +928,11 @@
     "patch_id": "P18b",
     "applied": false,
     "reason": "strict opt-in: patch has default_on=True (informational) but env_flag=GENESIS_LEGACY_P18B unset. Add GENESIS_LEGACY_P18B=1 to launch config to engage. Set GENESIS_LEGACY_DEFAULT_ON=1 to revert to pre-2026-05-17 auto-apply semantics."
+  },
+  {
+    "patch_id": "P18B_TEXT",
+    "applied": false,
+    "reason": "strict opt-in: patch has default_on=True (informational) but env_flag=GENESIS_ENABLE_P18B_TEXT unset. Add GENESIS_ENABLE_P18B_TEXT=1 to launch config to engage. Set GENESIS_LEGACY_DEFAULT_ON=1 to revert to pre-2026-05-17 auto-apply semantics."
   },
   {
     "patch_id": "P20",

@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.model_configs.schema import (
+from sndr.model_configs.schema import (
     PackageVersions, ModelConfig, HardwareSpec, DockerConfig, SchemaError,
     load_yaml, dump_yaml,
 )
@@ -147,7 +147,7 @@ def test_builtin_35b_prod_declares_package_versions():
     # 35b-a3b-fp8.yaml, qwen3.6-27b-int4-autoround-tq-k8v4.yaml) and
     # is forwarded into the composed cfg via compose.py:603.
     # V1 file source-of-truth was retired in Phase 10 V1 sunset.
-    from vllm.sndr_core.model_configs.registry_v2 import load_alias
+    from sndr.model_configs.registry_v2 import load_alias
     cfg = load_alias("prod-qwen3.6-35b-balanced")
     assert cfg is not None
     assert cfg.package_versions is not None
@@ -160,7 +160,7 @@ def test_builtin_35b_prod_declares_package_versions():
 def test_builtin_27b_tq_k8v4_declares_package_versions():
     # Phase 10 migration: V2 alias replaces V1 key (see comment on the
     # 35B test above for full rationale).
-    from vllm.sndr_core.model_configs.registry_v2 import load_alias
+    from sndr.model_configs.registry_v2 import load_alias
     cfg = load_alias("prod-qwen3.6-27b-tq-k8v4")
     assert cfg is not None
     assert cfg.package_versions is not None

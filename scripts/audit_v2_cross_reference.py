@@ -30,7 +30,7 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-BUILTIN_DIR = REPO_ROOT / "vllm" / "sndr_core" / "model_configs" / "builtin"
+BUILTIN_DIR = REPO_ROOT / "sndr" / "model_configs" / "builtin"
 
 MODEL_DIR    = BUILTIN_DIR / "model"
 HARDWARE_DIR = BUILTIN_DIR / "hardware"

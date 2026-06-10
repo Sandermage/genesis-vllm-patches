@@ -33,7 +33,7 @@ def _run_cli(handler, opts: argparse.Namespace) -> tuple[int, str]:
 class TestStaticChecksKnownPatches:
     def test_known_spec_only_patch_passes(self):
         """P102 is in KNOWN_SPEC_ONLY — must pass without apply_module."""
-        from vllm.sndr_core.proof import static_checks_for_patch
+        from sndr.proof import static_checks_for_patch
         checks = static_checks_for_patch("P102")
         # P-1 (in registry), P-2 (in KNOWN_SPEC_ONLY), P-4 (in KNOWN_SPEC_ONLY),
         # P-5 (env_flag canonical). P-3/6/7 may be skipped (no apply_module / no deps).
@@ -43,7 +43,7 @@ class TestStaticChecksKnownPatches:
         )
 
     def test_unknown_patch_id_fails_p1(self):
-        from vllm.sndr_core.proof import static_checks_for_patch
+        from sndr.proof import static_checks_for_patch
         checks = static_checks_for_patch("P_NONEXISTENT_XYZ_999")
         assert len(checks) == 1
         assert checks[0].rule == "P-1"
@@ -61,7 +61,7 @@ class TestStaticChecksKnownPatches:
         gap" failure mode is exercised by `TestStaticChecksSynthetic`
         with a stub registry instead.
         """
-        from vllm.sndr_core.proof import static_checks_for_patch
+        from sndr.proof import static_checks_for_patch
         checks = static_checks_for_patch("P67b")
         rule_map = {c.rule: c for c in checks}
         # P-1 must pass (P67b IS in registry).
@@ -76,7 +76,7 @@ class TestStaticChecksKnownPatches:
     def test_env_flag_in_canonical_registry(self):
         """Every PATCH_REGISTRY entry's env_flag must be in the §6.7
         canonical key registry. P-5 surfaces drift."""
-        from vllm.sndr_core.proof import static_checks_for_patch
+        from sndr.proof import static_checks_for_patch
         # Pick a known patch + verify its env_flag check passes.
         checks = static_checks_for_patch("P58")
         p5 = next((c for c in checks if c.rule == "P-5"), None)
@@ -92,12 +92,12 @@ class TestStaticChecksSynthetic:
     cases that the real PATCH_REGISTRY doesn't currently exhibit."""
 
     def test_apply_module_importable_passes(self):
-        from vllm.sndr_core.proof import static_checks_for_patch
+        from sndr.proof import static_checks_for_patch
         # Use a module we know imports cleanly.
         registry = {
             "TEST_OK": {
                 "env_flag": "GENESIS_ENABLE_TEST_OK",
-                "apply_module": "vllm.sndr_core.cli._io",
+                "apply_module": "sndr.cli.legacy._io",
             },
         }
         canonical_keys = {"GENESIS_ENABLE_TEST_OK"}
@@ -110,11 +110,11 @@ class TestStaticChecksSynthetic:
         assert rule_map["P-3"].passed, rule_map["P-3"].message
 
     def test_apply_module_importable_fails(self):
-        from vllm.sndr_core.proof import static_checks_for_patch
+        from sndr.proof import static_checks_for_patch
         registry = {
             "TEST_BAD_IMPORT": {
                 "env_flag": "GENESIS_ENABLE_TEST_BAD",
-                "apply_module": "vllm.sndr_core.nonexistent.module",
+                "apply_module": "sndr.nonexistent.module",
             },
         }
         canonical_keys = {"GENESIS_ENABLE_TEST_BAD"}
@@ -128,7 +128,7 @@ class TestStaticChecksSynthetic:
         assert "cannot import" in rule_map["P-3"].message
 
     def test_unknown_env_flag_fails_p5(self):
-        from vllm.sndr_core.proof import static_checks_for_patch
+        from sndr.proof import static_checks_for_patch
         registry = {
             "TEST_TYPO_FLAG": {
                 "env_flag": "GENESIS_ENABLE_TEST_TYPO",
@@ -146,7 +146,7 @@ class TestStaticChecksSynthetic:
         assert "not in canonical key registry" in rule_map["P-5"].message
 
     def test_requires_patches_unknown_fails_p6(self):
-        from vllm.sndr_core.proof import static_checks_for_patch
+        from sndr.proof import static_checks_for_patch
         registry = {
             "TEST_NEEDS_GHOST": {
                 "env_flag": "GENESIS_ENABLE_TEST_NEEDS",
@@ -165,7 +165,7 @@ class TestStaticChecksSynthetic:
         assert "P_GHOST_X" in rule_map["P-6"].message
 
     def test_conflicts_with_unknown_fails_p7(self):
-        from vllm.sndr_core.proof import static_checks_for_patch
+        from sndr.proof import static_checks_for_patch
         registry = {
             "TEST_CONFLICT_GHOST": {
                 "env_flag": "GENESIS_ENABLE_TEST_CONFLICT",
@@ -189,7 +189,7 @@ class TestStaticChecksSynthetic:
 
 class TestPatchProofArtefact:
     def test_build_proof_for_patch_populates_provenance(self):
-        from vllm.sndr_core.proof import build_proof_for_patch
+        from sndr.proof import build_proof_for_patch
         proof = build_proof_for_patch("P102")
         # Provenance fields populated.
         assert proof.patch_id == "P102"
@@ -202,7 +202,7 @@ class TestPatchProofArtefact:
         assert proof.static_passed
 
     def test_write_and_load_round_trip(self, tmp_path):
-        from vllm.sndr_core.proof import (
+        from sndr.proof import (
             build_proof_for_patch, load_proof_artefact, write_proof_artefact,
         )
         proof = build_proof_for_patch("P102")
@@ -215,7 +215,7 @@ class TestPatchProofArtefact:
         assert all("rule" in c and "passed" in c for c in data["static_checks"])
 
     def test_find_proof_artefacts_returns_sorted(self, tmp_path):
-        from vllm.sndr_core.proof import find_proof_artefacts
+        from sndr.proof import find_proof_artefacts
         # Empty dir → empty list.
         assert find_proof_artefacts("P102", tmp_path) == []
         # Drop two artefacts, find them.
@@ -228,7 +228,7 @@ class TestPatchProofArtefact:
 
     def test_filename_uses_safe_pin_chars(self, tmp_path):
         """vllm pins often have `+gSHA` — must be filesystem-safe."""
-        from vllm.sndr_core.proof import (
+        from sndr.proof import (
             PatchProof, ProofCheck, write_proof_artefact,
         )
         proof = PatchProof(
@@ -252,8 +252,8 @@ class TestPatchProofArtefact:
 
 class TestDeadDetect:
     def test_empty_artefact_dir_lists_all_as_dead(self, tmp_path):
-        from vllm.sndr_core.proof import list_dead_patches
-        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        from sndr.proof import list_dead_patches
+        from sndr.dispatcher.registry import PATCH_REGISTRY
         dead = list_dead_patches(out_dir=tmp_path)
         assert len(dead) == len(PATCH_REGISTRY)
         # Each row has the documented shape.
@@ -263,7 +263,7 @@ class TestDeadDetect:
             assert "tier" in d
 
     def test_proof_artefact_with_static_passed_excludes(self, tmp_path):
-        from vllm.sndr_core.proof import (
+        from sndr.proof import (
             build_proof_for_patch, list_dead_patches, write_proof_artefact,
         )
         # Drop a passing artefact for P102.
@@ -276,7 +276,7 @@ class TestDeadDetect:
     def test_failing_artefact_does_not_count_as_proof(self, tmp_path):
         """A stale artefact with static_passed=false must NOT be treated
         as proof — the dead-detect sweep still flags the patch."""
-        from vllm.sndr_core.proof import list_dead_patches
+        from sndr.proof import list_dead_patches
         # Manually fabricate a failing artefact for P102.
         (tmp_path / "P102__0.20.0.json").write_text(
             json.dumps({
@@ -299,7 +299,7 @@ class TestDeadDetect:
 
 class TestCLIProveSubcommand:
     def test_prove_one_known_spec_only_passes(self, tmp_path):
-        from vllm.sndr_core.cli.patches import _run_prove
+        from sndr.cli.legacy.patches import _run_prove
         opts = argparse.Namespace(
             patch_id="P102",
             prove_all=False,
@@ -315,7 +315,7 @@ class TestCLIProveSubcommand:
         assert payload["artefact_path"]
 
     def test_prove_unknown_id_returns_one(self, tmp_path):
-        from vllm.sndr_core.cli.patches import _run_prove
+        from sndr.cli.legacy.patches import _run_prove
         opts = argparse.Namespace(
             patch_id="P_NONEXISTENT_777",
             prove_all=False, dead_detect=False,
@@ -325,8 +325,8 @@ class TestCLIProveSubcommand:
         assert rc == 1
 
     def test_prove_dead_detect_empty_dir(self, tmp_path):
-        from vllm.sndr_core.cli.patches import _run_prove
-        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        from sndr.cli.legacy.patches import _run_prove
+        from sndr.dispatcher.registry import PATCH_REGISTRY
         opts = argparse.Namespace(
             patch_id=None, prove_all=False, dead_detect=True,
             out_dir=str(tmp_path), no_write=False, json=True,
@@ -339,7 +339,7 @@ class TestCLIProveSubcommand:
         assert payload["dead"] == len(PATCH_REGISTRY)
 
     def test_prove_all_reports_coverage(self, tmp_path):
-        from vllm.sndr_core.cli.patches import _run_prove
+        from sndr.cli.legacy.patches import _run_prove
         opts = argparse.Namespace(
             patch_id=None, prove_all=True, dead_detect=False,
             out_dir=str(tmp_path), no_write=True, json=True,
@@ -360,7 +360,7 @@ class TestCLIProveSubcommand:
             assert "errors" in r
 
     def test_prove_no_args_returns_two(self, tmp_path):
-        from vllm.sndr_core.cli.patches import _run_prove
+        from sndr.cli.legacy.patches import _run_prove
         opts = argparse.Namespace(
             patch_id=None, prove_all=False, dead_detect=False,
             out_dir=str(tmp_path), no_write=False, json=False,
@@ -374,7 +374,7 @@ class TestCLIProveSubcommand:
 
 class TestProveRegistration:
     def test_subcommand_parses(self):
-        from vllm.sndr_core.cli.patches import add_argparser
+        from sndr.cli.legacy.patches import add_argparser
         p = argparse.ArgumentParser()
         sub = p.add_subparsers()
         add_argparser(sub)

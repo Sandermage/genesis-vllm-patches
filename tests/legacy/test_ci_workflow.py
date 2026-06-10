@@ -43,25 +43,25 @@ class TestWorkflowGates:
         # Every gate that depends on the pytest suite shares this driver.
         assert "python -m pytest" in workflow_text
         # P1-6 (audit 2026-05-08): coverage broadened from the compat
-        # subpackage to the whole `vllm.sndr_core` package after v11
+        # subpackage to the whole `sndr` package after v11
         # consolidation. Either form is acceptable; reject zero coverage.
         assert (
-            "--cov=vllm.sndr_core.compat" in workflow_text
-            or "--cov=vllm.sndr_core" in workflow_text
+            "--cov=sndr.compat" in workflow_text
+            or "--cov=sndr" in workflow_text
         )
 
     def test_runs_lifecycle_audit_gate(self, workflow_text: str):
-        assert "vllm.sndr_core.compat.lifecycle_audit_cli" in workflow_text
+        assert "sndr.compat.lifecycle_audit_cli" in workflow_text
 
     def test_runs_schema_validator_gate(self, workflow_text: str):
-        assert "vllm.sndr_core.compat.schema_validator" in workflow_text
+        assert "sndr.compat.schema_validator" in workflow_text
 
     def test_runs_self_test_gate(self, workflow_text: str):
         # The self-test gate is the most recent addition and the most
         # likely to get accidentally dropped — pin it explicitly.
         assert (
-            "vllm.sndr_core.compat.cli self-test" in workflow_text
-            or "vllm.sndr_core.compat.self_test" in workflow_text
+            "sndr.compat.cli self-test" in workflow_text
+            or "sndr.compat.self_test" in workflow_text
         ), "CI must run `genesis self-test` on every push/PR"
 
     def test_python_matrix_covers_310_and_312(self, workflow_text: str):

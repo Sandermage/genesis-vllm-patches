@@ -69,7 +69,7 @@ _skip_if_lt_2_v1 = pytest.mark.skipif(
 def _reset_warned_set():
     """Clear the one-warning-per-key cache before each test so warning
     behaviour is deterministic regardless of test order."""
-    from vllm.sndr_core.model_configs import registry
+    from sndr.model_configs import registry
     registry._V1_DEPRECATION_WARNED.clear()
     # Also clear env override.
     saved = os.environ.pop("GENESIS_DISABLE_V1_DEPRECATION_WARNING", None)
@@ -81,7 +81,7 @@ def _reset_warned_set():
 @_skip_if_no_v1
 class TestV1DeprecationWarning:
     def test_first_load_emits_warning(self):
-        from vllm.sndr_core.model_configs.registry import get
+        from sndr.model_configs.registry import get
         with warnings.catch_warnings(record=True) as captured:
             warnings.simplefilter("always")
             cfg = get(_V1_PRIMARY_KEY)
@@ -93,7 +93,7 @@ class TestV1DeprecationWarning:
             )
 
     def test_warning_message_mentions_v2_migration(self):
-        from vllm.sndr_core.model_configs.registry import get
+        from sndr.model_configs.registry import get
         with warnings.catch_warnings(record=True) as captured:
             warnings.simplefilter("always")
             get(_V1_PRIMARY_KEY)
@@ -112,7 +112,7 @@ class TestV1DeprecationWarning:
 
     def test_warning_once_per_key(self):
         """Repeated `get(...)` for the same key warns only once per process."""
-        from vllm.sndr_core.model_configs.registry import get
+        from sndr.model_configs.registry import get
         with warnings.catch_warnings(record=True) as captured:
             warnings.simplefilter("always")
             for _ in range(5):
@@ -125,7 +125,7 @@ class TestV1DeprecationWarning:
 
     @_skip_if_lt_2_v1
     def test_different_keys_warn_separately(self):
-        from vllm.sndr_core.model_configs.registry import get
+        from sndr.model_configs.registry import get
         with warnings.catch_warnings(record=True) as captured:
             warnings.simplefilter("always")
             get(_V1_PRIMARY_KEY)
@@ -137,7 +137,7 @@ class TestV1DeprecationWarning:
             )
 
     def test_env_var_silences_warning(self):
-        from vllm.sndr_core.model_configs.registry import get
+        from sndr.model_configs.registry import get
         os.environ["GENESIS_DISABLE_V1_DEPRECATION_WARNING"] = "1"
         with warnings.catch_warnings(record=True) as captured:
             warnings.simplefilter("always")
@@ -149,7 +149,7 @@ class TestV1DeprecationWarning:
 
     def test_v1_path_still_functional(self):
         """Phase 9 = warn-only freeze. V1 must still serve preflight."""
-        from vllm.sndr_core.model_configs.registry import get
+        from sndr.model_configs.registry import get
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             cfg = get(_V1_PRIMARY_KEY)
@@ -164,7 +164,7 @@ class TestV2AliasNoWarning:
     must NOT emit the V1 deprecation warning."""
 
     def test_v2_alias_silent(self):
-        from vllm.sndr_core.model_configs.registry_v2 import load_alias
+        from sndr.model_configs.registry_v2 import load_alias
         with warnings.catch_warnings(record=True) as captured:
             warnings.simplefilter("always")
             cfg = load_alias("prod-qwen3.6-35b-balanced")
@@ -233,7 +233,7 @@ class TestPhase8bAcceptance:
         "example-3090-dense-cpu-offload", "example-3090-tier-aware",
     ])
     def test_alias_preflight_path(self, alias):
-        from vllm.sndr_core.model_configs.registry_v2 import load_alias
+        from sndr.model_configs.registry_v2 import load_alias
         cfg = load_alias(alias)
         # Compose returned a complete V1 ModelConfig.
         assert cfg is not None

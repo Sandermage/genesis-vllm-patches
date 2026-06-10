@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Tests for `vllm.sndr_core.core.multi_file` — MultiFilePatchTransaction.
+"""Tests for `sndr.kernel.multi_file` — MultiFilePatchTransaction.
 
 Contract:
 
@@ -27,7 +27,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from vllm.sndr_core.core.multi_file import MultiFilePatchTransaction
+from sndr.kernel.multi_file import MultiFilePatchTransaction
 
 
 def _mock_patcher(

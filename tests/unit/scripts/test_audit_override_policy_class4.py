@@ -485,19 +485,19 @@ class TestHardwareCrossProduct:
 class TestDefaultStageFlip:
     def test_default_stage_is_one(self):
         """CONFIG-UX.4.2: DEFAULT_STAGE = 1."""
-        from vllm.sndr_core.model_configs._rollout import DEFAULT_STAGE
+        from sndr.model_configs._rollout import DEFAULT_STAGE
         assert DEFAULT_STAGE == 1
 
     def test_stage_0_explicit_still_observable(self, monkeypatch):
         """Stage 0 explicit env override still resolves to 0."""
-        from vllm.sndr_core.model_configs._rollout import rollout_stage
+        from sndr.model_configs._rollout import rollout_stage
         monkeypatch.setenv("SNDR_V1_ROLLOUT_STAGE", "0")
         assert rollout_stage() == 0
 
     def test_stage_0_and_1_observable_equivalent(self):
         """Operator escape: Stage 0 and Stage 1 produce identical
         observable severity for non-tombstone buckets."""
-        from vllm.sndr_core.model_configs._rollout import effective_severity
+        from sndr.model_configs._rollout import effective_severity
         for bucket in ("transparent", "needs_operator_choice", "deprecated",
                        "card_less_prod", "missing_override_policy"):
             assert effective_severity(bucket=bucket, stage=0) == "warn"

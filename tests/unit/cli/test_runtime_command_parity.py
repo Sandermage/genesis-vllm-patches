@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """Etap 2.1 closure (audit 2026-05-12): parity tests for
-`vllm.sndr_core.model_configs.runtime_command`.
+`sndr.model_configs.runtime_command`.
 
 Before unifying compose/quadlet/k8s, each had its own
 `_container_command` that diverged from the canonical
@@ -18,12 +18,12 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.model_configs.runtime_command import (
+from sndr.model_configs.runtime_command import (
     RuntimeCommandSpec,
     argv_to_shell,
     build_runtime_command,
 )
-from vllm.sndr_core.model_configs.schema import (
+from sndr.model_configs.schema import (
     DockerConfig, HardwareSpec, ModelConfig, SpecDecodeConfig,
 )
 
@@ -89,7 +89,7 @@ class TestCanonicalArgv:
         assert "secret-token-XYZ" not in spec.argv
 
     def test_offload_args_included(self):
-        from vllm.sndr_core.model_configs.schema import OffloadConfig
+        from sndr.model_configs.schema import OffloadConfig
         cfg = _make_cfg()
         cfg.offload = OffloadConfig(cpu_offload_gib=8)
         spec = build_runtime_command(cfg)
@@ -133,7 +133,7 @@ class TestDeploymentParity:
     """Etap 2.1: compose / quadlet emit identical argv via the canonical builder."""
 
     def test_compose_command_matches_canonical(self):
-        from vllm.sndr_core.cli.compose import _container_command
+        from sndr.cli.legacy.compose import _container_command
         cfg = _make_cfg()
         compose_argv = _container_command(cfg)
         canonical_argv = build_runtime_command(cfg).argv
@@ -142,8 +142,8 @@ class TestDeploymentParity:
     def test_quadlet_uses_compose_command(self):
         """Quadlet imports `_container_command` from compose — so it
         should emit identical argv."""
-        from vllm.sndr_core.cli.compose import _container_command
-        from vllm.sndr_core.cli import quadlet as Q
+        from sndr.cli.legacy.compose import _container_command
+        from sndr.cli.legacy import quadlet as Q
         cfg = _make_cfg()
         # Quadlet's render fetches argv via the same _container_command
         assert Q._container_command is _container_command

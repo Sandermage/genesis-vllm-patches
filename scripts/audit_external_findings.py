@@ -68,13 +68,13 @@ def _resolve_dir(override: Optional[str]) -> Path:
         if not p.is_absolute():
             p = REPO_ROOT / p
         return p.resolve()
-    from vllm.sndr_core.findings.registry import DEFAULT_FINDINGS_DIR
+    from sndr.findings.registry import DEFAULT_FINDINGS_DIR
     return DEFAULT_FINDINGS_DIR
 
 
 def _run_validator(root: Path):
     """Defer to the canonical validator."""
-    from vllm.sndr_core.findings.validator import validate_directory
+    from sndr.findings.validator import validate_directory
     return validate_directory(root)
 
 

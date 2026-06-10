@@ -18,7 +18,7 @@
 > ```
 >
 > Each preset resolves to a (model, hardware, profile) triplet under
-> [`vllm/sndr_core/model_configs/builtin/`](../../vllm/sndr_core/model_configs/builtin/).
+> [`sndr/model_configs/builtin/`](../../sndr/model_configs/builtin/).
 > See `sndr launch --help` for `--dry-run` and other flags.
 
 Historical context (pre-Wave-10, kept for archeology):

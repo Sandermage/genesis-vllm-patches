@@ -132,7 +132,7 @@ class TestImportPatternDetection:
     def test_unrelated_import_clean(self, fake_repo):
         mod = _import()
         p = fake_repo / "x.py"
-        p.write_text("from vllm.sndr_core.cli import config_keys\n")
+        p.write_text("from sndr.cli.legacy import config_keys\n")
         hits = mod._check_file(p)
         assert hits == []
 

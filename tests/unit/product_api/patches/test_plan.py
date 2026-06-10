@@ -11,8 +11,8 @@ import os
 
 import pytest
 
-from vllm.sndr_core.product_api.patches import plan
-from vllm.sndr_core.product_api.patches.plan import (
+from sndr.product_api.legacy.patches import plan
+from sndr.product_api.legacy.patches.plan import (
     PlanReport,
     PresetNotFoundError,
 )

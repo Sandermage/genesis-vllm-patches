@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.product_api.memory import estimate_fit
+from sndr.product_api.legacy.memory import estimate_fit
 
 
 def test_estimate_fit_prod_35b_on_a5000_is_compatible():

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """Tests for the env-flag matrix (registry catalogue + live overlay)."""
-from vllm.sndr_core.product_api import flag_matrix as fm
+from sndr.product_api.legacy import flag_matrix as fm
 
 
 def test_build_matrix_from_registry():

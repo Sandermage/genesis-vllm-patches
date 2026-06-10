@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""TDD for `vllm.sndr_core.license` (Phase 4 / F-010-012 audit fix).
+"""TDD for `sndr.license` (Phase 4 / F-010-012 audit fix).
 
 Structured engine-tier eligibility checks: replaces the simple
 "can we import vllm.sndr_engine?" gate with a proper boundary that
@@ -19,8 +19,17 @@ import pytest
 
 
 def _license_module():
-    from vllm.sndr_core import license as L
+    from sndr import license as L
     return L
+
+
+def _core_version() -> str:
+    """Live platform version — eligibility tests that simulate a
+    COMPATIBLE engine overlay must track the real core major instead
+    of pinning one (the hardcoded "11.0.0" pin broke on the v12 bump
+    via VERSION_MISMATCH)."""
+    from sndr.version import SNDR_CORE_VERSION
+    return SNDR_CORE_VERSION
 
 
 # ─── Status enum sanity ────────────────────────────────────────────────────
@@ -347,7 +356,7 @@ class TestEligibility:
         monkeypatch.delenv("SNDR_ENABLE_TIER_OVERRIDE", raising=False)
         monkeypatch.setenv("SNDR_ALLOW_LEGACY_LICENSE_KEYS", "1")
         monkeypatch.setattr(L, "_engine_overlay_available", lambda: True)
-        monkeypatch.setattr(L, "_engine_package_version", lambda: "11.0.0")
+        monkeypatch.setattr(L, "_engine_package_version", _core_version)
         result = L.check_engine_tier_eligible(
             license_key="any-non-empty-string",
         )
@@ -388,7 +397,7 @@ class TestEligibility:
         monkeypatch.setenv("SNDR_ALLOW_LEGACY_LICENSE_KEYS", "1")
         # DA-010: simulate real engine overlay.
         monkeypatch.setattr(L, "_engine_overlay_available", lambda: True)
-        monkeypatch.setattr(L, "_engine_package_version", lambda: "11.0.0")
+        monkeypatch.setattr(L, "_engine_package_version", _core_version)
         result = L.check_engine_tier_eligible(
             license_key="any-key",
             skip_override_check=True,
@@ -406,7 +415,7 @@ class TestEligibility:
         monkeypatch.delenv("SNDR_ENABLE_TIER_OVERRIDE", raising=False)
         # DA-010: simulate engine overlay so we reach the signature check.
         monkeypatch.setattr(L, "_engine_overlay_available", lambda: True)
-        monkeypatch.setattr(L, "_engine_package_version", lambda: "11.0.0")
+        monkeypatch.setattr(L, "_engine_package_version", _core_version)
         result = L.check_engine_tier_eligible(license_key="some-plain-key")
         assert result.eligible is False
         assert result.status == L.LicenseStatus.BAD_SIGNATURE
@@ -420,7 +429,7 @@ class TestEligibility:
         monkeypatch.delenv("SNDR_ENABLE_TIER_OVERRIDE", raising=False)
         # DA-010: simulate engine overlay.
         monkeypatch.setattr(L, "_engine_overlay_available", lambda: True)
-        monkeypatch.setattr(L, "_engine_package_version", lambda: "11.0.0")
+        monkeypatch.setattr(L, "_engine_package_version", _core_version)
         result = L.check_engine_tier_eligible(license_key="some-plain-key")
         assert result.eligible is True
         assert result.status == L.LicenseStatus.LICENSED_LEGACY
@@ -453,7 +462,7 @@ class TestDispatcherIntegration:
     def test_engine_patch_skipped_when_no_license(self, monkeypatch):
         """An opt-in engine-tier patch (default_on=False) should skip
         with a license-aware reason when no key is set."""
-        from vllm.sndr_core.dispatcher import should_apply, PATCH_REGISTRY
+        from sndr.dispatcher import should_apply, PATCH_REGISTRY
         # Find an engine-tier patch in the live registry
         engine_pids = [
             pid for pid, meta in PATCH_REGISTRY.items()

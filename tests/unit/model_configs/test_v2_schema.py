@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.model_configs.schema import HardwareSpec, SchemaError, SpecDecodeConfig
-from vllm.sndr_core.model_configs.schema_v2 import (
+from sndr.model_configs.schema import HardwareSpec, SchemaError, SpecDecodeConfig
+from sndr.model_configs.schema_v2 import (
     HardwareDef,
     HardwareSizing,
     ModelCapabilities,

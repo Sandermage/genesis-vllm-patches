@@ -64,8 +64,8 @@ def _scan_legacy_hooks_for_apply_targets() -> dict[str, set[str]]:
 
     Returns: {patch_id: {full_module_path, ...}}
     """
-    from vllm.sndr_core.apply import _state, _per_patch_dispatch  # noqa: F401
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+    from sndr.apply import _state, _per_patch_dispatch  # noqa: F401
+    from sndr.dispatcher.registry import PATCH_REGISTRY
     try:
         from scripts.audit_legacy_vs_spec_driven_apply_matrix import (
             _extract_legacy_patch_id,
@@ -121,7 +121,7 @@ def test_no_spec_apply_module_mismatch_with_legacy():
     """Every legacy-registered patch's `<X>.apply()` call target must
     match the spec entry's `apply_module`, OR the patch must be in
     `_KNOWN_PER_PATCH_DIVERGENT` with a justification comment."""
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+    from sndr.dispatcher.registry import PATCH_REGISTRY
     legacy_targets = _scan_legacy_hooks_for_apply_targets()
     mismatches: list[tuple[str, str, list[str]]] = []
     for pid, legacy_mods in legacy_targets.items():

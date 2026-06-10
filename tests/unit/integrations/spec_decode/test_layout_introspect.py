@@ -274,6 +274,7 @@ class TestBuildWarmupKVCache:
         assert cache.dtype == torch.uint8
 
     def test_custom_num_blocks(self):
+        pytest.importorskip("torch")  # build_warmup_kv_cache imports torch internally
         # Caller can override num_blocks for warmup.
         cache = build_warmup_kv_cache(
             _FakeHNDBackend,

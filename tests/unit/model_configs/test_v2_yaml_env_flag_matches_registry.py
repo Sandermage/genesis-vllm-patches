@@ -60,7 +60,7 @@ _V2_YAML_DIRS = [
 def _registry_env_flags() -> set[str]:
     """Return the set of canonical env_flag strings declared in
     PATCH_REGISTRY."""
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+    from sndr.dispatcher.registry import PATCH_REGISTRY
     flags: set[str] = set()
     for meta in PATCH_REGISTRY.values():
         if not isinstance(meta, dict):

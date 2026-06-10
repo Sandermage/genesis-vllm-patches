@@ -7,8 +7,8 @@ Why this matters
 ----------------
 
 The spec-driven apply orchestrator at
-vllm/sndr_core/apply/orchestrator.py:759 unpacks the apply() return
-value as:
+sndr/apply/orchestrator.py (`_run_via_specs`) unpacks the apply()
+return value as:
 
     status, reason = mod.apply()
 
@@ -26,7 +26,7 @@ NOT acceptable (would TypeError on tuple-unpack):
 - `PatchResult` dataclass instance
 
 Legacy @register_patch wrapper at
-vllm/sndr_core/apply/_per_patch_dispatch.py is more forgiving — it
+sndr/apply/_per_patch_dispatch.py is more forgiving — it
 checks shape and adapts. But the spec-driven path is strict, so we
 pin the strict contract here.
 
@@ -53,7 +53,7 @@ _KNOWN_NON_STANDARD_RETURNS: frozenset[str] = frozenset({
 
 
 def _import_registry():
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+    from sndr.dispatcher.registry import PATCH_REGISTRY
     return PATCH_REGISTRY
 
 
@@ -167,9 +167,9 @@ def test_spec_driven_orchestrator_unpack_pattern_works():
     actually works without TypeError."""
     import importlib
     sample_modules = [
-        "vllm.sndr_core.integrations.attention.turboquant.pn118_v2_md5_workspace",
-        "vllm.sndr_core.integrations.attention.gdn.pn79_v2_md5_chunk",
-        "vllm.sndr_core.integrations.spec_decode.sndr_eagle3_aux_hidden_001",
+        "sndr.engines.vllm.patches.attention.turboquant.pn118_v2_md5_workspace",
+        "sndr.engines.vllm.patches.attention.gdn.pn79_v2_md5_chunk",
+        "sndr.engines.vllm.patches.spec_decode.sndr_eagle3_aux_hidden_001",
     ]
     for mod_name in sample_modules:
         try:

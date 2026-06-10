@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Tests for `vllm.sndr_core.detection.gpu_detect` — GPU detection facade.
+"""Tests for `sndr.engines.vllm.detection.gpu_detect` — GPU detection facade.
 
 Contract:
 
@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.detection import gpu_detect
+from sndr.engines.vllm.detection import gpu_detect
 
 
 # ─── Facade re-exports ────────────────────────────────────────────────

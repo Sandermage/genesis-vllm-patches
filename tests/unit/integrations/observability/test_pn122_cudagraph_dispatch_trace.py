@@ -31,7 +31,7 @@ LEGACY_ENV_FLAG = "GENESIS_ENABLE_SPRINT26_CG_DISPATCH_TRACE"
 
 
 def test_pn122_registered():
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+    from sndr.dispatcher.registry import PATCH_REGISTRY
     assert PATCH_ID in PATCH_REGISTRY
     meta = PATCH_REGISTRY[PATCH_ID]
     assert meta["env_flag"] == ENV_FLAG
@@ -55,7 +55,7 @@ def test_legacy_env_documented():
     if not src_path.is_file():
         src_path = (
             repo_root
-            / "vllm/sndr_core/integrations/observability/"
+            / "sndr/engines/vllm/patches/observability/"
               "pn122_sprint26_cudagraph_dispatch_trace.py"
         )
     src = src_path.read_text(encoding="utf-8")

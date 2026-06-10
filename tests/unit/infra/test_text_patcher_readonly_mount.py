@@ -30,7 +30,7 @@ def fake_source(tmp_path):
 
 
 def _build_patcher(target: str, marker: str = "RO_TEST_MARKER"):
-    from vllm.sndr_core.core.text_patch import TextPatch, TextPatcher
+    from sndr.kernel.text_patch import TextPatch, TextPatcher
     return TextPatcher(
         patch_name="ro-test",
         target_file=target,
@@ -48,7 +48,7 @@ def _build_patcher(target: str, marker: str = "RO_TEST_MARKER"):
 
 class TestLayer4ReadOnlyMount:
     def test_writable_file_applies_normally(self, fake_source):
-        from vllm.sndr_core.core.text_patch import TextPatchResult
+        from sndr.kernel.text_patch import TextPatchResult
         p = _build_patcher(fake_source)
         result, failure = p.apply()
         assert result == TextPatchResult.APPLIED
@@ -57,7 +57,7 @@ class TestLayer4ReadOnlyMount:
     def test_read_only_file_returns_skipped_with_structured_reason(
         self, fake_source
     ):
-        from vllm.sndr_core.core.text_patch import TextPatchResult
+        from sndr.kernel.text_patch import TextPatchResult
         # chmod 0o444 doesn't enforce read-only for the root user (and
         # CI containers run as root); skip when we'd be a no-op probe.
         if os.geteuid() == 0:
@@ -87,7 +87,7 @@ class TestLayer4ReadOnlyMount:
         """If marker is already present, Layer 2 returns IDEMPOTENT
         BEFORE Layer 4 fires — read-only mount with already-patched
         file is fine, not an error."""
-        from vllm.sndr_core.core.text_patch import TextPatchResult
+        from sndr.kernel.text_patch import TextPatchResult
         # Pre-patch the file so marker is present
         marker = "PRE_PATCHED_MARKER"
         with open(fake_source, "w") as f:
@@ -111,7 +111,7 @@ class TestLayer4ReadOnlyMount:
         self, tmp_path
     ):
         """Layer 1 must catch missing file before Layer 4 fires."""
-        from vllm.sndr_core.core.text_patch import TextPatchResult
+        from sndr.kernel.text_patch import TextPatchResult
         p = _build_patcher(str(tmp_path / "does_not_exist.py"))
         result, failure = p.apply()
         assert result == TextPatchResult.SKIPPED

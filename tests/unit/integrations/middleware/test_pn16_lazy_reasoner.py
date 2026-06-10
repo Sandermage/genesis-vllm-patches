@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Unit tests for PN16 — lazy-reasoner middleware policy.
 
-Tests the decision logic in `vllm.sndr_core.middleware.lazy_reasoner`
+Tests the decision logic in `sndr.engines.vllm.middleware.lazy_reasoner`
 without touching the text-patch wiring (covered by the wiring's anchor
 invariants in a separate test).
 
@@ -784,7 +784,7 @@ class TestStatsCounters:
 
 class TestDispatcherIntegration:
     def test_pn16_in_registry(self):
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+        from sndr.dispatcher import PATCH_REGISTRY
         assert "PN16" in PATCH_REGISTRY
         meta = PATCH_REGISTRY["PN16"]
         assert meta["env_flag"] == "GENESIS_ENABLE_PN16_LAZY_REASONER"
@@ -792,12 +792,12 @@ class TestDispatcherIntegration:
 
     def test_dispatcher_should_apply_default_off(self, monkeypatch):
         monkeypatch.delenv("GENESIS_ENABLE_PN16_LAZY_REASONER", raising=False)
-        from vllm.sndr_core.dispatcher import should_apply
+        from sndr.dispatcher import should_apply
         decision, _ = should_apply("PN16")
         assert decision is False
 
     def test_dispatcher_should_apply_env_on(self, monkeypatch):
         monkeypatch.setenv("GENESIS_ENABLE_PN16_LAZY_REASONER", "1")
-        from vllm.sndr_core.dispatcher import should_apply
+        from sndr.dispatcher import should_apply
         decision, _ = should_apply("PN16")
         assert decision is True

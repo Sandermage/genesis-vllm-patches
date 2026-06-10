@@ -60,7 +60,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-MODEL_CONFIGS_DIR = REPO_ROOT / "vllm" / "sndr_core" / "model_configs"
+MODEL_CONFIGS_DIR = REPO_ROOT / "sndr" / "model_configs"
 BUILTIN_DIR = MODEL_CONFIGS_DIR / "builtin"
 PRESETS_DIR = BUILTIN_DIR / "presets"
 MIGRATION_TABLE_PATH = MODEL_CONFIGS_DIR / "_v1_migration_table.json"
@@ -307,7 +307,7 @@ def _resolve_stage(explicit: Optional[int]) -> int:
     if explicit is not None:
         return explicit
     try:
-        from vllm.sndr_core.model_configs._rollout import rollout_stage
+        from sndr.model_configs._rollout import rollout_stage
     except ImportError:
         return 1
     return rollout_stage()

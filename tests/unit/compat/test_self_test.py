@@ -22,17 +22,17 @@ from __future__ import annotations
 
 class TestSelfTestRunner:
     def test_module_importable(self):
-        from vllm.sndr_core.compat import self_test  # noqa: F401
+        from sndr.compat import self_test  # noqa: F401
 
     def test_run_returns_dict(self):
-        from vllm.sndr_core.compat.self_test import run_self_test
+        from sndr.compat.self_test import run_self_test
         result = run_self_test()
         assert isinstance(result, dict)
         assert "checks" in result
         assert "summary" in result
 
     def test_each_check_has_name_and_status(self):
-        from vllm.sndr_core.compat.self_test import run_self_test
+        from sndr.compat.self_test import run_self_test
         result = run_self_test()
         for c in result["checks"]:
             assert "name" in c
@@ -40,7 +40,7 @@ class TestSelfTestRunner:
             assert c["status"] in ("pass", "fail", "warn", "skip")
 
     def test_summary_has_counts(self):
-        from vllm.sndr_core.compat.self_test import run_self_test
+        from sndr.compat.self_test import run_self_test
         result = run_self_test()
         s = result["summary"]
         for key in ("passed", "failed", "warned", "skipped", "total"):
@@ -51,25 +51,25 @@ class TestSelfTestRunner:
 
 class TestSelfTestChecks:
     def test_compat_imports_check(self):
-        from vllm.sndr_core.compat.self_test import run_self_test
+        from sndr.compat.self_test import run_self_test
         result = run_self_test()
         names = [c["name"] for c in result["checks"]]
         assert any("compat" in n.lower() for n in names)
 
     def test_schema_validation_check(self):
-        from vllm.sndr_core.compat.self_test import run_self_test
+        from sndr.compat.self_test import run_self_test
         result = run_self_test()
         names = [c["name"] for c in result["checks"]]
         assert any("schema" in n.lower() for n in names)
 
     def test_lifecycle_audit_check(self):
-        from vllm.sndr_core.compat.self_test import run_self_test
+        from sndr.compat.self_test import run_self_test
         result = run_self_test()
         names = [c["name"] for c in result["checks"]]
         assert any("lifecycle" in n.lower() for n in names)
 
     def test_version_check(self):
-        from vllm.sndr_core.compat.self_test import run_self_test
+        from sndr.compat.self_test import run_self_test
         result = run_self_test()
         names = [c["name"] for c in result["checks"]]
         assert any("version" in n.lower() for n in names)
@@ -78,7 +78,7 @@ class TestSelfTestChecks:
         """Against the shipped PATCH_REGISTRY, all critical checks
         should pass. This is the load-bearing test — if the registry
         is broken, self-test catches it."""
-        from vllm.sndr_core.compat.self_test import run_self_test
+        from sndr.compat.self_test import run_self_test
         result = run_self_test()
         # No failures expected on a clean shipping repo
         failed_checks = [
@@ -92,19 +92,19 @@ class TestSelfTestChecks:
 
 class TestCLI:
     def test_main_returns_int(self):
-        from vllm.sndr_core.compat.self_test import main
+        from sndr.compat.self_test import main
         rc = main([])
         assert isinstance(rc, int)
 
     def test_main_clean_returns_zero(self):
         """On the shipping repo, self-test should exit 0."""
-        from vllm.sndr_core.compat.self_test import main
+        from sndr.compat.self_test import main
         rc = main([])
         assert rc == 0
 
     def test_main_json_output(self, capsys):
         import json
-        from vllm.sndr_core.compat.self_test import main
+        from sndr.compat.self_test import main
         main(["--json"])
         captured = capsys.readouterr()
         parsed = json.loads(captured.out)
@@ -112,7 +112,7 @@ class TestCLI:
         assert "summary" in parsed
 
     def test_main_quiet_mode(self, capsys):
-        from vllm.sndr_core.compat.self_test import main
+        from sndr.compat.self_test import main
         main(["--quiet"])
         captured = capsys.readouterr()
         # Quiet mode skips pass-rows; only warn/fail surface
@@ -121,7 +121,7 @@ class TestCLI:
 
     def test_subcommand_in_unified_cli(self):
         """self-test should be reachable via the unified CLI dispatcher."""
-        from vllm.sndr_core.compat.cli import KNOWN_SUBCOMMANDS
+        from sndr.compat.cli import KNOWN_SUBCOMMANDS
         # Either as 'self-test' or some recognizable form
         assert "self-test" in KNOWN_SUBCOMMANDS, (
             "self-test must be discoverable via the unified CLI"
@@ -135,7 +135,7 @@ class TestFailureSurfacing:
         # Simulate a broken import by injecting a non-existent module
         # into the check list. This is mostly a smoke test that the
         # tool handles import errors gracefully.
-        from vllm.sndr_core.compat import self_test
+        from sndr.compat import self_test
         # Just verify the check function doesn't propagate exceptions
         result = self_test.run_self_test()
         for c in result["checks"]:
@@ -150,7 +150,7 @@ class TestSchemaFileLocation:
 
     def test_missing_schema_file_is_skip_not_fail(self, monkeypatch, tmp_path):
         """When schemas/ does not exist anywhere reachable, we skip."""
-        from vllm.sndr_core.compat import self_test
+        from sndr.compat import self_test
 
         # Force every candidate path miss: clear env override + cwd to
         # an empty tmp dir + redirect __file__ to one that has no
@@ -167,7 +167,7 @@ class TestSchemaFileLocation:
 
     def test_env_override_finds_schema(self, monkeypatch, tmp_path):
         """GENESIS_REPO_ROOT env var should be respected."""
-        from vllm.sndr_core.compat import self_test
+        from sndr.compat import self_test
 
         # Build a fake repo root with the schema present
         schemas_dir = tmp_path / "schemas"

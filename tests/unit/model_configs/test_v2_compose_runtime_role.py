@@ -19,22 +19,22 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.model_configs.compose import (
+from sndr.model_configs.compose import (
     compose,
     render_compression_env,
 )
-from vllm.sndr_core.model_configs.registry_v2 import (
+from sndr.model_configs.registry_v2 import (
     list_profiles,
     load_hardware,
     load_model,
     load_profile,
 )
-from vllm.sndr_core.model_configs.schema import (
+from sndr.model_configs.schema import (
     HardwareSpec,
     SchemaError,
     SpecDecodeConfig,
 )
-from vllm.sndr_core.model_configs.schema_v2 import (
+from sndr.model_configs.schema_v2 import (
     BackendPlanConfig,
     CompressionPlanConfig,
     HardwareDef,

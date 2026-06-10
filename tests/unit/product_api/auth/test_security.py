@@ -5,11 +5,11 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.product_api.auth import totp
-from vllm.sndr_core.product_api.auth.config import AuthConfig
-from vllm.sndr_core.product_api.auth.ratelimit import LoginGuard
-from vllm.sndr_core.product_api.auth.service import AuthService
-from vllm.sndr_core.product_api.auth.store import UserStore
+from sndr.product_api.legacy.auth import totp
+from sndr.product_api.legacy.auth.config import AuthConfig
+from sndr.product_api.legacy.auth.ratelimit import LoginGuard
+from sndr.product_api.legacy.auth.service import AuthService
+from sndr.product_api.legacy.auth.store import UserStore
 
 
 def _config(**ov) -> AuthConfig:

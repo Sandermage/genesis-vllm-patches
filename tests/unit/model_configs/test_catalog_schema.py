@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.model_configs.catalog_schema import (
+from sndr.model_configs.catalog_schema import (
     MATCH_QUALITIES,
     ROW_TYPES,
     SCHEMA_VERSION,

@@ -37,7 +37,7 @@ TEST_BARE_FLAG = "P108"
 
 def _should_apply():
     """Lazy import so test collection doesn't pull torch."""
-    from vllm.sndr_core.dispatcher.decision import should_apply
+    from sndr.dispatcher.decision import should_apply
     return should_apply
 
 

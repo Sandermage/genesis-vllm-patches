@@ -31,14 +31,48 @@ def _import_module():
     return mod
 
 
+def _make_gemma4_spec(mod):
+    """Build the historical gemma4-style ShimSpec used by the rule tests.
+
+    The live ``SHIM_MANIFEST`` was emptied in v12.1 (commit 630283ac):
+    the only tracked shim moved to ``sndr_private/archive/`` and no live
+    shim remains. The E.1-E.5 rule engine must stay covered, so the
+    synthetic tests inject this spec (v12-tree paths) into the module.
+    """
+    return mod.ShimSpec(
+        shim_dir="sndr/engines/vllm/patches/gemma4",
+        readme_path="sndr/engines/vllm/patches/gemma4/README.md",
+        required_files=("README.md",),
+        required_symlinks={
+            "upstream_overlay_pr42637": (
+                "../attention/turboquant/overlays/pr42637"
+            ),
+        },
+        forbid_extra_entries=True,
+        overlay_sentinels={
+            "upstream_overlay_pr42637": (
+                "turboquant_attn.py",
+                "triton_turboquant_store.py",
+                "turboquant_config.py",
+                "__init__.py",
+            ),
+        },
+        readme_retirement_anchors=(
+            "historical",
+            "retirement",
+            "launcher",
+        ),
+    )
+
+
 def _build_valid_shim(root: Path, overlay_target: Path) -> Path:
     """Construct a synthetic gemma4-style shim under ``root``.
 
     ``root`` plays the role of REPO_ROOT for the test; the shim
-    lives at ``vllm/sndr_core/integrations/gemma4/`` under it. The
+    lives at ``sndr/engines/vllm/patches/gemma4/`` under it. The
     symlink points to ``overlay_target`` (absolute or relative).
     """
-    shim_dir = root / "vllm" / "sndr_core" / "integrations" / "gemma4"
+    shim_dir = root / "sndr" / "engines" / "vllm" / "patches" / "gemma4"
     shim_dir.mkdir(parents=True, exist_ok=True)
 
     # README with all retirement anchors
@@ -50,7 +84,7 @@ def _build_valid_shim(root: Path, overlay_target: Path) -> Path:
     )
 
     # Build overlay target as a sibling under attention/turboquant/overlays/
-    overlay_dir = root / "vllm" / "sndr_core" / "integrations" / "attention" \
+    overlay_dir = root / "sndr" / "engines" / "vllm" / "patches" / "attention" \
         / "turboquant" / "overlays" / "pr42637"
     overlay_dir.mkdir(parents=True, exist_ok=True)
     for sentinel in (
@@ -73,7 +107,14 @@ def _build_valid_shim(root: Path, overlay_target: Path) -> Path:
 
 @pytest.fixture
 def mod():
-    return _import_module()
+    """Fresh module with the synthetic gemma4 spec injected.
+
+    The live manifest is empty in v12.1; the rule tests still need a
+    single-entry manifest to drive ``run_all`` over the synthetic tree.
+    """
+    module = _import_module()
+    module.SHIM_MANIFEST = (_make_gemma4_spec(module),)
+    return module
 
 
 class TestValidShim:
@@ -82,7 +123,7 @@ class TestValidShim:
     def test_valid_shim_zero_issues(self, tmp_path, mod):
         _build_valid_shim(tmp_path, overlay_target=None)
         results = mod.run_all(root=tmp_path)
-        shim_key = "vllm/sndr_core/integrations/gemma4"
+        shim_key = "sndr/engines/vllm/patches/gemma4"
         assert results[shim_key] == [], (
             f"valid shim should produce no issues, got {results[shim_key]}"
         )
@@ -96,7 +137,7 @@ class TestRuleE1RawTree:
         # Remove the symlink
         (shim_dir / "upstream_overlay_pr42637").unlink()
         issues = mod.run_all(root=tmp_path)[
-            "vllm/sndr_core/integrations/gemma4"
+            "sndr/engines/vllm/patches/gemma4"
         ]
         assert any("required symlink" in i and "missing" in i for i in issues), (
             f"expected E.1 missing-symlink issue, got {issues}"
@@ -106,7 +147,7 @@ class TestRuleE1RawTree:
         shim_dir = _build_valid_shim(tmp_path, overlay_target=None)
         (shim_dir / "README.md").unlink()
         issues = mod.run_all(root=tmp_path)[
-            "vllm/sndr_core/integrations/gemma4"
+            "sndr/engines/vllm/patches/gemma4"
         ]
         assert any("README.md" in i and "missing" in i for i in issues), (
             f"expected E.1 missing-README issue, got {issues}"
@@ -119,7 +160,7 @@ class TestRuleE1RawTree:
             "# code that should not be here\n", encoding="utf-8"
         )
         issues = mod.run_all(root=tmp_path)[
-            "vllm/sndr_core/integrations/gemma4"
+            "sndr/engines/vllm/patches/gemma4"
         ]
         assert any(
             "stray_module.py" in i and "unexpected" in i for i in issues
@@ -129,7 +170,7 @@ class TestRuleE1RawTree:
         shim_dir = _build_valid_shim(tmp_path, overlay_target=None)
         (shim_dir / "kernels").mkdir()
         issues = mod.run_all(root=tmp_path)[
-            "vllm/sndr_core/integrations/gemma4"
+            "sndr/engines/vllm/patches/gemma4"
         ]
         assert any(
             "kernels" in i and "subdirectory" in i for i in issues
@@ -145,11 +186,11 @@ class TestRuleE2SymlinkTarget:
         link.unlink()
         # Point at a different (also valid) directory to test E.2
         # specifically; E.3 still passes because the new target exists.
-        other = tmp_path / "vllm" / "sndr_core" / "elsewhere"
+        other = tmp_path / "sndr" / "engines" / "vllm" / "patches" / "elsewhere"
         other.mkdir(parents=True, exist_ok=True)
         link.symlink_to("../elsewhere")
         issues = mod.run_all(root=tmp_path)[
-            "vllm/sndr_core/integrations/gemma4"
+            "sndr/engines/vllm/patches/gemma4"
         ]
         assert any(
             "points to" in i and "expected" in i for i in issues
@@ -162,13 +203,13 @@ class TestRuleE3BrokenTarget:
     def test_broken_symlink_flagged(self, tmp_path, mod):
         shim_dir = _build_valid_shim(tmp_path, overlay_target=None)
         # Delete the overlay target — symlink becomes dangling
-        overlay_dir = tmp_path / "vllm" / "sndr_core" / "integrations" \
+        overlay_dir = tmp_path / "sndr" / "engines" / "vllm" / "patches" \
             / "attention" / "turboquant" / "overlays" / "pr42637"
         for child in list(overlay_dir.iterdir()):
             child.unlink()
         overlay_dir.rmdir()
         issues = mod.run_all(root=tmp_path)[
-            "vllm/sndr_core/integrations/gemma4"
+            "sndr/engines/vllm/patches/gemma4"
         ]
         assert any("does not resolve" in i for i in issues), (
             f"expected E.3 broken-symlink issue, got {issues}"
@@ -180,12 +221,12 @@ class TestRuleE4OverlaySentinel:
 
     def test_missing_sentinel_flagged(self, tmp_path, mod):
         shim_dir = _build_valid_shim(tmp_path, overlay_target=None)
-        overlay_dir = tmp_path / "vllm" / "sndr_core" / "integrations" \
+        overlay_dir = tmp_path / "sndr" / "engines" / "vllm" / "patches" \
             / "attention" / "turboquant" / "overlays" / "pr42637"
         # Delete one sentinel — overlay is gutted
         (overlay_dir / "turboquant_attn.py").unlink()
         issues = mod.run_all(root=tmp_path)[
-            "vllm/sndr_core/integrations/gemma4"
+            "sndr/engines/vllm/patches/gemma4"
         ]
         assert any(
             "turboquant_attn.py" in i and "sentinel" in i for i in issues
@@ -203,7 +244,7 @@ class TestRuleE5ReadmeWording:
             encoding="utf-8",
         )
         issues = mod.run_all(root=tmp_path)[
-            "vllm/sndr_core/integrations/gemma4"
+            "sndr/engines/vllm/patches/gemma4"
         ]
         # Expect all 3 anchors to be missing (historical / retirement / launcher)
         anchors_missing = [i for i in issues if "anchor" in i]
@@ -235,7 +276,10 @@ class TestLiveCorpus:
         data = _json.loads(result.stdout)
         assert data["status"] == "OK"
         assert data["total_issues"] == 0
-        assert data["total_shims"] >= 1
+        # Count must match the committed manifest inventory (empty since
+        # v12.1 emptied SHIM_MANIFEST; grows again if a shim returns).
+        fresh = _import_module()
+        assert data["total_shims"] == len(fresh.SHIM_MANIFEST)
 
 
 class TestExitCode:

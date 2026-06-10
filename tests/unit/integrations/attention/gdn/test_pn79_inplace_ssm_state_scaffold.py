@@ -464,7 +464,7 @@ class TestTextPatcherIdempotency:
         ("4A_olmo_forward_core","ANCHOR_4A_OLMO_FORWARD_CORE_OLD","ANCHOR_4A_OLMO_FORWARD_CORE_NEW"),
     ])
     def test_anchor_round_trip(self, tmp_path, name, old_attr, new_attr):
-        from vllm.sndr_core.core.text_patch import (
+        from sndr.kernel.text_patch import (
             TextPatch, TextPatcher, TextPatchResult,
         )
         m = _wiring()
@@ -543,32 +543,32 @@ class TestApplyContract:
 class TestRegistryEntry:
 
     def test_PN79_in_registry(self):
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+        from sndr.dispatcher import PATCH_REGISTRY
         assert "PN79" in PATCH_REGISTRY
 
     def test_PN79_default_off(self):
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+        from sndr.dispatcher import PATCH_REGISTRY
         assert PATCH_REGISTRY["PN79"]["default_on"] is False
 
     def test_PN79_env_flag(self):
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+        from sndr.dispatcher import PATCH_REGISTRY
         assert (PATCH_REGISTRY["PN79"]["env_flag"]
                 == "GENESIS_ENABLE_PN79_INPLACE_SSM_STATE")
 
     def test_PN79_lifecycle_experimental(self):
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+        from sndr.dispatcher import PATCH_REGISTRY
         assert PATCH_REGISTRY["PN79"]["lifecycle"] == "experimental"
 
     def test_PN79_applies_only_to_hybrid(self):
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+        from sndr.dispatcher import PATCH_REGISTRY
         assert PATCH_REGISTRY["PN79"]["applies_to"] == {"is_hybrid": [True]}
 
     def test_PN79_credit_mentions_pr_41824(self):
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+        from sndr.dispatcher import PATCH_REGISTRY
         assert "41824" in PATCH_REGISTRY["PN79"]["credit"]
 
     def test_PN79_conflicts_with_PN59_and_PN54(self):
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+        from sndr.dispatcher import PATCH_REGISTRY
         cw = PATCH_REGISTRY["PN79"].get("conflicts_with", [])
         assert "PN59" in cw, "PN79 must declare conflicts_with PN59"
         assert "PN54" in cw, "PN79 must declare conflicts_with PN54"

@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from vllm.sndr_core.model_configs import registry_v2
+from sndr.model_configs import registry_v2
 
 
 def _write_user_preset(root: Path, alias: str, model: str, hardware: str) -> None:

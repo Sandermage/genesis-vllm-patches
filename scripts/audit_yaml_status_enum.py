@@ -146,7 +146,7 @@ def _enumerate_yamls(root: Path) -> list[Path]:
     canonical = root / "sndr" / "model_configs" / "builtin" / "model"
     if canonical.is_dir():
         return sorted(p for p in canonical.glob("*.yaml") if p.is_file())
-    legacy = root / "vllm" / "sndr_core" / "model_configs" / "builtin" / "model"
+    legacy = root / "sndr" / "model_configs" / "builtin" / "model"
     if legacy.is_dir():
         return sorted(p for p in legacy.glob("*.yaml") if p.is_file())
     return []

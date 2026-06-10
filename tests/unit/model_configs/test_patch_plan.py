@@ -28,12 +28,12 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.model_configs.patch_plan import (
+from sndr.model_configs.patch_plan import (
     PatchPlan,
     PatchDecision,
     resolve_patch_plan,
 )
-from vllm.sndr_core.model_configs.schema import (
+from sndr.model_configs.schema import (
     HardwareSpec,
     ModelConfig,
     PatchAttribution,
@@ -399,7 +399,7 @@ class TestConflictsWarnings:
 
     def test_two_conflicting_patches_emit_warning(self):
         # P65 and P67 conflict per the live registry.
-        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        from sndr.dispatcher.registry import PATCH_REGISTRY
         # Sanity guard: keep this test honest if registry changes.
         assert "P67" in PATCH_REGISTRY["P65"].get("conflicts_with", [])
 
@@ -416,7 +416,7 @@ class TestConflictsWarnings:
         ), f"expected P65↔P67 conflict warning, got: {plan.warnings}"
 
     def test_single_patch_no_conflict_warning(self):
-        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        from sndr.dispatcher.registry import PATCH_REGISTRY
         flag = PATCH_REGISTRY["P65"]["env_flag"]
         cfg = _make_cfg(genesis_env={flag: "1"})
         plan = resolve_patch_plan(cfg, policy="compat")
@@ -433,7 +433,7 @@ class TestConflictsWarnings:
         toggle. That's a feature: each pair stays operator-visible
         so the resolver doesn't hide structurally distinct issues.
         """
-        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        from sndr.dispatcher.registry import PATCH_REGISTRY
         # P62 ↔ PN58 — single-family conflict pair, perfect for the
         # canonical "warn once per pair" check.
         flag_p62 = PATCH_REGISTRY["P62"]["env_flag"]
@@ -454,7 +454,7 @@ class TestConflictsWarnings:
         pair — P65 ⨯ P67 AND P65 ⨯ P67b — because each subpatch is
         an independent runtime gate and dropping just one wouldn't
         resolve the other half of the conflict."""
-        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        from sndr.dispatcher.registry import PATCH_REGISTRY
         flag_p65 = PATCH_REGISTRY["P65"]["env_flag"]
         flag_p67 = PATCH_REGISTRY["P67"]["env_flag"]
         cfg = _make_cfg(genesis_env={flag_p65: "1", flag_p67: "1"})
@@ -476,7 +476,7 @@ class TestConflictsWarnings:
         """If one of the conflicting patches is operator-disabled
         (value="0" → excluded), no conflict exists at runtime — no
         warning."""
-        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        from sndr.dispatcher.registry import PATCH_REGISTRY
         flag_p65 = PATCH_REGISTRY["P65"]["env_flag"]
         flag_p67 = PATCH_REGISTRY["P67"]["env_flag"]
         cfg = _make_cfg(genesis_env={flag_p65: "1", flag_p67: "0"})
@@ -507,7 +507,7 @@ class TestFamilyAttributionLookup:
     """
 
     def test_attribution_keyed_by_family_primary_found(self):
-        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        from sndr.dispatcher.registry import PATCH_REGISTRY
         flag = PATCH_REGISTRY["PN40"]["env_flag"]
         cfg = _make_cfg(
             genesis_env={flag: "1"},
@@ -524,7 +524,7 @@ class TestFamilyAttributionLookup:
         """If operator attributes PN40-classifier (non-primary family
         member), the resolver must still find it when resolving the
         shared env flag."""
-        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        from sndr.dispatcher.registry import PATCH_REGISTRY
         flag = PATCH_REGISTRY["PN40-classifier"]["env_flag"]
         cfg = _make_cfg(
             genesis_env={flag: "1"},
@@ -544,7 +544,7 @@ class TestFamilyAttributionLookup:
         resolver picks the primary's metadata for the surfaced
         PatchDecision — deterministic + matches the patch_id that
         operators see in plan output."""
-        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        from sndr.dispatcher.registry import PATCH_REGISTRY
         flag = PATCH_REGISTRY["PN40"]["env_flag"]
         cfg = _make_cfg(
             genesis_env={flag: "1"},
@@ -741,7 +741,7 @@ class TestCandidateWhenOnRealPreset:
         Either way the integration must run cleanly. Test the
         defensive scenario: synthetic compose with PN204 enabled
         + max_num_seqs=2 + the model's real attribution."""
-        from vllm.sndr_core.model_configs.registry_v2 import load_alias
+        from sndr.model_configs.registry_v2 import load_alias
         cfg = load_alias("prod-qwen3.6-35b-balanced")
         # Force PN204 enabled to exercise the candidate_when path.
         cfg.genesis_env = dict(cfg.genesis_env)

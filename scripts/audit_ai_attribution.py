@@ -138,11 +138,11 @@ _SCANNED_EXTENSIONS: frozenset[str] = frozenset({
 # subject to current-policy enforcement.
 _EXCLUDED_SUBTREES_DEFAULT: tuple[str, ...] = (
     "sndr_private/",
-    "vllm/sndr_core/integrations/_retired/",
+    "sndr/engines/vllm/patches/_retired/",
     "tests/legacy/",
 )
 _EXCLUDED_SUBTREES_INCLUDE_PRIVATE: tuple[str, ...] = (
-    "vllm/sndr_core/integrations/_retired/",
+    "sndr/engines/vllm/patches/_retired/",
     "tests/legacy/",
 )
 

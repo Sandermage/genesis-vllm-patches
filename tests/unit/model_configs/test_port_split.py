@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.model_configs.schema import (
+from sndr.model_configs.schema import (
     DockerConfig, ModelConfig, HardwareSpec, SchemaError,
 )
 
@@ -112,7 +112,7 @@ def test_renderer_split_with_different_container_port():
 # ─── YAML round-trip preserves the split
 
 def test_port_split_yaml_roundtrip():
-    from vllm.sndr_core.model_configs.schema import dump_yaml, load_yaml
+    from sndr.model_configs.schema import dump_yaml, load_yaml
     cfg = _cfg(DockerConfig(
         image="i", container_name="c",
         port=8000,

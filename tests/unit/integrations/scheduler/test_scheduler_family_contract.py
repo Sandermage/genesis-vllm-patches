@@ -182,17 +182,17 @@ class TestSchedulerFamilyRegistry:
             assert entry in text, f"{patch_id}: no entry in PATCH_REGISTRY"
 
     def test_family_count_matches_filesystem(self):
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+        from sndr.dispatcher import PATCH_REGISTRY
         fam_dir = (
             Path(__file__).resolve().parents[4]
-            / "vllm" / "sndr_core" / "integrations" / "scheduler"
+            / "sndr" / "engines" / "vllm" / "patches" / "scheduler"
         )
-        retired_dir = fam_dir.parent / "_retired"
+        retired_dirs = [fam_dir.parent / "_retired", fam_dir.parents[1] / "_archive"]
         files = {f.stem for f in fam_dir.glob("*.py") if f.name != "__init__.py"}
-        retired_files = (
-            {f.stem for f in retired_dir.glob("*.py") if f.name != "__init__.py"}
-            if retired_dir.exists() else set()
-        )
+        retired_files = {
+                f.stem for rd in retired_dirs if rd.exists()
+                for f in rd.glob("*.py") if f.name != "__init__.py"
+            }
         for module_path, patch_id in SCHEDULER_PATCHES:
             file_stem = module_path.rsplit(".", 1)[-1]
             meta = PATCH_REGISTRY.get(patch_id, {})
@@ -200,7 +200,7 @@ class TestSchedulerFamilyRegistry:
                 if not meta.get("apply_module"):
                     continue
                 assert file_stem in retired_files, (
-                    f"{patch_id}: retired but {file_stem}.py not in {retired_dir}"
+                    f"{patch_id}: retired but {file_stem}.py not in {retired_dirs}"
                 )
                 continue
             assert file_stem in files, (

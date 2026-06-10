@@ -34,7 +34,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 ORCHESTRATOR_PATH = (
-    REPO_ROOT / "vllm" / "sndr_core" / "apply" / "orchestrator.py"
+    REPO_ROOT / "sndr" / "apply" / "orchestrator.py"
 )
 
 
@@ -49,12 +49,12 @@ def _orchestrator_source() -> str:
 
 def test_spec_driven_path_imports_measure_patch_apply():
     """The spec-driven loop must import measure_patch_apply from
-    vllm.sndr_core.observability.patch_metrics — otherwise spec-driven
+    sndr.observability.patch_metrics — otherwise spec-driven
     boots lose per-patch telemetry."""
     src = _orchestrator_source()
     # The legacy path uses it (line ~210 in _state.py); the spec-driven
     # path must too (v11.4.0 fix).
-    assert "from vllm.sndr_core.observability.patch_metrics import" in src, (
+    assert "from sndr.observability.patch_metrics import" in src, (
         "spec-driven path missing measure_patch_apply import — "
         "PatchMetrics telemetry would be lost"
     )
@@ -107,7 +107,7 @@ def test_spec_driven_path_handles_observability_import_failure():
 def test_dispatcher_registry_is_dict_with_insertion_order():
     """dispatcher.PATCH_REGISTRY is a Python dict, which preserves
     insertion order (Python 3.7+). iter_patch_specs() relies on this."""
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+    from sndr.dispatcher.registry import PATCH_REGISTRY
     assert isinstance(PATCH_REGISTRY, dict)
     # Sample insertion-order stability — first key shouldn't shift
     # between calls.
@@ -122,8 +122,8 @@ def test_iter_patch_specs_yields_in_dispatcher_registry_order():
     iteration (apply._state.PATCH_REGISTRY list) may differ — the
     v12.0.0 default flip must verify this ordering doesn't break
     dependencies."""
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
-    from vllm.sndr_core.dispatcher.spec import iter_patch_specs
+    from sndr.dispatcher.registry import PATCH_REGISTRY
+    from sndr.dispatcher.spec import iter_patch_specs
     registry_order = list(PATCH_REGISTRY.keys())
     iter_order = [spec.patch_id for spec in iter_patch_specs()]
     assert iter_order == registry_order, (
@@ -152,7 +152,7 @@ def test_unmapped_entries_count_matches_audit():
     """The number of registry entries with apply_module=None should
     match what audit_dispatcher_migration_readiness.py reports as
     'intentionally unmapped' — sanity check."""
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+    from sndr.dispatcher.registry import PATCH_REGISTRY
     unmapped = [
         pid for pid, meta in PATCH_REGISTRY.items()
         if isinstance(meta, dict) and meta.get("apply_module") is None
@@ -180,7 +180,7 @@ def test_lifecycle_distribution_is_known():
     updating the spec-driven orchestrator's skip logic + the audit
     script's tier categorization.
     """
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+    from sndr.dispatcher.registry import PATCH_REGISTRY
     known = {
         "stable", "experimental", "legacy", "retired", "deprecated",
         "research", "coordinator",
@@ -206,7 +206,7 @@ def test_marker_only_lifecycle_has_no_apply_module():
     `intentionally_unmapped_marker_only` and what the spec-driven
     orchestrator skips with reason "no apply_module declared".
     """
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+    from sndr.dispatcher.registry import PATCH_REGISTRY
     marker_only_unmapped = [
         pid for pid, meta in PATCH_REGISTRY.items()
         if isinstance(meta, dict)

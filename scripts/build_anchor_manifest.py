@@ -4,7 +4,7 @@
 
 Node 3 of P2.1 design (2026-05-07). One-shot CLI tool — typically run
 once per vllm pin upgrade. Output is committed to the repo at
-`vllm/sndr_core/manifests/anchor_manifest.json` and serves as the
+`sndr/manifests/anchor_manifest.json` and serves as the
 ground-truth for Phase 3 runtime O(1) anchor lookup.
 
 Usage:
@@ -51,8 +51,7 @@ log = logging.getLogger("genesis.build_manifest")
 # Repo root inferred from script location: scripts/<this> → repo/
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-# P1-4 (audit 2026-05-08): make `vllm.sndr_core` importable. The legacy
-# `vllm._genesis` package was removed in v11.
+# Make the repo-root `sndr` package importable (v12 layout).
 sys.path.insert(0, str(REPO_ROOT))
 
 
@@ -74,18 +73,18 @@ def _trigger_patcher_registration():
     pristine = REPO_ROOT / "tests" / "legacy" / "pristine_fixtures"
 
     _REGISTRY_TARGETS = [
-        ("PN79", "vllm.sndr_core.integrations.attention.gdn"
+        ("PN79", "sndr.engines.vllm.patches.attention.gdn"
                  ".pn79_inplace_ssm_state"),
         # Added 2026-05-12 (Wave 9 STABLE-prep): both backports verified
         # default_on across Wave 6–9 + dev93/dev209 + upstream PRs OPEN.
-        ("PN35", "vllm.sndr_core.integrations.worker"
+        ("PN35", "sndr.engines.vllm.patches.worker"
                  ".pn35_inputs_embeds_optional"),
-        ("PN33", "vllm.sndr_core.integrations.worker"
+        ("PN33", "sndr.engines.vllm.patches.worker"
                  ".pn33_spec_decode_warmup_k"),
         # Added 2026-05-28 (STAGE-6-HARDENING.1): G4_04 stable AWQ MoE
         # keys remap for Gemma 4 26B-A4B; pristine gemma4.py extracted
         # at vllm 0.20.2rc1.dev338+gbf0d2dc6d.
-        ("G4_04", "vllm.sndr_core.integrations.model_compat.gemma4"
+        ("G4_04", "sndr.engines.vllm.patches.model_compat.gemma4"
                   ".g4_04_gemma4_awq_moe_keys_remap"),
     ]
 
@@ -112,7 +111,7 @@ def _trigger_patcher_registration():
 def _detect_genesis_pin() -> str:
     """Read Genesis version from `__version__.py`. Falls back to 'unknown'."""
     try:
-        from vllm.sndr_core.version import __version__ as gver
+        from sndr.version import __version__ as gver
         return str(gver)
     except Exception as e:
         log.warning("genesis pin detection failed: %s", e)
@@ -158,8 +157,8 @@ def _build_file_to_inputs(pristine_root: Path) -> dict:
     target_file paths pointing at vllm install) and the build-time
     manifest (which uses relative paths + pristine fixture content).
     """
-    from vllm.sndr_core.wiring.anchor_manifest import PatcherManifestInput
-    from vllm.sndr_core.wiring.patcher_registry import iter_registered_patchers
+    from sndr.engines.vllm.wiring.anchor_manifest import PatcherManifestInput
+    from sndr.engines.vllm.wiring.patcher_registry import iter_registered_patchers
 
     file_to_inputs: dict[str, tuple[str, list]] = {}
 
@@ -260,17 +259,15 @@ def _derive_rel_path(target: Path, pristine_root: Path) -> Optional[str]:
 def _default_manifest_output() -> Path:
     """Resolve default manifest output path via sndr_paths registry.
 
-    P1-4 fix (audit 2026-05-08): canonical home is
-    `vllm/sndr_core/manifests/` after v11 _genesis removal. The legacy
-    `vllm/_genesis/manifests/` fallback was removed; the directory is
-    gone.
+    v12 rename (2026-06-04+): canonical home is `sndr/manifests/`
+    (was `vllm/sndr_core/manifests/` in v11; that tree is gone).
     """
     try:
-        from vllm.sndr_core.locations.project_paths import manifest_json_path
+        from sndr.engines.vllm.locations.project_paths import manifest_json_path
         return manifest_json_path()
     except Exception:
         # Bootstrap fallback for very-early script invocation.
-        return REPO_ROOT / "vllm" / "sndr_core" / "manifests" / "anchor_manifest.json"
+        return REPO_ROOT / "sndr" / "manifests" / "anchor_manifest.json"
 
 
 def main() -> int:
@@ -312,7 +309,7 @@ def main() -> int:
     log.info("vllm_pin=%s, genesis_pin=%s", vllm_pin, genesis_pin)
 
     # Step 3: build file_to_inputs
-    from vllm.sndr_core.wiring.patcher_registry import registered_count
+    from sndr.engines.vllm.wiring.patcher_registry import registered_count
     n = registered_count()
     if n == 0:
         log.error("no patchers registered — nothing to build")
@@ -326,7 +323,7 @@ def main() -> int:
     log.info("%d files contribute to manifest", len(file_to_inputs))
 
     # Step 4: assemble + validate
-    from vllm.sndr_core.wiring.anchor_manifest import (
+    from sndr.engines.vllm.wiring.anchor_manifest import (
         assemble_manifest, validate_manifest_schema,
         verify_manifest_against_source, write_manifest_atomic,
     )

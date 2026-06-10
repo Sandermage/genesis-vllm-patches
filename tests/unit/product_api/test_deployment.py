@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.product_api import deployment as dep
+from sndr.product_api.legacy import deployment as dep
 
 
 def _a_preset() -> str:
@@ -151,7 +151,7 @@ def test_deploy_routes(monkeypatch, tmp_path):
     pytest.importorskip("fastapi")
     monkeypatch.setenv("SNDR_HOME", str(tmp_path))
     from fastapi.testclient import TestClient
-    from vllm.sndr_core.product_api.http_app import create_app
+    from sndr.product_api.legacy.http_app import create_app
 
     client = TestClient(create_app(allowed_origins=()))
     targets = client.get("/api/v1/deploy/targets")
@@ -173,14 +173,14 @@ def test_deploy_routes(monkeypatch, tmp_path):
 def test_sndr_daemon_target_renders_gui_api_launcher():
     """Path B: deploy the SNDR management daemon onto a server so the GUI can
     connect to its native per-server view (patches/configs/patcher)."""
-    from vllm.sndr_core.product_api import deployment
+    from sndr.product_api.legacy import deployment
 
     assert any(t["id"] == "sndr_daemon" for t in deployment.list_targets())
     script = deployment._sndr_daemon_script(None, {})
     # Launches the Product API directly (immune to per-node cli/ divergence),
     # importing the canonical top-level `sndr` package (no vllm namespace).
     assert "sndr.product_api.legacy.http_app import run_server" in script
-    # v12: also mounts the canonical sndr/ tree (the vllm.sndr_core.* tree is a
+    # v12: also mounts the canonical sndr/ tree (the sndr.* tree is a
     # shim that imports from sndr.*), else the daemon dies with No module 'sndr'.
     assert '-v "${SNDR_SRC}:${SNDR_DEST}:ro"' in script
     assert 'SNDR_SRC="${REPO_ROOT}/sndr"' in script

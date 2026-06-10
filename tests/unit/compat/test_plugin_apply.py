@@ -88,7 +88,7 @@ _PLUGIN_WITH_APPLY = {
 def fake_entry_points(monkeypatch):
     eps = []
     monkeypatch.setattr(
-        "vllm.sndr_core.compat.plugins._discover_entry_points",
+        "sndr.compat.plugins._discover_entry_points",
         lambda: eps,
     )
     return eps
@@ -99,28 +99,28 @@ def fake_entry_points(monkeypatch):
 
 class TestResolveApplyCallable:
     def test_resolve_string_form(self, fake_plugin_module):
-        from vllm.sndr_core.compat.plugins import _resolve_apply_callable
+        from sndr.compat.plugins import _resolve_apply_callable
         fn = _resolve_apply_callable("my_genesis_plugin.apply:apply")
         assert callable(fn)
 
     def test_resolve_callable_passthrough(self, fake_plugin_module):
         """If apply_callable is already a callable, just return it."""
-        from vllm.sndr_core.compat.plugins import _resolve_apply_callable
+        from sndr.compat.plugins import _resolve_apply_callable
         fn = fake_plugin_module.apply
         result = _resolve_apply_callable(fn)
         assert result is fn
 
     def test_resolve_unknown_module_returns_None(self):
-        from vllm.sndr_core.compat.plugins import _resolve_apply_callable
+        from sndr.compat.plugins import _resolve_apply_callable
         # No such module in sys.modules
         assert _resolve_apply_callable("totally.fake.module:apply") is None
 
     def test_resolve_unknown_attr_returns_None(self, fake_plugin_module):
-        from vllm.sndr_core.compat.plugins import _resolve_apply_callable
+        from sndr.compat.plugins import _resolve_apply_callable
         assert _resolve_apply_callable("my_genesis_plugin.apply:nonexistent") is None
 
     def test_resolve_bad_string_format_returns_None(self):
-        from vllm.sndr_core.compat.plugins import _resolve_apply_callable
+        from sndr.compat.plugins import _resolve_apply_callable
         assert _resolve_apply_callable("no_colon_here") is None
         assert _resolve_apply_callable("") is None
         assert _resolve_apply_callable(None) is None
@@ -134,7 +134,7 @@ class TestPluginDiscoveryWithApply:
         self, plugins_enabled, fake_entry_points, fake_plugin_module,
     ):
         fake_entry_points.append(FakeEntryPoint("p", lambda: _PLUGIN_WITH_APPLY))
-        from vllm.sndr_core.compat.plugins import discover_plugins
+        from sndr.compat.plugins import discover_plugins
         plugins = discover_plugins()
         assert len(plugins) == 1
         assert plugins[0].get("apply_callable") == "my_genesis_plugin.apply:apply"
@@ -145,7 +145,7 @@ class TestPluginDiscoveryWithApply:
         meta = {**_PLUGIN_WITH_APPLY}
         meta.pop("apply_callable")
         fake_entry_points.append(FakeEntryPoint("p", lambda: meta))
-        from vllm.sndr_core.compat.plugins import discover_plugins
+        from sndr.compat.plugins import discover_plugins
         plugins = discover_plugins()
         assert len(plugins) == 1
         assert plugins[0].get("apply_callable") is None
@@ -159,7 +159,7 @@ class TestApplyPluginPatch:
         self, plugins_enabled, fake_plugin_module, monkeypatch,
     ):
         monkeypatch.setenv("GENESIS_ENABLE_MY_PATCH", "1")
-        from vllm.sndr_core.compat.plugins import apply_plugin_patch
+        from sndr.compat.plugins import apply_plugin_patch
         status, reason = apply_plugin_patch(_PLUGIN_WITH_APPLY)
         assert status == "applied"
         assert "MY_PATCH" in reason
@@ -169,7 +169,7 @@ class TestApplyPluginPatch:
         self, plugins_enabled, fake_plugin_module, monkeypatch,
     ):
         monkeypatch.delenv("GENESIS_ENABLE_MY_PATCH", raising=False)
-        from vllm.sndr_core.compat.plugins import apply_plugin_patch
+        from sndr.compat.plugins import apply_plugin_patch
         status, reason = apply_plugin_patch(_PLUGIN_WITH_APPLY)
         assert status == "skipped"
         assert "opt-in" in reason.lower() or "env" in reason.lower()
@@ -181,7 +181,7 @@ class TestApplyPluginPatch:
     ):
         meta = {**_PLUGIN_WITH_APPLY}
         meta.pop("apply_callable")
-        from vllm.sndr_core.compat.plugins import apply_plugin_patch
+        from sndr.compat.plugins import apply_plugin_patch
         status, reason = apply_plugin_patch(meta)
         assert status == "skipped"
         # Reason should explain there's nothing to apply
@@ -193,7 +193,7 @@ class TestApplyPluginPatch:
         monkeypatch.setenv("GENESIS_ENABLE_MY_PATCH", "1")
         meta = {**_PLUGIN_WITH_APPLY,
                 "apply_callable": "my_genesis_plugin.apply:apply_raises"}
-        from vllm.sndr_core.compat.plugins import apply_plugin_patch
+        from sndr.compat.plugins import apply_plugin_patch
         status, reason = apply_plugin_patch(meta)
         assert status == "failed"
         assert "RuntimeError" in reason or "oops" in reason
@@ -207,7 +207,7 @@ class TestApplyPluginPatch:
         meta = {**_PLUGIN_WITH_APPLY,
                 "apply_callable":
                     "my_genesis_plugin.apply:apply_returns_garbage"}
-        from vllm.sndr_core.compat.plugins import apply_plugin_patch
+        from sndr.compat.plugins import apply_plugin_patch
         status, reason = apply_plugin_patch(meta)
         assert status in ("failed", "applied")  # both are acceptable
         # Just verify no crash + reason is informative
@@ -219,7 +219,7 @@ class TestApplyPluginPatch:
         monkeypatch.setenv("GENESIS_ENABLE_MY_PATCH", "1")
         meta = {**_PLUGIN_WITH_APPLY,
                 "apply_callable": "totally.fake:nope"}
-        from vllm.sndr_core.compat.plugins import apply_plugin_patch
+        from sndr.compat.plugins import apply_plugin_patch
         status, reason = apply_plugin_patch(meta)
         assert status in ("failed", "skipped")
         # Either way, must not crash
@@ -235,7 +235,7 @@ class TestApplyAllPlugins:
     ):
         monkeypatch.setenv("GENESIS_ENABLE_MY_PATCH", "1")
         fake_entry_points.append(FakeEntryPoint("p", lambda: _PLUGIN_WITH_APPLY))
-        from vllm.sndr_core.compat.plugins import apply_all_plugins
+        from sndr.compat.plugins import apply_all_plugins
         stats = apply_all_plugins()
         assert isinstance(stats, dict)
         assert stats.get("total", 0) >= 1
@@ -246,7 +246,7 @@ class TestApplyAllPlugins:
     ):
         monkeypatch.delenv("GENESIS_ALLOW_PLUGINS", raising=False)
         fake_entry_points.append(FakeEntryPoint("p", lambda: _PLUGIN_WITH_APPLY))
-        from vllm.sndr_core.compat.plugins import apply_all_plugins
+        from sndr.compat.plugins import apply_all_plugins
         stats = apply_all_plugins()
         # No plugins discovered when gate is closed
         assert stats.get("total", 0) == 0

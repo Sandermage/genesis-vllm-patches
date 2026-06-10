@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from vllm.sndr_core.cli import report as R
+from sndr.cli.legacy import report as R
 
 
 # ─── Per-collector tests (no I/O on host where possible) ─────────────────

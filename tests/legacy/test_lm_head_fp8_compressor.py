@@ -12,7 +12,7 @@ from __future__ import annotations
 import pytest
 import torch
 
-from vllm.sndr_core.kernels import lm_head_fp8_compressor as lhc
+from sndr.engines.vllm.kernels_legacy import lm_head_fp8_compressor as lhc
 
 
 def _cosine_sim(a: torch.Tensor, b: torch.Tensor) -> float:

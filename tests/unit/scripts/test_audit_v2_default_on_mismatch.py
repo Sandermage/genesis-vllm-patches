@@ -48,6 +48,10 @@ class TestLiveRepo:
          "GENESIS_ENABLE_G4_02_GEMMA4_MARLIN_KDIM_GUARD", "0"),
         ("gemma-4-26b-a4b-it-awq-experimental",
          "GENESIS_ENABLE_G4_13_GEMMA4_PER_TOKEN_HEAD_KV_GUARD", "0"),
+        # 2026-06 vendor wave: PN119 targets the upstream TQ decode path;
+        # Gemma 4 serves TQ via the wrapper path, so the patch is N/A
+        # there (documented in the ModelDef YAML comment).
+        ("gemma-4-31b-it-awq", "GENESIS_ENABLE_PN119", "0"),
     }
 
     def test_only_documented_overrides_present(self):
@@ -79,7 +83,7 @@ class TestSyntheticOverride:
         # Live registry has 33 default_on=True patches; pick one's env_flag
         # and disable it. Use P1 (default_on=True per E30 survey).
         try:
-            from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+            from sndr.dispatcher.registry import PATCH_REGISTRY
         except ImportError:
             pytest.skip("PATCH_REGISTRY not importable in test env")
         p1_flag = PATCH_REGISTRY["P1"].get("env_flag")

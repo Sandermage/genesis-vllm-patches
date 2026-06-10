@@ -11,7 +11,7 @@ import json
 
 import pytest
 
-from vllm.sndr_core.product_api import container_ops as co
+from sndr.product_api.legacy import container_ops as co
 
 
 # ─── whitelist ─────────────────────────────────────────────────────────

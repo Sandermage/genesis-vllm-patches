@@ -114,7 +114,7 @@ def mock_grouped_router_module(monkeypatch):
 class TestPatch22Wiring:
     def test_apply_rebinds_class_method(self, mock_tq_impl_module, monkeypatch):
         """The wired wrapper takes the place of _ensure_on_device."""
-        from vllm.sndr_core.integrations.attention.turboquant import p22_tq_prealloc as patch_22_tq_prealloc
+        from sndr.engines.vllm.patches.attention.turboquant import p22_tq_prealloc as patch_22_tq_prealloc
 
         # Force-enable platform guards
         monkeypatch.setattr(patch_22_tq_prealloc, "is_nvidia_cuda", lambda: True)
@@ -122,7 +122,7 @@ class TestPatch22Wiring:
                             lambda *a, **kw: True)
 
         # Stub the helper so we don't need real torch/cuda
-        from vllm.sndr_core.kernels import dequant_buffer
+        from sndr.engines.vllm.kernels_legacy import dequant_buffer
         call_log = []
         monkeypatch.setattr(
             dequant_buffer, "ensure_turboquant_buffers",
@@ -150,12 +150,12 @@ class TestPatch22Wiring:
         patch_22_tq_prealloc.revert()
 
     def test_idempotent_reapply(self, mock_tq_impl_module, monkeypatch):
-        from vllm.sndr_core.integrations.attention.turboquant import p22_tq_prealloc as patch_22_tq_prealloc
+        from sndr.engines.vllm.patches.attention.turboquant import p22_tq_prealloc as patch_22_tq_prealloc
 
         monkeypatch.setattr(patch_22_tq_prealloc, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(patch_22_tq_prealloc, "is_sm_at_least",
                             lambda *a, **kw: True)
-        from vllm.sndr_core.kernels import dequant_buffer
+        from sndr.engines.vllm.kernels_legacy import dequant_buffer
         monkeypatch.setattr(
             dequant_buffer, "ensure_turboquant_buffers",
             lambda *a, **kw: None,
@@ -175,7 +175,7 @@ class TestPatch22Wiring:
         patch_22_tq_prealloc.revert()
 
     def test_skip_on_non_nvidia(self, monkeypatch):
-        from vllm.sndr_core.integrations.attention.turboquant import p22_tq_prealloc as patch_22_tq_prealloc
+        from sndr.engines.vllm.patches.attention.turboquant import p22_tq_prealloc as patch_22_tq_prealloc
         monkeypatch.setattr(patch_22_tq_prealloc, "is_nvidia_cuda", lambda: False)
 
         status, reason = patch_22_tq_prealloc.apply()
@@ -183,7 +183,7 @@ class TestPatch22Wiring:
         assert "NVIDIA" in reason
 
     def test_skip_when_tq_module_missing(self, monkeypatch):
-        from vllm.sndr_core.integrations.attention.turboquant import p22_tq_prealloc as patch_22_tq_prealloc
+        from sndr.engines.vllm.patches.attention.turboquant import p22_tq_prealloc as patch_22_tq_prealloc
 
         monkeypatch.setattr(patch_22_tq_prealloc, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(patch_22_tq_prealloc, "is_sm_at_least",
@@ -200,12 +200,12 @@ class TestPatch22Wiring:
         assert "TurboQuant" in reason or "turboquant_attn" in reason
 
     def test_revert_restores_original(self, mock_tq_impl_module, monkeypatch):
-        from vllm.sndr_core.integrations.attention.turboquant import p22_tq_prealloc as patch_22_tq_prealloc
+        from sndr.engines.vllm.patches.attention.turboquant import p22_tq_prealloc as patch_22_tq_prealloc
 
         monkeypatch.setattr(patch_22_tq_prealloc, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(patch_22_tq_prealloc, "is_sm_at_least",
                             lambda *a, **kw: True)
-        from vllm.sndr_core.kernels import dequant_buffer
+        from sndr.engines.vllm.kernels_legacy import dequant_buffer
         monkeypatch.setattr(
             dequant_buffer, "ensure_turboquant_buffers", lambda *a, **kw: None,
         )
@@ -224,7 +224,7 @@ class TestPatch22Wiring:
 
 class TestPatch31Wiring:
     def test_apply_wraps_grouped_topk(self, mock_grouped_router_module, monkeypatch):
-        from vllm.sndr_core.integrations.moe import p31_router_softmax as patch_31_router_softmax
+        from sndr.engines.vllm.patches.moe import p31_router_softmax as patch_31_router_softmax
         # Force not-cpu-only
         monkeypatch.setattr(patch_31_router_softmax, "is_cpu_only", lambda: False)
 
@@ -245,7 +245,7 @@ class TestPatch31Wiring:
         patch_31_router_softmax.revert()
 
     def test_skip_on_cpu(self, monkeypatch):
-        from vllm.sndr_core.integrations.moe import p31_router_softmax as patch_31_router_softmax
+        from sndr.engines.vllm.patches.moe import p31_router_softmax as patch_31_router_softmax
         monkeypatch.setattr(patch_31_router_softmax, "is_cpu_only", lambda: True)
 
         status, reason = patch_31_router_softmax.apply()
@@ -253,7 +253,7 @@ class TestPatch31Wiring:
         assert "CPU" in reason
 
     def test_idempotent(self, mock_grouped_router_module, monkeypatch):
-        from vllm.sndr_core.integrations.moe import p31_router_softmax as patch_31_router_softmax
+        from sndr.engines.vllm.patches.moe import p31_router_softmax as patch_31_router_softmax
         monkeypatch.setattr(patch_31_router_softmax, "is_cpu_only", lambda: False)
 
         s1, _ = patch_31_router_softmax.apply()
@@ -270,7 +270,7 @@ class TestPatch31Wiring:
         patch_31_router_softmax.revert()
 
     def test_revert_restores_original(self, mock_grouped_router_module, monkeypatch):
-        from vllm.sndr_core.integrations.moe import p31_router_softmax as patch_31_router_softmax
+        from sndr.engines.vllm.patches.moe import p31_router_softmax as patch_31_router_softmax
         monkeypatch.setattr(patch_31_router_softmax, "is_cpu_only", lambda: False)
 
         original = mock_grouped_router_module.grouped_topk
@@ -282,7 +282,7 @@ class TestPatch31Wiring:
 
     def test_fp32_input_not_double_upcast(self, mock_grouped_router_module, monkeypatch):
         """Already-fp32 input passes through unchanged (no extra .float() copy)."""
-        from vllm.sndr_core.integrations.moe import p31_router_softmax as patch_31_router_softmax
+        from sndr.engines.vllm.patches.moe import p31_router_softmax as patch_31_router_softmax
         monkeypatch.setattr(patch_31_router_softmax, "is_cpu_only", lambda: False)
 
         patch_31_router_softmax.apply()

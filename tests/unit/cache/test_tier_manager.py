@@ -15,10 +15,10 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.cache.tier_manager import (
+from sndr.cache.tier_manager import (
     TierManager, _CpuSlab, make_tier_manager,
 )
-from vllm.sndr_core.model_configs.schema import (
+from sndr.model_configs.schema import (
     CacheTier, CacheConfig, ModelConfig, HardwareSpec, DockerConfig,
 )
 

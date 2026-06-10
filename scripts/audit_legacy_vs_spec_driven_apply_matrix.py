@@ -65,7 +65,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 def _import_or_die():
     sys.path.insert(0, str(REPO_ROOT))
     try:
-        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        from sndr.dispatcher.registry import PATCH_REGISTRY
         return PATCH_REGISTRY
     except ImportError as e:
         raise SystemExit(
@@ -152,8 +152,8 @@ def _enumerate_legacy_path() -> list[dict[str, Any]]:
     version-suffixed patches (PN16 V6 → PN16_V6).
     """
     # Importing apply triggers @register_patch decorators.
-    from vllm.sndr_core.apply import _state, _per_patch_dispatch  # noqa: F401
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY as _SPEC
+    from sndr.apply import _state, _per_patch_dispatch  # noqa: F401
+    from sndr.dispatcher.registry import PATCH_REGISTRY as _SPEC
     spec_id_set = set(_SPEC.keys())
     matrix: list[dict[str, Any]] = []
     for name, fn in _state.PATCH_REGISTRY:
@@ -170,14 +170,21 @@ def _enumerate_legacy_path() -> list[dict[str, Any]]:
     return matrix
 
 
-# ─── Third apply path: manual orchestration in vllm/sndr_core/__init__.py ────
+# ─── Third apply path: manual orchestration in sndr/plugin.py ────────────────
 #
-# A non-trivial set of patches (~41 modules at v11.3.0) apply via
-# explicit `if <env_flag>: from .integrations.<...> import (mod); mod.apply()`
-# blocks in sndr_core/__init__.py — the SNDR plugin's manual
-# orchestration block. These do NOT go through the legacy
-# `@register_patch` decorator and do NOT need `SNDR_APPLY_VIA_SPECS=1`
-# to fire. Discovered via runtime logs on prod gemma4-31b container.
+# v11 history: ~41 modules applied via explicit env-gated
+# `from .integrations.<...> import (mod as _alias); _alias.apply()`
+# blocks at `vllm/sndr_core/__init__.py` import time. These did NOT go
+# through the legacy `@register_patch` decorator and did NOT need
+# `SNDR_APPLY_VIA_SPECS=1` to fire. Discovered via runtime logs on prod
+# gemma4-31b container.
+#
+# v12: the legacy tree was archived (commit 6bf9c04c →
+# `sndr_private/archive/v11_vllm_sndr_core_shims/`) and the import-time
+# orchestration block was NOT carried over — the only remaining manual
+# orchestration site is `sndr/plugin.py` (vllm general-plugin entry
+# point) with its selective G4_19/G4_19b apply block, using canonical
+# absolute imports (`from sndr.engines.vllm.patches.<sub> import (...)`).
 #
 # The audit must enumerate this third path so spec-only IDs that are
 # actually applied via manual orchestration are not flagged as
@@ -187,19 +194,19 @@ import re as _re_for_init_parser
 
 
 def _enumerate_manual_orchestration_modules() -> set[str]:
-    """Parse vllm/sndr_core/__init__.py for `mod.apply()` calls and
-    return the set of fully-qualified apply_module paths covered.
+    """Parse sndr/plugin.py for `mod.apply()` calls and return the
+    set of fully-qualified apply_module paths covered.
 
     Pattern detected:
-      `from .integrations.<sub> import (<name> as _<alias>,...)` block
-      AND `_<alias>.apply()` call later in the file. Both must match
-      for the module to count as actively applied via manual
-      orchestration.
+      `from sndr.engines.vllm.patches.<sub> import (<name> as
+      _<alias>,...)` block AND `_<alias>.apply()` call later in the
+    file. Both must match for the module to count as actively applied
+    via manual orchestration.
 
     No runtime evaluation — pure text scan. Resilient to commented-out
     blocks since they would also lack the matching `.apply()` call.
     """
-    init_path = REPO_ROOT / "vllm" / "sndr_core" / "__init__.py"
+    init_path = REPO_ROOT / "sndr" / "plugin.py"
     try:
         text = init_path.read_text(encoding="utf-8")
     except OSError:
@@ -207,10 +214,11 @@ def _enumerate_manual_orchestration_modules() -> set[str]:
 
     # Alias resolution: build alias → full module path from import
     # blocks. Multi-line imports use the
-    # `from .integrations.<sub> import (\n    <name> as _<alias>,\n)`
-    # shape; regex handles both single-line and multi-line forms.
+    # `from sndr.engines.vllm.patches.<sub> import (\n    <name> as
+    # _<alias>,\n)` shape; regex handles both single-line and
+    # multi-line forms.
     alias_re = _re_for_init_parser.compile(
-        r"from\s+\.integrations\.([\w\.]+)\s+import\s*\(\s*\n\s*"
+        r"from\s+sndr\.engines\.vllm\.patches\.([\w\.]+)\s+import\s*\(\s*\n\s*"
         r"(\w+)\s+as\s+(_\w+)",
         _re_for_init_parser.M,
     )
@@ -220,7 +228,7 @@ def _enumerate_manual_orchestration_modules() -> set[str]:
         name = m.group(2)
         alias = m.group(3)
         alias_to_full[alias] = (
-            f"vllm.sndr_core.integrations.{sub_path}.{name}"
+            f"sndr.engines.vllm.patches.{sub_path}.{name}"
         )
 
     apply_re = _re_for_init_parser.compile(r"(_\w+)\.apply\(\)")
@@ -252,7 +260,7 @@ def _enumerate_spec_driven_path(registry: dict) -> list[dict[str, Any]]:
     apply_module) are either coordinator/research/metadata-only or a
     drift bug. The audit surfaces the breakdown for operator review.
     """
-    from vllm.sndr_core.dispatcher.spec import iter_patch_specs
+    from sndr.dispatcher.spec import iter_patch_specs
     matrix: list[dict[str, Any]] = []
     skipped_informational: list[dict[str, Any]] = []
     for spec in iter_patch_specs():
@@ -298,7 +306,8 @@ def _diff_matrices(
 
     v11.3.0 BUG #7 audit follow-through: spec-only IDs are
     cross-checked against the manual orchestration apply path in
-    `vllm/sndr_core/__init__.py`. Spec IDs whose apply_module is
+    `sndr/plugin.py` (v12; formerly `vllm/sndr_core/__init__.py`).
+    Spec IDs whose apply_module is
     already called by manual orchestration are NOT silent-no-op
     risks — they apply through path 3, independent of the legacy
     vs spec-driven flag. The diff exposes
@@ -429,7 +438,7 @@ def _diff_matrices(
             and not order_divergent
         ),
         # v11.3.0 BUG #11: surface requires_patches order violations.
-        # See `vllm.sndr_core.dispatcher.spec._topological_order` —
+        # See `sndr.dispatcher.spec._topological_order` —
         # `iter_patch_specs(topo_sort=True)` corrects these at apply
         # time; operators flip via SNDR_TOPO_SORT_SPECS=1.
         "requires_patches_violations": _detect_requires_violations(
@@ -474,13 +483,13 @@ def _detect_requires_violations(
     spec_natural_order = list(registry.keys())
     # spec-topo: via _topological_order
     try:
-        from vllm.sndr_core.dispatcher.spec import _topological_order
+        from sndr.dispatcher.spec import _topological_order
         spec_topo_order = _topological_order(registry)
     except Exception:
         spec_topo_order = spec_natural_order  # fallback if not present
     # legacy: from apply._state.PATCH_REGISTRY
     try:
-        from vllm.sndr_core.apply import _state, _per_patch_dispatch  # noqa: F401
+        from sndr.apply import _state, _per_patch_dispatch  # noqa: F401
         spec_id_set = set(registry.keys())
         legacy_order = [
             _extract_legacy_patch_id(name, spec_id_set)
@@ -634,7 +643,7 @@ def main() -> int:
     args = parser.parse_args()
 
     _import_or_die()
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+    from sndr.dispatcher.registry import PATCH_REGISTRY
     legacy = _enumerate_legacy_path()
     spec_driven = _enumerate_spec_driven_path(PATCH_REGISTRY)
     diff = _diff_matrices(legacy, spec_driven, PATCH_REGISTRY)

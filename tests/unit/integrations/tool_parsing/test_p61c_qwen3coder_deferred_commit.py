@@ -78,7 +78,7 @@ class TestIdempotency:
         was a drift marker but is also the existing variable name in pristine
         source, causing every boot to skip with `upstream_merged`. Drift
         markers must be strings that DO NOT appear in pristine code."""
-        from vllm.sndr_core.core.text_patch import (
+        from sndr.kernel.text_patch import (
             TextPatch, TextPatcher, TextPatchResult,
         )
         M = _wiring()
@@ -118,7 +118,7 @@ class TestIdempotency:
         )
 
     def test_idempotent_on_synthetic(self, tmp_path):
-        from vllm.sndr_core.core.text_patch import (
+        from sndr.kernel.text_patch import (
             TextPatch, TextPatcher, TextPatchResult,
         )
         M = _wiring()
@@ -145,7 +145,7 @@ class TestIdempotency:
 
 class TestDispatcher:
     def test_env_flag_default_off(self, monkeypatch):
-        from vllm.sndr_core.dispatcher import should_apply
+        from sndr.dispatcher import should_apply
         monkeypatch.delenv(
             "GENESIS_ENABLE_P61C_QWEN3CODER_DEFERRED_COMMIT", raising=False
         )
@@ -153,7 +153,7 @@ class TestDispatcher:
         assert decision is False
 
     def test_env_flag_engages_when_set(self, monkeypatch):
-        from vllm.sndr_core.dispatcher import should_apply
+        from sndr.dispatcher import should_apply
         monkeypatch.setenv(
             "GENESIS_ENABLE_P61C_QWEN3CODER_DEFERRED_COMMIT", "1"
         )

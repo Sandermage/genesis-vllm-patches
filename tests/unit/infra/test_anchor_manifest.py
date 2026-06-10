@@ -46,7 +46,7 @@ def pristine_gdn_py() -> str:
 @pytest.fixture(autouse=True)
 def _clear_registry():
     """Each test starts with empty registry (test isolation)."""
-    from vllm.sndr_core.wiring.patcher_registry import clear_registry
+    from sndr.engines.vllm.wiring.patcher_registry import clear_registry
     clear_registry()
     yield
     clear_registry()
@@ -57,7 +57,7 @@ def _make_fake_patcher(target_file: str, marker: str,
     """Build a TextPatcher-shaped duck-typed object for registry tests
     without importing the real class (avoids triggering apply_all
     side-effects in test setup)."""
-    from vllm.sndr_core.core.text_patch import TextPatch, TextPatcher
+    from sndr.kernel.text_patch import TextPatch, TextPatcher
     return TextPatcher(
         patch_name="fake",
         target_file=target_file,
@@ -75,7 +75,7 @@ def _make_fake_patcher(target_file: str, marker: str,
 class TestComputeAnchorMeta:
 
     def test_basic_unique_anchor(self):
-        from vllm.sndr_core.wiring.anchor_manifest import compute_anchor_meta
+        from sndr.engines.vllm.wiring.anchor_manifest import compute_anchor_meta
         src = "abc\ndef\nghi\n"
         meta = compute_anchor_meta(src, "def\n", "DEF\n")
         assert meta is not None
@@ -87,35 +87,35 @@ class TestComputeAnchorMeta:
         assert meta["anchor_md5"] != meta["replacement_md5"]
 
     def test_no_replacement_omits_replacement_md5(self):
-        from vllm.sndr_core.wiring.anchor_manifest import compute_anchor_meta
+        from sndr.engines.vllm.wiring.anchor_manifest import compute_anchor_meta
         meta = compute_anchor_meta("hello world", "world")
         assert meta is not None
         assert "replacement_md5" not in meta
 
     def test_anchor_not_found_returns_none(self):
-        from vllm.sndr_core.wiring.anchor_manifest import compute_anchor_meta
+        from sndr.engines.vllm.wiring.anchor_manifest import compute_anchor_meta
         assert compute_anchor_meta("hello", "world") is None
 
     def test_anchor_ambiguous_returns_none(self):
         """Manifest entry only valid if anchor uniquely identifies a region."""
-        from vllm.sndr_core.wiring.anchor_manifest import compute_anchor_meta
+        from sndr.engines.vllm.wiring.anchor_manifest import compute_anchor_meta
         assert compute_anchor_meta("abcabc", "abc") is None  # 2 occurrences
 
     def test_empty_inputs_return_none(self):
-        from vllm.sndr_core.wiring.anchor_manifest import compute_anchor_meta
+        from sndr.engines.vllm.wiring.anchor_manifest import compute_anchor_meta
         # Empty src — anchor cannot be found OR str.find may return 0 for ""
         # we want None for unsafe inputs
         assert compute_anchor_meta("", "anchor") is None
 
     def test_non_string_inputs_return_none(self):
-        from vllm.sndr_core.wiring.anchor_manifest import compute_anchor_meta
+        from sndr.engines.vllm.wiring.anchor_manifest import compute_anchor_meta
         assert compute_anchor_meta(123, "x") is None  # type: ignore[arg-type]
         assert compute_anchor_meta("text", 42) is None  # type: ignore[arg-type]
 
     def test_byte_offset_matches_actual_bytes(self, pristine_chunk_py):
         """For real PN79 anchor, byte_offset must point at correct slice."""
-        from vllm.sndr_core.wiring.anchor_manifest import compute_anchor_meta
-        from vllm.sndr_core.integrations.attention.gdn import pn79_inplace_ssm_state as M
+        from sndr.engines.vllm.wiring.anchor_manifest import compute_anchor_meta
+        from sndr.engines.vllm.patches.attention.gdn import pn79_inplace_ssm_state as M
         anchor = M.ANCHOR_1A_IMPORT_OLD
         meta = compute_anchor_meta(pristine_chunk_py, anchor, M.ANCHOR_1A_IMPORT_NEW)
         assert meta is not None
@@ -135,8 +135,8 @@ class TestComputeAnchorMeta:
 class TestBuildFileEntry:
 
     def test_single_patch_single_anchor(self):
-        from vllm.sndr_core.wiring.anchor_manifest import PatcherManifestInput
-        from vllm.sndr_core.wiring.anchor_manifest import build_file_entry
+        from sndr.engines.vllm.wiring.anchor_manifest import PatcherManifestInput
+        from sndr.engines.vllm.wiring.anchor_manifest import build_file_entry
         src = "alpha\nbravo\ncharlie\n"
         entry = build_file_entry(src, [
             PatcherManifestInput(
@@ -152,8 +152,8 @@ class TestBuildFileEntry:
         assert "S1" in entry["patches"]["DEMO"]["anchors"]
 
     def test_two_patches_same_file(self):
-        from vllm.sndr_core.wiring.anchor_manifest import PatcherManifestInput
-        from vllm.sndr_core.wiring.anchor_manifest import build_file_entry
+        from sndr.engines.vllm.wiring.anchor_manifest import PatcherManifestInput
+        from sndr.engines.vllm.wiring.anchor_manifest import build_file_entry
         src = "a\nb\nc\n"
         entry = build_file_entry(src, [
             PatcherManifestInput("PA", "x.py",
@@ -165,8 +165,8 @@ class TestBuildFileEntry:
         assert set(entry["patches"].keys()) == {"PA", "PB"}
 
     def test_missing_anchor_skipped_silently(self, caplog):
-        from vllm.sndr_core.wiring.anchor_manifest import PatcherManifestInput
-        from vllm.sndr_core.wiring.anchor_manifest import build_file_entry
+        from sndr.engines.vllm.wiring.anchor_manifest import PatcherManifestInput
+        from sndr.engines.vllm.wiring.anchor_manifest import build_file_entry
         src = "only this content"
         entry = build_file_entry(src, [
             PatcherManifestInput("PX", "x.py", [
@@ -179,8 +179,8 @@ class TestBuildFileEntry:
         assert "miss" not in entry["patches"]["PX"]["anchors"]
 
     def test_all_anchors_missing_returns_none(self):
-        from vllm.sndr_core.wiring.anchor_manifest import PatcherManifestInput
-        from vllm.sndr_core.wiring.anchor_manifest import build_file_entry
+        from sndr.engines.vllm.wiring.anchor_manifest import PatcherManifestInput
+        from sndr.engines.vllm.wiring.anchor_manifest import build_file_entry
         entry = build_file_entry("real content", [
             PatcherManifestInput("PX", "x.py",
                                  [("miss", "absent", "x")]),
@@ -188,8 +188,8 @@ class TestBuildFileEntry:
         assert entry is None
 
     def test_empty_source_returns_none(self):
-        from vllm.sndr_core.wiring.anchor_manifest import PatcherManifestInput
-        from vllm.sndr_core.wiring.anchor_manifest import build_file_entry
+        from sndr.engines.vllm.wiring.anchor_manifest import PatcherManifestInput
+        from sndr.engines.vllm.wiring.anchor_manifest import build_file_entry
         assert build_file_entry("", [
             PatcherManifestInput("PX", "x.py", [("s1", "x", "y")])
         ]) is None
@@ -203,9 +203,9 @@ class TestBuildFileEntry:
 class TestAssembleManifest:
 
     def test_full_assembly_two_files(self):
-        from vllm.sndr_core.wiring.anchor_manifest import PatcherManifestInput
-        from vllm.sndr_core.wiring.anchor_manifest import assemble_manifest
-        from vllm.sndr_core.wiring.anchor_manifest import MANIFEST_SCHEMA_VERSION
+        from sndr.engines.vllm.wiring.anchor_manifest import PatcherManifestInput
+        from sndr.engines.vllm.wiring.anchor_manifest import assemble_manifest
+        from sndr.engines.vllm.wiring.anchor_manifest import MANIFEST_SCHEMA_VERSION
         manifest = assemble_manifest(
             vllm_pin="0.20.2rc1.dev9+g01d4d1ad3",
             genesis_pin="v7.72.2",
@@ -226,8 +226,8 @@ class TestAssembleManifest:
         assert set(manifest["files"].keys()) == {"f1.py", "f2.py"}
 
     def test_files_with_no_anchors_omitted(self):
-        from vllm.sndr_core.wiring.anchor_manifest import PatcherManifestInput
-        from vllm.sndr_core.wiring.anchor_manifest import assemble_manifest
+        from sndr.engines.vllm.wiring.anchor_manifest import PatcherManifestInput
+        from sndr.engines.vllm.wiring.anchor_manifest import assemble_manifest
         manifest = assemble_manifest(
             vllm_pin="x",
             genesis_pin="y",
@@ -254,8 +254,8 @@ class TestAssembleManifest:
 class TestSchemaValidation:
 
     def _good_manifest(self):
-        from vllm.sndr_core.wiring.anchor_manifest import PatcherManifestInput
-        from vllm.sndr_core.wiring.anchor_manifest import assemble_manifest
+        from sndr.engines.vllm.wiring.anchor_manifest import PatcherManifestInput
+        from sndr.engines.vllm.wiring.anchor_manifest import assemble_manifest
         return assemble_manifest(
             vllm_pin="x", genesis_pin="y",
             file_to_inputs={
@@ -267,25 +267,25 @@ class TestSchemaValidation:
         )
 
     def test_valid_manifest_no_errors(self):
-        from vllm.sndr_core.wiring.anchor_manifest import validate_manifest_schema
+        from sndr.engines.vllm.wiring.anchor_manifest import validate_manifest_schema
         assert validate_manifest_schema(self._good_manifest()) == []
 
     def test_missing_top_level_key(self):
-        from vllm.sndr_core.wiring.anchor_manifest import validate_manifest_schema
+        from sndr.engines.vllm.wiring.anchor_manifest import validate_manifest_schema
         m = self._good_manifest()
         del m["pins"]
         errors = validate_manifest_schema(m)
         assert any("pins" in e for e in errors)
 
     def test_wrong_manifest_version(self):
-        from vllm.sndr_core.wiring.anchor_manifest import validate_manifest_schema
+        from sndr.engines.vllm.wiring.anchor_manifest import validate_manifest_schema
         m = self._good_manifest()
         m["manifest_version"] = 99
         errors = validate_manifest_schema(m)
         assert any("manifest_version 99" in e for e in errors)
 
     def test_non_dict_input(self):
-        from vllm.sndr_core.wiring.anchor_manifest import validate_manifest_schema
+        from sndr.engines.vllm.wiring.anchor_manifest import validate_manifest_schema
         assert validate_manifest_schema("not a dict") == [
             "manifest must be dict, got str"
         ]
@@ -294,14 +294,14 @@ class TestSchemaValidation:
         ]
 
     def test_md5_wrong_length(self):
-        from vllm.sndr_core.wiring.anchor_manifest import validate_manifest_schema
+        from sndr.engines.vllm.wiring.anchor_manifest import validate_manifest_schema
         m = self._good_manifest()
         m["files"]["f.py"]["md5_pristine"] = "tooshort"
         errors = validate_manifest_schema(m)
         assert any("md5_pristine wrong length" in e for e in errors)
 
     def test_byte_offset_negative(self):
-        from vllm.sndr_core.wiring.anchor_manifest import validate_manifest_schema
+        from sndr.engines.vllm.wiring.anchor_manifest import validate_manifest_schema
         m = self._good_manifest()
         m["files"]["f.py"]["patches"]["P"]["anchors"]["a"]["byte_offset"] = -1
         errors = validate_manifest_schema(m)
@@ -316,9 +316,9 @@ class TestSchemaValidation:
 class TestVerifyAgainstSource:
 
     def test_match_returns_empty_errors(self):
-        from vllm.sndr_core.wiring.anchor_manifest import PatcherManifestInput
-        from vllm.sndr_core.wiring.anchor_manifest import assemble_manifest
-        from vllm.sndr_core.wiring.anchor_manifest import verify_manifest_against_source
+        from sndr.engines.vllm.wiring.anchor_manifest import PatcherManifestInput
+        from sndr.engines.vllm.wiring.anchor_manifest import assemble_manifest
+        from sndr.engines.vllm.wiring.anchor_manifest import verify_manifest_against_source
         src = "hello world"
         manifest = assemble_manifest(
             vllm_pin="x", genesis_pin="y",
@@ -331,9 +331,9 @@ class TestVerifyAgainstSource:
         assert errors == []
 
     def test_md5_mismatch_reported(self):
-        from vllm.sndr_core.wiring.anchor_manifest import PatcherManifestInput
-        from vllm.sndr_core.wiring.anchor_manifest import assemble_manifest
-        from vllm.sndr_core.wiring.anchor_manifest import verify_manifest_against_source
+        from sndr.engines.vllm.wiring.anchor_manifest import PatcherManifestInput
+        from sndr.engines.vllm.wiring.anchor_manifest import assemble_manifest
+        from sndr.engines.vllm.wiring.anchor_manifest import verify_manifest_against_source
         manifest = assemble_manifest(
             vllm_pin="x", genesis_pin="y",
             file_to_inputs={"f.py": ("hello world", [
@@ -347,9 +347,9 @@ class TestVerifyAgainstSource:
         assert "md5 mismatch" in errors[0]
 
     def test_source_unloadable(self):
-        from vllm.sndr_core.wiring.anchor_manifest import PatcherManifestInput
-        from vllm.sndr_core.wiring.anchor_manifest import assemble_manifest
-        from vllm.sndr_core.wiring.anchor_manifest import verify_manifest_against_source
+        from sndr.engines.vllm.wiring.anchor_manifest import PatcherManifestInput
+        from sndr.engines.vllm.wiring.anchor_manifest import assemble_manifest
+        from sndr.engines.vllm.wiring.anchor_manifest import verify_manifest_against_source
         manifest = assemble_manifest(
             vllm_pin="x", genesis_pin="y",
             file_to_inputs={"f.py": ("hi", [
@@ -368,8 +368,8 @@ class TestVerifyAgainstSource:
 class TestPersistence:
 
     def _good_manifest(self):
-        from vllm.sndr_core.wiring.anchor_manifest import PatcherManifestInput
-        from vllm.sndr_core.wiring.anchor_manifest import assemble_manifest
+        from sndr.engines.vllm.wiring.anchor_manifest import PatcherManifestInput
+        from sndr.engines.vllm.wiring.anchor_manifest import assemble_manifest
         return assemble_manifest(
             vllm_pin="vllm-1.0", genesis_pin="v7.72.2",
             file_to_inputs={"f.py": ("hello world", [
@@ -379,8 +379,8 @@ class TestPersistence:
         )
 
     def test_round_trip_preserves_shape(self, tmp_path):
-        from vllm.sndr_core.wiring.anchor_manifest import load_manifest
-        from vllm.sndr_core.wiring.anchor_manifest import write_manifest_atomic
+        from sndr.engines.vllm.wiring.anchor_manifest import load_manifest
+        from sndr.engines.vllm.wiring.anchor_manifest import write_manifest_atomic
         path = tmp_path / "m.json"
         m = self._good_manifest()
         write_manifest_atomic(path, m)
@@ -388,7 +388,7 @@ class TestPersistence:
         assert loaded == m
 
     def test_atomic_write_no_tmp_file_after(self, tmp_path):
-        from vllm.sndr_core.wiring.anchor_manifest import write_manifest_atomic
+        from sndr.engines.vllm.wiring.anchor_manifest import write_manifest_atomic
         path = tmp_path / "m.json"
         write_manifest_atomic(path, self._good_manifest())
         # Verify .tmp file cleaned up
@@ -396,8 +396,8 @@ class TestPersistence:
         assert path.exists()
 
     def test_overwrite_existing(self, tmp_path):
-        from vllm.sndr_core.wiring.anchor_manifest import load_manifest
-        from vllm.sndr_core.wiring.anchor_manifest import write_manifest_atomic
+        from sndr.engines.vllm.wiring.anchor_manifest import load_manifest
+        from sndr.engines.vllm.wiring.anchor_manifest import write_manifest_atomic
         path = tmp_path / "m.json"
         m1 = self._good_manifest()
         write_manifest_atomic(path, m1)
@@ -408,23 +408,23 @@ class TestPersistence:
         assert loaded["pins"]["vllm"] == "v2"
 
     def test_load_missing_returns_none(self, tmp_path):
-        from vllm.sndr_core.wiring.anchor_manifest import load_manifest
+        from sndr.engines.vllm.wiring.anchor_manifest import load_manifest
         assert load_manifest(tmp_path / "absent.json") is None
 
     def test_load_corrupted_json_returns_none(self, tmp_path):
-        from vllm.sndr_core.wiring.anchor_manifest import load_manifest
+        from sndr.engines.vllm.wiring.anchor_manifest import load_manifest
         path = tmp_path / "corrupt.json"
         path.write_text("{this is not valid json")
         assert load_manifest(path) is None
 
     def test_load_invalid_schema_returns_none(self, tmp_path):
-        from vllm.sndr_core.wiring.anchor_manifest import load_manifest
+        from sndr.engines.vllm.wiring.anchor_manifest import load_manifest
         path = tmp_path / "bad.json"
         path.write_text(json.dumps({"manifest_version": 99}))
         assert load_manifest(path) is None
 
     def test_load_non_dict_returns_none(self, tmp_path):
-        from vllm.sndr_core.wiring.anchor_manifest import load_manifest
+        from sndr.engines.vllm.wiring.anchor_manifest import load_manifest
         path = tmp_path / "list.json"
         path.write_text(json.dumps([1, 2, 3]))
         assert load_manifest(path) is None
@@ -438,9 +438,9 @@ class TestPersistence:
 class TestPinInvalidation:
 
     def _build(self, tmp_path):
-        from vllm.sndr_core.wiring.anchor_manifest import PatcherManifestInput
-        from vllm.sndr_core.wiring.anchor_manifest import assemble_manifest
-        from vllm.sndr_core.wiring.anchor_manifest import write_manifest_atomic
+        from sndr.engines.vllm.wiring.anchor_manifest import PatcherManifestInput
+        from sndr.engines.vllm.wiring.anchor_manifest import assemble_manifest
+        from sndr.engines.vllm.wiring.anchor_manifest import write_manifest_atomic
         m = assemble_manifest(
             vllm_pin="vllm-X", genesis_pin="genesis-Y",
             file_to_inputs={"f.py": ("hello", [
@@ -453,28 +453,28 @@ class TestPinInvalidation:
         return path
 
     def test_match_returns_manifest(self, tmp_path):
-        from vllm.sndr_core.wiring.anchor_manifest import load_manifest_for_pins
+        from sndr.engines.vllm.wiring.anchor_manifest import load_manifest_for_pins
         path = self._build(tmp_path)
         assert load_manifest_for_pins(
             path, vllm_pin="vllm-X", genesis_pin="genesis-Y"
         ) is not None
 
     def test_vllm_pin_mismatch_returns_none(self, tmp_path):
-        from vllm.sndr_core.wiring.anchor_manifest import load_manifest_for_pins
+        from sndr.engines.vllm.wiring.anchor_manifest import load_manifest_for_pins
         path = self._build(tmp_path)
         assert load_manifest_for_pins(
             path, vllm_pin="WRONG", genesis_pin="genesis-Y"
         ) is None
 
     def test_genesis_pin_mismatch_returns_none(self, tmp_path):
-        from vllm.sndr_core.wiring.anchor_manifest import load_manifest_for_pins
+        from sndr.engines.vllm.wiring.anchor_manifest import load_manifest_for_pins
         path = self._build(tmp_path)
         assert load_manifest_for_pins(
             path, vllm_pin="vllm-X", genesis_pin="WRONG"
         ) is None
 
     def test_unspecified_pin_skips_check(self, tmp_path):
-        from vllm.sndr_core.wiring.anchor_manifest import load_manifest_for_pins
+        from sndr.engines.vllm.wiring.anchor_manifest import load_manifest_for_pins
         path = self._build(tmp_path)
         # Only vllm specified, genesis None — passes
         assert load_manifest_for_pins(
@@ -490,19 +490,19 @@ class TestPinInvalidation:
 class TestRegistry:
 
     def test_register_and_lookup(self):
-        from vllm.sndr_core.wiring.patcher_registry import register_text_patcher
-        from vllm.sndr_core.wiring.patcher_registry import get_registered_patcher
+        from sndr.engines.vllm.wiring.patcher_registry import register_text_patcher
+        from sndr.engines.vllm.wiring.patcher_registry import get_registered_patcher
         p = _make_fake_patcher("/tmp/x.py", "marker", [("s1", "old", "new")])
         register_text_patcher("PX.Sub-1", p)
         assert get_registered_patcher("PX.Sub-1") is p
 
     def test_lookup_missing_returns_none(self):
-        from vllm.sndr_core.wiring.patcher_registry import get_registered_patcher
+        from sndr.engines.vllm.wiring.patcher_registry import get_registered_patcher
         assert get_registered_patcher("not-registered") is None
 
     def test_iter_pairs(self):
-        from vllm.sndr_core.wiring.patcher_registry import register_text_patcher
-        from vllm.sndr_core.wiring.patcher_registry import iter_registered_patchers
+        from sndr.engines.vllm.wiring.patcher_registry import register_text_patcher
+        from sndr.engines.vllm.wiring.patcher_registry import iter_registered_patchers
         p1 = _make_fake_patcher("/x", "m1", [("s", "a", "b")])
         p2 = _make_fake_patcher("/y", "m2", [("s", "c", "d")])
         register_text_patcher("A", p1)
@@ -512,20 +512,20 @@ class TestRegistry:
         assert "A" in ids and "B" in ids
 
     def test_count(self):
-        from vllm.sndr_core.wiring.patcher_registry import register_text_patcher
-        from vllm.sndr_core.wiring.patcher_registry import registered_count
+        from sndr.engines.vllm.wiring.patcher_registry import register_text_patcher
+        from sndr.engines.vllm.wiring.patcher_registry import registered_count
         assert registered_count() == 0
         register_text_patcher("X", _make_fake_patcher("/x", "m", [("s", "a", "b")]))
         assert registered_count() == 1
 
     def test_register_same_object_idempotent(self):
-        from vllm.sndr_core.wiring.patcher_registry import register_text_patcher
+        from sndr.engines.vllm.wiring.patcher_registry import register_text_patcher
         p = _make_fake_patcher("/x", "m", [("s", "a", "b")])
         register_text_patcher("X", p)
         register_text_patcher("X", p)  # same id + same object — no error
 
     def test_register_different_object_same_id_raises(self):
-        from vllm.sndr_core.wiring.patcher_registry import register_text_patcher
+        from sndr.engines.vllm.wiring.patcher_registry import register_text_patcher
         p1 = _make_fake_patcher("/x", "m1", [("s", "a", "b")])
         p2 = _make_fake_patcher("/y", "m2", [("s", "a", "b")])
         register_text_patcher("X", p1)
@@ -533,7 +533,7 @@ class TestRegistry:
             register_text_patcher("X", p2)
 
     def test_invalid_patch_id_raises(self):
-        from vllm.sndr_core.wiring.patcher_registry import register_text_patcher
+        from sndr.engines.vllm.wiring.patcher_registry import register_text_patcher
         p = _make_fake_patcher("/x", "m", [("s", "a", "b")])
         with pytest.raises(ValueError, match="patch_id"):
             register_text_patcher("", p)
@@ -541,14 +541,14 @@ class TestRegistry:
             register_text_patcher(123, p)  # type: ignore[arg-type]
 
     def test_non_textpatcher_shape_raises(self):
-        from vllm.sndr_core.wiring.patcher_registry import register_text_patcher
+        from sndr.engines.vllm.wiring.patcher_registry import register_text_patcher
         with pytest.raises(ValueError, match="missing required attribute"):
             register_text_patcher("X", "not a patcher")  # type: ignore[arg-type]
 
     def test_clear_registry(self):
-        from vllm.sndr_core.wiring.patcher_registry import register_text_patcher
-        from vllm.sndr_core.wiring.patcher_registry import registered_count
-        from vllm.sndr_core.wiring.patcher_registry import clear_registry
+        from sndr.engines.vllm.wiring.patcher_registry import register_text_patcher
+        from sndr.engines.vllm.wiring.patcher_registry import registered_count
+        from sndr.engines.vllm.wiring.patcher_registry import clear_registry
         register_text_patcher("X",
             _make_fake_patcher("/x", "m", [("s", "a", "b")]))
         assert registered_count() == 1
@@ -569,11 +569,11 @@ class TestPN79Integration:
     """
 
     def test_pn79_chunk_py_full_pipeline(self, pristine_chunk_py):
-        from vllm.sndr_core.wiring.anchor_manifest import PatcherManifestInput
-        from vllm.sndr_core.wiring.anchor_manifest import assemble_manifest
-        from vllm.sndr_core.wiring.anchor_manifest import validate_manifest_schema
-        from vllm.sndr_core.wiring.anchor_manifest import verify_manifest_against_source
-        from vllm.sndr_core.integrations.attention.gdn import pn79_inplace_ssm_state as M
+        from sndr.engines.vllm.wiring.anchor_manifest import PatcherManifestInput
+        from sndr.engines.vllm.wiring.anchor_manifest import assemble_manifest
+        from sndr.engines.vllm.wiring.anchor_manifest import validate_manifest_schema
+        from sndr.engines.vllm.wiring.anchor_manifest import verify_manifest_against_source
+        from sndr.engines.vllm.patches.attention.gdn import pn79_inplace_ssm_state as M
 
         chunk_subs = [
             ("1A", M.ANCHOR_1A_IMPORT_OLD, M.ANCHOR_1A_IMPORT_NEW),
@@ -615,9 +615,9 @@ class TestPN79Integration:
         """Spot-check: each manifest entry's offset+length slice equals
         the original anchor. This is the sanity check that runtime path
         will rely on."""
-        from vllm.sndr_core.wiring.anchor_manifest import PatcherManifestInput
-        from vllm.sndr_core.wiring.anchor_manifest import assemble_manifest
-        from vllm.sndr_core.integrations.attention.gdn import pn79_inplace_ssm_state as M
+        from sndr.engines.vllm.wiring.anchor_manifest import PatcherManifestInput
+        from sndr.engines.vllm.wiring.anchor_manifest import assemble_manifest
+        from sndr.engines.vllm.patches.attention.gdn import pn79_inplace_ssm_state as M
 
         anchors = {
             "1A": M.ANCHOR_1A_IMPORT_OLD,

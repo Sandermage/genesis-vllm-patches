@@ -148,7 +148,7 @@ class TestApplyGate:
             pn90_probabilistic_draft_rejection as m,
         )
         monkeypatch.setattr(
-            "vllm.sndr_core.dispatcher.should_apply",
+            "sndr.dispatcher.should_apply",
             lambda pid: (False, "opt-in only — env unset"),
         )
         # Don't even need vllm install root probe
@@ -161,7 +161,7 @@ class TestApplyGate:
             pn90_probabilistic_draft_rejection as m,
         )
         monkeypatch.setattr(
-            "vllm.sndr_core.dispatcher.should_apply",
+            "sndr.dispatcher.should_apply",
             lambda pid: (True, "env enabled"),
         )
         monkeypatch.setattr(
@@ -192,7 +192,7 @@ class TestUpstreamMergedDetect:
             encoding="utf-8",
         )
         monkeypatch.setattr(
-            "vllm.sndr_core.dispatcher.should_apply",
+            "sndr.dispatcher.should_apply",
             lambda pid: (True, "env enabled"),
         )
         monkeypatch.setattr(
@@ -217,7 +217,7 @@ class TestUpstreamMergedDetect:
 
 class TestRegistryPresence:
     def test_pn90_in_registry(self):
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+        from sndr.dispatcher import PATCH_REGISTRY
         assert "PN90" in PATCH_REGISTRY
         meta = PATCH_REGISTRY["PN90"]
         assert meta["tier"] == "community"
@@ -228,7 +228,7 @@ class TestRegistryPresence:
         assert meta.get("implementation_status") == "full"
 
     def test_pn90_apply_module_resolves(self):
-        from vllm.sndr_core.dispatcher.spec import iter_patch_specs
+        from sndr.dispatcher.spec import iter_patch_specs
         for spec in iter_patch_specs():
             if spec.patch_id == "PN90":
                 assert spec.apply_module is not None
@@ -237,7 +237,7 @@ class TestRegistryPresence:
         pytest.fail("PN90 not found in iter_patch_specs()")
 
     def test_pn90_dispatcher_wrapper_present(self):
-        from vllm.sndr_core.apply._per_patch_dispatch import (
+        from sndr.apply._per_patch_dispatch import (
             apply_patch_N90_probabilistic_draft_rejection,
         )
         assert callable(apply_patch_N90_probabilistic_draft_rejection)

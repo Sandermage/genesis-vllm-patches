@@ -2,7 +2,7 @@
 """Torch-less import contract — F-001/F-002 regression guard.
 
 Audit `sndr_structure_deep_audit_2026-05-07.md` flagged that a fresh
-`import vllm.sndr_core` pulled `runtime.prealloc` → `torch` at module
+`import sndr` pulled `runtime.prealloc` → `torch` at module
 top-level. CLI / schema validator / doctor / pre-commit all broke
 before reaching their argparse blocks.
 
@@ -47,13 +47,13 @@ def _run_probe(body: str) -> subprocess.CompletedProcess[str]:
 
 
 class TestTorchLessImport:
-    """`import vllm.sndr_core` and its CLI / compat helpers must succeed
+    """`import sndr` and its CLI / compat helpers must succeed
     in environments without torch installed."""
 
     def test_sndr_core_imports_without_torch(self):
         rc = _run_probe(
-            "import vllm.sndr_core; "
-            "print('OK', vllm.sndr_core.__version__)"
+            "import sndr; "
+            "print('OK', sndr.__version__)"
         )
         assert rc.returncode == 0, (
             f"sndr_core import failed without torch:\n"
@@ -63,13 +63,13 @@ class TestTorchLessImport:
         assert "OK" in rc.stdout
 
     def test_sndr_core_cli_module_loads_without_torch(self):
-        rc = _run_probe("import vllm.sndr_core.cli; print('OK')")
+        rc = _run_probe("import sndr.cli; print('OK')")
         assert rc.returncode == 0, rc.stderr
         assert "OK" in rc.stdout
 
     def test_compat_schema_validator_loads_without_torch(self):
         rc = _run_probe(
-            "from vllm.sndr_core.compat import schema_validator; print('OK')"
+            "from sndr.compat import schema_validator; print('OK')"
         )
         assert rc.returncode == 0, rc.stderr
         assert "OK" in rc.stdout
@@ -77,7 +77,7 @@ class TestTorchLessImport:
 
 class TestRuntimeLazyAttributes:
     """Lazy `__getattr__` must still expose all submodules to consumers
-    that explicitly access them (e.g. `from vllm.sndr_core.runtime
+    that explicitly access them (e.g. `from sndr.runtime
     import prealloc`)."""
 
     @pytest.mark.parametrize("name", [
@@ -89,6 +89,6 @@ class TestRuntimeLazyAttributes:
         still resolve via normal attribute access. (We're running with
         torch present here — the lazy contract just defers the load,
         it doesn't hide submodules.)"""
-        runtime = importlib.import_module("vllm.sndr_core.runtime")
+        runtime = importlib.import_module("sndr.runtime")
         sub = getattr(runtime, name)
-        assert sub.__name__ == f"vllm.sndr_core.runtime.{name}"
+        assert sub.__name__ == f"sndr.runtime.{name}"

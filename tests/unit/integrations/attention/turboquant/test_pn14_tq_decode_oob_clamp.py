@@ -249,7 +249,7 @@ class TestPn14ApplyBehavior:
 
 class TestPn14DispatcherIntegration:
     def test_pn14_in_registry(self):
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+        from sndr.dispatcher import PATCH_REGISTRY
         assert "PN14" in PATCH_REGISTRY
         meta = PATCH_REGISTRY["PN14"]
         assert meta.get("env_flag") == "GENESIS_ENABLE_PN14_TQ_DECODE_OOB_CLAMP"
@@ -264,14 +264,14 @@ class TestPn14DispatcherIntegration:
         monkeypatch.delenv(
             "GENESIS_ENABLE_PN14_TQ_DECODE_OOB_CLAMP", raising=False,
         )
-        from vllm.sndr_core.dispatcher import should_apply
+        from sndr.dispatcher import should_apply
         decision, _reason = should_apply("PN14")
         assert decision is False
 
     def test_pn14_should_apply_env_on(self, monkeypatch):
         """With env=1, dispatcher returns True."""
         monkeypatch.setenv("GENESIS_ENABLE_PN14_TQ_DECODE_OOB_CLAMP", "1")
-        from vllm.sndr_core.dispatcher import should_apply
+        from sndr.dispatcher import should_apply
         decision, _reason = should_apply("PN14")
         assert decision is True
 

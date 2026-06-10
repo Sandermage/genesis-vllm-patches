@@ -27,7 +27,7 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-BUILTIN_DIR = REPO_ROOT / "vllm" / "sndr_core" / "model_configs" / "builtin"
+BUILTIN_DIR = REPO_ROOT / "sndr" / "model_configs" / "builtin"
 
 # Phase 9 frozen baseline — V1 monolithic presets accepted into the
 # release tier. Original freeze (2026-05-12) listed 11 files.

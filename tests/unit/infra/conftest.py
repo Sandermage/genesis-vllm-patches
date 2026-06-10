@@ -29,16 +29,16 @@ PRISTINE_ROOT = REPO_ROOT / "tests" / "legacy" / "pristine_fixtures"
 # Mirror of `scripts/build_anchor_manifest.py::_REGISTRY_TARGETS`.
 # Keep in lockstep — they are two sides of the same contract.
 _STABLE_REGISTRY_TARGETS = [
-    ("PN79", "vllm.sndr_core.integrations.attention.gdn"
+    ("PN79", "sndr.engines.vllm.patches.attention.gdn"
              ".pn79_inplace_ssm_state"),
-    ("PN35", "vllm.sndr_core.integrations.worker"
+    ("PN35", "sndr.engines.vllm.patches.worker"
              ".pn35_inputs_embeds_optional"),
-    ("PN33", "vllm.sndr_core.integrations.worker"
+    ("PN33", "sndr.engines.vllm.patches.worker"
              ".pn33_spec_decode_warmup_k"),
     # Added 2026-05-28 (STAGE-6-HARDENING.1): G4_04 graduates from
     # _MANIFEST_TRACKING_DEFERRED to first-class manifest coverage now
     # that the pristine gemma4.py fixture is in place.
-    ("G4_04", "vllm.sndr_core.integrations.model_compat.gemma4"
+    ("G4_04", "sndr.engines.vllm.patches.model_compat.gemma4"
               ".g4_04_gemma4_awq_moe_keys_remap"),
 ]
 
@@ -72,7 +72,7 @@ def _register_stable_patchers_for_each_infra_test(request):
     # first to avoid that on subsequent test runs where this fixture
     # fires repeatedly.
     try:
-        from vllm.sndr_core.wiring.patcher_registry import clear_registry
+        from sndr.engines.vllm.wiring.patcher_registry import clear_registry
         clear_registry()
     except Exception:
         pass

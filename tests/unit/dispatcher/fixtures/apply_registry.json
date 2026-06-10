@@ -136,6 +136,10 @@
     "wrapped_name": "apply_patch_n116_tq_prefill_maxseq_fallback"
   },
   {
+    "name": "P18B_TEXT TurboQuant decode stage1 kernel-literal tune (SM 8.6 num_warps/num_stages override)",
+    "wrapped_name": "apply_patch_18b_text_kernel_literals"
+  },
+  {
     "name": "PN118 TurboQuant workspace graceful-fallback (backport: vllm#42551, P99-compat)",
     "wrapped_name": "apply_patch_n118_tq_workspace_fallback"
   },
@@ -602,6 +606,90 @@
   {
     "name": "PN299 FLA multi-file arch-aware NUM_WARPS prune (kkt+wy_fast+l2norm)",
     "wrapped_name": "apply_patch_N299_fla_multi_arch_warps"
+  },
+  {
+    "name": "PN364 Hybrid GDN/Mamba/MRoPE startup warmup (vendor of OPEN vllm#43642)",
+    "wrapped_name": "apply_patch_N364_hybrid_gdn_mamba_warmup"
+  },
+  {
+    "name": "PN353A TurboQuant workspace reserve before CG capture (vendor of OPEN vllm#44053)",
+    "wrapped_name": "apply_patch_N353A_tq_builder_workspace_reserve"
+  },
+  {
+    "name": "PN350 Fused GDN Q/K/V split Triton kernel (SGLang#26206 + TRTLLM#12966)",
+    "wrapped_name": "apply_patch_N350_gdn_qkv_fused_split"
+  },
+  {
+    "name": "PN367 CUDA graph memory estimate clamp (vendor of OPEN vllm#45076)",
+    "wrapped_name": "apply_patch_N367_cudagraph_mem_clamp"
+  },
+  {
+    "name": "PN352 Triton moe_sum for unsupported topk (counterpart of OPEN vllm#44557)",
+    "wrapped_name": "apply_patch_N352_moe_sum_topk8"
+  },
+  {
+    "name": "PN365 Fused GDN qkv|z|b|a single-GEMM input projection (port of OPEN vllm#42746)",
+    "wrapped_name": "apply_patch_N365_gdn_qkvz_ba_fuse_gemm"
+  },
+  {
+    "name": "PN349 Gemma 4 KV-shared k_norm/v_norm skip (vendor of OPEN vllm#44797)",
+    "wrapped_name": "apply_patch_N349_gemma4_kv_shared_norm_skip"
+  },
+  {
+    "name": "PN351 Triton unified_attention head_dim>=512 tune (vendor of OPEN vllm#43257)",
+    "wrapped_name": "apply_patch_N351_triton_unified_attention_large_head"
+  },
+  {
+    "name": "PN361 Spec-decode fail-closed on missing draft probs (vendor of OPEN vllm#44869)",
+    "wrapped_name": "apply_patch_N361_spec_decode_fail_closed_missing_probs"
+  },
+  {
+    "name": "PN363 force_max_spec_tokens for suffix decoding FULL CG (vendor of OPEN vllm#43114)",
+    "wrapped_name": "apply_patch_N363_force_max_spec_tokens"
+  },
+  {
+    "name": "PN346 Mamba/GDN cache hit boundary fix (vendor of OPEN vllm#43650)",
+    "wrapped_name": "apply_patch_N346_mamba_mtp_apc_boundary"
+  },
+  {
+    "name": "PN347 MarlinFP8 N==K correctness fix (vendor of OPEN vllm#44113)",
+    "wrapped_name": "apply_patch_N347_marlin_fp8_nk_correctness"
+  },
+  {
+    "name": "PN348 Qwen3.5/3.6 MTP backbone dedup (vendor of OPEN vllm#44644)",
+    "wrapped_name": "apply_patch_N348_qwen3_mtp_backbone_dedup"
+  },
+  {
+    "name": "PN362 Triton autotune determinism — VLLM_TRITON_FORCE_FIRST_CONFIG (vendor of OPEN vllm#42425)",
+    "wrapped_name": "apply_patch_N362_triton_force_first_config"
+  },
+  {
+    "name": "PN345 Shmem-aware Triton autotune pruner (vendor of OPEN vllm#43047)",
+    "wrapped_name": "apply_patch_N345_shmem_aware_autotune_pruner"
+  },
+  {
+    "name": "PN341 MTP decode bubbles in gpu_model_runner (vendor of OPEN vllm#43955)",
+    "wrapped_name": "apply_patch_N341_mtp_decode_bubbles_gpu_runner"
+  },
+  {
+    "name": "PN340 MTP decode bubbles reduction (vendor of OPEN vllm#43955)",
+    "wrapped_name": "apply_patch_N340_mtp_decode_bubbles"
+  },
+  {
+    "name": "PN299E KV cache writer arch-aware NUM_WARPS+NUM_STAGES cap",
+    "wrapped_name": "apply_patch_N299E_kv_cache_writer"
+  },
+  {
+    "name": "PN299D Mamba2 SSU fallback heuristic arch-aware NUM_WARPS cap",
+    "wrapped_name": "apply_patch_N299D_mamba_ssm"
+  },
+  {
+    "name": "PN299C FLA layernorm_guard arch-aware NUM_WARPS heuristic cap",
+    "wrapped_name": "apply_patch_N299C_fla_layernorm_guard"
+  },
+  {
+    "name": "PN299B FLA extended arch-aware NUM_WARPS prune (kda+cumsum+solve_tril)",
+    "wrapped_name": "apply_patch_N299B_fla_kda_cumsum_solve_tril"
   },
   {
     "name": "PN298 FLA chunk_o NUM_WARPS arch-aware prune (SM 8.6 spilling fix)",

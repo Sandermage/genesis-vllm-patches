@@ -21,7 +21,7 @@ def _run_orchestrator(monkeypatch, caplog, **env):
     """Invoke ``orchestrator.run`` with given env, capture log lines."""
     for k, v in env.items():
         monkeypatch.setenv(k, str(v))
-    from vllm.sndr_core.apply import orchestrator
+    from sndr.apply import orchestrator
     caplog.set_level(logging.DEBUG)
     # Dry-run mode (apply=False) avoids touching files / rebinding attrs.
     orchestrator.run(verbose=False, apply=False)
@@ -111,7 +111,7 @@ class TestPreflightFires:
         # under int64. To trigger int64 overflow we'd need 10^19 — the
         # check is forward-defensive; we test the code path by mocking.
         from unittest.mock import patch
-        from vllm.sndr_core.kernels.fla_tp_device_index_guard import (
+        from sndr.engines.vllm.kernels_legacy.fla_tp_device_index_guard import (
             IndexOverflowReport,
         )
         fake = IndexOverflowReport(
@@ -122,7 +122,7 @@ class TestPreflightFires:
             margin_int64_pct=99999.0,
         )
         with patch(
-            "vllm.sndr_core.kernels.fla_tp_device_index_guard.check_index_overflow",
+            "sndr.engines.vllm.kernels_legacy.fla_tp_device_index_guard.check_index_overflow",
             return_value=fake,
         ):
             with pytest.raises(SystemExit) as exc:

@@ -2,7 +2,7 @@
 """S-05 (2026-05-08) — runtime_caveat.probe_caveats()."""
 from __future__ import annotations
 
-import vllm.sndr_core.detection.runtime_caveat as M
+import sndr.engines.vllm.detection.runtime_caveat as M
 
 
 def test_probe_no_pve_markers_returns_safe(monkeypatch, tmp_path):

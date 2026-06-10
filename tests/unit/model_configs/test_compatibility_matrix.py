@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.model_configs.schema import (
+from sndr.model_configs.schema import (
     COMPATIBILITY_MATRIX,
     CompatibilityMatrix,
     CompatibilityRule,

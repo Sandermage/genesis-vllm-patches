@@ -28,7 +28,7 @@ import pytest
 # now, so WIRING_DIR is repo_root/vllm/sndr_core/integrations.
 WIRING_DIR = (
     Path(__file__).resolve().parent.parent.parent
-    / "vllm" / "sndr_core" / "integrations"
+    / "sndr" / "engines" / "vllm" / "patches"
 ).resolve()
 
 

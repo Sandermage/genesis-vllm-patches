@@ -4,7 +4,7 @@
 S-05 (2026-05-08): install.sh shrank from 783 lines to ~106 — all
 operator logic (GPU detection, workload picker, pin resolution, clone,
 plugin install, host paths, launch script generation, smoke test,
-uninstall) moved into `vllm.sndr_core.cli.install`. The bootstrap's
+uninstall) moved into `sndr.cli.legacy.install`. The bootstrap's
 only job is now: verify python+git, clone the repo, `pip install -e
 .`, then exec `sndr install` with passed flags.
 
@@ -75,7 +75,7 @@ def test_install_sh_uses_strict_mode():
            "thin-shim refactor target was reversed after the canonical "
            "`sndr install` wizard turned out to require a real Python "
            "interpreter resolution + repo-clone sequence that's cleaner "
-           "in bash. New logic still belongs in vllm/sndr_core/cli/"
+           "in bash. New logic still belongs in sndr/cli/legacy/"
            "install.py for testability; this test stays as a guard "
            "against unbounded growth — re-enable with a higher ceiling "
            "once we settle on the long-term shape."
@@ -86,7 +86,7 @@ def test_install_sh_is_thin_shim_post_s05():
     n_lines = len(INSTALL_SH.read_text().splitlines())
     assert n_lines <= 200, (
         f"install.sh has grown to {n_lines} lines — keep it as a thin "
-        "bootstrap and put new logic in vllm/sndr_core/cli/install.py"
+        "bootstrap and put new logic in sndr/cli/legacy/install.py"
     )
 
 
@@ -98,7 +98,7 @@ def test_install_sh_is_thin_shim_post_s05():
 @pytest.mark.skip(
     reason="install.sh handles installation directly (paired with the "
            "thin-shim reversal above); operator-facing logic is still "
-           "duplicated in vllm/sndr_core/cli/install.py for IDE / unit "
+           "duplicated in sndr/cli/legacy/install.py for IDE / unit "
            "testing. Re-enable when the bash bootstrap is fully retired."
 )
 def test_install_sh_delegates_to_sndr_install():
@@ -108,12 +108,12 @@ def test_install_sh_delegates_to_sndr_install():
     # Either `exec sndr install` (if on PATH) or python -m fallback
     has_sndr_exec = "exec sndr install" in content
     has_python_module_exec = (
-        "vllm.sndr_core.cli install" in content
-        or "vllm.sndr_core.cli" in content
+        "sndr.cli.legacy install" in content
+        or "sndr.cli.legacy" in content
     )
     assert has_sndr_exec and has_python_module_exec, (
         "bootstrap must exec `sndr install` AND fall back to "
-        "`python -m vllm.sndr_core.cli install` for hosts where the "
+        "`python -m sndr.cli.legacy install` for hosts where the "
         "console script isn't on PATH yet"
     )
 
@@ -170,7 +170,7 @@ def test_plugin_pyproject_declares_genesis_console_script():
         "`genesis` console command"
     )
     assert "genesis = " in content
-    assert "vllm.sndr_core.compat.cli:main" in content
+    assert "sndr.compat.cli:main" in content
 
 
 def test_plugin_pyproject_declares_vllm_general_plugins_entry_point():

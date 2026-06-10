@@ -26,7 +26,7 @@ def _import_customop():
     sys.path.insert(0, str(REPO_ROOT))
     try:
         mod = importlib.import_module(
-            "vllm.sndr_core.kernels.g4_19c_roundtrip_customop"
+            "sndr.engines.vllm.kernels_legacy.g4_19c_roundtrip_customop"
         )
     finally:
         sys.path.pop(0)
@@ -38,7 +38,7 @@ def _import_per_layer():
     sys.path.insert(0, str(REPO_ROOT))
     try:
         mod = importlib.import_module(
-            "vllm.sndr_core.integrations.attention.turboquant."
+            "sndr.engines.vllm.patches.attention.turboquant."
             "g4_19c_per_layer_forward"
         )
     finally:

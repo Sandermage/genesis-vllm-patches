@@ -5,7 +5,7 @@ from __future__ import annotations
 import importlib.util
 from dataclasses import asdict
 
-from vllm.sndr_core.product_api.environment import collect_environment_report
+from sndr.product_api.legacy.environment import collect_environment_report
 
 
 def test_environment_report_has_project_and_engine_fields():
@@ -61,7 +61,7 @@ def test_restart_command_cds_into_install_root_for_source_checkout(monkeypatch):
     py, root, _, cmd = env._daemon_launch_context()
     assert root is not None and (env._Path(root) / "sndr").is_dir()
     assert cmd == f"cd '{root}' && {py} -m sndr.cli gui-api --enable-apply"
-    assert "vllm.sndr_core.cli" not in cmd   # never the vllm-namespace shim path
+    assert "sndr.cli.legacy" not in cmd   # never the vllm-namespace shim path
 
 
 def test_environment_report_exposes_restart_command(monkeypatch):

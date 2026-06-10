@@ -11,11 +11,11 @@ from pathlib import Path
 
 import pytest
 
-from vllm.sndr_core.deps.checkers import (
+from sndr.deps.checkers import (
     HostInventory, OSInfo, PythonInfo, DockerInfo, NvidiaInfo, VLLMInfo,
 )
-from vllm.sndr_core.deps.planners import DepsPlan, PlanItem
-from vllm.sndr_core.deps.report import report_inventory, report_plan
+from sndr.deps.planners import DepsPlan, PlanItem
+from sndr.deps.report import report_inventory, report_plan
 
 
 def _inv() -> HostInventory:

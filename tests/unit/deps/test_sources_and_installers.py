@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.deps.sources import (
+from sndr.deps.sources import (
     resolve_source, SourceDecision, list_safe_channels,
 )
-from vllm.sndr_core.deps.installers import apply, ApplyOutcome
-from vllm.sndr_core.deps.planners import DepsPlan, PlanItem
-from vllm.sndr_core.model_configs.schema import (
+from sndr.deps.installers import apply, ApplyOutcome
+from sndr.deps.planners import DepsPlan, PlanItem
+from sndr.model_configs.schema import (
     PackageSources, PackageSource,
 )
 

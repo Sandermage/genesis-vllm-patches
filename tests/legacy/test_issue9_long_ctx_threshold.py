@@ -30,7 +30,7 @@ class TestIssue9DefaultThresholdRaised:
         monkeypatch.delenv(
             "GENESIS_P68_P69_LONG_CTX_THRESHOLD_CHARS", raising=False
         )
-        from vllm.sndr_core.middleware.long_ctx_tool_adherence import (
+        from sndr.engines.vllm.middleware.long_ctx_tool_adherence import (
             _get_threshold_chars,
         )
         assert _get_threshold_chars() == 50000, (
@@ -43,7 +43,7 @@ class TestIssue9DefaultThresholdRaised:
         monkeypatch.setenv(
             "GENESIS_P68_P69_LONG_CTX_THRESHOLD_CHARS", "not-a-number"
         )
-        from vllm.sndr_core.middleware.long_ctx_tool_adherence import (
+        from sndr.engines.vllm.middleware.long_ctx_tool_adherence import (
             _get_threshold_chars,
         )
         assert _get_threshold_chars() == 50000
@@ -52,7 +52,7 @@ class TestIssue9DefaultThresholdRaised:
         monkeypatch.setenv(
             "GENESIS_P68_P69_LONG_CTX_THRESHOLD_CHARS", "100000"
         )
-        from vllm.sndr_core.middleware.long_ctx_tool_adherence import (
+        from sndr.engines.vllm.middleware.long_ctx_tool_adherence import (
             _get_threshold_chars,
         )
         assert _get_threshold_chars() == 100000
@@ -63,7 +63,7 @@ class TestIssue9DefaultThresholdRaised:
         monkeypatch.setenv(
             "GENESIS_P68_P69_LONG_CTX_THRESHOLD_CHARS", "100"
         )
-        from vllm.sndr_core.middleware.long_ctx_tool_adherence import (
+        from sndr.engines.vllm.middleware.long_ctx_tool_adherence import (
             _get_threshold_chars,
         )
         assert _get_threshold_chars() == 1000
@@ -73,7 +73,7 @@ class TestIssue9DocstringMentionsContext:
     def test_docstring_explains_50k_decision(self):
         """The docstring must explain WHY the default was raised, so
         a future maintainer doesn't silently revert the fix."""
-        from vllm.sndr_core.middleware.long_ctx_tool_adherence import (
+        from sndr.engines.vllm.middleware.long_ctx_tool_adherence import (
             _get_threshold_chars,
         )
         assert _get_threshold_chars.__doc__ is not None
@@ -93,7 +93,7 @@ class TestIssue9P68LogsAtWarn:
         # Source-level check: scan the middleware module for the WARN log
         # paired with "upgraded tool_choice" to confirm we're not back at
         # log.info.
-        from vllm.sndr_core.middleware import long_ctx_tool_adherence
+        from sndr.engines.vllm.middleware import long_ctx_tool_adherence
         import inspect
 
         src = inspect.getsource(long_ctx_tool_adherence)

@@ -19,7 +19,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from vllm.sndr_core.model_configs.schema import (
+from sndr.model_configs.schema import (
     DockerConfig,
     SchemaError,
 )
@@ -86,7 +86,7 @@ def _make_cfg(image: str = "vllm/vllm-openai:nightly",
 
 class TestVerifyImageDigest:
     def test_off_mode_skips(self, monkeypatch):
-        from vllm.sndr_core.cli.launch import _verify_image_digest
+        from sndr.cli.legacy.launch import _verify_image_digest
         cfg = _make_cfg(digest="vllm/vllm-openai@sha256:" + "a" * 64)
         # docker shouldn't even be probed
         called = []
@@ -100,17 +100,17 @@ class TestVerifyImageDigest:
         assert not called
 
     def test_no_docker_block_returns_zero(self):
-        from vllm.sndr_core.cli.launch import _verify_image_digest
+        from sndr.cli.legacy.launch import _verify_image_digest
         cfg = SimpleNamespace(docker=None)
         assert _verify_image_digest(cfg, "on") == 0
 
     def test_auto_mode_no_digest_passes(self):
-        from vllm.sndr_core.cli.launch import _verify_image_digest
+        from sndr.cli.legacy.launch import _verify_image_digest
         cfg = _make_cfg(digest=None)
         assert _verify_image_digest(cfg, "auto") == 0
 
     def test_strict_on_no_digest_fails(self, capsys):
-        from vllm.sndr_core.cli.launch import _verify_image_digest
+        from sndr.cli.legacy.launch import _verify_image_digest
         cfg = _make_cfg(digest=None)
         rc = _verify_image_digest(cfg, "on")
         assert rc == 2
@@ -119,7 +119,7 @@ class TestVerifyImageDigest:
         assert "image_digest" in captured.out + captured.err
 
     def test_match_passes(self, monkeypatch, capsys):
-        from vllm.sndr_core.cli.launch import _verify_image_digest
+        from sndr.cli.legacy.launch import _verify_image_digest
         digest = ("vllm/vllm-openai@sha256:"
                   + "abcdef" * 10 + "abcd")
         cfg = _make_cfg(digest=digest)
@@ -143,7 +143,7 @@ class TestVerifyImageDigest:
         assert "verified" in out.lower() or "ok" in out.lower()
 
     def test_mismatch_strict_fails(self, monkeypatch, capsys):
-        from vllm.sndr_core.cli.launch import _verify_image_digest
+        from sndr.cli.legacy.launch import _verify_image_digest
         expected = "vllm/vllm-openai@sha256:" + "a" * 64
         actual = "vllm/vllm-openai@sha256:" + "b" * 64
         cfg = _make_cfg(digest=expected)
@@ -167,14 +167,14 @@ class TestVerifyImageDigest:
         assert expected in combined
 
     def test_docker_missing_auto_passes(self, monkeypatch):
-        from vllm.sndr_core.cli.launch import _verify_image_digest
+        from sndr.cli.legacy.launch import _verify_image_digest
         cfg = _make_cfg(digest="vllm/vllm-openai@sha256:" + "a" * 64)
         monkeypatch.setattr("shutil.which", lambda _: None)
         # auto mode — degrade gracefully when docker unavailable
         assert _verify_image_digest(cfg, "auto") == 0
 
     def test_docker_missing_strict_fails(self, monkeypatch):
-        from vllm.sndr_core.cli.launch import _verify_image_digest
+        from sndr.cli.legacy.launch import _verify_image_digest
         cfg = _make_cfg(digest="vllm/vllm-openai@sha256:" + "a" * 64)
         monkeypatch.setattr("shutil.which", lambda _: None)
         assert _verify_image_digest(cfg, "on") == 2
@@ -185,7 +185,7 @@ class TestVerifyImageDigest:
 
 class TestArgparser:
     def test_strict_image_choices(self):
-        from vllm.sndr_core.cli.launch import add_argparser
+        from sndr.cli.legacy.launch import add_argparser
         parser = argparse.ArgumentParser()
         sub = parser.add_subparsers()
         add_argparser(sub)
@@ -195,7 +195,7 @@ class TestArgparser:
         assert ns.strict_image == "on"
 
     def test_strict_image_default_auto(self):
-        from vllm.sndr_core.cli.launch import add_argparser
+        from sndr.cli.legacy.launch import add_argparser
         parser = argparse.ArgumentParser()
         sub = parser.add_subparsers()
         add_argparser(sub)
@@ -203,7 +203,7 @@ class TestArgparser:
         assert ns.strict_image == "auto"
 
     def test_strict_image_invalid_rejected(self):
-        from vllm.sndr_core.cli.launch import add_argparser
+        from sndr.cli.legacy.launch import add_argparser
         parser = argparse.ArgumentParser()
         sub = parser.add_subparsers()
         add_argparser(sub)

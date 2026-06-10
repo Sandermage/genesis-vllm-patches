@@ -3,7 +3,7 @@
 degradation, without a live Proxmox (mirrors test_k8s_client.py)."""
 from __future__ import annotations
 
-from vllm.sndr_core.product_api import proxmox_client as px
+from sndr.product_api.legacy import proxmox_client as px
 
 
 def test_availability_unconfigured(monkeypatch):

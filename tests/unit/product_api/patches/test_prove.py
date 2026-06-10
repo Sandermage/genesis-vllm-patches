@@ -2,8 +2,8 @@
 """Tests for ``product_api.patches.prove`` — M.6.2."""
 from __future__ import annotations
 
-from vllm.sndr_core.product_api.patches import prove
-from vllm.sndr_core.product_api.patches.prove import (
+from sndr.product_api.legacy.patches import prove
+from sndr.product_api.legacy.patches.prove import (
     DeadDetectResult,
     ProveAllResult,
     ProveOneResult,

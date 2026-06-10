@@ -2,8 +2,8 @@
 """Tests for ``product_api.patches.explain`` — M.6.1."""
 from __future__ import annotations
 
-from vllm.sndr_core.product_api.patches import explain
-from vllm.sndr_core.product_api.patches.types import ExplainView
+from sndr.product_api.legacy.patches import explain
+from sndr.product_api.legacy.patches.types import ExplainView
 
 
 class TestResolvePatchId:

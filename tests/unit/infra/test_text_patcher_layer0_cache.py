@@ -32,7 +32,7 @@ def _isolated_cache(monkeypatch, tmp_path):
     test_cache = tmp_path / "_test_cache.json"
     monkeypatch.setenv("GENESIS_FILE_CACHE_PATH", str(test_cache))
     monkeypatch.delenv("GENESIS_NO_PATCH_CACHE", raising=False)
-    from vllm.sndr_core.wiring import file_cache, text_patch
+    from sndr.engines.vllm.wiring import file_cache, text_patch
     file_cache._reset_for_tests()
     text_patch._reset_manifest_cache_for_tests()
     yield test_cache
@@ -42,7 +42,7 @@ def _isolated_cache(monkeypatch, tmp_path):
 
 def _make_patcher(target: Path, marker: str = "TEST_MARK"):
     """Build a simple single-anchor TextPatcher for tests."""
-    from vllm.sndr_core.core.text_patch import TextPatch, TextPatcher
+    from sndr.kernel.text_patch import TextPatch, TextPatcher
     return TextPatcher(
         patch_name="test patcher",
         target_file=str(target),
@@ -64,7 +64,7 @@ class TestLayer0NoCacheFirstBoot:
     succeed via Layer 5 legacy, and leave cache populated for next boot."""
 
     def test_first_apply_returns_applied(self, tmp_path):
-        from vllm.sndr_core.core.text_patch import TextPatchResult
+        from sndr.kernel.text_patch import TextPatchResult
         target = tmp_path / "f.py"
         target.write_text("alpha\n")
         result, _ = _make_patcher(target).apply()
@@ -72,7 +72,7 @@ class TestLayer0NoCacheFirstBoot:
         assert "ALPHA" in target.read_text()
 
     def test_first_apply_populates_cache(self, tmp_path):
-        from vllm.sndr_core.wiring.file_cache import is_marker_cached_present
+        from sndr.engines.vllm.wiring.file_cache import is_marker_cached_present
         target = tmp_path / "f.py"
         target.write_text("alpha\n")
         # Before apply: cache miss
@@ -92,7 +92,7 @@ class TestLayer0Hit:
     without reading file."""
 
     def test_second_apply_is_idempotent_via_layer0(self, tmp_path):
-        from vllm.sndr_core.core.text_patch import TextPatchResult
+        from sndr.kernel.text_patch import TextPatchResult
         target = tmp_path / "f.py"
         target.write_text("alpha\n")
         _make_patcher(target).apply()  # first apply
@@ -102,7 +102,7 @@ class TestLayer0Hit:
         assert result2 == TextPatchResult.IDEMPOTENT
 
     def test_layer0_hit_does_not_modify_file(self, tmp_path):
-        from vllm.sndr_core.core.text_patch import TextPatchResult
+        from sndr.kernel.text_patch import TextPatchResult
         target = tmp_path / "f.py"
         target.write_text("alpha\n")
         _make_patcher(target).apply()
@@ -129,7 +129,7 @@ class TestLayer0EnvDisables:
     would have hit. Operator-controlled override."""
 
     def test_env_set_skips_layer0(self, tmp_path, monkeypatch):
-        from vllm.sndr_core.core.text_patch import TextPatchResult
+        from sndr.kernel.text_patch import TextPatchResult
         target = tmp_path / "f.py"
         target.write_text("alpha\n")
         _make_patcher(target).apply()  # first apply, cache populated
@@ -153,7 +153,7 @@ class TestLayer0FileChangedAfterCache:
     file), Layer 0 mtime check fails → fall through to Layer 1+."""
 
     def test_file_modified_externally_falls_through(self, tmp_path):
-        from vllm.sndr_core.core.text_patch import TextPatchResult
+        from sndr.kernel.text_patch import TextPatchResult
         target = tmp_path / "f.py"
         target.write_text("alpha\n")
         _make_patcher(target).apply()  # populates cache
@@ -188,7 +188,7 @@ class TestLayer0EquivalenceWithLegacy:
         body_a = target_a.read_text()
 
         # Reset cache for path B
-        from vllm.sndr_core.wiring import file_cache
+        from sndr.engines.vllm.wiring import file_cache
         file_cache._reset_for_tests()
         monkeypatch.setenv("GENESIS_NO_PATCH_CACHE", "1")
 
@@ -216,8 +216,8 @@ class TestLayer0DoesNotBreakLayer2:
 
     def test_layer2_idempotent_when_cache_absent(
             self, tmp_path, monkeypatch):
-        from vllm.sndr_core.core.text_patch import TextPatchResult
-        from vllm.sndr_core.wiring import file_cache
+        from sndr.kernel.text_patch import TextPatchResult
+        from sndr.engines.vllm.wiring import file_cache
 
         target = tmp_path / "f.py"
         target.write_text("alpha\n")

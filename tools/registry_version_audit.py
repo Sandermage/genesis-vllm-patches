@@ -81,15 +81,21 @@ def _detect_live_pin() -> str | None:
 
     Looks for ``vllm-qwen3.6-*`` first (PROD), falls back to any
     ``vllm-*`` container. Reads ``__version__`` from inside the
-    container via ``docker exec``.
+    container via ``docker exec`` on the rig named by the ``SSH_HOST``
+    env var (``<user>@<host>``; no default — live probe is skipped
+    when unset).
 
     Returns the version string (e.g. ``0.22.1rc1.dev259+g303916e93``)
     or None if no live container is found.
     """
+    import os
     import subprocess
+    ssh_host = os.environ.get("SSH_HOST", "").strip()
+    if not ssh_host:
+        return None
     try:
         r = subprocess.run(
-            ["ssh", "sander@192.168.1.10",
+            ["ssh", ssh_host,
              "docker ps --format '{{.Names}}' | grep -E '^vllm-' | head -1"],
             capture_output=True, text=True, timeout=10,
         )
@@ -97,7 +103,7 @@ def _detect_live_pin() -> str | None:
         if not container:
             return None
         r = subprocess.run(
-            ["ssh", "sander@192.168.1.10",
+            ["ssh", ssh_host,
              f"docker exec {container} python3 -c 'import vllm; print(vllm.__version__)'"],
             capture_output=True, text=True, timeout=15,
         )

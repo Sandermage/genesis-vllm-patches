@@ -75,7 +75,9 @@ def _build_wheel(work_dir: Path) -> Path:
         [sys.executable, "-m", "build", "--wheel", "--outdir", str(dist)],
         cwd=REPO_ROOT, check=True, capture_output=True, timeout=300,
     )
-    wheels = list(dist.glob("vllm_sndr_core-*.whl"))
+    # v12: pyproject `name = "sndr-platform"` → wheel artifact is
+    # `sndr_platform-*.whl` (was `vllm_sndr_core-*.whl` through v11).
+    wheels = list(dist.glob("sndr_platform-*.whl"))
     assert len(wheels) == 1, (
         f"expected exactly one wheel artifact, found: {wheels}"
     )
@@ -89,11 +91,16 @@ def built_wheel() -> Path:
         pytest.skip("`python -m build` unavailable")
     with tempfile.TemporaryDirectory() as tmpdir:
         wheel = _build_wheel(Path(tmpdir))
-        # Copy to a persistent path within the test session
-        persistent = Path(tempfile.gettempdir()) / f"sndr-test-{os.getpid()}.whl"
+        # Copy to a persistent dir within the test session, KEEPING the
+        # original wheel filename — pip rejects renamed wheels with
+        # "is not a valid wheel filename" (name-version-pytag-abitag-
+        # platform format is mandatory), which silently downgraded the
+        # runtime-contract tests to skips.
+        persistent_dir = Path(tempfile.mkdtemp(prefix=f"sndr-test-{os.getpid()}-"))
+        persistent = persistent_dir / wheel.name
         shutil.copy(wheel, persistent)
         yield persistent
-        persistent.unlink(missing_ok=True)
+        shutil.rmtree(persistent_dir, ignore_errors=True)
 
 
 # ─── Zip-level invariants ─────────────────────────────────────────────────
@@ -244,7 +251,7 @@ class TestWheelRuntimeContract:
         asserts non-empty results."""
         script = tmp_path / "smoke.py"
         script.write_text(
-            "import vllm.sndr_core.model_configs.registry_v2 as rv2\n"
+            "import sndr.model_configs.registry_v2 as rv2\n"
             "models = rv2.list_models()\n"
             "hws = rv2.list_hardware()\n"
             "profiles = rv2.list_profiles()\n"
@@ -277,13 +284,24 @@ class TestWheelRuntimeContract:
         self, isolated_venv: Path
     ):
         """`vllm.sndr_engine` must not be discoverable from a clean
-        core-only install (no engine wheel present)."""
+        core-only install (no engine wheel present).
+
+        v12: the sndr-platform wheel ships `sndr*` only — the parent
+        `vllm` namespace itself is absent from a core-only venv, which
+        makes `find_spec` raise ModuleNotFoundError on the parent. That
+        is the boundary holding a fortiori, so it is treated as None.
+        """
+        probe = (
+            "import importlib.util as iu\n"
+            "try:\n"
+            "    spec = iu.find_spec('vllm.sndr_engine')\n"
+            "except ModuleNotFoundError:\n"
+            "    spec = None  # parent 'vllm' absent — boundary holds\n"
+            "assert spec is None, f'engine in core: {spec}'\n"
+            "print('engine boundary OK')\n"
+        )
         result = subprocess.run(
-            [str(isolated_venv), "-c",
-             "import importlib.util as iu; "
-             "spec = iu.find_spec('vllm.sndr_engine'); "
-             "assert spec is None, f'engine in core: {spec}'; "
-             "print('engine boundary OK')"],
+            [str(isolated_venv), "-c", probe],
             cwd="/tmp", capture_output=True, text=True, timeout=15,
         )
         assert result.returncode == 0, (

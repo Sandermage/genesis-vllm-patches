@@ -12,7 +12,11 @@ def _wiring():
 
 def test_anchor_targets_finish_reason_block():
     M = _wiring()
-    assert "auto_tools_called" in M.ANCHOR_OLD
+    # v2 anchor (2026-06-08): upstream dropped the ``auto_tools_called``
+    # OR-clause from the if-head — the anchor now keys on the
+    # ``tools_streamed[i]`` / ``use_harmony`` conditional instead.
+    assert "tools_streamed[i]" in M.ANCHOR_OLD
+    assert "self.use_harmony" in M.ANCHOR_OLD
     assert "tool_choice_function_name" in M.ANCHOR_OLD
     assert "finish_reason_ = \"tool_calls\"" in M.ANCHOR_OLD
     assert "ChatCompletionResponseStreamChoice" in M.ANCHOR_OLD
@@ -35,7 +39,7 @@ def test_replacement_adds_p107_guard():
 
 
 def test_idempotent_on_synthetic(tmp_path):
-    from vllm.sndr_core.core.text_patch import (
+    from sndr.kernel.text_patch import (
         TextPatch, TextPatcher, TextPatchResult,
     )
     M = _wiring()
@@ -57,26 +61,26 @@ def test_idempotent_on_synthetic(tmp_path):
 
 
 def test_env_flag_default_off(monkeypatch):
-    from vllm.sndr_core.dispatcher import should_apply
+    from sndr.dispatcher import should_apply
     monkeypatch.delenv("GENESIS_ENABLE_P107_MTP_TRUNCATION_DETECTOR", raising=False)
     decision, _ = should_apply("P107")
     assert decision is False
 
 
 def test_env_flag_engages(monkeypatch):
-    from vllm.sndr_core.dispatcher import should_apply
+    from sndr.dispatcher import should_apply
     monkeypatch.setenv("GENESIS_ENABLE_P107_MTP_TRUNCATION_DETECTOR", "1")
     decision, _ = should_apply("P107")
     assert decision is True
 
 
 def test_registry_entry_complete():
-    from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+    from sndr.dispatcher import PATCH_REGISTRY
     assert "P107" in PATCH_REGISTRY
     meta = PATCH_REGISTRY["P107"]
     assert meta["upstream_pr"] == 41467
 
 
 def test_apply_all_registers_p107():
-    from vllm.sndr_core.apply import apply_all
+    from sndr.apply import apply_all
     assert hasattr(apply_all, "apply_patch_107_mtp_truncation_detector")

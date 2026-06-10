@@ -84,7 +84,7 @@ class TestSyntheticBad:
         )
         monkeypatch.setattr(mod, "TIER_DIR", tmp_path)
         # Also patch loader directory
-        from vllm.sndr_core.cache.pn95 import tier_config_loader as loader
+        from sndr.cache.pn95 import tier_config_loader as loader
         monkeypatch.setattr(loader, "_TIER_CONFIG_DIR", tmp_path)
         findings = mod.audit()
         codes = {f.rule_id for f in findings if f.severity == "error"}
@@ -101,7 +101,7 @@ class TestSyntheticBad:
             encoding="utf-8",
         )
         monkeypatch.setattr(mod, "TIER_DIR", tmp_path)
-        from vllm.sndr_core.cache.pn95 import tier_config_loader as loader
+        from sndr.cache.pn95 import tier_config_loader as loader
         monkeypatch.setattr(loader, "_TIER_CONFIG_DIR", tmp_path)
         findings = mod.audit()
         codes = {f.rule_id for f in findings if f.severity == "error"}
@@ -117,7 +117,7 @@ class TestLoaderRejections:
         bad = tmp_path / "list-top.yaml"
         bad.write_text("- a\n- b\n", encoding="utf-8")
         monkeypatch.setattr(mod, "TIER_DIR", tmp_path)
-        from vllm.sndr_core.cache.pn95 import tier_config_loader as loader
+        from sndr.cache.pn95 import tier_config_loader as loader
         monkeypatch.setattr(loader, "_TIER_CONFIG_DIR", tmp_path)
         findings = mod.audit()
         codes = {f.rule_id for f in findings if f.severity == "error"}

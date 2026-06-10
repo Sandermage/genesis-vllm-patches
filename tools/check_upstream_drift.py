@@ -261,7 +261,7 @@ def _check_markers(upstream_root: Path) -> list[dict]:
     upstream source. A match where `verified_in_main_*` is False means
     the upstream PR has just merged."""
     try:
-        from sndr.engines.vllm.patches.upstream_compat import UPSTREAM_MARKERS
+        from sndr.engines.vllm.upstream_compat import UPSTREAM_MARKERS
     except Exception as e:
         return [{"error": f"upstream_compat import failed: {e}"}]
 

@@ -19,7 +19,7 @@ import pytest
 
 prometheus_client = pytest.importorskip("prometheus_client")
 
-from vllm.sndr_core.observability import spec_decode_metrics as sdm  # noqa: E402
+from sndr.observability import spec_decode_metrics as sdm  # noqa: E402
 
 
 @pytest.fixture(autouse=True)

@@ -9,8 +9,8 @@ removed the ``cli.patches._BUNDLES`` back-compat shim.
 """
 from __future__ import annotations
 
-from vllm.sndr_core.product_api.patches import bundles
-from vllm.sndr_core.product_api.patches.types import BundleSpec
+from sndr.product_api.legacy.patches import bundles
+from sndr.product_api.legacy.patches.types import BundleSpec
 
 
 class TestCatalog:

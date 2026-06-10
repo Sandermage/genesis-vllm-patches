@@ -48,7 +48,7 @@ def test_replacement_carries_marker():
 
 
 def test_idempotent_on_synthetic(tmp_path):
-    from vllm.sndr_core.core.text_patch import (
+    from sndr.kernel.text_patch import (
         TextPatch, TextPatcher, TextPatchResult,
     )
     M = _wiring()
@@ -70,26 +70,26 @@ def test_idempotent_on_synthetic(tmp_path):
 
 
 def test_env_flag_default_off(monkeypatch):
-    from vllm.sndr_core.dispatcher import should_apply
+    from sndr.dispatcher import should_apply
     monkeypatch.delenv("GENESIS_ENABLE_PN56_QWEN3CODER_XML_FALLBACK", raising=False)
     decision, _ = should_apply("PN56")
     assert decision is False
 
 
 def test_env_flag_engages(monkeypatch):
-    from vllm.sndr_core.dispatcher import should_apply
+    from sndr.dispatcher import should_apply
     monkeypatch.setenv("GENESIS_ENABLE_PN56_QWEN3CODER_XML_FALLBACK", "1")
     decision, _ = should_apply("PN56")
     assert decision is True
 
 
 def test_registry_entry_complete():
-    from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+    from sndr.dispatcher import PATCH_REGISTRY
     assert "PN56" in PATCH_REGISTRY
     meta = PATCH_REGISTRY["PN56"]
     assert meta["upstream_pr"] == 41466
 
 
 def test_apply_all_registers_pn56():
-    from vllm.sndr_core.apply import apply_all
+    from sndr.apply import apply_all
     assert hasattr(apply_all, "apply_patch_N56_qwen3coder_xml_fallback")

@@ -19,11 +19,16 @@ from pathlib import Path
 import pytest
 
 
+# Mirrors the CURRENT upstream baseline (pin dev259+): `import math` ships
+# natively at vllm/v1/core/kv_cache_utils.py:9, so the p5_import_math
+# sub-patch was retired 2026-06-08 (commit 5c20b51f) and the patch no
+# longer injects the import itself.
 _BASELINE_SOURCE = '''# SPDX-License-Identifier: Apache-2.0
 """KV-Cache Utilities."""
 
 import copy
 import hashlib
+import math
 import os
 from collections import defaultdict
 from dataclasses import dataclass, replace
@@ -81,7 +86,7 @@ def fake_kv_utils_file(tmp_path, monkeypatch):
     path = tmp_path / "kv_cache_utils.py"
     path.write_text(_BASELINE_SOURCE)
 
-    from vllm.sndr_core.detection import guards
+    from sndr.engines.vllm.detection import guards
     monkeypatch.setattr(guards, "resolve_vllm_file",
                         lambda rel: str(path) if "kv_cache_utils" in rel else None)
     monkeypatch.setattr(guards, "vllm_install_root", lambda: str(tmp_path))
@@ -90,7 +95,7 @@ def fake_kv_utils_file(tmp_path, monkeypatch):
 
 
 def _patch_module_guards(monkeypatch, fake_path):
-    from vllm.sndr_core.integrations.kv_cache import p5_page_size as p5
+    from sndr.engines.vllm.patches.kv_cache import p5_page_size as p5
     monkeypatch.setattr(p5, "resolve_vllm_file",
                         lambda rel: fake_path if "kv_cache_utils" in rel else None)
     monkeypatch.setattr(p5, "vllm_install_root", lambda: "/fake")
@@ -99,7 +104,7 @@ def _patch_module_guards(monkeypatch, fake_path):
 
 class TestPatch5V1Active:
     def test_apply_writes_v1_lcm_algorithm(self, fake_kv_utils_file, monkeypatch):
-        from vllm.sndr_core.integrations.kv_cache import p5_page_size as patch_5_page_size
+        from sndr.engines.vllm.patches.kv_cache import p5_page_size as patch_5_page_size
         _patch_module_guards(monkeypatch, fake_kv_utils_file)
 
         status, reason = patch_5_page_size.apply()
@@ -109,14 +114,15 @@ class TestPatch5V1Active:
 
         # v7.0 marker (v1 active)
         assert "Genesis P5 page_size unification v7.0" in content
-        # v1 uses math.lcm for LCM padding
+        # v1 uses math.lcm for LCM padding (`import math` is provided by
+        # the upstream baseline since dev259; the patch no longer adds it)
         assert "import math" in content
         assert "smaller_lcm" in content
         # Old NotImplementedError gone
         assert "Cannot unify by adjusting block_size." not in content
 
     def test_idempotent(self, fake_kv_utils_file, monkeypatch):
-        from vllm.sndr_core.integrations.kv_cache import p5_page_size as patch_5_page_size
+        from sndr.engines.vllm.patches.kv_cache import p5_page_size as patch_5_page_size
         _patch_module_guards(monkeypatch, fake_kv_utils_file)
 
         s1, _ = patch_5_page_size.apply()
@@ -131,7 +137,7 @@ class TestPatch5V1Active:
         assert content.count("import math") == 1
 
     def test_skip_on_non_nvidia(self, fake_kv_utils_file, monkeypatch):
-        from vllm.sndr_core.integrations.kv_cache import p5_page_size as patch_5_page_size
+        from sndr.engines.vllm.patches.kv_cache import p5_page_size as patch_5_page_size
         monkeypatch.setattr(patch_5_page_size, "is_nvidia_cuda", lambda: False)
 
         status, reason = patch_5_page_size.apply()
@@ -141,7 +147,7 @@ class TestPatch5V1Active:
     def test_skip_when_upstream_pr37429_landed(self, fake_kv_utils_file, monkeypatch):
         """If upstream PR #37429 (per-group block pools) merges, our patch
         becomes obsolete and should auto-skip."""
-        from vllm.sndr_core.integrations.kv_cache import p5_page_size as patch_5_page_size
+        from sndr.engines.vllm.patches.kv_cache import p5_page_size as patch_5_page_size
         _patch_module_guards(monkeypatch, fake_kv_utils_file)
 
         content = Path(fake_kv_utils_file).read_text()

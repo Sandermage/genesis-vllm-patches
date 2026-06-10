@@ -34,7 +34,7 @@ class TestIssue5PostApplyImportGuard:
         but does NOT expose token_capacity_kv_cache_groups at module
         scope. P8 must SKIP scheduler.py and return a clean skip
         status — not 'applied'."""
-        from vllm.sndr_core.integrations.scheduler import p8_kv_hybrid_reporting as patch_8_kv_hybrid_reporting
+        from sndr.engines.vllm.patches.scheduler import p8_kv_hybrid_reporting as patch_8_kv_hybrid_reporting
 
         # Build a fake kv_cache_utils module without the helper
         fake_mod = types.ModuleType("vllm.v1.core.kv_cache_utils")
@@ -44,7 +44,7 @@ class TestIssue5PostApplyImportGuard:
 
         # Simulate "kv_cache_utils.py text-patch reports APPLIED" by
         # monkey-patching _patcher_kv to a stub.
-        from vllm.sndr_core.core.text_patch import TextPatchResult
+        from sndr.kernel.text_patch import TextPatchResult
 
         def _fake_patcher_kv():
             class _Stub:
@@ -91,8 +91,8 @@ class TestIssue5PostApplyImportGuard:
     def test_guard_proceeds_when_helper_importable(self, monkeypatch):
         """Sanity: when the helper IS importable (normal pre-v0.20.0
         case), P8 proceeds to scheduler.py as before."""
-        from vllm.sndr_core.integrations.scheduler import p8_kv_hybrid_reporting as patch_8_kv_hybrid_reporting
-        from vllm.sndr_core.core.text_patch import TextPatchResult
+        from sndr.engines.vllm.patches.scheduler import p8_kv_hybrid_reporting as patch_8_kv_hybrid_reporting
+        from sndr.kernel.text_patch import TextPatchResult
 
         # Fake kv_cache_utils WITH the helper symbol
         fake_mod = types.ModuleType("vllm.v1.core.kv_cache_utils")
@@ -141,8 +141,8 @@ class TestIssue5PostApplyImportGuard:
         """If `import vllm.v1.core.kv_cache_utils` itself raises (e.g.
         ANY exception during import — even before our injection),
         we MUST refuse to proceed."""
-        from vllm.sndr_core.integrations.scheduler import p8_kv_hybrid_reporting as patch_8_kv_hybrid_reporting
-        from vllm.sndr_core.core.text_patch import TextPatchResult
+        from sndr.engines.vllm.patches.scheduler import p8_kv_hybrid_reporting as patch_8_kv_hybrid_reporting
+        from sndr.kernel.text_patch import TextPatchResult
 
         # Make import_module raise
         import importlib

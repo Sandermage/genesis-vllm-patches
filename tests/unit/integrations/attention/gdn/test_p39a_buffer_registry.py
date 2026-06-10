@@ -27,7 +27,7 @@ except ImportError:
 def test_p39a_registry_pool_visible_after_module_import():
     """After p39a module import + ensure_pool_registered(),
     POOL_FLA_KKT_PERSISTENT_A is visible in PersistentBufferRegistry."""
-    from vllm.sndr_core.runtime.persistent_buffer_registry import (
+    from sndr.runtime.persistent_buffer_registry import (
         PersistentBufferRegistry,
         POOL_FLA_KKT_PERSISTENT_A,
     )
@@ -63,7 +63,7 @@ def test_p39a_registers_persistent_slice_pool_not_buffer_pool():
     """ensure_pool_registered() must register POOL_FLA_KKT_PERSISTENT_A
     as a PersistentSlicePool — P39a's allocation pattern is grow + slice,
     not acquire/release free-list."""
-    from vllm.sndr_core.runtime.persistent_buffer_registry import (
+    from sndr.runtime.persistent_buffer_registry import (
         PersistentBufferRegistry,
         PersistentSlicePool,
         POOL_FLA_KKT_PERSISTENT_A,

@@ -33,7 +33,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # vllm/sndr_core path is now a re-export shim with no literal to count.
 REGISTRY_PATH = REPO_ROOT / "sndr" / "dispatcher" / "registry.py"
 if not REGISTRY_PATH.is_file():
-    REGISTRY_PATH = REPO_ROOT / "vllm" / "sndr_core" / "dispatcher" / "registry.py"
+    REGISTRY_PATH = REPO_ROOT / "sndr" / "dispatcher" / "registry.py"
 
 # Doc files to check. Each entry: (path_relative_to_repo, [(regex, expected_capture_group_index)])
 DOC_PATTERNS: dict[Path, list[tuple[str, int]]] = {

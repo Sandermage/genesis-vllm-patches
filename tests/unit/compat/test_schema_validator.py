@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Tests for vllm.sndr_core.compat.schema_validator —
+"""Tests for sndr.compat.schema_validator —
 PATCH_REGISTRY structural validation against schemas/patch_entry.schema.json."""
 from __future__ import annotations
 
@@ -88,42 +88,42 @@ _INVALID_REQUIRES_NOT_LIST = {
 
 class TestValidate:
     def test_minimal_valid(self):
-        from vllm.sndr_core.compat.schema_validator import validate_entry
+        from sndr.compat.schema_validator import validate_entry
         issues = validate_entry("PN_TEST", _VALID_MINIMAL)
         assert issues == []
 
     def test_full_valid(self):
-        from vllm.sndr_core.compat.schema_validator import validate_entry
+        from sndr.compat.schema_validator import validate_entry
         assert validate_entry("PN_TEST", _VALID_FULL) == []
 
     def test_deprecated_with_supersedes_valid(self):
-        from vllm.sndr_core.compat.schema_validator import validate_entry
+        from sndr.compat.schema_validator import validate_entry
         assert validate_entry("PN_TEST", _VALID_DEPRECATED) == []
 
     def test_research_with_note_valid(self):
-        from vllm.sndr_core.compat.schema_validator import validate_entry
+        from sndr.compat.schema_validator import validate_entry
         assert validate_entry("PN_TEST", _VALID_RESEARCH) == []
 
     def test_missing_title_fails(self):
-        from vllm.sndr_core.compat.schema_validator import validate_entry
+        from sndr.compat.schema_validator import validate_entry
         issues = validate_entry("PN_TEST", _INVALID_NO_TITLE)
         assert issues
         assert any("title" in i.message for i in issues)
 
     def test_bad_env_flag_pattern_fails(self):
-        from vllm.sndr_core.compat.schema_validator import validate_entry
+        from sndr.compat.schema_validator import validate_entry
         issues = validate_entry("PN_TEST", _INVALID_BAD_ENV_FLAG)
         assert issues
         assert any("env_flag" in i.message.lower() for i in issues)
 
     def test_unknown_lifecycle_fails(self):
-        from vllm.sndr_core.compat.schema_validator import validate_entry
+        from sndr.compat.schema_validator import validate_entry
         issues = validate_entry("PN_TEST", _INVALID_LIFECYCLE)
         assert issues
         assert any("lifecycle" in i.message.lower() for i in issues)
 
     def test_deprecated_without_note_or_supersedes_fails(self):
-        from vllm.sndr_core.compat.schema_validator import validate_entry
+        from sndr.compat.schema_validator import validate_entry
         issues = validate_entry("PN_TEST", _INVALID_DEPRECATED_NO_NOTE)
         assert issues
         joined = " ".join(i.message for i in issues)
@@ -132,13 +132,13 @@ class TestValidate:
     def test_unknown_field_fails(self):
         """Typo'd field name like 'applys_to' instead of 'applies_to'
         should be caught before it silently misbehaves at boot."""
-        from vllm.sndr_core.compat.schema_validator import validate_entry
+        from sndr.compat.schema_validator import validate_entry
         issues = validate_entry("PN_TEST", _INVALID_UNKNOWN_FIELD)
         assert issues
         assert any("applys_to" in i.message for i in issues)
 
     def test_requires_patches_must_be_list(self):
-        from vllm.sndr_core.compat.schema_validator import validate_entry
+        from sndr.compat.schema_validator import validate_entry
         issues = validate_entry("PN_TEST", _INVALID_REQUIRES_NOT_LIST)
         assert issues
         assert any("requires_patches" in i.message for i in issues)
@@ -147,8 +147,8 @@ class TestValidate:
 class TestValidateRegistry:
     def test_real_registry_passes(self):
         """The shipped PATCH_REGISTRY must be schema-clean."""
-        from vllm.sndr_core.compat.schema_validator import validate_registry
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+        from sndr.compat.schema_validator import validate_registry
+        from sndr.dispatcher import PATCH_REGISTRY
         issues = validate_registry(PATCH_REGISTRY)
         # NB: surfaces ALL legacy `deprecated: True` entries — they should
         # all also have a `deprecation_note` per our schema.
@@ -165,7 +165,7 @@ class TestValidateRegistry:
             "P_OK": _VALID_MINIMAL,
             "P_BROKEN": _INVALID_BAD_ENV_FLAG,
         }
-        from vllm.sndr_core.compat.schema_validator import validate_registry
+        from sndr.compat.schema_validator import validate_registry
         issues = validate_registry(bad)
         assert issues
         # Only P_BROKEN should be cited
@@ -174,23 +174,23 @@ class TestValidateRegistry:
 
 class TestCLIWrapper:
     def test_cli_returns_int(self):
-        from vllm.sndr_core.compat.schema_validator import main
+        from sndr.compat.schema_validator import main
         rc = main([])
         assert isinstance(rc, int)
 
     def test_cli_clean_registry_returns_zero(self, monkeypatch):
-        from vllm.sndr_core import dispatcher
+        from sndr import dispatcher
         monkeypatch.setattr(dispatcher, "PATCH_REGISTRY", {"P_OK": _VALID_MINIMAL})
-        from vllm.sndr_core.compat.schema_validator import main
+        from sndr.compat.schema_validator import main
         rc = main([])
         assert rc == 0
 
     def test_cli_dirty_registry_returns_nonzero(self, monkeypatch):
-        from vllm.sndr_core import dispatcher
+        from sndr import dispatcher
         monkeypatch.setattr(dispatcher, "PATCH_REGISTRY", {
             "P_OK": _VALID_MINIMAL,
             "P_BAD": _INVALID_BAD_ENV_FLAG,
         })
-        from vllm.sndr_core.compat.schema_validator import main
+        from sndr.compat.schema_validator import main
         rc = main([])
         assert rc == 1

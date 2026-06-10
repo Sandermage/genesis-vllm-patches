@@ -7,7 +7,7 @@ The legacy parking-lot module hand-codes 124+ wrappers shaped like:
     @register_patch("P4 TurboQuant hybrid model support")
     def apply_patch_4_tq_hybrid() -> PatchResult:
         ...
-        from vllm.sndr_core.integrations.scheduler import p4_tq_hybrid
+        from sndr.engines.vllm.patches.scheduler import p4_tq_hybrid
         ...
         status, reason = p4_tq_hybrid.apply()    # ← MUST match imported name
 
@@ -41,7 +41,8 @@ import pytest
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-DISPATCH = REPO_ROOT / "vllm" / "sndr_core" / "apply" / "_per_patch_dispatch.py"
+# v12: canonical location (formerly vllm/sndr_core/apply/, archived in 6bf9c04c)
+DISPATCH = REPO_ROOT / "sndr" / "apply" / "_per_patch_dispatch.py"
 
 
 def _collect_wrappers() -> list[ast.FunctionDef]:

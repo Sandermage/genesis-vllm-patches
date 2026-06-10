@@ -7,7 +7,7 @@ import pytest
 pytest.importorskip("fastapi")
 from fastapi.testclient import TestClient  # noqa: E402
 
-from vllm.sndr_core.product_api.http_app import create_app  # noqa: E402
+from sndr.product_api.legacy.http_app import create_app  # noqa: E402
 
 
 def _client() -> TestClient:
@@ -16,7 +16,7 @@ def _client() -> TestClient:
 
 def test_health_reflects_apply_state_when_enabled():
     from fastapi.testclient import TestClient
-    from vllm.sndr_core.product_api.http_app import create_app as _ca
+    from sndr.product_api.legacy.http_app import create_app as _ca
     client = TestClient(_ca(allowed_origins=(), enable_apply=True))
     body = client.get("/api/v1/health").json()
     # With apply on, health must NOT claim read-only (the misleading hardcoded
@@ -92,7 +92,7 @@ def test_chat_retrieve_empty_query_is_clean():
 
 
 def test_chat_retrieve_post_supports_notes_vault(tmp_path):
-    from vllm.sndr_core.product_api import chat_rag
+    from sndr.product_api.legacy import chat_rag
 
     chat_rag.reset_cache()
     (tmp_path / "notes.md").write_text(
@@ -122,7 +122,7 @@ def test_chat_rag_preview_validates_path(tmp_path):
 def test_hosts_ssh_check_persists_password_and_reports(monkeypatch, tmp_path):
     monkeypatch.setenv("SNDR_HOME", str(tmp_path))
     monkeypatch.setenv("SNDR_SECRETS_BACKEND", "file")
-    from vllm.sndr_core.product_api import secrets_store, ssh_client
+    from sndr.product_api.legacy import secrets_store, ssh_client
     secrets_store.reset_backend_cache()
 
     captured = {}
@@ -158,7 +158,7 @@ def test_hosts_ssh_check_persists_password_and_reports(monkeypatch, tmp_path):
 
 def test_hosts_fetch_api_key_stores_on_profile(monkeypatch, tmp_path):
     monkeypatch.setenv("SNDR_HOME", str(tmp_path))
-    from vllm.sndr_core.product_api import host_profiles, ssh_client
+    from sndr.product_api.legacy import host_profiles, ssh_client
 
     monkeypatch.setattr(
         ssh_client, "discover_api_key",
@@ -173,7 +173,7 @@ def test_hosts_fetch_api_key_stores_on_profile(monkeypatch, tmp_path):
     assert "key" not in body and "key_masked" in body  # masked, not leaked
     # The discovered key is stored ENCRYPTED in the secrets store (never on the
     # profile / on disk) and surfaced only as a boolean presence flag.
-    from vllm.sndr_core.product_api import secrets_store
+    from sndr.product_api.legacy import secrets_store
     assert secrets_store.get_secret("apikey:prod") == "genesis-local"
     prof = next(p for p in host_profiles.list_host_profiles() if p.id == "prod")
     assert prof.api_key == ""  # not on the profile
@@ -185,7 +185,7 @@ def test_hosts_fetch_api_key_stores_on_profile(monkeypatch, tmp_path):
 def test_terminal_gate_enforces_apply_and_known_host():
     # The PTY terminal's security policy is unit-tested directly (the starlette
     # 1.0 TestClient cannot drive websockets); the transport is verified live.
-    from vllm.sndr_core.product_api.http_app import terminal_gate
+    from sndr.product_api.legacy.http_app import terminal_gate
 
     # apply OFF -> refused regardless of host.
     off = terminal_gate(False, True, {"prod"}, "prod")
@@ -257,7 +257,7 @@ def test_launch_bench_evidence_dry_run_by_default():
 def test_launch_apply_mutating_needs_confirm_when_enabled():
     from fastapi.testclient import TestClient as _TC
 
-    from vllm.sndr_core.product_api.http_app import create_app as _ca
+    from sndr.product_api.legacy.http_app import create_app as _ca
 
     client = _TC(_ca(allowed_origins=(), enable_apply=True))
     resp = client.post(
@@ -343,7 +343,7 @@ def test_daemon_serves_static_ui_when_present(tmp_path, monkeypatch):
     monkeypatch.setenv("SNDR_GUI_STATIC", str(tmp_path))
     from fastapi.testclient import TestClient as _TC
 
-    from vllm.sndr_core.product_api.http_app import create_app as _ca
+    from sndr.product_api.legacy.http_app import create_app as _ca
 
     client = _TC(_ca(allowed_origins=()))
     # API route takes precedence over the static mount.
@@ -378,7 +378,7 @@ def test_auth_status_reports_apply_disabled_by_default():
 def test_apply_enabled_gates_mutation_without_confirm():
     from fastapi.testclient import TestClient as _TC
 
-    from vllm.sndr_core.product_api.http_app import create_app as _ca
+    from sndr.product_api.legacy.http_app import create_app as _ca
 
     client = _TC(_ca(allowed_origins=(), enable_apply=True))
     assert client.get("/api/v1/auth/status").json()["apply_enabled"] is True
@@ -747,7 +747,7 @@ def test_launch_plan_endpoint_is_read_only_json_contract():
 
 # ─── Container management endpoints ───────────────────────────────────
 
-from vllm.sndr_core.product_api import container_ops as _co  # noqa: E402
+from sndr.product_api.legacy import container_ops as _co  # noqa: E402
 
 
 class _FakeControl:
@@ -829,12 +829,12 @@ class _FakeControl:
 
 def _patch_local(monkeypatch, control):
     """Pretend the docker socket is mounted and hand out a fake socket control."""
-    monkeypatch.setattr("vllm.sndr_core.deps.checkers._docker_socket_present", lambda *a, **k: True)
+    monkeypatch.setattr("sndr.deps.checkers._docker_socket_present", lambda *a, **k: True)
     monkeypatch.setattr(_co, "SocketContainerControl", lambda **kw: control)
 
 
 def test_containers_list_requires_mounted_socket(monkeypatch):
-    monkeypatch.setattr("vllm.sndr_core.deps.checkers._docker_socket_present", lambda *a, **k: False)
+    monkeypatch.setattr("sndr.deps.checkers._docker_socket_present", lambda *a, **k: False)
     resp = _client().get("/api/v1/containers")
     assert resp.status_code == 503
     assert "socket" in resp.json()["detail"].lower()

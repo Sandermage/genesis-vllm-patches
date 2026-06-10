@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.model_configs._rollout import (
+from sndr.model_configs._rollout import (
     BUCKETS,
     DEFAULT_STAGE,
     SEVERITIES,

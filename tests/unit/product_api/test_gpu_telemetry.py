@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """Tests for the comprehensive GPU + hardware telemetry collector."""
-from vllm.sndr_core.product_api import gpu_telemetry as G
+from sndr.product_api.legacy import gpu_telemetry as G
 
 _ROW = (
     "NVIDIA RTX A5000, GPU-abc, 1320621012345, 535.104.05, 94.02.5c, "

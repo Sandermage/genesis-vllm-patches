@@ -12,8 +12,8 @@ from pathlib import Path
 
 import pytest
 
-from vllm.sndr_core.product_api.patches import bench_attach
-from vllm.sndr_core.product_api.patches.bench_attach import BenchAttachResult
+from sndr.product_api.legacy.patches import bench_attach
+from sndr.product_api.legacy.patches.bench_attach import BenchAttachResult
 
 
 def _write_bench(p: Path) -> Path:
@@ -74,7 +74,7 @@ class TestAttachBench:
         assert "p95_tps_delta_pct" in result.bench_delta
 
     def test_bench_path_missing_raises_bench_attach_error(self, tmp_path):
-        from vllm.sndr_core.proof.bench_attach import BenchAttachError
+        from sndr.proof.bench_attach import BenchAttachError
 
         with pytest.raises(BenchAttachError):
             bench_attach.attach_bench(

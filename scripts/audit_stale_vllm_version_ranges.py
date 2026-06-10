@@ -178,7 +178,7 @@ def _check_range_excludes_pin(rng, pin: str) -> bool:
 
 def _import_registry():
     sys.path.insert(0, str(REPO_ROOT))
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+    from sndr.dispatcher.registry import PATCH_REGISTRY
     return PATCH_REGISTRY
 
 
@@ -193,7 +193,7 @@ def _build_builtin_yaml_env_map() -> dict[str, list[str]]:
     flag expecting the patch; the patch silently no-ops).
     """
     out: dict[str, list[str]] = {}
-    yaml_dir = REPO_ROOT / "vllm" / "sndr_core" / "model_configs" / "builtin"
+    yaml_dir = REPO_ROOT / "sndr" / "model_configs" / "builtin"
     if not yaml_dir.is_dir():
         return out
     flag_re = re.compile(

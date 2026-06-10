@@ -19,12 +19,12 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.model_configs.registry_v2 import (
+from sndr.model_configs.registry_v2 import (
     list_profiles,
     load_profile,
 )
-from vllm.sndr_core.model_configs.schema import SchemaError, SpecDecodeConfig
-from vllm.sndr_core.model_configs.schema_v2 import (
+from sndr.model_configs.schema import SchemaError, SpecDecodeConfig
+from sndr.model_configs.schema_v2 import (
     BackendPlanConfig,
     CompressionPlanConfig,
     PROFILE_ROLES,
@@ -396,7 +396,7 @@ class TestProfileDefRuntimeRole:
     def test_existing_tuning_profile_still_validates(self):
         """Profiles with role=None continue to work as pure tuning
         presets (the existing 17 builtin shape)."""
-        from vllm.sndr_core.model_configs.schema_v2 import HardwareSizing
+        from sndr.model_configs.schema_v2 import HardwareSizing
         p = _bare_profile(
             id="qwen3.6-35b-balanced",
             sizing_override=HardwareSizing(max_num_seqs=2),
@@ -414,7 +414,7 @@ class TestSpecDecodeAttentionBackend:
     --speculative-config JSON for vLLM v1."""
 
     def test_default_none_preserves_compat(self):
-        from vllm.sndr_core.model_configs.schema import SpecDecodeConfig
+        from sndr.model_configs.schema import SpecDecodeConfig
         c = SpecDecodeConfig(method="mtp", num_speculative_tokens=4)
         c.validate()
         assert c.attention_backend is None
@@ -425,7 +425,7 @@ class TestSpecDecodeAttentionBackend:
         assert "attention_backend" not in d
 
     def test_flash_attn_emitted_in_json(self):
-        from vllm.sndr_core.model_configs.schema import SpecDecodeConfig
+        from sndr.model_configs.schema import SpecDecodeConfig
         c = SpecDecodeConfig(
             method="mtp", num_speculative_tokens=4,
             attention_backend="FLASH_ATTN",
@@ -439,7 +439,7 @@ class TestSpecDecodeAttentionBackend:
         "value", ["FLASH_ATTN", "TRITON_ATTN", "TURBOQUANT", None],
     )
     def test_valid_values_accepted(self, value):
-        from vllm.sndr_core.model_configs.schema import SpecDecodeConfig
+        from sndr.model_configs.schema import SpecDecodeConfig
         c = SpecDecodeConfig(
             method="mtp", num_speculative_tokens=4,
             attention_backend=value,
@@ -450,7 +450,7 @@ class TestSpecDecodeAttentionBackend:
         "bad_value", ["flash_attn", "MAMBA_ATTN", "EAGLE_BACKEND", ""],
     )
     def test_invalid_value_rejected(self, bad_value):
-        from vllm.sndr_core.model_configs.schema import (
+        from sndr.model_configs.schema import (
             SpecDecodeConfig, SchemaError,
         )
         c = SpecDecodeConfig(
@@ -471,8 +471,8 @@ class TestSpecDecodeAttentionBackend:
         """Compose the structured profile and verify the resulting
         cfg.spec_decode.to_vllm_arg() includes the attention_backend
         key — exactly what the rendered --speculative-config will use."""
-        from vllm.sndr_core.model_configs.compose import compose
-        from vllm.sndr_core.model_configs.registry_v2 import (
+        from sndr.model_configs.compose import compose
+        from sndr.model_configs.registry_v2 import (
             load_hardware, load_model,
         )
         import json as _json

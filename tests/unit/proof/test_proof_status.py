@@ -23,11 +23,11 @@ import pytest
 
 class TestClassifyProof:
     def test_static_failed_when_not_passed(self):
-        from vllm.sndr_core.proof import classify_proof
+        from sndr.proof import classify_proof
         assert classify_proof({"static_passed": False}) == "static_failed"
 
     def test_static_only_when_no_bench_delta(self):
-        from vllm.sndr_core.proof import classify_proof
+        from sndr.proof import classify_proof
         assert classify_proof(
             {"static_passed": True, "bench_delta": None}
         ) == "static_only"
@@ -38,21 +38,21 @@ class TestClassifyProof:
     def test_static_only_when_bench_has_only_identifiers(self):
         """Identifier fields like `composed_key` alone don't count as
         bench evidence — must have at least one real metric."""
-        from vllm.sndr_core.proof import classify_proof
+        from sndr.proof import classify_proof
         assert classify_proof({
             "static_passed": True,
             "bench_delta": {"composed_key": "foo", "vllm_pin": "bar"},
         }) == "static_only"
 
     def test_bench_attached_when_metric_present(self):
-        from vllm.sndr_core.proof import classify_proof
+        from sndr.proof import classify_proof
         assert classify_proof({
             "static_passed": True,
             "bench_delta": {"median_tps": 42.5},
         }) == "bench_attached"
 
     def test_bench_attached_with_tool_call_score(self):
-        from vllm.sndr_core.proof import classify_proof
+        from sndr.proof import classify_proof
         # tool_call_score is a real metric even without TPS.
         assert classify_proof({
             "static_passed": True,
@@ -60,7 +60,7 @@ class TestClassifyProof:
         }) == "bench_attached"
 
     def test_bench_with_baseline_when_delta_pct_present(self):
-        from vllm.sndr_core.proof import classify_proof
+        from sndr.proof import classify_proof
         assert classify_proof({
             "static_passed": True,
             "bench_delta": {
@@ -71,7 +71,7 @@ class TestClassifyProof:
 
     def test_bench_with_baseline_takes_precedence_over_attached(self):
         """Even one *_delta_pct field upgrades the bucket."""
-        from vllm.sndr_core.proof import classify_proof
+        from sndr.proof import classify_proof
         assert classify_proof({
             "static_passed": True,
             "bench_delta": {"ttft_delta_pct": -10.0},
@@ -97,14 +97,14 @@ def _fake_registry(patch_ids: list[str]) -> dict:
 
 class TestSummarize:
     def test_empty_registry_yields_zero_counts(self, tmp_path):
-        from vllm.sndr_core.proof import summarize_proof_status
+        from sndr.proof import summarize_proof_status
         s = summarize_proof_status(registry={}, out_dir=tmp_path)
         assert s["total"] == 0
         assert all(v == 0 for v in s["counts"].values())
         assert s["patches"] == []
 
     def test_dead_when_no_artefact(self, tmp_path):
-        from vllm.sndr_core.proof import summarize_proof_status
+        from sndr.proof import summarize_proof_status
         s = summarize_proof_status(
             registry=_fake_registry(["P1", "P2"]),
             out_dir=tmp_path,
@@ -115,7 +115,7 @@ class TestSummarize:
         assert {p["bucket"] for p in s["patches"]} == {"dead"}
 
     def test_mixed_buckets(self, tmp_path):
-        from vllm.sndr_core.proof import summarize_proof_status
+        from sndr.proof import summarize_proof_status
         _write_artefact(tmp_path, "P1__v1.json", {
             "static_passed": True, "bench_delta": None,
         })
@@ -154,7 +154,7 @@ class TestSummarize:
 
     def test_picks_best_bucket_across_pins(self, tmp_path):
         """Two artefacts (different vllm pins) — the better bucket wins."""
-        from vllm.sndr_core.proof import summarize_proof_status
+        from sndr.proof import summarize_proof_status
         _write_artefact(tmp_path, "P1__pin1.json", {
             "static_passed": True, "bench_delta": None,
         })
@@ -173,7 +173,7 @@ class TestSummarize:
     def test_corrupt_artefact_falls_back(self, tmp_path):
         """A malformed JSON file shouldn't crash the summary; the patch
         stays in static_failed when no readable artefact passes."""
-        from vllm.sndr_core.proof import summarize_proof_status
+        from sndr.proof import summarize_proof_status
         bad = tmp_path / "P1__v1.json"
         bad.write_text("not valid {", encoding="utf-8")
         s = summarize_proof_status(
@@ -187,7 +187,7 @@ class TestSummarize:
 
     def test_uses_real_registry_when_none(self, tmp_path):
         """`registry=None` falls back to live PATCH_REGISTRY."""
-        from vllm.sndr_core.proof import summarize_proof_status
+        from sndr.proof import summarize_proof_status
         s = summarize_proof_status(out_dir=tmp_path)
         # ≥130 patches (matches PATCH_REGISTRY current baseline).
         assert s["total"] >= 130
@@ -206,7 +206,7 @@ def _make_args(**kw):
 
 class TestCLI:
     def test_human_summary(self, tmp_path, capsys):
-        from vllm.sndr_core.cli.patches import _run_proof_status
+        from sndr.cli.legacy.patches import _run_proof_status
         rc = _run_proof_status(_make_args(out_dir=str(tmp_path)))
         out = capsys.readouterr().out
         assert rc == 0
@@ -215,7 +215,7 @@ class TestCLI:
         assert "dead" in out
 
     def test_json_payload_shape(self, tmp_path, capsys):
-        from vllm.sndr_core.cli.patches import _run_proof_status
+        from sndr.cli.legacy.patches import _run_proof_status
         rc = _run_proof_status(_make_args(
             out_dir=str(tmp_path), json=True,
         ))
@@ -229,7 +229,7 @@ class TestCLI:
         assert payload["filter_buckets"] is None
 
     def test_bucket_filter_known(self, tmp_path, capsys):
-        from vllm.sndr_core.cli.patches import _run_proof_status
+        from sndr.cli.legacy.patches import _run_proof_status
         rc = _run_proof_status(_make_args(
             out_dir=str(tmp_path), bucket=["dead"], json=True,
         ))
@@ -241,14 +241,14 @@ class TestCLI:
             assert p["bucket"] == "dead"
 
     def test_bucket_filter_unknown_returns_2(self, tmp_path, capsys):
-        from vllm.sndr_core.cli.patches import _run_proof_status
+        from sndr.cli.legacy.patches import _run_proof_status
         rc = _run_proof_status(_make_args(
             out_dir=str(tmp_path), bucket=["nonsense"],
         ))
         assert rc == 2
 
     def test_bucket_filter_mixed_known_unknown_returns_2(self, tmp_path):
-        from vllm.sndr_core.cli.patches import _run_proof_status
+        from sndr.cli.legacy.patches import _run_proof_status
         rc = _run_proof_status(_make_args(
             out_dir=str(tmp_path), bucket=["dead", "nonsense"],
         ))

@@ -147,7 +147,7 @@ def test_p95_cap_preserves_assert():
 
 
 def test_p95_in_PATCH_REGISTRY():
-    from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+    from sndr.dispatcher import PATCH_REGISTRY
     assert "P95" in PATCH_REGISTRY, "P95 must be registered in PATCH_REGISTRY"
     p = PATCH_REGISTRY["P95"]
     assert p["env_flag"] == "GENESIS_ENABLE_P95"
@@ -157,7 +157,7 @@ def test_p95_in_PATCH_REGISTRY():
 
 def test_p95_dispatcher_quant_format_includes_marlin_paths():
     """applies_to must include all quant_formats that route through Marlin."""
-    from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+    from sndr.dispatcher import PATCH_REGISTRY
     af = PATCH_REGISTRY["P95"].get("applies_to", {}).get("quant_format", [])
     # Lorbus int4 = autoround_int4 → Marlin
     # Minachist gs128 = autoround_int8 → Marlin

@@ -16,9 +16,9 @@ import sys
 
 import pytest
 
-from vllm.sndr_core.cli import patches as P
-from vllm.sndr_core.product_api.patches import bundles as _api_bundles
-from vllm.sndr_core.product_api.patches import listing as _api_listing
+from sndr.cli.legacy import patches as P
+from sndr.product_api.legacy.patches import bundles as _api_bundles
+from sndr.product_api.legacy.patches import listing as _api_listing
 
 
 def _make_parser() -> argparse.ArgumentParser:
@@ -87,7 +87,7 @@ class TestArgparser:
 
 class TestFilters:
     def test_matches_tier_filter(self):
-        from vllm.sndr_core.dispatcher.spec import iter_patch_specs
+        from sndr.dispatcher.spec import iter_patch_specs
 
         community = [s for s in iter_patch_specs()
                      if _api_listing.matches_filters(s, tier="community")]
@@ -101,14 +101,14 @@ class TestFilters:
         assert len(community) + len(engine) <= sum(1 for _ in iter_patch_specs())
 
     def test_matches_default_on(self):
-        from vllm.sndr_core.dispatcher.spec import iter_patch_specs
+        from sndr.dispatcher.spec import iter_patch_specs
 
         for s in iter_patch_specs():
             assert _api_listing.matches_filters(s, default_on=True) is bool(s.default_on)
             assert _api_listing.matches_filters(s, default_on=False) is (not s.default_on)
 
     def test_matches_has_upstream(self):
-        from vllm.sndr_core.dispatcher.spec import iter_patch_specs
+        from sndr.dispatcher.spec import iter_patch_specs
 
         for s in iter_patch_specs():
             assert _api_listing.matches_filters(s, has_upstream=True) is bool(s.upstream_pr)

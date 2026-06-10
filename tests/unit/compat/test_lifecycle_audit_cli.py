@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Tests for `python3 -m vllm.sndr_core.compat.lifecycle_audit_cli`."""
+"""Tests for `python3 -m sndr.compat.lifecycle_audit_cli`."""
 from __future__ import annotations
 
 import json
@@ -21,39 +21,39 @@ _FAKE_REGISTRY = {
 
 @pytest.fixture
 def fake_registry(monkeypatch):
-    from vllm.sndr_core import dispatcher
+    from sndr import dispatcher
     monkeypatch.setattr(dispatcher, "PATCH_REGISTRY", _FAKE_REGISTRY)
     yield _FAKE_REGISTRY
 
 
 class TestLifecycleAuditCLI:
     def test_main_returns_int(self, fake_registry):
-        from vllm.sndr_core.compat.lifecycle_audit_cli import main
+        from sndr.compat.lifecycle_audit_cli import main
         rc = main([])
         assert isinstance(rc, int)
 
     def test_main_returns_nonzero_on_unknown_state(self, fake_registry):
         """A registry with `lifecycle: <unknown_state>` is a real error
         — CLI should exit non-zero so CI catches it."""
-        from vllm.sndr_core.compat.lifecycle_audit_cli import main
+        from sndr.compat.lifecycle_audit_cli import main
         rc = main([])
         assert rc != 0
 
     def test_main_clean_registry_returns_zero(self, monkeypatch):
         """Healthy registry → exit 0."""
-        from vllm.sndr_core import dispatcher
+        from sndr import dispatcher
         clean = {
             "P_A": {"lifecycle": "stable"},
             "P_B": {"lifecycle": "experimental"},
             "P_C": {"lifecycle": "deprecated", "superseded_by": ["P_A"]},
         }
         monkeypatch.setattr(dispatcher, "PATCH_REGISTRY", clean)
-        from vllm.sndr_core.compat.lifecycle_audit_cli import main
+        from sndr.compat.lifecycle_audit_cli import main
         rc = main([])
         assert rc == 0
 
     def test_json_output(self, fake_registry, capsys):
-        from vllm.sndr_core.compat.lifecycle_audit_cli import main
+        from sndr.compat.lifecycle_audit_cli import main
         main(["--json"])
         captured = capsys.readouterr()
         parsed = json.loads(captured.out)
@@ -63,7 +63,7 @@ class TestLifecycleAuditCLI:
         assert "entries" in parsed or "by_state" in parsed
 
     def test_filter_by_state(self, fake_registry, capsys):
-        from vllm.sndr_core.compat.lifecycle_audit_cli import main
+        from sndr.compat.lifecycle_audit_cli import main
         main(["--state", "stable"])
         captured = capsys.readouterr()
         # Should only show P_S, not the deprecated/experimental ones
@@ -76,7 +76,7 @@ class TestLifecycleAuditCLI:
         Stable patches (severity=ok) must NOT appear AS ROWS, though
         their patch_id may still appear in another row's note (e.g. as
         `superseded_by` target of a deprecated row)."""
-        from vllm.sndr_core.compat.lifecycle_audit_cli import main
+        from sndr.compat.lifecycle_audit_cli import main
         main(["--quiet"])
         captured = capsys.readouterr()
         # P_X (unknown state, error severity) must show
@@ -96,29 +96,29 @@ class TestLifecycleAuditCLI:
     def test_real_registry_runs(self):
         """Smoke: against the actual PATCH_REGISTRY, just verify it
         runs without crashing."""
-        from vllm.sndr_core.compat.lifecycle_audit_cli import main
+        from sndr.compat.lifecycle_audit_cli import main
         rc = main([])
         assert rc in (0, 1)  # both valid
 
 
 class TestExitCodeContract:
     def test_explicit_unknown_state_exit_1(self, monkeypatch):
-        from vllm.sndr_core import dispatcher
+        from sndr import dispatcher
         bad = {"P_BAD": {"lifecycle": "totally_not_a_state"}}
         monkeypatch.setattr(dispatcher, "PATCH_REGISTRY", bad)
-        from vllm.sndr_core.compat.lifecycle_audit_cli import main
+        from sndr.compat.lifecycle_audit_cli import main
         rc = main([])
         assert rc == 1
 
     def test_only_warnings_returns_zero(self, monkeypatch):
         """Warnings (deprecated, experimental) should NOT fail CI;
         operators see them but they're not blockers."""
-        from vllm.sndr_core import dispatcher
+        from sndr import dispatcher
         warnings_only = {
             "P_DEP": {"lifecycle": "deprecated", "superseded_by": ["P_X"]},
             "P_EXP": {"lifecycle": "experimental"},
         }
         monkeypatch.setattr(dispatcher, "PATCH_REGISTRY", warnings_only)
-        from vllm.sndr_core.compat.lifecycle_audit_cli import main
+        from sndr.compat.lifecycle_audit_cli import main
         rc = main([])
         assert rc == 0

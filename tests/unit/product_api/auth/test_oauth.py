@@ -5,8 +5,8 @@ from __future__ import annotations
 import base64
 import json
 
-from vllm.sndr_core.product_api.auth import oauth
-from vllm.sndr_core.product_api.auth.config import OAuthProvider
+from sndr.product_api.legacy.auth import oauth
+from sndr.product_api.legacy.auth.config import OAuthProvider
 
 
 def _fake_id_token(claims: dict) -> str:

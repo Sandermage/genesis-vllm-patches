@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from vllm.sndr_core.cli.deps import add_argparser, run_check, run_plan
+from sndr.cli.legacy.deps import add_argparser, run_check, run_plan
 
 
 # Phase 10 (2026-06-01): V1 sunset — `sndr deps` resolves --config via
@@ -151,7 +151,7 @@ def test_run_check_writes_reports_to_dest(tmp_path, capsys):
 
 
 def test_top_level_cli_dispatches_deps():
-    """`python -m vllm.sndr_core.cli deps check --json` end-to-end."""
-    from vllm.sndr_core.cli import cli_main
+    """`python -m sndr.cli.legacy deps check --json` end-to-end."""
+    from sndr.cli.legacy import cli_main
     rc = cli_main(["deps", "check", "--json"])
     assert rc == 0

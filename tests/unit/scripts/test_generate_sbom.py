@@ -6,7 +6,7 @@ Contract:
   1. _file_sha256 returns a 64-char hex string OR '' on read error.
   2. _read_pyproject returns dict (or {} on failure).
   3. _read_constraints returns list of stripped non-comment lines.
-  4. _list_genesis_modules emits (path, sha256) for every sndr_core/*.py.
+  4. _list_genesis_modules emits (path, sha256) for every sndr/*.py.
   5. _registry_snapshot returns total / by_tier / by_lifecycle / by_default_on.
   6. _model_configs_snapshot returns list of dicts.
   7. _vllm_pins returns list of pin strings.
@@ -123,7 +123,7 @@ class TestListGenesisModules:
         for m in modules:
             assert "path" in m
             assert "sha256" in m
-            assert m["path"].startswith("vllm/sndr_core/")
+            assert m["path"].startswith("sndr/")
 
     def test_skips_pycache(self):
         mod = _import_script()

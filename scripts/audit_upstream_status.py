@@ -73,7 +73,7 @@ from typing import Optional
 
 REGISTRY_PATH = (
     Path(__file__).resolve().parent.parent
-    / "vllm" / "sndr_core" / "dispatcher" / "registry.py"
+    / "sndr" / "dispatcher" / "registry.py"
 )
 
 

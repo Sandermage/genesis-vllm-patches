@@ -330,7 +330,7 @@ class TestApply:
 
 class TestDispatcherRegistration:
     def test_pn70_in_patch_registry(self):
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+        from sndr.dispatcher import PATCH_REGISTRY
         assert "PN70" in PATCH_REGISTRY
         meta = PATCH_REGISTRY["PN70"]
         assert meta["env_flag"] == "GENESIS_ENABLE_PN70_TOOL_SCHEMA_FILTER"

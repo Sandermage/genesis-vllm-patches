@@ -34,7 +34,7 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-MODEL_DIR = REPO_ROOT / "vllm" / "sndr_core" / "model_configs" / "builtin" / "model"
+MODEL_DIR = REPO_ROOT / "sndr" / "model_configs" / "builtin" / "model"
 
 
 if str(REPO_ROOT) not in sys.path:
@@ -71,7 +71,7 @@ def _norm_value(v) -> str:
 def _build_flag_index() -> tuple[dict, dict]:
     """Return (flag→list-of-pids, pid→meta) maps from PATCH_REGISTRY."""
     try:
-        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        from sndr.dispatcher.registry import PATCH_REGISTRY
     except ImportError:
         return {}, {}
     flag_to_pids: dict[str, list[str]] = defaultdict(list)

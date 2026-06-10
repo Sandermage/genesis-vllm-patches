@@ -264,16 +264,16 @@ def pytest_collection_modifyitems(config, items):
 
 def _reset_genesis_prealloc_state() -> None:
     """Internal helper: drop all module-cached state used by Genesis preallocs."""
-    from vllm.sndr_core.runtime.prealloc import GenesisPreallocBuffer
+    from sndr.runtime.prealloc import GenesisPreallocBuffer
     GenesisPreallocBuffer.clear_for_tests()
     try:
-        from vllm.sndr_core.kernels.dequant_buffer import TurboQuantBufferManager
+        from sndr.engines.vllm.kernels_legacy.dequant_buffer import TurboQuantBufferManager
         TurboQuantBufferManager.clear_for_tests()
     except Exception:
         # Module not importable when torch missing — fixture is best-effort
         pass
     try:
-        from vllm.sndr_core.kernels.gdn_core_attn_manager import GdnCoreAttnManager
+        from sndr.engines.vllm.kernels_legacy.gdn_core_attn_manager import GdnCoreAttnManager
         GdnCoreAttnManager.clear_for_tests()
     except Exception:
         # Module not importable when torch missing — fixture is best-effort
@@ -282,7 +282,7 @@ def _reset_genesis_prealloc_state() -> None:
     # scope. Tests that probe the default-fallback path need a fresh
     # cache, otherwise they see whatever an earlier test resolved.
     try:
-        from vllm.sndr_core.runtime import prealloc_budget as _pb
+        from sndr.runtime import prealloc_budget as _pb
         _pb._CACHED = None
     except Exception:
         # Module not importable in CPU-only minimal envs — fixture is best-effort
@@ -322,14 +322,14 @@ def _autoreset_token_budget_cache():
     write) and prevents cross-test pollution from any test that touches
     `prealloc_budget.resolve_token_budget()` directly or indirectly."""
     try:
-        from vllm.sndr_core.runtime import prealloc_budget as _pb
+        from sndr.runtime import prealloc_budget as _pb
         _pb._CACHED = None
     except Exception:
         # Module not importable in CPU-only minimal envs — autouse fixture is best-effort
         pass
     yield
     try:
-        from vllm.sndr_core.runtime import prealloc_budget as _pb
+        from sndr.runtime import prealloc_budget as _pb
         _pb._CACHED = None
     except Exception:
         # Module not importable in CPU-only minimal envs — autouse fixture is best-effort
@@ -360,10 +360,10 @@ def genesis_registry() -> dict:
     """The live PATCH_REGISTRY dict.
 
     Tests that parametrize over patch IDs should use this instead of a
-    top-level `from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY`
+    top-level `from sndr.dispatcher.registry import PATCH_REGISTRY`
     so the import cost is paid once per session.
     """
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+    from sndr.dispatcher.registry import PATCH_REGISTRY
     return PATCH_REGISTRY
 
 
@@ -389,9 +389,9 @@ def experimental_patch_ids(genesis_registry) -> list[str]:
 def v2_model_ids() -> list[str]:
     """All V2 ModelDef ids under `builtin/model/`."""
     try:
-        from vllm.sndr_core.model_configs.registry_v2 import list_models
+        from sndr.model_configs.registry_v2 import list_models
     except ImportError:
-        pytest.skip("vllm.sndr_core.model_configs.registry_v2 unavailable")
+        pytest.skip("sndr.model_configs.registry_v2 unavailable")
     return list(list_models())
 
 
@@ -399,9 +399,9 @@ def v2_model_ids() -> list[str]:
 def v2_hardware_ids() -> list[str]:
     """All V2 HardwareDef ids under `builtin/hardware/`."""
     try:
-        from vllm.sndr_core.model_configs.registry_v2 import list_hardware
+        from sndr.model_configs.registry_v2 import list_hardware
     except ImportError:
-        pytest.skip("vllm.sndr_core.model_configs.registry_v2 unavailable")
+        pytest.skip("sndr.model_configs.registry_v2 unavailable")
     return list(list_hardware())
 
 
@@ -409,9 +409,9 @@ def v2_hardware_ids() -> list[str]:
 def v2_profile_ids() -> list[str]:
     """All V2 ProfileDef ids under `builtin/profile/`."""
     try:
-        from vllm.sndr_core.model_configs.registry_v2 import list_profiles
+        from sndr.model_configs.registry_v2 import list_profiles
     except ImportError:
-        pytest.skip("vllm.sndr_core.model_configs.registry_v2 unavailable")
+        pytest.skip("sndr.model_configs.registry_v2 unavailable")
     return list(list_profiles())
 
 
@@ -436,7 +436,7 @@ def canonical_env_keys() -> set[str]:
     """§6.7 canonical env-key registry (PATCH_REGISTRY ∪ V2 model.patches
     ∪ V1 genesis_env ∪ policy keys). Use for typo detection in tests
     that craft synthetic YAML configs."""
-    from vllm.sndr_core.cli.config_keys import load_canonical_registry
+    from sndr.cli.legacy.config_keys import load_canonical_registry
     return set(load_canonical_registry().keys())
 
 

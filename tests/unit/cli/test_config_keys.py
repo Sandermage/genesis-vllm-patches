@@ -33,7 +33,7 @@ def _run(handler, opts: argparse.Namespace) -> tuple[int, str]:
 
 class TestCanonicalRegistry:
     def test_registry_has_keys_from_patch_registry(self):
-        from vllm.sndr_core.cli.config_keys import load_canonical_registry
+        from sndr.cli.legacy.config_keys import load_canonical_registry
         canon = load_canonical_registry()
         # Known patch toggle from dispatcher.registry.PATCH_REGISTRY.
         assert "GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL" in canon
@@ -44,7 +44,7 @@ class TestCanonicalRegistry:
 
     def test_registry_has_v2_tuning_knob(self):
         """V2 model yamls add secondary tuning knobs like P67_NUM_KV_SPLITS."""
-        from vllm.sndr_core.cli.config_keys import load_canonical_registry
+        from sndr.cli.legacy.config_keys import load_canonical_registry
         canon = load_canonical_registry()
         assert "GENESIS_P67_NUM_KV_SPLITS" in canon
         # Source could be registry (if metadata added) or v2 (yaml-only).
@@ -52,13 +52,13 @@ class TestCanonicalRegistry:
 
     def test_registry_has_policy_key(self):
         """Policy keys (non-patch Genesis env) are in the canonical set."""
-        from vllm.sndr_core.cli.config_keys import load_canonical_registry
+        from sndr.cli.legacy.config_keys import load_canonical_registry
         canon = load_canonical_registry()
         assert "GENESIS_VLLM_PIN_POLICY" in canon
         assert canon["GENESIS_VLLM_PIN_POLICY"]["source"] == "policy"
 
     def test_total_count_sanity(self):
-        from vllm.sndr_core.cli.config_keys import load_canonical_registry
+        from sndr.cli.legacy.config_keys import load_canonical_registry
         canon = load_canonical_registry()
         # >130 — patch registry alone has ~135. Sanity check.
         assert len(canon) >= 130
@@ -69,7 +69,7 @@ class TestCanonicalRegistry:
 
 class TestRunList:
     def test_list_text_mode(self):
-        from vllm.sndr_core.cli.config_keys import run_list
+        from sndr.cli.legacy.config_keys import run_list
         opts = argparse.Namespace(source=None, json=False)
         rc, out = _run(run_list, opts)
         assert rc == 0
@@ -77,7 +77,7 @@ class TestRunList:
         assert "registry" in out
 
     def test_list_json_count_matches_canon(self):
-        from vllm.sndr_core.cli.config_keys import (
+        from sndr.cli.legacy.config_keys import (
             load_canonical_registry, run_list,
         )
         opts = argparse.Namespace(source=None, json=True)
@@ -87,7 +87,7 @@ class TestRunList:
         assert payload["count"] == len(load_canonical_registry())
 
     def test_filter_by_source_registry(self):
-        from vllm.sndr_core.cli.config_keys import run_list
+        from sndr.cli.legacy.config_keys import run_list
         opts = argparse.Namespace(source="registry", json=True)
         rc, out = _run(run_list, opts)
         assert rc == 0
@@ -96,7 +96,7 @@ class TestRunList:
         assert all(k["source"] == "registry" for k in payload["keys"])
 
     def test_filter_by_source_policy(self):
-        from vllm.sndr_core.cli.config_keys import run_list
+        from sndr.cli.legacy.config_keys import run_list
         opts = argparse.Namespace(source="policy", json=True)
         rc, out = _run(run_list, opts)
         assert rc == 0
@@ -110,7 +110,7 @@ class TestRunList:
 
 class TestRunDescribe:
     def test_describe_known_key(self):
-        from vllm.sndr_core.cli.config_keys import run_describe
+        from sndr.cli.legacy.config_keys import run_describe
         opts = argparse.Namespace(
             key="GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL", json=False,
         )
@@ -120,7 +120,7 @@ class TestRunDescribe:
         assert "registry" in out
 
     def test_describe_unknown_key_with_suggestion(self):
-        from vllm.sndr_core.cli.config_keys import run_describe
+        from sndr.cli.legacy.config_keys import run_describe
         # Typo of the real key — should appear in suggestions.
         opts = argparse.Namespace(
             key="GENESIS_ENABLE_P67_TYPO", json=True,
@@ -133,7 +133,7 @@ class TestRunDescribe:
         assert any("P67" in s for s in payload["suggestions"])
 
     def test_describe_completely_unknown_key(self):
-        from vllm.sndr_core.cli.config_keys import run_describe
+        from sndr.cli.legacy.config_keys import run_describe
         opts = argparse.Namespace(
             key="GENESIS_TOTALLY_NONEXISTENT_XYZ_999", json=True,
         )
@@ -149,7 +149,7 @@ class TestRunDescribe:
 class TestRunValidate:
     def test_validate_known_model_yaml(self):
         """A committed V2 model YAML must validate clean."""
-        from vllm.sndr_core.cli.config_keys import run_validate
+        from sndr.cli.legacy.config_keys import run_validate
         opts = argparse.Namespace(
             yaml_file=str(
                 REPO_ROOT
@@ -165,7 +165,7 @@ class TestRunValidate:
         assert payload["unknown_keys"] == []
 
     def test_validate_catches_unknown_genesis_key(self, tmp_path):
-        from vllm.sndr_core.cli.config_keys import run_validate
+        from sndr.cli.legacy.config_keys import run_validate
         yaml = textwrap.dedent("""\
             schema_version: 2
             kind: model
@@ -191,7 +191,7 @@ class TestRunValidate:
         """PYTORCH_/NCCL_/VLLM_/CUDA_/OMP_/TRITON_ keys are NOT validated
         because they belong to upstream tooling (canonical registry only
         owns Genesis/SNDR keys)."""
-        from vllm.sndr_core.cli.config_keys import run_validate
+        from sndr.cli.legacy.config_keys import run_validate
         yaml = textwrap.dedent("""\
             schema_version: 1
             key: test-cfg
@@ -216,7 +216,7 @@ class TestRunValidate:
 
     def test_validate_walks_profile_delta(self, tmp_path):
         """V2 profile YAMLs put keys under patches_delta.enable/disable/override."""
-        from vllm.sndr_core.cli.config_keys import run_validate
+        from sndr.cli.legacy.config_keys import run_validate
         yaml = textwrap.dedent("""\
             schema_version: 2
             kind: profile
@@ -244,7 +244,7 @@ class TestRunValidate:
         assert "GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL" not in unknown
 
     def test_validate_missing_file(self):
-        from vllm.sndr_core.cli.config_keys import run_validate
+        from sndr.cli.legacy.config_keys import run_validate
         opts = argparse.Namespace(
             yaml_file="/tmp/totally-nonexistent-file-xyz.yaml",
             json=False,
@@ -279,7 +279,7 @@ class TestBuiltinSweep:
         "vllm/sndr_core/model_configs/builtin/profile/path-c-3090-tier-aware-example.yaml",
     ])
     def test_yaml_validates_clean(self, yaml_path):
-        from vllm.sndr_core.cli.config_keys import run_validate
+        from sndr.cli.legacy.config_keys import run_validate
         opts = argparse.Namespace(
             yaml_file=str(REPO_ROOT / yaml_path),
             json=True,
@@ -297,7 +297,7 @@ class TestBuiltinSweep:
 class TestRegistration:
     def test_config_keys_list_registered(self):
         import argparse
-        from vllm.sndr_core.cli.config_keys import add_argparser
+        from sndr.cli.legacy.config_keys import add_argparser
         p = argparse.ArgumentParser()
         sub = p.add_subparsers(dest="cmd")
         add_argparser(sub)
@@ -306,6 +306,6 @@ class TestRegistration:
         assert ns.json is True
 
     def test_top_level_includes_config_keys(self):
-        from vllm.sndr_core import cli as cli_mod
+        from sndr import cli as cli_mod
         assert hasattr(cli_mod, "_config_keys_argparser")
         assert callable(cli_mod._config_keys_argparser)

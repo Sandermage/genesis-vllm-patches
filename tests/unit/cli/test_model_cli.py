@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from vllm.sndr_core.cli.model import add_argparser
+from sndr.cli.legacy.model import add_argparser
 
 
 def _parse(args: list[str]) -> argparse.Namespace:
@@ -38,7 +38,7 @@ def test_argparser_list_subcommand():
 
 def test_top_level_dispatches_model_list_via_fast_path():
     """`sndr model list` reaches compat.models.list_cli (or returns 2 cleanly)."""
-    from vllm.sndr_core.cli import cli_main
+    from sndr.cli.legacy import cli_main
     rc = cli_main(["model", "list"])
     # Either 0 (printed list) or 2 (compat module not callable) — never crash
     assert rc in (0, 1, 2)
@@ -46,7 +46,7 @@ def test_top_level_dispatches_model_list_via_fast_path():
 
 def test_top_level_dispatches_model_pull_help():
     """`sndr model pull --help` reaches the underlying compat CLI."""
-    from vllm.sndr_core.cli import cli_main
+    from sndr.cli.legacy import cli_main
     # SystemExit(0) is normal for argparse --help
     with pytest.raises(SystemExit) as exc_info:
         cli_main(["model", "pull", "--help"])
@@ -55,7 +55,7 @@ def test_top_level_dispatches_model_pull_help():
 
 def test_top_level_dispatches_model_pull_unknown_key():
     """Unknown model key returns 2 (per pull.py contract)."""
-    from vllm.sndr_core.cli import cli_main
+    from sndr.cli.legacy import cli_main
     rc = cli_main(["model", "pull", "definitely-not-a-real-key-xyz"])
     assert rc == 2
 

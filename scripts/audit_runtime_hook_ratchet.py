@@ -69,7 +69,7 @@ class StablePatchCheck:
 
 def _load_registry() -> dict:
     try:
-        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        from sndr.dispatcher.registry import PATCH_REGISTRY
     except ImportError as e:
         raise RuntimeError(
             f"PATCH_REGISTRY not importable from repo_root={REPO_ROOT}: {e}"

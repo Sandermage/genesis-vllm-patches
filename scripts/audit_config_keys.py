@@ -37,14 +37,14 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # Import the validator directly so we don't pay subprocess startup per
 # YAML (would be 40+ python launches otherwise).
 sys.path.insert(0, str(REPO_ROOT))
-from vllm.sndr_core.cli import config_keys as _ck  # type: ignore  # noqa: E402  — import after sys.path mutation
+from sndr.cli.legacy import config_keys as _ck  # type: ignore  # noqa: E402  — import after sys.path mutation
 
 
 SCAN_DIRS = (
-    "vllm/sndr_core/model_configs/builtin",
-    "vllm/sndr_core/model_configs/builtin/model",
-    "vllm/sndr_core/model_configs/builtin/hardware",
-    "vllm/sndr_core/model_configs/builtin/profile",
+    "sndr/model_configs/builtin",
+    "sndr/model_configs/builtin/model",
+    "sndr/model_configs/builtin/hardware",
+    "sndr/model_configs/builtin/profile",
 )
 
 SKIP_DIRS = ("presets",)

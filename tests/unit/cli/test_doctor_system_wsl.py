@@ -14,7 +14,7 @@ from io import StringIO
 
 import pytest
 
-from vllm.sndr_core.cli.doctor_system import _build_facts
+from sndr.cli.legacy.doctor_system import _build_facts
 
 
 _REAL_OPEN = open

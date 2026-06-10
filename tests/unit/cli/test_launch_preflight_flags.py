@@ -14,7 +14,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from vllm.sndr_core.cli import launch as L
+from sndr.cli.legacy import launch as L
 
 
 # ─── Argparse surface ────────────────────────────────────────────────────
@@ -112,11 +112,11 @@ class TestCheckDepsHelper:
     def _patch_collectors(self, monkeypatch, caveats):
         """Stub `inspect_host` and `match_caveats` to fixed values."""
         monkeypatch.setattr(
-            "vllm.sndr_core.deps.checkers.inspect_host",
+            "sndr.deps.checkers.inspect_host",
             lambda: SimpleNamespace(to_dict=lambda: {}),
         )
         monkeypatch.setattr(
-            "vllm.sndr_core.caveats.match_caveats",
+            "sndr.caveats.match_caveats",
             lambda facts: caveats,
         )
 
@@ -147,7 +147,7 @@ class TestCheckDepsHelper:
         def _explode(*a, **kw):
             raise ImportError("simulated missing checker")
         monkeypatch.setattr(
-            "vllm.sndr_core.deps.checkers.inspect_host", _explode,
+            "sndr.deps.checkers.inspect_host", _explode,
         )
         # Use a clean cfg; the import path is what triggers the fallback.
         # NB: we mock the dotted import target so the helper hits the

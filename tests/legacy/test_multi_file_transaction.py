@@ -16,7 +16,7 @@ import pytest
 
 def _make_synthetic_patcher(tmp_path, fname, anchor, replacement, marker, required=True):
     """Helper: create file + return TextPatcher targeting it."""
-    from vllm.sndr_core.core.text_patch import (
+    from sndr.kernel.text_patch import (
         TextPatch, TextPatcher,
     )
     target = tmp_path / fname
@@ -31,7 +31,7 @@ def _make_synthetic_patcher(tmp_path, fname, anchor, replacement, marker, requir
 
 
 def test_all_files_apply_atomically(tmp_path):
-    from vllm.sndr_core.core.text_patch import MultiFilePatchTransaction
+    from sndr.kernel.text_patch import MultiFilePatchTransaction
     p1 = _make_synthetic_patcher(tmp_path, "f1.py", "AAA", "AAA_FIXED", "MARKER1")
     p2 = _make_synthetic_patcher(tmp_path, "f2.py", "BBB", "BBB_FIXED", "MARKER2")
     p3 = _make_synthetic_patcher(tmp_path, "f3.py", "CCC", "CCC_FIXED", "MARKER3")
@@ -45,7 +45,7 @@ def test_all_files_apply_atomically(tmp_path):
 
 
 def test_dry_run_skip_when_anchor_missing_in_one_file(tmp_path):
-    from vllm.sndr_core.core.text_patch import MultiFilePatchTransaction
+    from sndr.kernel.text_patch import MultiFilePatchTransaction
     p1 = _make_synthetic_patcher(tmp_path, "f1.py", "AAA", "AAA_FIXED", "MARKER1")
     p2 = _make_synthetic_patcher(tmp_path, "f2.py", "BBB", "BBB_FIXED", "MARKER2")
     # Sabotage: write file 2 with no anchor
@@ -62,7 +62,7 @@ def test_dry_run_skip_when_anchor_missing_in_one_file(tmp_path):
 
 
 def test_idempotency_already_applied(tmp_path):
-    from vllm.sndr_core.core.text_patch import MultiFilePatchTransaction
+    from sndr.kernel.text_patch import MultiFilePatchTransaction
     p1 = _make_synthetic_patcher(tmp_path, "f1.py", "AAA", "AAA_FIXED", "MARKER1")
     p2 = _make_synthetic_patcher(tmp_path, "f2.py", "BBB", "BBB_FIXED", "MARKER2")
     txn1 = MultiFilePatchTransaction([p1, p2], name="IDEM")
@@ -75,7 +75,7 @@ def test_idempotency_already_applied(tmp_path):
 
 
 def test_missing_patcher_means_skip(tmp_path):
-    from vllm.sndr_core.core.text_patch import MultiFilePatchTransaction
+    from sndr.kernel.text_patch import MultiFilePatchTransaction
     p1 = _make_synthetic_patcher(tmp_path, "f1.py", "AAA", "AAA_FIXED", "MARKER1")
     txn = MultiFilePatchTransaction([p1, None], name="ATOMIC_NONE")
     status, reason = txn.apply_or_skip()
@@ -86,7 +86,7 @@ def test_missing_patcher_means_skip(tmp_path):
 
 
 def test_missing_target_file_means_skip(tmp_path):
-    from vllm.sndr_core.core.text_patch import (
+    from sndr.kernel.text_patch import (
         MultiFilePatchTransaction, TextPatch, TextPatcher,
     )
     p1 = _make_synthetic_patcher(tmp_path, "f1.py", "AAA", "AAA_FIXED", "MARKER1")
@@ -108,7 +108,7 @@ def test_missing_target_file_means_skip(tmp_path):
 def test_optional_subpatch_doesnt_block_dry_run(tmp_path):
     """If a sub-patch is required=False and its anchor missing,
     dry-run still passes (only required sub-patches gate)."""
-    from vllm.sndr_core.core.text_patch import (
+    from sndr.kernel.text_patch import (
         MultiFilePatchTransaction, TextPatch, TextPatcher,
     )
     target = tmp_path / "f.py"
@@ -139,8 +139,8 @@ def test_optional_subpatch_doesnt_block_dry_run(tmp_path):
 def test_phase2_race_rollback_restores_files(tmp_path, monkeypatch):
     """File 0 commits OK; file 1 raises during apply — file 0 must be
     restored to its pre-transaction byte content."""
-    from vllm.sndr_core.wiring import text_patch as tp
-    from vllm.sndr_core.core.text_patch import (
+    from sndr.engines.vllm.wiring import text_patch as tp
+    from sndr.kernel.text_patch import (
         MultiFilePatchTransaction, TextPatchResult,
     )
 
@@ -170,7 +170,7 @@ def test_phase2_race_rollback_skipped_does_not_unapply_idempotent(tmp_path):
     """Files that resolve to IDEMPOTENT (already had marker BEFORE this
     transaction) must NOT be restored — restoring would unapply prior
     state belonging to a different transaction."""
-    from vllm.sndr_core.core.text_patch import MultiFilePatchTransaction
+    from sndr.kernel.text_patch import MultiFilePatchTransaction
 
     # First transaction applies p_already
     p_already = _make_synthetic_patcher(
@@ -196,7 +196,7 @@ def test_phase2_race_rollback_skipped_does_not_unapply_idempotent(tmp_path):
     # Simulate "phase-2 race" by monkey-patching apply on the SPECIFIC
     # instance (not the class — class-level patch would clobber p_already
     # and p_new too, which use the same TextPatcher class).
-    from vllm.sndr_core.core.text_patch import TextPatchResult, TextPatchFailure
+    from sndr.kernel.text_patch import TextPatchResult, TextPatchFailure
     def _race_fail(*a, **kw):
         return TextPatchResult.SKIPPED, TextPatchFailure(
             reason="anchor not found (race)", detail="post-dry-run mutation",
@@ -223,7 +223,7 @@ def test_phase2_race_rollback_skipped_does_not_unapply_idempotent(tmp_path):
 def test_rollback_aid_written_when_restore_fails(tmp_path, monkeypatch):
     """If restore-write itself fails (filesystem error), a `.genesis_rollback`
     sibling file must be written as manual recovery aid."""
-    from vllm.sndr_core.core.text_patch import MultiFilePatchTransaction
+    from sndr.kernel.text_patch import MultiFilePatchTransaction
 
     p1 = _make_synthetic_patcher(tmp_path, "f1.py", "AAA", "AAA_FIXED", "MARKER1")
     p2 = _make_synthetic_patcher(tmp_path, "f2.py", "BBB", "BBB_FIXED", "MARKER2")
@@ -252,7 +252,7 @@ def test_rollback_aid_written_when_restore_fails(tmp_path, monkeypatch):
 def test_no_rollback_when_first_file_fails(tmp_path, monkeypatch):
     """If the very first commit-phase apply fails, no files were APPLIED
     yet — rollback summary should say no files needed restoring."""
-    from vllm.sndr_core.core.text_patch import MultiFilePatchTransaction
+    from sndr.kernel.text_patch import MultiFilePatchTransaction
 
     p1 = _make_synthetic_patcher(tmp_path, "f1.py", "AAA", "AAA_FIXED", "MARKER1")
     p2 = _make_synthetic_patcher(tmp_path, "f2.py", "BBB", "BBB_FIXED", "MARKER2")

@@ -7,7 +7,7 @@ import json
 
 import pytest
 
-from vllm.sndr_core.product_api import hub
+from sndr.product_api.legacy import hub
 
 
 class _FakeResp:
@@ -49,10 +49,10 @@ def test_search_respects_limit(monkeypatch):
 def test_hub_search_and_hf_download_routes(monkeypatch, tmp_path):
     pytest.importorskip("fastapi")
     monkeypatch.setenv("SNDR_HOME", str(tmp_path))
-    from vllm.sndr_core.product_api import jobs
+    from sndr.product_api.legacy import jobs
     jobs._reset_state()
     from fastapi.testclient import TestClient
-    from vllm.sndr_core.product_api.http_app import create_app
+    from sndr.product_api.legacy.http_app import create_app
 
     monkeypatch.setattr(hub, "search_models", lambda q, limit=20: [{"id": "Qwen/Qwen3-8B", "downloads": 1, "likes": 1, "pipeline_tag": "text-generation", "gated": False, "tags": []}])
     client = TestClient(create_app(enable_apply=False, allowed_origins=()))

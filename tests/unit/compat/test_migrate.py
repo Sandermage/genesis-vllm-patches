@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Tests for vllm.sndr_core.compat.migrate — pin-bump migration runbook
+"""Tests for sndr.compat.migrate — pin-bump migration runbook
 generator.
 
 `genesis migrate-vllm` analyzes a target upstream-vllm checkout and
@@ -78,7 +78,7 @@ class CUDAGraphWrapper:
 
 class TestAnchorChecker:
     def test_anchor_present_returns_clean(self, synthetic_vllm_tree):
-        from vllm.sndr_core.compat.migrate import check_patch_against_upstream
+        from sndr.compat.migrate import check_patch_against_upstream
         verdict = check_patch_against_upstream(
             "PN14", upstream_root=synthetic_vllm_tree,
         )
@@ -93,7 +93,7 @@ class TestAnchorChecker:
             "page_idx = kv_offs // BLOCK_SIZE",
             "computed_idx = kv_offs // BLOCK_SIZE",
         ))
-        from vllm.sndr_core.compat.migrate import check_patch_against_upstream
+        from sndr.compat.migrate import check_patch_against_upstream
         verdict = check_patch_against_upstream(
             "PN14", upstream_root=synthetic_vllm_tree,
         )
@@ -103,7 +103,7 @@ class TestAnchorChecker:
     def test_upstream_merged_marker_present(self, synthetic_vllm_tree):
         """PN13 fixture has var-arg lambdas already in upstream → patch
         will self-retire on merge. The migrate tool should detect this."""
-        from vllm.sndr_core.compat.migrate import check_patch_against_upstream
+        from sndr.compat.migrate import check_patch_against_upstream
         verdict = check_patch_against_upstream(
             "PN13", upstream_root=synthetic_vllm_tree,
         )
@@ -115,14 +115,14 @@ class TestAnchorChecker:
         target = (synthetic_vllm_tree / "vllm" / "v1" / "attention" / "ops"
                   / "triton_turboquant_decode.py")
         target.unlink()
-        from vllm.sndr_core.compat.migrate import check_patch_against_upstream
+        from sndr.compat.migrate import check_patch_against_upstream
         verdict = check_patch_against_upstream(
             "PN14", upstream_root=synthetic_vllm_tree,
         )
         assert verdict["status"] in ("file_missing", "anchor_drift")
 
     def test_unknown_patch_id(self, synthetic_vllm_tree):
-        from vllm.sndr_core.compat.migrate import check_patch_against_upstream
+        from sndr.compat.migrate import check_patch_against_upstream
         verdict = check_patch_against_upstream(
             "PN_NONEXISTENT", upstream_root=synthetic_vllm_tree,
         )
@@ -131,7 +131,7 @@ class TestAnchorChecker:
 
 class TestRunbookGenerator:
     def test_generate_runbook_returns_dict(self, synthetic_vllm_tree):
-        from vllm.sndr_core.compat.migrate import generate_runbook
+        from sndr.compat.migrate import generate_runbook
         runbook = generate_runbook(
             upstream_root=synthetic_vllm_tree,
             patch_ids=["PN14", "PN13"],
@@ -142,7 +142,7 @@ class TestRunbookGenerator:
         assert len(runbook["patches"]) == 2
 
     def test_runbook_buckets_by_status(self, synthetic_vllm_tree):
-        from vllm.sndr_core.compat.migrate import generate_runbook
+        from sndr.compat.migrate import generate_runbook
         runbook = generate_runbook(
             upstream_root=synthetic_vllm_tree,
             patch_ids=["PN14", "PN13"],
@@ -154,7 +154,7 @@ class TestRunbookGenerator:
 
     def test_runbook_includes_action_items(self, synthetic_vllm_tree):
         """Runbook must produce actionable guidance for each patch."""
-        from vllm.sndr_core.compat.migrate import generate_runbook
+        from sndr.compat.migrate import generate_runbook
         runbook = generate_runbook(
             upstream_root=synthetic_vllm_tree,
             patch_ids=["PN14", "PN13"],
@@ -165,7 +165,7 @@ class TestRunbookGenerator:
 
 class TestMarkdownFormatter:
     def test_format_runbook_produces_lines(self, synthetic_vllm_tree):
-        from vllm.sndr_core.compat.migrate import (
+        from sndr.compat.migrate import (
             format_runbook_md, generate_runbook,
         )
         runbook = generate_runbook(
@@ -179,7 +179,7 @@ class TestMarkdownFormatter:
         assert "PN13" in md
 
     def test_format_includes_action_section(self, synthetic_vllm_tree):
-        from vllm.sndr_core.compat.migrate import (
+        from sndr.compat.migrate import (
             format_runbook_md, generate_runbook,
         )
         runbook = generate_runbook(
@@ -193,17 +193,17 @@ class TestMarkdownFormatter:
 
 class TestCLI:
     def test_cli_returns_int(self, synthetic_vllm_tree):
-        from vllm.sndr_core.compat.migrate import main
+        from sndr.compat.migrate import main
         rc = main([str(synthetic_vllm_tree), "--patches", "PN14"])
         assert isinstance(rc, int)
 
     def test_cli_unknown_path_returns_nonzero(self):
-        from vllm.sndr_core.compat.migrate import main
+        from sndr.compat.migrate import main
         rc = main(["/nonexistent/path"])
         assert rc != 0
 
     def test_cli_json_output(self, synthetic_vllm_tree, capsys):
-        from vllm.sndr_core.compat.migrate import main
+        from sndr.compat.migrate import main
         import json
         main([str(synthetic_vllm_tree), "--patches", "PN14", "--json"])
         captured = capsys.readouterr()

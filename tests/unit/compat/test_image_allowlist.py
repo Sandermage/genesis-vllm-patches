@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Tests for `vllm.sndr_core.compat.image_allowlist` — Wave 4.1.
+"""Tests for `sndr.compat.image_allowlist` — Wave 4.1.
 
 Closes club-3090 #60 (Marlin repack OOM after blind nightly pull).
 The allowlist is the audit trail; tests pin the contract so future
@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.compat.image_allowlist import (
+from sndr.compat.image_allowlist import (
     KNOWN_GOOD_IMAGES,
     KnownGoodImage,
     find_for_pin,

@@ -33,12 +33,12 @@ def _fresh_module():
     `_BYPASS_WARNED` set (it's module-global, accumulates across calls).
 
     v10 (2026-05-07): the legacy name is a sys.modules redirect to the
-    canonical at `vllm.sndr_core.kernels.streaming_gdn_driver` — both
+    canonical at `sndr.engines.vllm.kernels_legacy.streaming_gdn_driver` — both
     entries point to the *same* module object, so we must purge both
     before the reimport or we'll re-receive the cached canonical with
     stale `_BYPASS_WARNED` state."""
-    legacy = "vllm.sndr_core.kernels.streaming_gdn_driver"
-    canonical = "vllm.sndr_core.kernels.streaming_gdn_driver"
+    legacy = "sndr.engines.vllm.kernels_legacy.streaming_gdn_driver"
+    canonical = "sndr.engines.vllm.kernels_legacy.streaming_gdn_driver"
     for mod_name in (legacy, canonical):
         if mod_name in sys.modules:
             del sys.modules[mod_name]

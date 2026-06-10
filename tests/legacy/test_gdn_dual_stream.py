@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""TDD tests for vllm.sndr_core.kernels.gdn_dual_stream.DualStreamDispatcher.
+"""TDD tests for sndr.engines.vllm.kernels_legacy.gdn_dual_stream.DualStreamDispatcher.
 
 Patch 7 migration target: parallelize in_proj_qkvz + in_proj_ba GEMMs in
 GatedDeltaNet via CUDA aux stream, with platform-aware graceful fallback.
@@ -18,7 +18,7 @@ class TestInitOnce:
     """Group 1: init_once() platform gating."""
 
     def test_init_returns_bool(self):
-        from vllm.sndr_core.kernels.gdn_dual_stream import DualStreamDispatcher
+        from sndr.engines.vllm.kernels_legacy.gdn_dual_stream import DualStreamDispatcher
         # Reset state for test
         DualStreamDispatcher._initialized = False
         DualStreamDispatcher._aux_stream = None
@@ -28,7 +28,7 @@ class TestInitOnce:
 
     def test_init_idempotent(self):
         """Calling init_once multiple times returns consistent result."""
-        from vllm.sndr_core.kernels.gdn_dual_stream import DualStreamDispatcher
+        from sndr.engines.vllm.kernels_legacy.gdn_dual_stream import DualStreamDispatcher
         DualStreamDispatcher._initialized = False
         DualStreamDispatcher._aux_stream = None
 
@@ -40,8 +40,8 @@ class TestInitOnce:
 
     def test_init_false_on_cpu_only(self, monkeypatch):
         """CPU-only platform → init returns False."""
-        from vllm.sndr_core.kernels import gdn_dual_stream as gds
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.kernels_legacy import gdn_dual_stream as gds
+        from sndr.engines.vllm.detection import guards
 
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: False)
         monkeypatch.setattr(guards, "is_amd_rocm", lambda: False)
@@ -54,8 +54,8 @@ class TestInitOnce:
 
     def test_init_false_on_ancient_sm(self, monkeypatch):
         """SM < 8.0 → init returns False (streams weaker on older arches)."""
-        from vllm.sndr_core.kernels import gdn_dual_stream as gds
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.kernels_legacy import gdn_dual_stream as gds
+        from sndr.engines.vllm.detection import guards
 
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(guards, "is_amd_rocm", lambda: False)
@@ -73,7 +73,7 @@ class TestMaybeParallel:
 
     def test_sequential_fallback_on_no_aux_stream(self):
         """When _aux_stream is None → sequential execution returns both results."""
-        from vllm.sndr_core.kernels.gdn_dual_stream import DualStreamDispatcher
+        from sndr.engines.vllm.kernels_legacy.gdn_dual_stream import DualStreamDispatcher
 
         # Force sequential path
         DualStreamDispatcher._initialized = True
@@ -91,7 +91,7 @@ class TestMaybeParallel:
         assert torch.equal(result_b, torch.tensor([3.0, 4.0]))
 
     def test_both_functions_called_exactly_once(self):
-        from vllm.sndr_core.kernels.gdn_dual_stream import DualStreamDispatcher
+        from sndr.engines.vllm.kernels_legacy.gdn_dual_stream import DualStreamDispatcher
 
         DualStreamDispatcher._initialized = True
         DualStreamDispatcher._aux_stream = None
@@ -113,7 +113,7 @@ class TestMaybeParallel:
         assert call_count_b[0] == 1
 
     def test_returns_tuple_of_two(self):
-        from vllm.sndr_core.kernels.gdn_dual_stream import DualStreamDispatcher
+        from sndr.engines.vllm.kernels_legacy.gdn_dual_stream import DualStreamDispatcher
 
         DualStreamDispatcher._initialized = True
         DualStreamDispatcher._aux_stream = None
@@ -127,7 +127,7 @@ class TestMaybeParallel:
 
     def test_exception_in_fn_a_propagates(self):
         """Exception from fn_a propagates to caller (no silent swallow)."""
-        from vllm.sndr_core.kernels.gdn_dual_stream import DualStreamDispatcher
+        from sndr.engines.vllm.kernels_legacy.gdn_dual_stream import DualStreamDispatcher
 
         DualStreamDispatcher._initialized = True
         DualStreamDispatcher._aux_stream = None
@@ -147,7 +147,7 @@ class TestCUDAParallelism:
         if not cuda_available:
             pytest.skip("CUDA not available")
 
-        from vllm.sndr_core.kernels.gdn_dual_stream import DualStreamDispatcher
+        from sndr.engines.vllm.kernels_legacy.gdn_dual_stream import DualStreamDispatcher
 
         DualStreamDispatcher._initialized = False
         DualStreamDispatcher._aux_stream = None
@@ -165,7 +165,7 @@ class TestCUDAParallelism:
         if not cuda_available:
             pytest.skip("CUDA not available")
 
-        from vllm.sndr_core.kernels.gdn_dual_stream import DualStreamDispatcher
+        from sndr.engines.vllm.kernels_legacy.gdn_dual_stream import DualStreamDispatcher
 
         DualStreamDispatcher._initialized = False
         DualStreamDispatcher._aux_stream = None

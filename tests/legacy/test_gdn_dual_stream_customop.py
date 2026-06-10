@@ -33,7 +33,7 @@ class TestP7bModule:
     def test_import_on_cpu(self):
         """Module imports on CPU-only without triggering custom-op
         registration (which needs torch.library + is lazy)."""
-        from vllm.sndr_core.kernels import gdn_dual_stream_customop as m
+        from sndr.engines.vllm.kernels_legacy import gdn_dual_stream_customop as m
         assert hasattr(m, "should_apply")
         assert hasattr(m, "is_p7b_enabled")
         assert hasattr(m, "dual_linear_parallel")
@@ -41,17 +41,17 @@ class TestP7bModule:
         assert m._op_registered is False
 
     def test_is_p7b_enabled_default_off(self):
-        from vllm.sndr_core.kernels import gdn_dual_stream_customop as m
+        from sndr.engines.vllm.kernels_legacy import gdn_dual_stream_customop as m
         assert m.is_p7b_enabled() is False
 
     def test_is_p7b_enabled_truthy_values(self, monkeypatch):
-        from vllm.sndr_core.kernels import gdn_dual_stream_customop as m
+        from sndr.engines.vllm.kernels_legacy import gdn_dual_stream_customop as m
         for val in ("1", "true", "TRUE", "yes", "Yes", "on", "ON"):
             monkeypatch.setenv("GENESIS_ENABLE_P7B", val)
             assert m.is_p7b_enabled() is True, f"Should accept {val!r}"
 
     def test_is_p7b_enabled_falsy_values(self, monkeypatch):
-        from vllm.sndr_core.kernels import gdn_dual_stream_customop as m
+        from sndr.engines.vllm.kernels_legacy import gdn_dual_stream_customop as m
         for val in ("0", "false", "no", "off", ""):
             monkeypatch.setenv("GENESIS_ENABLE_P7B", val)
             assert m.is_p7b_enabled() is False, f"Should reject {val!r}"
@@ -59,8 +59,8 @@ class TestP7bModule:
 
 class TestP7bShouldApply:
     def test_disabled_without_env(self, monkeypatch):
-        from vllm.sndr_core.kernels import gdn_dual_stream_customop as m
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.kernels_legacy import gdn_dual_stream_customop as m
+        from sndr.engines.vllm.detection import guards
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(
             guards, "is_sm_at_least", lambda major, minor=0: True,
@@ -68,8 +68,8 @@ class TestP7bShouldApply:
         assert m.should_apply() is False
 
     def test_disabled_non_nvidia(self, monkeypatch):
-        from vllm.sndr_core.kernels import gdn_dual_stream_customop as m
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.kernels_legacy import gdn_dual_stream_customop as m
+        from sndr.engines.vllm.detection import guards
         monkeypatch.setenv("GENESIS_ENABLE_P7B", "1")
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: False)
         assert m.should_apply() is False
@@ -78,7 +78,7 @@ class TestP7bShouldApply:
 class TestP7bFallback:
     def test_cpu_fallback_returns_correct_shape_2d(self):
         """On CPU, dual_linear_parallel falls through to serial F.linear."""
-        from vllm.sndr_core.kernels.gdn_dual_stream_customop import (
+        from sndr.engines.vllm.kernels_legacy.gdn_dual_stream_customop import (
             dual_linear_parallel,
         )
         hidden = torch.randn(8, 16)
@@ -91,7 +91,7 @@ class TestP7bFallback:
     def test_cpu_fallback_matches_serial(self):
         """Fallback path must be numerically identical to two F.linear."""
         import torch.nn.functional as F
-        from vllm.sndr_core.kernels.gdn_dual_stream_customop import (
+        from sndr.engines.vllm.kernels_legacy.gdn_dual_stream_customop import (
             dual_linear_parallel,
         )
         torch.manual_seed(0)
@@ -108,7 +108,7 @@ class TestP7bFallback:
 
     def test_cpu_fallback_3d_input(self):
         """Shape-polymorphic: (B, N, K) input should work."""
-        from vllm.sndr_core.kernels.gdn_dual_stream_customop import (
+        from sndr.engines.vllm.kernels_legacy.gdn_dual_stream_customop import (
             dual_linear_parallel,
         )
         hidden = torch.randn(2, 4, 16)
@@ -121,14 +121,14 @@ class TestP7bFallback:
 
 class TestP7bWiringSurface:
     def test_public_surface(self):
-        from vllm.sndr_core.integrations.attention.gdn import p7b_gdn_dual_stream_customop as p7b
+        from sndr.engines.vllm.patches.attention.gdn import p7b_gdn_dual_stream_customop as p7b
         assert callable(p7b.apply)
         assert callable(p7b.is_applied)
         assert callable(p7b.revert)
         assert callable(p7b.should_apply)
 
     def test_apply_skips_without_env(self, monkeypatch):
-        from vllm.sndr_core.integrations.attention.gdn import p7b_gdn_dual_stream_customop as p7b
+        from sndr.engines.vllm.patches.attention.gdn import p7b_gdn_dual_stream_customop as p7b
         monkeypatch.setattr(p7b, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(
             p7b, "is_sm_at_least", lambda major, minor=0: True,
@@ -139,7 +139,7 @@ class TestP7bWiringSurface:
         assert "opt-in" in reason.lower() or "GENESIS_ENABLE_P7B" in reason
 
     def test_apply_skips_on_non_nvidia(self, monkeypatch):
-        from vllm.sndr_core.integrations.attention.gdn import p7b_gdn_dual_stream_customop as p7b
+        from sndr.engines.vllm.patches.attention.gdn import p7b_gdn_dual_stream_customop as p7b
         monkeypatch.setenv("GENESIS_ENABLE_P7B", "1")
         monkeypatch.setattr(p7b, "is_nvidia_cuda", lambda: False)
         status, reason = p7b.apply()
@@ -148,11 +148,11 @@ class TestP7bWiringSurface:
 
     def test_revert_always_false(self):
         """P7b is a text-patch — no runtime revert (need compose down)."""
-        from vllm.sndr_core.integrations.attention.gdn import p7b_gdn_dual_stream_customop as p7b
+        from sndr.engines.vllm.patches.attention.gdn import p7b_gdn_dual_stream_customop as p7b
         assert p7b.revert() is False
 
     def test_upstream_drift_markers(self):
-        from vllm.sndr_core.integrations.attention.gdn import p7b_gdn_dual_stream_customop as p7b
+        from sndr.engines.vllm.patches.attention.gdn import p7b_gdn_dual_stream_customop as p7b
         assert "dual_linear_parallel" in p7b.UPSTREAM_DRIFT_MARKERS
         assert any("genesis::" in m for m in p7b.UPSTREAM_DRIFT_MARKERS)
 
@@ -161,8 +161,8 @@ class TestP7bVsP7Coexistence:
     def test_p7_and_p7b_marker_strings_differ(self):
         """P7 and P7b must use different markers so text-patch detection
         doesn't false-match."""
-        from vllm.sndr_core.integrations.attention.gdn import p7_gdn_dual_stream as p7
-        from vllm.sndr_core.integrations.attention.gdn import p7b_gdn_dual_stream_customop as p7b
+        from sndr.engines.vllm.patches.attention.gdn import p7_gdn_dual_stream as p7
+        from sndr.engines.vllm.patches.attention.gdn import p7b_gdn_dual_stream_customop as p7b
         assert p7.GENESIS_P7_MARKER != p7b.GENESIS_P7B_MARKER
         assert "P7 " in p7.GENESIS_P7_MARKER
         assert "P7b " in p7b.GENESIS_P7B_MARKER

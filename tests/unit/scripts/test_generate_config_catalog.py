@@ -13,7 +13,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SCRIPT = REPO_ROOT / "scripts" / "generate_config_catalog.py"
-BUILTIN = REPO_ROOT / "vllm" / "sndr_core" / "model_configs" / "builtin"
+BUILTIN = REPO_ROOT / "sndr" / "model_configs" / "builtin"
 BASELINES = REPO_ROOT / "tests" / "integration" / "baselines"
 
 

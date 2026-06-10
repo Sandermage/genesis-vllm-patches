@@ -2,7 +2,7 @@
 """Tests for operator-local host profile persistence."""
 from __future__ import annotations
 
-from vllm.sndr_core.product_api.host_profiles import (
+from sndr.product_api.legacy.host_profiles import (
     delete_host_profile,
     list_host_profiles,
     upsert_host_profile,
@@ -98,7 +98,7 @@ def test_api_key_is_never_persisted_or_exposed_by_profile(monkeypatch, tmp_path)
     """The engine key must not land on disk or in the GUI payload — it lives
     encrypted in the secrets store (handled by the HTTP layer). Mirrors how the
     SSH password is treated."""
-    from vllm.sndr_core.product_api.host_profiles import _read, host_profile_payload
+    from sndr.product_api.legacy.host_profiles import _read, host_profile_payload
 
     monkeypatch.setenv("SNDR_HOME", str(tmp_path))
     profile = upsert_host_profile({
@@ -114,7 +114,7 @@ def test_api_key_is_never_persisted_or_exposed_by_profile(monkeypatch, tmp_path)
 
 
 def test_probe_host_unreachable_is_graceful():
-    from vllm.sndr_core.product_api import engine_client
+    from sndr.product_api.legacy import engine_client
     # 127.0.0.1 on an unused high port — refused, not an exception escape
     out = engine_client.probe_host("127.0.0.1", 65535, timeout=0.5)
     assert out["reachable"] is False
@@ -123,7 +123,7 @@ def test_probe_host_unreachable_is_graceful():
 
 
 def test_probe_clamps_bad_port():
-    from vllm.sndr_core.product_api import engine_client
+    from sndr.product_api.legacy import engine_client
     out = engine_client.probe_host("127.0.0.1", 999999, timeout=0.3)
     assert out["port"] == 8000
 
@@ -134,8 +134,8 @@ def test_host_routes(monkeypatch, tmp_path):
     monkeypatch.setenv("SNDR_HOME", str(tmp_path))
     from fastapi.testclient import TestClient
 
-    from vllm.sndr_core.product_api import engine_client
-    from vllm.sndr_core.product_api.http_app import create_app
+    from sndr.product_api.legacy import engine_client
+    from sndr.product_api.legacy.http_app import create_app
 
     seen_keys: list = []
 

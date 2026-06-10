@@ -19,14 +19,14 @@ import threading
 
 import pytest
 
-from vllm.sndr_core.observability import (
+from sndr.observability import (
     CudagraphDispatchSummary,
     emit_cudagraph_summary,
     get_cudagraph_summary,
     record_cudagraph_dispatch,
     reset_cudagraph_summary,
 )
-from vllm.sndr_core.observability import cudagraph_dispatch as cgd
+from sndr.observability import cudagraph_dispatch as cgd
 
 
 @pytest.fixture(autouse=True)
@@ -241,10 +241,10 @@ class TestEnvConfig:
     def test_log_every_invalid_falls_back_to_default(self, monkeypatch):
         monkeypatch.setenv("GENESIS_CUDAGRAPH_LOG_EVERY", "not-a-number")
         # Default 1000 used — module helper falls back gracefully
-        from vllm.sndr_core.observability.cudagraph_dispatch import _log_every
+        from sndr.observability.cudagraph_dispatch import _log_every
         assert _log_every() == 1000
 
     def test_log_every_negative_clamped_to_zero(self, monkeypatch):
         monkeypatch.setenv("GENESIS_CUDAGRAPH_LOG_EVERY", "-5")
-        from vllm.sndr_core.observability.cudagraph_dispatch import _log_every
+        from sndr.observability.cudagraph_dispatch import _log_every
         assert _log_every() == 0

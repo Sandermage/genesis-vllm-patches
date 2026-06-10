@@ -34,7 +34,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-SEARCH_DIRS = ("tests", "vllm/sndr_core", "scripts", "tools")
+SEARCH_DIRS = ("tests", "sndr", "scripts", "tools")
 EXCLUDE_DIR_NAMES = {
     "__pycache__", ".git", ".ruff_cache", ".mypy_cache", ".pytest_cache",
 }
@@ -52,6 +52,12 @@ LEGACY_ROOTS = (
 # Path substrings where legacy refs are accepted (back-compat aliases,
 # historical provenance, schema descriptions, the gate itself, archives).
 ALLOWLIST_SUBSTRINGS = (
+    # v12 tree equivalents of the historical sndr_core allowlist —
+    # files that legitimately document/alias the legacy dotted paths.
+    "sndr/schemas/patch_entry.schema.json",
+    "sndr/engines/vllm/upstream_compat.py",
+    # Pre-v12 paths (tree archived under sndr_private/archive/; kept
+    # for operators running the gate against older checkouts).
     "vllm/sndr_core/__init__.py",
     "vllm/sndr_core/schemas/patch_entry.schema.json",
     "vllm/sndr_core/compat/categories.py",
@@ -188,9 +194,9 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     print(f"✗ legacy-import gate: {total} violation(s)")
     print()
-    print("Fix: rename the imports:")
-    print("  vllm.sndr_core.patches.<X>  →  vllm.sndr_core.integrations.<X>")
-    print("  vllm._genesis.<X>           →  vllm.sndr_core.<X>")
+    print("Fix: rename the imports (v12 tree):")
+    print("  vllm.sndr_core.patches.<X>  →  sndr.engines.vllm.patches.<X>")
+    print("  vllm._genesis.<X>           →  sndr.<X>")
     print("If the reference really is historical — add the file to "
           "ALLOWLIST_SUBSTRINGS in this script.")
     return 1

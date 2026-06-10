@@ -25,11 +25,11 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.compat.version_check import (
+from sndr.compat.version_check import (
     VersionProfile,
     check_version_constraints,
 )
-from vllm.sndr_core.detection.guards import KNOWN_GOOD_VLLM_PINS
+from sndr.engines.vllm.detection.guards import KNOWN_GOOD_VLLM_PINS
 
 
 # ─── Expected allowlist (drift detector) ──────────────────────────────────
@@ -61,6 +61,12 @@ EXPECTED_PINS = (
     "0.22.1rc1.dev195+gda1daf40b",                       # setuptools_scm-derived (closest tag base)
     "0.22.1rc1.dev195+gda1daf40bf18e5eaae04f26a80a537c8168a8bc2",  # full-SHA form
     "nightly-da1daf40bf18e5eaae04f26a80a537c8168a8bc2",  # docker tag form
+    # PROD pin K.1.R.R.8.5 ratified 2026-06-09 — image nightly-303916e93.
+    # Sustained bench: wall_TPS 218.56, TPOT 4.464 ms, CV 0.41%.
+    "0.22.1rc1.dev259+g303916e93",                       # setuptools_scm-derived
+    "0.22.1rc1.dev259+g303916e93d66",                    # 12-char SHA form
+    "nightly-303916e93",                                 # docker tag form (short)
+    "nightly-303916e93d66",                              # docker tag form (12-char)
 )
 
 
@@ -163,7 +169,7 @@ class TestPN90VllmVersionRange:
 
     def test_pn90_declares_vllm_version_range(self):
         """PN90's registry entry must have vllm_version_range in applies_to."""
-        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        from sndr.dispatcher.registry import PATCH_REGISTRY
         assert "PN90" in PATCH_REGISTRY
         applies_to = PATCH_REGISTRY["PN90"].get("applies_to", {})
         assert "vllm_version_range" in applies_to, (
@@ -173,7 +179,7 @@ class TestPN90VllmVersionRange:
 
     def test_pn90_range_admits_current_pin(self):
         """PN90 must apply on dev93 PROD baseline."""
-        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        from sndr.dispatcher.registry import PATCH_REGISTRY
         constraints = {
             "vllm_version_range":
                 PATCH_REGISTRY["PN90"]["applies_to"]["vllm_version_range"],
@@ -185,7 +191,7 @@ class TestPN90VllmVersionRange:
 
     def test_pn90_range_rejects_predev9(self):
         """PN90 anchors don't exist pre-dev9 — gate must reject."""
-        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        from sndr.dispatcher.registry import PATCH_REGISTRY
         constraints = {
             "vllm_version_range":
                 PATCH_REGISTRY["PN90"]["applies_to"]["vllm_version_range"],

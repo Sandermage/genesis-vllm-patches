@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.model_configs.schema import (
+from sndr.model_configs.schema import (
     ModelConfig,
     HardwareSpec,
     SchemaError,
@@ -54,7 +54,7 @@ class TestDeploymentConfig:
         assert cfg.deploy.default == "docker"
 
     def test_explicit_deployment_block_accepted(self):
-        from vllm.sndr_core.model_configs.schema import DeploymentConfig
+        from sndr.model_configs.schema import DeploymentConfig
         cfg = _minimal(
             deploy=DeploymentConfig(
                 docker=True,
@@ -69,7 +69,7 @@ class TestDeploymentConfig:
 
     def test_default_runtime_must_be_supported(self):
         """deploy.default must be a runtime where deploy.<runtime>=True."""
-        from vllm.sndr_core.model_configs.schema import DeploymentConfig
+        from sndr.model_configs.schema import DeploymentConfig
         cfg = _minimal(
             deploy=DeploymentConfig(
                 docker=True,
@@ -85,7 +85,7 @@ class TestDeploymentConfig:
 
     def test_at_least_one_runtime_must_be_true(self):
         """All runtimes False = config can't run anywhere → reject."""
-        from vllm.sndr_core.model_configs.schema import DeploymentConfig
+        from sndr.model_configs.schema import DeploymentConfig
         cfg = _minimal(
             deploy=DeploymentConfig(
                 docker=False, podman=False, kubernetes=False,
@@ -97,7 +97,7 @@ class TestDeploymentConfig:
             cfg.validate()
 
     def test_unknown_default_runtime_rejected(self):
-        from vllm.sndr_core.model_configs.schema import DeploymentConfig
+        from sndr.model_configs.schema import DeploymentConfig
         cfg = _minimal(
             deploy=DeploymentConfig(
                 docker=True, podman=False, kubernetes=False,
@@ -113,7 +113,7 @@ class TestSymbolicMounts:
     """Mounts use ${var} references resolved at render-time via host.yaml."""
 
     def test_mount_string_with_symbolic_var_accepted(self):
-        from vllm.sndr_core.model_configs.schema import DockerConfig
+        from sndr.model_configs.schema import DockerConfig
         cfg = _minimal(
             docker=DockerConfig(
                 image="vllm/vllm-openai:nightly",
@@ -130,7 +130,7 @@ class TestSymbolicMounts:
 
     def test_resolve_mounts_via_host_config(self):
         """resolve_symbolic_mounts() expands ${var} per host.yaml."""
-        from vllm.sndr_core.model_configs.schema import (
+        from sndr.model_configs.schema import (
             DockerConfig, resolve_symbolic_mounts,
         )
         host_paths = {
@@ -152,7 +152,7 @@ class TestSymbolicMounts:
 
     def test_unresolved_var_raises(self):
         """Missing host_paths entry raises with clear error."""
-        from vllm.sndr_core.model_configs.schema import resolve_symbolic_mounts
+        from sndr.model_configs.schema import resolve_symbolic_mounts
         with pytest.raises(SchemaError, match="unknown_path"):
             resolve_symbolic_mounts(
                 ["${unknown_path}:/x"],
@@ -161,7 +161,7 @@ class TestSymbolicMounts:
 
     def test_absolute_path_passes_through(self):
         """Absolute paths (no ${var}) work as before — backward compat."""
-        from vllm.sndr_core.model_configs.schema import resolve_symbolic_mounts
+        from sndr.model_configs.schema import resolve_symbolic_mounts
         resolved = resolve_symbolic_mounts(
             ["/data/models:/models:ro", "/etc/foo.conf:/etc/foo.conf:ro"],
             {},
@@ -176,7 +176,7 @@ class TestHostConfig:
     """Auto-detection writes ~/.genesis/host.yaml at install."""
 
     def test_load_host_config_from_path(self, tmp_path):
-        from vllm.sndr_core.model_configs.host import (
+        from sndr.model_configs.host import (
             load_host_config, HostConfig,
         )
         host_yaml = tmp_path / "host.yaml"
@@ -194,7 +194,7 @@ paths:
         assert hc.paths["hf_cache"] == "/home/alice/.cache/huggingface"
 
     def test_detect_paths_finds_common_locations(self, tmp_path, monkeypatch):
-        from vllm.sndr_core.model_configs.host import detect_paths
+        from sndr.model_configs.host import detect_paths
         # Synthesize fake host filesystem
         nfs_models = tmp_path / "nfs" / "models"
         nfs_models.mkdir(parents=True)
@@ -210,7 +210,7 @@ paths:
         assert detected["hf_cache"] == str(hf_cache)
 
     def test_save_host_config_round_trip(self, tmp_path):
-        from vllm.sndr_core.model_configs.host import (
+        from sndr.model_configs.host import (
             save_host_config, load_host_config, HostConfig,
         )
         hc = HostConfig(paths={
@@ -234,8 +234,8 @@ class TestKubernetesRender:
         byte-identical ModelConfig. _render_kubernetes() consumes the
         ModelConfig shape unchanged.
         """
-        from vllm.sndr_core.compat.model_config_cli import _render_kubernetes
-        from vllm.sndr_core.model_configs.registry_v2 import load_alias
+        from sndr.compat.model_config_cli import _render_kubernetes
+        from sndr.model_configs.registry_v2 import load_alias
         cfg = load_alias("prod-qwen3.6-35b-balanced")
         assert cfg is not None
         output = _render_kubernetes(cfg)
@@ -260,15 +260,15 @@ class TestKubernetesRender:
         Phase 10 migration: V2 load_alias() replaces V1 get() (same
         rationale as test_kubernetes_render_emits_valid_yaml above).
         """
-        from vllm.sndr_core.compat.model_config_cli import _render_kubernetes
-        from vllm.sndr_core.model_configs.registry_v2 import load_alias
+        from sndr.compat.model_config_cli import _render_kubernetes
+        from sndr.model_configs.registry_v2 import load_alias
         cfg = load_alias("prod-qwen3.6-35b-balanced")
         output = _render_kubernetes(cfg)
         assert f"nvidia.com/gpu: {cfg.hardware.n_gpus}" in output
 
     def test_kubernetes_render_no_docker_block_emits_error_comment(self):
         """Configs without docker block should emit a clear error comment."""
-        from vllm.sndr_core.compat.model_config_cli import _render_kubernetes
+        from sndr.compat.model_config_cli import _render_kubernetes
         cfg = _minimal()  # no docker block in the minimal helper
         output = _render_kubernetes(cfg)
         assert "ERROR" in output

@@ -101,7 +101,7 @@ def _synth_readme(patches: int, families: int) -> str:
 
         ## Layout
 
-        | `vllm.sndr_core` | **{patches} community patches** + dispatcher |
+        | `sndr` | **{patches} community patches** + dispatcher |
 
         ### Patch coverage — {patches} patches across {families} categories
 

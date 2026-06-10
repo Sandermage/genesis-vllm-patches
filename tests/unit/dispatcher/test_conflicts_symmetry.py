@@ -17,7 +17,7 @@ from __future__ import annotations
 
 def test_conflicts_with_is_symmetric():
     """If A.conflicts_with contains B, then B.conflicts_with must contain A."""
-    from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+    from sndr.dispatcher import PATCH_REGISTRY
 
     asymm = []
     for pid, meta in PATCH_REGISTRY.items():
@@ -38,7 +38,7 @@ def test_conflicts_with_is_symmetric():
 
 def test_conflicts_with_targets_exist():
     """Every patch ID listed in `conflicts_with` must be in the registry."""
-    from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+    from sndr.dispatcher import PATCH_REGISTRY
 
     broken = []
     for pid, meta in PATCH_REGISTRY.items():
@@ -50,7 +50,7 @@ def test_conflicts_with_targets_exist():
 
 def test_requires_patches_targets_exist():
     """Every patch ID listed in `requires_patches` must be in the registry."""
-    from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+    from sndr.dispatcher import PATCH_REGISTRY
 
     broken = []
     for pid, meta in PATCH_REGISTRY.items():
@@ -62,7 +62,7 @@ def test_requires_patches_targets_exist():
 
 def test_composes_with_targets_exist():
     """Every patch ID listed in `composes_with` must be in the registry."""
-    from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+    from sndr.dispatcher import PATCH_REGISTRY
 
     broken = []
     for pid, meta in PATCH_REGISTRY.items():

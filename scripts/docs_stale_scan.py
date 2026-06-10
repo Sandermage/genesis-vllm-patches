@@ -58,6 +58,11 @@ ALLOWLIST_SUBSTRINGS: tuple[str, ...] = (
     "sndr_private/",  # entire private maintainer tree (incl. moved upstream_refs/)
     "/_archive/",
     "docs/archive/",
+    # v12 maintainer journals / specs / ops playbooks: historical
+    # session logs whose subject matter includes retired paths (e.g.
+    # the v12 move mapping tables). Not public-facing docs — mirrors
+    # ALLOWLIST_PREFIXES in scripts/audit_public_docs.py.
+    "docs/superpowers/",
     # Migration / design appendices that explicitly document the
     # retirement of the v10 `_genesis` namespace.
     "docs/INSTALL.md",       # migration appendix referencing _genesis alias

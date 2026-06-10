@@ -7,11 +7,11 @@ import json
 
 import pytest
 
-from vllm.sndr_core.cli.report import run_cudagraph_coverage
-from vllm.sndr_core.observability import (
+from sndr.cli.legacy.report import run_cudagraph_coverage
+from sndr.observability import (
     record_cudagraph_dispatch,
 )
-from vllm.sndr_core.observability import cudagraph_dispatch as cgd
+from sndr.observability import cudagraph_dispatch as cgd
 
 
 @pytest.fixture(autouse=True)

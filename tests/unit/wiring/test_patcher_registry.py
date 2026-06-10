@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Tests for `vllm.sndr_core.wiring.patcher_registry` — P2.1 Node 2.
+"""Tests for `sndr.engines.vllm.wiring.patcher_registry` — P2.1 Node 2.
 
 Contract:
 
@@ -21,7 +21,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from vllm.sndr_core.wiring import patcher_registry as pr
+from sndr.engines.vllm.wiring import patcher_registry as pr
 
 
 @pytest.fixture(autouse=True)

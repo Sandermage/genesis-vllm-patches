@@ -29,7 +29,7 @@ def _md5(data: bytes) -> str:
 @pytest.fixture(autouse=True)
 def _clear_manifest_cache():
     """Each test starts with empty manifest cache."""
-    from vllm.sndr_core.core.text_patch import _reset_manifest_cache_for_tests
+    from sndr.kernel.text_patch import _reset_manifest_cache_for_tests
     _reset_manifest_cache_for_tests()
     yield
     _reset_manifest_cache_for_tests()
@@ -49,7 +49,7 @@ def _clear_no_patch_cache_env(monkeypatch):
 class TestPatchIdField:
 
     def test_default_none(self):
-        from vllm.sndr_core.core.text_patch import TextPatch, TextPatcher
+        from sndr.kernel.text_patch import TextPatch, TextPatcher
         p = TextPatcher(
             patch_name="test", target_file="/tmp/x", marker="m",
             sub_patches=[TextPatch(name="s", anchor="a", replacement="b",
@@ -58,7 +58,7 @@ class TestPatchIdField:
         assert p.patch_id is None
 
     def test_explicit_patch_id(self):
-        from vllm.sndr_core.core.text_patch import TextPatch, TextPatcher
+        from sndr.kernel.text_patch import TextPatch, TextPatcher
         p = TextPatcher(
             patch_name="test", target_file="/tmp/x", marker="m",
             sub_patches=[TextPatch(name="s", anchor="a", replacement="b",
@@ -124,7 +124,7 @@ class TestManifestCache:
 
     def test_first_load_then_cached(self, monkeypatch, tmp_path):
         """Loader called once; second call returns cached dict."""
-        from vllm.sndr_core.wiring import text_patch as tp_module
+        from sndr.engines.vllm.wiring import text_patch as tp_module
 
         # Monkey-patch load_manifest_for_pins to count calls
         call_count = {"n": 0}
@@ -138,7 +138,7 @@ class TestManifestCache:
             return sample_manifest
 
         monkeypatch.setattr(
-            "vllm.sndr_core.wiring.anchor_manifest.load_manifest_for_pins",
+            "sndr.engines.vllm.wiring.anchor_manifest.load_manifest_for_pins",
             fake_load,
         )
 
@@ -151,7 +151,7 @@ class TestManifestCache:
     def test_load_failure_caches_invalid_sentinel(self, monkeypatch):
         """If first load returns None, subsequent calls return None
         without re-attempting load (avoids retry storm)."""
-        from vllm.sndr_core.wiring import text_patch as tp_module
+        from sndr.engines.vllm.wiring import text_patch as tp_module
 
         call_count = {"n": 0}
 
@@ -160,7 +160,7 @@ class TestManifestCache:
             return None
 
         monkeypatch.setattr(
-            "vllm.sndr_core.wiring.anchor_manifest.load_manifest_for_pins",
+            "sndr.engines.vllm.wiring.anchor_manifest.load_manifest_for_pins",
             fake_load,
         )
 
@@ -181,8 +181,8 @@ def _setup_manifest_for_test(tmp_path: Path, monkeypatch,
                              rel_path: str = "x.py"):
     """Build a manifest covering pristine_src with given sub_patches and
     monkey-patch the loader to return it."""
-    from vllm.sndr_core.wiring.anchor_manifest import PatcherManifestInput
-    from vllm.sndr_core.wiring.anchor_manifest import assemble_manifest
+    from sndr.engines.vllm.wiring.anchor_manifest import PatcherManifestInput
+    from sndr.engines.vllm.wiring.anchor_manifest import assemble_manifest
 
     manifest = assemble_manifest(
         vllm_pin="test-vllm-pin",
@@ -201,7 +201,7 @@ def _setup_manifest_for_test(tmp_path: Path, monkeypatch,
         return manifest
 
     monkeypatch.setattr(
-        "vllm.sndr_core.wiring.anchor_manifest.load_manifest_for_pins",
+        "sndr.engines.vllm.wiring.anchor_manifest.load_manifest_for_pins",
         fake_load,
     )
     return manifest
@@ -212,7 +212,7 @@ class TestManifestFastPath:
     def test_apply_via_manifest_full_success(self, tmp_path, monkeypatch):
         """Build manifest covering all anchors, apply patcher, verify
         file modified correctly + IDEMPOTENT on second call."""
-        from vllm.sndr_core.core.text_patch import (
+        from sndr.kernel.text_patch import (
             TextPatch, TextPatcher, TextPatchResult,
         )
         pristine = "alpha\nbravo\ncharlie\ndelta\n"
@@ -269,7 +269,7 @@ class TestManifestFallback:
 
     def _make_patcher(self, target, patch_id=None,
                       sub_patches=None) -> object:
-        from vllm.sndr_core.core.text_patch import TextPatch, TextPatcher
+        from sndr.kernel.text_patch import TextPatch, TextPatcher
         sp = sub_patches or [
             TextPatch(name="s", anchor="alpha", replacement="ALPHA",
                       required=True),
@@ -281,7 +281,7 @@ class TestManifestFallback:
 
     def test_no_patch_id_falls_back(self, tmp_path):
         """patch_id None → manifest path skipped, legacy Layer 5 used."""
-        from vllm.sndr_core.core.text_patch import TextPatchResult
+        from sndr.kernel.text_patch import TextPatchResult
         target = tmp_path / "f.py"
         target.write_text("alpha")
         patcher = self._make_patcher(target, patch_id=None)
@@ -292,10 +292,10 @@ class TestManifestFallback:
 
     def test_no_manifest_loaded_falls_back(self, tmp_path, monkeypatch):
         """Manifest absent (loader returns None) → legacy Layer 5."""
-        from vllm.sndr_core.core.text_patch import TextPatchResult
+        from sndr.kernel.text_patch import TextPatchResult
 
         monkeypatch.setattr(
-            "vllm.sndr_core.wiring.anchor_manifest.load_manifest_for_pins",
+            "sndr.engines.vllm.wiring.anchor_manifest.load_manifest_for_pins",
             lambda *a, **kw: None,
         )
         target = tmp_path / "f.py"
@@ -308,7 +308,7 @@ class TestManifestFallback:
     def test_md5_mismatch_falls_back(self, tmp_path, monkeypatch):
         """File on disk doesn't match manifest pristine — fall through.
         Verify: Layer 5 still APPLIES (anchor present even if file changed)."""
-        from vllm.sndr_core.core.text_patch import TextPatchResult
+        from sndr.kernel.text_patch import TextPatchResult
 
         # Manifest built for "alpha\n", but file on disk is "MODIFIED alpha\n"
         _setup_manifest_for_test(
@@ -321,7 +321,7 @@ class TestManifestFallback:
         target.write_text("MODIFIED alpha\n")  # ← modified vs manifest
         patcher = self._make_patcher(
             target, patch_id="TEST.Sub-1",
-            sub_patches=[__import__("vllm.sndr_core.core.text_patch",
+            sub_patches=[__import__("sndr.kernel.text_patch",
                 fromlist=["TextPatch"]).TextPatch(
                 name="s", anchor="alpha\n", replacement="ALPHA\n",
                 required=True)],
@@ -335,7 +335,7 @@ class TestManifestFallback:
 
     def test_no_patch_cache_env_falls_back(self, tmp_path, monkeypatch):
         """GENESIS_NO_PATCH_CACHE=1 → manifest gate 1 fail → legacy used."""
-        from vllm.sndr_core.core.text_patch import TextPatchResult
+        from sndr.kernel.text_patch import TextPatchResult
 
         # Manifest IS available, but env disables it
         _setup_manifest_for_test(
@@ -349,7 +349,7 @@ class TestManifestFallback:
         target.parent.mkdir()
         target.write_text("alpha\n")
         patcher = self._make_patcher(target, patch_id="TEST.Sub-1")
-        from vllm.sndr_core.core.text_patch import TextPatch
+        from sndr.kernel.text_patch import TextPatch
         patcher.sub_patches = [
             TextPatch(name="s", anchor="alpha\n", replacement="ALPHA\n",
                       required=True),
@@ -379,7 +379,7 @@ class TestEquivalenceWithLegacy:
         target.write_text(pristine)
         patcher = patcher_factory(target)
         result, _ = patcher.apply()
-        from vllm.sndr_core.core.text_patch import TextPatchResult
+        from sndr.kernel.text_patch import TextPatchResult
         assert result == TextPatchResult.APPLIED, f"apply failed: {result}"
         return target.read_text()
 
@@ -388,10 +388,10 @@ class TestEquivalenceWithLegacy:
         """Apply PN79 Sub-1 to pristine chunk.py via BOTH paths,
         compare byte-for-byte.
         """
-        from vllm.sndr_core.core.text_patch import (
+        from sndr.kernel.text_patch import (
             TextPatch, TextPatcher, _reset_manifest_cache_for_tests,
         )
-        from vllm.sndr_core.integrations.attention.gdn import pn79_inplace_ssm_state as M
+        from sndr.engines.vllm.patches.attention.gdn import pn79_inplace_ssm_state as M
 
         # Load real pristine fixture
         pristine = (
@@ -440,7 +440,7 @@ class TestEquivalenceWithLegacy:
         target_legacy = legacy_dir / "f.py"
         target_legacy.write_text(pristine)
         result_legacy = factory_legacy(target_legacy).apply()
-        from vllm.sndr_core.core.text_patch import TextPatchResult
+        from sndr.kernel.text_patch import TextPatchResult
         assert result_legacy[0] == TextPatchResult.APPLIED
         legacy_output = target_legacy.read_text()
 
@@ -476,7 +476,7 @@ class TestNoPatchCacheEnvDisables:
     """
 
     def test_env_set_forces_legacy(self, tmp_path, monkeypatch):
-        from vllm.sndr_core.core.text_patch import (
+        from sndr.kernel.text_patch import (
             TextPatch, TextPatcher, TextPatchResult,
         )
 

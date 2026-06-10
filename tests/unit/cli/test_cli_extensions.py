@@ -22,12 +22,12 @@ class TestConfigListAlias:
     the same output (table-mode) and an alias hint."""
 
     def test_run_list_exists(self):
-        from vllm.sndr_core.cli import config as cfg_cli
+        from sndr.cli.legacy import config as cfg_cli
         assert hasattr(cfg_cli, "run_list")
         assert callable(cfg_cli.run_list)
 
     def test_run_list_table_mode(self):
-        from vllm.sndr_core.cli import config as cfg_cli
+        from sndr.cli.legacy import config as cfg_cli
         ns = argparse.Namespace(json=False)
         buf = io.StringIO()
         with redirect_stdout(buf):
@@ -50,7 +50,7 @@ class TestConfigListAlias:
         assert "alias of `sndr model-config list`" in out
 
     def test_run_list_json_mode_no_hint(self):
-        from vllm.sndr_core.cli import config as cfg_cli
+        from sndr.cli.legacy import config as cfg_cli
         ns = argparse.Namespace(json=True)
         buf = io.StringIO()
         with redirect_stdout(buf):
@@ -66,7 +66,7 @@ class TestProductionProfileGate:
     placeholder/research/retired patches in the APPLY set."""
 
     def test_profile_default_is_any(self):
-        from vllm.sndr_core.cli.patches import add_argparser
+        from sndr.cli.legacy.patches import add_argparser
         parser = argparse.ArgumentParser()
         sub = parser.add_subparsers(dest="cmd")
         add_argparser(sub)
@@ -75,7 +75,7 @@ class TestProductionProfileGate:
         assert ns.profile == "any"
 
     def test_profile_production_choice_accepted(self):
-        from vllm.sndr_core.cli.patches import add_argparser
+        from sndr.cli.legacy.patches import add_argparser
         parser = argparse.ArgumentParser()
         sub = parser.add_subparsers(dest="cmd")
         add_argparser(sub)
@@ -86,7 +86,7 @@ class TestProductionProfileGate:
         assert ns.profile == "production"
 
     def test_profile_invalid_choice_rejected(self):
-        from vllm.sndr_core.cli.patches import add_argparser
+        from sndr.cli.legacy.patches import add_argparser
         parser = argparse.ArgumentParser()
         sub = parser.add_subparsers(dest="cmd")
         add_argparser(sub)
@@ -102,14 +102,14 @@ class TestK8sDoctor:
     machine-parseable JSON when `--json` is set."""
 
     def test_run_doctor_exists(self):
-        from vllm.sndr_core.cli import k8s
+        from sndr.cli.legacy import k8s
         assert hasattr(k8s, "run_doctor")
         assert callable(k8s.run_doctor)
 
     def test_run_doctor_no_kubectl_returns_1(self, monkeypatch):
         import shutil as _shutil
         monkeypatch.setattr(_shutil, "which", lambda x: None)
-        from vllm.sndr_core.cli import k8s
+        from sndr.cli.legacy import k8s
         # ensure k8s module sees the monkeypatched shutil.which too
         monkeypatch.setattr(k8s.shutil, "which", lambda x: None)
         ns = argparse.Namespace(config=None, json=False)
@@ -117,7 +117,7 @@ class TestK8sDoctor:
         assert rc == 1
 
     def test_run_doctor_no_kubectl_json_mode(self, monkeypatch):
-        from vllm.sndr_core.cli import k8s
+        from sndr.cli.legacy import k8s
         monkeypatch.setattr(k8s.shutil, "which", lambda x: None)
         ns = argparse.Namespace(config=None, json=True)
         buf = io.StringIO()

@@ -2,7 +2,7 @@
 """Unit tests for the GPU architecture advisor."""
 from __future__ import annotations
 
-from vllm.sndr_core.product_api import gpu_arch
+from sndr.product_api.legacy import gpu_arch
 
 
 def test_ampere_a5000_is_storage_only_fp8():

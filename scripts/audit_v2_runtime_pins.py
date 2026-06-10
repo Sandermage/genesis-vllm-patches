@@ -65,10 +65,10 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 HARDWARE_DIR = (
-    REPO_ROOT / "vllm" / "sndr_core" / "model_configs" / "builtin" / "hardware"
+    REPO_ROOT / "sndr" / "model_configs" / "builtin" / "hardware"
 )
 MODEL_DIR = (
-    REPO_ROOT / "vllm" / "sndr_core" / "model_configs" / "builtin" / "model"
+    REPO_ROOT / "sndr" / "model_configs" / "builtin" / "model"
 )
 
 # ─── Constants ──────────────────────────────────────────────────────────
@@ -328,9 +328,9 @@ def check_r_pin_3_render_parity() -> tuple[list[str], list[str]]:
     infos: list[str] = []
 
     try:
-        from vllm.sndr_core.cli.profile import render_profile_launcher
-        from vllm.sndr_core.model_configs.compose import compose
-        from vllm.sndr_core.model_configs.registry_v2 import (
+        from sndr.cli.legacy.profile import render_profile_launcher
+        from sndr.model_configs.compose import compose
+        from sndr.model_configs.registry_v2 import (
             load_hardware, load_model, load_profile,
         )
     except Exception as e:  # noqa: BLE001

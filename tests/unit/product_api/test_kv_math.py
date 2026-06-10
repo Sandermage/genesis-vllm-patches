@@ -6,7 +6,7 @@ formula), GQA / MoE / tensor-parallel handling, and calibration.
 """
 from __future__ import annotations
 
-from vllm.sndr_core.product_api import kv_math
+from sndr.product_api.legacy import kv_math
 
 
 def test_kv_bytes_per_token_matches_formula():

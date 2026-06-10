@@ -46,7 +46,7 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).parent.parent
-SRC_BASE = REPO_ROOT / "vllm" / "sndr_core" / "integrations"
+SRC_BASE = REPO_ROOT / "sndr" / "engines" / "vllm" / "patches"
 DST_BASE = REPO_ROOT / "sndr" / "engines" / "vllm" / "patches"
 
 FAMILIES_RECOMMENDED_ORDER = [
@@ -153,7 +153,7 @@ def update_registry(dry_run: bool = True) -> list[str]:
     NOTE: For v12, registry lives at sndr/dispatcher/registry.py (Phase 5).
     For now, we patch vllm/sndr_core/dispatcher/registry.py directly.
     """
-    registry = REPO_ROOT / "vllm" / "sndr_core" / "dispatcher" / "registry.py"
+    registry = REPO_ROOT / "sndr" / "dispatcher" / "registry.py"
     if not registry.is_file():
         return ["[WARN] registry.py not found; skip update"]
 

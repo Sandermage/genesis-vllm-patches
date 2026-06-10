@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.product_api import ssh_client
+from sndr.product_api.legacy import ssh_client
 
 
 class _FakeChannel:

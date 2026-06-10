@@ -14,9 +14,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from vllm.sndr_core.cli import service as service_cli
-from vllm.sndr_core.model_configs.registry_v2 import load_alias
-from vllm.sndr_core.model_configs.schema import ServiceConfig
+from sndr.cli.legacy import service as service_cli
+from sndr.model_configs.registry_v2 import load_alias
+from sndr.model_configs.schema import ServiceConfig
 
 
 @pytest.fixture
@@ -46,7 +46,7 @@ class TestInstallDockerCompose:
         def _stub_path(cfg):
             return tmp_path / ".sndr" / "compose" / f"{cfg.key}.yml"
         monkeypatch.setattr(
-            "vllm.sndr_core.cli.service._compose_file_path", _stub_path,
+            "sndr.cli.legacy.service._compose_file_path", _stub_path,
         )
         monkeypatch.setattr(
             "pathlib.Path.home", lambda: tmp_path,
@@ -57,11 +57,11 @@ class TestInstallDockerCompose:
         cfg_with_docker.service.backend = "docker_compose"
 
         with patch(
-            "vllm.sndr_core.cli.service._resolve",
+            "sndr.cli.legacy.service._resolve",
             return_value=cfg_with_docker,
         ):
             with patch(
-                "vllm.sndr_core.cli.compose.render_compose_yaml",
+                "sndr.cli.legacy.compose.render_compose_yaml",
                 return_value="# stub compose\nservices:\n  vllm-server:\n    image: x\n",
             ):
                 args = argparse.Namespace(
@@ -91,7 +91,7 @@ class TestStartStopDockerCompose:
         def _stub_path(cfg):
             return tmp_path / ".sndr" / "compose" / f"{cfg.key}.yml"
         monkeypatch.setattr(
-            "vllm.sndr_core.cli.service._compose_file_path", _stub_path,
+            "sndr.cli.legacy.service._compose_file_path", _stub_path,
         )
         monkeypatch.setattr(
             "pathlib.Path.home", lambda: tmp_path,
@@ -110,9 +110,9 @@ class TestStartStopDockerCompose:
             captured["dry_run"] = kwargs.get("dry_run", False)
             return 0
 
-        with patch("vllm.sndr_core.cli.service._resolve",
+        with patch("sndr.cli.legacy.service._resolve",
                    return_value=cfg_with_docker):
-            with patch("vllm.sndr_core.cli.service._docker_cmd",
+            with patch("sndr.cli.legacy.service._docker_cmd",
                        side_effect=_fake_docker_cmd):
                 args = argparse.Namespace(
                     config="prod-qwen3.6-35b-balanced", yes=True, system=False,
@@ -138,7 +138,7 @@ class TestStartStopDockerCompose:
         def _stub_path(cfg):
             return tmp_path / ".sndr" / "compose" / f"{cfg.key}.yml"
         monkeypatch.setattr(
-            "vllm.sndr_core.cli.service._compose_file_path", _stub_path,
+            "sndr.cli.legacy.service._compose_file_path", _stub_path,
         )
         monkeypatch.setattr(
             "pathlib.Path.home", lambda: tmp_path,
@@ -151,9 +151,9 @@ class TestStartStopDockerCompose:
             captured["args"] = args
             return 0
 
-        with patch("vllm.sndr_core.cli.service._resolve",
+        with patch("sndr.cli.legacy.service._resolve",
                    return_value=cfg_with_docker):
-            with patch("vllm.sndr_core.cli.service._docker_cmd",
+            with patch("sndr.cli.legacy.service._docker_cmd",
                        side_effect=_fake_docker_cmd):
                 args = argparse.Namespace(
                     config="prod-qwen3.6-35b-balanced", yes=True, system=False,
@@ -173,7 +173,7 @@ class TestStartStopDockerCompose:
         def _stub_path(cfg):
             return tmp_path / ".sndr" / "compose" / f"{cfg.key}.yml"
         monkeypatch.setattr(
-            "vllm.sndr_core.cli.service._compose_file_path", _stub_path,
+            "sndr.cli.legacy.service._compose_file_path", _stub_path,
         )
         monkeypatch.setattr(
             "pathlib.Path.home", lambda: tmp_path,
@@ -190,9 +190,9 @@ class TestStartStopDockerCompose:
             captured["args"] = args
             return 0
 
-        with patch("vllm.sndr_core.cli.service._resolve",
+        with patch("sndr.cli.legacy.service._resolve",
                    return_value=cfg_with_docker):
-            with patch("vllm.sndr_core.cli.service._docker_cmd",
+            with patch("sndr.cli.legacy.service._docker_cmd",
                        side_effect=_fake_docker_cmd):
                 args = argparse.Namespace(
                     config="prod-qwen3.6-35b-balanced", yes=True, system=False,
@@ -219,9 +219,9 @@ class TestPodmanQuadletViaSystemd:
             called["unit"] = unit
             return 0
 
-        with patch("vllm.sndr_core.cli.service._resolve",
+        with patch("sndr.cli.legacy.service._resolve",
                    return_value=cfg_with_docker):
-            with patch("vllm.sndr_core.cli.service._systemctl",
+            with patch("sndr.cli.legacy.service._systemctl",
                        side_effect=_fake_systemctl):
                 args = argparse.Namespace(
                     config="prod-qwen3.6-35b-balanced", yes=True, system=False,

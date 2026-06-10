@@ -137,6 +137,7 @@ audit-public-paths: ## Etap 6.7: forbid private LAN IPs / home paths / usernames
 	    --exclude-dir='sndr_private' \
 	    --exclude-dir='_archive' \
 	    --exclude-dir='_internal' \
+	    --exclude-dir='superpowers' \
 	    --exclude-dir='baselines' \
 	    --exclude-dir='__pycache__' \
 	    2>/dev/null || true); \
@@ -227,7 +228,7 @@ audit-config-catalog-fresh: ## CONFIG-UX.5.1: generated catalog determinism + re
 	@$(PYTHON) scripts/audit_generated_config_catalog.py
 
 config-catalog: ## CONFIG-UX.5.2: discoverable alias for `sndr config-catalog build` (derived catalog UX sugar)
-	@$(PYTHON) -m vllm.sndr_core.cli config-catalog build
+	@$(PYTHON) -m sndr.cli.legacy config-catalog build
 
 audit-config-keys: ## §10.3 #4 / §6.7 canonical env-key registry: every committed YAML's Genesis/SNDR keys in canonical union
 	@$(PYTHON) scripts/audit_config_keys.py
@@ -248,29 +249,29 @@ audit-artifacts-release: ## Phase 7 strict release gate: artefact storage + SBOM
 	@$(PYTHON) scripts/audit_artifacts.py --public-release
 
 audit-community: ## Phase 7 gate: community SDK release-tier validator (R-1..R-7)
-	@$(PYTHON) -m vllm.sndr_core.cli community validate
+	@$(PYTHON) -m sndr.cli.legacy community validate
 
 audit-no-new-v1: ## Phase 9 freeze gate: top-level builtin/*.yaml matches frozen baseline
 	@$(PYTHON) scripts/audit_no_new_v1.py
 
 audit-patches-prove: ## §6.8 R1 mitigation: dead-patch detector (lists patches without proof artefacts)
-	@$(PYTHON) -m vllm.sndr_core.cli patches prove --dead-detect
+	@$(PYTHON) -m sndr.cli.legacy patches prove --dead-detect
 
 audit-patches-prove-all: ## §6.8 release gate: run static checks on every PATCH_REGISTRY entry
-	@$(PYTHON) -m vllm.sndr_core.cli patches prove --all --no-write
+	@$(PYTHON) -m sndr.cli.legacy patches prove --all --no-write
 
 audit-proof-status: ## §6.8 read-side: bucket summary of every patch's proof-artefact state (informational)
-	@$(PYTHON) -m vllm.sndr_core.cli patches proof-status
+	@$(PYTHON) -m sndr.cli.legacy patches proof-status
 
 audit-release-check: ## §6.8 release-gate consumer — every patch must have a static proof (gating in make evidence --release)
-	@$(PYTHON) -m vllm.sndr_core.cli patches release-check --mode require-static
+	@$(PYTHON) -m sndr.cli.legacy patches release-check --mode require-static
 
 audit-release-check-bench-attached: ## §6.8 ratchet 1: every patch must have at least one bench attachment (bridge to require-baseline)
 	# Bridge between require-static (current public gate) and the strict
 	# require-baseline below. Run this when promoting the default-on
 	# subset of a production preset; not part of `make evidence --release`.
 	# See docs/RELEASE_POLICY.md for the policy lifecycle.
-	@$(PYTHON) -m vllm.sndr_core.cli patches release-check --mode require-bench
+	@$(PYTHON) -m sndr.cli.legacy patches release-check --mode require-bench
 
 audit-release-check-baseline-optional: ## §6.8 ratchet 2: every patch must carry a bench_with_baseline proof (strict)
 	# Informational by design: 0/169 entries have bench_with_baseline today.
@@ -279,7 +280,7 @@ audit-release-check-baseline-optional: ## §6.8 ratchet 2: every patch must carr
 	# Operators preparing a hardened deploy run this target directly after
 	# the bench-attached ratchet above clears the default-on subset.
 	# See docs/RELEASE_POLICY.md for the cutover procedure.
-	@$(PYTHON) -m vllm.sndr_core.cli patches release-check --mode require-baseline
+	@$(PYTHON) -m sndr.cli.legacy patches release-check --mode require-baseline
 
 audit-model-baselines: ## Phase 7 supplement: every V2 model's reference_metrics_ref must point at an existing JSON file
 	@$(PYTHON) scripts/audit_model_baselines.py
@@ -428,7 +429,7 @@ clean: ## Remove __pycache__, .pytest_cache, .bak files
 	@echo "✓ Cleaned"
 
 doctor: ## Run sndr doctor (genesis CLI health check)
-	$(PYTHON) -m vllm.sndr_core.cli doctor
+	$(PYTHON) -m sndr.cli.legacy doctor
 
 gui-build: ## Build the web UI and bundle it into the package for the daemon to serve
 	cd gui/web && npm ci && npm run build

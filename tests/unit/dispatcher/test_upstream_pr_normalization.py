@@ -28,7 +28,7 @@ weekly upstream audit gate. PR URLs are recoverable (extract the
 integer) — issue URLs are NOT (they reference issues, not PRs;
 separate semantic).
 
-Fix: `vllm.sndr_core.dispatcher.spec.normalize_upstream_pr` parses
+Fix: `sndr.dispatcher.spec.normalize_upstream_pr` parses
 all forms to `Optional[int]`. `PatchSpec.upstream_pr` now uses the
 normalizer. Issue URLs return None (correct: they're not PRs).
 
@@ -46,7 +46,7 @@ from __future__ import annotations
 
 def test_normalize_upstream_pr_handles_all_forms():
     """Unit test for the normalizer covering each accepted input form."""
-    from vllm.sndr_core.dispatcher.spec import normalize_upstream_pr
+    from sndr.dispatcher.spec import normalize_upstream_pr
     # int → int
     assert normalize_upstream_pr(41043) == 41043
     # str int → int
@@ -74,8 +74,8 @@ def test_normalize_upstream_pr_handles_all_forms():
 def test_every_registry_upstream_pr_normalizes_cleanly():
     """After normalization, every PATCH_REGISTRY `upstream_pr` value
     is either an int (PR number) or None. No exceptions."""
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
-    from vllm.sndr_core.dispatcher.spec import normalize_upstream_pr
+    from sndr.dispatcher.registry import PATCH_REGISTRY
+    from sndr.dispatcher.spec import normalize_upstream_pr
     failures: list[tuple[str, object]] = []
     for pid, meta in PATCH_REGISTRY.items():
         if not isinstance(meta, dict):
@@ -97,7 +97,7 @@ def test_every_registry_upstream_pr_normalizes_cleanly():
 def test_patch_spec_upstream_pr_is_int_or_none():
     """After PatchSpec construction, every spec's upstream_pr is
     Optional[int] — never a URL string."""
-    from vllm.sndr_core.dispatcher.spec import iter_patch_specs
+    from sndr.dispatcher.spec import iter_patch_specs
     bad = []
     for spec in iter_patch_specs():
         up = spec.upstream_pr
@@ -122,8 +122,8 @@ def test_advisory_issue_url_count_baseline():
     Baseline at v11.3.0: 24 issue-URL entries (all G4_* model-compat
     patches that link to upstream issues describing the model-specific
     bug, NOT to a tracking PR)."""
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
-    from vllm.sndr_core.dispatcher.spec import is_issue_url_not_pr
+    from sndr.dispatcher.registry import PATCH_REGISTRY
+    from sndr.dispatcher.spec import is_issue_url_not_pr
     issue_url_entries = [
         pid for pid, meta in PATCH_REGISTRY.items()
         if isinstance(meta, dict)

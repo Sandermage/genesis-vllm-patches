@@ -24,7 +24,7 @@ from contextlib import redirect_stdout
 
 import pytest
 
-from vllm.sndr_core.cli import cli_main as cli_run
+from sndr.cli.legacy import cli_main as cli_run
 
 
 # ─── In-process CLI runner ───────────────────────────────────────────────

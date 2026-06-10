@@ -25,12 +25,12 @@ def check_patch(patch_id: str, env_flag: str, model_class: str) -> dict:
     os.environ[env_flag] = "1"
     try:
         # Reimport dispatcher fresh to pick up env
-        for stale in ("vllm.sndr_core.dispatcher",
-                      "vllm.sndr_core.dispatcher.registry"):
+        for stale in ("sndr.dispatcher",
+                      "sndr.dispatcher.registry"):
             if stale in sys.modules:
                 del sys.modules[stale]
-        from vllm.sndr_core.dispatcher import should_apply
-        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        from sndr.dispatcher import should_apply
+        from sndr.dispatcher.registry import PATCH_REGISTRY
         meta = PATCH_REGISTRY.get(patch_id, {})
         applies_to = meta.get("applies_to", {})
         allowed_classes = applies_to.get("model_class")

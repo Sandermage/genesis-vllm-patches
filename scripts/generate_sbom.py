@@ -27,7 +27,7 @@ What gets enumerated:
 
 Usage:
   # Generate against a wheel (best — fully-resolved transitive deps)
-  pip install dist/vllm_sndr_core-*.whl
+  pip install dist/sndr_platform-*.whl
   python3 scripts/generate_sbom.py --out genesis-sbom
 
   # Generate from source tree (transitive deps unresolved)
@@ -102,8 +102,8 @@ def _read_constraints() -> list[str]:
 
 
 def _list_genesis_modules() -> list[dict[str, Any]]:
-    """Walk vllm/sndr_core/ and emit (path, sha256) for each .py."""
-    sndr = REPO_ROOT / "vllm" / "sndr_core"
+    """Walk sndr/ (v12 runtime tree) and emit (path, sha256) per .py."""
+    sndr = REPO_ROOT / "sndr"
     if not sndr.is_dir():
         return []
     out: list[dict[str, Any]] = []
@@ -118,7 +118,7 @@ def _list_genesis_modules() -> list[dict[str, Any]]:
 def _registry_snapshot() -> dict[str, Any]:
     """Snapshot PATCH_REGISTRY size + lifecycle / tier distribution."""
     try:
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+        from sndr.dispatcher import PATCH_REGISTRY
     except Exception as e:
         return {"error": str(e), "total": 0}
     total = len(PATCH_REGISTRY)
@@ -146,7 +146,7 @@ def _model_configs_snapshot() -> list[dict[str, Any]]:
     """List builtin model_configs with key + maintainer + last_validated."""
     out: list[dict[str, Any]] = []
     try:
-        from vllm.sndr_core.model_configs.registry import list_keys, get
+        from sndr.model_configs.registry import list_keys, get
         for key in sorted(list_keys()):
             try:
                 cfg = get(key)
@@ -169,7 +169,7 @@ def _model_configs_snapshot() -> list[dict[str, Any]]:
 def _vllm_pins() -> list[str]:
     """KNOWN_GOOD_VLLM_PINS list."""
     try:
-        from vllm.sndr_core.dispatcher import KNOWN_GOOD_VLLM_PINS
+        from sndr.dispatcher import KNOWN_GOOD_VLLM_PINS
         return list(KNOWN_GOOD_VLLM_PINS)
     except Exception:
         return []
@@ -178,7 +178,7 @@ def _vllm_pins() -> list[str]:
 def _image_allowlist() -> list[dict[str, Any]]:
     """Active KNOWN_GOOD_IMAGES (excludes historical)."""
     try:
-        from vllm.sndr_core.compat.image_allowlist import list_active
+        from sndr.compat.image_allowlist import list_active
         return [
             {
                 "image_repo": e.image_repo,

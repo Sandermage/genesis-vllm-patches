@@ -2,7 +2,7 @@
 """Tests for the read-only GUI launch plan Product API."""
 from __future__ import annotations
 
-from vllm.sndr_core.product_api.launch_plan import build_launch_plan
+from sndr.product_api.legacy.launch_plan import build_launch_plan
 
 
 def test_build_launch_plan_returns_backend_owned_artifacts_and_gates():

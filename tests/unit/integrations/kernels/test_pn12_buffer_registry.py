@@ -26,7 +26,7 @@ except ImportError:
 def test_pn12_registry_pool_visible_after_module_import():
     """After pn12 module import + ensure_pool_registered(), POOL_FFN_
     INTERMEDIATE_SCRATCH is visible in PersistentBufferRegistry."""
-    from vllm.sndr_core.runtime.persistent_buffer_registry import (
+    from sndr.runtime.persistent_buffer_registry import (
         PersistentBufferRegistry,
         POOL_FFN_INTERMEDIATE_SCRATCH,
     )
@@ -67,7 +67,7 @@ def test_pn12_registers_persistent_slice_pool_not_buffer_pool():
     """ensure_pool_registered() must register POOL_FFN_INTERMEDIATE_SCRATCH
     as a PersistentSlicePool — PN12's allocation pattern is grow+slice
     with key_dims=1 (variable rows, fixed intermediate_size)."""
-    from vllm.sndr_core.runtime.persistent_buffer_registry import (
+    from sndr.runtime.persistent_buffer_registry import (
         PersistentBufferRegistry,
         PersistentSlicePool,
         POOL_FFN_INTERMEDIATE_SCRATCH,
@@ -103,7 +103,7 @@ def test_pn12_integration_and_storage_class_compose_without_raising():
 
     Without the fix, the second call raised ValueError because the pool
     was registered as the wrong type."""
-    from vllm.sndr_core.runtime.persistent_buffer_registry import (
+    from sndr.runtime.persistent_buffer_registry import (
         _reset_registry_for_tests, PersistentSlicePool,
     )
     _reset_registry_for_tests()

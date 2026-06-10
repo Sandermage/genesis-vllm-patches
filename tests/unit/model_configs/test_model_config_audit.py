@@ -14,12 +14,12 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.model_configs import (
+from sndr.model_configs import (
     HardwareSpec,
     ModelConfig,
     SchemaError,
 )
-from vllm.sndr_core.model_configs.model_config_audit import audit_model_config
+from sndr.model_configs.model_config_audit import audit_model_config
 
 
 def _minimal_cfg(**overrides) -> ModelConfig:

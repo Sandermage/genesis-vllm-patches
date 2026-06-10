@@ -140,7 +140,7 @@ class TestPN19EnvGate:
 
 class TestPN19DispatcherIntegration:
     def test_pn19_in_patch_registry(self):
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+        from sndr.dispatcher import PATCH_REGISTRY
         assert "PN19" in PATCH_REGISTRY
         meta = PATCH_REGISTRY["PN19"]
         assert meta["env_flag"] == "GENESIS_ENABLE_PN19_SCOPED_MAX_SPLIT"
@@ -148,11 +148,11 @@ class TestPN19DispatcherIntegration:
         assert meta["upstream_pr"] == 41268
 
     def test_pn19_category_is_memory_savings(self):
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+        from sndr.dispatcher import PATCH_REGISTRY
         assert PATCH_REGISTRY["PN19"]["category"] == "memory_savings"
 
     def test_pn19_in_apply_all(self):
-        from vllm.sndr_core.apply import apply_all
+        from sndr.apply import apply_all
         assert hasattr(apply_all, "apply_patch_N19_scoped_max_split")
 
     def test_pn19_in_patches_md(self):

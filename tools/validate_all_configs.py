@@ -31,7 +31,7 @@ from pathlib import Path
 from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-BUILTIN = REPO_ROOT / "vllm" / "sndr_core" / "model_configs" / "builtin"
+BUILTIN = REPO_ROOT / "sndr" / "model_configs" / "builtin"
 
 # ---------------------------------------------------------------------------
 

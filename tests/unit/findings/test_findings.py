@@ -54,7 +54,7 @@ def _write_finding(root: Path, fname: str, yaml_text: str) -> Path:
 
 class TestSchema:
     def test_minimal_valid(self, tmp_path):
-        from vllm.sndr_core.findings import load_finding
+        from sndr.findings import load_finding
         p = _write_finding(tmp_path, "x.yaml", _seed_yaml())
         f = load_finding(p)
         assert f.schema_version == 1
@@ -67,7 +67,7 @@ class TestSchema:
         )
 
     def test_bad_source_rejected(self, tmp_path):
-        from vllm.sndr_core.findings import load_finding
+        from sndr.findings import load_finding
         yaml = _seed_yaml().replace("source: vllm-pr", "source: not-a-source")
         p = _write_finding(tmp_path, "x.yaml", yaml)
         f = load_finding(p)
@@ -75,7 +75,7 @@ class TestSchema:
         assert any("source=" in m for m in msgs)
 
     def test_bad_status_rejected(self, tmp_path):
-        from vllm.sndr_core.findings import load_finding
+        from sndr.findings import load_finding
         yaml = _seed_yaml().replace("status: watch", "status: weird")
         p = _write_finding(tmp_path, "x.yaml", yaml)
         f = load_finding(p)
@@ -83,7 +83,7 @@ class TestSchema:
         assert any("status=" in m for m in msgs)
 
     def test_bad_cadence_rejected(self, tmp_path):
-        from vllm.sndr_core.findings import load_finding
+        from sndr.findings import load_finding
         yaml = _seed_yaml().replace("review_cadence: biweekly",
                                     "review_cadence: never-ever")
         p = _write_finding(tmp_path, "x.yaml", yaml)
@@ -92,7 +92,7 @@ class TestSchema:
         assert any("review_cadence=" in m for m in msgs)
 
     def test_bad_iso_date_rejected(self, tmp_path):
-        from vllm.sndr_core.findings import load_finding
+        from sndr.findings import load_finding
         today = date.today().isoformat()
         yaml = _seed_yaml().replace(f"discovered_at: '{today}'",
                                     "discovered_at: 'yesterday'")
@@ -102,7 +102,7 @@ class TestSchema:
         assert any("discovered_at=" in m for m in msgs)
 
     def test_empty_acceptance_rejected(self, tmp_path):
-        from vllm.sndr_core.findings import load_finding
+        from sndr.findings import load_finding
         # textwrap.dedent strips to 2-space indent; match that exactly.
         yaml = _seed_yaml().replace(
             "acceptance: |\n  Anchors clean after upstream merge.",
@@ -121,7 +121,7 @@ class TestSchema:
 
 class TestStateMachine:
     def test_same_status_is_valid_no_op(self):
-        from vllm.sndr_core.findings import is_valid_transition
+        from sndr.findings import is_valid_transition
         for s in ("watch", "needs-bench", "done"):
             assert is_valid_transition(s, s)
 
@@ -135,7 +135,7 @@ class TestStateMachine:
         ("skip", "watch"),
     ])
     def test_legal_transitions(self, from_, to_):
-        from vllm.sndr_core.findings import is_valid_transition
+        from sndr.findings import is_valid_transition
         assert is_valid_transition(from_, to_), (
             f"{from_} → {to_} should be legal but was rejected"
         )
@@ -148,13 +148,13 @@ class TestStateMachine:
         ("doctor-rule", "config-recipe"),
     ])
     def test_illegal_transitions(self, from_, to_):
-        from vllm.sndr_core.findings import is_valid_transition
+        from sndr.findings import is_valid_transition
         assert not is_valid_transition(from_, to_), (
             f"{from_} → {to_} should be illegal but passed"
         )
 
     def test_retire_local_patch_is_terminal(self):
-        from vllm.sndr_core.findings.schema import ALLOWED_TRANSITIONS
+        from sndr.findings.schema import ALLOWED_TRANSITIONS
         assert ALLOWED_TRANSITIONS["retire-local-patch"] == frozenset()
 
 
@@ -163,12 +163,12 @@ class TestStateMachine:
 
 class TestStaleness:
     def test_fresh_finding_not_due(self, tmp_path):
-        from vllm.sndr_core.findings import is_due_for_review, load_finding
+        from sndr.findings import is_due_for_review, load_finding
         f = load_finding(_write_finding(tmp_path, "x.yaml", _seed_yaml()))
         assert is_due_for_review(f) is False
 
     def test_old_biweekly_is_due(self, tmp_path):
-        from vllm.sndr_core.findings import is_due_for_review, load_finding
+        from sndr.findings import is_due_for_review, load_finding
         old = (date.today() - timedelta(days=30)).isoformat()
         yaml = _seed_yaml().replace(
             f"last_reviewed: '{date.today().isoformat()}'",
@@ -178,7 +178,7 @@ class TestStaleness:
         assert is_due_for_review(f) is True
 
     def test_on_pin_bump_never_stale(self, tmp_path):
-        from vllm.sndr_core.findings import is_due_for_review, load_finding
+        from sndr.findings import is_due_for_review, load_finding
         old = (date.today() - timedelta(days=365)).isoformat()
         yaml = _seed_yaml().replace(
             "review_cadence: biweekly", "review_cadence: on-pin-bump",
@@ -190,7 +190,7 @@ class TestStaleness:
         assert is_due_for_review(f) is False
 
     def test_retired_never_stale(self, tmp_path):
-        from vllm.sndr_core.findings import is_due_for_review, load_finding
+        from sndr.findings import is_due_for_review, load_finding
         old = (date.today() - timedelta(days=999)).isoformat()
         yaml = _seed_yaml().replace(
             "review_cadence: biweekly", "review_cadence: retired",
@@ -207,14 +207,14 @@ class TestStaleness:
 
 class TestValidateDirectory:
     def test_passes_on_seed_repo(self, tmp_path):
-        from vllm.sndr_core.findings import validate_directory
+        from sndr.findings import validate_directory
         _write_finding(tmp_path, "a.yaml", _seed_yaml())
         result = validate_directory(tmp_path)
         assert result.passed
         assert len(result.findings) == 1
 
     def test_f1_duplicate_id_rejected(self, tmp_path):
-        from vllm.sndr_core.findings import validate_directory
+        from sndr.findings import validate_directory
         _write_finding(tmp_path, "a.yaml", _seed_yaml())
         _write_finding(tmp_path, "b.yaml", _seed_yaml())
         result = validate_directory(tmp_path)
@@ -223,7 +223,7 @@ class TestValidateDirectory:
         assert "duplicate" in f1[0].message
 
     def test_f4_stale_warning(self, tmp_path):
-        from vllm.sndr_core.findings import validate_directory
+        from sndr.findings import validate_directory
         old = (date.today() - timedelta(days=30)).isoformat()
         yaml = _seed_yaml().replace(
             f"last_reviewed: '{date.today().isoformat()}'",
@@ -242,7 +242,7 @@ class TestValidateDirectory:
 
 class TestRegistry:
     def test_list_finding_paths_skips_underscore(self, tmp_path):
-        from vllm.sndr_core.findings import list_finding_paths
+        from sndr.findings import list_finding_paths
         _write_finding(tmp_path, "real.yaml", _seed_yaml())
         _write_finding(tmp_path, "_template.yaml", _seed_yaml())
         paths = list_finding_paths(tmp_path)
@@ -251,15 +251,15 @@ class TestRegistry:
         assert "_template.yaml" not in names
 
     def test_empty_dir_returns_empty_list(self, tmp_path):
-        from vllm.sndr_core.findings import list_finding_paths
+        from sndr.findings import list_finding_paths
         assert list_finding_paths(tmp_path) == []
 
     def test_missing_dir_returns_empty_list(self, tmp_path):
-        from vllm.sndr_core.findings import list_finding_paths
+        from sndr.findings import list_finding_paths
         assert list_finding_paths(tmp_path / "does-not-exist") == []
 
     def test_discover_skips_broken(self, tmp_path):
-        from vllm.sndr_core.findings import discover_findings
+        from sndr.findings import discover_findings
         _write_finding(tmp_path, "good.yaml", _seed_yaml())
         _write_finding(tmp_path, "bad.yaml", "not valid yaml: ][\n")
         results = discover_findings(tmp_path)
@@ -283,7 +283,7 @@ def _capture_cli(handler, opts: argparse.Namespace) -> tuple[int, str]:
 
 class TestCLILifecycle:
     def test_add_then_list_then_update(self, tmp_path):
-        from vllm.sndr_core.cli import findings as cli
+        from sndr.cli.legacy import findings as cli
 
         # add
         add_opts = argparse.Namespace(
@@ -337,7 +337,7 @@ class TestCLILifecycle:
         assert rc == 2
 
     def test_add_rejects_bad_source(self, tmp_path):
-        from vllm.sndr_core.cli import findings as cli
+        from sndr.cli.legacy import findings as cli
         opts = argparse.Namespace(
             finding_id="external-bad",
             source="not-a-source",
@@ -354,7 +354,7 @@ class TestCLILifecycle:
         assert rc == 2
 
     def test_add_refuses_duplicate(self, tmp_path):
-        from vllm.sndr_core.cli import findings as cli
+        from sndr.cli.legacy import findings as cli
         opts = argparse.Namespace(
             finding_id="external-dup",
             source="paper",
@@ -378,7 +378,7 @@ class TestCLILifecycle:
         no findings — the maintainer's review notes live outside the
         public tree by design — so the test skips in that case rather
         than failing."""
-        from vllm.sndr_core.cli import findings as cli
+        from sndr.cli.legacy import findings as cli
         opts = argparse.Namespace(root=None, json=True)
         rc, out = _capture_cli(cli.run_validate, opts)
         assert rc == 0
@@ -398,7 +398,7 @@ class TestCLILifecycle:
 
 class TestCLIRegistration:
     def test_findings_argparser_registers(self):
-        from vllm.sndr_core.cli.findings import add_argparser
+        from sndr.cli.legacy.findings import add_argparser
         p = argparse.ArgumentParser()
         sub = p.add_subparsers()
         add_argparser(sub)
@@ -406,6 +406,6 @@ class TestCLIRegistration:
         assert ns.findings_cmd == "list"
 
     def test_top_level_includes_findings(self):
-        from vllm.sndr_core import cli as cli_mod
+        from sndr.cli import legacy as cli_mod
         assert hasattr(cli_mod, "_findings_argparser")
         assert callable(cli_mod._findings_argparser)

@@ -52,7 +52,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # stamp the real module carries. Audit the canonical source.
 INTEGRATIONS_DIR = REPO_ROOT / "sndr" / "engines" / "vllm" / "patches"
 if not INTEGRATIONS_DIR.is_dir():
-    INTEGRATIONS_DIR = REPO_ROOT / "vllm" / "sndr_core" / "integrations"
+    INTEGRATIONS_DIR = REPO_ROOT / "sndr" / "engines" / "vllm" / "patches"
 
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
@@ -75,6 +75,16 @@ IGNORE_PATCH_IDS: dict[str, str] = {
     # Example shape — add real entries here if operator decides to
     # waive a specific drift:
     # "PN999": "operator-allowlisted: drift acknowledged in YAML",
+    #
+    # 2026-06-08 archive-drift forensics retired individual SUB-patches
+    # inside these still-active parents; the inline "sub-patch RETIRED"
+    # annotations are deliberate and do NOT mean the module is retired.
+    "P98": "sub-patch p98_decode_workspace_revert retired 2026-06-08; parent active",
+    "P5": "sub-patch p5_import_math retired 2026-06-08; parent active",
+    "PN95": "anchor #13 worker_proactive_demote retired on dev259+; parent active",
+    "P12": "sub-patches retired 2026-06-08 (archive-drift forensics); parent active",
+    "P27": "sub-patch p27_nonstream_return_baseline retired 2026-06-08; parent active",
+    "P64": "sub-patches p64_safety_net_widen / p64_callsite_guard retired; parent active",
 }
 
 
@@ -156,7 +166,7 @@ def _has_retire_marker(text: str) -> bool:
 
 def _registry_lifecycle(patch_id: str) -> str:
     try:
-        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        from sndr.dispatcher.registry import PATCH_REGISTRY
     except ImportError:
         return "?import-error"
     meta = PATCH_REGISTRY.get(patch_id)

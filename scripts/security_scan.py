@@ -40,6 +40,11 @@ ALLOWLIST_PATHS = [
     "sndr_private/",           # private maintainer tree — entire subtree
     "docs/upstream/",
     "docs/reference/",
+    # v12 maintainer journals / specs / ops playbooks (superpowers
+    # workflow): rig IPs, operator paths and SSH transcripts are their
+    # subject matter — same internal-docs class as docs/_internal/ was.
+    # Mirrors ALLOWLIST_PREFIXES in scripts/audit_public_docs.py.
+    "docs/superpowers/",
     "_archive/",
     "tests/",                  # test fixtures may contain mock secrets
     "scripts/security_scan.py",  # this file itself contains the regex literals

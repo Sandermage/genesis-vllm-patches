@@ -38,7 +38,7 @@ ENV_FLAG = "GENESIS_ENABLE_P60_GDN_NGRAM_FIX"
 
 
 def test_p60_registered():
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+    from sndr.dispatcher.registry import PATCH_REGISTRY
     assert PATCH_ID in PATCH_REGISTRY
     meta = PATCH_REGISTRY[PATCH_ID]
     assert meta["env_flag"] == ENV_FLAG
@@ -50,7 +50,7 @@ def test_p60_registered():
 
 def test_p60_applies_to_hybrid_models():
     """P60 targets hybrid GDN models — guard must reflect that."""
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+    from sndr.dispatcher.registry import PATCH_REGISTRY
     applies_to = PATCH_REGISTRY[PATCH_ID].get("applies_to") or {}
     assert "is_hybrid" in applies_to, (
         f"P60 must guard on is_hybrid; got: {sorted(applies_to.keys())}"
@@ -81,7 +81,7 @@ def test_no_top_level_torch_import():
     repo_root = Path(__file__).resolve().parents[5]
     src = (
         repo_root
-        / "vllm/sndr_core/integrations/attention/gdn/p60_gdn_ngram_state_recovery.py"
+        / "sndr/engines/vllm/patches/attention/gdn/p60_gdn_ngram_state_recovery.py"
     ).read_text(encoding="utf-8")
     # We only inspect non-comment / non-string top-level lines.
     forbidden = "\nimport torch"

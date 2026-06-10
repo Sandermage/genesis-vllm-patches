@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 
-from vllm.sndr_core.model_configs import registry, registry_v2
+from sndr.model_configs import registry, registry_v2
 
 
 # Phase 10 (2026-06-01): V1 sunset — class TestV1DeprecationBackwardCompat
@@ -217,10 +217,10 @@ class TestComposeUnchanged:
     must be byte-identical for all 21 builtin presets."""
 
     def test_all_21_presets_compose_clean(self):
-        from vllm.sndr_core.model_configs.registry_v2 import (
+        from sndr.model_configs.registry_v2 import (
             _alias_dir, load_alias,
         )
-        from vllm.sndr_core.model_configs.schema import dump_yaml
+        from sndr.model_configs.schema import dump_yaml
         aliases = sorted(
             p.stem for p in _alias_dir().glob("*.yaml")
             if p.is_file() and not p.stem.startswith("_")

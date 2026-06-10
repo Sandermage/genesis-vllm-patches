@@ -24,7 +24,7 @@ from __future__ import annotations
 import argparse
 import pytest
 
-from vllm.sndr_core.cli import launch as L
+from sndr.cli.legacy import launch as L
 
 
 # ─── Argparse surface ────────────────────────────────────────────────────

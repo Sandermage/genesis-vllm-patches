@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.cli.doctor_logs import (
+from sndr.cli.legacy.doctor_logs import (
     FATAL_XIDS,
     LogForensicsResult,
     OomEvent,
@@ -429,7 +429,7 @@ class TestStrictWindow:
         assert r.oom_events == []
 
     def test_strict_keeps_events_within_window(self):
-        from vllm.sndr_core.cli.doctor_logs import (
+        from sndr.cli.legacy.doctor_logs import (
             OomEvent, _filter_within_window,
         )
         recent = OomEvent(timestamp_seconds_ago=600, killed_process="x", raw_line="")

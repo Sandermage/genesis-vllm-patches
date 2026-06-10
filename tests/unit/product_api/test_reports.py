@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from vllm.sndr_core.product_api.reports import generate_report_bundle
+from sndr.product_api.legacy.reports import generate_report_bundle
 
 
 def test_generate_report_bundle_writes_operator_local(tmp_path, monkeypatch):

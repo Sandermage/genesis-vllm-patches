@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """DA-009 (audit 2026-05-08) — bundle tier ↔ registry tier consistency.
 
-Bundles in `vllm/sndr_core/bundles/` declare a `tier` value that gates
+Bundles in `sndr/bundles/` declare a `tier` value that gates
 the umbrella flag (engine bundles require license; community bundles
 do not). Today the bundle's tier MUST match the tier of every patch
 it includes — otherwise an `engine` bundle could be skipped while its
@@ -11,7 +11,7 @@ The previous mismatch (P67/P67b registered as community, bundle
 declared engine) was caught by the production-readiness audit. This
 test prevents regression.
 
-Test strategy: parse each `vllm/sndr_core/bundles/*.py` for its
+Test strategy: parse each `sndr/bundles/*.py` for its
 `run_bundle(..., tier=...)` invocation + `patcher_factories=[...]`
 list, resolve each factory to its `_make_patcher` parent module's
 patch_id (via the `_GENESIS_*_MARKER` convention or registry
@@ -27,7 +27,7 @@ import pytest
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-BUNDLES_DIR = REPO_ROOT / "vllm" / "sndr_core" / "bundles"
+BUNDLES_DIR = REPO_ROOT / "sndr" / "bundles"
 
 
 def _bundle_files() -> list[Path]:
@@ -86,7 +86,7 @@ def _patch_id_from_module_name(module_name: str) -> str | None:
 @pytest.fixture(scope="module")
 def registry():
     """Load PATCH_REGISTRY once."""
-    from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+    from sndr.dispatcher import PATCH_REGISTRY
     return PATCH_REGISTRY
 
 

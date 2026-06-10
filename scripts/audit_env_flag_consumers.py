@@ -5,7 +5,7 @@
 Verifies every non-retired ``env_flag`` declared in PATCH_REGISTRY is
 **consumed** by at least one ``is_enabled``-style call site (or a
 ``Flags.<NAME>`` reference, or a literal env-name reference) in the
-``vllm/sndr_core`` Python tree.
+``sndr/`` Python tree (v12 layout; previously ``vllm/sndr_core/``).
 
 A registered patch whose env_flag is read nowhere is a **dead patch**:
 the dispatcher loads the entry and the boot log claims it as
@@ -33,9 +33,9 @@ The 10 canonical prefixes (ENABLE / DISABLE / LEGACY / ALLOW / INFO
 Scope
 -----
 
-  * Searches every ``.py`` file under ``vllm/sndr_core/`` except those
-    inside ``_retired/`` (retired patches by definition should not have
-    live consumers).
+  * Searches every ``.py`` file under ``sndr/`` except those inside
+    ``_retired/`` or ``_archive/`` (retired patches by definition
+    should not have live consumers).
   * Includes ``apply/_per_patch_dispatch.py`` (legacy register table)
     and ``cli/`` (operator-facing surfaces that gate behaviour).
   * Skips ``__pycache__`` and any non-Python file.
@@ -64,7 +64,7 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-SCAN_ROOT = REPO_ROOT / "vllm" / "sndr_core"
+SCAN_ROOT = REPO_ROOT / "sndr"
 
 _CANONICAL_PREFIXES = (
     "GENESIS_ENABLE_", "SNDR_ENABLE_",
@@ -83,15 +83,18 @@ def _strip_prefix(flag: str) -> str:
 
 
 def _load_source_corpus() -> str:
-    """Concatenate every non-retired .py file under sndr_core/ into one
+    """Concatenate every non-retired .py file under sndr/ into one
     big string. Cheap enough for our tree (~2 MB) and lets a single
     regex search cover every consumer site."""
     if not SCAN_ROOT.is_dir():
         return ""
     parts: list[str] = []
     for path in SCAN_ROOT.rglob("*.py"):
-        # Skip retired wiring + __pycache__.
+        # Skip retired wiring (_retired/ and the v12 _archive/) +
+        # __pycache__.
         if "_retired" in path.parts:
+            continue
+        if "_archive" in path.parts:
             continue
         if "__pycache__" in path.parts:
             continue
@@ -106,7 +109,7 @@ def audit() -> list[dict]:
     """Return list of orphan findings. Empty list means clean."""
     sys.path.insert(0, str(REPO_ROOT))
     try:
-        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        from sndr.dispatcher.registry import PATCH_REGISTRY
     finally:
         sys.path.pop(0)
 
@@ -143,7 +146,7 @@ def audit() -> list[dict]:
                 "reason": (
                     f"no consumer found: tried literal {flag!r}, "
                     f"Flags.{tail}, Flags.{pid} — no match anywhere "
-                    f"under vllm/sndr_core/ (excluding _retired/). "
+                    f"under sndr/ (excluding _retired/ and _archive/). "
                     f"Either add a runtime read site OR mark the "
                     f"entry as lifecycle='retired'."
                 ),
@@ -166,7 +169,7 @@ def main() -> int:
             "passed": not orphans,
         }, indent=2, sort_keys=True))
     else:
-        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        from sndr.dispatcher.registry import PATCH_REGISTRY
         total = sum(
             1 for meta in PATCH_REGISTRY.values()
             if isinstance(meta, dict)

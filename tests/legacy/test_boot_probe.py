@@ -19,7 +19,7 @@ from unittest.mock import MagicMock, patch
 
 def test_boot_probe_imports():
     """Module imports cleanly without optional deps."""
-    from vllm.sndr_core.utils import boot_probe
+    from sndr.utils import boot_probe
     assert hasattr(boot_probe, "probe")
     assert hasattr(boot_probe, "main")
 
@@ -27,7 +27,7 @@ def test_boot_probe_imports():
 def test_probe_signature():
     """probe() has expected signature."""
     import inspect
-    from vllm.sndr_core.utils.boot_probe import probe
+    from sndr.utils.boot_probe import probe
     sig = inspect.signature(probe)
     assert "url" in sig.parameters
     assert "model" in sig.parameters
@@ -37,7 +37,7 @@ def test_probe_signature():
 
 def test_probe_detects_41190_marker_in_response():
     """When response contains cudaErrorIllegalAddress, marker [#41190-class] is added."""
-    from vllm.sndr_core.utils.boot_probe import probe
+    from sndr.utils.boot_probe import probe
 
     fake_response = MagicMock()
     fake_response.status_code = 500
@@ -56,7 +56,7 @@ def test_probe_detects_41190_marker_in_response():
 
 def test_probe_detects_workspace_lock_marker():
     """When response contains workspace AssertionError, marker [#40941] added."""
-    from vllm.sndr_core.utils.boot_probe import probe
+    from sndr.utils.boot_probe import probe
 
     fake_response = MagicMock()
     fake_response.status_code = 500
@@ -75,7 +75,7 @@ def test_probe_detects_workspace_lock_marker():
 
 def test_probe_detects_oom_marker():
     """OOM in response gets [OOM] marker for memory_pool diagnostics."""
-    from vllm.sndr_core.utils.boot_probe import probe
+    from sndr.utils.boot_probe import probe
 
     fake_response = MagicMock()
     fake_response.status_code = 500
@@ -95,7 +95,7 @@ def test_probe_detects_oom_marker():
 def test_probe_handles_timeout():
     """Timeout caught with diagnostic message."""
     import requests
-    from vllm.sndr_core.utils.boot_probe import probe
+    from sndr.utils.boot_probe import probe
 
     with patch("requests.post", side_effect=requests.exceptions.Timeout()):
         ok, msg = probe(
@@ -112,7 +112,7 @@ def test_probe_handles_timeout():
 def test_probe_handles_connection_error():
     """Connection refused returns descriptive error."""
     import requests
-    from vllm.sndr_core.utils.boot_probe import probe
+    from sndr.utils.boot_probe import probe
 
     with patch(
         "requests.post",
@@ -130,7 +130,7 @@ def test_probe_handles_connection_error():
 
 def test_probe_success_returns_elapsed():
     """Successful probe returns elapsed time in message."""
-    from vllm.sndr_core.utils.boot_probe import probe
+    from sndr.utils.boot_probe import probe
 
     fake_response = MagicMock()
     fake_response.status_code = 200
@@ -152,7 +152,7 @@ def test_probe_success_returns_elapsed():
 
 def test_main_exits_2_on_missing_args(capsys):
     """CLI returns exit 2 when --url or --model missing."""
-    from vllm.sndr_core.utils.boot_probe import main
+    from sndr.utils.boot_probe import main
 
     # No env vars, no args
     with patch.dict("os.environ", {}, clear=False) as _:
@@ -168,7 +168,7 @@ def test_main_exits_2_on_missing_args(capsys):
 
 def test_main_exits_1_on_probe_failure(monkeypatch):
     """CLI returns exit 1 when probe fails."""
-    from vllm.sndr_core.utils import boot_probe
+    from sndr.utils import boot_probe
 
     monkeypatch.setattr(
         boot_probe, "probe",
@@ -183,7 +183,7 @@ def test_main_exits_1_on_probe_failure(monkeypatch):
 
 def test_main_exits_0_on_probe_success(monkeypatch):
     """CLI returns exit 0 when probe succeeds."""
-    from vllm.sndr_core.utils import boot_probe
+    from sndr.utils import boot_probe
 
     monkeypatch.setattr(
         boot_probe, "probe",

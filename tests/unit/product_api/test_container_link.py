@@ -2,7 +2,7 @@
 """Tests for container ↔ preset linkage + config drift detection (pure helpers)."""
 from __future__ import annotations
 
-from vllm.sndr_core.product_api import container_link as cl
+from sndr.product_api.legacy import container_link as cl
 
 
 def test_resolve_preset_prefers_label_then_name():

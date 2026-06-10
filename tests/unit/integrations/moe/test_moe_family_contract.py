@@ -191,7 +191,7 @@ class TestMoEFamilyRegistry:
     def test_family_count_matches_filesystem(self):
         """`vllm/sndr_core/integrations/moe/` should contain only files for
         patches in MOE_PATCHES (drift detector)."""
-        moe_dir = Path(__file__).resolve().parents[4] / "vllm" / "sndr_core" / "integrations" / "moe"
+        moe_dir = Path(__file__).resolve().parents[4] / "sndr" / "engines" / "vllm" / "patches" / "moe"
         assert moe_dir.is_dir(), f"MoE patches dir not found at {moe_dir}"
         files = {f.stem for f in moe_dir.glob("*.py") if f.name != "__init__.py"}
         # Allow some on-disk files NOT in our test list (newer patches),

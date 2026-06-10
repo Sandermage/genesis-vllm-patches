@@ -59,10 +59,10 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 HARDWARE_DIR = (
-    REPO_ROOT / "vllm" / "sndr_core" / "model_configs" / "builtin" / "hardware"
+    REPO_ROOT / "sndr" / "model_configs" / "builtin" / "hardware"
 )
 MODEL_DIR = (
-    REPO_ROOT / "vllm" / "sndr_core" / "model_configs" / "builtin" / "model"
+    REPO_ROOT / "sndr" / "model_configs" / "builtin" / "model"
 )
 
 

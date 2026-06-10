@@ -11,7 +11,7 @@ These tests assert positive resolution (`is not None`, `> N`) so any
 future rename that misses a downstream pointer fails loud immediately.
 
 Single source of truth for the canonical wiring location is
-`vllm.sndr_core.locations.project_paths.wiring_dir()` — these tests
+`sndr.engines.vllm.locations.project_paths.wiring_dir()` — these tests
 indirectly validate it via the four downstream helpers that depend on it.
 """
 
@@ -29,7 +29,7 @@ class TestWiringDirResolves:
     """`wiring_dir()` MUST resolve to a real on-disk directory."""
 
     def test_wiring_dir_not_none(self):
-        from vllm.sndr_core.locations.project_paths import wiring_dir
+        from sndr.engines.vllm.locations.project_paths import wiring_dir
         assert wiring_dir() is not None, (
             "wiring_dir() returned None — canonical patch directory "
             "is not findable. This usually means the post-rename "
@@ -37,7 +37,7 @@ class TestWiringDirResolves:
         )
 
     def test_wiring_dir_is_real_directory(self):
-        from vllm.sndr_core.locations.project_paths import wiring_dir
+        from sndr.engines.vllm.locations.project_paths import wiring_dir
         wd = wiring_dir()
         assert wd is not None and wd.is_dir(), (
             f"wiring_dir() returned {wd!r} but it's not a directory."
@@ -50,7 +50,7 @@ class TestWiringDirResolves:
         Catches the case where `wiring_dir()` resolves to an empty stale
         directory (e.g. `sndr_core/wiring/`) instead of the active one.
         """
-        from vllm.sndr_core.locations.project_paths import wiring_dir
+        from sndr.engines.vllm.locations.project_paths import wiring_dir
         wd = wiring_dir()
         canonical = list(wd.rglob("p[0-9]*.py")) + list(wd.rglob("pn[0-9]*.py"))
         legacy = list(wd.rglob("patch_*.py"))
@@ -68,16 +68,16 @@ class TestModuleForResolves:
 
     @pytest.mark.parametrize("patch_id", SENTINEL_PATCH_IDS)
     def test_module_for_returns_dotted_path(self, patch_id: str):
-        from vllm.sndr_core.compat.categories import module_for
+        from sndr.compat.categories import module_for
         mod = module_for(patch_id)
         assert mod is not None, (
             f"module_for({patch_id!r}) returned None — compat/categories.py "
             f"can't find the wiring module. Probably `_WIRING_DIR` "
             f"points to a stale directory."
         )
-        assert "sndr_core" in mod, (
+        assert mod.startswith("sndr.engines.vllm.patches."), (
             f"module_for({patch_id!r}) = {mod!r} doesn't look like a "
-            f"sndr_core dotted path."
+            f"canonical sndr.engines.vllm.patches.* dotted path."
         )
 
 
@@ -86,7 +86,7 @@ class TestSelfTestFindsModules:
     modules. Catches the silent `0 modules pass` regression."""
 
     def test_check_wiring_imports_finds_many_modules(self):
-        from vllm.sndr_core.compat.self_test import _check_wiring_imports
+        from sndr.compat.self_test import _check_wiring_imports
         status, msg = _check_wiring_imports()
         assert status in ("pass", "warn"), (
             f"_check_wiring_imports returned status={status!r}, msg={msg!r}"
@@ -117,7 +117,7 @@ class TestRegistryEnvFlagDisambiguation:
     def test_pn26_routes_to_tq_unified(self):
         """PN26's env_flag is GENESIS_ENABLE_PN26_TQ_UNIFIED — the
         file `pn26_tq_unified_perf.py` should win over `pn26_sparse_v_kernel.py`."""
-        from vllm.sndr_core.compat.categories import module_for
+        from sndr.compat.categories import module_for
         mod = module_for("PN26")
         assert mod is not None and "tq_unified" in mod, (
             f"module_for('PN26') = {mod!r} — expected `tq_unified`. "
@@ -131,7 +131,7 @@ class TestRegistryEnvFlagDisambiguation:
         Note: PN26b's actual on-disk filename has no `b` suffix
         (legacy naming), so it's recovered via parent-pid (PN26)
         candidate-pool propagation."""
-        from vllm.sndr_core.compat.categories import module_for
+        from sndr.compat.categories import module_for
         mod = module_for("PN26b")
         assert mod is not None and "sparse_v" in mod, (
             f"module_for('PN26b') = {mod!r} — expected `sparse_v`. "
@@ -145,7 +145,7 @@ class TestCacheParityReadsSources:
 
     @pytest.mark.parametrize("patch_id", SENTINEL_PATCH_IDS)
     def test_read_patch_source_returns_nontrivial_text(self, patch_id: str):
-        from vllm.sndr_core.compat.cache_parity_audit import _read_patch_source
+        from sndr.compat.cache_parity_audit import _read_patch_source
         src = _read_patch_source(patch_id)
         assert src is not None, (
             f"_read_patch_source({patch_id!r}) returned None — can't "

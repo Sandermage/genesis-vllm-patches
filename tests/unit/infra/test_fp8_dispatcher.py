@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""TDD tests for vllm.sndr_core.kernels.fp8_dispatcher.
+"""TDD tests for sndr.engines.vllm.kernels_legacy.fp8_dispatcher.
 
 Patches 1 + 2 migration: FP8 kernel routing decisions based on SM version.
 SM < 8.9 (Ampere) requires Marlin fallback (Triton FP8 unsupported).
@@ -15,16 +15,16 @@ class TestRequiresMarlinFp8Fallback:
     """Group 1: SM-based fallback decision."""
 
     def test_false_on_non_nvidia(self, monkeypatch):
-        from vllm.sndr_core.kernels import fp8_dispatcher as fd
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.kernels_legacy import fp8_dispatcher as fd
+        from sndr.engines.vllm.detection import guards
 
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: False)
         assert fd.requires_marlin_fp8_fallback() is False
 
     def test_true_on_ampere_datacenter(self, monkeypatch):
         """SM 8.0 (A100) → Marlin fallback required."""
-        from vllm.sndr_core.kernels import fp8_dispatcher as fd
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.kernels_legacy import fp8_dispatcher as fd
+        from sndr.engines.vllm.detection import guards
 
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(guards, "is_sm_at_least",
@@ -33,8 +33,8 @@ class TestRequiresMarlinFp8Fallback:
 
     def test_true_on_ampere_consumer(self, monkeypatch):
         """SM 8.6 (A5000) → Marlin fallback required (primary Genesis target)."""
-        from vllm.sndr_core.kernels import fp8_dispatcher as fd
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.kernels_legacy import fp8_dispatcher as fd
+        from sndr.engines.vllm.detection import guards
 
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: True)
 
@@ -46,8 +46,8 @@ class TestRequiresMarlinFp8Fallback:
 
     def test_false_on_ada(self, monkeypatch):
         """SM 8.9 (Ada/4090) → native FP8, no fallback."""
-        from vllm.sndr_core.kernels import fp8_dispatcher as fd
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.kernels_legacy import fp8_dispatcher as fd
+        from sndr.engines.vllm.detection import guards
 
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(guards, "is_sm_at_least",
@@ -56,8 +56,8 @@ class TestRequiresMarlinFp8Fallback:
 
     def test_false_on_hopper(self, monkeypatch):
         """SM 9.0 (H100) → native FP8."""
-        from vllm.sndr_core.kernels import fp8_dispatcher as fd
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.kernels_legacy import fp8_dispatcher as fd
+        from sndr.engines.vllm.detection import guards
 
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(guards, "is_sm_at_least",
@@ -66,8 +66,8 @@ class TestRequiresMarlinFp8Fallback:
 
     def test_false_on_blackwell(self, monkeypatch):
         """SM 10.0 (B100/R6000 Blackwell) → native FP8."""
-        from vllm.sndr_core.kernels import fp8_dispatcher as fd
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.kernels_legacy import fp8_dispatcher as fd
+        from sndr.engines.vllm.detection import guards
 
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(guards, "is_sm_at_least",
@@ -79,15 +79,15 @@ class TestFp8TritonKernelSupported:
     """Group 2: Native FP8 capability check."""
 
     def test_false_on_non_nvidia(self, monkeypatch):
-        from vllm.sndr_core.kernels import fp8_dispatcher as fd
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.kernels_legacy import fp8_dispatcher as fd
+        from sndr.engines.vllm.detection import guards
 
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: False)
         assert fd.fp8_triton_kernel_supported() is False
 
     def test_false_on_ampere(self, monkeypatch):
-        from vllm.sndr_core.kernels import fp8_dispatcher as fd
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.kernels_legacy import fp8_dispatcher as fd
+        from sndr.engines.vllm.detection import guards
 
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(guards, "is_sm_at_least",
@@ -95,8 +95,8 @@ class TestFp8TritonKernelSupported:
         assert fd.fp8_triton_kernel_supported() is False
 
     def test_true_on_ada_plus(self, monkeypatch):
-        from vllm.sndr_core.kernels import fp8_dispatcher as fd
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.kernels_legacy import fp8_dispatcher as fd
+        from sndr.engines.vllm.detection import guards
 
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(guards, "is_sm_at_least",
@@ -107,8 +107,8 @@ class TestFp8TritonKernelSupported:
         """requires_marlin_fp8_fallback() == not fp8_triton_kernel_supported()
         on NVIDIA.
         """
-        from vllm.sndr_core.kernels import fp8_dispatcher as fd
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.kernels_legacy import fp8_dispatcher as fd
+        from sndr.engines.vllm.detection import guards
 
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: True)
 
@@ -128,20 +128,20 @@ class TestShouldSkipTritonFp8:
     """Group 3: Explicit CC-based skip."""
 
     def test_skip_on_ampere_consumer(self):
-        from vllm.sndr_core.kernels.fp8_dispatcher import should_skip_triton_fp8
+        from sndr.engines.vllm.kernels_legacy.fp8_dispatcher import should_skip_triton_fp8
         # Explicit CC argument
         assert should_skip_triton_fp8((8, 6)) is True
 
     def test_skip_on_ampere_datacenter(self):
-        from vllm.sndr_core.kernels.fp8_dispatcher import should_skip_triton_fp8
+        from sndr.engines.vllm.kernels_legacy.fp8_dispatcher import should_skip_triton_fp8
         assert should_skip_triton_fp8((8, 0)) is True
 
     def test_no_skip_on_ada(self):
-        from vllm.sndr_core.kernels.fp8_dispatcher import should_skip_triton_fp8
+        from sndr.engines.vllm.kernels_legacy.fp8_dispatcher import should_skip_triton_fp8
         assert should_skip_triton_fp8((8, 9)) is False
 
     def test_no_skip_on_hopper(self):
-        from vllm.sndr_core.kernels.fp8_dispatcher import should_skip_triton_fp8
+        from sndr.engines.vllm.kernels_legacy.fp8_dispatcher import should_skip_triton_fp8
         assert should_skip_triton_fp8((9, 0)) is False
 
     def test_none_cc_returns_false(self, monkeypatch):
@@ -153,15 +153,15 @@ class TestShouldSkipTritonFp8:
         return a real SM tuple and flip the decision. The test's intent is
         "when the platform reports None (non-NVIDIA), return False".
         """
-        from vllm.sndr_core.kernels import fp8_dispatcher as fd
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.kernels_legacy import fp8_dispatcher as fd
+        from sndr.engines.vllm.detection import guards
         monkeypatch.setattr(guards, "get_compute_capability", lambda: None)
         assert fd.should_skip_triton_fp8(None) is False
 
     def test_uses_platform_when_no_arg(self, monkeypatch):
         """When no explicit CC, queries current platform."""
-        from vllm.sndr_core.kernels import fp8_dispatcher as fd
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.kernels_legacy import fp8_dispatcher as fd
+        from sndr.engines.vllm.detection import guards
 
         monkeypatch.setattr(guards, "get_compute_capability", lambda: (8, 6))
         assert fd.should_skip_triton_fp8() is True
@@ -174,15 +174,15 @@ class TestLogDispatcherDecision:
     """Group 4: Observability."""
 
     def test_log_does_not_raise_on_non_nvidia(self, caplog, monkeypatch):
-        from vllm.sndr_core.kernels.fp8_dispatcher import log_dispatcher_decision
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.kernels_legacy.fp8_dispatcher import log_dispatcher_decision
+        from sndr.engines.vllm.detection import guards
 
         monkeypatch.setattr(guards, "get_compute_capability", lambda: None)
         log_dispatcher_decision()  # should not raise
 
     def test_log_does_not_raise_on_nvidia(self, caplog, monkeypatch):
-        from vllm.sndr_core.kernels.fp8_dispatcher import log_dispatcher_decision
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.kernels_legacy.fp8_dispatcher import log_dispatcher_decision
+        from sndr.engines.vllm.detection import guards
 
         monkeypatch.setattr(guards, "get_compute_capability", lambda: (8, 6))
         log_dispatcher_decision()  # should not raise

@@ -22,7 +22,7 @@ def _import_mod():
     sys.path.insert(0, str(REPO_ROOT))
     try:
         mod = importlib.import_module(
-            "vllm.sndr_core.observability.genesis_process_info"
+            "sndr.observability.genesis_process_info"
         )
     finally:
         sys.path.pop(0)

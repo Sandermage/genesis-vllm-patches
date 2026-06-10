@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Tests for `vllm.sndr_core.observability.trace_catalog` — §6.H6
+"""Tests for `sndr.observability.trace_catalog` — §6.H6
 of the unified development plan.
 
 Locks the surface of TRACE_CATALOG so future patch additions register
@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.observability.trace_catalog import (
+from sndr.observability.trace_catalog import (
     TRACE_CATALOG,
     TRACE_CATEGORIES,
     TraceSpec,

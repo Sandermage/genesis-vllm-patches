@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.product_api import background_exec, jobs
+from sndr.product_api.legacy import background_exec, jobs
 
 
 @pytest.fixture
@@ -83,7 +83,7 @@ def test_download_dry_run_when_apply_off(home, monkeypatch):
     pytest.importorskip("fastapi")
     monkeypatch.delenv("SNDR_ENABLE_APPLY", raising=False)
     from fastapi.testclient import TestClient
-    from vllm.sndr_core.product_api.http_app import create_app
+    from sndr.product_api.legacy.http_app import create_app
 
     client = TestClient(create_app(enable_apply=False, allowed_origins=()))
     # invalid id -> 400; unknown id -> 404
@@ -94,8 +94,8 @@ def test_download_dry_run_when_apply_off(home, monkeypatch):
 def test_download_executes_when_apply_on(home, monkeypatch):
     pytest.importorskip("fastapi")
     from fastapi.testclient import TestClient
-    from vllm.sndr_core.product_api import http_app
-    from vllm.sndr_core.product_api.http_app import create_app
+    from sndr.product_api.legacy import http_app
+    from sndr.product_api.legacy.http_app import create_app
 
     # Pretend one model id is known + stub the background runner so no real pull.
     captured = {}
@@ -104,7 +104,7 @@ def test_download_executes_when_apply_on(home, monkeypatch):
         lambda: type("R", (), {"models": [type("E", (), {"model_id": "known-model"})()]})(),
     )
     monkeypatch.setattr(
-        "vllm.sndr_core.product_api.background_exec.run_background_command",
+        "sndr.product_api.legacy.background_exec.run_background_command",
         lambda **kw: (captured.update(kw) or jobs.create_running_job(kind=kw["kind"], title=kw["title"], summary=kw["summary"], command=kw["command"])),
     )
     client = TestClient(create_app(enable_apply=True, allowed_origins=()))

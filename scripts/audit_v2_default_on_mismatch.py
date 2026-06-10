@@ -31,7 +31,7 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-MODEL_DIR = REPO_ROOT / "vllm" / "sndr_core" / "model_configs" / "builtin" / "model"
+MODEL_DIR = REPO_ROOT / "sndr" / "model_configs" / "builtin" / "model"
 
 
 if str(REPO_ROOT) not in sys.path:
@@ -63,7 +63,7 @@ def _norm_value(v) -> str:
 def _build_flag_to_default_on_pids() -> dict:
     """Map env_flag → list of pids that are default_on=True and use this flag."""
     try:
-        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        from sndr.dispatcher.registry import PATCH_REGISTRY
     except ImportError:
         return {}
     out: dict[str, list[str]] = defaultdict(list)

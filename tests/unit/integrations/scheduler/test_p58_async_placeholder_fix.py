@@ -161,7 +161,7 @@ class TestP58RequestPyPatch:
         assert REQUEST_NUM_TOKENS_OLD in content
 
     def test_apply_succeeds_and_adds_counter_field(self, fake_request_py):
-        from vllm.sndr_core.core.text_patch import (
+        from sndr.kernel.text_patch import (
             TextPatcher, TextPatch, TextPatchResult,
         )
         from sndr.engines.vllm.patches.scheduler.p58_async_scheduler_placeholder_fix import (
@@ -202,7 +202,7 @@ class TestP58AsyncSchedulerPyPatch:
         assert "request.spec_token_ids = self._spec_token_placeholders" in content
 
     def test_apply_replaces_list_assignment_with_counter(self, fake_async_sched_py):
-        from vllm.sndr_core.core.text_patch import (
+        from sndr.kernel.text_patch import (
             TextPatcher, TextPatch, TextPatchResult,
         )
         from sndr.engines.vllm.patches.scheduler.p58_async_scheduler_placeholder_fix import (
@@ -242,7 +242,7 @@ class TestP58SchedulerPyPatch:
         assert SCHED_DRAFT_SITE_A_OLD in content
 
     def test_apply_inserts_new_method_and_gates(self, fake_scheduler_py):
-        from vllm.sndr_core.core.text_patch import (
+        from sndr.kernel.text_patch import (
             TextPatcher, TextPatch, TextPatchResult,
         )
         from sndr.engines.vllm.patches.scheduler.p58_async_scheduler_placeholder_fix import (
@@ -279,7 +279,7 @@ class TestP58SchedulerPyPatch:
 
 class TestP58Idempotency:
     def test_second_apply_is_noop(self, fake_request_py):
-        from vllm.sndr_core.core.text_patch import (
+        from sndr.kernel.text_patch import (
             TextPatcher, TextPatch, TextPatchResult,
         )
         from sndr.engines.vllm.patches.scheduler.p58_async_scheduler_placeholder_fix import (
@@ -307,7 +307,7 @@ class TestP58UpstreamDriftDetection:
     def test_upstream_marker_skips_patch_cleanly(self, tmp_path):
         """If `num_pending_async_spec_placeholders` is already in the file,
         we treat it as upstream-merged and skip without touching."""
-        from vllm.sndr_core.core.text_patch import (
+        from sndr.kernel.text_patch import (
             TextPatcher, TextPatch, TextPatchResult,
         )
 

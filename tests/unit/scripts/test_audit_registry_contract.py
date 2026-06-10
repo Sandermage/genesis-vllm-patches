@@ -11,7 +11,7 @@ silently apply on unsuspecting checkpoints until the 2026-05-14 manual
 sync caught it.
 
 Coverage strategy: synthesize ``types.ModuleType`` stubs in
-``sys.modules`` keyed at importable ``vllm.sndr_core.integrations.*``
+``sys.modules`` keyed at importable ``sndr.engines.vllm.patches.*``
 paths, hand the checker a synthetic registry dict, and assert each
 distinct case fires (or stays silent).
 
@@ -57,8 +57,8 @@ def audit_mod():
 @pytest.fixture
 def fake_module():
     """Factory that injects a synthetic module into ``sys.modules`` with
-    a custom ``__doc__``. The path uses ``vllm.sndr_core.integrations.``
-    so the checker's ``"integrations." in am`` gate accepts it.
+    a custom ``__doc__``. The path uses ``sndr.engines.vllm.patches.``
+    so the checker's ``".patches." in am`` gate accepts it.
 
     Caller is responsible for picking a path that does not collide with
     a real module. The fixture cleans up after the test.
@@ -66,8 +66,8 @@ def fake_module():
     created: list[str] = []
 
     def _make(name: str, docstring: str | None) -> str:
-        assert "integrations." in name, (
-            "synthetic module path must contain 'integrations.' to "
+        assert ".patches." in name, (
+            "synthetic module path must contain '.patches.' to "
             "exercise the checker's gate"
         )
         mod = types.ModuleType(name)
@@ -89,7 +89,7 @@ class TestDocstringLifecycleSync:
         """Docstring has no lifecycle marker → zero issues regardless of
         registry lifecycle."""
         am = fake_module(
-            "vllm.sndr_core.integrations._test_fake.clean_module",
+            "sndr.engines.vllm.patches._test_fake.clean_module",
             "Clean experimental patch. No retirement markers anywhere.",
         )
         registry = {
@@ -110,7 +110,7 @@ class TestDocstringLifecycleSync:
         """The exact PN108 scenario: TOMBSTONED in docstring, registry
         lifecycle=experimental → drift detected."""
         am = fake_module(
-            "vllm.sndr_core.integrations._test_fake.tombstoned_module",
+            "sndr.engines.vllm.patches._test_fake.tombstoned_module",
             "TOMBSTONED — fla recurrent kernel cannot serve "
             "single-seq prefill. This module is a harmless no-op now.",
         )
@@ -135,7 +135,7 @@ class TestDocstringLifecycleSync:
         invariant assumes retired patches may legitimately retain
         retirement banners."""
         am = fake_module(
-            "vllm.sndr_core.integrations._test_fake.retired_module",
+            "sndr.engines.vllm.patches._test_fake.retired_module",
             "TOMBSTONED — retired 2026-05-14, replaced by PN59.",
         )
         registry = {
@@ -156,7 +156,7 @@ class TestDocstringLifecycleSync:
         """``status: retired`` in docstring + registry lifecycle=stable
         → drift detected."""
         am = fake_module(
-            "vllm.sndr_core.integrations._test_fake.status_retired_module",
+            "sndr.engines.vllm.patches._test_fake.status_retired_module",
             "Some patch.\n\nStatus: retired (upstream landed in vllm#41234).",
         )
         registry = {
@@ -179,7 +179,7 @@ class TestDocstringLifecycleSync:
         fire on prose like ``replaces retired P7`` or ``self-retired
         when upstream lands``."""
         am = fake_module(
-            "vllm.sndr_core.integrations._test_fake.references_retired",
+            "sndr.engines.vllm.patches._test_fake.references_retired",
             "Active patch. Replaces retired P7 and supersedes PN13 "
             "(which is itself retired). When upstream PR42637 lands "
             "this patch will be self-retired.",
@@ -213,7 +213,7 @@ class TestDocstringLifecycleSync:
             "FAKE_UNIMPORTABLE": {
                 "lifecycle": "experimental",
                 "apply_module": (
-                    "vllm.sndr_core.integrations._does_not_exist"
+                    "sndr.engines.vllm.patches._does_not_exist"
                     ".missing_module"
                 ),
             },
@@ -224,12 +224,12 @@ class TestDocstringLifecycleSync:
     def test_non_integrations_apply_module_skipped(
         self, audit_mod, fake_module,
     ):
-        """``apply_module`` not under ``integrations.`` (e.g. helper
-        module, future relocation) is skipped — the audit scope is
-        integration patches only."""
-        # Cannot use fake_module fixture (it asserts integrations. is in
+        """``apply_module`` not under the engine patches tree (e.g.
+        helper module, future relocation) is skipped — the audit scope
+        is integration patches only."""
+        # Cannot use fake_module fixture (it asserts .patches. is in
         # the path); build manually for this skip case.
-        name = "vllm.sndr_core._test_fake.helper_module"
+        name = "sndr._test_fake.helper_module"
         mod = types.ModuleType(name)
         mod.__doc__ = "TOMBSTONED helper, not an integration patch."
         sys.modules[name] = mod
@@ -253,7 +253,7 @@ class TestLiveCorpus:
     """Run invariant 8 against the real registry tree (smoke)."""
 
     def test_live_invariant_8_zero_issues(self, audit_mod):
-        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        from sndr.dispatcher.registry import PATCH_REGISTRY
         issues = audit_mod._check_docstring_lifecycle_sync(PATCH_REGISTRY)
         assert issues == [], (
             "live registry must have zero docstring-lifecycle drift "

@@ -27,9 +27,9 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core import dispatcher
-from vllm.sndr_core.dispatcher import spec as spec_mod
-from vllm.sndr_core.dispatcher.spec import (
+from sndr import dispatcher
+from sndr.dispatcher import spec as spec_mod
+from sndr.dispatcher.spec import (
     VALID_UPSTREAM_PR_RELATIONSHIPS,
     PatchSpec,
     patch_spec_for,
@@ -353,7 +353,7 @@ class TestSpecialPatchesResolveCorrectly:
 class TestModuleSurface:
     def test_enum_is_importable_from_spec(self):
         """Audit script + tests both depend on this import path."""
-        from vllm.sndr_core.dispatcher.spec import (
+        from sndr.dispatcher.spec import (
             VALID_UPSTREAM_PR_RELATIONSHIPS,
         )
         assert isinstance(VALID_UPSTREAM_PR_RELATIONSHIPS, tuple)

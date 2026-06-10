@@ -49,7 +49,7 @@ _KNOWN_ENGINE_TIER_ENTRIES: frozenset[str] = frozenset({
 def test_no_engine_tier_patches_in_public_registry():
     """Iron Rule #1: no `tier="engine"` entries in this public
     sndr_core PATCH_REGISTRY. Pin the boundary."""
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+    from sndr.dispatcher.registry import PATCH_REGISTRY
     offenders = [
         pid for pid, meta in PATCH_REGISTRY.items()
         if isinstance(meta, dict)
@@ -74,7 +74,7 @@ def test_pn289_is_community_tier_not_engine():
     sndr_core/observability/. Silently disabled §6.H10 Prometheus
     process_info gauge for every operator. The implementation is
     Genesis-original (Apache 2.0) — community tier is correct."""
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+    from sndr.dispatcher.registry import PATCH_REGISTRY
     entry = PATCH_REGISTRY.get("PN289")
     assert entry is not None, "PN289 missing from PATCH_REGISTRY"
     assert entry.get("tier") == "community", (
@@ -88,7 +88,7 @@ def test_tier_distribution_baseline():
     all 241 entries are community-tier. Any future engine-tier entry
     must be explicitly justified + allowlisted in this test."""
     from collections import Counter
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+    from sndr.dispatcher.registry import PATCH_REGISTRY
     counts = Counter(
         meta.get("tier", "<missing>")
         for meta in PATCH_REGISTRY.values()

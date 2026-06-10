@@ -15,7 +15,7 @@ import tempfile
 
 import pytest
 
-from vllm.sndr_core.cache import _pn95_runtime as rt
+from sndr.cache import _pn95_runtime as rt
 
 
 @pytest.fixture(autouse=True)

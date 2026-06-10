@@ -26,7 +26,7 @@ import torch
 def _clean_manager_state():
     """Each test starts with an empty manager. Fixture auto-applied via
     `@pytest.fixture(autouse=True)`."""
-    from vllm.sndr_core.kernels.dequant_buffer import TurboQuantBufferManager
+    from sndr.engines.vllm.kernels_legacy.dequant_buffer import TurboQuantBufferManager
     TurboQuantBufferManager.clear_for_tests()
     yield
     TurboQuantBufferManager.clear_for_tests()
@@ -37,8 +37,8 @@ class TestP38DequantBuffer4D:
 
     def test_shape_is_4d_matches_engine_expectation(self, monkeypatch):
         """Dev134 engine does `k_buf[:, :, :alloc_len, :]` — shape must be 4-D."""
-        from vllm.sndr_core.kernels.dequant_buffer import TurboQuantBufferManager
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.kernels_legacy.dequant_buffer import TurboQuantBufferManager
+        from sndr.engines.vllm.detection import guards
         # Force should_apply True for CPU-run of this test
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(guards, "is_sm_at_least",
@@ -58,8 +58,8 @@ class TestP38DequantBuffer4D:
         assert v.dtype == torch.float16
 
     def test_pointer_stable_on_repeat(self, monkeypatch):
-        from vllm.sndr_core.kernels.dequant_buffer import TurboQuantBufferManager
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.kernels_legacy.dequant_buffer import TurboQuantBufferManager
+        from sndr.engines.vllm.detection import guards
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(guards, "is_sm_at_least",
                             lambda major, minor=0: True)
@@ -76,8 +76,8 @@ class TestP38DequantBuffer4D:
         assert a_v.data_ptr() == b_v.data_ptr()
 
     def test_different_keys_get_different_buffers(self, monkeypatch):
-        from vllm.sndr_core.kernels.dequant_buffer import TurboQuantBufferManager
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.kernels_legacy.dequant_buffer import TurboQuantBufferManager
+        from sndr.engines.vllm.detection import guards
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(guards, "is_sm_at_least",
                             lambda major, minor=0: True)
@@ -100,8 +100,8 @@ class TestP38FullBuffer:
     def test_shape_matches_flash_attn_layout(self, monkeypatch):
         """K_full is consumed by flash_attn_varlen as
         (total_seq_len, Hk, D) — verify layout exactly."""
-        from vllm.sndr_core.kernels.dequant_buffer import TurboQuantBufferManager
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.kernels_legacy.dequant_buffer import TurboQuantBufferManager
+        from sndr.engines.vllm.detection import guards
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(guards, "is_sm_at_least",
                             lambda major, minor=0: True)
@@ -116,8 +116,8 @@ class TestP38FullBuffer:
 
     def test_is_contiguous(self, monkeypatch):
         """flash_attn_varlen needs contiguous K/V."""
-        from vllm.sndr_core.kernels.dequant_buffer import TurboQuantBufferManager
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.kernels_legacy.dequant_buffer import TurboQuantBufferManager
+        from sndr.engines.vllm.detection import guards
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(guards, "is_sm_at_least",
                             lambda major, minor=0: True)
@@ -129,8 +129,8 @@ class TestP38FullBuffer:
         assert k.is_contiguous()
 
     def test_idempotent(self, monkeypatch):
-        from vllm.sndr_core.kernels.dequant_buffer import TurboQuantBufferManager
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.kernels_legacy.dequant_buffer import TurboQuantBufferManager
+        from sndr.engines.vllm.detection import guards
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(guards, "is_sm_at_least",
                             lambda major, minor=0: True)
@@ -152,7 +152,7 @@ class TestP38CopyAssembly:
 
     @pytest.fixture
     def guards_cuda(self, monkeypatch):
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.detection import guards
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(guards, "is_sm_at_least",
                             lambda major, minor=0: True)
@@ -161,7 +161,7 @@ class TestP38CopyAssembly:
     def test_prefix_chunk_equals_torch_cat(self, guards_cuda):
         """Assemble (cached_len + q_len, Hk, D) via copy; compare byte-exact
         to `torch.cat([cached_trim, chunk])`."""
-        from vllm.sndr_core.kernels.dequant_buffer import TurboQuantBufferManager
+        from sndr.engines.vllm.kernels_legacy.dequant_buffer import TurboQuantBufferManager
 
         # Mimic upstream layout: k_cached is (1, Hk, alloc_len, D) FP16.
         torch.manual_seed(42)
@@ -197,7 +197,7 @@ class TestP38CopyAssembly:
     def test_copy_source_can_be_noncontiguous(self, guards_cuda):
         """transpose(0, 1) result is non-contiguous; verify copy_ handles it
         and the destination stays contiguous."""
-        from vllm.sndr_core.kernels.dequant_buffer import TurboQuantBufferManager
+        from sndr.engines.vllm.kernels_legacy.dequant_buffer import TurboQuantBufferManager
 
         Hk, D, cached_len = 2, 8, 40
         alloc_len = 64
@@ -219,8 +219,8 @@ class TestP38RegistryIntegration:
     """Group 4: get_registry_info + clear_for_tests integration."""
 
     def test_registry_includes_p38_bytes(self, monkeypatch):
-        from vllm.sndr_core.kernels.dequant_buffer import TurboQuantBufferManager
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.kernels_legacy.dequant_buffer import TurboQuantBufferManager
+        from sndr.engines.vllm.detection import guards
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(guards, "is_sm_at_least",
                             lambda major, minor=0: True)
@@ -244,8 +244,8 @@ class TestP38RegistryIntegration:
         assert pool_types == {"k_dequant_4d", "v_dequant_4d", "k_full", "v_full"}
 
     def test_clear_for_tests_removes_p38(self, monkeypatch):
-        from vllm.sndr_core.kernels.dequant_buffer import TurboQuantBufferManager
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.kernels_legacy.dequant_buffer import TurboQuantBufferManager
+        from sndr.engines.vllm.detection import guards
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(guards, "is_sm_at_least",
                             lambda major, minor=0: True)
@@ -272,8 +272,8 @@ class TestP38PlatformGuard:
     """Group 5: should_apply() and platform-skip behaviour."""
 
     def test_returns_none_tuple_when_platform_skipped(self, monkeypatch):
-        from vllm.sndr_core.kernels.dequant_buffer import TurboQuantBufferManager
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.kernels_legacy.dequant_buffer import TurboQuantBufferManager
+        from sndr.engines.vllm.detection import guards
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: False)
 
         k, v = TurboQuantBufferManager.get_or_create_p38_dequant_4d(
@@ -301,19 +301,19 @@ class TestP38WiringPatch:
         # source `vllm._genesis.guards.is_nvidia_cuda` does NOT
         # propagate to patch_38's local name (already captured at
         # import time). We must patch the local binding directly.
-        from vllm.sndr_core.integrations.attention.turboquant import p38_tq_continuation_memory as p38
+        from sndr.engines.vllm.patches.attention.turboquant import p38_tq_continuation_memory as p38
         monkeypatch.setattr(p38, "is_nvidia_cuda", lambda: False)
         assert p38.should_apply() is False
 
     def test_apply_skips_on_non_nvidia(self, monkeypatch):
-        from vllm.sndr_core.integrations.attention.turboquant import p38_tq_continuation_memory as p38
+        from sndr.engines.vllm.patches.attention.turboquant import p38_tq_continuation_memory as p38
         monkeypatch.setattr(p38, "is_nvidia_cuda", lambda: False)
         status, reason = p38.apply()
         assert status == "skipped"
         assert "NVIDIA" in reason
 
     def test_wiring_has_expected_public_surface(self):
-        from vllm.sndr_core.integrations.attention.turboquant import p38_tq_continuation_memory as p38
+        from sndr.engines.vllm.patches.attention.turboquant import p38_tq_continuation_memory as p38
         assert callable(p38.apply)
         assert callable(p38.is_applied)
         assert callable(p38.revert)
@@ -338,7 +338,7 @@ class TestP38Idempotency:
     def _reset_p38_module_state(self):
         """Clear the stamp from any prior apply() so each test sees a
         fresh guard state."""
-        from vllm.sndr_core.integrations.attention.turboquant import p38_tq_continuation_memory as p38
+        from sndr.engines.vllm.patches.attention.turboquant import p38_tq_continuation_memory as p38
         fn = p38._genesis_continuation_prefill
         for attr in ("_genesis_p38_original", p38._GENESIS_P38_MARKER_ATTR):
             if hasattr(fn, attr):
@@ -355,11 +355,11 @@ class TestP38Idempotency:
 
         Patches `is_nvidia_cuda` / `is_sm_at_least` on the WIRING MODULE
         directly (not on `guards`) because the wiring does
-        `from vllm.sndr_core.detection.guards import is_nvidia_cuda, is_sm_at_least`
+        `from sndr.engines.vllm.detection.guards import is_nvidia_cuda, is_sm_at_least`
         at import time → the symbols are bound in the wiring module's
         namespace, not looked up dynamically.
         """
-        from vllm.sndr_core.integrations.attention.turboquant import p38_tq_continuation_memory as p38
+        from sndr.engines.vllm.patches.attention.turboquant import p38_tq_continuation_memory as p38
         monkeypatch.setattr(p38, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(
             p38, "is_sm_at_least", lambda major, minor=0: True,
@@ -396,7 +396,7 @@ class TestP38Idempotency:
         """If apply() is called twice, the saved `_genesis_p38_original`
         MUST still point to the true upstream method — never our wrapper.
         """
-        from vllm.sndr_core.integrations.attention.turboquant import p38_tq_continuation_memory as p38
+        from sndr.engines.vllm.patches.attention.turboquant import p38_tq_continuation_memory as p38
         FakeImpl, fake_original = self._install_fake_impl(monkeypatch)
 
         # First apply
@@ -428,7 +428,7 @@ class TestP38Idempotency:
 
     def test_is_applied_tracks_state(self, monkeypatch):
         """is_applied() returns True only while our wrapper is live."""
-        from vllm.sndr_core.integrations.attention.turboquant import p38_tq_continuation_memory as p38
+        from sndr.engines.vllm.patches.attention.turboquant import p38_tq_continuation_memory as p38
         _FakeImpl, _fake_original = self._install_fake_impl(monkeypatch)
 
         assert p38.is_applied() is False

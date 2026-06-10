@@ -14,8 +14,8 @@ from pathlib import Path
 
 import pytest
 
-from vllm.sndr_core.compat.model_config_cli import _render_bare_metal
-from vllm.sndr_core.model_configs.registry import get as get_config
+from sndr.compat.model_config_cli import _render_bare_metal
+from sndr.model_configs.registry import get as get_config
 
 
 # Phase 10 (2026-06-01): V1 sunset — module fixture loads V1
@@ -79,7 +79,7 @@ class TestWheelMode:
 
     def test_wheel_mode_imports_sndr_core_as_smoke(self, cfg):
         out = _render_bare_metal(cfg, mode="wheel")
-        assert "import vllm.sndr_core" in out, (
+        assert "import sndr" in out, (
             "wheel mode must verify the wheel is importable"
         )
 

@@ -23,7 +23,7 @@ ENV_FLAG = "GENESIS_ENABLE_PN202_PER_LAYER_KV_SPLIT"
 
 
 def test_pn202_registered():
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+    from sndr.dispatcher.registry import PATCH_REGISTRY
     assert PATCH_ID in PATCH_REGISTRY
     meta = PATCH_REGISTRY[PATCH_ID]
     assert meta["env_flag"] == ENV_FLAG
@@ -35,7 +35,7 @@ def test_pn202_registered():
 def test_applies_to_declares_pin_range():
     """PN202 modifies kv-cache shape — a pin guard is mandatory so the
     patch doesn't fire on a version where the anchor moved."""
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+    from sndr.dispatcher.registry import PATCH_REGISTRY
     applies_to = PATCH_REGISTRY[PATCH_ID].get("applies_to") or {}
     assert "vllm_version_range" in applies_to, (
         f"PN202 must declare vllm_version_range; got: "

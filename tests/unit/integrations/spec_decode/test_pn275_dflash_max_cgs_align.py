@@ -378,11 +378,11 @@ class TestApplyAgainstFakeModule:
 
 class TestRegistryEntry:
     def test_pn275_registered(self):
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+        from sndr.dispatcher import PATCH_REGISTRY
         assert "PN275" in PATCH_REGISTRY
 
     def test_pn275_metadata_shape(self):
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+        from sndr.dispatcher import PATCH_REGISTRY
         meta = PATCH_REGISTRY["PN275"]
         assert meta["env_flag"] == "GENESIS_ENABLE_PN275_DFLASH_MAX_CGS_ALIGN"
         assert meta["default_on"] is False
@@ -400,7 +400,7 @@ class TestRegistryEntry:
     def test_pn275_dispatcher_hook(self):
         """The @register_patch hook must exist in the apply layer so
         sndr patches apply / boot dispatch can reach the patch."""
-        from vllm.sndr_core.apply import apply_all
+        from sndr.apply import apply_all
         assert hasattr(
             apply_all, "apply_patch_pn275_dflash_max_cgs_align"
         )
@@ -575,7 +575,7 @@ class TestSelfInstallTextPatch:
             "def is_init_field(cls, name): return True\n\n"
             + p._PN275_SELF_INSTALL_ANCHOR
         )
-        import vllm.sndr_core.detection.guards as guards
+        import sndr.engines.vllm.detection.guards as guards
         import sndr.engines.vllm.detection.guards as _canon_guards
         orig = guards.vllm_install_root
         _orig_canon = _canon_guards.vllm_install_root
@@ -603,11 +603,11 @@ class TestSelfInstallTextPatch:
         partial install), the TextPatcher factory must return None
         cleanly — apply() then falls back to the setattr-wrap step."""
         p = _import_patch()
-        import vllm.sndr_core.detection.guards as guards
+        import sndr.engines.vllm.detection.guards as guards
         orig_root = guards.vllm_install_root
         orig_resolve = (
             __import__(
-                "vllm.sndr_core.detection.guards", fromlist=["resolve_vllm_file"],
+                "sndr.engines.vllm.detection.guards", fromlist=["resolve_vllm_file"],
             ).resolve_vllm_file
         )
 
@@ -615,7 +615,7 @@ class TestSelfInstallTextPatch:
             return None
 
         monkeypatch.setattr(
-            "vllm.sndr_core.detection.guards.resolve_vllm_file", fake_resolve,
+            "sndr.engines.vllm.detection.guards.resolve_vllm_file", fake_resolve,
         )
         try:
             patcher = p._make_self_install_text_patcher()
@@ -740,7 +740,7 @@ class TestValidatorWaiverTextPatch:
             + p._PN275_VALIDATOR_WAIVER_ANCHOR
             + "\n            return\n"
         )
-        import vllm.sndr_core.detection.guards as guards
+        import sndr.engines.vllm.detection.guards as guards
         import sndr.engines.vllm.detection.guards as _canon_guards
         orig = guards.vllm_install_root
         _orig_canon = _canon_guards.vllm_install_root
@@ -769,7 +769,7 @@ class TestValidatorWaiverTextPatch:
             return None
 
         monkeypatch.setattr(
-            "vllm.sndr_core.detection.guards.resolve_vllm_file", fake_resolve,
+            "sndr.engines.vllm.detection.guards.resolve_vllm_file", fake_resolve,
         )
         patcher = p._make_validator_waiver_text_patcher()
         assert patcher is None

@@ -24,7 +24,7 @@ _skip_if_no_v1_27b_pull = pytest.mark.skipif(
 
 
 def test_pull_via_artifacts_unknown_config_returns_2(capsys):
-    from vllm.sndr_core.compat.models.pull import pull_via_artifacts
+    from sndr.compat.models.pull import pull_via_artifacts
     rc = pull_via_artifacts(cfg_key="nonexistent-xyz", dry_run=True)
     assert rc == 2
     err = capsys.readouterr().err
@@ -41,7 +41,7 @@ def test_pull_via_artifacts_unknown_config_returns_2(capsys):
 )
 def test_pull_via_artifacts_config_without_artifacts_returns_2(capsys):
     """Path C EXAMPLE has no artifacts.models block → clean error."""
-    from vllm.sndr_core.compat.models.pull import pull_via_artifacts
+    from sndr.compat.models.pull import pull_via_artifacts
     rc = pull_via_artifacts(
         cfg_key="single-3090-hybrid-gdn-tier-aware-example",
         dry_run=True,
@@ -54,7 +54,7 @@ def test_pull_via_artifacts_config_without_artifacts_returns_2(capsys):
 @_skip_if_no_v1_35b_pull
 def test_pull_via_artifacts_35b_prod_dry_run(capsys):
     """35B PROD has Y3 artifacts.models declared → dry-run should succeed."""
-    from vllm.sndr_core.compat.models.pull import pull_via_artifacts
+    from sndr.compat.models.pull import pull_via_artifacts
     rc = pull_via_artifacts(cfg_key="a5000-2x-35b-prod", dry_run=True)
     assert rc == 0
     out = capsys.readouterr().out
@@ -66,7 +66,7 @@ def test_pull_via_artifacts_35b_prod_dry_run(capsys):
 @_skip_if_no_v1_27b_pull
 def test_pull_via_artifacts_27b_prod_dry_run(capsys):
     """27B PROD has Y3 artifacts.models declared → dry-run should succeed."""
-    from vllm.sndr_core.compat.models.pull import pull_via_artifacts
+    from sndr.compat.models.pull import pull_via_artifacts
     rc = pull_via_artifacts(cfg_key="a5000-2x-27b-int4-tq-k8v4",
                               dry_run=True)
     assert rc == 0
@@ -76,7 +76,7 @@ def test_pull_via_artifacts_27b_prod_dry_run(capsys):
 
 def test_pull_via_artifacts_skips_when_locally_complete(tmp_path, capsys):
     """If local_dir exists and verify() returns no problems → skip pull."""
-    from vllm.sndr_core.model_configs.schema import (
+    from sndr.model_configs.schema import (
         ArtifactModel, Artifacts, ModelConfig, HardwareSpec, DockerConfig,
     )
     # Build a synthetic complete artifact on tmp_path
@@ -100,11 +100,11 @@ def test_pull_via_artifacts_skips_when_locally_complete(tmp_path, capsys):
         )]),
     )
     # Inject into registry temporarily
-    from vllm.sndr_core.model_configs import registry as R
+    from sndr.model_configs import registry as R
     original = R.get
     R.get = lambda key: cfg if key == "test-pull-skip" else original(key)
     try:
-        from vllm.sndr_core.compat.models.pull import pull_via_artifacts
+        from sndr.compat.models.pull import pull_via_artifacts
         rc = pull_via_artifacts(cfg_key="test-pull-skip")
         assert rc == 0
         out = capsys.readouterr().out
@@ -116,7 +116,7 @@ def test_pull_via_artifacts_skips_when_locally_complete(tmp_path, capsys):
 @_skip_if_no_v1_35b_pull
 def test_cli_argparser_accepts_config_flag():
     """CLI parses --config without requiring positional model_key."""
-    from vllm.sndr_core.compat.models.pull import _parse_args
+    from sndr.compat.models.pull import _parse_args
     args = _parse_args(["--config", "a5000-2x-35b-prod", "--dry-run"])
     assert args.config == "a5000-2x-35b-prod"
     assert args.dry_run is True
@@ -126,7 +126,7 @@ def test_cli_argparser_accepts_config_flag():
 @_skip_if_no_v1_35b_pull
 def test_cli_main_dispatches_to_pull_via_artifacts(capsys):
     """`pull --config <key> --dry-run` reaches pull_via_artifacts."""
-    from vllm.sndr_core.compat.models.pull import main
+    from sndr.compat.models.pull import main
     rc = main(["--config", "a5000-2x-35b-prod", "--dry-run"])
     assert rc == 0
     out = capsys.readouterr().out
@@ -136,14 +136,14 @@ def test_cli_main_dispatches_to_pull_via_artifacts(capsys):
 def test_cli_main_legacy_path_still_works():
     """Without --config, legacy registry-based pull still triggers
     (returns 2 on unknown key — that's the registry handling)."""
-    from vllm.sndr_core.compat.models.pull import main
+    from sndr.compat.models.pull import main
     rc = main(["never-a-registered-key-xyz"])
     assert rc == 2  # legacy path: unknown key
 
 
 def test_cli_main_no_key_no_config_returns_2(capsys):
     """Neither model_key nor --config → friendly error."""
-    from vllm.sndr_core.compat.models.pull import main
+    from sndr.compat.models.pull import main
     rc = main([])
     assert rc == 2
     err = capsys.readouterr().err

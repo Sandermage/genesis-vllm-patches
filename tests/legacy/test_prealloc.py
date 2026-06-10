@@ -13,7 +13,7 @@ class TestGetOrCreate:
     """Group 1: Core get_or_create behavior."""
 
     def test_first_call_allocates_fresh_tensor(self, reset_genesis_prealloc):
-        from vllm.sndr_core.runtime.prealloc import GenesisPreallocBuffer as GPB
+        from sndr.runtime.prealloc import GenesisPreallocBuffer as GPB
 
         buf = GPB.get_or_create(
             namespace="test_fresh",
@@ -27,7 +27,7 @@ class TestGetOrCreate:
 
     def test_same_key_returns_same_tensor(self, reset_genesis_prealloc):
         """Calling twice with same args returns IDENTICAL tensor (same ptr)."""
-        from vllm.sndr_core.runtime.prealloc import GenesisPreallocBuffer as GPB
+        from sndr.runtime.prealloc import GenesisPreallocBuffer as GPB
 
         buf1 = GPB.get_or_create("same", (4,), torch.float32, "cpu")
         buf2 = GPB.get_or_create("same", (4,), torch.float32, "cpu")
@@ -38,7 +38,7 @@ class TestGetOrCreate:
 
     def test_different_namespace_different_tensor(self, reset_genesis_prealloc):
         """Different namespaces create separate tensors."""
-        from vllm.sndr_core.runtime.prealloc import GenesisPreallocBuffer as GPB
+        from sndr.runtime.prealloc import GenesisPreallocBuffer as GPB
 
         buf1 = GPB.get_or_create("ns1", (4,), torch.float32, "cpu")
         buf2 = GPB.get_or_create("ns2", (4,), torch.float32, "cpu")
@@ -47,7 +47,7 @@ class TestGetOrCreate:
         assert buf1.data_ptr() != buf2.data_ptr()
 
     def test_different_shape_different_tensor(self, reset_genesis_prealloc):
-        from vllm.sndr_core.runtime.prealloc import GenesisPreallocBuffer as GPB
+        from sndr.runtime.prealloc import GenesisPreallocBuffer as GPB
 
         buf1 = GPB.get_or_create("ns", (4,), torch.float32, "cpu")
         buf2 = GPB.get_or_create("ns", (8,), torch.float32, "cpu")
@@ -55,7 +55,7 @@ class TestGetOrCreate:
         assert buf1 is not buf2
 
     def test_different_dtype_different_tensor(self, reset_genesis_prealloc):
-        from vllm.sndr_core.runtime.prealloc import GenesisPreallocBuffer as GPB
+        from sndr.runtime.prealloc import GenesisPreallocBuffer as GPB
 
         buf1 = GPB.get_or_create("ns", (4,), torch.float32, "cpu")
         buf2 = GPB.get_or_create("ns", (4,), torch.float16, "cpu")
@@ -63,7 +63,7 @@ class TestGetOrCreate:
         assert buf1 is not buf2
 
     def test_zero_init_creates_zeros(self, reset_genesis_prealloc):
-        from vllm.sndr_core.runtime.prealloc import GenesisPreallocBuffer as GPB
+        from sndr.runtime.prealloc import GenesisPreallocBuffer as GPB
 
         buf = GPB.get_or_create(
             "zeros", (4, 8), torch.float32, "cpu", zero_init=True
@@ -72,7 +72,7 @@ class TestGetOrCreate:
 
     def test_default_no_init_uses_torch_empty(self, reset_genesis_prealloc):
         """Default is torch.empty (uninitialized) for speed."""
-        from vllm.sndr_core.runtime.prealloc import GenesisPreallocBuffer as GPB
+        from sndr.runtime.prealloc import GenesisPreallocBuffer as GPB
 
         # Just make sure it doesn't crash (content is garbage, won't check)
         buf = GPB.get_or_create("empty", (4, 8), torch.float32, "cpu")
@@ -84,7 +84,7 @@ class TestSliceTo:
 
     def test_slice_to_returns_view(self, reset_genesis_prealloc):
         """Slicing returns a view (shares storage)."""
-        from vllm.sndr_core.runtime.prealloc import GenesisPreallocBuffer as GPB
+        from sndr.runtime.prealloc import GenesisPreallocBuffer as GPB
 
         buf = GPB.get_or_create("slice_test", (16, 8), torch.float32, "cpu")
         sliced = GPB.slice_to(buf, 4, dim=0)
@@ -95,7 +95,7 @@ class TestSliceTo:
 
     def test_slice_to_modifications_visible_through_parent(self, reset_genesis_prealloc):
         """Writing to slice visible in parent buffer (shared storage)."""
-        from vllm.sndr_core.runtime.prealloc import GenesisPreallocBuffer as GPB
+        from sndr.runtime.prealloc import GenesisPreallocBuffer as GPB
 
         buf = GPB.get_or_create("shared", (16,), torch.float32, "cpu", zero_init=True)
         sliced = GPB.slice_to(buf, 4)
@@ -108,7 +108,7 @@ class TestSliceTo:
 
     def test_slice_to_raises_on_overflow(self, reset_genesis_prealloc):
         """Exceeding buffer shape raises with helpful message."""
-        from vllm.sndr_core.runtime.prealloc import GenesisPreallocBuffer as GPB
+        from sndr.runtime.prealloc import GenesisPreallocBuffer as GPB
 
         buf = GPB.get_or_create("small", (8,), torch.float32, "cpu")
 
@@ -116,7 +116,7 @@ class TestSliceTo:
             GPB.slice_to(buf, 16)
 
     def test_slice_to_negative_raises(self, reset_genesis_prealloc):
-        from vllm.sndr_core.runtime.prealloc import GenesisPreallocBuffer as GPB
+        from sndr.runtime.prealloc import GenesisPreallocBuffer as GPB
 
         buf = GPB.get_or_create("neg_test", (8,), torch.float32, "cpu")
 
@@ -125,7 +125,7 @@ class TestSliceTo:
 
     def test_slice_to_zero_returns_empty_view(self, reset_genesis_prealloc):
         """n=0 returns an empty view (edge case)."""
-        from vllm.sndr_core.runtime.prealloc import GenesisPreallocBuffer as GPB
+        from sndr.runtime.prealloc import GenesisPreallocBuffer as GPB
 
         buf = GPB.get_or_create("z", (8,), torch.float32, "cpu")
         sliced = GPB.slice_to(buf, 0)
@@ -133,7 +133,7 @@ class TestSliceTo:
         assert sliced.shape == (0,)
 
     def test_slice_to_custom_dim(self, reset_genesis_prealloc):
-        from vllm.sndr_core.runtime.prealloc import GenesisPreallocBuffer as GPB
+        from sndr.runtime.prealloc import GenesisPreallocBuffer as GPB
 
         buf = GPB.get_or_create("dim_test", (4, 16), torch.float32, "cpu")
         sliced = GPB.slice_to(buf, 8, dim=1)
@@ -145,7 +145,7 @@ class TestRegistryInfo:
     """Group 3: Diagnostic / observability."""
 
     def test_empty_registry_reports_zero(self, reset_genesis_prealloc):
-        from vllm.sndr_core.runtime.prealloc import GenesisPreallocBuffer as GPB
+        from sndr.runtime.prealloc import GenesisPreallocBuffer as GPB
 
         info = GPB.get_registry_info()
         assert info["total_buffers"] == 0
@@ -153,7 +153,7 @@ class TestRegistryInfo:
         assert info["entries"] == []
 
     def test_registry_info_tracks_allocations(self, reset_genesis_prealloc):
-        from vllm.sndr_core.runtime.prealloc import GenesisPreallocBuffer as GPB
+        from sndr.runtime.prealloc import GenesisPreallocBuffer as GPB
 
         GPB.get_or_create("a", (4,), torch.float32, "cpu")
         GPB.get_or_create("b", (8, 16), torch.float16, "cpu")
@@ -167,7 +167,7 @@ class TestRegistryInfo:
     def test_registry_info_json_serializable(self, reset_genesis_prealloc):
         """Registry info must be JSON-serializable for logs."""
         import json
-        from vllm.sndr_core.runtime.prealloc import GenesisPreallocBuffer as GPB
+        from sndr.runtime.prealloc import GenesisPreallocBuffer as GPB
 
         GPB.get_or_create("x", (4,), torch.bfloat16, "cpu")
         info = GPB.get_registry_info()
@@ -186,7 +186,7 @@ class TestPointerStability:
         This is THE critical invariant for CUDA graph replay safety.
         If this test fails, captured CUDA graphs will break.
         """
-        from vllm.sndr_core.runtime.prealloc import GenesisPreallocBuffer as GPB
+        from sndr.runtime.prealloc import GenesisPreallocBuffer as GPB
 
         pointers = set()
         for _ in range(100):
@@ -199,7 +199,7 @@ class TestPointerStability:
 
     def test_slice_pointer_matches_parent_offset(self, reset_genesis_prealloc):
         """Slice pointer is parent pointer + byte offset."""
-        from vllm.sndr_core.runtime.prealloc import GenesisPreallocBuffer as GPB
+        from sndr.runtime.prealloc import GenesisPreallocBuffer as GPB
 
         buf = GPB.get_or_create("parent", (32,), torch.float32, "cpu")
         sliced = GPB.slice_to(buf, 16)
@@ -212,7 +212,7 @@ class TestClearForTests:
     """Group 5: clear_for_tests() behavior."""
 
     def test_clear_removes_all_buffers(self, reset_genesis_prealloc):
-        from vllm.sndr_core.runtime.prealloc import GenesisPreallocBuffer as GPB
+        from sndr.runtime.prealloc import GenesisPreallocBuffer as GPB
 
         GPB.get_or_create("a", (4,), torch.float32, "cpu")
         GPB.get_or_create("b", (4,), torch.float32, "cpu")
@@ -224,7 +224,7 @@ class TestClearForTests:
 
     def test_clear_allows_re_alloc_with_different_pointer(self, reset_genesis_prealloc):
         """After clear, same namespace+shape gets a fresh tensor."""
-        from vllm.sndr_core.runtime.prealloc import GenesisPreallocBuffer as GPB
+        from sndr.runtime.prealloc import GenesisPreallocBuffer as GPB
 
         buf1 = GPB.get_or_create("x", (4,), torch.float32, "cpu")
         buf1.data_ptr()
@@ -248,7 +248,7 @@ class TestCUDABehavior:
         if not cuda_available:
             pytest.skip("CUDA not available")
 
-        from vllm.sndr_core.runtime.prealloc import GenesisPreallocBuffer as GPB
+        from sndr.runtime.prealloc import GenesisPreallocBuffer as GPB
 
         buf = GPB.get_or_create(
             "cuda_test", (16, 32), torch.bfloat16, "cuda"
@@ -260,7 +260,7 @@ class TestCUDABehavior:
         if not cuda_available or torch.cuda.device_count() < 2:
             pytest.skip("Need 2+ CUDA devices")
 
-        from vllm.sndr_core.runtime.prealloc import GenesisPreallocBuffer as GPB
+        from sndr.runtime.prealloc import GenesisPreallocBuffer as GPB
 
         buf0 = GPB.get_or_create("dev", (4,), torch.float32, "cuda:0")
         buf1 = GPB.get_or_create("dev", (4,), torch.float32, "cuda:1")

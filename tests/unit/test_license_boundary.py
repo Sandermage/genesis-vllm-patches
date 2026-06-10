@@ -3,7 +3,7 @@
 
 INVARIANTS (any failure here blocks release):
 
-1. `vllm.sndr_core.license` imports cleanly without network access.
+1. `sndr.license` imports cleanly without network access.
 2. `core_license_status()` always reports core = "public (unlicensed)"
    on a clean public install.
 3. `verify_license_file()` defers honestly when no engine installed —
@@ -27,7 +27,7 @@ from unittest.mock import patch
 class TestImportInvariants:
     def test_module_imports_cleanly(self):
         """No exception on import — module is publication-safe."""
-        import vllm.sndr_core.license as mod
+        import sndr.license as mod
         # Phase 4.6 boundary surface is stable.
         assert hasattr(mod, "is_engine_installed")
         assert hasattr(mod, "core_license_status")
@@ -46,13 +46,13 @@ class TestImportInvariants:
         }
         # Drop our module if it's cached so the test re-imports fresh.
         for name in list(sys.modules):
-            if name == "vllm.sndr_core.license" or name.startswith(
-                "vllm.sndr_core.license."
+            if name == "sndr.license" or name.startswith(
+                "sndr.license."
             ):
                 del sys.modules[name]
         # Snapshot which "network" modules were pre-imported by other code.
         pre = {m for m in forbidden if m in sys.modules}
-        import vllm.sndr_core.license  # noqa: F401 — testing the side effects of import
+        import sndr.license  # noqa: F401 — testing the side effects of import
         post = {m for m in forbidden if m in sys.modules}
         # The license module itself must not have added any network module.
         added = post - pre
@@ -65,7 +65,7 @@ class TestImportInvariants:
 class TestCoreLicenseStatus:
     def test_unlicensed_core_default(self):
         """Public install reports core = 'public (unlicensed)'."""
-        from vllm.sndr_core.license import core_license_status
+        from sndr.license import core_license_status
         status = core_license_status()
         assert status.core == "public (unlicensed)"
         # On clean public install no engine.
@@ -78,7 +78,7 @@ class TestCoreLicenseStatus:
     def test_returns_license_status_dataclass(self):
         """Stable shape — tooling consumes asdict(status)."""
         from dataclasses import asdict, is_dataclass
-        from vllm.sndr_core.license import core_license_status, CoreLicenseStatus
+        from sndr.license import core_license_status, CoreLicenseStatus
         status = core_license_status()
         assert isinstance(status, CoreLicenseStatus)
         assert is_dataclass(status)
@@ -94,7 +94,7 @@ class TestCoreLicenseStatus:
 class TestVerifyLicenseFile:
     def test_defers_without_engine(self):
         """Public-core MUST NOT invent a verification result."""
-        from vllm.sndr_core.license import verify_license_file
+        from sndr.license import verify_license_file
         result = verify_license_file("/nonexistent/license.lic")
         assert result.valid is False
         assert "deferred" in result.reason.lower()
@@ -102,7 +102,7 @@ class TestVerifyLicenseFile:
 
     def test_returns_dataclass(self):
         from dataclasses import is_dataclass
-        from vllm.sndr_core.license import verify_license_file
+        from sndr.license import verify_license_file
         result = verify_license_file("/tmp/anything.lic")
         assert is_dataclass(result)
         assert hasattr(result, "valid")
@@ -114,7 +114,7 @@ class TestVerifyLicenseFile:
 
 class TestEngineDetection:
     def test_engine_not_installed_default(self):
-        from vllm.sndr_core.license import is_engine_installed
+        from sndr.license import is_engine_installed
         result = is_engine_installed()
         # On the public-only repo, no engine present.
         assert result.installed is False
@@ -126,7 +126,7 @@ class TestEngineDetection:
 
 class TestCLILicenseStatus:
     def test_status_returns_zero_on_clean_install(self):
-        from vllm.sndr_core.cli import license as lic_cli
+        from sndr.cli.legacy import license as lic_cli
         ns = argparse.Namespace(json=False)
         buf = io.StringIO()
         with redirect_stdout(buf):
@@ -137,7 +137,7 @@ class TestCLILicenseStatus:
         assert "Engine (private):      not detected" in out
 
     def test_status_json_machine_readable(self):
-        from vllm.sndr_core.cli import license as lic_cli
+        from sndr.cli.legacy import license as lic_cli
         ns = argparse.Namespace(json=True)
         buf = io.StringIO()
         with redirect_stdout(buf):
@@ -152,7 +152,7 @@ class TestCLILicenseStatus:
 class TestCLILicenseVerify:
     def test_verify_no_engine_exits_zero(self):
         """Deferred verification (no engine) is exit 0 — NOT a failure."""
-        from vllm.sndr_core.cli import license as lic_cli
+        from sndr.cli.legacy import license as lic_cli
         ns = argparse.Namespace(
             file="/tmp/anything.lic", offline=True, json=False
         )
@@ -164,7 +164,7 @@ class TestCLILicenseVerify:
         assert "deferred" in out.lower()
 
     def test_verify_json_deferred(self):
-        from vllm.sndr_core.cli import license as lic_cli
+        from sndr.cli.legacy import license as lic_cli
         ns = argparse.Namespace(
             file="/tmp/anything.lic", offline=True, json=True
         )
@@ -183,7 +183,7 @@ class TestCLILicenseVerify:
 
 class TestArgparserRegistration:
     def test_license_argparser_registers(self):
-        from vllm.sndr_core.cli.license import add_argparser
+        from sndr.cli.legacy.license import add_argparser
         p = argparse.ArgumentParser()
         sub = p.add_subparsers()
         add_argparser(sub)
@@ -191,7 +191,9 @@ class TestArgparserRegistration:
         assert ns.license_cmd == "status"
 
     def test_top_level_includes_license(self):
-        from vllm.sndr_core import cli as cli_mod
+        # v12: the legacy CLI (which registers the license subcommand)
+        # lives in sndr.cli.legacy; bare sndr.cli is the platform shell.
+        from sndr.cli import legacy as cli_mod
         assert hasattr(cli_mod, "_license_argparser")
         assert callable(cli_mod._license_argparser)
 

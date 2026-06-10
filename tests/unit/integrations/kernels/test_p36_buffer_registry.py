@@ -4,7 +4,7 @@
 P36 is a TEXT WIRING patch — it edits vLLM's attention.py to delegate
 shared-decode-buffer allocation to TurboQuantBufferManager. The actual
 torch.empty() call lives in
-vllm.sndr_core.runtime.prealloc.GenesisPreallocBuffer.get_or_create,
+sndr.runtime.prealloc.GenesisPreallocBuffer.get_or_create,
 which is process-global, pointer-stable (CUDA-graph safe), and
 allocate-once-keep-forever.
 
@@ -37,7 +37,7 @@ def test_p36_registry_pool_visible_after_module_import():
 
     This is purely a lookup-surface check; no byte-level allocation
     semantics changed by the registry hook itself."""
-    from vllm.sndr_core.runtime.persistent_buffer_registry import (
+    from sndr.runtime.persistent_buffer_registry import (
         PersistentBufferRegistry,
         POOL_TQ_DECODE_SHARED,
     )
@@ -58,7 +58,7 @@ def test_p36_registry_pool_acquire_byte_equivalent():
     shape/dtype/device — byte-equivalent to torch.empty() with the same
     args. Uses key_dims=4 for the full-fixed-shape case (the simplest
     P36 sub-pool semantic)."""
-    from vllm.sndr_core.runtime.persistent_buffer_registry import (
+    from sndr.runtime.persistent_buffer_registry import (
         PersistentBufferRegistry,
         POOL_TQ_DECODE_SHARED,
         _reset_registry_for_tests,
@@ -102,7 +102,7 @@ def test_p36_registers_persistent_slice_pool_not_buffer_pool():
     """ensure_pool_registered() must register POOL_TQ_DECODE_SHARED as
     a PersistentSlicePool — P36's TurboQuant decode + prefill buffers
     use grow-in-place + slice-on-acquire (NOT free-list acquire/release)."""
-    from vllm.sndr_core.runtime.persistent_buffer_registry import (
+    from sndr.runtime.persistent_buffer_registry import (
         PersistentBufferRegistry,
         PersistentSlicePool,
         POOL_TQ_DECODE_SHARED,

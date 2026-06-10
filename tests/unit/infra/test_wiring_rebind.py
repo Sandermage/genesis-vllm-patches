@@ -27,7 +27,7 @@ def my_replacement(x):
 
 class TestAttributeRebinder:
     def test_apply_sets_new_attr(self, fake_module):
-        from vllm.sndr_core.wiring import AttributeRebinder
+        from sndr.engines.vllm.wiring import AttributeRebinder
 
         r = AttributeRebinder(
             patch_name="test-basic",
@@ -40,7 +40,7 @@ class TestAttributeRebinder:
         assert fake_module.original_fn(5) == 500
 
     def test_is_applied_reflects_live_binding(self, fake_module):
-        from vllm.sndr_core.wiring import AttributeRebinder
+        from sndr.engines.vllm.wiring import AttributeRebinder
 
         r = AttributeRebinder(
             patch_name="t",
@@ -59,7 +59,7 @@ class TestAttributeRebinder:
         assert r.is_applied() is False
 
     def test_revert_restores_original(self, fake_module):
-        from vllm.sndr_core.wiring import AttributeRebinder
+        from sndr.engines.vllm.wiring import AttributeRebinder
 
         original_before = fake_module.original_fn
 
@@ -77,7 +77,7 @@ class TestAttributeRebinder:
         assert fake_module.original_fn(3) == 6  # original behavior
 
     def test_missing_target_skips_cleanly(self, fake_module):
-        from vllm.sndr_core.wiring import AttributeRebinder
+        from sndr.engines.vllm.wiring import AttributeRebinder
 
         r = AttributeRebinder(
             patch_name="t",
@@ -90,7 +90,7 @@ class TestAttributeRebinder:
         assert not r.is_applied()
 
     def test_idempotent_reapply(self, fake_module):
-        from vllm.sndr_core.wiring import AttributeRebinder
+        from sndr.engines.vllm.wiring import AttributeRebinder
 
         r = AttributeRebinder(
             patch_name="t",
@@ -106,7 +106,7 @@ class TestAttributeRebinder:
 
     def test_already_our_function_is_idempotent(self, fake_module):
         """Fresh rebinder sees our function already bound → considered applied."""
-        from vllm.sndr_core.wiring import AttributeRebinder
+        from sndr.engines.vllm.wiring import AttributeRebinder
 
         fake_module.original_fn = my_replacement  # pre-bound
 
@@ -121,7 +121,7 @@ class TestAttributeRebinder:
         assert r.is_applied() is True
 
     def test_assert_applied_raises_when_not(self, fake_module):
-        from vllm.sndr_core.wiring import AttributeRebinder
+        from sndr.engines.vllm.wiring import AttributeRebinder
 
         r = AttributeRebinder(
             patch_name="t",
@@ -135,7 +135,7 @@ class TestAttributeRebinder:
 
 class TestWiringRegistry:
     def test_registry_tracks_rebinds(self, fake_module):
-        from vllm.sndr_core.wiring import AttributeRebinder, WiringRegistry
+        from sndr.engines.vllm.wiring import AttributeRebinder, WiringRegistry
 
         WiringRegistry.clear_for_tests()
         assert len(WiringRegistry.all()) == 0
@@ -156,7 +156,7 @@ class TestWiringRegistry:
         WiringRegistry.clear_for_tests()
 
     def test_clear_for_tests_reverts_all(self, fake_module):
-        from vllm.sndr_core.wiring import AttributeRebinder, WiringRegistry
+        from sndr.engines.vllm.wiring import AttributeRebinder, WiringRegistry
 
         WiringRegistry.clear_for_tests()
         original = fake_module.original_fn

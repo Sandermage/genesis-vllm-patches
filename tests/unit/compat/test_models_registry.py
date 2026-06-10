@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Tests for vllm.sndr_core.compat.models.registry."""
+"""Tests for sndr.compat.models.registry."""
 from __future__ import annotations
 
 
-from vllm.sndr_core.compat.models.registry import (
+from sndr.compat.models.registry import (
     SUPPORTED_MODELS,
     ModelEntry,
     get_model,

@@ -48,7 +48,7 @@ def test_p38b_wiring_imports():
 
 def test_p38b_dispatcher_registry():
     """P38B is registered in PATCH_REGISTRY with correct env flag."""
-    from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+    from sndr.dispatcher import PATCH_REGISTRY
     assert "P38B" in PATCH_REGISTRY
     e = PATCH_REGISTRY["P38B"]
     assert e["env_flag"] == "GENESIS_ENABLE_P38B_COMPILE_SAFE"
@@ -110,7 +110,7 @@ def test_p15b_wiring_imports():
 
 def test_p15b_dispatcher_registry():
     """P15B is registered in PATCH_REGISTRY."""
-    from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+    from sndr.dispatcher import PATCH_REGISTRY
     assert "P15B" in PATCH_REGISTRY
     e = PATCH_REGISTRY["P15B"]
     assert e["env_flag"] == "GENESIS_ENABLE_P15B_FA_VARLEN_CLAMP"
@@ -200,7 +200,7 @@ def test_p38b_and_p15b_both_applicable_to_turboquant_attn():
 
 def test_dispatch_registry_both_present():
     """Both P38B and P15B in dispatcher registry as opt-in OFF."""
-    from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+    from sndr.dispatcher import PATCH_REGISTRY
     for key in ("P38B", "P15B"):
         assert key in PATCH_REGISTRY, f"{key} missing from registry"
         assert PATCH_REGISTRY[key]["default_on"] is False
@@ -209,7 +209,7 @@ def test_dispatch_registry_both_present():
 
 def test_apply_all_register_both():
     """Both P38B and P15B registered via @register_patch in apply_all.py."""
-    from vllm.sndr_core.apply import PATCH_REGISTRY as APPLY_REGISTRY
+    from sndr.apply import PATCH_REGISTRY as APPLY_REGISTRY
     names = [name for name, _ in APPLY_REGISTRY]
     p38b = [n for n in names if "P38B" in n]
     p15b = [n for n in names if "P15B" in n]

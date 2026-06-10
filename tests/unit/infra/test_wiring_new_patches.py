@@ -37,7 +37,7 @@ def fake_tq_store(tmp_path, monkeypatch):
     path = tmp_path / "triton_turboquant_store.py"
     path.write_text(_P3_BASELINE)
 
-    from vllm.sndr_core.integrations.attention.turboquant import p3_tq_bf16_cast as p3
+    from sndr.engines.vllm.patches.attention.turboquant import p3_tq_bf16_cast as p3
     monkeypatch.setattr(p3, "resolve_vllm_file",
                         lambda rel: str(path) if "triton_turboquant_store" in rel else None)
     monkeypatch.setattr(p3, "vllm_install_root", lambda: "/fake")
@@ -48,7 +48,7 @@ def fake_tq_store(tmp_path, monkeypatch):
 
 class TestPatch3:
     def test_apply_writes_fp16_intermediate(self, fake_tq_store):
-        from vllm.sndr_core.integrations.attention.turboquant import p3_tq_bf16_cast as p3
+        from sndr.engines.vllm.patches.attention.turboquant import p3_tq_bf16_cast as p3
         status, reason = p3.apply()
         assert status == "applied", f"{status}: {reason}"
         content = Path(fake_tq_store).read_text()
@@ -56,7 +56,7 @@ class TestPatch3:
         assert "Genesis P3 TQ BF16->FP8 Ampere fix" in content
 
     def test_idempotent(self, fake_tq_store):
-        from vllm.sndr_core.integrations.attention.turboquant import p3_tq_bf16_cast as p3
+        from sndr.engines.vllm.patches.attention.turboquant import p3_tq_bf16_cast as p3
         s1, _ = p3.apply()
         s2, _ = p3.apply()
         assert s1 == "applied" and s2 == "applied"
@@ -65,7 +65,7 @@ class TestPatch3:
         assert content.count("Genesis P3 TQ BF16->FP8 Ampere fix v7.0") == 1
 
     def test_skip_on_non_nvidia(self, fake_tq_store, monkeypatch):
-        from vllm.sndr_core.integrations.attention.turboquant import p3_tq_bf16_cast as p3
+        from sndr.engines.vllm.patches.attention.turboquant import p3_tq_bf16_cast as p3
         monkeypatch.setattr(p3, "is_nvidia_cuda", lambda: False)
         status, reason = p3.apply()
         assert status == "skipped"
@@ -125,7 +125,7 @@ def fake_interface(tmp_path, monkeypatch):
     path = tmp_path / "interface.py"
     path.write_text(_P6_BASELINE)
 
-    from vllm.sndr_core.integrations.compile_safety import p6_tq_block_size_align as p6
+    from sndr.engines.vllm.patches.compile_safety import p6_tq_block_size_align as p6
     monkeypatch.setattr(p6, "resolve_vllm_file",
                         lambda rel: str(path) if "interface.py" in rel else None)
     monkeypatch.setattr(p6, "vllm_install_root", lambda: "/fake")
@@ -135,7 +135,7 @@ def fake_interface(tmp_path, monkeypatch):
 
 class TestPatch6:
     def test_apply_adds_tq_branch(self, fake_interface):
-        from vllm.sndr_core.integrations.compile_safety import p6_tq_block_size_align as p6
+        from sndr.engines.vllm.patches.compile_safety import p6_tq_block_size_align as p6
         status, reason = p6.apply()
         assert status == "applied", f"{status}: {reason}"
         content = Path(fake_interface).read_text()
@@ -144,7 +144,7 @@ class TestPatch6:
         assert "Genesis P6 TQ-aware block size alignment" in content
 
     def test_idempotent(self, fake_interface):
-        from vllm.sndr_core.integrations.compile_safety import p6_tq_block_size_align as p6
+        from sndr.engines.vllm.patches.compile_safety import p6_tq_block_size_align as p6
         s1, _ = p6.apply()
         s2, _ = p6.apply()
         assert s1 == "applied" and s2 == "applied"
@@ -153,7 +153,7 @@ class TestPatch6:
         assert content.count("TQFullAttentionSpec,  # [Genesis P6]") == 1
 
     def test_skip_on_non_nvidia(self, fake_interface, monkeypatch):
-        from vllm.sndr_core.integrations.compile_safety import p6_tq_block_size_align as p6
+        from sndr.engines.vllm.patches.compile_safety import p6_tq_block_size_align as p6
         monkeypatch.setattr(p6, "is_nvidia_cuda", lambda: False)
         status, reason = p6.apply()
         assert status == "skipped"
@@ -161,7 +161,7 @@ class TestPatch6:
 
     def test_skip_when_upstream_fully_merged(self, fake_interface):
         """If TQFullAttentionSpec is already imported → upstream merged #39931."""
-        from vllm.sndr_core.integrations.compile_safety import p6_tq_block_size_align as p6
+        from sndr.engines.vllm.patches.compile_safety import p6_tq_block_size_align as p6
         path = fake_interface
         content = Path(path).read_text()
         # Inject upstream marker
@@ -197,7 +197,7 @@ def fake_qwen3_parser(tmp_path, monkeypatch):
     path = tmp_path / "qwen3coder_tool_parser.py"
     path.write_text(_P15_BASELINE)
 
-    from vllm.sndr_core.integrations.tool_parsing import p15_qwen3_none_null as p15
+    from sndr.engines.vllm.patches.tool_parsing import p15_qwen3_none_null as p15
     monkeypatch.setattr(p15, "resolve_vllm_file",
                         lambda rel: str(path) if "qwen3coder_tool_parser" in rel else None)
     monkeypatch.setattr(p15, "vllm_install_root", lambda: "/fake")
@@ -206,7 +206,7 @@ def fake_qwen3_parser(tmp_path, monkeypatch):
 
 class TestPatch15:
     def test_apply_accepts_none(self, fake_qwen3_parser):
-        from vllm.sndr_core.integrations.tool_parsing import p15_qwen3_none_null as p15
+        from sndr.engines.vllm.patches.tool_parsing import p15_qwen3_none_null as p15
         status, reason = p15.apply()
         assert status == "applied", f"{status}: {reason}"
         content = Path(fake_qwen3_parser).read_text()
@@ -214,7 +214,7 @@ class TestPatch15:
         assert "[Genesis P15]" in content
 
     def test_idempotent(self, fake_qwen3_parser):
-        from vllm.sndr_core.integrations.tool_parsing import p15_qwen3_none_null as p15
+        from sndr.engines.vllm.patches.tool_parsing import p15_qwen3_none_null as p15
         s1, _ = p15.apply()
         s2, _ = p15.apply()
         assert s1 == "applied" and s2 == "applied"
@@ -222,7 +222,7 @@ class TestPatch15:
         assert content.count("Genesis P15 Qwen3 None/null") == 1
 
     def test_skip_when_upstream_merged(self, fake_qwen3_parser):
-        from vllm.sndr_core.integrations.tool_parsing import p15_qwen3_none_null as p15
+        from sndr.engines.vllm.patches.tool_parsing import p15_qwen3_none_null as p15
         path = fake_qwen3_parser
         # Simulate upstream form by directly patching in the tuple check
         content = Path(path).read_text().replace(
@@ -241,20 +241,20 @@ class TestPatch15:
 
 class TestPatch23Env:
     def test_explicit_env_true(self, monkeypatch):
-        from vllm.sndr_core.kernels import marlin_fp32_reduce as m
+        from sndr.engines.vllm.kernels_legacy import marlin_fp32_reduce as m
         monkeypatch.setenv("VLLM_MARLIN_FP32_REDUCE", "1")
         assert m.get_fp32_reduce_override() is True
         assert m.should_disable_fp32_reduce() is False
 
     def test_explicit_env_false(self, monkeypatch):
-        from vllm.sndr_core.kernels import marlin_fp32_reduce as m
+        from sndr.engines.vllm.kernels_legacy import marlin_fp32_reduce as m
         monkeypatch.setenv("VLLM_MARLIN_FP32_REDUCE", "0")
         assert m.get_fp32_reduce_override() is False
         assert m.should_disable_fp32_reduce() is True
 
     def test_auto_ampere_disables(self, monkeypatch):
-        from vllm.sndr_core.kernels import marlin_fp32_reduce as m
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.kernels_legacy import marlin_fp32_reduce as m
+        from sndr.engines.vllm.detection import guards
         monkeypatch.delenv("VLLM_MARLIN_FP32_REDUCE", raising=False)
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: True)
 
@@ -265,22 +265,22 @@ class TestPatch23Env:
 
     def test_auto_hopper_keeps(self, monkeypatch):
         """Hopper SM>=9.0: native FP32 tensor cores → keep default (don't disable)."""
-        from vllm.sndr_core.kernels import marlin_fp32_reduce as m
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.kernels_legacy import marlin_fp32_reduce as m
+        from sndr.engines.vllm.detection import guards
         monkeypatch.delenv("VLLM_MARLIN_FP32_REDUCE", raising=False)
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(guards, "is_sm_at_least", lambda *a, **kw: True)
         assert m.should_disable_fp32_reduce() is False
 
     def test_auto_non_nvidia(self, monkeypatch):
-        from vllm.sndr_core.kernels import marlin_fp32_reduce as m
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.kernels_legacy import marlin_fp32_reduce as m
+        from sndr.engines.vllm.detection import guards
         monkeypatch.delenv("VLLM_MARLIN_FP32_REDUCE", raising=False)
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: False)
         assert m.should_disable_fp32_reduce() is False
 
     def test_invalid_env_falls_to_auto(self, monkeypatch):
-        from vllm.sndr_core.kernels import marlin_fp32_reduce as m
+        from sndr.engines.vllm.kernels_legacy import marlin_fp32_reduce as m
         monkeypatch.setenv("VLLM_MARLIN_FP32_REDUCE", "maybe")
         assert m.get_fp32_reduce_override() is None
 
@@ -289,6 +289,11 @@ class TestPatch23Env:
 #          P12 — Qwen3 <tool_call> implicit reasoning end
 # ────────────────────────────────────────────────────────────────────────
 
+# Post-#35687 upstream shape (merged 2026-04-24): token-id resolution +
+# serving-layer hooks ship upstream; `extract_content_ids` uses the
+# LAST-occurrence boundary that P12's surviving sub-patch
+# (`p12_last_to_first_occurrence`) flips to FIRST occurrence. The legacy
+# init/hooks sub-patches were retired 2026-06-08 (see P12 module).
 _P12_BASELINE = '''# SPDX-License-Identifier: Apache-2.0
 from vllm.entrypoints.openai.engine.protocol import DeltaMessage
 
@@ -299,6 +304,10 @@ class Qwen3ReasoningParser:
         # Qwen3 defaults to thinking enabled; only treat output as
         # pure content when the user explicitly disables it.
         self.thinking_enabled = chat_kwargs.get("enable_thinking", True)
+        # PR #35687: resolve <tool_call> tag token IDs so a lone
+        # <tool_call> ends reasoning implicitly.
+        self._tool_call_token_id = self.vocab.get("<tool_call>")
+        self._tool_call_end_token_id = self.vocab.get("</tool_call>")
 
     @property
     def start_token(self):
@@ -308,6 +317,30 @@ class Qwen3ReasoningParser:
     def end_token(self) -> str:
         """The token that ends reasoning content."""
         return "</think>"
+
+    def is_reasoning_end(self, input_ids):
+        for token_id in reversed(input_ids):
+            if token_id == self.start_token_id:
+                return False
+            if token_id in (self.end_token_id, self._tool_call_token_id):
+                return True
+        return False
+
+    def is_reasoning_end_streaming(self, input_ids, delta_ids):
+        if self._tool_call_token_id in delta_ids:
+            return True
+        return self.end_token_id in delta_ids
+
+    def extract_content_ids(self, input_ids):
+        if (
+            self._tool_call_token_id is not None
+            and self._tool_call_token_id in input_ids
+        ):
+            tool_call_index = (
+                len(input_ids) - 1 - input_ids[::-1].index(self._tool_call_token_id)
+            )
+            return input_ids[tool_call_index:]
+        return []
 
     def extract_reasoning(self, model_output, request):
         return None, model_output
@@ -321,7 +354,7 @@ def fake_qwen3_reasoning_p12(tmp_path, monkeypatch):
     path = d / "qwen3_reasoning_parser.py"
     path.write_text(_P12_BASELINE)
 
-    from vllm.sndr_core.integrations.reasoning import p12_tool_call_reasoning as p12
+    from sndr.engines.vllm.patches.reasoning import p12_tool_call_reasoning as p12
     monkeypatch.setattr(
         p12, "resolve_vllm_file",
         lambda rel: str(path) if "qwen3_reasoning_parser" in rel else None,
@@ -331,20 +364,25 @@ def fake_qwen3_reasoning_p12(tmp_path, monkeypatch):
 
 
 class TestPatch12:
-    def test_apply_adds_tokens_and_hooks(self, fake_qwen3_reasoning_p12):
-        from vllm.sndr_core.integrations.reasoning import p12_tool_call_reasoning as p12
+    def test_apply_flips_last_to_first_occurrence(self, fake_qwen3_reasoning_p12):
+        """P12's surviving sub-patch rewrites upstream's LAST-occurrence
+        `extract_content_ids` boundary to FIRST occurrence (multi-tool
+        agentic flows must not drop earlier <tool_call> blocks)."""
+        from sndr.engines.vllm.patches.reasoning import p12_tool_call_reasoning as p12
         status, reason = p12.apply()
         assert status == "applied", f"{status}: {reason}"
         content = Path(fake_qwen3_reasoning_p12).read_text()
-        assert "_tool_call_token_id" in content
-        assert "_tool_call_end_token_id" in content
-        assert "def is_reasoning_end(self" in content
-        assert "def is_reasoning_end_streaming" in content
-        assert "def extract_content_ids" in content
-        assert "[Genesis P12]" in content
+        # LAST-occurrence pattern replaced...
+        assert "input_ids[::-1].index" not in content
+        # ...by the FIRST-occurrence boundary
+        assert (
+            "tool_call_index = input_ids.index(self._tool_call_token_id)"
+            in content
+        )
+        assert "[Genesis P12 v2]" in content
 
     def test_idempotent(self, fake_qwen3_reasoning_p12):
-        from vllm.sndr_core.integrations.reasoning import p12_tool_call_reasoning as p12
+        from sndr.engines.vllm.patches.reasoning import p12_tool_call_reasoning as p12
         s1, _ = p12.apply()
         s2, _ = p12.apply()
         assert s1 == "applied" and s2 == "applied"
@@ -355,7 +393,7 @@ class TestPatch12:
 
     def test_patched_file_is_valid_python(self, fake_qwen3_reasoning_p12):
         import ast
-        from vllm.sndr_core.integrations.reasoning import p12_tool_call_reasoning as p12
+        from sndr.engines.vllm.patches.reasoning import p12_tool_call_reasoning as p12
         p12.apply()
         ast.parse(Path(fake_qwen3_reasoning_p12).read_text())
 
@@ -366,7 +404,7 @@ class TestPatch12:
                "head comment (lines 64-70) and UPSTREAM_DRIFT_MARKERS=[]."
     )
     def test_upstream_drift_skip(self, fake_qwen3_reasoning_p12):
-        from vllm.sndr_core.integrations.reasoning import p12_tool_call_reasoning as p12
+        from sndr.engines.vllm.patches.reasoning import p12_tool_call_reasoning as p12
         with open(fake_qwen3_reasoning_p12, "a") as _fh:
             _fh.write("\n# _tool_call_token_id upstream merged\n")
         status, reason = p12.apply()
@@ -375,11 +413,12 @@ class TestPatch12:
 
     def test_coexists_with_p27(self, fake_qwen3_reasoning_p12):
         """P12 applied first; P27's non-conflicting anchors still apply."""
-        from vllm.sndr_core.integrations.reasoning import p12_tool_call_reasoning as p12
-        from vllm.sndr_core.integrations.reasoning import p27_reasoning_before_think as p27
+        from sndr.engines.vllm.patches.reasoning import p12_tool_call_reasoning as p12
+        from sndr.engines.vllm.patches.reasoning import p27_reasoning_before_think as p27
 
-        # Rewrite fake to include both P12 and P27 anchors. Use baseline
-        # with both minimal stubs.
+        # Rewrite fake to include both P12 and P27 anchors (post-#35687
+        # upstream shape for both extract_content_ids and the
+        # extract_reasoning return).
         baseline = '''# SPDX-License-Identifier: Apache-2.0
 from vllm.entrypoints.openai.engine.protocol import DeltaMessage
 
@@ -390,6 +429,9 @@ class Qwen3ReasoningParser:
         # Qwen3 defaults to thinking enabled; only treat output as
         # pure content when the user explicitly disables it.
         self.thinking_enabled = chat_kwargs.get("enable_thinking", True)
+        # PR #35687: resolve <tool_call> tag token IDs.
+        self._tool_call_token_id = self.vocab.get("<tool_call>")
+        self._tool_call_end_token_id = self.vocab.get("</tool_call>")
 
     @property
     def start_token(self):
@@ -400,23 +442,32 @@ class Qwen3ReasoningParser:
         """The token that ends reasoning content."""
         return "</think>"
 
+    def extract_content_ids(self, input_ids):
+        if (
+            self._tool_call_token_id is not None
+            and self._tool_call_token_id in input_ids
+        ):
+            tool_call_index = (
+                len(input_ids) - 1 - input_ids[::-1].index(self._tool_call_token_id)
+            )
+            return input_ids[tool_call_index:]
+        return []
+
     def extract_reasoning(self, model_output, request):
         """Extract reasoning."""
+
         # Strip <think> if present in the generated output.
         model_output_parts = model_output.partition(self.start_token)
         model_output = (
             model_output_parts[2] if model_output_parts[1] else model_output_parts[0]
         )
-        if self.end_token not in model_output:
-            if not self.thinking_enabled:
-                return None, model_output
-            return model_output, None
 
-        # Extract reasoning content from the model output.
-        reasoning, _, content = model_output.partition(self.end_token)
-
-        final_content = content or None
-        return reasoning, final_content
+        if self.end_token in model_output:
+            reasoning, _, content = model_output.partition(self.end_token)
+            return reasoning, content or None
+        if not self.thinking_enabled:
+            return None, model_output
+        return model_output, None
 
     def extract_reasoning_streaming(
         self, previous_text, current_text, delta_text,
@@ -455,7 +506,11 @@ class Qwen3ReasoningParser:
         combined = Path(fake_qwen3_reasoning_p12).read_text()
         assert "Genesis P12 Qwen3 <tool_call>" in combined
         assert "Genesis P27 Qwen3 BEFORE-THINK fallback v7.0" in combined
-        assert "_tool_call_token_id" in combined
+        # P12 effect: FIRST-occurrence boundary in place of upstream LAST
+        assert (
+            "tool_call_index = input_ids.index(self._tool_call_token_id)"
+            in combined
+        )
         assert "_genesis_before_think" in combined
 
 
@@ -463,6 +518,11 @@ class Qwen3ReasoningParser:
 #                    P27 — Qwen3 BEFORE-THINK fallback
 # ────────────────────────────────────────────────────────────────────────
 
+# Post-#35687 upstream shape (merged 2026-04-24): the return is inlined
+# into an `if self.end_token in model_output:` conditional. The pre-merge
+# `final_content = content or None` alias is gone — P27's
+# p27_nonstream_return_baseline sub was retired 2026-06-08 and the
+# p27_nonstream_return_pr35687 sibling anchors on this shape.
 _P27_BASELINE = '''# SPDX-License-Identifier: Apache-2.0
 from vllm.entrypoints.openai.engine.protocol import DeltaMessage
 
@@ -477,16 +537,12 @@ class Qwen3ReasoningParser:
             model_output_parts[2] if model_output_parts[1] else model_output_parts[0]
         )
 
-        if self.end_token not in model_output:
-            if not self.thinking_enabled:
-                return None, model_output
-            return model_output, None
-
-        # Extract reasoning content from the model output.
-        reasoning, _, content = model_output.partition(self.end_token)
-
-        final_content = content or None
-        return reasoning, final_content
+        if self.end_token in model_output:
+            reasoning, _, content = model_output.partition(self.end_token)
+            return reasoning, content or None
+        if not self.thinking_enabled:
+            return None, model_output
+        return model_output, None
 
     def extract_reasoning_streaming(
         self, previous_text, current_text, delta_text,
@@ -512,7 +568,7 @@ def fake_qwen3_reasoning(tmp_path, monkeypatch):
     path = d / "qwen3_reasoning_parser.py"
     path.write_text(_P27_BASELINE)
 
-    from vllm.sndr_core.integrations.reasoning import p27_reasoning_before_think as p27
+    from sndr.engines.vllm.patches.reasoning import p27_reasoning_before_think as p27
     monkeypatch.setattr(
         p27, "resolve_vllm_file",
         lambda rel: str(path) if "qwen3_reasoning_parser" in rel else None,
@@ -523,7 +579,7 @@ def fake_qwen3_reasoning(tmp_path, monkeypatch):
 
 class TestPatch27:
     def test_apply_writes_before_think_capture(self, fake_qwen3_reasoning):
-        from vllm.sndr_core.integrations.reasoning import p27_reasoning_before_think as p27
+        from sndr.engines.vllm.patches.reasoning import p27_reasoning_before_think as p27
         status, reason = p27.apply()
         assert status == "applied", f"{status}: {reason}"
         content = Path(fake_qwen3_reasoning).read_text()
@@ -536,7 +592,7 @@ class TestPatch27:
         assert "[Genesis P27]" in content
 
     def test_idempotent(self, fake_qwen3_reasoning):
-        from vllm.sndr_core.integrations.reasoning import p27_reasoning_before_think as p27
+        from sndr.engines.vllm.patches.reasoning import p27_reasoning_before_think as p27
         s1, _ = p27.apply()
         s2, _ = p27.apply()
         assert s1 == "applied" and s2 == "applied"
@@ -544,7 +600,7 @@ class TestPatch27:
         assert content.count("Genesis P27 Qwen3 BEFORE-THINK fallback v7.0") == 1
 
     def test_skip_when_upstream_merged(self, fake_qwen3_reasoning):
-        from vllm.sndr_core.integrations.reasoning import p27_reasoning_before_think as p27
+        from sndr.engines.vllm.patches.reasoning import p27_reasoning_before_think as p27
         # Inject an upstream drift marker
         original = Path(fake_qwen3_reasoning).read_text()
         Path(fake_qwen3_reasoning).write_text(
@@ -561,7 +617,7 @@ class TestPatch27:
     def test_apply_produces_valid_python(self, fake_qwen3_reasoning):
         """The resulting file must still be valid Python."""
         import ast
-        from vllm.sndr_core.integrations.reasoning import p27_reasoning_before_think as p27
+        from sndr.engines.vllm.patches.reasoning import p27_reasoning_before_think as p27
         status, _ = p27.apply()
         assert status == "applied"
         content = Path(fake_qwen3_reasoning).read_text()
@@ -569,7 +625,7 @@ class TestPatch27:
         ast.parse(content)
 
     def test_skip_when_file_missing(self, monkeypatch):
-        from vllm.sndr_core.integrations.reasoning import p27_reasoning_before_think as p27
+        from sndr.engines.vllm.patches.reasoning import p27_reasoning_before_think as p27
         monkeypatch.setattr(p27, "resolve_vllm_file", lambda rel: None)
         monkeypatch.setattr(p27, "vllm_install_root", lambda: "/fake")
         status, _reason = p27.apply()
@@ -606,7 +662,7 @@ def fake_gdn_linear_attn(tmp_path, monkeypatch):
     path = d / "gdn_linear_attn.py"
     path.write_text(_P7_BASELINE)
 
-    from vllm.sndr_core.integrations.attention.gdn import p7_gdn_dual_stream as p7
+    from sndr.engines.vllm.patches.attention.gdn import p7_gdn_dual_stream as p7
     monkeypatch.setattr(
         p7, "resolve_vllm_file",
         lambda rel: str(path) if "gdn_linear_attn" in rel else None,
@@ -628,7 +684,7 @@ class TestPatch7Deferred:
     def test_default_skips_with_explicit_reason(
         self, fake_gdn_linear_attn, monkeypatch,
     ):
-        from vllm.sndr_core.integrations.attention.gdn import p7_gdn_dual_stream as p7
+        from sndr.engines.vllm.patches.attention.gdn import p7_gdn_dual_stream as p7
         monkeypatch.delenv("GENESIS_ENABLE_P7", raising=False)
         status, reason = p7.apply()
         assert status == "skipped"
@@ -636,7 +692,7 @@ class TestPatch7Deferred:
         assert "aot_compile" in reason.lower() or "fullgraph" in reason.lower()
 
     def test_env_enabled_applies(self, fake_gdn_linear_attn, monkeypatch):
-        from vllm.sndr_core.integrations.attention.gdn import p7_gdn_dual_stream as p7
+        from sndr.engines.vllm.patches.attention.gdn import p7_gdn_dual_stream as p7
         monkeypatch.setenv("GENESIS_ENABLE_P7", "1")
         status, reason = p7.apply()
         assert status == "applied", f"{status}: {reason}"
@@ -647,7 +703,7 @@ class TestPatch7Deferred:
     def test_env_enabled_only_non_lora_branch(
         self, fake_gdn_linear_attn, monkeypatch,
     ):
-        from vllm.sndr_core.integrations.attention.gdn import p7_gdn_dual_stream as p7
+        from sndr.engines.vllm.patches.attention.gdn import p7_gdn_dual_stream as p7
         monkeypatch.setenv("GENESIS_ENABLE_P7", "1")
         p7.apply()
         content = Path(fake_gdn_linear_attn).read_text()
@@ -655,7 +711,7 @@ class TestPatch7Deferred:
         assert content.count("mixed_qkvz, _ = self.in_proj_qkvz(hidden_states)") == 0
 
     def test_env_enabled_idempotent(self, fake_gdn_linear_attn, monkeypatch):
-        from vllm.sndr_core.integrations.attention.gdn import p7_gdn_dual_stream as p7
+        from sndr.engines.vllm.patches.attention.gdn import p7_gdn_dual_stream as p7
         monkeypatch.setenv("GENESIS_ENABLE_P7", "1")
         s1, _ = p7.apply()
         s2, _ = p7.apply()
@@ -667,7 +723,7 @@ class TestPatch7Deferred:
         self, fake_gdn_linear_attn, monkeypatch,
     ):
         import ast
-        from vllm.sndr_core.integrations.attention.gdn import p7_gdn_dual_stream as p7
+        from sndr.engines.vllm.patches.attention.gdn import p7_gdn_dual_stream as p7
         monkeypatch.setenv("GENESIS_ENABLE_P7", "1")
         p7.apply()
         ast.parse(Path(fake_gdn_linear_attn).read_text())
@@ -675,7 +731,7 @@ class TestPatch7Deferred:
     def test_env_enabled_upstream_drift_detected(
         self, fake_gdn_linear_attn, monkeypatch,
     ):
-        from vllm.sndr_core.integrations.attention.gdn import p7_gdn_dual_stream as p7
+        from sndr.engines.vllm.patches.attention.gdn import p7_gdn_dual_stream as p7
         monkeypatch.setenv("GENESIS_ENABLE_P7", "1")
         content = Path(fake_gdn_linear_attn).read_text()
         Path(fake_gdn_linear_attn).write_text(
@@ -686,7 +742,7 @@ class TestPatch7Deferred:
         assert "upstream" in reason.lower()
 
     def test_env_enabled_skip_when_file_missing(self, monkeypatch):
-        from vllm.sndr_core.integrations.attention.gdn import p7_gdn_dual_stream as p7
+        from sndr.engines.vllm.patches.attention.gdn import p7_gdn_dual_stream as p7
         monkeypatch.setenv("GENESIS_ENABLE_P7", "1")
         monkeypatch.setattr(p7, "resolve_vllm_file", lambda rel: None)
         monkeypatch.setattr(p7, "vllm_install_root", lambda: "/fake")
@@ -738,7 +794,7 @@ def fake_gdn_linear_attn_p28(tmp_path, monkeypatch):
     d.mkdir(parents=True)
     path = d / "gdn_linear_attn.py"
     path.write_text(_P28_BASELINE)
-    from vllm.sndr_core.integrations.attention.gdn import p28_gdn_core_attn as p28
+    from sndr.engines.vllm.patches.attention.gdn import p28_gdn_core_attn as p28
     monkeypatch.setattr(
         p28, "resolve_vllm_file",
         lambda rel: str(path) if "gdn_linear_attn" in rel else None,
@@ -749,7 +805,7 @@ def fake_gdn_linear_attn_p28(tmp_path, monkeypatch):
 
 class TestPatch28:
     def test_apply_rewires_forward_cuda_only(self, fake_gdn_linear_attn_p28):
-        from vllm.sndr_core.integrations.attention.gdn import p28_gdn_core_attn as p28
+        from sndr.engines.vllm.patches.attention.gdn import p28_gdn_core_attn as p28
         status, reason = p28.apply()
         assert status == "applied", f"{status}: {reason}"
         content = Path(fake_gdn_linear_attn_p28).read_text()
@@ -762,7 +818,7 @@ class TestPatch28:
         assert "    def forward_xpu" in content
 
     def test_idempotent(self, fake_gdn_linear_attn_p28):
-        from vllm.sndr_core.integrations.attention.gdn import p28_gdn_core_attn as p28
+        from sndr.engines.vllm.patches.attention.gdn import p28_gdn_core_attn as p28
         s1, _ = p28.apply()
         s2, _ = p28.apply()
         assert s1 == "applied" and s2 == "applied"
@@ -773,12 +829,12 @@ class TestPatch28:
 
     def test_patched_file_is_valid_python(self, fake_gdn_linear_attn_p28):
         import ast
-        from vllm.sndr_core.integrations.attention.gdn import p28_gdn_core_attn as p28
+        from sndr.engines.vllm.patches.attention.gdn import p28_gdn_core_attn as p28
         p28.apply()
         ast.parse(Path(fake_gdn_linear_attn_p28).read_text())
 
     def test_upstream_drift_detected(self, fake_gdn_linear_attn_p28):
-        from vllm.sndr_core.integrations.attention.gdn import p28_gdn_core_attn as p28
+        from sndr.engines.vllm.patches.attention.gdn import p28_gdn_core_attn as p28
         content = Path(fake_gdn_linear_attn_p28).read_text()
         # Use the CURRENT drift marker (matches patch_28_gdn_core_attn.UPSTREAM_DRIFT_MARKERS)
         Path(fake_gdn_linear_attn_p28).write_text(
@@ -789,7 +845,7 @@ class TestPatch28:
         assert "upstream" in reason.lower()
 
     def test_skip_when_file_missing(self, monkeypatch):
-        from vllm.sndr_core.integrations.attention.gdn import p28_gdn_core_attn as p28
+        from sndr.engines.vllm.patches.attention.gdn import p28_gdn_core_attn as p28
         monkeypatch.setattr(p28, "resolve_vllm_file", lambda rel: None)
         monkeypatch.setattr(p28, "vllm_install_root", lambda: "/fake")
         status, _reason = p28.apply()
@@ -836,7 +892,7 @@ def fake_scheduler_p34(tmp_path, monkeypatch):
     path = d / "scheduler.py"
     path.write_text(_P34_BASELINE)
 
-    from vllm.sndr_core.integrations.scheduler import p34_mamba_deadlock_guard as p34
+    from sndr.engines.vllm.patches.scheduler import p34_mamba_deadlock_guard as p34
     monkeypatch.setattr(
         p34, "resolve_vllm_file",
         lambda rel: str(path) if "scheduler.py" in rel else None,
@@ -847,7 +903,7 @@ def fake_scheduler_p34(tmp_path, monkeypatch):
 
 class TestPatch34MambaDeadlock:
     def test_apply_inserts_aligned_guard(self, fake_scheduler_p34):
-        from vllm.sndr_core.integrations.scheduler import p34_mamba_deadlock_guard as p34
+        from sndr.engines.vllm.patches.scheduler import p34_mamba_deadlock_guard as p34
         status, reason = p34.apply()
         assert status == "applied", f"{status}: {reason}"
         content = Path(fake_scheduler_p34).read_text()
@@ -857,7 +913,7 @@ class TestPatch34MambaDeadlock:
         assert "[Genesis P34]" in content
 
     def test_idempotent(self, fake_scheduler_p34):
-        from vllm.sndr_core.integrations.scheduler import p34_mamba_deadlock_guard as p34
+        from sndr.engines.vllm.patches.scheduler import p34_mamba_deadlock_guard as p34
         s1, _ = p34.apply()
         s2, _ = p34.apply()
         assert s1 == "applied" and s2 == "applied"
@@ -868,14 +924,14 @@ class TestPatch34MambaDeadlock:
 
     def test_patched_file_is_valid_python(self, fake_scheduler_p34):
         import ast
-        from vllm.sndr_core.integrations.scheduler import p34_mamba_deadlock_guard as p34
+        from sndr.engines.vllm.patches.scheduler import p34_mamba_deadlock_guard as p34
         p34.apply()
         ast.parse(Path(fake_scheduler_p34).read_text())
 
     def test_upstream_drift_pr40757_detected(self, fake_scheduler_p34):
         """Simulate PR #40757 landing: the aligned= pattern appears before
         our patch runs. We must self-retire."""
-        from vllm.sndr_core.integrations.scheduler import p34_mamba_deadlock_guard as p34
+        from sndr.engines.vllm.patches.scheduler import p34_mamba_deadlock_guard as p34
         # Prepend a line that looks like the PR #40757 fix had already merged
         original = Path(fake_scheduler_p34).read_text()
         Path(fake_scheduler_p34).write_text(
@@ -890,7 +946,7 @@ class TestPatch34MambaDeadlock:
     def test_semantic_fix_correct(self, fake_scheduler_p34):
         """Apply P34 then exec the patched scheduler and assert that the
         alignment does NOT collapse num_new_tokens to 0."""
-        from vllm.sndr_core.integrations.scheduler import p34_mamba_deadlock_guard as p34
+        from sndr.engines.vllm.patches.scheduler import p34_mamba_deadlock_guard as p34
         p34.apply()
         patched = Path(fake_scheduler_p34).read_text()
 
@@ -920,7 +976,7 @@ class TestPatch34MambaDeadlock:
 
     def test_semantic_non_deadlock_path_unchanged(self, fake_scheduler_p34):
         """When alignment is non-zero the behaviour matches upstream."""
-        from vllm.sndr_core.integrations.scheduler import p34_mamba_deadlock_guard as p34
+        from sndr.engines.vllm.patches.scheduler import p34_mamba_deadlock_guard as p34
         p34.apply()
         patched = Path(fake_scheduler_p34).read_text()
         ns = {}
@@ -941,7 +997,7 @@ class TestPatch34MambaDeadlock:
         assert result == 32
 
     def test_skip_when_file_missing(self, monkeypatch):
-        from vllm.sndr_core.integrations.scheduler import p34_mamba_deadlock_guard as p34
+        from sndr.engines.vllm.patches.scheduler import p34_mamba_deadlock_guard as p34
         monkeypatch.setattr(p34, "resolve_vllm_file", lambda rel: None)
         monkeypatch.setattr(p34, "vllm_install_root", lambda: "/fake")
         status, _reason = p34.apply()
@@ -953,7 +1009,7 @@ class TestPatch34MambaDeadlock:
     ):
         """Behavioral test: after patching, the patched parser should
         preserve BEFORE-THINK text in content on non-streaming extraction."""
-        from vllm.sndr_core.integrations.reasoning import p27_reasoning_before_think as p27
+        from sndr.engines.vllm.patches.reasoning import p27_reasoning_before_think as p27
         p27.apply()
 
         # Simulate the patched module by execing the content in a namespace

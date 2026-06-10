@@ -50,8 +50,8 @@ def test_registry_family_matches_integrations_subdir():
     `expected/_archive`). The family invariant — "wiring lives under
     the directory the registry promises" — is preserved.
     """
-    from vllm.sndr_core.dispatcher import PATCH_REGISTRY
-    from vllm.sndr_core.compat.categories import module_for
+    from sndr.dispatcher import PATCH_REGISTRY
+    from sndr.compat.categories import module_for
 
     drift = []
     for pid, meta in PATCH_REGISTRY.items():
@@ -70,7 +70,7 @@ def test_registry_family_matches_integrations_subdir():
             # diagnostic entry). family field is informational only.
             continue
         # Extract subdir from dotted module path:
-        #   `vllm.sndr_core.integrations.attention.turboquant.pn14_*`
+        #   `sndr.engines.vllm.patches.attention.turboquant.pn14_*`
         # → `attention/turboquant`
         after_int = mod.split("integrations.", 1)[1]
         subdir = after_int.rsplit(".", 1)[0].replace(".", "/")

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Tests for `vllm.sndr_core.runtime.memory_estimator` — T1.3.
+"""Tests for `sndr.runtime.memory_estimator` — T1.3.
 
 Cover three layers:
 
@@ -21,7 +21,7 @@ from pathlib import Path
 
 import pytest
 
-from vllm.sndr_core.runtime.memory_estimator import (
+from sndr.runtime.memory_estimator import (
     DEFAULT_GPU_VRAM_BYTES,
     MemoryComponent,
     MemoryEstimate,
@@ -183,7 +183,7 @@ class TestEstimateMarlinScratch:
 
 class TestMarlinScratchWarns:
     def test_no_warn_for_non_marlin(self):
-        from vllm.sndr_core.runtime.memory_estimator import marlin_scratch_warns
+        from sndr.runtime.memory_estimator import marlin_scratch_warns
         s = ModelShape(model_path="/fake", quant_method="fp8_e5m2")
         warn, msg = marlin_scratch_warns(
             s, free_vram_bytes=24 * (1 << 30),
@@ -193,7 +193,7 @@ class TestMarlinScratchWarns:
         assert msg == ""
 
     def test_warns_when_peak_exceeds_free(self):
-        from vllm.sndr_core.runtime.memory_estimator import marlin_scratch_warns
+        from sndr.runtime.memory_estimator import marlin_scratch_warns
         # Construct a scenario where scratch peak + weights overshoot.
         # Per-layer estimate = (24 GiB / 4 layers) × 1.5 × 2 = 18 GiB.
         # weights (23) + scratch (18) = 41 GiB >> 24 GiB free → warn.
@@ -213,7 +213,7 @@ class TestMarlinScratchWarns:
         assert "exceeds free VRAM" in msg
 
     def test_no_warn_when_room_to_spare(self):
-        from vllm.sndr_core.runtime.memory_estimator import marlin_scratch_warns
+        from sndr.runtime.memory_estimator import marlin_scratch_warns
         s = ModelShape(
             model_path="/fake",
             n_layers=32,

@@ -32,7 +32,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 
 def _run_cli(*args) -> subprocess.CompletedProcess:
     return subprocess.run(
-        [sys.executable, "-m", "vllm.sndr_core.cli", "config-catalog", *args],
+        [sys.executable, "-m", "sndr.cli.legacy", "config-catalog", *args],
         cwd=REPO_ROOT, capture_output=True, text=True, timeout=60,
     )
 
@@ -85,7 +85,7 @@ class TestGate2TorchFree:
             pytest.skip("torch already imported by another test/runtime")
 
         # Drive run_query() in-process — exercises generator + audit reuse path
-        from vllm.sndr_core.cli import config_catalog as cc_mod
+        from sndr.cli.legacy import config_catalog as cc_mod
         ns = argparse.Namespace(
             row_type="profile", field="override_class", equals="bench",
             contains=None, expires_before=None, json=True,
@@ -219,7 +219,7 @@ class TestGate4FromPath:
 class TestGate5RowIdAmbiguity:
     def test_ambiguous_bare_id_errors_with_candidates(self):
         """Mock a row corpus with collisions to verify the ambiguity error."""
-        from vllm.sndr_core.cli import config_catalog as cc_mod
+        from sndr.cli.legacy import config_catalog as cc_mod
         # Synthetic rows where bare 'foo' matches both preset and profile
         rows = [
             {"row_type": "preset", "id": "foo"},
@@ -232,7 +232,7 @@ class TestGate5RowIdAmbiguity:
 
     def test_prefixed_id_resolves_through_collision(self):
         """Prefixed form should disambiguate."""
-        from vllm.sndr_core.cli import config_catalog as cc_mod
+        from sndr.cli.legacy import config_catalog as cc_mod
         rows = [
             {"row_type": "preset", "id": "foo", "marker": "preset-side"},
             {"row_type": "profile", "id": "foo", "marker": "profile-side"},
@@ -243,7 +243,7 @@ class TestGate5RowIdAmbiguity:
         assert row["marker"] == "profile-side"
 
     def test_row_not_found(self):
-        from vllm.sndr_core.cli import config_catalog as cc_mod
+        from sndr.cli.legacy import config_catalog as cc_mod
         rows = [{"row_type": "preset", "id": "real"}]
         with pytest.raises(SystemExit) as excinfo:
             cc_mod._resolve_row_id(rows, "nonexistent")
@@ -369,7 +369,7 @@ class TestGate8HelpDiscipline:
 class TestGate9NeighbouringCLIsUnchanged:
     def test_sndr_preset_list_works(self):
         result = subprocess.run(
-            [sys.executable, "-m", "vllm.sndr_core.cli", "preset", "list", "--json"],
+            [sys.executable, "-m", "sndr.cli.legacy", "preset", "list", "--json"],
             cwd=REPO_ROOT, capture_output=True, text=True, timeout=30,
         )
         assert result.returncode == 0
@@ -378,7 +378,7 @@ class TestGate9NeighbouringCLIsUnchanged:
 
     def test_sndr_routing_table_help_works(self):
         result = subprocess.run(
-            [sys.executable, "-m", "vllm.sndr_core.cli", "routing-table", "--help"],
+            [sys.executable, "-m", "sndr.cli.legacy", "routing-table", "--help"],
             cwd=REPO_ROOT, capture_output=True, text=True, timeout=15,
         )
         assert result.returncode == 0

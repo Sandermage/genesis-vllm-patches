@@ -31,13 +31,13 @@ import pytest
 
 
 def _wiring():
-    from vllm.sndr_core.integrations.tool_parsing import p64_qwen3coder_mtp_streaming as M
+    from sndr.engines.vllm.patches.tool_parsing import p64_qwen3coder_mtp_streaming as M
     return M
 
 
 def _wiring_source() -> str:
     from pathlib import Path
-    from vllm.sndr_core.integrations.tool_parsing import p64_qwen3coder_mtp_streaming as patch_64_qwen3coder_mtp_streaming
+    from sndr.engines.vllm.patches.tool_parsing import p64_qwen3coder_mtp_streaming as patch_64_qwen3coder_mtp_streaming
     return Path(patch_64_qwen3coder_mtp_streaming.__file__).read_text()
 
 
@@ -89,7 +89,13 @@ def test_a17_make_serving_patcher_has_deferral_explanation():
     assert "_create_remaining_args_delta" in fn_body, (
         "A-17: _make_serving_patcher must reference the deferred function name"
     )
-    keywords = ["belt-and-braces", "deferred", "leave", "unchanged", "primary symptom"]
+    keywords = [
+        "belt-and-braces", "deferred", "leave", "unchanged",
+        "primary symptom",
+        # v3 (2026-06-08) rewording: CRD sub-patches retired; P107
+        # carries the truncation-detection role on the new callsite.
+        "RETIRED", "P107", "refactored out",
+    ]
     assert any(kw in fn_body for kw in keywords), (
         "A-17: _make_serving_patcher must explain WHY CRD sub-patch is omitted"
     )

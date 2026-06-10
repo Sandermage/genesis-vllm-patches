@@ -3,9 +3,9 @@
 override (§1.3 of the unified plan).
 
 The PN288 decision logic lives in
-``vllm.sndr_core.middleware.pn288_finish_reason_override`` and is
+``sndr.engines.vllm.middleware.pn288_finish_reason_override`` and is
 unit-testable in isolation — the text-patch overlay
-``vllm.sndr_core.integrations.serving.pn288_tool_finish_reason_override``
+``sndr.engines.vllm.patches.serving.pn288_tool_finish_reason_override``
 just wires the helper into ``OpenAIServingChat._create_chat_completion``.
 
 These tests pin down:
@@ -40,7 +40,7 @@ def _import_mod():
     sys.path.insert(0, str(REPO_ROOT))
     try:
         mod = importlib.import_module(
-            "vllm.sndr_core.middleware.pn288_finish_reason_override"
+            "sndr.engines.vllm.middleware.pn288_finish_reason_override"
         )
     finally:
         sys.path.pop(0)

@@ -24,7 +24,7 @@ from pathlib import Path
 
 import pytest
 
-from vllm.sndr_core.cli import routing
+from sndr.cli.legacy import routing
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -318,7 +318,7 @@ class TestCLIArgparse:
 class TestCLIExitCodes:
     def test_validate_exits_zero_on_clean_emit(self):
         result = subprocess.run(
-            [sys.executable, "-m", "vllm.sndr_core.cli",
+            [sys.executable, "-m", "sndr.cli.legacy",
              "routing-table", "--validate"],
             cwd=str(REPO_ROOT), capture_output=True, text=True,
         )
@@ -328,7 +328,7 @@ class TestCLIExitCodes:
 
     def test_json_emit_is_parseable(self):
         result = subprocess.run(
-            [sys.executable, "-m", "vllm.sndr_core.cli",
+            [sys.executable, "-m", "sndr.cli.legacy",
              "routing-table", "--json"],
             cwd=str(REPO_ROOT), capture_output=True, text=True,
         )

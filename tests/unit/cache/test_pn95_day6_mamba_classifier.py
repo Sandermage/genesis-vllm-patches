@@ -7,12 +7,12 @@ from dataclasses import dataclass
 
 import pytest
 
-from vllm.sndr_core.cache import _pn95_runtime as P
-from vllm.sndr_core.cache.tier_manager import TierManager
-from vllm.sndr_core.cache._pn95_runtime import (
+from sndr.cache import _pn95_runtime as P
+from sndr.cache.tier_manager import TierManager
+from sndr.cache._pn95_runtime import (
     init_mamba_exclusions_from_kv_groups,
 )
-from vllm.sndr_core.model_configs.schema import (
+from sndr.model_configs.schema import (
     CacheTier, CacheConfig, ModelConfig, HardwareSpec, DockerConfig,
 )
 
@@ -242,7 +242,7 @@ def test_init_mamba_excluded_pages_not_in_demote_candidates():
 # ─── Text-patch shape
 
 def test_text_patch_has_third_anchor():
-    from vllm.sndr_core.integrations.kv_cache import pn95_tier_aware_cache as M
+    from sndr.engines.vllm.patches.kv_cache import pn95_tier_aware_cache as M
     assert hasattr(M, "PN95_SITE3_OLD")
     assert hasattr(M, "PN95_SITE3_NEW")
     assert "init_mamba_exclusions_from_kv_groups" in M.PN95_SITE3_NEW
@@ -253,7 +253,7 @@ def test_text_patch_has_third_anchor():
 
 def test_apply_uses_three_patchers():
     """apply() returns a 3-part summary with admit + touch + mamba-init."""
-    from vllm.sndr_core.integrations.kv_cache import pn95_tier_aware_cache as M
+    from sndr.engines.vllm.patches.kv_cache import pn95_tier_aware_cache as M
     os.environ.pop("GENESIS_ENABLE_PN95_TIER_AWARE_CACHE", None)
     status, reason = M.apply()
     # Default OFF → should_apply returns False → "skipped"

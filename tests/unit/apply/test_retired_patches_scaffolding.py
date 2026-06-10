@@ -37,7 +37,7 @@ import pytest
 def _import_dispatch_module():
     """Lazy import so the apply package's heavy decorator chain is
     only walked once per test session."""
-    from vllm.sndr_core.apply import _per_patch_dispatch as mod
+    from sndr.apply import _per_patch_dispatch as mod
     return mod
 
 
@@ -52,7 +52,7 @@ class TestRetiredPatchesSchema:
         mod = _import_dispatch_module()
         assert hasattr(mod, "_RETIRED_PATCHES"), (
             "_RETIRED_PATCHES scaffolding missing from "
-            "vllm.sndr_core.apply._per_patch_dispatch"
+            "sndr.apply._per_patch_dispatch"
         )
         assert isinstance(mod._RETIRED_PATCHES, dict)
 
@@ -113,7 +113,7 @@ class TestRetiredPatchHandler:
 
     def test_callable_returns_patch_result(self):
         mod = _import_dispatch_module()
-        from vllm.sndr_core.apply._state import PatchResult
+        from sndr.apply._state import PatchResult
 
         spec = mod.RetiredPatchSpec(
             name="TEST-PATCH name (synthetic)",
@@ -152,7 +152,7 @@ class TestP8MigratedInvocation:
     refactor drift in the declarative path."""
 
     def test_p8_invocation_matches_pre_migration(self):
-        from vllm.sndr_core.apply._state import PATCH_REGISTRY, PatchResult
+        from sndr.apply._state import PATCH_REGISTRY, PatchResult
 
         # Find the P8 entry by decorator name (insertion order means
         # it's at position 0, but locate explicitly for robustness).
@@ -207,7 +207,7 @@ class TestRegisterRetiredPatches:
         must be cleaned up.)
         """
         mod = _import_dispatch_module()
-        from vllm.sndr_core.apply import _state
+        from sndr.apply import _state
 
         before_len = len(_state.PATCH_REGISTRY)
         n_entries = len(mod._RETIRED_PATCHES)
@@ -230,7 +230,7 @@ class TestRegisterRetiredPatches:
         canonical state.
         """
         mod = _import_dispatch_module()
-        from vllm.sndr_core.apply import _state
+        from sndr.apply import _state
 
         synthetic_name = "M.1.1.T3.synthetic test patch"
         synthetic_spec = mod.RetiredPatchSpec(

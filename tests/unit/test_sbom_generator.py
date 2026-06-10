@@ -50,7 +50,8 @@ class TestBuildPayload:
     def test_pyproject_loaded(self, sbom_module):
         p = sbom_module.build_payload()
         project = p["pyproject"].get("project", {})
-        assert project.get("name") == "vllm-sndr-core"
+        # v12: project renamed vllm-sndr-core -> sndr-platform.
+        assert project.get("name") == "sndr-platform"
         assert "version" in project
 
     def test_patch_registry_snapshot(self, sbom_module):
@@ -135,8 +136,8 @@ class TestSPDX:
         assert data["dataLicense"] == "CC0-1.0"
         assert data["SPDXID"] == "SPDXRef-DOCUMENT"
         assert "packages" in data
-        # Genesis package always first
-        assert data["packages"][0]["name"] == "vllm-sndr-core"
+        # Genesis package always first (v12 project name: sndr-platform)
+        assert data["packages"][0]["name"] == "sndr-platform"
 
     def test_relationships_link_genesis_to_deps(self, sbom_module, tmp_path):
         payload = sbom_module.build_payload()

@@ -9,13 +9,13 @@ from __future__ import annotations
 
 
 def test_pn31_wiring_imports():
-    from vllm.sndr_core.integrations.attention.turboquant import pn31_fa_varlen_persistent_out as mod
+    from sndr.engines.vllm.patches.attention.turboquant import pn31_fa_varlen_persistent_out as mod
     assert hasattr(mod, "apply")
     assert hasattr(mod, "GENESIS_PN31_MARKER")
 
 
 def test_pn31_dispatcher_registry():
-    from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+    from sndr.dispatcher import PATCH_REGISTRY
     assert "PN31" in PATCH_REGISTRY
     e = PATCH_REGISTRY["PN31"]
     assert e["env_flag"] == "GENESIS_ENABLE_PN31_FA_VARLEN_PERSISTENT_OUT"
@@ -26,14 +26,14 @@ def test_pn31_skips_when_env_off(monkeypatch):
     monkeypatch.delenv(
         "GENESIS_ENABLE_PN31_FA_VARLEN_PERSISTENT_OUT", raising=False
     )
-    from vllm.sndr_core.integrations.attention.turboquant.pn31_fa_varlen_persistent_out import apply
+    from sndr.engines.vllm.patches.attention.turboquant.pn31_fa_varlen_persistent_out import apply
     status, reason = apply()
     assert status == "skipped"
     assert "opt-in" in reason.lower()
 
 
 def test_pn31_anchor_targets_flash_attn_varlen_func_calls():
-    from vllm.sndr_core.integrations.attention.turboquant.pn31_fa_varlen_persistent_out import (
+    from sndr.engines.vllm.patches.attention.turboquant.pn31_fa_varlen_persistent_out import (
         PN31_ANCHOR_NO_VER, PN31_ANCHOR_WITH_VER,
         PN31_REPLACEMENT_NO_VER, PN31_REPLACEMENT_WITH_VER,
     )
@@ -52,7 +52,7 @@ def test_pn31_anchor_targets_flash_attn_varlen_func_calls():
 
 
 def test_pn31_replacement_uses_buffer_acquire_pattern():
-    from vllm.sndr_core.integrations.attention.turboquant.pn31_fa_varlen_persistent_out import (
+    from sndr.engines.vllm.patches.attention.turboquant.pn31_fa_varlen_persistent_out import (
         PN31_REPLACEMENT_NO_VER,
     )
     # Buffer acquire keyed by shape
@@ -66,7 +66,7 @@ def test_pn31_replacement_uses_buffer_acquire_pattern():
 
 
 def test_pn31_register_in_apply_all():
-    from vllm.sndr_core.apply import (
+    from sndr.apply import (
         PATCH_REGISTRY as APPLY_REGISTRY,
     )
     names = [name for name, _ in APPLY_REGISTRY]
@@ -75,7 +75,7 @@ def test_pn31_register_in_apply_all():
 
 
 def test_pn31_marker_unique():
-    from vllm.sndr_core.integrations.attention.turboquant.pn31_fa_varlen_persistent_out import (
+    from sndr.engines.vllm.patches.attention.turboquant.pn31_fa_varlen_persistent_out import (
         GENESIS_PN31_MARKER,
     )
     assert "PN31" in GENESIS_PN31_MARKER
@@ -85,7 +85,7 @@ def test_pn31_marker_unique():
 def test_pn31_documents_sister_relationship_to_p38():
     """PN31 docs note this is sister patch to P38."""
     import inspect
-    from vllm.sndr_core.integrations.attention.turboquant import pn31_fa_varlen_persistent_out as mod
+    from sndr.engines.vllm.patches.attention.turboquant import pn31_fa_varlen_persistent_out as mod
     src = inspect.getsource(mod)
     assert "P38" in src
     assert "sister" in src.lower() or "analogous" in src.lower()
@@ -93,7 +93,7 @@ def test_pn31_documents_sister_relationship_to_p38():
 
 def test_pn31_buffer_keyed_by_shape():
     """Buffer dict keyed by (total_q, n_heads, head_dim) tuple."""
-    from vllm.sndr_core.integrations.attention.turboquant.pn31_fa_varlen_persistent_out import (
+    from sndr.engines.vllm.patches.attention.turboquant.pn31_fa_varlen_persistent_out import (
         PN31_REPLACEMENT_NO_VER,
     )
     # Buffer key contains the 3 shape dims

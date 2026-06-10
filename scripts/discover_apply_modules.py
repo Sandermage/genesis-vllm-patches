@@ -82,8 +82,8 @@ def build_proposals() -> list[Proposal]:
         disagrees with the auto-discovered one
     """
     try:
-        from vllm.sndr_core.apply._state import PATCH_REGISTRY as LEG
-        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        from sndr.apply._state import PATCH_REGISTRY as LEG
+        from sndr.dispatcher.registry import PATCH_REGISTRY
     except ImportError as e:
         raise SystemExit(f"could not import registries: {e}")
 
@@ -164,7 +164,7 @@ def main() -> int:
 
     # Compute coverage: how many of dispatcher PATCH_REGISTRY entries
     # would have apply_module set IF we applied every proposal.
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+    from sndr.dispatcher.registry import PATCH_REGISTRY
     total = len(PATCH_REGISTRY)
     with_proposal = len(proposals)
     coverage_before = sum(

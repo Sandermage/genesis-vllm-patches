@@ -22,7 +22,7 @@ ENV_FLAG = "GENESIS_ENABLE_P60B_TRITON_KERNEL"
 
 
 def test_p60b_registered():
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+    from sndr.dispatcher.registry import PATCH_REGISTRY
     assert PATCH_ID in PATCH_REGISTRY
     meta = PATCH_REGISTRY[PATCH_ID]
     assert meta["env_flag"] == ENV_FLAG

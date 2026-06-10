@@ -122,7 +122,7 @@ class TestCriticalZone:
 
     def test_vllm_sndr_core_in_zone(self, audit_mod):
         assert audit_mod._in_critical_zone(
-            "vllm/sndr_core/integrations/foo.py"
+            "sndr/engines/vllm/patches/foo.py"
         ) is True
 
     def test_tests_in_zone(self, audit_mod):

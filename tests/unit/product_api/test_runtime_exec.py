@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.product_api import runtime_exec as rx
+from sndr.product_api.legacy import runtime_exec as rx
 
 
 def test_apply_disabled_by_default(monkeypatch):

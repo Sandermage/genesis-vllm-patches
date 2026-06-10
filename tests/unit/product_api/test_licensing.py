@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """Tests for the daemon license / sndr_engine status bridge."""
-from vllm.sndr_core.product_api import licensing as L
+from sndr.product_api.legacy import licensing as L
 
 
 def test_status_shape():

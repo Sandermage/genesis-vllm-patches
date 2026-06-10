@@ -27,18 +27,20 @@ Bug: github.com/Sandermage/genesis-vllm-patches/issues/17
 """
 from __future__ import annotations
 
+import re
+
 
 
 def test_pn30_wiring_imports():
     """PN30 wiring module imports cleanly."""
-    from vllm.sndr_core.integrations.attention.gdn import pn30_ds_layout_spec_decode_align as mod
+    from sndr.engines.vllm.patches.attention.gdn import pn30_ds_layout_spec_decode_align as mod
     assert hasattr(mod, "apply")
     assert hasattr(mod, "GENESIS_PN30_MARKER")
 
 
 def test_pn30_dispatcher_registry():
     """PN30 registered in PATCH_REGISTRY with correct env flag."""
-    from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+    from sndr.dispatcher import PATCH_REGISTRY
     assert "PN30" in PATCH_REGISTRY
     e = PATCH_REGISTRY["PN30"]
     assert e["env_flag"] == "GENESIS_ENABLE_PN30_DS_LAYOUT_SPEC_DECODE"
@@ -51,7 +53,7 @@ def test_pn30_skips_when_env_off(monkeypatch):
     monkeypatch.delenv(
         "GENESIS_ENABLE_PN30_DS_LAYOUT_SPEC_DECODE", raising=False
     )
-    from vllm.sndr_core.integrations.attention.gdn.pn30_ds_layout_spec_decode_align import (
+    from sndr.engines.vllm.patches.attention.gdn.pn30_ds_layout_spec_decode_align import (
         apply,
     )
     status, reason = apply()
@@ -70,7 +72,7 @@ def test_pn30_part1_anchor_matches_upstream_pattern():
     Part1's path becomes unreachable on the AL>1 + DS path; if
     anything ever reaches it, we crash explicitly.
     """
-    from vllm.sndr_core.integrations.attention.gdn.pn30_ds_layout_spec_decode_align import (
+    from sndr.engines.vllm.patches.attention.gdn.pn30_ds_layout_spec_decode_align import (
         PN30_PART1_ANCHOR, PN30_PART1_REPLACEMENT,
     )
     # Anchor: must contain the NotImplementedError raise text
@@ -103,7 +105,7 @@ def test_pn30_part3_dst_shaped_temp_is_layout_correct():
     Credit: noonghunna + independent cross-check
     (club-3090 commit 9af1a52, 2026-05-02).
     """
-    from vllm.sndr_core.integrations.attention.gdn.pn30_ds_layout_spec_decode_align import (
+    from sndr.engines.vllm.patches.attention.gdn.pn30_ds_layout_spec_decode_align import (
         PN30_PART3_ANCHOR, PN30_PART3_REPLACEMENT,
     )
     # Anchor: target collect_mamba_copy_meta function
@@ -139,7 +141,7 @@ def test_pn30_part3_dst_shaped_temp_is_layout_correct():
 
 def test_pn30_marker_bumped_to_v7_68():
     """v7.68 marker bump signals that re-application supersedes v7.65."""
-    from vllm.sndr_core.integrations.attention.gdn.pn30_ds_layout_spec_decode_align import (
+    from sndr.engines.vllm.patches.attention.gdn.pn30_ds_layout_spec_decode_align import (
         GENESIS_PN30_MARKER,
     )
     assert "v7.68" in GENESIS_PN30_MARKER
@@ -147,7 +149,7 @@ def test_pn30_marker_bumped_to_v7_68():
 
 def test_pn30_part1b_inserts_module_level_state():
     """Part1b adds _GENESIS_PN30_TEMP_TENSORS + _GENESIS_PN30_FLAG."""
-    from vllm.sndr_core.integrations.attention.gdn.pn30_ds_layout_spec_decode_align import (
+    from sndr.engines.vllm.patches.attention.gdn.pn30_ds_layout_spec_decode_align import (
         PN30_PART1B_ANCHOR, PN30_PART1B_REPLACEMENT,
     )
     # Anchor matches MambaStateCopyFunc TypeAlias line
@@ -159,7 +161,7 @@ def test_pn30_part1b_inserts_module_level_state():
 
 def test_pn30_part2_anchor_targets_do_mamba_copy_block():
     """Part2 anchor matches do_mamba_copy_block function signature + body."""
-    from vllm.sndr_core.integrations.attention.gdn.pn30_ds_layout_spec_decode_align import (
+    from sndr.engines.vllm.patches.attention.gdn.pn30_ds_layout_spec_decode_align import (
         PN30_PART2_ANCHOR, PN30_PART2_REPLACEMENT,
     )
     # Anchor: function definition + batch_memcpy call
@@ -176,17 +178,17 @@ def test_pn30_part2_anchor_targets_do_mamba_copy_block():
 
 def test_pn30_register_in_apply_all():
     """PN30 registered via @register_patch in apply_all.py."""
-    from vllm.sndr_core.apply import (
+    from sndr.apply import (
         PATCH_REGISTRY as APPLY_REGISTRY,
     )
     names = [name for name, _ in APPLY_REGISTRY]
-    pn30 = [n for n in names if "PN30" in n]
+    pn30 = [n for n in names if re.search(r"\bPN30\b", n)]
     assert len(pn30) == 1, f"PN30 not registered, names: {names[:5]}"
 
 
 def test_pn30_marker_unique():
     """Marker string is unique enough to detect drift."""
-    from vllm.sndr_core.integrations.attention.gdn.pn30_ds_layout_spec_decode_align import (
+    from sndr.engines.vllm.patches.attention.gdn.pn30_ds_layout_spec_decode_align import (
         GENESIS_PN30_MARKER,
     )
     assert "PN30" in GENESIS_PN30_MARKER
@@ -197,7 +199,7 @@ def test_pn30_marker_unique():
 def test_pn30_lifecycle_design_documented():
     """Source documents the lifecycle correctness reasoning."""
     import inspect
-    from vllm.sndr_core.integrations.attention.gdn import pn30_ds_layout_spec_decode_align as mod
+    from sndr.engines.vllm.patches.attention.gdn import pn30_ds_layout_spec_decode_align as mod
     src = inspect.getsource(mod)
     # Critical lifecycle concepts must be documented
     assert "lifecycle" in src.lower() or "stream" in src.lower()
@@ -210,7 +212,7 @@ def test_pn30_lifecycle_design_documented():
 def test_pn30_partial_application_handled():
     """If part2 fails, part1 stays applied — code documents this risk."""
     import inspect
-    from vllm.sndr_core.integrations.attention.gdn import pn30_ds_layout_spec_decode_align as mod
+    from sndr.engines.vllm.patches.attention.gdn import pn30_ds_layout_spec_decode_align as mod
     src = inspect.getsource(mod.apply)
     # apply() should handle partial application (part1 ok, part2 fails)
     # by logging warning, not silent inconsistent state
@@ -231,7 +233,7 @@ def test_pn30_part3_drift_markers_avoid_part2_false_positive():
     This test pins part3's drift markers to be SPECIFIC enough that
     they cannot match anything part1/part2 inserts in either file.
     """
-    from vllm.sndr_core.integrations.attention.gdn import pn30_ds_layout_spec_decode_align as mod
+    from sndr.engines.vllm.patches.attention.gdn import pn30_ds_layout_spec_decode_align as mod
 
     # Build the live part3 patcher to inspect its drift markers.
     # Use a tmpdir vllm tree so resolve_vllm_file doesn't fail.
@@ -245,7 +247,7 @@ def test_pn30_part3_drift_markers_avoid_part2_false_positive():
             f.write("# placeholder for resolve_vllm_file\n")
 
         # Monkey-patch vllm_install_root to return our tmp tree
-        import vllm.sndr_core.detection.guards as guards
+        import sndr.engines.vllm.detection.guards as guards
 
         orig_root = guards.vllm_install_root
         guards.vllm_install_root = lambda: td
@@ -299,7 +301,7 @@ def test_pn30_part3_apply_after_part2_does_not_false_skip():
     """
     import os
     import tempfile
-    from vllm.sndr_core.integrations.attention.gdn import pn30_ds_layout_spec_decode_align as mod
+    from sndr.engines.vllm.patches.attention.gdn import pn30_ds_layout_spec_decode_align as mod
 
     with tempfile.TemporaryDirectory() as td:
         worker_dir = os.path.join(td, "v1", "worker")
@@ -321,7 +323,7 @@ def test_pn30_part3_apply_after_part2_does_not_false_skip():
         with open(target_path, "w") as f:
             f.write(synthetic)
 
-        import vllm.sndr_core.detection.guards as guards
+        import sndr.engines.vllm.detection.guards as guards
 
         orig_root = guards.vllm_install_root
         guards.vllm_install_root = lambda: td
@@ -333,7 +335,7 @@ def test_pn30_part3_apply_after_part2_does_not_false_skip():
             guards.vllm_install_root = orig_root
 
     # Must be APPLIED, not SKIPPED with upstream_merged.
-    from vllm.sndr_core.core.text_patch import TextPatchResult
+    from sndr.kernel.text_patch import TextPatchResult
 
     assert result == TextPatchResult.APPLIED, (
         f"expected APPLIED, got {result} (failure={failure}). "

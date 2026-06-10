@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Tests for ``vllm.sndr_core.observability.patch_metrics`` (Wave 7).
+"""Tests for ``sndr.observability.patch_metrics`` (Wave 7).
 
 Covers:
   • Default OFF: ``measure_patch_apply`` yields a metric but doesn't
@@ -19,13 +19,13 @@ import time
 
 import pytest
 
-from vllm.sndr_core.observability import (
+from sndr.observability import (
     PatchApplyMetric,
     get_apply_metrics,
     measure_patch_apply,
     reset_apply_metrics,
 )
-from vllm.sndr_core.observability.patch_metrics import metrics_summary
+from sndr.observability.patch_metrics import metrics_summary
 
 
 @pytest.fixture(autouse=True)

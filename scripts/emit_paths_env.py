@@ -59,7 +59,7 @@ def main():
     )
     args = p.parse_args()
 
-    from vllm.sndr_core.locations.project_paths import (
+    from sndr.engines.vllm.locations.project_paths import (
         all_paths, emit_env_shell,
     )
 

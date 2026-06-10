@@ -78,7 +78,7 @@ required_artefact_fields:
 
 def _good_artefact(methodology_path: Path) -> dict:
     """Build a fully-conforming artefact for the test methodology."""
-    from vllm.sndr_core.cli.bench import methodology_sha
+    from sndr.cli.legacy.bench import methodology_sha
     return {
         "schema_version": 1,
         "methodology_id": "test-methodology",
@@ -92,7 +92,7 @@ def _good_artefact(methodology_path: Path) -> dict:
 
 def _run_validate(artefact_path: Path, methodology_path: Path,
                   json_mode: bool = False) -> tuple[int, str]:
-    from vllm.sndr_core.cli import bench as bench_cli
+    from sndr.cli.legacy import bench as bench_cli
     opts = argparse.Namespace(
         artefact=str(artefact_path),
         methodology=str(methodology_path),
@@ -115,26 +115,26 @@ def _write_artefact(tmp_path: Path, data: dict, name: str = "result.json") -> Pa
 
 class TestLoadMethodology:
     def test_load_default_methodology(self):
-        from vllm.sndr_core.cli.bench import load_methodology
+        from sndr.cli.legacy.bench import load_methodology
         # The committed tools/bench_methodology.yaml must parse cleanly.
         data = load_methodology()
         assert data["schema_version"] == 1
         assert data["methodology_id"] == "wave9-baseline"
 
     def test_load_test_methodology(self, methodology_yaml):
-        from vllm.sndr_core.cli.bench import load_methodology
+        from sndr.cli.legacy.bench import load_methodology
         data = load_methodology(methodology_yaml)
         assert data["methodology_id"] == "test-methodology"
 
     def test_missing_methodology_raises(self, tmp_path):
-        from vllm.sndr_core.cli.bench import load_methodology
+        from sndr.cli.legacy.bench import load_methodology
         with pytest.raises(FileNotFoundError):
             load_methodology(tmp_path / "does-not-exist.yaml")
 
 
 class TestMethodologySha:
     def test_sha_is_stable(self, methodology_yaml):
-        from vllm.sndr_core.cli.bench import methodology_sha
+        from sndr.cli.legacy.bench import methodology_sha
         s1 = methodology_sha(methodology_yaml)
         s2 = methodology_sha(methodology_yaml)
         assert s1 == s2
@@ -142,7 +142,7 @@ class TestMethodologySha:
         assert len(s1) == 64
 
     def test_sha_changes_when_yaml_changes(self, methodology_yaml):
-        from vllm.sndr_core.cli.bench import methodology_sha
+        from sndr.cli.legacy.bench import methodology_sha
         s1 = methodology_sha(methodology_yaml)
         methodology_yaml.write_text(
             methodology_yaml.read_text() + "\n# trailing comment\n",
@@ -178,7 +178,7 @@ class TestRuleM1MissingFields:
         self, methodology_yaml, tmp_path,
     ):
         """Drop one required field at a time, confirm M-1 catches it."""
-        from vllm.sndr_core.cli.bench import load_methodology
+        from sndr.cli.legacy.bench import load_methodology
         methodology = load_methodology(methodology_yaml)
         required = methodology["required_artefact_fields"]
         for field_name in required:
@@ -311,7 +311,7 @@ class TestRuleM6ToolCallScore:
 class TestCLIRegistration:
     def test_bench_validate_registered(self):
         import argparse
-        from vllm.sndr_core.cli.bench import add_argparser
+        from sndr.cli.legacy.bench import add_argparser
         p = argparse.ArgumentParser()
         sub = p.add_subparsers(dest="cmd")
         add_argparser(sub)
@@ -321,7 +321,7 @@ class TestCLIRegistration:
 
     def test_bench_methodology_registered(self):
         import argparse
-        from vllm.sndr_core.cli.bench import add_argparser
+        from sndr.cli.legacy.bench import add_argparser
         p = argparse.ArgumentParser()
         sub = p.add_subparsers(dest="cmd")
         add_argparser(sub)
@@ -330,7 +330,7 @@ class TestCLIRegistration:
         assert ns.json is True
 
     def test_top_level_includes_bench(self):
-        from vllm.sndr_core import cli as cli_mod
+        from sndr.cli import legacy as cli_mod
         assert hasattr(cli_mod, "_bench_argparser")
         assert callable(cli_mod._bench_argparser)
 
@@ -364,13 +364,13 @@ class TestCommittedMethodology:
     and structurally sane."""
 
     def test_committed_yaml_loads(self):
-        from vllm.sndr_core.cli.bench import load_methodology
+        from sndr.cli.legacy.bench import load_methodology
         data = load_methodology()
         assert data["schema_version"] == 1
         assert data["methodology_id"] == "wave9-baseline"
 
     def test_committed_yaml_has_required_fields_list(self):
-        from vllm.sndr_core.cli.bench import load_methodology
+        from sndr.cli.legacy.bench import load_methodology
         data = load_methodology()
         required = data["required_artefact_fields"]
         # Phase 6 contract: at least 12 mandatory fields.

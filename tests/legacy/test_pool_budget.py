@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.runtime import pool_budget
-from vllm.sndr_core.runtime.pool_budget import (
+from sndr.runtime import pool_budget
+from sndr.runtime.pool_budget import (
     PoolBudgetExceeded,
     assert_total_under_budget,
     check,

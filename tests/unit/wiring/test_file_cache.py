@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Tests for `vllm.sndr_core.wiring.file_cache` — P2.2 Layer 0 fast-path.
+"""Tests for `sndr.engines.vllm.wiring.file_cache` — P2.2 Layer 0 fast-path.
 
 Contract:
 
@@ -21,7 +21,7 @@ import json
 
 import pytest
 
-from vllm.sndr_core.wiring import file_cache as fc
+from sndr.engines.vllm.wiring import file_cache as fc
 
 
 @pytest.fixture(autouse=True)

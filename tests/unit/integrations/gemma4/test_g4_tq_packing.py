@@ -129,9 +129,14 @@ def test_pack_modules_importable():
 
 def test_packed_triton_module_importable():
     """Triton kernel module imports without crashing (kernel won't fire without CUDA)."""
-    from sndr.engines.vllm.patches.attention.turboquant.kernels import (
-        g4_tq_packed_triton,
-    )
+    try:
+        from sndr.engines.vllm.patches.attention.turboquant.kernels import (
+            g4_tq_packed_triton,
+        )
+    except ImportError as e:
+        if "torch" in str(e) or "triton" in str(e):
+            pytest.skip(f"requires torch/triton: {e}")
+        raise
     assert hasattr(g4_tq_packed_triton, "g4_tq_write_packed_3bit")
     assert hasattr(g4_tq_packed_triton, "g4_tq_read_packed_3bit")
     assert "PACKED" in g4_tq_packed_triton.GENESIS_G4_TQ_PACKED_MARKER

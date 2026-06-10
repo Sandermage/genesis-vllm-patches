@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.dispatcher.spec import (
+from sndr.dispatcher.spec import (
     VALID_CATEGORIES,
     VALID_IMPLEMENTATION_STATUSES,
     VALID_SOURCES,

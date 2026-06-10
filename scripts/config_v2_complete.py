@@ -47,7 +47,7 @@ from typing import Optional
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-HW_DIR = REPO_ROOT / "vllm" / "sndr_core" / "model_configs" / "builtin" / "hardware"
+HW_DIR = REPO_ROOT / "sndr" / "model_configs" / "builtin" / "hardware"
 
 
 def _import_audit():

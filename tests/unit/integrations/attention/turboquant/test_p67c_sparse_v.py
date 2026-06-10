@@ -34,7 +34,7 @@ def test_p67c_wiring_imports():
 
 def test_p67c_dispatcher_registry():
     """P67c registered in PATCH_REGISTRY with correct env flag + requires_patches."""
-    from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+    from sndr.dispatcher import PATCH_REGISTRY
     assert "P67c" in PATCH_REGISTRY
     e = PATCH_REGISTRY["P67c"]
     assert e["env_flag"] == "GENESIS_ENABLE_P67_SPARSE_V"

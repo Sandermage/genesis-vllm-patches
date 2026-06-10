@@ -145,13 +145,13 @@ class TestSynthesisedFindings:
 
     def test_card_less_preset_emits_missing_card_warning(self, monkeypatch):
         mod = _import_audit()
-        from vllm.sndr_core.model_configs.preset_schema import PresetDef
+        from sndr.model_configs.preset_schema import PresetDef
 
         def fake_load(alias):
             return PresetDef(id=alias, model="m", hardware="h")
 
         monkeypatch.setattr(
-            "vllm.sndr_core.model_configs.registry_v2.load_preset_def",
+            "sndr.model_configs.registry_v2.load_preset_def",
             fake_load,
         )
         report = mod.run_audit(preset_ids=["fake-preset"])
@@ -161,7 +161,7 @@ class TestSynthesisedFindings:
 
     def test_non_production_card_validates_permissively(self, monkeypatch):
         mod = _import_audit()
-        from vllm.sndr_core.model_configs.preset_schema import (
+        from sndr.model_configs.preset_schema import (
             PresetCard, PresetDef,
         )
 
@@ -174,7 +174,7 @@ class TestSynthesisedFindings:
             )
 
         monkeypatch.setattr(
-            "vllm.sndr_core.model_configs.registry_v2.load_preset_def",
+            "sndr.model_configs.registry_v2.load_preset_def",
             fake_load,
         )
         report = mod.run_audit(preset_ids=["fake-experimental"])
@@ -184,7 +184,7 @@ class TestSynthesisedFindings:
 
     def test_production_card_missing_required_fields_errors(self, monkeypatch):
         mod = _import_audit()
-        from vllm.sndr_core.model_configs.preset_schema import (
+        from sndr.model_configs.preset_schema import (
             PresetCard, PresetDef,
         )
 
@@ -198,7 +198,7 @@ class TestSynthesisedFindings:
             )
 
         monkeypatch.setattr(
-            "vllm.sndr_core.model_configs.registry_v2.load_preset_def",
+            "sndr.model_configs.registry_v2.load_preset_def",
             fake_load,
         )
         report = mod.run_audit(preset_ids=["fake-production"])
@@ -210,7 +210,7 @@ class TestSynthesisedFindings:
 
     def test_fallback_preset_missing_errors(self, monkeypatch):
         mod = _import_audit()
-        from vllm.sndr_core.model_configs.preset_schema import (
+        from sndr.model_configs.preset_schema import (
             PresetCard, PresetDef,
         )
 
@@ -224,7 +224,7 @@ class TestSynthesisedFindings:
             )
 
         monkeypatch.setattr(
-            "vllm.sndr_core.model_configs.registry_v2.load_preset_def",
+            "sndr.model_configs.registry_v2.load_preset_def",
             fake_load,
         )
         report = mod.run_audit(preset_ids=["fake-bad-fallback"])
@@ -233,7 +233,7 @@ class TestSynthesisedFindings:
 
     def test_fallback_preset_resolves_no_error(self, monkeypatch):
         mod = _import_audit()
-        from vllm.sndr_core.model_configs.preset_schema import (
+        from sndr.model_configs.preset_schema import (
             PresetCard, PresetDef,
         )
 
@@ -247,7 +247,7 @@ class TestSynthesisedFindings:
             )
 
         monkeypatch.setattr(
-            "vllm.sndr_core.model_configs.registry_v2.load_preset_def",
+            "sndr.model_configs.registry_v2.load_preset_def",
             fake_load,
         )
         # Pass both preset_ids so the fallback resolves.
@@ -260,7 +260,7 @@ class TestSynthesisedFindings:
 
     def test_default_for_family_collision_errors_both(self, monkeypatch):
         mod = _import_audit()
-        from vllm.sndr_core.model_configs.preset_schema import (
+        from sndr.model_configs.preset_schema import (
             PresetCard, PresetDef,
         )
 
@@ -285,7 +285,7 @@ class TestSynthesisedFindings:
             return cards[alias]
 
         monkeypatch.setattr(
-            "vllm.sndr_core.model_configs.registry_v2.load_preset_def",
+            "sndr.model_configs.registry_v2.load_preset_def",
             fake_load,
         )
         report = mod.run_audit(preset_ids=["preset-a", "preset-b"])
@@ -296,7 +296,7 @@ class TestSynthesisedFindings:
 
     def test_default_for_family_single_no_error(self, monkeypatch):
         mod = _import_audit()
-        from vllm.sndr_core.model_configs.preset_schema import (
+        from sndr.model_configs.preset_schema import (
             PresetCard, PresetDef,
         )
 
@@ -310,7 +310,7 @@ class TestSynthesisedFindings:
             )
 
         monkeypatch.setattr(
-            "vllm.sndr_core.model_configs.registry_v2.load_preset_def",
+            "sndr.model_configs.registry_v2.load_preset_def",
             fake_load,
         )
         report = mod.run_audit(preset_ids=["solo-default"])
@@ -320,7 +320,7 @@ class TestSynthesisedFindings:
 
     def test_evidence_external_url_accepted(self, monkeypatch):
         mod = _import_audit()
-        from vllm.sndr_core.model_configs.preset_schema import (
+        from sndr.model_configs.preset_schema import (
             EvidenceRef, PresetCard, PresetDef,
         )
 
@@ -336,7 +336,7 @@ class TestSynthesisedFindings:
             )
 
         monkeypatch.setattr(
-            "vllm.sndr_core.model_configs.registry_v2.load_preset_def",
+            "sndr.model_configs.registry_v2.load_preset_def",
             fake_load,
         )
         report = mod.run_audit(preset_ids=["fake-external"])
@@ -344,7 +344,7 @@ class TestSynthesisedFindings:
 
     def test_evidence_relative_path_missing_errors(self, monkeypatch):
         mod = _import_audit()
-        from vllm.sndr_core.model_configs.preset_schema import (
+        from sndr.model_configs.preset_schema import (
             EvidenceRef, PresetCard, PresetDef,
         )
 
@@ -360,7 +360,7 @@ class TestSynthesisedFindings:
             )
 
         monkeypatch.setattr(
-            "vllm.sndr_core.model_configs.registry_v2.load_preset_def",
+            "sndr.model_configs.registry_v2.load_preset_def",
             fake_load,
         )
         report = mod.run_audit(preset_ids=["fake-missing-path"])
@@ -372,7 +372,7 @@ class TestSynthesisedFindings:
     def test_evidence_relative_path_present_passes(self, monkeypatch, tmp_path):
         """Use an existing repo file as the evidence path."""
         mod = _import_audit()
-        from vllm.sndr_core.model_configs.preset_schema import (
+        from sndr.model_configs.preset_schema import (
             EvidenceRef, PresetCard, PresetDef,
         )
 
@@ -389,7 +389,7 @@ class TestSynthesisedFindings:
             )
 
         monkeypatch.setattr(
-            "vllm.sndr_core.model_configs.registry_v2.load_preset_def",
+            "sndr.model_configs.registry_v2.load_preset_def",
             fake_load,
         )
         report = mod.run_audit(preset_ids=["fake-good-path"])
@@ -397,7 +397,7 @@ class TestSynthesisedFindings:
 
     def test_production_candidate_private_only_evidence_warns(self, monkeypatch):
         mod = _import_audit()
-        from vllm.sndr_core.model_configs.preset_schema import (
+        from sndr.model_configs.preset_schema import (
             EvidenceRef, PresetCard, PresetDef, ConcurrencyEnvelope,
             PrimaryMetric,
         )
@@ -428,7 +428,7 @@ class TestSynthesisedFindings:
             )
 
         monkeypatch.setattr(
-            "vllm.sndr_core.model_configs.registry_v2.load_preset_def",
+            "sndr.model_configs.registry_v2.load_preset_def",
             fake_load,
         )
         report = mod.run_audit(preset_ids=["fake-prod-cand"])
@@ -448,13 +448,13 @@ class TestSynthesisedFindings:
 class TestSeverityGate:
     def test_default_zero_with_warnings_only(self, monkeypatch):
         mod = _import_audit()
-        from vllm.sndr_core.model_configs.preset_schema import PresetDef
+        from sndr.model_configs.preset_schema import PresetDef
 
         def fake_load(alias):
             return PresetDef(id=alias, model="m", hardware="h")
 
         monkeypatch.setattr(
-            "vllm.sndr_core.model_configs.registry_v2.load_preset_def",
+            "sndr.model_configs.registry_v2.load_preset_def",
             fake_load,
         )
         report = mod.run_audit(preset_ids=["a", "b"])

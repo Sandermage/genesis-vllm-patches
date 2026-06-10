@@ -45,7 +45,7 @@ if str(REPO_ROOT) not in sys.path:
 
 _MIGRATION_TABLE_PATH = (
     REPO_ROOT
-    / "vllm" / "sndr_core" / "model_configs"
+    / "sndr" / "model_configs"
     / "_v1_migration_table.json"
 )
 
@@ -133,7 +133,7 @@ def load_migration_table() -> dict[str, MigrationEntry]:
                 f"migration table entry for {key!r} must be a mapping"
             )
         bucket = body.get("bucket")
-        from vllm.sndr_core.model_configs._rollout import BUCKETS
+        from sndr.model_configs._rollout import BUCKETS
         # Only V1-source buckets allowed in this table (synthetic
         # card_less_* / missing_override_policy buckets live elsewhere).
         v1_allowed = {"transparent", "needs_operator_choice", "deprecated", "tombstone"}
@@ -152,13 +152,13 @@ def load_migration_table() -> dict[str, MigrationEntry]:
 
 def list_v1_keys_on_disk() -> list[str]:
     """Read the actual V1 monolithic top-level keys present at
-    `vllm/sndr_core/model_configs/builtin/*.yaml`.
+    `sndr/model_configs/builtin/*.yaml`.
 
     Same scan path as `audit_no_new_v1.py` — but this audit doesn't
     care about freeze; it reads the `key:` field from each YAML so
     we can resolve the migration bucket.
     """
-    builtin = REPO_ROOT / "vllm" / "sndr_core" / "model_configs" / "builtin"
+    builtin = REPO_ROOT / "sndr" / "model_configs" / "builtin"
     if not builtin.is_dir():
         return []
     keys: list[str] = []
@@ -198,7 +198,7 @@ def run_audit(
     Returns:
         Report with per-key findings + counts.
     """
-    from vllm.sndr_core.model_configs._rollout import effective_severity
+    from sndr.model_configs._rollout import effective_severity
 
     table = load_migration_table()
     v1_keys = list_v1_keys_on_disk()
@@ -258,7 +258,7 @@ def run_audit(
 def _print_table(report: Report) -> None:
     counts_s = report.count_by_severity()
     counts_b = report.count_by_bucket()
-    from vllm.sndr_core.model_configs._rollout import rollout_stage
+    from sndr.model_configs._rollout import rollout_stage
     print("audit-v1-migration: V1 monolithic key migration bucket resolution")
     print("─" * 70)
     stage = rollout_stage()
@@ -332,7 +332,7 @@ def main() -> int:
                 args.stage
                 if args.stage is not None
                 else __import__(
-                    "vllm.sndr_core.model_configs._rollout",
+                    "sndr.model_configs._rollout",
                     fromlist=["rollout_stage"],
                 ).rollout_stage()
             ),

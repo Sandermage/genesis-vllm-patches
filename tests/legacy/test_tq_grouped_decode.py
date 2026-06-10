@@ -34,20 +34,20 @@ def _reset_env(monkeypatch):
 def _reload_kernel_module():
     """Re-import the kernel module so `_ENABLED_AT_IMPORT` re-reads env."""
     import importlib
-    from vllm.sndr_core.kernels import tq_grouped_decode
+    from sndr.engines.vllm.kernels_legacy import tq_grouped_decode
     return importlib.reload(tq_grouped_decode)
 
 
 class TestP40ModuleImport:
     def test_import_succeeds_on_cpu(self):
         """Module must be importable without CUDA/triton."""
-        from vllm.sndr_core.kernels import tq_grouped_decode
+        from sndr.engines.vllm.kernels_legacy import tq_grouped_decode
         assert hasattr(tq_grouped_decode, "should_apply")
         assert hasattr(tq_grouped_decode, "get_grouped_kernel")
         assert hasattr(tq_grouped_decode, "should_use_grouped_kernel")
 
     def test_constants_match_upstream_pr_40792(self):
-        from vllm.sndr_core.kernels import tq_grouped_decode as k
+        from sndr.engines.vllm.kernels_legacy import tq_grouped_decode as k
         assert k.BLOCK_H == 16
         assert k.BLOCK_KV == 16
         assert k.NUM_WARPS == 4
@@ -56,7 +56,7 @@ class TestP40ModuleImport:
 
 class TestP40ShouldApply:
     def test_disabled_by_default(self, monkeypatch):
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.detection import guards
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(
             guards, "is_sm_at_least", lambda major, minor=0: True,
@@ -66,7 +66,7 @@ class TestP40ShouldApply:
         assert k.should_apply() is False
 
     def test_enabled_with_env_and_nvidia(self, monkeypatch):
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.detection import guards
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(
             guards, "is_sm_at_least", lambda major, minor=0: True,
@@ -76,14 +76,14 @@ class TestP40ShouldApply:
         assert k.should_apply() is True
 
     def test_disabled_on_non_nvidia_even_with_env(self, monkeypatch):
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.detection import guards
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: False)
         monkeypatch.setenv("GENESIS_ENABLE_P40", "1")
         k = _reload_kernel_module()
         assert k.should_apply() is False
 
     def test_disabled_on_pre_ampere(self, monkeypatch):
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.detection import guards
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(
             guards, "is_sm_at_least", lambda major, minor=0: False,
@@ -98,7 +98,7 @@ class TestP40DispatcherDecision:
 
     @pytest.fixture
     def enabled(self, monkeypatch):
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.detection import guards
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(
             guards, "is_sm_at_least", lambda major, minor=0: True,
@@ -131,7 +131,7 @@ class TestP40DispatcherDecision:
 
     def test_disabled_when_env_off(self, monkeypatch):
         # Even with all-correct shape, env-off forces scalar path
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.detection import guards
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(
             guards, "is_sm_at_least", lambda major, minor=0: True,
@@ -145,14 +145,14 @@ class TestP40DispatcherDecision:
 
 class TestP40WiringSurface:
     def test_wiring_public_surface(self):
-        from vllm.sndr_core.integrations.attention.turboquant import p40_tq_grouped_decode as p40
+        from sndr.engines.vllm.patches.attention.turboquant import p40_tq_grouped_decode as p40
         assert callable(p40.apply)
         assert callable(p40.is_applied)
         assert callable(p40.revert)
         assert callable(p40.should_apply)
 
     def test_apply_skips_when_env_off(self, monkeypatch):
-        from vllm.sndr_core.integrations.attention.turboquant import p40_tq_grouped_decode as p40
+        from sndr.engines.vllm.patches.attention.turboquant import p40_tq_grouped_decode as p40
         monkeypatch.setattr(p40, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(
             p40, "is_sm_at_least", lambda major, minor=0: True,
@@ -164,7 +164,7 @@ class TestP40WiringSurface:
         assert "opt-in" in reason.lower() or "40792" in reason
 
     def test_apply_skips_on_non_nvidia(self, monkeypatch):
-        from vllm.sndr_core.integrations.attention.turboquant import p40_tq_grouped_decode as p40
+        from sndr.engines.vllm.patches.attention.turboquant import p40_tq_grouped_decode as p40
         monkeypatch.setattr(p40, "is_nvidia_cuda", lambda: False)
         status, reason = p40.apply()
         assert status == "skipped"
@@ -173,7 +173,7 @@ class TestP40WiringSurface:
     def test_apply_skips_when_target_missing(self, monkeypatch):
         """On CPU unit-test env the target vLLM module isn't installed;
         apply() must gracefully skip without raising."""
-        from vllm.sndr_core.integrations.attention.turboquant import p40_tq_grouped_decode as p40
+        from sndr.engines.vllm.patches.attention.turboquant import p40_tq_grouped_decode as p40
         monkeypatch.setattr(p40, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(
             p40, "is_sm_at_least", lambda major, minor=0: True,
@@ -191,12 +191,12 @@ class TestP40UpstreamSelfRetirement:
     by presence of `_tq_grouped_decode_stage1` on the target module)."""
 
     def test_self_retires_when_upstream_symbol_present(self, monkeypatch):
-        from vllm.sndr_core.integrations.attention.turboquant import p40_tq_grouped_decode as p40
-        from vllm.sndr_core.detection import guards as _guards
+        from sndr.engines.vllm.patches.attention.turboquant import p40_tq_grouped_decode as p40
+        from sndr.engines.vllm.detection import guards as _guards
 
         # Patch BOTH the wiring module's named imports AND the guards
         # module itself — the wiring imports by name
-        # (`from vllm.sndr_core.detection.guards import is_nvidia_cuda`), but the
+        # (`from sndr.engines.vllm.detection.guards import is_nvidia_cuda`), but the
         # kernel's `should_apply` imports again locally, so both need
         # to be green for `should_apply()` to return True and let
         # apply() reach the upstream-drift check.

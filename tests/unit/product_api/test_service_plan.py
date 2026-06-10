@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.product_api.presets import PresetNotFoundError
-from vllm.sndr_core.product_api.service_plan import build_service_plan
+from sndr.product_api.legacy.presets import PresetNotFoundError
+from sndr.product_api.legacy.service_plan import build_service_plan
 
 
 def test_build_service_plan_status_is_read_only():

@@ -35,7 +35,7 @@ from pathlib import Path
 
 import pytest
 
-from vllm.sndr_core.cli.bench_compare import render_json
+from sndr.cli.legacy.bench_compare import render_json
 
 
 # ─── Gating ────────────────────────────────────────────────────────────

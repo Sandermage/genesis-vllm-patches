@@ -40,7 +40,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 MODEL_DIR = (
-    REPO_ROOT / "vllm" / "sndr_core" / "model_configs" / "builtin" / "model"
+    REPO_ROOT / "sndr" / "model_configs" / "builtin" / "model"
 )
 
 
@@ -74,7 +74,7 @@ class AttributionCheck:
 def _load_registry_index() -> dict[str, str]:
     """Return mapping {patch_id → env_flag} from PATCH_REGISTRY."""
     sys.path.insert(0, str(REPO_ROOT))
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+    from sndr.dispatcher.registry import PATCH_REGISTRY
     out: dict[str, str] = {}
     for pid, meta in PATCH_REGISTRY.items():
         flag = meta.get("env_flag")

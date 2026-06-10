@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 
-from vllm.sndr_core.product_api import copilot, installer
+from sndr.product_api.legacy import copilot, installer
 
 
 def _tool_call(name, args, call_id="c1"):
@@ -106,8 +106,8 @@ def test_copilot_endpoints(monkeypatch, tmp_path):
     monkeypatch.setenv("SNDR_HOME", str(tmp_path))
     from fastapi.testclient import TestClient
 
-    from vllm.sndr_core.product_api import engine_client
-    from vllm.sndr_core.product_api.http_app import create_app
+    from sndr.product_api.legacy import engine_client
+    from sndr.product_api.legacy.http_app import create_app
 
     calls = {"n": 0}
 

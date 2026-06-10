@@ -168,11 +168,12 @@ class TestDefaultManifestOutput:
         assert isinstance(result, Path)
 
     def test_canonical_path_components(self):
-        """Path ends with /vllm/sndr_core/manifests/anchor_manifest.json
-        whether resolved via project_paths or bootstrap fallback."""
+        """Path ends with /sndr/manifests/anchor_manifest.json (v12
+        layout) whether resolved via project_paths or bootstrap
+        fallback."""
         mod = _import_script()
         result = mod._default_manifest_output()
         parts = result.parts
         assert "anchor_manifest.json" == parts[-1]
         assert "manifests" == parts[-2]
-        assert "sndr_core" == parts[-3]
+        assert "sndr" == parts[-3]

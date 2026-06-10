@@ -111,7 +111,7 @@ def _check_anchor_invariants(
 
 
 def _pn79_module():
-    from vllm.sndr_core.integrations.attention.gdn import pn79_inplace_ssm_state as M
+    from sndr.engines.vllm.patches.attention.gdn import pn79_inplace_ssm_state as M
     return M
 
 

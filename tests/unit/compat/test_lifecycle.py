@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Tests for vllm.sndr_core.compat.lifecycle."""
+"""Tests for sndr.compat.lifecycle."""
 from __future__ import annotations
 
 
-from vllm.sndr_core.compat.lifecycle import (
+from sndr.compat.lifecycle import (
     KNOWN_STATES,
     audit_registry,
     format_audit_table,

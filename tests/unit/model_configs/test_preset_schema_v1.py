@@ -27,7 +27,7 @@ from pathlib import Path
 
 import pytest
 
-from vllm.sndr_core.model_configs.preset_schema import (
+from sndr.model_configs.preset_schema import (
     PRESET_AUDIENCES,
     PRESET_MATURITIES,
     PRESET_MODES,
@@ -41,15 +41,15 @@ from vllm.sndr_core.model_configs.preset_schema import (
     synth_card_for_legacy,
     validate_for_status,
 )
-from vllm.sndr_core.model_configs.schema import SchemaError, dump_yaml
-from vllm.sndr_core.model_configs.schema_v2 import (
+from sndr.model_configs.schema import SchemaError, dump_yaml
+from sndr.model_configs.schema_v2 import (
     OVERRIDE_POLICY_CLASSES,
     OverridePolicy,
     PROFILE_ROLES,
     NON_PRODUCTION_ROLES,
     PRODUCTION_ROLES,
 )
-from vllm.sndr_core.model_configs.registry_v2 import (
+from sndr.model_configs.registry_v2 import (
     _alias_dir,
     load_alias,
     load_preset_def,
@@ -118,7 +118,7 @@ class TestGate1LegacyPresetsLoad:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
             cfg = load_alias(alias)
-        from vllm.sndr_core.model_configs.schema import ModelConfig
+        from sndr.model_configs.schema import ModelConfig
         assert isinstance(cfg, ModelConfig)
         assert cfg.key, f"preset {alias!r}: composed key empty"
 
@@ -357,7 +357,7 @@ class TestGate5EvidenceVisibilityRoundTrip:
             ],
         )
         # Fill remaining required fields so we isolate the visibility check
-        from vllm.sndr_core.model_configs.preset_schema import (
+        from sndr.model_configs.preset_schema import (
             ConcurrencyEnvelope, PrimaryMetric,
         )
         card.concurrency = ConcurrencyEnvelope(min=1, canonical=1, max=1)
@@ -432,7 +432,7 @@ class TestGate7BackwardsCompat:
         Non-prod card-less presets are silenced forever per the
         operator's CONFIG-UX.4.R §10.3 decision (see the next test).
         """
-        from vllm.sndr_core.model_configs import registry_v2
+        from sndr.model_configs import registry_v2
         registry_v2._UNANNOTATED_PRESET_WARNED.discard("prod-synthetic-fake")
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always", DeprecationWarning)
@@ -446,7 +446,7 @@ class TestGate7BackwardsCompat:
         presets (example-*, qa-*, experimental-*, long-ctx-*) stay
         silenced forever to avoid breaking demos / qa / WIP entries
         before they become user-facing in CONFIG-UX.2b."""
-        from vllm.sndr_core.model_configs import registry_v2
+        from sndr.model_configs import registry_v2
         alias = _all_builtin_aliases()[0]
         # First builtin preset alphabetically is non-prod ("example-*").
         assert not alias.startswith("prod-"), (
@@ -489,7 +489,7 @@ class TestGate7BackwardsCompat:
     def test_disable_deprecation_warning_env_silences(self, monkeypatch):
         """`GENESIS_DISABLE_V1_DEPRECATION_WARNING=1` silences the new
         unannotated-preset warning (same env that silences V1 deprecation)."""
-        from vllm.sndr_core.model_configs import registry_v2
+        from sndr.model_configs import registry_v2
         monkeypatch.setenv("GENESIS_DISABLE_V1_DEPRECATION_WARNING", "1")
         alias = _all_builtin_aliases()[0]
         registry_v2._UNANNOTATED_PRESET_WARNED.discard(alias)
@@ -554,16 +554,16 @@ class TestEnumInvariants:
 
 class TestConcurrencyInvariant:
     def test_valid_envelope(self):
-        from vllm.sndr_core.model_configs.preset_schema import ConcurrencyEnvelope
+        from sndr.model_configs.preset_schema import ConcurrencyEnvelope
         ConcurrencyEnvelope(min=1, max=8, canonical=4).validate()
 
     def test_canonical_below_min_rejected(self):
-        from vllm.sndr_core.model_configs.preset_schema import ConcurrencyEnvelope
+        from sndr.model_configs.preset_schema import ConcurrencyEnvelope
         with pytest.raises(SchemaError, match="concurrency invariant"):
             ConcurrencyEnvelope(min=2, max=8, canonical=1).validate()
 
     def test_max_below_canonical_rejected(self):
-        from vllm.sndr_core.model_configs.preset_schema import ConcurrencyEnvelope
+        from sndr.model_configs.preset_schema import ConcurrencyEnvelope
         with pytest.raises(SchemaError, match="concurrency invariant"):
             ConcurrencyEnvelope(min=1, max=2, canonical=4).validate()
 

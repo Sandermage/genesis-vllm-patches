@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Tests for vllm.sndr_core.compat.plugins — community plugin entry-points.
+"""Tests for sndr.compat.plugins — community plugin entry-points.
 
 Plugins extend Genesis with community-shipped patches without forking
 the core repo. Third-party packages declare entry-points in the
@@ -54,7 +54,7 @@ def fake_entry_points(monkeypatch):
     """Inject synthetic entry points into the discovery path."""
     eps = []
     monkeypatch.setattr(
-        "vllm.sndr_core.compat.plugins._discover_entry_points",
+        "sndr.compat.plugins._discover_entry_points",
         lambda: eps,
     )
     return eps
@@ -77,13 +77,13 @@ class TestOptInGate:
     def test_default_off_returns_empty(self, plugins_disabled, fake_entry_points):
         """No env → no discovery even if entry points exist."""
         fake_entry_points.append(FakeEntryPoint("p", lambda: _VALID_PLUGIN_DICT))
-        from vllm.sndr_core.compat.plugins import discover_plugins
+        from sndr.compat.plugins import discover_plugins
         plugins = discover_plugins()
         assert plugins == []
 
     def test_env_on_enables_discovery(self, plugins_enabled, fake_entry_points):
         fake_entry_points.append(FakeEntryPoint("p", lambda: _VALID_PLUGIN_DICT))
-        from vllm.sndr_core.compat.plugins import discover_plugins
+        from sndr.compat.plugins import discover_plugins
         plugins = discover_plugins()
         assert len(plugins) == 1
         assert plugins[0]["patch_id"] == "PLUGIN_TEST_A"
@@ -95,7 +95,7 @@ class TestOptInGate:
 class TestDiscovery:
     def test_single_dict_plugin(self, plugins_enabled, fake_entry_points):
         fake_entry_points.append(FakeEntryPoint("p", lambda: _VALID_PLUGIN_DICT))
-        from vllm.sndr_core.compat.plugins import discover_plugins
+        from sndr.compat.plugins import discover_plugins
         plugins = discover_plugins()
         assert len(plugins) == 1
         # Lifecycle auto-tagged community regardless of input
@@ -111,7 +111,7 @@ class TestDiscovery:
                  "env_flag": "GENESIS_ENABLE_PLUGIN_B"},
             ]
         fake_entry_points.append(FakeEntryPoint("multi", two_patches))
-        from vllm.sndr_core.compat.plugins import discover_plugins
+        from sndr.compat.plugins import discover_plugins
         plugins = discover_plugins()
         assert len(plugins) == 2
         ids = {p["patch_id"] for p in plugins}
@@ -126,7 +126,7 @@ class TestDiscovery:
             raise RuntimeError("plugin author oops")
         fake_entry_points.append(FakeEntryPoint("bad", bad))
         fake_entry_points.append(FakeEntryPoint("good", good))
-        from vllm.sndr_core.compat.plugins import discover_plugins
+        from sndr.compat.plugins import discover_plugins
         plugins = discover_plugins()
         # The good one survives
         ids = {p["patch_id"] for p in plugins}
@@ -136,7 +136,7 @@ class TestDiscovery:
         """Plugin can't claim 'stable' or 'experimental' — auto-tagged community."""
         rogue = {**_VALID_PLUGIN_DICT, "lifecycle": "stable"}
         fake_entry_points.append(FakeEntryPoint("rogue", lambda: rogue))
-        from vllm.sndr_core.compat.plugins import discover_plugins
+        from sndr.compat.plugins import discover_plugins
         plugins = discover_plugins()
         assert plugins[0]["lifecycle"] == "community"
 
@@ -146,7 +146,7 @@ class TestDiscovery:
         fake_entry_points.append(FakeEntryPoint(
             "my_ep", lambda: _VALID_PLUGIN_DICT,
         ))
-        from vllm.sndr_core.compat.plugins import discover_plugins
+        from sndr.compat.plugins import discover_plugins
         plugins = discover_plugins()
         assert "_plugin_origin" in plugins[0]
         assert "my_ep" in plugins[0]["_plugin_origin"]
@@ -163,7 +163,7 @@ class TestValidation:
         crash discovery."""
         bad_dict = {"title": "missing required env_flag"}  # no env_flag, default_on
         fake_entry_points.append(FakeEntryPoint("bad", lambda: bad_dict))
-        from vllm.sndr_core.compat.plugins import discover_plugins
+        from sndr.compat.plugins import discover_plugins
         plugins = discover_plugins()
         assert plugins == []
 
@@ -175,7 +175,7 @@ class TestValidation:
         rogue = {**_VALID_PLUGIN_DICT, "patch_id": "PN14",
                   "env_flag": "GENESIS_ENABLE_PN14_TQ_DECODE_OOB_CLAMP"}
         fake_entry_points.append(FakeEntryPoint("rogue", lambda: rogue))
-        from vllm.sndr_core.compat.plugins import discover_plugins
+        from sndr.compat.plugins import discover_plugins
         plugins = discover_plugins()
         assert plugins == [], (
             "plugin claiming a core patch_id must be rejected"
@@ -186,7 +186,7 @@ class TestValidation:
     ):
         """Plugin returning a non-dict, non-list must be rejected."""
         fake_entry_points.append(FakeEntryPoint("bad", lambda: "not a dict"))
-        from vllm.sndr_core.compat.plugins import discover_plugins
+        from sndr.compat.plugins import discover_plugins
         plugins = discover_plugins()
         assert plugins == []
 
@@ -197,8 +197,8 @@ class TestValidation:
 class TestRegistration:
     def test_register_adds_to_registry(self, plugins_enabled, fake_entry_points):
         fake_entry_points.append(FakeEntryPoint("p", lambda: _VALID_PLUGIN_DICT))
-        from vllm.sndr_core.compat.plugins import register_plugins
-        from vllm.sndr_core import dispatcher
+        from sndr.compat.plugins import register_plugins
+        from sndr import dispatcher
 
         # Snapshot pre
         pre_keys = set(dispatcher.PATCH_REGISTRY.keys())
@@ -209,7 +209,7 @@ class TestRegistration:
             assert entry["lifecycle"] == "community"
         finally:
             # Cleanup so other tests don't see the plugin
-            from vllm.sndr_core.compat.plugins import unregister_plugins
+            from sndr.compat.plugins import unregister_plugins
             unregister_plugins()
             assert "PLUGIN_TEST_A" not in dispatcher.PATCH_REGISTRY
             # Side check: we didn't drop core entries
@@ -221,7 +221,7 @@ class TestRegistration:
 
 class TestCLI:
     def test_cli_list_no_plugins(self, plugins_disabled, fake_entry_points, capsys):
-        from vllm.sndr_core.compat.plugins import main
+        from sndr.compat.plugins import main
         rc = main(["list"])
         captured = capsys.readouterr()
         assert rc == 0
@@ -234,7 +234,7 @@ class TestCLI:
         self, plugins_enabled, fake_entry_points, capsys,
     ):
         fake_entry_points.append(FakeEntryPoint("p", lambda: _VALID_PLUGIN_DICT))
-        from vllm.sndr_core.compat.plugins import main
+        from sndr.compat.plugins import main
         rc = main(["list"])
         assert rc == 0
         captured = capsys.readouterr()
@@ -243,7 +243,7 @@ class TestCLI:
     def test_cli_show_unknown_returns_nonzero(
         self, plugins_enabled, fake_entry_points, capsys,
     ):
-        from vllm.sndr_core.compat.plugins import main
+        from sndr.compat.plugins import main
         rc = main(["show", "NOT_A_PLUGIN"])
         assert rc != 0
 
@@ -251,7 +251,7 @@ class TestCLI:
         self, plugins_enabled, fake_entry_points, capsys,
     ):
         fake_entry_points.append(FakeEntryPoint("p", lambda: _VALID_PLUGIN_DICT))
-        from vllm.sndr_core.compat.plugins import main
+        from sndr.compat.plugins import main
         rc = main(["show", "PLUGIN_TEST_A"])
         captured = capsys.readouterr()
         assert rc == 0
@@ -262,7 +262,7 @@ class TestCLI:
         self, plugins_enabled, fake_entry_points, capsys,
     ):
         fake_entry_points.append(FakeEntryPoint("p", lambda: _VALID_PLUGIN_DICT))
-        from vllm.sndr_core.compat.plugins import main
+        from sndr.compat.plugins import main
         rc = main(["validate"])
         assert rc == 0
 
@@ -271,7 +271,7 @@ class TestCLI:
     ):
         bad = {"title": "incomplete"}
         fake_entry_points.append(FakeEntryPoint("bad", lambda: bad))
-        from vllm.sndr_core.compat.plugins import main
+        from sndr.compat.plugins import main
         rc = main(["validate"])
         # Exit 1 when at least one plugin fails
         assert rc != 0
@@ -283,7 +283,7 @@ class TestCLI:
 class TestSchemaValidatorIntegration:
     def test_community_lifecycle_passes_schema(self, plugins_enabled, fake_entry_points):
         """Schema validator already accepts 'community' lifecycle as valid."""
-        from vllm.sndr_core.compat.schema_validator import validate_entry
+        from sndr.compat.schema_validator import validate_entry
         plugin_meta = {**_VALID_PLUGIN_DICT, "lifecycle": "community"}
         # community lifecycle requires community_credit
         issues = validate_entry("PLUGIN_TEST_A", plugin_meta)

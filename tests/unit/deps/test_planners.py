@@ -9,11 +9,11 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.deps.checkers import (
+from sndr.deps.checkers import (
     HostInventory, OSInfo, PythonInfo, DockerInfo, NvidiaInfo, VLLMInfo,
 )
-from vllm.sndr_core.deps.planners import plan_changes, DepsPlan, PlanItem
-from vllm.sndr_core.model_configs.schema import (
+from sndr.deps.planners import plan_changes, DepsPlan, PlanItem
+from sndr.model_configs.schema import (
     ModelConfig, HardwareSpec, DockerConfig, UpstreamPinPolicy,
 )
 

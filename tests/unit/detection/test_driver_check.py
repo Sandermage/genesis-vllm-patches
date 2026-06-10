@@ -2,7 +2,7 @@
 """S-05 (2026-05-08) — driver_check.probe_driver()."""
 from __future__ import annotations
 
-import vllm.sndr_core.detection.driver_check as M
+import sndr.engines.vllm.detection.driver_check as M
 
 
 def test_no_nvidia_smi_returns_skip_recommendation(monkeypatch):

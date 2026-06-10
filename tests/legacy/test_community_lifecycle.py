@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.model_configs.schema import (
+from sndr.model_configs.schema import (
     ModelConfig,
     HardwareSpec,
     SchemaError,
@@ -67,7 +67,7 @@ class TestNewLifecycleStates:
             "rtx-a5000@sandermage-2026-05-06",
             "rtx-3090@noonghunna-2026-05-08",
         ]
-        from vllm.sndr_core.model_configs.schema import ReferenceMetrics
+        from sndr.model_configs.schema import ReferenceMetrics
         cfg.reference_metrics = ReferenceMetrics(
             measured_at="2026-05-06", bench_method="genesis_bench_suite",
             long_gen_sustained_tps=170.0, long_gen_mean_lat_s=5.5,
@@ -123,7 +123,7 @@ class TestPromotionGates:
             cfg.validate()
 
     def test_community_prod_with_one_verifier_rejected(self):
-        from vllm.sndr_core.model_configs.schema import ReferenceMetrics
+        from sndr.model_configs.schema import ReferenceMetrics
         cfg = _minimal(
             lifecycle="community-prod",
             community_submitted=True,
@@ -157,14 +157,14 @@ class TestExistingConfigsStillValid:
         # load_alias() — V1 file scheduled for sunset, V2 alias
         # composes byte-identical ModelConfig (TRANSPARENT bucket per
         # migration table). cfg.validate() asserts schema parity.
-        from vllm.sndr_core.model_configs.registry_v2 import load_alias
+        from sndr.model_configs.registry_v2 import load_alias
         cfg = load_alias("prod-qwen3.6-35b-balanced")
         assert cfg is not None
         cfg.validate()  # must still pass
 
     def test_a5000_2x_27b_int4_tq_k8v4(self):
         # Phase 10 migration: V2 alias replaces V1 key (TRANSPARENT bucket).
-        from vllm.sndr_core.model_configs.registry_v2 import load_alias
+        from sndr.model_configs.registry_v2 import load_alias
         cfg = load_alias("prod-qwen3.6-27b-tq-k8v4")
         assert cfg is not None
         cfg.validate()

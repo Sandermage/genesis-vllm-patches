@@ -25,8 +25,8 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.model_configs.schema import SchemaError
-from vllm.sndr_core.model_configs.schema_v2 import (
+from sndr.model_configs.schema import SchemaError
+from sndr.model_configs.schema_v2 import (
     HardwareSpec,
     ModelDef,
     PatchAttribution,
@@ -202,7 +202,7 @@ class TestYamlRoundTrip:
     def test_yaml_dict_form_loads(self, tmp_path):
         """YAML payload with patches_attribution parses through the same
         _dataclass_from_dict loader registry_v2.load_model() uses."""
-        from vllm.sndr_core.model_configs.registry_v2 import _dataclass_from_dict
+        from sndr.model_configs.registry_v2 import _dataclass_from_dict
 
         data = {
             "schema_version": 2, "kind": "model",
@@ -243,7 +243,7 @@ class TestCommittedYamlsLoad:
     def test_every_committed_model_yaml_loads(self, model_id):
         """All 6 committed builtin model YAMLs must keep loading after
         the schema extension — Phase A is additive and non-breaking."""
-        from vllm.sndr_core.model_configs.registry_v2 import load_model
+        from sndr.model_configs.registry_v2 import load_model
         m = load_model(model_id)
         # patches_attribution is optional — committed YAMLs may have {} or
         # entries; either is fine. The point is .validate() did not raise.

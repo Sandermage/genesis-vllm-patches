@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Tests for `vllm.sndr_core.runtime.redact` — DA-018 / report bundle support."""
+"""Tests for `sndr.runtime.redact` — DA-018 / report bundle support."""
 from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.runtime.redact import (
+from sndr.runtime.redact import (
     DEFAULT_RULES,
     RedactRule,
     Redactor,

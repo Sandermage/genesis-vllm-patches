@@ -102,7 +102,7 @@ class TestCaptureGenesisPatchState:
 
     def test_runs_self_test_when_available(self, bench_module):
         """When invoked from a Genesis checkout, this runs
-        `python3 -m vllm.sndr_core.compat.cli self-test --json` locally
+        `python3 -m sndr.compat.cli self-test --json` locally
         and parses the result."""
         result = bench_module.capture_genesis_patch_state()
         assert isinstance(result, dict)

@@ -143,7 +143,7 @@ class TestPN17EnvGate:
 
 class TestPN17DispatcherIntegration:
     def test_pn17_in_patch_registry(self):
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+        from sndr.dispatcher import PATCH_REGISTRY
         assert "PN17" in PATCH_REGISTRY
         meta = PATCH_REGISTRY["PN17"]
         assert meta["env_flag"] == "GENESIS_ENABLE_PN17_FA2_LSE_CLAMP"
@@ -154,13 +154,13 @@ class TestPN17DispatcherIntegration:
     def test_pn17_category_is_memory_savings(self):
         """PN17 frees softmax_lse over-allocation — falls under
         memory_savings, not perf_hotfix."""
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+        from sndr.dispatcher import PATCH_REGISTRY
         assert PATCH_REGISTRY["PN17"]["category"] == "memory_savings"
 
     def test_pn17_in_apply_all(self):
         """`@register_patch` for PN17 must be hooked into apply_all so
         the dry-run patcher walks it."""
-        from vllm.sndr_core.apply import apply_all
+        from sndr.apply import apply_all
         assert hasattr(apply_all, "apply_patch_N17_fa2_softmax_lse_clamp"), (
             "PN17 must be registered in apply_all.py"
         )

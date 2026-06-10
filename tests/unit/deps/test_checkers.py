@@ -14,7 +14,7 @@ import shutil
 
 import pytest
 
-from vllm.sndr_core.deps.checkers import (
+from sndr.deps.checkers import (
     DockerInfo, NvidiaInfo, PythonInfo, VLLMInfo, OSInfo, HostInventory,
     check_os, check_python, check_docker, check_nvidia, check_vllm,
     inspect_host, _run,
@@ -72,7 +72,7 @@ def test_check_docker_returns_dataclass():
         assert info.via == "cli"
     else:
         # No CLI: installed only if the docker socket happens to be mounted here.
-        from vllm.sndr_core.deps import checkers as _c
+        from sndr.deps import checkers as _c
         if _c._docker_socket_present():
             assert info.installed is True and info.via == "socket"
         else:
@@ -83,7 +83,7 @@ def test_check_docker_returns_dataclass():
 def test_check_docker_falls_back_to_socket_when_cli_absent(monkeypatch):
     """No docker CLI but a mounted socket → report installed via the socket,
     not a misleading "not installed" (the node-daemon sidecar case)."""
-    from vllm.sndr_core.deps import checkers as _c
+    from sndr.deps import checkers as _c
     monkeypatch.setattr(_c.shutil, "which", lambda _name: None)
     monkeypatch.setattr(_c, "_docker_socket_present", lambda *a, **k: True)
     monkeypatch.setattr(_c, "_docker_socket_version", lambda *a, **k: "27.2.0")
@@ -95,7 +95,7 @@ def test_check_docker_falls_back_to_socket_when_cli_absent(monkeypatch):
 
 
 def test_check_docker_no_cli_no_socket_reports_absent(monkeypatch):
-    from vllm.sndr_core.deps import checkers as _c
+    from sndr.deps import checkers as _c
     monkeypatch.setattr(_c.shutil, "which", lambda _name: None)
     monkeypatch.setattr(_c, "_docker_socket_present", lambda *a, **k: False)
     info = check_docker()

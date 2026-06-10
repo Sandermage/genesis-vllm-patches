@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Tests for `vllm.sndr_core.cache.eviction_policies` — library module.
+"""Tests for `sndr.cache.eviction_policies` — library module.
 
 Three policy implementations (LRU, 2Q, ARC) all conform to the
 `EvictionPolicy` ABC. Tests check each policy independently for
@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.cache.eviction_policies import (
+from sndr.cache.eviction_policies import (
     ARCPolicy,
     EvictionPolicy,
     LRUPolicy,

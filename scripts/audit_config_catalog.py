@@ -103,7 +103,7 @@ def _preset_dir() -> Path:
     if canonical.is_dir():
         return canonical
     return (
-        REPO_ROOT / "vllm" / "sndr_core" / "model_configs"
+        REPO_ROOT / "sndr" / "model_configs"
         / "builtin" / "presets"
     )
 

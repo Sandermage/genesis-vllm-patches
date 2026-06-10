@@ -180,7 +180,7 @@ def test_registry_entry_present_and_consistent():
     """The G4_60L entry must exist in PATCH_REGISTRY with the canonical
     env_flag, apply_module path, and family. This guards against the
     registry/source mismatch class of bug."""
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+    from sndr.dispatcher.registry import PATCH_REGISTRY
     assert "G4_60L" in PATCH_REGISTRY, "G4_60L missing from PATCH_REGISTRY"
     entry = PATCH_REGISTRY["G4_60L"]
     assert entry["env_flag"] == "GENESIS_ENABLE_G4_60L_TQ_BACKEND_MM_PREFIX"
@@ -194,7 +194,7 @@ def test_registry_entry_present_and_consistent():
 
 def test_apply_module_path_resolves():
     """Sanity: the apply_module path in the registry actually imports."""
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+    from sndr.dispatcher.registry import PATCH_REGISTRY
     entry = PATCH_REGISTRY["G4_60L"]
     mod = importlib.import_module(entry["apply_module"])
     assert hasattr(mod, "apply")

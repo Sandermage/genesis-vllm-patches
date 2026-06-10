@@ -22,7 +22,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from vllm.sndr_core.middleware import long_ctx_tool_adherence as p68p69
+from sndr.engines.vllm.middleware import long_ctx_tool_adherence as p68p69
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────

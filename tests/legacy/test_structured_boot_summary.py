@@ -18,7 +18,7 @@ import pytest
 @pytest.fixture
 def reset_decisions():
     """Clear the dispatcher decision log before/after each test."""
-    from vllm.sndr_core import dispatcher
+    from sndr import dispatcher
     saved = list(dispatcher._DECISIONS)
     dispatcher._DECISIONS.clear()
     yield
@@ -27,13 +27,13 @@ def reset_decisions():
 
 
 def test_summary_empty_returns_helpful_message(reset_decisions):
-    from vllm.sndr_core.dispatcher import dump_structured_boot_summary
+    from sndr.dispatcher import dump_structured_boot_summary
     out = dump_structured_boot_summary()
     assert "no Genesis decisions recorded" in out
 
 
 def test_summary_header_includes_genesis_and_vllm_versions(reset_decisions):
-    from vllm.sndr_core.dispatcher import (
+    from sndr.dispatcher import (
         dump_structured_boot_summary, log_decision,
     )
     log_decision("PN59", True, "opt-in env (config: neutral)")
@@ -45,7 +45,7 @@ def test_summary_header_includes_genesis_and_vllm_versions(reset_decisions):
 
 
 def test_summary_counters_match_decisions(reset_decisions):
-    from vllm.sndr_core.dispatcher import (
+    from sndr.dispatcher import (
         dump_structured_boot_summary, log_decision,
     )
     log_decision("PN59", True, "opt-in env")
@@ -58,7 +58,7 @@ def test_summary_counters_match_decisions(reset_decisions):
 
 
 def test_summary_category_breakdown(reset_decisions):
-    from vllm.sndr_core.dispatcher import (
+    from sndr.dispatcher import (
         dump_structured_boot_summary, log_decision,
     )
     # PN59 → hybrid; PN51 → perf_hotfix; PN58 → structured_output
@@ -72,7 +72,7 @@ def test_summary_category_breakdown(reset_decisions):
 
 
 def test_summary_groups_applied_by_category(reset_decisions):
-    from vllm.sndr_core.dispatcher import (
+    from sndr.dispatcher import (
         dump_structured_boot_summary, log_decision,
     )
     log_decision("PN59", True, "opt-in env")
@@ -84,7 +84,7 @@ def test_summary_groups_applied_by_category(reset_decisions):
 
 
 def test_summary_skip_reason_classes(reset_decisions):
-    from vllm.sndr_core.dispatcher import (
+    from sndr.dispatcher import (
         dump_structured_boot_summary, log_decision,
     )
     log_decision(
@@ -110,7 +110,7 @@ def test_summary_skip_reason_classes(reset_decisions):
 
 def test_summary_dedup_multiple_workers(reset_decisions):
     """Same patch_id logged twice (TP=2 worker boots) → counted once."""
-    from vllm.sndr_core.dispatcher import (
+    from sndr.dispatcher import (
         dump_structured_boot_summary, log_decision,
     )
     log_decision("PN59", True, "opt-in env (config: neutral)")
@@ -123,7 +123,7 @@ def test_summary_dedup_multiple_workers(reset_decisions):
 
 
 def test_summary_failed_section_highlighted(reset_decisions):
-    from vllm.sndr_core.dispatcher import (
+    from sndr.dispatcher import (
         dump_structured_boot_summary, log_decision,
     )
     log_decision("PN59", True, "opt-in env")
@@ -134,7 +134,7 @@ def test_summary_failed_section_highlighted(reset_decisions):
 
 def test_log_structured_boot_summary_emits_info_block(reset_decisions, caplog):
     import logging
-    from vllm.sndr_core.dispatcher import log_decision, log_structured_boot_summary
+    from sndr.dispatcher import log_decision, log_structured_boot_summary
     log_decision("PN59", True, "opt-in env")
     with caplog.at_level(logging.INFO, logger="genesis.dispatcher"):
         log_structured_boot_summary()
@@ -146,7 +146,7 @@ def test_summary_caps_skip_class_with_overflow_marker(reset_decisions):
 
     Cap was bumped from 8 → 12 in v7.70 for better operator visibility.
     """
-    from vllm.sndr_core.dispatcher import (
+    from sndr.dispatcher import (
         dump_structured_boot_summary, log_decision,
     )
     # Generate 16 env-disabled decisions to exceed 12 cap

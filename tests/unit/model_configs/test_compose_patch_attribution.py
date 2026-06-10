@@ -10,12 +10,12 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.model_configs.compose import compose
-from vllm.sndr_core.model_configs.schema import (
+from sndr.model_configs.compose import compose
+from sndr.model_configs.schema import (
     HardwareSpec,
     PatchAttribution,
 )
-from vllm.sndr_core.model_configs.schema_v2 import (
+from sndr.model_configs.schema_v2 import (
     HardwareDef,
     HardwareSizing,
     ModelCapabilities,
@@ -97,7 +97,7 @@ class TestComposePreservesAttributionAcrossProfile:
     later phase if real demand surfaces)."""
 
     def test_profile_disable_does_not_drop_attribution(self):
-        from vllm.sndr_core.model_configs.schema_v2 import (
+        from sndr.model_configs.schema_v2 import (
             PatchesDelta, ProfileDef,
         )
 

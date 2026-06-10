@@ -17,7 +17,7 @@ from unittest.mock import patch
 
 import pytest
 
-from vllm.sndr_core.apply.orchestrator import (
+from sndr.apply.orchestrator import (
     _is_env_enabled,
     _strict_dep_mode,
     _validate_dependency_graph,
@@ -98,7 +98,7 @@ _FAKE_REGISTRY = {
 def fake_registry(monkeypatch):
     """Inject _FAKE_REGISTRY in place of real PATCH_REGISTRY for the
     scope of one test. Reverts on exit."""
-    import vllm.sndr_core.dispatcher as disp_mod
+    import sndr.dispatcher as disp_mod
     monkeypatch.setattr(disp_mod, "PATCH_REGISTRY", _FAKE_REGISTRY)
     yield
 
@@ -207,7 +207,7 @@ class TestRealRegistryHasNoSchemaDrift:
         """All `requires_patches` references in the actual registry
         should resolve to known patch_ids. This catches typos like
         'PN91' vs 'PN91_KV_EVICTION'."""
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+        from sndr.dispatcher import PATCH_REGISTRY
         unknown = []
         for pid, meta in PATCH_REGISTRY.items():
             for req in (meta.get("requires_patches") or []):
@@ -220,7 +220,7 @@ class TestRealRegistryHasNoSchemaDrift:
     def test_real_registry_conflicts_are_symmetric(self):
         """If A declares conflicts_with=[B], B should declare
         conflicts_with=[A]. Catches metadata drift between sister patches."""
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+        from sndr.dispatcher import PATCH_REGISTRY
         asymmetric = []
         for pid, meta in PATCH_REGISTRY.items():
             for conflict in (meta.get("conflicts_with") or []):

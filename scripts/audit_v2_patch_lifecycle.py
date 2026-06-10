@@ -40,7 +40,7 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-MODEL_DIR = REPO_ROOT / "vllm" / "sndr_core" / "model_configs" / "builtin" / "model"
+MODEL_DIR = REPO_ROOT / "sndr" / "model_configs" / "builtin" / "model"
 
 # Ensure repo root on path so `vllm.sndr_core.*` resolves when run as
 # `python3 scripts/audit_v2_patch_lifecycle.py` (Python only adds the
@@ -105,7 +105,7 @@ def _load_yaml(path: Path) -> dict:
 def _build_flag_to_meta() -> dict:
     """Map env_flag → (patch_id, lifecycle, tier, family)."""
     try:
-        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        from sndr.dispatcher.registry import PATCH_REGISTRY
     except ImportError:
         return {}
     out = {}

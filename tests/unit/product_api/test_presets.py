@@ -7,8 +7,8 @@ from dataclasses import asdict, is_dataclass
 
 import pytest
 
-from vllm.sndr_core.product_api import presets
-from vllm.sndr_core.product_api.presets import (
+from sndr.product_api.legacy import presets
+from sndr.product_api.legacy.presets import (
     PresetListResult,
     PresetRecommendResult,
     PresetRecord,

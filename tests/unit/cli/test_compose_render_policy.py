@@ -33,8 +33,8 @@ from unittest.mock import patch
 import pytest
 import yaml
 
-from vllm.sndr_core.cli.compose import render_compose_yaml
-from vllm.sndr_core.model_configs.registry_v2 import load_alias
+from sndr.cli.legacy.compose import render_compose_yaml
+from sndr.model_configs.registry_v2 import load_alias
 
 
 _HOST_PATHS_STUB = {
@@ -188,7 +188,7 @@ class TestCliFlagWiring:
         host.yaml file."""
         import io
         from contextlib import redirect_stdout
-        from vllm.sndr_core.cli import cli_main
+        from sndr.cli.legacy import cli_main
 
         captured = {}
 
@@ -199,7 +199,7 @@ class TestCliFlagWiring:
             return "# stub\nservices:\n  vllm-server:\n    image: x\n"
 
         with patch(
-            "vllm.sndr_core.cli.compose.render_compose_yaml",
+            "sndr.cli.legacy.compose.render_compose_yaml",
             side_effect=_stub_render,
         ):
             buf = io.StringIO()
@@ -218,7 +218,7 @@ class TestCliFlagWiring:
     def test_cli_invalid_policy_rejected(self):
         import io
         from contextlib import redirect_stdout
-        from vllm.sndr_core.cli import cli_main
+        from sndr.cli.legacy import cli_main
 
         buf = io.StringIO()
         try:

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """Tests for the per-host reachability tracker + circuit-breaker states."""
-from vllm.sndr_core.product_api.reliability import ReliabilityTracker
+from sndr.product_api.legacy.reliability import ReliabilityTracker
 
 
 def test_uptime_and_samples():

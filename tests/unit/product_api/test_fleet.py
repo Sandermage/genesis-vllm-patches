@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from vllm.sndr_core.product_api import fleet
+from sndr.product_api.legacy import fleet
 
 
 @dataclass
@@ -96,8 +96,8 @@ def test_fleet_overview_endpoint(monkeypatch, tmp_path):
     monkeypatch.setenv("SNDR_HOME", str(tmp_path))
     from fastapi.testclient import TestClient
 
-    from vllm.sndr_core.product_api import engine_client, host_profiles, ssh_client
-    from vllm.sndr_core.product_api.http_app import create_app
+    from sndr.product_api.legacy import engine_client, host_profiles, ssh_client
+    from sndr.product_api.legacy.http_app import create_app
 
     host_profiles.upsert_host_profile({"label": "Srv A", "host": "10.0.0.1", "ssh_user": "sander", "role": "prod"})
     monkeypatch.setattr(ssh_client, "discover_host", _discover_ok)

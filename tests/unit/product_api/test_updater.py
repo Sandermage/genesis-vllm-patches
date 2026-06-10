@@ -2,7 +2,7 @@
 """Unit tests for the pin-gated self-updater (no real git / no mutation)."""
 from __future__ import annotations
 
-# Import the CANONICAL module (not the vllm.sndr_core.* shim): build_plan /
+# Import the CANONICAL module (not the sndr.* shim): build_plan /
 # apply_plan read their own module globals (collect_status, run_steps), so
 # monkeypatching must target the same module the code actually executes in.
 from sndr.product_api.legacy import updater

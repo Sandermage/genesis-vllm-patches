@@ -9,11 +9,13 @@ from __future__ import annotations
 
 import unittest.mock as mock
 
+import pytest
+
 
 
 def test_p103_in_dispatcher():
     """P103 must be registered in PATCH_REGISTRY with the expected schema."""
-    from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+    from sndr.dispatcher import PATCH_REGISTRY
     assert "P103" in PATCH_REGISTRY
     meta = PATCH_REGISTRY["P103"]
     assert meta["env_flag"] == "GENESIS_ENABLE_P103"
@@ -33,7 +35,7 @@ def test_p103_wiring_module_imports():
 
 def test_p103_apply_register_in_apply_all():
     """P103 must have a wrapper function registered via @register_patch."""
-    from vllm.sndr_core.apply import apply_all
+    from sndr.apply import apply_all
     assert hasattr(apply_all, "apply_patch_103_fla_cliff2_chunked")
 
 
@@ -252,7 +254,7 @@ def test_p103_self_install_text_patcher_builds_with_specific_drift_marker():
     import tempfile
 
     from sndr.engines.vllm.patches.attention.gdn import p103_fla_cliff2_chunked as p103
-    import vllm.sndr_core.detection.guards as guards
+    import sndr.engines.vllm.detection.guards as guards
 
     with tempfile.TemporaryDirectory() as td:
         ops_dir = os.path.join(
@@ -388,6 +390,7 @@ def test_p103_wrapper_accepts_core_attn_out_none_no_error():
     its value is None. Hot-path (T=1) fallthrough preserves the old
     11-positional contract to `original_fwd`.
     """
+    pytest.importorskip("torch")  # wrapper lazily imports torch when called
     recorded = {}
 
     def fake_original(*args, **kwargs):
@@ -417,6 +420,7 @@ def test_p103_wrapper_bypasses_when_core_attn_out_tensor_provided():
 
     P103 does not own caller-owned output buffer semantics.
     """
+    pytest.importorskip("torch")  # wrapper lazily imports torch when called
     recorded = {}
     sentinel_buffer = object()  # not None — looks like a preallocated tensor
 
@@ -448,6 +452,7 @@ def test_p103_wrapper_forwards_unknown_future_kwarg_on_hot_path():
     """Forward-compat: an unrelated kwarg added by a future upstream
     must traverse the hot fallthrough without TypeError and reach
     `original_fwd` via **kwargs."""
+    pytest.importorskip("torch")  # wrapper lazily imports torch when called
     recorded = {}
 
     def fake_original(*args, **kwargs):
@@ -470,6 +475,7 @@ def test_p103_wrapper_preserves_old_signature_call():
     """Backward-compat: a dev338-style caller (no kwargs beyond the
     explicit ones) must continue to work identically. Hot-path
     fallthrough forwards positional args."""
+    pytest.importorskip("torch")  # wrapper lazily imports torch when called
     recorded = {}
 
     def fake_original(*args, **kwargs):

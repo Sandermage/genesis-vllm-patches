@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace as NS
 
-from vllm.sndr_core.product_api import k8s_client as k8s
+from sndr.product_api.legacy import k8s_client as k8s
 
 
 def _node(name, *, ready=True, gpu_cap=None, gpu_alloc=None, labels=None,

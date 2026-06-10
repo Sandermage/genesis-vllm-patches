@@ -77,7 +77,7 @@ def fake_parser_file(tmp_path):
 
 
 def _make_p59_patcher(target_file: str, marker_suffix: str):
-    from vllm.sndr_core.core.text_patch import TextPatcher, TextPatch
+    from sndr.kernel.text_patch import TextPatcher, TextPatch
     from sndr.engines.vllm.patches.reasoning.p59_qwen3_reasoning_tool_call_recovery import (
         IMPORT_OLD, IMPORT_NEW,
         REGEX_OLD, REGEX_NEW,
@@ -138,7 +138,7 @@ class TestP59AllAnchorsHit:
 
 class TestP59Application:
     def test_apply_inserts_helper_method_and_regex(self, fake_parser_file):
-        from vllm.sndr_core.core.text_patch import TextPatchResult
+        from sndr.kernel.text_patch import TextPatchResult
         patcher = _make_p59_patcher(fake_parser_file, "APPLY")
         result, failure = patcher.apply()
         assert result == TextPatchResult.APPLIED, failure
@@ -151,7 +151,7 @@ class TestP59Application:
 
     def test_modified_file_parses_as_python(self, fake_parser_file):
         import ast
-        from vllm.sndr_core.core.text_patch import TextPatchResult
+        from sndr.kernel.text_patch import TextPatchResult
         patcher = _make_p59_patcher(fake_parser_file, "PARSE")
         result, _ = patcher.apply()
         assert result == TextPatchResult.APPLIED
@@ -160,7 +160,7 @@ class TestP59Application:
 
 class TestP59Idempotency:
     def test_second_apply_is_idempotent(self, fake_parser_file):
-        from vllm.sndr_core.core.text_patch import TextPatchResult
+        from sndr.kernel.text_patch import TextPatchResult
         patcher = _make_p59_patcher(fake_parser_file, "IDEMP")
         r1, _ = patcher.apply()
         r2, _ = patcher.apply()
@@ -170,7 +170,7 @@ class TestP59Idempotency:
 
 class TestP59UpstreamDriftDetection:
     def test_skip_when_upstream_marker_present(self, tmp_path):
-        from vllm.sndr_core.core.text_patch import (
+        from sndr.kernel.text_patch import (
             TextPatcher, TextPatch, TextPatchResult,
         )
         post_fix = tmp_path / "post_fix_parser.py"

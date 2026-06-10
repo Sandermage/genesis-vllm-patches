@@ -63,7 +63,7 @@ def stub_resolve(monkeypatch):
     def _setter(cfg):
         holder["cfg"] = cfg
 
-    from vllm.sndr_core.cli import service as svc
+    from sndr.cli.legacy import service as svc
     monkeypatch.setattr(svc, "_resolve", lambda key: holder.get("cfg"))
     return _setter
 
@@ -81,7 +81,7 @@ def _capture_io(fn, args):
 
 class TestK8sHelpers:
     def test_object_name_kebabs_underscores(self):
-        from vllm.sndr_core.cli.service import _k8s_object_name
+        from sndr.cli.legacy.service import _k8s_object_name
         cfg = SimpleNamespace(
             docker=SimpleNamespace(container_name="vllm_my_Container"),
             key="ignored",
@@ -89,30 +89,30 @@ class TestK8sHelpers:
         assert _k8s_object_name(cfg) == "vllm-my-container"
 
     def test_namespace_from_service_options(self):
-        from vllm.sndr_core.cli.service import _k8s_namespace
+        from sndr.cli.legacy.service import _k8s_namespace
         cfg = _fake_cfg("kubernetes", namespace="vllm-prod")
         assert _k8s_namespace(cfg) == "vllm-prod"
 
     def test_namespace_falls_back_to_default(self):
-        from vllm.sndr_core.cli.service import _k8s_namespace
+        from sndr.cli.legacy.service import _k8s_namespace
         cfg = _fake_cfg("kubernetes")
         assert _k8s_namespace(cfg) == "default"
 
 
 class TestProxmoxHelpers:
     def test_ctid_from_options_wins(self):
-        from vllm.sndr_core.cli.service import _proxmox_ctid
+        from sndr.cli.legacy.service import _proxmox_ctid
         cfg = _fake_cfg("proxmox", ctid="312")
         assert _proxmox_ctid(cfg) == "312"
 
     def test_ctid_falls_back_to_default(self, monkeypatch):
-        from vllm.sndr_core.cli.service import _proxmox_ctid
+        from sndr.cli.legacy.service import _proxmox_ctid
         monkeypatch.delenv("SNDR_CTID", raising=False)
         cfg = _fake_cfg("proxmox")
         assert _proxmox_ctid(cfg) == "200"
 
     def test_ctid_from_env_var(self, monkeypatch):
-        from vllm.sndr_core.cli.service import _proxmox_ctid
+        from sndr.cli.legacy.service import _proxmox_ctid
         monkeypatch.setenv("SNDR_CTID", "777")
         cfg = _fake_cfg("proxmox")
         assert _proxmox_ctid(cfg) == "777"
@@ -124,7 +124,7 @@ class TestProxmoxHelpers:
 class TestKubernetesLifecycle:
     def test_start_prints_kubectl_scale_to_one(self, stub_resolve):
         stub_resolve(_fake_cfg("kubernetes", namespace="genesis"))
-        from vllm.sndr_core.cli.service import run_start
+        from sndr.cli.legacy.service import run_start
         rc, out, err = _capture_io(run_start, _make_args())
         text = out + err
         assert rc == 0
@@ -133,7 +133,7 @@ class TestKubernetesLifecycle:
 
     def test_stop_prints_kubectl_scale_to_zero(self, stub_resolve):
         stub_resolve(_fake_cfg("kubernetes"))
-        from vllm.sndr_core.cli.service import run_stop
+        from sndr.cli.legacy.service import run_stop
         rc, out, err = _capture_io(run_stop, _make_args())
         text = out + err
         assert "--replicas=0" in text
@@ -145,7 +145,7 @@ class TestKubernetesLifecycle:
         monkeypatch.setattr(
             "shutil.which", lambda x: None if x == "kubectl" else "/bin/" + x,
         )
-        from vllm.sndr_core.cli.service import run_status
+        from sndr.cli.legacy.service import run_status
         rc, out, err = _capture_io(run_status, _make_args())
         assert rc == 1
         assert "kubectl" in (out + err)
@@ -155,7 +155,7 @@ class TestKubernetesLifecycle:
         monkeypatch.setattr(
             "shutil.which", lambda x: None if x == "kubectl" else "/bin/" + x,
         )
-        from vllm.sndr_core.cli.service import run_logs
+        from sndr.cli.legacy.service import run_logs
         rc, out, err = _capture_io(run_logs, _make_args(lines=25))
         assert rc == 1
         text = out + err
@@ -165,7 +165,7 @@ class TestKubernetesLifecycle:
 class TestProxmoxLifecycle:
     def test_start_calls_pct_start_dry_run(self, stub_resolve):
         stub_resolve(_fake_cfg("proxmox", ctid="201"))
-        from vllm.sndr_core.cli.service import run_start
+        from sndr.cli.legacy.service import run_start
         rc, out, err = _capture_io(run_start, _make_args())
         text = out + err
         assert rc == 0
@@ -173,7 +173,7 @@ class TestProxmoxLifecycle:
 
     def test_stop_calls_pct_stop_dry_run(self, stub_resolve):
         stub_resolve(_fake_cfg("proxmox", ctid="201"))
-        from vllm.sndr_core.cli.service import run_stop
+        from sndr.cli.legacy.service import run_stop
         rc, out, err = _capture_io(run_stop, _make_args())
         text = out + err
         assert "pct stop 201" in text
@@ -183,7 +183,7 @@ class TestProxmoxLifecycle:
         monkeypatch.setattr(
             "shutil.which", lambda x: None if x == "pct" else "/bin/" + x,
         )
-        from vllm.sndr_core.cli.service import run_status
+        from sndr.cli.legacy.service import run_status
         rc, out, err = _capture_io(run_status, _make_args())
         assert rc == 1
         assert "pct" in (out + err).lower()
@@ -195,7 +195,7 @@ class TestProxmoxLifecycle:
         monkeypatch.setattr(
             "shutil.which", lambda x: None if x == "pct" else "/bin/" + x,
         )
-        from vllm.sndr_core.cli.service import run_logs
+        from sndr.cli.legacy.service import run_logs
         rc, out, err = _capture_io(run_logs, _make_args(lines=25))
         assert rc == 1
         assert "pct" in (out + err).lower()
@@ -204,7 +204,7 @@ class TestProxmoxLifecycle:
         """--yes is required for destructive ops. Plain dry-run must NOT
         emit any `pct destroy` command — only the planning info line."""
         stub_resolve(_fake_cfg("proxmox", ctid="201"))
-        from vllm.sndr_core.cli.service import run_uninstall
+        from sndr.cli.legacy.service import run_uninstall
         rc, out, err = _capture_io(run_uninstall, _make_args())
         text = out + err
         assert rc == 0

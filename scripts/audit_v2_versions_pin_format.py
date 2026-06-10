@@ -34,7 +34,7 @@ from typing import Optional
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-MODEL_DIR = REPO_ROOT / "vllm" / "sndr_core" / "model_configs" / "builtin" / "model"
+MODEL_DIR = REPO_ROOT / "sndr" / "model_configs" / "builtin" / "model"
 
 
 VLLM_PIN_RE    = re.compile(r"^\d+\.\d+\.\d+(?:rc\d+)?(?:\.dev\d+)?\+g[0-9a-f]+$")

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Production trust-anchor gate.
 
-Guards against shipping `vllm.sndr_core.license` with the
+Guards against shipping `sndr.license` with the
 all-zeros placeholder Ed25519 public key. The placeholder mode
 rejects every signed token as BAD_SIGNATURE, which silently
 disables the engine-tier license entirely.
@@ -11,7 +11,7 @@ from __future__ import annotations
 
 def test_trust_anchor_is_not_placeholder():
     """The active pubkey must not be the 32-zero placeholder."""
-    from vllm.sndr_core.license import _is_placeholder_anchor
+    from sndr.license import _is_placeholder_anchor
 
     assert not _is_placeholder_anchor(), (
         "Trust anchor placeholder detected. Run the offline "
@@ -23,7 +23,7 @@ def test_trust_anchor_is_not_placeholder():
 def test_trust_anchor_pubkey_shape():
     """Pubkey must be 43-char base64url-encoded (32 raw bytes)."""
     import base64
-    from vllm.sndr_core.license import _TRUST_ANCHOR_PUBKEY_B64URL
+    from sndr.license import _TRUST_ANCHOR_PUBKEY_B64URL
 
     assert isinstance(_TRUST_ANCHOR_PUBKEY_B64URL, str), \
         "anchor must be str"

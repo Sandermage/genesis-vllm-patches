@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.product_api import update_prefs as up
+from sndr.product_api.legacy import update_prefs as up
 
 
 @pytest.fixture(autouse=True)

@@ -38,7 +38,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 
 def _run_cli(*args) -> subprocess.CompletedProcess:
     return subprocess.run(
-        [sys.executable, "-m", "vllm.sndr_core.cli", "preset", *args],
+        [sys.executable, "-m", "sndr.cli.legacy", "preset", *args],
         cwd=REPO_ROOT, capture_output=True, text=True, timeout=30,
     )
 
@@ -160,8 +160,8 @@ class TestGate2ShowHumanView:
         """
         import io
         import contextlib
-        from vllm.sndr_core.cli import preset as preset_mod
-        from vllm.sndr_core.model_configs.preset_schema import PresetDef
+        from sndr.cli.legacy import preset as preset_mod
+        from sndr.model_configs.preset_schema import PresetDef
         pd = PresetDef(
             id="synthetic-card-less", model="m", hardware="h", card=None,
         )
@@ -281,8 +281,8 @@ class TestGate5RecommendDenyExclusion:
         """If preset.workload_deny contains workload, preset must be
         excluded from recommendation results even if workload_allow is
         broad/empty."""
-        from vllm.sndr_core.cli import preset as preset_mod
-        from vllm.sndr_core.model_configs.preset_schema import (
+        from sndr.cli.legacy import preset as preset_mod
+        from sndr.model_configs.preset_schema import (
             PresetCard, PresetDef, ConcurrencyEnvelope,
             PrimaryMetric, EvidenceRef,
         )
@@ -311,8 +311,8 @@ class TestGate5RecommendDenyExclusion:
         )
 
     def test_card_less_preset_excluded_from_recommend(self):
-        from vllm.sndr_core.cli import preset as preset_mod
-        from vllm.sndr_core.model_configs.preset_schema import PresetDef
+        from sndr.cli.legacy import preset as preset_mod
+        from sndr.model_configs.preset_schema import PresetDef
         pd = PresetDef(id="unannotated", model="m", hardware="h")
         assert not preset_mod._passes_recommend_filters(
             "unannotated", pd,
@@ -320,8 +320,8 @@ class TestGate5RecommendDenyExclusion:
         )
 
     def test_tombstone_excluded(self):
-        from vllm.sndr_core.cli import preset as preset_mod
-        from vllm.sndr_core.model_configs.preset_schema import (
+        from sndr.cli.legacy import preset as preset_mod
+        from sndr.model_configs.preset_schema import (
             PresetCard, PresetDef,
         )
         card = PresetCard(
@@ -337,8 +337,8 @@ class TestGate5RecommendDenyExclusion:
 
 class TestGate6WorkloadAllowExact:
     def test_workload_not_in_allow_excludes(self):
-        from vllm.sndr_core.cli import preset as preset_mod
-        from vllm.sndr_core.model_configs.preset_schema import (
+        from sndr.cli.legacy import preset as preset_mod
+        from sndr.model_configs.preset_schema import (
             PresetCard, PresetDef,
         )
         card = PresetCard(
@@ -388,7 +388,7 @@ class TestGate10TorchFreeImport:
         asserts torch never appears in sys.modules."""
         if "torch" in sys.modules:
             pytest.skip("torch already imported by another test/runtime")
-        from vllm.sndr_core.cli import preset as preset_mod
+        from sndr.cli.legacy import preset as preset_mod
         ns = argparse.Namespace(
             workload="free_chat",
             hardware="a5000-2x-24gbvram-16cpu-128gbram",
@@ -406,7 +406,7 @@ class TestGate10TorchFreeImport:
     def test_list_does_not_import_torch(self):
         if "torch" in sys.modules:
             pytest.skip("torch already imported")
-        from vllm.sndr_core.cli import preset as preset_mod
+        from sndr.cli.legacy import preset as preset_mod
         ns = argparse.Namespace(
             family=None, workload=None, hardware=None, mode=None,
             status=None, json=True,
@@ -454,7 +454,7 @@ class TestGate11FieldDrill:
 
 class TestGate12BridgeRemoved:
     def test_preset_not_in_bridged_map(self):
-        from vllm.sndr_core.cli import _BRIDGED
+        from sndr.cli.legacy import _BRIDGED
         assert "preset" not in _BRIDGED, (
             "CONFIG-UX.3: `preset` must no longer be in _BRIDGED map — "
             "native module owns the surface"
@@ -504,8 +504,8 @@ class TestGate13GracefulDegradation:
     def test_recommend_skips_card_less(self):
         """Recommend must skip card-less presets even if they would
         otherwise match."""
-        from vllm.sndr_core.cli import preset as preset_mod
-        from vllm.sndr_core.model_configs.preset_schema import PresetDef
+        from sndr.cli.legacy import preset as preset_mod
+        from sndr.model_configs.preset_schema import PresetDef
         pd = PresetDef(id="legacy", model="m", hardware="h", card=None)
         assert not preset_mod._passes_recommend_filters(
             "legacy", pd,

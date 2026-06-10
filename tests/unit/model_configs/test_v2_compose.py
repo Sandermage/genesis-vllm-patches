@@ -9,10 +9,10 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.model_configs.schema import (
+from sndr.model_configs.schema import (
     HardwareSpec, ModelConfig, SchemaError, SpecDecodeConfig,
 )
-from vllm.sndr_core.model_configs.schema_v2 import (
+from sndr.model_configs.schema_v2 import (
     HardwareDef,
     HardwareSizing,
     ModelCapabilities,
@@ -25,7 +25,7 @@ from vllm.sndr_core.model_configs.schema_v2 import (
     RuntimeBlock,
     RuntimeDockerBlock,
 )
-from vllm.sndr_core.model_configs.compose import (
+from sndr.model_configs.compose import (
     apply_patches_delta,
     check_compat,
     compose,
@@ -293,7 +293,7 @@ class TestRuntimeOverride:
         assert cfg.docker.image == "vllm:podman"
 
     def test_bare_metal_yields_no_docker_config(self):
-        from vllm.sndr_core.model_configs.schema_v2 import RuntimeBareMetalBlock
+        from sndr.model_configs.schema_v2 import RuntimeBareMetalBlock
         rt = RuntimeBlock(
             default="bare-metal", supported=["bare-metal"],
             bare_metal=RuntimeBareMetalBlock(venv_path="/opt/venv"),

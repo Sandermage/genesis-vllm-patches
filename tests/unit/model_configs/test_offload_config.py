@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.model_configs.schema import (
+from sndr.model_configs.schema import (
     OffloadConfig, ModelConfig, HardwareSpec, DockerConfig,
     SchemaError, dump_yaml, load_yaml,
 )

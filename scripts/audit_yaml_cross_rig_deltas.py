@@ -68,9 +68,9 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 BUILTIN_MODEL_DIR = (
-    REPO_ROOT / "vllm" / "sndr_core" / "model_configs" / "builtin" / "model"
+    REPO_ROOT / "sndr" / "model_configs" / "builtin" / "model"
 )
-REGISTRY_PATH = REPO_ROOT / "vllm" / "sndr_core" / "dispatcher" / "registry.py"
+REGISTRY_PATH = REPO_ROOT / "sndr" / "dispatcher" / "registry.py"
 
 # Pattern detectors — order matters (more specific first).
 _PCT_RE = re.compile(

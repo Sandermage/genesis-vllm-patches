@@ -72,9 +72,9 @@ class Invariant:
 
 _INVARIANTS: tuple[Invariant, ...] = (
     Invariant(
-        name="pyproject lists sndr_core in wheel packages",
+        name="pyproject lists the sndr runtime tree in wheel packages",
         location="tests/unit/test_edition_boundary.py::TestWheelPackageSeparation::test_pyproject_includes_sndr_core",
-        rationale="without `sndr_core` in packages.find.include the wheel won't carry the runtime registry",
+        rationale="without `sndr*` in packages.find.include the wheel won't carry the runtime registry",
     ),
     Invariant(
         name="pyproject declares `sndr` console entry point",
@@ -154,7 +154,7 @@ def check_pyproject_shape(
         ))
         return results
 
-    # Check 1: sndr_core in wheel packages.
+    # Check 1: the sndr runtime tree in wheel packages (v12: `sndr*`).
     include = (
         data.get("tool", {})
         .get("setuptools", {})
@@ -162,16 +162,16 @@ def check_pyproject_shape(
         .get("find", {})
         .get("include", [])
     )
-    if any("sndr_core" in p for p in include):
+    if any(p in ("sndr", "sndr*") or p.startswith("sndr.") for p in include):
         results.append(PyprojectResult(
             passed=True,
-            detail=f"sndr_core covered by packages.find.include: {include}",
+            detail=f"sndr runtime tree covered by packages.find.include: {include}",
         ))
     else:
         results.append(PyprojectResult(
             passed=False,
             detail=(
-                f"sndr_core MISSING from packages.find.include "
+                f"sndr runtime tree MISSING from packages.find.include "
                 f"(found: {include}) — wheel would not carry the registry"
             ),
         ))

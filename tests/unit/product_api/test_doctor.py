@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import asdict
 
-from vllm.sndr_core.product_api.doctor import DoctorFinding, collect_doctor_report
+from sndr.product_api.legacy.doctor import DoctorFinding, collect_doctor_report
 
 
 def test_collect_doctor_report_aggregates_categories():

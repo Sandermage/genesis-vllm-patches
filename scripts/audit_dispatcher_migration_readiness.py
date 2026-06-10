@@ -42,7 +42,7 @@ def _import_registry():
     """Import PATCH_REGISTRY without requiring vllm to be installed."""
     sys.path.insert(0, str(REPO_ROOT))
     try:
-        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        from sndr.dispatcher.registry import PATCH_REGISTRY
         return PATCH_REGISTRY
     except ImportError as exc:
         raise SystemExit(
@@ -90,7 +90,7 @@ def _categorize_entries(registry: dict) -> dict:
             # in vllm/sndr_core/integrations/<family>/p<id>_*.py
             family = entry.get("family", "").replace(".", "/")
             integrations_dir = (
-                REPO_ROOT / "vllm" / "sndr_core" / "integrations"
+                REPO_ROOT / "sndr" / "engines" / "vllm" / "patches"
             )
             if family:
                 family_dir = integrations_dir / family

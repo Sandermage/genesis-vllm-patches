@@ -46,7 +46,7 @@ class _FakeTier:
 
 class TestHostCapacityCap(unittest.TestCase):
     def test_explicit_cap_overrides_declared(self):
-        from vllm.sndr_core.cache.tier_manager import TierManager
+        from sndr.cache.tier_manager import TierManager
 
         tm = TierManager(
             [_FakeTier("gpu", 20.0), _FakeTier("cpu", 100.0)],
@@ -56,7 +56,7 @@ class TestHostCapacityCap(unittest.TestCase):
         self.assertEqual(tm._effective_cpu_capacity_gib, 32.0)
 
     def test_cap_only_lowers_never_raises(self):
-        from vllm.sndr_core.cache.tier_manager import TierManager
+        from sndr.cache.tier_manager import TierManager
 
         tm = TierManager(
             [_FakeTier("gpu", 20.0), _FakeTier("cpu", 4.0)],
@@ -67,7 +67,7 @@ class TestHostCapacityCap(unittest.TestCase):
         self.assertEqual(tm._effective_cpu_capacity_gib, 4.0)
 
     def test_no_cap_passes_declared(self):
-        from vllm.sndr_core.cache.tier_manager import TierManager
+        from sndr.cache.tier_manager import TierManager
 
         tm = TierManager(
             [_FakeTier("gpu", 20.0), _FakeTier("cpu", 8.0)],
@@ -76,20 +76,20 @@ class TestHostCapacityCap(unittest.TestCase):
         self.assertEqual(tm._effective_cpu_capacity_gib, 8.0)
 
     def test_env_override_wins(self):
-        from vllm.sndr_core.cache import tier_manager as tm_mod
+        from sndr.cache import tier_manager as tm_mod
 
         with patch.dict(os.environ, {"GENESIS_PN95_HOST_CAP_GIB": "42"}):
             self.assertEqual(tm_mod._host_capacity_cap_gib(), 42.0)
 
     def test_env_override_rejects_non_positive(self):
-        from vllm.sndr_core.cache import tier_manager as tm_mod
+        from sndr.cache import tier_manager as tm_mod
 
         with patch.dict(os.environ, {"GENESIS_PN95_HOST_CAP_GIB": "0"}):
             # 0 is rejected — falls back to auto-compute (None on Mac).
             self.assertIsNone(tm_mod._host_capacity_cap_gib())
 
     def test_invalid_reserve_falls_back_to_default(self):
-        from vllm.sndr_core.cache import tier_manager as tm_mod
+        from sndr.cache import tier_manager as tm_mod
 
         with patch.dict(
             os.environ,
@@ -116,7 +116,7 @@ class TestHostCapacityCap(unittest.TestCase):
 
 class TestActiveBlockProtection(unittest.TestCase):
     def _build_tm(self):
-        from vllm.sndr_core.cache.tier_manager import TierManager
+        from sndr.cache.tier_manager import TierManager
 
         return TierManager(
             [_FakeTier("gpu", 4.0), _FakeTier("cpu", 4.0)],
@@ -196,14 +196,14 @@ class TestUpstreamConnectorDetection(unittest.TestCase):
         return cfg
 
     def test_no_connector_returns_none(self):
-        from vllm.sndr_core.cache._pn95_runtime import (
+        from sndr.cache._pn95_runtime import (
             _detect_upstream_offload_connector,
         )
 
         self.assertIsNone(_detect_upstream_offload_connector(self._fake_cfg()))
 
     def test_kv_connector_attribute_detected(self):
-        from vllm.sndr_core.cache._pn95_runtime import (
+        from sndr.cache._pn95_runtime import (
             _detect_upstream_offload_connector,
         )
 
@@ -214,7 +214,7 @@ class TestUpstreamConnectorDetection(unittest.TestCase):
         )
 
     def test_connector_class_attribute_detected(self):
-        from vllm.sndr_core.cache._pn95_runtime import (
+        from sndr.cache._pn95_runtime import (
             _detect_upstream_offload_connector,
         )
 
@@ -225,7 +225,7 @@ class TestUpstreamConnectorDetection(unittest.TestCase):
         )
 
     def test_empty_string_treated_as_absent(self):
-        from vllm.sndr_core.cache._pn95_runtime import (
+        from sndr.cache._pn95_runtime import (
             _detect_upstream_offload_connector,
         )
 
@@ -233,7 +233,7 @@ class TestUpstreamConnectorDetection(unittest.TestCase):
         self.assertIsNone(_detect_upstream_offload_connector(cfg))
 
     def test_non_string_treated_as_absent(self):
-        from vllm.sndr_core.cache._pn95_runtime import (
+        from sndr.cache._pn95_runtime import (
             _detect_upstream_offload_connector,
         )
 
@@ -241,7 +241,7 @@ class TestUpstreamConnectorDetection(unittest.TestCase):
         self.assertIsNone(_detect_upstream_offload_connector(cfg))
 
     def test_init_from_config_skips_when_upstream_connector_present(self):
-        from vllm.sndr_core.cache import _pn95_runtime
+        from sndr.cache import _pn95_runtime
 
         with patch.dict(
             os.environ,

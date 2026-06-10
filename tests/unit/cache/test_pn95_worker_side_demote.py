@@ -30,31 +30,31 @@ import pytest
 class TestWorkerSideProactiveDemote:
     def setup_method(self):
         # Always start from a clean enable + reset state.
-        from vllm.sndr_core.cache import _pn95_runtime as rt
+        from sndr.cache import _pn95_runtime as rt
         rt.reset_for_tests()
         os.environ["GENESIS_ENABLE_PN95_TIER_AWARE_CACHE"] = "1"
 
     def teardown_method(self):
-        from vllm.sndr_core.cache import _pn95_runtime as rt
+        from sndr.cache import _pn95_runtime as rt
         os.environ.pop("GENESIS_ENABLE_PN95_TIER_AWARE_CACHE", None)
         rt.reset_for_tests()
 
     def test_returns_zero_when_disabled(self):
-        from vllm.sndr_core.cache._pn95_runtime import (
+        from sndr.cache._pn95_runtime import (
             worker_side_proactive_demote,
         )
         os.environ.pop("GENESIS_ENABLE_PN95_TIER_AWARE_CACHE", None)
         assert worker_side_proactive_demote(object()) == 0
 
     def test_returns_zero_when_tm_not_installed(self):
-        from vllm.sndr_core.cache._pn95_runtime import (
+        from sndr.cache._pn95_runtime import (
             worker_side_proactive_demote,
         )
         # _TM is None after reset_for_tests; helper must short-circuit.
         assert worker_side_proactive_demote(object()) == 0
 
     def test_returns_zero_on_null_block_pool(self):
-        from vllm.sndr_core.cache._pn95_runtime import (
+        from sndr.cache._pn95_runtime import (
             worker_side_proactive_demote, init_from_config,
         )
         # Install a TM via a synthetic config.
@@ -74,7 +74,7 @@ class TestWorkerSideProactiveDemote:
         assert worker_side_proactive_demote(None) == 0
 
     def test_returns_zero_when_pool_has_no_queue(self):
-        from vllm.sndr_core.cache._pn95_runtime import (
+        from sndr.cache._pn95_runtime import (
             worker_side_proactive_demote, init_from_config,
         )
 
@@ -96,8 +96,8 @@ class TestWorkerSideProactiveDemote:
         assert worker_side_proactive_demote(FakePool()) == 0
 
     def test_registers_pool_idempotently(self):
-        from vllm.sndr_core.cache import _pn95_runtime as rt
-        from vllm.sndr_core.cache._pn95_runtime import (
+        from sndr.cache import _pn95_runtime as rt
+        from sndr.cache._pn95_runtime import (
             worker_side_proactive_demote, init_from_config,
         )
 
@@ -132,7 +132,7 @@ class TestPN95StatusCLI:
 
     def _run(self, stats: dict, capsys):
         import argparse
-        from vllm.sndr_core.cli.patches import _run_pn95_status
+        from sndr.cli.legacy.patches import _run_pn95_status
 
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=".json", delete=False,
@@ -204,7 +204,7 @@ class TestPN95StatusCLI:
 
     def test_missing_stats_file_returns_nonzero(self, capsys):
         import argparse
-        from vllm.sndr_core.cli.patches import _run_pn95_status
+        from sndr.cli.legacy.patches import _run_pn95_status
 
         opts = argparse.Namespace(
             stats_file="/this/file/does/not/exist.json",
@@ -215,7 +215,7 @@ class TestPN95StatusCLI:
 
     def test_json_mode_emits_parseable_payload(self, capsys):
         import argparse
-        from vllm.sndr_core.cli.patches import _run_pn95_status
+        from sndr.cli.legacy.patches import _run_pn95_status
 
         stats = self._baseline_stats()
         with tempfile.NamedTemporaryFile(

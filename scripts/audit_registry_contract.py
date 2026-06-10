@@ -6,8 +6,8 @@ Single CI-friendly gate that asserts eight invariants in one pass:
 
   1. conflicts_with symmetry — if A conflicts_with B, then B conflicts_with A.
   2. category enum — every patch.category in VALID_CATEGORIES.
-  3. family ↔ integrations path consistency — wiring file lives under
-     `integrations/<family>/` (`.` in family → `/` in path).
+  3. family ↔ patches path consistency — wiring file lives under
+     `sndr/engines/vllm/patches/<family>/` (`.` in family → `/` in path).
   4. apply_module coverage — every non-retired patch with on-disk wiring
      has a resolvable apply_module reference.
   5. retired provenance — retired patches have superseded_by + vllm_version_range
@@ -71,7 +71,7 @@ def _check_conflicts_symmetry(registry: dict[str, dict[str, Any]]) -> list[str]:
 def _check_category_enum(registry: dict[str, dict[str, Any]]) -> list[str]:
     """Invariant 2: every category in VALID_CATEGORIES."""
     try:
-        from vllm.sndr_core.dispatcher.spec import VALID_CATEGORIES
+        from sndr.dispatcher.spec import VALID_CATEGORIES
     except ImportError as e:
         return [f"category: cannot import VALID_CATEGORIES ({e})"]
     issues: list[str] = []
@@ -101,7 +101,7 @@ _FAMILY_TO_SUBDIR_ALIAS: dict[str, str] = {
 
 
 def _check_family_path(registry: dict[str, dict[str, Any]]) -> list[str]:
-    """Invariant 3: registry family ↔ integrations subdir consistency.
+    """Invariant 3: registry family ↔ patches subdir consistency.
 
     Uses the registry's canonical `apply_module` directly — not the
     filesystem-walking `module_for()` — so that one-release relocation
@@ -112,9 +112,10 @@ def _check_family_path(registry: dict[str, dict[str, Any]]) -> list[str]:
     A patch's `apply_module` may live deeper than one level under the
     family directory (e.g. probes/ under spec_decode/). Acceptance
     rule: the apply_module's prefix path must START with
-    `integrations/<expected>/`, where `<expected>` is either the
-    family label converted from dotted to slash form, or the
-    alias-table value for cases where family is a model lineage
+    `patches/<expected>/` (v12 tree: `sndr/engines/vllm/patches/`,
+    previously `vllm/sndr_core/integrations/`), where `<expected>` is
+    either the family label converted from dotted to slash form, or
+    the alias-table value for cases where family is a model lineage
     (Phase 2.2 — see `_FAMILY_TO_SUBDIR_ALIAS`).
     """
     issues: list[str] = []
@@ -127,9 +128,9 @@ def _check_family_path(registry: dict[str, dict[str, Any]]) -> list[str]:
         if meta.get("lifecycle") == "retired":
             continue
         mod = meta.get("apply_module")
-        if not mod or "integrations." not in mod:
+        if not mod or ".patches." not in mod:
             continue
-        after_int = mod.split("integrations.", 1)[1]
+        after_int = mod.split(".patches.", 1)[1]
         subdir = after_int.rsplit(".", 1)[0].replace(".", "/")
         expected = _FAMILY_TO_SUBDIR_ALIAS.get(fam, fam.replace(".", "/"))
         # subdir may be a deeper path under the family (e.g.
@@ -138,8 +139,8 @@ def _check_family_path(registry: dict[str, dict[str, Any]]) -> list[str]:
         if subdir != expected and not subdir.startswith(expected + "/"):
             issues.append(
                 f"family-path: {pid} registry family={fam!r} "
-                f"(→ integrations/{expected}/) but apply_module at "
-                f"integrations/{subdir}/"
+                f"(→ patches/{expected}/) but apply_module at "
+                f"patches/{subdir}/"
             )
     return issues
 
@@ -217,7 +218,8 @@ def _check_docstring_lifecycle_sync(registry: dict[str, dict[str, Any]]) -> list
     prefill") but the registry entry still says `lifecycle: experimental`.
     This bug class was hit by PN108 (caught during Phase 2.1 manual sync).
 
-    For each registry entry with apply_module pointing to integrations/:
+    For each registry entry with apply_module pointing into the
+    engine patches tree (`sndr/engines/vllm/patches/`):
       1. Try import the module
       2. Read its docstring (`module.__doc__`)
       3. Search for markers: TOMBSTONED, RETIRED, lifecycle.*retired
@@ -250,7 +252,7 @@ def _check_docstring_lifecycle_sync(registry: dict[str, dict[str, Any]]) -> list
         if meta.get("lifecycle") == "retired":
             continue  # already in sync
         am = meta.get("apply_module") or ""
-        if not am or "integrations." not in am:
+        if not am or ".patches." not in am:
             continue
         try:
             mod = importlib.import_module(am)
@@ -288,9 +290,7 @@ def _check_dict_dup_keys() -> list[str]:
     issues: list[str] = []
     registry_path = (
         REPO_ROOT
-        / "vllm"
-        / "sndr_core"
-        / "dispatcher"
+        / "sndr" / "dispatcher"
         / "registry.py"
     )
     try:
@@ -358,7 +358,7 @@ def _check_dict_dup_keys() -> list[str]:
 def _check_pin_gate(registry: dict[str, dict[str, Any]]) -> list[str]:
     """Invariant 6: any applies_to.vllm_pin entry is in KNOWN_GOOD_VLLM_PINS."""
     try:
-        from vllm.sndr_core.detection.guards import KNOWN_GOOD_VLLM_PINS
+        from sndr.engines.vllm.detection.guards import KNOWN_GOOD_VLLM_PINS
     except ImportError as e:
         return [f"pin-gate: cannot import KNOWN_GOOD_VLLM_PINS ({e})"]
     known = set(KNOWN_GOOD_VLLM_PINS)
@@ -382,7 +382,7 @@ def _check_pin_gate(registry: dict[str, dict[str, Any]]) -> list[str]:
 def run_audit(strict: bool = False) -> dict[str, Any]:
     """Run all 6 invariants. Returns dict with errors/warnings per check."""
     try:
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY as registry
+        from sndr.dispatcher import PATCH_REGISTRY as registry
     except ImportError as e:
         return {"_internal_error": f"cannot import PATCH_REGISTRY ({e})"}
 

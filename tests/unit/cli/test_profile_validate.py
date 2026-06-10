@@ -26,7 +26,7 @@ from unittest.mock import patch
 
 import pytest
 
-from vllm.sndr_core.cli.profile import (
+from sndr.cli.legacy.profile import (
     _SEV_ERROR,
     _SEV_WARNING,
     validate_profile,
@@ -50,7 +50,7 @@ class TestPositiveCases:
     def test_all_builtin_profiles_validate_clean(self):
         """Smoke: every builtin profile passes validate. Catches drift
         between schema additions and the validator."""
-        from vllm.sndr_core.model_configs.registry_v2 import list_profiles
+        from sndr.model_configs.registry_v2 import list_profiles
         for pid in list_profiles():
             issues, status = validate_profile(pid)
             errors = [i for i in issues if i["severity"] == _SEV_ERROR]
@@ -68,7 +68,7 @@ class TestArtifactMissing:
         validate must emit ERROR on check 06."""
         # Patch _read_artifact to simulate artifact-missing for a specific
         # artifact id.
-        from vllm.sndr_core.cli import profile as profile_cli
+        from sndr.cli.legacy import profile as profile_cli
 
         original_read = profile_cli._read_artifact
 
@@ -78,7 +78,7 @@ class TestArtifactMissing:
             return original_read(artifact_id)
 
         # Build a synthetic profile referencing ghost-artifact
-        from vllm.sndr_core.model_configs.schema_v2 import (
+        from sndr.model_configs.schema_v2 import (
             ProfileDef, PatchesDelta, ValidationArtifactRef,
         )
         synthetic = ProfileDef(
@@ -96,7 +96,7 @@ class TestArtifactMissing:
         )
         synthetic.validate()  # schema-level passes
 
-        from vllm.sndr_core.model_configs import registry_v2
+        from sndr.model_configs import registry_v2
 
         def fake_load(pid):
             if pid == "gemma4-31b-tq-mtp-structured-k4-ghost":
@@ -107,7 +107,7 @@ class TestArtifactMissing:
 
         monkeypatch.setattr(profile_cli, "_read_artifact", fake_read)
         monkeypatch.setattr(
-            "vllm.sndr_core.model_configs.registry_v2.load_profile",
+            "sndr.model_configs.registry_v2.load_profile",
             fake_load,
         )
 
@@ -127,8 +127,8 @@ class TestConfigHashMismatch:
     def test_hash_mismatch_fails(self, monkeypatch):
         """When validation.config_hash differs from the artifact's
         config_hash, validate must emit ERROR on check 07."""
-        from vllm.sndr_core.cli import profile as profile_cli
-        from vllm.sndr_core.model_configs.schema_v2 import (
+        from sndr.cli.legacy import profile as profile_cli
+        from sndr.model_configs.schema_v2 import (
             ProfileDef, PatchesDelta, ValidationArtifactRef,
         )
 
@@ -149,11 +149,11 @@ class TestConfigHashMismatch:
         def fake_load(pid):
             if pid == "gemma4-31b-tq-mtp-structured-k4-badhash":
                 return synthetic
-            from vllm.sndr_core.model_configs import registry_v2 as real
+            from sndr.model_configs import registry_v2 as real
             return real.load_profile(pid)
 
         monkeypatch.setattr(
-            "vllm.sndr_core.model_configs.registry_v2.load_profile",
+            "sndr.model_configs.registry_v2.load_profile",
             fake_load,
         )
 
@@ -172,8 +172,8 @@ class TestWorkloadIntersection:
         """When intended_workloads includes a class NOT in the
         artifact's allowed_workloads, validate emits WARNING on check
         08 (router will deny those classes; not fatal)."""
-        from vllm.sndr_core.cli import profile as profile_cli
-        from vllm.sndr_core.model_configs.schema_v2 import (
+        from sndr.cli.legacy import profile as profile_cli
+        from sndr.model_configs.schema_v2 import (
             ProfileDef, PatchesDelta, RoutingConfig, ValidationArtifactRef,
         )
 
@@ -198,11 +198,11 @@ class TestWorkloadIntersection:
         def fake_load(pid):
             if pid == synthetic.id:
                 return synthetic
-            from vllm.sndr_core.model_configs import registry_v2 as real
+            from sndr.model_configs import registry_v2 as real
             return real.load_profile(pid)
 
         monkeypatch.setattr(
-            "vllm.sndr_core.model_configs.registry_v2.load_profile",
+            "sndr.model_configs.registry_v2.load_profile",
             fake_load,
         )
 
@@ -217,7 +217,7 @@ class TestWorkloadIntersection:
         """structured role with intended_workloads ∩ allowed_workloads = {}
         must emit ERROR on check 09 (the router would route nothing
         through the structured upstream)."""
-        from vllm.sndr_core.model_configs.schema_v2 import (
+        from sndr.model_configs.schema_v2 import (
             ProfileDef, PatchesDelta, RoutingConfig, ValidationArtifactRef,
         )
 
@@ -241,11 +241,11 @@ class TestWorkloadIntersection:
         def fake_load(pid):
             if pid == synthetic.id:
                 return synthetic
-            from vllm.sndr_core.model_configs import registry_v2 as real
+            from sndr.model_configs import registry_v2 as real
             return real.load_profile(pid)
 
         monkeypatch.setattr(
-            "vllm.sndr_core.model_configs.registry_v2.load_profile",
+            "sndr.model_configs.registry_v2.load_profile",
             fake_load,
         )
 
@@ -261,8 +261,8 @@ class TestWorkloadIntersection:
 
 class TestDefaultCleanContract:
     def test_default_with_spec_decode_override_fails(self, monkeypatch):
-        from vllm.sndr_core.model_configs.schema import SpecDecodeConfig
-        from vllm.sndr_core.model_configs.schema_v2 import (
+        from sndr.model_configs.schema import SpecDecodeConfig
+        from sndr.model_configs.schema_v2 import (
             ProfileDef, PatchesDelta,
         )
 
@@ -282,11 +282,11 @@ class TestDefaultCleanContract:
         def fake_load(pid):
             if pid == synthetic.id:
                 return synthetic
-            from vllm.sndr_core.model_configs import registry_v2 as real
+            from sndr.model_configs import registry_v2 as real
             return real.load_profile(pid)
 
         monkeypatch.setattr(
-            "vllm.sndr_core.model_configs.registry_v2.load_profile",
+            "sndr.model_configs.registry_v2.load_profile",
             fake_load,
         )
 
@@ -306,7 +306,7 @@ class TestExitCodes:
         validate clean."""
         import subprocess, sys
         result = subprocess.run(
-            [sys.executable, "-m", "vllm.sndr_core.cli",
+            [sys.executable, "-m", "sndr.cli.legacy",
              "profile", "validate", "--strict"],
             capture_output=True, text=True,
         )
@@ -318,7 +318,7 @@ class TestExitCodes:
         """--json output must be parseable + contain summary keys."""
         import subprocess, sys
         result = subprocess.run(
-            [sys.executable, "-m", "vllm.sndr_core.cli",
+            [sys.executable, "-m", "sndr.cli.legacy",
              "profile", "validate", "gemma4-31b-tq-mtp-structured-k4",
              "--json"],
             capture_output=True, text=True,

@@ -12,8 +12,8 @@ from typing import Any
 
 import pytest
 
-from vllm.sndr_core.cache.tier_manager import TierManager
-from vllm.sndr_core.model_configs.schema import CacheTier
+from sndr.cache.tier_manager import TierManager
+from sndr.model_configs.schema import CacheTier
 
 
 SLOT = 49664  # actual per-block bytes for 27B PROD: 64 × 2 × 388 = 49664

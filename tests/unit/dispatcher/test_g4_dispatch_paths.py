@@ -4,11 +4,11 @@ must resolve to a real module.
 
 Background — what failure this gate prevents:
 
-The boot-time Gemma 4 dispatcher (`vllm.sndr_core.apply._per_patch_dispatch`)
+The boot-time Gemma 4 dispatcher (`sndr.apply._per_patch_dispatch`)
 iterates a tuple table `_G4_PATCHES` and constructs each patch's wiring
 import path as:
 
-    f"vllm.sndr_core.integrations.{family_pkg}.{module_attr}"
+    f"sndr.engines.vllm.patches.{family_pkg}.{module_attr}"
 
 `family_pkg` is the 4th element of each tuple, defaulting to `"gemma4"`
 when the tuple is 3-element.
@@ -30,7 +30,7 @@ loop. The result: a Phase 2.2 relocation (commit `66ab670b`)
 silently left the 18 relocated patches with default
 `family_pkg="gemma4"` for THREE commits until Phase 2.4 G-STRUCT-K4
 smoke produced 72 `Genesis FAILED: G4_NN ... No module named
-'vllm.sndr_core.integrations.gemma4.g4_NN_*'` at container boot.
+'sndr.engines.vllm.patches.gemma4.g4_NN_*'` at container boot.
 
 This test closes that gap. It parses the live `_G4_PATCHES` tuple
 table, computes the same import path the dispatcher will build at
@@ -51,7 +51,7 @@ import pytest
 
 def _g4_patches():
     """Live tuple table from the boot-time dispatcher source."""
-    from vllm.sndr_core.apply import _per_patch_dispatch as pd
+    from sndr.apply import _per_patch_dispatch as pd
     return pd._G4_PATCHES
 
 
@@ -63,7 +63,7 @@ def _dispatch_import_path(entry: tuple) -> str:
         _id, _title, module_attr = entry
         family_pkg = "gemma4"
     family_dotted = family_pkg.replace("/", ".")
-    return f"vllm.sndr_core.integrations.{family_dotted}.{module_attr}"
+    return f"sndr.engines.vllm.patches.{family_dotted}.{module_attr}"
 
 
 @pytest.mark.parametrize("entry", _g4_patches())

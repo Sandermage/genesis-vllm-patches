@@ -32,7 +32,7 @@ def fake_source(tmp_path):
 
 class TestTextPatcherBasics:
     def test_applies_single_sub_patch(self, fake_source):
-        from vllm.sndr_core.core.text_patch import (
+        from sndr.kernel.text_patch import (
             TextPatcher, TextPatch, TextPatchResult,
         )
 
@@ -60,7 +60,7 @@ class TestTextPatcherBasics:
         assert "test_marker_BASIC" in content  # marker present
 
     def test_idempotent_on_second_call(self, fake_source):
-        from vllm.sndr_core.core.text_patch import (
+        from sndr.kernel.text_patch import (
             TextPatcher, TextPatch, TextPatchResult,
         )
 
@@ -84,7 +84,7 @@ class TestTextPatcherBasics:
         assert content.count("return 333") == 1
 
     def test_missing_file_is_skip(self, tmp_path):
-        from vllm.sndr_core.core.text_patch import (
+        from sndr.kernel.text_patch import (
             TextPatcher, TextPatch, TextPatchResult,
         )
 
@@ -101,7 +101,7 @@ class TestTextPatcherBasics:
 
     def test_missing_required_anchor_is_skip(self, fake_source):
         """Required anchor missing → safe skip, NOT crash, NOT partial write."""
-        from vllm.sndr_core.core.text_patch import (
+        from sndr.kernel.text_patch import (
             TextPatcher, TextPatch, TextPatchResult,
         )
 
@@ -132,7 +132,7 @@ class TestTextPatcherBasics:
 
     def test_optional_anchor_missing_allows_siblings(self, fake_source):
         """Non-required anchor missing → skip just that sub-patch, apply others."""
-        from vllm.sndr_core.core.text_patch import (
+        from sndr.kernel.text_patch import (
             TextPatcher, TextPatch, TextPatchResult,
         )
 
@@ -165,7 +165,7 @@ class TestTextPatcherBasics:
 
     def test_ambiguous_anchor_is_skip(self, tmp_path):
         """Anchor appearing multiple times → skip, don't replace blindly."""
-        from vllm.sndr_core.core.text_patch import (
+        from sndr.kernel.text_patch import (
             TextPatcher, TextPatch, TextPatchResult,
         )
 
@@ -190,7 +190,7 @@ class TestTextPatcherBasics:
 
     def test_upstream_drift_marker_skips(self, fake_source):
         """If upstream merged a fix marker, skip our patch cleanly."""
-        from vllm.sndr_core.core.text_patch import (
+        from sndr.kernel.text_patch import (
             TextPatcher, TextPatch, TextPatchResult,
         )
 
@@ -222,7 +222,7 @@ class TestTextPatcherRealWorldScenario:
     """Integration-like: multi-step patch resembling P4."""
 
     def test_multi_step_like_p4(self, tmp_path):
-        from vllm.sndr_core.core.text_patch import (
+        from sndr.kernel.text_patch import (
             TextPatcher, TextPatch, TextPatchResult,
         )
 

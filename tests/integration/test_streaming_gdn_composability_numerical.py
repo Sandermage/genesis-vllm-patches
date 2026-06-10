@@ -19,7 +19,7 @@ import torch
 
 @pytest.fixture(autouse=True)
 def reset_pool():
-    from vllm.sndr_core.kernels.gdn_scratch_pool import GdnScratchPool
+    from sndr.engines.vllm.kernels_legacy.gdn_scratch_pool import GdnScratchPool
     GdnScratchPool.reset()
     yield
     GdnScratchPool.reset()
@@ -39,7 +39,7 @@ def _make_inputs(B, H, NT, BT, K, V, seed=42):
 def test_pn59_with_contiguous_input_matches_baseline():
     """PN54 makes ssm_state .contiguous() a no-op. PN59 must produce
     identical output regardless of initial_state contiguity."""
-    from vllm.sndr_core.utils.streaming_gdn_reference import (
+    from sndr.utils.streaming_gdn_reference import (
         baseline_materialize_full,
         window_iterative,
     )
@@ -61,7 +61,7 @@ def test_pn59_with_contiguous_input_matches_baseline():
 def test_pn59_pn50_input_equivalent():
     """PN50 fuses projection ops but produces bit-identical k/v/g.
     PN59 with PN50-fused inputs == PN59 with unfused inputs."""
-    from vllm.sndr_core.utils.streaming_gdn_reference import window_iterative
+    from sndr.utils.streaming_gdn_reference import window_iterative
 
     B, H, NT, BT, K, V = 1, 24, 64, 64, 128, 128
     q, k, v, g, init = _make_inputs(B, H, NT, BT, K, V)
@@ -80,7 +80,7 @@ def test_pn59_pn50_input_equivalent():
 def test_window_state_chaining_consistent():
     """Critical Phase 3 invariant: if process T tokens in 1 call,
     or in 2 calls (sequential, state chained), output identical."""
-    from vllm.sndr_core.utils.streaming_gdn_reference import (
+    from sndr.utils.streaming_gdn_reference import (
         baseline_materialize_full,
         window_iterative,
     )
@@ -105,8 +105,8 @@ def test_window_state_chaining_consistent():
 def test_pool_reuse_does_not_affect_output():
     """Numerically, pool-reuse must NEVER change output (pool is just
     memory backing, semantics identical)."""
-    from vllm.sndr_core.kernels.gdn_scratch_pool import GdnScratchPool
-    from vllm.sndr_core.utils.streaming_gdn_reference import window_iterative
+    from sndr.engines.vllm.kernels_legacy.gdn_scratch_pool import GdnScratchPool
+    from sndr.utils.streaming_gdn_reference import window_iterative
 
     B, H, NT, BT, K, V = 1, 24, 64, 64, 128, 128
     q, k, v, g, init = _make_inputs(B, H, NT, BT, K, V)
@@ -128,7 +128,7 @@ def test_pool_reuse_does_not_affect_output():
 def test_window_size_invariance_for_state():
     """Final state must be identical regardless of window_nt choice
     (state chains correctly through all window boundaries)."""
-    from vllm.sndr_core.utils.streaming_gdn_reference import window_iterative
+    from sndr.utils.streaming_gdn_reference import window_iterative
 
     B, H, NT, BT, K, V = 1, 24, 32, 64, 128, 128
     q, k, v, g, init = _make_inputs(B, H, NT, BT, K, V)
@@ -150,7 +150,7 @@ def test_pn59_eligibility_check_doesnt_compute_when_disabled(monkeypatch):
     """When PN59 disabled, vanilla path called — ensure eligibility check
     is cheap (just env read + few comparisons)."""
     monkeypatch.delenv("GENESIS_ENABLE_PN59_STREAMING_GDN", raising=False)
-    from vllm.sndr_core.kernels.gdn_scratch_pool import GdnScratchPool
+    from sndr.engines.vllm.kernels_legacy.gdn_scratch_pool import GdnScratchPool
     assert GdnScratchPool.is_production_eligible() is False
     # When disabled, no pool allocations should happen
     initial_count = GdnScratchPool.num_pools()["total"]

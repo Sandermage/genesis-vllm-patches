@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-# Canonical module (not the vllm.sndr_core.* shim): run_operation looks up
+# Canonical module (not the sndr.* shim): run_operation looks up
 # _run_background as its own module global, so monkeypatching must target the
 # module the code actually executes in.
 from sndr.product_api.legacy import operations as ops
@@ -39,7 +39,7 @@ def test_unknown_operation_raises():
 
 def test_dry_run_when_apply_off(monkeypatch, tmp_path):
     monkeypatch.setenv("SNDR_HOME", str(tmp_path))
-    from vllm.sndr_core.product_api import jobs
+    from sndr.product_api.legacy import jobs
     jobs._reset_state()
     job = ops.run_operation("doctor", apply_on=False)
     assert job.dry_run is True
@@ -49,7 +49,7 @@ def test_dry_run_when_apply_off(monkeypatch, tmp_path):
 
 def test_executes_when_apply_on(monkeypatch, tmp_path):
     monkeypatch.setenv("SNDR_HOME", str(tmp_path))
-    from vllm.sndr_core.product_api import jobs
+    from sndr.product_api.legacy import jobs
     jobs._reset_state()
     captured = {}
 
@@ -75,9 +75,9 @@ def test_operations_routes(monkeypatch, tmp_path):
     monkeypatch.setenv("SNDR_HOME", str(tmp_path))
     from fastapi.testclient import TestClient
 
-    from vllm.sndr_core.product_api import jobs
+    from sndr.product_api.legacy import jobs
     jobs._reset_state()
-    from vllm.sndr_core.product_api.http_app import create_app
+    from sndr.product_api.legacy.http_app import create_app
 
     client = TestClient(create_app(enable_apply=False, allowed_origins=()))
     listing = client.get("/api/v1/operations")

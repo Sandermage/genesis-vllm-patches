@@ -46,7 +46,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # operator-path conventions handled by other gates.
 
 SCAN_GLOBS: tuple[str, ...] = (
-    "vllm/sndr_core/model_configs/builtin/**/*.yaml",
+    "sndr/model_configs/builtin/**/*.yaml",
     "compose/*.yml",
     "compose/*.yaml",
 )

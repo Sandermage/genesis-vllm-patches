@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from vllm.sndr_core.cli.upstream import (
+from sndr.cli.legacy.upstream import (
     add_argparser, run_check, run_show, run_list,
 )
 
@@ -160,6 +160,6 @@ def test_run_list_json(capsys):
 
 
 def test_top_level_dispatches_upstream():
-    from vllm.sndr_core.cli import cli_main
+    from sndr.cli.legacy import cli_main
     rc = cli_main(["upstream", "list", "--json"])
     assert rc == 0

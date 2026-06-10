@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Tests for vllm.sndr_core.compat.version_check."""
+"""Tests for sndr.compat.version_check."""
 from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.compat.version_check import (
+from sndr.compat.version_check import (
     VersionProfile,
     check_version_constraints,
     detect_versions,

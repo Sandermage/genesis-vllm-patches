@@ -36,7 +36,7 @@ def _mock_platform(
     attribute directly. The earlier `.cache_clear()` calls are no longer
     needed — the functions are plain returns of module-level constants.
     """
-    from vllm.sndr_core.detection import guards
+    from sndr.engines.vllm.detection import guards
 
     monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: is_cuda)
     monkeypatch.setattr(guards, "is_amd_rocm", lambda: is_rocm)
@@ -82,7 +82,7 @@ class TestPlatformMatrix:
         """All guard functions return safely regardless of platform."""
         _mock_platform(monkeypatch, **platform_mocks)
 
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.detection import guards
 
         # All these should return a bool without raising
         assert isinstance(guards.is_nvidia_cuda(), bool)
@@ -99,7 +99,7 @@ class TestPlatformMatrix:
         import torch
         _mock_platform(monkeypatch, **platform_mocks)
 
-        from vllm.sndr_core.kernels.router_softmax import router_softmax
+        from sndr.engines.vllm.kernels_legacy.router_softmax import router_softmax
 
         gating = torch.randn(2, 64, dtype=torch.bfloat16)
         result = router_softmax(gating)
@@ -116,7 +116,7 @@ class TestPlatformMatrix:
         """
         _mock_platform(monkeypatch, **platform_mocks)
 
-        from vllm.sndr_core.kernels.dequant_buffer import TurboQuantBufferManager
+        from sndr.engines.vllm.kernels_legacy.dequant_buffer import TurboQuantBufferManager
 
         is_cuda = platform_mocks.get("is_cuda", False)
         cc = platform_mocks.get("compute_capability")
@@ -130,7 +130,7 @@ class TestPlatformMatrix:
         """On unsupported platforms, returns (None, None) — never crashes."""
         _mock_platform(monkeypatch, **platform_mocks)
 
-        from vllm.sndr_core.kernels.dequant_buffer import TurboQuantBufferManager
+        from sndr.engines.vllm.kernels_legacy.dequant_buffer import TurboQuantBufferManager
 
         # Call with reasonable args — should never crash
         k, v = TurboQuantBufferManager.get_or_create_kv_buffers(
@@ -147,7 +147,7 @@ class TestPlatformMatrix:
         """DualStreamDispatcher.init_once() safe on all platforms."""
         _mock_platform(monkeypatch, **platform_mocks)
 
-        from vllm.sndr_core.kernels.gdn_dual_stream import DualStreamDispatcher
+        from sndr.engines.vllm.kernels_legacy.gdn_dual_stream import DualStreamDispatcher
 
         # Reset state
         DualStreamDispatcher._initialized = False
@@ -163,7 +163,7 @@ class TestPlatformMatrix:
         _mock_platform(monkeypatch, **platform_mocks)
         monkeypatch.delenv("VLLM_MARLIN_MOE_BLOCK_SIZE_M", raising=False)
 
-        from vllm.sndr_core.kernels.marlin_tuning import get_optimal_block_size_m
+        from sndr.engines.vllm.kernels_legacy.marlin_tuning import get_optimal_block_size_m
 
         result = get_optimal_block_size_m()
 
@@ -179,7 +179,7 @@ class TestPlatformMatrix:
         """FP8 dispatcher returns safe defaults on non-NVIDIA."""
         _mock_platform(monkeypatch, **platform_mocks)
 
-        from vllm.sndr_core.kernels.fp8_dispatcher import (
+        from sndr.engines.vllm.kernels_legacy.fp8_dispatcher import (
             requires_marlin_fp8_fallback,
             fp8_triton_kernel_supported,
         )
@@ -201,7 +201,7 @@ class TestNeverBreakInvariants:
     def test_platform_summary_serializable_everywhere(self):
         """platform_summary() must always return JSON-serializable dict."""
         import json
-        from vllm.sndr_core.detection.guards import platform_summary
+        from sndr.engines.vllm.detection.guards import platform_summary
 
         summary = platform_summary()
         json_str = json.dumps(summary, default=str)
@@ -216,14 +216,14 @@ class TestNeverBreakInvariants:
         """
         import importlib
         modules_and_symbols = [
-            ("vllm.sndr_core.kernels.router_softmax", "router_softmax"),
-            ("vllm.sndr_core.kernels.dequant_buffer", "TurboQuantBufferManager"),
-            ("vllm.sndr_core.kernels.gdn_dual_stream", "DualStreamDispatcher"),
-            ("vllm.sndr_core.kernels.marlin_tuning", "get_optimal_block_size_m"),
-            ("vllm.sndr_core.kernels.fp8_dispatcher", "requires_marlin_fp8_fallback"),
-            ("vllm.sndr_core.kernels.block_table_zero", "zero_block_table_tail"),
-            ("vllm.sndr_core.kernels.tq_decode_tune", "resolve_decode_tune"),
-            ("vllm.sndr_core.kernels.tq_continuation_prefill",
+            ("sndr.engines.vllm.kernels_legacy.router_softmax", "router_softmax"),
+            ("sndr.engines.vllm.kernels_legacy.dequant_buffer", "TurboQuantBufferManager"),
+            ("sndr.engines.vllm.kernels_legacy.gdn_dual_stream", "DualStreamDispatcher"),
+            ("sndr.engines.vllm.kernels_legacy.marlin_tuning", "get_optimal_block_size_m"),
+            ("sndr.engines.vllm.kernels_legacy.fp8_dispatcher", "requires_marlin_fp8_fallback"),
+            ("sndr.engines.vllm.kernels_legacy.block_table_zero", "zero_block_table_tail"),
+            ("sndr.engines.vllm.kernels_legacy.tq_decode_tune", "resolve_decode_tune"),
+            ("sndr.engines.vllm.kernels_legacy.tq_continuation_prefill",
              "continuation_prefill_fp16_rotate"),
         ]
         for mod_name, symbol in modules_and_symbols:
@@ -234,6 +234,6 @@ class TestNeverBreakInvariants:
 
     def test_apply_all_orchestrator_importable(self):
         """patches/apply_all must import on any platform."""
-        from vllm.sndr_core.apply import apply_all
+        from sndr.apply import apply_all
         assert hasattr(apply_all, "run")
         assert hasattr(apply_all, "PATCH_REGISTRY")

@@ -47,7 +47,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 INTEGRATIONS_DIR = (
-    REPO_ROOT / "vllm" / "sndr_core" / "integrations"
+    REPO_ROOT / "sndr" / "engines" / "vllm" / "patches"
 )
 KERNELS_DIR = REPO_ROOT / "vllm" / "sndr_core" / "kernels"
 
@@ -130,13 +130,13 @@ def test_known_good_helpers_pass_the_scan():
     """Positive sanity — the 4 fixed v11.3.0 helpers (PN12, P46, P36, P39a)
     all call get_slice_pool, not get_pool."""
     fixed_helpers = [
-        REPO_ROOT / "vllm" / "sndr_core" / "integrations" / "kernels"
+        REPO_ROOT / "sndr" / "engines" / "vllm" / "patches" / "kernels"
         / "pn12_ffn_intermediate_pool.py",
-        REPO_ROOT / "vllm" / "sndr_core" / "integrations" / "attention" / "gdn"
+        REPO_ROOT / "sndr" / "engines" / "vllm" / "patches" / "attention" / "gdn"
         / "p46_gdn_gating_buffers.py",
-        REPO_ROOT / "vllm" / "sndr_core" / "integrations" / "kernels"
+        REPO_ROOT / "sndr" / "engines" / "vllm" / "patches" / "kernels"
         / "p36_tq_shared_decode_buffers.py",
-        REPO_ROOT / "vllm" / "sndr_core" / "integrations" / "attention" / "gdn"
+        REPO_ROOT / "sndr" / "engines" / "vllm" / "patches" / "attention" / "gdn"
         / "p39a_fla_kkt_buffer.py",
     ]
     for p in fixed_helpers:

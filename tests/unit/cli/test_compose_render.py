@@ -18,8 +18,8 @@ import pytest
 
 yaml = pytest.importorskip("yaml")
 
-from vllm.sndr_core.cli.compose import render_compose_yaml
-from vllm.sndr_core.model_configs.schema import (
+from sndr.cli.legacy.compose import render_compose_yaml
+from sndr.model_configs.schema import (
     DockerConfig, HardwareSpec, ModelConfig,
 )
 
@@ -214,23 +214,23 @@ class TestMountResolverStrict:
     received literal `${unknown}` → cryptic boot failure)."""
 
     def test_resolved_mount_passes(self):
-        from vllm.sndr_core.cli.compose import _resolve_mount
+        from sndr.cli.legacy.compose import _resolve_mount
         result = _resolve_mount("${models_dir}:/models:ro", {"models_dir": "/srv/m"})
         assert result == "/srv/m:/models:ro"
 
     def test_unresolved_placeholder_raises(self):
-        from vllm.sndr_core.cli.compose import _resolve_mount
+        from sndr.cli.legacy.compose import _resolve_mount
         with pytest.raises(ValueError, match="unresolved mount placeholder"):
             _resolve_mount(
                 "${undeclared_var}:/models:ro", {"models_dir": "/srv/m"},
             )
 
     def test_no_placeholders_pass_through(self):
-        from vllm.sndr_core.cli.compose import _resolve_mount
+        from sndr.cli.legacy.compose import _resolve_mount
         assert _resolve_mount("/abs:/path:ro", {}) == "/abs:/path:ro"
 
     def test_multiple_placeholders_all_resolved(self):
-        from vllm.sndr_core.cli.compose import _resolve_mount
+        from sndr.cli.legacy.compose import _resolve_mount
         result = _resolve_mount(
             "${a}/${b}:/x:rw",
             {"a": "/srv", "b": "models"},
@@ -252,7 +252,7 @@ class TestTempdirPermissions:
     the rendered YAML is `0o600`, even if the directory already existed."""
 
     def test_tempdir_chmod_0o700(self, monkeypatch, tmp_path):
-        from vllm.sndr_core.cli import compose as C
+        from sndr.cli.legacy import compose as C
         # Swap tempfile.gettempdir so the test does not touch the real /tmp
         monkeypatch.setattr("tempfile.gettempdir", lambda: str(tmp_path))
         # Pre-create dir with a broad mode — the fix must change it to 0o700

@@ -211,7 +211,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             return 1
 
     try:
-        from vllm.sndr_core.model_configs import registry_v2
+        from sndr.model_configs import registry_v2
     except ImportError as e:
         print(f"cannot import registry_v2: {e}", file=sys.stderr)
         return 2
@@ -226,7 +226,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         k for k, v in env.items() if str(v) in ("1", "true", "True")
     }
 
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+    from sndr.dispatcher.registry import PATCH_REGISTRY
     env_to_pid = {
         meta["env_flag"]: pid
         for pid, meta in PATCH_REGISTRY.items()

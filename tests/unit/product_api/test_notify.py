@@ -2,7 +2,7 @@
 """Tests for operator notification config (transport not exercised — no network)."""
 from __future__ import annotations
 
-from vllm.sndr_core.product_api import notify
+from sndr.product_api.legacy import notify
 
 
 def _isolate(monkeypatch, tmp_path):

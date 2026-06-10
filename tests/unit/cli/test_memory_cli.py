@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from vllm.sndr_core.cli import memory as M
+from sndr.cli.legacy import memory as M
 
 
 def _make_parser() -> argparse.ArgumentParser:
@@ -221,7 +221,7 @@ class TestDoctor:
 
 class TestSerializers:
     def test_component_to_dict_keys(self):
-        from vllm.sndr_core.runtime.memory_estimator import MemoryComponent
+        from sndr.runtime.memory_estimator import MemoryComponent
         c = MemoryComponent(
             "test", 1024 * 1024, notes="n", confidence="high",
         )
@@ -232,7 +232,7 @@ class TestSerializers:
         }
 
     def test_estimate_to_dict_includes_total_and_util(self):
-        from vllm.sndr_core.runtime.memory_estimator import (
+        from sndr.runtime.memory_estimator import (
             MemoryEstimate, MemoryComponent,
         )
         est = MemoryEstimate(

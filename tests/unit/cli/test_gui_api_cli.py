@@ -6,13 +6,13 @@ import argparse
 import subprocess
 import sys
 
-from vllm.sndr_core.cli.gui_api import run_gui_api
+from sndr.cli.legacy.gui_api import run_gui_api
 
 
 import pytest
 
 
-@pytest.mark.parametrize("module", ["vllm.sndr_core.cli", "sndr.cli"])
+@pytest.mark.parametrize("module", ["sndr.cli.legacy", "sndr.cli"])
 def test_gui_api_help_exits_zero(module):
     """Both the legacy shim path and the modern ``sndr.cli`` package must
     actually dispatch ``cli_main`` for ``python -m``. A ``from ... import *``
@@ -39,7 +39,7 @@ def test_cli_import_does_not_pull_fastapi_or_uvicorn():
             """
 import sys
 baseline = set(sys.modules)
-import vllm.sndr_core.cli
+import sndr.cli
 after = set(sys.modules)
 heavy = {m for m in after - baseline if m.split('.')[0] in {'fastapi', 'uvicorn'}}
 if heavy:
@@ -61,7 +61,7 @@ def test_run_gui_api_calls_lazy_server(monkeypatch):
     def fake_run_server(*, host: str, port: int, log_level: str, enable_apply: bool = False) -> None:
         calls.append((host, port, log_level))
 
-    import vllm.sndr_core.product_api.http_app as http_app
+    import sndr.product_api.legacy.http_app as http_app
 
     monkeypatch.setattr(http_app, "run_server", fake_run_server)
     rc = run_gui_api(
@@ -76,7 +76,7 @@ def test_run_gui_api_keyboardinterrupt_returns_130(monkeypatch):
     def fake_run_server(*, host: str, port: int, log_level: str, enable_apply: bool = False) -> None:
         raise KeyboardInterrupt
 
-    import vllm.sndr_core.product_api.http_app as http_app
+    import sndr.product_api.legacy.http_app as http_app
 
     monkeypatch.setattr(http_app, "run_server", fake_run_server)
     rc = run_gui_api(

@@ -16,7 +16,7 @@ import importlib.util
 
 import pytest
 
-from vllm.sndr_core.detection import config_detect
+from sndr.engines.vllm.detection import config_detect
 
 
 # Many tests in this file monkeypatch `vllm.config.get_current_vllm_config`

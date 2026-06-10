@@ -26,7 +26,7 @@ def disk_env(disk_dir, monkeypatch):
     monkeypatch.setenv("GENESIS_PN95_DISK_TIER_ENABLE", "1")
     monkeypatch.setenv("GENESIS_PN95_DISK_TIER_DIR", str(disk_dir))
     monkeypatch.setenv("GENESIS_PN95_DISK_TIER_CAPACITY_GIB", "0.0001")  # ~100 KB
-    from vllm.sndr_core.cache import _pn95_disk_tier as dt
+    from sndr.cache import _pn95_disk_tier as dt
     dt.reset_for_tests()
     yield dt
     dt.reset_for_tests()
@@ -38,19 +38,19 @@ def disk_env(disk_dir, monkeypatch):
 class TestEnableGate:
     def test_disabled_by_default(self, monkeypatch):
         monkeypatch.delenv("GENESIS_PN95_DISK_TIER_ENABLE", raising=False)
-        from vllm.sndr_core.cache import _pn95_disk_tier as dt
+        from sndr.cache import _pn95_disk_tier as dt
         dt.reset_for_tests()
         assert dt._enabled() is False
 
     def test_explicit_enable(self, monkeypatch):
         monkeypatch.setenv("GENESIS_PN95_DISK_TIER_ENABLE", "1")
-        from vllm.sndr_core.cache import _pn95_disk_tier as dt
+        from sndr.cache import _pn95_disk_tier as dt
         dt.reset_for_tests()
         assert dt._enabled() is True
 
     def test_disabled_set_returns_false(self, monkeypatch):
         monkeypatch.delenv("GENESIS_PN95_DISK_TIER_ENABLE", raising=False)
-        from vllm.sndr_core.cache import _pn95_disk_tier as dt
+        from sndr.cache import _pn95_disk_tier as dt
         dt.reset_for_tests()
         assert dt.disk_tier_set("k", [("l", b"x")]) is False
         assert dt.disk_tier_get("k") is None
@@ -150,7 +150,7 @@ class TestRuntimeSpillover:
     def test_evict_spills_to_disk_when_enabled(
         self, disk_env, monkeypatch,
     ):
-        from vllm.sndr_core.cache import _pn95_runtime as rt
+        from sndr.cache import _pn95_runtime as rt
         monkeypatch.setenv("GENESIS_ENABLE_PN95_TIER_AWARE_CACHE", "1")
         monkeypatch.setenv("GENESIS_PN95_PREFIX_STORE_GIB", "0.0000001")  # ~100 bytes
         rt.reset_for_tests()

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import json
 
-from vllm.sndr_core.product_api.patches import pn95
-from vllm.sndr_core.product_api.patches.pn95 import Pn95Report
+from sndr.product_api.legacy.patches import pn95
+from sndr.product_api.legacy.patches.pn95 import Pn95Report
 
 
 def _write_stats(path, **overrides):

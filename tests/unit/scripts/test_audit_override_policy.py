@@ -135,7 +135,7 @@ def _make_profile(
     override_policy=None,
 ):
     """Construct a minimal ProfileDef for fixture purposes."""
-    from vllm.sndr_core.model_configs.schema_v2 import (
+    from sndr.model_configs.schema_v2 import (
         ProfileDef, PatchesDelta,
     )
     return ProfileDef(
@@ -152,12 +152,12 @@ def _make_profile(
 
 
 def _make_sizing(**kwargs):
-    from vllm.sndr_core.model_configs.schema_v2 import HardwareSizing
+    from sndr.model_configs.schema_v2 import HardwareSizing
     return HardwareSizing(**kwargs)
 
 
 def _make_policy(**kwargs):
-    from vllm.sndr_core.model_configs.schema_v2 import OverridePolicy
+    from sndr.model_configs.schema_v2 import OverridePolicy
     return OverridePolicy(**kwargs)
 
 
@@ -173,7 +173,7 @@ class TestSynthesisedFindings:
             return profile
 
         monkeypatch.setattr(
-            "vllm.sndr_core.model_configs.registry_v2.load_profile",
+            "sndr.model_configs.registry_v2.load_profile",
             fake_load,
         )
         report = mod.run_audit(profile_ids=["test-profile"])
@@ -190,7 +190,7 @@ class TestSynthesisedFindings:
             return profile
 
         monkeypatch.setattr(
-            "vllm.sndr_core.model_configs.registry_v2.load_profile",
+            "sndr.model_configs.registry_v2.load_profile",
             fake_load,
         )
         report = mod.run_audit(profile_ids=["test-clean"])
@@ -209,7 +209,7 @@ class TestSynthesisedFindings:
             return profile
 
         monkeypatch.setattr(
-            "vllm.sndr_core.model_configs.registry_v2.load_profile",
+            "sndr.model_configs.registry_v2.load_profile",
             fake_load,
         )
         report = mod.run_audit(profile_ids=["test-policy-only"])
@@ -231,7 +231,7 @@ class TestSynthesisedFindings:
             return profile
 
         monkeypatch.setattr(
-            "vllm.sndr_core.model_configs.registry_v2.load_profile",
+            "sndr.model_configs.registry_v2.load_profile",
             fake_load,
         )
         report = mod.run_audit(profile_ids=["test-prod-no-reason"])
@@ -252,7 +252,7 @@ class TestSynthesisedFindings:
             return profile
 
         monkeypatch.setattr(
-            "vllm.sndr_core.model_configs.registry_v2.load_profile",
+            "sndr.model_configs.registry_v2.load_profile",
             fake_load,
         )
         report = mod.run_audit(profile_ids=["test-prod-no-evidence"])
@@ -277,7 +277,7 @@ class TestSynthesisedFindings:
             return profile
 
         monkeypatch.setattr(
-            "vllm.sndr_core.model_configs.registry_v2.load_profile",
+            "sndr.model_configs.registry_v2.load_profile",
             fake_load,
         )
         report = mod.run_audit(profile_ids=["test-prod-complete"])
@@ -295,7 +295,7 @@ class TestSynthesisedFindings:
             return profile
 
         monkeypatch.setattr(
-            "vllm.sndr_core.model_configs.registry_v2.load_profile",
+            "sndr.model_configs.registry_v2.load_profile",
             fake_load,
         )
         report = mod.run_audit(profile_ids=["test-bench-no-reason"])
@@ -318,7 +318,7 @@ class TestSynthesisedFindings:
             return profile
 
         monkeypatch.setattr(
-            "vllm.sndr_core.model_configs.registry_v2.load_profile",
+            "sndr.model_configs.registry_v2.load_profile",
             fake_load,
         )
         report = mod.run_audit(profile_ids=["test-bench-no-evidence"])
@@ -340,7 +340,7 @@ class TestSynthesisedFindings:
             return profile
 
         monkeypatch.setattr(
-            "vllm.sndr_core.model_configs.registry_v2.load_profile",
+            "sndr.model_configs.registry_v2.load_profile",
             fake_load,
         )
         report = mod.run_audit(profile_ids=["test-safe-per-launch"])
@@ -361,7 +361,7 @@ class TestSynthesisedFindings:
             return profile
 
         monkeypatch.setattr(
-            "vllm.sndr_core.model_configs.registry_v2.load_profile",
+            "sndr.model_configs.registry_v2.load_profile",
             fake_load,
         )
         report = mod.run_audit(profile_ids=["test-role-none"])
@@ -387,7 +387,7 @@ class TestSynthesisedFindings:
             return profile
 
         monkeypatch.setattr(
-            "vllm.sndr_core.model_configs.registry_v2.load_profile",
+            "sndr.model_configs.registry_v2.load_profile",
             fake_load,
         )
         report = mod.run_audit(profile_ids=["test-explicit-bench"])
@@ -431,7 +431,7 @@ class TestSeverityGate:
             return profile
 
         monkeypatch.setattr(
-            "vllm.sndr_core.model_configs.registry_v2.load_profile",
+            "sndr.model_configs.registry_v2.load_profile",
             fake_load,
         )
         report = mod.run_audit(profile_ids=["a", "b"])

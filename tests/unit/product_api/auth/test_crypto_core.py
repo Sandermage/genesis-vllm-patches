@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.product_api.auth import passwords, sessions, totp
+from sndr.product_api.legacy.auth import passwords, sessions, totp
 
 
 # ----------------------------- passwords -----------------------------

@@ -53,14 +53,13 @@ jobs:
 
       - name: Run tracked tests (compat + dispatcher + PN-family + scripts)
         run: |
-          # Wave 10 layout: legacy vllm/_genesis/ namespace was removed in
-          # the sndr_core self-containment refactor. Tests now live at
-          # repo-root tests/ and target vllm.sndr_core.*. The full tracked
-          # test surface across tests/unit/{cli,community,dispatcher,
-          # integrations,model_configs,proof,runtime,scripts,...} is the
-          # load-bearing CI gate.
+          # v12 layout: the vllm/sndr_core/ namespace moved to top-level
+          # sndr/. Tests live at repo-root tests/ and target sndr.*.
+          # The full tracked test surface across tests/unit/{cli,community,
+          # dispatcher,integrations,model_configs,proof,runtime,scripts,...}
+          # is the load-bearing CI gate.
           python -m pytest -v --tb=short \
-              --cov=vllm.sndr_core \
+              --cov=sndr \
               --cov-report=term-missing:skip-covered \
               $(git ls-files 'tests/**/*.py' 'tests/*.py')
 
@@ -132,7 +131,7 @@ jobs:
         # findings tracker (vLLM PRs / club-3090 issues / papers /
         # other upstream observations operator decided to track
         # structurally instead of as research-tree URL lists).
-        # Thin wrapper around vllm.sndr_core.findings.validator. The
+        # Thin wrapper around sndr.findings.validator. The
         # canonical tracker dir is gitignored (sndr_private/planning/
         # external_findings/), so CI sees an empty fallback dir and
         # the audit safely no-ops with exit 0. The gate enforces
@@ -177,20 +176,20 @@ jobs:
       - name: Lifecycle audit
         # Ensures no patch was added with an unknown lifecycle state.
         run: |
-          python3 -m vllm.sndr_core.compat.lifecycle_audit_cli --quiet
+          python3 -m sndr.compat.lifecycle_audit_cli --quiet
 
       - name: Schema validate PATCH_REGISTRY
         # Ensures every entry validates against the canonical schema.
         # Catches typo'd field names, missing required, bad env_flag pattern.
         run: |
-          python3 -m vllm.sndr_core.compat.schema_validator --quiet
+          python3 -m sndr.compat.schema_validator --quiet
 
       - name: Genesis self-test
         # Operator-facing structural sanity check. Same tool an operator
         # runs after a `git pull` / pin bump on their box. Exits 1 on any
         # failed check.
         run: |
-          python3 -m vllm.sndr_core.compat.cli self-test --quiet
+          python3 -m sndr.compat.cli self-test --quiet
 
       - name: Regenerate patch-proof artefacts
         # `evidence/patch_proof/<id>__*.json` is operator-generated
@@ -199,7 +198,7 @@ jobs:
         # the downstream `require-static` release gate has something to
         # validate against. Takes <2 s for all 169 patches.
         run: |
-          python3 -m vllm.sndr_core.cli patches prove --all
+          python3 -m sndr.cli patches prove --all
 
       - name: make evidence (release-gate aggregator)
         # Runs every gating audit (schema sync, methodology sync,

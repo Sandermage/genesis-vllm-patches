@@ -46,9 +46,9 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-MODEL_DIR = REPO_ROOT / "vllm" / "sndr_core" / "model_configs" / "builtin" / "model"
-PROFILE_DIR = REPO_ROOT / "vllm" / "sndr_core" / "model_configs" / "builtin" / "profile"
-PRESETS_DIR = REPO_ROOT / "vllm" / "sndr_core" / "model_configs" / "builtin" / "presets"
+MODEL_DIR = REPO_ROOT / "sndr" / "model_configs" / "builtin" / "model"
+PROFILE_DIR = REPO_ROOT / "sndr" / "model_configs" / "builtin" / "profile"
+PRESETS_DIR = REPO_ROOT / "sndr" / "model_configs" / "builtin" / "presets"
 
 
 # Ensure repo root is importable when run via `make` from elsewhere.
@@ -82,7 +82,7 @@ class LayerEntry:
 
 
 def _walk_model_layer(canon: dict) -> list[LayerEntry]:
-    from vllm.sndr_core.cli.config_keys import _extract_keys_from_yaml
+    from sndr.cli.legacy.config_keys import _extract_keys_from_yaml
     out: list[LayerEntry] = []
     if not MODEL_DIR.is_dir():
         return out
@@ -105,7 +105,7 @@ def _walk_model_layer(canon: dict) -> list[LayerEntry]:
 
 
 def _walk_profile_layer(canon: dict) -> list[LayerEntry]:
-    from vllm.sndr_core.cli.config_keys import _extract_keys_from_yaml
+    from sndr.cli.legacy.config_keys import _extract_keys_from_yaml
     out: list[LayerEntry] = []
     if not PROFILE_DIR.is_dir():
         return out
@@ -133,7 +133,7 @@ def _walk_resolved_aliases(canon: dict) -> list[LayerEntry]:
     profile delta `override:` that adds a non-canonical key)."""
     out: list[LayerEntry] = []
     try:
-        from vllm.sndr_core.model_configs.registry_v2 import load_alias
+        from sndr.model_configs.registry_v2 import load_alias
     except ImportError as e:
         out.append(LayerEntry(
             "resolved-alias", "<import>", 0, 0,
@@ -169,7 +169,7 @@ def _walk_resolved_aliases(canon: dict) -> list[LayerEntry]:
 def audit_v2_env_keys() -> list[LayerEntry]:
     """Run all three layer walkers + return combined per-entry results."""
     try:
-        from vllm.sndr_core.cli.config_keys import load_canonical_registry
+        from sndr.cli.legacy.config_keys import load_canonical_registry
     except ImportError as e:
         return [LayerEntry(
             "<bootstrap>", "load_canonical_registry", 0, 0,

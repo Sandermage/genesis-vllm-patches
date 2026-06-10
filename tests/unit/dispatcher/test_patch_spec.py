@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""TDD for `vllm.sndr_core.dispatcher.spec.PatchSpec` (PR38 Day 4).
+"""TDD for `sndr.dispatcher.spec.PatchSpec` (PR38 Day 4).
 
 Typed contract over `PATCH_REGISTRY` that auto-derives `apply_module`
 by walking the canonical `vllm/sndr_core/integrations/<family>/p<id>_*.py`
@@ -17,7 +17,7 @@ import pytest
 
 
 def _spec_module():
-    from vllm.sndr_core.dispatcher import spec
+    from sndr.dispatcher import spec
     return spec
 
 
@@ -72,7 +72,7 @@ class TestBuildApplyModuleMap:
         spec.reset_apply_module_cache()
         m = spec._build_apply_module_map()
         assert m["PN14"] == (
-            "vllm.sndr_core.integrations.attention.turboquant.pn14_tq_decode_oob_clamp"
+            "sndr.engines.vllm.patches.attention.turboquant.pn14_tq_decode_oob_clamp"
         )
 
     def test_resolves_compound_p68_AND_p69_to_same_module(self):
@@ -171,7 +171,7 @@ class TestPatchSpecConstruction:
 
 class TestIterPatchSpecs:
     def test_yields_one_spec_per_registry_entry(self):
-        from vllm.sndr_core.dispatcher import iter_patch_specs, PATCH_REGISTRY
+        from sndr.dispatcher import iter_patch_specs, PATCH_REGISTRY
         specs = list(iter_patch_specs())
         # Some registry entries are non-dict (free-form keys); spec
         # generator skips those. So count specs == count of dict entries.
@@ -179,7 +179,7 @@ class TestIterPatchSpecs:
         assert len(specs) == dict_count
 
     def test_each_spec_has_required_fields(self):
-        from vllm.sndr_core.dispatcher import iter_patch_specs
+        from sndr.dispatcher import iter_patch_specs
         for s in iter_patch_specs():
             assert s.patch_id, "patch_id must be non-empty"
             assert s.tier in ("community", "engine"), (
@@ -191,7 +191,7 @@ class TestIterPatchSpecs:
         vllm#41873 merge at 39d5fa96 within window dev371→626fa9bb. The
         spec still resolves (registry retains entry for audit trail) but
         the apply_module path now points at _retired/."""
-        from vllm.sndr_core.dispatcher import iter_patch_specs
+        from sndr.dispatcher import iter_patch_specs
         specs = {s.patch_id: s for s in iter_patch_specs()}
         assert "PN82" in specs
         # Registry apply_module uses canonical sndr.* paths post-migration; the
@@ -216,8 +216,8 @@ class TestCoverageReport:
         stubs that don't have their own per-file impl. Coverage falling
         below 90% likely means a regression in the file-walker or that a
         new patch was added to registry without an on-disk impl."""
-        from vllm.sndr_core.dispatcher import validate_apply_module_coverage
-        from vllm.sndr_core.dispatcher.spec import reset_apply_module_cache
+        from sndr.dispatcher import validate_apply_module_coverage
+        from sndr.dispatcher.spec import reset_apply_module_cache
         reset_apply_module_cache()
         r = validate_apply_module_coverage()
         coverage_pct = r.mapped / r.total
@@ -230,10 +230,10 @@ class TestCoverageReport:
         """Any registry entry without an apply_module must be either
         lifecycle=legacy OR appear in the documented exception list
         (informational hooks integrated into other patches)."""
-        from vllm.sndr_core.dispatcher import (
+        from sndr.dispatcher import (
             PATCH_REGISTRY, validate_apply_module_coverage,
         )
-        from vllm.sndr_core.dispatcher.spec import reset_apply_module_cache
+        from sndr.dispatcher.spec import reset_apply_module_cache
         reset_apply_module_cache()
         r = validate_apply_module_coverage()
 

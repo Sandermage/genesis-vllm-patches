@@ -28,7 +28,7 @@ import torch
 
 @pytest.fixture(autouse=True)
 def reset_pool():
-    from vllm.sndr_core.kernels.gdn_scratch_pool import GdnScratchPool
+    from sndr.engines.vllm.kernels_legacy.gdn_scratch_pool import GdnScratchPool
     GdnScratchPool.reset()
     yield
     GdnScratchPool.reset()
@@ -74,7 +74,7 @@ GENESIS_27B_SHAPES = [
                          ids=[f"B{s[0]}_H{s[1]}_NT{s[2]}_W{s[6]}" for s in GENESIS_27B_SHAPES])
 def test_window_iterative_matches_baseline(shape):
     """For each Genesis shape: window-iterative output ≈ baseline (rtol 1e-5)."""
-    from vllm.sndr_core.utils.streaming_gdn_reference import (
+    from sndr.utils.streaming_gdn_reference import (
         baseline_materialize_full,
         window_iterative,
     )
@@ -110,8 +110,8 @@ def test_window_iterative_matches_baseline(shape):
 
 def test_pool_backed_window_matches_baseline():
     """Window-iterative WITH GdnScratchPool produces identical output."""
-    from vllm.sndr_core.kernels.gdn_scratch_pool import GdnScratchPool
-    from vllm.sndr_core.utils.streaming_gdn_reference import (
+    from sndr.engines.vllm.kernels_legacy.gdn_scratch_pool import GdnScratchPool
+    from sndr.utils.streaming_gdn_reference import (
         baseline_materialize_full,
         window_iterative,
     )
@@ -130,8 +130,8 @@ def test_pool_backed_window_matches_baseline():
 
 def test_pool_reuse_across_calls():
     """Same shape multiple calls → pool reuses backing buffer (no churn)."""
-    from vllm.sndr_core.kernels.gdn_scratch_pool import GdnScratchPool
-    from vllm.sndr_core.utils.streaming_gdn_reference import window_iterative
+    from sndr.engines.vllm.kernels_legacy.gdn_scratch_pool import GdnScratchPool
+    from sndr.utils.streaming_gdn_reference import window_iterative
 
     B, H, NT, BT, K, V, W = 1, 24, 64, 64, 128, 128, 4
     q, k, v, g, init = _make_inputs(B, H, NT, BT, K, V, seed=1)
@@ -157,7 +157,7 @@ def test_pool_reuse_across_calls():
 
 def test_single_window_equals_baseline():
     """When WINDOW_NT == NT (one window covers all chunks), should be identical."""
-    from vllm.sndr_core.utils.streaming_gdn_reference import (
+    from sndr.utils.streaming_gdn_reference import (
         baseline_materialize_full,
         window_iterative,
     )
@@ -173,7 +173,7 @@ def test_single_window_equals_baseline():
 
 def test_window_nt_1_equals_per_chunk():
     """WINDOW_NT=1 = process one chunk at a time = same recurrence."""
-    from vllm.sndr_core.utils.streaming_gdn_reference import (
+    from sndr.utils.streaming_gdn_reference import (
         baseline_materialize_full,
         window_iterative,
     )
@@ -189,7 +189,7 @@ def test_window_nt_1_equals_per_chunk():
 
 def test_initial_state_propagation():
     """Non-zero initial_state must propagate identically in both modes."""
-    from vllm.sndr_core.utils.streaming_gdn_reference import (
+    from sndr.utils.streaming_gdn_reference import (
         baseline_materialize_full,
         window_iterative,
     )

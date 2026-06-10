@@ -22,32 +22,32 @@ def _clear_env(monkeypatch):
 class TestGenesisNoPatchCache:
 
     def test_default_false_when_env_unset(self):
-        from vllm.sndr_core.detection.guards import genesis_no_patch_cache
+        from sndr.engines.vllm.detection.guards import genesis_no_patch_cache
         assert genesis_no_patch_cache() is False
 
     def test_default_false_when_env_empty(self, monkeypatch):
         monkeypatch.setenv("GENESIS_NO_PATCH_CACHE", "")
-        from vllm.sndr_core.detection.guards import genesis_no_patch_cache
+        from sndr.engines.vllm.detection.guards import genesis_no_patch_cache
         assert genesis_no_patch_cache() is False
 
     @pytest.mark.parametrize("val", ["1", "true", "yes", "on",
                                      "TRUE", "Yes", "On", "tRuE"])
     def test_truthy_values(self, monkeypatch, val):
         monkeypatch.setenv("GENESIS_NO_PATCH_CACHE", val)
-        from vllm.sndr_core.detection.guards import genesis_no_patch_cache
+        from sndr.engines.vllm.detection.guards import genesis_no_patch_cache
         assert genesis_no_patch_cache() is True, f"{val!r} should disable cache"
 
     @pytest.mark.parametrize("val", [" 1 ", "\ttrue\n", " yes  "])
     def test_truthy_values_with_whitespace(self, monkeypatch, val):
         monkeypatch.setenv("GENESIS_NO_PATCH_CACHE", val)
-        from vllm.sndr_core.detection.guards import genesis_no_patch_cache
+        from sndr.engines.vllm.detection.guards import genesis_no_patch_cache
         assert genesis_no_patch_cache() is True, f"{val!r} should disable cache"
 
     @pytest.mark.parametrize("val", ["0", "false", "no", "off",
                                      "FALSE", "No", "Off"])
     def test_falsy_values(self, monkeypatch, val):
         monkeypatch.setenv("GENESIS_NO_PATCH_CACHE", val)
-        from vllm.sndr_core.detection.guards import genesis_no_patch_cache
+        from sndr.engines.vllm.detection.guards import genesis_no_patch_cache
         assert genesis_no_patch_cache() is False, f"{val!r} should keep cache"
 
     @pytest.mark.parametrize("val", ["enabled", "wat", "lol", "active",
@@ -57,6 +57,6 @@ class TestGenesisNoPatchCache:
         This is intentional: prevents accidental disable on typo or
         adjacent spelling."""
         monkeypatch.setenv("GENESIS_NO_PATCH_CACHE", val)
-        from vllm.sndr_core.detection.guards import genesis_no_patch_cache
+        from sndr.engines.vllm.detection.guards import genesis_no_patch_cache
         assert genesis_no_patch_cache() is False, \
             f"{val!r} should NOT match canonical truthy whitelist"

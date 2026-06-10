@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""TDD tests for vllm.sndr_core.kernels.router_softmax.
+"""TDD tests for sndr.engines.vllm.kernels_legacy.router_softmax.
 
 These tests describe expected behavior of the fp32-upcast MoE router softmax
 which fixes non-deterministic top-k routing on bf16 logits (dormant upstream
@@ -18,7 +18,7 @@ class TestRouterSoftmaxDeterminism:
 
     def test_bf16_same_input_produces_bit_exact_output(self, deterministic_seed):
         """Multiple invocations with same bf16 input → bit-exact identical output."""
-        from vllm.sndr_core.kernels.router_softmax import router_softmax
+        from sndr.engines.vllm.kernels_legacy.router_softmax import router_softmax
 
         gating = torch.randn(4, 256, dtype=torch.bfloat16) * 5.0
 
@@ -31,7 +31,7 @@ class TestRouterSoftmaxDeterminism:
 
     def test_fp16_same_input_produces_bit_exact_output(self, deterministic_seed):
         """Same determinism for fp16 input."""
-        from vllm.sndr_core.kernels.router_softmax import router_softmax
+        from sndr.engines.vllm.kernels_legacy.router_softmax import router_softmax
 
         gating = torch.randn(4, 128, dtype=torch.float16) * 3.0
 
@@ -42,7 +42,7 @@ class TestRouterSoftmaxDeterminism:
 
     def test_fp32_same_input_produces_bit_exact_output(self, deterministic_seed):
         """Fp32 fast path is also deterministic (torch.softmax already is)."""
-        from vllm.sndr_core.kernels.router_softmax import router_softmax
+        from sndr.engines.vllm.kernels_legacy.router_softmax import router_softmax
 
         gating = torch.randn(4, 256, dtype=torch.float32)
 
@@ -61,7 +61,7 @@ class TestRouterSoftmaxDtypePreservation:
         torch.float32,
     ])
     def test_output_dtype_matches_input(self, dtype):
-        from vllm.sndr_core.kernels.router_softmax import router_softmax
+        from sndr.engines.vllm.kernels_legacy.router_softmax import router_softmax
 
         gating = torch.randn(2, 128, dtype=dtype)
         result = router_softmax(gating)
@@ -70,7 +70,7 @@ class TestRouterSoftmaxDtypePreservation:
             f"Expected output dtype {dtype}, got {result.dtype}")
 
     def test_output_shape_matches_input(self):
-        from vllm.sndr_core.kernels.router_softmax import router_softmax
+        from sndr.engines.vllm.kernels_legacy.router_softmax import router_softmax
 
         gating = torch.randn(4, 256, dtype=torch.bfloat16)
         result = router_softmax(gating)
@@ -79,7 +79,7 @@ class TestRouterSoftmaxDtypePreservation:
 
     def test_output_device_matches_input(self):
         """CPU input → CPU output."""
-        from vllm.sndr_core.kernels.router_softmax import router_softmax
+        from sndr.engines.vllm.kernels_legacy.router_softmax import router_softmax
 
         gating = torch.randn(2, 128, dtype=torch.bfloat16, device='cpu')
         result = router_softmax(gating)
@@ -92,7 +92,7 @@ class TestRouterSoftmaxMathematicalCorrectness:
 
     def test_output_sums_to_one(self, deterministic_seed):
         """Softmax invariant: row sums = 1.0 (within output dtype precision)."""
-        from vllm.sndr_core.kernels.router_softmax import router_softmax
+        from sndr.engines.vllm.kernels_legacy.router_softmax import router_softmax
 
         gating = torch.randn(8, 256, dtype=torch.bfloat16)
         result = router_softmax(gating)
@@ -104,7 +104,7 @@ class TestRouterSoftmaxMathematicalCorrectness:
 
     def test_output_non_negative(self, deterministic_seed):
         """All probabilities >= 0."""
-        from vllm.sndr_core.kernels.router_softmax import router_softmax
+        from sndr.engines.vllm.kernels_legacy.router_softmax import router_softmax
 
         gating = torch.randn(4, 128, dtype=torch.bfloat16)
         result = router_softmax(gating)
@@ -113,7 +113,7 @@ class TestRouterSoftmaxMathematicalCorrectness:
 
     def test_output_bounded_by_one(self, deterministic_seed):
         """All probabilities <= 1."""
-        from vllm.sndr_core.kernels.router_softmax import router_softmax
+        from sndr.engines.vllm.kernels_legacy.router_softmax import router_softmax
 
         gating = torch.randn(4, 128, dtype=torch.bfloat16)
         result = router_softmax(gating)
@@ -123,7 +123,7 @@ class TestRouterSoftmaxMathematicalCorrectness:
 
     def test_matches_fp32_reference(self, deterministic_seed):
         """Result closely matches manually-upcasted fp32 softmax."""
-        from vllm.sndr_core.kernels.router_softmax import router_softmax
+        from sndr.engines.vllm.kernels_legacy.router_softmax import router_softmax
 
         gating = torch.randn(4, 256, dtype=torch.bfloat16)
 
@@ -138,7 +138,7 @@ class TestRouterSoftmaxMathematicalCorrectness:
 
     def test_masked_values_become_zero(self, deterministic_seed):
         """Masked positions in router_softmax_preserving_mask become ~0."""
-        from vllm.sndr_core.kernels.router_softmax import router_softmax_preserving_mask
+        from sndr.engines.vllm.kernels_legacy.router_softmax import router_softmax_preserving_mask
 
         gating = torch.randn(2, 8, dtype=torch.bfloat16)
         mask = torch.tensor([
@@ -163,7 +163,7 @@ class TestRouterSoftmaxPlatformSafety:
 
     def test_cpu_works(self):
         """CPU platform: function must work (may or may not upcast)."""
-        from vllm.sndr_core.kernels.router_softmax import router_softmax
+        from sndr.engines.vllm.kernels_legacy.router_softmax import router_softmax
 
         gating = torch.randn(2, 128, dtype=torch.bfloat16, device='cpu')
         result = router_softmax(gating)
@@ -177,7 +177,7 @@ class TestRouterSoftmaxPlatformSafety:
         if not cuda_available:
             pytest.skip("CUDA not available")
 
-        from vllm.sndr_core.kernels.router_softmax import router_softmax
+        from sndr.engines.vllm.kernels_legacy.router_softmax import router_softmax
 
         gating = torch.randn(2, 128, dtype=torch.bfloat16, device='cuda')
         result = router_softmax(gating)
@@ -186,7 +186,7 @@ class TestRouterSoftmaxPlatformSafety:
 
     def test_various_tensor_shapes(self, deterministic_seed):
         """Handles different batch sizes and expert counts."""
-        from vllm.sndr_core.kernels.router_softmax import router_softmax
+        from sndr.engines.vllm.kernels_legacy.router_softmax import router_softmax
 
         for batch_size in [1, 2, 4, 8, 16]:
             for num_experts in [8, 64, 128, 256, 512]:
@@ -196,7 +196,7 @@ class TestRouterSoftmaxPlatformSafety:
 
     def test_custom_dim_argument(self, deterministic_seed):
         """Supports custom dim argument (default -1 but configurable)."""
-        from vllm.sndr_core.kernels.router_softmax import router_softmax
+        from sndr.engines.vllm.kernels_legacy.router_softmax import router_softmax
 
         # Apply softmax along dim=0 for a 2D tensor
         gating = torch.randn(4, 128, dtype=torch.bfloat16)
@@ -212,7 +212,7 @@ class TestRouterSoftmaxEdgeCases:
 
     def test_single_expert(self):
         """Single expert: softmax = 1.0 trivially."""
-        from vllm.sndr_core.kernels.router_softmax import router_softmax
+        from sndr.engines.vllm.kernels_legacy.router_softmax import router_softmax
 
         gating = torch.randn(4, 1, dtype=torch.bfloat16)
         result = router_softmax(gating)
@@ -222,7 +222,7 @@ class TestRouterSoftmaxEdgeCases:
 
     def test_large_logit_magnitudes_no_overflow(self):
         """Large logits → softmax doesn't overflow."""
-        from vllm.sndr_core.kernels.router_softmax import router_softmax
+        from sndr.engines.vllm.kernels_legacy.router_softmax import router_softmax
 
         # Extreme logits that might overflow naive exp() in bf16
         gating = torch.tensor(
@@ -239,7 +239,7 @@ class TestRouterSoftmaxEdgeCases:
 
     def test_all_zeros_uniform_distribution(self):
         """All-zero logits → uniform distribution."""
-        from vllm.sndr_core.kernels.router_softmax import router_softmax
+        from sndr.engines.vllm.kernels_legacy.router_softmax import router_softmax
 
         gating = torch.zeros(2, 256, dtype=torch.bfloat16)
         result = router_softmax(gating)
@@ -281,7 +281,7 @@ class TestRouterSoftmaxPerformanceCUDA:
         CI environments.
         """
         import time
-        from vllm.sndr_core.kernels.router_softmax import router_softmax
+        from sndr.engines.vllm.kernels_legacy.router_softmax import router_softmax
 
         gating = torch.randn(8, 256, dtype=torch.bfloat16, device='cuda')
 

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 
-from vllm.sndr_core.product_api.auth.api_tokens import TokenStore
+from sndr.product_api.legacy.auth.api_tokens import TokenStore
 
 
 def test_issue_returns_plaintext_and_persists_only_a_hash(tmp_path):
@@ -56,9 +56,9 @@ def test_list_excludes_secret_material(tmp_path):
 
 def test_authservice_integration(tmp_path, monkeypatch):
     monkeypatch.setenv("SNDR_HOME", str(tmp_path))
-    from vllm.sndr_core.product_api.auth.store import UserStore
-    from vllm.sndr_core.product_api.auth.config import AuthConfig
-    from vllm.sndr_core.product_api.auth.service import AuthService
+    from sndr.product_api.legacy.auth.store import UserStore
+    from sndr.product_api.legacy.auth.config import AuthConfig
+    from sndr.product_api.legacy.auth.service import AuthService
 
     store = UserStore(tmp_path / "auth")
     service = AuthService(store, AuthConfig(

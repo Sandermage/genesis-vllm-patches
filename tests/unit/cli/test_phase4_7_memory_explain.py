@@ -34,7 +34,7 @@ _skip_if_no_v1_447 = pytest.mark.skipif(
 
 
 def _run(opts) -> tuple[int, str]:
-    from vllm.sndr_core.cli import memory as mem_cli
+    from sndr.cli.legacy import memory as mem_cli
     buf = io.StringIO()
     rc_holder = {"rc": None}
     # _run_explain calls _io.fatal on errors which sys.exit's; wrap.
@@ -125,7 +125,7 @@ class TestVerdictComputation:
         return Stub()
 
     def test_verdict_safe(self):
-        from vllm.sndr_core.cli.memory import _compute_verdict
+        from sndr.cli.legacy.memory import _compute_verdict
         # 10 GiB used out of 24 GiB → p95 ≈ 11.5 GiB → SAFE.
         v = _compute_verdict(self._fake_estimate(10000, 24576))
         assert v["verdict"] == "SAFE"
@@ -133,7 +133,7 @@ class TestVerdictComputation:
         assert v["budget_mib_per_gpu"] == 24576
 
     def test_verdict_tight(self):
-        from vllm.sndr_core.cli.memory import _compute_verdict
+        from sndr.cli.legacy.memory import _compute_verdict
         # 22 GiB median out of 24 GiB budget → p95 (× 1.15) = 25.3 GiB > budget
         # but median ≤ budget and worst (× 1.35) = 29.7 GiB > budget × 1.05 → OOM_RISK
         # For pure TIGHT we need median ≤ budget < p95 AND worst ≤ budget × 1.05.
@@ -153,13 +153,13 @@ class TestVerdictComputation:
         assert v["verdict"] == "TIGHT"
 
     def test_verdict_oom_risk_over_budget(self):
-        from vllm.sndr_core.cli.memory import _compute_verdict
+        from sndr.cli.legacy.memory import _compute_verdict
         # Median exceeds budget outright.
         v = _compute_verdict(self._fake_estimate(30000, 24576))
         assert v["verdict"] == "OOM_RISK"
 
     def test_verdict_oom_risk_worst_case(self):
-        from vllm.sndr_core.cli.memory import _compute_verdict
+        from sndr.cli.legacy.memory import _compute_verdict
         # Median under budget, but worst-case factor pushes over.
         v = _compute_verdict(self._fake_estimate(95, 100),
                              p95_factor=1.10, worst_factor=1.30)
@@ -168,7 +168,7 @@ class TestVerdictComputation:
 
     def test_verdict_keys_stable(self):
         """JSON consumers depend on the exact key names."""
-        from vllm.sndr_core.cli.memory import _compute_verdict
+        from sndr.cli.legacy.memory import _compute_verdict
         v = _compute_verdict(self._fake_estimate(1000, 24000))
         required = {
             "verdict",
@@ -218,13 +218,13 @@ class TestJSONOutputContract:
 class TestResolverHelper:
     @_skip_if_no_v1_447
     def test_v1_resolves(self):
-        from vllm.sndr_core.cli.memory import _resolve_preset_v1_or_v2
+        from sndr.cli.legacy.memory import _resolve_preset_v1_or_v2
         cfg = _resolve_preset_v1_or_v2("a5000-2x-35b-prod")
         assert cfg is not None
         assert cfg.key == "a5000-2x-35b-prod"
 
     def test_v2_alias_resolves(self):
-        from vllm.sndr_core.cli.memory import _resolve_preset_v1_or_v2
+        from sndr.cli.legacy.memory import _resolve_preset_v1_or_v2
         cfg = _resolve_preset_v1_or_v2("prod-qwen3.6-35b-balanced")
         assert cfg is not None
         # V2 alias produces a composed key with `--` separators (Wave 10
@@ -233,7 +233,7 @@ class TestResolverHelper:
         assert "--" in cfg.key
 
     def test_unknown_raises(self):
-        from vllm.sndr_core.cli.memory import _resolve_preset_v1_or_v2
-        from vllm.sndr_core.model_configs.schema import SchemaError
+        from sndr.cli.legacy.memory import _resolve_preset_v1_or_v2
+        from sndr.model_configs.schema import SchemaError
         with pytest.raises(SchemaError):
             _resolve_preset_v1_or_v2("does-not-exist-at-all")

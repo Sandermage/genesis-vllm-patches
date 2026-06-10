@@ -27,7 +27,7 @@ operators on slim deployments saw the broken hint at the wrong moment
 How the gate works
 ------------------
 
-  1. Walks every ``.py`` file under ``vllm/sndr_core/`` (skipping
+  1. Walks every ``.py`` file under ``sndr/`` (skipping
      ``_retired/`` + ``__pycache__/``).
   2. Greps for ``docs/<name>.md`` substrings using a token-boundary
      regex (so ``Genesis_internal_docs/X.md`` does NOT spuriously
@@ -60,7 +60,7 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-SCAN_ROOT = REPO_ROOT / "vllm" / "sndr_core"
+SCAN_ROOT = REPO_ROOT / "sndr"
 
 # Token-boundary regex: `docs/<name>.md` only when preceded by a
 # non-identifier character (space / quote / open-paren / start-of-line /
@@ -94,6 +94,11 @@ _KNOWN_ASPIRATIONAL = frozenset({
     "docs/COOKBOOK.md",
     # pn34 (retired): UPSTREAM.md ref in retired patch context.
     "docs/UPSTREAM.md",
+    # sndr/__init__.py + sndr/config.py — v12 sndr-platform docstrings
+    # reference the planned restructured docs tree (reference/, concepts/);
+    # surfaced when the audit's scan root moved to sndr/ (v12).
+    "docs/reference/ENV_VARS.md",
+    "docs/concepts/ARCHITECTURE.md",
 })
 
 

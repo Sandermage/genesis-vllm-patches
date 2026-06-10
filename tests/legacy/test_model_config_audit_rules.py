@@ -6,10 +6,10 @@ from pathlib import Path
 
 import pytest
 
-from vllm.sndr_core.model_configs import (
+from sndr.model_configs import (
     ModelConfig, HardwareSpec, SpecDecodeConfig,
 )
-from vllm.sndr_core.model_configs.audit_rules import audit, RULES
+from sndr.model_configs.audit_rules import audit, RULES
 
 
 # Phase 10 (2026-06-01): V1 fixture skip — once V1 monolithic preset
@@ -222,7 +222,7 @@ class TestBuiltinConfigsClean:
         # V1 → V2 migration. Same fixture role; V2 composes the
         # byte-equivalent ModelConfig and the audit pass surfaces only
         # warnings (info/warning OK, no errors).
-        from vllm.sndr_core.model_configs.registry_v2 import load_alias
+        from sndr.model_configs.registry_v2 import load_alias
         cfg = load_alias("prod-qwen3.6-35b-balanced")
         assert cfg is not None
         issues = audit(cfg)
@@ -234,7 +234,7 @@ class TestBuiltinConfigsClean:
         # Phase 10.5 D.1 (2026-06-01): same migration as the 35B test
         # above — V2 alias `prod-qwen3.6-27b-tq-k8v4` now passes the
         # audit cleanly after the P108 env_var rename.
-        from vllm.sndr_core.model_configs.registry_v2 import load_alias
+        from sndr.model_configs.registry_v2 import load_alias
         cfg = load_alias("prod-qwen3.6-27b-tq-k8v4")
         issues = audit(cfg)
         errors = [i for i in issues if i[1] == "error"]
@@ -313,7 +313,7 @@ class TestR018BuiltinClean:
     def test_all_builtin_configs_pass_R018(self):
         """All 8 shipped configs must be clean against R-018 — guards
         against accidentally regressing a curated config below safe budget."""
-        from vllm.sndr_core.model_configs import get, list_keys
+        from sndr.model_configs import get, list_keys
         for key in list_keys():
             cfg = get(key)
             issues = audit(cfg)
@@ -329,7 +329,7 @@ class TestR018BuiltinClean:
 
 class TestR018EmpiricalBake:
     def _hybrid_cfg_with_baked(self, baked_mib, max_num_seqs=4, util=0.92):
-        from vllm.sndr_core.model_configs import ReferenceMetrics
+        from sndr.model_configs import ReferenceMetrics
         from dataclasses import replace
         ref = None
         if baked_mib is not None:
@@ -422,7 +422,7 @@ class TestR019_SymbolicMounts:
     """Audit catches symbolic mounts referencing vars not in host.yaml."""
 
     def _cfg_with_mounts(self, mounts):
-        from vllm.sndr_core.model_configs.schema import DockerConfig
+        from sndr.model_configs.schema import DockerConfig
         return _base_cfg(
             docker=DockerConfig(
                 image="vllm/vllm-openai:nightly",
@@ -484,7 +484,7 @@ paths:
         so we patch `load_host_config()` (returns an object with no
         paths) and `detect_paths()` (returns an empty dict) instead.
         """
-        from vllm.sndr_core.model_configs import host as _host_mod
+        from sndr.model_configs import host as _host_mod
 
         class _EmptyHC:
             paths: dict = {}

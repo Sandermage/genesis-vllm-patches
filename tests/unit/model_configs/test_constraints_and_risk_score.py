@@ -14,7 +14,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from vllm.sndr_core.model_configs.schema import (
+from sndr.model_configs.schema import (
     ConfigConstraints,
     HardwareSpec,
     RiskScore,
@@ -151,7 +151,7 @@ class TestRiskScoreSchema:
 
 class TestRoundTrip:
     def test_constraints_round_trip(self):
-        from vllm.sndr_core.model_configs.schema import (
+        from sndr.model_configs.schema import (
             dump_yaml, load_yaml,
         )
         # Build a valid ModelConfig with constraints + risk_score
@@ -193,7 +193,7 @@ risk_score:
         assert cfg2.risk_score.derive_overall() == cfg.risk_score.derive_overall()
 
     def test_optional_omission_still_loads(self):
-        from vllm.sndr_core.model_configs.schema import load_yaml
+        from sndr.model_configs.schema import load_yaml
         # No constraints / risk_score → both fields stay None
         yaml_text = """
 key: minimal-no-extras
@@ -218,8 +218,8 @@ hardware:
 class TestLauncherConstraintsCheck:
     def test_launcher_aborts_on_violation(self, monkeypatch, capsys):
         """Patch sys.exit so we can capture the abort cleanly."""
-        from vllm.sndr_core.cli.launch import run_launch
-        from vllm.sndr_core.model_configs.schema import HardwareSpec
+        from sndr.cli.legacy.launch import run_launch
+        from sndr.model_configs.schema import HardwareSpec
 
         # Build a fake config with a violation
         cfg = SimpleNamespace(
@@ -239,11 +239,11 @@ class TestLauncherConstraintsCheck:
             return cfg, "fake"
 
         monkeypatch.setattr(
-            "vllm.sndr_core.cli.launch._resolve_config", _fake_resolve,
+            "sndr.cli.legacy.launch._resolve_config", _fake_resolve,
         )
         # Stub host paths loader so we don't try to load a real one
         monkeypatch.setattr(
-            "vllm.sndr_core.cli.launch._load_host_paths", lambda: None,
+            "sndr.cli.legacy.launch._load_host_paths", lambda: None,
         )
 
         # to_launch_script is only reached AFTER constraints check, so

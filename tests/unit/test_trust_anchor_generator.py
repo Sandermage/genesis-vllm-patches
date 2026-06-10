@@ -114,7 +114,7 @@ class TestPlaceholderDetection:
         the function semantics — not the live module state (the
         real production key is currently active).
         """
-        from vllm.sndr_core import license as L
+        from sndr import license as L
         zero_b64 = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
         monkeypatch.setattr(L, "_TRUST_ANCHOR_PUBKEY_B64URL", zero_b64)
         assert L._is_placeholder_anchor() is True
@@ -123,7 +123,7 @@ class TestPlaceholderDetection:
         """The warning must fire when the anchor is a placeholder.
         We mock the module constant; the production tree carries
         the real key."""
-        from vllm.sndr_core import license as L
+        from sndr import license as L
         assert hasattr(L, "_maybe_log_placeholder_warning")
         zero_b64 = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
         monkeypatch.setattr(L, "_TRUST_ANCHOR_PUBKEY_B64URL", zero_b64)
@@ -139,7 +139,7 @@ class TestPlaceholderDetection:
         """Repeated calls to `_maybe_log_placeholder_warning` must not
         emit new warnings (idempotency). We mock the anchor into
         placeholder mode; otherwise the function emits nothing."""
-        from vllm.sndr_core import license as L
+        from sndr import license as L
         zero_b64 = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
         monkeypatch.setattr(L, "_TRUST_ANCHOR_PUBKEY_B64URL", zero_b64)
         L._TRUST_ANCHOR_PLACEHOLDER_DETECTED = False

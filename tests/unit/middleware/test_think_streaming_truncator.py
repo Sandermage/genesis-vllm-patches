@@ -21,8 +21,8 @@ import logging
 
 import pytest
 
-from vllm.sndr_core.middleware import think_streaming_truncator as tst
-from vllm.sndr_core.middleware.think_streaming_truncator import (
+from sndr.engines.vllm.middleware import think_streaming_truncator as tst
+from sndr.engines.vllm.middleware.think_streaming_truncator import (
     ThinkStreamingTruncator,
     filter_stream,
     get_stats,

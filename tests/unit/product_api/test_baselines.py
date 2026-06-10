@@ -2,7 +2,7 @@
 """Unit tests for the quality/bench baseline store + regression diff."""
 from __future__ import annotations
 
-from vllm.sndr_core.product_api import baselines as bl
+from sndr.product_api.legacy import baselines as bl
 
 
 def _result(label, tps, ttft, tool=0.95):

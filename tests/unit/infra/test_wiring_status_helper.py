@@ -11,7 +11,7 @@ even when the file was unchanged (silent boot-log lie).
 from __future__ import annotations
 
 
-from vllm.sndr_core.core.text_patch import (
+from sndr.kernel.text_patch import (
     TextPatchFailure,
     TextPatchResult,
     result_to_wiring_status,

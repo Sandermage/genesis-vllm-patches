@@ -19,7 +19,7 @@ import pytest
 
 # Helper API contract (will be implemented in Etap 3):
 #
-#   from vllm.sndr_core.kernels.ngram_frequency_filter import (
+#   from sndr.engines.vllm.kernels_legacy.ngram_frequency_filter import (
 #       should_accept_draft, filter_drafts_by_frequency,
 #   )
 #

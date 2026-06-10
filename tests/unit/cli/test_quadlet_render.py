@@ -16,8 +16,8 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.cli.quadlet import render_quadlet
-from vllm.sndr_core.model_configs.schema import (
+from sndr.cli.legacy.quadlet import render_quadlet
+from sndr.model_configs.schema import (
     DockerConfig, HardwareSpec, ModelConfig,
 )
 
@@ -195,11 +195,11 @@ class TestExecEscaping:
     systemd Exec= line — reject explicitly rather than silently truncate."""
 
     def test_argv_with_newline_rejected(self):
-        from vllm.sndr_core.cli.quadlet import _argv_for_exec
+        from sndr.cli.legacy.quadlet import _argv_for_exec
         with pytest.raises(ValueError, match="newline"):
             _argv_for_exec(["vllm", "serve", "--model", "bad\nname"])
 
     def test_argv_with_spaces_quoted(self):
-        from vllm.sndr_core.cli.quadlet import _argv_for_exec
+        from sndr.cli.legacy.quadlet import _argv_for_exec
         out = _argv_for_exec(["vllm", "serve", "--model", "/path with space"])
         assert "'/path with space'" in out

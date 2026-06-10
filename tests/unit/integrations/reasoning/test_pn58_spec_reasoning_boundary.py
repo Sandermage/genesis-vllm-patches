@@ -58,7 +58,7 @@ def test_replacements_carry_pn58_marker():
 
 
 def test_idempotent_envs(tmp_path):
-    from vllm.sndr_core.core.text_patch import (
+    from sndr.kernel.text_patch import (
         TextPatch, TextPatcher, TextPatchResult,
     )
     M = _wiring()
@@ -81,7 +81,7 @@ def test_idempotent_envs(tmp_path):
 
 
 def test_idempotent_sched_validate_block(tmp_path):
-    from vllm.sndr_core.core.text_patch import (
+    from sndr.kernel.text_patch import (
         TextPatch, TextPatcher, TextPatchResult,
     )
     M = _wiring()
@@ -113,21 +113,21 @@ def test_mutex_with_p62_skips_when_p62_active(monkeypatch):
 
 
 def test_env_flag_default_off(monkeypatch):
-    from vllm.sndr_core.dispatcher import should_apply
+    from sndr.dispatcher import should_apply
     monkeypatch.delenv("GENESIS_ENABLE_PN58_SPEC_REASONING_BOUNDARY", raising=False)
     decision, _ = should_apply("PN58")
     assert decision is False
 
 
 def test_env_flag_engages(monkeypatch):
-    from vllm.sndr_core.dispatcher import should_apply
+    from sndr.dispatcher import should_apply
     monkeypatch.setenv("GENESIS_ENABLE_PN58_SPEC_REASONING_BOUNDARY", "1")
     decision, _ = should_apply("PN58")
     assert decision is True
 
 
 def test_registry_entry_complete():
-    from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+    from sndr.dispatcher import PATCH_REGISTRY
     assert "PN58" in PATCH_REGISTRY
     meta = PATCH_REGISTRY["PN58"]
     assert meta["upstream_pr"] == 40962
@@ -135,5 +135,5 @@ def test_registry_entry_complete():
 
 
 def test_apply_all_registers_pn58():
-    from vllm.sndr_core.apply import apply_all
+    from sndr.apply import apply_all
     assert hasattr(apply_all, "apply_patch_N58_spec_reasoning_boundary")

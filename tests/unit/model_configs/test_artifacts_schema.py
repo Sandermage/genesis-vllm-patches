@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from vllm.sndr_core.model_configs.schema import (
+from sndr.model_configs.schema import (
     ArtifactModel, ArtifactCache, Artifacts, ModelConfig, HardwareSpec,
     DockerConfig, SchemaError, dump_yaml, load_yaml,
 )

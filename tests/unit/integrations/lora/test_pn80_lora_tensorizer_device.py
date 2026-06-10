@@ -55,7 +55,7 @@ class TestPN80RoundTrip:
 
     def test_anchor_idempotent_apply(self, tmp_path):
         """Apply OLD anchor on a tmp file, second apply must be IDEMPOTENT."""
-        from vllm.sndr_core.core.text_patch import (
+        from sndr.kernel.text_patch import (
             TextPatch, TextPatcher, TextPatchResult,
         )
         m = _wiring()
@@ -86,20 +86,20 @@ class TestPN80RoundTrip:
 class TestPN80Registry:
 
     def test_PN80_in_registry(self):
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+        from sndr.dispatcher import PATCH_REGISTRY
         assert "PN80" in PATCH_REGISTRY
 
     def test_PN80_default_off(self):
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+        from sndr.dispatcher import PATCH_REGISTRY
         assert PATCH_REGISTRY["PN80"]["default_on"] is False
 
     def test_PN80_env_flag(self):
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+        from sndr.dispatcher import PATCH_REGISTRY
         assert (PATCH_REGISTRY["PN80"]["env_flag"]
                 == "GENESIS_ENABLE_PN80_LORA_TENSORIZER_DEVICE")
 
     def test_PN80_credit_mentions_pr_41845(self):
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+        from sndr.dispatcher import PATCH_REGISTRY
         assert "41845" in PATCH_REGISTRY["PN80"]["credit"]
 
 

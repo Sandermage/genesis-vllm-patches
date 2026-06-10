@@ -52,44 +52,48 @@ def _pinned_file(rel: str) -> Path:
     return p
 
 
+# v12 layout: the legacy `vllm/_genesis/wiring/patch_NN_*.py` modules
+# migrated (via `vllm/sndr_core/integrations/`) to family subpackages
+# under `sndr/engines/vllm/patches/`. Map legacy wiring names to the
+# canonical modules so the anchor-constant assertions keep their
+# original intent.
+_WIRING_MODULES = {
+    "patch_64_qwen3coder_mtp_streaming":
+        "sndr.engines.vllm.patches.tool_parsing.p64_qwen3coder_mtp_streaming",
+    "patch_65_turboquant_spec_cg_downgrade":
+        "sndr.engines.vllm.patches.attention.turboquant.p65_turboquant_spec_cg_downgrade",
+    "patch_66_cudagraph_size_divisibility_filter":
+        "sndr.engines.vllm.patches.compile_safety.p66_cudagraph_size_divisibility_filter",
+    "patch_68_69_long_ctx_tool_adherence":
+        "sndr.engines.vllm.patches.serving.p68_69_long_ctx_tool_adherence",
+    "patch_70_auto_strict_ngram":
+        "sndr.engines.vllm.patches.spec_decode.p70_auto_strict_ngram",
+    "patch_14_block_table":
+        "sndr.engines.vllm.patches.kv_cache.p14_block_table",
+    "patch_28_gdn_core_attn":
+        "sndr.engines.vllm.patches.attention.gdn.p28_gdn_core_attn",
+    "patch_38_tq_continuation_memory":
+        "sndr.engines.vllm.patches.attention.turboquant.p38_tq_continuation_memory",
+    "patch_39_fla_kkt_buffer":
+        "sndr.engines.vllm.patches.attention.gdn.p39a_fla_kkt_buffer",
+}
+
+
 def _load_wiring_module(name: str):
-    """Load a Genesis wiring module without executing the vllm package
-    (avoids requiring torch/triton on test host)."""
-    # Stub heavy deps if not present
-    for stub in [
-        "vllm",
-        "vllm.sndr_core",
-        "vllm._genesis.guards",
-        "vllm._genesis.wiring",
-        "vllm.sndr_core.core.text_patch",
-    ]:
-        if stub not in sys.modules:
-            sys.modules[stub] = types.ModuleType(stub)
+    """Import the canonical patch module for a legacy wiring name.
 
-    # Ensure callable stubs
-    g = sys.modules["vllm._genesis.guards"]
-    if not hasattr(g, "resolve_vllm_file"):
-        g.resolve_vllm_file = lambda x: None
-        g.vllm_install_root = lambda: None
-
-    tp = sys.modules["vllm.sndr_core.core.text_patch"]
-    if not hasattr(tp, "TextPatcher"):
-
-        class _Stub:
-            pass
-
-        for n in ("TextPatcher", "TextPatchResult", "TextPatch"):
-            setattr(tp, n, _Stub)
-
-    repo_root = Path(__file__).resolve().parents[2]
-    file_path = repo_root / "vllm" / "_genesis" / "wiring" / f"{name}.py"
-    if not file_path.exists():
-        pytest.skip(f"wiring module not present: {file_path}")
-    spec = importlib.util.spec_from_file_location(name, str(file_path))
-    mod = importlib.util.module_from_spec(spec)
-    sys.modules[name] = mod  # py3.13 dataclass introspection needs this
-    spec.loader.exec_module(mod)
-    return mod
+    The patch wiring modules are pure text-anchor code and import
+    without a vllm/torch install; skip defensively if a heavy dep
+    leaks into one of them on this host."""
+    target = _WIRING_MODULES.get(name)
+    if target is None:
+        pytest.skip(f"no canonical module mapped for wiring name: {name}")
+    try:
+        return importlib.import_module(target)
+    except ImportError as e:
+        if "torch" in str(e) or "triton" in str(e):
+            pytest.skip(f"torch/triton not available for {target}: {e}")
+        raise
 
 
 # ════════════════════════════════════════════════════════════════════════
@@ -239,11 +243,11 @@ class TestDispatcherRegistry:
 
     def test_registry_has_required_fields(self):
         # Load dispatcher without importing vllm
-        for stub in ["vllm", "vllm.sndr_core"]:
+        for stub in ["vllm", "sndr"]:
             if stub not in sys.modules:
                 sys.modules[stub] = types.ModuleType(stub)
         repo_root = Path(__file__).resolve().parents[2]
-        path = repo_root / "vllm" / "sndr_core" / "dispatcher" / "registry.py"
+        path = repo_root / "sndr" / "dispatcher" / "registry.py"
         spec = importlib.util.spec_from_file_location("dispatcher", str(path))
         d = importlib.util.module_from_spec(spec)
         sys.modules["dispatcher"] = d  # py3.13 dataclass introspection needs this
@@ -278,11 +282,11 @@ class TestDispatcherRegistry:
             )
 
     def test_v7_14_v7_15_patches_in_registry(self):
-        for stub in ["vllm", "vllm.sndr_core"]:
+        for stub in ["vllm", "sndr"]:
             if stub not in sys.modules:
                 sys.modules[stub] = types.ModuleType(stub)
         repo_root = Path(__file__).resolve().parents[2]
-        path = repo_root / "vllm" / "sndr_core" / "dispatcher" / "registry.py"
+        path = repo_root / "sndr" / "dispatcher" / "registry.py"
         spec = importlib.util.spec_from_file_location("dispatcher", str(path))
         d = importlib.util.module_from_spec(spec)
         sys.modules["dispatcher"] = d  # py3.13 dataclass introspection needs this
@@ -295,7 +299,7 @@ class TestDispatcherRegistry:
         # P63 must be marked retired/deprecated. Audit 2026-05-06: migrated
         # legacy `deprecated: True` → explicit `lifecycle: "retired"`.
         # `lifecycle.get_state()` recognizes both forms for backwards-compat.
-        from vllm.sndr_core.compat.lifecycle import get_state
+        from sndr.compat.lifecycle import get_state
         assert get_state(d.PATCH_REGISTRY["P63"]) in ("retired", "deprecated")
 
     def test_should_apply_default_skips_all(self):
@@ -305,7 +309,7 @@ class TestDispatcherRegistry:
         # package directly. The previous spec_from_file_location dance
         # against the now-split registry.py is no longer meaningful since
         # `should_apply` lives in `decision.py`.
-        from vllm.sndr_core.dispatcher import (
+        from sndr.dispatcher import (
             PATCH_REGISTRY,
             should_apply,
         )
@@ -341,9 +345,9 @@ class TestApplyAllConsistency:
         repo_root = Path(__file__).resolve().parents[2]
         # Stage 3 (2026-05-07): @register_patch decorators migrated from
         # vllm/_genesis/patches/apply_all.py (now back-compat shim) to
-        # vllm/sndr_core/apply/_per_patch_dispatch.py.
+        # apply/_per_patch_dispatch.py (v12: under top-level sndr/).
         apply_all = (
-            repo_root / "vllm" / "sndr_core" / "apply" / "_per_patch_dispatch.py"
+            repo_root / "sndr" / "apply" / "_per_patch_dispatch.py"
         )
         content = apply_all.read_text()
         # Each new patch must be registered

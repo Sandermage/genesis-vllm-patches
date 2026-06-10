@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.product_api.patches import release_check
-from vllm.sndr_core.product_api.patches.release_check import (
+from sndr.product_api.legacy.patches import release_check
+from sndr.product_api.legacy.patches.release_check import (
     ReleaseCheckResult,
 )
 
@@ -33,7 +33,7 @@ class TestReleaseCheck:
         assert pol["max_regression_pct"] == 5.0
 
     def test_invalid_mode_raises(self, tmp_path):
-        from vllm.sndr_core.proof.release_check import ReleaseCheckError
+        from sndr.proof.release_check import ReleaseCheckError
 
         with pytest.raises(ReleaseCheckError):
             release_check.release_check(

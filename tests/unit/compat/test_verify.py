@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Tests for `vllm.sndr_core.compat.verify` — post-install smoke test.
+"""Tests for `sndr.compat.verify` — post-install smoke test.
 
 Verifies:
   - Quick checks run on CPU-only host without raising
@@ -28,7 +28,7 @@ import pytest
 
 
 def test_verify_module_imports():
-    from vllm.sndr_core.compat import verify
+    from sndr.compat import verify
     assert hasattr(verify, "run_verify")
     assert hasattr(verify, "render_report")
     assert hasattr(verify, "CheckResult")
@@ -37,7 +37,7 @@ def test_verify_module_imports():
 
 
 def test_verify_status_constants_defined():
-    from vllm.sndr_core.compat.verify import FAIL, PASS, SKIP, WARN
+    from sndr.compat.verify import FAIL, PASS, SKIP, WARN
     assert PASS == "PASS"
     assert WARN == "WARN"
     assert FAIL == "FAIL"
@@ -45,7 +45,7 @@ def test_verify_status_constants_defined():
 
 
 def test_check_result_dataclass_shape():
-    from vllm.sndr_core.compat.verify import PASS, CheckResult
+    from sndr.compat.verify import PASS, CheckResult
 
     r = CheckResult(name="test", status=PASS, detail="all good")
     assert r.name == "test"
@@ -56,7 +56,7 @@ def test_check_result_dataclass_shape():
 
 
 def test_verify_report_summary_counts():
-    from vllm.sndr_core.compat.verify import (
+    from sndr.compat.verify import (
         FAIL,
         PASS,
         SKIP,
@@ -81,7 +81,7 @@ def test_verify_report_summary_counts():
 def test_verify_report_warn_does_not_fail_overall():
     """WARN should NOT fail overall — only FAIL does. This is critical
     for installer UX: warnings should not abort the install."""
-    from vllm.sndr_core.compat.verify import (
+    from sndr.compat.verify import (
         PASS,
         WARN,
         CheckResult,
@@ -100,7 +100,7 @@ def test_verify_report_warn_does_not_fail_overall():
 
 
 def test_run_verify_quick_does_not_raise():
-    from vllm.sndr_core.compat.verify import run_verify
+    from sndr.compat.verify import run_verify
 
     # Should never raise — even on CPU-only / no-vllm hosts
     report = run_verify(level="quick")
@@ -109,7 +109,7 @@ def test_run_verify_quick_does_not_raise():
 
 
 def test_run_verify_quick_includes_all_C_checks():
-    from vllm.sndr_core.compat.verify import run_verify
+    from sndr.compat.verify import run_verify
 
     report = run_verify(level="quick")
     names = [c.name for c in report.checks]
@@ -120,7 +120,7 @@ def test_run_verify_quick_includes_all_C_checks():
 
 
 def test_run_verify_boot_includes_B_checks():
-    from vllm.sndr_core.compat.verify import run_verify
+    from sndr.compat.verify import run_verify
 
     report = run_verify(level="boot")
     names = [c.name for c in report.checks]
@@ -131,7 +131,7 @@ def test_run_verify_boot_includes_B_checks():
 
 
 def test_run_verify_full_includes_F_checks():
-    from vllm.sndr_core.compat.verify import run_verify
+    from sndr.compat.verify import run_verify
 
     report = run_verify(level="full")
     names = [c.name for c in report.checks]
@@ -141,7 +141,7 @@ def test_run_verify_full_includes_F_checks():
 
 
 def test_run_verify_unknown_level_raises():
-    from vllm.sndr_core.compat.verify import run_verify
+    from sndr.compat.verify import run_verify
 
     with pytest.raises(ValueError, match="unknown level"):
         run_verify(level="banana")
@@ -149,7 +149,7 @@ def test_run_verify_unknown_level_raises():
 
 def test_run_verify_each_check_has_duration_ms():
     """Every check should have duration_ms >= 0 after running."""
-    from vllm.sndr_core.compat.verify import run_verify
+    from sndr.compat.verify import run_verify
 
     report = run_verify(level="quick")
     for c in report.checks:
@@ -160,7 +160,7 @@ def test_run_verify_each_check_has_duration_ms():
 
 def test_run_verify_idempotent():
     """Running verify twice gives same overall pass/fail (no state leak)."""
-    from vllm.sndr_core.compat.verify import run_verify
+    from sndr.compat.verify import run_verify
 
     r1 = run_verify(level="quick")
     r2 = run_verify(level="quick")
@@ -175,7 +175,7 @@ def test_run_verify_idempotent():
 
 def test_check_genesis_importable_passes_when_installed():
     """C1 must pass — we ARE running inside an installed Genesis."""
-    from vllm.sndr_core.compat.verify import (
+    from sndr.compat.verify import (
         PASS,
         _check_genesis_importable,
     )
@@ -186,7 +186,7 @@ def test_check_genesis_importable_passes_when_installed():
 
 def test_check_dispatcher_loads_passes_with_full_registry():
     """C2 must pass with all 100 patches."""
-    from vllm.sndr_core.compat.verify import (
+    from sndr.compat.verify import (
         PASS,
         _check_dispatcher_loads,
     )
@@ -197,7 +197,7 @@ def test_check_dispatcher_loads_passes_with_full_registry():
 
 def test_check_cli_routes_includes_required_subcommands():
     """C4 must verify presence of doctor + preset + verify."""
-    from vllm.sndr_core.compat.verify import PASS, _check_cli_routes
+    from sndr.compat.verify import PASS, _check_cli_routes
 
     r = _check_cli_routes()
     assert r.status == PASS, f"C4 unexpected: {r.status} ({r.detail})"
@@ -206,11 +206,11 @@ def test_check_cli_routes_includes_required_subcommands():
 def test_check_gpu_detected_warns_on_no_cuda(monkeypatch):
     """C5 should WARN (not FAIL) on CPU-only / no-CUDA hosts —
     Genesis is meaningful in install-only mode."""
-    from vllm.sndr_core.compat import verify
+    from sndr.compat import verify
 
     # Force detect_current_gpu to return None
     monkeypatch.setattr(
-        "vllm.sndr_core.runtime.gpu_profile.detect_current_gpu", lambda: None
+        "sndr.runtime.gpu_profile.detect_current_gpu", lambda: None
     )
     r = verify._check_gpu_detected()
     assert r.status == verify.WARN
@@ -219,7 +219,7 @@ def test_check_gpu_detected_warns_on_no_cuda(monkeypatch):
 
 def test_check_plugin_entry_point_warns_on_missing(monkeypatch):
     """C8 should WARN if plugin entry point not registered."""
-    from vllm.sndr_core.compat import verify
+    from sndr.compat import verify
 
     # Mock entry_points to return empty
     import importlib.metadata as _md
@@ -244,7 +244,7 @@ def test_check_plugin_entry_point_warns_on_missing(monkeypatch):
 
 
 def test_render_report_contains_all_check_names():
-    from vllm.sndr_core.compat.verify import render_report, run_verify
+    from sndr.compat.verify import render_report, run_verify
 
     report = run_verify(level="quick")
     text = render_report(report)
@@ -253,7 +253,7 @@ def test_render_report_contains_all_check_names():
 
 
 def test_render_report_shows_summary_line():
-    from vllm.sndr_core.compat.verify import render_report, run_verify
+    from sndr.compat.verify import render_report, run_verify
 
     report = run_verify(level="quick")
     text = render_report(report)
@@ -264,7 +264,7 @@ def test_render_report_shows_summary_line():
 
 
 def test_render_report_shows_hints_for_warn_and_fail():
-    from vllm.sndr_core.compat.verify import (
+    from sndr.compat.verify import (
         FAIL,
         WARN,
         CheckResult,
@@ -290,7 +290,7 @@ def test_render_report_shows_hints_for_warn_and_fail():
 
 
 def test_to_dict_returns_serializable():
-    from vllm.sndr_core.compat.verify import run_verify
+    from sndr.compat.verify import run_verify
 
     report = run_verify(level="quick")
     d = report.to_dict()
@@ -303,7 +303,7 @@ def test_to_dict_returns_serializable():
 
 
 def test_to_dict_summary_counts_match_attributes():
-    from vllm.sndr_core.compat.verify import run_verify
+    from sndr.compat.verify import run_verify
 
     report = run_verify(level="quick")
     d = report.to_dict()
@@ -322,7 +322,7 @@ def _run_cli(*args: str) -> tuple[int, str, str]:
     """Run verify CLI as subprocess; return (exit_code, stdout, stderr)."""
     repo_root = Path(__file__).resolve().parents[3]
     proc = subprocess.run(
-        [sys.executable, "-m", "vllm.sndr_core.compat.verify", *args],
+        [sys.executable, "-m", "sndr.compat.verify", *args],
         capture_output=True,
         text=True,
         cwd=str(repo_root),
@@ -379,19 +379,19 @@ def test_cli_invalid_flag_exits_nonzero():
 
 
 def test_verify_registered_in_unified_cli():
-    from vllm.sndr_core.compat.cli import KNOWN_SUBCOMMANDS
+    from sndr.compat.cli import KNOWN_SUBCOMMANDS
     assert "verify" in KNOWN_SUBCOMMANDS, (
         "verify must be a subcommand of `genesis ...`"
     )
 
 
 def test_unified_cli_routes_verify_subcommand():
-    """`python3 -m vllm.sndr_core.compat.cli verify --quick` must work
+    """`python3 -m sndr.compat.cli verify --quick` must work
     (test the dispatcher path, not just direct module invocation)."""
     repo_root = Path(__file__).resolve().parents[3]
     proc = subprocess.run(
         [
-            sys.executable, "-m", "vllm.sndr_core.compat.cli",
+            sys.executable, "-m", "sndr.compat.cli",
             "verify", "--quick",
         ],
         capture_output=True,

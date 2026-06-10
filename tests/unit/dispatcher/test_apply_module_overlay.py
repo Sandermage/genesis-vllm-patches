@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Tests for `vllm.sndr_core.dispatcher._apply_module_overlay` — Entry 12.
+"""Tests for `sndr.dispatcher._apply_module_overlay` — Entry 12.
 
 Contract:
 
   1. APPLY_MODULE_OVERLAY is a non-empty dict of patch_id → module path.
-  2. All overlay values point at vllm.sndr_core.apply._per_patch_dispatch
+  2. All overlay values point at sndr.apply._per_patch_dispatch
      (legacy monolithic dispatcher) by design.
   3. apply_overlay returns the count of entries patched.
   4. apply_overlay NEVER overwrites an explicit apply_module already
@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.dispatcher import _apply_module_overlay as ovl
+from sndr.dispatcher import _apply_module_overlay as ovl
 
 
 # ─── Overlay shape ─────────────────────────────────────────────────────
@@ -38,7 +38,7 @@ class TestOverlayShape:
     def test_all_values_point_at_legacy_dispatcher(self):
         """By design (Entry 12 metadata gap closure), every overlay entry
         names the monolithic per_patch_dispatch module."""
-        canonical = "vllm.sndr_core.apply._per_patch_dispatch"
+        canonical = "sndr.apply._per_patch_dispatch"
         for v in ovl.APPLY_MODULE_OVERLAY.values():
             assert v == canonical
 
@@ -61,7 +61,7 @@ class TestApplyOverlayFill:
         else:
             assert patched == 1
             assert fake[sample_pid]["apply_module"] == (
-                "vllm.sndr_core.apply._per_patch_dispatch"
+                "sndr.apply._per_patch_dispatch"
             )
 
     def test_returns_zero_on_empty_registry(self):
@@ -77,7 +77,7 @@ class TestApplyOverlayNoOverwrite:
     def test_explicit_apply_module_preserved(self):
         """Patches that ALREADY declare apply_module are left untouched."""
         sample_pid = next(iter(ovl.APPLY_MODULE_OVERLAY))
-        custom_module = "vllm.sndr_core.integrations.custom.my_module"
+        custom_module = "sndr.engines.vllm.patches.custom.my_module"
         fake = {sample_pid: {"tier": "community", "apply_module": custom_module}}
         ovl.apply_overlay(fake)
         assert fake[sample_pid]["apply_module"] == custom_module
@@ -97,7 +97,7 @@ class TestApplyOverlayNoOverwrite:
         patched = ovl.apply_overlay(fake)
         assert patched == 1
         assert fake[sample_pid]["apply_module"] == (
-            "vllm.sndr_core.apply._per_patch_dispatch"
+            "sndr.apply._per_patch_dispatch"
         )
 
 
@@ -139,7 +139,7 @@ class TestLiveRegistryMerge:
         """Apply the overlay to a COPY of the live PATCH_REGISTRY and
         verify it patches at least one entry. Catches the regression
         where the overlay shape no longer matches registry shape."""
-        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        from sndr.dispatcher.registry import PATCH_REGISTRY
         # Deep-copy each entry so we don't mutate the real registry
         snapshot = {
             pid: dict(meta) if isinstance(meta, dict) else meta

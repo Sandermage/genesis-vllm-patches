@@ -38,7 +38,7 @@ from typing import Optional
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-MODEL_DIR = REPO_ROOT / "vllm" / "sndr_core" / "model_configs" / "builtin" / "model"
+MODEL_DIR = REPO_ROOT / "sndr" / "model_configs" / "builtin" / "model"
 
 DEFAULT_MAX_AGE_DAYS = 180
 

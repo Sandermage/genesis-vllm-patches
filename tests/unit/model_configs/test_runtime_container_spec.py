@@ -20,8 +20,8 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.model_configs.registry_v2 import load_alias
-from vllm.sndr_core.model_configs.runtime_container import (
+from sndr.model_configs.registry_v2 import load_alias
+from sndr.model_configs.runtime_container import (
     DeviceSpec,
     MountSpec,
     PortSpec,
@@ -233,7 +233,7 @@ class TestSecurityExtraction:
     def test_selinux_label_disable_extracted(self):
         """If V1 docker.extra_run_flags contains the SELinux opt, spec
         sets the structured field AND strips it from extra_run_flags."""
-        from vllm.sndr_core.model_configs.schema import DockerConfig, ModelConfig
+        from sndr.model_configs.schema import DockerConfig, ModelConfig
 
         # Build a minimal ModelConfig + DockerConfig with SELinux flag.
         cfg = load_alias("prod-qwen3.6-35b-balanced")

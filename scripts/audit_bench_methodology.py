@@ -3,10 +3,10 @@
 """§6.8 + §5 — `make audit-bench-methodology` — stale-bench detector.
 
 Genesis bench methodology contract lives at
-`vllm/sndr_core/tools/bench_methodology.yaml` (canonical, post-Wave-10
-self-containment). A legacy operator-side mirror at repo-root
-`tools/bench_methodology.yaml` is supported as a fallback when the
-canonical file is missing.
+`sndr/extras/tools/bench_methodology.yaml` (canonical, v12 tree;
+post-Wave-10 self-containment). A legacy operator-side mirror at
+repo-root `tools/bench_methodology.yaml` is supported as a fallback
+when the canonical file is missing.
 
 Every bench artefact under `evidence/patch_proof/*.json` carries a
 `bench_delta.methodology_sha` fingerprint of the methodology that was
@@ -20,7 +20,7 @@ such artefacts at face value.
 
 This gate enforces the invariant: every bench artefact's
 `methodology_sha` must equal the current
-`sha256(vllm/sndr_core/tools/bench_methodology.yaml)`.
+`sha256(sndr/extras/tools/bench_methodology.yaml)`.
 
 Modes:
 
@@ -48,10 +48,11 @@ from typing import Optional
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-# Canonical post-Wave-10 location: package-local under vllm/sndr_core/tools/.
+# Canonical location: package-local under sndr/extras/tools/ (v12 tree;
+# post-Wave-10 self-containment lived at vllm/sndr_core/tools/).
 # Legacy operator-side mirror at repo-root tools/ is supported as fallback.
 _CANONICAL_METHODOLOGY = (
-    REPO_ROOT / "vllm" / "sndr_core" / "tools" / "bench_methodology.yaml"
+    REPO_ROOT / "sndr" / "extras" / "tools" / "bench_methodology.yaml"
 )
 _LEGACY_METHODOLOGY = REPO_ROOT / "tools" / "bench_methodology.yaml"
 
@@ -280,7 +281,7 @@ def main() -> int:
                     help="Override evidence/patch_proof directory.")
     ap.add_argument("--methodology", default=None,
                     help="Override methodology YAML path (default: "
-                         "vllm/sndr_core/tools/bench_methodology.yaml "
+                         "sndr/extras/tools/bench_methodology.yaml "
                          "with fallback to tools/bench_methodology.yaml).")
     ap.add_argument("--no-bench-allow-empty",
                     dest="allow_empty", action="store_false",

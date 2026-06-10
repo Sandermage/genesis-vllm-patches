@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""TDD tests for vllm.sndr_core.kernels.dequant_buffer.TurboQuantBufferManager.
+"""TDD tests for sndr.engines.vllm.kernels_legacy.dequant_buffer.TurboQuantBufferManager.
 
 Patch 22 migration target: pre-allocate K/V dequant buffers during warmup
 (profiler-visible) rather than lazy allocation during forward (profiler-invisible).
@@ -24,14 +24,14 @@ class TestPlatformGuard:
     """Group 1: should_apply() correctly gates on platform."""
 
     def test_should_apply_returns_bool(self):
-        from vllm.sndr_core.kernels.dequant_buffer import TurboQuantBufferManager
+        from sndr.engines.vllm.kernels_legacy.dequant_buffer import TurboQuantBufferManager
         result = TurboQuantBufferManager.should_apply()
         assert isinstance(result, bool)
 
     def test_should_apply_false_on_non_nvidia(self, monkeypatch):
         """Non-NVIDIA platforms → should_apply returns False."""
-        from vllm.sndr_core.kernels import dequant_buffer as db
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.kernels_legacy import dequant_buffer as db
+        from sndr.engines.vllm.detection import guards
 
         # Mock is_nvidia_cuda to return False
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: False)
@@ -40,8 +40,8 @@ class TestPlatformGuard:
 
     def test_should_apply_false_on_ancient_sm(self, monkeypatch):
         """SM < 8.0 → should_apply returns False (TurboQuant unsupported)."""
-        from vllm.sndr_core.kernels import dequant_buffer as db
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.kernels_legacy import dequant_buffer as db
+        from sndr.engines.vllm.detection import guards
 
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(guards, "is_sm_at_least",
@@ -51,8 +51,8 @@ class TestPlatformGuard:
 
     def test_should_apply_true_on_ampere(self, monkeypatch):
         """SM 8.0+ with NVIDIA → should_apply returns True."""
-        from vllm.sndr_core.kernels import dequant_buffer as db
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.kernels_legacy import dequant_buffer as db
+        from sndr.engines.vllm.detection import guards
 
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(guards, "is_sm_at_least",
@@ -72,8 +72,8 @@ class TestKVBufferAllocation:
         self, reset_genesis_prealloc, monkeypatch
     ):
         """When should_apply False → return (None, None) — never crash."""
-        from vllm.sndr_core.kernels import dequant_buffer as db
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.kernels_legacy import dequant_buffer as db
+        from sndr.engines.vllm.detection import guards
 
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: False)
 
@@ -88,8 +88,8 @@ class TestKVBufferAllocation:
         self, reset_genesis_prealloc, monkeypatch
     ):
         """When should_apply True → return two tensors with requested shape."""
-        from vllm.sndr_core.kernels import dequant_buffer as db
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.kernels_legacy import dequant_buffer as db
+        from sndr.engines.vllm.detection import guards
 
         # Mock to allow path on CPU for testing
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: True)
@@ -115,8 +115,8 @@ class TestKVBufferAllocation:
         CRITICAL: shared buffers across layers (10 attn layers in Qwen3.6
         share 1 buffer pair since forward is sequential per layer).
         """
-        from vllm.sndr_core.kernels import dequant_buffer as db
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.kernels_legacy import dequant_buffer as db
+        from sndr.engines.vllm.detection import guards
 
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(guards, "is_sm_at_least",
@@ -136,8 +136,8 @@ class TestKVBufferAllocation:
         self, reset_genesis_prealloc, monkeypatch
     ):
         """Different shape params → distinct buffers."""
-        from vllm.sndr_core.kernels import dequant_buffer as db
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.kernels_legacy import dequant_buffer as db
+        from sndr.engines.vllm.detection import guards
 
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(guards, "is_sm_at_least",
@@ -157,8 +157,8 @@ class TestKVBufferAllocation:
         self, reset_genesis_prealloc, monkeypatch
     ):
         """CRITICAL for CUDA graph: pointer MUST be stable across 100+ calls."""
-        from vllm.sndr_core.kernels import dequant_buffer as db
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.kernels_legacy import dequant_buffer as db
+        from sndr.engines.vllm.detection import guards
 
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(guards, "is_sm_at_least",
@@ -188,8 +188,8 @@ class TestCuSeqlensScratch:
     def test_returns_none_on_incompatible_platform(
         self, reset_genesis_prealloc, monkeypatch
     ):
-        from vllm.sndr_core.kernels import dequant_buffer as db
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.kernels_legacy import dequant_buffer as db
+        from sndr.engines.vllm.detection import guards
 
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: False)
 
@@ -201,8 +201,8 @@ class TestCuSeqlensScratch:
         self, reset_genesis_prealloc, monkeypatch
     ):
         """cu_seqlens format: int32 tensor of shape (2,) — [0, q_len]."""
-        from vllm.sndr_core.kernels import dequant_buffer as db
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.kernels_legacy import dequant_buffer as db
+        from sndr.engines.vllm.detection import guards
 
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(guards, "is_sm_at_least",
@@ -218,8 +218,8 @@ class TestCuSeqlensScratch:
         self, reset_genesis_prealloc, monkeypatch
     ):
         """cu_seqlens start with zero values (ready for in-place fill)."""
-        from vllm.sndr_core.kernels import dequant_buffer as db
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.kernels_legacy import dequant_buffer as db
+        from sndr.engines.vllm.detection import guards
 
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(guards, "is_sm_at_least",
@@ -232,8 +232,8 @@ class TestCuSeqlensScratch:
     def test_same_device_returns_same_tensors(
         self, reset_genesis_prealloc, monkeypatch
     ):
-        from vllm.sndr_core.kernels import dequant_buffer as db
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.kernels_legacy import dequant_buffer as db
+        from sndr.engines.vllm.detection import guards
 
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(guards, "is_sm_at_least",
@@ -249,8 +249,8 @@ class TestCuSeqlensScratch:
         self, reset_genesis_prealloc, monkeypatch
     ):
         """Writing to cu_seqlens updates the shared tensor (for hot-path use)."""
-        from vllm.sndr_core.kernels import dequant_buffer as db
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.kernels_legacy import dequant_buffer as db
+        from sndr.engines.vllm.detection import guards
 
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(guards, "is_sm_at_least",
@@ -275,7 +275,7 @@ class TestMemoryFootprint:
 
     def test_estimate_buffer_bytes(self):
         """estimate_buffer_bytes correctly computes footprint."""
-        from vllm.sndr_core.kernels.dequant_buffer import estimate_buffer_bytes
+        from sndr.engines.vllm.kernels_legacy.dequant_buffer import estimate_buffer_bytes
 
         # Qwen3.6-35B-A3B typical: num_kv_heads=4 (TP=2 → 2 per rank),
         #                          head_size=128, max_model_len=262144
@@ -291,7 +291,7 @@ class TestMemoryFootprint:
 
     def test_estimate_scales_with_tp(self):
         """TP=1 (num_kv_heads=4) = 2× TP=2 (num_kv_heads=2) footprint."""
-        from vllm.sndr_core.kernels.dequant_buffer import estimate_buffer_bytes
+        from sndr.engines.vllm.kernels_legacy.dequant_buffer import estimate_buffer_bytes
 
         tp1 = estimate_buffer_bytes(4, 128, 262144, torch.bfloat16)
         tp2 = estimate_buffer_bytes(2, 128, 262144, torch.bfloat16)
@@ -313,7 +313,7 @@ class TestPatch32Cu2:
     def test_returns_none_on_incompatible_platform(
         self, monkeypatch, reset_genesis_prealloc,
     ):
-        from vllm.sndr_core.kernels import dequant_buffer as db
+        from sndr.engines.vllm.kernels_legacy import dequant_buffer as db
         monkeypatch.setattr(
             db.TurboQuantBufferManager, "should_apply", classmethod(lambda cls: False),
         )
@@ -322,7 +322,7 @@ class TestPatch32Cu2:
     def test_shape_dtype_on_compatible(
         self, monkeypatch, reset_genesis_prealloc,
     ):
-        from vllm.sndr_core.kernels import dequant_buffer as db
+        from sndr.engines.vllm.kernels_legacy import dequant_buffer as db
         monkeypatch.setattr(
             db.TurboQuantBufferManager, "should_apply", classmethod(lambda cls: True),
         )
@@ -332,7 +332,7 @@ class TestPatch32Cu2:
         assert t.dtype == torch.int32
 
     def test_zero_initialized(self, monkeypatch, reset_genesis_prealloc):
-        from vllm.sndr_core.kernels import dequant_buffer as db
+        from sndr.engines.vllm.kernels_legacy import dequant_buffer as db
         monkeypatch.setattr(
             db.TurboQuantBufferManager, "should_apply", classmethod(lambda cls: True),
         )
@@ -343,7 +343,7 @@ class TestPatch32Cu2:
     def test_pointer_stable_across_calls(
         self, monkeypatch, reset_genesis_prealloc,
     ):
-        from vllm.sndr_core.kernels import dequant_buffer as db
+        from sndr.engines.vllm.kernels_legacy import dequant_buffer as db
         monkeypatch.setattr(
             db.TurboQuantBufferManager, "should_apply", classmethod(lambda cls: True),
         )
@@ -358,7 +358,7 @@ class TestPatch33SynthSeqLens:
     def test_returns_none_on_incompatible_platform(
         self, monkeypatch, reset_genesis_prealloc,
     ):
-        from vllm.sndr_core.kernels import dequant_buffer as db
+        from sndr.engines.vllm.kernels_legacy import dequant_buffer as db
         monkeypatch.setattr(
             db.TurboQuantBufferManager, "should_apply", classmethod(lambda cls: False),
         )
@@ -369,7 +369,7 @@ class TestPatch33SynthSeqLens:
     def test_shape_dtype_on_compatible(
         self, monkeypatch, reset_genesis_prealloc,
     ):
-        from vllm.sndr_core.kernels import dequant_buffer as db
+        from sndr.engines.vllm.kernels_legacy import dequant_buffer as db
         monkeypatch.setattr(
             db.TurboQuantBufferManager, "should_apply", classmethod(lambda cls: True),
         )
@@ -384,7 +384,7 @@ class TestPatch33SynthSeqLens:
     def test_rounds_max_batch_up_to_8(
         self, monkeypatch, reset_genesis_prealloc,
     ):
-        from vllm.sndr_core.kernels import dequant_buffer as db
+        from sndr.engines.vllm.kernels_legacy import dequant_buffer as db
         monkeypatch.setattr(
             db.TurboQuantBufferManager, "should_apply", classmethod(lambda cls: True),
         )
@@ -397,7 +397,7 @@ class TestPatch33SynthSeqLens:
     def test_same_key_returns_same_buffer(
         self, monkeypatch, reset_genesis_prealloc,
     ):
-        from vllm.sndr_core.kernels import dequant_buffer as db
+        from sndr.engines.vllm.kernels_legacy import dequant_buffer as db
         monkeypatch.setattr(
             db.TurboQuantBufferManager, "should_apply", classmethod(lambda cls: True),
         )
@@ -412,7 +412,7 @@ class TestPatch33SynthSeqLens:
     def test_different_batch_caps_distinct_buffers(
         self, monkeypatch, reset_genesis_prealloc,
     ):
-        from vllm.sndr_core.kernels import dequant_buffer as db
+        from sndr.engines.vllm.kernels_legacy import dequant_buffer as db
         monkeypatch.setattr(
             db.TurboQuantBufferManager, "should_apply", classmethod(lambda cls: True),
         )
@@ -426,7 +426,7 @@ class TestPatch33SynthSeqLens:
         assert a.shape[0] != b.shape[0]
 
     def test_zero_initialized(self, monkeypatch, reset_genesis_prealloc):
-        from vllm.sndr_core.kernels import dequant_buffer as db
+        from sndr.engines.vllm.kernels_legacy import dequant_buffer as db
         monkeypatch.setattr(
             db.TurboQuantBufferManager, "should_apply", classmethod(lambda cls: True),
         )
@@ -443,7 +443,7 @@ class TestPatch26PrefillOutput:
     def test_returns_none_on_incompatible_platform(
         self, monkeypatch, reset_genesis_prealloc,
     ):
-        from vllm.sndr_core.kernels import dequant_buffer as db
+        from sndr.engines.vllm.kernels_legacy import dequant_buffer as db
         monkeypatch.setattr(
             db.TurboQuantBufferManager, "should_apply", classmethod(lambda cls: False),
         )
@@ -455,7 +455,7 @@ class TestPatch26PrefillOutput:
     def test_shape_dtype_on_compatible(
         self, monkeypatch, reset_genesis_prealloc,
     ):
-        from vllm.sndr_core.kernels import dequant_buffer as db
+        from sndr.engines.vllm.kernels_legacy import dequant_buffer as db
         monkeypatch.setattr(
             db.TurboQuantBufferManager, "should_apply", classmethod(lambda cls: True),
         )
@@ -470,7 +470,7 @@ class TestPatch26PrefillOutput:
     def test_distinct_shape_keys(
         self, monkeypatch, reset_genesis_prealloc,
     ):
-        from vllm.sndr_core.kernels import dequant_buffer as db
+        from sndr.engines.vllm.kernels_legacy import dequant_buffer as db
         monkeypatch.setattr(
             db.TurboQuantBufferManager, "should_apply", classmethod(lambda cls: True),
         )
@@ -488,7 +488,7 @@ class TestPatch26PrefillOutput:
     def test_same_key_returns_same_buffer(
         self, monkeypatch, reset_genesis_prealloc,
     ):
-        from vllm.sndr_core.kernels import dequant_buffer as db
+        from sndr.engines.vllm.kernels_legacy import dequant_buffer as db
         monkeypatch.setattr(
             db.TurboQuantBufferManager, "should_apply", classmethod(lambda cls: True),
         )
@@ -505,7 +505,7 @@ class TestPatch26PrefillOutput:
     def test_dtype_separates_buffers(
         self, monkeypatch, reset_genesis_prealloc,
     ):
-        from vllm.sndr_core.kernels import dequant_buffer as db
+        from sndr.engines.vllm.kernels_legacy import dequant_buffer as db
         monkeypatch.setattr(
             db.TurboQuantBufferManager, "should_apply", classmethod(lambda cls: True),
         )
@@ -530,14 +530,14 @@ class TestPatch36SharedDecodeBuffers:
     """
 
     def _mark_compatible(self, monkeypatch):
-        from vllm.sndr_core.kernels import dequant_buffer as db
+        from sndr.engines.vllm.kernels_legacy import dequant_buffer as db
         monkeypatch.setattr(
             db.TurboQuantBufferManager, "should_apply",
             classmethod(lambda cls: True),
         )
 
     def test_mid_o_returns_none_on_incompat(self, monkeypatch, reset_genesis_prealloc):
-        from vllm.sndr_core.kernels import dequant_buffer as db
+        from sndr.engines.vllm.kernels_legacy import dequant_buffer as db
         monkeypatch.setattr(
             db.TurboQuantBufferManager, "should_apply",
             classmethod(lambda cls: False),
@@ -548,7 +548,7 @@ class TestPatch36SharedDecodeBuffers:
         ) is None
 
     def test_mid_o_shape_dtype(self, monkeypatch, reset_genesis_prealloc):
-        from vllm.sndr_core.kernels import dequant_buffer as db
+        from sndr.engines.vllm.kernels_legacy import dequant_buffer as db
         self._mark_compatible(monkeypatch)
         t = db.TurboQuantBufferManager.get_shared_decode_mid_o(
             max_num_seqs=2, num_q_heads=32, tq_max_kv_splits=32,
@@ -560,7 +560,7 @@ class TestPatch36SharedDecodeBuffers:
 
     def test_mid_o_shared_across_same_key(self, monkeypatch, reset_genesis_prealloc):
         """Multiple TQ-layer inits with identical config share ONE tensor."""
-        from vllm.sndr_core.kernels import dequant_buffer as db
+        from sndr.engines.vllm.kernels_legacy import dequant_buffer as db
         self._mark_compatible(monkeypatch)
         a = db.TurboQuantBufferManager.get_shared_decode_mid_o(
             max_num_seqs=2, num_q_heads=32, tq_max_kv_splits=32,
@@ -576,7 +576,7 @@ class TestPatch36SharedDecodeBuffers:
     def test_mid_o_distinct_config_distinct_buffers(
         self, monkeypatch, reset_genesis_prealloc,
     ):
-        from vllm.sndr_core.kernels import dequant_buffer as db
+        from sndr.engines.vllm.kernels_legacy import dequant_buffer as db
         self._mark_compatible(monkeypatch)
         a = db.TurboQuantBufferManager.get_shared_decode_mid_o(
             max_num_seqs=2, num_q_heads=32, tq_max_kv_splits=32,
@@ -590,7 +590,7 @@ class TestPatch36SharedDecodeBuffers:
         assert a.shape != b.shape
 
     def test_output_and_lse_shared(self, monkeypatch, reset_genesis_prealloc):
-        from vllm.sndr_core.kernels import dequant_buffer as db
+        from sndr.engines.vllm.kernels_legacy import dequant_buffer as db
         self._mark_compatible(monkeypatch)
         o1 = db.TurboQuantBufferManager.get_shared_decode_output(
             max_num_seqs=2, num_q_heads=32, head_size=128,
@@ -624,7 +624,7 @@ class TestPatch36SharedDecodeBuffers:
           shared: 1.04 MiB
           savings: 9.36 MiB direct (plus allocator slab overhead saved).
         """
-        from vllm.sndr_core.kernels import dequant_buffer as db
+        from sndr.engines.vllm.kernels_legacy import dequant_buffer as db
         self._mark_compatible(monkeypatch)
 
         # Allocate once — mimic 10 layers hitting the same key
@@ -653,7 +653,7 @@ class TestPatch36SharedDecodeBuffers:
     def test_clear_for_tests_clears_decode_pools(
         self, monkeypatch, reset_genesis_prealloc,
     ):
-        from vllm.sndr_core.kernels import dequant_buffer as db
+        from sndr.engines.vllm.kernels_legacy import dequant_buffer as db
         self._mark_compatible(monkeypatch)
         db.TurboQuantBufferManager.get_shared_decode_mid_o(
             2, 32, 32, 128, device="cpu", dtype=torch.float32,
@@ -674,7 +674,7 @@ class TestEnsureBuffersBundledP32P33:
     def test_layer_gets_cu_2_and_synth_seq_lens(
         self, monkeypatch, reset_genesis_prealloc,
     ):
-        from vllm.sndr_core.kernels import dequant_buffer as db
+        from sndr.engines.vllm.kernels_legacy import dequant_buffer as db
         monkeypatch.setattr(
             db.TurboQuantBufferManager, "should_apply", classmethod(lambda cls: True),
         )
@@ -709,7 +709,7 @@ class TestCUDAIntegration:
         if not cuda_available:
             pytest.skip("CUDA not available")
 
-        from vllm.sndr_core.kernels import dequant_buffer as db
+        from sndr.engines.vllm.kernels_legacy import dequant_buffer as db
 
         # Use small size to avoid OOM during test
         k, v = db.TurboQuantBufferManager.get_or_create_kv_buffers(

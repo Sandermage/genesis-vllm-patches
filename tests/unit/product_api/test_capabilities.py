@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from dataclasses import asdict, is_dataclass
 
-from vllm.sndr_core.product_api import capabilities
-from vllm.sndr_core.product_api.types import ProductCapabilities
+from sndr.product_api.legacy import capabilities
+from sndr.product_api.legacy.types import ProductCapabilities
 
 
 def _fake_which(present: set[str]):

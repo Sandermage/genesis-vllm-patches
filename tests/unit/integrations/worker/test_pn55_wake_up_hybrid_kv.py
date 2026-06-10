@@ -53,7 +53,7 @@ class TestAnchorShape:
 
 class TestIdempotent:
     def test_apply_twice_is_no_op(self, tmp_path):
-        from vllm.sndr_core.core import (
+        from sndr.kernel import (
             TextPatch, TextPatcher, TextPatchResult,
         )
         M = _wiring()
@@ -184,7 +184,7 @@ class TestRecursiveIteratorSemantic:
 
 class TestEnvFlag:
     def test_default_off(self, monkeypatch):
-        from vllm.sndr_core.dispatcher import should_apply
+        from sndr.dispatcher import should_apply
         monkeypatch.delenv(
             "GENESIS_ENABLE_PN55_WAKE_UP_HYBRID_KV", raising=False
         )
@@ -195,13 +195,13 @@ class TestEnvFlag:
         assert decision is False
 
     def test_genesis_enable_engages(self, monkeypatch):
-        from vllm.sndr_core.dispatcher import should_apply
+        from sndr.dispatcher import should_apply
         monkeypatch.setenv("GENESIS_ENABLE_PN55_WAKE_UP_HYBRID_KV", "1")
         decision, _ = should_apply("PN55")
         assert decision is True
 
     def test_sndr_enable_engages_via_alias(self, monkeypatch):
-        from vllm.sndr_core.dispatcher import should_apply
+        from sndr.dispatcher import should_apply
         monkeypatch.delenv(
             "GENESIS_ENABLE_PN55_WAKE_UP_HYBRID_KV", raising=False
         )
@@ -215,11 +215,11 @@ class TestEnvFlag:
 
 class TestRegistry:
     def test_pn55_in_registry(self):
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+        from sndr.dispatcher import PATCH_REGISTRY
         assert "PN55" in PATCH_REGISTRY
 
     def test_pn55_metadata_complete(self):
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+        from sndr.dispatcher import PATCH_REGISTRY
         meta = PATCH_REGISTRY["PN55"]
         assert meta["upstream_pr"] == 41602
         assert meta["family"] == "worker"
@@ -230,7 +230,7 @@ class TestRegistry:
         assert "wake_up" in meta["title"].lower()
 
     def test_pn55_dispatch_function_registered(self):
-        from vllm.sndr_core.apply import _per_patch_dispatch
+        from sndr.apply import _per_patch_dispatch
         assert hasattr(
             _per_patch_dispatch, "apply_patch_N55_wake_up_hybrid_kv"
         )

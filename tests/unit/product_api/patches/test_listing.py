@@ -8,33 +8,33 @@ M.6.4.
 """
 from __future__ import annotations
 
-from vllm.sndr_core.product_api.patches import listing
-from vllm.sndr_core.product_api.patches.types import PatchRow
+from sndr.product_api.legacy.patches import listing
+from sndr.product_api.legacy.patches.types import PatchRow
 
 
 class TestMatchesFilters:
     def test_tier_filter(self):
-        from vllm.sndr_core.dispatcher.spec import iter_patch_specs
+        from sndr.dispatcher.spec import iter_patch_specs
 
         for s in iter_patch_specs():
             assert listing.matches_filters(s, tier=s.tier) is True
             assert listing.matches_filters(s, tier="__never__") is False
 
     def test_default_on(self):
-        from vllm.sndr_core.dispatcher.spec import iter_patch_specs
+        from sndr.dispatcher.spec import iter_patch_specs
 
         for s in iter_patch_specs():
             assert listing.matches_filters(s, default_on=True) is bool(s.default_on)
             assert listing.matches_filters(s, default_on=False) is (not s.default_on)
 
     def test_has_upstream(self):
-        from vllm.sndr_core.dispatcher.spec import iter_patch_specs
+        from sndr.dispatcher.spec import iter_patch_specs
 
         for s in iter_patch_specs():
             assert listing.matches_filters(s, has_upstream=True) is bool(s.upstream_pr)
 
     def test_family_substring_match(self):
-        from vllm.sndr_core.dispatcher.spec import iter_patch_specs
+        from sndr.dispatcher.spec import iter_patch_specs
 
         # Every spec matches a substring of its own family (sanity).
         for s in iter_patch_specs():
@@ -44,8 +44,8 @@ class TestMatchesFilters:
 
 class TestSpecToRow:
     def test_returns_patchrow(self):
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
-        from vllm.sndr_core.dispatcher.spec import patch_spec_for
+        from sndr.dispatcher import PATCH_REGISTRY
+        from sndr.dispatcher.spec import patch_spec_for
 
         meta = PATCH_REGISTRY["P67"]
         row = listing.spec_to_row(patch_spec_for("P67", meta))
@@ -56,8 +56,8 @@ class TestSpecToRow:
     def test_dict_form_back_compat(self):
         """``spec_to_row_dict`` returns the legacy dict shape callers
         relied on before M.6.1 — keys match ``PatchRow`` fields."""
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
-        from vllm.sndr_core.dispatcher.spec import patch_spec_for
+        from sndr.dispatcher import PATCH_REGISTRY
+        from sndr.dispatcher.spec import patch_spec_for
 
         meta = PATCH_REGISTRY["P67"]
         d = listing.spec_to_row_dict(patch_spec_for("P67", meta))
@@ -72,7 +72,7 @@ class TestSpecToRow:
 
 class TestListPatches:
     def test_unfiltered_count_matches_iter_patch_specs(self):
-        from vllm.sndr_core.dispatcher.spec import iter_patch_specs
+        from sndr.dispatcher.spec import iter_patch_specs
 
         rows = listing.list_patches()
         assert len(rows) == sum(1 for _ in iter_patch_specs())

@@ -64,6 +64,13 @@ ALLOWLIST_PREFIXES = (
     # belt-and-suspenders alongside the .gitignore entry: defensive
     # against re-introduction even if the gitignore policy ever drifts.
     "docs/_internal/",
+    # v12 (2026-06-05+): maintainer session journals / specs / ops
+    # playbooks written by the superpowers workflow. They are working
+    # engineering logs (rig IPs, operator paths, SSH transcripts are
+    # their subject matter), i.e. the successor of the docs/_internal/
+    # session-log class — NOT operator-facing public documentation.
+    # The D-1..D-8 boundary rules do not apply inside this tree.
+    "docs/superpowers/",
 )
 
 

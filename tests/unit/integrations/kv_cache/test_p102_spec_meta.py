@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.runtime.spec_meta import (
+from sndr.runtime.spec_meta import (
     GenesisSpecMeta,
     current,
     get_telemetry,

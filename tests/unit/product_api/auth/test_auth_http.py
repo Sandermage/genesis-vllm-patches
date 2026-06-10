@@ -7,8 +7,8 @@ import pytest
 pytest.importorskip("fastapi")
 from fastapi.testclient import TestClient  # noqa: E402
 
-from vllm.sndr_core.product_api.auth import totp  # noqa: E402
-from vllm.sndr_core.product_api.http_app import create_app  # noqa: E402
+from sndr.product_api.legacy.auth import totp  # noqa: E402
+from sndr.product_api.legacy.http_app import create_app  # noqa: E402
 
 
 @pytest.fixture

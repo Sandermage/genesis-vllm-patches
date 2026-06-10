@@ -308,13 +308,13 @@ def test_r2_flags_apply_module_pointing_at_shim(tmp_path, monkeypatch):
     mod = _load_module()
 
     # Build a fake integrations/ tree with one shim and one real module.
-    fake_integrations = tmp_path / "vllm" / "sndr_core" / "integrations"
+    fake_integrations = tmp_path / "sndr" / "engines" / "vllm" / "patches"
     (fake_integrations / "gemma4").mkdir(parents=True)
     (fake_integrations / "gemma4" / "g4_77_relocated.py").write_text(
         '"""Compatibility shim — G4_77 relocated.\n\n'
-        'Real implementation: vllm.sndr_core.integrations.other.g4_77\n'
+        'Real implementation: sndr.engines.vllm.patches.other.g4_77\n'
         '"""\n'
-        'from vllm.sndr_core.integrations.other.g4_77 import *  # noqa: F401,F403\n'
+        'from sndr.engines.vllm.patches.other.g4_77 import *  # noqa: F401,F403\n'
     )
     (fake_integrations / "other").mkdir(parents=True)
     (fake_integrations / "other" / "g4_77.py").write_text(
@@ -329,7 +329,7 @@ def test_r2_flags_apply_module_pointing_at_shim(tmp_path, monkeypatch):
         return {
             "G4_77": {
                 "apply_module": (
-                    "vllm.sndr_core.integrations.gemma4.g4_77_relocated"
+                    "sndr.engines.vllm.patches.gemma4.g4_77_relocated"
                 ),
             },
         }
@@ -344,7 +344,7 @@ def test_r2_flags_apply_module_pointing_at_shim(tmp_path, monkeypatch):
     def _fake_registry_real():
         return {
             "G4_77": {
-                "apply_module": "vllm.sndr_core.integrations.other.g4_77",
+                "apply_module": "sndr.engines.vllm.patches.other.g4_77",
             },
         }
 
@@ -428,7 +428,7 @@ def test_r3_known_profile_envs_all_validated_against_current_registry():
 
 def test_r4_flags_shell_script_under_integrations(tmp_path, monkeypatch):
     mod = _load_module()
-    fake_integrations = tmp_path / "vllm" / "sndr_core" / "integrations"
+    fake_integrations = tmp_path / "sndr" / "engines" / "vllm" / "patches"
     (fake_integrations / "spec_decode" / "deploy").mkdir(parents=True)
     (fake_integrations / "spec_decode" / "deploy" / "start_thing.sh").write_text(
         "#!/bin/bash\necho hello\n"
@@ -443,7 +443,7 @@ def test_r4_flags_shell_script_under_integrations(tmp_path, monkeypatch):
 
 def test_r4_flags_subprocess_docker_run_call(tmp_path, monkeypatch):
     mod = _load_module()
-    fake_integrations = tmp_path / "vllm" / "sndr_core" / "integrations"
+    fake_integrations = tmp_path / "sndr" / "engines" / "vllm" / "patches"
     (fake_integrations / "x").mkdir(parents=True)
     (fake_integrations / "x" / "evil.py").write_text(
         'import subprocess\n'
@@ -461,7 +461,7 @@ def test_r4_does_not_flag_docstring_mentions(tmp_path, monkeypatch):
     """Files that merely document launcher syntax in their docstring
     or string literals must NOT trigger R4."""
     mod = _load_module()
-    fake_integrations = tmp_path / "vllm" / "sndr_core" / "integrations"
+    fake_integrations = tmp_path / "sndr" / "engines" / "vllm" / "patches"
     (fake_integrations / "x").mkdir(parents=True)
     (fake_integrations / "x" / "describes_launchers.py").write_text(
         '"""This patch survives `exec vllm serve` and `docker run` invocations."""\n'
@@ -482,7 +482,7 @@ def test_r4_does_not_flag_docstring_mentions(tmp_path, monkeypatch):
 
 def test_r4_clean_tree_returns_empty(tmp_path, monkeypatch):
     mod = _load_module()
-    fake_integrations = tmp_path / "vllm" / "sndr_core" / "integrations"
+    fake_integrations = tmp_path / "sndr" / "engines" / "vllm" / "patches"
     (fake_integrations / "x").mkdir(parents=True)
     (fake_integrations / "x" / "ok.py").write_text(
         '"""Just a normal patch module."""\ndef apply(): return ("applied", "ok")\n'

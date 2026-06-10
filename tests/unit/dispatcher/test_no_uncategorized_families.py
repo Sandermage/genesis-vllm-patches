@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """CI-wide regression guard — every PATCH_REGISTRY entry's `family`
 must resolve to a known category via
-`vllm.sndr_core.dispatcher.spec.infer_category`.
+`sndr.dispatcher.spec.infer_category`.
 
 Why this matters
 ----------------
@@ -32,8 +32,8 @@ def test_no_family_resolves_to_uncategorized():
     """Every registry entry's `family` must resolve to a non-
     "uncategorized" category via `_FAMILY_TO_CATEGORY` (exact match
     or root-prefix fallback)."""
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
-    from vllm.sndr_core.dispatcher.spec import infer_category
+    from sndr.dispatcher.registry import PATCH_REGISTRY
+    from sndr.dispatcher.spec import infer_category
     offenders: dict[str, list[str]] = {}
     for pid, meta in PATCH_REGISTRY.items():
         if not isinstance(meta, dict):
@@ -71,7 +71,7 @@ def test_v11_3_0_family_map_includes_phase_2_2_relocations():
     - streaming (PN200-203 streaming KV)
     - offload (P104/P105/PN102)
     """
-    from vllm.sndr_core.dispatcher.spec import _FAMILY_TO_CATEGORY
+    from sndr.dispatcher.spec import _FAMILY_TO_CATEGORY
     required = {"gemma4", "observability", "streaming", "offload"}
     missing = sorted(required - set(_FAMILY_TO_CATEGORY.keys()))
     assert not missing, (

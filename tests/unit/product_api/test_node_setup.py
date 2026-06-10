@@ -5,7 +5,7 @@ from __future__ import annotations
 import io
 import tarfile
 
-from vllm.sndr_core.product_api import node_setup
+from sndr.product_api.legacy import node_setup
 
 
 def test_node_bundle_ships_code_AND_corpus_consistently():
@@ -39,7 +39,7 @@ def test_setup_node_script_is_self_contained():
     # conditionally pip-install the k8s client when a kubeconfig is mounted.
     assert "--entrypoint sh" in s
     assert "base64 -d | python3 -" in s
-    assert "vllm.sndr_core.product_api.http_app import" not in s  # not the shim path
+    assert "sndr.product_api.legacy.http_app import" not in s  # not the shim path
     # The encoded launcher must decode to the canonical, apply-wired run_server.
     import base64 as _b64
     import re as _re

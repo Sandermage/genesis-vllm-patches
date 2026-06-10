@@ -4,17 +4,17 @@ from __future__ import annotations
 
 from dataclasses import asdict, is_dataclass
 
-from vllm.sndr_core.model_configs.registry_v2 import (
+from sndr.model_configs.registry_v2 import (
     list_hardware,
     list_models,
     list_presets,
     list_profiles,
 )
-from vllm.sndr_core.product_api.overview import (
+from sndr.product_api.legacy.overview import (
     collect_catalog_summary,
     collect_product_overview,
 )
-from vllm.sndr_core.product_api.types import CatalogSummary, ProductOverview
+from sndr.product_api.legacy.types import CatalogSummary, ProductOverview
 
 
 def _missing_tool(_tool: str):

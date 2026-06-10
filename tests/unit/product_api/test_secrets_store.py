@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.product_api import secrets_store as ss
+from sndr.product_api.legacy import secrets_store as ss
 
 
 @pytest.fixture()

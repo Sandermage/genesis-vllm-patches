@@ -75,7 +75,7 @@ def test_p87_uses_text_patcher_not_class_rebind():
     patcher = _make_patcher()
     if patcher is None:
         pytest.skip("vllm not installed (resolve_vllm_file returned None)")
-    from vllm.sndr_core.core.text_patch import TextPatcher
+    from sndr.kernel.text_patch import TextPatcher
 
     assert isinstance(patcher, TextPatcher), (
         "P87 _make_patcher must return TextPatcher instance"

@@ -12,10 +12,10 @@ from typing import Optional
 
 import pytest
 
-from vllm.sndr_core.cache import _pn95_runtime as P
-from vllm.sndr_core.cache.tier_manager import TierManager
-from vllm.sndr_core.cache._pn95_runtime import _mm_block_overlap_set
-from vllm.sndr_core.model_configs.schema import (
+from sndr.cache import _pn95_runtime as P
+from sndr.cache.tier_manager import TierManager
+from sndr.cache._pn95_runtime import _mm_block_overlap_set
+from sndr.model_configs.schema import (
     CacheTier, CacheConfig, ModelConfig, HardwareSpec, DockerConfig,
 )
 
@@ -227,7 +227,7 @@ def test_notify_admit_silent_when_block_size_invalid():
 
 def test_text_patch_passes_block_size():
     """The PN95 text-patch must pass `self.block_size` to notify_admit."""
-    from vllm.sndr_core.integrations.kv_cache import pn95_tier_aware_cache as M
+    from sndr.engines.vllm.patches.kv_cache import pn95_tier_aware_cache as M
     assert "self.block_size" in M.PN95_SITE1_NEW, (
         "Day 5 wire-in must pass block_size to notify_admit"
     )

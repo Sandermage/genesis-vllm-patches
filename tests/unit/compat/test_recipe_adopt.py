@@ -49,7 +49,7 @@ def fake_url_fetcher(monkeypatch):
         if state.get("size") and len(body) > state["size"]:
             raise RuntimeError(f"recipe exceeded {state['size']} byte limit")
         return body
-    from vllm.sndr_core.compat import recipes
+    from sndr.compat import recipes
     monkeypatch.setattr(recipes, "_fetch_url_body", fake_fetch)
     return state
 
@@ -59,25 +59,25 @@ def fake_url_fetcher(monkeypatch):
 
 class TestURLValidation:
     def test_https_url_accepted(self, tmp_recipes_dir, fake_url_fetcher):
-        from vllm.sndr_core.compat.recipes import adopt_recipe
+        from sndr.compat.recipes import adopt_recipe
         result = adopt_recipe("https://gist.example.com/foo.json", "imported")
         assert result is not None
         assert result["name"] == "imported"
 
     def test_http_url_refused_by_default(self, tmp_recipes_dir, fake_url_fetcher):
-        from vllm.sndr_core.compat.recipes import adopt_recipe
+        from sndr.compat.recipes import adopt_recipe
         with pytest.raises(ValueError) as ex:
             adopt_recipe("http://example.com/recipe.json", "imported")
         assert "https" in str(ex.value).lower() or "http" in str(ex.value).lower()
 
     def test_http_with_allow_flag(self, tmp_recipes_dir, fake_url_fetcher):
-        from vllm.sndr_core.compat.recipes import adopt_recipe
+        from sndr.compat.recipes import adopt_recipe
         result = adopt_recipe("http://example.com/recipe.json", "imported",
                               allow_http=True)
         assert result is not None
 
     def test_non_url_string_refused(self, tmp_recipes_dir):
-        from vllm.sndr_core.compat.recipes import adopt_recipe
+        from sndr.compat.recipes import adopt_recipe
         with pytest.raises(ValueError):
             adopt_recipe("not a url", "imported")
         with pytest.raises(ValueError):
@@ -94,7 +94,7 @@ class TestBodyValidation:
         self, tmp_recipes_dir, fake_url_fetcher,
     ):
         fake_url_fetcher["body"] = "not valid json {{"
-        from vllm.sndr_core.compat.recipes import adopt_recipe
+        from sndr.compat.recipes import adopt_recipe
         with pytest.raises(ValueError):
             adopt_recipe("https://example.com/recipe.json", "imported")
 
@@ -103,7 +103,7 @@ class TestBodyValidation:
     ):
         # Empty dict is invalid (missing required fields)
         fake_url_fetcher["body"] = json.dumps({"name": ""})
-        from vllm.sndr_core.compat.recipes import adopt_recipe
+        from sndr.compat.recipes import adopt_recipe
         with pytest.raises(ValueError) as ex:
             adopt_recipe("https://example.com/recipe.json", "imported")
         assert "validation" in str(ex.value).lower() or \
@@ -116,7 +116,7 @@ class TestBodyValidation:
         # Cap the fetch to 50 bytes, body is larger
         fake_url_fetcher["body"] = json.dumps(_VALID_RECIPE)
         fake_url_fetcher["size"] = 50
-        from vllm.sndr_core.compat.recipes import adopt_recipe
+        from sndr.compat.recipes import adopt_recipe
         with pytest.raises(RuntimeError):
             adopt_recipe("https://example.com/recipe.json", "imported")
 
@@ -128,14 +128,14 @@ class TestAdoption:
     def test_adopted_saved_with_target_name(
         self, tmp_recipes_dir, fake_url_fetcher,
     ):
-        from vllm.sndr_core.compat.recipes import adopt_recipe, list_names
+        from sndr.compat.recipes import adopt_recipe, list_names
         adopt_recipe("https://example.com/recipe.json", "my-imported")
         assert "my-imported" in list_names()
 
     def test_adopt_overwrites_existing(
         self, tmp_recipes_dir, fake_url_fetcher,
     ):
-        from vllm.sndr_core.compat.recipes import (
+        from sndr.compat.recipes import (
             adopt_recipe, save, load,
         )
         save("dup-name", _VALID_RECIPE)
@@ -152,7 +152,7 @@ class TestAdoption:
     ):
         """Adopted recipe should record the URL it was pulled from
         in a `_adopted_from` field for provenance."""
-        from vllm.sndr_core.compat.recipes import adopt_recipe, load
+        from sndr.compat.recipes import adopt_recipe, load
         adopt_recipe("https://example.com/recipe.json", "tracked")
         rec = load("tracked")
         assert "_adopted_from" in rec
@@ -166,7 +166,7 @@ class TestCLI:
     def test_adopt_subcommand_routes(
         self, tmp_recipes_dir, fake_url_fetcher, capsys,
     ):
-        from vllm.sndr_core.compat.recipes import main
+        from sndr.compat.recipes import main
         rc = main(["adopt", "https://example.com/recipe.json",
                     "from-cli"])
         assert rc == 0
@@ -176,7 +176,7 @@ class TestCLI:
     def test_adopt_invalid_url_returns_nonzero(
         self, tmp_recipes_dir, capsys,
     ):
-        from vllm.sndr_core.compat.recipes import main
+        from sndr.compat.recipes import main
         rc = main(["adopt", "ftp://nope/recipe", "x"])
         assert rc != 0
 
@@ -184,7 +184,7 @@ class TestCLI:
         self, tmp_recipes_dir, fake_url_fetcher, capsys,
     ):
         fake_url_fetcher["body"] = "{malformed"
-        from vllm.sndr_core.compat.recipes import main
+        from sndr.compat.recipes import main
         rc = main(["adopt", "https://example.com/r.json", "x"])
         assert rc != 0
 
@@ -194,7 +194,7 @@ class TestCLI:
 
 class TestPostAdoptInspect:
     def test_show_after_adopt(self, tmp_recipes_dir, fake_url_fetcher, capsys):
-        from vllm.sndr_core.compat.recipes import main
+        from sndr.compat.recipes import main
         main(["adopt", "https://example.com/recipe.json", "post-adopt"])
         capsys.readouterr()  # clear
         rc = main(["show", "post-adopt"])

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Tests for `vllm.sndr_core.core.manifest_cache` — Site Map fast-path.
+"""Tests for `sndr.kernel.manifest_cache` — Site Map fast-path.
 
 Contract:
 
@@ -20,7 +20,7 @@ import hashlib
 
 import pytest
 
-from vllm.sndr_core.core import manifest_cache as mc
+from sndr.kernel import manifest as mc
 
 
 @pytest.fixture(autouse=True)
@@ -104,7 +104,7 @@ class TestCachedLoadManifest:
         # Force load path to return a known dict via monkeypatch
         sentinel = {"pins": {"vllm": "x"}, "files": {}}
         monkeypatch.setattr(
-            "vllm.sndr_core.wiring.anchor_manifest.load_manifest_for_pins",
+            "sndr.engines.vllm.wiring.anchor_manifest.load_manifest_for_pins",
             lambda *a, **kw: sentinel,
         )
         result = mc.cached_load_manifest()
@@ -120,7 +120,7 @@ class TestCachedLoadManifest:
             return sentinel
 
         monkeypatch.setattr(
-            "vllm.sndr_core.wiring.anchor_manifest.load_manifest_for_pins",
+            "sndr.engines.vllm.wiring.anchor_manifest.load_manifest_for_pins",
             fake_load,
         )
         first = mc.cached_load_manifest()
@@ -138,7 +138,7 @@ class TestCachedLoadManifest:
             return None
 
         monkeypatch.setattr(
-            "vllm.sndr_core.wiring.anchor_manifest.load_manifest_for_pins",
+            "sndr.engines.vllm.wiring.anchor_manifest.load_manifest_for_pins",
             fake_load,
         )
         first = mc.cached_load_manifest()
@@ -156,7 +156,7 @@ class TestCachedLoadManifest:
             return None
 
         monkeypatch.setattr(
-            "vllm.sndr_core.wiring.anchor_manifest.load_manifest_for_pins",
+            "sndr.engines.vllm.wiring.anchor_manifest.load_manifest_for_pins",
             fake_load,
         )
         mc.cached_load_manifest()

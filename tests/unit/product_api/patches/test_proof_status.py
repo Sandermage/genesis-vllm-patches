@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.product_api.patches import proof_status
-from vllm.sndr_core.product_api.patches.proof_status import (
+from sndr.product_api.legacy.patches import proof_status
+from sndr.product_api.legacy.patches.proof_status import (
     ProofStatusResult,
     UnknownBucketError,
 )
@@ -45,7 +45,7 @@ class TestProofStatus:
         assert len(err.valid) > 0
 
     def test_multi_bucket_filter_sorted(self, tmp_path):
-        from vllm.sndr_core.proof import PROOF_STATUS_BUCKETS
+        from sndr.proof import PROOF_STATUS_BUCKETS
 
         # Pick two valid bucket names in non-sorted order; result must
         # report them in sorted form.

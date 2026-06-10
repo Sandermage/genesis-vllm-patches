@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""TDD for vllm.sndr_core.model_configs.schema — comprehensive ModelConfig.
+"""TDD for sndr.model_configs.schema — comprehensive ModelConfig.
 
 Schema must capture EVERYTHING needed to reproduce + verify a launch:
 identity, hardware, model, vLLM args, spec_decode, structured_output,
@@ -14,7 +14,7 @@ from __future__ import annotations
 import pytest
 import yaml as _yaml_check  # ensure pyyaml imports
 
-from vllm.sndr_core.model_configs.schema import (
+from sndr.model_configs.schema import (
     ModelConfig,
     ReferenceMetrics,
     VerifyTolerances,

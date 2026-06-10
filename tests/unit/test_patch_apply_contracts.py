@@ -29,8 +29,8 @@ import importlib
 
 import pytest
 
-from vllm.sndr_core.dispatcher import PATCH_REGISTRY
-from vllm.sndr_core.dispatcher.spec import iter_patch_specs
+from sndr.dispatcher import PATCH_REGISTRY
+from sndr.dispatcher.spec import iter_patch_specs
 
 
 # ─── Registry shape contracts ──────────────────────────────────────────
@@ -120,6 +120,26 @@ _ALL_SPECS_WITH_MODULE = [
 ]
 
 
+def _import_apply_module(spec):
+    """Import the spec's apply_module; skip on hosts without torch/triton.
+
+    CI installs CPU torch, so the import contract is still fully
+    exercised there; local torch-less hosts skip instead of failing
+    (same pattern as tests/unit/integrations/_family_contract_helpers).
+    The static "no top-level torch import" invariant is enforced by the
+    family contracts, not here.
+    """
+    try:
+        return importlib.import_module(spec.apply_module)
+    except ImportError as e:
+        if "torch" in str(e) or "triton" in str(e):
+            pytest.skip(
+                f"{spec.patch_id}: torch/triton unavailable on this "
+                f"host: {e}"
+            )
+        raise
+
+
 @pytest.mark.parametrize(
     "spec",
     _ALL_SPECS_WITH_MODULE,
@@ -132,13 +152,13 @@ class TestApplyModule:
         Patches that need torch must defer the heavy import to inside
         apply() (Wave 6 closure pattern — P22/P31/P32/P28/P7/P17-18/P20).
         """
-        importlib.import_module(spec.apply_module)
+        _import_apply_module(spec)
 
     def test_apply_function_exposed(self, spec):
         """apply_module either exposes a top-level apply() or registers
         via @register_patch in _per_patch_dispatch. Both are valid; this
         test only flags modules that expose neither (probably misnamed)."""
-        mod = importlib.import_module(spec.apply_module)
+        mod = _import_apply_module(spec)
         if not hasattr(mod, "apply"):
             # Module-level apply() is one valid pattern; the other is
             # @register_patch in _per_patch_dispatch.py — those modules
@@ -155,7 +175,7 @@ class TestApplyModule:
         """With env disabled, apply() must return a 2-tuple (status,
         reason) where status ∈ {applied, skipped, failed}. apply() must
         NEVER raise — defensive try/except is mandatory inside."""
-        mod = importlib.import_module(spec.apply_module)
+        mod = _import_apply_module(spec)
         if not hasattr(mod, "apply"):
             pytest.skip("no module-level apply()")
 

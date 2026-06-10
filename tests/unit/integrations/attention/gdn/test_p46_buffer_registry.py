@@ -25,7 +25,7 @@ except ImportError:
 def test_p46_registry_pool_visible_after_module_import():
     """After p46 module import + ensure_pool_registered(), POOL_GDN_GATING
     is visible in PersistentBufferRegistry."""
-    from vllm.sndr_core.runtime.persistent_buffer_registry import (
+    from sndr.runtime.persistent_buffer_registry import (
         PersistentBufferRegistry,
         POOL_GDN_GATING,
     )
@@ -57,7 +57,7 @@ def test_p46_registers_persistent_slice_pool_not_buffer_pool():
     """ensure_pool_registered() must register POOL_GDN_GATING as a
     PersistentSlicePool — P46's allocation is fixed-shape with
     key_dims=3 (all dims keyed)."""
-    from vllm.sndr_core.runtime.persistent_buffer_registry import (
+    from sndr.runtime.persistent_buffer_registry import (
         PersistentBufferRegistry,
         PersistentSlicePool,
         POOL_GDN_GATING,
@@ -90,7 +90,7 @@ def test_p46_source_uses_get_slice_pool_not_get_pool():
 def test_p46_integration_and_storage_class_compose_without_raising():
     """End-to-end: integration ensure_pool_registered() then storage
     class _get_backing_pool() — the path that was broken pre-fix."""
-    from vllm.sndr_core.runtime.persistent_buffer_registry import (
+    from sndr.runtime.persistent_buffer_registry import (
         _reset_registry_for_tests, PersistentSlicePool,
     )
     _reset_registry_for_tests()

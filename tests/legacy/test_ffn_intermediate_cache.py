@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""TDD tests for vllm.sndr_core.kernels.ffn_intermediate_cache.
+"""TDD tests for sndr.engines.vllm.kernels_legacy.ffn_intermediate_cache.
 
 PN12 migration target: pool transient SiluAndMul output buffers across layers
 to close Cliff 1 (138 MiB OOM at long-ctx + tool-call on TQ3 path) which PN8
@@ -34,7 +34,7 @@ class TestEnvGate:
     """Group 1: should_apply() respects GENESIS_ENABLE_PN12_FFN_INTERMEDIATE_POOL."""
 
     def test_should_apply_returns_bool(self):
-        from vllm.sndr_core.kernels.ffn_intermediate_cache import (
+        from sndr.engines.vllm.kernels_legacy.ffn_intermediate_cache import (
             FFNIntermediateCache,
         )
         assert isinstance(FFNIntermediateCache.should_apply(), bool)
@@ -43,21 +43,21 @@ class TestEnvGate:
         monkeypatch.delenv(
             "GENESIS_ENABLE_PN12_FFN_INTERMEDIATE_POOL", raising=False
         )
-        from vllm.sndr_core.kernels.ffn_intermediate_cache import (
+        from sndr.engines.vllm.kernels_legacy.ffn_intermediate_cache import (
             FFNIntermediateCache,
         )
         assert FFNIntermediateCache.should_apply() is False
 
     def test_should_apply_false_when_env_zero(self, monkeypatch):
         monkeypatch.setenv("GENESIS_ENABLE_PN12_FFN_INTERMEDIATE_POOL", "0")
-        from vllm.sndr_core.kernels.ffn_intermediate_cache import (
+        from sndr.engines.vllm.kernels_legacy.ffn_intermediate_cache import (
             FFNIntermediateCache,
         )
         assert FFNIntermediateCache.should_apply() is False
 
     def test_should_apply_true_when_env_one(self, monkeypatch):
         monkeypatch.setenv("GENESIS_ENABLE_PN12_FFN_INTERMEDIATE_POOL", "1")
-        from vllm.sndr_core.kernels.ffn_intermediate_cache import (
+        from sndr.engines.vllm.kernels_legacy.ffn_intermediate_cache import (
             FFNIntermediateCache,
         )
         assert FFNIntermediateCache.should_apply() is True
@@ -77,13 +77,13 @@ class TestBufferLifecycle:
 
     def setup_method(self):
         # Reset registry between tests so namespaces don't bleed.
-        from vllm.sndr_core.kernels.ffn_intermediate_cache import (
+        from sndr.engines.vllm.kernels_legacy.ffn_intermediate_cache import (
             FFNIntermediateCache,
         )
         FFNIntermediateCache._BUFFER_REGISTRY.clear()
 
     def test_acquire_silu_out_returns_correct_shape(self):
-        from vllm.sndr_core.kernels.ffn_intermediate_cache import (
+        from sndr.engines.vllm.kernels_legacy.ffn_intermediate_cache import (
             FFNIntermediateCache,
         )
         out = FFNIntermediateCache.acquire_silu_out(
@@ -96,7 +96,7 @@ class TestBufferLifecycle:
 
     def test_acquire_returns_same_pointer_for_equal_shape(self):
         """Pointer-stable: same key + same M → same data_ptr (graph-safe)."""
-        from vllm.sndr_core.kernels.ffn_intermediate_cache import (
+        from sndr.engines.vllm.kernels_legacy.ffn_intermediate_cache import (
             FFNIntermediateCache,
         )
         out1 = FFNIntermediateCache.acquire_silu_out(
@@ -112,7 +112,7 @@ class TestBufferLifecycle:
 
     def test_acquire_smaller_M_returns_slice_of_same_buffer(self):
         """Subsequent smaller M → narrowed view of same backing buffer."""
-        from vllm.sndr_core.kernels.ffn_intermediate_cache import (
+        from sndr.engines.vllm.kernels_legacy.ffn_intermediate_cache import (
             FFNIntermediateCache,
         )
         big = FFNIntermediateCache.acquire_silu_out(
@@ -130,7 +130,7 @@ class TestBufferLifecycle:
     def test_acquire_larger_M_grows_buffer_once(self):
         """Subsequent larger M → buffer grows; pointer changes (one-time
         reallocation; subsequent same-large acquire stays stable)."""
-        from vllm.sndr_core.kernels.ffn_intermediate_cache import (
+        from sndr.engines.vllm.kernels_legacy.ffn_intermediate_cache import (
             FFNIntermediateCache,
         )
         small = FFNIntermediateCache.acquire_silu_out(
@@ -154,7 +154,7 @@ class TestBufferLifecycle:
         assert big2.data_ptr() == big.data_ptr()
 
     def test_different_intermediate_size_uses_different_buffer(self):
-        from vllm.sndr_core.kernels.ffn_intermediate_cache import (
+        from sndr.engines.vllm.kernels_legacy.ffn_intermediate_cache import (
             FFNIntermediateCache,
         )
         a = FFNIntermediateCache.acquire_silu_out(
@@ -171,7 +171,7 @@ class TestBufferLifecycle:
         assert b.shape == (64, 17408)
 
     def test_different_dtype_uses_different_buffer(self):
-        from vllm.sndr_core.kernels.ffn_intermediate_cache import (
+        from sndr.engines.vllm.kernels_legacy.ffn_intermediate_cache import (
             FFNIntermediateCache,
         )
         a = FFNIntermediateCache.acquire_silu_out(
@@ -195,13 +195,13 @@ class TestWriteSemantics:
     """Group 3: caller writes into the slice and reads back (numerical check)."""
 
     def setup_method(self):
-        from vllm.sndr_core.kernels.ffn_intermediate_cache import (
+        from sndr.engines.vllm.kernels_legacy.ffn_intermediate_cache import (
             FFNIntermediateCache,
         )
         FFNIntermediateCache._BUFFER_REGISTRY.clear()
 
     def test_inplace_write_visible_in_returned_slice(self):
-        from vllm.sndr_core.kernels.ffn_intermediate_cache import (
+        from sndr.engines.vllm.kernels_legacy.ffn_intermediate_cache import (
             FFNIntermediateCache,
         )
         out = FFNIntermediateCache.acquire_silu_out(
@@ -225,7 +225,7 @@ class TestWriteSemantics:
         """Smaller M acquire writes only the slice; bigger acquire later sees
         whatever was written previously in the slice + zeros (or undefined)
         in the unwritten region. Tests slice isolation, not zero-init."""
-        from vllm.sndr_core.kernels.ffn_intermediate_cache import (
+        from sndr.engines.vllm.kernels_legacy.ffn_intermediate_cache import (
             FFNIntermediateCache,
         )
         big = FFNIntermediateCache.acquire_silu_out(
@@ -260,7 +260,7 @@ class TestMemoryAccounting:
     """Group 4: registry stays bounded — N calls do NOT create N buffers."""
 
     def setup_method(self):
-        from vllm.sndr_core.kernels.ffn_intermediate_cache import (
+        from sndr.engines.vllm.kernels_legacy.ffn_intermediate_cache import (
             FFNIntermediateCache,
         )
         FFNIntermediateCache._BUFFER_REGISTRY.clear()
@@ -269,7 +269,7 @@ class TestMemoryAccounting:
         """Lorbus 27B has 64 FFN layers — each forward pass calls
         SiluAndMul once per layer. Old behavior: 64 fresh allocations.
         New behavior with PN12: ONE shared buffer."""
-        from vllm.sndr_core.kernels.ffn_intermediate_cache import (
+        from sndr.engines.vllm.kernels_legacy.ffn_intermediate_cache import (
             FFNIntermediateCache,
         )
         outputs = []
@@ -286,7 +286,7 @@ class TestMemoryAccounting:
         )
 
     def test_registry_size_one_per_unique_key(self):
-        from vllm.sndr_core.kernels.ffn_intermediate_cache import (
+        from sndr.engines.vllm.kernels_legacy.ffn_intermediate_cache import (
             FFNIntermediateCache,
         )
         for _ in range(50):
@@ -298,7 +298,7 @@ class TestMemoryAccounting:
         assert len(FFNIntermediateCache._BUFFER_REGISTRY) == 1
 
     def test_clear_registry_drops_all_entries(self):
-        from vllm.sndr_core.kernels.ffn_intermediate_cache import (
+        from sndr.engines.vllm.kernels_legacy.ffn_intermediate_cache import (
             FFNIntermediateCache,
         )
         FFNIntermediateCache.acquire_silu_out(
@@ -318,13 +318,13 @@ class TestBadInput:
     """Group 5: invalid inputs raise informative errors (loud-fail principle)."""
 
     def setup_method(self):
-        from vllm.sndr_core.kernels.ffn_intermediate_cache import (
+        from sndr.engines.vllm.kernels_legacy.ffn_intermediate_cache import (
             FFNIntermediateCache,
         )
         FFNIntermediateCache._BUFFER_REGISTRY.clear()
 
     def test_zero_num_tokens_raises(self):
-        from vllm.sndr_core.kernels.ffn_intermediate_cache import (
+        from sndr.engines.vllm.kernels_legacy.ffn_intermediate_cache import (
             FFNIntermediateCache,
         )
         with pytest.raises((ValueError, RuntimeError, AssertionError)):
@@ -334,7 +334,7 @@ class TestBadInput:
             )
 
     def test_negative_intermediate_size_raises(self):
-        from vllm.sndr_core.kernels.ffn_intermediate_cache import (
+        from sndr.engines.vllm.kernels_legacy.ffn_intermediate_cache import (
             FFNIntermediateCache,
         )
         with pytest.raises((ValueError, RuntimeError, AssertionError)):

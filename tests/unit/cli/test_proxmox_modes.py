@@ -15,9 +15,9 @@ from unittest.mock import patch
 
 import pytest
 
-from vllm.sndr_core.cli import proxmox as proxmox_cli
-from vllm.sndr_core.model_configs.registry_v2 import load_alias
-from vllm.sndr_core.model_configs.schema import ProxmoxConfig
+from sndr.cli.legacy import proxmox as proxmox_cli
+from sndr.model_configs.registry_v2 import load_alias
+from sndr.model_configs.schema import ProxmoxConfig
 
 
 @pytest.fixture
@@ -36,7 +36,7 @@ class TestKnownModesRender:
     def test_known_mode_renders_without_error(self, cfg_lxc, mode):
         cfg_lxc.proxmox.mode = mode
         buf = io.StringIO()
-        with patch("vllm.sndr_core.cli.proxmox._resolve",
+        with patch("sndr.cli.legacy.proxmox._resolve",
                    return_value=cfg_lxc):
             with redirect_stdout(buf):
                 rc = proxmox_cli.run_render(
@@ -50,7 +50,7 @@ class TestKnownModesRender:
 class TestUnknownModeFailsFast:
     def test_unknown_mode_returns_exit_2(self, cfg_lxc):
         cfg_lxc.proxmox.mode = "kubernetes-on-pve"   # not in valid set
-        with patch("vllm.sndr_core.cli.proxmox._resolve",
+        with patch("sndr.cli.legacy.proxmox._resolve",
                    return_value=cfg_lxc):
             rc = proxmox_cli.run_render(
                 argparse.Namespace(config="prod-qwen3.6-35b-balanced")
@@ -61,7 +61,7 @@ class TestUnknownModeFailsFast:
 
     def test_empty_mode_returns_exit_2(self, cfg_lxc):
         cfg_lxc.proxmox.mode = ""
-        with patch("vllm.sndr_core.cli.proxmox._resolve",
+        with patch("sndr.cli.legacy.proxmox._resolve",
                    return_value=cfg_lxc):
             rc = proxmox_cli.run_render(
                 argparse.Namespace(config="prod-qwen3.6-35b-balanced")

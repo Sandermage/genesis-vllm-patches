@@ -14,8 +14,8 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-from vllm.sndr_core.model_configs.diagnose import diagnose_env_exported
-from vllm.sndr_core.model_configs.schema import (
+from sndr.model_configs.diagnose import diagnose_env_exported
+from sndr.model_configs.schema import (
     DockerConfig,
     HardwareSpec,
     ModelConfig,
@@ -52,7 +52,7 @@ def _stub_docker_inspect(env_pairs: list[str]):
         # Return (rc, stdout, stderr) — stdout is the JSON env list.
         return (0, json.dumps(env_pairs), "")
     return patch(
-        "vllm.sndr_core.model_configs.diagnose._run",
+        "sndr.model_configs.diagnose._run",
         side_effect=_fake_run,
     )
 

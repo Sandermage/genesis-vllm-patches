@@ -19,6 +19,8 @@ Backport: vllm#35975 by AjAnubolu.
 """
 from __future__ import annotations
 
+import re
+
 import pytest
 
 
@@ -28,7 +30,7 @@ import pytest
 
 
 def test_pn35_wiring_module_imports():
-    from vllm.sndr_core.integrations.worker import pn35_inputs_embeds_optional as mod
+    from sndr.engines.vllm.patches.worker import pn35_inputs_embeds_optional as mod
     assert hasattr(mod, "apply")
     assert hasattr(mod, "GENESIS_PN35_MARKER")
     assert hasattr(mod, "PN35_PART1_ANCHOR")
@@ -36,7 +38,7 @@ def test_pn35_wiring_module_imports():
 
 
 def test_pn35_in_dispatcher_registry():
-    from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+    from sndr.dispatcher import PATCH_REGISTRY
 
     assert "PN35" in PATCH_REGISTRY
     e = PATCH_REGISTRY["PN35"]
@@ -50,12 +52,12 @@ def test_pn35_in_dispatcher_registry():
 
 
 def test_pn35_registered_in_apply_all():
-    from vllm.sndr_core.apply import (
+    from sndr.apply import (
         PATCH_REGISTRY as APPLY_REGISTRY,
     )
 
     names = [name for name, _ in APPLY_REGISTRY]
-    found = [n for n in names if "PN35" in n]
+    found = [n for n in names if re.search(r"\bPN35\b", n)]
     assert len(found) == 1, (
         f"PN35 not registered in apply_all (or duplicated). "
         f"Names matching 'PN35': {found}"
@@ -65,7 +67,7 @@ def test_pn35_registered_in_apply_all():
 def test_pn35_credit_mentions_upstream_author_and_noonghunna():
     """Attribution chain: AjAnubolu (UPSTREAM PR author) + noonghunna
     (sidecar pattern) + club-3090#32 (issue origin)."""
-    from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+    from sndr.dispatcher import PATCH_REGISTRY
 
     credit = PATCH_REGISTRY["PN35"]["credit"]
     assert "AjAnubolu" in credit, "missing UPSTREAM PR author credit"
@@ -76,7 +78,7 @@ def test_pn35_credit_mentions_upstream_author_and_noonghunna():
 def test_pn35_credit_mentions_club_3090_issue_32_origin():
     """The patch was prompted by club-3090#32 (RossNE99 + GuiPerPT
     WSL2 OOM reports). Credit must capture this."""
-    from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+    from sndr.dispatcher import PATCH_REGISTRY
 
     credit = PATCH_REGISTRY["PN35"]["credit"]
     assert "club-3090#32" in credit or "WSL2" in credit, (
@@ -93,7 +95,7 @@ def test_pn35_credit_mentions_club_3090_issue_32_origin():
 def test_pn35_part1_anchor_targets_gpu_model_runner_make_buffer():
     """part1 must match the EXACT _make_buffer() call in
     gpu_model_runner.py:713 (current vllm pin)."""
-    from vllm.sndr_core.integrations.worker.pn35_inputs_embeds_optional import (
+    from sndr.engines.vllm.patches.worker.pn35_inputs_embeds_optional import (
         PN35_PART1_ANCHOR,
     )
     assert "self.inputs_embeds = self._make_buffer(" in PN35_PART1_ANCHOR
@@ -104,7 +106,7 @@ def test_pn35_part1_anchor_targets_gpu_model_runner_make_buffer():
 
 def test_pn35_part2_anchor_targets_llm_base_proposer_torch_zeros():
     """part2 must match torch.zeros(...) in llm_base_proposer.py:205."""
-    from vllm.sndr_core.integrations.worker.pn35_inputs_embeds_optional import (
+    from sndr.engines.vllm.patches.worker.pn35_inputs_embeds_optional import (
         PN35_PART2_ANCHOR,
     )
     assert "self.inputs_embeds = torch.zeros(" in PN35_PART2_ANCHOR
@@ -115,7 +117,7 @@ def test_pn35_part2_anchor_targets_llm_base_proposer_torch_zeros():
 def test_pn35_part1_replacement_preserves_original_under_guard():
     """The patch must be a strict ADDITION — if multimodal/prompt_embeds
     is True, original allocation runs as before. Zero regression path."""
-    from vllm.sndr_core.integrations.worker.pn35_inputs_embeds_optional import (
+    from sndr.engines.vllm.patches.worker.pn35_inputs_embeds_optional import (
         PN35_PART1_REPLACEMENT,
     )
     # Default value: None
@@ -127,7 +129,7 @@ def test_pn35_part1_replacement_preserves_original_under_guard():
 
 
 def test_pn35_part2_replacement_preserves_original_under_guard():
-    from vllm.sndr_core.integrations.worker.pn35_inputs_embeds_optional import (
+    from sndr.engines.vllm.patches.worker.pn35_inputs_embeds_optional import (
         PN35_PART2_REPLACEMENT,
     )
     assert "self.inputs_embeds = None" in PN35_PART2_REPLACEMENT
@@ -142,7 +144,7 @@ def test_pn35_part2_replacement_preserves_original_under_guard():
 
 
 def test_pn35_marker_unique_and_versioned():
-    from vllm.sndr_core.integrations.worker.pn35_inputs_embeds_optional import (
+    from sndr.engines.vllm.patches.worker.pn35_inputs_embeds_optional import (
         GENESIS_PN35_MARKER,
     )
     assert "PN35" in GENESIS_PN35_MARKER
@@ -157,8 +159,8 @@ def test_pn35_drift_markers_specific_no_generic_collision_risk():
     import os
     import tempfile
 
-    from vllm.sndr_core.integrations.worker import pn35_inputs_embeds_optional as mod
-    import vllm.sndr_core.detection.guards as guards
+    from sndr.engines.vllm.patches.worker import pn35_inputs_embeds_optional as mod
+    import sndr.engines.vllm.detection.guards as guards
 
     with tempfile.TemporaryDirectory() as td:
         for sub in ["v1/worker", "v1/spec_decode"]:
@@ -202,7 +204,7 @@ def test_pn35_drift_markers_specific_no_generic_collision_risk():
 def test_pn35_apply_skips_when_env_disabled(monkeypatch):
     """Operators can opt-out via GENESIS_ENABLE_PN35_INPUTS_EMBEDS_OPTIONAL=0."""
     monkeypatch.setenv("GENESIS_ENABLE_PN35_INPUTS_EMBEDS_OPTIONAL", "0")
-    from vllm.sndr_core.integrations.worker.pn35_inputs_embeds_optional import (
+    from sndr.engines.vllm.patches.worker.pn35_inputs_embeds_optional import (
         apply,
     )
     status, reason = apply()
@@ -212,7 +214,7 @@ def test_pn35_apply_skips_when_env_disabled(monkeypatch):
 def test_pn35_apply_skips_when_vllm_install_missing(monkeypatch):
     """If vllm install root not resolvable, soft-skip cleanly."""
     monkeypatch.setenv("GENESIS_ENABLE_PN35_INPUTS_EMBEDS_OPTIONAL", "1")
-    import vllm.sndr_core.integrations.worker.pn35_inputs_embeds_optional as mod
+    import sndr.engines.vllm.patches.worker.pn35_inputs_embeds_optional as mod
 
     # Force vllm_install_root to return None
     monkeypatch.setattr(mod, "vllm_install_root", lambda: None)
@@ -228,7 +230,7 @@ def test_pn35_two_sub_patches_independent():
     apply() reports based on what landed, not all-or-nothing."""
     import inspect
 
-    from vllm.sndr_core.integrations.worker import pn35_inputs_embeds_optional as mod
+    from sndr.engines.vllm.patches.worker import pn35_inputs_embeds_optional as mod
 
     src = inspect.getsource(mod.apply)
     # Implementation should iterate over the two patches, log warnings
@@ -247,7 +249,7 @@ def test_pn35_two_sub_patches_independent():
 def test_pn35_module_docstring_explains_savings_math():
     """Docstring must show the actual MiB saved per buffer (~64 MiB on
     Qwen3.6-27B at default config) so operators understand the impact."""
-    from vllm.sndr_core.integrations.worker import pn35_inputs_embeds_optional as mod
+    from sndr.engines.vllm.patches.worker import pn35_inputs_embeds_optional as mod
     doc = mod.__doc__ or ""
     assert "64 MiB" in doc, (
         "module docstring must show the per-buffer savings math"
@@ -258,7 +260,7 @@ def test_pn35_module_docstring_explains_savings_math():
 def test_pn35_module_docstring_mentions_composition_with_cliff_2_stack():
     """PN35 is particularly useful WITH P103 + PN32 (Cliff 2 stack).
     Docstring should mention this composition."""
-    from vllm.sndr_core.integrations.worker import pn35_inputs_embeds_optional as mod
+    from sndr.engines.vllm.patches.worker import pn35_inputs_embeds_optional as mod
     doc = mod.__doc__ or ""
     assert "Cliff 2" in doc or "P103" in doc or "PN32" in doc, (
         "must document composition with Cliff 2 stack — that's the "
@@ -269,7 +271,7 @@ def test_pn35_module_docstring_mentions_composition_with_cliff_2_stack():
 def test_pn35_module_docstring_credits_upstream_author():
     """vllm#35975 author (AjAnubolu) must be credited in the module
     docstring per Sander's no-AI-credit / always-credit-humans policy."""
-    from vllm.sndr_core.integrations.worker import pn35_inputs_embeds_optional as mod
+    from sndr.engines.vllm.patches.worker import pn35_inputs_embeds_optional as mod
     doc = mod.__doc__ or ""
     assert "AjAnubolu" in doc, "UPSTREAM author must be credited"
     assert "35975" in doc
@@ -279,7 +281,7 @@ def test_pn35_module_docstring_mentions_wsl2_use_case():
     """The patch was prompted by WSL2 OOM reports (RossNE99 + GuiPerPT
     on club-3090#32). Docstring must mention WSL2 so operators searching
     for 'WSL OOM' find this patch."""
-    from vllm.sndr_core.integrations.worker import pn35_inputs_embeds_optional as mod
+    from sndr.engines.vllm.patches.worker import pn35_inputs_embeds_optional as mod
     doc = mod.__doc__ or ""
     assert "WSL" in doc, "must mention WSL2 use case for discoverability"
 

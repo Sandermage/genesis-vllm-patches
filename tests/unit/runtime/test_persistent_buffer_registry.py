@@ -15,7 +15,7 @@ except ImportError:
 
 def test_persistent_buffer_registry_is_singleton():
     """Registry() is Registry() — same identity across calls."""
-    from vllm.sndr_core.runtime.persistent_buffer_registry import (
+    from sndr.runtime.persistent_buffer_registry import (
         PersistentBufferRegistry,
     )
     r1 = PersistentBufferRegistry()
@@ -25,7 +25,7 @@ def test_persistent_buffer_registry_is_singleton():
 
 def test_get_pool_returns_same_instance_for_same_name():
     """Repeated get_pool('x') returns the same BufferPool."""
-    from vllm.sndr_core.runtime.persistent_buffer_registry import (
+    from sndr.runtime.persistent_buffer_registry import (
         PersistentBufferRegistry,
     )
     r = PersistentBufferRegistry()
@@ -36,7 +36,7 @@ def test_get_pool_returns_same_instance_for_same_name():
 
 def test_get_pool_creates_distinct_pools_for_distinct_names():
     """Different names = different BufferPool instances."""
-    from vllm.sndr_core.runtime.persistent_buffer_registry import (
+    from sndr.runtime.persistent_buffer_registry import (
         PersistentBufferRegistry,
     )
     r = PersistentBufferRegistry()
@@ -49,7 +49,7 @@ def test_get_pool_creates_distinct_pools_for_distinct_names():
 
 def test_all_pools_lists_registered():
     """all_pools() returns dict[name -> BufferPool]."""
-    from vllm.sndr_core.runtime.persistent_buffer_registry import (
+    from sndr.runtime.persistent_buffer_registry import (
         PersistentBufferRegistry,
     )
     r = PersistentBufferRegistry()
@@ -63,7 +63,7 @@ def test_all_pools_lists_registered():
 @pytest.mark.skipif(not HAS_TORCH, reason="torch unavailable")
 def test_buffer_pool_acquire_returns_tensor_with_requested_shape():
     """acquire((4, 8), torch.float32, 'cpu') returns a float32 tensor of shape (4, 8) on cpu."""
-    from vllm.sndr_core.runtime.persistent_buffer_registry import (
+    from sndr.runtime.persistent_buffer_registry import (
         PersistentBufferRegistry,
     )
     pool = PersistentBufferRegistry().get_pool("test_acquire_shape")
@@ -76,7 +76,7 @@ def test_buffer_pool_acquire_returns_tensor_with_requested_shape():
 @pytest.mark.skipif(not HAS_TORCH, reason="torch unavailable")
 def test_buffer_pool_reuses_after_release():
     """After release, next acquire with same shape/dtype/device returns the SAME storage."""
-    from vllm.sndr_core.runtime.persistent_buffer_registry import (
+    from sndr.runtime.persistent_buffer_registry import (
         PersistentBufferRegistry,
     )
     pool = PersistentBufferRegistry().get_pool("test_reuse")
@@ -90,7 +90,7 @@ def test_buffer_pool_reuses_after_release():
 
 def test_buffer_pool_stats_increment_correctly():
     """stats() reflects acquires + releases."""
-    from vllm.sndr_core.runtime.persistent_buffer_registry import (
+    from sndr.runtime.persistent_buffer_registry import (
         PersistentBufferRegistry,
     )
     pool = PersistentBufferRegistry().get_pool("test_stats")
@@ -107,7 +107,7 @@ def test_buffer_pool_thread_safe_acquire():
     """Concurrent acquires don't crash; each returns valid tensor."""
     if not HAS_TORCH:
         pytest.skip("torch unavailable")
-    from vllm.sndr_core.runtime.persistent_buffer_registry import (
+    from sndr.runtime.persistent_buffer_registry import (
         PersistentBufferRegistry,
     )
     pool = PersistentBufferRegistry().get_pool("test_thread_safety")
@@ -143,7 +143,7 @@ def test_buffer_pool_thread_safe_acquire():
 @pytest.mark.skipif(not HAS_TORCH, reason="torch required")
 def test_slice_pool_first_acquire_allocates():
     """First acquire on empty pool allocates a tensor of exact shape."""
-    from vllm.sndr_core.runtime.persistent_buffer_registry import (
+    from sndr.runtime.persistent_buffer_registry import (
         PersistentSlicePool,
     )
     pool = PersistentSlicePool("test_slice_pool_alloc")
@@ -158,7 +158,7 @@ def test_slice_pool_first_acquire_allocates():
 @pytest.mark.skipif(not HAS_TORCH, reason="torch required")
 def test_slice_pool_same_shape_returns_same_data_ptr():
     """Re-acquire at same shape returns pointer-stable tensor."""
-    from vllm.sndr_core.runtime.persistent_buffer_registry import (
+    from sndr.runtime.persistent_buffer_registry import (
         PersistentSlicePool,
     )
     pool = PersistentSlicePool("test_slice_pool_stable_ptr")
@@ -171,7 +171,7 @@ def test_slice_pool_same_shape_returns_same_data_ptr():
 def test_slice_pool_smaller_acquire_returns_slice():
     """Re-acquire with smaller var-dim returns a slice view of the
     same backing buffer (pointer stable)."""
-    from vllm.sndr_core.runtime.persistent_buffer_registry import (
+    from sndr.runtime.persistent_buffer_registry import (
         PersistentSlicePool,
     )
     pool = PersistentSlicePool("test_slice_pool_smaller")
@@ -188,7 +188,7 @@ def test_slice_pool_smaller_acquire_returns_slice():
 @pytest.mark.skipif(not HAS_TORCH, reason="torch required")
 def test_slice_pool_larger_acquire_grows_in_place():
     """Larger var-dim triggers grow — pointer changes ONCE, then stable."""
-    from vllm.sndr_core.runtime.persistent_buffer_registry import (
+    from sndr.runtime.persistent_buffer_registry import (
         PersistentSlicePool,
     )
     pool = PersistentSlicePool("test_slice_pool_grow")
@@ -208,7 +208,7 @@ def test_slice_pool_larger_acquire_grows_in_place():
 @pytest.mark.skipif(not HAS_TORCH, reason="torch required")
 def test_slice_pool_multi_variable_dims():
     """Multi-dim grow (e.g. P39a B+T variable, H+BT fixed) works."""
-    from vllm.sndr_core.runtime.persistent_buffer_registry import (
+    from sndr.runtime.persistent_buffer_registry import (
         PersistentSlicePool,
     )
     pool = PersistentSlicePool("test_slice_pool_multi_dim")
@@ -233,7 +233,7 @@ def test_slice_pool_multi_variable_dims():
 def test_slice_pool_fixed_only_no_grow():
     """key_dims = full shape (e.g. P46 GDN gating) = no variable dims =
     pure fixed-shape pool. acquire returns the pool tensor itself."""
-    from vllm.sndr_core.runtime.persistent_buffer_registry import (
+    from sndr.runtime.persistent_buffer_registry import (
         PersistentSlicePool,
     )
     pool = PersistentSlicePool("test_slice_pool_fixed")
@@ -248,7 +248,7 @@ def test_slice_pool_fixed_only_no_grow():
 @pytest.mark.skipif(not HAS_TORCH, reason="torch required")
 def test_slice_pool_distinct_dtypes_distinct_pools():
     """Different dtypes → distinct pool entries (no implicit cast)."""
-    from vllm.sndr_core.runtime.persistent_buffer_registry import (
+    from sndr.runtime.persistent_buffer_registry import (
         PersistentSlicePool,
     )
     pool = PersistentSlicePool("test_slice_pool_dtype_separation")
@@ -260,7 +260,7 @@ def test_slice_pool_distinct_dtypes_distinct_pools():
 
 def test_slice_pool_invalid_key_dims_raises():
     """key_dims out of range raises ValueError."""
-    from vllm.sndr_core.runtime.persistent_buffer_registry import (
+    from sndr.runtime.persistent_buffer_registry import (
         PersistentSlicePool,
     )
     pool = PersistentSlicePool("test_slice_pool_bad_key_dims")
@@ -273,7 +273,7 @@ def test_slice_pool_invalid_key_dims_raises():
 
 def test_registry_get_slice_pool_returns_singleton():
     """Registry.get_slice_pool returns same instance for same name."""
-    from vllm.sndr_core.runtime.persistent_buffer_registry import (
+    from sndr.runtime.persistent_buffer_registry import (
         PersistentBufferRegistry, _reset_registry_for_tests,
     )
     _reset_registry_for_tests()
@@ -285,7 +285,7 @@ def test_registry_get_slice_pool_returns_singleton():
 
 def test_registry_cannot_mix_pool_types_for_same_name():
     """Same name used for BufferPool then PersistentSlicePool → ValueError."""
-    from vllm.sndr_core.runtime.persistent_buffer_registry import (
+    from sndr.runtime.persistent_buffer_registry import (
         PersistentBufferRegistry, _reset_registry_for_tests,
     )
     _reset_registry_for_tests()
@@ -303,7 +303,7 @@ def test_registry_cannot_mix_pool_types_for_same_name():
 
 def test_registry_summary_includes_both_pool_types():
     """summary() reports type=BufferPool vs PersistentSlicePool."""
-    from vllm.sndr_core.runtime.persistent_buffer_registry import (
+    from sndr.runtime.persistent_buffer_registry import (
         PersistentBufferRegistry, _reset_registry_for_tests,
     )
     _reset_registry_for_tests()

@@ -2,7 +2,7 @@
 """Tests for the container health-watch transition detector (pure)."""
 from __future__ import annotations
 
-from vllm.sndr_core.product_api.container_watch import Watcher, detect_transitions
+from sndr.product_api.legacy.container_watch import Watcher, detect_transitions
 
 
 def _c(name, state, status="Up"):

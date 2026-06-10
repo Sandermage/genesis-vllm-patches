@@ -33,7 +33,7 @@ def fresh_target():
 def test_textpatch_defaults_back_compat(fresh_target):
     """Existing patches construct TextPatch without drift fields — defaults
     must be empty list + skip_silently for back-compat."""
-    from vllm.sndr_core.core import TextPatch
+    from sndr.kernel import TextPatch
     p = TextPatch(name="legacy", anchor="X", replacement="Y")
     assert p.upstream_merged_markers == []
     assert p.on_upstream_merge == "skip_silently"
@@ -41,7 +41,7 @@ def test_textpatch_defaults_back_compat(fresh_target):
 
 def test_per_sub_drift_skip_silently(fresh_target):
     """Sub with matching upstream marker no-ops; siblings apply normally."""
-    from vllm.sndr_core.core import TextPatch, TextPatcher, TextPatchResult
+    from sndr.kernel import TextPatch, TextPatcher, TextPatchResult
 
     Path(fresh_target).write_text(
         "AAA\nBBB-already-fixed-by-upstream\nCCC\n"
@@ -72,7 +72,7 @@ def test_per_sub_drift_warn_logs_warning(fresh_target, caplog):
     """on_upstream_merge='warn' logs at WARNING level but still continues."""
     import logging
 
-    from vllm.sndr_core.core import TextPatch, TextPatcher, TextPatchResult
+    from sndr.kernel import TextPatch, TextPatcher, TextPatchResult
 
     Path(fresh_target).write_text("X\nY-merged-warn-me\nZ\n")
     patcher = TextPatcher(
@@ -107,7 +107,7 @@ def test_per_sub_drift_warn_logs_warning(fresh_target, caplog):
 def test_per_sub_drift_abort_bundle(fresh_target):
     """on_upstream_merge='abort_bundle' aborts the entire patcher with
     SKIPPED — file unchanged even for siblings whose anchors WOULD apply."""
-    from vllm.sndr_core.core import TextPatch, TextPatcher, TextPatchResult
+    from sndr.kernel import TextPatch, TextPatcher, TextPatchResult
 
     original = "PRE\nMERGED-INCOMPATIBLE\nPOST\n"
     Path(fresh_target).write_text(original)
@@ -136,7 +136,7 @@ def test_per_sub_drift_abort_bundle(fresh_target):
 def test_per_sub_drift_works_with_required_sub(fresh_target):
     """A required=True sub that hits its drift marker is OK to skip
     silently — per-sub drift takes precedence over required-anchor check."""
-    from vllm.sndr_core.core import TextPatch, TextPatcher, TextPatchResult
+    from sndr.kernel import TextPatch, TextPatcher, TextPatchResult
 
     Path(fresh_target).write_text("KEEP\nMERGED-MARKER\nKEEP2\n")
     patcher = TextPatcher(
@@ -164,7 +164,7 @@ def test_per_sub_drift_works_with_required_sub(fresh_target):
 
 def test_per_sub_drift_no_match_proceeds_normally(fresh_target):
     """When the upstream marker is NOT present, sub applies normally."""
-    from vllm.sndr_core.core import TextPatch, TextPatcher, TextPatchResult
+    from sndr.kernel import TextPatch, TextPatcher, TextPatchResult
 
     Path(fresh_target).write_text("ALPHA\nBETA\n")
     patcher = TextPatcher(

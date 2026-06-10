@@ -20,9 +20,9 @@ import os
 
 import pytest
 
-from vllm.sndr_core.cache import _pn95_runtime as P
-from vllm.sndr_core.cache.tier_manager import TierManager
-from vllm.sndr_core.model_configs.schema import (
+from sndr.cache import _pn95_runtime as P
+from sndr.cache.tier_manager import TierManager
+from sndr.model_configs.schema import (
     CacheTier, CacheConfig, ModelConfig, HardwareSpec, DockerConfig,
 )
 
@@ -164,16 +164,16 @@ def test_reset_for_tests_drops_singleton():
 # ─── Text-patch module shape
 
 def test_pn95_text_patch_module_exports_apply():
-    from vllm.sndr_core.integrations.kv_cache import pn95_tier_aware_cache as M
+    from sndr.engines.vllm.patches.kv_cache import pn95_tier_aware_cache as M
     assert callable(M.apply)
 
 
 def test_pn95_text_patch_anchors_well_formed():
     """Anchor + replacement strings must contain the marker + sentinel lines."""
-    from vllm.sndr_core.integrations.kv_cache import pn95_tier_aware_cache as M
+    from sndr.engines.vllm.patches.kv_cache import pn95_tier_aware_cache as M
     assert M.GENESIS_PN95_MARKER
-    assert "[Genesis PN95]" in M.PN95_SITE1_NEW
-    assert "[Genesis PN95]" in M.PN95_SITE2_NEW
+    assert "[Genesis PN95" in M.PN95_SITE1_NEW
+    assert "[Genesis PN95" in M.PN95_SITE2_NEW
     # Each sentinel line of OLD must appear in NEW. (NEW interleaves a
     # `[Genesis PN95]` comment block, so OLD as a whole substring may
     # not appear contiguously — but every original line must persist.)
@@ -187,7 +187,7 @@ def test_pn95_text_patch_anchors_well_formed():
 
 def test_pn95_apply_returns_skipped_when_vllm_absent():
     """On Mac dev (no vllm), apply() returns skipped cleanly — never raises."""
-    from vllm.sndr_core.integrations.kv_cache import pn95_tier_aware_cache as M
+    from sndr.engines.vllm.patches.kv_cache import pn95_tier_aware_cache as M
     os.environ.pop("GENESIS_ENABLE_PN95_TIER_AWARE_CACHE", None)
     status, reason = M.apply()
     # PN95 is default OFF in registry → should_apply → "skipped"
@@ -199,7 +199,7 @@ def test_pn95_apply_returns_skipped_when_vllm_absent():
 # ─── Registry + dispatcher integration
 
 def test_pn95_in_dispatcher_registry():
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+    from sndr.dispatcher.registry import PATCH_REGISTRY
     assert "PN95" in PATCH_REGISTRY
     entry = PATCH_REGISTRY["PN95"]
     assert entry["env_flag"] == "GENESIS_ENABLE_PN95_TIER_AWARE_CACHE"
@@ -211,10 +211,10 @@ def test_pn95_in_dispatcher_registry():
 
 def test_pn95_in_per_patch_dispatch():
     """The apply hook is registered (apply_patch_N95_* exists)."""
-    import vllm.sndr_core.apply._per_patch_dispatch as M
+    import sndr.apply._per_patch_dispatch as M
     assert hasattr(M, "apply_patch_N95_tier_aware_cache")
 
 
 def test_pn95_in_env_flags():
-    from vllm.sndr_core.env import Flags
+    from sndr.env import Flags
     assert hasattr(Flags, "PN95_TIER_AWARE_CACHE")

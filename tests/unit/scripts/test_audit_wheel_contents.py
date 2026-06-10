@@ -4,7 +4,7 @@
 
 The audit is a thin CLI wrapper; tests cover:
 
-  * Pyproject shape check (sndr_core in packages, sndr console entry)
+  * Pyproject shape check (sndr runtime tree in packages, sndr console entry)
   * Test-file presence check (catches accidental deletion of the
     canonical wheel-boundary test files)
   * Invariant manifest documentation
@@ -53,16 +53,16 @@ class TestPyprojectShape:
             "[project]\n"
             "name = \"x\"\n"
             "[project.scripts]\n"
-            "sndr = \"vllm.sndr_core.cli:cli_main\"\n"
+            "sndr = \"sndr.cli.legacy:cli_main\"\n"
             "[tool.setuptools.packages.find]\n"
-            "include = [\"vllm.sndr_core*\"]\n"
+            "include = [\"sndr*\"]\n"
         )
         results = audit_mod.check_pyproject_shape(repo_root=tmp_path)
         assert all(r.passed for r in results), (
             f"clean pyproject should pass, got: {results}"
         )
 
-    def test_missing_sndr_core_in_packages_flagged(self, audit_mod, tmp_path):
+    def test_missing_sndr_tree_in_packages_flagged(self, audit_mod, tmp_path):
         self._write_pyproject(tmp_path,
             "[project]\n"
             "name = \"x\"\n"
@@ -73,8 +73,8 @@ class TestPyprojectShape:
         )
         results = audit_mod.check_pyproject_shape(repo_root=tmp_path)
         failed = [r for r in results if not r.passed]
-        assert any("sndr_core" in r.detail for r in failed), (
-            f"missing sndr_core must be flagged, got: {results}"
+        assert any("sndr runtime tree MISSING" in r.detail for r in failed), (
+            f"missing sndr runtime tree must be flagged, got: {results}"
         )
 
     def test_missing_sndr_console_entry_flagged(self, audit_mod, tmp_path):
@@ -84,7 +84,7 @@ class TestPyprojectShape:
             "[project.scripts]\n"
             "other = \"x.cli:main\"\n"
             "[tool.setuptools.packages.find]\n"
-            "include = [\"vllm.sndr_core*\"]\n"
+            "include = [\"sndr*\"]\n"
         )
         results = audit_mod.check_pyproject_shape(repo_root=tmp_path)
         failed = [r for r in results if not r.passed]

@@ -8,10 +8,10 @@ from typing import Any
 
 import pytest
 
-from vllm.sndr_core.cache import _pn95_runtime as P
-from vllm.sndr_core.cache.tier_manager import TierManager
-from vllm.sndr_core.cache._pn95_runtime import register_kv_caches
-from vllm.sndr_core.model_configs.schema import CacheTier
+from sndr.cache import _pn95_runtime as P
+from sndr.cache.tier_manager import TierManager
+from sndr.cache._pn95_runtime import register_kv_caches
+from sndr.model_configs.schema import CacheTier
 
 
 @dataclass
@@ -147,7 +147,7 @@ def test_register_kv_caches_resilient_to_bad_tensor():
 # ─── Text-patch shape
 
 def test_text_patch_has_fourth_anchor():
-    from vllm.sndr_core.integrations.kv_cache import pn95_tier_aware_cache as M
+    from sndr.engines.vllm.patches.kv_cache import pn95_tier_aware_cache as M
     assert hasattr(M, "PN95_SITE4_OLD")
     assert hasattr(M, "PN95_SITE4_NEW")
     assert "register_kv_caches" in M.PN95_SITE4_NEW
@@ -158,7 +158,7 @@ def test_text_patch_has_fourth_anchor():
 
 def test_apply_uses_four_patchers():
     """apply() summary must include all four anchors."""
-    from vllm.sndr_core.integrations.kv_cache import pn95_tier_aware_cache as M
+    from sndr.engines.vllm.patches.kv_cache import pn95_tier_aware_cache as M
     os.environ.pop("GENESIS_ENABLE_PN95_TIER_AWARE_CACHE", None)
     status, reason = M.apply()
     assert status == "skipped"

@@ -40,6 +40,12 @@ RENAMED_PREFIXES: list[tuple[str, str]] = [
     # vllm-specific probes. Hand-fix the few hardware-only callers
     # afterwards if any layer-rule violations appear.
     ("detection", "sndr.engines.vllm.detection"),
+    # The v11 CLI and product_api trees live under a ``legacy`` subpackage in
+    # v12 (the bare ``sndr.cli`` / ``sndr.product_api`` roots host the NEW
+    # command/route framework) — a blanket tail-map to ``sndr.<X>`` retargets
+    # these to the wrong package.
+    ("cli", "sndr.cli.legacy"),
+    ("product_api", "sndr.product_api.legacy"),
 ]
 
 # Tail (no prefix match): blanket ``vllm.sndr_core.<X>`` → ``sndr.<X>``.

@@ -324,7 +324,7 @@ class TestSeverityPerStage:
 
 class TestJSONOutput:
     def test_json_structure(self):
-        from vllm.sndr_core.model_configs._rollout import DEFAULT_STAGE
+        from sndr.model_configs._rollout import DEFAULT_STAGE
         result = _run_cli("--json")
         assert result.returncode == 0
         data = json.loads(result.stdout)

@@ -29,7 +29,7 @@ import json
 
 class TestKeyExtraction:
     def test_completions_simple_string_prompt(self):
-        from vllm.sndr_core.middleware import build_cache_key_from_request
+        from sndr.engines.vllm.middleware import build_cache_key_from_request
         body = {"model": "m", "prompt": "hello"}
         out = build_cache_key_from_request(body)
         assert out is not None
@@ -38,7 +38,7 @@ class TestKeyExtraction:
         assert model == "m"
 
     def test_completions_list_prompt_single(self):
-        from vllm.sndr_core.middleware import build_cache_key_from_request
+        from sndr.engines.vllm.middleware import build_cache_key_from_request
         out = build_cache_key_from_request(
             {"model": "m", "prompt": ["hi"]},
         )
@@ -46,7 +46,7 @@ class TestKeyExtraction:
         assert out[0] == "hi"
 
     def test_completions_list_prompt_multiple(self):
-        from vllm.sndr_core.middleware import build_cache_key_from_request
+        from sndr.engines.vllm.middleware import build_cache_key_from_request
         out = build_cache_key_from_request(
             {"model": "m", "prompt": ["a", "b"]},
         )
@@ -55,7 +55,7 @@ class TestKeyExtraction:
         assert "[" in out[0]
 
     def test_chat_completions_messages_deterministic(self):
-        from vllm.sndr_core.middleware import build_cache_key_from_request
+        from sndr.engines.vllm.middleware import build_cache_key_from_request
         body = {
             "model": "m",
             "messages": [{"role": "user", "content": "hi"}],
@@ -71,21 +71,21 @@ class TestKeyExtraction:
         assert out[0] == out2[0]
 
     def test_stream_true_not_eligible(self):
-        from vllm.sndr_core.middleware import build_cache_key_from_request
+        from sndr.engines.vllm.middleware import build_cache_key_from_request
         out = build_cache_key_from_request(
             {"model": "m", "prompt": "p", "stream": True},
         )
         assert out is None
 
     def test_sampled_not_eligible_by_default(self):
-        from vllm.sndr_core.middleware import build_cache_key_from_request
+        from sndr.engines.vllm.middleware import build_cache_key_from_request
         out = build_cache_key_from_request(
             {"model": "m", "prompt": "p", "temperature": 0.7},
         )
         assert out is None
 
     def test_sampled_allowed_when_flag_true(self):
-        from vllm.sndr_core.middleware import build_cache_key_from_request
+        from sndr.engines.vllm.middleware import build_cache_key_from_request
         out = build_cache_key_from_request(
             {"model": "m", "prompt": "p", "temperature": 0.7},
             allow_sampled=True,
@@ -93,36 +93,36 @@ class TestKeyExtraction:
         assert out is not None
 
     def test_top_p_less_than_1_not_eligible(self):
-        from vllm.sndr_core.middleware import build_cache_key_from_request
+        from sndr.engines.vllm.middleware import build_cache_key_from_request
         out = build_cache_key_from_request(
             {"model": "m", "prompt": "p", "top_p": 0.9},
         )
         assert out is None
 
     def test_top_k_greater_than_1_not_eligible(self):
-        from vllm.sndr_core.middleware import build_cache_key_from_request
+        from sndr.engines.vllm.middleware import build_cache_key_from_request
         out = build_cache_key_from_request(
             {"model": "m", "prompt": "p", "top_k": 40},
         )
         assert out is None
 
     def test_missing_model_not_eligible(self):
-        from vllm.sndr_core.middleware import build_cache_key_from_request
+        from sndr.engines.vllm.middleware import build_cache_key_from_request
         assert build_cache_key_from_request(
             {"prompt": "p"},
         ) is None
 
     def test_missing_prompt_and_messages_not_eligible(self):
-        from vllm.sndr_core.middleware import build_cache_key_from_request
+        from sndr.engines.vllm.middleware import build_cache_key_from_request
         assert build_cache_key_from_request({"model": "m"}) is None
 
     def test_non_dict_body_not_eligible(self):
-        from vllm.sndr_core.middleware import build_cache_key_from_request
+        from sndr.engines.vllm.middleware import build_cache_key_from_request
         assert build_cache_key_from_request("string") is None
         assert build_cache_key_from_request(None) is None
 
     def test_sampling_params_included(self):
-        from vllm.sndr_core.middleware import build_cache_key_from_request
+        from sndr.engines.vllm.middleware import build_cache_key_from_request
         out = build_cache_key_from_request(
             {
                 "model": "m", "prompt": "p",
@@ -206,7 +206,7 @@ async def _make_receive(body: bytes):
 
 class TestMiddlewareFlow:
     def test_pass_through_non_post(self):
-        from vllm.sndr_core.middleware import ResponseCacheMiddleware
+        from sndr.engines.vllm.middleware import ResponseCacheMiddleware
         cache = _FakeCache()
         app = _make_downstream_app()
         mw = ResponseCacheMiddleware(app, cache=cache)
@@ -224,7 +224,7 @@ class TestMiddlewareFlow:
         assert cache.store_calls == 0
 
     def test_pass_through_non_intercepted_path(self):
-        from vllm.sndr_core.middleware import ResponseCacheMiddleware
+        from sndr.engines.vllm.middleware import ResponseCacheMiddleware
         cache = _FakeCache()
         app = _make_downstream_app()
         mw = ResponseCacheMiddleware(app, cache=cache)
@@ -240,7 +240,7 @@ class TestMiddlewareFlow:
         assert cache.get_calls == 0
 
     def test_cache_miss_forwards_and_stores(self):
-        from vllm.sndr_core.middleware import ResponseCacheMiddleware
+        from sndr.engines.vllm.middleware import ResponseCacheMiddleware
         cache = _FakeCache()
         app = _make_downstream_app(
             status=200,
@@ -269,7 +269,7 @@ class TestMiddlewareFlow:
         )
 
     def test_cache_hit_short_circuits(self):
-        from vllm.sndr_core.middleware import ResponseCacheMiddleware
+        from sndr.engines.vllm.middleware import ResponseCacheMiddleware
         cache = _FakeCache()
         # Pre-populate cache for the exact request
         cache.store(
@@ -316,7 +316,7 @@ class TestMiddlewareFlow:
         )
 
     def test_malformed_body_passthrough(self):
-        from vllm.sndr_core.middleware import ResponseCacheMiddleware
+        from sndr.engines.vllm.middleware import ResponseCacheMiddleware
         cache = _FakeCache()
         app = _make_downstream_app()
         mw = ResponseCacheMiddleware(app, cache=cache)
@@ -332,7 +332,7 @@ class TestMiddlewareFlow:
         loop.close()
 
     def test_non_2xx_response_not_stored(self):
-        from vllm.sndr_core.middleware import ResponseCacheMiddleware
+        from sndr.engines.vllm.middleware import ResponseCacheMiddleware
         cache = _FakeCache()
         app = _make_downstream_app(status=500, body=b'{"error":"x"}')
         mw = ResponseCacheMiddleware(app, cache=cache)
@@ -348,7 +348,7 @@ class TestMiddlewareFlow:
         assert cache.store_calls == 0
 
     def test_stream_true_passthrough_not_cached(self):
-        from vllm.sndr_core.middleware import ResponseCacheMiddleware
+        from sndr.engines.vllm.middleware import ResponseCacheMiddleware
         cache = _FakeCache()
         app = _make_downstream_app()
         mw = ResponseCacheMiddleware(app, cache=cache)
@@ -371,7 +371,7 @@ class TestCacheLookupErrorHandling:
     def test_cache_get_exception_is_treated_as_miss(self):
         """If cache.get() raises (Redis timeout etc.), forward to
         downstream rather than serving stale or erroring."""
-        from vllm.sndr_core.middleware import ResponseCacheMiddleware
+        from sndr.engines.vllm.middleware import ResponseCacheMiddleware
 
         class ErrorCache:
             def get(self, *a, **kw):

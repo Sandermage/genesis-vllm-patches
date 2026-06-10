@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from vllm.sndr_core.compat.plugin_signature import (
+from sndr.compat.plugin_signature import (
     PluginManifest,
     VerificationResult,
     classify_sandbox,
@@ -130,6 +130,19 @@ class TestSandboxClassification:
         assert level == "moderate"
 
     def test_risky_sndr_core(self):
+        # v12: Genesis core moved from `vllm.sndr_core` to the canonical
+        # `sndr.` namespace — patching it must stay sandbox-protected.
+        m = PluginManifest.from_dict({
+            "schema_version": 1, "name": "x", "version": "0",
+            "files": {}, "patches_modules": ["sndr.dispatcher"],
+        })
+        level, reasons = classify_sandbox(m)
+        assert level == "risky"
+        assert any("protected: sndr." in r for r in reasons)
+
+    def test_risky_v11_shim_namespace_still_protected(self):
+        # The archived v11 shim namespace stays protected during the
+        # v12.x backward-compat window (commit 6bf9c04c).
         m = PluginManifest.from_dict({
             "schema_version": 1, "name": "x", "version": "0",
             "files": {}, "patches_modules": ["vllm.sndr_core.dispatcher"],
@@ -309,7 +322,7 @@ class TestVerifyPluginEnd2End:
             "schema_version": 1,
             "name": "evil", "version": "0",
             "files": {},
-            "patches_modules": ["vllm.sndr_core.dispatcher"],
+            "patches_modules": ["sndr.dispatcher"],
         }
         (plugin / "genesis-plugin-manifest.json").write_text(json.dumps(manifest))
         result = verify_plugin(plugin)
@@ -325,7 +338,7 @@ class TestVerifyPluginEnd2End:
             "schema_version": 1,
             "name": "operator-extension", "version": "0",
             "files": {},
-            "patches_modules": ["vllm.sndr_core.dispatcher"],
+            "patches_modules": ["sndr.dispatcher"],
         }
         (plugin / "genesis-plugin-manifest.json").write_text(json.dumps(manifest))
         result = verify_plugin(plugin)

@@ -24,7 +24,7 @@ SHARED_ENV_FLAG = "GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL"
 
 
 def test_p67b_registered():
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+    from sndr.dispatcher.registry import PATCH_REGISTRY
     assert PATCH_ID in PATCH_REGISTRY
     meta = PATCH_REGISTRY[PATCH_ID]
     assert meta["env_flag"] == SHARED_ENV_FLAG
@@ -35,7 +35,7 @@ def test_p67b_registered():
 def test_p67b_shares_env_with_p67():
     """P67 and P67b are a coordinated pair. Both must read the same
     env flag so the operator-facing knob stays single-source."""
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+    from sndr.dispatcher.registry import PATCH_REGISTRY
     p67 = PATCH_REGISTRY.get("P67")
     p67b = PATCH_REGISTRY[PATCH_ID]
     if isinstance(p67, dict):
@@ -86,7 +86,7 @@ def test_apply_never_raises(monkeypatch):
 
 def test_applies_to_is_turboquant():
     """P67b is TurboQuant-specific — guard must reflect that."""
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+    from sndr.dispatcher.registry import PATCH_REGISTRY
     applies_to = PATCH_REGISTRY[PATCH_ID].get("applies_to") or {}
     assert "is_turboquant" in applies_to, (
         f"P67b must guard on is_turboquant; got: {sorted(applies_to.keys())}"

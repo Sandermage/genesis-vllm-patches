@@ -28,7 +28,7 @@ class TestGenesisRegistry:
         assert "env_flag" in genesis_registry["P58"]
 
     def test_matches_direct_import(self, genesis_registry):
-        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        from sndr.dispatcher.registry import PATCH_REGISTRY
         assert genesis_registry is PATCH_REGISTRY
 
 

@@ -80,7 +80,7 @@ def _redact_evidence_ref(ref_dict: dict) -> dict:
     `tests/`, `docs/`, `vllm/`, `evidence/`, ...; `external://...`
     schemes.
     """
-    from vllm.sndr_core.model_configs.catalog_schema import (
+    from sndr.model_configs.catalog_schema import (
         is_private_visibility, is_redactable_path,
     )
     visibility = ref_dict.get("visibility")
@@ -106,10 +106,10 @@ def _redact_evidence_ref(ref_dict: dict) -> dict:
 
 def _build_preset_row(alias: str, generated_at: str) -> dict:
     """Build PresetRow dict from preset YAML + composed runtime."""
-    from vllm.sndr_core.model_configs.registry_v2 import (
+    from sndr.model_configs.registry_v2 import (
         _alias_dir, load_alias, load_preset_def,
     )
-    from vllm.sndr_core.model_configs.schema import dump_yaml
+    from sndr.model_configs.schema import dump_yaml
 
     yaml_path = _alias_dir() / f"{alias}.yaml"
     pd = load_preset_def(alias)
@@ -172,7 +172,7 @@ def _build_profile_row(profile_id: str, generated_at: str,
     `class4_clean_set` is precomputed once (operator-locked § acceptance
     criterion: every profile in catalog reports its Class-4 cleanliness).
     """
-    from vllm.sndr_core.model_configs.registry_v2 import (
+    from sndr.model_configs.registry_v2 import (
         _builtin_dir, load_profile,
     )
 
@@ -226,7 +226,7 @@ def _build_profile_row(profile_id: str, generated_at: str,
 
 def _build_model_row(model_id: str, generated_at: str) -> dict:
     """Build ModelRow dict from model YAML."""
-    from vllm.sndr_core.model_configs.registry_v2 import (
+    from sndr.model_configs.registry_v2 import (
         _builtin_dir, load_model,
     )
 
@@ -270,7 +270,7 @@ def _build_model_row(model_id: str, generated_at: str) -> dict:
 
 def _build_hardware_row(hardware_id: str, generated_at: str) -> dict:
     """Build HardwareRow dict from hardware YAML."""
-    from vllm.sndr_core.model_configs.registry_v2 import (
+    from sndr.model_configs.registry_v2 import (
         _builtin_dir, load_hardware,
     )
 
@@ -383,7 +383,7 @@ def build_catalog(*, generated_at: Optional[str] = None) -> list[dict]:
     if generated_at is None:
         generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-    from vllm.sndr_core.model_configs.registry_v2 import (
+    from sndr.model_configs.registry_v2 import (
         _alias_dir, _builtin_dir, list_hardware, list_models, list_profiles,
     )
 
@@ -470,7 +470,7 @@ def _compute_class4_clean_set() -> set[str]:
     zero findings (the clean ones) appear in the returned set.
     """
     import importlib.util
-    from vllm.sndr_core.model_configs.registry_v2 import list_profiles
+    from sndr.model_configs.registry_v2 import list_profiles
 
     script = REPO_ROOT / "scripts" / "audit_override_policy.py"
     spec = importlib.util.spec_from_file_location("_aopaudit_class4_helper", script)
@@ -492,7 +492,7 @@ def _compute_preset_evidence_index() -> dict[str, list[str]]:
 
     Used by baseline rows to detect `exact_preset` match quality.
     """
-    from vllm.sndr_core.model_configs.registry_v2 import _alias_dir, load_preset_def
+    from sndr.model_configs.registry_v2 import _alias_dir, load_preset_def
     out: dict[str, list[str]] = {}
     for path in sorted(_alias_dir().glob("*.yaml")):
         if path.stem.startswith("_"):

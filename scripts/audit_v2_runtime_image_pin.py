@@ -30,7 +30,7 @@ from typing import Optional
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-HARDWARE_DIR = REPO_ROOT / "vllm" / "sndr_core" / "model_configs" / "builtin" / "hardware"
+HARDWARE_DIR = REPO_ROOT / "sndr" / "model_configs" / "builtin" / "hardware"
 
 
 # Format: <repo>@sha256:<64-hex>

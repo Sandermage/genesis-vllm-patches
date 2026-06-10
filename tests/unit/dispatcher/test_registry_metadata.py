@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Tests for `vllm.sndr_core.dispatcher.registry_metadata` overlay.
+"""Tests for `sndr.dispatcher.registry_metadata` overlay.
 
 production_default is derived from both implementation_status and
 test_status. A `lifecycle=stable` entry without tests resolves to
@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.dispatcher.registry_metadata import (
+from sndr.dispatcher.registry_metadata import (
     EXPLICIT_OVERRIDES,
     _LIFECYCLE_TO_IMPL,
     _production_default_for,
@@ -180,7 +180,7 @@ class TestResearchLifecycleHardRule:
         but the override sets ``implementation_status=scaffold`` and
         keeps ``production_default=research_only`` (consistent, by
         design)."""
-        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        from sndr.dispatcher.registry import PATCH_REGISTRY
         meta = PATCH_REGISTRY["PN26b"]
         d = derive_metadata("PN26b", meta)
         assert d["implementation_status"] == "scaffold"
@@ -189,7 +189,7 @@ class TestResearchLifecycleHardRule:
     def test_p82_live_registry_is_research_only(self):
         """Smoke check against the live registry — P82 must not
         derive to ``eligible``."""
-        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        from sndr.dispatcher.registry import PATCH_REGISTRY
         meta = PATCH_REGISTRY.get("P82")
         if not isinstance(meta, dict):
             return
@@ -200,7 +200,7 @@ class TestResearchLifecycleHardRule:
     def test_p83_live_registry_is_research_only(self):
         """Smoke check against the live registry — P83 must not
         derive to ``eligible``."""
-        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        from sndr.dispatcher.registry import PATCH_REGISTRY
         meta = PATCH_REGISTRY.get("P83")
         if not isinstance(meta, dict):
             return
@@ -212,7 +212,7 @@ class TestResearchLifecycleHardRule:
         """Sweep guard: across the entire live registry, no
         ``lifecycle=research`` entry may derive to
         ``production_default=eligible``."""
-        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        from sndr.dispatcher.registry import PATCH_REGISTRY
         offenders = []
         for pid, meta in PATCH_REGISTRY.items():
             if not isinstance(meta, dict):
@@ -240,7 +240,7 @@ class TestRealRegistry:
         """At least one patch must resolve to `review_required`,
         otherwise either test coverage is total (unlikely) or the
         helper is bypassed."""
-        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        from sndr.dispatcher.registry import PATCH_REGISTRY
         review_required = []
         for pid, meta in PATCH_REGISTRY.items():
             if not isinstance(meta, dict):

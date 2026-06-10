@@ -32,7 +32,7 @@ def _import_script():
     spec = importlib.util.spec_from_file_location(name, SCRIPT_PATH)
     mod = importlib.util.module_from_spec(spec)
     sys.modules[name] = mod
-    # Ensure repo root on path so the script's `from vllm.sndr_core...` works.
+    # Ensure repo root on path so the script's `from sndr...` works.
     if str(REPO_ROOT) not in sys.path:
         sys.path.insert(0, str(REPO_ROOT))
     spec.loader.exec_module(mod)
@@ -64,7 +64,7 @@ class TestPredicates:
 class TestWalkers:
     def test_model_walker_returns_expected_entries(self):
         mod = _import_script()
-        from vllm.sndr_core.cli.config_keys import load_canonical_registry
+        from sndr.cli.legacy.config_keys import load_canonical_registry
         canon = load_canonical_registry()
         entries = mod._walk_model_layer(canon)
         # Phase 5.4 (2026-05-22): refreshed for current fleet
@@ -78,7 +78,7 @@ class TestWalkers:
 
     def test_profile_walker_returns_at_least_eleven(self):
         mod = _import_script()
-        from vllm.sndr_core.cli.config_keys import load_canonical_registry
+        from sndr.cli.legacy.config_keys import load_canonical_registry
         canon = load_canonical_registry()
         entries = mod._walk_profile_layer(canon)
         assert len(entries) >= 11
@@ -87,7 +87,7 @@ class TestWalkers:
 
     def test_resolved_alias_walker_returns_fifteen(self):
         mod = _import_script()
-        from vllm.sndr_core.cli.config_keys import load_canonical_registry
+        from sndr.cli.legacy.config_keys import load_canonical_registry
         canon = load_canonical_registry()
         entries = mod._walk_resolved_aliases(canon)
         # Wave 10 V2 layout had 15 preset aliases.

@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from vllm.sndr_core.compat.preflight_checks import (
+from sndr.compat.preflight_checks import (
     CheckResult,
     check_grammar_rejection_pattern,
     check_quant_arg,
@@ -161,20 +161,20 @@ class TestCheckResultRender:
 class TestCLIMain:
     def test_main_exits_0_when_all_ok(self, capsys, monkeypatch):
         # No model_dir, no container — should yield 0 results = exit 0
-        from vllm.sndr_core.compat.preflight_checks import main
+        from sndr.compat.preflight_checks import main
         monkeypatch.setenv("GENESIS_DOCKER_LOGS_AVAILABLE", "0")
         rc = main([])
         assert rc == 0
 
     def test_main_exits_2_on_error(self, capsys, monkeypatch):
-        from vllm.sndr_core.compat.preflight_checks import main
+        from sndr.compat.preflight_checks import main
         monkeypatch.setenv("GENESIS_DOCKER_LOGS_AVAILABLE", "0")
         model_dir = _make_model_dir("compressed-tensors")
         rc = main(["--quantization", "auto_round", "--model", model_dir])
         assert rc == 2
 
     def test_main_json_output(self, capsys, monkeypatch):
-        from vllm.sndr_core.compat.preflight_checks import main
+        from sndr.compat.preflight_checks import main
         monkeypatch.setenv("GENESIS_DOCKER_LOGS_AVAILABLE", "0")
         model_dir = _make_model_dir("compressed-tensors")
         main(["--quantization", "compressed-tensors", "--model", model_dir,

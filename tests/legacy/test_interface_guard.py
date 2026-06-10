@@ -26,7 +26,7 @@ import pytest
 
 class TestValidateImplPasses:
     def test_all_required_present(self):
-        from vllm.sndr_core.runtime.interface_guard import validate_impl
+        from sndr.runtime.interface_guard import validate_impl
 
         class Good:
             num_heads = 32
@@ -55,14 +55,14 @@ class TestValidateImplPasses:
         )
 
     def test_any_sentinel(self):
-        from vllm.sndr_core.runtime.interface_guard import validate_impl, ANY
+        from sndr.runtime.interface_guard import validate_impl, ANY
 
         class X:
             config = "anything"
         validate_impl(X, role="X", required_attrs={"config": ANY})
 
     def test_string_type_match(self):
-        from vllm.sndr_core.runtime.interface_guard import validate_impl
+        from sndr.runtime.interface_guard import validate_impl
 
         class FakeTQConfig:
             pass
@@ -76,7 +76,7 @@ class TestValidateImplPasses:
         )
 
     def test_tuple_of_types(self):
-        from vllm.sndr_core.runtime.interface_guard import validate_impl
+        from sndr.runtime.interface_guard import validate_impl
 
         class X:
             val = 42  # int or float accepted
@@ -85,7 +85,7 @@ class TestValidateImplPasses:
 
 class TestValidateImplFailures:
     def test_missing_required_attr(self):
-        from vllm.sndr_core.runtime.interface_guard import (
+        from sndr.runtime.interface_guard import (
             validate_impl, GenesisInterfaceMismatch,
         )
 
@@ -102,7 +102,7 @@ class TestValidateImplFailures:
         assert "Incomplete" in str(excinfo.value)
 
     def test_wrong_type_attr(self):
-        from vllm.sndr_core.runtime.interface_guard import (
+        from sndr.runtime.interface_guard import (
             validate_impl, GenesisInterfaceMismatch,
         )
 
@@ -118,7 +118,7 @@ class TestValidateImplFailures:
         assert "str" in str(excinfo.value).lower()
 
     def test_missing_required_method(self):
-        from vllm.sndr_core.runtime.interface_guard import (
+        from sndr.runtime.interface_guard import (
             validate_impl, GenesisInterfaceMismatch,
         )
 
@@ -133,7 +133,7 @@ class TestValidateImplFailures:
         assert "_continuation_prefill" in str(excinfo.value)
 
     def test_multiple_errors_aggregated(self):
-        from vllm.sndr_core.runtime.interface_guard import (
+        from sndr.runtime.interface_guard import (
             validate_impl, GenesisInterfaceMismatch,
         )
 
@@ -161,7 +161,7 @@ class TestValidateImplFailures:
 
 class TestOptionalAttrs:
     def test_absent_optional_doesnt_raise(self, caplog):
-        from vllm.sndr_core.runtime.interface_guard import validate_impl
+        from sndr.runtime.interface_guard import validate_impl
         import logging
 
         class Bare:
@@ -182,7 +182,7 @@ class TestOptionalAttrs:
 
 class TestMethodSignature:
     def test_min_param_count_pass(self):
-        from vllm.sndr_core.runtime.interface_guard import validate_method_signature
+        from sndr.runtime.interface_guard import validate_method_signature
 
         class X:
             def m(self, a, b, c):
@@ -193,7 +193,7 @@ class TestMethodSignature:
         )
 
     def test_min_param_count_fail(self):
-        from vllm.sndr_core.runtime.interface_guard import (
+        from sndr.runtime.interface_guard import (
             validate_method_signature, GenesisInterfaceMismatch,
         )
 
@@ -208,7 +208,7 @@ class TestMethodSignature:
         assert "params" in str(excinfo.value).lower()
 
     def test_expected_param_names_pass(self):
-        from vllm.sndr_core.runtime.interface_guard import validate_method_signature
+        from sndr.runtime.interface_guard import validate_method_signature
 
         class X:
             def m(self, query, key, value):
@@ -221,7 +221,7 @@ class TestMethodSignature:
         )
 
     def test_expected_param_names_missing_raises(self):
-        from vllm.sndr_core.runtime.interface_guard import (
+        from sndr.runtime.interface_guard import (
             validate_method_signature, GenesisInterfaceMismatch,
         )
 
@@ -240,7 +240,7 @@ class TestMethodSignature:
 
 class TestAssertShapeCompat:
     def test_non_tensor_raises(self):
-        from vllm.sndr_core.runtime.interface_guard import (
+        from sndr.runtime.interface_guard import (
             assert_shape_compat, GenesisInterfaceMismatch,
         )
         with pytest.raises(GenesisInterfaceMismatch):
@@ -250,13 +250,13 @@ class TestAssertShapeCompat:
 
     def test_ndim_pass(self):
         import torch
-        from vllm.sndr_core.runtime.interface_guard import assert_shape_compat
+        from sndr.runtime.interface_guard import assert_shape_compat
         t = torch.zeros(1, 2, 3)
         assert_shape_compat(t, role="test", expected_ndim=3)
 
     def test_ndim_fail(self):
         import torch
-        from vllm.sndr_core.runtime.interface_guard import (
+        from sndr.runtime.interface_guard import (
             assert_shape_compat, GenesisInterfaceMismatch,
         )
         t = torch.zeros(1, 2, 3)
@@ -265,13 +265,13 @@ class TestAssertShapeCompat:
 
     def test_min_shape_pass(self):
         import torch
-        from vllm.sndr_core.runtime.interface_guard import assert_shape_compat
+        from sndr.runtime.interface_guard import assert_shape_compat
         t = torch.zeros(10, 20)
         assert_shape_compat(t, role="test", min_shape=(1, 5))
 
     def test_min_shape_fail(self):
         import torch
-        from vllm.sndr_core.runtime.interface_guard import (
+        from sndr.runtime.interface_guard import (
             assert_shape_compat, GenesisInterfaceMismatch,
         )
         t = torch.zeros(10, 3)
@@ -280,7 +280,7 @@ class TestAssertShapeCompat:
 
     def test_dtype_check(self):
         import torch
-        from vllm.sndr_core.runtime.interface_guard import (
+        from sndr.runtime.interface_guard import (
             assert_shape_compat, GenesisInterfaceMismatch,
         )
         t = torch.zeros(2, 2, dtype=torch.float32)
@@ -297,7 +297,7 @@ class TestAssertShapeCompat:
 
 class TestDescribeImpl:
     def test_snapshot_contains_class_and_attrs(self):
-        from vllm.sndr_core.runtime.interface_guard import describe_impl
+        from sndr.runtime.interface_guard import describe_impl
 
         class X:
             a = 1
@@ -315,7 +315,7 @@ class TestDescribeImpl:
 
     def test_snapshot_is_json_serialisable(self):
         import json
-        from vllm.sndr_core.runtime.interface_guard import describe_impl
+        from sndr.runtime.interface_guard import describe_impl
 
         class X:
             v = 42
@@ -330,7 +330,7 @@ class TestFullDriftScenario:
     before rebind."""
 
     def test_future_upstream_drift_is_caught(self):
-        from vllm.sndr_core.runtime.interface_guard import (
+        from sndr.runtime.interface_guard import (
             validate_impl, GenesisInterfaceMismatch,
         )
 

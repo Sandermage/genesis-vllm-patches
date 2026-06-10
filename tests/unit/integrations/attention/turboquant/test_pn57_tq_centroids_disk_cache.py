@@ -38,7 +38,7 @@ def test_replacement_defensive_fallthrough():
 def test_idempotent_on_synthetic(tmp_path):
     """Audit A-16 fix: synthetic target NO LONGER includes `import os` —
     proves PN57 replacement self-contains all `os` usage in local imports."""
-    from vllm.sndr_core.core.text_patch import (
+    from sndr.kernel.text_patch import (
         TextPatch, TextPatcher, TextPatchResult,
     )
     M = _wiring()
@@ -94,7 +94,7 @@ def test_a02_replacement_no_module_level_os_calls():
 
 
 def test_env_flag_default_off(monkeypatch):
-    from vllm.sndr_core.dispatcher import should_apply
+    from sndr.dispatcher import should_apply
     monkeypatch.delenv("GENESIS_ENABLE_PN57_TQ_CENTROIDS_DISK_CACHE", raising=False)
     decision, _ = should_apply("PN57")
     assert decision is False
@@ -107,7 +107,7 @@ def test_env_flag_engages(monkeypatch):
     a license key + version compat — set both in test setup so the
     env-flag branch is the gate we're actually exercising here.
     """
-    from vllm.sndr_core.dispatcher import should_apply
+    from sndr.dispatcher import should_apply
     monkeypatch.setenv("GENESIS_ENABLE_PN57_TQ_CENTROIDS_DISK_CACHE", "1")
     monkeypatch.setenv("SNDR_ENGINE_LICENSE_KEY", "test-key-for-pytest")
     decision, _ = should_apply("PN57")
@@ -115,7 +115,7 @@ def test_env_flag_engages(monkeypatch):
 
 
 def test_registry_entry_complete():
-    from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+    from sndr.dispatcher import PATCH_REGISTRY
     assert "PN57" in PATCH_REGISTRY
     meta = PATCH_REGISTRY["PN57"]
     assert meta["upstream_pr"] == 41418
@@ -123,5 +123,5 @@ def test_registry_entry_complete():
 
 
 def test_apply_all_registers_pn57():
-    from vllm.sndr_core.apply import apply_all
+    from sndr.apply import apply_all
     assert hasattr(apply_all, "apply_patch_N57_tq_centroids_disk_cache")

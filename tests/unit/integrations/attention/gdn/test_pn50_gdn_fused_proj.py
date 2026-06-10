@@ -140,7 +140,7 @@ def test_anchor_contains_qwen35_branch_signature():
 def test_replacement_wires_pn50_kernel():
     _, anchor_new, marker = _load_anchors()
     assert "PN50 SGLang#21019" in anchor_new
-    assert "from vllm.sndr_core.kernels.pn50_gdn_fused_proj import" in anchor_new
+    assert "from sndr.engines.vllm.kernels_legacy.pn50_gdn_fused_proj import" in anchor_new
     assert "_pn50_fused" in anchor_new
     assert "self.head_k_dim" in anchor_new
     assert "self.head_v_dim" in anchor_new
@@ -151,7 +151,7 @@ def test_replacement_wires_pn50_kernel():
 
 def test_apply_idempotent_on_synthetic(tmp_path):
     """Apply twice → second call is no-op (IDEMPOTENT)."""
-    from vllm.sndr_core.core.text_patch import (
+    from sndr.kernel.text_patch import (
         TextPatch, TextPatcher, TextPatchResult,
     )
     anchor_old, anchor_new, marker = _load_anchors()
@@ -196,7 +196,7 @@ def test_apply_idempotent_on_synthetic(tmp_path):
 
 
 def test_env_flag_default_off(monkeypatch):
-    from vllm.sndr_core.dispatcher import should_apply
+    from sndr.dispatcher import should_apply
     monkeypatch.delenv("GENESIS_ENABLE_PN50_GDN_FUSED_PROJ", raising=False)
     decision, reason = should_apply("PN50")
     assert decision is False
@@ -204,14 +204,14 @@ def test_env_flag_default_off(monkeypatch):
 
 
 def test_env_flag_engages(monkeypatch):
-    from vllm.sndr_core.dispatcher import should_apply
+    from sndr.dispatcher import should_apply
     monkeypatch.setenv("GENESIS_ENABLE_PN50_GDN_FUSED_PROJ", "1")
     decision, _ = should_apply("PN50")
     assert decision is True
 
 
 def test_registry_entry_complete():
-    from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+    from sndr.dispatcher import PATCH_REGISTRY
     assert "PN50" in PATCH_REGISTRY
     meta = PATCH_REGISTRY["PN50"]
     assert meta["env_flag"] == "GENESIS_ENABLE_PN50_GDN_FUSED_PROJ"
@@ -221,5 +221,5 @@ def test_registry_entry_complete():
 
 
 def test_apply_all_registers_pn50():
-    from vllm.sndr_core.apply import apply_all
+    from sndr.apply import apply_all
     assert hasattr(apply_all, "apply_patch_N50_gdn_fused_proj")

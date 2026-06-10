@@ -38,7 +38,7 @@ def patches_md_text() -> str:
 def test_every_registry_entry_documented(patches_md_text: str):
     """Every PATCH_REGISTRY ID must be referenced somewhere in
     PATCHES.md — title, table row, callout, anything."""
-    from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+    from sndr.dispatcher import PATCH_REGISTRY
 
     missing: list[str] = []
     for pid in sorted(PATCH_REGISTRY):
@@ -67,7 +67,7 @@ def test_total_count_in_header_matches_registry(patches_md_text: str):
     PATCHES.md must match `len(PATCH_REGISTRY)`. This catches the
     drift class where someone adds a patch + a row but forgets to
     bump the headline number."""
-    from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+    from sndr.dispatcher import PATCH_REGISTRY
 
     # Match e.g. "**Total PATCH_REGISTRY entries:** 48"
     m = re.search(

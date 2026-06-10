@@ -27,7 +27,7 @@ ENV_FLAG = "GENESIS_ENABLE_P78_TOLIST_CAPTURE_GUARD"
 
 
 def test_p78_registered():
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+    from sndr.dispatcher.registry import PATCH_REGISTRY
     assert PATCH_ID in PATCH_REGISTRY
     meta = PATCH_REGISTRY[PATCH_ID]
     assert meta["env_flag"] == ENV_FLAG
@@ -39,7 +39,7 @@ def test_p78_registered():
 def test_applies_to_turboquant_and_quant_format():
     """P78 targets TurboQuant under specific quant formats — applies_to
     must declare both gates so it doesn't fire on unsupported runtimes."""
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+    from sndr.dispatcher.registry import PATCH_REGISTRY
     applies_to = PATCH_REGISTRY[PATCH_ID].get("applies_to") or {}
     assert "is_turboquant" in applies_to, (
         f"P78 must guard on is_turboquant; got: {sorted(applies_to.keys())}"
@@ -105,7 +105,7 @@ def test_replacement_contains_env_check():
     if not src_path.is_file():
         src_path = (
             repo_root
-            / "vllm/sndr_core/integrations/attention/turboquant/p78_tolist_capture_guard.py"
+            / "sndr/engines/vllm/patches/attention/turboquant/p78_tolist_capture_guard.py"
         )
     src = src_path.read_text(encoding="utf-8")
     assert ENV_FLAG in src, (

@@ -27,7 +27,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-BUILTIN_DIR = REPO_ROOT / "vllm" / "sndr_core" / "model_configs" / "builtin"
+BUILTIN_DIR = REPO_ROOT / "sndr" / "model_configs" / "builtin"
 OUTPUT_PATH = REPO_ROOT / "docs" / "CONFIGS_AUTO.md"
 
 
@@ -139,7 +139,7 @@ def render_markdown(configs: list[dict]) -> str:
         lines.append("> - `builtin/presets/<alias>.yaml` — operator-facing alias bundling the triplet")
         lines.append(">")
         lines.append("> Discover via `sndr preset list` / `sndr preset recommend`.")
-        lines.append("> Load via `from vllm.sndr_core.model_configs.registry_v2 import load_alias`.")
+        lines.append("> Load via `from sndr.model_configs.registry_v2 import load_alias`.")
         lines.append("")
         lines.append("---")
         lines.append("")

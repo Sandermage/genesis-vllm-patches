@@ -26,10 +26,10 @@ import textwrap
 
 import pytest
 
-from vllm.sndr_core.model_configs.compose import compose
-from vllm.sndr_core.model_configs.patch_plan import resolve_patch_plan
-from vllm.sndr_core.model_configs.registry_v2 import _dataclass_from_dict
-from vllm.sndr_core.model_configs.schema_v2 import (
+from sndr.model_configs.compose import compose
+from sndr.model_configs.patch_plan import resolve_patch_plan
+from sndr.model_configs.registry_v2 import _dataclass_from_dict
+from sndr.model_configs.schema_v2 import (
     HardwareDef,
     ModelDef,
     ProfileDef,

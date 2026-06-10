@@ -41,7 +41,7 @@ import pytest
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-MANIFEST_PATH = REPO_ROOT / "vllm" / "sndr_core" / "manifests" / "anchor_manifest.json"
+MANIFEST_PATH = REPO_ROOT / "sndr" / "manifests" / "anchor_manifest.json"
 
 
 # Documented exception set: stable_kind="text-patch" patches whose
@@ -76,7 +76,7 @@ def _stable_patches() -> list[tuple[str, dict]]:
     treated as text-patch (matches the historical default, e.g. PN33 /
     PN35 before the field was introduced).
     """
-    from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+    from sndr.dispatcher import PATCH_REGISTRY
     return [
         (pid, m) for pid, m in PATCH_REGISTRY.items()
         if isinstance(m, dict)
@@ -103,7 +103,7 @@ class TestStableLifecycleRatchet:
 
     def test_every_stable_patch_has_apply_module(self):
         """Stable ⇒ runtime knows how to apply (registry has apply_module)."""
-        from vllm.sndr_core.dispatcher.spec import iter_patch_specs
+        from sndr.dispatcher.spec import iter_patch_specs
 
         spec_map = {s.patch_id: s.apply_module for s in iter_patch_specs()}
         violations = []
@@ -127,7 +127,7 @@ class TestStableLifecycleRatchet:
         Patches in `_MANIFEST_TRACKING_DEFERRED` are explicitly skipped
         with a documented action-item to source the pristine fixture.
         """
-        from vllm.sndr_core.wiring.patcher_registry import (
+        from sndr.engines.vllm.wiring.patcher_registry import (
             iter_registered_patchers,
         )
 
@@ -163,7 +163,7 @@ class TestStableLifecycleRatchet:
             )
             return
 
-        from vllm.sndr_core.wiring.patcher_registry import (
+        from sndr.engines.vllm.wiring.patcher_registry import (
             iter_registered_patchers,
         )
         files = manifest.get("files", {})

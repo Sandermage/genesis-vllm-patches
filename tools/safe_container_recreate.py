@@ -29,12 +29,17 @@ Strict guarantees:
 
 Usage:
   python3 tools/safe_container_recreate.py \\
-      --host sander@192.168.1.10 \\
+      --host <user>@<host> \\
       --container vllm-qwen3.6-35b-balanced-k3 \\
       --port 8102 \\
       --api-key genesis-local \\
       --dry-run        # print the docker run command and exit
   python3 tools/safe_container_recreate.py ... --yes  # execute after confirm
+
+Remote repo root resolution (for autotune cache paths / binds):
+  1. --remote-repo CLI flag
+  2. SNDR_REMOTE_REPO_DIR env var
+  3. derived from --host ssh user: /home/<user>/genesis-vllm-patches
 
 Author: Genesis platform / Sander Odessa
 """
@@ -43,6 +48,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import os
 import shlex
 import subprocess
 import sys
@@ -51,36 +57,55 @@ from pathlib import Path
 
 # ---------------------------------------------------------------- constants
 
-# Launcher-script exports we want PROMOTED into the docker env layer.
-# Source of truth: /tmp/qwen3.6-35b-balanced_launcher/run.sh on PROD box.
-# Keep this list in sync with the launcher script.
-LAUNCHER_ENV_PROMOTIONS: dict[str, str] = {
-    # Persistent autotune cache dirs (the main reason for this recreate).
-    "VLLM_FLASHINFER_AUTOTUNE_CACHE_DIR": (
-        "/home/sander/genesis-vllm-patches/.autotune_cache/flashinfer"
-    ),
-    "TRITON_CACHE_DIR": (
-        "/home/sander/genesis-vllm-patches/.autotune_cache/triton"
-    ),
-    # Genesis patch enables that the launcher overrides — promote so they
-    # survive launcher-script edits.
-    "GENESIS_ENABLE_PN365_GDN_GEMM_FUSE": "1",
-    "GENESIS_ENABLE_PN204_DUAL_STREAM_INPROJ": "0",
-    "GENESIS_ENABLE_P100": "1",
-    "GENESIS_ENABLE_P101": "1",
-    "GENESIS_ENABLE_PN362": "1",
-    "GENESIS_ENABLE_PN364_HYBRID_GDN_WARMUP": "1",
-    "GENESIS_ENABLE_PN350": "1",
-    "GENESIS_ENABLE_PN353A": "1",
-}
 
-# Extra bind mount — explicit autotune cache dir. Redundant with the
-# parent /home/sander/genesis-vllm-patches:rw bind but explicit for clarity
-# and survives any future tightening of the parent bind.
-EXTRA_BINDS: list[str] = [
-    "/home/sander/genesis-vllm-patches/.autotune_cache:"
-    "/home/sander/genesis-vllm-patches/.autotune_cache:rw",
-]
+def default_remote_repo(host: str) -> str:
+    """Resolve the remote repo root on the PROD box.
+
+    Precedence: SNDR_REMOTE_REPO_DIR env override, else derive from the
+    ssh user in `host` (`<user>@<addr>` form): /home/<user>/genesis-vllm-patches.
+    """
+    env = os.environ.get("SNDR_REMOTE_REPO_DIR", "").strip()
+    if env:
+        return env.rstrip("/")
+    user = host.split("@", 1)[0] if "@" in host else "root"
+    return f"/home/{user}/genesis-vllm-patches"
+
+
+def launcher_env_promotions(remote_repo: str) -> dict[str, str]:
+    """Launcher-script exports we want PROMOTED into the docker env layer.
+
+    Source of truth: the active launcher run.sh on the PROD box.
+    Keep this list in sync with the launcher script.
+    """
+    return {
+        # Persistent autotune cache dirs (the main reason for this recreate).
+        "VLLM_FLASHINFER_AUTOTUNE_CACHE_DIR": (
+            f"{remote_repo}/.autotune_cache/flashinfer"
+        ),
+        "TRITON_CACHE_DIR": (
+            f"{remote_repo}/.autotune_cache/triton"
+        ),
+        # Genesis patch enables that the launcher overrides — promote so they
+        # survive launcher-script edits.
+        "GENESIS_ENABLE_PN365_GDN_GEMM_FUSE": "1",
+        "GENESIS_ENABLE_PN204_DUAL_STREAM_INPROJ": "0",
+        "GENESIS_ENABLE_P100": "1",
+        "GENESIS_ENABLE_P101": "1",
+        "GENESIS_ENABLE_PN362": "1",
+        "GENESIS_ENABLE_PN364_HYBRID_GDN_WARMUP": "1",
+        "GENESIS_ENABLE_PN350": "1",
+        "GENESIS_ENABLE_PN353A": "1",
+    }
+
+
+def extra_binds(remote_repo: str) -> list[str]:
+    """Extra bind mount — explicit autotune cache dir. Redundant with the
+    parent <remote_repo>:rw bind but explicit for clarity and survives
+    any future tightening of the parent bind."""
+    return [
+        f"{remote_repo}/.autotune_cache:"
+        f"{remote_repo}/.autotune_cache:rw",
+    ]
 
 # Docker-injected vars to STRIP when reconstructing the env list (they get
 # re-set automatically by the daemon and overlap with the new image's
@@ -328,10 +353,13 @@ def smoke_test(
 
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    p.add_argument("--host", required=True, help="ssh target, e.g. sander@192.168.1.10")
+    p.add_argument("--host", required=True, help="ssh target, e.g. <user>@<host>")
     p.add_argument("--container", required=True, help="container name")
     p.add_argument("--port", type=int, required=True, help="service port (for /health)")
     p.add_argument("--api-key", default="genesis-local", help="API key for smoke")
+    p.add_argument("--remote-repo", default=None,
+                   help="repo root on the remote box (default: "
+                        "$SNDR_REMOTE_REPO_DIR or /home/<ssh-user>/genesis-vllm-patches)")
     p.add_argument("--dry-run", action="store_true",
                    help="print the docker run command and exit; no changes")
     p.add_argument("--yes", action="store_true",
@@ -349,8 +377,9 @@ def main() -> int:
     print(f"      status: {snap['status']}")
 
     # Build the new env: keep current, strip docker-injected, apply promotions
+    remote_repo = (args.remote_repo or default_remote_repo(args.host)).rstrip("/")
     kept = [e for e in snap["env"] if keep_env_var(e)]
-    new_env = merge_env(kept, LAUNCHER_ENV_PROMOTIONS)
+    new_env = merge_env(kept, launcher_env_promotions(remote_repo))
 
     added, removed, changed = diff_env(snap["env"], new_env)
     print(f"\n[2/6] Env diff (relative to current container state):")
@@ -369,7 +398,7 @@ def main() -> int:
     rollback_name = f"{args.container}-rollback-{ts}"
     new_name = args.container
 
-    argv = build_docker_run(snap, new_name, new_env, EXTRA_BINDS)
+    argv = build_docker_run(snap, new_name, new_env, extra_binds(remote_repo))
 
     # Pretty-print the docker run command
     print(f"\n[3/6] Proposed docker run command (for {new_name}):")

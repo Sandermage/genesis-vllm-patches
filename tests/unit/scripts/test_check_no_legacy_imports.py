@@ -9,6 +9,10 @@ Covers:
   • `import vllm._genesis.kernels`
   • Non-Python files (.yml/.toml/.json) flagged by grep path
   • Allowlist suppresses historical archive directories
+
+NOTE: the `vllm.sndr_core` strings in fixtures below are deliberate —
+they are the LEGACY NEEDLES this detector must catch. Do not remap
+them to the v12 `sndr.` namespace.
 """
 from __future__ import annotations
 
@@ -77,8 +81,8 @@ class TestPythonImportShapes:
     def test_clean_file_zero_violations(self, tmp_path):
         f = _write(
             tmp_path, "x.py",
-            "from vllm.sndr_core.integrations.attention import gdn\n"
-            "import vllm.sndr_core.dispatcher\n",
+            "from sndr.engines.vllm.patches.attention import gdn\n"
+            "import sndr.dispatcher\n",
         )
         assert M._check_python_imports(f) == []
 

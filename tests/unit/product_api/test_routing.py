@@ -2,7 +2,7 @@
 """Tests for the daemon routing bridge (spec-decode router + artifacts)."""
 import pytest
 
-from vllm.sndr_core.product_api import routing as R
+from sndr.product_api.legacy import routing as R
 
 STRUCTURED = "gemma4-31b-tq-mtp-structured-k4"
 

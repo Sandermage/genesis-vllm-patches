@@ -30,7 +30,7 @@ def _run(*args: str, env_extra: dict | None = None,
     if env_extra:
         env.update(env_extra)
     return subprocess.run(
-        [sys.executable, "-m", "vllm.sndr_core.cli", "trace", *args],
+        [sys.executable, "-m", "sndr.cli.legacy", "trace", *args],
         capture_output=True, text=True, cwd=REPO_ROOT,
         env=env, check=False, input=text_in,
     )
@@ -69,7 +69,7 @@ def test_list_human_view_lists_every_category_with_specs() -> None:
     # Human view banner.
     assert "sndr trace — known diagnostic traces" in r.stdout
     # Every category that has specs prints its header.
-    from vllm.sndr_core.observability.trace_catalog import iter_by_category
+    from sndr.observability.trace_catalog import iter_by_category
     grouped = iter_by_category()
     for cat, specs in grouped.items():
         if specs:
@@ -89,7 +89,7 @@ def test_list_json_payload_matches_catalog() -> None:
     r = _run("list", "--json")
     assert r.returncode == 0, r.stderr
     payload = json.loads(r.stdout)
-    from vllm.sndr_core.observability.trace_catalog import TRACE_CATALOG
+    from sndr.observability.trace_catalog import TRACE_CATALOG
     assert payload["total"] == len(TRACE_CATALOG)
     assert payload["container"] is None
     assert payload["category_filter"] is None
@@ -171,7 +171,7 @@ def test_list_container_without_docker_json_carries_warning() -> None:
 def test_container_ls_parses_typical_row(monkeypatch) -> None:
     """Unit-test the parser directly so the contract is locked even
     when no live container is reachable from the test env."""
-    import vllm.sndr_core.cli.trace as tmod
+    import sndr.cli.legacy.trace as tmod
 
     typical_ls_output = (
         "total 12\n"
@@ -211,7 +211,7 @@ def test_container_ls_parses_typical_row(monkeypatch) -> None:
 def test_container_ls_returns_empty_on_subprocess_error(monkeypatch) -> None:
     """Subprocess failures (timeout, exec error, container stopped)
     must surface as empty dict — never raise."""
-    import vllm.sndr_core.cli.trace as tmod
+    import sndr.cli.legacy.trace as tmod
 
     class FakeRun:
         returncode = 1
@@ -226,7 +226,7 @@ def test_container_ls_returns_empty_on_subprocess_error(monkeypatch) -> None:
 
 
 def test_container_ls_handles_timeout(monkeypatch) -> None:
-    import vllm.sndr_core.cli.trace as tmod
+    import sndr.cli.legacy.trace as tmod
 
     def raise_timeout(*a, **kw):
         raise tmod.subprocess.TimeoutExpired(cmd=a[0], timeout=10)
@@ -243,7 +243,7 @@ def test_default_container_view_hides_absent_files(monkeypatch) -> None:
     """Without --all, the human view only lists traces actually present.
     Verified at the run_list level by stubbing _container_ls_tmp to
     return a single hit."""
-    import vllm.sndr_core.cli.trace as tmod
+    import sndr.cli.legacy.trace as tmod
 
     monkeypatch.setattr(
         tmod, "_container_ls_tmp",
@@ -268,7 +268,7 @@ def test_default_container_view_hides_absent_files(monkeypatch) -> None:
 
 
 def test_all_flag_shows_full_catalog_with_present_annotations(monkeypatch) -> None:
-    import vllm.sndr_core.cli.trace as tmod
+    import sndr.cli.legacy.trace as tmod
 
     monkeypatch.setattr(
         tmod, "_container_ls_tmp",
@@ -298,7 +298,7 @@ def test_all_flag_shows_full_catalog_with_present_annotations(monkeypatch) -> No
 
 
 def test_fmt_size_renders_bytes_kb_mb() -> None:
-    import vllm.sndr_core.cli.trace as tmod
+    import sndr.cli.legacy.trace as tmod
     assert tmod._fmt_size(0) == "0B"
     assert tmod._fmt_size(1023) == "1023B"
     assert tmod._fmt_size(1024) == "1.0KB"
@@ -332,7 +332,7 @@ def test_default_output_dir_uses_container_and_utc_stamp(monkeypatch) -> None:
     """The default output dir must encode the container name + a UTC
     timestamp so multiple collections don't overwrite each other and
     cross-timezone bundles stay unambiguous."""
-    import vllm.sndr_core.cli.trace as tmod
+    import sndr.cli.legacy.trace as tmod
     out = tmod._default_output_dir("vllm-35b-prod")
     assert out.startswith("./genesis_traces_vllm-35b-prod_")
     # 8-digit date + T + 6-digit time + Z (UTC).
@@ -340,7 +340,7 @@ def test_default_output_dir_uses_container_and_utc_stamp(monkeypatch) -> None:
 
 
 def test_default_output_dir_sanitizes_path_separators(monkeypatch) -> None:
-    import vllm.sndr_core.cli.trace as tmod
+    import sndr.cli.legacy.trace as tmod
     out = tmod._default_output_dir("foo/bar")
     assert "/bar" not in out.replace("./", "")
     assert "foo-bar" in out
@@ -371,7 +371,7 @@ def test_collect_no_live_traces_returns_zero_and_empty_json(monkeypatch) -> None
     """When the container exists but no genesis_* file is being
     written, collect returns 0 with an empty `collected` list — the
     operator just learns there's nothing to grab."""
-    import vllm.sndr_core.cli.trace as tmod
+    import sndr.cli.legacy.trace as tmod
     monkeypatch.setattr(tmod.shutil, "which", lambda name: "/usr/bin/docker")
     monkeypatch.setattr(tmod, "_container_ls_tmp", lambda c: {})
 
@@ -396,7 +396,7 @@ def test_collect_copies_each_present_trace(monkeypatch, tmp_path) -> None:
     collect calls docker cp once per file and reports both as
     collected. docker cp is stubbed — we only verify the call shape
     and the reported payload, not real I/O."""
-    import vllm.sndr_core.cli.trace as tmod
+    import sndr.cli.legacy.trace as tmod
     monkeypatch.setattr(tmod.shutil, "which", lambda name: "/usr/bin/docker")
     monkeypatch.setattr(
         tmod, "_container_ls_tmp",
@@ -438,7 +438,7 @@ def test_collect_copies_each_present_trace(monkeypatch, tmp_path) -> None:
 
 
 def test_collect_trace_id_filter_limits_to_one(monkeypatch, tmp_path) -> None:
-    import vllm.sndr_core.cli.trace as tmod
+    import sndr.cli.legacy.trace as tmod
     monkeypatch.setattr(tmod.shutil, "which", lambda name: "/usr/bin/docker")
     monkeypatch.setattr(
         tmod, "_container_ls_tmp",
@@ -480,7 +480,7 @@ def test_collect_trace_id_filter_limits_to_one(monkeypatch, tmp_path) -> None:
 def test_collect_docker_cp_error_surfaces_in_errors_list(
     monkeypatch, tmp_path,
 ) -> None:
-    import vllm.sndr_core.cli.trace as tmod
+    import sndr.cli.legacy.trace as tmod
     monkeypatch.setattr(tmod.shutil, "which", lambda name: "/usr/bin/docker")
     monkeypatch.setattr(
         tmod, "_container_ls_tmp",
@@ -514,7 +514,7 @@ def test_collect_docker_cp_error_surfaces_in_errors_list(
 
 
 def test_docker_cp_no_binary_returns_false(monkeypatch) -> None:
-    import vllm.sndr_core.cli.trace as tmod
+    import sndr.cli.legacy.trace as tmod
     monkeypatch.setattr(tmod.shutil, "which", lambda name: None)
     ok, msg = tmod._docker_cp("c", "/tmp/x", "/tmp/y")
     assert ok is False
@@ -522,7 +522,7 @@ def test_docker_cp_no_binary_returns_false(monkeypatch) -> None:
 
 
 def test_docker_cp_nonzero_returncode_returns_false(monkeypatch) -> None:
-    import vllm.sndr_core.cli.trace as tmod
+    import sndr.cli.legacy.trace as tmod
     monkeypatch.setattr(tmod.shutil, "which", lambda name: "/usr/bin/docker")
 
     class FakeRun:
@@ -537,7 +537,7 @@ def test_docker_cp_nonzero_returncode_returns_false(monkeypatch) -> None:
 
 
 def test_docker_cp_success_returns_true(monkeypatch) -> None:
-    import vllm.sndr_core.cli.trace as tmod
+    import sndr.cli.legacy.trace as tmod
     monkeypatch.setattr(tmod.shutil, "which", lambda name: "/usr/bin/docker")
 
     class FakeRun:
@@ -552,7 +552,7 @@ def test_docker_cp_success_returns_true(monkeypatch) -> None:
 
 
 def test_docker_cp_timeout_returns_false(monkeypatch) -> None:
-    import vllm.sndr_core.cli.trace as tmod
+    import sndr.cli.legacy.trace as tmod
     monkeypatch.setattr(tmod.shutil, "which", lambda name: "/usr/bin/docker")
 
     def raise_timeout(*a, **kw):
@@ -577,7 +577,7 @@ def test_summarize_subcommand_is_registered() -> None:
 
 
 def test_detect_trace_kind_for_known_basenames() -> None:
-    import vllm.sndr_core.cli.trace as tmod
+    import sndr.cli.legacy.trace as tmod
     assert tmod.detect_trace_kind("/tmp/genesis_boot.log") == "boot"
     assert tmod.detect_trace_kind("genesis_boot.log") == "boot"
     assert tmod.detect_trace_kind(
@@ -607,7 +607,7 @@ def test_detect_trace_kind_for_known_basenames() -> None:
 
 
 def test_detect_trace_kind_unknown_returns_unknown() -> None:
-    import vllm.sndr_core.cli.trace as tmod
+    import sndr.cli.legacy.trace as tmod
     assert tmod.detect_trace_kind("random.log") == "unknown"
     assert tmod.detect_trace_kind("") == "unknown"
     assert tmod.detect_trace_kind("/var/log/messages") == "unknown"
@@ -624,7 +624,7 @@ def test_summarize_missing_file_returns_2(tmp_path) -> None:
 def test_summarize_generic_returns_size_lines_first_last(tmp_path) -> None:
     """Generic summary on any file returns the canonical 4-field
     payload + the detected kind."""
-    import vllm.sndr_core.cli.trace as tmod
+    import sndr.cli.legacy.trace as tmod
     p = tmp_path / "random.log"
     p.write_text("first line\nmiddle line\nlast line\n")
     s = tmod.summarize_generic(str(p))
@@ -636,7 +636,7 @@ def test_summarize_generic_returns_size_lines_first_last(tmp_path) -> None:
 
 
 def test_summarize_generic_truncates_long_lines(tmp_path) -> None:
-    import vllm.sndr_core.cli.trace as tmod
+    import sndr.cli.legacy.trace as tmod
     long_line = "x" * 500
     p = tmp_path / "x.log"
     p.write_text(long_line + "\n")
@@ -646,7 +646,7 @@ def test_summarize_generic_truncates_long_lines(tmp_path) -> None:
 
 
 def test_summarize_generic_max_preview_zero_disables_truncation(tmp_path) -> None:
-    import vllm.sndr_core.cli.trace as tmod
+    import sndr.cli.legacy.trace as tmod
     long_line = "x" * 500
     p = tmp_path / "x.log"
     p.write_text(long_line + "\n")
@@ -657,7 +657,7 @@ def test_summarize_generic_max_preview_zero_disables_truncation(tmp_path) -> Non
 def test_summarize_boot_log_counts_applied_skipped_failed(tmp_path) -> None:
     """The boot summarizer must parse the canonical `[Genesis] <PID>:
     <status>` format and produce correct counters + failure list."""
-    import vllm.sndr_core.cli.trace as tmod
+    import sndr.cli.legacy.trace as tmod
     boot_text = (
         "[Genesis] PN125: applied (FULL_AND_PIECEWISE flip)\n"
         "[Genesis] PN286: applied\n"
@@ -682,7 +682,7 @@ def test_summarize_boot_log_counts_applied_skipped_failed(tmp_path) -> None:
 
 
 def test_summarize_boot_log_handles_zero_failed(tmp_path) -> None:
-    import vllm.sndr_core.cli.trace as tmod
+    import sndr.cli.legacy.trace as tmod
     p = tmp_path / "genesis_boot.log"
     p.write_text("[Genesis] PN125: applied\n[Genesis] PN16: skipped\n")
     s = tmod.summarize_boot_log(str(p))
@@ -756,7 +756,7 @@ def _make_pn248_trace(lines: list[tuple[list[int], list[int]]]) -> str:
 
 
 def test_parse_int_list_handles_typical_inputs() -> None:
-    import vllm.sndr_core.cli.trace as tmod
+    import sndr.cli.legacy.trace as tmod
     assert tmod._parse_int_list("1, 2, 3") == [1, 2, 3]
     assert tmod._parse_int_list("") == []
     assert tmod._parse_int_list("  1 ,2 ,3,") == [1, 2, 3]
@@ -766,7 +766,7 @@ def test_parse_int_list_handles_typical_inputs() -> None:
 
 def test_pn248_summary_counts_calls_proposed_accepted(tmp_path) -> None:
     """Canonical happy path: 3 calls, varying draft + accept counts."""
-    import vllm.sndr_core.cli.trace as tmod
+    import sndr.cli.legacy.trace as tmod
     p = tmp_path / "genesis_pn248_acceptance_trace.log"
     p.write_text(_make_pn248_trace([
         ([3, 3], [2, 2]),    # call 1: 6 proposed, 4 accepted
@@ -786,7 +786,7 @@ def test_pn248_summary_counts_calls_proposed_accepted(tmp_path) -> None:
 def test_pn248_summary_histogram_groups_accept_counts(tmp_path) -> None:
     """Histogram aggregates per-request accept counts across all
     EXIT lines so the operator sees the distribution at a glance."""
-    import vllm.sndr_core.cli.trace as tmod
+    import sndr.cli.legacy.trace as tmod
     p = tmp_path / "genesis_pn248_acceptance_trace.log"
     p.write_text(_make_pn248_trace([
         ([3, 3], [3, 2]),
@@ -804,7 +804,7 @@ def test_pn248_summary_handles_capture_errors(tmp_path) -> None:
     """`ENTER err=` / `EXIT err=` lines must increment capture_errors
     and not contribute to the proposed/accepted counters — the probe
     failed for that call, the rate would be miscounted otherwise."""
-    import vllm.sndr_core.cli.trace as tmod
+    import sndr.cli.legacy.trace as tmod
     p = tmp_path / "genesis_pn248_acceptance_trace.log"
     p.write_text(
         "[PN248 call=1] ENTER max_spec_len=3 num_draft_tokens=[3] "
@@ -822,7 +822,7 @@ def test_pn248_summary_handles_capture_errors(tmp_path) -> None:
 
 
 def test_pn248_summary_empty_or_garbage_file_does_not_crash(tmp_path) -> None:
-    import vllm.sndr_core.cli.trace as tmod
+    import sndr.cli.legacy.trace as tmod
     p = tmp_path / "genesis_pn248_acceptance_trace.log"
     p.write_text("nothing related here\nanother random line\n")
     s = tmod.summarize_pn248_acceptance(str(p))
@@ -871,7 +871,7 @@ def test_summarize_human_view_renders_acceptance_block(tmp_path) -> None:
 def test_pn248_summary_correctly_counts_distinct_calls(tmp_path) -> None:
     """ENTER + EXIT for the same call_id must not double-count the
     decode step; total_calls is the cardinality of `call=<N>` ids."""
-    import vllm.sndr_core.cli.trace as tmod
+    import sndr.cli.legacy.trace as tmod
     p = tmp_path / "genesis_pn248_acceptance_trace.log"
     p.write_text(_make_pn248_trace([
         ([3], [2]),

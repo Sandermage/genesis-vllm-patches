@@ -24,7 +24,7 @@ from unittest.mock import patch
 
 import pytest
 
-from vllm.sndr_core.cli.gateway import (
+from sndr.cli.legacy.gateway import (
     _FLAG_TO_ENV,
     _apply_env,
     add_argparser,
@@ -40,7 +40,7 @@ class TestHelp:
         """`sndr gateway --help` must succeed without any runtime
         dependency."""
         result = subprocess.run(
-            [sys.executable, "-m", "vllm.sndr_core.cli", "gateway", "--help"],
+            [sys.executable, "-m", "sndr.cli.legacy", "gateway", "--help"],
             capture_output=True, text=True,
         )
         assert result.returncode == 0, (
@@ -68,7 +68,7 @@ class TestNoHeavyImports:
             [sys.executable, "-c", """
 import sys
 baseline = set(sys.modules)
-import vllm.sndr_core.cli.gateway
+import sndr.cli.legacy.gateway
 after = set(sys.modules)
 heavy = {m for m in (after - baseline)
          if m.split('.')[0] in ('fastapi', 'uvicorn', 'httpx', 'torch')
@@ -85,13 +85,13 @@ print('OK')
         )
 
     def test_cli_init_doesnt_pull_gateway_runtime(self):
-        """Importing `vllm.sndr_core.cli` (the whole CLI package) does
+        """Importing `sndr.cli.legacy` (the whole CLI package) does
         not eagerly import the gateway's FastAPI runtime."""
         result = subprocess.run(
             [sys.executable, "-c", """
 import sys
 baseline = set(sys.modules)
-import vllm.sndr_core.cli
+import sndr.cli
 after = set(sys.modules)
 forbidden = {m for m in (after - baseline)
              if m.split('.')[0] in ('fastapi', 'uvicorn')}
@@ -230,7 +230,7 @@ class TestRunGatewayExec:
         fake_module.main = fake_main
         with patch.dict(
             sys.modules,
-            {"vllm.sndr_core.integrations.spec_decode.gateway.app": fake_module},
+            {"sndr.engines.vllm.patches.spec_decode.gateway.app": fake_module},
         ):
             ns = argparse.Namespace(
                 default_url="http://a:1", structured_url=None,
@@ -252,7 +252,7 @@ class TestRunGatewayExec:
         fake_module.main = fake_main
         with patch.dict(
             sys.modules,
-            {"vllm.sndr_core.integrations.spec_decode.gateway.app": fake_module},
+            {"sndr.engines.vllm.patches.spec_decode.gateway.app": fake_module},
         ):
             ns = argparse.Namespace(
                 default_url=None, structured_url=None,
@@ -271,13 +271,13 @@ class TestRunGatewayExec:
         real_import = importlib.import_module
 
         def fake_import(name, *args, **kwargs):
-            if name == "vllm.sndr_core.integrations.spec_decode.gateway.app":
+            if name == "sndr.engines.vllm.patches.spec_decode.gateway.app":
                 raise ImportError("fastapi not installed (synthetic)")
             return real_import(name, *args, **kwargs)
 
         # We can't patch import directly; force the inner from-import
         # to fail by removing the target module + injecting a sentinel.
-        sentinel_name = "vllm.sndr_core.integrations.spec_decode.gateway.app"
+        sentinel_name = "sndr.engines.vllm.patches.spec_decode.gateway.app"
         original = sys.modules.pop(sentinel_name, None)
         try:
             # Pre-populate with an empty stub so the `from ... import main`

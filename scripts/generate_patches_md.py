@@ -47,7 +47,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # source, fall back to the shim path for older layouts.
 REGISTRY_PATH = REPO_ROOT / "sndr" / "dispatcher" / "registry.py"
 if not REGISTRY_PATH.is_file():
-    REGISTRY_PATH = REPO_ROOT / "vllm" / "sndr_core" / "dispatcher" / "registry.py"
+    REGISTRY_PATH = REPO_ROOT / "sndr" / "dispatcher" / "registry.py"
 OUTPUT_PATH = REPO_ROOT / "docs" / "PATCHES_AUTO.md"
 
 # Fields we extract per patch entry

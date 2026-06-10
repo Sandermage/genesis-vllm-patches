@@ -64,7 +64,7 @@ class TestRealModuleResolution:
     def test_wrapped_function_module(self, genesis_registry):
         """The decorator preserves __wrapped__; we use it to find the
         original function's containing module."""
-        from vllm.sndr_core.apply._state import PATCH_REGISTRY as LEG
+        from sndr.apply._state import PATCH_REGISTRY as LEG
         mod = _import_script()
         # Smoke: every legacy entry that has __wrapped__ resolves cleanly.
         resolved = 0
@@ -108,7 +108,7 @@ class TestBuildProposals:
         # ≥80% of proposals target the legacy module.
         legacy_count = sum(
             1 for p in proposals
-            if "vllm.sndr_core.apply._per_patch_dispatch" in p.proposed_apply_module
+            if "sndr.apply._per_patch_dispatch" in p.proposed_apply_module
         )
         assert legacy_count / len(proposals) >= 0.80
 

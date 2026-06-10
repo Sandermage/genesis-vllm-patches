@@ -25,7 +25,7 @@ def cfg():
     lxc_proxmox renderer requires one. We accept any V1 deprecation
     warning since several builtin configs are migrating to V2."""
     warnings.filterwarnings("ignore", category=DeprecationWarning)
-    from vllm.sndr_core.model_configs import get, list_keys
+    from sndr.model_configs import get, list_keys
     for key in list_keys():
         c = get(key)
         if c is not None and c.docker is not None:
@@ -35,7 +35,7 @@ def cfg():
 
 def test_renders_runnable_bash_script(cfg):
     """Output must start with a bash shebang and parse via `bash -n`."""
-    from vllm.sndr_core.compat.model_config_cli import _render_lxc_proxmox
+    from sndr.compat.model_config_cli import _render_lxc_proxmox
     out = _render_lxc_proxmox(cfg)
     assert out.startswith("#!/usr/bin/env bash\n"), (
         "missing bash shebang — generated artifact must be directly executable"
@@ -58,7 +58,7 @@ def test_renders_runnable_bash_script(cfg):
 def test_includes_real_pct_lifecycle_commands(cfg):
     """The runnable renderer must invoke pct create / pct start /
     pct exec (not just emit them as comments like the old skeleton)."""
-    from vllm.sndr_core.compat.model_config_cli import _render_lxc_proxmox
+    from sndr.compat.model_config_cli import _render_lxc_proxmox
     out = _render_lxc_proxmox(cfg)
     # Look for executable lines (no leading "#" on the pct invocation).
     lines = [ln.strip() for ln in out.splitlines() if ln.strip()]
@@ -76,7 +76,7 @@ def test_includes_real_pct_lifecycle_commands(cfg):
 def test_no_skeleton_markers(cfg):
     """The string 'SKELETON' / 'NOT a runnable artifact' / 'manual-guide'
     must not appear — those were the old skeleton's red flags."""
-    from vllm.sndr_core.compat.model_config_cli import _render_lxc_proxmox
+    from sndr.compat.model_config_cli import _render_lxc_proxmox
     out = _render_lxc_proxmox(cfg)
     forbidden = (
         "SKELETON",
@@ -94,7 +94,7 @@ def test_overridable_env_vars_present(cfg):
     """Operator-overridable knobs (CTID, storage, bridge) must surface as
     env vars at the top so re-deploying on a different cluster topology
     doesn't require editing the script body."""
-    from vllm.sndr_core.compat.model_config_cli import _render_lxc_proxmox
+    from sndr.compat.model_config_cli import _render_lxc_proxmox
     out = _render_lxc_proxmox(cfg)
     required_overrides = (
         'SNDR_CTID="${SNDR_CTID:-',
@@ -112,7 +112,7 @@ def test_overridable_env_vars_present(cfg):
 def test_emits_idempotent_guard(cfg):
     """Re-running must reuse an existing CTID, not error out — check that
     the renderer wraps pct create with an existence guard."""
-    from vllm.sndr_core.compat.model_config_cli import _render_lxc_proxmox
+    from sndr.compat.model_config_cli import _render_lxc_proxmox
     out = _render_lxc_proxmox(cfg)
     assert 'pct status "${SNDR_CTID}"' in out, (
         "missing `pct status` idempotency guard around `pct create`"
@@ -122,7 +122,7 @@ def test_emits_idempotent_guard(cfg):
 def test_emits_gpu_passthrough_wiring(cfg):
     """The script must inject the lxc.cgroup2.devices.allow + bind-mount
     entries into /etc/pve/lxc/<CTID>.conf for NVIDIA GPU passthrough."""
-    from vllm.sndr_core.compat.model_config_cli import _render_lxc_proxmox
+    from sndr.compat.model_config_cli import _render_lxc_proxmox
     out = _render_lxc_proxmox(cfg)
     assert "lxc.cgroup2.devices.allow" in out
     assert "lxc.mount.entry: /dev/nvidia" in out
@@ -133,7 +133,7 @@ def test_emits_gpu_passthrough_wiring(cfg):
 def test_inner_launch_script_runs_vllm_serve(cfg):
     """The inline launch.sh that gets written into the container must
     actually invoke `vllm serve` with the captured flags."""
-    from vllm.sndr_core.compat.model_config_cli import _render_lxc_proxmox
+    from sndr.compat.model_config_cli import _render_lxc_proxmox
     out = _render_lxc_proxmox(cfg)
     assert "GENESIS_LAUNCH_EOF" in out, (
         "heredoc that writes the inner launch.sh is missing"
@@ -149,7 +149,7 @@ def test_legacy_skeleton_alias_delegates(cfg):
     """The old `_render_lxc_proxmox_skeleton` symbol survives as a thin
     deprecation alias so external scripts that imported it directly do
     not break for one release. Output must match the new renderer."""
-    from vllm.sndr_core.compat.model_config_cli import (
+    from sndr.compat.model_config_cli import (
         _render_lxc_proxmox, _render_lxc_proxmox_skeleton,
     )
     assert _render_lxc_proxmox_skeleton(cfg) == _render_lxc_proxmox(cfg)
@@ -158,8 +158,8 @@ def test_legacy_skeleton_alias_delegates(cfg):
 def test_render_without_docker_block_returns_clean_error():
     """Bare-metal-only configs must not crash; the renderer should
     return an operator-readable error string."""
-    from vllm.sndr_core.compat.model_config_cli import _render_lxc_proxmox
-    from vllm.sndr_core.model_configs.schema import HardwareSpec, ModelConfig
+    from sndr.compat.model_config_cli import _render_lxc_proxmox
+    from sndr.model_configs.schema import HardwareSpec, ModelConfig
     cfg = ModelConfig(
         key="bare-only",
         title="bare-metal-only",

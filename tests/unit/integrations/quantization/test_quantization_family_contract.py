@@ -156,7 +156,7 @@ class TestQuantizationFamilyRegistry:
     def test_family_count_matches_filesystem(self):
         """`vllm/sndr_core/integrations/quantization/` must contain every file
         listed in QUANT_PATCHES (drift detector)."""
-        quant_dir = Path(__file__).resolve().parents[4] / "vllm" / "sndr_core" / "integrations" / "quantization"
+        quant_dir = Path(__file__).resolve().parents[4] / "sndr" / "engines" / "vllm" / "patches" / "quantization"
         assert quant_dir.is_dir(), f"Quantization patches dir not found at {quant_dir}"
         files = {f.stem for f in quant_dir.glob("*.py") if f.name != "__init__.py"}
         for module_path, patch_id in QUANT_PATCHES:

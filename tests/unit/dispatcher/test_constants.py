@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Tests for `vllm.sndr_core.dispatcher._constants` — single source of truth.
+"""Tests for `sndr.dispatcher._constants` — single source of truth.
 
 Contract:
 
@@ -17,7 +17,7 @@ Contract:
 """
 from __future__ import annotations
 
-from vllm.sndr_core.dispatcher import _constants as c
+from sndr.dispatcher import _constants as c
 
 
 # ─── Immutability ─────────────────────────────────────────────────────
@@ -142,7 +142,7 @@ class TestBackCompat:
         """registry_metadata.py re-imports the constants via the
         original names for back-compat with anything reaching into its
         module dict."""
-        from vllm.sndr_core.dispatcher import registry_metadata as rm
+        from sndr.dispatcher import registry_metadata as rm
         # Both constants must be accessible under original names
         assert hasattr(rm, "_BLOCKED_STATUSES")
         assert hasattr(rm, "_RESEARCH_STATUSES")

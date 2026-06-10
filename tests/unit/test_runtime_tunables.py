@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Tests for `vllm.sndr_core.runtime_tunables` — the registry of runtime
+"""Tests for `sndr.runtime_tunables` — the registry of runtime
 tunable env knobs split out from `audit_rules._check_env_keys_exist`.
 
 These tests are the TDD contract for P1-D (audit closure 2026-05-12).
@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.runtime_tunables import (
+from sndr.runtime_tunables import (
     TUNABLE_KNOBS,
     TunableKnob,
     is_known_tunable,
@@ -94,7 +94,7 @@ class TestAuditRulesIntegration:
     """Audit gate must accept tunables and reject unknown env vars."""
 
     def test_audit_accepts_pn95_knobs(self):
-        from vllm.sndr_core.model_configs.schema import ModelConfig
+        from sndr.model_configs.schema import ModelConfig
 
         cfg = ModelConfig.__new__(ModelConfig)
         cfg.key = "test"
@@ -109,19 +109,19 @@ class TestAuditRulesIntegration:
             "GENESIS_PN95_TICK_EVERY": "1",
             "GENESIS_PN95_DEMOTE_FREE_MIB_THRESHOLD": "1024",
         }
-        from vllm.sndr_core.model_configs.audit_rules import _check_env_keys_exist
+        from sndr.model_configs.audit_rules import _check_env_keys_exist
         result = _check_env_keys_exist(cfg)
         assert result is None or "GENESIS_PN95_" not in (result or ""), (
             f"audit rejected PN95 tunable: {result}"
         )
 
     def test_audit_rejects_truly_unknown_env(self):
-        from vllm.sndr_core.model_configs.schema import ModelConfig
+        from sndr.model_configs.schema import ModelConfig
 
         cfg = ModelConfig.__new__(ModelConfig)
         cfg.key = "test"
         cfg.genesis_env = {"GENESIS_NOT_A_REAL_KNOB_OR_FLAG": "1"}
-        from vllm.sndr_core.model_configs.audit_rules import _check_env_keys_exist
+        from sndr.model_configs.audit_rules import _check_env_keys_exist
         result = _check_env_keys_exist(cfg)
         assert result is not None, (
             "audit should flag completely unknown env vars"

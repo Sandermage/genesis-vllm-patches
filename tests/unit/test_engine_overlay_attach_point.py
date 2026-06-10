@@ -2,10 +2,10 @@
 """Engine-overlay attach-point contract — §9.A.17
 (AUDIT-CLOSURE.3, 2026-05-27).
 
-Verifies the contract that ``vllm.sndr_core`` exposes for an external
+Verifies the contract that ``sndr`` exposes for an external
 commercial overlay to register itself:
 
-  * The probe ``vllm.sndr_core.license._engine_overlay_available()``
+  * The probe ``sndr.license._engine_overlay_available()``
     uses the documented ``engine_available()`` callable signal —
     NOT a raw ``import vllm.sndr_engine`` truthy check. A skeleton
     ``vllm.sndr_engine`` package (without a real overlay) must not
@@ -50,10 +50,10 @@ import pytest
 
 
 def _import_license():
-    """Fresh import of ``vllm.sndr_core.license``."""
-    if "vllm.sndr_core.license" in sys.modules:
-        return importlib.reload(sys.modules["vllm.sndr_core.license"])
-    return importlib.import_module("vllm.sndr_core.license")
+    """Fresh import of ``sndr.license``."""
+    if "sndr.license" in sys.modules:
+        return importlib.reload(sys.modules["sndr.license"])
+    return importlib.import_module("sndr.license")
 
 
 # ─── Tests ────────────────────────────────────────────────────────────────
@@ -159,26 +159,26 @@ class TestEntryPointGroupName:
 
 
 class TestNoTopLevelEngineImport:
-    """``vllm.sndr_core.license`` itself must not import
+    """``sndr.license`` itself must not import
     ``vllm.sndr_engine`` at module top level — only inside the gated
     helper functions. Catches accidental refactor that hoists the
     import out of the try block."""
 
     def test_license_module_imports_clean_without_engine(self):
         """If ``vllm.sndr_engine`` is absent (live tree state), then
-        ``import vllm.sndr_core.license`` must succeed without
+        ``import sndr.license`` must succeed without
         ImportError. Top-level engine import would break this."""
         # Force a fresh import; if there's a top-level
         # ``from vllm.sndr_engine import ...`` it would raise here.
         # (The live tree already passes audit_engine_boundary.py, so
         # this is a runtime confirmation.)
-        if "vllm.sndr_core.license" in sys.modules:
-            del sys.modules["vllm.sndr_core.license"]
+        if "sndr.license" in sys.modules:
+            del sys.modules["sndr.license"]
         try:
-            importlib.import_module("vllm.sndr_core.license")
+            importlib.import_module("sndr.license")
         except ImportError as e:
             pytest.fail(
-                f"vllm.sndr_core.license top-level import failed: {e} — "
+                f"sndr.license top-level import failed: {e} — "
                 f"likely an unguarded engine import was hoisted out of "
                 f"the try block"
             )

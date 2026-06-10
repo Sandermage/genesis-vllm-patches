@@ -9,7 +9,7 @@ import torch
 
 class TestMemorySummaryShape:
     def test_returns_required_keys(self, reset_genesis_prealloc):
-        from vllm.sndr_core.runtime.memory_metrics import genesis_memory_summary
+        from sndr.runtime.memory_metrics import genesis_memory_summary
         s = genesis_memory_summary()
         assert set(s.keys()) >= {
             "total_genesis_bytes",
@@ -21,7 +21,7 @@ class TestMemorySummaryShape:
         assert isinstance(s["per_pool"], dict)
 
     def test_per_pool_has_all_managers(self, reset_genesis_prealloc):
-        from vllm.sndr_core.runtime.memory_metrics import genesis_memory_summary
+        from sndr.runtime.memory_metrics import genesis_memory_summary
         s = genesis_memory_summary()
         # v7.3: P37 + P39a. v7.7: +P46 (gdn_gating_buffer). Expected set
         # MUST track `genesis_memory_summary()` body line-for-line or
@@ -36,15 +36,15 @@ class TestMemorySummaryShape:
         }
 
     def test_json_serialisable(self, reset_genesis_prealloc):
-        from vllm.sndr_core.runtime.memory_metrics import genesis_memory_summary
+        from sndr.runtime.memory_metrics import genesis_memory_summary
         s = genesis_memory_summary()
         # default=str so torch.device / dtype get stringified
         json.dumps(s, default=str)
 
     def test_empty_registry_zero_bytes(self, reset_genesis_prealloc):
-        from vllm.sndr_core.kernels.dequant_buffer import TurboQuantBufferManager
-        from vllm.sndr_core.kernels.gdn_core_attn_manager import GdnCoreAttnManager
-        from vllm.sndr_core.runtime.memory_metrics import genesis_memory_summary
+        from sndr.engines.vllm.kernels_legacy.dequant_buffer import TurboQuantBufferManager
+        from sndr.engines.vllm.kernels_legacy.gdn_core_attn_manager import GdnCoreAttnManager
+        from sndr.runtime.memory_metrics import genesis_memory_summary
         TurboQuantBufferManager.clear_for_tests()
         GdnCoreAttnManager.clear_for_tests()
         s = genesis_memory_summary()
@@ -56,9 +56,9 @@ class TestMemorySummaryWithAllocations:
     def test_tq_allocation_reflected(
         self, monkeypatch, reset_genesis_prealloc,
     ):
-        from vllm.sndr_core.kernels import dequant_buffer as db
-        from vllm.sndr_core.kernels.gdn_core_attn_manager import GdnCoreAttnManager
-        from vllm.sndr_core.runtime.memory_metrics import genesis_memory_summary
+        from sndr.engines.vllm.kernels_legacy import dequant_buffer as db
+        from sndr.engines.vllm.kernels_legacy.gdn_core_attn_manager import GdnCoreAttnManager
+        from sndr.runtime.memory_metrics import genesis_memory_summary
         db.TurboQuantBufferManager.clear_for_tests()
         GdnCoreAttnManager.clear_for_tests()
 
@@ -81,7 +81,7 @@ class TestMemorySummaryWithAllocations:
         assert tq["total_bytes"] >= expected_bytes
 
     def test_human_format_escalates(self, reset_genesis_prealloc):
-        from vllm.sndr_core.runtime.memory_metrics import _humanize_bytes
+        from sndr.runtime.memory_metrics import _humanize_bytes
         assert _humanize_bytes(0) == "0 B"
         assert _humanize_bytes(1023) == "1023 B"
         assert _humanize_bytes(1024).endswith(" KiB")
@@ -93,7 +93,7 @@ class TestLogHelper:
     def test_log_genesis_memory_does_not_raise(self, caplog):
         """log_genesis_memory must never propagate exceptions."""
         import logging
-        from vllm.sndr_core.runtime.memory_metrics import log_genesis_memory
+        from sndr.runtime.memory_metrics import log_genesis_memory
         with caplog.at_level(logging.INFO, logger="genesis.memory_metrics"):
             log_genesis_memory()
         # At least the line got emitted (no assertion on content —
@@ -101,6 +101,6 @@ class TestLogHelper:
 
     def test_log_genesis_memory_level_warning(self, caplog):
         import logging
-        from vllm.sndr_core.runtime.memory_metrics import log_genesis_memory
+        from sndr.runtime.memory_metrics import log_genesis_memory
         with caplog.at_level(logging.WARNING, logger="genesis.memory_metrics"):
             log_genesis_memory(level=logging.WARNING)

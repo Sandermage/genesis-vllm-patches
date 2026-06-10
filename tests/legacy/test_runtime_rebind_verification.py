@@ -48,7 +48,7 @@ class TestVerifyLiveRebinds:
 
     def test_result_shape(self):
         """Each entry must have expected/actual/ok/error|note fields."""
-        from vllm.sndr_core.apply import verify_live_rebinds
+        from sndr.apply import verify_live_rebinds
         results = verify_live_rebinds()
         for patch_id, r in results.items():
             assert "expected" in r
@@ -68,7 +68,7 @@ class TestVerifyLiveRebinds:
         import importlib
         for patch_id, modname in RUNTIME_WIRING_MODULES.items():
             try:
-                m = importlib.import_module(f"vllm.sndr_core.wiring.{modname}")
+                m = importlib.import_module(f"sndr.engines.vllm.wiring.{modname}")
             except Exception as e:
                 pytest.skip(f"cannot import {modname}: {e}")
             fn = getattr(m, "is_applied", None)
@@ -80,7 +80,7 @@ class TestVerifyLiveRebinds:
     def test_returns_false_when_not_applied(self):
         """With nothing rebound (plugin not run), verify should report all
         expected=True, actual=False, ok=False — i.e. a red signal."""
-        from vllm.sndr_core.apply import verify_live_rebinds
+        from sndr.apply import verify_live_rebinds
 
         # In test process, no vLLM is imported so all is_applied() should be
         # False (module can't find targets → returns False). Expected=True

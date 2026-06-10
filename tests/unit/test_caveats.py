@@ -7,7 +7,7 @@ import argparse
 
 import pytest
 
-from vllm.sndr_core.caveats import (
+from sndr.caveats import (
     Caveat, KNOWN_CAVEATS, match_caveats, get_caveat, list_caveat_ids,
 )
 
@@ -149,7 +149,7 @@ def test_list_caveat_ids_matches_registry():
 # ─── CLI
 
 def _parse(args: list[str]) -> argparse.Namespace:
-    from vllm.sndr_core.cli.caveats import add_argparser
+    from sndr.cli.legacy.caveats import add_argparser
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers()
     add_argparser(sub)
@@ -174,7 +174,7 @@ def test_cli_argparser_explain_requires_id():
 
 
 def test_cli_run_list_human(capsys):
-    from vllm.sndr_core.cli.caveats import run_list
+    from sndr.cli.legacy.caveats import run_list
     ns = _parse(["caveats", "list"])
     rc = run_list(ns)
     assert rc == 0
@@ -184,7 +184,7 @@ def test_cli_run_list_human(capsys):
 
 
 def test_cli_run_list_json(capsys):
-    from vllm.sndr_core.cli.caveats import run_list
+    from sndr.cli.legacy.caveats import run_list
     ns = _parse(["caveats", "list", "--json"])
     rc = run_list(ns)
     assert rc == 0
@@ -195,7 +195,7 @@ def test_cli_run_list_json(capsys):
 
 
 def test_cli_run_explain_known(capsys):
-    from vllm.sndr_core.cli.caveats import run_explain
+    from sndr.cli.legacy.caveats import run_explain
     ns = _parse(["caveats", "explain", "proxmox_lxc_kernel_617"])
     rc = run_explain(ns)
     assert rc == 0
@@ -204,13 +204,13 @@ def test_cli_run_explain_known(capsys):
 
 
 def test_cli_run_explain_unknown_returns_2(capsys):
-    from vllm.sndr_core.cli.caveats import run_explain
+    from sndr.cli.legacy.caveats import run_explain
     ns = _parse(["caveats", "explain", "nonexistent-xyz"])
     rc = run_explain(ns)
     assert rc == 2
 
 
 def test_cli_top_level_dispatches_caveats():
-    from vllm.sndr_core.cli import cli_main
+    from sndr.cli.legacy import cli_main
     rc = cli_main(["caveats", "list", "--json"])
     assert rc == 0

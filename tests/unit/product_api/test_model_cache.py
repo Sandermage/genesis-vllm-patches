@@ -2,7 +2,7 @@
 """Tests for the read-only model cache-status report."""
 from __future__ import annotations
 
-from vllm.sndr_core.product_api.model_cache import collect_model_cache_report
+from sndr.product_api.legacy.model_cache import collect_model_cache_report
 
 
 def test_cache_report_lists_models_with_declared_paths():

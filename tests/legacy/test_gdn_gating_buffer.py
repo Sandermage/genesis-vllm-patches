@@ -24,7 +24,7 @@ import torch
 
 @pytest.fixture(autouse=True)
 def _reset_manager():
-    from vllm.sndr_core.kernels.gdn_gating_buffer import GdnGatingBufferManager
+    from sndr.engines.vllm.kernels_legacy.gdn_gating_buffer import GdnGatingBufferManager
     GdnGatingBufferManager.clear_for_tests()
     yield
     GdnGatingBufferManager.clear_for_tests()
@@ -32,7 +32,7 @@ def _reset_manager():
 
 @pytest.fixture
 def cuda_guard(monkeypatch):
-    from vllm.sndr_core.detection import guards
+    from sndr.engines.vllm.detection import guards
     monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: True)
     monkeypatch.setattr(
         guards, "is_sm_at_least", lambda major, minor=0: True,
@@ -42,7 +42,7 @@ def cuda_guard(monkeypatch):
 
 class TestP46PoolHit:
     def test_same_key_returns_same_tensor(self, cuda_guard):
-        from vllm.sndr_core.kernels.gdn_gating_buffer import (
+        from sndr.engines.vllm.kernels_legacy.gdn_gating_buffer import (
             GdnGatingBufferManager,
         )
         t1 = GdnGatingBufferManager.acquire_g(
@@ -56,7 +56,7 @@ class TestP46PoolHit:
         assert t1 is t2, "pool-hit must return identical tensor"
 
     def test_beta_pool_hit(self, cuda_guard):
-        from vllm.sndr_core.kernels.gdn_gating_buffer import (
+        from sndr.engines.vllm.kernels_legacy.gdn_gating_buffer import (
             GdnGatingBufferManager,
         )
         t1 = GdnGatingBufferManager.acquire_beta(
@@ -72,7 +72,7 @@ class TestP46PoolHit:
 
 class TestP46PoolMiss:
     def test_new_batch_creates_new_tensor(self, cuda_guard):
-        from vllm.sndr_core.kernels.gdn_gating_buffer import (
+        from sndr.engines.vllm.kernels_legacy.gdn_gating_buffer import (
             GdnGatingBufferManager,
         )
         t1 = GdnGatingBufferManager.acquire_g(
@@ -90,7 +90,7 @@ class TestP46PoolMiss:
     def test_old_tensor_survives_after_new_key(self, cuda_guard):
         """CUDA-graph safety: allocating under new key must NOT
         invalidate previously-returned tensor."""
-        from vllm.sndr_core.kernels.gdn_gating_buffer import (
+        from sndr.engines.vllm.kernels_legacy.gdn_gating_buffer import (
             GdnGatingBufferManager,
         )
         t_old = GdnGatingBufferManager.acquire_g(
@@ -112,7 +112,7 @@ class TestP46PoolMiss:
         assert t_still is t_old
 
     def test_different_dtypes_different_pools(self, cuda_guard):
-        from vllm.sndr_core.kernels.gdn_gating_buffer import (
+        from sndr.engines.vllm.kernels_legacy.gdn_gating_buffer import (
             GdnGatingBufferManager,
         )
         t_f16 = GdnGatingBufferManager.acquire_beta(
@@ -130,10 +130,10 @@ class TestP46PoolMiss:
 
 class TestP46PlatformGuard:
     def test_non_nvidia_returns_fresh(self, monkeypatch):
-        from vllm.sndr_core.kernels.gdn_gating_buffer import (
+        from sndr.engines.vllm.kernels_legacy.gdn_gating_buffer import (
             GdnGatingBufferManager,
         )
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.detection import guards
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: False)
         t = GdnGatingBufferManager.acquire_g(
             batch=1, num_heads=16,
@@ -148,10 +148,10 @@ class TestP46PlatformGuard:
         assert t is not t2
 
     def test_should_apply(self, monkeypatch):
-        from vllm.sndr_core.kernels.gdn_gating_buffer import (
+        from sndr.engines.vllm.kernels_legacy.gdn_gating_buffer import (
             GdnGatingBufferManager,
         )
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.detection import guards
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(
             guards, "is_sm_at_least", lambda major, minor=0: True,
@@ -163,7 +163,7 @@ class TestP46PlatformGuard:
 
 class TestP46Registry:
     def test_registry_aggregates_both_pools(self, cuda_guard):
-        from vllm.sndr_core.kernels.gdn_gating_buffer import (
+        from sndr.engines.vllm.kernels_legacy.gdn_gating_buffer import (
             GdnGatingBufferManager,
         )
         GdnGatingBufferManager.acquire_g(
@@ -181,7 +181,7 @@ class TestP46Registry:
         assert info["total_bytes"] == 96
 
     def test_clear_drops_both(self, cuda_guard):
-        from vllm.sndr_core.kernels.gdn_gating_buffer import (
+        from sndr.engines.vllm.kernels_legacy.gdn_gating_buffer import (
             GdnGatingBufferManager,
         )
         GdnGatingBufferManager.acquire_g(
@@ -199,21 +199,21 @@ class TestP46Registry:
 
 class TestP46Wiring:
     def test_wiring_public_surface(self):
-        from vllm.sndr_core.integrations.attention.gdn import p46_gdn_gating_buffers as p46
+        from sndr.engines.vllm.patches.attention.gdn import p46_gdn_gating_buffers as p46
         assert callable(p46.apply)
         assert callable(p46.is_applied)
         assert callable(p46.revert)
         assert callable(p46.should_apply)
 
     def test_apply_skips_on_non_nvidia(self, monkeypatch):
-        from vllm.sndr_core.integrations.attention.gdn import p46_gdn_gating_buffers as p46
+        from sndr.engines.vllm.patches.attention.gdn import p46_gdn_gating_buffers as p46
         monkeypatch.setattr(p46, "is_nvidia_cuda", lambda: False)
         status, reason = p46.apply()
         assert status == "skipped"
         assert "non-NVIDIA" in reason or "CUDA" in reason
 
     def test_revert_always_false(self):
-        from vllm.sndr_core.integrations.attention.gdn import p46_gdn_gating_buffers as p46
+        from sndr.engines.vllm.patches.attention.gdn import p46_gdn_gating_buffers as p46
         assert p46.revert() is False
 
 
@@ -221,8 +221,8 @@ class TestP44MixedAttnOut:
     """P44 — TQ mixed-batch attn_out pool (extension of P26 infrastructure)."""
 
     def test_acquire_returns_correct_shape(self, monkeypatch):
-        from vllm.sndr_core.kernels.dequant_buffer import TurboQuantBufferManager
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.kernels_legacy.dequant_buffer import TurboQuantBufferManager
+        from sndr.engines.vllm.detection import guards
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(
             guards, "is_sm_at_least", lambda major, minor=0: True,
@@ -238,8 +238,8 @@ class TestP44MixedAttnOut:
         assert torch.all(t == 0.0)
 
     def test_acquire_overflow_falls_back_fresh(self, monkeypatch):
-        from vllm.sndr_core.kernels.dequant_buffer import TurboQuantBufferManager
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.kernels_legacy.dequant_buffer import TurboQuantBufferManager
+        from sndr.engines.vllm.detection import guards
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(
             guards, "is_sm_at_least", lambda major, minor=0: True,
@@ -253,8 +253,8 @@ class TestP44MixedAttnOut:
         assert t.shape == (10000, 32, 128)
 
     def test_pool_reuses_buffer_under_budget(self, monkeypatch):
-        from vllm.sndr_core.kernels.dequant_buffer import TurboQuantBufferManager
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.kernels_legacy.dequant_buffer import TurboQuantBufferManager
+        from sndr.engines.vllm.detection import guards
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(
             guards, "is_sm_at_least", lambda major, minor=0: True,
@@ -276,8 +276,8 @@ class TestP44MixedAttnOut:
         assert t1.untyped_storage().data_ptr() == t2.untyped_storage().data_ptr()
 
     def test_platform_skip_returns_fresh(self, monkeypatch):
-        from vllm.sndr_core.kernels.dequant_buffer import TurboQuantBufferManager
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.kernels_legacy.dequant_buffer import TurboQuantBufferManager
+        from sndr.engines.vllm.detection import guards
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: False)
         t = TurboQuantBufferManager.acquire_mixed_attn_out(
             num_tokens=64, num_q_heads=8, head_size=64,
@@ -289,13 +289,13 @@ class TestP44MixedAttnOut:
 
 class TestP44Wiring:
     def test_public_surface(self):
-        from vllm.sndr_core.integrations.attention.turboquant import p44_tq_mixed_attn_out as p44
+        from sndr.engines.vllm.patches.attention.turboquant import p44_tq_mixed_attn_out as p44
         assert callable(p44.apply)
         assert callable(p44.is_applied)
         assert callable(p44.revert)
 
     def test_apply_skips_on_non_nvidia(self, monkeypatch):
-        from vllm.sndr_core.integrations.attention.turboquant import p44_tq_mixed_attn_out as p44
+        from sndr.engines.vllm.patches.attention.turboquant import p44_tq_mixed_attn_out as p44
         monkeypatch.setattr(p44, "is_nvidia_cuda", lambda: False)
         status, _reason = p44.apply()
         assert status == "skipped"

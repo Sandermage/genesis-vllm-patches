@@ -4,9 +4,10 @@
 
 The patch-entry JSON schema lives in two places:
 
-  1. `vllm/sndr_core/schemas/patch_entry.schema.json` — canonical package
-     copy, shipped in the wheel. `compat/schema_validator.py` loads this
-     first via `importlib.resources.files()`.
+  1. `sndr/schemas/patch_entry.schema.json` — canonical package copy
+     (v12 tree; was `vllm/sndr_core/schemas/`), shipped in the wheel.
+     `compat/schema_validator.py` loads this first via
+     `importlib.resources.files()`.
   2. `schemas/patch_entry.schema.json` — repo-root duplicate, retained for
      v10.x callers and pre-package-data tooling that walks the source tree.
 
@@ -16,7 +17,7 @@ fields, package had four other newer fields). This gate runs `cmp` over
 the two paths and fails when they differ.
 
 Synchronization policy: edit the **package** file; run
-`cp vllm/sndr_core/schemas/patch_entry.schema.json schemas/patch_entry.schema.json`
+`cp sndr/schemas/patch_entry.schema.json schemas/patch_entry.schema.json`
 to mirror it. This gate enforces that step before commit.
 """
 from __future__ import annotations
@@ -25,7 +26,7 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-CANONICAL = REPO_ROOT / "vllm" / "sndr_core" / "schemas" / "patch_entry.schema.json"
+CANONICAL = REPO_ROOT / "sndr" / "schemas" / "patch_entry.schema.json"
 MIRROR = REPO_ROOT / "schemas" / "patch_entry.schema.json"
 
 

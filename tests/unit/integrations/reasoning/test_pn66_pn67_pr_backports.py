@@ -15,11 +15,11 @@ import pytest
 
 class TestPN66Registration:
     def test_in_registry(self):
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+        from sndr.dispatcher import PATCH_REGISTRY
         assert "PN66" in PATCH_REGISTRY
 
     def test_metadata(self):
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+        from sndr.dispatcher import PATCH_REGISTRY
         meta = PATCH_REGISTRY["PN66"]
         assert meta["env_flag"] == "GENESIS_ENABLE_PN66"
         assert meta["default_on"] is False
@@ -47,11 +47,11 @@ class TestPN66Registration:
 
 class TestPN67Registration:
     def test_in_registry(self):
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+        from sndr.dispatcher import PATCH_REGISTRY
         assert "PN67" in PATCH_REGISTRY
 
     def test_metadata(self):
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+        from sndr.dispatcher import PATCH_REGISTRY
         meta = PATCH_REGISTRY["PN67"]
         assert meta["env_flag"] == "GENESIS_ENABLE_PN67"
         assert meta["default_on"] is False
@@ -63,7 +63,7 @@ class TestPN67Registration:
         # vllm#41674 merged (lifecycle=retired). Resolve via the
         # registry's `apply_module` so the test survives relocation.
         import importlib
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+        from sndr.dispatcher import PATCH_REGISTRY
         module_path = PATCH_REGISTRY["PN67"]["apply_module"]
         p = importlib.import_module(module_path)
         monkeypatch.delenv("GENESIS_ENABLE_PN67", raising=False)
@@ -73,7 +73,7 @@ class TestPN67Registration:
     def test_anchor_constants_present(self):
         # Same registry-driven import as above — survives relocation.
         import importlib
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+        from sndr.dispatcher import PATCH_REGISTRY
         module_path = PATCH_REGISTRY["PN67"]["apply_module"]
         p = importlib.import_module(module_path)
         assert p.PN67_OLD
@@ -88,9 +88,9 @@ class TestApplyAllWiring:
     """Verify both patches are wired into apply_all dispatcher."""
 
     def test_apply_patch_n66_function_exists(self):
-        from vllm.sndr_core.apply import apply_patch_N66_multiturn_think_leak
+        from sndr.apply import apply_patch_N66_multiturn_think_leak
         assert callable(apply_patch_N66_multiturn_think_leak)
 
     def test_apply_patch_n67_function_exists(self):
-        from vllm.sndr_core.apply import apply_patch_N67_thinking_budget_inverted_bool
+        from sndr.apply import apply_patch_N67_thinking_budget_inverted_bool
         assert callable(apply_patch_N67_thinking_budget_inverted_bool)

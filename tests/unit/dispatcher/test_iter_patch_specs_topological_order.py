@@ -61,8 +61,8 @@ def _collect_violations(spec_order: list[str], registry: dict) -> list[tuple[str
 def test_topo_sort_yields_zero_violations():
     """With topo_sort=True, no patch is yielded before its
     requires_patches dependency."""
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
-    from vllm.sndr_core.dispatcher.spec import iter_patch_specs
+    from sndr.dispatcher.registry import PATCH_REGISTRY
+    from sndr.dispatcher.spec import iter_patch_specs
     spec_order = [s.patch_id for s in iter_patch_specs(topo_sort=True)]
     violations = _collect_violations(spec_order, PATCH_REGISTRY)
     assert not violations, (
@@ -77,8 +77,8 @@ def test_topo_sort_yields_zero_violations():
 def test_default_order_baseline_violations():
     """Default `iter_patch_specs()` (topo_sort=False) reproduces the
     registry-insertion order. v11.3.0 baseline known violations: 6."""
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
-    from vllm.sndr_core.dispatcher.spec import iter_patch_specs
+    from sndr.dispatcher.registry import PATCH_REGISTRY
+    from sndr.dispatcher.spec import iter_patch_specs
     spec_order = [s.patch_id for s in iter_patch_specs()]
     violations = _collect_violations(spec_order, PATCH_REGISTRY)
     # Allow growth (someone added a new requires_patches with bad
@@ -127,8 +127,8 @@ def test_topo_sort_preserves_existing_correct_order():
     appear earlier in insertion order, topo_sort should preserve
     relative position. Sanity check that Kahn's algorithm uses
     insertion-order tie-breaking."""
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
-    from vllm.sndr_core.dispatcher.spec import iter_patch_specs
+    from sndr.dispatcher.registry import PATCH_REGISTRY
+    from sndr.dispatcher.spec import iter_patch_specs
     default_order = [s.patch_id for s in iter_patch_specs()]
     topo_order = [s.patch_id for s in iter_patch_specs(topo_sort=True)]
     # Same set of IDs
@@ -151,8 +151,8 @@ def test_topo_sort_preserves_existing_correct_order():
 def test_topo_sort_no_cycle_at_baseline():
     """At v11.3.0 baseline, requires_patches DAG has no cycles. If
     this test fails, someone introduced a cycle — must resolve."""
-    from vllm.sndr_core.dispatcher.spec import _topological_order
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+    from sndr.dispatcher.spec import _topological_order
+    from sndr.dispatcher.registry import PATCH_REGISTRY
     try:
         order = _topological_order(PATCH_REGISTRY)
     except RuntimeError as e:

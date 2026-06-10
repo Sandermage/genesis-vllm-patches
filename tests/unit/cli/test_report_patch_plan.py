@@ -18,7 +18,7 @@ import json
 
 import pytest
 
-from vllm.sndr_core.cli.report import _collect_patch_plan
+from sndr.cli.legacy.report import _collect_patch_plan
 
 
 class TestCollectorShape:
@@ -57,12 +57,12 @@ class TestArtifactRegistered:
     _SCOPE_ARTIFACTS['all'] so a bundle without --scope picks it up."""
 
     def test_patch_plan_in_all_scope(self):
-        from vllm.sndr_core.cli.report import _SCOPE_ARTIFACTS
+        from sndr.cli.legacy.report import _SCOPE_ARTIFACTS
         assert "patch_plan.json" in _SCOPE_ARTIFACTS["all"]
 
     def test_patch_plan_in_patches_scope(self):
         """The 'patches' scope (used when triaging patch issues) must
         carry patch_plan.json — it's the most useful piece for that
         triage flow."""
-        from vllm.sndr_core.cli.report import _SCOPE_ARTIFACTS
+        from sndr.cli.legacy.report import _SCOPE_ARTIFACTS
         assert "patch_plan.json" in _SCOPE_ARTIFACTS["patches"]

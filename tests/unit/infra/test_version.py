@@ -13,11 +13,11 @@ import re
 
 class TestVersionConstant:
     def test_version_module_importable(self):
-        from vllm.sndr_core.version import __version__ as v
+        from sndr.version import __version__ as v
         assert v is not None
 
     def test_version_string_format(self):
-        from vllm.sndr_core.version import __version__
+        from sndr.version import __version__
         assert isinstance(__version__, str)
         # Sander uses "v7.63.x" style — major.minor.patch with optional 'x'
         # for in-development. Match that or PEP 440-style.
@@ -27,8 +27,8 @@ class TestVersionConstant:
         ), f"version string {__version__!r} doesn't match expected format"
 
     def test_version_imported_from_top_level(self):
-        """Ensure `from vllm.sndr_core.version import __version__` works."""
-        import vllm.sndr_core as gen
+        """Ensure `from sndr.version import __version__` works."""
+        import sndr as gen
         assert hasattr(gen, "__version__")
 
 
@@ -36,8 +36,8 @@ class TestVersionConsistency:
     """Modules that previously hardcoded version should now derive it."""
 
     def test_telemetry_uses_version(self):
-        from vllm.sndr_core.compat import telemetry
-        from vllm.sndr_core.version import __version__
+        from sndr.compat import telemetry
+        from sndr.version import __version__
         # telemetry._detect_genesis_version should return the canonical version
         info = telemetry._detect_genesis_version()
         assert info["version"] == __version__
@@ -45,7 +45,7 @@ class TestVersionConsistency:
     def test_update_channel_does_not_hardcode(self):
         """update_channel module shouldn't have a stale version string
         hardcoded — it should derive from __version__ if anywhere."""
-        from vllm.sndr_core.compat import update_channel
+        from sndr.compat import update_channel
         import inspect
         src = inspect.getsource(update_channel)
         # Permitted: v7.63.x (current) or VERSION pulled from constant

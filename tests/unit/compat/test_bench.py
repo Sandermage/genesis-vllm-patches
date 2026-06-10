@@ -19,22 +19,22 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-# Wave 10 (2026-05-15) canonical location: the real bench script lives
-# inside the sndr_core package. `tools/genesis_bench_suite.py` is a thin
-# shim that delegates to this canonical script.
+# v12 canonical location: the real bench script lives inside the sndr
+# package at extras/tools/. Repo-root `tools/genesis_bench_suite.py` is
+# a thin shim that delegates to this canonical script.
 BENCH_SCRIPT = (
-    REPO_ROOT / "vllm" / "sndr_core" / "tools" / "genesis_bench_suite.py"
+    REPO_ROOT / "sndr" / "extras" / "tools" / "genesis_bench_suite.py"
 )
 
 
 class TestBenchShim:
     def test_module_importable(self):
-        from vllm.sndr_core.compat import bench  # noqa: F401
+        from sndr.compat import bench  # noqa: F401
 
     def test_locate_bench_module_finds_real_script(self):
         """In a normal git checkout, parents[3] resolves to the repo
         root and tools/genesis_bench_suite.py is right there."""
-        from vllm.sndr_core.compat.bench import _locate_bench_module
+        from sndr.compat.bench import _locate_bench_module
         located = _locate_bench_module()
         assert located is not None, (
             "compat.bench._locate_bench_module() must find the bench "
@@ -49,7 +49,7 @@ class TestBenchShim:
         We simulate the slim-deployment case by stubbing the canonical
         candidate out via _locate_bench_module's internal Path resolver.
         """
-        import vllm.sndr_core.compat.bench as bench_mod
+        import sndr.compat.bench as bench_mod
 
         fake_tools = tmp_path / "tools"
         fake_tools.mkdir()
@@ -90,7 +90,7 @@ class TestHelpPassthrough:
         output and exit cleanly (rc == 0). argparse uses SystemExit
         for --help; the unified CLI catches that, but a direct call
         gets the SystemExit straight through."""
-        from vllm.sndr_core.compat.bench import main
+        from sndr.compat.bench import main
         try:
             rc = main(["--help"])
         except SystemExit as e:
@@ -106,7 +106,7 @@ class TestHelpPassthrough:
         """If GENESIS_REPO_ROOT points at a tree WITHOUT tools/, and
         we tell _locate_bench_module to ignore the real repo root, the
         shim must print a fallback help instead of crashing."""
-        from vllm.sndr_core.compat import bench
+        from sndr.compat import bench
 
         # Force every candidate to miss
         monkeypatch.setenv("GENESIS_REPO_ROOT", str(tmp_path))
@@ -116,7 +116,9 @@ class TestHelpPassthrough:
         rc = bench.main(["--help"])
         assert rc == 0
         captured = capsys.readouterr()
-        assert "BENCHMARK_GUIDE" in captured.out, (
+        # BENCHMARK_GUIDE.md was consolidated into BENCHMARKS.md
+        # (2026-05-16) — the fallback must point at the canonical doc.
+        assert "BENCHMARKS.md" in captured.out, (
             "shim fallback help must point operator at the manual "
             "invocation recipe"
         )
@@ -172,7 +174,7 @@ class TestArgvForwarding:
 
 class TestUnifiedCLIWiring:
     def test_bench_subcommand_in_unified_cli(self):
-        from vllm.sndr_core.compat.cli import KNOWN_SUBCOMMANDS
+        from sndr.compat.cli import KNOWN_SUBCOMMANDS
         assert "bench" in KNOWN_SUBCOMMANDS, (
             "bench must be discoverable via the unified CLI dispatcher"
         )
@@ -180,7 +182,7 @@ class TestUnifiedCLIWiring:
     def test_bench_help_via_unified_cli(self, capsys):
         """`genesis bench --help` should not crash and should produce
         output."""
-        from vllm.sndr_core.compat.cli import main
+        from sndr.compat.cli import main
         rc = main(["bench", "--help"])
         assert rc == 0
         captured = capsys.readouterr()
@@ -188,7 +190,7 @@ class TestUnifiedCLIWiring:
 
     def test_unified_cli_help_lists_bench(self, capsys):
         """Top-level `genesis` help banner must mention bench."""
-        from vllm.sndr_core.compat.cli import main
+        from sndr.compat.cli import main
         main([])  # no args = print help
         captured = capsys.readouterr()
         assert "bench" in captured.out, (

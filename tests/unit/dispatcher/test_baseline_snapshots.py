@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 """Dispatcher / apply baseline snapshot tests — M.1.1.T1.A (2026-05-27).
 
-Locks the observable surface of ``vllm.sndr_core.dispatcher`` and
-``vllm.sndr_core.apply._state`` against unintentional drift during
+Locks the observable surface of ``sndr.dispatcher`` and
+``sndr.apply._state`` against unintentional drift during
 the M.1 dispatcher tier-matrix refactor queue (M.1.1.T1.B helper
 splits, M.1.1.T2 audit-rule extraction, M.1.1.T3 retired-stub
 collapse).
@@ -103,7 +103,7 @@ def _capture_apply_registry() -> list[dict[str, str]]:
     to the callable's own ``__name__``. Both are part of the boot-time
     contract because they appear in observability labels + log lines.
     """
-    from vllm.sndr_core.apply._state import PATCH_REGISTRY
+    from sndr.apply._state import PATCH_REGISTRY
 
     out: list[dict[str, str]] = []
     for name, fn in PATCH_REGISTRY:
@@ -129,7 +129,7 @@ class TestApplyRegistrySnapshot:
         if _regen_enabled():
             pytest.skip("regen mode — count check skipped (fixture rewritten below)")
         expected = _read_fixture(self.FIXTURE)
-        from vllm.sndr_core.apply._state import PATCH_REGISTRY
+        from sndr.apply._state import PATCH_REGISTRY
         assert len(PATCH_REGISTRY) == len(expected), (
             f"apply registry count drift: live={len(PATCH_REGISTRY)}, "
             f"snapshot={len(expected)}"
@@ -161,7 +161,7 @@ def _capture_spec_set() -> list[dict[str, Any]]:
     Title is intentionally excluded — title text drift is editorial
     and not a refactor-safety concern.
     """
-    from vllm.sndr_core.dispatcher import iter_patch_specs
+    from sndr.dispatcher import iter_patch_specs
 
     out: list[dict[str, Any]] = []
     for spec in iter_patch_specs():
@@ -190,7 +190,7 @@ class TestSpecSetSnapshot:
         if _regen_enabled():
             pytest.skip("regen mode")
         expected = _read_fixture(self.FIXTURE)
-        from vllm.sndr_core.dispatcher import iter_patch_specs
+        from sndr.dispatcher import iter_patch_specs
         assert sum(1 for _ in iter_patch_specs()) == len(expected)
 
     def test_full_snapshot_match(self):
@@ -202,7 +202,7 @@ class TestSpecSetSnapshot:
 
 def _capture_apply_module_coverage() -> dict[str, Any]:
     """Capture coverage summary in a comparable, sorted form."""
-    from vllm.sndr_core.dispatcher.spec import validate_apply_module_coverage
+    from sndr.dispatcher.spec import validate_apply_module_coverage
 
     coverage = validate_apply_module_coverage()
     return {
@@ -260,8 +260,8 @@ def _capture_decisions_no_env() -> list[dict[str, Any]]:
     helper-split refactor must produce byte-identical text for the
     no-env baseline to stay green.
     """
-    from vllm.sndr_core.dispatcher import should_apply
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+    from sndr.dispatcher import should_apply
+    from sndr.dispatcher.registry import PATCH_REGISTRY
 
     out: list[dict[str, Any]] = []
     for pid in PATCH_REGISTRY:

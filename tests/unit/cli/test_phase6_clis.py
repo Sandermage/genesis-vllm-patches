@@ -23,7 +23,7 @@ _skip_if_no_v1_35b = pytest.mark.skipif(
 def _parse(module_name: str, args: list[str]) -> argparse.Namespace:
     """Parse args via the named CLI module's add_argparser."""
     import importlib
-    mod = importlib.import_module(f"vllm.sndr_core.cli.{module_name}")
+    mod = importlib.import_module(f"sndr.cli.legacy.{module_name}")
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers()
     mod.add_argparser(sub)
@@ -46,7 +46,7 @@ def test_service_start_with_yes():
 
 
 def test_service_install_unknown_config_returns_2():
-    from vllm.sndr_core.cli.service import run_install
+    from sndr.cli.legacy.service import run_install
     ns = _parse("service", ["service", "install", "nonexistent-xyz"])
     assert run_install(ns) == 2
 
@@ -54,7 +54,7 @@ def test_service_install_unknown_config_returns_2():
 @_skip_if_no_v1_35b
 def test_service_install_no_y10_block_returns_2(capsys):
     """35B PROD has no Y10 service block today → friendly warn + return 2."""
-    from vllm.sndr_core.cli.service import run_install
+    from sndr.cli.legacy.service import run_install
     ns = _parse("service", ["service", "install", "a5000-2x-35b-prod"])
     rc = run_install(ns)
     assert rc == 2
@@ -72,7 +72,7 @@ def test_tune_plan_argparser():
 
 
 def test_tune_plan_unknown_config_returns_2():
-    from vllm.sndr_core.cli.tune import run_plan
+    from sndr.cli.legacy.tune import run_plan
     ns = _parse("tune", ["tune", "plan", "nonexistent-xyz"])
     assert run_plan(ns) == 2
 
@@ -80,7 +80,7 @@ def test_tune_plan_unknown_config_returns_2():
 @_skip_if_no_v1_35b
 def test_tune_plan_no_y8_returns_2(capsys):
     """35B PROD has no Y8 gpu_tuning today."""
-    from vllm.sndr_core.cli.tune import run_plan
+    from sndr.cli.legacy.tune import run_plan
     ns = _parse("tune", ["tune", "plan", "a5000-2x-35b-prod"])
     assert run_plan(ns) == 2
 
@@ -125,7 +125,7 @@ def test_migrate_dry_run_on_real_yaml(tmp_path, capsys):
         "  container_name: c\n"
         "  port: 8000\n"
     )
-    from vllm.sndr_core.cli.migrate import run_migrate
+    from sndr.cli.legacy.migrate import run_migrate
     ns = _parse("migrate", ["migrate", "v11-runtime-contract", str(src)])
     rc = run_migrate(ns)
     assert rc == 0
@@ -141,7 +141,7 @@ def test_migrate_yes_writes_changes(tmp_path):
         "  container_name: c\n"
         "  port: 8001\n"
     )
-    from vllm.sndr_core.cli.migrate import run_migrate
+    from sndr.cli.legacy.migrate import run_migrate
     ns = _parse("migrate", ["migrate", "v11-runtime-contract", str(src),
                               "--yes"])
     rc = run_migrate(ns)
@@ -163,14 +163,14 @@ def test_image_resolve_argparser():
 
 
 def test_image_resolve_unknown_config_returns_2():
-    from vllm.sndr_core.cli.image import run_resolve
+    from sndr.cli.legacy.image import run_resolve
     ns = _parse("image", ["image", "resolve", "nonexistent-xyz"])
     assert run_resolve(ns) == 2
 
 
 @_skip_if_no_v1_35b
 def test_image_resolve_35b_shows_declared_digest(capsys):
-    from vllm.sndr_core.cli.image import run_resolve
+    from sndr.cli.legacy.image import run_resolve
     ns = _parse("image", ["image", "resolve", "a5000-2x-35b-prod"])
     rc = run_resolve(ns)
     assert rc == 0
@@ -181,12 +181,12 @@ def test_image_resolve_35b_shows_declared_digest(capsys):
 
 def test_image_verify_no_declared_digest_returns_0(capsys, monkeypatch):
     """When image_digest is None, verify returns 0 (not enforced)."""
-    from vllm.sndr_core.cli.image import run_verify
+    from sndr.cli.legacy.image import run_verify
     # Use a custom config without digest
-    from vllm.sndr_core.model_configs.schema import (
+    from sndr.model_configs.schema import (
         ModelConfig, HardwareSpec, DockerConfig,
     )
-    from vllm.sndr_core.model_configs import registry as R
+    from sndr.model_configs import registry as R
     cfg = ModelConfig(
         key="test-no-digest", title="x", description="x",
         schema_version=1, maintainer="sandermage", model_path="/m",
@@ -204,18 +204,18 @@ def test_image_verify_no_declared_digest_returns_0(capsys, monkeypatch):
 # ─── Top-level dispatch
 
 def test_top_level_dispatch_service():
-    from vllm.sndr_core.cli import cli_main
+    from sndr.cli.legacy import cli_main
     rc = cli_main(["service", "install", "nonexistent-xyz"])
     assert rc == 2
 
 
 def test_top_level_dispatch_tune():
-    from vllm.sndr_core.cli import cli_main
+    from sndr.cli.legacy import cli_main
     rc = cli_main(["tune", "plan", "nonexistent-xyz"])
     assert rc == 2
 
 
 def test_top_level_dispatch_image():
-    from vllm.sndr_core.cli import cli_main
+    from sndr.cli.legacy import cli_main
     rc = cli_main(["image", "resolve", "nonexistent-xyz"])
     assert rc == 2

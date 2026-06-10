@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Tests for vllm.sndr_core.compat.categories — patch category navigation API.
+"""Tests for sndr.compat.categories — patch category navigation API.
 
 The categories API answers questions like:
   - "what category does PN14 belong to?"  → kernel_safety
@@ -17,12 +17,12 @@ import pytest
 
 class TestCategoriesAPI:
     def test_categories_dict_present(self):
-        from vllm.sndr_core.compat.categories import CATEGORIES
+        from sndr.compat.categories import CATEGORIES
         assert isinstance(CATEGORIES, dict)
         assert len(CATEGORIES) >= 5  # at least 5 distinct categories
 
     def test_each_category_lists_patches(self):
-        from vllm.sndr_core.compat.categories import CATEGORIES
+        from sndr.compat.categories import CATEGORIES
         for cat, patches in CATEGORIES.items():
             assert isinstance(cat, str)
             assert isinstance(patches, list)
@@ -32,22 +32,22 @@ class TestCategoriesAPI:
 
     def test_known_categories_present(self):
         """Specific categories that must exist based on PATCH_REGISTRY."""
-        from vllm.sndr_core.compat.categories import CATEGORIES
+        from sndr.compat.categories import CATEGORIES
         assert "spec_decode" in CATEGORIES
         assert "kv_cache" in CATEGORIES
         assert "structured_output" in CATEGORIES
 
     def test_PN14_in_kernel_safety(self):
-        from vllm.sndr_core.compat.categories import CATEGORIES
+        from sndr.compat.categories import CATEGORIES
         assert "PN14" in CATEGORIES.get("kernel_safety", [])
 
     def test_P67_in_spec_decode(self):
-        from vllm.sndr_core.compat.categories import CATEGORIES
+        from sndr.compat.categories import CATEGORIES
         assert "P67" in CATEGORIES.get("spec_decode", [])
 
     def test_no_duplicate_assignments(self):
         """A patch should appear in EXACTLY ONE category."""
-        from vllm.sndr_core.compat.categories import CATEGORIES
+        from sndr.compat.categories import CATEGORIES
         seen: dict[str, str] = {}
         for cat, patches in CATEGORIES.items():
             for p in patches:
@@ -58,35 +58,35 @@ class TestCategoriesAPI:
 
 class TestLookupHelpers:
     def test_category_for_known_patch(self):
-        from vllm.sndr_core.compat.categories import category_for
+        from sndr.compat.categories import category_for
         assert category_for("PN14") == "kernel_safety"
         assert category_for("P67") == "spec_decode"
 
     def test_category_for_unknown_returns_None(self):
-        from vllm.sndr_core.compat.categories import category_for
+        from sndr.compat.categories import category_for
         assert category_for("PN_NONEXISTENT") is None
 
     def test_patches_in_category(self):
-        from vllm.sndr_core.compat.categories import patches_in
+        from sndr.compat.categories import patches_in
         spec = patches_in("spec_decode")
         assert isinstance(spec, list)
         assert "P67" in spec
         assert "P60" in spec
 
     def test_patches_in_unknown_category_returns_empty(self):
-        from vllm.sndr_core.compat.categories import patches_in
+        from sndr.compat.categories import patches_in
         assert patches_in("totally_made_up_cat") == []
 
     def test_module_for_known_patch(self):
         """Returns the wiring module path."""
-        from vllm.sndr_core.compat.categories import module_for
+        from sndr.compat.categories import module_for
         mod = module_for("PN14")
         assert mod is not None
         assert "pn14" in mod
-        assert mod.startswith("vllm.sndr_core.integrations.")
+        assert mod.startswith("sndr.engines.vllm.patches.")
 
     def test_module_for_unknown_patch_returns_None(self):
-        from vllm.sndr_core.compat.categories import module_for
+        from sndr.compat.categories import module_for
         assert module_for("PN_NONEXISTENT") is None
 
 
@@ -97,8 +97,8 @@ class TestRegistryConsistency:
     def test_every_registry_patch_has_category(self):
         """Every patch in PATCH_REGISTRY must end up in some category
         (either via its `category` field or fallback to 'uncategorized')."""
-        from vllm.sndr_core.compat.categories import CATEGORIES, category_for
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+        from sndr.compat.categories import CATEGORIES, category_for
+        from sndr.dispatcher import PATCH_REGISTRY
 
         for pid in PATCH_REGISTRY:
             cat = category_for(pid)
@@ -107,8 +107,8 @@ class TestRegistryConsistency:
 
     def test_every_categorized_patch_in_registry(self):
         """No phantom patches — categories must reference REAL registry IDs."""
-        from vllm.sndr_core.compat.categories import CATEGORIES
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+        from sndr.compat.categories import CATEGORIES
+        from sndr.dispatcher import PATCH_REGISTRY
 
         for cat, patches in CATEGORIES.items():
             for p in patches:
@@ -121,15 +121,15 @@ class TestModuleResolution:
     """Mapping patch_id → wiring module name."""
 
     def test_simple_pid_to_module(self):
-        from vllm.sndr_core.compat.categories import module_for
+        from sndr.compat.categories import module_for
         # PR38 cleanup (2026-05-08): canonical filename is `pn14_*.py`
-        # under `vllm.sndr_core.integrations.attention.turboquant.`
+        # under `sndr.engines.vllm.patches.attention.turboquant.`
         m = module_for("PN14")
         assert "pn14" in m
 
     def test_subpatches_resolve(self):
         """P60b should resolve too (suffix variant)."""
-        from vllm.sndr_core.compat.categories import module_for
+        from sndr.compat.categories import module_for
         m = module_for("P60b")
         assert m is not None
         assert "p60b" in m
@@ -137,7 +137,7 @@ class TestModuleResolution:
     def test_compound_patches_resolve_to_combined_file(self):
         """P68 and P69 share file patch_68_69_long_ctx_tool_adherence.py.
         Both should resolve to that module."""
-        from vllm.sndr_core.compat.categories import module_for
+        from sndr.compat.categories import module_for
         m68 = module_for("P68")
         m69 = module_for("P69")
         # Both resolve (may be same file or distinct — either is acceptable)
@@ -147,7 +147,7 @@ class TestModuleResolution:
 
 class TestCLIBrowse:
     def test_main_no_args_lists_all_categories(self, capsys):
-        from vllm.sndr_core.compat.categories import main
+        from sndr.compat.categories import main
         rc = main([])
         captured = capsys.readouterr()
         assert "spec_decode" in captured.out
@@ -155,7 +155,7 @@ class TestCLIBrowse:
         assert rc == 0
 
     def test_main_filter_by_category(self, capsys):
-        from vllm.sndr_core.compat.categories import main
+        from sndr.compat.categories import main
         rc = main(["--category", "kernel_safety"])
         captured = capsys.readouterr()
         # Only PN14 should show (only kernel_safety entry)
@@ -163,12 +163,12 @@ class TestCLIBrowse:
         assert rc == 0
 
     def test_main_unknown_category_returns_nonzero(self, capsys):
-        from vllm.sndr_core.compat.categories import main
+        from sndr.compat.categories import main
         rc = main(["--category", "totally_made_up"])
         assert rc != 0
 
     def test_main_json_output(self, capsys):
-        from vllm.sndr_core.compat.categories import main
+        from sndr.compat.categories import main
         import json
         main(["--json"])
         captured = capsys.readouterr()

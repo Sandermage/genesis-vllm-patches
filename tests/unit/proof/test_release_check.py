@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Tests for `vllm.sndr_core.proof.release_check` — §6.8 release-gate
+"""Tests for `sndr.proof.release_check` — §6.8 release-gate
 consumer (Entry 21).
 
 Contract:
@@ -58,27 +58,27 @@ def _make_args(**kw):
 
 class TestReleasePolicy:
     def test_default_is_report(self):
-        from vllm.sndr_core.proof.release_check import ReleasePolicy
+        from sndr.proof.release_check import ReleasePolicy
         p = ReleasePolicy()
         assert p.mode == "report"
         assert p.max_regression_pct is None
 
     def test_unknown_mode_raises(self):
-        from vllm.sndr_core.proof.release_check import (
+        from sndr.proof.release_check import (
             ReleaseCheckError, ReleasePolicy,
         )
         with pytest.raises(ReleaseCheckError, match="unknown policy mode"):
             ReleasePolicy(mode="nonsense")
 
     def test_negative_threshold_raises(self):
-        from vllm.sndr_core.proof.release_check import (
+        from sndr.proof.release_check import (
             ReleaseCheckError, ReleasePolicy,
         )
         with pytest.raises(ReleaseCheckError, match="must be"):
             ReleasePolicy(max_regression_pct=-1.0)
 
     def test_allowed_buckets_per_mode(self):
-        from vllm.sndr_core.proof.release_check import ReleasePolicy
+        from sndr.proof.release_check import ReleasePolicy
         assert "dead" in ReleasePolicy(mode="report").allowed_buckets
         assert "dead" not in ReleasePolicy(
             mode="require-static",
@@ -105,7 +105,7 @@ class TestReleasePolicy:
 
 class TestEvaluateMode:
     def test_report_mode_never_blocks(self, tmp_path):
-        from vllm.sndr_core.proof.release_check import (
+        from sndr.proof.release_check import (
             ReleasePolicy, evaluate_release,
         )
         r = evaluate_release(
@@ -122,7 +122,7 @@ class TestEvaluateMode:
         assert v["reasons"] == []
 
     def test_require_static_blocks_on_dead(self, tmp_path):
-        from vllm.sndr_core.proof.release_check import (
+        from sndr.proof.release_check import (
             ReleasePolicy, evaluate_release,
         )
         r = evaluate_release(
@@ -133,7 +133,7 @@ class TestEvaluateMode:
         assert r["failed_count"] == 1
 
     def test_require_static_passes_static_only(self, tmp_path):
-        from vllm.sndr_core.proof.release_check import (
+        from sndr.proof.release_check import (
             ReleasePolicy, evaluate_release,
         )
         _write(tmp_path, "P1__v1.json", {"static_passed": True})
@@ -145,7 +145,7 @@ class TestEvaluateMode:
         assert r["passed_count"] == 1
 
     def test_require_bench_blocks_on_static_only(self, tmp_path):
-        from vllm.sndr_core.proof.release_check import (
+        from sndr.proof.release_check import (
             ReleasePolicy, evaluate_release,
         )
         _write(tmp_path, "P1__v1.json", {"static_passed": True})
@@ -156,7 +156,7 @@ class TestEvaluateMode:
         assert r["release_blocked"] is True
 
     def test_require_bench_passes_bench_attached(self, tmp_path):
-        from vllm.sndr_core.proof.release_check import (
+        from sndr.proof.release_check import (
             ReleasePolicy, evaluate_release,
         )
         _write(tmp_path, "P1__v1.json", {
@@ -170,7 +170,7 @@ class TestEvaluateMode:
         assert r["release_blocked"] is False
 
     def test_require_baseline_blocks_on_bench_attached(self, tmp_path):
-        from vllm.sndr_core.proof.release_check import (
+        from sndr.proof.release_check import (
             ReleasePolicy, evaluate_release,
         )
         _write(tmp_path, "P1__v1.json", {
@@ -184,7 +184,7 @@ class TestEvaluateMode:
         assert r["release_blocked"] is True
 
     def test_require_baseline_passes_baseline(self, tmp_path):
-        from vllm.sndr_core.proof.release_check import (
+        from sndr.proof.release_check import (
             ReleasePolicy, evaluate_release,
         )
         _write(tmp_path, "P1__v1.json", {
@@ -215,7 +215,7 @@ class TestRegressionDetection:
         })
 
     def test_tps_drop_triggers(self, tmp_path):
-        from vllm.sndr_core.proof.release_check import (
+        from sndr.proof.release_check import (
             ReleasePolicy, evaluate_release,
         )
         self._setup_baseline(tmp_path, median=-10.0)
@@ -228,7 +228,7 @@ class TestRegressionDetection:
             "median_tps_delta_pct"
 
     def test_tps_rise_does_not_trigger(self, tmp_path):
-        from vllm.sndr_core.proof.release_check import (
+        from sndr.proof.release_check import (
             ReleasePolicy, evaluate_release,
         )
         # +10% TPS is a WIN, not a regression — symmetric direction.
@@ -240,7 +240,7 @@ class TestRegressionDetection:
         assert r["release_blocked"] is False
 
     def test_latency_rise_triggers(self, tmp_path):
-        from vllm.sndr_core.proof.release_check import (
+        from sndr.proof.release_check import (
             ReleasePolicy, evaluate_release,
         )
         self._setup_baseline(tmp_path, decode=+10.0)
@@ -251,7 +251,7 @@ class TestRegressionDetection:
         assert r["release_blocked"] is True
 
     def test_latency_drop_does_not_trigger(self, tmp_path):
-        from vllm.sndr_core.proof.release_check import (
+        from sndr.proof.release_check import (
             ReleasePolicy, evaluate_release,
         )
         # -10% TPOT is a WIN; symmetric direction must not trigger.
@@ -264,7 +264,7 @@ class TestRegressionDetection:
 
     def test_threshold_boundary(self, tmp_path):
         """Exactly at threshold does NOT trigger (strict inequality)."""
-        from vllm.sndr_core.proof.release_check import (
+        from sndr.proof.release_check import (
             ReleasePolicy, evaluate_release,
         )
         self._setup_baseline(tmp_path, median=-5.0)
@@ -276,7 +276,7 @@ class TestRegressionDetection:
         assert r["release_blocked"] is False
 
     def test_no_threshold_means_no_regression_check(self, tmp_path):
-        from vllm.sndr_core.proof.release_check import (
+        from sndr.proof.release_check import (
             ReleasePolicy, evaluate_release,
         )
         self._setup_baseline(tmp_path, median=-50.0)
@@ -290,7 +290,7 @@ class TestRegressionDetection:
     def test_regression_check_only_for_baseline_bucket(self, tmp_path):
         """`bench_attached` (no delta_pct) doesn't get regression-checked
         — there's nothing to compare."""
-        from vllm.sndr_core.proof.release_check import (
+        from sndr.proof.release_check import (
             ReleasePolicy, evaluate_release,
         )
         _write(tmp_path, "P1__v1.json", {
@@ -310,7 +310,7 @@ class TestRegressionDetection:
 
 class TestFilters:
     def test_patch_filter(self, tmp_path):
-        from vllm.sndr_core.proof.release_check import (
+        from sndr.proof.release_check import (
             ReleasePolicy, evaluate_release,
         )
         r = evaluate_release(
@@ -321,7 +321,7 @@ class TestFilters:
         assert r["verdicts"][0]["patch_id"] == "P2"
 
     def test_tier_filter(self, tmp_path):
-        from vllm.sndr_core.proof.release_check import (
+        from sndr.proof.release_check import (
             ReleasePolicy, evaluate_release,
         )
         reg = {

@@ -63,7 +63,7 @@ def test_replacements_carry_pn52_marker():
 
 def test_idempotent_on_synthetic_each_file(tmp_path):
     """Each file's anchors apply once then no-op on second pass."""
-    from vllm.sndr_core.core.text_patch import (
+    from sndr.kernel.text_patch import (
         TextPatch, TextPatcher, TextPatchResult,
     )
     M = _wiring()
@@ -97,7 +97,7 @@ def test_idempotent_on_synthetic_each_file(tmp_path):
 
 
 def test_env_flag_default_off(monkeypatch):
-    from vllm.sndr_core.dispatcher import should_apply
+    from sndr.dispatcher import should_apply
     monkeypatch.delenv("GENESIS_ENABLE_PN52_PROMPT_LOGPROBS_EVICTION", raising=False)
     decision, reason = should_apply("PN52")
     assert decision is False
@@ -105,14 +105,14 @@ def test_env_flag_default_off(monkeypatch):
 
 
 def test_env_flag_engages(monkeypatch):
-    from vllm.sndr_core.dispatcher import should_apply
+    from sndr.dispatcher import should_apply
     monkeypatch.setenv("GENESIS_ENABLE_PN52_PROMPT_LOGPROBS_EVICTION", "1")
     decision, _ = should_apply("PN52")
     assert decision is True
 
 
 def test_registry_entry_complete():
-    from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+    from sndr.dispatcher import PATCH_REGISTRY
     assert "PN52" in PATCH_REGISTRY
     meta = PATCH_REGISTRY["PN52"]
     assert meta["env_flag"] == "GENESIS_ENABLE_PN52_PROMPT_LOGPROBS_EVICTION"
@@ -122,5 +122,5 @@ def test_registry_entry_complete():
 
 
 def test_apply_all_registers_pn52():
-    from vllm.sndr_core.apply import apply_all
+    from sndr.apply import apply_all
     assert hasattr(apply_all, "apply_patch_N52_prompt_logprobs_eviction")

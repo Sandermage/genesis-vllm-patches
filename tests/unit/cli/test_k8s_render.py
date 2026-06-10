@@ -16,8 +16,8 @@ import pytest
 
 yaml = pytest.importorskip("yaml")
 
-from vllm.sndr_core.cli.k8s import _all_yaml
-from vllm.sndr_core.model_configs.schema import (
+from sndr.cli.legacy.k8s import _all_yaml
+from sndr.model_configs.schema import (
     DockerConfig, HardwareSpec, KubernetesConfig, ModelConfig,
 )
 
@@ -278,7 +278,7 @@ class TestDeletePvcFlag:
     def test_argparser_registers_delete_pvc(self):
         """The flag is registered on the `delete` subcommand only."""
         import argparse
-        from vllm.sndr_core.cli.k8s import add_argparser
+        from sndr.cli.legacy.k8s import add_argparser
         parser = argparse.ArgumentParser(prog="sndr")
         subparsers = parser.add_subparsers()
         add_argparser(subparsers)
@@ -290,7 +290,7 @@ class TestDeletePvcFlag:
     def test_argparser_flag_absent_on_other_subcommands(self):
         """The flag must NOT be accepted on render/apply/status/logs."""
         import argparse
-        from vllm.sndr_core.cli.k8s import add_argparser
+        from sndr.cli.legacy.k8s import add_argparser
         parser = argparse.ArgumentParser(prog="sndr")
         subparsers = parser.add_subparsers()
         add_argparser(subparsers)

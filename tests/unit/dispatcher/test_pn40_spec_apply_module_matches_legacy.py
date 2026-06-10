@@ -14,7 +14,7 @@ PN40 is an omnibus patch with four sub-components:
   sub-D: workload classifier hook (universal)
 
 The orchestration lives in
-`vllm.sndr_core.integrations.spec_decode.pn40_dflash_omnibus`.
+`sndr.engines.vllm.patches.spec_decode.pn40_dflash_omnibus`.
 Its `apply()` runs sub-A + sub-B + sub-C wirings AND ALSO calls
 `pn40_workload_classifier_hook.apply()` (sub-D) internally at
 pn40_dflash_omnibus.py:381-382.
@@ -39,11 +39,11 @@ from __future__ import annotations
 def test_pn40_spec_apply_module_is_omnibus_orchestrator():
     """PN40 spec.apply_module must be the canonical omnibus
     orchestrator, NOT the sub-D classifier hook directly."""
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+    from sndr.dispatcher.registry import PATCH_REGISTRY
     entry = PATCH_REGISTRY.get("PN40")
     assert entry is not None, "PN40 missing from PATCH_REGISTRY"
     expected = (
-        "vllm.sndr_core.integrations.spec_decode.pn40_dflash_omnibus"
+        "sndr.engines.vllm.patches.spec_decode.pn40_dflash_omnibus"
     )
     actual = entry.get("apply_module")
     assert actual == expected, (
@@ -62,11 +62,11 @@ def test_pn40_classifier_spec_apply_module_unchanged():
     """PN40-classifier stays pointed at the classifier hook directly
     — that's the right module for the sub-D-only opt-in. Used by
     callers who want classifier without the full omnibus."""
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+    from sndr.dispatcher.registry import PATCH_REGISTRY
     entry = PATCH_REGISTRY.get("PN40-classifier")
     assert entry is not None, "PN40-classifier missing from PATCH_REGISTRY"
     expected = (
-        "vllm.sndr_core.integrations.spec_decode."
+        "sndr.engines.vllm.patches.spec_decode."
         "pn40_workload_classifier_hook"
     )
     actual = entry.get("apply_module")
@@ -85,7 +85,7 @@ def test_pn40_dflash_omnibus_apply_signature_and_calls_classifier():
     PN40's apply_module to omnibus doesn't drop sub-D coverage)."""
     import inspect
     try:
-        from vllm.sndr_core.integrations.spec_decode import (
+        from sndr.engines.vllm.patches.spec_decode import (
             pn40_dflash_omnibus,
         )
     except ImportError:

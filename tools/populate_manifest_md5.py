@@ -27,7 +27,7 @@ Usage::
     # Use a remote docker container
     python3 tools/populate_manifest_md5.py \
         --manifest sndr/engines/vllm/pins/0.21.1_626fa9bba/manifest.yaml \
-        --remote sander@192.168.1.10 \
+        --remote <user>@<host> \
         --container vllm-qwen3.6-35b-balanced-k3 \
         --container-vllm-root /usr/local/lib/python3.12/dist-packages/vllm
 """

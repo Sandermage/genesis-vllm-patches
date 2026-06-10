@@ -35,7 +35,7 @@ def _run(module, attr: str, ns: argparse.Namespace) -> tuple[int, str]:
 
 class TestHardwareList:
     def test_text_mode_returns_zero(self):
-        from vllm.sndr_core.cli import hardware as hw_cli
+        from sndr.cli.legacy import hardware as hw_cli
         ns = argparse.Namespace(json=False)
         rc, out = _run(hw_cli, "run_list", ns)
         assert rc == 0
@@ -48,7 +48,7 @@ class TestHardwareList:
         assert "Total:" in out
 
     def test_json_mode_emits_array(self):
-        from vllm.sndr_core.cli import hardware as hw_cli
+        from sndr.cli.legacy import hardware as hw_cli
         ns = argparse.Namespace(json=True)
         rc, out = _run(hw_cli, "run_list", ns)
         assert rc == 0
@@ -63,7 +63,7 @@ class TestHardwareList:
 
 class TestHardwareShow:
     def test_show_valid_id(self):
-        from vllm.sndr_core.cli import hardware as hw_cli
+        from sndr.cli.legacy import hardware as hw_cli
         ns = argparse.Namespace(
             hw_id="a5000-2x-24gbvram-16cpu-128gbram", json=False
         )
@@ -76,13 +76,13 @@ class TestHardwareShow:
         assert "PYTORCH_CUDA_ALLOC_CONF" in out
 
     def test_show_unknown_id_returns_two(self):
-        from vllm.sndr_core.cli import hardware as hw_cli
+        from sndr.cli.legacy import hardware as hw_cli
         ns = argparse.Namespace(hw_id="does-not-exist", json=False)
         rc, _ = _run(hw_cli, "run_show", ns)
         assert rc == 2
 
     def test_show_json_mode(self):
-        from vllm.sndr_core.cli import hardware as hw_cli
+        from sndr.cli.legacy import hardware as hw_cli
         ns = argparse.Namespace(
             hw_id="a5000-2x-24gbvram-16cpu-128gbram", json=True
         )
@@ -98,7 +98,7 @@ class TestHardwareShow:
 
 class TestProfileList:
     def test_text_mode_returns_zero(self):
-        from vllm.sndr_core.cli import profile as prof_cli
+        from sndr.cli.legacy import profile as prof_cli
         ns = argparse.Namespace(model=None, json=False)
         rc, out = _run(prof_cli, "run_list", ns)
         assert rc == 0
@@ -109,7 +109,7 @@ class TestProfileList:
         assert "qa-27b-fp8kv-tested" in out
 
     def test_filter_by_model(self):
-        from vllm.sndr_core.cli import profile as prof_cli
+        from sndr.cli.legacy import profile as prof_cli
         ns = argparse.Namespace(model="qwen3.6-35b-a3b-fp8", json=False)
         rc, out = _run(prof_cli, "run_list", ns)
         assert rc == 0
@@ -119,14 +119,14 @@ class TestProfileList:
         assert "wave9-qwen3.6-27b-tq-k8v4" not in out
 
     def test_filter_no_match(self):
-        from vllm.sndr_core.cli import profile as prof_cli
+        from sndr.cli.legacy import profile as prof_cli
         ns = argparse.Namespace(model="qwen3.6-nonexistent", json=False)
         rc, out = _run(prof_cli, "run_list", ns)
         assert rc == 0
         assert "no V2 profile files found" in out
 
     def test_json_mode(self):
-        from vllm.sndr_core.cli import profile as prof_cli
+        from sndr.cli.legacy import profile as prof_cli
         ns = argparse.Namespace(model=None, json=True)
         rc, out = _run(prof_cli, "run_list", ns)
         assert rc == 0
@@ -139,7 +139,7 @@ class TestProfileList:
 
 class TestProfileShow:
     def test_show_valid_profile(self):
-        from vllm.sndr_core.cli import profile as prof_cli
+        from sndr.cli.legacy import profile as prof_cli
         ns = argparse.Namespace(profile_id="wave9-balanced", json=False)
         rc, out = _run(prof_cli, "run_show", ns)
         assert rc == 0
@@ -149,7 +149,7 @@ class TestProfileShow:
         assert "empty" in out.lower()
 
     def test_show_unknown_profile_returns_two(self):
-        from vllm.sndr_core.cli import profile as prof_cli
+        from sndr.cli.legacy import profile as prof_cli
         ns = argparse.Namespace(profile_id="does-not-exist", json=False)
         rc, _ = _run(prof_cli, "run_show", ns)
         assert rc == 2
@@ -158,7 +158,7 @@ class TestProfileShow:
 class TestProfileDiff:
     def test_diff_empty_profile_no_changes(self):
         """wave9-balanced has empty patches_delta — diff should be 0/0/0."""
-        from vllm.sndr_core.cli import profile as prof_cli
+        from sndr.cli.legacy import profile as prof_cli
         ns = argparse.Namespace(profile_id="wave9-balanced", json=True)
         rc, out = _run(prof_cli, "run_diff", ns)
         assert rc == 0
@@ -170,7 +170,7 @@ class TestProfileDiff:
 
     def test_diff_qa_tested_disables_patches(self):
         """qa-27b-fp8kv-tested disables 16 patches — diff should show them."""
-        from vllm.sndr_core.cli import profile as prof_cli
+        from sndr.cli.legacy import profile as prof_cli
         ns = argparse.Namespace(profile_id="qa-27b-fp8kv-tested", json=True)
         rc, out = _run(prof_cli, "run_diff", ns)
         assert rc == 0
@@ -183,7 +183,7 @@ class TestProfileDiff:
 
     def test_diff_dflash_ab_adds_patches(self):
         """experimental-qwen3.6-27b-tq-dflash-ab enables 6 patches (5 DFlash + P100)."""
-        from vllm.sndr_core.cli import profile as prof_cli
+        from sndr.cli.legacy import profile as prof_cli
         ns = argparse.Namespace(
             profile_id="experimental-qwen3.6-27b-tq-dflash-ab", json=True
         )
@@ -201,7 +201,7 @@ class TestProfileDiff:
 
 class TestModelListV2:
     def test_text_mode_returns_zero(self):
-        from vllm.sndr_core.cli import model as m_cli
+        from sndr.cli.legacy import model as m_cli
         ns = argparse.Namespace(json=False)
         rc, out = _run(m_cli, "run_list_v2", ns)
         assert rc == 0
@@ -213,7 +213,7 @@ class TestModelListV2:
         assert "turboquant_k8v4" in out or "fp16" in out
 
     def test_json_mode_summary_shape(self):
-        from vllm.sndr_core.cli import model as m_cli
+        from sndr.cli.legacy import model as m_cli
         ns = argparse.Namespace(json=True)
         rc, out = _run(m_cli, "run_list_v2", ns)
         assert rc == 0
@@ -228,7 +228,7 @@ class TestModelListV2:
 
 class TestModelShow:
     def test_show_35b_canonical(self):
-        from vllm.sndr_core.cli import model as m_cli
+        from sndr.cli.legacy import model as m_cli
         ns = argparse.Namespace(model_id="qwen3.6-35b-a3b-fp8", json=False)
         rc, out = _run(m_cli, "run_show", ns)
         assert rc == 0
@@ -241,13 +241,13 @@ class TestModelShow:
         assert "Canonical patches: 44 entries" in out
 
     def test_show_unknown_model_returns_two(self):
-        from vllm.sndr_core.cli import model as m_cli
+        from sndr.cli.legacy import model as m_cli
         ns = argparse.Namespace(model_id="qwen-nonexistent", json=False)
         rc, _ = _run(m_cli, "run_show", ns)
         assert rc == 2
 
     def test_show_json_mode_full_dataclass(self):
-        from vllm.sndr_core.cli import model as m_cli
+        from sndr.cli.legacy import model as m_cli
         ns = argparse.Namespace(model_id="qwen3.6-35b-a3b-fp8", json=True)
         rc, out = _run(m_cli, "run_show", ns)
         assert rc == 0
@@ -267,7 +267,7 @@ class TestRegistration:
 
     def test_hardware_argparser_registers(self):
         import argparse
-        from vllm.sndr_core.cli.hardware import add_argparser
+        from sndr.cli.legacy.hardware import add_argparser
         p = argparse.ArgumentParser()
         sub = p.add_subparsers()
         add_argparser(sub)
@@ -277,7 +277,7 @@ class TestRegistration:
 
     def test_profile_argparser_registers(self):
         import argparse
-        from vllm.sndr_core.cli.profile import add_argparser
+        from sndr.cli.legacy.profile import add_argparser
         p = argparse.ArgumentParser()
         sub = p.add_subparsers()
         add_argparser(sub)
@@ -287,7 +287,7 @@ class TestRegistration:
 
     def test_model_list_v2_subcommand(self):
         import argparse
-        from vllm.sndr_core.cli.model import add_argparser
+        from sndr.cli.legacy.model import add_argparser
         p = argparse.ArgumentParser()
         sub = p.add_subparsers()
         add_argparser(sub)
@@ -298,7 +298,7 @@ class TestRegistration:
     def test_top_level_argparser_includes_new_commands(self):
         # Phase 4 wires hardware + profile registrators into cli/__init__.py.
         # Verify both import handles exist at module-load time.
-        from vllm.sndr_core import cli as cli_mod
+        from sndr import cli as cli_mod
         assert hasattr(cli_mod, "_hardware_argparser")
         assert hasattr(cli_mod, "_profile_argparser")
         assert callable(cli_mod._hardware_argparser)

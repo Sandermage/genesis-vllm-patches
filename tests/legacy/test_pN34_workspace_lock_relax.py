@@ -10,10 +10,12 @@ Port credit: noonghunna club-3090 (commit 2b5ab4d).
 """
 from __future__ import annotations
 
+import re
+
 
 
 def test_pn34_wiring_imports():
-    from vllm.sndr_core.integrations.attention.turboquant import pn34_workspace_lock_runtime_relax as mod
+    from sndr.engines.vllm.patches.attention.turboquant import pn34_workspace_lock_runtime_relax as mod
     assert hasattr(mod, "apply")
     assert hasattr(mod, "GENESIS_PN34_MARKER")
     assert hasattr(mod, "PN34_ANCHOR")
@@ -21,7 +23,7 @@ def test_pn34_wiring_imports():
 
 
 def test_pn34_dispatcher_registry():
-    from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+    from sndr.dispatcher import PATCH_REGISTRY
     assert "PN34" in PATCH_REGISTRY
     e = PATCH_REGISTRY["PN34"]
     assert e["env_flag"] == "GENESIS_ENABLE_PN34_WORKSPACE_LOCK_RELAX"
@@ -30,7 +32,7 @@ def test_pn34_dispatcher_registry():
 
 
 def test_pn34_anchor_targets_strict_assertion():
-    from vllm.sndr_core.integrations.attention.turboquant.pn34_workspace_lock_runtime_relax import (
+    from sndr.engines.vllm.patches.attention.turboquant.pn34_workspace_lock_runtime_relax import (
         PN34_ANCHOR,
     )
     assert "if self._locked:" in PN34_ANCHOR
@@ -40,7 +42,7 @@ def test_pn34_anchor_targets_strict_assertion():
 
 
 def test_pn34_replacement_relaxes_to_warn_plus_grow():
-    from vllm.sndr_core.integrations.attention.turboquant.pn34_workspace_lock_runtime_relax import (
+    from sndr.engines.vllm.patches.attention.turboquant.pn34_workspace_lock_runtime_relax import (
         PN34_REPLACEMENT,
     )
     # Relaxation: still detects locked state but warns instead of asserts
@@ -61,7 +63,7 @@ def test_pn34_skips_when_env_off(monkeypatch):
     monkeypatch.delenv(
         "GENESIS_ENABLE_PN34_WORKSPACE_LOCK_RELAX", raising=False
     )
-    from vllm.sndr_core.integrations.attention.turboquant.pn34_workspace_lock_runtime_relax import (
+    from sndr.engines.vllm.patches.attention.turboquant.pn34_workspace_lock_runtime_relax import (
         apply,
     )
     status, reason = apply()
@@ -70,18 +72,18 @@ def test_pn34_skips_when_env_off(monkeypatch):
 
 
 def test_pn34_register_in_apply_all():
-    from vllm.sndr_core.apply import (
+    from sndr.apply import (
         PATCH_REGISTRY as APPLY_REGISTRY,
     )
     names = [name for name, _ in APPLY_REGISTRY]
-    pn34 = [n for n in names if "PN34" in n]
+    pn34 = [n for n in names if re.search(r"\bPN34\b", n)]
     assert len(pn34) == 1, (
         f"PN34 not registered in apply_all, names: {names[:5]}"
     )
 
 
 def test_pn34_marker_unique():
-    from vllm.sndr_core.integrations.attention.turboquant.pn34_workspace_lock_runtime_relax import (
+    from sndr.engines.vllm.patches.attention.turboquant.pn34_workspace_lock_runtime_relax import (
         GENESIS_PN34_MARKER,
     )
     assert "PN34" in GENESIS_PN34_MARKER
@@ -93,7 +95,7 @@ def test_pn34_documents_pn33_companion_relationship():
     address the same root cause (workspace under-counted) but at
     different layers (boot vs runtime decode)."""
     import inspect
-    from vllm.sndr_core.integrations.attention.turboquant import pn34_workspace_lock_runtime_relax as mod
+    from sndr.engines.vllm.patches.attention.turboquant import pn34_workspace_lock_runtime_relax as mod
     src = inspect.getsource(mod)
     assert "PN33" in src
     assert "companion" in src.lower()
@@ -103,7 +105,7 @@ def test_pn34_documents_pn33_companion_relationship():
 
 def test_pn34_documents_noonghunna_credit():
     import inspect
-    from vllm.sndr_core.integrations.attention.turboquant import pn34_workspace_lock_runtime_relax as mod
+    from sndr.engines.vllm.patches.attention.turboquant import pn34_workspace_lock_runtime_relax as mod
     src = inspect.getsource(mod)
     assert "noonghunna" in src
     assert "club-3090" in src
@@ -113,6 +115,6 @@ def test_pn34_documents_noonghunna_credit():
 def test_pn34_documents_upstream_retirement_path():
     """Source must reference the upstream PR that obsoletes PN34."""
     import inspect
-    from vllm.sndr_core.integrations.attention.turboquant import pn34_workspace_lock_runtime_relax as mod
+    from sndr.engines.vllm.patches.attention.turboquant import pn34_workspace_lock_runtime_relax as mod
     src = inspect.getsource(mod)
     assert "40706" in src  # vllm#40706 = TQ scratch dedup

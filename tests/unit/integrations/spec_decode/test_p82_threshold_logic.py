@@ -247,7 +247,7 @@ def test_apply_skipped_when_threshold_zero(monkeypatch):
     Skipped on dev hosts without vllm installed (apply() short-circuits
     earlier on `vllm_install_root() is None`).
     """
-    from vllm.sndr_core.detection.guards import vllm_install_root
+    from sndr.engines.vllm.detection.guards import vllm_install_root
     if vllm_install_root() is None:
         pytest.skip("vllm not installed — apply() short-circuits before threshold check")
     monkeypatch.setenv("GENESIS_ENABLE_P82", "1")
@@ -374,7 +374,7 @@ class TestP82V2ThresholdOneIsSkip:
     confidence which is essentially never. Avoid patch overhead."""
 
     def test_apply_skipped_when_threshold_one(self, monkeypatch):
-        from vllm.sndr_core.detection.guards import vllm_install_root
+        from sndr.engines.vllm.detection.guards import vllm_install_root
         if vllm_install_root() is None:
             pytest.skip("vllm not installed — apply() short-circuits earlier")
         monkeypatch.setenv("GENESIS_ENABLE_P82", "1")

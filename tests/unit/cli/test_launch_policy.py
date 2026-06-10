@@ -18,7 +18,7 @@ from contextlib import redirect_stdout
 
 import pytest
 
-from vllm.sndr_core.cli import cli_main
+from sndr.cli.legacy import cli_main
 
 
 def _run_cli(argv: list[str]) -> tuple[int, str]:

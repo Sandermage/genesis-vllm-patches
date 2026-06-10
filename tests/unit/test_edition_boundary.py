@@ -2,7 +2,7 @@
 """TDD for the F-010 paid/free boundary (PR38 Phase 4 Step 6).
 
 Edition tests verify the BOUNDARY between the Apache-licensed
-`vllm.sndr_core` (community) and the commercial `vllm.sndr_engine`
+`sndr` (community) and the commercial `vllm.sndr_engine`
 (paid). Per Sander's **strict-AND rule** (audit 2026-05-08,
 canonical source `docs/PATCHES.md:50-58`):
 
@@ -24,7 +24,7 @@ The boundary is enforced by:
 
   1. Tier classification in `dispatcher.PATCH_REGISTRY[pid]["tier"]`
   2. License gate in `dispatcher.decision._check_engine_tier_eligible`
-     consulting `vllm.sndr_core.license.check_engine_tier_eligible()`
+     consulting `sndr.license.check_engine_tier_eligible()`
   3. Engine-tier impl files physically located at
      `vllm/sndr_engine/patches/<family>/<patch>.py`
   4. Stub redirects at
@@ -56,8 +56,13 @@ class TestTierClassificationRule:
     def test_every_community_patch_has_external_reference(self):
         """Community-tier ⇒ at least ONE of (Sander's strict AND rule
         inverted, 2026-05-08):
-          (a) impl ships in `vllm/sndr_core/integrations/` (i.e., on the
-              public github repo — proxy for "on github"),
+          (a) impl ships in the public `sndr/` tree (i.e., on the
+              public github repo — proxy for "on github"; v12 form of
+              the pre-v12 `vllm/sndr_core/integrations/` check — covers
+              `sndr.engines.vllm.patches.*`, retired impls relocated to
+              `sndr.engines.vllm._archive.*`, and non-patch homes such
+              as `sndr.observability.*`; `sndr_private` does NOT match
+              the `sndr.` prefix),
           (b) `upstream_pr` / `related_upstream_prs` set,
           (c) PR ref in title/credit text (vllm#N / SGLang#N / PR #N),
           (d) external-author credit (@user / "backport of …" / known name).
@@ -66,7 +71,7 @@ class TestTierClassificationRule:
         public repo, no external attribution anywhere.
         """
         import re
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY, iter_patch_specs
+        from sndr.dispatcher import PATCH_REGISTRY, iter_patch_specs
 
         PR_REF_PAT = re.compile(
             r"\b(?:vllm|sglang|llama\.cpp|huggingface|HF|github)[#/]\d+|"
@@ -85,12 +90,15 @@ class TestTierClassificationRule:
             re.IGNORECASE,
         )
 
-        # (a) Map patch_id → ships-in-sndr_core flag
+        # (a) Map patch_id → ships-in-public-sndr-tree flag. The whole
+        # `sndr` package is the public Apache wheel (pyproject includes
+        # `sndr*`, excludes `sndr_private*`); commercial IP lives in
+        # `vllm.sndr_engine` / `sndr_private` which never match `sndr.`.
         ships_in_core = {}
         has_impl = set()
         for spec in iter_patch_specs():
             am = spec.apply_module or ""
-            ships_in_core[spec.patch_id] = am.startswith("vllm.sndr_core.integrations.")
+            ships_in_core[spec.patch_id] = am.startswith("sndr.")
             if am:
                 has_impl.add(spec.patch_id)
 
@@ -133,7 +141,7 @@ class TestTierClassificationRule:
         it's a backport / community contribution and belongs in
         tier=community."""
         import re
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+        from sndr.dispatcher import PATCH_REGISTRY
 
         PR_REF_PAT = re.compile(
             r"\b(?:vllm|sglang|llama\.cpp|huggingface|HF|github)[#/]\d+|"
@@ -182,7 +190,7 @@ class TestTierClassificationRule:
         code that genuinely requires a license — the test just no
         longer demands a current engine entry.
         """
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+        from sndr.dispatcher import PATCH_REGISTRY
         community = sum(
             1 for m in PATCH_REGISTRY.values()
             if isinstance(m, dict) and m.get("tier") == "community"
@@ -216,13 +224,13 @@ class TestEngineImplLocation:
     """
 
     REPO_ROOT = Path(__file__).resolve().parents[2]
-    SNDR_CORE_PATCHES = REPO_ROOT / "vllm" / "sndr_core" / "integrations"
+    SNDR_CORE_PATCHES = REPO_ROOT / "sndr" / "engines" / "vllm" / "patches"
     SNDR_ENGINE_PATCHES = REPO_ROOT / "vllm" / "sndr_engine" / "patches"
 
     def test_sndr_core_engine_redirects_are_thin(self):
         """Each engine-tier patch's sndr_core file MUST be a thin
         redirect (under 50 lines) — no real impl IP in the Apache wheel."""
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY, iter_patch_specs
+        from sndr.dispatcher import PATCH_REGISTRY, iter_patch_specs
 
         violations = []
         for spec in iter_patch_specs():
@@ -231,7 +239,7 @@ class TestEngineImplLocation:
                 continue
             if spec.apply_module is None:
                 continue
-            if not spec.apply_module.startswith("vllm.sndr_core.integrations."):
+            if not spec.apply_module.startswith("sndr.engines.vllm.patches."):
                 continue
             rel = spec.apply_module.replace(".", "/") + ".py"
             f = self.REPO_ROOT / rel
@@ -289,7 +297,7 @@ class TestDispatcherLicenseGate:
     def test_engine_patch_skipped_without_license(self, monkeypatch):
         """No license key + engine package present → tier-gate skips
         with NO_KEY status."""
-        from vllm.sndr_core.dispatcher import should_apply, PATCH_REGISTRY
+        from sndr.dispatcher import should_apply, PATCH_REGISTRY
 
         engine_pids = [
             pid for pid, meta in PATCH_REGISTRY.items()
@@ -321,7 +329,7 @@ class TestDispatcherLicenseGate:
     def test_engine_patch_proceeds_with_license(self, monkeypatch):
         """License key set + engine package present + env-flag truthy →
         decision is True (or skipped for non-tier reason)."""
-        from vllm.sndr_core.dispatcher import should_apply, PATCH_REGISTRY
+        from sndr.dispatcher import should_apply, PATCH_REGISTRY
 
         engine_pids = [
             pid for pid, meta in PATCH_REGISTRY.items()
@@ -352,7 +360,7 @@ class TestDispatcherLicenseGate:
     def test_tier_override_forces_skip_even_when_licensed(self, monkeypatch):
         """SNDR_ENABLE_TIER_OVERRIDE=1 → community-only mode regardless
         of license. CI / community deployment use case."""
-        from vllm.sndr_core.dispatcher import should_apply, PATCH_REGISTRY
+        from sndr.dispatcher import should_apply, PATCH_REGISTRY
 
         engine_pids = [
             pid for pid, meta in PATCH_REGISTRY.items()
@@ -381,7 +389,8 @@ class TestWheelPackageSeparation:
     engine impl files — only thin redirects."""
 
     def test_pyproject_includes_sndr_core(self):
-        """Wheel includes sndr_core (the redirect stubs)."""
+        """Wheel carries the sndr runtime tree (v12: ``sndr*`` covers the
+        registry; pre-v12 this was ``vllm.sndr_core*``)."""
         try:
             import tomllib
         except ImportError:
@@ -390,7 +399,9 @@ class TestWheelPackageSeparation:
         with open(repo_root / "pyproject.toml", "rb") as f:
             data = tomllib.load(f)
         include = data["tool"]["setuptools"]["packages"]["find"]["include"]
-        assert any("sndr_core" in p for p in include)
+        assert any(p in ("sndr", "sndr*") or p.startswith("sndr.") for p in include), (
+            f"wheel include must cover the sndr package (found: {include})"
+        )
 
     def test_pyproject_root_has_sndr_console_entry(self):
         """`sndr` console entry point is in the canonical pyproject."""

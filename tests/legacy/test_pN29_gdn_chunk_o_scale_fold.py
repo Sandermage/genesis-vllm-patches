@@ -27,14 +27,14 @@ from __future__ import annotations
 
 def test_pn29_wiring_imports():
     """PN29 wiring module imports cleanly."""
-    from vllm.sndr_core.integrations.attention.gdn import pn29_gdn_chunk_o_scale_fold as patch_N29_gdn_chunk_o_scale_fold
+    from sndr.engines.vllm.patches.attention.gdn import pn29_gdn_chunk_o_scale_fold as patch_N29_gdn_chunk_o_scale_fold
     assert hasattr(patch_N29_gdn_chunk_o_scale_fold, "apply")
     assert hasattr(patch_N29_gdn_chunk_o_scale_fold, "GENESIS_PN29_MARKER")
 
 
 def test_pn29_dispatcher_registry():
     """PN29 registered in PATCH_REGISTRY with correct env flag."""
-    from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+    from sndr.dispatcher import PATCH_REGISTRY
     assert "PN29" in PATCH_REGISTRY
     e = PATCH_REGISTRY["PN29"]
     assert e["env_flag"] == "GENESIS_ENABLE_PN29_GDN_SCALE_FOLD"
@@ -52,7 +52,7 @@ def test_pn29_skips_when_env_off(monkeypatch):
     """
     monkeypatch.delenv("GENESIS_ENABLE_PN29_GDN_SCALE_FOLD", raising=False)
     monkeypatch.setenv("SNDR_ENGINE_LICENSE_KEY", "test-key-for-pytest")
-    from vllm.sndr_core.integrations.attention.gdn.pn29_gdn_chunk_o_scale_fold import apply
+    from sndr.engines.vllm.patches.attention.gdn.pn29_gdn_chunk_o_scale_fold import apply
     status, reason = apply()
     assert status == "skipped"
     # Either tier=engine (license missing) OR opt-in (env-flag branch).
@@ -61,7 +61,7 @@ def test_pn29_skips_when_env_off(monkeypatch):
 
 def test_pn29_anchor_text_matches_upstream():
     """PN29 anchor matches exact upstream chunk_o.py:137 line."""
-    from vllm.sndr_core.integrations.attention.gdn.pn29_gdn_chunk_o_scale_fold import (
+    from sndr.engines.vllm.patches.attention.gdn.pn29_gdn_chunk_o_scale_fold import (
         PN29_ANCHOR, PN29_REPLACEMENT,
     )
     # Anchor: the EXACT current upstream line
@@ -75,7 +75,7 @@ def test_pn29_anchor_text_matches_upstream():
 
 def test_pn29_marker_string_unique():
     """PN29 marker is non-trivial for drift detection."""
-    from vllm.sndr_core.integrations.attention.gdn.pn29_gdn_chunk_o_scale_fold import (
+    from sndr.engines.vllm.patches.attention.gdn.pn29_gdn_chunk_o_scale_fold import (
         GENESIS_PN29_MARKER,
     )
     assert "PN29" in GENESIS_PN29_MARKER
@@ -84,7 +84,7 @@ def test_pn29_marker_string_unique():
 
 def test_pn29_register_in_apply_all():
     """PN29 registered via @register_patch in apply_all.py."""
-    from vllm.sndr_core.apply import PATCH_REGISTRY as APPLY_REGISTRY
+    from sndr.apply import PATCH_REGISTRY as APPLY_REGISTRY
     names = [name for name, _ in APPLY_REGISTRY]
     pn29 = [n for n in names if "PN29" in n]
     assert len(pn29) == 1, f"PN29 not registered, names: {names[:5]}"
@@ -161,7 +161,7 @@ def test_pn29_numerical_equivalence_zero_scale():
 
 def test_pn29_idempotency_via_marker():
     """Re-applying PN29 doesn't double-patch (marker check)."""
-    from vllm.sndr_core.integrations.attention.gdn.pn29_gdn_chunk_o_scale_fold import (
+    from sndr.engines.vllm.patches.attention.gdn.pn29_gdn_chunk_o_scale_fold import (
         GENESIS_PN29_MARKER,
     )
     # The TextPatcher uses the marker comment to detect already-applied state.

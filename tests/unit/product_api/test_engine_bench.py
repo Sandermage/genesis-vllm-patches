@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.product_api import engine_bench as eb
-from vllm.sndr_core.product_api.engine_client import EngineError
+from sndr.product_api.legacy import engine_bench as eb
+from sndr.product_api.legacy.engine_client import EngineError
 
 
 def test_parse_sse_stream_timings_and_tokens():
@@ -89,7 +89,7 @@ def test_run_bench_mixed_success_counts_failures():
 def test_engine_bench_route(monkeypatch):
     pytest.importorskip("fastapi")
     from fastapi.testclient import TestClient
-    from vllm.sndr_core.product_api.http_app import create_app
+    from sndr.product_api.legacy.http_app import create_app
 
     monkeypatch.setattr(eb, "run_bench", lambda payload, host=None: {"ok": True, "metrics": {"throughput_tok_s": 142.0}})
     client = TestClient(create_app(allowed_origins=()))
@@ -100,7 +100,7 @@ def test_engine_bench_route(monkeypatch):
 def test_engine_bench_route_engine_down(monkeypatch):
     pytest.importorskip("fastapi")
     from fastapi.testclient import TestClient
-    from vllm.sndr_core.product_api.http_app import create_app
+    from sndr.product_api.legacy.http_app import create_app
 
     def boom(payload, host=None):
         raise OSError("Connection refused")

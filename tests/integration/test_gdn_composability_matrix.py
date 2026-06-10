@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.utils.gdn_composability import (
+from sndr.utils.gdn_composability import (
     GdnSite,
     all_gdn_patches,
     find_composability_warnings,

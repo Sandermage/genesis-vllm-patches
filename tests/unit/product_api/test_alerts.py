@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """Tests for the hardware alert rules + deduplicating store."""
-from vllm.sndr_core.product_api import alerts as A
+from sndr.product_api.legacy import alerts as A
 
 
 def _tele(**gpu):

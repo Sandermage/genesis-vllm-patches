@@ -248,7 +248,7 @@ class TestScopeFilter:
             audit_mod._EXCLUDED_SUBTREES_INCLUDE_PRIVATE,
         ):
             assert audit_mod._in_scope(
-                "vllm/sndr_core/integrations/_retired/pn108.py",
+                "sndr/engines/vllm/patches/_retired/pn108.py",
                 excl,
             ) is False
 

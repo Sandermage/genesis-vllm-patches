@@ -3,13 +3,13 @@
 """PN95 tier_configs audit gate — Phase 10.5 D.2 (2026-06-01).
 
 Validates every YAML file under
-``vllm/sndr_core/cache/pn95/tier_configs/`` against the
+``sndr/cache/pn95/tier_configs/`` against the
 ``_PN95TierConfigAdapter`` shape that ``make_tier_manager`` consumes.
 
 Background: the PN95 architectural unblock (V1 sunset cascade
 2026-06-01) moved tier_specs out of the V1 monolithic ModelConfig
 into PN95-internal YAMLs. The loader
-(``vllm.sndr_core.cache.pn95.tier_config_loader.load_by_key``) already
+(``sndr.cache.pn95.tier_config_loader.load_by_key``) already
 raises ``ValueError`` on schema mismatch at load time, but until this
 gate landed there was no CI-friendly way to verify the whole catalog
 loads cleanly without dragging a torch/vllm import chain. This gate
@@ -47,7 +47,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-TIER_DIR = REPO_ROOT / "vllm" / "sndr_core" / "cache" / "pn95" / "tier_configs"
+TIER_DIR = REPO_ROOT / "sndr" / "cache" / "pn95" / "tier_configs"
 
 KNOWN_DEVICES = {"gpu", "cpu", "disk"}
 
@@ -91,7 +91,7 @@ def audit() -> list[_Finding]:
     # Import the loader lazily so a torch-free CI gate still works.
     sys.path.insert(0, str(REPO_ROOT))
     try:
-        from vllm.sndr_core.cache.pn95.tier_config_loader import (
+        from sndr.cache.pn95.tier_config_loader import (
             load_by_key, known_keys,
         )
     finally:

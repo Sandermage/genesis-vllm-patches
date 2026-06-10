@@ -21,7 +21,7 @@ from __future__ import annotations
 
 # Importing this also exercises module-load — if we accidentally introduce
 # a cycle in the static registry, the test will surface it via fixture.
-from vllm.sndr_core import dispatcher
+from sndr import dispatcher
 
 
 # ─── Static registry validation ─────────────────────────────────────────────
@@ -231,7 +231,7 @@ class TestPerEntryContract:
         fake_registry = {
             "P_BAD": {
                 "env_flag": "GENESIS_ENABLE_BAD",
-                "apply_module": "vllm.sndr_core.does.not.exist",
+                "apply_module": "sndr.does.not.exist",
                 "default_on": False,
             },
         }

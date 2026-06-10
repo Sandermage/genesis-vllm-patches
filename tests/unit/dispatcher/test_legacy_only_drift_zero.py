@@ -49,7 +49,7 @@ def test_legacy_only_drift_zero():
     EITHER a matching spec apply_module OR a policy-tagged spec
     informational entry (GENESIS_LEGACY_* env)."""
     audit = _import_audit_module()
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+    from sndr.dispatcher.registry import PATCH_REGISTRY
     legacy = audit._enumerate_legacy_path()
     spec = audit._enumerate_spec_driven_path(PATCH_REGISTRY)
     diff = audit._diff_matrices(legacy, spec, PATCH_REGISTRY)
@@ -72,7 +72,7 @@ def test_v12_0_safe_flag_true():
     for the dict-insertion-order vs decorator-call-order analysis).
     """
     audit = _import_audit_module()
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+    from sndr.dispatcher.registry import PATCH_REGISTRY
     legacy = audit._enumerate_legacy_path()
     spec = audit._enumerate_spec_driven_path(PATCH_REGISTRY)
     diff = audit._diff_matrices(legacy, spec, PATCH_REGISTRY)
@@ -83,18 +83,22 @@ def test_v12_0_safe_flag_true():
 
 
 def test_intentional_legacy_baseline():
-    """Document the v11.3.0 intentional legacy baseline. Any NEW entry
+    """Document the intentional legacy baseline. Any NEW entry
     here means a NEW patch was registered legacy-only — confirm it's
     intentional and update this baseline."""
     audit = _import_audit_module()
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+    from sndr.dispatcher.registry import PATCH_REGISTRY
     legacy = audit._enumerate_legacy_path()
     spec = audit._enumerate_spec_driven_path(PATCH_REGISTRY)
     diff = audit._diff_matrices(legacy, spec, PATCH_REGISTRY)
-    # Baseline expected: 7 intentional legacy entries
-    # (P1, P17, P18b, P20, P23, P29, P32)
+    # Baseline at v11.3.0 was 7 entries (P1, P17, P18b, P20, P23, P29,
+    # P32). The 2026-06-04 fix-wire session shipped real patch files
+    # for three of them (P18B_TEXT / P23_WIRE / P29_HEAL), so the
+    # spec path now auto-derives apply_module for P18b / P23 / P29 —
+    # they migrated out of legacy-only into BOTH-paths coverage (the
+    # "removal = migrated, good" case below). 4 remain.
     intentional = set(diff["legacy_only_intentional_ids"])
-    expected = {"P1", "P17", "P18b", "P20", "P23", "P29", "P32"}
+    expected = {"P1", "P17", "P20", "P32"}
     assert intentional == expected, (
         f"Intentional legacy set changed:\n"
         f"  added: {sorted(intentional - expected)}\n"
@@ -116,13 +120,13 @@ def test_spec_only_truly_orphan_baseline():
 
     Either:
       (a) add a legacy `@register_patch` hook in
-          `vllm/sndr_core/apply/_per_patch_dispatch.py`, or
+          `sndr/apply/_per_patch_dispatch.py`, or
       (b) add a manual orchestration call in
-          `vllm/sndr_core/__init__.py`, or
+          `sndr/plugin.py`, or
       (c) accept the orphan state — document in this baseline so a
           NEW orphan addition (not part of baseline) triggers review.
 
-    Baseline at v11.3.0 (BUG #7 audit, commit pending):
+    Baseline at v11.3.0 (BUG #7 audit):
       - PN288: tool finish_reason override (not in any production YAML)
       - PN289: §6.H10 Prometheus process_info gauge (BUG #4 just-fixed
                tier=community; not in any production YAML)
@@ -131,13 +135,44 @@ def test_spec_only_truly_orphan_baseline():
         DFlash YAMLs, but the same env enables PN40 omnibus which
         has a legacy hook; classifier currently routes through there
         too — BUG #8 audit follow-up).
+
+    v12 baseline expansion (accepted orphan state, option (c)):
+      - The v11 import-time manual orchestration block
+        (`vllm/sndr_core/__init__.py`, ~41 env-gated `mod.apply()`
+        calls) was archived in commit 6bf9c04c
+        (`sndr_private/archive/v11_vllm_sndr_core_shims/`) and NOT
+        carried into `sndr/`. Of its modules, only G4_19/G4_19b kept
+        manual orchestration (selective apply in `sndr/plugin.py`);
+        the rest now apply ONLY via SNDR_APPLY_VIA_SPECS=1:
+        G4_31, G4_32, G4_60A-L Gemma4 TQ overlays, G4_67, G4_69,
+        G4_71-76 drafter patches, G4_78 (retired bridge), and the
+        spec-decode probes PN262/PN262B/PN271. All are env-gated
+        diagnostics/Gemma4-specific patches absent from production
+        Qwen YAMLs — silent no-op risk accepted until they get spec
+        hooks or retirement.
+      - PN353B, PN357: June 2026 vendor-wave patches registered
+        spec-only from birth (no legacy hook by design — they ride
+        the v12 spec-driven path).
     """
     audit = _import_audit_module()
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+    from sndr.dispatcher.registry import PATCH_REGISTRY
     legacy = audit._enumerate_legacy_path()
     spec = audit._enumerate_spec_driven_path(PATCH_REGISTRY)
     diff = audit._diff_matrices(legacy, spec, PATCH_REGISTRY)
-    expected = {"PN288", "PN289", "PN40-classifier"}
+    expected = {
+        # v11.3.0 baseline
+        "PN288", "PN289", "PN40-classifier",
+        # v12 — ex-manual-orchestration modules (archived third path)
+        "G4_31", "G4_32",
+        "G4_60A", "G4_60B", "G4_60C", "G4_60D", "G4_60E",
+        "G4_60G", "G4_60H", "G4_60K", "G4_60L",
+        "G4_67", "G4_69",
+        "G4_71", "G4_71B", "G4_72", "G4_73", "G4_74", "G4_75",
+        "G4_76", "G4_78",
+        "PN262", "PN262B", "PN271",
+        # June 2026 vendor wave — spec-only by design
+        "PN353B", "PN357",
+    }
     actual = set(diff["spec_only_truly_orphan_ids"])
     new_orphans = sorted(actual - expected)
     fixed_orphans = sorted(expected - actual)
@@ -166,7 +201,7 @@ def test_no_apply_module_entry_must_have_legacy_env_or_known_lifecycle():
     - lifecycle ∈ {retired, research, coordinator}: each has its own
       semantics for apply_module=None handling.
     """
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+    from sndr.dispatcher.registry import PATCH_REGISTRY
     EXEMPT_STATUS = {"marker_only", "placeholder", "scaffold"}
     violations: list[tuple[str, str, str]] = []
     for pid, meta in PATCH_REGISTRY.items():

@@ -34,7 +34,7 @@ if str(REPO_ROOT) not in sys.path:
 
 def _load() -> tuple[str, frozenset[str]]:
     try:
-        from vllm.sndr_core.license import (
+        from sndr.license import (
             _TRUST_ANCHOR_PUBKEY_B64URL as anchor,
             _DEV_ANCHOR_FINGERPRINT_FORBIDDEN as forbidden,
         )

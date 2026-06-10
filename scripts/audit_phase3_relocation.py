@@ -63,11 +63,11 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # audit runs from a clean shell (no install, no PYTHONPATH set).
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
-INTEGRATIONS = REPO_ROOT / "vllm" / "sndr_core" / "integrations"
+INTEGRATIONS = REPO_ROOT / "sndr" / "engines" / "vllm" / "patches"
 GEMMA4_DIR = INTEGRATIONS / "gemma4"
-REGISTRY_FILE = REPO_ROOT / "vllm" / "sndr_core" / "dispatcher" / "registry.py"
+REGISTRY_FILE = REPO_ROOT / "sndr" / "dispatcher" / "registry.py"
 STRUCTURED_PROFILE = (
-    REPO_ROOT / "vllm" / "sndr_core" / "model_configs" / "builtin"
+    REPO_ROOT / "sndr" / "model_configs" / "builtin"
     / "profile" / "gemma4-31b-tq-mtp-structured-k4.yaml"
 )
 
@@ -103,7 +103,7 @@ def _is_shim(path: Path) -> bool:
 def _shim_target(path: Path) -> str | None:
     """Extract the canonical target path that a shim redirects to.
 
-    Pattern: ``from vllm.sndr_core.integrations.<family>.<module> import *``.
+    Pattern: ``from sndr.engines.vllm.patches.<family>.<module> import *``.
     Returns the dotted module path, or None if no redirect found.
     """
     try:
@@ -201,7 +201,7 @@ def check_r1_gemma_whitelist() -> list[str]:
 
 def _load_registry() -> dict[str, dict[str, object]]:
     """Import PATCH_REGISTRY without triggering torch / vllm imports."""
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY  # noqa: WPS433
+    from sndr.dispatcher.registry import PATCH_REGISTRY  # noqa: WPS433
     return PATCH_REGISTRY
 
 
@@ -220,7 +220,7 @@ def check_r2_canonical_apply_path() -> list[str]:
         # Convert dotted module to repo path.
         rel_parts = apply_module.split(".")
         # Expect: vllm.sndr_core.integrations.<family-or-deeper>.<module>
-        if rel_parts[:3] != ["vllm", "sndr_core", "integrations"]:
+        if rel_parts[:4] != ["sndr", "engines", "vllm", "patches"]:
             continue
         file_path = REPO_ROOT.joinpath(*rel_parts).with_suffix(".py")
         if not file_path.exists():

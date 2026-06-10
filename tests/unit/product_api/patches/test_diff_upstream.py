@@ -2,8 +2,8 @@
 """Tests for ``product_api.patches.diff_upstream`` — M.6.1."""
 from __future__ import annotations
 
-from vllm.sndr_core.product_api.patches import diff_upstream
-from vllm.sndr_core.product_api.patches.types import DiffReport
+from sndr.product_api.legacy.patches import diff_upstream
+from sndr.product_api.legacy.patches.types import DiffReport
 
 
 class TestDiffUpstream:

@@ -21,11 +21,11 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-# vllm/_genesis/patches/apply_all.py (now a back-compat shim) to
-# vllm/sndr_core/apply/_per_patch_dispatch.py (parking lot until
-# Stage 6 subsystem reorg). Test parses the new canonical home.
+# vllm/_genesis/patches/apply_all.py (now a back-compat shim) moved to
+# sndr/apply/_per_patch_dispatch.py in the v12 refactor
+# (vllm/sndr_core → sndr). Test parses the new canonical home.
 APPLY_ALL = (
-    REPO_ROOT / "vllm" / "sndr_core" / "apply" / "_per_patch_dispatch.py"
+    REPO_ROOT / "sndr" / "apply" / "_per_patch_dispatch.py"
 )
 
 
@@ -156,6 +156,20 @@ _KNOWN_REGISTRY_ONLY = frozenset({
     "PN118_V2_MD5_TURBOQUANT_ATTN",
     "PN79_V2_MD5_CHUNK",
     "PN79_V2_MD5_CHUNK_DELTA_H",
+    # Fix-wire companions with compound IDs (2026-06-04/08) — each HAS a
+    # real apply function in _per_patch_dispatch.py, but the dispatcher-
+    # sync regex captures only the numeric base, so the compound registry
+    # ID looks registry-only (same PN16_V6 precedent above):
+    #   P18B_TEXT → apply_patch_18b_text_kernel_literals (regex → "P18b")
+    #   P23_WIRE  → apply_patch_23_wire_marlin_fp32_reduce (regex → "P23")
+    #   P29_HEAL  → apply_patch_29_heal_qwen3coder_index (regex → "P29")
+    "P18B_TEXT", "P23_WIRE", "P29_HEAL",
+    # PN353B (TQ prefill CUDA-graph capture safety, vllm#43747 backport)
+    # and PN357 (remapped greedy draft selection, vllm#43349 vendor) —
+    # dispatcher overlay-loader pattern (`apply_module` points at
+    # patches/<family>/<id>.py with its own apply()), same precedent as
+    # the PN104+ block above. No apply_patch_* wiring by design.
+    "PN353B", "PN357",
     # G4_T1 (Gemma4 tool-parser PR #42006 vendor marker) — operator-
     # side bind-mount overlay; no apply_patch_* wiring by design
     # (registered only for `genesis explain` + audit visibility of the
@@ -195,7 +209,7 @@ def _extract_apply_patch_ids() -> set[str]:
 def _load_registry_ids() -> set[str]:
     """Load PATCH_REGISTRY from dispatcher.py without importing the
     full vllm package (so the test runs in CI without GPU)."""
-    from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+    from sndr.dispatcher import PATCH_REGISTRY
     return set(PATCH_REGISTRY.keys())
 
 

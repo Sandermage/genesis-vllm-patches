@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.detection.gpu_class_map import classify_gpu
+from sndr.detection.gpu_class_map import classify_gpu
 
 
 @pytest.mark.parametrize("name,expected", [

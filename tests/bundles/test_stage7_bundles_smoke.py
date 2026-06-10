@@ -35,7 +35,7 @@ BUNDLES: list[tuple[str, str, str]] = [
 @pytest.mark.parametrize("name,_flag,_tier", BUNDLES, ids=[b[0] for b in BUNDLES])
 def test_bundle_imports_cleanly(name, _flag, _tier):
     """Every bundle module must import without error."""
-    mod = __import__(f"vllm.sndr_core.bundles.{name}", fromlist=["apply"])
+    mod = __import__(f"sndr.bundles.{name}", fromlist=["apply"])
     assert callable(mod.apply), f"bundle {name}.apply must be callable"
 
 
@@ -48,7 +48,7 @@ def test_bundle_skips_when_disabled(name, flag, _tier, monkeypatch):
     monkeypatch.delenv("SNDR_ENABLE_TIER_OVERRIDE", raising=False)
     monkeypatch.delenv("GENESIS_ENABLE_TIER_OVERRIDE", raising=False)
 
-    mod = __import__(f"vllm.sndr_core.bundles.{name}", fromlist=["apply"])
+    mod = __import__(f"sndr.bundles.{name}", fromlist=["apply"])
     status, reason = mod.apply()
     assert status == "skipped", f"{name}: expected skip, got {status}: {reason}"
     assert flag in reason or "disabled" in reason.lower(), (
@@ -64,7 +64,7 @@ def test_engine_bundle_tier_override_skips(name, flag, _tier, monkeypatch):
     monkeypatch.setenv(f"SNDR_ENABLE_{flag}", "1")
     monkeypatch.setenv("SNDR_ENABLE_TIER_OVERRIDE", "1")
 
-    mod = __import__(f"vllm.sndr_core.bundles.{name}", fromlist=["apply"])
+    mod = __import__(f"sndr.bundles.{name}", fromlist=["apply"])
     status, reason = mod.apply()
     assert status == "skipped", f"engine bundle should skip under TIER_OVERRIDE"
     assert "TIER_OVERRIDE" in reason or "community-only" in reason
@@ -83,7 +83,7 @@ def test_engine_bundle_skips_without_sndr_engine(name, flag, _tier, monkeypatch)
     saved = sys.modules.pop("vllm.sndr_engine", None)
     sys.modules["vllm.sndr_engine"] = None  # forces ImportError on import
     try:
-        mod = __import__(f"vllm.sndr_core.bundles.{name}", fromlist=["apply"])
+        mod = __import__(f"sndr.bundles.{name}", fromlist=["apply"])
         status, reason = mod.apply()
         assert status == "skipped"
         assert "sndr_engine not installed" in reason or "tier=engine" in reason
@@ -97,7 +97,7 @@ def test_engine_bundle_skips_without_sndr_engine(name, flag, _tier, monkeypatch)
 
 def test_bundle_registry_in_flags():
     """Every bundle's umbrella flag must be declared on Flags class."""
-    from vllm.sndr_core.env import known_flags
+    from sndr.env import known_flags
     declared = set(known_flags())
     for name, flag, _tier in BUNDLES:
         assert flag in declared, (
@@ -108,8 +108,8 @@ def test_bundle_registry_in_flags():
 
 def test_run_bundle_helper_handles_empty_factory_list():
     """Edge case: empty bundle returns proper skip."""
-    from vllm.sndr_core.bundles._common import run_bundle
-    from vllm.sndr_core.env import Flags
+    from sndr.bundles._common import run_bundle
+    from sndr.env import Flags
     import os
 
     os.environ["SNDR_ENABLE_BUNDLE_TOOL_PARSING_QWEN3CODER"] = "1"

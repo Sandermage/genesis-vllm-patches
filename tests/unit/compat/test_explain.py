@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Tests for vllm.sndr_core.compat.explain — `genesis explain <patch_id>` CLI.
+"""Tests for sndr.compat.explain — `genesis explain <patch_id>` CLI.
 
 The `explain` tool produces a structured per-patch report (dict for
 machine consumers, formatted text for humans) covering:
@@ -79,7 +79,7 @@ _FAKE_REGISTRY = {
 @pytest.fixture
 def fake_registry(monkeypatch):
     """Inject a controlled registry for deterministic tests."""
-    from vllm.sndr_core import dispatcher
+    from sndr import dispatcher
     monkeypatch.setattr(dispatcher, "PATCH_REGISTRY", _FAKE_REGISTRY)
     yield _FAKE_REGISTRY
 
@@ -89,13 +89,13 @@ def fake_registry(monkeypatch):
 
 class TestExplainShape:
     def test_returns_dict(self, fake_registry):
-        from vllm.sndr_core.compat.explain import explain_patch
+        from sndr.compat.explain import explain_patch
         result = explain_patch("PN_TEST_STABLE")
         assert isinstance(result, dict)
         assert result["patch_id"] == "PN_TEST_STABLE"
 
     def test_includes_identity_fields(self, fake_registry):
-        from vllm.sndr_core.compat.explain import explain_patch
+        from sndr.compat.explain import explain_patch
         r = explain_patch("PN_TEST_STABLE")
         assert r["title"] == "Test patch — stable lifecycle"
         assert r["env_flag"] == "GENESIS_ENABLE_PN_TEST_STABLE"
@@ -103,39 +103,39 @@ class TestExplainShape:
         assert r["category"] == "kernel_safety"
 
     def test_includes_lifecycle_section(self, fake_registry):
-        from vllm.sndr_core.compat.explain import explain_patch
+        from sndr.compat.explain import explain_patch
         r = explain_patch("PN_TEST_STABLE")
         assert "lifecycle" in r
         assert r["lifecycle"]["state"] == "stable"
 
     def test_lifecycle_includes_superseded_by_for_deprecated(self, fake_registry):
-        from vllm.sndr_core.compat.explain import explain_patch
+        from sndr.compat.explain import explain_patch
         r = explain_patch("PN_TEST_DEPRECATED")
         assert r["lifecycle"]["state"] == "deprecated"
         assert "PN_TEST_STABLE" in r["lifecycle"]["superseded_by"]
         assert r["lifecycle"]["removal_planned"] == "v8.0"
 
     def test_includes_dependencies_section(self, fake_registry):
-        from vllm.sndr_core.compat.explain import explain_patch
+        from sndr.compat.explain import explain_patch
         r = explain_patch("PN_TEST_COMPOUND")
         assert r["dependencies"]["requires"] == ["PN_TEST_STABLE"]
         assert r["dependencies"]["conflicts_with"] == ["PN_TEST_DEPRECATED"]
 
     def test_no_dependencies_returns_empty_lists(self, fake_registry):
-        from vllm.sndr_core.compat.explain import explain_patch
+        from sndr.compat.explain import explain_patch
         r = explain_patch("PN_TEST_STABLE")
         assert r["dependencies"]["requires"] == []
         assert r["dependencies"]["conflicts_with"] == []
 
     def test_includes_applies_to_section(self, fake_registry):
-        from vllm.sndr_core.compat.explain import explain_patch
+        from sndr.compat.explain import explain_patch
         r = explain_patch("PN_TEST_STABLE")
         assert "applies_to" in r
         # Either declares a rule, or notes none
         assert "rule" in r["applies_to"]
 
     def test_compound_applies_to_explained_via_predicates(self, fake_registry):
-        from vllm.sndr_core.compat.explain import explain_patch
+        from sndr.compat.explain import explain_patch
         r = explain_patch("PN_TEST_COMPOUND")
         # Should call predicates.explain → returns list of indented lines
         lines = r["applies_to"]["explanation"]
@@ -145,7 +145,7 @@ class TestExplainShape:
         assert "any_of" in joined
 
     def test_includes_decision_section(self, fake_registry):
-        from vllm.sndr_core.compat.explain import explain_patch
+        from sndr.compat.explain import explain_patch
         r = explain_patch("PN_TEST_STABLE")
         assert "decision" in r
         assert "applied" in r["decision"]
@@ -155,7 +155,7 @@ class TestExplainShape:
 
 class TestExplainErrorPaths:
     def test_unknown_patch_id_raises_or_returns_error(self, fake_registry):
-        from vllm.sndr_core.compat.explain import explain_patch
+        from sndr.compat.explain import explain_patch
         # Either raise KeyError or return {"error": ...} — pick one
         try:
             r = explain_patch("PN_NONEXISTENT")
@@ -165,7 +165,7 @@ class TestExplainErrorPaths:
             assert "PN_NONEXISTENT" in str(e)
 
     def test_empty_patch_id_handled(self, fake_registry):
-        from vllm.sndr_core.compat.explain import explain_patch
+        from sndr.compat.explain import explain_patch
         try:
             r = explain_patch("")
             assert "error" in r
@@ -178,12 +178,12 @@ class TestExplainErrorPaths:
 
 class TestUpstreamTracking:
     def test_includes_upstream_pr_field(self, fake_registry):
-        from vllm.sndr_core.compat.explain import explain_patch
+        from sndr.compat.explain import explain_patch
         r = explain_patch("PN_TEST_COMPOUND")
         assert r["upstream"]["pr_number"] == 99999
 
     def test_no_upstream_pr_returns_None(self, fake_registry):
-        from vllm.sndr_core.compat.explain import explain_patch
+        from sndr.compat.explain import explain_patch
         r = explain_patch("PN_TEST_STABLE")
         assert r["upstream"]["pr_number"] is None
 
@@ -193,7 +193,7 @@ class TestUpstreamTracking:
         whose `affects_patch` field mentions 'PN14' as a cross-reference.
         explain_patch must prefer the EXACT PR-number match (40074) over
         the substring-match in affects_patch."""
-        from vllm.sndr_core.compat.explain import explain_patch
+        from sndr.compat.explain import explain_patch
         r = explain_patch("PN14")
         # Marker must be PN14's actual symbol, not the JartX cross-ref
         assert r["upstream"]["marker"] == "safe_page_idx", (
@@ -210,7 +210,7 @@ class TestRealRegistry:
     def test_PN14_explain_produces_valid_output(self):
         """Live test against the actual PATCH_REGISTRY — PN14 should
         produce a coherent explain report including the upstream PR."""
-        from vllm.sndr_core.compat.explain import explain_patch
+        from sndr.compat.explain import explain_patch
         r = explain_patch("PN14")
         assert r["patch_id"] == "PN14"
         assert "PN14" in r["title"] or "TQ decode" in r["title"]
@@ -219,13 +219,13 @@ class TestRealRegistry:
 
     def test_P67_explain_includes_conflicts(self):
         """P67 declares conflicts_with: ['P65'] in real registry."""
-        from vllm.sndr_core.compat.explain import explain_patch
+        from sndr.compat.explain import explain_patch
         r = explain_patch("P67")
         assert "P65" in r["dependencies"]["conflicts_with"]
 
     def test_P85_explain_includes_requires(self):
         """P85 declares requires_patches: ['P84']."""
-        from vllm.sndr_core.compat.explain import explain_patch
+        from sndr.compat.explain import explain_patch
         r = explain_patch("P85")
         assert "P84" in r["dependencies"]["requires"]
 
@@ -235,14 +235,14 @@ class TestRealRegistry:
 
 class TestTextFormatter:
     def test_format_produces_lines(self, fake_registry):
-        from vllm.sndr_core.compat.explain import explain_patch, format_explain_text
+        from sndr.compat.explain import explain_patch, format_explain_text
         r = explain_patch("PN_TEST_STABLE")
         lines = format_explain_text(r)
         assert isinstance(lines, list)
         assert len(lines) > 5
 
     def test_format_contains_section_headers(self, fake_registry):
-        from vllm.sndr_core.compat.explain import explain_patch, format_explain_text
+        from sndr.compat.explain import explain_patch, format_explain_text
         r = explain_patch("PN_TEST_STABLE")
         joined = "\n".join(format_explain_text(r))
         # Section headers
@@ -251,7 +251,7 @@ class TestTextFormatter:
         assert "Decision" in joined or "decision" in joined
 
     def test_format_handles_error_dict(self, fake_registry):
-        from vllm.sndr_core.compat.explain import format_explain_text
+        from sndr.compat.explain import format_explain_text
         lines = format_explain_text({"error": "unknown patch_id 'X'"})
         joined = "\n".join(lines)
         assert "X" in joined
@@ -263,19 +263,19 @@ class TestTextFormatter:
 
 class TestCLISmoke:
     def test_main_returns_int(self):
-        from vllm.sndr_core.compat.explain import main
+        from sndr.compat.explain import main
         # Real registry entry
         rc = main(["PN14"])
         assert isinstance(rc, int)
         assert rc == 0
 
     def test_main_unknown_patch_returns_nonzero(self):
-        from vllm.sndr_core.compat.explain import main
+        from sndr.compat.explain import main
         rc = main(["PN_NONEXISTENT_XYZ"])
         assert rc != 0
 
     def test_main_json_mode(self, capsys):
-        from vllm.sndr_core.compat.explain import main
+        from sndr.compat.explain import main
         main(["PN14", "--json"])
         captured = capsys.readouterr()
         # Verify output is valid JSON
@@ -283,6 +283,6 @@ class TestCLISmoke:
         assert parsed["patch_id"] == "PN14"
 
     def test_main_no_args_prints_usage(self, capsys):
-        from vllm.sndr_core.compat.explain import main
+        from sndr.compat.explain import main
         with pytest.raises(SystemExit):
             main([])

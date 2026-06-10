@@ -20,7 +20,7 @@ import torch
 
 @pytest.fixture(autouse=True)
 def _reset_manager():
-    from vllm.sndr_core.kernels.fla_kkt_buffer import FlaKktBufferManager
+    from sndr.engines.vllm.kernels_legacy.fla_kkt_buffer import FlaKktBufferManager
     FlaKktBufferManager.clear_for_tests()
     yield
     FlaKktBufferManager.clear_for_tests()
@@ -28,7 +28,7 @@ def _reset_manager():
 
 @pytest.fixture
 def cuda_guard(monkeypatch):
-    from vllm.sndr_core.detection import guards
+    from sndr.engines.vllm.detection import guards
     monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: True)
     monkeypatch.setattr(guards, "is_sm_at_least",
                         lambda major, minor=0: True)
@@ -37,7 +37,7 @@ def cuda_guard(monkeypatch):
 
 class TestP39aPoolShape:
     def test_shape_matches_request(self, cuda_guard):
-        from vllm.sndr_core.kernels.fla_kkt_buffer import FlaKktBufferManager
+        from sndr.engines.vllm.kernels_legacy.fla_kkt_buffer import FlaKktBufferManager
         pool = FlaKktBufferManager.get_or_create_pool(
             B_max=1, T_max=4096, H=16, BT=64,
             device="cpu", dtype=torch.float32,
@@ -46,7 +46,7 @@ class TestP39aPoolShape:
         assert pool.dtype == torch.float32
 
     def test_dtype_fp32_preserved(self, cuda_guard):
-        from vllm.sndr_core.kernels.fla_kkt_buffer import FlaKktBufferManager
+        from sndr.engines.vllm.kernels_legacy.fla_kkt_buffer import FlaKktBufferManager
         pool = FlaKktBufferManager.get_or_create_pool(
             B_max=1, T_max=1024, H=4, BT=64,
             device="cpu", dtype=torch.float32,
@@ -54,7 +54,7 @@ class TestP39aPoolShape:
         assert pool.dtype == torch.float32
 
     def test_dtype_fp16_preserved(self, cuda_guard):
-        from vllm.sndr_core.kernels.fla_kkt_buffer import FlaKktBufferManager
+        from sndr.engines.vllm.kernels_legacy.fla_kkt_buffer import FlaKktBufferManager
         pool = FlaKktBufferManager.get_or_create_pool(
             B_max=1, T_max=1024, H=4, BT=64,
             device="cpu", dtype=torch.float16,
@@ -64,7 +64,7 @@ class TestP39aPoolShape:
 
 class TestP39aPointerStability:
     def test_repeat_acquire_same_pool(self, cuda_guard):
-        from vllm.sndr_core.kernels.fla_kkt_buffer import FlaKktBufferManager
+        from sndr.engines.vllm.kernels_legacy.fla_kkt_buffer import FlaKktBufferManager
         a = FlaKktBufferManager.get_or_create_pool(
             B_max=1, T_max=4096, H=16, BT=64,
             device="cpu", dtype=torch.float32,
@@ -76,7 +76,7 @@ class TestP39aPointerStability:
         assert a.data_ptr() == b.data_ptr()
 
     def test_acquire_returns_view_of_pool(self, cuda_guard):
-        from vllm.sndr_core.kernels.fla_kkt_buffer import FlaKktBufferManager
+        from sndr.engines.vllm.kernels_legacy.fla_kkt_buffer import FlaKktBufferManager
         a_view = FlaKktBufferManager.acquire(
             B=1, T=512, H=16, BT=64,
             device=torch.device("cpu"), dtype=torch.float32,
@@ -91,7 +91,7 @@ class TestP39aPointerStability:
         assert a_view.data_ptr() == pool.data_ptr()
 
     def test_different_H_different_pools(self, cuda_guard):
-        from vllm.sndr_core.kernels.fla_kkt_buffer import FlaKktBufferManager
+        from sndr.engines.vllm.kernels_legacy.fla_kkt_buffer import FlaKktBufferManager
         a = FlaKktBufferManager.acquire(
             B=1, T=64, H=8, BT=64,
             device=torch.device("cpu"), dtype=torch.float32,
@@ -108,7 +108,7 @@ class TestP39aPointerStability:
 class TestP39aAutoGrow:
     def test_T_larger_auto_grows_pool(self, cuda_guard):
         """Pool grows on larger T instead of falling back to fresh alloc."""
-        from vllm.sndr_core.kernels.fla_kkt_buffer import FlaKktBufferManager
+        from sndr.engines.vllm.kernels_legacy.fla_kkt_buffer import FlaKktBufferManager
         small = FlaKktBufferManager.acquire(
             B=1, T=64, H=4, BT=64,
             device=torch.device("cpu"), dtype=torch.float32,
@@ -132,7 +132,7 @@ class TestP39aAutoGrow:
 
     def test_B_larger_auto_grows_pool(self, cuda_guard):
         """Larger B also triggers in-place grow rather than fallback."""
-        from vllm.sndr_core.kernels.fla_kkt_buffer import FlaKktBufferManager
+        from sndr.engines.vllm.kernels_legacy.fla_kkt_buffer import FlaKktBufferManager
         first = FlaKktBufferManager.acquire(
             B=1, T=64, H=4, BT=64,
             device=torch.device("cpu"), dtype=torch.float32,
@@ -152,8 +152,8 @@ class TestP39aAutoGrow:
 
 class TestP39aPlatformGuard:
     def test_non_nvidia_returns_none(self, monkeypatch):
-        from vllm.sndr_core.kernels.fla_kkt_buffer import FlaKktBufferManager
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.kernels_legacy.fla_kkt_buffer import FlaKktBufferManager
+        from sndr.engines.vllm.detection import guards
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: False)
         pool = FlaKktBufferManager.get_or_create_pool(
             B_max=1, T_max=64, H=4, BT=64,
@@ -162,8 +162,8 @@ class TestP39aPlatformGuard:
         assert pool is None
 
     def test_non_nvidia_acquire_fresh_alloc(self, monkeypatch):
-        from vllm.sndr_core.kernels.fla_kkt_buffer import FlaKktBufferManager
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.kernels_legacy.fla_kkt_buffer import FlaKktBufferManager
+        from sndr.engines.vllm.detection import guards
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: False)
         a = FlaKktBufferManager.acquire(
             B=1, T=64, H=4, BT=64,
@@ -177,7 +177,7 @@ class TestP39aPlatformGuard:
 
 class TestP39aRegistry:
     def test_registry_reports_bytes(self, cuda_guard):
-        from vllm.sndr_core.kernels.fla_kkt_buffer import FlaKktBufferManager
+        from sndr.engines.vllm.kernels_legacy.fla_kkt_buffer import FlaKktBufferManager
         FlaKktBufferManager.get_or_create_pool(
             B_max=1, T_max=4096, H=16, BT=64,
             device="cpu", dtype=torch.float32,
@@ -188,7 +188,7 @@ class TestP39aRegistry:
         assert "MiB" in info["total_human"] or "KiB" in info["total_human"]
 
     def test_clear_for_tests(self, cuda_guard):
-        from vllm.sndr_core.kernels.fla_kkt_buffer import FlaKktBufferManager
+        from sndr.engines.vllm.kernels_legacy.fla_kkt_buffer import FlaKktBufferManager
         FlaKktBufferManager.get_or_create_pool(
             B_max=1, T_max=128, H=4, BT=64,
             device="cpu", dtype=torch.float32,
@@ -204,12 +204,12 @@ class TestP39aWiringSurface:
         # is what should_apply() actually calls. Monkey-patching the
         # original `vllm._genesis.guards.is_nvidia_cuda` would NOT
         # propagate (local binding already captured the original).
-        from vllm.sndr_core.integrations.attention.gdn import p39a_fla_kkt_buffer as p39a
+        from sndr.engines.vllm.patches.attention.gdn import p39a_fla_kkt_buffer as p39a
         monkeypatch.setattr(p39a, "is_nvidia_cuda", lambda: False)
         assert p39a.should_apply() is False
 
     def test_apply_skips_on_non_nvidia(self, monkeypatch):
-        from vllm.sndr_core.integrations.attention.gdn import p39a_fla_kkt_buffer as p39a
+        from sndr.engines.vllm.patches.attention.gdn import p39a_fla_kkt_buffer as p39a
         monkeypatch.setattr(p39a, "is_nvidia_cuda", lambda: False)
         status, reason = p39a.apply()
         assert status == "skipped"
@@ -217,8 +217,8 @@ class TestP39aWiringSurface:
 
     def test_apply_skips_when_module_missing(self, monkeypatch):
         """FLA module isn't installed in unit-test env — expected skip."""
-        from vllm.sndr_core.integrations.attention.gdn import p39a_fla_kkt_buffer as p39a
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.patches.attention.gdn import p39a_fla_kkt_buffer as p39a
+        from sndr.engines.vllm.detection import guards
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(guards, "is_sm_at_least",
                             lambda major, minor=0: True)
@@ -227,7 +227,7 @@ class TestP39aWiringSurface:
         assert status in ("skipped", "applied")
 
     def test_public_surface_present(self):
-        from vllm.sndr_core.integrations.attention.gdn import p39a_fla_kkt_buffer as p39a
+        from sndr.engines.vllm.patches.attention.gdn import p39a_fla_kkt_buffer as p39a
         assert callable(p39a.apply)
         assert callable(p39a.revert)
         assert callable(p39a.is_applied)

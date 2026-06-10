@@ -89,7 +89,7 @@ def test_replacement_preserves_original_comment():
 
 def test_apply_idempotent_on_synthetic(tmp_path: Path, monkeypatch):
     """Apply once, then apply again; second call should be a no-op."""
-    from vllm.sndr_core.core.text_patch import (
+    from sndr.kernel.text_patch import (
         TextPatch, TextPatcher, TextPatchResult,
     )
     anchor_old, anchor_new, marker = _load_anchors()
@@ -120,7 +120,7 @@ def test_apply_idempotent_on_synthetic(tmp_path: Path, monkeypatch):
 
 def test_env_flag_gates_apply(monkeypatch):
     """When env flag is unset, dispatcher should-apply must return False."""
-    from vllm.sndr_core.dispatcher import should_apply
+    from sndr.dispatcher import should_apply
     monkeypatch.delenv(
         "GENESIS_ENABLE_PN51_QWEN3_STREAMING_THINKING_DISABLED",
         raising=False,
@@ -132,7 +132,7 @@ def test_env_flag_gates_apply(monkeypatch):
 
 
 def test_env_flag_enables_apply(monkeypatch):
-    from vllm.sndr_core.dispatcher import should_apply
+    from sndr.dispatcher import should_apply
     monkeypatch.setenv(
         "GENESIS_ENABLE_PN51_QWEN3_STREAMING_THINKING_DISABLED", "1",
     )
@@ -149,7 +149,7 @@ def test_registry_entry_complete():
     a specific number here freezes the test on whichever historical
     reference the registry was last set to.
     """
-    from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+    from sndr.dispatcher import PATCH_REGISTRY
     assert "PN51" in PATCH_REGISTRY
     meta = PATCH_REGISTRY["PN51"]
     assert meta["env_flag"] == "GENESIS_ENABLE_PN51_QWEN3_STREAMING_THINKING_DISABLED"
@@ -164,7 +164,7 @@ def test_registry_entry_complete():
 
 def test_apply_all_registers_pn51():
     """apply_all must expose apply_patch_N51_qwen3_streaming_thinking_disabled."""
-    from vllm.sndr_core.apply import apply_all
+    from sndr.apply import apply_all
     assert hasattr(
         apply_all, "apply_patch_N51_qwen3_streaming_thinking_disabled"
     ), "PN51 not registered in apply_all"

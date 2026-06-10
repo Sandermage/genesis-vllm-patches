@@ -36,7 +36,7 @@ from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PRESETS_DIR = (
-    REPO_ROOT / "vllm" / "sndr_core" / "model_configs" / "builtin" / "presets"
+    REPO_ROOT / "sndr" / "model_configs" / "builtin" / "presets"
 )
 POLICIES: tuple[str, ...] = ("compat", "safe", "minimal")
 
@@ -68,14 +68,14 @@ class ResolveCheck:
 def _check_preset(preset_name: str, path: Path) -> ResolveCheck:
     """Compose + resolve a single preset under every policy."""
     chk = ResolveCheck(preset=preset_name, path=path)
-    # Ensure the repo root is on sys.path so `import vllm.sndr_core …`
+    # Ensure the repo root is on sys.path so `import sndr …`
     # works from `scripts/` even when run outside the package's
     # installed environment (CI, fresh clone).
     if str(REPO_ROOT) not in sys.path:
         sys.path.insert(0, str(REPO_ROOT))
     try:
-        from vllm.sndr_core.model_configs.registry_v2 import load_alias
-        from vllm.sndr_core.model_configs.patch_plan import (
+        from sndr.model_configs.registry_v2 import load_alias
+        from sndr.model_configs.patch_plan import (
             resolve_patch_plan,
         )
     except Exception as e:

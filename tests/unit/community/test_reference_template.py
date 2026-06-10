@@ -40,7 +40,7 @@ class TestTemplateLayout:
 
 class TestDiscoverySkipsTemplate:
     def test_filesystem_discovery_skips_underscore_dir(self):
-        from vllm.sndr_core.community.discovery import discover_filesystem
+        from sndr.community.discovery import discover_filesystem
 
         root = REPO_ROOT / "plugins" / "community"
         found = list(discover_filesystem(root))
@@ -51,7 +51,7 @@ class TestDiscoverySkipsTemplate:
             )
 
     def test_discover_all_skips_template(self):
-        from vllm.sndr_core.community.discovery import discover_all
+        from sndr.community.discovery import discover_all
 
         root = REPO_ROOT / "plugins" / "community"
         found = list(discover_all(root=root))
@@ -64,7 +64,7 @@ class TestTemplateManifestLoadable:
     doesn't silently bit-rot when the PatchManifest schema evolves."""
 
     def test_manifest_yaml_parses(self):
-        from vllm.sndr_core.community.manifest import load_manifest
+        from sndr.community.manifest import load_manifest
 
         manifest = load_manifest(TEMPLATE_PATCH / "manifest.yaml")
         assert manifest.id == "PN999"

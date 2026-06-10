@@ -25,7 +25,7 @@ from unittest.mock import patch
 
 import pytest
 
-from vllm.sndr_core.cli.profile import (
+from sndr.cli.legacy.profile import (
     _BACKEND_PLAN_MAP,
     _OBSERVABILITY_OPTIN_ENVS,
     _STRUCTURED_REQUIRED_ENVS,
@@ -52,6 +52,11 @@ _CONTROL_A_NON_PROFILE_ENVS = {
 # both at runtime, so the parity test normalizes this one known alias.
 _CONTROL_A_ALIAS_EQUIVALENTS = {
     "GENESIS_ALLOW_SPEC_DECODE_KV_ADAPTER": "SNDR_ALLOW_SPEC_DECODE_KV_ADAPTER",
+    # The hand-written launcher used a long PN110 name that NO resolver
+    # ever read (Class-7 env-name typo — the registry env_flag is the
+    # short `GENESIS_ENABLE_PN110`). The V2 profile emits the canonical
+    # short key, which is the load-bearing one; parity checks against it.
+    "GENESIS_ENABLE_PN110_BLOCK_POOL_FREE_DEDUP": "GENESIS_ENABLE_PN110",
 }
 
 
@@ -121,7 +126,7 @@ class TestDefaultProfileRender:
     def test_disable_log_stats_omitted_when_sizing_opts_in(self, monkeypatch):
         # sizing.disable_log_stats=False -> launcher omits the flag so vLLM
         # exposes live request/KV-cache/throughput metrics (Inference panel).
-        import vllm.sndr_core.model_configs.compose as comp
+        import sndr.model_configs.compose as comp
         real_compose = comp.compose
 
         def patched(model, hw, profile):
@@ -364,7 +369,7 @@ class TestP21ImagePinRouting:
         """gemma4 structured + a5000-2x → rendered IMAGE must equal
         hw.runtime.docker.image (dev338 explicit hash tag, NOT generic
         :nightly)."""
-        from vllm.sndr_core.model_configs.registry_v2 import load_hardware
+        from sndr.model_configs.registry_v2 import load_hardware
         hw = load_hardware("a5000-2x-24gbvram-16cpu-128gbram")
         expected = hw.runtime.docker.image  # type: ignore[union-attr]
         script = render_profile_launcher(
@@ -400,7 +405,7 @@ class TestP21ImagePinRouting:
         """Pin routing is profile-agnostic — also covers the default
         (non-structured) profile to avoid regressions on operator
         smoke launches."""
-        from vllm.sndr_core.model_configs.registry_v2 import load_hardware
+        from sndr.model_configs.registry_v2 import load_hardware
         hw = load_hardware("a5000-2x-24gbvram-16cpu-128gbram")
         expected = hw.runtime.docker.image  # type: ignore[union-attr]
         script = render_profile_launcher(
@@ -416,8 +421,8 @@ class TestP21ImagePinRouting:
         never reaches its IMAGE line. This regression-tests that the
         renderer relies on compose's invariant rather than a silent
         generic-tag fallback that masked the original Q35-TQ defect."""
-        from vllm.sndr_core.model_configs import registry_v2 as r2
-        from vllm.sndr_core.model_configs.schema import SchemaError
+        from sndr.model_configs import registry_v2 as r2
+        from sndr.model_configs.schema import SchemaError
         hw = r2.load_hardware("a5000-2x-24gbvram-16cpu-128gbram")
         hw.runtime.docker = None
 
@@ -429,7 +434,7 @@ class TestP21ImagePinRouting:
             return real_load_hw(hw_id)
 
         monkeypatch.setattr(
-            "vllm.sndr_core.model_configs.registry_v2.load_hardware",
+            "sndr.model_configs.registry_v2.load_hardware",
             fake_load_hw,
         )
         with pytest.raises(SchemaError, match="hardware.runtime.docker"):
@@ -582,10 +587,10 @@ class TestBackendMapping:
         """G10: a backend_plan value not in the mapping table must raise
         SchemaError. Mocks load_profile to return a synthetic profile
         with a bogus drafter_sliding value."""
-        from vllm.sndr_core.model_configs.schema_v2 import (
+        from sndr.model_configs.schema_v2 import (
             BackendPlanConfig, ProfileDef, PatchesDelta,
         )
-        from vllm.sndr_core.model_configs.schema import SchemaError
+        from sndr.model_configs.schema import SchemaError
 
         bad_profile = ProfileDef(
             schema_version=2, kind="profile",
@@ -603,11 +608,11 @@ class TestBackendMapping:
         def fake_load(pid):
             if pid == bad_profile.id:
                 return bad_profile
-            from vllm.sndr_core.model_configs import registry_v2 as real
+            from sndr.model_configs import registry_v2 as real
             return real.load_profile(pid)
 
         monkeypatch.setattr(
-            "vllm.sndr_core.model_configs.registry_v2.load_profile",
+            "sndr.model_configs.registry_v2.load_profile",
             fake_load,
         )
 
@@ -620,10 +625,10 @@ class TestBackendMapping:
         corresponding env is NOT in cfg.genesis_env (operator forgot
         patches_delta.enable), SchemaError fires. This protects
         against silent declarative/runtime divergence."""
-        from vllm.sndr_core.model_configs.schema_v2 import (
+        from sndr.model_configs.schema_v2 import (
             BackendPlanConfig, ProfileDef, PatchesDelta,
         )
-        from vllm.sndr_core.model_configs.schema import SchemaError
+        from sndr.model_configs.schema import SchemaError
 
         # Build profile with backend_plan but EMPTY patches_delta —
         # backend declared but not enabled via env.
@@ -643,11 +648,11 @@ class TestBackendMapping:
         def fake_load(pid):
             if pid == bad_profile.id:
                 return bad_profile
-            from vllm.sndr_core.model_configs import registry_v2 as real
+            from sndr.model_configs import registry_v2 as real
             return real.load_profile(pid)
 
         monkeypatch.setattr(
-            "vllm.sndr_core.model_configs.registry_v2.load_profile",
+            "sndr.model_configs.registry_v2.load_profile",
             fake_load,
         )
 
@@ -677,7 +682,7 @@ class TestOutputFlags:
         """--output DIR writes start_<profile_id>.sh into DIR."""
         result = subprocess.run(
             [
-                sys.executable, "-m", "vllm.sndr_core.cli",
+                sys.executable, "-m", "sndr.cli.legacy",
                 "profile", "render-launchers",
                 "gemma4-31b-tq-default",
                 "--output", str(tmp_path),
@@ -703,7 +708,7 @@ class TestOutputFlags:
 
         result = subprocess.run(
             [
-                sys.executable, "-m", "vllm.sndr_core.cli",
+                sys.executable, "-m", "sndr.cli.legacy",
                 "profile", "render-launchers",
                 "gemma4-31b-tq-default",
                 "--output", str(tmp_path),
@@ -723,7 +728,7 @@ class TestOutputFlags:
 
         result = subprocess.run(
             [
-                sys.executable, "-m", "vllm.sndr_core.cli",
+                sys.executable, "-m", "sndr.cli.legacy",
                 "profile", "render-launchers",
                 "gemma4-31b-tq-default",
                 "--output", str(tmp_path),
@@ -740,7 +745,7 @@ class TestOutputFlags:
         write the file."""
         result = subprocess.run(
             [
-                sys.executable, "-m", "vllm.sndr_core.cli",
+                sys.executable, "-m", "sndr.cli.legacy",
                 "profile", "render-launchers",
                 "gemma4-31b-tq-default",
                 "--output", str(tmp_path),
@@ -757,7 +762,7 @@ class TestOutputFlags:
         """No --output, no --dry-run → defaults to stdout (dry-run-like)."""
         result = subprocess.run(
             [
-                sys.executable, "-m", "vllm.sndr_core.cli",
+                sys.executable, "-m", "sndr.cli.legacy",
                 "profile", "render-launchers",
                 "gemma4-31b-tq-default",
             ],
@@ -794,7 +799,7 @@ class TestP18ArtifactLookupRegression:
         physical. Without this declaration the compose layer doesn't
         know to emit the G4_76=0 envs, and the artifact lookup at the
         guard would return None."""
-        from vllm.sndr_core.model_configs.registry_v2 import load_profile
+        from sndr.model_configs.registry_v2 import load_profile
         p = load_profile("gemma4-31b-tq-mtp-structured-k4")
         assert p.backend_plan is not None
         assert p.backend_plan.drafter_kv_sharing == "physical", (
@@ -807,8 +812,8 @@ class TestP18ArtifactLookupRegression:
         """compose() must emit BOTH SNDR + GENESIS aliases of the
         G4_76 disable env with value '0'. This is the actual env the
         mapping provider reads to decide kv_sharing_on=True."""
-        from vllm.sndr_core.model_configs.compose import compose
-        from vllm.sndr_core.model_configs.registry_v2 import (
+        from sndr.model_configs.compose import compose
+        from sndr.model_configs.registry_v2 import (
             load_hardware, load_model, load_profile,
         )
         p = load_profile("gemma4-31b-tq-mtp-structured-k4")
@@ -835,11 +840,11 @@ class TestP18ArtifactLookupRegression:
         NOT emit the G4_76 env (runtime default ='1' is the behavior).
         Verified by constructing a synthetic disabled-sharing profile
         and asserting absence."""
-        from vllm.sndr_core.model_configs.compose import compose
-        from vllm.sndr_core.model_configs.registry_v2 import (
+        from sndr.model_configs.compose import compose
+        from sndr.model_configs.registry_v2 import (
             load_hardware, load_model,
         )
-        from vllm.sndr_core.model_configs.schema_v2 import (
+        from sndr.model_configs.schema_v2 import (
             BackendPlanConfig, PatchesDelta, ProfileDef,
         )
         synthetic = ProfileDef(
@@ -864,8 +869,8 @@ class TestP18ArtifactLookupRegression:
     def test_unknown_kv_sharing_value_raises(self, monkeypatch):
         """drafter_kv_sharing must be one of {None, physical, disabled};
         anything else is SchemaError at validate() time."""
-        from vllm.sndr_core.model_configs.schema import SchemaError
-        from vllm.sndr_core.model_configs.schema_v2 import (
+        from sndr.model_configs.schema import SchemaError
+        from sndr.model_configs.schema_v2 import (
             BackendPlanConfig,
         )
         bp = BackendPlanConfig(drafter_kv_sharing="shared")  # type: ignore[arg-type]
@@ -887,8 +892,8 @@ class TestP18ArtifactLookupRegression:
           * GENESIS_ENABLE_G4_78_DRAFTER_TARGET_KV_BRIDGE not '1' → not bridge_on
           * (mtp_k=4 comes from cfg.spec_decode, not env)
         """
-        from vllm.sndr_core.model_configs.compose import compose
-        from vllm.sndr_core.model_configs.registry_v2 import (
+        from sndr.model_configs.compose import compose
+        from sndr.model_configs.registry_v2 import (
             load_hardware, load_model, load_profile,
         )
         p = load_profile("gemma4-31b-tq-mtp-structured-k4")
@@ -911,7 +916,7 @@ class TestP18ArtifactLookupRegression:
 
 class TestValidateBackendPlanConsistency:
     def test_no_backend_plan_is_noop(self):
-        from vllm.sndr_core.model_configs.schema_v2 import (
+        from sndr.model_configs.schema_v2 import (
             ProfileDef, PatchesDelta,
         )
         p = ProfileDef(
@@ -927,7 +932,7 @@ class TestValidateBackendPlanConsistency:
     def test_unmapped_env_none_value_is_ok(self):
         """target_default → None mapping; consistency check passes
         even without an env in genesis_env."""
-        from vllm.sndr_core.model_configs.schema_v2 import (
+        from sndr.model_configs.schema_v2 import (
             BackendPlanConfig, ProfileDef, PatchesDelta,
         )
         p = ProfileDef(

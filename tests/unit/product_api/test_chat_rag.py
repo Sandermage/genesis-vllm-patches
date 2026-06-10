@@ -9,7 +9,7 @@ Presets / Configs views already expose.
 """
 from __future__ import annotations
 
-from vllm.sndr_core.product_api import chat_rag
+from sndr.product_api.legacy import chat_rag
 
 
 def test_build_corpus_has_patch_preset_and_config_docs():

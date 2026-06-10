@@ -23,7 +23,7 @@ import pytest
 
 def _run_model_config(argv):
     """Invoke the model-config CLI in-process; capture (rc, stdout, stderr)."""
-    from vllm.sndr_core.compat import model_config_cli
+    from sndr.compat import model_config_cli
 
     out = io.StringIO()
     err = io.StringIO()
@@ -50,17 +50,17 @@ class TestFromRunningAdvertised:
 
 class TestCaptorModuleContract:
     def test_module_importable(self):
-        from vllm.sndr_core.compat import from_running  # noqa: F401
+        from sndr.compat import from_running  # noqa: F401
 
     def test_exposes_capture_function(self):
-        from vllm.sndr_core.compat.from_running import (
+        from sndr.compat.from_running import (
             CaptureError, capture_from_running,
         )
         assert callable(capture_from_running)
         assert issubclass(CaptureError, RuntimeError)
 
     def test_parse_serve_args_extracts_canonical_flags(self):
-        from vllm.sndr_core.compat.from_running import _parse_serve_args
+        from sndr.compat.from_running import _parse_serve_args
         argv = [
             "python3", "-m", "vllm.entrypoints.openai.api_server",
             "--model", "/models/qwen3-test",
@@ -99,7 +99,7 @@ class TestCaptorModuleContract:
         assert parsed["container_port"] == 8000
 
     def test_parse_env_splits_genesis_and_system(self):
-        from vllm.sndr_core.compat.from_running import _parse_env
+        from sndr.compat.from_running import _parse_env
         genesis, system = _parse_env([
             "GENESIS_ENABLE_P67=1",
             "SNDR_ENABLE_PN95_TIER_AWARE_CACHE=1",
@@ -123,7 +123,7 @@ class TestCaptorModuleContract:
         }
 
     def test_parse_mounts_handles_ro_and_rw(self):
-        from vllm.sndr_core.compat.from_running import _parse_mounts
+        from sndr.compat.from_running import _parse_mounts
         rec = {
             "Mounts": [
                 {"Source": "/host/models", "Destination": "/models",
@@ -139,7 +139,7 @@ class TestCaptorModuleContract:
         assert "/tmp/work:/work" in result
 
     def test_parse_gpus_handles_all_and_explicit_devices(self):
-        from vllm.sndr_core.compat.from_running import _parse_gpus
+        from sndr.compat.from_running import _parse_gpus
         # --gpus all
         rec_all = {
             "HostConfig": {
@@ -172,8 +172,8 @@ class TestCaptorEndToEnd:
     """End-to-end happy path against a synthetic docker inspect record."""
 
     def test_capture_synthetic_record_round_trips(self, monkeypatch):
-        from vllm.sndr_core.compat import from_running
-        from vllm.sndr_core.model_configs import dump_yaml
+        from sndr.compat import from_running
+        from sndr.model_configs import dump_yaml
 
         synthetic = {
             "Config": {
@@ -245,7 +245,7 @@ class TestCaptorEndToEnd:
         assert "GENESIS_ENABLE_PN95_TIER_AWARE_CACHE" in yaml_text
 
     def test_capture_rejects_non_vllm_container(self, monkeypatch):
-        from vllm.sndr_core.compat import from_running
+        from sndr.compat import from_running
 
         synthetic = {
             "Config": {

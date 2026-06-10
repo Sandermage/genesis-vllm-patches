@@ -81,11 +81,11 @@ class TestVerifyAliasErrors:
         real_import = builtins.__import__
 
         def fake_import(name, *args, **kwargs):
-            if name == "vllm.sndr_core.model_configs.registry_v2":
+            if name == "sndr.model_configs.registry_v2":
                 raise ImportError("synthetic")
             return real_import(name, *args, **kwargs)
 
-        sys.modules.pop("vllm.sndr_core.model_configs.registry_v2", None)
+        sys.modules.pop("sndr.model_configs.registry_v2", None)
         monkeypatch.setattr(builtins, "__import__", fake_import)
         ok, summary = mod._verify_alias("any-alias")
         assert ok is False

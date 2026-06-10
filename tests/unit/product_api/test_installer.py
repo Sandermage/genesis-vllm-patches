@@ -2,7 +2,7 @@
 """Unit tests for the remote-install planner (read-only / dry-run)."""
 from __future__ import annotations
 
-from vllm.sndr_core.product_api import deployment, installer
+from sndr.product_api.legacy import deployment, installer
 
 
 def _fake_dep(preset, target, host_paths=None, image_override=None, with_daemon=False):

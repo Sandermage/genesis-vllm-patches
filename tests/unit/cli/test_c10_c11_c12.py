@@ -6,16 +6,16 @@ import argparse
 
 import pytest
 
-from vllm.sndr_core.model_configs.schema import (
+from sndr.model_configs.schema import (
     ModelConfig, HardwareSpec, DockerConfig, KubernetesConfig,
     ProxmoxConfig, BootstrapConfig,
 )
-from vllm.sndr_core.model_configs import registry as R
+from sndr.model_configs import registry as R
 
 
 def _parse(module_name: str, args: list[str]) -> argparse.Namespace:
     import importlib
-    mod = importlib.import_module(f"vllm.sndr_core.cli.{module_name}")
+    mod = importlib.import_module(f"sndr.cli.legacy.{module_name}")
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers()
     mod.add_argparser(sub)
@@ -70,14 +70,14 @@ def test_k8s_argparser_render():
 
 
 def test_k8s_render_unknown_config_returns_2():
-    from vllm.sndr_core.cli.k8s import run_render
+    from sndr.cli.legacy.k8s import run_render
     ns = _parse("k8s", ["k8s", "render", "nonexistent-xyz"])
     assert run_render(ns) == 2
 
 
 def test_k8s_render_emits_three_manifests(capsys):
     """render produces ConfigMap + Service + Deployment."""
-    from vllm.sndr_core.cli.k8s import run_render
+    from sndr.cli.legacy.k8s import run_render
     ns = _parse("k8s", ["k8s", "render", "test-c10-c11-c12"])
     rc = run_render(ns)
     assert rc == 0
@@ -93,7 +93,7 @@ def test_k8s_render_emits_three_manifests(capsys):
 
 def test_k8s_render_no_y5_block_returns_2(capsys, monkeypatch):
     """Config without Y5 → friendly skip."""
-    from vllm.sndr_core.cli.k8s import run_render
+    from sndr.cli.legacy.k8s import run_render
     cfg = _make_full_cfg(k8s=False)
     monkeypatch.setattr(R, "get",
                           lambda k: cfg if k == "no-y5" else None)
@@ -104,7 +104,7 @@ def test_k8s_render_no_y5_block_returns_2(capsys, monkeypatch):
 
 def test_k8s_apply_dry_run_default():
     """apply without --yes is dry-run (no kubectl call)."""
-    from vllm.sndr_core.cli.k8s import run_apply
+    from sndr.cli.legacy.k8s import run_apply
     ns = _parse("k8s", ["k8s", "apply", "test-c10-c11-c12"])
     rc = run_apply(ns)
     # 0 from dry-run path; or 1 if kubectl missing — both ok
@@ -119,13 +119,13 @@ def test_proxmox_argparser_render():
 
 
 def test_proxmox_render_unknown_config_returns_2():
-    from vllm.sndr_core.cli.proxmox import run_render
+    from sndr.cli.legacy.proxmox import run_render
     ns = _parse("proxmox", ["proxmox", "render", "nonexistent-xyz"])
     assert run_render(ns) == 2
 
 
 def test_proxmox_render_lxc_emits_pct_create(capsys):
-    from vllm.sndr_core.cli.proxmox import run_render
+    from sndr.cli.legacy.proxmox import run_render
     ns = _parse("proxmox", ["proxmox", "render", "test-c10-c11-c12"])
     rc = run_render(ns)
     assert rc == 0
@@ -141,7 +141,7 @@ def test_proxmox_render_vm_emits_qm(capsys, monkeypatch):
     cfg.proxmox.container_id_or_vmid = 100
     monkeypatch.setattr(R, "get",
                           lambda k: cfg if k == "vm-test" else None)
-    from vllm.sndr_core.cli.proxmox import run_render
+    from sndr.cli.legacy.proxmox import run_render
     ns = _parse("proxmox", ["proxmox", "render", "vm-test"])
     rc = run_render(ns)
     assert rc == 0
@@ -151,7 +151,7 @@ def test_proxmox_render_vm_emits_qm(capsys, monkeypatch):
 
 def test_proxmox_doctor_no_pve_returns_1(capsys):
     """On non-PVE host (Mac), doctor returns 1 cleanly."""
-    from vllm.sndr_core.cli.proxmox import run_doctor
+    from sndr.cli.legacy.proxmox import run_doctor
     ns = _parse("proxmox", ["proxmox", "doctor"])
     rc = run_doctor(ns)
     # If not on PVE host → 1; if accidentally on PVE → 0. Both ok.
@@ -173,13 +173,13 @@ def test_bootstrap_argparser_scope_filter():
 
 
 def test_bootstrap_doctor_unknown_config_returns_2():
-    from vllm.sndr_core.cli.bootstrap import run_doctor
+    from sndr.cli.legacy.bootstrap import run_doctor
     ns = _parse("bootstrap", ["bootstrap", "doctor", "nonexistent-xyz"])
     assert run_doctor(ns) == 2
 
 
 def test_bootstrap_doctor_runs_on_synth_config(capsys):
-    from vllm.sndr_core.cli.bootstrap import run_doctor
+    from sndr.cli.legacy.bootstrap import run_doctor
     ns = _parse("bootstrap", ["bootstrap", "doctor", "test-c10-c11-c12"])
     rc = run_doctor(ns)
     # 0 = host ready; 1 = missing deps. Both acceptable per env.
@@ -194,7 +194,7 @@ def test_bootstrap_apply_never_policy_refused(capsys, monkeypatch):
     cfg.bootstrap.apply_policy = "never"
     monkeypatch.setattr(R, "get",
                           lambda k: cfg if k == "never-test" else None)
-    from vllm.sndr_core.cli.bootstrap import run_apply
+    from sndr.cli.legacy.bootstrap import run_apply
     ns = _parse("bootstrap", ["bootstrap", "apply", "never-test", "--yes"])
     rc = run_apply(ns)
     assert rc == 2
@@ -202,7 +202,7 @@ def test_bootstrap_apply_never_policy_refused(capsys, monkeypatch):
 
 def test_bootstrap_status_returns_0_or_1():
     """status: 0 = ready, 1 = not ready. Either ok in test env."""
-    from vllm.sndr_core.cli.bootstrap import run_status
+    from sndr.cli.legacy.bootstrap import run_status
     ns = _parse("bootstrap", ["bootstrap", "status", "test-c10-c11-c12"])
     rc = run_status(ns)
     assert rc in (0, 1)
@@ -211,18 +211,18 @@ def test_bootstrap_status_returns_0_or_1():
 # ─── Top-level dispatch
 
 def test_top_level_dispatch_k8s():
-    from vllm.sndr_core.cli import cli_main
+    from sndr.cli.legacy import cli_main
     rc = cli_main(["k8s", "render", "nonexistent-xyz"])
     assert rc == 2
 
 
 def test_top_level_dispatch_proxmox():
-    from vllm.sndr_core.cli import cli_main
+    from sndr.cli.legacy import cli_main
     rc = cli_main(["proxmox", "render", "nonexistent-xyz"])
     assert rc == 2
 
 
 def test_top_level_dispatch_bootstrap():
-    from vllm.sndr_core.cli import cli_main
+    from sndr.cli.legacy import cli_main
     rc = cli_main(["bootstrap", "doctor", "nonexistent-xyz"])
     assert rc == 2

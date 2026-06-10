@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Tests for `vllm.sndr_core.compat.presets` — curated launch bundles.
+"""Tests for `sndr.compat.presets` — curated launch bundles.
 
 Verifies:
   - preset registry integrity (no dups, valid workload, valid GPU keys)
@@ -29,7 +29,7 @@ import pytest
 
 
 def test_presets_module_imports():
-    from vllm.sndr_core.compat import presets
+    from sndr.compat import presets
     assert hasattr(presets, "list_presets")
     assert hasattr(presets, "get_preset")
     assert hasattr(presets, "match_preset")
@@ -40,7 +40,7 @@ def test_presets_module_imports():
 
 def test_presets_at_least_minimum_count():
     """We ship at least 8 presets (covers main hardware classes)."""
-    from vllm.sndr_core.compat.presets import list_presets
+    from sndr.compat.presets import list_presets
 
     presets = list_presets()
     assert len(presets) >= 8, (
@@ -51,7 +51,7 @@ def test_presets_at_least_minimum_count():
 
 
 def test_presets_all_have_unique_keys():
-    from vllm.sndr_core.compat.presets import list_presets
+    from sndr.compat.presets import list_presets
 
     keys = [p.key for p in list_presets()]
     assert len(keys) == len(set(keys)), (
@@ -60,7 +60,7 @@ def test_presets_all_have_unique_keys():
 
 
 def test_presets_all_use_known_workload():
-    from vllm.sndr_core.compat.presets import WORKLOADS, list_presets
+    from sndr.compat.presets import WORKLOADS, list_presets
 
     valid = set(WORKLOADS.keys())
     for p in list_presets():
@@ -73,8 +73,8 @@ def test_presets_all_gpu_keys_exist_in_spec_database():
     """Every preset's gpu_match_keys must exist in
     `gpu_profile.GPU_SPECS`. Otherwise auto_match() will silently fail
     to detect that GPU class."""
-    from vllm.sndr_core.compat.presets import list_presets
-    from vllm.sndr_core.runtime.gpu_profile import GPU_SPECS
+    from sndr.compat.presets import list_presets
+    from sndr.runtime.gpu_profile import GPU_SPECS
 
     spec_keys = set(GPU_SPECS.keys())
     for p in list_presets():
@@ -87,14 +87,14 @@ def test_presets_all_gpu_keys_exist_in_spec_database():
 
 
 def test_presets_n_gpus_positive():
-    from vllm.sndr_core.compat.presets import list_presets
+    from sndr.compat.presets import list_presets
 
     for p in list_presets():
         assert p.n_gpus >= 1, f"preset {p.key!r} has n_gpus={p.n_gpus}"
 
 
 def test_presets_max_model_len_reasonable():
-    from vllm.sndr_core.compat.presets import list_presets
+    from sndr.compat.presets import list_presets
 
     for p in list_presets():
         assert 1024 <= p.max_model_len <= 1_000_000, (
@@ -104,7 +104,7 @@ def test_presets_max_model_len_reasonable():
 
 
 def test_presets_gpu_memory_utilization_in_range():
-    from vllm.sndr_core.compat.presets import list_presets
+    from sndr.compat.presets import list_presets
 
     for p in list_presets():
         assert 0.5 <= p.gpu_memory_utilization <= 1.0, (
@@ -117,7 +117,7 @@ def test_presets_genesis_env_keys_use_genesis_prefix():
     """All Genesis env vars must start with GENESIS_ — defensive
     against accidentally putting VLLM_* into genesis_env (should go
     in system_env)."""
-    from vllm.sndr_core.compat.presets import list_presets
+    from sndr.compat.presets import list_presets
 
     for p in list_presets():
         for key in p.genesis_env:
@@ -128,7 +128,7 @@ def test_presets_genesis_env_keys_use_genesis_prefix():
 
 
 def test_presets_speculative_method_valid():
-    from vllm.sndr_core.compat.presets import list_presets
+    from sndr.compat.presets import list_presets
 
     valid = {None, "mtp", "eagle", "ngram", "dflash"}
     for p in list_presets():
@@ -145,7 +145,7 @@ def test_presets_speculative_method_valid():
 
 def test_match_exact_returns_specific_preset():
     """Exact (gpu, n_gpus, workload) match returns that preset."""
-    from vllm.sndr_core.compat.presets import match_preset
+    from sndr.compat.presets import match_preset
 
     p = match_preset(
         gpu_class="rtx 3090", n_gpus=1, workload="long_context"
@@ -156,7 +156,7 @@ def test_match_exact_returns_specific_preset():
 
 def test_match_falls_back_to_balanced_workload():
     """If exact workload not available, falls back to balanced."""
-    from vllm.sndr_core.compat.presets import match_preset
+    from sndr.compat.presets import match_preset
 
     # rtx 4090 only has 'balanced' — request 'tool_agent' should fall
     # back to balanced (or return None if balanced also missing)
@@ -171,7 +171,7 @@ def test_match_falls_back_to_balanced_workload():
 
 
 def test_match_returns_none_for_unknown_gpu():
-    from vllm.sndr_core.compat.presets import match_preset
+    from sndr.compat.presets import match_preset
 
     p = match_preset(
         gpu_class="nvidia tesla a100x", n_gpus=1, workload="balanced"
@@ -180,7 +180,7 @@ def test_match_returns_none_for_unknown_gpu():
 
 
 def test_match_rejects_unknown_workload():
-    from vllm.sndr_core.compat.presets import match_preset
+    from sndr.compat.presets import match_preset
 
     with pytest.raises(ValueError, match="unknown workload"):
         match_preset(
@@ -194,7 +194,7 @@ def test_match_rejects_unknown_workload():
 
 
 def test_launch_script_has_shebang_and_set_options():
-    from vllm.sndr_core.compat.presets import get_preset
+    from sndr.compat.presets import get_preset
 
     script = get_preset("a5000-2x-balanced").to_launch_script()
     lines = script.splitlines()
@@ -203,7 +203,7 @@ def test_launch_script_has_shebang_and_set_options():
 
 
 def test_launch_script_emits_all_genesis_env_vars():
-    from vllm.sndr_core.compat.presets import get_preset
+    from sndr.compat.presets import get_preset
 
     p = get_preset("3090-1x-long-context")
     script = p.to_launch_script()
@@ -214,7 +214,7 @@ def test_launch_script_emits_all_genesis_env_vars():
 
 
 def test_launch_script_emits_all_system_env_vars():
-    from vllm.sndr_core.compat.presets import get_preset
+    from sndr.compat.presets import get_preset
 
     p = get_preset("3090-1x-long-context")
     script = p.to_launch_script()
@@ -225,7 +225,7 @@ def test_launch_script_emits_all_system_env_vars():
 
 
 def test_launch_script_includes_vllm_serve_command():
-    from vllm.sndr_core.compat.presets import get_preset
+    from sndr.compat.presets import get_preset
 
     p = get_preset("a5000-2x-balanced")
     script = p.to_launch_script()
@@ -239,7 +239,7 @@ def test_launch_script_includes_vllm_serve_command():
 
 
 def test_launch_script_includes_speculative_config_when_set():
-    from vllm.sndr_core.compat.presets import get_preset
+    from sndr.compat.presets import get_preset
 
     p = get_preset("a5000-2x-balanced")
     assert p.speculative_method == "mtp"
@@ -250,7 +250,7 @@ def test_launch_script_includes_speculative_config_when_set():
 
 def test_launch_script_quotes_path_with_spaces():
     """Sanity: shell quoting handles model paths with special chars."""
-    from vllm.sndr_core.compat.presets import get_preset
+    from sndr.compat.presets import get_preset
 
     p = get_preset("a5000-2x-balanced")
     script = p.to_launch_script(
@@ -262,7 +262,7 @@ def test_launch_script_quotes_path_with_spaces():
 
 def test_launch_script_does_not_end_with_dangling_backslash():
     """Trailing `\\` would break bash parsing of the exec line."""
-    from vllm.sndr_core.compat.presets import get_preset
+    from sndr.compat.presets import get_preset
 
     for key in ["a5000-2x-balanced", "3090-1x-long-context", "h20-1x-high-throughput"]:
         script = get_preset(key).to_launch_script()
@@ -290,7 +290,7 @@ def _run_cli(*args: str) -> tuple[int, str, str]:
     #   parents[3]=vllm,   parents[3]=repo root
     repo_root = Path(__file__).resolve().parents[3]
     proc = subprocess.run(
-        [sys.executable, "-m", "vllm.sndr_core.compat.presets", *args],
+        [sys.executable, "-m", "sndr.compat.presets", *args],
         capture_output=True,
         text=True,
         cwd=str(repo_root),
@@ -372,7 +372,7 @@ def test_cli_match_no_match_exits_nonzero():
 def test_at_least_one_preset_per_main_workload():
     """Coverage check: every workload category should have at least 1
     preset, otherwise the matrix has gaps."""
-    from vllm.sndr_core.compat.presets import WORKLOADS, list_presets
+    from sndr.compat.presets import WORKLOADS, list_presets
 
     workloads_seen = {p.workload for p in list_presets()}
     for w in WORKLOADS:
@@ -384,7 +384,7 @@ def test_at_least_one_preset_per_main_workload():
 def test_sander_prod_preset_present_as_reference():
     """The Sander 2× A5000 PROD config must be present as a reference
     preset — it's the empirical baseline for cross-rig comparisons."""
-    from vllm.sndr_core.compat.presets import get_preset
+    from sndr.compat.presets import get_preset
 
     p = get_preset("a5000-2x-balanced")
     # Must have verified-on entry from Sander rig
@@ -401,7 +401,7 @@ def test_sander_prod_preset_present_as_reference():
 def test_noonghunna_3090_preset_present_with_provenance():
     """noonghunna's 1×3090 verified config should be present with
     cross-rig provenance — first community downstream."""
-    from vllm.sndr_core.compat.presets import get_preset
+    from sndr.compat.presets import get_preset
 
     p = get_preset("3090-1x-long-context")
     found = any("noonghunna" in v for v in p.verified_on)
@@ -414,7 +414,7 @@ def test_noonghunna_3090_preset_present_with_provenance():
 def test_v769_cliff2_stack_in_3090_long_context_preset():
     """3090-1x-long-context must enable both halves of the v7.69 Cliff
     2 fix (P103 + PN32) — that's the entire reason this preset exists."""
-    from vllm.sndr_core.compat.presets import get_preset
+    from sndr.compat.presets import get_preset
 
     p = get_preset("3090-1x-long-context")
     assert "GENESIS_ENABLE_P103" in p.genesis_env, (

@@ -68,7 +68,14 @@ _ALLOW_MARKER = "<!-- audit-source-refs: allow -->"
 
 
 def _tracked_docs() -> list[Path]:
-    """List markdown files we should scan (tracked docs + README)."""
+    """List markdown files we should scan (tracked docs + README).
+
+    ``docs/superpowers/`` is excluded: v12 maintainer journals / specs
+    / ops playbooks are historical session logs whose subject matter
+    includes pre-v12 paths (e.g. the v12 move mapping tables) — not
+    operator-facing docs this gate polices. Mirrors ALLOWLIST_PREFIXES
+    in scripts/audit_public_docs.py.
+    """
     out = subprocess.run(
         ["git", "ls-files", "docs/", "README.md"],
         cwd=REPO_ROOT, capture_output=True, text=True, check=False,
@@ -79,6 +86,7 @@ def _tracked_docs() -> list[Path]:
         REPO_ROOT / line
         for line in out.stdout.split()
         if line.endswith(".md")
+        and not line.startswith("docs/superpowers/")
     ]
 
 

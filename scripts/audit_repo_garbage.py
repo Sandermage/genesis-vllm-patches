@@ -25,7 +25,7 @@ Default mode scans:
      (merge leftovers, illegal chars, .DS_Store, editor backups,
      temp-output names).
   2. Untracked-but-visible files in critical zones (``docs/``,
-     ``scripts/``, ``vllm/sndr_core/``) for the same patterns —
+     ``scripts/``, ``sndr/``) for the same patterns —
      catches accidental drag-and-drop into a critical surface
      before the operator runs ``git add``.
 
@@ -110,7 +110,8 @@ _TOP_LEVEL_ALLOWLIST: frozenset[str] = frozenset({
 _CRITICAL_ZONES: tuple[str, ...] = (
     "docs/",
     "scripts/",
-    "vllm/sndr_core/",
+    "sndr/",            # v12 runtime tree (was vllm/sndr_core/)
+    "vllm/sndr_core/",  # historical pre-v12 path — harmless fallback
     "tests/",
 )
 

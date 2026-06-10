@@ -19,13 +19,13 @@ from __future__ import annotations
 
 
 def test_pn32_wiring_imports():
-    from vllm.sndr_core.integrations.attention.gdn import pn32_gdn_chunked_prefill as mod
+    from sndr.engines.vllm.patches.attention.gdn import pn32_gdn_chunked_prefill as mod
     assert hasattr(mod, "apply")
     assert hasattr(mod, "GENESIS_PN32_MARKER")
 
 
 def test_pn32_dispatcher_registry():
-    from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+    from sndr.dispatcher import PATCH_REGISTRY
     assert "PN32" in PATCH_REGISTRY
     e = PATCH_REGISTRY["PN32"]
     assert e["env_flag"] == "GENESIS_ENABLE_PN32_GDN_CHUNKED_PREFILL"
@@ -36,7 +36,7 @@ def test_pn32_skips_when_env_off(monkeypatch):
     monkeypatch.delenv(
         "GENESIS_ENABLE_PN32_GDN_CHUNKED_PREFILL", raising=False
     )
-    from vllm.sndr_core.integrations.attention.gdn.pn32_gdn_chunked_prefill import apply
+    from sndr.engines.vllm.patches.attention.gdn.pn32_gdn_chunked_prefill import apply
     status, reason = apply()
     assert status == "skipped"
     assert "opt-in" in reason.lower()
@@ -52,7 +52,7 @@ def test_pn32_v2_anchor_targets_forward_core_prefill_branch():
     the outer forward_cuda's gdn_attention_core call (that was v1's
     wrong-level chunking that didn't propagate cu_seqlens).
     """
-    from vllm.sndr_core.integrations.attention.gdn.pn32_gdn_chunked_prefill import (
+    from sndr.engines.vllm.patches.attention.gdn.pn32_gdn_chunked_prefill import (
         PN32_ANCHOR,
     )
     # Must include the prefill branch entry comment
@@ -68,7 +68,7 @@ def test_pn32_v2_anchor_targets_forward_core_prefill_branch():
 
 def test_pn32_v2_replacement_chunks_along_T_dim():
     """v2 replacement must slice query/key/value/g/beta on dim=1 (T)."""
-    from vllm.sndr_core.integrations.attention.gdn.pn32_gdn_chunked_prefill import (
+    from sndr.engines.vllm.patches.attention.gdn.pn32_gdn_chunked_prefill import (
         PN32_REPLACEMENT,
     )
     # All five FLA inputs sliced along dim 1 (after unsqueeze, shape is
@@ -92,7 +92,7 @@ def test_pn32_v2_replacement_chunks_along_T_dim():
 def test_pn32_v2_replacement_builds_chunk_local_cu_seqlens():
     """v2 must construct chunk-local cu_seqlens=[0, chunk_len] per chunk
     (NOT pass full-prompt non_spec_query_start_loc)."""
-    from vllm.sndr_core.integrations.attention.gdn.pn32_gdn_chunked_prefill import (
+    from sndr.engines.vllm.patches.attention.gdn.pn32_gdn_chunked_prefill import (
         PN32_REPLACEMENT,
     )
     # Construction of chunk-local cu_seqlens
@@ -111,7 +111,7 @@ def test_pn32_v2_replacement_threads_initial_state():
     prior chunk's last_recurrent_state. This preserves recurrent state
     propagation that FLA does internally for unchunked calls.
     """
-    from vllm.sndr_core.integrations.attention.gdn.pn32_gdn_chunked_prefill import (
+    from sndr.engines.vllm.patches.attention.gdn.pn32_gdn_chunked_prefill import (
         PN32_REPLACEMENT,
     )
     # State is initialized to incoming initial_state
@@ -125,7 +125,7 @@ def test_pn32_v2_replacement_threads_initial_state():
 def test_pn32_v2_replacement_concatenates_chunks_along_T():
     """v2 must concat per-chunk outputs along dim=1 (T) to reconstruct
     the full-shape core_attn_out_non_spec."""
-    from vllm.sndr_core.integrations.attention.gdn.pn32_gdn_chunked_prefill import (
+    from sndr.engines.vllm.patches.attention.gdn.pn32_gdn_chunked_prefill import (
         PN32_REPLACEMENT,
     )
     # torch.cat along dim 1 (T dim, since output shape is (1, T, H, V))
@@ -136,7 +136,7 @@ def test_pn32_v2_replacement_bypasses_for_multi_seq():
     """Multi-sequence prefill (cu_seqlens shape > [2]) must bypass to
     original — chunking across seq boundaries requires inner state-cache
     surgery not exposed at this layer."""
-    from vllm.sndr_core.integrations.attention.gdn.pn32_gdn_chunked_prefill import (
+    from sndr.engines.vllm.patches.attention.gdn.pn32_gdn_chunked_prefill import (
         PN32_REPLACEMENT,
     )
     # Single-seq detection: cu_seqlens shape == 2
@@ -151,7 +151,7 @@ def test_pn32_v2_replacement_bypasses_for_multi_seq():
 def test_pn32_v2_replacement_threshold_and_chunk_size_env_tunable():
     """Both threshold (default 16384) and chunk_size (default 8192) are
     env-tunable and read defensively (with try/except for parse errors)."""
-    from vllm.sndr_core.integrations.attention.gdn.pn32_gdn_chunked_prefill import (
+    from sndr.engines.vllm.patches.attention.gdn.pn32_gdn_chunked_prefill import (
         PN32_REPLACEMENT,
     )
     assert "GENESIS_PN32_GDN_CHUNK_THRESHOLD" in PN32_REPLACEMENT
@@ -164,7 +164,7 @@ def test_pn32_v2_replacement_threshold_and_chunk_size_env_tunable():
 
 def test_pn32_v2_replacement_explicit_del_for_chunk_buffers():
     """Replacement has explicit `del` to help allocator reuse chunk slots."""
-    from vllm.sndr_core.integrations.attention.gdn.pn32_gdn_chunked_prefill import (
+    from sndr.engines.vllm.patches.attention.gdn.pn32_gdn_chunked_prefill import (
         PN32_REPLACEMENT,
     )
     # All five chunk slices have explicit del
@@ -187,7 +187,7 @@ def test_pn32_v2_documents_v1_redesign_rationale():
     """v2 module docstring must explain WHY v1 was wrong + what v2
     changes. This is the cross-rig finding's audit trail."""
     import inspect
-    from vllm.sndr_core.integrations.attention.gdn import pn32_gdn_chunked_prefill as mod
+    from sndr.engines.vllm.patches.attention.gdn import pn32_gdn_chunked_prefill as mod
     src = inspect.getsource(mod)
     # Must reference the v1 redesign rationale
     assert "v7.65" in src or "v1" in src
@@ -204,7 +204,7 @@ def test_pn32_v2_documents_p103_composition():
     chunking patch). Without this guidance, operators don't know that
     PN32+P103 together = full Cliff 2 coverage."""
     import inspect
-    from vllm.sndr_core.integrations.attention.gdn import pn32_gdn_chunked_prefill as mod
+    from sndr.engines.vllm.patches.attention.gdn import pn32_gdn_chunked_prefill as mod
     src = inspect.getsource(mod)
     # Must reference P103 explicitly
     assert "P103" in src
@@ -216,7 +216,7 @@ def test_pn32_v2_documents_dependencies_section():
     """v2 must have a DEPENDENCIES section in module docstring listing
     P103 as recommended, P28 as conflict, single-seq as a precondition."""
     import inspect
-    from vllm.sndr_core.integrations.attention.gdn import pn32_gdn_chunked_prefill as mod
+    from sndr.engines.vllm.patches.attention.gdn import pn32_gdn_chunked_prefill as mod
     doc = mod.__doc__ or ""
     assert "DEPENDENCIES" in doc, (
         "v2 module docstring must have a DEPENDENCIES section per "
@@ -234,7 +234,7 @@ def test_pn32_v2_documents_threshold_semantics():
     """v2 must document what triggers the chunked path (env + threshold +
     single-seq + prefill)."""
     import inspect
-    from vllm.sndr_core.integrations.attention.gdn import pn32_gdn_chunked_prefill as mod
+    from sndr.engines.vllm.patches.attention.gdn import pn32_gdn_chunked_prefill as mod
     doc = mod.__doc__ or ""
     assert "GENESIS_PN32_GDN_CHUNK_THRESHOLD" in doc
     assert "16384" in doc
@@ -244,7 +244,7 @@ def test_pn32_v2_documents_threshold_semantics():
 def test_pn32_v2_dispatcher_credit_mentions_v7_69_redesign():
     """Dispatcher credit string should reflect v2 redesign (so operators
     using `genesis explain PN32` see the current state)."""
-    from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+    from sndr.dispatcher import PATCH_REGISTRY
     credit = PATCH_REGISTRY["PN32"].get("credit", "")
     # v2 redesign mention (lenient — credit may have been updated to v7.69)
     # Skip if not yet updated (CHANGELOG.md is authoritative for ops)
@@ -259,7 +259,7 @@ def test_pn32_v2_dispatcher_credit_mentions_v7_69_redesign():
 
 
 def test_pn32_v2_register_in_apply_all():
-    from vllm.sndr_core.apply import (
+    from sndr.apply import (
         PATCH_REGISTRY as APPLY_REGISTRY,
     )
     names = [name for name, _ in APPLY_REGISTRY]
@@ -270,7 +270,7 @@ def test_pn32_v2_register_in_apply_all():
 def test_pn32_v2_marker_bumped_to_v7_69():
     """Marker must reflect v2 (so a v1-applied container that runs v2
     apply detects the difference and re-applies, not silent-skip)."""
-    from vllm.sndr_core.integrations.attention.gdn.pn32_gdn_chunked_prefill import (
+    from sndr.engines.vllm.patches.attention.gdn.pn32_gdn_chunked_prefill import (
         GENESIS_PN32_MARKER,
     )
     assert "v2" in GENESIS_PN32_MARKER
@@ -284,8 +284,8 @@ def test_pn32_v2_drift_marker_specific():
     import os
     import tempfile
 
-    from vllm.sndr_core.integrations.attention.gdn import pn32_gdn_chunked_prefill as mod
-    import vllm.sndr_core.detection.guards as guards
+    from sndr.engines.vllm.patches.attention.gdn import pn32_gdn_chunked_prefill as mod
+    import sndr.engines.vllm.detection.guards as guards
 
     with tempfile.TemporaryDirectory() as td:
         mamba_dir = os.path.join(

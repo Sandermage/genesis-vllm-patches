@@ -16,7 +16,7 @@ from __future__ import annotations
 import pytest
 import torch
 
-from vllm.sndr_core.kernels import lm_head_fp8_method as lhm
+from sndr.engines.vllm.kernels_legacy import lm_head_fp8_method as lhm
 
 
 # ─── Test helpers ──────────────────────────────────────────────────────

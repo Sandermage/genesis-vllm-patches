@@ -271,14 +271,14 @@ class OverrideReport:
 
 def _profile_dir() -> Path:
     return (
-        REPO_ROOT / "vllm" / "sndr_core" / "model_configs"
+        REPO_ROOT / "sndr" / "model_configs"
         / "builtin" / "profile"
     )
 
 
 def _community_profile_dir() -> Path:
     return (
-        REPO_ROOT / "vllm" / "sndr_core" / "model_configs"
+        REPO_ROOT / "sndr" / "model_configs"
         / "community" / "profile"
     )
 
@@ -296,8 +296,8 @@ def _list_profile_ids() -> list[str]:
 
 def _audit_one_profile(profile_id: str, report: OverrideReport) -> None:
     """Audit one profile; append findings to report."""
-    from vllm.sndr_core.model_configs.registry_v2 import load_profile
-    from vllm.sndr_core.model_configs.schema import SchemaError
+    from sndr.model_configs.registry_v2 import load_profile
+    from sndr.model_configs.schema import SchemaError
 
     try:
         profile = load_profile(profile_id)
@@ -408,7 +408,7 @@ def _audit_one_profile(profile_id: str, report: OverrideReport) -> None:
 def _list_preset_yamls() -> list[Path]:
     """Enumerate builtin presets so we can cross-product profile×hardware
     for cross-layer rules (e.g. Rule 2 tp_size vs n_gpus)."""
-    d = REPO_ROOT / "vllm" / "sndr_core" / "model_configs" / "builtin" / "presets"
+    d = REPO_ROOT / "sndr" / "model_configs" / "builtin" / "presets"
     if not d.is_dir():
         return []
     return sorted(
@@ -456,10 +456,10 @@ def _run_forbidden_rules(
     than emit false-positive. The audit reports cross-layer load
     failures as a separate finding for visibility.
     """
-    from vllm.sndr_core.model_configs.registry_v2 import (
+    from sndr.model_configs.registry_v2 import (
         load_hardware, load_model,
     )
-    from vllm.sndr_core.model_configs.schema import SchemaError
+    from sndr.model_configs.schema import SchemaError
 
     # Load model once per profile (single parent_model reference).
     parent_model_id = getattr(profile, "parent_model", None)

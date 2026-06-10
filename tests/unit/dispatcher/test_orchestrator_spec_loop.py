@@ -12,7 +12,7 @@ import pytest
 
 
 def _orch():
-    from vllm.sndr_core.apply import orchestrator
+    from sndr.apply import orchestrator
     return orchestrator
 
 
@@ -142,7 +142,7 @@ class TestSpecLoopDryRun:
 
 class TestSpecLoopResultShape:
     def test_each_result_is_patchresult(self, monkeypatch):
-        from vllm.sndr_core.apply._state import PatchResult
+        from sndr.apply._state import PatchResult
         monkeypatch.setenv("SNDR_APPLY_VIA_SPECS", "1")
         o = _orch()
         stats = o.run(verbose=False, apply=False)

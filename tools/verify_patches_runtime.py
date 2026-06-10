@@ -55,6 +55,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -473,13 +474,19 @@ def render(audit: dict[str, Any]) -> str:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--ssh-target", default="sander@192.168.1.10")
+    ap.add_argument("--ssh-target", default=os.environ.get("SSH_HOST", ""),
+                    help="ssh target <user>@<host> (default: $SSH_HOST)")
     ap.add_argument("--container", default="vllm-qwen3.6-35b-balanced-k3")
     ap.add_argument("--patch", help="Verify only one patch by ID")
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--ci-strict", action="store_true",
                     help="Exit 1 on any SILENT_FAILURE_SUSPECT or FUNCTION_MISSING")
     args = ap.parse_args()
+
+    if not args.ssh_target:
+        print("error: ssh target required; pass --ssh-target or set "
+              "SSH_HOST", file=sys.stderr)
+        return 2
 
     audit = run_live_probe(args.ssh_target, args.container)
     behavioral = run_behavioral_probe(args.ssh_target, args.container)

@@ -93,7 +93,7 @@ class TestExampleMetadata:
         from genesis_plugin_hello_world.plugin import get_patch_metadata
         meta = get_patch_metadata()
 
-        from vllm.sndr_core.compat.schema_validator import validate_entry
+        from sndr.compat.schema_validator import validate_entry
         # Force lifecycle=community since plugin.py declares it
         # (or relies on Genesis to auto-tag); validator should accept
         meta_to_check = dict(meta)
@@ -124,7 +124,7 @@ class TestExampleMetadata:
         spec = meta.get("apply_callable")
         if spec is None:
             pytest.skip("metadata-only plugin (no apply_callable)")
-        from vllm.sndr_core.compat.plugins import _resolve_apply_callable
+        from sndr.compat.plugins import _resolve_apply_callable
         fn = _resolve_apply_callable(spec)
         assert callable(fn)
 
@@ -163,10 +163,10 @@ class TestExampleGoesThroughDiscoveryPipeline:
 
         monkeypatch.setenv("GENESIS_ALLOW_PLUGINS", "1")
         monkeypatch.setattr(
-            "vllm.sndr_core.compat.plugins._discover_entry_points",
+            "sndr.compat.plugins._discover_entry_points",
             lambda: [FakeEP()],
         )
-        from vllm.sndr_core.compat.plugins import discover_plugins
+        from sndr.compat.plugins import discover_plugins
         plugins = discover_plugins()
         assert len(plugins) == 1
         p = plugins[0]

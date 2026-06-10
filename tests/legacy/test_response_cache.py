@@ -26,7 +26,7 @@ import pytest
 
 @pytest.fixture(autouse=True)
 def _reset_env_and_cache(monkeypatch):
-    from vllm.sndr_core.cache.response_cache import reset_default_cache_for_tests
+    from sndr.cache.response_cache import reset_default_cache_for_tests
     monkeypatch.delenv("GENESIS_ENABLE_P41_RESPONSE_CACHE", raising=False)
     monkeypatch.delenv("GENESIS_P41_MAX_ENTRIES", raising=False)
     monkeypatch.delenv("GENESIS_P41_TTL_SECONDS", raising=False)
@@ -37,7 +37,7 @@ def _reset_env_and_cache(monkeypatch):
 
 class TestKeyStability:
     def test_same_key_across_dict_orderings(self):
-        from vllm.sndr_core.cache.response_cache import _stable_key
+        from sndr.cache.response_cache import _stable_key
         p = "hello world"
         m = "qwen-test"
         k1 = _stable_key(p, m, {"temperature": 0.0, "max_tokens": 64, "top_p": 1.0})
@@ -45,19 +45,19 @@ class TestKeyStability:
         assert k1 == k2
 
     def test_none_values_collide_with_missing(self):
-        from vllm.sndr_core.cache.response_cache import _stable_key
+        from sndr.cache.response_cache import _stable_key
         k_none = _stable_key("p", "m", {"stop": None, "n": 1})
         k_missing = _stable_key("p", "m", {"n": 1})
         assert k_none == k_missing
 
     def test_different_prompts_different_keys(self):
-        from vllm.sndr_core.cache.response_cache import _stable_key
+        from sndr.cache.response_cache import _stable_key
         k1 = _stable_key("hello", "m", {"t": 0.0})
         k2 = _stable_key("world", "m", {"t": 0.0})
         assert k1 != k2
 
     def test_different_models_different_keys(self):
-        from vllm.sndr_core.cache.response_cache import _stable_key
+        from sndr.cache.response_cache import _stable_key
         k1 = _stable_key("p", "qwen-a", {"t": 0.0})
         k2 = _stable_key("p", "qwen-b", {"t": 0.0})
         assert k1 != k2
@@ -65,14 +65,14 @@ class TestKeyStability:
 
 class TestRoundTrip:
     def test_get_miss_returns_none(self):
-        from vllm.sndr_core.cache.response_cache import ResponseCacheLRU
+        from sndr.cache.response_cache import ResponseCacheLRU
         c = ResponseCacheLRU(max_entries=4, ttl_seconds=60)
         assert c.get("p", "m", {"t": 0.0}) is None
         assert c.stats()["misses"] == 1
         assert c.stats()["hits"] == 0
 
     def test_store_then_get_returns_stored(self):
-        from vllm.sndr_core.cache.response_cache import ResponseCacheLRU
+        from sndr.cache.response_cache import ResponseCacheLRU
         c = ResponseCacheLRU(max_entries=4, ttl_seconds=60)
         resp = {"choices": [{"text": "hi"}], "usage": {"total_tokens": 5}}
         c.store("p", "m", {"t": 0.0}, resp)
@@ -81,7 +81,7 @@ class TestRoundTrip:
         assert c.stats()["hits"] == 1
 
     def test_refresh_same_key_overwrites(self):
-        from vllm.sndr_core.cache.response_cache import ResponseCacheLRU
+        from sndr.cache.response_cache import ResponseCacheLRU
         c = ResponseCacheLRU(max_entries=4, ttl_seconds=60)
         c.store("p", "m", {"t": 0.0}, {"v": 1})
         c.store("p", "m", {"t": 0.0}, {"v": 2})
@@ -91,7 +91,7 @@ class TestRoundTrip:
 
 class TestTTLEviction:
     def test_expired_entry_returns_none_and_drops(self, monkeypatch):
-        from vllm.sndr_core.cache import response_cache as rc
+        from sndr.cache import response_cache as rc
         c = rc.ResponseCacheLRU(max_entries=4, ttl_seconds=60)
         base = 1000.0
         monkeypatch.setattr(rc.time, "monotonic", lambda: base)
@@ -103,7 +103,7 @@ class TestTTLEviction:
         assert len(c) == 0
 
     def test_fresh_entry_returns(self, monkeypatch):
-        from vllm.sndr_core.cache import response_cache as rc
+        from sndr.cache import response_cache as rc
         c = rc.ResponseCacheLRU(max_entries=4, ttl_seconds=60)
         base = 1000.0
         monkeypatch.setattr(rc.time, "monotonic", lambda: base)
@@ -114,7 +114,7 @@ class TestTTLEviction:
 
 class TestLRUEviction:
     def test_exceeds_capacity_evicts_oldest(self):
-        from vllm.sndr_core.cache.response_cache import ResponseCacheLRU
+        from sndr.cache.response_cache import ResponseCacheLRU
         c = ResponseCacheLRU(max_entries=3, ttl_seconds=3600)
         for i in range(5):
             c.store(f"p{i}", "m", {}, {"v": i})
@@ -127,7 +127,7 @@ class TestLRUEviction:
         assert c.stats()["evictions"] == 2
 
     def test_access_refreshes_lru_order(self):
-        from vllm.sndr_core.cache.response_cache import ResponseCacheLRU
+        from sndr.cache.response_cache import ResponseCacheLRU
         c = ResponseCacheLRU(max_entries=2, ttl_seconds=3600)
         c.store("a", "m", {}, {"v": "a"})
         c.store("b", "m", {}, {"v": "b"})
@@ -142,19 +142,19 @@ class TestLRUEviction:
 
 class TestInvalidateClear:
     def test_invalidate_present(self):
-        from vllm.sndr_core.cache.response_cache import ResponseCacheLRU
+        from sndr.cache.response_cache import ResponseCacheLRU
         c = ResponseCacheLRU()
         c.store("p", "m", {}, {"v": 1})
         assert c.invalidate("p", "m", {}) is True
         assert c.get("p", "m", {}) is None
 
     def test_invalidate_absent(self):
-        from vllm.sndr_core.cache.response_cache import ResponseCacheLRU
+        from sndr.cache.response_cache import ResponseCacheLRU
         c = ResponseCacheLRU()
         assert c.invalidate("p", "m", {}) is False
 
     def test_clear_empties(self):
-        from vllm.sndr_core.cache.response_cache import ResponseCacheLRU
+        from sndr.cache.response_cache import ResponseCacheLRU
         c = ResponseCacheLRU()
         for i in range(5):
             c.store(f"p{i}", "m", {}, {"v": i})
@@ -169,7 +169,7 @@ class TestInvalidateClear:
 
 class TestThreadSafety:
     def test_concurrent_get_and_store_no_counter_corruption(self):
-        from vllm.sndr_core.cache.response_cache import ResponseCacheLRU
+        from sndr.cache.response_cache import ResponseCacheLRU
         c = ResponseCacheLRU(max_entries=200, ttl_seconds=3600)
         # Prime 50 entries
         for i in range(50):
@@ -201,17 +201,17 @@ class TestThreadSafety:
 
 class TestIsEnabled:
     def test_default_off(self):
-        from vllm.sndr_core.cache.response_cache import is_p41_enabled
+        from sndr.cache.response_cache import is_p41_enabled
         assert is_p41_enabled() is False
 
     def test_truthy_values_on(self, monkeypatch):
-        from vllm.sndr_core.cache.response_cache import is_p41_enabled
+        from sndr.cache.response_cache import is_p41_enabled
         for v in ("1", "true", "TRUE", "yes", "Yes", "on"):
             monkeypatch.setenv("GENESIS_ENABLE_P41_RESPONSE_CACHE", v)
             assert is_p41_enabled() is True, f"Should accept {v!r}"
 
     def test_falsy_values_off(self, monkeypatch):
-        from vllm.sndr_core.cache.response_cache import is_p41_enabled
+        from sndr.cache.response_cache import is_p41_enabled
         for v in ("0", "false", "no", "off", ""):
             monkeypatch.setenv("GENESIS_ENABLE_P41_RESPONSE_CACHE", v)
             assert is_p41_enabled() is False, f"Should reject {v!r}"
@@ -219,11 +219,11 @@ class TestIsEnabled:
 
 class TestDefaultSingleton:
     def test_none_when_disabled(self):
-        from vllm.sndr_core.cache.response_cache import get_default_cache
+        from sndr.cache.response_cache import get_default_cache
         assert get_default_cache() is None
 
     def test_singleton_when_enabled(self, monkeypatch):
-        from vllm.sndr_core.cache.response_cache import (
+        from sndr.cache.response_cache import (
             get_default_cache, ResponseCacheLRU,
         )
         monkeypatch.setenv("GENESIS_ENABLE_P41_RESPONSE_CACHE", "1")
@@ -234,7 +234,7 @@ class TestDefaultSingleton:
         assert isinstance(c1, ResponseCacheLRU)
 
     def test_env_overrides_max_entries_and_ttl(self, monkeypatch):
-        from vllm.sndr_core.cache.response_cache import get_default_cache
+        from sndr.cache.response_cache import get_default_cache
         monkeypatch.setenv("GENESIS_ENABLE_P41_RESPONSE_CACHE", "1")
         monkeypatch.setenv("GENESIS_P41_MAX_ENTRIES", "50")
         monkeypatch.setenv("GENESIS_P41_TTL_SECONDS", "120")
@@ -246,7 +246,7 @@ class TestDefaultSingleton:
 
 class TestParamsImmutability:
     def test_get_doesnt_mutate_params_dict(self):
-        from vllm.sndr_core.cache.response_cache import ResponseCacheLRU
+        from sndr.cache.response_cache import ResponseCacheLRU
         c = ResponseCacheLRU()
         params = {"t": 0.0, "n": 1}
         snapshot = dict(params)
@@ -254,7 +254,7 @@ class TestParamsImmutability:
         assert params == snapshot
 
     def test_store_doesnt_mutate_params_dict(self):
-        from vllm.sndr_core.cache.response_cache import ResponseCacheLRU
+        from sndr.cache.response_cache import ResponseCacheLRU
         c = ResponseCacheLRU()
         params = {"t": 0.0, "n": 1, "stop": None}
         snapshot = dict(params)
@@ -264,24 +264,24 @@ class TestParamsImmutability:
 
 class TestConstructorValidation:
     def test_rejects_zero_max(self):
-        from vllm.sndr_core.cache.response_cache import ResponseCacheLRU
+        from sndr.cache.response_cache import ResponseCacheLRU
         with pytest.raises(ValueError):
             ResponseCacheLRU(max_entries=0, ttl_seconds=60)
 
     def test_rejects_negative_ttl(self):
-        from vllm.sndr_core.cache.response_cache import ResponseCacheLRU
+        from sndr.cache.response_cache import ResponseCacheLRU
         with pytest.raises(ValueError):
             ResponseCacheLRU(max_entries=4, ttl_seconds=0)
 
     def test_rejects_alpha_out_of_range(self):
-        from vllm.sndr_core.cache.response_cache import ResponseCacheLRU
+        from sndr.cache.response_cache import ResponseCacheLRU
         with pytest.raises(ValueError):
             ResponseCacheLRU(hit_weight_alpha=1.5)
         with pytest.raises(ValueError):
             ResponseCacheLRU(hit_weight_alpha=-0.1)
 
     def test_rejects_zero_scan_size(self):
-        from vllm.sndr_core.cache.response_cache import ResponseCacheLRU
+        from sndr.cache.response_cache import ResponseCacheLRU
         with pytest.raises(ValueError):
             ResponseCacheLRU(eviction_scan_size=0)
 
@@ -291,7 +291,7 @@ class TestHitWeightedEviction:
 
     def test_default_is_pure_lru(self):
         """hit_weighted_eviction=False → oldest always wins."""
-        from vllm.sndr_core.cache.response_cache import ResponseCacheLRU
+        from sndr.cache.response_cache import ResponseCacheLRU
         c = ResponseCacheLRU(max_entries=3, ttl_seconds=3600)
         c.store("a", "m", {}, 1)
         c.store("b", "m", {}, 2)
@@ -310,7 +310,7 @@ class TestHitWeightedEviction:
     def test_hit_weighted_protects_popular(self):
         """With hit_weighted_eviction=True, an older-but-popular entry
         survives while newer-but-cold entries can be evicted."""
-        from vllm.sndr_core.cache.response_cache import ResponseCacheLRU
+        from sndr.cache.response_cache import ResponseCacheLRU
         c = ResponseCacheLRU(
             max_entries=3, ttl_seconds=3600,
             hit_weighted_eviction=True, hit_weight_alpha=0.3,
@@ -343,7 +343,7 @@ class TestHitWeightedEviction:
 
     def test_hit_weighted_counter_preserved_on_refresh(self):
         """store() on existing key must NOT reset hit_count."""
-        from vllm.sndr_core.cache.response_cache import ResponseCacheLRU
+        from sndr.cache.response_cache import ResponseCacheLRU
         c = ResponseCacheLRU(
             max_entries=4, ttl_seconds=3600, hit_weighted_eviction=True,
         )
@@ -356,7 +356,7 @@ class TestHitWeightedEviction:
         assert stats["top_hit_counts"][0] == 5
 
     def test_stats_reports_hit_counts_top_n(self):
-        from vllm.sndr_core.cache.response_cache import ResponseCacheLRU
+        from sndr.cache.response_cache import ResponseCacheLRU
         c = ResponseCacheLRU(max_entries=10, ttl_seconds=3600)
         for i in range(5):
             c.store(f"p{i}", "m", {}, i)
@@ -377,7 +377,7 @@ class TestRedisBackendImportGuard:
 
     def test_import_module_succeeds(self):
         """Module import on CPU-only doesn't require redis package."""
-        from vllm.sndr_core.cache import redis_backend
+        from sndr.cache import redis_backend
         assert hasattr(redis_backend, "RedisResponseCache")
 
     def test_missing_redis_raises_importerror(self, monkeypatch):
@@ -386,14 +386,14 @@ class TestRedisBackendImportGuard:
         import sys
         # Hide `redis` module if present
         monkeypatch.setitem(sys.modules, "redis", None)
-        from vllm.sndr_core.cache.redis_backend import RedisResponseCache
+        from sndr.cache.redis_backend import RedisResponseCache
         with pytest.raises(ImportError):
             RedisResponseCache(redis_url="redis://localhost:0/0")
 
     def test_default_cache_falls_back_on_redis_failure(self, monkeypatch):
         """If backend=redis but Redis unreachable, get_default_cache
         falls back to in-memory LRU without raising."""
-        from vllm.sndr_core.cache.response_cache import (
+        from sndr.cache.response_cache import (
             get_default_cache, ResponseCacheLRU,
             reset_default_cache_for_tests,
         )

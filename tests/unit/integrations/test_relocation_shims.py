@@ -322,13 +322,18 @@ def test_old_shim_path_no_longer_resolves(old_path, new_path):
 @pytest.mark.parametrize("old_path,new_path", PROBE_RELOCATIONS)
 def test_new_real_path_resolves(old_path, new_path):
     """The new technical-area path must still resolve cleanly."""
-    importlib.import_module(new_path)
+    try:
+        importlib.import_module(new_path)
+    except ImportError as e:
+        if "torch" in str(e) or "triton" in str(e):
+            pytest.skip(f"{new_path} requires torch/triton: {e}")
+        raise
 
 
 @pytest.mark.parametrize("patch_id,expected_path", ALL_REGISTERED.items())
 def test_registry_uses_new_path(patch_id, expected_path):
     """Registry's apply_module must point at the new (real) path."""
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+    from sndr.dispatcher.registry import PATCH_REGISTRY
     spec = PATCH_REGISTRY[patch_id]
     assert spec["apply_module"] == expected_path, (
         f"{patch_id}: registry apply_module={spec['apply_module']!r}, "

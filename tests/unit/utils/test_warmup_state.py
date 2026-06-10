@@ -8,13 +8,13 @@ import pytest
 
 
 def test_default_inactive():
-    from vllm.sndr_core.utils.warmup_state import is_warmup_active
+    from sndr.utils.warmup_state import is_warmup_active
     # Outside any context — must be False
     assert is_warmup_active() is False
 
 
 def test_context_activates_and_resets():
-    from vllm.sndr_core.utils.warmup_state import (
+    from sndr.utils.warmup_state import (
         is_warmup_active, warmup_active,
     )
     assert is_warmup_active() is False
@@ -25,7 +25,7 @@ def test_context_activates_and_resets():
 
 
 def test_nested_contexts():
-    from vllm.sndr_core.utils.warmup_state import (
+    from sndr.utils.warmup_state import (
         is_warmup_active, warmup_active,
     )
     with warmup_active():
@@ -38,7 +38,7 @@ def test_nested_contexts():
 
 
 def test_exception_resets():
-    from vllm.sndr_core.utils.warmup_state import (
+    from sndr.utils.warmup_state import (
         is_warmup_active, warmup_active,
     )
     with pytest.raises(RuntimeError):
@@ -51,7 +51,7 @@ def test_exception_resets():
 
 def test_async_context_safe():
     """Verify contextvars work correctly across async tasks."""
-    from vllm.sndr_core.utils.warmup_state import (
+    from sndr.utils.warmup_state import (
         is_warmup_active, warmup_active,
     )
 

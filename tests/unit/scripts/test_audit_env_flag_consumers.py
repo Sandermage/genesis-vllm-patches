@@ -61,8 +61,7 @@ class TestLiveCorpus:
         mod = _import_script()
         orphans = mod.audit()
         assert orphans == [], (
-            "Orphan env_flags (registered but no consumer in "
-            "vllm/sndr_core/):\n"
+            "Orphan env_flags (registered but no consumer in sndr/):\n"
             + "\n".join(f"  {o['patch_id']}: {o['env_flag']}" for o in orphans)
         )
 
@@ -93,7 +92,7 @@ class TestSyntheticOrphan:
         """Inject a synthetic registry entry whose env_flag is read
         nowhere in vllm/sndr_core — the audit must flag it."""
         mod = _import_script()
-        from vllm.sndr_core.dispatcher import registry as live_registry
+        from sndr.dispatcher import registry as live_registry
         # Synth registry with one active orphan + one valid entry.
         # Use a name guaranteed to not appear in the real source tree.
         synthetic = {
@@ -116,7 +115,7 @@ class TestSyntheticOrphan:
         """Retired entries are exempt — they're not supposed to have
         live consumers (the wiring lives under _retired/)."""
         mod = _import_script()
-        from vllm.sndr_core.dispatcher import registry as live_registry
+        from sndr.dispatcher import registry as live_registry
         synthetic = {
             "PX_RETIRED_SYNTH_2026": {
                 "title": "retired",

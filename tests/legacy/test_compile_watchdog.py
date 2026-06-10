@@ -16,7 +16,7 @@ from __future__ import annotations
 
 def test_patch_stats_has_compile_elapsed_field():
     """PatchStats dataclass has compile_elapsed_sec field."""
-    from vllm.sndr_core.apply import PatchStats
+    from sndr.apply import PatchStats
     s = PatchStats()
     assert hasattr(s, "compile_elapsed_sec")
     assert isinstance(s.compile_elapsed_sec, float)
@@ -31,7 +31,7 @@ def test_compile_elapsed_field_is_float_typed():
     type via inspect.get_type_hints (works even with PEP 563 deferred eval).
     """
     import typing
-    from vllm.sndr_core.apply import PatchStats
+    from sndr.apply import PatchStats
     annotations = PatchStats.__annotations__
     assert "compile_elapsed_sec" in annotations
     # String form equals 'float' (PEP 563)
@@ -49,7 +49,7 @@ def test_apply_all_sets_compile_elapsed():
     We run in dry-run mode (apply=False) to keep the test fast. Even
     dry-run runs through the full registry, so elapsed > 0.
     """
-    from vllm.sndr_core.apply import run
+    from sndr.apply import run
     stats = run(verbose=False, apply=False)
     assert stats.compile_elapsed_sec > 0.0, "Watchdog didn't measure elapsed"
     # Reasonable sanity: dry-run < 30s
@@ -61,7 +61,7 @@ def test_apply_all_sets_compile_elapsed():
 def test_watchdog_warning_threshold_documented():
     """Source code documents the 120s threshold for WARNING level."""
     import inspect
-    from vllm.sndr_core.apply import apply_all
+    from sndr.apply import apply_all
     src = inspect.getsource(apply_all.run)
     assert "120" in src, "Watchdog threshold not parameterized"
     assert "compile-watchdog" in src.lower()
@@ -70,7 +70,7 @@ def test_watchdog_warning_threshold_documented():
 def test_watchdog_log_message_actionable():
     """Watchdog log message includes actionable recovery hints."""
     import inspect
-    from vllm.sndr_core.apply import apply_all
+    from sndr.apply import apply_all
     src = inspect.getsource(apply_all.run)
     # When > 120s, recovery hints should be in the log
     assert "TRITON_CACHE_DIR" in src or "compile cache" in src.lower()

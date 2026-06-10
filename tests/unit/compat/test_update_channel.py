@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Tests for vllm.sndr_core.compat.update_channel — channel management
+"""Tests for sndr.compat.update_channel — channel management
 + check-for-updates against the Genesis GitHub repo.
 
 Phase 3.x scope (this commit): channel selection (stable / beta / dev),
@@ -28,11 +28,11 @@ def update_dir(tmp_path, monkeypatch):
 
 class TestChannelSelection:
     def test_default_channel_is_stable(self, update_dir):
-        from vllm.sndr_core.compat.update_channel import get_channel
+        from sndr.compat.update_channel import get_channel
         assert get_channel() == "stable"
 
     def test_set_channel_persists(self, update_dir):
-        from vllm.sndr_core.compat.update_channel import (
+        from sndr.compat.update_channel import (
             get_channel, set_channel,
         )
         set_channel("beta")
@@ -43,7 +43,7 @@ class TestChannelSelection:
         assert get_channel() == "stable"
 
     def test_set_channel_rejects_unknown(self, update_dir):
-        from vllm.sndr_core.compat.update_channel import set_channel
+        from sndr.compat.update_channel import set_channel
         with pytest.raises(ValueError):
             set_channel("nightly")
         with pytest.raises(ValueError):
@@ -51,7 +51,7 @@ class TestChannelSelection:
 
     def test_env_override(self, update_dir, monkeypatch):
         """GENESIS_UPDATE_CHANNEL env overrides the persisted choice."""
-        from vllm.sndr_core.compat.update_channel import (
+        from sndr.compat.update_channel import (
             get_channel, set_channel,
         )
         set_channel("dev")
@@ -65,7 +65,7 @@ class TestChannelSelection:
 
 class TestLocalCommitDetection:
     def test_returns_string_or_none(self):
-        from vllm.sndr_core.compat.update_channel import detect_local_commit
+        from sndr.compat.update_channel import detect_local_commit
         # Doesn't matter if there's no .git — should not raise
         result = detect_local_commit()
         assert result is None or isinstance(result, str)
@@ -86,7 +86,7 @@ class TestUpstreamCheck:
                 "message": "v7.64.0 release",
             },
         }
-        from vllm.sndr_core.compat import update_channel as uc
+        from sndr.compat import update_channel as uc
         monkeypatch.setattr(uc, "_fetch_github_ref",
                             lambda channel: fake_response)
         result = uc.check_for_updates()
@@ -96,7 +96,7 @@ class TestUpstreamCheck:
         assert result["upstream_sha"].startswith("abc1234")
 
     def test_check_handles_network_failure(self, update_dir, monkeypatch):
-        from vllm.sndr_core.compat import update_channel as uc
+        from sndr.compat import update_channel as uc
         def raises(channel):
             raise RuntimeError("network down")
         monkeypatch.setattr(uc, "_fetch_github_ref", raises)
@@ -105,7 +105,7 @@ class TestUpstreamCheck:
 
     def test_check_caches_result(self, update_dir, monkeypatch):
         """Repeated calls within cache TTL must NOT hit network again."""
-        from vllm.sndr_core.compat import update_channel as uc
+        from sndr.compat import update_channel as uc
         call_count = [0]
         def fetch(channel):
             call_count[0] += 1
@@ -121,7 +121,7 @@ class TestUpstreamCheck:
         assert call_count[0] == 1, "network should only be hit once"
 
     def test_force_refresh_bypasses_cache(self, update_dir, monkeypatch):
-        from vllm.sndr_core.compat import update_channel as uc
+        from sndr.compat import update_channel as uc
         call_count = [0]
         def fetch(channel):
             call_count[0] += 1
@@ -140,7 +140,7 @@ class TestUpstreamCheck:
 
 class TestUpdateAvailable:
     def test_local_matches_upstream_no_update(self, update_dir, monkeypatch):
-        from vllm.sndr_core.compat import update_channel as uc
+        from sndr.compat import update_channel as uc
         monkeypatch.setattr(uc, "detect_local_commit", lambda: "abc1234567")
         monkeypatch.setattr(
             uc, "_fetch_github_ref",
@@ -155,7 +155,7 @@ class TestUpdateAvailable:
     def test_local_differs_from_upstream_update_available(
         self, update_dir, monkeypatch,
     ):
-        from vllm.sndr_core.compat import update_channel as uc
+        from sndr.compat import update_channel as uc
         monkeypatch.setattr(uc, "detect_local_commit", lambda: "old1234567")
         monkeypatch.setattr(
             uc, "_fetch_github_ref",
@@ -169,7 +169,7 @@ class TestUpdateAvailable:
         assert result["upstream_sha"].startswith("new")
 
     def test_local_unknown_treated_as_unknown(self, update_dir, monkeypatch):
-        from vllm.sndr_core.compat import update_channel as uc
+        from sndr.compat import update_channel as uc
         monkeypatch.setattr(uc, "detect_local_commit", lambda: None)
         monkeypatch.setattr(
             uc, "_fetch_github_ref",
@@ -187,7 +187,7 @@ class TestUpdateAvailable:
 
 class TestCLI:
     def test_status_subcommand(self, update_dir, monkeypatch, capsys):
-        from vllm.sndr_core.compat import update_channel as uc
+        from sndr.compat import update_channel as uc
         monkeypatch.setattr(uc, "_fetch_github_ref",
                             lambda c: {"sha": "abc1234567",
                                        "commit": {"author": {"date": "now"},
@@ -198,7 +198,7 @@ class TestCLI:
         assert "stable" in captured.out or "channel" in captured.out.lower()
 
     def test_check_subcommand(self, update_dir, monkeypatch, capsys):
-        from vllm.sndr_core.compat import update_channel as uc
+        from sndr.compat import update_channel as uc
         monkeypatch.setattr(uc, "_fetch_github_ref",
                             lambda c: {"sha": "abc123",
                                        "commit": {"author": {"date": "now"},
@@ -209,14 +209,14 @@ class TestCLI:
         assert "abc123" in captured.out or "upstream" in captured.out.lower()
 
     def test_channel_set_subcommand(self, update_dir, capsys):
-        from vllm.sndr_core.compat import update_channel as uc
+        from sndr.compat import update_channel as uc
         rc = uc.main(["channel", "set", "beta"])
         assert rc == 0
         captured = capsys.readouterr()
         assert "beta" in captured.out
 
     def test_channel_set_invalid_returns_nonzero(self, update_dir, capsys):
-        from vllm.sndr_core.compat import update_channel as uc
+        from sndr.compat import update_channel as uc
         # argparse with choices= raises SystemExit(2) on invalid choice;
         # both that AND a clean nonzero return are acceptable rejection
         # signals
@@ -227,7 +227,7 @@ class TestCLI:
             assert e.code != 0
 
     def test_channel_get_subcommand(self, update_dir, capsys):
-        from vllm.sndr_core.compat import update_channel as uc
+        from sndr.compat import update_channel as uc
         uc.main(["channel", "set", "beta"])
         capsys.readouterr()  # clear
         rc = uc.main(["channel", "get"])
@@ -240,7 +240,7 @@ class TestCLI:
     ):
         """`apply` is currently deferred — should print a clear
         operator-action message rather than fail silently."""
-        from vllm.sndr_core.compat import update_channel as uc
+        from sndr.compat import update_channel as uc
         monkeypatch.setattr(uc, "_fetch_github_ref",
                             lambda c: {"sha": "abc123",
                                        "commit": {"author": {"date": "now"},

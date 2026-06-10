@@ -29,13 +29,13 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.model_configs.compose import compose
-from vllm.sndr_core.model_configs.schema import (
+from sndr.model_configs.compose import compose
+from sndr.model_configs.schema import (
     HardwareSpec,
     PatchAttribution,
     SchemaError,
 )
-from vllm.sndr_core.model_configs.schema_v2 import (
+from sndr.model_configs.schema_v2 import (
     HardwareDef,
     HardwareSizing,
     ModelCapabilities,
@@ -185,7 +185,7 @@ class TestResolverSeesProfileOverride:
         profile-A flags it suspected_regression for an A/B period. Under
         --policy minimal, the profile-augmented attribution wins → PN204
         gets dropped."""
-        from vllm.sndr_core.model_configs.patch_plan import resolve_patch_plan
+        from sndr.model_configs.patch_plan import resolve_patch_plan
         m = _stub_model(patches_attribution={
             "PN204": PatchAttribution(role="optional_perf",
                                        bench_evidence="m-bench"),

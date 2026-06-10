@@ -270,7 +270,7 @@ def make_family_registry_class(
                 )
 
         def test_family_count_matches_filesystem(self):
-            from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+            from sndr.dispatcher import PATCH_REGISTRY
             # v12.x: patch modules moved to sndr/engines/vllm/patches/; the
             # registry sits at sndr/dispatcher/registry.py so parent.parent
             # is the sndr/ package root. Retired patches live under

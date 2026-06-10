@@ -124,7 +124,12 @@ class TestUnregisteredProbesImportSafety:
             raise
 
     def test_apply_function_exists(self, module_path):
-        mod = importlib.import_module(module_path)
+        try:
+            mod = importlib.import_module(module_path)
+        except ImportError as e:
+            if "torch" in str(e) or "triton" in str(e):
+                pytest.skip(f"requires torch/triton: {e}")
+            raise
         has_apply = hasattr(mod, "apply") and callable(mod.apply)
         has_should_apply = (
             hasattr(mod, "should_apply") and callable(mod.should_apply)
@@ -140,7 +145,7 @@ class TestProbesFamilyFilesystemConsistency:
     def test_all_probes_files_listed(self):
         probes_dir = (
             Path(__file__).resolve().parents[5]
-            / "vllm" / "sndr_core" / "integrations" / "spec_decode" / "probes"
+            / "sndr" / "engines" / "vllm" / "patches" / "spec_decode" / "probes"
         )
         listed = {p.rsplit(".", 1)[-1] for p, _ in REGISTERED_PROBES}
         listed |= {p.rsplit(".", 1)[-1] for p in UNREGISTERED_PROBES}
@@ -156,7 +161,7 @@ class TestProbesFamilyFilesystemConsistency:
     def test_all_listed_files_exist(self):
         probes_dir = (
             Path(__file__).resolve().parents[5]
-            / "vllm" / "sndr_core" / "integrations" / "spec_decode" / "probes"
+            / "sndr" / "engines" / "vllm" / "patches" / "spec_decode" / "probes"
         )
         listed = {p.rsplit(".", 1)[-1] for p, _ in REGISTERED_PROBES}
         listed |= {p.rsplit(".", 1)[-1] for p in UNREGISTERED_PROBES}

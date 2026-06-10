@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""TDD for vllm.sndr_core.kernels.gdn_scratch_pool — Variant D Phase 1.
+"""TDD for sndr.engines.vllm.kernels_legacy.gdn_scratch_pool — Variant D Phase 1.
 
 Pattern adapted from test_ffn_intermediate_cache.py (PN12 proven design).
 
@@ -26,7 +26,7 @@ import torch
 @pytest.fixture(autouse=True)
 def reset_pool():
     """Reset registries between tests to avoid cross-test pollution."""
-    from vllm.sndr_core.kernels.gdn_scratch_pool import GdnScratchPool
+    from sndr.engines.vllm.kernels_legacy.gdn_scratch_pool import GdnScratchPool
     GdnScratchPool.reset()
     yield
     GdnScratchPool.reset()
@@ -39,12 +39,12 @@ def reset_pool():
 
 def test_should_apply_default_off(monkeypatch):
     monkeypatch.delenv("GENESIS_ENABLE_PN59_STREAMING_GDN", raising=False)
-    from vllm.sndr_core.kernels.gdn_scratch_pool import GdnScratchPool
+    from sndr.engines.vllm.kernels_legacy.gdn_scratch_pool import GdnScratchPool
     assert GdnScratchPool.should_apply() is False
 
 
 def test_should_apply_engages(monkeypatch):
-    from vllm.sndr_core.kernels.gdn_scratch_pool import GdnScratchPool
+    from sndr.engines.vllm.kernels_legacy.gdn_scratch_pool import GdnScratchPool
     monkeypatch.setenv("GENESIS_ENABLE_PN59_STREAMING_GDN", "1")
     assert GdnScratchPool.should_apply() is True
     monkeypatch.setenv("GENESIS_ENABLE_PN59_STREAMING_GDN", "true")
@@ -52,19 +52,19 @@ def test_should_apply_engages(monkeypatch):
 
 
 def test_window_nt_default_4(monkeypatch):
-    from vllm.sndr_core.kernels.gdn_scratch_pool import GdnScratchPool
+    from sndr.engines.vllm.kernels_legacy.gdn_scratch_pool import GdnScratchPool
     monkeypatch.delenv("GENESIS_VARIANT_D_WINDOW_NT", raising=False)
     assert GdnScratchPool.get_window_nt() == 4
 
 
 def test_window_nt_env_override(monkeypatch):
-    from vllm.sndr_core.kernels.gdn_scratch_pool import GdnScratchPool
+    from sndr.engines.vllm.kernels_legacy.gdn_scratch_pool import GdnScratchPool
     monkeypatch.setenv("GENESIS_VARIANT_D_WINDOW_NT", "8")
     assert GdnScratchPool.get_window_nt() == 8
 
 
 def test_window_nt_clamped(monkeypatch):
-    from vllm.sndr_core.kernels.gdn_scratch_pool import GdnScratchPool
+    from sndr.engines.vllm.kernels_legacy.gdn_scratch_pool import GdnScratchPool
     monkeypatch.setenv("GENESIS_VARIANT_D_WINDOW_NT", "0")
     assert GdnScratchPool.get_window_nt() == 1  # clamped low
     monkeypatch.setenv("GENESIS_VARIANT_D_WINDOW_NT", "9999")
@@ -72,7 +72,7 @@ def test_window_nt_clamped(monkeypatch):
 
 
 def test_window_nt_invalid_falls_back(monkeypatch):
-    from vllm.sndr_core.kernels.gdn_scratch_pool import GdnScratchPool
+    from sndr.engines.vllm.kernels_legacy.gdn_scratch_pool import GdnScratchPool
     monkeypatch.setenv("GENESIS_VARIANT_D_WINDOW_NT", "not_a_number")
     assert GdnScratchPool.get_window_nt() == 4
 
@@ -83,7 +83,7 @@ def test_window_nt_invalid_falls_back(monkeypatch):
 
 
 def test_h_window_first_acquire():
-    from vllm.sndr_core.kernels.gdn_scratch_pool import GdnScratchPool
+    from sndr.engines.vllm.kernels_legacy.gdn_scratch_pool import GdnScratchPool
     buf = GdnScratchPool.acquire_h_window(
         B=1, window_nt=4, H=24, V=128, K=128,
         dtype=torch.float16, device=torch.device("cpu"),
@@ -95,7 +95,7 @@ def test_h_window_first_acquire():
 
 def test_h_window_pointer_stable():
     """Same shape key → same data_ptr (cudagraph-safe invariant)."""
-    from vllm.sndr_core.kernels.gdn_scratch_pool import GdnScratchPool
+    from sndr.engines.vllm.kernels_legacy.gdn_scratch_pool import GdnScratchPool
     b1 = GdnScratchPool.acquire_h_window(1, 4, 24, 128, 128,
                                           torch.float16, torch.device("cpu"))
     b2 = GdnScratchPool.acquire_h_window(1, 4, 24, 128, 128,
@@ -105,7 +105,7 @@ def test_h_window_pointer_stable():
 
 def test_h_window_slice_on_smaller_acquire():
     """Smaller window acquire returns slice of same backing tensor."""
-    from vllm.sndr_core.kernels.gdn_scratch_pool import GdnScratchPool
+    from sndr.engines.vllm.kernels_legacy.gdn_scratch_pool import GdnScratchPool
     big = GdnScratchPool.acquire_h_window(1, 8, 24, 128, 128,
                                            torch.float16, torch.device("cpu"))
     small = GdnScratchPool.acquire_h_window(1, 2, 24, 128, 128,
@@ -117,7 +117,7 @@ def test_h_window_slice_on_smaller_acquire():
 
 def test_h_window_grows_on_larger_acquire():
     """Acquiring larger window forces re-allocation."""
-    from vllm.sndr_core.kernels.gdn_scratch_pool import GdnScratchPool
+    from sndr.engines.vllm.kernels_legacy.gdn_scratch_pool import GdnScratchPool
     small = GdnScratchPool.acquire_h_window(1, 2, 24, 128, 128,
                                               torch.float16, torch.device("cpu"))
     big = GdnScratchPool.acquire_h_window(1, 8, 24, 128, 128,
@@ -129,7 +129,7 @@ def test_h_window_grows_on_larger_acquire():
 
 
 def test_h_window_distinct_dtype_separate_buffer():
-    from vllm.sndr_core.kernels.gdn_scratch_pool import GdnScratchPool
+    from sndr.engines.vllm.kernels_legacy.gdn_scratch_pool import GdnScratchPool
     fp16 = GdnScratchPool.acquire_h_window(1, 4, 24, 128, 128,
                                              torch.float16, torch.device("cpu"))
     bf16 = GdnScratchPool.acquire_h_window(1, 4, 24, 128, 128,
@@ -141,7 +141,7 @@ def test_h_window_distinct_dtype_separate_buffer():
 
 def test_h_window_distinct_shape_separate_buffer():
     """Different (B, H, V, K) keys get distinct buffers."""
-    from vllm.sndr_core.kernels.gdn_scratch_pool import GdnScratchPool
+    from sndr.engines.vllm.kernels_legacy.gdn_scratch_pool import GdnScratchPool
     a = GdnScratchPool.acquire_h_window(1, 4, 24, 128, 128,
                                           torch.float16, torch.device("cpu"))
     b = GdnScratchPool.acquire_h_window(1, 4, 48, 128, 128,
@@ -150,7 +150,7 @@ def test_h_window_distinct_shape_separate_buffer():
 
 
 def test_h_window_zero_dims_raises():
-    from vllm.sndr_core.kernels.gdn_scratch_pool import GdnScratchPool
+    from sndr.engines.vllm.kernels_legacy.gdn_scratch_pool import GdnScratchPool
     with pytest.raises(ValueError, match="dims must be > 0"):
         GdnScratchPool.acquire_h_window(0, 4, 24, 128, 128,
                                           torch.float16, torch.device("cpu"))
@@ -165,7 +165,7 @@ def test_h_window_zero_dims_raises():
 
 
 def test_v_new_window_first_acquire():
-    from vllm.sndr_core.kernels.gdn_scratch_pool import GdnScratchPool
+    from sndr.engines.vllm.kernels_legacy.gdn_scratch_pool import GdnScratchPool
     buf = GdnScratchPool.acquire_v_new_window(
         B=1, window_T=256, H=24, V=128,
         dtype=torch.float16, device=torch.device("cpu"),
@@ -174,7 +174,7 @@ def test_v_new_window_first_acquire():
 
 
 def test_v_new_window_pointer_stable():
-    from vllm.sndr_core.kernels.gdn_scratch_pool import GdnScratchPool
+    from sndr.engines.vllm.kernels_legacy.gdn_scratch_pool import GdnScratchPool
     b1 = GdnScratchPool.acquire_v_new_window(1, 256, 24, 128,
                                                 torch.float16, torch.device("cpu"))
     b2 = GdnScratchPool.acquire_v_new_window(1, 256, 24, 128,
@@ -183,7 +183,7 @@ def test_v_new_window_pointer_stable():
 
 
 def test_v_new_window_slice_on_smaller():
-    from vllm.sndr_core.kernels.gdn_scratch_pool import GdnScratchPool
+    from sndr.engines.vllm.kernels_legacy.gdn_scratch_pool import GdnScratchPool
     big = GdnScratchPool.acquire_v_new_window(1, 512, 24, 128,
                                                  torch.float16, torch.device("cpu"))
     small = GdnScratchPool.acquire_v_new_window(1, 128, 24, 128,
@@ -193,7 +193,7 @@ def test_v_new_window_slice_on_smaller():
 
 
 def test_v_new_window_zero_dims_raises():
-    from vllm.sndr_core.kernels.gdn_scratch_pool import GdnScratchPool
+    from sndr.engines.vllm.kernels_legacy.gdn_scratch_pool import GdnScratchPool
     with pytest.raises(ValueError, match="dims must be > 0"):
         GdnScratchPool.acquire_v_new_window(0, 256, 24, 128,
                                               torch.float16, torch.device("cpu"))
@@ -210,7 +210,7 @@ def test_v_new_window_zero_dims_raises():
 
 
 def test_o_output_first_acquire():
-    from vllm.sndr_core.kernels.gdn_scratch_pool import GdnScratchPool
+    from sndr.engines.vllm.kernels_legacy.gdn_scratch_pool import GdnScratchPool
     GdnScratchPool.reset()
     buf = GdnScratchPool.acquire_o_output(
         B=1, T=4096, H=24, V=128,
@@ -221,7 +221,7 @@ def test_o_output_first_acquire():
 
 
 def test_o_output_pointer_stable_same_T():
-    from vllm.sndr_core.kernels.gdn_scratch_pool import GdnScratchPool
+    from sndr.engines.vllm.kernels_legacy.gdn_scratch_pool import GdnScratchPool
     GdnScratchPool.reset()
     b1 = GdnScratchPool.acquire_o_output(1, 4096, 24, 128,
                                           torch.float16, torch.device("cpu"))
@@ -232,7 +232,7 @@ def test_o_output_pointer_stable_same_T():
 
 def test_o_output_slice_within_same_bin():
     """Smaller T request within the same pow2 bin reuses the cached buffer."""
-    from vllm.sndr_core.kernels.gdn_scratch_pool import GdnScratchPool
+    from sndr.engines.vllm.kernels_legacy.gdn_scratch_pool import GdnScratchPool
     GdnScratchPool.reset()
     # 4000 → bin 4096; 3000 → bin 4096 (same bin, share buffer)
     big = GdnScratchPool.acquire_o_output(1, 4000, 24, 128,
@@ -246,7 +246,7 @@ def test_o_output_slice_within_same_bin():
 
 def test_o_output_T_binning_to_pow2():
     """Slightly different Ts that bin to the same pow2 share buffer."""
-    from vllm.sndr_core.kernels.gdn_scratch_pool import GdnScratchPool
+    from sndr.engines.vllm.kernels_legacy.gdn_scratch_pool import GdnScratchPool
     GdnScratchPool.reset()
     # T=3000 → bin to 4096; T=4000 → bin to 4096; both share buffer
     b1 = GdnScratchPool.acquire_o_output(1, 3000, 24, 128,
@@ -260,7 +260,7 @@ def test_o_output_T_binning_to_pow2():
 
 def test_o_output_grows_on_larger_pow2_bin():
     """T crossing pow2 boundary triggers new allocation (different bin)."""
-    from vllm.sndr_core.kernels.gdn_scratch_pool import GdnScratchPool
+    from sndr.engines.vllm.kernels_legacy.gdn_scratch_pool import GdnScratchPool
     GdnScratchPool.reset()
     b_small = GdnScratchPool.acquire_o_output(1, 4000, 24, 128,
                                               torch.float16, torch.device("cpu"))
@@ -271,7 +271,7 @@ def test_o_output_grows_on_larger_pow2_bin():
 
 
 def test_o_output_distinct_dtype_separate_buffer():
-    from vllm.sndr_core.kernels.gdn_scratch_pool import GdnScratchPool
+    from sndr.engines.vllm.kernels_legacy.gdn_scratch_pool import GdnScratchPool
     GdnScratchPool.reset()
     b_fp16 = GdnScratchPool.acquire_o_output(1, 4096, 24, 128,
                                              torch.float16, torch.device("cpu"))
@@ -281,7 +281,7 @@ def test_o_output_distinct_dtype_separate_buffer():
 
 
 def test_o_output_zero_dims_raises():
-    from vllm.sndr_core.kernels.gdn_scratch_pool import GdnScratchPool
+    from sndr.engines.vllm.kernels_legacy.gdn_scratch_pool import GdnScratchPool
     with pytest.raises(ValueError, match="dims must be > 0"):
         GdnScratchPool.acquire_o_output(0, 4096, 24, 128,
                                         torch.float16, torch.device("cpu"))
@@ -289,7 +289,7 @@ def test_o_output_zero_dims_raises():
 
 def test_o_output_min_T_floor_512():
     """Very small T binned to floor 512 to avoid pathological churn."""
-    from vllm.sndr_core.kernels.gdn_scratch_pool import GdnScratchPool
+    from sndr.engines.vllm.kernels_legacy.gdn_scratch_pool import GdnScratchPool
     GdnScratchPool.reset()
     b_tiny = GdnScratchPool.acquire_o_output(1, 16, 24, 128,
                                              torch.float16, torch.device("cpu"))
@@ -305,7 +305,7 @@ def test_o_output_min_T_floor_512():
 
 
 def test_state_first_acquire():
-    from vllm.sndr_core.kernels.gdn_scratch_pool import GdnScratchPool
+    from sndr.engines.vllm.kernels_legacy.gdn_scratch_pool import GdnScratchPool
     buf = GdnScratchPool.acquire_state(
         B=1, H=24, V=128, K=128,
         dtype=torch.float32, device=torch.device("cpu"),
@@ -315,7 +315,7 @@ def test_state_first_acquire():
 
 
 def test_state_pointer_stable():
-    from vllm.sndr_core.kernels.gdn_scratch_pool import GdnScratchPool
+    from sndr.engines.vllm.kernels_legacy.gdn_scratch_pool import GdnScratchPool
     s1 = GdnScratchPool.acquire_state(1, 24, 128, 128,
                                         torch.float32, torch.device("cpu"))
     s2 = GdnScratchPool.acquire_state(1, 24, 128, 128,
@@ -324,7 +324,7 @@ def test_state_pointer_stable():
 
 
 def test_state_distinct_shape_separate_buffer():
-    from vllm.sndr_core.kernels.gdn_scratch_pool import GdnScratchPool
+    from sndr.engines.vllm.kernels_legacy.gdn_scratch_pool import GdnScratchPool
     a = GdnScratchPool.acquire_state(1, 24, 128, 128,
                                        torch.float32, torch.device("cpu"))
     b = GdnScratchPool.acquire_state(1, 48, 128, 128,
@@ -339,7 +339,7 @@ def test_state_distinct_shape_separate_buffer():
 
 def test_three_registries_isolated():
     """h, v_new, state buffers must NOT share memory."""
-    from vllm.sndr_core.kernels.gdn_scratch_pool import GdnScratchPool
+    from sndr.engines.vllm.kernels_legacy.gdn_scratch_pool import GdnScratchPool
     h = GdnScratchPool.acquire_h_window(1, 4, 24, 128, 128,
                                           torch.float16, torch.device("cpu"))
     v = GdnScratchPool.acquire_v_new_window(1, 256, 24, 128,
@@ -356,12 +356,12 @@ def test_three_registries_isolated():
 
 
 def test_total_pooled_bytes_starts_zero():
-    from vllm.sndr_core.kernels.gdn_scratch_pool import GdnScratchPool
+    from sndr.engines.vllm.kernels_legacy.gdn_scratch_pool import GdnScratchPool
     assert GdnScratchPool.total_pooled_bytes() == 0
 
 
 def test_total_pooled_bytes_grows():
-    from vllm.sndr_core.kernels.gdn_scratch_pool import GdnScratchPool
+    from sndr.engines.vllm.kernels_legacy.gdn_scratch_pool import GdnScratchPool
     GdnScratchPool.acquire_h_window(1, 4, 24, 128, 128,
                                       torch.float16, torch.device("cpu"))
     bytes_after = GdnScratchPool.total_pooled_bytes()
@@ -370,7 +370,7 @@ def test_total_pooled_bytes_grows():
 
 
 def test_num_pools_breakdown():
-    from vllm.sndr_core.kernels.gdn_scratch_pool import GdnScratchPool
+    from sndr.engines.vllm.kernels_legacy.gdn_scratch_pool import GdnScratchPool
     GdnScratchPool.acquire_h_window(1, 4, 24, 128, 128,
                                       torch.float16, torch.device("cpu"))
     GdnScratchPool.acquire_state(1, 24, 128, 128,
@@ -383,7 +383,7 @@ def test_num_pools_breakdown():
 
 
 def test_stats_dict_complete():
-    from vllm.sndr_core.kernels.gdn_scratch_pool import GdnScratchPool
+    from sndr.engines.vllm.kernels_legacy.gdn_scratch_pool import GdnScratchPool
     s = GdnScratchPool.stats()
     assert "enabled" in s
     assert "window_nt" in s
@@ -392,7 +392,7 @@ def test_stats_dict_complete():
 
 
 def test_reset_clears_all_registries():
-    from vllm.sndr_core.kernels.gdn_scratch_pool import GdnScratchPool
+    from sndr.engines.vllm.kernels_legacy.gdn_scratch_pool import GdnScratchPool
     GdnScratchPool.acquire_h_window(1, 4, 24, 128, 128,
                                       torch.float16, torch.device("cpu"))
     GdnScratchPool.acquire_v_new_window(1, 256, 24, 128,

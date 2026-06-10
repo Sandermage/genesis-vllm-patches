@@ -107,13 +107,13 @@ class TestLoaderFailure:
         real_import = builtins.__import__
 
         def fake_import(name, *args, **kwargs):
-            if name == "vllm.sndr_core.license":
+            if name == "sndr.license":
                 raise ImportError("synthetic for test")
             return real_import(name, *args, **kwargs)
 
         # Drop the cached license module if present so the patched
         # import path actually fires.
-        sys.modules.pop("vllm.sndr_core.license", None)
+        sys.modules.pop("sndr.license", None)
         monkeypatch.setattr(builtins, "__import__", fake_import)
 
         with pytest.raises(SystemExit) as exc:

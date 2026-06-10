@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.product_api import engine_client as ec
+from sndr.product_api.legacy import engine_client as ec
 
 # A trimmed but realistic vLLM Prometheus exposition, using this pin's names.
 SAMPLE_METRICS = """
@@ -227,7 +227,7 @@ def test_engine_chat_clamps_max_tokens(monkeypatch):
 def test_engine_routes_wired(monkeypatch):
     fastapi = pytest.importorskip("fastapi")  # noqa: F841
     from fastapi.testclient import TestClient
-    from vllm.sndr_core.product_api.http_app import create_app
+    from sndr.product_api.legacy.http_app import create_app
 
     monkeypatch.setattr(ec, "engine_status", lambda host=None, port=None, api_key=None: {"reachable": True, "version": "x", "models": ["m"]})
     monkeypatch.setattr(ec, "engine_metrics", lambda host=None, port=None: {"reachable": True, "kpis": {"requests_running": 1}})
@@ -243,7 +243,7 @@ def test_engine_routes_wired(monkeypatch):
 def test_engine_chat_route_engine_down(monkeypatch):
     pytest.importorskip("fastapi")
     from fastapi.testclient import TestClient
-    from vllm.sndr_core.product_api.http_app import create_app
+    from sndr.product_api.legacy.http_app import create_app
 
     def boom(payload, host=None, port=None, api_key=None):
         raise OSError("Connection refused")
@@ -302,7 +302,7 @@ def test_metrics_history_accumulates(monkeypatch):
 def test_engine_stream_and_download_routes(monkeypatch):
     pytest.importorskip("fastapi")
     from fastapi.testclient import TestClient
-    from vllm.sndr_core.product_api.http_app import create_app
+    from sndr.product_api.legacy.http_app import create_app
 
     monkeypatch.setattr(ec, "stream_chat", lambda payload, host=None, port=None, api_key=None: iter(['{"delta":"hi"}', '{"done":true}']))
     client = TestClient(create_app(allowed_origins=()))

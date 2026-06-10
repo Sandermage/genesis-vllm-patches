@@ -13,8 +13,8 @@ from pathlib import Path
 
 import pytest
 
-from vllm.sndr_core.compat.model_config_cli import main as cli_main
-from vllm.sndr_core.model_configs.registry import get as get_config
+from sndr.compat.model_config_cli import main as cli_main
+from sndr.model_configs.registry import get as get_config
 
 
 # Phase 10 (2026-06-01): V1 sunset cascade. The CLI under test

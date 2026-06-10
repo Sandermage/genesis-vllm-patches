@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.product_api import patch_overrides as po
+from sndr.product_api.legacy import patch_overrides as po
 
 
 @pytest.fixture(autouse=True)
@@ -43,7 +43,7 @@ def test_validation_rejects_injection():
 
 def test_overrides_appear_in_launch_env():
     po.set_override("P67", "on", "GENESIS_ENABLE_P67")
-    from vllm.sndr_core.product_api.launch_plan import build_launch_plan
+    from sndr.product_api.legacy.launch_plan import build_launch_plan
 
     plan = build_launch_plan(preset_id="prod-qwen3.6-35b-multiconc")
     env_artifact = next((a for a in plan.artifacts if a.kind == "env"), None)
@@ -54,7 +54,7 @@ def test_overrides_appear_in_launch_env():
 def test_override_routes(monkeypatch, tmp_path):
     pytest.importorskip("fastapi")
     from fastapi.testclient import TestClient
-    from vllm.sndr_core.product_api.http_app import create_app
+    from sndr.product_api.legacy.http_app import create_app
 
     client = TestClient(create_app(allowed_origins=()))
     assert client.get("/api/v1/patches/overrides").json() == {"overrides": {}}

@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Tests for vllm.sndr_core.compat.predicates — applies_to AND/OR/NOT eval."""
+"""Tests for sndr.compat.predicates — applies_to AND/OR/NOT eval."""
 from __future__ import annotations
 
 
-from vllm.sndr_core.compat.predicates import (
+from sndr.compat.predicates import (
     evaluate,
     explain,
     normalize_legacy_rule,

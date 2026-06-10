@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from vllm.sndr_core.product_api.config_editor import (
+from sndr.product_api.legacy.config_editor import (
     apply_v2_config_plan,
     apply_v2_layer,
     collect_v2_config_catalog,

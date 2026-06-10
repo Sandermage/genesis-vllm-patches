@@ -64,7 +64,7 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-SCAN_ROOT = REPO_ROOT / "vllm" / "sndr_core" / "integrations"
+SCAN_ROOT = REPO_ROOT / "sndr" / "engines" / "vllm" / "patches"
 
 # Phase 3.1 of the master plan documented 25 lines as the empirical
 # fragility threshold (anchors at or above this break quarterly on

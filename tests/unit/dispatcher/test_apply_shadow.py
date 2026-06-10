@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""TDD for `vllm.sndr_core.apply.shadow` (PR38 Day 5).
+"""TDD for `sndr.apply.shadow` (PR38 Day 5).
 
 Shadow comparison between legacy apply-loop registration order
 (`_per_patch_dispatch.py @register_patch`) and the new spec-driven
@@ -17,7 +17,7 @@ import pytest
 
 
 def _shadow_module():
-    from vllm.sndr_core.apply import shadow
+    from sndr.apply import shadow
     return shadow
 
 
@@ -71,7 +71,7 @@ class TestCompareApplyOrders:
     def test_spec_count_matches_registry(self):
         """spec_count must equal the number of dict entries in
         dispatcher.PATCH_REGISTRY (specs are 1:1 with registry)."""
-        from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+        from sndr.dispatcher import PATCH_REGISTRY
         s = _shadow_module()
         diff = s.compare_apply_orders()
         registry_dict_count = sum(

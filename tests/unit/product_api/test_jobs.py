@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.product_api import jobs as jobstore
-from vllm.sndr_core.product_api.jobs import apply_service_action, get_job, list_jobs
-from vllm.sndr_core.product_api.presets import PresetNotFoundError
+from sndr.product_api.legacy import jobs as jobstore
+from sndr.product_api.legacy.jobs import apply_service_action, get_job, list_jobs
+from sndr.product_api.legacy.presets import PresetNotFoundError
 
 
 @pytest.fixture(autouse=True)

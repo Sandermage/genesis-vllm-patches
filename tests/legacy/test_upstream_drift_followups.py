@@ -27,7 +27,7 @@ import pytest
 
 class TestP3DriftBothCastForms:
     def test_p3_drift_markers_cover_fp16_and_fp32(self):
-        from vllm.sndr_core.integrations.attention.turboquant.p3_tq_bf16_cast import (
+        from sndr.engines.vllm.patches.attention.turboquant.p3_tq_bf16_cast import (
             UPSTREAM_DRIFT_MARKERS,
         )
         markers = "\n".join(UPSTREAM_DRIFT_MARKERS)
@@ -45,7 +45,7 @@ class TestP82DriftCovers40819:
     def test_p82_drift_markers_cover_block_verify(self):
         # P82's drift markers live inline in _make_patcher; read them
         # via the patcher object.
-        from vllm.sndr_core.integrations.spec_decode.p82_sglang_acceptance_threshold import (
+        from sndr.engines.vllm.patches.spec_decode.p82_sglang_acceptance_threshold import (
             _make_patcher,
         )
         # The patcher is constructed with a threshold value; pass any
@@ -72,7 +72,7 @@ class TestP82DriftCovers40819:
         """The marker block must include a comment explaining why we
         watch these strings — operator + future contributor context."""
         import inspect
-        from vllm.sndr_core.integrations.spec_decode import p82_sglang_acceptance_threshold as patch_82_sglang_acceptance_threshold
+        from sndr.engines.vllm.patches.spec_decode import p82_sglang_acceptance_threshold as patch_82_sglang_acceptance_threshold
         src = inspect.getsource(patch_82_sglang_acceptance_threshold)
         # Comment explaining why these markers exist
         assert "#40819" in src or "PR #40819" in src
@@ -103,7 +103,7 @@ class TestP5AutoRetireProbe:
         )
 
         # Also stub out the early-exit checks so we hit the probe
-        from vllm.sndr_core.integrations.kv_cache import p5_page_size as patch_5_page_size
+        from sndr.engines.vllm.patches.kv_cache import p5_page_size as patch_5_page_size
         # GENESIS_DISABLE_P5 must NOT be set
         monkeypatch.delenv("GENESIS_DISABLE_P5", raising=False)
 
@@ -135,7 +135,7 @@ class TestP5AutoRetireProbe:
             fake_tq_cfg,
         )
 
-        from vllm.sndr_core.integrations.kv_cache import p5_page_size as patch_5_page_size
+        from sndr.engines.vllm.patches.kv_cache import p5_page_size as patch_5_page_size
         monkeypatch.delenv("GENESIS_DISABLE_P5", raising=False)
 
         _status, reason = patch_5_page_size.apply()
@@ -148,7 +148,7 @@ class TestP5AutoRetireProbe:
     def test_p5_probe_failure_is_non_fatal(self, monkeypatch):
         """If the probe itself raises (e.g. import infrastructure
         broken), P5 must NOT fail — fall through to normal apply."""
-        from vllm.sndr_core.integrations.kv_cache import p5_page_size as patch_5_page_size
+        from sndr.engines.vllm.patches.kv_cache import p5_page_size as patch_5_page_size
 
         # Force the probe import to raise
         import importlib

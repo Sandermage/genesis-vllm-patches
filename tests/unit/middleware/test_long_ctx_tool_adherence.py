@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Tests for `vllm.sndr_core.middleware.long_ctx_tool_adherence` — P68 + P69.
+"""Tests for `sndr.engines.vllm.middleware.long_ctx_tool_adherence` — P68 + P69.
 
 Contract:
 
@@ -23,7 +23,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from vllm.sndr_core.middleware import long_ctx_tool_adherence as lc
+from sndr.engines.vllm.middleware import long_ctx_tool_adherence as lc
 
 
 # ─── _env_flag ────────────────────────────────────────────────────────

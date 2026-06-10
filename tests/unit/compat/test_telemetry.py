@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Tests for vllm.sndr_core.compat.telemetry — opt-in anonymized stats.
+"""Tests for sndr.compat.telemetry — opt-in anonymized stats.
 
 Phase 5d completes the plugin story by adding optional telemetry that
 helps the Genesis community see "which configs work in the wild" without
@@ -54,20 +54,20 @@ def telemetry_disabled(monkeypatch):
 
 class TestOptInGate:
     def test_default_off(self, telemetry_disabled):
-        from vllm.sndr_core.compat.telemetry import is_enabled
+        from sndr.compat.telemetry import is_enabled
         assert is_enabled() is False
 
     def test_env_on(self, telemetry_enabled):
-        from vllm.sndr_core.compat.telemetry import is_enabled
+        from sndr.compat.telemetry import is_enabled
         assert is_enabled() is True
 
     def test_upload_default_off(self, telemetry_disabled):
-        from vllm.sndr_core.compat.telemetry import is_upload_enabled
+        from sndr.compat.telemetry import is_upload_enabled
         assert is_upload_enabled() is False
 
     def test_upload_requires_both_envs(self, monkeypatch):
         """Upload must require BOTH master gate AND upload gate."""
-        from vllm.sndr_core.compat.telemetry import is_upload_enabled
+        from sndr.compat.telemetry import is_upload_enabled
         monkeypatch.setenv("GENESIS_ENABLE_TELEMETRY", "1")
         # Only master, no upload → still off
         monkeypatch.delenv("GENESIS_TELEMETRY_UPLOAD", raising=False)
@@ -89,19 +89,19 @@ class TestOptInGate:
 
 class TestInstanceID:
     def test_first_call_creates_id(self, telemetry_dir, telemetry_enabled):
-        from vllm.sndr_core.compat.telemetry import get_or_create_instance_id
+        from sndr.compat.telemetry import get_or_create_instance_id
         instance_id = get_or_create_instance_id()
         assert isinstance(instance_id, str)
         assert len(instance_id) > 8  # at least UUID-ish
 
     def test_second_call_returns_same_id(self, telemetry_dir, telemetry_enabled):
-        from vllm.sndr_core.compat.telemetry import get_or_create_instance_id
+        from sndr.compat.telemetry import get_or_create_instance_id
         a = get_or_create_instance_id()
         b = get_or_create_instance_id()
         assert a == b
 
     def test_id_persisted_to_file(self, telemetry_dir, telemetry_enabled):
-        from vllm.sndr_core.compat.telemetry import get_or_create_instance_id
+        from sndr.compat.telemetry import get_or_create_instance_id
         instance_id = get_or_create_instance_id()
         # The file should exist
         files = list(telemetry_dir.rglob("instance_id*"))
@@ -111,7 +111,7 @@ class TestInstanceID:
     def test_id_not_recognizable_as_pii(self, telemetry_dir, telemetry_enabled):
         """Instance ID must not be derived from anything PII-flavored
         like hostname, username, mac address."""
-        from vllm.sndr_core.compat.telemetry import get_or_create_instance_id
+        from sndr.compat.telemetry import get_or_create_instance_id
         import socket, getpass
         try:
             hostname = socket.gethostname()
@@ -134,12 +134,12 @@ class TestInstanceID:
 
 class TestReportShape:
     def test_collect_report_returns_dict(self, telemetry_dir, telemetry_enabled):
-        from vllm.sndr_core.compat.telemetry import collect_report
+        from sndr.compat.telemetry import collect_report
         report = collect_report()
         assert isinstance(report, dict)
 
     def test_required_top_level_keys(self, telemetry_dir, telemetry_enabled):
-        from vllm.sndr_core.compat.telemetry import collect_report
+        from sndr.compat.telemetry import collect_report
         report = collect_report()
         for key in ("schema_version", "timestamp", "instance_id",
                      "genesis_version", "hardware", "software",
@@ -149,7 +149,7 @@ class TestReportShape:
     def test_report_includes_no_PII(self, telemetry_dir, telemetry_enabled):
         """Strict PII check — report must not contain anything that
         could re-identify the user."""
-        from vllm.sndr_core.compat.telemetry import collect_report
+        from sndr.compat.telemetry import collect_report
         report = collect_report()
         flat = json.dumps(report, default=str).lower()
 
@@ -184,7 +184,7 @@ class TestReportShape:
     def test_patches_section_only_includes_ids(
         self, telemetry_dir, telemetry_enabled,
     ):
-        from vllm.sndr_core.compat.telemetry import collect_report
+        from sndr.compat.telemetry import collect_report
         report = collect_report()
         applied = report["patches"].get("applied", [])
         assert isinstance(applied, list)
@@ -202,7 +202,7 @@ class TestReportShape:
         an operator). Only count is sent. Operator can opt-in via
         GENESIS_TELEMETRY_INCLUDE_PLUGIN_NAMES=1."""
         monkeypatch.delenv("GENESIS_TELEMETRY_INCLUDE_PLUGIN_NAMES", raising=False)
-        from vllm.sndr_core.compat.telemetry import collect_report
+        from sndr.compat.telemetry import collect_report
         report = collect_report()
         plugin = report.get("plugins", {})
         assert "count" in plugin
@@ -214,7 +214,7 @@ class TestReportShape:
 
 class TestStorage:
     def test_save_creates_report_file(self, telemetry_dir, telemetry_enabled):
-        from vllm.sndr_core.compat.telemetry import collect_report, save_report
+        from sndr.compat.telemetry import collect_report, save_report
         report = collect_report()
         path = save_report(report)
         assert path.is_file()
@@ -222,7 +222,7 @@ class TestStorage:
         assert re.match(r"^\d{4}-\d{2}-\d{2}T\d{2}", path.stem)
 
     def test_clear_removes_reports(self, telemetry_dir, telemetry_enabled):
-        from vllm.sndr_core.compat.telemetry import (
+        from sndr.compat.telemetry import (
             collect_report, save_report, clear,
         )
         save_report(collect_report())
@@ -236,7 +236,7 @@ class TestStorage:
     def test_save_when_disabled_returns_None(
         self, telemetry_dir, telemetry_disabled,
     ):
-        from vllm.sndr_core.compat.telemetry import save_report
+        from sndr.compat.telemetry import save_report
         # Even if collect_report works, save_report should refuse when off
         report = {"schema_version": "1.0"}
         result = save_report(report)
@@ -253,7 +253,7 @@ class TestUploadGuards:
         """upload_report must refuse when either gate is closed.
         For now (Phase 5d alpha), upload is also deferred — should
         always be a no-op + return None."""
-        from vllm.sndr_core.compat.telemetry import upload_report
+        from sndr.compat.telemetry import upload_report
         result = upload_report({"x": 1})
         assert result is None  # no-op when gates closed
 
@@ -263,7 +263,7 @@ class TestUploadGuards:
 
 class TestCLI:
     def test_status_subcommand(self, telemetry_dir, telemetry_disabled, capsys):
-        from vllm.sndr_core.compat.telemetry import main
+        from sndr.compat.telemetry import main
         rc = main(["status"])
         captured = capsys.readouterr()
         assert rc == 0
@@ -272,7 +272,7 @@ class TestCLI:
         assert "OFF" in joined or "disabled" in joined.lower()
 
     def test_status_when_enabled(self, telemetry_dir, telemetry_enabled, capsys):
-        from vllm.sndr_core.compat.telemetry import main
+        from sndr.compat.telemetry import main
         rc = main(["status"])
         captured = capsys.readouterr()
         assert rc == 0
@@ -282,7 +282,7 @@ class TestCLI:
     def test_show_subcommand_displays_report(
         self, telemetry_dir, telemetry_enabled, capsys,
     ):
-        from vllm.sndr_core.compat.telemetry import main
+        from sndr.compat.telemetry import main
         rc = main(["show"])
         captured = capsys.readouterr()
         assert rc == 0
@@ -293,14 +293,14 @@ class TestCLI:
     def test_show_refuses_when_disabled(
         self, telemetry_dir, telemetry_disabled, capsys,
     ):
-        from vllm.sndr_core.compat.telemetry import main
+        from sndr.compat.telemetry import main
         rc = main(["show"])
         captured = capsys.readouterr()
         # Either prints help/refuse + nonzero, or zero with message
         assert rc != 0 or "OFF" in (captured.out + captured.err)
 
     def test_collect_subcommand(self, telemetry_dir, telemetry_enabled, capsys):
-        from vllm.sndr_core.compat.telemetry import main
+        from sndr.compat.telemetry import main
         rc = main(["collect"])
         assert rc == 0
         # File should exist
@@ -309,7 +309,7 @@ class TestCLI:
         assert len(files) >= 1
 
     def test_clear_subcommand(self, telemetry_dir, telemetry_enabled, capsys):
-        from vllm.sndr_core.compat.telemetry import collect_report, save_report, main
+        from sndr.compat.telemetry import collect_report, save_report, main
         save_report(collect_report())
         rc = main(["clear"])
         assert rc == 0

@@ -21,7 +21,7 @@ import json
 
 import pytest
 
-from vllm.sndr_core.model_configs.schema_v2 import ModelDef, SchemaError
+from sndr.model_configs.schema_v2 import ModelDef, SchemaError
 
 
 def _make_model(override=None):
@@ -114,8 +114,8 @@ class TestComposeIntegration:
 
         Mirrors the existing test_compose_patch_attribution.py fixtures
         — keeps shape stable when V2 schema evolves."""
-        from vllm.sndr_core.model_configs.schema import HardwareSpec
-        from vllm.sndr_core.model_configs.schema_v2 import (
+        from sndr.model_configs.schema import HardwareSpec
+        from sndr.model_configs.schema_v2 import (
             HardwareDef, HardwareSizing, ModelCapabilities,
             RuntimeBlock, RuntimeDockerBlock,
         )
@@ -146,7 +146,7 @@ class TestComposeIntegration:
         return model, hardware
 
     def test_override_emitted_when_set(self):
-        from vllm.sndr_core.model_configs.compose import compose
+        from sndr.model_configs.compose import compose
         model, hardware = self._build_pair(
             {"temperature": 0.6, "top_p": 0.95, "top_k": 20}
         )
@@ -159,7 +159,7 @@ class TestComposeIntegration:
         assert parsed == {"temperature": 0.6, "top_p": 0.95, "top_k": 20}
 
     def test_override_omitted_when_none(self):
-        from vllm.sndr_core.model_configs.compose import compose
+        from sndr.model_configs.compose import compose
         model, hardware = self._build_pair(None)
         cfg = compose(model, hardware)
         assert "--override-generation-config" not in cfg.vllm_extra_args
@@ -167,7 +167,7 @@ class TestComposeIntegration:
     def test_json_value_sorted_compact(self):
         """JSON encoding uses sort_keys=True + compact separators so the
         compose output is deterministic across renders."""
-        from vllm.sndr_core.model_configs.compose import compose
+        from sndr.model_configs.compose import compose
         # Out-of-order dict: expect sorted JSON
         model, hardware = self._build_pair(
             {"top_k": 20, "temperature": 0.6, "top_p": 0.95}

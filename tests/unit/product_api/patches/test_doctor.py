@@ -2,8 +2,8 @@
 """Tests for ``product_api.patches.doctor`` — M.6.1."""
 from __future__ import annotations
 
-from vllm.sndr_core.product_api.patches import doctor
-from vllm.sndr_core.product_api.patches.types import DoctorReport
+from sndr.product_api.legacy.patches import doctor
+from sndr.product_api.legacy.patches.types import DoctorReport
 
 
 class TestRunDoctor:

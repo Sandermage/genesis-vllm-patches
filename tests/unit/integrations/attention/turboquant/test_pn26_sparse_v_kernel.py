@@ -204,7 +204,7 @@ def test_wiring_skips_when_env_disabled(monkeypatch):
 
 def test_dispatcher_registry_entry():
     """PN26b is registered in dispatcher PATCH_REGISTRY."""
-    from vllm.sndr_core.dispatcher import PATCH_REGISTRY
+    from sndr.dispatcher import PATCH_REGISTRY
     assert "PN26b" in PATCH_REGISTRY
     entry = PATCH_REGISTRY["PN26b"]
     assert entry["env_flag"] == "GENESIS_ENABLE_PN26_SPARSE_V"

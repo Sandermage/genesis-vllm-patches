@@ -22,7 +22,7 @@ from pathlib import Path
 
 import pytest
 
-from vllm.sndr_core.observability import multiproc_bootstrap as mp_boot
+from sndr.observability import multiproc_bootstrap as mp_boot
 
 
 @pytest.fixture(autouse=True)

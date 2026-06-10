@@ -14,7 +14,7 @@ import torch
 
 class TestGdnCoreAttnManagerGuard:
     def test_should_apply_is_bool(self):
-        from vllm.sndr_core.kernels.gdn_core_attn_manager import (
+        from sndr.engines.vllm.kernels_legacy.gdn_core_attn_manager import (
             GdnCoreAttnManager,
         )
         assert isinstance(GdnCoreAttnManager.should_apply(), bool)
@@ -22,7 +22,7 @@ class TestGdnCoreAttnManagerGuard:
     def test_get_or_create_returns_none_on_cpu(
         self, monkeypatch, reset_genesis_prealloc,
     ):
-        from vllm.sndr_core.kernels import gdn_core_attn_manager as m
+        from sndr.engines.vllm.kernels_legacy import gdn_core_attn_manager as m
         # Clear any leftover cache from other tests and force platform=False
         m._SHOULD_APPLY_CACHED = False
         assert m.GdnCoreAttnManager.get_or_create(
@@ -37,7 +37,7 @@ class TestGdnCoreAttnManagerCompatible:
     def test_returns_right_shape_dtype(
         self, monkeypatch, reset_genesis_prealloc,
     ):
-        from vllm.sndr_core.kernels import gdn_core_attn_manager as m
+        from sndr.engines.vllm.kernels_legacy import gdn_core_attn_manager as m
         # Post-redesign: should_apply reads module-level cache via
         # `should_apply()` function, which classmethod delegates to.
         m._SHOULD_APPLY_CACHED = True
@@ -50,7 +50,7 @@ class TestGdnCoreAttnManagerCompatible:
         assert t.dtype == torch.bfloat16
 
     def test_pointer_stable(self, monkeypatch, reset_genesis_prealloc):
-        from vllm.sndr_core.kernels import gdn_core_attn_manager as m
+        from sndr.engines.vllm.kernels_legacy import gdn_core_attn_manager as m
         # Post-redesign: should_apply reads module-level cache via
         # `should_apply()` function, which classmethod delegates to.
         m._SHOULD_APPLY_CACHED = True
@@ -67,7 +67,7 @@ class TestGdnCoreAttnManagerCompatible:
     def test_different_keys_different_buffers(
         self, monkeypatch, reset_genesis_prealloc,
     ):
-        from vllm.sndr_core.kernels import gdn_core_attn_manager as m
+        from sndr.engines.vllm.kernels_legacy import gdn_core_attn_manager as m
         # Post-redesign: should_apply reads module-level cache via
         # `should_apply()` function, which classmethod delegates to.
         m._SHOULD_APPLY_CACHED = True
@@ -88,7 +88,7 @@ class TestAcquireSlice:
     def test_returns_slice_of_correct_size(
         self, monkeypatch, reset_genesis_prealloc,
     ):
-        from vllm.sndr_core.kernels import gdn_core_attn_manager as m
+        from sndr.engines.vllm.kernels_legacy import gdn_core_attn_manager as m
         # Post-redesign: should_apply reads module-level cache via
         # `should_apply()` function, which classmethod delegates to.
         m._SHOULD_APPLY_CACHED = True
@@ -100,7 +100,7 @@ class TestAcquireSlice:
         assert s.shape == (512, 32, 128)
 
     def test_slice_is_zeroed(self, monkeypatch, reset_genesis_prealloc):
-        from vllm.sndr_core.kernels import gdn_core_attn_manager as m
+        from sndr.engines.vllm.kernels_legacy import gdn_core_attn_manager as m
         # Post-redesign: should_apply reads module-level cache via
         # `should_apply()` function, which classmethod delegates to.
         m._SHOULD_APPLY_CACHED = True
@@ -117,7 +117,7 @@ class TestAcquireSlice:
         """Slice writes persist in the underlying pool; two acquire_slice
         calls for the same (shape, device, dtype) return slices of the
         SAME backing buffer (pointer-stable for CUDA graph safety)."""
-        from vllm.sndr_core.kernels import gdn_core_attn_manager as m
+        from sndr.engines.vllm.kernels_legacy import gdn_core_attn_manager as m
         m.GdnCoreAttnManager.clear_for_tests()
         m._SHOULD_APPLY_CACHED = True
         # Use the _BufferRegistry directly to assert the same buf is
@@ -157,7 +157,7 @@ class TestAcquireSlice:
         self, monkeypatch, reset_genesis_prealloc,
     ):
         """num_tokens > max → correctness fallback, no crash."""
-        from vllm.sndr_core.kernels import gdn_core_attn_manager as m
+        from sndr.engines.vllm.kernels_legacy import gdn_core_attn_manager as m
         # Post-redesign: should_apply reads module-level cache via
         # `should_apply()` function, which classmethod delegates to.
         m._SHOULD_APPLY_CACHED = True
@@ -181,8 +181,8 @@ class TestAcquireSlice:
         self, monkeypatch, reset_genesis_prealloc,
     ):
         """On CPU-only (should_apply False), returns fresh zeros."""
-        from vllm.sndr_core.kernels import gdn_core_attn_manager as m
-        from vllm.sndr_core.detection import guards
+        from sndr.engines.vllm.kernels_legacy import gdn_core_attn_manager as m
+        from sndr.engines.vllm.detection import guards
         monkeypatch.setattr(guards, "is_nvidia_cuda", lambda: False)
         s = m.GdnCoreAttnManager.acquire_slice(
             num_tokens=64, num_v_heads=4, head_v_dim=8,
@@ -197,7 +197,7 @@ class TestAcquireSlice:
         self, monkeypatch, reset_genesis_prealloc,
     ):
         """GENESIS_GDN_MAX_BATCHED_TOKENS raises the budget."""
-        from vllm.sndr_core.kernels import gdn_core_attn_manager as m
+        from sndr.engines.vllm.kernels_legacy import gdn_core_attn_manager as m
         m._reset_pin_for_tests()
         # Post-redesign: should_apply reads module-level cache via
         # `should_apply()` function, which classmethod delegates to.
@@ -213,7 +213,7 @@ class TestAcquireSlice:
     def test_env_invalid_falls_to_default(
         self, monkeypatch, reset_genesis_prealloc,
     ):
-        from vllm.sndr_core.kernels import gdn_core_attn_manager as m
+        from sndr.engines.vllm.kernels_legacy import gdn_core_attn_manager as m
         # Post-redesign: should_apply reads module-level cache via
         # `should_apply()` function, which classmethod delegates to.
         m._SHOULD_APPLY_CACHED = True
@@ -233,25 +233,25 @@ class TestBudgetResolution:
     """
 
     def test_hint_wins_over_env(self, monkeypatch):
-        from vllm.sndr_core.kernels import gdn_core_attn_manager as m
+        from sndr.engines.vllm.kernels_legacy import gdn_core_attn_manager as m
         # Simulate env was "8192" at import time
         m._ENV_BUDGET = 8192
         assert m.resolve_max_batched_tokens(hint=2048) == 2048
 
     def test_env_wins_over_default(self, monkeypatch):
-        from vllm.sndr_core.kernels import gdn_core_attn_manager as m
+        from sndr.engines.vllm.kernels_legacy import gdn_core_attn_manager as m
         m._ENV_BUDGET = 8192
         assert m.resolve_max_batched_tokens() == 8192
 
     def test_default_when_no_env(self, monkeypatch):
-        from vllm.sndr_core.kernels import gdn_core_attn_manager as m
+        from sndr.engines.vllm.kernels_legacy import gdn_core_attn_manager as m
         m._ENV_BUDGET = None
         assert m.resolve_max_batched_tokens() == 4096
 
     def test_env_read_once_at_module_import(self, monkeypatch):
         """Changing env at runtime does NOT affect cached `_ENV_BUDGET` —
         dynamo-safety requirement."""
-        from vllm.sndr_core.kernels import gdn_core_attn_manager as m
+        from sndr.engines.vllm.kernels_legacy import gdn_core_attn_manager as m
         m._ENV_BUDGET = 4096
         monkeypatch.setenv("GENESIS_GDN_MAX_BATCHED_TOKENS", "99999")
         # resolve_max_batched_tokens does NOT re-read env — it consults
@@ -261,7 +261,7 @@ class TestBudgetResolution:
 
 class TestRegistryInfo:
     def test_empty_registry(self, reset_genesis_prealloc):
-        from vllm.sndr_core.kernels.gdn_core_attn_manager import (
+        from sndr.engines.vllm.kernels_legacy.gdn_core_attn_manager import (
             GdnCoreAttnManager,
         )
         GdnCoreAttnManager.clear_for_tests()
@@ -272,7 +272,7 @@ class TestRegistryInfo:
     def test_registry_reflects_allocations(
         self, monkeypatch, reset_genesis_prealloc,
     ):
-        from vllm.sndr_core.kernels import gdn_core_attn_manager as m
+        from sndr.engines.vllm.kernels_legacy import gdn_core_attn_manager as m
         m.GdnCoreAttnManager.clear_for_tests()
         m._SHOULD_APPLY_CACHED = True
         m.GdnCoreAttnManager.get_or_create(
