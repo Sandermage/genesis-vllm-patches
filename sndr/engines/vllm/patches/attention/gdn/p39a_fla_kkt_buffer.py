@@ -245,6 +245,11 @@ def apply() -> tuple[str, str]:
             _MAX_B_HINT[0],
         )
 
+    # PN354 composition: lazily resolved "does the kernel declare
+    # USE_EXP2" flag (None = not yet probed). List-cell so the nested
+    # wrapper can write without `nonlocal` churn.
+    _KKT_HAS_EXP2 = [None]
+
     def _genesis_pooled_chunk_scaled_dot_kkt_fwd(
         k,
         g=None,
@@ -253,6 +258,7 @@ def apply() -> tuple[str, str]:
         chunk_indices=None,
         chunk_size=None,
         output_dtype=None,
+        use_exp2=False,
     ):
         """Signature-compatible drop-in around the original.
 
@@ -299,6 +305,25 @@ def apply() -> tuple[str, str]:
             max_B=_MAX_B_HINT[0],
         )
 
+        # [Genesis PN354 composition fix v2 2026-06-10] the PN354
+        # text-patch adds `USE_EXP2: tl.constexpr` (NO default — Triton
+        # treats it as REQUIRED) to the kernel this wrapper launches.
+        # v1 of this fix passed the flag only when truthy and crashed
+        # boot with "dynamic_func() missing 1 required positional
+        # argument: 'USE_EXP2'" when env was off. Correct rule: pass
+        # USE_EXP2 whenever the KERNEL declares the parameter (PN354
+        # text applied — P39a applies at a later ordinal so the state
+        # is final by now), regardless of the env value; omit it only
+        # when the kernel is unpatched.
+        if _KKT_HAS_EXP2[0] is None:
+            _kern = mod.chunk_scaled_dot_kkt_fwd_kernel
+            _names = getattr(_kern, "arg_names", None)
+            if not _names:
+                _names = getattr(getattr(_kern, "fn", None), "arg_names", None)
+            _KKT_HAS_EXP2[0] = bool(_names) and "USE_EXP2" in _names
+        _kkt_extra = (
+            {"USE_EXP2": bool(use_exp2)} if _KKT_HAS_EXP2[0] else {}
+        )
         mod.chunk_scaled_dot_kkt_fwd_kernel[(NT, B * H)](
             k=k,
             g=g,
@@ -311,6 +336,7 @@ def apply() -> tuple[str, str]:
             Hg=Hg,
             K=K,
             BT=BT,
+            **_kkt_extra,
         )
         return A
 
