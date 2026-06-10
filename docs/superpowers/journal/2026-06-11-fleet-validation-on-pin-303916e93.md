@@ -102,3 +102,40 @@ valid for this configuration. Reason: ['kv_cache_dtype not supported',
 8. 26B/31B launcher YAML round-trip: fold the degraded-31B decision
    and the text-only flags back into the model YAMLs with bench
    receipts.
+
+## Addendum (same session): streaming tool-calls were broken on 35B — found and fixed
+
+The post-restore probe exposed TWO live streaming defects the
+non-stream tests never see:
+
+1. **P107 NameError at stream end** (predicted by the triage
+   verifier): v2's injected detector referenced `auto_tools_called`,
+   which on this pin exists only in the NON-streaming generator.
+   Every tool-bearing streamed request errored at stream end. Fixed:
+   P107 v3 (clause dropped, comment corrected, live file surgically
+   patched + restart) — commit 78e35b78.
+
+2. **Raw-XML passthrough on streamed tool-calls** (Class-11 /
+   club-3090 #145 symptom): non-stream parsed perfectly, streams
+   returned the tool-call XML as `content` with `finish_reason=stop`
+   and ZERO `delta.tool_calls`. Root cause (upstream dead-zone in
+   `parser/abstract_parser.py parse_delta`): `_in_tool_call_phase`
+   requires `state.reasoning_ended=True`; with a tool parser but NO
+   reasoning parser, the flag is set only via the
+   `prompt_token_ids is not None` init check — which our streams
+   never hit → BOTH phases inactive → "pass through as content".
+   The 27B (with `--reasoning-parser qwen3` per YAML) parsed streams
+   fine — the reasoning phase machine sets `reasoning_ended` on
+   `</think>`.
+   **Fix:** added `--reasoning-parser qwen3` to the 35B launcher —
+   which the 35B model YAML (line 54) prescribed all along. Same
+   Class-1 config-drift family as everything else found today.
+   Verified: 5 `delta.tool_calls` chunks, `finish_reason=tool_calls`,
+   0 NameError, non-stream unchanged.
+
+Lesson for the playbook: tool-call validation MUST include a
+streaming leg — the suite's 7/7 battery and non-stream probes both
+passed while streams were broken. Upstream issue candidate: tool-only
+parser + absent prompt_token_ids = permanent passthrough (consider
+filing vllm issue / Genesis patch for `reasoning_ended=True` default
+when `_reasoning_parser is None`).
