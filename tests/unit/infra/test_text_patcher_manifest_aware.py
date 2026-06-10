@@ -399,8 +399,8 @@ class TestEquivalenceWithLegacy:
         ).read_text(encoding="utf-8")
 
         sub_patches = [
-            TextPatch(name="1A", anchor=M.ANCHOR_1A_IMPORT_OLD,
-                      replacement=M.ANCHOR_1A_IMPORT_NEW, required=True),
+            TextPatch(name="1C", anchor=M.ANCHOR_1C_FWD_INTERNAL_OLD,
+                      replacement=M.ANCHOR_1C_FWD_INTERNAL_NEW, required=True),
             TextPatch(name="1B", anchor=M.ANCHOR_1B_FWD_SIG_OLD,
                       replacement=M.ANCHOR_1B_FWD_SIG_NEW, required=True),
             TextPatch(name="1E_VAL", anchor=M.ANCHOR_1E_VAL_OLD,
@@ -420,7 +420,8 @@ class TestEquivalenceWithLegacy:
             _setup_manifest_for_test(
                 tmp_path, monkeypatch, pristine, "TEST.Sub-1",
                 sub_patches=[
-                    ("1A", M.ANCHOR_1A_IMPORT_OLD, M.ANCHOR_1A_IMPORT_NEW),
+                    ("1C", M.ANCHOR_1C_FWD_INTERNAL_OLD,
+                     M.ANCHOR_1C_FWD_INTERNAL_NEW),
                     ("1B", M.ANCHOR_1B_FWD_SIG_OLD, M.ANCHOR_1B_FWD_SIG_NEW),
                     ("1E_VAL", M.ANCHOR_1E_VAL_OLD, M.ANCHOR_1E_VAL_NEW),
                 ],

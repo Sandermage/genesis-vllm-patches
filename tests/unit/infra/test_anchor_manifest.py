@@ -116,8 +116,8 @@ class TestComputeAnchorMeta:
         """For real PN79 anchor, byte_offset must point at correct slice."""
         from sndr.engines.vllm.wiring.anchor_manifest import compute_anchor_meta
         from sndr.engines.vllm.patches.attention.gdn import pn79_inplace_ssm_state as M
-        anchor = M.ANCHOR_1A_IMPORT_OLD
-        meta = compute_anchor_meta(pristine_chunk_py, anchor, M.ANCHOR_1A_IMPORT_NEW)
+        anchor = M.ANCHOR_1B_FWD_SIG_OLD
+        meta = compute_anchor_meta(pristine_chunk_py, anchor, M.ANCHOR_1B_FWD_SIG_NEW)
         assert meta is not None
         # Slice using byte_offset+byte_length should equal anchor bytes
         src_bytes = pristine_chunk_py.encode("utf-8")
@@ -576,10 +576,14 @@ class TestPN79Integration:
         from sndr.engines.vllm.patches.attention.gdn import pn79_inplace_ssm_state as M
 
         chunk_subs = [
-            ("1A", M.ANCHOR_1A_IMPORT_OLD, M.ANCHOR_1A_IMPORT_NEW),
             ("1B", M.ANCHOR_1B_FWD_SIG_OLD, M.ANCHOR_1B_FWD_SIG_NEW),
             ("1C", M.ANCHOR_1C_FWD_INTERNAL_OLD, M.ANCHOR_1C_FWD_INTERNAL_NEW),
-            ("1D", M.ANCHOR_1D_FORWARD_OLD, M.ANCHOR_1D_FORWARD_NEW),
+            ("1D_DECORATOR", M.ANCHOR_1D_DECORATOR_OLD,
+             M.ANCHOR_1D_DECORATOR_NEW),
+            ("1D_FORWARD_SIG", M.ANCHOR_1D_FORWARD_SIG_OLD,
+             M.ANCHOR_1D_FORWARD_SIG_NEW),
+            ("1D_FORWARD_CALL", M.ANCHOR_1D_FORWARD_CALL_OLD,
+             M.ANCHOR_1D_FORWARD_CALL_NEW),
             ("1E_SIG", M.ANCHOR_1E_SIG_OLD, M.ANCHOR_1E_SIG_NEW),
             ("1E_VAL", M.ANCHOR_1E_VAL_OLD, M.ANCHOR_1E_VAL_NEW),
             ("1E_APPLY_CALL", M.ANCHOR_1E_APPLY_CALL_OLD,
@@ -602,7 +606,8 @@ class TestPN79Integration:
         anchors = manifest["files"][
             "model_executor/layers/fla/ops/chunk.py"
         ]["patches"]["PN79.Sub-1"]["anchors"]
-        assert set(anchors.keys()) == {"1A", "1B", "1C", "1D",
+        assert set(anchors.keys()) == {"1B", "1C", "1D_DECORATOR",
+                                       "1D_FORWARD_SIG", "1D_FORWARD_CALL",
                                        "1E_SIG", "1E_VAL", "1E_APPLY_CALL"}
         # Verify against pristine — must be clean
         errors = verify_manifest_against_source(
@@ -620,8 +625,8 @@ class TestPN79Integration:
         from sndr.engines.vllm.patches.attention.gdn import pn79_inplace_ssm_state as M
 
         anchors = {
-            "1A": M.ANCHOR_1A_IMPORT_OLD,
-            "1D": M.ANCHOR_1D_FORWARD_OLD,
+            "1B": M.ANCHOR_1B_FWD_SIG_OLD,
+            "1D_FORWARD_SIG": M.ANCHOR_1D_FORWARD_SIG_OLD,
         }
         manifest = assemble_manifest(
             vllm_pin="x", genesis_pin="y",

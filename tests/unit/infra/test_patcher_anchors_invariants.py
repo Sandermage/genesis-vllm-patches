@@ -106,7 +106,8 @@ def _check_anchor_invariants(
 
 
 # ─────────────────────────────────────────────────────────────────────
-# PN79 — 17 anchors across 3 files
+# PN79 — 18 anchors across 4 files (K.2 re-anchor 2026-06-10,
+# pin 0.22.1rc1.dev259+g303916e93)
 # ─────────────────────────────────────────────────────────────────────
 
 
@@ -116,22 +117,26 @@ def _pn79_module():
 
 
 class TestPN79AnchorInvariants:
-    """All 17 PN79 anchors against pristine vllm 0.20.2rc1.dev9+g01d4d1ad3."""
+    """All 18 PN79 anchors against pristine vllm 0.22.1rc1.dev259+g303916e93."""
 
     def test_PN79_chunk_py_sub1_anchors(self):
-        """Sub-1 chunk.py — 7 anchors (1A drop import, 1B fwd sig, 1C fwd
-        internal call, 1D forward rewrite, 1E_SIG/1E_VAL/1E_APPLY_CALL
-        high-level chunk_gated_delta_rule wrapper).
+        """Sub-1 chunk.py — 8 anchors (1B fwd sig, 1C fwd internal call,
+        1D decorator drop / forward sig+contiguity / forward inner call,
+        1E_SIG/1E_VAL/1E_APPLY_CALL high-level wrapper).
         """
         m = _pn79_module()
         _check_anchor_invariants(
             "PN79 Sub-1 chunk.py",
             "chunk.py",
             sub_patches=[
-                ("1A", m.ANCHOR_1A_IMPORT_OLD, m.ANCHOR_1A_IMPORT_NEW),
                 ("1B", m.ANCHOR_1B_FWD_SIG_OLD, m.ANCHOR_1B_FWD_SIG_NEW),
                 ("1C", m.ANCHOR_1C_FWD_INTERNAL_OLD, m.ANCHOR_1C_FWD_INTERNAL_NEW),
-                ("1D", m.ANCHOR_1D_FORWARD_OLD, m.ANCHOR_1D_FORWARD_NEW),
+                ("1D_DECORATOR", m.ANCHOR_1D_DECORATOR_OLD,
+                 m.ANCHOR_1D_DECORATOR_NEW),
+                ("1D_FORWARD_SIG", m.ANCHOR_1D_FORWARD_SIG_OLD,
+                 m.ANCHOR_1D_FORWARD_SIG_NEW),
+                ("1D_FORWARD_CALL", m.ANCHOR_1D_FORWARD_CALL_OLD,
+                 m.ANCHOR_1D_FORWARD_CALL_NEW),
                 ("1E_SIG", m.ANCHOR_1E_SIG_OLD, m.ANCHOR_1E_SIG_NEW),
                 ("1E_VAL", m.ANCHOR_1E_VAL_OLD, m.ANCHOR_1E_VAL_NEW),
                 ("1E_APPLY_CALL", m.ANCHOR_1E_APPLY_CALL_OLD,
@@ -171,42 +176,42 @@ class TestPN79AnchorInvariants:
             ],
         )
 
-    def test_PN79_gdn_linear_attn_py_sub3_anchors(self):
-        """Sub-3 gdn_linear_attn.py — 3 anchors (3A forward_cuda fallback,
-        3B forward_native passthrough, 3C _forward_core gather/scatter elim).
+    def test_PN79_qwen_gdn_linear_attn_py_sub3_anchors(self):
+        """Sub-3 qwen_gdn_linear_attn.py — 2 anchors (3B forward_native
+        passthrough, 3C backend-gated prefill in-place state).
 
         Sub-3 has NO drift markers (the candidate marker
-        `ssm_state_indices=non_spec_state_indices_tensor` already appears in
-        pristine decode-path / spec-path branches at lines 1024 + 1106 — too
-        generic to be a reliable drift signal).
+        `ssm_state_indices=...` already appears in pristine decode-path /
+        spec-path branches — too generic to be a reliable drift signal).
+        The old 3A forward_cuda anchor is retired: the K.2 backend gate
+        keeps the FlashInfer path upstream-identical, so forward_cuda is
+        no longer touched.
         """
         m = _pn79_module()
         _check_anchor_invariants(
-            "PN79 Sub-3 gdn_linear_attn.py",
-            "gdn_linear_attn.py",
+            "PN79 Sub-3 qwen_gdn_linear_attn.py",
+            "qwen_gdn_linear_attn.py",
             sub_patches=[
-                ("3A", m.ANCHOR_3A_FORWARD_CUDA_OLD,
-                 m.ANCHOR_3A_FORWARD_CUDA_NEW),
                 ("3B", m.ANCHOR_3B_FORWARD_NATIVE_OLD,
                  m.ANCHOR_3B_FORWARD_NATIVE_NEW),
-                ("3C", m.ANCHOR_3C_GATHER_SCATTER_OLD,
-                 m.ANCHOR_3C_GATHER_SCATTER_NEW),
+                ("3C", m.ANCHOR_3C_PREFILL_INPLACE_OLD,
+                 m.ANCHOR_3C_PREFILL_INPLACE_NEW),
             ],
             drift_markers=[],
         )
 
-    def test_PN79_olmo_hybrid_py_sub4_anchor(self):
-        """Sub-4 olmo_hybrid.py — 1 anchor (4A _forward_core gather/scatter
-        elim). Same pattern as Sub-3C but call site uses free-function
-        `chunk_gated_delta_rule()` instead of bound method, and pristine
-        has no `assert` lines (only present in gdn_linear_attn.py)."""
+    def test_PN79_olmo_gdn_linear_attn_py_sub4_anchor(self):
+        """Sub-4 olmo_gdn_linear_attn.py — 1 anchor (4A prefill
+        gather/scatter elim). Same pattern as Sub-3C but the call site
+        uses the free function `chunk_gated_delta_rule()` (always the
+        Triton/FLA kernel — no backend dispatch, no gate needed)."""
         m = _pn79_module()
         _check_anchor_invariants(
-            "PN79 Sub-4 olmo_hybrid.py",
-            "olmo_hybrid.py",
+            "PN79 Sub-4 olmo_gdn_linear_attn.py",
+            "olmo_gdn_linear_attn.py",
             sub_patches=[
-                ("4A", m.ANCHOR_4A_OLMO_FORWARD_CORE_OLD,
-                 m.ANCHOR_4A_OLMO_FORWARD_CORE_NEW),
+                ("4A", m.ANCHOR_4A_OLMO_PREFILL_OLD,
+                 m.ANCHOR_4A_OLMO_PREFILL_NEW),
             ],
             drift_markers=[],
         )
@@ -228,20 +233,21 @@ class TestCrossPatcherInvariants:
     """
 
     def test_PN79_anchors_disjoint_within_each_file(self):
-        """Sanity check: PN79 itself has 7 anchors in chunk.py and 7 in
+        """Sanity check: PN79 has 8 anchors in chunk.py and 7 in
         chunk_delta_h.py — they must all be at disjoint byte ranges."""
         # Already covered by Invariant 4 in TestPN79AnchorInvariants but
         # this provides an explicit summary view.
         m = _pn79_module()
         chunk = _pristine_source("chunk.py")
         chunk_delta_h = _pristine_source("chunk_delta_h.py")
-        gdn = _pristine_source("gdn_linear_attn.py")
+        qwen_gdn = _pristine_source("qwen_gdn_linear_attn.py")
 
         chunk_anchors = [
-            ("1A", m.ANCHOR_1A_IMPORT_OLD),
             ("1B", m.ANCHOR_1B_FWD_SIG_OLD),
             ("1C", m.ANCHOR_1C_FWD_INTERNAL_OLD),
-            ("1D", m.ANCHOR_1D_FORWARD_OLD),
+            ("1D_DECORATOR", m.ANCHOR_1D_DECORATOR_OLD),
+            ("1D_FORWARD_SIG", m.ANCHOR_1D_FORWARD_SIG_OLD),
+            ("1D_FORWARD_CALL", m.ANCHOR_1D_FORWARD_CALL_OLD),
             ("1E_SIG", m.ANCHOR_1E_SIG_OLD),
             ("1E_VAL", m.ANCHOR_1E_VAL_OLD),
             ("1E_APPLY_CALL", m.ANCHOR_1E_APPLY_CALL_OLD),
@@ -256,15 +262,14 @@ class TestCrossPatcherInvariants:
             ("2G", m.ANCHOR_2G_WRAPPER_KERNEL_CALL_OLD),
         ]
         gdn_anchors = [
-            ("3A", m.ANCHOR_3A_FORWARD_CUDA_OLD),
             ("3B", m.ANCHOR_3B_FORWARD_NATIVE_OLD),
-            ("3C", m.ANCHOR_3C_GATHER_SCATTER_OLD),
+            ("3C", m.ANCHOR_3C_PREFILL_INPLACE_OLD),
         ]
 
         for src, anchors, fname in [
             (chunk, chunk_anchors, "chunk.py"),
             (chunk_delta_h, kernel_anchors, "chunk_delta_h.py"),
-            (gdn, gdn_anchors, "gdn_linear_attn.py"),
+            (qwen_gdn, gdn_anchors, "qwen_gdn_linear_attn.py"),
         ]:
             offsets = sorted([(src.find(a), len(a), n) for n, a in anchors])
             for i in range(1, len(offsets)):
@@ -289,9 +294,14 @@ class TestPristineFixtureIntegrity:
     """
 
     EXPECTED_MD5 = {
-        # vllm pin: 0.20.2rc1.dev93+g51f22dcfd (validated 2026-05-07)
-        "chunk.py": "0f66320b6b74a11d7b4f3e7ea223ecec",
-        "chunk_delta_h.py": "e90e9a46606fadcf22cf5f8425f0f490",
+        # vllm pin: 0.22.1rc1.dev259+g303916e93 (PN79 K.2 re-anchor
+        # 2026-06-10; extracted from image nightly-303916e93 via
+        # docker create + docker cp — pristine, no Genesis patches)
+        "chunk.py": "2949617813535680de692d4c24a7b809",
+        "chunk_delta_h.py": "71b7a5017e8cb4c08617c19f5b5f7d4b",
+        "qwen_gdn_linear_attn.py": "194c57a13156fe2f1105064a483de989",
+        "olmo_gdn_linear_attn.py": "9925d28bfc9f5165ea39faab113b8bb9",
+        # LEGACY fixtures (pre-gdn/ split) — retained for reference
         "gdn_linear_attn.py": "18dc6a9c0b1f615a338b468c11fcb71c",
         "olmo_hybrid.py": "63ab5a2d29b29b522693188a8da2e421",
     }

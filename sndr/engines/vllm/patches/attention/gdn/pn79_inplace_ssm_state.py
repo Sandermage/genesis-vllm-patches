@@ -5,15 +5,18 @@
 What it does
 ================================================================
 
-Backport of vllm-project/vllm#41824 (Kermit-C, OPEN as of 2026-05-07).
-Eliminates per-decode-step gather (`ssm_state[indices].contiguous()`) and
+Backport of vllm-project/vllm#41824 (Kermit-C, OPEN as of 2026-06-10,
+rebased upstream on 2026-06-09 on top of merged #44700). Eliminates the
+per-prefill-step gather (`ssm_state[indices]` + zero-fill copy) and
 scatter (`ssm_state[indices] = final_state`) copies in the GDN chunk
-prefill path, by passing `ssm_state_indices` directly to the Triton kernel.
-Kernel uses `IS_CONTINUOUS_BATCHING` constexpr to read/write the global
-SSM cache pool in-place via pointer arithmetic.
+prefill path, by passing `ssm_state_indices` directly to the Triton
+kernel. The kernel uses the `IS_CONTINUOUS_BATCHING` constexpr to
+read/write the global SSM cache pool in place via pointer arithmetic;
+`HAS_INITIAL_STATE_MASK` skips the initial-state load for sequences
+without prior state (replacing the explicit zero-fill).
 
-Author claims 4.5–36 GiB cumulative fp32 traffic eliminated per multi-turn
-session (Qwen3.5-0.8B → Qwen3.6-27B scale).
+Author claims 4.5-36 GiB cumulative fp32 traffic eliminated per
+multi-turn session (Qwen3.5-0.8B → Qwen3.6-27B scale).
 
 ================================================================
 Architecture decision: Variant 1 (clean #41824 port) vs Variant 2 (bundle PN59)
@@ -34,134 +37,134 @@ bundling. Reasoning (full justification in `docs/_internal/research/`):
 3. **Maintenance burden**: clean port = direct upstream sync when
    #41824 merges. Bundled variant = permanent Genesis divergence.
 
-4. **Decoupling preserves option value**: PN59 stays as separate
-   `lifecycle: deprecated` patch. If future workload needs streaming
-   (e.g., `--no-chunked-prefill` mode), re-enable PN59 separately —
-   not coupled to PN79's apply state.
-
-PN59 + PN54 → INTENDED for `lifecycle: deprecated` / `retired` after
-multi-turn evidence proves PN79 win. As of 2026-05-07 both remain
-`lifecycle: stable` in dispatcher.PATCH_REGISTRY — migration deferred
-until Stage 4 evidence (Cliff 2 multi-turn reproducer + memory traffic
-profiler). conflicts_with [PN59, PN54] in PN79 registry entry enforces
-mutual exclusion at apply time regardless of lifecycle.
+4. **Decoupling preserves option value**: PN59 stays as separate patch.
+   conflicts_with [PN59, PN54] in the PN79 registry entry enforces
+   mutual exclusion at apply time.
 
 ================================================================
-Three sub-patches, atomic via MultiFilePatchTransaction
+Four sub-patches, atomic via MultiFilePatchTransaction
 ================================================================
 
-Sub-1: `vllm/model_executor/layers/fla/ops/chunk.py`
-   1A: import line — drop `input_guard` import
-   1B: chunk_gated_delta_rule_fwd signature — add ssm_state_indices, has_initial_state
-   1C: chunk_gated_delta_rule_fwd internal call to fwd_h — pass new kwargs
-   1D: ChunkGatedDeltaRuleFunction.forward — major rewrite (drop @input_guard,
-       manual contiguous, accelerator.device_index context)
-   1E: chunk_gated_delta_rule (high-level API) signature + apply call
+Sub-1: `vllm/model_executor/layers/fla/ops/chunk.py` (8 anchors)
+   1B: chunk_gated_delta_rule_fwd signature — add ssm_state_indices,
+       has_initial_state (between chunk_offsets and core_attn_out,
+       matching upstream parameter order)
+   1C: chunk_gated_delta_rule_fwd internal call to fwd_h — pass kwargs
+   1D_DECORATOR: drop @input_guard from ChunkGatedDeltaRuleFunction.forward
+       (the import of input_guard in chunk.py is KEPT — smaller diff;
+       upstream removes it, the leftover import is harmless at runtime)
+   1D_FORWARD_SIG: forward signature + manual-contiguity block (replaces
+       @input_guard semantics; skips .contiguous() on initial_state when
+       ssm_state_indices given). Upstream's torch.accelerator.device_index
+       wrapper is intentionally NOT ported: Genesis TP workers are
+       single-device per process, the context is a no-op there, and
+       skipping it keeps the body at original indentation (smaller diff).
+   1D_FORWARD_CALL: forward's inner chunk_gated_delta_rule_fwd call kwargs
+   1E_SIG / 1E_VAL / 1E_APPLY_CALL: high-level chunk_gated_delta_rule API —
+       signature, ValueError guard relaxed with `ssm_state_indices is None`,
+       .apply() positional args (order MUST mirror forward's signature)
 
-Sub-2: `vllm/model_executor/layers/fla/ops/chunk_delta_h.py`
-   2A: kernel @triton.jit autotune key + constexpr param block
-   2B: kernel main flow if-USE_INITIAL_STATE branch
-   2C: kernel epilogue if-STORE_FINAL_STATE branch
-   2D: Python wrapper chunk_gated_delta_rule_fwd_h signature + body
+Sub-2: `vllm/model_executor/layers/fla/ops/chunk_delta_h.py` (7 anchors)
+   2A: @triton.heuristics dict — IS_CONTINUOUS_BATCHING + HAS_INITIAL_STATE_MASK
+   2B: kernel @triton.jit signature — 2 ptr params + 4 stride constexprs
+       + 2 constexpr flags (post-#44700 pre-image includes USE_G/USE_GK
+       and USE_EXP2)
+   2C: kernel main flow USE_INITIAL_STATE — should_load + state_idx rebase
+   2D: kernel epilogue STORE_FINAL_STATE — state_idx rebase for ht
+   2E: chunk_gated_delta_rule_fwd_h Python wrapper signature
+   2F: wrapper body — when ssm_state_indices given, the initial_state pool
+       IS the final-state storage (no fp32 new_empty); strides if/else
+   2G: wrapper kernel-call kwargs + stride constexprs
 
-Sub-3: `vllm/model_executor/layers/mamba/gdn_linear_attn.py`
-   3A: GdnLinearAttnFlashInfer.forward_cuda signature + body
-   3B: GdnLinearAttnNativeFla.forward_native signature + passthrough
-   3C: _forward_core gather/scatter elimination (THE WIN SITE)
+Sub-3: `vllm/model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py` (2 anchors)
+   3B: ChunkGatedDeltaRule.forward_native — kwargs passthrough to
+       fla_chunk_gated_delta_rule (the Triton/FLA backend method)
+   3C: QwenGatedDeltaNetAttention._forward_core prefill block — THE WIN
+       SITE. Backend-gated: in-place kwargs are passed ONLY when
+       `self.gdn_prefill_backend == "triton"` (verified attribute +
+       Literal value on live pin g303916e93). flashinfer / cutedsl
+       backends keep the upstream gather/scatter verbatim — their
+       kernels do not accept the in-place kwargs. This deliberately
+       DIVERGES from upstream #41824 (which also rewrites forward_cuda
+       with a gather/scatter fallback): gating at the call site is
+       strictly safer and leaves forward_cuda / forward_cutedsl untouched.
+
+Sub-4: `vllm/model_executor/layers/mamba/gdn/olmo_gdn_linear_attn.py` (1 anchor)
+   4A: OlmoGatedDeltaNetAttention prefill block — upstream-verbatim
+       gather/scatter elimination. Olmo always calls the FLA
+       chunk_gated_delta_rule free function (no backend dispatch), so
+       no gating is needed. Never fires on Genesis fleet (no Olmo
+       models) — structural completeness for community builds.
 
 ================================================================
-Atomic apply via MultiFilePatchTransaction
+K.2 re-anchor 2026-06-10 — pin 0.22.1rc1.dev259+g303916e93
 ================================================================
 
-All three patchers in single transaction:
-- Phase 1 (dry-run): all anchors verified across all 3 files
-- Phase 2 (commit): apply each patcher in order
-- Rollback on any failure: in-memory snapshots restore
+All anchors re-derived for the current pin (upstream commit 2026-06-08,
+contains merged #44700 GDN mixed-batch split + core_attn_out buffer
+reuse). Every OLD anchor below was verified byte-exact against the LIVE
+PROD container files (vllm-qwen3.6-35b-balanced-k3, with PN59 / P103 /
+PN106 / PN345 Genesis blocks applied) AND against upstream #41824's
+rebased pre-image (gh pr diff 41824, fetched 2026-06-10):
 
-Either ALL THREE files patched OR NONE. Operator never sees half-patched
-state which would crash on first GDN forward call.
+  * Sub-1 chunk.py: pre-image gained `core_attn_out` param threading
+    (#44700) — 1B/1C/1D/1E anchors rewritten around it. The old
+    monolithic 1D forward rewrite is split into 3 small anchors
+    (decorator / signature+contiguity / inner call) so PN59's injected
+    streaming block (which sits between the fwd signature and the fwd_h
+    call) cannot collide.
+  * Sub-2 chunk_delta_h.py: kernel signature gained USE_EXP2 (and the
+    pre-existing USE_G/USE_GK); wrapper gained use_exp2. 2B/2E/2G
+    rewritten; 2A/2C/2D survive unchanged (verified byte-equivalent).
+    2F shrunk to the final_state assignment only so it composes with
+    PN106's injected h-pool block directly above it.
+  * Sub-3: old target `mamba/gdn_linear_attn.py` was split upstream
+    (#41126 era) into per-model files under `mamba/gdn/`. Re-anchored
+    to qwen_gdn_linear_attn.py with the backend-gated design above.
+    The old 3A forward_cuda anchor is dropped (no longer needed: the
+    gate keeps the FlashInfer path upstream-identical).
+  * Sub-4: old target `models/olmo_hybrid.py` STILL EXISTS on the new
+    pin but no longer contains the linear-attn code (moved to
+    mamba/gdn/olmo_gdn_linear_attn.py). Without re-anchoring, the old
+    required 4A anchor would dry-run-fail and abort the WHOLE PN79
+    transaction. Re-anchored to the new file, upstream-verbatim.
+
+Runtime equivalence contract: with GENESIS_ENABLE_PN79_INPLACE_SSM_STATE
+unset the files are untouched. With the patch applied but the new params
+None (e.g. non-triton prefill backend, or callers that never pass them),
+every code path is behavior-identical to upstream: the manual contiguity
+block reproduces @input_guard's .contiguous() semantics (single-device
+workers make the dropped device-index context a no-op), the kernel
+constexpr branches collapse to the upstream pointer math, and the
+wrapper allocates the same fp32 final_state buffer.
 
 ================================================================
 Drift detection
 ================================================================
 
 Patches auto-SKIP if upstream landed equivalent fix (drift markers):
-  - "ssm_state_indices"        — added by PR #41824 OR FLA equivalent
-  - "IS_CONTINUOUS_BATCHING"   — Triton kernel constexpr (kernel patch)
-  - "HAS_INITIAL_STATE_MASK"   — Triton kernel constexpr (kernel patch)
+  - "ssm_state_indices" / "has_initial_state" /
+    "torch.accelerator.device_index"  — Sub-1 chunk.py
+  - "IS_CONTINUOUS_BATCHING" / "HAS_INITIAL_STATE_MASK" /
+    "stride_init_state_token"         — Sub-2 chunk_delta_h.py
 
-Configured per-patcher. PN59 wiring already lists "ssm_state_indices" as
-its drift marker (added 2026-05-06).
+Sub-3 / Sub-4 have NO drift markers: pristine pollution — the decode and
+spec-decode branches of both files already use
+`ssm_state_indices=...` kwargs for the fused_recurrent kernels.
 
 ================================================================
 Conflict gating
 ================================================================
 
-PATCH_REGISTRY entry has:
-  conflicts_with: ["PN59", "PN54"]
-
-dispatcher.should_apply() will SKIP PN79 if either is enabled:
-  - PN59: anchor on chunk_gated_delta_rule_fwd body — overlaps with 1B/1C
-  - PN54: removes .contiguous() on the same gather line PN79 erases entirely
-
-Operator must explicitly disable PN59/PN54 in YAML config to enable PN79.
-27B PROD config recommended: PN59=0, PN79=1 (per empirical "PN59 dead code"
-finding).
-
-K.1.R anchor audit 2026-05-28 — STABLE PATCH critical findings
---------------------------------------------------------------
-Per-sub-patch state against new pin nightly-626fa9bb (multi-arch digest
-sha256:674922aae790c2cbf45f4e844098d227b80d40a74bfc7797a444d213a221879f,
-upstream SHA 626fa9bba5663a5cf6a870debf031ee344ddb822):
-
-  * Sub-1 (chunk.py): ✓ ALL 7 anchors PASS byte-equivalent.
-    Target file ``model_executor/layers/fla/ops/chunk.py`` unchanged
-    in the relevant surfaces.
-  * Sub-2 (chunk_delta_h.py): ✓ ALL 7 anchors PASS byte-equivalent.
-    Target file ``model_executor/layers/fla/ops/chunk_delta_h.py``
-    unchanged in the relevant kernel surfaces.
-  * Sub-3 (gdn_linear_attn.py): ⚠ FILE MOVED upstream.
-    The monolithic ``model_executor/layers/mamba/gdn_linear_attn.py``
-    was REFACTORED INTO model-specific files:
-      ``model_executor/layers/mamba/gdn/__init__.py``
-      ``model_executor/layers/mamba/gdn/base.py`` (common base class)
-      ``model_executor/layers/mamba/gdn/kimi_gdn_linear_attn.py``
-      ``model_executor/layers/mamba/gdn/olmo_gdn_linear_attn.py``
-      ``model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py``
-    The 3 anchors (3A FORWARD_CUDA, 3B FORWARD_NATIVE, 3C GATHER_SCATTER)
-    no longer resolve — ``resolve_vllm_file`` returns None for the
-    old path, ``apply()`` returns ``skipped``. Re-anchoring requires
-    splitting Sub-3 into per-model sub-patches (one each for
-    qwen_gdn_linear_attn.py + olmo_gdn_linear_attn.py + base.py).
-    Deferred to ``ANCHOR_REFRESH_K1R.2``.
-  * Sub-4 (olmo_hybrid.py): ⚠ 1 anchor DRIFT.
-    ``ANCHOR_4A_OLMO_FORWARD_CORE_OLD`` substring
-    `if attn_metadata.num_prefills > 0:` no longer matches in the
-    new file — the gather/scatter elimination site shifted. Patch
-    self-skips on the new pin (TextPatcher anchor-not-found warning,
-    apply returns ``skipped``).
-
-Status under new pin: PN79 still applies on Sub-1 + Sub-2 (the kernel
-+ orchestrator paths) but NOT Sub-3 + Sub-4. The kernel-level wins
-remain; the gather/scatter elimination at call sites is deferred
-until the per-model file split is properly re-anchored.
-
-STABLE patch contract preservation:
-  * ``stable_kind="text-patch"`` semantics preserved.
-  * ``anchor_manifest.json`` covers the file paths that exist on the
-    PRIOR pin (dev371) — the manifest accurately reflects what the
-    patch targeted at promotion time. Updating the manifest to point
-    at the new file structure is a separate slice once Sub-3 is
-    re-anchored against the per-model files.
-
-This is the highest-priority follow-up out of K.1.R for the new pin
-because PN79 is STABLE + production-validated; degrading 2 of 4 sub-
-patches to silent skip is acceptable temporarily but should not become
-the steady state. See ``K_1_R_R_ANCHOR_REFRESH_2026-05-28_RU.md`` for
-the deferred re-anchor scope.
+PATCH_REGISTRY entry has conflicts_with: ["PN59", "PN54"].
+dispatcher.should_apply() will SKIP PN79 if either is enabled.
+P103 coexists safely: its chunked_fwd wrapper bails out to the original
+(patched) fwd whenever `ssm_state_indices` is passed (see
+p103_fla_cliff2_chunked.py — guard extended 2026-06-10), so Cliff-2
+chunking never silently drops in-place state semantics.
 
 Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
-Backport of: Kermit-C vllm-project/vllm#41824 (OPEN as of 2026-05-07).
+Backport of: Kermit-C vllm-project/vllm#41824 (OPEN as of 2026-06-10).
 """
 from __future__ import annotations
 
@@ -190,17 +193,19 @@ def _is_enabled() -> bool:
 # Sub-1: chunk.py anchors
 # ════════════════════════════════════════════════════════════════════════
 
-# 1A — import line: drop `input_guard` from utils import
-ANCHOR_1A_IMPORT_OLD = "from .utils import FLA_CHUNK_SIZE, SUPPRESS_LEVEL, input_guard\n"
-ANCHOR_1A_IMPORT_NEW = "from .utils import FLA_CHUNK_SIZE, SUPPRESS_LEVEL\n"
-
-# 1B — chunk_gated_delta_rule_fwd signature: add ssm_state_indices + has_initial_state
+# 1B — chunk_gated_delta_rule_fwd signature: add ssm_state_indices +
+# has_initial_state between chunk_offsets and core_attn_out (upstream
+# order). Unique to fwd: the other two signature sites in the file have
+# `use_qk_l2norm_in_kernel` between chunk_offsets and core_attn_out.
+# No body tail in the anchor: on live files PN59's streaming block is
+# injected right after `):` — anchor must match both pristine and
+# PN59-patched files.
 ANCHOR_1B_FWD_SIG_OLD = (
     "    cu_seqlens: torch.Tensor | None = None,\n"
     "    chunk_indices: torch.Tensor | None = None,\n"
     "    chunk_offsets: torch.Tensor | None = None,\n"
+    "    core_attn_out: torch.Tensor | None = None,\n"
     "):\n"
-    "    g = chunk_local_cumsum(\n"
 )
 ANCHOR_1B_FWD_SIG_NEW = (
     "    cu_seqlens: torch.Tensor | None = None,\n"
@@ -208,11 +213,14 @@ ANCHOR_1B_FWD_SIG_NEW = (
     "    chunk_offsets: torch.Tensor | None = None,\n"
     "    ssm_state_indices: torch.Tensor | None = None,\n"
     "    has_initial_state: torch.Tensor | None = None,\n"
+    "    core_attn_out: torch.Tensor | None = None,\n"
     "):\n"
-    "    g = chunk_local_cumsum(\n"
 )
 
-# 1C — internal call to chunk_gated_delta_rule_fwd_h: pass new kwargs through
+# 1C — internal call to chunk_gated_delta_rule_fwd_h: pass new kwargs
+# through. The `o = chunk_fwd_o(` tail pins the match to the fwd_h call
+# (PN59's streaming-driver call above uses 12-space indentation and a
+# different following kwarg).
 ANCHOR_1C_FWD_INTERNAL_OLD = (
     "        cu_seqlens=cu_seqlens,\n"
     "        chunk_indices=chunk_indices,\n"
@@ -230,72 +238,47 @@ ANCHOR_1C_FWD_INTERNAL_NEW = (
     "    o = chunk_fwd_o(\n"
 )
 
-# 1D — ChunkGatedDeltaRuleFunction.forward MAJOR rewrite: drop @input_guard +
-# manual contiguous + accelerator.device_index context
-ANCHOR_1D_FORWARD_OLD = (
+# 1D_DECORATOR — drop @input_guard (the only use in the file; the import
+# is kept). @input_guard would force .contiguous() on EVERY tensor arg —
+# including the full SSM cache pool passed as initial_state, which is
+# exactly the copy this patch eliminates.
+ANCHOR_1D_DECORATOR_OLD = (
     "    @staticmethod\n"
     "    @input_guard\n"
     "    @torch.amp.custom_fwd(device_type=\"cuda\")\n"
-    "    def forward(\n"
-    "        ctx,\n"
-    "        q: torch.Tensor,\n"
-    "        k: torch.Tensor,\n"
-    "        v: torch.Tensor,\n"
-    "        g: torch.Tensor,\n"
-    "        beta: torch.Tensor,\n"
-    "        scale: float,\n"
-    "        initial_state: torch.Tensor,\n"
-    "        output_final_state: bool,\n"
-    "        cu_seqlens: torch.Tensor | None = None,\n"
-    "        chunk_indices: torch.Tensor | None = None,\n"
-    "        chunk_offsets: torch.Tensor | None = None,\n"
+)
+ANCHOR_1D_DECORATOR_NEW = (
+    "    @staticmethod\n"
+    "    # [Genesis PN79 vllm#41824] @input_guard dropped — manual contiguity\n"
+    "    # inside forward() skips .contiguous() on initial_state when\n"
+    "    # ssm_state_indices is given (kernel reads the SSM pool in place).\n"
+    "    @torch.amp.custom_fwd(device_type=\"cuda\")\n"
+)
+
+# 1D_FORWARD_SIG — ChunkGatedDeltaRuleFunction.forward signature tail +
+# manual contiguity block. 8-space parameter indentation is unique to
+# forward (the high-level API uses 4-space). Body stays at original
+# indentation: upstream's torch.accelerator.device_index wrapper is
+# intentionally skipped (single-device TP workers; see module docstring).
+ANCHOR_1D_FORWARD_SIG_OLD = (
     "        use_qk_l2norm_in_kernel: bool = False,\n"
+    "        core_attn_out: torch.Tensor | None = None,\n"
     "    ):\n"
     "        if use_qk_l2norm_in_kernel:\n"
     "            q = l2norm_fwd(q)\n"
     "            k = l2norm_fwd(k)\n"
-    "\n"
-    "        g, o, A, final_state, w, h, v_new = chunk_gated_delta_rule_fwd(\n"
-    "            q=q,\n"
-    "            k=k,\n"
-    "            v=v,\n"
-    "            g=g,\n"
-    "            beta=beta,\n"
-    "            scale=scale,\n"
-    "            initial_state=initial_state,\n"
-    "            output_final_state=output_final_state,\n"
-    "            cu_seqlens=cu_seqlens,\n"
-    "            chunk_indices=chunk_indices,\n"
-    "            chunk_offsets=chunk_offsets,\n"
-    "        )\n"
-    "        ctx.scale = scale\n"
-    "        ctx.use_qk_l2norm_in_kernel = use_qk_l2norm_in_kernel\n"
-    "        return o.to(q.dtype), final_state\n"
 )
-ANCHOR_1D_FORWARD_NEW = (
-    "    @staticmethod\n"
-    "    @torch.amp.custom_fwd(device_type=\"cuda\")\n"
-    "    def forward(\n"
-    "        ctx,\n"
-    "        q: torch.Tensor,\n"
-    "        k: torch.Tensor,\n"
-    "        v: torch.Tensor,\n"
-    "        g: torch.Tensor,\n"
-    "        beta: torch.Tensor,\n"
-    "        scale: float,\n"
-    "        initial_state: torch.Tensor,\n"
-    "        output_final_state: bool,\n"
-    "        cu_seqlens: torch.Tensor | None = None,\n"
-    "        chunk_indices: torch.Tensor | None = None,\n"
-    "        chunk_offsets: torch.Tensor | None = None,\n"
+ANCHOR_1D_FORWARD_SIG_NEW = (
     "        use_qk_l2norm_in_kernel: bool = False,\n"
     "        ssm_state_indices: torch.Tensor | None = None,\n"
     "        has_initial_state: torch.Tensor | None = None,\n"
+    "        core_attn_out: torch.Tensor | None = None,\n"
     "    ):\n"
-    "        # [Genesis PN79 vllm#41824] Manual contiguity instead of @input_guard.\n"
-    "        # Skip .contiguous() on initial_state when ssm_state_indices given:\n"
-    "        # kernel handles non-contiguous via strides, contiguity is expensive\n"
-    "        # for large SSM cache views.\n"
+    "        # [Genesis PN79 vllm#41824] Manually ensure contiguity instead of\n"
+    "        # using @input_guard. Skip .contiguous() on initial_state when\n"
+    "        # ssm_state_indices is provided: the kernel handles non-contiguous\n"
+    "        # tensors via strides, and forcing contiguity on a large SSM cache\n"
+    "        # view is expensive.\n"
     "        q = q.contiguous()\n"
     "        k = k.contiguous()\n"
     "        v = v.contiguous()\n"
@@ -317,61 +300,60 @@ ANCHOR_1D_FORWARD_NEW = (
     "        if ssm_state_indices is None and initial_state is not None:\n"
     "            initial_state = initial_state.contiguous()\n"
     "\n"
-    "        with torch.accelerator.device_index(q.device.index):\n"
-    "            if use_qk_l2norm_in_kernel:\n"
-    "                q = l2norm_fwd(q)\n"
-    "                k = l2norm_fwd(k)\n"
-    "\n"
-    "            g, o, A, final_state, w, h, v_new = chunk_gated_delta_rule_fwd(\n"
-    "                q=q,\n"
-    "                k=k,\n"
-    "                v=v,\n"
-    "                g=g,\n"
-    "                beta=beta,\n"
-    "                scale=scale,\n"
-    "                initial_state=initial_state,\n"
-    "                output_final_state=output_final_state,\n"
-    "                cu_seqlens=cu_seqlens,\n"
-    "                chunk_indices=chunk_indices,\n"
-    "                chunk_offsets=chunk_offsets,\n"
-    "                ssm_state_indices=ssm_state_indices,\n"
-    "                has_initial_state=has_initial_state,\n"
-    "            )\n"
-    "            ctx.scale = scale\n"
-    "            ctx.use_qk_l2norm_in_kernel = use_qk_l2norm_in_kernel\n"
-    "            return o.to(q.dtype), final_state\n"
+    "        if use_qk_l2norm_in_kernel:\n"
+    "            q = l2norm_fwd(q)\n"
+    "            k = l2norm_fwd(k)\n"
+)
+
+# 1D_FORWARD_CALL — forward's inner chunk_gated_delta_rule_fwd call.
+# 12-space indentation + `core_attn_out=core_attn_out,` right after
+# chunk_offsets is unique to this call (PN59's streaming call has
+# `chunk_local_cumsum=` after chunk_offsets; chunk_fwd_o's kwargs are
+# 8-space).
+ANCHOR_1D_FORWARD_CALL_OLD = (
+    "            cu_seqlens=cu_seqlens,\n"
+    "            chunk_indices=chunk_indices,\n"
+    "            chunk_offsets=chunk_offsets,\n"
+    "            core_attn_out=core_attn_out,\n"
+    "        )\n"
+)
+ANCHOR_1D_FORWARD_CALL_NEW = (
+    "            cu_seqlens=cu_seqlens,\n"
+    "            chunk_indices=chunk_indices,\n"
+    "            chunk_offsets=chunk_offsets,\n"
+    "            ssm_state_indices=ssm_state_indices,\n"
+    "            has_initial_state=has_initial_state,\n"
+    "            core_attn_out=core_attn_out,\n"
+    "        )\n"
 )
 
 
 # ─── 1E: chunk_gated_delta_rule (high-level API) — 3 sub-anchors ─────
-# 1E completes the public-API part of Sub-1: the high-level wrapper
-# `chunk_gated_delta_rule` at chunk.py:129 must accept ssm_state_indices /
-# has_initial_state AND forward them to ChunkGatedDeltaRuleFunction.apply.
-# Without 1E, calls from gdn_linear_attn.forward_native (after 3B applies)
-# crash with TypeError because the high-level API doesn't accept the
-# kwargs. Three sub-anchors:
-#   1E_SIG       — function signature (add 2 kwargs)
-#   1E_VAL       — validation block (gate ValueError on ssm_state_indices)
-#   1E_APPLY_CALL — ChunkGatedDeltaRuleFunction.apply() trailing args
+# The public wrapper must accept ssm_state_indices / has_initial_state
+# AND forward them to ChunkGatedDeltaRuleFunction.apply as positionals
+# in the exact order of forward's signature. Without 1E, calls from
+# qwen/olmo GDN layers (Sub-3/Sub-4) crash with TypeError.
 ANCHOR_1E_SIG_OLD = (
-    "    chunk_indices: torch.Tensor | None = None,\n"
     "    chunk_offsets: torch.Tensor | None = None,\n"
     "    use_qk_l2norm_in_kernel: bool = False,\n"
+    "    core_attn_out: torch.Tensor | None = None,\n"
     "):\n"
+    "    r\"\"\"\n"
 )
 ANCHOR_1E_SIG_NEW = (
-    "    chunk_indices: torch.Tensor | None = None,\n"
     "    chunk_offsets: torch.Tensor | None = None,\n"
     "    use_qk_l2norm_in_kernel: bool = False,\n"
     "    ssm_state_indices: torch.Tensor | None = None,\n"
     "    has_initial_state: torch.Tensor | None = None,\n"
+    "    core_attn_out: torch.Tensor | None = None,\n"
     "):\n"
+    "    r\"\"\"\n"
 )
 
-# Pristine validation: raises ValueError when N != len(cu_seqlens)-1.
-# After PN79 the initial_state is the full ssm_state pool (N_pool entries),
-# but ssm_state_indices selects which seq-row to use → N_pool != batch_size,
-# but that's fine. Validation must skip when ssm_state_indices given.
+# Pristine validation raises ValueError when N != len(cu_seqlens)-1.
+# With PN79 the initial_state is the full ssm_state pool (N_pool rows);
+# ssm_state_indices selects per-sequence rows, so N_pool != batch_size
+# is expected. Validation must skip when ssm_state_indices given.
 ANCHOR_1E_VAL_OLD = (
     "        if initial_state is not None and initial_state.shape[0] != len(cu_seqlens) - 1:\n"
 )
@@ -384,253 +366,18 @@ ANCHOR_1E_VAL_NEW = (
 )
 
 ANCHOR_1E_APPLY_CALL_OLD = (
-    "        chunk_offsets,\n"
     "        use_qk_l2norm_in_kernel,\n"
+    "        core_attn_out,\n"
     "    )\n"
     "    return o, final_state\n"
 )
 ANCHOR_1E_APPLY_CALL_NEW = (
-    "        chunk_offsets,\n"
     "        use_qk_l2norm_in_kernel,\n"
     "        ssm_state_indices,\n"
     "        has_initial_state,\n"
+    "        core_attn_out,\n"
     "    )\n"
     "    return o, final_state\n"
-)
-
-
-# ════════════════════════════════════════════════════════════════════════
-# Sub-3: gdn_linear_attn.py anchors (THE WIN SITE — gather/scatter elimination)
-# ════════════════════════════════════════════════════════════════════════
-#
-# This is the core value proposition. Removes 4 lines (assert + gather + assert
-# + zero-fill) before the kernel call AND 3 lines (Init cache scatter back)
-# after. Replaces with single in-place call via ssm_state + indices.
-#
-# Sub-3 is INDEPENDENT of Sub-2 (kernel) only at call-site syntax level. At
-# runtime, ssm_state_indices=indices kwarg flows to chunk_gated_delta_rule_fwd
-# (via Sub-1) which forwards to chunk_gated_delta_rule_fwd_h (via Sub-2). If
-# Sub-2 not applied → kernel TypeErrors on unknown kwarg → MultiFilePatchTransaction
-# ensures all-or-nothing apply.
-
-# ─── 3A: GatedDeltaRule.forward_cuda — FlashInfer fallback ───────────
-# FlashInfer kernel does NOT support in-place; this branch keeps the gather/
-# scatter copy when ssm_state_indices given but routes through fi_chunk_*
-# (which can't read in-place). Triton path (Sub-2) gets the real win.
-ANCHOR_3A_FORWARD_CUDA_OLD = (
-    "        chunk_indices: torch.Tensor | None = None,\n"
-    "        chunk_offsets: torch.Tensor | None = None,\n"
-    "        use_qk_l2norm_in_kernel: bool = True,\n"
-    "    ):\n"
-    "        return fi_chunk_gated_delta_rule(\n"
-    "            q=q,\n"
-    "            k=k,\n"
-    "            v=v,\n"
-    "            g=g,\n"
-    "            beta=beta,\n"
-    "            initial_state=initial_state,\n"
-    "            output_final_state=output_final_state,\n"
-    "            cu_seqlens=cu_seqlens,\n"
-    "            use_qk_l2norm_in_kernel=use_qk_l2norm_in_kernel,\n"
-    "        )\n"
-)
-ANCHOR_3A_FORWARD_CUDA_NEW = (
-    "        chunk_indices: torch.Tensor | None = None,\n"
-    "        chunk_offsets: torch.Tensor | None = None,\n"
-    "        use_qk_l2norm_in_kernel: bool = True,\n"
-    "        ssm_state_indices: torch.Tensor | None = None,\n"
-    "        has_initial_state: torch.Tensor | None = None,\n"
-    "    ):\n"
-    "        if ssm_state_indices is not None:\n"
-    "            assert has_initial_state is not None\n"
-    "            gathered_initial = initial_state[ssm_state_indices].contiguous()\n"
-    "            gathered_initial[~has_initial_state, ...] = 0\n"
-    "            o, final_state = fi_chunk_gated_delta_rule(\n"
-    "                q=q,\n"
-    "                k=k,\n"
-    "                v=v,\n"
-    "                g=g,\n"
-    "                beta=beta,\n"
-    "                initial_state=gathered_initial,\n"
-    "                output_final_state=output_final_state,\n"
-    "                cu_seqlens=cu_seqlens,\n"
-    "                use_qk_l2norm_in_kernel=use_qk_l2norm_in_kernel,\n"
-    "            )\n"
-    "            if output_final_state:\n"
-    "                initial_state[ssm_state_indices] = final_state.to(initial_state.dtype)\n"
-    "            return o, final_state\n"
-    "        return fi_chunk_gated_delta_rule(\n"
-    "            q=q,\n"
-    "            k=k,\n"
-    "            v=v,\n"
-    "            g=g,\n"
-    "            beta=beta,\n"
-    "            initial_state=initial_state,\n"
-    "            output_final_state=output_final_state,\n"
-    "            cu_seqlens=cu_seqlens,\n"
-    "            use_qk_l2norm_in_kernel=use_qk_l2norm_in_kernel,\n"
-    "        )\n"
-)
-
-# ─── 3B: GatedDeltaRule.forward_native — passthrough to fla_chunk_* ──
-# Native FLA path: chunk_gated_delta_rule (the high-level API in chunk.py)
-# now accepts ssm_state_indices/has_initial_state via Sub-1 (anchor 1B/1C).
-# 3B just forwards the kwargs through.
-ANCHOR_3B_FORWARD_NATIVE_OLD = (
-    "        chunk_indices: torch.Tensor | None = None,\n"
-    "        chunk_offsets: torch.Tensor | None = None,\n"
-    "        use_qk_l2norm_in_kernel: bool = True,\n"
-    "    ):\n"
-    "        return fla_chunk_gated_delta_rule(\n"
-    "            q=q,\n"
-    "            k=k,\n"
-    "            v=v,\n"
-    "            g=g,\n"
-    "            beta=beta,\n"
-    "            initial_state=initial_state,\n"
-    "            output_final_state=output_final_state,\n"
-    "            cu_seqlens=cu_seqlens,\n"
-    "            chunk_indices=chunk_indices,\n"
-    "            chunk_offsets=chunk_offsets,\n"
-    "            use_qk_l2norm_in_kernel=use_qk_l2norm_in_kernel,\n"
-    "        )\n"
-)
-ANCHOR_3B_FORWARD_NATIVE_NEW = (
-    "        chunk_indices: torch.Tensor | None = None,\n"
-    "        chunk_offsets: torch.Tensor | None = None,\n"
-    "        use_qk_l2norm_in_kernel: bool = True,\n"
-    "        ssm_state_indices: torch.Tensor | None = None,\n"
-    "        has_initial_state: torch.Tensor | None = None,\n"
-    "    ):\n"
-    "        return fla_chunk_gated_delta_rule(\n"
-    "            q=q,\n"
-    "            k=k,\n"
-    "            v=v,\n"
-    "            g=g,\n"
-    "            beta=beta,\n"
-    "            initial_state=initial_state,\n"
-    "            output_final_state=output_final_state,\n"
-    "            cu_seqlens=cu_seqlens,\n"
-    "            chunk_indices=chunk_indices,\n"
-    "            chunk_offsets=chunk_offsets,\n"
-    "            use_qk_l2norm_in_kernel=use_qk_l2norm_in_kernel,\n"
-    "            ssm_state_indices=ssm_state_indices,\n"
-    "            has_initial_state=has_initial_state,\n"
-    "        )\n"
-)
-
-# ─── 3C: _forward_core gather/scatter elimination (THE WIN SITE) ─────
-# ─── Sub-4: olmo_hybrid.py — gather/scatter elimination (analogous to 3C) ─
-# Olmo-Hybrid uses the SAME hybrid GDN linear-attn pattern as Qwen3.6 27B
-# Lorbus, but call site uses `chunk_gated_delta_rule(...)` (free function
-# from vllm/model_executor/layers/fla/ops/chunk.py) instead of
-# `self.chunk_gated_delta_rule` (instance method on GdnLinearAttn class).
-# Pristine has NO `assert` lines (they exist only in gdn_linear_attn.py 3C).
-# Single anchor covers full prefill block.
-#
-# Note: this anchor never fires on Genesis fleet (no Olmo models in
-# model_configs/), but completes Variant 1 port for community users
-# building Genesis docker image with Olmo support pkg.
-ANCHOR_4A_OLMO_FORWARD_CORE_OLD = (
-    "        if attn_metadata.num_prefills > 0:\n"
-    "            initial_state = ssm_state[non_spec_state_indices_tensor].contiguous()\n"
-    "            initial_state[~has_initial_state, ...] = 0\n"
-    "            (\n"
-    "                core_attn_out_non_spec,\n"
-    "                last_recurrent_state,\n"
-    "            ) = chunk_gated_delta_rule(\n"
-    "                q=query_non_spec,\n"
-    "                k=key_non_spec,\n"
-    "                v=value_non_spec,\n"
-    "                g=g_non_spec,\n"
-    "                beta=beta_non_spec,\n"
-    "                initial_state=initial_state,\n"
-    "                output_final_state=True,\n"
-    "                cu_seqlens=non_spec_query_start_loc,\n"
-    "                use_qk_l2norm_in_kernel=True,\n"
-    "            )\n"
-    "            ssm_state[non_spec_state_indices_tensor] = last_recurrent_state.to(\n"
-    "                ssm_state.dtype\n"
-    "            )\n"
-)
-ANCHOR_4A_OLMO_FORWARD_CORE_NEW = (
-    "        # [Genesis PN79 vllm#41824] Olmo-Hybrid gather/scatter elimination —\n"
-    "        # parallel to Sub-3C in gdn_linear_attn.py. ssm_state passed in-place\n"
-    "        # to kernel via ssm_state_indices/has_initial_state kwargs.\n"
-    "        if attn_metadata.num_prefills > 0:\n"
-    "            (\n"
-    "                core_attn_out_non_spec,\n"
-    "                last_recurrent_state,\n"
-    "            ) = chunk_gated_delta_rule(\n"
-    "                q=query_non_spec,\n"
-    "                k=key_non_spec,\n"
-    "                v=value_non_spec,\n"
-    "                g=g_non_spec,\n"
-    "                beta=beta_non_spec,\n"
-    "                initial_state=ssm_state,\n"
-    "                output_final_state=True,\n"
-    "                cu_seqlens=non_spec_query_start_loc,\n"
-    "                use_qk_l2norm_in_kernel=True,\n"
-    "                ssm_state_indices=non_spec_state_indices_tensor,\n"
-    "                has_initial_state=has_initial_state,\n"
-    "            )\n"
-)
-
-
-ANCHOR_3C_GATHER_SCATTER_OLD = (
-    "        # 2.2: Process the remaining part\n"
-    "        if attn_metadata.num_prefills > 0:\n"
-    "            assert non_spec_state_indices_tensor is not None\n"
-    "            initial_state = ssm_state[non_spec_state_indices_tensor].contiguous()  # type: ignore[index]\n"
-    "            assert has_initial_state is not None\n"
-    "            initial_state[~has_initial_state, ...] = 0  # type: ignore[operator]\n"
-    "            (\n"
-    "                core_attn_out_non_spec,\n"
-    "                last_recurrent_state,\n"
-    "            ) = self.chunk_gated_delta_rule(\n"
-    "                q=query_non_spec,\n"
-    "                k=key_non_spec,\n"
-    "                v=value_non_spec,\n"
-    "                g=g_non_spec,\n"
-    "                beta=beta_non_spec,\n"
-    "                initial_state=initial_state,\n"
-    "                output_final_state=True,\n"
-    "                cu_seqlens=non_spec_query_start_loc,\n"
-    "                chunk_indices=attn_metadata.chunk_indices,\n"
-    "                chunk_offsets=attn_metadata.chunk_offsets,\n"
-    "                use_qk_l2norm_in_kernel=False,\n"
-    "            )\n"
-    "            # Init cache\n"
-    "            ssm_state[non_spec_state_indices_tensor] = last_recurrent_state.to(\n"
-    "                ssm_state.dtype\n"
-    "            )\n"
-)
-ANCHOR_3C_GATHER_SCATTER_NEW = (
-    "        # 2.2: Process the remaining part\n"
-    "        # [Genesis PN79 vllm#41824] gather/scatter elimination —\n"
-    "        # ssm_state passed directly to kernel; ssm_state_indices/has_initial_state\n"
-    "        # forwarded to Triton kernel which reads/writes in-place via\n"
-    "        # IS_CONTINUOUS_BATCHING constexpr branch. Saves per-decode-step\n"
-    "        # gather (ssm_state[indices].contiguous()) + scatter (ssm_state[indices] = ...).\n"
-    "        if attn_metadata.num_prefills > 0:\n"
-    "            (\n"
-    "                core_attn_out_non_spec,\n"
-    "                last_recurrent_state,\n"
-    "            ) = self.chunk_gated_delta_rule(\n"
-    "                q=query_non_spec,\n"
-    "                k=key_non_spec,\n"
-    "                v=value_non_spec,\n"
-    "                g=g_non_spec,\n"
-    "                beta=beta_non_spec,\n"
-    "                initial_state=ssm_state,\n"
-    "                output_final_state=True,\n"
-    "                cu_seqlens=non_spec_query_start_loc,\n"
-    "                chunk_indices=attn_metadata.chunk_indices,\n"
-    "                chunk_offsets=attn_metadata.chunk_offsets,\n"
-    "                use_qk_l2norm_in_kernel=False,\n"
-    "                ssm_state_indices=non_spec_state_indices_tensor,\n"
-    "                has_initial_state=has_initial_state,\n"
-    "            )\n"
 )
 
 
@@ -638,8 +385,8 @@ ANCHOR_3C_GATHER_SCATTER_NEW = (
 # Sub-2: chunk_delta_h.py — Triton kernel changes (HIGHEST RISK)
 # ════════════════════════════════════════════════════════════════════════
 #
-# 7 anchor points (verified against pristine vllm 0.20.2rc1.dev9+g01d4d1ad3
-# and PR #41824 diff fetched 2026-05-07):
+# 7 anchor points (verified against live pin g303916e93 and PR #41824
+# rebased diff fetched 2026-06-10):
 #   2A: @triton.heuristics dict — add IS_CONTINUOUS_BATCHING + HAS_INITIAL_STATE_MASK
 #   2B: kernel @triton.jit signature — add params + 4 strides + 2 constexpr flags
 #   2C: kernel main flow USE_INITIAL_STATE — should_load + IS_CONTINUOUS_BATCHING
@@ -648,8 +395,11 @@ ANCHOR_3C_GATHER_SCATTER_NEW = (
 #   2F: chunk_gated_delta_rule_fwd_h Python wrapper body — strides if/else
 #   2G: chunk_gated_delta_rule_fwd_h Python wrapper kernel call kwargs
 #
-# Triton DSL care: whitespace/indent verified char-for-char from pristine.
-# P67 (turboquant_attn.py) confirmed conflict-free — different file entirely.
+# Triton DSL care: whitespace/indent verified char-for-char from live pin.
+# PN345's autotune pruner lives in the @triton.autotune decorator BETWEEN
+# 2A and 2B — no overlap with either anchor. PN106's h-pool block sits
+# directly ABOVE 2F's final_state anchor — 2F deliberately excludes the
+# `h = ...` allocation so both patches compose.
 
 # ─── 2A: heuristics dict ──────────────────────────────────────────────
 ANCHOR_2A_HEURISTICS_OLD = (
@@ -670,6 +420,7 @@ ANCHOR_2A_HEURISTICS_NEW = (
 )
 
 # ─── 2B: kernel @triton.jit signature ─────────────────────────────────
+# Post-#44700 pre-image: USE_G/USE_GK present, USE_EXP2 terminal.
 ANCHOR_2B_KERNEL_SIG_OLD = (
     "    cu_seqlens,\n"
     "    chunk_offsets,\n"
@@ -686,6 +437,7 @@ ANCHOR_2B_KERNEL_SIG_OLD = (
     "    STORE_FINAL_STATE: tl.constexpr,\n"
     "    SAVE_NEW_VALUE: tl.constexpr,\n"
     "    IS_VARLEN: tl.constexpr,\n"
+    "    USE_EXP2: tl.constexpr,\n"
     "):\n"
 )
 ANCHOR_2B_KERNEL_SIG_NEW = (
@@ -712,6 +464,7 @@ ANCHOR_2B_KERNEL_SIG_NEW = (
     "    IS_VARLEN: tl.constexpr,\n"
     "    IS_CONTINUOUS_BATCHING: tl.constexpr,\n"
     "    HAS_INITIAL_STATE_MASK: tl.constexpr,\n"
+    "    USE_EXP2: tl.constexpr,\n"
     "):\n"
 )
 
@@ -805,6 +558,7 @@ ANCHOR_2E_WRAPPER_SIG_OLD = (
     "    cu_seqlens: torch.Tensor | None = None,\n"
     "    chunk_indices: torch.Tensor | None = None,\n"
     "    chunk_offsets: torch.Tensor | None = None,\n"
+    "    use_exp2: bool = False,\n"
     ") -> tuple[torch.Tensor, torch.Tensor]:\n"
 )
 ANCHOR_2E_WRAPPER_SIG_NEW = (
@@ -813,23 +567,24 @@ ANCHOR_2E_WRAPPER_SIG_NEW = (
     "    chunk_offsets: torch.Tensor | None = None,\n"
     "    ssm_state_indices: torch.Tensor | None = None,\n"
     "    has_initial_state: torch.Tensor | None = None,\n"
+    "    use_exp2: bool = False,\n"
     ") -> tuple[torch.Tensor, torch.Tensor]:\n"
 )
 
 # ─── 2F: Python wrapper body — strides if/else + final_state alias ────
+# Anchor covers ONLY the final_state assignment (it sits directly below
+# PN106's injected h-pool block on live files; on pristine files it sits
+# below the plain `h = k.new_empty(...)` line — both compose).
 ANCHOR_2F_WRAPPER_BODY_OLD = (
-    '    assert K <= 256, "current kernel does not support head dimension larger than 256."\n'
-    "\n"
-    "    h = k.new_empty(B, NT, H, V, K)\n"
     "    final_state = (\n"
     "        k.new_empty(N, H, V, K, dtype=torch.float32) if output_final_state else None\n"
     "    )\n"
-    "\n"
-    "    v_new = torch.empty_like(u) if save_new_value else None\n"
 )
 ANCHOR_2F_WRAPPER_BODY_NEW = (
-    '    assert K <= 256, "current kernel does not support head dimension larger than 256."\n'
-    "\n"
+    "    # [Genesis PN79 vllm#41824] In-place SSM state: when ssm_state_indices\n"
+    "    # is provided, the caller passes the global SSM state pool as\n"
+    "    # initial_state; the kernel reads and writes it in place, so the pool\n"
+    "    # itself doubles as final-state storage (no fp32 gather/scatter copy).\n"
     "    if ssm_state_indices is not None:\n"
     "        stride_indices_seq = ssm_state_indices.stride(0)\n"
     "        stride_init_state_token = initial_state.stride(0)\n"
@@ -846,10 +601,6 @@ ANCHOR_2F_WRAPPER_BODY_NEW = (
     "        final_state = (\n"
     "            k.new_empty(N, H, V, K, dtype=torch.float32) if output_final_state else None\n"
     "        )\n"
-    "\n"
-    "    h = k.new_empty(B, NT, H, V, K)\n"
-    "\n"
-    "    v_new = torch.empty_like(u) if save_new_value else None\n"
 )
 
 # ─── 2G: Python wrapper kernel-call kwargs ────────────────────────────
@@ -862,6 +613,7 @@ ANCHOR_2G_WRAPPER_KERNEL_CALL_OLD = (
     "        K=K,\n"
     "        V=V,\n"
     "        BT=BT,\n"
+    "        USE_EXP2=use_exp2,\n"
     "    )\n"
 )
 ANCHOR_2G_WRAPPER_KERNEL_CALL_NEW = (
@@ -879,7 +631,229 @@ ANCHOR_2G_WRAPPER_KERNEL_CALL_NEW = (
     "        stride_final_state_token=stride_final_state_token,\n"
     "        stride_indices_seq=stride_indices_seq,\n"
     "        stride_has_initial_state=stride_has_initial_state,\n"
+    "        USE_EXP2=use_exp2,\n"
     "    )\n"
+)
+
+
+# ════════════════════════════════════════════════════════════════════════
+# Sub-3: qwen_gdn_linear_attn.py anchors (THE WIN SITE)
+# ════════════════════════════════════════════════════════════════════════
+
+# ─── 3B: ChunkGatedDeltaRule.forward_native — kwargs passthrough ──────
+# The Triton/FLA backend method (active_backend == "triton" binds
+# self._forward_method = self.forward_native). Full def block as a
+# single anchor: `return fla_chunk_gated_delta_rule(` makes it unique
+# (forward_cuda returns fi_*, forward_cutedsl calls the cutedsl op).
+ANCHOR_3B_FORWARD_NATIVE_OLD = (
+    "    def forward_native(\n"
+    "        self,\n"
+    "        q: torch.Tensor,\n"
+    "        k: torch.Tensor,\n"
+    "        v: torch.Tensor,\n"
+    "        g: torch.Tensor,\n"
+    "        beta: torch.Tensor,\n"
+    "        initial_state: torch.Tensor,\n"
+    "        output_final_state: bool,\n"
+    "        cu_seqlens: torch.Tensor | None = None,\n"
+    "        chunk_indices: torch.Tensor | None = None,\n"
+    "        chunk_offsets: torch.Tensor | None = None,\n"
+    "        use_qk_l2norm_in_kernel: bool = True,\n"
+    "        core_attn_out: torch.Tensor | None = None,\n"
+    "    ):\n"
+    "        return fla_chunk_gated_delta_rule(\n"
+    "            q=q,\n"
+    "            k=k,\n"
+    "            v=v,\n"
+    "            g=g,\n"
+    "            beta=beta,\n"
+    "            initial_state=initial_state,\n"
+    "            output_final_state=output_final_state,\n"
+    "            cu_seqlens=cu_seqlens,\n"
+    "            chunk_indices=chunk_indices,\n"
+    "            chunk_offsets=chunk_offsets,\n"
+    "            use_qk_l2norm_in_kernel=use_qk_l2norm_in_kernel,\n"
+    "            core_attn_out=core_attn_out,\n"
+    "        )\n"
+)
+ANCHOR_3B_FORWARD_NATIVE_NEW = (
+    "    def forward_native(\n"
+    "        self,\n"
+    "        q: torch.Tensor,\n"
+    "        k: torch.Tensor,\n"
+    "        v: torch.Tensor,\n"
+    "        g: torch.Tensor,\n"
+    "        beta: torch.Tensor,\n"
+    "        initial_state: torch.Tensor,\n"
+    "        output_final_state: bool,\n"
+    "        cu_seqlens: torch.Tensor | None = None,\n"
+    "        chunk_indices: torch.Tensor | None = None,\n"
+    "        chunk_offsets: torch.Tensor | None = None,\n"
+    "        use_qk_l2norm_in_kernel: bool = True,\n"
+    "        ssm_state_indices: torch.Tensor | None = None,\n"
+    "        has_initial_state: torch.Tensor | None = None,\n"
+    "        core_attn_out: torch.Tensor | None = None,\n"
+    "    ):\n"
+    "        return fla_chunk_gated_delta_rule(\n"
+    "            q=q,\n"
+    "            k=k,\n"
+    "            v=v,\n"
+    "            g=g,\n"
+    "            beta=beta,\n"
+    "            initial_state=initial_state,\n"
+    "            output_final_state=output_final_state,\n"
+    "            cu_seqlens=cu_seqlens,\n"
+    "            chunk_indices=chunk_indices,\n"
+    "            chunk_offsets=chunk_offsets,\n"
+    "            use_qk_l2norm_in_kernel=use_qk_l2norm_in_kernel,\n"
+    "            ssm_state_indices=ssm_state_indices,\n"
+    "            has_initial_state=has_initial_state,\n"
+    "            core_attn_out=core_attn_out,\n"
+    "        )\n"
+)
+
+# ─── 3C: _forward_core prefill block — backend-gated in-place state ───
+# Replaces the gather (`ssm_state[indices]` + zero-fill) and scatter
+# (`ssm_state[indices] = final`) ONLY for the Triton/FLA backend.
+# flashinfer / cutedsl keep the upstream path verbatim (their kernels
+# do not accept the in-place kwargs — passing them would TypeError).
+# The empty `**_pn79_kwargs` expansion on the non-triton path is a
+# no-op, keeping the call bit-identical to upstream.
+ANCHOR_3C_PREFILL_INPLACE_OLD = (
+    "            prefill_state_indices = attn_metadata.prefill_state_indices\n"
+    "            prefill_has_initial_state = attn_metadata.prefill_has_initial_state\n"
+    "            assert prefill_state_indices is not None\n"
+    "            assert prefill_has_initial_state is not None\n"
+    "            initial_state = ssm_state[prefill_state_indices]\n"
+    "            initial_state[~prefill_has_initial_state, ...] = 0\n"
+    "            (\n"
+    "                core_attn_out_non_spec,\n"
+    "                last_recurrent_state,\n"
+    "            ) = self.chunk_gated_delta_rule(\n"
+    "                q=query_non_spec,\n"
+    "                k=key_non_spec,\n"
+    "                v=value_non_spec,\n"
+    "                g=g_non_spec,\n"
+    "                beta=beta_non_spec,\n"
+    "                initial_state=initial_state,\n"
+    "                output_final_state=True,\n"
+    "                cu_seqlens=attn_metadata.prefill_query_start_loc,\n"
+    "                chunk_indices=attn_metadata.chunk_indices,\n"
+    "                chunk_offsets=attn_metadata.chunk_offsets,\n"
+    "                use_qk_l2norm_in_kernel=False,\n"
+    "            )\n"
+    "            # Init cache\n"
+    "            ssm_state[prefill_state_indices] = last_recurrent_state.to(ssm_state.dtype)\n"
+)
+ANCHOR_3C_PREFILL_INPLACE_NEW = (
+    "            prefill_state_indices = attn_metadata.prefill_state_indices\n"
+    "            prefill_has_initial_state = attn_metadata.prefill_has_initial_state\n"
+    "            assert prefill_state_indices is not None\n"
+    "            assert prefill_has_initial_state is not None\n"
+    "            # [Genesis PN79 vllm#41824] In-place SSM state for the Triton/FLA\n"
+    "            # prefill backend: pass the global state pool plus\n"
+    "            # ssm_state_indices / has_initial_state so the chunk kernel reads\n"
+    "            # and writes per-sequence states in place (IS_CONTINUOUS_BATCHING).\n"
+    "            # Other prefill backends (flashinfer, cutedsl) keep the upstream\n"
+    "            # gather/scatter path: their kernels do not accept these kwargs.\n"
+    "            _pn79_inplace = self.gdn_prefill_backend == \"triton\"\n"
+    "            if _pn79_inplace:\n"
+    "                initial_state = ssm_state\n"
+    "                _pn79_kwargs = {\n"
+    "                    \"ssm_state_indices\": prefill_state_indices,\n"
+    "                    \"has_initial_state\": prefill_has_initial_state,\n"
+    "                }\n"
+    "            else:\n"
+    "                initial_state = ssm_state[prefill_state_indices]\n"
+    "                initial_state[~prefill_has_initial_state, ...] = 0\n"
+    "                _pn79_kwargs = {}\n"
+    "            (\n"
+    "                core_attn_out_non_spec,\n"
+    "                last_recurrent_state,\n"
+    "            ) = self.chunk_gated_delta_rule(\n"
+    "                q=query_non_spec,\n"
+    "                k=key_non_spec,\n"
+    "                v=value_non_spec,\n"
+    "                g=g_non_spec,\n"
+    "                beta=beta_non_spec,\n"
+    "                initial_state=initial_state,\n"
+    "                output_final_state=True,\n"
+    "                cu_seqlens=attn_metadata.prefill_query_start_loc,\n"
+    "                chunk_indices=attn_metadata.chunk_indices,\n"
+    "                chunk_offsets=attn_metadata.chunk_offsets,\n"
+    "                use_qk_l2norm_in_kernel=False,\n"
+    "                **_pn79_kwargs,\n"
+    "            )\n"
+    "            # Init cache\n"
+    "            # [Genesis PN79] The Triton kernel already stored the final state\n"
+    "            # in place via ssm_state_indices; skip the scatter copy then.\n"
+    "            if not _pn79_inplace:\n"
+    "                ssm_state[prefill_state_indices] = last_recurrent_state.to(\n"
+    "                    ssm_state.dtype\n"
+    "                )\n"
+)
+
+
+# ════════════════════════════════════════════════════════════════════════
+# Sub-4: olmo_gdn_linear_attn.py — gather/scatter elimination
+# ════════════════════════════════════════════════════════════════════════
+#
+# Olmo-Hybrid's GDN layer always calls the FLA chunk_gated_delta_rule
+# free function (imported from vllm.model_executor.layers.fla.ops — the
+# file Sub-1 patches), with no backend dispatch. Upstream-verbatim port
+# of #41824's olmo_gdn_linear_attn.py hunk; no gating needed.
+#
+# Never fires on Genesis fleet (no Olmo models in model_configs/) —
+# structural completeness for community builds.
+ANCHOR_4A_OLMO_PREFILL_OLD = (
+    "        if attn_metadata.num_prefills > 0:\n"
+    "            assert non_spec_state_indices_tensor is not None\n"
+    "            assert has_initial_state is not None\n"
+    "            assert non_spec_query_start_loc is not None\n"
+    "            initial_state = ssm_state[non_spec_state_indices_tensor].contiguous()\n"
+    "            initial_state[~has_initial_state, ...] = 0\n"
+    "            (\n"
+    "                core_attn_out_non_spec,\n"
+    "                last_recurrent_state,\n"
+    "            ) = chunk_gated_delta_rule(\n"
+    "                q=query_non_spec,\n"
+    "                k=key_non_spec,\n"
+    "                v=value_non_spec,\n"
+    "                g=g_non_spec,\n"
+    "                beta=beta_non_spec,\n"
+    "                initial_state=initial_state,\n"
+    "                output_final_state=True,\n"
+    "                cu_seqlens=non_spec_query_start_loc,\n"
+    "                use_qk_l2norm_in_kernel=True,\n"
+    "            )\n"
+    "            ssm_state[non_spec_state_indices_tensor] = last_recurrent_state.to(\n"
+    "                ssm_state.dtype\n"
+    "            )\n"
+)
+ANCHOR_4A_OLMO_PREFILL_NEW = (
+    "        if attn_metadata.num_prefills > 0:\n"
+    "            assert non_spec_state_indices_tensor is not None\n"
+    "            assert has_initial_state is not None\n"
+    "            assert non_spec_query_start_loc is not None\n"
+    "            # [Genesis PN79 vllm#41824] Olmo-Hybrid always uses the Triton/FLA\n"
+    "            # chunk kernel for prefill — gather/scatter eliminated\n"
+    "            # unconditionally, mirroring upstream #41824.\n"
+    "            (\n"
+    "                core_attn_out_non_spec,\n"
+    "                last_recurrent_state,\n"
+    "            ) = chunk_gated_delta_rule(\n"
+    "                q=query_non_spec,\n"
+    "                k=key_non_spec,\n"
+    "                v=value_non_spec,\n"
+    "                g=g_non_spec,\n"
+    "                beta=beta_non_spec,\n"
+    "                initial_state=ssm_state,\n"
+    "                output_final_state=True,\n"
+    "                cu_seqlens=non_spec_query_start_loc,\n"
+    "                use_qk_l2norm_in_kernel=True,\n"
+    "                ssm_state_indices=non_spec_state_indices_tensor,\n"
+    "                has_initial_state=has_initial_state,\n"
+    "            )\n"
 )
 
 
@@ -900,12 +874,6 @@ def _make_chunk_patcher() -> TextPatcher | None:
         patch_id="PN79.Sub-1",
         sub_patches=[
             TextPatch(
-                name="1A_drop_input_guard_import",
-                anchor=ANCHOR_1A_IMPORT_OLD,
-                replacement=ANCHOR_1A_IMPORT_NEW,
-                required=True,
-            ),
-            TextPatch(
                 name="1B_fwd_signature_add_ssm_state_indices",
                 anchor=ANCHOR_1B_FWD_SIG_OLD,
                 replacement=ANCHOR_1B_FWD_SIG_NEW,
@@ -918,9 +886,21 @@ def _make_chunk_patcher() -> TextPatcher | None:
                 required=True,
             ),
             TextPatch(
-                name="1D_forward_rewrite_drop_input_guard_add_contiguous",
-                anchor=ANCHOR_1D_FORWARD_OLD,
-                replacement=ANCHOR_1D_FORWARD_NEW,
+                name="1D_drop_input_guard_decorator",
+                anchor=ANCHOR_1D_DECORATOR_OLD,
+                replacement=ANCHOR_1D_DECORATOR_NEW,
+                required=True,
+            ),
+            TextPatch(
+                name="1D_forward_sig_add_params_manual_contiguity",
+                anchor=ANCHOR_1D_FORWARD_SIG_OLD,
+                replacement=ANCHOR_1D_FORWARD_SIG_NEW,
+                required=True,
+            ),
+            TextPatch(
+                name="1D_forward_inner_call_pass_kwargs",
+                anchor=ANCHOR_1D_FORWARD_CALL_OLD,
+                replacement=ANCHOR_1D_FORWARD_CALL_NEW,
                 required=True,
             ),
             TextPatch(
@@ -947,92 +927,6 @@ def _make_chunk_patcher() -> TextPatcher | None:
             "has_initial_state",
             "torch.accelerator.device_index",
         ],
-    )
-
-
-def _make_gdn_linear_attn_patcher() -> TextPatcher | None:
-    """Sub-3: gdn_linear_attn.py — gather/scatter elimination at call site.
-
-    Drift detection: the bare token `ssm_state_indices=non_spec_state_indices_tensor`
-    is too generic — pristine already uses it in the decode-path and spec-path
-    branches (lines ~1024 and ~1106). For drift detection on the prefill
-    branch (the one we patch), we rely on the fact that upstream merge of
-    PR #41824 would REMOVE the `.contiguous()` gather call from the prefill
-    block. If pristine no longer matches our OLD anchor (because upstream
-    removed the gather), TextPatcher reports "required anchor not found" —
-    which surfaces operationally as a clean "missing anchor" skip.
-
-    No upstream_drift_markers configured: pristine pollution makes any
-    marker we'd pick fire on a never-patched file.
-    """
-    # K.1.R.R.4 (2026-05-29): #41126 split mamba/gdn_linear_attn.py.
-    # See P7 / PN50 for the same fallback pattern.
-    target = (
-        resolve_vllm_file("model_executor/layers/mamba/gdn_linear_attn.py")
-        or resolve_vllm_file(
-            "model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py"
-        )
-    )
-    if target is None:
-        return None
-    return TextPatcher(
-        patch_name="PN79 Sub-3 gdn_linear_attn.py (forward_cuda + forward_native + gather/scatter elim)",
-        target_file=str(target),
-        marker=GENESIS_PN79_MARKER,
-        patch_id="PN79.Sub-3",
-        sub_patches=[
-            TextPatch(
-                name="3A_forward_cuda_add_kwargs_and_fi_fallback",
-                anchor=ANCHOR_3A_FORWARD_CUDA_OLD,
-                replacement=ANCHOR_3A_FORWARD_CUDA_NEW,
-                required=True,
-            ),
-            TextPatch(
-                name="3B_forward_native_add_kwargs_passthrough",
-                anchor=ANCHOR_3B_FORWARD_NATIVE_OLD,
-                replacement=ANCHOR_3B_FORWARD_NATIVE_NEW,
-                required=True,
-            ),
-            TextPatch(
-                name="3C_forward_core_remove_gather_scatter",
-                anchor=ANCHOR_3C_GATHER_SCATTER_OLD,
-                replacement=ANCHOR_3C_GATHER_SCATTER_NEW,
-                required=True,
-            ),
-        ],
-        upstream_drift_markers=[],
-    )
-
-
-def _make_olmo_hybrid_patcher() -> TextPatcher | None:
-    """Sub-4: olmo_hybrid.py — gather/scatter elimination (analogous to 3C).
-
-    Returns None gracefully when olmo_hybrid.py is not present in the
-    target vllm install. This is the COMMON case on Genesis fleet
-    (no Olmo models in model_configs/) — patch is structural completeness
-    for community users.
-
-    When file IS present, applies single 4A anchor. Atomic with the
-    rest of PN79 transaction: if 1A-3C succeed but 4A fails, all 4
-    files roll back via MultiFilePatchTransaction.
-    """
-    target = resolve_vllm_file("model_executor/models/olmo_hybrid.py")
-    if target is None:
-        return None
-    return TextPatcher(
-        patch_name="PN79 Sub-4 olmo_hybrid.py (gather/scatter elim)",
-        target_file=str(target),
-        marker=GENESIS_PN79_MARKER,
-        patch_id="PN79.Sub-4",
-        sub_patches=[
-            TextPatch(
-                name="4A_olmo_forward_core_remove_gather_scatter",
-                anchor=ANCHOR_4A_OLMO_FORWARD_CORE_OLD,
-                replacement=ANCHOR_4A_OLMO_FORWARD_CORE_NEW,
-                required=True,
-            ),
-        ],
-        upstream_drift_markers=[],
     )
 
 
@@ -1108,33 +1002,106 @@ def _make_chunk_delta_h_patcher() -> TextPatcher | None:
     )
 
 
+def _make_qwen_gdn_patcher() -> TextPatcher | None:
+    """Sub-3: qwen_gdn_linear_attn.py — backend-gated in-place state.
+
+    K.2 re-anchor (2026-06-10): targets the per-model file introduced by
+    the upstream gdn/ split. No fallback to the retired monolithic
+    `mamba/gdn_linear_attn.py` — its anchors are structurally gone.
+
+    No upstream_drift_markers: pristine pollution — the decode-path and
+    spec-path branches already use `ssm_state_indices=...` kwargs for
+    fused_recurrent kernels. If upstream merges #41824, the 3C OLD
+    anchor (gather line `initial_state = ssm_state[prefill_state_indices]`)
+    disappears and the patch surfaces a clean "missing anchor" skip.
+    """
+    target = resolve_vllm_file(
+        "model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py"
+    )
+    if target is None:
+        return None
+    return TextPatcher(
+        patch_name=(
+            "PN79 Sub-3 qwen_gdn_linear_attn.py "
+            "(forward_native passthrough + gated gather/scatter elim)"
+        ),
+        target_file=str(target),
+        marker=GENESIS_PN79_MARKER,
+        patch_id="PN79.Sub-3",
+        sub_patches=[
+            TextPatch(
+                name="3B_forward_native_add_kwargs_passthrough",
+                anchor=ANCHOR_3B_FORWARD_NATIVE_OLD,
+                replacement=ANCHOR_3B_FORWARD_NATIVE_NEW,
+                required=True,
+            ),
+            TextPatch(
+                name="3C_prefill_backend_gated_inplace_state",
+                anchor=ANCHOR_3C_PREFILL_INPLACE_OLD,
+                replacement=ANCHOR_3C_PREFILL_INPLACE_NEW,
+                required=True,
+            ),
+        ],
+        upstream_drift_markers=[],
+    )
+
+
+def _make_olmo_gdn_patcher() -> TextPatcher | None:
+    """Sub-4: olmo_gdn_linear_attn.py — gather/scatter elimination.
+
+    Returns None gracefully when the file is not present in the target
+    vllm install. When present, applies the single 4A anchor. Atomic
+    with the rest of the PN79 transaction.
+
+    K.2 re-anchor (2026-06-10): the old target `models/olmo_hybrid.py`
+    STILL EXISTS on pin g303916e93 but no longer contains the GDN
+    linear-attn code — keeping the old patcher would dry-run-fail its
+    required anchor and abort the whole transaction.
+    """
+    target = resolve_vllm_file(
+        "model_executor/layers/mamba/gdn/olmo_gdn_linear_attn.py"
+    )
+    if target is None:
+        return None
+    return TextPatcher(
+        patch_name="PN79 Sub-4 olmo_gdn_linear_attn.py (gather/scatter elim)",
+        target_file=str(target),
+        marker=GENESIS_PN79_MARKER,
+        patch_id="PN79.Sub-4",
+        sub_patches=[
+            TextPatch(
+                name="4A_olmo_prefill_remove_gather_scatter",
+                anchor=ANCHOR_4A_OLMO_PREFILL_OLD,
+                replacement=ANCHOR_4A_OLMO_PREFILL_NEW,
+                required=True,
+            ),
+        ],
+        upstream_drift_markers=[],
+    )
+
+
 # ════════════════════════════════════════════════════════════════════════
 # apply()
 # ════════════════════════════════════════════════════════════════════════
 
 
 def apply() -> tuple[str, str]:
-    """Apply PN79 atomically across 3 files via MultiFilePatchTransaction.
+    """Apply PN79 atomically across 4 files via MultiFilePatchTransaction.
 
-    Current state 2026-05-07:
-      - Sub-1 (chunk.py) — 7 anchors READY (1A/1B/1C/1D/1E_SIG/1E_VAL/1E_APPLY_CALL)
-      - Sub-2 (chunk_delta_h.py) — 7 anchors READY (2A through 2G)
-      - Sub-3 (gdn_linear_attn.py) — 3 anchors READY (3A/3B/3C)
-      - Sub-4 (olmo_hybrid.py) — 1 anchor READY (4A) — applies only if file
-        present (Genesis fleet has no Olmo; community completeness).
+    State after K.2 re-anchor 2026-06-10 (pin g303916e93, post-#44700):
+      - Sub-1 (chunk.py) — 8 anchors (1B/1C/1D_DECORATOR/1D_FORWARD_SIG/
+        1D_FORWARD_CALL/1E_SIG/1E_VAL/1E_APPLY_CALL)
+      - Sub-2 (chunk_delta_h.py) — 7 anchors (2A through 2G)
+      - Sub-3 (qwen_gdn_linear_attn.py) — 2 anchors (3B/3C, backend-gated)
+      - Sub-4 (olmo_gdn_linear_attn.py) — 1 anchor (4A) — applies only if
+        file present (Genesis fleet has no Olmo; community completeness).
 
-    Atomic up-to-18-anchor commit (17 always + 1 conditional). If ANY anchor fails dry-run (anchor not found
-    OR drift marker present already → upstream merged), entire transaction
-    rolls back and reports skipped reason. Operator never sees half-patched
-    state which would crash boot (orchestrator passing ssm_state_indices
-    to a kernel that doesn't accept it).
-
-    Sub-3 sub-patch sequencing matters: 3A and 3B both edit pristine pattern
-    `chunk_indices: ... = None,\\n        chunk_offsets: ... = None,\\n
-    use_qk_l2norm_in_kernel: bool = True,\\n    ):\\n        return X(`
-    where X differs (fi_chunk_gated_delta_rule vs fla_chunk_gated_delta_rule).
-    They're applied serially against unique returns; PN79 marker insertion
-    blocks 3B from re-firing on already-patched 3A region.
+    Atomic up-to-18-anchor commit (17 always + 1 conditional). If ANY
+    anchor fails dry-run (anchor not found OR drift marker present →
+    upstream merged), the entire transaction rolls back and reports the
+    skipped reason. Operator never sees half-patched state which would
+    crash boot (call sites passing ssm_state_indices to a kernel that
+    doesn't accept it).
     """
     from sndr.dispatcher import log_decision, should_apply
 
@@ -1147,15 +1114,16 @@ def apply() -> tuple[str, str]:
 
     chunk_patcher = _make_chunk_patcher()
     chunk_delta_h_patcher = _make_chunk_delta_h_patcher()
-    gdn_attn_patcher = _make_gdn_linear_attn_patcher()
-    olmo_hybrid_patcher = _make_olmo_hybrid_patcher()  # may be None on builds without Olmo
+    qwen_gdn_patcher = _make_qwen_gdn_patcher()
+    olmo_gdn_patcher = _make_olmo_gdn_patcher()  # None on builds without Olmo
 
-    # Atomic up-to-4-file transaction. olmo_hybrid is None on most Genesis
-    # builds (no Olmo models) — MultiFilePatchTransaction tolerates None entries
-    # by skipping them gracefully (single None == structural absence, not failure).
-    patchers = [chunk_patcher, chunk_delta_h_patcher, gdn_attn_patcher]
-    if olmo_hybrid_patcher is not None:
-        patchers.append(olmo_hybrid_patcher)
+    # Atomic up-to-4-file transaction. olmo_gdn is None on builds that
+    # don't ship the Olmo GDN layer — MultiFilePatchTransaction tolerates
+    # None entries by skipping them gracefully (structural absence, not
+    # failure).
+    patchers = [chunk_patcher, chunk_delta_h_patcher, qwen_gdn_patcher]
+    if olmo_gdn_patcher is not None:
+        patchers.append(olmo_gdn_patcher)
     txn = MultiFilePatchTransaction(patchers, name="PN79")
     return txn.apply_or_skip()
 
@@ -1167,8 +1135,8 @@ def apply() -> tuple[str, str]:
 # `register_for_manifest()` is called by scripts/build_anchor_manifest.py
 # at BUILD TIME (not runtime) to enroll PN79's patchers into the Site Map
 # anchor offset manifest. It constructs the same TextPatcher objects but
-# pointed at PRISTINE FIXTURE paths under tests/pristine_fixtures/ so it
-# works without a vllm install (Mac dev / CI gate).
+# pointed at PRISTINE FIXTURE paths under tests/legacy/pristine_fixtures/
+# so it works without a vllm install (Mac dev / CI gate).
 #
 # Runtime apply() path (above) is unaffected — it still uses
 # resolve_vllm_file() to find the live vllm install. The two paths are
@@ -1198,19 +1166,22 @@ def register_for_manifest(*, pristine_root) -> None:
 
     Args:
         pristine_root: Path to pristine_fixtures/ directory containing
-            chunk.py, chunk_delta_h.py, gdn_linear_attn.py, olmo_hybrid.py.
+            chunk.py, chunk_delta_h.py, qwen_gdn_linear_attn.py,
+            olmo_gdn_linear_attn.py (extracted at pin g303916e93).
     """
     from sndr.engines.vllm.wiring.patcher_registry import register_text_patcher
 
     chunk_subs = [
-        TextPatch(name="1A", anchor=ANCHOR_1A_IMPORT_OLD,
-                  replacement=ANCHOR_1A_IMPORT_NEW, required=True),
         TextPatch(name="1B", anchor=ANCHOR_1B_FWD_SIG_OLD,
                   replacement=ANCHOR_1B_FWD_SIG_NEW, required=True),
         TextPatch(name="1C", anchor=ANCHOR_1C_FWD_INTERNAL_OLD,
                   replacement=ANCHOR_1C_FWD_INTERNAL_NEW, required=True),
-        TextPatch(name="1D", anchor=ANCHOR_1D_FORWARD_OLD,
-                  replacement=ANCHOR_1D_FORWARD_NEW, required=True),
+        TextPatch(name="1D_DECORATOR", anchor=ANCHOR_1D_DECORATOR_OLD,
+                  replacement=ANCHOR_1D_DECORATOR_NEW, required=True),
+        TextPatch(name="1D_FORWARD_SIG", anchor=ANCHOR_1D_FORWARD_SIG_OLD,
+                  replacement=ANCHOR_1D_FORWARD_SIG_NEW, required=True),
+        TextPatch(name="1D_FORWARD_CALL", anchor=ANCHOR_1D_FORWARD_CALL_OLD,
+                  replacement=ANCHOR_1D_FORWARD_CALL_NEW, required=True),
         TextPatch(name="1E_SIG", anchor=ANCHOR_1E_SIG_OLD,
                   replacement=ANCHOR_1E_SIG_NEW, required=True),
         TextPatch(name="1E_VAL", anchor=ANCHOR_1E_VAL_OLD,
@@ -1234,17 +1205,15 @@ def register_for_manifest(*, pristine_root) -> None:
         TextPatch(name="2G", anchor=ANCHOR_2G_WRAPPER_KERNEL_CALL_OLD,
                   replacement=ANCHOR_2G_WRAPPER_KERNEL_CALL_NEW, required=True),
     ]
-    gdn_subs = [
-        TextPatch(name="3A", anchor=ANCHOR_3A_FORWARD_CUDA_OLD,
-                  replacement=ANCHOR_3A_FORWARD_CUDA_NEW, required=True),
+    qwen_subs = [
         TextPatch(name="3B", anchor=ANCHOR_3B_FORWARD_NATIVE_OLD,
                   replacement=ANCHOR_3B_FORWARD_NATIVE_NEW, required=True),
-        TextPatch(name="3C", anchor=ANCHOR_3C_GATHER_SCATTER_OLD,
-                  replacement=ANCHOR_3C_GATHER_SCATTER_NEW, required=True),
+        TextPatch(name="3C", anchor=ANCHOR_3C_PREFILL_INPLACE_OLD,
+                  replacement=ANCHOR_3C_PREFILL_INPLACE_NEW, required=True),
     ]
     olmo_subs = [
-        TextPatch(name="4A", anchor=ANCHOR_4A_OLMO_FORWARD_CORE_OLD,
-                  replacement=ANCHOR_4A_OLMO_FORWARD_CORE_NEW, required=True),
+        TextPatch(name="4A", anchor=ANCHOR_4A_OLMO_PREFILL_OLD,
+                  replacement=ANCHOR_4A_OLMO_PREFILL_NEW, required=True),
     ]
 
     register_text_patcher(
@@ -1270,16 +1239,16 @@ def register_for_manifest(*, pristine_root) -> None:
     register_text_patcher(
         "PN79.Sub-3",
         _make_patcher_for_fixture(
-            "PN79 Sub-3 gdn_linear_attn.py (build mode)",
-            pristine_root / "gdn_linear_attn.py", gdn_subs,
+            "PN79 Sub-3 qwen_gdn_linear_attn.py (build mode)",
+            pristine_root / "qwen_gdn_linear_attn.py", qwen_subs,
             patch_id="PN79.Sub-3",
         ),
     )
     register_text_patcher(
         "PN79.Sub-4",
         _make_patcher_for_fixture(
-            "PN79 Sub-4 olmo_hybrid.py (build mode)",
-            pristine_root / "olmo_hybrid.py", olmo_subs,
+            "PN79 Sub-4 olmo_gdn_linear_attn.py (build mode)",
+            pristine_root / "olmo_gdn_linear_attn.py", olmo_subs,
             patch_id="PN79.Sub-4",
         ),
     )

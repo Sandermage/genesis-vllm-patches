@@ -213,7 +213,18 @@ def _make_chunked_wrapper(
         # buffer write contract is honored. The wider `**kwargs` capture
         # also makes the wrapper survive future signature additions on
         # the hot fallthrough path below.
-        if kwargs.get("core_attn_out") is not None:
+        #
+        # PN79 interop (2026-06-10): when PN79 in-place SSM state is
+        # active, callers pass `ssm_state_indices` (the global state pool
+        # is read/written in place by the kernel). P103's chunked path
+        # gathers/chains state per sub-chunk and would silently drop the
+        # in-place write contract — bypass to the original (PN79-patched)
+        # fwd, which handles the pool natively. Preserves Cliff-2
+        # protection for all non-in-place calls.
+        if (
+            kwargs.get("core_attn_out") is not None
+            or kwargs.get("ssm_state_indices") is not None
+        ):
             return original_fwd(
                 q, k, v, g, beta, scale,
                 initial_state, output_final_state,

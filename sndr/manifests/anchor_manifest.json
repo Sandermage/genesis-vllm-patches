@@ -1,136 +1,152 @@
 {
   "files": {
     "model_executor/layers/fla/ops/chunk.py": {
-      "md5_pristine": "0f66320b6b74a11d7b4f3e7ea223ecec",
+      "md5_pristine": "2949617813535680de692d4c24a7b809",
       "patches": {
         "PN79.Sub-1": {
           "anchors": {
-            "1A": {
-              "anchor_md5": "fc4101c92cd414a6906898fbdcd87e39",
-              "byte_length": 63,
-              "byte_offset": 678,
-              "replacement_md5": "54b03a10843eaf394cb848da0e6e671e"
-            },
             "1B": {
-              "anchor_md5": "2aecd599da8f8dc5bbec43e90d08613e",
-              "byte_length": 169,
+              "anchor_md5": "534627fd21808ed655216f229c0fc05a",
+              "byte_length": 188,
               "byte_offset": 1003,
-              "replacement_md5": "fd016e760e1c96c644aa635934564b08"
+              "replacement_md5": "ed17dab9037ae75f1f4d5871d22e185e"
             },
             "1C": {
               "anchor_md5": "cf6964a5418a369f8b87796093587f35",
               "byte_length": 132,
-              "byte_offset": 2001,
+              "byte_offset": 2048,
               "replacement_md5": "666d1ab637a2cdf10a26306b16a41ca9"
             },
-            "1D": {
-              "anchor_md5": "ab1a1442195ecc7c8058e60a04422f40",
-              "byte_length": 1170,
-              "byte_offset": 2519,
-              "replacement_md5": "a177328535055d0dcf8b7a787c664e4d"
+            "1D_DECORATOR": {
+              "anchor_md5": "c55361c2bb3c7b29aa5a9b9c91b5af50",
+              "byte_length": 81,
+              "byte_offset": 2603,
+              "replacement_md5": "cdc16548ee9d27c87e2272f5a01d0e58"
+            },
+            "1D_FORWARD_CALL": {
+              "anchor_md5": "467e40f43385f256d0bbf7ce61274264",
+              "byte_length": 168,
+              "byte_offset": 3567,
+              "replacement_md5": "90c5a7f0c300555a6c6d19b7c253f8d8"
+            },
+            "1D_FORWARD_SIG": {
+              "anchor_md5": "dc380dbfd597c38b49b9b8c45acbcd2b",
+              "byte_length": 201,
+              "byte_offset": 3085,
+              "replacement_md5": "b3cdc4886d4a0d179b0012e60be20d20"
             },
             "1E_APPLY_CALL": {
-              "anchor_md5": "66f1264d8a3b02caf14fc689bbe2e732",
+              "anchor_md5": "ee459c620a0088ed48eb1d3ab674f890",
               "byte_length": 88,
-              "byte_offset": 8114,
-              "replacement_md5": "bd942d9f4a9d29b7a226ac249a89bc63"
+              "byte_offset": 8623,
+              "replacement_md5": "96fb8a7c0b37ce61a3dc4252ae4f4704"
             },
             "1E_SIG": {
-              "anchor_md5": "cb5f567303e5015c52e36d91aecc0c64",
-              "byte_length": 140,
-              "byte_offset": 3998,
-              "replacement_md5": "e3e244b503440bb58ac318a90eac80ea"
+              "anchor_md5": "8152fe12ced657f8df72b6f44a6bb2fa",
+              "byte_length": 149,
+              "byte_offset": 4484,
+              "replacement_md5": "3d810467e3551317129db872f5199504"
             },
             "1E_VAL": {
               "anchor_md5": "183be0f5c592e4a862bfda43be35017f",
               "byte_length": 88,
-              "byte_offset": 7509,
+              "byte_offset": 7995,
               "replacement_md5": "e9214f8ded2f58b6a00b06336ac0dc45"
             }
           }
         }
       },
-      "size_bytes": 8202
+      "size_bytes": 8711
     },
     "model_executor/layers/fla/ops/chunk_delta_h.py": {
-      "md5_pristine": "e90e9a46606fadcf22cf5f8425f0f490",
+      "md5_pristine": "71b7a5017e8cb4c08617c19f5b5f7d4b",
       "patches": {
         "PN79.Sub-2": {
           "anchors": {
             "2A": {
               "anchor_md5": "70d893064aa3a6ef5730483cbbb617e5",
               "byte_length": 206,
-              "byte_offset": 830,
+              "byte_offset": 836,
               "replacement_md5": "8c395ce1584a1a9d66ba37dcf5ade7a8"
             },
             "2B": {
-              "anchor_md5": "a98582fd2f8b0569b3fdf0b07c48c3b5",
-              "byte_length": 362,
-              "byte_offset": 1475,
-              "replacement_md5": "8769b2a8a8023bb3aa2ec24e12888728"
+              "anchor_md5": "84017f79605cd4906e3d65a7220e534c",
+              "byte_length": 390,
+              "byte_offset": 1481,
+              "replacement_md5": "7595c98f40c6790e9d61a9765d8f864d"
             },
             "2C": {
               "anchor_md5": "46ad35f9259d0ad0cffd887f634a188f",
               "byte_length": 976,
-              "byte_offset": 2936,
+              "byte_offset": 2970,
               "replacement_md5": "84ceb36ad7f464557dfde73cce826e15"
             },
             "2D": {
               "anchor_md5": "a142c14e53c3ab5f06e085f2bfe91a6c",
               "byte_length": 127,
-              "byte_offset": 9508,
+              "byte_offset": 10135,
               "replacement_md5": "be3bc1fdb41b46822d76757b1764fccb"
             },
             "2E": {
-              "anchor_md5": "a0bccb4a833d8e09e0676b17b4bd8919",
-              "byte_length": 178,
-              "byte_offset": 10709,
-              "replacement_md5": "8a4182f95f6449de56dea2efc82fa227"
+              "anchor_md5": "509e9ffdae7c0af14f01bac518a2ed44",
+              "byte_length": 206,
+              "byte_offset": 11336,
+              "replacement_md5": "1e96d784de579928a41b5b653449d1dd"
             },
             "2F": {
-              "anchor_md5": "3121457926608261a13866963e768f83",
-              "byte_length": 296,
-              "byte_offset": 11614,
-              "replacement_md5": "830f89c34b8113484e1d75dbfc7d4585"
+              "anchor_md5": "f83290aeca89dc2aefb662beddfb6954",
+              "byte_length": 111,
+              "byte_offset": 12393,
+              "replacement_md5": "eb31d58f461194f7d7ff54a790a1a496"
             },
             "2G": {
-              "anchor_md5": "a87c58c8ef61e3501ca80f52b7af633f",
-              "byte_length": 156,
-              "byte_offset": 12192,
-              "replacement_md5": "8a605db58e89a8d59121fc9fed715abb"
+              "anchor_md5": "d9f5e2652b38edf7cc418c723bd701a0",
+              "byte_length": 183,
+              "byte_offset": 12847,
+              "replacement_md5": "1f71ba47ce434b6221ddb3c6ae6b6e4a"
             }
           }
         }
       },
-      "size_bytes": 12381
+      "size_bytes": 13063
     },
-    "model_executor/layers/mamba/gdn_linear_attn.py": {
-      "md5_pristine": "18dc6a9c0b1f615a338b468c11fcb71c",
+    "model_executor/layers/mamba/gdn/olmo_gdn_linear_attn.py": {
+      "md5_pristine": "9925d28bfc9f5165ea39faab113b8bb9",
+      "patches": {
+        "PN79.Sub-4": {
+          "anchors": {
+            "4A": {
+              "anchor_md5": "f36b7ffc238a5ecfc479bb7bedf1c4a1",
+              "byte_length": 969,
+              "byte_offset": 17654,
+              "replacement_md5": "77e4e7d7d8ba80b219a051a1ad0fea2f"
+            }
+          }
+        }
+      },
+      "size_bytes": 24274
+    },
+    "model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py": {
+      "md5_pristine": "194c57a13156fe2f1105064a483de989",
       "patches": {
         "PN79.Sub-3": {
           "anchors": {
-            "3A": {
-              "anchor_md5": "f747de9ae92cc2cc8e8204f1bd74211a",
-              "byte_length": 486,
-              "byte_offset": 5616,
-              "replacement_md5": "353c273a48f571a77ef350c84557d89c"
-            },
             "3B": {
-              "anchor_md5": "ef97710156520d50eb7be3286d061342",
-              "byte_length": 569,
-              "byte_offset": 6388,
-              "replacement_md5": "e916107a83a09eec350909e4b5b905b5"
+              "anchor_md5": "70c01e5d4c6628bf6e1b39ff1a42024a",
+              "byte_length": 946,
+              "byte_offset": 12525,
+              "replacement_md5": "ff832e49e5629aee797ae49cccc32032"
             },
             "3C": {
-              "anchor_md5": "434449e003f7fe70018b7d2dbb3bcfc1",
-              "byte_length": 1153,
-              "byte_offset": 38002,
-              "replacement_md5": "f0c459236cf9ca1731fa99e78bc073d0"
+              "anchor_md5": "46899e0c4f9cb70a04dde0de7728f9d4",
+              "byte_length": 1133,
+              "byte_offset": 57095,
+              "replacement_md5": "07909a4cac5c82533760b36fb4c7a655"
             }
           }
         }
       },
-      "size_bytes": 46108
+      "size_bytes": 68663
     },
     "model_executor/models/gemma4.py": {
       "md5_pristine": "ff843002c69f9d2aced01c99325e2b21",
@@ -147,22 +163,6 @@
         }
       },
       "size_bytes": 67993
-    },
-    "model_executor/models/olmo_hybrid.py": {
-      "md5_pristine": "63ab5a2d29b29b522693188a8da2e421",
-      "patches": {
-        "PN79.Sub-4": {
-          "anchors": {
-            "4A": {
-              "anchor_md5": "f66c252f1c79d31ffd7cb5c7da772088",
-              "byte_length": 803,
-              "byte_offset": 21339,
-              "replacement_md5": "a36a9e701d185ffc77058fcbf1b15f7f"
-            }
-          }
-        }
-      },
-      "size_bytes": 43524
     },
     "v1/spec_decode/llm_base_proposer.py": {
       "md5_pristine": "b2b5def581d27d4654e66d83b4ff4998",
@@ -207,11 +207,11 @@
       "size_bytes": 316188
     }
   },
-  "generated_at": "2026-06-10T05:00:00Z",
+  "generated_at": "2026-06-10T07:31:51Z",
   "generated_by": "vllm.sndr_core.wiring.anchor_manifest.assemble_manifest",
   "manifest_version": 1,
   "pins": {
     "genesis": "12.0.0.dev0",
-    "vllm": "unknown"
+    "vllm": "0.22.1rc1.dev259+g303916e93"
   }
 }

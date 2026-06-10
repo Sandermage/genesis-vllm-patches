@@ -218,6 +218,12 @@ _KNOWN_REL_PATHS = {
     "chunk_delta_h.py": "model_executor/layers/fla/ops/chunk_delta_h.py",
     "gdn_linear_attn.py": "model_executor/layers/mamba/gdn_linear_attn.py",
     "olmo_hybrid.py": "model_executor/models/olmo_hybrid.py",
+    # Added 2026-06-10 (PN79 K.2 re-anchor on pin g303916e93): upstream
+    # split mamba/gdn_linear_attn.py into per-model files under mamba/gdn/.
+    "qwen_gdn_linear_attn.py":
+        "model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py",
+    "olmo_gdn_linear_attn.py":
+        "model_executor/layers/mamba/gdn/olmo_gdn_linear_attn.py",
     # Added 2026-05-12 (Wave 9 STABLE-prep for PN33 + PN35):
     "gpu_model_runner.py": "v1/worker/gpu_model_runner.py",
     "llm_base_proposer.py": "v1/spec_decode/llm_base_proposer.py",
