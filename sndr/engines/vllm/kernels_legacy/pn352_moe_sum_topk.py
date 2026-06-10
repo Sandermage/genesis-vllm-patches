@@ -92,11 +92,22 @@ def moe_sum_topk(input: torch.Tensor, output: torch.Tensor) -> bool:
         return False
     if not (input.is_contiguous() and output.is_contiguous()):
         return False
-    if input.dim() != 3:
+    if input.dim() != 3 or output.dim() < 2:
         return False
-    num_tokens, topk, hidden = input.shape
+    # CRITICAL (2026-06-10 OOB post-mortem): `input` is the PREALLOCATED
+    # intermediate_cache3 scratch — its row count is the CACHE capacity
+    # (e.g. 8192), NOT the live token count. The compiled upstream op
+    # derives num_tokens from OUTPUT (`output.numel() / hidden_size`);
+    # sizing the grid from input.shape[0] writes past the end of
+    # `output` -> CUDA illegal memory access on the first real request
+    # (dummy-run shapes masked it: there num_tokens == cache rows).
+    topk = input.shape[1]
+    hidden = input.shape[-1]
+    num_tokens = output.numel() // hidden
     if num_tokens == 0:
         return True  # nothing to do; output untouched is fine for 0 rows
+    if input.shape[0] < num_tokens or output.numel() != num_tokens * hidden:
+        return False
     try:
         BLOCK = 1024 if hidden >= 1024 else max(
             16, 1 << (hidden - 1).bit_length()

@@ -4105,7 +4105,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "(router softmax)."
         ),
         "upstream_pr": 44557,
-        "upstream_pr_relationship": "counterpart",
+        "upstream_pr_relationship": "backport",
         "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
         "implementation_status": "full",
         "composes_with": ["P24", "PN96b", "P31"],

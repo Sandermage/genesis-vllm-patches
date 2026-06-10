@@ -1,6 +1,26 @@
 # SPDX-License-Identifier: Apache-2.0
 """PN352 — route top-k=8 moe_sum through a Genesis Triton kernel.
 
+STATUS 2026-06-10: PARKED — stream-race crash under async engine load.
+=======================================================================
+Standalone kernel test passes (all shapes incl. the PROD decode shape,
+fp32-accumulate numerics verified vs torch reference). In-engine the
+first real decode dies with CUDA illegal memory access async-reported
+at rejection_sampler; with CUDA_LAUNCH_BLOCKING=1 the same request
+SUCCEEDS -> the failure is a stream race (kernel launched on the
+current torch stream races the engine's producer/consumer streams
+around the fused_experts region), not a kernel-body bug.
+
+Park decision per the 3-diagnostic-restart rule: lever value -1-3 %
+TPOT does not justify multi-hour mixed-capture stream-semantics
+debugging right now. To resume: investigate which stream
+dispatch_fused_moe_kernel records on during PIECEWISE capture vs what
+triton uses at eager launch, and pin the launch to the same stream
+(torch.cuda.stream context from the captured region) before retrying.
+
+Keep GENESIS_DISABLE_PN352_INSTALL=1 on PROD until then.
+
+
 Genesis counterpart of OPEN vllm PR #44557 (xyang16). See
 ``sndr.engines.vllm.kernels_legacy.pn352_moe_sum_topk`` for the kernel
 and the full design rationale.
