@@ -111,11 +111,18 @@ Plus three tree-wide passes:
   iron-rule-#11 queue and count as actionable.
 - **Version ranges** — every spec's `applies_to.vllm_version_range`
   evaluated against the candidate's internal version with the SAME
-  evaluator the dispatcher uses (`sndr.compat.version_check`), so the
-  report predicts exactly which patches the dispatcher will
-  version-gate OFF. Out-of-range patches are excluded from the
-  actionable count but listed — **a long list usually means the
-  registry ranges were not bumped during the previous promotion**.
+  evaluator the dispatcher uses (`sndr.compat.version_check`).
+  Enforcement is two-tier (`dispatcher/decision.py` `should_apply`
+  rule 1, verified live 2026-06-10): `default_on=True` out-of-range →
+  STRICT_SKIP (silently disabled on the candidate); opt-in patches
+  with a truthy env flag STILL APPLY — operator override wins over
+  `applies_to`, the stale range only degrades doctor/recommend
+  diagnostics. The report splits the list accordingly
+  (`out_of_range_detail`). **A long list usually means the registry
+  ranges were not bumped during the previous promotion.** Corollary:
+  retiring a patch by capping its range does NOT stop it on rigs whose
+  launchers still export its env flag — set `lifecycle: retired` (and
+  remove the flag from launch configs) for a real retirement.
 - **SELF_COLLISION lint** (the PN369 class) — a patcher's own
   replacement text or marker containing one of its
   `upstream_drift_markers` produces deterministic false
@@ -184,9 +191,15 @@ Only after steps 2-6 are clean:
    otherwise. Run `make test-pin-gate`.
 3. Bump `vllm_pin_required` in the model YAMLs, README badge, CHANGELOG.
 4. **Bump the `applies_to.vllm_version_range` upper bounds** for
-   patches validated on the new pin — the current-pin validation run
-   surfaced 34 patches whose `<0.22.0` ranges silently version-gate
-   them off on the already-promoted 0.22.1 pin.
+   patches validated on the new pin. Evidence bar (iron rule #11 —
+   no blanket bumps): a patch earns a bump only with boot-log proof
+   of `applied` (or `already applied (marker present)`) on the new
+   pin. Worked example from the 0.22.1 promotion backfill
+   (2026-06-10): the validation run surfaced 34 stale `<0.22.0`
+   ranges → boot-log triage split them 26 applied (bumped to
+   `<0.23.0`) / 7 disabled-by-env (caps kept — they honestly record
+   the last validated window) / 1 upstream-merged PN90 (cap kept —
+   intentional retirement gate, double-defended by its drift marker).
 5. Regenerate the anchor manifest (pins.vllm must equal the new pin).
 
 ## 8. Tag rotation (pin policy)
@@ -223,8 +236,10 @@ Only after steps 2-6 are clean:
    text fires the patch's drift marker → deterministic false
    "upstream merged" skip → SELF_COLLISION lint.
 8. **Version-range staleness** — registry ranges not bumped at
-   promotion silently version-gate PROD-critical patches off →
-   out-of-range list computed with the dispatcher's own evaluator.
+   promotion. Silently disables `default_on=True` patches
+   (STRICT_SKIP); opt-in patches keep applying via env override but
+   doctor/recommend diagnostics degrade → out-of-range list computed
+   with the dispatcher's own evaluator, split by enforcement tier.
 9. **Runtime-binding breakage** — monkey-patch modules whose
    `vllm.*` import targets were renamed/removed (e.g.
    `v1/spec_decode/eagle3`, `apply_fp8_block_linear`) →

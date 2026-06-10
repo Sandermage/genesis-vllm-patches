@@ -766,6 +766,43 @@ def manifest_staleness(
     return out
 
 
+def classify_out_of_range(
+    pids: list[str], registry: Optional[dict] = None,
+) -> list[dict]:
+    """Annotate out-of-range patch ids with the dispatcher's ACTUAL
+    enforcement semantics (dispatcher/decision.py should_apply, rule 1):
+
+    - default_on=True  → STRICT_SKIP: the version gate hard-skips the
+      patch on the candidate pin. It is silently disabled.
+    - default_on=False → ENV_OVERRIDE_POSSIBLE: a truthy env flag wins
+      over applies_to, so the patch STILL APPLIES wherever the operator
+      opted in (live counter-example: P67/P82 on 0.22.1 with <0.22.0
+      ranges, PROD 2026-06-10). The stale range only degrades doctor /
+      recommend diagnostics — bump it after validating on the new pin.
+    """
+    if registry is None:
+        from sndr.dispatcher.registry import PATCH_REGISTRY
+        registry = PATCH_REGISTRY
+    out = []
+    for pid in pids:
+        meta = registry.get(pid)
+        if meta is None:
+            out.append({"patch_id": pid, "default_on": None,
+                        "env_flag": None, "lifecycle": None,
+                        "enforcement": "UNKNOWN_PATCH"})
+            continue
+        default_on = bool(meta.get("default_on", False))
+        out.append({
+            "patch_id": pid,
+            "default_on": default_on,
+            "env_flag": meta.get("env_flag"),
+            "lifecycle": meta.get("lifecycle"),
+            "enforcement": ("STRICT_SKIP" if default_on
+                            else "ENV_OVERRIDE_POSSIBLE"),
+        })
+    return out
+
+
 # ─── summary / driver ─────────────────────────────────────────────────────
 
 
@@ -951,14 +988,17 @@ def run_preflight(
             "newly_merged_markers": sum(
                 1 for m in markers if m.get("newly_merged")),
             "out_of_range_patches": out_of_range,
+            "out_of_range_detail": classify_out_of_range(out_of_range),
             "actionable": count_actionable(rows, markers),
         },
         "notes": [
             "READ-ONLY: TextPatcher.apply() never invoked; candidate tree unmodified.",
             "RUNTIME_BINDING rows are static-only; call-site liveness "
             "requires the VERIFY_IN_CONTAINER leg (v1.1).",
-            "Out-of-range patches are excluded from the actionable count: "
-            "the dispatcher skips them on the candidate pin.",
+            "Out-of-range enforcement differs by default_on (decision.py "
+            "rule 1): default_on=True → STRICT_SKIP (silently disabled on "
+            "the candidate); opt-in + truthy env flag → STILL APPLIES "
+            "(operator override wins). Bump ranges after validating.",
         ],
     }
     return report
@@ -1012,8 +1052,18 @@ def _print_human(report: dict) -> None:
             print(f"  {mk['key']}", file=err)
     if s["out_of_range_patches"]:
         print("-" * 72, file=err)
-        print(f"Out-of-range for candidate (dispatcher will skip): "
-              f"{', '.join(s['out_of_range_patches'])}", file=err)
+        detail = s.get("out_of_range_detail") or []
+        strict = [d["patch_id"] for d in detail
+                  if d["enforcement"] == "STRICT_SKIP"]
+        overridable = [d["patch_id"] for d in detail
+                       if d["enforcement"] == "ENV_OVERRIDE_POSSIBLE"]
+        if strict:
+            print(f"Out-of-range, default_on — SILENTLY DISABLED on "
+                  f"candidate: {', '.join(strict)}", file=err)
+        if overridable:
+            print(f"Out-of-range, opt-in — env flag still overrides "
+                  f"(stale metadata; bump after validation): "
+                  f"{', '.join(overridable)}", file=err)
     print("=" * 72, file=err)
     print(f"modules={s['modules_checked']} rows={s['rows']} "
           f"actionable={s['actionable']}", file=err)

@@ -602,3 +602,38 @@ class TestSummary:
     def test_main_rejects_bad_root(self, pf, tmp_path):
         rc = pf.main([str(tmp_path / "not_a_vllm_tree")])
         assert rc == 2
+
+
+# ─── out-of-range enforcement semantics ───────────────────────────────────
+
+
+class TestOutOfRangeDetail:
+    """Decision rule 1 (dispatcher/decision.py should_apply): a truthy
+    env flag on an opt-in patch OVERRIDES applies_to — including the
+    version range. Only default_on=True patches are strictly gated.
+    The report must say which is which, or the operator misreads
+    "out of range" as "disabled" (live PROD counter-example: P67/P82
+    applied on 0.22.1 despite <0.22.0 ranges, 2026-06-10).
+    """
+
+    REG = {
+        "PX_STRICT": {"default_on": True, "env_flag": "GENESIS_ENABLE_PX",
+                      "lifecycle": "experimental"},
+        "PX_OPTIN": {"default_on": False, "env_flag": "GENESIS_ENABLE_PY",
+                     "lifecycle": "experimental"},
+    }
+
+    def test_default_on_is_strictly_gated(self, pf):
+        detail = pf.classify_out_of_range(["PX_STRICT"], registry=self.REG)
+        assert detail[0]["patch_id"] == "PX_STRICT"
+        assert detail[0]["enforcement"] == "STRICT_SKIP"
+        assert detail[0]["default_on"] is True
+
+    def test_opt_in_is_override_able(self, pf):
+        detail = pf.classify_out_of_range(["PX_OPTIN"], registry=self.REG)
+        assert detail[0]["enforcement"] == "ENV_OVERRIDE_POSSIBLE"
+        assert detail[0]["env_flag"] == "GENESIS_ENABLE_PY"
+
+    def test_unknown_pid_marked(self, pf):
+        detail = pf.classify_out_of_range(["NOPE"], registry=self.REG)
+        assert detail[0]["enforcement"] == "UNKNOWN_PATCH"
