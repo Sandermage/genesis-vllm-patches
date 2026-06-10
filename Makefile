@@ -12,7 +12,7 @@
 
 .PHONY: help test gates audit docs precommit paths-env clean \
         test-pin-gate test-iron-rule test-family test-doc-sync \
-        audit-upstream audit-yaml docs-check docs-write doctor \
+        audit-upstream audit-yaml preflight docs-check docs-write doctor \
         evidence evidence-release evidence-json gui-build
 
 # Default target — show help.
@@ -121,6 +121,14 @@ audit-yaml: ## YAML genesis_env vs docker inspect drift (env: YAML CONTAINER SSH
 		$${YAML:-vllm/sndr_core/model_configs/builtin/a5000-2x-27b-int4-tq-k8v4.yaml} \
 		$${CONTAINER:-vllm-pn95-2xa5000} \
 		$${SSH_HOST:-}
+
+preflight: ## Pin-bump preflight vs extracted candidate tree (env: CANDIDATE_ROOT [JSON_OUT]); see docs/PIN_BUMP_PLAYBOOK.md
+	@test -n "$${CANDIDATE_ROOT}" || { \
+		echo "Usage: make preflight CANDIDATE_ROOT=/tmp/candidate_pin/vllm [JSON_OUT=...]"; \
+		echo "Extract first: tools/extract_candidate_tree.sh --image <ref> --rsync-to <dir> --py-only"; \
+		exit 2; }
+	$(PYTHON) tools/pin_preflight.py "$${CANDIDATE_ROOT}" \
+		$${JSON_OUT:+--json-out "$${JSON_OUT}"}
 
 audit-legacy-imports: ## Forbid vllm.sndr_core.patches / vllm._genesis active imports
 	@bash scripts/check_no_legacy_imports.sh
