@@ -59,6 +59,7 @@ import {
 } from "./settings";
 import { asRecord, asText, asNumber, countRecord } from "./lib/coerce";
 import { formatTokens, targetTitle } from "./lib/format";
+import { lsSet } from "./lib/safe-storage";
 import { LayerEditor } from "./sections/layer-editor";
 import { ConfigDraftEditor } from "./sections/config-draft-editor";
 import { ModelsWorkbench } from "./sections/models-workbench";
@@ -272,7 +273,10 @@ export default function App() {
   const [doctorReport, setDoctorReport] = useState<DoctorReport | null>(null);
   const [environment, setEnvironment] = useState<EnvironmentReport | null>(null);
   const [hostProfiles, setHostProfiles] = useState<HostProfile[]>([]);
-  const [selectedPreset, setSelectedPreset] = useState<string>(() => recordIdFromHash() ?? "prod-35b-multiconc");
+  // No hard-coded default preset id — a stale one (e.g. an unshipped
+  // "prod-35b-multiconc") would 404 on a deep link. loadAll() seeds the real
+  // first catalog/recommended preset once the catalog loads.
+  const [selectedPreset, setSelectedPreset] = useState<string>(() => recordIdFromHash() ?? "");
   const [explain, setExplain] = useState<PresetExplainResult | null>(null);
   const [launchPlan, setLaunchPlan] = useState<LaunchPlanResult | null>(null);
   const [recommend, setRecommend] = useState<PresetRecommendResult | null>(null);
@@ -755,7 +759,7 @@ export default function App() {
   }, [authState?.auth_required, authState?.user?.username]);
 
   useEffect(() => {
-    window.localStorage.setItem(GUI_SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+    lsSet(GUI_SETTINGS_STORAGE_KEY, JSON.stringify(settings));
     document.documentElement.dataset.theme = settings.theme;
     document.documentElement.dataset.density = settings.density;
     document.documentElement.dataset.accent = settings.accent;

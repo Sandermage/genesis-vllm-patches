@@ -1,3 +1,5 @@
+import { lsGet, lsSet, lsRemove } from "./lib/safe-storage";
+
 export type CapabilityStatus =
   | "available"
   | "partial"
@@ -1019,7 +1021,7 @@ const API_TOKEN_STORAGE_KEY = "sndr.gui.token";
 
 export function getApiBase() {
   return (
-    window.localStorage.getItem(API_BASE_STORAGE_KEY)?.replace(/\/$/, "") ??
+    lsGet(API_BASE_STORAGE_KEY)?.replace(/\/$/, "") ??
     DEFAULT_API_BASE
   );
 }
@@ -1027,21 +1029,21 @@ export function getApiBase() {
 export function setApiBase(value: string) {
   const next = value.trim().replace(/\/$/, "");
   if (!next) {
-    window.localStorage.removeItem(API_BASE_STORAGE_KEY);
+    lsRemove(API_BASE_STORAGE_KEY);
     return DEFAULT_API_BASE;
   }
-  window.localStorage.setItem(API_BASE_STORAGE_KEY, next);
+  lsSet(API_BASE_STORAGE_KEY, next);
   return next;
 }
 
 export function getApiToken() {
-  return window.localStorage.getItem(API_TOKEN_STORAGE_KEY) ?? "";
+  return lsGet(API_TOKEN_STORAGE_KEY) ?? "";
 }
 
 export function setApiToken(value: string) {
   const next = value.trim();
-  if (!next) window.localStorage.removeItem(API_TOKEN_STORAGE_KEY);
-  else window.localStorage.setItem(API_TOKEN_STORAGE_KEY, next);
+  if (!next) lsRemove(API_TOKEN_STORAGE_KEY);
+  else lsSet(API_TOKEN_STORAGE_KEY, next);
   return next;
 }
 

@@ -79,7 +79,7 @@ export function FlagsPanel() {
 const FlagRowView = memo(function FlagRowView({ f, hasLive }: { f: FlagRow; hasLive: boolean }) {
   return (
     <div className={`fm-row${f.drift && f.drift !== "in_sync" ? ` drift-${f.drift}` : ""}`}>
-      <span className="fm-flag" title={f.title ?? ""}>{f.env_flag.replace(/^GENESIS_ENABLE_/, "")}</span>
+      <span className="fm-flag" title={f.title ?? ""}>{f.env_flag.replace(/^(?:GENESIS|SNDR)_ENABLE_/, "")}</span>
       <span className="fm-patch">{f.patch_id}</span>
       <span className="fm-fam">{f.family}{f.tier ? ` · ${f.tier}` : ""}</span>
       <span className={`fm-default ${f.default_on ? "on" : "off"}`}>{f.default_on ? "ON" : "OFF"}</span>

@@ -63,6 +63,25 @@ def test_live_patches_extracts_on_genesis_flags():
     assert live == sorted(live, key=lambda p: p["flag"])  # stable order
 
 
+def test_live_patches_includes_sndr_enable_patch_flags_but_not_daemon_gates():
+    """A handful of patches use the SNDR_ENABLE_ prefix (PN282/PN283). They must
+    be detected as live, while the same-prefix daemon gates SNDR_ENABLE_APPLY /
+    SNDR_ENABLE_EXEC must NOT show up as patches (they aren't in the registry)."""
+    inspect = {"Config": {"Env": [
+        "SNDR_ENABLE_PN283_PROC_BRIDGE=1",                  # real registry patch flag
+        "SNDR_ENABLE_SPEC_DECODE_ACCEPTANCE_METRIC=on",     # real registry patch flag (PN282)
+        "SNDR_ENABLE_APPLY=1", "SNDR_ENABLE_EXEC=1",        # daemon gates — NOT patches
+        "SNDR_BIND=0.0.0.0", "GENESIS_ENABLE_P82=1",
+    ]}}
+    flags = {p["flag"] for p in cl.live_patches(inspect)}
+    assert "SNDR_ENABLE_PN283_PROC_BRIDGE" in flags
+    assert "SNDR_ENABLE_SPEC_DECODE_ACCEPTANCE_METRIC" in flags
+    assert "GENESIS_ENABLE_P82" in flags
+    assert "SNDR_ENABLE_APPLY" not in flags
+    assert "SNDR_ENABLE_EXEC" not in flags
+    assert "SNDR_BIND" not in flags
+
+
 def test_source_report_includes_live_patches():
     rep = cl.source_report("vllm-x", {"Config": {"Env": ["GENESIS_ENABLE_P82=1"], "Labels": {}}})
     assert rep["live_patch_count"] == 1 and rep["live_patches"][0]["flag"] == "GENESIS_ENABLE_P82"

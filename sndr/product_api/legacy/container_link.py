@@ -19,6 +19,7 @@ cached :func:`source_report`.
 """
 from __future__ import annotations
 
+import functools
 import re
 import threading
 import time
@@ -28,6 +29,33 @@ _PRESET_LABEL = "sndr.preset"
 # A live Genesis patch flag in a container's env (GENESIS_ENABLE_P82, PN95_…).
 _PATCH_ENV_RE = re.compile(r"^(GENESIS_|PN\d)")
 _TRUTHY = {"1", "true", "yes", "on"}
+
+
+@functools.lru_cache(maxsize=1)
+def _sndr_enable_patch_flags() -> frozenset[str]:
+    """The registry's ``SNDR_ENABLE_*`` patch flags (e.g. PN282, PN283).
+
+    A handful of patches use the ``SNDR_ENABLE_`` prefix instead of
+    ``GENESIS_ENABLE_``. Those must be recognised as live patch flags, but the
+    same-prefix daemon gates ``SNDR_ENABLE_APPLY`` / ``SNDR_ENABLE_EXEC`` are
+    NOT patches and must never appear in the live patch overlay. Matching the
+    real registry env_flag set (rather than a prefix guess) keeps both right and
+    stays correct if more SNDR_ENABLE_* flags are added either way.
+    """
+    try:
+        from sndr.dispatcher.registry import PATCH_REGISTRY
+    except Exception:  # noqa: BLE001 — registry optional in some contexts
+        return frozenset()
+    return frozenset(
+        flag for entry in PATCH_REGISTRY.values()
+        if isinstance((flag := entry.get("env_flag")), str)
+        and flag.startswith("SNDR_ENABLE_")
+    )
+
+
+def _is_patch_flag(key: str) -> bool:
+    """Whether a container env var name is a Genesis patch flag."""
+    return bool(_PATCH_ENV_RE.match(key)) or key in _sndr_enable_patch_flags()
 
 _INDEX_CACHE: dict[str, Any] = {"data": None, "ts": 0.0}
 _INDEX_TTL = 120.0
@@ -78,7 +106,7 @@ def live_patches(inspect: dict[str, Any]) -> list[dict[str, str]]:
     to the patch registry, independent of what the preset declares."""
     env = parse_env((inspect.get("Config") or {}).get("Env"))
     out = [{"flag": k, "value": v} for k, v in env.items()
-           if _PATCH_ENV_RE.match(k) and str(v).strip().lower() in _TRUTHY]
+           if _is_patch_flag(k) and str(v).strip().lower() in _TRUTHY]
     return sorted(out, key=lambda d: d["flag"])
 
 
@@ -88,7 +116,7 @@ def reconcile_patches(expected_env: dict[str, str], inspect: dict[str, Any]) -> 
     - in_sync: config wants on AND engine has on
     - missing: config wants on BUT engine has off/absent (a silent feature regression)
     - extra:   on in the engine BUT not declared by the config (drift the other way)"""
-    declared = {k for k in (expected_env or {}) if _PATCH_ENV_RE.match(k)}
+    declared = {k for k in (expected_env or {}) if _is_patch_flag(k)}
     declared_on = {k for k in declared if str((expected_env or {})[k]).strip().lower() in _TRUTHY}
     live = {p["flag"] for p in live_patches(inspect)}
     return {

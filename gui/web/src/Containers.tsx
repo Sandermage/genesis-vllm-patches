@@ -16,6 +16,7 @@ import { tr } from "./i18n";
 import { useDialogFocus, useEscapeKey, closeOnBackdrop, onKeyActivate } from "./dialog";
 import { SkeletonLines, SkeletonCards } from "./Skeleton";
 import { cacheGet, cachePeek, cacheSet } from "./lib/swr-cache";
+import { lsGet, lsSet } from "./lib/safe-storage";
 
 type HostOption = { id: string; label: string };
 type NavFn = (section: string) => void;
@@ -170,8 +171,8 @@ export function ContainersPanel({ hosts, onNavigate, initialHostId }: { hosts: H
   const [queryText, setQueryText] = useState("");
   const [filter, setFilter] = useState<StateFilter>("all");
   const [sort, setSort] = useState<SortKey>("state");
-  const [viewMode, setViewMode] = useState<"cards" | "table">(() => (localStorage.getItem("sndr.containers.view") === "table" ? "table" : "cards"));
-  useEffect(() => { localStorage.setItem("sndr.containers.view", viewMode); }, [viewMode]);
+  const [viewMode, setViewMode] = useState<"cards" | "table">(() => (lsGet("sndr.containers.view") === "table" ? "table" : "cards"));
+  useEffect(() => { lsSet("sndr.containers.view", viewMode); }, [viewMode]);
   const [df, setDf] = useState<SystemDf | null>(null);
   const [alertsOpen, setAlertsOpen] = useState(false);
   const histRef = useRef<Record<string, { cpu: number[]; mem: number[] }>>({});
@@ -710,7 +711,7 @@ function ContainerPage({ source, name, busy, onBack, onAct, initialTab, onNaviga
           ))}
         </nav>
         <div className="cpage-content">
-          {tab === "overview" && <OverviewTab source={source} name={name} inspect={inspect} online={online} ver={ver} onNavigate={onNavigate} onOpen={(t) => setTab(t ?? "overview")} />}
+          {tab === "overview" && <OverviewTab source={source} name={name} inspect={inspect} online={online} ver={ver} onNavigate={onNavigate} />}
           {tab === "config" && <ConfigTab source={source} name={name} inspect={inspect} onChanged={reloadInspect} />}
           {tab === "processes" && <ProcessesTab source={source} name={name} online={online} />}
           {tab === "files" && <FilesTab source={source} name={name} />}
@@ -865,6 +866,11 @@ function InferenceCard({ online, ver, onMetrics }: { online: boolean; ver: HostS
   const [loaded, setLoaded] = useState(false);
   const [live, setLive] = useState(true);
   const [open, setOpen] = useState(true);
+  // Keep the latest onMetrics in a ref so the 3s poll always calls the current
+  // callback without re-arming the interval (and without a stale closure on the
+  // first-render onMetrics).
+  const onMetricsRef = useRef(onMetrics);
+  onMetricsRef.current = onMetrics;
   useEffect(() => {
     if (!online) return;
     let alive = true;
@@ -872,7 +878,7 @@ function InferenceCard({ online, ver, onMetrics }: { online: boolean; ver: HostS
       if (document.hidden) return;
       // Surface metrics to the parent so the Overview KPI row can show the key
       // inference numbers (KV-cache / queue / throughput) without a second poll.
-      try { const r = await api.engineMetrics(); if (alive) { setM(r); setLoaded(true); onMetrics?.(r); } }
+      try { const r = await api.engineMetrics(); if (alive) { setM(r); setLoaded(true); onMetricsRef.current?.(r); } }
       catch { if (alive) setLoaded(true); }
     }
     void pull();
@@ -945,7 +951,7 @@ function InferenceCard({ online, ver, onMetrics }: { online: boolean; ver: HostS
   );
 }
 
-function OverviewTab({ source, name, inspect, online, ver, onNavigate, onOpen }: { source: ContainerSource; name: string; inspect: Inspect | null; online: boolean; ver: HostSndrState | null; onNavigate?: NavFn; onOpen?: (tab?: Tab) => void }) {
+function OverviewTab({ source, name, inspect, online, ver, onNavigate }: { source: ContainerSource; name: string; inspect: Inspect | null; online: boolean; ver: HostSndrState | null; onNavigate?: NavFn }) {
   const { s, hist } = useLiveStats(source, name, online, 3000);
   const [more, setMore] = useState<"env" | "mounts" | "labels" | "">("");
   // Engine inference metrics, lifted from the InferenceCard's poll so the key

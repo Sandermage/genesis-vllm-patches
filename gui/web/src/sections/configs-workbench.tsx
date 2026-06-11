@@ -907,13 +907,13 @@ function buildConfigCli(ctx: ConfigContext): string[] {
 }
 
 function buildConfigArtifacts(ctx: ConfigContext): Record<"compose" | "run" | "systemd" | "env", string[]> {
-  const { presetId, modelId, runtime, draft } = ctx;
+  const { presetId, draft } = ctx;
   const container = `vllm-${presetId}`;
+  // Only env the vLLM container actually reads. The preset/model/policy
+  // identity is carried by the launch plan + container labels, not by env
+  // vars the engine never consults — emitting SNDR_PRESET/SNDR_MODEL/etc. here
+  // would set no-op vars an operator might assume are load-bearing.
   const env = [
-    `SNDR_PRESET=${presetId}`,
-    `SNDR_MODEL=${modelId}`,
-    `SNDR_RUNTIME=${runtime}`,
-    `SNDR_PATCH_POLICY=${draft.patch_policy}`,
     `VLLM_MAX_MODEL_LEN=${draft.max_model_len}`,
     `VLLM_MAX_NUM_SEQS=${draft.max_num_seqs}`,
     `VLLM_GPU_MEMORY_UTILIZATION=${draft.gpu_memory_utilization.toFixed(2)}`,
