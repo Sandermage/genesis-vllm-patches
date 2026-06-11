@@ -1,0 +1,24 @@
+# Allowlist for tools/lint_drift_markers.py (self-collision lint, plan
+# docs/superpowers/journal/2026-06-11-preflight-residual-triage-action-plan.md §6).
+#
+# Format — one exact marker string per line:
+#   - lines whose first non-blank character is '#' are justification
+#     comments; a comment block covers every marker line until the next
+#     blank line (REQUIRED — an entry without a justification block
+#     above it fails the lint with exit 2);
+#   - trailing newline is stripped, inner whitespace preserved;
+#   - markers that start with '#' or contain a newline cannot be
+#     allowlisted here — fix the patch instead.
+#
+# Entries suppress KNOWN findings only, so remediation (plan §6 item 2:
+# markers disjoint from emitted text, or the '[Genesis' convention) can
+# land incrementally while the lint already gates NEW regressions.
+# Prune entries the lint reports as stale.
+#
+# Example entry (keep commented — illustration only):
+# # PXX vN.M: marker baked by sibling PYY replacement; remediation
+# # queued in <journal entry>. Owner: <name>, expires <date>.
+# some_exact_marker_string
+#
+# No active entries yet — the 2026-06-11 baseline backlog is tracked in
+# the §6 plan and intentionally NOT allowlisted wholesale.

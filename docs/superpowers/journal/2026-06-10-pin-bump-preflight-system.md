@@ -96,6 +96,10 @@ gdn/-split). out_of_range residual = 8, all ENV_OVERRIDE_POSSIBLE.
 - Triage the 14 remaining DRIFT_ANCHOR + 12 DRIFT_FILE_MOVED rows on
   the current pin (most known; P36/P78/P83/P85/P59/PN58/P84/PN288/
   PN38/P91B/PN32/PN54/P7b need the fix-drifts loop or retire
-  decisions).
+  decisions). PN58 RESOLVED 2026-06-11: envs.py tail re-anchor
+  (minimal entry+brace anchor at pristine envs.py:2012-2013, count==1;
+  the single dead envs anchor was atomically blocking all 5 PN58 files
+  via MultiFilePatchTransaction — other 5 sub-anchors verified intact.
+  Drift evidence in the module's Sub-A drift-history comment).
 - 127 undefended self-collision markers (PN369 class) — lint-driven
   cleanup batch.

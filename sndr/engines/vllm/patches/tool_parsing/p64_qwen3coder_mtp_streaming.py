@@ -343,6 +343,16 @@ def _make_qwen3cod_patcher() -> TextPatcher | None:
     )
 
 
+# Preflight v1.2 KNOWN_OPTIONAL_RETIRED convention (*_RETIRED_SUBS):
+# the two optional serving-side subs below are retired-by-design on
+# dev259 (see the v3 note inside _make_serving_patcher — the helper
+# they anchored on was refactored out; P107 carries the serving-side
+# role now, journal 2026-06-09 / commit 630283ac). Zero anchor matches
+# on a pristine tree is the documented steady state, NOT drift —
+# tools/pin_preflight.py reads this attr to reclassify the row.
+P64_RETIRED_SUBS = ("p64_safety_net_widen", "p64_callsite_guard")
+
+
 def _make_serving_patcher() -> TextPatcher | None:
     target = resolve_vllm_file("entrypoints/openai/chat_completion/serving.py")
     if target is None:

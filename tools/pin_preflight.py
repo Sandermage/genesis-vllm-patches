@@ -27,15 +27,34 @@ Verdicts per patcher:
   OK                  — every required anchor matches exactly once
   DRIFT_ANCHOR        — a required anchor is absent (count == 0)
   AMBIGUOUS_ANCHOR    — an anchor matches more than once
-  DRIFT_FILE_MOVED    — builder returned None or target file missing
+  DRIFT_FILE_MOVED    — target file missing, or builder returned None
+                        with a resolve target actually absent
                         (report carries up to 3 moved-to candidates)
   UPSTREAM_MERGED     — patcher-level upstream_drift_marker present
   SUB_UPSTREAM_MERGED — per-sub upstream_merged_markers fired
   STALE_RESIDUE       — patch marker already present in a PRISTINE tree
                         (impossible unless residue or marker collision)
+  ENV_GATED_ABSTAIN   — builder returned None even with its registry
+                        env_flag forced to "1" AND every
+                        resolve_vllm_file literal exists — the abstain
+                        is gated on something beyond the flag, not on
+                        file drift (v1.2, non-actionable)
+  KNOWN_OPTIONAL_RETIRED — all-required=False patcher with zero anchor
+                        matches whose every sub name is declared
+                        retired-by-design via the wiring module's
+                        ``*_RETIRED_SUBS`` attr (v1.2, non-actionable;
+                        the P64 serving-patcher steady state)
   UNBUILDABLE         — builder has required params we will not guess
+                        (v1.2: a param <name> IS fillable when the
+                        module exposes a callable ``_read_<name>`` —
+                        the P82 apply() convention)
   IMPORT_FAIL         — wiring module failed to import
   RUNTIME_BINDING     — no text-patcher; static binding check only
+
+v1.2 (2026-06-11, residual-triage action plan §4): rows built only
+after an env-forced builder retry carry ``env_forced: true``; rows
+whose required builder params were filled through the ``_read_<name>``
+convention carry ``params_filled_via``.
 
 Usage:
     python3 tools/pin_preflight.py <candidate_root> \
@@ -92,6 +111,8 @@ DRIFT_FILE_MOVED = "DRIFT_FILE_MOVED"
 UPSTREAM_MERGED = "UPSTREAM_MERGED"
 SUB_UPSTREAM_MERGED = "SUB_UPSTREAM_MERGED"
 STALE_RESIDUE = "STALE_RESIDUE"
+ENV_GATED_ABSTAIN = "ENV_GATED_ABSTAIN"
+KNOWN_OPTIONAL_RETIRED = "KNOWN_OPTIONAL_RETIRED"
 UNBUILDABLE = "UNBUILDABLE"
 IMPORT_FAIL = "IMPORT_FAIL"
 RUNTIME_BINDING = "RUNTIME_BINDING"
@@ -103,6 +124,9 @@ BINDING_UNRESOLVED = "BINDING_UNRESOLVED"
 
 # Patch-level verdicts that demand operator action before promoting the
 # candidate pin (when the patch is in version range for the candidate).
+# Deliberately excluded: CHAINED_ANCHOR (apply-order chain, judge the
+# provider), ENV_GATED_ABSTAIN and KNOWN_OPTIONAL_RETIRED (v1.2 —
+# documented non-drift abstain states, fail-noisy in the report only).
 ACTIONABLE_VERDICTS = frozenset({
     DRIFT_ANCHOR, AMBIGUOUS_ANCHOR, DRIFT_FILE_MOVED, UPSTREAM_MERGED,
     SUB_UPSTREAM_MERGED, STALE_RESIDUE, UNBUILDABLE, IMPORT_FAIL,
@@ -667,13 +691,97 @@ def _expand_patchers(result: Any) -> list[Any]:
     return [result]
 
 
+_ENV_TRUTHY = ("1", "true", "yes", "on")
+
+
+def _unset_env_flags(specs: Optional[Iterable[Any]]) -> list[str]:
+    """Registry env flags from the module's specs whose current value
+    would NOT pass the canonical wiring-module gate (absent or set to a
+    non-truthy string — see e.g. pn204_dual_stream_inproj._enabled).
+    An operator-disabled "0" still counts: preflight judges patch
+    health against the candidate tree, not the opt-in state."""
+    out: list[str] = []
+    for spec in specs or []:
+        flag = getattr(spec, "env_flag", None)
+        if not flag or flag in out:
+            continue
+        if os.environ.get(flag, "").strip().lower() not in _ENV_TRUTHY:
+            out.append(flag)
+    return out
+
+
+def _call_with_env_forced(fn: Any, kwargs: dict, flags: list[str]) -> Any:
+    """Re-invoke a builder with every flag forced to "1", restoring the
+    exact prior environment (including absence) in a finally block."""
+    saved = {f: os.environ.get(f) for f in flags}
+    try:
+        for f in flags:
+            os.environ[f] = "1"
+        return fn(**kwargs)
+    finally:
+        for f, old in saved.items():
+            if old is None:
+                os.environ.pop(f, None)
+            else:
+                os.environ[f] = old
+
+
+def _retired_sub_names(mod: Any) -> dict[str, str]:
+    """v1.2 KNOWN_OPTIONAL_RETIRED convention: a wiring module declares
+    subs retired-by-design through a ``*_RETIRED_SUBS`` attr holding the
+    sub-patch names (e.g. P64_RETIRED_SUBS in p64_qwen3coder_mtp_
+    streaming — anchors died with the dev259 serving.py refactor; zero
+    matches is the journaled steady state, journal 2026-06-09 / commit
+    630283ac). Returns sub name → declaring attr name."""
+    out: dict[str, str] = {}
+    for attr in dir(mod):
+        if not attr.endswith("_RETIRED_SUBS"):
+            continue
+        val = getattr(mod, attr, None)
+        if isinstance(val, (list, tuple, set, frozenset)):
+            for n in val:
+                if isinstance(n, str):
+                    out[n] = attr
+    return out
+
+
+def _maybe_optional_retired(row: dict, patcher: Any,
+                            retired_map: dict[str, str]) -> None:
+    """Reclassify an all-optional zero-match DRIFT_ANCHOR row to
+    KNOWN_OPTIONAL_RETIRED when EVERY sub is declared retired-by-design
+    (partial declarations stay DRIFT_ANCHOR — fail-noisy)."""
+    if row.get("verdict") != DRIFT_ANCHOR or row.get("applied_subs"):
+        return
+    subs = getattr(patcher, "sub_patches", None) or []
+    if not subs or any(getattr(s, "required", True) for s in subs):
+        return
+    names = [getattr(s, "name", "") for s in subs]
+    if not all(n in retired_map for n in names):
+        return
+    attrs = sorted({retired_map[n] for n in names})
+    row["verdict"] = KNOWN_OPTIONAL_RETIRED
+    row["detail"] = (
+        "all optional sub-patches "
+        f"{names} declared retired-by-design via module attr "
+        f"{', '.join(attrs)} — zero anchor matches is the documented "
+        "steady state, not drift"
+    )
+
+
 def evaluate_module(
     module_name: str, patch_ids: list[str], candidate_root: Path,
+    specs: Optional[list[Any]] = None,
 ) -> list[dict]:
     """Evaluate one wiring module → list of report rows.
 
     Rows: one per built patcher (or one per builder for None/UNBUILDABLE),
     or a single IMPORT_FAIL / RUNTIME_BINDING row for the whole module.
+
+    ``specs`` (v1.2): the module's PatchSpec objects, used for the
+    env-forced builder retry — many builders early-exit on an unset
+    GENESIS_* flag BEFORE resolving targets, which v1.1 misread as
+    DRIFT_FILE_MOVED (triage 2026-06-11: PN96/PN73/PN91/PN92/PN204/
+    SNDR_WORKSPACE_001 all healthy and PROD-applied).
     """
     base = {"patch_ids": patch_ids, "module": module_name}
     try:
@@ -690,21 +798,47 @@ def evaluate_module(
             return [md5_row]
         return [_runtime_binding_row(base, mod, candidate_root)]
 
+    unset_flags = _unset_env_flags(specs)
+    retired_map = _retired_sub_names(mod)
+
     rows: list[dict] = []
     for bname in builders:
         fn = getattr(mod, bname)
         missing = unfillable_params(fn)
+        fill_kwargs: dict[str, Any] = {}
+        filled_via: dict[str, str] = {}
         if missing:
-            rows.append({
-                **base, "builder": bname, "verdict": UNBUILDABLE,
-                "detail": (
-                    f"required params {missing} have no defaults — "
-                    "refusing to guess (legacy-tool wart)"
-                ),
-            })
-            continue
+            # v1.2 (P82 class): a required param <name> is fillable when
+            # the module exposes a callable _read_<name> — the same
+            # probe its own apply() uses (_read_threshold /
+            # _read_min_draft_pos). Anything else stays UNBUILDABLE.
+            readers = {n: getattr(mod, f"_read_{n}", None) for n in missing}
+            unreadable = [n for n, f in readers.items() if not callable(f)]
+            if unreadable:
+                rows.append({
+                    **base, "builder": bname, "verdict": UNBUILDABLE,
+                    "detail": (
+                        f"required params {unreadable} have no defaults and "
+                        "no module _read_<param> probe — refusing to guess "
+                        "(legacy-tool wart)"
+                    ),
+                })
+                continue
+            try:
+                fill_kwargs = {n: f() for n, f in readers.items()}
+            except Exception as e:  # noqa: BLE001
+                rows.append({
+                    **base, "builder": bname, "verdict": UNBUILDABLE,
+                    "detail": (
+                        "module _read_<param> probe raised: "
+                        + ", ".join(f"_read_{n}" for n in missing)
+                        + f" → {type(e).__name__}: {e}"
+                    ),
+                })
+                continue
+            filled_via = {n: f"_read_{n}" for n in missing}
         try:
-            built = fn()
+            built = fn(**fill_kwargs)
         except Exception as e:  # noqa: BLE001
             rows.append({
                 **base, "builder": bname, "verdict": UNBUILDABLE,
@@ -712,40 +846,123 @@ def evaluate_module(
             })
             continue
         patchers = _expand_patchers(built)
+
+        # v1.2: builder abstained and the registry flag is unset → the
+        # abstain may be the module's own env gate, not file drift.
+        # Retry once with the flag(s) forced, environment restored.
+        env_forced = False
+        if not patchers and unset_flags:
+            env_forced = True
+            try:
+                built = _call_with_env_forced(fn, fill_kwargs, unset_flags)
+            except Exception as e:  # noqa: BLE001
+                rows.append({
+                    **base, "builder": bname, "verdict": UNBUILDABLE,
+                    "env_forced": True,
+                    "detail": (f"builder raised under env-forced retry "
+                               f"({unset_flags}): {type(e).__name__}: {e}"),
+                })
+                continue
+            patchers = _expand_patchers(built)
+
         if not patchers:
-            detail = "builder returned None — target not found under candidate root"
-            missing_rels = _unresolved_resolve_targets(mod, candidate_root)
-            row = {**base, "builder": bname, "verdict": DRIFT_FILE_MOVED,
-                   "detail": detail}
-            cands: list[str] = []
-            for rel in missing_rels:
-                cands.extend(find_moved_candidates(
-                    candidate_root, missing_rel=rel,
-                    limit=3 - len(cands)))
-                row["detail"] = f"{detail}; unresolved target(s): {missing_rels}"
-            row["moved_to_candidates"] = cands[:3]
+            row = _builder_none_row(
+                base, bname, mod, candidate_root,
+                env_forced=env_forced, forced_flags=unset_flags)
             rows.append(row)
             continue
         for p in patchers:
             row = evaluate_patcher(p, candidate_root)
             row.update(base)
             row["builder"] = bname
+            if env_forced:
+                row["env_forced"] = True
+                row["env_forced_flags"] = list(unset_flags)
+            if filled_via:
+                row["params_filled_via"] = filled_via
+            _maybe_optional_retired(row, p, retired_map)
             rows.append(row)
     return rows
 
 
-def _unresolved_resolve_targets(mod: Any, candidate_root: Path) -> list[str]:
+def _builder_none_row(
+    base: dict, bname: str, mod: Any, candidate_root: Path,
+    *, env_forced: bool, forced_flags: list[str],
+) -> dict:
+    """Verdict for a builder that abstained (returned None) even after
+    any env-forced retry. DRIFT_FILE_MOVED only when a resolve target
+    is actually absent (plan §4.2); a post-retry abstain with every
+    target present is ENV_GATED_ABSTAIN — gated on something beyond the
+    registry flag, non-actionable."""
+    resolved, unresolved = _resolve_target_status(mod, candidate_root)
+
+    if env_forced and not unresolved:
+        targets_note = (
+            f"all resolve targets exist: {resolved}" if resolved
+            else "no resolve_vllm_file literals found in module source"
+        )
+        return {
+            **base, "builder": bname, "verdict": ENV_GATED_ABSTAIN,
+            "env_forced": True, "env_forced_flags": list(forced_flags),
+            "detail": (
+                f"builder returned None even with {forced_flags} forced "
+                f"to \"1\"; {targets_note} — abstain gated beyond the "
+                "registry env_flag, not file drift"
+            ),
+        }
+
+    detail = "builder returned None"
+    if unresolved:
+        detail += f" — unresolved target(s): {unresolved}"
+        if resolved:
+            # v1.2: the v1.1 canned "target not found" detail lied for
+            # fallback-resolving modules (PN204 class) — say which side
+            # is which.
+            detail += f"; resolves via fallback: {resolved}"
+    elif resolved:
+        detail += (f" — all resolve targets exist: {resolved} "
+                   "(non-file abstain; no registry env_flag to force)")
+    else:
+        detail += " — no resolve_vllm_file literals found in module source"
+    if env_forced:
+        detail += f"; env-forced retry with {forced_flags} also returned None"
+
+    row = {**base, "builder": bname, "verdict": DRIFT_FILE_MOVED,
+           "detail": detail}
+    if env_forced:
+        row["env_forced"] = True
+        row["env_forced_flags"] = list(forced_flags)
+    cands: list[str] = []
+    for rel in unresolved:
+        cands.extend(find_moved_candidates(
+            candidate_root, missing_rel=rel, limit=3 - len(cands)))
+    row["moved_to_candidates"] = cands[:3]
+    return row
+
+
+def _resolve_target_status(
+    mod: Any, candidate_root: Path,
+) -> tuple[list[str], list[str]]:
     """For a builder that returned None: statically pull the
     ``resolve_vllm_file("<rel>")`` string constants out of the module
-    source and report which relative targets do NOT exist under the
-    candidate root — the usual reason a builder abstains."""
+    source and split them by existence under the candidate root.
+    Returns (resolved, unresolved) in source order, deduplicated."""
     try:
         source = inspect.getsource(mod)
     except (OSError, TypeError):
-        return []
+        return [], []
     rels = re.findall(r"resolve_vllm_file\(\s*[\"']([^\"']+)[\"']", source)
-    return [r for r in dict.fromkeys(rels)
-            if not (candidate_root / r).is_file()]
+    resolved: list[str] = []
+    unresolved: list[str] = []
+    for r in dict.fromkeys(rels):
+        (resolved if (candidate_root / r).is_file() else unresolved).append(r)
+    return resolved, unresolved
+
+
+def _unresolved_resolve_targets(mod: Any, candidate_root: Path) -> list[str]:
+    """v1.1-compat wrapper: relative targets that do NOT exist under the
+    candidate root — the usual reason a builder abstains."""
+    return _resolve_target_status(mod, candidate_root)[1]
 
 
 def _runtime_binding_row(base: dict, mod: Any, candidate_root: Path) -> dict:
@@ -1072,7 +1289,8 @@ def run_preflight(
     for module_name in sorted(by_module):
         info = by_module[module_name]
         module_rows = evaluate_module(
-            module_name, sorted(set(info["patch_ids"])), candidate_root)
+            module_name, sorted(set(info["patch_ids"])), candidate_root,
+            specs=info["specs"])
 
         # version-range gate: a module row is in range if ANY of its
         # patch_ids is in range for the candidate (compound modules).
@@ -1139,7 +1357,7 @@ def run_preflight(
     )
 
     report = {
-        "tool": "pin_preflight v1",
+        "tool": "pin_preflight v1.2",
         "checked_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "candidate_root": str(candidate_root),
         "provenance": provenance,

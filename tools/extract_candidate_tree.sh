@@ -19,13 +19,14 @@
 #
 # Usage:
 #   tools/extract_candidate_tree.sh --image <ref> \
-#       [--ssh-host sander@192.168.1.10] \
+#       [--ssh-host <user@rig-host>] \
 #       [--staging /tmp/candidate_pin] \
 #       [--timestamp <ISO-8601>] \
 #       [--rsync-to <local-dir>] [--py-only]
 #
 #   --image      Candidate image ref (e.g. vllm/vllm-openai:nightly-<sha>).
-#   --ssh-host   SSH target holding the image (default sander@192.168.1.10).
+#   --ssh-host   SSH target holding the image (default: $GENESIS_RIG_SSH_HOST;
+#                required via flag or env — no baked-in host).
 #   --staging    Server-side staging dir (default /tmp/candidate_pin).
 #                Must live under /tmp/ — it is wiped before extraction.
 #   --timestamp  extracted_at value for PROVENANCE.json (default: now UTC).
@@ -40,7 +41,7 @@
 
 set -euo pipefail
 
-SSH_HOST="sander@192.168.1.10"
+SSH_HOST="${GENESIS_RIG_SSH_HOST:-}"
 STAGING="/tmp/candidate_pin"
 IMAGE=""
 TIMESTAMP=""
@@ -67,6 +68,12 @@ while [ $# -gt 0 ]; do
            usage >&2; exit 2 ;;
     esac
 done
+
+if [ -z "$SSH_HOST" ]; then
+    echo "extract_candidate_tree: --ssh-host (or GENESIS_RIG_SSH_HOST env) is required" >&2
+    usage >&2
+    exit 2
+fi
 
 if [ -z "$IMAGE" ]; then
     echo "extract_candidate_tree: --image is required" >&2

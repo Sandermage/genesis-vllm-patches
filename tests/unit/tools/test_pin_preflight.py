@@ -21,6 +21,7 @@ from __future__ import annotations
 import importlib
 import importlib.util
 import json
+import os
 import sys
 import textwrap
 from pathlib import Path
@@ -38,6 +39,31 @@ def _import_tool():
     assert spec.loader is not None  # nosec
     spec.loader.exec_module(mod)
     return mod
+
+
+def _write_module(tmp_path, name, source):
+    """Materialize a synthetic wiring module importable by dotted path.
+
+    Unique package per test — sys.modules caches package __path__, so
+    reusing one name across per-test tmp_paths goes stale.
+    """
+    pkg = f"synthetic_wiring_{name}"
+    d = tmp_path / pkg
+    d.mkdir(exist_ok=True)
+    (d / "__init__.py").touch()
+    (d / f"{name}.py").write_text(textwrap.dedent(source))
+    if str(tmp_path) not in sys.path:
+        sys.path.insert(0, str(tmp_path))
+    importlib.invalidate_caches()
+    return f"{pkg}.{name}"
+
+
+class _EnvSpecStub:
+    """Minimal PatchSpec stand-in carrying only env_flag (the field
+    evaluate_module's v1.2 env-forced retry reads)."""
+
+    def __init__(self, env_flag):
+        self.env_flag = env_flag
 
 
 @pytest.fixture(scope="module")
@@ -346,17 +372,7 @@ class TestModuleEvaluation:
         assert rows[0]["verdict"] == pf.IMPORT_FAIL
 
     def _write_module(self, tmp_path, name, source):
-        # Unique package per test — sys.modules caches package __path__,
-        # so reusing one name across per-test tmp_paths goes stale.
-        pkg = f"synthetic_wiring_{name}"
-        d = tmp_path / pkg
-        d.mkdir(exist_ok=True)
-        (d / "__init__.py").touch()
-        (d / f"{name}.py").write_text(textwrap.dedent(source))
-        if str(tmp_path) not in sys.path:
-            sys.path.insert(0, str(tmp_path))
-        importlib.invalidate_caches()
-        return f"{pkg}.{name}"
+        return _write_module(tmp_path, name, source)
 
     def test_synthetic_module_ok_and_unbuildable(self, pf, mini_tree, tmp_path):
         modname = self._write_module(tmp_path, "ptest_ok", """
@@ -779,3 +795,337 @@ class TestMd5DiffPatch:
         import types
         mod = types.ModuleType("plain_binding_module")
         assert pf.evaluate_md5_diff_patch(mod, mini_tree) is None
+
+
+# ─── v1.2: env-forced builder retry (PN204/PN96 class) ────────────────────
+
+
+class TestEnvForcedRetry:
+    """v1.1 false-positive class (triage 2026-06-11 §4): builders that
+    early-exit on an unset GENESIS_* env flag returned None and read as
+    DRIFT_FILE_MOVED with a canned 'target not found' detail even though
+    every target resolves. v1.2 retries the builder with the registry
+    env_flag forced to "1" (restored afterwards) and evaluates the built
+    patcher normally, tagging the row env_forced=True.
+    """
+
+    OK_BUILDER = """
+        import os
+        from sndr.kernel.text_patch import TextPatch, TextPatcher
+
+        TARGET = {target!r}
+
+        def _make_patcher():
+            if os.environ.get("GENESIS_ENABLE_SYNENVF", "0") != "1":
+                return None
+            return TextPatcher(
+                patch_name="SYN env-forced",
+                target_file=TARGET,
+                marker="SYN_ENVF_MARKER",
+                sub_patches=[TextPatch(
+                    name="s1",
+                    anchor="    probs = logits.softmax(dim=-1)\\n",
+                    replacement="    probs = x\\n",
+                    required=True,
+                )],
+            )
+    """
+
+    def test_retry_builds_and_tags_row(self, pf, mini_tree, tmp_path,
+                                       monkeypatch):
+        monkeypatch.delenv("GENESIS_ENABLE_SYNENVF", raising=False)
+        modname = _write_module(
+            tmp_path, "ptest_envforce",
+            self.OK_BUILDER.format(
+                target=str(mini_tree / "v1" / "sample" / "sampler.py")))
+        rows = pf.evaluate_module(
+            modname, ["SYNENVF"], mini_tree,
+            specs=[_EnvSpecStub("GENESIS_ENABLE_SYNENVF")])
+        assert len(rows) == 1
+        assert rows[0]["verdict"] == pf.OK
+        assert rows[0]["env_forced"] is True
+        # try/finally restore: the forced flag must not leak.
+        assert "GENESIS_ENABLE_SYNENVF" not in os.environ
+
+    def test_explicit_zero_flag_restored(self, pf, mini_tree, tmp_path,
+                                         monkeypatch):
+        """Operator-disabled flag ("0") still gets a health evaluation
+        (preflight judges the patch, not the opt-in) and the original
+        value is restored."""
+        monkeypatch.setenv("GENESIS_ENABLE_SYNENVF", "0")
+        modname = _write_module(
+            tmp_path, "ptest_envforce0",
+            self.OK_BUILDER.format(
+                target=str(mini_tree / "v1" / "sample" / "sampler.py")))
+        rows = pf.evaluate_module(
+            modname, ["SYNENVF"], mini_tree,
+            specs=[_EnvSpecStub("GENESIS_ENABLE_SYNENVF")])
+        assert rows[0]["verdict"] == pf.OK
+        assert rows[0]["env_forced"] is True
+        assert os.environ["GENESIS_ENABLE_SYNENVF"] == "0"
+
+    def test_no_specs_no_retry(self, pf, mini_tree, tmp_path, monkeypatch):
+        """Without a spec env_flag there is nothing to force — the
+        builder-None row keeps the v1.1 DRIFT_FILE_MOVED path."""
+        monkeypatch.delenv("GENESIS_ENABLE_SYNENVF", raising=False)
+        modname = _write_module(
+            tmp_path, "ptest_envforce_nospec",
+            self.OK_BUILDER.format(
+                target=str(mini_tree / "v1" / "sample" / "sampler.py")))
+        rows = pf.evaluate_module(modname, ["SYNENVF"], mini_tree)
+        assert rows[0]["verdict"] == pf.DRIFT_FILE_MOVED
+        assert "env_forced" not in rows[0]
+
+    def test_retry_none_with_missing_target_stays_drift(
+            self, pf, mini_tree, tmp_path, monkeypatch):
+        """Retry exhausted AND a resolve target is actually absent →
+        DRIFT_FILE_MOVED is the honest verdict (plan §4.2: keep it only
+        when targets are actually missing)."""
+        monkeypatch.delenv("GENESIS_ENABLE_SYNGONE", raising=False)
+        modname = _write_module(tmp_path, "ptest_envforce_gone", """
+            import os
+            from sndr.engines.vllm.detection.guards import resolve_vllm_file
+
+            def _make_patcher():
+                if os.environ.get("GENESIS_ENABLE_SYNGONE", "0") != "1":
+                    return None
+                target = resolve_vllm_file("v1/sample/no_longer_here.py")
+                if target is None:
+                    return None
+                raise AssertionError("unreachable in this fixture")
+        """)
+        rows = pf.evaluate_module(
+            modname, ["SYNGONE"], mini_tree,
+            specs=[_EnvSpecStub("GENESIS_ENABLE_SYNGONE")])
+        assert rows[0]["verdict"] == pf.DRIFT_FILE_MOVED
+        assert "v1/sample/no_longer_here.py" in rows[0]["detail"]
+        assert "GENESIS_ENABLE_SYNGONE" not in os.environ
+
+
+# ─── v1.2: ENV_GATED_ABSTAIN verdict ──────────────────────────────────────
+
+
+class TestEnvGatedAbstain:
+    """Builder still abstains with the flag forced AND every
+    resolve_vllm_file literal exists under the candidate root → the
+    abstain is gated on something beyond the registry env_flag (second
+    env condition, runtime probe, ...). NOT file drift — non-actionable
+    ENV_GATED_ABSTAIN, fail-noisy in the report but no operator gate.
+    """
+
+    def _rows(self, pf, mini_tree, tmp_path, monkeypatch):
+        monkeypatch.delenv("GENESIS_ENABLE_SYNGATE", raising=False)
+        monkeypatch.delenv("GENESIS_SYNGATE_EXTRA", raising=False)
+        modname = _write_module(tmp_path, "ptest_envgated", """
+            import os
+            from sndr.engines.vllm.detection.guards import resolve_vllm_file
+
+            def _make_patcher():
+                if os.environ.get("GENESIS_ENABLE_SYNGATE", "0") != "1":
+                    return None
+                # Second gate the registry flag does not cover.
+                if os.environ.get("GENESIS_SYNGATE_EXTRA", "0") != "1":
+                    return None
+                target = resolve_vllm_file("v1/sample/sampler.py")
+                if target is None:
+                    return None
+                raise AssertionError("unreachable in this fixture")
+        """)
+        return pf.evaluate_module(
+            modname, ["SYNGATE"], mini_tree,
+            specs=[_EnvSpecStub("GENESIS_ENABLE_SYNGATE")])
+
+    def test_verdict_env_gated_abstain(self, pf, mini_tree, tmp_path,
+                                       monkeypatch):
+        rows = self._rows(pf, mini_tree, tmp_path, monkeypatch)
+        assert len(rows) == 1
+        assert rows[0]["verdict"] == pf.ENV_GATED_ABSTAIN
+        assert rows[0]["env_forced"] is True
+        # The detail must name the forced flag and say targets resolve.
+        assert "GENESIS_ENABLE_SYNGATE" in rows[0]["detail"]
+        assert "v1/sample/sampler.py" in rows[0]["detail"]
+
+    def test_env_gated_abstain_not_actionable(self, pf, mini_tree, tmp_path,
+                                              monkeypatch):
+        rows = self._rows(pf, mini_tree, tmp_path, monkeypatch)
+        assert pf.ENV_GATED_ABSTAIN not in pf.ACTIONABLE_VERDICTS
+        for r in rows:
+            r["in_version_range"] = True
+        assert pf.count_actionable(rows, markers=[]) == 0
+
+
+# ─── v1.2: _read_<param> UNBUILDABLE resolution (P82 class) ───────────────
+
+
+class TestReadParamFill:
+    """P82 false positive: _make_patcher(threshold) has no default BY
+    DESIGN — apply() fills it via the module's own _read_threshold().
+    v1.2 honors that convention: a required param <name> is fillable
+    when the module exposes a callable _read_<name>."""
+
+    def test_required_param_filled_via_module_reader(self, pf, mini_tree,
+                                                     tmp_path):
+        modname = _write_module(tmp_path, "ptest_readparam", """
+            from sndr.kernel.text_patch import TextPatch, TextPatcher
+
+            TARGET = {target!r}
+
+            def _read_threshold():
+                return 0.25
+
+            def _make_patcher(threshold, min_draft_pos=0):
+                assert threshold == 0.25
+                return TextPatcher(
+                    patch_name="SYN read-param",
+                    target_file=TARGET,
+                    marker="SYN_READPARAM_MARKER",
+                    sub_patches=[TextPatch(
+                        name="s1",
+                        anchor="    probs = logits.softmax(dim=-1)\\n",
+                        replacement="    probs = x\\n",
+                        required=True,
+                    )],
+                )
+        """.format(target=str(mini_tree / "v1" / "sample" / "sampler.py")))
+        rows = pf.evaluate_module(modname, ["SYNRP"], mini_tree)
+        assert len(rows) == 1
+        assert rows[0]["verdict"] == pf.OK
+        assert rows[0]["params_filled_via"] == {"threshold": "_read_threshold"}
+
+    def test_param_without_reader_stays_unbuildable(self, pf, mini_tree,
+                                                    tmp_path):
+        modname = _write_module(tmp_path, "ptest_noreader", """
+            def _make_patcher(backend):
+                return None
+        """)
+        rows = pf.evaluate_module(modname, ["SYNNR"], mini_tree)
+        assert rows[0]["verdict"] == pf.UNBUILDABLE
+        assert "backend" in rows[0]["detail"]
+
+    def test_reader_raising_is_unbuildable(self, pf, mini_tree, tmp_path):
+        modname = _write_module(tmp_path, "ptest_badreader", """
+            def _read_threshold():
+                raise RuntimeError("boom")
+
+            def _make_patcher(threshold):
+                return None
+        """)
+        rows = pf.evaluate_module(modname, ["SYNBR"], mini_tree)
+        assert rows[0]["verdict"] == pf.UNBUILDABLE
+        assert "_read_threshold" in rows[0]["detail"]
+
+
+# ─── v1.2: resolved-vs-unresolved target detail ───────────────────────────
+
+
+class TestResolveTargetDetail:
+    """The v1.1 canned detail 'target not found under candidate root'
+    lies when every resolve_vllm_file literal exists (PN204 fallback
+    class). v1.2 splits the literals and reports both sides."""
+
+    def test_partial_resolve_detail_names_both_sides(self, pf, mini_tree,
+                                                     tmp_path):
+        modname = _write_module(tmp_path, "ptest_partial", """
+            from sndr.engines.vllm.detection.guards import resolve_vllm_file
+
+            def _make_patcher():
+                target = (
+                    resolve_vllm_file("v1/sample/old_gone_name.py")
+                    or resolve_vllm_file("v1/sample/sampler.py")
+                )
+                if target is None:
+                    return None
+                raise AssertionError("unreachable in this fixture")
+        """)
+        rows = pf.evaluate_module(modname, ["SYNPART"], mini_tree)
+        assert rows[0]["verdict"] == pf.DRIFT_FILE_MOVED
+        detail = rows[0]["detail"]
+        assert "v1/sample/old_gone_name.py" in detail
+        # The resolving fallback literal must be reported, not hidden.
+        assert "v1/sample/sampler.py" in detail
+
+    def test_resolve_target_status_split(self, pf, mini_tree, tmp_path):
+        modname = _write_module(tmp_path, "ptest_status", """
+            from sndr.engines.vllm.detection.guards import resolve_vllm_file
+
+            def _probe():
+                a = resolve_vllm_file("v1/sample/sampler.py")
+                b = resolve_vllm_file("v1/sample/old_gone_name.py")
+                return a or b
+        """)
+        mod = importlib.import_module(modname)
+        resolved, unresolved = pf._resolve_target_status(mod, mini_tree)
+        assert resolved == ["v1/sample/sampler.py"]
+        assert unresolved == ["v1/sample/old_gone_name.py"]
+        # Back-compat wrapper keeps the v1.1 contract (unresolved only).
+        assert pf._unresolved_resolve_targets(mod, mini_tree) == [
+            "v1/sample/old_gone_name.py"]
+
+
+# ─── v1.2: KNOWN_OPTIONAL_RETIRED (P64 class) ─────────────────────────────
+
+
+class TestKnownOptionalRetired:
+    """P64's serving patcher carries two required=False subs whose
+    anchors died when upstream refactored the helper away — the module
+    documents them as retired-by-design (journal 2026-06-09). Zero
+    matches is the documented steady state, not drift. Convention: a
+    module attr ``*_RETIRED_SUBS`` lists the retired sub names; an
+    all-optional zero-match patcher whose every sub is listed
+    reclassifies to non-actionable KNOWN_OPTIONAL_RETIRED."""
+
+    MODULE = """
+        from sndr.kernel.text_patch import TextPatch, TextPatcher
+
+        TARGET = {target!r}
+        {retired_line}
+
+        def _make_patcher():
+            return TextPatcher(
+                patch_name="SYN optional-retired",
+                target_file=TARGET,
+                marker="SYN_OPTRET_MARKER",
+                sub_patches=[
+                    TextPatch(name="opt_a", anchor="anchor gone a\\n",
+                              replacement="x\\n", required=False),
+                    TextPatch(name="opt_b", anchor="anchor gone b\\n",
+                              replacement="y\\n", required=False),
+                ],
+            )
+    """
+
+    def _rows(self, pf, mini_tree, tmp_path, name, retired_line):
+        modname = _write_module(
+            tmp_path, name,
+            self.MODULE.format(
+                target=str(mini_tree / "v1" / "sample" / "sampler.py"),
+                retired_line=retired_line))
+        return pf.evaluate_module(modname, ["SYNOR"], mini_tree)
+
+    def test_listed_subs_reclassified(self, pf, mini_tree, tmp_path):
+        rows = self._rows(
+            pf, mini_tree, tmp_path, "ptest_optret",
+            'SYN_RETIRED_SUBS = ("opt_a", "opt_b")')
+        assert len(rows) == 1
+        assert rows[0]["verdict"] == pf.KNOWN_OPTIONAL_RETIRED
+        assert "SYN_RETIRED_SUBS" in rows[0]["detail"]
+
+    def test_unlisted_sub_stays_drift(self, pf, mini_tree, tmp_path):
+        rows = self._rows(
+            pf, mini_tree, tmp_path, "ptest_optret_partial",
+            'SYN_RETIRED_SUBS = ("opt_a",)')  # opt_b NOT declared retired
+        assert rows[0]["verdict"] == pf.DRIFT_ANCHOR
+
+    def test_no_attr_stays_drift(self, pf, mini_tree, tmp_path):
+        rows = self._rows(pf, mini_tree, tmp_path, "ptest_optret_none", "")
+        assert rows[0]["verdict"] == pf.DRIFT_ANCHOR
+
+    def test_known_optional_retired_not_actionable(self, pf, mini_tree,
+                                                   tmp_path):
+        rows = self._rows(
+            pf, mini_tree, tmp_path, "ptest_optret_action",
+            'SYN_RETIRED_SUBS = ("opt_a", "opt_b")')
+        assert pf.KNOWN_OPTIONAL_RETIRED not in pf.ACTIONABLE_VERDICTS
+        for r in rows:
+            r["in_version_range"] = True
+        assert pf.count_actionable(rows, markers=[]) == 0
