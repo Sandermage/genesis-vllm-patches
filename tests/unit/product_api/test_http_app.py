@@ -14,6 +14,38 @@ def _client() -> TestClient:
     return TestClient(create_app(allowed_origins=()))
 
 
+def test_blocking_routes_are_threadpooled_not_event_loop_blocking():
+    """The container / system / k8s / proxmox read handlers do blocking I/O
+    (docker subprocess, SSH, Proxmox HTTP). They MUST be plain `def` so
+    Starlette runs them in its threadpool — an `async def` with a blocking
+    body stalls the whole event loop and serializes every concurrent request,
+    which is exactly what made the Containers/Virtualization views crawl.
+    """
+    import inspect as _inspect
+    app = create_app(allowed_origins=())
+    # Path prefixes whose handlers are pure-sync blocking I/O. Streaming /
+    # websocket paths are intentionally excluded (they are genuinely async).
+    must_be_sync = (
+        "/api/v1/containers", "/api/v1/system/df", "/api/v1/system/networks",
+        "/api/v1/k8s/", "/api/v1/proxmox/",
+    )
+    streaming_exempt = ("/logs/stream", "/terminal")
+    offenders = []
+    for route in app.routes:
+        path = getattr(route, "path", "")
+        endpoint = getattr(route, "endpoint", None)
+        if endpoint is None or not any(path.startswith(p) for p in must_be_sync):
+            continue
+        if any(s in path for s in streaming_exempt):
+            continue
+        if _inspect.iscoroutinefunction(endpoint):
+            offenders.append(path)
+    assert not offenders, (
+        "these blocking handlers are async def and will block the event loop: "
+        + ", ".join(sorted(offenders))
+    )
+
+
 def test_security_headers_present():
     """Defense-in-depth headers must be on every response."""
     r = _client().get("/api/v1/health")

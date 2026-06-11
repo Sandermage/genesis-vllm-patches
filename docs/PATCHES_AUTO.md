@@ -4,29 +4,29 @@
 > Source of truth: `sndr/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-06-10T12:01:21Z
-Total entries: **279**
+Generated: 2026-06-11T01:07:21Z
+Total entries: **280**
 
 ## Statistics
 
 ### By tier
-- `tier=community`: **279**
+- `tier=community`: **280**
 
 ### By lifecycle
 - `lifecycle=coordinator`: **4**
-- `lifecycle=experimental`: **204**
-- `lifecycle=legacy`: **33**
-- `lifecycle=research`: **5**
-- `lifecycle=retired`: **19**
+- `lifecycle=experimental`: **202**
+- `lifecycle=legacy`: **28**
+- `lifecycle=research`: **4**
+- `lifecycle=retired`: **28**
 - `lifecycle=stable`: **14**
 
-### Default-on at boot: **54** / 279
+### Default-on at boot: **51** / 280
 
 ### By family
 - `attention`: 1
 - `attention.flash`: 3
 - `attention.gdn`: 34
-- `attention.turboquant`: 56
+- `attention.turboquant`: 57
 - `compile_safety`: 15
 - `detection`: 3
 - `gemma4`: 18
@@ -82,7 +82,7 @@ Total entries: **279**
 | **PN30** | `community` | `experimental` | · | `GENESIS_ENABLE_PN30_DS_LAYOUT_SPEC_DECODE` | — | "DS conv state layout + spec-decode AL>1 fix (issue |
 | **PN32** | `community` | `experimental` | · | `GENESIS_ENABLE_PN32_GDN_CHUNKED_PREFILL` | — | GDN _forward_core chunked-prefill v2 (Cliff 2 fix for single-24GB-GPU OOM) |
 | **PN50** | `community` | `experimental` | · | `GENESIS_ENABLE_PN50_GDN_FUSED_PROJ` | — | GDN proj fusion (SGLang#21019 backport — Qwen3.5/3.6 contiguous-projection Tr... |
-| **PN54** | `community` | `experimental` | · | `GENESIS_ENABLE_PN54_GDN_CONTIGUOUS_DEDUP` | — | GDN contiguous-call deduplication (P0.7 Cliff 2b OOM mitigation) |
+| **PN54** | `community` | `retired` | · | `GENESIS_ENABLE_PN54_GDN_CONTIGUOUS_DEDUP` | — | GDN contiguous-call deduplication (P0.7 Cliff 2b OOM mitigation) — RETIRED 20... |
 | **PN59** | `community` | `experimental` | · | `GENESIS_ENABLE_PN59_STREAMING_GDN` | — | Streaming-GDN orchestrator (Variant D Phase 2) — true Cliff 2b OOM fix |
 | **PN79** | `community` | `experimental` | · | `GENESIS_ENABLE_PN79_INPLACE_SSM_STATE` | [#41824](https://github.com/vllm-project/vllm/pull/41824) | In-place SSM state for GDN chunk prefill (vllm#41824 backport) |
 | **PN108** | `community` | `retired` | · | `GENESIS_ENABLE_PN108_FUSED_RECURRENT_PREFILL` | — | GDN fused_recurrent prefill dispatch (Cliff 2 memory-bound fix) |
@@ -102,16 +102,16 @@ Total entries: **279**
 | **PN365** | `community` | `experimental` | · | `GENESIS_ENABLE_PN365_GDN_GEMM_FUSE` | [#42746](https://github.com/vllm-project/vllm/pull/42746) | Fused GDN qkv\|z\|b\|a single-GEMM input projection (port of OPEN vllm#42746) |
 | **P39a** | `community` | `legacy` | ✓ | `GENESIS_LEGACY_P39A` | — | FLA chunk_scaled_dot_kkt persistent A pool |
 | **P60b** | `community` | `experimental` | · | `GENESIS_ENABLE_P60B_TRITON_KERNEL` | [#40738](https://github.com/vllm-project/vllm/pull/40738) | GDN+ngram Triton kernel offset (Phase 2) |
-| **P7b** | `community` | `legacy` | · | `GENESIS_ENABLE_P7B` | — | GDN dual-stream via torch.library.custom_op (opt-in) |
+| **P7b** | `community` | `retired` | · | `GENESIS_ENABLE_P7B` | — | GDN dual-stream via torch.library.custom_op — RETIRED 2026-06-11 |
 | **PN79_V2_MD5_CHUNK** | `community` | `experimental` | · | `GENESIS_ENABLE_PN79_V2_MD5_CHUNK` | [#41824](https://github.com/vllm-project/vllm/pull/41824) | PN79 v2 — md5+full-file PoC (PN119 reference pattern, chunk.py scope) |
 | **PN79_V2_MD5_CHUNK_DELTA_H** | `community` | `experimental` | · | `GENESIS_ENABLE_PN79_V2_MD5_CHUNK_DELTA_H` | [#41824](https://github.com/vllm-project/vllm/pull/41824) | PN79 v2 — md5+full-file PoC (PN119 reference pattern, chunk_delta_h.py scope) |
 
-### `attention.turboquant` (56)
+### `attention.turboquant` (57)
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
 | **P3** | `community` | `legacy` | ✓ | `GENESIS_LEGACY_P3` | — | TurboQuant BF16→FP8 cast (Ampere fix) |
-| **P20** | `community` | `legacy` | ✓ | `GENESIS_LEGACY_P20` | — | TurboQuant continuation-prefill FP16 rotate |
+| **P20** | `community` | `retired` | · | `GENESIS_LEGACY_P20` | — | TurboQuant continuation-prefill FP16 rotate — RETIRED 2026-06-11 |
 | **P22** | `community` | `legacy` | ✓ | `GENESIS_LEGACY_P22` | — | TurboQuant shared dequant prealloc |
 | **P26** | `community` | `legacy` | ✓ | `GENESIS_LEGACY_P26` | — | TurboQuant prefill output prealloc |
 | **P32** | `community` | `legacy` | ✓ | `GENESIS_LEGACY_P32` | — | TurboQuant cu_2 + synth_seq_lens preallocs (P32/P33) |
@@ -121,7 +121,7 @@ Total entries: **279**
 | **P51** | `community` | `legacy` | ✓ | `GENESIS_LEGACY_P51` | — | TQ-active runtime layer-level guard |
 | **P65** | `community` | `experimental` | · | `GENESIS_ENABLE_P65_TURBOQUANT_SPEC_CG_DOWNGRADE` | — | TurboQuant spec-decode cudagraph downgrade (FALLBACK — see P67 root-cause fix) |
 | **P67** | `community` | `experimental` | · | `GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL` | — | TurboQuant multi-query kernel for spec-decode K+1 |
-| **P78** | `community` | `experimental` | · | `GENESIS_ENABLE_P78_TOLIST_CAPTURE_GUARD` | — | TurboQuant .tolist() capture-guard (adapted from noonghunna) |
+| **P78** | `community` | `retired` | · | `GENESIS_ENABLE_P78_TOLIST_CAPTURE_GUARD` | — | TurboQuant .tolist() capture-guard (adapted from noonghunna) — RETIRED 2026-0... |
 | **P98** | `community` | `experimental` | · | `GENESIS_ENABLE_P98` | [#40941](https://github.com/vllm-project/vllm/pull/40941) | TQ WorkspaceManager revert (vllm#40941 perf hotfix) |
 | **P99** | `community` | `experimental` | · | `GENESIS_ENABLE_P99` | [#40941](https://github.com/vllm-project/vllm/pull/40941) | WorkspaceManager.get_simultaneous memoization (perf hotfix) |
 | **P101** | `community` | `experimental` | · | `GENESIS_ENABLE_P101` | [#41123](https://github.com/vllm-project/vllm/pull/41123) | TQ continuation 64-token slicing (vllm#41123 SELECTIVE) |
@@ -159,6 +159,7 @@ Total entries: **279**
 | **G4_70** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_70_PN259B_MIXED_ALLOC` | — | PN259-B mixed-allocator path for TQ skip-list layers (PR42637 overlay control) |
 | **G4_70B** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_70_PN259B_FAIL_FAST` | — | PN259-B fail-fast guard on mixed-allocator KV layout mismatch |
 | **G4_70C** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_70_PN259C_ROUTE_B` | — | PN259-C Route B split allocator for mixed TQ/native KV layout |
+| **G4_79** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_79_TQ_MM_PREFIX` | — | TQ backend supports_mm_prefix for Gemma 4 MM (0.22.1 validity-gate unblock, m... |
 | **P18B_TEXT** | `community` | `experimental` | ✓ | `GENESIS_ENABLE_P18B_TEXT` | — | TurboQuant decode stage1 kernel-literal tune (TEXT-PATCH) |
 | **P18b** | `community` | `legacy` | ✓ | `GENESIS_LEGACY_P18B` | — | TurboQuant decode stage1 tune |
 | **P67b** | `community` | `experimental` | · | `GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL` | — | TurboQuant spec-verify forward() routing (FULL CG enable) |
@@ -171,7 +172,7 @@ Total entries: **279**
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
-| **P6** | `community` | `legacy` | ✓ | `GENESIS_LEGACY_P6` | — | TurboQuant-aware attention page size |
+| **P6** | `community` | `retired` | · | `GENESIS_LEGACY_P6` | — | TurboQuant-aware attention page size — RETIRED 2026-06-11 |
 | **P66** | `community` | `experimental` | · | `GENESIS_ENABLE_P66_CUDAGRAPH_SIZE_FILTER` | [#23679](https://github.com/vllm-project/vllm/pull/23679) | cudagraph_capture_sizes spec-decode divisibility filter |
 | **P95** | `community` | `experimental` | · | `GENESIS_ENABLE_P95` | [#40385](https://github.com/vllm-project/vllm/pull/40385) | Marlin TP cudagraph cap on Ampere (vllm#40385) |
 | **PN13** | `community` | `retired` | · | `GENESIS_ENABLE_PN13_CUDA_GRAPH_LAMBDA_ARITY` | [#41235](https://github.com/vllm-project/vllm/pull/41235) | CUDAGraphWrapper lambda arity (vllm#41235 backport) — RETIRED 2026-05-04 |
@@ -223,7 +224,7 @@ Total entries: **279**
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
 | **P23** | `community` | `legacy` | ✓ | `GENESIS_LEGACY_P23` | — | Marlin FP32_REDUCE env override |
-| **P36** | `community` | `legacy` | ✓ | `GENESIS_LEGACY_P36` | — | TurboQuant shared decode buffers |
+| **P36** | `community` | `retired` | · | `GENESIS_LEGACY_P36` | — | TurboQuant shared decode buffers — RETIRED 2026-06-11 |
 | **P87** | `community` | `experimental` | · | `GENESIS_ENABLE_P87` | [#40361](https://github.com/vllm-project/vllm/pull/40361) | Marlin W4A16/W8A16 sub-tile output dim pad-on-load (vllm#40361) |
 | **PN12** | `community` | `experimental` | · | `GENESIS_ENABLE_PN12_FFN_INTERMEDIATE_POOL` | [#34207](https://github.com/vllm-project/vllm/pull/34207) | FFN intermediate scratch pool — Cliff 1 fix on TQ3 path |
 | **PN25** | `community` | `experimental` | · | `GENESIS_ENABLE_PN25_SILU_INDUCTOR_SAFE` | — | SiluAndMul.forward_native opaque-op pool (Cliff 1 mech B compile path) |
@@ -238,7 +239,7 @@ Total entries: **279**
 |---|---|---|:---:|---|:---:|---|
 | **P5** | `community` | `legacy` | ✓ | `GENESIS_LEGACY_P5` | — | KV cache page size unification |
 | **P14** | `community` | `legacy` | ✓ | `GENESIS_LEGACY_P14` | — | block_table tail zero-fill |
-| **P83** | `community` | `research` | · | `GENESIS_ENABLE_P83` | — | MTP keep-last-cached-block (vllm#38182 downstream symptom — P84 is real fix) |
+| **P83** | `community` | `retired` | · | `GENESIS_ENABLE_P83` | — | MTP keep-last-cached-block (vllm#38182 downstream symptom — P84 was real fix)... |
 | **P85** | `community` | `experimental` | · | `GENESIS_ENABLE_P85` | — | Hybrid fine-shadow prefix cache (vllm#38182 followup, MambaManager fix) |
 | **P102** | `community` | `experimental` | · | `GENESIS_ENABLE_P102` | — | Unified spec-decode metadata + disagreement tracker (TRT-LLM style) |
 | **PN95** | `community` | `experimental` | · | `GENESIS_ENABLE_PN95_TIER_AWARE_CACHE` | — | "PN95 — Tier-aware KV cache + CPU offload + boot-time expansion (Path C, club... |
@@ -246,7 +247,7 @@ Total entries: **279**
 | **PN97** | `community` | `experimental` | · | `GENESIS_ENABLE_PN97_TENSOR_PHYSICAL_CAP` | — | PN97 — physical-cap on KV tensor allocation (Phase 7 PoC) |
 | **PN106** | `community` | `experimental` | · | `GENESIS_ENABLE_PN106_GDN_H_POOL` | — | PN106 — GDN scratch tensor pool (architectural memory mgr) |
 | **PN110** | `community` | `experimental` | ✓ | `GENESIS_ENABLE_PN110` | [#42615](https://github.com/vllm-project/vllm/pull/42615) | BlockPool.free_blocks deduplication (vllm#42615) |
-| **PN346** | `community` | `experimental` | · | `GENESIS_ENABLE_PN346` | [#43650](https://github.com/vllm-project/vllm/pull/43650) | Mamba/GDN cache hit boundary fix for MTP + prefix caching (vendor of OPEN vll... |
+| **PN346** | `community` | `experimental` | ✓ | `GENESIS_ENABLE_PN346` | [#43650](https://github.com/vllm-project/vllm/pull/43650) | Mamba/GDN cache hit boundary fix for MTP + prefix caching (vendor of OPEN vll... |
 | **G4_06** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_06_GEMMA4_KV_PROJ_V0` | [#41944](https://github.com/vllm-project/vllm/pull/41944) | v_head_size=0 for k_eq_v attention layers (vendors vllm#41944) |
 | **G4_18** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_18_GEMMA4_PER_LAYER_KV_PAGE_SIZE` | [#40391](https://github.com/vllm-project/vllm/pull/40391) | Per-layer KV cache page-size for 26B-A4B (vendors WIP vllm#40391) |
 
@@ -357,12 +358,12 @@ Total entries: **279**
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
-| **P4** | `community` | `legacy` | ✓ | `GENESIS_LEGACY_P4` | — | TurboQuant hybrid model support |
+| **P4** | `community` | `retired` | · | `GENESIS_LEGACY_P4` | — | TurboQuant hybrid model support — RETIRED 2026-06-11 |
 | **P8** | `community` | `retired` | · | `GENESIS_LEGACY_P8` | — | KV hybrid reporting (per-token capacity) — RETIRED 2026-05-04 |
 | **P34** | `community` | `legacy` | ✓ | `GENESIS_LEGACY_P34` | — | Mamba zero-collapse deadlock guard |
 | **P58** | `community` | `experimental` | · | `GENESIS_ENABLE_P58_ASYNC_PLACEHOLDER_FIX` | [#40768](https://github.com/vllm-project/vllm/pull/40768) | Async-scheduler -1 placeholder fix |
 | **P74** | `community` | `experimental` | · | `GENESIS_ENABLE_P74_CHUNK_CLAMP` | — | Auto chunk-clamp via long_prefill_token_threshold (P72 companion) |
-| **P84** | `community` | `experimental` | · | `GENESIS_ENABLE_P84` | — | hash_block_size override (vllm#38182 actual root cause) |
+| **P84** | `community` | `retired` | · | `GENESIS_ENABLE_P84` | — | hash_block_size override (vllm#38182 actual root cause) — RETIRED 2026-06-11 |
 | **P79c** | `community` | `experimental` | · | `GENESIS_ENABLE_P79C_STALE_SPEC_TOKEN_CLEANUP` | [#37629](https://github.com/vllm-project/vllm/pull/37629) | Stale spec_token_ids cleanup for unscheduled requests (vllm#37629) |
 | **P79d** | `community` | `experimental` | · | `GENESIS_ENABLE_P79D_PREEMPT_ASYNC_DISCARD` | [#38624](https://github.com/vllm-project/vllm/pull/38624) | Preempt async-discard backport (vllm#38624) |
 

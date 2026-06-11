@@ -81,20 +81,36 @@ class TestP82DriftCovers40819:
 
 class TestP5AutoRetireProbe:
     """Genesis P5 should auto-skip when PR #39931 (JartX) is detected
-    in the upstream vllm install. PR #39931's canonical symbols are
-    `TQFullAttentionSpec` + `_get_full_attention_layer_indices` in
-    `vllm.model_executor.layers.quantization.turboquant.config`.
+    in the upstream vllm install.
+
+    Probe-1 fix 2026-06-11 (preflight residual triage par.6): #39931
+    (MERGED 2026-05-05) defines `TQFullAttentionSpec` in
+    `vllm.v1.kv_cache_interface` (pristine :327 on pin
+    0.22.1rc1.dev259) — NOT in turboquant/config.py, where only
+    `_get_full_attention_layer_indices` lives (pristine :235). The old
+    probe hasattr-ed turboquant.config for BOTH symbols, so the
+    auto-skip never fired. These tests fake each symbol at its REAL
+    home.
     """
 
+    @staticmethod
+    def _fake_kv_iface(monkeypatch, with_spec: bool):
+        fake = types.ModuleType("vllm.v1.kv_cache_interface")
+        if with_spec:
+            fake.TQFullAttentionSpec = type("TQFullAttentionSpec", (), {})
+        monkeypatch.setitem(
+            sys.modules, "vllm.v1.kv_cache_interface", fake,
+        )
+
     def test_p5_skips_when_pr39931_symbols_present(self, monkeypatch):
-        """Inject a fake upstream tq config module containing the
-        PR #39931 symbols. P5 must SKIP and explain why."""
-        # Build a fake module with the PR #39931 attestation
+        """Inject the PR #39931 symbols at their REAL homes. P5 must
+        SKIP (defer to upstream) and explain why."""
+        # TQFullAttentionSpec lives in vllm.v1.kv_cache_interface
+        self._fake_kv_iface(monkeypatch, with_spec=True)
+        # _get_full_attention_layer_indices lives in turboquant.config
         fake_tq_cfg = types.ModuleType(
             "vllm.model_executor.layers.quantization.turboquant.config"
         )
-        # Sentinel: the two symbols #39931 introduces
-        fake_tq_cfg.TQFullAttentionSpec = type("TQFullAttentionSpec", (), {})
         fake_tq_cfg._get_full_attention_layer_indices = lambda *a, **kw: []
         monkeypatch.setitem(
             sys.modules,
@@ -104,8 +120,9 @@ class TestP5AutoRetireProbe:
 
         # Also stub out the early-exit checks so we hit the probe
         from sndr.engines.vllm.patches.kv_cache import p5_page_size as patch_5_page_size
-        # GENESIS_DISABLE_P5 must NOT be set
+        # GENESIS_DISABLE_P5 must NOT be set; nor the keep-override
         monkeypatch.delenv("GENESIS_DISABLE_P5", raising=False)
+        monkeypatch.delenv("GENESIS_DISABLE_P5_AUTORETIRE", raising=False)
 
         status, reason = patch_5_page_size.apply()
         assert status == "skipped", (
@@ -118,6 +135,57 @@ class TestP5AutoRetireProbe:
         )
         assert "TQFullAttentionSpec" in reason, (
             "skip reason must name the probed symbol"
+        )
+
+    def test_p5_does_not_defer_on_old_buggy_location(self, monkeypatch):
+        """Regression pin for the original Probe-1 bug: the symbols
+        present ONLY in turboquant.config (the old probed location —
+        where TQFullAttentionSpec never actually lives) must NOT
+        trigger the defer."""
+        self._fake_kv_iface(monkeypatch, with_spec=False)
+        fake_tq_cfg = types.ModuleType(
+            "vllm.model_executor.layers.quantization.turboquant.config"
+        )
+        fake_tq_cfg.TQFullAttentionSpec = type("TQFullAttentionSpec", (), {})
+        fake_tq_cfg._get_full_attention_layer_indices = lambda *a, **kw: []
+        monkeypatch.setitem(
+            sys.modules,
+            "vllm.model_executor.layers.quantization.turboquant.config",
+            fake_tq_cfg,
+        )
+        from sndr.engines.vllm.patches.kv_cache import p5_page_size as patch_5_page_size
+        monkeypatch.delenv("GENESIS_DISABLE_P5", raising=False)
+        monkeypatch.delenv("GENESIS_DISABLE_P5_AUTORETIRE", raising=False)
+
+        _status, reason = patch_5_page_size.apply()
+        assert "#39931" not in reason, (
+            "TQFullAttentionSpec at the OLD (wrong) location must not "
+            "trigger the #39931 defer — Probe 1 keys on "
+            "vllm.v1.kv_cache_interface"
+        )
+
+    def test_p5_keep_override_forces_apply_path(self, monkeypatch):
+        """GENESIS_DISABLE_P5_AUTORETIRE=1 (documented in the skip
+        message, previously never read) must force the KEEP path even
+        when both #39931 probes hit."""
+        self._fake_kv_iface(monkeypatch, with_spec=True)
+        fake_tq_cfg = types.ModuleType(
+            "vllm.model_executor.layers.quantization.turboquant.config"
+        )
+        fake_tq_cfg._get_full_attention_layer_indices = lambda *a, **kw: []
+        monkeypatch.setitem(
+            sys.modules,
+            "vllm.model_executor.layers.quantization.turboquant.config",
+            fake_tq_cfg,
+        )
+        from sndr.engines.vllm.patches.kv_cache import p5_page_size as patch_5_page_size
+        monkeypatch.delenv("GENESIS_DISABLE_P5", raising=False)
+        monkeypatch.setenv("GENESIS_DISABLE_P5_AUTORETIRE", "1")
+
+        _status, reason = patch_5_page_size.apply()
+        assert "#39931" not in reason, (
+            "operator-forced KEEP must not return the #39931 defer "
+            "reason (P5 may still skip later for platform reasons)"
         )
 
     def test_p5_proceeds_when_pr39931_symbols_absent(self, monkeypatch):

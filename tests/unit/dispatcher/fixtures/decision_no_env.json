@@ -672,7 +672,7 @@
   {
     "patch_id": "PN346",
     "applied": false,
-    "reason": "strict opt-in — set GENESIS_ENABLE_PN346=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+    "reason": "strict opt-in: patch has default_on=True (informational) but env_flag=GENESIS_ENABLE_PN346 unset. Add GENESIS_ENABLE_PN346=1 to launch config to engage. Set GENESIS_LEGACY_DEFAULT_ON=1 to revert to pre-2026-05-17 auto-apply semantics."
   },
   {
     "patch_id": "PN347",
@@ -882,7 +882,7 @@
   {
     "patch_id": "P4",
     "applied": false,
-    "reason": "strict opt-in: patch has default_on=True (informational) but env_flag=GENESIS_LEGACY_P4 unset. Add GENESIS_LEGACY_P4=1 to launch config to engage. Set GENESIS_LEGACY_DEFAULT_ON=1 to revert to pre-2026-05-17 auto-apply semantics."
+    "reason": "strict opt-in — set GENESIS_LEGACY_P4=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
   },
   {
     "patch_id": "P5",
@@ -897,7 +897,7 @@
   {
     "patch_id": "P6",
     "applied": false,
-    "reason": "strict opt-in: patch has default_on=True (informational) but env_flag=GENESIS_LEGACY_P6 unset. Add GENESIS_LEGACY_P6=1 to launch config to engage. Set GENESIS_LEGACY_DEFAULT_ON=1 to revert to pre-2026-05-17 auto-apply semantics."
+    "reason": "strict opt-in — set GENESIS_LEGACY_P6=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
   },
   {
     "patch_id": "P7",
@@ -952,7 +952,7 @@
   {
     "patch_id": "P20",
     "applied": false,
-    "reason": "strict opt-in: patch has default_on=True (informational) but env_flag=GENESIS_LEGACY_P20 unset. Add GENESIS_LEGACY_P20=1 to launch config to engage. Set GENESIS_LEGACY_DEFAULT_ON=1 to revert to pre-2026-05-17 auto-apply semantics."
+    "reason": "strict opt-in — set GENESIS_LEGACY_P20=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
   },
   {
     "patch_id": "P22",
@@ -1017,7 +1017,7 @@
   {
     "patch_id": "P36",
     "applied": false,
-    "reason": "strict opt-in: patch has default_on=True (informational) but env_flag=GENESIS_LEGACY_P36 unset. Add GENESIS_LEGACY_P36=1 to launch config to engage. Set GENESIS_LEGACY_DEFAULT_ON=1 to revert to pre-2026-05-17 auto-apply semantics."
+    "reason": "strict opt-in — set GENESIS_LEGACY_P36=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
   },
   {
     "patch_id": "P37",
@@ -1323,6 +1323,11 @@
     "patch_id": "G4_32",
     "applied": false,
     "reason": "strict opt-in — set GENESIS_ENABLE_G4_32_TQ_VALIDATION_BYPASS=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
+    "patch_id": "G4_79",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_G4_79_TQ_MM_PREFIX=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
   },
   {
     "patch_id": "G4_70",

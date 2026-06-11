@@ -84,6 +84,13 @@ ALLOWED_MODELDEF_PINS = frozenset({
     # Setuptools_scm-derived form (closest annotated ancestor tag
     # v0.21.1rc0 + 12-char SHA).
     "0.21.1rc0+g626fa9bba5",
+    # Fleet validation 2026-06-11 pin bump target — PROMOTED: 35B PROD
+    # boot 105/0 + chat matrix 250.0/250.0/217.6 TPS + tool-calls verified
+    # in BOTH stream and non-stream; 27B full-YAML-stack 109/0, suite
+    # 120.9 (+1.2% vs dev371 baseline), tools 7/7; Gemma 26B first boot
+    # 0-failed, tools 7/7, TPOT 6.0ms. Receipts: journal
+    # 2026-06-11-fleet-validation-on-pin-303916e93.md.
+    "0.22.1rc1.dev259+g303916e93",
     "0.21.1rc0+g626fa9bba566",
 })
 

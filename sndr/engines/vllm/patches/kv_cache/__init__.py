@@ -13,7 +13,7 @@ from __future__ import annotations
 __all__ = [
     "p14_block_table",
     "p5_page_size",
-    "p83_mtp_keep_last_cached_block",
+    # "p83_mtp_keep_last_cached_block",  # moved to _archive/ 2026-06-11 (retired, preflight triage par.3)
     "p85_hybrid_fine_shadow_prefix_cache",
 ]
 

@@ -199,14 +199,23 @@ class TestResearchLifecycleHardRule:
 
     def test_p83_live_registry_is_research_only(self):
         """Smoke check against the live registry — P83 must not
-        derive to ``eligible``."""
+        derive to ``eligible``.
+
+        2026-06-11 update (preflight residual triage par.3): P83
+        retired — upstream use_eagle->drop_eagle_block rename +
+        coordinator lookahead supersedes it. ``retired`` is strictly
+        stronger than ``research`` (derives to
+        production_default='blocked'); the invariant guarded here —
+        P83 never derives to ``eligible`` — still holds and is still
+        asserted."""
         from sndr.dispatcher.registry import PATCH_REGISTRY
         meta = PATCH_REGISTRY.get("P83")
         if not isinstance(meta, dict):
             return
-        assert str(meta.get("lifecycle")).lower() == "research"
+        assert str(meta.get("lifecycle")).lower() == "retired"
         d = derive_metadata("P83", meta)
-        assert d["production_default"] == "research_only"
+        assert d["production_default"] == "blocked"
+        assert d["production_default"] != "eligible"
 
     def test_no_research_patch_is_eligible_in_live_registry(self):
         """Sweep guard: across the entire live registry, no

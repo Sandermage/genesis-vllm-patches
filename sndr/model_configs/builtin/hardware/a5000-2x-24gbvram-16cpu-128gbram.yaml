@@ -58,7 +58,7 @@ runtime:
   default: docker                                # values: docker|podman|kubernetes|systemd|bare; docker is the operator default
   supported: [docker]                            # which runtime emitters this hardware definition declares as supported
   docker:
-    image: vllm/vllm-openai:nightly-303916e93  # vllm container image tag (resolved to digest below for reproducibility) — 0.22.1rc1.dev259+g303916e93 (promoted 2026-06-08; fleet validation 2026-06-10/11: 35B prose 201 / code 220 / math 244-249 TPS + tool-calls via qwen3_xml + PN287 v2; 27B 138-143 TPS)
+    image: vllm/vllm-openai:nightly-303916e93d66da301231c9aee80489951a5cd8f6  # vllm container image tag (resolved to digest below for reproducibility) — 0.22.1rc1.dev259+g303916e93 (promoted 2026-06-08; fleet validation 2026-06-10/11: 35B prose 201 / code 220 / math 244-249 TPS + tool-calls via qwen3_xml + PN287 v2; 27B 138-143 TPS)
     image_digest: vllm/vllm-openai@sha256:d892cc41736272f46a207d26e206c2ea616b7abfa2537230c7511ff7bd6fbb78  # pinned digest — nightly-303916e93 (0.22.1rc1.dev259+g303916e93). Previous nightly-626fa9bb (0.21.1rc0, digest 674922aae790…) retained as :nightly-previous on the rig (see CLAUDE.md vLLM pin policy)
     container_name_template: vllm-{model_id}     # template; {model_id} expanded at compose time
     host_port: 8000                              # OpenAI-API port on host

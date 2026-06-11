@@ -11,7 +11,7 @@ as back-compat shims forwarding to this canonical home.
 from __future__ import annotations
 
 __all__ = [
-    "p36_tq_shared_decode_buffers",
+    # "p36_tq_shared_decode_buffers",  # moved to _archive/ 2026-06-11 (retired, preflight triage par.3)
     "p87_marlin_pad_sub_tile",
     "pn12_ffn_intermediate_pool",
     "pn25_silu_inductor_safe_pool",

@@ -6,7 +6,7 @@ from tests.unit.integrations._family_contract_helpers import (
 )
 
 PATCHES = [
-    ("sndr.engines.vllm.patches.kernels.p36_tq_shared_decode_buffers", "P36"),
+    ("sndr.engines.vllm._archive.p36_tq_shared_decode_buffers", "P36"),
     ("sndr.engines.vllm.patches.kernels.p87_marlin_pad_sub_tile", "P87"),
     ("sndr.engines.vllm.patches.kernels.pn12_ffn_intermediate_pool", "PN12"),
     ("sndr.engines.vllm.patches.kernels.pn25_silu_inductor_safe_pool", "PN25"),

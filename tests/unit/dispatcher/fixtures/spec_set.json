@@ -350,14 +350,14 @@
   {
     "patch_id": "P78",
     "family": "attention.turboquant",
-    "lifecycle": "experimental",
+    "lifecycle": "retired",
     "tier": "community",
     "default_on": false,
     "env_flag": "GENESIS_ENABLE_P78_TOLIST_CAPTURE_GUARD",
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "sndr.engines.vllm.patches.attention.turboquant.p78_tolist_capture_guard"
+    "apply_module": "sndr.engines.vllm._archive.p78_tolist_capture_guard"
   },
   {
     "patch_id": "P79b",
@@ -422,26 +422,26 @@
   {
     "patch_id": "P83",
     "family": "kv_cache",
-    "lifecycle": "research",
+    "lifecycle": "retired",
     "tier": "community",
     "default_on": false,
     "env_flag": "GENESIS_ENABLE_P83",
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "sndr.engines.vllm.patches.kv_cache.p83_mtp_keep_last_cached_block"
+    "apply_module": "sndr.engines.vllm._archive.p83_mtp_keep_last_cached_block"
   },
   {
     "patch_id": "P84",
     "family": "scheduler",
-    "lifecycle": "experimental",
+    "lifecycle": "retired",
     "tier": "community",
     "default_on": false,
     "env_flag": "GENESIS_ENABLE_P84",
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "sndr.engines.vllm.patches.scheduler.p84_hash_block_size_override"
+    "apply_module": "sndr.engines.vllm._archive.p84_hash_block_size_override"
   },
   {
     "patch_id": "P85",
@@ -1010,14 +1010,14 @@
   {
     "patch_id": "PN54",
     "family": "attention.gdn",
-    "lifecycle": "experimental",
+    "lifecycle": "retired",
     "tier": "community",
     "default_on": false,
     "env_flag": "GENESIS_ENABLE_PN54_GDN_CONTIGUOUS_DEDUP",
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "sndr.engines.vllm.patches.attention.gdn.pn54_gdn_contiguous_dedup"
+    "apply_module": "sndr.engines.vllm._archive.pn54_gdn_contiguous_dedup"
   },
   {
     "patch_id": "PN52",
@@ -1612,7 +1612,7 @@
     "family": "kv_cache",
     "lifecycle": "experimental",
     "tier": "community",
-    "default_on": false,
+    "default_on": true,
     "env_flag": "GENESIS_ENABLE_PN346",
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
@@ -2114,14 +2114,14 @@
   {
     "patch_id": "P4",
     "family": "scheduler",
-    "lifecycle": "legacy",
+    "lifecycle": "retired",
     "tier": "community",
-    "default_on": true,
+    "default_on": false,
     "env_flag": "GENESIS_LEGACY_P4",
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "sndr.engines.vllm.patches.scheduler.p4_tq_hybrid"
+    "apply_module": "sndr.engines.vllm._archive.p4_tq_hybrid"
   },
   {
     "patch_id": "P5",
@@ -2150,14 +2150,14 @@
   {
     "patch_id": "P6",
     "family": "compile_safety",
-    "lifecycle": "legacy",
+    "lifecycle": "retired",
     "tier": "community",
-    "default_on": true,
+    "default_on": false,
     "env_flag": "GENESIS_LEGACY_P6",
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "sndr.engines.vllm.patches.compile_safety.p6_tq_block_size_align"
+    "apply_module": "sndr.engines.vllm._archive.p6_tq_block_size_align"
   },
   {
     "patch_id": "P7",
@@ -2174,14 +2174,14 @@
   {
     "patch_id": "P7b",
     "family": "attention.gdn",
-    "lifecycle": "legacy",
+    "lifecycle": "retired",
     "tier": "community",
     "default_on": false,
     "env_flag": "GENESIS_ENABLE_P7B",
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "sndr.engines.vllm.patches.attention.gdn.p7b_gdn_dual_stream_customop"
+    "apply_module": "sndr.engines.vllm._archive.p7b_gdn_dual_stream_customop"
   },
   {
     "patch_id": "PN13",
@@ -2282,9 +2282,9 @@
   {
     "patch_id": "P20",
     "family": "attention.turboquant",
-    "lifecycle": "legacy",
+    "lifecycle": "retired",
     "tier": "community",
-    "default_on": true,
+    "default_on": false,
     "env_flag": "GENESIS_LEGACY_P20",
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
@@ -2438,14 +2438,14 @@
   {
     "patch_id": "P36",
     "family": "kernels",
-    "lifecycle": "legacy",
+    "lifecycle": "retired",
     "tier": "community",
-    "default_on": true,
+    "default_on": false,
     "env_flag": "GENESIS_LEGACY_P36",
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "sndr.engines.vllm.patches.kernels.p36_tq_shared_decode_buffers"
+    "apply_module": "sndr.engines.vllm._archive.p36_tq_shared_decode_buffers"
   },
   {
     "patch_id": "P37",
@@ -3178,6 +3178,18 @@
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
     "apply_module": "sndr.engines.vllm.patches.attention.turboquant.g4_32_tq_validation_bypass"
+  },
+  {
+    "patch_id": "G4_79",
+    "family": "attention.turboquant",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "GENESIS_ENABLE_G4_79_TQ_MM_PREFIX",
+    "has_upstream_pr": false,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "sndr.engines.vllm.patches.attention.turboquant.g4_79_tq_mm_prefix_support"
   },
   {
     "patch_id": "G4_70",

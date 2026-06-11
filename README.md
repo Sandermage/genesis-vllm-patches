@@ -6,7 +6,7 @@
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![vLLM pin](https://img.shields.io/badge/vllm-0.21.1rc0+g626fa9bba5-orange.svg)](https://github.com/vllm-project/vllm)
-[![Patches](https://img.shields.io/badge/registry-279%20patches-green.svg)](docs/PATCHES.md)
+[![Patches](https://img.shields.io/badge/registry-280%20patches-green.svg)](docs/PATCHES.md)
 [![SNDR Core](https://img.shields.io/badge/SNDR%20Core-v12.0.0-blue.svg)](CHANGELOG.md)
 [![GPU](https://img.shields.io/badge/GPU-RTX%203090%20%7C%204090%20%7C%205090%20%7C%20A5000%20%7C%20H20%20%7C%20R6000-purple.svg)](docs/HARDWARE.md)
 
@@ -20,7 +20,7 @@ across 23 families. Apache 2.0.**
 ## What it is
 
 A **drop-in runtime patcher** for vLLM. It pins to a specific vLLM nightly
-commit and applies 279 small, surgical changes — text edits at known anchors,
+commit and applies 280 small, surgical changes — text edits at known anchors,
 class-rebind wrappers, and FastAPI middleware — that together turn an
 out-of-the-box vLLM into a production-grade Qwen3.6 inference server on
 *consumer* NVIDIA hardware (3090, 4090, 5090, A5000, A6000, …) where vLLM

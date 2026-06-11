@@ -12,12 +12,12 @@ from __future__ import annotations
 
 __all__ = [
     "p34_mamba_deadlock_guard",
-    "p4_tq_hybrid",
+    # "p4_tq_hybrid",  # moved to _archive/ 2026-06-11 (retired, preflight triage par.3)
     "p58_async_scheduler_placeholder_fix",
     "p74_chunk_clamp",
     "p79c_stale_spec_token_cleanup",
     "p79d_preempt_async_discard",
-    "p84_hash_block_size_override",
+    # "p84_hash_block_size_override",  # moved to _archive/ 2026-06-11 (retired, preflight triage par.3)
     # "p8_kv_hybrid_reporting",  # moved to _retired/ 2026-05-14
 ]
 

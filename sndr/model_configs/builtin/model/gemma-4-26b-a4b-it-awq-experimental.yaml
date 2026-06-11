@@ -58,6 +58,11 @@ requires:
 versions:
   genesis_pin_min: v12.0.0
   vllm_pin_required: 0.21.1rc0+g626fa9bba566
+  # Consumed by `audit_v2_modeldef_vs_hardware_pin.py` (Phase 5.2.E)
+  # to suppress the would-be ERROR for this row.
+  pin_hold: "experimental variant not covered by the 2026-06-11 fleet validation
+    (base 26B ModelDef promoted; this variant needs its own boot+bench
+    cycle on 0.22.1 before promotion)."
   reference_metrics_ref: null  # Phase 5.2.D (2026-05-22): formalize receipt-only state. The referenced baseline JSON was never generated (audit_v2_vllm_pin_consistency reported file-not-found). This is the experimental variant — runtime evidence shares the canonical Gemma 26B path via P1.7d byte-equivalence rehearsal. A formal canonical baseline JSON requires the full sustained-methodology bench cycle and is deferred to Phase 7.
 
 # ─── Canonical patches matrix — EXPERIMENTAL: G4_08 + G4_18 ENABLED ────

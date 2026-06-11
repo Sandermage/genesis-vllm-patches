@@ -22,7 +22,7 @@ PATCHES = [
     ("sndr.engines.vllm.patches.attention.turboquant.p67_tq_multi_query_kernel", "P67"),
     ("sndr.engines.vllm.patches.attention.turboquant.p67b_spec_verify_routing", "P67b"),
     ("sndr.engines.vllm.patches.attention.turboquant.p67c_sparse_v", "P67c"),
-    ("sndr.engines.vllm.patches.attention.turboquant.p78_tolist_capture_guard", "P78"),
+    ("sndr.engines.vllm._archive.p78_tolist_capture_guard", "P78"),
     ("sndr.engines.vllm.patches.attention.turboquant.p98_tq_workspace_revert", "P98"),
     ("sndr.engines.vllm.patches.attention.turboquant.p99_workspace_manager_memoize", "P99"),
     ("sndr.engines.vllm.patches.attention.turboquant.p101_tq_continuation_slicing", "P101"),

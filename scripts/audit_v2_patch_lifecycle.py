@@ -80,6 +80,16 @@ ALLOWED_RETIRED_PATCHES: dict[str, str] = {
         "`mask_value` kwarg, so leaving the env set is harmless on the new "
         "pin. Will be cleaned out of YAMLs at next config audit cycle."
     ),
+    "P78": (
+        "Preflight residual triage retire 2026-06-11 §3 — upstream "
+        "absorbed Sites B/C/D/E (CPU-mirror metadata native in pristine "
+        "turboquant_attn.py:190-193/237-238/486-489/601-610 on pin "
+        "0.22.1rc1.dev259; the buggy GPU .tolist() pattern is gone). "
+        "Env flag still set =1 in qwen3.6-35b-a3b-fp8-dflash YAML; "
+        "lifecycle='retired' makes the dispatcher skip it, so leaving "
+        "the env set is harmless on the new pin. Will be cleaned out of "
+        "the YAML at next config audit cycle."
+    ),
 }
 
 

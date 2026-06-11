@@ -30,6 +30,16 @@ __all__ = [
     "pn78_post_warmup_cache_release",
     "pn80_lora_tensorizer_device",
     "pn108_fused_recurrent_prefill",
+    # Retire batch 2026-06-11 (preflight residual triage §3 — iron-rule-
+    # #11 byte-verified; see each registry entry for the evidence chain):
+    "p4_tq_hybrid",
+    "p6_tq_block_size_align",
+    "p7b_gdn_dual_stream_customop",
+    "p36_tq_shared_decode_buffers",
+    "p78_tolist_capture_guard",
+    "p83_mtp_keep_last_cached_block",
+    "p84_hash_block_size_override",
+    "pn54_gdn_contiguous_dedup",
 ]
 
 

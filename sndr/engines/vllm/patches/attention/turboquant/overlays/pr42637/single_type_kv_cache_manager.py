@@ -1,5 +1,17 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
+#
+# [Genesis DORMANT SNAPSHOT — annotated 2026-06-11, preflight residual
+# triage §2] Full-file overlay snapshot of v1/core/single_type_kv_cache_
+# manager.py vendored for the PR #42637 experiment in the 0.20-era pins.
+# It still carries the OLD `use_eagle` parameter naming (lines ~381/491/
+# 556) which upstream renamed to `drop_eagle_block` (pristine pin
+# 0.22.1rc1.dev259 uses drop_eagle_block at single_type_kv_cache_
+# manager.py:405/530/608). The file is UNREFERENCED by the bind-mount
+# table and launchers — mounting it over a current pin would silently
+# roll the manager back to 0.20 semantics. Kept (not deleted) pending
+# the server-side bind-mount audit; do NOT re-flag in sibling-anchor
+# sweeps and do NOT mount on >=0.21 pins.
 import itertools
 from abc import ABC, abstractmethod
 from collections import defaultdict

@@ -29,7 +29,9 @@ v2 guards added (in priority order):
      path permanently disables PN204 for THAT layer instance (sets
      `_g_pn204_aux_stream = None`) — siblings continue on serial.
 
-Composes with PN50, PN54, PN59. Replaces retired P7. Auto-SKIPs when
+Composes with PN50, PN54 (retired 2026-06-11), PN59. Replaces legacy
+P7 (lifecycle='legacy', boot-skipped as deferred — wording aligned
+2026-06-11: P7 was never formally retired). Auto-SKIPs when
 upstream #42301 lands (drift marker `_in_proj_aux_stream`).
 
 Env gate: `GENESIS_ENABLE_PN204_DUAL_STREAM_INPROJ=1` (default OFF).

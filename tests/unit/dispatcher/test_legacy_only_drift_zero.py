@@ -163,7 +163,7 @@ def test_spec_only_truly_orphan_baseline():
         # v11.3.0 baseline
         "PN288", "PN289", "PN40-classifier",
         # v12 — ex-manual-orchestration modules (archived third path)
-        "G4_31", "G4_32",
+        "G4_31", "G4_32", "G4_79",
         "G4_60A", "G4_60B", "G4_60C", "G4_60D", "G4_60E",
         "G4_60G", "G4_60H", "G4_60K", "G4_60L",
         "G4_67", "G4_69",

@@ -134,7 +134,9 @@ def test_known_good_helpers_pass_the_scan():
         / "pn12_ffn_intermediate_pool.py",
         REPO_ROOT / "sndr" / "engines" / "vllm" / "patches" / "attention" / "gdn"
         / "p46_gdn_gating_buffers.py",
-        REPO_ROOT / "sndr" / "engines" / "vllm" / "patches" / "kernels"
+        # P36 retired 2026-06-11 (preflight residual triage §3) — module
+        # moved to _archive/; helper code unchanged, scan still applies.
+        REPO_ROOT / "sndr" / "engines" / "vllm" / "_archive"
         / "p36_tq_shared_decode_buffers.py",
         REPO_ROOT / "sndr" / "engines" / "vllm" / "patches" / "attention" / "gdn"
         / "p39a_fla_kkt_buffer.py",

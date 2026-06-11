@@ -446,33 +446,73 @@ def apply() -> tuple[str, str]:
     # (non-hybrid TQ with mixed-preset layers; hybrid models without
     # `layer_types`/`layers_block_type` hints) still go through the
     # normal P5 path because the probe will return False there.
+    #
+    # [Preflight triage 2026-06-11 §6 — Probe 1 fix] The original probe
+    # did `hasattr(turboquant.config, "TQFullAttentionSpec")`, which is
+    # ALWAYS False: #39931 (MERGED 2026-05-05, gh-verified 2026-06-11)
+    # defines TQFullAttentionSpec in vllm/v1/kv_cache_interface.py
+    # (pristine :327 on pin 0.22.1rc1.dev259), NOT in turboquant/config.py
+    # — only `_get_full_attention_layer_indices` lives there (pristine
+    # :235). The intended auto-skip therefore never fired and P5 kept
+    # rewriting the planner on a pin that already has the lcm superset.
+    # Probe now keys each symbol on its real home.
+    #
+    # Defer-vs-keep contract (explicit):
+    #   DEFER (skip P5)  — both probes hit AND the operator has not set
+    #                      GENESIS_DISABLE_P5_AUTORETIRE=1. Upstream's
+    #                      TQ-aware `_align_hybrid_block_size` owns
+    #                      page-size unification for hybrid+TQ.
+    #   KEEP (apply P5)  — any probe misses (pre-#39931 pin, partial
+    #                      backport, renamed symbol) OR the operator
+    #                      forces P5 via GENESIS_DISABLE_P5_AUTORETIRE=1
+    #                      (e.g. non-hybrid mixed-preset edge cases where
+    #                      #39931 is incomplete). The force-override env
+    #                      was previously documented in the skip message
+    #                      but never read — now wired.
     # ════════════════════════════════════════════════════════════════════════
     try:
         import importlib
-        # Probe 1: TQFullAttentionSpec (added by #39931 in
-        # vllm/model_executor/layers/quantization/turboquant/config.py)
+        # Probe 1: TQFullAttentionSpec — real home is
+        # vllm/v1/kv_cache_interface.py (pristine :327), where #39931
+        # defines the spec subclass used by the planner.
+        try:
+            kv_iface = importlib.import_module("vllm.v1.kv_cache_interface")
+            has_tq_full_spec = hasattr(kv_iface, "TQFullAttentionSpec")
+        except Exception:
+            has_tq_full_spec = False
+        # Probe 2: _get_full_attention_layer_indices — lives in
+        # turboquant/config.py (pristine :235).
         try:
             tq_cfg = importlib.import_module(
                 "vllm.model_executor.layers.quantization.turboquant.config"
             )
-            has_tq_full_spec = hasattr(tq_cfg, "TQFullAttentionSpec")
             has_filter_helper = hasattr(
                 tq_cfg, "_get_full_attention_layer_indices"
             )
         except Exception:
-            has_tq_full_spec = False
             has_filter_helper = False
 
-        if has_tq_full_spec and has_filter_helper:
+        autoretire_overridden = _g_p5_os.environ.get(
+            "GENESIS_DISABLE_P5_AUTORETIRE", ""
+        ).strip().lower() in ("1", "true", "yes", "on")
+
+        if has_tq_full_spec and has_filter_helper and not autoretire_overridden:
             return "skipped", (
-                "PR #39931 detected (TQFullAttentionSpec + "
+                "PR #39931 detected (TQFullAttentionSpec present in "
+                "vllm.v1.kv_cache_interface + "
                 "_get_full_attention_layer_indices present in upstream "
                 "vllm.model_executor.layers.quantization.turboquant.config). "
-                "Genesis P5 deferring to upstream's TQ-aware "
+                "Genesis P5 DEFERRING to upstream's TQ-aware "
                 "_align_hybrid_block_size — no planner-level rewrite "
                 "needed for hybrid+TQ. Set GENESIS_DISABLE_P5_AUTORETIRE=1 "
                 "to override and force P5 anyway (e.g. for non-hybrid "
                 "edge cases where #39931 is incomplete)."
+            )
+        if autoretire_overridden and has_tq_full_spec and has_filter_helper:
+            log.info(
+                "[Genesis P5] GENESIS_DISABLE_P5_AUTORETIRE=1 — KEEPING "
+                "P5 despite upstream #39931 symbols being present "
+                "(operator-forced)."
             )
     except Exception as e:
         # Probe failure is non-fatal — fall through to normal P5 apply.

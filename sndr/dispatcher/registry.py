@@ -686,20 +686,32 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "implementation_status": "full",
     },
     "P78": {
-        "title": "TurboQuant .tolist() capture-guard (adapted from noonghunna)",
+        "title": "TurboQuant .tolist() capture-guard (adapted from noonghunna) — RETIRED 2026-06-11",
         "tier": "community",
         "family": "attention.turboquant",
         "env_flag": "GENESIS_ENABLE_P78_TOLIST_CAPTURE_GUARD",
         "default_on": False,
         "category": "compile_safety",
-        "credit": "Adapted from noonghunna's patch_tolist_cudagraph.py (Apache-2.0, github.com/noonghunna/qwen36-27b-single-3090). Surgical safety-net for cudagraph capture; complements our P22/P26/P44 prealloc.",
+        "credit": "Adapted from noonghunna's patch_tolist_cudagraph.py (Apache-2.0, github.com/noonghunna/qwen36-27b-single-3090). Was the surgical safety-net for cudagraph capture; complemented our P22/P26/P44 prealloc. RETIRED — upstream absorbed all guarded sites.",
+        # [Retire 2026-06-11, preflight residual triage §3, byte-verified]
+        # Upstream absorbed Sites B/C/D/E on pin 0.22.1rc1.dev259: CPU-
+        # mirror metadata fields query_start_loc_cpu / seq_lens_cpu
+        # (pristine turboquant_attn.py:190-193), build() wiring populating
+        # them (237-238), prefill_max_seq taken from seq_lens_cpu with
+        # max_seq_len fallback (486-489), and the continuation path doing
+        # CPU-first .tolist() with an explicit "otherwise .tolist() on GPU
+        # tensors forces a synchronizing copy" comment (601-610). The
+        # buggy GPU-tensor .tolist() pattern P78 guarded is gone from the
+        # file. Module archived.
+        "superseded_by": "upstream-native CPU-mirror metadata path — Sites B/C/D/E absorbed (pristine turboquant_attn.py:190-193, 237-238, 486-489, 601-610); GPU .tolist() pattern gone (byte-verified 2026-06-11)",
+        "vllm_version_range": "<0.22.1rc1.dev259",  # supersession byte-verified on this pin's pristine tree
         "upstream_pr": None,
         "applies_to": {
             "is_turboquant": [True],
             "quant_format": ["fp8", "compressed_tensors"],
         },
-        "apply_module": "sndr.engines.vllm.patches.attention.turboquant.p78_tolist_capture_guard",
-        "lifecycle": "experimental",
+        "apply_module": "sndr.engines.vllm._archive.p78_tolist_capture_guard",
+        "lifecycle": "retired",
         "implementation_status": "full",
     },
     "P79b": {
@@ -789,17 +801,35 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "implementation_status": "full",
     },
     "P83": {
-        "title": "MTP keep-last-cached-block (vllm#38182 downstream symptom — P84 is real fix)",
+        "title": "MTP keep-last-cached-block (vllm#38182 downstream symptom — P84 was real fix) — RETIRED 2026-06-11",
         "tier": "community",
         "family": "kv_cache",
         "env_flag": "GENESIS_ENABLE_P83",
         "default_on": False,
         "category": "spec_decode",
-        "credit": "Root-cause analysis: vllm#38182 by uOnePiece + @Angazenn comment identifying single_type_kv_cache_manager.py:457 force-pop last cached block when use_eagle=True. MTP gets caught up via config/speculative.py:890-891 (use_eagle returns True for 'mtp'). EMPIRICALLY DISPROVEN as the actual cause: Genesis debug instrumentation showed find_longest_cache_hit was NEVER called for our workload because num_hashes=0 (block_size > prompt_len after P5 LCM-pad). The L457 pop is a downstream symptom, not the upstream cause. P84 (hash_block_size override) is the real fix. P83 kept as opt-in research artifact for future workloads where the pop site IS reached.",
+        "credit": "Root-cause analysis: vllm#38182 by uOnePiece + @Angazenn comment identifying single_type_kv_cache_manager.py:457 force-pop last cached block when use_eagle=True. MTP gets caught up via config/speculative.py:890-891 (use_eagle returns True for 'mtp'). EMPIRICALLY DISPROVEN as the actual cause: Genesis debug instrumentation showed find_longest_cache_hit was NEVER called for our workload because num_hashes=0 (block_size > prompt_len after P5 LCM-pad). The L457 pop is a downstream symptom, not the upstream cause. P84 (hash_block_size override) was the real fix (itself retired 2026-06-11 — upstream-native). RETIRED.",
+        # [Retire 2026-06-11, preflight residual triage §3, byte-verified]
+        # Upstream renamed use_eagle → drop_eagle_block in single_type_
+        # kv_cache_manager.py (parameter at pristine :405/:530/:608) and
+        # added coordinator-level lookahead with eagle_verified
+        # bookkeeping (kv_cache_coordinator.py:643-650; the lookahead
+        # window logic at 565-571) — this supersedes the convergence-
+        # interaction cost P83 tried to dodge; the residual tail-block
+        # drop is tracked via open #44986 (OPEN, gh-verified 2026-06-11).
+        # Re-anchoring P83 onto the new code is UNSAFE: a skip-pop breaks
+        # the monotonic-decrease convergence invariant (coordinator
+        # L588-593) and corrupts eagle_verified bookkeeping. Already
+        # "empirically disproven" as the root cause per the research_note
+        # below. Module archived.
+        "superseded_by": "upstream use_eagle→drop_eagle_block rename + coordinator lookahead with eagle_verified bookkeeping (pristine kv_cache_coordinator.py:643-650, 565-571) — supersedes the convergence-interaction cost; residual tail-block drop tracked via open #44986",
+        "vllm_version_range": "<0.22.1",  # plan-mandated cap (§3); rename verified on 0.22.1rc1.dev259 pristine
         "upstream_pr": None,
-        "applies_to": {"is_hybrid": [True]},
-        "apply_module": "sndr.engines.vllm.patches.kv_cache.p83_mtp_keep_last_cached_block",
-        "lifecycle": "research",
+        "applies_to": {
+            "is_hybrid": [True],
+            "vllm_version_range": "<0.22.1",  # pin-gate mirror of the retire cap
+        },
+        "apply_module": "sndr.engines.vllm._archive.p83_mtp_keep_last_cached_block",
+        "lifecycle": "retired",
         "research_note": (
             "Empirically disproven as the root cause of vllm#38182: "
             "Genesis instrumentation found `find_longest_cache_hit` was "
@@ -813,17 +843,37 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "implementation_status": "full",
     },
     "P84": {
-        "title": "hash_block_size override (vllm#38182 actual root cause)",
+        "title": "hash_block_size override (vllm#38182 actual root cause) — RETIRED 2026-06-11",
         "tier": "community",
         "family": "scheduler",
         "env_flag": "GENESIS_ENABLE_P84",
         "default_on": False,
         "category": "kv_cache",
-        "credit": "Genesis-original discovery 2026-04-27 via P83 DEBUG instrumentation. scheduler.py:234 hard-codes hash_block_size=self.block_size; on hybrid Qwen3.6-MoE with P5 LCM-pad this becomes 2048+, so request_block_hasher computes 0 hashes for prompts < 2048 tokens. Cache machinery runs with overhead but never produces hits. P84 text-patches scheduler.py to read hash_block_size from env GENESIS_P84_HASH_BLOCK_SIZE (recommended value: 16 = full-attention default). Engage via GENESIS_ENABLE_P84=1 + GENESIS_P84_HASH_BLOCK_SIZE=16. Constraint: must divide every group's block_size, else vLLM's own assertion fires at startup. Related: vllm#38182 identified WRONG root cause (the L457 pop); P84 attacks the upstream cause.",
+        "credit": "Genesis-original discovery 2026-04-27 via P83 DEBUG instrumentation. scheduler.py hard-coded hash_block_size=self.block_size; on hybrid Qwen3.6-MoE with P5 LCM-pad this became 2048+, so request_block_hasher computed 0 hashes for prompts < 2048 tokens. P84 text-patched scheduler.py to read hash_block_size from env GENESIS_P84_HASH_BLOCK_SIZE. Related: vllm#38182 identified WRONG root cause (the L457 pop); P84 attacked the upstream cause. RETIRED — both sites upstream-native.",
+        # [Retire 2026-06-11, preflight residual triage §3, byte-verified]
+        # Both P84 sites are upstream-native on pin 0.22.1rc1.dev259:
+        # (1) Scheduler.__init__ accepts an explicit `hash_block_size:
+        # int | None = None` parameter (pristine v1/core/sched/
+        # scheduler.py:72, default resolution at 229-230, passed to the
+        # hasher at 242); (2) `resolve_kv_cache_block_sizes` (pristine
+        # v1/core/kv_cache_utils.py:593) provides the GCD default, the
+        # explicit `cache_config.hash_block_size` override, and the
+        # divisibility ValueError — a superset of P84's env override.
+        # CAVEAT (verifier, plan §3): the Mamba back-off
+        # (kv_cache_utils.py:639-644) runs BEFORE both the GCD default
+        # AND the explicit override — before declaring full behavioral
+        # equivalence on a prod prefix-caching config, verify
+        # mamba_cache_mode='align' resolution actually yields
+        # num_hashes>0 (server-side check, queued with the §5 P85 work).
+        # Cascade: P85's requires_patches=["P84"] re-triage note added to
+        # the P85 entry; the P85 fix itself is the §5 follow-up, NOT part
+        # of this batch. Module archived.
+        "superseded_by": "upstream-native hash_block_size: scheduler param (pristine v1/core/sched/scheduler.py:72,229-230,242) + resolve_kv_cache_block_sizes with GCD default / cache_config.hash_block_size override / divisibility ValueError (kv_cache_utils.py:593) — byte-verified 2026-06-11; Mamba back-off (639-644) equivalence check queued with §5 P85 work",
+        "vllm_version_range": "<0.22.1rc1.dev259",  # supersession byte-verified on this pin's pristine tree
         "upstream_pr": None,
         "applies_to": {"is_hybrid": [True]},
-        "apply_module": "sndr.engines.vllm.patches.scheduler.p84_hash_block_size_override",
-        "lifecycle": "experimental",
+        "apply_module": "sndr.engines.vllm._archive.p84_hash_block_size_override",
+        "lifecycle": "retired",
         "implementation_status": "full",
     },
     "P85": {
@@ -836,6 +886,16 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "credit": "Genesis-original 2026-04-27 — synthesis of 6-round empirical investigation + deep code analysis. Identified TWO mismatches in hybrid prefix cache: (A) MambaManager.cache_blocks early-returns for prompts < self.block_size (e.g., 1424 < 2048); (B) Mamba align-mode pads with null_blocks so num_full_blocks > 0 still inserts 0 entries. P85 patches MambaManager to: (1) register shadow fine-grained hash entries (scale_factor=block_size/hash_block_size duplicates) when caching, (2) walk fine hashes on lookup with eviction-safety re-derive verify. Memory layout / ref-count untouched. Requires P84 (fine hashes computed). Architectural limit: cannot help prompts < block_size (Mamba state genuinely uncached at sub-block boundaries).",
         "upstream_pr": None,
         "applies_to": {"is_hybrid": [True]},
+        # [Preflight triage 2026-06-11 §3 cascade — re-triage queued]
+        # P84 retired (hash_block_size is upstream-native via the
+        # scheduler param + resolve_kv_cache_block_sizes). This
+        # requirement must be re-triaged during the §5 both-sites P85
+        # fix: fine hashes now come from upstream cache_config.
+        # hash_block_size instead of P84's env override, and the Mamba
+        # back-off (kv_cache_utils.py:639-644) must be verified to yield
+        # num_hashes>0 on the prod prefix-caching config. List left
+        # as-is tonight (P85 is default-OFF; changing the dependency
+        # semantics belongs to the §5 follow-up, not this batch).
         "requires_patches": ["P84"],
         "apply_module": "sndr.engines.vllm.patches.kv_cache.p85_hybrid_fine_shadow_prefix_cache",
         "lifecycle": "experimental",
@@ -972,9 +1032,12 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "(e.g. AEON-7/Qwen3.6-NVFP4-DFlash, llm-compressor self-quant). "
             "Memory savings on adoption: BF16 drafter ~2.4 GB → FP8 ~1.2 GB "
             "per worker, ~2.4 GB total at TP=2 — frees KV-cache headroom. "
-            "4 sub-patches into qwen3_dflash.py (Site A: F.linear→qkv_proj; "
-            "B: pass quant_config to layer; C: conditional fused-KV; D: "
-            "quantized fallback in precompute). Composable with PN40-A "
+            "3 sub-patches into qwen3_dflash.py (Site A: F.linear→qkv_proj; "
+            "C: conditional fused-KV; D: quantized fallback in precompute). "
+            "Site B (pass quant_config to layer) retired 2026-06-11 — "
+            "upstream-native since 0.22.1rc1.dev259 (get_draft_quant_config "
+            "init + decoder-layer kwarg); apply() presence-guards both "
+            "native lines, loud skip when absent. Composable with PN40-A "
             "(different anchor surfaces in same file)."
         ),
         "upstream_pr": 40425,
@@ -2209,6 +2272,18 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "family": "streaming",  # was "kv_cache"; integration lives at integrations/streaming/
         "env_flag": "GENESIS_ENABLE_PN200_GDN_SCRATCH_REUSE",
         "default_on": False,
+        # [Preflight triage 2026-06-11 §3 — PENDING DECISION, do NOT
+        # silently re-anchor] PN200's anchor is now ambiguous on pin
+        # 0.22.1rc1.dev259 (3 matches pristine / 2 matches post-P28),
+        # and PROD-applied P28 owns the CUDA site, delivering the same
+        # buffer-reuse+zero. Per the journal corollary, range-capping is
+        # NOT retirement while launchers still export
+        # GENESIS_ENABLE_PN200_GDN_SCRATCH_REUSE: the open decision is
+        # either (a) retire properly — lifecycle='retired' + remove the
+        # flag from compose/prod-*.yml and the model YAMLs — or (b)
+        # re-anchor as a P28 chain consumer with explicit
+        # requires/conflicts declarations. Left as-is (skipped-disabled
+        # at boot, line 197) until the operator makes that call.
         "lifecycle": "experimental",
         "category": "memory",
         "apply_module": "sndr.engines.vllm.patches.streaming.pn200_gdn_scratch_reuse",
@@ -2452,7 +2527,10 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {
             "vllm_version_range": (">=0.20.2rc1.dev9", "<0.23.0"),
         },
-        "requires_patches": [],
+        # [Preflight triage 2026-06-11 §2] PN71's anchor literally
+        # contains P27's injected comments — it only matches the
+        # post-P27 file, so P27 must apply first (chain convention).
+        "requires_patches": ["P27"],
         "conflicts_with": [],
         "implementation_status": "full",
     },
@@ -2599,12 +2677,28 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "implementation_status": "full",
     },
     "PN54": {
-        "title": "GDN contiguous-call deduplication (P0.7 Cliff 2b OOM mitigation)",
+        "title": "GDN contiguous-call deduplication (P0.7 Cliff 2b OOM mitigation) — RETIRED 2026-06-11",
         "tier": "community",
         "family": "attention.gdn",
         "env_flag": "GENESIS_ENABLE_PN54_GDN_CONTIGUOUS_DEDUP",
         "default_on": False,
         "category": "perf_hotfix",
+        # [Retire 2026-06-11, preflight residual triage §3, byte-verified]
+        # Both sub-anchors are upstream-native / gone on pin
+        # 0.22.1rc1.dev259+g303916e93: sub-A — pristine
+        # gdn/qwen_gdn_linear_attn.py:1504-1514 gathers WITHOUT
+        # .contiguous() ("initial_state = ssm_state[prefill_state_indices]"
+        # at :1513); sub-B — the LoRA chunk-halves branch was removed
+        # upstream (only the CPU assert "lora isn't supported on CPU."
+        # remains at :1023). SSM_STATE_OLD / LORA_BA_OLD both count=0
+        # (byte-verified). Latent self-substring marker bug (marker text
+        # appears inside the pristine anchor → false-skip PRE-apply) fed
+        # to the §6 self-collision lint corpus. Do NOT chase the
+        # b/a.contiguous() pair at pristine 942-943 — different site,
+        # real copy (PN350/PN365 territory). conflicts_with PN79 kept
+        # (documents the historical double-pad interaction).
+        "superseded_by": "upstream-native dedup — sub-A gather without .contiguous() (pristine gdn/qwen_gdn_linear_attn.py:1513); sub-B LoRA branch removed (CPU assert only at :1023); anchors count=0 (byte-verified 2026-06-11)",
+        "vllm_version_range": "<0.22.1rc1.dev259",  # anchors dead on this pin's pristine tree
         "credit": (
             "Genesis-original 2026-05-04, inspired by MLX-LM PR #1077 "
             "(adurham, MIT) root-cause analysis: shared-buffer/slice-keeps-"
@@ -2632,8 +2726,8 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         # in the same gdn_linear_attn.py codepath. Together they double-pad
         # the same allocation in some prefill regimes.
         "conflicts_with": ["PN79"],
-        "apply_module": "sndr.engines.vllm.patches.attention.gdn.pn54_gdn_contiguous_dedup",
-        "lifecycle": "experimental",
+        "apply_module": "sndr.engines.vllm._archive.pn54_gdn_contiguous_dedup",
+        "lifecycle": "retired",
         "implementation_status": "full",
     },
     "PN52": {
@@ -3004,9 +3098,11 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "env_flag": "GENESIS_ENABLE_PN204_DUAL_STREAM_INPROJ",
         "default_on": False,
         "category": "kernel_perf",  # was "performance"; normalize (GDN dual-stream input projection kernel-level perf win)
-        # PN204 replaces retired P7 (status=skipped, deferred — raw
-        # torch.cuda.Stream not SymPy-graphable inside torch.compile
-        # fullgraph). PN204 uses upstream vllm.utils.multi_stream_utils
+        # PN204 replaces legacy P7 (lifecycle='legacy', boot status =
+        # skipped/deferred — raw torch.cuda.Stream not SymPy-graphable
+        # inside torch.compile fullgraph; wording aligned 2026-06-11
+        # during the P7b retire: P7 was never formally retired).
+        # PN204 uses upstream vllm.utils.multi_stream_utils
         # .maybe_execute_in_parallel which is torch.compile-safe and
         # available in the pinned nightly dcacdf9a.
         #
@@ -3031,7 +3127,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             # Hybrid GDN models (Qwen3.5/3.6) on CUDA-alike platforms.
         },
         "requires_patches": [],
-        # Mutually exclusive with retired P7 (same forward_cuda Part 1
+        # Mutually exclusive with legacy P7 (same forward_cuda Part 1
         # target). Operator must keep P7 disabled when enabling PN204.
         # Also mutually exclusive with PN365 (port of vllm#42746 fuses
         # the two in_proj GEMMs into one — nothing to overlap, AND PN204
@@ -3925,6 +4021,17 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {
             "tool_call_parser": "qwen3_coder",
         },
+        # Apply-order chain (2026-06-11, pin 0.22.1rc1.dev259 re-anchor):
+        # P107 v3's streaming anchor spans the same pristine finish_reason
+        # block PLUS the following choice_data line; P107's replacement
+        # keeps the block verbatim, so the pair composes ONLY in
+        # P107-then-PN288 order (PN288 re-indents the block inside its
+        # except-fallback, destroying P107's anchor). Ordering-only
+        # dependency: PN288 still applies standalone on pristine when
+        # P107 is disabled — the dep-graph dep_missing WARNING is
+        # advisory. Proven in
+        # tests/unit/integrations/serving/test_pn288_p107_anchor_coordination.py.
+        "requires_patches": ["P107"],
         "apply_module": "sndr.engines.vllm.patches.serving.pn288_tool_finish_reason_override",
         "lifecycle": "experimental",
         "implementation_status": "full",
@@ -4535,11 +4642,13 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "with P65 (P65 also downgrades the same ClassVar via a "
             "classmethod approach; P65 is DEFAULT OFF so no live conflict "
             "today). Supersedes-in-effect: with PN353B applied, P65's "
-            "downgrade is redundant. Composes with P78 Sites C/D/E "
-            "(P78 covers Site E forward-path while PN353B covers "
-            "build_for_cudagraph_capture + continuation early-return — "
-            "different methods, additive). Composes with PN116 / P101 "
-            "(different code paths). Risk LOW-MEDIUM: ~5-8 %% TPS hit "
+            "downgrade is redundant. P78 reference removed 2026-06-11: "
+            "P78 retired (upstream absorbed its Sites B/C/D/E — CPU-"
+            "mirror metadata is native in turboquant_attn.py), so the "
+            "former 'composes with P78 Sites C/D/E' relationship is now "
+            "PN353B-on-upstream-native, no companion patch involved. "
+            "Composes with PN116 / P101 (different code paths). Risk "
+            "LOW-MEDIUM: ~5-8 %% TPS hit "
             "on K+1 batches but crash without it. Direct hit for our "
             "PROD 35B-A3B FP8 + MTP K=3 + TQ k8v4."
         ),
@@ -4550,7 +4659,9 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "vllm_version_range": (">=0.21.0", "<0.23.0"),
         },
         "implementation_status": "full",
-        "composes_with": ["P78", "P101", "PN116", "PN118", "PN353A"],
+        # P78 dropped 2026-06-11 (retired — its Sites B/C/D/E are
+        # upstream-native on this pin; see P78 retire note).
+        "composes_with": ["P101", "PN116", "PN118", "PN353A"],
         "conflicts_with": ["P65"],
     },
     "PN364": {
@@ -4716,7 +4827,15 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "tier": "community",
         "family": "kv_cache",
         "env_flag": "GENESIS_ENABLE_PN346",
-        "default_on": False,
+        # [Preflight triage 2026-06-11 §2] Honest alignment with module
+        # reality: pn346_mamba_mtp_apc_boundary.apply() ignores
+        # GENESIS_ENABLE_PN346 entirely and honors ONLY the opt-out
+        # GENESIS_DISABLE_PN346 → the patch is effectively default-ON
+        # (PROD boot line 87 shows it applied with no enable flag set).
+        # Registry default_on=True records that truth; module behavior
+        # deliberately unchanged (correctness vendor, opt-out-only by
+        # design). Operators disable via GENESIS_DISABLE_PN346=1.
+        "default_on": True,
         "apply_module": "sndr.engines.vllm.patches.kv_cache.pn346_mamba_mtp_apc_boundary",
         "lifecycle": "experimental",
         "category": "correctness",
@@ -6120,24 +6239,30 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "implementation_status": "full",
     },
     "P4": {
-        "title": "TurboQuant hybrid model support",
+        "title": "TurboQuant hybrid model support — RETIRED 2026-06-11",
         "tier": "community",
         "family": "scheduler",
         "env_flag": "GENESIS_LEGACY_P4",
-        "default_on": True,
-        "apply_module": "sndr.engines.vllm.patches.scheduler.p4_tq_hybrid",
-        "lifecycle": "legacy",
+        "default_on": False,
+        "apply_module": "sndr.engines.vllm._archive.p4_tq_hybrid",
+        "lifecycle": "retired",
         "category": "kv_cache",
-        "credit": "Pre-dispatcher legacy patch. Removes hybrid (GDN + full attention) model rejection in TQ path, enabling Qwen3.5/3.6 hybrid serving with TQ k8v4.",
-        # 2026-05-05: SUPERSEDED upstream by vllm#39931 (MERGED 2026-05-05 00:14
-        # UTC, JartX + jhsmith409 + Sandermage co-authors). Upstream now
-        # detects hybrid via layer_types/layers_block_type/attn_type_list and
-        # computes TQ page-size via lcm in `_align_hybrid_block_size` —
-        # cleaner than P4. Plan: retire P4 on next pin bump past commit
-        # 4f2af1a7c03aae2b3227dd7e69d726104d44a711. Verify hybrid TQ smoke test
-        # boots cleanly with P4 OFF before final retirement.
-        "superseded_by": "vllm#39931 (merged 2026-05-05)",
-        "retire_after_pin": "0.20.2rc1+",
+        "credit": "Pre-dispatcher legacy patch. Removed hybrid (GDN + full attention) model rejection in TQ path, enabling Qwen3.5/3.6 hybrid serving with TQ k8v4. RETIRED — upstream supports hybrid TQ natively via vllm#39931.",
+        # [Retire 2026-06-11, preflight residual triage §3 — executes the
+        # registry's own overdue 2026-05-05 plan] vllm#39931 MERGED
+        # 2026-05-05 00:14 UTC (gh-verified 2026-06-11; JartX + jhsmith409
+        # + Sandermage co-authors). Upstream detects hybrid via
+        # layer_types/layers_block_type/attn_type_list — near-verbatim our
+        # `_genesis_p4_full_attention_indices` logic — and computes TQ
+        # page-size via lcm in `_align_hybrid_block_size`. PROD boot on
+        # pin 0.22.1rc1.dev259+g303916e93 already self-skips P4 via the
+        # upstream marker ("skipped: P4 ... upstream_merged", deduped boot
+        # line 152) — P4-OFF is the live steady state, and hybrid-TQ
+        # boots clean on this pin (fleet validation journal 2026-06-11).
+        # Module archived; delete file in next cleanup batch. Regenerate
+        # docs/PATCHES_AUTO.md + run pin-gate / iron-rule-11 gates.
+        "superseded_by": "vllm#39931 (MERGED 2026-05-05 00:14 UTC, gh-verified 2026-06-11) — upstream hybrid detection + lcm page-size in _align_hybrid_block_size",
+        "vllm_version_range": "<0.22.1rc1.dev259",  # supersession byte-verified on this pin's pristine tree
         "implementation_status": "full",
     },
     "P5": {
@@ -6175,15 +6300,29 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "implementation_status": "full",
     },
     "P6": {
-        "title": "TurboQuant-aware attention page size",
+        "title": "TurboQuant-aware attention page size — RETIRED 2026-06-11",
         "tier": "community",
         "family": "compile_safety",
         "env_flag": "GENESIS_LEGACY_P6",
-        "default_on": True,
-        "apply_module": "sndr.engines.vllm.patches.compile_safety.p6_tq_block_size_align",
-        "lifecycle": "legacy",
+        "default_on": False,
+        "apply_module": "sndr.engines.vllm._archive.p6_tq_block_size_align",
+        "lifecycle": "retired",
         "category": "kv_cache",
-        "credit": "Pre-dispatcher legacy patch. Selects TQ-aware page size (matches TQ packed slot stride) when TQ KV is active.",
+        "credit": "Pre-dispatcher legacy patch. Selected TQ-aware page size (matches TQ packed slot stride) when TQ KV is active. RETIRED — vllm#39931 merged a corrected superset.",
+        # [Retire 2026-06-11, preflight residual triage §3, formalizes the
+        # §1 neutralization (commit 23033ddb)] vllm#39931 (MERGED
+        # 2026-05-05) ships a corrected superset: upstream
+        # `_align_hybrid_block_size` uses `lcm(tq_page, skip_page)` — not
+        # `max` — at pristine platforms/interface.py:573-609 (TQ branch
+        # imports TQFullAttentionSpec lazily at :582), fixing the max-vs-
+        # lcm bug our P6 carried. Mis-apply hazard that forced the §1
+        # hard-skip: P6's drift marker `'TQFullAttentionSpec,'` (trailing
+        # comma) never matches the pristine lazy import, while BOTH P6
+        # anchors still match pristine — an enabled P6 would "apply" and
+        # inject a dead duplicate elif + redundant import on top of the
+        # merged superset. Module archived.
+        "superseded_by": "vllm#39931 (MERGED 2026-05-05) — corrected superset: lcm-based _align_hybrid_block_size at pristine platforms/interface.py:573-609",
+        "vllm_version_range": "<0.22.1rc1.dev259",  # supersession byte-verified on this pin's pristine tree
         "implementation_status": "full",
     },
     "P7": {
@@ -6200,17 +6339,35 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "implementation_status": "full",
     },
     "P7b": {
-        "title": "GDN dual-stream via torch.library.custom_op (opt-in)",
+        "title": "GDN dual-stream via torch.library.custom_op — RETIRED 2026-06-11",
         "tier": "community",
         "family": "attention.gdn",
         # Audit P2 fix 2026-05-05: registry was `GENESIS_ENABLE_P7B_DUAL_STREAM_CUSTOM_OP`
         # but wiring code + docstrings use `GENESIS_ENABLE_P7B`. Aligned.
         "env_flag": "GENESIS_ENABLE_P7B",
         "default_on": False,
-        "apply_module": "sndr.engines.vllm.patches.attention.gdn.p7b_gdn_dual_stream_customop",
-        "lifecycle": "legacy",
+        "apply_module": "sndr.engines.vllm._archive.p7b_gdn_dual_stream_customop",
+        "lifecycle": "retired",
         "category": "kernel_perf",
-        "credit": "Pre-dispatcher legacy patch. Custom-op variant of P7 dual-stream — opt-in alternative for cudagraph capture compatibility experiments.",
+        "credit": "Pre-dispatcher legacy patch. Custom-op variant of P7 dual-stream — was the opt-in alternative for cudagraph capture compatibility experiments. RETIRED — superseded by PN204 + PN365; both anchors dead on current pin.",
+        # [Retire 2026-06-11, preflight residual triage §3, byte-verified]
+        # Both P7b anchors are dead post-refactor (#41126 split moved the
+        # target to gdn/qwen_gdn_linear_attn.py): `get_tensor_model_
+        # parallel` has 0 hits in the target file, and the 12-space serial
+        # in_proj pair ("else:\n mixed_qkvz, _ = self.in_proj_qkvz(...)\n
+        # ba, _ = self.in_proj_ba(...)") counts 0 in pristine. Superseded
+        # by PN204 (port of vllm#42301 — upstream helper
+        # `maybe_execute_in_parallel` present in pin at
+        # utils/multi_stream_utils.py:20) and PN365 (port of vllm#42746
+        # single-GEMM in_proj fuse — applied in one PROD container, boot
+        # line 100; skipped-disabled in the other). Extra retire reason:
+        # PN204_FWD_NEW / PN365_FWD_NEW emit P7b's anchor-2 text in their
+        # fallback branches → a resurrected P7b risks sibling-matching
+        # another patch's post-apply output. conflicts_with kept on
+        # purpose: the mutual-exclusion contract still documents the
+        # shared forward_cuda Part 1 site.
+        "superseded_by": "PN204 (vllm#42301 port; maybe_execute_in_parallel native in pin at utils/multi_stream_utils.py:20) + PN365 (vllm#42746 port, applied in one PROD container) — P7b anchors count=0 on pristine gdn/qwen_gdn_linear_attn.py (byte-verified 2026-06-11)",
+        "vllm_version_range": "<0.22.1rc1.dev259",  # anchors dead from this pin's gdn split onward
         "conflicts_with": ["P7"],
         "implementation_status": "full",
     },
@@ -6393,15 +6550,27 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "requires_patches": ["PN119"],
     },
     "P20": {
-        "title": "TurboQuant continuation-prefill FP16 rotate",
+        "title": "TurboQuant continuation-prefill FP16 rotate — RETIRED 2026-06-11",
         "tier": "community",
         "family": "attention.turboquant",
         "env_flag": "GENESIS_LEGACY_P20",
-        "default_on": True,
+        "default_on": False,
         "implementation_status": "marker_only",
-        "lifecycle": "legacy",
+        "lifecycle": "retired",
         "category": "kernel_perf",
-        "credit": "Pre-dispatcher legacy patch. FP16 rotation for TQ continuation-prefill path (JartX/vllm#11 prerequisite for v7.0+).",
+        "credit": "Pre-dispatcher legacy patch. FP16 rotation for TQ continuation-prefill path (JartX/vllm#11 prerequisite for v7.0+). RETIRED — upstream superset native; P20 was marker_only and never bound.",
+        # [Retire 2026-06-11, preflight residual triage §3, byte-verified
+        # — zero-risk: implementation_status='marker_only', the helper
+        # never bound to the live file] Upstream ships a SUPERSET of
+        # JartX/vllm#11: per-layer `_tq_Pi_half` fp16 rotation cache
+        # (pristine turboquant_attn.py:352 "layer._tq_Pi_half =
+        # H.to(torch.float16)", read at :791 in the 789-797 block) PLUS
+        # preallocated k_full/v_full that eliminate the torch.cat
+        # transient — better than our approach. No wiring module to
+        # archive (registry-only entry, like PN34). upstream_compat.py
+        # PR_JARTX_11 merged_date updated in the same batch.
+        "superseded_by": "upstream superset of JartX/vllm#11 — per-layer _tq_Pi_half fp16 cache (pristine turboquant_attn.py:352, 789-797) + prealloc k_full/v_full removing the torch.cat transient (byte-verified 2026-06-11)",
+        "vllm_version_range": "<0.22.1rc1.dev259",  # supersession byte-verified on this pin's pristine tree
     },
     "P22": {
         "title": "TurboQuant shared dequant prealloc",
@@ -6490,13 +6659,15 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "lifecycle": "legacy",
         "category": "memory_pool",
         "credit": "Pre-dispatcher legacy patch. Preallocates TQ prefill output buffer to avoid per-step allocation churn.",
-        "superseded_by": "upstream TQ prefill prealloc refactor (marker 'if not hasattr(self, \"_cu_2\")' present on dev93+; auto-skip via wiring drift detector)",
-        # [Iron rule #11 audit 2026-05-11] Wire detector auto-skips on
-        # dev93+dev209 — upstream's `_cu_2` lazy-init guard covers the
-        # same prefill output buffer prealloc concern P26 addressed.
-        # Different impl path (lazy hasattr check vs Genesis explicit
-        # prealloc) but functionally equivalent for the regression P26
-        # prevents. Lifecycle stays "legacy" (architectural).
+        "superseded_by": "PARTIAL — cu_2 half only (upstream `_cu_2` lazy-init guard, #40420-class OOM concern, marker 'if not hasattr(self, \"_cu_2\")' present on dev93+); the output_alloc prealloc (~32 MiB/call) is NOT upstream and still applies. Do NOT retire P26 on a title match.",
+        # [Preflight triage 2026-06-11 §2, supersedes the 2026-05-11
+        # iron-rule-#11 audit note] The earlier wording implied FULL
+        # supersession; byte-level re-check shows upstream only covers
+        # the cu_2 half (lazy `_cu_2` hasattr guard). P26's prefill
+        # output_alloc prealloc (~32 MiB per call) has no upstream
+        # equivalent and remains a live perf win. The PARTIAL prefix
+        # guards against a future title-matching retire (iron rule #11
+        # anti-pattern). Lifecycle stays "legacy" (architectural).
         "implementation_status": "full",
     },
     "P27": {
@@ -6600,15 +6771,34 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "implementation_status": "full",
     },
     "P36": {
-        "title": "TurboQuant shared decode buffers",
+        "title": "TurboQuant shared decode buffers — RETIRED 2026-06-11",
         "tier": "community",
         "family": "kernels",
         "env_flag": "GENESIS_LEGACY_P36",
-        "default_on": True,
-        "apply_module": "sndr.engines.vllm.patches.kernels.p36_tq_shared_decode_buffers",
-        "lifecycle": "legacy",
+        "default_on": False,
+        "apply_module": "sndr.engines.vllm._archive.p36_tq_shared_decode_buffers",
+        "lifecycle": "retired",
         "category": "memory_pool",
-        "credit": "Pre-dispatcher legacy patch. Shared decode-stage scratch buffers across TQ layers to amortize allocation.",
+        "credit": "Pre-dispatcher legacy patch. Shared decode-stage scratch buffers across TQ layers to amortize allocation. RETIRED — upstream WorkspaceManager provides the same sharing natively.",
+        # [Retire 2026-06-11, preflight residual triage §3, byte-verified]
+        # Upstream WorkspaceManager.get_simultaneous is native at pristine
+        # v1/worker/workspace.py:92 with the identical shared-scratch
+        # contract (multiple shapes/dtypes carved from one allocation,
+        # 256-byte aligned, sequential-layer reuse invariant), consumed by
+        # turboquant_attn.py:747 (k_buf/v_buf) and :879. The patched
+        # 3x register_buffer site (_tq_mid_o_buf/_tq_output_buf/_tq_lse_buf
+        # in attention layer init) no longer exists — those names now
+        # live as lazy holder attributes in triton_turboquant_decode.py
+        # (548-608), a different mechanism. Boot already skips P36 via the
+        # pr40798 probe (deduped boot line 149). gh check 2026-06-11:
+        # vllm#40798 itself is CLOSED-unmerged — the equivalent landed via
+        # the WorkspaceManager refactor, NOT that PR; note kept audit-
+        # accurate. POOL_TQ_DECODE_SHARED consumer check 2026-06-11: the
+        # constant is defined in sndr/runtime/persistent_buffer_registry.py
+        # (stays) and consumed only by this module + its unit test —
+        # module ARCHIVED, not deleted.
+        "superseded_by": "upstream-native WorkspaceManager.get_simultaneous (pristine v1/worker/workspace.py:92; consumed at turboquant_attn.py:747/879) — identical shared-scratch invariant; patched register_buffer site gone. vllm#40798 CLOSED-unmerged (gh-verified 2026-06-11); equivalence landed via the WorkspaceManager refactor",
+        "vllm_version_range": "<0.22.1rc1.dev259",  # supersession byte-verified on this pin's pristine tree
         "implementation_status": "full",
     },
     "P37": {
@@ -7828,6 +8018,40 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "conflicts_with": [],
         "composes_with": ["G4_19", "G4_60K", "G4_69"],
         "applies_to": {"model_arch": ["Gemma4ForConditionalGeneration", "Gemma4ForCausalLM"]},
+    },
+    "G4_79": {
+        "title": "TQ backend supports_mm_prefix for Gemma 4 MM (0.22.1 validity-gate unblock, mm half)",
+        "tier": "community",
+        "family": "attention.turboquant",
+        "env_flag": "GENESIS_ENABLE_G4_79_TQ_MM_PREFIX",
+        "default_on": False,
+        "category": "kernel",
+        "implementation_status": "full",
+        "source": "genesis_original",
+        "apply_module": "sndr.engines.vllm.patches.attention.turboquant.g4_79_tq_mm_prefix_support",
+        "lifecycle": "experimental",
+        "credit": (
+            "Fleet validation 2026-06-11: pin 0.22.1rc1.dev259 added a NEW "
+            "validity gate (v1/attention/backend.py:301-304) requiring "
+            "supports_mm_prefix() from every backend serving an "
+            "is_mm_prefix_lm model; Gemma 4 MM + TURBOQUANT boot rejects. "
+            "Read-only investigation verified Gemma 4 vision/audio towers "
+            "run EAGER (gemma4_mm.py:1037/1053) and never reach vLLM "
+            "attention — TQ only quantizes the text-decoder KV, so "
+            "declaring support is semantically safe (same basis as "
+            "Triton/FlexAttention which declare it without mm-specific "
+            "decode logic). Fixes ONLY the mm_prefix refusal; the sibling "
+            "kv_cache_dtype refusal is the G4_31 class one stage earlier "
+            "— first instrumented 31B boot discriminates (module "
+            "docstring recipe; G4_32 blanket bypass is the fallback). "
+            "Surgical successor to the G4_32-era approach."
+        ),
+        "upstream_pr": None,
+        "requires_patches": [],
+        "conflicts_with": [],
+        "composes_with": ["G4_19", "G4_31", "G4_32"],
+        "applies_to": {"model_arch": ["Gemma4ForConditionalGeneration", "Gemma4ForCausalLM"]},
+        "vllm_version_range": (">=0.22.0", "<0.23.0"),
     },
     "G4_70": {
         "title": "PN259-B mixed-allocator path for TQ skip-list layers (PR42637 overlay control)",

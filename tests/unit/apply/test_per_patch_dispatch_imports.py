@@ -7,7 +7,7 @@ The legacy parking-lot module hand-codes 124+ wrappers shaped like:
     @register_patch("P4 TurboQuant hybrid model support")
     def apply_patch_4_tq_hybrid() -> PatchResult:
         ...
-        from sndr.engines.vllm.patches.scheduler import p4_tq_hybrid
+        from sndr.engines.vllm._archive import p4_tq_hybrid
         ...
         status, reason = p4_tq_hybrid.apply()    # ← MUST match imported name
 

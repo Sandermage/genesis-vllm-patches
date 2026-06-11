@@ -70,7 +70,15 @@ UPSTREAM_MARKERS: dict[str, dict[str, str]] = {
         "marker_store": "head_idx_i64 = tl.cast(head_idx, tl.int64)",
         "description": "TurboQuant int64 stride overflow fix (ROCm-tagged)",
         "merged_date": "2026-04-17",
-        "affects_patch": "P16 TQ int64 + FA2 compat",
+        # [Preflight triage 2026-06-11 §6] Verified merged-in-pin: BOTH
+        # halves are native in 0.22.1rc1.dev259+g303916e93 — the int64
+        # casts in the TQ decode/store kernels AND the FA2 forcing at
+        # arg_utils.py:2111-2121. The previous affects_patch value ("P16
+        # TQ int64 + FA2 compat") was stale: P16 does not exist anywhere
+        # in the live system (registry, wiring, launchers) — it was
+        # removed before the registry era.
+        "affects_patch": "none — P16 already removed from the live system",
+        "verified_in_pin_2026_06_11": True,
     },
 
     "PR_40060_tq_backend_selector_guard": {
@@ -154,7 +162,18 @@ UPSTREAM_MARKERS: dict[str, dict[str, str]] = {
         "marker": "turboquant_k8v4",
         "description": "Upstream merged TurboQuant 2-bit KV cache compression",
         "merged_date": "2026-04 (in v0.20.0)",
-        "affects_patch": "P3-P6, P20, P22 — verify our TQ coexists with upstream",
+        # [Preflight triage 2026-06-11 §6] This entry tracks the upstream
+        # TurboQuant SUBSTRATE itself (merged in v0.20.0) — it is not an
+        # overlap with a Genesis patch, so it must not keep re-triggering
+        # newly-merged sweeps.
+        "already_known_merged": True,
+        "affects_patch": (
+            "substrate only. P3 STAYS (anchor byte-matches pristine; the "
+            "e4b15 staircase is still absent upstream — required on SM86). "
+            "P22 case-(b) profiler-visibility re-hook investigation "
+            "stands. P4/P6/P20 retired 2026-06-11 via their own "
+            "supersessions (see registry), not via this substrate entry."
+        ),
     },
 
     "PR_39591_block_table_tail_zero": {
@@ -172,8 +191,18 @@ UPSTREAM_MARKERS: dict[str, dict[str, str]] = {
         "marker": "Pi_half",
         "description": "JartX/vllm#11 — FP16 rotation in _continuation_prefill "
                        "(halves peak memory at long prefill, fixes #40420 cliff)",
-        "merged_date": "OPEN as of 2026-04-24 (vendor fork only)",
-        "affects_patch": "P20 TQ _continuation_prefill peak-mem",
+        # [Preflight triage 2026-06-11 §6] Was "OPEN as of 2026-04-24
+        # (vendor fork only)". The vendor-fork change has since been
+        # absorbed by the upstream TQ refactor as a SUPERSET: per-layer
+        # `_tq_Pi_half` fp16 cache (pristine turboquant_attn.py:352,
+        # read at :791 inside the 789-797 block) plus preallocated
+        # k_full/v_full that eliminate the torch.cat transient.
+        "merged_date": "LANDED in upstream by pin 0.22.1rc1.dev259+g303916e93 "
+                       "(byte-verified 2026-06-11; absorbed via TQ refactor, "
+                       "no standalone upstream PR number)",
+        "affects_patch": "P20 TQ _continuation_prefill peak-mem — RETIRED "
+                         "2026-06-11 (marker_only, never bound; upstream "
+                         "superset native)",
     },
 
     "PR_39589_tq_decode_stage1_tunables": {
@@ -205,16 +234,26 @@ UPSTREAM_MARKERS: dict[str, dict[str, str]] = {
             "`lcm(tq_page, skip_page)` in `_align_hybrid_block_size`. ROCm "
             "`flash_attn_varlen_func` wrapper for missing `out=` kwarg."
         ),
-        "merged_date": "OPEN as of 2026-04-29 (label 'ready', JartX in private "
-                       "merge-process discussion with vibhavagarwal5)",
+        "merged_date": "MERGED 2026-05-05 00:14 UTC (gh-verified 2026-06-11)",
+        # [Preflight triage 2026-06-11 §6] Post-merge disposition:
+        #   - P4 RETIRED (registry §3 — near-verbatim our hybrid
+        #     detection logic; boot self-skips via marker).
+        #   - P6 RETIRED (corrected lcm superset at platforms/
+        #     interface.py:573-609; §1 neutralization formalized).
+        #   - P5/P5b KEEP-EXTRAS: Probe 1 fixed in p5_page_size.py —
+        #     hasattr(...turboquant.config, 'TQFullAttentionSpec') was
+        #     ALWAYS False because the symbol lives in
+        #     v1/kv_cache_interface.py:327, so the intended #39931
+        #     auto-skip never fired. Probe now keys on the real homes;
+        #     defer-vs-keep is explicit in the module.
+        #   - P9: no action (already retired).
         "affects_patch": (
-            "P5 (LCM-pad block_size) — auto-skip when marker present; "
-            "P9 (max_num_kv_tokens hybrid) — was already coupled to PR_40384, "
-            "this PR adds the upstream gate that makes both consistent. "
-            "When this PR merges, P5 self-retires and P9 confirms its retire "
-            "via the existing PR_40384 marker."
+            "P5 (LCM-pad block_size) — auto-defers to upstream when both "
+            "probes hit (Probe 1 fixed 2026-06-11); P4/P6 retired "
+            "2026-06-11; P9 already retired (PR_40384 marker)."
         ),
         "verified_in_main_2026_04_29": False,
+        "verified_in_pin_2026_06_11": True,
         "cross_rig_validation": (
             "5090 sm_120 (jhsmith409): PASS, "
             "H20 96GB (huangzhilin-hzl): PASS, "

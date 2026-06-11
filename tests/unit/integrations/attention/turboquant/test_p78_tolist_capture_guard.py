@@ -21,7 +21,7 @@ import pytest
 
 PATCH_ID = "P78"
 MODULE_NAME = (
-    "sndr.engines.vllm.patches.attention.turboquant.p78_tolist_capture_guard"
+    "sndr.engines.vllm._archive.p78_tolist_capture_guard"
 )
 ENV_FLAG = "GENESIS_ENABLE_P78_TOLIST_CAPTURE_GUARD"
 
@@ -100,12 +100,12 @@ def test_replacement_contains_env_check():
     # re-export shim that carries no replacement block. Read canonical.
     src_path = (
         repo_root
-        / "sndr/engines/vllm/patches/attention/turboquant/p78_tolist_capture_guard.py"
+        / "sndr/engines/vllm/_archive/p78_tolist_capture_guard.py"
     )
     if not src_path.is_file():
         src_path = (
             repo_root
-            / "sndr/engines/vllm/patches/attention/turboquant/p78_tolist_capture_guard.py"
+            / "sndr/engines/vllm/_archive/p78_tolist_capture_guard.py"
         )
     src = src_path.read_text(encoding="utf-8")
     assert ENV_FLAG in src, (

@@ -19,13 +19,13 @@ __all__ = [
     "p60b_gdn_ngram_triton_kernel",
     # "p63_mtp_gdn_state_recovery",  # moved to _retired/ 2026-05-14
     "p7_gdn_dual_stream",
-    "p7b_gdn_dual_stream_customop",
+    # "p7b_gdn_dual_stream_customop",  # moved to _archive/ 2026-06-11 (retired, preflight triage par.3)
     "pn11_gdn_a_b_contiguous",
     "pn29_gdn_chunk_o_scale_fold",
     "pn30_ds_layout_spec_decode_align",
     "pn32_gdn_chunked_prefill",
     "pn50_gdn_fused_proj",
-    "pn54_gdn_contiguous_dedup",
+    # "pn54_gdn_contiguous_dedup",  # moved to _archive/ 2026-06-11 (retired, preflight triage par.3)
     "pn59_streaming_gdn",
     "pn79_inplace_ssm_state",
     # "pn108_fused_recurrent_prefill",  # moved to _retired/ 2026-05-14

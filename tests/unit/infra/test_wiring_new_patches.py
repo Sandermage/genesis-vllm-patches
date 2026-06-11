@@ -125,7 +125,7 @@ def fake_interface(tmp_path, monkeypatch):
     path = tmp_path / "interface.py"
     path.write_text(_P6_BASELINE)
 
-    from sndr.engines.vllm.patches.compile_safety import p6_tq_block_size_align as p6
+    from sndr.engines.vllm._archive import p6_tq_block_size_align as p6
     monkeypatch.setattr(p6, "resolve_vllm_file",
                         lambda rel: str(path) if "interface.py" in rel else None)
     monkeypatch.setattr(p6, "vllm_install_root", lambda: "/fake")
@@ -135,7 +135,7 @@ def fake_interface(tmp_path, monkeypatch):
 
 class TestPatch6:
     def test_apply_adds_tq_branch(self, fake_interface):
-        from sndr.engines.vllm.patches.compile_safety import p6_tq_block_size_align as p6
+        from sndr.engines.vllm._archive import p6_tq_block_size_align as p6
         status, reason = p6.apply()
         assert status == "applied", f"{status}: {reason}"
         content = Path(fake_interface).read_text()
@@ -144,7 +144,7 @@ class TestPatch6:
         assert "Genesis P6 TQ-aware block size alignment" in content
 
     def test_idempotent(self, fake_interface):
-        from sndr.engines.vllm.patches.compile_safety import p6_tq_block_size_align as p6
+        from sndr.engines.vllm._archive import p6_tq_block_size_align as p6
         s1, _ = p6.apply()
         s2, _ = p6.apply()
         assert s1 == "applied" and s2 == "applied"
@@ -153,7 +153,7 @@ class TestPatch6:
         assert content.count("TQFullAttentionSpec,  # [Genesis P6]") == 1
 
     def test_skip_on_non_nvidia(self, fake_interface, monkeypatch):
-        from sndr.engines.vllm.patches.compile_safety import p6_tq_block_size_align as p6
+        from sndr.engines.vllm._archive import p6_tq_block_size_align as p6
         monkeypatch.setattr(p6, "is_nvidia_cuda", lambda: False)
         status, reason = p6.apply()
         assert status == "skipped"
@@ -161,7 +161,7 @@ class TestPatch6:
 
     def test_skip_when_upstream_fully_merged(self, fake_interface):
         """If TQFullAttentionSpec is already imported → upstream merged #39931."""
-        from sndr.engines.vllm.patches.compile_safety import p6_tq_block_size_align as p6
+        from sndr.engines.vllm._archive import p6_tq_block_size_align as p6
         path = fake_interface
         content = Path(path).read_text()
         # Inject upstream marker

@@ -92,9 +92,9 @@ _KNOWN_SAFE_OPTIONAL_SHARING = frozenset({
     # P59 — empirically DISPROVEN backport of vllm#39055; deprecated
     # opt-in research artifact. partial-apply has zero PROD impact.
     "reasoning/p59_qwen3_reasoning_tool_call_recovery.py",
-    # P83 — empirically DISPROVEN MTP keep-last-cached-block; kept as
-    # opt-in research artifact for a workload we don't trigger.
-    "kv_cache/p83_mtp_keep_last_cached_block.py",
+    # P83 entry removed 2026-06-11: retired (preflight residual triage
+    # §3) and moved to sndr/engines/vllm/_archive/, which is outside
+    # WIRING_DIR — the scan no longer sees it.
 })
 
 

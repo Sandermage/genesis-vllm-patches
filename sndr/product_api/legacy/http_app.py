@@ -1295,7 +1295,7 @@ def create_app(
 
     # Local family (this daemon's host, via the docker socket) ------------
     @app.get("/api/v1/containers")
-    async def containers_list() -> dict[str, Any]:
+    def containers_list() -> dict[str, Any]:
         control = _local_control()
         items = _container_op(control.list_managed)
         return {"containers": [c.to_dict() for c in items], "source": "socket"}
@@ -1303,68 +1303,68 @@ def create_app(
     # Declared BEFORE /containers/{name} so the literal path isn't shadowed by the
     # {name} param. One call returns stats for every managed container.
     @app.get("/api/v1/containers/stats")
-    async def containers_stats_all() -> dict[str, Any]:
+    def containers_stats_all() -> dict[str, Any]:
         return {"stats": _container_op(lambda: _local_control().list_stats())}
 
     @app.get("/api/v1/containers/{name}")
-    async def container_inspect(name: str) -> dict[str, Any]:
+    def container_inspect(name: str) -> dict[str, Any]:
         return _container_op(lambda: _local_control().inspect(name))
 
     @app.get("/api/v1/containers/{name}/logs")
-    async def container_logs(name: str, tail: int = Query(default=200, ge=1, le=5000)) -> dict[str, Any]:
+    def container_logs(name: str, tail: int = Query(default=200, ge=1, le=5000)) -> dict[str, Any]:
         return {"container": name, "logs": _container_op(lambda: _local_control().logs(name, tail=tail))}
 
     @app.get("/api/v1/containers/{name}/stats")
-    async def container_stats(name: str) -> dict[str, Any]:
+    def container_stats(name: str) -> dict[str, Any]:
         return {"container": name, "stats": _container_op(lambda: _local_control().stats(name))}
 
     @app.post("/api/v1/containers/{name}/action")
-    async def container_action(name: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+    def container_action(name: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
         return _do_action(_local_control(), name, payload)
 
     @app.post("/api/v1/containers/{name}/exec")
-    async def container_exec(name: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+    def container_exec(name: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
         return _do_exec(_local_control(), name, payload)
 
     @app.get("/api/v1/containers/{name}/top")
-    async def container_top(name: str) -> dict[str, Any]:
+    def container_top(name: str) -> dict[str, Any]:
         return {"container": name, **_container_op(lambda: _local_control().top(name))}
 
     @app.get("/api/v1/containers/{name}/changes")
-    async def container_changes(name: str) -> dict[str, Any]:
+    def container_changes(name: str) -> dict[str, Any]:
         return {"container": name, "changes": _container_op(lambda: _local_control().changes(name))}
 
     @app.get("/api/v1/containers/{name}/fs")
-    async def container_fs(name: str, path: str = Query(default="/")) -> dict[str, Any]:
+    def container_fs(name: str, path: str = Query(default="/")) -> dict[str, Any]:
         return _do_fs(_local_control(), name, path)
 
     @app.get("/api/v1/containers/{name}/file")
-    async def container_file(name: str, path: str = Query(...),
+    def container_file(name: str, path: str = Query(...),
                              max_bytes: int = Query(default=65536, ge=1, le=5_000_000)) -> dict[str, Any]:
         return _do_file(_local_control(), name, path, max_bytes)
 
     @app.get("/api/v1/containers/{name}/update-plan")
-    async def container_update_plan(name: str) -> dict[str, Any]:
+    def container_update_plan(name: str) -> dict[str, Any]:
         return _do_update_plan(_local_control(), name, "local")
 
     @app.post("/api/v1/containers/{name}/update-mode")
-    async def container_set_update_mode(name: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+    def container_set_update_mode(name: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
         return _do_set_update_mode(_local_control(), name, "local", payload)
 
     @app.get("/api/v1/containers/{name}/sndr-state")
-    async def container_sndr_state(name: str) -> dict[str, Any]:
+    def container_sndr_state(name: str) -> dict[str, Any]:
         return _sndr_state_cached(_local_control(), name, f"local/{name}")
 
     @app.post("/api/v1/containers/{name}/pull")
-    async def container_pull(name: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+    def container_pull(name: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
         return _do_pull(_local_control(), name, payload, source="local")
 
     @app.post("/api/v1/containers/{name}/recreate")
-    async def container_recreate(name: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+    def container_recreate(name: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
         return _do_recreate(_local_control(), name, "local", payload)
 
     @app.get("/api/v1/containers/{name}/scan")
-    async def container_scan(name: str) -> dict[str, Any]:
+    def container_scan(name: str) -> dict[str, Any]:
         return _container_op(lambda: _local_control().scan_image(name))
 
     def _do_source(control, name: str) -> dict[str, Any]:
@@ -1373,11 +1373,11 @@ def create_app(
         return container_link.source_report(name, inspect)
 
     @app.get("/api/v1/containers/{name}/source")
-    async def container_source(name: str) -> dict[str, Any]:
+    def container_source(name: str) -> dict[str, Any]:
         return _do_source(_local_control(), name)
 
     @app.get("/api/v1/containers/{name}/engine")
-    async def container_engine(name: str) -> dict[str, Any]:
+    def container_engine(name: str) -> dict[str, Any]:
         return _container_op(lambda: _local_control().engine_health(name))
 
     @app.get("/api/v1/containers/{name}/logs/stream")
@@ -1385,19 +1385,19 @@ def create_app(
         return _stream_logs_response(_local_control(), name, tail)
 
     @app.get("/api/v1/system/df")
-    async def system_df() -> dict[str, Any]:
+    def system_df() -> dict[str, Any]:
         return _system_df_cached(_local_control(), "local")
 
     @app.get("/api/v1/system/networks")
-    async def system_networks() -> dict[str, Any]:
+    def system_networks() -> dict[str, Any]:
         return {"networks": _container_op(lambda: _local_control().list_networks())}
 
     @app.post("/api/v1/containers/{name}/settings")
-    async def container_settings(name: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+    def container_settings(name: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
         return _do_settings(_local_control(), name, payload, source="local")
 
     @app.post("/api/v1/containers/{name}/network")
-    async def container_network(name: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+    def container_network(name: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
         return _do_network(_local_control(), name, payload, source="local")
 
     # Host family (a registered host, via SSH) ----------------------------
@@ -2130,69 +2130,69 @@ def create_app(
 
     # ── Kubernetes mode (read-only, P1) — degrades gracefully when no cluster ──
     @app.get("/api/v1/k8s/status")
-    async def k8s_status_route() -> dict[str, Any]:
+    def k8s_status_route() -> dict[str, Any]:
         """Cluster reachability + version + node/GPU/namespace counts (or a
         structured {available:false, error} when k8s isn't configured)."""
         from . import k8s_client
         return k8s_client.cluster_status()
 
     @app.get("/api/v1/k8s/nodes")
-    async def k8s_nodes_route() -> dict[str, Any]:
+    def k8s_nodes_route() -> dict[str, Any]:
         """Nodes with GPU capacity/allocatable/requested/free, conditions,
         taints and GPU labels — the GPU-fleet operator's primary view."""
         from . import k8s_client
         return k8s_client.list_nodes()
 
     @app.get("/api/v1/k8s/pods")
-    async def k8s_pods_route(namespace: Optional[str] = None) -> dict[str, Any]:
+    def k8s_pods_route(namespace: Optional[str] = None) -> dict[str, Any]:
         """Pods (all namespaces or one) — phase, ready, restarts, GPU request,
         node, pending reason. GPU + non-running pods sort first."""
         from . import k8s_client
         return k8s_client.list_pods(namespace=namespace)
 
     @app.get("/api/v1/k8s/events")
-    async def k8s_events_route(warnings_only: bool = False) -> dict[str, Any]:
+    def k8s_events_route(warnings_only: bool = False) -> dict[str, Any]:
         """Cluster events — surfaces Warning events like FailedScheduling
         'Insufficient nvidia.com/gpu' (why a vLLM pod is stuck pending)."""
         from . import k8s_client
         return k8s_client.list_events(warnings_only=warnings_only)
 
     @app.get("/api/v1/k8s/kubevirt")
-    async def k8s_kubevirt_route() -> dict[str, Any]:
+    def k8s_kubevirt_route() -> dict[str, Any]:
         """KubeVirt VMs (VirtualMachineInstances). {installed:false} when the
         KubeVirt CRD isn't present — VMs-as-pods for the Virtualization view."""
         from . import k8s_client
         return k8s_client.list_kubevirt_vms()
 
     @app.get("/api/v1/proxmox/status")
-    async def proxmox_status_route() -> dict[str, Any]:
+    def proxmox_status_route() -> dict[str, Any]:
         """Proxmox VE reachability + node/VM/LXC counts (or {available:false,
         error} when Proxmox isn't configured) — mirrors the k8s status shape."""
         from . import proxmox_client
         return proxmox_client.cluster_status()
 
     @app.get("/api/v1/proxmox/nodes")
-    async def proxmox_nodes_route() -> dict[str, Any]:
+    def proxmox_nodes_route() -> dict[str, Any]:
         """Proxmox host nodes with CPU / memory / disk utilization."""
         from . import proxmox_client
         return proxmox_client.list_nodes()
 
     @app.get("/api/v1/proxmox/guests")
-    async def proxmox_guests_route() -> dict[str, Any]:
+    def proxmox_guests_route() -> dict[str, Any]:
         """Proxmox VMs (qemu) + containers (lxc) with resources, uptime, and the
         SNDR preset they host (via the `sndr-preset-<id>` tag)."""
         from . import proxmox_client
         return proxmox_client.list_guests()
 
     @app.get("/api/v1/proxmox/guests/{node}/{kind}/{vmid}")
-    async def proxmox_guest_detail_route(node: str, kind: str, vmid: int) -> dict[str, Any]:
+    def proxmox_guest_detail_route(node: str, kind: str, vmid: int) -> dict[str, Any]:
         """Rich detail for one guest: CPU topology, memory, OS, BIOS, boot order,
         passthrough devices (resolved names), disks, networks, guest-agent IPs."""
         from . import proxmox_client
         return proxmox_client.guest_detail(node, kind, vmid)
 
     @app.get("/api/v1/proxmox/nodes/{node}")
-    async def proxmox_node_detail_route(node: str) -> dict[str, Any]:
+    def proxmox_node_detail_route(node: str) -> dict[str, Any]:
         """Rich detail for a Proxmox node: CPU model/topology, kernel, PVE
         version, load average, swap, root fs and display GPUs present."""
         from . import proxmox_client

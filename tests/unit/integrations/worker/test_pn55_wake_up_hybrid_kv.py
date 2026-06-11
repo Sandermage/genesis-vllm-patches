@@ -243,13 +243,23 @@ class TestUpstreamDrift:
     def test_drift_marker_detects_upstream_helper(self):
         """If vllm merges either #41602 or #41896, the modified
         gpu_model_runner.py contains `_iter_kv_cache_tensors` (the
-        helper name PR #41896 introduces) OR `init_fp8_kv_scales`
-        (the assertion site PR #41602 unblocks). Either presence
-        means PN55v2 should self-retire."""
+        helper name PR #41896 introduces). That presence means PN55v2
+        should self-retire.
+
+        2026-06-11 narrowing (preflight residual triage §2):
+        `init_fp8_kv_scales` was REMOVED from the markers — the name
+        now exists natively in every pin via merged vllm#28783
+        (FP8 KV + sleep(level=2) fix, MERGED 2025-11-30), while
+        #41602/#41896 are both still OPEN (gh-verified 2026-06-11).
+        Keeping it caused a false "upstream merged" self-retire on
+        every post-#28783 pin."""
         M = _wiring()
         patcher = M._make_patcher()
         if patcher is None:
             pytest.skip("vllm install root not discoverable on this host")
         markers = list(patcher.upstream_drift_markers)
         assert "_iter_kv_cache_tensors" in markers
-        assert "init_fp8_kv_scales" in markers
+        assert "init_fp8_kv_scales" not in markers, (
+            "PN55: 'init_fp8_kv_scales' name-collides with merged "
+            "vllm#28783 — false self-retire on current pins"
+        )

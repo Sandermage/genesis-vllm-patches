@@ -118,6 +118,21 @@ For now: keep self-skip behaviour; document deferred re-anchor status
 above. Operator opt-in remains technically possible (env flag is read)
 but produces clean no-op apply.
 
+Status correction 2026-06-11 (preflight residual triage §2)
+-----------------------------------------------------------
+The K.1.R 2026-05-28 claim above ("refactored out of inc.py entirely")
+is STALE on the current pin 0.22.1rc1.dev259+g303916e93: the pattern is
+back at pristine ``inc.py:538`` —
+``scales_and_zp_size = input_size_per_partition // group_size``
+(bare ``group_size``, the dev371-style spelling) — so the dev371
+factory's anchor matches again and the floor-div silent-corruption
+surface re-exists upstream. The dual-factory alternation (Option A from
+the Step 0 anchor manifest) is working as designed: whichever of the
+dev338 / dev371 factories matches the live pin applies; the dev338
+factory stays while that pin remains in ``KNOWN_GOOD_VLLM_PINS``.
+Preflight sweeps should classify the non-matching factory as
+EXPECTED_ALTERNATE, not drift.
+
 Author backport: Sandermage(Sander) Barzov Aleksandr, Ukraine, Odessa.
 Reference PR: vllm#39460 (closed without merge, supersession chain
 #40281/#41588 also closed; fix abandoned upstream).

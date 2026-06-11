@@ -12,7 +12,7 @@ from tests.unit.integrations._family_contract_helpers import (
 
 PATCHES = [
     ("sndr.engines.vllm.patches.attention.gdn.p7_gdn_dual_stream", "P7"),
-    ("sndr.engines.vllm.patches.attention.gdn.p7b_gdn_dual_stream_customop", "P7b"),
+    ("sndr.engines.vllm._archive.p7b_gdn_dual_stream_customop", "P7b"),
     ("sndr.engines.vllm.patches.attention.gdn.p28_gdn_core_attn", "P28"),
     ("sndr.engines.vllm.patches.attention.gdn.p39a_fla_kkt_buffer", "P39a"),
     ("sndr.engines.vllm.patches.attention.gdn.p46_gdn_gating_buffers", "P46"),
@@ -25,7 +25,7 @@ PATCHES = [
     ("sndr.engines.vllm.patches.attention.gdn.pn30_ds_layout_spec_decode_align", "PN30"),
     ("sndr.engines.vllm.patches.attention.gdn.pn32_gdn_chunked_prefill", "PN32"),
     ("sndr.engines.vllm.patches.attention.gdn.pn50_gdn_fused_proj", "PN50"),
-    ("sndr.engines.vllm.patches.attention.gdn.pn54_gdn_contiguous_dedup", "PN54"),
+    ("sndr.engines.vllm._archive.pn54_gdn_contiguous_dedup", "PN54"),
     ("sndr.engines.vllm.patches.attention.gdn.pn59_streaming_gdn", "PN59"),
     ("sndr.engines.vllm.patches.attention.gdn.pn79_inplace_ssm_state", "PN79"),
 ]

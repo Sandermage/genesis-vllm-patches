@@ -62,6 +62,14 @@ requires:
 versions:
   genesis_pin_min: v12.0.0                               # G4_NN family lands in v12
   vllm_pin_required: 0.21.1rc0+g626fa9bba566         # current PROD baseline (Gemma 4 native model_executor support)
+  # Consumed by `audit_v2_modeldef_vs_hardware_pin.py` (Phase 5.2.E)
+  # to suppress the would-be ERROR for this row.
+  pin_hold: "TQ profile BLOCKED on the 0.22.1 pin: new upstream validity gate rejects
+    TURBOQUANT for mm models (supports_mm_prefix False + per-layer dtype) —
+    see journal 2026-06-11-fleet-validation. Degraded kv-auto/32K profile
+    validated at 78.4 TPS + tools 7/7, but THIS ModelDef prescribes
+    turboquant_4bit_nc + 65K which cannot boot. Holding 626fa9bb until the
+    G4 TQ mm_prefix unblock patch lands and validates."
   # Variant A migration (2026-05-20): old baseline at
   # tests/integration/baselines/gemma4_31b_awq_baseline.json was
   # captured with MTP K=4 ON; that file is now the (future) reference

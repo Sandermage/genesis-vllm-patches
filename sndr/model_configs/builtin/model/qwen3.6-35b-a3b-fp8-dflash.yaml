@@ -57,6 +57,13 @@ requires:
 versions:
   genesis_pin_min: v11.0.0                       # minimum sndr_core version
   vllm_pin_required: 0.21.1rc0+g626fa9bba566 # promoted 2026-05-21 (P2.DFlash M8-Q35) — dev371 smoke + quick bench PASS via canonical V2 flow. Requires PN275 wired in via this ModelDef's patches matrix (M6 commit 12d901a5) — that patch closes the dev371 cross-validator at vllm/config/vllm.py:1703-1715 that broke DFlash drafter VllmConfig rebuilds on dev371 + P95 + P66 combination. Previous pin dev338 retained side-by-side on server as :nightly-previous for rollback per CLAUDE.md pin policy.
+  # Consumed by `audit_v2_modeldef_vs_hardware_pin.py` (Phase 5.2.E)
+  # to suppress the would-be ERROR for this row.
+  pin_hold: "DFlash drafter profile not yet smoke-validated on the
+    0.22.1 pin (fleet validation 2026-06-11 covered the MTP K=3
+    profile only; PN38 Site B became upstream-native on dev259 and
+    the trimmed patch needs a dflash boot+bench cycle). Holding
+    626fa9bb until the dflash validation cycle runs."
   reference_metrics_ref: null                    # no JSON baseline yet. dev371 quick bench (n=25): decode_TPOT 8.73 ms mean (CV 13.4%), TTFT 153.5 ms mean, wall_TPS 83.7 mean — the FASTEST decode TPOT in the Qwen lineup thanks to A3B MoE 3B active params + DFlash K=3. Receipt: sndr_private/planning/bench_results/2026-05-21/P2_DFLASH_M5_RETRY_Q35_PASS_2026-05-21_RU.md. NOT a formal canonical baseline — full sustained-methodology cycle still pending.
 
 # ─── Canonical patches matrix (37 entries) ─────────────────────────────

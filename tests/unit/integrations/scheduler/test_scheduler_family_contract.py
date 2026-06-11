@@ -40,14 +40,14 @@ import pytest
 
 # (module path, patch ID) — env_flag derived from registry (source of truth)
 SCHEDULER_PATCHES = [
-    ("sndr.engines.vllm.patches.scheduler.p4_tq_hybrid", "P4"),
+    ("sndr.engines.vllm._archive.p4_tq_hybrid", "P4"),
     ("sndr.engines.vllm._archive.p8_kv_hybrid_reporting", "P8"),
     ("sndr.engines.vllm.patches.scheduler.p34_mamba_deadlock_guard", "P34"),
     ("sndr.engines.vllm.patches.scheduler.p58_async_scheduler_placeholder_fix", "P58"),
     ("sndr.engines.vllm.patches.scheduler.p74_chunk_clamp", "P74"),
     ("sndr.engines.vllm.patches.scheduler.p79c_stale_spec_token_cleanup", "P79c"),
     ("sndr.engines.vllm.patches.scheduler.p79d_preempt_async_discard", "P79d"),
-    ("sndr.engines.vllm.patches.scheduler.p84_hash_block_size_override", "P84"),
+    ("sndr.engines.vllm._archive.p84_hash_block_size_override", "P84"),
 ]
 
 

@@ -93,6 +93,13 @@ def test_default_order_baseline_violations():
         ("G4_70", "G4_69"),
         ("PN256", "G4_67"),
         ("G4_69", "G4_60K"),
+        # 2026-06-11 (preflight residual triage par.2): PN71 now
+        # declares requires_patches=["P27"] — its anchor literally
+        # contains P27-injected comments. P27 sits in the legacy
+        # section far after PN71 in registry insertion order; live
+        # boot order is owned by _per_patch_dispatch (P27 applies
+        # before PN71 there) and the topo_sort path handles the edge.
+        ("PN71", "P27"),
     }
     actual = {(pid, req) for pid, req, _, _ in violations}
     new_violations = sorted(actual - baseline)
@@ -137,14 +144,22 @@ def test_topo_sort_preserves_existing_correct_order():
     )
     # Most IDs should be in the same relative position
     # (only ~6-12 reorderings expected for baseline violations).
+    #
+    # 2026-06-11 bound update (preflight residual triage par.2): the
+    # new PN71 -> P27 edge is LONG-RANGE — PN71 sits early in
+    # insertion order while P27 lives in the legacy section ~134
+    # entries later. Kahn defers PN71 until P27 is emitted, which
+    # shifts every entry in between by one index, so the legitimate
+    # move count jumped from <30 to ~134+1. Bound raised to keep the
+    # tie-breaking sentinel meaningful without flagging this edge.
     moves = sum(
         1 for i, pid in enumerate(default_order)
         if topo_order.index(pid) != i
     )
-    assert moves < 30, (
-        f"topo_sort moved {moves} IDs vs default — expected <30 "
-        f"(baseline violations + transitive ripples). Did the "
-        f"Kahn tie-breaking change?"
+    assert moves < 160, (
+        f"topo_sort moved {moves} IDs vs default — expected <160 "
+        f"(baseline violations + the long-range PN71->P27 ripple "
+        f"+ transitive ripples). Did the Kahn tie-breaking change?"
     )
 
 

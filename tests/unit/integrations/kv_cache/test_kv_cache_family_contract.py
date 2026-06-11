@@ -14,7 +14,7 @@ from tests.unit.integrations._family_contract_helpers import (
 PATCHES = [
     ("sndr.engines.vllm.patches.kv_cache.p5_page_size", "P5"),
     ("sndr.engines.vllm.patches.kv_cache.p14_block_table", "P14"),
-    ("sndr.engines.vllm.patches.kv_cache.p83_mtp_keep_last_cached_block", "P83"),
+    ("sndr.engines.vllm._archive.p83_mtp_keep_last_cached_block", "P83"),
     ("sndr.engines.vllm.patches.kv_cache.p85_hybrid_fine_shadow_prefix_cache", "P85"),
     ("sndr.engines.vllm.patches.kv_cache.pn95_tier_aware_cache", "PN95"),
     # Phase 3 bucket 2 (2026-05-21): relocated from gemma4/.

@@ -110,6 +110,7 @@ KNOWN_SPEC_ONLY_PATCHES: frozenset[str] = frozenset({
     "G4_19C",          # K,V round-trip attention wrapper
     "G4_31",           # preserve TQ dtype
     "G4_32",           # TQ validation bypass
+    "G4_79",           # TQ supports_mm_prefix (Gemma 4 MM 0.22.1 unblock)
     "G4_60A",          # TQ sliding-window spec
     "G4_60B",          # TQ overlay loader (turboquant_attn)
     "G4_60C",          # TQ overlay loader (triton_turboquant_decode)

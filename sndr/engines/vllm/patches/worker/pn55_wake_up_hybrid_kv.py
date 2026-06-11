@@ -12,6 +12,24 @@ backported as separate patches. PN55v2 collapses them into one
 recursive iterator so any nested container shape works.
 
 ================================================================
+SCOPE NARROWED 2026-06-11 (preflight residual triage §2)
+================================================================
+
+Upstream merged vllm#28783 (2025-11-30): the wake_up zeroing loop now
+lives inside ``GPUModelRunner.init_fp8_kv_scales()`` together with
+FP8 ``_k_scale``/``_v_scale`` re-init. PN55's remit is therefore the
+narrowed post-#28783 corner only: **hybrid (Mamba/GDN nested-KV) +
+fp8-KV + wake_up** — the flat ``.zero_()`` loop #28783 ships still
+breaks on nested list/tuple/Mapping cache shapes, and #41602/#41896
+(the upstream fixes for exactly that) remain OPEN (gh-verified
+2026-06-11). ANCHOR_OLD still matches the relocated loop byte-exactly
+(count=1 at pristine gpu_model_runner.py:947-950 on pin
+0.22.1rc1.dev259+g303916e93). The ``init_fp8_kv_scales`` string was
+dropped from ``upstream_drift_markers`` — it name-collides with the
+merged #28783 and caused a false "upstream merged" self-retire on
+every current pin.
+
+================================================================
 WHAT THIS PATCH DOES
 ================================================================
 
@@ -161,10 +179,21 @@ def _make_patcher() -> TextPatcher | None:
         upstream_drift_markers=[
             # Self-marker so re-apply is idempotent.
             "[Genesis PN55v2",
-            # Upstream-side: PR #41602 + #41896 both introduce one of
-            # these names natively. Detect either to self-retire.
+            # Upstream-side: PR #41896 introduces this helper name
+            # natively. Detect it to self-retire.
+            #
+            # [Preflight triage 2026-06-11 §2] "init_fp8_kv_scales"
+            # REMOVED from this list: the name landed in every current
+            # pin via merged vllm#28783 (FP8 KV + sleep(level=2)
+            # gibberish fix, MERGED 2025-11-30) — gpu_model_runner.py
+            # defines init_fp8_kv_scales() natively (pristine line 936
+            # on pin 0.22.1rc1.dev259) while #41602 and #41896 are both
+            # still OPEN (gh-verified 2026-06-11). Keeping the marker
+            # made PN55 false-skip as "upstream merged" on every pin,
+            # even though our ANCHOR_OLD (the flat .zero_() loop, now
+            # inside init_fp8_kv_scales at pristine 947-950) still
+            # matches count=1 and the nested-KV bug is still unfixed.
             "_iter_kv_cache_tensors",
-            "init_fp8_kv_scales",
         ],
     )
 

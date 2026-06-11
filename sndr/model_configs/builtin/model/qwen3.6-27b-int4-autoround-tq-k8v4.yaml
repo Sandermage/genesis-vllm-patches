@@ -74,7 +74,7 @@ requires:
 
 versions:
   genesis_pin_min: v11.0.0                       # minimum sndr_core version
-  vllm_pin_required: 0.21.1rc0+g626fa9bba566 # promoted 2026-05-21 (P2.4d-Q27) — dev371 smoke PASS + quick bench (decode_TPOT 10.03 ms / TTFT 111 ms / wall_TPS 81.6 mean). Requires P103 wrapper kwargs ABI fix (commit 122c2576). Previous pin dev338 retained side-by-side on server as :nightly-previous for rollback per CLAUDE.md pin policy.
+  vllm_pin_required: 0.22.1rc1.dev259+g303916e93 # promoted 2026-06-11 (fleet validation): full-YAML-stack boot 109 applied / 0 failed; suite quick wall_TPS 120.9 (CV 2.7%) vs 119.5 dev371 baseline (+1.2%, no regression); tool-calls 7/7 via qwen3_coder (first time the parser is wired); reasoning split via qwen3 parser; PN119+P18B chain applied. Previous pin 626fa9bb retained as :nightly-previous per CLAUDE.md pin policy.
   reference_metrics_ref: null   # Phase 5.2.D (2026-05-22): formalize receipt-only state. The prior dev338 Wave-9 baseline (tests/integration/baselines/27b_v11_wave9.json) is no longer authoritative for this dev371-promoted ModelDef; keeping that reference produced a sticky audit mismatch in audit_v2_vllm_pin_consistency. Current dev371 runtime evidence: sndr_private/planning/bench_results/2026-05-21/P2_Q27_TQ_DEV371_SMOKE_RECEIPT_2026-05-21_RU.md (smoke + quick bench: decode_TPOT 10.03 ms / TTFT 111 ms / wall_TPS 81.6 mean). A formal canonical baseline JSON requires the full sustained-methodology cycle and is deferred to Phase 7.
 
 # Y1 (Phase 10 — 2026-06-01): in-container python package pins. Migrated

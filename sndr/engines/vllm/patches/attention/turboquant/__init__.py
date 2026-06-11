@@ -22,7 +22,7 @@ __all__ = [
     "p67_tq_multi_query_kernel",
     "p67b_spec_verify_routing",
     "p67c_sparse_v",
-    "p78_tolist_capture_guard",
+    # "p78_tolist_capture_guard",  # moved to _archive/ 2026-06-11 (retired, preflight triage par.3)
     "p98_tq_workspace_revert",
     "p99_workspace_manager_memoize",
     "pn14_tq_decode_oob_clamp",

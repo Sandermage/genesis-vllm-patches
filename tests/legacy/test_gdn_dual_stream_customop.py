@@ -121,14 +121,14 @@ class TestP7bFallback:
 
 class TestP7bWiringSurface:
     def test_public_surface(self):
-        from sndr.engines.vllm.patches.attention.gdn import p7b_gdn_dual_stream_customop as p7b
+        from sndr.engines.vllm._archive import p7b_gdn_dual_stream_customop as p7b
         assert callable(p7b.apply)
         assert callable(p7b.is_applied)
         assert callable(p7b.revert)
         assert callable(p7b.should_apply)
 
     def test_apply_skips_without_env(self, monkeypatch):
-        from sndr.engines.vllm.patches.attention.gdn import p7b_gdn_dual_stream_customop as p7b
+        from sndr.engines.vllm._archive import p7b_gdn_dual_stream_customop as p7b
         monkeypatch.setattr(p7b, "is_nvidia_cuda", lambda: True)
         monkeypatch.setattr(
             p7b, "is_sm_at_least", lambda major, minor=0: True,
@@ -139,7 +139,7 @@ class TestP7bWiringSurface:
         assert "opt-in" in reason.lower() or "GENESIS_ENABLE_P7B" in reason
 
     def test_apply_skips_on_non_nvidia(self, monkeypatch):
-        from sndr.engines.vllm.patches.attention.gdn import p7b_gdn_dual_stream_customop as p7b
+        from sndr.engines.vllm._archive import p7b_gdn_dual_stream_customop as p7b
         monkeypatch.setenv("GENESIS_ENABLE_P7B", "1")
         monkeypatch.setattr(p7b, "is_nvidia_cuda", lambda: False)
         status, reason = p7b.apply()
@@ -148,11 +148,11 @@ class TestP7bWiringSurface:
 
     def test_revert_always_false(self):
         """P7b is a text-patch — no runtime revert (need compose down)."""
-        from sndr.engines.vllm.patches.attention.gdn import p7b_gdn_dual_stream_customop as p7b
+        from sndr.engines.vllm._archive import p7b_gdn_dual_stream_customop as p7b
         assert p7b.revert() is False
 
     def test_upstream_drift_markers(self):
-        from sndr.engines.vllm.patches.attention.gdn import p7b_gdn_dual_stream_customop as p7b
+        from sndr.engines.vllm._archive import p7b_gdn_dual_stream_customop as p7b
         assert "dual_linear_parallel" in p7b.UPSTREAM_DRIFT_MARKERS
         assert any("genesis::" in m for m in p7b.UPSTREAM_DRIFT_MARKERS)
 
@@ -162,7 +162,7 @@ class TestP7bVsP7Coexistence:
         """P7 and P7b must use different markers so text-patch detection
         doesn't false-match."""
         from sndr.engines.vllm.patches.attention.gdn import p7_gdn_dual_stream as p7
-        from sndr.engines.vllm.patches.attention.gdn import p7b_gdn_dual_stream_customop as p7b
+        from sndr.engines.vllm._archive import p7b_gdn_dual_stream_customop as p7b
         assert p7.GENESIS_P7_MARKER != p7b.GENESIS_P7B_MARKER
         assert "P7 " in p7.GENESIS_P7_MARKER
         assert "P7b " in p7b.GENESIS_P7B_MARKER

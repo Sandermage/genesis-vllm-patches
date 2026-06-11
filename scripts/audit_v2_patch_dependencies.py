@@ -41,6 +41,27 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 
+# Dependencies satisfied OUTSIDE the model-YAML `patches:` env map.
+# The audit's "enabled" universe is built from `GENESIS_ENABLE_*: '1'`
+# entries, but legacy auto-apply patches (synthetic `GENESIS_LEGACY_*`
+# env_flags) are applied by the boot bundle / per-patch dispatch, never
+# via a YAML flag — a requires_patches edge pointing at one of them is
+# satisfied at boot even though no YAML flag exists. Keyed allowlist
+# with operator rationale (same convention as ALLOWED_RETIRED_PATCHES
+# in audit_v2_patch_lifecycle.py). Add entries ONLY with boot evidence.
+IMPLICITLY_SATISFIED_DEPS: dict[str, str] = {
+    "P27": (
+        "Preflight residual triage 2026-06-11 §2 — PN71 declares "
+        "requires_patches=['P27'] (its anchor contains P27-injected "
+        "comments). P27 is a pre-dispatcher legacy patch "
+        "(env_flag=GENESIS_LEGACY_P27, never set in model YAMLs) applied "
+        "by the boot bundle: deduped PROD boot line 20 shows "
+        "'applied: P27 Qwen3 BEFORE-THINK fallback'. The dependency is "
+        "boot-satisfied, not YAML-satisfied."
+    ),
+}
+
+
 @dataclass
 class DepCheck:
     path: Path
@@ -113,6 +134,10 @@ def check_one_model(
     for pid in sorted(enabled_pids):
         meta = pid_meta.get(pid, {})
         for req in meta.get("requires_patches") or []:
+            if req in IMPLICITLY_SATISFIED_DEPS:
+                # Boot-satisfied dependency (legacy auto-apply) — see
+                # the allowlist rationale at the top of this script.
+                continue
             if req not in enabled_pids:
                 missing_requires.append({
                     "patch_id": pid,

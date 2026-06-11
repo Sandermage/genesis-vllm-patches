@@ -458,7 +458,7 @@ def apply_patch_4_tq_hybrid() -> PatchResult:
         # symbol must match the imported module
         # name (`p4_tq_hybrid`), NOT the legacy `patch_4_tq_hybrid` name.
         try:
-            from sndr.engines.vllm.patches.scheduler import p4_tq_hybrid
+            from sndr.engines.vllm._archive import p4_tq_hybrid  # moved to _archive/ 2026-06-11
             assert callable(p4_tq_hybrid.apply)
         except Exception as e:
             return _failed(name, f"wiring import failed: {e}")
@@ -466,7 +466,7 @@ def apply_patch_4_tq_hybrid() -> PatchResult:
 
     # Real apply path: run the text-patcher.
     try:
-        from sndr.engines.vllm.patches.scheduler import p4_tq_hybrid
+        from sndr.engines.vllm._archive import p4_tq_hybrid  # moved to _archive/ 2026-06-11
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
 
@@ -2101,7 +2101,7 @@ def apply_patch_N54_gdn_contiguous_dedup() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from sndr.engines.vllm.patches.attention.gdn import pn54_gdn_contiguous_dedup
+        from sndr.engines.vllm._archive import pn54_gdn_contiguous_dedup  # moved to _archive/ 2026-06-11
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn54_gdn_contiguous_dedup.apply()
@@ -2955,7 +2955,7 @@ def apply_patch_78_tolist_capture_guard() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from sndr.engines.vllm.patches.attention.turboquant import p78_tolist_capture_guard
+        from sndr.engines.vllm._archive import p78_tolist_capture_guard  # moved to _archive/ 2026-06-11
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p78_tolist_capture_guard.apply()
@@ -3372,7 +3372,7 @@ def apply_patch_83_mtp_keep_last_cached_block() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from sndr.engines.vllm.patches.kv_cache import p83_mtp_keep_last_cached_block
+        from sndr.engines.vllm._archive import p83_mtp_keep_last_cached_block  # moved to _archive/ 2026-06-11
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p83_mtp_keep_last_cached_block.apply()
@@ -3413,7 +3413,7 @@ def apply_patch_84_hash_block_size_override() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from sndr.engines.vllm.patches.scheduler import p84_hash_block_size_override
+        from sndr.engines.vllm._archive import p84_hash_block_size_override  # moved to _archive/ 2026-06-11
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p84_hash_block_size_override.apply()
@@ -4068,9 +4068,10 @@ def apply_patch_N38_dflash_quant_drafter() -> PatchResult:
     enables drop-in FP8/NVFP4 drafter swap (memory savings ~1.2 GB per
     worker, ~2.4 GB total at TP=2 — frees KV-cache headroom).
 
-    4 sub-patches:
+    3 sub-patches (Site B retired 2026-06-11 — quant_config plumbing
+    upstream-native since 0.22.1rc1.dev259; apply() presence-guards the
+    native lines and skips loudly when absent):
       Site A: F.linear → quant-aware self.qkv_proj() module call
-      Site B: pass quant_config to DFlashQwen3DecoderLayer constructor
       Site C: _build_fused_kv_buffers becomes conditional (skip dense path
               when quant_config present)
       Site D: precompute_and_store_context_kv adds per-layer quantized
@@ -6352,7 +6353,7 @@ def apply_patch_7b_gdn_dual_stream_customop() -> PatchResult:
         return _applied(name, "dry-run: env-opt-in scaffold ready")
 
     try:
-        from sndr.engines.vllm.patches.attention.gdn import p7b_gdn_dual_stream_customop
+        from sndr.engines.vllm._archive import p7b_gdn_dual_stream_customop  # moved to _archive/ 2026-06-11
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
 

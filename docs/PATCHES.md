@@ -16,7 +16,7 @@ env flag to toggle, upstream PR (if backported), and credit.
 
 ## Current state (v12.0.0, 2026-06-01)
 
-**Total PATCH_REGISTRY entries:** 279 — range covers `P1`–`P109` legacy +
+**Total PATCH_REGISTRY entries:** 280 — range covers `P1`–`P109` legacy +
 `PN8`–`PN275` modern + `G4_01`–`G4_78` Gemma 4 family + sub-patches
 (P5b, P7b, P15B, P18b, P38B, P39a, P61c, P67b, P67c, P79d, PN26b,
 PN40-classifier) + library/diagnostic (P51, P102, P103) + the standalone
@@ -32,19 +32,19 @@ added as a registry patch.
 
 | Metric | Count |
 |:-------|:------|
-| Total PATCH_REGISTRY entries | **279** |
+| Total PATCH_REGISTRY entries | **280** |
 | Tier=community (Apache 2.0, sndr) | **252** (all entries) |
 | Tier=engine (commercial, sndr_engine) | **0** (PN72 reclassified to community 2026-05-08; sndr_engine namespace reserved but empty) |
-| Default-on at boot | 52 |
-| Lifecycle=experimental | 204 |
-| Lifecycle=legacy (pre-dispatcher) | 33 |
-| Lifecycle=retired | 19 |
-| Lifecycle=research | 5 |
+| Default-on at boot | 51 |
+| Lifecycle=experimental | 202 |
+| Lifecycle=legacy (pre-dispatcher) | 28 |
+| Lifecycle=retired | 28 |
+| Lifecycle=research | 4 |
 | Lifecycle=stable | 14 (G4_01, G4_02, G4_03, G4_04, G4_05 [retired], G4_09, G4_11, G4_12, G4_13, G4_14, G4_16, G4_23, G4_25, PN33, PN35 — ratchet active with `stable_kind` declared; see [CONTRIBUTING.md § Promoting a patch to lifecycle=stable](CONTRIBUTING.md#promoting-a-patch-to-lifecyclestable)) |
 | Lifecycle=coordinator | 4 (env-flag-only, no real binding) |
-| Implementation status=full | 219 |
+| Implementation status=full | 220 |
 | Implementation status=marker_only / placeholder / partial / retired | 34 (20 + 2 + 8 + 4) |
-| Apply-loop coverage (apply_module set) | 257 / 279 = 92.0% |
+| Apply-loop coverage (apply_module set) | 258 / 280 = 92.0% |
 | Spec-only (intentional, allow-listed) | 17 (P1, P17, P18b, P20, P23, P29, P32, P51, P102, PN60, PN63, PN64, PN256, PN261, G4_70, G4_70B, G4_70C) |
 
 ### Engine tier (the strict-AND boundary)

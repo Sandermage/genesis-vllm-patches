@@ -41,7 +41,7 @@ def test_p36_registry_pool_visible_after_module_import():
         PersistentBufferRegistry,
         POOL_TQ_DECODE_SHARED,
     )
-    import sndr.engines.vllm.patches.kernels.p36_tq_shared_decode_buffers as p36  # noqa: F401
+    import sndr.engines.vllm._archive.p36_tq_shared_decode_buffers as p36  # noqa: F401
 
     # Trigger the registry-visibility hook (no allocation — just registers the name).
     p36.ensure_pool_registered()
@@ -66,7 +66,7 @@ def test_p36_registry_pool_acquire_byte_equivalent():
     _reset_registry_for_tests()
     # ensure_pool_registered() must run first (test ordering — pytest
     # may not have run the previous test in this same fixture scope)
-    import sndr.engines.vllm.patches.kernels.p36_tq_shared_decode_buffers as p36
+    import sndr.engines.vllm._archive.p36_tq_shared_decode_buffers as p36
     p36.ensure_pool_registered()
     pool = PersistentBufferRegistry().get_slice_pool(POOL_TQ_DECODE_SHARED)
     shape = (8, 32, 16, 64)
@@ -81,7 +81,7 @@ def test_p36_registry_pool_acquire_byte_equivalent():
 def test_p36_module_uses_registry_after_migration():
     """The migrated p36 module imports PersistentBufferRegistry + the
     POOL_TQ_DECODE_SHARED constant — operator-visible lookup surface."""
-    import sndr.engines.vllm.patches.kernels.p36_tq_shared_decode_buffers as p36
+    import sndr.engines.vllm._archive.p36_tq_shared_decode_buffers as p36
     source = open(p36.__file__).read()
     assert "PersistentBufferRegistry" in source, \
         "p36 must use PersistentBufferRegistry post-migration"
@@ -109,7 +109,7 @@ def test_p36_registers_persistent_slice_pool_not_buffer_pool():
         _reset_registry_for_tests,
     )
     _reset_registry_for_tests()
-    import sndr.engines.vllm.patches.kernels.p36_tq_shared_decode_buffers as p36
+    import sndr.engines.vllm._archive.p36_tq_shared_decode_buffers as p36
     p36.ensure_pool_registered()
     pool = PersistentBufferRegistry().all_pools()[POOL_TQ_DECODE_SHARED]
     assert isinstance(pool, PersistentSlicePool), (
@@ -122,7 +122,7 @@ def test_p36_registers_persistent_slice_pool_not_buffer_pool():
 def test_p36_source_uses_get_slice_pool_not_get_pool():
     """Static check: the ensure_pool_registered() body uses
     `.get_slice_pool(` not `.get_pool(`."""
-    import sndr.engines.vllm.patches.kernels.p36_tq_shared_decode_buffers as p36
+    import sndr.engines.vllm._archive.p36_tq_shared_decode_buffers as p36
     source = open(p36.__file__).read()
     assert "get_slice_pool(POOL_TQ_DECODE_SHARED)" in source, (
         "P36 must call get_slice_pool(POOL_TQ_DECODE_SHARED) — "
