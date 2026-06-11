@@ -240,13 +240,15 @@ def _make_kernel_patcher() -> TextPatcher | None:
             TextPatch(name="p60b_kernel_kwarg", anchor=KERNEL_KWARG_OLD,
                       replacement=KERNEL_KWARG_NEW, required=True),
         ],
-        # Drift marker is the SPECIFIC line combination unique to fwd_kernel
-        # post-PR. `IS_SPEC_DECODING` alone matches `_causal_conv1d_update_kernel`
-        # too broadly (already in dev205). Use the new positional parameter
-        # in fwd_kernel signature as the discriminator.
-        upstream_drift_markers=[
-            "num_computed_tokens,  # (batch,)\n    num_accepted_tokens_ptr,"
-        ],
+        # Self-collision lint (triage plan §6 2026-06-11): the former
+        # marker (fwd_kernel signature line pair from vllm#40738) is baked
+        # verbatim by our own backport replacement — it cannot distinguish
+        # a real upstream merge from our residue (false "upstream_merged"
+        # skip, PN369 class). `IS_SPEC_DECODING` alone matches
+        # `_causal_conv1d_update_kernel` too broadly (already in dev205).
+        # Real-merge detection is delegated to required-anchor mismatch
+        # (Layer 5) + pin-bump preflight deep-diff (iron rule #11).
+        upstream_drift_markers=[],
     )
 
 
@@ -312,7 +314,11 @@ def _make_gdn_caller_patcher() -> TextPatcher | None:
             TextPatch(name="p60b_gdn_conv_fn", anchor=GDN_CONV_FN_OLD,
                       replacement=GDN_CONV_FN_NEW, required=True),
         ],
-        upstream_drift_markers=["_p60b_conv_num_accepted"],
+        # Self-collision lint (triage plan §6 2026-06-11): former entry
+        # "_p60b_conv_num_accepted" is a Genesis-only name baked by our own
+        # replacement — false "upstream_merged" skip on residue. Real-merge
+        # detection via required-anchor mismatch + preflight deep-diff.
+        upstream_drift_markers=[],
     )
 
 

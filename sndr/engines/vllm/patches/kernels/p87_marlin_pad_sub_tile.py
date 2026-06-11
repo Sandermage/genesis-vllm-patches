@@ -321,9 +321,14 @@ def _make_patcher() -> TextPatcher | None:
         ],
         upstream_drift_markers=[
             "[Genesis P87",
-            # Upstream-side markers if PR #40361 (or equivalent) merges:
-            "_marlin_orig_n",
-            "GPTQ_MARLIN_MIN_THREAD_N as _GENESIS",
+            # Self-collision lint (triage plan §6 2026-06-11): former
+            # entries "_marlin_orig_n" / "GPTQ_MARLIN_MIN_THREAD_N as
+            # _GENESIS" are OUR spellings baked by the replacement text
+            # (upstream #40361 would not import "as _GENESIS..."), so they
+            # were self-markers mislabeled as upstream-side — false
+            # "upstream_merged" skip on residue. Residue coverage stays
+            # with the "[Genesis P87" banner; a real #40361 merge is
+            # caught by required-anchor mismatch + preflight deep-diff.
         ],
     )
 

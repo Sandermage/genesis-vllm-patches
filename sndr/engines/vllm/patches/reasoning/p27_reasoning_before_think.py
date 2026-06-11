@@ -60,8 +60,10 @@ log = logging.getLogger("genesis.wiring.p27_reasoning_before_think")
 GENESIS_P27_MARKER = "Genesis P27 Qwen3 BEFORE-THINK fallback v7.0"
 
 UPSTREAM_DRIFT_MARKERS = [
-    "before_think",
-    "pre_think_content",
+    # Self-collision lint (triage plan §6 2026-06-11): former entries
+    # "before_think" / "pre_think_content" are our own variable names
+    # baked by the replacements — false "upstream_merged" skip on residue.
+    # The remaining entry is a hypothetical-upstream-only spelling.
     "BEFORE_THINK",
 ]
 

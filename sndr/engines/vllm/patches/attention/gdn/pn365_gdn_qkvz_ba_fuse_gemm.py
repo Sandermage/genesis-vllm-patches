@@ -493,8 +493,12 @@ PN365_LOAD_NEW = (
 
 # Drift markers — auto-SKIP if any of these appear in the target file
 # (i.e., upstream landed #42746 or a successor patch using the same names).
+# Self-collision lint (triage plan §6 2026-06-11): former entry
+# "in_proj_qkvzba" is baked verbatim by our own port (ctor + load_weights
+# replacements) — it cannot distinguish a real upstream merge from our
+# residue (false "upstream_merged" skip, PN369 class). The remaining two
+# (#42746 env flag + helper factory name) are strictly upstream-only.
 _UPSTREAM_DRIFT_MARKERS = [
-    "in_proj_qkvzba",
     "VLLM_GDN_FUSE_QKVZBA",
     "create_in_proj_qkvzba",
 ]

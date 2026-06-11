@@ -51,7 +51,10 @@ log = logging.getLogger("genesis.wiring.p44_tq_mixed_attn_out")
 GENESIS_P44_MARKER = "Genesis P44 TQ mixed-batch attn_out pool v7.7"
 
 UPSTREAM_DRIFT_MARKERS = [
-    "acquire_mixed_attn_out",
+    # Self-collision lint (triage plan §6 2026-06-11): former entry
+    # "acquire_mixed_attn_out" is our own pool accessor called by the
+    # replacement text — false "upstream_merged" skip on residue.
+    # Remaining entries are hypothetical-upstream-only names.
     "_tq_mixed_attn_out_pool",
     "mixed_attn_out_persistent",
 ]

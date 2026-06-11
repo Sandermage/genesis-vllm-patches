@@ -624,7 +624,7 @@
     "wrapped_name": "apply_patch_N354_gdn_use_exp2"
   },
   {
-    "name": "PN367 CUDA graph memory estimate clamp (vendor of OPEN vllm#45076)",
+    "name": "PN367 CUDA graph memory estimate clamp (vendor of OPEN vllm#44745, ex-vllm#45076)",
     "wrapped_name": "apply_patch_N367_cudagraph_mem_clamp"
   },
   {

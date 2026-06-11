@@ -883,20 +883,24 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "env_flag": "GENESIS_ENABLE_P85",
         "default_on": False,
         "category": "kv_cache",
-        "credit": "Genesis-original 2026-04-27 — synthesis of 6-round empirical investigation + deep code analysis. Identified TWO mismatches in hybrid prefix cache: (A) MambaManager.cache_blocks early-returns for prompts < self.block_size (e.g., 1424 < 2048); (B) Mamba align-mode pads with null_blocks so num_full_blocks > 0 still inserts 0 entries. P85 patches MambaManager to: (1) register shadow fine-grained hash entries (scale_factor=block_size/hash_block_size duplicates) when caching, (2) walk fine hashes on lookup with eviction-safety re-derive verify. Memory layout / ref-count untouched. Requires P84 (fine hashes computed). Architectural limit: cannot help prompts < block_size (Mamba state genuinely uncached at sub-block boundaries).",
+        "credit": "Genesis-original 2026-04-27 — synthesis of 6-round empirical investigation + deep code analysis. Identified TWO mismatches in hybrid prefix cache: (A) MambaManager.cache_blocks early-returns for prompts < self.block_size (e.g., 1424 < 2048); (B) Mamba align-mode pads with null_blocks so num_full_blocks > 0 still inserts 0 entries. P85 patches MambaManager to: (1) register shadow fine-grained hash entries (scale_factor=block_size/hash_block_size duplicates) when caching, (2) walk fine hashes on lookup with eviction-safety re-derive verify. Memory layout / ref-count untouched. Fine hashes come from upstream-native --hash-block-size (cache_config.hash_block_size, replaces retired P84). Architectural limit: cannot help prompts < block_size (Mamba state genuinely uncached at sub-block boundaries). v2 (2026-06-11, plan §5 both-sites fix): Site 1 re-anchored to the upstream retention_interval cache_blocks signature; Site 2 carries dual anchor variants (pristine-shaped + post-PN346-shaped assembled from PN346's own constants, required-at-least-one) because PN346 — effectively default-ON, boot-dispatched before P85 — rewrites a byte-identical 4-line subsequence mid-anchor; the post-PN346 replacement carries PN346's drop_eagle_block guard.",
         "upstream_pr": None,
         "applies_to": {"is_hybrid": [True]},
-        # [Preflight triage 2026-06-11 §3 cascade — re-triage queued]
+        # [Preflight triage §3 cascade — re-triage RESOLVED 2026-06-11 §5]
         # P84 retired (hash_block_size is upstream-native via the
-        # scheduler param + resolve_kv_cache_block_sizes). This
-        # requirement must be re-triaged during the §5 both-sites P85
-        # fix: fine hashes now come from upstream cache_config.
-        # hash_block_size instead of P84's env override, and the Mamba
-        # back-off (kv_cache_utils.py:639-644) must be verified to yield
-        # num_hashes>0 on the prod prefix-caching config. List left
-        # as-is tonight (P85 is default-OFF; changing the dependency
-        # semantics belongs to the §5 follow-up, not this batch).
-        "requires_patches": ["P84"],
+        # scheduler param + resolve_kv_cache_block_sizes, byte-verified
+        # in the P84 entry). requires_patches=["P84"] dropped: fine
+        # hashes now come from upstream cache_config.hash_block_size
+        # (engine arg --hash-block-size) instead of P84's env override
+        # — operator-config prerequisite, not a Genesis patch
+        # dependency. CAVEAT carried from the verifier: the Mamba
+        # back-off (kv_cache_utils.py:639-644) precedes both the GCD
+        # default AND the explicit override, so fine hashing only
+        # engages with mamba_cache_mode="align"; num_hashes>0 must
+        # still be verified server-side on the prod prefix-caching
+        # config before any P85 enablement bench.
+        "requires_patches": [],
+        "composes_with": ["PN346"],  # Site 2 dual anchor variants; PN346 boot-dispatches first
         "apply_module": "sndr.engines.vllm.patches.kv_cache.p85_hybrid_fine_shadow_prefix_cache",
         "lifecycle": "experimental",
         "implementation_status": "full",
@@ -2267,39 +2271,67 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "implementation_status": "full",
     },
     "PN200": {
-        "title": "PN200 — GDN outer-forward scratch pool (Tier 1.B)",
+        "title": "PN200 — GDN outer-forward scratch pool (Tier 1.B) — RETIRED 2026-06-11",
         "tier": "community",
         "family": "streaming",  # was "kv_cache"; integration lives at integrations/streaming/
         "env_flag": "GENESIS_ENABLE_PN200_GDN_SCRATCH_REUSE",
         "default_on": False,
-        # [Preflight triage 2026-06-11 §3 — PENDING DECISION, do NOT
-        # silently re-anchor] PN200's anchor is now ambiguous on pin
-        # 0.22.1rc1.dev259 (3 matches pristine / 2 matches post-P28),
-        # and PROD-applied P28 owns the CUDA site, delivering the same
-        # buffer-reuse+zero. Per the journal corollary, range-capping is
-        # NOT retirement while launchers still export
-        # GENESIS_ENABLE_PN200_GDN_SCRATCH_REUSE: the open decision is
-        # either (a) retire properly — lifecycle='retired' + remove the
-        # flag from compose/prod-*.yml and the model YAMLs — or (b)
-        # re-anchor as a P28 chain consumer with explicit
-        # requires/conflicts declarations. Left as-is (skipped-disabled
-        # at boot, line 197) until the operator makes that call.
-        "lifecycle": "experimental",
+        # [Retire 2026-06-11, preflight residual triage §3 decision
+        # EXECUTED — was PENDING DECISION earlier tonight; byte-verified]
+        # Option (a) retire, NOT option (b) P28-chain re-anchor.
+        # Evidence on pristine pin 0.22.1rc1.dev259
+        # (mamba/gdn/qwen_gdn_linear_attn.py):
+        # (1) P28 (PROD-applied, default_on=True legacy auto-apply) owns
+        #     the unique forward_cuda site — its anchor is the
+        #     #28182-comment-disambiguated SUPERSET that textually
+        #     CONTAINS PN200's entire anchor, so the byte range PN200
+        #     targets is consumed by P28's rewrite (1 match pristine).
+        # (2) P28's replacement delivers the same buffer-reuse+zero
+        #     contract PN200 promised: reused buffer
+        #     (self._genesis_gdn_core_attn_buf[:num_tokens], attached at
+        #     __init__ per CRIT-HW-1) + explicit .zero_() honoring the
+        #     #28182 zero contract + torch.zeros fallback. PN200's
+        #     pn106_get_pooled_buf(..., zero=True) route promised
+        #     exactly reuse + .zero_() + torch.zeros fallback.
+        # (3) PN200's bare anchor is ambiguous either way: 3 matches
+        #     pristine (forward_cuda:950 / forward_xpu:991 /
+        #     forward_cpu:1046), 2 post-P28 — both non-CUDA paths our
+        #     2x A5000 never executes. TextPatcher demands exactly 1;
+        #     PN200 can never apply on this pin family again.
+        # (4) A chain variant would only pool-route P28's eager fallback
+        #     branch (taken only when the prealloc buffer is absent or
+        #     over capacity) and would reintroduce the in-forward env
+        #     read + import that CRIT-HW-1 forbids (PN200's replacement
+        #     did `import os` + env.get per forward_cuda call).
+        # Flag was never enabled anywhere — every launcher exported '0';
+        # exports removed with this retire per the journal corollary
+        # (range-capping is NOT retirement while launchers still export
+        # the flag). Module archived.
+        "superseded_by": (
+            "INTERNAL: P28 GDN core_attn_out prealloc (PROD-applied, "
+            "default_on=True) — anchor superset of PN200's on the unique "
+            "forward_cuda site; same buffer-reuse + explicit .zero_() "
+            "(#28182 contract) + torch.zeros fallback, plus the capacity "
+            "guard and CRIT-HW-1 init-time attach PN200 lacked — "
+            "byte-verified on pristine 0.22.1rc1.dev259, 2026-06-11"
+        ),
+        "lifecycle": "retired",
         "category": "memory",
-        "apply_module": "sndr.engines.vllm.patches.streaming.pn200_gdn_scratch_reuse",
+        "apply_module": "sndr.engines.vllm._archive.pn200_gdn_scratch_reuse",
         "source": "genesis_original",
         "credit": (
-            "Genesis-original Tier 1.B of three-tier memory plan. Routes "
+            "Genesis-original Tier 1.B of three-tier memory plan. Routed "
             "gdn_linear_attn.py:765 core_attn_out (32 MiB × 48 layers per "
             "step) through the PN106 named-pool API with zero=True. "
-            "Honors the vllm PR #28182 'must be zeroed' contract via "
-            "explicit .zero_() on pool slice. Eliminates ~1.5 GiB alloc "
-            "traffic per chunked-prefill step → ~500 MiB - 1 GiB GPU "
-            "reclaim through reduced caching-allocator fragmentation. "
-            "Speed impact 1-3% (memset offset by saved alloc latency). "
-            "Composes with PN106 (inner FLA chunk scratch) and PN201 "
-            "(scheduler empty_cache) for Tier 1 complete coverage."
+            "Honored the vllm PR #28182 'must be zeroed' contract via "
+            "explicit .zero_() on pool slice. Composed with PN106 (inner "
+            "FLA chunk scratch) and PN201 (scheduler empty_cache) for "
+            "Tier 1 coverage. RETIRED — P28 owns the CUDA site and "
+            "delivers the same buffer-reuse+zero; see retire note."
         ),
+        # Pin-gate mirror of the retire: the pre-existing upper cap
+        # already excludes every 0.22.x pin; anchor last byte-verified
+        # on nightly dcacdf9a (2026-05-14, single-file gdn_linear_attn).
         "applies_to": {"vllm_version_range": (">=0.20.2rc1.dev9", "<0.21.0")},
         "requires_patches": [],
         "conflicts_with": [],
@@ -4281,7 +4313,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "composes_with": ["PN59", "P103", "PN29", "PN106", "PN298", "PN299", "PN345", "PN350"],
     },
     "PN367": {
-        "title": "CUDA graph memory estimate clamp (vendor of OPEN vllm#45076)",
+        "title": "CUDA graph memory estimate clamp (vendor of OPEN vllm#44745, ex-vllm#45076)",
         "tier": "community",
         "family": "compile_safety",
         "env_flag": "GENESIS_ENABLE_PN367",
@@ -4290,28 +4322,34 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "lifecycle": "experimental",
         "category": "stability",
         "credit": (
-            "Genesis vendor of OPEN vllm PR #45076 (Oxygen56, fixes "
-            "#44740) — negative CUDA graph memory estimation under MTP "
-            "spec-decode. Verified at pin g303916e93: decoder profiling "
-            "path appends raw mem_before - free_after (can go negative "
-            "via CachingAllocator freelist consolidation or MTP lazy "
-            "buffer GC between measurements) while the encoder path in "
-            "the same function already clamps to >= 0. A negative "
-            "first_capture understates graph memory -> KV cache sized "
-            "larger than the card affords -> silent headroom loss / OOM "
-            "risk on 24 GB A5000 at gpu_memory_utilization=0.9 + MTP "
-            "K=3. Vendored: per-sample clamp + WARNING on negative delta "
-            "(visible at PROD's VLLM_LOGGING_LEVEL=WARNING) in "
-            "gpu_model_runner.py + final non-negative guard in "
+            "Genesis vendor of vllm PR #44745 (fixes #44740) — negative "
+            "CUDA graph memory estimation under MTP spec-decode. "
+            "History: v1 vendored OPEN PR #45076 (Oxygen56); on "
+            "2026-06-10 the author CLOSED #45076 and consolidated into "
+            "#44745 (same clamp + 1 MiB first-capture floor + unit "
+            "tests, OPEN) — PN367 v2 tracks #44745. Verified at pin "
+            "g303916e93: decoder profiling path appends raw mem_before "
+            "- free_after (can go negative via CachingAllocator "
+            "freelist consolidation or MTP lazy buffer GC between "
+            "measurements) while the encoder path in the same function "
+            "already clamps to >= 0. A negative first_capture "
+            "understates graph memory -> KV cache sized larger than the "
+            "card affords -> silent headroom loss / OOM risk on 24 GB "
+            "A5000 at gpu_memory_utilization=0.9 + MTP K=3. Vendored: "
+            "per-sample clamp + WARNING on negative delta (visible at "
+            "PROD's VLLM_LOGGING_LEVEL=WARNING) + 1 MiB first-capture "
+            "floor in gpu_model_runner.py + final non-negative guard in "
             "gpu_worker.py. NOT vendored (documented divergence): the "
             "PR's per-measurement empty_cache() — measurement-stability "
             "improvement with boot-time cost; clamp alone removes the "
             "correctness hazard. Defensive: zero behavior change when "
-            "estimates are positive. Self-skips when #45076 lands "
-            "(drift markers)."
+            "estimates are positive. Self-skips when #44745 lands — v2 "
+            "drift markers are exact substrings of its merged form "
+            "(v1's markers could never fire; fixed 2026-06-11)."
         ),
-        "upstream_pr": 45076,
+        "upstream_pr": 44745,
         "upstream_pr_relationship": "backport",
+        "related_upstream_prs": [45076],
         "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
         "implementation_status": "full",
         "composes_with": ["P66", "PN125", "PN126", "PN364"],
@@ -4863,14 +4901,20 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "the function parameter — Genesis patch uses the parameter "
             "name that actually exists in our file. Composes with PN340 "
             "+ PN341 + PN345 (different files / layers); independent of "
-            "P83 (FullAttentionManager path, currently opt-in OFF)."
+            "P83 (FullAttentionManager path, retired 2026-06-11). "
+            "Composes with P85 via P85's Site 2 dual anchor variants "
+            "(2026-06-11 §5): PN346's 4-line anchor is a byte-identical "
+            "subsequence inside P85's Site 2 anchor; PN346 "
+            "boot-dispatches BEFORE P85, so P85 carries a "
+            "post-PN346-shaped variant assembled from PN346's own "
+            "constants."
         ),
         "upstream_pr": 43650,
         "upstream_pr_relationship": "backport",
         "upstream_issue": 43559,
         "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
         "implementation_status": "full",
-        "composes_with": ["PN340", "PN341", "PN345"],
+        "composes_with": ["PN340", "PN341", "PN345", "P85"],  # P85: Site 2 dual variants, PN346 first
     },
     "PN347": {
         "title": "MarlinFP8 N==K silent corruption correctness fix (vendor of OPEN vllm#44113)",

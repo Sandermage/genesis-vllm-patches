@@ -222,8 +222,13 @@ def _make_patcher() -> TextPatcher | None:
         ],
         upstream_drift_markers=[
             "[Genesis PN353A",
-            # If upstream lands the same fix, our patch becomes redundant.
-            "def _reserve_workspace",
+            # Self-collision lint (triage plan §6 2026-06-11): former entry
+            # "def _reserve_workspace" is defined verbatim by our own
+            # vllm#44053 backport replacement — it cannot distinguish a
+            # real upstream merge from our residue (false "upstream_merged"
+            # skip, PN369 class). If upstream lands the same fix, the
+            # required anchor misses → Layer 5 skip; preflight deep-diff
+            # catches the merge at pin-bump time (iron rule #11).
             # FIXED 2026-06-11 (preflight triage, verified byte-level):
             # "tq_max_kv_splits_for_cuda_graph" removed — it is a
             # PRE-EXISTING pin API name (config/attention.py, read by our

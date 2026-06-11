@@ -64,7 +64,10 @@ log = logging.getLogger("genesis.wiring.p28_gdn_core_attn")
 GENESIS_P28_MARKER = "Genesis P28 GDN core_attn_out prealloc v7.0"
 
 UPSTREAM_DRIFT_MARKERS = [
-    "_genesis_gdn_core_attn_buf",
+    # Self-collision lint (triage plan §6 2026-06-11): former entry
+    # "_genesis_gdn_core_attn_buf" is a Genesis-only name baked by our own
+    # replacement — false "upstream_merged" skip on residue. Remaining
+    # entries are hypothetical-upstream-only names, never emitted by us.
     "gdn_core_attn_out_buffer",
     "gdn_core_attn_prealloc",
 ]

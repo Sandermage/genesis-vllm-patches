@@ -224,10 +224,14 @@ class TestPatch15:
     def test_skip_when_upstream_merged(self, fake_qwen3_parser):
         from sndr.engines.vllm.patches.tool_parsing import p15_qwen3_none_null as p15
         path = fake_qwen3_parser
-        # Simulate upstream form by directly patching in the tuple check
+        # Simulate upstream form by directly patching in the tuple check.
+        # Self-collision lint (triage plan §6 2026-06-11): the
+        # double-quoted tuple is baked by our own replacement and is no
+        # longer a drift marker; the single-quoted PR #38996 spelling is
+        # the strictly-upstream-only detector.
         content = Path(path).read_text().replace(
             '"null"',
-            '("null", "none")',
+            "('null', 'none')",
         )
         Path(path).write_text(content)
         status, reason = p15.apply()
@@ -601,12 +605,15 @@ class TestPatch27:
 
     def test_skip_when_upstream_merged(self, fake_qwen3_reasoning):
         from sndr.engines.vllm.patches.reasoning import p27_reasoning_before_think as p27
-        # Inject an upstream drift marker
+        # Inject an upstream drift marker. Self-collision lint (triage
+        # plan §6 2026-06-11): "before_think" is baked by our own
+        # replacement and is no longer a drift marker; "BEFORE_THINK" is
+        # the strictly-upstream-only detector.
         original = Path(fake_qwen3_reasoning).read_text()
         Path(fake_qwen3_reasoning).write_text(
             original.replace(
                 "# Strip <think>",
-                "# Strip <think>  (before_think captured upstream)",
+                "# Strip <think>  (BEFORE_THINK captured upstream)",
                 1,
             )
         )
@@ -733,9 +740,13 @@ class TestPatch7Deferred:
     ):
         from sndr.engines.vllm.patches.attention.gdn import p7_gdn_dual_stream as p7
         monkeypatch.setenv("GENESIS_ENABLE_P7", "1")
+        # Self-collision lint (triage plan §6 2026-06-11):
+        # "DualStreamDispatcher" is our own class imported by the
+        # replacement and is no longer a drift marker; "gdn_aux_stream"
+        # is a strictly-upstream-only detector.
         content = Path(fake_gdn_linear_attn).read_text()
         Path(fake_gdn_linear_attn).write_text(
-            "# DualStreamDispatcher upstream merged\n" + content
+            "# gdn_aux_stream upstream merged\n" + content
         )
         status, reason = p7.apply()
         assert status == "skipped"
@@ -929,14 +940,19 @@ class TestPatch34MambaDeadlock:
         ast.parse(Path(fake_scheduler_p34).read_text())
 
     def test_upstream_drift_pr40757_detected(self, fake_scheduler_p34):
-        """Simulate PR #40757 landing: the aligned= pattern appears before
-        our patch runs. We must self-retire."""
+        """Simulate an upstream alignment fix landing: the
+        aligned_num_new_tokens= variant appears before our patch runs.
+        We must self-retire. Self-collision lint (triage plan §6
+        2026-06-11): the exact PR #40757 spelling is baked by our own
+        replacement and is no longer a drift marker; the variant
+        spellings remain strictly-upstream-only detectors (the #40757
+        form itself is caught by required-anchor mismatch instead)."""
         from sndr.engines.vllm.patches.scheduler import p34_mamba_deadlock_guard as p34
-        # Prepend a line that looks like the PR #40757 fix had already merged
+        # Prepend a line that looks like an upstream variant fix merged
         original = Path(fake_scheduler_p34).read_text()
         Path(fake_scheduler_p34).write_text(
             "# upstream fix landed\n"
-            "aligned = num_new_tokens // block_size * block_size\n"
+            "aligned_num_new_tokens = num_new_tokens // block_size * block_size\n"
             + original
         )
         status, reason = p34.apply()

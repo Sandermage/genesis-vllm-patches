@@ -316,7 +316,12 @@ def _make_patcher() -> TextPatcher | None:
         ],
         upstream_drift_markers=[
             "[Genesis PN38",
-            "_use_quantized_kv_fallback",  # if upstream lands #40425 itself
+            # Self-collision lint (triage plan §6 2026-06-11): former entry
+            # "_use_quantized_kv_fallback" is the #40425 helper baked
+            # verbatim by our own backport replacement — it cannot
+            # distinguish a real upstream merge from our residue (false
+            # "upstream_merged" skip, PN369 class). Real-merge detection
+            # via required-anchor mismatch (Layer 5) + preflight deep-diff.
         ],
     )
 

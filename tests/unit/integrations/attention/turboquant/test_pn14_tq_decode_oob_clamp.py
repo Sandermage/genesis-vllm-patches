@@ -189,7 +189,20 @@ class TestPn14AnchorInvariants:
         finally:
             os.unlink(fpath)
         assert any("Genesis PN14" in m for m in drift_markers)
-        assert any("safe_page_idx = tl.where" in m for m in drift_markers)
+        # Self-collision lint contract (triage plan §6 2026-06-11): the
+        # former "safe_page_idx = tl.where(kv_mask, page_idx, 0)" entry was
+        # baked verbatim by the backport replacement and could false-skip
+        # as "upstream_merged" on residue (PN369 class). No drift marker
+        # may be a substring of the patch's own emitted text; only the
+        # sanctioned "[Genesis"-prefixed self-referencing form may match.
+        for sub in patcher.sub_patches:
+            for m in drift_markers:
+                if m.startswith("[Genesis"):
+                    continue
+                assert m not in sub.replacement, (
+                    f"drift marker {m!r} collides with PN14's own "
+                    f"replacement text (sub-patch {sub.name!r})"
+                )
 
 
 # ─── apply() behavior tests ─────────────────────────────────────────────

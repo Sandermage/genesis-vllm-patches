@@ -233,13 +233,14 @@ def _make_patcher() -> TextPatcher | None:
         ],
         upstream_drift_markers=[
             "[Genesis PN25",
-            "_GENESIS_PN25_SILU_AND_MUL_OP",
-            # v7.65/v7.66 markers — if older marker present, this v7.68
-            # patch SHOULD replace cleanly via the standard idempotency
-            # path (different marker → re-apply). The drift markers
-            # below intentionally ALSO list older Genesis names so
-            # external re-apply tools can detect "already-Genesis" state.
-            "_genesis_pn25_op",
+            # Self-collision lint (triage plan §6 2026-06-11): former
+            # entries "_GENESIS_PN25_SILU_AND_MUL_OP" / "_genesis_pn25_op"
+            # are baked by the CURRENT v7.68 replacement — false
+            # "upstream_merged" skip on residue (e.g. on a marker version
+            # bump). Residue coverage stays with the "[Genesis PN25"
+            # banner. The v7.65/v7.66 names below are NOT in the current
+            # replacement and stay so external re-apply tools can detect
+            # the older "already-Genesis" state.
             "_genesis_pn25_cache",
             "_genesis_pn25_out",
             # If upstream lands silu_and_mul.out variant or rewrites

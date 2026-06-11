@@ -15,6 +15,14 @@
 #   - context length cap: DFlash multi-conc 80K vs MTP+TQ multi-conc 262K
 #   - target weight quant: DFlash uses INT4 target, MTP+TQ uses INT4 target too
 #   - drafter availability: DFlash needs Qwen3.6-27B-DFlash on host disk
+#
+# ⚠ PIN NOTE (2026-06-11 fleet validation): the qwen3.6-27b-dflash
+# ModelDef pin_holds 626fa9bb (versions.pin_hold — DFlash drafter not
+# covered by the 0.22.1 fleet validation), while the a5000-2x hardware
+# YAML image is the promoted 0.22.1 pin (303916e93). Launching this
+# preset on the current image is UNVALIDATED until a DFlash smoke runs
+# on 0.22.1; :nightly-previous (626fa9bb) is retained on the rig for
+# exactly this case (CLAUDE.md pin policy).
 
 model: qwen3.6-27b-dflash                        # DFlash variant of 27B (target INT4 + bf16 separate drafter)
 hardware: a5000-2x-24gbvram-16cpu-128gbram       # same rig — 2× A5000 24GB

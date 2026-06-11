@@ -44,6 +44,14 @@ Verdicts per patcher:
                         retired-by-design via the wiring module's
                         ``*_RETIRED_SUBS`` attr (v1.2, non-actionable;
                         the P64 serving-patcher steady state)
+  EXPECTED_ALTERNATE  — zero-match patcher whose every sub is declared
+                        a per-pin variant via the wiring module's
+                        ``*_ANCHOR_ALTERNATION`` dict attr AND whose
+                        declared alternate sub matched in a sibling
+                        row of the same module (v1.3, non-actionable;
+                        the P91B dual-factory dev338/dev371 class —
+                        exactly one inc.py anchor matches on any live
+                        pin by design)
   UNBUILDABLE         — builder has required params we will not guess
                         (v1.2: a param <name> IS fillable when the
                         module exposes a callable ``_read_<name>`` —
@@ -55,6 +63,13 @@ v1.2 (2026-06-11, residual-triage action plan §4): rows built only
 after an env-forced builder retry carry ``env_forced: true``; rows
 whose required builder params were filled through the ``_read_<name>``
 convention carry ``params_filled_via``.
+
+v1.3 (2026-06-11, P91B alternation manifest): module-declared
+anchor-alternation via ``*_ANCHOR_ALTERNATION`` (sub name → alternate
+sub names). Reclassifies the non-matching per-pin factory variant from
+DRIFT_ANCHOR to EXPECTED_ALTERNATE when the OTHER variant matched;
+rows carry ``alternate_matched``. A miss on EVERY variant stays
+DRIFT_ANCHOR — fail-noisy, never fail-silent.
 
 Usage:
     python3 tools/pin_preflight.py <candidate_root> \
@@ -113,6 +128,7 @@ SUB_UPSTREAM_MERGED = "SUB_UPSTREAM_MERGED"
 STALE_RESIDUE = "STALE_RESIDUE"
 ENV_GATED_ABSTAIN = "ENV_GATED_ABSTAIN"
 KNOWN_OPTIONAL_RETIRED = "KNOWN_OPTIONAL_RETIRED"
+EXPECTED_ALTERNATE = "EXPECTED_ALTERNATE"
 UNBUILDABLE = "UNBUILDABLE"
 IMPORT_FAIL = "IMPORT_FAIL"
 RUNTIME_BINDING = "RUNTIME_BINDING"
@@ -126,7 +142,9 @@ BINDING_UNRESOLVED = "BINDING_UNRESOLVED"
 # candidate pin (when the patch is in version range for the candidate).
 # Deliberately excluded: CHAINED_ANCHOR (apply-order chain, judge the
 # provider), ENV_GATED_ABSTAIN and KNOWN_OPTIONAL_RETIRED (v1.2 —
-# documented non-drift abstain states, fail-noisy in the report only).
+# documented non-drift abstain states, fail-noisy in the report only),
+# EXPECTED_ALTERNATE (v1.3 — declared per-pin factory alternation; the
+# matching variant's own row is the one to judge).
 ACTIONABLE_VERDICTS = frozenset({
     DRIFT_ANCHOR, AMBIGUOUS_ANCHOR, DRIFT_FILE_MOVED, UPSTREAM_MERGED,
     SUB_UPSTREAM_MERGED, STALE_RESIDUE, UNBUILDABLE, IMPORT_FAIL,
@@ -768,6 +786,79 @@ def _maybe_optional_retired(row: dict, patcher: Any,
     )
 
 
+def _anchor_alternation_map(mod: Any) -> dict[str, dict[str, Any]]:
+    """v1.3 EXPECTED_ALTERNATE convention: a wiring module with multiple
+    per-pin factory variants of the SAME code site declares the
+    alternation through a ``*_ANCHOR_ALTERNATION`` dict attr mapping
+    each sub name to the sub names of its alternate variants (e.g.
+    P91B_ANCHOR_ALTERNATION in p91b_autoround_row_group_cdiv_multi_
+    scheme — dual inc.py factories dev338/dev371 by design, exactly one
+    anchor matches on any live pin; Option A from the Step 0 anchor
+    manifest). Returns sub name → {"alternates": tuple, "attr": name}."""
+    out: dict[str, dict[str, Any]] = {}
+    for attr in dir(mod):
+        if not attr.endswith("_ANCHOR_ALTERNATION"):
+            continue
+        val = getattr(mod, attr, None)
+        if not isinstance(val, dict):
+            continue
+        for name, alts in val.items():
+            if not isinstance(name, str):
+                continue
+            if isinstance(alts, str):
+                alts = (alts,)
+            if not isinstance(alts, (list, tuple, set, frozenset)):
+                continue
+            clean = tuple(a for a in alts if isinstance(a, str))
+            if clean:
+                out[name] = {"alternates": clean, "attr": attr}
+    return out
+
+
+def _reclassify_expected_alternate(
+    pairs: list[tuple[dict, Any]], alt_map: dict[str, dict[str, Any]],
+) -> None:
+    """Flip a zero-match DRIFT_ANCHOR row to EXPECTED_ALTERNATE when the
+    module declares the alternation AND a declared alternate sub
+    actually matched in a sibling row of the same module (the P91B
+    dual-factory class). A miss on EVERY declared variant stays
+    DRIFT_ANCHOR — fail-noisy, never fail-silent."""
+    if not alt_map:
+        return
+    matched: set[str] = set()
+    for row, _patcher in pairs:
+        matched.update(row.get("applied_subs") or [])
+    for row, patcher in pairs:
+        if row.get("verdict") != DRIFT_ANCHOR or row.get("applied_subs"):
+            continue
+        subs = getattr(patcher, "sub_patches", None) or []
+        names = [getattr(s, "name", "") for s in subs]
+        if not names or not all(n in alt_map for n in names):
+            continue
+        hits: list[str] = []
+        attrs: set[str] = set()
+        for n in names:
+            alt_hit = next(
+                (a for a in alt_map[n]["alternates"] if a in matched), None)
+            if alt_hit is None:
+                hits = []
+                break
+            if alt_hit not in hits:
+                hits.append(alt_hit)
+            attrs.add(alt_map[n]["attr"])
+        if not hits:
+            continue
+        row["verdict"] = EXPECTED_ALTERNATE
+        row["alternate_matched"] = hits
+        row["detail"] = (
+            "anchor variant for another pin — alternate sub(s) "
+            + ", ".join(repr(h) for h in hits)
+            + " matched in this sweep; per-pin alternation declared via "
+            "module attr " + ", ".join(sorted(attrs))
+            + ", not drift"
+        )
+
+
 def evaluate_module(
     module_name: str, patch_ids: list[str], candidate_root: Path,
     specs: Optional[list[Any]] = None,
@@ -800,8 +891,10 @@ def evaluate_module(
 
     unset_flags = _unset_env_flags(specs)
     retired_map = _retired_sub_names(mod)
+    alternation_map = _anchor_alternation_map(mod)
 
     rows: list[dict] = []
+    alt_pairs: list[tuple[dict, Any]] = []
     for bname in builders:
         fn = getattr(mod, bname)
         missing = unfillable_params(fn)
@@ -881,7 +974,9 @@ def evaluate_module(
             if filled_via:
                 row["params_filled_via"] = filled_via
             _maybe_optional_retired(row, p, retired_map)
+            alt_pairs.append((row, p))
             rows.append(row)
+    _reclassify_expected_alternate(alt_pairs, alternation_map)
     return rows
 
 
@@ -1357,7 +1452,7 @@ def run_preflight(
     )
 
     report = {
-        "tool": "pin_preflight v1.2",
+        "tool": "pin_preflight v1.3",
         "checked_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "candidate_root": str(candidate_root),
         "provenance": provenance,

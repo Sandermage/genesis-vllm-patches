@@ -1,5 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
 # Genesis V2 alias — 27B INT4 fp8kv long-context (256K) on 2× A5000.
+#
+# ⚠ PIN NOTE (2026-06-11 fleet validation): the
+# qwen3.6-27b-int4-autoround-fp8kv ModelDef pin_holds 626fa9bb
+# (versions.pin_hold — fp8kv KV variant not covered by the 0.22.1 fleet
+# validation), while the a5000-2x hardware YAML image is the promoted
+# 0.22.1 pin (303916e93). Launching this preset on the current image is
+# UNVALIDATED until an fp8kv smoke runs on 0.22.1; :nightly-previous
+# (626fa9bb) is retained on the rig for exactly this case (CLAUDE.md
+# pin policy).
 
 model: qwen3.6-27b-int4-autoround-fp8kv
 hardware: a5000-2x-24gbvram-16cpu-128gbram

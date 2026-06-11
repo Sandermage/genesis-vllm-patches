@@ -60,7 +60,10 @@ UPSTREAM_DRIFT_MARKERS = [
     # merged ONLY the cu_2 half (which lands on dev371). The 32 MiB/call
     # output prealloc — the bigger win — is still un-merged on dev371,
     # so we must keep applying p26_output_alloc independently.
-    "acquire_prefill_output",
+    # Self-collision lint (triage plan §6 2026-06-11): former entry
+    # "acquire_prefill_output" is our own pool accessor called by the
+    # replacement text — false "upstream_merged" skip on residue. The
+    # remaining entry is a hypothetical-upstream-only name.
     "_tq_prefill_output_slice",
 ]
 

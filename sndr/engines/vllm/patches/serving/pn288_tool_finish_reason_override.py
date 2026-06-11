@@ -198,9 +198,12 @@ def _make_patcher() -> TextPatcher | None:
             ),
         ],
         upstream_drift_markers=[
+            # Self-collision lint (triage plan §6 2026-06-11): former
+            # entries "_genesis_pn288_decide_streaming" /
+            # "_genesis_pn288_decide_non_streaming" were baked by our own
+            # replacements — residue coverage stays with the
+            # "[Genesis PN288" banner.
             "[Genesis PN288",
-            "_genesis_pn288_decide_streaming",
-            "_genesis_pn288_decide_non_streaming",
         ],
     )
 

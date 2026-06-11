@@ -103,13 +103,17 @@ new parameter is introduced, no caller change needed.
 Composition + safety
 ====================
 
-  * No anchor overlap with any existing Genesis patch (this is a
-    cache-manager file; our existing patches target attention
-    backends, kernels, model files).
-  * No conflict with our PN85 (Hybrid fine-shadow prefix cache —
-    currently strict opt-in via GENESIS_ENABLE_P85, default OFF).
+  * ANCHOR OVERLAP with P85 (correction 2026-06-11, plan section 5 —
+    the original "no anchor overlap" claim was wrong): PN346's 4-line
+    anchor is a byte-identical subsequence inside P85's Site 2 anchor
+    (``MambaManager.find_longest_cache_hit``). PN346 boot-dispatches
+    BEFORE P85; P85 v2 composes via dual Site 2 anchor variants
+    (pristine-shaped + post-PN346-shaped assembled from THIS module's
+    PN346_ANCHOR_OLD/NEW constants — do not rename them without
+    updating P85 and its dual-anchor test). P85 remains strict opt-in
+    via GENESIS_ENABLE_P85, default OFF.
   * No-op when ``drop_eagle_block=False`` (EAGLE / MTP disabled).
-  * Composes with PN340 + PN341 + PN345 + PN29 + PN204 + PN286.
+  * Composes with PN340 + PN341 + PN345 + PN29 + PN204 + PN286 + P85.
 
 Risk: LOW — six-line surgical guard, only fires on EAGLE / MTP path.
 Effort: XS.

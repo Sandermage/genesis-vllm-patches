@@ -4,6 +4,16 @@
 # gemma-4-31b-it-awq with MTP spec-decode targeting tool_json and
 # structured_count workloads.
 #
+# ⛔ TQ-BLOCKED on the promoted 0.22.1 pin (303916e93) — like every
+# 31B TQ profile: the new upstream validity gate rejects TURBOQUANT for
+# Gemma 4 MM (supports_mm_prefix False + kv_cache_dtype reason); the
+# parent ModelDef pin_holds 626fa9bb. G4_60L below closed the dev371-era
+# overlay variant of the same rejection; the 0.22.1 selection-time gate
+# needs G4_79 (+G4_31 for the dtype half). Validated degraded fallback
+# on 0.22.1: kv auto / 32K ctx, 78.4 TPS, tools 7/7. Flags here
+# intentionally unchanged — see gemma4-31b-tq-default.yaml header +
+# journal 2026-06-11-fleet-validation-on-pin-303916e93.md.
+#
 # This profile is the declarative form of the manually-validated
 # server-side launcher `start_g4_betaA_k1.sh`. Composition + render-
 # launchers (P1.5) will produce a launcher byte-equivalent to it
@@ -167,7 +177,10 @@ patches_delta:
     # Phase 7.G4.31B.K4-TURBOQUANT-BACKEND-MM-PREFIX (2026-05-23).
     # Closes the 'partial multimodal token full attention not supported'
     # rejection that fires on Gemma 4 31B AWQ + TURBOQUANT path on the
-    # current vllm pin (dev371+gbf610c2f5). Stock class missing the
+    # dev371+gbf610c2f5 pin (the pin this profile was validated on; the
+    # ModelDef now pin_holds 626fa9bb, and on the rig-current 0.22.1 pin
+    # the rejection moved to selection time — G4_79 territory, see file
+    # header). Stock class missing the
     # supports_mm_prefix=True classmethod override that PR42637 overlay
     # adds; the V2 compose path doesn't bind-mount the overlay, so a
     # Python-side monkey-patch is needed. Idempotent vs G4_60B overlay

@@ -2,6 +2,22 @@
 # Genesis V2 profile — gemma4-31b-tq-default
 # Role: default — production-safe MTP-OFF runtime for gemma-4-31b-it-awq.
 #
+# ⛔ TQ-BLOCKED on the promoted 0.22.1 pin (303916e93) — fleet validation
+# 2026-06-11 (journal 2026-06-11-fleet-validation-on-pin-303916e93.md):
+# the new upstream attention validity gate (v1/attention/backend.py
+# validate_configuration) rejects TURBOQUANT for Gemma 4 MM models —
+# `supports_mm_prefix()` defaults False + 'kv_cache_dtype not supported'.
+# The parent ModelDef therefore pin_holds 626fa9bb (versions.pin_hold).
+#   • Staged unblock: G4_79 (GENESIS_ENABLE_G4_79_TQ_MM_PREFIX) declares
+#     supports_mm_prefix on TurboQuantAttentionBackend; pairs with G4_31
+#     for the dtype reason (see g4_79_tq_mm_prefix_support.py docstring).
+#   • Validated degraded fallback on 0.22.1: kv_cache_dtype auto (no TQ
+#     backend) + 32K ctx — 78.4 TPS, tools 7/7 (3× the old-pin TQ
+#     baseline; cost: 65K → 32K ctx). Round-trip of that decision into a
+#     builtin profile is queued (journal follow-up #8).
+# Flags below are intentionally NOT flipped — this profile remains the
+# TQ-on-626fa9bb description until G4_79 (+G4_31) validates on 0.22.1.
+#
 # This profile pairs with `gemma4-31b-tq-mtp-structured-k4` (the structured-
 # role sibling). Together they implement the post-Variant-A architecture
 # where MTP is a workload-conditional runtime behavior rather than an

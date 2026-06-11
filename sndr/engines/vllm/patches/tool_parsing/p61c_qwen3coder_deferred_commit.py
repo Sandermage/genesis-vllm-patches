@@ -172,14 +172,14 @@ def _make_patcher() -> TextPatcher | None:
             required=True,
         )],
         upstream_drift_markers=[
-            # `_tc_idx` and `_slack_end` are our own variable names — would
-            # only appear here in pristine source if upstream coincidentally
-            # lands an equivalent fix using same names (unlikely). Safe to
-            # use as drift indicators. (DO NOT add `is_tool_call_started`
-            # here — it's an existing variable in pristine source, would
-            # fire drift on every boot.)
-            "_tc_idx",
-            "_slack_end",
+            # Self-collision lint (triage plan §6 2026-06-11): former
+            # entries "_tc_idx" / "_slack_end" are our own variable names
+            # baked by the replacement text — false "upstream_merged" skip
+            # on residue (PN369 class). The sanctioned banner prefix below
+            # keeps the same already-Genesis residue coverage. (DO NOT add
+            # `is_tool_call_started` here — it's an existing variable in
+            # pristine source, would fire drift on every boot.)
+            "[Genesis P61c",
         ],
     )
 

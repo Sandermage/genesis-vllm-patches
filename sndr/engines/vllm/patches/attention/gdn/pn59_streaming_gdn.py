@@ -174,8 +174,11 @@ def _make_patcher() -> TextPatcher | None:
             # signature changes → drift detected → SKIP cleanly
             "memory_efficient",
             "streaming_window_chunks",
-            # Or if upstream merges any equivalent
-            "streaming_chunk_gated_delta_rule_fwd",
+            # Self-collision lint (triage plan §6 2026-06-11): former entry
+            # "streaming_chunk_gated_delta_rule_fwd" is our own
+            # orchestrator function called by the replacement text — false
+            # "upstream_merged" skip on residue. An upstream equivalent is
+            # still caught by the two markers above + anchor mismatch.
             # 2026-05-06: vllm PR #41824 (Kermit-C) adds `ssm_state_indices`
             # parameter to chunk_gated_delta_rule_fwd for in-place SSM state
             # access (eliminates gather/scatter). PN59's anchor matches the

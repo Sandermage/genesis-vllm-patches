@@ -140,8 +140,13 @@ def _make_patcher() -> TextPatcher | None:
         ],
         upstream_drift_markers=[
             "[Genesis P86",
-            # If upstream PR #40876 lands, the loop will look like our P86_NEW
-            "for i in valid_ngram_requests:\n            num_drafts =",
+            # Self-collision lint (triage plan §6 2026-06-11): former entry
+            # (the direct-fill loop fragment) is baked verbatim by our own
+            # P86_NEW replacement — if upstream PR #40876 lands the loop
+            # looks exactly like ours, so the string cannot distinguish a
+            # real merge from our residue (false "upstream_merged" skip,
+            # PN369 class). Real-merge detection via required-anchor
+            # mismatch (Layer 5) + pin-bump preflight deep-diff.
         ],
     )
 

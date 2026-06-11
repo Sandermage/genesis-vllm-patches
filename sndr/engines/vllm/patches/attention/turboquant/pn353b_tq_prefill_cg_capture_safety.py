@@ -278,9 +278,13 @@ def _make_patcher() -> TextPatcher | None:
         ],
         upstream_drift_markers=[
             "[Genesis PN353B",
-            # Upstream marker if vllm#43747 lands: PR uses these strings.
-            "UNIFORM_SINGLE_TOKEN_DECODE",
-            "is_current_stream_capturing",
+            # Self-collision lint (triage plan §6 2026-06-11): former
+            # entries "UNIFORM_SINGLE_TOKEN_DECODE" /
+            # "is_current_stream_capturing" are vllm#43747 strings baked
+            # verbatim by our own backport replacement — they cannot
+            # distinguish a real upstream merge from our residue (false
+            # "upstream_merged" skip, PN369 class). Real-merge detection
+            # via required-anchor mismatch (Layer 5) + preflight deep-diff.
         ],
     )
 

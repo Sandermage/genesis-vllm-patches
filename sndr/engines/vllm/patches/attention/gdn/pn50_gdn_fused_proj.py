@@ -126,8 +126,14 @@ def _make_patcher() -> TextPatcher | None:
             ),
         ],
         upstream_drift_markers=[
-            # Watch for upstream merging an equivalent fusion (vllm PR pending?)
-            "fused_qkvzba_split_reshape_cat_contiguous",
+            # Self-collision lint (triage plan §6 2026-06-11): former entry
+            # "fused_qkvzba_split_reshape_cat_contiguous" is the SGLang
+            # kernel name our own replacement calls — false
+            # "upstream_merged" skip on residue. Residue coverage moves to
+            # the sanctioned banner prefix below; a real upstream
+            # equivalent-fusion merge is caught by required-anchor
+            # mismatch (Layer 5) + pin-bump preflight deep-diff.
+            "[Genesis PN50",
         ],
     )
 

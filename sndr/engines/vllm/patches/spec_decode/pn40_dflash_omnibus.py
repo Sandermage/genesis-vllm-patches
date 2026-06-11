@@ -219,8 +219,10 @@ def _make_scheduler_observe_patcher() -> TextPatcher | None:
             ),
         ],
         upstream_drift_markers=[
+            # Self-collision lint (triage plan §6 2026-06-11): former entry
+            # "_genesis_pn40_observe" was baked by our own replacement —
+            # residue coverage stays with the "[Genesis PN40" banner.
             "[Genesis PN40",
-            "_genesis_pn40_observe",
         ],
     )
 
@@ -243,8 +245,10 @@ def _make_scheduler_k_trim_patcher() -> TextPatcher | None:
             ),
         ],
         upstream_drift_markers=[
+            # Self-collision lint (triage plan §6 2026-06-11): former entry
+            # "_genesis_pn40_trim" was baked by our own replacement —
+            # residue coverage stays with the "[Genesis PN40" banner.
             "[Genesis PN40",
-            "_genesis_pn40_trim",
         ],
     )
 

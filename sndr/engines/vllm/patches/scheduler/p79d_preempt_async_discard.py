@@ -130,11 +130,16 @@ def _make_patcher() -> TextPatcher | None:
         ],
         upstream_drift_markers=[
             "[Genesis P79d",
-            "vllm#38624",
+            # Self-collision lint (triage plan §6 2026-06-11): former entry
+            # "vllm#38624" was a substring of our own banner AND the Layer-6
+            # marker line — false "upstream_merged" skip on residue. The
+            # sanctioned "[Genesis"-prefixed form below keeps the same
+            # marker-line residue coverage (version-stamp proof):
+            "[Genesis wiring marker: Genesis P79d",
             # If upstream eventually merges, both anchor lines will move.
-            # Detect the merge marker from PR — they REMOVE these from
-            # reset_prefix_cache; we PRESERVE them. So if reset_prefix_cache
-            # no longer has the discard block, upstream merged → auto-skip.
+            # Upstream REMOVES these from reset_prefix_cache; we PRESERVE
+            # them. So if reset_prefix_cache no longer has the discard
+            # block, the required anchor misses → auto-skip (Layer 5).
         ],
     )
 

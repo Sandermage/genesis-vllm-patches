@@ -173,10 +173,13 @@ def _make_patcher() -> TextPatcher | None:
         ],
         upstream_drift_markers=[
             "[Genesis P108",
-            # Watch for the canonical upstream form. If `propose()` already
-            # synchronizes the current stream after the buffer writes we
-            # can step out.
-            "torch.accelerator.current_stream().synchronize()",
+            # Self-collision lint (triage plan §6 2026-06-11): former entry
+            # "torch.accelerator.current_stream().synchronize()" is the
+            # canonical upstream form baked verbatim by our own vllm#42603
+            # backport — it cannot distinguish a real upstream merge from
+            # our residue (false "upstream_merged" skip, PN369 class).
+            # Real-merge detection via required-anchor mismatch (Layer 5)
+            # + pin-bump preflight deep-diff.
         ],
     )
 

@@ -167,7 +167,12 @@ def _make_patcher() -> TextPatcher | None:
         ],
         upstream_drift_markers=[
             "[Genesis P65]",
-            "AttentionCGSupport.UNIFORM_SINGLE_TOKEN_DECODE",
+            # Self-collision lint (triage plan §6 2026-06-11): former entry
+            # "AttentionCGSupport.UNIFORM_SINGLE_TOKEN_DECODE" is baked by
+            # our own replacement (the downgrade assignment) — it cannot
+            # distinguish an upstream CG-support change from our residue
+            # (false "upstream_merged" skip, PN369 class). An upstream
+            # change is caught by required-anchor mismatch (Layer 5).
         ],
     )
 

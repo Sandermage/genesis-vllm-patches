@@ -271,9 +271,12 @@ def _make_struct_out_patcher() -> TextPatcher | None:
             TextPatch(name="p62_new_methods", anchor=NEW_METHODS_OLD,
                       replacement=NEW_METHODS_NEW, required=True),
         ],
-        upstream_drift_markers=[
-            "def update_reasoning_ended",  # upstream-merged version present
-        ],
+        # Self-collision lint (triage plan §6 2026-06-11): former entry
+        # "def update_reasoning_ended" is the method our own replacement
+        # defines — it cannot distinguish a real vllm#36138 merge from our
+        # residue (false "upstream_merged" skip, PN369 class). Real-merge
+        # detection via required-anchor mismatch + preflight deep-diff.
+        upstream_drift_markers=[],
     )
 
 
@@ -387,9 +390,11 @@ def _make_scheduler_patcher() -> TextPatcher | None:
             TextPatch(name="p62_sched_udtio", anchor=SCHED_UDTIO_OLD,
                       replacement=SCHED_UDTIO_NEW, required=True),
         ],
-        upstream_drift_markers=[
-            "validate_tokens_reasoning_aware",  # upstream-merged version present
-        ],
+        # Self-collision lint (triage plan §6 2026-06-11): former entry
+        # "validate_tokens_reasoning_aware" is the method name our own
+        # replacement emits — same indistinguishability as the
+        # structured_output patcher above.
+        upstream_drift_markers=[],
     )
 
 

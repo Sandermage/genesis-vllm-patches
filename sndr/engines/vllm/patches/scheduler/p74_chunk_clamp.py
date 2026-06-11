@@ -162,8 +162,11 @@ def _make_patcher() -> TextPatcher | None:
             ),
         ],
         upstream_drift_markers=[
+            # Self-collision lint (triage plan §6 2026-06-11): former entry
+            # "GENESIS_ENABLE_P74_CHUNK_CLAMP" is our env flag read by the
+            # replacement code itself — residue coverage stays with the
+            # "[Genesis P74]" banner.
             "[Genesis P74]",
-            "GENESIS_ENABLE_P74_CHUNK_CLAMP",
         ],
     )
 

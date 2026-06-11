@@ -222,7 +222,13 @@ def _make_inc_dev338_patcher() -> TextPatcher | None:
         ],
         upstream_drift_markers=[
             "[Genesis P91B",
-            "_genesis_p91b_cdiv",
+            # Self-collision lint (triage plan §6 2026-06-11): former entry
+            # "_genesis_p91b_cdiv" (here and in the 3 sibling patchers
+            # below) is the Genesis-only cdiv alias baked by our own
+            # replacements — false "upstream_merged" skip on residue.
+            # Residue coverage stays with the "[Genesis P91B" banner; the
+            # cdiv lines are strictly upstream-only (our replacements
+            # spell them "_genesis_p91b_cdiv(input_size...").
             # Upstream-side marker if vLLM merges an equivalent fix
             "scales_and_zp_size = cdiv(input_size_per_partition",
         ],
@@ -250,10 +256,29 @@ def _make_inc_dev371_patcher() -> TextPatcher | None:
         ],
         upstream_drift_markers=[
             "[Genesis P91B",
-            "_genesis_p91b_cdiv",
             "scales_and_zp_size = cdiv(input_size_per_partition",
         ],
     )
+
+
+# Preflight alternation manifest (EXPECTED_ALTERNATE convention,
+# tools/pin_preflight.py ``*_ANCHOR_ALTERNATION``): the two inc.py
+# factories above are per-pin variants of the SAME code site — dev338
+# spells ``self.group_size``, dev371 bare ``group_size``; exactly one
+# anchor matches on any KNOWN_GOOD pin (Option A from the Step 0 anchor
+# manifest). Current pin 0.22.1rc1.dev259 carries the dev371 spelling
+# at pristine inc.py:538 (status correction 2026-06-11 above). The
+# non-matching factory's zero-anchor state is the designed steady
+# state; preflight reclassifies it DRIFT_ANCHOR → EXPECTED_ALTERNATE
+# (non-actionable) when the other variant matched.
+P91B_ANCHOR_ALTERNATION = {
+    "p91b_inc_dev338_floor_partition_to_cdiv": (
+        "p91b_inc_dev371_floor_partition_to_cdiv",
+    ),
+    "p91b_inc_dev371_floor_partition_to_cdiv": (
+        "p91b_inc_dev338_floor_partition_to_cdiv",
+    ),
+}
 
 
 # ─── compressed_tensors_wNa16.py: 1 sub-patch (REPEAT-all-ranks branch) ───
@@ -299,7 +324,6 @@ def _make_wna16_patcher() -> TextPatcher | None:
         ],
         upstream_drift_markers=[
             "[Genesis P91B",
-            "_genesis_p91b_cdiv",
             "scales_and_zp_size = cdiv(input_size,",
         ],
     )
@@ -338,7 +362,6 @@ def _make_w4a8_fp8_patcher() -> TextPatcher | None:
         ],
         upstream_drift_markers=[
             "[Genesis P91B",
-            "_genesis_p91b_cdiv",
             "scales_and_zp_size = cdiv(input_size,",
         ],
     )

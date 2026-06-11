@@ -153,9 +153,12 @@ def _make_patcher() -> TextPatcher | None:
             ),
         ],
         upstream_drift_markers=[
+            # Self-collision lint (triage plan §6 2026-06-11): former
+            # entries "_dummy_run_M_capped_for_genesis" /
+            # "GENESIS_PROFILE_RUN_CAP_M" are Genesis-only names baked by
+            # our own replacement — residue coverage stays with the
+            # "[Genesis P72]" banner.
             "[Genesis P72]",
-            "_dummy_run_M_capped_for_genesis",
-            "GENESIS_PROFILE_RUN_CAP_M",
         ],
     )
 

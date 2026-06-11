@@ -3,6 +3,15 @@
 # Role: default — MTP K=3 chat-role runtime for gemma-4-31b-it-awq
 # targeting free_chat / code_gen / summarization workloads.
 #
+# ⛔ TQ-BLOCKED on the promoted 0.22.1 pin (303916e93) — like every
+# 31B TQ profile: the new upstream validity gate rejects TURBOQUANT for
+# Gemma 4 MM (supports_mm_prefix False + kv_cache_dtype reason); the
+# parent ModelDef pin_holds 626fa9bb. Staged unblock: G4_79 (+G4_31 for
+# the dtype half). Validated degraded fallback on 0.22.1: kv auto / 32K
+# ctx, 78.4 TPS, tools 7/7. Flags here intentionally unchanged — see
+# gemma4-31b-tq-default.yaml header + journal
+# 2026-06-11-fleet-validation-on-pin-303916e93.md.
+#
 # Bench-validated mirror-sibling of `gemma4-31b-tq-mtp-structured-k4`:
 # where K=4 is the validated structured-role profile (+24% structured,
 # -51% free-form, -14.7% global per its artifact), K=3 is the opposite

@@ -54,7 +54,10 @@ log = logging.getLogger("genesis.wiring.p7_gdn_dual_stream")
 GENESIS_P7_MARKER = "Genesis P7 GDN dual-stream in_proj v7.0"
 
 UPSTREAM_DRIFT_MARKERS = [
-    "DualStreamDispatcher",
+    # Self-collision lint (triage plan §6 2026-06-11): former entry
+    # "DualStreamDispatcher" is our own dispatcher class imported by the
+    # replacement text — false "upstream_merged" skip on residue.
+    # Remaining entries are hypothetical-upstream-only names.
     "gdn_aux_stream",
     "in_proj_dual_stream",
 ]

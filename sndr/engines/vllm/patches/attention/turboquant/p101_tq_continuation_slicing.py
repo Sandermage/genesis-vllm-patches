@@ -188,9 +188,13 @@ def _make_patcher() -> TextPatcher | None:
         ],
         upstream_drift_markers=[
             "[Genesis P101",
-            # Upstream-side markers if vllm#41123 (or equivalent) merges:
-            "_CONTINUATION_DECODE_MAX_CACHED_LEN",
-            "use_decode_continuation",
+            # Self-collision lint (triage plan §6 2026-06-11): former
+            # entries "_CONTINUATION_DECODE_MAX_CACHED_LEN" /
+            # "use_decode_continuation" are vllm#41123 names baked verbatim
+            # by our own selective backport — they cannot distinguish a
+            # real upstream merge from our residue (false "upstream_merged"
+            # skip, PN369 class). Real-merge detection via required-anchor
+            # mismatch (Layer 5) + pin-bump preflight deep-diff.
         ],
     )
 

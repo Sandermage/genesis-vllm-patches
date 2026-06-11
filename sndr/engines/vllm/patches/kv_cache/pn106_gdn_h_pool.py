@@ -176,8 +176,13 @@ def _make_chunk_delta_h_patcher() -> TextPatcher | None:
             ),
         ],
         upstream_drift_markers=[
-            "Genesis PN106",
-            "pn106_get_pooled_buf",
+            # Self-collision lint (triage plan §6 2026-06-11): former
+            # entries "Genesis PN106" / "pn106_get_pooled_buf" matched our
+            # own replacement and Layer-6 marker line — false
+            # "upstream_merged" skip on residue. Sanctioned "[Genesis"
+            # prefixed forms keep the same coverage (banner + marker line):
+            "[Genesis PN106",
+            "[Genesis wiring marker: Genesis PN106",
         ],
     )
 
@@ -202,8 +207,13 @@ def _make_chunk_o_patcher() -> TextPatcher | None:
             ),
         ],
         upstream_drift_markers=[
-            "Genesis PN106",
-            "pn106_get_pooled_buf",
+            # Self-collision lint (triage plan §6 2026-06-11): former
+            # entries "Genesis PN106" / "pn106_get_pooled_buf" matched our
+            # own replacement and Layer-6 marker line — false
+            # "upstream_merged" skip on residue. Sanctioned "[Genesis"
+            # prefixed forms keep the same coverage (banner + marker line):
+            "[Genesis PN106",
+            "[Genesis wiring marker: Genesis PN106",
         ],
     )
 

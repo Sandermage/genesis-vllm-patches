@@ -26,6 +26,15 @@
 # landed. After this preset lands, the canonical way to start the
 # chat-k3 upstream is:
 #   sndr launch prod-gemma4-31b-tq-mtp-chat-k3 --port 8113
+#
+# ⛔ PIN NOTE / TQ-BLOCKED (2026-06-11 fleet validation): the
+# gemma-4-31b-it-awq ModelDef pin_holds 626fa9bb — TURBOQUANT is
+# rejected by the 0.22.1 pin's new validity gate (supports_mm_prefix +
+# kv_cache_dtype). Do NOT launch on the current image until G4_79
+# (+G4_31) validates; degraded kv-auto / 32K fallback is the validated
+# 0.22.1 alternative (78.4 TPS, tools 7/7). See
+# prod-gemma4-31b-tq-default.yaml PIN NOTE + journal
+# 2026-06-11-fleet-validation-on-pin-303916e93.md.
 
 model: gemma-4-31b-it-awq                        # cyankiwi/gemma-4-31B-it-AWQ-4bit + native gemma4_dense
 hardware: a5000-2x-24gbvram-16cpu-128gbram       # Sander 2× A5000 homelab

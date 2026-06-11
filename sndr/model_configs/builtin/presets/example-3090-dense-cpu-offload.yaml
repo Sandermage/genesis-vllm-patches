@@ -1,5 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 # Genesis V2 alias — club-3090 #58 Path A reference (DENSE + CPU offload).
+#
+# ⚠ PIN NOTE: the qwen3.6-7b-dense ModelDef pin_holds dev338
+# (versions.pin_hold — placeholder checkpoint, no runtime evidence
+# possible), while the single-3090 hardware YAML image is the promoted
+# 0.22.1 pin (303916e93). This preset is an educational reference; it
+# cannot be smoke-validated until a real Q7B checkpoint lands.
 
 model: qwen3.6-7b-dense
 hardware: single-3090-24gbvram

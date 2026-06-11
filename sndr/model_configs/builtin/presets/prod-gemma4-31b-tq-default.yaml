@@ -17,6 +17,18 @@
 # (~/start_g4_betaA_k1.sh) uses MTP K=N parametric; this preset is the
 # `K=0 / MTP OFF` analogue exposed through canonical V2 compose so
 # render-launchers can target it without hand-shell.
+#
+# ⛔ PIN NOTE / TQ-BLOCKED (2026-06-11 fleet validation): the
+# gemma-4-31b-it-awq ModelDef this preset composes pin_holds 626fa9bb —
+# the promoted 0.22.1 pin (303916e93, the image the a5000-2x hardware
+# YAML now ships) REJECTS the TURBOQUANT backend for Gemma 4 MM via the
+# new attention validity gate (supports_mm_prefix False + kv_cache_dtype
+# reason). Do NOT launch this preset on the current image until the
+# G4_79 (+G4_31) unblock validates; the validated 0.22.1 alternative is
+# the degraded kv-auto / 32K hand profile (78.4 TPS, tools 7/7), whose
+# builtin round-trip is queued (journal
+# 2026-06-11-fleet-validation-on-pin-303916e93.md, follow-up #8).
+# Rollback image for the full TQ/65K+ path: :nightly-previous (626fa9bb).
 
 model: gemma-4-31b-it-awq                        # cyankiwi/gemma-4-31B-it-AWQ-4bit + native gemma4_dense
 hardware: a5000-2x-24gbvram-16cpu-128gbram       # Sander 2× A5000 homelab

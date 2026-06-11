@@ -152,7 +152,12 @@ def _make_patcher() -> TextPatcher | None:
             ),
         ],
         upstream_drift_markers=[
-            "Genesis G4_04",  # idempotency on re-apply
+            # Self-collision lint (triage plan §6 2026-06-11): former entry
+            # "Genesis G4_04" matched our own replacement AND the Layer-6
+            # marker line — false "upstream_merged" skip on residue. The
+            # sanctioned "[Genesis"-prefixed form keeps the same
+            # marker-line idempotency-on-re-apply coverage:
+            "[Genesis wiring marker: Genesis G4_04",
         ],
     )
 
@@ -218,7 +223,10 @@ def _make_patcher_for_fixture(
                 required=True,
             ),
         ],
-        upstream_drift_markers=["Genesis G4_04"],
+        # Self-collision lint (triage plan §6 2026-06-11): "[Genesis"
+        # prefixed form replaces "Genesis G4_04" (same marker-line
+        # coverage, no replacement-text self-collision).
+        upstream_drift_markers=["[Genesis wiring marker: Genesis G4_04"],
         patch_id=patch_id,
     )
 

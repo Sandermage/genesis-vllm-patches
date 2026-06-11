@@ -146,10 +146,12 @@ def _make_patcher() -> TextPatcher | None:
         ],
         upstream_drift_markers=[
             "[Genesis PN110",
-            # Upstream-merged form: the dedup set + warning live in the
-            # function body. Anchor on a fragment unique to the
-            # upstream patch.
-            'free_blocks() received',
+            # Self-collision lint (triage plan §6 2026-06-11): former entry
+            # "free_blocks() received" is the vllm#42615 warning fragment
+            # baked verbatim by our own backport replacement — it cannot
+            # distinguish a real upstream merge from our residue (false
+            # "upstream_merged" skip, PN369 class). Real-merge detection
+            # via required-anchor mismatch (Layer 5) + preflight deep-diff.
         ],
     )
 

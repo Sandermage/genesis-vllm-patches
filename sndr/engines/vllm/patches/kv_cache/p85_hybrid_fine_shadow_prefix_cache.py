@@ -91,11 +91,79 @@ SAFETY MODEL
 
 Status: opt-in via `GENESIS_ENABLE_P85=1`. Default OFF.
 
+================================================================
+v2 (2026-06-11) — both-sites re-anchor + PN346 composition
+================================================================
+
+Preflight residual triage action plan section 5 (pin
+0.22.1rc1.dev259+g303916e93):
+
+**Site 1 re-anchor:** upstream widened `MambaManager.cache_blocks` to
+the new `retention_interval` keyword signature (pristine
+`v1/core/single_type_kv_cache_manager.py` lines 1211-1229). The v1
+single-line-signature anchor matched zero times on this pin, so the
+required Site 1 sub-patch failed every boot. v2 re-derives
+P85_SITE1_OLD/NEW byte-exact from pristine and forwards
+`retention_interval` through `super().cache_blocks` unchanged.
+
+**Site 2 dual anchor variants (verifier-mandated):** sibling PN346
+(vendor of vllm#43650; effectively default-ON — only
+`GENESIS_DISABLE_PN346` is honored; boot-dispatched BEFORE P85)
+rewrites a byte-identical 4-line subsequence inside P85_SITE2_OLD,
+inserting 12 lines mid-anchor. A pristine-only Site 2 anchor passes
+pristine preflight but fails on every real (post-PN346) boot — the
+P18B-on-PN119 mirror class. v2 therefore carries TWO Site 2 variants
+with required-at-least-one semantics (both `required=False`; kernel
+soft-skips the absent variant), per the P18B / PN32-on-PN79 chain
+convention:
+
+  - pristine-shaped (`P85_SITE2_OLD`) — PN346 disabled;
+  - post-PN346-shaped (`P85_SITE2_OLD_POST_PN346`) — assembled
+    textually from PN346's own PN346_ANCHOR_OLD/NEW constants so the
+    two modules cannot silently diverge. Its replacement carries
+    PN346's `drop_eagle_block` boundary guard in the coarse fallback
+    (P85 must not undo PN346's GSM8K accuracy fix).
+
+Because Site 1 stays `required=True`, the kernel's all-miss SKIP can
+never fire for a Site-2-only drift; `apply()` adds an explicit
+`site2_anchor_present` pre-gate returning a structured skip BEFORE any
+write when neither Site 2 variant matches (a Site-1-only half-apply
+would be a store-side no-op hiding the drift behind the marker).
+
+Apply order: PN346 boot-dispatches before P85 (post-PN346 variant
+fires). The reverse order also composes — P85's pristine-variant
+replacement re-emits the 4-line coarse fallback, so PN346's anchor
+still matches exactly once inside it.
+
+**P84 dependency retired:** P84 (env-based hash_block_size override)
+was retired 2026-06-11 — both its sites are upstream-native on this
+pin: the Scheduler accepts an explicit `hash_block_size` parameter
+(pristine v1/core/sched/scheduler.py:72,229-230,242) and
+`resolve_kv_cache_block_sizes` (kv_cache_utils.py:593) provides the
+GCD default + the `cache_config.hash_block_size` override + the
+divisibility ValueError. P85's fine hashes now come from the
+upstream-native `--hash-block-size <N>` engine arg
+(cache_config.hash_block_size) instead of GENESIS_P84_HASH_BLOCK_SIZE.
+CAVEAT (verifier, plan section 3): the Mamba back-off
+(kv_cache_utils.py:639-644) returns the coarse scheduler block size
+BEFORE consulting the override whenever a Mamba group's block_size
+diverges from cache_config.block_size (mamba_cache_mode != "align") —
+fine hashing only engages with mamba_cache_mode="align"; verify
+num_hashes>0 server-side on the prod prefix-caching config.
+
+NOTE (plan section 6, pending batch): the `_g_p85_` upstream drift
+marker is a substring of this patch's own replacement text
+(self-collision lint class). Remediation belongs to the section 6
+batch, sequenced after this fix.
+
 Tunable knobs
 -------------
 - `GENESIS_ENABLE_P85` (default unset/0): master switch
-- Requires `GENESIS_ENABLE_P84=1` + `GENESIS_P84_HASH_BLOCK_SIZE=<N>`
-  with N dividing every group block_size (typically 16).
+- Requires upstream-native `--hash-block-size <N>`
+  (cache_config.hash_block_size) with N dividing every group
+  block_size (typically 16), and mamba_cache_mode="align" so the
+  Mamba back-off in resolve_kv_cache_block_sizes does not disable
+  fine hashing. (Replaces the retired P84 env override.)
 
 Compatibility
 -------------
@@ -108,7 +176,10 @@ Compatibility
 Author: Sandermage(Sander) Barzov Aleksandr, Ukraine, Odessa.
 Discovery: 6-round empirical investigation 2026-04-27 + deep code analysis
 synthesis. See sprint report SPRINT_REPORT_20260427_phase4_*.md.
-Related: P83 (Eagle pop skip), P84 (dual-site hash_block_size override).
+Related: P83 (Eagle pop skip), P84 (dual-site hash_block_size override)
+— both retired 2026-06-11 (upstream-native on pin 0.22.1rc1.dev259);
+PN346 (Mamba/GDN MTP+APC boundary fix, composes via Site 2 dual
+variants — see v2 section above).
 """
 from __future__ import annotations
 
@@ -116,6 +187,10 @@ import logging
 import os
 
 from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
+from sndr.engines.vllm.patches.kv_cache.pn346_mamba_mtp_apc_boundary import (
+    PN346_ANCHOR_NEW as _PN346_NEW,
+    PN346_ANCHOR_OLD as _PN346_OLD,
+)
 from sndr.kernel import (
     TextPatcher,
     TextPatch,
@@ -128,11 +203,27 @@ GENESIS_P85_MARKER = "Genesis P85 hybrid fine-shadow prefix cache (vllm#38182 fo
 
 
 # ─── Site 1: MambaManager.cache_blocks adds shadow entries ────────────────
+#
+# v2 re-anchor (2026-06-11, pin 0.22.1rc1.dev259+g303916e93): upstream
+# widened the signature with `retention_interval` (pristine
+# v1/core/single_type_kv_cache_manager.py lines 1211-1229, byte-exact,
+# count==1 verified against the live pristine tree and
+# tests/legacy/pristine_fixtures/single_type_kv_cache_manager.py,
+# md5 99b46fa9f109e22ea2ba4a0dfeac1e87). P85 only APPENDS the shadow
+# registration block — the upstream body, including the
+# retention_interval forward, is preserved verbatim.
 
-P85_SITE1_OLD = (
-    "    def cache_blocks(self, request: Request, num_tokens: int) -> None:\n"
+_P85_SITE1_TAIL = "\n    def new_step_starts(self) -> None:\n"
+
+_P85_SITE1_BODY = (
+    "    def cache_blocks(\n"
+    "        self,\n"
+    "        request: Request,\n"
+    "        num_tokens: int,\n"
+    "        retention_interval: int | None = None,\n"
+    "    ) -> None:\n"
     "        num_cached_blocks_before = self.num_cached_block.get(request.request_id, 0)\n"
-    "        super().cache_blocks(request, num_tokens)\n"
+    "        super().cache_blocks(request, num_tokens, retention_interval=retention_interval)\n"
     "        num_cached_blocks_after = self.num_cached_block.get(request.request_id, 0)\n"
     "        if num_cached_blocks_after > num_cached_blocks_before:\n"
     "            for block in self.req_to_blocks[request.request_id][\n"
@@ -142,23 +233,11 @@ P85_SITE1_OLD = (
     "                    continue\n"
     "                assert block.block_hash is not None\n"
     "                self.cached_blocks_this_step.add(block.block_hash)\n"
-    "\n"
-    "    def new_step_starts(self) -> None:\n"
 )
 
-P85_SITE1_NEW = (
-    "    def cache_blocks(self, request: Request, num_tokens: int) -> None:\n"
-    "        num_cached_blocks_before = self.num_cached_block.get(request.request_id, 0)\n"
-    "        super().cache_blocks(request, num_tokens)\n"
-    "        num_cached_blocks_after = self.num_cached_block.get(request.request_id, 0)\n"
-    "        if num_cached_blocks_after > num_cached_blocks_before:\n"
-    "            for block in self.req_to_blocks[request.request_id][\n"
-    "                num_cached_blocks_before:num_cached_blocks_after\n"
-    "            ]:\n"
-    "                if block.is_null:\n"
-    "                    continue\n"
-    "                assert block.block_hash is not None\n"
-    "                self.cached_blocks_this_step.add(block.block_hash)\n"
+P85_SITE1_OLD = _P85_SITE1_BODY + _P85_SITE1_TAIL
+
+_P85_SITE1_SHADOW_BLOCK = (
     "        # ════════════════════════════════════════════════════════════════\n"
     "        # [Genesis P85] Shadow fine-grained hash entries for hybrid lookup.\n"
     "        # When GENESIS_ENABLE_P85=1 and self.block_size != hash_block_size,\n"
@@ -215,12 +294,17 @@ P85_SITE1_NEW = (
     "                        + ' fine_hashes=' + str(len(_g_p85_fine))\n"
     "                        + '\\n')\n"
     "                    _g_p85_sys.stderr.flush()\n"
-    "\n"
-    "    def new_step_starts(self) -> None:\n"
 )
+
+P85_SITE1_NEW = _P85_SITE1_BODY + _P85_SITE1_SHADOW_BLOCK + _P85_SITE1_TAIL
 
 
 # ─── Site 2: MambaManager.find_longest_cache_hit walks fine hashes ────────
+#
+# The pristine-shaped variant below byte-matches pristine lines 988-1016
+# (count==1 verified 2026-06-11 against the live pristine tree and the
+# committed fixture). The post-PN346 variant is assembled from PN346's
+# own constants further down.
 
 P85_SITE2_OLD = (
     "        computed_blocks: tuple[list[KVCacheBlock], ...] = tuple(\n"
@@ -349,6 +433,91 @@ P85_SITE2_NEW = (
 )
 
 
+# ─── Site 2, post-PN346 variant (chain convention) ────────────────────────
+#
+# PN346 (vendor of vllm#43650, boot-dispatched BEFORE P85, effectively
+# default-ON) rewrites the 4-line coarse-search subsequence inside
+# P85_SITE2_OLD, inserting 12 lines mid-anchor. The post-PN346 variant
+# is assembled textually from PN346's own PN346_ANCHOR_OLD/NEW constants
+# (PN32-imports-PN79 precedent) so the two modules cannot silently
+# diverge. The replacement's coarse fallback thereby carries PN346's
+# drop_eagle_block boundary guard — P85 must not undo PN346's GSM8K
+# accuracy fix.
+
+if (
+    P85_SITE2_OLD.count(_PN346_OLD) == 1
+    and P85_SITE2_NEW.count(_PN346_OLD) == 1
+):
+    P85_SITE2_OLD_POST_PN346 = P85_SITE2_OLD.replace(_PN346_OLD, _PN346_NEW, 1)
+    P85_SITE2_NEW_POST_PN346 = P85_SITE2_NEW.replace(_PN346_OLD, _PN346_NEW, 1)
+else:
+    # PN346's anchor constants changed shape — the post-PN346 variant
+    # can no longer be assembled safely. Disable it with a
+    # never-matching sentinel (the pristine variant still works for
+    # PN346-disabled deployments) and fail loudly in the unit test
+    # (test_post_pn346_old_built_from_pn346_constants).
+    log.warning(
+        "[P85 v2] PN346_ANCHOR_OLD no longer appears exactly once in "
+        "P85_SITE2_OLD/NEW — disabling the post-PN346 anchor variant. "
+        "Re-verify P85/PN346 composition."
+    )
+    P85_SITE2_OLD_POST_PN346 = (
+        "# [Genesis P85 v2 sentinel — post-PN346 variant disabled, "
+        "PN346 anchors drifted]\n"
+    )
+    P85_SITE2_NEW_POST_PN346 = P85_SITE2_OLD_POST_PN346
+
+
+def build_sub_patches() -> list[TextPatch]:
+    """Site 1 (required) + the two Site 2 anchor variants.
+
+    Site 2 variants are both `required=False` (required-at-least-one
+    semantics — the kernel soft-skips the variant whose anchor is
+    absent). They are mutually exclusive by construction: the
+    post-PN346 anchor contains PN346's `[Genesis PN346` comment lines,
+    absent from pristine, and PN346's apply breaks the contiguous
+    4-line run the pristine anchor needs. Verified in
+    tests/unit/integrations/kv_cache/test_p85_dual_anchor_2026_06_11.py.
+
+    Because Site 1 is required=True the kernel's all-miss SKIP cannot
+    fire for a Site-2-only drift — `apply()` pre-gates on
+    `site2_anchor_present` before any write.
+    """
+    return [
+        TextPatch(
+            name="p85_mamba_cache_blocks_shadow",
+            anchor=P85_SITE1_OLD,
+            replacement=P85_SITE1_NEW,
+            required=True,
+        ),
+        TextPatch(
+            name="p85_mamba_find_longest_cache_hit_fine_pristine",
+            anchor=P85_SITE2_OLD,
+            replacement=P85_SITE2_NEW,
+            required=False,
+        ),
+        TextPatch(
+            name="p85_mamba_find_longest_cache_hit_fine_post_pn346",
+            anchor=P85_SITE2_OLD_POST_PN346,
+            replacement=P85_SITE2_NEW_POST_PN346,
+            required=False,
+        ),
+    ]
+
+
+def site2_anchor_present(content: str) -> bool:
+    """True iff at least one Site 2 anchor variant matches `content`.
+
+    Required-at-least-one belt for `apply()`: a Site-1-only half-apply
+    would be a store-side no-op (shadows registered, never looked up)
+    that hides Site 2 anchor drift behind the idempotency marker.
+    """
+    return (
+        P85_SITE2_OLD in content
+        or P85_SITE2_OLD_POST_PN346 in content
+    )
+
+
 def _make_patcher() -> TextPatcher | None:
     target = resolve_vllm_file("v1/core/single_type_kv_cache_manager.py")
     if target is None:
@@ -360,23 +529,14 @@ def _make_patcher() -> TextPatcher | None:
         ),
         target_file=str(target),
         marker=GENESIS_P85_MARKER,
-        sub_patches=[
-            TextPatch(
-                name="p85_mamba_cache_blocks_shadow",
-                anchor=P85_SITE1_OLD,
-                replacement=P85_SITE1_NEW,
-                required=True,
-            ),
-            TextPatch(
-                name="p85_mamba_find_longest_cache_hit_fine",
-                anchor=P85_SITE2_OLD,
-                replacement=P85_SITE2_NEW,
-                required=True,
-            ),
-        ],
+        sub_patches=build_sub_patches(),
+        # Self-collision lint (triage plan §6 2026-06-11, remediated in the
+        # section 6 batch): former entry "_g_p85_" was a substring of this
+        # patch's own replacement text — false "upstream_merged" skip on
+        # partial file_cache divergence. Residue coverage stays with the
+        # "[Genesis P85" banner.
         upstream_drift_markers=[
             "[Genesis P85",
-            "_g_p85_",
             # Upstream-side markers if vLLM ships its own hybrid fine cache:
             "MambaManager.find_longest_cache_hit_fine",
             "fine_shadow_prefix_cache",
@@ -416,6 +576,19 @@ def apply() -> tuple[str, str]:
                 "upstream may have absorbed hybrid fine-cache fix",
             )
 
+    # Required-at-least-one pre-gate (v2, plan section 5): Site 2's two
+    # variants are required=False so the kernel cannot abort on a
+    # Site-2-only drift while Site 1 still matches. Skip BEFORE any
+    # write — a Site-1-only half-apply would be a store-side no-op
+    # hiding the drift behind the idempotency marker.
+    if not site2_anchor_present(content):
+        return (
+            "skipped",
+            "P85: Site 2 anchor (MambaManager.find_longest_cache_hit) "
+            "absent in both pristine-shaped and post-PN346-shaped "
+            "variants — anchor drift; file left untouched",
+        )
+
     result, failure = patcher.apply()
     # Audit P1 fix 2026-05-05: route SKIPPED/IDEMPOTENT honestly via shared helper
     from sndr.kernel import result_to_wiring_status
@@ -424,9 +597,11 @@ def apply() -> tuple[str, str]:
         applied_message=(
             "P85 applied: hybrid fine-shadow prefix cache installed at MambaManager. "
             "cache_blocks now registers fine-grained shadow entries; "
-            "find_longest_cache_hit prefers fine-scan with eviction-safety verify. "
-            "Requires GENESIS_ENABLE_P84=1 + GENESIS_P84_HASH_BLOCK_SIZE=<N> for "
-            "fine hashes to be computed in the first place."
+            "find_longest_cache_hit prefers fine-scan with eviction-safety verify "
+            "(variant: " + ", ".join(patcher.applied_sub_patches or ["?"]) + "). "
+            "Requires upstream-native --hash-block-size <N> "
+            "(cache_config.hash_block_size) + mamba_cache_mode=align for fine "
+            "hashes to be computed in the first place (P84 retired 2026-06-11)."
         ),
         patch_name=patcher.patch_name,
     )

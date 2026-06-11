@@ -171,9 +171,11 @@ def _make_patcher() -> TextPatcher | None:
             ),
         ],
         upstream_drift_markers=[
+            # Self-collision lint (triage plan §6 2026-06-11): former
+            # entries "_p66_uniform_q_len" / "uniform_decode_query_len
+            # divisibility" were baked by our own replacement — residue
+            # coverage stays with the "[Genesis P66]" banner.
             "[Genesis P66]",
-            "_p66_uniform_q_len",
-            "uniform_decode_query_len divisibility",
         ],
     )
 

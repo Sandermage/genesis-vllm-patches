@@ -388,12 +388,25 @@ class TestRealRegistryRelationships:
             "P60b is Phase 2 of GDN+ngram fix; P60 (Phase 1) must apply first"
         )
 
-    def test_p85_requires_p84(self):
-        """P85 fine-shadow cache requires P84 fine hashes computed."""
+    def test_p85_p84_dependency_dropped_after_retire(self):
+        """P85's requires_patches=["P84"] was dropped 2026-06-11 (plan
+        section 5 cascade resolution): P84 retired because both its
+        sites are upstream-native on pin 0.22.1rc1.dev259 (scheduler
+        hash_block_size param + resolve_kv_cache_block_sizes). Fine
+        hashes now come from the upstream-native --hash-block-size
+        engine arg (cache_config.hash_block_size) — an operator-config
+        prerequisite, not a Genesis patch dependency. P85 instead
+        declares composition with PN346 (Site 2 dual anchor variants;
+        PN346 boot-dispatches first)."""
         meta = dispatcher.PATCH_REGISTRY.get("P85")
         assert meta is not None
-        assert "P84" in meta.get("requires_patches", []), (
-            "P85 docstring explicitly states 'Requires P84 (fine hashes computed)'"
+        assert meta.get("requires_patches", []) == [], (
+            "P85 must not re-grow patch dependencies silently — P84 was "
+            "retired (upstream-native hash_block_size) and the fine-hash "
+            "prerequisite is operator config, not a patch"
+        )
+        assert "PN346" in meta.get("composes_with", []), (
+            "P85 must declare PN346 composition (Site 2 dual anchor variants)"
         )
 
     def test_p74_requires_p72(self):

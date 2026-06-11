@@ -113,8 +113,25 @@
 #   tune: gpu-memory-utilization 0.92 → 0.80 to give Genesis P38 TQ
 #   continuation-prefill workspace its 1 GiB alloc).
 #
+# Additional vendored hunk (2026-06-11): upstream PR #44717 (OPEN, issue
+# #44715) — `_parse_gemma4_args()` strips `<|"|>` STRING_DELIM sentinels
+# from value positions but not key positions, leaking sentinel bytes into
+# dict keys for any dict-typed tool argument with string-quoted keys
+# (e.g. `{'<|"|>3<|"|>': 'v'}` instead of `{'3': 'v'}`). The 8-line
+# key-strip hunk is vendored verbatim into the key scanner below (and into
+# the v1 legacy overlay, keeping the rollback path safe). Confirmed buggy
+# in pin 0.22.1rc1.dev259+g303916e93 (`vllm/tool_parsers/
+# gemma4_tool_parser.py:124`). Track:
+#
+#     gh pr view 44717 --repo vllm-project/vllm --json state,mergedAt
+#
+# When this overlay retires (PR #42237 merged + in pin), verify #44717 is
+# ALSO merged in that pin; if not, re-vendor the key-strip hunk as a
+# standalone text patch. Tests: tests/unit/integrations/tool_parsing/
+# test_g4_t1_dict_key_sentinel_strip.py (AST-extracts the shipped source).
+#
 # ─────────────────────────────────────────────────────────────────────────
-# BEGIN VERBATIM PR #42237 SOURCE
+# BEGIN VERBATIM PR #42237 SOURCE (+ PR #44717 key-strip hunk)
 # ─────────────────────────────────────────────────────────────────────────
 """
 Tool call parser for Google Gemma4 models.
@@ -236,6 +253,15 @@ def _parse_gemma4_args(args_str: str, *, partial: bool = False) -> dict:
         if i >= n:
             break
         key = args_str[key_start:i].strip()
+
+        # String-quoted key: <|"|>...<|"|> — strip sentinels the same way
+        # value positions do (vendored upstream PR #44717, issue #44715).
+        if (
+            key.startswith(STRING_DELIM)
+            and key.endswith(STRING_DELIM)
+            and len(key) >= 2 * len(STRING_DELIM)
+        ):
+            key = key[len(STRING_DELIM) : -len(STRING_DELIM)]
         i += 1  # skip ':'
 
         # Parse value

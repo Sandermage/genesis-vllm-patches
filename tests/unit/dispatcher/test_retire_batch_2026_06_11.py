@@ -16,7 +16,12 @@ docs/superpowers/journal/2026-06-11-preflight-residual-triage-action-plan.md:
     PN346 — registry default_on=True (module honors only
            GENESIS_DISABLE_PN346 → effectively default-ON in practice).
     PN353B — P78 dropped from composes_with (P78 retired).
-    PN200 — pending-decision note recorded (NOT silently re-anchored).
+    PN200 — pending-decision note recorded (NOT silently re-anchored);
+            decision EXECUTED later the same night: retired, superseded
+            by PROD-applied P28 which owns the unique forward_cuda site
+            (its anchor textually contains PN200's whole anchor) and
+            delivers the same buffer-reuse+zero contract. See
+            TestPN200DecisionExecuted.
 
   §6 upstream_compat:
     P5 Probe 1 — TQFullAttentionSpec probed at its real home
@@ -141,12 +146,72 @@ class TestRetireQueueSection3:
             "PN353B: P78 must be dropped from composes_with (P78 retired)"
         )
 
-    def test_pn200_pending_decision_comment(self):
-        """PN200 must NOT be silently re-anchored — pending-decision
-        note required in its registry entry."""
+class TestPN200DecisionExecuted:
+    """§3 pending decision MADE 2026-06-11 (same night): retire
+    (option a). Evidence: P28 (PROD-applied, default_on=True legacy
+    auto-apply) owns the unique forward_cuda site — its anchor is the
+    comment-disambiguated superset that textually CONTAINS PN200's
+    entire anchor, and its replacement delivers the same buffer-reuse
+    + explicit .zero_() (#28182 zero contract) + torch.zeros fallback.
+    PN200's bare anchor is ambiguous on pin 0.22.1rc1.dev259 (3 matches
+    pristine: forward_cuda:950 / forward_xpu:991 / forward_cpu:1046;
+    2 post-P28 — both non-CUDA paths our 2x A5000 never executes), so
+    it can never apply again; a P28-chain variant would only pool-route
+    P28's eager fallback branch and reintroduce the in-forward env read
+    CRIT-HW-1 forbids."""
+
+    def test_pn200_lifecycle_and_provenance(self):
         body = _entry_body("PN200")
-        assert re.search(r"pending decision", body, flags=re.I), (
-            "PN200: missing pending-decision comment (plan §3)"
+        m = re.search(r'"lifecycle"\s*:\s*"([^"]+)"', body)
+        assert m and m.group(1) == "retired", (
+            f"PN200: lifecycle={m.group(1) if m else None!r}, expected "
+            "'retired' (decision executed 2026-06-11)"
+        )
+        sb = re.search(r'"superseded_by"\s*:\s*\(?\s*"(.*?)"', body, re.S)
+        assert sb and "P28" in sb.group(1), (
+            "PN200: superseded_by must name P28 (internal supersession)"
+        )
+        assert re.search(r'"vllm_version_range"\s*:', body), (
+            "PN200: missing vllm_version_range pin-gate cap"
+        )
+
+    def test_pn200_module_archived(self):
+        stem = "pn200_gdn_scratch_reuse"
+        assert (ARCHIVE_DIR / f"{stem}.py").is_file(), (
+            f"PN200: {stem}.py not in {ARCHIVE_DIR}"
+        )
+        old = (
+            REPO_ROOT / "sndr" / "engines" / "vllm" / "patches"
+            / "streaming" / f"{stem}.py"
+        )
+        assert not old.exists(), f"PN200: stale copy left at {old}"
+        body = _entry_body("PN200")
+        m = re.search(r'"apply_module"\s*:\s*"([^"]+)"', body)
+        assert m and m.group(1) == f"sndr.engines.vllm._archive.{stem}", (
+            f"PN200: apply_module={m.group(1) if m else None!r} not "
+            "repointed to _archive"
+        )
+
+    def test_pn200_flag_removed_from_launchers(self):
+        """Journal corollary: range-capping is NOT retirement while
+        launchers still export the flag. Proper retire removes
+        GENESIS_ENABLE_PN200_GDN_SCRATCH_REUSE from compose/prod-*.yml,
+        the builtin model YAMLs, and the restart helper."""
+        flag = "GENESIS_ENABLE_PN200_GDN_SCRATCH_REUSE"
+        offenders: list[str] = []
+        roots = [
+            REPO_ROOT / "compose",
+            REPO_ROOT / "sndr" / "model_configs" / "builtin",
+            REPO_ROOT / "tools",
+        ]
+        for root in roots:
+            for ext in ("*.yml", "*.yaml", "*.sh"):
+                for f in root.rglob(ext):
+                    if flag in f.read_text(encoding="utf-8",
+                                           errors="ignore"):
+                        offenders.append(str(f.relative_to(REPO_ROOT)))
+        assert not offenders, (
+            f"PN200 retired but {flag} still exported by: {offenders}"
         )
 
 

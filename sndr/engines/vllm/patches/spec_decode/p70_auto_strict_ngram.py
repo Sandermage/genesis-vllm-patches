@@ -145,9 +145,14 @@ def _make_patcher() -> TextPatcher | None:
             ),
         ],
         upstream_drift_markers=[
+            # Self-referencing markers use the sanctioned "[Genesis" prefix
+            # (self-collision lint, triage plan §6 2026-06-11). Former
+            # entries "_genesis_p70_orig_min" / "auto-strict-ngram" were
+            # substrings of our own replacement / Layer-6 marker line and
+            # could false-skip as "upstream_merged" on residue (e.g. a
+            # v7.15 -> v7.16 marker bump). Same coverage, defended form:
             "[Genesis P70",
-            "_genesis_p70_orig_min",
-            "auto-strict-ngram",
+            "[Genesis wiring marker: Genesis P70",
         ],
     )
 

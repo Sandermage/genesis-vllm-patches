@@ -63,7 +63,7 @@ runtime:
     container_name_template: vllm-{model_id}     # template; {model_id} expanded at compose time
     host_port: 8000                              # OpenAI-API port on host
     container_port: 8000                         # OpenAI-API port inside container
-    shm_size: 8g                                 # /dev/shm size (8 GiB sufficient for 2× TP NCCL)
+    shm_size: 8g                                 # /dev/shm size (8 GiB sufficient for 2× TP NCCL). Do NOT shrink: a container left at the docker 64 MB default crashed NCCL on first TP all-reduce (27B drift container, fleet validation 2026-06-11). `--ipc=host` is the validated alternative (35B PROD pattern; used to fix the 27B drift container) — it shares the host /dev/shm instead of a private segment; prefer shm_size for isolation, ipc=host when host-level sharing is acceptable. Guarded by tests/unit/model_configs/test_fleet_parser_contract.py.
     network: genesis-vllm-patches_default        # docker network name (project-default)
     mounts:                                      # bind-mount specs; expanded via env var lookup at launch
       # ── Canonical 6-slot mount schema (E22 restoration: aligned with ──

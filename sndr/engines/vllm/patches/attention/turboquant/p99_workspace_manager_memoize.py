@@ -189,8 +189,10 @@ def _make_patcher() -> TextPatcher | None:
             ),
         ],
         upstream_drift_markers=[
+            # Self-collision lint (triage plan §6 2026-06-11): former entry
+            # "_genesis_p99_cache" was baked by our own replacement —
+            # residue coverage stays with the "[Genesis P99" banner.
             "[Genesis P99",
-            "_genesis_p99_cache",
         ],
     )
 

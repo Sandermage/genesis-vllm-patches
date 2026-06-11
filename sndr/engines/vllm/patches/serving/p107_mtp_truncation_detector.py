@@ -129,8 +129,15 @@ def _make_patcher() -> TextPatcher | None:
             required=True,
         )],
         upstream_drift_markers=[
-            "MTP truncation detected",
-            "MTP speculative decoding truncated",
+            # Self-collision lint (triage plan §6 2026-06-11): former
+            # entries "MTP truncation detected" / "MTP speculative decoding
+            # truncated" are message strings baked verbatim by our own
+            # vllm#41467 backport replacement — they cannot distinguish a
+            # real upstream merge from our residue (false "upstream_merged"
+            # skip, PN369 class). Residue coverage moves to the sanctioned
+            # banner prefix; real-merge detection via required-anchor
+            # mismatch (Layer 5) + preflight deep-diff.
+            "[Genesis P107",
         ],
     )
 

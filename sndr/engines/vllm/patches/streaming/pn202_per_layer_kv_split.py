@@ -186,8 +186,13 @@ def _make_part_a_patcher() -> TextPatcher | None:
             ),
         ],
         upstream_drift_markers=[
-            "Genesis PN202",
-            "per-layer KV tensor split",
+            # Self-collision lint (triage plan §6 2026-06-11): former
+            # entries "Genesis PN202" / "per-layer KV tensor split" matched
+            # our own replacement and Layer-6 marker line — false
+            # "upstream_merged" skip on residue. Sanctioned "[Genesis"
+            # prefixed forms keep the same coverage (banner + marker line):
+            "[Genesis PN202",
+            "[Genesis wiring marker: Genesis PN202",
         ],
     )
 
@@ -210,8 +215,11 @@ def _make_part_b_patcher() -> TextPatcher | None:
             ),
         ],
         upstream_drift_markers=[
-            "Genesis PN202",
-            "_g_pn202b_arena",
+            # Self-collision lint (triage plan §6 2026-06-11): former
+            # entries "Genesis PN202" / "_g_pn202b_arena" matched our own
+            # replacement and Layer-6 marker line. Defended forms:
+            "[Genesis PN202",
+            "[Genesis wiring marker: Genesis PN202",
         ],
     )
 

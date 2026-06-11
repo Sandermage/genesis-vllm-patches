@@ -119,8 +119,10 @@ def _make_patcher() -> TextPatcher | None:
             ),
         ],
         upstream_drift_markers=[
+            # Self-collision lint (triage plan §6 2026-06-11): former entry
+            # "_genesis_pn40_workload_class" was baked by our own
+            # replacement — residue coverage stays with the banner below.
             "[Genesis PN40 sub-D]",
-            "_genesis_pn40_workload_class",
         ],
     )
 

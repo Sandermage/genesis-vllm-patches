@@ -655,11 +655,18 @@ def _make_patcher() -> TextPatcher | None:
         ],
         upstream_drift_markers=[
             "[Genesis P100",
-            # Upstream-side markers if vllm#41127 (or equivalent) merges:
-            "FISpecDecode",
-            "spec_decode_qo_indptr",
-            "_get_spec_decode_prefill_wrapper",
-            "_genesis_p100_native_spec_as_decode",
+            # Self-collision lint (triage plan §6 2026-06-11): former
+            # upstream-side entries "FISpecDecode" /
+            # "spec_decode_qo_indptr" / "_get_spec_decode_prefill_wrapper"
+            # are baked verbatim by our own vllm#41127 backport replacement
+            # text, so they cannot distinguish a real upstream merge from
+            # our residue (false "upstream_merged" skip — PN369 class).
+            # "_genesis_p100_native_spec_as_decode" is a Genesis-only name,
+            # never an upstream signal; residue coverage stays with the
+            # "[Genesis P100" banner. Real-merge detection is delegated to
+            # required-anchor mismatch (Layer 5) + pin-bump preflight
+            # deep-diff (iron rule #11).
+            "[Genesis wiring marker: Genesis P100",
         ],
     )
 

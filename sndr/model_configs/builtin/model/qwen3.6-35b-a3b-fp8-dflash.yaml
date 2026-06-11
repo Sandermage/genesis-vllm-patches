@@ -162,7 +162,6 @@ patches:
   GENESIS_ENABLE_PN105_AUTOROUND_OFFLOAD_COMPAT: '0' # AutoRound INT4 + Prefetch compat. OFF — irrelevant on FP8 35B.
   GENESIS_ENABLE_PN106_GDN_H_POOL: '1'               # GDN inner chunk-state `h` pool.
   GENESIS_ENABLE_PN108_FUSED_RECURRENT_PREFILL: '0' # TOMBSTONED — fla recurrent kernel cannot serve single-seq prefill.
-  GENESIS_ENABLE_PN200_GDN_SCRATCH_REUSE: '0'        # GDN `core_attn_out` pool. OFF — anchor ordering dependency on P28.
   GENESIS_ENABLE_PN201_SCHEDULER_EMPTY_CACHE: '1'    # Scheduler-tick `empty_cache()` hook, threshold-gated.
   GENESIS_ENABLE_PN204_DUAL_STREAM_INPROJ: '0'       # vllm#42301 port — OFF in single-conc DFlash profile.
                                                        # v1 history: eager torch.cuda.Event allocation raised type error.

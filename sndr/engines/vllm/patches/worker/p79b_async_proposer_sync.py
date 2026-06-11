@@ -146,9 +146,12 @@ def _make_patcher() -> TextPatcher | None:
         ],
         upstream_drift_markers=[
             "[Genesis P79b",
-            # Detect upstream merge: post-merge `_sample_tokens_impl` exists
-            # at module level. We probe via direct symbol search below.
-            "_sample_tokens_impl",
+            # Self-collision lint (triage plan §6 2026-06-11): former entry
+            # "_sample_tokens_impl" is the vllm#40610 symbol our own
+            # replacement defines — it cannot distinguish a real upstream
+            # merge from our residue (false "upstream_merged" skip, PN369
+            # class). Real-merge detection via required-anchor mismatch
+            # (Layer 5) + pin-bump preflight deep-diff.
         ],
     )
 

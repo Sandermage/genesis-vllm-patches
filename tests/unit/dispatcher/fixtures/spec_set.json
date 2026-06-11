@@ -854,14 +854,14 @@
   {
     "patch_id": "PN200",
     "family": "streaming",
-    "lifecycle": "experimental",
+    "lifecycle": "retired",
     "tier": "community",
     "default_on": false,
     "env_flag": "GENESIS_ENABLE_PN200_GDN_SCRATCH_REUSE",
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "sndr.engines.vllm.patches.streaming.pn200_gdn_scratch_reuse"
+    "apply_module": "sndr.engines.vllm._archive.pn200_gdn_scratch_reuse"
   },
   {
     "patch_id": "PN201",

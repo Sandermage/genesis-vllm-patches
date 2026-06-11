@@ -166,9 +166,13 @@ def _make_patcher() -> TextPatcher | None:
         ],
         upstream_drift_markers=[
             "[Genesis PN14",
-            # If upstream PR #40074 lands, `safe_page_idx` appears in vanilla
-            # source and our anchor (without safe_page_idx) won't match.
-            "safe_page_idx = tl.where(kv_mask, page_idx, 0)",
+            # Self-collision lint (triage plan §6 2026-06-11): former entry
+            # "safe_page_idx = tl.where(kv_mask, page_idx, 0)" is the
+            # vllm#40074 clamp line baked verbatim by our own backport —
+            # it cannot distinguish a real upstream merge from our residue
+            # (false "upstream_merged" skip, PN369 class). If #40074 lands,
+            # `safe_page_idx` appears in vanilla source and our anchor
+            # (without safe_page_idx) won't match → Layer 5 skip.
         ],
     )
 

@@ -289,10 +289,14 @@ def _make_gptq_patcher() -> TextPatcher | None:
         ],
         upstream_drift_markers=[
             "[Genesis P91",
-            "_genesis_p91_cdiv",
-            # Upstream-side markers if vLLM merges the original PR or equivalent
+            # Self-collision lint (triage plan §6 2026-06-11): former
+            # entries "_genesis_p91_cdiv" (Genesis-only alias) and
+            # "row_input_size_per_partition" (attr name baked by our own
+            # register_row_group_attrs replacement) were self-markers —
+            # false "upstream_merged" skip on residue. The cdiv line below
+            # is strictly upstream-only (our replacement spells it
+            # "_genesis_p91_cdiv(input_size"):
             "scales_and_zp_size = cdiv(input_size",
-            "row_input_size_per_partition",
         ],
     )
 
@@ -356,9 +360,13 @@ def _make_param_patcher() -> TextPatcher | None:
         ],
         upstream_drift_markers=[
             "[Genesis P91",
-            "_genesis_p91_start",
-            "row_group_size",
-            "row_input_size_per_partition",
+            # Self-collision lint (triage plan §6 2026-06-11): former
+            # entries "_genesis_p91_start" / "row_group_size" /
+            # "row_input_size_per_partition" were baked by our own
+            # param_group_aware_start_idx replacement — false
+            # "upstream_merged" skip on residue. Residue coverage stays
+            # with the "[Genesis P91" banner; real-merge detection via
+            # required-anchor mismatch (Layer 5) + preflight deep-diff.
         ],
     )
 

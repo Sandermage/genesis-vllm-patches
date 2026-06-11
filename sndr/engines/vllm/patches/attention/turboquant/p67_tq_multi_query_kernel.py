@@ -311,9 +311,14 @@ def _make_patcher() -> TextPatcher | None:
             ),
         ],
         upstream_drift_markers=[
+            # Self-referencing markers use the sanctioned "[Genesis" prefix
+            # (drift-marker self-collision lint, triage plan §6 2026-06-11).
+            # Former entries "_genesis_p67_call" / "TQ multi-query kernel"
+            # were substrings of our own replacement / Layer-6 marker line
+            # and could false-skip as "upstream_merged" on residue
+            # (PN369 incident class). Same coverage, defended form:
             "[Genesis P67",
-            "_genesis_p67_call",
-            "TQ multi-query kernel",
+            "[Genesis wiring marker: Genesis P67",
         ],
     )
 

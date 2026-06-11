@@ -72,8 +72,12 @@ GENESIS_P34_MARKER = "Genesis P34 Mamba zero-collapse deadlock guard v7.0"
 # Both introduce an `aligned = ...` intermediate with a > 0 check — if
 # either appears in the file we self-retire.
 UPSTREAM_DRIFT_MARKERS = [
-    # Signature of the upstream fix, variant 1 (fanghao566 PR #40757).
-    "aligned = num_new_tokens // block_size * block_size",
+    # Self-collision lint (triage plan §6 2026-06-11): former entry
+    # "aligned = num_new_tokens // block_size * block_size" (the PR #40757
+    # form) is baked verbatim by our own replacement — it cannot
+    # distinguish a real upstream merge from our residue (false
+    # "upstream_merged" skip, PN369 class). The two variants below are
+    # strictly upstream-only spellings, never emitted by us.
     # Alternate variable name variant.
     "aligned_num_new_tokens = num_new_tokens // block_size * block_size",
     # Any future fix that replaces the single-line alignment with a

@@ -210,7 +210,11 @@ def _make_patcher() -> TextPatcher | None:
         ],
         upstream_drift_markers=[
             "[Genesis P71",
-            "_genesis_p71_call",
+            # Self-collision lint (triage plan §6 2026-06-11): former entry
+            # "_genesis_p71_call" was a substring of our own replacement —
+            # the exact PN369/P71 false-skip incident class (a sibling
+            # baking the string masked P71 as "upstream_merged"). Residue
+            # coverage is preserved by the "[Genesis P71" banner above.
             "verify_method",  # if upstream ports their own block-verify
         ],
     )

@@ -259,8 +259,10 @@ def _make_patcher() -> TextPatcher | None:
             ),
         ],
         upstream_drift_markers=[
+            # Self-collision lint (triage plan §6 2026-06-11): former entry
+            # "_genesis_p77_controller" was baked by our own replacement —
+            # residue coverage stays with the "[Genesis P77" banner.
             "[Genesis P77",
-            "_genesis_p77_controller",
             "GENESIS_ENABLE_P77_ADAPTIVE_NGRAM_K",
         ],
     )

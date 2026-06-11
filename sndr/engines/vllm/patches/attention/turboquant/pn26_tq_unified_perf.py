@@ -294,7 +294,9 @@ def _make_centroids_patcher() -> TextPatcher | None:
         ],
         upstream_drift_markers=[
             "[Genesis PN26]",
-            "_GENESIS_PN26_PREBAKED",
+            # Self-collision lint (triage plan §6 2026-06-11): former entry
+            # "_GENESIS_PN26_PREBAKED" was baked by our own replacement —
+            # residue coverage stays with the "[Genesis PN26]" banner.
             # If upstream merges #41418 directly, this string appears
             "_PREBAKED_CENTROIDS",
         ],

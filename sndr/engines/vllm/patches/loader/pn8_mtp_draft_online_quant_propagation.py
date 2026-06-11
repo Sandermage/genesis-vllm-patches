@@ -197,10 +197,14 @@ def _make_patcher() -> TextPatcher | None:
         ],
         upstream_drift_markers=[
             "[Genesis PN8",
-            # If upstream PR #40849 (or any equivalent) merges, these
-            # marker strings will appear in vanilla source and we self-retire.
-            "_GENESIS_PN8_OnlineQuantizationConfig",
-            "OnlineQuantizationConfig",
+            # Self-collision lint (triage plan §6 2026-06-11): former
+            # entries "_GENESIS_PN8_OnlineQuantizationConfig" (Genesis-only
+            # alias) and "OnlineQuantizationConfig" (baked verbatim by our
+            # own vllm#40849 backport imports/body) cannot distinguish a
+            # real upstream merge from our residue (false "upstream_merged"
+            # skip, PN369 class). Residue coverage stays with the
+            # "[Genesis PN8" banner; real-merge detection via
+            # required-anchor mismatch (Layer 5) + preflight deep-diff.
         ],
     )
 

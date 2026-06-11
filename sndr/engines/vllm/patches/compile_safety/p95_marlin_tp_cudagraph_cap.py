@@ -174,8 +174,11 @@ def _make_patcher() -> TextPatcher | None:
         ],
         upstream_drift_markers=[
             "[Genesis P95",
+            # Self-collision lint (triage plan §6 2026-06-11): former entry
+            # "_genesis_p95_platform" is a Genesis-only import alias baked
+            # by our own replacement, never an upstream signal — residue
+            # coverage stays with the "[Genesis P95" banner.
             # Upstream-side markers if PR #40385 (or equivalent) merges:
-            "_genesis_p95_platform",
             "Capping max_cudagraph_capture_size to 8 for TP",
             "mitigate potential CUDA graph replay",
         ],

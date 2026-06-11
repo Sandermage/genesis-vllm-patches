@@ -67,8 +67,11 @@ log = logging.getLogger("genesis.wiring.p24_moe_tune")
 GENESIS_P24_MARKER = "Genesis P24 fused_moe num_warps/num_stages v7.0"
 
 UPSTREAM_DRIFT_MARKERS = [
-    "_genesis_num_warps_override",
-    "_genesis_num_stages_override",
+    # Self-collision lint (triage plan §6 2026-06-11): former entries
+    # "_genesis_num_warps_override" / "_genesis_num_stages_override" were
+    # baked by our own cfg-overlay replacements — false "upstream_merged"
+    # skip on residue. "genesis_override_moe_tune" is runtime-only (not
+    # emitted into the target file) and stays.
     "genesis_override_moe_tune",
     # PR #41184 (bnellnm, OPEN 2026-04-29) — massive MoE Refactor:
     # FusedMoE/MoERunner inversion + class rename FusedMoE →

@@ -45,7 +45,9 @@ from tests.unit.integrations._family_contract_helpers import (
 
 
 PATCHES = [
-    ("sndr.engines.vllm.patches.streaming.pn200_gdn_scratch_reuse", "PN200"),
+    # PN200 retired 2026-06-11 (superseded by P28 — same buffer-reuse+zero
+    # on the unique forward_cuda site); module archived.
+    ("sndr.engines.vllm._archive.pn200_gdn_scratch_reuse", "PN200"),
     ("sndr.engines.vllm.patches.streaming.pn201_scheduler_empty_cache", "PN201"),
     ("sndr.engines.vllm.patches.streaming.pn202_per_layer_kv_split", "PN202"),
     ("sndr.engines.vllm.patches.streaming.pn203_cold_prefix_offload", "PN203"),

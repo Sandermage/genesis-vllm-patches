@@ -4,7 +4,7 @@
 > Source of truth: `sndr/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-06-11T01:07:21Z
+Generated: 2026-06-11T02:28:42Z
 Total entries: **280**
 
 ## Statistics
@@ -14,10 +14,10 @@ Total entries: **280**
 
 ### By lifecycle
 - `lifecycle=coordinator`: **4**
-- `lifecycle=experimental`: **202**
+- `lifecycle=experimental`: **201**
 - `lifecycle=legacy`: **28**
 - `lifecycle=research`: **4**
-- `lifecycle=retired`: **28**
+- `lifecycle=retired`: **29**
 - `lifecycle=stable`: **14**
 
 ### Default-on at boot: **51** / 280
@@ -186,7 +186,7 @@ Total entries: **280**
 | **PN132** | `community` | `retired` | · | `GENESIS_ENABLE_PN132_TOPK_TOPP_CONTIGUOUS` | [#42739](https://github.com/vllm-project/vllm/pull/42739) | Triton top-k/top-p contiguous logits fix (backport vllm#42739) |
 | **PN134** | `community` | `retired` | · | `GENESIS_ENABLE_PN134_TORCH_COMPILE_FULLGRAPH_211` | [#42686](https://github.com/vllm-project/vllm/pull/42686) | torch.compile fullgraph patch for PyTorch 2.11 (backport vllm#42686) — BENCH-... |
 | **PN364** | `community` | `experimental` | · | `GENESIS_ENABLE_PN364_HYBRID_GDN_WARMUP` | [#43642](https://github.com/vllm-project/vllm/pull/43642) | Hybrid GDN/Mamba/MRoPE startup warmup (vendor of OPEN vllm#43642) |
-| **PN367** | `community` | `experimental` | ✓ | `GENESIS_ENABLE_PN367` | [#45076](https://github.com/vllm-project/vllm/pull/45076) | CUDA graph memory estimate clamp (vendor of OPEN vllm#45076) |
+| **PN367** | `community` | `experimental` | ✓ | `GENESIS_ENABLE_PN367` | [#44745](https://github.com/vllm-project/vllm/pull/44745) | CUDA graph memory estimate clamp (vendor of OPEN vllm#44745, ex-vllm#45076) |
 
 ### `detection` (3)
 
@@ -432,7 +432,7 @@ Total entries: **280**
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
-| **PN200** | `community` | `experimental` | · | `GENESIS_ENABLE_PN200_GDN_SCRATCH_REUSE` | — | PN200 — GDN outer-forward scratch pool (Tier 1.B) |
+| **PN200** | `community` | `retired` | · | `GENESIS_ENABLE_PN200_GDN_SCRATCH_REUSE` | — | PN200 — GDN outer-forward scratch pool (Tier 1.B) — RETIRED 2026-06-11 |
 | **PN201** | `community` | `experimental` | · | `GENESIS_ENABLE_PN201_SCHEDULER_EMPTY_CACHE` | — | PN201 — scheduler empty_cache hook (Tier 1.C) |
 | **PN202** | `community` | `experimental` | · | `GENESIS_ENABLE_PN202_PER_LAYER_KV_SPLIT` | — | PN202 — per-layer KV tensor split (Tier 2.A enabler) |
 | **PN203** | `community` | `experimental` | · | `GENESIS_ENABLE_PN203_COLD_PREFIX_OFFLOAD` | — | PN203 — cold-prefix CPU offload manager (Tier 3.A) |

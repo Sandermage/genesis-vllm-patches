@@ -135,8 +135,14 @@ def _make_patcher() -> TextPatcher | None:
             required=True,
         )],
         upstream_drift_markers=[
-            "_pn56_parse_succeeded",
-            "parse_succeeded = False",
+            # Self-collision lint (triage plan §6 2026-06-11): former
+            # entries "_pn56_parse_succeeded" (Genesis-only name) and
+            # "parse_succeeded = False" (vllm#41466 fragment baked verbatim
+            # by our backport) could false-skip as "upstream_merged" on
+            # residue (PN369 class). The sanctioned banner prefix below
+            # keeps residue coverage; a real #41466 merge is caught by
+            # required-anchor mismatch (Layer 5) + preflight deep-diff.
+            "[Genesis PN56",
         ],
     )
 

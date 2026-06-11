@@ -1800,7 +1800,7 @@ def apply_patch_pn200_gdn_scratch_reuse() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from sndr.engines.vllm.patches.streaming import (
+        from sndr.engines.vllm._archive import (  # moved to _archive/ 2026-06-11 (retired; superseded by P28)
             pn200_gdn_scratch_reuse as _wiring,
         )
     except Exception as e:
@@ -5213,15 +5213,17 @@ def apply_patch_N354_gdn_use_exp2() -> PatchResult:
     return _skipped("PN354 GDN exp2 gate decay", detail)
 
 
-@register_patch("PN367 CUDA graph memory estimate clamp (vendor of OPEN vllm#45076)")
+@register_patch("PN367 CUDA graph memory estimate clamp (vendor of OPEN vllm#44745, ex-vllm#45076)")
 def apply_patch_N367_cudagraph_mem_clamp() -> PatchResult:
     """PN367: clamps the decoder cudagraph memory profiling deltas to
-    >= 0 (encoder path already clamps) + final non-negative guard in
-    gpu_worker. Vendor of OPEN vllm#45076 (fixes #44740 — negative
-    estimates under MTP spec-decode via allocator non-monotonicity /
-    MTP lazy buffers). Protects 24 GB A5000 KV-cache budget from
-    negative-estimate inflation. Negative deltas log WARNING (visible
-    at PROD log level). Zero behavior change for positive estimates."""
+    >= 0 (encoder path already clamps) + 1 MiB first-capture floor +
+    final non-negative guard in gpu_worker. Vendor of vllm#44745
+    (fixes #44740 — negative estimates under MTP spec-decode via
+    allocator non-monotonicity / MTP lazy buffers); formerly #45076,
+    CLOSED 2026-06-10 and consolidated into #44745 by its author.
+    Protects 24 GB A5000 KV-cache budget from negative-estimate
+    inflation. Negative deltas log WARNING (visible at PROD log
+    level). Zero behavior change for positive estimates."""
     from sndr.engines.vllm.patches.compile_safety import (
         pn367_cudagraph_mem_estimate_clamp as _wiring,
     )

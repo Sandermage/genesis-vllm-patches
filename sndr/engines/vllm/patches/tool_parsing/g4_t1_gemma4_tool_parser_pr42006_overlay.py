@@ -35,6 +35,14 @@
 # Once merged + our pin contains the merge, delete this file and the
 # corresponding `-v` mount in the gemma4 launcher.
 #
+# Additional vendored hunk (2026-06-11): upstream PR #44717 (OPEN, issue
+# #44715) — dict-key STRING_DELIM strip in `_parse_gemma4_args()`.
+# Vendored here too (this file is the operator rollback path for the
+# CURRENT v2 overlay) so a rollback does not reintroduce the key-leak
+# bug. See the v2 overlay header for full provenance and tracking.
+# Tests: tests/unit/integrations/tool_parsing/
+# test_g4_t1_dict_key_sentinel_strip.py.
+#
 # Empirical effect (gemma4-31B AWQ-4bit + TQ4bit_nc + MTP K=4 on
 # pin 626fa9bb, 2026-05-30 session):
 #   - Without this overlay: bench tool-call mid-thinking emits well-
@@ -170,6 +178,15 @@ def _parse_gemma4_args(args_str: str, *, partial: bool = False) -> dict:
         if i >= n:
             break
         key = args_str[key_start:i].strip()
+
+        # String-quoted key: <|"|>...<|"|> — strip sentinels the same way
+        # value positions do (vendored upstream PR #44717, issue #44715).
+        if (
+            key.startswith(STRING_DELIM)
+            and key.endswith(STRING_DELIM)
+            and len(key) >= 2 * len(STRING_DELIM)
+        ):
+            key = key[len(STRING_DELIM) : -len(STRING_DELIM)]
         i += 1  # skip ':'
 
         # Parse value

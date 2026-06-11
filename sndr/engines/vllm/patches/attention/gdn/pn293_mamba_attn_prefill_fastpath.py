@@ -153,7 +153,11 @@ def _make_patcher() -> TextPatcher | None:
         ],
         upstream_drift_markers=[
             "[Genesis PN293",
-            "vllm#42430 cold-path skip",
+            # Self-collision lint (triage plan §6 2026-06-11): former entry
+            # "vllm#42430 cold-path skip" was a substring of our own banner
+            # AND the Layer-6 marker line — false "upstream_merged" skip on
+            # residue. Defended form, same marker-line coverage:
+            "[Genesis wiring marker: Genesis PN293",
         ],
     )
 

@@ -80,8 +80,10 @@ def _make_patcher() -> TextPatcher | None:
             ),
         ],
         upstream_drift_markers=[
+            # Self-collision lint (triage plan §6 2026-06-11): former entry
+            # "_g_s26_" was baked by our own replacement — residue coverage
+            # stays with the "[Genesis Sprint 2.6" banner.
             "[Genesis Sprint 2.6",
-            "_g_s26_",
         ],
     )
 

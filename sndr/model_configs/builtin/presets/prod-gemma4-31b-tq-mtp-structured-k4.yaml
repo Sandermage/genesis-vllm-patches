@@ -25,6 +25,15 @@
 # V2-composed launcher emitted by this preset should be functionally
 # equivalent. md5 of hand-launcher (immutable per standing constraint):
 #   085cdccee8c80aa9b70aef1092d4dfae
+#
+# ⛔ PIN NOTE / TQ-BLOCKED (2026-06-11 fleet validation): the
+# gemma-4-31b-it-awq ModelDef pin_holds 626fa9bb — TURBOQUANT is
+# rejected by the 0.22.1 pin's new validity gate (supports_mm_prefix +
+# kv_cache_dtype). Do NOT launch on the current image until G4_79
+# (+G4_31) validates; degraded kv-auto / 32K fallback is the validated
+# 0.22.1 alternative (78.4 TPS, tools 7/7). See
+# prod-gemma4-31b-tq-default.yaml PIN NOTE + journal
+# 2026-06-11-fleet-validation-on-pin-303916e93.md.
 
 model: gemma-4-31b-it-awq                            # same model as the default sibling
 hardware: a5000-2x-24gbvram-16cpu-128gbram           # same rig

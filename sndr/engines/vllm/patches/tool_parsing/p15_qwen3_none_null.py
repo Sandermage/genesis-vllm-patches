@@ -49,8 +49,11 @@ log = logging.getLogger("genesis.wiring.p15_qwen3_none_null")
 GENESIS_P15_MARKER = "Genesis P15 Qwen3 None/null tool arg v7.0"
 
 UPSTREAM_DRIFT_MARKERS = [
-    # If PR #38996 merges, the file will contain the multi-value tuple.
-    '("null", "none")',
+    # Self-collision lint (triage plan §6 2026-06-11): former entry
+    # '("null", "none")' is baked verbatim by our own replacement — it
+    # cannot distinguish a real PR #38996 merge from our residue (false
+    # "upstream_merged" skip, PN369 class). The single-quoted variant
+    # below is a strictly-upstream-only spelling, never emitted by us.
     "'null', 'none'",
 ]
 

@@ -122,8 +122,10 @@ def _make_patcher() -> TextPatcher | None:
             ),
         ],
         upstream_drift_markers=[
+            # Self-collision lint (triage plan §6 2026-06-11): former entry
+            # "vllm#43543 unsplit" was a substring of our own banner —
+            # residue coverage stays with the "[Genesis PN294" prefix.
             "[Genesis PN294",
-            "vllm#43543 unsplit",
         ],
     )
 

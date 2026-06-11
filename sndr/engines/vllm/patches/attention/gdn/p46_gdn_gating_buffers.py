@@ -86,7 +86,10 @@ def ensure_pool_registered() -> None:
     PersistentBufferRegistry().get_slice_pool(POOL_GDN_GATING)
 
 UPSTREAM_DRIFT_MARKERS = [
-    "GdnGatingBufferManager",
+    # Self-collision lint (triage plan §6 2026-06-11): former entry
+    # "GdnGatingBufferManager" is our own pool class imported by the
+    # replacement text — false "upstream_merged" skip on residue.
+    # Remaining entries are hypothetical-upstream-only names.
     "acquire_gating_g",
     "fused_gdn_gating_persistent_buffers",
 ]

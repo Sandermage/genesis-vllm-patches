@@ -62,12 +62,14 @@ UPSTREAM_DRIFT_MARKERS = [
     # If an upstream fix merges, the file will contain a staircase cast
     # to a wider float type before the FP8 conversion. Genesis P3 uses
     # the FP16 staircase (gated on FP8_E4B15); upstream PR #39988 (active
-    # as of 2026-04-29) goes the FP32 route unconditionally. Watch for
-    # BOTH so the drift detector catches whichever variant lands.
-    "tl.float16).to(tl.float8e4b15)",  # P3 / PR #39908 form
+    # as of 2026-04-29) goes the FP32 route unconditionally.
+    # Self-collision lint (triage plan §6 2026-06-11): former entries
+    # "tl.float16).to(tl.float8e4b15)" and "PR #39908" are baked by our
+    # own replacement (the P3 staircase + its banner comment) — false
+    # "upstream_merged" skip on residue. The FP32 forms below are
+    # strictly upstream-only (#39988), never emitted by us.
     "tl.float32).to(tl.float8e4b15)",  # PR #39988 form
     "tl.float32).to(tl.float8e5m2)",   # PR #39988 sibling cast site
-    "PR #39908",
     "PR #39988",
 ]
 

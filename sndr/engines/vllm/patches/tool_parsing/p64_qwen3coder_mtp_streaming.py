@@ -337,8 +337,11 @@ def _make_qwen3cod_patcher() -> TextPatcher | None:
                       replacement=QWEN3COD_FNEND_NEW, required=True),
         ],
         upstream_drift_markers=[
+            # Self-collision lint (triage plan §6 2026-06-11): former entry
+            # "Do NOT early-return here. With MTP" is a comment baked by
+            # our own replacement — residue coverage stays with the
+            # "[Genesis P64 vllm#39598]" banner.
             "[Genesis P64 vllm#39598]",
-            "Do NOT early-return here. With MTP",
         ],
     )
 

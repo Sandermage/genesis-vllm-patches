@@ -947,8 +947,13 @@ def _make_chunk_patcher() -> TextPatcher | None:
             ),
         ],
         upstream_drift_markers=[
-            "ssm_state_indices",
-            "has_initial_state",
+            # Self-collision lint (triage plan §6 2026-06-11): former
+            # entries "ssm_state_indices" / "has_initial_state" are baked
+            # verbatim by our own vllm#41824 port (signature + kwargs
+            # sub-patches) — they cannot distinguish a real upstream merge
+            # from our residue (false "upstream_merged" skip, PN369 class).
+            # A real #41824 merge is caught by the strictly-upstream-only
+            # marker below + required-anchor mismatch (Layer 5).
             "torch.accelerator.device_index",
         ],
     )
@@ -1018,11 +1023,14 @@ def _make_chunk_delta_h_patcher() -> TextPatcher | None:
                 required=True,
             ),
         ],
-        upstream_drift_markers=[
-            "IS_CONTINUOUS_BATCHING",
-            "HAS_INITIAL_STATE_MASK",
-            "stride_init_state_token",
-        ],
+        # Self-collision lint (triage plan §6 2026-06-11): former entries
+        # "IS_CONTINUOUS_BATCHING" / "HAS_INITIAL_STATE_MASK" /
+        # "stride_init_state_token" are baked verbatim by our own kernel
+        # sub-patches (2A-2G) — they cannot distinguish a real upstream
+        # merge from our residue (false "upstream_merged" skip, PN369
+        # class). Real-merge detection is delegated to required-anchor
+        # mismatch (Layer 5) + pin-bump preflight deep-diff.
+        upstream_drift_markers=[],
     )
 
 

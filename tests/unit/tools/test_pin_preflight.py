@@ -9,7 +9,7 @@ semantics but NEVER calls ``.apply()``, which writes to disk).
 Verdict classes under test:
     OK | DRIFT_ANCHOR | AMBIGUOUS_ANCHOR | DRIFT_FILE_MOVED |
     UPSTREAM_MERGED | SUB_UPSTREAM_MERGED | STALE_RESIDUE |
-    UNBUILDABLE | IMPORT_FAIL | RUNTIME_BINDING
+    UNBUILDABLE | IMPORT_FAIL | RUNTIME_BINDING | EXPECTED_ALTERNATE
 Binding sub-verdicts:
     BINDING_OK | BINDING_FILE_MISSING | BINDING_SYMBOL_MISSING |
     BINDING_UNRESOLVED
@@ -1129,3 +1129,182 @@ class TestKnownOptionalRetired:
         for r in rows:
             r["in_version_range"] = True
         assert pf.count_actionable(rows, markers=[]) == 0
+
+
+# ─── v1.3: EXPECTED_ALTERNATE (P91B dual-factory class) ───────────────────
+
+
+# Present in the mini_tree sampler.py fixture (the dev371-style spelling).
+_ALT_ANCHOR_PRESENT = "    probs = logits.softmax(dim=-1)\n"
+# Absent from the fixture (the dev338-style spelling of the same site).
+_ALT_ANCHOR_ABSENT = "    probs = logits.softmax(dim=-1).float()\n"
+
+
+class TestExpectedAlternate:
+    """P91B inc.py carries two by-design factory variants of the SAME
+    code site (dev338 spells ``self.group_size``, dev371 bare
+    ``group_size``); exactly one anchor matches on any live pin. The
+    non-matching factory previously read DRIFT_ANCHOR — an actionable
+    false positive. Convention: a module attr ``*_ANCHOR_ALTERNATION``
+    maps each sub name to the sub names of its alternate variants; a
+    zero-match DRIFT_ANCHOR row whose every sub is declared AND whose
+    declared alternate actually matched in a sibling row of the same
+    module reclassifies to non-actionable EXPECTED_ALTERNATE. A miss
+    on EVERY variant stays DRIFT_ANCHOR (fail-noisy, never silent)."""
+
+    MODULE = """
+        from sndr.kernel.text_patch import TextPatch, TextPatcher
+
+        TARGET = {target!r}
+        {alternation_line}
+
+        def _make_dev338_patcher():
+            return TextPatcher(
+                patch_name="SYN alt dev338",
+                target_file=TARGET,
+                marker="SYN_ALT_MARKER_dev338",
+                sub_patches=[TextPatch(
+                    name="alt_dev338",
+                    anchor={anchor_338!r},
+                    replacement="    probs = a\\n",
+                    required=True,
+                )],
+            )
+
+        def _make_dev371_patcher():
+            return TextPatcher(
+                patch_name="SYN alt dev371",
+                target_file=TARGET,
+                marker="SYN_ALT_MARKER_dev371",
+                sub_patches=[TextPatch(
+                    name="alt_dev371",
+                    anchor={anchor_371!r},
+                    replacement="    probs = b\\n",
+                    required=True,
+                )],
+            )
+    """
+
+    ALTERNATION_LINE = (
+        'SYN_ANCHOR_ALTERNATION = {'
+        '"alt_dev338": ("alt_dev371",), '
+        '"alt_dev371": ("alt_dev338",)}'
+    )
+
+    def _rows(self, pf, mini_tree, tmp_path, name, *,
+              alternation_line, anchor_338=_ALT_ANCHOR_ABSENT,
+              anchor_371=_ALT_ANCHOR_PRESENT):
+        modname = _write_module(
+            tmp_path, name,
+            self.MODULE.format(
+                target=str(mini_tree / "v1" / "sample" / "sampler.py"),
+                alternation_line=alternation_line,
+                anchor_338=anchor_338,
+                anchor_371=anchor_371))
+        return {r["builder"]: r
+                for r in pf.evaluate_module(modname, ["SYNALT"], mini_tree)}
+
+    def test_other_variant_matched_reclassifies(self, pf, mini_tree,
+                                                tmp_path):
+        rows = self._rows(pf, mini_tree, tmp_path, "ptest_alt",
+                          alternation_line=self.ALTERNATION_LINE)
+        assert rows["_make_dev371_patcher"]["verdict"] == pf.OK
+        row_338 = rows["_make_dev338_patcher"]
+        assert row_338["verdict"] == pf.EXPECTED_ALTERNATE
+        assert row_338["alternate_matched"] == ["alt_dev371"]
+        # The detail must name the declaring attr and the matched sub.
+        assert "SYN_ANCHOR_ALTERNATION" in row_338["detail"]
+        assert "alt_dev371" in row_338["detail"]
+
+    def test_expected_alternate_not_actionable(self, pf, mini_tree,
+                                               tmp_path):
+        rows = self._rows(pf, mini_tree, tmp_path, "ptest_alt_action",
+                          alternation_line=self.ALTERNATION_LINE)
+        assert pf.EXPECTED_ALTERNATE not in pf.ACTIONABLE_VERDICTS
+        for r in rows.values():
+            r["in_version_range"] = True
+        assert pf.count_actionable(list(rows.values()), markers=[]) == 0
+
+    def test_neither_variant_matched_stays_drift(self, pf, mini_tree,
+                                                 tmp_path):
+        """Both anchors miss → declared alternation does NOT excuse the
+        rows; both stay DRIFT_ANCHOR (real drift on every variant)."""
+        rows = self._rows(
+            pf, mini_tree, tmp_path, "ptest_alt_bothmiss",
+            alternation_line=self.ALTERNATION_LINE,
+            anchor_338="anchor gone a\n", anchor_371="anchor gone b\n")
+        assert rows["_make_dev338_patcher"]["verdict"] == pf.DRIFT_ANCHOR
+        assert rows["_make_dev371_patcher"]["verdict"] == pf.DRIFT_ANCHOR
+
+    def test_no_alternation_attr_stays_drift(self, pf, mini_tree, tmp_path):
+        rows = self._rows(pf, mini_tree, tmp_path, "ptest_alt_noattr",
+                          alternation_line="")
+        assert rows["_make_dev338_patcher"]["verdict"] == pf.DRIFT_ANCHOR
+
+    def test_undeclared_sub_stays_drift(self, pf, mini_tree, tmp_path):
+        """The missing sub itself must be declared in the map — a map
+        that only lists the OTHER variant does not cover it."""
+        rows = self._rows(
+            pf, mini_tree, tmp_path, "ptest_alt_partial",
+            alternation_line=(
+                'SYN_ANCHOR_ALTERNATION = {"alt_dev371": ("alt_dev338",)}'))
+        assert rows["_make_dev338_patcher"]["verdict"] == pf.DRIFT_ANCHOR
+
+    # ─── real P91B wiring ────────────────────────────────────────────
+
+    P91B_MODULE = (
+        "sndr.engines.vllm.patches.quantization."
+        "p91b_autoround_row_group_cdiv_multi_scheme"
+    )
+
+    def test_p91b_module_declares_alternation(self, pf):
+        import importlib as _il
+        mod = _il.import_module(self.P91B_MODULE)
+        alt = getattr(mod, "P91B_ANCHOR_ALTERNATION", None)
+        assert isinstance(alt, dict), (
+            "P91B must declare P91B_ANCHOR_ALTERNATION (dual-factory "
+            "dev338/dev371 by design — docstring Option A)")
+        a338 = "p91b_inc_dev338_floor_partition_to_cdiv"
+        a371 = "p91b_inc_dev371_floor_partition_to_cdiv"
+        assert a371 in alt[a338]
+        assert a338 in alt[a371]
+
+    def test_p91b_dual_factory_end_to_end(self, pf, tmp_path, monkeypatch):
+        """Wire the REAL P91B module against a synthetic tree carrying
+        the dev371 inc.py spelling (the current-pin state, pristine
+        inc.py:538): the dev371 factory row is OK, the dev338 row is
+        EXPECTED_ALTERNATE, the two compressed-tensors rows are OK."""
+        import sndr.engines.vllm.detection.guards as guards
+
+        root = tmp_path / "synthetic_vllm"
+        quant = root / "model_executor" / "layers" / "quantization"
+        schemes = quant / "compressed_tensors" / "schemes"
+        schemes.mkdir(parents=True)
+        (quant / "inc.py").write_text(
+            "class INCLinearMethod:\n"
+            "    def create_weights(self, input_size_per_partition,"
+            " group_size):\n"
+            "        scales_and_zp_size = input_size_per_partition"
+            " // group_size\n"
+            "        return scales_and_zp_size\n"
+        )
+        ct_body = (
+            "def create_weights(input_size, group_size,"
+            " partition_scales):\n"
+            "    if not partition_scales:\n"
+            "        scales_and_zp_size = input_size // group_size\n"
+            "    return scales_and_zp_size\n"
+        )
+        (schemes / "compressed_tensors_wNa16.py").write_text(ct_body)
+        (schemes / "compressed_tensors_w4a8_fp8.py").write_text(ct_body)
+
+        monkeypatch.setattr(guards, "vllm_install_root",
+                            lambda: str(root))
+        rows = {r["builder"]: r
+                for r in pf.evaluate_module(self.P91B_MODULE, ["P91B"],
+                                            root)}
+        assert rows["_make_inc_dev371_patcher"]["verdict"] == pf.OK
+        assert rows["_make_inc_dev338_patcher"]["verdict"] == \
+            pf.EXPECTED_ALTERNATE
+        assert rows["_make_wna16_patcher"]["verdict"] == pf.OK
+        assert rows["_make_w4a8_fp8_patcher"]["verdict"] == pf.OK

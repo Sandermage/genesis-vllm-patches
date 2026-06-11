@@ -174,7 +174,13 @@ def _make_request_patcher() -> TextPatcher | None:
                 required=True,
             ),
         ],
-        upstream_drift_markers=["num_pending_async_spec_placeholders"],
+        # Self-collision lint (triage plan §6 2026-06-11): former entry
+        # "num_pending_async_spec_placeholders" is the vllm#40768 field
+        # name baked verbatim by our own backport — it cannot distinguish
+        # a real upstream merge from our residue (false "upstream_merged"
+        # skip, PN369 class). Real-merge detection via required-anchor
+        # mismatch (Layer 5) + pin-bump preflight deep-diff.
+        upstream_drift_markers=[],
     )
 
 
@@ -224,7 +230,13 @@ def _make_async_sched_patcher() -> TextPatcher | None:
                 required=True,
             ),
         ],
-        upstream_drift_markers=["num_pending_async_spec_placeholders"],
+        # Self-collision lint (triage plan §6 2026-06-11): former entry
+        # "num_pending_async_spec_placeholders" is the vllm#40768 field
+        # name baked verbatim by our own backport — it cannot distinguish
+        # a real upstream merge from our residue (false "upstream_merged"
+        # skip, PN369 class). Real-merge detection via required-anchor
+        # mismatch (Layer 5) + pin-bump preflight deep-diff.
+        upstream_drift_markers=[],
     )
 
 
@@ -441,7 +453,11 @@ def _make_scheduler_patcher() -> TextPatcher | None:
                 required=True,
             ),
         ],
-        upstream_drift_markers=["_consume_spec_decode_tokens_for_step"],
+        # Self-collision lint (triage plan §6 2026-06-11): former entry
+        # "_consume_spec_decode_tokens_for_step" is the vllm#40768 method
+        # name our own replacement defines — same indistinguishability as
+        # the request/async_scheduler patchers above.
+        upstream_drift_markers=[],
     )
 
 

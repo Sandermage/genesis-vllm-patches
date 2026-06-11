@@ -439,16 +439,26 @@ class TestDriftMarkers:
         # list element in the wiring source.
         import inspect
         src = inspect.getsource(m)
-        # Sub-1 patcher drift markers
-        assert '"ssm_state_indices"' in src
-        assert '"has_initial_state"' in src
+        # Sub-1 patcher: only the strictly-upstream-only marker remains.
+        # Self-collision lint (triage plan §6 2026-06-11): the former
+        # entries (ssm_state_indices, has_initial_state,
+        # IS_CONTINUOUS_BATCHING, HAS_INITIAL_STATE_MASK,
+        # stride_init_state_token) are baked verbatim by PN79's own
+        # replacements and were removed — they could false-skip the patch
+        # as "upstream_merged" on residue (PN369 class).
         assert '"torch.accelerator.device_index"' in src
-        # Sub-2 patcher drift markers (kernel-level)
-        assert '"IS_CONTINUOUS_BATCHING"' in src
-        assert '"HAS_INITIAL_STATE_MASK"' in src
-        assert '"stride_init_state_token"' in src
-        # Sub-3/Sub-4 patchers: no drift markers (see docstring rationale —
-        # the candidate marker false-fires on pristine decode-path lines).
+        # The removed names must NOT reappear as drift-marker list entries
+        # (exact list-element spelling; mentions in comments are fine):
+        for removed in ("ssm_state_indices", "has_initial_state",
+                        "IS_CONTINUOUS_BATCHING", "HAS_INITIAL_STATE_MASK",
+                        "stride_init_state_token"):
+            assert f'            "{removed}",\n' not in src, (
+                f"former self-colliding drift marker {removed!r} "
+                "reintroduced as a list entry"
+            )
+        # Sub-2/Sub-3/Sub-4 patchers: no drift markers (see docstring
+        # rationale — candidate markers either false-fire on pristine
+        # decode-path lines or collide with our own replacements).
         # Verify the empty list is declared:
         assert "upstream_drift_markers=[]," in src
 

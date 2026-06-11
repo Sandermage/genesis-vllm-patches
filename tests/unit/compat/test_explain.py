@@ -223,11 +223,21 @@ class TestRealRegistry:
         r = explain_patch("P67")
         assert "P65" in r["dependencies"]["conflicts_with"]
 
-    def test_P85_explain_includes_requires(self):
-        """P85 declares requires_patches: ['P84']."""
+    def test_P85_explain_dependencies_post_p84_retire(self):
+        """P85's requires_patches=['P84'] was dropped 2026-06-11 (plan
+        section 5 cascade): P84 retired — hash_block_size is
+        upstream-native (scheduler param + resolve_kv_cache_block_sizes)
+        and the fine-hash prerequisite became operator config
+        (--hash-block-size), not a patch dependency. P85 now declares
+        composition with PN346 (Site 2 dual anchor variants)."""
         from sndr.compat.explain import explain_patch
         r = explain_patch("P85")
-        assert "P84" in r["dependencies"]["requires"]
+        assert "P84" not in r["dependencies"]["requires"]
+        assert r["dependencies"]["requires"] == []
+        # explain's dependencies block only carries requires/conflicts;
+        # the PN346 composition is asserted on the registry directly.
+        from sndr.dispatcher import PATCH_REGISTRY
+        assert "PN346" in PATCH_REGISTRY["P85"].get("composes_with", [])
 
 
 # ─── Text formatter ─────────────────────────────────────────────────────
