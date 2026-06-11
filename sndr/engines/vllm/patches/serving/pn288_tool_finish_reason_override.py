@@ -7,17 +7,23 @@ The decision logic lives in the companion middleware module
 is the text-patch overlay that wires that logic into
 ``OpenAIServingChat._create_chat_completion`` at two anchors:
 
-  1. **Streaming** (serving.py:884-893 on pin 626fa9bb) — the if-block
-     that assigns ``finish_reason_`` inside the choice-data loop.
-  2. **Non-streaming** (serving.py:1306-1310) — the
+  1. **Streaming** (serving.py:821-828 on pin 0.22.1rc1.dev259) — the
+     if-block that assigns ``finish_reason_`` inside the choice-data loop.
+  2. **Non-streaming** (serving.py:1246-1250) — the
      ``is_finish_reason_tool_calls`` bool assignment.
 
 Anchor strategy
 ---------------
-Verified live against the running ``vllm-gemma4-31b-tq-mtp-structured-k4-k4``
-container 2026-05-30 (pin 626fa9bb). Both anchors are stable across
-the 0.21.1rc0 → 0.21.1rc1+g626fa9bba window — none of the merged PRs
-between dev371 and 626fa9bb touched the finish_reason emission sites.
+v1 verified live against the running
+``vllm-gemma4-31b-tq-mtp-structured-k4-k4`` container 2026-05-30 (pin
+626fa9bb). v2 re-anchored 2026-06-11 for pin
+0.22.1rc1.dev259+g303916e93: upstream removed ``auto_tools_called``
+from the streaming condition (the variable now exists only in the
+non-streaming full generator), so the streaming anchor, the injected
+call and its except-fallback dropped every reference to it. Sub-patch 2
+is byte-identical to v1 (pristine serving.py:1246-1250 unchanged).
+P107 targets the same streaming block — see the apply-order chain note
+above ``PN288_STREAMING_OLD``.
 
 Both replacements are wrapped in ``try / except Exception`` so any
 import or runtime failure in the middleware logic falls back to the
@@ -54,13 +60,38 @@ GENESIS_PN288_MARKER = (
 
 
 # ─── Sub-patch 1: streaming anchor ──────────────────────────────────────
+#
+# v2 (2026-06-11, pin 0.22.1rc1.dev259+g303916e93): upstream REMOVED the
+# ``auto_tools_called`` OR-clause from the streaming finish_reason
+# condition — on this pin the variable exists only in the non-streaming
+# full generator (pristine serving.py:1069+). Anchor refreshed to the
+# pristine block at chat_completion/serving.py:821-828 (count==1
+# verified against /private/tmp/candidate_pin_current):
+#
+#     if (tools_streamed[i] and not tool_choice_function_name) or (
+#         self.use_harmony and harmony_tools_streamed[i]
+#     ):
+#         finish_reason_ = "tool_calls"
+#     else:
+#         finish_reason_ = (
+#             output.finish_reason if output.finish_reason else "stop"
+#         )
+#
+# APPLY-ORDER CHAIN with P107: P107 v3's ANCHOR_OLD spans this same
+# block PLUS the following ``choice_data =
+# ChatCompletionResponseStreamChoice(`` line, and its ANCHOR_NEW keeps
+# the block verbatim — so PN288 applies cleanly on BOTH pristine and
+# post-P107 content. The reverse order does NOT compose: PN288's
+# replacement re-indents the block (+4 spaces) inside the
+# except-fallback, destroying P107's anchor. The registry therefore
+# declares ``requires_patches: ["P107"]`` on PN288 (ordering-only —
+# PN288 still applies standalone when P107 is disabled). Proven in
+# tests/unit/integrations/serving/test_pn288_p107_anchor_coordination.py.
 
 
 PN288_STREAMING_OLD = (
-    "                        if (\n"
-    "                            auto_tools_called\n"
-    "                            or (tools_streamed[i] and not tool_choice_function_name)\n"
-    "                            or (self.use_harmony and harmony_tools_streamed[i])\n"
+    "                        if (tools_streamed[i] and not tool_choice_function_name) or (\n"
+    "                            self.use_harmony and harmony_tools_streamed[i]\n"
     "                        ):\n"
     "                            finish_reason_ = \"tool_calls\"\n"
     "                        else:\n"
@@ -79,7 +110,6 @@ PN288_STREAMING_NEW = (
     "                                decide_streaming_finish_reason as _genesis_pn288_decide_streaming,\n"
     "                            )\n"
     "                            finish_reason_ = _genesis_pn288_decide_streaming(\n"
-    "                                auto_tools_called=auto_tools_called,\n"
     "                                tools_streamed_i=tools_streamed[i],\n"
     "                                tool_choice_function_name=tool_choice_function_name,\n"
     "                                use_harmony=self.use_harmony,\n"
@@ -89,11 +119,13 @@ PN288_STREAMING_NEW = (
     "                                tool_parser=getattr(self, \"tool_parser\", None),\n"
     "                            )\n"
     "                        except Exception:\n"
-    "                            # Defensive fallback — replicate upstream verbatim.\n"
-    "                            if (\n"
-    "                                auto_tools_called\n"
-    "                                or (tools_streamed[i] and not tool_choice_function_name)\n"
-    "                                or (self.use_harmony and harmony_tools_streamed[i])\n"
+    "                            # Defensive fallback — replicate upstream verbatim\n"
+    "                            # (pristine serving.py:821-828). The pre-0.22 auto\n"
+    "                            # tool-call flag no longer exists in the streaming\n"
+    "                            # generator — referencing it here would raise a\n"
+    "                            # NameError that ESCAPES this defensive wrapper.\n"
+    "                            if (tools_streamed[i] and not tool_choice_function_name) or (\n"
+    "                                self.use_harmony and harmony_tools_streamed[i]\n"
     "                            ):\n"
     "                                finish_reason_ = \"tool_calls\"\n"
     "                            else:\n"

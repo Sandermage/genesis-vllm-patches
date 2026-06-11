@@ -85,6 +85,10 @@ IGNORE_PATCH_IDS: dict[str, str] = {
     "P12": "sub-patches retired 2026-06-08 (archive-drift forensics); parent active",
     "P27": "sub-patch p27_nonstream_return_baseline retired 2026-06-08; parent active",
     "P64": "sub-patches p64_safety_net_widen / p64_callsite_guard retired; parent active",
+    # 2026-06-11 preflight-residual-triage fix-drifts batch: sub-variant
+    # retirements inside still-active parents (plan section 1b).
+    "P59": "wrap variants A/B retired 2026-06-11 (dead residue anchors); parent active",
+    "PN38": "Site B retired 2026-06-11 (upstream-native since dev259); parent active",
 }
 
 

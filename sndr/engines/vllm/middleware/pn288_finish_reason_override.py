@@ -318,7 +318,7 @@ def _output_finish_reason(output: Any) -> Optional[str]:
 
 def decide_streaming_finish_reason(
     *,
-    auto_tools_called: bool,
+    auto_tools_called: bool = False,
     tools_streamed_i: bool,
     tool_choice_function_name: Any,
     use_harmony: bool,
@@ -329,6 +329,15 @@ def decide_streaming_finish_reason(
 ) -> str:
     """Replacement for the upstream streaming finish_reason if-block at
     ``serving.py:884-893`` (verified on pin 626fa9bb).
+
+    Pin 0.22.1rc1.dev259 (2026-06-11): upstream removed
+    ``auto_tools_called`` from the streaming generator, so the v2
+    injected call site no longer passes it — the kwarg defaults to
+    False for the new call shape while older pins may still pass it
+    explicitly. With ``auto_tools_called=False`` the downgrade trigger
+    below can never fire, so on this pin the streaming branch is
+    effectively pass-through (upstream verdict) until the trigger is
+    re-evaluated against new evidence.
 
     Upstream logic:
         if (auto_tools_called or (tools_streamed[i] and not

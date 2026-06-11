@@ -94,18 +94,37 @@ def _is_p62_active() -> bool:
 
 
 # ─── Sub-A: envs.py — register VLLM_SPEC_REASONING_BOUNDARY_VALIDATION ───────
+#
+# Drift history:
+#
+# 2026-06-11 re-anchor (pin 0.22.1rc1.dev259+g303916e93): the original
+# anchor — the VLLM_LORA_ENABLE_DUAL_STREAM entry with its 1-line comment,
+# followed directly by the closing `}` — died twice over. Upstream grew the
+# comment to 3 lines (pristine envs.py:1997-1999, "# (used by both
+# BaseLinearLayerWithLoRA and FusedMoEWithLoRA to ...") AND inserted 3 new
+# entries before the closing brace (VLLM_USE_SPINLOOP_EXT,
+# VLLM_GPU_NIC_PCIE_MAPPING, VLLM_NIC_SELECTION_VARS at lines 2005-2012).
+# New anchor is the minimal dict tail — the last entry plus the closing
+# brace, verbatim from pristine envs.py:2012-2013:
+#     "VLLM_NIC_SELECTION_VARS": lambda: os.getenv("VLLM_NIC_SELECTION_VARS", ""),
+#     }
+# Verified count==1 in pristine /private/tmp/candidate_pin_current/vllm/
+# envs.py. Deliberately comment-free: comment churn is what killed the
+# previous anchor, and a bare entry+brace pair survives entry insertions
+# anywhere above it (only a new LAST entry breaks it again).
+#
+# Why this single anchor mattered: apply() wraps all 5 files in
+# MultiFilePatchTransaction (validate-all-then-write-all), so this one
+# dead anchor failed the phase-1 dry-run and atomically blocked all 5
+# files — the other 5 sub-anchors were verified intact (count==1 each in
+# their pristine targets) the whole time. This re-anchor unblocks the
+# entire transaction.
 ENVS_OLD = (
-    "    # Whether to enable dual cuda streams for LoRA computation\n"
-    "    \"VLLM_LORA_ENABLE_DUAL_STREAM\": lambda: bool(\n"
-    "        int(os.getenv(\"VLLM_LORA_ENABLE_DUAL_STREAM\", \"0\"))\n"
-    "    ),\n"
+    "    \"VLLM_NIC_SELECTION_VARS\": lambda: os.getenv(\"VLLM_NIC_SELECTION_VARS\", \"\"),\n"
     "}"
 )
 ENVS_NEW = (
-    "    # Whether to enable dual cuda streams for LoRA computation\n"
-    "    \"VLLM_LORA_ENABLE_DUAL_STREAM\": lambda: bool(\n"
-    "        int(os.getenv(\"VLLM_LORA_ENABLE_DUAL_STREAM\", \"0\"))\n"
-    "    ),\n"
+    "    \"VLLM_NIC_SELECTION_VARS\": lambda: os.getenv(\"VLLM_NIC_SELECTION_VARS\", \"\"),\n"
     "    # [Genesis PN58 vllm#40962] Reasoning-boundary validation for accepted\n"
     "    # speculative tokens. Opt-in to avoid regressions on parsers not yet\n"
     "    # adapted. Default OFF.\n"

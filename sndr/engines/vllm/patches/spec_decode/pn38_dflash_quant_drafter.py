@@ -26,16 +26,30 @@ Composition (verified no conflicts):
     `_build_fused_kv_buffers` and adds fallback BEFORE the per-layer
     K-norm loop; PN40-A modifies the K-norm loop itself. Composable.
 
-This patch has 4 sub-patches landing 4 distinct anchors in
+This patch has 3 sub-patches landing 3 distinct anchors in
 `vllm/model_executor/models/qwen3_dflash.py`. All are required (the
-4 changes form one coherent feature; partial application would leave
+changes form one coherent feature; partial application would leave
 the model in a broken-quant state).
 
-Anchors (validated against vllm pin 0.20.2rc1.dev9+g01d4d1ad3):
-  Site A (~line 134): `qkv = F.linear(...)` → `qkv, _ = self.qkv_proj(...)`
-  Site B (~line 252): pass `quant_config=self.quant_config` to DFlashQwen3DecoderLayer
-  Site C (~lines 295-318): `_build_fused_kv_buffers` becomes conditional
-  Site D (~lines 381-422): `precompute_and_store_context_kv` adds quantized fallback
+Site B history (2026-06-11 retirement): the original 4th sub-patch
+passed `quant_config=self.quant_config` to DFlashQwen3DecoderLayer.
+Upstream made that plumbing native in pin 0.22.1rc1.dev259+g303916e93
+(PR #40425 itself is still OPEN — the quant_config wiring landed
+separately): pristine qwen3_dflash.py line 228 reads
+`self.quant_config = get_draft_quant_config(vllm_config)` and the
+constructor kwargs at lines 248-254 already pass
+`quant_config=self.quant_config,`. Re-applying Site B would inject a
+DUPLICATE `quant_config=` keyword argument → SyntaxError on model
+import. The sub-patch was removed; `apply()` now carries an
+upstream-presence guard requiring BOTH native lines (loud skip when
+absent — A/C/D depend on `self.quant_config` existing).
+
+Anchors (validated against vllm pin 0.22.1rc1.dev259+g303916e93,
+originally derived on 0.20.2rc1.dev9+g01d4d1ad3):
+  Site A (line 134): `qkv = F.linear(...)` → `qkv, _ = self.qkv_proj(...)`
+  Site B — removed 2026-06-11, upstream-native since dev259 (see above)
+  Site C (lines 297-313): `_build_fused_kv_buffers` becomes conditional
+  Site D (lines 380-385): `precompute_and_store_context_kv` adds quantized fallback
 
 Default OFF (`GENESIS_ENABLE_PN38_DFLASH_QUANT_DRAFTER=1`) until a
 quantized DFlash drafter checkpoint exists in the deployment. Strict
@@ -75,8 +89,24 @@ PN38_A_REPLACEMENT = (
 )
 
 
-# ─── Site B: pass quant_config to DFlashQwen3DecoderLayer constructor ──────
-# Anchor: arg list before `for layer_idx in range(...)`
+# ─── Site B (RETIRED 2026-06-11): pass quant_config to decoder layer ───────
+# Upstream-native since pin 0.22.1rc1.dev259+g303916e93. Pristine
+# qwen3_dflash.py line 228:
+#     self.quant_config = get_draft_quant_config(vllm_config)
+# and the DFlashQwen3DecoderLayer kwargs at pristine lines 248-254:
+#     DFlashQwen3DecoderLayer(
+#         current_vllm_config,
+#         config=self.config,
+#         cache_config=current_vllm_config.cache_config,
+#         quant_config=self.quant_config,
+#         prefix=maybe_prefix(prefix, f"layers.{layer_idx + start_layer_id}"),
+#     )
+# The old anchor below is dead on dev259 (kwarg order changed: prefix now
+# comes AFTER config/cache_config/quant_config) AND the functionality is
+# native — re-anchoring/re-applying would inject a duplicate
+# `quant_config=` keyword argument → SyntaxError on model import. The
+# anchor and replacement strings are kept in this file for git-history
+# reference but are not registered in sub_patches (P78 Site A convention).
 PN38_B_ANCHOR = (
     "                    current_vllm_config,\n"
     "                    prefix=maybe_prefix(prefix, f\"layers.{layer_idx + start_layer_id}\"),\n"
@@ -93,6 +123,57 @@ PN38_B_REPLACEMENT = (
     "                )\n"
     "                for layer_idx in range(self.config.num_hidden_layers)\n"
 )
+
+
+# ─── Upstream-presence guard for native Site B ─────────────────────────────
+# A/C/D depend on `self.quant_config` existing on the model (Site C reads
+# it; Site D's fallback assumes quant-aware layer modules from Site B's
+# plumbing). On pins where the plumbing is NOT native yet, applying A/C/D
+# without B would leave the model in exactly the broken-quant state the
+# patch exists to prevent — so apply() requires BOTH native lines and
+# skips loudly otherwise. Both strings verified count==1 on pristine
+# 0.22.1rc1.dev259+g303916e93 (lines 228 and 251-252 respectively).
+PN38_NATIVE_QUANT_INIT = (
+    "        self.quant_config = get_draft_quant_config(vllm_config)\n"
+)
+
+# Two-line form pins the check to the DFlashQwen3DecoderLayer constructor
+# (pristine lines 248-254); a bare `quant_config=self.quant_config,` also
+# matches the ReplicatedLinear fc at pristine line 273 and would weaken
+# the guard.
+PN38_NATIVE_QUANT_KWARG = (
+    "                    cache_config=current_vllm_config.cache_config,\n"
+    "                    quant_config=self.quant_config,\n"
+)
+
+
+def _native_site_b_status(content: str) -> tuple[bool, str]:
+    """Check that BOTH upstream-native Site B lines are present.
+
+    Returns (ok, reason). When ok is False the reason names every
+    missing line so the operator sees exactly why PN38 refused to
+    apply (loud skip, never partial A/C/D application).
+    """
+    missing: list[str] = []
+    if PN38_NATIVE_QUANT_INIT not in content:
+        missing.append(
+            "`self.quant_config = get_draft_quant_config(vllm_config)`"
+            " (pristine dev259 line 228)"
+        )
+    if PN38_NATIVE_QUANT_KWARG not in content:
+        missing.append(
+            "`quant_config=self.quant_config,` decoder-layer kwarg"
+            " (pristine dev259 lines 248-254)"
+        )
+    if missing:
+        return False, (
+            "upstream-presence guard: native Site B line(s) missing from "
+            "qwen3_dflash.py: " + "; ".join(missing) + ". Site B was "
+            "retired 2026-06-11 (upstream-native since 0.22.1rc1.dev259); "
+            "on a pin without the native plumbing the retired sub-patch "
+            "would be required again — refusing partial A/C/D application."
+        )
+    return True, "native Site B plumbing present (init + decoder-layer kwarg)"
 
 
 # ─── Site C: _build_fused_kv_buffers becomes conditional ──────────────────
@@ -217,12 +298,9 @@ def _make_patcher() -> TextPatcher | None:
                 replacement=PN38_A_REPLACEMENT,
                 required=True,
             ),
-            TextPatch(
-                name="pN38_b_pass_quant_config",
-                anchor=PN38_B_ANCHOR,
-                replacement=PN38_B_REPLACEMENT,
-                required=True,
-            ),
+            # pN38_b_pass_quant_config removed 2026-06-11 — Site B
+            # upstream-native since dev259 (see Site B history block);
+            # _native_site_b_status() guards the native lines instead.
             TextPatch(
                 name="pN38_c_conditional_fused_kv",
                 anchor=PN38_C_ANCHOR,
@@ -262,14 +340,30 @@ def apply() -> tuple[str, str]:
     if not os.path.isfile(patcher.target_file):
         return "skipped", f"target disappeared: {patcher.target_file}"
 
+    # Upstream-presence guard (Site B retired 2026-06-11): require BOTH
+    # native quant_config lines before landing A/C/D. Loud skip — the
+    # reason names every missing line.
+    try:
+        with open(patcher.target_file, encoding="utf-8") as fh:
+            content = fh.read()
+    except OSError as e:
+        return "skipped", f"target unreadable: {patcher.target_file} ({e})"
+    native_ok, guard_reason = _native_site_b_status(content)
+    if not native_ok:
+        log.warning("[Genesis PN38] %s", guard_reason)
+        return "skipped", guard_reason
+
     result, failure = patcher.apply()
     return result_to_wiring_status(
         result, failure,
         applied_message=(
-            "PN38 applied: 4 sub-patches into qwen3_dflash.py — quantized "
-            "DFlash drafter support (PR #40425 backport). Today no-op for "
-            "BF16 drafters; ready for FP8/NVFP4 drafter checkpoints when "
-            "available. Composes with PN40-A (different anchor surfaces)."
+            "PN38 applied: 3 sub-patches (Sites A/C/D) into "
+            "qwen3_dflash.py — quantized DFlash drafter support "
+            "(PR #40425 backport). Site B (quant_config plumbing) "
+            "upstream-native since 0.22.1rc1.dev259, presence-guarded. "
+            "Today no-op for BF16 drafters; ready for FP8/NVFP4 drafter "
+            "checkpoints when available. Composes with PN40-A (different "
+            "anchor surfaces)."
         ),
         patch_name=patcher.patch_name,
     )

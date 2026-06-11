@@ -48,22 +48,26 @@ def test_pn32_skips_when_env_off(monkeypatch):
 
 
 def test_pn32_v2_anchor_targets_forward_core_prefill_branch():
-    """v2 anchor must match the PREFILL BRANCH of _forward_core, NOT
+    """v3 anchor must match the PREFILL BRANCH of _forward_core, NOT
     the outer forward_cuda's gdn_attention_core call (that was v1's
     wrong-level chunking that didn't propagate cu_seqlens).
+
+    2026-06-11 v3 re-anchor: the prefill branch is the `# 2.3` block of
+    gdn/qwen_gdn_linear_attn.py (post-#41126/#44700) and persists into
+    ssm_state[prefill_state_indices].
     """
     from sndr.engines.vllm.patches.attention.gdn.pn32_gdn_chunked_prefill import (
         PN32_ANCHOR,
     )
     # Must include the prefill branch entry comment
-    assert "# 2.2: Process the remaining part" in PN32_ANCHOR
+    assert "# 2.3: Process the remaining part" in PN32_ANCHOR
     assert "if attn_metadata.num_prefills > 0:" in PN32_ANCHOR
     # Must include the FLA call (chunk_gated_delta_rule) at this level
     assert "self.chunk_gated_delta_rule(" in PN32_ANCHOR
     # Must NOT match v1's wrong-level pattern (gdn_attention_core call)
     assert "torch.ops.vllm.gdn_attention_core" not in PN32_ANCHOR
     # Must include the cache update (anchor's full extent)
-    assert "ssm_state[non_spec_state_indices_tensor] = last_recurrent_state" in PN32_ANCHOR
+    assert "ssm_state[prefill_state_indices] = last_recurrent_state" in PN32_ANCHOR
 
 
 def test_pn32_v2_replacement_chunks_along_T_dim():
@@ -135,16 +139,21 @@ def test_pn32_v2_replacement_concatenates_chunks_along_T():
 def test_pn32_v2_replacement_bypasses_for_multi_seq():
     """Multi-sequence prefill (cu_seqlens shape > [2]) must bypass to
     original — chunking across seq boundaries requires inner state-cache
-    surgery not exposed at this layer."""
+    surgery not exposed at this layer.
+
+    2026-06-11 v3 re-anchor: detection moved to the builder-precomputed
+    attn_metadata.prefill_query_start_loc (#44700 peels decodes off the
+    non-spec batch — non_spec_query_start_loc no longer carries the
+    prefill cu_seqlens on this pin)."""
     from sndr.engines.vllm.patches.attention.gdn.pn32_gdn_chunked_prefill import (
         PN32_REPLACEMENT,
     )
-    # Single-seq detection: cu_seqlens shape == 2
-    assert "non_spec_query_start_loc.shape[0] == 2" in PN32_REPLACEMENT
-    # Else branch falls through to original FLA call
-    assert "# ─── Original path" in PN32_REPLACEMENT
-    # Original call uses non_spec_query_start_loc + attn_metadata fields
-    assert "cu_seqlens=non_spec_query_start_loc," in PN32_REPLACEMENT
+    # Single-seq detection: prefill cu_seqlens shape == 2
+    assert "prefill_query_start_loc.shape[0] == 2" in PN32_REPLACEMENT
+    # Else branch falls through to the original FLA call
+    assert "            else:\n" in PN32_REPLACEMENT
+    # Original call uses prefill_query_start_loc + attn_metadata fields
+    assert "cu_seqlens=attn_metadata.prefill_query_start_loc," in PN32_REPLACEMENT
     assert "chunk_indices=attn_metadata.chunk_indices," in PN32_REPLACEMENT
 
 
@@ -268,13 +277,15 @@ def test_pn32_v2_register_in_apply_all():
 
 
 def test_pn32_v2_marker_bumped_to_v7_69():
-    """Marker must reflect v2 (so a v1-applied container that runs v2
-    apply detects the difference and re-applies, not silent-skip)."""
+    """Marker must reflect the current version (so an older-version-
+    applied container that runs the new apply detects the difference
+    and re-applies, not silent-skip). v3 as of the 2026-06-11
+    re-anchor."""
     from sndr.engines.vllm.patches.attention.gdn.pn32_gdn_chunked_prefill import (
         GENESIS_PN32_MARKER,
     )
-    assert "v2" in GENESIS_PN32_MARKER
-    assert "v7.69" in GENESIS_PN32_MARKER
+    assert "v3" in GENESIS_PN32_MARKER
+    assert "PN32" in GENESIS_PN32_MARKER
 
 
 def test_pn32_v2_drift_marker_specific():
@@ -288,11 +299,13 @@ def test_pn32_v2_drift_marker_specific():
     import sndr.engines.vllm.detection.guards as guards
 
     with tempfile.TemporaryDirectory() as td:
-        mamba_dir = os.path.join(
-            td, "model_executor", "layers", "mamba"
+        # v3 target (2026-06-11): per-model file under mamba/gdn/
+        # (post-#41126 split; the monolithic fallback was dropped).
+        gdn_dir = os.path.join(
+            td, "model_executor", "layers", "mamba", "gdn"
         )
-        os.makedirs(mamba_dir)
-        with open(os.path.join(mamba_dir, "gdn_linear_attn.py"), "w") as f:
+        os.makedirs(gdn_dir)
+        with open(os.path.join(gdn_dir, "qwen_gdn_linear_attn.py"), "w") as f:
             f.write("# placeholder\n")
 
         orig = guards.vllm_install_root
@@ -306,7 +319,7 @@ def test_pn32_v2_drift_marker_specific():
     # Must NOT include the generic '[Genesis PN32' prefix
     for m in patcher.upstream_drift_markers:
         if m.startswith("[Genesis PN32"):
-            assert "v2" in m or "v7.69" in m or "chunked-prefill" in m, (
+            assert "v2" in m or "v3" in m or "chunked-prefill" in m, (
                 f"drift marker {m!r} too generic — risk of false-positive "
                 f"on sibling patches' insertions"
             )

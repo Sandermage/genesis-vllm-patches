@@ -64,13 +64,31 @@ Community confirmations on PR #39055
 
 Status: opt-in (`GENESIS_ENABLE_P59_QWEN3_TOOL_RECOVERY=1`).
 
+Re-anchor history
+-----------------
+- 2026-06-11 (preflight residual triage plan §1b): IMPORT_OLD re-anchored
+  on the pristine `Iterable, Sequence` import; wrap variants A/B removed
+  (anchored on dead residue — see the commented history block below);
+  variant C (chained on P27's post-apply output) and variant D (pristine,
+  P27-absent deployments) added; apply() gained a require-at-least-one
+  wrap gate; drift markers replaced with upstream-only typed-signature
+  strings per the self-collision rule.
+
 Compatibility
 -------------
 - Composes cleanly with P12 (Qwen3 tool_call reasoning fix v2): P12 handles
   the `</think>`-absent case via `<tool_call>` implicit-end; P59 handles
   the `</think>`-present case where `<tool_call>` is nested in reasoning.
-- Auto-no-op once #39055 lands upstream (drift marker:
-  `_split_embedded_tool_calls` in the file).
+  On dev259+ P12's sole surviving sub-patch only rewrites the
+  extract_content_ids body — no anchor overlap with P59.
+- CHAINS ON P27 (BEFORE-THINK fallback): P27 applies before P59 at boot
+  (PROD boot log 2026-06-10: P27 applied at line 20, P59 evaluated at
+  line 153) and rewrites the `</think>`-present return site that P59 must
+  wrap. Variant C anchors on P27's post-apply output; variant D covers
+  P27-absent deployments. See the chain declaration comment above
+  RETURN_THINK_P27_CHAIN_OLD.
+- Auto-no-op once #39055 lands upstream (drift markers: upstream's TYPED
+  helper signatures — see UPSTREAM_DRIFT_MARKERS).
 - Non-Qwen3 deployments: parser file simply isn't loaded → patcher skips.
 
 Risks acknowledged
@@ -116,10 +134,37 @@ from sndr.kernel import (  # noqa: E402
     TextPatchResult,
     TextPatch,
 )
+# Chain provider: variant C's anchor is imported from P27's module so it
+# stays byte-identical to P27's post-apply output by construction (see the
+# chain declaration comment above RETURN_THINK_P27_CHAIN_OLD).
+from sndr.engines.vllm.patches.reasoning.p27_reasoning_before_think import (  # noqa: E402
+    _NEW_NONSTREAM_RETURN_PR35687 as _P27_NONSTREAM_RETURN_POST_APPLY,
+)
 
 log = logging.getLogger("genesis.wiring.p59_qwen3_reasoning_tool_call_recovery")
 
-GENESIS_P59_MARKER = "Genesis P59 Qwen3 reasoning embedded tool_call recovery v7.13"
+# v7.14 (2026-06-11): content-version bump for the §1b re-anchor batch
+# (variants C/D + require-at-least-one gate). v7.13-marked files never
+# existed on dev259+ (old IMPORT_OLD predates the Iterable import).
+GENESIS_P59_MARKER = "Genesis P59 Qwen3 reasoning embedded tool_call recovery v7.14"
+
+UPSTREAM_DRIFT_MARKERS = [
+    # Verified via `gh pr diff 39055` (2026-06-11, PR state OPEN): upstream's
+    # helper carries TYPED signatures —
+    #     def _split_embedded_tool_calls(
+    #         reasoning: str | None,
+    #         content: str | None,
+    #     ) -> tuple[str | None, str | None]:
+    # and
+    #     def _collect_or_keep(match: re.Match[str]) -> str:
+    # Our backport injects UNTYPED variants of both, so these strings can
+    # only appear when #39055 itself lands in the pin. Self-collision rule
+    # (triage plan §6 / PN353A bug class): a drift marker must never be a
+    # substring of this patch's own replacement text or marker line; the
+    # previous marker `_split_embedded_tool_calls` violated that.
+    "def _split_embedded_tool_calls(\n        reasoning: str | None,",
+    "def _collect_or_keep(match: re.Match[str]) -> str:",
+]
 
 
 def _is_enabled() -> bool:
@@ -131,16 +176,20 @@ def _is_enabled() -> bool:
     ).strip().lower() in ("1", "true", "yes", "on")
 
 
-# ─── Sub-patch 1: add `import re` after the existing collections import ─────
+# ─── Sub-patch 1: add `import re` before the existing collections import ────
+# Re-anchored 2026-06-11: pristine dev259+ imports Iterable too. Pristine
+# qwen3_reasoning_parser.py lines 4-5 (verified count==1):
+#     from collections.abc import Iterable, Sequence
+#     from typing import TYPE_CHECKING
 
 IMPORT_OLD = (
-    "from collections.abc import Sequence\n"
+    "from collections.abc import Iterable, Sequence\n"
     "from typing import TYPE_CHECKING"
 )
 
 IMPORT_NEW = (
     "import re  # [Genesis P59 vllm#39055]\n"
-    "from collections.abc import Sequence\n"
+    "from collections.abc import Iterable, Sequence\n"
     "from typing import TYPE_CHECKING"
 )
 
@@ -243,37 +292,111 @@ METHOD_NEW = (
 )
 
 
-# ─── Sub-patches 4a/4b: wrap the </think>-present return ─────────────────
-# Two variants because P12 (monolith v5.12) and P12+P27 (modular) produce
-# different code shapes around the return statement. Both are required=False;
-# we expect EXACTLY ONE to match per file layout.
+# ─── Sub-patches 4C/4D: wrap the </think>-present return ─────────────────
+# Two variants; we expect EXACTLY ONE to match per file state, and apply()
+# enforces require-at-least-one (see _CORE_WRAP_SUB_NAMES).
+#
+# RETIRED variants A/B (2026-06-11, preflight residual triage plan §1b).
+# Both anchored on DEAD RESIDUE and could never match dev259+:
+#   - Variant A targeted the v5.12 MONOLITH P12 layout via its injected
+#     comment line; P12's monolith sub-patches were retired 2026-06-08
+#     (superseded by upstream #35687, MERGED 2026-04-24), so no live
+#     sibling emits that text anymore.
+#   - Variant B targeted the pre-#35687 `final_content` aliasing shape
+#     that #35687 removed from upstream.
+# With both soft-skipping (required=False) the patch false-reported
+# "applied" while its core </think>-present wrap was missing — the helper
+# was injected as dead code. Constants preserved as commented history:
+#
+# RETURN_THINK_MONOLITH_OLD = (
+#     "        # [Genesis v5.12] PR #35687: 3-way branch with <tool_call>\n"
+#     "        if self.end_token in model_output:\n"
+#     "            reasoning, _, content = model_output.partition(self.end_token)\n"
+#     "            return reasoning, content or None"
+# )
+#
+# RETURN_THINK_MONOLITH_NEW = (
+#     "        # [Genesis v5.12] PR #35687: 3-way branch with <tool_call>\n"
+#     "        if self.end_token in model_output:\n"
+#     "            reasoning, _, content = model_output.partition(self.end_token)\n"
+#     "            # [Genesis P59 vllm#39055] extract nested tool_call from reasoning\n"
+#     "            return self._split_embedded_tool_calls(reasoning, content or None)"
+# )
+#
+# RETURN_THINK_MODULAR_OLD = (
+#     "        final_content = content or None\n"
+#     "        return reasoning, final_content"
+# )
+#
+# RETURN_THINK_MODULAR_NEW = (
+#     "        final_content = content or None\n"
+#     "        # [Genesis P59 vllm#39055] extract nested tool_call from reasoning\n"
+#     "        return self._split_embedded_tool_calls(reasoning, final_content)"
+# )
 
-# Variant A: monolith P12 layout (one-line return)
-RETURN_THINK_MONOLITH_OLD = (
-    "        # [Genesis v5.12] PR #35687: 3-way branch with <tool_call>\n"
+# ── Chain declaration (preflight CHAINED_ANCHOR convention) ───────────────
+# P59 CHAINS ON P27: apply-order dependency P27-before-P59. The boot
+# orchestrator already runs them in that order (PROD boot log 2026-06-10:
+# P27 applied at line 20, P59 evaluated at line 153). The registry
+# `requires_patches` entry for P59 is intentionally NOT updated in this
+# batch (registry.py is owned by the parallel hygiene batch); this comment
+# plus the anchor-import below are the canonical chain declaration.
+#
+# Variant C's anchor is P27's post-apply output, imported from
+# p27_reasoning_before_think._NEW_NONSTREAM_RETURN_PR35687 so it is
+# byte-identical by construction. The preflight chain pass
+# (tools/pin_preflight.py::reclassify_chained) recognizes the dependency
+# because the anchor is a substring of P27's `_replacement_blob` on the
+# same target file, and reclassifies an anchor miss on the pristine tree
+# as CHAINED_ANCHOR instead of DRIFT_ANCHOR.
+
+# Variant C: P27-applied layout (P27's BEFORE-THINK prepend before return).
+RETURN_THINK_P27_CHAIN_OLD = _P27_NONSTREAM_RETURN_POST_APPLY
+
+# Tail return line of P27's replacement that variant C wraps. Derivation
+# is validated by _P27_CHAIN_DERIVATION_OK; if P27's injected text ever
+# changes shape, variant C is dropped from the sub-patch list and the
+# require-at-least-one gate in apply() fails loudly on post-P27 files
+# instead of a no-op replacement masquerading as applied.
+_P27_POST_APPLY_RETURN_LINE = "            return reasoning, content or None"
+
+RETURN_THINK_P27_CHAIN_NEW = RETURN_THINK_P27_CHAIN_OLD.replace(
+    _P27_POST_APPLY_RETURN_LINE,
+    "            # [Genesis P59 vllm#39055] extract nested tool_call from reasoning\n"
+    "            return self._split_embedded_tool_calls(reasoning, content or None)",
+    1,
+)
+
+_P27_CHAIN_DERIVATION_OK = (
+    RETURN_THINK_P27_CHAIN_OLD.count(_P27_POST_APPLY_RETURN_LINE) == 1
+    and RETURN_THINK_P27_CHAIN_NEW != RETURN_THINK_P27_CHAIN_OLD
+)
+
+# Variant D: pristine layout for P27-absent deployments. Anchor quoted
+# byte-exactly from pristine qwen3_reasoning_parser.py lines 142-144
+# (verified count==1 on dev259+):
+#         if self.end_token in model_output:
+#             reasoning, _, content = model_output.partition(self.end_token)
+#             return reasoning, content or None
+RETURN_THINK_PRISTINE_OLD = (
     "        if self.end_token in model_output:\n"
     "            reasoning, _, content = model_output.partition(self.end_token)\n"
     "            return reasoning, content or None"
 )
 
-RETURN_THINK_MONOLITH_NEW = (
-    "        # [Genesis v5.12] PR #35687: 3-way branch with <tool_call>\n"
+RETURN_THINK_PRISTINE_NEW = (
     "        if self.end_token in model_output:\n"
     "            reasoning, _, content = model_output.partition(self.end_token)\n"
     "            # [Genesis P59 vllm#39055] extract nested tool_call from reasoning\n"
     "            return self._split_embedded_tool_calls(reasoning, content or None)"
 )
 
-# Variant B: modular P12+P27 layout (final_content variable + bare return)
-RETURN_THINK_MODULAR_OLD = (
-    "        final_content = content or None\n"
-    "        return reasoning, final_content"
-)
-
-RETURN_THINK_MODULAR_NEW = (
-    "        final_content = content or None\n"
-    "        # [Genesis P59 vllm#39055] extract nested tool_call from reasoning\n"
-    "        return self._split_embedded_tool_calls(reasoning, final_content)"
+# Require-at-least-one set: the patch is only functional when ONE of the
+# core </think>-present wrap variants landed; the helper alone is dead
+# code. apply() refuses to report "applied" otherwise.
+_CORE_WRAP_SUB_NAMES = (
+    "p59_wrap_think_return_p27_chain",
+    "p59_wrap_think_return_pristine",
 )
 
 
@@ -294,45 +417,58 @@ RETURN_TRUNC_NEW = (
 )
 
 
-def _make_patcher() -> TextPatcher | None:
-    target = resolve_vllm_file("reasoning/qwen3_reasoning_parser.py")
-    if target is None:
-        return None
-    return TextPatcher(
-        patch_name="P59 Qwen3 reasoning embedded tool_call recovery",
-        target_file=str(target),
-        marker=GENESIS_P59_MARKER,
-        sub_patches=[
+def _make_patcher_for_target(target_file: str) -> TextPatcher:
+    """Build the P59 patcher for an explicit target path.
+
+    Split out of _make_patcher so unit tests can exercise the REAL
+    sub-patch layout against synthetic files without a vllm tree.
+    """
+    sub_patches = [
+        TextPatch(
+            name="p59_import_re",
+            anchor=IMPORT_OLD,
+            replacement=IMPORT_NEW,
+            required=True,
+        ),
+        TextPatch(
+            name="p59_module_regex",
+            anchor=REGEX_OLD,
+            replacement=REGEX_NEW,
+            required=True,
+        ),
+        TextPatch(
+            name="p59_helper_method",
+            anchor=METHOD_OLD,
+            replacement=METHOD_NEW,
+            required=True,
+        ),
+    ]
+    # Variants C/D for the </think>-present return — required=False so
+    # whichever file state is present wins; apply() then enforces that at
+    # least one of them actually landed (_CORE_WRAP_SUB_NAMES gate).
+    if _P27_CHAIN_DERIVATION_OK:
+        sub_patches.append(
             TextPatch(
-                name="p59_import_re",
-                anchor=IMPORT_OLD,
-                replacement=IMPORT_NEW,
-                required=True,
-            ),
-            TextPatch(
-                name="p59_module_regex",
-                anchor=REGEX_OLD,
-                replacement=REGEX_NEW,
-                required=True,
-            ),
-            TextPatch(
-                name="p59_helper_method",
-                anchor=METHOD_OLD,
-                replacement=METHOD_NEW,
-                required=True,
-            ),
-            # Variants A/B for the </think>-present return — required=False
-            # so whichever layout is present wins; the other soft-skips.
-            TextPatch(
-                name="p59_wrap_think_return_monolith",
-                anchor=RETURN_THINK_MONOLITH_OLD,
-                replacement=RETURN_THINK_MONOLITH_NEW,
+                name="p59_wrap_think_return_p27_chain",
+                anchor=RETURN_THINK_P27_CHAIN_OLD,
+                replacement=RETURN_THINK_P27_CHAIN_NEW,
                 required=False,
-            ),
+            )
+        )
+    else:
+        # P27's injected text changed shape — fail loud via the apply()
+        # gate on post-P27 files rather than ship a no-op replacement.
+        log.warning(
+            "[P59] P27 chain derivation failed — P27's injected return "
+            "shape changed; variant C dropped. Re-derive "
+            "RETURN_THINK_P27_CHAIN_* against the current P27 module."
+        )
+    sub_patches.extend(
+        [
             TextPatch(
-                name="p59_wrap_think_return_modular",
-                anchor=RETURN_THINK_MODULAR_OLD,
-                replacement=RETURN_THINK_MODULAR_NEW,
+                name="p59_wrap_think_return_pristine",
+                anchor=RETURN_THINK_PRISTINE_OLD,
+                replacement=RETURN_THINK_PRISTINE_NEW,
                 required=False,
             ),
             TextPatch(
@@ -341,15 +477,33 @@ def _make_patcher() -> TextPatcher | None:
                 replacement=RETURN_TRUNC_NEW,
                 required=False,
             ),
-        ],
-        upstream_drift_markers=["_split_embedded_tool_calls"],
+        ]
+    )
+    return TextPatcher(
+        patch_name="P59 Qwen3 reasoning embedded tool_call recovery",
+        target_file=target_file,
+        marker=GENESIS_P59_MARKER,
+        sub_patches=sub_patches,
+        upstream_drift_markers=UPSTREAM_DRIFT_MARKERS,
     )
 
 
+def _make_patcher() -> TextPatcher | None:
+    target = resolve_vllm_file("reasoning/qwen3_reasoning_parser.py")
+    if target is None:
+        return None
+    return _make_patcher_for_target(str(target))
+
+
 def apply() -> tuple[str, str]:
-    """Apply P59 wiring (5 sub-patches in one file). Never raises.
+    """Apply P59 wiring (up to 6 sub-patches in one file). Never raises.
 
     All-or-nothing: if any required anchor drifts, abort the whole group.
+    Require-at-least-one: APPLIED only counts when one of the core
+    </think>-present wrap variants (C: P27 chain, D: pristine) actually
+    landed — otherwise the injected helper is dead code and we report
+    "failed" loudly instead of false-reporting success (2026-06-11 fix;
+    the retired residue variants A/B used to mask exactly this).
     Idempotent + auto-no-op once #39055 lands upstream.
     """
     from sndr.dispatcher import should_apply, log_decision
@@ -368,12 +522,25 @@ def apply() -> tuple[str, str]:
     result, failure = patcher.apply()
 
     if result == TextPatchResult.APPLIED:
+        applied = list(patcher.applied_sub_patches)
+        if not set(applied).intersection(_CORE_WRAP_SUB_NAMES):
+            return (
+                "failed",
+                "P59 anchors partially applied but NO core </think>-present "
+                "wrap variant matched (applied: "
+                + (", ".join(applied) or "none")
+                + ") — helper injected as dead code. Re-anchor variants C/D "
+                "against the current pin (and check P27 apply order) before "
+                "serving traffic.",
+            )
         return (
             "applied",
-            "P59 backport applied: 5 sub-patches in qwen3_reasoning_parser.py. "
-            "Tool_call XML inside <think>...</think> reasoning now extracted "
-            "and routed to content for qwen3_coder parser. Validate with "
-            "blue/green reproducer suite before serving traffic.",
+            f"P59 backport applied ({len(applied)} sub-patches: "
+            + ", ".join(applied)
+            + ") in qwen3_reasoning_parser.py. Tool_call XML inside "
+            "<think>...</think> reasoning now extracted and routed to "
+            "content for qwen3_coder parser. Validate with blue/green "
+            "reproducer suite before serving traffic.",
         )
     if result == TextPatchResult.IDEMPOTENT:
         return "applied", "already applied this image layer (idempotent)"
@@ -383,6 +550,7 @@ def apply() -> tuple[str, str]:
         return (
             "skipped",
             f"{msg} ({detail}) — likely #39055 already merged upstream OR "
-            "anchor drifted (P12-modified file changed). Re-anchor needed.",
+            "anchor drifted (P27-modified file changed shape). "
+            "Re-anchor needed.",
         )
     return "failed", failure.reason if failure else "unknown failure"

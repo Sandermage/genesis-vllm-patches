@@ -28,14 +28,19 @@ def test_replacement_adds_p107_guard():
     assert "vllm#41467" in M.ANCHOR_NEW
     assert "MTP truncation detected" in M.ANCHOR_NEW
     assert "MTP speculative decoding truncated" in M.ANCHOR_NEW
-    # All 6 AND conditions must be present
+    # All AND conditions must be present
     assert "finish_reason_ == \"stop\"" in M.ANCHOR_NEW
     assert "and request.tools" in M.ANCHOR_NEW
     assert "and not tools_streamed[i]" in M.ANCHOR_NEW
-    assert "and not auto_tools_called" in M.ANCHOR_NEW
     assert "and reasoning_parser is not None" in M.ANCHOR_NEW
     assert "and not delta_message.content" in M.ANCHOR_NEW
     assert "and not delta_message.tool_calls" in M.ANCHOR_NEW
+    # v3 (2026-06-11): ``auto_tools_called`` does NOT exist in the
+    # streaming generator on pin 0.22.1rc1.dev259 — v2's injected
+    # ``and not auto_tools_called`` clause was a latent NameError at
+    # stream end (caught by fleet validation 2026-06-11). The clause
+    # must stay OUT of the replacement.
+    assert "auto_tools_called" not in M.ANCHOR_NEW
 
 
 def test_idempotent_on_synthetic(tmp_path):

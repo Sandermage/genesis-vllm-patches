@@ -32,13 +32,69 @@ draft-acceptance benefit, so EAGLE-3 / DFlash on Ampere produces a
 THE FIX (this patch — short term)
 ================================================================
 
-Wrap ``DFlashProposer._create_draft_vllm_config`` and
-``EagleProposer._create_draft_vllm_config`` so they refuse at config
-build time with a clear error pointing at:
+Wrap ``SpecDecodeBaseProposer._create_draft_vllm_config`` (pristine
+``vllm/v1/spec_decode/llm_base_proposer.py:1157``) so it refuses at
+config build time with a clear error pointing at:
 
   * upstream bug #40382 (backend matrix)
-  * the recommended Ampere drafter (Google MTP assistant via PR #41745)
+  * the recommended Ampere drafter (native Gemma 4 MTP assistant —
+    ``Gemma4Proposer``, see SPEC-DECODE LAYOUT below)
   * the deep fix (G4_10 — Genesis non-causal head_dim=256 Triton kernel)
+
+The wrapper gates on ``speculative_config.method in ("eagle3", "dflash")``
+(via ``detect_non_causal_drafter``), so causal proposers — MTP,
+EAGLE-1, draft_model, ngram — sharing the same base class pass through
+untouched.
+
+================================================================
+SPEC-DECODE LAYOUT IN THE CURRENT PIN (verified 2026-06-11)
+================================================================
+
+The candidate pin ``0.22.1rc1.dev259+g303916e93`` (image
+``vllm/vllm-openai:nightly-303916e93``, see candidate-tree
+PROVENANCE.json) removed the dedicated ``vllm/v1/spec_decode/eagle3.py``
+module this guard originally bound to. Verified against the pristine
+tree:
+
+  * ``llm_base_proposer.py:59``   — ``class SpecDecodeBaseProposer:``
+    with ``self.method = self.speculative_config.method`` (line 71)
+    and ``def _create_draft_vllm_config(self) -> VllmConfig:`` (1157).
+  * ``eagle.py:10``  — ``class EagleProposer(SpecDecodeBaseProposer):``
+    serves methods "eagle"/"eagle3" (and generic "mtp"); it does NOT
+    override ``_create_draft_vllm_config`` — the base wrap covers it.
+  * ``dflash.py:21`` — ``class DFlashProposer(SpecDecodeBaseProposer):``
+    overrides ``_create_draft_vllm_config`` (line 74) but delegates to
+    ``super()._create_draft_vllm_config()`` (line 75) — the base wrap
+    covers it too.
+  * ``gemma4.py:31`` — ``class Gemma4Proposer(SpecDecodeBaseProposer):``
+    native Gemma 4 MTP assistant proposer; selected by
+    ``SpeculativeConfig.use_gemma4_mtp()`` when ``method == "mtp"`` and
+    the draft model_type is ``gemma4_mtp`` (normalized from
+    ``gemma4_assistant`` / ``gemma4_unified_assistant``,
+    ``config/speculative.py:512-513``). It shares KV cache with the
+    target via cross-model KV sharing — causal, Ampere-safe. This is
+    the path the refusal message recommends.
+
+Wrapping the base class is rename-proof against future drafter-module
+shuffles; the per-class probes on ``eagle.EagleProposer`` /
+``dflash.DFlashProposer`` are kept only as fallback.
+
+================================================================
+FAIL-LOUD CONTRACT (2026-06-11, preflight triage §6)
+================================================================
+
+The original code swallowed drafter-module ImportError at log.debug,
+so an ENABLED guard could report "applied" while Eagle3 ran unguarded
+(silent hazard caught by the 2026-06-11 preflight residual triage).
+New contract when the guard is enabled:
+
+  * primary base-class wrap succeeds            → "applied"
+  * base missing, BOTH fallback classes wrapped → "applied" (noted)
+  * base missing, ONE fallback class wrapped    → "partial" + warning
+  * nothing wrapped                             → "failed"  + warning
+
+"partial"/"failed" propagate through the dispatcher as a failed patch
+— never a silent success.
 
 ================================================================
 DEEP FIX
@@ -55,7 +111,8 @@ validates, this guard becomes redundant — set
 SAFETY MODEL
 ================================================================
 
-* default_on: True
+* default_on: True (informational — strict opt-in via env_flag since
+  2026-05-17 dispatcher semantics)
 * env_flag: GENESIS_ENABLE_G4_03_GEMMA4_NON_CAUSAL_DRAFTER_GUARD
 * override: GENESIS_DISABLE_G4_03_GUARD=1 (for G4_10 testing)
 * applies_to:
@@ -67,7 +124,8 @@ SAFETY MODEL
 Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
 References:
   * https://github.com/vllm-project/vllm/issues/40382 (backend matrix)
-  * https://github.com/vllm-project/vllm/pull/41745 (MTP assistant, MERGED)
+  * https://github.com/vllm-project/vllm/pull/41745 (Gemma 4 MTP assistant,
+    MERGED — native ``Gemma4Proposer`` in the current pin)
   * https://github.com/vllm-project/vllm/pull/42069 (DFlash backend=None, OPEN)
 """
 from __future__ import annotations
@@ -85,15 +143,20 @@ from ._gemma4_detect import (
 log = logging.getLogger("genesis.gemma4.g4_03_non_causal_drafter_guard")
 
 GENESIS_G4_03_MARKER = (
-    "Genesis G4_03 gemma4 ampere non-causal drafter guard v1 "
-    "(closes operator confusion from vllm#40382 backend matrix wall)"
+    "Genesis G4_03 gemma4 ampere non-causal drafter guard v2 "
+    "(base-proposer wrap, fail-loud bindings; closes operator confusion "
+    "from vllm#40382 backend matrix wall)"
 )
 
 _ENV_ENABLE = "GENESIS_ENABLE_G4_03_GEMMA4_NON_CAUSAL_DRAFTER_GUARD"
 _ENV_DISABLE = "GENESIS_DISABLE_G4_03_GUARD"
 
+# Human-readable drafter names for the refusal message.
+_DRAFTER_DISPLAY = {"eagle3": "EAGLE-3", "dflash": "DFlash"}
+
 _APPLIED = False
-_ORIGINAL_METHODS: dict[str, object] = {}
+# (cls, attr_name, original) triples for exact revert without re-imports.
+_WRAPPED_SITES: list[tuple[type, str, object]] = []
 
 
 def _env_enabled() -> bool:
@@ -104,39 +167,67 @@ def _env_enabled() -> bool:
 
 def _proposer_targets_gemma4(self) -> bool:
     """Best-effort: detect whether the proposer's target model is Gemma 4."""
-    # Common attribute names across proposer flavors
+    # Common attribute names across proposer flavors; the pristine base
+    # __init__ sets self.vllm_config (llm_base_proposer.py:67).
     for attr in ("target_vllm_config", "_target_vllm_config", "vllm_config"):
         cfg = getattr(self, attr, None)
-        if cfg is not None:
-            mc = getattr(cfg, "model_config", None) or cfg
-            if is_gemma4_arch(mc):
-                return True
+        if cfg is None:
+            continue
+        # is_gemma4_arch handles vllm_config → model_config → hf_config.
+        if is_gemma4_arch(cfg):
+            return True
+        # Defensive extra probe for model_config objects exposing
+        # architectures/model_type directly (no hf_config).
+        mc = getattr(cfg, "model_config", None)
+        if mc is not None and is_gemma4_arch(
+            getattr(mc, "hf_config", None) or mc
+        ):
+            return True
     return False
 
 
-def _make_guarded_create_draft(method_name: str, original):
+def _detect_drafter_method(self) -> str | None:
+    """Return "eagle3"/"dflash" when the proposer drafts non-causally.
+
+    Primary source: speculative_config.method. Fallback: the proposer's
+    own ``self.method`` mirror (pristine base __init__ line 71:
+    ``self.method = self.speculative_config.method``) —
+    detect_non_causal_drafter reads ``.method`` off whatever it's given.
+    """
+    drafter = detect_non_causal_drafter(
+        getattr(self, "speculative_config", None)
+    )
+    if drafter is None:
+        drafter = detect_non_causal_drafter(self)
+    return drafter
+
+
+def _make_guarded_create_draft(site: str, original):
     def _genesis_g4_03_guarded_create_draft(self, *args, **kwargs):
         try:
+            drafter = _detect_drafter_method(self)
             if (
-                is_ampere_sm86()
+                drafter is not None
+                and is_ampere_sm86()
                 and _proposer_targets_gemma4(self)
             ):
+                display = _DRAFTER_DISPLAY.get(drafter, drafter)
                 # Check G4_10 active (operator opted in to deep fix)
                 import os
-                if os.environ.get("GENESIS_ENABLE_G4_10_GEMMA4_AMPERE_NON_CAUSAL_BACKEND", "").strip() in (
-                    "1", "true", "yes", "on",
-                ):
+                if os.environ.get(
+                    "GENESIS_ENABLE_G4_10_GEMMA4_AMPERE_NON_CAUSAL_BACKEND", ""
+                ).strip() in ("1", "true", "yes", "on"):
                     log.info(
                         "[G4_03] %s drafter on Ampere + Gemma 4 — G4_10 enabled, "
                         "letting drafter through to use Genesis Triton backend",
-                        method_name,
+                        display,
                     )
                 else:
                     raise RuntimeError(
-                        f"[Genesis G4_03] Refusing {method_name} drafter on Ampere SM 8.6 "
+                        f"[Genesis G4_03] Refusing {display} drafter on Ampere SM 8.6 "
                         "with Gemma 4 target.\n"
                         "\n"
-                        f"{method_name} uses non-causal block-parallel attention. Gemma 4 has "
+                        f"{display} uses non-causal block-parallel attention. Gemma 4 has "
                         "head_dim=256 (sliding) and head_dim=512 (global). No Ampere SM 8.6 "
                         "attention backend supports both constraints well — see vllm#40382 "
                         "backend matrix:\n"
@@ -144,13 +235,17 @@ def _make_guarded_create_draft(method_name: str, original):
                         "  FLEX_ATTENTION supports both but is slow enough that "
                         "draft-acceptance gain is wiped out.\n"
                         "\n"
-                        "RECOMMENDED — switch to Google MTP assistant drafter:\n"
+                        "RECOMMENDED — switch to the native Gemma 4 MTP assistant drafter\n"
+                        "(Gemma4Proposer, vllm/v1/spec_decode/gemma4.py — in this pin):\n"
                         "  speculative_config:\n"
                         "    method: mtp\n"
                         "    model: /models/Gemma-4-31B-it-assistant\n"
                         "    num_speculative_tokens: 8\n"
-                        "MTP is causal-shared with target — uses TRITON_ATTN, works on Ampere.\n"
-                        "vllm#41745 (MERGED) adds Gemma 4 MTP support.\n"
+                        "The assistant checkpoint must carry model_type gemma4_assistant /\n"
+                        "gemma4_unified_assistant (vLLM normalizes it to gemma4_mtp and\n"
+                        "routes to Gemma4Proposer). It shares the target's KV cache via\n"
+                        "cross-model KV sharing and drafts causally — works on Ampere.\n"
+                        "Landed upstream via vllm#41745 (MERGED).\n"
                         "\n"
                         "DEEP FIX — enable Genesis G4_10 Ampere non-causal Triton attention:\n"
                         "  GENESIS_ENABLE_G4_10_GEMMA4_AMPERE_NON_CAUSAL_BACKEND=1\n"
@@ -160,12 +255,12 @@ def _make_guarded_create_draft(method_name: str, original):
                         f"  {_ENV_DISABLE}=1\n"
                     )
         except Exception as e:  # noqa: BLE001
-            if not isinstance(e, RuntimeError) or "[Genesis G4_03]" not in str(e):
-                log.warning(
-                    "[G4_03] detection raised %r; falling through to upstream", e,
-                )
-            else:
+            if isinstance(e, RuntimeError) and "[Genesis G4_03]" in str(e):
                 raise
+            log.warning(
+                "[G4_03] detection raised %r at site %s; falling through to upstream",
+                e, site,
+            )
         return original(self, *args, **kwargs)
 
     _genesis_g4_03_guarded_create_draft._genesis_g4_03_wrapped = True
@@ -174,8 +269,21 @@ def _make_guarded_create_draft(method_name: str, original):
     return _genesis_g4_03_guarded_create_draft
 
 
+def _wrap_class_method(cls: type, site: str) -> bool:
+    """Wrap cls._create_draft_vllm_config in place; True when wrapped."""
+    method = getattr(cls, "_create_draft_vllm_config", None)
+    if method is None:
+        return False
+    if getattr(method, "_genesis_g4_03_wrapped", False):
+        # Already guarded (e.g. inherited from an already-wrapped base).
+        return True
+    _WRAPPED_SITES.append((cls, "_create_draft_vllm_config", method))
+    cls._create_draft_vllm_config = _make_guarded_create_draft(site, method)
+    return True
+
+
 def apply() -> tuple[str, str]:
-    global _APPLIED, _ORIGINAL_METHODS
+    global _APPLIED
 
     if not _env_enabled():
         return "skipped", (
@@ -186,50 +294,102 @@ def apply() -> tuple[str, str]:
     if _APPLIED:
         return "applied", "G4_03 already installed (idempotent)"
 
-    wrapped_count = 0
-
-    # DFlash proposer
+    # Primary binding: the shared base-class method. Covers every
+    # non-causal drafter regardless of module layout — EagleProposer
+    # inherits it, DFlashProposer's override delegates to super().
+    # The wrapper's method gate keeps causal proposers untouched.
     try:
-        from vllm.v1.spec_decode import dflash as mod
-        cls = getattr(mod, "DFlashProposer", None)
-        if cls is not None:
-            method = getattr(cls, "_create_draft_vllm_config", None)
-            if method is not None and not getattr(method, "_genesis_g4_03_wrapped", False):
-                _ORIGINAL_METHODS["dflash_create_draft"] = method
-                cls._create_draft_vllm_config = _make_guarded_create_draft("DFlash", method)
-                wrapped_count += 1
+        from vllm.v1.spec_decode import llm_base_proposer as base_mod
+        base_cls = getattr(base_mod, "SpecDecodeBaseProposer", None)
+        if base_cls is not None and _wrap_class_method(base_cls, "base"):
+            _APPLIED = True
+            log.info(
+                "[G4_03] installed on SpecDecodeBaseProposer._create_draft_vllm_config "
+                "(gated on method in eagle3/dflash). EAGLE-3 / DFlash + Gemma 4 + "
+                "Ampere will now raise a clear error.",
+            )
+            return "applied", (
+                "G4_03 installed on SpecDecodeBaseProposer._create_draft_vllm_config "
+                "(covers Eagle3 + DFlash; method-gated). "
+                f"Override via {_ENV_DISABLE}=1 for G4_10 testing."
+            )
+        log.warning(
+            "[G4_03] llm_base_proposer importable but SpecDecodeBaseProposer/"
+            "_create_draft_vllm_config not found — trying per-class fallback",
+        )
     except ImportError as e:
-        log.debug("vllm.v1.spec_decode.dflash not importable: %s", e)
+        log.warning(
+            "[G4_03] vllm.v1.spec_decode.llm_base_proposer not importable (%s) "
+            "— trying per-class fallback", e,
+        )
 
-    # Eagle3 proposer — class layout varies; probe several names
-    try:
-        from vllm.v1.spec_decode import eagle3 as mod
-        for cls_name in ("Eagle3Proposer", "Eagle3DraftProposer", "EagleProposer"):
+    # Fallback: per-class probes. eagle3.py was removed from the pin
+    # (verified 2026-06-11) — Eagle3 is served by eagle.EagleProposer;
+    # probe legacy class names too in case of future renames.
+    fallback_sites: dict[str, bool] = {}
+    for mod_name, cls_names, site in (
+        ("eagle", ("EagleProposer", "Eagle3Proposer", "Eagle3DraftProposer"), "eagle"),
+        ("dflash", ("DFlashProposer",), "dflash"),
+    ):
+        fallback_sites[site] = False
+        try:
+            import importlib
+            mod = importlib.import_module(f"vllm.v1.spec_decode.{mod_name}")
+        except ImportError as e:
+            log.warning(
+                "[G4_03] fallback module vllm.v1.spec_decode.%s not importable: %s",
+                mod_name, e,
+            )
+            continue
+        for cls_name in cls_names:
             cls = getattr(mod, cls_name, None)
-            if cls is None:
-                continue
-            method = getattr(cls, "_create_draft_vllm_config", None)
-            if method is not None and not getattr(method, "_genesis_g4_03_wrapped", False):
-                _ORIGINAL_METHODS[f"eagle3_{cls_name}_create_draft"] = method
-                cls._create_draft_vllm_config = _make_guarded_create_draft("Eagle3", method)
-                wrapped_count += 1
-    except ImportError as e:
-        log.debug("vllm.v1.spec_decode.eagle3 not importable: %s", e)
+            if cls is not None and _wrap_class_method(cls, f"{site}:{cls_name}"):
+                fallback_sites[site] = True
 
-    if wrapped_count == 0:
-        return "skipped", (
-            "Could not locate any non-causal drafter class to guard; pin may have "
-            "renamed the path or both drafters are absent. G4_03 is no-op."
+    covered = [site for site, ok in fallback_sites.items() if ok]
+    missing = [site for site, ok in fallback_sites.items() if not ok]
+
+    if not covered:
+        # FAIL LOUD: an enabled guard that binds nothing must never
+        # report success — that is exactly the silent hazard the
+        # 2026-06-11 preflight triage caught (eagle3 module removal
+        # swallowed at log.debug while Eagle3 ran unguarded).
+        log.warning(
+            "[G4_03] enabled but could not bind any drafter site (base + "
+            "eagle + dflash all missing) — Eagle3/DFlash are UNGUARDED on "
+            "this pin; failing the patch so the boot log shows it.",
+        )
+        return "failed", (
+            "G4_03 enabled but no binding site found: "
+            "SpecDecodeBaseProposer._create_draft_vllm_config missing and "
+            "eagle/dflash class probes found nothing. Eagle3/DFlash would "
+            "run unguarded — refusing to report success. Re-verify the "
+            "spec_decode layout of the current pin."
+        )
+
+    if missing:
+        # Partial coverage is still a failure mode — report it loudly so
+        # the dispatcher marks the patch failed instead of half-guarded.
+        log.warning(
+            "[G4_03] partial fallback coverage: wrapped %s but %s drafter "
+            "class(es) not found — that family is UNGUARDED.",
+            ", ".join(covered), ", ".join(missing),
+        )
+        return "partial", (
+            f"G4_03 fallback wrapped {', '.join(covered)} but found no "
+            f"{', '.join(missing)} drafter class — that family is unguarded. "
+            "Re-verify the spec_decode layout of the current pin."
         )
 
     _APPLIED = True
     log.info(
-        "[G4_03] installed: wrapped %d non-causal drafter class(es). "
+        "[G4_03] installed via per-class fallback: wrapped %s. "
         "EAGLE-3 / DFlash + Gemma 4 + Ampere will now raise a clear error.",
-        wrapped_count,
+        ", ".join(covered),
     )
     return "applied", (
-        f"G4_03 installed: {wrapped_count} non-causal drafter class(es) wrapped. "
+        f"G4_03 installed via per-class fallback ({', '.join(covered)}; "
+        "base-class binding unavailable). "
         f"Override via {_ENV_DISABLE}=1 for G4_10 testing."
     )
 
@@ -239,32 +399,15 @@ def is_applied() -> bool:
 
 
 def revert() -> bool:
-    global _APPLIED, _ORIGINAL_METHODS
-    if not _APPLIED:
+    global _APPLIED
+    if not _APPLIED and not _WRAPPED_SITES:
         return False
     reverted = False
-    try:
-        from vllm.v1.spec_decode import dflash as mod
-        cls = getattr(mod, "DFlashProposer", None)
-        if cls is not None and "dflash_create_draft" in _ORIGINAL_METHODS:
-            cls._create_draft_vllm_config = _ORIGINAL_METHODS["dflash_create_draft"]  # type: ignore[assignment]
-            reverted = True
-    except ImportError:
-        pass
-    try:
-        from vllm.v1.spec_decode import eagle3 as mod
-        for key in list(_ORIGINAL_METHODS):
-            if key.startswith("eagle3_"):
-                cls_name = key[len("eagle3_"):-len("_create_draft")]
-                cls = getattr(mod, cls_name, None)
-                if cls is not None:
-                    cls._create_draft_vllm_config = _ORIGINAL_METHODS[key]  # type: ignore[assignment]
-                    reverted = True
-    except ImportError:
-        pass
-    if reverted:
-        _APPLIED = False
-        _ORIGINAL_METHODS.clear()
+    for cls, attr, original in _WRAPPED_SITES:
+        setattr(cls, attr, original)
+        reverted = True
+    _WRAPPED_SITES.clear()
+    _APPLIED = False
     return reverted
 
 

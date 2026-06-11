@@ -10,10 +10,69 @@ def _wiring():
     return M
 
 
-def test_anchor_envs_targets_lora_dual_stream():
+# Verbatim tail of pristine envs.py (pin 0.22.1rc1.dev259+g303916e93,
+# lines 1997-2013 of /private/tmp/candidate_pin_current/vllm/envs.py,
+# extracted 2026-06-11 for the PN58 envs re-anchor). Documents WHY the
+# old anchor died: the LoRA dual-stream comment grew from 1 line to 3,
+# and 3 new entries (VLLM_USE_SPINLOOP_EXT, VLLM_GPU_NIC_PCIE_MAPPING,
+# VLLM_NIC_SELECTION_VARS) landed between it and the closing brace.
+PRISTINE_ENVS_TAIL = (
+    '    # Whether to enable dual cuda streams for LoRA computation\n'
+    '    # (used by both BaseLinearLayerWithLoRA and FusedMoEWithLoRA to\n'
+    '    # overlap the base layer compute with the LoRA fast path).\n'
+    '    "VLLM_LORA_ENABLE_DUAL_STREAM": lambda: bool(\n'
+    '        int(os.getenv("VLLM_LORA_ENABLE_DUAL_STREAM", "0"))\n'
+    '    ),\n'
+    '    # If set to 1, use Python spinloop extension to poll in a more efficient\n'
+    '    # way when using the mp backend.\n'
+    '    "VLLM_USE_SPINLOOP_EXT": lambda: bool(int(os.getenv("VLLM_USE_SPINLOOP_EXT", "0"))),\n'
+    '    # Comma-separated GPU_BDF=NIC_BDF pairs for RDMA NIC selection.\n'
+    '    # Must be set together with VLLM_NIC_SELECTION_VARS.\n'
+    '    "VLLM_GPU_NIC_PCIE_MAPPING": lambda: os.getenv("VLLM_GPU_NIC_PCIE_MAPPING", ""),\n'
+    '    # Comma-separated list of env vars to set from the GPU-NIC mapping.\n'
+    '    # Each entry is VAR_NAME or VAR_NAME:<suffix> (suffix appended to\n'
+    '    # RDMA device name). Must be set together with VLLM_GPU_NIC_PCIE_MAPPING.\n'
+    '    "VLLM_NIC_SELECTION_VARS": lambda: os.getenv("VLLM_NIC_SELECTION_VARS", ""),\n'
+    '}\n'
+)
+
+
+def test_anchor_envs_matches_pristine_tail_exactly_once():
+    """2026-06-11 re-anchor: ENVS_OLD must match the pristine dict tail.
+
+    A dead envs anchor blocks ALL 5 PN58 files — the apply path uses
+    MultiFilePatchTransaction (validate-all-then-write-all), so phase-1
+    dry-run failure on envs.py vetoes the whole transaction atomically.
+    """
     M = _wiring()
-    assert "VLLM_LORA_ENABLE_DUAL_STREAM" in M.ENVS_OLD
+    assert PRISTINE_ENVS_TAIL.count(M.ENVS_OLD) == 1, (
+        "ENVS_OLD does not match the pristine envs.py tail exactly once — "
+        "re-anchor against the current pin (see PRISTINE_ENVS_TAIL note)"
+    )
+
+
+def test_anchor_envs_is_comment_churn_resistant():
+    """The previous anchor died because an upstream COMMENT grew. The
+    minimal tail anchor must contain no comment lines at all."""
+    M = _wiring()
+    for line in M.ENVS_OLD.splitlines():
+        assert not line.lstrip().startswith("#"), (
+            f"ENVS_OLD contains comment line {line!r} — comment churn "
+            "killed the previous anchor; keep the anchor comment-free"
+        )
+    assert M.ENVS_OLD.endswith("\n}")
+
+
+def test_anchor_envs_new_preserves_anchor_and_adds_flag():
+    M = _wiring()
+    # NEW must keep the anchor's own content (entry line + closing brace)
+    # so the rest of the dict is untouched, inserting only between them.
+    anchor_head = M.ENVS_OLD[: -len("}")]
+    assert M.ENVS_NEW.startswith(anchor_head)
+    assert M.ENVS_NEW.endswith("}")
     assert "VLLM_SPEC_REASONING_BOUNDARY_VALIDATION" in M.ENVS_NEW
+    # Replacement must NOT appear in pristine (idempotency false-fire guard).
+    assert M.ENVS_NEW not in PRISTINE_ENVS_TAIL
 
 
 def test_anchor_abs_parser_targets_extract_content_ids():
