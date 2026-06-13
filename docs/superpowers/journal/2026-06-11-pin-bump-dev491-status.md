@@ -289,3 +289,49 @@ streaming tool-call fix — but the blocker is now precisely characterized
 (parse_delta/coder-parser streaming, NOT PN392, NOT the apply mechanism).
 The supplement fix + dual-anchors are validated; only this runtime adaptation
 remains for the bump.
+
+---
+
+## Update (2026-06-14, PIVOT — adapt the NEW impl, not restore the old)
+
+User direction: "если удалили парсер найти на что заменили и как реализовали
+сейчас — это более правильное решение." Pivoted from vendor-restore to
+adapt-the-replacement.
+
+### What #45171 replaced qwen3xml WITH (read from images)
+- dev491 has **NO separate qwen3xml parser**. `tool_parsers/__init__.py`
+  L157-163: BOTH `qwen3_coder` AND `qwen3_xml` → `Qwen3CoderToolParser`
+  (`qwen3coder_tool_parser.py`). The upstream "replacement" for the deleted
+  `qwen3xml_tool_parser.py` IS the qwen3coder parser.
+- Interface is identical to the old parser (same `__init__(tokenizer, tools)`,
+  same `extract_tool_calls_streaming(...)` signature) — so a restore WOULD have
+  drop-in-fit, but adapting the live replacement is the cleaner path (iron rule
+  #10: don't perpetually re-ship deleted upstream code).
+
+### How the new coder streaming is implemented (the incompatibility)
+`Qwen3CoderToolParser.extract_tool_calls_streaming` detects the tool-call start
+via `self.tool_call_start_token_id in delta_token_ids` OR
+`self.tool_call_start_token in delta_text`. Under our config this fails:
+- **MTP K=3** delivers multi-token deltas (3 spec tokens at once), so the single
+  `<tool_call>` start-token-id may not land cleanly in a delta's token_ids.
+- The new `parse_delta` (abstract_parser.py L726-742) transforms `delta_token_ids`
+  via `extract_content_ids(...)` at the reasoning→tool boundary, and on first
+  tool-phase entry resets `previous_text=""` + sets `delta_text=current_text`
+  (the whole accumulated post-reasoning text in ONE delta).
+- Net: the start-detection doesn't fire reliably → the full `<tool_call>…</tool_call>`
+  XML leaks to `content` piece-by-piece → P107 misreads it as MTP truncation.
+
+### Correct solution (adapt the replacement)
+A Genesis patch on the NEW `Qwen3CoderToolParser.extract_tool_calls_streaming`
+(NOT a restore) that makes start/segment detection robust to:
+  (a) whole-tool-XML-in-one-delta (reasoning→tool boundary),
+  (b) MTP multi-token deltas,
+  (c) parse_delta-transformed token_ids (prefer STRING detection on
+      current_text over the single start-token-id).
+This composes with PN392 (which already coalesces the single-emission core).
+
+### Open: pinpointing the exact detection-failure delta
+The precise branch that mis-emits needs ONE live-traced smoke (instrument the
+coder parser to log per-delta state: is_tool_call_started, delta_text,
+delta_token_ids, the start-token check result). Then the targeted detection fix
+is small and verifiable. PROD remains on dev259.
