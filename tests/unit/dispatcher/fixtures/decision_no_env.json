@@ -410,6 +410,26 @@
     "reason": "strict opt-in — set GENESIS_ENABLE_PN388_MAMBA_BLOCK_ALIGNED_SPLIT=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
   },
   {
+    "patch_id": "PN389",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_PN389_GRAMMAR_TIMEOUTS=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
+    "patch_id": "PN390",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_PN390_STREAMING_LSE_SAMPLER=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
+    "patch_id": "PN391",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_PN391_HEALTH_DECODE_WATCHDOG=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
+    "patch_id": "P89",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_P89_REASONING_TOKENS_USAGE=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
     "patch_id": "PN97",
     "applied": false,
     "reason": "strict opt-in — set GENESIS_ENABLE_PN97_TENSOR_PHYSICAL_CAP=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"

@@ -212,6 +212,17 @@ KNOWN_SPEC_ONLY_PATCHES: frozenset[str] = frozenset({
                        # (vendor of OPEN vllm#45346; serving + edge guard)
     "PN388",           # mamba-block-aligned intermediate prefill split
                        # (vendor of OPEN vllm#45477; scheduler, requires P34)
+    # ── 2026-06-13 50-PR sweep BATCH-3 — four more spec-only-by-design
+    # vendors (apply_module + own apply(), no legacy hook; same class as
+    # PN383-PN388). All opt-in.
+    "PN389",           # XGrammar grammar-compilation timeouts (vendor of
+                       # OPEN vllm#45390; serving, 3-file overlay)
+    "PN390",           # streaming-LSE rejection sampler (vendor of OPEN
+                       # vllm#45369; spec_decode Triton kernel rewrite)
+    "PN391",           # /health/decode forward-progress watchdog (vendor
+                       # of OPEN vllm#45453; observability, 6-file overlay)
+    "P89",             # reasoning_tokens in chat usage object (vendor of
+                       # OPEN vllm#45471; serving, 2-file overlay)
 })
 
 

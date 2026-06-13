@@ -16,7 +16,13 @@ chat" on a live Genesis vLLM deployment. Variants covered:
   tool_call       2-tool schema, forced tool answer
 
 Each variant runs `--runs` streaming requests (default 5) and reports
-mean/median TTFT, decode TPOT, wall TPS and output tokens.
+mean/median TTFT, decode TPOT, wall TPS, output tokens, and — when P89
+(vendor of vllm#45471) is enabled on the server — the mean reasoning
+tokens per request, read from
+`usage.completion_tokens_details.reasoning_tokens`. The reasoning column
+is the reasoning-vs-answer TPOT-attribution denominator and the
+MTP/TurboQuant tuning lever; it shows "-" when P89 is off or the model
+has no reasoning parser.
 
 Usage:
   python3 tools/genesis_chat_matrix_bench.py \
@@ -75,10 +81,21 @@ def measure_chat(base_url: str, api_key: str, payload: dict):
     n_chunks = 0
     finish = None
     completion_tokens = None
+    # [Genesis P89] reasoning-token attribution from the final usage chunk.
+    # P89 (vendor of vllm#45471) surfaces
+    # usage.completion_tokens_details.reasoning_tokens on the chat path for
+    # reasoning models (qwen3 on all 4 PROD models). It is None when P89 is
+    # disabled or the model has no reasoning parser, so the bench degrades
+    # cleanly to "no attribution" rather than failing.
+    reasoning_tokens = None
     for t, data in _sse_stream(url, api_key, payload):
         usage = data.get("usage")
         if usage and usage.get("completion_tokens"):
             completion_tokens = usage["completion_tokens"]
+        if usage:
+            details = usage.get("completion_tokens_details")
+            if details and details.get("reasoning_tokens") is not None:
+                reasoning_tokens = details["reasoning_tokens"]
         choices = data.get("choices") or []
         if not choices:
             continue
@@ -104,6 +121,10 @@ def measure_chat(base_url: str, api_key: str, payload: dict):
         "tpot_ms": (decode_s / max(tokens - 1, 1)) * 1e3,
         "wall_tps": tokens / wall,
         "tokens": tokens,
+        # [Genesis P89] reasoning vs answer split. -1 means "unavailable"
+        # (P89 off / non-reasoning model); a real count enables the
+        # reasoning/answer TPOT-attribution column in the report.
+        "reasoning_tokens": reasoning_tokens if reasoning_tokens is not None else -1,
         "finish": finish or "?",
     }
 
@@ -228,6 +249,11 @@ def main() -> int:
             rows.append((name, None))
             print(f"[{name}] ALL FAILED")
             continue
+        # [Genesis P89] mean reasoning tokens over the runs that reported it
+        # (>= 0). None when no run had attribution available (P89 off or a
+        # non-reasoning model) -> the report shows "-".
+        reasoning_vals = [x["reasoning_tokens"] for x in results if x["reasoning_tokens"] >= 0]
+        reasoning_mean = st.mean(reasoning_vals) if reasoning_vals else None
         agg = {
             "n": len(results),
             "ttft_ms": st.mean(x["ttft_ms"] for x in results),
@@ -236,27 +262,35 @@ def main() -> int:
             "wall_tps": st.mean(x["wall_tps"] for x in results),
             "wall_med": st.median(x["wall_tps"] for x in results),
             "tokens": st.mean(x["tokens"] for x in results),
+            "reasoning": reasoning_mean,
             "finish": results[0]["finish"],
         }
         rows.append((name, agg))
-        print(f"[{name}] n={agg['n']} TTFT={agg['ttft_ms']:.1f}ms TPOT={agg['tpot_ms']:.3f}ms wall={agg['wall_tps']:.1f}TPS tok={agg['tokens']:.0f}")
+        reason_str = f" reason={agg['reasoning']:.0f}" if agg["reasoning"] is not None else ""
+        print(f"[{name}] n={agg['n']} TTFT={agg['ttft_ms']:.1f}ms TPOT={agg['tpot_ms']:.3f}ms wall={agg['wall_tps']:.1f}TPS tok={agg['tokens']:.0f}{reason_str}")
 
     lines = [
         f"# Chat-type speed matrix — {args.tag}",
         "",
         f"Model `{args.model}` · runs/variant = {args.runs} · streaming chat completions",
         "",
-        "| variant | n | TTFT ms (med) | TPOT ms | wall TPS (med) | tokens | finish |",
-        "|---|---|---|---|---|---|---|",
+        # The `reason tok` column keys on P89's
+        # completion_tokens_details.reasoning_tokens (vendor of vllm#45471):
+        # mean reasoning tokens per request, "-" when unavailable. It is the
+        # denominator for reasoning-vs-answer TPOT attribution and the
+        # MTP/TurboQuant tuning lever the P89 spec calls for.
+        "| variant | n | TTFT ms (med) | TPOT ms | wall TPS (med) | tokens | reason tok | finish |",
+        "|---|---|---|---|---|---|---|---|",
     ]
     for name, agg in rows:
         if agg is None:
-            lines.append(f"| {name} | 0 | FAIL | - | - | - | - |")
+            lines.append(f"| {name} | 0 | FAIL | - | - | - | - | - |")
         else:
+            reason_cell = f"{agg['reasoning']:.0f}" if agg["reasoning"] is not None else "-"
             lines.append(
                 f"| {name} | {agg['n']} | {agg['ttft_ms']:.1f} ({agg['ttft_med']:.1f}) "
                 f"| {agg['tpot_ms']:.3f} | {agg['wall_tps']:.1f} ({agg['wall_med']:.1f}) "
-                f"| {agg['tokens']:.0f} | {agg['finish']} |"
+                f"| {agg['tokens']:.0f} | {reason_cell} | {agg['finish']} |"
             )
     md = "\n".join(lines) + "\n"
     with open(args.md_out, "w") as f:

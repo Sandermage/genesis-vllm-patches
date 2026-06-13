@@ -194,6 +194,10 @@ def test_spec_only_truly_orphan_baseline():
         # LIVE-bug vendors (apply_module set, own apply(), no legacy hook;
         # same class as PN383).
         "PN384", "PN385", "PN386", "PN387", "PN388",
+        # 2026-06-13 50-PR sweep batch-3 — four more spec-only-by-design
+        # vendors (apply_module set, own apply(), no legacy hook; same
+        # class as PN383-PN388).
+        "PN389", "PN390", "PN391", "P89",
     }
     actual = set(diff["spec_only_truly_orphan_ids"])
     new_orphans = sorted(actual - expected)

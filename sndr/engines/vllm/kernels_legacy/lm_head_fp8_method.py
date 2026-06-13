@@ -422,6 +422,21 @@ class Genesis_FP8_LMHead_EmbeddingMethod:
         x_amax = x.abs().amax().clamp(min=1e-12)
         x_scale = (x_amax / 448.0).to(torch.float32)
         x_fp8 = (x / x_scale).clamp(-448.0, 448.0).to(torch.float8_e4m3fn)
+        # [Genesis PN77 0-D scale-rank fix, vendor of vllm#44912] Both scales
+        # above are produced by an unkeyed reduction (`amax()` with no `dim`),
+        # which collapses to a 0-D (scalar) tensor. torch._scaled_mm under
+        # torch.compile / future Inductor lowering asserts
+        # `len(scale_a.size()) == len(scale_b.size())` and rejects 0-D scales
+        # outright (guaranteed InductorError on sm89+; latent on our Marlin-tier
+        # Ampere today since scaled_mm tier never fires there, but a real
+        # correctness/compile bug). Normalise both to 1-D before the call so the
+        # ranks match and Inductor can lower the op. `.view(1)` is a zero-copy
+        # reshape on a single-element tensor. Guarded by `dim() == 0` so this is
+        # a no-op if a future path already feeds 1-D scales.
+        if scale_per_tensor.dim() == 0:
+            scale_per_tensor = scale_per_tensor.view(1)
+        if x_scale.dim() == 0:
+            x_scale = x_scale.view(1)
         # Native FP8 GEMM
         out = torch._scaled_mm(
             x_fp8,

@@ -984,6 +984,54 @@
     "apply_module": "sndr.engines.vllm.patches.scheduler.pn388_mamba_block_aligned_prefill_split"
   },
   {
+    "patch_id": "PN389",
+    "family": "serving",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "GENESIS_ENABLE_PN389_GRAMMAR_TIMEOUTS",
+    "has_upstream_pr": true,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "sndr.engines.vllm.patches.serving.pn389_grammar_compilation_timeout"
+  },
+  {
+    "patch_id": "PN390",
+    "family": "spec_decode",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "GENESIS_ENABLE_PN390_STREAMING_LSE_SAMPLER",
+    "has_upstream_pr": true,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "sndr.engines.vllm.patches.spec_decode.pn390_streaming_lse_rejection_sampler"
+  },
+  {
+    "patch_id": "PN391",
+    "family": "observability",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "GENESIS_ENABLE_PN391_HEALTH_DECODE_WATCHDOG",
+    "has_upstream_pr": true,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "sndr.engines.vllm.patches.observability.pn391_health_decode_watchdog"
+  },
+  {
+    "patch_id": "P89",
+    "family": "serving",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "GENESIS_ENABLE_P89_REASONING_TOKENS_USAGE",
+    "has_upstream_pr": true,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "sndr.engines.vllm.patches.serving.p89_reasoning_tokens_usage"
+  },
+  {
     "patch_id": "PN97",
     "family": "kv_cache",
     "lifecycle": "experimental",

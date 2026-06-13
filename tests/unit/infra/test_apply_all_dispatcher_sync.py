@@ -205,6 +205,13 @@ _KNOWN_REGISTRY_ONLY = frozenset({
     "PN386",   # required-tool streaming brace string-awareness (vllm#45389)
     "PN387",   # reject degenerate structured_outputs DoS guard (vllm#45346)
     "PN388",   # mamba-block-aligned intermediate prefill split (vllm#45477)
+    # 2026-06-13 50-PR sweep BATCH-3 — four more spec-driven-from-inception
+    # vendors (apply_module with own apply(), no apply_patch_* hook; same
+    # class as PN383-PN388). All opt-in.
+    "PN389",   # XGrammar grammar-compilation timeouts (vllm#45390)
+    "PN390",   # streaming-LSE rejection sampler (vllm#45369)
+    "PN391",   # /health/decode forward-progress watchdog (vllm#45453)
+    "P89",     # reasoning_tokens in chat usage object (vllm#45471)
     # G4_T1 (Gemma4 tool-parser PR #42006 vendor marker) — operator-
     # side bind-mount overlay; no apply_patch_* wiring by design
     # (registered only for `genesis explain` + audit visibility of the

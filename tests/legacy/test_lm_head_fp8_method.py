@@ -302,6 +302,99 @@ class TestApplyDispatch:
         assert not getattr(layer, lhm.PN77_APPLIED_MARKER, False)
 
 
+# ─── _apply_scaled_mm 0-D scale-rank fix (vendor of vllm#44912) ────────
+
+
+class TestScaledMmScaleRank:
+    """PN77 0-D scale-rank fix — vendor of vllm#44912.
+
+    `_apply_scaled_mm` derives both the weight per-tensor scale
+    (`weight_scale.amax()`) and the activation scale (`x.abs().amax()/448`)
+    from an UNKEYED reduction, which collapses each to a 0-D scalar tensor.
+    `torch._scaled_mm` under torch.compile / Inductor lowering asserts
+    `len(scale_a.size()) == len(scale_b.size())` and rejects 0-D scales,
+    raising an InductorError at engine startup on sm89+. The fix normalises
+    both scales to 1-D via `.view(1)` before the GEMM call.
+
+    These tests mock `torch._scaled_mm` so they run on CPU (no CUDA / no real
+    FP8 GEMM kernel needed) and assert ONLY the rank contract of the captured
+    scale tensors — the exact invariant vllm#44912 enforces.
+    """
+
+    def _build_scaled_mm_layer(self):
+        """A layer in the post-load 'scaled_mm' tier state.
+
+        FP8 weight + a per-channel `weight_scale` (1-D) + the applied marker
+        and tier flag that `apply()` reads to route into `_apply_scaled_mm`.
+        """
+        layer = _FakeLayer(vocab=8, hidden=4)
+        # Emulate the post-compress state: FP8 weight + 1-D per-channel scale.
+        layer.weight = torch.nn.Parameter(
+            torch.zeros(8, 4, dtype=torch.float8_e4m3fn),
+            requires_grad=False,
+        )
+        layer.weight_scale = torch.nn.Parameter(
+            torch.full((8,), 0.01, dtype=torch.float32),
+            requires_grad=False,
+        )
+        setattr(layer, lhm.PN77_APPLIED_MARKER, True)
+        setattr(layer, lhm.PN77_PATH_ATTR, "scaled_mm")
+        return layer
+
+    def _capture_scaled_mm_scales(self, monkeypatch):
+        """Patch torch._scaled_mm to record (scale_a, scale_b) and run apply().
+
+        Returns the captured (scale_a, scale_b) tuple.
+        """
+        captured = {}
+
+        def _fake_scaled_mm(a, b, *, scale_a, scale_b, bias=None, out_dtype=None):
+            captured["scale_a"] = scale_a
+            captured["scale_b"] = scale_b
+            # Return a plausibly-shaped output so apply() returns cleanly.
+            return torch.zeros(a.shape[0], b.shape[1], dtype=out_dtype or torch.bfloat16)
+
+        monkeypatch.setattr(torch, "_scaled_mm", _fake_scaled_mm)
+
+        method = lhm.Genesis_FP8_LMHead_EmbeddingMethod()
+        layer = self._build_scaled_mm_layer()
+        x = torch.randn(2, 4, dtype=torch.bfloat16)
+        method.apply(layer, x, bias=None)
+        return captured["scale_a"], captured["scale_b"]
+
+    def test_weight_scale_passed_as_1d(self, monkeypatch):
+        """scale_b (weight per-tensor scale) must be 1-D, not 0-D scalar."""
+        _scale_a, scale_b = self._capture_scaled_mm_scales(monkeypatch)
+        assert scale_b.dim() == 1, (
+            f"weight scale_b must be 1-D for torch._scaled_mm (vllm#44912), "
+            f"got dim={scale_b.dim()} shape={tuple(scale_b.shape)}"
+        )
+
+    def test_activation_scale_passed_as_1d(self, monkeypatch):
+        """scale_a (activation per-tensor scale) must be 1-D, not 0-D scalar."""
+        scale_a, _scale_b = self._capture_scaled_mm_scales(monkeypatch)
+        assert scale_a.dim() == 1, (
+            f"activation scale_a must be 1-D for torch._scaled_mm (vllm#44912), "
+            f"got dim={scale_a.dim()} shape={tuple(scale_a.shape)}"
+        )
+
+    def test_scale_ranks_match(self, monkeypatch):
+        """Inductor's aten._scaled_mm lowering asserts equal scale ranks."""
+        scale_a, scale_b = self._capture_scaled_mm_scales(monkeypatch)
+        assert scale_a.dim() == scale_b.dim(), (
+            "scale_a and scale_b ranks must match for the Inductor "
+            f"aten._scaled_mm lowering (vllm#44912): "
+            f"scale_a.dim()={scale_a.dim()} scale_b.dim()={scale_b.dim()}"
+        )
+
+    def test_scales_are_single_element(self, monkeypatch):
+        """Per-tensor scales stay single-element after the 1-D normalisation
+        (i.e. `.view(1)`, NOT an accidental flatten of the 8-row scale)."""
+        scale_a, scale_b = self._capture_scaled_mm_scales(monkeypatch)
+        assert scale_a.numel() == 1, f"scale_a numel={scale_a.numel()} (want 1)"
+        assert scale_b.numel() == 1, f"scale_b numel={scale_b.numel()} (want 1)"
+
+
 # ─── Constants ────────────────────────────────────────────────────────
 
 

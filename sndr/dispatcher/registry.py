@@ -2753,6 +2753,210 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
         "vllm_version_range": (">=0.22.0", "<0.23.0"),
     },
+    # ── 2026-06-13 50-PR sweep BATCH-3 — four more vendors of OPEN
+    # upstream PRs (PN389/PN390/PN391 + P89), spec-driven from inception
+    # (apply_module + own apply(), no legacy @register_patch hook; same
+    # class as PN383-PN388). All opt-in (default_on=False), server A/B
+    # pending. See journal docs/superpowers/journal/2026-06-11-pr-sweep-
+    # 62-batch2-roadmap.md.
+    "PN389": {
+        "title": "XGrammar input-validation + grammar-compilation timeouts (vendor of vllm#45390)",
+        "tier": "community",
+        "family": "serving",
+        "env_flag": "GENESIS_ENABLE_PN389_GRAMMAR_TIMEOUTS",
+        "default_on": False,
+        "lifecycle": "experimental",
+        "category": "stability",
+        "implementation_status": "full",
+        "source": "vllm_pr_backport",
+        "apply_module": "sndr.engines.vllm.patches.serving.pn389_grammar_compilation_timeout",
+        "credit": (
+            "PR-sweep batch-3 (2026-06-13). Vendor of OPEN vllm#45390 "
+            "(jperezdealgaba), grammar-timeout core of the 7-GHSA DoS bundle "
+            "(CWE-400 uncontrolled resource consumption). XGrammar grammar/"
+            "regex/JSON-schema DFA compilation runs on the CPU EngineCore loop "
+            "with NO wall-clock bound; a pathological tool schema wedges ALL "
+            "decode indefinitely (instance-wide DoS on single-instance PROD — "
+            "async-scheduling overlap does NOT save us, compilation is pure-CPU "
+            "off the GPU stream). CRITICAL pin finding: our pin g303916e93 has "
+            "NO compilation timeout AT ALL (lacks even the first-gen "
+            "compile_regex_with_timeout the PR refactors), so PN389 vendors the "
+            "FULL run_with_timeout machinery, not the PR's rename. THREE files, "
+            "one atomic MultiFilePatchTransaction: (1) utils.py ADDITIVE — "
+            "run_with_timeout (daemon-thread + Queue + Semaphore(4)) + "
+            "_check_regex_complexity (length 10K + paren-nesting 20 pre-filter) "
+            "+ constants; (2) backend_xgrammar.py — TWO surfaces bounded: (2a) "
+            "the EngineCore DFA build (compile_grammar refactored exactly as the "
+            "PR into compile_grammar -> _compile_ctx -> "
+            "run_with_timeout(self._compile_ctx_inner) so EVERY type's "
+            "vocab-dependent compile — JSON/JSON_OBJECT/GRAMMAR/REGEX/"
+            "STRUCTURAL_TAG — is wall-clock-bounded; _compile_ctx_inner holds "
+            "the pin's compile_* dispatch verbatim so a compile within budget is "
+            "bit-identical), and (2b) the frontend validate_xgrammar_grammar "
+            "parse pre-flight (every xgr.Grammar.from_* call wrapped); (3) "
+            "envs.py ADDITIVE — VLLM_GRAMMAR_COMPILATION_TIMEOUT_SECONDS. "
+            "GENESIS DIVERGENCE (iron rule #10): default 2s, NOT the PR's 10s "
+            "(10s blows our 70-160ms TTFT SLO ~60x before the timeout fires; "
+            "operator can raise it back to 10 via the env). Bit-identical for "
+            "compiles within budget; a >2s compile (frontend parse OR EngineCore "
+            "DFA build) now bounces as a clean ValueError (400) instead of "
+            "wedging the engine — including the catastrophic-compile case "
+            "(schema parses fast, compiles unbounded) that frontend-only "
+            "bounding would miss. The PR's sampling_params/protocol input-bounds "
+            "half is OUT OF SCOPE (overlaps P109/PN387 surface; separate item). "
+            "SYNERGY with PN386 (#45389): both harden the same XGrammar "
+            "tool-call hot path every model uses (disjoint files, no anchor "
+            "overlap). No collision with P62/PN58 (spec-decode mask timing / "
+            "reasoning boundary). default_on=False — the timeout reject is a new "
+            "failure mode for legit-but-slow grammars; gated until a server A/B "
+            "confirms the 2s budget never trips a real gemma4/qwen3_coder "
+            "tool-schema compile. Self-skips when #45390 merges (drift markers = "
+            "the PR's exact docstring/comment lines)."
+        ),
+        "upstream_pr": 45390,
+        "upstream_pr_relationship": "backport",
+        "requires_patches": [],
+        "conflicts_with": [],
+        "composes_with": ["PN386", "P62", "P109", "PN387"],
+        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
+        "vllm_version_range": (">=0.22.0", "<0.23.0"),
+    },
+    "PN390": {
+        "title": "Streaming-LSE rejection sampler — no full-vocab target_probs materialize (vendor of vllm#45369)",
+        "tier": "community",
+        "family": "spec_decode",
+        "env_flag": "GENESIS_ENABLE_PN390_STREAMING_LSE_SAMPLER",
+        "default_on": False,
+        "lifecycle": "experimental",
+        "category": "spec_decode",
+        "implementation_status": "full",
+        "source": "vllm_pr_backport",
+        "apply_module": "sndr.engines.vllm.patches.spec_decode.pn390_streaming_lse_rejection_sampler",
+        "credit": (
+            "PR-sweep batch-3 (2026-06-13). Vendor of OPEN/DRAFT "
+            "vllm#45369: the non-greedy speculative rejection sampler no "
+            "longer materializes the full-vocab target_probs = "
+            "target_logits.softmax(...) buffer. compute_target_lse + "
+            "target_lse_kernel produce one logsumexp per row and the "
+            "rejection / recovery Triton kernels reconstruct each probability "
+            "as exp(logit - lse) (exact identity softmax(x)[i] == exp(x[i] - "
+            "logsumexp(x)), ULP-stable). LIVE on both PROD MTP-K=3 models: "
+            "the with-draft-probs heavy 'else' arm fires every decode step "
+            "(P71/PN90 present). Reclaims the transient buffer (vocab 151936: "
+            "3.6 MB single row, 14.6 MB at K=3 batch-8 burst) and its HBM "
+            "traffic — PR's A100 sweep shows -8..-11% mechanism latency on "
+            "with-draft-probs rows, expected larger on byte-bound A5000. "
+            "Line-orthogonal to PN378 (which masks the score product in the "
+            "SAME kernel; PN390 rewrites the prob LOADS) — they compose. "
+            "PN369's torch-side prob read is NOT in this kernel rewrite "
+            "(documented out-of-scope). Genesis divergence: body constant "
+            "named GENESIS_PN390_LSE_BLOCK_SIZE and the LSE store factored "
+            "through a named intermediate, so upstream's 'BLOCK_SIZE: "
+            "tl.constexpr = 8192' and 'tl.store(target_lse_ptr + row, m + "
+            "tl.log(s))' lines stay usable as drift markers disjoint from our "
+            "emitted text. default_on=False pending the A/B BLOCK_SIZE "
+            "{8192/16384/...} + num_warps sweep on the server."
+        ),
+        "upstream_pr": 45369,
+        "upstream_pr_relationship": "backport",
+        "requires_patches": [],
+        "conflicts_with": [],
+        "composes_with": ["PN378", "PN90", "P71", "PN369", "P82"],
+        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
+        "vllm_version_range": (">=0.22.0", "<0.23.0"),
+    },
+    "PN391": {
+        "title": "/health/decode forward-progress watchdog (vendor of vllm#45453)",
+        "tier": "community",
+        "family": "observability",
+        "env_flag": "GENESIS_ENABLE_PN391_HEALTH_DECODE_WATCHDOG",
+        "default_on": False,
+        "lifecycle": "experimental",
+        "category": "stability",
+        "implementation_status": "full",
+        "source": "vllm_pr_backport",
+        "apply_module": "sndr.engines.vllm.patches.observability.pn391_health_decode_watchdog",
+        "credit": (
+            "PR-sweep batch-3 (2026-06-13). Vendor of OPEN vllm#45453 "
+            "(terafin, re-file of #45097) — additive GET /health/decode "
+            "forward-progress watchdog. The stock /health only checks 'is the "
+            "engine task alive?'; on a TP>1 NCCL P2P deadlock that survives a "
+            "container restart (vllm#45094) the FastAPI task stays alive, "
+            "/health keeps returning 200, and every request hangs at 0 tok/s. "
+            "This is OUR EXACT topology: 2x A5000 PCIe, NCCL_P2P_DISABLE=1, "
+            "--disable-custom-all-reduce (NCCL is the collective path), TP=2, "
+            "restart:unless-stopped. The new route reports ok/prefilling/idle/"
+            "stalled from StatLoggerManager per-step bookkeeping (2 attr writes "
+            "+ 1 time.monotonic() read per step; zero GPU cost, no new locks). "
+            "503 'stalled' only when running>0 AND decode-stall window exceeded "
+            "AND prefill not recent. 6-file ATOMIC additive overlay "
+            "(MultiFilePatchTransaction): envs.py (2 vars), health.py (route), "
+            "metrics.py (Prometheus exclude), protocol.py (EngineClient default "
+            "(0,None,None)), async_llm.py (AsyncLLM accessor + scale_elastic_ep "
+            "carry-forward), loggers.py (per-engine bookkeeping). Byte-identical "
+            "for anything that does not probe the new route. GENESIS value-add: "
+            "tune VLLM_DECODE_LIVENESS_STALL_SECONDS ~20-30s and keep "
+            "VLLM_PREFILL_LIVENESS_STALL_SECONDS >=30s so the 'prefilling' arm "
+            "shields our 4.4s@32K GDN prefill from a false 503; follow-up wires "
+            "the endpoint into tools/safe_container_recreate.py (currently polls "
+            "the weak /health) as the readiness gate. DP partial-stall path "
+            "inert-but-harmless on single-engine TP=2. default_on=False — ships "
+            "dormant until the safe_container_recreate.py gate swap lands. "
+            "Self-skips when #45453 merges (drift markers = the PR's exact "
+            "docstring/comment heads, which this overlay re-words per iron rule "
+            "#10). Genesis divergence: prose reworded, behavioral code "
+            "byte-faithful."
+        ),
+        "upstream_pr": 45453,
+        "upstream_pr_relationship": "backport",
+        "requires_patches": [],
+        "conflicts_with": [],
+        "composes_with": [],
+        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
+        "vllm_version_range": (">=0.22.0", "<0.23.0"),
+    },
+    "P89": {
+        "title": "completion_tokens_details.reasoning_tokens in chat usage (vendor of vllm#45471)",
+        "tier": "community",
+        "family": "serving",
+        "env_flag": "GENESIS_ENABLE_P89_REASONING_TOKENS_USAGE",
+        "default_on": False,
+        "lifecycle": "experimental",
+        "category": "observability",
+        "implementation_status": "full",
+        "source": "vllm_pr_backport",
+        "apply_module": "sndr.engines.vllm.patches.serving.p89_reasoning_tokens_usage",
+        "credit": (
+            "PR-sweep batch-3 (2026-06-13). Vendor of OPEN/DRAFT vllm#45471 "
+            "([Frontend] Add completion_token_details to usage object in Chat "
+            "Completions response body, nv-nedelman-1). The /v1/chat/completions "
+            "usage object exposes prompt_tokens_details but NOT "
+            "completion_tokens_details; OpenAI's chat API surfaces "
+            "completion_tokens_details.reasoning_tokens so a caller can attribute "
+            "decode cost between chain-of-thought and answer. Our /v1/responses "
+            "path already surfaces it; the chat path every Genesis client uses "
+            "does not. All 4 PROD models run the qwen3 reasoning parser, so this "
+            "is a TPOT-attribution lever (reasoning vs answer) and an MTP/"
+            "TurboQuant tuning denominator at ZERO GPU cost (one O(n) token-id "
+            "walk via the parser's existing count_reasoning_tokens). Genesis "
+            "extension over the PR: adds the OpenAI-spec accepted/"
+            "rejected_prediction_tokens schema fields (default None) for future "
+            "per-request MTP K=3 spec-decode efficiency — shipped as schema only "
+            "(per-request accept counts are an engine-step SpecDecodingStats "
+            "aggregate, not on RequestOutput in this pin). Bench plumbing lands "
+            "in tools/genesis_chat_matrix_bench.py (reason-tok column). Atomic "
+            "two-file MultiFilePatchTransaction (protocol.py model + serving.py "
+            "import/attach). Self-skips on #45471 merge (drift markers = the "
+            "PR's exact model/count lines)."
+        ),
+        "upstream_pr": 45471,
+        "upstream_pr_relationship": "backport",
+        "requires_patches": [],
+        "conflicts_with": [],
+        "composes_with": [],
+        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
+        "vllm_version_range": (">=0.22.0", "<0.23.0"),
+    },
     "PN97": {
         "title": "PN97 — physical-cap on KV tensor allocation (Phase 7 PoC)",
         "tier": "community",
@@ -4917,11 +5121,31 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "Two sub-patches: (1) _get_tile_size head_dim>=512 + FP8 + "
             "prefill branch returns 64 (vs default 32); (2) kernel launch "
             "adds num_warps=8/num_stages=2 conditional on head_dim>=512. "
+            "Sub-2 (kernel launch) is MULTI-ANCHOR (batch-3 2026-06-13, "
+            "corrected after review): three mutually-exclusive launch-site "
+            "variants under required-at-least-one semantics — (A) current "
+            "pin g303916e93 (no **launch_kwargs), (B) upstream main "
+            "pre-vllm#45151 (main refactored the launch to a **launch_kwargs "
+            "splat), (C) upstream main post-vllm#45151 (7 fused-quant kwargs "
+            "spliced before **launch_kwargs). In B/C our literals are "
+            "inserted BEFORE the splat; they cannot collide with main's "
+            "native launch_kwargs['num_warps'] because that fires only on "
+            "the head_size==256 B200 tuned_large_head path, disjoint from "
+            "PN351's head_size>=512 FP8 gate. So PN351 keeps applying across "
+            "both the launch_kwargs refactor and the #45151 insertion. "
             "FP8 gate keeps shmem within ~99 KiB opt-in budget. Expected "
             "-3-7% decode_TPOT on Gemma 4 31B FP8 prefill. No-op on "
             "Qwen3.6 head_dim=128. Composes with PN29x + PN345 (different "
             "files); composes with G4_* family. Risk: LOW (gated path)."
         ),
+        "anchor_breaker_watch": {
+            "pr": 45151,
+            "also": "upstream-main launch_kwargs refactor",
+            "mitigation": (
+                "multi-anchor (A current-pin / B main-pre-45151 / "
+                "C main-post-45151)"
+            ),
+        },
         "upstream_pr": 43257,
         "upstream_pr_relationship": "backport",
         "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
