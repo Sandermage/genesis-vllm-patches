@@ -253,9 +253,32 @@ def _legacy_apply_names() -> list[str]:
 #   "P5b KV page-size pad-smaller-to-max"        → "P5b"
 #   "G4_01 gemma4 Ampere FP8_BLOCK refusal guard" → "G4_01"
 #   "G4_19b gemma4 TQ KV spec integration"       → "G4_19B"  (suffix uppercased)
+#   "P23_WIRE Marlin FP32_REDUCE env wire"       → "P23_WIRE"  (underscore-suffix taxonomy)
+#   "PN118_V2_MD5_WORKSPACE md5+full-file PoC"    → "PN118_V2_MD5_WORKSPACE"
+#   "SNDR_EAGLE3_AUX_HIDDEN_001 EAGLE-3 prep"     → "SNDR_EAGLE3_AUX_HIDDEN_001"
 # G4_NN[a-z]? prefix added 2026-05-22 (Phase 3A.1) after Phase 3 buckets
 # 3/4 onboarded the G4 patch series into the legacy register table.
-_PATCH_ID_LEAD = re.compile(r"^(P[Nn]?\d+[a-zA-Z]?|G4_\d+[a-zA-Z]?)\b")
+#
+# Underscore-suffix taxonomy added 2026-06-14: a growing convention names
+# patch ids with `_SUFFIX` tokens — fix-wires (`P23_WIRE`, `P29_HEAL`),
+# kernel-literal tunes (`P18B_TEXT`), md5+full-file PoC scopes
+# (`PN118_V2_MD5_WORKSPACE`, `PN79_V2_MD5_CHUNK_DELTA_H`), and `SNDR_`-prefix
+# research backports (`SNDR_EAGLE3_AUX_HIDDEN_001`). The `(?:_[A-Za-z0-9]+)*`
+# tail + `SNDR_` alternative lift these from the legacy register title. The
+# closing `(?=[\s/]|$)` lookahead (replacing the old `\b`) anchors the match
+# at a real token boundary — `\b` could not, because `_` is a word char so
+# there is no boundary between `P23` and `_WIRE`. This was the exact cause of
+# the 8 `legacy_unparseable` rows in `shadow --strict` before this fix. Safe
+# by construction: the old `\b` regex already returned None for any name with
+# `_` immediately after the id, so none of the 230 previously-parsing names
+# carry an underscore tail for the new group to consume (it matches zero
+# times for them); only the previously-None names change.
+_PATCH_ID_LEAD = re.compile(
+    r"^(P[Nn]?\d+[a-zA-Z]?(?:_[A-Za-z0-9]+)*"
+    r"|G4_\d+[a-zA-Z]?(?:_[A-Za-z0-9]+)*"
+    r"|SNDR_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*)"
+    r"(?=[\s/]|$)"
+)
 
 # UNIFIED_CONFIG 2026-05-10 — non-P/PN style legacy registrations.
 # These are sprint/middleware names registered before patch_id taxonomy
@@ -287,6 +310,11 @@ def _patch_id_from_legacy_name(name: str) -> Optional[str]:
         return None
     raw = m.group(1)
     # Normalize casing.
+    if raw.startswith("SNDR_") or raw.startswith("sndr_"):
+        # SNDR_-prefix ids are used verbatim in the spec registry (all-caps,
+        # underscore-joined). No prefix/suffix casing transform — returning
+        # the matched token as-is keeps it identical to the PatchSpec id.
+        return raw
     if raw.lower().startswith("pn"):
         # PN-series: uppercase prefix, suffix letter preserved as-is.
         # Registry uses inconsistent suffix case (PN26b/PN96b lowercase
