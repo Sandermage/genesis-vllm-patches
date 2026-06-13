@@ -343,6 +343,15 @@ class ApplyOrderDiff:
     spec_only_known: list[str] = field(default_factory=list)  # raw spec_only ∩ KNOWN_SPEC_ONLY
     spec_only_unexpected: list[str] = field(default_factory=list)  # raw spec_only \ KNOWN_SPEC_ONLY
     legacy_unparseable: list[str] = field(default_factory=list)  # legacy names we couldn't match to a patch_id
+    # Patch ids that apply TODAY via a legacy @register_patch hook but have
+    # NO apply_module — so `SNDR_APPLY_VIA_SPECS=1` (spec-only boot) would
+    # SILENTLY DROP them. `legacy_only` does NOT catch this (it compares
+    # against ALL spec ids, not apply_module-having ones). Surfaced as an
+    # advisory, NOT a strict failure: these are legitimately legacy-only
+    # implementations until migrated. Anyone considering flipping the boot
+    # to the spec loop must migrate these to apply_module first. (Root-
+    # caused 2026-06-14 — P1/P2, P17/P18, P32/P33 bundled hooks.)
+    spec_boot_unsafe: list[str] = field(default_factory=list)
     spec_with_apply_module: int = 0
     spec_without_apply_module: int = 0
 
@@ -402,12 +411,19 @@ def compare_apply_orders() -> ApplyOrderDiff:
     specs = list(iter_patch_specs())
     spec_pids = {s.patch_id for s in specs}
     spec_with_module = sum(1 for s in specs if s.apply_module is not None)
+    specs_without_module = {
+        s.patch_id for s in specs if s.apply_module is None
+    }
 
     legacy_only = sorted(legacy_pids - spec_pids)
     spec_only = sorted(spec_pids - legacy_pids)
     # P1-1: split spec_only into known-intentional vs unexpected.
     spec_only_known = sorted(set(spec_only) & KNOWN_SPEC_ONLY_PATCHES)
     spec_only_unexpected = sorted(set(spec_only) - KNOWN_SPEC_ONLY_PATCHES)
+
+    # spec-boot-drop risk: a patch that applies via a legacy hook but whose
+    # spec has no apply_module would vanish under SNDR_APPLY_VIA_SPECS=1.
+    spec_boot_unsafe = sorted(legacy_pids & specs_without_module)
 
     return ApplyOrderDiff(
         legacy_count=len(legacy_names),
@@ -417,6 +433,7 @@ def compare_apply_orders() -> ApplyOrderDiff:
         spec_only_known=spec_only_known,
         spec_only_unexpected=spec_only_unexpected,
         legacy_unparseable=legacy_unparseable,
+        spec_boot_unsafe=spec_boot_unsafe,
         spec_with_apply_module=spec_with_module,
         spec_without_apply_module=len(specs) - spec_with_module,
     )
@@ -479,6 +496,17 @@ def format_diff(diff: ApplyOrderDiff) -> str:
         )
         for n in diff.legacy_unparseable[:5]:
             lines.append(f"      - {n!r}")
+
+    if diff.spec_boot_unsafe:
+        lines.append("")
+        lines.append(
+            f"  ⚠ spec_boot_unsafe ({len(diff.spec_boot_unsafe)}) — apply "
+            "via a legacy @register_patch hook but NO apply_module, so "
+            "SNDR_APPLY_VIA_SPECS=1 would SILENTLY DROP them. Migrate to "
+            "apply_module before making the spec loop the default boot:"
+        )
+        for pid in diff.spec_boot_unsafe:
+            lines.append(f"      - {pid}")
 
     lines.append("")
     if diff.is_clean:

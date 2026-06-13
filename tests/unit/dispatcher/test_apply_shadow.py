@@ -30,8 +30,29 @@ class TestPatchIdFromLegacyName:
         ("PN14 TQ decode IOOB safe_page_idx clamp", "PN14"),
         ("P5b KV page-size pad-smaller-to-max (env-opt-in)", "P5b"),
         ("PN82 Mamba CUDA-graph stale prefill rows (vllm#41873)", "PN82"),
+        ("P68/P69 long-ctx tool reminder", "P68"),
     ])
     def test_extracts_id_from_canonical_name(self, name, expected):
+        s = _shadow_module()
+        assert s._patch_id_from_legacy_name(name) == expected
+
+    @pytest.mark.parametrize("name,expected", [
+        # Underscore-suffix taxonomy (2026-06-14 fix) — `\b` after the
+        # numeric id could not find a boundary before `_`, so these
+        # returned None and surfaced as legacy_unparseable.
+        ("P23_WIRE Marlin FP32_REDUCE env wire (2026-06-04 fix-wire)",
+         "P23_WIRE"),
+        ("P29_HEAL qwen3coder index heal (2026-06-04 fix-wire)", "P29_HEAL"),
+        ("P18B_TEXT TurboQuant decode stage1 kernel-literal tune", "P18B_TEXT"),
+        ("PN118_V2_MD5_WORKSPACE md5+full-file PoC (workspace.py scope)",
+         "PN118_V2_MD5_WORKSPACE"),
+        ("PN79_V2_MD5_CHUNK_DELTA_H md5+full-file PoC (chunk_delta_h.py)",
+         "PN79_V2_MD5_CHUNK_DELTA_H"),
+        # SNDR_-prefix research ids — returned verbatim (no P/PN normalize).
+        ("SNDR_EAGLE3_AUX_HIDDEN_001 model-side prep for EAGLE-3",
+         "SNDR_EAGLE3_AUX_HIDDEN_001"),
+    ])
+    def test_extracts_underscore_suffix_and_sndr_ids(self, name, expected):
         s = _shadow_module()
         assert s._patch_id_from_legacy_name(name) == expected
 
@@ -45,6 +66,13 @@ class TestPatchIdFromLegacyName:
         s = _shadow_module()
         # The leading P is uppercase per regex; we normalize the N.
         assert s._patch_id_from_legacy_name("PN14 something") == "PN14"
+
+    def test_underscore_suffix_does_not_overreach_plain_ids(self):
+        """A plain id followed by a space (not `_`) must NOT absorb later
+        tokens — the suffix group only consumes underscore-joined tokens."""
+        s = _shadow_module()
+        assert s._patch_id_from_legacy_name("P32 TurboQuant preallocs") == "P32"
+        assert s._patch_id_from_legacy_name("G4_19b gemma4 TQ KV") == "G4_19B"
 
 
 # ─── Diff comparison ──────────────────────────────────────────────────────
@@ -110,6 +138,46 @@ class TestCompareApplyOrders:
         # gap. Tolerate up to 3 (P5b/P7b/legacy stubs).
         assert len(diff.legacy_only) < 5, (
             f"legacy_only too large: {diff.legacy_only}"
+        )
+
+    def test_spec_boot_unsafe_flags_legacy_hooks_without_apply_module(self):
+        """spec_boot_unsafe = patches that apply via a legacy hook but have
+        no apply_module → SNDR_APPLY_VIA_SPECS=1 would silently drop them.
+        legacy_only does NOT catch this. The bundled default_on legacy
+        patches P1/P2, P17/P18, P32/P33 are the canonical members (root-
+        caused 2026-06-14 when the dev491 supplement was designed)."""
+        s = _shadow_module()
+        diff = s.compare_apply_orders()
+        # P1/P17/P32 are bundled default_on legacy patches without an
+        # apply_module — they MUST be flagged so nobody flips the boot mode
+        # and drops them.
+        for pid in ("P1", "P17", "P32"):
+            assert pid in diff.spec_boot_unsafe, (
+                f"{pid} (legacy hook, no apply_module) must be flagged "
+                f"spec_boot_unsafe; got {diff.spec_boot_unsafe}"
+            )
+        # Every flagged id must genuinely have a legacy hook AND no spec
+        # apply_module — guard against the check drifting to false positives.
+        from sndr.dispatcher.spec import iter_patch_specs
+        no_module = {
+            sp.patch_id for sp in iter_patch_specs() if sp.apply_module is None
+        }
+        for pid in diff.spec_boot_unsafe:
+            assert pid in no_module, (
+                f"{pid} flagged spec_boot_unsafe but its spec HAS an "
+                "apply_module — false positive"
+            )
+
+    def test_spec_boot_unsafe_does_not_break_clean(self):
+        """The advisory is informational only — it must NOT flip is_clean
+        to False (these are legitimately legacy-only until migrated)."""
+        s = _shadow_module()
+        diff = s.compare_apply_orders()
+        # spec_boot_unsafe is non-empty today (P1/P17/P20/P32) yet the
+        # report must stay CLEAN — the advisory is decoupled from is_clean.
+        assert diff.spec_boot_unsafe, "expected a non-empty advisory today"
+        assert diff.is_clean, (
+            "spec_boot_unsafe must not affect is_clean — it is advisory"
         )
 
 
