@@ -67,3 +67,55 @@ behavior change that NO static tool could have caught — exactly the
 gap the smoke-boot leg exists to find. The "painless pin transition"
 goal is substantially met: the drift surface was mapped and fixed
 automatically; only the runtime adaptation remains.
+
+---
+
+## Update (2026-06-14, post-PN392 server validation attempt)
+
+### Root cause CONFIRMED (deep-diff dev259 vs dev491 pristine)
+vllm#45171-era refactor **deleted `tool_parsers/qwen3xml_tool_parser.py`**
+and **remapped `qwen3_xml` → `Qwen3CoderToolParser`** in
+`tool_parsers/__init__.py`. The coder parser is single-emission
+(emits ≤1 structural delta per call, returns to advance assuming
+token-by-token feeding); the dev491 unified streaming path feeds the
+WHOLE `<tool_call>…</tool_call>` XML as one delta at the reasoning→tool
+boundary → the parser flips its start-flag and returns emitting ZERO
+`delta.tool_calls`. Verified the re-anchored P107/P89/PN288 are NOT
+implicated, and `parse_delta`/`_in_tool_call_phase`/the qwen3 reasoning
+parser are byte-identical between pins.
+
+### PN392 fix (commit a3b84468) — server validation INCONCLUSIVE
+PN392 (runtime wrap of `extract_tool_calls_streaming` on both
+Qwen3Coder + Qwen3XML classes, draining the single-emission core to
+coalesce deltas) passes 11 TDD tests + all repo gates (registry 308).
+But the dev491+PN392=1 smoke-boot STILL showed the streaming tool-call
+returning the raw XML as `delta.content` with `finish_reason=stop` and
+0 `delta.tool_calls`. Non-stream tool-calls + reasoning split WORK on
+dev491.
+
+### Open questions for the next focused (live, INFO-logged) iteration
+1. **Did PN392 actually apply?** The PROD env sets
+   `VLLM_LOGGING_LEVEL=WARNING`, which MASKS the INFO-level
+   `applied: PN392` line — so the empty grep is inconclusive. PN287
+   (same `applies_to.tool_call_parser` gate) applies on dev259, so the
+   gate is not the blocker. Re-smoke with `VLLM_LOGGING_LEVEL=INFO` to
+   confirm PN392's apply + whether its class-wrap took effect on the
+   live parser instance.
+2. **If PN392 applied but the symptom persists**, the failure layer is
+   DEEPER than the single-emission drain: the content shows the FULL
+   XML leaking as content, suggesting the streaming generator may not
+   be routing to `extract_tool_calls_streaming` at all (the
+   reasoning→tool phase transition, or the coder parser's
+   buffer-until-complete behavior swallowing the whole delta). Trace
+   `chat_completion_stream_generator` on dev491 with the wrap active.
+3. **PN374** (qwen3xml quoted-key) targets the now-deleted
+   `qwen3xml_tool_parser.py` → dormant on dev491; re-target to
+   `qwen3coder_tool_parser.py` in the same adaptation pass.
+
+### Pin-bump state
+ANCHOR-VALIDATED (both pins DRIFT=0, fix-loop 82d17174) + BOOTS CLEAN
+(99/0 failed). PROD stays on dev259 at zero risk (dual-anchors). The
+ONLY remaining promotion blocker is the streaming-tool-call fix, which
+needs ONE live INFO-logged iteration to either confirm PN392 works or
+locate the deeper streaming-dispatch layer. NOT a rollback — the
+adaptation is 95% done; this is the last 5%.
