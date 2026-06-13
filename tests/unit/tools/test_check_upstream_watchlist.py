@@ -50,8 +50,9 @@ SWEPT_PRS = frozenset({
     44717, 44752, 44741, 45076, 44644, 44742, 44778, 44628, 44563, 44754,
 })
 
-# G4_T1 racing group — one annotated cluster (chunk-2 Theme B).
-RACING_CLUSTER = frozenset({42006, 42237, 42300, 44741, 45068})
+# G4_T1 racing group — one annotated cluster (chunk-2 Theme B; #44844
+# joined the enumeration when its v3 prep overlay vendored, 2026-06-11).
+RACING_CLUSTER = frozenset({42006, 42237, 42300, 44741, 45068, 44844})
 
 
 def _import_tool():

@@ -61,15 +61,22 @@
 # cover both v1 and v2 overlay variants). The dispatcher returns `skipped`
 # with a message pointing at the launcher's bind-mount.
 #
-# Retire trigger: when EITHER PR #42006 or PR #42237 merges upstream AND
-# the merge propagates to a nightly tag we pin. Track:
+# Retire trigger (updated 2026-06-11): SIX upstream PRs now race on the
+# same root issue #41967 — #42006 / #42237 / #42300 / #44741 / #45068 /
+# #44844. Whichever merges first AND propagates to a pin we run decides
+# retirement of the whole G4_T1 overlay stack (deep-diff first, iron
+# rule #11). Track:
 #
-#     gh pr view 42006 --repo vllm-project/vllm --json state,mergedAt
-#     gh pr view 42237 --repo vllm-project/vllm --json state,mergedAt
+#     for pr in 42006 42237 42300 44741 45068 44844; do
+#         gh pr view $pr --repo vllm-project/vllm --json state,mergedAt
+#     done
 #
-# Once merged + our pin contains the merge, delete BOTH this v2 file AND
-# the v1 file `g4_t1_gemma4_tool_parser_pr42006_overlay.py`, and remove
-# the corresponding `-v` mount in the gemma4 launcher.
+# Canonical machine-readable rows: tools/upstream_watchlist.yaml (sweep:
+# section, G4_T1 racing cluster). Once one merges + our pin contains the
+# merge, delete this v2 file, the v1 rollback file
+# `g4_t1_gemma4_tool_parser_pr42006_overlay.py`, AND the v3 prep file
+# `g4_t1_v3_gemma4_tool_parser_pr44844_overlay.py`, then remove the
+# corresponding `-v` mount in the gemma4 launcher.
 #
 # Empirical effect (gemma4-31B AWQ-4bit + TQ4bit_nc + MTP K=4 on
 # pin 626fa9bb, 2026-05-31 session):
@@ -141,6 +148,23 @@
 # branch as a standalone text patch. Tests: tests/unit/integrations/
 # tool_parsing/test_g4_t1_dict_key_sentinel_strip.py (AST-extracts the
 # shipped source).
+#
+# Second vendored hunk (2026-06-11): upstream PR #45068 (OPEN, same issue
+# #41967) — token-id start-gate in `extract_tool_calls_streaming`. The
+# upstream PR rewrites the PRISTINE parser's gate from text-membership to
+# `tool_call_start_token_id not in current_token_ids`; we transplant that
+# gate (with Genesis adaptations documented inline) so lookalike marker
+# TEXT produced by ordinary tokens stays content, and the O(len) rescan
+# is skipped entirely until a real tool call starts. #45068's MTP-split
+# regression corpus (a single delta carrying `}<tool_call|><|tool_call>
+# call:next{`) is ported into tests/unit/integrations/tool_parsing/
+# test_g4_t1_streaming_mtp_corpus.py — the FIRST streaming-parser tests
+# this overlay family has. The same module carries the strict-xfail
+# reproduction of the keep-alive 31/35 state leak documented above
+# (test_keep_alive_instance_reuse_second_request_clean[v2_pr42237_
+# current]): the leak is deliberately NOT fixed in v2 — the fix ships as
+# the v3 prep overlay's reset-guard hardening and gets A/B'd at the
+# server stage.
 #
 # ─────────────────────────────────────────────────────────────────────────
 # BEGIN VERBATIM PR #42237 SOURCE (+ PR #44877 quoted-key branch)
@@ -613,6 +637,37 @@ class Gemma4ToolParser(ToolParser):
     ) -> DeltaMessage | None:
         if not previous_text:
             self._reset_streaming_state()
+
+        # Token-id start-gate (vendored from upstream PR #45068, OPEN at
+        # vendor time 2026-06-11; same root issue #41967). Gate the
+        # accumulated-text rescan on the START token ID instead of the
+        # start token TEXT: token ids are the detokenizer's ground truth
+        # — the special token always arrives atomically alongside its id,
+        # while lookalike TEXT (a model spelling out "<|tool_call>" via
+        # ordinary tokens) must stay on the content channel instead of
+        # being swallowed as a phantom tool call. Genesis adaptations vs
+        # the upstream hunk (iron rule #10):
+        #   (1) advance _sent_content_idx so the rescan path does not
+        #       re-emit gate-emitted content once a real tool call
+        #       starts;
+        #   (2) keep the membership check stateless per call (no latched
+        #       boolean) — the documented keep-alive instance-reuse leak
+        #       below makes latched per-request booleans hazardous on
+        #       this class;
+        #   (3) fall back to the upstream text check if the start token
+        #       id is unresolvable (__init__ raises when it is missing,
+        #       so this arm is defense in depth only).
+        if self.tool_call_start_token_id is not None:
+            no_tool_call_yet = (
+                self.tool_call_start_token_id not in current_token_ids
+            )
+        else:
+            no_tool_call_yet = self.tool_call_start_token not in current_text
+        if no_tool_call_yet:
+            self._sent_content_idx = len(current_text)
+            if delta_text:
+                return DeltaMessage(content=delta_text)
+            return None
 
         try:
             return self._extract_streaming(current_text)

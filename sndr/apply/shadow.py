@@ -174,6 +174,31 @@ KNOWN_SPEC_ONLY_PATCHES: frozenset[str] = frozenset({
     "PN373",           # parallel_tool_calls explicit null != false
                        # (vendor of OPEN vllm#44955; serving-layer
                        # text patch on tool_calls_utils.py)
+    # ── 2026-06-13 50-PR sweep wave 2 — spec-driven from inception
+    # (apply_module + own apply(), no legacy @register_patch hook; same
+    # class as PN371/PN373). PN377 is the lone wave-2 patch with a
+    # legacy parking-lot hook, so it is NOT listed here.
+    "P88",             # prefix-cache stats retry de-dup (rewrite of
+                       # vllm#45202; metrics-only, KVCacheManager text)
+    "PN358",           # FULL cudagraph forward-context refresh
+                       # (vendor of OPEN vllm#44868; cuda_graph.py)
+    "PN376",           # fp8 modules_to_not_convert substring match
+                       # (vendor of OPEN vllm#44628; gated by dispatcher
+                       # should_apply before import)
+    "PN378",           # recovered-token vocab-pad -inf mask (vendor of
+                       # OPEN vllm#45060 kernel half; rejection_sampler)
+    "PN379",           # LoadConfig/DefaultModelLoader fail-fast
+                       # (vendor of OPEN vllm#45196; atomic 2-file)
+    "PN380",           # Qwen3.5/3.6 MTP pre-fused expert loader +
+                       # coverage guard (vendor of OPEN vllm#44943)
+    "PN381",           # allowed_token_ids spec-decode metadata
+                       # hardening (vendor of OPEN vllm#44742)
+    "PN382",           # DecodeBenchConnector hybrid per-block KV fill
+                       # (vendor of OPEN vllm#45080; bench infra)
+    "G4_81",           # TQ multi-query DIRECT decode routing (vllm#45144
+                       # blueprint; runtime monkey-patch, no TextPatcher)
+    "PN383",           # KV-offload + MTP segfault gate (vendor of OPEN
+                       # vllm#44784; multi-file text patch, no legacy hook)
 })
 
 

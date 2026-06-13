@@ -489,10 +489,12 @@ sweep:
     genesis_patch: G4_T1
     trigger: retire-on-merge
     note: >-
-      G4_T1 RACING CLUSTER (#42006 / #42237 / #42300 / #44741 / #45068)
-      — whichever merges first decides retirement of the overlay stack.
-      This PR = v1 overlay g4_t1_gemma4_tool_parser_pr42006_overlay.py
-      (rollback copy). Also tracked in the legacy watch: section above.
+      G4_T1 RACING CLUSTER (#42006 / #42237 / #42300 / #44741 / #45068
+      / #44844) — whichever merges first decides retirement of the
+      overlay stack (now THREE on-disk overlay generations: v1 rollback
+      + v2 live mount + v3 prep). This PR = v1 overlay
+      g4_t1_gemma4_tool_parser_pr42006_overlay.py (rollback copy).
+      Also tracked in the legacy watch: section above.
   - pr: 42237
     genesis_patch: G4_T1
     trigger: retire-on-merge
@@ -530,10 +532,16 @@ sweep:
     trigger: retire-on-merge
     note: >-
       G4_T1 RACING CLUSTER member — Gemma4 parallel tool calls + MTP.
-      Do NOT replace v2; borrow (1) MTP-split regression test corpus
-      (we have zero streaming parser tests), (2) token-id start-gate
-      into the v2 overlay, (3) xfail-then-fix the keep-alive state
-      leak (remaining 4/35 = 11.4% failures on Gemma-4 + MTP K=3).
+      DONE in the 2026-06-11 W2 sweep: (1) MTP-split regression corpus
+      ported into test_g4_t1_streaming_mtp_corpus.py (first streaming
+      parser tests for the family; runs against v2 AND the v3 prep),
+      (2) token-id start-gate vendored into the v2 overlay (gate on
+      tool_call_start_token_id in current_token_ids, Genesis
+      adaptations documented inline), (3) keep-alive state leak (31/35
+      = remaining 4/35 failures on Gemma-4 + MTP) reproduced as a
+      strict-xfail on v2 with the `if not previous_text` reset-guard
+      analysis; the FIX ships only in the v3 prep overlay (Genesis
+      reset-guard hardening) pending the server-stage A/B.
 
   # ─── Chunk 1 — page-size unify / crashes / metrics / startup ──────
   - pr: 45207
@@ -846,52 +854,85 @@ sweep:
       for the same key/value asymmetry — PRESENT (unescaped key
       interpolation + quote capture in the <parameter=> preprocess
       regex) and fixed as PN374 (pn374_qwen3xml_quoted_keys.py).
-      Tests: test_g4_t1_dict_key_sentinel_strip.py (20) +
-      test_pn374_qwen3xml_quoted_keys.py (15). If v3 (#44844) is
-      adopted, fold this hunk into it — one overlay, one watchlist row
-      each. Same G4_T1 file as the racing cluster.
+      Tests: test_g4_t1_dict_key_sentinel_strip.py (now parametrized
+      over all THREE overlay generations) +
+      test_pn374_qwen3xml_quoted_keys.py (15). FOLDED into the v3 prep
+      overlay (g4_t1_v3_gemma4_tool_parser_pr44844_overlay.py,
+      2026-06-11) per the synergy note — one overlay, one watchlist
+      row each. Same G4_T1 file as the racing cluster.
   - pr: 44844
-    genesis_patch: 'planned: G4_T1 v3 overlay'
+    genesis_patch: G4_T1
     trigger: retire-on-merge
     note: >-
-      Span-based streaming parser rewrite — W2 vendor as G4_T1 v3
-      (verbatim PR head + reset-guard hardening), A/B vs v2 on the 7x5
-      tool-call harness. Closes the MTP K=3 streaming corruption v2
-      cannot handle (stripped call:name{...} bodies, coalesced calls;
-      v2 baseline 31/35 keep-alive). Racing with #42006/#42237 —
-      whichever merges first decides retirement.
+      G4_T1 RACING CLUSTER member — span-based streaming parser
+      rewrite. VENDORED 2026-06-11 (W2) as the v3 PREP overlay
+      g4_t1_v3_gemma4_tool_parser_pr44844_overlay.py: verbatim PR head
+      (sha a0c0ba69be) + Genesis reset-guard hardening
+      (mutation-verified load-bearing) + the #44877 quoted-key hunk
+      folded in per the synergy note. NOT bind-mounted anywhere — the
+      A/B vs v2 on the 7x5 tool-call harness happens at the server
+      stage before any mount switch. Closes the MTP K=3 streaming
+      corruption v2 cannot handle (stripped call:name{...} bodies) AND
+      the keep-alive 31/35 leak (strict-xfail on v2, PASS on v3, in
+      test_g4_t1_streaming_mtp_corpus.py).
   - pr: 44943
-    genesis_patch: 'planned: PN-tbd (MTP pre-fused expert loader)'
+    genesis_patch: PN380
     trigger: retire-on-merge
     note: >-
-      Qwen3.5/3.6 MTP pre-fused expert loader — W2 insurance vendor
-      (+21/-3), prereq for the INT4 35B-A3B trial. Touches
-      qwen3_5_mtp.py ALREADY text-patched by PN348 — coordinate
-      anchors. Add a Genesis-original P29-style draft-weight
-      load-coverage guard + accept-rate floor (~0.55) in the bench
-      suite (prevents silent -23pp accept on future pre-fused MoE
-      checkpoints).
+      Qwen3.5/3.6 MTP pre-fused expert loader — VENDORED 2026-06-11
+      (W2) as PN380 (pn380_qwen3_mtp_prefused_expert_loader.py): six
+      sub-patches on qwen3_5_mtp.py load_weights — 3 vendored
+      (pre-fused mapping + detection + params_dict KeyError guard,
+      adapted to the pin's STATIC mapping list; the PR head builds it
+      in a loop, hence alt_ckpt_name is the safe drift marker) + 3
+      Genesis-original (P29-style draft-weight load-coverage guard:
+      one log.error on any ckpt/param coverage gap — the engine's
+      strict check is disabled for quantized models, i.e. all PROD).
+      Anchors disjoint from PN348 (same file; both co-apply orders
+      tested). Companion accept-rate floor (0.55, WARN) landed in
+      genesis_bench_suite.py. On merge: deep-diff (iron-rule-#11) —
+      expect category (b), our coverage guard does MORE; keep the
+      guard subs, retire the 3 vendored subs.
   - pr: 44837
     genesis_patch: watch-only
     trigger: review-on-merge
     note: >-
-      DSV4 MTP missing prefix= — adopt the lesson, not the code: AST
-      lint test flagging quantized Linears constructed without
-      prefix= across all engaged model files (dormant 6-line stub).
-      Kills one pin-bump crash class + a silent AWQ/AutoRound
-      mis-quantization variant; <1s CI. Build together with #44943's
-      coverage guard ("loud startup" validation family).
+      DSV4 MTP missing prefix= — lesson ADOPTED 2026-06-11 (W2; not
+      the code — the DSV4 files are outside our engaged set): AST
+      lint tests/unit/lint/test_quantized_linear_prefix.py flags
+      parallel-Linear-family constructions passing a non-None
+      quant_config without prefix=, across (a) pristine pin model
+      files our patches anchor (auto-discovered from patch sources)
+      and (b) vendored overlay copies in the repo; scoped allowlist
+      for verified-safe hits (EMPTY as of pin g303916e93 — whole
+      surface clean). Kills one pin-bump crash class + the silent
+      AWQ/AutoRound mis-quantization variant; <1s CI. Built together
+      with #44943's coverage guard ("loud startup" validation
+      family, PN380).
   - pr: 44880
     genesis_patch: PN340, PN341
     trigger: reanchor-on-merge
     note: >-
       Bailing MTP + LINEAR_ATTN spec-decode — do NOT vendor the
-      feature (the pin's gdn_attn already has the design). GUARANTEED
-      PN341 anchor break in PN341's gpu_model_runner neighborhood —
-      this row converts it into a planned 5-min re-anchor. Port its
-      buffer-stability tests (data_ptr identity + PAD_SLOT_ID) against
-      the PN340-patched GDN builder; cherry-pick the
-      llm_base_proposer getattr-hardening at next bump.
+      feature (the pin's gdn_attn already has the design). ANCHOR
+      BREAKER: the PR edits PN341's anchor neighborhood in
+      gpu_model_runner.py (+10/-2 around the accepted-counts /
+      spec-decode preprocessing region PN341 sub-patch 4 and PN370
+      both anchor) — GUARANTEED PN341 anchor break on the merge pin;
+      this row converts it into a planned 5-min re-anchor (re-derive
+      PN341_PREPARE_OLD/NEW, then re-run the PN370 chain tests, which
+      import PN341's constants and fail loudly on drift).
+      Buffer-stability tests PORTED 2026-06-11 (W2 sweep):
+      tests/unit/integrations/attention/gdn/
+      test_pn340_gdn_builder_buffer_stability_torch.py — data_ptr
+      identity across consecutive FULL-CG builds + pad semantics
+      (upstream's PAD_SLOT_ID adapted to the GDN builder's
+      NULL_BLOCK_ID / False / 1 / last-cumsum constants) against the
+      PN340-patched builder, K=1 upstream shape + K=3 PROD shape.
+      REMAINING at next pin bump: cherry-pick the PR's
+      llm_base_proposer.py getattr-hardening (defensive
+      getattr(..., None) reads of optional drafter attrs — cheap
+      crash-class insurance for non-Bailing MTP proposers too).
   - pr: 44868
     genesis_patch: 'planned: PN358'
     trigger: retire-on-merge
@@ -993,15 +1034,22 @@ sweep:
       PN367, shrinks boot-time VRAM uncertainty on the same 24GB MTP
       boot path.
   - pr: 44742
-    genesis_patch: 'planned: PN-tbd (allowed_token_ids hardening)'
+    genesis_patch: PN381
     trigger: retire-on-merge
     note: >-
-      allowed_token_ids metadata hardening — W2 vendor (anchored
-      1-line condition in _make_sampling_metadata, PN67 playbook);
+      allowed_token_ids metadata hardening — VENDORED 2026-06-11 (W2
+      sweep) as PN381 (anchored 1-line condition in
+      _make_sampling_metadata, PN67 playbook; default OFF via
+      GENESIS_ENABLE_PN381_ALLOWED_TOKEN_IDS_METADATA);
       defense-in-depth only (the #35654 consumer fix is already in the
-      pin). Port the CUDA regression test against OUR patched sampler
-      — protects the PN369/P71 rewritten rejection sampler from the
-      row-parity landmine; coverage upstream never had.
+      pin). On merge the patcher SELF-SKIPS: drift marker is the PR's
+      unparenthesized form 'or not self.no_allowed_token_ids' — our
+      emitted clause is parenthesized on purpose (lint_drift_markers
+      contract); then deep-diff + retire per iron-rule-#11. The PR's
+      CUDA regression test is PORTED CPU-runnable through OUR
+      PN369/P71-patched sampler (tests/unit/integrations/spec_decode/
+      test_pn381_sampler_regression_torch.py) + a torch-free producer
+      contract exec test — row-parity coverage upstream never had.
   - pr: 44778
     genesis_patch: PN55
     trigger: retire-on-merge

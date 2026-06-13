@@ -38,6 +38,9 @@ MOE_PATCHES = [
     ("sndr.engines.vllm.patches.moe.p37_moe_intermediate_cache", "P37"),
     ("sndr.engines.vllm.patches.moe.pn27_revert_pluggable_moe", "PN27"),
     ("sndr.engines.vllm.patches.moe.pn368_marlin_moe_atomic_add_wire", "PN368"),
+    # PN377 registry entry lands with the wave-2 registry merge — the
+    # two registry-reading contract tests stay red until it does (TDD).
+    ("sndr.engines.vllm.patches.moe.pn377_moe_wna16_bsk_clamp", "PN377"),
 ]
 
 

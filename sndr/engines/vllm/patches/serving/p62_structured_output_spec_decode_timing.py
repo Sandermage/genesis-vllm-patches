@@ -257,6 +257,51 @@ NEW_METHODS_NEW = (
 )
 
 
+# ─── Drift-marker watch entries for vllm#44297 / vllm#44993 ───────────────
+#
+# pn384 (2026-06-11): upstream carries a sibling fix PAIR for the same bug
+# family P62 covers (vendored from vllm#36138):
+#   - vllm#44297 (OPEN) — intra-step bitmask leak: rewrites the
+#     grammar_bitmask req_tokens loop, the EXACT site of our
+#     p62_grammar_bitmask anchor.
+#   - vllm#44993 (OPEN, stacked on #44297) — inter-step state leak:
+#     should_advance grows an optional new_token_ids parameter + post-marker
+#     FSM drain, rewriting the scheduler call sites our three scheduler
+#     sub-patches replace.
+# Either merging shifts P62's required anchors. These post-image markers
+# (verbatim from `gh pr diff`, 2026-06-11) convert a wedged
+# anchor-mismatch apply at the pin bump into a clean upstream-drift SKIP
+# that names the reason. Per the self-collision lint
+# (tools/lint_drift_markers.py, PN369 class) none of them appears in any
+# text P62 itself emits — enforced by
+# tests/unit/integrations/serving/test_p62_grammar_advance_44993.py.
+
+# vllm#44993 — new should_advance signature (structured_output/__init__.py).
+DRIFT_MARKER_44993_SHOULD_ADVANCE_SIG = (
+    "        new_token_ids: list[int] | None = None,\n"
+    "    ) -> bool:"
+)
+
+# vllm#44297 — loop-state flag introduced by the grammar_bitmask rewrite.
+DRIFT_MARKER_44297_BITMASK_REWRITE = "post_reasoning_end_in_window"
+
+# vllm#44993 — updated update_from_output call site (scheduler.py).
+DRIFT_MARKER_44993_SCHED_CALLSITE = (
+    "self.structured_output_manager.should_advance(\n"
+    "                request, new_token_ids=new_token_ids\n"
+    "            )"
+)
+
+P62_STRUCT_OUT_DRIFT_MARKERS = [
+    DRIFT_MARKER_44993_SHOULD_ADVANCE_SIG,
+    DRIFT_MARKER_44297_BITMASK_REWRITE,
+]
+
+P62_SCHEDULER_DRIFT_MARKERS = [
+    DRIFT_MARKER_44993_SCHED_CALLSITE,
+]
+
+
 def _make_struct_out_patcher() -> TextPatcher | None:
     target = resolve_vllm_file("v1/structured_output/__init__.py")
     if target is None:
@@ -275,8 +320,10 @@ def _make_struct_out_patcher() -> TextPatcher | None:
         # "def update_reasoning_ended" is the method our own replacement
         # defines — it cannot distinguish a real vllm#36138 merge from our
         # residue (false "upstream_merged" skip, PN369 class). Real-merge
-        # detection via required-anchor mismatch + preflight deep-diff.
-        upstream_drift_markers=[],
+        # detection for #36138 stays on required-anchor mismatch + preflight
+        # deep-diff. The #44297/#44993 post-image markers below are
+        # collision-free (see watch-entry block above).
+        upstream_drift_markers=list(P62_STRUCT_OUT_DRIFT_MARKERS),
     )
 
 
@@ -393,8 +440,9 @@ def _make_scheduler_patcher() -> TextPatcher | None:
         # Self-collision lint (triage plan §6 2026-06-11): former entry
         # "validate_tokens_reasoning_aware" is the method name our own
         # replacement emits — same indistinguishability as the
-        # structured_output patcher above.
-        upstream_drift_markers=[],
+        # structured_output patcher above. The #44993 call-site post-image
+        # marker is collision-free (see watch-entry block above).
+        upstream_drift_markers=list(P62_SCHEDULER_DRIFT_MARKERS),
     )
 
 
@@ -425,7 +473,8 @@ def apply() -> tuple[str, str]:
                 return (
                     "skipped",
                     f"upstream drift marker {m!r} in {p.target_file} — "
-                    "vllm#36138 likely already merged.",
+                    "vllm#44297/#44993 (the vllm#36138 sibling fix pair) "
+                    "likely merged; deep-diff P62 before re-enabling.",
                 )
         for sp in p.sub_patches:
             if sp.required and sp.anchor not in content:

@@ -292,6 +292,8 @@ class Flags:
     P91 = "P91"  # autoround row group cdiv (core: auto_gptq + parameter)
     P91B = "P91B"  # autoround row group cdiv multi-scheme (inc + ct_wNa16 + ct_w4a8_fp8)
     PN77_FP8_LM_HEAD = "PN77_FP8_LM_HEAD"
+    # PN376: fp8 modules_to_not_convert substring match (vendor of vllm#44628)
+    PN376_FP8_IGNORE_SUBSTRING = "PN376_FP8_IGNORE_SUBSTRING"
 
     # loader family
     PN61 = "PN61"  # qwen3 VL key error guard
@@ -566,6 +568,7 @@ class Flags:
     # moe family
     PN352 = "PN352"  # PN352: Triton moe_sum for unsupported topk
     PN368_MARLIN_MOE_ATOMIC_ADD = "PN368_MARLIN_MOE_ATOMIC_ADD"  # PN368: Marlin MoE w13 atomic-add reduce-mode wire
+    PN377_MOE_WNA16_BSK_CLAMP = "PN377_MOE_WNA16_BSK_CLAMP"  # PN377: moe_wna16 BLOCK_SIZE_K legality clamp (vendor of vllm#44563)
     # quantization.marlin family
     PN347 = "PN347"  # PN347: MarlinFP8 N==K silent corruption correctness fix
     # spec_decode family

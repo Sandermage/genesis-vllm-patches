@@ -40,6 +40,25 @@ Anchor on the unique `# Default config` comment + the BLOCK_SIZE_M=64
 literal that follows it (verified single occurrence in our pin).
 
 ================================================================
+SM_86 RE-TUNE FOLLOW-UP (2026-06-11, #45126 sweep transfer)
+================================================================
+
+The (BLOCK_SIZE_M=16, num_stages=3) specialization above carries
+upstream's numbers, tuned on **GB10 (sm_121) — NOT on our RTX A5000
+(sm_86)**. vllm#45126 (NVIDIA-tuned tiles + PID swizzle for
+triton_scaled_mm) demonstrated that single-arch heuristics leave up to
+1.2-2.0x on the table on foreign architectures, and established the
+offline-sweep -> frozen-per-arch-dict -> bit-identical-assert recipe.
+
+FOLLOW-UP: re-tune this M<=8 default on sm_86 with
+``tools/triton_gemm_sweep.py`` (ships the sm_86 profile, the
+PN345-aligned shmem pruning budget and frozen-table emission) by adding
+a ``w8a8_block_scaled`` target — see the FOLLOW-UP marker in that
+tool's ``_build_targets``. Until that sweep lands, P81 remains a
+GB10-derived heuristic: empirically positive on A5000 but not
+sweep-validated for it.
+
+================================================================
 ENV
 ================================================================
 

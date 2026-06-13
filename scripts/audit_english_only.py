@@ -79,6 +79,15 @@ WAIVERS: dict[str, str] = {
         "contain Cyrillic by design (regex-positive cases, sample fixtures "
         "for count_cyrillic). Translating defeats the test purpose."
     ),
+    "tools/tokenizer_fingerprint.py": (
+        "Multilingual tokenizer-fingerprint corpus (wave-2 tool, 2026-06-13): "
+        "the 'multilingual_cyrillic' probe string is intentional non-Latin "
+        "test DATA that exercises how the tokenizer segments Cyrillic after "
+        "a pin bump (sibling probes cover CJK / emoji / unicode punctuation). "
+        "Translating it to Latin would defeat the fingerprint's purpose — it "
+        "must contain Cyrillic to detect Cyrillic-tokenization drift. Same "
+        "fixture-data class as tests/probes/streaming_thinking_probe.py."
+    ),
 }
 
 CYRILLIC_RE = re.compile(r"[Ѐ-ӿԀ-ԯ]")

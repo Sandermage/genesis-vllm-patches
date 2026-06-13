@@ -115,7 +115,7 @@ genesis-vllm-patches/
 │   │   ├── cli/                       # sndr install / launch / doctor / verify
 │   │   ├── dispatcher/                # registry · spec · decision · audit
 │   │   ├── apply/                     # orchestrator · shadow · per-patch dispatch
-│   │   ├── integrations/              # 287 community patches (lazy __init__.py)
+│   │   ├── integrations/              # 298 community patches (lazy __init__.py)
 │   │   │   ├── attention/{flash,gdn,turboquant}/
 │   │   │   ├── compile_safety/  kv_cache/  loader/  lora/  memory/
 │   │   │   ├── middleware/  moe/  multimodal/  observability/  quantization/
@@ -131,7 +131,7 @@ genesis-vllm-patches/
 │   │   ├── version.py                 # SNDR_CORE_VERSION = "11.0.0"
 │   │   ├── dispatcher/                # PATCH_REGISTRY spec + decision + audit
 │   │   ├── apply/                     # boot apply loop + per-patch dispatch
-│   │   └── integrations/              # 287 community patches grouped by 23 families
+│   │   └── integrations/              # 298 community patches grouped by 23 families
 │   │                                  # (attention.*/spec_decode/kv_cache/gemma4/etc.)
 │   │
 │   └── sndr_engine/                   # ◄── Commercial package (gitignored)

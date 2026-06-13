@@ -13,6 +13,7 @@
 .PHONY: help test gates audit docs precommit paths-env clean \
         test-pin-gate test-iron-rule test-family test-doc-sync \
         audit-upstream audit-yaml preflight lint-drift-markers \
+        tokenizer-fingerprint \
         docs-check docs-write doctor \
         evidence evidence-release evidence-json gui-build
 
@@ -141,6 +142,16 @@ lint-drift-markers: ## §6 self-collision lint: upstream_drift_markers vs the pa
 		exit 2; }
 	$(PYTHON) tools/lint_drift_markers.py "$${CANDIDATE_ROOT}" \
 		$${JSON_OUT:+--json-out "$${JSON_OUT}"}
+
+tokenizer-fingerprint: ## Tokenizer-fingerprint gate, run in-container pre-bench on every pin bump (env: MODEL_PATH [PROMPTS_FILE] [JSON_OUT] [COMPARE]); see docs/PIN_BUMP_PLAYBOOK.md step 5b
+	@test -n "$${MODEL_PATH}" || { \
+		echo "Usage: make tokenizer-fingerprint MODEL_PATH=/models/<model> [PROMPTS_FILE=...] [JSON_OUT=...] [COMPARE=baseline.json]"; \
+		echo "Runs in-container (needs transformers + the model tokenizer files)."; \
+		exit 2; }
+	$(PYTHON) tools/tokenizer_fingerprint.py --model-path "$${MODEL_PATH}" \
+		$${PROMPTS_FILE:+--prompts-file "$${PROMPTS_FILE}"} \
+		$${JSON_OUT:+--json-out "$${JSON_OUT}"} \
+		$${COMPARE:+--compare "$${COMPARE}"}
 
 audit-legacy-imports: ## Forbid vllm.sndr_core.patches / vllm._genesis active imports
 	@bash scripts/check_no_legacy_imports.sh

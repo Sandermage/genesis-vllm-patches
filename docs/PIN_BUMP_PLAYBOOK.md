@@ -184,6 +184,36 @@ with the Genesis tree mounted, watch the boot apply summary
 skip/apply sets against the preflight prediction — disagreements are
 pipeline bugs or env-conditional patches; investigate both.
 
+## 5b. Tokenizer-fingerprint gate (in-container, BEFORE any bench)
+
+Lesson from upstream #45109 (AWQ expected outputs changed under the
+Transformers v5 tokenizer): a silent tokenizer-behavior change across
+a pin bump produces output diffs that get misattributed to Genesis
+patches — hours of misdirected bisection. AWQ/AutoRound checkpoints
+are exactly the affected class. <1 min check; run it on every bump
+for every affected model BEFORE step 6:
+
+```bash
+# Inside the throwaway container from step 5 (transformers available):
+#   first bump for a model -> store the baseline
+python3 tools/tokenizer_fingerprint.py --model-path /models/<model> \
+    --json-out evidence/tokenizer_fp_<model>_<pin>.json
+#   subsequent bumps -> compare against the previous pin's baseline
+python3 tools/tokenizer_fingerprint.py --model-path /models/<model> \
+    --compare evidence/tokenizer_fp_<model>_<prev_pin>.json
+# equivalent: make tokenizer-fingerprint MODEL_PATH=... [COMPARE=...]
+```
+
+Exit 0 (MATCH) — the tokenizer is not the variable; any output diff in
+steps 5-6 is patch-attributable. Exit 1 (MISMATCH, drifted prompt
+classes named) — STOP: re-baseline expected outputs and check the
+model's `tokenizer_class` against the pin's
+`_MODEL_TYPES_WITH_INCORRECT_TOKENIZER_CLASS` hook
+(`transformers_utils/tokenizer.py` lineage) before blaming patches.
+The canonical prompt set is embedded and versioned
+(`genesis-canonical-v1`); fingerprints are only comparable within the
+same prompt set.
+
 ## 6. Canonical bench vs reference_metrics
 
 `tools/genesis_bench_suite.py --quick` per affected model, compared
@@ -224,7 +254,7 @@ Only after steps 2-6 are clean:
 
 ---
 
-## The nine empirical failure classes this pipeline guards against
+## The ten empirical failure classes this pipeline guards against
 
 1. **Anchor drift** (skill class 5) — upstream refactor moves/changes
    the anchored region → `DRIFT_ANCHOR` / `AMBIGUOUS_ANCHOR`.
@@ -255,6 +285,12 @@ Only after steps 2-6 are clean:
    `vllm.*` import targets were renamed/removed (e.g.
    `v1/spec_decode/eagle3`, `apply_fp8_block_linear`) →
    `BINDING_FILE_MISSING` / `BINDING_SYMBOL_MISSING`.
+10. **Tokenizer-behavior drift** (the #45109 class) — the candidate
+    image ships a different Transformers major whose tokenizer
+    segments the same prompts differently; output diffs then get
+    misattributed to Genesis patches → step 5b
+    `tools/tokenizer_fingerprint.py --compare` (exit 1 = re-baseline
+    first, AWQ/AutoRound checkpoints are the proven-affected class).
 
 ## v1 limitations / v1.1 roadmap
 

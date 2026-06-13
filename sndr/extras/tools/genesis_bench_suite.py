@@ -102,6 +102,18 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--skip-stress", action="store_true")
     p.add_argument("--skip-ctx-probe", action="store_true")
     p.add_argument("--skip-multi-turn", action="store_true")
+    # Spec-decode accept-rate floor (PN380 / vllm#44943 companion):
+    # a partially-loaded MTP draft serves fine — the only external
+    # symptom is the windowed accept rate collapsing (~0.65-0.78
+    # healthy vs ~0.42 corrupted). WARN when the bench window lands
+    # below the floor.
+    p.add_argument("--accept-rate-floor", type=float,
+                   default=SPEC_DECODE_ACCEPT_RATE_FLOOR, metavar="RATE",
+                   help="Spec-decode accept-rate floor for the bench window "
+                        "(accepted/drafted delta across the run). Below this "
+                        "the suite prints a loud WARN — symptom of a "
+                        "partially-loaded MTP draft (vllm#44943 class). "
+                        f"Default {SPEC_DECODE_ACCEPT_RATE_FLOOR}.")
     # Compare mode
     p.add_argument("--compare", nargs=2, metavar=("A.json", "B.json"),
                    help="Run Welch t-test compare on two existing result JSONs and exit.")
@@ -1011,6 +1023,38 @@ def _local_vram_used_mib() -> list[int] | None:
         return None
 
 
+# Spec-decode accept-rate floor (roadmap 2026-06-11, PN380/vllm#44943
+# companion). Healthy Qwen3.6 MTP K=3 windows measure ~0.65-0.78
+# accepted/drafted; the partially-loaded-draft failure mode measures
+# ~0.42 (upstream #44943 A/B: 65.0% -> 41.9%). 0.55 splits the two
+# populations with margin on both sides.
+SPEC_DECODE_ACCEPT_RATE_FLOOR = 0.55
+
+
+def evaluate_accept_rate_floor(
+    window_rate: float | None,
+    floor: float = SPEC_DECODE_ACCEPT_RATE_FLOOR,
+) -> dict:
+    """Verdict dict for the windowed spec-decode accept rate vs floor.
+
+    ``window_rate`` is ``accept_rate_window.window_accept_rate`` (delta
+    of the Prometheus accepted/drafted counters across the bench run).
+    None (spec decode inactive / metrics unavailable) is N/A, never a
+    false WARN. Below-floor is the loud signal of a partially-loaded
+    MTP draft (the vllm#44943 class PN380 guards at load time).
+    """
+    if window_rate is None:
+        return dict(
+            checked=False, floor=floor, window_accept_rate=None,
+            verdict="N/A",
+        )
+    return dict(
+        checked=True, floor=floor,
+        window_accept_rate=round(window_rate, 4),
+        verdict="PASS" if window_rate >= floor else "WARN",
+    )
+
+
 def scrape_accept_rate(host: str, port: int, key: str) -> dict:
     """Scrape vLLM Prometheus metrics for spec-decode acceptance.
 
@@ -1413,6 +1457,20 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"      window accept_rate (this run): "
                       f"{window_rate:.3f}  "
                       f"({d_accepted:.0f}/{d_drafted:.0f} tokens)")
+            # Accept-rate floor check (PN380 / vllm#44943 companion):
+            # a partially-loaded MTP draft serves fine — the collapsed
+            # accept rate is the only external symptom.
+            floor_check = evaluate_accept_rate_floor(
+                window_rate, floor=args.accept_rate_floor
+            )
+            result["accept_rate_floor"] = floor_check
+            if floor_check["verdict"] == "WARN":
+                print(f"      WARN: spec-decode accept rate "
+                      f"{floor_check['window_accept_rate']:.3f} is below "
+                      f"the floor {floor_check['floor']:.2f} — symptom of "
+                      f"a partially-loaded MTP draft (vllm#44943 class). "
+                      f"Check boot logs for '[Genesis PN380' coverage-gap "
+                      f"errors and 'not found in params_dict' warnings.")
 
     # 6. Persist (will be re-written below if ablation comparison runs)
     print("\n[6/8] Writing output...")
@@ -1445,6 +1503,11 @@ def main(argv: list[str] | None = None) -> int:
     if "ctx_probe" in result:
         c = result["ctx_probe"]
         print(f"  Context probe:    max stable {c.get('max_stable_label','?')}")
+    if result.get("accept_rate_floor", {}).get("checked"):
+        f = result["accept_rate_floor"]
+        print(f"  Accept-rate floor: {f['verdict']}  "
+              f"(window {f['window_accept_rate']:.3f} vs floor "
+              f"{f['floor']:.2f})")
     print("=" * 72)
     print()
     print("Share via GitHub Discussion:")

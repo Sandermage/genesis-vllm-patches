@@ -184,6 +184,12 @@ def test_spec_only_truly_orphan_baseline():
         "PN353B", "PN357",
         # 2026-06-11 50-PR sweep wave 1 — spec-only by design
         "G4_80", "PN371", "PN373",
+        # 2026-06-13 50-PR sweep wave 2 — nine spec-only-by-design
+        # vendors/blueprints (apply_module set, no legacy hook). PN377
+        # is the lone wave-2 patch with a legacy @register_patch hook
+        # (apply_patch_N377_*), so it is NOT a spec-only orphan.
+        "P88", "PN358", "PN376", "PN378", "PN379",
+        "PN380", "PN381", "PN382", "G4_81", "PN383",
     }
     actual = set(diff["spec_only_truly_orphan_ids"])
     new_orphans = sorted(actual - expected)

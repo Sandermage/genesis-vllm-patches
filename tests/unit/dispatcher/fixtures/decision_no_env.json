@@ -380,6 +380,11 @@
     "reason": "strict opt-in — set GENESIS_ENABLE_PN104_OFFLOAD_PREFETCH_REDIRECT=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
   },
   {
+    "patch_id": "PN383",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_PN383_OFFLOAD_MTP_EAGLE_GATE=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
     "patch_id": "PN97",
     "applied": false,
     "reason": "strict opt-in — set GENESIS_ENABLE_PN97_TENSOR_PHYSICAL_CAP=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
@@ -1363,6 +1368,56 @@
     "patch_id": "G4_80",
     "applied": false,
     "reason": "strict opt-in — set GENESIS_ENABLE_G4_80_FP8E5M2_KV=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
+    "patch_id": "P88",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_P88_PREFIX_CACHE_STATS_DEDUP=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
+    "patch_id": "PN358",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_PN358_FULL_CG_CONTEXT_REFRESH=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
+    "patch_id": "PN376",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_PN376_FP8_IGNORE_SUBSTRING=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
+    "patch_id": "PN377",
+    "applied": false,
+    "reason": "strict opt-in: patch has default_on=True (informational) but env_flag=GENESIS_ENABLE_PN377_MOE_WNA16_BSK_CLAMP unset. Add GENESIS_ENABLE_PN377_MOE_WNA16_BSK_CLAMP=1 to launch config to engage. Set GENESIS_LEGACY_DEFAULT_ON=1 to revert to pre-2026-05-17 auto-apply semantics."
+  },
+  {
+    "patch_id": "PN378",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_PN378_VOCAB_PAD_MASK=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
+    "patch_id": "PN379",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_PN379_LOAD_CONFIG_FAIL_FAST=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
+    "patch_id": "PN380",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_PN380_MTP_PREFUSED_LOADER=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
+    "patch_id": "PN381",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_PN381_ALLOWED_TOKEN_IDS_METADATA=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
+    "patch_id": "PN382",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_PN382_DECODE_BENCH_HYBRID_FILL=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
+    "patch_id": "G4_81",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_G4_81_TQ_MQ_DIRECT_ROUTE=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
   },
   {
     "patch_id": "G4_70",

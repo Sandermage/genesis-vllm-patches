@@ -50,9 +50,34 @@ Output:
   * c: ``[M_total, N]`` fp16/bf16
 
 Tiling:
-  BLOCK_M = 64
-  BLOCK_N = 64 or 128 (autotune)
-  BLOCK_K = 32 or 64 (autotune)
+  BLOCK_M = 64 (LOCKED — see TILE CONFIG below)
+  BLOCK_N = 64 or 128 (swept offline)
+  BLOCK_K = 32, 64 or 128 (swept offline)
+
+================================================================
+TILE CONFIG — G4_81 frozen tuned tables (#45126 sweep transfer)
+================================================================
+
+Launch config resolution (2026-06-11, roadmap chunk-2 Theme C):
+
+  1. Explicit ``tile_config`` argument (the sweep-harness injection
+     point — ``tools/triton_gemm_sweep.py``) always wins.
+  2. With ``GENESIS_ENABLE_G4_81_KPAD_TUNED_TILES=1`` and a frozen
+     per-arch entry in ``G4_KPAD_TUNED_TILES`` for the current device
+     capability, the tuned config is used. Tables are produced OFFLINE
+     by ``tools/triton_gemm_sweep.py`` (sm_86 profile, bit-identical
+     gate) and pasted here — NEVER ``@triton.autotune`` (deterministic
+     by construction; no run-to-run winner jitter, cudagraph-safe;
+     same mechanism class as upstream vllm#45126).
+  3. Otherwise ``DEFAULT_TILE_CONFIG`` — the historical literals
+     (64, 64, 64, GROUP_SIZE_M=1, 4 warps, 2 stages). GROUP_SIZE_M=1
+     reduces the grouped (L2-swizzled) program ordering to plain
+     row-major, i.e. exactly the original kernel behavior.
+
+BLOCK_M is LOCKED at 64: each M-tile reads ONE expert id from its
+first row, so M-tile boundaries must coincide with the caller's
+expert-segment alignment (the G4_08 route sorts/aligns at 64-row
+granularity). ``validate_tile_config`` enforces the lock.
 
 Quant paths supported:
   * num_bits = 8 (FP8 — per-channel scale, no pack)
@@ -105,8 +130,10 @@ References:
 """
 from __future__ import annotations
 
+import functools
 import logging
 import math
+import os
 from typing import Optional
 
 import torch
@@ -124,7 +151,108 @@ __all__ = [
     "g4_kpad_moe_gemm",
     "pad_moe_weight_to_aligned_k",
     "g4_kpad_moe_gemm_reference",
+    "DEFAULT_TILE_CONFIG",
+    "G4_KPAD_TUNED_TILES",
+    "validate_tile_config",
 ]
+
+
+# ─── G4_81: frozen tuned tile tables (#45126 sweep transfer) ─────────
+
+# TileConfig tuple: (BLOCK_M, BLOCK_N, BLOCK_K, GROUP_SIZE_M,
+#                    num_warps, num_stages).
+# GROUP_SIZE_M=1 reduces the grouped program ordering to the original
+# row-major order, so DEFAULT_TILE_CONFIG compiles to the pre-G4_81
+# kernel launch exactly.
+DEFAULT_TILE_CONFIG: tuple[int, int, int, int, int, int] = (64, 64, 64, 1, 4, 2)
+
+_G4_81_ENV_FLAG = "GENESIS_ENABLE_G4_81_KPAD_TUNED_TILES"
+
+# Frozen per-arch tuned tables, keyed (cc_major, cc_minor) ->
+# {(m_bucket, is_small_n): TileConfig}. Bucketing is byte-compatible
+# with upstream vllm#45126: m_bucket = min(max(32, next_power_of_2(M)),
+# 1024); is_small_n = N < 8192.
+#
+# POPULATE VIA THE OFFLINE SWEEP ON THE RIG — never hand-edit:
+#   python3 tools/triton_gemm_sweep.py --target g4_kpad_moe_gemm \
+#       --arch sm_86 --hidden-size <from checkpoint config.json> \
+#       --out results_sm86.json
+#   python3 tools/triton_gemm_sweep.py --emit-table results_sm86.json
+# Every entry passed the harness's bit-identical gate (or is explicitly
+# marked tolerance-gated by the emitter). Empty until the first rig
+# sweep lands; lookups fall back to DEFAULT_TILE_CONFIG (fail-open).
+G4_KPAD_TUNED_TILES: dict[
+    tuple[int, int], dict[tuple[int, bool], tuple[int, int, int, int, int, int]]
+] = {}
+
+_VALID_WARPS = (1, 2, 4, 8, 16)
+
+
+def validate_tile_config(cfg: tuple) -> None:
+    """Validate a TileConfig tuple. Raises ValueError on malformed input.
+
+    BLOCK_M is locked at 64 — the expert-segment alignment contract
+    (one expert id per M-tile, caller aligns at 64-row granularity).
+    """
+    if len(cfg) != 6:
+        raise ValueError(f"tile_config must have 6 fields, got {len(cfg)}: {cfg!r}")
+    block_m, block_n, block_k, group_size_m, num_warps, num_stages = cfg
+    if block_m != 64:
+        raise ValueError(
+            f"BLOCK_M is locked at 64 (expert-segment alignment), got {block_m}"
+        )
+    for name, val in (("BLOCK_N", block_n), ("BLOCK_K", block_k)):
+        if val < 16 or (val & (val - 1)) != 0:
+            raise ValueError(f"{name} must be a power of 2 >= 16, got {val}")
+    if group_size_m < 1:
+        raise ValueError(f"GROUP_SIZE_M must be >= 1, got {group_size_m}")
+    if num_warps not in _VALID_WARPS:
+        raise ValueError(f"num_warps must be one of {_VALID_WARPS}, got {num_warps}")
+    if num_stages < 1:
+        raise ValueError(f"num_stages must be >= 1, got {num_stages}")
+
+
+def _m_bucket(M: int) -> int:
+    """#45126 M-bucket — keep in sync with tools/triton_gemm_sweep.py
+    (parity pinned by tests/unit/integrations/gemma4/
+    test_g4_kpad_tuned_tiles.py)."""
+    npo2 = 1 << (max(1, M) - 1).bit_length()
+    return min(max(32, npo2), 1024)
+
+
+@functools.lru_cache(maxsize=1)
+def _device_capability_cached() -> Optional[tuple[int, int]]:
+    try:
+        if not torch.cuda.is_available():
+            return None
+        return tuple(torch.cuda.get_device_capability())
+    except Exception:  # noqa: BLE001 — fail-open: no table, default config
+        return None
+
+
+def _device_capability() -> Optional[tuple[int, int]]:
+    """Indirection point (monkeypatchable in tests)."""
+    return _device_capability_cached()
+
+
+def _get_tile_config(M_total: int, N: int) -> tuple[int, int, int, int, int, int]:
+    """Resolve the launch config: tuned table (env-gated) or default.
+
+    Pure-Python dict lookup — compile/cudagraph-safe, deterministic
+    (no Autotuner involved). Fail-open everywhere: unknown arch, env
+    off, missing bucket all yield DEFAULT_TILE_CONFIG.
+    """
+    if os.environ.get(_G4_81_ENV_FLAG, "").strip().lower() not in (
+        "1", "true", "yes", "on",
+    ):
+        return DEFAULT_TILE_CONFIG
+    cap = _device_capability()
+    if cap is None:
+        return DEFAULT_TILE_CONFIG
+    tuned = G4_KPAD_TUNED_TILES.get(cap)
+    if tuned is None:
+        return DEFAULT_TILE_CONFIG
+    return tuned.get((_m_bucket(M_total), N < 8192), DEFAULT_TILE_CONFIG)
 
 
 # ─── Triton kernel ───────────────────────────────────────────────────
@@ -156,14 +284,31 @@ if _HAS_TRITON:
         GROUP_SIZE: tl.constexpr,
         HAS_GELU_TANH: tl.constexpr,
         NUM_BITS: tl.constexpr,
+        GROUP_SIZE_M: tl.constexpr,
     ):
         """MoE GEMM with K-padding mask for K not divisible by min_thread_k.
 
         Each block computes one BLOCK_M × BLOCK_N tile for one expert.
         Padding-zone K-loads are masked to 0 so the dot is exact.
+
+        Launched on a 1D grid of num_pid_m * num_pid_n programs with
+        L2-cache-friendly grouped program ordering (PID swizzle, G4_81 /
+        vllm#45126 transfer). NOTE: when GROUP_SIZE_M = 1 this reduces
+        exactly to row-major order (pid_m = pid // num_pid_n, pid_n =
+        pid % num_pid_n) — the same tile->data mapping as the original
+        2D-grid launch, so the default config is behavior-identical.
+        Ordering only changes WHICH program computes a tile, never the
+        per-tile math: outputs are bit-identical across GROUP_SIZE_M.
         """
-        pid_m = tl.program_id(0)
-        pid_n = tl.program_id(1)
+        pid = tl.program_id(0)
+        num_pid_m = tl.cdiv(M_total, BLOCK_M)
+        num_pid_n = tl.cdiv(N_full, BLOCK_N)
+        num_pid_in_group = GROUP_SIZE_M * num_pid_n
+        group_id = pid // num_pid_in_group
+        first_pid_m = group_id * GROUP_SIZE_M
+        group_size_m = min(num_pid_m - first_pid_m, GROUP_SIZE_M)
+        pid_m = first_pid_m + (pid % num_pid_in_group) % group_size_m
+        pid_n = (pid % num_pid_in_group) // group_size_m
 
         # Row offsets within this M-tile
         m_offsets = pid_m * BLOCK_M + tl.arange(0, BLOCK_M)
@@ -309,6 +454,7 @@ def g4_kpad_moe_gemm(
     group_size: int = 32,
     has_gelu_tanh: bool = False,
     output_dtype: Optional[torch.dtype] = None,
+    tile_config: Optional[tuple[int, int, int, int, int, int]] = None,
 ) -> torch.Tensor:
     """Public Genesis K-pad MoE GEMM. Replaces Marlin when K%64≠0.
 
@@ -323,6 +469,11 @@ def g4_kpad_moe_gemm(
         group_size: AWQ group size (ignored for FP8)
         has_gelu_tanh: apply GELU-tanh + gate*up fusion at output
         output_dtype: optional override; defaults to activations.dtype
+        tile_config: optional explicit (BLOCK_M, BLOCK_N, BLOCK_K,
+            GROUP_SIZE_M, num_warps, num_stages) override — the
+            ``tools/triton_gemm_sweep.py`` injection point. When None,
+            resolved via the G4_81 frozen tables (env-gated) or
+            DEFAULT_TILE_CONFIG.
 
     Returns:
         [M_total, N] or [M_total, N//2] if has_gelu_tanh
@@ -348,12 +499,17 @@ def g4_kpad_moe_gemm(
     out_dtype = output_dtype or activations.dtype
     c = torch.empty(M_total, out_N, dtype=out_dtype, device=activations.device)
 
-    # Autotune-friendly block sizes for SM 8.6
-    BLOCK_M = 64
-    BLOCK_N = 64
-    BLOCK_K = 64
+    # Launch config: explicit override (sweep harness) > G4_81 frozen
+    # table (env-gated) > historical default. NEVER runtime-autotuned —
+    # deterministic pure-Python resolution (#45126 mechanism class).
+    if tile_config is None:
+        tile_config = _get_tile_config(M_total, N)
+    validate_tile_config(tile_config)
+    BLOCK_M, BLOCK_N, BLOCK_K, GROUP_M, num_warps, num_stages = tile_config
 
-    grid = (triton.cdiv(M_total, BLOCK_M), triton.cdiv(N, BLOCK_N))
+    # 1D grid; the kernel derives (pid_m, pid_n) via grouped ordering.
+    # GROUP_M=1 == row-major == the original 2D-grid tile mapping.
+    grid = (triton.cdiv(M_total, BLOCK_M) * triton.cdiv(N, BLOCK_N),)
 
     # Scale strides — depend on quant type
     if num_bits == 4:
@@ -378,8 +534,9 @@ def g4_kpad_moe_gemm(
         GROUP_SIZE=group_size,
         HAS_GELU_TANH=has_gelu_tanh,
         NUM_BITS=num_bits,
-        num_warps=4,
-        num_stages=2,
+        GROUP_SIZE_M=GROUP_M,
+        num_warps=num_warps,
+        num_stages=num_stages,
     )
 
     # Apply GELU-tanh outside the kernel for v1 (cleaner; fold in v2)

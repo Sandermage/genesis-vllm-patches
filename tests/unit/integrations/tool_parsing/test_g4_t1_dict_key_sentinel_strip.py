@@ -22,10 +22,13 @@ post-hoc strip; #44717's strip is provably dead code once the branch is
 in — a key reaching the bare-key path can no longer start with
 STRING_DELIM).
 
-Both Genesis G4_T1 overlay variants vendor the buggy key scanner:
+All three Genesis G4_T1 overlay variants vendor the key scanner:
 
 * ``g4_t1_v2_gemma4_tool_parser_pr42237_overlay.py`` (CURRENT, mounted)
 * ``g4_t1_gemma4_tool_parser_pr42006_overlay.py``    (LEGACY rollback)
+* ``g4_t1_v3_gemma4_tool_parser_pr44844_overlay.py`` (v3 PREP, not
+  mounted — verbatim PR #44844 head with the #44877 quoted-key branch
+  folded in per the roadmap synergy note; A/B vs v2 at server stage)
 
 Test strategy: the overlay modules import vllm at module top (not
 importable in the dev venv), so the pure parser functions are extracted
@@ -51,6 +54,8 @@ OVERLAYS = {
     / "g4_t1_v2_gemma4_tool_parser_pr42237_overlay.py",
     "v1_pr42006_legacy": PATCH_DIR
     / "g4_t1_gemma4_tool_parser_pr42006_overlay.py",
+    "v3_pr44844_prep": PATCH_DIR
+    / "g4_t1_v3_gemma4_tool_parser_pr44844_overlay.py",
 }
 
 _WANTED_FUNCS = {

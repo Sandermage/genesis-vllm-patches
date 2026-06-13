@@ -1,0 +1,1069 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: Copyright contributors to the vLLM project
+#
+# Genesis G4_T1 v3 PREP — vendored gemma4 tool-parser span-based rewrite
+# (vLLM upstream PR #44844)
+# ─────────────────────────────────────────────────────────────────────────
+# This file is a verbatim copy of `vllm/tool_parsers/gemma4_tool_parser.py`
+# from the head of `ishaan-smallest/vllm` branch
+# `fix-gemma4-streaming-tool-parser` (vLLM upstream PR #44844, OPEN at
+# vendor time 2026-06-11; head sha a0c0ba69be623a17203e22a75dde3752251deb14,
+# base sha bb78168b210c4ff84cd02cd3412e21e595b0f603), PLUS three marked
+# Genesis deltas listed below.
+#
+# NOT BIND-MOUNTED ANYWHERE. This is a PREP vendor only (roadmap chunk-4
+# Theme 1, Wave 2): the live launcher keeps mounting the v2 overlay
+# (`g4_t1_v2_gemma4_tool_parser_pr42237_overlay.py`). The A/B of v3 vs
+# v2 on the 7x5 tool-call harness (greedy decode, streaming +
+# non-streaming, keep-alive + Connection:close) happens at the SERVER
+# stage; only after v3 wins does the launcher `-v` mount switch.
+#
+# Provenance + investigation discipline (Sander iron rule #10/#11):
+#   1. STUDY:  read PR #44844 diff end-to-end via `gh pr diff`; it
+#              rewrites the PRISTINE pin parser's streaming path from
+#              the tag-counting state machine into span-based extraction:
+#              regex-find all COMPLETE `<|tool_call>call:name{...}
+#              <tool_call|>` spans in the accumulated text, finalize each
+#              span idempotently by index, handle the single trailing
+#              OPEN call via the middle path, and emit content strictly
+#              from text OUTSIDE tool spans (streamed_content_end cursor).
+#   2. ANALYZE: two capabilities v2 (#42237 rescan) lacks:
+#              (a) stripped-marker recovery — `_prepare_tool_call_text`
+#              virtualizes `call:name{...}` bodies whose special-token
+#              markers were eaten upstream (reasoning-to-tool handoff
+#              under MTP), instead of leaking them as content;
+#              (b) `_find_call_body_end` brace matching that respects
+#              STRING_DELIM spans, so `}` inside string values cannot
+#              close a virtualized call early.
+#   3. VERIFY: pin 0.22.1rc1.dev259+g303916e93 pristine file
+#              (/private/tmp/candidate_pin_current/vllm/tool_parsers/
+#              gemma4_tool_parser.py) still carries the OLD state-machine
+#              `_extract_streaming(previous_text, current_text,
+#              delta_text)` — PR #44844 is NOT in pin. The head file was
+#              fetched verbatim via the GitHub contents API at the head
+#              sha above.
+#   4. SEARCH: SIX upstream PRs race on root issue #41967 — #42006 /
+#              #42237 / #42300 / #44741 / #45068 / #44844 (canonical
+#              rows: tools/upstream_watchlist.yaml sweep: section).
+#              #44741 is already vendored as runtime hook PN375 (pristine
+#              parser only; self-skips on overlay variants); #45068's
+#              corpus + token-id gate landed in the v2 overlay this same
+#              sweep.
+#   5. COMPARE: v2 rescan is structurally immune to multi-boundary MTP
+#              deltas but (a) cannot recover stripped `call:name{...}`
+#              bodies and (b) carries the keep-alive instance-reuse
+#              state leak (31/35, header of the v2 file). v3 adds (a)
+#              upstream-side and fixes (b) Genesis-side (delta 1 below —
+#              the verbatim head has NO reset guard at all, not even
+#              v2's `if not previous_text:`).
+#   6. THEN CHANGE: vendor head + 3 Genesis deltas, tests first
+#              (tests/unit/integrations/tool_parsing/
+#              test_g4_t1_streaming_mtp_corpus.py +
+#              test_g4_t1_dict_key_sentinel_strip.py run the SAME corpus
+#              against v2 and v3).
+#
+# Genesis deltas vs the verbatim PR #44844 head (each marked inline with
+# a `[Genesis G4_T1 v3]` comment):
+#
+#   1. RESET-GUARD HARDENING — `extract_tool_calls_streaming` detects a
+#      new request when `previous_text` is empty OR `current_text` no
+#      longer extends the text this instance last processed, and resets
+#      ALL streaming state including `buffered_delta_text` (which the
+#      head initializes outside `_reset_streaming_state`). This closes
+#      the keep-alive instance-reuse leak class measured at 31/35 on v2:
+#      strict-xfail reproduction for v2 and a PASSING run for this file
+#      live in test_g4_t1_streaming_mtp_corpus.py
+#      (test_keep_alive_instance_reuse_second_request_clean).
+#   2. PR #44877 QUOTED-KEY BRANCH folded into `_parse_gemma4_args` (per
+#      roadmap synergy note: one overlay, one watchlist row each). Same
+#      hunk as vendored in the v2/v1 overlays 2026-06-11; fixes
+#      STRING_DELIM-wrapped dict keys leaking `<|"|>` sentinel bytes.
+#   3. This header.
+#
+# Retire trigger: identical to the v2 overlay — first racing-cluster PR
+# (#42006 / #42237 / #42300 / #44741 / #45068 / #44844) that merges AND
+# reaches a pin we run retires the whole G4_T1 stack after an
+# iron-rule-#11 deep-diff. If #44844 itself merges, ALSO verify #44877
+# (quoted-key) is in that pin; if not, re-vendor the quoted-key branch
+# as a standalone text patch.
+#
+# ─────────────────────────────────────────────────────────────────────────
+# BEGIN VERBATIM PR #44844 HEAD SOURCE (+ marked Genesis deltas)
+# ─────────────────────────────────────────────────────────────────────────
+"""
+Tool call parser for Google Gemma4 models.
+
+Gemma4 uses a custom serialization format (not JSON) for tool calls::
+
+    <|tool_call>call:func_name{key:<|"|>value<|"|>,num:42}<tool_call|>
+
+Strings are delimited by ``<|"|>`` (token 52), keys are unquoted, and
+multiple tool calls are concatenated without separators.
+
+Used when ``--enable-auto-tool-choice --tool-call-parser gemma4`` are set.
+
+For offline inference tool call parsing (direct ``tokenizer.decode()`` output),
+see ``vllm.tool_parsers.gemma4_utils.parse_tool_calls``.
+"""
+
+import json
+from collections.abc import Sequence
+
+import regex as re
+
+from vllm.entrypoints.chat_utils import make_tool_call_id
+from vllm.entrypoints.openai.chat_completion.protocol import (
+    ChatCompletionRequest,
+)
+from vllm.entrypoints.openai.engine.protocol import (
+    DeltaFunctionCall,
+    DeltaMessage,
+    DeltaToolCall,
+    ExtractedToolCallInformation,
+    FunctionCall,
+    ToolCall,
+)
+from vllm.entrypoints.openai.responses.protocol import (
+    ResponsesRequest,
+)
+from vllm.logger import init_logger
+from vllm.tokenizers import TokenizerLike
+from vllm.tool_parsers.abstract_tool_parser import Tool, ToolParser
+from vllm.tool_parsers.utils import find_common_prefix
+
+logger = init_logger(__name__)
+
+# Gemma4 special tokens for tool calls
+TOOL_CALL_START = "<|tool_call>"
+TOOL_CALL_END = "<tool_call|>"
+STRING_DELIM = '<|"|>'
+
+
+# ---------------------------------------------------------------------------
+# Gemma4 argument parser (used by both streaming and non-streaming paths)
+# ---------------------------------------------------------------------------
+
+
+def _parse_gemma4_value(value_str: str) -> object:
+    """Parse a single Gemma4 value (after key:) into a Python object."""
+    value_str = value_str.strip()
+    if not value_str:
+        return value_str
+
+    # Boolean
+    if value_str == "true":
+        return True
+    if value_str == "false":
+        return False
+
+    # Null
+    if value_str.lower() in ("null", "none", "nil"):
+        return None
+
+    # Number (int or float)
+    try:
+        if "." in value_str:
+            return float(value_str)
+        return int(value_str)
+    except ValueError:
+        pass
+
+    # Bare string (no <|"|> delimiters — shouldn't happen but be safe)
+    return value_str
+
+
+def _parse_gemma4_args(args_str: str, *, partial: bool = False) -> dict:
+    """Parse Gemma4's custom key:value format into a Python dict.
+
+    Format examples::
+
+        location:<|"|>Tokyo<|"|>
+        location:<|"|>San Francisco<|"|>,unit:<|"|>celsius<|"|>
+        count:42,flag:true
+        nested:{inner_key:<|"|>val<|"|>}
+        items:[<|"|>a<|"|>,<|"|>b<|"|>]
+
+    Args:
+        args_str: The raw Gemma4 argument string.
+        partial: When True (streaming), bare values at end of string are
+            omitted because they may be incomplete and type-unstable
+            (e.g. partial boolean parsed as bare string).
+
+    Returns a dict ready for ``json.dumps()``.
+    """
+    if not args_str or not args_str.strip():
+        return {}
+
+    result: dict = {}
+    i = 0
+    n = len(args_str)
+
+    while i < n:
+        # Skip whitespace and commas
+        while i < n and args_str[i] in (" ", ",", "\n", "\t"):
+            i += 1
+        if i >= n:
+            break
+
+        # [Genesis G4_T1 v3] Parse key. Keys are usually bare identifiers
+        # terminated by ':', but the model may wrap a string-typed key in
+        # STRING_DELIM (e.g. <|"|>3<|"|>) to mark a numeric-looking key as
+        # a string. Handle that case the same way as string values below
+        # so the delimiter is stripped from the key rather than kept
+        # verbatim (vendored upstream PR #44877, issue #44715 — folded
+        # into this v3 overlay per the roadmap synergy note; same hunk as
+        # the v2/v1 overlays carry). The branch additionally handles ':'
+        # inside a quoted key and withholds unterminated quoted keys
+        # during streaming.
+        if args_str[i:].startswith(STRING_DELIM):
+            i += len(STRING_DELIM)
+            key_start = i
+            end_pos = args_str.find(STRING_DELIM, i)
+            if end_pos == -1:
+                # Unterminated key string — nothing parseable follows.
+                break
+            key = args_str[key_start:end_pos]
+            i = end_pos + len(STRING_DELIM)
+            # Skip to the ':' separator (whitespace may precede it).
+            while i < n and args_str[i] != ":":
+                i += 1
+            if i >= n:
+                break
+            i += 1  # skip ':'
+        else:
+            key_start = i
+            while i < n and args_str[i] != ":":
+                i += 1
+            if i >= n:
+                break
+            key = args_str[key_start:i].strip()
+            i += 1  # skip ':'
+
+        # Parse value
+        if i >= n:
+            if not partial:
+                result[key] = ""
+            break
+
+        # Skip whitespace after ':'
+        while i < n and args_str[i] in (" ", "\n", "\t"):
+            i += 1
+        if i >= n:
+            if not partial:
+                result[key] = ""
+            break
+
+        # String value: <|"|>...<|"|>
+        if args_str[i:].startswith(STRING_DELIM):
+            i += len(STRING_DELIM)
+            val_start = i
+            end_pos = args_str.find(STRING_DELIM, i)
+            if end_pos == -1:
+                # Unterminated string — take rest
+                result[key] = args_str[val_start:]
+                break
+            result[key] = args_str[val_start:end_pos]
+            i = end_pos + len(STRING_DELIM)
+
+        # Nested object: {...}
+        elif args_str[i] == "{":
+            depth = 1
+            obj_start = i + 1
+            i += 1
+            while i < n and depth > 0:
+                if args_str[i:].startswith(STRING_DELIM):
+                    # Skip over string contents to avoid counting { inside strings
+                    i += len(STRING_DELIM)
+                    next_delim = args_str.find(STRING_DELIM, i)
+                    i = n if next_delim == -1 else next_delim + len(STRING_DELIM)
+                    continue
+                if args_str[i] == "{":
+                    depth += 1
+                elif args_str[i] == "}":
+                    depth -= 1
+                i += 1
+            if depth > 0:
+                # Incomplete nested object — use i (not i-1) to avoid
+                # dropping the last char, and recurse as partial.
+                result[key] = _parse_gemma4_args(args_str[obj_start:i], partial=True)
+            else:
+                result[key] = _parse_gemma4_args(args_str[obj_start : i - 1])
+
+        # Array: [...]
+        elif args_str[i] == "[":
+            depth = 1
+            arr_start = i + 1
+            i += 1
+            while i < n and depth > 0:
+                if args_str[i:].startswith(STRING_DELIM):
+                    i += len(STRING_DELIM)
+                    next_delim = args_str.find(STRING_DELIM, i)
+                    i = n if next_delim == -1 else next_delim + len(STRING_DELIM)
+                    continue
+                if args_str[i] == "[":
+                    depth += 1
+                elif args_str[i] == "]":
+                    depth -= 1
+                i += 1
+            if depth > 0:
+                result[key] = _parse_gemma4_array(args_str[arr_start:i], partial=True)
+            else:
+                result[key] = _parse_gemma4_array(args_str[arr_start : i - 1])
+
+        # Bare value (number, boolean, etc.)
+        else:
+            val_start = i
+            while i < n and args_str[i] not in (",", "}", "]"):
+                i += 1
+            if partial and i >= n:
+                # Value may be incomplete (e.g. partial boolean) —
+                # withhold to avoid type instability during streaming.
+                break
+            if i == val_start:
+                logger.warning(
+                    "Gemma4 args parser made no progress at position %d; "
+                    "aborting on malformed input.",
+                    i,
+                )
+                break
+            if partial:
+                raw_val = args_str[val_start:i].strip()
+                if raw_val.endswith("."):
+                    # Trailing dot means decimal digits may still arrive
+                    # (e.g. "108." may become "108.2"). Parsing now would
+                    # yield float("108.") == 108.0, whose json repr "108.0"
+                    # corrupts the streaming diff when the true digit lands.
+                    break
+            result[key] = _parse_gemma4_value(args_str[val_start:i])
+
+    return result
+
+
+def _parse_gemma4_array(arr_str: str, *, partial: bool = False) -> list:
+    """Parse a Gemma4 array content string into a Python list."""
+    items: list = []
+    i = 0
+    n = len(arr_str)
+
+    while i < n:
+        while i < n and arr_str[i] in (" ", ",", "\n", "\t"):
+            i += 1
+        if i >= n:
+            break
+
+        # String element
+        if arr_str[i:].startswith(STRING_DELIM):
+            i += len(STRING_DELIM)
+            end_pos = arr_str.find(STRING_DELIM, i)
+            if end_pos == -1:
+                items.append(arr_str[i:])
+                break
+            items.append(arr_str[i:end_pos])
+            i = end_pos + len(STRING_DELIM)
+
+        # Nested object
+        elif arr_str[i] == "{":
+            depth = 1
+            obj_start = i + 1
+            i += 1
+            while i < n and depth > 0:
+                if arr_str[i:].startswith(STRING_DELIM):
+                    i += len(STRING_DELIM)
+                    nd = arr_str.find(STRING_DELIM, i)
+                    i = nd + len(STRING_DELIM) if nd != -1 else n
+                    continue
+                if arr_str[i] == "{":
+                    depth += 1
+                elif arr_str[i] == "}":
+                    depth -= 1
+                i += 1
+            if depth > 0:
+                items.append(_parse_gemma4_args(arr_str[obj_start:i], partial=True))
+            else:
+                items.append(_parse_gemma4_args(arr_str[obj_start : i - 1]))
+
+        # Nested array
+        elif arr_str[i] == "[":
+            depth = 1
+            sub_start = i + 1
+            i += 1
+            while i < n and depth > 0:
+                if arr_str[i:].startswith(STRING_DELIM):
+                    i += len(STRING_DELIM)
+                    nd = arr_str.find(STRING_DELIM, i)
+                    i = nd + len(STRING_DELIM) if nd != -1 else n
+                    continue
+                if arr_str[i] == "[":
+                    depth += 1
+                elif arr_str[i] == "]":
+                    depth -= 1
+                i += 1
+            if depth > 0:
+                items.append(_parse_gemma4_array(arr_str[sub_start:i], partial=True))
+            else:
+                items.append(_parse_gemma4_array(arr_str[sub_start : i - 1]))
+
+        # Bare value
+        else:
+            val_start = i
+            while i < n and arr_str[i] not in (",", "]"):
+                i += 1
+            if partial and i >= n:
+                break
+            if i == val_start:
+                logger.warning(
+                    "Gemma4 array parser made no progress at position %d; "
+                    "aborting on malformed input.",
+                    i,
+                )
+                break
+            if partial:
+                raw_val = arr_str[val_start:i].strip()
+                if raw_val.endswith("."):
+                    break
+            items.append(_parse_gemma4_value(arr_str[val_start:i]))
+
+    return items
+
+
+# ---------------------------------------------------------------------------
+# Parser
+# ---------------------------------------------------------------------------
+
+
+class Gemma4ToolParser(ToolParser):
+    """
+    Tool call parser for Google Gemma4 models.
+
+    Handles the Gemma4 function call format::
+
+        <|tool_call>call:func_name{key:<|"|>value<|"|>}<tool_call|>
+
+    Used when ``--enable-auto-tool-choice --tool-call-parser gemma4``
+    are set.
+
+    Streaming strategy: **accumulate-then-parse-then-diff**
+
+    Instead of trying to convert Gemma4's custom format to JSON
+    token-by-token (which fails because Gemma4 uses bare keys, custom
+    delimiters, and structural braces that differ from JSON), this parser:
+
+    1. Accumulates the raw Gemma4 argument string during streaming
+    2. Parses it with ``_parse_gemma4_args()`` into a Python dict
+    3. Converts to JSON with ``json.dumps()``
+    4. Diffs against the previously-streamed JSON string
+    5. Emits only the new JSON fragment as the delta
+
+    This follows the same pattern used by FunctionGemma, Hermes, and Llama
+    tool parsers.
+    """
+
+    def __init__(self, tokenizer: TokenizerLike, tools: list[Tool] | None = None):
+        super().__init__(tokenizer, tools)
+
+        if not self.model_tokenizer:
+            raise ValueError(
+                "The model tokenizer must be passed to the ToolParser "
+                "constructor during construction."
+            )
+
+        # Token strings
+        self.tool_call_start_token = TOOL_CALL_START
+        self.tool_call_end_token = TOOL_CALL_END
+
+        # Token IDs
+        self.tool_call_start_token_id = self.vocab.get(TOOL_CALL_START)
+        self.tool_call_end_token_id = self.vocab.get(TOOL_CALL_END)
+
+        if self.tool_call_start_token_id is None:
+            raise RuntimeError(
+                "Gemma4 ToolParser could not locate the tool call start "
+                f"token '{TOOL_CALL_START}' in the tokenizer!"
+            )
+
+        # Regex for non-streaming: extract complete tool calls.
+        # Supports function names with letters, digits, underscores,
+        # hyphens, and dots (e.g. "get-weather", "module.func").
+        self.tool_call_regex = re.compile(
+            r"<\|tool_call>call:([\w\-\.]+)\{(.*?)\}<tool_call\|>",
+            re.DOTALL,
+        )
+        # Regex for streaming: extract partial tool calls.
+        self.stripped_tool_call_regex = re.compile(r"call:[\w\-\.]+\{")
+
+        # Streaming state — reset per-request via _reset_streaming_state()
+        self._reset_streaming_state()
+
+        # Delta buffer for handling multi-token special sequences
+        self.buffered_delta_text = ""
+
+        # [Genesis G4_T1 v3] Last accumulated text this instance
+        # processed — input to the hardened per-request reset guard in
+        # extract_tool_calls_streaming() (see _genesis_reset_request_state).
+        self._genesis_seen_text = ""
+
+    def _reset_streaming_state(self) -> None:
+        """Reset all streaming state for a new request."""
+        self.current_tool_id = -1
+        self.current_tool_name_sent = False
+        self.prev_tool_call_arr: list[dict] = []
+        self.streamed_args_for_tool: list[str] = []
+        self.stripped_tool_call_started = False
+        self.streamed_content_end = 0
+
+    def _genesis_reset_request_state(self) -> None:
+        """[Genesis G4_T1 v3] Full per-request reset (hardened guard).
+
+        The verbatim PR #44844 head never resets streaming state inside
+        ``extract_tool_calls_streaming`` (it lacks even the
+        ``if not previous_text:`` guard the #42237 rewrite has), and it
+        keeps ``buffered_delta_text`` OUTSIDE ``_reset_streaming_state``.
+        When vLLM re-uses the parser instance across requests on the same
+        HTTP keep-alive socket (the v2 31/35 bench failure mode,
+        2026-05-31), the prior request's ``streamed_args_for_tool`` /
+        ``prev_tool_call_arr`` / ``streamed_content_end`` /
+        ``stripped_tool_call_started`` / ``buffered_delta_text`` replay
+        into the new request and corrupt its diffs. This helper resets
+        everything in one place.
+        """
+        self._reset_streaming_state()
+        self.buffered_delta_text = ""
+        self._genesis_seen_text = ""
+
+    def adjust_request(
+        self, request: ChatCompletionRequest | ResponsesRequest
+    ) -> ChatCompletionRequest | ResponsesRequest:
+        request = super().adjust_request(request)
+        if request.tools and request.tool_choice != "none":
+            # Don't skip special tokens — <|tool_call> etc. are needed for
+            # the parser to detect tool calls. Apply to BOTH
+            # ChatCompletionRequest and ResponsesRequest (the previous
+            # isinstance(ChatCompletionRequest) guard caused tool-call
+            # delimiters to be stripped on /v1/responses, leaking raw
+            # `call:fn{...}` text via output_text.delta).
+            request.skip_special_tokens = False
+        return request
+
+    # ------------------------------------------------------------------
+    # Delta buffering for multi-token special sequences
+    # ------------------------------------------------------------------
+
+    def _buffer_delta_text(self, delta_text: str) -> str:
+        """Buffer incoming delta text to handle multi-token special sequences.
+
+        Accumulates partial tokens that could be the start of
+        ``<|tool_call>`` or ``<tool_call|>`` and only flushes them
+        when the complete sequence is recognized or the sequence breaks.
+
+        This prevents partial special tokens (e.g., ``<|tool``) from being
+        emitted prematurely as content text.
+        """
+        combined = self.buffered_delta_text + delta_text
+
+        # Check if combined ends with a complete special token
+        if combined.endswith(TOOL_CALL_START) or combined.endswith(TOOL_CALL_END):
+            self.buffered_delta_text = ""
+            return combined
+
+        # Check if combined ends with a partial prefix of a special token
+        for tag in [TOOL_CALL_START, TOOL_CALL_END]:
+            for i in range(1, len(tag)):
+                if combined.endswith(tag[:i]):
+                    self.buffered_delta_text = combined[-i:]
+                    return combined[:-i]
+
+        # No partial match — flush everything
+        self.buffered_delta_text = ""
+        return combined
+
+    # ------------------------------------------------------------------
+    # Non-streaming extraction
+    # ------------------------------------------------------------------
+
+    def extract_tool_calls(
+        self,
+        model_output: str,
+        request: ChatCompletionRequest,
+    ) -> ExtractedToolCallInformation:
+        if self.tool_call_start_token not in model_output:
+            return ExtractedToolCallInformation(
+                tools_called=False, tool_calls=[], content=model_output
+            )
+
+        try:
+            matches = self.tool_call_regex.findall(model_output)
+            if not matches:
+                return ExtractedToolCallInformation(
+                    tools_called=False, tool_calls=[], content=model_output
+                )
+
+            tool_calls: list[ToolCall] = []
+            for func_name, args_str in matches:
+                arguments = _parse_gemma4_args(args_str)
+                tool_calls.append(
+                    ToolCall(
+                        type="function",
+                        function=FunctionCall(
+                            name=func_name,
+                            arguments=json.dumps(arguments, ensure_ascii=False),
+                        ),
+                    )
+                )
+
+            # Content = text before first tool call (if any)
+            content_end = model_output.find(self.tool_call_start_token)
+            content = model_output[:content_end].strip() if content_end > 0 else None
+
+            return ExtractedToolCallInformation(
+                tools_called=True,
+                tool_calls=tool_calls,
+                content=content if content else None,
+            )
+
+        except Exception:
+            logger.exception("Error extracting tool calls from Gemma4 response")
+            return ExtractedToolCallInformation(
+                tools_called=False, tool_calls=[], content=model_output
+            )
+
+    # ------------------------------------------------------------------
+    # Streaming extraction — accumulate-then-parse-then-diff
+    # ------------------------------------------------------------------
+
+    def extract_tool_calls_streaming(
+        self,
+        previous_text: str,
+        current_text: str,
+        delta_text: str,
+        previous_token_ids: Sequence[int],
+        current_token_ids: Sequence[int],
+        delta_token_ids: Sequence[int],
+        request: ChatCompletionRequest,
+    ) -> DeltaMessage | None:
+        # [Genesis G4_T1 v3] Reset-guard hardening. Detect a new request
+        # on a (possibly re-used) parser instance by EITHER an empty
+        # previous_text OR current_text no longer extending the text this
+        # instance last processed, then reset ALL streaming state. The
+        # plain `if not previous_text:` form (v2 overlay) is NOT
+        # sufficient: under HTTP keep-alive the follow-up request's first
+        # parser invocation has been observed to arrive with non-empty
+        # previous_text, so that guard never fires and stale state leaks
+        # (the 31/35 keep-alive bench failures, 2026-05-31). Stateless
+        # within a request: accumulated text grows monotonically, so the
+        # startswith check only trips on a genuinely new stream (or a
+        # rewind, where a reset is the safe answer too).
+        seen_text = self._genesis_seen_text
+        if not previous_text or (
+            seen_text and not current_text.startswith(seen_text)
+        ):
+            self._genesis_reset_request_state()
+        self._genesis_seen_text = current_text
+
+        # Buffer delta text to handle multi-token special sequences
+        delta_text = self._buffer_delta_text(delta_text)
+        # Keep current_text from the upstream stream state. The buffered delta
+        # is only for emission, and must not be stitched back into the
+        # accumulated model text or normal content like "<div>" can be
+        # duplicated into "<<div>" when a tool call just ended.
+
+        current_text, has_tool_call = self._prepare_tool_call_text(current_text)
+
+        if not has_tool_call:
+            if delta_text:
+                self.streamed_content_end = self._available_text_end(current_text)
+                return DeltaMessage(content=delta_text)
+            return None
+
+        try:
+            return self._extract_streaming(current_text)
+        except Exception:
+            logger.exception("Error in Gemma4 streaming tool call extraction")
+            return None
+
+    def _prepare_tool_call_text(self, current_text: str) -> tuple[str, bool]:
+        """Recover when structural tool-call markers were stripped upstream.
+
+        During the reasoning-to-tool handoff a delta can contain the
+        ``<|tool_call>`` token id while its decoded text starts at
+        ``call:name{...}``. Treat that Gemma4 grammar as a tool call rather
+        than leaking the raw body as assistant content.
+        """
+        if self.stripped_tool_call_started:
+            return self._virtualize_stripped_tool_calls(current_text), True
+
+        if self.tool_call_start_token in current_text:
+            return current_text, True
+
+        stripped_call_match = self.stripped_tool_call_regex.search(
+            current_text, self.streamed_content_end
+        )
+        if stripped_call_match is None:
+            return current_text, False
+
+        self.stripped_tool_call_started = True
+        return self._virtualize_stripped_tool_calls(current_text), True
+
+    def _virtualize_stripped_tool_calls(self, text: str) -> str:
+        """Add internal markers around stripped ``call:name{...}`` spans."""
+        text = text.replace(self.tool_call_start_token, "")
+        text = text.replace(self.tool_call_end_token, "")
+
+        parts: list[str] = []
+        pos = 0
+
+        while True:
+            match = self.stripped_tool_call_regex.search(text, pos)
+            if match is None:
+                parts.append(text[pos:])
+                break
+
+            parts.append(text[pos : match.start()])
+            end = self._find_call_body_end(text, match.end() - 1)
+            if end is None:
+                parts.append(self.tool_call_start_token + text[match.start() :])
+                break
+
+            parts.append(
+                self.tool_call_start_token
+                + text[match.start() : end + 1]
+                + self.tool_call_end_token
+            )
+            pos = end + 1
+
+        return "".join(parts)
+
+    def _find_call_body_end(self, text: str, open_brace_idx: int) -> int | None:
+        """Find the matching closing brace for a Gemma4 tool-call body."""
+        depth = 0
+        in_string = False
+        i = open_brace_idx
+        while i < len(text):
+            if text.startswith(STRING_DELIM, i):
+                in_string = not in_string
+                i += len(STRING_DELIM)
+                continue
+
+            if not in_string:
+                if text[i] == "{":
+                    depth += 1
+                elif text[i] == "}":
+                    depth -= 1
+                    if depth == 0:
+                        return i
+                    if depth < 0:
+                        return None
+            i += 1
+
+        return None
+
+    def _extract_streaming(self, current_text: str) -> DeltaMessage | None:
+        """Parse accumulated tool-call text and emit per-call deltas.
+
+        Format: ``<|tool_call>call:name{args}<tool_call|>``
+        """
+        matches = list(self.tool_call_regex.finditer(current_text))
+        all_matches: list[tuple[str, str]] = [
+            (match.group(1), match.group(2)) for match in matches
+        ]
+        tool_call_deltas: list[DeltaToolCall] = []
+
+        for tool_id, (func_name, args_str) in enumerate(all_matches):
+            tool_delta = self._finalize_tool_call(tool_id, func_name, args_str)
+            if tool_delta is not None:
+                tool_call_deltas.append(tool_delta)
+
+        if self._has_open_tool_call(current_text):
+            self._set_current_tool(len(all_matches))
+            middle_delta = self._handle_tool_call_middle(current_text)
+            if middle_delta and middle_delta.tool_calls:
+                tool_call_deltas.extend(middle_delta.tool_calls)
+
+        content = self._extract_new_content(
+            current_text,
+            [match.span() for match in matches],
+        )
+        if content or tool_call_deltas:
+            return DeltaMessage(content=content, tool_calls=tool_call_deltas)
+
+        return None
+
+    def _available_text_end(self, current_text: str) -> int:
+        if self.buffered_delta_text and current_text.endswith(self.buffered_delta_text):
+            return len(current_text) - len(self.buffered_delta_text)
+        return len(current_text)
+
+    def _has_open_tool_call(self, current_text: str) -> bool:
+        return current_text.rfind(self.tool_call_start_token) > current_text.rfind(
+            self.tool_call_end_token
+        )
+
+    def _set_current_tool(self, tool_id: int) -> None:
+        """Ensure streaming state exists for ``tool_id`` and make it active."""
+        while len(self.prev_tool_call_arr) <= tool_id:
+            self.prev_tool_call_arr.append({})
+            self.streamed_args_for_tool.append("")
+
+        self.current_tool_id = tool_id
+        self.current_tool_name_sent = bool(self.prev_tool_call_arr[tool_id].get("name"))
+
+    def _extract_new_content(
+        self,
+        current_text: str,
+        tool_spans: list[tuple[int, int]],
+    ) -> str | None:
+        """Return newly streamed content outside tool-call spans."""
+        available_end = self._available_text_end(current_text)
+        if available_end <= self.streamed_content_end:
+            return None
+
+        content_parts: list[str] = []
+        scan_pos = 0
+
+        for start, end in tool_spans:
+            if start > scan_pos:
+                self._append_new_content(
+                    current_text, scan_pos, start, available_end, content_parts
+                )
+            scan_pos = max(scan_pos, end)
+
+        if self._has_open_tool_call(current_text):
+            open_start = current_text.rfind(self.tool_call_start_token)
+            if open_start > scan_pos:
+                self._append_new_content(
+                    current_text, scan_pos, open_start, available_end, content_parts
+                )
+        else:
+            self._append_new_content(
+                current_text, scan_pos, available_end, available_end, content_parts
+            )
+
+        if not content_parts:
+            return None
+
+        return "".join(content_parts)
+
+    def _append_new_content(
+        self,
+        current_text: str,
+        start: int,
+        end: int,
+        available_end: int,
+        content_parts: list[str],
+    ) -> None:
+        end = min(end, available_end)
+        start = max(start, self.streamed_content_end)
+        if start >= end:
+            return
+
+        content_parts.append(current_text[start:end])
+        self.streamed_content_end = end
+
+    def _extract_partial_call(self, current_text: str) -> tuple[str | None, str]:
+        """Extract function name and raw argument string from partial text.
+
+        Returns (func_name, raw_args_str) or (None, "") if not parseable yet.
+        """
+        # Get the text after the last <|tool_call> token
+        last_start = current_text.rfind(self.tool_call_start_token)
+        if last_start == -1:
+            return None, ""
+
+        partial_call = current_text[last_start + len(self.tool_call_start_token) :]
+
+        # Strip end token if present
+        if self.tool_call_end_token in partial_call:
+            partial_call = partial_call.split(self.tool_call_end_token)[0]
+
+        # Expect "call:name{args...}"
+        if not partial_call.startswith("call:"):
+            return None, ""
+
+        func_part = partial_call[5:]  # skip "call:"
+
+        if "{" not in func_part:
+            # Still accumulating function name, not ready yet
+            return None, ""
+
+        func_name, _, args_part = func_part.partition("{")
+        func_name = func_name.strip()
+
+        # Strip trailing '}' if present (Gemma4 structural brace)
+        if args_part.endswith("}"):
+            args_part = args_part[:-1]
+
+        return func_name, args_part
+
+    def _handle_tool_call_middle(self, current_text: str) -> DeltaMessage | None:
+        """Handle streaming when we're inside an active tool call.
+
+        Accumulates the raw Gemma4 arguments, parses them into JSON, and
+        diffs against the previously-streamed JSON to emit only the new
+        fragment.
+        """
+        func_name, args_part = self._extract_partial_call(current_text)
+
+        if func_name is None:
+            return None
+
+        # Step 1: Send function name (once)
+        if not self.current_tool_name_sent and func_name:
+            self.current_tool_name_sent = True
+            self.prev_tool_call_arr[self.current_tool_id] = {
+                "name": func_name,
+                "arguments": {},
+            }
+            return DeltaMessage(
+                tool_calls=[
+                    DeltaToolCall(
+                        index=self.current_tool_id,
+                        type="function",
+                        id=make_tool_call_id(),
+                        function=DeltaFunctionCall(
+                            name=func_name,
+                            arguments="",
+                        ).model_dump(exclude_none=True),
+                    )
+                ]
+            )
+
+        # Step 2: Parse and diff arguments
+        if self.current_tool_name_sent and args_part:
+            return self._emit_argument_diff(args_part)
+
+        return None
+
+    def _finalize_tool_call(
+        self,
+        tool_id: int,
+        func_name: str,
+        args_str: str,
+    ) -> DeltaToolCall | None:
+        """Finalize one complete tool-call span and return its stream delta."""
+        self._set_current_tool(tool_id)
+
+        final_args = _parse_gemma4_args(args_str)
+        final_args_json = json.dumps(final_args, ensure_ascii=False)
+
+        prev_streamed = self.streamed_args_for_tool[tool_id]
+        name_sent = bool(self.prev_tool_call_arr[tool_id].get("name"))
+        if not name_sent:
+            diff = final_args_json
+        elif len(final_args_json) > len(prev_streamed):
+            diff = final_args_json[len(prev_streamed) :]
+        else:
+            return None
+
+        self.streamed_args_for_tool[tool_id] = final_args_json
+        self.prev_tool_call_arr[tool_id] = {
+            "name": func_name,
+            "arguments": final_args,
+        }
+        self.current_tool_name_sent = True
+
+        if name_sent:
+            function = DeltaFunctionCall(arguments=diff)
+            return DeltaToolCall(
+                index=tool_id,
+                function=function.model_dump(exclude_none=True),
+            )
+
+        function = DeltaFunctionCall(name=func_name, arguments=diff)
+        return DeltaToolCall(
+            index=tool_id,
+            type="function",
+            id=make_tool_call_id(),
+            function=function.model_dump(exclude_none=True),
+        )
+
+    def _emit_argument_diff(self, raw_args_str: str) -> DeltaMessage | None:
+        """Parse raw Gemma4 arguments, convert to JSON, diff, and emit.
+
+        This is the core of the accumulate-then-parse-then-diff strategy:
+        1. Parse ``raw_args_str`` with ``_parse_gemma4_args()``
+        2. Convert to JSON string with ``json.dumps()``
+        3. Withhold trailing closing characters (``"}``) that may move
+           as more tokens arrive
+        4. Diff against previously streamed JSON and emit only new chars
+
+        **Why withholding is necessary:**
+
+        Gemma4's custom format produces *structurally incomplete* JSON
+        during streaming. For example, when ``<|"|>Paris`` arrives
+        without a closing delimiter, ``_parse_gemma4_args`` treats it
+        as a complete value and produces ``{"location": "Paris"}``. But
+        when ``, France<|"|>`` arrives next, the JSON becomes
+        ``{"location": "Paris, France"}``. If we had sent the closing
+        ``"}`` from the first parse, the concatenated client output
+        would be ``{"location": "Paris"}France"}``, which is garbage.
+
+        The solution: **never send trailing closing chars during
+        streaming**. They get flushed by ``_finalize_tool_call()``
+        when a complete tool-call span is available.
+
+        Args:
+            raw_args_str: The raw Gemma4 argument text accumulated so far
+                (without the surrounding ``{`` ``}``).
+
+        Returns:
+            DeltaMessage with the argument diff, or None if no new content.
+        """
+        try:
+            current_args = _parse_gemma4_args(raw_args_str, partial=True)
+        except Exception:
+            logger.debug(
+                "Could not parse partial Gemma4 args yet: %s",
+                raw_args_str[:100],
+            )
+            return None
+
+        if not current_args:
+            return None
+
+        current_args_json = json.dumps(current_args, ensure_ascii=False)
+
+        # Withhold trailing closing characters that may shift as more
+        # tokens arrive. Strip trailing '}', '"', ']' and partial
+        # STRING_DELIM fragments ('<', '|', '\\', '>') to get the
+        # "safe prefix".
+        safe_json = current_args_json
+        while safe_json and safe_json[-1] in ("}", '"', "]", "<", "|", "\\", ">"):
+            safe_json = safe_json[:-1]
+
+        prev_streamed = self.streamed_args_for_tool[self.current_tool_id]
+
+        if not safe_json or safe_json == prev_streamed:
+            return None
+
+        # Use find_common_prefix to handle cases where the value changed
+        # structurally (e.g., a string grew).
+        if prev_streamed:
+            prefix = find_common_prefix(prev_streamed, safe_json)
+            sent_len = len(prev_streamed)
+            prefix_len = len(prefix)
+
+            if prefix_len < sent_len:
+                self.streamed_args_for_tool[self.current_tool_id] = prefix
+                return None
+
+            # Stream the new stable portion
+            diff = safe_json[sent_len:]
+        else:
+            # First emission
+            diff = safe_json
+
+        if diff:
+            self.streamed_args_for_tool[self.current_tool_id] = safe_json
+            self.prev_tool_call_arr[self.current_tool_id]["arguments"] = current_args
+
+            return DeltaMessage(
+                tool_calls=[
+                    DeltaToolCall(
+                        index=self.current_tool_id,
+                        function=DeltaFunctionCall(arguments=diff).model_dump(
+                            exclude_none=True
+                        ),
+                    )
+                ]
+            )
+
+        return None

@@ -12,10 +12,16 @@ The actual fix is the vendored parser file at one of:
   - ``g4_t1_gemma4_tool_parser_pr42006_overlay.py`` (LEGACY v1, vendor
     of vllm PR #42006 — segment-replay refactor). Kept on disk for
     git-blame + operator rollback path; not bind-mounted by default.
+  - ``g4_t1_v3_gemma4_tool_parser_pr44844_overlay.py`` (v3 PREP, vendor
+    of vllm PR #44844 — span-based rewrite + Genesis reset-guard
+    hardening + the #44877 quoted-key hunk folded in). NOT bind-mounted
+    anywhere; the A/B vs v2 on the 7x5 tool-call harness happens at the
+    server stage before any mount switch.
 
-Both files are bind-mounted by the operator's launcher (NOT the Genesis
-dispatcher). The dispatcher cannot import either file at boot because
-they reference engine-side modules only available inside the container.
+Only the CURRENT (v2) file is bind-mounted by the operator's launcher
+(NOT the Genesis dispatcher). The dispatcher cannot import these files
+at boot because they reference engine-side modules only available
+inside the container.
 
 This marker module exists so:
 
@@ -47,6 +53,10 @@ def apply() -> tuple[str, str]:
         "rewrite) at `g4_t1_v2_gemma4_tool_parser_pr42237_overlay.py`. "
         "LEGACY vendor (kept for rollback): vllm PR #42006 (segment-"
         "replay) at `g4_t1_gemma4_tool_parser_pr42006_overlay.py`. "
+        "PREP vendor (2026-06-11, NOT mounted, pending server-stage A/B "
+        "vs v2): vllm PR #44844 (span-based rewrite + Genesis reset-"
+        "guard hardening) at "
+        "`g4_t1_v3_gemma4_tool_parser_pr44844_overlay.py`. "
         "Genesis dispatcher does NOT call into the vendored file directly. "
         "Verify the mount from inside the container: `docker exec <c> "
         "head -3 /usr/local/lib/python3.12/dist-packages/vllm/"

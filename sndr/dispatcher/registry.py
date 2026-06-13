@@ -2464,6 +2464,42 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "conflicts_with": [],
         "implementation_status": "full",
     },
+    "PN383": {
+        "title": (
+            "PN383 — KV-offload + MTP cuMemcpyBatchAsync segfault gate "
+            "(vendor of vllm#44784) + Qwen3.6 narrowing + pre-DMA bounds check"
+        ),
+        "tier": "community",
+        "family": "offload",
+        "env_flag": "GENESIS_ENABLE_PN383_OFFLOAD_MTP_EAGLE_GATE",
+        "default_on": False,
+        "lifecycle": "experimental",
+        "category": "stability",
+        "apply_module": "sndr.engines.vllm.patches.offload.pn383_offload_mtp_eagle_gate",
+        "source": "vllm_pr_backport",
+        "upstream_pr": 44784,
+        "upstream_pr_relationship": "backport",
+        "credit": (
+            "Vendor of OPEN PR vllm#44784 (issue #44780): "
+            "OffloadingConnectorScheduler schedules EAGLE/MTP draft-attention "
+            "groups into KV-offload store/load; the drafter's volatile "
+            "trailing block (no stable hash, tiny gpu_block_size) yields an "
+            "out-of-bounds GPU block index that segfaults silently in "
+            "cuMemcpyBatchAsync, blocking native CPU KV offload on every MTP "
+            "config (Qwen3.6 MTP K=3 included). Four scheduler hunks gate the "
+            "eagle groups; one worker hunk re-adds the pre-DMA bounds check "
+            "the PR dropped (raises RuntimeError instead of segfaulting). "
+            "Genesis extension: Qwen3.6-specific is_eagle_group flagging "
+            "narrows the all-groups fallback to the real 'mtp'-prefix drafter "
+            "group so the offload lookup keeps prefix-cache hit-rate. Dormant "
+            "until a KV-offload backend is configured."
+        ),
+        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
+        "composes_with": ["PN104", "PN105", "PN102"],
+        "requires_patches": [],
+        "conflicts_with": [],
+        "implementation_status": "full",
+    },
     "PN97": {
         "title": "PN97 — physical-cap on KV tensor allocation (Phase 7 PoC)",
         "tier": "community",
@@ -2716,7 +2752,10 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         ),
         "upstream_pr": 41602,
         "upstream_pr_relationship": "backport",
-        "related_upstream_prs": [41896],
+        # 2026-06-13 wave-2: #44778 (exec-patched-text regression-test
+        # technique + companion #44779 review) added per the upstream
+        # review of the same wake_up zeroing site.
+        "related_upstream_prs": [41896, 44778],
         "applies_to": {},
         "lifecycle": "experimental",
         "implementation_status": "full",
@@ -8004,6 +8043,12 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "lifecycle": "experimental",
         "credit": "Upstream cherry-pick from vllm PR #42637 (lesj0610). Patches 4 symbols on vllm.v1.core.kv_cache_utils: is_kv_cache_spec_uniform (detect TQ+native mix), unify_kv_cache_spec_page_size (TQ-aware padded path), inject _is_tq_native_mixed_kv_cache_spec predicate, wrap get_kv_cache_groups dispatch. Source: PR HEAD fdeb14981 lines 854-881, 1019-1063, 1484-1512, 1696-1706. Requires G4_60A.",
         "upstream_pr": "https://github.com/vllm-project/vllm/pull/42637",
+        # 2026-06-13 wave-2 reconciliation: the unify_kv_cache_spec_page_size
+        # ladder + _reshape_attention_kv_cache hardening fold in OPEN
+        # vllm#45207 (MambaSpec page padding) and vllm#45181 (generic
+        # attention reshape) — tracked here per the related_upstream_prs
+        # convention (the PR fixes referenced by the patch text).
+        "related_upstream_prs": [45207, 45181],
         "requires_patches": ["G4_60A"],
         "conflicts_with": [],
         "composes_with": ["G4_60A", "G4_60G"],
@@ -8494,6 +8539,450 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         # Registry-integration 2026-06-11: G4_79-template parity — the
         # rebind anchors + drift guard target the 0.22.1 validity-gate
         # generation (pin-specific vendor range per the G4_79 checklist).
+        "vllm_version_range": (">=0.22.0", "<0.23.0"),
+    },
+    # ─── 50-PR sweep WAVE 2 (2026-06-13) ────────────────────────────────
+    # Ten new vendors/blueprints from the roadmap. All pin-specific
+    # (g303916e93 / 0.22.1rc1.dev259), all opt-in (default OFF) except
+    # PN377 (clamp-only, provably inert on every current PROD model).
+    # Registered spec-only (apply_module with own apply(), no
+    # apply_patch_* legacy hook) EXCEPT PN377 which has a legacy parking-
+    # lot hook — same convention as the wave-1 G4_79/G4_80 + PN371/PN373
+    # block above. vllm_version_range top-level per the G4_79/G4_80
+    # template (pin-specific vendor range).
+    "P88": {
+        "title": "Prefix-cache stats retry de-duplication (rewrite of vllm#45202)",
+        "tier": "community",
+        "family": "observability",
+        "env_flag": "GENESIS_ENABLE_P88_PREFIX_CACHE_STATS_DEDUP",
+        "default_on": False,
+        "category": "observability",
+        "implementation_status": "full",
+        "source": "vllm_pr_backport",
+        "apply_module": "sndr.engines.vllm.patches.observability.p88_prefix_cache_stats_dedup",
+        "lifecycle": "experimental",
+        "credit": (
+            "PR-sweep wave 2 (2026-06-13). Genesis REWRITE of OPEN "
+            "vllm#45202 (fixes #43736), NOT the upstream diff: "
+            "KVCacheManager.get_computed_blocks records the prefix-cache "
+            "query/hit stats at LOOKUP time, so a waiting request whose "
+            "allocate_slots then fails (no free blocks) re-counts the "
+            "stats on every later scheduler step. Under KV-pressure "
+            "burst retries (long-context agent profile) prefix_hit_rate "
+            "inflates by tens of percent, poisoning the P85 / TQ-KV A/B "
+            "conclusions read off /metrics. Upstream moves the record "
+            "into the ~2000-line Scheduler.schedule() waiting loop; P88 "
+            "instead keeps BOTH sites inside kv_cache_manager.py "
+            "(P79d-style minimal-anchor): the LOOKUP site stashes a "
+            "single pending record on _genesis_p88_pending_stats and "
+            "allocate_slots COMMITS it exactly once after its last "
+            "failure return (request-id matched, slot cleared so a "
+            "running-loop second allocate cannot double-record). More "
+            "faithful than upstream for our configs (records iff a real "
+            "lookup happened — enable_caching=False records nothing). "
+            "Metrics-only; fallback-disables when a KV connector is "
+            "configured. Self-skips on #45202 merge (the LOOKUP record() "
+            "anchor disappears)."
+        ),
+        "upstream_pr": 45202,
+        # Genesis rewrites #45202's fix at a different layer
+        # (kv_cache_manager.py lookup-stash + allocate-commit, NOT the
+        # scheduler-side record the PR moves it to) — same bug class,
+        # non-overlapping site.
+        "upstream_pr_relationship": "related_not_superseding",
+        "requires_patches": [],
+        "conflicts_with": [],
+        "composes_with": ["P85"],
+        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
+        "vllm_version_range": (">=0.22.0", "<0.23.0"),
+    },
+    "PN358": {
+        "title": "FULL cudagraph forward-context refresh, data_ptr-pruned (vendor of vllm#44868)",
+        "tier": "community",
+        "family": "compile_safety",
+        "env_flag": "GENESIS_ENABLE_PN358_FULL_CG_CONTEXT_REFRESH",
+        "default_on": False,
+        "category": "stability",
+        "implementation_status": "full",
+        "source": "vllm_pr_backport",
+        "apply_module": "sndr.engines.vllm.patches.compile_safety.pn358_full_cg_context_refresh",
+        "lifecycle": "experimental",
+        "credit": (
+            "PR-sweep wave 2 (2026-06-13). Vendor of OPEN vllm#44868 "
+            "(weicj): during FULL CUDA-graph capture the graph entry "
+            "bakes in references to the forward-context tensors that "
+            "existed at capture time (attn metadata, slot mappings, "
+            "ubatch slices, DP metadata, additional kwargs); on replay "
+            "fresh tensors leave the captured graph reading stale "
+            "metadata — silent wrong-continuation / degenerate-output "
+            "class under spec-decode, not a crash. Verified at pin "
+            "g303916e93: compilation/cuda_graph.py has NO refresh on the "
+            "replay path. FULL_AND_PIECEWISE via PN125 + MTP K=3 + the "
+            "287-patch overlay is exactly the exposure surface. Genesis "
+            "extras over the PR: (1) data_ptr-pruned copy — only leaves "
+            "whose live tensor moved storage are copied (kills the PR's "
+            "1-3% unconditional per-replay copy cost); (2) "
+            "GENESIS_PN358_MODE=detect log-only audit of stale-metadata "
+            "hazards (zero hazard lines == the overlay is clean); plus "
+            "shape-mismatch skip-not-crash, cycle guard, self-disable on "
+            "internal error. Engages via GENESIS_ENABLE_PN358_FULL_CG_"
+            "CONTEXT_REFRESH (install gate); MODE selects refresh|detect. "
+            "Composes with PN353B / PN118 (turboquant_attn.py / "
+            "workspace.py — no file overlap on cuda_graph.py). Self-skips "
+            "on #44868 merge (drift markers = the PR's helper names)."
+        ),
+        "upstream_pr": 44868,
+        "upstream_pr_relationship": "backport",
+        "requires_patches": [],
+        "conflicts_with": [],
+        "composes_with": ["PN353B", "PN118"],
+        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
+        "vllm_version_range": (">=0.22.0", "<0.23.0"),
+    },
+    "PN376": {
+        "title": "FP8 modules_to_not_convert substring match (vendor of vllm#44628)",
+        "tier": "community",
+        "family": "quantization",
+        "env_flag": "GENESIS_ENABLE_PN376_FP8_IGNORE_SUBSTRING",
+        "default_on": False,
+        "category": "quantization",
+        "implementation_status": "full",
+        "source": "vllm_pr_backport",
+        "apply_module": "sndr.engines.vllm.patches.quantization.pn376_fp8_ignore_substring",
+        "lifecycle": "experimental",
+        "credit": (
+            "PR-sweep wave 2 (2026-06-13). Vendor of OPEN vllm#44628 "
+            "(fixes #21669): Fp8Config.get_quant_method calls "
+            "is_layer_skipped with exact prefix matching, so HF-style "
+            "short modules_to_not_convert patterns "
+            "(e.g. 'linear_attn.in_proj_qkv') never match the "
+            "fully-qualified runtime prefix and the checkpoint-excluded "
+            "layer silently loads as FP8 without its weight_scale — "
+            "gibberish output, no exception, no log. The AWQ family "
+            "fixed this class with an opt-in substring match "
+            "(#26909/#27416/#29774); #44628 opts FP8 in. Adapted per "
+            "iron rule #10: the pin has ONE more is_layer_skipped call "
+            "site than the PR base (LinearBase + RoutedExperts in "
+            "fp8.py), and the quant_utils experts branch keeps "
+            "parent-in-child MoE containment in substring mode. CORE "
+            "pair (fp8.py + quant_utils.py) lands atomically via "
+            "MultiFilePatchTransaction; parity one-liners "
+            "(fbgemm/mxfp4/modelopt) best-effort. Genesis impact: "
+            "Qwen3.6-VL FP8 is broken TODAY on the pin by this class. "
+            "VALIDATION GATE before any default_on: per-layer "
+            "quant-scheme log diff on 35B PROD + the two Gemma-4 AWQ "
+            "models (shared quant_utils experts branch)."
+        ),
+        "upstream_pr": 44628,
+        "upstream_pr_relationship": "backport",
+        "requires_patches": [],
+        "conflicts_with": [],
+        "composes_with": ["P81", "P91", "P91B"],
+        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
+        "vllm_version_range": (">=0.22.0", "<0.23.0"),
+    },
+    "PN377": {
+        "title": "moe_wna16 BLOCK_SIZE_K legality clamp (vendor of vllm#44563)",
+        "tier": "community",
+        "family": "moe",
+        "env_flag": "GENESIS_ENABLE_PN377_MOE_WNA16_BSK_CLAMP",
+        "default_on": True,
+        "category": "kernel",
+        "implementation_status": "full",
+        "source": "vllm_pr_backport",
+        "apply_module": "sndr.engines.vllm.patches.moe.pn377_moe_wna16_bsk_clamp",
+        "lifecycle": "experimental",
+        "credit": (
+            "PR-sweep wave 2 (2026-06-13). Vendor of OPEN vllm#44563 "
+            "(fixes #36008): GPTQ/AWQ int4 MoE models with group_size=32 "
+            "abort moe_wna16_gemm at warmup with 'BLOCK_SIZE_K // "
+            "group_size must be one of [1, 2, 4, 8]' — "
+            "get_moe_wna16_block_config grows BLOCK_SIZE_K to 512 "
+            "(ratio 16) on the first small decode batch. The wna16 path "
+            "is the LIVE Marlin fallback (awq_marlin.py / auto_gptq.py) "
+            "for unsupported RoutedExperts layers. Fix: cap block_size_k "
+            "at group_size*8 before the divisibility step; gs 64/128 can "
+            "mathematically never overshoot so legal configs are "
+            "untouched. DEFAULT ON (the clamp only rewrites "
+            "kernel-illegal configs — provably inert for every current "
+            "PROD model: 35B FP8 never takes the wna16 path, gs>=64 AWQ "
+            "MoE can never overshoot); GENESIS_ENABLE_PN377_MOE_WNA16_"
+            "BSK_CLAMP=0 skips. Install additionally gated on "
+            "is_moe_model() (P52 dispatch, P24 pattern). Genesis extra: "
+            "boot-time legality assert sweeps the on-disk heuristic over "
+            "the actual model MoE grid and fires a loud actionable ERROR "
+            "instead of the cryptic warmup abort. Composes with P24 "
+            "(same file, get_default_config — disjoint anchors, "
+            "byte-verified) and PN352/PN368 (different files). Unblocks "
+            "gs=32 int4 MoE benchmarking (roadmap chunk-5 Theme D)."
+        ),
+        "upstream_pr": 44563,
+        "upstream_pr_relationship": "backport",
+        "requires_patches": [],
+        "conflicts_with": [],
+        "composes_with": ["P24", "PN352", "PN368"],
+        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
+        "vllm_version_range": (">=0.22.0", "<0.23.0"),
+    },
+    "PN378": {
+        "title": "Recovered-token vocab-pad -inf mask (vendor of vllm#45060, kernel half)",
+        "tier": "community",
+        "family": "spec_decode",
+        "env_flag": "GENESIS_ENABLE_PN378_VOCAB_PAD_MASK",
+        "default_on": False,
+        "category": "spec_decode",
+        "implementation_status": "full",
+        "source": "vllm_pr_backport",
+        "apply_module": "sndr.engines.vllm.patches.spec_decode.pn378_recovered_token_vocab_pad_mask",
+        "lifecycle": "experimental",
+        "credit": (
+            "PR-sweep wave 2 (2026-06-13). Vendor of OPEN vllm#45060 "
+            "(KERNEL HALF only; root cause of #26372/#33729/#42722): "
+            "sample_recovered_tokens_kernel tiles the vocab in "
+            "BLOCK_SIZE chunks and the final tile's padding lanes load "
+            "other=0.0. On all-NaN target_probs the NaN-propagating "
+            "tl.max lets that zero-score padding run win, returning "
+            "recovered_id == vocab_size — an out-of-vocab id that "
+            "parse_output drops, collapsing the row to [] and "
+            "livelocking the request. LIVE on our stack: wrapper "
+            "hardcodes BLOCK_SIZE=8192 and Qwen vocab 151936 % 8192 != "
+            "0, so every recovered-token sample of both PROD MTP models "
+            "carries padding lanes. Fix: mask padding lanes to -inf "
+            "before the tile reduction (recovered_id keeps in-vocab "
+            "init 0 on NaN rows; healthy rows byte-identical). Genesis "
+            "divergence: spells float('-inf') so the PR's -float('inf') "
+            "line stays usable as a drift marker. The SCHEDULER half is "
+            "NOT vendored — PN133 v2 is the safer half (keeps the "
+            "request schedulable + log.error on the invariant). "
+            "Composes with PN133 (removes the out-of-vocab source; PN133 "
+            "keeps accounting correct — different files, zero overlap). "
+            "Roadmap: land with PN372 (#45005) in one MTP-hardening "
+            "bench cycle."
+        ),
+        "upstream_pr": 45060,
+        "upstream_pr_relationship": "backport",
+        "requires_patches": [],
+        "conflicts_with": [],
+        "composes_with": ["PN133", "PN372"],
+        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
+        "vllm_version_range": (">=0.22.0", "<0.23.0"),
+    },
+    "PN379": {
+        "title": "LoadConfig / DefaultModelLoader fail-fast validation (vendor of vllm#45196)",
+        "tier": "community",
+        "family": "loader",
+        "env_flag": "GENESIS_ENABLE_PN379_LOAD_CONFIG_FAIL_FAST",
+        "default_on": False,
+        "category": "stability",
+        "implementation_status": "full",
+        "source": "vllm_pr_backport",
+        "apply_module": "sndr.engines.vllm.patches.loader.pn379_load_config_fail_fast",
+        "lifecycle": "experimental",
+        "credit": (
+            "PR-sweep wave 2 (2026-06-13). Vendor of OPEN vllm#45196 "
+            "(Sunt-ing): three silent-misconfig classes -> loud "
+            "ValueErrors. (1) LoadConfig typing — load_format: str | "
+            "LoadFormats is str | Any at runtime so pydantic accepted "
+            "any type, and a typo'd safetensors_load_strategy silently "
+            "fell back to lazy; fixed with load_format: str + a Literal "
+            "re-derived from THIS pin's weight_utils dispatch sites. "
+            "(2) DefaultModelLoader extra-config validation — non-dict "
+            "extra config, non-bool enable_multithread_load, "
+            "non-positive num_threads, and multithread+non-lazy-strategy "
+            "(byte-verified: the multi-thread iterator drops the "
+            "strategy on this pin). (3) explicit-safetensors .pt "
+            "fallback guard. Six anchored edits across config/load.py + "
+            "default_loader.py, atomic 2-file transaction. Zero hot-path "
+            "cost (constructor-only); safety prerequisite for the "
+            "multithread-load restart-time experiment (server-stage). "
+            "Static pre-deploy mirror in scripts/audit_config_keys.py "
+            "loader-key pass."
+        ),
+        "upstream_pr": 45196,
+        "upstream_pr_relationship": "backport",
+        "requires_patches": [],
+        "conflicts_with": [],
+        "composes_with": [],
+        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
+        "vllm_version_range": (">=0.22.0", "<0.23.0"),
+    },
+    "PN380": {
+        "title": "Qwen3.5/3.6 MTP pre-fused expert loader + load-coverage guard (vendor of vllm#44943)",
+        "tier": "community",
+        "family": "spec_decode",
+        "env_flag": "GENESIS_ENABLE_PN380_MTP_PREFUSED_LOADER",
+        "default_on": False,
+        "category": "spec_decode",
+        "implementation_status": "full",
+        "source": "vllm_pr_backport",
+        "apply_module": "sndr.engines.vllm.patches.spec_decode.pn380_qwen3_mtp_prefused_expert_loader",
+        "lifecycle": "experimental",
+        "credit": (
+            "PR-sweep wave 2 (2026-06-13). Vendor of OPEN vllm#44943 "
+            "(Qwen3.5/3.6 MTP pre-fused expert loader) + Genesis "
+            "draft-weight load-coverage guard. Qwen3_5MultiTokenPredictor"
+            ".load_weights only recognizes experts.gate_up_proj / "
+            "down_proj as checkpoint SOURCE names; a checkpoint storing "
+            "expert tensors under the fused names directly (community "
+            "AutoRound/GPTQ INT4 quants) falls through — quantized MTP "
+            "boots with random expert weights and accept rate silently "
+            "collapses (PR A/B: 65.0% -> 41.9%), unquantized MTP crashes "
+            "with a weight_loader TypeError. Adapted per iron rule #10 "
+            "(pin carries the older STATIC two-entry mapping; we append "
+            "two static pre-fused entries instead of the PR's loop-built "
+            "alt_ckpt_name). Both PROD SKUs use split-form names "
+            "(unaffected today) — this is INSURANCE for the planned INT4 "
+            "35B-A3B trial. Genesis extra (sub-4..6): coverage guard "
+            "converts the engine's quantization-disabled silent partial "
+            "load into ONE log.error on any checkpoint/param gap. SAME "
+            "FILE as PN348 (qwen3_5_mtp.py) — disjoint anchors (PN348 "
+            "outside load_weights, PN380 inside), both co-apply orders + "
+            "cross-module drift-marker hygiene asserted. Composes with "
+            "PN348 + PN108/PN133/PN290/PN340/PN341/PN370 (different "
+            "files)."
+        ),
+        "upstream_pr": 44943,
+        "upstream_pr_relationship": "backport",
+        "requires_patches": [],
+        "conflicts_with": [],
+        "composes_with": ["PN348", "PN133", "PN340", "PN341", "PN370"],
+        "applies_to": {
+            "model_class": ["qwen3_5", "qwen3_6"],
+            "vllm_version_range": (">=0.22.0", "<0.23.0"),
+        },
+        "vllm_version_range": (">=0.22.0", "<0.23.0"),
+    },
+    "PN381": {
+        "title": "allowed_token_ids spec-decode metadata hardening (vendor of vllm#44742)",
+        "tier": "community",
+        "family": "spec_decode",
+        "env_flag": "GENESIS_ENABLE_PN381_ALLOWED_TOKEN_IDS_METADATA",
+        "default_on": False,
+        "category": "spec_decode",
+        "implementation_status": "full",
+        "source": "vllm_pr_backport",
+        "apply_module": "sndr.engines.vllm.patches.spec_decode.pn381_allowed_token_ids_spec_metadata",
+        "lifecycle": "experimental",
+        "credit": (
+            "PR-sweep wave 2 (2026-06-13). Vendor of OPEN vllm#44742 "
+            "(fixes GHSA-8c65-hq7q-r7jm): when a request sets ONLY "
+            "allowed_token_ids, InputBatch._make_sampling_metadata ships "
+            "output_token_ids == [] while allowed_token_ids_mask and the "
+            "draft-token counts are non-empty; any consumer that derives "
+            "the request count from len(output_token_ids) mis-expands "
+            "the mask rows during draft verification. Single anchored "
+            "sub-patch on gpu_input_batch.py adding the "
+            "allowed_token_ids clause to needs_output_token_ids. "
+            "DEFENSE-IN-DEPTH: the pin's consumer fix #35654 already "
+            "sizes the draft expansion by len(num_draft_tokens) so no "
+            "in-tree consumer trips today; PN381 populates once at the "
+            "PRODUCER so every present/future consumer (PN369/P71 "
+            "rewritten rejection-sampler paths) inherits row-"
+            "consistency. Zero perf either way (NULL on the entire "
+            "Genesis PROD workload, which never sets allowed_token_ids). "
+            "Genesis emits the parenthesized clause so the PR's "
+            "unparenthesized form is the drift marker. Same playbook as "
+            "retired PN67 (#41674), one clause further. Composes with "
+            "PN369 / P71 (rejection_sampler.py — different file)."
+        ),
+        "upstream_pr": 44742,
+        "upstream_pr_relationship": "backport",
+        "requires_patches": [],
+        "conflicts_with": [],
+        "composes_with": ["PN369", "P71"],
+        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
+        "vllm_version_range": (">=0.22.0", "<0.23.0"),
+    },
+    "PN382": {
+        "title": "DecodeBenchConnector hybrid per-block KV fill (vendor of vllm#45080)",
+        "tier": "community",
+        "family": "kv_cache",
+        "env_flag": "GENESIS_ENABLE_PN382_DECODE_BENCH_HYBRID_FILL",
+        "default_on": False,
+        "category": "kv_cache",
+        "implementation_status": "full",
+        "source": "vllm_pr_backport",
+        "apply_module": "sndr.engines.vllm.patches.kv_cache.pn382_decode_bench_hybrid_fill",
+        "lifecycle": "experimental",
+        "credit": (
+            "PR-sweep wave 2 (2026-06-13). Vendor of OPEN vllm#45080 + "
+            "two Genesis extensions. DecodeBenchConnectorWorker._fill_"
+            "blocks assumes every layer's KV cache is a single "
+            "block-indexed tensor and dies with AttributeError: 'list' "
+            "object has no attribute 'device' on the first decode batch "
+            "for hybrid / linear-attention models (Mamba/GDN register a "
+            "LIST of state tensors) — making decode-TPOT-vs-depth "
+            "benching impossible on our GDN hybrids. Upstream splits the "
+            "fill (tensors keep block-row fill; list/tuple caches get "
+            "each state tensor filled in its entirety). Genesis "
+            "extensions (iron rule #10): (1) PER-BLOCK fill for the "
+            "list/tuple path — on this pin every MambaSpec state tensor "
+            "is block-indexed (num_blocks, *shape), so the whole-pool "
+            "fill would clobber the recurrent state of every concurrent "
+            "request; (2) REAL group_idx -> layer_names map from "
+            "kv_cache_config.kv_cache_groups (upstream maps all layers "
+            "to group 0, which on hybrids fills Mamba pools with the "
+            "attention group's block ids). Bench-infrastructure only "
+            "(never in a PROD --kv-transfer-config); MTP must be OFF for "
+            "sweeps. Unlocks the 8K/32K/128K/280K sweep on Qwen3.6 "
+            "hybrids (roadmap chunk-3 Theme D)."
+        ),
+        "upstream_pr": 45080,
+        "upstream_pr_relationship": "backport",
+        "requires_patches": [],
+        "conflicts_with": [],
+        "composes_with": [],
+        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
+        "vllm_version_range": (">=0.22.0", "<0.23.0"),
+    },
+    "G4_81": {
+        "title": "TQ multi-query DIRECT decode routing for Gemma-4-31B MTP (vllm#45144 blueprint)",
+        "tier": "community",
+        "family": "attention.turboquant",
+        "env_flag": "GENESIS_ENABLE_G4_81_TQ_MQ_DIRECT_ROUTE",
+        "default_on": False,
+        "category": "kernel",
+        "implementation_status": "full",
+        "source": "genesis_original",
+        "apply_module": "sndr.engines.vllm.patches.attention.turboquant.g4_81_tq_multi_query_direct_route",
+        "lifecycle": "experimental",
+        "credit": (
+            "PR-sweep wave 2 (2026-06-13). Variant B multi-query DIRECT "
+            "decode routing, vllm#45144 BLUEPRINT (ROCm MTP + fp8 KV + "
+            "AITER Shuffle-KV — studied, NOT vendored: no ROCm code). "
+            "MTP K=3 x TurboQuant on Gemma-4-31B dense is blocked — "
+            "spec-verify batches (uniform max_query_len=K+1 with prior "
+            "cached KV) fall into the per-request _prefill_attention "
+            "continuation path that does GPU->CPU syncs (cudagraph-"
+            "hostile #40880 class) and routes through the "
+            "PN255/PN256-broken cache-read path (the 4.9x-slowdown "
+            "workaround). #45144 is the second independent upstream "
+            "validation of the Genesis P67/P67b technique (PROD-active "
+            "on 35B, +32% TPS): route uniform multi-query verify batches "
+            "through the single-token decode kernel. ADAPTATION (iron "
+            "rule #10): synthetic per-token expansion (P67b / G4_67 / our "
+            "#40914) — each of B*(K+1) rows becomes a virtual "
+            "single-token decode. Runtime monkey-patch of "
+            "TurboQuantAttentionImpl.forward; batch predicate is "
+            "arithmetic (no GPU sync); ANY non-routable shape or routing "
+            "failure falls through to the original forward. Genesis "
+            "extras over G4_67: sliding-window + mm-prefix forwarding "
+            "under a launcher capability gate, engine output-buffer "
+            "contract respected, per-K1 buffer holders on the impl. "
+            "Expected +20-40% decode TPS on the 31B TQ profile. Composes "
+            "with G4_79/G4_31/G4_80 (31B boot-gate companions — needs "
+            "G4_79's mm-prefix unblock first); supersedes the G4_67 "
+            "verify-path predecessor (enable ONE)."
+        ),
+        "upstream_pr": 45144,
+        # #45144 is a ROCm/AITER blueprint, not a port target — Genesis
+        # reimplements the technique on the TQ CUDA decode kernel via
+        # synthetic per-token expansion; no shared code, different layer.
+        "upstream_pr_relationship": "related_not_superseding",
+        "requires_patches": [],
+        "conflicts_with": [],
+        "composes_with": ["G4_79", "G4_80", "G4_31", "G4_67", "P67", "P67b"],
+        "applies_to": {"model_arch": ["Gemma4ForConditionalGeneration", "Gemma4ForCausalLM"]},
         "vllm_version_range": (">=0.22.0", "<0.23.0"),
     },
     "G4_70": {

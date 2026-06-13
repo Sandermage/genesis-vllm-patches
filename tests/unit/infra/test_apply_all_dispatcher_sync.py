@@ -182,6 +182,21 @@ _KNOWN_REGISTRY_ONLY = frozenset({
     # class as PN353B/PN357; wave siblings PN370/PN372/PN374/PN375 DID
     # get @register_patch parking-lot hooks and are not listed here).
     "PN371", "PN373",
+    # 2026-06-13 50-PR sweep WAVE 2 — nine spec-driven-from-inception
+    # vendors/blueprints (apply_module with own apply(), no
+    # apply_patch_* hook; same class as PN371/PN373/G4_79/G4_80). The
+    # tenth wave-2 patch PN377 DID get a legacy @register_patch
+    # parking-lot hook (apply_patch_N377_*) so it is NOT listed here.
+    "P88",     # prefix-cache stats retry de-dup (rewrite of vllm#45202)
+    "PN358",   # FULL cudagraph forward-context refresh (vllm#44868)
+    "PN376",   # fp8 modules_to_not_convert substring (vllm#44628)
+    "PN378",   # recovered-token vocab-pad -inf mask (vllm#45060)
+    "PN379",   # LoadConfig/DefaultModelLoader fail-fast (vllm#45196)
+    "PN380",   # Qwen3.5/3.6 MTP pre-fused expert loader (vllm#44943)
+    "PN381",   # allowed_token_ids spec-decode metadata (vllm#44742)
+    "PN382",   # DecodeBenchConnector hybrid per-block fill (vllm#45080)
+    "G4_81",   # TQ multi-query DIRECT decode routing (vllm#45144 blueprint)
+    "PN383",   # KV-offload + MTP segfault gate (vllm#44784)
     # G4_T1 (Gemma4 tool-parser PR #42006 vendor marker) — operator-
     # side bind-mount overlay; no apply_patch_* wiring by design
     # (registered only for `genesis explain` + audit visibility of the

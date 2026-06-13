@@ -97,6 +97,111 @@ class TestAudit:
         )
 
 
+class TestLoaderKeyRules:
+    """PN379 mirror (vllm#45196): static pre-deploy validation of
+    loader-related engine keys in committed YAMLs — the same rules the
+    runtime patch enforces at LoadConfig/DefaultModelLoader
+    construction, applied at audit time so the multithread-load
+    experiment config fails HERE before it fails on the rig."""
+
+    def test_valid_experiment_block_clean(self):
+        mod = _import()
+        text = (
+            "engine:\n"
+            "  model_loader_extra_config:\n"
+            "    enable_multithread_load: true\n"
+            "    num_threads: 8\n"
+        )
+        assert mod.audit_loader_keys(text) == []
+
+    def test_typo_strategy_flagged(self):
+        mod = _import()
+        text = "engine:\n  safetensors_load_strategy: eagre\n"
+        findings = mod.audit_loader_keys(text)
+        assert len(findings) == 1
+        assert "safetensors_load_strategy" in findings[0]
+        assert "eagre" in findings[0]
+
+    @pytest.mark.parametrize(
+        "ok", ["lazy", "eager", "prefetch", "torchao", "null", "~"]
+    )
+    def test_valid_strategies_clean(self, ok):
+        mod = _import()
+        assert mod.audit_loader_keys(
+            f"engine:\n  safetensors_load_strategy: {ok}\n"
+        ) == []
+
+    def test_multithread_with_non_lazy_strategy_flagged(self):
+        mod = _import()
+        text = (
+            "engine:\n"
+            "  safetensors_load_strategy: eager\n"
+            "  model_loader_extra_config:\n"
+            "    enable_multithread_load: true\n"
+        )
+        findings = mod.audit_loader_keys(text)
+        assert any("does not support" in f for f in findings)
+
+    def test_multithread_with_lazy_strategy_clean(self):
+        mod = _import()
+        text = (
+            "engine:\n"
+            "  safetensors_load_strategy: lazy\n"
+            "  model_loader_extra_config:\n"
+            "    enable_multithread_load: true\n"
+        )
+        assert mod.audit_loader_keys(text) == []
+
+    @pytest.mark.parametrize("bad", ["0", "-4", "'8'", '"8"', "2.5", "true"])
+    def test_bad_num_threads_flagged(self, bad):
+        mod = _import()
+        findings = mod.audit_loader_keys(f"engine:\n  num_threads: {bad}\n")
+        assert len(findings) == 1
+        assert "num_threads" in findings[0]
+
+    @pytest.mark.parametrize("bad", ["yes", "1", "'true'"])
+    def test_non_bool_multithread_flagged(self, bad):
+        mod = _import()
+        findings = mod.audit_loader_keys(
+            f"engine:\n  enable_multithread_load: {bad}\n"
+        )
+        assert len(findings) == 1
+        assert "enable_multithread_load" in findings[0]
+
+    def test_scalar_extra_config_flagged(self):
+        mod = _import()
+        findings = mod.audit_loader_keys(
+            "engine:\n  model_loader_extra_config: not-a-dict\n"
+        )
+        assert len(findings) == 1
+        assert "model_loader_extra_config" in findings[0]
+
+    def test_comments_ignored(self):
+        mod = _import()
+        text = "engine: {}\n# num_threads: 0 would be rejected by PN379\n"
+        assert mod.audit_loader_keys(text) == []
+
+    def test_live_corpus_has_no_loader_violations(self):
+        """Gating contract: committed YAMLs must satisfy the PN379
+        loader rules (today none carry loader keys at all)."""
+        mod = _import()
+        report = mod.audit()
+        assert report["total_loader_violations"] == 0, (
+            "loader-key violations in committed corpus:\n"
+            + "\n".join(
+                f"  {r['yaml']}: {r['loader_violations']}"
+                for r in report["per_yaml"] if r.get("loader_violations")
+            )
+        )
+
+    def test_report_carries_loader_fields(self):
+        mod = _import()
+        report = mod.audit()
+        assert "total_loader_violations" in report
+        for r in report["per_yaml"]:
+            assert "loader_violations" in r
+
+
 class TestScriptCLI:
     def test_exits_zero(self):
         rc = subprocess.run(

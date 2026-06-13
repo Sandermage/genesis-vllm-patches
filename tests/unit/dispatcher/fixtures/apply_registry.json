@@ -644,6 +644,10 @@
     "wrapped_name": "apply_patch_N368_marlin_moe_atomic_add_wire"
   },
   {
+    "name": "PN377 moe_wna16 BLOCK_SIZE_K legality clamp (vendor of OPEN vllm#44563)",
+    "wrapped_name": "apply_patch_N377_moe_wna16_bsk_clamp"
+  },
+  {
     "name": "PN365 Fused GDN qkv|z|b|a single-GEMM input projection (port of OPEN vllm#42746)",
     "wrapped_name": "apply_patch_N365_gdn_qkvz_ba_fuse_gemm"
   },

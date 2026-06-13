@@ -5339,6 +5339,35 @@ def apply_patch_N368_marlin_moe_atomic_add_wire() -> PatchResult:
     return _skipped("PN368 marlin moe w13 atomic-add wire", detail)
 
 
+@register_patch("PN377 moe_wna16 BLOCK_SIZE_K legality clamp (vendor of OPEN vllm#44563)")
+def apply_patch_N377_moe_wna16_bsk_clamp() -> PatchResult:
+    """PN377: vendors OPEN PR vllm#44563 (fixes #36008). Caps
+    BLOCK_SIZE_K at group_size * 8 right before the
+    _ensure_block_size_k_divisible step in get_moe_wna16_block_config —
+    the heuristic overshoots to 512 (ratio 16) for group_size=32 int4
+    MoE on the first small decode batch, a deterministic warmup abort
+    of moe_wna16_gemm ('BLOCK_SIZE_K // group_size must be one of
+    [1, 2, 4, 8]'). The wna16 path is the live Marlin fallback in
+    awq_marlin.py / auto_gptq.py for unsupported RoutedExperts layers;
+    gs 64/128 can mathematically never overshoot, so legal configs are
+    untouched. Genesis extra: boot-time legality assert sweeps the
+    on-disk heuristic over the ACTUAL model MoE grid and fires a loud
+    actionable ERROR instead of the cryptic warmup abort. Default ON
+    (set GENESIS_ENABLE_PN377_MOE_WNA16_BSK_CLAMP=0 to skip); install
+    gated on is_moe_model() (P52 dispatch, P24 pattern). Composes with
+    P24 (same file, get_default_config — disjoint anchors,
+    byte-verified) and PN352/PN368 (different files)."""
+    from sndr.engines.vllm.patches.moe import (
+        pn377_moe_wna16_bsk_clamp as _wiring,
+    )
+    status, detail = _wiring.apply()
+    if status == "applied":
+        return _applied("PN377 moe_wna16 BLOCK_SIZE_K legality clamp", detail)
+    if status == "failed":
+        return _failed("PN377 moe_wna16 BLOCK_SIZE_K legality clamp", detail)
+    return _skipped("PN377 moe_wna16 BLOCK_SIZE_K legality clamp", detail)
+
+
 @register_patch("PN365 Fused GDN qkv|z|b|a single-GEMM input projection (port of OPEN vllm#42746)")
 def apply_patch_N365_gdn_qkvz_ba_fuse_gemm() -> PatchResult:
     """PN365: collapses the 2 GDN input GEMMs (in_proj_qkvz + in_proj_ba)

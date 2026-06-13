@@ -20,6 +20,7 @@ from vllm.utils.math_utils import cdiv, round_up
 from vllm.utils.mem_utils import format_gib
 from vllm.utils.torch_utils import get_dtype_size
 from vllm.v1.kv_cache_interface import (
+    AttentionSpec,
     ChunkedLocalAttentionSpec,
     FullAttentionSpec,
     HiddenStateCacheSpec,
@@ -1022,7 +1023,10 @@ def unify_kv_cache_spec_page_size(
     """
     Unify the page size of the given KVCacheSpec. If the page size of all layers
     are the same, return the original KVCacheSpec. If not same, unify the page
-    size by increasing the block size of layers with smaller page size. Raise
+    size: TQ specs and MambaSpec pad their physical page (vllm#45207 — Mamba
+    pages are state-shape determined and do not scale with block_size);
+    attention layers with divisible pages scale their block size; attention
+    layers with non-divisible pages pad instead (vllm#45181). Raise
     NotImplementedError if failed to unify the page size.
 
     Args:
@@ -1044,22 +1048,57 @@ def unify_kv_cache_spec_page_size(
             new_kv_cache_spec[layer_name] = layer_spec
         else:
             if isinstance(layer_spec, tq_spec_types):
+                # TQ slot layout is kernel-bound; never block-scale.
                 padded_spec = replace(layer_spec, page_size_padded=max_page_size)
-                assert padded_spec.page_size_bytes == max_page_size
+                assert padded_spec.page_size_bytes == max_page_size, (
+                    f"layer {layer_name}: TQ padding failed — "
+                    f"{padded_spec.page_size_bytes=} != {max_page_size=}"
+                )
+                new_kv_cache_spec[layer_name] = padded_spec
+                continue
+
+            if isinstance(layer_spec, MambaSpec):
+                # vllm#45207: MambaSpec's page size is determined by its
+                # state shapes and does not scale with block_size, so pad
+                # the page instead (needed when e.g. a dense draft model
+                # layer has a larger page than the platform-aligned Mamba
+                # page).
+                padded_spec = replace(layer_spec, page_size_padded=max_page_size)
+                assert padded_spec.page_size_bytes == max_page_size, (
+                    f"layer {layer_name}: Mamba padding failed — "
+                    f"{padded_spec.page_size_bytes=} != {max_page_size=}"
+                )
                 new_kv_cache_spec[layer_name] = padded_spec
                 continue
 
             layer_page_size = layer_spec.page_size_bytes
-            if max_page_size % layer_page_size != 0:
-                raise NotImplementedError(
-                    "The page size of the layer is not divisible by the "
-                    "maximum page size. Cannot unify by adjusting block_size."
+            if max_page_size % layer_page_size == 0:
+                ratio = max_page_size // layer_page_size
+                new_block_size = layer_spec.block_size * ratio
+                resized_spec = replace(layer_spec, block_size=new_block_size)
+                assert resized_spec.page_size_bytes == max_page_size, (
+                    f"layer {layer_name}: page size "
+                    f"{resized_spec.page_size_bytes} after scaling block_size "
+                    f"to {new_block_size} does not match the maximum page "
+                    f"size {max_page_size}"
                 )
-            ratio = max_page_size // layer_page_size
-            new_block_size = layer_spec.block_size * ratio
-            resized_spec = replace(layer_spec, block_size=new_block_size)
-            assert resized_spec.page_size_bytes == max_page_size
-            new_kv_cache_spec[layer_name] = resized_spec
+                new_kv_cache_spec[layer_name] = resized_spec
+            elif isinstance(layer_spec, AttentionSpec):
+                # vllm#45181: non-divisible attention pages keep their
+                # logical block size and pad the physical page instead.
+                padded_spec = replace(layer_spec, page_size_padded=max_page_size)
+                assert padded_spec.page_size_bytes == max_page_size, (
+                    f"layer {layer_name}: attention padding failed — "
+                    f"{padded_spec.page_size_bytes=} != {max_page_size=}"
+                )
+                new_kv_cache_spec[layer_name] = padded_spec
+            else:
+                raise NotImplementedError(
+                    f"The page size of layer {layer_name} "
+                    f"({layer_page_size} bytes) is not a divisor of the "
+                    f"maximum page size ({max_page_size} bytes) and the "
+                    "KV cache spec cannot be padded. Cannot unify."
+                )
     return new_kv_cache_spec
 
 

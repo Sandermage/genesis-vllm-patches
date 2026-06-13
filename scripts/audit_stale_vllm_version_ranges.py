@@ -51,7 +51,11 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 # Default current-pin assumption when vllm not importable.
 # Update on each pin bump (or pull dynamically when vllm is installed).
-DEFAULT_PIN = "0.21.1rc1.dev354+g626fa9bba"
+# 2026-06-13 (wave-2): bumped from the stale 0.21.1rc1.dev354 to the
+# canonical pin so torch-less audit runs (CI / collection envs) evaluate
+# ranges against the version actually deployed — the 0.21.1 default
+# false-flagged every correct `>=0.22.0` range as stale.
+DEFAULT_PIN = "0.22.1rc1.dev259+g303916e93"
 
 
 # v11.3.0 BUG #14 baseline allowlist — known patches with stale
@@ -90,6 +94,20 @@ _BASELINE_CRITICAL_STALE: frozenset[str] = frozenset({
     #       prefix-range refactor.
     # PN73 — fixed: anchor updated for `function = item.get("function")`
     #        extracted-variable refactor in _postprocess_messages.
+    #
+    # 2026-06-13 (wave-2): DEFAULT_PIN bumped 0.21.1 → 0.22.1 (canonical).
+    # That correctly surfaces two PRE-EXISTING 0.21-era entries whose
+    # `<0.22.0` upper bound now excludes the deployed pin and which are
+    # enabled in builtin YAMLs — pre-existing debt unrelated to the
+    # wave-2 registry integration, queued for per-patch re-verification
+    # on 0.22.1 before the range is bumped (audit workflow step 1):
+    "PN90",   # probabilistic-draft MTP; ('>=0.20.2rc1.dev9', '<0.22.0').
+              # Self-skips via drift marker on merged-equivalent upstream
+              # (intentional), so the YAML "enable" is already a no-op by
+              # design — verify on 0.22.1, then bump or retire.
+    "PN125",  # warmup-orchestrator FULL_AND_PIECEWISE; ('>=0.20.0',
+              # '<0.22.0'), Qwen3.5/Next arch-gated. Needs a 0.22.1 boot
+              # probe before the upper bound moves to <0.23.0.
 })
 
 
