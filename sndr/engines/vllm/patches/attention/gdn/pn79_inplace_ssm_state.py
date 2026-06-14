@@ -1141,6 +1141,29 @@ def apply() -> tuple[str, str]:
     log_decision("PN79", decision, reason)
     if not decision:
         return "skipped", reason
+
+    # PARKED hard-refusal (deep-audit 2026-06-14 #4). PN79 is parked after a
+    # reproduced PROD CUDA illegal-memory-access on the FIRST 8K chunked
+    # prefill (the in-place chunk_delta_h kernel on the IS_CONTINUOUS_BATCHING
+    # branch — see the STATUS note at the top of this module). The 18 required
+    # anchors apply cleanly, so a single GENESIS_ENABLE_PN79_INPLACE_SSM_STATE=1
+    # in a launcher would silently re-introduce the documented crash. Refuse to
+    # apply unless the operator ALSO sets an explicit, un-guessable override
+    # that names the risk — intended only for the isolation-repro workflow in
+    # the docstring, never a production launcher.
+    force_reenable = os.environ.get(
+        "GENESIS_PN79_FORCE_REENABLE_DESPITE_PROD_IMA", ""
+    ).strip().lower() in ("1", "true", "yes", "on")
+    if not force_reenable:
+        return "skipped", (
+            "PN79 PARKED after PROD IMA (CUDA illegal memory access on the "
+            "first 8K chunked prefill; in-place chunk_delta_h kernel suspect). "
+            "Refusing to apply the 18 known-crashing anchors despite "
+            "GENESIS_ENABLE_PN79_INPLACE_SSM_STATE=1. Set "
+            "GENESIS_PN79_FORCE_REENABLE_DESPITE_PROD_IMA=1 ONLY for the "
+            "isolation repro (see module docstring); never in a prod launcher."
+        )
+
     if vllm_install_root() is None:
         return "skipped", "vllm install root not discoverable"
 
