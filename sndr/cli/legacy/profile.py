@@ -975,6 +975,19 @@ def render_profile_launcher(
         inner_run.append('  --enable-chunked-prefill \\')
     if cfg.trust_remote_code:
         inner_run.append('  --trust-remote-code \\')
+    # Tool-calling / reasoning capability flags (model.capabilities). Without
+    # these the engine rejects tool_choice="auto" with HTTP 400
+    # ("--enable-auto-tool-choice and --tool-call-parser to be set") and the
+    # reasoning parser never splits </think> — i.e. tool-calls break entirely.
+    # The rendered launcher MUST emit them. Regression fixed 2026-06-14: the
+    # serve-command builder dropped these despite the model declaring them,
+    # which broke PROD streaming tool-calls on a re-rendered launcher.
+    if cfg.enable_auto_tool_choice:
+        inner_run.append('  --enable-auto-tool-choice \\')
+    if cfg.tool_call_parser:
+        inner_run.append(f'  --tool-call-parser {cfg.tool_call_parser} \\')
+    if cfg.reasoning_parser:
+        inner_run.append(f'  --reasoning-parser {cfg.reasoning_parser} \\')
     if spec_decode_arg:
         inner_run.append(spec_decode_arg.rstrip(' \\\n') + ' \\')
     inner_run.append(f'  --gpu-memory-utilization {cfg.gpu_memory_utilization} \\')
@@ -1036,6 +1049,7 @@ docker run -d --name "$CONTAINER" \\
   -v ${{GENESIS_REPO}}:${{GENESIS_REPO}}:rw \\
   -v /nfs/genesis/models:/models:ro \\
   -v ${{GENESIS_REPO}}/sndr:/usr/local/lib/python3.12/dist-packages/sndr:ro \\
+  -v ${{GENESIS_REPO}}/sndr:/usr/local/lib/python3.12/dist-packages/vllm/sndr_core:ro \\
 {overlay_mounts}  ${{IMAGE}}
 
 echo "$CONTAINER on port $PORT ({profile_id}, role={role})"

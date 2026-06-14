@@ -944,3 +944,41 @@ class TestValidateBackendPlanConsistency:
             backend_plan=BackendPlanConfig(target_default="TURBOQUANT"),
         )
         _validate_backend_plan_consistency(p, {})  # no raise
+
+
+# ─── Tool-calling capability flags + sndr_core compat mount ──────────────
+# Regression for 2026-06-14: the serve-command builder dropped the
+# model.capabilities tool-call flags, so a re-rendered launcher rejected
+# tool_choice="auto" with HTTP 400 and broke PROD streaming tool-calls.
+
+
+class TestToolCallAndCompatMountEmission:
+    def test_serve_command_emits_tool_call_flags(self):
+        # qwen3.6-35b-balanced inherits qwen3_coder / qwen3 / auto-tool from
+        # its parent model capabilities.
+        script = render_profile_launcher("qwen3.6-35b-balanced")
+        assert "--enable-auto-tool-choice" in script
+        assert "--tool-call-parser qwen3_coder" in script
+        assert "--reasoning-parser qwen3" in script
+
+    def test_tool_call_flags_precede_host_port(self):
+        # They must be inside the `vllm serve` arg list (before --host), not
+        # stranded after the command.
+        script = render_profile_launcher("qwen3.6-35b-balanced")
+        tcp = script.index("--tool-call-parser")
+        host = script.index("--host")
+        assert tcp < host
+
+    def test_emits_vllm_sndr_core_compat_mount(self):
+        # The running images still expose the genesis_v7 entry point
+        # (vllm.sndr_core.plugin:register); the launcher must mount sndr/ at
+        # the legacy path too or the plugin fails to load (no patches apply).
+        script = render_profile_launcher("qwen3.6-35b-balanced")
+        assert (
+            "/usr/local/lib/python3.12/dist-packages/vllm/sndr_core:ro"
+            in script
+        )
+        # ...and still mounts the canonical sndr path.
+        assert (
+            "/usr/local/lib/python3.12/dist-packages/sndr:ro" in script
+        )
