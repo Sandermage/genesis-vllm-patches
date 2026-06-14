@@ -2873,8 +2873,14 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "upstream_pr": 45369,
         "upstream_pr_relationship": "backport",
         "requires_patches": [],
-        "conflicts_with": [],
-        "composes_with": ["PN378", "PN90", "P71", "PN369", "P82"],
+        # PN390 rewrites the rejection sampler to drop the full-vocab
+        # target_probs local that PN369 reads (compute_relaxed_ok_mask). With
+        # both enabled PN369 silently degrades (its read is try/except-guarded
+        # so it does not crash, but the relaxed-acceptance path goes dark and
+        # floods per-decode-step warnings). They do NOT compose — corrected
+        # from a wrong composes_with. Caught by deep-audit 2026-06-14.
+        "conflicts_with": ["PN369"],
+        "composes_with": ["PN378", "PN90", "P71", "P82"],
         "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
         "vllm_version_range": (">=0.22.0", "<0.23.0"),
     },
@@ -5098,6 +5104,9 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "upstream_pr": None,
         "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
         "implementation_status": "full",
+        # Anchor collision with P23_WIRE on the marlin_moe.py w13
+        # use_fp32_reduce block — see P23_WIRE.conflicts_with (deep-audit #2).
+        "conflicts_with": ["P23_WIRE"],
         "composes_with": ["P37", "PN96b", "PN352", "P24"],
     },
     "PN369": {
@@ -5150,6 +5159,9 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "upstream_pr": None,
         "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
         "implementation_status": "full",
+        # PN390 deletes the full-vocab target_probs local this patch reads —
+        # mutually exclusive (see PN390.conflicts_with, deep-audit 2026-06-14).
+        "conflicts_with": ["PN390"],
         "composes_with": ["P82", "P71", "PN90", "PN361"],
         "research_note": (
             "BIASED rule — deliberately breaks distribution-exactness "
@@ -7680,6 +7692,13 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "upstream_pr": None,
         "applies_to": {},
         "implementation_status": "full",
+        # Anchor collision: P23_WIRE and PN368 both rewrite the SAME w13
+        # use_fp32_reduce block in marlin_moe.py. P23_WIRE registers first,
+        # rewrites the anchor, then PN368's required=True sub-patch finds its
+        # anchor gone and boots FAILED with marlin_moe.py half-patched.
+        # Declared mutually exclusive until PN368 grows a dual-anchor. Caught
+        # by deep-audit 2026-06-14 (#2).
+        "conflicts_with": ["PN368"],
         "composes_with": ["P23"],
     },
     "P24": {
