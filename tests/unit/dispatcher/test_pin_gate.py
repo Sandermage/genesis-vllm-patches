@@ -67,6 +67,15 @@ EXPECTED_PINS = (
     "0.22.1rc1.dev259+g303916e93d66",                    # 12-char SHA form
     "nightly-303916e93",                                 # docker tag form (short)
     "nightly-303916e93d66",                              # docker tag form (12-char)
+    # PROD pin PROMOTED 2026-06-14 — image nightly-1033ffac2. dev491 is the
+    # validated streaming-tool-call pin (#45171 remapped qwen3_xml ->
+    # Qwen3CoderToolParser; version-gate caps the dev259-era P64/P61c/PN56
+    # streaming wraps + PN347 MarlinFP8 fix <dev491). Validated this session:
+    # streaming tool-calls (args complete, no XML leak) + chat-matrix
+    # (thinking_off 254 TPS) + Batch A perf config. dev259 retained as rollback.
+    "0.22.1rc1.dev491+g1033ffac2",                       # setuptools_scm-derived
+    "0.22.1rc1.dev491+g1033ffac2d66",                    # 12-char SHA form
+    "nightly-1033ffac2",                                 # docker tag form
 )
 
 

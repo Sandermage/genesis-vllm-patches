@@ -108,6 +108,34 @@ _BASELINE_CRITICAL_STALE: frozenset[str] = frozenset({
     "PN125",  # warmup-orchestrator FULL_AND_PIECEWISE; ('>=0.20.0',
               # '<0.22.0'), Qwen3.5/Next arch-gated. Needs a 0.22.1 boot
               # probe before the upper bound moves to <0.23.0.
+    #
+    # 2026-06-14: DELIBERATE cross-pin gates (NOT debt-to-bump). The four
+    # entries below are capped '<0.22.1rc1.dev491' ON PURPOSE by the
+    # deep-audit #1 version-gate work. Each stays ENABLED in the shared
+    # qwen3.6 / a5000-2x builtin YAMLs so a rollback to the dev259 image
+    # (which still has the old code) keeps protection; the runtime
+    # version-gate (GENESIS_ENFORCE_VERSION_RANGE=1) makes the per-pin
+    # decision — APPLY on dev259, SKIP on dev491. They surface as CRITICAL
+    # only under `--pin dev491` (the deployed pin), which is correct and
+    # benign by design. Do NOT bump the bound to re-include dev491 — that
+    # would re-introduce the exact corruption each one avoids. These became
+    # visible only once the `--pin dev491` audit crash (_ver_key TypeError
+    # on rc/dev bounds) was fixed in this commit; before that the dev491
+    # audit could not run, so the version-gate work never allowlisted them.
+    "P64",    # qwen3_coder MTP streaming wrap. dev491 #45171 remapped the
+              # engine-native parser; the dev259-era wrap CORRUPTS it (leaks
+              # tool-call XML to content) — must skip on dev491, apply dev259.
+    "P61c",   # qwen3_coder deferred-commit streaming wrap — same #45171
+              # parser remap; skip dev491, apply dev259 rollback.
+    "PN56",   # qwen3_coder XML-fallback streaming wrap — same #45171 parser
+              # remap; skip dev491, apply dev259 rollback.
+    "PN347",  # MarlinFP8 N==K corruption fix. dev491 REFACTORED the buggy
+              # `if w_q.shape != (...)` transpose guard out of
+              # kernels/linear/scaled_mm/marlin.py (transpose moved to caller
+              # via the explicit `size_k_first` contract) so the bug cannot
+              # occur and the anchor is correctly absent; the dev259 image
+              # still has the guard at marlin.py:87. vllm#44113 CLOSED-unmerged
+              # (upstream solved it structurally). Skip dev491, apply dev259.
 })
 
 
@@ -135,50 +163,40 @@ def _parse_pep440(spec: str) -> tuple[str | None, str | None]:
     return m.group(1), m.group(2)
 
 
-def _ver_key(v: str) -> tuple:
-    """Loose version-key for ordering. Handles common shapes like
-    `0.21.1rc1.dev354+g626fa9bba`. Tokenises on `.`, `+`, `-` and
-    converts ints where possible."""
-    # Strip local-version suffix (everything after +)
-    bare = v.split("+", 1)[0]
-    parts = re.split(r"[.\-]", bare)
-    key = []
-    for p in parts:
-        # Split off trailing alpha (e.g. "1rc1" → 1, "rc1")
-        m = re.match(r"^(\d+)(.*)$", p)
-        if m:
-            key.append(int(m.group(1)))
-            if m.group(2):
-                key.append(m.group(2))
-        else:
-            key.append(p)
-    return tuple(key)
-
-
 def _excludes_pin(constraint: str, pin: str) -> bool:
     """Does this single PEP 440 specifier EXCLUDE the current pin?
 
     Returns True iff the constraint is well-formed AND it deterministically
     rejects pin. Conservative: returns False on parse fail.
+
+    Uses ``packaging.version`` for PEP 440-correct ordering — the same parser
+    the runtime version-gate relies on (``sndr/compat/version_check.py``). The
+    prior hand-rolled ``_ver_key`` tokeniser built mixed int/str tuples that
+    raised ``TypeError: '<' not supported between 'str' and 'int'`` whenever a
+    range bound carried rc/dev components (e.g. ``<0.22.1rc1.dev491``), which
+    crashed the audit under ``--pin dev491``. Version objects order
+    final > rc > dev natively, so a ``.devN`` upper bound now compares cleanly.
     """
     op, ver = _parse_pep440(constraint)
     if op is None:
         return False
     try:
-        pin_k = _ver_key(pin)
-        ver_k = _ver_key(ver)
+        from packaging.version import Version
+        # Drop the vllm local `+gSHA` segment; keep pre/dev components.
+        pin_v = Version(pin.split("+", 1)[0])
+        ver_v = Version(ver.split("+", 1)[0])
     except Exception:
         return False
     if op == "<":
-        return pin_k >= ver_k
+        return pin_v >= ver_v
     if op == "<=":
-        return pin_k > ver_k
+        return pin_v > ver_v
     if op == ">":
-        return pin_k <= ver_k
+        return pin_v <= ver_v
     if op == ">=":
-        return pin_k < ver_k
+        return pin_v < ver_v
     if op == "==":
-        return pin_k != ver_k
+        return pin_v != ver_v
     return False
 
 

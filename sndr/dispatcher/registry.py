@@ -5473,10 +5473,13 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "(pad token is rejected deterministically). UNSAFE for "
             "PROBABILISTIC rejection (draft_p == 0 for eos pad token "
             "breaks the min(1, target_p/draft_p) ratio). Genesis PROD "
-            "uses MTP K=3 with draft_sample_method=probabilistic so "
-            "(a) SuffixDecodingProposer is not instantiated and "
-            "(b) even if it were, probabilistic mode would force this "
-            "patch into a NO-OP at runtime. Ships as DEFAULT OFF for "
+            "uses MTP K=3 with draft_sample_method=GREEDY (probabilistic "
+            "is commented out in qwen3.6-35b-a3b-fp8.yaml:60-73 — a proven "
+            "-5.9% TPS / -10% accept regression on our shape, 2026-05-15 "
+            "rollback) so (a) the GREEDY rejection sampler is active and "
+            "this patch is BIT-EQUIVALENT on it (pad rejected "
+            "deterministically) and (b) SuffixDecodingProposer is DEFAULT "
+            "OFF so not instantiated anyway. Ships as DEFAULT OFF for "
             "audit clarity + A/B reuse (suffix is a candidate bench "
             "lever for chat workloads via P75). MTP-side adaptation "
             "(scheduler num_scheduled_tokens padding + draft_probs "
@@ -5512,9 +5515,14 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "today silently returns None + logs warning when a request "
             "with drafted tokens has no cached draft-probability row → "
             "caller silently downgrades from probabilistic to greedy "
-            "rejection sampler. Our PROD spec_decode_config sets "
-            "draft_sample_method=probabilistic so the silent fallback "
-            "downgrades operator intent without notification. 20-LOC "
+            "rejection sampler. Our PROD spec_decode_config uses "
+            "draft_sample_method=GREEDY (probabilistic is commented out in "
+            "qwen3.6-35b-a3b-fp8.yaml:60-73 — proven -5.9% TPS / -10% "
+            "accept regression on our shape), so this guard is DEAD "
+            "INSURANCE on PROD: greedy draft emits one-hot draft_probs and "
+            "never produces a missing-probs row, so the fail-closed raise "
+            "never fires here — it protects only a future config that "
+            "flips draft_sample_method to probabilistic. 20-LOC "
             "fix replaces logger.warning + return None with raise "
             "RuntimeError carrying a precise message. Fail-closed pattern: "
             "converts silent quality regression to visible exception. "
@@ -5658,7 +5666,20 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "upstream_pr": 44113,
         "upstream_pr_relationship": "backport",
         "upstream_issue": 44110,
-        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
+        # Upper bound capped <dev491 2026-06-14 (do NOT retire — load-bearing on
+        # the dev259 rollback pin). VERIFIED against both live images: dev259
+        # (kernels/linear/scaled_mm/marlin.py:87) STILL has the buggy
+        # `if w_q.shape != (...)` transpose guard → bug present → PN347 applies
+        # and protects the 35B square 5120² FP8 q/o_proj. dev491 REFACTORED the
+        # method (guard removed; transpose responsibility moved to the caller via
+        # the explicit `size_k_first` contract + `prepare_fp8_layer_for_marlin`),
+        # so the square-matrix corruption cannot occur and PN347's anchor is
+        # correctly absent. vllm#44113 was CLOSED-unmerged because upstream
+        # solved it structurally, not via the PR. Capping the range makes PN347
+        # version-SKIP (benign) on dev491+ instead of emitting a per-boot DRIFT
+        # WARNING (required_anchor_missing), while staying ACTIVE on dev259.
+        # Re-widen the upper bound only if a future pin reintroduces the guard.
+        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.22.1rc1.dev491")},
         "implementation_status": "full",
         # Composes with: PN77 (FP8 lm_head — different layer), P81 (FP8 block-
         # scaled M≤8 — different branch), P91/P91B (AutoRound INT4 — different
