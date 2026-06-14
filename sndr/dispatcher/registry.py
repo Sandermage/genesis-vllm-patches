@@ -4991,6 +4991,53 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "implementation_status": "full",
         "composes_with": ["PN59", "P103", "PN29", "PN106", "PN298", "PN299", "PN345", "PN350"],
     },
+    "PN396": {
+        "title": "GDN spec-decode recurrent kernel num_warps 4->1 (SM 8.6 row-per-thread reduction)",
+        "tier": "community",
+        "family": "attention.gdn",
+        "env_flag": "GENESIS_ENABLE_PN396_GDN_SPEC_DECODE_WARPS",
+        "default_on": False,
+        "apply_module": "sndr.engines.vllm.patches.attention.gdn.pn396_gdn_spec_decode_num_warps",
+        "lifecycle": "experimental",
+        "category": "kernel_perf",
+        "credit": (
+            "TESTED-NEGATIVE — DO NOT ENABLE. A/B 2026-06-14 on dev491 (PROD "
+            "35B, chat-matrix n=5): num_warps=1 REGRESSED vs upstream 4 — "
+            "thinking_off 247.6 vs 254.2 (-2.6%), thinking_on 244.6 vs 254.3 "
+            "(-3.8%), code 209.0 vs 218.1 (-4.2%), short_chat -5.5%, tool_call "
+            "-10.8%; multi_turn flat, long_gen -1.1%. The static hypothesis "
+            "(1 warp => intra-thread BK reduction, no shuffle, matches the "
+            "fused_recurrent siblings) was empirically wrong: 4 warps win here "
+            "because the extra threads hide the per-token q/k/v global-load "
+            "latency and the gating+varlen path differs from the pure-recurrent "
+            "siblings. Kept default_on=False + the anchor/dispatch as a "
+            "documented dead-end so the '4 vs 1' question is not re-opened. "
+            "Original (refuted) rationale follows.\n"
+            "Genesis-original SM 8.6 tune for the dominant GDN spec-decode "
+            "kernel fused_sigmoid_gating_delta_rule_update_kernel (30 of 41 "
+            "layers route through it under MTP K=3, IS_VARLEN=True). The "
+            "launcher (fla/ops/fused_sigmoid_gating.py:212) hardcodes "
+            "num_warps=4 while every sibling recurrent kernel in the same "
+            "family (fla/ops/fused_recurrent.py:199,439) uses num_warps=1 for "
+            "the identical [BV=32,BK=128] fp32 state tile. At 1 warp (32 "
+            "threads) Triton maps the 32 state rows one-per-thread, so the two "
+            "per-token reductions over BK=128 (b_v=-sum(b_h*b_k), b_o=sum("
+            "b_h*b_q)) are intra-thread (sequential, no cross-warp shuffle) "
+            "and b_h stays register-resident across the T loop; at 4 warps "
+            "each row's reduction is split across 4 threads, adding a 4-way "
+            "shuffle/shared-mem reduction every token. 1 warp also packs more "
+            "(sequence,head) blocks per SM on the 28-SM A5000. The gating "
+            "(softplus/exp/sigmoid) is scalar-per-head so warp count is "
+            "irrelevant to it. LAUNCH-PARAM change only -> bit-identical "
+            "output. Opt-in (default OFF) pending the decode-TPOT A/B; "
+            "GENESIS_DISABLE_PN396=1 force-reverts. Anchor 'num_stages=3 / "
+            "num_warps=4' is unique to fused_sigmoid_gating.py in fla/ops."
+        ),
+        "upstream_pr": None,
+        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
+        "implementation_status": "full",
+        "composes_with": ["PN354", "PN59", "PN345", "PN299"],
+    },
     "PN367": {
         "title": "CUDA graph memory estimate clamp (vendor of OPEN vllm#44745, ex-vllm#45076)",
         "tier": "community",

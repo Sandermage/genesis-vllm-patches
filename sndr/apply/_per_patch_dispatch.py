@@ -5271,6 +5271,28 @@ def apply_patch_N354_gdn_use_exp2() -> PatchResult:
     return _skipped("PN354 GDN exp2 gate decay", detail)
 
 
+@register_patch("PN396 GDN spec-decode recurrent num_warps 4->1 (SM 8.6 row-per-thread)")
+def apply_patch_N396_gdn_spec_decode_num_warps() -> PatchResult:
+    """PN396: drops num_warps 4->1 on the dominant GDN spec-decode recurrent
+    kernel (fused_sigmoid_gating_delta_rule_update_kernel — 30 of 41 layers
+    under MTP K=3). The [BV=32,BK=128] state tile maps one-row-per-thread at
+    1 warp, so the two per-token reductions over BK=128 (tl.sum b_h*b_k and
+    b_h*b_q) become intra-thread (no cross-warp shuffle), matching the
+    fused_recurrent siblings (num_warps=1). The gating is scalar-per-head so
+    warp count does not help it. Bit-exact (launch param only). Opt-in via
+    GENESIS_ENABLE_PN396_GDN_SPEC_DECODE_WARPS=1 (default OFF, A/B pending);
+    GENESIS_DISABLE_PN396=1 force-reverts. Composes with PN354/PN59/PN345."""
+    from sndr.engines.vllm.patches.attention.gdn import (
+        pn396_gdn_spec_decode_num_warps as _wiring,
+    )
+    status, detail = _wiring.apply()
+    if status == "applied":
+        return _applied("PN396 GDN spec-decode num_warps", detail)
+    if status == "failed":
+        return _failed("PN396 GDN spec-decode num_warps", detail)
+    return _skipped("PN396 GDN spec-decode num_warps", detail)
+
+
 @register_patch("PN367 CUDA graph memory estimate clamp (vendor of OPEN vllm#44745, ex-vllm#45076)")
 def apply_patch_N367_cudagraph_mem_clamp() -> PatchResult:
     """PN367: clamps the decoder cudagraph memory profiling deltas to
