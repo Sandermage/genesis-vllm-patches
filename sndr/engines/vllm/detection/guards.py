@@ -578,6 +578,16 @@ KNOWN_GOOD_VLLM_PINS: tuple[str, ...] = (
     "0.22.1rc1.dev259+g303916e93d66",
     "nightly-303916e93",
     "nightly-303916e93d66",
+    # ── PROD pin PROMOTION dev491 ratified 2026-06-14 ──────────────────
+    # Image: vllm/vllm-openai:nightly-1033ffac2 (0.22.1rc1.dev491+g1033ffac2).
+    # The validated streaming-tool-call pin: upstream #45171 deleted
+    # qwen3xml_tool_parser.py and remapped qwen3_xml->Qwen3CoderToolParser;
+    # Genesis P64/P61c/PN56 are version-capped <dev491 (skip there) and PN392
+    # retired, so the engine-native parser handles streaming tool-calls. dev259
+    # retained as rollback (nightly-303916e93).
+    "0.22.1rc1.dev491+g1033ffac2",
+    "0.22.1rc1.dev491+g1033ffac2d66",
+    "nightly-1033ffac2",
 )
 
 

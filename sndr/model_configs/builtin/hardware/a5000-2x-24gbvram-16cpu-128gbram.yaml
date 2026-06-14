@@ -58,8 +58,8 @@ runtime:
   default: docker                                # values: docker|podman|kubernetes|systemd|bare; docker is the operator default
   supported: [docker]                            # which runtime emitters this hardware definition declares as supported
   docker:
-    image: vllm/vllm-openai:nightly-303916e93d66da301231c9aee80489951a5cd8f6  # vllm container image tag (resolved to digest below for reproducibility) — 0.22.1rc1.dev259+g303916e93 (promoted 2026-06-08; fleet validation 2026-06-10/11: 35B prose 201 / code 220 / math 244-249 TPS + tool-calls via qwen3_xml + PN287 v2; 27B 138-143 TPS)
-    image_digest: vllm/vllm-openai@sha256:d892cc41736272f46a207d26e206c2ea616b7abfa2537230c7511ff7bd6fbb78  # pinned digest — nightly-303916e93 (0.22.1rc1.dev259+g303916e93). Previous nightly-626fa9bb (0.21.1rc0, digest 674922aae790…) retained as :nightly-previous on the rig (see CLAUDE.md vLLM pin policy)
+    image: vllm/vllm-openai:nightly-1033ffac2  # vllm container image tag — 0.22.1rc1.dev491+g1033ffac2 (PROMOTED 2026-06-14; supersedes dev259+g303916e93). dev491 = validated streaming-tool-call pin: #45171 deleted qwen3xml_tool_parser and remapped qwen3_xml->Qwen3CoderToolParser; Genesis P64/P61c/PN56 version-capped <dev491 (skip) + PN392 retired so the engine-native parser handles streaming. Previous nightly-303916e93 (dev259) retained as rollback.
+    image_digest: vllm/vllm-openai@sha256:779772129ce2cbd64329e370aed9dd8f27ffea9b8eb69038e9a2d5ee5791202d  # pinned digest — nightly-1033ffac2 (0.22.1rc1.dev491+g1033ffac2). Previous nightly-303916e93 (dev259, digest d892cc41…) retained as rollback per CLAUDE.md vLLM pin policy.
     container_name_template: vllm-{model_id}     # template; {model_id} expanded at compose time
     host_port: 8000                              # OpenAI-API port on host
     container_port: 8000                         # OpenAI-API port inside container
