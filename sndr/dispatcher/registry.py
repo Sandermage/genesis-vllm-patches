@@ -1188,8 +1188,13 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "Output layout bit-identical to unfused PyTorch. Wrapper falls "
             "through to PyTorch reference on: non-contiguous input, non-pow2 "
             "head_dim, V_PER_GROUP non-integer, kernel launch failure. "
-            "Affects: 27B Lorbus only (35B is Qwen3MoE — no GDN layers, "
-            "patch never fires). Claimed gain on H200/Qwen3.5-35B-A3B (SGLang "
+            "CORRECTED 2026-06-14 (drift D6): the 35B is hybrid_gdn_moe — 30 "
+            "GDN/Mamba2 + 10 full-attn layers (NOT 'Qwen3MoE, no GDN' as "
+            "previously claimed). head_dim=256 is pow2, so PN50's fused proj "
+            "kernel DOES engage on those 30 GDN layers and has NOT been "
+            "deliberately A/B'd on the 35B — pin PN50 and bench code+tool_call "
+            "(the GDN-heaviest variants) before trusting it on 35B. Claimed "
+            "gain on H200/Qwen3.5-35B-A3B (SGLang "
             "naming): +7.4% TPS, -10.8% TTFT, -31.2% ITL P95. On A5000 + "
             "27B Lorbus expect modest gain (memory-bound layer, A5000 PCIe "
             "slower than H200). Composable with PN11/PN29/PN32/P103 — verified "
@@ -2884,8 +2889,16 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         # so it does not crash, but the relaxed-acceptance path goes dark and
         # floods per-decode-step warnings). They do NOT compose — corrected
         # from a wrong composes_with. Caught by deep-audit 2026-06-14.
-        "conflicts_with": ["PN369"],
-        "composes_with": ["PN378", "PN90", "P71", "P82"],
+        # drift D1 (deep-audit 2026-06-14): P71 moved composes->conflicts. PN390
+        # rewrites rejection_sample to drop the dense [num_tokens,vocab]
+        # target_probs buffer (computes only target_lse), but the P71
+        # block-verify branch (rejection_sampler.py:518/525) still references
+        # target_probs — a latent NameError, dormant ONLY because PROD runs
+        # greedy draft (draft_probs is None gates the branch off). P71 is the
+        # PN369 carrier (imports compute_relaxed_ok_mask), and PN369 is already
+        # declared a PN390 conflict — so P71 conflicts for the same reason.
+        "conflicts_with": ["PN369", "P71"],
+        "composes_with": ["PN378", "PN90", "P82"],
         "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
         "vllm_version_range": (">=0.22.0", "<0.23.0"),
     },
