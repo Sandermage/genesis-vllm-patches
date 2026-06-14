@@ -190,6 +190,25 @@ def apply() -> tuple[str, str]:
             f"FULL_AND_PIECEWISE on Qwen3.5/3.6 — see PyTorch blog 2026-05)"
         )
 
+    # Version-gate (2026-06-14 dev491 audit fix): PN125 is an env-only
+    # monkey-patch invoked directly by the LEGACY apply loop, which — unlike
+    # the spec-driven path — never consults the dispatcher version gate. That
+    # let PN125 report "applied" on dev491 despite its range '<0.22.0'
+    # excluding 0.22.1rc1, contradicting the hardware YAML's claim that
+    # GENESIS_ENFORCE_VERSION_RANGE=1 makes PN125/PN90 "correctly SKIP on
+    # dev491". Self-gate here (mirroring PN90's apply()) so the gate is a
+    # reliable kill-switch regardless of which apply loop drives this patch.
+    # Benign today (dev491's v1 default cudagraph_mode is already
+    # FULL_AND_PIECEWISE — compilation.py — so PN125 only re-sets the same
+    # value), but the bypass class must not silently apply an out-of-range
+    # patch on a future pin.
+    from sndr.dispatcher import log_decision, should_apply
+
+    decision, reason = should_apply("PN125")
+    log_decision("PN125", decision, reason)
+    if not decision:
+        return "skipped", reason
+
     if _APPLIED:
         return "applied", "PN125 already installed (idempotent)"
 

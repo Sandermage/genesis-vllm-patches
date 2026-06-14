@@ -100,7 +100,6 @@ patches:
   GENESIS_ENABLE_PN110: '1'            # BlockPool.free_blocks dedup (vllm#42615) — short form matches registry env_flag
   # ── Cross-family supporting patches ──
   GENESIS_ENABLE_PN126_V1_DECODE_WARMUP: '1'
-  GENESIS_ENABLE_PN132_TOPK_TOPP_CONTIGUOUS: '1'
 
 compose_hints:
   family: gemma4

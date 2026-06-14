@@ -123,7 +123,6 @@ patches:
   GENESIS_ENABLE_PN40_DFLASH_OMNIBUS: '1'            # DFlash 4-part omnibus optimization
   # ── Memory + buffer ──
   GENESIS_PREALLOC_TOKEN_BUDGET: '4096'              # Genesis prealloc — token budget for shared scratch pools
-  GENESIS_ENABLE_PN19_SCOPED_MAX_SPLIT: '1'          # vllm#41268 — max_split_size_mb=20 scope-restored
   GENESIS_ENABLE_PN25_SILU_INDUCTOR_SAFE: '1'        # Cliff 1B closure (Inductor opaque-op pool for SiluAndMul)
   GENESIS_ENABLE_PN77_FP8_LM_HEAD: '1'               # Phase E.6 Marlin tier FP8 LM head
   GENESIS_BUFFER_MODE: 'shared'                      # Genesis buffer mode (range: 'shared'|'exclusive'|'auto')
@@ -169,7 +168,6 @@ patches:
   GENESIS_ENABLE_PN128_SPEC_DECODE_WARMUP: '1'       # vllm#41481 backport — pre-JITs 4 eagle helper kernels. NOTE: eagle = MTP-specific; no-op on DFlash but cost zero.
   GENESIS_ENABLE_PN129_SLOT_MAPPING_WARMUP: '1'      # vllm#42165 backport — pre-JITs _compute_slot_mapping_kernel. Applies on both MTP + DFlash.
   GENESIS_ENABLE_PN130_TQ_DECODE_WARMUP: '1'         # vllm#42215 backport — pre-JITs _tq_grouped_decode_stage1. NOTE: DFlash 27B uses fp16/null KV (head_size=256 forbids TQ on Ampere), no-op on DFlash target — keep ON.
-  GENESIS_ENABLE_PN132_TOPK_TOPP_CONTIGUOUS: '1'     # vllm#42739 backport — Triton top-k/top-p contiguous fix (no-op when FlashInfer sampler active).
   GENESIS_ENABLE_PN133_MTP_EMPTY_OUTPUT_FIX: '1'     # vllm#42722 backport — MTP scheduler empty-output guard. No-op on DFlash spec-decode path but cost zero.
   # GENESIS_ENABLE_PN134_TORCH_COMPILE_FULLGRAPH_211: KEEP OFF — retired 2026-05-15 (-25% TPS bench regressor; affects all spec-decode paths via Inductor cache).
 

@@ -92,9 +92,7 @@ patches:
   GENESIS_ENABLE_P72_PROFILE_RUN_CAP: '1'            # caps profile_run M dim
   GENESIS_PROFILE_RUN_CAP_M: '4096'                  # must equal max_num_batched_tokens
   GENESIS_ENABLE_P74_CHUNK_CLAMP: '1'                # chunked-prefill chunk-size clamp
-  GENESIS_ENABLE_PN52_PROMPT_LOGPROBS_EVICTION: '1'  # vllm#41411 — prompt_logprobs eviction fix
   GENESIS_ENABLE_PN17_FA2_LSE_CLAMP: '1'             # FA2 softmax_lse long-ctx clamp
-  GENESIS_ENABLE_PN19_SCOPED_MAX_SPLIT: '1'          # vllm#41268 — max_split_size_mb=20 scope-restored
   GENESIS_PREALLOC_TOKEN_BUDGET: '4096'              # prealloc token budget
   # ── FP8 / Marlin specifics ──
   GENESIS_ENABLE_P78_TOLIST_CAPTURE_GUARD: '0'       # opt-out on MTP path
@@ -107,7 +105,6 @@ patches:
   GENESIS_ENABLE_PN8_MTP_DRAFT_ONLINE_QUANT: '1'     # MTP draft online quant — saves ~1 GiB/rank
   GENESIS_ENABLE_PN11_GDN_AB_CONTIGUOUS: '1'         # GDN A/B contiguity guard
   GENESIS_ENABLE_PN59_STREAMING_GDN: '1'             # required for ctx ≥ 64K hybrid (Cliff 2b OOM guard)
-  GENESIS_ENABLE_P94: '1'                            # GroupAB zero-alloc spec-decode prepare
   GENESIS_ENABLE_P103: '1'                           # FLA Cliff 2 chunked prefill
   GENESIS_ENABLE_PN12_FFN_INTERMEDIATE_POOL: '1'     # GroupAB: -1.7 GiB peak + part of +9.2% TPS group
   GENESIS_ENABLE_PN14_TQ_DECODE_OOB_CLAMP: '1'       # GroupAB: OOB clamp in TQ decode
@@ -123,7 +120,6 @@ patches:
   GENESIS_ENABLE_PN66: '1'                           # vllm#41696 — multiturn </think> leak fix
   GENESIS_ENABLE_PN67: '0'                           # vllm#41674 merged at bf610c2f5… — the dev371 canonical baseline. Patch lifecycle=retired with vllm_version_range "<0.20.2rc1.dev371", so it auto-skips at runtime even when enabled. Explicit disable here keeps the active matrix free of retired patches (Phase 5.2.A 2026-05-22).
   GENESIS_ENABLE_PN77_FP8_LM_HEAD: '1'               # Phase E.6 Marlin tier FP8 LM head
-  GENESIS_ENABLE_PN82_MAMBA_CUDAGRAPH_PREFILL_ZERO: '1' # vllm#41873 — zeros padded is_prefilling rows
   # ── Wave 3.1 / Wave 7 ──
   GENESIS_ENABLE_PN90_PROBABILISTIC_DRAFT: '1'       # vllm#40269 — propagate draft_probs; +7.4% TPS on 27B INT4+TQ
   GENESIS_ENABLE_P107_MTP_TRUNCATION_DETECTOR: '1'   # vllm#41467 — defensive at think→tool_call boundary

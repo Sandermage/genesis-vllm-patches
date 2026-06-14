@@ -160,7 +160,15 @@ PN133_NEW = (
 #     lands the assert, the anchor is gone and PN133 self-retires
 #     loudly instead of failing the anchor scan.
 _DRIFT_MARKERS = (
-    "max(len(generated_token_ids) - 1, 0)",
+    # Operand-agnostic (2026-06-14): dev491 merged vllm#42722 but emits
+    # `max(len(generated_token_ids) - num_sampled, 0)` (scheduler.py:1549),
+    # while the <dev491 form was `- 1`. Match the stable invariant — the
+    # `max(..., 0)` clamp — regardless of the subtrahend, so PN133 self-
+    # retires cleanly as upstream-merged on dev491 instead of falling through
+    # to a generic `required_anchor_missing` DRIFT warning. Still a substring
+    # of PN133_NEW BY DESIGN; the `"PN133" not in content` guard in apply()
+    # prevents self-detection of our own injected marker.
+    "max(len(generated_token_ids) - ",
     "                assert generated_token_ids\n",
 )
 

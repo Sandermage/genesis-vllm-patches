@@ -134,7 +134,6 @@ patches:
   # ── Cross-family supporting patches (Genesis-wide quality) ──
   GENESIS_ENABLE_PN119: '0'               # Gemma 4 doesn't use upstream TQ — N/A on wrapper path
   GENESIS_ENABLE_PN126_V1_DECODE_WARMUP: '1'              # V1 decode + spec-decode warmup at boot (TTFT CV drop)
-  GENESIS_ENABLE_PN132_TOPK_TOPP_CONTIGUOUS: '1'          # sampler stability (cross-model)
 
 # ─── Composition hints for the V1 ModelConfig compose() ────────────────
 compose_hints:

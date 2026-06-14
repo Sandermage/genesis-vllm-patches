@@ -74,7 +74,8 @@ requires:
 
 versions:
   genesis_pin_min: v11.0.0                       # minimum sndr_core version
-  vllm_pin_required: 0.22.1rc1.dev259+g303916e93 # promoted 2026-06-11 (fleet validation): full-YAML-stack boot 109 applied / 0 failed; suite quick wall_TPS 120.9 (CV 2.7%) vs 119.5 dev371 baseline (+1.2%, no regression); tool-calls 7/7 via qwen3_coder (first time the parser is wired); reasoning split via qwen3 parser; PN119+P18B chain applied. Previous pin 626fa9bb retained as :nightly-previous per CLAUDE.md pin policy.
+  vllm_pin_required: 0.22.1rc1.dev259+g303916e93 # validated on dev259 (promoted 2026-06-11): full-YAML-stack boot 109 applied / 0 failed; suite quick wall_TPS 120.9 (CV 2.7%) vs 119.5 dev371 baseline (+1.2%); tool-calls 7/7 via qwen3_coder; reasoning split via qwen3 parser; PN119+P18B chain applied. HELD at dev259 (see pin_hold) — the a5000-2x hardware now renders the dev491 image, but this 27B INT4 TQ k8v4 stack has NOT been re-smoke-validated on dev491.
+  pin_hold: "27B INT4 AutoRound + TQ k8v4 + MTP K=3 not yet re-validated on dev491 (a5000-2x image bumped 2026-06-14). The dev491 #45171 tool-parser remap + version-gate caps were validated on the 35B only; this stack needs its own dev491 smoke+bench+tool-call (qwen3_coder 7/7, TQ decode kernels, PN119) before the pin bumps. Tracked: docs/superpowers/journal/2026-06-14-dev491-patch-health-audit.md. Remove this hold and bump vllm_pin_required to 0.22.1rc1.dev491+g1033ffac2 after validation; dev259 stays the rollback."
   reference_metrics_ref: null   # Phase 5.2.D (2026-05-22): formalize receipt-only state. The prior dev338 Wave-9 baseline (tests/integration/baselines/27b_v11_wave9.json) is no longer authoritative for this dev371-promoted ModelDef; keeping that reference produced a sticky audit mismatch in audit_v2_vllm_pin_consistency. Current dev371 runtime evidence: sndr_private/planning/bench_results/2026-05-21/P2_Q27_TQ_DEV371_SMOKE_RECEIPT_2026-05-21_RU.md (smoke + quick bench: decode_TPOT 10.03 ms / TTFT 111 ms / wall_TPS 81.6 mean). A formal canonical baseline JSON requires the full sustained-methodology cycle and is deferred to Phase 7.
 
 # Y1 (Phase 10 — 2026-06-01): in-container python package pins. Migrated
@@ -110,7 +111,6 @@ patches:
   GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL: '1'      # Genesis-original Triton multi-query kernel for spec-decode K+1 verify. Cross-rig: +25-35% on A5000 (Genesis-internal bench); REQUIRED for TQ k8v4 + spec-decode correctness (without it tool-call cascades degenerate; see club-3090 #178-related Class 1 drift docs).
   GENESIS_P67_USE_UPSTREAM: '1'                      # P67 routing: '1'=upstream Genesis kernel, '0'=fork (DEFAULT 1)
   GENESIS_P67_NUM_KV_SPLITS: '32'                    # P67 split-K factor. Wave 8 sweep: P67=16 (132.28 TPS / TTFT 100.9) vs P67=32 (131.48 / TTFT 97.1, CV 4.76% more stable). 32 wins TTFT by 3.7% on 27B@131K. 35B@320K wants 48 — per-model.
-  GENESIS_ENABLE_P94: '1'
   GENESIS_ENABLE_P95: '1'                            # vllm#40385 — Marlin TP cudagraph cap on Ampere (TP=2 defensive)
   GENESIS_ENABLE_P98: '1'                            # CRITICAL: vllm#40941 WorkspaceManager race-condition lock fix (TQ + hybrid GDN combo)
   GENESIS_ENABLE_G4_61_TQ_SHARED_WORKSPACE: '1'      # vllm#40798 cherry-pick — share TQ decode workspace across layers + capture_model reservation walk. Superset of upstream PR (still OPEN as of 2026-05-29). Composes with P98/P99/PN118. Adds during 2026-05-29 club-3090 cross-reference wave.
@@ -119,7 +119,6 @@ patches:
   # ── Hybrid GDN ──
   GENESIS_ENABLE_PN11_GDN_AB_CONTIGUOUS: '1'         # GDN A/B projection contiguity guard
   GENESIS_ENABLE_PN59_STREAMING_GDN: '1'             # required for ctx ≥ 64K hybrid (Cliff 2b OOM guard). v7.72.5 Level 2 markers verified via CI gate audit_pn59_cliff2b_markers (4/4 present). club-3090 #182: silently no-ops on v7.72.2 — pre-CI-gate catch path.
-  GENESIS_ENABLE_PN82_MAMBA_CUDAGRAPH_PREFILL_ZERO: '1' # vllm#41873 — zeros padded `is_prefilling` rows (CG correctness on hybrid)
   # ── Tool-call safety net ──
   GENESIS_ENABLE_P68_AUTO_FORCE_TOOL: '1'            # auto-set tool_choice=required when prompt mentions tools
   GENESIS_ENABLE_P69_LONG_CTX_TOOL_REMINDER: '1'     # inject system-message reminder of tool format at long-ctx
@@ -131,9 +130,7 @@ patches:
   GENESIS_PROFILE_RUN_CAP_M: '4096'                  # P72 cap value (must equal max_num_batched_tokens)
   GENESIS_ENABLE_P74_CHUNK_CLAMP: '1'                # chunked-prefill chunk-size clamp (degenerate single-token chunks under spec-decode)
   GENESIS_ENABLE_P78_TOLIST_CAPTURE_GUARD: '0'       # opt-out; '0' = default-off on MTP path (DFlash variant turns it '1')
-  GENESIS_ENABLE_PN52_PROMPT_LOGPROBS_EVICTION: '1'  # vllm#41411 — prompt_logprobs eviction fix during chunked prefill
   GENESIS_ENABLE_PN17_FA2_LSE_CLAMP: '1'             # Cliff 1 mech A guard — runtime clamp on FA2 softmax_lse for long context. +50-100 MiB reclaimed at long-ctx (max_seq_len leak from cudagraph capture shape stability into runtime — Genesis-original, club-3090 Issue #11).
-  GENESIS_ENABLE_PN19_SCOPED_MAX_SPLIT: '1'          # vllm#41268 backport — max_split_size_mb=20 scope-restored during model load. +200-500 MiB reclaimed (PyTorch 2.10+ load-time allocator fragmentation).
   GENESIS_ENABLE_PN12_FFN_INTERMEDIATE_POOL: '1'     # GroupAB (2026-04-30): -1.7 GiB peak + part of +9.2% TPS group on 27B INT4+TQ
   GENESIS_TQ_MAX_MODEL_LEN: '262144'                 # 256K — verified 2026-05-31 on pin `626fa9bba` with TP=2 (initial 2026-05-31 fail at 128K was misdiagnosis: root cause was renderer auto-pick of `a5000-1x` hardware → TP=1 → insufficient KV; correct `--hardware a5000-2x-24gbvram-16cpu-128gbram` gives TP=2 and 256K fits cleanly). Per V1 comment: 'Raised 2026-05-14: TP=2 256K ladder PASS (50K/100K/156K/180K/200K/230K/256K green on dcacdf9a pin). Keep TQ_MAX in sync with max_model_len so the workspace allocator sizes correctly for the worst-case context.'
   GENESIS_PREALLOC_TOKEN_BUDGET: '4096'              # Genesis prealloc — token budget for shared scratch pools
@@ -214,7 +211,6 @@ patches:
   GENESIS_ENABLE_PN128_SPEC_DECODE_WARMUP: '1'       # vllm#41481 backport — pre-JITs 4 eagle helper kernels (closes 4 of 8 JIT spikes).
   GENESIS_ENABLE_PN129_SLOT_MAPPING_WARMUP: '1'      # vllm#42165 backport — pre-JITs _compute_slot_mapping_kernel + do_not_specialize='num_tokens'.
   GENESIS_ENABLE_PN130_TQ_DECODE_WARMUP: '1'         # vllm#42215 backport — pre-JITs _tq_grouped_decode_stage1 + workspace prealloc.
-  GENESIS_ENABLE_PN132_TOPK_TOPP_CONTIGUOUS: '1'     # vllm#42739 backport — Triton top-k/top-p contiguous fix (no-op when FlashInfer sampler active).
   GENESIS_ENABLE_PN133_MTP_EMPTY_OUTPUT_FIX: '1'     # vllm#42722 backport — MTP scheduler empty-output guard (prevents Prometheus -1 ValueError).
   # GENESIS_ENABLE_PN134_TORCH_COMPILE_FULLGRAPH_211: KEEP OFF — retired 2026-05-15 (-25% TPS bench regressor on hybrid_gdn_moe).
   # K.1.R.R.6 (2026-05-29) — Wave 1 additions per Stream 4 MTP optimization research:
