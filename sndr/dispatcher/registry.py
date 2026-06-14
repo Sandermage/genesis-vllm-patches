@@ -1364,6 +1364,11 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "upstream_pr": 41418,
         "upstream_pr_relationship": "backport",
         "applies_to": {},
+        # Mutually exclusive with PN26 — both implement vllm#41418 by
+        # rewriting the same get_centroids() in centroids.py (PN57 = disk
+        # cache, PN26 = pre-baked tables). See PN26.conflicts_with
+        # (cross-patch lint, deep-audit 2026-06-14 #2).
+        "conflicts_with": ["PN26"],
         "apply_module": "sndr.engines.vllm.patches.attention.turboquant.pn57_tq_centroids_disk_cache",
         "lifecycle": "experimental",
         "implementation_status": "full",
@@ -4469,7 +4474,14 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "upstream_pr": 41418,
         "upstream_pr_relationship": "backport",
         "applies_to": {},
-        "conflicts_with": [],
+        # PN26 (pre-baked Lloyd-Max tables) and PN57 (disk-persistent cache)
+        # are two DIFFERENT implementations of the SAME upstream vllm#41418,
+        # both rewriting the identical get_centroids() in centroids.py. Their
+        # required anchors destroy each other (BOTH directions) — co-enabling
+        # boots the second one FAILED with the file half-patched. Mutually
+        # exclusive alternatives; pick one. Surfaced by the cross-patch
+        # anchor-overlap lint (deep-audit 2026-06-14 #2).
+        "conflicts_with": ["PN57"],
         "requires_patches": [],
         # v11.3.0 BUG #10 fix: PN26 spec apply_module is the canonical
         # unified-perf orchestrator (`pn26_tq_unified_perf`) which wires

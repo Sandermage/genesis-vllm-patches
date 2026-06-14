@@ -32,12 +32,6 @@ P103|PN79
 # evidence alone).
 PN365|PN50
 
-# PN26 (centroids prebake) vs PN57 (centroids disk cache). BOTH-direction
-# destructive on turboquant/centroids.py, no declared relationship. Strong
-# undeclared-conflict candidate; pending a read of both centroids rewrites to
-# confirm they target the same logical site (vs an incidental shared block).
-PN26|PN57
-
 # P71 (block-verify branch) vs PN390 (rejection-sampler body, drop softmax).
 # One-directional (PN390-first breaks P71's anchor; P71-first composes). PN390
 # lists P71 in composes_with, achievable only if P71 always registers/applies
