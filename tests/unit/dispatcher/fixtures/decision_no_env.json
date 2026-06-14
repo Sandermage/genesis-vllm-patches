@@ -670,6 +670,11 @@
     "reason": "strict opt-in — set GENESIS_ENABLE_PN354_GDN_USE_EXP2=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
   },
   {
+    "patch_id": "PN396",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_PN396_GDN_SPEC_DECODE_WARPS=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
     "patch_id": "PN367",
     "applied": false,
     "reason": "strict opt-in: patch has default_on=True (informational) but env_flag=GENESIS_ENABLE_PN367 unset. Add GENESIS_ENABLE_PN367=1 to launch config to engage. Set GENESIS_LEGACY_DEFAULT_ON=1 to revert to pre-2026-05-17 auto-apply semantics."
@@ -678,6 +683,11 @@
     "patch_id": "PN352",
     "applied": false,
     "reason": "strict opt-in — set GENESIS_ENABLE_PN352=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
+    "patch_id": "PN352B",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_PN352B_MARLIN_MOE_SUM=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
   },
   {
     "patch_id": "PN368",

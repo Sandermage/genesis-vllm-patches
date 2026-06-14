@@ -632,6 +632,14 @@
     "wrapped_name": "apply_patch_N354_gdn_use_exp2"
   },
   {
+    "name": "PN396 GDN spec-decode recurrent num_warps 4->1 (SM 8.6 row-per-thread)",
+    "wrapped_name": "apply_patch_N396_gdn_spec_decode_num_warps"
+  },
+  {
+    "name": "PN352B Marlin MoE topk=8 reduce via Genesis Triton kernel (right call-site)",
+    "wrapped_name": "apply_patch_N352B_marlin_moe_sum"
+  },
+  {
     "name": "PN367 CUDA graph memory estimate clamp (vendor of OPEN vllm#44745, ex-vllm#45076)",
     "wrapped_name": "apply_patch_N367_cudagraph_mem_clamp"
   },

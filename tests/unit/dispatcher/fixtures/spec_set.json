@@ -1608,6 +1608,18 @@
     "apply_module": "sndr.engines.vllm.patches.attention.gdn.pn354_gdn_use_exp2"
   },
   {
+    "patch_id": "PN396",
+    "family": "attention.gdn",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "GENESIS_ENABLE_PN396_GDN_SPEC_DECODE_WARPS",
+    "has_upstream_pr": false,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "sndr.engines.vllm.patches.attention.gdn.pn396_gdn_spec_decode_num_warps"
+  },
+  {
     "patch_id": "PN367",
     "family": "compile_safety",
     "lifecycle": "experimental",
@@ -1630,6 +1642,18 @@
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
     "apply_module": "sndr.engines.vllm.patches.moe.pn352_moe_sum_topk8"
+  },
+  {
+    "patch_id": "PN352B",
+    "family": "moe",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "GENESIS_ENABLE_PN352B_MARLIN_MOE_SUM",
+    "has_upstream_pr": true,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "sndr.engines.vllm.patches.moe.pn352b_marlin_moe_sum"
   },
   {
     "patch_id": "PN368",

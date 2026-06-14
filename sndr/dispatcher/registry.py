@@ -645,6 +645,11 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "apply_module": "sndr.engines.vllm.patches.spec_decode.p71_block_verify",
         "lifecycle": "experimental",
         "implementation_status": "full",
+        # drift D1 (2026-06-15): P71's block-verify branch references the dense
+        # target_probs buffer that PN390 removes (rejection_sampler.py:518/525)
+        # -> latent NameError if both fire under probabilistic draft. Symmetric
+        # to PN390.conflicts_with. Dormant on PROD (greedy draft gates it off).
+        "conflicts_with": ["PN390"],
     },
     "P74": {
         "title": "Auto chunk-clamp via long_prefill_token_threshold (P72 companion)",

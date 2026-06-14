@@ -164,10 +164,15 @@ def test_topo_sort_preserves_existing_correct_order():
         1 for i, pid in enumerate(default_order)
         if topo_order.index(pid) != i
     )
-    assert moves < 160, (
-        f"topo_sort moved {moves} IDs vs default — expected <160 "
+    # 2026-06-15: bound 160 -> 164. PN396 + PN352B (each with composes_with
+    # edges into the existing graph: PN396->PN354/PN345/PN299, PN352B->PN368/
+    # P24/PN96b/P31) add a few legitimate insertion ripples. The sentinel
+    # guards against a tie-breaking CHANGE, not against registry growth.
+    assert moves < 164, (
+        f"topo_sort moved {moves} IDs vs default — expected <164 "
         f"(baseline violations + the long-range PN71->P27 ripple "
-        f"+ transitive ripples). Did the Kahn tie-breaking change?"
+        f"+ transitive ripples + PN396/PN352B insertions). Did the Kahn "
+        f"tie-breaking change?"
     )
 
 
