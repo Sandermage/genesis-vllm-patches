@@ -40,15 +40,17 @@ def _resolve_schema_path() -> Path:
     """Return the path to `patch_entry.schema.json`.
 
     Resolution order:
-      1. `importlib.resources.files("vllm.sndr_core.schemas")` — canonical
-         (works for both wheel install and editable / source checkouts).
-      2. `<repo_root>/schemas/` — legacy fallback for v10.x dev checkouts
-         where the schema lived only at repo root.
+      1. `importlib.resources.files("sndr.schemas")` — canonical (works for
+         both wheel install and editable / source checkouts). v12.0: was
+         `vllm.sndr_core.schemas` (the legacy compat-mount package); the schema
+         now ships at `sndr/schemas/` so this no longer needs the dead
+         `vllm/sndr_core` mount.
+      2. `sndr/schemas/` on disk — fallback for bare source checkouts.
     """
     try:
         from importlib import resources
         ref = (
-            resources.files("vllm.sndr_core.schemas")
+            resources.files("sndr.schemas")
             / "patch_entry.schema.json"
         )
         p = Path(str(ref))
@@ -56,8 +58,8 @@ def _resolve_schema_path() -> Path:
             return p
     except (ModuleNotFoundError, ImportError, FileNotFoundError):
         pass
-    # parents[0]=compat, [1]=sndr, [2]=repo-root after the relocation.
-    return Path(__file__).resolve().parents[2] / "schemas" / "patch_entry.schema.json"
+    # parents[0]=compat, [1]=sndr — the schema lives at sndr/schemas/.
+    return Path(__file__).resolve().parents[1] / "schemas" / "patch_entry.schema.json"
 
 
 _SCHEMA_PATH = _resolve_schema_path()
@@ -172,6 +174,11 @@ _KNOWN_FIELDS = {
     # `upstream_pr`; this separate field is the sanctioned home for
     # tracking-by-issue (int, URL str, or null).
     "upstream_issue",
+    # Drift-watch metadata (PN351, 2026-06): a known upstream PR / refactor
+    # that would break this patch's text anchor if it lands in a future pin.
+    # Surfaced at pin-bump audit time. Object form {pr, also, mitigation};
+    # see patch_entry.schema.json for the nested shape. Informational.
+    "anchor_breaker_watch",
 }
 
 

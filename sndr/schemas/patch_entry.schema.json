@@ -133,6 +133,25 @@
       "enum": ["backport", "related_not_superseding", "different_approach", "vendor_port", "issue_only"],
       "description": "Iron-rule-#11 categorization of how this patch relates to its `upstream_pr`. backport=byte-equivalent merge-on-merge; related_not_superseding=overlapping bug class but different files (status-based retire does not apply); different_approach=same goal, different implementation; vendor_port=vendor's external PR ported into Genesis; issue_only=upstream is an issue without merged code."
     },
+    "anchor_breaker_watch": {
+      "type": "object",
+      "description": "Drift-watch metadata: a known upstream PR / refactor that, if merged into a future pin, would break this patch's text anchor(s). Surfaced at pin-bump audit time so the operator re-verifies the anchor before deploying. Informational; not enforced by validator.",
+      "additionalProperties": false,
+      "properties": {
+        "pr": {
+          "type": ["integer", "string"],
+          "description": "vllm-project/vllm PR number (or URL) whose merge would break this patch's anchor."
+        },
+        "also": {
+          "type": "string",
+          "description": "Companion refactor / second anchor-breaking change to watch alongside `pr`."
+        },
+        "mitigation": {
+          "type": "string",
+          "description": "How this patch already defends against the drift (e.g. multi-anchor variants covering pre/post-PR shapes)."
+        }
+      }
+    },
     "composes_with": {
       "type": "array",
       "items": {"type": "string"},

@@ -473,10 +473,17 @@ class TierManager:
             self._policies[0].admit(key)
             meta.tier_idx = 0
             # Phase 3 observability — bump global counter (best-effort,
-            # avoid circular import via late lookup)
+            # avoid circular import via late lookup). v12.0: key was the
+            # legacy "vllm.sndr_core.cache._pn95_runtime" — a SEPARATE module
+            # object from the canonical "sndr.cache._pn95_runtime" that owns
+            # _PN95_STATS (every reader in pn95/metrics.py + every other
+            # writer in pn95/hooks.py uses sndr.cache._pn95_runtime). The
+            # legacy key resolved to None (or a stale duplicate), so this
+            # promote counter silently never registered. Fixed to the
+            # canonical module so blocks_promoted_total reaches metrics.
             try:
                 import sys as _sys
-                _rt = _sys.modules.get("vllm.sndr_core.cache._pn95_runtime")
+                _rt = _sys.modules.get("sndr.cache._pn95_runtime")
                 if _rt is not None:
                     _rt._PN95_STATS["blocks_promoted_total"] += 1
             except Exception:

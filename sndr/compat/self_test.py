@@ -245,11 +245,13 @@ def _check_schema_file() -> tuple[str, str]:
     import os
 
     candidates: list[Path] = []
-    # 1. Canonical: package data via importlib.resources
+    # 1. Canonical: package data via importlib.resources. v12.0: was
+    #    "vllm.sndr_core.schemas" (legacy compat-mount package); the schema
+    #    now ships at sndr/schemas/ so no vllm/sndr_core mount is needed.
     try:
         from importlib import resources
         ref = (
-            resources.files("vllm.sndr_core.schemas")
+            resources.files("sndr.schemas")
             / "patch_entry.schema.json"
         )
         candidates.append(Path(str(ref)))
@@ -259,10 +261,10 @@ def _check_schema_file() -> tuple[str, str]:
     env_root = os.environ.get("GENESIS_REPO_ROOT")
     if env_root:
         candidates.append(Path(env_root) / "schemas" / "patch_entry.schema.json")
-    # 3. Repo-root relative to this file (works in a git checkout).
-    #    parents[0]=compat, [1]=sndr, [2]=repo-root after the relocation.
+    # 3. sndr/schemas relative to this file (works in a git checkout).
+    #    parents[0]=compat, [1]=sndr — the schema lives at sndr/schemas/.
     candidates.append(
-        Path(__file__).resolve().parents[2] / "schemas" / "patch_entry.schema.json"
+        Path(__file__).resolve().parents[1] / "schemas" / "patch_entry.schema.json"
     )
     # 4. Cwd-relative (works when invoked from the repo root)
     candidates.append(Path.cwd() / "schemas" / "patch_entry.schema.json")

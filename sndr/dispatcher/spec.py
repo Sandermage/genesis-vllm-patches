@@ -388,34 +388,25 @@ _APPLY_MODULE_MAP_CACHE: Optional[dict[str, str]] = None
 def _resolve_patches_dir() -> Optional[Path]:
     """Locate the on-disk patches tree.
 
-    Path updated 2026-05-11: ``patches/`` → ``integrations/`` (semantic
-    clarity — directory holds runtime integration overlays, not just
-    bug-band-aids). Old ``patches/`` retained briefly as fallback for
-    in-place upgrades; canonical path is now ``integrations/``.
+    Canonical (v12.0): ``sndr/engines/vllm/patches/`` — the relocated
+    runtime-integration overlay tree. The pre-v12 repo-root
+    ``vllm/sndr_core/integrations/`` (and older ``vllm/sndr_core/patches/``)
+    shim tree is GONE; we no longer look there (legacy-path elimination
+    2026-06-15 — nothing under the product should reference or create a
+    ``vllm/sndr_core`` path). We anchor at the repo root (``parents[2]``)
+    because the dotted module paths the caller derives are relative to it.
 
-    After the sndr-platform relocation this module lives at
-    ``sndr/dispatcher/spec.py``, but the wiring tree it indexes — and the dotted
-    module paths derived below (``repo_root = patches_dir.parent.parent.parent``)
-    — is still the repo-root ``vllm/sndr_core/integrations/`` shim tree, so we
-    anchor at the repo root (``parents[2]``) rather than relative to this file.
-
-    Returns the resolved patches directory, or ``None`` if neither
-    layout is present (logs a warning so the empty map is diagnosable).
+    Returns the resolved patches directory, or ``None`` if the canonical
+    tree is absent (logs a warning so the empty map is diagnosable).
     """
     _repo_root = Path(__file__).resolve().parents[2]
     canonical_dir = _repo_root / "sndr" / "engines" / "vllm" / "patches"
     if canonical_dir.is_dir():
         return canonical_dir
-    integrations_dir = _repo_root / "vllm" / "sndr_core" / "integrations"
-    if integrations_dir.is_dir():
-        return integrations_dir
-    legacy_patches_dir = _repo_root / "vllm" / "sndr_core" / "patches"
-    if legacy_patches_dir.is_dir():
-        return legacy_patches_dir
     log.warning(
-        "[PatchSpec] integrations dir not found at %s "
-        "(legacy %s also absent) — apply_module map empty",
-        integrations_dir, legacy_patches_dir,
+        "[PatchSpec] canonical patches dir not found at %s "
+        "— apply_module map empty",
+        canonical_dir,
     )
     return None
 
@@ -506,7 +497,7 @@ def _apply_registry_id_overrides(
 
 
 def _build_apply_module_map() -> dict[str, str]:
-    """Walk ``vllm/sndr_core/integrations/<family>/<file>.py`` and build
+    """Walk ``sndr/engines/vllm/patches/<family>/<file>.py`` and build
     a ``patch_id → dotted_module_path`` map. Cached on first call.
 
     M.1.1.T1.C restructure (2026-05-27): the original 85-LOC monolithic
