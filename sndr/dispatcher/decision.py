@@ -75,6 +75,36 @@ def _check_applies_to(
     if not applies_to:
         return True, "no applies_to declared (model-class agnostic)"
 
+    # ─── Version/pin constraints FIRST, unconditionally ──────────────────
+    # These depend only on the running vLLM/torch/CUDA/driver versions, NOT
+    # on the model profile — which is UNRESOLVED at boot apply time (patches
+    # apply during plugin register(), before the model loads). The old code
+    # checked versions only in Path B, AFTER the "profile unresolved →
+    # conservative apply" early-return below, so vllm_version_range was
+    # silently skipped at apply time. That is the dev491 version-cap bug
+    # (2026-06-14): version-capped patches (P64/P61c/PN56 capped to <dev491)
+    # still applied on dev491 because the version gate was never reached.
+    # Running it first makes the cap a real, profile-independent hard gate.
+    _version_keys = (
+        "vllm_version_range", "torch_version_min", "triton_version_min",
+        "cuda_runtime_min", "nvidia_driver_min", "python_version_min",
+        "compute_capability_min", "compute_capability_max",
+    )
+    _version_constraints = {k: v for k, v in applies_to.items() if k in _version_keys}
+    if _version_constraints:
+        try:
+            from sndr.compat.version_check import check_version_constraints
+            _v_ok, _v_results = check_version_constraints(_version_constraints)
+            if not _v_ok:
+                _failed = [r for r in _v_results if r.matched is False]
+                return False, (
+                    f"VERSION: {_failed[0].reason}" if _failed
+                    else "VERSION: constraint violation"
+                )
+        except Exception as e:
+            log.debug("[Genesis dispatcher] %s: version_check failed (%s) — "
+                      "conservative apply", patch_id, e)
+
     try:
         from sndr.engines.vllm.detection.model_detect import get_model_profile
         profile = get_model_profile()
