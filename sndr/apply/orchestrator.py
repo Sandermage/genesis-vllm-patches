@@ -756,7 +756,7 @@ def _apply_spec_module(spec, stats: PatchStats) -> str:
     wiring surfaces as 'failed'.
     """
     import importlib
-    from sndr.dispatcher.decision import should_apply
+    from sndr.dispatcher.decision import log_decision, should_apply
 
     # Use the spec.title as the displayed name (matches what the legacy
     # `@register_patch("...")` decorator passed in).
@@ -771,6 +771,13 @@ def _apply_spec_module(spec, stats: PatchStats) -> str:
     # `spec.apply_module` (which may be torch-heavy) is avoided — critical
     # for torch-less dry-run on Mac dev / CI / preflight.
     decision, reason = should_apply(spec.patch_id)
+    # Record the decision into the boot apply-matrix. Many spec-only patches
+    # never call log_decision() inside their own apply() (or skip before
+    # reaching it), so without this the spec-driven path was invisible to
+    # get_apply_matrix() — and thus to the apply-plan validator / doctor /
+    # telemetry that read it. log_decision() is idempotent by patch_id, so a
+    # patch whose apply() also logs is not double-counted.
+    log_decision(spec.patch_id, decision, reason)
     if not decision:
         stats.results.append(_skipped(display, reason))
         return "skipped"

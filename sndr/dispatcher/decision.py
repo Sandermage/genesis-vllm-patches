@@ -503,7 +503,7 @@ def log_decision(patch_id: str, applied: bool, reason: str) -> None:
         "[Genesis Dispatcher] %s %s — %s | %s",
         status, patch_id, title, reason[:120],
     )
-    _DECISIONS.append({
+    record = {
         "patch_id": patch_id,
         "title": title,
         "applied": applied,
@@ -511,6 +511,18 @@ def log_decision(patch_id: str, applied: bool, reason: str) -> None:
         "env_flag": meta.get("env_flag", ""),
         "credit": meta.get("credit", ""),
         "upstream_pr": meta.get("upstream_pr"),
-    })
+    }
+    # Idempotent by patch_id (last-write-wins). A single patch can have its
+    # decision logged more than once per boot — e.g. the spec-driven loop
+    # (`_apply_spec_module`) records the gate decision, and the patch's own
+    # apply() also calls log_decision(). Appending both would double-count it
+    # in the raw apply matrix that telemetry / doctor consume. Replace the
+    # prior record in place (preserving first-seen order) so the matrix holds
+    # exactly one entry per patch.
+    for i, existing in enumerate(_DECISIONS):
+        if existing.get("patch_id") == patch_id:
+            _DECISIONS[i] = record
+            return
+    _DECISIONS.append(record)
 
 
