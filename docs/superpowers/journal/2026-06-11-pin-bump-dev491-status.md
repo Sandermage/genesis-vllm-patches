@@ -365,3 +365,45 @@ misdiagnosis — the parser was never broken; our patches broke it.
   NOT false-fire on dev491 with the wraps removed.
 - This is exactly the runtime-contract drift the new `pin_runtime_contract.py`
   flags: qwen3_xml remapped to a parser whose streaming our wraps mishandled.
+
+---
+
+## Update (2026-06-14, STREAMING FIXED on dev491 — version-cap mechanism repaired)
+
+### The fix landed and is LIVE-validated
+With the dev259-era qwen3coder wraps (P64/P61c/PN56) version-capped to <dev491
+AND the version-gate now actually enforced, the full-promotion-config smoke
+(all 137 env vars, INFO) on dev491:
+- boot HEALTHY (~250s), P64/P61c/PN56 → **VERSION HARD-SKIP** (not applied)
+- **streaming tool-call: 4 delta.tool_calls, finish=tool_calls, 0 content leak, 0 500s**
+- non-stream tool-call: finish=tool_calls, 1 tool_call
+- PN392 retired; P107/P68/P69 still apply (correctly, not capped)
+
+### Two real dispatcher bugs found + fixed to make the version-cap work
+1. **`_resolve_env_override` bypassed applies_to under env opt-in** — an
+   env-enabled patch ignored its version_range. Fix: a `VERSION:` constraint
+   failure is now a HARD skip even under env-override (model-compat stays
+   advisory). Commit 44816957.
+2. **`_check_applies_to` checked versions AFTER the model-profile gate** —
+   at boot apply time the profile is unresolved, so it returned
+   "conservative apply" and never reached the version check. Fix: version/pin
+   constraints are evaluated FIRST, unconditionally (they need only the vLLM
+   version, not the model). Commit 7cca7fcb.
+   This is itself a systemic drift-prevention win: vllm_version_range is now a
+   real boot-time gate, so version-capped patches genuinely retire on the pins
+   they declare incompatible.
+
+### Blast-radius audit (safe)
+The fix surfaced **57 opt-in patches** with version_range excluding dev491 that
+had been applying outside their declared range (the gate-bypass bug). All 57 are
+**default_on=0** (zero load-bearing patches affected) — they are old opt-in
+experiments (`<0.22.0` / `<0.21.0` / `<0.20.x`) correctly skipping on dev491.
+Streaming + non-stream tool-calls + boot all healthy with them skipped. 2 entries
+with `<0.23.0` upper bound skip due to a `>=0.22.1` lower bound (0.22.1rc1.dev491
+< 0.22.1 final) — minor follow-up to widen if they should engage on rc pins.
+
+### Net
+The dev491 streaming promotion blocker is **CLEARED**. The fix was: adapt to the
+self-sufficient upstream parser (retire/version-cap our obsolete dev259-era
+wraps) + repair the version-gate so the cap is enforced at boot. PROD can now
+promote to dev491.
