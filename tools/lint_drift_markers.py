@@ -82,6 +82,19 @@ DEFENDED_PREFIX = "[Genesis"
 
 DEFAULT_ALLOWLIST = HERE / "lint_drift_markers_allowlist.txt"
 
+# Cross-patch anchor-overlap allowlist (deep-audit #2). One ``PID_A|PID_B``
+# pair (patch ids sorted) per line; ``#``-comment justification blocks per the
+# same format as the drift-marker allowlist. A pair listed here is a reviewed,
+# order-dependent or otherwise-tolerated overlap — surfaced by the lint but not
+# a build failure. Pairs that genuinely cannot coexist should instead get a
+# registry conflicts_with declaration (which the lint excludes automatically).
+DEFAULT_CROSS_PATCH_ALLOWLIST = HERE / "lint_cross_patch_allowlist.txt"
+
+
+def cross_patch_pair_key(patch_a: str, patch_b: str) -> str:
+    """Canonical ``PID_A|PID_B`` key with the two ids sorted."""
+    return "|".join(sorted((patch_a, patch_b)))
+
 # Mirrors tools/pin_preflight.py — implementation states whose wiring
 # actually applies against the vllm tree, and lifecycles that never do.
 TEXT_PATCH_STATES = frozenset({"live", "full", "text_patch", "runtime_hook"})
@@ -130,6 +143,133 @@ def collisions_for_patcher(patcher: Any) -> list[dict]:
                 "collides_with": collides_with,
                 "colliding_subs": colliding_subs,
             })
+    return findings
+
+
+# ─── cross-patch anchor-overlap detection (deep-audit 2026-06-14 #2) ──────
+#
+# collisions_for_patcher() above catches a patcher colliding with ITSELF.
+# This section catches a DIFFERENT, previously-invisible class: two SEPARATE
+# patches whose REQUIRED anchors overlap the same byte span in one upstream
+# file. Whichever registers first rewrites the shared region, so the other's
+# required anchor vanishes and that patch boots FAILED with the file
+# half-patched (the P23_WIRE / PN368 marlin_moe.py case). The orchestrator
+# dependency validator and audit.validate_apply_plan are conflicts_with-only,
+# so an UNDECLARED overlap is invisible to every existing guard. This makes
+# it a build failure unless the pair is declared mutually exclusive.
+
+
+def _declared_conflict_pairs() -> set:
+    """Symmetric ``{patch_a, patch_b}`` frozenset pairs declared via
+    ``conflicts_with`` anywhere in the registry."""
+    from sndr.dispatcher.registry import PATCH_REGISTRY
+    pairs: set = set()
+    for pid, meta in PATCH_REGISTRY.items():
+        for other in meta.get("conflicts_with", []) or []:
+            pairs.add(frozenset((pid, other)))
+    return pairs
+
+
+def _required_subpatches(patcher: Any) -> list[dict]:
+    """(anchor, replacement, name) of a patcher's REQUIRED sub-patches —
+    failure of one aborts the group, so it is a required anchor's destruction
+    that causes the silent half-patched boot."""
+    out: list[dict] = []
+    for sp in getattr(patcher, "sub_patches", None) or []:
+        if getattr(sp, "required", False):
+            a = getattr(sp, "anchor", "") or ""
+            if a:
+                out.append({
+                    "anchor": a,
+                    "replacement": getattr(sp, "replacement", "") or "",
+                    "name": getattr(sp, "name", "?"),
+                })
+    return out
+
+
+def locate_anchor_spans(file_content: str, anchors: list[dict]) -> list[dict]:
+    """Locate each anchor's UNIQUE byte span in the pristine file content.
+
+    ``anchors``: ``[{patch_id, label, anchor}]``. Returns only anchors that
+    occur EXACTLY once, each annotated with ``start``/``end``. Anchors absent
+    (drift) or ambiguous (count != 1) are dropped — those are other lints'
+    concern, and a non-located anchor cannot be reasoned about positionally.
+    """
+    located: list[dict] = []
+    for a in anchors:
+        s = a["anchor"]
+        if file_content.count(s) != 1:
+            continue
+        start = file_content.find(s)
+        located.append({**a, "start": start, "end": start + len(s)})
+    return located
+
+
+def find_destructive_collisions(
+    file_content: str, patches: list[dict], declared: set,
+) -> list[dict]:
+    """Pure: cross-patch collisions that are ORDER-DEPENDENT FRAGILE.
+
+    A mere span overlap is NOT enough — TextPatcher applies sub-patches
+    sequentially, so two patches whose anchors overlap compose fine as long as
+    the earlier one's REPLACEMENT preserves the later one's anchor (intentional
+    chaining). The real footgun is when applying one patch removes the other's
+    (unique) anchor: then whichever registers first silently makes the other
+    boot FAILED. We test BOTH orders against the pristine file.
+
+    ``patches``: ``[{patch_id, label, anchor, replacement}]``. Only anchors
+    that occur EXACTLY once in the pristine file are considered (a non-unique
+    anchor is a separate lint). A pair declared mutually exclusive
+    (``conflicts_with``) is handled by the dispatcher and excluded.
+    """
+    located = [p for p in patches if file_content.count(p["anchor"]) == 1]
+    findings: list[dict] = []
+    n = len(located)
+    for i in range(n):
+        for j in range(i + 1, n):
+            a, b = located[i], located[j]
+            if a["patch_id"] == b["patch_id"]:
+                continue
+            if frozenset((a["patch_id"], b["patch_id"])) in declared:
+                continue
+            after_a = file_content.replace(a["anchor"], a["replacement"], 1)
+            after_b = file_content.replace(b["anchor"], b["replacement"], 1)
+            a_breaks_b = after_a.count(b["anchor"]) != 1
+            b_breaks_a = after_b.count(a["anchor"]) != 1
+            if a_breaks_b or b_breaks_a:
+                findings.append({
+                    "patch_a": a["patch_id"], "anchor_a": a["label"],
+                    "patch_b": b["patch_id"], "anchor_b": b["label"],
+                    "a_breaks_b": a_breaks_b, "b_breaks_a": b_breaks_a,
+                })
+    return findings
+
+
+def collect_cross_patch_collisions(
+    entries: list, declared: set,
+) -> list[dict]:
+    """Read each target file once, locate every patch's required anchors, and
+    return undeclared cross-patch span overlaps. Needs the pristine tree
+    (``target_file`` resolved into the candidate_root by the caller)."""
+    by_file: dict[str, list[dict]] = {}
+    for module_name, bname, patch_ids, patcher in entries:
+        target = getattr(patcher, "target_file", None)
+        if not target:
+            continue
+        pid = patch_ids[0] if patch_ids else module_name
+        for sub in _required_subpatches(patcher):
+            by_file.setdefault(target, []).append({
+                "patch_id": pid, "label": sub["name"],
+                "anchor": sub["anchor"], "replacement": sub["replacement"],
+            })
+    findings: list[dict] = []
+    for target, patches in by_file.items():
+        try:
+            content = Path(target).read_text()
+        except OSError:
+            continue
+        for f in find_destructive_collisions(content, patches, declared):
+            findings.append({**f, "file": target})
     return findings
 
 
@@ -300,10 +440,17 @@ def run_lint(
 
 
 def decide_exit(report: dict) -> int:
-    """0 clean, 1 violations, 2 empty sweep (checked nothing ≠ passed)."""
+    """0 clean, 1 violations, 2 empty sweep (checked nothing ≠ passed).
+
+    Either self-collision violations OR undeclared cross-patch anchor
+    overlaps fail the lint."""
     if report["summary"]["patchers_checked"] == 0:
         return 2
-    return 1 if report["summary"]["violations"] else 0
+    if report["summary"]["violations"]:
+        return 1
+    if report["summary"].get("cross_patch_collisions", 0):
+        return 1
+    return 0
 
 
 def _print_human(report: dict) -> None:
@@ -315,6 +462,8 @@ def _print_human(report: dict) -> None:
     print(f"patchers={s['patchers_checked']} findings={s['findings']} "
           f"violations={s['violations']} allowlisted={s['allowlisted']}",
           file=err)
+    print(f"cross-patch: violations={s.get('cross_patch_collisions', 0)} "
+          f"allowlisted={s.get('cross_patch_allowlisted', 0)}", file=err)
     if report["violations"]:
         print("-" * 72, file=err)
         print(f"{'PATCH_IDS':18} {'COLLIDES_WITH':34} MARKER", file=err)
@@ -324,6 +473,17 @@ def _print_human(report: dict) -> None:
                 where += f" ({','.join(f['colliding_subs'])})"
             print(f"{','.join(f['patch_ids']):18} {where:34} "
                   f"{f['marker']!r}", file=err)
+    cross = report.get("cross_patch_collisions") or []
+    if cross:
+        print("-" * 72, file=err)
+        print(f"UNDECLARED cross-patch anchor overlaps ({len(cross)}) — two "
+              "patches rewrite the same byte span; whichever applies first "
+              "leaves the other half-patched. Declare conflicts_with or "
+              "disambiguate the anchor:", file=err)
+        for c in cross:
+            print(f"  {c['patch_a']} ({c['anchor_a']}) ⨯ {c['patch_b']} "
+                  f"({c['anchor_b']})\n      file: {c['file']} "
+                  f"overlap@{c['overlap']}", file=err)
     if report["stale_allowlist"]:
         print("-" * 72, file=err)
         print("Stale allowlist entries (no longer collide — prune):", file=err)
@@ -370,9 +530,34 @@ def main(argv: Optional[list[str]] = None) -> int:
         return 2
 
     failures: dict[str, list[str]] = {}
-    entries = iter_buildable_patchers(candidate_root, failures=failures)
-    report = run_lint(entries, allow_markers,
+    # Materialize so the same enumeration feeds both the self-collision lint
+    # and the cross-patch anchor-overlap check.
+    entries = list(iter_buildable_patchers(candidate_root, failures=failures))
+    report = run_lint(iter(entries), allow_markers,
                       candidate_root=candidate_root, failures=failures)
+
+    # Cross-patch anchor-overlap check (deep-audit #2). conflicts_with pairs
+    # are excluded in the detector; a reviewed allowlist tolerates the rest.
+    declared = _declared_conflict_pairs()
+    cross_all = collect_cross_patch_collisions(entries, declared)
+    xp_allow, xp_allow_errors = parse_allowlist(
+        Path(DEFAULT_CROSS_PATCH_ALLOWLIST)
+    ) if Path(DEFAULT_CROSS_PATCH_ALLOWLIST).exists() else ([], [])
+    if xp_allow_errors:
+        for e in xp_allow_errors:
+            print(f"lint_drift_markers: cross-patch allowlist error: {e}",
+                  file=sys.stderr)
+        return 2
+    xp_allowset = set(xp_allow)
+    cross_violations, cross_allowlisted = [], []
+    for c in cross_all:
+        key = cross_patch_pair_key(c["patch_a"], c["patch_b"])
+        (cross_allowlisted if key in xp_allowset
+         else cross_violations).append({**c, "pair": key})
+    report["cross_patch_collisions"] = cross_violations
+    report["cross_patch_allowlisted"] = cross_allowlisted
+    report["summary"]["cross_patch_collisions"] = len(cross_violations)
+    report["summary"]["cross_patch_allowlisted"] = len(cross_allowlisted)
 
     payload = json.dumps(report, indent=2, default=str)
     print(payload)

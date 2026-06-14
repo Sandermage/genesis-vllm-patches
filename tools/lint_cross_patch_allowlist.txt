@@ -1,0 +1,46 @@
+# Cross-patch anchor-overlap allowlist (deep-audit 2026-06-14 #2).
+#
+# Format mirrors lint_drift_markers_allowlist.txt: one "PID_A|PID_B" pair
+# (ids sorted) per line; a "#"-comment block justifies every pair line until
+# the next blank line. A pair with no justification is an error.
+#
+# A pair belongs here only if it is a REVIEWED, order-dependent or
+# parked-patch overlap that is tolerated. A pair that genuinely cannot
+# coexist on any single config should instead get a registry conflicts_with
+# declaration (the detector excludes declared pairs automatically), which
+# actively PREVENTS co-enablement rather than merely suppressing the lint.
+#
+# The four entries below were surfaced on the FIRST run of the cross-patch
+# detector against dev491 (0.22.1rc1.dev491+g1033ffac2). They are pre-existing
+# overlaps, each pending a careful per-pair deep-diff (iron-rule #11) before
+# either a conflicts_with declaration, an anchor disambiguation, or a fix. They
+# are allowlisted (not silently dropped) so the detector ships GREEN and guards
+# against NEW collisions, while these are tracked honestly as a triage backlog.
+
+# P103 (FLA Cliff-2 self-install at chunk.py end) vs PN79 (in-place SSM state,
+# 1E high-level-api apply-call). One-directional (PN79-first would break P103's
+# trailing-append anchor). PN79 is PARKED behind a hard-refusal gate (PROD IMA)
+# as of dc1bd79f, so it cannot apply without an explicit override — they never
+# co-apply in practice. Candidate for conflicts_with once PN79's status settles.
+P103|PN79
+
+# PN365 (fwd_cuda split short-circuit) vs PN50 (GDN fused proj). BOTH-direction
+# destructive on qwen_gdn_linear_attn.py — they provably cannot both apply. Yet
+# PN365 lists PN50 in composes_with, which the anchors contradict. Needs a
+# deep-diff to confirm the composes_with is wrong before reversing it to a
+# conflicts_with (a deliberate author claim must not be flipped on lint
+# evidence alone).
+PN365|PN50
+
+# PN26 (centroids prebake) vs PN57 (centroids disk cache). BOTH-direction
+# destructive on turboquant/centroids.py, no declared relationship. Strong
+# undeclared-conflict candidate; pending a read of both centroids rewrites to
+# confirm they target the same logical site (vs an incidental shared block).
+PN26|PN57
+
+# P71 (block-verify branch) vs PN390 (rejection-sampler body, drop softmax).
+# One-directional (PN390-first breaks P71's anchor; P71-first composes). PN390
+# lists P71 in composes_with, achievable only if P71 always registers/applies
+# first. The composition is order-fragile; pending confirmation of the
+# registration-order guarantee before either documenting it or splitting them.
+P71|PN390
