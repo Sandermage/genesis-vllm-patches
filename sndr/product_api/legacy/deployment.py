@@ -34,7 +34,7 @@ _PATH_DEFAULTS: dict[str, str] = {
     "models_dir": "/mnt/models",
     "hf_cache": "/mnt/models/hf-cache",
     "cache_root": "/var/lib/sndr/cache",
-    "genesis_src": "/opt/genesis/sndr",
+    "sndr_src": "/opt/genesis/sndr",
     "plugin_src": "/opt/genesis/plugin",
 }
 

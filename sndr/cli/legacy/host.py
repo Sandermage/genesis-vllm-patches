@@ -104,7 +104,7 @@ def _probe_host() -> dict:
         "hf_cache": [home / ".cache" / "huggingface"],
         "triton_cache": [home / ".triton" / "cache"],
         "compile_cache": [home / ".cache" / "vllm" / "torch_compile_cache"],
-        "genesis_src": [],  # operator must set
+        "sndr_src": [],     # operator must set
         "plugin_src": [],   # operator must set
     }
     for key, paths in candidates.items():
@@ -188,7 +188,7 @@ def run_init(args: argparse.Namespace) -> int:
     out_path.write_text(body)
     _io.success(f"wrote {out_path}")
     _io.info("  next steps:")
-    _io.info("    1. fill in genesis_src + plugin_src paths (operator-specific)")
+    _io.info("    1. fill in sndr_src + plugin_src paths (operator-specific)")
     _io.info("    2. validate: sndr host doctor")
     _io.info("    3. launch:   sndr launch <preset>")
     return 0
@@ -206,7 +206,7 @@ def _render_host_yaml(profile: dict) -> str:
         "paths:",
     ]
     for key in ("models_dir", "hf_cache", "triton_cache",
-                  "compile_cache", "genesis_src", "plugin_src"):
+                  "compile_cache", "sndr_src", "plugin_src"):
         v = paths.get(key)
         if v:
             lines.append(f"  {key}: {v}")
@@ -257,7 +257,12 @@ def run_doctor(args: argparse.Namespace) -> int:
                 "message": str(p),
             })
             paths = data.get("paths", {}) or {}
-            for key in ("models_dir", "genesis_src", "plugin_src"):
+            # Alias the legacy `genesis_src` key onto `sndr_src` so doctor
+            # validates old operator host.yaml files under the canonical name
+            # (v12 rename; back-compat). Mirrors load_host_config().
+            if "genesis_src" in paths and "sndr_src" not in paths:
+                paths["sndr_src"] = paths["genesis_src"]
+            for key in ("models_dir", "sndr_src", "plugin_src"):
                 v = paths.get(key)
                 if not v:
                     findings.append({

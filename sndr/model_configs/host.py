@@ -11,7 +11,13 @@ Variables recognized:
   hf_cache       — HuggingFace cache root (downloaded files)
   triton_cache   — Triton kernel cache (persistent across container restarts)
   compile_cache  — vLLM torch.compile cache (persistent compile artifacts)
-  genesis_src    — checkout of genesis-vllm-patches/vllm/sndr_core (RO mount source). Variable name kept "genesis_src" for legacy compat with existing host.yaml; physical path points at sndr_core after v11 (_genesis dir removed 2026-05-08).
+  sndr_src       — checkout of genesis-vllm-patches/vllm/sndr_core (RO mount
+                   source). `sndr_src` is the canonical variable name (v12);
+                   `genesis_src` is accepted as a legacy alias for back-compat
+                   with existing host.yaml files (key alias-in at load time;
+                   the GENESIS_SRC env var also remains accepted). Physical
+                   path points at sndr_core after v11 (_genesis dir removed
+                   2026-05-08).
   plugin_src     — operator-side path to the optional Genesis vllm-plugin
                    pip package (separate from sndr_core). Set via
                    SNDR_PLUGIN_SRC / GENESIS_PLUGIN_SRC env var, or relies
@@ -85,7 +91,7 @@ _DEFAULT_CACHE_ROOT_CANDIDATES = [
     "/var/cache/genesis",
 ]
 
-_DEFAULT_GENESIS_SRC_CANDIDATES = [
+_DEFAULT_SNDR_SRC_CANDIDATES = [
     str(Path.home() / "genesis-vllm-patches/vllm/sndr_core"),
     "/opt/genesis-vllm-patches/vllm/sndr_core",
     str(Path.home() / ".genesis/genesis-vllm-patches/vllm/sndr_core"),
@@ -113,7 +119,11 @@ _ENV_OVERRIDES: dict[str, tuple[str, ...]] = {
     "hf_cache":      ("SNDR_HF_CACHE", "HF_HOME", "HUGGINGFACE_HUB_CACHE"),
     "triton_cache":  ("SNDR_TRITON_CACHE", "GENESIS_TRITON_CACHE"),
     "compile_cache": ("SNDR_COMPILE_CACHE", "GENESIS_COMPILE_CACHE"),
-    "genesis_src":   ("SNDR_CORE_SRC", "GENESIS_SRC"),
+    # `sndr_src` is the canonical key (v12). The legacy `GENESIS_SRC` env var
+    # is retained in the tuple so v7.x/v11 deployments keep resolving; the
+    # legacy `genesis_src` host.yaml key is aliased-in at load time
+    # (see load_host_config).
+    "sndr_src":      ("SNDR_CORE_SRC", "GENESIS_SRC"),
     "plugin_src":    ("SNDR_PLUGIN_SRC", "GENESIS_PLUGIN_SRC"),
     "cache_root":    ("SNDR_CACHE_ROOT", "GENESIS_CACHE_ROOT"),
 }
@@ -143,7 +153,7 @@ def detect_paths(
     hf_cache_candidates: Optional[list[str]] = None,
     triton_cache_candidates: Optional[list[str]] = None,
     compile_cache_candidates: Optional[list[str]] = None,
-    genesis_src_candidates: Optional[list[str]] = None,
+    sndr_src_candidates: Optional[list[str]] = None,
     plugin_src_candidates: Optional[list[str]] = None,
     cache_root_candidates: Optional[list[str]] = None,
     create_missing_caches: bool = False,
@@ -163,7 +173,7 @@ def detect_paths(
         hf_cache_candidates: override hf_cache search (default = $HOME/.cache/huggingface)
         triton_cache_candidates: override triton_cache search
         compile_cache_candidates: override compile_cache search
-        genesis_src_candidates: override genesis_src search
+        sndr_src_candidates: override sndr_src search
         plugin_src_candidates: override plugin_src search
         create_missing_caches: if True, mkdir cache dirs that don't yet exist
             at the FIRST candidate location (useful at install-time)
@@ -228,15 +238,15 @@ def detect_paths(
             first.mkdir(parents=True, exist_ok=True)
             out["compile_cache"] = str(first)
 
-    # genesis_src — env override → candidates. RO mount source, never auto-created.
-    env_path = _env_lookup("genesis_src")
+    # sndr_src — env override → candidates. RO mount source, never auto-created.
+    env_path = _env_lookup("sndr_src")
     if env_path:
-        out["genesis_src"] = env_path
+        out["sndr_src"] = env_path
     else:
-        cands = genesis_src_candidates if genesis_src_candidates is not None else _DEFAULT_GENESIS_SRC_CANDIDATES
+        cands = sndr_src_candidates if sndr_src_candidates is not None else _DEFAULT_SNDR_SRC_CANDIDATES
         for c in cands:
             if Path(c).is_dir():
-                out["genesis_src"] = c
+                out["sndr_src"] = c
                 break
 
     # plugin_src — env override → candidates. RO mount source.
@@ -341,7 +351,22 @@ def load_host_config(path: Optional[Path] = None) -> HostConfig:
         raise SchemaError(
             f"host.yaml.paths at {p} must be a mapping, got {type(paths).__name__}"
         )
-    return HostConfig(paths=dict(paths))
+    paths = _normalize_legacy_keys(dict(paths))
+    return HostConfig(paths=paths)
+
+
+def _normalize_legacy_keys(paths: dict[str, str]) -> dict[str, str]:
+    """Alias deprecated host.yaml path keys onto their canonical names.
+
+    v12 renamed the host source-checkout mount var `genesis_src` → `sndr_src`.
+    Existing operator host.yaml files still use the legacy `genesis_src:` key,
+    so alias it in: if `genesis_src` is present but `sndr_src` is not, copy the
+    value under `sndr_src` so downstream consumers resolve under the canonical
+    key. The legacy key is left in place so nothing that still reads it breaks.
+    """
+    if "genesis_src" in paths and "sndr_src" not in paths:
+        paths["sndr_src"] = paths["genesis_src"]
+    return paths
 
 
 def save_host_config(hc: HostConfig, path: Optional[Path] = None) -> Path:

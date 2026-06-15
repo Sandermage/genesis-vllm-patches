@@ -520,7 +520,7 @@ def _render_kubernetes(cfg) -> str:
     - No resource limits on CPU/RAM (let scheduler choose); GPU req is hard
     - Service is ClusterIP (operator wraps in Ingress / LoadBalancer if
       external access needed)
-    - genesis_src + plugin_src mounted via initContainer that copies into
+    - sndr_src + plugin_src mounted via initContainer that copies into
       shared emptyDir (avoids RO bind-mount complications in some k8s setups)
 
     Returns YAML stream with embedded comments. NOT compose-equivalent —
@@ -613,7 +613,7 @@ def _render_kubernetes(cfg) -> str:
 #   [ ] HostPath mounts compatible with single-node OR replaced with PVC
 #   [ ] NVIDIA device plugin installed (`kubectl get nodes -o yaml | grep nvidia.com/gpu`)
 #   [ ] Image `{cfg.docker.image}` accessible from cluster (push to private registry if needed)
-#   [ ] genesis_src + plugin_src paths exist on each node OR ConfigMap+initContainer used
+#   [ ] sndr_src + plugin_src paths exist on each node OR ConfigMap+initContainer used
 #   [ ] Resource limits (CPU/RAM) match cluster capacity
 ---
 apiVersion: v1
@@ -779,7 +779,7 @@ def _render_bare_metal(cfg, *, mode: str = "wheel") -> str:
 
     hc = load_host_config()
     venv_path = hc.paths.get("vllm_venv", "/opt/vllm-env")
-    genesis_src = hc.paths.get("genesis_src", "${genesis_src}")
+    sndr_src = hc.paths.get("sndr_src", "${sndr_src}")
     plugin_src = hc.paths.get("plugin_src", "${plugin_src}")
 
     lines = [
@@ -827,7 +827,7 @@ def _render_bare_metal(cfg, *, mode: str = "wheel") -> str:
     elif mode == "dev":
         lines.extend([
             "# Dev mode: editable install of plugin source — errors visible (no `|| true`)",
-            f"export PYTHONPATH=\"{genesis_src}/..:${{PYTHONPATH:-}}\"",
+            f"export PYTHONPATH=\"{sndr_src}/..:${{PYTHONPATH:-}}\"",
             f"pip install --quiet -e {plugin_src}",
             "",
         ])
@@ -836,7 +836,7 @@ def _render_bare_metal(cfg, *, mode: str = "wheel") -> str:
             "# DEPRECATED legacy mode — silent `|| true` masks install failures.",
             "echo \"[Genesis WARN] bare-metal mode=dev_legacy is deprecated; "
             "use --mode wheel for production or --mode dev for dev.\" >&2",
-            f"export PYTHONPATH=\"{genesis_src}/..:${{PYTHONPATH:-}}\"",
+            f"export PYTHONPATH=\"{sndr_src}/..:${{PYTHONPATH:-}}\"",
             f"pip install --quiet -e {plugin_src} 2>/dev/null || true",
             "",
         ])

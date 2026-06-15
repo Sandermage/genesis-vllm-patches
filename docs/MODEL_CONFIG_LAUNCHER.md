@@ -251,7 +251,7 @@ docker:
     - ${hf_cache}:/root/.cache/huggingface:ro
     - ${triton_cache}:/root/.triton/cache
     - ${compile_cache}:/root/.cache/vllm/torch_compile_cache
-    - ${genesis_src}:/usr/local/lib/python3.12/dist-packages/vllm/sndr_core:ro
+    - ${sndr_src}:/usr/local/lib/python3.12/dist-packages/vllm/sndr_core:ro
     - ${plugin_src}:/plugin:ro
 ```
 
@@ -307,7 +307,7 @@ config BEFORE booting (which would fail with cryptic mount errors):
 $ sndr model-config validate community-rig-3090-qwen3.6
 ERROR (R-019): symbolic mounts reference ['unknwn_dir'] but host.yaml only
 defines ['models_dir', 'hf_cache', 'triton_cache', 'compile_cache',
-'genesis_src', 'plugin_src']. Add these vars to ~/.genesis/host.yaml
+'sndr_src', 'plugin_src']. Add these vars to ~/.genesis/host.yaml
 `paths:` section.
 ```
 

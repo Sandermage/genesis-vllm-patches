@@ -163,5 +163,5 @@ verified_on: []
 # ── Operator notes (free-form, surface to `model-config show`) ──
 notes:
   - 'ℹ This is the EXAMPLE community config — copy + edit, do not deploy as-is'
-  - 'ℹ Required ${var} in mounts: models_dir, hf_cache, triton_cache, compile_cache, genesis_src, plugin_src'
+  - 'ℹ Required ${var} in mounts: models_dir, hf_cache, triton_cache, compile_cache, sndr_src, plugin_src'
   - 'ℹ Run `genesis model-config validate` to catch missing ${var} via R-019 audit rule'
