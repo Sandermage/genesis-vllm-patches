@@ -1384,6 +1384,15 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "implementation_status": "full",
     },
     "PN282": {
+        # dev491 drift note (2026-06-16): dev491's rejection_sample() grew
+        # use_fp64_gumbel (vllm#43150), passed unconditionally by RejectionSampler
+        # .forward (rejection_sampler.py:182-184), after synthetic_mode/synthetic_
+        # conditional_rates. The old explicit-signature wrapper TypeError'd EVERY
+        # spec-decode step once enabled. FIXED 2026-06-16: PN282 (and the PN248
+        # sibling) now forward (*args, **kwargs) transparently and read the
+        # side-channel via inspect.signature(original).bind() — signature-agnostic
+        # and forward-proof, so NO version-cap is needed. Regression test:
+        # tests/unit/integrations/observability/test_pn282_pn248_forward_proof.py.
         "title": "Spec-decode acceptance proxy metric (Prometheus, non-dispatcher boot patch)",
         "tier": "community",
         "family": "observability",
