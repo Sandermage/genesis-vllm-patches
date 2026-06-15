@@ -56,7 +56,7 @@ def _import_audit():
 
 
 def _drifted_yaml() -> str:
-    """V2 hardware YAML missing 4 mounts (only models + hf_cache present)
+    """V2 hardware YAML missing 3 mounts (only models + hf_cache present)
     and 4 env keys."""
     return textwrap.dedent("""
         schema_version: 2
@@ -77,7 +77,7 @@ def _drifted_yaml() -> str:
 
 
 def _canonical_yaml() -> str:
-    """All 6 mounts + 7 env keys present."""
+    """All 5 mounts + 7 env keys present."""
     return textwrap.dedent("""
         schema_version: 2
         kind: hardware
@@ -90,7 +90,6 @@ def _canonical_yaml() -> str:
               - "${hf_cache}:/root/.cache/huggingface:ro"
               - "${triton_cache}:/root/.triton/cache"
               - "${compile_cache}:/root/.cache/vllm/torch_compile_cache"
-              - "${genesis_src}:/usr/local/lib/python3.12/dist-packages/vllm/sndr_core:ro"
               - "${plugin_src}:/plugin:ro"
 
         system_env:
@@ -160,7 +159,7 @@ class TestCompleteOneYaml:
         p = _write(tmp_path / "h.yaml", original)
         r = mod.complete_one_yaml(p, write=False)
         assert r.status == mod.CompletionStatus.WOULD_WRITE
-        assert len(r.missing_mounts) == 4
+        assert len(r.missing_mounts) == 3
         assert len(r.missing_envs) == 4
         # File unchanged.
         assert p.read_text() == original

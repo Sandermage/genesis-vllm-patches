@@ -66,15 +66,14 @@ runtime:
     shm_size: 8g                                 # /dev/shm size (8 GiB sufficient for 2× TP NCCL). Do NOT shrink: a container left at the docker 64 MB default crashed NCCL on first TP all-reduce (27B drift container, fleet validation 2026-06-11). `--ipc=host` is the validated alternative (35B PROD pattern; used to fix the 27B drift container) — it shares the host /dev/shm instead of a private segment; prefer shm_size for isolation, ipc=host when host-level sharing is acceptable. Guarded by tests/unit/model_configs/test_fleet_parser_contract.py.
     network: genesis-vllm-patches_default        # docker network name (project-default)
     mounts:                                      # bind-mount specs; expanded via env var lookup at launch
-      # ── Canonical 6-slot mount schema (E22 restoration: aligned with ──
+      # ── Canonical 5-slot mount schema (E22 restoration: aligned with ──
       # ── start_35b_fp8_PROD.sh ground truth + V1 a5000-2x-35b-prod.yaml). ──
       # ── audit-launch-coverage gate enforces presence of every slot. ──
       - "${models_dir}:/models:ro"                                                                  # 1. model checkpoints — read-only
       - "${hf_cache}:/root/.cache/huggingface:ro"                                                   # 2. HuggingFace cache — read-only
       - "${triton_cache}:/root/.triton/cache"                                                       # 3. Triton kernel cache — RW (persist across restarts to avoid +30-60s recompile penalty)
       - "${compile_cache}:/root/.cache/vllm/torch_compile_cache"                                    # 4. torch.compile cache — RW (persist across restarts)
-      - "${genesis_src}:/usr/local/lib/python3.12/dist-packages/vllm/sndr_core:ro"                  # 5. sndr_core source overlay — REQUIRED unless image bakes Genesis patches
-      - "${plugin_src}:/plugin:ro"                                                                  # 6. Genesis vLLM plugin source — REQUIRED for plugin loading
+      - "${plugin_src}:/plugin:ro"                                                                  # 5. Genesis vLLM plugin source — REQUIRED for plugin loading
 
 # ─── System env — host-side knobs stable across models ─────────────────
 # Convention: explicit values for non-default behaviour + explicit defaults

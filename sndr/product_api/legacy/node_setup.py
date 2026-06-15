@@ -10,10 +10,10 @@ into a single gated SSH apply:
 
   1. Bundle the ``product_api`` package (.py only) on the central daemon.
   2. SFTP the bundle + a self-contained ``setup-node.sh`` to the node.
-  3. The script unpacks the daemon code into the node's mounted ``sndr_core``,
-     clears stale bytecode, and runs the management daemon as a sidecar of the
-     running vLLM engine (same image → has sndr_core deps; LAN-bound; auth on;
-     CORS open for the central GUI), then health-checks it.
+  3. The script unpacks the daemon code into the node's mounted ``sndr``
+     package, clears stale bytecode, and runs the management daemon as a sidecar
+     of the running vLLM engine (same image → has the sndr deps; LAN-bound; auth
+     on; CORS open for the central GUI), then health-checks it.
 
 Double-gated like every apply: ``SNDR_ENABLE_APPLY`` AND an explicit confirm.
 ``run_apply`` is injected so the orchestration is unit-testable without SSH.
@@ -33,13 +33,12 @@ def node_bundle() -> bytes:
     management daemon runs a CONSISTENT set with the central one.
 
     Post-v12 the daemon imports the canonical top-level ``sndr`` package
-    (``sndr.product_api.legacy.http_app`` + its corpus under ``sndr.model_configs``);
-    the ``vllm.sndr_core.*`` tree is only a thin shim that re-exports from
-    ``sndr.*`` and is already provided by the engine's existing sndr_core mount.
-    So the node needs ``sndr/`` ADDED — and it must be the central daemon's exact
-    code (.py + .yaml/.yml), else fresh API code runs against a node's stale
-    corpus and the catalog 500s. Arcnames are relative to the repo root
-    (``sndr/...``) so the node script unpacks it next to ``vllm/``. Excludes
+    (``sndr.product_api.legacy.http_app`` + its corpus under ``sndr.model_configs``),
+    mounted into the engine's site-packages at ``dist-packages/sndr`` at runtime.
+    So the node needs that exact ``sndr/`` code (.py + .yaml/.yml), else fresh API
+    code runs against a node's stale corpus and the catalog 500s. Arcnames are
+    relative to the repo root (``sndr/...``) so the node script unpacks it into
+    the host repo root that backs the ``dist-packages/sndr`` mount. Excludes
     ``web_static`` (the central GUI is the UI) and ``__pycache__`` (stale
     bytecode must not travel)."""
     # node_setup.py = <repo>/sndr/product_api/legacy/node_setup.py
@@ -83,7 +82,7 @@ _DAEMON_LAUNCHER = (
 def setup_node_script(*, port: int = 8765, engine_port: int = 8102,
                       admin_password: str = "", allow_all_origins: bool = True) -> str:
     """Self-contained node bootstrap: deploy the daemon code into the node's
-    sndr_core, refresh bytecode, run the management daemon sidecar, health-check."""
+    sndr package, refresh bytecode, run the management daemon sidecar, health-check."""
     import base64
     allow = "1" if allow_all_origins else "0"
     pw = _sh_squote(admin_password)
@@ -95,19 +94,19 @@ PORT={int(port)}; ENGINE_PORT={int(engine_port)}; NAME=sndr-daemon
 ENGINE=$(docker ps --filter name=vllm --format '{{{{.Names}}}}' | head -1)
 [ -z "$ENGINE" ] && {{ echo "[setup] no running vLLM container found"; exit 1; }}
 IMAGE=$(docker inspect "$ENGINE" --format '{{{{.Config.Image}}}}')
-# Source (host) + Destination (container) of the engine's sndr_core mount.
-SRC=$(docker inspect "$ENGINE" --format '{{{{range .Mounts}}}}{{{{.Source}}}} {{{{.Destination}}}}{{{{println}}}}{{{{end}}}}' | awk '$2 ~ /\\/vllm\\/sndr_core$/ {{print $1}}' | head -1)
-DST=$(docker inspect "$ENGINE" --format '{{{{range .Mounts}}}}{{{{.Source}}}} {{{{.Destination}}}}{{{{println}}}}{{{{end}}}}' | awk '$2 ~ /\\/vllm\\/sndr_core$/ {{print $2}}' | head -1)
-[ -z "$SRC" ] && {{ echo "[setup] could not find the sndr_core mount on $ENGINE"; exit 1; }}
+# Source (host) + Destination (container) of the engine's sndr mount.
+SRC=$(docker inspect "$ENGINE" --format '{{{{range .Mounts}}}}{{{{.Source}}}} {{{{.Destination}}}}{{{{println}}}}{{{{end}}}}' | awk '$2 ~ /\\/dist-packages\\/sndr$/ {{print $1}}' | head -1)
+DST=$(docker inspect "$ENGINE" --format '{{{{range .Mounts}}}}{{{{.Source}}}} {{{{.Destination}}}}{{{{println}}}}{{{{end}}}}' | awk '$2 ~ /\\/dist-packages\\/sndr$/ {{print $2}}' | head -1)
+[ -z "$SRC" ] && {{ echo "[setup] could not find the sndr mount on $ENGINE"; exit 1; }}
 echo "[setup] engine=$ENGINE image=$IMAGE"
-echo "[setup] sndr_core: $SRC -> $DST"
-# v12: the canonical package is the top-level sndr/ (the vllm.sndr_core.* tree is
-# a shim that imports from sndr.*). The engine mount already provides
-# vllm/sndr_core; derive the host repo root + container site-packages from it and
-# add the canonical sndr/ package next to vllm/ so `import sndr` resolves — else
-# the daemon dies on `from sndr.version import ...` (No module named 'sndr').
-REPO_ROOT=$(dirname "$(dirname "$SRC")")
-SITE_PKGS=$(dirname "$(dirname "$DST")")
+echo "[setup] sndr: $SRC -> $DST"
+# v12: the canonical package is the top-level sndr/, mounted into the engine's
+# site-packages at dist-packages/sndr at runtime. Derive the host repo root +
+# container site-packages from that mount and (re)deploy the canonical sndr/
+# package so `import sndr` resolves — else the daemon dies on
+# `from sndr.version import ...` (No module named 'sndr').
+REPO_ROOT=$(dirname "$SRC")
+SITE_PKGS=$(dirname "$DST")
 SNDR_SRC="$REPO_ROOT/sndr"
 SNDR_DST="$SITE_PKGS/sndr"
 # 1) Deploy the canonical sndr/ package (consistent set) next to vllm/ and drop
@@ -118,7 +117,7 @@ find "$SNDR_SRC" -name '*.pyc' -delete 2>/dev/null || true
 find "$SNDR_SRC" -name '__pycache__' -type d -prune -exec rm -rf {{}} + 2>/dev/null || true
 echo "[setup] canonical sndr/ deployed: $SNDR_SRC -> $SNDR_DST"
 # 2) Run the management daemon as a sidecar from the engine image (it has the
-#    sndr_core deps). LAN-bound so the central GUI can switch straight to it.
+#    sndr deps). LAN-bound so the central GUI can switch straight to it.
 #    We mount /var/run/docker.sock so the daemon can report the host's docker and
 #    manage the engine containers (scoped to a whitelist). SNDR_ENABLE_EXEC is
 #    deliberately NOT set — in-container exec stays off until the operator opts in.

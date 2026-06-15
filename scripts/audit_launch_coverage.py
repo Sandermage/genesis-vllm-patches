@@ -10,10 +10,11 @@ discovered by the operator in Entry 22 investigation:
 
   • `/root/.triton/cache` mount → Triton kernel cache became ephemeral,
     +30-60s recompile penalty on every container restart.
-  • `/usr/local/lib/python3.12/dist-packages/vllm/sndr_core` overlay →
-    Genesis patches not loaded inside container (unless image was
-    pre-baked, which `vllm/vllm-openai:nightly` is not).
   • `/plugin` overlay → Genesis vLLM plugin unavailable.
+
+(The legacy `vllm/sndr_core` compat overlay was retired in v12 — the rig
+now loads patches via the modern `sndr.plugin:register` entry point, and
+the canonical source is mounted at `dist-packages/sndr`.)
 
 This gate freezes the canonical mount + env schema as a static
 contract. Every V2 hardware YAML under `model_configs/builtin/hardware/`
@@ -48,7 +49,7 @@ HW_DIR = REPO_ROOT / "sndr" / "model_configs" / "builtin" / "hardware"
 #
 # Ground truth: scripts/launch/_archive/superseded_by_model_configs/
 # start_35b_fp8_PROD.sh + the 8 real V1 YAMLs. Both reference the same
-# 6 mount slots (per-config tag differs, but container_path + access
+# 5 mount slots (per-config tag differs, but container_path + access
 # mode are invariant).
 #
 # Each entry: (container_path, mode, description, required_unless)
@@ -88,12 +89,6 @@ REQUIRED_MOUNTS: tuple[MountSlot, ...] = (
         "/root/.cache/vllm/torch_compile_cache", "rw",
         "torch.compile cache — must persist or pay recompile on restart",
         host_var="${compile_cache}",
-    ),
-    MountSlot(
-        "/usr/local/lib/python3.12/dist-packages/vllm/sndr_core", "ro",
-        "sndr_core source overlay — REQUIRED unless image pre-bakes Genesis patches",
-        host_var="${genesis_src}",
-        required_unless="image pre-bakes vllm.sndr_core under site-packages",
     ),
     MountSlot(
         "/plugin", "ro",

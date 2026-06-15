@@ -4,7 +4,7 @@ coverage gate (Entry 22).
 
 Contract:
 
-  • The 6 canonical mount slots and 7 required env keys are frozen.
+  • The 5 canonical mount slots and 7 required env keys are frozen.
   • Every committed V2 hardware YAML must cover every required slot.
   • Synthetic minus-one-slot YAML fails the audit.
   • Path-extraction tolerates quoted entries, comments, and `:mode`
@@ -41,16 +41,20 @@ def _import_script():
 
 
 class TestCanonicalSchema:
-    def test_six_required_mounts(self):
+    def test_five_required_mounts(self):
         mod = _import_script()
         # The schema is frozen — if it changes, an entry must document why.
-        assert len(mod.REQUIRED_MOUNTS) == 6
+        assert len(mod.REQUIRED_MOUNTS) == 5
         container_paths = {s.container_path for s in mod.REQUIRED_MOUNTS}
-        # Spot-check the four that were dropped in the V2 migration:
+        # Spot-check the slots that were dropped in the V2 migration:
         assert "/root/.triton/cache" in container_paths
         assert "/root/.cache/vllm/torch_compile_cache" in container_paths
-        assert "/usr/local/lib/python3.12/dist-packages/vllm/sndr_core" in container_paths
         assert "/plugin" in container_paths
+        # The legacy vllm/sndr_core compat overlay was retired in v12.
+        assert (
+            "/usr/local/lib/python3.12/dist-packages/vllm/sndr_core"
+            not in container_paths
+        )
 
     def test_seven_required_env_keys(self):
         mod = _import_script()
@@ -116,7 +120,6 @@ _ALL_CANONICAL_MOUNTS = (
     '"${hf_cache}:/root/.cache/huggingface:ro"',
     '"${triton_cache}:/root/.triton/cache"',
     '"${compile_cache}:/root/.cache/vllm/torch_compile_cache"',
-    '"${genesis_src}:/usr/local/lib/python3.12/dist-packages/vllm/sndr_core:ro"',
     '"${plugin_src}:/plugin:ro"',
 )
 
@@ -179,15 +182,6 @@ class TestAuditOneYaml:
         assert r.parse_error == "", r.parse_error
         assert r.passed is False
         assert "/root/.triton/cache" in r.missing_mounts
-
-    def test_missing_sndr_core_mount_fails(self, tmp_path):
-        mod = _import_script()
-        kept = tuple(m for m in _ALL_CANONICAL_MOUNTS if "sndr_core" not in m)
-        y = _write_yaml(tmp_path / "h.yaml", _make_yaml(mounts=kept))
-        r = mod.audit_one_hardware_yaml(y)
-        assert r.parse_error == "", r.parse_error
-        assert r.passed is False
-        assert any("sndr_core" in p for p in r.missing_mounts)
 
     def test_missing_env_key_fails(self, tmp_path):
         mod = _import_script()
@@ -354,5 +348,5 @@ class TestScriptCLI:
         payload = json.loads(result.stdout)
         assert payload["failed"] == 1
         r = payload["results"][0]
-        assert len(r["missing_mounts"]) == 5   # all except /models
+        assert len(r["missing_mounts"]) == 4   # all except /models
         assert len(r["missing_envs"]) >= 6

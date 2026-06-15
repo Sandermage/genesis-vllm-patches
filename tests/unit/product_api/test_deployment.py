@@ -180,16 +180,16 @@ def test_sndr_daemon_target_renders_gui_api_launcher():
     # Launches the Product API directly (immune to per-node cli/ divergence),
     # importing the canonical top-level `sndr` package (no vllm namespace).
     assert "sndr.product_api.legacy.http_app import run_server" in script
-    # v12: also mounts the canonical sndr/ tree (the sndr.* tree is a
-    # shim that imports from sndr.*), else the daemon dies with No module 'sndr'.
+    # v12: mounts the canonical sndr/ tree (the top-level sndr package), else
+    # the daemon dies with No module 'sndr'.
     assert '-v "${SNDR_SRC}:${SNDR_DEST}:ro"' in script
-    assert 'SNDR_SRC="${REPO_ROOT}/sndr"' in script
-    # Runs as a sidecar from the vLLM image, re-mounting the host's sndr_core
+    assert 'SNDR_SRC="${MNT%%:*}"' in script
+    # Runs as a sidecar from the vLLM image, re-mounting the host's sndr package
     # (it's mounted into the engine at runtime, not baked into the image), bound
     # to the LAN so the central GUI can switch to it directly (no tunnel).
     assert "docker run -d" in script and "--entrypoint python3" in script
     assert "--network host" in script and '-e SNDR_BIND="$BIND"' in script
     assert 'BIND="${SNDR_BIND:-0.0.0.0}"' in script  # LAN-bound by default
-    assert "/vllm/sndr_core$" in script and '-v "${MNT}:ro"' in script  # re-mount sndr_core
+    assert "/dist-packages/sndr$" in script  # derive paths from canonical sndr mount
     cmds = deployment._commands_sndr_daemon(None)
     assert any("./run-sndr-daemon.sh" in c for c in cmds)

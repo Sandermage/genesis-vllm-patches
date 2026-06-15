@@ -9,7 +9,7 @@ of unrelated fields.
 
 The schema is single-source-of-truth from `audit_launch_coverage.py`:
 
-    • `REQUIRED_MOUNTS`   — 6 canonical slots
+    • `REQUIRED_MOUNTS`   — 5 canonical slots
                             (container_path, mode, description, host_var)
     • `REQUIRED_ENV_KEYS` — 7 keys
     • `ENV_DEFAULTS`      — canonical YAML-literal values per key

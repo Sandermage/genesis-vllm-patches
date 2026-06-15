@@ -38,15 +38,14 @@ runtime:
     shm_size: 8g                                 # /dev/shm size — 8 GiB sufficient on single-card
     network: genesis-vllm-patches_default        # docker network
     mounts:
-      # ── Canonical 6-slot mount schema (E22 restoration: aligned with ──
+      # ── Canonical 5-slot mount schema (E22 restoration: aligned with ──
       # ── start_*_PROD.sh ground truth + V1 a5000-1x-*.yaml). ──
       # ── audit-launch-coverage gate enforces presence of every slot. ──
       - "${models_dir}:/models:ro"                                                                  # 1. model checkpoints — read-only
       - "${hf_cache}:/root/.cache/huggingface:ro"                                                   # 2. HuggingFace cache — read-only
       - "${triton_cache}:/root/.triton/cache"                                                       # 3. Triton kernel cache — RW (persist across restarts)
       - "${compile_cache}:/root/.cache/vllm/torch_compile_cache"                                    # 4. torch.compile cache — RW (persist across restarts)
-      - "${genesis_src}:/usr/local/lib/python3.12/dist-packages/vllm/sndr_core:ro"                  # 5. sndr_core source overlay — REQUIRED unless image bakes Genesis patches
-      - "${plugin_src}:/plugin:ro"                                                                  # 6. Genesis vLLM plugin source — REQUIRED for plugin loading
+      - "${plugin_src}:/plugin:ro"                                                                  # 5. Genesis vLLM plugin source — REQUIRED for plugin loading
 
 system_env:
   PYTORCH_CUDA_ALLOC_CONF: 'expandable_segments:True,max_split_size_mb:256'  # PyTorch allocator: expandable_segments + 256 MiB max split

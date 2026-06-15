@@ -127,7 +127,6 @@ docker:
     - ${hf_cache}:/root/.cache/huggingface:ro
     - ${triton_cache}:/root/.triton/cache
     - ${compile_cache}:/root/.cache/vllm/torch_compile_cache
-    - ${genesis_src}:/usr/local/lib/python3.12/dist-packages/vllm/sndr_core:ro
     - ${plugin_src}:/plugin:ro
   extra_run_flags:
     - --security-opt label=disable

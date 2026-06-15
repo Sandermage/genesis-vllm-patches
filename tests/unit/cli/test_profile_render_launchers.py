@@ -946,10 +946,11 @@ class TestValidateBackendPlanConsistency:
         _validate_backend_plan_consistency(p, {})  # no raise
 
 
-# ─── Tool-calling capability flags + sndr_core compat mount ──────────────
+# ─── Tool-calling capability flags + canonical sndr mount ────────────────
 # Regression for 2026-06-14: the serve-command builder dropped the
 # model.capabilities tool-call flags, so a re-rendered launcher rejected
 # tool_choice="auto" with HTTP 400 and broke PROD streaming tool-calls.
+# v12 also retired the legacy vllm/sndr_core compat overlay (see below).
 
 
 class TestToolCallAndCompatMountEmission:
@@ -969,14 +970,15 @@ class TestToolCallAndCompatMountEmission:
         host = script.index("--host")
         assert tcp < host
 
-    def test_emits_vllm_sndr_core_compat_mount(self):
-        # The running images still expose the genesis_v7 entry point
-        # (vllm.sndr_core.plugin:register); the launcher must mount sndr/ at
-        # the legacy path too or the plugin fails to load (no patches apply).
+    def test_does_not_emit_vllm_sndr_core_compat_mount(self):
+        # v12 retired the legacy vllm/sndr_core compat overlay: the rig now
+        # loads patches via the modern sndr.plugin:register entry point, so the
+        # launcher must NOT mount sndr/ at the legacy path anymore — only the
+        # canonical dist-packages/sndr mount remains.
         script = render_profile_launcher("qwen3.6-35b-balanced")
         assert (
-            "/usr/local/lib/python3.12/dist-packages/vllm/sndr_core:ro"
-            in script
+            "/usr/local/lib/python3.12/dist-packages/vllm/sndr_core"
+            not in script
         )
         # ...and still mounts the canonical sndr path.
         assert (

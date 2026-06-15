@@ -36,14 +36,13 @@ runtime:
     shm_size: 8g                                 # /dev/shm size
     network: genesis-vllm-patches_default        # docker network
     mounts:
-      # ── Canonical 6-slot mount schema (E22 restoration). ──
+      # ── Canonical 5-slot mount schema (E22 restoration). ──
       # ── audit-launch-coverage gate enforces presence of every slot. ──
       - "${models_dir}:/models:ro"                                                                  # 1. model checkpoints — read-only
       - "${hf_cache}:/root/.cache/huggingface:ro"                                                   # 2. HuggingFace cache — read-only
       - "${triton_cache}:/root/.triton/cache"                                                       # 3. Triton kernel cache — RW (persist across restarts)
       - "${compile_cache}:/root/.cache/vllm/torch_compile_cache"                                    # 4. torch.compile cache — RW (persist across restarts)
-      - "${genesis_src}:/usr/local/lib/python3.12/dist-packages/vllm/sndr_core:ro"                  # 5. sndr_core source overlay — REQUIRED unless image bakes Genesis patches
-      - "${plugin_src}:/plugin:ro"                                                                  # 6. Genesis vLLM plugin source — REQUIRED for plugin loading
+      - "${plugin_src}:/plugin:ro"                                                                  # 5. Genesis vLLM plugin source — REQUIRED for plugin loading
 
 system_env:
   # ── Canonical 7 REQUIRED env keys (audit-launch-coverage). ──

@@ -34,7 +34,7 @@ _PATH_DEFAULTS: dict[str, str] = {
     "models_dir": "/mnt/models",
     "hf_cache": "/mnt/models/hf-cache",
     "cache_root": "/var/lib/sndr/cache",
-    "genesis_src": "/opt/genesis/vllm/sndr_core",
+    "genesis_src": "/opt/genesis/sndr",
     "plugin_src": "/opt/genesis/plugin",
 }
 
@@ -624,8 +624,8 @@ def _sndr_daemon_script(cfg, params) -> str:
     return (
         "#!/usr/bin/env bash\n"
         "# Run the SNDR management daemon as a sidecar container from the vLLM\n"
-        "# engine's image, RE-MOUNTING the same host sndr_core directory the engine\n"
-        "# uses (sndr_core is mounted in at runtime, not baked into the image). A\n"
+        "# engine's image, RE-MOUNTING the same host sndr directory the engine\n"
+        "# uses (sndr is mounted in at runtime, not baked into the image). A\n"
         "# fresh container has no GENESIS_ENABLE_* env, so no patches apply — a\n"
         "# clean, GPU-less management daemon. --network host + bind LAN so the\n"
         "# central GUI can switch straight to http://<this-host>:8765 (no tunnel).\n"
@@ -636,19 +636,14 @@ def _sndr_daemon_script(cfg, params) -> str:
         "ENGINE=$(docker ps --filter name=vllm --format '{{.Names}}' | head -1)\n"
         'if [ -z "$ENGINE" ]; then echo "no running vLLM container found"; exit 1; fi\n'
         'IMAGE=$(docker inspect "$ENGINE" --format \'{{.Config.Image}}\')\n'
-        "# Replicate the host->container mount that puts sndr_core inside vllm.\n"
-        "MNT=$(docker inspect \"$ENGINE\" --format '{{range .Mounts}}{{.Source}}:{{.Destination}}{{println}}{{end}}' | grep '/vllm/sndr_core$' | head -1)\n"
-        'if [ -z "$MNT" ]; then echo "could not find the sndr_core mount on $ENGINE"; exit 1; fi\n'
-        "# Post-migration (v12) the canonical package is the top-level `sndr/`; the\n"
-        "# `vllm.sndr_core.*` tree is now a thin shim that imports from `sndr.*`. So the\n"
-        "# daemon needs the host `sndr/` dir ALSO mounted as a sibling of vllm/ in the\n"
-        "# container's site-packages, else it dies with `No module named 'sndr'`.\n"
-        "# Derive both paths from the existing sndr_core mount (src:dest split):\n"
-        'MNT_SRC="${MNT%%:*}"; MNT_DEST="${MNT##*:}"\n'
-        'REPO_ROOT="${MNT_SRC%/vllm/sndr_core}"; SITE_PKGS="${MNT_DEST%/vllm/sndr_core}"\n'
-        'SNDR_SRC="${REPO_ROOT}/sndr"; SNDR_DEST="${SITE_PKGS}/sndr"\n'
+        "# v12: the canonical package is the top-level `sndr/`, mounted into the\n"
+        "# engine's site-packages at runtime. Replicate that mount so the daemon\n"
+        "# resolves `import sndr`, else it dies with `No module named 'sndr'`.\n"
+        "MNT=$(docker inspect \"$ENGINE\" --format '{{range .Mounts}}{{.Source}}:{{.Destination}}{{println}}{{end}}' | grep '/dist-packages/sndr$' | head -1)\n"
+        'if [ -z "$MNT" ]; then echo "could not find the sndr mount on $ENGINE"; exit 1; fi\n'
+        'SNDR_SRC="${MNT%%:*}"; SNDR_DEST="${MNT##*:}"\n'
         'if [ ! -d "$SNDR_SRC" ]; then echo "canonical sndr/ package not found at $SNDR_SRC"; exit 1; fi\n'
-        'echo "[sndr] image=$IMAGE  sndr_core=$MNT  sndr=$SNDR_SRC:$SNDR_DEST  bind=$BIND:$PORT"\n'
+        'echo "[sndr] image=$IMAGE  sndr=$SNDR_SRC:$SNDR_DEST  bind=$BIND:$PORT"\n'
         'docker rm -f "$NAME" >/dev/null 2>&1 || true\n'
         "# Launch the Product API directly (not via the full `sndr` CLI) so the daemon\n"
         "# needs only product_api/ + its deps, immune to cli/ divergence between nodes.\n"
@@ -656,7 +651,7 @@ def _sndr_daemon_script(cfg, params) -> str:
         'docker run -d --name "$NAME" --restart unless-stopped --network host \\\n'
         "  --entrypoint python3 \\\n"
         '  -e SNDR_BIND="$BIND" -e SNDR_GUI_PORT="$PORT" -e SNDR_ENABLE_APPLY="${SNDR_ENABLE_APPLY:-}" \\\n'
-        '  -v "${MNT}:ro" -v "${SNDR_SRC}:${SNDR_DEST}:ro" \\\n'
+        '  -v "${SNDR_SRC}:${SNDR_DEST}:ro" \\\n'
         '  "$IMAGE" \\\n'
         "  -c \"import os; from sndr.product_api.legacy.http_app import run_server; "
         "run_server(host=os.environ.get('SNDR_BIND','0.0.0.0'), port=int(os.environ.get('SNDR_GUI_PORT') or 8765), "
