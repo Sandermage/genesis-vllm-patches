@@ -2527,6 +2527,75 @@ def create_app(
         except Exception as exc:  # connection refused / timeout -> engine down
             raise HTTPException(status_code=503, detail=f"Engine unreachable: {exc}")
 
+    # --- Prompt library (operator-managed system-prompt templates) ----------
+    @app.get("/api/v1/prompts")
+    def list_prompts_route() -> dict[str, Any]:
+        from . import prompts_store
+
+        return {"prompts": prompts_store.list_prompts()}
+
+    @app.post("/api/v1/prompts")
+    def create_prompt_route(payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+        from . import prompts_store
+
+        try:
+            return prompts_store.create_prompt(str(payload.get("name") or ""), str(payload.get("content") or ""),
+                                               title=str(payload.get("title") or ""))
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+    @app.put("/api/v1/prompts/{pid}")
+    def update_prompt_route(pid: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+        from . import prompts_store
+
+        try:
+            return prompts_store.update_prompt(pid, name=payload.get("name"),
+                                               content=payload.get("content"), title=payload.get("title"))
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+    @app.delete("/api/v1/prompts/{pid}")
+    def delete_prompt_route(pid: str) -> dict[str, Any]:
+        from . import prompts_store
+
+        return {"deleted": prompts_store.delete_prompt(pid)}
+
+    # --- Managed declarative tools (the GUI tool manager) -------------------
+    @app.get("/api/v1/tools/managed")
+    def list_managed_tools_route() -> dict[str, Any]:
+        from . import tools_store
+
+        return {"tools": tools_store.list_tools()}
+
+    @app.post("/api/v1/tools/managed")
+    def create_managed_tool_route(payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+        from . import tools_store
+
+        try:
+            return tools_store.create_tool(
+                str(payload.get("name") or ""), str(payload.get("url") or ""),
+                description=str(payload.get("description") or ""), title=str(payload.get("title") or ""),
+                method=str(payload.get("method") or "GET"), params=payload.get("params") or [],
+                enabled=bool(payload.get("enabled", True)))
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+    @app.put("/api/v1/tools/managed/{tid}")
+    def update_managed_tool_route(tid: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+        from . import tools_store
+
+        try:
+            return tools_store.update_tool(tid, **{k: payload[k] for k in
+                ("title", "description", "url", "method", "params", "enabled") if k in payload})
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+    @app.delete("/api/v1/tools/managed/{tid}")
+    def delete_managed_tool_route(tid: str) -> dict[str, Any]:
+        from . import tools_store
+
+        return {"deleted": tools_store.delete_tool(tid)}
+
     # --- KV / VRAM fit calculator -------------------------------------------
     @app.get("/api/v1/calc/models")
     def calc_models() -> dict[str, Any]:

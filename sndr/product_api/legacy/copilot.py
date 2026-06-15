@@ -215,6 +215,51 @@ def _h_proxy_health(_args: dict[str, Any]) -> dict[str, Any]:
     return ext.proxy_health()
 
 
+# ── native market & news tools (ported from the operator's OpenWebUI tool) ────
+
+
+def _h_crypto_overview(_args: dict[str, Any]) -> dict[str, Any]:
+    from . import market_tools
+
+    return market_tools.crypto_market_overview()
+
+
+def _h_coin_data(args: dict[str, Any]) -> dict[str, Any]:
+    from . import market_tools
+
+    return market_tools.coin_data(str(args.get("symbols") or ""))
+
+
+def _h_news_analysis(args: dict[str, Any]) -> dict[str, Any]:
+    from . import market_tools
+
+    return market_tools.news_analysis(focus=args.get("focus"))
+
+
+# ── managed declarative tools (operator-defined in the GUI tool manager) ──────
+
+
+def _managed_tools() -> list["Tool"]:
+    """Operator-defined declarative HTTP tools from the GUI tool manager, loaded
+    fresh each call so newly-added tools appear without a restart. Each runs via
+    the SSRF-safe executor in :mod:`tools_store` (no arbitrary code)."""
+    try:
+        from . import tools_store
+    except Exception:  # noqa: BLE001 - store optional / import-safe
+        return []
+    out: list[Tool] = []
+    for spec in tools_store.enabled_tool_specs():
+        def _make(tool_id: str):
+            def _h(args: dict[str, Any]) -> dict[str, Any]:
+                from . import tools_store as ts
+
+                return ts.run_tool(tool_id, args)
+            return _h
+        out.append(Tool(spec["name"], spec["description"], spec["parameters"],
+                        _make(spec["id"]), category="custom"))
+    return out
+
+
 # Registry — add a tool by appending one entry (the single extension point).
 _TOOLS: tuple[Tool, ...] = (
     Tool("get_overview", "Catalog + capability snapshot: model/preset/profile counts, preset status "
@@ -271,9 +316,27 @@ _TOOLS: tuple[Tool, ...] = (
          _schema({}), _h_proxy_cost, category="observability"),
     Tool("proxy_health", "Per-provider health / circuit-breaker state from the Genesis proxy "
          "(which providers are up or circuit-open).", _schema({}), _h_proxy_health, category="observability"),
+    # ── native market & news intelligence (ported from the OpenWebUI tool) ────
+    Tool("crypto_market_overview", "Live crypto market snapshot: top coins (price / 24h% / mcap), global "
+         "cap + BTC & ETH dominance, Fear & Greed, BTC derivatives (funding rate + open interest), and the "
+         "macro backdrop (DXY, S&P 500, Gold, VIX). Live numbers from public APIs — treat as ground truth, "
+         "never invent figures.", _schema({}), _h_crypto_overview, category="analysis"),
+    Tool("coin_data", "Detailed live data for specific coins (comma-separated symbols, e.g. 'BTC,ETH,SOL'): "
+         "price, 24h/7d %, market cap, volume, rank. Call after the overview for coins not in the top list.",
+         _schema({"symbols": {"type": "string"}}, ["symbols"]), _h_coin_data, category="analysis"),
+    Tool("news_analysis", "Analyse the crypto news / information field, grouped into classes (ETF flows, "
+         "liquidations, geopolitics, regulation) via web search — titled, cited results per class for "
+         "reasoning, not a flat search dump.", _schema({"focus": {"type": "string", "description": "optional extra topic/class"}}),
+         _h_news_analysis, category="analysis"),
 )
 
 _TOOLS_BY_NAME = {t.name: t for t in _TOOLS}
+
+
+def _all_tools() -> tuple[Tool, ...]:
+    """Static registry + operator-defined managed tools (loaded fresh so newly
+    added GUI tools appear without a daemon restart)."""
+    return _TOOLS + tuple(_managed_tools())
 
 
 SYSTEM_PROMPT = (
@@ -301,18 +364,18 @@ SYSTEM_PROMPT = (
 def tool_specs() -> list[dict[str, Any]]:
     """OpenAI ``tools`` array describing the callable functions for the engine."""
     return [{"type": "function", "function": {"name": t.name, "description": t.description, "parameters": t.parameters}}
-            for t in _TOOLS]
+            for t in _all_tools()]
 
 
 def tool_catalog() -> list[dict[str, Any]]:
     """Human-facing tool list for the GUI ('what can the copilot do')."""
-    return [{"name": t.name, "description": t.description, "category": t.category} for t in _TOOLS]
+    return [{"name": t.name, "description": t.description, "category": t.category} for t in _all_tools()]
 
 
 def execute_tool(name: str, args: dict[str, Any]) -> dict[str, Any]:
     """Run a registered read-only tool. Unknown/failed tools return an error
     dict (fed back to the model) rather than raising — the loop must continue."""
-    tool = _TOOLS_BY_NAME.get(name)
+    tool = _TOOLS_BY_NAME.get(name) or next((t for t in _managed_tools() if t.name == name), None)
     if tool is None:
         return {"ok": False, "error": f"unknown tool: {name}"}
     try:
