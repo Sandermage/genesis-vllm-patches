@@ -131,8 +131,40 @@ def apply() -> tuple[str, str]:
 
     target_cls = _find_vision_tower_cls()
     if target_cls is None:
+        # dev491+ relocated the Gemma-4 vision tower: it is no longer a vLLM-native
+        # Gemma4VisionTower/SiglipVisionModel class in models/gemma4.py but an HF
+        # AutoModel.from_config built in models/gemma4_mm.py (vision forward does
+        # vt.patch_embedder(...).to(model_dtype) with NO float32 upgrade / clamp).
+        # So this monkeypatch cannot bind and the vllm#40124 FP16-overflow guard is
+        # NOT installed. On a MM-capable pin make that LOUD (a silent 'skipped' was
+        # invisible to the operator — the 2026-06-16 dev491 audit's one actionable
+        # finding); on a genuinely text-only build the absence is expected, so keep
+        # that quiet. Exposure only bites under --dtype float16; the canonical
+        # Gemma-4 YAMLs run bfloat16 (no overflow), so behaviour is unchanged.
+        try:
+            import importlib.util as _ilu
+            _mm_pin = _ilu.find_spec(
+                "vllm.model_executor.models.gemma4_mm"
+            ) is not None
+        except Exception:  # noqa: BLE001
+            _mm_pin = False
+        if _mm_pin:
+            log.warning(
+                "[G4_23] ENABLED but NO-OP on this vLLM pin: no vLLM-native "
+                "Gemma4VisionTower/SiglipVisionModel in models.gemma4 — the vision "
+                "tower is now an HF AutoModel (models.gemma4_mm). The vllm#40124 "
+                "FP16-overflow guard is NOT installed. This only matters under "
+                "--dtype float16; canonical Gemma-4 YAMLs use bfloat16 (safe). To "
+                "restore it on a float16 MM profile, re-point at the HF "
+                "patch_embedder path. 2026-06-16 audit."
+            )
+            return "skipped", (
+                "G4_23 NO-OP: Gemma4VisionTower absent (vision tower relocated to HF "
+                "AutoModel in gemma4_mm on dev491+); FP16 guard not installed — "
+                "matters only under --dtype float16. See vllm#40124."
+            )
         return "skipped", (
-            "No Gemma4VisionTower-like class found; G4_23 is no-op "
+            "No Gemma4VisionTower-like class found; G4_23 is a no-op "
             "(text-only build of Gemma 4 doesn't have this class)"
         )
 
