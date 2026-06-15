@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, Bot, BookText, ChevronDown, CircleAlert, Copy, Database, Download, Heart, Loader2, Pencil, Plus, RefreshCw, Route, Search, Send, SlidersHorizontal, Sparkles, Square, TimerReset, Trash2, User, X, Zap } from "lucide-react";
+import { ArrowRight, Bot, BookText, Brain, ChevronDown, CircleAlert, Copy, Database, Download, Heart, Loader2, Pencil, Plus, RefreshCw, Route, Search, Send, SlidersHorizontal, Sparkles, Square, TimerReset, Trash2, User, X, Zap } from "lucide-react";
 import type { ReactNode } from "react";
 import { EngineBenchResult, EngineChatResult, EngineMetrics, EngineStatus, HubModel, Job, ModelCacheReport, RagDoc, type RoutingActive, type RoutingClassify, type RoutingSignals, api } from "./api";
 import { SkeletonMetrics } from "./Skeleton";
@@ -596,8 +596,8 @@ function MarkdownLite({ text }: { text: string }) {
   );
 }
 
-type ChatStat = { tokens?: number; tps?: number; ttft_ms?: number; latency_ms?: number; reasoningEmpty?: boolean };
-type ChatMessage = { role: "user" | "assistant"; content: string; stat?: ChatStat; sources?: RagDoc[] };
+type ChatStat = { tokens?: number; tps?: number; ttft_ms?: number; latency_ms?: number; reasoningEmpty?: boolean; finishReason?: string };
+type ChatMessage = { role: "user" | "assistant"; content: string; reasoning?: string; stat?: ChatStat; sources?: RagDoc[] };
 type Conversation = { id: string; title: string; messages: ChatMessage[]; createdAt: number; updatedAt: number };
 type ChatSettings = { host: string; port: number; model: string; apiKey: string; hostId: string; system: string; temperature: number; maxTokens: number; topP: number; presencePenalty: number; frequencyPenalty: number; stop: string; thinking: boolean; useProject: boolean; ragProject: boolean; ragVaults: string[]; workloadClass: string };
 
@@ -816,7 +816,11 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
 
     const controller = new AbortController();
     abortRef.current = controller;
-    const payloadMessages = [...(settings.system.trim() ? [{ role: "system", content: settings.system }] : []), ...ragMessages, ...convo];
+    // Cap the transcript so a long chat can't overflow the model's context
+    // window (the engine 400s on overflow). Keep the most recent turns.
+    const MAX_TURNS = 30;
+    const recent = convo.length > MAX_TURNS ? convo.slice(-MAX_TURNS) : convo;
+    const payloadMessages = [...(settings.system.trim() ? [{ role: "system", content: settings.system }] : []), ...ragMessages, ...recent];
     const stopSeqs = settings.stop.split(",").map((s) => s.trim()).filter(Boolean);
     const started = Date.now();
     try {
@@ -824,7 +828,8 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
         { messages: payloadMessages, model: settings.model || undefined, max_tokens: settings.maxTokens, temperature: settings.temperature, top_p: settings.topP, presence_penalty: settings.presencePenalty, frequency_penalty: settings.frequencyPenalty, stop: stopSeqs.length ? stopSeqs : undefined, host: settings.host, port: settings.port, apiKey: settings.apiKey || undefined, hostId: settings.hostId || undefined, chat_template_kwargs: { enable_thinking: settings.thinking } },
         {
           onDelta: (text) => patchActive((c) => { const msgs = c.messages.slice(); const last = msgs[msgs.length - 1]; if (!last) return c; msgs[msgs.length - 1] = { ...last, content: (last.content ?? "") + text }; return { ...c, messages: msgs }; }),
-          onDone: (meta) => patchActive((c) => { const msgs = c.messages.slice(); const last = msgs[msgs.length - 1]; if (!last) return c; const secs = (meta.latency_ms ?? (Date.now() - started)) / 1000; const reasoningEmpty = !(last.content ?? "").trim() && (meta.tokens ?? 0) > 0; msgs[msgs.length - 1] = { ...last, stat: { tokens: meta.tokens, ttft_ms: meta.ttft_ms, latency_ms: meta.latency_ms, tps: meta.tokens && secs ? Math.round((meta.tokens / secs) * 10) / 10 : undefined, reasoningEmpty } }; return { ...c, messages: msgs, updatedAt: Date.now() }; }),
+          onReasoning: (text) => patchActive((c) => { const msgs = c.messages.slice(); const last = msgs[msgs.length - 1]; if (!last) return c; msgs[msgs.length - 1] = { ...last, reasoning: (last.reasoning ?? "") + text }; return { ...c, messages: msgs }; }),
+          onDone: (meta) => patchActive((c) => { const msgs = c.messages.slice(); const last = msgs[msgs.length - 1]; if (!last) return c; const secs = (meta.latency_ms ?? (Date.now() - started)) / 1000; const reasoningEmpty = !(last.content ?? "").trim() && !(last.reasoning ?? "").trim() && (meta.tokens ?? 0) > 0; msgs[msgs.length - 1] = { ...last, stat: { tokens: meta.tokens, ttft_ms: meta.ttft_ms, latency_ms: meta.latency_ms, tps: meta.tokens && secs ? Math.round((meta.tokens / secs) * 10) / 10 : undefined, reasoningEmpty, finishReason: meta.finish_reason } }; return { ...c, messages: msgs, updatedAt: Date.now() }; }),
           onError: (msg) => setError(msg)
         },
         controller.signal
@@ -963,10 +968,24 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
             <div className={`chat-msg ${msg.role}`} key={index}>
               <span className="chat-avatar">{msg.role === "user" ? <User size={15} /> : <Bot size={15} />}</span>
               <div className="chat-col">
+                {msg.reasoning && (
+                  <details className="chat-reasoning" open={!msg.content}>
+                    <summary><Brain size={12} /> {tr("Thinking")}{streaming && index === messages.length - 1 && !msg.content ? "…" : ""}</summary>
+                    <div className="chat-reasoning-body"><MarkdownLite text={msg.reasoning} /></div>
+                  </details>
+                )}
                 <div className="chat-bubble">
                   {retrieving && index === messages.length - 1 && msg.role === "assistant" && !msg.content
                     ? <span className="chat-retrieving"><Database size={13} /> {tr("Searching project knowledge…")}</span>
-                    : msg.content ? <MarkdownLite text={msg.content} /> : (streaming && index === messages.length - 1 ? <span className="chat-typing"><span /><span /><span /></span> : msg.stat?.reasoningEmpty ? <div className="chat-advisory"><CircleAlert size={13} /> <span>{settings.thinking ? tr("Thinking mode didn't return an answer — turn it off for a direct reply.") : tr("No answer came back — try again or rephrase the question.")}</span></div> : <em className="muted">{tr("(empty)")}</em>)}
+                    : msg.content
+                      ? <><MarkdownLite text={msg.content} />{msg.stat?.finishReason === "length" && <span className="chat-trunc">{tr("Answer may be incomplete.")}</span>}</>
+                      : streaming && index === messages.length - 1
+                        ? <span className="chat-typing"><span /><span /><span /></span>
+                        : msg.reasoning
+                          ? <div className="chat-advisory"><CircleAlert size={13} /> <span>{tr("The model didn't produce a final answer — its reasoning is above. Try again, or turn off Thinking mode for a direct reply.")}</span></div>
+                          : msg.stat?.reasoningEmpty
+                            ? <div className="chat-advisory"><CircleAlert size={13} /> <span>{settings.thinking ? tr("Thinking mode didn't return an answer — turn it off for a direct reply.") : tr("No answer came back — try again or rephrase the question.")}</span></div>
+                            : <em className="muted">{tr("(empty)")}</em>}
                   {streaming && index === messages.length - 1 && msg.content && <span className="chat-cursor" />}
                 </div>
                 {msg.sources && msg.sources.length > 0 && <SourcesRow docs={msg.sources} />}

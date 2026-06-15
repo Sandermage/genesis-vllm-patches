@@ -341,12 +341,73 @@ def _apply_sampling(body: dict[str, Any], payload: dict[str, Any]) -> None:
             body["chat_template_kwargs"] = allowed
 
 
+def _iter_chat_events(raw_lines, *, started: float, clock=time.time):
+    """Map an OpenAI streaming SSE body into chat ND-JSON event dicts.
+
+    Yields ``{"reasoning": str}`` for thinking chunks (``delta.reasoning_content``,
+    emitted by engines run with ``--reasoning-parser``), ``{"delta": str}`` for
+    answer chunks (``delta.content``), and a final ``{"done": True, ...}`` carrying
+    timing, the completion-token count, ``finish_reason`` and ``had_reasoning``.
+
+    Pulled out as a pure generator so the SSE→event mapping is unit-testable
+    without a live engine. Capturing reasoning (instead of dropping it, as the old
+    content-only path did) is what makes an empty bubble impossible: a model that
+    spends its whole budget thinking still streams its reasoning and a
+    ``finish_reason`` the caller can act on.
+    """
+    ttft: Optional[float] = None
+    tokens = 0
+    usage: dict[str, Any] = {}
+    finish_reason: Optional[str] = None
+    had_reasoning = False
+    for raw in raw_lines:
+        line = (raw.decode("utf-8", "replace") if isinstance(raw, (bytes, bytearray)) else raw).strip()
+        if not line.startswith("data:"):
+            continue
+        data = line[len("data:") :].strip()
+        if data == "[DONE]":
+            break
+        try:
+            chunk = json.loads(data)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(chunk.get("usage"), dict):
+            usage = chunk["usage"]
+        for choice in chunk.get("choices", []) or []:
+            delta = choice.get("delta") or {}
+            reasoning = delta.get("reasoning_content")
+            if reasoning:
+                had_reasoning = True
+                if ttft is None:
+                    ttft = clock() - started
+                yield {"reasoning": reasoning}
+            content = delta.get("content")
+            if content:
+                if ttft is None:
+                    ttft = clock() - started
+                tokens += 1
+                yield {"delta": content}
+            if choice.get("finish_reason"):
+                finish_reason = choice["finish_reason"]
+    yield {
+        "done": True,
+        "ttft_ms": round((ttft or 0.0) * 1000),
+        "latency_ms": round((clock() - started) * 1000),
+        "tokens": int(usage.get("completion_tokens", tokens)),
+        "finish_reason": finish_reason,
+        "had_reasoning": had_reasoning,
+        "usage": usage,
+    }
+
+
 def stream_chat(payload: dict[str, Any], *, host: Optional[str] = None, port: Optional[int] = None, timeout: float = 120.0, api_key: Optional[str] = None):
     """Stream a chat completion from the engine, yielding ND-JSON lines.
 
-    Each line is a JSON object: ``{"delta": "..."}`` for token chunks, then a
-    final ``{"done": true, "ttft_ms", "latency_ms", "tokens", "usage"}``. An
-    error yields ``{"error": "..."}``. Generator form so FastAPI can stream it.
+    Each line is a JSON object: ``{"reasoning": "..."}`` for thinking chunks,
+    ``{"delta": "..."}`` for answer chunks, then a final ``{"done": true,
+    "ttft_ms", "latency_ms", "tokens", "finish_reason", "had_reasoning",
+    "usage"}``. An error yields ``{"error": "..."}``. Generator form so FastAPI
+    can stream it. See :func:`_iter_chat_events` for the SSE→event mapping.
     """
     eng = resolve_engine(host, port)
     messages = payload.get("messages")
@@ -368,43 +429,13 @@ def stream_chat(payload: dict[str, Any], *, host: Optional[str] = None, port: Op
         method="POST",
     )
     started = time.time()
-    ttft: Optional[float] = None
-    tokens = 0
-    usage: dict[str, Any] = {}
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310 - fixed scheme/port
-            for raw in response:
-                line = raw.decode("utf-8", "replace").strip()
-                if not line.startswith("data:"):
-                    continue
-                data = line[len("data:") :].strip()
-                if data == "[DONE]":
-                    break
-                try:
-                    chunk = json.loads(data)
-                except json.JSONDecodeError:
-                    continue
-                if isinstance(chunk.get("usage"), dict):
-                    usage = chunk["usage"]
-                for choice in chunk.get("choices", []) or []:
-                    delta = (choice.get("delta") or {}).get("content")
-                    if delta:
-                        if ttft is None:
-                            ttft = time.time() - started
-                        tokens += 1
-                        yield json.dumps({"delta": delta})
+            for event in _iter_chat_events(response, started=started, clock=time.time):
+                yield json.dumps(event)
     except Exception as exc:  # noqa: BLE001 - surface as a stream error line
         yield json.dumps({"error": _describe(exc)})
         return
-    yield json.dumps(
-        {
-            "done": True,
-            "ttft_ms": round((ttft or 0.0) * 1000),
-            "latency_ms": round((time.time() - started) * 1000),
-            "tokens": int(usage.get("completion_tokens", tokens)),
-            "usage": usage,
-        }
-    )
 
 
 def engine_chat(
@@ -431,8 +462,10 @@ def engine_chat(
         detail = data.get("error", {}).get("message") if isinstance(data.get("error"), dict) else text[:300]
         raise EngineError(detail or f"engine returned {status}")
     choice = (data.get("choices") or [{}])[0]
+    message = choice.get("message") or {}
     return {
-        "reply": (choice.get("message") or {}).get("content", ""),
+        "reply": message.get("content", ""),
+        "reasoning": message.get("reasoning_content") or None,
         "model": data.get("model", body["model"]),
         "usage": data.get("usage", {}),
         "finish_reason": choice.get("finish_reason"),

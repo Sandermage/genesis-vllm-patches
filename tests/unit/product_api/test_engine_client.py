@@ -312,3 +312,52 @@ def test_engine_stream_and_download_routes(monkeypatch):
 
     # download requires a known model id (full behaviour covered in test_jobs_exec)
     assert client.post("/api/v1/models/download", json={}).status_code == 400
+
+
+# ── streaming chat: reasoning_content + finish_reason capture ─────────────────
+import json as _json
+
+
+def _sse(obj) -> bytes:
+    return f"data: {_json.dumps(obj)}".encode("utf-8")
+
+
+def test_iter_chat_events_captures_reasoning_then_content():
+    """A reasoning model streams reasoning_content first, then the answer. The
+    proxy must surface BOTH (reasoning as its own event) plus finish_reason and a
+    had_reasoning flag in the final done — never silently drop the thinking."""
+    lines = [
+        _sse({"choices": [{"delta": {"reasoning_content": "Let me think"}}]}),
+        _sse({"choices": [{"delta": {"reasoning_content": " about it."}}]}),
+        _sse({"choices": [{"delta": {"content": "Answer"}, "finish_reason": None}]}),
+        _sse({"choices": [{"delta": {"content": "."}, "finish_reason": "stop"}]}),
+        _sse({"usage": {"completion_tokens": 42}, "choices": []}),
+        b"data: [DONE]",
+    ]
+    events = list(ec._iter_chat_events(lines, started=100.0, clock=lambda: 100.5))
+    assert [e["reasoning"] for e in events if "reasoning" in e] == ["Let me think", " about it."]
+    assert [e["delta"] for e in events if "delta" in e] == ["Answer", "."]
+    done = events[-1]
+    assert done["done"] is True
+    assert done["finish_reason"] == "stop"
+    assert done["had_reasoning"] is True
+    assert done["tokens"] == 42  # from usage.completion_tokens, not the content-delta count
+
+
+def test_iter_chat_events_reasoning_only_truncation_is_not_empty():
+    """The bug scenario: the model spends the whole budget reasoning and emits no
+    content (finish_reason=length). The caller must still receive the reasoning
+    AND a done that flags the truncation — so the UI is never blank."""
+    lines = [
+        _sse({"choices": [{"delta": {"reasoning_content": "thinking..."}}]}),
+        _sse({"choices": [{"delta": {}, "finish_reason": "length"}]}),
+        _sse({"usage": {"completion_tokens": 1024}, "choices": []}),
+        b"data: [DONE]",
+    ]
+    events = list(ec._iter_chat_events(lines, started=0.0, clock=lambda: 1.0))
+    assert any("reasoning" in e for e in events)   # reasoning is NOT silently dropped
+    assert not any("delta" in e for e in events)   # no content was produced
+    done = events[-1]
+    assert done["finish_reason"] == "length"
+    assert done["had_reasoning"] is True
+    assert done["tokens"] == 1024

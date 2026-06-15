@@ -8,6 +8,16 @@ SearXNG**, **trigger = manual 🌐 toggle + auto native tool-calling (model-awar
 
 ---
 
+> **STATUS UPDATE (implemented, not just specced):** §1 below is now DONE in
+> `engine_client.py` (operator lifted the gui-only rule for this fix):
+> `_iter_chat_events` captures `reasoning_content` → `{"reasoning":…}` events and
+> adds `finish_reason` + `had_reasoning` to the `done` event; `engine_chat`
+> returns `reasoning` too. Unit-tested (`test_engine_client.py`, 2 new tests) and
+> live on the local daemon. **For prod it needs the host `sndr-daemon` rebuild**
+> (same as the hardening in `SNDR_BACKEND_HANDOFF.md`). The GUI side (reasoning
+> trace render, truncation note, history trim) is also shipped. **Only §2 (web
+> search / SearXNG) remains for the backend agent.**
+
 ## 1. BUG — chat returns `(empty)` with a non-zero token count
 
 ### Root cause (confirmed in code + live config)

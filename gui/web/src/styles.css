@@ -3416,6 +3416,13 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 .chat-advisory { flex: 1 1 100%; display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; border-radius: var(--r-sm); background: var(--warn-soft); color: var(--text-2); font-size: 11.5px; line-height: 1.5; }
 .chat-advisory svg { color: var(--warn); flex: none; margin-top: 1px; }
 .chat-advisory code { font-family: var(--mono); font-size: 0.92em; background: var(--surface-inset); padding: 1px 5px; border-radius: 4px; }
+.chat-reasoning { margin: 0 0 6px; font-size: 12px; border-left: 2px solid var(--border); padding-left: 9px; }
+.chat-reasoning > summary { cursor: pointer; display: inline-flex; align-items: center; gap: 5px; color: var(--text-muted); user-select: none; list-style: none; }
+.chat-reasoning > summary::-webkit-details-marker { display: none; }
+.chat-reasoning > summary svg { color: var(--text-muted); flex: none; }
+.chat-reasoning[open] > summary { margin-bottom: 5px; }
+.chat-reasoning-body { font-size: 12px; line-height: 1.55; color: var(--text-muted); white-space: pre-wrap; }
+.chat-trunc { display: block; margin-top: 7px; font-size: 11px; color: var(--text-muted); opacity: 0.85; font-style: italic; }
 .spin { animation: chat-spin 0.9s linear infinite; }
 @keyframes chat-spin { to { transform: rotate(360deg); } }
 .chat-src-detail { padding: 8px 10px; border-radius: var(--r-sm); background: var(--surface-inset); border: 1px solid var(--border); }
