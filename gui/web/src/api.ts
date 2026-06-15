@@ -573,6 +573,9 @@ export type FleetHost = {
 
 // ── Ops copilot (read-only tool-calling assistant) ──────────────────────────
 export type CopilotTool = { name: string; description: string; category: "read" | "plan" | string };
+export type Prompt = { id: string; name: string; title: string; content: string; builtin: boolean; created_at?: number };
+export type ManagedToolParam = { name: string; type: "string" | "integer" | "number" | "boolean"; required?: boolean; description?: string };
+export type ManagedTool = { id: string; name: string; title: string; description: string; method: "GET" | "POST"; url: string; params: ManagedToolParam[]; enabled: boolean; created_at?: number };
 export type CopilotStep = { tool: string; args: Record<string, unknown>; ok: boolean };
 export type CopilotProposedAction = { kind: string; label: string; section: string; params?: Record<string, unknown> };
 export type CopilotResult = {
@@ -1455,6 +1458,18 @@ export const api = {
   copilotTools: () => request<{ tools: CopilotTool[] }>("/api/v1/copilot/tools"),
   copilotChat: (messages: Array<{ role: string; content: string }>, opts?: CopilotChatOpts) =>
     postJson<CopilotResult>("/api/v1/copilot/chat", { messages, ...(opts || {}) }),
+  // Prompt library (operator-managed system-prompt templates)
+  listPrompts: () => request<{ prompts: Prompt[] }>("/api/v1/prompts"),
+  createPrompt: (p: { name: string; content: string; title?: string }) => postJson<Prompt>("/api/v1/prompts", p),
+  updatePrompt: (id: string, p: { name?: string; content?: string; title?: string }) =>
+    request<Prompt>(`/api/v1/prompts/${encodeURIComponent(id)}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(p) }),
+  deletePrompt: (id: string) => request<{ deleted: boolean }>(`/api/v1/prompts/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  // Managed declarative tools (the GUI tool manager)
+  listManagedTools: () => request<{ tools: ManagedTool[] }>("/api/v1/tools/managed"),
+  createManagedTool: (t: Partial<ManagedTool>) => postJson<ManagedTool>("/api/v1/tools/managed", t),
+  updateManagedTool: (id: string, t: Partial<ManagedTool>) =>
+    request<ManagedTool>(`/api/v1/tools/managed/${encodeURIComponent(id)}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(t) }),
+  deleteManagedTool: (id: string) => request<{ deleted: boolean }>(`/api/v1/tools/managed/${encodeURIComponent(id)}`, { method: "DELETE" }),
   baselines: () => request<{ baselines: BaselineRec[] }>("/api/v1/baselines"),
   baselineTrend: (metric?: string, scenario?: string) => request<BaselineTrend>(`/api/v1/baselines/trend${query({ metric, scenario })}`),
   baselineSave: (result: unknown, label?: string) => postJson<{ id: string; label: string; saved_at: number }>("/api/v1/baselines", { result, label }),

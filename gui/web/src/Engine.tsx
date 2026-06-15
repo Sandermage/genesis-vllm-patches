@@ -1,7 +1,8 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowRight, Bot, BookText, Brain, ChevronDown, CircleAlert, Copy, Database, Download, Heart, Loader2, Pencil, Plus, RefreshCw, Route, Search, Send, SlidersHorizontal, Sparkles, Square, TimerReset, Trash2, User, X, Zap } from "lucide-react";
 import type { ReactNode } from "react";
-import { EngineBenchResult, EngineChatResult, EngineMetrics, EngineStatus, HubModel, Job, ModelCacheReport, RagDoc, type RoutingActive, type RoutingClassify, type RoutingSignals, api } from "./api";
+import { EngineBenchResult, EngineChatResult, EngineMetrics, EngineStatus, HubModel, Job, ModelCacheReport, RagDoc, type Prompt, type RoutingActive, type RoutingClassify, type RoutingSignals, api } from "./api";
+import { LibraryManager } from "./sections/library-manager";
 import { SkeletonMetrics } from "./Skeleton";
 import { tr } from "./i18n";
 
@@ -601,17 +602,6 @@ type ChatMessage = { role: "user" | "assistant"; content: string; reasoning?: st
 type Conversation = { id: string; title: string; messages: ChatMessage[]; createdAt: number; updatedAt: number };
 type ChatSettings = { host: string; port: number; model: string; apiKey: string; hostId: string; system: string; temperature: number; maxTokens: number; topP: number; presencePenalty: number; frequencyPenalty: number; stop: string; thinking: boolean; webSearch: boolean; useProject: boolean; ragProject: boolean; ragVaults: string[]; workloadClass: string };
 
-// Selectable system-prompt templates for search & analysis tasks. The system
-// value is the model instruction (English); only the label is localized. The
-// analysis templates also steer the copilot toward the right tools.
-const PROMPT_TEMPLATES: Array<{ label: string; system: string }> = [
-  { label: "General assistant", system: "You are a helpful assistant." },
-  { label: "Web research", system: "You are a research assistant. For any real-time or factual claim, rely on web search results in context and cite the source URLs. Be concise, structured, and flag uncertainty." },
-  { label: "Crypto / market analysis", system: "You are a market analyst. For market questions use the market analysis, signals and web tools; cite data with timestamps and sources. State assumptions and a confidence level; never invent prices or figures." },
-  { label: "News briefing", system: "You are a news analyst. Gather current items from web search, then synthesize a dated, sourced briefing: the key developments, why they matter, and what to watch — with citation URLs." },
-  { label: "Code analysis", system: "You are a senior engineer. Review code for correctness, security and clarity. Cite specific lines, explain the risk, and propose the smallest correct fix." },
-];
-
 const CHAT_KEY = "sndr.chat.v1";
 // maxTokens defaults high enough for reasoning models: with --reasoning-parser
 // active, the model spends tokens in reasoning_content before reaching the
@@ -743,6 +733,10 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
   const [error, setError] = useState<string | null>(null);
   const [atBottom, setAtBottom] = useState(true);
   const abortRef = useRef<AbortController | null>(null);
+  const [prompts, setPrompts] = useState<Prompt[]>([]);
+  const [libOpen, setLibOpen] = useState(false);
+  const loadPrompts = () => api.listPrompts().then((r) => setPrompts(r.prompts)).catch(() => {});
+  useEffect(() => { loadPrompts(); }, []);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const activeIdRef = useRef(activeId);
   activeIdRef.current = activeId;
@@ -950,10 +944,13 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
           <div className="chat-settings">
             <label className="chat-field chat-field-wide"><span>{tr("System prompt")}</span><textarea value={settings.system} onChange={(e) => set({ system: e.target.value })} rows={2} /></label>
             <label className="chat-field"><span>{tr("Prompt template")}</span>
-              <select value="" onChange={(e) => { const t = PROMPT_TEMPLATES.find((x) => x.label === e.target.value); if (t) set({ system: t.system }); }} title={tr("Load a search/analysis system prompt")}>
+              <select value="" onChange={(e) => { const p = prompts.find((x) => x.id === e.target.value); if (p) set({ system: p.content }); }} title={tr("Load a saved prompt as the system prompt")}>
                 <option value="">{tr("choose…")}</option>
-                {PROMPT_TEMPLATES.map((t) => <option key={t.label} value={t.label}>{tr(t.label)}</option>)}
+                {prompts.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
+            </label>
+            <label className="chat-field"><span>{tr("Library")}</span>
+              <button type="button" className="ghost-button" onClick={() => setLibOpen(true)} title={tr("Manage prompts & tools")}><BookText size={13} /> {tr("Manage prompts & tools")}</button>
             </label>
             <label className="chat-field"><span>{tr("Temperature")}</span><input type="number" min={0} max={2} step={0.1} value={settings.temperature} onChange={(e) => set({ temperature: Number(e.target.value) })} /></label>
             <label className="chat-field"><span>{tr("Max tokens")}</span><input type="number" min={1} max={4096} value={settings.maxTokens} onChange={(e) => set({ maxTokens: Number(e.target.value) || 512 })} /></label>
@@ -1050,6 +1047,7 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
           </div>
         </div>
       </div>
+      {libOpen && <LibraryManager onClose={() => setLibOpen(false)} onChanged={loadPrompts} />}
     </div>
   );
 }
