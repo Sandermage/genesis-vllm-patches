@@ -122,7 +122,7 @@ log ""
 log "=== 2. Dispatch profile (model_detect) ==="
 docker exec "${CONTAINER}" python3 -c "
 import json
-from vllm.sndr_core.detection.model_detect import get_model_profile
+from sndr.engines.vllm.detection.model_detect import get_model_profile
 print(json.dumps(get_model_profile(), indent=2, default=str))
 " > "${OUT_ROOT}/dispatch_profile.json" 2>&1 || \
     log "⚠ dispatch_profile dump failed (container may not have v7.10 yet)"

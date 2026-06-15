@@ -6,7 +6,7 @@ Eager imports broke torch-less environments (CLI, schema validator,
 doctor, pre-commit hooks, registry audit) because `prealloc.py`
 imports torch at module top-level. The legacy `vllm/_genesis/__init__.py`
 documents the same trap (v7 G-002 fix). Apply the same pattern here so
-`import sndr` and `python -m vllm.sndr_core.cli --help` work
+`import sndr` and `python -m sndr.cli --help` work
 without torch installed.
 
 Canonical imports (preferred for new code):

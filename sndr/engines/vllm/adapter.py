@@ -1,13 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
-"""vLLM engine adapter — Phase 1 stub.
+"""vLLM engine adapter.
 
-In this phase, the adapter delegates to the existing vllm.sndr_core helpers
-so production behavior is unchanged. Subsequent phases migrate logic into
-this package directly.
-
-Backward compatibility: this stub MUST work without breaking any existing
-import paths. The shim in vllm/sndr_core/ re-exports new symbols so legacy
-callers continue to function.
+The adapter delegates to the canonical ``sndr`` engine helpers (detection /
+patching / profile resolution) so production behaviour is unchanged across
+the v12 relocation. The pre-v12 ``vllm/sndr_core`` shim tree is gone — every
+symbol is imported from the ``sndr`` package directly; nothing references or
+re-exports through ``vllm/sndr_core`` any more.
 """
 from __future__ import annotations
 
