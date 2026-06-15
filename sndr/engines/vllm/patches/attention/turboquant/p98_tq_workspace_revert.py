@@ -237,11 +237,16 @@ def apply() -> tuple[str, str]:
 
     return (
         "applied",
-        "P98 v7.62.14 applied: turboquant_attn.py _decode_attention + "
-        "continuation prefill dequant now use per-layer cached buffers "
-        "(OLD pattern, pre-vllm#40941). Removes Python indirection from "
-        "decode hot path. Expected: +15-25% TPS recovery on Ampere "
-        "small-batch single-stream workload."
+        "P98 v2 applied (dequant-only after PN118 supersession 2026-06-08): "
+        "turboquant_attn.py continuation-prefill dequant uses per-layer "
+        "cached buffers (OLD pattern, pre-vllm#40941). The _decode_attention "
+        "revert is RETIRED — PN118 owns that path via try_get_simultaneous. "
+        "NOTE: a 2026-06-15 canonical A/B on the dev491 27B (try_get memo ON "
+        "vs OFF) found the un-memoized WorkspaceManager indirection is NOT a "
+        "decode bottleneck here (within noise) — the original docstring's "
+        "'+15-25% decode' figure was a pre-#40941 measurement that does not "
+        "translate to dev491's lighter try_get_simultaneous. Expected here: "
+        "single-digit % on long-context prefill only."
     )
 
 
