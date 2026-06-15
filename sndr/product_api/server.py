@@ -11,7 +11,8 @@ Or with uvicorn::
     uvicorn sndr.product_api.server:create_app --factory --host 0.0.0.0 --port 8800
 
 In v12.x, this new server runs alongside the legacy
-``vllm.sndr_core.product_api`` server. New engine-aware routes
+``sndr.product_api.legacy.http_app`` monolith (the production daemon,
+``sndr gui-api``). New engine-aware routes
 (``/api/v1/engines``, ``/api/v1/health``, ``/api/v1/version``) are served
 here; legacy routes continue to come from the old monolith.
 

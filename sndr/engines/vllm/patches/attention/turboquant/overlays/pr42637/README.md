@@ -48,9 +48,9 @@ Bind-mount overlay путь:
 
 ```bash
 docker run \
-  -v ${REPO}/vllm/sndr_core/integrations/attention/turboquant/overlays/pr42637/turboquant_attn.py:/usr/local/lib/python3.12/dist-packages/vllm/v1/attention/backends/turboquant_attn.py:ro \
-  -v ${REPO}/vllm/sndr_core/integrations/attention/turboquant/overlays/pr42637/triton_turboquant_decode.py:/usr/local/lib/python3.12/dist-packages/vllm/v1/attention/ops/triton_turboquant_decode.py:ro \
-  -v ${REPO}/vllm/sndr_core/integrations/attention/turboquant/overlays/pr42637/triton_turboquant_store.py:/usr/local/lib/python3.12/dist-packages/vllm/v1/attention/ops/triton_turboquant_store.py:ro \
+  -v ${REPO}/sndr/engines/vllm/patches/attention/turboquant/overlays/pr42637/turboquant_attn.py:/usr/local/lib/python3.12/dist-packages/vllm/v1/attention/backends/turboquant_attn.py:ro \
+  -v ${REPO}/sndr/engines/vllm/patches/attention/turboquant/overlays/pr42637/triton_turboquant_decode.py:/usr/local/lib/python3.12/dist-packages/vllm/v1/attention/ops/triton_turboquant_decode.py:ro \
+  -v ${REPO}/sndr/engines/vllm/patches/attention/turboquant/overlays/pr42637/triton_turboquant_store.py:/usr/local/lib/python3.12/dist-packages/vllm/v1/attention/ops/triton_turboquant_store.py:ro \
   ...
 ```
 

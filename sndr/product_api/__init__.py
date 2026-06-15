@@ -14,8 +14,8 @@ The HTTP server is created via :func:`create_app`, which composes all routers
 and middleware.
 
 During v12.x migration, this package coexists with the legacy
-``vllm.sndr_core.product_api`` monolith. New endpoints (engine-aware,
-pin-aware, drift-aware) live here; legacy endpoints remain at the old path
+``sndr.product_api.legacy.http_app`` monolith. New endpoints (engine-aware,
+pin-aware, drift-aware) live here; legacy endpoints remain in the monolith
 until Phase 11 cleanup.
 """
 # This package is intentionally lazy — importing sndr.product_api does NOT
