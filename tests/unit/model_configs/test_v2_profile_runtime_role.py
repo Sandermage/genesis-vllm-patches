@@ -90,13 +90,6 @@ class TestExistingProfilesLoadUnchanged:
         # NO spec_decode/routing/validation blocks. Escapes the 31B
         # TQ block on pin 0.22.1 by halving KV toward full 256K ctx.
         "gemma4-31b-fp8e5m2-fallback",      # role=dev, fp8_e5m2 KV fallback (G4_80)
-        # 2026-06-15 — EAGLE-3 spec-decode (RedHatAI official draft heads).
-        # Role=structured (carry spec_decode_override method=eagle3 against
-        # the plain AWQ target); reads target hidden states, not shared KV,
-        # so they sidestep the Gemma-4 MTP 0%-acceptance collapse. EXPERIMENTAL
-        # pending the dev491 boot + accept-length A/B.
-        "gemma4-26b-eagle3",                # role=structured, EAGLE-3 K=3 (MoE A4B)
-        "gemma4-31b-eagle3",                # role=structured, EAGLE-3 K=3 (31B dense)
     })
 
     def test_all_builtin_profiles_load_with_new_fields_default_none(self):

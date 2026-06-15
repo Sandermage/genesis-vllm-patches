@@ -17,18 +17,11 @@ from ._base import SchemaError
 @dataclass
 class SpecDecodeConfig:
     """Speculative decoding setup."""
-    method: str  # 'mtp' / 'eagle' / 'eagle3' / 'ngram' / 'dflash'
+    method: str  # 'mtp' / 'eagle' / 'ngram' / 'dflash'
     num_speculative_tokens: int
-    # Path to a separate drafter model. Required for `dflash`/`eagle`/`eagle3`
-    # (where the drafter is a distinct checkpoint from the target). For
-    # `mtp`/`ngram` keep None — vllm uses the target's own MTP head / n-gram cache.
-    # eagle3 (Genesis 2026-06-15): official RedHatAI/NeuralMagic EAGLE-3 draft
-    # heads exist for both Gemma-4 targets (gemma-4-{26B-A4B,31B}-it-speculator
-    # .eagle3); vLLM PR#39450 (merged 2026-04-10, in dev491) added the Gemma4
-    # EAGLE-3 loader. EAGLE-3 reads the target's intermediate HIDDEN STATES
-    # (not the shared KV), so it sidesteps the TQ-compressed-shared-KV collapse
-    # that pins Gemma-4 MTP at 0% acceptance. method='eagle3' is auto-detected
-    # by vllm from the '.eagle3' draft-model name; keep it explicit here.
+    # Path to a separate drafter model. Required for `dflash`/`eagle` (where the
+    # drafter is a distinct checkpoint from the target). For `mtp`/`ngram` keep
+    # None — vllm uses the target model's own MTP head / its own n-gram cache.
     model: Optional[str] = None
 
     # Probabilistic draft-probs propagation (vllm dev338+ native).
@@ -73,7 +66,7 @@ class SpecDecodeConfig:
     attention_backend: Optional[str] = None
 
     def validate(self) -> None:
-        valid_methods = {"mtp", "eagle", "eagle3", "ngram", "dflash"}
+        valid_methods = {"mtp", "eagle", "ngram", "dflash"}
         if self.method not in valid_methods:
             raise SchemaError(
                 f"SpecDecodeConfig.method must be one of {valid_methods}, "
@@ -83,7 +76,7 @@ class SpecDecodeConfig:
             raise SchemaError(
                 "SpecDecodeConfig.num_speculative_tokens must be >= 1"
             )
-        if self.method in ("dflash", "eagle", "eagle3") and not self.model:
+        if self.method in ("dflash", "eagle") and not self.model:
             raise SchemaError(
                 f"SpecDecodeConfig.model is required for method='{self.method}' "
                 f"(drafter is a separate checkpoint from the target model)"
