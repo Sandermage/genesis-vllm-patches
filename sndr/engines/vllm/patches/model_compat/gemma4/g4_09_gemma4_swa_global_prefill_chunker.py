@@ -149,21 +149,44 @@ def apply() -> tuple[str, str]:
 
     # We wrap Gemma4Config.verify_and_update_config (or the equivalent)
     # to clamp scheduler max_num_batched_tokens.
+    # dev371+ moved the verify_and_update_config wrappers from
+    # vllm.model_executor.models.gemma4 to vllm.model_executor.models.config.
+    # Search both locations so the patch survives the move.
+    _candidate_modules: list[tuple[str, object]] = []
     try:
-        from vllm.model_executor.models import gemma4 as _g4_mod
-    except ImportError as e:
-        return "skipped", f"vllm.model_executor.models.gemma4 not importable: {e}"
+        from vllm.model_executor.models import config as _g4_cfg_mod
+        _candidate_modules.append(
+            ("vllm.model_executor.models.config", _g4_cfg_mod)
+        )
+    except ImportError:
+        pass
+    try:
+        from vllm.model_executor.models import gemma4 as _g4_legacy_mod
+        _candidate_modules.append(
+            ("vllm.model_executor.models.gemma4", _g4_legacy_mod)
+        )
+    except ImportError:
+        pass
+
+    if not _candidate_modules:
+        return "skipped", (
+            "Neither vllm.model_executor.models.config nor .gemma4 "
+            "importable; G4_09 is no-op on this pin"
+        )
 
     target_cls = None
     for cls_name in ("Gemma4Config", "Gemma4TextConfig", "Gemma4ForConditionalGenerationConfig"):
-        cls = getattr(_g4_mod, cls_name, None)
-        if cls is not None and hasattr(cls, "verify_and_update_config"):
-            target_cls = cls
+        for mod_name, mod in _candidate_modules:
+            cls = getattr(mod, cls_name, None)
+            if cls is not None and hasattr(cls, "verify_and_update_config"):
+                target_cls = cls
+                break
+        if target_cls is not None:
             break
     if target_cls is None:
         return "skipped", (
-            "No Gemma4Config-like class with verify_and_update_config found; pin "
-            "may lack this — G4_09 is no-op"
+            "No Gemma4Config-like class with verify_and_update_config found "
+            f"in {[m for m, _ in _candidate_modules]}; G4_09 is no-op on this pin"
         )
 
     original = target_cls.verify_and_update_config
@@ -231,16 +254,24 @@ def revert() -> bool:
     global _APPLIED, _ORIGINAL_VERIFY
     if not _APPLIED or _ORIGINAL_VERIFY is None:
         return False
+    _modules = []
     try:
-        from vllm.model_executor.models import gemma4 as _g4_mod
+        from vllm.model_executor.models import config as _m
+        _modules.append(_m)
+    except ImportError:
+        pass
+    try:
+        from vllm.model_executor.models import gemma4 as _m
+        _modules.append(_m)
+    except ImportError:
+        pass
+    for _g4_mod in _modules:
         for cls_name in ("Gemma4Config", "Gemma4TextConfig", "Gemma4ForConditionalGenerationConfig"):
             cls = getattr(_g4_mod, cls_name, None)
             if cls is not None and getattr(cls.verify_and_update_config, "_genesis_g4_09_wrapped", False):
                 cls.verify_and_update_config = _ORIGINAL_VERIFY  # type: ignore[assignment]
                 _APPLIED = False
                 return True
-    except ImportError:
-        pass
     return False
 
 

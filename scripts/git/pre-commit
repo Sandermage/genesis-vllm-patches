@@ -32,9 +32,10 @@ cd "$REPO_ROOT"
 # CI time on doc-only commits.
 # Audit 2026-05-14 P1-2: paths migrated from pre-v11 `vllm/_genesis/`
 # layout to canonical `vllm/sndr_core/` package (commit 776aa32b removed
-# the legacy namespace entirely).
+# the legacy namespace entirely). v12 flattened that package to the
+# top-level `sndr/` namespace (the `vllm/sndr_core/` tree was removed).
 CHANGED=$(git diff --cached --name-only --diff-filter=ACMR | grep -E \
-    'vllm/sndr_core/(dispatcher/|apply/|integrations/.*upstream_compat|compat/(predicates|lifecycle|schema_validator|categories|self_test|cli)|version\.py)|schemas/patch_entry\.schema\.json' \
+    'sndr/(dispatcher/|apply/|integrations/.*upstream_compat|compat/(predicates|lifecycle|schema_validator|categories|self_test|cli)|version\.py)|schemas/patch_entry\.schema\.json' \
     || true)
 
 if [ -z "$CHANGED" ]; then
@@ -48,7 +49,7 @@ echo
 
 # 1. Schema validation
 echo "[1/4] Schema validator…"
-if ! python3 -m vllm.sndr_core.compat.schema_validator --quiet; then
+if ! python3 -m sndr.compat.schema_validator --quiet; then
     echo
     echo "✗ Schema validation FAILED. See output above."
     echo "  Fix the entries or run with --no-verify if intentional."
@@ -60,7 +61,7 @@ echo "✓ schema clean"
 echo
 echo "[2/4] A3/D2 dependency / conflict validator…"
 python3 -c "
-from vllm.sndr_core.dispatcher import validate_registry, PATCH_REGISTRY
+from sndr.dispatcher import validate_registry, PATCH_REGISTRY
 issues = validate_registry()
 if issues:
     print()
@@ -75,7 +76,7 @@ echo "✓ no static structural issues"
 # 3. Lifecycle audit
 echo
 echo "[3/4] Lifecycle audit…"
-if ! python3 -m vllm.sndr_core.compat.lifecycle_audit_cli --quiet > /tmp/genesis_lifecycle_audit.txt 2>&1; then
+if ! python3 -m sndr.compat.lifecycle_audit_cli --quiet > /tmp/genesis_lifecycle_audit.txt 2>&1; then
     cat /tmp/genesis_lifecycle_audit.txt
     echo
     echo "✗ Lifecycle audit FAILED — at least one entry has an unknown lifecycle state."
@@ -89,7 +90,7 @@ echo "✓ lifecycle clean"
 #    predicates, version constant). Same gate CI runs.
 echo
 echo "[4/4] Genesis self-test…"
-if ! python3 -m vllm.sndr_core.compat.cli self-test --quiet > /tmp/genesis_self_test.txt 2>&1; then
+if ! python3 -m sndr.compat.cli self-test --quiet > /tmp/genesis_self_test.txt 2>&1; then
     cat /tmp/genesis_self_test.txt
     echo
     echo "✗ Self-test FAILED — see rows above."

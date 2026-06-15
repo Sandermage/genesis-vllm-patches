@@ -101,7 +101,6 @@ sizing_override:
   max_num_seqs: 2
   max_num_batched_tokens: 4096
   enable_chunked_prefill: true
-  enable_prefix_caching: true                      # ADDED — club-3090 config has this; helps decode cache reuse on repeated prefixes
   enforce_eager: false
   disable_custom_all_reduce: true
 

@@ -12,7 +12,7 @@ the per-topic deep-dives.
 
 > Stack as of 2026-06-01:
 > Genesis `v12.0.0` (312 PATCH_REGISTRY entries) ·
-> vLLM `0.21.1rc0+g626fa9bba5` ·
+> vLLM `0.22.1rc1.dev491+g1033ffac2` ·
 > Reference rig: 2× RTX A5000 24 GB · driver ≥ 580.126 · CUDA 13.
 
 ## 1. What you are running

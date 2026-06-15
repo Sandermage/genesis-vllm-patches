@@ -5,7 +5,7 @@
 # Genesis vLLM Patches
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![vLLM pin](https://img.shields.io/badge/vllm-0.21.1rc0+g626fa9bba5-orange.svg)](https://github.com/vllm-project/vllm)
+[![vLLM pin](https://img.shields.io/badge/vllm-0.22.1rc1.dev491+g1033ffac2-orange.svg)](https://github.com/vllm-project/vllm)
 [![Patches](https://img.shields.io/badge/registry-312%20patches-green.svg)](docs/PATCHES.md)
 [![SNDR Core](https://img.shields.io/badge/SNDR%20Core-v12.0.0-blue.svg)](CHANGELOG.md)
 [![GPU](https://img.shields.io/badge/GPU-RTX%203090%20%7C%204090%20%7C%205090%20%7C%20A5000%20%7C%20H20%20%7C%20R6000-purple.svg)](docs/HARDWARE.md)

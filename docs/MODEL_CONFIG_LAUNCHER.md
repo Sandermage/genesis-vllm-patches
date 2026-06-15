@@ -16,7 +16,7 @@ sndr model-config diagnose <key>               # check running container
 sndr model-config verify <key>                 # bench vs reference (CI gate)
 ```
 
-Where `sndr` = `python3 -m vllm.sndr_core.cli`.
+Where `sndr` = `python3 -m sndr.cli`.
 
 ---
 

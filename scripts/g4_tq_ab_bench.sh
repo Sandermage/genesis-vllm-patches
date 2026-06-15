@@ -115,7 +115,7 @@ for cfg in "${CONFIGS[@]}"; do
 
   # 4. Bench (canonical genesis_bench_suite.py path; uses --json output)
   echo "[4/4] Running bench (${N_RUNS} runs × ${N_PROMPTS} prompts × ${N_TOKENS} tokens)..."
-  python3 "${REPO_ROOT}/vllm/sndr_core/tools/genesis_bench_suite.py" \
+  python3 "${REPO_ROOT}/tools/genesis_bench_suite.py" \
     --host 127.0.0.1 --port "${PORT}" \
     --model "${SERVED_MODEL}" \
     --runs "${N_RUNS}" \

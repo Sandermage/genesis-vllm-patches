@@ -4,7 +4,7 @@ Complete command + parameter reference for the `sndr` CLI exposed by
 `vllm-sndr-core`. Every subcommand is grouped by operator workflow:
 install, run, inspect, configure, report.
 
-> **Source of truth**: `python3 -m vllm.sndr_core.cli --help` and the
+> **Source of truth**: `sndr --help` and the
 > per-subcommand `--help` always reflect the installed surface. This
 > document tracks the same content with extra context, examples, and
 > a stability badge per subcommand.

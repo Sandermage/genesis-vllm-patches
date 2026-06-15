@@ -43,7 +43,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_SCAN_PATHS = (
-    "vllm/sndr_core",
+    "sndr",
     "scripts",
 )
 
@@ -321,7 +321,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument(
         "--paths", nargs="*", default=None,
-        help="Scan roots (repo-relative). Default: vllm/sndr_core + scripts.",
+        help="Scan roots (repo-relative). Default: sndr + scripts.",
     )
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args()

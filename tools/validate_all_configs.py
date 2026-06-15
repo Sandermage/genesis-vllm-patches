@@ -291,7 +291,7 @@ def phase_apply_matrix() -> None:
     section("Phase 7 — apply matrix (dispatcher doctor)")
     try:
         result = subprocess.run(
-            ["python3", "-m", "vllm.sndr_core.compat.cli", "self-test", "--json"],
+            ["python3", "-m", "sndr.compat.cli", "self-test", "--json"],
             cwd=REPO_ROOT,
             capture_output=True,
             text=True,

@@ -12,7 +12,7 @@ patches that are platform-gated (e.g. Ampere SM 8.0+) are noted.
 >   (top-k/top-p contiguous), PN133, PN204 v2 (GDN dual-stream consolidated),
 >   PN298/PN299 FLA arch-aware NUM_WARPS prune. Updated 2026-06-10 — counts
 >   auto-derived from ``PATCH_REGISTRY``.
-> - vLLM `0.21.1rc0+g626fa9bba5` (bumped from dev209→dev338→dev371;
+> - vLLM `0.22.1rc1.dev491+g1033ffac2` (bumped dev209→dev338→dev371→dev491;
 >   canonical bench numbers below measured on dev93/dev209 — re-bench on
 >   dev371 shows 35B sustained ~208-216 TPS at max_num_seqs=2 and ~689
 >   aggregate at conc=8, both within CV of the dev209 baseline)

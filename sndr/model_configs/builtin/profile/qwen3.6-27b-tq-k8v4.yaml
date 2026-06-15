@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Genesis V2 profile — wave9 validated set for 27B-TQ-k8v4 on A5000 2× rig (LATENCY mode).
 # Includes sizing override appropriate for the smaller 27B model
-# (max_num_seqs=4 vs 35B's 2; max_model_len=131072 vs 35B's 320000).
+# (max_num_seqs=4 vs 35B's 2; max_model_len=262144 vs 35B's 320000).
 #
 # WAVE 10 (2026-05-15) INHERITANCE NOTE:
 # Model file qwen3.6-27b-int4-autoround-tq-k8v4.yaml was updated 2026-05-15
@@ -33,15 +33,14 @@ patches_delta:
 
 # ─── Sizing override — operator tuning for 27B on 2× A5000 ─────────────
 # 27B leaves more VRAM for KV cache + sequences than 35B, so we run
-# 2× more concurrent sequences (max_num_seqs=4) and lower max_model_len
-# (131072 fits the larger seq count without OOM).
+# 2× more concurrent sequences (max_num_seqs=4) at max_model_len=262144
+# (256K context fits the larger seq count without OOM).
 sizing_override:
   max_model_len: 262144                          # 256K context — raised 2026-05-14 after TP=2 progressive ladder PASSed 200K/230K/256K on the dcacdf9a pin; re-verified booting on pin `626fa9bba` 2026-05-31 with TP=2 + this profile's defaults (initial 27b-tq-k8v4 boot failure on 2026-05-31 was misdiagnosed as KV-drift but was actually `sndr profile render-launchers` auto-pick of `a5000-1x` instead of `a5000-2x` hardware — re-render with `--hardware a5000-2x-24gbvram-16cpu-128gbram` gives correct TP=2). Concurrency stays at max_num_seqs=4 (verified during the ladder).
   gpu_memory_utilization: 0.82                   # LOWERED 0.92->0.82 2026-06-15 for the dev491 pin. 0.92 was validated on dev259/dev371 but on dev491 the engine footprint is fatter and 0.92 OOMs the GDN causal_conv1d activations (torch.empty_like in mamba/ops/causal_conv1d.py) on longer-context shapes (multi_turn/thinking_off/tool_call returned HTTP 500). 0.82 re-validated 2026-06-15: all 6 chat-matrix variants PASS, 0 OOM, code 110.7 / thinking_off 108.1 / multi_turn 99.0 TPS. NOTE: lower gmu shrinks the 256K-ctx KV budget; if full 256K x max_num_seqs=4 is needed, re-tune toward 0.85-0.88 with an OOM-ladder re-validation. dev259 rollback restores 0.92.
   max_num_seqs: 4                                # 4 concurrent (vs 35B's 2) — 27B has 2× the spare KV pool
   max_num_batched_tokens: 4096                   # chunked prefill chunk size (must equal GENESIS_PROFILE_RUN_CAP_M)
-  enable_chunked_prefill: true
-  enable_prefix_caching: true                    # ADDED — club-3090 inspired; helps decode cache reuse                   # required for spec-decode + long ctx
+  enable_chunked_prefill: true                   # required for spec-decode + long ctx
   enforce_eager: false                           # false = cudagraph capture enabled
   disable_custom_all_reduce: true                # NCCL fallback (consumer Ampere PCIe)
 

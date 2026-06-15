@@ -130,14 +130,14 @@ fi
 _step "4. Module import smoke"
 
 for module in \
-    "vllm.sndr_core" \
-    "vllm.sndr_core.cli" \
-    "vllm.sndr_core.dispatcher.registry" \
-    "vllm.sndr_core.model_configs.registry" \
-    "vllm.sndr_core.model_configs.registry_v2" \
-    "vllm.sndr_core.proof" \
-    "vllm.sndr_core.proof.bench_attach" \
-    "vllm.sndr_core.proof.release_check"
+    "sndr" \
+    "sndr.cli" \
+    "sndr.dispatcher.registry" \
+    "sndr.model_configs.registry" \
+    "sndr.model_configs.registry_v2" \
+    "sndr.proof" \
+    "sndr.proof.bench_attach" \
+    "sndr.proof.release_check"
 do
     if python3 -c "import $module" 2>>"$SMOKE_LOG"; then
         _pass "import $module"
@@ -150,18 +150,18 @@ done
 
 _step "5. CLI entry point smoke"
 
-if python3 -m vllm.sndr_core.cli --version >/dev/null 2>>"$SMOKE_LOG"; then
+if python3 -m sndr.cli --version >/dev/null 2>>"$SMOKE_LOG"; then
     _pass "sndr --version OK"
 else
     _fail "sndr --version failed — see $SMOKE_LOG"
 fi
 
 # Self-test (8/8 PASS expected on healthy tree)
-if python3 -m vllm.sndr_core.cli self-test 2>>"$SMOKE_LOG" | tail -1 | grep -q "PASS"; then
+if python3 -m sndr.cli self-test 2>>"$SMOKE_LOG" | tail -1 | grep -q "PASS"; then
     _pass "sndr self-test PASS"
 else
     # Some versions print "8/8 passed" instead of literal "PASS"; check rc:
-    if python3 -m vllm.sndr_core.cli self-test >>"$SMOKE_LOG" 2>&1; then
+    if python3 -m sndr.cli self-test >>"$SMOKE_LOG" 2>&1; then
         _pass "sndr self-test rc=0"
     else
         _fail "sndr self-test rc≠0 — see $SMOKE_LOG"
@@ -175,7 +175,7 @@ if [ "$SKIP_LAUNCH" -eq 0 ]; then
 
     # Use V1 monolithic preset key first — the floor that V2 falls back to.
     V1_KEY="a5000-2x-35b-prod"
-    if python3 -m vllm.sndr_core.cli launch "$V1_KEY" --preflight-only \
+    if python3 -m sndr.cli launch "$V1_KEY" --preflight-only \
             >>"$SMOKE_LOG" 2>&1; then
         _pass "V1 preset '$V1_KEY' preflight OK"
     else
@@ -190,7 +190,7 @@ if [ "$SKIP_LAUNCH" -eq 0 ]; then
 
     # V2 alias — composes to V1 ModelConfig via registry_v2.load_alias.
     V2_ALIAS="prod-qwen3.6-35b-balanced"
-    if python3 -m vllm.sndr_core.cli launch "$V2_ALIAS" --preflight-only \
+    if python3 -m sndr.cli launch "$V2_ALIAS" --preflight-only \
             >>"$SMOKE_LOG" 2>&1; then
         _pass "V2 alias '$V2_ALIAS' preflight OK"
     else

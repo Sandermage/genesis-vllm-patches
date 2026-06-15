@@ -38,7 +38,7 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-SCAN_ROOT = REPO_ROOT / "vllm" / "sndr_core"
+SCAN_ROOT = REPO_ROOT / "sndr"
 
 # Test-style filenames + dirs that are exempt by design.
 TEST_PATH_RE = re.compile(r"(^|/)(tests?|_test|test_)")
@@ -49,8 +49,11 @@ TEST_PATH_RE = re.compile(r"(^|/)(tests?|_test|test_)")
 # / sentinel `pass` lines here belong to upstream, not Genesis. The
 # audit's intent is to catch Genesis-authored stubs; upstream-mirror
 # code is out of scope.
+# v12.0: the overlay tree relocated from `integrations/attention/...` to
+# `sndr/engines/vllm/patches/attention/...`; anchor on the stable
+# `attention/turboquant/overlays/<pr…>/` suffix so both layouts are exempt.
 UPSTREAM_MIRROR_PATH_RE = re.compile(
-    r"(^|/)integrations/attention/turboquant/overlays/(pr\d+|upstream_[a-z0-9_]+)/"
+    r"(^|/)attention/turboquant/overlays/(pr\d+|upstream_[a-z0-9_]+)/"
 )
 
 ALLOW_MARKER = "audit-no-stub: allow"
@@ -205,6 +208,19 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args(argv)
+    # Fail loudly if the scan root is missing — a vanished SCAN_ROOT would
+    # otherwise yield a 0-file scan and a vacuous PASS that hides drift.
+    if not SCAN_ROOT.is_dir():
+        msg = f"scan root not found: {SCAN_ROOT}"
+        if args.json:
+            print(json.dumps(
+                {"findings": {}, "total": 0, "error": msg},
+                indent=2, sort_keys=True,
+            ))
+        else:
+            print(f"audit-no-stub: {msg}")
+            print("  FAIL — nothing scanned; refusing vacuous PASS")
+        return 2
     findings = audit()
     total = sum(len(v) for v in findings.values())
     if args.json:
@@ -213,7 +229,7 @@ def main(argv: list[str] | None = None) -> int:
             indent=2, sort_keys=True,
         ))
     else:
-        print("audit-no-stub: scanning vllm/sndr_core/**/*.py")
+        print("audit-no-stub: scanning sndr/**/*.py")
         print("─" * 70)
         for name, hits in findings.items():
             label = name.replace("_", " ")

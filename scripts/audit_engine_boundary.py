@@ -40,7 +40,7 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-SCAN_ROOT = REPO_ROOT / "vllm" / "sndr_core"
+SCAN_ROOT = REPO_ROOT / "sndr"
 
 ALLOW_MARKER = "audit-engine-boundary: allow"
 
@@ -145,6 +145,19 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args(argv)
+    # Fail loudly if the scan root is missing — a vanished SCAN_ROOT would
+    # otherwise yield a 0-file scan and a vacuous PASS that hides drift.
+    if not SCAN_ROOT.is_dir():
+        msg = f"scan root not found: {SCAN_ROOT}"
+        if args.json:
+            print(json.dumps(
+                {"violations": [], "total": 0, "error": msg},
+                indent=2, sort_keys=True,
+            ))
+        else:
+            print(f"audit-engine-boundary: {msg}")
+            print("  FAIL — nothing scanned; refusing vacuous PASS")
+        return 2
     hits = audit()
     if args.json:
         print(json.dumps(
@@ -152,7 +165,7 @@ def main(argv: list[str] | None = None) -> int:
             indent=2, sort_keys=True,
         ))
     else:
-        print("audit-engine-boundary: scanning vllm/sndr_core/**/*.py")
+        print("audit-engine-boundary: scanning sndr/**/*.py")
         print("─" * 70)
         if hits:
             print(f"  ✗ unguarded vllm.sndr_engine references: {len(hits)} hit(s)")
