@@ -25,7 +25,9 @@ _COINGECKO = "https://api.coingecko.com/api/v3"
 _FNG = "https://api.alternative.me/fng/?limit=1"
 _BINANCE_FUT = "https://fapi.binance.com"
 _BINANCE_SPOT = "https://api.binance.com"
-_YAHOO = "https://query1.finance.yahoo.com/v8/finance/chart"
+# Batched spark endpoint: ONE request for all macro symbols. Four rapid per-symbol
+# chart calls trip Yahoo's rate limit (429) from a datacenter IP; the batch does not.
+_YAHOO_SPARK = "https://query1.finance.yahoo.com/v8/finance/spark"
 _UA = "sndr-market-tools/1.0 (+https://sndr.local)"
 
 
@@ -47,15 +49,22 @@ def _try(section: str, fn, quality: dict[str, str]) -> Any:
         return None
 
 
-def _yahoo_last(symbol: str) -> Optional[dict[str, Any]]:
-    enc = urllib.parse.quote(symbol, safe="")
-    data = _get_json(f"{_YAHOO}/{enc}?interval=1d&range=5d", timeout=10.0)
-    res = (((data or {}).get("chart") or {}).get("result") or [{}])[0]
-    closes = [c for c in ((((res.get("indicators") or {}).get("quote") or [{}])[0]).get("close") or []) if c is not None]
-    if len(closes) < 2:
-        return None
-    last, prev = closes[-1], closes[-2]
-    return {"value": round(last, 2), "change_pct": round((last - prev) / prev * 100, 2) if prev else None}
+def _macro_batch(symbols: dict[str, str]) -> dict[str, Any]:
+    """Last close + 24h % for several Yahoo symbols in ONE batched spark request
+    (``{label: yahoo_symbol}``). Today's bar can be unclosed (null) — we take the
+    last two non-null closes."""
+    enc = ",".join(urllib.parse.quote(sym, safe="") for sym in symbols.values())
+    data = _get_json(f"{_YAHOO_SPARK}?symbols={enc}&range=5d&interval=1d", timeout=10.0)
+    out: dict[str, Any] = {}
+    for label, sym in symbols.items():
+        node = (data or {}).get(sym) if isinstance(data, dict) else None
+        closes = [c for c in ((node or {}).get("close") or []) if c is not None]
+        if len(closes) >= 2:
+            last, prev = closes[-1], closes[-2]
+            out[label] = {"value": round(last, 2), "change_pct": round((last - prev) / prev * 100, 2) if prev else None}
+        else:
+            out[label] = None
+    return out
 
 
 # ── crypto market overview (the headline tool) ───────────────────────────────
@@ -95,8 +104,7 @@ def crypto_market_overview() -> dict[str, Any]:
                 "btc_mark_price": round(float(prem.get("markPrice") or 0), 2)}
 
     def _macro() -> dict[str, Any]:
-        return {"dxy": _yahoo_last("DX-Y.NYB"), "sp500": _yahoo_last("%5EGSPC"),
-                "gold": _yahoo_last("GC%3DF"), "vix": _yahoo_last("%5EVIX")}
+        return _macro_batch({"dxy": "DX-Y.NYB", "sp500": "^GSPC", "gold": "GC=F", "vix": "^VIX"})
 
     out = {
         "top_coins": _try("top_coins", _top, q),

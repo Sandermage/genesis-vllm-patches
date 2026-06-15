@@ -19,8 +19,9 @@ def _fake_get(url, timeout=12.0):
         return {"lastFundingRate": "0.0001", "markPrice": "69010"}
     if "openInterest" in url:
         return {"openInterest": "85000.5"}
-    if "finance/chart" in url:
-        return {"chart": {"result": [{"indicators": {"quote": [{"close": [100, 102]}]}}]}}
+    if "finance/spark" in url:  # batched macro request, keyed by raw symbol
+        return {"DX-Y.NYB": {"close": [100, 102]}, "^GSPC": {"close": [100, 102]},
+                "GC=F": {"close": [4200, 4335]}, "^VIX": {"close": [18, 17, None]}}
     return {}
 
 

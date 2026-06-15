@@ -7,14 +7,11 @@
 //   #presets?id=prod-35b-multiconc
 //   #containers?c=vllm-pn95-2xa5000&src=host-a5000   (src=local for the daemon socket)
 
-// Every routable section id. Kept here (not derived from the nav) so a
-// hand-typed/bookmarked deep-link can be validated before we trust it.
-export const SECTION_IDS = new Set<string>([
-  "overview", "setup", "fleet", "hosts", "hardware", "models", "configs", "presets",
-  "planner", "copilot", "launch-plan", "services", "containers", "kubernetes", "virtualization",
-  "routing", "doctor", "patches", "benchmarks", "evidence", "clients", "chat", "reports",
-  "operations", "advanced", "flags",
-]);
+// Routable section ids, derived from the single-source SECTIONS registry in
+// nav.ts — used here to validate a hand-typed/bookmarked deep-link before we
+// trust it. (nav.ts imports only leaf modules, so no App↔route cycle.)
+import { SECTION_IDS } from "./nav";
+export { SECTION_IDS };
 
 // The section segment of the current hash, validated against SECTION_IDS.
 // Tolerates a leading `#`/`#/` and an optional `?query` suffix.

@@ -52,7 +52,7 @@ import {
 } from "lucide-react";
 import { Component, Suspense, lazy, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { sectionFromHash, recordIdFromHash, buildHash, replaceHash } from "./route";
-import { type SectionId, type RuntimeMode, type Gate } from "./nav";
+import { type SectionId, type RuntimeMode, type Gate, NAV_SECTIONS } from "./nav";
 import {
   type ConsoleTab, type AccentMode, type GuiSettings,
   nextTheme, themeLabel, themeIcon, VALID_THEMES, DEFAULT_REMOTE_HOST
@@ -212,43 +212,18 @@ const defaultGuiSettings: GuiSettings = {
 // run → deploy it → use it → prove it → tools. Each group renders under a small
 // header so related sections sit together instead of in one long scatter.
 type NavGroup = { label?: string; items: NavItem[] };
-const navGroups: NavGroup[] = [
-  { items: [
-    { id: "overview", icon: <Home size={17} />, label: tr("Overview") },
-  ] },
-  { label: tr("Infrastructure"), items: [
-    { id: "hosts", icon: <LayoutGrid size={17} />, label: tr("Fleet") },
-    { id: "containers", icon: <Boxes size={17} />, label: tr("Containers") },
-    { id: "virtualization", icon: <Server size={17} />, label: tr("Virtualization") },
-    { id: "hardware", icon: <Cpu size={17} />, label: tr("Hardware") },
-    { id: "setup", icon: <Settings size={17} />, label: tr("Setup") },
-  ] },
-  { label: tr("Models & Config"), items: [
-    { id: "models", icon: <Box size={17} />, label: tr("Models") },
-    { id: "presets", icon: <Database size={17} />, label: tr("Presets") },
-    { id: "configs", icon: <SlidersHorizontal size={17} />, label: tr("Configs") },
-    { id: "planner", icon: <Gauge size={17} />, label: tr("Planner") },
-  ] },
-  { label: tr("Deploy"), items: [
-    { id: "launch-plan", icon: <Rocket size={17} />, label: tr("Launch Plan") },
-    { id: "services", icon: <Network size={17} />, label: tr("Services") },
-  ] },
-  { label: tr("Engine"), items: [
-    { id: "chat", icon: <MessageSquare size={17} />, label: tr("Chat & Copilot") },
-    { id: "routing", icon: <Route size={17} />, label: tr("Routing") },
-    { id: "clients", icon: <Link2 size={17} />, label: tr("Clients") },
-  ] },
-  { label: tr("Validate"), items: [
-    { id: "doctor", icon: <ShieldCheck size={17} />, label: tr("Doctor") },
-    { id: "patches", icon: <Wrench size={17} />, label: tr("Patches") },
-    { id: "benchmarks", icon: <BarChart3 size={17} />, label: tr("Benchmarks") },
-    { id: "evidence", icon: <FileText size={17} />, label: tr("Evidence") },
-    { id: "reports", icon: <Table2 size={17} />, label: tr("Reports") },
-  ] },
-  { label: tr("Tools"), items: [
-    { id: "advanced", icon: <SlidersHorizontal size={17} />, label: tr("Advanced") },
-  ] },
-];
+const navGroups: NavGroup[] = (() => {
+  // Derived from the single-source NAV_SECTIONS registry (nav.ts): group by the
+  // group label, preserving first-appearance order. "" = the ungrouped lead item.
+  const order: string[] = [];
+  const byGroup = new Map<string, NavItem[]>();
+  for (const s of NAV_SECTIONS) {
+    if (!byGroup.has(s.group)) { byGroup.set(s.group, []); order.push(s.group); }
+    const Icon = s.icon;
+    byGroup.get(s.group)?.push({ id: s.id, icon: <Icon size={17} />, label: tr(s.label) });
+  }
+  return order.map((g) => ({ label: g ? tr(g) : undefined, items: byGroup.get(g) ?? [] }));
+})();
 // Flat list (command palette / lookups) — preserves the grouped order.
 const navItems: NavItem[] = navGroups.flatMap((g) => g.items);
 
