@@ -620,10 +620,6 @@
     "wrapped_name": "apply_patch_N364_hybrid_gdn_mamba_warmup"
   },
   {
-    "name": "PN353A TurboQuant workspace reserve before CG capture (vendor of OPEN vllm#44053)",
-    "wrapped_name": "apply_patch_N353A_tq_builder_workspace_reserve"
-  },
-  {
     "name": "PN350 Fused GDN Q/K/V split Triton kernel (SGLang#26206 + TRTLLM#12966)",
     "wrapped_name": "apply_patch_N350_gdn_qkv_fused_split"
   },

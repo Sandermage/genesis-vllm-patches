@@ -163,6 +163,10 @@ KNOWN_SPEC_ONLY_PATCHES: frozenset[str] = frozenset({
     "PN353B",          # TQ prefill CG capture safety (vendor of OPEN
                        # vllm#43747); apply_module set, registry-driven
                        # canonical path, no legacy entry by design
+    "PN353A",          # TQ builder workspace reserve (vendor of OPEN
+                       # vllm#44053); legacy @register_patch wrapper REMOVED
+                       # 2026-06-17 (consolidation §2.2.A) — apply() self-gates
+                       # via should_apply, so spec-only path is byte-identical
     "PN357",           # remapped greedy draft selection speedup
                        # (vendor of OPEN vllm#43349); same class
     # ── 2026-06-11 50-PR sweep wave 1 — spec-driven from inception

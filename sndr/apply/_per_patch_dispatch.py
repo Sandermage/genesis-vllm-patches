@@ -5203,23 +5203,12 @@ def apply_patch_N364_hybrid_gdn_mamba_warmup() -> PatchResult:
     return _skipped("PN364 hybrid GDN/Mamba warmup", detail)
 
 
-@register_patch("PN353A TurboQuant workspace reserve before CG capture (vendor of OPEN vllm#44053)")
-def apply_patch_N353A_tq_builder_workspace_reserve() -> PatchResult:
-    """PN353A: vendors OPEN PR vllm#44053 (Bot1822). Reserves TQ workspace
-    in TurboQuantMetadataBuilder.__init__ BEFORE CG capture lock. Covers
-    decode mid_o/output/lse buffers + continuation-prefill K/V dequant
-    buffers. Bug present in our pin (__init__ has only super + 1 line).
-    Composes with PN118 (different vector — both grow same workspace).
-    Bug fix, no perf cost. Opt-in via GENESIS_ENABLE_PN353A=1."""
-    from sndr.engines.vllm.patches.attention.turboquant import (
-        pn353a_tq_builder_workspace_reserve as _wiring,
-    )
-    status, detail = _wiring.apply()
-    if status == "applied":
-        return _applied("PN353A TQ workspace reserve", detail)
-    if status == "failed":
-        return _failed("PN353A TQ workspace reserve", detail)
-    return _skipped("PN353A TQ workspace reserve", detail)
+# PN353A — consolidation §2.2.A (2026-06-17): its legacy @register_patch wrapper
+# was REMOVED (this redundancy). PN353A is now spec-only (KNOWN_SPEC_ONLY_PATCHES in
+# shadow.py, alongside its sibling PN353B), applied via the spec-only supplement
+# (_run_spec_only_supplement -> _apply_spec_module -> mod.apply()). Its apply() already
+# self-gates via should_apply("PN353A") (pn353a_...:247), so the gate decision AND the
+# patched bytes are byte-IDENTICAL to the legacy path. apply_module dotted path unchanged.
 
 
 @register_patch("PN350 Fused GDN Q/K/V split Triton kernel (SGLang#26206 + TRTLLM#12966)")
