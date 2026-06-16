@@ -48,3 +48,57 @@ export function themeLabel(theme: ThemeMode): string {
 export function themeIcon(theme: ThemeMode): ReactNode {
   return theme === "light" ? <Sun size={16} /> : theme === "carbon" ? <Sparkles size={16} /> : theme === "lime" ? <Leaf size={16} /> : <Moon size={16} />;
 }
+
+/** localStorage key for persisted operator UI preferences. */
+export const GUI_SETTINGS_STORAGE_KEY = "sndr.gui.settings";
+
+export const defaultGuiSettings: GuiSettings = {
+  theme: "light",
+  density: "comfortable",
+  accent: "teal",
+  detailMode: "engineer",
+  showConnectionMap: true,
+  autoRefresh: false,
+  sidebarCollapsed: false,
+  remoteHost: DEFAULT_REMOTE_HOST
+};
+
+function isAccent(value: unknown): value is AccentMode {
+  return value === "teal" || value === "blue" || value === "emerald" || value === "amber";
+}
+
+/** Read + validate persisted operator settings, repairing any missing/corrupt
+ *  field from defaults (defensive against localStorage schema drift). */
+export function loadGuiSettings(): GuiSettings {
+  try {
+    const raw = window.localStorage.getItem(GUI_SETTINGS_STORAGE_KEY);
+    if (!raw) return defaultGuiSettings;
+    const parsed = JSON.parse(raw) as Partial<GuiSettings>;
+    return {
+      ...defaultGuiSettings,
+      ...parsed,
+      theme: parsed.theme && VALID_THEMES.has(parsed.theme) ? parsed.theme : "light",
+      density: parsed.density === "compact" ? "compact" : "comfortable",
+      accent: isAccent(parsed.accent) ? parsed.accent : defaultGuiSettings.accent,
+      detailMode: parsed.detailMode === "operator" ? "operator" : "engineer",
+      showConnectionMap:
+        typeof parsed.showConnectionMap === "boolean"
+          ? parsed.showConnectionMap
+          : defaultGuiSettings.showConnectionMap,
+      autoRefresh:
+        typeof parsed.autoRefresh === "boolean"
+          ? parsed.autoRefresh
+          : defaultGuiSettings.autoRefresh,
+      sidebarCollapsed:
+        typeof parsed.sidebarCollapsed === "boolean"
+          ? parsed.sidebarCollapsed
+          : defaultGuiSettings.sidebarCollapsed,
+      remoteHost:
+        typeof parsed.remoteHost === "string" && parsed.remoteHost.trim()
+          ? parsed.remoteHost.trim()
+          : defaultGuiSettings.remoteHost
+    };
+  } catch {
+    return defaultGuiSettings;
+  }
+}

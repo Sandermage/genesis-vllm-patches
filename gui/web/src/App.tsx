@@ -54,8 +54,9 @@ import { Component, Suspense, lazy, useEffect, useMemo, useRef, useState, type R
 import { sectionFromHash, recordIdFromHash, buildHash, replaceHash } from "./route";
 import { type SectionId, type RuntimeMode, type Gate, NAV_SECTIONS } from "./nav";
 import {
-  type ConsoleTab, type AccentMode, type GuiSettings,
-  nextTheme, themeLabel, themeIcon, VALID_THEMES, DEFAULT_REMOTE_HOST
+  type ConsoleTab, type GuiSettings,
+  nextTheme, themeLabel, themeIcon, DEFAULT_REMOTE_HOST,
+  GUI_SETTINGS_STORAGE_KEY, loadGuiSettings
 } from "./settings";
 import { asRecord, asText, asNumber, countRecord } from "./lib/coerce";
 import { formatTokens, targetTitle } from "./lib/format";
@@ -194,19 +195,7 @@ type NavItem = {
 };
 
 
-const GUI_SETTINGS_STORAGE_KEY = "sndr.gui.settings";
 const AUTO_REFRESH_INTERVAL_MS = 20_000;
-
-const defaultGuiSettings: GuiSettings = {
-  theme: "light",
-  density: "comfortable",
-  accent: "teal",
-  detailMode: "engineer",
-  showConnectionMap: true,
-  autoRefresh: false,
-  sidebarCollapsed: false,
-  remoteHost: DEFAULT_REMOTE_HOST
-};
 
 
 // Sidebar grouped into a logical workflow: see → your servers → define what to
@@ -3125,44 +3114,6 @@ function WorkflowSteps({ rows }: { rows: Array<[string, string, string]> }) {
       ))}
     </div>
   );
-}
-
-function loadGuiSettings(): GuiSettings {
-  try {
-    const raw = window.localStorage.getItem(GUI_SETTINGS_STORAGE_KEY);
-    if (!raw) return defaultGuiSettings;
-    const parsed = JSON.parse(raw) as Partial<GuiSettings>;
-    return {
-      ...defaultGuiSettings,
-      ...parsed,
-      theme: parsed.theme && VALID_THEMES.has(parsed.theme) ? parsed.theme : "light",
-      density: parsed.density === "compact" ? "compact" : "comfortable",
-      accent: isAccent(parsed.accent) ? parsed.accent : defaultGuiSettings.accent,
-      detailMode: parsed.detailMode === "operator" ? "operator" : "engineer",
-      showConnectionMap:
-        typeof parsed.showConnectionMap === "boolean"
-          ? parsed.showConnectionMap
-          : defaultGuiSettings.showConnectionMap,
-      autoRefresh:
-        typeof parsed.autoRefresh === "boolean"
-          ? parsed.autoRefresh
-          : defaultGuiSettings.autoRefresh,
-      sidebarCollapsed:
-        typeof parsed.sidebarCollapsed === "boolean"
-          ? parsed.sidebarCollapsed
-          : defaultGuiSettings.sidebarCollapsed,
-      remoteHost:
-        typeof parsed.remoteHost === "string" && parsed.remoteHost.trim()
-          ? parsed.remoteHost.trim()
-          : defaultGuiSettings.remoteHost
-    };
-  } catch {
-    return defaultGuiSettings;
-  }
-}
-
-function isAccent(value: unknown): value is AccentMode {
-  return value === "teal" || value === "blue" || value === "emerald" || value === "amber";
 }
 
 function buildEvents({
