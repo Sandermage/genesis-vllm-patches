@@ -5,14 +5,14 @@
 // shell keeps only state/routing/composition and renders <SectionWorkspace/>
 // inside one Suspense boundary. Pure presentation — no App-local coupling.
 import { Suspense, useEffect, useMemo, useState } from "react";
-import { Activity, AlertTriangle, BarChart3, Boxes, Clock3, Command, Cpu, FileText, Gauge, GitCompare, LayoutGrid, Link2, MessageSquare, Network, PackageCheck, Play, Rocket, Route, Server, ShieldCheck, SlidersHorizontal, Sparkles, SquareTerminal, Stethoscope, Table2, TimerReset } from "lucide-react";
+import { Activity, AlertTriangle, Boxes, Clock3, Command, Cpu, FileText, Gauge, GitCompare, LayoutGrid, Link2, MessageSquare, Network, PackageCheck, Rocket, Route, Server, ShieldCheck, SlidersHorizontal, Sparkles, Stethoscope, Table2 } from "lucide-react";
 import { tr } from "../i18n";
 import type { ChatTarget } from "../Engine";
 import type { ViewportTier } from "../hooks/useViewport";
 import type { GuiSettings } from "../settings";
 import type { Gate, RuntimeMode, SectionId } from "../nav";
-import { api, AuthUser, BundleSpec, DiffUpstreamReport, DoctorReport, EnvironmentReport, HostProfile, PatchDoctorReport, PatchListResult, PresetExplainResult, PresetListResult, PresetRecord, ProductCapability, ProductOverview, ProofStatusReport, UserPresetList, V2ConfigCatalog, V2ConfigPreview } from "../api";
-import { asNumber, asRecord, asText } from "../lib/coerce";
+import { AuthUser, BundleSpec, DiffUpstreamReport, DoctorReport, EnvironmentReport, HostProfile, PatchDoctorReport, PatchListResult, PresetExplainResult, PresetListResult, PresetRecord, ProductCapability, ProductOverview, ProofStatusReport, UserPresetList, V2ConfigCatalog, V2ConfigPreview } from "../api";
+import { asText } from "../lib/coerce";
 import { targetTitle } from "../lib/format";
 import { runtimeHost } from "../lib/overview-presenters";
 import { sectionSpec } from "../lib/section-spec";
@@ -21,29 +21,26 @@ import { PresetsSection } from "./presets-section";
 import { OverviewSection } from "./overview-section";
 import { ClientsSection } from "./clients-section";
 import { PatchesSection } from "./patches-section";
+import { BenchmarksSection } from "./benchmarks-section";
+import { EvidenceSection } from "./evidence-section";
 import { CapabilityTable } from "../components/capability-table";
-import { PercentBar } from "../components/charts";
-import { CodeBlock } from "../components/code-block";
 import { ModuleCard, ModuleGrid } from "../components/layout";
 import { CompactList, InfoRows, type GateStatus } from "../components/primitives";
-import { TabIntro, WorkflowSteps } from "../components/shell-bits";
+import { TabIntro } from "../components/shell-bits";
 import { TabbedSection } from "../components/tabbed-section";
 import { toast } from "../components/toast";
 import { FleetPanel } from "../Fleet";
 import { SkeletonCards } from "../Skeleton";
-import { ChatConsole, EngineBenchPanel, EngineMetricsPanel, EngineStatusCard, ConfigsSection, HostsSection, DeploymentConsole, ServiceLifecyclePlanner, KvCalcPanel, BaselinePanel, InstallWizard, CopilotPanel, ContainersPanel, VirtualizationPanel, HardwarePanel, RoutingPanel, FlagsPanel } from "../lazy-panels";
+import { ChatConsole, EngineMetricsPanel, EngineStatusCard, ConfigsSection, HostsSection, DeploymentConsole, ServiceLifecyclePlanner, KvCalcPanel, BaselinePanel, InstallWizard, CopilotPanel, ContainersPanel, VirtualizationPanel, HardwarePanel, RoutingPanel, FlagsPanel } from "../lazy-panels";
 import { ReportGenerator } from "./api-explorer";
-import { BenchmarkBaselinePanel, EvidenceRows } from "./bench";
 import { CaveatsPanel } from "./diagnostics";
 import { DoctorFindings, DoctorSummary } from "./doctor";
 import { EnvironmentPanel } from "./environment";
 import { GateRow } from "./gate-row";
-import { QueueJobButton } from "./jobs";
 import { ModelsWorkbench } from "./models-workbench";
 import { EventLog } from "./operational-console";
 import { OperationsConsole } from "./operations";
 import { DoctorCoveragePanel } from "./patch-doctor";
-import { ProofStatusPanel } from "./proof";
 import { SetupWizard } from "./setup-wizard";
 
 export function SectionWorkspace({
@@ -531,144 +528,25 @@ export function SectionWorkspace({
       )}
 
       {sectionId === "benchmarks" && (
-        <TabbedSection
-          id="benchmarks"
-          tabs={[
-            {
-              id: "baseline",
-              label: tr("Baseline"),
-              icon: <BarChart3 size={15} />,
-              render: () => (
-                <ModuleGrid>
-                  <ModuleCard title={tr("Benchmark Baseline")} icon={<BarChart3 size={18} />} desc={tr("Reference metric and the resolved runtime it was measured on.")} wide>
-                    <BenchmarkBaselinePanel card={card} composed={composed} record={selectedPresetRecord} selectedPreset={selectedPreset} />
-                  </ModuleCard>
-                  <ModuleCard title={tr("Capability Status")} icon={<Activity size={18} />} wide>
-                    <CapabilityTable rows={featureRows.filter((feature) => feature.id === "benchmark_runs")} />
-                  </ModuleCard>
-                </ModuleGrid>
-              )
-            },
-            {
-              id: "live",
-              label: tr("Live bench"),
-              icon: <TimerReset size={15} />,
-              render: () => (
-                <ModuleGrid>
-                  <ModuleCard title={tr("Live Engine")} icon={<Activity size={18} />} desc={tr("The bench drives the running engine — start the runtime first.")}>
-                    <EngineStatusCard />
-                  </ModuleCard>
-                  <ModuleCard title={tr("Live Benchmark + A/B")} icon={<TimerReset size={18} />} desc={tr("Run a real micro-benchmark against the engine; run twice for an A/B delta.")} wide>
-                    <EngineBenchPanel referenceTps={asNumber(asRecord(card.primary_metric).value) || null} />
-                  </ModuleCard>
-                </ModuleGrid>
-              )
-            },
-            {
-              id: "coverage",
-              label: tr("Coverage"),
-              icon: <ShieldCheck size={15} />,
-              render: () => (
-                <ModuleGrid>
-                  <ModuleCard title={tr("Benchmark Coverage")} icon={<ShieldCheck size={18} />} wide>
-                    <ProofStatusPanel report={proofStatus} />
-                  </ModuleCard>
-                </ModuleGrid>
-              )
-            },
-            {
-              id: "run",
-              label: tr("Run plan"),
-              icon: <Play size={15} />,
-              render: () => (
-                <ModuleGrid>
-                  <ModuleCard title={tr("Run Plan")} icon={<Play size={18} />}>
-                    <WorkflowSteps rows={[["1", tr("Warmup"), tr("Stabilize cache and CUDA graph path")], ["2", tr("Load test"), tr("Measure TTFT/TPS/acceptance")], ["3", tr("Proof"), tr("Attach immutable evidence refs")]]} />
-                  </ModuleCard>
-                  <ModuleCard title={tr("Run Commands")} icon={<SquareTerminal size={18} />} desc={tr("Queue a benchmark as a job, or copy the commands to run on the rig.")}>
-                    <QueueJobButton
-                      label={`${tr("Queue bench")} (${selectedPreset})`}
-                      run={() => api.benchRun({ preset_id: selectedPreset, profile: "quick", ctx: "8k" })}
-                      onMonitor={onMonitorJob}
-                    />
-                    <CodeBlock lines={[`sndr bench run --preset ${selectedPreset} --quick`, `sndr bench run --preset ${selectedPreset} --ctx 8k`, "sndr evidence attach-bench --release-check"]} />
-                  </ModuleCard>
-                </ModuleGrid>
-              )
-            }
-          ]}
+        <BenchmarksSection
+          card={card}
+          composed={composed}
+          selectedPresetRecord={selectedPresetRecord}
+          selectedPreset={selectedPreset}
+          featureRows={featureRows}
+          proofStatus={proofStatus}
+          onMonitorJob={onMonitorJob}
         />
       )}
 
-      {sectionId === "evidence" && (() => {
-        const refs = (Array.isArray(card.evidence_refs) ? card.evidence_refs : []).map(asRecord);
-        const byVisibility = refs.reduce<Record<string, number>>((acc, ref) => {
-          const key = asText(ref.visibility, "unknown");
-          acc[key] = (acc[key] ?? 0) + 1;
-          return acc;
-        }, {});
-        const byType = refs.reduce<Record<string, number>>((acc, ref) => {
-          const key = asText(ref.type, "evidence");
-          acc[key] = (acc[key] ?? 0) + 1;
-          return acc;
-        }, {});
-        return (
-        <TabbedSection
-          id="evidence"
-          tabs={[
-            {
-              id: "proof",
-              label: tr("Proof status"),
-              icon: <ShieldCheck size={15} />,
-              render: () => (
-                <ModuleGrid>
-                  <ModuleCard title={tr("Proof artifact status")} icon={<ShieldCheck size={18} />} desc={tr("Release-gate evidence across the whole patch catalog — every patch bucketed by the strongest proof it carries (measured baseline → bench attached → static-only → failed → dead), with family / tier / lifecycle breakdowns.")} wide>
-                    <ProofStatusPanel report={proofStatus} />
-                  </ModuleCard>
-                </ModuleGrid>
-              )
-            },
-            {
-              id: "collect",
-              label: tr("Collect & coverage"),
-              icon: <SquareTerminal size={15} />,
-              render: () => (
-                <ModuleGrid>
-                  <ModuleCard title={`${tr("Preset evidence")} · ${selectedPreset}`} icon={<FileText size={18} />} desc={tr("Evidence references the selected preset card exposes, and how they break down by visibility and type.")} wide>
-                    <EvidenceRows card={card} />
-                    {refs.length > 0 && (
-                      <div className="evidence-coverage" style={{ marginTop: "var(--sp-3)" }}>
-                        <PercentBar
-                          value={byVisibility.public ?? 0}
-                          max={refs.length}
-                          label={tr("public refs")}
-                          caption={`${byVisibility.public ?? 0} ${tr("of")} ${refs.length} ${refs.length === 1 ? tr("reference public") : tr("references public")}`}
-                          tone={byVisibility.public ? "ok" : "warn"}
-                        />
-                        <CompactList
-                          rows={[
-                            ...Object.entries(byType).map(([k, v]) => [k, String(v)] as [string, string]),
-                            ...Object.entries(byVisibility).map(([k, v]) => [`${tr("visibility")}: ${k}`, String(v)] as [string, string])
-                          ]}
-                        />
-                      </div>
-                    )}
-                  </ModuleCard>
-                  <ModuleCard title={tr("Collect & attach evidence")} icon={<SquareTerminal size={18} />} desc={tr("Queue a dry-run evidence-collection job for this preset, or copy the exact CLI to run on the rig where the engine lives.")} wide>
-                    <QueueJobButton
-                      label={`${tr("Queue evidence")} (${selectedPreset})`}
-                      run={() => api.evidenceAttach({ preset_id: selectedPreset })}
-                      onMonitor={onMonitorJob}
-                    />
-                    <CodeBlock lines={[`sndr evidence collect --preset ${selectedPreset}`, "sndr patches bench-attach <PATCH_ID> bench.json --baseline baseline.json", "sndr patches release-check --mode require-bench"]} />
-                  </ModuleCard>
-                </ModuleGrid>
-              )
-            }
-          ]}
+      {sectionId === "evidence" && (
+        <EvidenceSection
+          card={card}
+          proofStatus={proofStatus}
+          selectedPreset={selectedPreset}
+          onMonitorJob={onMonitorJob}
         />
-        );
-      })()}
+      )}
 
       {sectionId === "clients" && (
         <ClientsSection
