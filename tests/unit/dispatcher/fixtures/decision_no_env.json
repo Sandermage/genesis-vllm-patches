@@ -1490,6 +1490,11 @@
     "reason": "strict opt-in — set GENESIS_ENABLE_G4_81_TQ_MQ_DIRECT_ROUTE=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
   },
   {
+    "patch_id": "G4_82",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_G4_82_TQ_PREFILL_SDPA_HEADDIM=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
     "patch_id": "G4_70",
     "applied": false,
     "reason": "strict opt-in — set GENESIS_ENABLE_G4_70_PN259B_MIXED_ALLOC=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"

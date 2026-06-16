@@ -190,6 +190,10 @@ def test_spec_only_truly_orphan_baseline():
         # (apply_patch_N377_*), so it is NOT a spec-only orphan.
         "P88", "PN358", "PN376", "PN378", "PN379",
         "PN380", "PN381", "PN382", "G4_81", "PN383",
+        # 2026-06-16 — G4_82 (TQ prefill SDPA fallback for head_dim>256,
+        # Ampere FA2 256-cap vllm#38887): runtime monkey-patch, apply_module
+        # set, no legacy hook — same spec-only-by-design class as G4_81.
+        "G4_82",
         # 2026-06-13 50-PR sweep batch-2 wave 1 — five spec-only-by-design
         # LIVE-bug vendors (apply_module set, own apply(), no legacy hook;
         # same class as PN383).

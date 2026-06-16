@@ -3576,6 +3576,18 @@
     "apply_module": "sndr.engines.vllm.patches.attention.turboquant.g4_81_tq_multi_query_direct_route"
   },
   {
+    "patch_id": "G4_82",
+    "family": "attention.turboquant",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "GENESIS_ENABLE_G4_82_TQ_PREFILL_SDPA_HEADDIM",
+    "has_upstream_pr": true,
+    "upstream_pr_relationship": "related_not_superseding",
+    "has_apply_module": true,
+    "apply_module": "sndr.engines.vllm.patches.attention.turboquant.g4_82_tq_prefill_sdpa_headdim"
+  },
+  {
     "patch_id": "G4_70",
     "family": "attention.turboquant",
     "lifecycle": "experimental",

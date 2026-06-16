@@ -68,8 +68,23 @@ verify layer already receives its correct per-group block_table + head_dim. G4_8
 block-table fix" is therefore upstream, not a Genesis patch. S2/S3 dissolved once the drafter routing
 was kept (not reverted). The only real engineering was identifying G4_81-over-G4_67.
 
-Commits: profile chat-k3 `555749c4`; structured-k4 same fix (mechanism-identical, K=4 re-validation
-follow-up). Acceptance-rate + TPS-vs-no-MTP(37) measurement: in-flight validation boot (separate).
+Commits: profile chat-k3 `555749c4`; structured-k4 `951a3402` (mechanism-identical, K=4 re-validation
+follow-up).
+
+**Validation bench (2026-06-16, chat-k3 K=3, single-stream non-streaming, n=15):**
+single-stream wall TPS = **40.7 median / 42.0 mean** (CV 17.6%) vs the no-MTP 31B-tq baseline of
+**37 TPS** → **+10% decode TPS** with coherent output. The positive delta is itself the acceptance
+proof: a 0-acceptance MTP run would be *slower* than no-MTP (drafter forward overhead with nothing
+accepted), so +10% means drafts are landing. Boot log confirms the drafter routing fires exactly as
+designed — G4_71b routes draft layers 0/1/2 (head_256) to TRITON_ATTN + resets their kv_cache_dtype
+to `auto`/bf16 for a clean kv_sharing contract with the native-bf16 target[58]; G4_75 routes draft
+layer 3 (head_512) to TRITON_ATTN.
+
+**Follow-up speed lever (not a blocker):** the engine warns
+`max_num_scheduled_tokens=4096 ... may lead to suboptimal performance ... consider increasing
+max_num_batched_tokens to accommodate the additional draft token slots`. K=3 draft slots compete with
+the 4096 batched-token budget; raising `max_num_batched_tokens` (memory permitting) should lift the
+effective acceptance utilization and push past +10%. Deferred — MTP is correct + net-positive as-is.
 
 ## Honest feasibility
 

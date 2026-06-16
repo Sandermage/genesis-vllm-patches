@@ -56,7 +56,7 @@ global "enable all" switch — by design.
 
 ### Q: Which patches are ON by default?
 
-About 52 of 313 entries are marked `default_on=True` in the
+About 53 of 313 entries are marked `default_on=True` in the
 registry — production-eligible Wave 10 backports + legacy
 pre-dispatcher overlays that have been validated against the
 v11 baselines. The full list is in [`PATCHES_AUTO.md`](PATCHES_AUTO.md);

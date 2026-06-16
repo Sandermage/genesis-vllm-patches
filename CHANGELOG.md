@@ -45,7 +45,13 @@ Release-type tags in the title give the shape of the release at a glance:
 
 ## Version index (newest first)
 
-### v11.3.0 series — Enterprise hardening sweep + Phase 7 advance (current)
+### v12.0.0 series — dev491 pin, Gemma-4 + native 31B MTP, audit hardening (current)
+
+| Tag | Date | Type | Summary |
+|---|---|---|---|
+| `v12.0.0` | 2026-06-16 | release | Pin advanced to `0.22.1rc1.dev491+g1033ffac2`. Gemma-4 26B/31B family lands (G4_* patch line). **Native MTP on Gemma-4-31B-TQ now works** (G4_67→G4_81 verify route: coherent + ~40.7 t/s, +10% vs no-MTP). TurboQuant head_dim=512 prefill SDPA fallback (G4_82). Audit C1 evidence-gate cascade closed → `make evidence` 63/63 green; `sndr_private/` untracked (793-file public-leak fix); file_cache Layer-0 marker-accumulation bug fixed. Registry 241→313; 53 default-on; 27 families |
+
+### v11.3.0 series — Enterprise hardening sweep + Phase 7 advance
 
 | Tag | Date | Type | Summary |
 |---|---|---|---|
@@ -92,9 +98,53 @@ Release-type tags in the title give the shape of the release at a glance:
 | `v7.65 → v7.72` | 2026-04 – 2026-05 | series | 7.72 series: PN59 streaming-GDN, Cliff 2b breakthrough, Blackwell consumer support, structured boot summary |
 | `v7.63.x` | 2026-04 | series | TurboQuant k8v4 + MTP K=3 stabilization |
 
-The current PROD canonical baseline is `v11.0.0+wave9_release_blockers_closed`
-on vLLM nightly pin `0.20.2rc1.dev209+g5536fc0c0`. 152 patches in
-`PATCH_REGISTRY`, 32 default-ON, `make evidence` 40 / 40 green.
+The current canonical baseline is `v12.0.0` on vLLM nightly pin
+`0.22.1rc1.dev491+g1033ffac2`. 313 patches in `PATCH_REGISTRY`, 53 default-ON,
+27 families, `make evidence` 63 / 63 gates green. (The PROD 35B service runs the
+`0.21.1rc0+g626fa9bba566` pin; the dev491 pin is the active development +
+Gemma-4 target. `sndr/version.py` carries the `.dev0` suffix in-tree; release
+tooling strips it on publish — pyproject.toml holds the release version.)
+
+---
+
+## [v12.0.0] — dev491 pin · Gemma-4 family · native 31B MTP · audit hardening (2026-06-16)
+
+### Highlights
+
+- **Native MTP on Gemma-4-31B-TQ now works.** The drafter is Q-only (no
+  `k_proj`/`v_proj`) and KV-shares the target's cache; its shared layers map to
+  the target's `--kv-cache-dtype-skip-layers [58,59]` which store **native bf16**,
+  so the drafter must read bf16 via `TRITON_ATTN` (G4_71B head-256 / G4_75 head-512)
+  rather than the TQ kernel — without that it CUDA-OOBs. With drafter routing kept,
+  the TQ K+1 **spec-verify route was switched G4_67 → G4_81**: G4_67 returned a raw
+  3-D tensor instead of writing the engine `output` buffer (contract gap) → garbage
+  decode; G4_81 honours the output-buffer contract + forwards sliding-window/mm-prefix
+  masking → **coherent output, ~40.7 t/s single-stream (+10% vs the no-MTP 37 t/s
+  baseline)**. Shipped in both V2 profiles (`gemma4-31b-tq-mtp-{chat-k3,structured-k4}`).
+- **G4_82 — TurboQuant prefill SDPA fallback for `head_dim>256`** (Ampere FA2 caps
+  head_dim at 256, vllm#38887). Unblocks the Gemma-4-31B interleaved global
+  (head_dim=512) layers on the native TQ path.
+- **Audit C1 evidence-gate cascade closed** (`make evidence` 4 failing → **63/63
+  green**): G4_82 added to `KNOWN_SPEC_ONLY_PATCHES` + proof artefact; doc patch
+  counts synced 312 → 313 across 12 docs; `file_cache.record_apply_result` marker
+  pruning bug fixed (it dropped ALL accumulated Layer-0 markers when post-apply
+  content lacked their comment text); G4_10 lifecycle-docstring sync; env.py G4_08
+  dup alias removed; PN290 logger/flag-message corrected.
+- **Privacy: `sndr_private/` untracked.** The `.gitignore` rule only filters
+  *untracked* files; 793 already-tracked files (41 MB) would have shipped on clone.
+  `git rm -r --cached` (kept on disk) — the folder's "never ships" guarantee is now
+  actually enforced.
+- **Registry 241 → 313** (27 families, 53 default-on). Gemma-4 26B/31B `G4_*` patch
+  line, pin advanced to `0.22.1rc1.dev491+g1033ffac2`.
+
+### Verification
+
+- `python3 scripts/make_evidence.py` → 63/63 gates green.
+- `python3 scripts/check_doc_sync.py --strict` → 0 mismatches (313 consistent).
+- `python3 -m sndr.apply.shadow --strict` → CLEAN (known spec-only: 74).
+- Live 31B-tq MTP boot (dev491, 2× A5000, PROD restored after): coherent +
+  40.7 t/s; the drafter-routing / verify-route diagnostic ladder is recorded in
+  `docs/superpowers/journal/2026-06-16-mtp31b-breakthrough-drafter-qonly.md`.
 
 ---
 
@@ -749,8 +799,8 @@ NOT break the qwen model path:
 
 ### Audit findings
 
-Investigation Discipline catch (Sander mandate: "проверяй изучай сравнивай
-анализируй и тестируй"). Earlier session claimed SNDR_MTP_DYNAMIC_K_001
+Investigation Discipline catch (Sander mandate: "verify, study, compare,
+analyze, and test"). Earlier session claimed SNDR_MTP_DYNAMIC_K_001
 gave +10.7% chat on gemma4-31B. v1.4 attempted to close the gap to static
 chat-K=3 by adding `GENESIS_SNDR_MTP_DYNAMIC_K_INITIAL` env var.
 
