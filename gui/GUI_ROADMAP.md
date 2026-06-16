@@ -31,6 +31,24 @@ daemon-down self-recovery.
     (backing `useFetch` transparently was unsafe — two fetchers with the same deps
     would collide). Migrated all 7 `useFetch` call sites (models-workbench,
     diagnostics, catalog-cards) and retired the now-dead `useFetch.ts`.
+- [x] **Iteration 4 — break up the App.tsx god file (3365 → 1497 lines, −56%)**
+  - Done as 5 behaviour-neutral, independently verified relocations (each:
+    `tsc -b` + `vite build` + `eslint` + serve-smoke 200, then a commit), per the
+    one-piece-at-a-time method:
+    1. `lib/readiness-gates.ts` (buildReadinessGates/targetStatus/countGates) +
+       `hooks/useLiveEvents.ts` (the SSE/polling event feed).
+    2. settings persistence (`GUI_SETTINGS_STORAGE_KEY`, `defaultGuiSettings`,
+       `loadGuiSettings`, `isAccent`) co-located into `settings.tsx`.
+    3. `lib/overview-presenters.ts` (buildEvents/buildCliMirror/runtimeHost) +
+       dropped App's duplicate `LoadState` (consolidated on `FetchState`).
+    4. `lib/section-spec.ts` (per-section header metadata) + `WorkflowSteps` into
+       `components/shell-bits.tsx`.
+    5. **Capstone:** `sections/section-workspace.tsx` (the ~1320-line, 50-prop
+       section renderer) + `lazy-panels.ts` (the 24 code-split panels). Static
+       analysis confirmed SectionWorkspace references **zero** App-local helpers,
+       so the move was a clean relocation; App dropped 85 now-unused imports.
+  - App.tsx is now a pure shell (state / effects / routing / layout / modals).
+    Bundle output unchanged (index 319.70 kB) — confirms behaviour preserved.
 
 ## Next (prioritized)
 
@@ -45,8 +63,11 @@ daemon-down self-recovery.
    dataclasses (a backend track), *then* generate `src/api/schema.gen.ts` (already
    referenced in `eslint.config.js`) and drop the 41 `Record<string, any>` holes.
    Until then the hand-written types stay (they're good — ~80 thorough types).
-3. **Break up the god files** — extract App.tsx's inlined launch-plan view +
-   `SectionWorkspace` (50-prop), and Containers.tsx (32 `useState`, 7 inline tabs).
+3. **Break up the god files** — App.tsx ✅ done (Iteration 4: 3365 → 1497, shell
+   only). Remaining: split the now-standalone `sections/section-workspace.tsx`
+   (1400 lines) into per-section render functions (it still has the 50-prop
+   signature — a context or props-bundle would shrink it), and Containers.tsx
+   (32 `useState`, 7 inline tabs).
 4. **Component system** — a `SelectableCard` primitive (unify fleet/launch/catalog
    card variants), promote `PanelHeader`/`EmptyState`, a `cmdk` command palette.
 5. **Workspace** — extend the prompt/tool library to the full OpenWebUI idiom
