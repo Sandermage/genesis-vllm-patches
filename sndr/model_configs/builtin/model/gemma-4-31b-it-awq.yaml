@@ -122,6 +122,17 @@ patches:
   GENESIS_ENABLE_G4_31_TQ_DTYPE_PRESERVE: '1'             # preserve turboquant_* against AWQ kv_cache_scheme override
   # ── PR #40914 backport — TQ K+1 spec-verify cudagraph fix ──
   GENESIS_ENABLE_G4_67_TQ_SPEC_VERIFY_ROUTE: '1'          # safe no-op for wrapper path; primes upstream-overlay path
+  # ── #41190 TP>1+MTP D2H race guard — Gemma-ONLY (dense, NOT GDN) ──
+  # PN290 forces the num_accepted_tokens.gpu D2H copy blocking so a TP=2
+  # NCCL collective can't recycle the source tensor mid-flight (#41190
+  # cudaErrorIllegalAddress on TP>1 + MTP + multi-conc). On Qwen3.6 hybrid
+  # this race is already eliminated by PN341 (GDN gpu_model_runner rewrite
+  # drops the event.synchronize entirely) so PN290 is NOT set there
+  # (redundant + a small per-step blocking-D2H cost). Gemma-4 is DENSE →
+  # PN341 does not apply → the racy synchronize remains → PN290 is the
+  # actual guard here. Applies cleanly dev491 (validated 2026-06-16);
+  # blocking-D2H is inherently crash-safe. Disable via GENESIS_PN290_FORCE_NONBLOCKING=1.
+  GENESIS_ENABLE_PN290_NUM_ACCEPTED_TOKENS_RACE: '1'
   # ── Qwen-applicable patches (general-purpose, MTP-aware) ──
   GENESIS_ENABLE_PN33_SPEC_DECODE_WARMUP_K: '1'           # MTP K-aware warmup sizing (vllm#37521)
   GENESIS_ENABLE_PN35_INPUTS_EMBEDS_OPTIONAL: '1'  # text-only inputs_embeds skip

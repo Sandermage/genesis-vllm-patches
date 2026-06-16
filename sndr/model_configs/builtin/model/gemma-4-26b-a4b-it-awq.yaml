@@ -117,6 +117,11 @@ patches:
   # Safe no-op for this model (no TurboQuant backend instantiated unless
   # operator enables G4_19 stack), but primes the path for future TQ adoption.
   GENESIS_ENABLE_G4_67_TQ_SPEC_VERIFY_ROUTE: '1'
+  # #41190 TP>1+MTP D2H race guard — Gemma-ONLY (dense, not GDN → PN341
+  # does not cover it here, unlike Qwen3.6 hybrid). PN290 forces the
+  # num_accepted_tokens.gpu D2H copy blocking (crash-safe). Validated
+  # dev491 2026-06-16. Disable via GENESIS_PN290_FORCE_NONBLOCKING=1.
+  GENESIS_ENABLE_PN290_NUM_ACCEPTED_TOKENS_RACE: '1'
 
   # ── Qwen-applicable patches (MTP/general-purpose, added 2026-05-17) ──
   GENESIS_ENABLE_PN33_SPEC_DECODE_WARMUP_K: '1'              # MTP K-aware warmup
