@@ -5,7 +5,7 @@
 // shell keeps only state/routing/composition and renders <SectionWorkspace/>
 // inside one Suspense boundary. Pure presentation — no App-local coupling.
 import { Suspense, useEffect, useMemo, useState } from "react";
-import { Activity, AlertTriangle, BarChart3, Boxes, Clock3, Code2, Command, Cpu, FileText, Gauge, GitBranch, GitCompare, Layers3, LayoutGrid, Link2, ListChecks, MessageSquare, Network, PackageCheck, Play, Rocket, Route, Server, ShieldCheck, SlidersHorizontal, Sparkles, SquareTerminal, Stethoscope, Table2, TimerReset } from "lucide-react";
+import { Activity, AlertTriangle, BarChart3, Boxes, Clock3, Command, Cpu, FileText, Gauge, GitCompare, LayoutGrid, Link2, MessageSquare, Network, PackageCheck, Play, Rocket, Route, Server, ShieldCheck, SlidersHorizontal, Sparkles, SquareTerminal, Stethoscope, Table2, TimerReset } from "lucide-react";
 import { tr } from "../i18n";
 import type { ChatTarget } from "../Engine";
 import type { ViewportTier } from "../hooks/useViewport";
@@ -20,6 +20,7 @@ import { AdvancedSection } from "./advanced-section";
 import { PresetsSection } from "./presets-section";
 import { OverviewSection } from "./overview-section";
 import { ClientsSection } from "./clients-section";
+import { PatchesSection } from "./patches-section";
 import { CapabilityTable } from "../components/capability-table";
 import { PercentBar } from "../components/charts";
 import { CodeBlock } from "../components/code-block";
@@ -30,7 +31,7 @@ import { TabbedSection } from "../components/tabbed-section";
 import { toast } from "../components/toast";
 import { FleetPanel } from "../Fleet";
 import { SkeletonCards } from "../Skeleton";
-import { ChatConsole, EngineBenchPanel, EngineMetricsPanel, EngineStatusCard, ConfigsSection, HostsSection, DeploymentConsole, ServiceLifecyclePlanner, PatchInventoryControl, KvCalcPanel, BaselinePanel, InstallWizard, CopilotPanel, ContainersPanel, VirtualizationPanel, HardwarePanel, RoutingPanel, FlagsPanel } from "../lazy-panels";
+import { ChatConsole, EngineBenchPanel, EngineMetricsPanel, EngineStatusCard, ConfigsSection, HostsSection, DeploymentConsole, ServiceLifecyclePlanner, KvCalcPanel, BaselinePanel, InstallWizard, CopilotPanel, ContainersPanel, VirtualizationPanel, HardwarePanel, RoutingPanel, FlagsPanel } from "../lazy-panels";
 import { ReportGenerator } from "./api-explorer";
 import { BenchmarkBaselinePanel, EvidenceRows } from "./bench";
 import { CaveatsPanel } from "./diagnostics";
@@ -42,9 +43,7 @@ import { ModelsWorkbench } from "./models-workbench";
 import { EventLog } from "./operational-console";
 import { OperationsConsole } from "./operations";
 import { DoctorCoveragePanel } from "./patch-doctor";
-import { PatchLifecycleGraph, PatchModelSupport, PatchRegistryInsight, PatchSummaryPanel } from "./patch-overview";
 import { ProofStatusPanel } from "./proof";
-import { BundlesPanel, UpstreamDiffPanel } from "./registry";
 import { SetupWizard } from "./setup-wizard";
 
 export function SectionWorkspace({
@@ -167,7 +166,6 @@ export function SectionWorkspace({
   const card = (explain?.card ?? selectedPresetRecord?.card ?? {}) as Record<string, unknown>;
   const composed = (explain?.composed ?? {}) as Record<string, unknown>;
   const patchRows = patches?.patches ?? [];
-  const patchSummary = patches?.summary ?? null;
 
   return (
     <section className={`section-workspace section-${sectionId}`}>
@@ -521,75 +519,14 @@ export function SectionWorkspace({
       )}
 
       {sectionId === "patches" && (
-        <TabbedSection
-          id="patches"
-          tabs={[
-            {
-              id: "registry",
-              label: tr("Registry"),
-              icon: <PackageCheck size={15} />,
-              render: () => (
-                <ModuleGrid>
-                  <ModuleCard title={tr("Patch Registry Summary")} icon={<PackageCheck size={18} />} desc={`${patches?.total ?? patchRows.length} ${tr("runtime overlays across")} ${new Set(patchRows.map((p) => p.family)).size} ${tr("families")}.`} wide>
-                    <PatchSummaryPanel summary={patchSummary} total={patches?.total ?? patchRows.length} selectedCount={asNumber(composed.enabled_patches_count)} />
-                  </ModuleCard>
-                  <ModuleCard title={tr("Lifecycle & Default Behavior")} icon={<BarChart3 size={18} />} wide>
-                    <PatchLifecycleGraph summary={patchSummary} />
-                  </ModuleCard>
-                  <ModuleCard title={tr("Status, Families & Legend")} icon={<ListChecks size={18} />} desc={tr("Implementation maturity, subsystem coverage, and what each registry value means.")} wide>
-                    <PatchRegistryInsight summary={patchSummary} patches={patchRows} />
-                  </ModuleCard>
-                  <ModuleCard title={tr("Supported Models")} icon={<Cpu size={18} />} desc={tr("Catalog models the patch family targets — per-patch applicability is in the Inventory tab.")} wide>
-                    <PatchModelSupport models={configCatalog?.models ?? []} />
-                  </ModuleCard>
-                </ModuleGrid>
-              )
-            },
-            {
-              id: "inventory",
-              label: tr("Inventory"),
-              icon: <Table2 size={15} />,
-              render: () => (
-                <ModuleGrid>
-                  <ModuleCard title={tr("Patch Inventory Control")} icon={<Table2 size={18} />} wide>
-                    <PatchInventoryControl patches={patchRows} />
-                  </ModuleCard>
-                  <ModuleCard title={tr("Patch Bundles")} icon={<Layers3 size={18} />} wide>
-                    <BundlesPanel bundles={bundles} />
-                  </ModuleCard>
-                </ModuleGrid>
-              )
-            },
-            {
-              id: "flags",
-              label: tr("Flags"),
-              icon: <SlidersHorizontal size={15} />,
-              render: () => (
-                <ModuleGrid>
-                  <ModuleCard title={tr("Env-flag matrix")} icon={<SlidersHorizontal size={18} />} desc={tr("Every GENESIS_ENABLE_* flag with its effective default — searchable, filterable by family. Name a running engine container to overlay its live ON/OFF state and flag drift.")} wide>
-                    <Suspense fallback={<SkeletonCards count={2} />}>
-                      <FlagsPanel />
-                    </Suspense>
-                  </ModuleCard>
-                </ModuleGrid>
-              )
-            },
-            {
-              id: "upstream",
-              label: tr("Upstream & policy"),
-              icon: <GitBranch size={15} />,
-              render: () => (
-                <ModuleGrid>
-                  <ModuleCard title={tr("Upstream Diff")} icon={<GitBranch size={18} />} wide>
-                    <UpstreamDiffPanel report={diffUpstream} />
-                  </ModuleCard>
-                  <ModuleCard title={tr("Policy Preview")} icon={<Code2 size={18} />} wide>
-                    <CodeBlock lines={[`preset=${selectedPreset}`, `policy=${patchPolicy}`, "strict_image_digest=true", "dry_run=true"]} />
-                  </ModuleCard>
-                </ModuleGrid>
-              )
-            }
-          ]}
+        <PatchesSection
+          patches={patches}
+          configCatalog={configCatalog}
+          bundles={bundles}
+          diffUpstream={diffUpstream}
+          selectedPreset={selectedPreset}
+          patchPolicy={patchPolicy}
+          composed={composed}
         />
       )}
 
