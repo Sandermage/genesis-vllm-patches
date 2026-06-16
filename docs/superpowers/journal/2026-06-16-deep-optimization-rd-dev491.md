@@ -103,3 +103,27 @@ within-noise end-to-end, and G4_83's 8.4% is locked behind a core vLLM invariant
 No code change ships from this pass; the value delivered is the *verified* knowledge of what is optimal
 and why, and two false premises retired (nw=8-optimal, 69%-waste). The discipline (measure/verify, don't
 premise) is what kept this honest.
+
+---
+
+## SHIPPED (2026-06-16) — long-context A/B turned the nw=4 thread into a real win
+
+The "rejected end-to-end" verdict above was at SHORT context only. Re-tested at LONG context
+(~6K-token prompt, decode-TPS measured post-TTFT where attention dominates decode):
+
+| context | nw=8 | nw=4 | delta |
+|---|---:|---:|---|
+| short (512 gen) | 211.8 (CV 9%) | 207.4 | within noise |
+| **long (~6K)** | **71.4 (CV 0.1%)** | **72.3 (CV 0.2%)** | **+1.26% (decisive, ~17× noise)** |
+
+At long context the attention kernel's share of decode is large (211→71 TPS), so the kernel
+win translates; short context is attention-light so it's neutral (the CV-9% short bench
+masked everything). Net win on the 280K-provisioned long-ctx path, bit-identical, coherent.
+
+**SHIPPED:** `VLLM_TQ_DECODE_NUM_WARPS=4` override in the 35B model YAML (commit 88526bb8) +
+hardware-comment correction; applied LIVE to the 35B PROD (running num_warps=4, healthy,
+coherent); launcher re-rendered so the next recreate is consistent. Also shipped: the P71=0
+launcher-drift fix (clears the boot CONFLICT/validator ERROR at next recreate) and two
+accuracy fixes (commit 4cbef9e5: the misleading BLOCK_KV "wants 32" comment — 32 actually
+regresses -5.2% — and PN347 stale provenance). Lesson refined: a microbench win can be real
+end-to-end, but only on the workload where the kernel dominates — verify at the RIGHT context.
