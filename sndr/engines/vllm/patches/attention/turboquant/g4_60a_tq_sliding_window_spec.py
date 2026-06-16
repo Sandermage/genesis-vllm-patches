@@ -196,6 +196,17 @@ def apply() -> tuple[str, str]:
             )
             return replace(merged, tq_slot_size=specs[0].tq_slot_size)
 
+    # Make this dynamically-defined class PICKLABLE across TP workers. Its
+    # qualname is 'apply.<locals>.TQSlidingWindowSpec' (a local), which pickle
+    # cannot resolve in a worker process — under TP>1 the KV-cache spec is
+    # pickled to each worker, raising AttributeError "Can't get local object
+    # 'apply.<locals>.TQSlidingWindowSpec'". Native dev491 has no module-level
+    # TQSlidingWindowSpec, so we expose it on vllm.v1.kv_cache_interface (below)
+    # and point __module__/__qualname__ there so pickle serialises it by that
+    # importable reference. 2026-06-16 (dev491 native-TQ readiness).
+    TQSlidingWindowSpec.__module__ = "vllm.v1.kv_cache_interface"
+    TQSlidingWindowSpec.__qualname__ = "TQSlidingWindowSpec"
+
     # Expose on module so other PR #42637 cherry-pick leaves can import it.
     _kci.TQSlidingWindowSpec = TQSlidingWindowSpec
 
