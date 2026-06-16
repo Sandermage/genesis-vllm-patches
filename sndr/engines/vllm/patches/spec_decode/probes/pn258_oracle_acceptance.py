@@ -165,6 +165,11 @@ def apply() -> tuple[str, str]:
         sampling_metadata,
         synthetic_mode=False,
         synthetic_conditional_rates=None,
+        # forward-proof (2026-06-16): dev491 added use_fp64_gumbel (vllm#43150)
+        # after synthetic_conditional_rates and RejectionSampler.forward passes
+        # it unconditionally. Absorb + forward any trailing kwargs so this probe
+        # can never TypeError a spec-decode step on the next signature drift.
+        **kwargs,
     ):
         _CALL_IDX[0] += 1
         call_idx = _CALL_IDX[0]
@@ -286,6 +291,7 @@ def apply() -> tuple[str, str]:
             sampling_metadata,
             synthetic_mode=synthetic_mode,
             synthetic_conditional_rates=synthetic_conditional_rates,
+            **kwargs,  # forward use_fp64_gumbel etc. transparently to the real fn
         )
 
         # --- OUTPUT trace + RECORD oracle
