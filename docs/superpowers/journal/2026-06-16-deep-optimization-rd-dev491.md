@@ -127,3 +127,17 @@ launcher-drift fix (clears the boot CONFLICT/validator ERROR at next recreate) a
 accuracy fixes (commit 4cbef9e5: the misleading BLOCK_KV "wants 32" comment — 32 actually
 regresses -5.2% — and PN347 stale provenance). Lesson refined: a microbench win can be real
 end-to-end, but only on the workload where the kernel dominates — verify at the RIGHT context.
+
+---
+
+## Tracked upstream landmine (turboquant_attn.py:171) — NOT a Genesis-patchable bug
+
+Native vllm `v1/attention/backends/turboquant_attn.py:171` docstring claims `spec.head_size`
+is the "effective_head_size (padded_slot//2)", but `model_executor/.../attention.py:597`
+passes the REAL head_size into the TQ impl. Self-consistent today (the impl uses the real
+head_size everywhere), so NOT a current bug — but it seeds a future double-transform if a
+later pin starts trusting the docstring. It is in the **native vLLM image**, not a Genesis
+overlay, so it cannot be fixed by a Genesis patch — the correct action is an upstream issue/PR
+(deferred: filing externally is the operator's call). Logged here so a future agent doesn't
+re-discover it as a "bug". (Closes the "stale-docstring" follow-up: documented, not patchable
+in Genesis.)
