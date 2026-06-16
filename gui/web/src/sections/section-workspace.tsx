@@ -5,15 +5,13 @@
 // shell keeps only state/routing/composition and renders <SectionWorkspace/>
 // inside one Suspense boundary. Pure presentation — no App-local coupling.
 import { Suspense, useMemo } from "react";
-import { Activity, AlertTriangle, Boxes, Clock3, Command, Cpu, FileText, Gauge, GitCompare, LayoutGrid, Link2, MessageSquare, Network, PackageCheck, Rocket, Route, Server, ShieldCheck, SlidersHorizontal, Sparkles, Stethoscope, Table2 } from "lucide-react";
+import { Boxes, Command, Cpu, Gauge, GitCompare, LayoutGrid, Link2, MessageSquare, Rocket, Route, Server, SlidersHorizontal, Sparkles } from "lucide-react";
 import { tr } from "../i18n";
 import type { ChatTarget } from "../Engine";
 import type { ViewportTier } from "../hooks/useViewport";
 import type { GuiSettings } from "../settings";
 import type { Gate, RuntimeMode, SectionId } from "../nav";
 import { AuthUser, BundleSpec, DiffUpstreamReport, DoctorReport, EnvironmentReport, HostProfile, PatchDoctorReport, PatchListResult, PresetExplainResult, PresetListResult, PresetRecord, ProductCapability, ProductOverview, ProofStatusReport, UserPresetList, V2ConfigCatalog, V2ConfigPreview } from "../api";
-import { asText } from "../lib/coerce";
-import { targetTitle } from "../lib/format";
 import { runtimeHost } from "../lib/overview-presenters";
 import { sectionSpec } from "../lib/section-spec";
 import { AdvancedSection } from "./advanced-section";
@@ -24,23 +22,18 @@ import { PatchesSection } from "./patches-section";
 import { BenchmarksSection } from "./benchmarks-section";
 import { EvidenceSection } from "./evidence-section";
 import { SetupSection } from "./setup-section";
-import { CapabilityTable } from "../components/capability-table";
+import { ServicesSection } from "./services-section";
+import { DoctorSection } from "./doctor-section";
+import { ReportsSection } from "./reports-section";
 import { ModuleCard, ModuleGrid } from "../components/layout";
-import { CompactList, InfoRows, type GateStatus } from "../components/primitives";
+import { type GateStatus } from "../components/primitives";
 import { TabbedSection } from "../components/tabbed-section";
 import { toast } from "../components/toast";
 import { FleetPanel } from "../Fleet";
 import { SkeletonCards } from "../Skeleton";
-import { ChatConsole, EngineMetricsPanel, EngineStatusCard, ConfigsSection, HostsSection, ServiceLifecyclePlanner, KvCalcPanel, BaselinePanel, CopilotPanel, ContainersPanel, VirtualizationPanel, HardwarePanel, RoutingPanel, FlagsPanel } from "../lazy-panels";
-import { ReportGenerator } from "./api-explorer";
-import { CaveatsPanel } from "./diagnostics";
-import { DoctorFindings, DoctorSummary } from "./doctor";
-import { EnvironmentPanel } from "./environment";
-import { GateRow } from "./gate-row";
+import { ChatConsole, ConfigsSection, HostsSection, KvCalcPanel, BaselinePanel, CopilotPanel, ContainersPanel, VirtualizationPanel, HardwarePanel, RoutingPanel, FlagsPanel } from "../lazy-panels";
 import { ModelsWorkbench } from "./models-workbench";
-import { EventLog } from "./operational-console";
 import { OperationsConsole } from "./operations";
-import { DoctorCoveragePanel } from "./patch-doctor";
 
 export function SectionWorkspace({
   sectionId,
@@ -353,110 +346,22 @@ export function SectionWorkspace({
       )}
 
       {sectionId === "services" && (
-        <TabbedSection
-          id="services"
-          tabs={[
-            {
-              id: "lifecycle",
-              label: tr("Lifecycle"),
-              icon: <Network size={15} />,
-              render: () => (
-                <ModuleGrid>
-                  <ModuleCard title={tr("Lifecycle Planner")} icon={<Network size={18} />} desc={tr("Plan start/stop/restart/status/logs across any runtime target, with live engine reachability and post-action verification.")} wide>
-                    <ServiceLifecyclePlanner
-                      selectedPreset={selectedPreset}
-                      runtimeTarget={runtimeTarget}
-                      host={runtimeHost(runtimeMode, settings.remoteHost)}
-                    />
-                  </ModuleCard>
-                </ModuleGrid>
-              )
-            },
-            {
-              id: "engine",
-              label: tr("Engine"),
-              icon: <Cpu size={15} />,
-              render: () => (
-                <ModuleGrid>
-                  <ModuleCard title={tr("Live Engine")} icon={<Activity size={18} />} desc={tr("Reachability, loaded model and version of the running vLLM OpenAI server.")}>
-                    <EngineStatusCard />
-                  </ModuleCard>
-                  <ModuleCard title={tr("Live Metrics")} icon={<Gauge size={18} />} desc={tr("Prometheus KPIs from the running engine — queue, KV cache, throughput, TTFT/TPOT, spec-decode.")}>
-                    <EngineMetricsPanel />
-                  </ModuleCard>
-                  <ModuleCard title={tr("Engine & Dependencies")} icon={<Cpu size={18} />} desc={tr("Installed engine and library versions on the daemon host — what would serve.")} wide>
-                    <EnvironmentPanel env={environment} />
-                  </ModuleCard>
-                </ModuleGrid>
-              )
-            },
-            {
-              id: "contracts",
-              label: tr("Contracts"),
-              icon: <ShieldCheck size={15} />,
-              render: () => (
-                <ModuleGrid>
-                  <ModuleCard title={tr("Lifecycle Surface")} icon={<ShieldCheck size={18} />} desc={tr("Which lifecycle capabilities the Product API exposes today.")} wide>
-                    <CapabilityTable rows={featureRows.filter((feature) => ["service_lifecycle", "web_daemon", "desktop_remote"].includes(feature.id))} />
-                  </ModuleCard>
-                </ModuleGrid>
-              )
-            }
-          ]}
+        <ServicesSection
+          selectedPreset={selectedPreset}
+          runtimeTarget={runtimeTarget}
+          runtimeMode={runtimeMode}
+          settings={settings}
+          environment={environment}
+          featureRows={featureRows}
         />
       )}
 
       {sectionId === "doctor" && (
-        <TabbedSection
-          id="doctor"
-          tabs={[
-            {
-              id: "diagnostics",
-              label: tr("Diagnostics"),
-              icon: <Stethoscope size={15} />,
-              render: () => (
-                <ModuleGrid>
-                  <ModuleCard title={tr("Diagnostics Summary")} icon={<Activity size={18} />} desc={tr("Aggregated environment, runtime, catalog, patch and proof health.")} wide>
-                    <DoctorSummary report={doctorReport} />
-                  </ModuleCard>
-                  <ModuleCard title={tr("Findings")} icon={<Stethoscope size={18} />} desc={tr("Grouped by category — expand a row for evidence, action and CLI.")} wide>
-                    <DoctorFindings report={doctorReport} />
-                  </ModuleCard>
-                  <ModuleCard title={tr("Host caveats")} icon={<AlertTriangle size={18} />} desc={tr("Known host-condition issues (kernel, virtualization, GPU, pin) evaluated live against this host — triggered caveats first.")} wide>
-                    <CaveatsPanel />
-                  </ModuleCard>
-                </ModuleGrid>
-              )
-            },
-            {
-              id: "gates",
-              label: tr("Readiness gates"),
-              icon: <ShieldCheck size={15} />,
-              render: () => (
-                <ModuleGrid>
-                  <ModuleCard title={tr("Launch Readiness Gates")} icon={<ShieldCheck size={18} />} desc={tr("Per-gate blockers for the selected preset launch.")} wide>
-                    <div className="gates-list">
-                      {gates.map((gate) => (
-                        <GateRow gate={gate} key={gate.id} onNavigate={onSection} />
-                      ))}
-                    </div>
-                  </ModuleCard>
-                </ModuleGrid>
-              )
-            },
-            {
-              id: "coverage",
-              label: tr("Coverage"),
-              icon: <PackageCheck size={15} />,
-              render: () => (
-                <ModuleGrid>
-                  <ModuleCard title={tr("Registry Coverage")} icon={<PackageCheck size={18} />} desc={tr("Patch apply-module coverage and validation.")} wide>
-                    <DoctorCoveragePanel report={patchDoctor} />
-                  </ModuleCard>
-                </ModuleGrid>
-              )
-            }
-          ]}
+        <DoctorSection
+          doctorReport={doctorReport}
+          gates={gates}
+          patchDoctor={patchDoctor}
+          onSection={onSection}
         />
       )}
 
@@ -548,54 +453,15 @@ export function SectionWorkspace({
       )}
 
       {sectionId === "reports" && (
-        <TabbedSection
-          id="reports"
-          tabs={[
-            {
-              id: "generate",
-              label: tr("Generate"),
-              icon: <Table2 size={15} />,
-              render: () => (
-                <ModuleGrid>
-                  <ModuleCard title={tr("Generate a report")} icon={<Table2 size={18} />} desc={tr("Capture a redacted snapshot bundle (preset, gates, patches, proof) into the operator-local reports dir — a shareable hand-off / sign-off artifact.")} wide>
-                    <ReportGenerator selectedPreset={selectedPreset} />
-                  </ModuleCard>
-                  <ModuleCard title={tr("What this snapshot captures")} icon={<FileText size={18} />} desc={tr("The live state baked into a report generated right now.")} wide>
-                    <InfoRows
-                      rows={[
-                        [tr("Preset"), selectedPreset],
-                        [tr("Runtime target"), targetTitle(runtimeTargets, runtimeTarget)],
-                        [tr("Patch policy"), patchPolicy],
-                        [tr("Readiness gates"), `${gateCounts.pass} ${tr("ok")} / ${gateCounts.warning} ${tr("warn")} / ${gateCounts.blocked} ${tr("blocked")}`],
-                        [tr("Proof artifacts"), proofStatus?.available ? String(proofStatus.total) : tr("unavailable")],
-                        [tr("Evidence visibility"), asText(card.evidence_visibility, "-")]
-                      ]}
-                    />
-                    <CompactList
-                      rows={[
-                        ["HTML", tr("Shareable operator review page")],
-                        ["PDF", tr("Archival / sign-off document")],
-                        ["JSON", tr("Machine-readable snapshot")],
-                        ["Markdown", tr("Inline notes and runbooks")]
-                      ]}
-                    />
-                  </ModuleCard>
-                </ModuleGrid>
-              )
-            },
-            {
-              id: "activity",
-              label: tr("Activity log"),
-              icon: <Clock3 size={15} />,
-              render: () => (
-                <ModuleGrid>
-                  <ModuleCard title={tr("Recent activity")} icon={<Clock3 size={18} />} desc={tr("A live feed of control-center actions this session — what was selected, planned, queued or applied.")} wide>
-                    <EventLog events={events} />
-                  </ModuleCard>
-                </ModuleGrid>
-              )
-            }
-          ]}
+        <ReportsSection
+          card={card}
+          selectedPreset={selectedPreset}
+          runtimeTargets={runtimeTargets}
+          runtimeTarget={runtimeTarget}
+          patchPolicy={patchPolicy}
+          gateCounts={gateCounts}
+          proofStatus={proofStatus}
+          events={events}
         />
       )}
 
