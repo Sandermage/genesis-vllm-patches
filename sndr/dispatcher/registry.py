@@ -9071,9 +9071,15 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "lifecycle": "experimental",
         "credit": "PN264 fix per user 2026-05-19. After G4_71/G4_72/G4_73/G4_74-cap unblocked drafter sliding layers (head=256), first prompt failed with 'FlashAttention forward only supports head dimension at most 256' on drafter layer 3 (head_size=512). Backend capability probe in this pin: FLASH_ATTN caps 256, FLASHINFER supports [64,128,256], TRITON_ATTN supports head_size>=32 (covers 512). G4_75 wraps Attention.__init__ AFTER G4_71: when drafter prefix + head_size==512, kwargs['attn_backend'] is overridden to AttentionBackendEnum.TRITON_ATTN.get_class(). Also stamps self._genesis_g4_75_drafter_triton=True so G4_74 skips HND transpose for the Triton-routed layer (Triton uses NHD natively). Sliding drafter layers 0..2 stay on FlashAttn + HND; layer 3 uses Triton + NHD. Companion to G4_71 (impl), G4_72 (spec), G4_73 (profile skip), G4_74 (HND conv + cap), PN262 (forward trace).",
         "upstream_pr": None,
-        "requires_patches": ["G4_71", "G4_74"],
+        # 2026-06-16: requires_patches CORRECTED [G4_71,G4_74]->[]. G4_71/G4_74 were the
+        # RETIRED independent-drafter stack; the breakthrough kv_sharing MTP config
+        # (G4_75=1 + G4_71B=1 + G4_76=0 + G4_67->G4_81) runs G4_75 STANDALONE — validated
+        # coherent 40.7 t/s on 31B-tq (run bcfojku36). G4_75 only needs the drafter to exist
+        # (head_size=512 layer present), not the G4_71 backend. Stale dep caused a false
+        # dispatcher validator ERROR + risked auto-disabling G4_75 on a strict validator.
+        "requires_patches": [],
         "conflicts_with": [],
-        "composes_with": ["G4_71", "G4_72", "G4_73", "G4_74", "PN262"],
+        "composes_with": ["G4_71B", "G4_76", "G4_67", "G4_81", "G4_82", "PN262"],
         "applies_to": {"model_arch": ["Gemma4ForConditionalGeneration", "Gemma4ForCausalLM"]},
     },
     "G4_74": {
@@ -9125,9 +9131,14 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "lifecycle": "experimental",  # operationally validated by the gemma4-31b-tq-mtp-structured-k4 profile (status=validated), but registry-lifecycle stays experimental until production-default cutover
         "credit": "Phase 3 bucket 3 registration (2026-05-21): G4_71B is load-bearing for the validated β'-A K=4 structured path (gemma4-31b-tq-mtp-structured-k4 profile). The structured profile declares it via backend_plan.drafter_sliding=TRITON_ATTN. Companion to G4_75 (head_size=512 → TRITON_ATTN) — each owns a disjoint drafter head_size class. β control + PN271b proved the canonical TQ+MTP launcher has a kernel-vs-storage contract mismatch on drafter[0..2] (TurboQuantAttentionImpl reading native bf16 bytes as TQ-packed → acceptance=0). G4_71B forces drafter sliding layers to Triton NHD native bf16 so the safety guard accepts the configuration as EXACT_COPY. Required for production opt-in of the structured profile.",
         "upstream_pr": None,
-        "requires_patches": ["G4_71"],
+        # 2026-06-16: requires_patches CORRECTED [G4_71]->[]. G4_71 was the retired
+        # independent-drafter backend; G4_71B forces drafter sliding(head256) layers to
+        # TRITON_ATTN native-bf16 for the kv_sharing path and runs STANDALONE (validated
+        # in the working 31B-tq MTP config alongside G4_75, NOT G4_71). Stale dep produced
+        # a false validator ERROR.
+        "requires_patches": [],
         "conflicts_with": [],
-        "composes_with": ["G4_71", "G4_72", "G4_73", "G4_74", "G4_75", "G4_76", "PN262", "PN271"],
+        "composes_with": ["G4_75", "G4_76", "G4_67", "G4_81", "G4_82", "PN262", "PN271"],
         "applies_to": {"model_arch": ["Gemma4ForConditionalGeneration", "Gemma4ForCausalLM"]},
     },
     "G4_78": {
