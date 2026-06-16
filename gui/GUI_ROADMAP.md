@@ -49,6 +49,24 @@ daemon-down self-recovery.
        so the move was a clean relocation; App dropped 85 now-unused imports.
   - App.tsx is now a pure shell (state / effects / routing / layout / modals).
     Bundle output unchanged (index 319.70 kB) — confirms behaviour preserved.
+- [x] **Iteration 5 — split section-workspace.tsx into per-section components
+  (1400 → 493 lines, −65%)**
+  - The standalone section renderer (extracted in Iteration 4) was itself a god
+    file: one 50-prop component rendering a `{sectionId === "X" && …}` block per
+    section. Split the 11 substantial blocks into self-contained section
+    components under `sections/*-section.tsx`, each with a typed minimal-prop
+    interface (8 separate verified commits, same tsc/build/eslint/smoke gate):
+    Advanced, Presets, Overview, Clients, Patches, Benchmarks, Evidence, Setup,
+    Services, Doctor, Reports.
+  - **Cohesion win:** UI state moved into the section that owns it — `presetTab`
+    into PresetsSection, `setupTab` + the install-intent effect into SetupSection.
+    The dispatcher now holds no section-local state, only pure derivations it
+    fans out (card / composed / patchRows). Sections derive their own small
+    rollups (bench-proven / family / workload counts) from props.
+  - section-workspace.tsx is now a 493-line dispatcher (header + the small
+    single-panel sections, which weren't worth extracting). Largest section file
+    is 240 lines (Advanced). Bundle output unchanged. The 50-prop dispatcher
+    signature remains — a context/props-bundle is the optional next polish.
 
 ## Next (prioritized)
 
@@ -63,11 +81,11 @@ daemon-down self-recovery.
    dataclasses (a backend track), *then* generate `src/api/schema.gen.ts` (already
    referenced in `eslint.config.js`) and drop the 41 `Record<string, any>` holes.
    Until then the hand-written types stay (they're good — ~80 thorough types).
-3. **Break up the god files** — App.tsx ✅ done (Iteration 4: 3365 → 1497, shell
-   only). Remaining: split the now-standalone `sections/section-workspace.tsx`
-   (1400 lines) into per-section render functions (it still has the 50-prop
-   signature — a context or props-bundle would shrink it), and Containers.tsx
-   (32 `useState`, 7 inline tabs).
+3. **Break up the god files** — App.tsx ✅ (Iteration 4: 3365 → 1497, shell only)
+   and section-workspace.tsx ✅ (Iteration 5: 1400 → 493, dispatcher + 11 section
+   components). Remaining: Containers.tsx (32 `useState`, 7 inline tabs). Optional
+   polish: replace the section-workspace dispatcher's 50-prop signature with a
+   context / props-bundle.
 4. **Component system** — a `SelectableCard` primitive (unify fleet/launch/catalog
    card variants), promote `PanelHeader`/`EmptyState`, a `cmdk` command palette.
 5. **Workspace** — extend the prompt/tool library to the full OpenWebUI idiom
