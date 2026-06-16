@@ -5,7 +5,7 @@
 // shell keeps only state/routing/composition and renders <SectionWorkspace/>
 // inside one Suspense boundary. Pure presentation — no App-local coupling.
 import { Suspense, useEffect, useMemo, useState } from "react";
-import { Activity, AlertTriangle, BarChart3, Box, Boxes, Clock3, Code2, Command, Cpu, Database, FileText, Gauge, GitBranch, GitCompare, KeyRound, Layers3, LayoutGrid, Link2, ListChecks, MessageSquare, Monitor, Network, PackageCheck, Play, Rocket, Route, Server, ShieldCheck, SlidersHorizontal, Sparkles, SquareTerminal, Stethoscope, Table2, TimerReset, Wrench } from "lucide-react";
+import { Activity, AlertTriangle, BarChart3, Box, Boxes, Clock3, Code2, Command, Cpu, FileText, Gauge, GitBranch, GitCompare, KeyRound, Layers3, LayoutGrid, Link2, ListChecks, MessageSquare, Network, PackageCheck, Play, Rocket, Route, Server, ShieldCheck, SlidersHorizontal, Sparkles, SquareTerminal, Stethoscope, Table2, TimerReset } from "lucide-react";
 import { tr } from "../i18n";
 import type { ChatTarget } from "../Engine";
 import type { ViewportTier } from "../hooks/useViewport";
@@ -18,11 +18,12 @@ import { runtimeHost } from "../lib/overview-presenters";
 import { sectionSpec } from "../lib/section-spec";
 import { AdvancedSection } from "./advanced-section";
 import { PresetsSection } from "./presets-section";
+import { OverviewSection } from "./overview-section";
 import { CapabilityTable } from "../components/capability-table";
-import { OvKpi, PercentBar } from "../components/charts";
+import { PercentBar } from "../components/charts";
 import { CodeBlock } from "../components/code-block";
 import { ModuleCard, ModuleGrid } from "../components/layout";
-import { CompactList, InfoRows, KpiGrid, type GateStatus } from "../components/primitives";
+import { CompactList, InfoRows, type GateStatus } from "../components/primitives";
 import { CodeTabs, TabIntro, WorkflowSteps } from "../components/shell-bits";
 import { TabbedSection } from "../components/tabbed-section";
 import { toast } from "../components/toast";
@@ -31,7 +32,6 @@ import { SkeletonCards } from "../Skeleton";
 import { ChatConsole, EngineBenchPanel, EngineMetricsPanel, EnginePlayground, EngineStatusCard, ConfigsSection, HostsSection, DeploymentConsole, ServiceLifecyclePlanner, PatchInventoryControl, KvCalcPanel, BaselinePanel, InstallWizard, CopilotPanel, ContainersPanel, VirtualizationPanel, HardwarePanel, RoutingPanel, FlagsPanel } from "../lazy-panels";
 import { ReportGenerator } from "./api-explorer";
 import { BenchmarkBaselinePanel, EvidenceRows } from "./bench";
-import { ConnectionMap } from "./connection-bar";
 import { CaveatsPanel } from "./diagnostics";
 import { DoctorFindings, DoctorSummary } from "./doctor";
 import { EnvironmentPanel } from "./environment";
@@ -166,15 +166,8 @@ export function SectionWorkspace({
   useEffect(() => { if (installIntent) setSetupTab("install"); }, [installIntent]);
   const card = (explain?.card ?? selectedPresetRecord?.card ?? {}) as Record<string, unknown>;
   const composed = (explain?.composed ?? {}) as Record<string, unknown>;
-  const familyCounts = overview?.catalog.family_counts ?? {};
-  const workloadCounts = overview?.catalog.workload_counts ?? {};
   const patchRows = patches?.patches ?? [];
   const patchSummary = patches?.summary ?? null;
-  // Presets that carry a measured primary metric — a catalog-health signal that
-  // isn't shown anywhere else (the hero shows raw counts, not bench coverage).
-  const benchProven = (presets?.presets ?? []).filter(
-    (p) => asNumber(asRecord(p.card?.primary_metric).value) > 0
-  ).length;
 
   return (
     <section className={`section-workspace section-${sectionId}`}>
@@ -213,137 +206,25 @@ export function SectionWorkspace({
       </header>
 
       {sectionId === "overview" && (
-        <TabbedSection
-          id="overview"
-          tabs={[
-            {
-              id: "summary",
-              label: tr("Summary"),
-              icon: <Activity size={15} />,
-              render: () => (
-                <>
-                <div className="ov-hero">
-                  <OvKpi icon={<Database size={15} />} label={tr("Presets")} value={overview?.catalog.presets_count ?? "—"} sub={`${benchProven} ${tr("bench-proven")}`} onClick={() => onSection("presets")} />
-                  <OvKpi icon={<Box size={15} />} label={tr("Models")} value={overview?.catalog.models_count ?? "—"} sub={`${Object.keys(familyCounts).length} ${tr("families")}`} onClick={() => onSection("models")} />
-                  <OvKpi icon={<Wrench size={15} />} label={tr("Patches")} value={patchRows.length || patches?.total || "—"} sub={`${patchRows.filter((p) => p.default_on).length} ${tr("default-on")}`} onClick={() => onSection("patches")} />
-                  <OvKpi icon={<Server size={15} />} label={tr("Hosts")} value={hostProfiles.length} sub={runtimeMode === "remote" ? tr("remote + local") : tr("local fleet")} onClick={() => onSection("hosts")} />
-                  <OvKpi icon={<ShieldCheck size={15} />} label={tr("Doctor")} value={doctorReport ? (doctorReport.findings.length ? `${doctorReport.findings.length} ${tr("findings")}` : tr("clean")) : "—"} sub={doctorReport && doctorReport.findings.length ? `${doctorReport.findings.filter((f) => f.severity === "blocked").length} ${tr("blocked")} · ${doctorReport.findings.filter((f) => f.severity === "warning").length} ${tr("warn")}` : undefined} tone={doctorReport?.findings?.some((f) => f.severity === "blocked") ? "warn" : "ok"} onClick={() => onSection("doctor")} />
-                  <OvKpi icon={<Rocket size={15} />} label={tr("Engine")} value={environment?.engine_installed ? tr("ready") : "—"} sub={environment?.engine_installed ? `${environment.engine_name ?? "vLLM"} ${environment.engine_version ?? ""}`.trim() : tr("not installed")} tone={environment?.engine_installed ? "ok" : undefined} onClick={() => onSection("services")} />
-                  {viewport === "ultra" && (
-                    <>
-                      <OvKpi icon={<GitBranch size={15} />} label={tr("Profiles")} value={overview?.catalog.profiles_count ?? "—"} sub={tr("runtime recipes")} onClick={() => onSection("configs")} />
-                      <OvKpi icon={<Cpu size={15} />} label={tr("Hardware")} value={overview?.catalog.hardware_count ?? "—"} sub={tr("defined targets")} />
-                      <OvKpi icon={<FileText size={15} />} label={tr("Preset cards")} value={overview?.catalog.preset_cards_count ?? "—"} sub={`${overview?.catalog.unannotated_presets_count ?? 0} ${tr("unannotated")}`} onClick={() => onSection("presets")} />
-                    </>
-                  )}
-                </div>
-                {settings.showConnectionMap && (
-                  <ModuleGrid>
-                    <ModuleCard title={tr("Control Plane Connections")} icon={<Route size={18} />} wide>
-                      <ConnectionMap
-                        runtimeMode={runtimeMode}
-                        runtimeTarget={runtimeTarget}
-                        selectedPreset={selectedPreset}
-                        patchCount={patchRows.length}
-                        apiBase={apiBase}
-                      />
-                    </ModuleCard>
-                  </ModuleGrid>
-                )}
-                {/* Status cards live in their own grid (no full-width sibling, which
-                    would defeat auto-fit's track collapsing and strand whitespace). */}
-                <ModuleGrid className="ov-status-grid">
-                  <ModuleCard title={tr("Platform Snapshot")} icon={<Monitor size={18} />}>
-                    <InfoRows
-                      rows={[
-                        [tr("Brand"), overview?.capabilities.platform.public_brand ?? "-"],
-                        [tr("Package"), overview?.capabilities.platform.package_name ?? "-"],
-                        [tr("Version"), overview?.capabilities.platform.sndr_core_version ?? "-"],
-                        [tr("OS"), `${overview?.capabilities.platform.os_name ?? "-"} / ${overview?.capabilities.platform.machine ?? "-"}`],
-                        [tr("Python"), overview?.capabilities.platform.python_version ?? "-"]
-                      ]}
-                    />
-                  </ModuleCard>
-                  <ModuleCard title={tr("Catalog Health")} icon={<Database size={18} />} desc={tr("Annotation coverage and load integrity — not raw counts (those are above).")}>
-                    <PercentBar
-                      value={overview?.catalog.preset_cards_count ?? 0}
-                      max={overview?.catalog.presets_count || 1}
-                      label={tr("card coverage")}
-                      caption={`${overview?.catalog.preset_cards_count ?? 0}/${overview?.catalog.presets_count ?? 0} ${tr("presets annotated")}`}
-                      tone={(overview?.catalog.preset_load_error_count ?? 0) > 0 ? "warn" : "ok"}
-                    />
-                    <KpiGrid
-                      rows={[
-                        [tr("Bench-proven"), benchProven],
-                        [tr("Families"), Object.keys(familyCounts).length],
-                        [tr("Unannotated"), overview?.catalog.unannotated_presets_count ?? 0],
-                        [tr("Load errors"), overview?.catalog.preset_load_error_count ?? 0]
-                      ]}
-                    />
-                  </ModuleCard>
-                  <ModuleCard title={tr("Launch Readiness")} icon={<ShieldCheck size={18} />} desc={tr("Gate verdict for the selected preset launch.")}>
-                    <PercentBar
-                      value={gateCounts.pass}
-                      max={gates.length || 1}
-                      label={tr("gates passing")}
-                      caption={`${gateCounts.pass} ${tr("ok")} · ${gateCounts.warning} ${tr("warn")} · ${gateCounts.blocked} ${tr("blocked")}`}
-                      tone={gateCounts.blocked > 0 ? "warn" : "ok"}
-                    />
-                    <InfoRows
-                      rows={[
-                        [tr("Selected preset"), selectedPreset],
-                        [tr("Runtime target"), targetTitle(runtimeTargets, runtimeTarget)],
-                        [tr("Mode"), runtimeMode === "remote" ? tr("Remote (SSH tunnel)") : tr("Local server")],
-                        [tr("Patch policy"), patchPolicy]
-                      ]}
-                    />
-                  </ModuleCard>
-                  <ModuleCard title={tr("Engine & API")} icon={<Cpu size={18} />} desc={tr("The inference engine and the API surface it exposes (core/OS live in Platform Snapshot).")}>
-                    <InfoRows
-                      rows={[
-                        [tr("Engine"), `${environment?.engine_name ?? "vLLM"} ${environment?.engine_version ?? ""}`.trim() || "vLLM"],
-                        [tr("Installed"), environment?.engine_installed ? tr("yes") : tr("not installed")],
-                        [tr("Runtime targets"), `${runtimeTargets.length} ${tr("available")}`],
-                        [tr("Capabilities"), `${featureRows.length} ${tr("features")}`],
-                        [tr("OpenAI API"), environment?.engine_installed ? tr("ready") : tr("engine off")]
-                      ]}
-                    />
-                  </ModuleCard>
-                </ModuleGrid>
-                </>
-              )
-            },
-            {
-              id: "environment",
-              label: tr("Environment"),
-              icon: <Cpu size={15} />,
-              render: () => (
-                <ModuleGrid>
-                  <ModuleCard title={tr("Runtime Environment")} icon={<Cpu size={18} />} desc={tr("Project version, engine version and the installed dependency stack.")} wide>
-                    <EnvironmentPanel env={environment} />
-                  </ModuleCard>
-                  <ModuleCard title={tr("Runtime Targets")} icon={<Server size={18} />} wide>
-                    <CapabilityTable rows={runtimeTargets} />
-                  </ModuleCard>
-                </ModuleGrid>
-              )
-            },
-            {
-              id: "coverage",
-              label: tr("Coverage"),
-              icon: <Layers3 size={15} />,
-              render: () => (
-                <ModuleGrid>
-                  <ModuleCard title={tr("Workload Coverage")} icon={<Layers3 size={18} />}>
-                    <CompactList rows={Object.entries(workloadCounts).map(([key, value]) => [key, String(value)])} />
-                  </ModuleCard>
-                  <ModuleCard title={tr("Family Coverage")} icon={<Box size={18} />}>
-                    <CompactList rows={Object.entries(familyCounts).map(([key, value]) => [key, String(value)])} />
-                  </ModuleCard>
-                </ModuleGrid>
-              )
-            }
-          ]}
+        <OverviewSection
+          overview={overview}
+          presets={presets}
+          patches={patches}
+          hostProfiles={hostProfiles}
+          runtimeMode={runtimeMode}
+          doctorReport={doctorReport}
+          environment={environment}
+          viewport={viewport}
+          settings={settings}
+          runtimeTarget={runtimeTarget}
+          selectedPreset={selectedPreset}
+          apiBase={apiBase}
+          gateCounts={gateCounts}
+          gates={gates}
+          runtimeTargets={runtimeTargets}
+          patchPolicy={patchPolicy}
+          featureRows={featureRows}
+          onSection={onSection}
         />
       )}
 
