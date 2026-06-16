@@ -5,6 +5,8 @@ import { EngineBenchResult, EngineChatResult, EngineMetrics, EngineStatus, HubMo
 import { LibraryManager } from "./sections/library-manager";
 import { usePrompts } from "./hooks/useLibrary";
 import { LiveModelInline } from "./components/live-model";
+import { useEngineModel } from "./hooks/useEngineModel";
+import { firstModel } from "./lib/live-model";
 import { SkeletonMetrics } from "./Skeleton";
 import { tr } from "./i18n";
 
@@ -605,13 +607,13 @@ type ChatMessage = { id?: string; role: "user" | "assistant"; content: string; r
 // bleed the <details>/sources open-state onto whatever message shifts into the slot).
 const chatMsgId = (): string => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `m${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
 type Conversation = { id: string; title: string; messages: ChatMessage[]; createdAt: number; updatedAt: number };
-type ChatSettings = { host: string; port: number; model: string; apiKey: string; hostId: string; system: string; temperature: number; maxTokens: number; topP: number; minP: number; presencePenalty: number; frequencyPenalty: number; repetitionPenalty: number; seed: string; stop: string; thinking: boolean; webSearch: boolean; useProject: boolean; ragProject: boolean; ragVaults: string[]; workloadClass: string };
+type ChatSettings = { host: string; port: number; model: string; apiKey: string; hostId: string; system: string; temperature: number; maxTokens: number; topP: number; topK: number; minP: number; presencePenalty: number; frequencyPenalty: number; repetitionPenalty: number; seed: string; stop: string; thinking: boolean; webSearch: boolean; useProject: boolean; ragProject: boolean; ragVaults: string[]; workloadClass: string };
 
 const CHAT_KEY = "sndr.chat.v1";
 // maxTokens defaults high enough for reasoning models: with --reasoning-parser
 // active, the model spends tokens in reasoning_content before reaching the
 // answer; too small a budget truncates inside thinking → empty content.
-const DEFAULT_SETTINGS: ChatSettings = { host: "127.0.0.1", port: 8000, model: "", apiKey: "", hostId: "", system: "You are a helpful assistant.", temperature: 0.7, maxTokens: 2048, topP: 1, minP: 0, presencePenalty: 0, frequencyPenalty: 0, repetitionPenalty: 1, seed: "", stop: "", thinking: false, webSearch: false, useProject: false, ragProject: true, ragVaults: [], workloadClass: "" };
+const DEFAULT_SETTINGS: ChatSettings = { host: "127.0.0.1", port: 8000, model: "", apiKey: "", hostId: "", system: "You are a helpful assistant.", temperature: 0.7, maxTokens: 2048, topP: 1, topK: 0, minP: 0, presencePenalty: 0, frequencyPenalty: 0, repetitionPenalty: 1, seed: "", stop: "", thinking: false, webSearch: false, useProject: false, ragProject: true, ragVaults: [], workloadClass: "" };
 
 // Build the grounding system message from retrieved project-knowledge docs.
 function buildRagContext(docs: RagDoc[]): string {
@@ -842,7 +844,7 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
     const started = Date.now();
     try {
       await api.engineChatStream(
-        { messages: payloadMessages, model: settings.model || undefined, max_tokens: settings.maxTokens, temperature: settings.temperature, top_p: settings.topP, min_p: settings.minP || undefined, presence_penalty: settings.presencePenalty, frequency_penalty: settings.frequencyPenalty, repetition_penalty: settings.repetitionPenalty !== 1 ? settings.repetitionPenalty : undefined, seed: settings.seed ? Number(settings.seed) : undefined, stop: stopSeqs.length ? stopSeqs : undefined, host: settings.host, port: settings.port, apiKey: settings.apiKey || undefined, hostId: settings.hostId || undefined, web_search: settings.webSearch || undefined, chat_template_kwargs: { enable_thinking: settings.thinking } },
+        { messages: payloadMessages, model: settings.model || undefined, max_tokens: settings.maxTokens, temperature: settings.temperature, top_p: settings.topP, top_k: settings.topK || undefined, min_p: settings.minP || undefined, presence_penalty: settings.presencePenalty, frequency_penalty: settings.frequencyPenalty, repetition_penalty: settings.repetitionPenalty !== 1 ? settings.repetitionPenalty : undefined, seed: settings.seed ? Number(settings.seed) : undefined, stop: stopSeqs.length ? stopSeqs : undefined, host: settings.host, port: settings.port, apiKey: settings.apiKey || undefined, hostId: settings.hostId || undefined, web_search: settings.webSearch || undefined, chat_template_kwargs: { enable_thinking: settings.thinking } },
         {
           onDelta: (text) => patchConvo(convoId, (c) => { const msgs = c.messages.slice(); const last = msgs[msgs.length - 1]; if (!last) return c; msgs[msgs.length - 1] = { ...last, content: (last.content ?? "") + text }; return { ...c, messages: msgs }; }),
           onReasoning: (text) => patchConvo(convoId, (c) => { const msgs = c.messages.slice(); const last = msgs[msgs.length - 1]; if (!last) return c; msgs[msgs.length - 1] = { ...last, reasoning: (last.reasoning ?? "") + text }; return { ...c, messages: msgs }; }),
@@ -913,6 +915,22 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
   function removeVault(path: string) { set({ ragVaults: settings.ragVaults.filter((v) => v !== path) }); }
 
   const reachable = !!status?.reachable;
+  // The running model's catalog-validated sampling (shares the LiveModelInline
+  // query). Lets the operator one-click the right defaults (e.g. Qwen 3.6 wants
+  // temp 0.6 / top_p 0.95 / top_k 20, not the generic 0.7).
+  const { data: liveModelData } = useEngineModel(settings.host, settings.port, settings.apiKey || undefined, settings.hostId || undefined);
+  const recSampling = firstModel(liveModelData)?.catalog?.recommended_sampling ?? null;
+  function applyRecommended() {
+    if (!recSampling) return;
+    set({
+      ...(recSampling.temperature !== undefined ? { temperature: recSampling.temperature } : {}),
+      ...(recSampling.top_p !== undefined ? { topP: recSampling.top_p } : {}),
+      ...(recSampling.top_k !== undefined ? { topK: recSampling.top_k } : {}),
+      ...(recSampling.min_p !== undefined ? { minP: recSampling.min_p } : {}),
+      ...(recSampling.repetition_penalty !== undefined ? { repetitionPenalty: recSampling.repetition_penalty } : {}),
+    });
+    chatToast(tr("Applied the catalog's recommended sampling for this model."), "ok");
+  }
   return (
     <div className="chat2">
       <aside className="chat2-side">
@@ -978,6 +996,7 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
                 <label className="chat-field"><span>{tr("Temperature")}</span><input type="number" min={0} max={2} step={0.1} value={settings.temperature} onChange={(e) => set({ temperature: Number(e.target.value) })} /></label>
                 <label className="chat-field"><span>{tr("Max tokens")}</span><input type="number" min={1} max={4096} value={settings.maxTokens} onChange={(e) => set({ maxTokens: Number(e.target.value) || 512 })} /></label>
                 <label className="chat-field"><span>{tr("Top P")}</span><input type="number" min={0} max={1} step={0.05} value={settings.topP} onChange={(e) => set({ topP: Number(e.target.value) })} /></label>
+                <label className="chat-field"><span>{tr("Top K")}</span><input type="number" min={0} step={1} value={settings.topK} onChange={(e) => set({ topK: Number(e.target.value) || 0 })} placeholder={tr("off")} /></label>
                 <label className="chat-field"><span>{tr("Min P")}</span><input type="number" min={0} max={1} step={0.01} value={settings.minP} onChange={(e) => set({ minP: Number(e.target.value) })} /></label>
                 <label className="chat-field"><span>{tr("Presence")}</span><input type="number" min={-2} max={2} step={0.1} value={settings.presencePenalty} onChange={(e) => set({ presencePenalty: Number(e.target.value) })} /></label>
                 <label className="chat-field"><span>{tr("Frequency")}</span><input type="number" min={-2} max={2} step={0.1} value={settings.frequencyPenalty} onChange={(e) => set({ frequencyPenalty: Number(e.target.value) })} /></label>
@@ -985,6 +1004,13 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
                 <label className="chat-field"><span>{tr("Seed")}</span><input type="number" value={settings.seed} onChange={(e) => set({ seed: e.target.value })} placeholder={tr("random")} /></label>
                 <label className="chat-field chat-field-stop"><span>{tr("Stop (comma-sep)")}</span><input value={settings.stop} onChange={(e) => set({ stop: e.target.value })} placeholder="</s>, ###" /></label>
               </div>
+              {recSampling && (
+                <div className="chat-set-rec">
+                  <Sparkles size={13} />
+                  <span>{tr("Recommended for this model")}: {Object.entries(recSampling).map(([k, v]) => `${k.replace("_", " ")} ${v}`).join(" · ")}</span>
+                  <button type="button" className="ghost-button" onClick={applyRecommended} title={tr("Apply the catalog's validated sampling defaults for the running model")}><Zap size={12} /> {tr("Apply")}</button>
+                </div>
+              )}
               <label className="chat-think"><input type="checkbox" checked={settings.thinking} onChange={(e) => set({ thinking: e.target.checked })} /> {tr("Thinking mode")} <span className="chat-think-hint">{tr("(enable_thinking — reasoning models render the <think> path)")}</span></label>
               {settings.thinking && /coder/i.test(settings.model) && <div className="chat-advisory"><CircleAlert size={13} /> {tr("With reasoning + tool-calls, the")} <code>qwen3_coder</code> {tr("streaming parser drops")} <code>delta.tool_calls</code> — {tr("serve with")} <code>--tool-call-parser qwen3_xml</code> {tr("for reliable streaming tool calls.")}</div>}
             </section>

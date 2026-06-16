@@ -40,6 +40,40 @@ def test_match_catalog_model_unknown_returns_none():
     assert match_catalog_model("") is None
 
 
+def test_recommended_sampling_surfaced_for_override_model():
+    """A model that carries override_generation_config (the catalog's validated,
+    club-3090-cross-referenced sampling) exposes it as `recommended_sampling`."""
+    from sndr.model_configs import registry_v2
+    from sndr.product_api.legacy.engine_model import match_catalog_model
+
+    over = next((m for m in registry_v2.list_models()
+                 if registry_v2.load_model(m).override_generation_config), None)
+    if over is None:
+        import pytest
+        pytest.skip("no catalog model carries override_generation_config")
+
+    matched = match_catalog_model(over)  # match by id (unique)
+    assert matched is not None and matched["model_id"] == over
+    rec = matched["recommended_sampling"]
+    assert isinstance(rec, dict) and any(k in rec for k in ("temperature", "top_p", "top_k"))
+    # only sampling keys are surfaced (no leaking of unrelated generation config)
+    assert set(rec).issubset({"temperature", "top_p", "top_k", "min_p", "repetition_penalty"})
+
+
+def test_recommended_sampling_none_when_absent():
+    from sndr.model_configs import registry_v2
+    from sndr.product_api.legacy.engine_model import match_catalog_model
+
+    plain = next((m for m in registry_v2.list_models()
+                  if not registry_v2.load_model(m).override_generation_config), None)
+    if plain is None:
+        import pytest
+        pytest.skip("every catalog model carries override_generation_config")
+    matched = match_catalog_model(plain)
+    assert matched is not None and "recommended_sampling" in matched
+    assert matched["recommended_sampling"] is None
+
+
 def test_match_catalog_model_matches_by_model_path_basename():
     """vLLM that was launched with ``--model <path>`` and no ``--served-model-name``
     reports the path; the bridge must still resolve it via the model_path."""

@@ -185,10 +185,15 @@ engine host/port (and any registered SSH host) from the top of the panel.
 **Chat** (the _Chat_ screen) — multi-turn **streaming** chat with any running vLLM
 model:
 
-- **Model & sampling.** Pick the model in _Params_; tune temperature, top-p,
-  presence/frequency penalty, stop sequences and max tokens. Max tokens defaults
-  high enough for reasoning models (which spend tokens in `reasoning_content`
-  before the visible answer).
+- **Model & sampling.** Pick the model in the _Settings_ tab; tune temperature,
+  top-p / top-k / min-p, presence / frequency / repetition penalty, seed, stop
+  sequences and max tokens. Max tokens defaults high enough for reasoning models
+  (which spend tokens in `reasoning_content` before the visible answer).
+- **Recommended sampling.** When the running model is matched to the catalog,
+  the sampling section shows the model's **validated defaults** (e.g. Qwen 3.6 →
+  `temperature 0.6 · top_p 0.95 · top_k 20`, cross-referenced against the
+  community club-3090 recipes) with a one-click **Apply** — so you get the right
+  settings for the model instead of the generic 0.7.
 - **Thinking mode** (`enable_thinking`). Reasoning models (Qwen3, …) emit a
   `<think>` trace that the daemon — launched with `--reasoning-parser` — routes to
   `delta.reasoning_content`. The GUI renders it in a collapsible block above the

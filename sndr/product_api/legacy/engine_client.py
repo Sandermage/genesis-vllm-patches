@@ -333,6 +333,16 @@ def _apply_sampling(body: dict[str, Any], payload: dict[str, Any]) -> None:
                 body[key] = min(hi, max(lo, float(value)))
             except (TypeError, ValueError):
                 pass
+    # top_k is a vLLM extension (not standard OpenAI): a positive int enables it,
+    # 0/-1/absent leaves the engine default (disabled).
+    top_k = payload.get("top_k")
+    if top_k is not None and top_k != "":
+        try:
+            tk = int(top_k)
+            if tk > 0:
+                body["top_k"] = tk
+        except (TypeError, ValueError):
+            pass
     # Reproducibility: a fixed integer seed makes greedy-ish decoding deterministic.
     seed = payload.get("seed")
     if seed is not None and seed != "":

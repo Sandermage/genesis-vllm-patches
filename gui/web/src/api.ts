@@ -878,6 +878,9 @@ export type EngineModelCatalog = {
   };
   requires: { min_total_vram_mib: number; min_gpu_count: number };
   vllm_pin_required: string | null;
+  // The catalog's validated sampling for this model (null when unset) — the GUI
+  // offers a one-click "apply recommended" in chat.
+  recommended_sampling: { temperature?: number; top_p?: number; top_k?: number; min_p?: number; repetition_penalty?: number } | null;
   presets: Array<{ id: string; hardware: string }>;
 };
 export type EngineModelInfo = {
@@ -1411,7 +1414,7 @@ export const api = {
   hubSearch: (q: string, limit = 20) => request<{ results: HubModel[] }>(`/api/v1/models/hub/search${query({ query: q, limit })}`),
   downloadRepo: (repo_id: string) => postJson<Job>("/api/v1/models/download", { repo_id }),
   engineChatStream: async (
-    payload: { messages: Array<{ role: string; content: string }>; model?: string; max_tokens?: number; temperature?: number; top_p?: number; min_p?: number; presence_penalty?: number; frequency_penalty?: number; repetition_penalty?: number; seed?: number; stop?: string[]; host?: string; port?: number; apiKey?: string; hostId?: string; web_search?: boolean; web_k?: number; chat_template_kwargs?: { enable_thinking?: boolean } },
+    payload: { messages: Array<{ role: string; content: string }>; model?: string; max_tokens?: number; temperature?: number; top_p?: number; top_k?: number; min_p?: number; presence_penalty?: number; frequency_penalty?: number; repetition_penalty?: number; seed?: number; stop?: string[]; host?: string; port?: number; apiKey?: string; hostId?: string; web_search?: boolean; web_k?: number; chat_template_kwargs?: { enable_thinking?: boolean } },
     handlers: { onDelta: (text: string) => void; onReasoning?: (text: string) => void; onSources?: (docs: RagDoc[]) => void; onDone: (meta: { tokens?: number; latency_ms?: number; ttft_ms?: number; finish_reason?: string; had_reasoning?: boolean }) => void; onError: (msg: string) => void },
     signal?: AbortSignal
   ) => {

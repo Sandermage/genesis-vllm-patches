@@ -80,6 +80,11 @@ def match_catalog_model(served_id: str) -> Optional[dict[str, Any]]:
         presets = []
 
     caps = md.capabilities
+    # The catalog's validated sampling for this model (cross-referenced against
+    # club-3090's canonical defaults), surfaced so the GUI can offer "apply
+    # recommended" — only the sampling keys, never the rest of the gen config.
+    ogc = md.override_generation_config or {}
+    recommended = {k: ogc[k] for k in ("temperature", "top_p", "top_k", "min_p", "repetition_penalty") if k in ogc}
     return {
         "model_id": md.id,
         "title": md.title,
@@ -87,6 +92,7 @@ def match_catalog_model(served_id: str) -> Optional[dict[str, Any]]:
         "match_kind": ("served_model_name", "model_path", "id")[prio],
         "quantization": md.quantization,
         "dtype": md.dtype,
+        "recommended_sampling": recommended or None,
         "capabilities": {
             "attention_arch": caps.attention_arch,
             "tool_call_parser": caps.tool_call_parser,

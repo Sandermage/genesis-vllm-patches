@@ -385,3 +385,15 @@ def test_apply_sampling_clamps_extended_and_ignores_bad_seed():
     assert body["min_p"] == 1.0               # clamped to [0, 1]
     assert body["repetition_penalty"] == 0.0  # clamped to [0, 2]
     assert "seed" not in body                 # non-integer seed dropped, not crashed
+
+
+def test_apply_sampling_forwards_positive_top_k_only():
+    """top_k is a vLLM extension; forward a positive int, treat 0/-1/empty/bad as
+    'disabled' (the OpenAI default)."""
+    body: dict = {}
+    ec._apply_sampling(body, {"top_k": 20})
+    assert body["top_k"] == 20
+    for disabled in (0, -1, "", None, "x"):
+        b: dict = {}
+        ec._apply_sampling(b, {"top_k": disabled})
+        assert "top_k" not in b

@@ -5321,3 +5321,6 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 .chat-set-section .chat-field-wide, .chat-set-section .chat-field-wide textarea { width: 100%; }
 /* System prompt: tall + readable by default (was a 3-row sliver) — still resizable. */
 .chat-set-prompt { min-height: 230px; line-height: 1.55; font-size: 12.5px; resize: vertical; }
+/* "Recommended for this model" — one-click catalog-validated sampling (club-3090 cross-ref). */
+.chat-set-rec { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 12px; border-radius: var(--r-sm); background: var(--accent-soft); border: 1px solid var(--accent); color: var(--accent-text); font-size: 12px; }
+.chat-set-rec .ghost-button { margin-left: auto; }
