@@ -5297,3 +5297,25 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
   background: var(--surface-2); border: 1px solid var(--warn);
   color: var(--warn); font-size: 10.5px; pointer-events: none;
 }
+
+/* Chat: slim top bar with a Chat/Settings tab switch + a sectioned Settings panel
+   (replaces the old crammed .chat-bar / flat .chat-settings dump). */
+.chat2-topbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.chat-tabs { display: inline-flex; gap: 2px; padding: 2px; border-radius: var(--r-sm); background: var(--surface-2); border: 1px solid var(--border); }
+.chat-tabs button { display: inline-flex; align-items: center; gap: 6px; padding: 6px 13px; border: 0; border-radius: var(--r-xs); background: transparent; color: var(--text-muted); font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.chat-tabs button:hover { color: var(--text); }
+.chat-tabs button.active { background: var(--surface); color: var(--text); box-shadow: var(--shadow-sm); }
+.chat2-topbar .chat-field-model { flex: 0 1 220px; min-width: 150px; }
+.chat2-topbar .chat-status { padding-bottom: 0; }
+
+.chat-settings-panel { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 12px; padding: 2px; }
+.chat-set-section { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface-2); }
+.chat-set-head { display: inline-flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: var(--accent-text); }
+.chat-set-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px 12px; align-items: end; }
+.chat-set-grid .chat-field input, .chat-set-grid .chat-field select { width: 100%; }
+.chat-set-grid .chat-field-model { grid-column: 1 / -1; }
+.chat-set-status { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.chat-set-status .chat-status { padding-bottom: 0; }
+.chat-set-note { display: flex; align-items: center; gap: 7px; margin: 0; font-size: 11.5px; color: var(--text-muted); }
+.chat-set-row { display: flex; align-items: end; gap: 10px; flex-wrap: wrap; }
+.chat-set-section .chat-field-wide, .chat-set-section .chat-field-wide textarea { width: 100%; }

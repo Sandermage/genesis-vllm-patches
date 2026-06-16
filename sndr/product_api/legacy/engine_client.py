@@ -319,14 +319,27 @@ def engine_metrics(host: Optional[str] = None, *, port: Optional[int] = None, ti
 
 
 def _apply_sampling(body: dict[str, Any], payload: dict[str, Any]) -> None:
-    """Forward optional, clamped OpenAI sampling params from the GUI."""
-    for key, lo, hi in (("top_p", 0.0, 1.0), ("presence_penalty", -2.0, 2.0), ("frequency_penalty", -2.0, 2.0)):
+    """Forward optional, clamped OpenAI/vLLM sampling params from the GUI."""
+    for key, lo, hi in (
+        ("top_p", 0.0, 1.0),
+        ("min_p", 0.0, 1.0),
+        ("presence_penalty", -2.0, 2.0),
+        ("frequency_penalty", -2.0, 2.0),
+        ("repetition_penalty", 0.0, 2.0),
+    ):
         value = payload.get(key)
         if value is not None:
             try:
                 body[key] = min(hi, max(lo, float(value)))
             except (TypeError, ValueError):
                 pass
+    # Reproducibility: a fixed integer seed makes greedy-ish decoding deterministic.
+    seed = payload.get("seed")
+    if seed is not None and seed != "":
+        try:
+            body["seed"] = int(seed)
+        except (TypeError, ValueError):
+            pass
     stop = payload.get("stop")
     if isinstance(stop, list):
         cleaned = [str(item) for item in stop[:4] if str(item).strip()]

@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, Bot, BookText, Brain, ChevronDown, CircleAlert, Copy, Database, Download, Heart, Loader2, Pencil, Plus, RefreshCw, Route, Search, Send, SlidersHorizontal, Sparkles, Square, TimerReset, Trash2, User, X, Zap } from "lucide-react";
+import { ArrowRight, Bot, BookText, Brain, ChevronDown, CircleAlert, Copy, Database, Download, Heart, Loader2, MessageSquare, Pencil, Plus, RefreshCw, Route, Search, Send, Server, SlidersHorizontal, Sparkles, Square, TimerReset, Trash2, User, X, Zap } from "lucide-react";
 import type { ReactNode } from "react";
 import { EngineBenchResult, EngineChatResult, EngineMetrics, EngineStatus, HubModel, Job, ModelCacheReport, RagDoc, type RoutingActive, type RoutingClassify, type RoutingSignals, api } from "./api";
 import { LibraryManager } from "./sections/library-manager";
@@ -602,13 +602,13 @@ function MarkdownLite({ text }: { text: string }) {
 type ChatStat = { tokens?: number; tps?: number; ttft_ms?: number; latency_ms?: number; reasoningEmpty?: boolean; finishReason?: string };
 type ChatMessage = { role: "user" | "assistant"; content: string; reasoning?: string; stat?: ChatStat; sources?: RagDoc[] };
 type Conversation = { id: string; title: string; messages: ChatMessage[]; createdAt: number; updatedAt: number };
-type ChatSettings = { host: string; port: number; model: string; apiKey: string; hostId: string; system: string; temperature: number; maxTokens: number; topP: number; presencePenalty: number; frequencyPenalty: number; stop: string; thinking: boolean; webSearch: boolean; useProject: boolean; ragProject: boolean; ragVaults: string[]; workloadClass: string };
+type ChatSettings = { host: string; port: number; model: string; apiKey: string; hostId: string; system: string; temperature: number; maxTokens: number; topP: number; minP: number; presencePenalty: number; frequencyPenalty: number; repetitionPenalty: number; seed: string; stop: string; thinking: boolean; webSearch: boolean; useProject: boolean; ragProject: boolean; ragVaults: string[]; workloadClass: string };
 
 const CHAT_KEY = "sndr.chat.v1";
 // maxTokens defaults high enough for reasoning models: with --reasoning-parser
 // active, the model spends tokens in reasoning_content before reaching the
 // answer; too small a budget truncates inside thinking → empty content.
-const DEFAULT_SETTINGS: ChatSettings = { host: "127.0.0.1", port: 8000, model: "", apiKey: "", hostId: "", system: "You are a helpful assistant.", temperature: 0.7, maxTokens: 2048, topP: 1, presencePenalty: 0, frequencyPenalty: 0, stop: "", thinking: false, webSearch: false, useProject: false, ragProject: true, ragVaults: [], workloadClass: "" };
+const DEFAULT_SETTINGS: ChatSettings = { host: "127.0.0.1", port: 8000, model: "", apiKey: "", hostId: "", system: "You are a helpful assistant.", temperature: 0.7, maxTokens: 2048, topP: 1, minP: 0, presencePenalty: 0, frequencyPenalty: 0, repetitionPenalty: 1, seed: "", stop: "", thinking: false, webSearch: false, useProject: false, ragProject: true, ragVaults: [], workloadClass: "" };
 
 // Build the grounding system message from retrieved project-knowledge docs.
 function buildRagContext(docs: RagDoc[]): string {
@@ -731,7 +731,7 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [retrieving, setRetrieving] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
+  const [view, setView] = useState<"chat" | "settings">("chat");
   const [error, setError] = useState<string | null>(null);
   const [atBottom, setAtBottom] = useState(true);
   const abortRef = useRef<AbortController | null>(null);
@@ -831,7 +831,7 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
     const started = Date.now();
     try {
       await api.engineChatStream(
-        { messages: payloadMessages, model: settings.model || undefined, max_tokens: settings.maxTokens, temperature: settings.temperature, top_p: settings.topP, presence_penalty: settings.presencePenalty, frequency_penalty: settings.frequencyPenalty, stop: stopSeqs.length ? stopSeqs : undefined, host: settings.host, port: settings.port, apiKey: settings.apiKey || undefined, hostId: settings.hostId || undefined, web_search: settings.webSearch || undefined, chat_template_kwargs: { enable_thinking: settings.thinking } },
+        { messages: payloadMessages, model: settings.model || undefined, max_tokens: settings.maxTokens, temperature: settings.temperature, top_p: settings.topP, min_p: settings.minP || undefined, presence_penalty: settings.presencePenalty, frequency_penalty: settings.frequencyPenalty, repetition_penalty: settings.repetitionPenalty !== 1 ? settings.repetitionPenalty : undefined, seed: settings.seed ? Number(settings.seed) : undefined, stop: stopSeqs.length ? stopSeqs : undefined, host: settings.host, port: settings.port, apiKey: settings.apiKey || undefined, hostId: settings.hostId || undefined, web_search: settings.webSearch || undefined, chat_template_kwargs: { enable_thinking: settings.thinking } },
         {
           onDelta: (text) => patchActive((c) => { const msgs = c.messages.slice(); const last = msgs[msgs.length - 1]; if (!last) return c; msgs[msgs.length - 1] = { ...last, content: (last.content ?? "") + text }; return { ...c, messages: msgs }; }),
           onReasoning: (text) => patchActive((c) => { const msgs = c.messages.slice(); const last = msgs[msgs.length - 1]; if (!last) return c; msgs[msgs.length - 1] = { ...last, reasoning: (last.reasoning ?? "") + text }; return { ...c, messages: msgs }; }),
@@ -915,54 +915,83 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
       </aside>
 
       <div className="chat2-main">
-        <div className="chat-bar">
-          <label className="chat-field"><span>{tr("Host")}</span><input value={settings.host} onChange={(e) => set({ host: e.target.value })} spellCheck={false} /></label>
-          <label className="chat-field chat-field-port"><span>{tr("Port")}</span><input type="number" value={settings.port} onChange={(e) => set({ port: Number(e.target.value) || 8000 })} /></label>
-          <label className="chat-field chat-field-endpoint"><span>{tr("Endpoint")}</span>
-            <select value={settings.port === 8318 ? "proxy" : settings.port === 8000 ? "engine" : ""} onChange={(e) => { const v = e.target.value; if (v === "proxy") set({ port: 8318 }); else if (v === "engine") set({ port: 8000 }); }} title={tr("Route through the Genesis proxy (smart-router + failover) or talk to the local engine directly")}>
-              <option value="">{tr("custom")}</option>
-              <option value="engine">{tr("Local engine")} :8000</option>
-              <option value="proxy">{tr("Genesis proxy")} :8318</option>
-            </select>
-          </label>
-          <label className="chat-field chat-field-model"><span>{tr("Model")}</span>
-            <select value={settings.model} onChange={(e) => set({ model: e.target.value })}>
-              {status?.models?.length ? status.models.map((m) => <option key={m} value={m}>{m}</option>) : <option value="">{reachable ? tr("default") : "—"}</option>}
-            </select>
-          </label>
-          <label className="chat-field chat-field-key"><span>{tr("API key")}</span><input type="password" value={settings.apiKey} onChange={(e) => set({ apiKey: e.target.value })} placeholder={tr("if engine requires one")} autoComplete="off" spellCheck={false} /></label>
-          <span className={`chat-status ${reachable ? (status && !status.models?.length ? "warn" : "ok") : "down"}`}><span className="chat-dot" />{reachable ? `${tr("up")}${status?.version ? ` · v${status.version}` : ""}${status && !status.models?.length ? ` · ${tr("no models (API key?)")}` : ""}` : tr("down")}</span>
-          <LiveModelInline host={settings.host} port={settings.port} apiKey={settings.apiKey || undefined} hostId={settings.hostId || undefined} />
+        <div className="chat2-topbar">
+          <div className="chat-tabs" role="tablist" aria-label={tr("Chat panel")}>
+            <button type="button" role="tab" aria-selected={view === "chat"} className={view === "chat" ? "active" : ""} onClick={() => setView("chat")}><MessageSquare size={14} /> {tr("Chat")}</button>
+            <button type="button" role="tab" aria-selected={view === "settings"} className={view === "settings" ? "active" : ""} onClick={() => setView("settings")}><SlidersHorizontal size={14} /> {tr("Settings")}</button>
+          </div>
+          <label className="chat-field chat-field-model"><select value={settings.model} onChange={(e) => set({ model: e.target.value })} aria-label={tr("Model")}>
+            {status?.models?.length ? status.models.map((m) => <option key={m} value={m}>{m}</option>) : <option value="">{reachable ? tr("default") : "—"}</option>}
+          </select></label>
+          <span className={`chat-status ${reachable ? (status && !status.models?.length ? "warn" : "ok") : "down"}`} title={`${settings.host}:${settings.port}`}><span className="chat-dot" />{reachable ? `${tr("up")}${status?.version ? ` · v${status.version}` : ""}` : tr("down")}{settings.port === 8318 ? ` · ${tr("proxy")}` : ""}</span>
           <span className="chat-bar-spacer" />
-          <button className={`chat-rag-toggle ${settings.webSearch ? "on" : ""}`} onClick={() => set({ webSearch: !settings.webSearch })} title={tr("Search the live web (no external API) and ground the answer with cited sources.")}><Search size={14} /> {tr("Web search")}</button>
-          <button className={`chat-rag-toggle ${settings.useProject ? "on" : ""}`} onClick={() => set({ useProject: !settings.useProject })} title={tr("Ground answers in your knowledge sources (project patches/presets/configs + connected Obsidian/notes folders). Configure sources in Params.")}><Database size={14} /> {tr("Project RAG")}{settings.useProject && settings.ragVaults.length ? ` · ${settings.ragVaults.length}` : ""}</button>
-          <button className="ghost-button" onClick={() => void refreshStatus()} title={tr("Reconnect")}><RefreshCw size={14} /></button>
-          <button className={`ghost-button ${showSettings ? "active" : ""}`} onClick={() => setShowSettings((v) => !v)}><SlidersHorizontal size={14} /> {tr("Params")}</button>
-          {messages.length > 0 && <button className="ghost-button" onClick={exportConversation} title={tr("Copy conversation as markdown")}><Copy size={14} /></button>}
+          <button type="button" className={`chat-rag-toggle ${settings.webSearch ? "on" : ""}`} onClick={() => set({ webSearch: !settings.webSearch })} title={tr("Search the live web (no external API) and ground the answer with cited sources.")}><Search size={14} /> {tr("Web")}</button>
+          <button type="button" className={`chat-rag-toggle ${settings.useProject ? "on" : ""}`} onClick={() => set({ useProject: !settings.useProject })} title={tr("Ground answers in your knowledge sources (project patches/presets/configs + connected Obsidian/notes folders). Configure sources in Settings.")}><Database size={14} /> {tr("RAG")}{settings.useProject && settings.ragVaults.length ? ` · ${settings.ragVaults.length}` : ""}</button>
+          <button type="button" className="ghost-button icon-only" onClick={() => void refreshStatus()} title={tr("Reconnect")} aria-label={tr("Reconnect")}><RefreshCw size={14} /></button>
+          {messages.length > 0 && <button type="button" className="ghost-button icon-only" onClick={exportConversation} title={tr("Copy conversation as markdown")} aria-label={tr("Export conversation")}><Copy size={14} /></button>}
         </div>
 
-        {showSettings && (
-          <div className="chat-settings">
-            <label className="chat-field chat-field-wide"><span>{tr("System prompt")}</span><textarea value={settings.system} onChange={(e) => set({ system: e.target.value })} rows={2} /></label>
-            <label className="chat-field"><span>{tr("Prompt template")}</span>
-              <select value="" onChange={(e) => { const p = prompts.find((x) => x.id === e.target.value); if (p) set({ system: p.content }); }} title={tr("Load a saved prompt as the system prompt")}>
-                <option value="">{tr("choose…")}</option>
-                {prompts.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-            </label>
-            <label className="chat-field"><span>{tr("Library")}</span>
-              <button type="button" className="ghost-button" onClick={() => setLibOpen(true)} title={tr("Manage prompts & tools")}><BookText size={13} /> {tr("Manage prompts & tools")}</button>
-            </label>
-            <label className="chat-field"><span>{tr("Temperature")}</span><input type="number" min={0} max={2} step={0.1} value={settings.temperature} onChange={(e) => set({ temperature: Number(e.target.value) })} /></label>
-            <label className="chat-field"><span>{tr("Max tokens")}</span><input type="number" min={1} max={4096} value={settings.maxTokens} onChange={(e) => set({ maxTokens: Number(e.target.value) || 512 })} /></label>
-            <label className="chat-field"><span>{tr("Top P")}</span><input type="number" min={0} max={1} step={0.05} value={settings.topP} onChange={(e) => set({ topP: Number(e.target.value) })} /></label>
-            <label className="chat-field"><span>{tr("Presence")}</span><input type="number" min={-2} max={2} step={0.1} value={settings.presencePenalty} onChange={(e) => set({ presencePenalty: Number(e.target.value) })} /></label>
-            <label className="chat-field"><span>{tr("Frequency")}</span><input type="number" min={-2} max={2} step={0.1} value={settings.frequencyPenalty} onChange={(e) => set({ frequencyPenalty: Number(e.target.value) })} /></label>
-            <label className="chat-field chat-field-stop"><span>{tr("Stop (comma-sep)")}</span><input value={settings.stop} onChange={(e) => set({ stop: e.target.value })} placeholder="</s>, ###" /></label>
-            <label className="chat-think"><input type="checkbox" checked={settings.thinking} onChange={(e) => set({ thinking: e.target.checked })} /> {tr("Thinking mode")} <span className="chat-think-hint">{tr("(enable_thinking — reasoning models render the <think> path)")}</span></label>
-            {settings.thinking && /coder/i.test(settings.model) && <div className="chat-advisory"><CircleAlert size={13} /> {tr("With reasoning + tool-calls, the")} <code>qwen3_coder</code> {tr("streaming parser drops")} <code>delta.tool_calls</code> — {tr("serve with")} <code>--tool-call-parser qwen3_xml</code> {tr("for reliable streaming tool calls.")}</div>}
-            <div className="chat-knowledge">
-              <div className="chat-knowledge-head"><Database size={13} /> {tr("Knowledge sources (RAG)")}</div>
+        {view === "settings" && (
+          <div className="chat-settings-panel">
+            <section className="chat-set-section">
+              <div className="chat-set-head"><Route size={14} /> {tr("Connection")}</div>
+              <div className="chat-set-grid">
+                <label className="chat-field"><span>{tr("Endpoint")}</span>
+                  <select value={settings.port === 8318 ? "proxy" : settings.port === 8000 ? "engine" : ""} onChange={(e) => { const v = e.target.value; if (v === "proxy") set({ port: 8318 }); else if (v === "engine") set({ port: 8000 }); }} title={tr("Route through the Genesis proxy (smart-router + failover) or talk to the local engine directly")}>
+                    <option value="">{tr("custom")}</option>
+                    <option value="engine">{tr("Local engine")} :8000</option>
+                    <option value="proxy">{tr("Genesis proxy")} :8318</option>
+                  </select>
+                </label>
+                <label className="chat-field"><span>{tr("Host")}</span><input value={settings.host} onChange={(e) => set({ host: e.target.value })} spellCheck={false} /></label>
+                <label className="chat-field chat-field-port"><span>{tr("Port")}</span><input type="number" value={settings.port} onChange={(e) => set({ port: Number(e.target.value) || 8000 })} /></label>
+                <label className="chat-field"><span>{tr("API key")}</span><input type="password" value={settings.apiKey} onChange={(e) => set({ apiKey: e.target.value })} placeholder={tr("if engine requires one")} autoComplete="off" spellCheck={false} /></label>
+              </div>
+              <div className="chat-set-status">
+                <span className={`chat-status ${reachable ? (status && !status.models?.length ? "warn" : "ok") : "down"}`}><span className="chat-dot" />{reachable ? `${tr("up")}${status?.version ? ` · v${status.version}` : ""}${status && !status.models?.length ? ` · ${tr("no models (API key?)")}` : ""}` : tr("down")}</span>
+                <LiveModelInline host={settings.host} port={settings.port} apiKey={settings.apiKey || undefined} hostId={settings.hostId || undefined} />
+              </div>
+              {settings.port === 8318 && <p className="chat-set-note"><Server size={12} /> {tr("Routing through the Genesis proxy — smart-router + failover across providers; the model list comes from the proxy.")}</p>}
+            </section>
+
+            <section className="chat-set-section">
+              <div className="chat-set-head"><SlidersHorizontal size={14} /> {tr("Model & sampling")}</div>
+              <div className="chat-set-grid">
+                <label className="chat-field chat-field-model"><span>{tr("Model")}</span>
+                  <select value={settings.model} onChange={(e) => set({ model: e.target.value })}>
+                    {status?.models?.length ? status.models.map((m) => <option key={m} value={m}>{m}</option>) : <option value="">{reachable ? tr("default") : "—"}</option>}
+                  </select>
+                </label>
+                <label className="chat-field"><span>{tr("Temperature")}</span><input type="number" min={0} max={2} step={0.1} value={settings.temperature} onChange={(e) => set({ temperature: Number(e.target.value) })} /></label>
+                <label className="chat-field"><span>{tr("Max tokens")}</span><input type="number" min={1} max={4096} value={settings.maxTokens} onChange={(e) => set({ maxTokens: Number(e.target.value) || 512 })} /></label>
+                <label className="chat-field"><span>{tr("Top P")}</span><input type="number" min={0} max={1} step={0.05} value={settings.topP} onChange={(e) => set({ topP: Number(e.target.value) })} /></label>
+                <label className="chat-field"><span>{tr("Min P")}</span><input type="number" min={0} max={1} step={0.01} value={settings.minP} onChange={(e) => set({ minP: Number(e.target.value) })} /></label>
+                <label className="chat-field"><span>{tr("Presence")}</span><input type="number" min={-2} max={2} step={0.1} value={settings.presencePenalty} onChange={(e) => set({ presencePenalty: Number(e.target.value) })} /></label>
+                <label className="chat-field"><span>{tr("Frequency")}</span><input type="number" min={-2} max={2} step={0.1} value={settings.frequencyPenalty} onChange={(e) => set({ frequencyPenalty: Number(e.target.value) })} /></label>
+                <label className="chat-field"><span>{tr("Repetition")}</span><input type="number" min={0} max={2} step={0.05} value={settings.repetitionPenalty} onChange={(e) => set({ repetitionPenalty: Number(e.target.value) })} /></label>
+                <label className="chat-field"><span>{tr("Seed")}</span><input type="number" value={settings.seed} onChange={(e) => set({ seed: e.target.value })} placeholder={tr("random")} /></label>
+                <label className="chat-field chat-field-stop"><span>{tr("Stop (comma-sep)")}</span><input value={settings.stop} onChange={(e) => set({ stop: e.target.value })} placeholder="</s>, ###" /></label>
+              </div>
+              <label className="chat-think"><input type="checkbox" checked={settings.thinking} onChange={(e) => set({ thinking: e.target.checked })} /> {tr("Thinking mode")} <span className="chat-think-hint">{tr("(enable_thinking — reasoning models render the <think> path)")}</span></label>
+              {settings.thinking && /coder/i.test(settings.model) && <div className="chat-advisory"><CircleAlert size={13} /> {tr("With reasoning + tool-calls, the")} <code>qwen3_coder</code> {tr("streaming parser drops")} <code>delta.tool_calls</code> — {tr("serve with")} <code>--tool-call-parser qwen3_xml</code> {tr("for reliable streaming tool calls.")}</div>}
+            </section>
+
+            <section className="chat-set-section">
+              <div className="chat-set-head"><BookText size={14} /> {tr("System prompt")}</div>
+              <label className="chat-field chat-field-wide"><textarea value={settings.system} onChange={(e) => set({ system: e.target.value })} rows={3} aria-label={tr("System prompt")} /></label>
+              <div className="chat-set-row">
+                <label className="chat-field"><span>{tr("Prompt template")}</span>
+                  <select value="" onChange={(e) => { const p = prompts.find((x) => x.id === e.target.value); if (p) set({ system: p.content }); }} title={tr("Load a saved prompt as the system prompt")}>
+                    <option value="">{tr("choose…")}</option>
+                    {prompts.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </label>
+                <button type="button" className="ghost-button" onClick={() => setLibOpen(true)} title={tr("Manage prompts & tools")}><BookText size={13} /> {tr("Manage prompts & tools")}</button>
+              </div>
+            </section>
+
+            <section className="chat-set-section">
+              <div className="chat-set-head"><Database size={14} /> {tr("Knowledge sources (RAG)")}</div>
               <label className="chat-knowledge-toggle"><input type="checkbox" checked={settings.ragProject} onChange={(e) => set({ ragProject: e.target.checked })} /> {tr("Project — patches, presets & configs")}</label>
               {settings.ragVaults.map((v) => (
                 <div className="chat-vault" key={v}>
@@ -974,11 +1003,12 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
                 <input aria-label={tr("Vault or notes folder path")} value={vaultInput} onChange={(e) => setVaultInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void addVault(); } }} placeholder={tr("Path to an Obsidian vault or notes folder…")} spellCheck={false} />
                 <button className="ghost-button" onClick={() => void addVault()} disabled={vaultBusy || !vaultInput.trim()}>{vaultBusy ? <Loader2 size={13} className="spin" /> : <Plus size={13} />} {tr("Connect")}</button>
               </div>
-              <span className="chat-knowledge-hint">{tr("Notes (.md / .txt) in the folder are indexed locally and read-only. Turn on RAG with the")} <strong>{tr("Project RAG")}</strong> {tr("button above.")}</span>
-            </div>
+              <span className="chat-knowledge-hint">{tr("Notes (.md / .txt) in the folder are indexed locally and read-only. Turn on RAG with the")} <strong>{tr("RAG")}</strong> {tr("button above.")}</span>
+            </section>
           </div>
         )}
 
+        {view === "chat" && (<>
         <div className="chat-messages" ref={scrollRef} onScroll={(e) => { const el = e.currentTarget; setAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < 60); }}>
           {messages.length === 0 ? (
             <div className="chat-empty">
@@ -1047,6 +1077,7 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
               : <button className="primary-button" onClick={() => send()} disabled={!input.trim()}><Send size={15} /> {tr("Send")}</button>}
           </div>
         </div>
+        </>)}
       </div>
       {libOpen && <LibraryManager onClose={() => setLibOpen(false)} />}
     </div>

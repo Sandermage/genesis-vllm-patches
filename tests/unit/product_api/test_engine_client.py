@@ -361,3 +361,27 @@ def test_iter_chat_events_reasoning_only_truncation_is_not_empty():
     assert done["finish_reason"] == "length"
     assert done["had_reasoning"] is True
     assert done["tokens"] == 1024
+
+
+def test_apply_sampling_forwards_extended_params():
+    """min_p / repetition_penalty / seed are forwarded alongside the existing
+    sampling controls (the GUI's expanded sampling section)."""
+    body: dict = {}
+    ec._apply_sampling(body, {
+        "top_p": 0.9, "min_p": 0.05, "presence_penalty": 0.5,
+        "frequency_penalty": 0.2, "repetition_penalty": 1.1, "seed": 42,
+        "stop": ["</s>", ""],
+    })
+    assert body["top_p"] == 0.9
+    assert body["min_p"] == 0.05
+    assert body["repetition_penalty"] == 1.1
+    assert body["seed"] == 42
+    assert body["stop"] == ["</s>"]
+
+
+def test_apply_sampling_clamps_extended_and_ignores_bad_seed():
+    body: dict = {}
+    ec._apply_sampling(body, {"min_p": 5, "repetition_penalty": -1, "seed": "not-int"})
+    assert body["min_p"] == 1.0               # clamped to [0, 1]
+    assert body["repetition_penalty"] == 0.0  # clamped to [0, 2]
+    assert "seed" not in body                 # non-integer seed dropped, not crashed
