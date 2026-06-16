@@ -97,3 +97,31 @@ at their validated optima. **No kernel-tune speed gain is available on A5000/dev
   validated). The single untested lever (BLOCK_KV=32) regresses. **0% kernel-tune gain available.**
 - **The biggest remaining speed opportunity is the 27B dev491 regression (~-13%)** — but that is a
   separate, dev371-vs-dev491 root-cause effort (the 27B is pinned to dev371 precisely because of it).
+
+---
+
+## 5. CORRECTION (2026-06-16, loop iteration) — the 27B "-13%" was MY bench artifact, not a regression
+
+A follow-up regression-hunt workflow + the existing 2026-06-15 journal overturned §1/§4's
+"27B ~-13% dev491 regression":
+
+- **#45295 (Marlin thread-tile padding) REFUTED.** The lead read the real packed safetensors
+  shapes of all 10 distinct 27B INT4 projections — every one is already tile-aligned at TP=2
+  (q 6144×5120, k/v 512×5120, o 5120×3072, gate/up 8704×5120, down 5120×8704, GDN in_proj
+  5120×5120, in_proj_z 3072×5120 — all n%64==0, k%128==0). `marlin_padded_nk` returns them
+  unchanged → zero per-forward padding. Grep of the 27B dev491 boot log confirms the
+  "performance may be degraded" warning never fires.
+- **The 2026-06-15 journal already A/B'd dev259 vs dev491** (same patch set): code_gen 113.9 ≈
+  110-114, long_gen 96.1 ≈ 95, short_chat 90.8 ≈ 92 — **NO engine regression.**
+- **Root cause of my "104.6": thinking-mode.** `bench_tps.py` did not set
+  `enable_thinking=false`, so the 27B emitted `<think>` reasoning (Qwen3.6 default) inflating
+  latency. Thinking-OFF the 27B does **~125-127 TPS — at/above the 120 baseline.** The "120
+  reference" was a thinking-off number; comparing it to my thinking-on 104.6 manufactured a
+  fake "-13%".
+
+**Net: all three models are healthy + at/above baseline on dev491. There is NO hidden speed to
+recover — no real 27B regression, the TQ-decode kernel is already optimally tuned, the patches
+are healthy. The earlier "biggest remaining lever = 27B regression" claim is withdrawn.**
+Lesson (re-)learned: pin ONE canonical bench (thinking-off, fixed prompts/tokens, n>=5,
+median+CV) before declaring any regression — a thinking-on vs thinking-off mismatch alone
+manufactured a 13% phantom.
