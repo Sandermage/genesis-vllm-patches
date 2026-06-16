@@ -230,6 +230,24 @@ patches_delta:
     GENESIS_ENABLE_G4_73_DRAFTER_PROFILE_SKIP: '0'
     GENESIS_ENABLE_G4_74_DRAFTER_HND_LAYOUT: '0'
     GENESIS_ENABLE_G4_78_DRAFTER_TARGET_KV_BRIDGE: '0'
+    # ── Spec-verify route: G4_81 supersedes G4_67 (VALIDATED 2026-06-16) ──
+    # The model-layer default G4_67=1 makes the K+1 TQ spec-verify batch
+    # route through the PR40914 backport, which returns a RAW 3D tensor
+    # instead of writing the engine `output` buffer (contract gap). On
+    # gemma4-31b-tq that produced COHERENT-boot-but-GARBAGE-decode MTP
+    # output (e.g. "Bluebρ uma낄나databind11"). G4_81 is its successor:
+    # it honors the output-buffer contract AND forwards sliding-window /
+    # mm-prefix masking per virtual row. Diagnostic ladder on dev491:
+    #   drafter-routing OFF      -> CUDA illegal-access (drafter reads
+    #                               native bf16 skip-layer cache as TQ);
+    #   G4_67 verify route       -> garbage decode (raw-3D contract gap);
+    #   G4_81 verify route       -> COHERENT ("17x23 -> long multiplication
+    #                               7x3=21 carry 2", correct haiku, "Paris").
+    # So: keep the drafter routing (G4_71B/G4_75 above) + kv_sharing
+    # (G4_76=0), flip the verify route to G4_81, disable the redundant
+    # G4_67 (G4_81 would intercept first anyway, but explicit is cleaner).
+    GENESIS_ENABLE_G4_67_TQ_SPEC_VERIFY_ROUTE: '0'
+    GENESIS_ENABLE_G4_81_TQ_MQ_DIRECT_ROUTE: '1'
     # ── Profile-specific extras ──
     SNDR_G4_TQ_FORCE_SKIP_LAYERS: '58,59'
     # Observability — operator-optional, default-on to match
