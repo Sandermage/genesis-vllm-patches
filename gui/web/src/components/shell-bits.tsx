@@ -117,3 +117,21 @@ export function CodeTabs({ tabs }: { tabs: Array<{ id: string; label: string; li
     </div>
   );
 }
+
+/** Numbered workflow rows (e.g. warmup → load test → proof). Each row is
+ *  [number, title, detail]. */
+export function WorkflowSteps({ rows }: { rows: Array<[string, string, string]> }) {
+  return (
+    <div className="workflow-steps">
+      {rows.map(([number, title, detail]) => (
+        <div key={number}>
+          <span>{number}</span>
+          <div>
+            <strong>{title}</strong>
+            <small>{detail}</small>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
