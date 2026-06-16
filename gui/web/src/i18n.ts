@@ -225,6 +225,7 @@ const RU_BY_EN: Record<string, string> = {
   "Web search": "Веб-поиск",
   "Search the live web (no external API) and ground the answer with cited sources.": "Искать в реальном вебе (без внешних API) и обосновать ответ источниками с цитированием.",
   "Endpoint": "Эндпоинт",
+  "custom": "вручную",
   "Route through the Genesis proxy (smart-router + failover) or talk to the local engine directly": "Маршрутизировать через Genesis-прокси (smart-router + failover) или напрямую к локальному движку",
   "Local engine": "Локальный движок",
   "Genesis proxy": "Genesis прокси",

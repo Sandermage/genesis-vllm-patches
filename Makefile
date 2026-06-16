@@ -15,7 +15,7 @@
         audit-upstream audit-yaml preflight lint-drift-markers \
         tokenizer-fingerprint \
         docs-check docs-write doctor \
-        evidence evidence-release evidence-json gui-build gui-lint test-gui-contract
+        evidence evidence-release evidence-json gui-build gui-lint test-gui-contract audit-i18n
 
 # Default target — show help.
 .DEFAULT_GOAL := help
@@ -46,6 +46,9 @@ test-family: ## All 23 family contracts (~2300 tests, covers 20/20 families)
 
 test-gui-contract: ## GUI↔backend route contract — every api.ts path has a daemon route (structural-compat drift gate)
 	$(PYTEST) tests/unit/product_api/test_gui_contract.py -q
+
+audit-i18n: ## GUI i18n coverage — every tr() string has a Russian translation (ratchet gate, baseline 0)
+	$(PYTHON) scripts/audit_i18n.py
 
 test-doc-sync: ## Doc-sync (patch counts consistent across 10 docs)
 	$(PYTHON) scripts/check_doc_sync.py --strict
@@ -107,7 +110,7 @@ audit-english-only: ## English-only-in-code rule (CLAUDE.md) — ratchet-down ga
 audit-lifecycle-docstring-sync: ## Registry `lifecycle` vs docstring RETIRED/TOMBSTONED markers drift (catches PN108-class drift)
 	$(PYTHON) scripts/audit_lifecycle_docstring_sync.py --strict
 
-gates: test-pin-gate test-iron-rule test-family test-doc-sync test-gui-contract audit-phase3 audit-v2-runtime-pins audit-v2-modeldef-vs-hardware-pin audit-ai-attribution audit-links audit-repo-garbage audit-generated-links audit-wheel-contents audit-external-findings audit-shim-window audit-yaml-status-enum audit-pn59-cliff2b audit-english-only audit-override-policy-strict audit-lifecycle-docstring-sync ## Run all 20 CI gates fast-fail
+gates: test-pin-gate test-iron-rule test-family test-doc-sync test-gui-contract audit-i18n audit-phase3 audit-v2-runtime-pins audit-v2-modeldef-vs-hardware-pin audit-ai-attribution audit-links audit-repo-garbage audit-generated-links audit-wheel-contents audit-external-findings audit-shim-window audit-yaml-status-enum audit-pn59-cliff2b audit-english-only audit-override-policy-strict audit-lifecycle-docstring-sync ## Run all 21 CI gates fast-fail
 
 # ─── Audits ────────────────────────────────────────────────────────────
 
