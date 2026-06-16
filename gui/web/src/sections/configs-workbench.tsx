@@ -17,6 +17,7 @@ import { asNumber, asText } from "../lib/coerce";
 import { formatTokens, formatVram } from "../lib/format";
 import { type RuntimeConfigDraft, buildRuntimeDraft, runtimeDraftDiff } from "../lib/runtime-draft";
 import { getIn, setIn, objToYaml } from "../lib/config-utils";
+import { CodeEditor } from "../components/code-editor";
 import { useDialogFocus, closeOnBackdrop } from "../dialog";
 import { SkeletonLines } from "../Skeleton";
 import { CompactList, InfoRows, RailCheck, StatusBadge } from "../components/primitives";
@@ -829,7 +830,7 @@ function CodeEditorField({ value, onChange, label }: { value: string; onChange: 
         <button className="icon-only" title={tr("Expand editor")} aria-label={tr("Expand editor to fullscreen")} onClick={() => setExpanded(true)}><Maximize2 size={13} /></button>
         <CopyButton value={value} label={label ?? tr("text")} />
       </div>
-      <textarea className="yaml-area" value={value} spellCheck={false} onChange={(event) => onChange(event.target.value)} />
+      <CodeEditor value={value} onChange={onChange} ariaLabel={label ?? tr("YAML editor")} />
       {expanded && (
         <div className="dialog-backdrop" role="presentation" onClick={closeOnBackdrop(() => setExpanded(false))}>
           <section ref={dialogRef} className="code-expand" role="dialog" aria-modal="true" aria-label={`${label ?? tr("Editor")} — ${tr("fullscreen editor")}`}>
@@ -840,7 +841,7 @@ function CodeEditorField({ value, onChange, label }: { value: string; onChange: 
               <CopyButton value={value} label={label ?? tr("text")} />
               <button className="icon-only" onClick={() => setExpanded(false)} aria-label={tr("Close")}><X size={16} /></button>
             </header>
-            <textarea className="yaml-area code-expand-editor" value={value} spellCheck={false} autoFocus onChange={(event) => onChange(event.target.value)} />
+            <CodeEditor value={value} onChange={onChange} expanded autoFocus ariaLabel={label ?? tr("YAML editor")} />
           </section>
         </div>
       )}

@@ -5260,3 +5260,38 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
   color: var(--text-muted); font-size: 11px; white-space: nowrap;
 }
 .live-model-tag.muted { opacity: 0.65; }
+
+/* Lean syntax-highlighted code editor — a textarea overlaid on a highlighted
+   <pre> mirror (identical metrics; mirror scroll JS-synced). Mirrors .yaml-area. */
+.code-editor {
+  position: relative; box-sizing: border-box;
+  width: 100%; min-height: 300px; height: clamp(340px, 56vh, 760px); resize: vertical;
+  border: 1px solid var(--border); border-radius: var(--r-sm);
+  background: var(--surface-inset); overflow: hidden;
+}
+.code-editor:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
+.code-editor.ce-expanded { flex: 1; min-height: 0; height: auto; resize: none; }
+.code-editor-hl, .code-editor-ta {
+  position: absolute; inset: 0; box-sizing: border-box; margin: 0; border: 0;
+  padding: var(--sp-3) 64px var(--sp-3) var(--sp-3);
+  font-family: var(--mono); font-size: 11.5px; line-height: 1.6;
+  tab-size: 2; white-space: pre; word-break: normal; overflow-wrap: normal;
+}
+.ce-expanded .code-editor-hl, .ce-expanded .code-editor-ta { font-size: 12.5px; }
+.code-editor-hl { pointer-events: none; overflow: hidden; color: var(--text-2); }
+.code-editor-ta {
+  overflow: auto; resize: none; background: transparent; color: transparent;
+  caret-color: var(--text); outline: none;
+}
+.code-editor-hl .tok-key { color: var(--accent); }
+.code-editor-hl .tok-string { color: var(--ok); }
+.code-editor-hl .tok-num { color: var(--warn); }
+.code-editor-hl .tok-bool { color: var(--accent-text); }
+.code-editor-hl .tok-comment { color: var(--text-muted); font-style: italic; }
+.code-editor-hl .tok-punct { color: var(--text-muted); }
+.code-editor-hint {
+  position: absolute; right: 10px; bottom: 8px; z-index: 2;
+  padding: 2px 8px; border-radius: var(--r-pill);
+  background: var(--surface-2); border: 1px solid var(--warn);
+  color: var(--warn); font-size: 10.5px; pointer-events: none;
+}

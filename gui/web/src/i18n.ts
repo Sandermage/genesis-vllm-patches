@@ -1495,6 +1495,8 @@ const RU_BY_EN: Record<string, string> = {
   "Model weights present on the daemon host. Queue a pull for absent checkpoints.": "Веса модели на хосте демона. Поставьте в очередь загрузку отсутствующих чекпоинтов.",
   "models": "моделей",
   "Models": "Модели",
+  "YAML editor": "Редактор YAML",
+  "line(s) use tabs — YAML needs spaces": "строк(и) с табуляцией — YAML требует пробелы",
   "Live model": "Активная модель",
   "Running model": "Запущенная модель",
   "Catalog model": "Модель каталога",
