@@ -216,6 +216,16 @@ patches_delta:
     GENESIS_ENABLE_G4_73_DRAFTER_PROFILE_SKIP: '0'
     GENESIS_ENABLE_G4_74_DRAFTER_HND_LAYOUT: '0'
     GENESIS_ENABLE_G4_78_DRAFTER_TARGET_KV_BRIDGE: '0'
+    # ── Spec-verify route: G4_81 supersedes G4_67 ──
+    # Same fix as the chat-k3 sibling (validated 2026-06-16, K=3 coherent):
+    # the model-default G4_67 verify route returns a raw 3D tensor instead
+    # of writing the engine `output` buffer (contract gap) -> garbage MTP
+    # decode. G4_81 honors the output-buffer contract + forwards sliding-
+    # window/mm-prefix masking. G4_81 routes any uniform K+1 (K1<=16), so it
+    # is K-agnostic; mechanism identical to the K=3 validation. K=4 live
+    # re-validation is a follow-up (this is a bench profile, not production).
+    GENESIS_ENABLE_G4_67_TQ_SPEC_VERIFY_ROUTE: '0'
+    GENESIS_ENABLE_G4_81_TQ_MQ_DIRECT_ROUTE: '1'
     # ── Spec-decode runtime + contract audit ──
     GENESIS_ENABLE_PN256_KPLUS1_RAW_KV: '1'
     GENESIS_ENABLE_PN261_TQ_NATIVE_CACHE_ASSERT: '1'

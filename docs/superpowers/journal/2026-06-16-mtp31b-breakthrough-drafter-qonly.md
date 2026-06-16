@@ -44,6 +44,33 @@ S5 — acceptance + coherence validation on a real 31B-tq MTP boot (tool-call + 
    metric: spec_decode_num_accepted_tokens > 0 and coherent). The live 35B proves the mechanism
    (68.8% acceptance with MTP+TQ+shared-KV).
 
+## RESOLVED 2026-06-16 — MTP on gemma4-31b-tq is now COHERENT
+
+The S1-S5 framing above was directionally right (kv_sharing ON, group-aware verify) but the
+*specific* flag plan over-reverted. Three live 31B boots (each with PROD 35B stopped + restored)
+produced a clean diagnostic ladder that pinpointed the real fix:
+
+| Config | Result | Root cause |
+|---|---|---|
+| S1 as written: drafter routing OFF (G4_71B=0, G4_75=0) | **CUDA illegal-access** at first decode | The drafter's kv-shared layers map to the target's LAST layers `[58,59]`, which are `--kv-cache-dtype-skip-layers` = **native bf16**, not TQ. With the drafter on the global TURBOQUANT backend it reads bf16 bytes as TQ-packed -> OOB. (G4_71B docstring states this exactly.) **So G4_71B/G4_75 are NOT part of the dead-end — they are the required drafter→TRITON_ATTN routing for the native-bf16 shared cache.** |
+| Canonical: G4_71B/G4_75=1 + **G4_67** verify route | boots + **GARBAGE decode** ("Bluebρ uma낄나databind11") | G4_67 (PR40914 backport) returns a **raw 3D tensor instead of writing the engine `output` buffer** — its own docstring-noted contract gap. The verify pass corrupts the target's own forward. |
+| **S4: G4_71B/G4_75=1 + G4_67=0 + G4_81=1** | **COHERENT** ✅ | G4_81 honors the output-buffer contract (writes into `output`) AND forwards sliding-window/mm-prefix masking per virtual row. "17×23 → long multiplication 7×3=21 carry 2"; correct haiku; "The capital of France is Paris." |
+
+**Working production config** (now in both 31B-tq-mtp V2 profiles):
+`G4_71B=1, G4_75=1` (drafter→TRITON for the native-bf16 shared cache) + `G4_76=0` (kv_sharing ON)
++ `G4_67=0, G4_81=1` (verify route writes `output`) + `G4_82=1` (head_dim=512 prefill SDPA).
+
+**What was NOT needed (vs the S1-S5 plan):** no new "group-aware verify route" patch — the upstream
+dev491 `gemma4.py` already builds per-group block tables (`set_per_group_block_table` /
+`build_per_group_and_layer_attn_metadata`, populated by `gpu_model_runner.py:2562`), so each target
+verify layer already receives its correct per-group block_table + head_dim. G4_81 (per-layer,
+`self.head_size` + `attn_metadata.block_table`) is group-aware by construction. The "PN265
+block-table fix" is therefore upstream, not a Genesis patch. S2/S3 dissolved once the drafter routing
+was kept (not reverted). The only real engineering was identifying G4_81-over-G4_67.
+
+Commits: profile chat-k3 `555749c4`; structured-k4 same fix (mechanism-identical, K=4 re-validation
+follow-up). Acceptance-rate + TPS-vs-no-MTP(37) measurement: in-flight validation boot (separate).
+
 ## Honest feasibility
 
 Achievable on dev491/A5000 — no new HW, no upstream needed (kv_sharing aliasing + the TQ decode
