@@ -16,7 +16,18 @@ type Target = { host?: string; port?: number; apiKey?: string; hostId?: string }
 export function LiveModelChip({ onOpen, ...target }: Target & { onOpen?: () => void }) {
   const { data } = useEngineModel(target.host, target.port, target.apiKey, target.hostId);
   const m = firstModel(data);
-  if (!m) return null;
+  if (!m) {
+    // Always visible (even with no engine) so the indicator is discoverable;
+    // muted "no engine" state points the operator at the Clients screen.
+    return (
+      <button type="button" className="live-model-chip live-model-chip-off"
+        title={tr("No running model detected — open Clients to point Host/Port at a vLLM engine")} onClick={onOpen}>
+        <span className="live-dot" />
+        <Cpu size={13} />
+        <span className="live-model-name">{tr("No engine")}</span>
+      </button>
+    );
+  }
   const ctx = fmtCtx(m.max_model_len);
   const preset = m.catalog?.presets?.[0]?.id;
   const title = [

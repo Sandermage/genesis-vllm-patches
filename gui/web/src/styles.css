@@ -5248,6 +5248,8 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
   color: var(--text); font-size: 12px; line-height: 1.4; cursor: pointer;
 }
 .live-model-chip:hover { border-color: var(--accent); }
+.live-model-chip-off { opacity: 0.7; }
+.live-model-chip-off .live-dot { background: var(--text-muted); box-shadow: none; animation: none; }
 .live-model-name { font-weight: 600; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .live-model-ctx { color: var(--text-muted); font-variant-numeric: tabular-nums; }
 .live-model-inline {

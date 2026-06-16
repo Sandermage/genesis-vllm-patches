@@ -156,6 +156,18 @@ export function AdvancedSection({
               <ModuleCard title={tr("Endpoint Explorer")} icon={<Code2 size={18} />} desc={tr("Send a live GET to any read-only Product API endpoint and inspect the JSON.")} wide>
                 <EndpointExplorer />
               </ModuleCard>
+              <ModuleCard title={tr("MCP server (AI agents)")} icon={<SquareTerminal size={18} />} desc={tr("Expose this read-only control plane to external AI agents (Claude Desktop, Cursor) over the Model Context Protocol — the same catalog/doctor/preset/patch tools the Ops Copilot uses. Add this to the client's MCP config; it runs as a stdio subprocess (no port, read-only).")} wide>
+                <CodeBlock lines={[
+                  "{",
+                  '  "mcpServers": {',
+                  '    "sndr": {',
+                  '      "command": "python3",',
+                  '      "args": ["-m", "sndr.product_api.legacy.mcp_server"]',
+                  "    }",
+                  "  }",
+                  "}"
+                ]} />
+              </ModuleCard>
             </ModuleGrid>
           )
         },
