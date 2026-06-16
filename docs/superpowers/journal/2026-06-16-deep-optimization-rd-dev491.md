@@ -72,3 +72,34 @@ buffers, and caches are at or near optimal, and the one kernel candidate doesn't
 The available improvements are **memory-capacity** (G4_83, gmu), which are modest (8.4% / concurrency),
 medium-risk, and do not move single-stream TPS. G4_83 is the cleanest of these and the one worth
 building if more KV headroom on the 31B is wanted.
+
+---
+
+## ADDENDUM (2026-06-16) — G4_83 STUDY: not a tractable patch, do NOT build
+
+User greenlit G4_83. Per Study→Verify-before-Change, I studied the dev491 KV allocator + G4_60E
+BEFORE implementing — and it is NOT the medium-risk patch the workflow framed:
+
+- **The 8.4% waste is REAL** — G4_60E's reconciled unify ladder pads the global-512 TQ page (33152 B)
+  up to the sliding-256 TQ page (67072 B) via `page_size_padded` (g4_60e FIX 2b), because TQ slot
+  layout is kernel-bound and **block-size resize is forbidden for TQ** (the cheap way to cut the pad
+  is unavailable). page sizes: sliding = B×16×262, global = B×4×518, ratio 4192/2072 = 2.023
+  (non-integer → `unify_kv_cache_spec_page_size` would `NotImplementedError` without G4_60E's pad).
+- **Recovering it requires a true multi-bucket allocator** (different physical page sizes per group).
+  But the dev491 MAIN allocator assumes uniform page: `get_num_blocks` = `available_memory // page_size
+  // num_layers` (single page_size), and `_get_kv_cache_groups_uniform_page_size` documents the hard
+  invariant *"Physical memory per block: Must be the same across all KV cache groups. Breaking this
+  assumption is non-trivial due to memory fragmentation concerns."* The bucket helpers
+  (`_pool_bytes_per_block` / `_bucket_layers_by_page_size` / `UniformTypeKVCacheSpecs`) exist ONLY for
+  the `num_gpu_blocks_override` concurrency calc — NOT the main allocation path.
+- **Verdict: G4_83 = a deep KV-allocator rewrite that breaks vLLM's uniform-page-per-block invariant
+  + handles fragmentation, for 8.4% on the secondary no-MTP 37-TPS 31B.** Cost/risk ≫ benefit. NOT
+  built. (Upstream is the right place: vllm#45207/#45181 are the open PRs in this exact area — when one
+  lands with a real multi-bucket path, revisit. Until then, G4_60E's pad is the correct, safe choice.)
+
+**Final honest conclusion of the whole optimization pass:** the Genesis stack is mature and well-tuned
+for this hardware/pin. The two candidate levers both dissolved under verification — `num_warps=4` is
+within-noise end-to-end, and G4_83's 8.4% is locked behind a core vLLM invariant not worth breaking.
+No code change ships from this pass; the value delivered is the *verified* knowledge of what is optimal
+and why, and two false premises retired (nw=8-optimal, 69%-waste). The discipline (measure/verify, don't
+premise) is what kept this honest.
