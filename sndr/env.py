@@ -571,6 +571,7 @@ class Flags:
     PN362 = "PN362"  # PN362: Triton autotune determinism — VLLM_TRITON_FORCE_FIRST_CONF
     # kv_cache family
     PN346 = "PN346"  # PN346: Mamba/GDN cache hit boundary fix for MTP + prefix caching
+    PN346B = "PN346B"  # PN346B: coordinator-half min() clamp for #45614 (sibling of PN346)
     # model_compat.gemma4 family
     PN349 = "PN349"  # PN349: Gemma 4 KV-shared k_norm/v_norm skip
     # moe family

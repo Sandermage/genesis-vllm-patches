@@ -1800,6 +1800,18 @@
     "apply_module": "sndr.engines.vllm.patches.kv_cache.pn346_mamba_mtp_apc_boundary"
   },
   {
+    "patch_id": "PN346B",
+    "family": "kv_cache",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": true,
+    "env_flag": "GENESIS_ENABLE_PN346B",
+    "has_upstream_pr": true,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "sndr.engines.vllm.patches.kv_cache.pn346b_mamba_mtp_apc_coordinator_clamp"
+  },
+  {
     "patch_id": "PN347",
     "family": "quantization.marlin",
     "lifecycle": "experimental",

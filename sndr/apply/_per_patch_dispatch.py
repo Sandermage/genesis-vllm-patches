@@ -5578,6 +5578,30 @@ def apply_patch_N346_mamba_mtp_apc_boundary() -> PatchResult:
     return _skipped("PN346 Mamba/GDN cache hit boundary", detail)
 
 
+@register_patch("PN346B coordinator-clamp half (vendor of OPEN vllm#45614)")
+def apply_patch_N346B_coordinator_clamp() -> PatchResult:
+    """PN346B: vendors the COORDINATOR half of OPEN PR vllm#45614 — the
+    sibling of PN346 (manager half). Clamps
+    HybridKVCacheCoordinator.find_longest_cache_hit's curr_hit_length =
+    min(curr_hit_length, _new_hit_length) so the fixed-point hit length
+    is monotonically non-increasing and never re-admits the
+    partially-accepted final SSM state block on a verify pass. Without
+    it the unclamped coordinator re-grow can partially undo PN346's
+    manager-half guard — the two halves of #45614 MUST ship together.
+    Closes vllm#43559. Opt-out-only (default-ON), mirroring PN346;
+    disable via GENESIS_DISABLE_PN346B=1. Composes with PN346 + PN340 +
+    PN341 + PN345."""
+    from sndr.engines.vllm.patches.kv_cache import (
+        pn346b_mamba_mtp_apc_coordinator_clamp as _wiring,
+    )
+    status, detail = _wiring.apply()
+    if status == "applied":
+        return _applied("PN346B coordinator curr_hit_length clamp", detail)
+    if status == "failed":
+        return _failed("PN346B coordinator curr_hit_length clamp", detail)
+    return _skipped("PN346B coordinator curr_hit_length clamp", detail)
+
+
 @register_patch("PN347 MarlinFP8 N==K correctness fix (vendor of OPEN vllm#44113)")
 def apply_patch_N347_marlin_fp8_nk_correctness() -> PatchResult:
     """PN347: vendors OPEN PR vllm#44113. Replaces the buggy

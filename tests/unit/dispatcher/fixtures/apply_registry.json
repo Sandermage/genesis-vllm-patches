@@ -684,6 +684,10 @@
     "wrapped_name": "apply_patch_N346_mamba_mtp_apc_boundary"
   },
   {
+    "name": "PN346B coordinator-clamp half (vendor of OPEN vllm#45614)",
+    "wrapped_name": "apply_patch_N346B_coordinator_clamp"
+  },
+  {
     "name": "PN347 MarlinFP8 N==K correctness fix (vendor of OPEN vllm#44113)",
     "wrapped_name": "apply_patch_N347_marlin_fp8_nk_correctness"
   },

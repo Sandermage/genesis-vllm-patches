@@ -5758,7 +5758,63 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "upstream_issue": 43559,
         "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
         "implementation_status": "full",
-        "composes_with": ["PN340", "PN341", "PN345", "P85"],  # P85: Site 2 dual variants, PN346 first
+        # PN346B: coordinator half of the SAME fix (#45614) — manager
+        # half (PN346) and coordinator half MUST ship together.
+        "composes_with": ["PN340", "PN341", "PN345", "P85", "PN346B"],  # P85: Site 2 dual variants, PN346 first
+    },
+    "PN346B": {
+        "title": "Mamba/GDN + EAGLE/MTP + APC coordinator curr_hit_length clamp (coordinator half of OPEN vllm#45614; sibling of PN346)",
+        "tier": "community",
+        "family": "kv_cache",
+        "env_flag": "GENESIS_ENABLE_PN346B",
+        # Mirrors PN346: the module is opt-out-only —
+        # pn346b_mamba_mtp_apc_coordinator_clamp.apply() ignores
+        # GENESIS_ENABLE_PN346B and honors ONLY the opt-out
+        # GENESIS_DISABLE_PN346B → effectively default-ON. This is the
+        # MISSING half of a correctness fix Genesis already ships
+        # default-ON (PN346); a half-fix is worse than none, so both
+        # halves enable together. Operators disable via
+        # GENESIS_DISABLE_PN346B=1.
+        "default_on": True,
+        "apply_module": "sndr.engines.vllm.patches.kv_cache.pn346b_mamba_mtp_apc_coordinator_clamp",
+        "lifecycle": "experimental",
+        "category": "correctness",
+        "credit": (
+            "Genesis vendoring of OPEN upstream PR vllm#45614 "
+            "(\"[Bugfix][Core] Fix Mamba prefix cache EAGLE hit\", closes "
+            "vllm#43559) — the COORDINATOR half of the same fix whose "
+            "MANAGER half Genesis already vendors as PN346. "
+            "HybridKVCacheCoordinator.find_longest_cache_hit runs a "
+            "while/for fixed-point loop that unconditionally overwrites "
+            "curr_hit_length = _new_hit_length. On the eagle-drop branch "
+            "_new_hit_length can be LONGER than the current candidate, so "
+            "the naked assignment GROWS curr_hit_length on a verify pass "
+            "and re-admits the partially-accepted final SSM state block — "
+            "the exact poison PN346 walks back in the manager. The 1-LOC "
+            "fix clamps curr_hit_length = min(curr_hit_length, "
+            "_new_hit_length) so the hit length is monotonically "
+            "non-increasing across the iteration, matching the "
+            "manager-half guard. Pin-agnostic anchor: the 4-line region "
+            "(elif _new_hit_length < curr_hit_length: → curr_hit_length = "
+            "_new_hit_length) is byte-identical and grep-unique on BOTH "
+            "PROD (0.21.1rc0 g626fa9bba, `if use_eagle:` above) and live "
+            "dev491 (0.22.1rc1.dev491 g1033ffac2, `if drop_eagle_block:` "
+            "above) — the divergent if-line is deliberately excluded from "
+            "the anchor. `min(curr_hit_length` verified ABSENT on both "
+            "pins → the clamp is genuinely missing. MUST compose with "
+            "PN346 (manager half) — the two halves of #45614 are a unit. "
+            "Self-skips once #45614 merges via the exact merged-shape "
+            "drift marker. Upstream regression: "
+            "test_hybrid_mamba_eagle_does_not_reuse_lookahead_state in "
+            "tests/v1/core/test_prefix_caching.py."
+        ),
+        "upstream_pr": 45614,
+        "upstream_pr_relationship": "backport",
+        "upstream_issue": 43559,
+        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
+        "implementation_status": "full",
+        # PN346: the sibling MANAGER half — the two MUST ship together.
+        "composes_with": ["PN346", "PN340", "PN341", "PN345"],
     },
     "PN347": {
         "title": "MarlinFP8 N==K silent corruption correctness fix (vendor of CLOSED vllm#44113; superseded by MERGED vllm#44735 on dev491+ — active only on <dev491 rollback pins, version-gated)",
