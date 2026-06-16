@@ -1505,6 +1505,7 @@ const RU_BY_EN: Record<string, string> = {
   "proxy": "прокси",
   "Min P": "Min P",
   "Top K": "Top K",
+  "tok = generated tokens · tok/s = decode speed · TTFT = time to first token (prefill cost)": "tok = сгенерированные токены · tok/s = скорость декодирования · TTFT = время до первого токена (стоимость prefill)",
   "Recommended for this model": "Рекомендовано для этой модели",
   "Apply the catalog's validated sampling defaults for the running model": "Применить проверенные в каталоге значения семплинга для запущенной модели",
   "Applied the catalog's recommended sampling for this model.": "Применены рекомендованные каталогом параметры семплинга для этой модели.",

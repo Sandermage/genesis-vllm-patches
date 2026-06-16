@@ -403,6 +403,41 @@ make gui-build           # production build + copy into the served web_static/
 Or directly inside `gui/web`: `npm run typecheck`, `npm run lint`, `npm run build`.
 All four `make` checks are part of the repo's CI `gates` target.
 
+## Glossary
+
+Plain-language definitions for the metrics and terms the GUI surfaces (chat
+stats, the Planner, benchmarks, the Inference panel):
+
+| Term | What it means |
+| --- | --- |
+| **TPS** | Tokens per second — output generation speed. ~70 TPS reads as conversational. |
+| **Wall TPS** | `completion_tokens / wall_time` — user-perceived total speed (includes prefill). |
+| **Decode TPS** | `completion_tokens / (wall_time − TTFT)` — pure decode rate, excludes prefill. |
+| **TTFT** | Time to first token — dominated by prefill on long prompts. |
+| **CV** | Coefficient of variation across bench runs; lower = more predictable (target < 5%). |
+| **Prefill** | Processing the whole input before the first output token (slow first request, fast on follow-ups via prefix cache). |
+| **Decode** | Generating output tokens one at a time after prefill. |
+| **KV cache** | The model's working memory of the conversation; larger context = more KV-cache VRAM. |
+| **Prefix cache** | Reusing a shared leading prompt across requests (skip re-prefill) — big win for long-document/agent loops. |
+| **Context window** | Tokens the model holds at once (`--max-model-len`). The Planner predicts the largest that fits. |
+| **Activation memory** | Transient forward-pass memory; activation peaks during prefill cause most OOMs. |
+| **Acceptance length (AL)** | Mean tokens accepted per speculative step (MTP / spec-decode); higher = more speedup. |
+| **MTP / spec-decode** | Multi-Token Prediction / speculative decoding — a draft head proposes tokens the target verifies in one pass. |
+| **KV dtype** | Precision the KV cache is stored in (fp16 → int8 → TQ3); lower halves VRAM at a small quality cost. The Planner + Hardware/Fleet arch notes recommend the best one your GPU accelerates. |
+| **Quant (AWQ / GPTQ / AutoRound / FP8 / TQ)** | Weight/KV compression schemes; what your GPU runs _natively_ vs _emulated_ depends on its arch (the Planner's "Arch-aware notes" and the Fleet card's "Arch-aware flags" show this per-GPU). |
+
+## Further reading (community recipes)
+
+For deeper reference on the exact models and consumer/Ada/Blackwell GPUs this
+stack targets, the community **club-3090** project keeps high-quality recipes
+(our catalog is cross-referenced against it — see the per-model recommended
+sampling in chat, and the arch-aware dtype notes in the Planner/Fleet):
+
+- KV-cache VRAM math (behind the Planner) — [`club-3090/docs/KV_MATH.md`](https://github.com/noonghunna/club-3090/blob/master/docs/KV_MATH.md)
+- GPU dtype/quant capability matrix (Ampere/Ada/Hopper/Blackwell) — [`DTYPE_MATRIX.md`](https://github.com/noonghunna/club-3090/blob/master/docs/DTYPE_MATRIX.md), [`QUANTIZATION.md`](https://github.com/noonghunna/club-3090/blob/master/docs/QUANTIZATION.md)
+- Performance cliffs (long-context / sustained-agent OOM) — [`CLIFFS.md`](https://github.com/noonghunna/club-3090/blob/master/docs/CLIFFS.md)
+- Terminology primer — [`GLOSSARY.md`](https://github.com/noonghunna/club-3090/blob/master/docs/GLOSSARY.md), [`LOCAL_AI_PRIMER.md`](https://github.com/noonghunna/club-3090/blob/master/docs/LOCAL_AI_PRIMER.md)
+
 ## See also
 
 - `docs/PRODUCT_API.md` — the read-only API contract and full route map.

@@ -1084,7 +1084,7 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
                 </div>
                 {msg.sources && msg.sources.length > 0 && <SourcesRow docs={msg.sources} />}
                 <div className="chat-msg-foot">
-                  {msg.stat && <span className="chat-stat">{msg.stat.tokens ?? 0} tok{msg.stat.tps ? ` · ${msg.stat.tps} tok/s` : ""}{msg.stat.ttft_ms ? ` · ${msg.stat.ttft_ms}ms TTFT` : ""}</span>}
+                  {msg.stat && <span className="chat-stat" title={tr("tok = generated tokens · tok/s = decode speed · TTFT = time to first token (prefill cost)")}>{msg.stat.tokens ?? 0} tok{msg.stat.tps ? ` · ${msg.stat.tps} tok/s` : ""}{msg.stat.ttft_ms ? ` · ${msg.stat.ttft_ms}ms TTFT` : ""}</span>}
                   <div className="chat-msg-actions">
                     <button className="icon-only" title={tr("Copy")} onClick={() => void navigator.clipboard?.writeText(msg.content)}><Copy size={12} /></button>
                     {msg.role === "user" && <button className="icon-only" title={tr("Edit & resend")} onClick={() => editUser(index)}><Pencil size={12} /></button>}
