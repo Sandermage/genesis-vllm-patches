@@ -93,6 +93,26 @@ def _check_schema_version(value: int) -> None:
         )
 
 
+def _check_system_env(value: dict, field_name: str) -> None:
+    """Validate a `system_env` mapping: non-empty str keys, str values.
+
+    Containers receive env via `-e KEY=VALUE`, so both halves must be
+    strings. Mirrors the inline check the patches dict uses — keeps the
+    profile/model `system_env` escape hatch (2026-06-17) from shipping a
+    non-string value that the renderer would stringify into a broken
+    `-e KEY=None`.
+    """
+    if not isinstance(value, dict):
+        raise SchemaError(f"{field_name} must be a dict (got {type(value).__name__})")
+    for k, v in value.items():
+        if not isinstance(k, str) or not k:
+            raise SchemaError(f"{field_name} key {k!r} must be non-empty str")
+        if not isinstance(v, str):
+            raise SchemaError(
+                f"{field_name}[{k!r}] value must be str (got {type(v).__name__})"
+            )
+
+
 # ─── ModelDef ──────────────────────────────────────────────────────────────
 
 
@@ -309,12 +329,20 @@ class ModelDef:
     # lazily by `compose()` when populating the composed ModelConfig.
     package_versions: Optional["PackageVersions"] = None
 
+    # 2026-06-17: model-global runtime env (see ProfileDef.system_env for
+    # the rationale). Layer order in compose(): hardware < model < profile.
+    # Use for knobs intrinsic to the model that hold across rigs/profiles
+    # (e.g. a block-diffusion model that must always run the V2 runner).
+    # Default {} → existing models unchanged.
+    system_env: dict[str, str] = field(default_factory=dict)
+
     notes: list[str] = field(default_factory=list)
 
     def validate(self) -> None:
         _check_schema_version(self.schema_version)
         _check_kind(self.kind, "model")
         _check_id(self.id, "model.id")
+        _check_system_env(self.system_env, "model.system_env")
         if self.package_versions is not None:
             # Reuse V1 PackageVersions.validate() — same dataclass shared
             # across V1/V2 to keep validation rules single-source.
@@ -930,10 +958,21 @@ class ProfileDef:
     # override either with `--hardware <id>`.
     target_hardware: Optional[str] = None
 
+    # 2026-06-17: workload-specific runtime env escape hatch. The hardware
+    # layer's `system_env` stays the rig-stable layer (NCCL/OMP/CUDA knobs
+    # shared by every model on that rig); profile/model `system_env` carries
+    # per-workload runtime knobs (GENESIS_G4_09_CHUNK_SIZE,
+    # VLLM_USE_V2_MODEL_RUNNER, PYTORCH_CUDA_ALLOC_CONF) WITHOUT leaking onto
+    # sibling models on the same shared hardware YAML — e.g. the V2 runner
+    # toggle must reach DiffusionGemma but NOT 35B/27B. compose() layers
+    # hardware < model < profile. Default {} → existing profiles unchanged.
+    system_env: dict[str, str] = field(default_factory=dict)
+
     def validate(self) -> None:
         _check_schema_version(self.schema_version)
         _check_kind(self.kind, "profile")
         _check_id(self.id, "profile.id")
+        _check_system_env(self.system_env, "profile.system_env")
         if not self.parent_model:
             raise SchemaError("profile.parent_model required (must reference a ModelDef.id)")
         _check_id(self.parent_model, "profile.parent_model")

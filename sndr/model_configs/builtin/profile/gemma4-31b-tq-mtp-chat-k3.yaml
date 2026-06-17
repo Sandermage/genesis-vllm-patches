@@ -155,6 +155,24 @@ sizing_override:
   enforce_eager: false
   disable_custom_all_reduce: true
 
+# ── Workload runtime env (profile-scoped, 2026-06-17) ──────────────────
+# G4_09 (Gemma-4 SWA→global prefill chunker, closes vllm#39914) hard-
+# clamps the live scheduler's max_num_batched_tokens to its chunk-size
+# default of 2048 unless GENESIS_G4_09_CHUNK_SIZE raises the ceiling
+# (range 512..8192). Without this, the YAML's max_num_batched_tokens:
+# 8192 above is silently overridden to 2048 at engine init, and the
+# Gemma-4 multimodal-bidirectional image item (max_tokens_per_mm_item =
+# 2496) no longer fits in one schedule step → boot fails with
+# `ValueError: ... max_tokens_per_mm_item (2496) is larger than
+# max_num_batched_tokens (2048)`. Setting the chunk-size to 8192 makes
+# G4_09's clamp a no-op against the 8192 batched budget (2496 ≤ 8192).
+# This is a profile-scoped runtime knob, NOT a GENESIS_ENABLE_* patch
+# toggle, so it lives in system_env (which compose layers
+# hardware < model < profile) — it must NOT leak onto the shared
+# a5000-2x hardware YAML used by 35B/27B.
+system_env:
+  GENESIS_G4_09_CHUNK_SIZE: "8192"
+
 # MTP K=3 via the gemma-4-31B-it-assistant drafter. Same drafter as
 # structured-k4 — the model+assistant pair is shared infrastructure;
 # only the speculation depth differs.

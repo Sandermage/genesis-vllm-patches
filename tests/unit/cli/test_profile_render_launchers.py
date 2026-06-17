@@ -316,12 +316,33 @@ class TestStructuredProfileRender:
             f"got: {spec_json}"
         )
 
+    # R1 (2026-06-17): the PR42637 overlay set splits into 4 TQ FEATURE
+    # files (mounted — they add the kernel surface G4_60B/C/D verify) and
+    # 4 stale 0.20-era CORE-vllm shadows (NOT mounted — they roll native
+    # kv_cache_utils / single_type_kv_cache_manager / kv_cache_interface /
+    # block_pool back to 0.20 semantics on dev491; native + G4_60a/e
+    # monkey-patches give the TQ behavior). All-native core is mutually
+    # consistent; a partial overlay would guarantee skew.
+    _PR42637_FEATURE_OVERLAYS = (
+        "overlays/pr42637/turboquant_attn.py",
+        "overlays/pr42637/triton_turboquant_decode.py",
+        "overlays/pr42637/triton_turboquant_store.py",
+        "overlays/pr42637/turboquant_config.py",
+    )
+    _PR42637_CORE_SHADOWS = (
+        "overlays/pr42637/kv_cache_utils.py",
+        "overlays/pr42637/single_type_kv_cache_manager.py",
+        "overlays/pr42637/kv_cache_interface.py",
+        "overlays/pr42637/block_pool.py",
+    )
+
     def test_structured_pr42637_overlay_mounts_present(self, script):
-        """structured profile enables G4_60a..k → render must mount the
-        8 PR42637 overlay files."""
-        assert "overlays/pr42637/turboquant_attn.py" in script
-        assert "overlays/pr42637/kv_cache_utils.py" in script
-        assert "overlays/pr42637/block_pool.py" in script
+        """structured profile enables G4_60a..k → render mounts the 4 TQ
+        feature overlays but NOT any of the 4 stale core-vllm shadows."""
+        for feature in self._PR42637_FEATURE_OVERLAYS:
+            assert feature in script, f"feature overlay missing: {feature}"
+        for shadow in self._PR42637_CORE_SHADOWS:
+            assert shadow not in script, f"stale core shadow mounted: {shadow}"
 
     def test_default_pr42637_overlay_mounts_absent(self):
         """default profile does NOT have G4_60a..k → no overlay mounts."""
@@ -984,3 +1005,84 @@ class TestToolCallAndCompatMountEmission:
         assert (
             "/usr/local/lib/python3.12/dist-packages/sndr:ro" in script
         )
+
+
+# ─── Gemma-4-31B config-driven boot cascade fixes (2026-06-17) ───────────
+#
+# R1/R3/R4/R7 make chat-k3 (and other complex profiles) render a launcher
+# that boots fully config-driven, fixing the cascade hand-launchers never
+# hit. Root-cause + plan: sndr_private/planning/research/
+# 2026-06-17-gemma-cascade-emitter-plan.md.
+
+
+class TestChatK3ConfigDrivenBoot:
+    @pytest.fixture(scope="class")
+    def script(self):
+        return render_profile_launcher("gemma4-31b-tq-mtp-chat-k3")
+
+    # R1: 4 stale core-vllm shadows must NOT mount on dev491; the 4 TQ
+    # feature overlays must. See TestStructuredProfileRender for the
+    # per-file evidence (kv_cache_utils ImportError, single_type
+    # use_eagle→drop_eagle_block TypeError, kv_cache_interface redundant
+    # vs native+G4_60a, block_pool plain stale snapshot).
+    _CORE_SHADOWS = TestStructuredProfileRender._PR42637_CORE_SHADOWS
+    _FEATURE_OVERLAYS = TestStructuredProfileRender._PR42637_FEATURE_OVERLAYS
+
+    def test_no_stale_core_overlay_mounts(self, script):
+        for shadow in self._CORE_SHADOWS:
+            assert shadow not in script, (
+                f"stale 0.20-era core shadow mounted on dev491: {shadow} — "
+                "rolls native back to 0.20 semantics (ImportError / "
+                "use_eagle TypeError)"
+            )
+        for feature in self._FEATURE_OVERLAYS:
+            assert feature in script, f"TQ feature overlay missing: {feature}"
+
+    def test_emits_explicit_apply_step(self, script):
+        """R3 — durable on-disk patch application, mirroring the emitters
+        path (docker_cmd.py:135). The entry-point plugin alone is fragile
+        under the Gemma engine/worker bootstrap."""
+        assert "python3 -m sndr.apply" in script
+
+    def test_emits_g4_09_chunk_size(self, script):
+        """R4 — G4_09 hard-clamps max_num_batched_tokens to 2048 unless
+        GENESIS_G4_09_CHUNK_SIZE raises the ceiling. chat-k3's MM item is
+        2496 tokens, so the clamp must be lifted to the YAML's 8192."""
+        assert "GENESIS_G4_09_CHUNK_SIZE=8192" in script
+
+    def test_enforce_eager_absent_when_sizing_false(self, script):
+        """chat-k3 sets enforce_eager: false → the flag must NOT appear."""
+        assert "--enforce-eager" not in script
+
+
+class TestEnforceEagerEmission:
+    def test_diffusiongemma_emits_enforce_eager(self):
+        """R7 — `--enforce-eager` is emitted when profile sizing sets it
+        True. DiffusionGemma's block-diffusion sampler requires eager mode;
+        before R7 the serve builder silently dropped the flag even though
+        the profile declared enforce_eager: true."""
+        script = render_profile_launcher("diffusiongemma-tp2")
+        assert "--enforce-eager" in script
+
+
+class TestNonGemmaProfilesUnaffected:
+    """R2/R3/R7 must be additive for a non-Gemma profile: the only render
+    delta vs the prior renderer is the (unconditional, idempotent) apply
+    step — no Gemma-only token (enforce-eager / G4_09 chunk-size / pr42637
+    overlay) leaks onto 35B/27B. Codifies the manual before/after diff."""
+
+    @pytest.fixture(scope="class")
+    def script(self):
+        return render_profile_launcher("qwen3.6-35b-balanced")
+
+    def test_emits_apply_step(self, script):
+        assert "python3 -m sndr.apply" in script
+
+    def test_no_enforce_eager(self, script):
+        assert "--enforce-eager" not in script
+
+    def test_no_gemma_chunk_size_env(self, script):
+        assert "GENESIS_G4_09_CHUNK_SIZE" not in script
+
+    def test_no_pr42637_overlay(self, script):
+        assert "overlays/pr42637" not in script

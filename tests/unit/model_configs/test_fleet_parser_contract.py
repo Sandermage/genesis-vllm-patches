@@ -103,6 +103,18 @@ def test_modeldef_parser_values_match_fleet_contract(model_id):
             f"{model_id}: Gemma 4 fleet contract requires "
             f"tool_call_parser=gemma4, got {caps.tool_call_parser!r}"
         )
+    elif model_id.startswith("diffusiongemma"):
+        # DiffusionGemma (block-diffusion Gemma 4 MoE) shares the Gemma 4
+        # tool-call surface: tool_call_parser=gemma4, no reasoning parser
+        # (block-diffusion denoising has no </think> reasoning split).
+        assert caps.tool_call_parser == "gemma4", (
+            f"{model_id}: DiffusionGemma fleet contract requires "
+            f"tool_call_parser=gemma4, got {caps.tool_call_parser!r}"
+        )
+        assert caps.reasoning_parser is None, (
+            f"{model_id}: DiffusionGemma fleet contract requires "
+            f"no reasoning parser, got {caps.reasoning_parser!r}"
+        )
     else:
         pytest.fail(f"unknown model family for fleet contract: {model_id!r}")
 

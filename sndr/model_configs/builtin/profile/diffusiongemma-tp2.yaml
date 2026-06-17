@@ -30,25 +30,21 @@
 #   mounts: /nfs/genesis/models:/models:ro
 #           ${GENESIS_REPO}/sndr:.../dist-packages/sndr:ro   (plugin path)
 #
-# NOT RENDERED — operator MUST hand-add to the rendered launcher (the
-# render path has no field/branch for these; see the ModelDef header for
-# the full why):
-#   1. EXPLICIT GENESIS APPLY STEP (load-bearing). Insert BEFORE
-#      `exec vllm serve` inside the inner run.sh:
-#          python3 -c "from sndr.plugin import register; register()" 2>&1 | tail -20
-#      The V2 model runner does not fire the vllm.general_plugins entry-point
-#      reliably (entry-point ordering vs model-executor import). Without this
-#      explicit apply, G4_26 + PN-FP8MOE-KPAD never patch the live
-#      diffusion_gemma.py module → init crash. (Equivalent canonical form:
-#      `python3 -m sndr.apply 2>&1 | tail -20`.)
-#   2. --enforce-eager   (render path never emits it; enforce_eager: true
-#                          below is self-documentation only)
-#   3. --generation-config vllm   (no schema field for this flag)
-#   4. model-specific system_env (VLLM_USE_V2_MODEL_RUNNER=1,
-#      VLLM_LOGGING_LEVEL=INFO, VLLM_ALLOW_LONG_MAX_MODEL_LEN=1,
-#      PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True). system_env is
-#      hardware-scoped and the shared a5000-2x hardware keeps the V2 runner
-#      OFF — do NOT edit it; add these per-container by hand.
+# RENDER STATUS (updated 2026-06-17 after the R1-R7 renderer fix —
+# 2026-06-17-gemma-cascade-emitter-plan.md):
+#   1. EXPLICIT GENESIS APPLY STEP — NOW EMITTED (R3). render_profile_
+#      launcher inserts `python3 -m sndr.apply 2>&1 | tail -5` before
+#      `exec vllm serve`, so G4_26 + PN-FP8MOE-KPAD patch the live
+#      diffusion_gemma.py module on disk before serve. No hand-edit needed.
+#   2. --enforce-eager — NOW EMITTED (R7). The serve builder emits it when
+#      `enforce_eager: true` (set below). No hand-edit needed.
+#   4. model-specific system_env — NOW SUPPORTED (R2). Declare V2-runner /
+#      allocator knobs in this profile's `system_env:` block below; compose
+#      layers hardware < model < profile, so they do NOT leak onto the
+#      shared a5000-2x hardware YAML (35B/27B keep the V2 runner OFF).
+#
+# STILL NOT RENDERED — operator MUST hand-add to the rendered launcher:
+#   3. --generation-config vllm   (no schema field for this flag yet).
 #
 # Back-compat sndr mount: the render path bind-mounts ${GENESIS_REPO}/sndr
 # into .../dist-packages/sndr:ro. The plugin path (sndr.plugin.register)
@@ -96,9 +92,9 @@ role: bench
 #   max_num_seqs:             2      (validated)
 #   max_num_batched_tokens:   4096   (= max_model_len; chunked prefill on)
 #   enforce_eager:            true   (validated; block-diffusion sampler is
-#                                     not cudagraph-safe. NOTE: render path
-#                                     does NOT emit --enforce-eager — operator
-#                                     must hand-add it, see header note 2.)
+#                                     not cudagraph-safe. R7 (2026-06-17):
+#                                     the render path NOW emits
+#                                     --enforce-eager from this field.)
 #   enable_chunked_prefill:   true
 #   disable_custom_all_reduce:true   (render path emits it unconditionally
 #                                     anyway; benign at TP=2)
@@ -110,6 +106,26 @@ sizing_override:
   enable_chunked_prefill: true
   enforce_eager: true
   disable_custom_all_reduce: true
+
+# ── Workload runtime env (profile-scoped, R2 2026-06-17) ───────────────
+# Realizes header gap #4 as actual config (was hand-added before R2). These
+# are intrinsic to serving block-diffusion DiffusionGemma at TP=2 on dev491:
+#   VLLM_USE_V2_MODEL_RUNNER  block-diffusion needs the V2 model runner;
+#                             the explicit `python3 -m sndr.apply` step (R3)
+#                             now applies G4_26 + PN-FP8MOE-KPAD on disk so
+#                             the V2-runner plugin-ordering gap no longer
+#                             leaves them unapplied.
+#   VLLM_ALLOW_LONG_MAX_MODEL_LEN  permits the declared max_model_len.
+#   PYTORCH_CUDA_ALLOC_CONF   expandable segments for the FP8-MoE + vocab
+#                             all-gather working set at gpu_mem 0.80.
+# Profile-scoped so they do NOT leak onto the shared a5000-2x hardware YAML
+# (35B/27B must keep the V2 runner OFF). compose layers hw < model < profile.
+# NOTE: needs a non-PROD rig boot to confirm the config-rendered launcher
+# matches the validated hand-launch end-to-end (see ModelDef header).
+system_env:
+  VLLM_USE_V2_MODEL_RUNNER: "1"
+  VLLM_ALLOW_LONG_MAX_MODEL_LEN: "1"
+  PYTORCH_CUDA_ALLOC_CONF: "expandable_segments:True"
 
 # ─── Backend plan — drives the --attention-backend CLI flag ────────────
 # Only target_default is set: ("target_default", "TRITON_ATTN") maps to

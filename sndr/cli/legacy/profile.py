@@ -875,15 +875,54 @@ def render_profile_launcher(
         # (anchors live in the real module). Bind the canonical source
         # files directly. Removes the last runtime dependency on the
         # legacy ``vllm/sndr_core/`` tree.
+        #
+        # R1 (2026-06-17): the 4 CORE-vllm-file overlays are intentionally
+        # NOT mounted — only the 4 TQ FEATURE overlays below are. The
+        # PR#42637 overlay set splits into two classes:
+        #
+        #  (a) stale 0.20-era snapshots that SHADOW current native core
+        #      files (kv_cache_utils.py, single_type_kv_cache_manager.py,
+        #      kv_cache_interface.py, block_pool.py). The 2026-05-16
+        #      vendor (PR#42637 HEAD fdeb14981) predates dev491; mounting
+        #      them over native rolls those modules back to 0.20 semantics.
+        #      VERIFIED on the live pin (dev491, READ-ONLY PROD probe):
+        #        • native kv_cache_utils.py defines get_kv_cache_capacity
+        #          (imported by vllm/v1/engine/core.py) — the overlay lacks
+        #          it → ImportError at engine init.
+        #        • native single_type_kv_cache_manager.find_longest_cache_
+        #          hit takes drop_eagle_block; the overlay still takes the
+        #          renamed-away use_eagle → TypeError on the first cached-
+        #          prefix request (chat-k3's MTP/eagle path is live). The
+        #          overlay's own header says "do NOT mount on >=0.21 pins".
+        #        • native kv_cache_interface.py already has TQFullAttention
+        #          Spec; G4_60a injects the missing TQSlidingWindowSpec onto
+        #          it → the overlay is a redundant stale shadow.
+        #        • block_pool.py overlay is a plain vllm snapshot (0 TQ
+        #          refs); native is current.
+        #      Crucially the native core files are MUTUALLY consistent (35B
+        #      runs them); a PARTIAL overlay (native kv_cache_utils importing
+        #      from a 2026-05-16 kv_cache_interface) would guarantee skew, so
+        #      it is all-native-core or all-overlay-core — and all-overlay is
+        #      proven broken on dev491. The TQ behavior the overlays carried
+        #      is re-applied on native by the G4_60a/G4_60e monkey-patches
+        #      (+ pn95/pn96/pn110 for block_pool).
+        #
+        #  (b) TQ FEATURE files that ADD the PR#42637 kernel surface
+        #      (turboquant_attn / triton_turboquant_decode / _store /
+        #      turboquant_config). These carry the sliding_window +
+        #      mm_prefix_range kwargs that the G4_60B/C/D verify-only patches
+        #      require, so they STAY mounted. Whether native dev491's own TQ
+        #      kernels already provide those signatures (making even these
+        #      redundant) is the native-core ↔ overlay-kernel coupling that
+        #      can only be settled by a rig boot — see the plan's §4b.
+        #
+        # See sndr_private/planning/research/
+        # 2026-06-17-gemma-cascade-emitter-plan.md.
         overlay_mounts = """\
   -v ${GENESIS_REPO}/sndr/engines/vllm/patches/attention/turboquant/overlays/pr42637/turboquant_attn.py:${TGT}/v1/attention/backends/turboquant_attn.py:rw \\
   -v ${GENESIS_REPO}/sndr/engines/vllm/patches/attention/turboquant/overlays/pr42637/triton_turboquant_decode.py:${TGT}/v1/attention/ops/triton_turboquant_decode.py:rw \\
   -v ${GENESIS_REPO}/sndr/engines/vllm/patches/attention/turboquant/overlays/pr42637/triton_turboquant_store.py:${TGT}/v1/attention/ops/triton_turboquant_store.py:rw \\
   -v ${GENESIS_REPO}/sndr/engines/vllm/patches/attention/turboquant/overlays/pr42637/turboquant_config.py:${TGT}/model_executor/layers/quantization/turboquant/config.py:rw \\
-  -v ${GENESIS_REPO}/sndr/engines/vllm/patches/attention/turboquant/overlays/pr42637/kv_cache_interface.py:${TGT}/v1/kv_cache_interface.py:rw \\
-  -v ${GENESIS_REPO}/sndr/engines/vllm/patches/attention/turboquant/overlays/pr42637/kv_cache_utils.py:${TGT}/v1/core/kv_cache_utils.py:rw \\
-  -v ${GENESIS_REPO}/sndr/engines/vllm/patches/attention/turboquant/overlays/pr42637/single_type_kv_cache_manager.py:${TGT}/v1/core/single_type_kv_cache_manager.py:rw \\
-  -v ${GENESIS_REPO}/sndr/engines/vllm/patches/attention/turboquant/overlays/pr42637/block_pool.py:${TGT}/v1/core/block_pool.py:rw \\
 """
 
     # Validation receipt comment block.
@@ -948,6 +987,15 @@ def render_profile_launcher(
     inner_run.append('set -e')
     inner_run.append('echo "=== Install vllm-sndr-core ==="')
     inner_run.append('pip install -e ${GENESIS_REPO} --no-deps --quiet 2>&1 | tail -2')
+    # R3 (2026-06-17): durable on-disk patch application. The
+    # `vllm.general_plugins` entry-point auto-load alone is fragile under
+    # the Gemma engine/worker bootstrap (and silent under the V2 model
+    # runner); this canonical step (mirroring the emitters path
+    # docker_cmd.py:135) applies the text-patches on disk before serve so
+    # they persist into the worker processes. Idempotent — the entry-point
+    # remains the in-process backstop.
+    inner_run.append('echo "=== Apply Genesis patches ==="')
+    inner_run.append('python3 -m sndr.apply 2>&1 | tail -5')
     if has_spec_decode and "GENESIS_ENABLE_PN248_ACCEPTANCE_TRACE" in cfg.genesis_env \
             and cfg.genesis_env.get("GENESIS_ENABLE_PN248_ACCEPTANCE_TRACE") == "1":
         inner_run.append('echo "=== Clear PN248 trace ==="')
@@ -973,6 +1021,14 @@ def render_profile_launcher(
     inner_run.append(f'  --max-num-batched-tokens {cfg.max_num_batched_tokens} \\')
     if cfg.enable_chunked_prefill:
         inner_run.append('  --enable-chunked-prefill \\')
+    # R7 (2026-06-17): emit --enforce-eager when the profile sizing sets it.
+    # Required by models whose sampler is incompatible with cudagraph
+    # capture (DiffusionGemma block-diffusion). The serve builder
+    # previously dropped this flag even when the profile declared
+    # enforce_eager: true. Inert for cudagraph profiles (enforce_eager:
+    # false → flag omitted, cudagraph capture proceeds).
+    if cfg.enforce_eager:
+        inner_run.append('  --enforce-eager \\')
     if cfg.trust_remote_code:
         inner_run.append('  --trust-remote-code \\')
     # Tool-calling / reasoning capability flags (model.capabilities). Without

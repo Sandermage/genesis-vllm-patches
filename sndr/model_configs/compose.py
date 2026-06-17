@@ -383,6 +383,28 @@ def _merged_attribution(
     return merged
 
 
+def _merged_system_env(
+    model: ModelDef,
+    hardware: HardwareDef,
+    profile: Optional[ProfileDef],
+) -> dict[str, str]:
+    """Layer system_env hardware < model < profile.
+
+    Hardware system_env is the rig-stable base (NCCL/OMP/CUDA knobs shared
+    by every model on the rig); model system_env adds model-intrinsic knobs;
+    profile system_env adds/overrides workload-specific knobs
+    (GENESIS_G4_09_CHUNK_SIZE, VLLM_USE_V2_MODEL_RUNNER). Precedence matches
+    the patches enable/override merge — profile wins, then model, then
+    hardware. Empty model/profile maps → byte-identical to the prior
+    hardware-only behavior (no regression for the 17 existing profiles).
+    """
+    merged: dict[str, str] = dict(hardware.system_env)
+    merged.update(getattr(model, "system_env", {}) or {})
+    if profile is not None:
+        merged.update(getattr(profile, "system_env", {}) or {})
+    return merged
+
+
 def compose(
     model: ModelDef,
     hardware: HardwareDef,
@@ -588,7 +610,10 @@ def compose(
         # merge semantics as enable/override on the patches dict —
         # profile takes precedence.
         patches_attribution=_merged_attribution(model, profile),
-        system_env=dict(hardware.system_env),
+        # Layered hardware < model < profile so a profile/model can set
+        # workload-specific runtime env (e.g. GENESIS_G4_09_CHUNK_SIZE)
+        # without editing the shared hardware YAML (2026-06-17).
+        system_env=_merged_system_env(model, hardware, profile),
 
         # Extra CLI flags (currently only --chat-template; see 4c above)
         vllm_extra_args=vllm_extra_args,

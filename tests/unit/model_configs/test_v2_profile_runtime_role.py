@@ -90,6 +90,13 @@ class TestExistingProfilesLoadUnchanged:
         # NO spec_decode/routing/validation blocks. Escapes the 31B
         # TQ block on pin 0.22.1 by halving KV toward full 256K ctx.
         "gemma4-31b-fp8e5m2-fallback",      # role=dev, fp8_e5m2 KV fallback (G4_80)
+        # 2026-06-17 — diffusiongemma-tp2: bench-role profile for the
+        # block-diffusion DiffusionGemma-26B-A4B-FP8 target (first
+        # block-diffusion FP8-MoE checkpoint serving at TP=2 on consumer
+        # Ampere — PN-FP8MOE-KPAD + G4_26). role=bench carries
+        # sizing_override (enforce_eager + max_num_seqs) + override_policy
+        # only; no spec_decode/compression/backend/routing/validation.
+        "diffusiongemma-tp2",               # role=bench, block-diffusion TP=2
     })
 
     def test_all_builtin_profiles_load_with_new_fields_default_none(self):

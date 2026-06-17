@@ -300,3 +300,88 @@ class TestRuntimeOverride:
         )
         cfg = compose(_model(), _hardware(runtime=rt))
         assert cfg.docker is None
+
+
+# ─── Profile/model system_env merge (R2, 2026-06-17) ─────────────────────
+#
+# system_env layers hardware < model < profile so workload-specific runtime
+# knobs (GENESIS_G4_09_CHUNK_SIZE, VLLM_USE_V2_MODEL_RUNNER,
+# PYTORCH_CUDA_ALLOC_CONF) can be set per profile/model WITHOUT editing the
+# shared hardware YAML — which would leak the flag onto sibling models on the
+# same rig (e.g. the V2 runner toggle must NOT reach 35B/27B). This is the
+# keystone gap that gated the Gemma G4_09 chunk-size fix.
+
+
+class TestSystemEnvMerge:
+    def test_empty_model_profile_system_env_is_noop(self):
+        """Byte-equivalence: a model+profile that declare no system_env
+        compose to exactly the hardware system_env — no regression for the
+        17 existing profiles / 35B / 27B (which carry no model/profile
+        system_env)."""
+        cfg = compose(_model(), _hardware(), _profile())
+        assert cfg.system_env == {"NCCL_P2P_DISABLE": "1"}
+
+    def test_profile_system_env_merges_over_hardware(self):
+        cfg = compose(
+            _model(),
+            _hardware(),
+            _profile(system_env={"GENESIS_G4_09_CHUNK_SIZE": "8192"}),
+        )
+        assert cfg.system_env == {
+            "NCCL_P2P_DISABLE": "1",
+            "GENESIS_G4_09_CHUNK_SIZE": "8192",
+        }
+
+    def test_model_system_env_merges_over_hardware(self):
+        cfg = compose(
+            _model(system_env={"VLLM_USE_V2_MODEL_RUNNER": "1"}),
+            _hardware(),
+        )
+        assert cfg.system_env == {
+            "NCCL_P2P_DISABLE": "1",
+            "VLLM_USE_V2_MODEL_RUNNER": "1",
+        }
+
+    def test_precedence_hardware_lt_model_lt_profile(self):
+        """Colliding key resolves profile > model > hardware (same
+        precedence as the enable/override patch-delta merge)."""
+        cfg = compose(
+            _model(system_env={"K": "model", "M": "model"}),
+            _hardware(system_env={"K": "hw", "H": "hw"}),
+            _profile(system_env={"K": "profile"}),
+        )
+        assert cfg.system_env["K"] == "profile"   # profile wins collision
+        assert cfg.system_env["M"] == "model"      # model-only key kept
+        assert cfg.system_env["H"] == "hw"         # hardware-only key kept
+
+    def test_does_not_mutate_hardware_system_env(self):
+        """The merge must COPY hardware.system_env, not mutate it — a
+        profile knob must not leak back onto the shared HardwareDef
+        instance (which other composes reuse)."""
+        hw = _hardware(system_env={"NCCL_P2P_DISABLE": "1"})
+        compose(_model(), hw,
+                _profile(system_env={"GENESIS_G4_09_CHUNK_SIZE": "8192"}))
+        assert hw.system_env == {"NCCL_P2P_DISABLE": "1"}, (
+            "compose mutated the shared HardwareDef.system_env"
+        )
+
+    # ── _check_system_env negative cases (R2 validator, schema_v2:106) ──
+    # Containers receive env via `-e KEY=VALUE`; a non-str value would be
+    # stringified into a broken `-e KEY=None`/`-e KEY=123`. The validator
+    # must reject at load time on BOTH the ModelDef and ProfileDef sites.
+
+    def test_model_system_env_rejects_non_str_value(self):
+        with pytest.raises(SchemaError):
+            _model(system_env={"VLLM_USE_V2_MODEL_RUNNER": 1})
+
+    def test_model_system_env_rejects_empty_key(self):
+        with pytest.raises(SchemaError):
+            _model(system_env={"": "1"})
+
+    def test_profile_system_env_rejects_non_str_value(self):
+        with pytest.raises(SchemaError):
+            _profile(system_env={"GENESIS_G4_09_CHUNK_SIZE": 8192})
+
+    def test_profile_system_env_rejects_non_dict(self):
+        with pytest.raises(SchemaError):
+            _profile(system_env=["GENESIS_G4_09_CHUNK_SIZE=8192"])
