@@ -642,6 +642,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "'needs_cpu_accepted_counts')."
         ),
         "upstream_pr": 45100,
+        "upstream_pr_relationship": "backport",
         "applies_to": {
             "is_hybrid": [True],
             # 0.23.x regression only (async became MTP-default on 0.23.0).

@@ -210,6 +210,10 @@ def test_spec_only_truly_orphan_baseline():
         # spec-only (apply_module set, legacy @register_patch hook
         # removed); applied at legacy boot via _run_spec_only_supplement.
         "PN353A",
+        # 2026-06-17 (0.23.1 pin-bump): PN398 backport of vllm#45100 (async
+        # spec-decode accepted-counts race) — spec-driven from inception
+        # (apply_module + own apply(), no legacy hook), default-off defensive.
+        "PN398",
     }
     actual = set(diff["spec_only_truly_orphan_ids"])
     new_orphans = sorted(actual - expected)
