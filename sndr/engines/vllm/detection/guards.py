@@ -601,6 +601,21 @@ PROMOTION_PENDING_VLLM_PINS: tuple[str, ...] = (
     "0.21.1rc0",
     "0.21.1rc0+gd735968f6d63",
     "0.21.1rc0+gbf610c2f5676",
+    # ── Pin-bump candidate 2026-06-17 — vllm 0.23.1 (minor jump from 0.22.1) ──
+    # Image: vllm/vllm-openai:nightly-4c626633159887b0f2c962058c17c78f1434556d
+    # commit 4c626633 (2026-06-17), +128 commits over dev491/1033ffac2.
+    # Static audit (2026-06-17): 8 active anchor drifts (P7/P77/PN110/PN252/
+    # PN288/PN373/PN378/PN66) + breaks P89(#45171 reasoning-cls move),
+    # g_dynamic_k(#32374). Gemma4 parser stack superseded by #45588 (engine
+    # parser is a strict superset). Native TurboQuant markers present
+    # (#38479/#39931/#39953) but DO NOT supersede our G4_60*/TQ gate — KEEP
+    # whole TQ stack. chat-k3 TQ stays blocked (#43914 doesn't touch the gate).
+    # PENDING bench validation on 35B/27B/Gemma/DiffusionGemma before graduating
+    # to KNOWN_GOOD. See sndr_private/.../2026-06-17-pinbump-4c626633-*.md.
+    "0.23.1rc1.dev101+g4c6266331",
+    "0.23.1rc1.dev101+g4c626633159",
+    "nightly-4c626633",
+    "nightly-4c626633159887b0f2c962058c17c78f1434556d",
 )
 
 
