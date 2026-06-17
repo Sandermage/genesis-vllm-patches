@@ -88,6 +88,14 @@ WAIVERS: dict[str, str] = {
         "must contain Cyrillic to detect Cyrillic-tokenization drift. Same "
         "fixture-data class as tests/probes/streaming_thinking_probe.py."
     ),
+    "tests/unit/product_api/test_market_tools.py": (
+        "Intentional Russian test INPUT: the crypto/market symbol extractor "
+        "must work on real Russian user queries (Sander is a Russian-speaking "
+        "operator), so the test asserts _extract_crypto_symbols('дай анализ "
+        "актива wld на сегодня') == ['WLD']. Translating the query to English "
+        "would defeat the test's purpose (it verifies Cyrillic-query symbol "
+        "extraction). Same fixture-data class as streaming_thinking_probe.py."
+    ),
 }
 
 CYRILLIC_RE = re.compile(r"[Ѐ-ӿԀ-ԯ]")
