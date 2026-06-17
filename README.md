@@ -48,6 +48,25 @@ comparisons, and per-rig reproduction recipes:
 
 ![Sustained TPS — Genesis vs stock](assets/charts/tps_genesis_vs_stock.png)
 
+### Latest rig validation — 2026-06-17 (pin `0.22.1rc1.dev491+g1033ffac2`)
+
+Full model-cycle re-test on the reference 2× A5000 rig after syncing it to the current
+source tree. Each model boots the Genesis apply pipeline, applies its patch set, and is
+benchmarked / smoke-tested live (`tools/genesis_bench_suite.py`, 5×5×1024-token sustained).
+
+| Model | Quant / KV | Patches | Decode TPS | Tool-call | Status |
+| --- | --- | ---: | ---: | :---: | --- |
+| Qwen3.6-35B-A3B-FP8 | FP8 dense · TQ k8v4 · MTP K=3 | 95 | **208.7** (CV 9.5 %) | 7/7 | ✅ serving — no regression |
+| Qwen3.6-27B-int4-AutoRound | INT4 AutoRound · TQ k8v4 · MTP K=3 | 93 | **120.3** (CV 4.1 %) | 7/7 | ✅ serving — no regression |
+| Gemma-4-31B | INT4 · TQ k8v4 · MTP K=3 | 81 | — | — | ⚙️ boots + patches apply; serving needs MM-budget config (multimodal-bidirectional × spec-decode) |
+| DiffusionGemma-26B-A4B-FP8 | FP8-dynamic · block-diffusion · TP=2 | 44 | — | — | 🧪 `PN-FP8MOE-KPAD` clears the Marlin-MoE N=352 thread-tile crash; full TP=2 serving pending a TP-vocab-shard fix |
+
+The 35B and 27B reproduce their historical peak band (216 / 133 t/s) within CV →
+the v12 platform carries **no decode regression**. `PN-FP8MOE-KPAD` is the in-tree
+backport of open vLLM PR [#45703](https://github.com/vllm-project/vllm/pull/45703)
+(model-agnostic Marlin-MoE intermediate-pad); it is the first Genesis patch that loads a
+block-diffusion FP8-MoE checkpoint on Ampere without a kernel rebuild.
+
 ## Quick install
 
 ```bash
