@@ -219,6 +219,7 @@ const RU_BY_EN: Record<string, string> = {
   "(enable_thinking — reasoning models render the <think> path)": "(enable_thinking — модели с рассуждением отображают путь <think>)",
   "Thinking mode didn't return an answer — turn it off for a direct reply.": "Режим размышления не дал ответа — выключите его для прямого ответа.",
   "No answer came back — try again or rephrase the question.": "Ответ не пришёл — попробуйте ещё раз или переформулируйте вопрос.",
+  "Retry without thinking": "Повторить без размышления",
   "Thinking": "Размышление",
   "Answer may be incomplete.": "Ответ может быть неполным.",
   "The model didn't produce a final answer — its reasoning is above. Try again, or turn off Thinking mode for a direct reply.": "Модель не выдала финальный ответ — её размышления выше. Попробуйте ещё раз или выключите режим размышления для прямого ответа.",

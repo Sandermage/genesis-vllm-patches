@@ -14,6 +14,7 @@ best-effort and flagged in ``data_quality``) rather than failing the whole call.
 from __future__ import annotations
 
 import json
+import re
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -139,6 +140,56 @@ def coin_data(symbols: str) -> dict[str, Any]:
                     "mcap": r.get("market_cap"), "volume_24h": r.get("total_volume"),
                     "rank": r.get("market_cap_rank")})
     return {"count": len(out), "coins": out}
+
+
+# Major tickers we recognise in a free-text chat query, so the chat can ground a
+# crypto question in live CoinGecko figures instead of the model's stale memory.
+# Curated (majors only) to avoid false positives on common words; less-common
+# coins are still served by the copilot's coin_data tool.
+_MAJOR_SYMBOLS = {
+    "BTC", "ETH", "SOL", "BNB", "XRP", "ADA", "DOGE", "AVAX", "LINK", "DOT",
+    "MATIC", "TON", "TRX", "LTC", "BCH", "NEAR", "UNI", "APT", "ARB", "OP",
+    "ATOM", "WLD", "SUI", "SEI", "INJ", "TIA", "RNDR", "FET", "PEPE", "SHIB",
+    "FIL", "ICP", "HBAR", "STX", "IMX", "AAVE", "MKR", "LDO", "CRV", "GRT",
+    "ALGO", "XLM", "VET", "ETC", "FTM", "JUP", "ENA", "ONDO", "KAS", "TAO",
+}
+
+
+def _extract_crypto_symbols(text: str) -> list[str]:
+    """Major crypto tickers in a free-text query (case-insensitive, de-duplicated,
+    order-preserving). Curated allow-list → no false positives on common words."""
+    out: list[str] = []
+    for word in re.findall(r"[A-Za-z]{2,5}", text or ""):
+        sym = word.upper()
+        if sym in _MAJOR_SYMBOLS and sym not in out:
+            out.append(sym)
+    return out[:6]
+
+
+def market_grounding(query: str) -> str:
+    """Real-time market-data grounding block for any major crypto tickers in the
+    query (empty when none / on error). Lets the chat answer price/analysis
+    questions with live CoinGecko figures instead of stale model memory."""
+    syms = _extract_crypto_symbols(query)
+    if not syms:
+        return ""
+    try:
+        coins = coin_data(",".join(syms)).get("coins") or []
+    except Exception:  # noqa: BLE001 - grounding is best-effort
+        return ""
+    rows = []
+    for c in coins:
+        if c.get("error") or c.get("price") is None:
+            continue
+        rows.append(
+            f"{c['symbol']}: ${c.get('price')} (24h {c.get('change_24h_pct')}%, "
+            f"7d {c.get('change_7d_pct')}%, mcap ${c.get('mcap'):,}, "
+            f"vol ${c.get('volume_24h'):,}, rank #{c.get('rank')})")
+    if not rows:
+        return ""
+    return ("Live market data (CoinGecko, real-time — use these EXACT figures for "
+            "prices / market caps; your training data is stale, do not quote prices "
+            "from memory):\n" + "\n".join(rows))
 
 
 # ── news / information-field analysis ────────────────────────────────────────

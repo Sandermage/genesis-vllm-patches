@@ -2476,19 +2476,33 @@ def create_app(
             # and cites sources. Best-effort — chat proceeds ungrounded on failure.
             if payload.get("web_search"):
                 try:
-                    from . import external_clients
+                    from . import external_clients, market_tools
                     from urllib.parse import urlparse
 
                     msgs = payload.get("messages") or []
                     last_user = next((m.get("content", "") for m in reversed(msgs)
                                       if isinstance(m, dict) and m.get("role") == "user"), "")
+                    grounding: list[str] = []
+                    # Real-time market data for any crypto tickers in the question —
+                    # the model's training data is stale, so search snippets alone
+                    # (titles/links, no live price) led to invented numbers.
+                    try:
+                        mg = market_tools.market_grounding(last_user)
+                        if mg:
+                            grounding.append(mg)
+                    except Exception:  # noqa: BLE001 - best-effort
+                        pass
                     res = external_clients.web_search(last_user, limit=int(payload.get("web_k") or 6))
                     hits = res.get("results") or []
                     if hits:
-                        block = "Live web search results — ground your answer in these and cite the URLs:\n" + "\n".join(
-                            f"[{i + 1}] ({h.get('url')}) {h.get('title')}: {h.get('snippet')}"
-                            for i, h in enumerate(hits))
-                        payload["messages"] = [{"role": "system", "content": block}, *msgs]
+                        grounding.append(
+                            "Live web search results — use these as your source for current facts and cite the URLs; "
+                            "if a figure isn't here, say so rather than guessing:\n" + "\n".join(
+                                f"[{i + 1}] ({h.get('url')}) {h.get('title')}: {h.get('snippet')}"
+                                for i, h in enumerate(hits)))
+                    if grounding:
+                        # One leading system message (multiple are rejected by some templates).
+                        payload["messages"] = [{"role": "system", "content": "\n\n".join(grounding)}, *msgs]
                     yield _json.dumps({"sources": [
                         {"id": h.get("url"), "kind": "web", "title": h.get("title") or h.get("url"),
                          "ref": (urlparse(h.get("url") or "").hostname or h.get("url") or ""),

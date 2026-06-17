@@ -85,3 +85,23 @@ def test_news_analysis_one_class_down(monkeypatch):
     assert out["by_class"]["liquidations"] == []      # degraded
     assert out["by_class"]["etf_flows"]                # others fine
     assert "liquidations" in out.get("errors", {})
+
+
+def test_extract_crypto_symbols_case_insensitive_majors_only():
+    assert mt._extract_crypto_symbols("дай анализ актива wld на сегодня") == ["WLD"]
+    assert set(mt._extract_crypto_symbols("compare BTC and eth please")) == {"BTC", "ETH"}
+    assert mt._extract_crypto_symbols("how are you today") == []   # no false positives
+    assert mt._extract_crypto_symbols("") == []
+
+
+def test_market_grounding_formats_live_figures(monkeypatch):
+    monkeypatch.setattr(mt, "coin_data", lambda s: {"coins": [
+        {"symbol": "WLD", "price": 0.684, "change_24h_pct": 13.7, "change_7d_pct": 34.0,
+         "mcap": 2_331_000_000, "volume_24h": 1_341_000_000, "rank": 42}]})
+    g = mt.market_grounding("analyze wld today")
+    assert "WLD" in g and "0.684" in g and "13.7" in g and "#42" in g
+    assert "EXACT figures" in g
+
+
+def test_market_grounding_empty_without_crypto():
+    assert mt.market_grounding("hello there friend") == ""

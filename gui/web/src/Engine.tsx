@@ -807,7 +807,7 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
     patchConvo(activeIdRef.current, updater);
   }
 
-  async function runTurn(convo: ChatMessage[]) {
+  async function runTurn(convo: ChatMessage[], opts?: { thinking?: boolean }) {
     const convoId = activeIdRef.current;
     streamingConvoRef.current = convoId;
     const titled = convo.find((m) => m.role === "user");
@@ -845,7 +845,7 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
     const started = Date.now();
     try {
       await api.engineChatStream(
-        { messages: payloadMessages, model: settings.model || undefined, max_tokens: settings.maxTokens, temperature: settings.temperature, top_p: settings.topP, top_k: settings.topK || undefined, min_p: settings.minP || undefined, presence_penalty: settings.presencePenalty, frequency_penalty: settings.frequencyPenalty, repetition_penalty: settings.repetitionPenalty !== 1 ? settings.repetitionPenalty : undefined, seed: settings.seed ? Number(settings.seed) : undefined, stop: stopSeqs.length ? stopSeqs : undefined, host: settings.host, port: settings.port, apiKey: settings.apiKey || undefined, hostId: settings.hostId || undefined, web_search: settings.webSearch || undefined, chat_template_kwargs: { enable_thinking: settings.thinking } },
+        { messages: payloadMessages, model: settings.model || undefined, max_tokens: settings.maxTokens, temperature: settings.temperature, top_p: settings.topP, top_k: settings.topK || undefined, min_p: settings.minP || undefined, presence_penalty: settings.presencePenalty, frequency_penalty: settings.frequencyPenalty, repetition_penalty: settings.repetitionPenalty !== 1 ? settings.repetitionPenalty : undefined, seed: settings.seed ? Number(settings.seed) : undefined, stop: stopSeqs.length ? stopSeqs : undefined, host: settings.host, port: settings.port, apiKey: settings.apiKey || undefined, hostId: settings.hostId || undefined, web_search: settings.webSearch || undefined, chat_template_kwargs: { enable_thinking: opts?.thinking ?? settings.thinking } },
         {
           onDelta: (text) => patchConvo(convoId, (c) => { const msgs = c.messages.slice(); const last = msgs[msgs.length - 1]; if (!last) return c; msgs[msgs.length - 1] = { ...last, content: (last.content ?? "") + text }; return { ...c, messages: msgs }; }),
           onReasoning: (text) => patchConvo(convoId, (c) => { const msgs = c.messages.slice(); const last = msgs[msgs.length - 1]; if (!last) return c; msgs[msgs.length - 1] = { ...last, reasoning: (last.reasoning ?? "") + text }; return { ...c, messages: msgs }; }),
@@ -872,10 +872,17 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
     void runTurn([...messages, { id: chatMsgId(), role: "user", content: value }]);
   }
   function stop() { abortRef.current?.abort(); setStreaming(false); }
-  function regenerate() {
+  function regenerate(opts?: { thinking?: boolean }) {
     const idx = messages.map((m) => m.role).lastIndexOf("user");
     if (idx < 0 || streaming) return;
-    void runTurn(messages.slice(0, idx + 1));
+    void runTurn(messages.slice(0, idx + 1), opts);
+  }
+  // One-click recovery for the common "thinking mode returned no answer" case
+  // (e.g. an engine launched without --reasoning-parser): turn thinking off and
+  // re-run the last turn directly.
+  function retryWithoutThinking() {
+    set({ thinking: false });
+    regenerate({ thinking: false });
   }
   function editUser(index: number) {
     const msg = messages[index];
@@ -1109,9 +1116,9 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
                       : streaming && index === messages.length - 1
                         ? <span className="chat-typing"><span /><span /><span /></span>
                         : msg.reasoning
-                          ? <div className="chat-advisory"><CircleAlert size={13} /> <span>{tr("The model didn't produce a final answer — its reasoning is above. Try again, or turn off Thinking mode for a direct reply.")}</span></div>
+                          ? <div className="chat-advisory"><CircleAlert size={13} /> <span>{tr("The model didn't produce a final answer — its reasoning is above. Try again, or turn off Thinking mode for a direct reply.")}</span>{settings.thinking && !streaming && <button type="button" className="ghost-button" onClick={retryWithoutThinking}><RefreshCw size={12} /> {tr("Retry without thinking")}</button>}</div>
                           : msg.stat?.reasoningEmpty
-                            ? <div className="chat-advisory"><CircleAlert size={13} /> <span>{settings.thinking ? tr("Thinking mode didn't return an answer — turn it off for a direct reply.") : tr("No answer came back — try again or rephrase the question.")}</span></div>
+                            ? <div className="chat-advisory"><CircleAlert size={13} /> <span>{settings.thinking ? tr("Thinking mode didn't return an answer — turn it off for a direct reply.") : tr("No answer came back — try again or rephrase the question.")}</span>{settings.thinking && !streaming && <button type="button" className="ghost-button" onClick={retryWithoutThinking}><RefreshCw size={12} /> {tr("Retry without thinking")}</button>}</div>
                             : <em className="muted">{tr("(empty)")}</em>}
                   {streaming && index === messages.length - 1 && msg.content && <span className="chat-cursor" />}
                 </div>
@@ -1121,7 +1128,7 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
                   <div className="chat-msg-actions">
                     <button className="icon-only" title={tr("Copy")} onClick={() => void navigator.clipboard?.writeText(msg.content)}><Copy size={12} /></button>
                     {msg.role === "user" && <button className="icon-only" title={tr("Edit & resend")} onClick={() => editUser(index)}><Pencil size={12} /></button>}
-                    {msg.role === "assistant" && index === messages.length - 1 && !streaming && <button className="icon-only" title={tr("Regenerate")} onClick={regenerate}><RefreshCw size={12} /></button>}
+                    {msg.role === "assistant" && index === messages.length - 1 && !streaming && <button className="icon-only" title={tr("Regenerate")} onClick={() => regenerate()}><RefreshCw size={12} /></button>}
                     <button className="icon-only" title={tr("Delete")} onClick={() => deleteTurn(index)}><Trash2 size={12} /></button>
                   </div>
                 </div>
