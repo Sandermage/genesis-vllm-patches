@@ -58,8 +58,8 @@ runtime:
   default: docker                                # values: docker|podman|kubernetes|systemd|bare; docker is the operator default
   supported: [docker]                            # which runtime emitters this hardware definition declares as supported
   docker:
-    image: vllm/vllm-openai:nightly-1033ffac2  # vllm container image tag — 0.22.1rc1.dev491+g1033ffac2 (PROMOTED 2026-06-14; supersedes dev259+g303916e93). dev491 = validated streaming-tool-call pin: #45171 deleted qwen3xml_tool_parser and remapped qwen3_xml->Qwen3CoderToolParser; Genesis P64/P61c/PN56 version-capped <dev491 (skip) + PN392 retired so the engine-native parser handles streaming. Previous nightly-303916e93 (dev259) retained as rollback.
-    image_digest: vllm/vllm-openai@sha256:779772129ce2cbd64329e370aed9dd8f27ffea9b8eb69038e9a2d5ee5791202d  # pinned digest — nightly-1033ffac2 (0.22.1rc1.dev491+g1033ffac2). Previous nightly-303916e93 (dev259, digest d892cc41…) retained as rollback per CLAUDE.md vLLM pin policy.
+    image: vllm/vllm-openai:nightly-4c626633159887b0f2c962058c17c78f1434556d  # vllm container image tag — 0.23.1rc1.dev101+g4c6266331 (PROMOTED 2026-06-17 after full-fleet validation: 35B 210.7 TPS = 101% of dev491, 27B/Gemma4-31B/DiffusionGemma all apply failed=0 + smoke + tool-call PASS; MTP fixed via P67 cap <0.24.0, PN30 retired, P29_HEAL capped). #45588 parser reorg → engine-native qwen3_engine_tool_parser handles streaming tool-calls. Previous nightly-1033ffac2 (dev491) retained as rollback per CLAUDE.md pin policy.
+    image_digest: vllm/vllm-openai@sha256:4bdd89ecf82de7313415abd61cd4956787392e48ea85ebb73b4213deb11b7f72  # pinned digest — nightly-4c626633159887b0f2c962058c17c78f1434556d (0.23.1rc1.dev101+g4c6266331). Previous nightly-1033ffac2 (dev491, digest 779772129ce2…) retained as rollback per CLAUDE.md vLLM pin policy.
     container_name_template: vllm-{model_id}     # template; {model_id} expanded at compose time
     host_port: 8000                              # OpenAI-API port on host
     container_port: 8000                         # OpenAI-API port inside container

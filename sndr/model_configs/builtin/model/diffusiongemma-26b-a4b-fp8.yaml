@@ -109,7 +109,7 @@ requires:
 
 versions:
   genesis_pin_min: v12.0.0
-  vllm_pin_required: 0.22.1rc1.dev491+g1033ffac2   # dev491 (nightly-1033ffac2): G4_26 applies_to.vllm_version_range is >=0.22.1rc1.dev491; the DiffusionGemma block-diffusion model_executor + the N=352 FP8 MoE crash both live on this pin.
+  vllm_pin_required: 0.23.1rc1.dev101+g4c6266331   # 0.23.1 (nightly-4c626633): rig-validated 2026-06-17 — block-diffusion serve apply failed=0 + coherent gen ("The capital of France is Paris." / Red-Blue-Yellow) + get_weather {"city":"Berlin"} tool-call (gemma4 parser). G4_26 applies_to.vllm_version_range >=0.22.1rc1.dev491 still satisfied (0.23.1 > dev491); the DiffusionGemma block-diffusion model_executor + N=352 FP8 MoE crash guard both live. Previous dev491 (nightly-1033ffac2) retained as rollback.
   reference_metrics_ref: null  # no canonical baseline JSON yet — see reference_metrics block below (coherent-serve receipt only; speed pending).
 
 # ─── Canonical patches matrix ──────────────────────────────────────────
@@ -140,7 +140,7 @@ patches:
 reference_metrics:
   validated_on: '2026-06-17'
   hardware: a5000-2x-24gbvram-16cpu-128gbram
-  vllm_pin: 0.22.1rc1.dev491+g1033ffac2
+  vllm_pin: 0.23.1rc1.dev101+g4c6266331
   config: TP=2, enforce_eager, max_model_len=4096, max_num_seqs=2, gpu_mem=0.80
   result: >-
     TP=2 coherent serve validated 2026-06-17 (model produces coherent text

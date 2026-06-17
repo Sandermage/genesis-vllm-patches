@@ -28,8 +28,8 @@ runtime:
   default: docker                                # values: docker|podman|kubernetes|systemd|bare
   supported: [docker]                            # which runtime emitters this hardware supports
   docker:
-    image: vllm/vllm-openai:nightly-1033ffac2  # vllm container image tag — dev491 runtime unified with 2x rig 2026-06-15 (follows the canonical 2x pin; the audit requires one rig-wide SHA). Community 3090 reference shares the SAME engine binary as the 2x rig; no independent single-card smoke yet.
-    image_digest: vllm/vllm-openai@sha256:779772129ce2cbd64329e370aed9dd8f27ffea9b8eb69038e9a2d5ee5791202d  # pinned digest — nightly-1033ffac2 (0.22.1rc1.dev491+g1033ffac2). Bumped 2026-06-15 to track the 2x-rig dev491 promotion (canonical-pin audit requires one rig-wide SHA); engine validated on the 2x profile (community 3090 reference); single-card-profile boot validation pending. Previous nightly-303916e93 (dev259) retained as rollback.
+    image: vllm/vllm-openai:nightly-4c626633159887b0f2c962058c17c78f1434556d  # vllm container image tag — 0.23.1rc1.dev101+g4c6266331, unified with 2x rig 2026-06-17 (follows the canonical 2x pin; the audit requires one rig-wide SHA). Community 3090 reference shares the SAME engine binary as the 2x rig; no independent single-card smoke yet. Previous nightly-1033ffac2 (dev491) retained as rollback.
+    image_digest: vllm/vllm-openai@sha256:4bdd89ecf82de7313415abd61cd4956787392e48ea85ebb73b4213deb11b7f72  # pinned digest — nightly-4c626633159887b0f2c962058c17c78f1434556d (0.23.1rc1.dev101+g4c6266331). Bumped 2026-06-17 to track the 2x-rig 0.23.1 promotion (canonical-pin audit requires one rig-wide SHA); engine validated on the 2x profile (community 3090 reference); single-card-profile boot validation pending. Previous nightly-1033ffac2 (dev491) retained as rollback.
     container_name_template: vllm-{model_id}-3090  # template includes -3090 suffix
     host_port: 8000                              # OpenAI-API host port
     container_port: 8000                         # OpenAI-API container port
