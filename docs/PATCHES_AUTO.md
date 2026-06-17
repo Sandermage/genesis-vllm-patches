@@ -4,7 +4,7 @@
 > Source of truth: `sndr/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-06-17T18:50:30Z
+Generated: 2026-06-17T19:19:24Z
 Total entries: **317**
 
 ## Statistics
@@ -14,10 +14,10 @@ Total entries: **317**
 
 ### By lifecycle
 - `lifecycle=coordinator`: **4**
-- `lifecycle=experimental`: **235**
+- `lifecycle=experimental`: **234**
 - `lifecycle=legacy`: **28**
 - `lifecycle=research`: **4**
-- `lifecycle=retired`: **32**
+- `lifecycle=retired`: **33**
 - `lifecycle=stable`: **14**
 
 ### Default-on at boot: **54** / 317
@@ -100,7 +100,7 @@ Total entries: **317**
 | **PN350** | `community` | `experimental` | · | `GENESIS_ENABLE_PN350` | [#26206](https://github.com/vllm-project/vllm/pull/26206) | Fused GDN Q/K/V split Triton kernel (SGLang#26206 + TRT-LLM#12966 convergent) |
 | **PN354** | `community` | `experimental` | · | `GENESIS_ENABLE_PN354_GDN_USE_EXP2` | [#43195](https://github.com/vllm-project/vllm/pull/43195) | GDN chunked-prefill exp2 gate decay (extends vllm#43195 KDA pattern to GDN) |
 | **PN365** | `community` | `experimental` | · | `GENESIS_ENABLE_PN365_GDN_GEMM_FUSE` | [#42746](https://github.com/vllm-project/vllm/pull/42746) | Fused GDN qkv\|z\|b\|a single-GEMM input projection (port of OPEN vllm#42746) |
-| **PN396** | `community` | `experimental` | · | `GENESIS_ENABLE_PN396_GDN_SPEC_DECODE_WARPS` | — | GDN spec-decode recurrent kernel num_warps 4->1 (SM 8.6 row-per-thread reduct... |
+| **PN396** | `community` | `retired` | · | `GENESIS_ENABLE_PN396_GDN_SPEC_DECODE_WARPS` | — | GDN spec-decode recurrent kernel num_warps 4->1 (SM 8.6 row-per-thread reduct... |
 | **P39a** | `community` | `legacy` | ✓ | `GENESIS_LEGACY_P39A` | — | FLA chunk_scaled_dot_kkt persistent A pool |
 | **P60b** | `community` | `experimental` | · | `GENESIS_ENABLE_P60B_TRITON_KERNEL` | [#40738](https://github.com/vllm-project/vllm/pull/40738) | GDN+ngram Triton kernel offset (Phase 2) |
 | **P7b** | `community` | `retired` | · | `GENESIS_ENABLE_P7B` | — | GDN dual-stream via torch.library.custom_op — RETIRED 2026-06-11 |

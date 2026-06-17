@@ -1622,7 +1622,7 @@
   {
     "patch_id": "PN396",
     "family": "attention.gdn",
-    "lifecycle": "experimental",
+    "lifecycle": "retired",
     "tier": "community",
     "default_on": false,
     "env_flag": "GENESIS_ENABLE_PN396_GDN_SPEC_DECODE_WARPS",

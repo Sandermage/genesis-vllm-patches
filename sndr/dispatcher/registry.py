@@ -313,7 +313,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {
             # [Genesis pin-gate 2026-05-11] PROD-active (GroupAB component
             # +9.2% on 27B). Validated dev9 → dev93.
-            "vllm_version_range": (">=0.20.0", "<0.23.0"),
+            "vllm_version_range": (">=0.20.0", "<0.24.0"),
         },
         "apply_module": "sndr.engines.vllm.patches.spec_decode.p70_auto_strict_ngram",
         "lifecycle": "experimental",
@@ -666,7 +666,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             # [Genesis pin-gate 2026-05-11] PROD-active (caps profile_run
             # M to GENESIS_PROFILE_RUN_CAP_M, unblocks batched_tokens>4096
             # on MoE). Validated dev9 → dev93.
-            "vllm_version_range": (">=0.20.0", "<0.23.0"),
+            "vllm_version_range": (">=0.20.0", "<0.24.0"),
         },
         "apply_module": "sndr.engines.vllm.patches.worker.p72_profile_run_cap",
         "lifecycle": "experimental",
@@ -812,7 +812,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             # 0.22.1rc1.dev259 pristine tree; first-appearance dev not
             # bisected — widen only after study). Older pins carry the
             # boolean-era code this rewrite replaced.
-            "vllm_version_range": (">=0.22.1rc1.dev259", "<0.23.0"),
+            "vllm_version_range": (">=0.22.1rc1.dev259", "<0.24.0"),
         },
         "apply_module": "sndr.engines.vllm.patches.scheduler.p79d_preempt_async_discard",
         "lifecycle": "experimental",
@@ -847,7 +847,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {
             # [Genesis pin-gate 2026-05-11] PROD-active (Sprint 1 winner
             # +5.23% TPS at thr=0.1). Validated dev9 → dev93.
-            "vllm_version_range": (">=0.20.0", "<0.23.0"),
+            "vllm_version_range": (">=0.20.0", "<0.24.0"),
         },
         "apply_module": "sndr.engines.vllm.patches.spec_decode.p82_sglang_acceptance_threshold",
         "lifecycle": "research",
@@ -1354,7 +1354,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {
             # [Genesis pin-gate 2026-05-11] Defensive safety-net (default
             # OFF). Validated dev9 → dev93. Self-retires when #41467 merges.
-            "vllm_version_range": (">=0.20.0", "<0.23.0"),
+            "vllm_version_range": (">=0.20.0", "<0.24.0"),
         },
         "apply_module": "sndr.engines.vllm.patches.serving.p107_mtp_truncation_detector",
         "lifecycle": "experimental",
@@ -1700,7 +1700,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
                 "Qwen3NextForCausalLM",
                 "Qwen3MoeForCausalLM",
             ],
-            "vllm_version_range": (">=0.20.0", "<0.23.0"),
+            "vllm_version_range": (">=0.20.0", "<0.24.0"),
         },
     },
     "PN129": {
@@ -1731,7 +1731,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "requires_patches": [],
         "conflicts_with": [],
         "applies_to": {
-            "vllm_version_range": (">=0.20.0", "<0.23.0"),
+            "vllm_version_range": (">=0.20.0", "<0.24.0"),
         },
     },
     "PN130": {
@@ -1762,7 +1762,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "requires_patches": [],
         "conflicts_with": [],
         "applies_to": {
-            "vllm_version_range": (">=0.20.0", "<0.23.0"),
+            "vllm_version_range": (">=0.20.0", "<0.24.0"),
         },
     },
     "PN127": {
@@ -1811,7 +1811,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
                 "Qwen3NextForCausalLM",
                 "Qwen3MoeForCausalLM",
             ],
-            "vllm_version_range": (">=0.20.0", "<0.23.0"),
+            "vllm_version_range": (">=0.20.0", "<0.24.0"),
         },
     },
     "PN126": {
@@ -1870,7 +1870,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
                 "Qwen3NextForCausalLM",
                 "Qwen3MoeForCausalLM",
             ],
-            "vllm_version_range": (">=0.20.0", "<0.23.0"),
+            "vllm_version_range": (">=0.20.0", "<0.24.0"),
         },
     },
     "PN125": {
@@ -2021,7 +2021,8 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "family": "spec_decode",
         "env_flag": "GENESIS_ENABLE_PN90_PROBABILISTIC_DRAFT",
         "default_on": False,
-        "lifecycle": "experimental",
+        "lifecycle": "retired",
+        "superseded_by": "vllm#40269",
         "implementation_status": "full",
         "category": "spec_decode",
         "apply_module": "sndr.engines.vllm.patches.spec_decode.pn90_probabilistic_draft_rejection",
@@ -2144,7 +2145,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "(duplicate of this patch with the same fault site)."
         ),
         "applies_to": {
-            "vllm_version_range": (">=0.20.2rc1.dev9", "<0.23.0"),
+            "vllm_version_range": (">=0.20.2rc1.dev9", "<0.24.0"),
         },
         "requires_patches": [],
         "conflicts_with": [],
@@ -2323,7 +2324,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "(offload/evict/quantize) required by PN203. Zero speed "
             "and quality impact."
         ),
-        "applies_to": {"vllm_version_range": (">=0.20.2rc1.dev9", "<0.21.0")},
+        "applies_to": {"vllm_version_range": (">=0.20.2rc1.dev9", "<0.24.0")},
         "requires_patches": [],
         "conflicts_with": [],
         "implementation_status": "full",
@@ -2350,7 +2351,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "preserved (math identical). Decode adds 5-15ms per token "
             "when paging hits."
         ),
-        "applies_to": {"vllm_version_range": (">=0.20.2rc1.dev9", "<0.21.0")},
+        "applies_to": {"vllm_version_range": (">=0.20.2rc1.dev9", "<0.24.0")},
         "requires_patches": ["PN202"],
         "conflicts_with": [],
         "implementation_status": "full",
@@ -2474,7 +2475,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "site observed at chunk_o.py:168 on Qwen3.6-27B + 156K context."
         ),
         "applies_to": {
-            "vllm_version_range": (">=0.20.2rc1.dev9", "<0.23.0"),
+            "vllm_version_range": (">=0.20.2rc1.dev9", "<0.24.0"),
         },
         "requires_patches": [],
         "conflicts_with": [],
@@ -2504,7 +2505,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "cpu_offload_gb=8 on AutoRound → KV pool grows 4 GB → "
             "9-10 GB → 156K-176K context on single A5000."
         ),
-        "applies_to": {"vllm_version_range": (">=0.20.2rc1.dev9", "<0.21.0")},
+        "applies_to": {"vllm_version_range": (">=0.20.2rc1.dev9", "<0.24.0")},
         "requires_patches": ["PN104"],
         "conflicts_with": [],
         "implementation_status": "full",
@@ -2535,7 +2536,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "biggest win for any cpu_offload deployment."
         ),
         "applies_to": {
-            "vllm_version_range": (">=0.20.2rc1.dev9", "<0.21.0"),
+            "vllm_version_range": (">=0.20.2rc1.dev9", "<0.24.0"),
         },
         "requires_patches": [],
         "conflicts_with": [],
@@ -2633,8 +2634,8 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "requires_patches": [],
         "conflicts_with": [],
         "composes_with": ["PN346"],
-        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
-        "vllm_version_range": (">=0.22.0", "<0.23.0"),
+        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.24.0")},
+        "vllm_version_range": (">=0.22.0", "<0.24.0"),
     },
     "PN385": {
         "title": "Forced-named empty-params tool schema -> JSON object (vendor of vllm#45290)",
@@ -2674,8 +2675,8 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "requires_patches": [],
         "conflicts_with": [],
         "composes_with": ["PN70", "P68"],
-        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
-        "vllm_version_range": (">=0.22.0", "<0.23.0"),
+        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.24.0")},
+        "vllm_version_range": (">=0.22.0", "<0.24.0"),
     },
     "PN386": {
         "title": "Required-tool streaming brace JSON-string-awareness (vendor of vllm#45389)",
@@ -2722,8 +2723,8 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "requires_patches": [],
         "conflicts_with": [],
         "composes_with": ["P68"],
-        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
-        "vllm_version_range": (">=0.22.0", "<0.23.0"),
+        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.24.0")},
+        "vllm_version_range": (">=0.22.0", "<0.24.0"),
     },
     "PN387": {
         "title": "Reject degenerate structured_outputs (DoS guard, vendor of vllm#45346)",
@@ -2765,8 +2766,8 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "requires_patches": [],
         "conflicts_with": [],
         "composes_with": ["P68", "P69", "PN16", "P109"],
-        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
-        "vllm_version_range": (">=0.22.0", "<0.23.0"),
+        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.24.0")},
+        "vllm_version_range": (">=0.22.0", "<0.24.0"),
     },
     "PN388": {
         "title": "Mamba-block-aligned intermediate prefill split (vendor of vllm#45477)",
@@ -2957,8 +2958,8 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         # declared a PN390 conflict — so P71 conflicts for the same reason.
         "conflicts_with": ["PN369", "P71"],
         "composes_with": ["PN378", "PN90", "P82"],
-        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
-        "vllm_version_range": (">=0.22.0", "<0.23.0"),
+        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.24.0")},
+        "vllm_version_range": (">=0.22.0", "<0.24.0"),
     },
     "PN391": {
         "title": "/health/decode forward-progress watchdog (vendor of vllm#45453)",
@@ -3007,8 +3008,8 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "requires_patches": [],
         "conflicts_with": [],
         "composes_with": [],
-        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
-        "vllm_version_range": (">=0.22.0", "<0.23.0"),
+        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.24.0")},
+        "vllm_version_range": (">=0.22.0", "<0.24.0"),
     },
     "PN392": {
         "title": "qwen3_coder streaming tool-call within-call coalescing (dev491 regression fix)",
@@ -3143,7 +3144,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "block_id translation) which is future work."
         ),
         "applies_to": {
-            "vllm_version_range": (">=0.20.2rc1.dev9", "<0.21.0"),
+            "vllm_version_range": (">=0.20.2rc1.dev9", "<0.24.0"),
         },
         "requires_patches": [],
         "conflicts_with": [],
@@ -3173,7 +3174,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "(Phase 7 / scheduler refactor)."
         ),
         "applies_to": {
-            "vllm_version_range": (">=0.20.2rc1.dev9", "<0.23.0"),
+            "vllm_version_range": (">=0.20.2rc1.dev9", "<0.24.0"),
         },
         "requires_patches": [],
         "conflicts_with": [],
@@ -3200,7 +3201,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "import. Until upstream PR lands."
         ),
         "applies_to": {
-            "vllm_version_range": (">=0.20.2rc1.dev209", "<0.23.0"),
+            "vllm_version_range": (">=0.20.2rc1.dev209", "<0.24.0"),
         },
         "requires_patches": [],
         "conflicts_with": [],
@@ -3256,7 +3257,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "instead of 500'ing. Strictly defensive."
         ),
         "applies_to": {
-            "vllm_version_range": (">=0.20.2rc1.dev9", "<0.23.0"),
+            "vllm_version_range": (">=0.20.2rc1.dev9", "<0.24.0"),
         },
         "requires_patches": [],
         "conflicts_with": [],
@@ -3280,7 +3281,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "complements froggeric/enhanced jinja but does not require them."
         ),
         "applies_to": {
-            "vllm_version_range": (">=0.20.2rc1.dev9", "<0.23.0"),
+            "vllm_version_range": (">=0.20.2rc1.dev9", "<0.24.0"),
         },
         "requires_patches": [],
         "conflicts_with": [],
@@ -4157,7 +4158,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
 
             # [Genesis pin-gate 2026-05-11] PROD-active (GroupAB component).
             # Validated dev9 → dev93. Self-retires when #34207 merges.
-            "vllm_version_range": (">=0.20.0", "<0.23.0"),
+            "vllm_version_range": (">=0.20.0", "<0.24.0"),
         },
         "apply_module": "sndr.engines.vllm.patches.kernels.pn12_ffn_intermediate_pool",
         "lifecycle": "experimental",
@@ -4294,11 +4295,14 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         ),
         "upstream_pr": 39419,
         "upstream_pr_relationship": "backport",
-        "applies_to": {},
+        "applies_to": {
+            "vllm_version_range": "<0.23.1rc1.dev101",  # pin-gate cap: vllm#39419 (LocalArgmaxMixin) merged at bd2d83ff, ancestor of 0.23.1rc1.dev101+g4c6266331 — mixin native in interfaces.py:1285 on the deployed pin (live-verified 2026-06-17)
+        },
         "conflicts_with": [],
         "requires_patches": [],
         "apply_module": "sndr.engines.vllm.patches.spec_decode.pn22_local_argmax_tp",
-        "lifecycle": "experimental",
+        "superseded_by": "vllm#39419 (LocalArgmaxMixin)",
+        "lifecycle": "retired",
         "implementation_status": "full",
     },
     "PN24": {
@@ -5028,7 +5032,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         ),
         "upstream_pr": 26206,  # SGLang #26206; TRT-LLM #12966 convergent algorithm
         "upstream_pr_relationship": "backport",
-        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
+        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.24.0")},
         "implementation_status": "full",
         "composes_with": ["PN340", "PN341", "PN345", "PN204", "PN54", "PN29", "P28"],
     },
@@ -5075,7 +5079,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         ),
         "upstream_pr": 43195,
         "upstream_pr_relationship": "backport",
-        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
+        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.24.0")},
         "implementation_status": "full",
         "composes_with": ["PN59", "P103", "PN29", "PN106", "PN298", "PN299", "PN345", "PN350"],
     },
@@ -5086,7 +5090,19 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "env_flag": "GENESIS_ENABLE_PN396_GDN_SPEC_DECODE_WARPS",
         "default_on": False,
         "apply_module": "sndr.engines.vllm.patches.attention.gdn.pn396_gdn_spec_decode_num_warps",
-        "lifecycle": "experimental",
+        # 2026-06-17 (0.23.1 reverify): RETIRED as a tested-negative dead-end.
+        # The anchor still resolves byte-exact on 0.23.1 (upstream still hardcodes
+        # num_warps=4), so the mechanical rule would bump_cap — but that is
+        # OVERRIDDEN: the A/B on 2026-06-14 (PROD 35B chat-matrix n=5) proved
+        # num_warps=1 REGRESSES everywhere vs upstream 4 (code -4.2%, tool_call
+        # -10.8%, short_chat -5.5%, thinking_off -2.6%, thinking_on -3.8%). 4 warps
+        # win because extra threads hide per-token q/k/v global-load latency on the
+        # gating+varlen path. Restoring it on 0.23.1 would ARM a known regression
+        # whenever an operator sets the flag — strictly worse than the silent
+        # no-op. Kept capped <0.23.0 AND retired so the refuted 4-vs-1 result is
+        # preserved (dead-ends ledger) and the question is not re-opened.
+        "lifecycle": "retired",
+        "superseded_by": "dead-end (tested-negative A/B 2026-06-14; num_warps=4 wins)",
         "category": "kernel_perf",
         "credit": (
             "TESTED-NEGATIVE — DO NOT ENABLE. A/B 2026-06-14 on dev491 (PROD "
@@ -5164,7 +5180,12 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "upstream_pr": 44745,
         "upstream_pr_relationship": "backport",
         "related_upstream_prs": [45076],
-        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
+        # 2026-06-17 (0.23.1 pin-bump): cap bumped <0.23.0 -> <0.24.0. default_on
+        # negative-cudagraph-memory-estimate clamp silently no-op'd on 0.23.1 with
+        # the stale cap. PR #44745 OPEN (not merged); both required anchors
+        # (gpu_model_runner.py + gpu_worker.py) verified byte-present in upstream
+        # source at the 0.23.1 build commit 4c626633; drift markers ABSENT.
+        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.24.0")},
         "implementation_status": "full",
         "composes_with": ["P66", "PN125", "PN126", "PN364"],
     },
@@ -5203,7 +5224,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         ),
         "upstream_pr": 44557,
         "upstream_pr_relationship": "backport",
-        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
+        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.24.0")},
         "implementation_status": "full",
         "composes_with": ["P24", "PN96b", "P31"],
     },
@@ -5256,7 +5277,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         ),
         "upstream_pr": 44557,
         "upstream_pr_relationship": "backport",
-        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
+        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.24.0")},
         "implementation_status": "full",
         "composes_with": ["P24", "PN96b", "P31", "PN368"],
     },
@@ -5302,7 +5323,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "runtime hook), PN352 (fused_moe.py — different file), P24."
         ),
         "upstream_pr": None,
-        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
+        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.24.0")},
         "implementation_status": "full",
         # Anchor collision with P23_WIRE on the marlin_moe.py w13
         # use_fp32_reduce block — see P23_WIRE.conflicts_with (deep-audit #2).
@@ -5357,7 +5378,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "topk x delta grid."
         ),
         "upstream_pr": None,
-        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
+        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.24.0")},
         "implementation_status": "full",
         # PN390 deletes the full-vocab target_probs local this patch reads —
         # mutually exclusive (see PN390.conflicts_with, deep-audit 2026-06-14).
@@ -5425,7 +5446,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         ),
         "upstream_pr": 42746,
         "upstream_pr_relationship": "backport",
-        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
+        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.24.0")},
         "requires_patches": [],
         "conflicts_with": ["PN204"],  # same forward_cuda Part 1 site + semantic conflict
         "implementation_status": "full",
@@ -5461,7 +5482,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         ),
         "upstream_pr": 44797,
         "upstream_pr_relationship": "backport",
-        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
+        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.24.0")},
         "implementation_status": "full",
         "composes_with": ["G4_01", "G4_02", "G4_06", "G4_19"],
     },
@@ -5512,7 +5533,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         },
         "upstream_pr": 43257,
         "upstream_pr_relationship": "backport",
-        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
+        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.24.0")},
         "implementation_status": "full",
         "composes_with": ["PN29", "PN298", "PN299", "PN299B", "PN299C", "PN299D", "PN299E", "PN345"],
     },
@@ -5542,7 +5563,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "upstream_pr_relationship": "backport",
         "applies_to": {
             "is_turboquant": True,
-            "vllm_version_range": (">=0.21.0", "<0.23.0"),
+            "vllm_version_range": (">=0.21.0", "<0.24.0"),
         },
         "implementation_status": "full",
         "composes_with": ["PN118", "PN353B"],
@@ -5587,7 +5608,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "upstream_pr_relationship": "backport",
         "applies_to": {
             "is_turboquant": True,
-            "vllm_version_range": (">=0.21.0", "<0.23.0"),
+            "vllm_version_range": (">=0.21.0", "<0.24.0"),
         },
         "implementation_status": "full",
         # P78 dropped 2026-06-11 (retired — its Sites B/C/D/E are
@@ -5633,7 +5654,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         ),
         "upstream_pr": 43642,
         "upstream_pr_relationship": "backport",
-        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
+        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.24.0")},
         "implementation_status": "full",
         "composes_with": ["PN126", "PN128", "PN129", "PN130"],
     },
@@ -5684,7 +5705,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         ),
         "upstream_pr": 43114,
         "upstream_pr_relationship": "backport",
-        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
+        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.24.0")},
         "implementation_status": "full",
         "composes_with": ["P75", "PN340", "PN341", "PN348", "PN357", "PN361"],
     },
@@ -5720,7 +5741,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         ),
         "upstream_pr": 44869,
         "upstream_pr_relationship": "backport",
-        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
+        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.24.0")},
         "implementation_status": "full",
         "composes_with": ["PN340", "PN341"],
     },
@@ -5757,7 +5778,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         ),
         "upstream_pr": 43349,
         "upstream_pr_relationship": "backport",
-        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
+        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.24.0")},
         "implementation_status": "full",
         "composes_with": ["PN22", "PN340", "PN341", "PN348", "PN361"],
     },
@@ -5813,7 +5834,14 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "upstream_pr": 43650,
         "upstream_pr_relationship": "backport",
         "upstream_issue": 43559,
-        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
+        # 2026-06-17 (0.23.1 pin-bump): cap bumped <0.23.0 -> <0.24.0. PN346 is
+        # default_on but the stale <0.23.0 cap silently no-op'd this default-on
+        # MTP+APC+mamba accuracy fix on the deployed 0.23.1 pin. PR #43650 is
+        # OPEN (NOT merged/superseded); anchor (MambaManager.find_longest_cache_hit
+        # 4-line block) verified byte-present in pristine upstream source at the
+        # 0.23.1 build commit 4c626633. Restored for the 0.23.x line; next minor
+        # forces a re-verify. Lockstep with sibling PN346B (coordinator half).
+        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.24.0")},
         "implementation_status": "full",
         # PN346B: coordinator half of the SAME fix (#45614) — manager
         # half (PN346) and coordinator half MUST ship together.
@@ -5868,7 +5896,12 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "upstream_pr": 45614,
         "upstream_pr_relationship": "backport",
         "upstream_issue": 43559,
-        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
+        # 2026-06-17 (0.23.1 pin-bump): cap bumped <0.23.0 -> <0.24.0, lockstep
+        # with sibling PN346. default_on coordinator-half clamp (#45614 OPEN, not
+        # superseded); anchor (kv_cache_coordinator curr_hit_length 4-line block)
+        # verified byte-present in upstream v0.23.1rc0 source. A half-fix (only
+        # one of PN346/PN346B uncapped) is worse than none, so both move together.
+        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.24.0")},
         "implementation_status": "full",
         # PN346: the sibling MANAGER half — the two MUST ship together.
         "composes_with": ["PN346", "PN340", "PN341", "PN345"],
@@ -6040,7 +6073,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         ),
         "upstream_pr": 44644,
         "upstream_pr_relationship": "backport",
-        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
+        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.24.0")},
         "implementation_status": "full",
         "composes_with": ["PN108", "PN133", "PN290", "PN340", "PN341", "PN77"],
     },
@@ -6082,7 +6115,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         ),
         "upstream_pr": 43047,
         "upstream_pr_relationship": "backport",
-        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
+        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.24.0")},
         "implementation_status": "full",
         "composes_with": ["PN125", "PN204", "PN286", "PN340", "PN341"],
     },
@@ -6118,7 +6151,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         ),
         "upstream_pr": 43955,
         "upstream_pr_relationship": "backport",
-        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
+        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.24.0")},
         "implementation_status": "full",
         "composes_with": ["PN125", "PN204", "PN286", "PN340"],
         "requires_patches": [],  # PN340 + PN341 are independent halves of #43955
@@ -6153,7 +6186,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         ),
         "upstream_pr": 43955,
         "upstream_pr_relationship": "backport",
-        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
+        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.24.0")},
         "implementation_status": "full",
         "composes_with": ["PN125", "PN204", "PN286"],
     },
@@ -6271,7 +6304,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             # Registry-integration 2026-06-11: draft claimed >=0.21.0 but
             # all 11 anchors were byte-verified ONLY on the 0.22.1 pin —
             # pin-specific vendor range per the G4_79 checklist.
-            "vllm_version_range": (">=0.22.0", "<0.23.0"),
+            "vllm_version_range": (">=0.22.0", "<0.24.0"),
         },
         "implementation_status": "full",
         "composes_with": ["PN62"],
@@ -6316,7 +6349,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "upstream_pr_relationship": "backport",
         "requires_patches": [],
         "conflicts_with": [],
-        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
+        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.24.0")},
         "implementation_status": "full",
         "composes_with": ["P58", "P108", "PN340", "PN341", "PN370"],
     },
@@ -6496,7 +6529,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "PN296+PN298+PN299+PN299B+PN299C+PN299D."
         ),
         "upstream_pr": None,
-        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
+        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.24.0")},
         "implementation_status": "full",
         "composes_with": ["PN296", "PN298", "PN299", "PN299B", "PN299C", "PN299D"],
         "requires_patches": ["PN296"],  # hard runtime dep on PN296 keystone (bug-hunt D13)
@@ -6528,7 +6561,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "PN296+PN298+PN299+PN299B+PN299C."
         ),
         "upstream_pr": None,
-        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
+        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.24.0")},
         "implementation_status": "full",
         "composes_with": ["PN296", "PN298", "PN299", "PN299B", "PN299C"],
         "requires_patches": ["PN296"],  # hard runtime dep on PN296 keystone (bug-hunt D13)
@@ -6558,7 +6591,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "PN299+PN299B."
         ),
         "upstream_pr": None,
-        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
+        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.24.0")},
         "implementation_status": "full",
         "composes_with": ["PN296", "PN298", "PN299", "PN299B"],
         "requires_patches": ["PN296"],  # hard runtime dep on PN296 keystone (bug-hunt D13)
@@ -6588,7 +6621,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "post-dev93 TPS gap. Composes with PN296 + PN298 + PN299."
         ),
         "upstream_pr": None,
-        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
+        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.24.0")},
         "implementation_status": "full",
         "composes_with": ["PN296", "PN298", "PN299"],
         "requires_patches": ["PN296"],  # hard runtime dep on PN296 keystone (bug-hunt D13)
@@ -6614,7 +6647,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "in 35B FP8. Companion to PN298."
         ),
         "upstream_pr": None,
-        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
+        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.24.0")},
         "implementation_status": "full",
         "composes_with": ["PN296", "PN298"],
         "requires_patches": ["PN296"],  # hard runtime dep on PN296 keystone (bug-hunt D13)
@@ -6643,7 +6676,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "and on 35B + 30 GDN layers."
         ),
         "upstream_pr": None,
-        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
+        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.24.0")},
         "implementation_status": "full",
         "composes_with": ["PN296"],
         "requires_patches": ["PN296"],  # hard runtime dep on PN296 keystone (bug-hunt D13)
@@ -6963,7 +6996,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {
             # [Genesis pin-gate 2026-05-11] PROD-active (V2 rearchitecture,
             # Wave 6 closure). V1 retired, V5/V7 cache-safe paths active.
-            "vllm_version_range": (">=0.20.0", "<0.23.0"),
+            "vllm_version_range": (">=0.20.0", "<0.24.0"),
         },
         # v11.3.0 BUG #9 fix: PN16 spec apply_module is the canonical
         # lazy-reasoner module (`pn16_lazy_reasoner`) — V2/V3/V5/V7
@@ -7469,7 +7502,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             ],
             # [Genesis pin-gate 2026-05-11] PROD-active (GroupAB component
             # + long-context single-GPU users). Validated dev9 → dev93.
-            "vllm_version_range": (">=0.20.0", "<0.23.0"),
+            "vllm_version_range": (">=0.20.0", "<0.24.0"),
         },
         "apply_module": "sndr.engines.vllm.patches.attention.gdn.p103_fla_cliff2_chunked",
         "lifecycle": "experimental",
@@ -9619,8 +9652,8 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "requires_patches": [],
         "conflicts_with": [],
         "composes_with": ["P85"],
-        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
-        "vllm_version_range": (">=0.22.0", "<0.23.0"),
+        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.24.0")},
+        "vllm_version_range": (">=0.22.0", "<0.24.0"),
     },
     "PN358": {
         "title": "FULL cudagraph forward-context refresh, data_ptr-pruned (vendor of vllm#44868)",
@@ -9662,8 +9695,8 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "requires_patches": [],
         "conflicts_with": [],
         "composes_with": ["PN353B", "PN118"],
-        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
-        "vllm_version_range": (">=0.22.0", "<0.23.0"),
+        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.24.0")},
+        "vllm_version_range": (">=0.22.0", "<0.24.0"),
     },
     "PN376": {
         "title": "FP8 modules_to_not_convert substring match (vendor of vllm#44628)",
@@ -9704,8 +9737,8 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "requires_patches": [],
         "conflicts_with": [],
         "composes_with": ["P81", "P91", "P91B"],
-        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
-        "vllm_version_range": (">=0.22.0", "<0.23.0"),
+        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.24.0")},
+        "vllm_version_range": (">=0.22.0", "<0.24.0"),
     },
     "PN377": {
         "title": "moe_wna16 BLOCK_SIZE_K legality clamp (vendor of vllm#44563)",
@@ -9747,8 +9780,14 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "requires_patches": [],
         "conflicts_with": [],
         "composes_with": ["P24", "PN352", "PN368"],
-        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
-        "vllm_version_range": (">=0.22.0", "<0.23.0"),
+        # 2026-06-17 (0.23.1 pin-bump): cap bumped <0.23.0 -> <0.24.0 (both the
+        # applies_to gate AND its SoT mirror, kept in sync). default_on moe_wna16
+        # BLOCK_SIZE_K legality clamp silently no-op'd on 0.23.1. PR #44563 OPEN
+        # (merged-form marker "max_block_size_k = group_size * 8" ABSENT in
+        # v0.23.1rc0); anchor (fused_moe.py _ensure_block_size_k_divisible call)
+        # byte-present. Inert on kernel-legal configs (gs>=64 can't overshoot).
+        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.24.0")},
+        "vllm_version_range": (">=0.22.0", "<0.24.0"),
     },
     "PN378": {
         "title": "Recovered-token vocab-pad -inf mask (vendor of vllm#45060, kernel half)",
@@ -9829,8 +9868,8 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "requires_patches": [],
         "conflicts_with": [],
         "composes_with": [],
-        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
-        "vllm_version_range": (">=0.22.0", "<0.23.0"),
+        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.24.0")},
+        "vllm_version_range": (">=0.22.0", "<0.24.0"),
     },
     "PN380": {
         "title": "Qwen3.5/3.6 MTP pre-fused expert loader + load-coverage guard (vendor of vllm#44943)",
@@ -9874,9 +9913,9 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "composes_with": ["PN348", "PN133", "PN340", "PN341", "PN370"],
         "applies_to": {
             "model_class": ["qwen3_5", "qwen3_6"],
-            "vllm_version_range": (">=0.22.0", "<0.23.0"),
+            "vllm_version_range": (">=0.22.0", "<0.24.0"),
         },
-        "vllm_version_range": (">=0.22.0", "<0.23.0"),
+        "vllm_version_range": (">=0.22.0", "<0.24.0"),
     },
     "PN381": {
         "title": "allowed_token_ids spec-decode metadata hardening (vendor of vllm#44742)",
@@ -9916,8 +9955,8 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "requires_patches": [],
         "conflicts_with": [],
         "composes_with": ["PN369", "P71"],
-        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
-        "vllm_version_range": (">=0.22.0", "<0.23.0"),
+        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.24.0")},
+        "vllm_version_range": (">=0.22.0", "<0.24.0"),
     },
     "PN382": {
         "title": "DecodeBenchConnector hybrid per-block KV fill (vendor of vllm#45080)",
@@ -9958,8 +9997,8 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "requires_patches": [],
         "conflicts_with": [],
         "composes_with": [],
-        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
-        "vllm_version_range": (">=0.22.0", "<0.23.0"),
+        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.24.0")},
+        "vllm_version_range": (">=0.22.0", "<0.24.0"),
     },
     "G4_81": {
         "title": "TQ multi-query DIRECT decode routing for Gemma-4-31B MTP (vllm#45144 blueprint)",
