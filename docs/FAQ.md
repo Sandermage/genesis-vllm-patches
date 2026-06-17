@@ -33,7 +33,7 @@ documented in [`RELEASE_POLICY.md`](RELEASE_POLICY.md).
 
 ### Q: How big is the patch registry today?
 
-**315 entries**: 256 full-implementation, 26 experimental, 20 marker-only,
+**316 entries**: 257 full-implementation, 26 experimental, 20 marker-only,
 7 partial, 4 retired, 2 placeholder. The current state is always
 in [`PATCHES_AUTO.md`](PATCHES_AUTO.md) (auto-generated from
 `sndr/dispatcher/registry.py`) and the narrative
@@ -56,7 +56,7 @@ global "enable all" switch — by design.
 
 ### Q: Which patches are ON by default?
 
-About 53 of 315 entries are marked `default_on=True` in the
+About 53 of 316 entries are marked `default_on=True` in the
 registry — production-eligible Wave 10 backports + legacy
 pre-dispatcher overlays that have been validated against the
 v11 baselines. The full list is in [`PATCHES_AUTO.md`](PATCHES_AUTO.md);

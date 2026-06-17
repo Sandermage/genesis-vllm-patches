@@ -236,6 +236,11 @@ class TestSaveLoadRoundTrip:
         f = tmp_path / "x.py"
         f.write_text("content\n")
         fc.record_apply_result(str(f), "MARKER")
+        # record_apply_result mutates only the in-memory cache since ce6c174d
+        # (the O(N^2)->O(N) boot fix moved disk persistence to a single
+        # end-of-boot flush). Flush before resetting so the round-trip reads
+        # the persisted entry back from disk.
+        fc.flush_file_cache()
         # Reset in-memory cache → next access loads from disk
         fc._reset_for_tests()
         entry = fc.get_cache_entry(str(f))

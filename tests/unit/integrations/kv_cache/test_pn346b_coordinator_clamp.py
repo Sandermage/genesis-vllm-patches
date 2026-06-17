@@ -279,16 +279,26 @@ class TestApply:
 
 
 class TestDriftMarkers:
-    def test_markers_fire_on_merged_form(self, tmp_path, monkeypatch):
-        _install_fake(tmp_path, monkeypatch, DEV491_COORDINATOR)
+    def test_no_double_clamp_on_merged_form(self, tmp_path, monkeypatch):
+        # PN346B is an add-a-line backport: the line it inserts
+        # (`curr_hit_length = min(...)`) IS the post-vllm#45614 merged form, so
+        # a drift marker for it would necessarily self-collide with this patch's
+        # own replacement (see test_markers_no_self_collision). Upstream-merge
+        # safety therefore rides on ANCHOR-ABSENCE rather than a marker: on the
+        # merged form the naked `curr_hit_length = _new_hit_length` anchor is
+        # gone, so the patcher cannot match and never introduces a SECOND clamp.
+        # (Design note: post-merge the patcher reports anchor-not-found rather
+        # than a clean skip — benign, since the patch is retired on adopting a
+        # pin that carries #45614. The load-bearing property is the no-double-
+        # clamp guarantee asserted here.)
+        _install_fake(tmp_path, monkeypatch, MERGED_COORDINATOR)
         patcher = m._make_patcher()
         assert patcher is not None
-        assert patcher.upstream_drift_markers
-        assert any(
-            dm in MERGED_COORDINATOR
-            for dm in patcher.upstream_drift_markers
-            if not dm.startswith("[Genesis")
-        )
+        # The sub-patch anchor (naked assignment) is absent on the merged form:
+        assert all(sp.anchor not in MERGED_COORDINATOR for sp in patcher.sub_patches)
+        patcher.apply()
+        final = (tmp_path / "kv_cache_coordinator.py").read_text(encoding="utf-8")
+        assert final.count("min(curr_hit_length, _new_hit_length)") == 1
 
     def test_markers_no_self_collision(self, tmp_path, monkeypatch):
         _install_fake(tmp_path, monkeypatch, DEV491_COORDINATOR)

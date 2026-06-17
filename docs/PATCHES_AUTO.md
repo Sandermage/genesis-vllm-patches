@@ -4,23 +4,23 @@
 > Source of truth: `sndr/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-06-16T23:34:10Z
-Total entries: **315**
+Generated: 2026-06-17T06:34:26Z
+Total entries: **316**
 
 ## Statistics
 
 ### By tier
-- `tier=community`: **315**
+- `tier=community`: **316**
 
 ### By lifecycle
 - `lifecycle=coordinator`: **4**
-- `lifecycle=experimental`: **235**
+- `lifecycle=experimental`: **236**
 - `lifecycle=legacy`: **28**
 - `lifecycle=research`: **4**
 - `lifecycle=retired`: **30**
 - `lifecycle=stable`: **14**
 
-### Default-on at boot: **54** / 315
+### Default-on at boot: **54** / 316
 
 ### By family
 - `attention`: 1
@@ -29,7 +29,7 @@ Total entries: **315**
 - `attention.turboquant`: 60
 - `compile_safety`: 16
 - `detection`: 3
-- `gemma4`: 18
+- `gemma4`: 19
 - `kernels`: 9
 - `kv_cache`: 16
 - `loader`: 3
@@ -201,7 +201,7 @@ Total entries: **315**
 | **PN300** | `community` | `experimental` | · | `GENESIS_ENABLE_PN300_UNIVERSAL_TRITON_AUTOTUNE_WRAPPER` | — | Universal Triton Autotune Arch-Aware Wrapper (replaces per-file PN298/299) |
 | **PN302** | `community` | `experimental` | · | `GENESIS_ENABLE_PN302_MODEL_PROFILE_INIT` | — | Genesis Model Profile boot-time initializer (model-aware decision API) |
 
-### `gemma4` (18)
+### `gemma4` (19)
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
@@ -223,6 +223,7 @@ Total entries: **315**
 | **G4_23** | `community` | `stable` | ✓ | `GENESIS_ENABLE_G4_23_GEMMA4_VISION_FP16_OVERFLOW` | [#40124](https://github.com/vllm-project/vllm/issues/40124) | Gemma 4 vision-tower FP16 overflow fix (closes vllm#40124) |
 | **G4_24** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_24_GEMMA4_FUSED_SOFTCAP` | — | Fused softcap Triton kernel route for Gemma 4 (FINAL logits only; G4_24b will... |
 | **G4_25** | `community` | `stable` | ✓ | `GENESIS_ENABLE_G4_25_GEMMA4_RoPE_DUAL_BASE_GUARD` | — | Gemma 4 dual-RoPE base-freq divergence guard (long-context quality) |
+| **G4_26** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_26_DIFFUSIONGEMMA_TP_VOCAB` | [#45774](https://github.com/vllm-project/vllm/pull/45774) | "Fix DiffusionGemma self-conditioning soft-embed for TP>1 (vocab-sharded embe... |
 
 ### `kernels` (9)
 
