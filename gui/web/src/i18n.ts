@@ -1515,6 +1515,7 @@ const RU_BY_EN: Record<string, string> = {
   "Ground answers in your knowledge sources (project patches/presets/configs + connected Obsidian/notes folders). Configure sources in Settings.": "Заземлять ответы на ваших источниках знаний (патчи/пресеты/конфиги проекта + подключённые папки Obsidian/заметок). Источники настраиваются в «Настройках».",
   "Routing through the Genesis proxy — smart-router + failover across providers; the model list comes from the proxy.": "Маршрутизация через Genesis proxy — умный роутер + отказоустойчивость по провайдерам; список моделей берётся из прокси.",
   "No engine": "Нет движка",
+  "Found a running model": "Найдена запущенная модель",
   "No running model detected — open Clients to point Host/Port at a vLLM engine": "Запущенная модель не обнаружена — откройте «Клиенты» и укажите Host/Port работающего движка vLLM",
   "MCP server (AI agents)": "MCP-сервер (ИИ-агенты)",
   "Expose this read-only control plane to external AI agents (Claude Desktop, Cursor) over the Model Context Protocol — the same catalog/doctor/preset/patch tools the Ops Copilot uses. Add this to the client's MCP config; it runs as a stdio subprocess (no port, read-only).": "Откройте эту read-only панель управления внешним ИИ-агентам (Claude Desktop, Cursor) по протоколу Model Context Protocol — те же инструменты каталога/доктора/пресетов/патчей, что и у Ops Copilot. Добавьте это в MCP-конфиг клиента; запускается как stdio-подпроцесс (без порта, только чтение).",

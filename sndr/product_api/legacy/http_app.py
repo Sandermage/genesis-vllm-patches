@@ -2424,8 +2424,18 @@ def create_app(
                            host_id: Optional[str] = None,
                            x_engine_api_key: Optional[str] = Header(default=None)) -> dict[str, Any]:
         """Detect the running engine's served model(s) and bridge each to the V2
-        catalog (capabilities, requirements, pin, presets that run it)."""
+        catalog (capabilities, requirements, pin, presets that run it).
+
+        With no explicit target, auto-discover: the configured/local engine first,
+        then any registered host's declared engine endpoint (host + engine_port +
+        its stored key) — so the GUI finds a key-protected engine on a remote host
+        instead of failing on localhost:8000."""
         from . import engine_model
+        if host is None and port is None and host_id is None:
+            return engine_model.discover_engine(
+                profiles=list_host_profiles(),
+                key_for=lambda p: _engine_key_for(p.id, None),
+            )
         return engine_model.engine_model_detail(host, port=port, api_key=_engine_key_for(host_id, x_engine_api_key))
 
     @app.get("/api/v1/engine/metrics")

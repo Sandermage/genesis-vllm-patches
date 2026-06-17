@@ -5324,3 +5324,7 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 /* "Recommended for this model" — one-click catalog-validated sampling (club-3090 cross-ref). */
 .chat-set-rec { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 12px; border-radius: var(--r-sm); background: var(--accent-soft); border: 1px solid var(--accent); color: var(--accent-text); font-size: 12px; }
 .chat-set-rec .ghost-button { margin-left: auto; }
+/* "Found a running model on <host> — Connect" banner (engine auto-discovery). */
+.chat-discover-banner { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: var(--r-sm); background: var(--accent-soft); border: 1px solid var(--accent); color: var(--accent-text); font-size: 13px; }
+.chat-discover-banner span { flex: 1; }
+.chat-discover-banner .primary-button { padding: 6px 14px; flex: 0 0 auto; }

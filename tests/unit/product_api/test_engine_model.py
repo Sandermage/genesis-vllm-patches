@@ -86,6 +86,45 @@ def test_match_catalog_model_matches_by_model_path_basename():
     assert matched is not None
 
 
+def test_discover_engine_prefers_local_then_registered_host(monkeypatch):
+    """When the local/configured engine is unreachable, discovery falls back to a
+    registered host's declared engine endpoint (host + engine_port + stored key)."""
+    import types
+    from sndr.product_api.legacy import engine_model
+
+    seen = []
+
+    def fake_detail(host=None, *, port=None, timeout=3.0, api_key=None):
+        seen.append((host, port, api_key))
+        if host is None:  # local / configured — nothing running
+            return {"reachable": False, "host": "127.0.0.1", "models": [], "error": "refused"}
+        return {"reachable": True, "host": host, "version": "0.22",
+                "models": [{"id": "qwen3.6-35b-a3b", "max_model_len": 262144, "root": None, "catalog": None}],
+                "error": None}
+
+    monkeypatch.setattr(engine_model, "engine_model_detail", fake_detail)
+    prof = types.SimpleNamespace(id="prod-a5000", host="192.168.1.10", engine_port=8102)
+    out = engine_model.discover_engine(timeout=0.2, profiles=[prof], key_for=lambda p: "stored-key")
+
+    assert out["reachable"] is True and out["host"] == "192.168.1.10"
+    assert out["host_id"] == "prod-a5000" and out["port"] == 8102
+    assert out["models"][0]["id"] == "qwen3.6-35b-a3b"
+    assert ("192.168.1.10", 8102, "stored-key") in seen  # probed with the host's key
+
+
+def test_discover_engine_returns_local_when_it_already_serves_models(monkeypatch):
+    import types
+    from sndr.product_api.legacy import engine_model
+
+    monkeypatch.setattr(engine_model, "engine_model_detail",
+        lambda host=None, *, port=None, timeout=3.0, api_key=None: {
+            "reachable": True, "host": "127.0.0.1",
+            "models": [{"id": "x", "max_model_len": None, "root": None, "catalog": None}], "error": None})
+    out = engine_model.discover_engine(
+        timeout=0.2, profiles=[types.SimpleNamespace(id="p", host="h", engine_port=1)], key_for=lambda p: None)
+    assert out["host"] == "127.0.0.1" and out["host_id"] is None and out["port"] is None
+
+
 def test_engine_model_detail_unreachable_is_graceful():
     from sndr.product_api.legacy.engine_model import engine_model_detail
 

@@ -892,6 +892,10 @@ export type EngineModelInfo = {
 export type EngineModelDetail = {
   reachable: boolean;
   host: string | null;
+  // The resolved target when the daemon auto-discovered the engine (a registered
+  // host) — present on the no-arg discovery call so the GUI knows where to connect.
+  port?: number | null;
+  host_id?: string | null;
   base_url: string | null;
   version: string | null;
   error: string | null;

@@ -125,6 +125,40 @@ def _vllm_model_meta(base_url: str, *, timeout: float, api_key: Optional[str]) -
     return out
 
 
+def discover_engine(
+    *,
+    timeout: float = 2.5,
+    profiles: Optional[list[Any]] = None,
+    key_for: Optional[Any] = None,
+) -> dict[str, Any]:
+    """Find a running engine that actually serves models, so the GUI auto-connects
+    instead of blindly probing the daemon's localhost:8000.
+
+    Order: the configured/local engine first, then each registered host's declared
+    engine endpoint (``host`` + ``engine_port`` + its stored key via ``key_for``).
+    Returns the enriched detail of the first hit with ``host`` / ``port`` /
+    ``host_id`` set so the caller knows where to connect; falls back to the local
+    (unreachable) result. ``profiles`` / ``key_for`` are injected by the route
+    (they own the host-profile + key plumbing) — kept as params so this stays
+    pure and unit-testable."""
+    local = engine_model_detail(timeout=timeout)
+    if local.get("reachable") and local.get("models"):
+        return {**local, "port": None, "host_id": None}
+
+    for prof in profiles or []:
+        key = None
+        if key_for is not None:
+            try:
+                key = key_for(prof)
+            except Exception:  # noqa: BLE001 - a bad key resolver must not abort discovery
+                key = None
+        detail = engine_model_detail(prof.host, port=prof.engine_port, api_key=key, timeout=timeout)
+        if detail.get("reachable") and detail.get("models"):
+            return {**detail, "port": prof.engine_port, "host_id": prof.id}
+
+    return {**local, "port": None, "host_id": None}
+
+
 def engine_model_detail(
     host: Optional[str] = None,
     *,

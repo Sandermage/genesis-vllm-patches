@@ -920,6 +920,31 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
   // temp 0.6 / top_p 0.95 / top_k 20, not the generic 0.7).
   const { data: liveModelData } = useEngineModel(settings.host, settings.port, settings.apiKey || undefined, settings.hostId || undefined);
   const recSampling = firstModel(liveModelData)?.catalog?.recommended_sampling ?? null;
+
+  // Auto-discovery: the daemon's no-arg /engine/model probes the configured engine
+  // then every registered host's endpoint (with its stored key), so a key-protected
+  // engine on a remote host is found instead of failing on localhost:8000.
+  const { data: discovered } = useEngineModel();
+  const discoveredModel = discovered?.reachable ? discovered.models[0] : null;
+  const discoveredElsewhere = !!discoveredModel && !!discovered?.host &&
+    (discovered.host !== settings.host || (discovered.port ?? 8000) !== settings.port);
+  function connectDiscovered() {
+    if (!discovered?.host) return;
+    set({ host: discovered.host, port: discovered.port ?? 8000, hostId: discovered.host_id ?? "" });
+    chatToast(`${tr("Connecting to")} ${discoveredModel?.id ?? tr("the engine")} ${tr("on")} ${discovered.host_id || discovered.host}…`, "info");
+  }
+  // First-run convenience: if the chat is still at pristine defaults and its own
+  // target is down, adopt the discovered engine automatically (once). A manually
+  // set host is never overridden — that case shows the Connect banner instead.
+  const adoptedRef = useRef(false);
+  useEffect(() => {
+    if (adoptedRef.current || reachable || !discoveredElsewhere) return;
+    if (settings.host === "127.0.0.1" && settings.port === 8000 && !settings.hostId) {
+      adoptedRef.current = true;
+      connectDiscovered();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot adopt from pristine defaults
+  }, [reachable, discoveredElsewhere]);
   function applyRecommended() {
     if (!recSampling) return;
     set({
@@ -1048,6 +1073,13 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
         )}
 
         {view === "chat" && (<>
+        {!reachable && discoveredElsewhere && discoveredModel && (
+          <div className="chat-discover-banner">
+            <Sparkles size={14} />
+            <span>{tr("Found a running model")} <strong>{discoveredModel.id}</strong> {tr("on")} {discovered?.host_id || discovered?.host}{discoveredModel.catalog ? ` · ${discoveredModel.catalog.model_id}` : ""}</span>
+            <button type="button" className="primary-button" onClick={connectDiscovered}><Zap size={13} /> {tr("Connect")}</button>
+          </div>
+        )}
         <div className="chat-messages" ref={scrollRef} onScroll={(e) => { const el = e.currentTarget; setAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < 60); }}>
           {messages.length === 0 ? (
             <div className="chat-empty">
