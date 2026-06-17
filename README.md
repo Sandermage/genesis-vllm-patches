@@ -59,13 +59,18 @@ benchmarked / smoke-tested live (`tools/genesis_bench_suite.py`, 5×5×1024-toke
 | Qwen3.6-35B-A3B-FP8 | FP8 dense · TQ k8v4 · MTP K=3 | 95 | **208.7** (CV 9.5 %) | 7/7 | ✅ serving — no regression |
 | Qwen3.6-27B-int4-AutoRound | INT4 AutoRound · TQ k8v4 · MTP K=3 | 93 | **120.3** (CV 4.1 %) | 7/7 | ✅ serving — no regression |
 | Gemma-4-31B | INT4 · TQ k8v4 · MTP K=3 | 81 | — | — | ⚙️ boots + patches apply; serving needs MM-budget config (multimodal-bidirectional × spec-decode) |
-| DiffusionGemma-26B-A4B-FP8 | FP8-dynamic · block-diffusion · TP=2 | 44 | — | — | 🧪 `PN-FP8MOE-KPAD` clears the Marlin-MoE N=352 thread-tile crash; full TP=2 serving pending a TP-vocab-shard fix |
+| DiffusionGemma-26B-A4B-FP8 | FP8-dynamic · block-diffusion · TP=2 | 45 | coherent | — | ✅ **serving at TP=2** — `PN-FP8MOE-KPAD` (Marlin N=352) + `G4_26` (TP-vocab soft-embed); enforce-eager · max-num-seqs 2 · gpu-util 0.80 |
 
 The 35B and 27B reproduce their historical peak band (216 / 133 t/s) within CV →
-the v12 platform carries **no decode regression**. `PN-FP8MOE-KPAD` is the in-tree
-backport of open vLLM PR [#45703](https://github.com/vllm-project/vllm/pull/45703)
-(model-agnostic Marlin-MoE intermediate-pad); it is the first Genesis patch that loads a
-block-diffusion FP8-MoE checkpoint on Ampere without a kernel rebuild.
+the v12 platform carries **no decode regression**. `PN-FP8MOE-KPAD` (backport of open vLLM
+PR [#45703](https://github.com/vllm-project/vllm/pull/45703), model-agnostic Marlin-MoE
+intermediate-pad) plus `G4_26` (backport of [#45774](https://github.com/vllm-project/vllm/pull/45774),
+DiffusionGemma TP>1 vocab-sharded soft-embed all-gather) make
+**DiffusionGemma the first block-diffusion FP8-MoE checkpoint to boot AND serve coherently
+at TP=2 on consumer Ampere** without a kernel rebuild — validated 2026-06-17 (clears the
+Marlin N=352 thread-tile crash, then the `probs @ embed_weight` `[131072,2816]` TP-vocab
+shape mismatch; the coherent generation confirms the soft-embed all-gather yields correct
+TP=2 output).
 
 ## Quick install
 
