@@ -88,7 +88,7 @@ docker run -d \
   #     | sed -E "s/^  ([A-Z_0-9]+): '([^']+)'.*/  -e \1=\2 \\\\/" \
   #     | grep -v "=0$"
   --entrypoint /bin/bash \
-  vllm/vllm-openai:nightly \
+  vllm/vllm-openai:nightly-4c626633159887b0f2c962058c17c78f1434556d \
   -c "set -e; \
       pip install --quiet --disable-pip-version-check --root-user-action=ignore \
         pandas==2.2.3 scipy==1.14.1 xxhash==3.5.0 pyyaml packaging zstandard==0.23.0 pytest==8.3.4 2>&1 | tail -2; \
@@ -118,4 +118,4 @@ docker run -d \
         --host 0.0.0.0 --port ${PORT} \
         --disable-log-stats"
 
-echo "$CONTAINER_NAME launched on :$PORT (using :nightly = 626fa9bb)"
+echo "$CONTAINER_NAME launched on :$PORT (using nightly-4c626633 = 0.23.1rc1.dev101)"

@@ -27,7 +27,7 @@ set -euo pipefail
 : "${VLLM_COMPILE_CACHE:=${HOME}/.cache/vllm/torch_compile_cache}"
 
 CONTAINER=vllm-qwen3.6-35b-a3b-fp8
-IMAGE=vllm/vllm-openai:nightly-bf610c2f56764e1b30bc6065f4ceace3d6e59036
+IMAGE=vllm/vllm-openai:nightly-4c626633159887b0f2c962058c17c78f1434556d  # bumped dev371 -> 0.23.1 2026-06-17 (filename retained; retire-candidate — superseded by the YAML-rendered launcher)
 
 echo "→ Pull/check image ${IMAGE}..."
 docker pull "$IMAGE" 2>&1 | tail -3

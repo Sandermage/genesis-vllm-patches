@@ -75,7 +75,7 @@ docker run -d \
   #     | grep -v "=0"  # exclude opt-out flags
   # See full instantiated version at /tmp/start_35b_optimal.sh on rig.
   --entrypoint /bin/bash \
-  vllm/vllm-openai:nightly-626fa9bba5663a5cf6a870debf031ee344ddb822 \
+  vllm/vllm-openai:nightly-4c626633159887b0f2c962058c17c78f1434556d \
   -c "set -e; \
       pip install --quiet --disable-pip-version-check --root-user-action=ignore \
         pandas==2.2.3 scipy==1.14.1 xxhash==3.5.0 pyyaml packaging zstandard==0.23.0 2>&1 | tail -2; \
