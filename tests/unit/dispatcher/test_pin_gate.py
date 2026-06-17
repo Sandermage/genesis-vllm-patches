@@ -76,6 +76,14 @@ EXPECTED_PINS = (
     "0.22.1rc1.dev491+g1033ffac2",                       # setuptools_scm-derived
     "0.22.1rc1.dev491+g1033ffac2d66",                    # 12-char SHA form
     "nightly-1033ffac2",                                 # docker tag form
+    # PROD pin PROMOTED 2026-06-17 — image nightly-4c626633... (0.23.1rc1.dev101
+    # +g4c6266331). Full-fleet validation: 35B/27B/Gemma4-31B/DiffusionGemma all
+    # apply failed=0 + smoke + tool-call PASS; 35B bench 210.7 TPS = 101% of
+    # dev491. MTP fixed via P67 cap <0.24.0. dev491 retained above as rollback.
+    "0.23.1rc1.dev101+g4c6266331",                       # setuptools_scm-derived
+    "0.23.1rc1.dev101+g4c626633159",                     # 12-char SHA form
+    "nightly-4c626633",                                  # short docker tag
+    "nightly-4c626633159887b0f2c962058c17c78f1434556d",  # full docker tag
 )
 
 

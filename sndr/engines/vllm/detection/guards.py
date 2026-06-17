@@ -588,6 +588,26 @@ KNOWN_GOOD_VLLM_PINS: tuple[str, ...] = (
     "0.22.1rc1.dev491+g1033ffac2",
     "0.22.1rc1.dev491+g1033ffac2d66",
     "nightly-1033ffac2",
+    # ── PROD pin PROMOTION 0.23.1 ratified 2026-06-17 ─────────────────
+    # Image: vllm/vllm-openai:nightly-4c626633159887b0f2c962058c17c78f1434556d
+    # (0.23.1rc1.dev101+g4c6266331, commit 4c626633, +128 commits over dev491).
+    # FULL-FLEET validation 2026-06-17 — all four models boot with apply
+    # failed=0, smoke + tool-call PASS, no regression:
+    #   - 35B-A3B FP8 TQ k8v4 + MTP K=3: 210.7 TPS median = 101% of dev491
+    #     (208), MTP accept 142%, streaming tool-calls + reasoning clean.
+    #   - 27B Lorbus INT4 hybrid GDN+Mamba: coherent + tool-call.
+    #   - Gemma4-31B-it AWQ TQ + MTP K=3: coherent (Paris / 6x7=42 /
+    #     photosynthesis, no degenerate loop) + get_weather (gemma4 parser).
+    #   - DiffusionGemma 26B-A4B FP8 block-diffusion TP=2: coherent + tool-call.
+    # MTP root cause fixed: P67 multi-query spec-decode kernel version-cap
+    # bumped to <0.24.0 (commit bc75dbfe). PN30 retired (upstream fused
+    # postprocess kernel supersedes the DS conv spec-decode path), P29_HEAL
+    # capped (target qwen3coder_tool_parser.py deleted by #45588). dev491
+    # (nightly-1033ffac2) retained above as the previous/rollback pin.
+    "0.23.1rc1.dev101+g4c6266331",
+    "0.23.1rc1.dev101+g4c626633159",
+    "nightly-4c626633",
+    "nightly-4c626633159887b0f2c962058c17c78f1434556d",
 )
 
 
@@ -601,21 +621,10 @@ PROMOTION_PENDING_VLLM_PINS: tuple[str, ...] = (
     "0.21.1rc0",
     "0.21.1rc0+gd735968f6d63",
     "0.21.1rc0+gbf610c2f5676",
-    # ── Pin-bump candidate 2026-06-17 — vllm 0.23.1 (minor jump from 0.22.1) ──
-    # Image: vllm/vllm-openai:nightly-4c626633159887b0f2c962058c17c78f1434556d
-    # commit 4c626633 (2026-06-17), +128 commits over dev491/1033ffac2.
-    # Static audit (2026-06-17): 8 active anchor drifts (P7/P77/PN110/PN252/
-    # PN288/PN373/PN378/PN66) + breaks P89(#45171 reasoning-cls move),
-    # g_dynamic_k(#32374). Gemma4 parser stack superseded by #45588 (engine
-    # parser is a strict superset). Native TurboQuant markers present
-    # (#38479/#39931/#39953) but DO NOT supersede our G4_60*/TQ gate — KEEP
-    # whole TQ stack. chat-k3 TQ stays blocked (#43914 doesn't touch the gate).
-    # PENDING bench validation on 35B/27B/Gemma/DiffusionGemma before graduating
-    # to KNOWN_GOOD. See sndr_private/.../2026-06-17-pinbump-4c626633-*.md.
-    "0.23.1rc1.dev101+g4c6266331",
-    "0.23.1rc1.dev101+g4c626633159",
-    "nightly-4c626633",
-    "nightly-4c626633159887b0f2c962058c17c78f1434556d",
+    # 0.23.1 (4c626633) GRADUATED to KNOWN_GOOD on 2026-06-17 after full-fleet
+    # validation (35B / 27B / Gemma4-31B / DiffusionGemma all apply failed=0 +
+    # smoke + tool-call PASS, 35B bench 210.7 TPS = 101% of dev491). See the
+    # KNOWN_GOOD_VLLM_PINS "PROD pin PROMOTION 0.23.1" block above.
 )
 
 
