@@ -5327,4 +5327,5 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 /* "Found a running model on <host> — Connect" banner (engine auto-discovery). */
 .chat-discover-banner { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: var(--r-sm); background: var(--accent-soft); border: 1px solid var(--accent); color: var(--accent-text); font-size: 13px; }
 .chat-discover-banner span { flex: 1; }
+.chat-prompt-loaded { margin-left: 6px; font-size: 11px; font-weight: 600; text-transform: none; letter-spacing: 0; color: var(--accent-text); }
 .chat-discover-banner .primary-button { padding: 6px 14px; flex: 0 0 auto; }

@@ -387,6 +387,39 @@ def test_apply_sampling_clamps_extended_and_ignores_bad_seed():
     assert "seed" not in body                 # non-integer seed dropped, not crashed
 
 
+def test_coalesce_system_merges_stacked_system_messages():
+    """Web-search and project-RAG each prepend a system message; stacked system
+    messages make some chat templates 400. They must collapse to one leading."""
+    msgs = [
+        {"role": "system", "content": "web results"},
+        {"role": "system", "content": "you are helpful"},
+        {"role": "system", "content": "rag context"},
+        {"role": "user", "content": "hi"},
+    ]
+    out = ec._coalesce_system(msgs)
+    assert [m["role"] for m in out] == ["system", "user"]
+    assert out[0]["content"] == "web results\n\nyou are helpful\n\nrag context"
+    assert out[1]["content"] == "hi"
+
+
+def test_coalesce_system_noop_without_system():
+    msgs = [{"role": "user", "content": "hi"}, {"role": "assistant", "content": "yo"}]
+    assert ec._coalesce_system(msgs) == msgs
+
+
+def test_describe_surfaces_engine_http_error_body():
+    """A 400 from the engine must surface vLLM's real message (e.g. context
+    overflow), not the opaque 'Bad Request' reason phrase."""
+    import io
+    import json as _json
+    import urllib.error
+
+    body = _json.dumps({"object": "error", "message": "maximum context length is 262144 tokens, however you requested 270000"}).encode()
+    exc = urllib.error.HTTPError("http://e:8102/v1/chat/completions", 400, "Bad Request", {}, io.BytesIO(body))
+    out = ec._describe(exc)
+    assert "400" in out and "maximum context length" in out
+
+
 def test_apply_sampling_forwards_positive_top_k_only():
     """top_k is a vLLM extension; forward a positive int, treat 0/-1/empty/bad as
     'disabled' (the OpenAI default)."""

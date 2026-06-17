@@ -743,6 +743,7 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
   const streamingConvoRef = useRef<string | null>(null);
   const { data: prompts = [] } = usePrompts(); // shared cache; mutations in the library auto-update this
   const [libOpen, setLibOpen] = useState(false);
+  const [loadedPromptId, setLoadedPromptId] = useState(""); // the template currently loaded into the system prompt ("" = custom)
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const activeIdRef = useRef(activeId);
   activeIdRef.current = activeId;
@@ -1041,12 +1042,12 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
             </section>
 
             <section className="chat-set-section">
-              <div className="chat-set-head"><BookText size={14} /> {tr("System prompt")}</div>
-              <label className="chat-field chat-field-wide"><textarea className="chat-set-prompt" value={settings.system} onChange={(e) => set({ system: e.target.value })} rows={12} aria-label={tr("System prompt")} placeholder={tr("Instructions that steer every reply (role, tone, constraints). Load a saved template below, or write your own.")} /></label>
+              <div className="chat-set-head"><BookText size={14} /> {tr("System prompt")}{loadedPromptId && prompts.find((p) => p.id === loadedPromptId) && <span className="chat-prompt-loaded">· {prompts.find((p) => p.id === loadedPromptId)!.name}</span>}</div>
+              <label className="chat-field chat-field-wide"><textarea className="chat-set-prompt" value={settings.system} onChange={(e) => { set({ system: e.target.value }); setLoadedPromptId(""); }} rows={12} aria-label={tr("System prompt")} placeholder={tr("Instructions that steer every reply (role, tone, constraints). Load a saved template below, or write your own.")} /></label>
               <div className="chat-set-row">
-                <label className="chat-field"><span>{tr("Prompt template")}</span>
-                  <select value="" onChange={(e) => { const p = prompts.find((x) => x.id === e.target.value); if (p) set({ system: p.content }); }} title={tr("Load a saved prompt as the system prompt")}>
-                    <option value="">{tr("choose…")}</option>
+                <label className="chat-field"><span>{tr("Prompt template")} {prompts.length ? `(${prompts.length})` : ""}</span>
+                  <select value={loadedPromptId} onChange={(e) => { const p = prompts.find((x) => x.id === e.target.value); if (p) { set({ system: p.content }); setLoadedPromptId(p.id); chatToast(`${tr("Loaded prompt")}: ${p.name}`, "ok"); } else setLoadedPromptId(""); }} title={tr("Load a saved prompt as the system prompt")}>
+                    <option value="">{prompts.length ? tr("choose…") : tr("no prompts — add one →")}</option>
                     {prompts.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
                 </label>

@@ -318,6 +318,21 @@ def engine_metrics(host: Optional[str] = None, *, port: Optional[int] = None, ti
     return payload
 
 
+def _coalesce_system(messages: list[Any]) -> list[Any]:
+    """Merge every ``system`` message into a single leading one.
+
+    Web-search and project-RAG each prepend their own ``system`` message, so with
+    both on (plus the operator's system prompt) the engine sees several stacked
+    system messages — which some chat templates reject with a 400. One leading
+    system message is the shape every template accepts; order is preserved."""
+    sys_parts = [m["content"] for m in messages
+                 if isinstance(m, dict) and m.get("role") == "system" and m.get("content")]
+    if not sys_parts:
+        return messages
+    rest = [m for m in messages if not (isinstance(m, dict) and m.get("role") == "system")]
+    return [{"role": "system", "content": "\n\n".join(sys_parts)}, *rest]
+
+
 def _apply_sampling(body: dict[str, Any], payload: dict[str, Any]) -> None:
     """Forward optional, clamped OpenAI/vLLM sampling params from the GUI."""
     for key, lo, hi in (
@@ -436,6 +451,7 @@ def stream_chat(payload: dict[str, Any], *, host: Optional[str] = None, port: Op
     messages = payload.get("messages")
     if not isinstance(messages, list) or not messages:
         raise ValueError("messages must be a non-empty list")
+    messages = _coalesce_system(messages)
     body = {
         "model": payload.get("model") or "default",
         "messages": messages,
@@ -469,6 +485,7 @@ def engine_chat(
     messages = payload.get("messages")
     if not isinstance(messages, list) or not messages:
         raise ValueError("messages must be a non-empty list")
+    messages = _coalesce_system(messages)
     body = {
         "model": payload.get("model") or "default",
         "messages": messages,
@@ -549,6 +566,19 @@ class EngineError(Exception):
 
 
 def _describe(exc: Exception) -> str:
+    # An engine HTTP error (e.g. 400 on context overflow or a template reject)
+    # carries vLLM's real message in the body — surface it, not the opaque
+    # "Bad Request" reason phrase, so the operator can act on it.
+    if isinstance(exc, urllib.error.HTTPError):
+        detail = getattr(exc, "reason", "") or ""
+        try:
+            data = json.loads(exc.read().decode("utf-8", "replace"))
+            if isinstance(data, dict):
+                err = data.get("error")
+                detail = data.get("message") or (err.get("message") if isinstance(err, dict) else None) or detail
+        except Exception:  # noqa: BLE001 - body may be empty / non-JSON
+            pass
+        return f"engine error {exc.code}: {detail}".strip()
     reason = getattr(exc, "reason", None)
     # A DNS / name-resolution failure (socket.gaierror, surfaced through
     # urllib.error.URLError) means the engine host string can't be resolved at
