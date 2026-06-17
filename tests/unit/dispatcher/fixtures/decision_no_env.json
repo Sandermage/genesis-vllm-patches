@@ -120,6 +120,11 @@
     "reason": "strict opt-in — set GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
   },
   {
+    "patch_id": "PN398",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_PN398_ASYNC_ACCEPTED_RACE=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
     "patch_id": "P72",
     "applied": false,
     "reason": "strict opt-in — set GENESIS_ENABLE_P72_PROFILE_RUN_CAP=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"

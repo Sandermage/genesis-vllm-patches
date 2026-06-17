@@ -288,6 +288,18 @@
     "apply_module": "sndr.engines.vllm.patches.attention.turboquant.p67b_spec_verify_routing"
   },
   {
+    "patch_id": "PN398",
+    "family": "spec_decode",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "GENESIS_ENABLE_PN398_ASYNC_ACCEPTED_RACE",
+    "has_upstream_pr": true,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "sndr.engines.vllm.patches.spec_decode.pn398_async_accepted_counts_race"
+  },
+  {
     "patch_id": "P72",
     "family": "worker",
     "lifecycle": "experimental",
