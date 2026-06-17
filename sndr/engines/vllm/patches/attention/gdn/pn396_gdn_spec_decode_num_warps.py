@@ -1,6 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 """PN396 — GDN spec-decode recurrent kernel num_warps 4 -> 1 (SM 8.6).
 
+RETIRED 2026-06-17 (lifecycle=retired) — tested-negative dead-end. The anchor
+still resolves on 0.23.1, but the A/B on 2026-06-14 proved num_warps=1 REGRESSES
+everywhere vs upstream 4 (code -4.2%, tool_call -10.8%, short_chat -5.5%). Kept
+capped <0.23.0 AND retired so the refuted 4-vs-1 result is not re-investigated.
+
 TESTED-NEGATIVE — DO NOT ENABLE (default OFF). A/B 2026-06-14 on dev491 (PROD
 35B, chat-matrix n=5): num_warps=1 REGRESSED vs upstream 4 — code -4.2%,
 thinking -2.6/-3.8%, short_chat -5.5%, tool_call -10.8% (multi_turn flat). The

@@ -1,6 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 """Wiring for PN90 — Probabilistic draft rejection (vllm#40269 backport).
 
+RETIRED 2026-06-17 (lifecycle=retired) — superseded_by vllm#40269, merged at
+f51f6844 (present on both dev491 and 0.23.1); the proposer symbols are native.
+The applies_to range (<0.22.0) already self-skips on the deployed pin. NOTE:
+retiring does NOT enable upstream probabilistic draft — that path is the -5.9%
+TPS / -10% accept regression on our shape, intentionally left OFF.
+
 Wave 3.1 (audit closure 2026-05-09 / production roadmap §16.1).
 
 ================================================================

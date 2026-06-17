@@ -1,6 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 """Wiring for Patch N22 — Local argmax for TP draft (vllm#39419 backport).
 
+RETIRED 2026-06-17 (lifecycle=retired) — superseded_by vllm#39419 (LocalArgmaxMixin),
+merged at bd2d83ff, an ancestor of the 0.23.1 pin; the mixin is native on the
+deployed pin (live-verified). applies_to capped <0.23.1rc1.dev101; the env flag in
+prod YAMLs self-skips (default_off + drift marker).
+
 Backport of [vllm#39419](https://github.com/vllm-project/vllm/pull/39419)
 (EanWang; MERGED upstream 2026-06-10T07:59Z — after our current pin
 0.22.1rc1.dev259+g303916e93). Adds `get_top_tokens()` plumbing methods
