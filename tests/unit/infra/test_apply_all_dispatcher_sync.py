@@ -226,6 +226,25 @@ _KNOWN_REGISTRY_ONLY = frozenset({
     # P8 retired tombstone (kv_hybrid_reporting — registered for audit
     # trail only, retired lifecycle).
     "P8",
+    # ─── 2026-06-17 session additions ─────────────────────────────────
+    # G4_82 (TQ prefill SDPA head-dim) — G4_* dispatcher overlay-loader
+    # pattern, same as the whole G4_* block above; no apply_patch_* hook.
+    "G4_82",
+    # PN252 (mrope prompt-embeds DoS guard), PN353A (TQ MetadataBuilder
+    # workspace reserve — spec-only since §2.2.A 2026-06-16), PN517
+    # (init-snapshot-before-NCCL): all dispatcher overlay-loader
+    # (apply_module points at the module's own apply(); no apply_patch_*
+    # hook), same class as the PN104+/PN353B blocks above.
+    "PN252", "PN353A", "PN517",
+    # PN-FP8MOE-KPAD (FP8-core backport of vllm#45703) DOES have a real
+    # wiring hook (`apply_patch_pn_fp8moe_kpad_marlin_moe` in
+    # _per_patch_dispatch.py), but the dispatcher-sync regex
+    # `^apply_patch_([NM]?\d+...)` cannot capture the lowercase hyphenated
+    # ID — same regex-mismatch class as SNDR_*/P18B_TEXT above. The hook
+    # IS wired; this is a name-form carve-out, NOT missing wiring.
+    # (Rename-to-PN<num> candidate to retire the hyphenated-ID friction
+    # that already required a shadow.py _LEGACY_NAME_TO_PATCH_ID entry.)
+    "PN-FP8MOE-KPAD",
 })
 
 _KNOWN_APPLY_ONLY: frozenset[str] = frozenset({
