@@ -105,3 +105,20 @@ def test_market_grounding_formats_live_figures(monkeypatch):
 
 def test_market_grounding_empty_without_crypto():
     assert mt.market_grounding("hello there friend") == ""
+
+
+def test_date_grounding_includes_current_date_and_anti_refusal():
+    from datetime import datetime, timezone
+
+    dt = datetime(2026, 6, 17, 9, 30, tzinfo=timezone.utc)
+    out = mt.date_grounding(dt)
+    assert "2026-06-17" in out          # the actual current date
+    assert "Wednesday" in out           # weekday so the model can reason about "today"
+    assert "UTC" in out
+    assert "never refuse" in out.lower()  # anti-refusal: don't bail on "future" dates
+
+
+def test_date_grounding_defaults_to_now():
+    out = mt.date_grounding()
+    assert out.startswith("Current date:")
+    assert "UTC" in out

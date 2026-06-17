@@ -2470,19 +2470,24 @@ def create_app(
         api_key = _engine_key_for(payload.get("host_id"), x_engine_api_key)
 
         def generate():
+            from . import market_tools
+
+            msgs = payload.get("messages") or []
+            last_user = next((m.get("content", "") for m in reversed(msgs)
+                              if isinstance(m, dict) and m.get("role") == "user"), "")
+            # Always ground the model in the current date — it has no clock, so it
+            # otherwise refuses "future"-dated questions or reasons from a stale
+            # training cutoff. Cheap and offline; market/web grounding is added below.
+            grounding: list[str] = [market_tools.date_grounding()]
             # Optional web-search grounding: when the GUI toggles it on, search the
             # live web (aggregator SearXNG, no external API; direct-SearXNG fallback)
-            # and prepend the results as context so the streamed answer is grounded
+            # and add the results as context so the streamed answer is grounded
             # and cites sources. Best-effort — chat proceeds ungrounded on failure.
             if payload.get("web_search"):
                 try:
-                    from . import external_clients, market_tools
+                    from . import external_clients
                     from urllib.parse import urlparse
 
-                    msgs = payload.get("messages") or []
-                    last_user = next((m.get("content", "") for m in reversed(msgs)
-                                      if isinstance(m, dict) and m.get("role") == "user"), "")
-                    grounding: list[str] = []
                     # Real-time market data for any crypto tickers in the question —
                     # the model's training data is stale, so search snippets alone
                     # (titles/links, no live price) led to invented numbers.
@@ -2500,9 +2505,6 @@ def create_app(
                             "if a figure isn't here, say so rather than guessing:\n" + "\n".join(
                                 f"[{i + 1}] ({h.get('url')}) {h.get('title')}: {h.get('snippet')}"
                                 for i, h in enumerate(hits)))
-                    if grounding:
-                        # One leading system message (multiple are rejected by some templates).
-                        payload["messages"] = [{"role": "system", "content": "\n\n".join(grounding)}, *msgs]
                     yield _json.dumps({"sources": [
                         {"id": h.get("url"), "kind": "web", "title": h.get("title") or h.get("url"),
                          "ref": (urlparse(h.get("url") or "").hostname or h.get("url") or ""),
@@ -2510,6 +2512,11 @@ def create_app(
                         for h in hits]}) + "\n"
                 except Exception as exc:  # noqa: BLE001 - search is best-effort
                     yield _json.dumps({"search_error": str(exc)}) + "\n"
+            # Prepend the assembled grounding as ONE leading system message (multiple
+            # system messages are rejected by some chat templates; downstream
+            # _coalesce_system also merges, but keep it single here too).
+            if grounding and msgs:
+                payload["messages"] = [{"role": "system", "content": "\n\n".join(grounding)}, *msgs]
             try:
                 for chunk in engine_client.stream_chat(payload, host=host, port=port, api_key=api_key):
                     yield chunk + "\n"

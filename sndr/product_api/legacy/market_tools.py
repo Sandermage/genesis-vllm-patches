@@ -18,6 +18,7 @@ import re
 import urllib.error
 import urllib.parse
 import urllib.request
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 # Fixed public hosts the tool may reach — no auth, free. A crafted symbol/arg can
@@ -190,6 +191,23 @@ def market_grounding(query: str) -> str:
     return ("Live market data (CoinGecko, real-time — use these EXACT figures for "
             "prices / market caps; your training data is stale, do not quote prices "
             "from memory):\n" + "\n".join(rows))
+
+
+def date_grounding(now: Optional[datetime] = None) -> str:
+    """Current-date grounding line for the chat. A language model has no clock, so
+    without this it refuses "future"-dated questions or silently reasons from its
+    stale training cutoff. Pass ``now`` for deterministic tests; defaults to UTC.
+
+    The anti-refusal clause is deliberate: users routinely ask "analyse X today"
+    or name an approximate date — the model should answer from the live data with
+    an as-of note, not decline because a date looks like it is in the future."""
+    now = now or datetime.now(timezone.utc)
+    return (
+        f"Current date: {now:%Y-%m-%d} ({now:%A}), {now:%H:%M} UTC. Treat this as the "
+        "present moment. Any live data below is real-time as of now — answer the user's "
+        "question using it. If the user names a date, give the current analysis from this "
+        "live data and note the as-of date; never refuse to answer merely because a date "
+        "is mentioned or appears to be in the future.")
 
 
 # ── news / information-field analysis ────────────────────────────────────────
