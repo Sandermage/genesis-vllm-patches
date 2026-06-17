@@ -61,7 +61,7 @@ requires:
 
 versions:
   genesis_pin_min: v12.0.0                               # G4_NN family lands in v12
-  vllm_pin_required: 0.21.1rc0+g626fa9bba566         # HELD pin (see pin_hold below) — NOT the rig-current 0.22.1 (303916e93); Gemma 4 native model_executor support validated on this baseline
+  vllm_pin_required: 0.23.1rc1.dev101+g4c6266331         # HELD pin (see pin_hold below) — NOT the rig-current 0.22.1 (303916e93); Gemma 4 native model_executor support validated on this baseline
   # Consumed by `audit_v2_modeldef_vs_hardware_pin.py` (Phase 5.2.E)
   # to suppress the would-be ERROR for this row.
   pin_hold: "TQ profile BLOCKED on the 0.22.1 pin: new upstream validity gate rejects

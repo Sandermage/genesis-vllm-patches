@@ -53,7 +53,7 @@ override_generation_config:
 # ─── Capabilities — inherent to this model ─────────────────────────────
 capabilities:
   attention_arch: hybrid_gdn_moe                 # Qwen 3.6 hybrid (gated delta net + MoE); drives PN59/P98/PN11 + PN82
-  tool_call_parser: qwen3_coder                  # qwen3_coder XML+JSON tool-call parser (PN56 XML fallback)
+  tool_call_parser: qwen3_xml  # 2026-06-17 (0.23.1): switched qwen3_coder -> qwen3_xml to match the validated 35B choice (qwen3_coder streaming leaks tool-call XML to the content channel; qwen3_xml emits clean tool_calls deltas; #45171 remaps qwen3_xml->Qwen3CoderToolParser engine-native on 0.23.1).
   reasoning_parser: qwen3                        # qwen3 </think> reasoning_content parser
   enable_auto_tool_choice: true                  # P68/P69 dependency — auto tool_choice on tool-mention prompts
   spec_decode:
@@ -74,7 +74,7 @@ requires:
 
 versions:
   genesis_pin_min: v11.0.0                       # minimum sndr_core version
-  vllm_pin_required: 0.22.1rc1.dev259+g303916e93 # validated on dev259 (promoted 2026-06-11): full-YAML-stack boot 109 applied / 0 failed; suite quick wall_TPS 120.9 (CV 2.7%) vs 119.5 dev371 baseline (+1.2%); tool-calls 7/7 via qwen3_coder; reasoning split via qwen3 parser; PN119+P18B chain applied. HELD at dev259 (see pin_hold) — the a5000-2x hardware now renders the dev491 image, but this 27B INT4 TQ k8v4 stack has NOT been re-smoke-validated on dev491.
+  vllm_pin_required: 0.23.1rc1.dev101+g4c6266331 # validated on dev259 (promoted 2026-06-11): full-YAML-stack boot 109 applied / 0 failed; suite quick wall_TPS 120.9 (CV 2.7%) vs 119.5 dev371 baseline (+1.2%); tool-calls 7/7 via qwen3_coder; reasoning split via qwen3 parser; PN119+P18B chain applied. HELD at dev259 (see pin_hold) — the a5000-2x hardware now renders the dev491 image, but this 27B INT4 TQ k8v4 stack has NOT been re-smoke-validated on dev491.
   pin_hold: "27B INT4 AutoRound + TQ k8v4 + MTP K=3 not yet re-validated on dev491 (a5000-2x image bumped 2026-06-14). The dev491 #45171 tool-parser remap + version-gate caps were validated on the 35B only; this stack needs its own dev491 smoke+bench+tool-call (qwen3_coder 7/7, TQ decode kernels, PN119) before the pin bumps. Tracked: docs/superpowers/journal/2026-06-14-dev491-patch-health-audit.md. Remove this hold and bump vllm_pin_required to 0.22.1rc1.dev491+g1033ffac2 after validation; dev259 stays the rollback."
   reference_metrics_ref: null   # Phase 5.2.D (2026-05-22): formalize receipt-only state. The prior dev338 Wave-9 baseline (tests/integration/baselines/27b_v11_wave9.json) is no longer authoritative for this dev371-promoted ModelDef; keeping that reference produced a sticky audit mismatch in audit_v2_vllm_pin_consistency. Current dev371 runtime evidence: sndr_private/planning/bench_results/2026-05-21/P2_Q27_TQ_DEV371_SMOKE_RECEIPT_2026-05-21_RU.md (smoke + quick bench: decode_TPOT 10.03 ms / TTFT 111 ms / wall_TPS 81.6 mean). A formal canonical baseline JSON requires the full sustained-methodology cycle and is deferred to Phase 7.
 

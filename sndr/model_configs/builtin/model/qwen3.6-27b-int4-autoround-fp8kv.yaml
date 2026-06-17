@@ -37,7 +37,7 @@ chat_template: /models/Qwen3.6-27B-int4-AutoRound/chat_template_enhanced.jinja
 # ─── Capabilities ──────────────────────────────────────────────────────
 capabilities:
   attention_arch: hybrid_gdn_moe                 # same arch as TQ sister
-  tool_call_parser: qwen3_coder                  # qwen3_coder tool-call parser
+  tool_call_parser: qwen3_xml  # 2026-06-17 (0.23.1): switched qwen3_coder -> qwen3_xml to match the validated 35B choice (qwen3_coder streaming leaks tool-call XML to the content channel; qwen3_xml emits clean tool_calls deltas; #45171 remaps qwen3_xml->Qwen3CoderToolParser engine-native on 0.23.1).
   reasoning_parser: qwen3                        # qwen3 </think> parser
   enable_auto_tool_choice: true                  # P68/P69 dependency
   spec_decode:
@@ -55,7 +55,7 @@ requires:
 
 versions:
   genesis_pin_min: v11.0.0
-  vllm_pin_required: 0.21.1rc0+g626fa9bba566 # promoted 2026-05-21 (P2.4d-Q27-FP8KV) — dev371 smoke + quick bench PASS via canonical V2 flow (hardware YAML → renderer → IMAGE dev371, no sed). Requires P103 wrapper kwargs ABI fix (commit 122c2576). Previous pin dev338 retained side-by-side on server as :nightly-previous for rollback per CLAUDE.md pin policy.
+  vllm_pin_required: 0.23.1rc1.dev101+g4c6266331 # promoted 2026-05-21 (P2.4d-Q27-FP8KV) — dev371 smoke + quick bench PASS via canonical V2 flow (hardware YAML → renderer → IMAGE dev371, no sed). Requires P103 wrapper kwargs ABI fix (commit 122c2576). Previous pin dev338 retained side-by-side on server as :nightly-previous for rollback per CLAUDE.md pin policy.
   # Consumed by `audit_v2_modeldef_vs_hardware_pin.py` (Phase 5.2.E)
   # to suppress the would-be ERROR for this row.
   pin_hold: "fp8kv KV-cache variant not covered by the 2026-06-11 fleet validation

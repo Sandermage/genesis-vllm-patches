@@ -25,7 +25,7 @@ trust_remote_code: true                          # Qwen3 custom modeling code
 # ─── Capabilities — DENSE attention (no hybrid GDN) ────────────────────
 capabilities:
   attention_arch: dense                          # DENSE (NOT hybrid_gdn_moe) — Path A guard raises if PN59 enabled
-  tool_call_parser: qwen3_coder                  # qwen3_coder tool-call parser (same as hybrid models)
+  tool_call_parser: qwen3_xml  # 2026-06-17 (0.23.1): switched qwen3_coder -> qwen3_xml to match the validated 35B choice (qwen3_coder streaming leaks tool-call XML to the content channel; qwen3_xml emits clean tool_calls deltas; #45171 remaps qwen3_xml->Qwen3CoderToolParser engine-native on 0.23.1).
   reasoning_parser: qwen3                        # qwen3 </think> parser
   enable_auto_tool_choice: true                  # P68/P69 default
   spec_decode: null                              # no spec decode on small dense model (range: mtp|dflash|ngram|null)
@@ -40,7 +40,7 @@ requires:
 
 versions:
   genesis_pin_min: v11.0.0
-  vllm_pin_required: 0.20.2rc1.dev338+gbf0d2dc6d
+  vllm_pin_required: 0.23.1rc1.dev101+g4c6266331  # bumped -> 0.23.1 2026-06-17: 0.23.1 engine + patch set is fleet-validated (35B/27B/Gemma4-31B/DiffusionGemma, apply failed=0); this variant boot-validates on next launch.
   reference_metrics_ref: null
   # Phase 5.2.C (2026-05-22) — explicit pin hold annotation. This
   # ModelDef intentionally remains on dev338 even after the rest of
