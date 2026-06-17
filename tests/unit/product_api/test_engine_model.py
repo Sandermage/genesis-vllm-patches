@@ -118,11 +118,13 @@ def test_discover_engine_returns_local_when_it_already_serves_models(monkeypatch
 
     monkeypatch.setattr(engine_model, "engine_model_detail",
         lambda host=None, *, port=None, timeout=3.0, api_key=None: {
-            "reachable": True, "host": "127.0.0.1",
+            "reachable": True, "host": "127.0.0.1", "base_url": "http://127.0.0.1:8102/v1",
             "models": [{"id": "x", "max_model_len": None, "root": None, "catalog": None}], "error": None})
     out = engine_model.discover_engine(
         timeout=0.2, profiles=[types.SimpleNamespace(id="p", host="h", engine_port=1)], key_for=lambda p: None)
-    assert out["host"] == "127.0.0.1" and out["host_id"] is None and out["port"] is None
+    # The configured engine's real port (8102 from base_url) is surfaced so a chat
+    # stuck on :8000 can adopt it — host_id stays None (it's the local/configured one).
+    assert out["host"] == "127.0.0.1" and out["host_id"] is None and out["port"] == 8102
 
 
 def test_engine_model_detail_unreachable_is_graceful():

@@ -125,6 +125,17 @@ def _vllm_model_meta(base_url: str, *, timeout: float, api_key: Optional[str]) -
     return out
 
 
+def _port_from_base_url(base_url: Optional[str]) -> Optional[int]:
+    """The port from an engine base_url (``http://host:8102/v1`` → 8102), or None."""
+    if not base_url:
+        return None
+    try:
+        import urllib.parse
+        return urllib.parse.urlparse(base_url).port
+    except (ValueError, TypeError):
+        return None
+
+
 def discover_engine(
     *,
     timeout: float = 2.5,
@@ -143,7 +154,9 @@ def discover_engine(
     pure and unit-testable."""
     local = engine_model_detail(timeout=timeout)
     if local.get("reachable") and local.get("models"):
-        return {**local, "port": None, "host_id": None}
+        # The configured engine may be on a non-default port (SNDR_OPENAI_BASE_URL,
+        # e.g. :8102) — surface it so a chat stuck on :8000 can adopt the real port.
+        return {**local, "port": _port_from_base_url(local.get("base_url")), "host_id": None}
 
     for prof in profiles or []:
         key = None
