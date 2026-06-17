@@ -206,6 +206,10 @@ def test_spec_only_truly_orphan_baseline():
         # inception (apply_module + own apply(), no legacy hook; applied
         # at legacy boot via _run_spec_only_supplement).
         "PN252", "PN517",
+        # 2026-06-17 (§2.2.A spec-only conversion): PN353A converted to
+        # spec-only (apply_module set, legacy @register_patch hook
+        # removed); applied at legacy boot via _run_spec_only_supplement.
+        "PN353A",
     }
     actual = set(diff["spec_only_truly_orphan_ids"])
     new_orphans = sorted(actual - expected)

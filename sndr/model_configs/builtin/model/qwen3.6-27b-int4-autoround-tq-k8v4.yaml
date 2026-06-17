@@ -170,7 +170,7 @@ patches:
   #    Defaults match the env-flag matrix that produced
   #    `docs/_internal/runs/tp2_256k_probe_27b.json` (200K/230K/256K PASS).
   GENESIS_ENABLE_P87: '1'                            # Marlin sub-tile pad-N — vllm#40361 backport (OPEN). +24% on 2× 3090: 137→170 t/s PR bench. Fixes GPTQ_MARLIN_MIN_THREAD_N=64 misalignment for sub-tile shards (Qwen3.5 GatedDeltaNet.in_proj_ba at TP≥2 with num_v_heads=64).
-  GENESIS_ENABLE_P91: '1'                            # Renamed PN72 (registry ID collision); long-prompt tool-call reminder helper.
+  GENESIS_ENABLE_P91: '1'                            # AutoRound INT4 row-parallel group cdiv + start-idx quant-correctness fix (vllm#39460) — NOT a tool reminder
   GENESIS_ENABLE_PN71_THINKING_TAG_NORMALIZE: '1'    # Normalises malformed `<think>`/`</think>` from upstream tokenizer drift.
   GENESIS_ENABLE_PN73_TOOL_ARGS_SAFE_NORMALIZE: '1'  # Tool argument JSON normaliser (Qwen3-Coder edge cases).
   GENESIS_ENABLE_PN91_DEVELOPER_ROLE: '1'            # OpenAI-style `developer` role passthrough for IDE coding agents.

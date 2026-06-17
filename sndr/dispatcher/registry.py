@@ -380,7 +380,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "env_flag": "GENESIS_ENABLE_PN80_LORA_TENSORIZER_DEVICE",
         "default_on": False,
         "lifecycle": "retired",  # 2026-05-11 v2 audit: byte-equivalent in dev209
-        "vllm_version_range": ">=0.20.1rc1.dev16+g7a1eb8ac2,<0.20.2rc1.dev209+g5536fc0c0",  # active before upstream merge in dev209
+        "vllm_version_range": "<0.20.2rc1.dev93",  # mirrors applies_to (gated SoT); reconciled D17 2026-06-17 (was >=...dev16+g7a1eb8ac2,<...dev209+g5536fc0c0)
         "apply_module": "sndr.engines.vllm._archive.pn80_lora_tensorizer_device",
         "category": "memory_savings",
         "credit": (
@@ -540,7 +540,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "env_flag": "GENESIS_ENABLE_PN78_POST_WARMUP_CACHE_RELEASE",
         "default_on": False,
         "lifecycle": "retired",  # migrated from "deprecated" — upstream pin handles cache release internally; this wrap is permanent no-op.
-        "vllm_version_range": ">=0.20.1rc1.dev16+g7a1eb8ac2,<0.20.2rc1.dev9+g01d4d1ad3",  # active before upstream pin handles cache release
+        "vllm_version_range": "<0.20.2rc1.dev9",  # mirrors applies_to (gated SoT); reconciled D17 2026-06-17 (was >=...dev16+g7a1eb8ac2,<...dev9+g01d4d1ad3)
         "apply_module": "sndr.engines.vllm._archive.pn78_post_warmup_cache_release",
         "category": "memory_savings",
         "credit": (
@@ -1021,7 +1021,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "upstream_pr": 39930,
         "upstream_pr_relationship": "backport",
         "superseded_by": "vllm#39930 (merged 2026-04-28, in dev9+) — upstream provides full feature including SpeculativeConfig.attention_backend pydantic field; our PN9 backported only the env-driven subset (less invasive at runtime). Upstream is strictly more capable on dev9+.",
-        "vllm_version_range": "<0.20.2rc1.dev9+g01d4d1ad3",  # active before upstream merge in dev9
+        "vllm_version_range": "<0.20.2rc1.dev9",  # mirrors applies_to (gated SoT); reconciled D17 2026-06-17 (dropped cosmetic +g01d4d1ad3 suffix)
         "apply_module": "sndr.engines.vllm._archive.pn9_independent_drafter_attn_backend",
         "applies_to": {
             # Patch only takes effect inside _create_draft_vllm_config which
@@ -2365,7 +2365,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         # contract: superseded_by + vllm_version_range, P78 precedent).
         # Anchor last byte-verified on nightly dcacdf9a (2026-05-14);
         # supersession by P28 byte-verified on 0.22.1rc1.dev259.
-        "vllm_version_range": "<0.21.0",
+        "vllm_version_range": (">=0.20.2rc1.dev9", "<0.21.0"),  # mirrors applies_to (gated SoT); reconciled D17 2026-06-17 (added >=...dev9 lower bound)
         "category": "memory",
         "apply_module": "sndr.engines.vllm._archive.pn200_gdn_scratch_reuse",
         "source": "genesis_original",
@@ -3423,7 +3423,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "upstream_pr": 41411,
         "upstream_pr_relationship": "backport",
         "superseded_by": "vllm#41411 (merged 2026-05-04, byte-equivalent on dev209+g5536fc0c0)",
-        "vllm_version_range": "<0.20.2rc1.dev209+g5536fc0c0",  # active before upstream merge
+        "vllm_version_range": "<0.20.2rc1.dev209",  # mirrors applies_to (gated SoT); reconciled D17 2026-06-17 (dropped cosmetic +g5536fc0c0 suffix)
         "apply_module": "sndr.engines.vllm._archive.pn52_prompt_logprobs_eviction",
         "applies_to": {
             # [Genesis pin-gate 2026-05-11 iron rule #11] Deep-diff'd
@@ -4131,7 +4131,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "upstream_pr": 41268,
         "upstream_pr_relationship": "backport",
         "superseded_by": "vllm#41268 (merged 2026-04-30, byte-equivalent on dev209+g5536fc0c0)",
-        "vllm_version_range": "<0.20.2rc1.dev209+g5536fc0c0",  # active before upstream merge in dev209
+        "vllm_version_range": "<0.20.2rc1.dev93",  # mirrors applies_to (gated SoT); reconciled D17 2026-06-17 (was <0.20.2rc1.dev209+g5536fc0c0)
         "apply_module": "sndr.engines.vllm._archive.pn19_scoped_max_split",
         "applies_to": {
             # Always applicable on CUDA. Self-detects torch < 2.11 lack
@@ -6442,6 +6442,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
         "implementation_status": "full",
         "composes_with": ["PN296", "PN298", "PN299", "PN299B", "PN299C", "PN299D"],
+        "requires_patches": ["PN296"],  # hard runtime dep on PN296 keystone (bug-hunt D13)
     },
     "PN299D": {
         "title": "Mamba2 SSU fallback heuristic arch-aware NUM_WARPS cap (SM 8.6)",
@@ -6473,6 +6474,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
         "implementation_status": "full",
         "composes_with": ["PN296", "PN298", "PN299", "PN299B", "PN299C"],
+        "requires_patches": ["PN296"],  # hard runtime dep on PN296 keystone (bug-hunt D13)
     },
     "PN299C": {
         "title": "FLA layernorm_guard arch-aware NUM_WARPS heuristic cap (SM 8.6)",
@@ -6502,6 +6504,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
         "implementation_status": "full",
         "composes_with": ["PN296", "PN298", "PN299", "PN299B"],
+        "requires_patches": ["PN296"],  # hard runtime dep on PN296 keystone (bug-hunt D13)
     },
     "PN299B": {
         "title": "FLA extended (kda+cumsum+solve_tril) arch-aware NUM_WARPS prune",
@@ -6531,6 +6534,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
         "implementation_status": "full",
         "composes_with": ["PN296", "PN298", "PN299"],
+        "requires_patches": ["PN296"],  # hard runtime dep on PN296 keystone (bug-hunt D13)
     },
     "PN299": {
         "title": "FLA multi-file (kkt+wy_fast+l2norm) arch-aware NUM_WARPS prune",
@@ -6556,6 +6560,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
         "implementation_status": "full",
         "composes_with": ["PN296", "PN298"],
+        "requires_patches": ["PN296"],  # hard runtime dep on PN296 keystone (bug-hunt D13)
     },
     "PN298": {
         "title": "FLA chunk_o NUM_WARPS arch-aware prune (SM 8.6 spilling fix)",
@@ -6584,6 +6589,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
         "implementation_status": "full",
         "composes_with": ["PN296"],
+        "requires_patches": ["PN296"],  # hard runtime dep on PN296 keystone (bug-hunt D13)
     },
     "PN296": {
         "title": "Genesis GPU Architecture Profile boot-time initializer (auto-tune env by arch)",
@@ -7003,7 +7009,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "upstream_pr": 41043,
         "upstream_pr_relationship": "backport",
         "superseded_by": "vllm#41043 (merged 2026-04-29, byte-identical with deep-diff confirmed Wave 8 audit) — patch retained as audit trail",
-        "vllm_version_range": "<0.20.2rc1.dev93+g51f22dcfd",  # active before upstream merge in dev93
+        "vllm_version_range": "<0.20.2rc1.dev9",  # mirrors applies_to (gated SoT); reconciled D17 2026-06-17 (was <0.20.2rc1.dev93+g51f22dcfd)
         "apply_module": "sndr.engines.vllm._archive.p94_spec_decode_zero_alloc",
         "applies_to": {
             # Applies whenever spec-decode is active. All spec methods.
@@ -7768,7 +7774,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "kv_cache",
         "credit": "Pre-dispatcher legacy patch. Reports KV capacity per-token (not per-block) for hybrid models so scheduler doesn't over-admit. RETIRED upstream natively fixes after vllm v0.20.2.",
         "superseded_by": "vllm dev9 commit 01d4d1ad3 — get_max_concurrency_for_kv_cache_config refactor handles hybrid layouts natively (no specific PR captured; verified via anchor mismatch on dev9+)",
-        "vllm_version_range": "<0.20.2rc1.dev9+g01d4d1ad3",  # active before upstream refactor in dev9
+        "vllm_version_range": "<0.20.2rc1.dev9",  # mirrors applies_to (gated SoT); reconciled D17 2026-06-17 (dropped cosmetic +g01d4d1ad3 suffix)
         "apply_module": "sndr.engines.vllm._archive.p8_kv_hybrid_reporting",
         "applies_to": {
             # [Iron rule #11 formal retire 2026-05-11] Promoted from

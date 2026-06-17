@@ -513,13 +513,16 @@ def run(verbose: bool = True, apply: bool = False) -> PatchStats:
             log.exception("[Genesis] EXCEPTION in %s", patch_name)
 
     # [Genesis 2026-06-14] Spec-only supplement. The legacy loop above only
-    # applies patches with a @register_patch hook; 59 patches declare an
-    # apply_module but no legacy hook (KNOWN_SPEC_ONLY) and were previously
-    # unreachable at boot under the default mode even when an operator set
-    # GENESIS_ENABLE_<X>=1. This pass applies the ENABLED ones. No-op until
-    # a spec-only patch is explicitly opted in (all 59 are default_off), so
-    # the default boot's apply summary is unchanged. See
-    # _run_spec_only_supplement for the full safety rationale.
+    # applies patches with a @register_patch hook; the spec-only patches
+    # declare an apply_module but no legacy hook (KNOWN_SPEC_ONLY) and were
+    # previously unreachable at boot under the default mode even when an
+    # operator set GENESIS_ENABLE_<X>=1. This pass applies the ENABLED ones.
+    # The default-boot no-op is guaranteed by STRICT OPT-IN: should_apply
+    # gates on the env flag, so nothing applies until explicitly opted in
+    # (default_on is informational, not the driver). One spec-only patch
+    # (PN252, security) is default_on=True and WILL apply here under
+    # GENESIS_LEGACY_DEFAULT_ON=1. On a clean default boot the apply summary
+    # is unchanged. See _run_spec_only_supplement for the full rationale.
     _run_spec_only_supplement(stats)
 
     log.info("Genesis %s", stats)
@@ -908,10 +911,15 @@ def _run_spec_only_supplement(stats: PatchStats) -> None:
         absent from the legacy register table — so nothing the legacy loop
         already applied is touched again.
       * Gates each candidate through `should_apply` and skips disabled ones
-        SILENTLY (no stats row, no import, no log). All 59 spec-only patches
-        are default_off, so a clean default boot adds zero rows and stays
-        byte-identical to pre-supplement behavior. The pass only does work
-        once an operator explicitly opts a spec-only patch in.
+        SILENTLY (no stats row, no import, no log). The default-boot no-op is
+        guaranteed by STRICT OPT-IN: `should_apply` gates on the env flag, so
+        a candidate only does work once an operator explicitly opts it in.
+        `default_on` is informational metadata, NOT what drives this pass —
+        of the spec-only patches exactly one (PN252, a security patch) carries
+        default_on=True, and it WILL apply here when
+        `GENESIS_LEGACY_DEFAULT_ON=1` flips the default-on cohort on. A clean
+        default boot (no env flags, GENESIS_LEGACY_DEFAULT_ON unset) therefore
+        adds zero rows and stays byte-identical to pre-supplement behavior.
     """
     from sndr.dispatcher.spec import iter_patch_specs
     from sndr.dispatcher.decision import should_apply

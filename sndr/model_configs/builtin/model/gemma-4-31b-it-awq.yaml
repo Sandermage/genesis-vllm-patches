@@ -136,15 +136,15 @@ patches:
   # ── Qwen-applicable patches (general-purpose, MTP-aware) ──
   GENESIS_ENABLE_PN33_SPEC_DECODE_WARMUP_K: '1'           # MTP K-aware warmup sizing (vllm#37521)
   GENESIS_ENABLE_PN35_INPUTS_EMBEDS_OPTIONAL: '1'  # text-only inputs_embeds skip
-  GENESIS_ENABLE_PN116: '1'  # TQ prefill max_seq_len fallback
-  GENESIS_ENABLE_PN118: '1'  # TQ workspace graceful-fallback
+  GENESIS_ENABLE_PN116: '1'  # TQ prefill max_seq_len fallback. no-op on this model: applies_to excludes it (bug-hunt D16); applies_to is the SoT
+  GENESIS_ENABLE_PN118: '1'  # TQ workspace graceful-fallback. no-op on this model: applies_to excludes it (bug-hunt D16); applies_to is the SoT
   GENESIS_ENABLE_PN286_FA_LAYOUT_REVERT_SM86: '1'  # Ampere SM 8.6 FA KV layout revert
   GENESIS_ENABLE_P108: '1'          # MTP draft-loop stream synchronization (vllm#42603)
   GENESIS_ENABLE_P109: '1'          # sampler safety (vllm#42614) — short form matches registry env_flag
   GENESIS_ENABLE_PN110: '1'         # BlockPool.free_blocks dedup (vllm#42615) — short form matches registry env_flag
   # ── Cross-family supporting patches (Genesis-wide quality) ──
   GENESIS_ENABLE_PN119: '0'               # Gemma 4 doesn't use upstream TQ — N/A on wrapper path
-  GENESIS_ENABLE_PN126_V1_DECODE_WARMUP: '1'              # V1 decode + spec-decode warmup at boot (TTFT CV drop)
+  GENESIS_ENABLE_PN126_V1_DECODE_WARMUP: '1'              # V1 decode + spec-decode warmup at boot (TTFT CV drop). no-op on this model: applies_to excludes it (bug-hunt D16); applies_to is the SoT
 
 # ─── Composition hints for the V1 ModelConfig compose() ────────────────
 compose_hints:

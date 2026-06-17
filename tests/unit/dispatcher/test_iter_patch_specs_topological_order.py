@@ -89,7 +89,9 @@ def test_default_order_baseline_violations():
     baseline = {
         ("PN105", "PN104"),
         ("PN34", "PN33"),
-        ("G4_75", "G4_74"),
+        # 2026-06-17 (commit a9c9c37b): G4_75's requires_patches was
+        # corrected, so ("G4_75", "G4_74") is no longer an insertion-order
+        # violation and was dropped from this baseline (bug-hunt D2).
         ("G4_70", "G4_69"),
         ("PN256", "G4_67"),
         ("G4_69", "G4_60K"),
@@ -108,6 +110,18 @@ def test_default_order_baseline_violations():
         # order is owned by _per_patch_dispatch and the topo_sort path
         # handles the edge.
         ("PN388", "P34"),
+        # 2026-06-17 (bug-hunt D13/F9): PN298/PN299* gained
+        # requires_patches=['PN296'] to encode the hard runtime dep on
+        # PN296 (previously only in composes_with, invisible to the
+        # dep-graph validator). PN296 sits at insertion index 169, after
+        # the PN298/PN299* cohort (163-168), so each is an insertion-order
+        # violation the topo_sort path resolves at SNDR_TOPO_SORT_SPECS=1.
+        ("PN298", "PN296"),
+        ("PN299", "PN296"),
+        ("PN299B", "PN296"),
+        ("PN299C", "PN296"),
+        ("PN299D", "PN296"),
+        ("PN299E", "PN296"),
     }
     actual = {(pid, req) for pid, req, _, _ in violations}
     new_violations = sorted(actual - baseline)

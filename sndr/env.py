@@ -551,6 +551,7 @@ class Flags:
     PN350 = "PN350"  # PN350: Fused GDN Q/K/V split Triton kernel
     PN354_GDN_USE_EXP2 = "PN354_GDN_USE_EXP2"  # PN354: GDN chunked-prefill exp2 gate decay (vllm#43195 pattern)
     PN365_GDN_GEMM_FUSE = "PN365_GDN_GEMM_FUSE"  # PN365: Fused GDN qkv|z|b|a single-GEMM input projection
+    PN396_GDN_SPEC_DECODE_WARPS = "PN396_GDN_SPEC_DECODE_WARPS"  # PN396: GDN spec-decode NUM_WARPS tune (registry-credited TESTED-NEGATIVE / DO-NOT-ENABLE — constant exists only for Flags<->registry contract completeness)
     # attention.turboquant family
     P18B_TEXT = "P18B_TEXT"  # P18B_TEXT: TurboQuant decode stage1 kernel-literal tune
     PN299E = "PN299E"  # PN299E: KV cache writer arch-aware NUM_WARPS+NUM_STAGES cap
@@ -576,6 +577,7 @@ class Flags:
     PN349 = "PN349"  # PN349: Gemma 4 KV-shared k_norm/v_norm skip
     # moe family
     PN352 = "PN352"  # PN352: Triton moe_sum for unsupported topk
+    PN352B_MARLIN_MOE_SUM = "PN352B_MARLIN_MOE_SUM"  # PN352B: Triton moe_sum for unsupported-topk Marlin path (sibling of PN352)
     PN368_MARLIN_MOE_ATOMIC_ADD = "PN368_MARLIN_MOE_ATOMIC_ADD"  # PN368: Marlin MoE w13 atomic-add reduce-mode wire
     PN377_MOE_WNA16_BSK_CLAMP = "PN377_MOE_WNA16_BSK_CLAMP"  # PN377: moe_wna16 BLOCK_SIZE_K legality clamp (vendor of vllm#44563)
     # quantization.marlin family

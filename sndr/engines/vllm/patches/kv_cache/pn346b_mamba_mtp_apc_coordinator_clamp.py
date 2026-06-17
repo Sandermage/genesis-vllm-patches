@@ -184,9 +184,14 @@ def _make_patcher() -> Optional[TextPatcher]:
             ),
         ],
         upstream_drift_markers=[
+            # Genesis sentinel only (our own idempotency marker). The
+            # upstream-merge case is handled by ANCHOR-ABSENCE: once #45614
+            # lands, the naked `curr_hit_length = _new_hit_length` anchor
+            # (PN346B_ANCHOR_OLD) is gone, so the patcher SKIPs cleanly. A bare
+            # `curr_hit_length = min(...)` marker would self-collide with this
+            # patch's own replacement (caught by tools/lint_drift_markers.py),
+            # so it is intentionally NOT used as a drift sentinel.
             "[Genesis PN346B",
-            # exact #45614 merge shape — self-skips once upstream lands.
-            "curr_hit_length = min(curr_hit_length, _new_hit_length)",
         ],
     )
 

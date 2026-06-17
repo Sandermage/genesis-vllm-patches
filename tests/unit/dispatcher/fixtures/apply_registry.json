@@ -692,6 +692,10 @@
     "wrapped_name": "apply_patch_N347_marlin_fp8_nk_correctness"
   },
   {
+    "name": "PN-FP8MOE-KPAD FP8 MoE intermediate thread-tile pad (FP8-core backport of OPEN vllm#45703)",
+    "wrapped_name": "apply_patch_pn_fp8moe_kpad_marlin_moe"
+  },
+  {
     "name": "PN348 Qwen3.5/3.6 MTP backbone dedup (vendor of OPEN vllm#44644)",
     "wrapped_name": "apply_patch_N348_qwen3_mtp_backbone_dedup"
   },

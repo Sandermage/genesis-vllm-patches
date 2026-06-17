@@ -210,8 +210,11 @@ def apply() -> tuple[str, str]:
             "[Genesis PN346",
             # upstream sentinel if PR #43650 merges as-is with use_eagle
             "if use_eagle and max_num_blocks > 0:",
-            # alternate upstream merge shape if maintainers rename
-            "if drop_eagle_block and max_num_blocks > 0:",
+            # NOTE: the renamed form `if drop_eagle_block and max_num_blocks > 0:`
+            # is intentionally NOT a drift marker — it self-collides with
+            # PN346_ANCHOR_NEW (this patch's own replacement), which
+            # tools/lint_drift_markers.py flags. The renamed-fork merge case is
+            # still covered by anchor-absence at apply time.
         ],
     )
 

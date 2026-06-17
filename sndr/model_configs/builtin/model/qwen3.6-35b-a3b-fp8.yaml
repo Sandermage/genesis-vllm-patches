@@ -119,7 +119,7 @@ patches:
   GENESIS_P67_USE_UPSTREAM: '1'                      # P67 routing flag: '1'=upstream Genesis kernel, '0'=Genesis fork (DEFAULT 1; fork was quality mirage 2026-04-28)
   GENESIS_P67_NUM_KV_SPLITS: '48'                    # P67 split-K factor. A/B 2026-06-14 (dev491 opt-cycle A1): tested 24 vs 48 on the canonical chat-matrix — 24 was FLAT on decode-bound variants (code 217.6 vs 218.1, long_gen 190.9 vs 187.9 within CV) and -3..4% on long_ctx 8k/32k. Kept 48 (long-ctx-safe, the Sprint 1 320K optimum). Split-KV is not the 35B decode bottleneck.
   GENESIS_ENABLE_P81_FP8_BLOCK_SCALED_M_LE_8: '1'    # Genesis-original — FP8 block-scaled MM optimization for M≤8 (spec-decode K+1 batch shape)
-  GENESIS_ENABLE_P95: '1'                            # vllm#40385 backport — Marlin TP cudagraph cap on Ampere (TP=2 + Marlin defensive)
+  GENESIS_ENABLE_P95: '1'                            # vllm#40385 backport — Marlin TP cudagraph cap on Ampere (TP=2 + Marlin defensive). no-op on this model: applies_to excludes it (bug-hunt D16); applies_to is the SoT
   # ── Tool-call safety net ──
   GENESIS_ENABLE_P68_AUTO_FORCE_TOOL: '1'            # Genesis-original — auto-set tool_choice=required when prompt mentions tools (long-ctx adherence mitigation)
   GENESIS_ENABLE_P69_LONG_CTX_TOOL_REMINDER: '1'     # Genesis-original — inject system-message reminder of tool format at long-ctx threshold
@@ -184,8 +184,8 @@ patches:
   GENESIS_ENABLE_PN59_STREAMING_GDN: '1'             # Cliff 2b mitigation — streaming-GDN window-iterative driver replaces full h-tensor materialisation. Empirical: −142 MiB/GPU at boot, −95% per-soak fragmentation; club-3090 #182 confirmed Cliff 2b silently re-opens if v7.72.5 Level 2 markers missing (we verified all 4 present via audit_pn59_cliff2b_markers gate). CRITICAL for hybrid GDN long-context survival on 24 GB cards (A5000/3090) — gate runs in CI.
   GENESIS_LEGACY_P7: '0'                             # Explicit OFF — P7 legacy GDN dual-stream conflicts_with PN204 v2 (PN204 supersedes via vllm#42301 + maybe_execute_in_parallel helper). 0 = use PN204 when armed, fall through to upstream otherwise.
   # ── Wave 9 (2026-05-14) — verified on the dcacdf9a TP=2 ladder.
-  GENESIS_ENABLE_P87: '1'                            # Marlin sub-tile pad-N — vllm#40361 backport (OPEN). +24% on 2× 3090: 137→170 t/s on 35B-A3B-int4 (PR bench). Fixes GPTQ_MARLIN_MIN_THREAD_N=64 misalignment for sub-tile shards on TP≥2 (e.g. Intel/Qwen3.6-35B-A3B-int4-AutoRound n=32 shard).
-  GENESIS_ENABLE_P91: '1'                            # Long-prompt tool-call reminder helper (renamed PN72).
+  GENESIS_ENABLE_P87: '1'                            # Marlin sub-tile pad-N — vllm#40361 backport (OPEN). +24% on 2× 3090: 137→170 t/s on 35B-A3B-int4 (PR bench). Fixes GPTQ_MARLIN_MIN_THREAD_N=64 misalignment for sub-tile shards on TP≥2 (e.g. Intel/Qwen3.6-35B-A3B-int4-AutoRound n=32 shard). no-op on this model: applies_to excludes it (bug-hunt D16); applies_to is the SoT
+  GENESIS_ENABLE_P91: '1'                            # AutoRound INT4 row-parallel group cdiv + start-idx quant-correctness fix (vllm#39460) — NOT a tool reminder
   GENESIS_ENABLE_PN71_THINKING_TAG_NORMALIZE: '1'    # Malformed `<think>` tokenizer-drift normaliser.
   GENESIS_ENABLE_PN73_TOOL_ARGS_SAFE_NORMALIZE: '1'  # Tool argument JSON normaliser.
   GENESIS_ENABLE_PN91_DEVELOPER_ROLE: '1'            # OpenAI `developer` role passthrough for IDE agents.

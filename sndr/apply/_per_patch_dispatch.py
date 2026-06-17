@@ -350,9 +350,12 @@ def apply_patch_29_tool_parser_index_guard() -> PatchResult:
     )
 
     if has_streamed_guard and has_positions_guard:
-        return _applied(
+        return _skipped(
             name,
-            "upstream already contains bounded-index guards (no-op)",
+            "upstream_merged_equivalent: baseline image already contains the "
+            "bounded-index guards (streamed_args_for_tool + tool_start_positions) "
+            "this patch would add — same behavior as our text-patch, so no-op "
+            "with honest skip rather than a false applied entry",
         )
 
     # Baseline image does not have the guards → we would apply them, but for
@@ -7129,8 +7132,12 @@ def apply_patch_18b_tq_decode_tune() -> PatchResult:
     t.log_selected_tune()
 
     if t.has_any_override():
-        bkv, nw, ns = t.resolve_decode_tune()
-        return _applied(name, f"env override BLOCK_KV={bkv} warps={nw} stages={ns}")
+        _bkv, nw, ns = t.resolve_decode_tune()
+        # BLOCK_KV is intentionally omitted: the kernel hardcodes it (16 GQA / 4
+        # MHA) and VLLM_TQ_DECODE_BLOCK_KV is read by nothing. An A/B (2026-06-16)
+        # proved BLOCK_KV=32 regresses PROD -5.2%; 16 is the validated optimum.
+        # Report only the knobs P18b actually emits (warps/stages).
+        return _applied(name, f"env override warps={nw} stages={ns}")
 
     return _applied(
         name,

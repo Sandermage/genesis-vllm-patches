@@ -132,7 +132,7 @@ patches:
   #    yet hardware-verified end-to-end (no GPU/Docker on the dev
   #    box), so defaults mirror the verified neighbour conservatively.
   GENESIS_ENABLE_P87: '1'                            # Spec-decode rejection ratio sanity guard.
-  GENESIS_ENABLE_P91: '1'                            # Long-prompt tool-call reminder helper (renamed PN72).
+  GENESIS_ENABLE_P91: '1'                            # AutoRound INT4 row-parallel group cdiv + start-idx quant-correctness fix (vllm#39460) — NOT a tool reminder
   GENESIS_ENABLE_PN71_THINKING_TAG_NORMALIZE: '1'    # Normalises malformed `<think>` from tokenizer drift.
   GENESIS_ENABLE_PN73_TOOL_ARGS_SAFE_NORMALIZE: '1'  # Tool argument JSON normaliser (Qwen3-Coder edge cases).
   GENESIS_ENABLE_PN91_DEVELOPER_ROLE: '1'            # OpenAI `developer` role passthrough for IDE agents.

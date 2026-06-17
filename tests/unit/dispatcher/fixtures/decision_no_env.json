@@ -760,6 +760,11 @@
     "reason": "strict opt-in — set GENESIS_ENABLE_PN347=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
   },
   {
+    "patch_id": "PN-FP8MOE-KPAD",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_PN_FP8MOE_KPAD=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
     "patch_id": "PN348",
     "applied": false,
     "reason": "strict opt-in — set GENESIS_ENABLE_PN348=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"

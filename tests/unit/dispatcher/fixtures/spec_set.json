@@ -1824,6 +1824,18 @@
     "apply_module": "sndr.engines.vllm.patches.quantization.marlin.pn347_marlin_fp8_nk_correctness"
   },
   {
+    "patch_id": "PN-FP8MOE-KPAD",
+    "family": "quantization.marlin",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "GENESIS_ENABLE_PN_FP8MOE_KPAD",
+    "has_upstream_pr": true,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "sndr.engines.vllm.patches.quantization.marlin.pn_fp8moe_kpad_marlin_moe"
+  },
+  {
     "patch_id": "PN348",
     "family": "spec_decode",
     "lifecycle": "experimental",
