@@ -48,6 +48,7 @@ PATCHES = [
     ("sndr.engines.vllm.patches.model_compat.gemma4.g4_23_gemma4_vision_fp16_overflow_fix", "G4_23"),
     ("sndr.engines.vllm.patches.model_compat.gemma4.g4_24_gemma4_fused_softcap_route", "G4_24"),
     ("sndr.engines.vllm.patches.model_compat.gemma4.g4_25_gemma4_rope_dual_base_freq_guard", "G4_25"),
+    ("sndr.engines.vllm.patches.model_compat.gemma4.g4_26_diffusiongemma_tp_vocab_soft_embed", "G4_26"),
 ]
 
 

@@ -956,6 +956,10 @@
     "wrapped_name": "apply_patch_g4_25_gemma4_rope_dual_base_freq_guard"
   },
   {
+    "name": "G4_26 diffusion_gemma self-conditioning TP>1 vocab-sharded soft-embed all-gather (backport #45774)",
+    "wrapped_name": "apply_patch_g4_26_diffusiongemma_tp_vocab_soft_embed"
+  },
+  {
     "name": "G4_19 gemma4 Genesis TurboQuant KV cache (3/4-bit VQ, 256K unlock)",
     "wrapped_name": "apply_patch_g4_19_turboquant_kv_cache"
   },

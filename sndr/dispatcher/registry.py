@@ -10251,6 +10251,23 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "conflicts_with": [],
         "applies_to": {"model_arch": ["Gemma4ForConditionalGeneration", "Gemma4ForCausalLM"]},
     },
+    "G4_26": {
+        "title": "Fix DiffusionGemma self-conditioning soft-embed for TP>1 (vocab-sharded embed_weight all-gather) — backport open vLLM PR #45774",
+        "tier": "community",
+        "family": "gemma4",
+        "env_flag": "GENESIS_ENABLE_G4_26_DIFFUSIONGEMMA_TP_VOCAB",
+        "default_on": False,
+        "category": "correctness",
+        "implementation_status": "full",
+        "source": "vllm_pr_backport",
+        "apply_module": "sndr.engines.vllm.patches.model_compat.gemma4.g4_26_diffusiongemma_tp_vocab_soft_embed",
+        "lifecycle": "experimental",
+        "credit": "Backports the TP-correctness half of open PR #45774: DiffusionGemmaForBlockDiffusion self-conditioning does probs@embed_weight over FULL vocab (262144); at TP=2 embed_tokens.weight is vocab-sharded to [131072,2816] -> RuntimeError reduction-dim mismatch. Adds get_tensor_model_parallel_world_size/tensor_model_parallel_all_gather import + _get_full_embed_weight helper + line-853 swap. SKIPs XPU/UVA hunks. Intrinsically TP-gated (helper returns .weight unchanged at TP=1). Self-skips once #45774 merges (upstream_drift_marker 'def _get_full_embed_weight').",
+        "upstream_pr": "https://github.com/vllm-project/vllm/pull/45774",
+        "requires_patches": [],
+        "conflicts_with": [],
+        "applies_to": {"model_arch": ["DiffusionGemmaForBlockDiffusion"], "vllm_version_range": (">=0.22.1rc1.dev491", "<1.0.0")},
+    },
 }
 
 

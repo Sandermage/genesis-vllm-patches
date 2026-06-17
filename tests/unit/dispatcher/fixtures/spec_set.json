@@ -3778,5 +3778,17 @@
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
     "apply_module": "sndr.engines.vllm.patches.model_compat.gemma4.g4_25_gemma4_rope_dual_base_freq_guard"
+  },
+  {
+    "patch_id": "G4_26",
+    "family": "gemma4",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "GENESIS_ENABLE_G4_26_DIFFUSIONGEMMA_TP_VOCAB",
+    "has_upstream_pr": true,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "sndr.engines.vllm.patches.model_compat.gemma4.g4_26_diffusiongemma_tp_vocab_soft_embed"
   }
 ]

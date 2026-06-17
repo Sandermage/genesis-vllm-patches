@@ -106,6 +106,10 @@ _KNOWN_REGISTRY_ONLY = frozenset({
     "G4_01", "G4_02", "G4_03", "G4_04", "G4_05", "G4_06", "G4_07", "G4_08",
     "G4_09", "G4_10", "G4_11", "G4_12", "G4_13", "G4_14", "G4_15", "G4_16",
     "G4_17", "G4_18", "G4_19", "G4_19B", "G4_19C", "G4_23", "G4_24", "G4_25",
+    # G4_26 (DiffusionGemma TP>1 vocab-sharded soft-embed all-gather,
+    # backport vllm#45774, 2026-06-17) — TextPatcher via the _G4_PATCHES
+    # dispatcher tuple, same overlay-loader pattern; no apply_patch_* hook.
+    "G4_26",
     "G4_31", "G4_32",
     # PR42637 overlay verifier series (10 _G4_60* patches)
     "G4_60A", "G4_60B", "G4_60C", "G4_60D", "G4_60E", "G4_60G",

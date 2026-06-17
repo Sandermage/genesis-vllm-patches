@@ -1573,5 +1573,10 @@
     "patch_id": "G4_25",
     "applied": false,
     "reason": "strict opt-in: patch has default_on=True (informational) but env_flag=GENESIS_ENABLE_G4_25_GEMMA4_RoPE_DUAL_BASE_GUARD unset. Add GENESIS_ENABLE_G4_25_GEMMA4_RoPE_DUAL_BASE_GUARD=1 to launch config to engage. Set GENESIS_LEGACY_DEFAULT_ON=1 to revert to pre-2026-05-17 auto-apply semantics."
+  },
+  {
+    "patch_id": "G4_26",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_G4_26_DIFFUSIONGEMMA_TP_VOCAB=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
   }
 ]

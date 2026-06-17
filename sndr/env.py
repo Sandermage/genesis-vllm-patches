@@ -457,6 +457,10 @@ class Flags:
     # historical mixed-case `RoPE` form to remain compatible with the
     # operator-facing env var emitted in YAML / docker / docs.
     G4_25_GEMMA4_ROPE_DUAL_BASE_GUARD = "G4_25_GEMMA4_RoPE_DUAL_BASE_GUARD"
+    # G4_26 — backport TP-correctness half of open vllm PR #45774:
+    # DiffusionGemmaForBlockDiffusion self-conditioning soft-embed all-gather
+    # for vocab-sharded embed_weight at TP>1. Opt-in correctness fix.
+    G4_26_DIFFUSIONGEMMA_TP_VOCAB = "G4_26_DIFFUSIONGEMMA_TP_VOCAB"
 
     # G4_19 — Genesis-original TurboQuant KV cache for Gemma 4 (256K unlock)
     # Companion to our Qwen 3.5/3.6 P67/PN116/PN118/PN119 stack — parallel

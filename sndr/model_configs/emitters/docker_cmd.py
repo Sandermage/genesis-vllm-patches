@@ -128,7 +128,11 @@ def build_docker_cmd(
     # (module never existed in v10/v11) and silently masked any
     # apply failure as a successful sub-shell. Now the call is
     # direct — boot fails loudly if sndr_core is unimportable.
-    apply_step = "python3 -m vllm.sndr_core.apply 2>&1 | tail -5"
+    # v12.0 retired the `vllm.sndr_core` shim — pyproject ships only `sndr*`.
+    # Freshly-rendered launchers that drop the legacy mirror mount would fail
+    # apply with ModuleNotFoundError on the old path, silently leaving Genesis
+    # patches unapplied. The surviving entrypoint is `sndr/apply/__main__.py`.
+    apply_step = "python3 -m sndr.apply 2>&1 | tail -5"
     # P1-7 fix (audit 2026-05-08) + B6 (UNIFIED_CONFIG plan 2026-05-09):
     # runtime deps inside the container are pinned. Y1 introduced
     # `package_versions.python_packages` as the canonical source of
@@ -153,8 +157,8 @@ def build_docker_cmd(
     #
     # The new contract:
     #   - Production: the canonical apply step (`python3 -m
-    #     vllm.sndr_core.apply`) is the ONLY thing run. If
-    #     vllm-sndr-core isn't installed, the call fails loudly.
+    #     sndr.apply`) is the ONLY thing run. If sndr isn't
+    #     installed, the call fails loudly.
     #   - Dev: opt in to the legacy `/plugin` install via
     #     `SNDR_DEV_INSTALL_PLUGIN=1`. The original behavior is
     #     preserved verbatim under the env gate.

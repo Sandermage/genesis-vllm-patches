@@ -7348,6 +7348,8 @@ _G4_PATCHES: tuple[tuple[str, str, str], ...] = (
      "g4_24_gemma4_fused_softcap_route", "model_compat.gemma4"),  # Phase 2.2: relocated 2026-05-22
     ("G4_25", "G4_25 gemma4 dual-RoPE base-freq divergence guard",
      "g4_25_gemma4_rope_dual_base_freq_guard", "model_compat.gemma4"),  # Phase 2.2: relocated 2026-05-22
+    ("G4_26", "G4_26 diffusion_gemma self-conditioning TP>1 vocab-sharded soft-embed all-gather (backport #45774)",
+     "g4_26_diffusiongemma_tp_vocab_soft_embed", "model_compat.gemma4"),  # 2026-06-17: backport vllm#45774 TP-correctness half
     ("G4_19", "G4_19 gemma4 Genesis TurboQuant KV cache (3/4-bit VQ, 256K unlock)",
      "g4_19_turboquant_kv_cache", "attention.turboquant"),  # Phase 3 bucket 4: relocated 2026-05-21
     ("G4_19B", "G4_19B gemma4 TQ KV spec integration (compression-aware memory check)",

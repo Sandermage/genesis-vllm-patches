@@ -103,6 +103,29 @@ def test_renderer_uses_package_versions_when_set():
     assert "scipy==1.14.1" not in script
 
 
+def test_rendered_launcher_uses_sndr_apply_not_legacy_sndr_core():
+    """docker_cmd emitter must invoke `python3 -m sndr.apply`, NOT the
+    removed `python3 -m vllm.sndr_core.apply` shim.
+
+    v12.0 dropped the `vllm.sndr_core` mirror (pyproject ships only
+    `sndr*`). A freshly-rendered launcher that no longer bind-mounts the
+    legacy mirror would otherwise fail apply with ModuleNotFoundError,
+    silently leaving Genesis patches unapplied. The surviving entrypoint
+    is `sndr/apply/__main__.py` → `python3 -m sndr.apply`.
+    """
+    cfg = _minimal_docker_cfg(None)
+    script = cfg.to_launch_script()
+    assert "python3 -m sndr.apply" in script, (
+        "rendered launcher must call `python3 -m sndr.apply` (the "
+        "surviving v12 entrypoint sndr/apply/__main__.py)"
+    )
+    assert "python3 -m vllm.sndr_core.apply" not in script, (
+        "rendered launcher must NOT call the removed "
+        "`python3 -m vllm.sndr_core.apply` shim — patches would silently "
+        "fail to apply with ModuleNotFoundError"
+    )
+
+
 def test_renderer_falls_back_to_legacy_when_unset():
     """When package_versions is None, legacy hardcoded baseline kicks in.
 
