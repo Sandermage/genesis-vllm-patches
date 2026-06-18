@@ -420,3 +420,67 @@ The rest are single-digit-% config knobs (worth A/B'ing) — there is no hidden 
 single-stream waiting behind a disabled patch; those numbers are multi-conc / code-content / a
 different model. "Don't guess" honored: every claim here cites a bench file, registry line, pin
 source line, or external PR/URL.
+
+---
+
+## 9. ROOT CAUSE — TurboQuant decode + MTP, and the operator's thesis confirmed (2026-06-18)
+
+Operator's strategic correction (verbatim intent): "don't wash your hands by switching to kv-auto —
+FIND the problem and FIX it (keep 256K AND get speed); MTP must work everywhere; the engine changed
+since ~April 15 (1900 commits / 300 files), so patches that still APPLY but were never rewritten for
+the new code format silently break/slow things — study the engine changes and rewrite the patches."
+A 3-agent root-cause Workflow (wdtwlswjh) confirmed this exactly, with code citations.
+
+### 9a. TurboQuant decode is 2× slower for a COMPUTE reason, NOT memory — and it is FIXABLE
+TQ packs 262 B/token vs bf16's 1024 B = **3.9× LESS** HBM traffic, so the quantized cache cannot
+itself be the +27ms/token cost. The real chain (all cited):
+- `turboquant_4bit_nc` = 4-bit **MSE keys** (key_fp8=False) → forces the **scalar** `_tq_decode_stage1`
+  kernel with **ZERO tl.dot** — QK/PV via `tl.sum` on CUDA cores, not tensor cores
+  (overlays/pr42637/triton_turboquant_decode.py:327,365-368,467; tl.dot=0 in overlay AND club-3090 ref).
+- Per-token **centroid gather + norm renormalize** that kv-auto never pays (random-access, 1 warp
+  can't latency-hide) — :350-354,357-363.
+- Launched **num_warps=1 / num_stages=1 / BLOCK_KV=4** (H100-MHA defaults) → 512 single-warp CTAs
+  (:798,893-894).
+- GQA group=2 → each KV head dequantized **2×** because the grouped + P67 tensor-core kernels are
+  **hard-gated to FP8 keys** (tq_grouped_decode.py:338-340).
+- 🔑 **P18b** (the patch meant to retune num_warps) is **DEAD**: its anchors expect a 12-space
+  two-branch GQA/MHA block (p18b_*.py:66-84) but the overlay has an 8-space single launch → both
+  anchors test False → soft-skip → num_warps stays 1. **This is the operator's thesis incarnate: an
+  engine-code-format change silently disabled a speed patch (NOT failed=0, just inert).**
+
+**FIXABLE, not inherent** (KIVI arXiv:2402.02750 + our own FP8 grouped kernel prove fused
+dequant-into-tl.dot is fast on Ampere). Three rig-validatable fixes, all keep 256K context + help 27B/35B:
+1. **Repair P18b anchors** (low risk) → num_warps 8 / stages 3 / BLOCK_KV 16 → TPOT 39 → ~27-33ms.
+2. **Add an MSE-key branch to the grouped tl.dot kernel** (medium risk, the BIG win) → moves MSE-key
+   QK/PV onto tensor cores + loads each KV head ONCE per BLOCK_H group → **TPOT 39 → ~14-18ms**
+   (near the bf16 11.5ms floor) while keeping 3.9× KV compression. **256K AND fast — the real fix.**
+3. **Hoist the FP16 Hadamard rotation/re-dequant out of the MTP K+1 verify loop** (PN240/P65 path).
+
+### 9b. MTP — net-positive on 35B/27B/31B; the ONE net-negative is 26B-MoE K=4-at-batch-1
+- 35B K=3 = 72.9% accept, +32%. 27B K=3 net-positive. 31B-dense K=3 = +10% (accept inferred, never
+  measured). **26B-A4B MoE K=4 batch=1 = −11%/−53%** because the MoE verify pass loads the union of
+  per-draft-token expert sets (128 experts × top_k=8) with NO amortization at batch=1 (~9.86× K=1
+  forward even at mean k=3.49). At **K=3 the same 26B = +65% on chat.**
+- Fixes (make MTP universal): (1) make 26B **K=3 the chat DEFAULT** (the validated
+  gemma4-26b-mtp-chat-k3 profile exists but is mis-routed role=structured); gate K=4 to batch≥4; MTP
+  OFF for 26B long-ctx. (2) **PN384** (vendor vllm#44986, fixes MTP dropping the last prefix-cache
+  block, 92%→71% hit) EXISTS but is default-OFF + in zero composes — enable on all MTP composes
+  (another "filed but not wired" instance of the thesis). (3) **Accept-rate instrumentation**
+  (PN282 / SNDR_ENABLE_SPEC_DECODE_ACCEPTANCE_METRIC=1) on every MTP compose so accept is MEASURED,
+  not inferred. (4) Refresh the pr42637 kv_cache_utils overlay for the pin's `get_kv_cache_capacity`
+  rename so 31B-tq MTP boots (engine API rename broke it — thesis again).
+
+### 9c. Pin update (operator instruction "обновись на новый pin — там много исправлений")
+Authorized per the pin policy (explicit instruction). Scope established: April-15 baseline =
+vLLM 03f8d3a54 (dev9/dev16 era — what most patches were WRITTEN for); April-15 → our pin 4c6266331 =
+**1900 commits / 300 files**; our pin is 54 commits behind main (5fd3b276f, today). Pulling the latest
+nightly now; will re-tag per policy (new=current, 4c626633=previous), CLEAN the 3rd stale pin
+(303916e93 dev259 — currently violates the ≤2 rule) + dev491, then boot-validate apply/smoke/tool-call
+on the new pin. The engine-change → patch-rewrite program (TQ kernel + MTP above being the first slice)
+targets THIS new pin.
+
+### 9d. The thesis, proven
+Three patches caught silently inert from engine-code changes — NOT failed=0, just doing nothing:
+P18b (anchor format 12→8 space), PN384 (filed, never wired), pr42637 overlay (get_kv_cache_capacity
+rename). "Applies cleanly" ≠ "still correct/effective." The recovery path is real and code-cited:
+fix the TQ kernel (256K AND ~14-18ms TPOT) + wire MTP correctly everywhere.
