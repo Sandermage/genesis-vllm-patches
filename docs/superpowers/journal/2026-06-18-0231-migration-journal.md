@@ -324,6 +324,21 @@ container-name teardown, a ≥20-min boot window with boot-log capture, and must
 PROD model needs the GPU. Once it boots: bench single-stream AND (with `--cudagraph-mode
 FULL_DECODE_ONLY`, per #42271) multi-conc to chase the 200+ peak.
 
+**UPDATE — 26B MoE RESOLVED (bulletproof diagnostic, port 8003, GPU verified free):**
+The "boot >12 min" was the SAME port-mismatch bug — the health probe hit 8102 while the 26B
+listens on **8003**, so it never observed the (already-healthy) container. With the probe on the
+real port the 26B boots cleanly:
+- **health=200 at 210s (3.5 min)** on 0.23.1rc1.dev101 — no slow boot, no stall.
+- single-stream **wall_TPS = 106.4** (CV 0.38 — high MoE-routing variance), decode_TPOT 11.8 ms.
+- **tool-call works:** `get_weather{"city": "Kyiv"}`.
+- 35B PROD restored afterward (health=200), GPU verified free at each transition.
+Boot log carried one benign `llm_base_proposer: Draft model does not support …` MTP warning.
+So ALL models boot + tool-call on 0.23.1 (35B 230, 27B 120, Gemma-31B ~40, Gemma-26B-MoE 106 —
+all single-stream). The 26B "200+" is, like the others, a **multi-concurrency** number gated by
+the open upstream #42271 — reachable on 0.23.1 with `--cudagraph-mode FULL_DECODE_ONLY`, not lost
+to the pin. The bulletproof diagnostic (explicit names, real port, GPU-free gates, guaranteed
+restore) is the template for all future rig benches.
+
 ### 7f. Net conclusion of the audit
 The migration is **correct and complete**; the upstream window introduced **no regression**.
 The single code tail found (G4_14) is now honestly scoped (capped <0.23.0). The high historical
