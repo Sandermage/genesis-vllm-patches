@@ -684,3 +684,35 @@ models and not others — a fragile whole-file-md5 + unordered-apply interaction
 Either makes PN119 (FP8 decode for 27B/35B) AND FIX 2 (MSE decode for Gemma) apply RELIABLY on every
 model. Then re-validate FIX 2 on Gemma: expect tl.dot>0 + TPOT toward 14-18ms + coherent output.
 FIX 2 itself is DONE + parity-proven + safe; it is gated only on PN119 reliably applying.
+
+## 15. PN119-robustness VALIDATED on 27B/35B; FIX 2 blocked on Gemma by a PN119↔G4 dispatch conflict
+
+Decisive rig validation of the md5-hard-skip→dry-run-guard fix + FIX 2:
+- **27B (FP8 k8v4): tl.dot=8, PN119 applied, wall_TPS 118.9 / TPOT 8.19ms** — NO regression vs the
+  reverted-P18b 118.7. The md5-downgrade makes PN119 apply reliably regardless of which sibling
+  edited the file first, AND it carries FIX 2's MSE-branch additions (tl.dot 5→8) harmlessly on the
+  FP8 path. 35B PROD restored healthy on the same code.  → **PN119-robustness is a clean win:
+  27B/35B FP8 tensor-core decode is now reliable, not order-dependent.**
+- **Gemma (MSE keys): tl.dot=0 STILL** — FIX 2 did NOT engage. Output coherent ("Mountains are
+  majestic landforms…"), tool-call valid, no crash (FIX 2 safe). But PN119's diff did not apply on
+  the Gemma boot EVEN with the md5-downgrade — meaning the `patch --dry-run` itself REJECTED PN119's
+  hunks (graceful skip), i.e. a G4_* TQ patch (G4_60b/c overlay loaders, G4_67/G4_81 spec-route)
+  edits the SAME `triton_turboquant_decode_attention` dispatch region PN119's diff targets, so the
+  two genuinely conflict on the Gemma dispatch. The dry-run guard correctly refused to force it.
+
+**Honest conclusion on FIX 2:** the MSE grouped kernel is correct (parity 25/25, coherent on the
+FP8-carried path) but cannot be wired into Gemma's decode because PN119's context-diff conflicts
+with the G4 TQ dispatch overlays that only Gemma loads. Getting Gemma onto the MSE tensor-core path
+requires either (a) rebasing PN119's hunks to apply AFTER the G4 overlays (author the grouped-kernel
+injection against the G4-overlaid dispatch, not the pristine one), or (b) moving the MSE branch into
+the G4 decode overlay (G4_60c) instead of PN119. Both are real integration work, not a quick patch.
+Gemma stays on the scalar path (~27-39ms, coherent, tool-calls valid) until then.
+
+### Net state (honest)
+- Pin dev148 ✓. My P18b regression found+fixed+deployed ✓. PN119 robust + reliable on 27B/35B
+  (FP8 tensor-core decode) ✓, no regression (118.9). Thesis (engine-change/order → silent patch
+  breakage) confirmed repeatedly with live evidence (§9-15).
+- The one large NEW speed win (Gemma MSE tensor-core, 39→~14-18ms) is implemented + parity-proven
+  but BLOCKED on the Gemma-only PN119↔G4 dispatch conflict — a deeper integration task, deferred.
+- Remaining low-risk wins: FIX 3 (MTP config: 26B K=3 default, PN384, accept-rate), promote dev148
+  to the live launchers, prune stale pins, re-check PN351/P87/PN32 for the same drift class.
