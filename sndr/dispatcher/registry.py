@@ -8908,7 +8908,25 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "upstream_pr": "https://github.com/vllm-project/vllm/issues/39392",
         "requires_patches": [],
         "conflicts_with": [],
-        "applies_to": {"model_arch": ["Gemma4ForConditionalGeneration", "Gemma4ForCausalLM"]},
+        # 2026-06-18 (0.23.1 migration, iron-rule-#11 deep-diff): upstream
+        # tool-parser reorg #45588 DELETED Gemma4ToolParser; the new
+        # Gemma4EngineToolParser (vllm/tool_parsers/gemma4_engine_tool_parser.py)
+        # + gemma4_utils.parse_tool_calls is a full rewrite — it decodes with
+        # skip_special_tokens=False and extracts args via a structured
+        # vllm.parser.gemma4._parse_gemma4_args pass, NOT the old raw-token
+        # streaming JSON path. The #39392 pad-leak mode ("holds raw token IDs
+        # for partial-JSON parsing and the pad sneaks through") no longer exists
+        # in the architecture G4_14 wraps; G4_14._find_gemma_tool_parser()
+        # targets only the deleted class -> graceful skip on 0.23.1. Capped
+        # <0.23.0 so the registry is honest (correctly inert, not silently
+        # broken), consistent with PN30/PN56/P64. #39392 is still OPEN upstream:
+        # if a live gemma4 tool-call repro shows the pad leak on
+        # Gemma4EngineToolParser, redesign against the new class with a failing
+        # test FIRST, then lift the cap.
+        "applies_to": {
+            "model_arch": ["Gemma4ForConditionalGeneration", "Gemma4ForCausalLM"],
+            "vllm_version_range": (">=0.20.0", "<0.23.0"),
+        },
     },
     "G4_15": {
         "title": "Fused RMSNorm Triton kernels for Gemma 4 (ported from SGLang)",

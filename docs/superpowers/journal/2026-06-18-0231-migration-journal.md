@@ -232,3 +232,85 @@ python3 scripts/audit_stale_vllm_version_ranges.py   # intentional caps only
 ssh sander@192.168.1.10 'docker logs <ctr> | grep "register() complete"'   # failed=0
 python3 tools/genesis_bench_suite.py --port 8102 --model <m> --quick --max-tokens 1024
 ```
+
+---
+
+## 7. Upstream regression audit + 5-axis code verification (2026-06-18)
+
+Per the /loop directive ("study the engine github for regressions/solutions; re-audit our
+kernels — maybe we missed something"). One research agent over vllm-project/vllm + a 5-agent
+workflow cross-checking findings against our tree.
+
+### 7a. Upstream window — CLEAN BILL OF HEALTH
+The real migration span is **128 commits, 2026-06-13 → 2026-06-17** (pin 4c6266331 dated
+06-17 04:38Z), NOT April-May. Every in-window change touching the Genesis stack is **additive
+or a fix** — zero regressions:
+- **#45473** (DS Mamba tail-copy for MTP align mode) — IN pin, improves the 27B hybrid+MTP path.
+- **#45707** (restore MoE routed-output unpadding before shared-expert add) — IN pin, MoE
+  correctness fix (Gemma-4-26B-A4B benefits).
+- **Parser reorg #45588 + 4 follow-up hotfixes** (#45553/#45795/#45832/#45413) — ALL in pin.
+  Gemma-4/Qwen3 tool-calling runs the FIXED engine-based parser, not a freshly-broken one.
+This is fully consistent with the A/B benches (§3d/§3e): no in-window regression → no speed loss.
+
+### 7b. WATCH list (open upstream, NOT in pin — none proven to bite, but relevant)
+- **#42271 — MTP + FULL_AND_PIECEWISE cudagraph deadlock at multi-concurrency** (bonus-token-
+  only batched-decode shape). Workaround: `cudagraph_mode=FULL_DECODE_ONLY`. **This is the most
+  likely reason the historical multi-concurrency peaks (27B@conc4≈156/conc8≈379, Gemma-26B-MoE@200)
+  are hard to reproduce on 0.23.1** — those peaks were captured on dev338/dev371 (2026-05-15),
+  which PREDATE #42271. It is a pre-existing upstream bug, NOT introduced by our migration.
+- **#44209** — non-deterministic KV-cache reservation on hybrid GDN Qwen3.6 → cudagraph-capture
+  OOM. Exact 27B arch; symptom reported sm120 (we are sm86). Mitigation PN367 exists (see 7c).
+- **#42261** — Gemma4 + MTP device-side-assert (only repro'd at 8 spec tokens / 31B on H200;
+  we run K=3/K=4). Low risk, watch the Gemma MTP configs.
+
+### 7c. 5-axis verification of findings against OUR code
+1. **parser-import-audit** → 1 real tail. **G4_14** (gemma4 pad-strip, default_on, stable)
+   wraps `Gemma4ToolParser.extract_tool_calls_streaming` — a class DELETED by #45588. The new
+   `Gemma4EngineToolParser` + `gemma4_utils.parse_tool_calls` is a full rewrite
+   (skip_special_tokens=False + structured `vllm.parser.gemma4._parse_gemma4_args`); the #39392
+   raw-token pad-leak MODE no longer exists in that architecture. G4_14 graceful-skips on 0.23.1
+   (never failed=0 boot). **ACTION TAKEN: capped G4_14 to `<0.23.0`** with a full deep-diff note
+   (registry.py G4_14 block), consistent with PN30/PN56/P64. #39392 still OPEN upstream — if a
+   live gemma4 tool-call repro shows the leak on the new parser, redesign against
+   `Gemma4EngineToolParser` with a failing test FIRST, then lift the cap. All other deleted-target
+   parser patches (PN56/P64/P61c/P29_HEAL qwen3coder; P12/P27/P59/P61b/PN51 reasoning) already
+   graceful-skip and/or are version-capped → no boot-failure risk.
+2. **gemma-parser-config** → CLEAN. All 5 Gemma configs declare `tool_call_parser: gemma4`
+   (the engine-native name), `reasoning_parser: null`. No deleted/renamed parser referenced.
+3. **#42271 cudagraph risk** → CONFIRMED on our surface. Both Qwen models (35B + 27B) run
+   MTP K=3 on `attention_arch=hybrid_gdn_moe` with `cudagraph_mode=FULL_AND_PIECEWISE` (schema
+   default + PN125/G4_16 force it). `FULL_DECODE_ONLY` is whitelisted in schema.py:361 but wired
+   NOWHERE (0 configs/profiles/launchers). The 27B latency profile already runs max_num_seqs=4.
+   **RULE for 0.23.1 multi-conc benching: launch with `--cudagraph-mode FULL_DECODE_ONLY` to dodge
+   the #42271 hang.** Disabling PN125 does NOT help — the engine default is still FULL_AND_PIECEWISE.
+4. **#44209 hybrid-GDN** → PN367 (vendors vllm#44745/#44740, clamps the negative/non-deterministic
+   cudagraph-capture memory delta — the exact #44209 mode) EXISTS and its range was bumped to
+   `<0.24.0` on 06-17 (covers 0.23.1). BUT the **deployed 27B launcher is strict opt-in** (no
+   `GENESIS_LEGACY_DEFAULT_ON=1` — that flag lives only in the launcher TEMPLATE, not the rendered
+   rig script), so default_on=True is informational and **PN367 is inert on the live 27B**. It is
+   a DEFENSIVE guard only — the 27B boots clean (failed=0) and the symptom is sm120-specific.
+   RECOMMENDATION (low prio, defensive): add `GENESIS_ENABLE_PN367: '1'` to the 27B configs +
+   re-render, then verify the clamp logs on boot. Not urgent.
+5. **supersession #45473/#45707** → PN30 (overlaps #45473) is ALREADY correctly capped `<0.23.0`
+   (done during migration). #45707 has NO Genesis overlap (clean). Nothing to retire/update.
+
+### 7d. Two agent claims DEBUNKED by live/source check
+- "PN517 env-flag typo `n_INIT...`" → FALSE. a5000-2x YAML:155 and the deployed launcher both
+  carry the correct `GENESIS_ENABLE_PN517_INIT_SNAPSHOT_BEFORE_NCCL=1`. The `n_INIT` was a
+  transcript-rendering artifact of the agent's own grep tool (same bug rendered `gemma4`→`ln4`).
+- "PN367 mitigation missing" → it EXISTS and is version-eligible; it is merely not opted-in
+  (see 7c.4). The capability is present, the wiring is a deliberate strict-opt-in choice.
+
+### 7e. Open item — Gemma-4-26B-A4B MoE boot >12 min (the "200+" model, still unbenched)
+The 26B MoE did not reach `/health=200` within a 12-min window on 0.23.1 (container stayed Up,
+GPU loaded — likely MoE+MTP-K4+FULL_AND_PIECEWISE cudagraph capture exceeding the timeout, or a
+boot stall). Needs a dedicated diagnostic: ≥20-min boot window + boot-log capture, NOT colliding
+with the 35B PROD restore. Once it boots, bench single-stream AND (with FULL_DECODE_ONLY)
+multi-conc to chase the 200+ peak.
+
+### 7f. Net conclusion of the audit
+The migration is **correct and complete**; the upstream window introduced **no regression**.
+The single code tail found (G4_14) is now honestly scoped (capped <0.23.0). The high historical
+numbers are a **multi-concurrency / config axis** gated by the open upstream #42271 deadlock —
+reachable on 0.23.1 via `FULL_DECODE_ONLY`, not via any "lost" kernel. PN367 is a free defensive
+hardening opt-in for the 27B if desired.

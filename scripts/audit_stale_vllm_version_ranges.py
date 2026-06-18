@@ -150,6 +150,11 @@ _BASELINE_CRITICAL_STALE: frozenset[str] = frozenset({
     "PN51",   # qwen3 enable_thinking routing — merged into 0.23.x.
     "PN125",  # FULL_AND_PIECEWISE redundant (v1 default engages it on hybrid).
     "P29_HEAL",            # heals the qwen3coder parser DELETED by #45588.
+    "G4_14",  # gemma4 pad-strip wraps Gemma4ToolParser, DELETED by #45588. New
+              # Gemma4EngineToolParser is a skip_special_tokens=False rewrite —
+              # #39392 raw-token pad-leak mode no longer exists. Skip 0.23.1,
+              # apply <0.23.0 (iron-rule #11a). #39392 still OPEN: redesign vs
+              # the new class with a failing repro test before lifting the cap.
     "SNDR_MTP_DYNAMIC_K_001",  # #26504 DynamicProposer — bench NOT_SIGNIFICANT.
     # (b) Bug still live on 0.23.1 but the anchor target was refactored away —
     # capped pending a redesign (cannot byte-exact re-anchor; see registry):
