@@ -738,3 +738,25 @@ health=200, PN119 tl.dot=8 (tensor-core decode active), failed=0. Pin-update int
 validated current; promoting the LIVE launchers from dev101→dev148 (to also pick up #45849 hybrid
 hidden-states NaN fix) remains a deliberate PROD-restart step — deferred to a focused window, not
 forced autonomously at depth (the 35B is healthy on dev101 + all fixes).
+
+## 18. CORRECTED FIX-2 blocker — the Gemma decode kernel is a BIND-MOUNTED overlay, not the image kernel
+
+§15 attributed Gemma's tl.dot=0 to a "PN119↔G4 dispatch conflict". The real (deeper) reason, found
+by reading G4_60c: the Gemma launcher **bind-mounts** `overlays/pr42637/triton_turboquant_decode.py`
+(scalar, 937 LOC, with SLIDING_WINDOW + USE_MM_PREFIX branches) directly OVER
+`/usr/local/.../vllm/v1/attention/ops/triton_turboquant_decode.py` (`-v …:ro`). G4_60c just VERIFIES
+that mount; G4_60b/d mount the attn/store companions. So on Gemma the decode kernel is the OVERLAY
+file, while PN119 text-patches the IMAGE kernel IN the container — the bind-mount SHADOWS PN119's
+patch entirely. That is why FIX 2 (in PN119's diff) never reached Gemma: tl.dot=0 because the scalar
+overlay is what loads, not the PN119-patched image kernel. (27B/35B do NOT bind-mount this file, so
+they use the PN119-patched image kernel → tl.dot=8 → tensor-core. Consistent with all observations.)
+
+**Correct FIX-2 path for Gemma (option b, now precise):** port the parity-proven MSE grouped
+tensor-core kernel (the implementer's branch + gate) INTO the overlay file
+`overlays/pr42637/triton_turboquant_decode.py` itself — add a `_tq_grouped_decode_stage1` with the
+MSE-key tl.dot path + a `kv_group_size>1 and value_quant_bits==4` dispatch in the overlay's
+`triton_turboquant_decode_attention`. Since the overlay is bind-mounted (not patched), this is a
+direct source edit (no md5/patch fragility) — the cleanest vehicle. The MSE math is already
+parity-tested (25/25); this is a port + a rig coherence/TPOT A/B on Gemma. Substantial Triton work,
+deferred to a focused session. PN119's diff edit (committed) is harmless on Gemma (shadowed) and
+correct on 27B/35B; no revert needed.
