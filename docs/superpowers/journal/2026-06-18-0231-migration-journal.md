@@ -345,3 +345,73 @@ The single code tail found (G4_14) is now honestly scoped (capped <0.23.0). The 
 numbers are a **multi-concurrency / config axis** gated by the open upstream #42271 deadlock —
 reachable on 0.23.1 via `FULL_DECODE_ONLY`, not via any "lost" kernel. PN367 is a free defensive
 hardening opt-in for the 27B if desired.
+
+---
+
+## 8. Speed-recovery deep study (2026-06-18) — evidence-based, per-model + external repos
+
+Operator directive: "числа были на сингле не на мульте; изучай, анализируй, адаптируй патчи;
+изучай репозитории и находи лучшее решение для каждого патча чтобы ускорить модели. Не гадай."
+A 4-agent ultracode Workflow studied each model's speed stack + historical bench evidence +
+external repos (vllm/sglang/fla-org/QwenLM-FlashQLA/tfriedel-lab). EVERY number is cited.
+
+### 8a. Target reconciliation — the high single-stream targets were a different MEASUREMENT, not lost speed
+- **27B "156"** = multi-concurrency conc=4. Highest CLEAN single-stream ever recorded = **138.4
+  (median 143.4)** on pin dev259 (2026-06-10-27b-campaign-breakthrough.md:7), a high-MTP-accept
+  CODE-content run; "150+" was explicitly a goal never hit. genesis_bench_suite neutral content = ~120.
+- **Gemma-31B ">110"** = NOT substantiated for the 31B-dense anywhere on the rig (max ever ~78,
+  kv-auto). The 109/142 are external club-3090 2×3090 numbers (MTP n=4, different checkpoint);
+  the 114/101 cited as ">110" were the **26B-A4B MoE**, not the 31B dense.
+- **26B "200"** = a DIFFERENT harness: multi_conc_bench conc=1 code-prompts = 202.9
+  (g4_26b_a4b_multiconc VERDICT:55, which itself warns it is NOT comparable to genesis_bench_suite);
+  greedy short-output (T=0, max_tokens=350) on dev354 gave 150/216/227. genesis_bench_suite = 106-114 K=1.
+- **35B** = the targets (208 standard / 228-255 code/structured) are MET and are the CURRENT stack.
+
+So the genesis_bench_suite single-stream numbers were always lower than the remembered peaks —
+the peaks are real but live on the multi-conc axis, the code/greedy-short methodology, or a
+different model/checkpoint. NOT a pin regression (A/B-proven), NOT a lost/gated patch (every
+version-capped patch verified native-in-engine or bench-null against the live 0.23.1 source).
+
+### 8b. REAL, substantiated speed levers (the constructive output)
+1. **🥇 Gemma-31B 40 → ~78 (≈2×): drop TurboQuant-KV → kv-auto/FP8 for the chat profile.**
+   TurboQuant VQ KV ~halves decode (rig: kv-auto/32K = 78.4 vs TQ = 25.8-40.7). TQ is a
+   256K-CONTEXT-UNLOCK feature being run at 4K/65K where it buys nothing. The MTP-K3-not-accepting
+   smoking-gun was REFUTED — MTP K=3 (G4_81 route) = +10% net-positive. CAVEAT: kv-auto on SM86 has
+   an IMA-crash-on-burst landmine (PR #45038 / extend G4_31 guard) at multi-conc; single-stream is
+   safe. Keep a separate TQ profile only for >32K long-context. VALIDATING NOW on 0.23.1 (A/B
+   bqixwbunp) — confirm ~78 vs ~40 on the current pin.
+2. **27B 120 → ~138: two never-validated warp knobs + content-matched bench.**
+   GENESIS_P67_NUM_WARPS 4→8 A/B (the 2026-06-14 hardware opt forced 4, contradicting the P67
+   kernel's validated SM86 default of 8; unvalidated on 27B); VLLM_TQ_DECODE_NUM_WARPS 8→4 A/B
+   (the +1.26% long-ctx win was only proven on 35B). Plus: capture MTP accept-rate + a code-content
+   canonical bench (the 138 peak was high-accept code content; the YAML reference_metrics_ref is null).
+3. **26B MoE: `--no-enable-prefix-caching` on the MTP profiles** (external tfriedel/qwen3.6-rtx3090-lab
+   + vLLM: MTP decode-rate win is gated by prefix-cache OFF; no Genesis 26B profile sets it). Keep
+   K=1 for long-form (K=4 is −11%/−53% — 128-expert routing on each draft token). Re-validate the
+   26B on 0.23.1 (pin-held at dev259; G4_18 per-layer-KV + G4_08 K-pad no-op above 0.22).
+4. **35B: at the latency-bound ceiling** (SM 90-98%, power 76%, mem 47%, ~0.8 MTP-accept wall). No
+   gate/config lever; only Blackwell or a higher-accept drafter moves it.
+
+### 8c. Patch-level conclusions (iron-rule #11 verified against live 0.23.1 source)
+- **NO decode-speed or spec-decode-enablement patch is wrongly version-gated OFF.** Every capped
+  speed-relevant patch (PN30/PN133/PN378/PN22) verified NATIVE in the pinned engine
+  (mamba_utils.py:304, scheduler.py:1543, rejection_sampler.py:929, interfaces.py:1285) or
+  bench-null (PN125 206.26 vs 206.23; SNDR_MTP_DYNAMIC_K_001 p=0.57/0.93). G4_14 (capped this
+  session) is tool-call, not decode — correct.
+- **No faster GDN/Mamba kernel exists for SM86**: FLA fused_recurrent decode is num_warps=1 fixed
+  (no headroom); QwenLM/FlashQLA + FlashInfer-GDN require SM90+. Genesis PN296/299 already prune
+  the FLA prefill warps for SM86 (AHEAD of upstream FLA).
+- **External backports**: only OPEN candidate is vllm#45703 (Marlin MoE thread-tile padding) for
+  the 27B INT4 — verify-before-vendor (no-op if the shard is on-tile). #45473 already in pin,
+  #45849 N/A (KV-connector), #43955 already vendored as PN340/PN341 (our biggest 35B wins).
+- **Hygiene**: remove the stale `GENESIS_ENABLE_PN90_PROBABILISTIC_DRAFT='1'` from the 27B YAML
+  (retired+gated inert; technique re-measured −5.9% — a future un-cap would silently regress).
+  Mark the dated "185 TPS A5000 ceiling" memo SUPERSEDED (it was pin 0.19.2; current 35B = 208-255).
+
+### 8d. Honest bottom line
+The migration lost nothing; the system is correct and at/near its real ceilings on most models.
+The ONE large recoverable win is **Gemma-31B ≈2× by dropping TurboQuant for chat** (validating now).
+The rest are single-digit-% config knobs (worth A/B'ing) — there is no hidden 156/110/200
+single-stream waiting behind a disabled patch; those numbers are multi-conc / code-content / a
+different model. "Don't guess" honored: every claim here cites a bench file, registry line, pin
+source line, or external PR/URL.
