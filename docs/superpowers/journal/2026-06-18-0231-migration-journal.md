@@ -378,8 +378,13 @@ version-capped patch verified native-in-engine or bench-null against the live 0.
    256K-CONTEXT-UNLOCK feature being run at 4K/65K where it buys nothing. The MTP-K3-not-accepting
    smoking-gun was REFUTED — MTP K=3 (G4_81 route) = +10% net-positive. CAVEAT: kv-auto on SM86 has
    an IMA-crash-on-burst landmine (PR #45038 / extend G4_31 guard) at multi-conc; single-stream is
-   safe. Keep a separate TQ profile only for >32K long-context. VALIDATING NOW on 0.23.1 (A/B
-   bqixwbunp) — confirm ~78 vs ~40 on the current pin.
+   safe. Keep a separate TQ profile only for >32K long-context.
+   **✅ VALIDATED on 0.23.1 (A/B bqixwbunp, same MTP K=3, same harness, both failed=0 + tool-call OK):**
+   TURBOQUANT = **35.5 wall_TPS / TPOT 38.95ms** vs kv-auto = **71.6 wall_TPS / TPOT 11.48ms** =
+   **×2.02 faster**. TPOT collapse 39→11.5ms confirms TurboQuant-KV was the decode sink (~11.5ms is
+   the expected 4-bit-dense-31B floor on A5000). Cost: 32K vs 256K context. Decision: kv-auto = chat
+   default; keep a TQ long-ctx profile for >32K. kv-auto CV high (0.365 — MTP bimodal + no Gemma
+   warmup orchestrator yet); median solid ~71.6.
 2. **27B 120 → ~138: two never-validated warp knobs + content-matched bench.**
    GENESIS_P67_NUM_WARPS 4→8 A/B (the 2026-06-14 hardware opt forced 4, contradicting the P67
    kernel's validated SM86 default of 8; unvalidated on 27B); VLLM_TQ_DECODE_NUM_WARPS 8→4 A/B
