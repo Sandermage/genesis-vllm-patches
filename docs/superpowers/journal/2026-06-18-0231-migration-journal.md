@@ -301,12 +301,28 @@ This is fully consistent with the A/B benches (§3d/§3e): no in-window regressi
 - "PN367 mitigation missing" → it EXISTS and is version-eligible; it is merely not opted-in
   (see 7c.4). The capability is present, the wiring is a deliberate strict-opt-in choice.
 
-### 7e. Open item — Gemma-4-26B-A4B MoE boot >12 min (the "200+" model, still unbenched)
-The 26B MoE did not reach `/health=200` within a 12-min window on 0.23.1 (container stayed Up,
-GPU loaded — likely MoE+MTP-K4+FULL_AND_PIECEWISE cudagraph capture exceeding the timeout, or a
-boot stall). Needs a dedicated diagnostic: ≥20-min boot window + boot-log capture, NOT colliding
-with the 35B PROD restore. Once it boots, bench single-stream AND (with FULL_DECODE_ONLY)
-multi-conc to chase the 200+ peak.
+### 7e. Open item — Gemma-4-26B-A4B MoE boot (the "200+" model, still unbenched) + a PROD-down incident
+The 26B MoE bench (`bench26b.sh`) FAILED and took 35B PROD down with it — a repeat of the
+leftover-container class (iron-rule lesson I had already recorded, re-violated). Two compounding
+bugs in my bench script:
+1. **Wrong port assumption.** `start_gemma4_26b_0231.sh` binds port **8003**, but `bench26b.sh`
+   assumed **8102** for the health-wait, the SUITE call, AND the teardown
+   (`docker ps --filter publish=8102`). So health never saw the 26B (it was on 8003) → the bench
+   produced empty results, AND the teardown matched nothing → the 26B was left running.
+2. **Leftover starves PROD.** The orphaned `vllm-gemma4-26b-a4b-test` (Up 27 min, ~22 GiB on both
+   cards) then starved the `start_qwen3.6-35b-balanced.sh` restore → 35B crashed with
+   `ValueError: Free memory on device cuda:1 (1.73/23.55 GiB) on startup is less than desired`
+   (exit 1). PROD was down ~8 min until diagnosed.
+
+**Fix applied:** `docker rm -f vllm-gemma4-26b-a4b-test` (explicit name), GPU freed, 35B relaunched
+on 8102, verified. **Hardened lesson (again):** every rig bench MUST (a) read the launcher's real
+`--port`, never assume; (b) tear down by explicit container NAME, never `--filter publish`;
+(c) verify GPU is actually free (`nvidia-smi` < 1.5 GiB) before launching the next model.
+
+The 26B MoE itself remains unbenched. Its dedicated diagnostic must use **port 8003**, an explicit
+container-name teardown, a ≥20-min boot window with boot-log capture, and must run only when no
+PROD model needs the GPU. Once it boots: bench single-stream AND (with `--cudagraph-mode
+FULL_DECODE_ONLY`, per #42271) multi-conc to chase the 200+ peak.
 
 ### 7f. Net conclusion of the audit
 The migration is **correct and complete**; the upstream window introduced **no regression**.
