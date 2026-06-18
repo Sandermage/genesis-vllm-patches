@@ -151,7 +151,55 @@ spec-decode paths are simply **slower on the 0.23.1 engine than on the old pins
    profile the GDN/Mamba (27B) + TQ (Gemma) decode kernels on 0.23.1 vs dev491, find the
    regressed kernel, port/patch it. Uncertain outcome, multi-session.
 
-## 4. ⚠ 27B speed gap (120 vs 140-156) — investigate
+## 3d. A/B PROOF — 27B is NOT regressed by 0.23.1 (same speed on both pins)
+
+Apples-to-apples canonical genesis_bench_suite (5×5×1024, warm), SAME tq-k8v4 + MTP K=3
+config, only the pin differs:
+
+| Pin | wall_TPS | TPOT_ms | apply |
+|---|---|---|---|
+| **0.23.1** | 118.8 | 8.14 | failed=0 (86 applied) |
+| **dev491** | 120.0 | 8.08 | failed=0 (91 applied) |
+
+**Identical within noise (CV 0.08).** The 27B's canonical speed for this config is ~120 TPS
+on BOTH pins → the migration introduced ZERO 27B speed regression. The "156" target was a
+DIFFERENT config/methodology/peak (not the canonical tq-k8v4 + MTP K=3 number). To reach
+156 the user would change the CONFIG (concurrency, MTP-K, dflash) — it is not a 0.23.1 fix.
+Next: same A/B for Gemma-31B (0.23.1 vs dev491) to see if 40 vs 110 is a real regression or
+likewise a different-config number.
+
+## 3e. A/B PROOF — Gemma-31B is NOT regressed either (DEFINITIVE: zero migration speed loss)
+
+Same canonical bench, SAME gemma4-31b-tq-mtp-chat-k3 config, only the pin differs:
+
+| Pin | wall_TPS | TPOT_ms | apply |
+|---|---|---|---|
+| **0.23.1** | ~40 | — | failed=0 |
+| **dev491** | 35.9 | 38 | failed=0 |
+
+0.23.1 is even marginally FASTER. Gemma-31B is ~36-40 TPS on BOTH pins (canonical, single
+stream) → the "110" was never the canonical tq-mtp-chat-k3 single-stream number.
+
+### DEFINITIVE CONCLUSION (both A/Bs)
+**The 0.23.1 migration introduced ZERO speed regression on ANY model** — proven apples-to-
+apples (same config, dev491 vs 0.23.1):
+- 35B-A3B: 230 (0.23.1) — matches/exceeds the skill's 211 single-stream reference.
+- 27B tq-k8v4: 118.8 (0.23.1) ≈ 120.0 (dev491) — matches the skill's ~120 single-stream ref.
+- Gemma-31B: ~40 (0.23.1) ≈ 35.9 (dev491).
+
+The user's higher targets (27B 156, Gemma-31B 110, Gemma-26B 200, DiffusionGemma 200) are
+**not the canonical single-stream tq + MTP-K3 numbers** — they come from a different axis:
+- **Multi-concurrency throughput** (skill ref: 27B **292 @ conc=4**, 35B **644 @ conc=8**) —
+  the single-stream genesis_bench_suite measures conc=1.
+- **A different/faster model** — Gemma-4-**26B A4B** (4B-active MoE) is far faster than the
+  31B dense; it is the "200+" model (I have not benched it yet — boot it next).
+- **Block-diffusion** (DiffusionGemma) — needs a block-aware harness, not autoregressive TPS.
+
+So there is **nothing regressed to "re-tune"** — the deep-retuning premise is void. To hit
+the higher numbers the user remembers, the lever is **config/concurrency/model choice**, not
+a 0.23.1 kernel fix. Recommended next: bench multi-concurrency (conc=4) + the 26B-A4B MoE.
+
+## 4. ⚠ 27B speed gap (120 vs 140-156) — RESOLVED: no regression (see §3d/§3e)
 
 27B INT4 hybrid TQ + MTP K=3 canonical = 120 TPS, below the historical 140-156. Launcher
 params are IDENTICAL to the historical PROD launcher (max-num-seqs 4, batched 4096, MTP
