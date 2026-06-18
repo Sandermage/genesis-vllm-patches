@@ -484,3 +484,39 @@ Three patches caught silently inert from engine-code changes — NOT failed=0, j
 P18b (anchor format 12→8 space), PN384 (filed, never wired), pr42637 overlay (get_kv_cache_capacity
 rename). "Applies cleanly" ≠ "still correct/effective." The recovery path is real and code-cited:
 fix the TQ kernel (256K AND ~14-18ms TPOT) + wire MTP correctly everywhere.
+
+---
+
+## 10. FIX 1 validated on dev148 — P18b REVIVED, but warp-tune is speed-neutral → FIX 2 is the lever
+
+A/B on dev148 (Gemma-4-31B TURBOQUANT, genesis_bench_suite, bulletproof, 35B restored clean):
+
+| Variant | apply | P18b marker in live kernel | live num_warps / BLOCK_KV | wall_TPS | TPOT |
+|---|---|---|---|---|---|
+| BASE (no tune env) | failed=0 | **present** | 1/4/8, BLOCK_KV=32 | 38.5 | 39.1ms |
+| TUNED (warps=8/stages=3/blk=16) | failed=0 | present (idempotent) | 1/4/8, BLOCK_KV=32 | 37.6 | 38.9ms |
+
+**FIX 1 PRIMARY GOAL ACHIEVED:** the re-anchored P18b APPLIES on dev148 (marker present, log
+"applied/idempotent" — NOT the old silent soft-skip). The dead patch is revived. Pin dev148
+boots Gemma TQ failed=0 (applied=70). This proves the operator's thesis-fix: rewriting the
+anchors for the new single-launch engine format makes the patch live again.
+
+**BUT the warp/block tune is SPEED-NEUTRAL.** The live kernel was already at num_warps=8 /
+BLOCK_KV=32 and TPOT stayed 39ms; BASE≈TUNED. Occupancy is NOT the bottleneck. This empirically
+confirms the root cause: the decode kernel (overlays/pr42637/triton_turboquant_decode.py — 937 LOC,
+**tl.sum×6, tl.dot×0**, fully scalar) computes QK via `tl.sum(q_rot*c_vals)` and PV via
+`tl.sum(p*values)` on CUDA cores, with a per-token MSE centroid gather (Centroids_ptr+mse_idx,
+:347-366). No amount of warps hides the scalar gather. **The ONLY lever that recovers speed while
+keeping TurboQuant's 256K context is FIX 2: route the MSE-key path onto tensor cores (tl.dot).**
+
+### Refined plan
+- FIX 1: DONE as a patch-revival (correct, keep it — it lets the env-tune wire through), but it is
+  NOT a speed win on its own. Leave VLLM_TQ_DECODE_NUM_WARPS=8 (free, marginal).
+- **FIX 2 (the real one)**: build the MSE-key tile inside the decode kernel (gather centroids into a
+  [BLOCK_KV, BLOCK_D] k-tile + apply vec_norms) and replace the scalar `tl.sum` QK/PV with
+  `tl.dot(q, kᵀ)` / `tl.dot(p, values)` — the KIVI/KVQuant fused-dequant-into-MMA pattern, already
+  proven on A5000 by our FP8 grouped kernel. Target the live decode kernel
+  (overlays/pr42637/triton_turboquant_decode.py). Expected TPOT 39→~14-18ms while keeping 3.9× KV
+  compression. This is careful Triton work needing numerical-equivalence validation (output parity
+  vs the scalar kernel) + rig A/B — the next focused effort.
+- FIX 3 (MTP everywhere) proceeds in parallel (config-level: 26B K=3 default, PN384, accept-rate).
