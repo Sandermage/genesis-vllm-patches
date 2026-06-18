@@ -716,3 +716,15 @@ Gemma stays on the scalar path (~27-39ms, coherent, tool-calls valid) until then
   but BLOCKED on the Gemma-only PN119↔G4 dispatch conflict — a deeper integration task, deferred.
 - Remaining low-risk wins: FIX 3 (MTP config: 26B K=3 default, PN384, accept-rate), promote dev148
   to the live launchers, prune stale pins, re-check PN351/P87/PN32 for the same drift class.
+
+## 16. Speed-stack re-audit (the "did we miss another inert patch" /loop directive) — CLEAN
+
+Live 35B PROD apply-log audit of every speed-critical suspect the FIX-2 research flagged
+(PN351/P87/PN32) + the active speed stack (PN286/PN340/PN341/PN350/PN29/PN368/PN390):
+- **Applied (or idempotent-applied):** PN351, PN286, PN340, PN341, PN350, PN29, PN368, PN390 —
+  the entire 35B tensor-core/MTP speed stack is LIVE.
+- **Correctly skipped (verified reason, NOT drift):** P87 (upstream absorbed it — drift marker
+  `marlin_padded_nk` present, vllm#40361 merged), PN32 (strict opt-in, GENESIS_ENABLE_PN32 unset).
+Conclusion: **PN119 was the ONE silently-inert speed patch; every other suspect is either correctly
+applied or correctly skipped for a verified reason.** After the PN119-robustness fix the 27B/35B
+FP8 tensor-core decode stack is fully intact. No further silent-inert speed losses found.
