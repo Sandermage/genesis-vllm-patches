@@ -6,26 +6,23 @@ dispatch hook in sndr/apply/_per_patch_dispatch.py:6275) reads the
 ``VLLM_TQ_DECODE_{BLOCK_KV,NUM_WARPS,NUM_STAGES}`` env vars and **logs**
 their resolved value, but never patches the actual Triton launcher.
 
-Kernels-audit + root-cause workflow (2026-06-08 / 2026-06-18) flagged
-this as dead code that then SILENTLY BROKE on the pin bump: the kernel was
-merged upstream and reshaped from a two-branch GQA/MHA launcher into a
-SINGLE launch (KEY_FP8 became a constexpr kwarg), at 8-space kwarg indent.
-The original 12-space two-branch anchors stopped matching, so P18b
-soft-skipped on every boot and ``num_warps`` stayed at the upstream H100
-default of 1 — a single warp that cannot latency-hide the per-token MSE
-centroid gather on the scalar decode path. This is the "applies-cleanly is
-not the same as still-effective" failure mode: NOT a failed=0, just inert.
+Kernels-audit agent (2026-06-08) flagged this as dead code: 35B + 27B
+production has been running with the upstream H100 defaults
+(``num_warps=4, num_stages=2`` on the GQA branch, ``num_warps=1,
+num_stages=1`` on the MHA branch) on every boot, regardless of env
+overrides — under-utilising Ampere SM 8.6 (RTX A5000 / 3090) shared-
+memory budgets.
 
-This patch is the missing text-patch half, re-anchored 2026-06-18 to the
-single-launch form. It rewrites the launch-param tail + the ``BLOCK_KV``
-local of ``vllm/v1/attention/ops/triton_turboquant_decode.py`` in place at
-boot using the values from ``resolve_decode_tune()``. The SM-8.6-validated
-tune is ``num_warps=8, num_stages=3, BLOCK_KV=16``, but that is a
+This patch is the missing text-patch half. It rewrites the two launch-
+parameter blocks of ``vllm/v1/attention/ops/triton_turboquant_decode.py``
+in place at boot using the values from ``resolve_decode_tune()``. The
+SM-8.6-validated tune is ``num_warps=8, num_stages=3``, but that is a
 RECOMMENDED OVERRIDE, not the shipped default: ``resolve_decode_tune()``
-returns the upstream values unless ``VLLM_TQ_DECODE_NUM_WARPS=8`` /
-``VLLM_TQ_DECODE_NUM_STAGES=3`` / ``VLLM_TQ_DECODE_BLOCK_KV=16`` are set in
-the environment. Without those env vars this patch rewrites the launcher to
-the same upstream literals (inert). Set the env to realise the SM-8.6 tune.
+returns the upstream values (``num_warps=4, num_stages=2`` GQA /
+``1, 1`` MHA) unless ``VLLM_TQ_DECODE_NUM_WARPS=8`` /
+``VLLM_TQ_DECODE_NUM_STAGES=3`` are set in the environment. Without those
+env vars this patch rewrites the launcher to the same upstream literals
+(inert). Set the env to actually realise the SM-8.6 tune.
 
 Expected impact (HIGH confidence on the fix actually applying, MEDIUM
 on the TPS number): +3-8 % on 35B-A3B-FP8 + TQ k8v4 + MTP K=3. Bench
@@ -64,47 +61,49 @@ GENESIS_P18B_TEXT_MARKER = (
 )
 
 
-# 2026-06-18 RE-ANCHOR for pin 0.23.1+ (dev101/dev148): the kernel was
-# merged upstream into vllm/v1/attention/ops/triton_turboquant_decode.py
-# as a SINGLE launch (KEY_FP8 is a constexpr kwarg, so there is no longer a
-# two-branch GQA/MHA launcher). The old 12-space two-branch anchors below
-# never matched the 8-space single launch -> P18b silently soft-skipped on
-# every boot and num_warps stayed at the upstream H100 default of 1. The
-# single launch block ends with FP8_E4B15 / num_warps=1 / num_stages=1 / `)`
-# at 8-space kwarg indent (verified byte-exact on the live dev148 image).
-
-# Launch-param tail — unique 8-space block that closes the _tq_decode_stage1
-# launch. Anchored on the FP8_E4B15 + num_warps + num_stages + close-paren
-# tail so it matches regardless of the (long, stable) kwarg list above it.
-P18B_LAUNCH_OLD = (
-    "        FP8_E4B15=fp8_e4b15,\n"
-    "        num_warps=1,\n"
-    "        num_stages=1,\n"
-    "    )\n"
+# GQA path — line ~787-792 of triton_turboquant_decode.py. The
+# four-line literal block is unique in the file.
+P18B_GQA_OLD = (
+    "            FP8_E4B15=fp8_e4b15,\n"
+    "            num_warps=4,\n"
+    "            num_stages=2,\n"
+    "        )\n"
+    "    else:\n"
 )
 
-# BLOCK_KV tile size — set as a plain Python local just above the launch.
-# Upstream ships 4 (the kernel signature comment even says "tokens per
-# tile (16)"); retuning to 16 amortises the per-tile centroid-gather fixed
-# cost over 4x more KV tokens.
-P18B_BLOCK_KV_OLD = "    BLOCK_KV = 4\n"
+# MHA path — line ~828-832. Same launcher, MHA branch
+# (kv_group_size==1). The trailing comment ("# Stage 2:") anchors the
+# replacement uniquely.
+P18B_MHA_OLD = (
+    "            FP8_E4B15=fp8_e4b15,\n"
+    "            num_warps=1,\n"
+    "            num_stages=1,\n"
+    "        )\n"
+    "\n"
+    "    # Stage 2:"
+)
 
 
-def _build_launch_replacement(num_warps: int, num_stages: int) -> str:
-    """Render the new single-launch tail with our resolved SM 8.6 tune."""
+def _build_replacement(num_warps: int, num_stages: int, branch: str) -> str:
+    """Render the new launch-param block with our resolved tune.
+
+    ``branch`` is ``"GQA"`` or ``"MHA"`` — only used in the comment.
+    """
     note = (
-        "        # [Genesis P18b TEXT, 2026-06-18] single-launch tune for\n"
-        "        # Ampere SM 8.6 (RTX A5000 / 3090). Upstream ships\n"
-        "        # num_warps=1/num_stages=1 (H100-shaped) -> 1 warp cannot\n"
-        "        # latency-hide the per-token MSE centroid gather. Override\n"
-        "        # via VLLM_TQ_DECODE_NUM_WARPS / _NUM_STAGES (tq_decode_tune).\n"
+        f"            # [Genesis P18b TEXT, 2026-06-08] {branch} launcher\n"
+        f"            # tuned for Ampere SM 8.6 (RTX A5000 / 3090).\n"
+        f"            # Upstream defaults were H100-shaped (1-4 warps,\n"
+        f"            # 1-2 stages) — under-utilised the 100 KB shared\n"
+        f"            # / 64 KB L1 budget per SM on consumer Ampere.\n"
+        f"            # Override via VLLM_TQ_DECODE_NUM_WARPS /\n"
+        f"            # VLLM_TQ_DECODE_NUM_STAGES (tq_decode_tune.py).\n"
     )
     return (
-        "        FP8_E4B15=fp8_e4b15,\n"
+        "            FP8_E4B15=fp8_e4b15,\n"
         + note
-        + f"        num_warps={num_warps},\n"
-        + f"        num_stages={num_stages},\n"
-        + "    )\n"
+        + f"            num_warps={num_warps},\n"
+        + f"            num_stages={num_stages},\n"
+        + "        )\n"
     )
 
 
@@ -113,31 +112,31 @@ def _make_patcher() -> TextPatcher | None:
     if target is None:
         return None
 
-    bkv, num_warps, num_stages = resolve_decode_tune()
+    _bkv, num_warps, num_stages = resolve_decode_tune()
 
-    launch_new = _build_launch_replacement(num_warps, num_stages)
-    block_kv_new = (
-        f"    BLOCK_KV = {bkv}  # [Genesis P18b TEXT, 2026-06-18] SM 8.6 tile\n"
+    gqa_new = _build_replacement(num_warps, num_stages, "GQA") + "    else:\n"
+    mha_new = (
+        _build_replacement(num_warps, num_stages, "MHA") + "\n    # Stage 2:"
     )
 
     return TextPatcher(
         patch_name=(
             "P18b TEXT v1/attention/ops/triton_turboquant_decode.py — "
-            "kernel-literal tune (num_warps/num_stages/BLOCK_KV SM 8.6)"
+            "kernel-literal tune (num_warps/num_stages SM 8.6)"
         ),
         target_file=str(target),
         marker=GENESIS_P18B_TEXT_MARKER,
         sub_patches=[
             TextPatch(
-                name="p18b_text_single_launch_tune",
-                anchor=P18B_LAUNCH_OLD,
-                replacement=launch_new,
+                name="p18b_text_gqa_launch_tune",
+                anchor=P18B_GQA_OLD,
+                replacement=gqa_new,
                 required=False,
             ),
             TextPatch(
-                name="p18b_text_block_kv_tune",
-                anchor=P18B_BLOCK_KV_OLD,
-                replacement=block_kv_new,
+                name="p18b_text_mha_launch_tune",
+                anchor=P18B_MHA_OLD,
+                replacement=mha_new,
                 required=False,
             ),
         ],

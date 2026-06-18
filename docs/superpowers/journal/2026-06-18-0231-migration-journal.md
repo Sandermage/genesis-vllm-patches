@@ -616,3 +616,29 @@ the real guard, the md5 is redundant + brittle. P18b modifies the kernel first �
 PN119 self-skips. FIX: PN119 must apply on the pristine kernel (before P18b), OR its md5 hard-skip
 must be downgraded so the dry-run decides. Implementing next; then re-bench to confirm +11.5% with
 the proper fix (not just P18b-off).
+
+## 13. ⚠️ SELF-CORRECTION — my P18b re-anchor (§10, commit d2b9fd58) was the REGRESSION; reverted
+
+Reading P18b's own registry comment (registry.py:8003-8007) corrected my §10/§11 framing:
+- P18b declares `requires_patches: ["PN119"]` and its ORIGINAL 12-space GQA/MHA anchors target
+  **PN119's OUTPUT** (the grouped kernel's if/else launchers), NOT the pristine kernel. The pristine
+  kernel has a SINGLE 8-space launcher; the 12-space if/else only exists AFTER PN119 injects it.
+- So the ORIGINAL P18b was NOT "dead from format change" — it correctly **soft-skips on the pristine
+  single-launch** (anchors don't match) and only fires once PN119 has run. With the topo sort OFF
+  (PN119 hasn't run yet when P18b is reached), P18b harmlessly soft-skips, leaving the file pristine
+  → **PN119 then applies cleanly (md5 matches) → tensor-core decode → the historical 27B ~120.**
+- **My §10 re-anchor (to the single 8-space launch) BROKE this:** it made P18b MATCH the pristine
+  scalar launcher and modify it → md5 drift → PN119 self-skips → scalar decode → 27B 108. The 27B
+  A/B's "BASE 107.8" was running MY regressed P18b. So §10's "P18b revived" was wrong — I converted a
+  correctly-dormant patch into an active one that breaks its own dependency.
+
+**Reverted commit d2b9fd58** (restored the original 12-space anchors). Expected effect: P18b
+soft-skips on pristine again → PN119 applies → 27B back to ~120 (the NOP18B A/B number) WITHOUT
+disabling P18b. The historical 120 was always PN119-working; my re-anchor was the only regressor.
+
+**Remaining genuine improvement (secondary, ~neutral per §10):** enable the opt-in topo sort
+(`SNDR_TOPO_SORT_SPECS=1`, already built — orchestrator.py) so PN119 applies BEFORE P18b and P18b
+actually tunes PN119's grouped launchers (instead of soft-skipping). The dependency is already
+declared. To validate next: 27B with reverted P18b (no topo) → expect ~120 + PN119 applied + tl.dot>0.
+Lesson: a patch that "doesn't apply" may be CORRECTLY dormant pending its dependency — check
+requires_patches before "reviving" it.
