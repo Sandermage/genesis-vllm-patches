@@ -741,6 +741,14 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
   const [atBottom, setAtBottom] = useState(true);
   const abortRef = useRef<AbortController | null>(null);
   const streamingConvoRef = useRef<string | null>(null);
+  // Abort any in-flight stream when the chat unmounts (it is React.lazy-mounted and
+  // unmounts on section switch) — otherwise the fetch leaks and onDelta/onDone run
+  // setState on an unmounted tree.
+  useEffect(() => () => abortRef.current?.abort(), []);
+  // Parse a number field, keeping the fallback on a mid-edit non-number ("-", ".")
+  // so we never write NaN into settings (it persists to localStorage and then 400s
+  // the engine). Number("") is 0, so a cleared field still yields a valid 0.
+  const numOr = (v: string, fallback: number) => { const n = Number(v); return Number.isFinite(n) ? n : fallback; };
   const { data: prompts = [] } = usePrompts(); // shared cache; mutations in the library auto-update this
   const [libOpen, setLibOpen] = useState(false);
   const [loadedPromptId, setLoadedPromptId] = useState(""); // the template currently loaded into the system prompt ("" = custom)
@@ -816,6 +824,11 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
     setError(null);
     setAtBottom(true);
 
+    // Create the abort controller BEFORE retrieval so Stop is responsive during
+    // the RAG phase too (it previously aborted a not-yet-assigned ref → no-op).
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     // RAG: ground the answer in the project's own knowledge (read-only).
     let ragMessages: Array<{ role: string; content: string }> = [];
     if (settings.useProject) {
@@ -823,7 +836,7 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
       if (lastUser) {
         setRetrieving(true);
         try {
-          const result = await api.chatRetrieve(lastUser.content, 6, { project: settings.ragProject, vaults: settings.ragVaults });
+          const result = await api.chatRetrieve(lastUser.content, 6, { project: settings.ragProject, vaults: settings.ragVaults, signal: controller.signal });
           const docs = result.docs ?? [];
           if (docs.length) {
             ragMessages = [{ role: "system", content: buildRagContext(docs) }];
@@ -833,9 +846,12 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
         setRetrieving(false);
       }
     }
+    // If the user hit Stop during retrieval, don't open the stream.
+    if (controller.signal.aborted) {
+      setStreaming(false); setRetrieving(false); abortRef.current = null; streamingConvoRef.current = null;
+      return;
+    }
 
-    const controller = new AbortController();
-    abortRef.current = controller;
     // Cap the transcript so a long chat can't overflow the model's context
     // window (the engine 400s on overflow). Keep the most recent turns.
     const MAX_TURNS = 30;
@@ -891,6 +907,10 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
     patchActive((c) => ({ ...c, messages: c.messages.slice(0, index) }));
   }
   function deleteTurn(index: number) {
+    // Guard like editUser: splicing the messages array mid-stream makes the live
+    // onDelta/onDone callbacks (which write to msgs[msgs.length-1]) land in the
+    // wrong bubble or overwrite the user's text.
+    if (streaming) return;
     patchActive((c) => { const msgs = c.messages.slice(); const pair = msgs[index]?.role === "user" && msgs[index + 1]?.role === "assistant"; msgs.splice(index, pair ? 2 : 1); return { ...c, messages: msgs }; });
   }
   function startConversation() { const c = newConversation(); setConversations((prev) => [c, ...prev]); setActiveId(c.id); setError(null); }
@@ -1026,14 +1046,14 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
                     {status?.models?.length ? status.models.map((m) => <option key={m} value={m}>{m}</option>) : <option value="">{reachable ? tr("default") : "—"}</option>}
                   </select>
                 </label>
-                <label className="chat-field"><span>{tr("Temperature")}</span><input type="number" min={0} max={2} step={0.1} value={settings.temperature} onChange={(e) => set({ temperature: Number(e.target.value) })} /></label>
+                <label className="chat-field"><span>{tr("Temperature")}</span><input type="number" min={0} max={2} step={0.1} value={settings.temperature} onChange={(e) => set({ temperature: numOr(e.target.value, settings.temperature) })} /></label>
                 <label className="chat-field"><span>{tr("Max tokens")}</span><input type="number" min={1} max={4096} value={settings.maxTokens} onChange={(e) => set({ maxTokens: Number(e.target.value) || 512 })} /></label>
-                <label className="chat-field"><span>{tr("Top P")}</span><input type="number" min={0} max={1} step={0.05} value={settings.topP} onChange={(e) => set({ topP: Number(e.target.value) })} /></label>
+                <label className="chat-field"><span>{tr("Top P")}</span><input type="number" min={0} max={1} step={0.05} value={settings.topP} onChange={(e) => set({ topP: numOr(e.target.value, settings.topP) })} /></label>
                 <label className="chat-field"><span>{tr("Top K")}</span><input type="number" min={0} step={1} value={settings.topK} onChange={(e) => set({ topK: Number(e.target.value) || 0 })} placeholder={tr("off")} /></label>
-                <label className="chat-field"><span>{tr("Min P")}</span><input type="number" min={0} max={1} step={0.01} value={settings.minP} onChange={(e) => set({ minP: Number(e.target.value) })} /></label>
-                <label className="chat-field"><span>{tr("Presence")}</span><input type="number" min={-2} max={2} step={0.1} value={settings.presencePenalty} onChange={(e) => set({ presencePenalty: Number(e.target.value) })} /></label>
-                <label className="chat-field"><span>{tr("Frequency")}</span><input type="number" min={-2} max={2} step={0.1} value={settings.frequencyPenalty} onChange={(e) => set({ frequencyPenalty: Number(e.target.value) })} /></label>
-                <label className="chat-field"><span>{tr("Repetition")}</span><input type="number" min={0} max={2} step={0.05} value={settings.repetitionPenalty} onChange={(e) => set({ repetitionPenalty: Number(e.target.value) })} /></label>
+                <label className="chat-field"><span>{tr("Min P")}</span><input type="number" min={0} max={1} step={0.01} value={settings.minP} onChange={(e) => set({ minP: numOr(e.target.value, settings.minP) })} /></label>
+                <label className="chat-field"><span>{tr("Presence")}</span><input type="number" min={-2} max={2} step={0.1} value={settings.presencePenalty} onChange={(e) => set({ presencePenalty: numOr(e.target.value, settings.presencePenalty) })} /></label>
+                <label className="chat-field"><span>{tr("Frequency")}</span><input type="number" min={-2} max={2} step={0.1} value={settings.frequencyPenalty} onChange={(e) => set({ frequencyPenalty: numOr(e.target.value, settings.frequencyPenalty) })} /></label>
+                <label className="chat-field"><span>{tr("Repetition")}</span><input type="number" min={0} max={2} step={0.05} value={settings.repetitionPenalty} onChange={(e) => set({ repetitionPenalty: numOr(e.target.value, settings.repetitionPenalty) })} /></label>
                 <label className="chat-field"><span>{tr("Seed")}</span><input type="number" value={settings.seed} onChange={(e) => set({ seed: e.target.value })} placeholder={tr("random")} /></label>
                 <label className="chat-field chat-field-stop"><span>{tr("Stop (comma-sep)")}</span><input value={settings.stop} onChange={(e) => set({ stop: e.target.value })} placeholder="</s>, ###" /></label>
               </div>

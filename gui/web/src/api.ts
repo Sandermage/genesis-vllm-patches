@@ -1140,11 +1140,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-async function postJson<T>(path: string, payload: Record<string, any>): Promise<T> {
+async function postJson<T>(path: string, payload: Record<string, any>, opts?: { signal?: AbortSignal }): Promise<T> {
   return request<T>(path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
+    body: JSON.stringify(payload),
+    signal: opts?.signal
   });
 }
 
@@ -1257,7 +1258,7 @@ export const api = {
       `/api/v1/presets/recommend${query(params)}`
     ),
   explainPreset: (id: string) =>
-    request<PresetExplainResult>(`/api/v1/presets/${id}/explain`),
+    request<PresetExplainResult>(`/api/v1/presets/${encodeURIComponent(id)}/explain`),
   v2ConfigCatalog: () =>
     request<V2ConfigCatalog>("/api/v1/configs/v2/catalog"),
   v2ConfigPreview: (params: {
@@ -1287,6 +1288,7 @@ export const api = {
     const response = await fetch(`${getApiBase()}/api/v1/configs/v2/apply`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...authHeaders() },
+      credentials: sameOriginApi() ? "include" : "omit",
       body: JSON.stringify(payload)
     });
     const json = await response.json().catch(() => ({}));
@@ -1306,6 +1308,7 @@ export const api = {
     const response = await fetch(`${getApiBase()}/api/v1/configs/v2/layer/apply`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...authHeaders() },
+      credentials: sameOriginApi() ? "include" : "omit",
       body: JSON.stringify(payload)
     });
     const json = await response.json().catch(() => ({}));
@@ -1393,8 +1396,8 @@ export const api = {
   engineModel: (host?: string, port?: number, apiKey?: string, hostId?: string) =>
     request<EngineModelDetail>(`/api/v1/engine/model${query({ host, port, host_id: hostId })}`, apiKey ? { headers: { "X-Engine-Api-Key": apiKey } } : undefined),
   engineMetrics: (host?: string, port?: number) => request<EngineMetrics>(`/api/v1/engine/metrics${query({ host, port })}`),
-  chatRetrieve: (queryText: string, k = 5, sources?: { project?: boolean; vaults?: string[] }) =>
-    postJson<RagResult>("/api/v1/chat/retrieve", { query: queryText, k, project: sources?.project ?? true, vaults: sources?.vaults ?? [] }),
+  chatRetrieve: (queryText: string, k = 5, sources?: { project?: boolean; vaults?: string[]; signal?: AbortSignal }) =>
+    postJson<RagResult>("/api/v1/chat/retrieve", { query: queryText, k, project: sources?.project ?? true, vaults: sources?.vaults ?? [] }, { signal: sources?.signal }),
   ragPreview: (path: string) => postJson<RagPreview>("/api/v1/chat/rag/preview", { path }),
   engineChat: (payload: {
     messages: Array<{ role: string; content: string }>;
@@ -1438,27 +1441,34 @@ export const api = {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
+    const dispatch = (raw: string) => {
+      const line = raw.trim();
+      if (!line) return;
+      try {
+        const obj = JSON.parse(line);
+        if (obj.error) handlers.onError(obj.error);
+        else if (obj.done) handlers.onDone(obj);
+        else if (obj.sources) handlers.onSources?.(obj.sources);
+        else if (obj.reasoning) handlers.onReasoning?.(obj.reasoning);
+        else if (obj.delta) handlers.onDelta(obj.delta);
+      } catch {
+        // ignore a partial/garbled frame
+      }
+    };
     for (;;) {
       const { done, value } = await reader.read();
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
       let nl: number;
       while ((nl = buffer.indexOf("\n")) >= 0) {
-        const line = buffer.slice(0, nl).trim();
+        dispatch(buffer.slice(0, nl));
         buffer = buffer.slice(nl + 1);
-        if (!line) continue;
-        try {
-          const obj = JSON.parse(line);
-          if (obj.error) handlers.onError(obj.error);
-          else if (obj.done) handlers.onDone(obj);
-          else if (obj.sources) handlers.onSources?.(obj.sources);
-          else if (obj.reasoning) handlers.onReasoning?.(obj.reasoning);
-          else if (obj.delta) handlers.onDelta(obj.delta);
-        } catch {
-          // ignore a partial/garbled frame
-        }
       }
     }
+    // Flush a final frame that arrived without a trailing newline (e.g. the
+    // {"done":...} frame carrying tokens/TTFT) — otherwise onDone never fires.
+    buffer += decoder.decode();
+    dispatch(buffer);
   },
   raw: (path: string) => request<unknown>(path),
   launchApply: (payload: {
@@ -1628,17 +1638,22 @@ export const api = {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
+    const dispatch = (raw: string) => {
+      const line = raw.trim();
+      if (!line) return;
+      try { const o = JSON.parse(line); if (typeof o.line === "string") handlers.onLine(o.line); } catch { /* skip */ }
+    };
     for (;;) {
       const { done, value } = await reader.read();
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
       let nl: number;
       while ((nl = buffer.indexOf("\n")) >= 0) {
-        const line = buffer.slice(0, nl).trim();
+        dispatch(buffer.slice(0, nl));
         buffer = buffer.slice(nl + 1);
-        if (!line) continue;
-        try { const o = JSON.parse(line); if (typeof o.line === "string") handlers.onLine(o.line); } catch { /* skip */ }
       }
     }
+    buffer += decoder.decode();
+    dispatch(buffer);
   }
 };
