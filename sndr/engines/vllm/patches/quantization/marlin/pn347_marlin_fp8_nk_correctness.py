@@ -190,19 +190,27 @@ def _env_disabled() -> bool:
     )
 
 
-def apply() -> tuple[str, str]:
-    """Apply PN347 — MarlinFP8 (N==K) correctness fix."""
-    if _env_disabled():
-        return "skipped", "PN347 disabled via GENESIS_DISABLE_PN347=1"
+def _make_patcher_for_drift() -> TextPatcher | None:
+    """Build PN347's TextPatcher WITHOUT applying it.
 
+    PN347 historically constructed its ``TextPatcher`` inline inside
+    ``apply()`` (no module-level ``_make_patcher``), which made it
+    invisible to the static anchor-drift detector
+    (``tools/check_upstream_drift.py``) — a whole class of inline-builder
+    patches was silently dropped. This shim factors the builder out so the
+    drift tool can opt in and verify PN347's anchor against an upstream
+    clone, while ``apply()`` reuses the exact same patcher (no drift
+    between the applied edit and the checked anchor).
+
+    Returns the ``TextPatcher`` or ``None`` when the target file is absent
+    in the current vllm tree (e.g. the pin moved/renamed the kernel file —
+    a legitimate "needs re-anchor" signal the drift tool surfaces).
+    """
     target = resolve_vllm_file(PN347_TARGET_REL)
     if target is None:
-        return "skipped", (
-            f"PN347: target file not found ({PN347_TARGET_REL}); "
-            "pin may have moved the file or this kernel is not present."
-        )
+        return None
 
-    patcher = TextPatcher(
+    return TextPatcher(
         patch_name="PN347 MarlinFP8 N==K correctness (vendor of OPEN vllm#44113)",
         target_file=str(target),
         marker=GENESIS_PN347_MARKER,
@@ -224,6 +232,19 @@ def apply() -> tuple[str, str]:
             "[Genesis PN347",
         ],
     )
+
+
+def apply() -> tuple[str, str]:
+    """Apply PN347 — MarlinFP8 (N==K) correctness fix."""
+    if _env_disabled():
+        return "skipped", "PN347 disabled via GENESIS_DISABLE_PN347=1"
+
+    patcher = _make_patcher_for_drift()
+    if patcher is None:
+        return "skipped", (
+            f"PN347: target file not found ({PN347_TARGET_REL}); "
+            "pin may have moved the file or this kernel is not present."
+        )
 
     try:
         result, failure = patcher.apply()

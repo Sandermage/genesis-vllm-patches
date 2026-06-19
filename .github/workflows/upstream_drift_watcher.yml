@@ -69,8 +69,26 @@ jobs:
           # Pre-create stubs for vllm modules that wiring imports try to touch
           # (we don't actually run the patches, just inspect anchors).
           python3 -c "import torch; print('torch:', torch.__version__)"
-          # Run the drift tool. Stdout = JSON report, stderr = human summary.
+          # Run the drift tool against the freshly-cloned PRISTINE upstream
+          # main tree (--json => stdout = JSON report, stderr = human summary).
+          # The tool refuses (exit 2) to run against a patched tree, so the
+          # shallow upstream clone above is required.
+          #
+          # A raw --depth=1 clone has no vcs-generated _version.py, so the tree
+          # pin is undetectable. We pass the CURRENT canonical pin (from the V2
+          # ModelDef's vllm_pin_required) via --expect-pin: when the tree pin is
+          # undetectable it doubles as the version-gate pin, so patches whose
+          # vllm_version_range excludes the canonical pin are classified
+          # version_gated_skip (intentional) instead of false anchor_drift.
+          # That keeps the early-warning report focused on GENUINE drift of
+          # patches that actually apply on the deployed pin. Stays fresh on a
+          # pin bump because it is derived, not hardcoded.
+          PIN=$(grep -m1 'vllm_pin_required:' \
+            sndr/model_configs/builtin/model/qwen3.6-35b-a3b-fp8.yaml \
+            | sed -E 's/.*vllm_pin_required:[[:space:]]*([^[:space:]#]+).*/\1/')
+          echo "canonical pin for version-gating: $PIN"
           python3 tools/check_upstream_drift.py /tmp/upstream-vllm \
+            --expect-pin "$PIN" --json \
             > drift-report.json 2> drift-summary.txt
           echo "exit_code=$?" >> "$GITHUB_OUTPUT"
         continue-on-error: true

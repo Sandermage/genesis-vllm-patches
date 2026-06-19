@@ -1,0 +1,17 @@
+{
+  "_comment": "Live 35B applied-patch set for pin 0.23.1rc1.dev148+gb4c80ec0f. These patches APPLY CLEANLY at runtime against the deployed tree — they are the disjointness oracle for tools/check_upstream_drift.py. The set of patch IDs the drift tool reports as genuine anchor_drift / import_drift against the PRISTINE dev148 tree MUST be DISJOINT from this set (a patch that applies cleanly at runtime cannot have drifted anchors). Source: controller-provided ground truth, 2026-06-13.",
+  "pin": "0.23.1rc1.dev148+gb4c80ec0f",
+  "applied": [
+    "P1", "P101", "P103", "P107", "P108", "P109", "P14", "P15", "P17",
+    "P18b", "P20", "P23", "P24", "P26", "P28", "P3", "P31", "P34", "P37",
+    "P38", "P39a", "P44", "P46", "P58", "P60", "P60b", "P62", "P66", "P67",
+    "P67b", "P68", "P69", "P70", "P72", "P74", "P81", "P82", "P91", "P95",
+    "P98", "P99", "PN106", "PN11", "PN116", "PN118", "PN119", "PN12",
+    "PN126", "PN127", "PN128", "PN129", "PN130", "PN14", "PN16", "PN17",
+    "PN201", "PN25", "PN286", "PN29", "PN296", "PN298", "PN299", "PN33",
+    "PN340", "PN341", "PN345", "PN346", "PN346B", "PN348", "PN349", "PN35",
+    "PN350", "PN351", "PN352", "PN353A", "PN361", "PN363", "PN364", "PN367",
+    "PN368", "PN377", "PN390", "PN394", "PN399", "PN517", "PN59", "PN71",
+    "PN73", "PN77", "PN8", "PN91", "PN95", "PN96", "PN96b"
+  ]
+}
