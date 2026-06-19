@@ -102,7 +102,12 @@ class TestLiveRepo:
         # 50-PR sweep wave 1 (2026-06-11): +1 profile YAML
         # (gemma4-31b-fp8e5m2-fallback, G4_80 consumer) → 10 model +
         # 3 hardware + 24 profile = 37.
-        assert len(results) == 37
+        # Reconciled 2026-06-19 to live count: 40 = 11 model + 3 hardware
+        # + 26 profile. +1 model (qwen3.6-7b-dense, club-3090 #58 DENSE
+        # reference) and +2 profile (diffusiongemma-tp2 + the new
+        # gemma4-31b-kvauto-chat, +70% TPS / 32K). Presets are not
+        # id-checked here (they carry pointer triplets, not an `id`).
+        assert len(results) == 40
 
 
 class TestScriptCLI:

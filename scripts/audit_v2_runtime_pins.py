@@ -26,13 +26,18 @@ the next pin bump:
             against a future refactor that re-introduces a hardcoded
             fallback or a parallel image-resolution path.
 
-  R-PIN-4 — ModelDef pin migration status. Allowed pin set is
-            ``{dev338, dev371}``. Any value outside this set fails
-            (catches stale pins or typos). Gemma models are expected
-            to be dev371. Qwen models may currently be dev338 OR
-            dev371 — the script reports the migration status but does
-            NOT fail for Qwen models still on dev338, since P2.4d
-            promotes them one at a time with smoke evidence.
+  R-PIN-4 — ModelDef pin migration status. Every ModelDef pin must be
+            in ``ALLOWED_MODELDEF_PINS`` (a value outside it fails,
+            catching stale pins or typos). Reconciled 2026-06-19: the
+            P2.4d / dev338-vs-dev371 sprint is CLOSED — the whole fleet
+            is unified on the canonical pin
+            (``CANONICAL_PIN_SUBSTRING``, currently dev148). The audit
+            classifies each ModelDef into a ``canonical`` /  ``dev338``
+            (legacy baseline) / ``dev371`` (legacy sprint era) /
+            ``other`` bucket and reports the migration table as info.
+            DFlash and placeholder hold semantics now attach to the
+            canonical bucket; the dev338 / dev371 buckets are retained
+            so a rolled-back tree still classifies correctly.
 
 The script is idempotent and read-only — it never modifies files,
 registry, or git state.
@@ -128,6 +133,28 @@ ALLOWED_MODELDEF_PINS = frozenset({
 # classify.
 GEMMA_PREFIX = "gemma-"
 QWEN_PREFIX = "qwen"
+
+# ─── Canonical pin (fleet-unified) ─────────────────────────────────────
+#
+# Reconciled 2026-06-19: the P2.4d / P2.DFlash / dev371-vs-dev338 sprint
+# is CLOSED. The entire fleet is now unified on a single canonical pin
+# (0.23.1rc1.dev148+gb4c80ec0f) — all 12 ModelDef/profile
+# vllm_pin_required values carry it (verify with `grep -rn
+# vllm_pin_required sndr/model_configs/builtin`). dev338 was the original
+# migration baseline; dev371 / 626fa9bba5 were the prior-canonical sprint
+# era; both are now history, retained only as classifier buckets so the
+# audit still reads a (hypothetical) rolled-back tree correctly.
+#
+# The classifier now recognizes THREE meaningful states:
+#   * canonical  — the current fleet-unified pin (substring match below)
+#   * dev338     — legacy migration baseline (rollback target)
+#   * dev371     — prior-canonical sprint era (legacy)
+# DFlash / placeholder hold semantics that used to attach to the dev371
+# bucket now attach to the canonical bucket (the holds were LIFTED /
+# remain documented, and the rollback-protection still works against the
+# canonical pin). On the next pin bump, update CANONICAL_PIN_SUBSTRING
+# (and ALLOWED_MODELDEF_PINS) to the new fleet pin.
+CANONICAL_PIN_SUBSTRING = "dev148"
 
 # ─── DFlash dev371 hold (P2.DFlash 2026-05-21) ─────────────────────────
 #
@@ -481,12 +508,16 @@ def check_r_pin_4_modeldef_migration() -> tuple[list[str], list[str]]:
     infos: list[str] = []
 
     by_family: dict[str, dict[str, list[str]]] = {
-        "gemma": {"dev338": [], "dev371": [], "other": []},
-        "qwen": {"dev338": [], "dev371": [], "other": []},
-        "unknown": {"dev338": [], "dev371": [], "other": []},
+        "gemma": {"canonical": [], "dev338": [], "dev371": [], "other": []},
+        "qwen": {"canonical": [], "dev338": [], "dev371": [], "other": []},
+        "unknown": {"canonical": [], "dev338": [], "dev371": [], "other": []},
     }
+    # DFlash ModelDefs by pin-state. `dflash_canonical` = on the current
+    # fleet-unified pin (the post-hold, post-M8 resting place); the dev338
+    # / dev371 lists are retained for a rolled-back tree.
     dflash_d338: list[str] = []
     dflash_d371: list[str] = []
+    dflash_canonical: list[str] = []
 
     for yaml_path in sorted(MODEL_DIR.glob("*.yaml")):
         pin = _read_model_pin(yaml_path)
@@ -515,12 +546,21 @@ def check_r_pin_4_modeldef_migration() -> tuple[list[str], list[str]]:
         else:
             family = "unknown"
         is_dflash = _is_dflash_stem(stem)
-        # K.1.R 2026-05-28: the new pin form "0.21.1rc0+g626fa9bba5..." is
-        # classified alongside dev371 (== "current canonical" bucket) so
+        # Reconciled 2026-06-19: the fleet is unified on the canonical pin
+        # (CANONICAL_PIN_SUBSTRING). It is classified into a dedicated
+        # `canonical` bucket — the post-hold, post-M8 resting state — so
         # DFlash gates, P2.4d migration tracking, and the per-family
-        # tables continue to read correctly through the pin bump window.
-        # When the next pin lands, this branch updates again.
-        if "dev338" in pin:
+        # tables read correctly. The dev371 / 626fa9bba5 sprint-era forms
+        # and the dev338 baseline are retained only so a rolled-back tree
+        # still classifies. The DFlash promotion that used to land on
+        # dev371 now lands on the canonical pin; the hold semantics move
+        # with it. When the next pin lands, bump CANONICAL_PIN_SUBSTRING.
+        is_canonical_pin = CANONICAL_PIN_SUBSTRING in pin
+        if is_canonical_pin:
+            by_family[family]["canonical"].append(stem)
+            if is_dflash:
+                dflash_canonical.append(stem)
+        elif "dev338" in pin:
             by_family[family]["dev338"].append(stem)
             if is_dflash:
                 dflash_d338.append(stem)
@@ -531,30 +571,60 @@ def check_r_pin_4_modeldef_migration() -> tuple[list[str], list[str]]:
         else:
             by_family[family]["other"].append(stem)
 
-        # DFlash dev371 hold enforcement — fail if a DFlash ModelDef is
-        # promoted to dev371 while the project-wide hold is in effect.
-        if is_dflash and ("dev371" in pin or "626fa9bba5" in pin) and not DFLASH_DEV371_HOLD_LIFTED:
+        # DFlash hold enforcement — fail if a DFlash ModelDef is promoted
+        # to a post-hold pin (dev371 sprint era OR the current canonical
+        # pin) WHILE the project-wide hold is re-engaged. Default after M7
+        # is hold-lifted, so this is a no-op on the live tree; flipping
+        # DFLASH_DEV371_HOLD_LIFTED back to False (rollback) immediately
+        # flags every DFlash promotion as a stale claim needing review.
+        dflash_on_post_hold_pin = (
+            "dev371" in pin or "626fa9bba5" in pin or is_canonical_pin
+        )
+        if is_dflash and dflash_on_post_hold_pin and not DFLASH_DEV371_HOLD_LIFTED:
             errors.append(
-                f"{rel}: DFlash ModelDef promoted to dev371 while the "
-                f"P2.DFlash hold is active. {DFLASH_HOLD_REASON_SHORT}. "
-                f"DFlash ModelDefs must remain on dev338 until either a "
-                f"Genesis compatibility patch lands and "
-                f"DFLASH_DEV371_HOLD_LIFTED is flipped to True, or "
-                f"upstream relaxes the validator. See "
-                f"{DFLASH_HOLD_RECEIPT_PATH}."
+                f"{rel}: DFlash ModelDef promoted to a post-hold pin "
+                f"({pin}) while the P2.DFlash hold is active. "
+                f"{DFLASH_HOLD_REASON_SHORT}. DFlash ModelDefs must remain "
+                f"on the dev338 rollback baseline until either a Genesis "
+                f"compatibility patch lands and DFLASH_DEV371_HOLD_LIFTED "
+                f"is flipped to True, or upstream relaxes the validator. "
+                f"See {DFLASH_HOLD_RECEIPT_PATH}."
             )
 
     # Infos: per-family migration table.
+    #
+    # Reconciled 2026-06-19: the fleet-unified `canonical` bucket is the
+    # primary state now. DFlash entries on the canonical pin carry the
+    # (DFlash) family designation (the hold is lifted). Placeholder
+    # ModelDefs on the canonical pin keep the "placeholder ModelDef"
+    # annotation (NOT actionable — checkpoint not deployed). Everything
+    # else on the canonical pin is "unified" (the P2.4d migration is
+    # complete). The dev338 / dev371 paths below only fire on a
+    # rolled-back tree.
     for family in ("gemma", "qwen", "unknown"):
+        canon = by_family[family]["canonical"]
         d338 = by_family[family]["dev338"]
         d371 = by_family[family]["dev371"]
         other = by_family[family]["other"]
-        if not (d338 or d371 or other):
+        if not (canon or d338 or d371 or other):
             continue
         infos.append(
-            f"{family}: dev371={len(d371)} dev338={len(d338)} "
-            f"other={len(other)}"
+            f"{family}: canonical={len(canon)} dev371={len(d371)} "
+            f"dev338={len(d338)} other={len(other)}"
         )
+        for stem in canon:
+            if _is_dflash_stem(stem):
+                # Hold lifted (default after M7) — DFlash on the canonical
+                # pin is the post-M8 resting state. Tag with the family
+                # designation so readers see it.
+                infos.append(f"  {stem} → canonical  (DFlash)")
+            elif stem in KNOWN_PLACEHOLDER_MODELDEFS:
+                infos.append(
+                    f"  {stem} → canonical  (placeholder ModelDef — "
+                    f"checkpoint not deployed; NOT actionable)"
+                )
+            else:
+                infos.append(f"  {stem} → canonical  (unified)")
         for stem in d371:
             note = ""
             if _is_dflash_stem(stem):
@@ -586,28 +656,34 @@ def check_r_pin_4_modeldef_migration() -> tuple[list[str], list[str]]:
     # Cross-cutting DFlash hold info block (always emitted when DFlash
     # ModelDefs exist, regardless of family classification — operators
     # reading the audit want a single place to see the hold status).
-    if dflash_d338 or dflash_d371:
+    # Reconciled 2026-06-19: counts the canonical-pin DFlash promotions
+    # (the live state) alongside the legacy dev371 / dev338 buckets.
+    if dflash_d338 or dflash_d371 or dflash_canonical:
         infos.append("")
+        # Post-hold DFlash count = canonical + dev371 (both are post-hold
+        # resting places; canonical is the current one, dev371 the prior).
+        promoted = len(dflash_canonical) + len(dflash_d371)
         if DFLASH_DEV371_HOLD_LIFTED:
             infos.append(
                 f"DFlash hold status: "
                 f"DFLASH_DEV371_HOLD_LIFTED={DFLASH_DEV371_HOLD_LIFTED} "
                 f"(M7 lifted 2026-05-21); migration candidates on "
                 f"dev338={len(dflash_d338)}, "
-                f"promoted to dev371={len(dflash_d371)}"
+                f"promoted (canonical+dev371)={promoted}"
             )
             infos.append(
                 "DFlash hold lifted — PN275 (M2..M2f, commits "
                 "40e60ec5..387a9a63) provides the dev371 compat layer; "
                 "M6 commit 12d901a5 wires it into both DFlash ModelDef "
-                "patches matrices"
+                "patches matrices. Both DFlash variants now ride the "
+                "fleet-unified canonical pin."
             )
         else:
             infos.append(
                 f"DFlash hold status: "
                 f"DFLASH_DEV371_HOLD_LIFTED={DFLASH_DEV371_HOLD_LIFTED}; "
                 f"intentional hold on dev338={len(dflash_d338)}, "
-                f"promoted to dev371={len(dflash_d371)}"
+                f"promoted (canonical+dev371)={promoted}"
             )
             infos.append(
                 f"DFlash hold reason: {DFLASH_HOLD_REASON_SHORT}"
@@ -616,8 +692,15 @@ def check_r_pin_4_modeldef_migration() -> tuple[list[str], list[str]]:
 
     # Cross-cutting placeholder hold info block (only when one or more
     # known placeholder ModelDefs are present in the live tree).
+    # Reconciled 2026-06-19: scan the canonical bucket too — a placeholder
+    # ModelDef (e.g. qwen3.6-7b-dense) now rides the fleet-unified pin
+    # while still lacking a deployed checkpoint, so it is "not actionable"
+    # regardless of which pin it carries.
     present_placeholders = sorted(
-        stem for stems in (by_family["gemma"]["dev338"],
+        stem for stems in (by_family["gemma"]["canonical"],
+                           by_family["qwen"]["canonical"],
+                           by_family["unknown"]["canonical"],
+                           by_family["gemma"]["dev338"],
                            by_family["qwen"]["dev338"],
                            by_family["unknown"]["dev338"])
         for stem in stems

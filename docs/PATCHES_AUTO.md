@@ -4,7 +4,7 @@
 > Source of truth: `sndr/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-06-19T12:36:18Z
+Generated: 2026-06-19T13:47:35Z
 Total entries: **319**
 
 ## Statistics
@@ -14,10 +14,10 @@ Total entries: **319**
 
 ### By lifecycle
 - `lifecycle=coordinator`: **4**
-- `lifecycle=experimental`: **234**
+- `lifecycle=experimental`: **235**
 - `lifecycle=legacy`: **28**
 - `lifecycle=research`: **4**
-- `lifecycle=retired`: **35**
+- `lifecycle=retired`: **34**
 - `lifecycle=stable`: **14**
 
 ### Default-on at boot: **55** / 319
@@ -425,7 +425,7 @@ Total entries: **319**
 | **PN38** | `community` | `experimental` | · | `GENESIS_ENABLE_PN38_DFLASH_QUANT_DRAFTER` | [#40425](https://github.com/vllm-project/vllm/pull/40425) | "DFlash drafter quantization support (PR |
 | **PN40** | `community` | `experimental` | · | `GENESIS_ENABLE_PN40_DFLASH_OMNIBUS` | — | Spec-decode omnibus (A DFlash K-norm + B pool + C adaptive K + D sentinel) |
 | **PN72** | `community` | `experimental` | · | `GENESIS_ENABLE_PN72_FREQUENCY_NGRAM_DRAFTER` | — | Frequency-based ngram draft post-filter (llama.cpp-style) |
-| **PN90** | `community` | `retired` | · | `GENESIS_ENABLE_PN90_PROBABILISTIC_DRAFT` | [#40269](https://github.com/vllm-project/vllm/pull/40269) | Probabilistic draft rejection (vllm#40269 backport) — propagate draft_probs t... |
+| **PN90** | `community` | `experimental` | · | `GENESIS_ENABLE_PN90_PROBABILISTIC_DRAFT` | [#40269](https://github.com/vllm-project/vllm/pull/40269) | Probabilistic draft rejection (vllm#40269 backport) — propagate draft_probs t... |
 | **PN133** | `community` | `experimental` | · | `GENESIS_ENABLE_PN133_MTP_EMPTY_OUTPUT_FIX` | [#42722](https://github.com/vllm-project/vllm/pull/42722) | MTP scheduler empty-output accounting fix (backport vllm#42722) |
 | **PN256** | `community` | `experimental` | · | `GENESIS_ENABLE_PN256_KPLUS1_RAW_KV` | — | K+1 spec-verify routing through raw-K/V continuation prefill (PR42637 overlay... |
 | **PN262** | `community` | `experimental` | · | `GENESIS_ENABLE_PN262_FLASH_ATTN_DRAFTER_TRACE` | — | FlashAttn drafter KV cache shape/stride trace + fail-fast (PN261-D D-3 locali... |

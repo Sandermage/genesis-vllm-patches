@@ -164,7 +164,12 @@ class TestLiveRepo:
         # 50-PR sweep wave 1 (2026-06-11): +1 profile YAML
         # (gemma4-31b-fp8e5m2-fallback, G4_80 consumer; no preset
         # alias) → 10 + 3 + 24 + 23 = 60.
-        assert len(results) == 60
+        # Reconciled 2026-06-19 to live count: 64 = 11 model + 3 hardware
+        # + 26 profile + 24 preset. +1 model (qwen3.6-7b-dense), +2
+        # profile (diffusiongemma-tp2 + gemma4-31b-kvauto-chat), +1
+        # preset (prod-gemma4-31b-kvauto-chat) — all committed, all
+        # legitimate fleet growth.
+        assert len(results) == 64
 
 
 # ─── CLI ──────────────────────────────────────────────────────────────

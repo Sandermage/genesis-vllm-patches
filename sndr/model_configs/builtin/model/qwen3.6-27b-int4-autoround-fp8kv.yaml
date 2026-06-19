@@ -121,7 +121,7 @@ patches:
   GENESIS_ENABLE_PN67: '0'                           # vllm#41674 merged at bf610c2f5… — the dev371 canonical baseline. Patch lifecycle=retired with vllm_version_range "<0.20.2rc1.dev371", so it auto-skips at runtime even when enabled. Explicit disable here keeps the active matrix free of retired patches (Phase 5.2.A 2026-05-22).
   GENESIS_ENABLE_PN77_FP8_LM_HEAD: '1'               # Phase E.6 Marlin tier FP8 LM head
   # ── Wave 3.1 / Wave 7 ──
-  GENESIS_ENABLE_PN90_PROBABILISTIC_DRAFT: '0'       # DISABLED 2026-06-19 (dev148 TIER-1 audit) — aligned to the 35B YAML. PN90 RETIRED + measured regressor on dev371+/dev491+ (-5.9% TPS, -10% accept); PROD runs GREEDY draft; #40269 native in-pin (patch self-skips). =1 was inert but a landmine (re-activation regresses + unmasks P71⊥PN390 NameError). Keep 0.
+  GENESIS_ENABLE_PN90_PROBABILISTIC_DRAFT: '0'       # DISABLED 2026-06-19 (dev148 TIER-1 audit) — aligned to the 35B YAML. PN90 experimental (NOT retired — iron-rule-#11 verdict-c: #40269 different approach, not a supersession) + measured regressor on dev371+/dev491+ (-5.9% TPS, -10% accept); PROD runs GREEDY draft; #40269 native in-pin (patch self-skips). =1 was inert but a landmine (re-activation regresses + unmasks P71⊥PN390 NameError). Keep 0.
   GENESIS_ENABLE_P107_MTP_TRUNCATION_DETECTOR: '1'   # vllm#41467 — defensive at think→tool_call boundary
   GENESIS_ENABLE_PN16_LAZY_REASONER: '1'             # PN16 v2 — cache-safe
   GENESIS_PN16_TOOL_THINK_BUDGET: '200'              # V8 — short msg cap on <think> for tool requests

@@ -2030,14 +2030,34 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "related_upstream_prs": [],
     },
     "PN90": {
-        "vllm_version_range": (">=0.20.0", "<0.22.0"),  # retired-provenance drift cap (native vllm#40269 (dev371+))
+        # Drift cap: PN90 self-skips on dev338+ via its own
+        # _PROPOSER_DRIFT_MARKERS, so the upper bound silences the
+        # spurious version-mismatch WARN that would stack on top of the
+        # drift-marker skip. NOT a supersession boundary — vllm#40269 is
+        # a DIFFERENT-APPROACH (related_not_superseding) landing, not a
+        # backport of PN90 (see credit + upstream_pr_relationship below).
+        "vllm_version_range": (">=0.20.0", "<0.22.0"),
         "title": "Probabilistic draft rejection (vllm#40269 backport) — propagate draft_probs to verifier",
         "tier": "community",
         "family": "spec_decode",
         "env_flag": "GENESIS_ENABLE_PN90_PROBABILISTIC_DRAFT",
         "default_on": False,
-        "lifecycle": "retired",
-        "superseded_by": "vllm#40269",
+        # Reconciled 2026-06-19: lifecycle restored to "experimental"
+        # (was erroneously flipped to "retired" + superseded_by="vllm#40269"
+        # by the 4c8d992b P3-reverify sweep, whose own commit message
+        # lists PN396 as its ONLY retire and does NOT mention PN90). The
+        # flip contradicted iron rule #11 verdict (c) documented at length
+        # in this entry's `credit` ("KEEP PN90 ... lifecycle stays
+        # experimental ... Do NOT retire") AND the
+        # `upstream_pr_relationship: related_not_superseding` field below.
+        # vllm#40269 implements the same goal via a DIFFERENT approach
+        # (config-knob `draft_sample_method=probabilistic`), empirically
+        # rejected on our shape — so this is not a supersession. The
+        # false-positive lock test (test_audit_upstream_status
+        # TestLiveRegistryFalsePositiveLock) correctly demanded
+        # NEEDS-DEEP-PARITY, which the retired flip was masking as
+        # ALREADY-RETIRED.
+        "lifecycle": "experimental",
         "implementation_status": "full",
         "category": "spec_decode",
         "apply_module": "sndr.engines.vllm.patches.spec_decode.pn90_probabilistic_draft_rejection",

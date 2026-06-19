@@ -1,11 +1,19 @@
 # SPDX-License-Identifier: Apache-2.0
 """Wiring for PN90 — Probabilistic draft rejection (vllm#40269 backport).
 
-RETIRED 2026-06-17 (lifecycle=retired) — superseded_by vllm#40269, merged at
-f51f6844 (present on both dev491 and 0.23.1); the proposer symbols are native.
-The applies_to range (<0.22.0) already self-skips on the deployed pin. NOTE:
-retiring does NOT enable upstream probabilistic draft — that path is the -5.9%
-TPS / -10% accept regression on our shape, intentionally left OFF.
+ACTIVE — lifecycle=experimental, upstream_pr_relationship=related_not_superseding
+(reconciled 2026-06-19). vllm#40269 (merged at f51f6844, present on dev491 +
+0.23.1) reaches the SAME goal by a DIFFERENT approach — the config-knob
+`draft_sample_method=probabilistic` — which empirically regresses our shape
+(-5.9% TPS / -10% accept) and is intentionally left OFF. That makes PN90 a
+related-not-superseding overlay, NOT a backport that the merge retires; iron
+rule #11 verdict (c) is KEEP (see the `credit` field in the registry entry).
+The applies_to range (<0.22.0) plus the proposer drift-markers self-skip PN90
+on the deployed pin, so it is functionally inert there while staying available
+for older pins. (An earlier 4c8d992b P3-reverify sweep wrongly flipped this
+entry's lifecycle to the retired state and added a superseded_by; that
+contradicted the relationship field and the false-positive-lock test, and has
+been reverted.)
 
 Wave 3.1 (audit closure 2026-05-09 / production roadmap §16.1).
 

@@ -62,12 +62,19 @@ def test_audit_reports_meaningful_totals():
     )
     data = json.loads(proc.stdout)
     diff = data["diff"]
-    # Plausible bounds — registry is 241 in v11.3.0; spec_driven_total
-    # excludes apply_module=None (informational entries).
-    assert 100 <= diff["legacy_total"] <= 300, (
+    # Plausible bounds — sanity range, NOT an exact count. The registry
+    # was 241 in v11.3.0; spec_driven_total excludes apply_module=None
+    # (informational entries).
+    # Reconciled 2026-06-19: registry has grown to 319 patches, so
+    # legacy_total=242 and spec_driven_total=303 (live). Upper bound
+    # raised 300 -> 400 to give headroom for legitimate fleet growth
+    # while still catching a runaway (e.g. a duplicated/exploded
+    # registry). This is a plausibility range, not a tripwire on an
+    # exact count.
+    assert 100 <= diff["legacy_total"] <= 400, (
         f"legacy_total {diff['legacy_total']} outside plausible range"
     )
-    assert 100 <= diff["spec_driven_total"] <= 300, (
+    assert 100 <= diff["spec_driven_total"] <= 400, (
         f"spec_driven_total {diff['spec_driven_total']} outside plausible"
     )
     # Common patches should be the majority of both

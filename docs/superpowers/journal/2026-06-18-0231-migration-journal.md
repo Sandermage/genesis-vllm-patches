@@ -1328,3 +1328,67 @@ content-only OK, tool_calls-only OK, BOTH now shows "Let me check that for you<f
 is affected (single-turn tool-call, already 7/7, is unchanged — the template renders PRIOR turns, not the
 generation). Gates: doctor ERROR=0, make evidence 63/63, pytest dispatcher pass. A rig multi-turn
 tool-call validation on a Gemma boot would fully confirm end-to-end (deferred — PROD is the Qwen 35B).
+
+## 44. Project audit-fix delivered (dev148 ratified, docs/GUI/generator) + 18 pre-existing live-repo test failures characterized (NOT regressions)
+
+Executed the full project-audit fix pass (commit a564ad11, pushed to private sndr-dev). Audit found the
+CODE clean + GUI healthy (zero backend drift, pure-dynamic renderer over /api/v1/patches — no hardcoded
+allowlist) but the DOCS materially stale. Delivered: (1) PIN RATIFICATION → canonical dev148
+(0.23.1rc1.dev148+gb4c80ec0f, the live rig pin) across guards.py KNOWN_GOOD + test_pin_gate EXPECTED_PINS
++ audit ALLOWED_MODELDEF_PINS + 12 ModelDef/profile vllm_pin_required (dev101→dev148; 2 PROD ModelDefs
+carry pin_hold while leading the hardware image during the promotion window) + 8 stale docs (README/
+INSTALL incl the literal `pip install vllm==…dev148` + `git checkout b4c80ec0f`/QUICKSTART/CONFIGURATION/
+FAQ/USAGE/BENCHMARKS) dev491→dev148 — closes the P0 deploy-blocker (a fresh operator now installs the
+deployed pin). (2) DOCS accuracy: MTP K=3→K=5 (Qwen only; Gemma stays K=3), bench 35B 239.7/27B 127.4,
+count 317→319; PATCHES.md +PN394/PN399/PN353A; PRESETS.md +gemma4-31b-kvauto-chat; MODELS.md +Gemma-4-31B;
+CHANGELOG [Unreleased] dev148 entry + refreshed the stale current-state preamble (was "313/dev491, PROD
+runs 0.21.1rc0" → now 319/55/27, PROD runs dev148). (3) TOOLING: generate_patches_md.py multi-line
+paren-title fix (PN399/PN384/PN383 rows had rendered as a bare "(") + regen + regression tests;
+audit_public_docs D-8 negative-lookahead so the new canonical SHA isn't self-flagged stale; PN82
+audit-trail path → _archive/. (4) GUI: make gui-build refreshed the served web_static bundle (tsc clean,
+no source drift). Gates: make evidence 63/63, check_doc_sync 319 consistent, generate_patches_md --check
+in sync, audit_public_docs D-8 clean, dispatcher+model_configs 1238 passed, GUI tsc --noEmit exit 0.
+
+KEY FINDING — independent verification (the implementer ran only dispatcher+model_configs) caught that
+tests/unit/scripts has 18 RED tests. PROVEN PRE-EXISTING, not session regressions: stashed all working-tree
+changes and the SAME 18 fail at HEAD (failure-set diff = identical). These are the §15.6 "live-repo" test
+debt cluster — brittle assertions that drifted as the project grew: ~13 hardcoded COUNTS (len==10 got 11
+models, ==93 got 98, ==23 got 24 aliases, ==37/60 got 40/64, spec_driven_total plausibility bound 300 <
+319), 4 obsolete pin-TOPOLOGY (assert DFlash→dev371 / 7B-dense→dev338 — the 2026-05-21 sprint hold logic,
+fleet now unified on dev148), 1 PN90 upstream-status classification expectation. NONE hide a real config
+bug — the underlying audit GATES print "✓ all rules clean — exit 0"; only the unit-test count/topology
+expectations are stale. make evidence (the project gate) does not run them. Reconciling them = update ~13
+count literals to current reality + retire the dead dev371/dev338 sprint-hold classification in
+audit_v2_runtime_pins.py + investigate the PN90 case — a bounded but separate cleanup that touches a GATING
+audit; surfaced to the operator rather than silently folded into the docs commit.
+
+## 45. §44 follow-through — 18 live-repo test failures RECONCILED → 0; PN90 real metadata-regression fixed (iron-rule-#11)
+
+Reconciled the §44 cluster instead of deferring it (operator wants the project clean). Result: the full
+tracked unit suite is GREEN — dispatcher+model_configs 1238 + tests/unit/scripts 1562 = 2800 passed, 0
+failed (was 18 failed); make evidence 63/63; doctor ERROR=0. Three categories:
+- A (14 count literals): bumped to the verified-live reality (11 model YAMLs, 26 profiles, 24 presets,
+  319 patches) — each delta first confirmed to be a legitimate committed addition (the 11th model
+  qwen3.6-7b-dense is a real club-3090 #58 DENSE reference; the +5 cross-ref growth = the diffusiongemma
+  + gemma4-31b-kvauto profiles/preset), NOT a stray file. Each literal carries a "reconciled 2026-06-19"
+  comment. The legacy-vs-spec plausibility band 300→400 (live spec_driven_total=303).
+- B (4 pin-topology): the 2026-05-21 DFlash→dev371 / 7B-dense→dev338 sprint holds are CLOSED — fleet
+  unified on dev148. audit_v2_runtime_pins.py gained a CANONICAL_PIN_SUBSTRING="dev148" bucket; the dead
+  dev371/dev338 classification is retained only for rollback detection (verified: re-engaging the hold
+  still flags exactly 2 DFlash violations). GATING audit-v2-runtime-pins stays green + still catches a
+  wrong pin.
+- C (PN90 — a REAL bug, not stale debt): commit 4c8d992b (a "retire PN396" sweep that never mentioned
+  PN90) had wrongly flipped PN90 lifecycle experimental→retired + added superseded_by=#40269. That
+  contradicted (i) PN90's own iron-rule-#11 credit verdict ("verdict c — KEEP PN90... Do NOT retire...
+  lifecycle stays experimental", Sander 2026-05-22), (ii) upstream_pr_relationship=related_not_superseding,
+  and (iii) the false-positive-lock test (related_not_superseding MUST resolve NEEDS-DEEP-PARITY, not
+  ALREADY-RETIRED — the iron-rule-#11 deep-diff forcing function). #40269 is a DIFFERENT approach
+  (config-knob draft_sample_method=probabilistic) that empirically REGRESSES our shape (-5.9% TPS/-10%
+  accept) — so it does not supersede PN90. Fix: restored lifecycle=experimental, removed superseded_by,
+  reconciled the source docstring (which had tripped audit-lifecycle-docstring-sync + audit_registry
+  invariant-8) + PATCHES.md (exp 234→235, retired 35→34) + PATCHES_AUTO + spec_set.json fixture. Total
+  count unchanged (319). RUNTIME-NEUTRAL: PN90 default_on=False + version-capped <0.22.0 (inert on dev148)
+  + drift self-skip + all PROD ModelDefs set GENESIS_ENABLE_PN90=0 — the rejected probabilistic draft
+  cannot activate in PROD. Also reconciled two PROD YAML comments (27b-tq:164, 27b-fp8kv:124) that still
+  called PN90 "RETIRED" → "experimental (NOT retired — iron-rule-#11 verdict-c)". The count-tripwire tests
+  earned their keep: one of them caught a genuine registry regression a title-matching sweep introduced.

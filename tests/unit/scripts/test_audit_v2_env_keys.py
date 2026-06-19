@@ -72,7 +72,10 @@ class TestWalkers:
         # from `test_model_walker_returns_six_entries` — count moved
         # out of method name so future fleet growth touches only the
         # assertion, not the test identifier.
-        assert len(entries) == 10
+        # Reconciled 2026-06-19 to live count: 11 model YAMLs — the 11th
+        # is qwen3.6-7b-dense (committed club-3090 #58 Path A DENSE
+        # reference; model walker yields one entry per model YAML).
+        assert len(entries) == 11
         for e in entries:
             assert e.layer == "model"
 
@@ -99,9 +102,14 @@ class TestWalkers:
         # chat-K3 promotion session (2026-06-01): +2 preset aliases
         # (prod-gemma4-31b-tq-mtp-chat-k3 + prod-gemma4-26b-mtp-chat-k3
         # promoted from profile-only to operator-facing presets) → 23.
-        # Test name kept as "fifteen" for grep continuity; assertion
-        # tracks current fleet.
-        assert len(entries) == 23
+        # Reconciled 2026-06-19 to live count: 24 preset aliases — +1
+        # is prod-gemma4-31b-kvauto-chat (committed alias for the new
+        # gemma4-31b-kvauto-chat profile, +70% TPS / 32K). One entry per
+        # preset YAML.
+        # Test name kept as "fifteen" for grep continuity (the count has
+        # lived in the assertion, not the identifier, since Phase 5.4);
+        # renaming would break the stable test id for no behavioural gain.
+        assert len(entries) == 24
         for e in entries:
             assert e.layer == "resolved-alias"
 

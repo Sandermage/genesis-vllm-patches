@@ -51,7 +51,11 @@ class TestLiveRepo:
         # 50-PR sweep wave 1 (2026-06-11): +1 profile
         # (gemma4-31b-fp8e5m2-fallback, G4_80 consumer; no preset
         # alias) (24 profile + 23 preset×3 = 93).
-        assert len(results) == 93
+        # Reconciled 2026-06-19 to live count: 98 = 26 profile
+        # parent_model refs + 24 preset×3 refs. +2 profiles
+        # (diffusiongemma-tp2 + gemma4-31b-kvauto-chat) and +1 preset
+        # (prod-gemma4-31b-kvauto-chat). All refs resolve (failed=0).
+        assert len(results) == 98
 
 
 class TestScriptCLI:
@@ -77,7 +81,10 @@ class TestScriptCLI:
         # Phase 7.G4.26B-A4B.B4-PRE (2026-05-23): +1 profile + 1 preset = 84.
         # chat-K3 promotion session (2026-06-01): +2 profiles + 2 presets = 92.
         # 50-PR sweep wave 1 (2026-06-11): +1 profile (no preset) = 93.
-        assert payload["total"] == 93
+        # Reconciled 2026-06-19 to live count: 98 = 26 profile refs + 24
+        # preset×3 refs (+2 profiles + 1 preset since the 93 baseline;
+        # all committed, all refs resolve).
+        assert payload["total"] == 98
 
 
 class TestSyntheticBroken:

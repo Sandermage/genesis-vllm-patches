@@ -794,7 +794,7 @@
   {
     "patch_id": "PN90",
     "family": "spec_decode",
-    "lifecycle": "retired",
+    "lifecycle": "experimental",
     "tier": "community",
     "default_on": false,
     "env_flag": "GENESIS_ENABLE_PN90_PROBABILISTIC_DRAFT",

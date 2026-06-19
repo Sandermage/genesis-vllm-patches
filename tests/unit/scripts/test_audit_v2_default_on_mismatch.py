@@ -74,7 +74,13 @@ class TestLiveRepo:
         )
         # Phase 5.4 (2026-05-22): refreshed for current fleet
         # (10 V2 model YAMLs; was 6 in Wave 9/10 era).
-        assert len(results) == 10
+        # Reconciled 2026-06-19 to live count: 11 model YAMLs — the 11th
+        # is qwen3.6-7b-dense (committed club-3090 #58 Path A DENSE
+        # reference; one override-check result per model YAML). The
+        # _ALLOWED_OVERRIDES allowlist is unchanged: 7b-dense carries no
+        # default_on overrides, so it adds a clean (empty-overrides)
+        # result without expanding the allowlist.
+        assert len(results) == 11
 
 
 class TestSyntheticOverride:

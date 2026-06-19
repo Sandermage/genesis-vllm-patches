@@ -322,76 +322,106 @@ class TestDFlashHoldGate:
         assert "dflash" in mod.DFLASH_HOLD_RECEIPT_PATH.lower()
         assert "max_cudagraph_capture_size" in mod.DFLASH_HOLD_REASON_SHORT
 
-    def test_live_tree_both_dflash_on_dev371_after_m8(self):
-        """After M8-Q35 (the final DFlash pin promotion) BOTH DFlash
-        variants are on dev371. NO DFlash remains on dev338 in the live
-        tree — the DFlash Candidate A sprint is closed.
+    def test_live_tree_both_dflash_on_canonical_pin(self):
+        """Reconciled 2026-06-19: the P2.DFlash sprint is CLOSED and the
+        whole fleet is unified on the canonical pin
+        (0.23.1rc1.dev148+gb4c80ec0f). After M8 promoted both DFlash
+        variants past the dev371 hold, the subsequent fleet pin bumps
+        carried them onto the current canonical pin. BOTH DFlash variants
+        now ride the `canonical` bucket; NO DFlash remains on dev338 or
+        the legacy dev371 sprint pin in the live tree.
 
-        Sprint chain: M1 design → M2..M2f PN275 3-layer fix → M5 retry
-        Q35-DFlash dev371 smoke PASS → M6 wired PN275 into both DFlash
-        patches matrices (commit 12d901a5) → M7 lifted hold (43fe70b7)
-        → M8-Q27 promoted Q27 (7e310b25) → M8-Q35 promotes Q35 (this
-        commit closes the pair)."""
+        Sprint chain (history): M1 design → M2..M2f PN275 3-layer fix →
+        M5 retry Q35-DFlash dev371 smoke PASS → M6 wired PN275 into both
+        DFlash patches matrices (commit 12d901a5) → M7 lifted hold
+        (43fe70b7) → M8 promoted both DFlash pins → fleet pin bumps
+        (dev371 → 626fa9bb → dev259 → dev491 → dev101 → dev148) landed
+        them on the canonical pin."""
         mod = _import_audit()
         errors, infos = mod.check_r_pin_4_modeldef_migration()
         assert errors == [], (
             f"R-PIN-4 must be clean on the live tree; got: {errors}"
         )
         joined = "\n".join(infos)
-        # Both DFlash variants must now appear on dev371 with the
-        # (DFlash) family designation
+        # Both DFlash variants must now appear on the canonical pin with
+        # the (DFlash) family designation.
         assert (
-            "qwen3.6-27b-dflash → dev371  (DFlash)" in joined
-        ), f"qwen3.6-27b-dflash must appear on dev371 after M8-Q27; got:\n{joined}"
+            "qwen3.6-27b-dflash → canonical  (DFlash)" in joined
+        ), f"qwen3.6-27b-dflash must appear on canonical; got:\n{joined}"
         assert (
-            "qwen3.6-35b-a3b-fp8-dflash → dev371  (DFlash)" in joined
-        ), f"qwen3.6-35b-dflash must appear on dev371 after M8-Q35; got:\n{joined}"
-        # Neither DFlash must remain on dev338 — sprint is closed
+            "qwen3.6-35b-a3b-fp8-dflash → canonical  (DFlash)" in joined
+        ), f"qwen3.6-35b-dflash must appear on canonical; got:\n{joined}"
+        # Neither DFlash may remain on dev338 or the legacy dev371 pin —
+        # the sprint is closed and the fleet is unified.
         assert (
             "qwen3.6-27b-dflash → dev338" not in joined
-        ), "qwen3.6-27b-dflash must NOT remain on dev338 after M8-Q27"
+        ), "qwen3.6-27b-dflash must NOT remain on dev338"
         assert (
             "qwen3.6-35b-a3b-fp8-dflash → dev338" not in joined
-        ), "qwen3.6-35b-dflash must NOT remain on dev338 after M8-Q35"
-        # No P2.4d candidate or pre-M7 hold tag should be attached to
-        # any DFlash entry anymore
+        ), "qwen3.6-35b-dflash must NOT remain on dev338"
         assert (
-            "dflash → dev338  (P2.4d candidate)" not in joined.lower()
+            "qwen3.6-27b-dflash → dev371" not in joined
+        ), "qwen3.6-27b-dflash must NOT remain on the legacy dev371 pin"
+        assert (
+            "qwen3.6-35b-a3b-fp8-dflash → dev371" not in joined
+        ), "qwen3.6-35b-dflash must NOT remain on the legacy dev371 pin"
+        # No P2.4d candidate or pre-M7 hold tag should be attached to
+        # any DFlash entry anymore.
+        assert (
+            "dflash → dev338  (p2.4d candidate)" not in joined.lower()
         ), "no DFlash on dev338 → no P2.4d-candidate tag expected"
         assert "DFlash hold —" not in joined, (
             "no DFlash on dev338 → no 'DFlash hold' tag should appear"
         )
-        # Cross-cutting block still reflects lifted state
+        # Cross-cutting block still reflects lifted state.
         assert "DFlash hold status:" in joined
         assert "DFLASH_DEV371_HOLD_LIFTED=True" in joined
         assert "M7 lifted" in joined
-        # Receipt still cited for the original defect trail
+        # Both DFlash variants are counted as promoted (canonical+dev371).
+        assert "promoted (canonical+dev371)=2" in joined
+        # Receipt still cited for the original defect trail.
         assert "DFlash hold receipt:" in joined
 
-    def test_dflash_dev371_promotions_revert_to_violations_when_hold_re_engaged(
+    def test_dflash_canonical_promotions_revert_to_violations_when_hold_re_engaged(
         self, monkeypatch,
     ):
         """Rollback safety: setting DFLASH_DEV371_HOLD_LIFTED back to
-        False with BOTH DFlash variants now on dev371 must surface
-        BOTH as R-PIN-4 violations. This is the protection the
-        rollback flag provides — if PN275 regresses on a future pin,
-        flipping the constant immediately flags every prior DFlash
-        dev371 promotion as a stale claim that needs review."""
+        False with BOTH DFlash variants now on the canonical (post-hold)
+        pin must surface BOTH as R-PIN-4 violations. This is the
+        protection the rollback flag provides — if PN275 regresses on a
+        future pin, flipping the constant immediately flags every DFlash
+        promotion past the dev338 baseline as a stale claim that needs
+        review.
+
+        Reconciled 2026-06-19: the DFlash variants moved from the legacy
+        dev371 sprint pin onto the fleet-unified canonical pin, so the
+        violation now cites the canonical pin (a post-hold pin) rather
+        than the dev371 string."""
         mod = _import_audit()
         monkeypatch.setattr(mod, "DFLASH_DEV371_HOLD_LIFTED", False)
         errors, infos = mod.check_r_pin_4_modeldef_migration()
-        # Both DFlash promotions must appear as violations on rollback
+        # Both DFlash promotions must appear as violations on rollback.
         joined_errors = "\n".join(errors)
-        assert "qwen3.6-27b-dflash" in joined_errors and "dev371" in joined_errors, (
-            "rollback must surface Q27-DFlash dev371 promotion as "
+        assert (
+            "qwen3.6-27b-dflash" in joined_errors
+            and "post-hold pin" in joined_errors
+        ), (
+            "rollback must surface Q27-DFlash canonical-pin promotion as "
             f"violation; got: {errors}"
         )
-        assert "qwen3.6-35b-a3b-fp8-dflash" in joined_errors and "dev371" in joined_errors, (
-            "rollback must surface Q35-DFlash dev371 promotion as "
+        assert (
+            "qwen3.6-35b-a3b-fp8-dflash" in joined_errors
+            and "post-hold pin" in joined_errors
+        ), (
+            "rollback must surface Q35-DFlash canonical-pin promotion as "
             f"violation; got: {errors}"
+        )
+        # Exactly the two live DFlash variants are flagged — no more.
+        assert len(errors) == 2, (
+            f"expected exactly 2 DFlash violations on rollback; got: {errors}"
         )
         # And no DFlash remains on dev338, so no "intentional hold"
-        # annotation should appear in the info list for any DFlash
+        # annotation should appear in the info list for any DFlash.
         joined_infos = "\n".join(infos)
         assert "dflash → dev338" not in joined_infos.lower(), (
             "no DFlash on dev338 → no dev338 info line should be "
@@ -543,15 +573,25 @@ class TestPlaceholderHold:
         )
 
     def test_live_tree_q7b_marked_placeholder_not_candidate(self):
-        """The live laptop tree must mark Q7B-dense with the
-        placeholder annotation, NOT the generic 'P2.4d candidate'
-        annotation. Cross-cutting info block must list it."""
+        """The live tree must mark Q7B-dense with the placeholder
+        annotation, NOT the generic 'P2.4d candidate' / 'unified'
+        annotation. Cross-cutting info block must list it.
+
+        Reconciled 2026-06-19: Q7B-dense now rides the fleet-unified
+        canonical pin (like every other ModelDef) but still has no
+        deployed checkpoint, so the annotation stays 'placeholder
+        ModelDef — checkpoint not deployed; NOT actionable'."""
         mod = _import_audit()
         errors, infos = mod.check_r_pin_4_modeldef_migration()
         assert errors == []
         joined = "\n".join(infos)
         assert (
-            "qwen3.6-7b-dense → dev338  (placeholder ModelDef" in joined
+            "qwen3.6-7b-dense → canonical  (placeholder ModelDef" in joined
+        )
+        # Must NOT be mis-tagged as a generic unified entry or a stale
+        # P2.4d migration candidate.
+        assert (
+            "qwen3.6-7b-dense → canonical  (unified)" not in joined
         )
         assert (
             "qwen3.6-7b-dense → dev338  (P2.4d candidate)" not in joined
@@ -663,7 +703,16 @@ class TestCli:
             capture_output=True, text=True,
         )
         assert result.returncode == 0
-        # Verbose must surface the migration table
-        assert "P2.4d candidate" in result.stdout or (
-            "→ dev338" in result.stdout
+        # Verbose must surface the migration table. Reconciled 2026-06-19:
+        # the fleet is unified on the canonical pin, so the table now
+        # shows `→ canonical` entries (with the per-family `canonical=N`
+        # header) instead of the legacy dev371/dev338 P2.4d-candidate
+        # lines. Accept any of the migration-table markers so the test
+        # stays meaningful across future pin bumps (a rolled-back tree
+        # would still surface the dev338 / P2.4d-candidate forms).
+        assert (
+            "→ canonical" in result.stdout
+            or "canonical=" in result.stdout
+            or "P2.4d candidate" in result.stdout
+            or "→ dev338" in result.stdout
         )
