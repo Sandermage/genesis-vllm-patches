@@ -1176,3 +1176,15 @@ on kv-auto 31B — SM86 IMA-on-burst PR#45038 needs the G4_31 guard.) MTP K-tuni
 (separate drafter, not the integrated Qwen MTP head — confirmed by study: 31B/26B prefer K<=3). 26B-MoE
 already optimal-ish; DiffusionGemma has no spec lever (block-diffusion). The Qwen K=5 win does NOT
 transfer to Gemma — Gemma's win is kv-auto (a product/context decision).
+
+## 36. 35B true-peak confirmed — K=5 IS the optimum (K=6 won't boot, K=7 regresses)
+
+GPU-release-safe sweep (bn1ghapf8, nvidia-smi polled free 1/1 MiB before each boot, warm bench):
+  35B K=5: 237.7 TPS / TPOT 4.02 / accept 0.656   <- PEAK
+  35B K=6: BOOT-FAIL (reproducible — GPU was confirmed free, so NOT the earlier release race; MTP
+           cudagraph capture appears to hit a shape edge at K+1=7 on the 35B specifically)
+  35B K=7: 232.5 TPS / TPOT 4.08 / accept 0.546   <- regresses vs K=5 (lower accept + more draft cost)
+K=5 is the true single-stream peak for BOTH Qwen models (35B K=5>K=7, K=6 unbootable; 27B K=5>=K=4,
+K=6 regresses). The committed K=5 (cff92740) is the correct optimum — no further win past it. Clean
+negative result validating the locked value. (The 35B K=6 boot-fail is a curiosity worth a note but not
+a blocker — K=5 is the answer; if ever needed, investigate the MTP cudagraph capture-size set at K=6.)
