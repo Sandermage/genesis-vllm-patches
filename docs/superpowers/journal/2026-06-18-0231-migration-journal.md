@@ -1242,3 +1242,25 @@ G4_19 keys-only rotation (drop value-side Hadamard) — bounded <2% (35B value-r
 decode) AND high quality-regression risk (the value Hadamard is protective for 4-bit value outliers; like
 FIX2, likely a dead-end). Not worth autonomous effort without operator greenlight. Awaiting the operator's
 context-floor decisions (PN95-off, Gemma kv-auto, PN394/399 promotion) — the higher-value remaining path.
+
+## 40. K=5 safety vs vllm#37052 (GDN IMA at >4 spec tokens) — NOT applicable (flashinfer_gdn=False)
+
+Loop engine-github scan surfaced vllm#37052 (OPEN, fixes #37035): "CUDA illegal memory access in the
+GDN attention backend when using qwen3_next_mtp speculative decoding with >4 speculative tokens under
+concurrent load... consistently reproducible with num_speculative_tokens=5." That is EXACTLY our new
+K=5 on the GDN-hybrid models — a scary-looking latent risk in the just-shipped win. Verified against
+live dev148:
+- **NOT APPLICABLE**: the bug is specifically "The FlashInfer GDN kernel has a limitation with >4 spec
+  tokens." The live Genesis GPU Profile reports `flashinfer_gdn=False` (SM 8.6 lacks TMA/FP8/FP32_TC,
+  so Genesis disables the FlashInfer GDN kernel). We run the non-FlashInfer GDN path (Triton/
+  causal_conv1d), which does NOT carry the >4-spec-token OOB. The vulnerable `block_table_tensor[
+  spec_sequence_masks, :num_spec+1]` Python indexing is present in live gdn_attn.py, but `num_spec+1`=6
+  is << block_table.size(1) (max_blocks_per_seq), so the Python slice never OOBs; the OOB the PR fixes
+  is inside the FlashInfer kernel's consumption of that tensor, which we never reach.
+- **Multiconc profiles use K=3** (compose/prod-*-multiconc.yml:165-166 set num_speculative_tokens:3
+  explicitly — they do NOT inherit the model-YAML K=5). So even the concurrent profiles are <=4. The
+  K=5 change is single-stream-launcher-only (conc=1 → safe regardless).
+CONCLUSION: K=5 is safe under all concurrency for our SM 8.6 + non-FlashInfer-GDN stack. The win stands.
+Watchlist-noted #37052 (not-applicable, revisit ONLY if flashinfer_gdn ever flips True on newer HW).
+Other scan hits for the watchlist (lower priority, monitor): #45477 (mamba-block-aligned prefill chunks
++ spec decode — our PN388 area), #45953 (Dynamic SD + Full Cudagraph), #45144 (MTP+fp8KV+AITER SKV).
