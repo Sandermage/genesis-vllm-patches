@@ -94,7 +94,7 @@ def crypto_market_overview() -> dict[str, Any]:
 
     def _fng() -> dict[str, Any]:
         d = (_get_json(_FNG) or {}).get("data") or [{}]
-        return {"value": int(d[0].get("value")), "classification": d[0].get("value_classification")}
+        return {"value": int(d[0].get("value") or 0), "classification": d[0].get("value_classification")}
 
     def _derivs() -> dict[str, Any]:
         prem = _get_json(f"{_BINANCE_FUT}/fapi/v1/premiumIndex?symbol=BTCUSDT")
@@ -178,14 +178,19 @@ def market_grounding(query: str) -> str:
         coins = coin_data(",".join(syms)).get("coins") or []
     except Exception:  # noqa: BLE001 - grounding is best-effort
         return ""
+    def _money(v: Any) -> str:
+        # CoinGecko returns null mcap/volume for thin/new coins; f"{None:,}"
+        # raises TypeError and would drop the whole grounding block for that turn.
+        return f"${v:,}" if isinstance(v, (int, float)) else "n/a"
+
     rows = []
     for c in coins:
         if c.get("error") or c.get("price") is None:
             continue
         rows.append(
             f"{c['symbol']}: ${c.get('price')} (24h {c.get('change_24h_pct')}%, "
-            f"7d {c.get('change_7d_pct')}%, mcap ${c.get('mcap'):,}, "
-            f"vol ${c.get('volume_24h'):,}, rank #{c.get('rank')})")
+            f"7d {c.get('change_7d_pct')}%, mcap {_money(c.get('mcap'))}, "
+            f"vol {_money(c.get('volume_24h'))}, rank #{c.get('rank')})")
     if not rows:
         return ""
     return ("Live market data (CoinGecko, real-time — use these EXACT figures for "

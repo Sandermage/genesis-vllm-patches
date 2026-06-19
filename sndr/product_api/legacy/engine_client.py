@@ -438,6 +438,17 @@ def _iter_chat_events(raw_lines, *, started: float, clock=time.time):
     }
 
 
+def _num(value: Any, default: float) -> float:
+    """Coerce a sampling value to float, tolerating JSON null / blank / bad input.
+    The GUI sends ``temperature: null`` when a number field is cleared, and
+    ``float(None)`` raises TypeError mid-request. Preserves a legitimate ``0.0``
+    (unlike ``value or default``, which would turn greedy temperature=0 into 0.7)."""
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def stream_chat(payload: dict[str, Any], *, host: Optional[str] = None, port: Optional[int] = None, timeout: float = 120.0, api_key: Optional[str] = None):
     """Stream a chat completion from the engine, yielding ND-JSON lines.
 
@@ -456,7 +467,7 @@ def stream_chat(payload: dict[str, Any], *, host: Optional[str] = None, port: Op
         "model": payload.get("model") or "default",
         "messages": messages,
         "max_tokens": _clamp_tokens(payload.get("max_tokens", 256)),
-        "temperature": float(payload.get("temperature", 0.7)),
+        "temperature": _num(payload.get("temperature"), 0.7),
         "stream": True,
         "stream_options": {"include_usage": True},
     }
@@ -490,12 +501,20 @@ def engine_chat(
         "model": payload.get("model") or "default",
         "messages": messages,
         "max_tokens": _clamp_tokens(payload.get("max_tokens", 256)),
-        "temperature": float(payload.get("temperature", 0.7)),
+        "temperature": _num(payload.get("temperature"), 0.7),
         "stream": False,
     }
     _apply_sampling(body, payload)
     started = time.time()
-    status, text = _post_json(f"{eng['base_url']}/chat/completions", body, timeout=timeout, api_key=_resolve_api_key(api_key))
+    # urlopen raises HTTPError on 4xx/5xx, so the status<300 guard below is
+    # unreachable for engine rejections. Surface the engine's real error (e.g. a
+    # sampling param rejected after a pin bump, context overflow, template reject)
+    # as EngineError -> the route maps it to 502 with detail, instead of a
+    # misleading 503 "Engine unreachable".
+    try:
+        status, text = _post_json(f"{eng['base_url']}/chat/completions", body, timeout=timeout, api_key=_resolve_api_key(api_key))
+    except urllib.error.HTTPError as exc:
+        raise EngineError(_describe(exc))
     elapsed_ms = round((time.time() - started) * 1000)
     data = json.loads(text) if text else {}
     if not (200 <= status < 300):
@@ -541,13 +560,16 @@ def chat_raw(
         "model": model or "default",
         "messages": messages,
         "max_tokens": _clamp_tokens(max_tokens),
-        "temperature": float(temperature),
+        "temperature": _num(temperature, 0.2),
         "stream": False,
     }
     if tools:
         body["tools"] = tools
         body["tool_choice"] = "auto"
-    status, text = _post_json(f"{eng['base_url']}/chat/completions", body, timeout=timeout, api_key=_resolve_api_key(api_key))
+    try:
+        status, text = _post_json(f"{eng['base_url']}/chat/completions", body, timeout=timeout, api_key=_resolve_api_key(api_key))
+    except urllib.error.HTTPError as exc:
+        raise EngineError(_describe(exc))
     data = json.loads(text) if text else {}
     if not (200 <= status < 300):
         detail = data.get("error", {}).get("message") if isinstance(data.get("error"), dict) else text[:300]

@@ -122,3 +122,14 @@ def test_date_grounding_defaults_to_now():
     out = mt.date_grounding()
     assert out.startswith("Current date:")
     assert "UTC" in out
+
+
+def test_market_grounding_tolerates_null_mcap_volume(monkeypatch):
+    # CoinGecko returns null mcap/volume for thin/new coins; the formatter must
+    # not crash (f"{None:,}" -> TypeError), which previously dropped ALL grounding.
+    monkeypatch.setattr(mt, "coin_data", lambda s: {"coins": [
+        {"symbol": "WLD", "price": 0.01, "change_24h_pct": 1.0, "change_7d_pct": 2.0,
+         "mcap": None, "volume_24h": None, "rank": None}]})
+    g = mt.market_grounding("analyze WLD")
+    assert "WLD" in g and "0.01" in g          # row still produced
+    assert "n/a" in g                          # null money fields degrade gracefully

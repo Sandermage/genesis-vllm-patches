@@ -430,3 +430,30 @@ def test_apply_sampling_forwards_positive_top_k_only():
         b: dict = {}
         ec._apply_sampling(b, {"top_k": disabled})
         assert "top_k" not in b
+
+
+def test_num_coerces_null_temperature_preserving_zero():
+    """The GUI sends temperature: null when the field is cleared; float(None) used
+    to crash mid-request. _num tolerates it while preserving a real 0.0 (greedy)."""
+    assert ec._num(None, 0.7) == 0.7
+    assert ec._num("", 0.7) == 0.7
+    assert ec._num("x", 0.7) == 0.7
+    assert ec._num(0, 0.7) == 0.0          # greedy temperature=0 must survive
+    assert ec._num("0.3", 0.7) == 0.3
+
+
+def test_engine_chat_surfaces_http_error_as_engine_error(monkeypatch):
+    """A vLLM 4xx (e.g. a sampling param rejected after a pin bump) must surface as
+    EngineError with the real engine message (-> route 502 with detail), not be
+    swallowed into a misleading 503 'Engine unreachable'. Also exercises temperature: null."""
+    import io
+    import urllib.error
+
+    def _raise(*a, **k):
+        body = b'{"error": {"message": "unknown sampling param: foo"}}'
+        raise urllib.error.HTTPError("http://e:8102/v1/chat/completions", 400, "Bad Request", {}, io.BytesIO(body))
+
+    monkeypatch.setattr(ec, "_post_json", _raise)
+    with pytest.raises(ec.EngineError) as excinfo:
+        ec.engine_chat({"messages": [{"role": "user", "content": "hi"}], "temperature": None})
+    assert "unknown sampling param" in str(excinfo.value)
