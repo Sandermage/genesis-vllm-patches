@@ -2980,14 +2980,22 @@ def apply_patch_71_block_verify() -> PatchResult:
 
     Status: opt-in, default OFF. Not enabled in v7.42 prod env.
     """
+    # P71 + PN369 were consolidated into one wiring module on 2026-06-19
+    # (both patch v1/sample/rejection_sampler.py at disjoint regions). The
+    # consolidated apply() gates each feature by its own env flag (and
+    # replicates PN369's version gate) and is idempotent (shared marker), so
+    # the sibling PN369 dispatch below delegating to the same module re-runs
+    # as IDEMPOTENT — runtime-neutral.
     name = "P71 Block-verify rejection sampler (vllm#40819 + gemini bug-fixes)"
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from sndr.engines.vllm.patches.spec_decode import p71_block_verify
+        from sndr.engines.vllm.patches.spec_decode import (
+            p71_pn369_rejection_sampler_consolidated as _wiring,
+        )
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
-    status, reason = p71_block_verify.apply()
+    status, reason = _wiring.apply()
     if status == "applied":
         return _applied(name, reason)
     if status == "skipped":
@@ -5535,9 +5543,15 @@ def apply_patch_N369_relaxed_acceptance() -> PatchResult:
     and synthetic paths stay strict. BIASED — same trade class as P82;
     default OFF, opt-in via GENESIS_ENABLE_PN369_RELAXED_ACCEPTANCE=1.
     Runtime knobs: GENESIS_PN369_RELAXED_TOPK (default 4, clamp 1-32),
-    GENESIS_PN369_RELAXED_DELTA (default 0.2, clamp 0.0-1.0)."""
+    GENESIS_PN369_RELAXED_DELTA (default 0.2, clamp 0.0-1.0).
+
+    Consolidated 2026-06-19 with P71 into one wiring module (same engine
+    file rejection_sampler.py, disjoint regions). Delegates to the shared
+    apply() which gates each feature by its own flag (and replicates PN369's
+    version gate) and is idempotent — if the P71 dispatch already ran the
+    consolidated apply(), this re-run reports IDEMPOTENT. Runtime-neutral."""
     from sndr.engines.vllm.patches.spec_decode import (
-        pn369_relaxed_acceptance as _wiring,
+        p71_pn369_rejection_sampler_consolidated as _wiring,
     )
     status, detail = _wiring.apply()
     if status == "applied":

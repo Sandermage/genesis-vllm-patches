@@ -13,6 +13,12 @@ from __future__ import annotations
 __all__ = [
     "p70_auto_strict_ngram",
     "p71_block_verify",
+    # P71 + PN369 consolidated into one module 2026-06-19 (both patch the same
+    # engine file v1/sample/rejection_sampler.py at disjoint regions). The
+    # P71 registry entry's apply_module points here; pn369_relaxed_acceptance
+    # is retained as a re-export shim (its runtime env readers are imported by
+    # block_verify_sampler.py).
+    "p71_pn369_rejection_sampler_consolidated",
     "p75_suffix_decoding_enable",
     "p77_adaptive_ngram_k",
     "p82_sglang_acceptance_threshold",

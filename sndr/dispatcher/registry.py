@@ -685,23 +685,44 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "implementation_status": "full",
     },
     "P71": {
-        "title": "Block-verify rejection sampler (Sun 2024 ICLR)",
+        "title": "Block-verify rejection sampler (Sun 2024 ICLR) + PN369 relaxed acceptance",
         "tier": "community",
         "family": "spec_decode",
         "env_flag": "GENESIS_ENABLE_P71_BLOCK_VERIFY",
+        # 2026-06-19: PN369 (relaxed acceptance) was consolidated INTO this
+        # entry — both text-patch v1/sample/rejection_sampler.py at disjoint
+        # regions (P71 ~:471 block-verify branch; PN369 ~:489-506 kernel
+        # signature + OR-compose body + launch-site mask). One apply_module
+        # (p71_pn369_rejection_sampler_consolidated) carries all four sub-
+        # patches; each feature is independently gated by its own env flag
+        # inside apply() so the applied kernel-code bytes are byte-identical
+        # to P71+PN369 applied separately. PN369's enable flag is retained as
+        # an env_flag_alias below so its existing YAML opt-in still engages
+        # the merged module. NOTE: PN369 carried vllm_version_range
+        # (>=0.22.0,<0.24.0); this entry has none, so the consolidated
+        # apply() replicates PN369's version gate internally (the dispatcher
+        # version-only gate fires before env-override and is LIVE on the rig
+        # via GENESIS_ENFORCE_VERSION_RANGE=1).
+        "env_flag_aliases": ["GENESIS_ENABLE_PN369_RELAXED_ACCEPTANCE"],
         "default_on": False,
         "category": "spec_decode",
-        "credit": "Backport of vllm#40819 (Z. Golpayegani draft) + Sun et al. arXiv 2403.10444 + 2 critical fixes from gemini-code-assist review (shared u per request, denom==0 → 1.0)",
+        "credit": "Backport of vllm#40819 (Z. Golpayegani draft) + Sun et al. arXiv 2403.10444 + 2 critical fixes from gemini-code-assist review (shared u per request, denom==0 → 1.0). Consolidated 2026-06-19 with PN369 relaxed acceptance (Genesis-original, TRT-LLM-style top-K + delta window; opt-in, BIASED rule; the P71 block-verify path tail-extends the Sun-2024 accepted length while the relaxed window holds).",
         "upstream_pr": 40819,
         "upstream_pr_relationship": "backport",
-        "apply_module": "sndr.engines.vllm.patches.spec_decode.p71_block_verify",
+        "apply_module": "sndr.engines.vllm.patches.spec_decode.p71_pn369_rejection_sampler_consolidated",
         "lifecycle": "experimental",
         "implementation_status": "full",
         # drift D1 (2026-06-15): P71's block-verify branch references the dense
         # target_probs buffer that PN390 removes (rejection_sampler.py:518/525)
         # -> latent NameError if both fire under probabilistic draft. Symmetric
         # to PN390.conflicts_with. Dormant on PROD (greedy draft gates it off).
+        # PN369 shared the SAME PN390 conflict (it reads the same full-vocab
+        # target_probs local), so the merge is symmetric — no new conflict.
         "conflicts_with": ["PN390"],
+        # Merged from PN369.composes_with (deduped; P71-self dropped). P82
+        # (per-token threshold), PN90 (probabilistic draft), PN361 (fail-
+        # closed missing probs).
+        "composes_with": ["P82", "PN90", "PN361"],
     },
     "P74": {
         "title": "Auto chunk-clamp via long_prefill_token_threshold (P72 companion)",
@@ -3016,20 +3037,22 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "upstream_pr_relationship": "backport",
         "requires_patches": [],
         # PN390 rewrites the rejection sampler to drop the full-vocab
-        # target_probs local that PN369 reads (compute_relaxed_ok_mask). With
-        # both enabled PN369 silently degrades (its read is try/except-guarded
-        # so it does not crash, but the relaxed-acceptance path goes dark and
-        # floods per-decode-step warnings). They do NOT compose — corrected
-        # from a wrong composes_with. Caught by deep-audit 2026-06-14.
+        # target_probs local that the relaxed-acceptance mask reads
+        # (compute_relaxed_ok_mask). With both enabled the relaxed path
+        # silently degrades (its read is try/except-guarded so it does not
+        # crash, but goes dark and floods per-decode-step warnings). They do
+        # NOT compose. Caught by deep-audit 2026-06-14.
         # drift D1 (deep-audit 2026-06-14): P71 moved composes->conflicts. PN390
         # rewrites rejection_sample to drop the dense [num_tokens,vocab]
         # target_probs buffer (computes only target_lse), but the P71
         # block-verify branch (rejection_sampler.py:518/525) still references
         # target_probs — a latent NameError, dormant ONLY because PROD runs
-        # greedy draft (draft_probs is None gates the branch off). P71 is the
-        # PN369 carrier (imports compute_relaxed_ok_mask), and PN369 is already
-        # declared a PN390 conflict — so P71 conflicts for the same reason.
-        "conflicts_with": ["PN369", "P71"],
+        # greedy draft (draft_probs is None gates the branch off).
+        # 2026-06-19: PN369 was consolidated into the P71 entry (the merged
+        # apply_module carries the PN369 relaxed-mask read). The old
+        # ["PN369", "P71"] pair collapses to ["P71"] — PN369 is no longer a
+        # registry id, and the single P71 conflict now covers both reasons.
+        "conflicts_with": ["P71"],
         "composes_with": ["PN378", "PN90", "P82"],
         "applies_to": {"vllm_version_range": (">=0.22.0", "<0.24.0")},
         "vllm_version_range": (">=0.22.0", "<0.24.0"),
@@ -5474,70 +5497,6 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "conflicts_with": ["P23_WIRE"],
         "composes_with": ["P37", "PN96b", "PN352", "P24"],
     },
-    "PN369": {
-        "title": "Relaxed acceptance for MTP spec-decode (TRT-LLM-style top-K + delta window, BIASED — opt-in research)",
-        "tier": "community",
-        "family": "spec_decode",
-        "env_flag": "GENESIS_ENABLE_PN369_RELAXED_ACCEPTANCE",
-        "default_on": False,
-        "apply_module": "sndr.engines.vllm.patches.spec_decode.pn369_relaxed_acceptance",
-        "lifecycle": "research",
-        "category": "spec_decode",
-        "credit": (
-            "Genesis-original 2026-06-10, algorithm adapted from "
-            "TensorRT-LLM relaxed acceptance (NVIDIA). Accept a draft "
-            "token the strict ratio test rejects IF it is in the "
-            "target's top-K AND within delta of the top-1 probability. "
-            "Targets the accept-rate-bound decode on flat distributions "
-            "(creative prose ~0.72 accept / 191 TPS vs math ~0.79 / 253 "
-            "TPS on 35B PROD). Mask computed torch-side from POST-"
-            "temperature post-top-k/p target_probs (TRT's 10/0.6 "
-            "defaults do NOT transfer; ours: topk=4, delta=0.2, runtime-"
-            "tuned via GENESIS_PN369_RELAXED_TOPK / _DELTA, clamped "
-            "1-32 / 0.0-1.0, read once per process). Two accept paths "
-            "patched: (1) upstream per-token random kernel — OR-compose "
-            "before the `if accepted:` site (three-OR-clause stack with "
-            "P82: strict OR P82-threshold OR PN369-window; strict "
-            "superset of accepts); (2) P71 block-verify — TAIL EXTENSION "
-            "after the Sun-2024 block rule fixes accepted_len, walked "
-            "while relaxed_ok holds; recovered token at the NEW first-"
-            "rejected position, bonus on full extension (both reuse "
-            "precomputed buffers — no structural change). GREEDY (temp=0) "
-            "stays STRICT (exact-argmax; tool-call/agentic structural "
-            "safety). Synthetic mode untouched. ngram (NO_DRAFT_PROBS) "
-            "supported (mask depends only on target_probs). Verified at "
-            "pin g303916e93 (0.22.1rc1.dev259, live container "
-            "2026-06-10): all 3 anchors count=1 on pristine AND on the "
-            "P82+P71-patched live file (disjoint regions, apply-order "
-            "independent); all 4 upstream relaxed-acceptance PRs closed "
-            "unmerged as of 2026-06-10 (drift markers: relaxed_topk / "
-            "use_relaxed_acceptance / relax_ratio + #41258 lazy-recovery "
-            "markers). PROD finding during implementation: the P71 "
-            "branch never fired on PROD (draft_sample_method defaults to "
-            "'greedy' -> draft_probs None) AND the kernel A4 "
-            "precondition was unsatisfiable (required len(cu)==B+1 vs "
-            "upstream's [B] cumsum) — fixed in block_verify_sampler.py "
-            "v7.43. BIASED rule (same trade class as P82): promotion "
-            "requires quality harness + canonical bench A/B over the "
-            "topk x delta grid."
-        ),
-        "upstream_pr": None,
-        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.24.0")},
-        "implementation_status": "full",
-        # PN390 deletes the full-vocab target_probs local this patch reads —
-        # mutually exclusive (see PN390.conflicts_with, deep-audit 2026-06-14).
-        "conflicts_with": ["PN390"],
-        "composes_with": ["P82", "P71", "PN90", "PN361"],
-        "research_note": (
-            "BIASED rule — deliberately breaks distribution-exactness "
-            "for speed on flat distributions. Default OFF. A/B matrix "
-            "for the operator: topk in {2, 4, 8} x delta in {0.1, 0.2, "
-            "0.4} starting at (4, 0.2); delta=0.0 is the near-strict "
-            "degenerate (window passes only ties with top-1). Promote "
-            "only with quality harness >= baseline AND canonical bench "
-            "TPS win on creative-prose workload."
-        ),
-    },
     "PN365": {
         "title": "Fused GDN qkv|z|b|a single-GEMM input projection (port of OPEN vllm#42746)",
         "tier": "community",
@@ -7630,15 +7589,32 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "PN353A", "PN353B", "P98", "P99", "P101", "PN119", "P67", "P67b",
         ],
         "conflicts_with": [],
-        "requires_patches": ["PN118", "PN353A"],  # PN399 anchors the LIVE
-                                        # PN118-applied __init__ box / decode
-                                        # head AND the PN353A-applied reserve
-                                        # block, so BOTH must apply first
-                                        # (registry index > PN118 @7444 and
-                                        # PN353A @5640; insertion-order apply
-                                        # runs them first). With either off the
-                                        # dependent sub-patches SKIP cleanly
-                                        # and the IMA defense is off too.
+        "requires_patches": ["PN118", "PN353A", "P101"],
+                                        # PN399 anchors the LIVE PN118-applied
+                                        # __init__ box / decode head AND the
+                                        # PN353A-applied reserve block, so BOTH
+                                        # must apply first (registry index >
+                                        # PN118 and PN353A; insertion-order
+                                        # apply runs them first). With either
+                                        # off the dependent sub-patches SKIP
+                                        # cleanly and the IMA defense is off.
+                                        #
+                                        # 2026-06-19 (dependency audit): P101
+                                        # added — PN399's const sub-patch
+                                        # anchors the LIVE P101-APPLIED output
+                                        # `_CONTINUATION_DECODE_THRESHOLD = 64`
+                                        # +`_CONTINUATION_DECODE_MAX_CACHED_LEN
+                                        # = 32768` (pristine has `= 128` and no
+                                        # MAX_CACHED_LEN — confirmed against
+                                        # the dev148 pristine tree). With P101
+                                        # OFF that anchor is absent and the
+                                        # const sub-patch skips. P101 is
+                                        # default_on=False but co-enabled on
+                                        # 35B PROD (GENESIS_ENABLE_P101=1 in the
+                                        # live YAML), same situation as PN353A
+                                        # — so requires (not just composes) is
+                                        # correct: it mirrors the existing
+                                        # anchors-the-LIVE-applied-output edges.
     },
     "PN118_V2_MD5_WORKSPACE": {
         "title": "PN118 v2 — md5+full-file PoC (PN119 reference pattern, workspace.py scope only)",
@@ -10292,20 +10268,24 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "DEFENSE-IN-DEPTH: the pin's consumer fix #35654 already "
             "sizes the draft expansion by len(num_draft_tokens) so no "
             "in-tree consumer trips today; PN381 populates once at the "
-            "PRODUCER so every present/future consumer (PN369/P71 "
+            "PRODUCER so every present/future consumer (the P71+PN369 "
             "rewritten rejection-sampler paths) inherits row-"
             "consistency. Zero perf either way (NULL on the entire "
             "Genesis PROD workload, which never sets allowed_token_ids). "
             "Genesis emits the parenthesized clause so the PR's "
             "unparenthesized form is the drift marker. Same playbook as "
             "retired PN67 (#41674), one clause further. Composes with "
-            "PN369 / P71 (rejection_sampler.py — different file)."
+            "P71 (rejection_sampler.py — different file; PN369 was "
+            "consolidated into the P71 entry 2026-06-19)."
         ),
         "upstream_pr": 44742,
         "upstream_pr_relationship": "backport",
         "requires_patches": [],
         "conflicts_with": [],
-        "composes_with": ["PN369", "P71"],
+        # 2026-06-19: PN369 consolidated into the P71 entry; the pair
+        # ["PN369", "P71"] collapses to ["P71"] (same rejection_sampler.py
+        # consumer paths, now one registry id).
+        "composes_with": ["P71"],
         "applies_to": {"vllm_version_range": (">=0.22.0", "<0.24.0")},
         "vllm_version_range": (">=0.22.0", "<0.24.0"),
     },

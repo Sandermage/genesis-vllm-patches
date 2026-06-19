@@ -4,23 +4,23 @@
 > Source of truth: `sndr/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-06-19T17:28:24Z
-Total entries: **318**
+Generated: 2026-06-19T20:22:32Z
+Total entries: **317**
 
 ## Statistics
 
 ### By tier
-- `tier=community`: **318**
+- `tier=community`: **317**
 
 ### By lifecycle
 - `lifecycle=coordinator`: **4**
 - `lifecycle=experimental`: **234**
 - `lifecycle=legacy`: **28**
-- `lifecycle=research`: **4**
+- `lifecycle=research`: **3**
 - `lifecycle=retired`: **34**
 - `lifecycle=stable`: **14**
 
-### Default-on at boot: **55** / 318
+### Default-on at boot: **55** / 317
 
 ### By family
 - `attention`: 1
@@ -46,7 +46,7 @@ Total entries: **318**
 - `reasoning`: 9
 - `scheduler`: 9
 - `serving`: 14
-- `spec_decode`: 48
+- `spec_decode`: 47
 - `streaming`: 4
 - `tool_parsing`: 14
 - `worker`: 15
@@ -405,12 +405,12 @@ Total entries: **318**
 | **PN387** | `community` | `experimental` | · | `GENESIS_ENABLE_PN387_REJECT_DEGENERATE_STRUCTURED_OUTPUTS` | [#45346](https://github.com/vllm-project/vllm/pull/45346) | Reject degenerate structured_outputs (DoS guard, vendor of vllm#45346) |
 | **PN389** | `community` | `experimental` | · | `GENESIS_ENABLE_PN389_GRAMMAR_TIMEOUTS` | [#45390](https://github.com/vllm-project/vllm/pull/45390) | XGrammar input-validation + grammar-compilation timeouts (vendor of vllm#45390) |
 
-### `spec_decode` (48)
+### `spec_decode` (47)
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
 | **P70** | `community` | `experimental` | · | `GENESIS_ENABLE_P70_AUTO_STRICT_NGRAM` | — | Auto-strict-ngram (force prompt_lookup_min>=8) |
-| **P71** | `community` | `experimental` | · | `GENESIS_ENABLE_P71_BLOCK_VERIFY` | [#40819](https://github.com/vllm-project/vllm/pull/40819) | Block-verify rejection sampler (Sun 2024 ICLR) |
+| **P71** | `community` | `experimental` | · | `GENESIS_ENABLE_P71_BLOCK_VERIFY` | [#40819](https://github.com/vllm-project/vllm/pull/40819) | Block-verify rejection sampler (Sun 2024 ICLR) + PN369 relaxed acceptance |
 | **P75** | `community` | `experimental` | · | `GENESIS_ENABLE_P75_SUFFIX_DECODING` | [#25784](https://github.com/vllm-project/vllm/pull/25784) | Auto-enable Suffix Decoding (Arctic Inference, vllm#25784) |
 | **P77** | `community` | `experimental` | · | `GENESIS_ENABLE_P77_ADAPTIVE_NGRAM_K` | — | Adaptive ngram K controller (EMA + hysteresis + auto-disable) |
 | **P82** | `community` | `research` | · | `GENESIS_ENABLE_P82` | — | SGLang threshold_single OR-clause acceptance (BIASED — opt-in research) |
@@ -437,7 +437,6 @@ Total entries: **318**
 | **PN357** | `community` | `experimental` | · | `GENESIS_ENABLE_PN357` | [#43349](https://github.com/vllm-project/vllm/pull/43349) | Optimize remapped greedy draft token selection (vendor of OPEN vllm#43349) |
 | **PN361** | `community` | `experimental` | · | `GENESIS_ENABLE_PN361` | [#44869](https://github.com/vllm-project/vllm/pull/44869) | Spec-decode fail-closed on missing draft probs (vendor of OPEN vllm#44869) |
 | **PN363** | `community` | `experimental` | · | `GENESIS_ENABLE_PN363` | [#43114](https://github.com/vllm-project/vllm/pull/43114) | force_max_spec_tokens for suffix decoding — FULL CG dispatch (vendor of OPEN ... |
-| **PN369** | `community` | `research` | · | `GENESIS_ENABLE_PN369_RELAXED_ACCEPTANCE` | — | Relaxed acceptance for MTP spec-decode (TRT-LLM-style top-K + delta window, B... |
 | **PN370** | `community` | `experimental` | · | `GENESIS_ENABLE_PN370_ASYNC_ACCEPT_RACE` | [#45100](https://github.com/vllm-project/vllm/pull/45100) | Async spec-decode accepted-counts race fix (vendor of OPEN vllm#45100) |
 | **PN372** | `community` | `experimental` | · | `GENESIS_ENABLE_PN372_EAGLE_ZERO_SEQLEN_GUARD` | [#45005](https://github.com/vllm-project/vllm/pull/45005) | eagle_step zero/negative-seqlen slot-mapping guard (vendor of OPEN vllm#45005) |
 | **PN378** | `community` | `experimental` | · | `GENESIS_ENABLE_PN378_VOCAB_PAD_MASK` | [#45060](https://github.com/vllm-project/vllm/pull/45060) | Recovered-token vocab-pad -inf mask (vendor of vllm#45060, kernel half) |

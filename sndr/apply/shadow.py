@@ -345,6 +345,14 @@ _LEGACY_NAME_TO_PATCH_ID: dict[str, str] = {
     # would lift "PN29" (no longer a spec id), so map it explicitly to the
     # merged PN298 spec — keeps shadow's legacy_only / spec_only clean.
     "PN29 GDN chunk_o scale-fold (vllm#41446 pattern (c) backport)": "PN298",
+    # 2026-06-19: PN369 was consolidated into the P71 registry entry (both
+    # patch rejection_sampler.py at disjoint regions; one apply_module
+    # p71_pn369_rejection_sampler_consolidated). The legacy boot-log keeps a
+    # "PN369 ..." @register_patch label for operator continuity; the
+    # leading-token regex would lift "PN369" (no longer a spec id), so map it
+    # explicitly to the merged P71 spec — keeps shadow's legacy_only /
+    # spec_only clean.
+    "PN369 Relaxed acceptance for MTP spec-decode (TRT-LLM-style top-K + delta window)": "P71",
 }
 
 

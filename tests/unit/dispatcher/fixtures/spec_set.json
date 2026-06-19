@@ -321,7 +321,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "sndr.engines.vllm.patches.spec_decode.p71_block_verify"
+    "apply_module": "sndr.engines.vllm.patches.spec_decode.p71_pn369_rejection_sampler_consolidated"
   },
   {
     "patch_id": "P74",
@@ -1678,18 +1678,6 @@
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
     "apply_module": "sndr.engines.vllm.patches.moe.pn368_marlin_moe_atomic_add_wire"
-  },
-  {
-    "patch_id": "PN369",
-    "family": "spec_decode",
-    "lifecycle": "research",
-    "tier": "community",
-    "default_on": false,
-    "env_flag": "GENESIS_ENABLE_PN369_RELAXED_ACCEPTANCE",
-    "has_upstream_pr": false,
-    "upstream_pr_relationship": "backport",
-    "has_apply_module": true,
-    "apply_module": "sndr.engines.vllm.patches.spec_decode.pn369_relaxed_acceptance"
   },
   {
     "patch_id": "PN365",

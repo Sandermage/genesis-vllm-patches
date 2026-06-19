@@ -169,13 +169,23 @@ def test_no_baked_values_in_replacements():
 
 
 def test_apply_skipped_when_env_unset(monkeypatch):
-    monkeypatch.delenv("GENESIS_ENABLE_PN369_RELAXED_ACCEPTANCE", raising=False)
-    monkeypatch.delenv("SNDR_ENABLE_PN369_RELAXED_ACCEPTANCE", raising=False)
+    # apply() delegates to the consolidated P71+PN369 module since 2026-06-19;
+    # with BOTH features' enable flags unset the consolidated apply() skips.
+    for f in (
+        "GENESIS_ENABLE_PN369_RELAXED_ACCEPTANCE",
+        "SNDR_ENABLE_PN369_RELAXED_ACCEPTANCE",
+        "GENESIS_ENABLE_P71_BLOCK_VERIFY",
+        "SNDR_ENABLE_P71_BLOCK_VERIFY",
+    ):
+        monkeypatch.delenv(f, raising=False)
     status, reason = apply()
     assert status == "skipped", f"expected skip, got {status}: {reason}"
 
 
 def test_apply_skipped_when_env_zero(monkeypatch):
+    # Consolidated apply() needs BOTH features off to skip; P71 stays unset.
+    monkeypatch.delenv("GENESIS_ENABLE_P71_BLOCK_VERIFY", raising=False)
+    monkeypatch.delenv("SNDR_ENABLE_P71_BLOCK_VERIFY", raising=False)
     monkeypatch.setenv("GENESIS_ENABLE_PN369_RELAXED_ACCEPTANCE", "0")
     status, reason = apply()
     assert status == "skipped", f"expected skip, got {status}: {reason}"
@@ -203,15 +213,22 @@ def test_p71_wiring_threads_relaxed_ok():
 # ─── registry / Flags consistency ───────────────────────────────────────
 
 
-def test_registry_entry_consistency():
+def test_registry_entry_consolidated_into_p71():
+    """2026-06-19: PN369 was consolidated INTO the P71 registry entry (both
+    text-patch rejection_sampler.py at disjoint regions). PN369 is no longer
+    a standalone registry id; its enable flag is retained as an
+    env_flag_alias on P71, and P71's apply_module points at the consolidated
+    wiring module."""
     from sndr.dispatcher import PATCH_REGISTRY
-    meta = PATCH_REGISTRY["PN369"]
+    assert "PN369" not in PATCH_REGISTRY
+    meta = PATCH_REGISTRY["P71"]
     assert meta["family"] == "spec_decode"
-    assert meta["env_flag"] == "GENESIS_ENABLE_PN369_RELAXED_ACCEPTANCE"
+    assert meta["env_flag"] == "GENESIS_ENABLE_P71_BLOCK_VERIFY"
+    assert "GENESIS_ENABLE_PN369_RELAXED_ACCEPTANCE" in meta["env_flag_aliases"]
     assert meta["default_on"] is False
-    assert meta["upstream_pr"] is None  # Genesis-original
     assert meta["apply_module"] == (
-        "sndr.engines.vllm.patches.spec_decode.pn369_relaxed_acceptance"
+        "sndr.engines.vllm.patches.spec_decode."
+        "p71_pn369_rejection_sampler_consolidated"
     )
 
 

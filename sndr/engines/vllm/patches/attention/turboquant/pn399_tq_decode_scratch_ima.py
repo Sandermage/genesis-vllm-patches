@@ -117,6 +117,10 @@ _SHUTDOWN_RELPATH = "v1/worker/gpu/shutdown.py"
 # has `= 64` (P101) PLUS a sibling `_CONTINUATION_DECODE_MAX_CACHED_LEN
 # = 32768` immediately after (no blank between). Anchoring both lands the
 # insert after the real last module constant, not mid-block.
+# DEPENDENCY (registry requires_patches=[..., "P101"]): this anchor IS
+# P101's APPLIED output — pristine has `= 128` and NO MAX_CACHED_LEN, so
+# with P101 off this const sub-patch skips. Same anchors-the-LIVE-applied-
+# output edge as the PN118/PN353A requirements below.
 TQ_ANCHOR_CONST_OLD = (
     "_CONTINUATION_DECODE_THRESHOLD = 64\n"
     "_CONTINUATION_DECODE_MAX_CACHED_LEN = 32768\n"

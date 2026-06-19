@@ -97,6 +97,12 @@ _COMBINED_LEGACY_TOKEN_TO_SPEC_ID: dict[str, str] = {
     # boot-log still keeps a "PN29 ..." @register_patch label for operator
     # continuity; it maps to the merged PN298 spec — covered by both paths.
     "PN29":    "PN298",
+    # 2026-06-19: PN369 was consolidated into the P71 registry entry (both
+    # patch rejection_sampler.py at disjoint regions; one apply_module). The
+    # legacy boot-log still keeps a "PN369 ..." @register_patch label for
+    # operator continuity; it maps to the merged P71 spec — covered by both
+    # paths.
+    "PN369":   "P71",
 }
 
 

@@ -129,6 +129,17 @@ def test_default_order_baseline_violations():
         ("PN299C", "PN296"),
         ("PN299D", "PN296"),
         ("PN299E", "PN296"),
+        # 2026-06-19 (PN399 dependency audit): PN399 gained
+        # requires_patches=['P101'] — its const sub-patch anchors P101's
+        # APPLIED output (`_CONTINUATION_DECODE_THRESHOLD = 64` +
+        # `_CONTINUATION_DECODE_MAX_CACHED_LEN = 32768`; pristine has `= 128`
+        # and no MAX_CACHED_LEN), so P101 must dispatch first. PN399 sits at
+        # insertion index before P101 (P101 is in the TQ section far below),
+        # so this is an insertion-order violation the topo_sort path resolves
+        # at SNDR_TOPO_SORT_SPECS=1. Live boot order is owned by
+        # _per_patch_dispatch (P101 applies before PN399 there). Same class
+        # as PN388->P34 / PN71->P27 above.
+        ("PN399", "P101"),
     }
     actual = {(pid, req) for pid, req, _, _ in violations}
     new_violations = sorted(actual - baseline)
