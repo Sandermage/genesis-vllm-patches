@@ -200,6 +200,29 @@ def _resolve_engine_key(explicit: Optional[str], eng: dict[str, str]) -> Optiona
     return _resolve_api_key(explicit) or _discover_local_engine_key(eng)
 
 
+_SERVED_MODEL_CACHE: dict[int, Optional[str]] = {}
+
+
+def _served_model(eng: dict[str, str], api_key: Optional[str]) -> Optional[str]:
+    """The engine's first served model id. A chat with no explicit model otherwise
+    sends the literal ``default``, which a renamed/relaunched engine 404s. Cached
+    per port; best-effort (None on any failure → caller keeps ``default``)."""
+    port = _engine_port_from_base_url(eng.get("base_url", "")) or 0
+    cached = _SERVED_MODEL_CACHE.get(port, _CACHE_MISS)
+    if cached is not _CACHE_MISS:
+        return cached
+    name: Optional[str] = None
+    try:
+        status, text = _get(f"{eng['base_url']}/models", timeout=4.0, api_key=api_key)
+        if 200 <= status < 300:
+            data = (json.loads(text) or {}).get("data") or []
+            name = next((m.get("id") for m in data if isinstance(m, dict) and m.get("id")), None)
+    except Exception:  # noqa: BLE001 - best-effort; caller falls back to "default"
+        name = None
+    _SERVED_MODEL_CACHE[port] = name
+    return name
+
+
 def resolve_engine(host: Optional[str] = None, port: Optional[int] = None) -> dict[str, str]:
     """Resolve the engine's base/metrics URLs. An explicit ``port`` wins (so the
     GUI chat can target any engine, e.g. 8101/8102); otherwise operator env, then
@@ -587,7 +610,7 @@ def stream_chat(payload: dict[str, Any], *, host: Optional[str] = None, port: Op
         raise ValueError("messages must be a non-empty list")
     messages = _coalesce_system(messages)
     body = {
-        "model": payload.get("model") or "default",
+        "model": payload.get("model") or _served_model(eng, _resolve_engine_key(api_key, eng)) or "default",
         "messages": messages,
         "max_tokens": _clamp_tokens(payload.get("max_tokens", 256)),
         "temperature": _num(payload.get("temperature"), 0.7),
@@ -621,7 +644,7 @@ def engine_chat(
         raise ValueError("messages must be a non-empty list")
     messages = _coalesce_system(messages)
     body = {
-        "model": payload.get("model") or "default",
+        "model": payload.get("model") or _served_model(eng, _resolve_engine_key(api_key, eng)) or "default",
         "messages": messages,
         "max_tokens": _clamp_tokens(payload.get("max_tokens", 256)),
         "temperature": _num(payload.get("temperature"), 0.7),

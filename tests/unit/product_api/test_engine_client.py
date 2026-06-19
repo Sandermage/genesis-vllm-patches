@@ -571,3 +571,20 @@ def test_discover_reads_key_from_entrypoint_launcher_script(monkeypatch):
     monkeypatch.setattr(container_ops, "SocketContainerControl", _CtlScript)
     eng = {"host": "127.0.0.1", "base_url": "http://127.0.0.1:8102/v1"}
     assert ec._discover_local_engine_key(eng) == "sk-from-script"
+
+
+def test_served_model_falls_back_to_engine_model(monkeypatch):
+    """A chat with no model must target the engine's real served model, not the
+    literal 'default' that a renamed engine 404s."""
+    ec._SERVED_MODEL_CACHE.clear()
+
+    def _fake_get(url, timeout=3.0, api_key=None):
+        assert url.endswith("/models")
+        return 200, '{"data": [{"id": "qwen3.6-35b-a3b"}]}'
+
+    monkeypatch.setattr(ec, "_get", _fake_get)
+    eng = {"host": "127.0.0.1", "base_url": "http://127.0.0.1:8102/v1"}
+    assert ec._served_model(eng, "k") == "qwen3.6-35b-a3b"
+    # cached per port — the second call must not hit the engine again
+    monkeypatch.setattr(ec, "_get", lambda *a, **k: (_ for _ in ()).throw(AssertionError("should be cached")))
+    assert ec._served_model(eng, "k") == "qwen3.6-35b-a3b"
