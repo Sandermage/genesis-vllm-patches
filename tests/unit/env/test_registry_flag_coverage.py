@@ -50,13 +50,22 @@ def _strip_prefix(flag: str) -> str:
 
 @pytest.fixture(scope="module")
 def registry_env_flags() -> set[str]:
-    """All env_flag values from PATCH_REGISTRY (with prefix stripped)."""
+    """All env_flag values from PATCH_REGISTRY (with prefix stripped).
+
+    Includes `env_flag_aliases` (2026-06-19): when two patches that share
+    one engine file are consolidated into one registry entry, the absorbed
+    patch's env flag is retained on the merged entry as a recognized alias
+    so existing builtin YAMLs keep working AND the absorbed flag's `Flags`
+    constant stays 1:1-covered (not an orphan). See PN298 (absorbed PN29).
+    """
     from sndr.dispatcher.registry import PATCH_REGISTRY
     flags: set[str] = set()
     for meta in PATCH_REGISTRY.values():
         flag = meta.get("env_flag")
         if flag:
             flags.add(_strip_prefix(flag))
+        for alias in meta.get("env_flag_aliases", ()) or ():
+            flags.add(_strip_prefix(alias))
     return flags
 
 

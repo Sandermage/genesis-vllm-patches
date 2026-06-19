@@ -338,6 +338,13 @@ _LEGACY_NAME_TO_PATCH_ID: dict[str, str] = {
     # hook to its registry key (otherwise it shows as legacy_unparseable +
     # spec_only_unexpected in `shadow --strict`).
     "PN-FP8MOE-KPAD FP8 MoE intermediate thread-tile pad (FP8-core backport of OPEN vllm#45703)": "PN-FP8MOE-KPAD",
+    # 2026-06-19: PN29 was consolidated into the PN298 registry entry (both
+    # patch chunk_o.py at disjoint regions; one apply_module
+    # pn29_pn298_chunk_o_consolidated). The legacy boot-log keeps a "PN29 ..."
+    # @register_patch label for operator continuity; the leading-token regex
+    # would lift "PN29" (no longer a spec id), so map it explicitly to the
+    # merged PN298 spec — keeps shadow's legacy_only / spec_only clean.
+    "PN29 GDN chunk_o scale-fold (vllm#41446 pattern (c) backport)": "PN298",
 }
 
 

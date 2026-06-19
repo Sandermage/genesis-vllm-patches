@@ -92,6 +92,11 @@ _COMBINED_LEGACY_TOKEN_TO_SPEC_ID: dict[str, str] = {
     "P17/P18": "P17",  # Marlin MoE per-SM block_size_m tuning
     "P32/P33": "P32",  # TurboQuant cu_2 + synth_seq_lens preallocs
     "P68/P69": "P68",  # long-context tool-call adherence bundle (P69 has own spec)
+    # 2026-06-19: PN29 was consolidated into the PN298 registry entry (both
+    # patch chunk_o.py at disjoint regions; one apply_module). The legacy
+    # boot-log still keeps a "PN29 ..." @register_patch label for operator
+    # continuity; it maps to the merged PN298 spec — covered by both paths.
+    "PN29":    "PN298",
 }
 
 

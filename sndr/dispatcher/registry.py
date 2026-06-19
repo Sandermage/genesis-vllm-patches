@@ -4209,37 +4209,18 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "lifecycle": "experimental",
         "implementation_status": "full",
     },
-    "PN29": {
-        "title": "GDN chunk_o scale-fold (vllm#41446 pattern (c))",
-        "tier": "community",
-        "family": "attention.gdn",
-        "env_flag": "GENESIS_ENABLE_PN29_GDN_SCALE_FOLD",
-        "default_on": False,
-        "category": "perf_hotfix",
-        "credit": (
-            "Backport of vllm#41446 (zobinHuang, OPEN) pattern (c) only. "
-            "Folds scale multiply in `chunk_fwd_kernel_o`: "
-            "`b_o = (b_o + tl.dot(b_A, b_v)) * scale` instead of "
-            "`b_o = b_o * scale + tl.dot(b_A, b_v) * scale`. "
-            "One fewer fp32 multiply per inner iter. Distributive on "
-            "fp32 accumulators (drift bounded by 1-2 ULP per element). "
-            "Triton compiler does NOT auto-fuse across the +/- boundary, "
-            "so explicit fold = guaranteed save. Hardware-agnostic; "
-            "PR is MI300X-targeted but pattern (c) is NVIDIA-Triton "
-            "compatible. Genesis-applicable: hybrid GDN models "
-            "(Qwen3.5/3.6 27B); no-op on Qwen3MoE 35B."
-        ),
-        "upstream_pr": 41446,
-        "upstream_pr_relationship": "backport",
-        "applies_to": {
-            # Triggers in any model using FLA chunk_fwd_kernel_o (hybrid
-            # GDN). On Qwen3MoE without GDN, the kernel never fires →
-            # patch is silently no-op even if env enabled.
-        },
-        "apply_module": "sndr.engines.vllm.patches.attention.gdn.pn29_gdn_chunk_o_scale_fold",
-        "lifecycle": "experimental",
-        "implementation_status": "full",
-    },
+    # PN29 (GDN chunk_o scale-fold, vllm#41446 pattern (c)) was CONSOLIDATED
+    # into the PN298 entry on 2026-06-19 (maintainability refactor — both
+    # patches target the SAME engine file model_executor/layers/fla/ops/
+    # chunk_o.py at disjoint regions). The PN29 scale-fold and PN298 arch-
+    # aware NUM_WARPS prune now share one apply_module
+    # (pn29_pn298_chunk_o_consolidated) with two independently-gated sub-
+    # patches. The PN29 env flag (GENESIS_ENABLE_PN29_GDN_SCALE_FOLD) is
+    # retained as a recognized alias on the PN298 entry's `env_flag_aliases`
+    # so existing builtin YAMLs keep working unchanged. Runtime-neutral:
+    # the applied kernel-code bytes are byte-identical to PN29+PN298 applied
+    # separately (only the single shared wiring-marker comment differs). See
+    # the PN298 entry below.
     "PN11": {
         "title": "GDN a/b contiguity in fix_query_key_value_ordering (vllm#41142)",
         "tier": "community",
@@ -5196,7 +5177,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "upstream_pr_relationship": "backport",
         "applies_to": {"vllm_version_range": (">=0.21.0", "<0.24.0")},
         "implementation_status": "full",
-        "composes_with": ["PN340", "PN341", "PN345", "PN204", "PN54", "PN29", "P28"],
+        "composes_with": ["PN340", "PN341", "PN345", "PN204", "PN54", "PN298", "P28"],  # PN29 consolidated into PN298 (2026-06-19)
     },
     "PN354": {
         "title": "GDN chunked-prefill exp2 gate decay (extends vllm#43195 KDA pattern to GDN)",
@@ -5243,7 +5224,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "upstream_pr_relationship": "backport",
         "applies_to": {"vllm_version_range": (">=0.22.0", "<0.24.0")},
         "implementation_status": "full",
-        "composes_with": ["PN59", "P103", "PN29", "PN106", "PN298", "PN299", "PN345", "PN350"],
+        "composes_with": ["PN59", "P103", "PN106", "PN298", "PN299", "PN345", "PN350"],  # PN29 consolidated into PN298 (2026-06-19)
     },
     "PN396": {
         "vllm_version_range": (">=0.20.0", "<0.23.0"),  # retired-provenance drift cap (GDN spec-decode num_warps dead-end; n/a on dev148)
@@ -5698,7 +5679,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "upstream_pr_relationship": "backport",
         "applies_to": {"vllm_version_range": (">=0.21.0", "<0.24.0")},
         "implementation_status": "full",
-        "composes_with": ["PN29", "PN298", "PN299", "PN299B", "PN299C", "PN299D", "PN299E", "PN345"],
+        "composes_with": ["PN298", "PN299", "PN299B", "PN299C", "PN299D", "PN299E", "PN345"],  # PN29 consolidated into PN298 (2026-06-19)
     },
     "PN353A": {
         "title": "TurboQuant MetadataBuilder workspace reserve (backport OPEN vllm#44053)",
@@ -6831,33 +6812,66 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "requires_patches": ["PN296"],  # hard runtime dep on PN296 keystone (bug-hunt D13)
     },
     "PN298": {
-        "title": "FLA chunk_o NUM_WARPS arch-aware prune (SM 8.6 spilling fix)",
+        "title": (
+            "chunk_o consolidated: GDN scale-fold (vllm#41446 pattern c) + "
+            "FLA NUM_WARPS arch-aware prune (SM 8.6 spilling fix)"
+        ),
         "tier": "community",
         "family": "attention.gdn",
         "env_flag": "GENESIS_ENABLE_PN298_FLA_CHUNK_O_ARCH_WARPS",
+        # PN29 was consolidated into this entry on 2026-06-19. Its flag is a
+        # recognized alias so existing builtin YAMLs keep working. Each flag
+        # independently gates its own sub-patch inside the merged module
+        # (apply()): GENESIS_ENABLE_PN29_GDN_SCALE_FOLD → pn29_scale_fold,
+        # GENESIS_ENABLE_PN298_FLA_CHUNK_O_ARCH_WARPS → pn298_num_warps.
+        "env_flag_aliases": ["GENESIS_ENABLE_PN29_GDN_SCALE_FOLD"],
         "default_on": False,
-        "apply_module": "sndr.engines.vllm.patches.attention.gdn.pn298_fla_chunk_o_arch_warps",
+        "apply_module": "sndr.engines.vllm.patches.attention.gdn.pn29_pn298_chunk_o_consolidated",
         "lifecycle": "experimental",
         "category": "kernel_perf",
         "credit": (
-            "Genesis-original 2026-06-05 — first patch built on the new "
-            "gpu_arch_profile foundation (PN296). Upstream "
-            "fla/ops/chunk_o.py uses NUM_WARPS=[2,4] on Hopper else "
-            "[2,4,8]. Ampere SM 8.6 (A5000 100KB shared/SM) falls into "
-            "the [2,4,8] branch — num_warps=8 with BV=128 SPILLS "
-            "registers, slows the kernel AND wastes Triton autotune "
-            "search time (cold-start TTFT cost). PN298 reads "
-            "get_gpu_arch_profile().max_safe_num_warps (4 on SM 8.x "
-            "consumer, 8 on A100/Hopper/Blackwell) and rebuilds "
-            "NUM_WARPS accordingly. Composes with PN296. This kernel "
-            "runs PER LAYER PER PREFILL on 27B Lorbus + 48 GDN layers "
-            "and on 35B + 30 GDN layers."
+            "Consolidated 2026-06-19 (maintainability refactor, runtime-"
+            "neutral): PN29 + PN298 both patch model_executor/layers/fla/"
+            "ops/chunk_o.py at disjoint regions, now share one apply_module "
+            "(pn29_pn298_chunk_o_consolidated) with two independently env-"
+            "gated sub-patches. Applied kernel-code bytes are byte-identical "
+            "to PN29+PN298 applied separately (only the single shared wiring-"
+            "marker comment differs). "
+            "(1) pn29_scale_fold — backport of vllm#41446 (zobinHuang, OPEN) "
+            "pattern (c): folds the scale multiply in `chunk_fwd_kernel_o` "
+            "to `b_o = (b_o + tl.dot(b_A, b_v)) * scale` (one fewer fp32 "
+            "multiply per inner iter; distributive, drift bounded 1-2 ULP; "
+            "Triton does NOT auto-fuse across the +/- boundary). Hardware-"
+            "agnostic; gated by GENESIS_ENABLE_PN29_GDN_SCALE_FOLD. "
+            "(2) pn298_num_warps — Genesis-original 2026-06-05, first patch "
+            "built on the gpu_arch_profile foundation (PN296). Upstream "
+            "chunk_o.py uses NUM_WARPS=[2,4] on Hopper else [2,4,8]; Ampere "
+            "SM 8.6 (A5000 100KB shared/SM) falls into the [2,4,8] branch — "
+            "num_warps=8 with BV=128 SPILLS registers and wastes autotune "
+            "search time. The injected replacement reads "
+            "get_gpu_arch_profile().max_safe_num_warps and FALLS BACK to the "
+            "upstream NUM_WARPS expression when the profile is absent — i.e. "
+            "the PN296 precondition lives inside the injected code and "
+            "applies to THIS sub-patch only. Gated by "
+            "GENESIS_ENABLE_PN298_FLA_CHUNK_O_ARCH_WARPS. Composes with "
+            "PN296 (NOT requires_patches at the entry level — that would "
+            "over-gate the version-agnostic PN29 scale-fold). This kernel "
+            "runs PER LAYER PER PREFILL on 27B Lorbus + 48 GDN layers and on "
+            "35B + 30 GDN layers; no-op on Qwen3MoE 35B which has no GDN."
         ),
-        "upstream_pr": None,
-        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.24.0")},
+        "upstream_pr": 41446,
+        "upstream_pr_relationship": "backport",
+        "applies_to": {
+            # Triggers in any model using FLA chunk_fwd_kernel_o (hybrid
+            # GDN). On Qwen3MoE without GDN, the kernel never fires → both
+            # sub-patches are silently no-op even if their env is enabled.
+            # The version range bounds the pn298 arch-aware rewrite; the
+            # default version gate is OFF (GENESIS_ENFORCE_VERSION_RANGE) so
+            # this is runtime-neutral on the default config.
+            "vllm_version_range": (">=0.21.0", "<0.24.0"),
+        },
         "implementation_status": "full",
         "composes_with": ["PN296"],
-        "requires_patches": ["PN296"],  # hard runtime dep on PN296 keystone (bug-hunt D13)
     },
     "PN296": {
         "title": "Genesis GPU Architecture Profile boot-time initializer (auto-tune env by arch)",

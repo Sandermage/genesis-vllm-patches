@@ -49,7 +49,7 @@ Release-type tags in the title give the shape of the release at a glance:
 
 | Tag | Date | Type | Summary |
 |---|---|---|---|
-| `[Unreleased]` | 2026-06-19 | dev | Pin promoted `dev101 → 0.23.1rc1.dev148+gb4c80ec0f` (live rig pin). MTP K=3→K=5 re-tune (Qwen, lossless): 35B **239.7 TPS** (+15.8%), 27B **127.4 TPS** (+8.2%); Gemma stays K=3. PN394 (#46047) + PN399 (#46067) promoted to PROD; PN353A (#44053) enabled in Qwen YAMLs. Gemma-4-31B kv-auto chat profile/preset (+69.6% chat TPS). G4_11 multi-turn fix. Registry 319; 55 default-on; 27 families; `make evidence` 63/63 |
+| `[Unreleased]` | 2026-06-19 | dev | Pin promoted `dev101 → 0.23.1rc1.dev148+gb4c80ec0f` (live rig pin). MTP K=3→K=5 re-tune (Qwen, lossless): 35B **239.7 TPS** (+15.8%), 27B **127.4 TPS** (+8.2%); Gemma stays K=3. PN394 (#46047) + PN399 (#46067) promoted to PROD; PN353A (#44053) enabled in Qwen YAMLs. Gemma-4-31B kv-auto chat profile/preset (+69.6% chat TPS). G4_11 multi-turn fix. PN29+PN298 consolidated into one chunk_o wiring module + one registry entry (runtime-neutral; PN29 flag retained as alias). Registry 318; 55 default-on; 27 families; `make evidence` 63/63 |
 
 ### v12.0.0 series — dev491 pin, Gemma-4 + native 31B MTP, audit hardening
 

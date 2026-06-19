@@ -21,7 +21,10 @@ PATCHES = [
     ("sndr.engines.vllm._archive.p63_mtp_gdn_state_recovery", "P63"),
     ("sndr.engines.vllm.patches.attention.gdn.p103_fla_cliff2_chunked", "P103"),
     ("sndr.engines.vllm.patches.attention.gdn.pn11_gdn_a_b_contiguous", "PN11"),
-    ("sndr.engines.vllm.patches.attention.gdn.pn29_gdn_chunk_o_scale_fold", "PN29"),
+    # PN29 + PN298 consolidated into one module 2026-06-19 (both patch the
+    # same engine file chunk_o.py at disjoint regions). The merged registry
+    # entry keeps the id "PN298"; PN29's env flag is a recognized alias.
+    ("sndr.engines.vllm.patches.attention.gdn.pn29_pn298_chunk_o_consolidated", "PN298"),
     ("sndr.engines.vllm.patches.attention.gdn.pn30_ds_layout_spec_decode_align", "PN30"),
     ("sndr.engines.vllm.patches.attention.gdn.pn32_gdn_chunked_prefill", "PN32"),
     ("sndr.engines.vllm.patches.attention.gdn.pn50_gdn_fused_proj", "PN50"),

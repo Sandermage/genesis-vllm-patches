@@ -4548,14 +4548,21 @@ def apply_patch_N29_gdn_chunk_o_scale_fold() -> PatchResult:
     Status: opt-in via GENESIS_ENABLE_PN29_GDN_SCALE_FOLD=1. Default OFF.
     Expected gain: +1-2% on GDN-heavy workloads.
     """
+    # PN29 + PN298 were consolidated into one wiring module on 2026-06-19
+    # (both patch the same engine file chunk_o.py at disjoint regions). The
+    # consolidated apply() gates each sub-patch by its own env flag and is
+    # idempotent (shared marker), so the sibling PN298 dispatch below
+    # delegating to the same module re-runs as IDEMPOTENT — runtime-neutral.
     name = "PN29 GDN chunk_o scale-fold (vllm#41446 pattern c)"
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from sndr.engines.vllm.patches.attention.gdn import pn29_gdn_chunk_o_scale_fold
+        from sndr.engines.vllm.patches.attention.gdn import (
+            pn29_pn298_chunk_o_consolidated,
+        )
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
-    status, reason = pn29_gdn_chunk_o_scale_fold.apply()
+    status, reason = pn29_pn298_chunk_o_consolidated.apply()
     if status == "applied":
         return _applied(name, reason)
     if status == "skipped":
@@ -5851,11 +5858,17 @@ def apply_patch_N298_fla_chunk_o_arch_warps() -> PatchResult:
     get_gpu_arch_profile().max_safe_num_warps. On SM 8.6 A5000 (100KB
     shared) drops num_warps=8 configs that spill registers. Kernel runs
     per layer per prefill on 27B (48 GDN layers) and 35B (30 GDN layers).
-    Opt-in via GENESIS_ENABLE_PN298_FLA_CHUNK_O_ARCH_WARPS=1."""
+    Opt-in via GENESIS_ENABLE_PN298_FLA_CHUNK_O_ARCH_WARPS=1.
+
+    Consolidated 2026-06-19 with PN29 into one wiring module (same engine
+    file chunk_o.py, disjoint regions). Delegates to the shared apply()
+    which gates each sub-patch by its own flag and is idempotent — if the
+    PN29 dispatch already ran the consolidated apply(), this re-run reports
+    IDEMPOTENT (skipped). Runtime-neutral."""
     from sndr.engines.vllm.patches.attention.gdn import (
-        pn298_fla_chunk_o_arch_warps,
+        pn29_pn298_chunk_o_consolidated,
     )
-    status, detail = pn298_fla_chunk_o_arch_warps.apply()
+    status, detail = pn29_pn298_chunk_o_consolidated.apply()
     if status == "applied":
         return _applied("PN298 FLA chunk_o arch warps", detail)
     if status == "failed":

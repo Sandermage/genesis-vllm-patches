@@ -21,7 +21,10 @@ __all__ = [
     "p7_gdn_dual_stream",
     # "p7b_gdn_dual_stream_customop",  # moved to _archive/ 2026-06-11 (retired, preflight triage par.3)
     "pn11_gdn_a_b_contiguous",
-    "pn29_gdn_chunk_o_scale_fold",
+    # PN29 + PN298 consolidated into one module 2026-06-19 (both patch the
+    # same engine file model_executor/layers/fla/ops/chunk_o.py at disjoint
+    # regions). Replaces pn29_gdn_chunk_o_scale_fold + pn298_fla_chunk_o_arch_warps.
+    "pn29_pn298_chunk_o_consolidated",
     "pn30_ds_layout_spec_decode_align",
     "pn32_gdn_chunked_prefill",
     "pn50_gdn_fused_proj",

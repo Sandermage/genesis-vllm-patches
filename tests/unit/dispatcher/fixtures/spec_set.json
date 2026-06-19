@@ -1344,18 +1344,6 @@
     "apply_module": "sndr.engines.vllm.patches.attention.turboquant.p67c_sparse_v"
   },
   {
-    "patch_id": "PN29",
-    "family": "attention.gdn",
-    "lifecycle": "experimental",
-    "tier": "community",
-    "default_on": false,
-    "env_flag": "GENESIS_ENABLE_PN29_GDN_SCALE_FOLD",
-    "has_upstream_pr": true,
-    "upstream_pr_relationship": "backport",
-    "has_apply_module": true,
-    "apply_module": "sndr.engines.vllm.patches.attention.gdn.pn29_gdn_chunk_o_scale_fold"
-  },
-  {
     "patch_id": "PN11",
     "family": "attention.gdn",
     "lifecycle": "experimental",
@@ -2046,10 +2034,10 @@
     "tier": "community",
     "default_on": false,
     "env_flag": "GENESIS_ENABLE_PN298_FLA_CHUNK_O_ARCH_WARPS",
-    "has_upstream_pr": false,
+    "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "sndr.engines.vllm.patches.attention.gdn.pn298_fla_chunk_o_arch_warps"
+    "apply_module": "sndr.engines.vllm.patches.attention.gdn.pn29_pn298_chunk_o_consolidated"
   },
   {
     "patch_id": "PN296",

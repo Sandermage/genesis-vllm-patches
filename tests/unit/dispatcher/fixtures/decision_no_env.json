@@ -560,11 +560,6 @@
     "reason": "strict opt-in — set GENESIS_ENABLE_P67_SPARSE_V=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
   },
   {
-    "patch_id": "PN29",
-    "applied": false,
-    "reason": "strict opt-in — set GENESIS_ENABLE_PN29_GDN_SCALE_FOLD=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
-  },
-  {
     "patch_id": "PN11",
     "applied": false,
     "reason": "strict opt-in — set GENESIS_ENABLE_PN11_GDN_AB_CONTIGUOUS=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"

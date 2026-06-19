@@ -4,28 +4,28 @@
 > Source of truth: `sndr/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-06-19T13:47:35Z
-Total entries: **319**
+Generated: 2026-06-19T17:28:24Z
+Total entries: **318**
 
 ## Statistics
 
 ### By tier
-- `tier=community`: **319**
+- `tier=community`: **318**
 
 ### By lifecycle
 - `lifecycle=coordinator`: **4**
-- `lifecycle=experimental`: **235**
+- `lifecycle=experimental`: **234**
 - `lifecycle=legacy`: **28**
 - `lifecycle=research`: **4**
 - `lifecycle=retired`: **34**
 - `lifecycle=stable`: **14**
 
-### Default-on at boot: **55** / 319
+### Default-on at boot: **55** / 318
 
 ### By family
 - `attention`: 1
 - `attention.flash`: 3
-- `attention.gdn`: 35
+- `attention.gdn`: 34
 - `attention.turboquant`: 61
 - `compile_safety`: 16
 - `detection`: 3
@@ -67,7 +67,7 @@ Total entries: **319**
 | **PN17** | `community` | `experimental` | · | `GENESIS_ENABLE_PN17_FA2_LSE_CLAMP` | — | "FA2 softmax_lse runtime clamp (Cliff 1 mechanism A, Issue |
 | **PN286** | `community` | `experimental` | ✓ | `GENESIS_ENABLE_PN286_FA_LAYOUT_REVERT_SM86` | — | "FA KV cache layout revert for Ampere SM 8.6 (closes |
 
-### `attention.gdn` (35)
+### `attention.gdn` (34)
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
@@ -78,7 +78,6 @@ Total entries: **319**
 | **P63** | `community` | `retired` | · | `GENESIS_ENABLE_P63_MTP_GDN_STATE_RECOVERY` | — | MTP/Eagle drafter GDN state recovery (RETIRED — hypothesis disproven 2026-04-25) |
 | **P103** | `community` | `experimental` | · | `GENESIS_ENABLE_P103` | — | FLA Cliff 2 chunked fwd_h+fwd_o orchestrator (qwen36-27b-single-3090#1) |
 | **PN11** | `community` | `experimental` | · | `GENESIS_ENABLE_PN11_GDN_AB_CONTIGUOUS` | [#41142](https://github.com/vllm-project/vllm/pull/41142) | GDN a/b contiguity in fix_query_key_value_ordering (vllm#41142) |
-| **PN29** | `community` | `experimental` | · | `GENESIS_ENABLE_PN29_GDN_SCALE_FOLD` | [#41446](https://github.com/vllm-project/vllm/pull/41446) | GDN chunk_o scale-fold (vllm#41446 pattern (c)) |
 | **PN30** | `community` | `experimental` | · | `GENESIS_ENABLE_PN30_DS_LAYOUT_SPEC_DECODE` | — | "DS conv state layout + spec-decode AL>1 fix (issue |
 | **PN32** | `community` | `experimental` | · | `GENESIS_ENABLE_PN32_GDN_CHUNKED_PREFILL` | — | GDN _forward_core chunked-prefill v2 (Cliff 2 fix for single-24GB-GPU OOM) |
 | **PN50** | `community` | `experimental` | · | `GENESIS_ENABLE_PN50_GDN_FUSED_PROJ` | — | GDN proj fusion (SGLang#21019 backport — Qwen3.5/3.6 contiguous-projection Tr... |
@@ -89,7 +88,7 @@ Total entries: **319**
 | **PN111** | `community` | `experimental` | · | `GENESIS_ENABLE_PN111` | [#42574](https://github.com/vllm-project/vllm/pull/42574) | Skip-mamba-postprocess GPU->CPU sync (align-mode; vllm#42574) |
 | **PN204** | `community` | `experimental` | · | `GENESIS_ENABLE_PN204_DUAL_STREAM_INPROJ` | [#42301](https://github.com/vllm-project/vllm/pull/42301) | GDN dual-stream input projection (port of vllm#42301) |
 | **PN293** | `community` | `experimental` | · | `GENESIS_ENABLE_PN293_MAMBA_ATTN_PREFILL_FASTPATH` | [#42430](https://github.com/vllm-project/vllm/pull/42430) | mamba_attn _compute_common_metadata prefill fast-path (vllm#42430 cold-path s... |
-| **PN298** | `community` | `experimental` | · | `GENESIS_ENABLE_PN298_FLA_CHUNK_O_ARCH_WARPS` | — | FLA chunk_o NUM_WARPS arch-aware prune (SM 8.6 spilling fix) |
+| **PN298** | `community` | `experimental` | · | `GENESIS_ENABLE_PN298_FLA_CHUNK_O_ARCH_WARPS` | [#41446](https://github.com/vllm-project/vllm/pull/41446) | chunk_o consolidated: GDN scale-fold (vllm#41446 pattern c) + FLA NUM_WARPS a... |
 | **PN299** | `community` | `experimental` | · | `GENESIS_ENABLE_PN299_FLA_MULTI_ARCH_WARPS` | — | FLA multi-file (kkt+wy_fast+l2norm) arch-aware NUM_WARPS prune |
 | **PN299B** | `community` | `experimental` | · | `GENESIS_ENABLE_PN299B` | — | FLA extended (kda+cumsum+solve_tril) arch-aware NUM_WARPS prune |
 | **PN299C** | `community` | `experimental` | · | `GENESIS_ENABLE_PN299C` | — | FLA layernorm_guard arch-aware NUM_WARPS heuristic cap (SM 8.6) |

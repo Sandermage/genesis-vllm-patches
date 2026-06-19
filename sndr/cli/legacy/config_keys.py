@@ -95,15 +95,20 @@ def _collect_registry_env_flags() -> dict[str, dict[str, str]]:
     out: dict[str, dict[str, str]] = {}
     for patch_id, meta in PATCH_REGISTRY.items():
         flag = meta.get("env_flag")
-        if not flag:
-            continue
-        out[flag] = {
-            "source": "registry",
-            "patch_id": patch_id,
-            "family": meta.get("family", "?"),
-            "default_on": str(bool(meta.get("default_on", False))),
-            "lifecycle": meta.get("lifecycle", "?"),
-        }
+        # `env_flag_aliases` (2026-06-19): when two patches sharing one engine
+        # file are consolidated into one registry entry, the absorbed patch's
+        # env flag is retained as a recognized alias so existing builtin YAMLs
+        # keep working. Register the alias(es) as canonical config keys too.
+        flags = [flag] if flag else []
+        flags.extend(meta.get("env_flag_aliases", ()) or ())
+        for f in flags:
+            out[f] = {
+                "source": "registry",
+                "patch_id": patch_id,
+                "family": meta.get("family", "?"),
+                "default_on": str(bool(meta.get("default_on", False))),
+                "lifecycle": meta.get("lifecycle", "?"),
+            }
     return out
 
 

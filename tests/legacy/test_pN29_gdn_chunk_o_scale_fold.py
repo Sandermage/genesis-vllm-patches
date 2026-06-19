@@ -1,6 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0
 """TDD tests for PN29 — GDN chunk_o scale-fold (vllm#41446 pattern (c) backport).
 
+2026-06-19: PN29 was CONSOLIDATED with PN298 into one wiring module
+(`pn29_pn298_chunk_o_consolidated`) — both patch the same engine file
+`model_executor/layers/fla/ops/chunk_o.py` at disjoint regions. The merged
+registry entry keeps the id "PN298"; PN29's env flag
+(`GENESIS_ENABLE_PN29_GDN_SCALE_FOLD`) is retained as a recognized alias and
+still independently gates the `pn29_scale_fold` sub-patch. These tests were
+repointed to the consolidated module while PRESERVING their assertions about
+the PN29 anchor, replacement, marker, and env-gating.
+
 Test contract:
 1. Anchor text matches exact upstream code (line 137 in chunk_o.py)
 2. Replacement preserves the math (1 fewer fp32 multiply per inner iter)
@@ -23,47 +32,75 @@ the `b_o = b_o * scale + dot * scale` boundary, so explicit fold = guaranteed
 from __future__ import annotations
 
 
+_CONSOLIDATED = (
+    "sndr.engines.vllm.patches.attention.gdn.pn29_pn298_chunk_o_consolidated"
+)
 
 
 def test_pn29_wiring_imports():
-    """PN29 wiring module imports cleanly."""
-    from sndr.engines.vllm.patches.attention.gdn import pn29_gdn_chunk_o_scale_fold as patch_N29_gdn_chunk_o_scale_fold
-    assert hasattr(patch_N29_gdn_chunk_o_scale_fold, "apply")
-    assert hasattr(patch_N29_gdn_chunk_o_scale_fold, "GENESIS_PN29_MARKER")
+    """PN29 wiring (now consolidated) imports cleanly and exposes the
+    PN29 marker + apply()."""
+    import importlib
+    mod = importlib.import_module(_CONSOLIDATED)
+    assert hasattr(mod, "apply")
+    assert hasattr(mod, "GENESIS_PN29_MARKER")
 
 
 def test_pn29_dispatcher_registry():
-    """PN29 registered in PATCH_REGISTRY with correct env flag."""
+    """PN29 was consolidated into the PN298 registry entry; its env flag
+    survives as a recognized alias so existing YAMLs keep working."""
     from sndr.dispatcher import PATCH_REGISTRY
-    assert "PN29" in PATCH_REGISTRY
-    e = PATCH_REGISTRY["PN29"]
-    assert e["env_flag"] == "GENESIS_ENABLE_PN29_GDN_SCALE_FOLD"
+    # PN29 no longer a standalone entry — merged into PN298.
+    assert "PN29" not in PATCH_REGISTRY
+    assert "PN298" in PATCH_REGISTRY
+    e = PATCH_REGISTRY["PN298"]
     assert e["default_on"] is False
+    # PN29's vllm#41446 backport provenance is carried on the merged entry.
     assert e["upstream_pr"] == 41446
+    # Both flags recognized: PN298 primary + PN29 alias.
+    assert e["env_flag"] == "GENESIS_ENABLE_PN298_FLA_CHUNK_O_ARCH_WARPS"
+    assert "GENESIS_ENABLE_PN29_GDN_SCALE_FOLD" in e.get("env_flag_aliases", [])
+    # The merged entry must NOT carry requires_patches=['PN296'] at the
+    # entry level (that would over-gate the version-agnostic PN29 scale-fold;
+    # the PN296 precondition lives inside the pn298 sub-patch's injected code).
+    assert not e.get("requires_patches")
 
 
 def test_pn29_skips_when_env_off(monkeypatch):
-    """When env is OFF, apply() returns 'skipped'.
-
-    Phase 4 (F-010-012): PN29 is `tier=engine`. The tier gate now
-    requires a license key — without one, the skip reason mentions
-    'tier=engine' before reaching the env-flag check. With license
-    set, we hit the env-flag branch and reason mentions 'opt-in'.
-    """
+    """When the PN29 env flag is OFF (and PN298 OFF), the consolidated
+    apply() returns 'skipped' for the scale-fold sub-patch."""
     monkeypatch.delenv("GENESIS_ENABLE_PN29_GDN_SCALE_FOLD", raising=False)
-    monkeypatch.setenv("SNDR_ENGINE_LICENSE_KEY", "test-key-for-pytest")
-    from sndr.engines.vllm.patches.attention.gdn.pn29_gdn_chunk_o_scale_fold import apply
-    status, reason = apply()
+    monkeypatch.delenv("SNDR_ENABLE_PN29_GDN_SCALE_FOLD", raising=False)
+    monkeypatch.delenv("GENESIS_ENABLE_PN298_FLA_CHUNK_O_ARCH_WARPS", raising=False)
+    import importlib
+    mod = importlib.import_module(_CONSOLIDATED)
+    status, reason = mod.apply()
     assert status == "skipped"
-    # Either tier=engine (license missing) OR opt-in (env-flag branch).
-    assert "opt-in" in reason.lower() or "tier=engine" in reason.lower()
+    assert "default OFF" in reason or "GENESIS_ENABLE_PN29_GDN_SCALE_FOLD" in reason
+
+
+def test_pn29_scale_fold_gate_independent_of_pn298(monkeypatch):
+    """The PN29 scale-fold sub-patch is gated by ITS OWN flag, independent
+    of PN298 — and is NOT transitively gated on PN296."""
+    monkeypatch.delenv("SNDR_ENABLE_PN29_GDN_SCALE_FOLD", raising=False)
+    monkeypatch.delenv("SNDR_DISABLE_PN29_GDN_SCALE_FOLD", raising=False)
+    monkeypatch.delenv("GENESIS_DISABLE_PN29_GDN_SCALE_FOLD", raising=False)
+    monkeypatch.delenv("GENESIS_ENABLE_PN296_ARCH_PROFILE_INIT", raising=False)
+    monkeypatch.setenv("GENESIS_ENABLE_PN29_GDN_SCALE_FOLD", "1")
+    monkeypatch.delenv("GENESIS_ENABLE_PN298_FLA_CHUNK_O_ARCH_WARPS", raising=False)
+    import importlib
+    mod = importlib.import_module(_CONSOLIDATED)
+    # PN29 gate fires even with PN296 unset (no transitive PN296 dependency).
+    assert mod._pn29_enabled() is True
+    assert mod._pn298_enabled() is False
 
 
 def test_pn29_anchor_text_matches_upstream():
-    """PN29 anchor matches exact upstream chunk_o.py:137 line."""
-    from sndr.engines.vllm.patches.attention.gdn.pn29_gdn_chunk_o_scale_fold import (
-        PN29_ANCHOR, PN29_REPLACEMENT,
-    )
+    """PN29 anchor matches exact upstream chunk_o.py:137 line (verbatim in
+    the consolidated module)."""
+    import importlib
+    mod = importlib.import_module(_CONSOLIDATED)
+    PN29_ANCHOR, PN29_REPLACEMENT = mod.PN29_ANCHOR, mod.PN29_REPLACEMENT
     # Anchor: the EXACT current upstream line
     assert "b_o = b_o * scale + tl.dot(b_A.to(b_v.dtype), b_v) * scale" in PN29_ANCHOR
     # Replacement: scale-fold form
@@ -74,19 +111,25 @@ def test_pn29_anchor_text_matches_upstream():
 
 
 def test_pn29_marker_string_unique():
-    """PN29 marker is non-trivial for drift detection."""
-    from sndr.engines.vllm.patches.attention.gdn.pn29_gdn_chunk_o_scale_fold import (
-        GENESIS_PN29_MARKER,
-    )
+    """PN29 marker is non-trivial for drift detection (preserved verbatim
+    on the consolidated module)."""
+    import importlib
+    mod = importlib.import_module(_CONSOLIDATED)
+    GENESIS_PN29_MARKER = mod.GENESIS_PN29_MARKER
     assert "PN29" in GENESIS_PN29_MARKER
     assert len(GENESIS_PN29_MARKER) > 30
 
 
 def test_pn29_register_in_apply_all():
-    """PN29 registered via @register_patch in apply_all.py."""
+    """PN29 boot-log label remains registered via @register_patch in
+    apply_all (now delegating to the consolidated module).
+
+    Match the PN29 label precisely — a bare ``"PN29" in n`` substring test
+    would also match the sibling ``"PN298 ..."`` label (PN29 ⊂ PN298)."""
+    import sndr.apply._per_patch_dispatch  # noqa: F401  — trigger registration
     from sndr.apply import PATCH_REGISTRY as APPLY_REGISTRY
     names = [name for name, _ in APPLY_REGISTRY]
-    pn29 = [n for n in names if "PN29" in n]
+    pn29 = [n for n in names if n.startswith("PN29 ")]
     assert len(pn29) == 1, f"PN29 not registered, names: {names[:5]}"
 
 
@@ -161,9 +204,9 @@ def test_pn29_numerical_equivalence_zero_scale():
 
 def test_pn29_idempotency_via_marker():
     """Re-applying PN29 doesn't double-patch (marker check)."""
-    from sndr.engines.vllm.patches.attention.gdn.pn29_gdn_chunk_o_scale_fold import (
-        GENESIS_PN29_MARKER,
-    )
+    import importlib
+    mod = importlib.import_module(_CONSOLIDATED)
+    GENESIS_PN29_MARKER = mod.GENESIS_PN29_MARKER
     # The TextPatcher uses the marker comment to detect already-applied state.
     # Re-application should be no-op. (Tested in TextPatcher integration; here
     # we just verify the marker has the canonical form.)

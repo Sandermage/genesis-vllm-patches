@@ -116,7 +116,14 @@ def test_default_order_baseline_violations():
         # dep-graph validator). PN296 sits at insertion index 169, after
         # the PN298/PN299* cohort (163-168), so each is an insertion-order
         # violation the topo_sort path resolves at SNDR_TOPO_SORT_SPECS=1.
-        ("PN298", "PN296"),
+        #
+        # 2026-06-19 (PN29+PN298 consolidation): the merged PN298 entry no
+        # longer carries requires_patches=['PN296'] at the entry level (that
+        # would over-gate the version-agnostic PN29 scale-fold sub-patch; the
+        # PN296 precondition lives inside the pn298 sub-patch's injected
+        # code). So ("PN298","PN296") is no longer an insertion-order
+        # violation and was dropped from this baseline. PN299* still declare
+        # requires_patches=['PN296'] and remain below.
         ("PN299", "PN296"),
         ("PN299B", "PN296"),
         ("PN299C", "PN296"),
