@@ -153,6 +153,9 @@ patches:
   GENESIS_ENABLE_PN110: '1'  # BlockPool.free_blocks dedup (vllm#42615)
   GENESIS_ENABLE_PN90_PROBABILISTIC_DRAFT: '0'       # DISABLED 2026-06-19 (dev148 TIER-1 audit) — aligned to the 35B YAML. PN90 is RETIRED + a measured regressor: the old "+7.4% TPS" bench was on dev93/dev209 pre-#40269-merge state; on dev371+/dev491+ probabilistic draft REGRESSES (-5.9% TPS, -10% accept) and PROD runs GREEDY draft. #40269 is native in-pin, so the Genesis patch self-skips; setting =1 was inert BUT a landmine — re-activation regresses and unmasks the latent P71⊥PN390 target_probs NameError. Keep 0.
   GENESIS_ENABLE_P107_MTP_TRUNCATION_DETECTOR: '1'   # vllm#41467 — defensive at think→tool_call boundary
+  # ── Validated 2026-06-19 (rig end-to-end §29; operator-greenlit promotion) ──
+  GENESIS_ENABLE_PN394_QWEN3_PARTIAL_PARAM_LT_FIX: '1'  # vllm#46047 — qwen3 partial-param regex >([^<]*)$ → >(.*)$: streaming tool-call argument VALUES with '<' no longer truncated (27B uses qwen3_xml parser). Lossless. Disable via =0.
+  GENESIS_ENABLE_PN399_TQ_DECODE_SCRATCH_IMA: '1'      # vllm#46067 (consolidated) — fixed TQ decode-scratch buffer (IMA-safe FULL cudagraph) + removes dead PN118/PN353A decode reservations (continuation-prefill KEPT). requires PN118+PN353A (both on). Disable via =0.
   # ── Compatibility shims ──
   GENESIS_ENABLE_PN25_SILU_INDUCTOR_SAFE: '1'        # Cliff 1B closure (Inductor opaque-op pool for SiluAndMul); NULL impact on 2×A5000, win for 24GB community
   # ── Lazy reasoner (PN16 v2) ──
