@@ -940,6 +940,11 @@
     "reason": "strict opt-in: patch has default_on=True (informational) but env_flag=GENESIS_ENABLE_PN118 unset. Add GENESIS_ENABLE_PN118=1 to launch config to engage. Set GENESIS_LEGACY_DEFAULT_ON=1 to revert to pre-2026-05-17 auto-apply semantics."
   },
   {
+    "patch_id": "PN399",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_PN399_TQ_DECODE_SCRATCH_IMA=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
     "patch_id": "PN118_V2_MD5_WORKSPACE",
     "applied": false,
     "reason": "strict opt-in — set GENESIS_ENABLE_PN118_V2_MD5_WORKSPACE=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"

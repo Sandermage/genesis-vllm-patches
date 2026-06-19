@@ -35,3 +35,19 @@
 # skips. There is no `[Genesis`-prefixed alternative because the signal is
 # upstream's own text. Owner: Sander.
 >(.*)$
+
+# PN399 (vllm#46067 TurboQuant decode-scratch fixed-buffer IMA fix): the
+# two upstream_drift_markers that signal "pin already carries #46067" —
+# `_get_decode_scratch` (the new helper fn) and `max_decode_cudagraph_batch`
+# (the new __init__ attr) — are NECESSARILY substrings of PN399's own
+# emitted replacements (sub-patch A defines `_get_decode_scratch`,
+# sub-patch B assigns `self.max_decode_cudagraph_batch`). The self-collision
+# is benign by construction: TextPatcher checks the idempotency marker
+# (Layer 2, `Genesis PN399 vllm#46067 v1`) BEFORE the drift markers
+# (Layer 3), so on every re-boot the marker short-circuits to IDEMPOTENT and
+# the drift scan never reads PN399's own output. The markers only matter on a
+# PRISTINE (no-Genesis-marker) pin that already merged #46067, where they
+# correctly skip. There is no `[Genesis`-prefixed alternative because the
+# signal is upstream's own symbol names. Owner: Sander.
+_get_decode_scratch
+max_decode_cudagraph_batch

@@ -254,6 +254,12 @@ KNOWN_SPEC_ONLY_PATCHES: frozenset[str] = frozenset({
                        # (backport of MERGED vllm#46047; single-line text
                        # patch on parser/qwen3.py, >=0.23.0 gated, default-on
                        # correctness fix, no legacy @register_patch hook)
+    "PN399",           # TurboQuant decode-scratch fixed-buffer — fix CUDA IMA
+                       # in FULL cudagraph (backport of OPEN vllm#46067; two-file
+                       # text patch on turboquant_attn.py + gpu/shutdown.py,
+                       # >=0.21.0,<0.24.0 gated, default-OFF experimental belt-
+                       # and-suspenders; composes with PN118 / requires PN118,
+                       # no legacy @register_patch hook)
 })
 
 

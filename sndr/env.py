@@ -563,6 +563,7 @@ class Flags:
     PN299E = "PN299E"  # PN299E: KV cache writer arch-aware NUM_WARPS+NUM_STAGES cap
     PN353A = "PN353A"  # PN353A: TurboQuant MetadataBuilder workspace reserve
     PN353B = "PN353B"  # PN353B: TurboQuant prefill CUDA-graph capture safety
+    PN399_TQ_DECODE_SCRATCH_IMA = "PN399_TQ_DECODE_SCRATCH_IMA"  # PN399: consolidated single-owner TQ decode-scratch fixed buffer — fix CUDA IMA in FULL cudagraph + remove dead PN118/PN353A decode reservations (backport+improve vllm#46067; requires PN118+PN353A; default OFF/experimental)
     # compile_safety family
     PN364_HYBRID_GDN_WARMUP = "PN364_HYBRID_GDN_WARMUP"  # PN364: Hybrid GDN/Mamba/MRoPE startup warmup
     PN367 = "PN367"  # PN367: CUDA graph memory estimate clamp

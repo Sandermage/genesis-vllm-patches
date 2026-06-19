@@ -5666,7 +5666,13 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "vllm_version_range": (">=0.21.0", "<0.24.0"),
         },
         "implementation_status": "full",
-        "composes_with": ["PN118", "PN353B"],
+        "composes_with": ["PN118", "PN353B", "PN399"],  # PN399 (when ON)
+                                        # anchors PN353A's live output and
+                                        # removes ONLY the now-dead decode-
+                                        # scratch get_simultaneous reservation,
+                                        # keeping the continuation-prefill K/V
+                                        # reservation byte-intact. PN353A source
+                                        # is NOT edited.
         "conflicts_with": [],
     },
     "PN353B": {
@@ -7469,8 +7475,93 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "apply_module": "sndr.engines.vllm.patches.attention.turboquant.pn118_tq_workspace_fallback",
         "source": "vllm_pr_backport",
         "lifecycle": "experimental",
+        "composes_with": ["PN399"],  # PN399 (when ON) wraps PN118's live
+                                     # decode output (CG fixed-buffer branch
+                                     # BEFORE PN118's try_get; PN118 body
+                                     # byte-unchanged as the eager elif) AND
+                                     # removes the now-dead PN118 __init__
+                                     # _reserve_decode_workspace box+call+method
+                                     # to cut boot overhead. PN118 SOURCE is NOT
+                                     # edited (PN399 anchors PN118's live output
+                                     # and transforms it). PN118 still owns the
+                                     # decode block + reservation when PN399 is
+                                     # OFF (current crash-free PROD behavior).
         "conflicts_with": [],
         "requires_patches": [],
+    },
+    "PN399": {
+        "title": (
+            "Consolidated single-owner TurboQuant decode-scratch fixed-buffer "
+            "— fix CUDA IMA in FULL cudagraph + remove dead PN118/PN353A "
+            "decode reservations (backport+improve OPEN vllm#46067)"
+        ),
+        "tier": "community",
+        "family": "attention.turboquant",
+        "category": "stability",
+        "env_flag": "GENESIS_ENABLE_PN399_TQ_DECODE_SCRATCH_IMA",
+        "default_on": False,
+        "credit": (
+            "Genesis CONSOLIDATED backport+improvement of OPEN vllm#46067 "
+            "([Bugfix][TurboQuant] Fix CUDA illegal memory access in FULL "
+            "cudagraph). TQ decode runs inside the FULL cudagraph; scratch "
+            "from the growable WorkspaceManager is freed+realloc'd on grow "
+            "(empty_cache unmaps the old address) across the B=1..max capture "
+            "sweep / long continuation-prefill, freeing an address an earlier "
+            "captured graph still points at -> first replay -> CUDA IMA. "
+            "PN399 owns the TQ decode-scratch lifecycle: a fixed module-level "
+            "_DECODE_SCRATCH allocated once at max_cudagraph_capture_size, "
+            "reused by all TQ layers + all captured graphs, sliced [:B] "
+            "(native kernel contract), reset on gpu/shutdown teardown. "
+            "RE-AUTHORED against live dev148: the PR's pristine "
+            "_decode_attention OLD block was already consumed by PN118 "
+            "(try_get_simultaneous), so PN399 inserts the CG-path branch "
+            "BEFORE PN118's is_workspace_manager_initialized check, demoting "
+            "PN118's try_get body to the eager/cold elif (left byte-unchanged "
+            "as the enforce_eager / B>max_batch safety net). BETTER THAN "
+            "UPSTREAM: because PN399 also OWNS the de-duplication that "
+            "upstream #46067 cannot (upstream has neither PN118 nor PN353A), "
+            "it additionally REMOVES the now-dead decode reservations to cut "
+            "boot overhead — (1) the PN118 __init__ _reserve_decode_workspace "
+            "box+call+method, (2) the PN353A decode-scratch get_simultaneous "
+            "reservation — KEEPING the PN353A continuation-prefill K/V "
+            "reservation byte-intact (PN399 never touches the prefill path). "
+            "The removals are SOURCE-file-clean: PN399 anchors the LIVE "
+            "PN118/PN353A-applied output and transforms it; the "
+            "pn118_*/pn353a_* patch sources are NOT edited. With PN399 "
+            "OFF/unapplied it produces ZERO change — PN118/PN353A keep owning "
+            "decode + their reservations (current crash-free PROD behavior). "
+            "On our PROD (35B FP8 + MTP K=3 + TQ k8v4, capture set [4,8,16], "
+            "max_batch=16) the live IMA is ALREADY neutralized by "
+            "PN118+PN353A+SNDR_WORKSPACE_001 (5h clean) — PN399 is belt-and-"
+            "suspenders + tidier (single owner, one persistent 16-row buffer "
+            "vs per-capture torch.empty, a few MB of boot reservation "
+            "reclaimed), NOT an open-wound fix. default_on False / lifecycle "
+            "experimental pending rig validation at the next pin-upgrade "
+            "window."
+        ),
+        "upstream_pr": 46067,
+        "upstream_pr_relationship": "backport",
+        "applies_to": {
+            "is_turboquant": True,  # patch sites are TQ-specific
+            "vllm_version_range": (">=0.21.0", "<0.24.0"),
+        },
+        "implementation_status": "full",
+        "apply_module": "sndr.engines.vllm.patches.attention.turboquant.pn399_tq_decode_scratch_ima",
+        "source": "vllm_pr_backport",
+        "lifecycle": "experimental",
+        "composes_with": [
+            "PN353A", "PN353B", "P98", "P99", "P101", "PN119", "P67", "P67b",
+        ],
+        "conflicts_with": [],
+        "requires_patches": ["PN118", "PN353A"],  # PN399 anchors the LIVE
+                                        # PN118-applied __init__ box / decode
+                                        # head AND the PN353A-applied reserve
+                                        # block, so BOTH must apply first
+                                        # (registry index > PN118 @7444 and
+                                        # PN353A @5640; insertion-order apply
+                                        # runs them first). With either off the
+                                        # dependent sub-patches SKIP cleanly
+                                        # and the IMA defense is off too.
     },
     "PN118_V2_MD5_WORKSPACE": {
         "title": "PN118 v2 — md5+full-file PoC (PN119 reference pattern, workspace.py scope only)",

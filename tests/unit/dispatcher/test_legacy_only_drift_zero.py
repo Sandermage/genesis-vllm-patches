@@ -219,6 +219,12 @@ def test_spec_only_truly_orphan_baseline():
         # inception (apply_module + own apply(), no legacy hook), default-on
         # correctness fix.
         "PN394",
+        # 2026-06-19 (dev148): PN399 backport of OPEN vllm#46067 (TurboQuant
+        # decode-scratch fixed-buffer — fix CUDA IMA in FULL cudagraph) —
+        # spec-driven from inception (apply_module + own apply(), no legacy
+        # hook), default-OFF experimental belt-and-suspenders; composes with
+        # PN118 (wraps its live decode output), requires_patches:[PN118].
+        "PN399",
     }
     actual = set(diff["spec_only_truly_orphan_ids"])
     new_orphans = sorted(actual - expected)

@@ -921,3 +921,84 @@ make evidence 63/63. Inspected the actual diffs (not the agent's summary):
 
 NOT pushed (awaiting explicit "ok push"). NOT yet rig-deployed — Tier-2 will rsync + validate PN394
 on a live 27B/35B boot (the only Tier-1 item with a runtime effect; the rest are registry/config/doc).
+
+## 25. PN394 NON-DISRUPTIVE rig validation (no PROD restart)
+
+Rig state: PROD 35B (vllm-qwen3.6-35b-balanced-k3) up 5h on :8102, both A5000 ~22/24 GiB used —
+no GPU headroom for a parallel test container, and I will NOT restart live PROD unsupervised. Validated
+PN394 correctness WITHOUT a boot, directly against the running dev148 image:
+
+- **Anchor byte-match**: PN394.ANCHOR_OLD repr == live `vllm/parser/qwen3.py` `_PARTIAL_PARAM_RE` repr,
+  character-for-character: `'_PARTIAL_PARAM_RE = re.compile(r"<\\s*parameter\\s*=\\s*([^>]+)>([^<]*)$", re.DOTALL)\n'`.
+  So PN394 applies cleanly (count==1) on the deployed image; post-fix marker `>(.*)$` absent (no self-skip).
+- **Behavioral proof** (old vs new regex on partial `<`-containing values): OLD `>([^<]*)$` returns
+  NO-MATCH on `<parameter=expr>a < b`, `<parameter=code>List<T> xs`, `<parameter=html><div>hi` (the
+  streaming partial-arg handler gets nothing → broken/truncated arg). NEW `>(.*)$` captures the full
+  `'a < b'` / `'List<T> xs'` / `'<div>hi'`. The bug is real and the fix is correct.
+
+Remaining unproven: end-to-end live streaming — needs the flag enabled on a PROD restart (planned
+window, low-risk: 1-line regex widen, anchor proven, qwen3_xml parser already in use). Deferred to a
+deliberate rig window (not an unsupervised background restart).
+
+## 26. #46067 → PN399 CONSOLIDATED (user directive: one patch, less overhead)
+
+User explicitly asked to ADD vllm#46067. Two-phase study (Workflow wrzk74fb8 + wtyk01fo7):
+
+**Key live finding (byte-verified on dev148):** the CUDA-IMA #46067 fixes CANNOT FIRE in our stack —
+already neutralized by PN118 + PN353A + SNDR_WORKSPACE_001 (5h-clean logs, zero illegal/Resized).
+So #46067 is upstream-parity / architectural-cleanliness, NOT an urgent open-wound fix. The PR also
+cannot be ported verbatim (P101 changed _CONTINUATION_DECODE_THRESHOLD 128→64; PN118 already rewrote
+_decode_attention to try_get_simultaneous+torch.empty; shutdown.py is the only clean anchor).
+
+**User refined the directive:** don't stack a belt-and-suspenders PN399 on top of PN118/PN353A (three
+owners of the same decode scratch = redundant double-reservation + boot overhead). CONSOLIDATE into ONE
+patch that adapts+improves #46067 — closes the IMA AND cuts startup overhead by removing the now-dead
+decode reservations. This is strictly better than the upstream PR (which can't remove PN118/PN353A
+overhead because upstream has neither).
+
+**PN399 CONSOLIDATED design (single owner of the TQ decode-scratch lifecycle), when ENABLED:**
+1. add module-level fixed _DECODE_SCRATCH + _get_decode_scratch(max_batch,...) + reset_tq_decode_scratch
+   (IMA-safe by construction — address never moves, baked into FULL cudagraphs safely);
+2. add self.max_decode_cudagraph_batch = compilation_config.max_cudagraph_capture_size;
+3. decode: CG-path → fixed buffer; demote the live PN118 try_get+torch.empty block to the eager elif
+   (PRESERVED verbatim as the cold-path net for enforce_eager / B>max_batch);
+4. REMOVE the now-dead decode reservations — PN118 __init__ _reserve_decode_workspace + PN353A
+   decode-scratch get_simultaneous — KEEPING the PN353A continuation-prefill K/V reservation (essential).
+   → less boot overhead + smaller WorkspaceManager (decode reserve gone);
+5. shutdown reset.
+
+**Safety invariants (enforced + adversarially verified):**
+- default_on=False, lifecycle=experimental, requires_patches:[PN118, PN353A]. OFF/unapplied = ZERO change
+  (PN118/PN353A keep owning decode + reservations = current crash-free PROD). PN399 transforms their LIVE
+  OUTPUT downstream — pn118_*.py / pn353a_*.py SOURCE stays unedited (only composes_with notes).
+- Removal touches ONLY the decode reservation, NEVER the continuation-prefill reservation (distinct call
+  site, proven on live bytes). Eager torch.empty fallback preserved.
+- Registry placed AFTER PN118+PN353A (topo OFF → insertion order) so PN399 anchors their applied output.
+- Dry-validated by applying against READ-ONLY copies of the live dev148 files (no GPU boot — both A5000s
+  used by PROD 35B). drift_markers _get_decode_scratch / max_decode_cudagraph_batch → self-skip once a
+  pin carries #46067 natively. End-to-end (enable in launcher + decode smoke + bench) deferred to the
+  next pin-upgrade validation window.
+- Honest magnitude: the overhead win is modest (a few MB boot reservation + fewer baked torch.empty
+  allocs); the real value is the clean single IMA-safe owner replacing the fragile 3-patch reserve-
+  before-lock defense.
+
+### 26.1 PN399 IMPLEMENTED + adversarially verified (commit pending)
+
+Workflow wtyk01fo7 (Study→Implement→3×Verify, 5 agents, 505k tokens). All 3 adversarial verifiers PASS;
+I re-ran every gate myself + read the full patch:
+- doctor ERROR=0/WARNING=0/INFO=0 (coverage 303/319); stale --strict exit 0 (PN399 not flagged, range
+  >=0.21.0,<0.24.0 covers dev148); pytest 363 passed (dispatcher+env+17 PN399 tests); make evidence 63/63.
+- DRY-APPLY on the rig against FRESH READ-ONLY copies of the live dev148 files (md5
+  e62752610c41d2a691d19c5aa4edda59): all 5 sub-patches APPLIED, all 5 drift markers present, PN118 try_get
+  body preserved verbatim as the eager `elif`, B' removed PN118 __init__ reserve (call+method gone), C2
+  removed PN353A decode-scratch reserve while the continuation-prefill K/V reservation stayed BYTE-INTACT
+  (get_simultaneous f16 count==2, comment kept), both files ast.parse OK. CONTAINER UNCHANGED post-run
+  (md5 identical — never written back; PROD 35B untouched).
+- Registry order PN353A(5640) < PN118(7450) < PN399(7492) — PN399 anchors their applied output.
+- Safety verified: pn118_*.py / pn353a_*.py SOURCE git-unchanged; OFF-path apply() returns 'skipped'
+  before constructing any TextPatcher (zero file change); removing the decode reserve cannot starve a
+  real decode (CG→fixed buffer, eager→torch.empty).
+5 sub-patches: A defs, B' consolidated __init__ insert+remove, C decode CG-branch wrap, C2 PN353A
+decode-reserve remove, D shutdown reset. default_on=False / experimental / requires_patches[PN118,PN353A].
+NOT pushed. End-to-end (enable in launcher + decode smoke + bench, grep for illegal/Resized) deferred to
+the next pin-upgrade validation window (no GPU headroom: both A5000s on PROD 35B).
