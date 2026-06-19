@@ -582,6 +582,21 @@ watch:
     was INCONCLUSIVE (default traffic did not trigger reasoning_content + an SSE-capture issue) — no confirmed
     current exposure on the validated config (tool-call 7/7). Evaluate + vendor the applicable ones when
     a pin carrying them is pulled.'
+- upstream: vllm#43730
+  status: open
+  local_patches:
+  - P23
+  - P87
+  - G4_08
+  action: watch
+  since: '2026-06-19'
+  notes: '[Bugfix] Marlin MoE c_tmp FP32-reduce IMA (drops a min() clamp in csrc/moe/marlin_moe_wna16/ops.cu;
+    re-file of closed #36889). NOT overlay-patchable — the fix is in a COMPILED .cu kernel, not Python,
+    so it can only arrive via a pin bump that carries it. Reproducer is RTX PRO 6000 Blackwell SM 12.0;
+    our fleet is SM 8.6 A5000 and the live 35B runs c_tmp/marlin-IMA-clean. It is the WNA16 (INT4) MoE
+    path (more the 27B than the 35B FP8). No confirmed current exposure; pull it when a pin includes it.
+    Our P23 (marlin_fp32_reduce_wire) + P87 (sub-tile pad) + G4_08 (kdim pad) touch adjacent Marlin config
+    but not this .cu clamp. 2026-06-19 loop MoE/quant scan.'
 sweep:
 - pr: 42006
   genesis_patch: G4_T1
