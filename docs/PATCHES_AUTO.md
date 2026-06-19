@@ -4,29 +4,29 @@
 > Source of truth: `sndr/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-06-18T22:27:14Z
-Total entries: **318**
+Generated: 2026-06-19T09:24:42Z
+Total entries: **319**
 
 ## Statistics
 
 ### By tier
-- `tier=community`: **318**
+- `tier=community`: **319**
 
 ### By lifecycle
 - `lifecycle=coordinator`: **4**
-- `lifecycle=experimental`: **233**
+- `lifecycle=experimental`: **234**
 - `lifecycle=legacy`: **28**
 - `lifecycle=research`: **4**
 - `lifecycle=retired`: **35**
 - `lifecycle=stable`: **14**
 
-### Default-on at boot: **55** / 318
+### Default-on at boot: **55** / 319
 
 ### By family
 - `attention`: 1
 - `attention.flash`: 3
 - `attention.gdn`: 35
-- `attention.turboquant`: 60
+- `attention.turboquant`: 61
 - `compile_safety`: 16
 - `detection`: 3
 - `gemma4`: 19
@@ -107,7 +107,7 @@ Total entries: **318**
 | **PN79_V2_MD5_CHUNK** | `community` | `experimental` | · | `GENESIS_ENABLE_PN79_V2_MD5_CHUNK` | [#41824](https://github.com/vllm-project/vllm/pull/41824) | PN79 v2 — md5+full-file PoC (PN119 reference pattern, chunk.py scope) |
 | **PN79_V2_MD5_CHUNK_DELTA_H** | `community` | `experimental` | · | `GENESIS_ENABLE_PN79_V2_MD5_CHUNK_DELTA_H` | [#41824](https://github.com/vllm-project/vllm/pull/41824) | PN79 v2 — md5+full-file PoC (PN119 reference pattern, chunk_delta_h.py scope) |
 
-### `attention.turboquant` (60)
+### `attention.turboquant` (61)
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
@@ -138,6 +138,7 @@ Total entries: **318**
 | **PN299E** | `community` | `experimental` | · | `GENESIS_ENABLE_PN299E` | — | KV cache writer arch-aware NUM_WARPS+NUM_STAGES cap (SM 8.6) |
 | **PN353A** | `community` | `experimental` | · | `GENESIS_ENABLE_PN353A` | [#44053](https://github.com/vllm-project/vllm/pull/44053) | TurboQuant MetadataBuilder workspace reserve (backport OPEN vllm#44053) |
 | **PN353B** | `community` | `experimental` | · | `GENESIS_ENABLE_PN353B` | [#43747](https://github.com/vllm-project/vllm/pull/43747) | TurboQuant prefill CUDA-graph capture safety (backport OPEN vllm#43747, close... |
+| **PN399** | `community` | `experimental` | · | `GENESIS_ENABLE_PN399_TQ_DECODE_SCRATCH_IMA` | [#46067](https://github.com/vllm-project/vllm/pull/46067) | ( |
 | **G4_19** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_19_GEMMA4_TURBOQUANT_KV` | [#38171](https://github.com/vllm-project/vllm/issues/38171) | Genesis G4-TurboQuant KV cache for Gemma 4 (3/4-bit VQ, unlocks 256K context ... |
 | **G4_19B** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_19B_GEMMA4_TQ_KV_SPEC` | [#38171](https://github.com/vllm-project/vllm/issues/38171) | G4-TurboQuant KV spec integration with vLLM v1 _check_enough_kv_cache_memory |
 | **G4_19C** | `community` | `retired` | · | `GENESIS_ENABLE_G4_19C_ATTN_WRAP` | — | Round-trip K/V through G4-TurboQuant inside Gemma4Attention.forward |
