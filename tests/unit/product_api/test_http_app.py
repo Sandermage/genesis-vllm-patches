@@ -488,15 +488,16 @@ def test_overview_and_catalog_summary_endpoints(tmp_path, monkeypatch):
     assert overview.status_code == 200
     payload = overview.json()
     # chat-K3 promotion (2026-06-01): 21 → 23 preset aliases.
-    assert payload["catalog"]["presets_count"] == 23
+    # Gemma-31B kv-auto profile (2026-06-19, ea33b8e0): +1 → 24.
+    assert payload["catalog"]["presets_count"] == 24
     assert payload["capabilities"]["platform"]["sndr_core_version"]
 
     summary = client.get("/api/v1/catalog/summary")
     assert summary.status_code == 200
     # Every builtin preset carries a card.
     # chat-K3 promotion (2026-06-01): 21 → 23 (both new presets ship
-    # with operator cards from the start).
-    assert summary.json()["preset_cards_count"] == 23
+    # with operator cards from the start). Gemma-31B kv-auto (2026-06-19): +1 → 24.
+    assert summary.json()["preset_cards_count"] == 24
 
 
 def test_presets_endpoints_are_read_only_json_views():
@@ -509,7 +510,8 @@ def test_presets_endpoints_are_read_only_json_views():
     assert listed.status_code == 200
     # chat-K3 promotion (2026-06-01): both new presets land as
     # production_candidate → +2 → 14 → 16.
-    assert listed.json()["matched"] == 16
+    # Gemma-31B kv-auto preset (2026-06-19, ea33b8e0) also production_candidate → +1 → 17.
+    assert listed.json()["matched"] == 17
 
     preset = client.get("/api/v1/presets/prod-qwen3.6-35b-balanced")
     assert preset.status_code == 200

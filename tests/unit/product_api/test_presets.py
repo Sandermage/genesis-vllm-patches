@@ -29,9 +29,10 @@ def test_list_presets_returns_catalog_records():
     # chat-K3 promotion session (2026-06-01): +2 preset aliases
     # (prod-gemma4-31b-tq-mtp-chat-k3 + prod-gemma4-26b-mtp-chat-k3
     # promoted from profile-only to operator-facing presets) → 21 → 23.
+    # Gemma-31B kv-auto profile (2026-06-19, ea33b8e0): +1 preset → 24.
     assert isinstance(result, PresetListResult)
-    assert result.total == 23
-    assert result.matched == 23
+    assert result.total == 24
+    assert result.matched == 24
     assert result.load_errors == ()
     assert all(isinstance(row, PresetRecord) for row in result.presets)
 
@@ -46,8 +47,8 @@ def test_list_presets_filters_status_and_family():
 
     # chat-K3 promotion (2026-06-01): the two new presets ship as
     # production_candidate, lifting the production_candidate-filter
-    # count by 2 (14 → 16).
-    assert by_status.matched == 16
+    # count by 2 (14 → 16). Gemma-31B kv-auto (2026-06-19) +1 → 17.
+    assert by_status.matched == 17
     assert by_family.matched == 2
     assert {row.id for row in by_family.presets} == {
         "prod-qwen3.6-35b-balanced",
