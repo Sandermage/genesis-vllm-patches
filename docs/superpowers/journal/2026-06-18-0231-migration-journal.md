@@ -1284,3 +1284,29 @@ LOOP SCAN COMPLETE — all engine-github hits from the MTP/spec-decode/GDN sweep
 to the live config: #37052 (flashinfer_gdn=False), #45477 (APC off), #45953 (static SD). The K=5 win is
 safe and the fleet carries no live latent regression from these. Disciplined Study->Verify cleared three
 scary-looking IMA/correctness reports without a false alarm or a missed risk.
+
+## 42. Gemma-31B "both profiles" — kv-auto chat profile added (operator-chosen)
+
+Operator picked "both profiles" for the Gemma-31B kv-auto decision (§35: kv-auto +70% but 64K→32K).
+Delivered both:
+- KEPT the TurboQuant profile (gemma4-31b-tq-mtp-chat-k3 + start_31b_0231.sh, turboquant_4bit_nc, 64K)
+  for long-context workloads — untouched.
+- ADDED the kv-auto chat profile for high-throughput chat (≤32K):
+  * sndr/model_configs/builtin/profile/gemma4-31b-kvauto-chat.yaml (status experimental, kv_cache_dtype
+    auto uniform fp16, max_model_len 32768, MTP K=3 + drafter, compression_plan/backend_plan null,
+    dropped the TQ infra stack G4_60A-L/G4_61/62/G4_32/P65/G4_68/G4_69/70/skip-layers, kept drafter
+    routing G4_71B/G4_75/G4_81 + observability).
+  * sndr/engines/vllm/patches/spec_decode/artifacts/gemma4-31b-kvauto-chat.json (config_hash
+    945dd66a95b19c63, encodes the measured 70.1 TPS / 7-7).
+  * sndr/model_configs/builtin/presets/prod-gemma4-31b-kvauto-chat.yaml (fallback_preset → the TQ chat
+    sibling for >32K).
+  * rig launcher /home/sander/start_31b_kvauto_chat.sh (permanent; --kv-cache-dtype auto, --max-model-len
+    32768, no skip-layers, container vllm-gemma31b-kvauto-chat).
+Validated: make evidence 63/63 (held), doctor ERROR=0, compose renders kv-auto/32K/K=3/no-TURBOQUANT.
+Rig boot dev148: 67.92 TPS / TPOT 11.23 / tool-call 7/7 / no IMA (consistent with §35's 70.1). 35B PROD
+restored healthy after (health 200, qwen3.6-35b-a3b, 280K). The K-tuning win does NOT transfer to Gemma
+(separate drafter — K=3 optimal); kv-auto is Gemma-31B's lever. 26B-A4B-MoE already kv-auto/optimal;
+DiffusionGemma has no spec lever. NOTE: the rig launcher kept --attention-backend TURBOQUANT (minimal sed
+of the proven sweep; self-skips on the non-TQ dtype → standard attention; validated 67.92 TPS); the
+profile YAML composes to engine-default — both valid, regenerate the launcher from the profile for full
+consistency at the next render.

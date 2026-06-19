@@ -1,0 +1,72 @@
+{
+  "allowed_workloads": [
+    "code_gen",
+    "free_chat",
+    "summarization"
+  ],
+  "config_hash": "945dd66a95b19c63",
+  "created_at": "2026-06-19T00:00:00Z",
+  "decision": "validated_conditional",
+  "denied_workloads": [],
+  "kv_plan": {
+    "bridge_enabled": false,
+    "compression": "none",
+    "drafter_kv_cache_dtype_reset_to": "auto",
+    "drafter_layers": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "drafter_layers_backend": "TRITON_ATTN",
+    "genesis_patches": [
+      "G4_71b drafter head=256 -> Triton",
+      "G4_75 drafter head=512 -> Triton",
+      "G4_81 spec-verify direct route (supersedes G4_67)"
+    ],
+    "kv_cache_dtype": "auto",
+    "physical_kv_sharing": true,
+    "skip_list": null,
+    "target_native_layers": "all",
+    "target_tq_layers_range": null,
+    "uniform": true
+  },
+  "metrics": {
+    "acceptance": {
+      "calls": 0,
+      "note": "PN248 acceptance distribution not recorded for the kv-auto chat single-stream sweep (greedy-decode workloads have implicit ~100% target-track acceptance). Operator may collect a PN248 sample later via SNDR_ENABLE_SPEC_DECODE_ACCEPTANCE_METRIC=1 and refresh this block; the wall-TPS / TPOT / tool-call measurements below are the load-bearing evidence for the decision."
+    },
+    "kvauto_vs_tq": {
+      "kvauto_tool_call": "7/7",
+      "kvauto_tpot_ms": 10.98,
+      "kvauto_wall_tps": 70.1,
+      "tps_delta_pct": 69.6,
+      "tq_tool_call": "6/7",
+      "tq_tpot_ms": 21.7,
+      "tq_wall_tps": 41.4
+    },
+    "note": "Single-stream rig sweep bcv4uksw4 (journal §35), pin 0.23.1rc1.dev148+gb4c80ec0f, 2x A5000. kv-auto variant: 70.1 wall TPS, TPOT 10.98 ms, tool-call 7/7. Measured against the TurboQuant chat sibling (gemma4-31b-tq-mtp-chat-k3): 41.4 TPS, TPOT 21.7 ms, tool-call 6/7. Net: kv-auto is +69.6% TPS AND better tool-call quality; the only cost is context 64K (TQ) -> 32K (kv-auto), because uniform fp16 KV is ~4x the turboquant_4bit_nc footprint.",
+    "promotion_gain_threshold": 0.1,
+    "tool_call_pass": 7,
+    "tool_call_total": 7,
+    "tpot_ms": 10.98,
+    "wall_tps": 70.1
+  },
+  "model_id": "gemma-4-31B-it-AWQ-4bit",
+  "notes": "kv-auto chat-role single-stream sweep 2026-06-19 on pin 0.23.1rc1.dev148+gb4c80ec0f. Uniform fp16 KV (no TurboQuant compression, no skip-layers), engine-default attention backend, MTP K=3 via gemma-4-31B-it-assistant. Drafter Triton routing (G4_71B/G4_75) + spec-verify G4_81 (G4_67 disabled) + observability kept; the full TurboQuant infra stack (G4_60A-L, G4_61/62, G4_32, P65, G4_68, G4_69/70, SNDR_G4_TQ_FORCE_SKIP_LAYERS) is dropped because it is meaningless on a uniform-fp16 / non-TURBOQUANT path. Throughput-vs-context sibling of gemma4-31b-tq-mtp-chat-k3 (config_hash aba0bb6b158f7632): operator runs both — TQ owns the 64K long-context slot, kv-auto owns the +70% high-throughput 32K chat slot.",
+  "patch_hash": "kvauto-chat-2026-06-19",
+  "profile": "gemma4-31b-kvauto-chat",
+  "prompt_suite": [
+    "code_gen",
+    "free_chat",
+    "summarization",
+    "tool_json"
+  ],
+  "vllm_pin": "0.23.1rc1.dev148+gb4c80ec0f",
+  "workload_classes": [
+    "code_gen",
+    "free_chat",
+    "summarization",
+    "tool_json"
+  ]
+}

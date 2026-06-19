@@ -1,0 +1,89 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 alias — Gemma 4 31B AWQ-4bit, kv-auto MTP K=3 chat-role.
+# `sndr launch prod-gemma4-31b-kvauto-chat` resolves to (model, hardware, profile).
+#
+# High-throughput kv-auto chat preset. Uniform fp16 KV (no TurboQuant
+# compression, no skip-layers), engine-default attention, MTP K=3 via the
+# gemma-4-31B-it-assistant drafter, 32K context. The throughput-optimized
+# sibling of `prod-gemma4-31b-tq-mtp-chat-k3` (the 64K long-context TQ
+# preset). Operator runs BOTH ("both profiles" decision 2026-06-19):
+#   - prod-gemma4-31b-tq-mtp-chat-k3   → 64K long-context (TurboQuant)
+#   - prod-gemma4-31b-kvauto-chat      → 32K high-throughput (THIS, +70% TPS)
+#
+# Bench evidence (journal §35, sweep bcv4uksw4, single-stream,
+# pin 0.23.1rc1.dev148+gb4c80ec0f, 2× A5000):
+#   kv-auto     70.1 wall_TPS   TPOT 10.98 ms   tool-call 7/7   ← THIS
+#   TurboQuant  41.4 wall_TPS   TPOT 21.7  ms   tool-call 6/7   ← TQ sibling
+#   → +69.6% TPS AND better tool-call; only cost is context 64K→32K.
+#   Decision: validated_conditional. Artifact at
+#   sndr/engines/vllm/patches/spec_decode/artifacts/gemma4-31b-kvauto-chat.json
+#
+# Rig launcher reference: ~/start_31b_kvauto_chat.sh (permanent standalone
+# launcher, port 8102, CONTAINER=vllm-gemma31b-kvauto-chat).
+
+model: gemma-4-31b-it-awq                        # cyankiwi/gemma-4-31B-it-AWQ-4bit + native gemma4_dense
+hardware: a5000-2x-24gbvram-16cpu-128gbram       # Sander 2× A5000 homelab
+profile: gemma4-31b-kvauto-chat                  # kv-auto chat role: uniform fp16 KV, MTP K=3, 32K, +70% TPS
+
+# CONFIG-UX.2 — operator card
+card:
+  title: "Gemma 4 31B AWQ — kv-auto + MTP K=3 chat-role (high-throughput)"
+  summary: |
+    Dense 31B gemma4_dense chat-role high-throughput variant. Uniform
+    fp16 KV (no TurboQuant) + MTP K=3 delivers +69.6% decode TPS and
+    better tool-call (7/7 vs 6/7) than the TurboQuant chat sibling, at
+    the cost of context (64K → 32K). Use for interactive chat / tool-use
+    where throughput matters more than long context; use the TQ chat
+    sibling (prod-gemma4-31b-tq-mtp-chat-k3) when you need 64K context.
+  status: production_candidate
+  audience: operator
+  maturity: draft                                  # ProfileDef.status stays experimental until the operator
+                                                    # A/B observation window confirms the chat gain holds
+  mode: throughput
+  workload_allow:
+    - free_chat
+    - summarization
+    - code_gen
+  workload_deny:
+    - structured_json.long
+    - tool_call.long
+  concurrency:
+    min: 1
+    max: 2
+    canonical: 2
+  K: 3
+  # K>1 production_candidate requires a K=1-or-fallback pointer of same
+  # routing_family. Points at the TQ chat sibling — the long-context
+  # fallback when 32K is insufficient (same routing_family + chat role).
+  fallback_preset: prod-gemma4-31b-tq-mtp-chat-k3
+  context:
+    max_model_len: 32768
+    typical_input_tokens: 2048
+    typical_output_tokens: 2048
+  routing_family: gemma4_dense_31b_tq
+  default_for_family: false                        # default_for_family stays with gemma4-31b-tq-default
+  primary_metric:
+    kind: agg_TPS
+    value: 70.1
+    source: sndr/engines/vllm/patches/spec_decode/artifacts/gemma4-31b-kvauto-chat.json
+    measured_at: 2026-06-19
+  evidence_refs:
+    - type: bench
+      path: sndr/engines/vllm/patches/spec_decode/artifacts/gemma4-31b-kvauto-chat.json
+      visibility: public
+      note: |
+        kv-auto vs TurboQuant single-stream A/B on pin dev148: 70.1 vs
+        41.4 wall_TPS (+69.6%), TPOT 10.98 vs 21.7 ms, tool-call 7/7 vs
+        6/7. decision=validated_conditional. Cost: context 64K → 32K.
+  evidence_visibility: public
+  tradeoffs:
+    - "kv-auto uniform fp16 KV → +69.6% decode TPS + better tool-call (7/7) vs the TurboQuant chat sibling, but context drops 64K → 32K (fp16 KV is ~4× the turboquant_4bit_nc footprint)."
+    - "Run alongside prod-gemma4-31b-tq-mtp-chat-k3, not as a replacement: TQ owns long-context (64K), kv-auto owns high-throughput chat (32K)."
+  do_not_use:
+    - condition: "context requirement > 32K"
+      reason: "Use prod-gemma4-31b-tq-mtp-chat-k3 (TurboQuant, 64K). kv-auto fp16 KV caps at 32K on 2× A5000."
+    - condition: "high-concurrency (>2)"
+      reason: "Single-stream bench-validated only; sizing matches the canonical chat-role default."
+  card_version: 1
+  card_updated: 2026-06-19
+  card_author: sander

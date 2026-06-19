@@ -1,0 +1,229 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 profile — gemma4-31b-kvauto-chat
+# Role: structured — MTP K=3 kv-auto chat-role runtime for gemma-4-31b-it-awq
+# targeting free_chat / code_gen / summarization workloads.
+#
+# WHY THIS PROFILE EXISTS (operator decision 2026-06-19, "both profiles"):
+# The sibling gemma4-31b-tq-mtp-chat-k3 keeps the 64K long-context TQ path.
+# THIS profile is the high-throughput kv-auto alternative: uniform fp16 KV,
+# NO per-layer TurboQuant compression, 32K context — in exchange for ~+70%
+# decode throughput and better tool-call quality.
+#
+# MEASURED EVIDENCE (journal §35, sweep bcv4uksw4, single-stream,
+# pin 0.23.1rc1.dev148+gb4c80ec0f, rig 2× A5000):
+#
+#   variant     wall_TPS   TPOT_ms   tool-call
+#   kv-auto     70.1       10.98     7/7   ← THIS profile
+#   TurboQuant  41.4       21.7      6/7   ← gemma4-31b-tq-mtp-chat-k3 sibling
+#
+#   → kv-auto is +69.6% TPS AND better tool-call quality. The ONLY cost is
+#     context: 64K (TQ) → 32K (kv-auto), because uniform fp16 KV is ~4×
+#     larger per token than turboquant_4bit_nc, so the 64K ceiling halves
+#     to 32K to fit the same 2× A5000 VRAM budget.
+#
+# The parent ModelDef (gemma-4-31b-it-awq.yaml) already declares
+# capabilities.kv_cache_dtype: auto — this profile is the runtime that
+# honors that default instead of overriding it to turboquant_4bit_nc.
+# Precedent for the kv-auto / no-TQ-stack pattern: gemma4-26b-mtp-chat-k3
+# (MoE A4B sibling, also kv_cache_dtype=auto with empty TQ infra).
+#
+# RELATION TO THE TQ STACK — what is DROPPED vs the TQ chat sibling:
+# Because target KV is uniform fp16 (not turboquant_4bit_nc) and the
+# attention backend is engine-default (not TURBOQUANT), the entire
+# TurboQuant infrastructure that the TQ chat profile carries is
+# meaningless on this path and is intentionally NOT enabled here:
+#   - compression_plan / native_source_layers [58,59] (no per-layer TQ)
+#   - backend_plan TURBOQUANT (engine default attention instead)
+#   - G4_60A..L overlay stack (PR42637 mixed-attention TQ — TQ-only)
+#   - G4_61/G4_62 (TQ shared-workspace / TQ kernel-warmup — TQ-only)
+#   - G4_32 (TQ validity-gate bypass — only needed when TURBOQUANT active)
+#   - P65/G4_68 (TQ spec-CG downgrade — only for the TQ overlay path)
+#   - G4_69/G4_70 (skip-layers native-backend / mixed-allocator — TQ-only)
+#   - SNDR_G4_TQ_FORCE_SKIP_LAYERS=58,59 (no skip-layers on uniform fp16)
+# These all self-skip on a non-TQ dtype anyway (G4_71b's docstring: the
+# whole TQ-vs-bf16 drafter contract problem only exists under
+# --attention-backend TURBOQUANT); dropping them keeps the profile clean.
+#
+# What is KEPT (load-bearing for ANY MTP path on gemma4-31b):
+#   - the MTP K=3 drafter (gemma-4-31B-it-assistant), unchanged
+#   - drafter Triton routing G4_71B + G4_75 (+ control-A parity
+#     G4_71/72/73/74/78=0) so the separate assistant drafter reads native
+#     bf16 KV and never crashes — defensive but harmless on kv-auto
+#   - spec-verify route G4_81 (G4_67=0 disabled — G4_81 supersedes it),
+#     the validated 2026-06-16 coherent-decode route
+#   - observability SNDR_ENABLE_SPEC_DECODE_ACCEPTANCE_METRIC +
+#     SNDR_ENABLE_PN283_PROC_BRIDGE (default-on to match the TQ sibling)
+# The base Gemma-4 family fixes/guards (G4_01/03/09/11/12/13/14/16/23/25
+# etc.) are inherited as-is from the parent ModelDef.patches — they apply
+# identically on the kv-auto path.
+#
+# K=3 RATIONALE: identical to the TQ chat sibling — chat / free-form prose
+# has lower per-token predictability so a smaller spec-decode lookahead
+# (K=3) avoids the draft-rejection cycles that K=4 wastes time on. The
+# journal proved 31B K=4 is worse for chat. Do NOT raise K.
+#
+# Architectural cross-references:
+#   sndr/model_configs/builtin/profile/gemma4-31b-tq-mtp-chat-k3.yaml (TQ sibling)
+#   sndr/model_configs/builtin/profile/gemma4-26b-mtp-chat-k3.yaml (kv-auto pattern precedent)
+#   sndr/engines/vllm/patches/spec_decode/artifacts/gemma4-31b-kvauto-chat.json
+#   sndr/engines/vllm/patches/spec_decode/g4_71b_drafter_sliding_triton.py
+
+schema_version: 2
+kind: profile
+id: gemma4-31b-kvauto-chat
+parent_model: gemma-4-31b-it-awq
+maintainer: sandermage
+status: experimental                              # kv-auto chat: single-stream rig-benched 2026-06-19
+                                                   # (70.1 TPS, TPOT 10.98ms, tool-call 7/7 on pin dev148)
+                                                   # but no multi-day operator A/B observation window yet —
+                                                   # stays experimental until that window confirms the
+                                                   # aggregator-measured chat gain holds. Promote to
+                                                   # validated after the window (see promotion contract).
+created: '2026-06-19'
+
+# ─── Runtime role ──────────────────────────────────────────────────────
+# role=structured because this profile carries spec_decode_override +
+# routing + validation runtime-role blocks. The `[10_default_clean]`
+# validator enforces: a profile with any runtime-role block set MUST
+# declare a non-default role; role=default + spec_decode_override is a
+# schema error by design. Same contract as the TQ chat + 26b chat siblings.
+role: structured
+
+# Runtime sizing — kv-auto ceiling is 32K (uniform fp16 KV is ~4× the
+# turboquant_4bit_nc footprint, so the TQ sibling's 64K halves to 32K on
+# the same 2× A5000 budget). max_num_seqs=2 (chat concurrency),
+# max_num_batched_tokens=8192 (Gemma-4 multimodal MM-budget — the
+# disable_chunked_mm_input path needs the image MM item, 2496 tokens, to
+# fit in one schedule step; 8192 is the proven-safe value the TQ sibling
+# already runs on this exact model+hardware).
+sizing_override:
+  max_model_len: 32768                            # kv-auto ceiling on 2× A5000 (fp16 KV ~4× TQ → 64K halves to 32K). Rig-validated boot 2026-06-19.
+  gpu_memory_utilization: 0.90
+  max_num_seqs: 2                                 # chat concurrency
+  max_num_batched_tokens: 8192                    # Gemma-4 MM-budget: keeps max_tokens_per_mm_item(2496) ≤ batched budget; matches TQ sibling proven value
+  enable_chunked_prefill: true
+  enforce_eager: false
+  disable_custom_all_reduce: true
+
+# ── Workload runtime env (profile-scoped) ──────────────────────────────
+# G4_09 (Gemma-4 SWA→global prefill chunker, closes vllm#39914) hard-
+# clamps the live scheduler's max_num_batched_tokens to its chunk-size
+# default of 2048 unless GENESIS_G4_09_CHUNK_SIZE raises the ceiling.
+# Without this, max_num_batched_tokens: 8192 is silently overridden to
+# 2048 at engine init and the Gemma-4 multimodal image item (2496 tokens)
+# no longer fits in one schedule step → boot fails. Setting the chunk-size
+# to 8192 makes G4_09's clamp a no-op against the 8192 batched budget.
+# Still needed on the kv-auto path — the multimodal encoder budget is
+# orthogonal to the KV dtype. Profile-scoped (system_env, layered
+# hardware < model < profile) so it does NOT leak onto the shared
+# a5000-2x hardware YAML used by 35B/27B.
+system_env:
+  GENESIS_G4_09_CHUNK_SIZE: "8192"
+
+# MTP K=3 via the gemma-4-31B-it-assistant drafter — same drafter as the
+# TQ chat + structured-k4 siblings; only the target KV path differs.
+# attention_backend TRITON_ATTN for the drafter keeps its KV layout
+# native bf16 (the drafter never shares a TQ-packed cache).
+spec_decode_override:
+  method: mtp
+  num_speculative_tokens: 3
+  model: /models/gemma-4-31B-it-assistant
+  attention_backend: TRITON_ATTN
+
+# kv-auto: uniform fp16 KV, no per-layer compression. The parent ModelDef
+# already declares capabilities.kv_cache_dtype: auto; this profile honors
+# it. compression_plan/backend_plan are null (same as the kv-auto 26b
+# chat sibling) — NO turboquant_4bit_nc, NO native_source_layers [58,59],
+# NO TURBOQUANT backend.
+compression_plan: null
+backend_plan: null
+
+# Operator-declared intent — same workload set as the TQ chat sibling.
+# Runtime effective set is intended_workloads ∩ artifact.allowed_workloads.
+routing:
+  intended_workloads:
+    - free_chat
+    - code_gen
+    - summarization
+
+# Pin-invariant reference to the bench evidence file. config_hash computed
+# from (model_id, kv_plan, K=3, drafter_backend=TRITON_ATTN) via
+# sndr.engines.vllm.patches.spec_decode.functional_artifact.compute_config_hash.
+# kv_plan here is the kv-auto plan (uniform fp16, no skip-list) so the hash
+# is distinct from the TQ chat sibling's aba0bb6b158f7632.
+validation:
+  artifact_id: gemma4-31b-kvauto-chat
+  config_hash: 945dd66a95b19c63
+
+# ─── Patches delta — kv-auto: drafter routing + spec-verify + observ. ───
+# Only the MTP drafter routing (load-bearing for ANY MTP path on
+# gemma4-31b), the validated spec-verify route, and observability are
+# enabled. The entire TurboQuant infra stack the TQ chat sibling carries
+# (G4_60A..L, G4_61/62, G4_32, P65, G4_68, G4_69/70,
+# SNDR_G4_TQ_FORCE_SKIP_LAYERS) is intentionally absent — meaningless on
+# uniform fp16 KV with engine-default attention. See header.
+patches_delta:
+  enable:
+    # ── Drafter Triton routing — required for ANY MTP path on gemma4-31b ──
+    # The separate assistant drafter must read native bf16 KV. G4_71B
+    # routes drafter sliding (head=256) layers, G4_75 routes head=512.
+    # Defensive-but-harmless on the kv-auto target (no TQ-packed cache to
+    # mis-read), load-bearing whenever the drafter shares physical KV.
+    GENESIS_ENABLE_G4_71B_DRAFTER_SLIDING_TRITON: '1'
+    GENESIS_ENABLE_G4_75_DRAFTER_HEAD512_TRITON: '1'
+    # ── Legacy drafter routes explicitly OFF (control-A parity) ──
+    GENESIS_ENABLE_G4_71_DRAFTER_NATIVE_BACKEND: '0'
+    GENESIS_ENABLE_G4_72_DRAFTER_NATIVE_SPEC: '0'
+    GENESIS_ENABLE_G4_73_DRAFTER_PROFILE_SKIP: '0'
+    GENESIS_ENABLE_G4_74_DRAFTER_HND_LAYOUT: '0'
+    GENESIS_ENABLE_G4_78_DRAFTER_TARGET_KV_BRIDGE: '0'
+    # ── Spec-verify route: G4_81 supersedes G4_67 (VALIDATED 2026-06-16) ──
+    # G4_81 honors the engine output-buffer contract AND forwards
+    # sliding-window / mm-prefix masking per virtual row → coherent decode.
+    # G4_67 (the PR40914 backport) returns a raw 3D tensor (contract gap)
+    # → garbage decode; disabled. Same verify route the TQ chat sibling
+    # settled on after the 2026-06-16 diagnostic ladder.
+    GENESIS_ENABLE_G4_67_TQ_SPEC_VERIFY_ROUTE: '0'
+    GENESIS_ENABLE_G4_81_TQ_MQ_DIRECT_ROUTE: '1'
+    # ── Observability — operator-optional, default-on to match the TQ
+    # sibling. Disable via patches_delta.override at the preset layer if
+    # telemetry overhead is a concern in production.
+    SNDR_ENABLE_SPEC_DECODE_ACCEPTANCE_METRIC: '1'
+    SNDR_ENABLE_PN283_PROC_BRIDGE: '1'
+  disable: []
+  override: {}
+
+# ─── Override policy (CONFIG-UX.1) ─────────────────────────────────────
+# sizing_override reaches beyond hardware defaults (enable_chunked_prefill
+# + explicit disable_custom_all_reduce exceed it), so an override_policy
+# is required. override_class: bench — this is a bench-validated profile
+# (single-stream rig bench 2026-06-19) pending the operator A/B window.
+override_policy:
+  override_class: bench
+  reason: "Gemma4 31B kv-auto chat-K=3: +69.6% TPS (70.1 vs TQ 41.4) AND better tool-call (7/7 vs 6/7) than the TurboQuant chat sibling on pin dev148, single-stream rig bench 2026-06-19; the only cost is context 64K→32K (uniform fp16 KV is ~4× the turboquant_4bit_nc footprint)."
+  evidence_refs:
+    - sndr/engines/vllm/patches/spec_decode/artifacts/gemma4-31b-kvauto-chat.json
+  evidence_visibility: public
+  expires_at: '2026-08-31'
+  allowed_to_exceed_hardware_default: true
+
+# ─── Promotion contract ────────────────────────────────────────────────
+# kv-auto chat stays a profile permanently — it is a throughput-vs-context
+# trade-off sibling of the TQ chat profile, not an inherent model property.
+# Promotion = moving status experimental → validated after the operator A/B
+# observation window confirms the aggregator-measured chat gain holds.
+promotion:
+  validation_required:
+    - "functional artifact gemma4-31b-kvauto-chat.json present and config_hash matches"
+    - "router intersects routing.intended_workloads ∩ artifact.allowed_workloads to {free_chat, code_gen, summarization}"
+    - "rig boot is clean on kv-auto / 32K (no IMA, no KERNEL_STORAGE_DTYPE_MISMATCH) — validated 2026-06-19"
+    - "single-stream decode ~70 TPS + tool-call PASS reproduced on the current pin"
+    - "aggregator-measured chat workload gain holds over the TQ chat sibling during the observation window"
+  promote_to: null                                 # kv-auto chat stays profile-side; do not promote into model.patches
+  notes: |
+    Throughput-optimized sibling of gemma4-31b-tq-mtp-chat-k3. Operator
+    runs BOTH profiles ("both profiles" decision 2026-06-19): the TQ chat
+    profile owns the 64K long-context slot; this kv-auto profile owns the
+    high-throughput 32K chat slot (+70% TPS, better tool-call). An
+    operator picks per workload — long documents → TQ 64K; interactive
+    chat / tool-use → kv-auto 32K.
