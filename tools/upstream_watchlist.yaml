@@ -60,6 +60,90 @@ watch:
       should auto-retire patches as their corresponding bullet points
       land in upstream PRs.
 
+  # ─── 2026-06-19 TQ upstream delta-scan (wjggffl8a) ─────────────────
+  # 5 then-unreferenced TQ PRs assessed vs our patches + live dev148.
+  # Verdict: caught up. Recorded so future audits do not re-flag them.
+  - upstream: vllm#43432
+    status: open
+    local_patches: [P44, P67, PN119, P22, P26, P32, PN261]
+    action: a-b-test
+    since: 2026-06-19
+    notes: |
+      [TurboQuant] Use MSE (Lloyd-Max) quantization for VALUES — a QUALITY
+      candidate; the only non-applicable-condemned delta of the delta-scan.
+      NOT condemned by the FIX2 dead-end: FIX2 was a decode-THROUGHPUT
+      MSE-KEY tensor-core experiment that died at Gemma GQA group=2 (needs
+      M>=16); THIS is scalar-Triton VALUE-quant accuracy, independent of the
+      GQA ratio. PR benches our exact 27B-int4-AutoRound 36/36 NIAH; Gemma
+      V-MSE mean NLL 0.297 vs 0.607 uniform + 2B/value-vector smaller slot.
+      DO NOT auto-adopt: OPEN/bot-review-only, 1124-line rewrite of value
+      store/decode/dequant on the live k8v4 hot path BOTH PROD models run,
+      changes value_packed_size 68->66 / slot_size 196->194 (must co-version
+      PN261/PN119/P22/P26/P32), extra per-decode inverse-Hadamard@Pi GEMM
+      unquantified for k8v4 TPOT. If pursued: backport ONLY the value-MSE
+      half (drop bundled mm_prefix_range — already vendored in
+      overlays/pr42637), default-OFF PNxxx extending overlays/pr42637
+      store+decode, with a mandatory dev148 rig A/B (TPOT + tool-call
+      clean-rate + NIAH on 27B & 35B) BEFORE enabling.
+  - upstream: vllm#45748
+    status: open
+    local_patches: []
+    action: watch
+    since: 2026-06-19
+    notes: |
+      Turboquant native fp8 v4 (CUDA) store. NOT APPLICABLE — hardware-gated
+      SM>=8.9 (Hopper/Ada E4M3). Our 2x RTX A5000 = SM (8,6) deterministically
+      take the fp8e4b15 branch (live store, Genesis P3 workaround), which is
+      byte-incompatible with the native kernel's E4M3; the native op is not
+      even compiled into dev148 (torch.ops._C.turboquant_store_fp8_v4 = False).
+      Zero perf/correctness delta. Revisit ONLY on a Hopper/L40 migration; if
+      ever ported, preserve the fp8_e4b15==0 / device_capability>=89 guards
+      VERBATIM or it silently corrupts the A5000 KV cache. Do NOT re-flag as
+      a missed backport.
+  - upstream: vllm#41803
+    status: open
+    local_patches: []
+    action: watch
+    since: 2026-06-19
+    notes: |
+      [Attention][MLA] Triton-fused TurboQuant decode backend. NOT APPLICABLE
+      — MLA-only. Our models are GQA/hybrid, not DeepSeek-MLA: 35B =
+      qwen3_5_moe (n_kv_heads=2, head_dim=256, no kv_lora_rank), 27B = DFlash
+      GDN+Mamba hybrid. The backend enters only via the MLA priority list +
+      the kv_lora_rank-gated spec hook, never touches our GQA decode kernel
+      (P67/P40/PN119). Do NOT re-flag as a missed backport despite the
+      "TurboQuant decode" title match. Revisit only if a DeepSeek-MLA model
+      joins the fleet (then with vllm#38479).
+  - upstream: vllm#43887
+    status: open
+    local_patches: [P67b, G4_67, G4_81]
+    action: drift-check
+    since: 2026-06-19
+    notes: |
+      [TurboQuant] Add MTP spec-decode routing. ALREADY COVERED live by P67b
+      (+32% TPS) with G4_67 (our #40914 backport) and G4_81 as backups. The
+      PR flips supports_spec_as_decode=True — the OPPOSITE of our deliberate
+      design (live=False); G4_81 checklist item 5 documents that flip as a
+      silent-corruption + PN243-empty-max hazard. Its only NEW half
+      (value-MSE) comes from base #43432, tracked there. Assessed and
+      consciously declined. IF it merges: verify G4_81 wrap-outer
+      interception still matches the new upstream forward() drift markers
+      (no double-route).
+  - upstream: vllm#43878
+    status: open
+    local_patches: [P101, PN116]
+    action: drift-check
+    since: 2026-06-19
+    notes: |
+      [TurboQuant] streaming fallback for long prefill. NOT a miss — the
+      residual 0.5GB FP16 continuation-alloc spike that could affect us is
+      already mitigated differently by P101 (cached_len>=32768 -> sliced
+      decode-replay). The PR streaming core is gated behind
+      `not _can_use_flash_prefill`, unreachable on our flash-enabled
+      head_dim=256 / sliding_window=None / text-only PROD path -> would be
+      600+ dormant LOC. PR self-flags "could not validate k8v4 serving" =
+      our exact cache layout.
+
   # ─── Speculative decode ────────────────────────────────────────────
   - upstream: vllm#40269
     status: open

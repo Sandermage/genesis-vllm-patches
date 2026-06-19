@@ -1002,3 +1002,29 @@ I re-ran every gate myself + read the full patch:
 decode-reserve remove, D shutdown reset. default_on=False / experimental / requires_patches[PN118,PN353A].
 NOT pushed. End-to-end (enable in launcher + decode smoke + bench, grep for illegal/Resized) deferred to
 the next pin-upgrade validation window (no GPU headroom: both A5000s on PROD 35B).
+
+## 27. TQ upstream delta-scan (loop directive: "did we miss anything?") — caught up
+
+Workflow wjggffl8a — 5 then-unreferenced upstream TurboQuant PRs studied vs our patches + live dev148
+(after cross-ref showed we already backported #44053→PN353A, #43747/#40807→PN353B, #42215→PN130/G4_62,
+#42637→G4_60c, #46067→PN399). VERDICT: caught up. None backport-worthy now.
+
+- **#45748** native fp8 v4 (CUDA) store — NOT APPLICABLE: hardware-gated SM>=8.9 (E4M3); our A5000=SM8.6
+  deterministically take the fp8e4b15 branch (byte-incompatible), native op not compiled into dev148.
+- **#41803** Triton-fused TQ decode backend — NOT APPLICABLE: MLA-only; our models are GQA/hybrid
+  (35B qwen3_5_moe n_kv=2/hd=256/no kv_lora_rank; 27B GDN+Mamba). Never touches our GQA decode kernel.
+- **#43887** MTP spec-decode routing — ALREADY COVERED by P67b (+32% TPS) / G4_67 / G4_81; the PR flips
+  supports_spec_as_decode=True (we deliberately keep False — G4_81 item 5 documents that as a corruption
+  hazard). Consciously declined.
+- **#43878** streaming fallback for long prefill — NOT a miss: the residual 0.5GB FP16 alloc spike is
+  mitigated differently by P101; the streaming core is gated behind `not _can_use_flash_prefill`,
+  unreachable on our flash-enabled head_dim=256 path → would be 600+ dormant LOC.
+- **#43432** value-MSE (Lloyd-Max value quant) — the ONLY real non-condemned delta: a QUALITY candidate
+  (27B 36/36 NIAH; Gemma V-MSE NLL 0.297 vs 0.607 uniform + smaller slot). CRITICAL: NOT condemned by
+  the FIX2 dead-end (FIX2 was decode-THROUGHPUT MSE-KEY tensor-core at group=2; this is value-quant
+  accuracy, GQA-ratio-independent). But OPEN/bot-review-only, 1124-line k8v4 hot-path rewrite, changes
+  slot_size (co-version PN261/PN119/P22/P26/P32) → needs a dev148 rig A/B (TPOT + tool-call + NIAH on
+  27B & 35B) before adoption. → queued as a future rig-window quality A/B.
+
+All 5 recorded in tools/upstream_watchlist.yaml (with not-applicable scope notes so future audits don't
+re-flag the title-matches). Gates: audit_upstream_watchlist exit 0, make evidence 63/63. No PROD change.
