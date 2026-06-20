@@ -260,6 +260,12 @@ KNOWN_SPEC_ONLY_PATCHES: frozenset[str] = frozenset({
                        # >=0.21.0,<0.24.0 gated, default-OFF experimental belt-
                        # and-suspenders; composes with PN118 / requires PN118,
                        # no legacy @register_patch hook)
+    "PN400",           # restore is_sym qzeros guard for symmetric AutoRound/
+                       # GPTQ Marlin MoE (backport of MERGED vllm#45656; fixes
+                       # the vllm#43409 regression latent in dev148) — spec-
+                       # driven from inception (apply_module + own apply(),
+                       # no legacy @register_patch hook), default-OFF, pin-
+                       # scoped to the pins lacking the native fix)
 })
 
 

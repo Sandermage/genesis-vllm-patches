@@ -970,6 +970,11 @@
     "reason": "strict opt-in — set GENESIS_ENABLE_P91B=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
   },
   {
+    "patch_id": "PN400",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_PN400=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
     "patch_id": "P1",
     "applied": false,
     "reason": "strict opt-in: patch has default_on=True (informational) but env_flag=GENESIS_LEGACY_P1 unset. Add GENESIS_LEGACY_P1=1 to launch config to engage. Set GENESIS_LEGACY_DEFAULT_ON=1 to revert to pre-2026-05-17 auto-apply semantics."

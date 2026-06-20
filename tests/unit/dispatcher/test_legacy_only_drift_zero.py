@@ -205,7 +205,8 @@ def test_spec_only_truly_orphan_baseline():
         # 2026-06-14 PR-sweep wave-1 implementation — spec-driven from
         # inception (apply_module + own apply(), no legacy hook; applied
         # at legacy boot via _run_spec_only_supplement).
-        "PN252", "PN517",
+        # PN517 resolved 2026-06 (no longer a spec-only orphan in the audit).
+        "PN252",
         # 2026-06-17 (§2.2.A spec-only conversion): PN353A converted to
         # spec-only (apply_module set, legacy @register_patch hook
         # removed); applied at legacy boot via _run_spec_only_supplement.
@@ -225,6 +226,12 @@ def test_spec_only_truly_orphan_baseline():
         # hook), default-OFF experimental belt-and-suspenders; composes with
         # PN118 (wraps its live decode output), requires_patches:[PN118].
         "PN399",
+        # 2026-06-19 (dev148 P0 backport): PN400 backport of MERGED vllm#45656
+        # (restore is_sym qzeros guard for symmetric AutoRound/GPTQ Marlin MoE;
+        # fixes the vllm#43409 regression latent in dev148) — spec-driven from
+        # inception (apply_module + own apply(), no legacy hook), default-OFF
+        # pin-scoped correctness fix.
+        "PN400",
     }
     actual = set(diff["spec_only_truly_orphan_ids"])
     new_orphans = sorted(actual - expected)

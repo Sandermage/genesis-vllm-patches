@@ -2328,6 +2328,18 @@
     "apply_module": "sndr.engines.vllm.patches.quantization.p91b_autoround_row_group_cdiv_multi_scheme"
   },
   {
+    "patch_id": "PN400",
+    "family": "quantization",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "GENESIS_ENABLE_PN400",
+    "has_upstream_pr": true,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "sndr.engines.vllm.patches.quantization.pn400_marlin_moe_sym_zp_guard"
+  },
+  {
     "patch_id": "P1",
     "family": "quantization",
     "lifecycle": "legacy",
