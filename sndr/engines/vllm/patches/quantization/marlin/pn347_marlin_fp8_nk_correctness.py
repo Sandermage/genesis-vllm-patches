@@ -239,6 +239,19 @@ def apply() -> tuple[str, str]:
     if _env_disabled():
         return "skipped", "PN347 disabled via GENESIS_DISABLE_PN347=1"
 
+    # Honour the registry version gate BEFORE anchor-matching. PN347's cap
+    # (>=0.21.0, <0.22.1rc1.dev491) is correct, but apply() previously fell
+    # straight through to the patcher on out-of-window pins (e.g. dev148,
+    # where the upstream scaled_mm refactor structurally removed the N==K
+    # bug), emitting a noisy per-boot `required_anchor_missing` DRIFT warning
+    # instead of a clean VERSION-GATE skip. Mirrors the PN50/PN111 pattern.
+    from sndr.dispatcher import log_decision, should_apply
+
+    decision, reason = should_apply("PN347")
+    log_decision("PN347", decision, reason)
+    if not decision:
+        return "skipped", reason
+
     patcher = _make_patcher_for_drift()
     if patcher is None:
         return "skipped", (

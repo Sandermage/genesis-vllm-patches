@@ -1373,6 +1373,15 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "upstream_pr": None,
         "applies_to": {
             "model_class": ["qwen3_5", "qwen3_6"],
+            # [2026-06-20] Explicit upper cap. PN50's anchor STILL matches the
+            # live >=0.23 tree, but native fla/ops fused GDN kernels
+            # (fused_gdn_prefill_post_conv / fused_sigmoid_gating) now supersede
+            # it. Only the default-OFF env flag held it back — without a cap a
+            # stray flag-flip on dev148+ would stack the SGLang Triton kernel on
+            # native-superseded code. PN50 routes through should_apply, so this
+            # gate fires under GENESIS_ENFORCE_VERSION_RANGE=1. Matches the
+            # sibling Qwen patch bound; excludes 0.23.1rc1.dev148.
+            "vllm_version_range": (">=0.20.0", "<0.23.0"),
         },
         "apply_module": "sndr.engines.vllm.patches.attention.gdn.pn50_gdn_fused_proj",
         "lifecycle": "experimental",
