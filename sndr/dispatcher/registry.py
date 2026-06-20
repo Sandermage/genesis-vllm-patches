@@ -7862,6 +7862,27 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "lifecycle": "experimental",
         "implementation_status": "full",
     },
+    "PN400": {
+        "title": "Restore is_sym qzeros guard for symmetric AutoRound/GPTQ Marlin MoE (vllm#45656 backport; fixes vllm#43409 regression)",
+        "tier": "community",
+        "family": "quantization",
+        "env_flag": "GENESIS_ENABLE_PN400",
+        "default_on": False,
+        "category": "quantization",
+        "credit": "P0 CORRECTNESS regression found by the /loop upstream sweep 2026-06-20. vllm#43409 (merged 06-12, IN dev148) removed the `if not self.quant_config.is_sym else None` guard in AutoGPTQMoEMethod.get_fused_moe_quant_config so the CPU fused_experts_cpu path could receive synthesized zero points for symmetric models. On NVIDIA GPUs this regressed SYMMETRIC (is_sym=True) AutoRound/GPTQ Marlin MoE: the method then passes the meaningless w13_qzeros/w2_qzeros to the Marlin kernel -> INCORRECT expert outputs. Our 27B = Qwen3.6-27B-int4-AutoRound is CONFIRMED on this path (live checkpoint config.json: quant_method=auto-round, sym=True, bits=4, group_size=128, packing auto_round:auto_gptq -> AutoGPTQMoEMethod) on 2x A5000. Fix vllm#45656 ('Restore is_sym guard for zp in GPTQ/CT MoE', merged 06-18 16:20Z) landed ~12h AFTER the dev148 base commit -> NOT in pin. PN400 backports the auto_gptq.py half: gate w1_zp/w2_zp on `not is_sym` before the gptq_marlin_moe_quant_config return. The upstream `or backend==CPU` clause is intentionally dropped (NVIDIA-only rig; avoids the WNA16MoEBackend import + a NameError-if-half-applied surface). The compressed-tensors twin (file 2 of #45656) is a different checkpoint format we do not run; add PN400B if one enters rotation. Anchor SELF-GATES: the unconditional `w1_zp=getattr(layer,'w13_qzeros',None),` text exists ONLY on pins with #43409 and without #45656 (pre-#43409 / post-#45656 it is `... if <cond> else None` -> self-skip). lifecycle=experimental: the text transform is unit-tested (dev148-broken -> fixed) but the semantic 27B greedy A/B (dev148 vs +PN400) is operator-gated (displaces the 35B PROD).",
+        "upstream_pr": 45656,
+        "upstream_pr_relationship": "backport",
+        "applies_to": {
+            "quant_format": [
+                "autoround_int4", "autoround_int8",
+                "gptq_int4", "gptq_int8",
+                "int4_w4a16", "int8_w8a16",
+            ],
+        },
+        "apply_module": "sndr.engines.vllm.patches.quantization.pn400_marlin_moe_sym_zp_guard",
+        "lifecycle": "experimental",
+        "implementation_status": "full",
+    },
 
     # ─── Legacy patches (P1–P46 series, pre-dispatcher era) ─────────────
     # These patches predate the PATCH_REGISTRY metadata system. They have

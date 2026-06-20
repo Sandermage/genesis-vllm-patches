@@ -5,7 +5,7 @@ Covers the three entry points (`install.sh`, the `sndr` CLI, direct
 docker compose) and the first-30-minute acceptance walkthrough.
 
 > Stack as of 2026-05-30:
-> Genesis `v12.0.0` (313 PATCH_REGISTRY entries) ·
+> Genesis `v12.0.0` (314 PATCH_REGISTRY entries) ·
 > vLLM `0.23.1rc1.dev148+gb4c80ec0f` (previous / rollback: `dev101`) ·
 > Reference rig: 2× RTX A5000 24 GB · driver ≥ 580.126 · CUDA 13.
 
