@@ -1122,21 +1122,14 @@ cat > "$LAUNCHER_DIR/run.sh" <<INNER_EOF
 INNER_EOF
 chmod +x "$LAUNCHER_DIR/run.sh"
 
-# [2026-06-20] Persistent Triton JIT cache across container re-creation.
-# TRITON_CACHE_DIR=/root/.triton/cache is set in-container, but without this
-# bind-mount the cache lives in the ephemeral writable layer, so every
-# `docker rm`+`run` restart discards the compiled kernels and pays a ~10s
-# cold recompile (jit_monitor "JIT compilation during inference") on the first
-# requests of EVERY boot. A LOCAL, user-writable host dir (never NFS — per-stat
-# round-trips defeat the purpose; never /var/cache — needs root, and the launcher
-# runs as the service user under `set -e`) keyed per container survives restarts.
-# Safe across upgrades: Triton keys its cache by kernel-source hash + Triton/CUDA
-# version + GPU arch, so a pin bump or a Genesis-patch source change self-
-# invalidates and recompiles — it never serves a stale kernel. mkdir is non-fatal:
-# a cache-dir hiccup must never abort a PROD boot (cache is an optimization).
-TRITON_CACHE_HOST="${{GENESIS_TRITON_CACHE_DIR:-$HOME/.cache/genesis-triton/$CONTAINER}}"
-mkdir -p "$TRITON_CACHE_HOST" 2>/dev/null || true
-
+# NOTE (2026-06-20, reverted): a persistent Triton-cache bind-mount was tried here
+# to avoid the ~10s cold-JIT on every restart, but server test-verify PROVED it
+# ineffective on this stack — Genesis patches modify Triton kernel source at boot
+# (P60b GDN+ngram offset, PN299E reshape_and_cache launchers, …), which busts the
+# Triton cache key every boot, so the kernels recompile regardless of a persistent
+# cache dir. The warm-boot JIT count did not drop (10→10). The first-request
+# warmup-JIT is fundamental to the patch-at-boot architecture, not a cache-mount
+# problem; see journal §70. Left intentionally NOT mounted.
 docker run -d --name "$CONTAINER" \\
   --gpus all --ipc=host -p ${{PORT}}:${{PORT}} \\
   --entrypoint "$LAUNCHER_DIR/run.sh" \\
@@ -1145,7 +1138,6 @@ docker run -d --name "$CONTAINER" \\
   -v "$LAUNCHER_DIR":"$LAUNCHER_DIR":ro \\
   -v ${{GENESIS_REPO}}:${{GENESIS_REPO}}:rw \\
   -v /nfs/genesis/models:/models:ro \\
-  -v "$TRITON_CACHE_HOST":/root/.triton/cache:rw \\
   -v ${{GENESIS_REPO}}/sndr:/usr/local/lib/python3.12/dist-packages/sndr:ro \\
 {overlay_mounts}  ${{IMAGE}}
 
