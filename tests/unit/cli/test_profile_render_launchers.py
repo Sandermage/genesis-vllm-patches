@@ -336,11 +336,15 @@ class TestStructuredProfileRender:
         "overlays/pr42637/block_pool.py",
     )
 
-    def test_structured_pr42637_overlay_mounts_present(self, script):
-        """structured profile enables G4_60a..k → render mounts the 4 TQ
-        feature overlays but NOT any of the 4 stale core-vllm shadows."""
+    def test_structured_pr42637_overlay_mounts_absent(self, script):
+        """[2026-06-20] structured profile is OVERLAY-FREE on dev148: the
+        PR#42637 feature overlays are UNMERGED upstream and fail G4_60C
+        signature verify on dev148, so the profile now sets G4_60B/C/D=0 and the
+        renderer (has_overlay gated on B/C/D only) mounts NONE of them —
+        matching the validated overlay-free rig launcher start_31b_0231.sh.
+        Neither the 4 feature overlays nor the 4 stale core shadows may mount."""
         for feature in self._PR42637_FEATURE_OVERLAYS:
-            assert feature in script, f"feature overlay missing: {feature}"
+            assert feature not in script, f"overlay must be absent now: {feature}"
         for shadow in self._PR42637_CORE_SHADOWS:
             assert shadow not in script, f"stale core shadow mounted: {shadow}"
 
@@ -1035,8 +1039,11 @@ class TestChatK3ConfigDrivenBoot:
                 "rolls native back to 0.20 semantics (ImportError / "
                 "use_eagle TypeError)"
             )
+        # [2026-06-20] chat-k3 is now OVERLAY-FREE on dev148 (G4_60B/C/D=0): the
+        # PR#42637 feature overlays are unmerged upstream + fail G4_60C verify,
+        # so a clean dev148 render mounts NONE of them.
         for feature in self._FEATURE_OVERLAYS:
-            assert feature in script, f"TQ feature overlay missing: {feature}"
+            assert feature not in script, f"overlay must be absent now: {feature}"
 
     def test_emits_explicit_apply_step(self, script):
         """R3 — durable on-disk patch application, mirroring the emitters

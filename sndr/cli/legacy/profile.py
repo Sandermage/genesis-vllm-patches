@@ -1017,6 +1017,19 @@ def render_profile_launcher(
     inner_run.append(f'echo "=== Launch {profile_id} role={role}" K=${{K:-(none)}}')
     inner_run.append(f'exec vllm serve {cfg.model_path} \\')
     inner_run.append(f'  --served-model-name {cfg.served_model_name} \\')
+    # [2026-06-20] Gemma-4 checkpoints are multimodal-capable (vision); Genesis
+    # serves them TEXT-ONLY. Without this flag vLLM forces
+    # --disable_chunked_mm_input, and the per-MM-item token budget (e.g. 2496
+    # for the 26B) clamps max_num_batched_tokens down to 2048 -> a hard
+    # ValueError boot-fail ("max_tokens_per_mm_item larger than
+    # max_num_batched_tokens"). Declaring 0 images/videos makes the model
+    # text-only so the MM-item check is skipped entirely. The validated rig
+    # launchers (start_31b_0231.sh) carry this hand-added; this emits it from
+    # the render so a fresh Gemma-4 launcher boots without a manual edit.
+    if "gemma-4" in cfg.model_path.lower():
+        inner_run.append(
+            "  --limit-mm-per-prompt '{\"image\": 0, \"video\": 0}' \\"
+        )
     inner_run.append(f'  --tensor-parallel-size {hw.hardware.n_gpus} \\')
     inner_run.append('  --disable-custom-all-reduce \\')
     inner_run.append(f'  --dtype {cfg.dtype} \\')
