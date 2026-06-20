@@ -3428,9 +3428,16 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         # override (</thinking>-></think> normalize). Cap bumped <0.24.0.
             "vllm_version_range": (">=0.20.2rc1.dev9", "<0.24.0"),
         },
-        # [Preflight triage 2026-06-11 §2] PN71's anchor literally
-        # contains P27's injected comments — it only matches the
-        # post-P27 file, so P27 must apply first (chain convention).
+        # [2026-06-17 redesign] On >=0.23.0 PN71 targets parser/qwen3.py
+        # (the new token state-machine parser), NOT P27's engine-deleted
+        # reasoning/qwen3_reasoning_parser.py. PN71's anchor no longer
+        # contains P27's injected text (live-verified on dev148) and
+        # applies standalone. requires_patches=["P27"] is retained only as
+        # a legacy ordering hint for older pins where both co-existed; on
+        # >=0.23.0 P27 is version-capped <0.23.0 (out of range), so the
+        # dep-graph emits a HARMLESS advisory dep_missing WARNING that
+        # never blocks (failed=0) — the dependency is structurally
+        # unsatisfiable on this pin, not a wiring error.
         "requires_patches": ["P27"],
         "conflicts_with": [],
         "implementation_status": "full",
