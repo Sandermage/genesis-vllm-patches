@@ -1127,13 +1127,15 @@ chmod +x "$LAUNCHER_DIR/run.sh"
 # bind-mount the cache lives in the ephemeral writable layer, so every
 # `docker rm`+`run` restart discards the compiled kernels and pays a ~10s
 # cold recompile (jit_monitor "JIT compilation during inference") on the first
-# requests of EVERY boot. A LOCAL host dir (never NFS — per-stat round-trips
-# would defeat the purpose) keyed per container survives restarts. Safe across
-# upgrades: Triton keys its cache by kernel-source hash + Triton/CUDA version +
-# GPU arch, so a pin bump or a Genesis-patch source change self-invalidates and
-# recompiles — it never serves a stale kernel.
-TRITON_CACHE_HOST="${{GENESIS_TRITON_CACHE_DIR:-/var/cache/genesis-triton/$CONTAINER}}"
-mkdir -p "$TRITON_CACHE_HOST"
+# requests of EVERY boot. A LOCAL, user-writable host dir (never NFS — per-stat
+# round-trips defeat the purpose; never /var/cache — needs root, and the launcher
+# runs as the service user under `set -e`) keyed per container survives restarts.
+# Safe across upgrades: Triton keys its cache by kernel-source hash + Triton/CUDA
+# version + GPU arch, so a pin bump or a Genesis-patch source change self-
+# invalidates and recompiles — it never serves a stale kernel. mkdir is non-fatal:
+# a cache-dir hiccup must never abort a PROD boot (cache is an optimization).
+TRITON_CACHE_HOST="${{GENESIS_TRITON_CACHE_DIR:-$HOME/.cache/genesis-triton/$CONTAINER}}"
+mkdir -p "$TRITON_CACHE_HOST" 2>/dev/null || true
 
 docker run -d --name "$CONTAINER" \\
   --gpus all --ipc=host -p ${{PORT}}:${{PORT}} \\
