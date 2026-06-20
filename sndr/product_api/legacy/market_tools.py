@@ -198,6 +198,30 @@ def market_grounding(query: str) -> str:
             "from memory):\n" + "\n".join(rows))
 
 
+# Signals that a question needs LIVE web data (vs the model's static training).
+# Conservative + multilingual (EN + RU): only temporal cues ("today/now/latest"),
+# news/events, an explicit search ask, or a recent year trigger it — timeless
+# "explain X" / "how does Y work" questions deliberately do NOT, so simple chats
+# are not slowed by a needless search. Crypto tickers are handled separately
+# (market_grounding is always injected).
+_WEB_SIGNAL_RE = re.compile(
+    r"\b(?:today|now|current(?:ly)?|right\s+now|latest|recent(?:ly)?|nowadays|"
+    r"as\s+of|up[-\s]?to[-\s]?date|this\s+(?:week|month|year)|"
+    r"breaking|live|news|headlines?)\b"
+    r"|\b(?:search|google|look\s?up|browse\s+online|find\s+online|web\s?search)\b"
+    r"|\b20(?:2[4-9]|[3-9]\d)\b"
+    r"|сегодня|сейчас|текущ|последн(?:ие|их|яя|ее|ий)|свеж|актуальн|"
+    r"на\s+данный\s+момент|новост|загугли|найди\s+в\s+(?:интернете|сети|вебе)",
+    re.IGNORECASE,
+)
+
+
+def needs_web_search(query: str) -> bool:
+    """True when a question likely needs live web data (so the chat can auto-enable
+    web search even with the toggle off). Heuristic, deterministic, offline."""
+    return bool(_WEB_SIGNAL_RE.search(query or ""))
+
+
 def date_grounding(now: Optional[datetime] = None) -> str:
     """Current-date grounding line for the chat. A language model has no clock, so
     without this it refuses "future"-dated questions or silently reasons from its

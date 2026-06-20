@@ -2490,11 +2490,17 @@ def create_app(
                     grounding.append(mg)
             except Exception:  # noqa: BLE001 - best-effort
                 pass
-            # Optional web-search grounding: when the GUI toggles it on, search the
-            # live web (aggregator SearXNG, no external API; direct-SearXNG fallback)
-            # and add the results as context so the streamed answer is grounded
-            # and cites sources. Best-effort — chat proceeds ungrounded on failure.
-            if payload.get("web_search"):
+            # Web-search grounding. The explicit GUI toggle forces it; otherwise it
+            # AUTO-enables when the question shows it needs live web data (temporal
+            # cues, news, an explicit search ask, a recent year — see
+            # market_tools.needs_web_search). Searches the live web (aggregator
+            # SearXNG, no external API; direct-SearXNG fallback) and adds the results
+            # as context so the answer is grounded and cites sources. Best-effort —
+            # chat proceeds ungrounded on failure. Opt out of auto via
+            # SNDR_WEB_SEARCH_AUTO=0.
+            _auto_web = os.environ.get("SNDR_WEB_SEARCH_AUTO", "1").strip().lower() not in ("0", "false", "no", "off")
+            do_web = bool(payload.get("web_search")) or (_auto_web and market_tools.needs_web_search(last_user))
+            if do_web:
                 try:
                     from . import external_clients
                     from urllib.parse import urlparse

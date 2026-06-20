@@ -124,6 +124,36 @@ def test_date_grounding_defaults_to_now():
     assert "UTC" in out
 
 
+def test_needs_web_search_positive_signals():
+    pos = [
+        "дай анализ актива WLD на сегодня",
+        "what's the latest news on BTC",
+        "who won the election today",
+        "what happened this week in crypto",
+        "search for the current ETH price",
+        "что нового сейчас на рынке",
+        "последние новости по worldcoin",
+        "release of the new model in 2026",
+        "загугли это",
+        "what is the current weather",
+    ]
+    for q in pos:
+        assert mt.needs_web_search(q), f"should trigger: {q!r}"
+
+
+def test_needs_web_search_negative_signals():
+    neg = [
+        "hello",
+        "explain how proof of stake works",
+        "write a python function to sort a list",
+        "что такое блокчейн",
+        "how does a transformer model work",
+        "summarize this text",
+    ]
+    for q in neg:
+        assert not mt.needs_web_search(q), f"should NOT trigger: {q!r}"
+
+
 def test_market_grounding_tolerates_null_mcap_volume(monkeypatch):
     # CoinGecko returns null mcap/volume for thin/new coins; the formatter must
     # not crash (f"{None:,}" -> TypeError), which previously dropped ALL grounding.
