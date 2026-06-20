@@ -1,4 +1,35 @@
 watch:
+- upstream: vllm#43409
+  status: merged-in-pin-REGRESSION
+  fix_upstream: vllm#45656
+  fix_status: merged-NOT-in-pin
+  severity: P0-correctness
+  local_patches: []
+  affects_models:
+  - Qwen3.6-27B-int4-AutoRound
+  action: backport-fix
+  since: 2026-06-20
+  notes: |
+    REGRESSION IN dev148 (found by the /loop upstream sweep 2026-06-20).
+    #43409 (merged 06-12, IN dev148) removed the `if not is_sym` qzeros
+    guard in AutoGPTQMoEMethod.get_fused_moe_quant_config AND
+    CompressedTensorsWNA16MarlinMoEMethod.process_weights_after_loading.
+    Symmetric (is_sym=True) AutoRound/GPTQ Marlin MoE on NVIDIA then passes
+    meaningless qzeros to the Marlin kernel -> INCORRECT MoE expert outputs.
+    Our 27B = Qwen3.6-27B-int4-AutoRound is CONFIRMED on the broken path:
+    checkpoint config.json quantization_config = {quant_method: auto-round,
+    sym: True, bits: 4, group_size: 128} on NVIDIA A5000 (verified live
+    2026-06-20). Fix #45656 ("Restore is_sym guard for zp in GPTQ/CT MoE",
+    merged 06-18 16:20Z) landed ~12h AFTER the dev148 base commit
+    (b4c80ec0f @ 06-18 04:18Z) -> NOT in pin.
+    ACTION: backport #45656 as a Genesis TextPatch (2-file additive: restore
+    `use_zp = not is_sym` gating of w1_zp/w2_zp in auto_gptq.py + the
+    `if w13/w2_qzeros is not None` guards in
+    compressed_tensors_moe_wna16_marlin.py), version-capped to pins lacking
+    #45656; OR wait for the next pin bump including #45656 and treat dev148
+    as not-27B-correctness-safe until then. VALIDATE via 27B greedy-output
+    A/B (dev148 vs dev148+patch) on a deterministic prompt. The 27B is not
+    currently running (35B PROD is up) so there is no live mis-serving now.
 - upstream: vllm#38479
   status: merged
   local_patches:
