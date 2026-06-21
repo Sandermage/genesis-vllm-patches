@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Ф4 — regenerate the per-pin anchor manifest end-to-end ON THE RIG.
+# Phase 4 — regenerate the per-pin anchor manifest end-to-end ON THE RIG.
 #
 # Runs the proven 2-step pipeline:
 #   1. discovery in the RUNNING pinned container  -> canonical anchor set (204)

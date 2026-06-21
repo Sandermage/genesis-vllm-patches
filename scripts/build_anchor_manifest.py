@@ -14,7 +14,7 @@ fixtures, works fully offline (no rig). It is the LAST-RESORT fallback that
 `cached_load_manifest` uses when no per-pin manifest matches the live pin.
 The AUTHORITATIVE per-pin manifests (`sndr/engines/vllm/pins/<pin>/anchors.json`,
 ALL anchor-bearing patches, generated from the real live engine + bare-image
-pristine source) are built by the Ф4 pipeline `scripts/anchor_sot/` →
+pristine source) are built by the Phase 4 pipeline `scripts/anchor_sot/` →
 `make rebuild-pin`. On a pin bump, regenerate the per-pin manifest with
 `make rebuild-pin`; this legacy global generator is only touched when the
 hand-curated STABLE set itself changes.

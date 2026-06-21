@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Ф4 — compare two anchor manifests ignoring volatile metadata.
+"""Phase 4 — compare two anchor manifests ignoring volatile metadata.
 
 The substantive content (files / patches / anchors / pins) is what must be stable;
 ``generated_at`` and ``generated_by`` change every run and are excluded. Exit 0 if

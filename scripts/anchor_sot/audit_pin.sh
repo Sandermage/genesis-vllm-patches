@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Ф4 — audit gate: does the COMMITTED per-pin manifest still match a fresh rig regen?
+# Phase 4 — audit gate: does the COMMITTED per-pin manifest still match a fresh rig regen?
 #
 # Regenerates the manifest from the live engine (running-container discovery +
 # bare-image pristine source) into a temp area on the rig, pulls it back, and

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Ф4 step 1 — discover anchor targets (run IN the running pinned container).
+"""Phase 4 step 1 — discover anchor targets (run IN the running pinned container).
 
 The running container builds the full set of patchers with the real runtime env
 (a bare container builds fewer — 8 patchers gate on detected hardware/config), so

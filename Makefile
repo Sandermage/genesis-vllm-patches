@@ -162,7 +162,7 @@ tokenizer-fingerprint: ## Tokenizer-fingerprint gate, run in-container pre-bench
 		$${JSON_OUT:+--json-out "$${JSON_OUT}"} \
 		$${COMPARE:+--compare "$${COMPARE}"}
 
-rebuild-pin: ## Ф4: regenerate the per-pin anchor source-of-truth on the rig, pull it back (env: SSH_HOST [CONTAINER] [IMAGE]); see docs/superpowers/specs/2026-06-21-anchor-sot-design.md
+rebuild-pin: ## Phase 4: regenerate the per-pin anchor source-of-truth on the rig, pull it back (env: SSH_HOST [CONTAINER] [IMAGE]); see docs/superpowers/specs/2026-06-21-anchor-sot-design.md
 	@test -n "$${SSH_HOST}" || { \
 		echo "Usage: make rebuild-pin SSH_HOST=<user@host> [CONTAINER=...] [IMAGE=...]"; \
 		echo "Runs the proven 2-step: running-container discovery + bare-image pristine source."; \
@@ -177,7 +177,7 @@ rebuild-pin: ## Ф4: regenerate the per-pin anchor source-of-truth on the rig, p
 	rsync -a "$${SSH_HOST}:$(RIG_REPO)/sndr/engines/vllm/pins/" sndr/engines/vllm/pins/
 	@echo "rebuild-pin done — review + commit sndr/engines/vllm/pins/<pin>/anchors.json"
 
-audit-pin: ## Ф4: verify the committed per-pin manifest still matches a fresh rig regen (R2 drift gate; env: SSH_HOST [CONTAINER] [IMAGE])
+audit-pin: ## Phase 4: verify the committed per-pin manifest still matches a fresh rig regen (R2 drift gate; env: SSH_HOST [CONTAINER] [IMAGE])
 	@test -n "$${SSH_HOST}" || { \
 		echo "Usage: make audit-pin SSH_HOST=<user@host> [CONTAINER=...] [IMAGE=...]"; \
 		echo "Regenerates from the live engine + diffs vs committed (ignoring timestamps)."; \
@@ -513,10 +513,10 @@ gui-build-carbon: ## Build the new Carbon Control Center and bundle it for the m
 
 # ─── Integration (gated on GENESIS_INTEGRATION_ENDPOINT) ─────────────
 #
-# Все таргеты по умолчанию идут в localhost (порт 8101 для 27B, 8000
-# для 35B). Для remote rig задавайте `HOST=http://<host>:<port>`.
-# Жёстко вшитый LAN IP убран — operator-specific endpoint лежит только
-# в `~/.sndr/host.yaml` (используйте `sndr host init`).
+# All targets default to localhost (port 8101 for 27B, 8000 for 35B).
+# For a remote rig, set `HOST=http://<host>:<port>`. The hardcoded LAN IP
+# was removed — the operator-specific endpoint lives only in
+# `~/.sndr/host.yaml` (use `sndr host init`).
 
 integration-27b: ## Run regression bounds against 27B PROD (env: HOST=<url>)
 	@echo "Running integration regression bench against 27B PROD..."

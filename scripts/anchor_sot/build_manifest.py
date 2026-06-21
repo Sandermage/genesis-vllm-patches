@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Ф4 step 3 — classify + write the per-pin anchor manifest (host-runnable).
+"""Phase 4 step 3 — classify + write the per-pin anchor manifest (host-runnable).
 
 Reads the discovery targets (from the running container) + the pristine source
 (from a bare image), classifies every anchor against the REAL pristine source

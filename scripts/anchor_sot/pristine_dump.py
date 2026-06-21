@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Ф4 step 2 — dump pristine source (run IN a BARE pinned image, no Genesis apply).
+"""Phase 4 step 2 — dump pristine source (run IN a BARE pinned image, no Genesis apply).
 
 The running container's vLLM files are patched in-place at boot, so the only place
 to read the un-patched source for the SAME pin is a fresh bare container (Genesis
