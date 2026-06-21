@@ -1,4 +1,4 @@
-"""Ф2 — true-drift classifier (R2) tests. Synthetic, local, no vLLM needed."""
+"""Phase 2 — true-drift classifier (R2) tests. Synthetic, local, no vLLM needed."""
 from sndr.engines.vllm.anchor_discovery import AnchorTarget
 from sndr.engines.vllm.anchor_manifest_gen import (
     classify_anchor,

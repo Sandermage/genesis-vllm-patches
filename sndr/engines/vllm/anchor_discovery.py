@@ -10,7 +10,7 @@ Design: ``sndr/engines/vllm/anchor_discovery.py`` (lib) is imported by
 ``tools/check_upstream_drift.py`` (tool) and ``scripts/build_anchor_manifest.py``
 (tool). Libs are never imported FROM tools — the dependency points one way.
 
-See docs/superpowers/specs/2026-06-21-anchor-sot-design.md (Ф1).
+See docs/superpowers/specs/2026-06-21-anchor-sot-design.md (Phase 1).
 """
 from __future__ import annotations
 
@@ -63,7 +63,7 @@ def _build_patcher_for_module(mod):
     to a non-optional positional silently; if the guess fails the module is
     reported un-buildable rather than crashing to a false drift.
 
-    (Moved verbatim from tools/check_upstream_drift.py at the Ф1 extraction so
+    (Moved verbatim from tools/check_upstream_drift.py at the Phase 1 extraction so
     both the drift-checker and the manifest generator share one builder.)
     """
     builder = getattr(mod, "_make_patcher", None)

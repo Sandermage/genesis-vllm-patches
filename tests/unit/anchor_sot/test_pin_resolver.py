@@ -1,4 +1,4 @@
-"""Ф3 — per-pin manifest resolver tests (local; dev148 anchors.json is committed)."""
+"""Phase 3 — per-pin manifest resolver tests (local; dev148 anchors.json is committed)."""
 from sndr.engines.vllm.wiring.anchor_manifest import (
     normalize_pin,
     per_pin_manifest_path,

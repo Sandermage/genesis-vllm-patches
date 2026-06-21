@@ -1,4 +1,4 @@
-"""Ф2 — per-pin anchor manifest generator + true-drift classifier (R2).
+"""Phase 2 — per-pin anchor manifest generator + true-drift classifier (R2).
 
 Given the discovery (anchor_discovery.iter_anchor_targets) and a PRISTINE vLLM
 source tree for a target pin, classify every anchor against the REAL source
@@ -15,7 +15,7 @@ Source reading is injected (``read_source(target_rel) -> str | None``) so the
 classifier is unit-testable on synthetic fixtures locally and runs against the
 live pristine tree on the rig.
 
-See docs/superpowers/specs/2026-06-21-anchor-sot-design.md (Ф2).
+See docs/superpowers/specs/2026-06-21-anchor-sot-design.md (Phase 2).
 """
 from __future__ import annotations
 

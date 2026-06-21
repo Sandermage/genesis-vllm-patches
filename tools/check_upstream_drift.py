@@ -379,7 +379,7 @@ def check_patcher_anchors(patcher, tree_root: Path) -> dict[str, Any]:
 # ─── Per-module discovery ────────────────────────────────────────────────
 
 
-# _build_patcher_for_module moved to the shared anchor_discovery module (Ф1
+# _build_patcher_for_module moved to the shared anchor_discovery module (Phase 1
 # extraction, 2026-06-21) so the drift-checker and the per-pin manifest
 # generator share ONE enumerator (design requirement R1 — single source of
 # "what to anchor"). Imported here to preserve this tool's existing call sites.

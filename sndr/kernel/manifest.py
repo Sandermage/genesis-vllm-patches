@@ -90,7 +90,7 @@ def cached_load_manifest() -> Optional[dict]:
             per_pin_manifest_path,
         )
         from sndr.engines.vllm.locations.project_paths import manifest_json_path
-        # Ф3 (2026-06-21): prefer the per-pin source-of-truth manifest
+        # Phase 3 (2026-06-21): prefer the per-pin source-of-truth manifest
         # pins/<pin>/anchors.json; fall back to the legacy single committed
         # manifest when no per-pin file exists for the running pin. Either way
         # load_manifest_for_pins enforces the pin match, and any md5 mismatch

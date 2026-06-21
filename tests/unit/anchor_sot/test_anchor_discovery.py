@@ -1,4 +1,4 @@
-"""Ф1 — anchor_discovery R1 coverage tests.
+"""Phase 1 — anchor_discovery R1 coverage tests.
 
 R1: discovery must enumerate ALL anchor-bearing patches (no hand-typed subset).
 Discovery requires a vLLM source tree (the patchers build against it); when

@@ -573,7 +573,7 @@ def default_manifest_path() -> Path:
 
 
 # ─────────────────────────────────────────────────────────────────────────
-# Ф3 — per-pin manifest resolution (the operator's "one file per pin")
+# Phase 3 — per-pin manifest resolution (the operator's "one file per pin")
 # ─────────────────────────────────────────────────────────────────────────
 
 

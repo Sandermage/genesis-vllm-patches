@@ -1,4 +1,4 @@
-"""Ф4 — bump-pipeline pure-logic tests (compare_manifest + build_manifest._mk).
+"""Phase 4 — bump-pipeline pure-logic tests (compare_manifest + build_manifest._mk).
 
 The end-to-end pipeline (discovery + bare-image pristine + classify) is rig-tested
 via `make audit-pin`; these cover the host-side logic that runs without a rig.
