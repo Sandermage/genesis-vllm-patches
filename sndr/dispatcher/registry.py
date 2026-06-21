@@ -6938,7 +6938,17 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "SM 8.6."
         ),
         "upstream_pr": None,
-        "applies_to": {},
+        "applies_to": {
+            # Version-capped off on dev148+ (2026-06-21 file-intersection
+            # study). PN292's revert REPLACEMENT calls mamba_utils.
+            # postprocess_mamba(...) which vllm#40172 DELETED, so the revert
+            # is mechanically invalid on >=0.23.0 (would AttributeError /
+            # trip its own drift marker). The fused kernel it reverts is
+            # align-mode-gated and NEITHER PROD config sets align (35B="none",
+            # 27B align retired) → the -18% it fixes is unreachable today.
+            # Re-derive against the fused-kernel form ONLY if align is enabled.
+            "vllm_version_range": (">=0.20.0", "<0.23.0"),
+        },
         "implementation_status": "full",
         "composes_with": [],
     },
@@ -6965,7 +6975,14 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "hata1234 (Qwen3.6 35B-A3B-AWQ + RTX 6000 Ada), UmutAlihan "
             "(Gemma4 e2b-it + RTX 3060) — both reproduce same crash on "
             "TP=2+MTP, both confirm TP=2 without MTP works. Operator "
-            "override: GENESIS_PN290_FORCE_NONBLOCKING=1 to revert."
+            "override: GENESIS_PN290_SYNC_MODE=none to revert. "
+            "ENABLED on 35B PROD (dev148) 2026-06-21 file-intersection study: "
+            "verified the target is the NON-ALIGN else-branch of "
+            "_update_states_after_model_execute (gpu_model_runner.py:1537-1542) "
+            "— reached when speculative_config + is_hybrid + mamba_cache_mode="
+            "'none' = the exact live 35B path (MTP K=5 + hybrid + non-align). "
+            "Boot-validated: applied=91/failed=0, bench 242.5 TPS (no regression "
+            "vs 225 band, SYNC_MODE=full default), tool-call 7/7."
         ),
         "upstream_pr": None,
         "applies_to": {},
@@ -7378,10 +7395,22 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {
             "is_hybrid": True,
             "spec_method_any": ["mtp", "eagle"],
+            # Version-capped off on dev148+ (2026-06-21 file-intersection
+            # study). vllm#40172 landed a fused GPU postprocess kernel that
+            # DELETED the Python `postprocess_mamba` PN111 targets and now
+            # computes the skip predicate on-GPU per request
+            # (v1/worker/mamba_utils.py:87-94) — a superset of #42574. The
+            # blocking-sync code-path PN111 optimizes no longer exists, and
+            # PROD runs mamba_cache_mode="none" (non-align) so it never fired
+            # anyway. iron-rule-#11 outcome (a): superseded (functional superset).
+            "vllm_version_range": (">=0.20.0", "<0.23.0"),
         },
         "implementation_status": "full",
         "apply_module": "sndr.engines.vllm.patches.attention.gdn.pn111_skip_mamba_postprocess_sync",
         "source": "vllm_pr_backport",
+        # Effectively retired on dev148+ via the vllm_version_range cap above
+        # (PN30 precedent: the cap is the retire mechanism; lifecycle stays
+        # experimental so the family/location + docstring-sync gates pass).
         "lifecycle": "experimental",
         "conflicts_with": [],
         "requires_patches": [],
