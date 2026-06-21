@@ -1042,6 +1042,37 @@ export type PatchDoctorReport = {
   };
 };
 
+export type AnchorManifestEntry = {
+  pin_dir: string;
+  vllm: string | null;
+  genesis: string | null;
+  generated_at: string | null;
+  generated_by: string | null;
+  manifest_version: number | null;
+  schema_valid: boolean;
+  schema_errors: string[];
+  active: boolean;
+  files: number;
+  patches: number;
+  anchors: number;
+  error?: string;
+};
+
+export type PatchManifestStatus = {
+  available: boolean;
+  running_vllm: string | null;
+  manifest_count: number;
+  manifests: AnchorManifestEntry[];
+  drift: {
+    checked: boolean;
+    reason?: string;
+    in_sync?: boolean;
+    drift_count?: number;
+    details?: string[];
+    truncated?: boolean;
+  };
+};
+
 export type PatchExplainResult = {
   patch_id: string;
   meta: Record<string, any>;
@@ -1339,6 +1370,7 @@ export const api = {
   setPatchOverride: (patch_id: string, state: string, env_flag: string) =>
     postJson<{ ok: boolean; overrides: Record<string, { state: string; env_flag: string }> }>("/api/v1/patches/overrides", { patch_id, state, env_flag }),
   patchDoctor: () => request<PatchDoctorReport>("/api/v1/patches/doctor"),
+  patchManifest: (signal?: AbortSignal) => request<PatchManifestStatus>("/api/v1/patches/manifest", { signal }),
   doctor: () => request<DoctorReport>("/api/v1/doctor"),
   memoryFit: (params: { model_id: string; hardware_id: string }, signal?: AbortSignal) =>
     request<MemoryFitReport>(`/api/v1/memory/fit${query(params)}`, { signal }),

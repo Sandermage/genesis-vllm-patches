@@ -704,6 +704,16 @@ def create_app(
     async def patches_doctor() -> dict[str, Any]:
         return _dataclass_payload(run_patch_doctor())
 
+    @app.get("/api/v1/patches/manifest")
+    async def patches_manifest(drift: bool = True) -> dict[str, Any]:
+        """Per-pin anchor source-of-truth status: each pin's manifest (vLLM/genesis
+        version, file/patch/anchor counts, schema validity), which is ACTIVE for the
+        running vLLM, and live drift of the active manifest vs the installed source.
+        Read-only. ``drift=false`` skips the (cheap) source verification."""
+        from .patches.anchor_status import manifest_status
+
+        return manifest_status(drift=drift)
+
     @app.get("/api/v1/license")
     async def license_status() -> dict[str, Any]:
         """License + sndr_engine tier status — installed?, entitled?, subject/expiry,

@@ -5,7 +5,7 @@
 // prop. Extracted from section-workspace.tsx.
 import { Suspense } from "react";
 import {
-  BarChart3, Code2, Cpu, GitBranch, Layers3, ListChecks, PackageCheck,
+  Anchor, BarChart3, Code2, Cpu, GitBranch, Layers3, ListChecks, PackageCheck,
   SlidersHorizontal, Table2
 } from "lucide-react";
 import { tr } from "../i18n";
@@ -18,6 +18,7 @@ import { PatchInventoryControl, FlagsPanel } from "../lazy-panels";
 import { SkeletonCards } from "../Skeleton";
 import { PatchLifecycleGraph, PatchModelSupport, PatchRegistryInsight, PatchSummaryPanel } from "./patch-overview";
 import { BundlesPanel, UpstreamDiffPanel } from "./registry";
+import { AnchorManifestPanel } from "./anchor-manifest";
 
 export function PatchesSection({
   patches,
@@ -88,6 +89,18 @@ export function PatchesSection({
                     <Suspense fallback={<SkeletonCards count={2} />}>
                       <FlagsPanel />
                     </Suspense>
+                  </ModuleCard>
+                </ModuleGrid>
+              )
+            },
+            {
+              id: "anchors",
+              label: tr("Anchors"),
+              icon: <Anchor size={15} />,
+              render: () => (
+                <ModuleGrid>
+                  <ModuleCard title={tr("Anchor Source-of-Truth")} icon={<Anchor size={18} />} desc={tr("Per-pin anchor manifests that drive the live patcher (fast anchoring + md5-drift fallback). Shows each pin's anchor counts, which is active for the running engine, and live drift vs the installed source.")} wide>
+                    <AnchorManifestPanel />
                   </ModuleCard>
                 </ModuleGrid>
               )

@@ -5329,3 +5329,23 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 .chat-discover-banner span { flex: 1; }
 .chat-prompt-loaded { margin-left: 6px; font-size: 11px; font-weight: 600; text-transform: none; letter-spacing: 0; color: var(--accent-text); }
 .chat-discover-banner .primary-button { padding: 6px 14px; flex: 0 0 auto; }
+
+/* Anchor source-of-truth panel (Patches → Anchors) */
+.anchor-sot { display: flex; flex-direction: column; gap: 12px; }
+.anchor-sot-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.anchor-card { border: 1px solid var(--border); border-radius: var(--r-md); padding: 12px 14px; background: var(--bg-tint); }
+.anchor-card.is-active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent-soft); }
+.anchor-card-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+.anchor-card-head strong { font-family: var(--mono); font-size: 13px; }
+.anchor-badge { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: 2px 8px; border-radius: var(--r-pill); }
+.anchor-badge.active { background: var(--accent-soft); color: var(--accent-text); }
+.anchor-badge.ok { background: var(--ok-soft); color: var(--ok); }
+.anchor-badge.bad { background: var(--danger-soft); color: var(--danger); }
+.anchor-warn { color: var(--danger); font-size: 12px; }
+.anchor-sot-drift { border-top: 1px solid var(--border); padding-top: 12px; }
+.anchor-sot-drift h4 { display: flex; align-items: center; gap: 6px; margin: 0 0 8px; font-size: 13px; }
+.anchor-ok { display: flex; align-items: center; gap: 6px; color: var(--ok); font-size: 13px; }
+.anchor-bad-head { display: flex; align-items: center; gap: 6px; color: var(--danger); font-weight: 600; font-size: 13px; margin-bottom: 6px; }
+.anchor-drift-list { margin: 0; padding-left: 18px; max-height: 240px; overflow: auto; }
+.anchor-drift-list li { margin: 2px 0; }
+.anchor-drift-list code { font-size: 11px; color: var(--muted-text); }
