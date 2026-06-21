@@ -4,7 +4,7 @@
 // operator's setup is Docker by default, so this is the common state).
 import { useEffect, useState } from "react";
 import { Boxes, Cpu, Loader2, AlertTriangle, ShieldCheck, ShieldAlert, Rocket, Copy, Layers, Package } from "lucide-react";
-import { api, type K8sNode, type K8sPod, type K8sEvent, type DeploymentPlan } from "../api";
+import { api, type K8sPod, type K8sEvent, type DeploymentPlan } from "../api";
 import { tr } from "../i18n";
 
 export function K8sDeploy() {
@@ -56,33 +56,6 @@ export function K8sDeploy() {
         </>
       )}
     </div>
-  );
-}
-
-export function NodeRow({ n }: { n: K8sNode }) {
-  const gpuAlloc = n.gpu_allocatable ?? 0;
-  const gpuFree = n.gpu_free ?? gpuAlloc;
-  const hasGpu = gpuAlloc > 0;
-  const st = n.ready ? (n.schedulable ? "online" : "partial") : "offline";
-  return (
-    <tr className={`crow ${st}`}>
-      <td className="crow-name"><span className={`container-dot ${st}`} />{n.name}</td>
-      <td>
-        <span className={`container-badge ${st}`}>{n.ready ? (n.schedulable ? tr("Ready") : tr("Ready (cordoned)")) : tr("NotReady")}</span>
-        {n.pressures.map((p) => <span key={p} className="k8s-pressure" title={`${p} = True`}><ShieldAlert size={10} /> {p.replace("Pressure", "")}</span>)}
-      </td>
-      <td className="muted">{n.roles.join(", ") || "—"}</td>
-      <td className="muted">{n.kubelet_version ?? "—"}</td>
-      <td>
-        {hasGpu
-          ? <span className={`k8s-gpu ${gpuFree === 0 ? "full" : "free"}`}><Cpu size={11} /> {gpuFree} / {gpuAlloc}{n.gpu_requested ? ` · ${n.gpu_requested} ${tr("used")}` : ""}</span>
-          : <span className="muted">—</span>}
-      </td>
-      <td className="muted k8s-gpulabels" title={Object.entries(n.gpu_labels).map(([k, v]) => `${k}=${v}`).join("\n")}>
-        {n.gpu_labels["nvidia.com/gpu.product"] ?? (Object.keys(n.gpu_labels).length ? `${Object.keys(n.gpu_labels).length} ${tr("labels")}` : "—")}
-      </td>
-      <td className="muted">{n.taints.length ? n.taints.map((t) => t.key).join(", ") : <ShieldCheck size={12} />}</td>
-    </tr>
   );
 }
 
