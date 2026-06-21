@@ -11,7 +11,7 @@ to get unstuck without context-switching, but not a replacement for
 the per-topic deep-dives.
 
 > Stack as of 2026-06-01:
-> Genesis `v12.0.0` (315 PATCH_REGISTRY entries) ·
+> Genesis `v12.0.0` (316 PATCH_REGISTRY entries) ·
 > vLLM `0.23.1rc1.dev148+gb4c80ec0f` (previous / rollback: `dev101`) ·
 > Reference rig: 2× RTX A5000 24 GB · driver ≥ 580.126 · CUDA 13.
 
@@ -19,7 +19,7 @@ the per-topic deep-dives.
 
 Genesis is a **runtime patch package** for vLLM, not a fork. At every
 process start the plugin attaches itself via vLLM's
-`vllm.general_plugins` entry point and applies 315 small surgical
+`vllm.general_plugins` entry point and applies 316 small surgical
 changes — text edits at known anchors, class-rebind wrappers, FastAPI
 middleware — that together turn an out-of-the-box vLLM into a
 production-grade Qwen3.6 inference server on consumer NVIDIA
@@ -311,7 +311,7 @@ if both forms exist for the same logical preset.
 
 ## 5. Patches — registry, applying, authoring
 
-The patch registry is the heart of Genesis. 315 entries live in
+The patch registry is the heart of Genesis. 316 entries live in
 `sndr/dispatcher/registry.py` as a single Python dict.
 Each entry declares: id, title, family, env_flag, default_on,
 lifecycle, applies_to (hardware/model gates), conflicts_with,

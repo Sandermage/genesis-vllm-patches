@@ -1,7 +1,7 @@
 # Per-Pin Anchor Source-of-Truth + Consolidation + Auto-Detect — Design
 
 **Date:** 2026-06-21 · **Status:** approved (operator), pending spec review
-**Author context:** Genesis vLLM overlay (~315 patches, ~180 anchor-bearing modules) on pin dev148 (`0.23.1rc1.dev148+gb4c80ec0f`), 2×A5000 rig `sander@192.168.1.10`.
+**Author context:** Genesis vLLM overlay (~316 patches, ~180 anchor-bearing modules) on pin dev148 (`0.23.1rc1.dev148+gb4c80ec0f`), 2×A5000 rig `sander@192.168.1.10`.
 
 ## 1. Goal
 

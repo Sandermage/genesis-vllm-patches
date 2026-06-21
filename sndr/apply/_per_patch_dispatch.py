@@ -7402,6 +7402,8 @@ _G4_PATCHES: tuple[tuple[str, str, str], ...] = (
      "g4_16_gemma4_full_piecewise_cudagraph", "model_compat.gemma4"),  # Phase 2.2: relocated 2026-05-22
     ("G4_83", "G4_83 gemma4 per-layer attention backend (#38891 backport, sliding-256->FA)",
      "g4_83_per_layer_flashattn", "model_compat.gemma4"),  # 2026-06-21 attention-backend tax fix
+    ("G4_84", "G4_84 generic MoE-geometry advisor + wna16 tuned-config provider",
+     "g4_84_moe_geometry_advisor", "moe"),  # 2026-06-21 int4-Marlin-ineligible trap detector + config provider
     ("G4_17", "G4_17 gemma4 vision-tower text-only skip (closes #41565)",
      "g4_17_gemma4_vision_tower_text_only_skip", "model_compat.gemma4"),  # Phase 2.2: relocated 2026-05-22
     ("G4_18", "G4_18 gemma4 per-layer KV page-size (vendor WIP #40391)",

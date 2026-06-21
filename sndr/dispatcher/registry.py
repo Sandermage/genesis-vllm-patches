@@ -9238,6 +9238,31 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "conflicts_with": [],
         "applies_to": {"model_arch": ["Gemma4ForConditionalGeneration", "Gemma4ForCausalLM"]},
     },
+    "G4_84": {
+        "title": "MoE-geometry advisor + wna16 tuned-config provider (generic)",
+        "tier": "community",
+        "family": "moe",
+        "env_flag": "GENESIS_ENABLE_G4_84_MOE_GEOMETRY_ADVISOR",
+        "default_on": True,
+        "category": "perf_hotfix",
+        "implementation_status": "full",
+        "source": "genesis_original",
+        "apply_module": "sndr.engines.vllm.patches.moe.g4_84_moe_geometry_advisor",
+        "lifecycle": "experimental",
+        "credit": (
+            "Generic fix for the structural int4-MoE-Marlin-ineligible trap "
+            "(intermediate_per_partition %% max(64,group_size) != 0 -> silent "
+            "fallback to the slow CUDA-core moe_wna16 kernel). Verified on "
+            "Gemma-4-26B-A4B (moe_intermediate=704, TP=2 -> N=352, 352%%64=32). "
+            "ADVISOR: loud warning naming the shape + FP8/int8 remedy (turns a "
+            "silent ~1.5-1.85x slowdown into a visible signal). PROVIDER: inject "
+            "Genesis-tuned moe_wna16 block configs for table-listed shapes "
+            "(generic, fail-open, extend per rig sweep). Found by the /loop "
+            "deep MoE-kernel audit 2026-06-21 (4 research agents + code)."
+        ),
+        "applies_to": {},
+        "composes_with": [],
+    },
     "G4_83": {
         "title": "Gemma 4 per-layer attention backend on Ampere (#38891 backport)",
         "tier": "community",

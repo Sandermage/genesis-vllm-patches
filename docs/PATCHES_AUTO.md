@@ -4,23 +4,23 @@
 > Source of truth: `sndr/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-06-21T17:10:36Z
-Total entries: **315**
+Generated: 2026-06-21T23:10:31Z
+Total entries: **316**
 
 ## Statistics
 
 ### By tier
-- `tier=community`: **315**
+- `tier=community`: **316**
 
 ### By lifecycle
 - `lifecycle=coordinator`: **4**
-- `lifecycle=experimental`: **232**
+- `lifecycle=experimental`: **233**
 - `lifecycle=legacy`: **28**
 - `lifecycle=research`: **3**
 - `lifecycle=retired`: **34**
 - `lifecycle=stable`: **14**
 
-### Default-on at boot: **56** / 315
+### Default-on at boot: **57** / 316
 
 ### By family
 - `attention`: 1
@@ -37,7 +37,7 @@ Total entries: **315**
 - `memory`: 5
 - `middleware`: 3
 - `model_compat.gemma4`: 1
-- `moe`: 10
+- `moe`: 11
 - `multimodal`: 2
 - `observability`: 6
 - `offload`: 4
@@ -299,7 +299,7 @@ Total entries: **315**
 |---|---|---|:---:|---|:---:|---|
 | **PN349** | `community` | `experimental` | · | `GENESIS_ENABLE_PN349` | [#44797](https://github.com/vllm-project/vllm/pull/44797) | Gemma 4 KV-shared k_norm/v_norm skip (vendor of OPEN vllm#44797) |
 
-### `moe` (10)
+### `moe` (11)
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
@@ -312,6 +312,7 @@ Total entries: **315**
 | **PN352B** | `community` | `experimental` | · | `GENESIS_ENABLE_PN352B_MARLIN_MOE_SUM` | [#44557](https://github.com/vllm-project/vllm/pull/44557) | Marlin MoE topk=8 reduce via Genesis Triton kernel (right call-site for the F... |
 | **PN368** | `community` | `experimental` | · | `GENESIS_ENABLE_PN368_MARLIN_MOE_ATOMIC_ADD` | — | Marlin MoE w13 reduce-mode wire (env-gated atomic-add, dense-path heuristic p... |
 | **PN377** | `community` | `experimental` | ✓ | `GENESIS_ENABLE_PN377_MOE_WNA16_BSK_CLAMP` | [#44563](https://github.com/vllm-project/vllm/pull/44563) | moe_wna16 BLOCK_SIZE_K legality clamp (vendor of vllm#44563) |
+| **G4_84** | `community` | `experimental` | ✓ | `GENESIS_ENABLE_G4_84_MOE_GEOMETRY_ADVISOR` | — | MoE-geometry advisor + wna16 tuned-config provider (generic) |
 | **PN96b** | `community` | `experimental` | ✓ | `GENESIS_ENABLE_PN96B` | — | Persistent Marlin MoE workspace (Wave 9 dev209 perf-restore) |
 
 ### `multimodal` (2)
