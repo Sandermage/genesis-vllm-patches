@@ -56,6 +56,30 @@ def classify_anchor(
     return STATUS_OK, meta
 
 
+def apply_via_meta(pristine_src: str, meta: dict, replacement: str) -> str:
+    """Splice ``replacement`` at the manifest byte_offset — the Layer-4.5 op,
+    in bytes (md5-stable). The inverse the runtime engine performs."""
+    bo = meta["byte_offset"]
+    bl = meta["byte_length"]
+    b = pristine_src.encode("utf-8")
+    return (b[:bo] + replacement.encode("utf-8") + b[bo + bl:]).decode("utf-8")
+
+
+def verify_roundtrip(pristine_src: str, anchor: str, replacement: str) -> bool:
+    """R3 core: the manifest meta must splice BYTE-IDENTICALLY to the inline
+    anchor replace. Returns True iff apply-via-manifest == apply-via-inline.
+
+    This is what guarantees switching the runtime from inline-anchor to the
+    per-pin manifest cannot change a single byte of any patched file.
+    """
+    status, meta = classify_anchor(pristine_src, anchor, replacement)
+    if status != STATUS_OK or meta is None:
+        return False
+    via_manifest = apply_via_meta(pristine_src, meta, replacement)
+    via_inline = pristine_src.replace(anchor, replacement, 1)
+    return via_manifest == via_inline
+
+
 @dataclass
 class GenResult:
     ok: dict[str, dict] = field(default_factory=dict)        # "patch_id::sub" -> meta(+target_rel)

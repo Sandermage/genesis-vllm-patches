@@ -3,10 +3,39 @@ from sndr.engines.vllm.anchor_discovery import AnchorTarget
 from sndr.engines.vllm.anchor_manifest_gen import (
     classify_anchor,
     build_pin_manifest,
+    apply_via_meta,
+    verify_roundtrip,
     STATUS_OK,
     STATUS_ANCHOR_DRIFT,
     STATUS_AMBIGUOUS,
 )
+
+
+def test_R3_roundtrip_byte_identical_single_line():
+    src = "a\ndef f():\n    return OLD_ANCHOR\nb\n"
+    assert verify_roundtrip(src, "    return OLD_ANCHOR", "    return NEW_VALUE")
+
+
+def test_R3_roundtrip_byte_identical_multiline():
+    src = "x\n    if (\n        self.cond):\n        do()\ny\n"
+    assert verify_roundtrip(
+        src, "    if (\n        self.cond):", "    if (self.cond):  # patched"
+    )
+
+
+def test_R3_roundtrip_unicode_replacement():
+    # replacement with non-ASCII (anchor stays ASCII so offset is byte-stable)
+    src = "head\n    ANCHOR_HERE\ntail\n"
+    assert verify_roundtrip(src, "    ANCHOR_HERE", "    PATCHED_x")
+
+
+def test_apply_via_meta_matches_inline():
+    src = "p\n    target_line()\nq\n"
+    status, meta = classify_anchor(src, "    target_line()", "    new_line()")
+    assert status == STATUS_OK
+    assert apply_via_meta(src, meta, "    new_line()") == src.replace(
+        "    target_line()", "    new_line()", 1
+    )
 
 
 def test_classify_ok_computes_meta():
