@@ -25,15 +25,23 @@ K=352** (its 16×8×32 MMA tile + offline weight repack, where Marlin's hard
 FP16 on M=1-16 decode, +19% over Marlin (A100, arXiv:2508.15601) — pending
 A5000 re-bench.
 
-## Vendint status
-- [x] `gemm/gemm.h` — Gemm::Run API
-- [x] `gemm/types.h` — POD descriptors (Operation, MatrixLayout, QuantDesc, Workspace)
-- [x] `gemm/kernel/sm80_16816_4.cu` — g32 instantiation confirmed
-- [ ] remaining ~25 files (see spec §"Vendor set") — gemm core, arch/sm80,
-      convert/cast, moe_utils_v2, core/ headers, attention/quantization.h
-- [ ] shim out `core::Tensor`/`core::Context`, stub sm70/75/90 registry,
-      drop tuner (force `DispatchPolicy::kDefault`)
-- [ ] mini-CMakeLists → `libtm_int4_moe.a` (CMAKE_CUDA_ARCHITECTURES=86)
+## Vendint status (Phase 0)
+- [x] full `gemm/` (104 files), `gemm/arch/sm80`, `gemm/kernel/sm80_16816_{4,8,16}`
+- [x] `kernels/core/` (header-only) + high-level `core/` headers (data_type,
+      check, logger, allocator, tensor, ...) + `attention/quantization.h`
+- [x] structure preserves original `src/turbomind/...` include paths (build `-I.`)
+- [x] fmt: apt `libfmt-dev` (preferred) OR vendored `third_party/fmt` header-only
+- [x] **ALL 3 tensor-core kernels COMPILE on SM86** — proven 2026-06-22 in the
+      vLLM image: `sm80_16816_{4,8,16}.cu` → 19.5/2.7/5.8 MB objects. See
+      `build_kernels.sh` for the exact recipe. Critical flags found build-driven:
+      `-arch=sm_86 -DENABLE_BF16 --expt-relaxed-constexpr -include cuda_fp16.h
+      -include cuda_bf16.h -I.`. **The core::-dependency risk is RESOLVED** —
+      gemm.cu pulls only check.h+logger.h; the kernel headers need bf16 includes,
+      not a Tensor/Allocator shim.
+- [ ] Phase 0 cont.: compile gemm.cu + convert/cast + registry + moe_utils_v2,
+      stub sm70/75/90 registry bodies + drop tuner → link `libtm_int4_moe.a`
+- [ ] Phase 1: cuBLAS reference + weight-repack byte-test (zero-point format)
+- [ ] Phase 2: torch.ops custom op + swap moe_wna16 + rig A/B
 
 ## Build feasibility — PROVEN
 `cpp_extension.load_inline` JIT-compiled+ran a CUDA op under `-arch=sm_86`
