@@ -1,0 +1,1162 @@
+{
+ "anchors": {
+  "G4_04::awq_moe_keys_remap": {
+   "anchor_md5": "e45b645ad335ab9eadb60f78b813a15f",
+   "byte_length": 192,
+   "byte_offset": 65450,
+   "replacement_md5": "bb1ccb645d47d1560b09369ecc57da9b",
+   "target_rel": "model_executor/models/gemma4.py"
+  },
+  "G4_06::qkv_proj_v_head_size_zero_init": {
+   "anchor_md5": "d475a53a62278df2d32ae8c6fd589ad1",
+   "byte_length": 295,
+   "byte_offset": 14379,
+   "replacement_md5": "45d624ada4e19bf07eb4c9716464f396",
+   "target_rel": "model_executor/models/gemma4.py"
+  },
+  "G4_26::g4_26_custom_sampler_embed_weight_swap": {
+   "anchor_md5": "79977de2f2532ee38004f5546f5367b9",
+   "byte_length": 176,
+   "byte_offset": 35012,
+   "replacement_md5": "7d6641a101ece0186671824d330f2e6f",
+   "target_rel": "model_executor/models/diffusion_gemma.py"
+  },
+  "G4_26::g4_26_distributed_import_add": {
+   "anchor_md5": "f81515e5e0ed42b074b0d8fee89b9de6",
+   "byte_length": 85,
+   "byte_offset": 939,
+   "replacement_md5": "c6bedf819c9dc4048255c0c12e30f21a",
+   "target_rel": "model_executor/models/diffusion_gemma.py"
+  },
+  "G4_26::g4_26_full_embed_weight_helper_add": {
+   "anchor_md5": "21a1dbe160bcb9f6ca4a3cf0285d2dbc",
+   "byte_length": 87,
+   "byte_offset": 42721,
+   "replacement_md5": "18b07b0be54721d7c1d4ea72048d0009",
+   "target_rel": "model_executor/models/diffusion_gemma.py"
+  },
+  "P100::p100_build_query_len_scan_branch": {
+   "anchor_md5": "fdd7118506683f5d093c56f0efe94995",
+   "byte_length": 1877,
+   "byte_offset": 48264,
+   "replacement_md5": "1a9eba968eb16dd626858431475f3abf",
+   "target_rel": "v1/attention/backends/flashinfer.py"
+  },
+  "P100::p100_cgsupport_uniform_batch": {
+   "anchor_md5": "c02616c8a38ccb1225fa964d53122f6f",
+   "byte_length": 1551,
+   "byte_offset": 26111,
+   "replacement_md5": "db693d726f37dea75db978af331c53c0",
+   "target_rel": "v1/attention/backends/flashinfer.py"
+  },
+  "P100::p100_fispecdecode_dataclass": {
+   "anchor_md5": "bfc2f98891b80b948f589c0fc893c1c7",
+   "byte_length": 184,
+   "byte_offset": 15369,
+   "replacement_md5": "edb08916b9cbe2a50b2b969f4adbbd27",
+   "target_rel": "v1/attention/backends/flashinfer.py"
+  },
+  "P100::p100_forward_fispecdecode_case": {
+   "anchor_md5": "f6d7142a375cf1713b6bdca3e9863e71",
+   "byte_length": 1056,
+   "byte_offset": 70426,
+   "replacement_md5": "bc3c72728d82748c871807c49a7cae77",
+   "target_rel": "v1/attention/backends/flashinfer.py"
+  },
+  "P100::p100_get_spec_decode_prefill_wrapper_method": {
+   "anchor_md5": "a2f288bfed59a48c1e0101fdc1669c91",
+   "byte_length": 67,
+   "byte_offset": 30892,
+   "replacement_md5": "9138a1c7c15e7d299f2b814159624cfe",
+   "target_rel": "v1/attention/backends/flashinfer.py"
+  },
+  "P100::p100_imports_drop_uniform": {
+   "anchor_md5": "4ff49ca80b1f190103647d3b153c2680",
+   "byte_length": 108,
+   "byte_offset": 2222,
+   "replacement_md5": "de16f138d04df2fcb9fa8cc05ea79175",
+   "target_rel": "v1/attention/backends/flashinfer.py"
+  },
+  "P100::p100_init_cgdict": {
+   "anchor_md5": "8e46e9a3e3dc3250487da407dc03dd52",
+   "byte_length": 126,
+   "byte_offset": 19594,
+   "replacement_md5": "4b880c4649ebff4392fec2052b766a82",
+   "target_rel": "v1/attention/backends/flashinfer.py"
+  },
+  "P100::p100_init_decode_wrap_field": {
+   "anchor_md5": "f246a9a678ee305cb837b0578b80851f",
+   "byte_length": 74,
+   "byte_offset": 18372,
+   "replacement_md5": "38e34ef00ed7008ffe639edfc6c9bb42",
+   "target_rel": "v1/attention/backends/flashinfer.py"
+  },
+  "P100::p100_init_qo_indptr_buffer": {
+   "anchor_md5": "cb5de592977d1441373df904f74b3d2b",
+   "byte_length": 135,
+   "byte_offset": 25439,
+   "replacement_md5": "1991ff8106c2fcf9850685440e6525e6",
+   "target_rel": "v1/attention/backends/flashinfer.py"
+  },
+  "P100::p100_init_reorder_threshold": {
+   "anchor_md5": "a9e7da69adb883600f0137d4e0913aec",
+   "byte_length": 86,
+   "byte_offset": 23812,
+   "replacement_md5": "95a78db3662b38f71cb889c2c911821d",
+   "target_rel": "v1/attention/backends/flashinfer.py"
+  },
+  "P100::p100_metadata_decode_union": {
+   "anchor_md5": "8fd2612acdc6c1f96be5b474e0bf1e1f",
+   "byte_length": 43,
+   "byte_offset": 17206,
+   "replacement_md5": "7b7c00fca256f0758e4f7f7b3a45eb5c",
+   "target_rel": "v1/attention/backends/flashinfer.py"
+  },
+  "P101::p101_continuation_slicing_loop": {
+   "anchor_md5": "2f9f91722a1e0a0f7657303a22409f8d",
+   "byte_length": 1528,
+   "byte_offset": 26102,
+   "replacement_md5": "fafae415c0595d3079a3fc3eee8921ad",
+   "target_rel": "v1/attention/backends/turboquant_attn.py"
+  },
+  "P101::p101_threshold_lower_and_max_cached": {
+   "anchor_md5": "4a6729e6c0f2b483e84c1deabbe3bb46",
+   "byte_length": 266,
+   "byte_offset": 2160,
+   "replacement_md5": "2e981e8ba3272622958bd8306469beea",
+   "target_rel": "v1/attention/backends/turboquant_attn.py"
+  },
+  "P107::p107_mtp_truncation_dev491": {
+   "anchor_md5": "d8174aa97fce34039d7ceadf8b3d4fff",
+   "byte_length": 407,
+   "byte_offset": 29185,
+   "replacement_md5": "e8655f5bd9f5e5b39714dbd0dc2198e7",
+   "target_rel": "entrypoints/openai/chat_completion/serving.py"
+  },
+  "P108::p108_mtp_draft_stream_sync": {
+   "anchor_md5": "3debea0e93a881d3174f0e38ae8dbb2f",
+   "byte_length": 202,
+   "byte_offset": 28218,
+   "replacement_md5": "ea5ec3365633e6cdee9ad348183e096a",
+   "target_rel": "v1/spec_decode/llm_base_proposer.py"
+  },
+  "P15::p15_none_null_utils": {
+   "anchor_md5": "b92aa97137f706f4f7f3b3424999ab4e",
+   "byte_length": 125,
+   "byte_offset": 19277,
+   "replacement_md5": "fea13e18ab8b845a91d13a8aa6cb96c2",
+   "target_rel": "tool_parsers/utils.py"
+  },
+  "P15B::p15b_fa_varlen_clamp": {
+   "anchor_md5": "40cc1d3cb3ff0e0de57af786f2586ad7",
+   "byte_length": 340,
+   "byte_offset": 11234,
+   "replacement_md5": "69205944958d57e746f4091a9f7bd4fd",
+   "target_rel": "v1/attention/backends/turboquant_attn.py"
+  },
+  "P24::p24_fp8_cfg_overlay": {
+   "anchor_md5": "efd44dae9a4729e353c29c07ef690ccd",
+   "byte_length": 355,
+   "byte_offset": 41847,
+   "replacement_md5": "776665e13d18d8458c1bd25454800362",
+   "target_rel": "model_executor/layers/fused_moe/fused_moe.py"
+  },
+  "P24::p24_general_cfg_overlay": {
+   "anchor_md5": "dc16d626a282ea44c0d3ec3e0dbb35d5",
+   "byte_length": 294,
+   "byte_offset": 44338,
+   "replacement_md5": "4d6a8cc5d130d44ac4a8866087a9ee2e",
+   "target_rel": "model_executor/layers/fused_moe/fused_moe.py"
+  },
+  "P26::p26_output_alloc": {
+   "anchor_md5": "32a678887c215e90758fc51bdec3311a",
+   "byte_length": 78,
+   "byte_offset": 23191,
+   "replacement_md5": "15fa317c39fc84c657bb34eb21a1a185",
+   "target_rel": "v1/attention/backends/turboquant_attn.py"
+  },
+  "P28::p28_core_attn_out_alloc": {
+   "anchor_md5": "209c3085bb641b83d10c7569e5ddd0d7",
+   "byte_length": 362,
+   "byte_offset": 35061,
+   "replacement_md5": "5fcff5843f44fd4282cd3599872f1934",
+   "target_rel": "model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py"
+  },
+  "P34::p34_deadlock_guard": {
+   "anchor_md5": "cfaaf095376e39ea16c3d98bb29ab22f",
+   "byte_length": 182,
+   "byte_offset": 17146,
+   "replacement_md5": "2180e8dc804e745c52b146c8fc8e1411",
+   "target_rel": "v1/core/sched/scheduler.py"
+  },
+  "P37::p37_moe_intermediate_pool": {
+   "anchor_md5": "7783b2486b22aa20a45de2a03e95ce15",
+   "byte_length": 429,
+   "byte_offset": 3309,
+   "replacement_md5": "1ed9b465f0c96272a10fd34af77c93c4",
+   "target_rel": "model_executor/layers/fused_moe/experts/marlin_moe.py"
+  },
+  "P38B::p38b_continuation_prefill_hook": {
+   "anchor_md5": "86e4bed7e1b91c3ffbac1058880dc76a",
+   "byte_length": 184,
+   "byte_offset": 28843,
+   "replacement_md5": "46ceaf6ccd51852bfe22509a1594f731",
+   "target_rel": "v1/attention/backends/turboquant_attn.py"
+  },
+  "P3::p3_bf16_fp8_cast": {
+   "anchor_md5": "6139ffaaff075b83ad0138fd99b44be1",
+   "byte_length": 150,
+   "byte_offset": 7329,
+   "replacement_md5": "0f844b3a49247d03571b405ad6563532",
+   "target_rel": "v1/attention/ops/triton_turboquant_store.py"
+  },
+  "P44::p44_mixed_attn_out_alloc": {
+   "anchor_md5": "9cceecd9699ad1e99c9c085b47bf32ac",
+   "byte_length": 201,
+   "byte_offset": 16789,
+   "replacement_md5": "06a6bd9c7df588d72c1602b4fa63f562",
+   "target_rel": "v1/attention/backends/turboquant_attn.py"
+  },
+  "P46::p46_beta_buffer": {
+   "anchor_md5": "a9b60ae34278d5a66aa4868a7f530184",
+   "byte_length": 82,
+   "byte_offset": 68326,
+   "replacement_md5": "c49d815dff4b39dec1997c4812a58772",
+   "target_rel": "model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py"
+  },
+  "P46::p46_g_buffer": {
+   "anchor_md5": "ba0ba8f1a7b280a1cca1d542adec9171",
+   "byte_length": 78,
+   "byte_offset": 68247,
+   "replacement_md5": "65224f9ff7b6d4b0a8ccc4b0cbe4e608",
+   "target_rel": "model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py"
+  },
+  "P4::p4_helper_fn": {
+   "anchor_md5": "94c8468ccaaef53f073f0e168ad23fd7",
+   "byte_length": 30,
+   "byte_offset": 14621,
+   "replacement_md5": "766daa9a76f3a56d85d219ec21192ada",
+   "target_rel": "engine/arg_utils.py"
+  },
+  "P5::p5_v1_lcm_pad_max_from_baseline": {
+   "anchor_md5": "e10e0804c7cb59757607c902d8fa6b0a",
+   "byte_length": 1676,
+   "byte_offset": 38698,
+   "replacement_md5": "fe01a4aacf5abda3a33f3aa30ba21b87",
+   "target_rel": "v1/core/kv_cache_utils.py"
+  },
+  "P63::p63_build_for_drafting_override": {
+   "anchor_md5": "71ae0fc27f37da14ebeb0d201606a577",
+   "byte_length": 104,
+   "byte_offset": 21456,
+   "replacement_md5": "291f668eaac2d696a7fe2b9525a2cc11",
+   "target_rel": "v1/attention/backends/gdn_attn.py"
+  },
+  "P63::p63_fresh_flag": {
+   "anchor_md5": "45c4077e3843303c69fdf27d6d039865",
+   "byte_length": 264,
+   "byte_offset": 18922,
+   "replacement_md5": "05687dee30eb2fedb8122e3b49e838fd",
+   "target_rel": "v1/attention/backends/gdn_attn.py"
+  },
+  "P65::p65_cg_support_downgrade": {
+   "anchor_md5": "9e73f59d05a1dec28acb9e7e73387bba",
+   "byte_length": 88,
+   "byte_offset": 7236,
+   "replacement_md5": "cde70bd02955453fd1a5bccf9aad6862",
+   "target_rel": "v1/attention/backends/turboquant_attn.py"
+  },
+  "P66::p66_size_filter": {
+   "anchor_md5": "cd7e7926afa9eef8f3a381cb07529158",
+   "byte_length": 457,
+   "byte_offset": 76092,
+   "replacement_md5": "b2dc799327209f6a1c3b14d5777805c6",
+   "target_rel": "config/vllm.py"
+  },
+  "P67::p67_kernel_hook": {
+   "anchor_md5": "855e38cc7147e7af78c443a2a3c20f0b",
+   "byte_length": 350,
+   "byte_offset": 22082,
+   "replacement_md5": "d1d299b4b7f22134953a7d29fe5070cc",
+   "target_rel": "v1/attention/backends/turboquant_attn.py"
+  },
+  "P67b::p67b_forward_spec_verify_branch": {
+   "anchor_md5": "1e1ebaeb17b706162d88b24e370c1a77",
+   "byte_length": 382,
+   "byte_offset": 15743,
+   "replacement_md5": "a2fdcde2c3777cc556967d1f827c78a1",
+   "target_rel": "v1/attention/backends/turboquant_attn.py"
+  },
+  "P68::p6869_hook_insert": {
+   "anchor_md5": "4b9b1acc73b7f38cb6170f4cfa94306a",
+   "byte_length": 73,
+   "byte_offset": 9562,
+   "replacement_md5": "a542a07d92d2a574f9df9b0f170ca917",
+   "target_rel": "entrypoints/openai/chat_completion/serving.py"
+  },
+  "P69::p6869_hook_insert": {
+   "anchor_md5": "4b9b1acc73b7f38cb6170f4cfa94306a",
+   "byte_length": 73,
+   "byte_offset": 9562,
+   "replacement_md5": "a542a07d92d2a574f9df9b0f170ca917",
+   "target_rel": "entrypoints/openai/chat_completion/serving.py"
+  },
+  "P6::p6_import_tqspec": {
+   "anchor_md5": "0ddd1714893778777c0c11867f218414",
+   "byte_length": 173,
+   "byte_offset": 18889,
+   "replacement_md5": "011e281fad1ac75d200d92df63b7cea1",
+   "target_rel": "platforms/interface.py"
+  },
+  "P6::p6_tq_branch": {
+   "anchor_md5": "608031a02307d86ab549af961df5563a",
+   "byte_length": 345,
+   "byte_offset": 21751,
+   "replacement_md5": "881389405d254cd50c03d7299d63024e",
+   "target_rel": "platforms/interface.py"
+  },
+  "P70::p70_auto_strict_ngram_force": {
+   "anchor_md5": "8a9184b1b461eedf0af57ef18719a69a",
+   "byte_length": 370,
+   "byte_offset": 29286,
+   "replacement_md5": "903270b3edb697936e3c1f1010c4dedb",
+   "target_rel": "config/speculative.py"
+  },
+  "P71::p71_block_verify_branch": {
+   "anchor_md5": "c004a425444982d984deb53f5e7bdea4",
+   "byte_length": 289,
+   "byte_offset": 19041,
+   "replacement_md5": "d73ab8bc361770d9cc2f868d937e18b7",
+   "target_rel": "v1/sample/rejection_sampler.py"
+  },
+  "P71::pn369_kernel_or_compose": {
+   "anchor_md5": "f903aee533ba49a138e1b45028de34e6",
+   "byte_length": 195,
+   "byte_offset": 31487,
+   "replacement_md5": "9d6944ca349eb4d77689a184f547a2a2",
+   "target_rel": "v1/sample/rejection_sampler.py"
+  },
+  "P71::pn369_kernel_signature": {
+   "anchor_md5": "ab8193767c7ade74ccf831cd3ece6fc8",
+   "byte_length": 252,
+   "byte_offset": 29800,
+   "replacement_md5": "f93150c4f6a0dba0a78cd6b741a61de9",
+   "target_rel": "v1/sample/rejection_sampler.py"
+  },
+  "P71::pn369_launch_site_mask": {
+   "anchor_md5": "4bceec4d7c9bde0c69fdb41a8c973c18",
+   "byte_length": 530,
+   "byte_offset": 19550,
+   "replacement_md5": "1014b464f2b358da94edd2306c917f9b",
+   "target_rel": "v1/sample/rejection_sampler.py"
+  },
+  "P72::p72_profile_run_cap": {
+   "anchor_md5": "d484f91c069a03993a937c18cd99d63c",
+   "byte_length": 190,
+   "byte_offset": 279184,
+   "replacement_md5": "0ed452a0b56e453b52b5568b7795086d",
+   "target_rel": "v1/worker/gpu_model_runner.py"
+  },
+  "P74::p74_auto_clamp": {
+   "anchor_md5": "31b31b1eff74569006592643ae79c327",
+   "byte_length": 254,
+   "byte_offset": 10931,
+   "replacement_md5": "5c119311c91719b475100ad0f23f9a0a",
+   "target_rel": "config/scheduler.py"
+  },
+  "P75::p75_suffix_swap": {
+   "anchor_md5": "e4736555384ba4871a86cb20b3eb626a",
+   "byte_length": 133,
+   "byte_offset": 28117,
+   "replacement_md5": "8321d5b84d280db471b384edc3b2c9d5",
+   "target_rel": "config/speculative.py"
+  },
+  "P78::p78_site_b_capture_guard": {
+   "anchor_md5": "e5b1221a8fbc1873b23725d6ff457f5c",
+   "byte_length": 260,
+   "byte_offset": 22800,
+   "replacement_md5": "c844a8cc112253beb82bc026f7e2bad4",
+   "target_rel": "v1/attention/backends/turboquant_attn.py"
+  },
+  "P78::p78_site_c_metadata_field": {
+   "anchor_md5": "fbbe05d39e0ad940af96ae3d34116eec",
+   "byte_length": 162,
+   "byte_offset": 6725,
+   "replacement_md5": "4a4ea9e96170187496a4b9a676dcfd57",
+   "target_rel": "v1/attention/backends/turboquant_attn.py"
+  },
+  "P79b::p79b_async_proposer_sync": {
+   "anchor_md5": "f35a3b49f84d02c44109795c3a90bb51",
+   "byte_length": 222,
+   "byte_offset": 195184,
+   "replacement_md5": "c40a51bdc12d62cf6774db9d6b5aa28d",
+   "target_rel": "v1/worker/gpu_model_runner.py"
+  },
+  "P79c::p79c_stale_spec_token_cleanup": {
+   "anchor_md5": "df6f74d18779b0adb1e6bf5f73139f01",
+   "byte_length": 95,
+   "byte_offset": 29201,
+   "replacement_md5": "a5079ed4e016e915d1579ec6f11a62ee",
+   "target_rel": "v1/core/sched/scheduler.py"
+  },
+  "P81::p81_fp8_block_scaled_m_le_8": {
+   "anchor_md5": "53df5759dc45d412abda908491f835ca",
+   "byte_length": 395,
+   "byte_offset": 30513,
+   "replacement_md5": "f5c389911ff207aee1f413b64e9a9ad4",
+   "target_rel": "model_executor/layers/quantization/utils/fp8_utils.py"
+  },
+  "P82::p82_threshold_or_clause": {
+   "anchor_md5": "7c2cf80a20f810f92f45d7dc4c5782f0",
+   "byte_length": 245,
+   "byte_offset": 31242,
+   "replacement_md5": "134fb770147a55262af0c54840333092",
+   "target_rel": "v1/sample/rejection_sampler.py"
+  },
+  "P85::p85_mamba_cache_blocks_shadow": {
+   "anchor_md5": "aa716430d5204103ff19e2b3119e39bf",
+   "byte_length": 835,
+   "byte_offset": 53635,
+   "replacement_md5": "814c8a797febc644d8d3dd8387c61953",
+   "target_rel": "v1/core/single_type_kv_cache_manager.py"
+  },
+  "P85::p85_mamba_find_longest_cache_hit_fine_pristine": {
+   "anchor_md5": "6a3d134a155ad344f183a1c983157226",
+   "byte_length": 1445,
+   "byte_offset": 42745,
+   "replacement_md5": "661ca214b872fdb4b07910433fff28c8",
+   "target_rel": "v1/core/single_type_kv_cache_manager.py"
+  },
+  "P86::p86_direct_fill_loop": {
+   "anchor_md5": "0469d38781d6979e34c7ffebf3476444",
+   "byte_length": 327,
+   "byte_offset": 5164,
+   "replacement_md5": "5a4e462ee4d33c08050abccd81355f31",
+   "target_rel": "v1/spec_decode/ngram_proposer.py"
+  },
+  "P86::p86_strip_eager_alloc": {
+   "anchor_md5": "eba0d64d412747ef890641d28c200e71",
+   "byte_length": 127,
+   "byte_offset": 3812,
+   "replacement_md5": "9f708b99989d0b9cf065d71ddda5210a",
+   "target_rel": "v1/spec_decode/ngram_proposer.py"
+  },
+  "P87::p87_apply_weights_slice": {
+   "anchor_md5": "677889a53fee1acaadca6d6b045c1b3d",
+   "byte_length": 645,
+   "byte_offset": 8448,
+   "replacement_md5": "cb3a8fd2a305ba2fba820265ac6e6843",
+   "target_rel": "model_executor/kernels/linear/mixed_precision/marlin.py"
+  },
+  "P87::p87_can_implement_padded_dev491": {
+   "anchor_md5": "64953f1b2a5aeae7cbff53673e171ca8",
+   "byte_length": 521,
+   "byte_offset": 2353,
+   "replacement_md5": "4bde93b0bd0d00621e01d6056acf871b",
+   "target_rel": "model_executor/kernels/linear/mixed_precision/marlin.py"
+  },
+  "P87::p87_imports": {
+   "anchor_md5": "287bd9cca0066fa74374fd314c7236d2",
+   "byte_length": 157,
+   "byte_offset": 109,
+   "replacement_md5": "8dae6c7cc9cd19051f10458defa66efa",
+   "target_rel": "model_executor/kernels/linear/mixed_precision/marlin.py"
+  },
+  "P87::p87_logger_round_up_imports": {
+   "anchor_md5": "29a3c89c3595c396f9bdfa70a86f8323",
+   "byte_length": 108,
+   "byte_offset": 864,
+   "replacement_md5": "2adb407370503844c748e6b639eb3340",
+   "target_rel": "model_executor/kernels/linear/mixed_precision/marlin.py"
+  },
+  "P87::p87_pwa_with_maybe_pad_n": {
+   "anchor_md5": "6099bdc96adbe5fcba173cd0a4ce2163",
+   "byte_length": 288,
+   "byte_offset": 2875,
+   "replacement_md5": "4442e224e74a49fa05a98c649d3f6d4b",
+   "target_rel": "model_executor/kernels/linear/mixed_precision/marlin.py"
+  },
+  "P95::p95_import_current_platform": {
+   "anchor_md5": "8214ff60d70c342e35bd08ff15f048e0",
+   "byte_length": 203,
+   "byte_offset": 72864,
+   "replacement_md5": "0dab5c65ca430cd3052862bebf407950",
+   "target_rel": "config/vllm.py"
+  },
+  "P95::p95_marlin_cap_block": {
+   "anchor_md5": "43aabba5c2c1422403b62c96ca1885b1",
+   "byte_length": 218,
+   "byte_offset": 73460,
+   "replacement_md5": "409d00f6137190bd18ec6f08deaa6414",
+   "target_rel": "config/vllm.py"
+  },
+  "P98::p98_dequant_workspace_revert": {
+   "anchor_md5": "03cc8dad81504d16d2776a19baad70ca",
+   "byte_length": 587,
+   "byte_offset": 29554,
+   "replacement_md5": "319cb6bb121efd035f9e522d0a7fabbc",
+   "target_rel": "v1/attention/backends/turboquant_attn.py"
+  },
+  "P99::p99_get_simultaneous_memo_entry": {
+   "anchor_md5": "49c3fd42818d67fd50ad84b5cbc40951",
+   "byte_length": 482,
+   "byte_offset": 2810,
+   "replacement_md5": "0070d93b6ee0549355454a862a1064e8",
+   "target_rel": "v1/worker/workspace.py"
+  },
+  "P99::p99_get_simultaneous_memo_return": {
+   "anchor_md5": "b5a365383cb698f8d8b4be0bd5f267e3",
+   "byte_length": 240,
+   "byte_offset": 3607,
+   "replacement_md5": "18def83ba779a132f17fb79d2198f9be",
+   "target_rel": "v1/worker/workspace.py"
+  },
+  "PN106::pn106_chunk_delta_h_h_pool": {
+   "anchor_md5": "600c98f86f6d25b269800d31998d83ff",
+   "byte_length": 36,
+   "byte_offset": 12357,
+   "replacement_md5": "e1343519fbe7b15aef37337789f3da77",
+   "target_rel": "model_executor/layers/fla/ops/chunk_delta_h.py"
+  },
+  "PN106::pn106_chunk_delta_h_vnew_pool": {
+   "anchor_md5": "7dc1ed9c5388a9cfead17c5562a5500e",
+   "byte_length": 60,
+   "byte_offset": 12505,
+   "replacement_md5": "f915e15590d1fa27433fd1b0fa7c287a",
+   "target_rel": "model_executor/layers/fla/ops/chunk_delta_h.py"
+  },
+  "PN116::pn116_prefill_maxseq_fallback": {
+   "anchor_md5": "c26bb9c1edb4461757634843dc4a8412",
+   "byte_length": 219,
+   "byte_offset": 18428,
+   "replacement_md5": "45669a76b4779399cbc2e3cd0f47ed0d",
+   "target_rel": "v1/attention/backends/turboquant_attn.py"
+  },
+  "PN11::pN11_a_b_contiguous": {
+   "anchor_md5": "ba8123c7b462a7fbf211ddfdcbcb5a48",
+   "byte_length": 134,
+   "byte_offset": 25453,
+   "replacement_md5": "f0b0765cea3dae5aea3119d6f1d9be77",
+   "target_rel": "model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py"
+  },
+  "PN122::sprint26_dispatch_trace_decoder": {
+   "anchor_md5": "0d03ffe758db4ae3a9479c857484de55",
+   "byte_length": 186,
+   "byte_offset": 126772,
+   "replacement_md5": "09b8cf5a63f5ae3379b0784854cb23b5",
+   "target_rel": "v1/worker/gpu_model_runner.py"
+  },
+  "PN12::pN12_silu_and_mul_pool": {
+   "anchor_md5": "93cbd3c820630d1de93bc056fd53ecc8",
+   "byte_length": 393,
+   "byte_offset": 4138,
+   "replacement_md5": "f8a02e26a44156bf1afb11e29b74e227",
+   "target_rel": "model_executor/layers/activation.py"
+  },
+  "PN14::pN14_safe_page_idx": {
+   "anchor_md5": "3ab30a4dd6ae2eabce232a05ab089b7c",
+   "byte_length": 231,
+   "byte_offset": 4690,
+   "replacement_md5": "8be00aa7c45fdec659c8bcaed1db17c4",
+   "target_rel": "v1/attention/ops/triton_turboquant_decode.py"
+  },
+  "PN16::pN16_lazy_reasoner_hook": {
+   "anchor_md5": "4b9b1acc73b7f38cb6170f4cfa94306a",
+   "byte_length": 73,
+   "byte_offset": 9562,
+   "replacement_md5": "30e42d48cc3781ac6ed2641fb1d793cd",
+   "target_rel": "entrypoints/openai/chat_completion/serving.py"
+  },
+  "PN25::pN25_silu_and_mul_forward_native_opaque": {
+   "anchor_md5": "aeb343af735aac36371de82e226ad49e",
+   "byte_length": 220,
+   "byte_offset": 3917,
+   "replacement_md5": "db261c28294b21b1f2c8313017245994",
+   "target_rel": "model_executor/layers/activation.py"
+  },
+  "PN25::pN25_silu_and_mul_import_time_register": {
+   "anchor_md5": "bb910cf7ecd56313420d0f6011fc162a",
+   "byte_length": 33,
+   "byte_offset": 637,
+   "replacement_md5": "6e9444da48084e905271408b0cf2102b",
+   "target_rel": "model_executor/layers/activation.py"
+  },
+  "PN288::pn288_non_streaming_finish_reason": {
+   "anchor_md5": "6c5b929d824b953e8a73560ddf72a96f",
+   "byte_length": 220,
+   "byte_offset": 41882,
+   "replacement_md5": "f4e0875b9589d03383b201e1a2ee288d",
+   "target_rel": "entrypoints/openai/chat_completion/serving.py"
+  },
+  "PN28::pn28_max_lse_clamp": {
+   "anchor_md5": "6731ec2420f4473b2bcb7705ce8721c7",
+   "byte_length": 67,
+   "byte_offset": 4519,
+   "replacement_md5": "c572ca5c52532d04d4460f2099822eeb",
+   "target_rel": "v1/attention/ops/triton_merge_attn_states.py"
+  },
+  "PN28::pn28_out_se_epsilon": {
+   "anchor_md5": "172b34ae401afa7afd3740c76aa3588f",
+   "byte_length": 75,
+   "byte_offset": 4684,
+   "replacement_md5": "94760f33cd8f4d79849ebb752428bc72",
+   "target_rel": "v1/attention/ops/triton_merge_attn_states.py"
+  },
+  "PN290::pn287_force_blocking_d2h": {
+   "anchor_md5": "2406341aaafa709791deeb70657db927",
+   "byte_length": 294,
+   "byte_offset": 68445,
+   "replacement_md5": "d1ff1267919e14f376a80fc8791a0b78",
+   "target_rel": "v1/worker/gpu_model_runner.py"
+  },
+  "PN293::pn293_prefill_to_decode_fastpath": {
+   "anchor_md5": "1024724082f91b556c964ef0b299d147",
+   "byte_length": 830,
+   "byte_offset": 15477,
+   "replacement_md5": "fd8dea671a6d2bfa823307cee5412d11",
+   "target_rel": "v1/attention/backends/mamba_attn.py"
+  },
+  "PN294::pn294_force_merge_attn_groups": {
+   "anchor_md5": "8d5b58b1704bb0060536d9e7af3c2cc4",
+   "byte_length": 286,
+   "byte_offset": 301047,
+   "replacement_md5": "88ccaa6971d7a0204c89e79d84103b75",
+   "target_rel": "v1/worker/gpu_model_runner.py"
+  },
+  "PN298::pn298_num_warps": {
+   "anchor_md5": "9dee372e18b72320972484d5c225dca1",
+   "byte_length": 111,
+   "byte_offset": 601,
+   "replacement_md5": "8a08ee173140bff6086397f34967bf07",
+   "target_rel": "model_executor/layers/fla/ops/chunk_o.py"
+  },
+  "PN298::pn29_scale_fold": {
+   "anchor_md5": "b117aa2ee90517a2a83e8052f7148da9",
+   "byte_length": 63,
+   "byte_offset": 3932,
+   "replacement_md5": "13e9fa7a93b3241b6d73942e1ac599d6",
+   "target_rel": "model_executor/layers/fla/ops/chunk_o.py"
+  },
+  "PN31::pN31_fa_varlen_persistent_out_no_version": {
+   "anchor_md5": "64894d1cb17ca0e36a17a29c4d6d4921",
+   "byte_length": 399,
+   "byte_offset": 11630,
+   "replacement_md5": "3224857d678166a36da1ecae8ff2f1fa",
+   "target_rel": "v1/attention/backends/turboquant_attn.py"
+  },
+  "PN31::pN31_fa_varlen_persistent_out_with_version": {
+   "anchor_md5": "c702ab1461b6e4bc98d96e86d627cab5",
+   "byte_length": 359,
+   "byte_offset": 12029,
+   "replacement_md5": "4d92ecd7346d1cca7cc8f58e3bde86bf",
+   "target_rel": "v1/attention/backends/turboquant_attn.py"
+  },
+  "PN32::pN32_v3_forward_core_chunked_prefill_pristine": {
+   "anchor_md5": "4ccefb83aac4ebe92b53a812d96f19ac",
+   "byte_length": 1550,
+   "byte_offset": 56678,
+   "replacement_md5": "055f5d564bc6cfdcb440661e2fa932fd",
+   "target_rel": "model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py"
+  },
+  "PN33::pN33_warmup_k_draft_tokens": {
+   "anchor_md5": "a2a6e4b0c25267c2fd3fd6d693d3943d",
+   "byte_length": 97,
+   "byte_offset": 271641,
+   "replacement_md5": "4e1cfbbc464be9dffcdb3279a6ef5932",
+   "target_rel": "v1/worker/gpu_model_runner.py"
+  },
+  "PN346B::pn346b_coordinator_curr_hit_length_clamp": {
+   "anchor_md5": "28f5c08d0cf5febb6268647a95bce5a2",
+   "byte_length": 226,
+   "byte_offset": 27913,
+   "replacement_md5": "ab784069e3556706ac989aa64c8360e9",
+   "target_rel": "v1/core/kv_cache_coordinator.py"
+  },
+  "PN34::pN34_workspace_lock_runtime_relax": {
+   "anchor_md5": "9698e5f1a6adf7e75db649e266364933",
+   "byte_length": 373,
+   "byte_offset": 5563,
+   "replacement_md5": "87930650e5d2ce65ab5a7eebba5d7e24",
+   "target_rel": "v1/worker/workspace.py"
+  },
+  "PN351::pn351_get_tile_size_large_head": {
+   "anchor_md5": "7df3c9296ae2970ba4290cdcc05b5fa5",
+   "byte_length": 231,
+   "byte_offset": 27440,
+   "replacement_md5": "c7fb513d56c44130312caf4256feaf26",
+   "target_rel": "v1/attention/ops/triton_unified_attention.py"
+  },
+  "PN351::pn351_kernel_launch_warps_stages_main": {
+   "anchor_md5": "8339a6bb4b9b8c29f85ea144cfd19a1b",
+   "byte_length": 114,
+   "byte_offset": 40178,
+   "replacement_md5": "41050bb0cea55b4174d08470119fa14a",
+   "target_rel": "v1/attention/ops/triton_unified_attention.py"
+  },
+  "PN352::pn352_moe_sum_call_site": {
+   "anchor_md5": "65f90c13ff2e9837c74b812c1caea2bf",
+   "byte_length": 113,
+   "byte_offset": 58060,
+   "replacement_md5": "01bc0da71769efc5070e6a665c13f755",
+   "target_rel": "model_executor/layers/fused_moe/fused_moe.py"
+  },
+  "PN353A::pn353a_metadata_builder_reserve": {
+   "anchor_md5": "d04102db915227b5b6c6257a578dbdad",
+   "byte_length": 262,
+   "byte_offset": 7325,
+   "replacement_md5": "e7d0b1fb73c6b1baa30f60a32d0be352",
+   "target_rel": "v1/attention/backends/turboquant_attn.py"
+  },
+  "PN353B::pn353b_build_for_cg_capture_cpu_copies": {
+   "anchor_md5": "b2a8624baa0c7dc8511be6d7cc520978",
+   "byte_length": 180,
+   "byte_offset": 7736,
+   "replacement_md5": "969afa62260a19fc40925a54bc4529af",
+   "target_rel": "v1/attention/backends/turboquant_attn.py"
+  },
+  "PN353B::pn353b_cudagraph_support_downgrade": {
+   "anchor_md5": "9e73f59d05a1dec28acb9e7e73387bba",
+   "byte_length": 88,
+   "byte_offset": 7236,
+   "replacement_md5": "6cbe4f0de2217d50ae63e0077a5c86a4",
+   "target_rel": "v1/attention/backends/turboquant_attn.py"
+  },
+  "PN353B::pn353b_prefill_continuation_capture_guard": {
+   "anchor_md5": "74ac5718d819fff1c92388c6e1f32453",
+   "byte_length": 196,
+   "byte_offset": 22864,
+   "replacement_md5": "2a755ba787832c515128b03f030a288f",
+   "target_rel": "v1/attention/backends/turboquant_attn.py"
+  },
+  "PN358::pn358_capture_record": {
+   "anchor_md5": "85741a0227a7ffda5042c4118b7f0aa0",
+   "byte_length": 99,
+   "byte_offset": 10369,
+   "replacement_md5": "354449d7f0745f7b74bd8bbdbebe86f5",
+   "target_rel": "compilation/cuda_graph.py"
+  },
+  "PN358::pn358_entry_captured_fc_field": {
+   "anchor_md5": "7ce8333902c42abaa261ddf38cee6077",
+   "byte_length": 169,
+   "byte_offset": 3980,
+   "replacement_md5": "7e0aeb235796af8a8fc8fb2d3c9e167c",
+   "target_rel": "compilation/cuda_graph.py"
+  },
+  "PN358::pn358_replay_refresh": {
+   "anchor_md5": "798a245009883a661636554cf50b5d31",
+   "byte_length": 204,
+   "byte_offset": 13947,
+   "replacement_md5": "d38509640d19cca6bd71edbd7e9cc01c",
+   "target_rel": "compilation/cuda_graph.py"
+  },
+  "PN368::pn368_module_helper": {
+   "anchor_md5": "0eca463ddd9ddfe6f78c8526f4365b96",
+   "byte_length": 98,
+   "byte_offset": 1486,
+   "replacement_md5": "ad3e20259b4ae826c0393de2201de592",
+   "target_rel": "model_executor/layers/fused_moe/experts/marlin_moe.py"
+  },
+  "PN368::pn368_w13_reduce_mode": {
+   "anchor_md5": "6d679a9f8159ee73010564e126d29e16",
+   "byte_length": 271,
+   "byte_offset": 4844,
+   "replacement_md5": "ea0ebcb4cfb5d5bdda942fe5b74a317a",
+   "target_rel": "model_executor/layers/fused_moe/experts/marlin_moe.py"
+  },
+  "PN372::pn372_seq_len_load_dedup": {
+   "anchor_md5": "8360db66b6e6126050ada7dce97ae8ac",
+   "byte_length": 155,
+   "byte_offset": 2512,
+   "replacement_md5": "29f5755f63103e429b0febf17065f0bc",
+   "target_rel": "v1/spec_decode/utils.py"
+  },
+  "PN372::pn372_zero_seqlen_guard": {
+   "anchor_md5": "4da6402b741c95077e2944121ba1c402",
+   "byte_length": 193,
+   "byte_offset": 1674,
+   "replacement_md5": "eb1290a233100c1fae7e678f5bd8a850",
+   "target_rel": "v1/spec_decode/utils.py"
+  },
+  "PN377::pn377_bsk_clamp": {
+   "anchor_md5": "ba891292d34de946162ca4fea4c56b85",
+   "byte_length": 170,
+   "byte_offset": 40459,
+   "replacement_md5": "e89b3616ffbb400be4ce3ecc8eaf2138",
+   "target_rel": "model_executor/layers/fused_moe/fused_moe.py"
+  },
+  "PN381::pn381_needs_output_token_ids_allowed_clause": {
+   "anchor_md5": "875b3bb80363cc58f7f2b9ea759606be",
+   "byte_length": 222,
+   "byte_offset": 36976,
+   "replacement_md5": "161c952bb68480016264578b7ffaf8f1",
+   "target_rel": "v1/worker/gpu_input_batch.py"
+  },
+  "PN382::pn382_hybrid_per_block_fill": {
+   "anchor_md5": "4bbd43f0d1c920210008067a87714b3a",
+   "byte_length": 1267,
+   "byte_offset": 14412,
+   "replacement_md5": "34ddc596ee68a76d34cb0692f6fccd31",
+   "target_rel": "distributed/kv_transfer/kv_connector/v1/decode_bench_connector.py"
+  },
+  "PN382::pn382_real_group_map": {
+   "anchor_md5": "8780dbe52a3afc75d30c62bb869228bd",
+   "byte_length": 294,
+   "byte_offset": 11748,
+   "replacement_md5": "7f832f16acd969052083d5444d2df6c9",
+   "target_rel": "distributed/kv_transfer/kv_connector/v1/decode_bench_connector.py"
+  },
+  "PN382::pn382_worker_ctor_kv_cache_config": {
+   "anchor_md5": "d8c254b48cb47e8cafa18de6476a996f",
+   "byte_length": 249,
+   "byte_offset": 3394,
+   "replacement_md5": "0b1b91b67383acdde3af420873003696",
+   "target_rel": "distributed/kv_transfer/kv_connector/v1/decode_bench_connector.py"
+  },
+  "PN382::pn382_worker_init_kv_cache_config": {
+   "anchor_md5": "1da82c7641e83b5414ee805233df53d1",
+   "byte_length": 201,
+   "byte_offset": 10825,
+   "replacement_md5": "535cd3754f49ca5c9d9296b05d92aae4",
+   "target_rel": "distributed/kv_transfer/kv_connector/v1/decode_bench_connector.py"
+  },
+  "PN385::pn385_chatcompletion_forced_named": {
+   "anchor_md5": "10b64bba70e625124d7ae24eed7444d6",
+   "byte_length": 55,
+   "byte_offset": 8624,
+   "replacement_md5": "0b70ac10723ad9bfb1434ddff33ae768",
+   "target_rel": "tool_parsers/utils.py"
+  },
+  "PN385::pn385_responses_forced_named": {
+   "anchor_md5": "82b406a216cb0e6ebfb7b37faec001dc",
+   "byte_length": 46,
+   "byte_offset": 8081,
+   "replacement_md5": "b4dd05755a366f3227c0f9d857be8887",
+   "target_rel": "tool_parsers/utils.py"
+  },
+  "PN386::pn386_bracket_level_state": {
+   "anchor_md5": "d15c2e804b3569df4fc7eb2453ca8911",
+   "byte_length": 299,
+   "byte_offset": 633,
+   "replacement_md5": "d81b66818449bf7eed91c153d781024d",
+   "target_rel": "tool_parsers/streaming.py"
+  },
+  "PN386::pn386_filter_delta_break_guard": {
+   "anchor_md5": "86aed280ddddcacd03dba6b536984fd4",
+   "byte_length": 129,
+   "byte_offset": 1433,
+   "replacement_md5": "50266048343eb6fc9408a46cea8b057f",
+   "target_rel": "tool_parsers/streaming.py"
+  },
+  "PN386::pn386_filter_delta_string_aware": {
+   "anchor_md5": "ad5579559a52ea63edcd9ac92218ec2f",
+   "byte_length": 180,
+   "byte_offset": 1105,
+   "replacement_md5": "42ac9c4ee152b66edb97011ff731edfb",
+   "target_rel": "tool_parsers/streaming.py"
+  },
+  "PN386::pn386_param_extract_prefix": {
+   "anchor_md5": "d7fbd212b6ad6520d5d5b9ad2f7f531c",
+   "byte_length": 277,
+   "byte_offset": 4513,
+   "replacement_md5": "c571f1d93cc4e127c138982ad50620f6",
+   "target_rel": "tool_parsers/streaming.py"
+  },
+  "PN387::pn387_degenerate_guards": {
+   "anchor_md5": "7406efcceae30cad25ef3936a72f6d8c",
+   "byte_length": 151,
+   "byte_offset": 37803,
+   "replacement_md5": "f8627c486438cfade711e271ca1e89ce",
+   "target_rel": "sampling_params.py"
+  },
+  "PN388::pn388_split_pristine": {
+   "anchor_md5": "667896e502f58e70d68d9c85b9419fe1",
+   "byte_length": 632,
+   "byte_offset": 17063,
+   "replacement_md5": "55079786adeeb1c03f75b18c1c92e3da",
+   "target_rel": "v1/core/sched/scheduler.py"
+  },
+  "PN38::pN38_a_qkv_proj_call": {
+   "anchor_md5": "12754548a379b70a8dd88e8b31c66ed5",
+   "byte_length": 80,
+   "byte_offset": 4755,
+   "replacement_md5": "a419b06b9db8b056cea5e466db0315ac",
+   "target_rel": "model_executor/models/qwen3_dflash.py"
+  },
+  "PN38::pN38_c_conditional_fused_kv": {
+   "anchor_md5": "d0a016656c47c5754df0581aef9f6f70",
+   "byte_length": 798,
+   "byte_offset": 10980,
+   "replacement_md5": "9bed24f390f1e0f6e0ff2f1d8cbcb2fd",
+   "target_rel": "model_executor/models/qwen3_dflash.py"
+  },
+  "PN38::pN38_d_quant_fallback": {
+   "anchor_md5": "271a8698f66cb45dd271c48dcf96972e",
+   "byte_length": 200,
+   "byte_offset": 14820,
+   "replacement_md5": "74ff07500429ff14b8aa380a533db1e0",
+   "target_rel": "model_executor/models/qwen3_dflash.py"
+  },
+  "PN390::pn390_body_drop_softmax": {
+   "anchor_md5": "9d3b7139e964cc19fb154d82c9361628",
+   "byte_length": 169,
+   "byte_offset": 19041,
+   "replacement_md5": "5b687faa8b2bc72a83e1e22249be9ef4",
+   "target_rel": "v1/sample/rejection_sampler.py"
+  },
+  "PN390::pn390_import_has_triton": {
+   "anchor_md5": "e445f5f8466255733d4f0b6a7083430b",
+   "byte_length": 41,
+   "byte_offset": 319,
+   "replacement_md5": "7e76d77a18062be655016827b633b631",
+   "target_rel": "v1/sample/rejection_sampler.py"
+  },
+  "PN390::pn390_inject_lse_producer": {
+   "anchor_md5": "4e73e327afd2e934434748902646e27a",
+   "byte_length": 192,
+   "byte_offset": 26959,
+   "replacement_md5": "3ceefc93d172c7beb7b3c6e05e773e96",
+   "target_rel": "v1/sample/rejection_sampler.py"
+  },
+  "PN390::pn390_rrs_call_site": {
+   "anchor_md5": "b3e115d6e6a435e36e56eadc1b422185",
+   "byte_length": 145,
+   "byte_offset": 19748,
+   "replacement_md5": "5bd8b2b0058d06568a266be5d5661682",
+   "target_rel": "v1/sample/rejection_sampler.py"
+  },
+  "PN390::pn390_rrs_kernel_load": {
+   "anchor_md5": "4cecbfc34adac10354169a0bf5f6afa1",
+   "byte_length": 144,
+   "byte_offset": 31098,
+   "replacement_md5": "c89636c129f2aa16d7c26a620fa3d38f",
+   "target_rel": "v1/sample/rejection_sampler.py"
+  },
+  "PN390::pn390_rrs_kernel_signature": {
+   "anchor_md5": "db3db76180d2202d47d8dd7176a2d44a",
+   "byte_length": 148,
+   "byte_offset": 29607,
+   "replacement_md5": "fb0815414aa8ca9ac85151549aba3253",
+   "target_rel": "v1/sample/rejection_sampler.py"
+  },
+  "PN390::pn390_srt_call_site": {
+   "anchor_md5": "ef5abf27684701469201805d12c7594b",
+   "byte_length": 142,
+   "byte_offset": 19407,
+   "replacement_md5": "03022ac13d2260eef3b1f5ee9986e7eb",
+   "target_rel": "v1/sample/rejection_sampler.py"
+  },
+  "PN390::pn390_srt_kernel_launch": {
+   "anchor_md5": "1feeed18f01304d52bb2c1a21ba666a1",
+   "byte_length": 123,
+   "byte_offset": 26745,
+   "replacement_md5": "1c3b92200fd17c009aa6144282043b29",
+   "target_rel": "v1/sample/rejection_sampler.py"
+  },
+  "PN390::pn390_srt_signature": {
+   "anchor_md5": "f436e091167b274bf679119dce05b459",
+   "byte_length": 330,
+   "byte_offset": 25710,
+   "replacement_md5": "06362fbda03c3bda1127ad6a52fce1b9",
+   "target_rel": "v1/sample/rejection_sampler.py"
+  },
+  "PN390::pn390_srtk_draft_load": {
+   "anchor_md5": "c91107b3e2c26e8d990b5ff339af3158",
+   "byte_length": 244,
+   "byte_offset": 34564,
+   "replacement_md5": "c115ba137a1e3c14aea2a603eecd1f12",
+   "target_rel": "v1/sample/rejection_sampler.py"
+  },
+  "PN390::pn390_srtk_lse_preload": {
+   "anchor_md5": "5a35b2fe4edc12ef0458b5972979e080",
+   "byte_length": 114,
+   "byte_offset": 33723,
+   "replacement_md5": "bf30f4b7da592c179e41a7b982c52b84",
+   "target_rel": "v1/sample/rejection_sampler.py"
+  },
+  "PN390::pn390_srtk_nodraft_load": {
+   "anchor_md5": "f89a3bc9edb8e85a427d9ecf22bde3cb",
+   "byte_length": 240,
+   "byte_offset": 34129,
+   "replacement_md5": "621e3a29df7f2ccb8d48920e893b5a6a",
+   "target_rel": "v1/sample/rejection_sampler.py"
+  },
+  "PN390::pn390_srtk_signature": {
+   "anchor_md5": "d34db979cc13176f5d1aed53f3537fbf",
+   "byte_length": 150,
+   "byte_offset": 33084,
+   "replacement_md5": "1e4ce19e24bf1a3d060a88049f55e61f",
+   "target_rel": "v1/sample/rejection_sampler.py"
+  },
+  "PN394::pn394_partial_param_value_group": {
+   "anchor_md5": "4db5960692e067465db909e7d4eed2e0",
+   "byte_length": 83,
+   "byte_offset": 1343,
+   "replacement_md5": "17cfd93efd7370b7c04357204c1c6b10",
+   "target_rel": "parser/qwen3.py"
+  },
+  "PN396::pn396_gdn_spec_decode_num_warps": {
+   "anchor_md5": "926d4dd10a6a6d6eb6011a2360aa7077",
+   "byte_length": 87,
+   "byte_offset": 7005,
+   "replacement_md5": "0c7fe81eb01c0e313b626a8cdaf67015",
+   "target_rel": "model_executor/layers/fla/ops/fused_sigmoid_gating.py"
+  },
+  "PN40-classifier::pN40_hook_workload_classifier": {
+   "anchor_md5": "4b9b1acc73b7f38cb6170f4cfa94306a",
+   "byte_length": 73,
+   "byte_offset": 9562,
+   "replacement_md5": "420c1209ad481dd58c2ae996c9282098",
+   "target_rel": "entrypoints/openai/chat_completion/serving.py"
+  },
+  "PN400::pn400_marlin_moe_sym_zp_guard": {
+   "anchor_md5": "2c6e5280477a3093845ba6f6eb248f24",
+   "byte_length": 337,
+   "byte_offset": 27312,
+   "replacement_md5": "7447ca51bf5f48dee70f8c2a85f4d4f5",
+   "target_rel": "model_executor/layers/quantization/auto_gptq.py"
+  },
+  "PN40::pN40_a_fused_k_norm": {
+   "anchor_md5": "450d79fa20f17adcb27b14ff4f57e510",
+   "byte_length": 323,
+   "byte_offset": 15488,
+   "replacement_md5": "e9c9931966ced7f22aa6d104c6a5a875",
+   "target_rel": "model_executor/models/qwen3_dflash.py"
+  },
+  "PN50::pn50_gdn_fused_proj": {
+   "anchor_md5": "91e71bbfecc75d4324103e45ee828637",
+   "byte_length": 445,
+   "byte_offset": 34427,
+   "replacement_md5": "6fbbc4ee6196226ba4ec073a5ae7f332",
+   "target_rel": "model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py"
+  },
+  "PN517::pN517_pre_nccl_snapshot": {
+   "anchor_md5": "3e3000f5a4cc38ebde1a74424b695724",
+   "byte_length": 279,
+   "byte_offset": 11224,
+   "replacement_md5": "a73bb5bad092a049419e81e01a47fca9",
+   "target_rel": "v1/worker/gpu_worker.py"
+  },
+  "PN517::pN517_reuse_snapshot_at_init": {
+   "anchor_md5": "e6ce6b199a6acd2743d08970e46a4dce",
+   "byte_length": 127,
+   "byte_offset": 12073,
+   "replacement_md5": "6ead82e229ae91f8d9435b1f532d8c41",
+   "target_rel": "v1/worker/gpu_worker.py"
+  },
+  "PN55::pn55_recursive_iterator": {
+   "anchor_md5": "3fc0afc6690a2798819a3c9f0283b76c",
+   "byte_length": 167,
+   "byte_offset": 40727,
+   "replacement_md5": "ef26110f18e6d95bc790af7ca63f5cfa",
+   "target_rel": "v1/worker/gpu_model_runner.py"
+  },
+  "PN57::pn57_disk_cache": {
+   "anchor_md5": "064da0a15e28a7dac36a41e18ec951dd",
+   "byte_length": 197,
+   "byte_offset": 2518,
+   "replacement_md5": "1d6cae173e6d27347cd23a7dcf0b8cf8",
+   "target_rel": "model_executor/layers/quantization/turboquant/centroids.py"
+  },
+  "PN59::pn59_chunk_orchestrator_dispatch": {
+   "anchor_md5": "795f722968a76ebb68be41639fea0888",
+   "byte_length": 409,
+   "byte_offset": 782,
+   "replacement_md5": "1712c0f41d0187f2e8e8963f4d32b63b",
+   "target_rel": "model_executor/layers/fla/ops/chunk.py"
+  },
+  "PN66::pn66_remove_field": {
+   "anchor_md5": "4b0c86394cfee6915c7dcf855408e513",
+   "byte_length": 112,
+   "byte_offset": 1369,
+   "replacement_md5": "75d663aeed6bac3f797d21e2e6424cc2",
+   "target_rel": "parser/abstract_parser.py"
+  },
+  "PN71::pn71_extract_reasoning_normalize": {
+   "anchor_md5": "449a158f6525f8a90d66024c9d3985da",
+   "byte_length": 307,
+   "byte_offset": 6447,
+   "replacement_md5": "a27d8be52aa1af80853d05c128f5dcbc",
+   "target_rel": "parser/qwen3.py"
+  },
+  "PN73::pn73_tool_args_safe_normalize": {
+   "anchor_md5": "2609e1dbf50df2ed4b582ef131e6649c",
+   "byte_length": 392,
+   "byte_offset": 68023,
+   "replacement_md5": "1423d130953c3c39dd4a57b95ca0e99a",
+   "target_rel": "entrypoints/chat_utils.py"
+  },
+  "PN77::pn77_pwal_swap_hook": {
+   "anchor_md5": "07bc0da7620e623fe5feeebb9213ec2d",
+   "byte_length": 650,
+   "byte_offset": 3703,
+   "replacement_md5": "ccc8a275b164a7058340478dd06325d0",
+   "target_rel": "model_executor/model_loader/utils.py"
+  },
+  "PN82::pN82_mamba_cudagraph_prefill_zero": {
+   "anchor_md5": "ad81338b7e44602ce6be0a22e306ba75",
+   "byte_length": 233,
+   "byte_offset": 101656,
+   "replacement_md5": "c3887787f032814622666b589c7a64c9",
+   "target_rel": "v1/worker/gpu_model_runner.py"
+  },
+  "PN8::pN8_body": {
+   "anchor_md5": "bd17782f143a1f7d2a2eb7f9a8b2bc94",
+   "byte_length": 273,
+   "byte_offset": 25525,
+   "replacement_md5": "1a7be79082542f888816706866966f85",
+   "target_rel": "model_executor/models/utils.py"
+  },
+  "PN8::pN8_imports": {
+   "anchor_md5": "2b2ff5caaa02f0b837a5bc5e51b9832d",
+   "byte_length": 92,
+   "byte_offset": 669,
+   "replacement_md5": "febd7d547fb2bf1f9aa120ee43d1b9ee",
+   "target_rel": "model_executor/models/utils.py"
+  },
+  "PN91::pn72_developer_role_normalize": {
+   "anchor_md5": "7d538bf585729cf3f85c69bc4dace53b",
+   "byte_length": 64,
+   "byte_offset": 63491,
+   "replacement_md5": "5d673cc0a381a8b1ea6953adefe9acc4",
+   "target_rel": "entrypoints/chat_utils.py"
+  },
+  "PN92::pn92_deep_ep": {
+   "anchor_md5": "cdf7469bd33b3fab020854a4dee0d4b7",
+   "byte_length": 124,
+   "byte_offset": 13042,
+   "replacement_md5": "c86358e928a0ef313294c2f4e8aba144",
+   "target_rel": "utils/import_utils.py"
+  },
+  "PN92::pn92_mori": {
+   "anchor_md5": "c659150d2e6df4aab0d8905597528242",
+   "byte_length": 115,
+   "byte_offset": 16492,
+   "replacement_md5": "8957c69b391017aef74ae40c47a9369e",
+   "target_rel": "utils/import_utils.py"
+  },
+  "PN92::pn92_nixl_ep": {
+   "anchor_md5": "3f010970af580de4951268be59b36166",
+   "byte_length": 124,
+   "byte_offset": 15296,
+   "replacement_md5": "e6646465ff30630efc994465e8248153",
+   "target_rel": "utils/import_utils.py"
+  },
+  "PN96::pn96_get_new_blocks_rescue": {
+   "anchor_md5": "6c333baf306edd89f67edde32c3e00ed",
+   "byte_length": 457,
+   "byte_offset": 13861,
+   "replacement_md5": "82fbbe8903e9087f55083abcd7cf5dca",
+   "target_rel": "v1/core/block_pool.py"
+  },
+  "SNDR_WORKSPACE_001::sndr_ws001_grow_after_lock_anchor": {
+   "anchor_md5": "9698e5f1a6adf7e75db649e266364933",
+   "byte_length": 373,
+   "byte_offset": 5563,
+   "replacement_md5": "937ff3494ff24cf4f76a0e0a2f0ca924",
+   "target_rel": "v1/worker/workspace.py"
+  }
+ },
+ "full_version": "0.23.1rc1.dev148+gb4c80ec0f",
+ "generated_by": "anchor_manifest_gen (\u04242)",
+ "upstream_sha": "b4c80ec0f"
+}
