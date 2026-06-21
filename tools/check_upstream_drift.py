@@ -379,58 +379,13 @@ def check_patcher_anchors(patcher, tree_root: Path) -> dict[str, Any]:
 # ─── Per-module discovery ────────────────────────────────────────────────
 
 
-def _build_patcher_for_module(mod):
-    """Return (patcher, note). Prefers the module-level ``_make_patcher``;
-    falls back to the opt-in ``_make_patcher_for_drift`` shim for
-    inline-builder patches (PN347 class). Returns (None, reason) when the
-    module exposes no buildable text-patcher.
-
-    Parameterized ``_make_patcher`` (e.g. P77 threshold, PN9 backend) is
-    called with conservative defaults guessed from annotations — never
-    feeding ``None`` to a non-optional positional silently; if the guess
-    fails the module is reported ``needs_fixture`` rather than crashing to
-    a false drift.
-    """
-    builder = getattr(mod, "_make_patcher", None)
-    if builder is None:
-        builder = getattr(mod, "_make_patcher_for_drift", None)
-    if builder is None:
-        return None, "no _make_patcher() or _make_patcher_for_drift() shim"
-
-    try:
-        sig = inspect.signature(builder)
-        kwargs: dict[str, Any] = {}
-        for pname, p in sig.parameters.items():
-            if p.default is not inspect.Parameter.empty:
-                continue
-            if p.kind in (
-                inspect.Parameter.VAR_POSITIONAL,
-                inspect.Parameter.VAR_KEYWORD,
-            ):
-                continue
-            ann = str(p.annotation)
-            if "int" in ann:
-                kwargs[pname] = 0
-            elif "bool" in ann:
-                kwargs[pname] = False
-            elif "float" in ann:
-                kwargs[pname] = 0.0
-            elif "str" in ann and "Optional" not in ann and "None" not in ann:
-                # A required str positional — empty string is safer than None
-                # (None would break `f"..."` / `.lower()` call sites).
-                kwargs[pname] = ""
-            else:
-                kwargs[pname] = None
-    except (TypeError, ValueError):
-        kwargs = {}
-
-    try:
-        patcher = builder(**kwargs) if kwargs else builder()
-    except Exception as e:  # noqa: BLE001 — surface as needs_fixture, not drift
-        return None, f"builder raised: {e}"
-    if patcher is None:
-        return None, "builder returned None (target file absent at this pin)"
-    return patcher, "ok"
+# _build_patcher_for_module moved to the shared anchor_discovery module (Ф1
+# extraction, 2026-06-21) so the drift-checker and the per-pin manifest
+# generator share ONE enumerator (design requirement R1 — single source of
+# "what to anchor"). Imported here to preserve this tool's existing call sites.
+from sndr.engines.vllm.anchor_discovery import (  # noqa: E402
+    _build_patcher_for_module,
+)
 
 
 # ─── Import-wiring check (PN287 class) ───────────────────────────────────
