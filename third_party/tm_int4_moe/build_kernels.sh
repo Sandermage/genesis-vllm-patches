@@ -21,13 +21,24 @@ FLAGS="-arch=sm_86 -std=c++17 -DENABLE_BF16 --expt-relaxed-constexpr \
   -include cuda_fp16.h -include cuda_bf16.h -I."
 
 mkdir -p build
+
+# Engine TUs (Gemm::Run + registry + converters + MoE gate). PROVEN: all 13
+# objects compile and link into libtm_int4_moe.a (40 MB) on SM86, 2026-06-22.
+for src in gemm registry dispatch_cache gpu_metric kernel \
+           convert_v3 unpack cast context moe_utils_v2; do
+  echo "compiling ${src}.cu ..."
+  nvcc $FLAGS -c "src/turbomind/kernels/gemm/${src}.cu" -o "build/${src}.o"
+done
+# The 3 tensor-core int4-MoE kernels
 for k in 4 8 16; do
   echo "compiling sm80_16816_${k}.cu ..."
   nvcc $FLAGS -c "src/turbomind/kernels/gemm/kernel/sm80_16816_${k}.cu" \
     -o "build/sm80_16816_${k}.o"
 done
-echo "OK — 3 tensor-core int4-MoE kernels built for SM86."
+ar rcs build/libtm_int4_moe.a build/*.o
+echo "OK — libtm_int4_moe.a: $(stat -c%s build/libtm_int4_moe.a) bytes, 13 objects (SM86)."
 
-# NEXT (Phase 0 cont.): compile gemm.cu + convert/cast + registry + moe_utils_v2,
-# stub sm70/75/90 registry bodies + drop tuner, then link into libtm_int4_moe.a.
-# Phase 1: cuBLAS reference + weight-repack byte-test. Phase 2: torch.ops op.
+# NEXT — Phase 1: cuBLAS reference (test/reference.cu) + a thin testbed calling
+#   Gemm::Run directly; weight-repack byte-test (zero-point format = #1 risk).
+# Phase 2: torch.ops custom op (build MatrixLayout/Operation/Workspace from
+#   data_ptr) + offline weight-prep + swap moe_wna16 in FusedMoE + rig A/B.
