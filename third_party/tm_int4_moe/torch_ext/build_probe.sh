@@ -25,4 +25,4 @@ for f in $SRCS; do
 done
 echo "compiled: $n / $(echo "$SRCS" | wc -w)  FAILED:$fails"
 
-python3 /work/torch_ext/build_ext.py
+python3 -u /work/torch_ext/build_ext.py

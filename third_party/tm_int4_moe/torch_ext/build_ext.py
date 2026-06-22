@@ -46,3 +46,52 @@ load(
 )
 print("[build_ext] extension LOADED OK")
 print("[build_ext] tm_probe() =>", torch.ops.genesis_tm.tm_probe())
+
+# --- correctness sweep: raw w1w3 grouped int4 GEMM vs fp16 reference ----------
+def run_case(E, K, N, G, M, TOPK, mean):
+    torch.manual_seed(0)
+    W = (torch.randn(E, K, N, device="cuda", dtype=torch.float16) * 0.1 + mean)  # (E,K,N)
+    op = torch.classes.genesis_tm.TmInt4MoE(W, G)
+    x = torch.randn(M, K, device="cuda", dtype=torch.float16)
+    ti = torch.stack([torch.randperm(E)[:TOPK] for _ in range(M)])
+    f2n, slot_e, counts = [], [], [0] * E
+    for e in range(E):
+        for t in range(M):
+            if e in ti[t].tolist():
+                f2n.append(t); slot_e.append(e); counts[e] += 1
+    offs = [0]
+    for e in range(E):
+        offs.append(offs[-1] + counts[e])
+    f2n_t = torch.tensor(f2n, dtype=torch.int32, device="cuda")
+    off_t = torch.tensor(offs, dtype=torch.int32, device="cuda")
+    out = op.forward_w1w3(x, f2n_t, off_t)
+    dq = torch.stack([op.get_dequant(e) for e in range(E)])  # (E,K,N) int4-reconstructed
+    ref_orig = torch.empty_like(out)
+    ref_dq = torch.empty_like(out)
+    for r in range(len(f2n)):
+        ref_orig[r] = (x[f2n[r]].float() @ W[slot_e[r]].float()).half()
+        ref_dq[r] = (x[f2n[r]].float() @ dq[slot_e[r]].float()).half()
+
+    def rd(a, b):
+        return ((a.float() - b.float()).abs().mean() / b.float().abs().mean().clamp_min(1e-6)).item()
+
+    orig = torch.stack([op.get_orig(e) for e in range(E)])  # (E,K,N) weight quantizer saw
+    gemm_err = rd(out, ref_dq)          # op int4 GEMM vs GEMM-on-dequant -> kernel correctness
+    quant_w = rd(dq, W)                 # int4-dequant weight vs original weight -> quant error
+    copy_err = rd(orig, W)              # weight quantizer saw vs torch W -> Copy correctness
+    print(f"[test] E={E:3d} K={K:5d} N={N:5d} mean={mean:.1f} R={len(f2n):4d} "
+          f"copy_err(orig vs W)={copy_err:.4f}  GEMM_err={gemm_err:.4f}  quant_err(dq vs W)={quant_w:.4f}")
+    if mean == 1.0 and E == 1:
+        print("   W[0,0,:6] =", W[0, 0, :6].tolist())
+        print("   dq[0,0,:6]=", dq[0, 0, :6].tolist())
+        print("   W[0,:6,0] =", W[0, :6, 0].tolist())
+        print("   dq[0,:6,0]=", dq[0, :6, 0].tolist())
+
+# GEMM_err (op vs GEMM-on-int4-dequant) is the KERNEL correctness metric -> ~0.
+# quant_err (dequant vs original) is the int4 accuracy and is distribution-
+# dependent: real model weights are ~zero-mean (works); all-positive groups
+# (mean=1.0) hit TurboMind's quantizer zero-point clamp (quantization.cu:426
+# clamps zero_ to >=0, so q saturates) -> the production weight-prep must use a
+# direct vLLM-int4 -> TurboMind-int4 repack, NOT dequant->requant, to avoid it.
+run_case(8, 2816, 1408, 32, 64, 8, 0.0)   # realistic zero-mean: GEMM_err~0
+run_case(1, 2816, 1408, 32, 16, 1, 1.0)   # all-positive: shows the quantizer clamp edge case
