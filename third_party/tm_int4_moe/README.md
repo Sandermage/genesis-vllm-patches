@@ -38,10 +38,24 @@ A5000 re-bench.
       -include cuda_bf16.h -I.`. **The core::-dependency risk is RESOLVED** —
       gemm.cu pulls only check.h+logger.h; the kernel headers need bf16 includes,
       not a Tensor/Allocator shim.
-- [ ] Phase 0 cont.: compile gemm.cu + convert/cast + registry + moe_utils_v2,
-      stub sm70/75/90 registry bodies + drop tuner → link `libtm_int4_moe.a`
-- [ ] Phase 1: cuBLAS reference + weight-repack byte-test (zero-point format)
-- [ ] Phase 2: torch.ops custom op + swap moe_wna16 + rig A/B
+- [x] Phase 0 cont.: full multi-TU build (`test/buildrun.sh`, 54 TUs) → `tm_test`
+      links + runs on SM86. **252 sm80 kernels register** (file-probe verified;
+      sm70/75 correctly arch-skipped). cuBLAS reference (`test/reference.cu`) wired.
+- [x] **Phase 1 PROVEN on rig (2026-06-22, 2×A5000 SM86)** — TurboMind
+      `sm80_16816` int4 g32 grouped-MoE kernel dispatches + runs **correctly** for
+      the exact Gemma-4-26B-A4B geometry (E=128, top_k=8, hidden=2816,
+      inter=704, group_size=32, `f16` act). **rel-err vs FP16 reference (same
+      dequantized weights) = 0.000356 mean / 1.60 max, ~0 outliers** → the int4
+      tensor-core math is numerically faithful; quantization itself adds ~1.88%
+      (inherent to int4 g32, NOT the kernel). **Zero-point fusion verified**:
+      `fuse_scales_and_zeros` (packV=0x141) decodes `x*s + (-zp*s)` correctly —
+      this **resolves spec risk #1** (the zero-point format) empirically.
+      - **Critical learning for Phase 2**: MoE expert weights MUST call
+        `LinearWeight::set_grouped(true)` before `prepare()` so `GetConverters`
+        returns the *grouped* u4 layout (`order_b` col-major). The dense u4 layout
+        has the opposite `order_b` → "No feasible kernel" for the grouped GEMM.
+- [ ] Phase 2: torch.ops custom op + offline weight-prep (grouped layout) +
+      swap moe_wna16 + rig A/B (speed vs moe_wna16, accuracy vs FP16)
 
 ## Build feasibility — PROVEN
 `cpp_extension.load_inline` JIT-compiled+ran a CUDA op under `-arch=sm_86`

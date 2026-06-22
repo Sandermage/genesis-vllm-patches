@@ -8,6 +8,7 @@
 #include "src/turbomind/kernels/gemm/moe_utils_v2.h"
 #include "src/turbomind/kernels/gemm/test/reference.h"
 #include "src/turbomind/kernels/gemm/test/test_utils.h"
+#include "src/turbomind/kernels/gemm/convert.h"
 #include "src/turbomind/kernels/gemm/types.h"
 #include "src/turbomind/kernels/quantization.h"
 #include "src/turbomind/utils/cuda_utils.h"
@@ -295,7 +296,11 @@ struct Testbed_v3: Parameter {
             cfg.input_dim  = input_dim;
             cfg.output_dim = output_dim;
             cfg.data_type  = data_type;
-            cfg.format     = ResolveLinearWeightFormat(data_type, wt, group_size, 1);
+            // Trivial-float reference weights (wt == data_type, e.g. bf16) carry no
+            // group quantization -> block_in must be 1; only the quantized weight
+            // (int4 / fp8) uses group_size as block_in.
+            cfg.format     = ResolveLinearWeightFormat(
+                data_type, wt, (wt == data_type) ? 1 : group_size, 1);
             cfg.has_bias   = false;
             return cfg;
         };
@@ -324,7 +329,12 @@ struct Testbed_v3: Parameter {
             DequantizeSymmBlock(dequant.weight, quant.weight, quant.scales, stream_);
         }
         else if (weight_type == kUint4) {
-            /// Weights are allocated in (M,N), quantization needs K-major tensor
+            /// Weights are allocated in (M,N), quantization needs K-major tensor.
+            /// Our vendored TM_PARAM_MEMBER exposes scales/zeros as plain Tensor
+            /// fields (no lazy alloc like upstream's scales() accessor), so we
+            /// allocate them explicitly: (K/g, N) groupwise, dtype = data_type.
+            quant.param("scales").alloc({(size_t)(input_dim / group_size), (size_t)output_dim}, data_type);
+            quant.param("zeros").alloc({(size_t)(input_dim / group_size), (size_t)output_dim}, data_type);
             QuantizeGroupwise(quant.weight.t(),
                               quant.scales.t(),
                               quant.zeros.t(),
@@ -347,6 +357,11 @@ struct Testbed_v3: Parameter {
         }
 
         original.prepare();
+        // Genesis: MoE expert weights need grouped layout (row-major) so the int4
+        // converter (GetConverters) matches the grouped sm80_16816 kernel's order_b.
+        // Without this, the dense u4 layout is used -> order_b mismatch (1 vs 0) ->
+        // "No feasible kernel" for the grouped MoE GEMM. (linear_weight.h:55)
+        quant.set_grouped(expert_num > 0);
         quant.prepare();
         dequant.prepare();
     }

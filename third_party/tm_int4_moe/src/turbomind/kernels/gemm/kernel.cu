@@ -42,83 +42,38 @@ bool accept(Striding a, Striding b)
 
 bool Kernel::is_feasible(const GemmDesc& desc) const noexcept
 {
-    constexpr bool debug = 0;
-
-    if constexpr (debug)
-        printf("S\n");
-
-    // printf("%d %d\n", desc.arch, desc_.arch);
-
     if (!is_arch_compatible(desc_.arch, desc.arch)) {
         return false;
     }
-
-    if constexpr (debug)
-        printf("S0\n");
-
     if (std::tie(desc.order_a, desc.order_b, desc.order_c) != std::tie(desc_.order_a, desc_.order_b, desc_.order_c)) {
         return false;
     }
-
     if (desc.group_axis >= 0 && desc.group_axis != desc_.group_axis) {
         return false;
     }
-
     if (!(accept(desc_.striding_a, desc.striding_a)     //
           && accept(desc_.striding_b, desc.striding_b)  //
           && accept(desc_.striding_c, desc.striding_c))) {
         return false;
     }
-
-    if constexpr (debug)
-        printf("A\n");
-
     if (std::tie(desc.type_a, desc.type_b, desc.type_c) != std::tie(desc_.type_a, desc_.type_b, desc_.type_c)) {
         return false;
     }
-
-    if constexpr (debug) {
-        printf("B\n");
-        printf("%X %X %X %X\n", desc.pack_a, desc_.pack_a, desc.pack_u, desc_.pack_u);
-    }
-
     if (std::tie(desc.pack_a, desc.pack_u) != std::tie(desc_.pack_a, desc_.pack_u)) {
         return false;
     }
-
-    if constexpr (debug) {
-        printf("C\n");
-        printf("%X %X %X %X\n", desc.pack_b, desc_.pack_b, desc.pack_v, desc_.pack_v);
-    }
-
     if (std::tie(desc.pack_b, desc.pack_v) != std::tie(desc_.pack_b, desc_.pack_v)) {
         return false;
     }
-
-    if constexpr (debug)
-        printf("D\n");
-
     if (desc.quant_a.type != desc_.quant_a.type || desc.quant_a.group_size != desc_.quant_a.group_size) {
         return false;
     }
-
-    if constexpr (debug)
-        printf("E\n");
-
     if (desc.quant_b.type != desc_.quant_b.type || desc.quant_b.group_size != desc_.quant_b.group_size) {
         return false;
     }
-
-    if constexpr (debug)
-        printf("F\n");
-
     if (desc.m % desc_.align.x || desc.n % desc_.align.y || desc.k % desc_.align.z) {
         return false;
     }
-
-    if constexpr (debug)
-        printf("success\n");
-
     return true;
 }
 

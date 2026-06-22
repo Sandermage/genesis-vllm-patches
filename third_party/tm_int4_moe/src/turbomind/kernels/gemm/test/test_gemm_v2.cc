@@ -31,7 +31,7 @@ int main()
 
     // TestParameter p{kBfloat16, kBfloat16   , kBfloat16};
     // TestParameter p{kBfloat16, kFloat8_e4m3, kFloat8_e4m3, 128};
-    TestParameter p{kBfloat16, kFloat8_e4m3, kBfloat16   , 128};
+    TestParameter p{kHalf, kUint4, kHalf, 32};  // Genesis: int4 g32 (Gemma-4-26B-A4B). half act: ref quantizer only instantiates (half,u4).
     // TestParameter p{kBfloat16, kFloat4_e2m1, kBfloat16   ,  32};
     // clang-format on
 
@@ -70,8 +70,8 @@ int main()
     // p.input_dim  = 4096;
     // p.output_dim = 1536 * 2;
     // 480B
-    p.input_dim  = 6144;
-    p.output_dim = 2560 * 2;
+    p.input_dim  = 2816;     // Gemma-4-26B-A4B hidden_size
+    p.output_dim = 704 * 2;  // moe_intermediate*2 (gated w1w3)
 
     p.max_batch_size = 256;
 

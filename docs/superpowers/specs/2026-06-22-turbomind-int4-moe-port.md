@@ -119,10 +119,18 @@ set Gemma dims + group_size=32.
 **Phase 0 (1-2d):** vendor set → shim out core::Tensor/Context + stub
 sm70/75/90 + drop tuner → mini-CMake → `libtm_int4_moe.a` builds under
 sm_86, no CUTLASS, no link errors.
-**Phase 1 (2-3d, TDD):** port reference.cu (cuBLAS) + thin testbed (direct
-Gemm::Run). Failing-test first: 1 expert, K=hidden, N=352, g32 → rel-err <
-threshold. Weight-repack byte-test (catches zero-point sign). Then full
-grouped E=128/top_k=8 with real offsets/f2n.
+**Phase 1 (2-3d, TDD): ✅ DONE 2026-06-22 (rig, 2×A5000 SM86).** Built the
+full multi-TU `test_gemm_v2` (`test/buildrun.sh`, 54 TUs) — links + runs;
+252 sm80 kernels register (file-probe verified). Full grouped E=128/top_k=8
+with real offsets/f2n at the Gemma-4-26B-A4B geometry (hidden=2816,
+inter=704, g32, f16 act) dispatches + runs **correct**: rel-err vs the FP16
+dequant reference = **0.000356 mean / 1.60 max, ~0 outliers**; quantization
+alone adds ~1.88% (int4 g32, not the kernel). **Risk #1 (zero-point format)
+RESOLVED** — `fuse_scales_and_zeros` (packV=0x141) decodes `x*s + (-zp*s)`
+faithfully. **Key fix surfaced** (carry to Phase 2): MoE expert weights need
+`LinearWeight::set_grouped(true)` before `prepare()` so `GetConverters`
+yields the *grouped* u4 layout (`order_b` col-major) the grouped kernel
+expects — the dense layout's opposite `order_b` causes "No feasible kernel".
 **Phase 2 (2-3d):** torch.ops custom op (build MatrixLayout/Operation/
 Workspace from data_ptr), offline weight-prep, swap moe_wna16 in FusedMoE,
 rig smoke+bench+tool-call on current pin (vllm-pin policy), A/B vs moe_wna16
