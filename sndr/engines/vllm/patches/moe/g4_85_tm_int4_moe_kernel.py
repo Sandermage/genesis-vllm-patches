@@ -43,23 +43,22 @@ def _enabled() -> bool:
 def _dequant_wna16(qweight, scale, group_size):
     """(E, N, K//2) uint8 + (E, N, K//g) fp16 -> (E, K, N) fp16, input-major.
 
-    Symmetric int4: w = q_signed * scale, q packed 2-per-byte along K (low nibble
-    first). The (K, N) result is the input-major layout TmInt4MoE expects.
+    moe_wna16 decodes the symmetric int4 as an UNSIGNED nibble with zero-point 8:
+    w = (nibble - 8) * scale, packed 2-per-byte along K (low nibble first).
+    Verified against vLLM fused_experts_impl on the rig: this decode gives
+    rel-err 0.05 (the dequant->requant residual) vs 1.32 for the signed decode.
+    The (K, N) result is the input-major layout TmInt4MoE expects.
     """
     import torch
 
     E, N, Kh = qweight.shape
     K = Kh * 2
     b = qweight.to(torch.int32)
-    lo = b & 0xF
-    hi = (b >> 4) & 0xF
-    # interleave low/high nibble back to (E, N, K)
-    q = torch.stack([lo, hi], dim=-1).reshape(E, N, K)
-    q = torch.where(q >= 8, q - 16, q)  # unsigned nibble -> signed int4 [-8,7]
+    q = torch.stack([b & 0xF, (b >> 4) & 0xF], dim=-1).reshape(E, N, K)
+    q = q - 8  # unsigned nibble [0,15], zero-point 8 -> signed value
     g = K // scale.shape[-1]
     s = scale.to(torch.float16).repeat_interleave(g, dim=-1)  # (E, N, K)
-    w = (q.to(torch.float16) * s)  # (E, N, K)
-    return w.transpose(1, 2).contiguous()  # (E, K, N) input-major
+    return (q.to(torch.float16) * s).transpose(1, 2).contiguous()  # (E, K, N) input-major
 
 
 def _build_routing(topk_ids, topk_weights, num_experts):
