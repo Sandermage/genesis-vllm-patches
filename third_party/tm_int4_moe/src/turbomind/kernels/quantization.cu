@@ -423,7 +423,12 @@ struct IntegralQuantizer {
         auto clamp = [](int x, int a, int b) { return max(a, min(b, x)); };
 
         float scale_ = fmaxf(maxval - minval, 1e-5f) / (float)max_q;
-        int   zero_  = clamp(-round<int32_t>(minval / scale_), 0, max_q);
+        // Genesis: asymmetric zero-point is -minval/scale; for all-positive groups
+        // it is legitimately negative (e.g. -17.5 for [0.7,1.3]) and for all-negative
+        // groups > max_q. Clamping it to [0,max_q] collapses such groups (q saturates).
+        // The zero is stored as half and consumed only via the fused -zero*scale FMA,
+        // which handles any sign, so no clamp is needed.
+        int   zero_  = -round<int32_t>(minval / scale_);
 
         scale = (T)scale_;
         zero  = (T)zero_;

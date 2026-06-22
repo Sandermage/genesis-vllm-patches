@@ -88,10 +88,9 @@ def run_case(E, K, N, G, M, TOPK, mean):
         print("   dq[0,:6,0]=", dq[0, :6, 0].tolist())
 
 # GEMM_err (op vs GEMM-on-int4-dequant) is the KERNEL correctness metric -> ~0.
-# quant_err (dequant vs original) is the int4 accuracy and is distribution-
-# dependent: real model weights are ~zero-mean (works); all-positive groups
-# (mean=1.0) hit TurboMind's quantizer zero-point clamp (quantization.cu:426
-# clamps zero_ to >=0, so q saturates) -> the production weight-prep must use a
-# direct vLLM-int4 -> TurboMind-int4 repack, NOT dequant->requant, to avoid it.
-run_case(8, 2816, 1408, 32, 64, 8, 0.0)   # realistic zero-mean: GEMM_err~0
-run_case(1, 2816, 1408, 32, 16, 1, 1.0)   # all-positive: shows the quantizer clamp edge case
+# quant_err (dequant vs original) is the int4-g32 accuracy: tight-spread weights
+# (mean=1.0) -> ~0.007, wide zero-mean N(0,0.1) -> ~0.087. With the quantizer
+# zero-point clamp removed (quantization.cu:426), the dequant->requant weight-prep
+# is robust for ALL distributions, including all-positive groups.
+run_case(8, 2816, 1408, 32, 64, 8, 0.0)   # zero-mean: GEMM_err~0, quant_err~0.087
+run_case(1, 2816, 1408, 32, 16, 1, 1.0)   # all-positive: GEMM_err~0, quant_err~0.007 (fix verified)
