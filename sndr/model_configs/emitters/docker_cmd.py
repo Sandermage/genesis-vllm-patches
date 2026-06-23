@@ -107,12 +107,14 @@ def build_docker_cmd(
         lines.append(f"  -e {k}={shell_quote(v)} \\")
     # Image + cmd
     lines.append(f"  {shell_quote(d.effective_image_ref())} \\")
-    # Bash -c with canonical apply + exec vllm serve.
-    # POSIX-escape single quotes inside the inner cmd so the outer
-    # single-quoted -c '...' wrapper survives JSON args like
-    # --speculative-config '{"method":"mtp",...}'.
+    # Bash -c with canonical apply + exec vllm serve. The WHOLE bootstrap is
+    # single-quote-escaped once at the end (see below) so the outer -c '...'
+    # wrapper survives BOTH the JSON args (--speculative-config / --override-
+    # generation-config '{...}') AND the plugin-assert's python string literals
+    # ('vllm.general_plugins', 'sndr.plugin', ...). Pre-escaping only `cmd` left
+    # the assert's quotes raw -> they terminated the outer -c '...' (bash syntax
+    # error). 2026-06-23 fix.
     cmd = " ".join(vllm_parts)
-    cmd_escaped = cmd.replace("'", "'\\''")
     # ── TWO-PROCESS BOUNDARY (the whole reason this bootstrap is shaped ──
     # ── the way it is — diagnosed live on the rig 2026-06-22). ──────────
     #
@@ -255,7 +257,13 @@ def build_docker_cmd(
         )
     # Canonical apply step (always runs).
     bootstrap_parts.append(apply_step)
-    bootstrap_parts.append(f"exec {cmd_escaped}")
+    bootstrap_parts.append(f"exec {cmd}")
     bootstrap = "; ".join(bootstrap_parts)
-    lines.append(f"  -c '{bootstrap}'")
+    # POSIX-escape EVERY single quote in the assembled bootstrap (the vllm-arg
+    # shell-quotes AND the plugin-assert's single-quoted python strings) so the
+    # outer single-quoted -c '...' wrapper survives. Escaping the joined
+    # bootstrap ONCE here (rather than pre-escaping only cmd) is what lets the
+    # SNDR_DEV_INSTALL_PLUGIN assert coexist with the JSON args.
+    bootstrap_escaped = bootstrap.replace("'", "'\\''")
+    lines.append(f"  -c '{bootstrap_escaped}'")
     return "\n".join(lines)
