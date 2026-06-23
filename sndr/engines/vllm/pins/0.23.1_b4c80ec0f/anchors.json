@@ -23,7 +23,8 @@
        "byte_offset": 13947,
        "replacement_md5": "d38509640d19cca6bd71edbd7e9cc01c"
       }
-     }
+     },
+     "merge_status": "not_merged"
     }
    },
    "size_bytes": 14179
@@ -39,7 +40,8 @@
        "byte_offset": 10931,
        "replacement_md5": "5c119311c91719b475100ad0f23f9a0a"
       }
-     }
+     },
+     "merge_status": "not_merged"
     }
    },
    "size_bytes": 13887
@@ -55,7 +57,8 @@
        "byte_offset": 29286,
        "replacement_md5": "903270b3edb697936e3c1f1010c4dedb"
       }
-     }
+     },
+     "merge_status": "not_merged"
     },
     "P75": {
      "anchors": {
@@ -65,7 +68,8 @@
        "byte_offset": 28117,
        "replacement_md5": "8321d5b84d280db471b384edc3b2c9d5"
       }
-     }
+     },
+     "merge_status": "not_merged"
     }
    },
    "size_bytes": 50323
@@ -81,7 +85,8 @@
        "byte_offset": 76092,
        "replacement_md5": "b2dc799327209f6a1c3b14d5777805c6"
       }
-     }
+     },
+     "merge_status": "not_merged"
     },
     "P95": {
      "anchors": {
@@ -97,7 +102,8 @@
        "byte_offset": 73460,
        "replacement_md5": "409d00f6137190bd18ec6f08deaa6414"
       }
-     }
+     },
+     "merge_status": "not_merged"
     }
    },
    "size_bytes": 100753
@@ -131,7 +137,8 @@
        "byte_offset": 10825,
        "replacement_md5": "535cd3754f49ca5c9d9296b05d92aae4"
       }
-     }
+     },
+     "merge_status": "not_merged"
     }
    },
    "size_bytes": 15995
@@ -147,36 +154,11 @@
        "byte_offset": 14621,
        "replacement_md5": "766daa9a76f3a56d85d219ec21192ada"
       }
-     }
+     },
+     "merge_status": "not_merged"
     }
    },
    "size_bytes": 112964
-  },
-  "entrypoints/chat_utils.py": {
-   "md5_pristine": "f42f3b69f772b11800b95fe3dd1a57cf",
-   "patches": {
-    "PN73": {
-     "anchors": {
-      "pn73_tool_args_safe_normalize": {
-       "anchor_md5": "2609e1dbf50df2ed4b582ef131e6649c",
-       "byte_length": 392,
-       "byte_offset": 68023,
-       "replacement_md5": "1423d130953c3c39dd4a57b95ca0e99a"
-      }
-     }
-    },
-    "PN91": {
-     "anchors": {
-      "pn72_developer_role_normalize": {
-       "anchor_md5": "7d538bf585729cf3f85c69bc4dace53b",
-       "byte_length": 64,
-       "byte_offset": 63491,
-       "replacement_md5": "5d673cc0a381a8b1ea6953adefe9acc4"
-      }
-     }
-    }
-   },
-   "size_bytes": 71758
   },
   "entrypoints/openai/chat_completion/serving.py": {
    "md5_pristine": "c13d7d991397891bece8f639f8d64ee2",
@@ -189,7 +171,8 @@
        "byte_offset": 29185,
        "replacement_md5": "e8655f5bd9f5e5b39714dbd0dc2198e7"
       }
-     }
+     },
+     "merge_status": "not_merged"
     },
     "P68": {
      "anchors": {
@@ -199,7 +182,8 @@
        "byte_offset": 9562,
        "replacement_md5": "a542a07d92d2a574f9df9b0f170ca917"
       }
-     }
+     },
+     "merge_status": "not_merged"
     },
     "P69": {
      "anchors": {
@@ -209,7 +193,8 @@
        "byte_offset": 9562,
        "replacement_md5": "a542a07d92d2a574f9df9b0f170ca917"
       }
-     }
+     },
+     "merge_status": "not_merged"
     },
     "PN16": {
      "anchors": {
@@ -219,7 +204,8 @@
        "byte_offset": 9562,
        "replacement_md5": "30e42d48cc3781ac6ed2641fb1d793cd"
       }
-     }
+     },
+     "merge_status": "not_merged"
     },
     "PN40-classifier": {
      "anchors": {
@@ -229,7 +215,8 @@
        "byte_offset": 9562,
        "replacement_md5": "420c1209ad481dd58c2ae996c9282098"
       }
-     }
+     },
+     "merge_status": "not_merged"
     }
    },
    "size_bytes": 50547
@@ -269,7 +256,8 @@
        "byte_offset": 2875,
        "replacement_md5": "4442e224e74a49fa05a98c649d3f6d4b"
       }
-     }
+     },
+     "merge_status": "not_merged"
     }
    },
    "size_bytes": 9093
@@ -285,7 +273,8 @@
        "byte_offset": 4138,
        "replacement_md5": "f8a02e26a44156bf1afb11e29b74e227"
       }
-     }
+     },
+     "merge_status": "not_merged"
     },
     "PN25": {
      "anchors": {
@@ -301,10 +290,21 @@
        "byte_offset": 637,
        "replacement_md5": "6e9444da48084e905271408b0cf2102b"
       }
-     }
+     },
+     "merge_status": "not_merged"
     }
    },
    "size_bytes": 27652
+  },
+  "model_executor/layers/attention/attention.py": {
+   "md5_pristine": "ec1832ba696f1e2185f6a114e1da8941",
+   "patches": {
+    "P36": {
+     "anchors": {},
+     "merge_status": "not_merged"
+    }
+   },
+   "size_bytes": 31312
   },
   "model_executor/layers/fla/ops/chunk.py": {
    "md5_pristine": "2949617813535680de692d4c24a7b809",
@@ -317,7 +317,8 @@
        "byte_offset": 782,
        "replacement_md5": "1712c0f41d0187f2e8e8963f4d32b63b"
       }
-     }
+     },
+     "merge_status": "not_merged"
     }
    },
    "size_bytes": 8711
@@ -339,7 +340,8 @@
        "byte_offset": 12505,
        "replacement_md5": "f915e15590d1fa27433fd1b0fa7c287a"
       }
-     }
+     },
+     "merge_status": "not_merged"
     }
    },
    "size_bytes": 13063
@@ -361,7 +363,8 @@
        "byte_offset": 3932,
        "replacement_md5": "13e9fa7a93b3241b6d73942e1ac599d6"
       }
-     }
+     },
+     "merge_status": "not_merged"
     }
    },
    "size_bytes": 5392
@@ -377,7 +380,8 @@
        "byte_offset": 3309,
        "replacement_md5": "1ed9b465f0c96272a10fd34af77c93c4"
       }
-     }
+     },
+     "merge_status": "not_merged"
     },
     "PN368": {
      "anchors": {
@@ -393,7 +397,8 @@
        "byte_offset": 4844,
        "replacement_md5": "ea0ebcb4cfb5d5bdda942fe5b74a317a"
       }
-     }
+     },
+     "merge_status": "not_merged"
     }
    },
    "size_bytes": 36449
@@ -415,7 +420,8 @@
        "byte_offset": 44338,
        "replacement_md5": "4d6a8cc5d130d44ac4a8866087a9ee2e"
       }
-     }
+     },
+     "merge_status": "not_merged"
     },
     "PN352": {
      "anchors": {
@@ -425,7 +431,8 @@
        "byte_offset": 58060,
        "replacement_md5": "01bc0da71769efc5070e6a665c13f755"
       }
-     }
+     },
+     "merge_status": "not_merged"
     },
     "PN377": {
      "anchors": {
@@ -435,7 +442,8 @@
        "byte_offset": 40459,
        "replacement_md5": "e89b3616ffbb400be4ce3ecc8eaf2138"
       }
-     }
+     },
+     "merge_status": "not_merged"
     }
    },
    "size_bytes": 58203
@@ -451,7 +459,8 @@
        "byte_offset": 35061,
        "replacement_md5": "5fcff5843f44fd4282cd3599872f1934"
       }
-     }
+     },
+     "merge_status": "not_merged"
     },
     "P46": {
      "anchors": {
@@ -467,7 +476,12 @@
        "byte_offset": 68247,
        "replacement_md5": "65224f9ff7b6d4b0a8ccc4b0cbe4e608"
       }
-     }
+     },
+     "merge_status": "not_merged"
+    },
+    "P7b": {
+     "anchors": {},
+     "merge_status": "not_merged"
     },
     "PN11": {
      "anchors": {
@@ -477,7 +491,8 @@
        "byte_offset": 25453,
        "replacement_md5": "f0b0765cea3dae5aea3119d6f1d9be77"
       }
-     }
+     },
+     "merge_status": "not_merged"
     },
     "PN32": {
      "anchors": {
@@ -487,7 +502,12 @@
        "byte_offset": 56678,
        "replacement_md5": "055f5d564bc6cfdcb440661e2fa932fd"
       }
-     }
+     },
+     "merge_status": "not_merged"
+    },
+    "PN54": {
+     "anchors": {},
+     "merge_status": "not_merged"
     }
    },
    "size_bytes": 68663
@@ -503,7 +523,8 @@
        "byte_offset": 27312,
        "replacement_md5": "7447ca51bf5f48dee70f8c2a85f4d4f5"
       }
-     }
+     },
+     "merge_status": "not_merged"
     }
    },
    "size_bytes": 29846
@@ -519,7 +540,8 @@
        "byte_offset": 2518,
        "replacement_md5": "1d6cae173e6d27347cd23a7dcf0b8cf8"
       }
-     }
+     },
+     "merge_status": "not_merged"
     }
    },
    "size_bytes": 2716
@@ -535,7 +557,8 @@
        "byte_offset": 30513,
        "replacement_md5": "f5c389911ff207aee1f413b64e9a9ad4"
       }
-     }
+     },
+     "merge_status": "not_merged"
     }
    },
    "size_bytes": 47051
@@ -551,7 +574,8 @@
        "byte_offset": 3703,
        "replacement_md5": "ccc8a275b164a7058340478dd06325d0"
       }
-     }
+     },
+     "merge_status": "not_merged"
     }
    },
    "size_bytes": 11426
@@ -579,7 +603,8 @@
        "byte_offset": 42721,
        "replacement_md5": "18b07b0be54721d7c1d4ea72048d0009"
       }
-     }
+     },
+     "merge_status": "not_merged"
     }
    },
    "size_bytes": 56479
@@ -595,7 +620,8 @@
        "byte_offset": 65450,
        "replacement_md5": "bb1ccb645d47d1560b09369ecc57da9b"
       }
-     }
+     },
+     "merge_status": "not_merged"
     },
     "G4_06": {
      "anchors": {
@@ -605,7 +631,8 @@
        "byte_offset": 14379,
        "replacement_md5": "45d624ada4e19bf07eb4c9716464f396"
       }
-     }
+     },
+     "merge_status": "not_merged"
     }
    },
    "size_bytes": 67772
@@ -633,7 +660,8 @@
        "byte_offset": 14820,
        "replacement_md5": "74ff07500429ff14b8aa380a533db1e0"
       }
-     }
+     },
+     "merge_status": "not_merged"
     },
     "PN40": {
      "anchors": {
@@ -643,7 +671,8 @@
        "byte_offset": 15488,
        "replacement_md5": "e9c9931966ced7f22aa6d104c6a5a875"
       }
-     }
+     },
+     "merge_status": "not_merged"
     }
    },
    "size_bytes": 23694
@@ -665,7 +694,8 @@
        "byte_offset": 669,
        "replacement_md5": "febd7d547fb2bf1f9aa120ee43d1b9ee"
       }
-     }
+     },
+     "merge_status": "not_merged"
     }
    },
    "size_bytes": 31217
@@ -681,17 +711,8 @@
        "byte_offset": 1343,
        "replacement_md5": "17cfd93efd7370b7c04357204c1c6b10"
       }
-     }
-    },
-    "PN71": {
-     "anchors": {
-      "pn71_extract_reasoning_normalize": {
-       "anchor_md5": "449a158f6525f8a90d66024c9d3985da",
-       "byte_length": 307,
-       "byte_offset": 6447,
-       "replacement_md5": "a27d8be52aa1af80853d05c128f5dcbc"
-      }
-     }
+     },
+     "merge_status": "not_merged"
     }
    },
    "size_bytes": 7667
@@ -713,7 +734,8 @@
        "byte_offset": 21751,
        "replacement_md5": "881389405d254cd50c03d7299d63024e"
       }
-     }
+     },
+     "merge_status": "not_merged"
     }
    },
    "size_bytes": 36788
@@ -729,7 +751,8 @@
        "byte_offset": 37803,
        "replacement_md5": "f8627c486438cfade711e271ca1e89ce"
       }
-     }
+     },
+     "merge_status": "not_merged"
     }
    },
    "size_bytes": 44569
@@ -763,7 +786,8 @@
        "byte_offset": 4513,
        "replacement_md5": "c571f1d93cc4e127c138982ad50620f6"
       }
-     }
+     },
+     "merge_status": "not_merged"
     }
    },
    "size_bytes": 6691
@@ -779,7 +803,8 @@
        "byte_offset": 19277,
        "replacement_md5": "fea13e18ab8b845a91d13a8aa6cb96c2"
       }
-     }
+     },
+     "merge_status": "not_merged"
     },
     "PN385": {
      "anchors": {
@@ -795,38 +820,11 @@
        "byte_offset": 8081,
        "replacement_md5": "b4dd05755a366f3227c0f9d857be8887"
       }
-     }
+     },
+     "merge_status": "not_merged"
     }
    },
    "size_bytes": 21806
-  },
-  "utils/import_utils.py": {
-   "md5_pristine": "47f6b6b994e7a8291b2df3641bc53894",
-   "patches": {
-    "PN92": {
-     "anchors": {
-      "pn92_deep_ep": {
-       "anchor_md5": "cdf7469bd33b3fab020854a4dee0d4b7",
-       "byte_length": 124,
-       "byte_offset": 13042,
-       "replacement_md5": "c86358e928a0ef313294c2f4e8aba144"
-      },
-      "pn92_mori": {
-       "anchor_md5": "c659150d2e6df4aab0d8905597528242",
-       "byte_length": 115,
-       "byte_offset": 16492,
-       "replacement_md5": "8957c69b391017aef74ae40c47a9369e"
-      },
-      "pn92_nixl_ep": {
-       "anchor_md5": "3f010970af580de4951268be59b36166",
-       "byte_length": 124,
-       "byte_offset": 15296,
-       "replacement_md5": "e6646465ff30630efc994465e8248153"
-      }
-     }
-    }
-   },
-   "size_bytes": 16995
   },
   "v1/attention/backends/flashinfer.py": {
    "md5_pristine": "60419426e20abafc7b5076a91df80541",
@@ -899,7 +897,8 @@
        "byte_offset": 17206,
        "replacement_md5": "7b7c00fca256f0758e4f7f7b3a45eb5c"
       }
-     }
+     },
+     "merge_status": "not_merged"
     }
    },
    "size_bytes": 81969
@@ -921,7 +920,8 @@
        "byte_offset": 18922,
        "replacement_md5": "05687dee30eb2fedb8122e3b49e838fd"
       }
-     }
+     },
+     "merge_status": "not_merged"
     }
    },
    "size_bytes": 22475
@@ -937,7 +937,8 @@
        "byte_offset": 15477,
        "replacement_md5": "fd8dea671a6d2bfa823307cee5412d11"
       }
-     }
+     },
+     "merge_status": "not_merged"
     }
    },
    "size_bytes": 27989
@@ -959,7 +960,8 @@
        "byte_offset": 2160,
        "replacement_md5": "2e981e8ba3272622958bd8306469beea"
       }
-     }
+     },
+     "merge_status": "not_merged"
     },
     "P15B": {
      "anchors": {
@@ -969,7 +971,8 @@
        "byte_offset": 11234,
        "replacement_md5": "69205944958d57e746f4091a9f7bd4fd"
       }
-     }
+     },
+     "merge_status": "not_merged"
     },
     "P26": {
      "anchors": {
@@ -979,7 +982,11 @@
        "byte_offset": 23191,
        "replacement_md5": "15fa317c39fc84c657bb34eb21a1a185"
       }
-     }
+     },
+     "merge_status": "partially_merged",
+     "merged_subs": [
+      "p26_cu_2_alloc"
+     ]
     },
     "P38B": {
      "anchors": {
@@ -989,7 +996,8 @@
        "byte_offset": 28843,
        "replacement_md5": "46ceaf6ccd51852bfe22509a1594f731"
       }
-     }
+     },
+     "merge_status": "not_merged"
     },
     "P44": {
      "anchors": {
@@ -999,7 +1007,8 @@
        "byte_offset": 16789,
        "replacement_md5": "06a6bd9c7df588d72c1602b4fa63f562"
       }
-     }
+     },
+     "merge_status": "not_merged"
     },
     "P65": {
      "anchors": {
@@ -1009,7 +1018,8 @@
        "byte_offset": 7236,
        "replacement_md5": "cde70bd02955453fd1a5bccf9aad6862"
       }
-     }
+     },
+     "merge_status": "not_merged"
     },
     "P67": {
      "anchors": {
@@ -1019,7 +1029,8 @@
        "byte_offset": 22082,
        "replacement_md5": "d1d299b4b7f22134953a7d29fe5070cc"
       }
-     }
+     },
+     "merge_status": "not_merged"
     },
     "P67b": {
      "anchors": {
@@ -1027,9 +1038,10 @@
        "anchor_md5": "1e1ebaeb17b706162d88b24e370c1a77",
        "byte_length": 382,
        "byte_offset": 15743,
-       "replacement_md5": "a2fdcde2c3777cc556967d1f827c78a1"
+       "replacement_md5": "717987258983371e70d3687d861c4d00"
       }
-     }
+     },
+     "merge_status": "not_merged"
     },
     "P78": {
      "anchors": {
@@ -1045,7 +1057,8 @@
        "byte_offset": 6725,
        "replacement_md5": "4a4ea9e96170187496a4b9a676dcfd57"
       }
-     }
+     },
+     "merge_status": "not_merged"
     },
     "P98": {
      "anchors": {
@@ -1055,7 +1068,8 @@
        "byte_offset": 29554,
        "replacement_md5": "319cb6bb121efd035f9e522d0a7fabbc"
       }
-     }
+     },
+     "merge_status": "not_merged"
     },
     "PN116": {
      "anchors": {
@@ -1065,7 +1079,8 @@
        "byte_offset": 18428,
        "replacement_md5": "45669a76b4779399cbc2e3cd0f47ed0d"
       }
-     }
+     },
+     "merge_status": "not_merged"
     },
     "PN31": {
      "anchors": {
@@ -1081,7 +1096,8 @@
        "byte_offset": 12029,
        "replacement_md5": "4d92ecd7346d1cca7cc8f58e3bde86bf"
       }
-     }
+     },
+     "merge_status": "not_merged"
     },
     "PN353A": {
      "anchors": {
@@ -1091,7 +1107,8 @@
        "byte_offset": 7325,
        "replacement_md5": "e7d0b1fb73c6b1baa30f60a32d0be352"
       }
-     }
+     },
+     "merge_status": "not_merged"
     },
     "PN353B": {
      "anchors": {
@@ -1113,7 +1130,8 @@
        "byte_offset": 22864,
        "replacement_md5": "2a755ba787832c515128b03f030a288f"
       }
-     }
+     },
+     "merge_status": "not_merged"
     }
    },
    "size_bytes": 36593
@@ -1135,7 +1153,8 @@
        "byte_offset": 4684,
        "replacement_md5": "94760f33cd8f4d79849ebb752428bc72"
       }
-     }
+     },
+     "merge_status": "not_merged"
     }
    },
    "size_bytes": 5943
@@ -1143,6 +1162,14 @@
   "v1/attention/ops/triton_turboquant_decode.py": {
    "md5_pristine": "e93d6f9eb591e0b68a50b0fc2eb689c3",
    "patches": {
+    "P18B_TEXT": {
+     "anchors": {},
+     "merge_status": "not_merged"
+    },
+    "P18b": {
+     "anchors": {},
+     "merge_status": "not_merged"
+    },
     "PN14": {
      "anchors": {
       "pN14_safe_page_idx": {
@@ -1151,7 +1178,8 @@
        "byte_offset": 4690,
        "replacement_md5": "8be00aa7c45fdec659c8bcaed1db17c4"
       }
-     }
+     },
+     "merge_status": "not_merged"
     }
    },
    "size_bytes": 22796
@@ -1167,7 +1195,8 @@
        "byte_offset": 7329,
        "replacement_md5": "0f844b3a49247d03571b405ad6563532"
       }
-     }
+     },
+     "merge_status": "not_merged"
     }
    },
    "size_bytes": 16881
@@ -1189,26 +1218,11 @@
        "byte_offset": 40178,
        "replacement_md5": "41050bb0cea55b4174d08470119fa14a"
       }
-     }
+     },
+     "merge_status": "not_merged"
     }
    },
    "size_bytes": 41176
-  },
-  "v1/core/block_pool.py": {
-   "md5_pristine": "c68fbab834e344f3bec0fb4d5e3d8cdc",
-   "patches": {
-    "PN96": {
-     "anchors": {
-      "pn96_get_new_blocks_rescue": {
-       "anchor_md5": "6c333baf306edd89f67edde32c3e00ed",
-       "byte_length": 457,
-       "byte_offset": 13861,
-       "replacement_md5": "82fbbe8903e9087f55083abcd7cf5dca"
-      }
-     }
-    }
-   },
-   "size_bytes": 20994
   },
   "v1/core/kv_cache_coordinator.py": {
    "md5_pristine": "26d5dfd8584963c3a85c7784bb9a826b",
@@ -1221,7 +1235,8 @@
        "byte_offset": 27913,
        "replacement_md5": "ab784069e3556706ac989aa64c8360e9"
       }
-     }
+     },
+     "merge_status": "not_merged"
     }
    },
    "size_bytes": 32702
@@ -1237,7 +1252,8 @@
        "byte_offset": 38698,
        "replacement_md5": "fe01a4aacf5abda3a33f3aa30ba21b87"
       }
-     }
+     },
+     "merge_status": "not_merged"
     }
    },
    "size_bytes": 86885
@@ -1253,7 +1269,8 @@
        "byte_offset": 17146,
        "replacement_md5": "2180e8dc804e745c52b146c8fc8e1411"
       }
-     }
+     },
+     "merge_status": "not_merged"
     },
     "P79c": {
      "anchors": {
@@ -1263,7 +1280,12 @@
        "byte_offset": 29201,
        "replacement_md5": "a5079ed4e016e915d1579ec6f11a62ee"
       }
-     }
+     },
+     "merge_status": "not_merged"
+    },
+    "P84": {
+     "anchors": {},
+     "merge_status": "not_merged"
     },
     "PN388": {
      "anchors": {
@@ -1273,7 +1295,8 @@
        "byte_offset": 17063,
        "replacement_md5": "55079786adeeb1c03f75b18c1c92e3da"
       }
-     }
+     },
+     "merge_status": "not_merged"
     }
    },
    "size_bytes": 122074
@@ -1295,7 +1318,8 @@
        "byte_offset": 42745,
        "replacement_md5": "661ca214b872fdb4b07910433fff28c8"
       }
-     }
+     },
+     "merge_status": "not_merged"
     }
    },
    "size_bytes": 61103
@@ -1329,7 +1353,8 @@
        "byte_offset": 19550,
        "replacement_md5": "1014b464f2b358da94edd2306c917f9b"
       }
-     }
+     },
+     "merge_status": "not_merged"
     },
     "P82": {
      "anchors": {
@@ -1339,7 +1364,8 @@
        "byte_offset": 31242,
        "replacement_md5": "134fb770147a55262af0c54840333092"
       }
-     }
+     },
+     "merge_status": "not_merged"
     },
     "PN390": {
      "anchors": {
@@ -1421,10 +1447,21 @@
        "byte_offset": 33084,
        "replacement_md5": "1e4ce19e24bf1a3d060a88049f55e61f"
       }
-     }
+     },
+     "merge_status": "not_merged"
     }
    },
    "size_bytes": 35734
+  },
+  "v1/spec_decode/dflash.py": {
+   "md5_pristine": "a94ef1161e5ee90e5759ecf17ffee0e2",
+   "patches": {
+    "G4_05": {
+     "anchors": {},
+     "merge_status": "not_merged"
+    }
+   },
+   "size_bytes": 12421
   },
   "v1/spec_decode/llm_base_proposer.py": {
    "md5_pristine": "b52ac184a53d0a10bfcab225ca45b671",
@@ -1437,7 +1474,8 @@
        "byte_offset": 28218,
        "replacement_md5": "ea5ec3365633e6cdee9ad348183e096a"
       }
-     }
+     },
+     "merge_status": "not_merged"
     }
    },
    "size_bytes": 78124
@@ -1459,7 +1497,8 @@
        "byte_offset": 3812,
        "replacement_md5": "9f708b99989d0b9cf065d71ddda5210a"
       }
-     }
+     },
+     "merge_status": "not_merged"
     }
    },
    "size_bytes": 11160
@@ -1481,7 +1520,8 @@
        "byte_offset": 1674,
        "replacement_md5": "eb1290a233100c1fae7e678f5bd8a850"
       }
-     }
+     },
+     "merge_status": "not_merged"
     }
    },
    "size_bytes": 24506
@@ -1497,7 +1537,12 @@
        "byte_offset": 36976,
        "replacement_md5": "161c952bb68480016264578b7ffaf8f1"
       }
-     }
+     },
+     "merge_status": "not_merged"
+    },
+    "PN67": {
+     "anchors": {},
+     "merge_status": "not_merged"
     }
    },
    "size_bytes": 47598
@@ -1513,7 +1558,8 @@
        "byte_offset": 279184,
        "replacement_md5": "0ed452a0b56e453b52b5568b7795086d"
       }
-     }
+     },
+     "merge_status": "not_merged"
     },
     "P79b": {
      "anchors": {
@@ -1523,7 +1569,8 @@
        "byte_offset": 195184,
        "replacement_md5": "c40a51bdc12d62cf6774db9d6b5aa28d"
       }
-     }
+     },
+     "merge_status": "not_merged"
     },
     "PN122": {
      "anchors": {
@@ -1533,7 +1580,8 @@
        "byte_offset": 126772,
        "replacement_md5": "09b8cf5a63f5ae3379b0784854cb23b5"
       }
-     }
+     },
+     "merge_status": "not_merged"
     },
     "PN290": {
      "anchors": {
@@ -1543,7 +1591,8 @@
        "byte_offset": 68445,
        "replacement_md5": "d1ff1267919e14f376a80fc8791a0b78"
       }
-     }
+     },
+     "merge_status": "not_merged"
     },
     "PN294": {
      "anchors": {
@@ -1553,7 +1602,8 @@
        "byte_offset": 301047,
        "replacement_md5": "88ccaa6971d7a0204c89e79d84103b75"
       }
-     }
+     },
+     "merge_status": "not_merged"
     },
     "PN33": {
      "anchors": {
@@ -1563,7 +1613,8 @@
        "byte_offset": 271641,
        "replacement_md5": "4e1cfbbc464be9dffcdb3279a6ef5932"
       }
-     }
+     },
+     "merge_status": "not_merged"
     },
     "PN55": {
      "anchors": {
@@ -1573,7 +1624,8 @@
        "byte_offset": 40727,
        "replacement_md5": "ef26110f18e6d95bc790af7ca63f5cfa"
       }
-     }
+     },
+     "merge_status": "not_merged"
     },
     "PN82": {
      "anchors": {
@@ -1583,7 +1635,8 @@
        "byte_offset": 101656,
        "replacement_md5": "c3887787f032814622666b589c7a64c9"
       }
-     }
+     },
+     "merge_status": "not_merged"
     }
    },
    "size_bytes": 336043
@@ -1605,7 +1658,8 @@
        "byte_offset": 12073,
        "replacement_md5": "6ead82e229ae91f8d9435b1f532d8c41"
       }
-     }
+     },
+     "merge_status": "not_merged"
     }
    },
    "size_bytes": 50331
@@ -1627,7 +1681,8 @@
        "byte_offset": 3607,
        "replacement_md5": "18def83ba779a132f17fb79d2198f9be"
       }
-     }
+     },
+     "merge_status": "not_merged"
     },
     "PN34": {
      "anchors": {
@@ -1637,23 +1692,14 @@
        "byte_offset": 5563,
        "replacement_md5": "87930650e5d2ce65ab5a7eebba5d7e24"
       }
-     }
-    },
-    "SNDR_WORKSPACE_001": {
-     "anchors": {
-      "sndr_ws001_grow_after_lock_anchor": {
-       "anchor_md5": "9698e5f1a6adf7e75db649e266364933",
-       "byte_length": 373,
-       "byte_offset": 5563,
-       "replacement_md5": "937ff3494ff24cf4f76a0e0a2f0ca924"
-      }
-     }
+     },
+     "merge_status": "not_merged"
     }
    },
    "size_bytes": 9937
   }
  },
- "generated_at": "2026-06-21T07:05:42Z",
+ "generated_at": "2026-06-23T21:34:51Z",
  "generated_by": "sndr.engines.vllm.anchor_manifest_gen.to_engine_manifest",
  "manifest_version": 1,
  "pins": {
