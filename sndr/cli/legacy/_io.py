@@ -32,21 +32,33 @@ _BLUE  = "\033[34m"  if _USE_COLOR else ""
 _DIM   = "\033[2m"   if _USE_COLOR else ""
 
 
-def step(n: int, total: int, label: str) -> None:
-    """Numbered step header: `[3/8] Detecting hardware...`"""
-    print(f"\n{_BOLD}[{n}/{total}]{_RESET} {label}...")
+def step(n: int, total: int, label: str, *, err: bool = False) -> None:
+    """Numbered step header: `[3/8] Detecting hardware...`
+
+    `err=True` routes the line to stderr (default stdout). Used on the
+    `launch --dry-run` path so advisory output never contaminates the
+    rendered script that callers pipe out of stdout.
+    """
+    print(f"\n{_BOLD}[{n}/{total}]{_RESET} {label}...",
+          file=sys.stderr if err else sys.stdout)
 
 
-def success(msg: str) -> None:
-    print(f"  {_GREEN}✓{_RESET} {msg}")
+def success(msg: str, *, err: bool = False) -> None:
+    """`err=True` routes to stderr (default stdout) — see `step`."""
+    print(f"  {_GREEN}✓{_RESET} {msg}",
+          file=sys.stderr if err else sys.stdout)
 
 
-def info(msg: str) -> None:
-    print(f"  {_DIM}{msg}{_RESET}")
+def info(msg: str, *, err: bool = False) -> None:
+    """`err=True` routes to stderr (default stdout) — see `step`."""
+    print(f"  {_DIM}{msg}{_RESET}",
+          file=sys.stderr if err else sys.stdout)
 
 
-def warn(msg: str) -> None:
-    print(f"  {_YELLOW}⚠{_RESET}  {msg}")
+def warn(msg: str, *, err: bool = False) -> None:
+    """`err=True` routes to stderr (default stdout) — see `step`."""
+    print(f"  {_YELLOW}⚠{_RESET}  {msg}",
+          file=sys.stderr if err else sys.stdout)
 
 
 def error(msg: str) -> None:
@@ -115,16 +127,22 @@ def prompt(
     fatal("too many invalid attempts", 1)
 
 
-def banner(title: str, subtitle: str = "") -> None:
-    """Box-drawn header at start of CLI command."""
+def banner(title: str, subtitle: str = "", *, err: bool = False) -> None:
+    """Box-drawn header at start of CLI command.
+
+    `err=True` routes the box to stderr (default stdout) — used on the
+    `launch --dry-run` path so the banner glyphs never land in the
+    rendered script that callers pipe out of stdout.
+    """
     width = max(len(title), len(subtitle)) + 4
-    print()
-    print(f"  {_BOLD}┌{'─' * width}┐{_RESET}")
-    print(f"  {_BOLD}│{_RESET}  {_BOLD}{title.ljust(width - 2)}{_RESET}{_BOLD}│{_RESET}")
+    out = sys.stderr if err else sys.stdout
+    print(file=out)
+    print(f"  {_BOLD}┌{'─' * width}┐{_RESET}", file=out)
+    print(f"  {_BOLD}│{_RESET}  {_BOLD}{title.ljust(width - 2)}{_RESET}{_BOLD}│{_RESET}", file=out)
     if subtitle:
-        print(f"  {_BOLD}│{_RESET}  {_DIM}{subtitle.ljust(width - 2)}{_RESET}{_BOLD}│{_RESET}")
-    print(f"  {_BOLD}└{'─' * width}┘{_RESET}")
-    print()
+        print(f"  {_BOLD}│{_RESET}  {_DIM}{subtitle.ljust(width - 2)}{_RESET}{_BOLD}│{_RESET}", file=out)
+    print(f"  {_BOLD}└{'─' * width}┘{_RESET}", file=out)
+    print(file=out)
 
 
 __all__ = [

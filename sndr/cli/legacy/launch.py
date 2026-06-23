@@ -229,6 +229,13 @@ def _emit_unresolved_mount_diagnostics(
     operators have repeatedly missed this and tried to `bash <(sndr
     launch --dry-run …)` straight into a broken docker run. Make the
     gap impossible to miss.
+
+    All output goes to stderr (`err=True`): this helper is only ever
+    called on the `--dry-run` path, where stdout must carry ONLY the
+    rendered script so `sndr launch <preset> --dry-run -y | bash`
+    (or `bash -n`) stays runnable. Previously these lines printed to
+    stdout, contaminating the script and breaking the pipe — the
+    docstring claimed stderr but the code did not deliver it.
     """
     import re
     placeholders = sorted(set(re.findall(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}", script)))
@@ -238,15 +245,16 @@ def _emit_unresolved_mount_diagnostics(
     missing = [p for p in placeholders if p not in known]
     if not missing:
         return
-    _io.warn("\nUNRESOLVED MOUNTS — host.yaml is missing entries for:")
+    _io.warn("\nUNRESOLVED MOUNTS — host.yaml is missing entries for:", err=True)
     for var in missing:
-        _io.info(f"  ${{{var}}}")
+        _io.info(f"  ${{{var}}}", err=True)
     _io.info(
         "\nThe rendered script above is a PREVIEW. Live `sndr launch` "
         "(without --dry-run) would refuse these placeholders.\n"
         "Fix:  edit ~/.sndr/host.yaml (or ~/.genesis/host.yaml legacy) "
         "and add the missing keys.\n"
-        "Or:   set them in the environment before re-running."
+        "Or:   set them in the environment before re-running.",
+        err=True,
     )
 
 
@@ -566,14 +574,17 @@ def _parse_extra_env(items: list[str]) -> dict[str, str]:
     return out
 
 
-def _apply_extra_env(cfg: Any, extra_env: dict[str, str]) -> None:
+def _apply_extra_env(
+    cfg: Any, extra_env: dict[str, str], *, err: bool = False,
+) -> None:
     """Merge `--extra-env` overrides into the right env block on cfg.
 
     GENESIS_* / SNDR_* keys go into cfg.genesis_env (so they get the
     same rendering + visibility as preset-declared toggles); other
     keys go into cfg.system_env. Last-wins on conflict with the
-    preset's own env — logged to stderr so the override is visible
-    and auditable.
+    preset's own env. `err=True` (passed on the `--dry-run` path)
+    routes the override log to stderr so the rendered script on stdout
+    stays clean for piping.
     """
     if not extra_env:
         return
@@ -591,13 +602,16 @@ def _apply_extra_env(cfg: Any, extra_env: dict[str, str]) -> None:
         if prev is not None and prev != v:
             _io.warn(
                 f"  --extra-env override: {target_block}[{k}] "
-                f"{prev!r} → {v!r}"
+                f"{prev!r} → {v!r}",
+                err=err,
             )
         else:
-            _io.info(f"  --extra-env: {target_block}[{k}]={v!r}")
+            _io.info(f"  --extra-env: {target_block}[{k}]={v!r}", err=err)
 
 
-def _maybe_apply_patch_policy(cfg: Any, opts: argparse.Namespace) -> None:
+def _maybe_apply_patch_policy(
+    cfg: Any, opts: argparse.Namespace, *, err: bool = False,
+) -> None:
     """Apply --policy filter to cfg.genesis_env in place.
 
     No-op when ``opts.policy`` is None (legacy unfiltered path).
@@ -607,6 +621,10 @@ def _maybe_apply_patch_policy(cfg: Any, opts: argparse.Namespace) -> None:
     union of policy-included toggles AND parameter passthrough, so
     dependent patches keep their configuration keys (PN95 stays
     armed via GENESIS_PN95_CONFIG_KEY, etc.).
+
+    `err=True` (passed on the `--dry-run` path) routes the policy
+    summary + warnings to stderr so stdout carries only the rendered
+    script.
     """
     policy = getattr(opts, "policy", None)
     if policy is None:
@@ -616,16 +634,17 @@ def _maybe_apply_patch_policy(cfg: Any, opts: argparse.Namespace) -> None:
     _io.info(
         f"  patch plan policy={policy}: "
         f"{len(plan.included)} included / {len(plan.excluded)} excluded / "
-        f"{len(plan.passthrough)} passthrough"
+        f"{len(plan.passthrough)} passthrough",
+        err=err,
     )
     if plan.warnings:
-        _io.warn(f"  ⚠ {len(plan.warnings)} patch_plan warning(s):")
+        _io.warn(f"  ⚠ {len(plan.warnings)} patch_plan warning(s):", err=err)
         for w in plan.warnings:
-            _io.warn(f"    {w}")
+            _io.warn(f"    {w}", err=err)
     cfg.genesis_env = plan.env
 
 
-def _warn_about_non_full_enabled_patches(cfg: Any) -> None:
+def _warn_about_non_full_enabled_patches(cfg: Any, *, err: bool = False) -> None:
     """Scan cfg.genesis_env and warn when an enabled toggle maps to a
     patch with implementation_status in {partial, placeholder,
     marker_only}.
@@ -636,6 +655,10 @@ def _warn_about_non_full_enabled_patches(cfg: Any) -> None:
     P1/P17/etc.) appears enabled but has no apply_module so nothing
     fires. Surfacing the status before launch avoids silent
     "feature is on" mistakes.
+
+    `err=True` routes every advisory line to stderr. Passed on the
+    `--dry-run` path so these warnings do not contaminate the rendered
+    script on stdout (which callers pipe to `bash`).
     """
     try:
         from sndr.dispatcher.registry import PATCH_REGISTRY
@@ -671,30 +694,33 @@ def _warn_about_non_full_enabled_patches(cfg: Any) -> None:
         _io.warn(
             f"  ⚠ {len(partial)} enabled patch(es) have "
             f"implementation_status='partial' — wiring incomplete, "
-            f"runtime behaviour may differ from the documented effect:"
+            f"runtime behaviour may differ from the documented effect:",
+            err=err,
         )
         for pid, flag in partial:
-            _io.warn(f"    {pid:<10} {flag}")
+            _io.warn(f"    {pid:<10} {flag}", err=err)
     if placeholder:
         _io.warn(
             f"  ⚠ {len(placeholder)} enabled patch(es) have "
             f"implementation_status='placeholder' — no real "
-            f"implementation, runtime is a no-op:"
+            f"implementation, runtime is a no-op:",
+            err=err,
         )
         for pid, flag in placeholder:
-            _io.warn(f"    {pid:<10} {flag}")
+            _io.warn(f"    {pid:<10} {flag}", err=err)
     if marker:
         # marker_only with default_on=True is a legacy registry pattern
         # — informational only. Lowered to info severity so the warning
         # block stays focused on actual breakage classes.
         _io.info(
             f"  · {len(marker)} enabled marker_only patch(es) "
-            f"(advisory/historical, no apply module):"
+            f"(advisory/historical, no apply module):",
+            err=err,
         )
         for pid, flag in marker[:5]:
-            _io.info(f"    {pid:<10} {flag}")
+            _io.info(f"    {pid:<10} {flag}", err=err)
         if len(marker) > 5:
-            _io.info(f"    … and {len(marker) - 5} more")
+            _io.info(f"    … and {len(marker) - 5} more", err=err)
 
 
 def run_launch(opts: argparse.Namespace) -> int:
@@ -704,25 +730,32 @@ def run_launch(opts: argparse.Namespace) -> int:
     # would leak the override into the process-cached registry object.
     cfg = _maybe_override_port(cfg, opts.port)
 
+    # On `--dry-run`, ALL advisory output must go to stderr so stdout
+    # carries ONLY the rendered script — `sndr launch <preset> --dry-run
+    # -y | bash` (or `bash -n`) must stay runnable. The live launch path
+    # keeps its existing stdout behaviour (err=False).
+    advisory_err = bool(opts.dry_run)
+
     _io.banner(f"SNDR Launch: {key}",
-               f"port={getattr(getattr(cfg, 'docker', None), 'port', None) or 'config'}")
+               f"port={getattr(getattr(cfg, 'docker', None), 'port', None) or 'config'}",
+               err=advisory_err)
 
     # Apply optional patch_plan policy filter (--policy compat|safe|minimal).
     # No-op when --policy isn't passed; otherwise replaces cfg.genesis_env
     # with the policy-filtered + parameter-passthrough union.
-    _maybe_apply_patch_policy(cfg, opts)
+    _maybe_apply_patch_policy(cfg, opts, err=advisory_err)
 
     # `--extra-env KEY=VALUE` overrides land AFTER policy filtering so an
     # operator can force-enable a key that policy would have dropped.
     extra_env_items = getattr(opts, "extra_env", None) or []
     if extra_env_items:
-        _apply_extra_env(cfg, _parse_extra_env(extra_env_items))
+        _apply_extra_env(cfg, _parse_extra_env(extra_env_items), err=advisory_err)
 
     # Surface partial / placeholder / marker_only patches that ended up
     # in the launch env after policy filtering. These are the silent-
     # success failure classes — patch enabled, dispatcher applies, but
     # the runtime behaviour differs from what the patch advertises.
-    _warn_about_non_full_enabled_patches(cfg)
+    _warn_about_non_full_enabled_patches(cfg, err=advisory_err)
 
     # Optional preludes — each runs only when its flag is passed and
     # short-circuits the launch on failure.
