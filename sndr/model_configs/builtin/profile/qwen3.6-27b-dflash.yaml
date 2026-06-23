@@ -26,9 +26,17 @@ maintainer: sandermage
 status: validated                                # values: experimental|validated|deprecated
 created: '2026-05-06'
 
-# ─── Empty patches delta — canonical matrix lives in model file ────────
+# ─── patches delta — canonical matrix lives in model file ──────────────
+# The single-stream profile raises max_num_batched_tokens 4096 -> 8192
+# (sizing_override below). P72 caps profile_run M to
+# GENESIS_PROFILE_RUN_CAP_M; the model file pins it at 4096 with the
+# invariant "must equal max_num_batched_tokens". Without this override
+# the composed config would run batched=8192 against a 4096 cap — the
+# documented P72 cap-mismatch regression (-3.8% TPS / +8.9% TPOT).
+# Track the cap to the raised batch so the invariant holds.
 patches_delta:
-  enable: {}                                     # no additions
+  enable:
+    GENESIS_PROFILE_RUN_CAP_M: '8192'            # track raised max_num_batched_tokens (P72 invariant)
   disable: []                                    # no removals
   override: {}                                   # no value overrides
 

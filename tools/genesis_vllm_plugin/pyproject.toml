@@ -21,7 +21,23 @@ dependencies = []
 # in process0, engine core, AND every worker rank. Perfect place for
 # Genesis wiring because it runs BEFORE model load and has full access
 # to the target vllm.* import tree.
-genesis_v7 = "genesis_v7:register"
+#
+# UNIFIED ROOT BUG fix (2026-06-22): point this at the canonical
+# `sndr.plugin:register` (same target as the ROOT pyproject), NOT the
+# bare `genesis_v7:register` shim. The shim in `genesis_v7/__init__.py`
+# only delegates to `sndr.plugin.register` anyway, but registering the
+# shim target meant that if `sndr` was not importable the in-process
+# plugin silently did nothing. Targeting `sndr.plugin:register` directly
+# makes the canonical apply path the single source of truth — installing
+# EITHER this legacy subdir OR the sndr repo root now registers the SAME
+# in-process plugin, so vllm serve re-applies runtime monkey-patches
+# (incl. g4_85) in the serving process.
+#
+# NOTE: the PROD-intended path is to bake the `sndr` wheel into the image
+# (its root pyproject already registers this entry-point). This legacy
+# subdir exists only for back-compat with v7.x operators who pip-installed
+# the standalone plugin package.
+genesis_v7 = "sndr.plugin:register"
 
 [project.scripts]
 # Two console commands are exposed, routing to the two CLI dispatchers

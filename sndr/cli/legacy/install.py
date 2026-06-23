@@ -428,13 +428,24 @@ def _run_git(cwd: Path, args: list[str], *, check: bool = True
 
 
 def _resolve_plugin_src(home: Path) -> Path | None:
-    """Locate the Genesis vllm-plugin source directory.
+    """Locate the source directory to pip-install for the in-process plugin.
+
+    UNIFIED ROOT BUG fix (2026-06-22): prefer the sndr REPO ROOT, because
+    its root `pyproject.toml` both installs the `sndr` package AND registers
+    the canonical `vllm.general_plugins` entry-point
+    (`genesis_v7 = sndr.plugin:register`). Installing the root is what lets
+    `vllm serve`'s `load_general_plugins()` re-apply runtime monkey-patches
+    in-process. The legacy `tools/genesis_vllm_plugin` subdir is kept as a
+    fallback (its pyproject now also targets `sndr.plugin:register`), but it
+    does NOT ship the `sndr` package itself, so the root is preferred.
 
     Search order (first directory containing pyproject.toml wins):
       1. ${GENESIS_PLUGIN_SRC} env var (operator override)
-      2. <Genesis checkout home>/tools/genesis_vllm_plugin  (default
-         operator-side repo layout)
-      3. <home>/genesis_vllm_plugin                          (alt layout)
+      2. <Genesis checkout home>                            (repo ROOT —
+         installs sndr + the canonical entry-point)
+      3. <Genesis checkout home>/tools/genesis_vllm_plugin  (legacy subdir
+         fallback — entry-point only)
+      4. <home>/genesis_vllm_plugin                         (alt layout)
 
     Returns None if no candidate is a directory with a pyproject.toml.
     """
@@ -443,6 +454,7 @@ def _resolve_plugin_src(home: Path) -> Path | None:
     env_override = os.environ.get("GENESIS_PLUGIN_SRC", "").strip()
     if env_override:
         candidates.append(Path(env_override).expanduser())
+    candidates.append(home)
     candidates.append(home / "tools" / "genesis_vllm_plugin")
     candidates.append(home / "genesis_vllm_plugin")
     for c in candidates:

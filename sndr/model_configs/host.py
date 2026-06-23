@@ -18,10 +18,17 @@ Variables recognized:
                    the GENESIS_SRC env var also remains accepted). Physical
                    path points at sndr_core after v11 (_genesis dir removed
                    2026-05-08).
-  plugin_src     — operator-side path to the optional Genesis vllm-plugin
-                   pip package (separate from sndr_core). Set via
-                   SNDR_PLUGIN_SRC / GENESIS_PLUGIN_SRC env var, or relies
-                   on the default candidate-path search below.
+  plugin_src     — operator-side path to the sndr repo ROOT that the launch
+                   renderer bind-mounts at /plugin and (under
+                   SNDR_DEV_INSTALL_PLUGIN=1) pip-installs editable so its
+                   `vllm.general_plugins` entry-point (genesis_v7 =
+                   sndr.plugin:register) registers INSIDE the serving
+                   container — this is what makes vllm serve re-apply
+                   runtime monkey-patches in-process. Must be the repo root
+                   (with the root pyproject.toml), NOT the empty legacy
+                   tools/genesis_vllm_plugin subdir. Set via SNDR_PLUGIN_SRC
+                   / GENESIS_PLUGIN_SRC env var, or relies on the default
+                   candidate-path search below.
 
 Operator can override any auto-detected value by editing the YAML directly.
 Configs reference these via `${name}` in mount strings; render layer
@@ -97,16 +104,24 @@ _DEFAULT_SNDR_SRC_CANDIDATES = [
     str(Path.home() / ".genesis/genesis-vllm-patches/vllm/sndr_core"),
 ]
 
-# Plugin source candidates. Operator-side path — sndr_core does NOT
-# import this package at Python level (the canonical plugin entry-point
-# is vllm.sndr_core.plugin:register). These candidates are only used
-# by Docker mount renderers when the operator wants to bind-mount the
-# plugin source into the container for editable installs.
+# Plugin source candidates — the directory the launch renderer bind-mounts
+# at /plugin and (under SNDR_DEV_INSTALL_PLUGIN=1) pip-installs editable so
+# its `vllm.general_plugins` entry-point registers IN the serving container.
+#
+# UNIFIED ROOT BUG fix (2026-06-22): these MUST point at the sndr REPO ROOT
+# (the dir whose root `pyproject.toml` registers
+# `genesis_v7 = "sndr.plugin:register"`), NOT the legacy
+# `tools/genesis_vllm_plugin` SUBDIR. The subdir has no installable sndr
+# package of its own, so installing it never registered the canonical
+# in-process plugin and runtime monkey-patches (incl. g4_85) never fired
+# in `vllm serve`. Installing the repo root writes the `sndr.plugin:register`
+# entry-point into site-packages so `load_general_plugins()` loads it.
+#
 # Set SNDR_PLUGIN_SRC / GENESIS_PLUGIN_SRC env var to override.
 _DEFAULT_PLUGIN_SRC_CANDIDATES = [
-    str(Path.home() / "genesis-vllm-patches/tools/genesis_vllm_plugin"),
-    "/opt/genesis-vllm-patches/tools/genesis_vllm_plugin",
-    str(Path.home() / ".genesis/genesis-vllm-patches/tools/genesis_vllm_plugin"),
+    str(Path.home() / "genesis-vllm-patches"),
+    "/opt/genesis-vllm-patches",
+    str(Path.home() / ".genesis/genesis-vllm-patches"),
 ]
 
 

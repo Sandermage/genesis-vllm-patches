@@ -113,12 +113,41 @@ def build_docker_cmd(
     # --speculative-config '{"method":"mtp",...}'.
     cmd = " ".join(vllm_parts)
     cmd_escaped = cmd.replace("'", "'\\''")
-    # Build the bash bootstrap. If the operator mounts the genesis
-    # plugin source at /plugin, install it in editable mode so its
-    # `vllm.general_plugins` entry point auto-loads inside every
-    # vllm worker process. Without this, patches only apply via the
-    # explicit `apply` invocation — plugin-only paths (boot
-    # banner, config detection) won't fire.
+    # ── TWO-PROCESS BOUNDARY (the whole reason this bootstrap is shaped ──
+    # ── the way it is — diagnosed live on the rig 2026-06-22). ──────────
+    #
+    # The bootstrap renders as `python3 -m sndr.apply ; exec vllm serve`,
+    # which is TWO processes:
+    #
+    #   1. `python3 -m sndr.apply` (subprocess) — applies the patch stack
+    #      then exits. TEXT-patches (edits to vLLM source files on disk)
+    #      PERSIST because the files stay changed. But RUNTIME monkey-
+    #      patches (`SomeClass.method = wrapper`, e.g. g4_85) live ONLY in
+    #      THAT subprocess's memory and are LOST the instant it exits.
+    #
+    #   2. `exec vllm serve` — replaces the shell with a brand-new Python
+    #      process. It inherits the on-disk text-patches but NONE of the
+    #      runtime monkey-patches from step 1.
+    #
+    # The ONLY supported way to re-apply runtime monkey-patches INSIDE the
+    # serving process is vLLM's plugin system: `load_general_plugins()`
+    # calls every `vllm.general_plugins` setuptools entry-point at engine +
+    # worker init. Our root `pyproject.toml` registers
+    #   genesis_v7 = "sndr.plugin:register"
+    # so when the `sndr` package is pip-installed WITH its .dist-info /
+    # .egg-info entry-point metadata, vllm serve auto-loads sndr.plugin and
+    # ALL runtime monkey-patches (incl. g4_85) fire in-process.
+    #
+    # KEY: a bare bind-mount of sndr/ onto a site-packages dir makes sndr
+    # IMPORTABLE but registers NO entry-point (no dist-info) — so the
+    # in-process plugin never loads. The package must be pip-INSTALLED
+    # (`pip install -e <sndr repo root>`) for the entry-point to exist.
+    #
+    # PROD path: bake the sndr wheel into the image at build time — the
+    # entry-point is then already present and no boot-time install runs.
+    # DEV path (below): mount the sndr REPO ROOT at /plugin and opt into
+    # `SNDR_DEV_INSTALL_PLUGIN=1`, which pip-installs it editable so the
+    # entry-point gets registered for this boot.
     has_plugin = any(
         ":/plugin" in m or m.endswith("/plugin")
         for m in d.mounts
@@ -147,9 +176,12 @@ def build_docker_cmd(
     # DA-008 fix (audit 2026-05-08): production launch path NO LONGER
     # depends on the `/plugin` mount being present.
     #
-    # Rationale: in production, `vllm-sndr-core` should already be
+    # Rationale: in production, the `sndr` package should already be
     # installed inside the container (via the wheel pip-installed at
-    # image build time, or via a base image including it). Mounting
+    # image build time, or via a base image including it). When baked,
+    # its `vllm.general_plugins` entry-point is already on disk, so
+    # vllm serve loads `sndr.plugin:register` IN-PROCESS with no boot-
+    # time install — runtime monkey-patches fire automatically. Mounting
     # `/plugin` and pip-install'ing it at every container start is:
     #   - non-reproducible (whatever is in the operator's local repo wins);
     #   - slow (pip install adds ~10-30s to cold boot);
@@ -158,10 +190,20 @@ def build_docker_cmd(
     # The new contract:
     #   - Production: the canonical apply step (`python3 -m
     #     sndr.apply`) is the ONLY thing run. If sndr isn't
-    #     installed, the call fails loudly.
-    #   - Dev: opt in to the legacy `/plugin` install via
-    #     `SNDR_DEV_INSTALL_PLUGIN=1`. The original behavior is
-    #     preserved verbatim under the env gate.
+    #     installed, the call fails loudly. The baked-in entry-point
+    #     handles in-process runtime monkey-patches.
+    #   - Dev: opt in to the `/plugin` editable install via
+    #     `SNDR_DEV_INSTALL_PLUGIN=1`. UNIFIED ROOT BUG fix (2026-06-22):
+    #     this installs the SNDR PACKAGE (the repo root mounted at
+    #     `/plugin` — the dir whose `pyproject.toml` registers
+    #     `genesis_v7 = "sndr.plugin:register"`), NOT the empty legacy
+    #     `tools/genesis_vllm_plugin` subdir. The editable install writes
+    #     the `.egg-info` entry-point metadata into the container's
+    #     site-packages, so vllm serve's `load_general_plugins()` then
+    #     loads `sndr.plugin:register` in-process and runtime monkey-
+    #     patches (incl. g4_85) fire in the SERVING process — which the
+    #     `python3 -m sndr.apply` subprocess cannot do (see the two-
+    #     process boundary note above).
     #
     # `has_plugin` (presence of `/plugin` in mounts) used to
     # automatically TRIGGER the install. Now it just makes the dev
@@ -173,14 +215,42 @@ def build_docker_cmd(
         f'pip install --quiet {runtime_deps} 2>&1 | tail -2; '
         'fi'
     )
-    # Optional dev-mode plugin install (DA-008).
+    # Optional dev-mode plugin install (DA-008 + UNIFIED ROOT BUG fix
+    # 2026-06-22). Editable-install the SNDR PACKAGE so its
+    # `vllm.general_plugins` entry-point (`genesis_v7 = sndr.plugin:register`)
+    # is registered in the container's site-packages. This is what makes
+    # vllm serve load the plugin IN-PROCESS and re-apply runtime monkey-
+    # patches (incl. g4_85) — see the two-process boundary note above.
+    #
+    # `/plugin` MUST be the sndr repo ROOT (the dir holding the root
+    # `pyproject.toml` whose `[project.entry-points."vllm.general_plugins"]`
+    # points at `sndr.plugin:register`). Mounting the empty legacy
+    # `tools/genesis_vllm_plugin` subdir here was the original bug: that
+    # subdir's pyproject registered `genesis_v7:register` (an empty shim),
+    # so no Genesis runtime patch ever fired in the serving process.
+    #
+    # We copy to a writable /tmp dir because `/plugin` is mounted `:ro`
+    # and an editable install writes `*.egg-info` next to the source.
+    # `--no-deps` keeps cold-boot fast (pyyaml/packaging are already in
+    # the vllm image). After install we assert the entry-point actually
+    # registered, so a misconfigured `plugin_src` fails LOUDLY instead of
+    # silently booting without the in-process plugin.
     if has_plugin:
         bootstrap_parts.append(
             'if [ "${SNDR_DEV_INSTALL_PLUGIN:-0}" = "1" ]; then '
-            "cp -r /plugin /tmp/genesis_vllm_plugin && "
+            "cp -r /plugin /tmp/sndr_plugin_src && "
             "pip install --quiet --disable-pip-version-check "
             "--root-user-action=ignore --no-deps -e "
-            "/tmp/genesis_vllm_plugin 2>&1 | tail -2; "
+            "/tmp/sndr_plugin_src 2>&1 | tail -2 && "
+            "python3 -c \"import importlib.metadata as m; "
+            "eps=m.entry_points(group='vllm.general_plugins'); "
+            "names=[e.value for e in eps]; "
+            "assert any('sndr.plugin' in n for n in names), "
+            "'SNDR_DEV_INSTALL_PLUGIN=1 but vllm.general_plugins "
+            "entry-point sndr.plugin:register NOT registered — is /plugin "
+            "the sndr repo ROOT (with the root pyproject), not the empty "
+            "tools/genesis_vllm_plugin subdir?'; "
+            "print('[sndr] in-process plugin entry-point registered:', names)\"; "
             'fi'
         )
     # Canonical apply step (always runs).

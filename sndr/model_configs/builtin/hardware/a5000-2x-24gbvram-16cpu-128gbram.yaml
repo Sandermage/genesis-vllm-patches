@@ -73,7 +73,7 @@ runtime:
       - "${hf_cache}:/root/.cache/huggingface:ro"                                                   # 2. HuggingFace cache — read-only
       - "${triton_cache}:/root/.triton/cache"                                                       # 3. Triton kernel cache — RW (persist across restarts to avoid +30-60s recompile penalty)
       - "${compile_cache}:/root/.cache/vllm/torch_compile_cache"                                    # 4. torch.compile cache — RW (persist across restarts)
-      - "${plugin_src}:/plugin:ro"                                                                  # 5. Genesis vLLM plugin source — REQUIRED for plugin loading
+      - "${plugin_src}:/plugin:ro"                                                                  # 5. sndr REPO ROOT (root pyproject) — bind-mounted + pip-installed editable under SNDR_DEV_INSTALL_PLUGIN=1 so the vllm.general_plugins entry-point (sndr.plugin:register) registers in-process; REQUIRED for runtime monkey-patches (g4_85) to fire in vllm serve. PROD bakes sndr into the image instead. NOT the legacy tools/genesis_vllm_plugin subdir.
 
 # ─── System env — host-side knobs stable across models ─────────────────
 # Convention: explicit values for non-default behaviour + explicit defaults
