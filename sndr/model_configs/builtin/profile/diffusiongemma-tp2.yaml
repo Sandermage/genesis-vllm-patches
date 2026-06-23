@@ -86,9 +86,20 @@ role: bench
 # wholesale when set), so all fields are present even when only some differ
 # from the a5000-2x hardware defaults.
 #   max_model_len:            4096   (validated; small block-diffusion ctx)
-#   gpu_memory_utilization:   0.80   (validated; lower than the 0.90 default
-#                                     — leaves headroom for the FP8 MoE +
-#                                     vocab all-gather working set at TP=2)
+#   gpu_memory_utilization:   0.70   (2026-06-23: lowered 0.80 -> 0.70 after a
+#                                     live-reproduced OOM on the sndr.apply /
+#                                     render apply path. 0.80 is marginal for
+#                                     this checkpoint's post-load working set
+#                                     (FP8 MoE + the G4_26 full-vocab 262144
+#                                     embed all-gather at TP=2 + KV@4K): weights
+#                                     load sharded-balanced (~17 GiB/card) then
+#                                     post-load KV/profiling spikes GPU0 to
+#                                     22.77 GiB with only 97.94 MiB free and the
+#                                     next 256 MiB alloc OOMs. 0.70 boots +
+#                                     serves coherent with ~2.6 GiB/card
+#                                     headroom (validated live). NOTE: KPAD is
+#                                     load-bearing (init-crashes without it), so
+#                                     it is NOT the OOM cause — the util is.)
 #   max_num_seqs:             2      (validated)
 #   max_num_batched_tokens:   4096   (= max_model_len; chunked prefill on)
 #   enforce_eager:            true   (validated; block-diffusion sampler is
@@ -100,7 +111,7 @@ role: bench
 #                                     anyway; benign at TP=2)
 sizing_override:
   max_model_len: 4096
-  gpu_memory_utilization: 0.80
+  gpu_memory_utilization: 0.70  # 0.80 -> 0.70: 0.80 OOMs post-load on the render path (live-reproduced 2026-06-23); 0.70 boots+serves with headroom. See sizing comment above.
   max_num_seqs: 2
   max_num_batched_tokens: 4096
   enable_chunked_prefill: true
