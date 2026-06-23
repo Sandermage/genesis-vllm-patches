@@ -4,22 +4,38 @@
 # targeting free_chat / code_gen / summarization workloads.
 #
 # WHY THIS PROFILE EXISTS (operator decision 2026-06-19, "both profiles"):
-# The sibling gemma4-31b-tq-mtp-chat-k3 keeps the 64K long-context TQ path.
-# THIS profile is the high-throughput kv-auto alternative: uniform fp16 KV,
-# NO per-layer TurboQuant compression, 32K context — in exchange for ~+70%
-# decode throughput and better tool-call quality.
+# The sibling gemma4-31b-tq-mtp-chat-k3 keeps the long-context TQ path
+# (now only needed for >150K, up to 256K). THIS profile is the
+# high-throughput kv-auto alternative: uniform fp16 KV, NO per-layer
+# TurboQuant compression, 128K context — in exchange for ~+70% decode
+# throughput and better tool-call quality, at FULL fp16 quality (no
+# quantization).
 #
 # MEASURED EVIDENCE (journal §35, sweep bcv4uksw4, single-stream,
 # pin 0.23.1rc1.dev148+gb4c80ec0f, rig 2× A5000):
 #
 #   variant     wall_TPS   TPOT_ms   tool-call
-#   kv-auto     70.1       10.98     7/7   ← THIS profile
+#   kv-auto     70.1       10.98     7/7   ← THIS profile (measured @32K)
 #   TurboQuant  41.4       21.7      6/7   ← gemma4-31b-tq-mtp-chat-k3 sibling
 #
-#   → kv-auto is +69.6% TPS AND better tool-call quality. The ONLY cost is
-#     context: 64K (TQ) → 32K (kv-auto), because uniform fp16 KV is ~4×
-#     larger per token than turboquant_4bit_nc, so the 64K ceiling halves
-#     to 32K to fit the same 2× A5000 VRAM budget.
+#   → kv-auto is +69.6% TPS AND better tool-call quality. The 70.1 TPS was
+#     measured @32K — re-bench at 128K before promoting (the number is kept
+#     for reference, not yet re-validated at the new context length).
+#
+# KV-AUTO CONTEXT CEILING — MEASURED, NOT ESTIMATED (rig agent, 2026-06-23):
+#   The earlier "uniform fp16 KV is ~4× the turboquant_4bit_nc footprint, so
+#   the TQ sibling's 64K halves to 32K" claim was WRONG by ~5×. The rig
+#   agent MEASURED the fp16/auto-KV ceiling at 154,496 tokens on 2× A5000
+#   (gpu-mem 0.9, MTP K=3, KV pool 9.42 GiB — vLLM's own "estimated maximum
+#   model length is 154,496" at the 163840 OOM boundary). fp16 reaches
+#   ~150K, not 32K. Quality probe: fp16 @131K and TQ @200K BOTH 4/4 PASS
+#   (coherence + multi-turn recall + marker retrieval), output byte-identical
+#   — ZERO quality loss up to chat scale. So 128K (131072) is chosen below
+#   for a safe ~1.10×-concurrency margin under the 154,496 hard ceiling.
+#   This QUADRUPLES usable context (32K → 128K) at FULL fp16 quality (no
+#   quantization), while keeping the +70% TPS / 7-7 tool-call advantage. The
+#   TQ sibling (gemma4-31b-tq-mtp-chat-k3 / tq-default) is now only needed
+#   for >150K (up to 256K).
 #
 # The parent ModelDef (gemma-4-31b-it-awq.yaml) already declares
 # capabilities.kv_cache_dtype: auto — this profile is the runtime that
@@ -89,15 +105,18 @@ created: '2026-06-19'
 # schema error by design. Same contract as the TQ chat + 26b chat siblings.
 role: structured
 
-# Runtime sizing — kv-auto ceiling is 32K (uniform fp16 KV is ~4× the
-# turboquant_4bit_nc footprint, so the TQ sibling's 64K halves to 32K on
-# the same 2× A5000 budget). max_num_seqs=2 (chat concurrency),
+# Runtime sizing — kv-auto fp16/auto KV fits ~154,496 tokens on 2× A5000 at
+# gpu-mem 0.9 + MTP K=3 (rig-MEASURED 2026-06-23; vLLM's own "estimated
+# maximum model length is 154,496" at the 163840 OOM boundary). 128K
+# (131072) is chosen for a safe ~1.10×-concurrency margin under that hard
+# ceiling — NOT the old, wrong "fp16 ~4× TQ → 32K" estimate (off by ~5×).
+# max_num_seqs=2 (chat concurrency),
 # max_num_batched_tokens=8192 (Gemma-4 multimodal MM-budget — the
 # disable_chunked_mm_input path needs the image MM item, 2496 tokens, to
 # fit in one schedule step; 8192 is the proven-safe value the TQ sibling
 # already runs on this exact model+hardware).
 sizing_override:
-  max_model_len: 32768                            # kv-auto ceiling on 2× A5000 (fp16 KV ~4× TQ → 64K halves to 32K). Rig-validated boot 2026-06-19.
+  max_model_len: 131072                           # 128K — ~1.10× margin under the rig-MEASURED fp16/auto-KV ceiling of 154,496 tokens on 2× A5000 (gpu-mem 0.9, MTP K=3, 2026-06-23). Supersedes the wrong 32K "fp16 ~4× TQ" estimate.
   gpu_memory_utilization: 0.90
   max_num_seqs: 2                                 # chat concurrency
   max_num_batched_tokens: 8192                    # Gemma-4 MM-budget: keeps max_tokens_per_mm_item(2496) ≤ batched budget; matches TQ sibling proven value
@@ -200,7 +219,7 @@ patches_delta:
 # (single-stream rig bench 2026-06-19) pending the operator A/B window.
 override_policy:
   override_class: bench
-  reason: "Gemma4 31B kv-auto chat-K=3: +69.6% TPS (70.1 vs TQ 41.4) AND better tool-call (7/7 vs 6/7) than the TurboQuant chat sibling on pin dev148, single-stream rig bench 2026-06-19; the only cost is context 64K→32K (uniform fp16 KV is ~4× the turboquant_4bit_nc footprint)."
+  reason: "Gemma4 31B kv-auto chat-K=3: +69.6% TPS (70.1 vs TQ 41.4, measured @32K — re-bench at 128K before promoting) AND better tool-call (7/7 vs 6/7) than the TurboQuant chat sibling on pin dev148, single-stream rig bench 2026-06-19. Context is now 128K (131072), NOT 32K: the rig agent MEASURED the fp16/auto-KV ceiling at 154,496 tokens on 2× A5000 (gpu-mem 0.9, MTP K=3, 2026-06-23) — the old '64K→32K, fp16 ~4× TQ' estimate was wrong by ~5×. fp16 @128K is full-quality (no quantization); the TQ sibling is now only needed for >150K (up to 256K)."
   evidence_refs:
     - sndr/engines/vllm/patches/spec_decode/artifacts/gemma4-31b-kvauto-chat.json
   evidence_visibility: public
@@ -216,14 +235,17 @@ promotion:
   validation_required:
     - "functional artifact gemma4-31b-kvauto-chat.json present and config_hash matches"
     - "router intersects routing.intended_workloads ∩ artifact.allowed_workloads to {free_chat, code_gen, summarization}"
-    - "rig boot is clean on kv-auto / 32K (no IMA, no KERNEL_STORAGE_DTYPE_MISMATCH) — validated 2026-06-19"
-    - "single-stream decode ~70 TPS + tool-call PASS reproduced on the current pin"
+    - "rig boot is clean on kv-auto / 128K (no IMA, no KERNEL_STORAGE_DTYPE_MISMATCH); the fp16/auto-KV ceiling on 2× A5000 is 154,496 tokens (rig-MEASURED 2026-06-23), 128K sits ~1.10× under it"
+    - "single-stream decode ~70 TPS + tool-call PASS reproduced at 128K on the current pin (the 70.1 figure was measured @32K — re-bench at 128K before promoting)"
     - "aggregator-measured chat workload gain holds over the TQ chat sibling during the observation window"
   promote_to: null                                 # kv-auto chat stays profile-side; do not promote into model.patches
   notes: |
     Throughput-optimized sibling of gemma4-31b-tq-mtp-chat-k3. Operator
-    runs BOTH profiles ("both profiles" decision 2026-06-19): the TQ chat
-    profile owns the 64K long-context slot; this kv-auto profile owns the
-    high-throughput 32K chat slot (+70% TPS, better tool-call). An
-    operator picks per workload — long documents → TQ 64K; interactive
-    chat / tool-use → kv-auto 32K.
+    runs BOTH profiles ("both profiles" decision 2026-06-19): this kv-auto
+    profile owns the high-throughput chat slot at FULL fp16 quality up to
+    128K (+70% TPS, better tool-call); the TQ chat sibling is now only
+    needed for >150K (up to 256K). The fp16/auto-KV ceiling on 2× A5000 is
+    154,496 tokens (rig-MEASURED 2026-06-23) — the old "fp16 caps at 32K"
+    estimate was wrong by ~5×. An operator picks per workload — >150K
+    documents → TQ (up to 256K); everything up to 128K → kv-auto (full
+    quality, higher throughput).

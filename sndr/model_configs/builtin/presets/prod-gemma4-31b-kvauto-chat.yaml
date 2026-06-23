@@ -4,17 +4,27 @@
 #
 # High-throughput kv-auto chat preset. Uniform fp16 KV (no TurboQuant
 # compression, no skip-layers), engine-default attention, MTP K=3 via the
-# gemma-4-31B-it-assistant drafter, 32K context. The throughput-optimized
-# sibling of `prod-gemma4-31b-tq-mtp-chat-k3` (the 64K long-context TQ
+# gemma-4-31B-it-assistant drafter, 128K context. The throughput-optimized
+# sibling of `prod-gemma4-31b-tq-mtp-chat-k3` (the >150K long-context TQ
 # preset). Operator runs BOTH ("both profiles" decision 2026-06-19):
-#   - prod-gemma4-31b-tq-mtp-chat-k3   → 64K long-context (TurboQuant)
-#   - prod-gemma4-31b-kvauto-chat      → 32K high-throughput (THIS, +70% TPS)
+#   - prod-gemma4-31b-tq-mtp-chat-k3   → >150K long-context (TurboQuant)
+#   - prod-gemma4-31b-kvauto-chat      → 128K high-throughput (THIS, +70% TPS, full fp16 quality)
+#
+# CONTEXT CEILING — rig-MEASURED 2026-06-23 (keep consistent with the profile):
+#   The fp16/auto-KV ceiling on 2× A5000 is 154,496 tokens (gpu-mem 0.9,
+#   MTP K=3; vLLM's own "estimated maximum model length is 154,496" at the
+#   163840 OOM boundary). The earlier "fp16 ~4× TQ → 32K" estimate was wrong
+#   by ~5×. 128K (131072) sits ~1.10× under the ceiling at FULL fp16 quality
+#   (fp16 @131K and TQ @200K both 4/4 PASS, byte-identical). This quadruples
+#   usable context (32K → 128K) at no quality cost; the TQ sibling is now
+#   only needed for >150K (up to 256K).
 #
 # Bench evidence (journal §35, sweep bcv4uksw4, single-stream,
 # pin 0.23.1rc1.dev148+gb4c80ec0f, 2× A5000):
-#   kv-auto     70.1 wall_TPS   TPOT 10.98 ms   tool-call 7/7   ← THIS
+#   kv-auto     70.1 wall_TPS   TPOT 10.98 ms   tool-call 7/7   ← THIS (measured @32K)
 #   TurboQuant  41.4 wall_TPS   TPOT 21.7  ms   tool-call 6/7   ← TQ sibling
-#   → +69.6% TPS AND better tool-call; only cost is context 64K→32K.
+#   → +69.6% TPS AND better tool-call. The 70.1 TPS was measured @32K —
+#   re-bench at 128K before promoting (number kept for reference).
 #   Decision: validated_conditional. Artifact at
 #   sndr/engines/vllm/patches/spec_decode/artifacts/gemma4-31b-kvauto-chat.json
 #
@@ -23,7 +33,7 @@
 
 model: gemma-4-31b-it-awq                        # cyankiwi/gemma-4-31B-it-AWQ-4bit + native gemma4_dense
 hardware: a5000-2x-24gbvram-16cpu-128gbram       # Sander 2× A5000 homelab
-profile: gemma4-31b-kvauto-chat                  # kv-auto chat role: uniform fp16 KV, MTP K=3, 32K, +70% TPS
+profile: gemma4-31b-kvauto-chat                  # kv-auto chat role: uniform fp16 KV, MTP K=3, 128K, +70% TPS
 
 # CONFIG-UX.2 — operator card
 card:
@@ -32,9 +42,11 @@ card:
     Dense 31B gemma4_dense chat-role high-throughput variant. Uniform
     fp16 KV (no TurboQuant) + MTP K=3 delivers +69.6% decode TPS and
     better tool-call (7/7 vs 6/7) than the TurboQuant chat sibling, at
-    the cost of context (64K → 32K). Use for interactive chat / tool-use
-    where throughput matters more than long context; use the TQ chat
-    sibling (prod-gemma4-31b-tq-mtp-chat-k3) when you need 64K context.
+    FULL fp16 quality up to 128K context (rig-MEASURED fp16/auto-KV
+    ceiling 154,496 tokens on 2× A5000, 2026-06-23 — the old "fp16 caps
+    at 32K" estimate was wrong by ~5×). Use for interactive chat / tool-
+    use and any workload up to 128K; use the TQ chat sibling
+    (prod-gemma4-31b-tq-mtp-chat-k3) only when you need >150K (up to 256K).
   status: production_candidate
   audience: operator
   maturity: draft                                  # ProfileDef.status stays experimental until the operator
@@ -54,10 +66,10 @@ card:
   K: 3
   # K>1 production_candidate requires a K=1-or-fallback pointer of same
   # routing_family. Points at the TQ chat sibling — the long-context
-  # fallback when 32K is insufficient (same routing_family + chat role).
+  # fallback when >150K is needed (same routing_family + chat role).
   fallback_preset: prod-gemma4-31b-tq-mtp-chat-k3
   context:
-    max_model_len: 32768
+    max_model_len: 131072                          # 128K — ~1.10× under the rig-MEASURED 154,496-token fp16/auto-KV ceiling (2× A5000, gpu-mem 0.9, MTP K=3, 2026-06-23); consistent with the profile sizing_override
     typical_input_tokens: 2048
     typical_output_tokens: 2048
   routing_family: gemma4_dense_31b_tq
@@ -74,14 +86,18 @@ card:
       note: |
         kv-auto vs TurboQuant single-stream A/B on pin dev148: 70.1 vs
         41.4 wall_TPS (+69.6%), TPOT 10.98 vs 21.7 ms, tool-call 7/7 vs
-        6/7. decision=validated_conditional. Cost: context 64K → 32K.
+        6/7. decision=validated_conditional. The 70.1 TPS was measured
+        @32K — re-bench at 128K before promoting. Context is now 128K at
+        FULL fp16 quality (rig-MEASURED fp16/auto-KV ceiling 154,496
+        tokens, 2026-06-23 — the old "64K → 32K, fp16 ~4× TQ" framing was
+        wrong by ~5×).
   evidence_visibility: public
   tradeoffs:
-    - "kv-auto uniform fp16 KV → +69.6% decode TPS + better tool-call (7/7) vs the TurboQuant chat sibling, but context drops 64K → 32K (fp16 KV is ~4× the turboquant_4bit_nc footprint)."
-    - "Run alongside prod-gemma4-31b-tq-mtp-chat-k3, not as a replacement: TQ owns long-context (64K), kv-auto owns high-throughput chat (32K)."
+    - "kv-auto uniform fp16 KV → +69.6% decode TPS + better tool-call (7/7) vs the TurboQuant chat sibling, at FULL fp16 quality up to 128K (rig-MEASURED fp16/auto-KV ceiling 154,496 tokens on 2× A5000, 2026-06-23 — the old 'fp16 ~4× TQ → 32K' framing was wrong by ~5×)."
+    - "Run alongside prod-gemma4-31b-tq-mtp-chat-k3, not as a replacement: kv-auto owns high-throughput chat up to 128K (full fp16 quality); the TQ sibling is now only needed for >150K (up to 256K)."
   do_not_use:
-    - condition: "context requirement > 32K"
-      reason: "Use prod-gemma4-31b-tq-mtp-chat-k3 (TurboQuant, 64K). kv-auto fp16 KV caps at 32K on 2× A5000."
+    - condition: "context requirement > ~150K (up to 256K)"
+      reason: "Use prod-gemma4-31b-tq-mtp-chat-k3 (TurboQuant). The kv-auto fp16/auto-KV ceiling on 2× A5000 is 154,496 tokens (rig-MEASURED 2026-06-23); 128K is the configured max."
     - condition: "high-concurrency (>2)"
       reason: "Single-stream bench-validated only; sizing matches the canonical chat-role default."
   card_version: 1
