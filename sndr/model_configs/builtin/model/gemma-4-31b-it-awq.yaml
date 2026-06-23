@@ -33,6 +33,16 @@ quantization: null                                       # let vLLM detect from 
 dtype: bfloat16                                          # CHANGED 2026-05-17 per audit: club-3090 A/B confirmed --dtype half is -2-3% on Gemma 4 AWQ Ampere; BF16 is canonical for AWQ Marlin path on SM 8.6
 trust_remote_code: false                                 # Gemma 4 is native vLLM model — no custom code
 chat_template: /tmp/genesis/chat_templates/gemma4.jinja  # installed by G4_11 at boot
+override_generation_config:
+  # 2026-06-23 quality fix (validated live on the 26B sibling; same AWQ-int4 Gemma
+  # family). The checkpoint default temperature=1.0 degenerates into verbatim-repetition
+  # loops on longer/creative generation; temp=0.7 + frequency/presence penalties is
+  # coherent. Pin a stable serving default (clients/profiles may override per request).
+  temperature: 0.7
+  top_p: 0.95
+  top_k: 64
+  frequency_penalty: 0.6
+  presence_penalty: 0.4
 
 # ─── Capabilities — inherent to this model ─────────────────────────────
 capabilities:
