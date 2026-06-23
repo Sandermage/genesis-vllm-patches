@@ -61,11 +61,38 @@ def _resolve_wna16_method():
     This is the method that actually carries Marlin-ineligible int4 MoE
     on the rig (``Using CompressedTensorsWNA16MoEMethod`` at boot). Returns
     the class, or raises (caller treats as a runtime gap / skip).
+
+    The class moved across vLLM versions. On the dev148 pin
+    ``compressed_tensors_moe`` is a PACKAGE and the class lives in its
+    ``compressed_tensors_moe_wna16`` submodule (verified live 2026-06-23 on
+    ``vllm/vllm-openai:nightly-b4c80ec0f`` — the package root does NOT re-export
+    it, so the old flat lookup raised AttributeError and the patch silently
+    self-skipped). Older trees expose a flat ``compressed_tensors_moe_wna16``
+    module or the class at the package root. Probe the known locations in order.
     """
-    from vllm.model_executor.layers.quantization.compressed_tensors import (
-        compressed_tensors_moe,
+    import importlib
+
+    base = "vllm.model_executor.layers.quantization.compressed_tensors"
+    candidates = (
+        # dev148: compressed_tensors_moe is a package; class in the wna16 submodule
+        f"{base}.compressed_tensors_moe.compressed_tensors_moe_wna16",
+        # older: flat module sibling of the package
+        f"{base}.compressed_tensors_moe_wna16",
+        # fallback: class re-exported at the package/module root
+        f"{base}.compressed_tensors_moe",
     )
-    return compressed_tensors_moe.CompressedTensorsWNA16MoEMethod
+    last_exc = None
+    for mod_path in candidates:
+        try:
+            mod = importlib.import_module(mod_path)
+            return getattr(mod, "CompressedTensorsWNA16MoEMethod")
+        except (ImportError, AttributeError) as exc:  # noqa: PERF203
+            last_exc = exc
+            continue
+    raise ImportError(
+        "CompressedTensorsWNA16MoEMethod not found in any known location "
+        f"{candidates}: {last_exc}"
+    )
 
 
 # --------------------------------------------------------------------------- #
