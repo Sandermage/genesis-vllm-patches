@@ -61,14 +61,16 @@ def test_summary_category_breakdown(reset_decisions):
     from sndr.dispatcher import (
         dump_structured_boot_summary, log_decision,
     )
-    # PN59 → hybrid; PN51 → perf_hotfix; PN58 → structured_output
+    # PN59 → hybrid; PN58 → structured_output. PN51 was consolidated into the
+    # P61b registry entry on 2026-06-20 (commit 76c93732), so it no longer has a
+    # standalone entry and now renders as 'uncategorized' in the breakdown.
     log_decision("PN59", True, "opt-in env")
     log_decision("PN51", True, "opt-in env")
     log_decision("PN58", False, "P62 mutually exclusive — conflict")
     out = dump_structured_boot_summary()
     assert "By category:" in out
     assert "hybrid" in out
-    assert "perf_hotfix" in out
+    assert "structured_output" in out
 
 
 def test_summary_groups_applied_by_category(reset_decisions):

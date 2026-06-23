@@ -29,10 +29,20 @@ class TestP3DriftBothCastForms:
     def test_p3_drift_markers_cover_fp16_and_fp32(self):
         from sndr.engines.vllm.patches.attention.turboquant.p3_tq_bf16_cast import (
             UPSTREAM_DRIFT_MARKERS,
+            _NEW,
         )
         markers = "\n".join(UPSTREAM_DRIFT_MARKERS)
-        assert "tl.float16).to(tl.float8e4b15)" in markers, (
-            "P3 must drift-detect Genesis-original FP16 staircase form"
+        # The Genesis-original FP16 staircase form is what P3 itself emits
+        # (see _NEW), so it must NOT be a drift marker — otherwise the detector
+        # matches our own applied patch text and falsely fires "upstream
+        # merged -> skip P3" (self-collision / PN369 false-skip class,
+        # remediated 2026-06-11). Pin both halves of that invariant.
+        assert "tl.float16).to(tl.float8e4b15)" in _NEW, (
+            "P3 replacement must emit the FP16 staircase form"
+        )
+        assert "tl.float16).to(tl.float8e4b15)" not in markers, (
+            "P3 must NOT drift-detect its own emitted FP16 staircase form — "
+            "that would self-collide and false-skip P3"
         )
         assert "tl.float32).to(tl.float8e4b15)" in markers, (
             "P3 must drift-detect PR #39988 FP32 staircase form so the "

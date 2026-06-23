@@ -115,6 +115,17 @@ TUNABLE_KNOBS: dict[str, TunableKnob] = {
         doc="P67 TurboQuant multi-query kernel knobs (NUM_KV_SPLITS, "
             "USE_UPSTREAM, USE_SPARSE_V).",
     ),
+    # Non-GENESIS engine namespace: P18b emits the grouped TQ-decode kernel
+    # tile literals from these env knobs (declared in the hardware/model YAMLs,
+    # read by p18b_kernel_literals_textpatch.py). Registered here so the single
+    # is_known_tunable() source of truth recognizes them — no inline prefix
+    # special-case in audit_rules.py.
+    "VLLM_TQ_DECODE_": TunableKnob(
+        name="VLLM_TQ_DECODE_", kind="family", type="int",
+        owner_patch="P18b",
+        doc="P18b TurboQuant decode-kernel tile knobs (NUM_WARPS, NUM_STAGES; "
+            "BLOCK_KV declared for provenance but inert).",
+    ),
     "GENESIS_P68_P69_": TunableKnob(
         name="GENESIS_P68_P69_", kind="family", type="string",
         owner_patch="P68",

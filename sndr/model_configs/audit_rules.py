@@ -615,6 +615,14 @@ def _check_env_keys_exist(cfg) -> Optional[str]:
         flag = meta.get("env_flag")
         if flag:
             known_flags.add(flag)
+        # env_flag_aliases (2026-06-19/20 parser-trio consolidation): when a
+        # merged module absorbs a sibling patch (P61c/PN56 -> P64, PN51 ->
+        # P61b), the absorbed patch's enable flag is retained as a recognized
+        # alias so existing builtin YAMLs keep engaging the merged module. The
+        # dispatcher honors these at runtime (decision.py / config_keys.py), so
+        # the audit must accept them as known too — otherwise R-011 false-fires
+        # on the prod configs that still carry the legacy flags.
+        known_flags.update(meta.get("env_flag_aliases") or ())
 
     # Tunable knobs (vs patch-enable flags) live in their own registry —
     # see `vllm/sndr_core/runtime_tunables.py::TUNABLE_KNOBS` for the
