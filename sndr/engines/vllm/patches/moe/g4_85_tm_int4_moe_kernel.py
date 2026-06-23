@@ -49,6 +49,7 @@ _ENV = "GENESIS_ENABLE_G4_85"
 _VALIDATE_ENV = "GENESIS_G4_85_VALIDATE"
 
 _orig_apply = None  # saved CompressedTensorsWNA16MoEMethod.apply for revert + validation
+_DEFERRED_LOGGED: set[str] = set()  # log each distinct defer-to-original reason once
 
 
 def _enabled() -> bool:
@@ -264,6 +265,12 @@ def _genesis_apply(self, layer, x, topk_weights, topk_ids,
     """
     # Only handle the plain routed-experts case; defer anything exotic.
     if shared_experts is not None:
+        if "shared_experts" not in _DEFERRED_LOGGED:
+            _DEFERRED_LOGGED.add("shared_experts")
+            logger.warning(
+                "[G4_85] deferring to original: this layer passes shared_experts "
+                "(the routed-only TurboMind path does not yet fuse shared experts)"
+            )
         return _orig_apply(self, layer, x, topk_weights, topk_ids,
                            shared_experts, shared_experts_input)
     try:
@@ -281,7 +288,16 @@ def _genesis_apply(self, layer, x, topk_weights, topk_ids,
                 w2p = getattr(layer, "w2_qweight", None)
             # w2 is (E, hidden, inter//2) packed -> inter = last_dim * 2.
             inter = (w2p.shape[-1] * 2) if w2p is not None else None
-        if inter is not None and not _marlin_marginal(int(inter), int(group_size)):
+        _marginal = (_marlin_marginal(int(inter), int(group_size))
+                     if inter is not None else None)
+        if inter is not None and not _marginal:
+            if "gate" not in _DEFERRED_LOGGED:
+                _DEFERRED_LOGGED.add("gate")
+                logger.warning(
+                    "[G4_85] deferring to original: layer is Marlin-ELIGIBLE per gate "
+                    "(intermediate_per_partition=%s, group_size=%s, marlin_marginal=%s)",
+                    inter, group_size, _marginal,
+                )
             return _orig_apply(self, layer, x, topk_weights, topk_ids,
                                shared_experts, shared_experts_input)
 
