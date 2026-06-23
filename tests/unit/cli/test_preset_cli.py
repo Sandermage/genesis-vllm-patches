@@ -65,21 +65,21 @@ class TestGate1ListWorksWithoutGPU:
             f"stdout={result.stdout[:200]}\nstderr={result.stderr[:200]}"
         )
 
-    def test_list_shows_all_21(self):
+    def test_list_shows_all_24(self):
         result = _run_cli("list")
-        assert "matched 23 / 23 presets" in result.stdout
+        assert "matched 24 / 24 presets" in result.stdout
 
     def test_list_filter_status_prod_candidate(self):
         result = _run_cli("list", "--status", "production_candidate")
         assert result.returncode == 0
-        # 16 prod-* annotated → all production_candidate (Stage 1 + 2× gemma4-31b chat-K3)
-        assert "matched 16 / 23 presets" in result.stdout
+        # 17 prod-* annotated → all production_candidate (Stage 1 + 2× gemma4-31b chat-K3)
+        assert "matched 17 / 24 presets" in result.stdout
 
     def test_list_filter_family(self):
         result = _run_cli("list", "--family", "qwen3_6_35b_a3b_fp8")
         assert result.returncode == 0
         # prod-qwen3.6-35b-balanced + prod-qwen3.6-35b-multiconc
-        assert "matched 2 / 23 presets" in result.stdout
+        assert "matched 2 / 24 presets" in result.stdout
 
     def test_list_filter_no_matches(self):
         result = _run_cli("list", "--family", "nonexistent_family")
@@ -118,8 +118,8 @@ class TestGate8And9JSONRoundTrip:
         result = _run_cli("list", "--json", "--status", "production_candidate")
         assert result.returncode == 0
         data = json.loads(result.stdout)
-        assert data["matched"] == 16
-        assert data["total"] == 23
+        assert data["matched"] == 17
+        assert data["total"] == 24
         ids = {p["id"] for p in data["presets"]}
         # Spot-check a couple of expected ids
         assert "prod-qwen3.6-35b-balanced" in ids
@@ -488,7 +488,7 @@ class TestGate13GracefulDegradation:
         """
         result = _run_cli("list", "--json")
         data = json.loads(result.stdout)
-        assert "presets" in data and len(data["presets"]) == 23
+        assert "presets" in data and len(data["presets"]) == 24
         # has_card key is required on every entry — schema contract.
         for p in data["presets"]:
             assert "has_card" in p, (

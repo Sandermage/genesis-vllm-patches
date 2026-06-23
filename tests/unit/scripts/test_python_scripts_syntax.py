@@ -102,7 +102,8 @@ HELP_SAFE_SCRIPTS: tuple[str, ...] = (
     "tools/bench_decode_tpot_clean_ab.py",
     "tools/genesis_bench_suite.py",
     "tools/kv_calc.py",
-    "tools/license_keygen.py",
+    # tools/license_keygen.py moved to sndr_private/tools/ (commercial license
+    # tooling kept out of the public tree); no longer a public help-safe script.
     "tools/openai_smoke.py",
     "tools/progressive_context_probe.py",
 )

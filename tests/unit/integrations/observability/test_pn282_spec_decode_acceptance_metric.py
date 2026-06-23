@@ -99,15 +99,40 @@ def _module_state_reset(monkeypatch):
 
     # Install fresh fake rejection_sampler — default rows = empty batch
     fake = _make_fake_rejection_sampler(default_rows=[])
-    # Build the parent module chain
-    if "vllm.v1.sample" not in sys.modules:
-        sys.modules["vllm.v1.sample"] = types.ModuleType("vllm.v1.sample")
+    # Build the parent module chain. CRITICAL: also bind ``rejection_sampler``
+    # as an *attribute* of the parent package, not just a sys.modules entry.
+    # apply() reaches the target via ``from vllm.v1.sample import
+    # rejection_sampler`` — when the real ``vllm.v1.sample`` package was already
+    # imported by an earlier test in the same process, it carries a stale
+    # ``rejection_sampler`` attribute, and ``from ... import`` resolves that
+    # attribute in preference to our sys.modules fake. Without rebinding the
+    # attribute the wrap lands on the stale module and every assertion against
+    # the fake fails (order-dependent: passes in isolation, fails in a full run).
+    parent = sys.modules.get("vllm.v1.sample")
+    if parent is None:
+        parent = types.ModuleType("vllm.v1.sample")
+        sys.modules["vllm.v1.sample"] = parent
+    prev_attr = getattr(parent, "rejection_sampler", None)
+    prev_submod = sys.modules.get("vllm.v1.sample.rejection_sampler")
     sys.modules["vllm.v1.sample.rejection_sampler"] = fake
+    parent.rejection_sampler = fake
 
     yield fake
 
     sdm._reset_module_state()
-    sys.modules.pop("vllm.v1.sample.rejection_sampler", None)
+    # Restore the prior parent-attribute + submodule binding so the fake never
+    # leaks into tests that run after this file.
+    if prev_attr is not None:
+        parent.rejection_sampler = prev_attr
+    else:
+        try:
+            delattr(parent, "rejection_sampler")
+        except AttributeError:
+            pass
+    if prev_submod is not None:
+        sys.modules["vllm.v1.sample.rejection_sampler"] = prev_submod
+    else:
+        sys.modules.pop("vllm.v1.sample.rejection_sampler", None)
 
 
 @pytest.fixture
