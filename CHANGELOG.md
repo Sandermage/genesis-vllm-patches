@@ -45,7 +45,7 @@ Release-type tags in the title give the shape of the release at a glance:
 
 ## Version index (newest first)
 
-### [Unreleased] — dev148 pin, MTP K=5 re-tune, PN394/PN399/PN353A, Gemma-31B kv-auto (current tip)
+### [Unreleased] — dev148 pin, MTP K=5 re-tune, PN394/PN399/PN353A, Gemma-31B kv-auto, enterprise hardening (current tip)
 
 | Tag | Date | Type | Summary |
 |---|---|---|---|
@@ -115,7 +115,7 @@ it on publish — pyproject.toml holds the release version.)
 
 ---
 
-## [Unreleased] — dev148 pin · MTP K=5 re-tune · PN394/PN399/PN353A · Gemma-31B kv-auto (2026-06-19)
+## [Unreleased] — dev148 pin · MTP K=5 re-tune · PN394/PN399/PN353A · Gemma-31B kv-auto · enterprise hardening (2026-06-19 … 2026-06-23)
 
 ### Highlights
 
@@ -173,6 +173,61 @@ it on publish — pyproject.toml holds the release version.)
   `check_doc_sync.py --strict` clean · `generate_patches_md.py --check`
   exit 0 · `pytest tests/unit/dispatcher tests/unit/model_configs` pass ·
   `tsc --noEmit` (GUI) exit 0.
+
+### Enterprise hardening sweep (2026-06-23 — full-suite green · audit-alias sync · reference configs)
+
+#### Test suite — whole repo green
+
+- **`pytest tests/` → 12817 passed / 0 failed** (698 skipped, 1 documented xfail).
+  Every pre-existing and churn-introduced failure was closed through a
+  study → diagnose → adversarial-verify loop, not by weakening assertions.
+- **PN282 spec-decode acceptance metric — a REAL test-isolation bug, not the
+  "flaky" it was long filed as.** The autouse fixture put the fake
+  `rejection_sampler` in `sys.modules` but never rebound it as the
+  `rejection_sampler` *attribute* of the parent `vllm.v1.sample` package. `apply()`
+  resolves its target via `from vllm.v1.sample import rejection_sampler`, which
+  prefers the stale parent attribute (bound when an earlier test imported the real
+  package) over the `sys.modules` fake — so in a full run the wrap landed on the
+  wrong module and four assertions failed. Order-dependent: green in isolation, red
+  in the full suite. The fixture now rebinds + restores the attribute.
+- **R-011 config audit synced with the 2026-06-19/20 parser-trio consolidation.**
+  `audit_rules._check_env_keys_exist` now reads `env_flag_aliases`, matching the
+  runtime dispatcher: the merged P64/P61b entries expose the absorbed
+  P61c/PN56/PN51 enable flags as aliases, which the prod 27B/35B YAMLs legitimately
+  still set (they were mis-reported as unknown keys). The `VLLM_TQ_DECODE_` P18b
+  decode-kernel knobs were registered as a `runtime_tunables` family knob (single
+  source of truth — no inline prefix in the audit rule). R-011 still fires for
+  genuine typos.
+- Stale legacy gates corrected: boot-summary (PN51 → uncategorized after
+  consolidation), P3 drift markers (the FP16 staircase form is *self-emitted* by
+  P3 so it must NOT be a drift marker — self-collision / false-skip guard pinned),
+  PN388 dual-anchor drift, preset count-drift (23 → 24), and 5 obsolete P64
+  design-intent tests (module consolidated).
+
+#### Security / hygiene
+
+- **`tools/license_keygen.py` moved out of the public tree** into `sndr_private/`
+  (untracked + gitignored) so the commercial license tooling cannot leak.
+- Private LAN/host references scrubbed from `scripts/anchor_sot/rebuild_pin.sh`;
+  `audit-public-paths` and the full `make audit` aggregate are clean.
+- Upstream watchlist `vllm#43409` reconciled `port → drift-check` (PN400 **is** the
+  backport of fix `vllm#45656`; the port is complete, not pending).
+
+#### Reference-complete model configs
+
+- **All 11 builtin model configs made self-describing** — `patches_attribution`
+  (evidence-based role + rationale per patch), `notes`, `extra_vllm_flags` escape
+  hatch, and richer inline comments. The 5 Gemma configs gained
+  `patches_attribution` from scratch (derived from the registry + the qwen gold
+  precedent). **Proven behavior-preserving**: the fully-composed `ModelConfig` for
+  all 25 presets is byte-identical to before, verified by composing in a clean HEAD
+  worktree and diffing (`compose()` never reads attribution/notes). 10 unvalidated
+  profiles deprecated.
+
+#### Hardening verification
+
+- `pytest tests/` 12817 passed / 0 failed · `make audit` clean · `validate_all_models`
+  0 bad · 25-preset composed `ModelConfig` byte-identical pre/post.
 
 ---
 
