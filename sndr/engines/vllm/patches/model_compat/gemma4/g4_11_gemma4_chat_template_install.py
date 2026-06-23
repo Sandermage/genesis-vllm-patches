@@ -85,6 +85,24 @@ _GEMMA4_TEMPLATE = """{# Genesis G4_11 enhanced Gemma 4 chat template (vendored 
 #}
 
 {%- set ns = namespace(in_tool_call=false, last_tool_call_id=none) -%}
+{#- Genesis G4_11 2026-06-23 tool-call fix: render the AVAILABLE tools so the model
+    knows what it can call. The vendored template rendered only tool_calls in the
+    conversation HISTORY (the <function_call> on assistant turns) but never the
+    `tools` definitions for the CURRENT request, so a chat-completion with
+    tools=[...] left the model blind to the functions — it answered from its own
+    knowledge (hallucinated) instead of emitting a <function_call>. Verified live
+    on prod-gemma4-26b: NO-CALL before, tool-call after. The instruction format
+    matches the assistant-turn rendering below (<function_call name=...>{json}</function_call>). -#}
+{%- if tools -%}
+<start_of_turn>system
+You have access to the following functions. To call a function, output ONLY a single line of the form:
+<function_call name="FUNCTION_NAME">{"argument_name": "value"}</function_call>
+Prefer calling a function over answering from your own knowledge whenever a function can supply the answer. Available functions (JSON Schema):
+{% for tool in tools -%}
+{{ (tool.function if tool.function is defined else tool) | tojson }}
+{% endfor -%}
+<end_of_turn>
+{% endif -%}
 {%- for message in messages -%}
   {%- if loop.first and message['role'] != 'system' -%}
     <start_of_turn>system
