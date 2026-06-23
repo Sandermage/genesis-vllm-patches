@@ -143,23 +143,6 @@
    },
    "size_bytes": 15995
   },
-  "engine/arg_utils.py": {
-   "md5_pristine": "0c329967ef6ef836fda29d5a5a9565c3",
-   "patches": {
-    "P4": {
-     "anchors": {
-      "p4_helper_fn": {
-       "anchor_md5": "94c8468ccaaef53f073f0e168ad23fd7",
-       "byte_length": 30,
-       "byte_offset": 14621,
-       "replacement_md5": "766daa9a76f3a56d85d219ec21192ada"
-      }
-     },
-     "merge_status": "not_merged"
-    }
-   },
-   "size_bytes": 112964
-  },
   "entrypoints/openai/chat_completion/serving.py": {
    "md5_pristine": "c13d7d991397891bece8f639f8d64ee2",
    "patches": {
@@ -295,16 +278,6 @@
     }
    },
    "size_bytes": 27652
-  },
-  "model_executor/layers/attention/attention.py": {
-   "md5_pristine": "ec1832ba696f1e2185f6a114e1da8941",
-   "patches": {
-    "P36": {
-     "anchors": {},
-     "merge_status": "not_merged"
-    }
-   },
-   "size_bytes": 31312
   },
   "model_executor/layers/fla/ops/chunk.py": {
    "md5_pristine": "2949617813535680de692d4c24a7b809",
@@ -479,10 +452,6 @@
      },
      "merge_status": "not_merged"
     },
-    "P7b": {
-     "anchors": {},
-     "merge_status": "not_merged"
-    },
     "PN11": {
      "anchors": {
       "pN11_a_b_contiguous": {
@@ -503,10 +472,6 @@
        "replacement_md5": "055f5d564bc6cfdcb440661e2fa932fd"
       }
      },
-     "merge_status": "not_merged"
-    },
-    "PN54": {
-     "anchors": {},
      "merge_status": "not_merged"
     }
    },
@@ -717,29 +682,6 @@
    },
    "size_bytes": 7667
   },
-  "platforms/interface.py": {
-   "md5_pristine": "dcb68fa31cf1d6ef3a9c07b02a74e8fc",
-   "patches": {
-    "P6": {
-     "anchors": {
-      "p6_import_tqspec": {
-       "anchor_md5": "0ddd1714893778777c0c11867f218414",
-       "byte_length": 173,
-       "byte_offset": 18889,
-       "replacement_md5": "011e281fad1ac75d200d92df63b7cea1"
-      },
-      "p6_tq_branch": {
-       "anchor_md5": "608031a02307d86ab549af961df5563a",
-       "byte_length": 345,
-       "byte_offset": 21751,
-       "replacement_md5": "881389405d254cd50c03d7299d63024e"
-      }
-     },
-     "merge_status": "not_merged"
-    }
-   },
-   "size_bytes": 36788
-  },
   "sampling_params.py": {
    "md5_pristine": "a85119590fc8fb50dde1b83972d24d90",
    "patches": {
@@ -903,29 +845,6 @@
    },
    "size_bytes": 81969
   },
-  "v1/attention/backends/gdn_attn.py": {
-   "md5_pristine": "d7e1ef9d5848d7c2ef9a97c68884bfe8",
-   "patches": {
-    "P63": {
-     "anchors": {
-      "p63_build_for_drafting_override": {
-       "anchor_md5": "71ae0fc27f37da14ebeb0d201606a577",
-       "byte_length": 104,
-       "byte_offset": 21456,
-       "replacement_md5": "291f668eaac2d696a7fe2b9525a2cc11"
-      },
-      "p63_fresh_flag": {
-       "anchor_md5": "45c4077e3843303c69fdf27d6d039865",
-       "byte_length": 264,
-       "byte_offset": 18922,
-       "replacement_md5": "05687dee30eb2fedb8122e3b49e838fd"
-      }
-     },
-     "merge_status": "not_merged"
-    }
-   },
-   "size_bytes": 22475
-  },
   "v1/attention/backends/mamba_attn.py": {
    "md5_pristine": "26405fe78038200eab4907f340c88644",
    "patches": {
@@ -1039,23 +958,6 @@
        "byte_length": 382,
        "byte_offset": 15743,
        "replacement_md5": "717987258983371e70d3687d861c4d00"
-      }
-     },
-     "merge_status": "not_merged"
-    },
-    "P78": {
-     "anchors": {
-      "p78_site_b_capture_guard": {
-       "anchor_md5": "e5b1221a8fbc1873b23725d6ff457f5c",
-       "byte_length": 260,
-       "byte_offset": 22800,
-       "replacement_md5": "c844a8cc112253beb82bc026f7e2bad4"
-      },
-      "p78_site_c_metadata_field": {
-       "anchor_md5": "fbbe05d39e0ad940af96ae3d34116eec",
-       "byte_length": 162,
-       "byte_offset": 6725,
-       "replacement_md5": "4a4ea9e96170187496a4b9a676dcfd57"
       }
      },
      "merge_status": "not_merged"
@@ -1283,10 +1185,6 @@
      },
      "merge_status": "not_merged"
     },
-    "P84": {
-     "anchors": {},
-     "merge_status": "not_merged"
-    },
     "PN388": {
      "anchors": {
       "pn388_split_pristine": {
@@ -1453,16 +1351,6 @@
    },
    "size_bytes": 35734
   },
-  "v1/spec_decode/dflash.py": {
-   "md5_pristine": "a94ef1161e5ee90e5759ecf17ffee0e2",
-   "patches": {
-    "G4_05": {
-     "anchors": {},
-     "merge_status": "not_merged"
-    }
-   },
-   "size_bytes": 12421
-  },
   "v1/spec_decode/llm_base_proposer.py": {
    "md5_pristine": "b52ac184a53d0a10bfcab225ca45b671",
    "patches": {
@@ -1538,10 +1426,6 @@
        "replacement_md5": "161c952bb68480016264578b7ffaf8f1"
       }
      },
-     "merge_status": "not_merged"
-    },
-    "PN67": {
-     "anchors": {},
      "merge_status": "not_merged"
     }
    },
@@ -1626,17 +1510,6 @@
       }
      },
      "merge_status": "not_merged"
-    },
-    "PN82": {
-     "anchors": {
-      "pN82_mamba_cudagraph_prefill_zero": {
-       "anchor_md5": "ad81338b7e44602ce6be0a22e306ba75",
-       "byte_length": 233,
-       "byte_offset": 101656,
-       "replacement_md5": "c3887787f032814622666b589c7a64c9"
-      }
-     },
-     "merge_status": "not_merged"
     }
    },
    "size_bytes": 336043
@@ -1683,23 +1556,12 @@
       }
      },
      "merge_status": "not_merged"
-    },
-    "PN34": {
-     "anchors": {
-      "pN34_workspace_lock_runtime_relax": {
-       "anchor_md5": "9698e5f1a6adf7e75db649e266364933",
-       "byte_length": 373,
-       "byte_offset": 5563,
-       "replacement_md5": "87930650e5d2ce65ab5a7eebba5d7e24"
-      }
-     },
-     "merge_status": "not_merged"
     }
    },
    "size_bytes": 9937
   }
  },
- "generated_at": "2026-06-23T21:34:51Z",
+ "generated_at": "2026-06-23T22:26:42Z",
  "generated_by": "sndr.engines.vllm.anchor_manifest_gen.to_engine_manifest",
  "manifest_version": 1,
  "pins": {

@@ -1,97 +1,22 @@
 {
  "counts": {
-  "anchor_drift": 10,
-  "ok": 153,
-  "optional_absent": 12,
+  "ok": 144,
+  "optional_absent": 11,
+  "retired": 27,
   "upstream_merged": 1,
-  "version_gated": 20
+  "version_gated": 13
  },
  "coverage": {
   "discovered": 196,
-  "ok": 153,
-  "rejected": 43
+  "ok": 144,
+  "rejected": 52
  },
  "genesis_pin": "12.0.0.dev0",
- "genuine_anchor_drift": [
-  {
-   "anchor_head": "        return TurboQuantMetadata(\n            seq_lens=cam.",
-   "key": "P78::p78_site_d_builder_precompute",
-   "required": true,
-   "status": "anchor_drift",
-   "target_rel": "v1/attention/backends/turboquant_attn.py"
-  },
-  {
-   "anchor_head": "            # Use CPU-side max to avoid GPU\u2192CPU sync from .i",
-   "key": "P78::p78_site_e_forward_read",
-   "required": true,
-   "status": "anchor_drift",
-   "target_rel": "v1/attention/backends/turboquant_attn.py"
-  },
-  {
-   "anchor_head": "            hash_block_size=self.block_size,\n",
-   "key": "P84::p84_hash_block_size_env_override",
-   "required": true,
-   "status": "anchor_drift",
-   "target_rel": "v1/core/sched/scheduler.py"
-  },
-  {
-   "anchor_head": "        if attn_metadata.num_prefills > 0:\n            asser",
-   "key": "PN54::pn54_ssm_state",
-   "required": true,
-   "status": "anchor_drift",
-   "target_rel": "model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py"
-  },
-  {
-   "anchor_head": "        if resolved_cache_dtype.startswith(\"turboquant_\"):\n ",
-   "key": "P4::p4_tq_block",
-   "required": true,
-   "status": "anchor_drift",
-   "target_rel": "engine/arg_utils.py"
-  },
-  {
-   "anchor_head": "from vllm.distributed import get_tensor_model_parallel_world",
-   "key": "P7b::p7b_import_time_register",
-   "required": true,
-   "status": "anchor_drift",
-   "target_rel": "model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py"
-  },
-  {
-   "anchor_head": "            mixed_qkvz, _ = self.in_proj_qkvz(hidden_states)",
-   "key": "P7b::p7b_inproj_via_custom_op",
-   "required": true,
-   "status": "anchor_drift",
-   "target_rel": "model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py"
-  },
-  {
-   "anchor_head": "        self.register_buffer(\n            \"_tq_mid_o_buf\",\n ",
-   "key": "P36::p36_shared_decode_bufs",
-   "required": true,
-   "status": "anchor_drift",
-   "target_rel": "model_executor/layers/attention/attention.py"
-  },
-  {
-   "anchor_head": "            or self.logitsprocs_need_output_token_ids\n      ",
-   "key": "PN67::pn67_remove_not",
-   "required": true,
-   "status": "anchor_drift",
-   "target_rel": "v1/worker/gpu_input_batch.py"
-  },
-  {
-   "anchor_head": "        return replace(\n            base,\n            attent",
-   "key": "G4_05::dflash_backend_autoselect",
-   "required": true,
-   "status": "anchor_drift",
-   "target_rel": "v1/spec_decode/dflash.py"
-  }
- ],
+ "genuine_anchor_drift": [],
  "merge_status": {
   "G4_04": {
    "merge_status": "not_merged",
    "target_rel": "model_executor/models/gemma4.py"
-  },
-  "G4_05": {
-   "merge_status": "not_merged",
-   "target_rel": "v1/spec_decode/dflash.py"
   },
   "G4_06": {
    "merge_status": "not_merged",
@@ -156,10 +81,6 @@
    "merge_status": "not_merged",
    "target_rel": "v1/core/sched/scheduler.py"
   },
-  "P36": {
-   "merge_status": "not_merged",
-   "target_rel": "model_executor/layers/attention/attention.py"
-  },
   "P37": {
    "merge_status": "not_merged",
    "target_rel": "model_executor/layers/fused_moe/experts/marlin_moe.py"
@@ -167,10 +88,6 @@
   "P38B": {
    "merge_status": "not_merged",
    "target_rel": "v1/attention/backends/turboquant_attn.py"
-  },
-  "P4": {
-   "merge_status": "not_merged",
-   "target_rel": "engine/arg_utils.py"
   },
   "P44": {
    "merge_status": "not_merged",
@@ -183,14 +100,6 @@
   "P5": {
    "merge_status": "not_merged",
    "target_rel": "v1/core/kv_cache_utils.py"
-  },
-  "P6": {
-   "merge_status": "not_merged",
-   "target_rel": "platforms/interface.py"
-  },
-  "P63": {
-   "merge_status": "not_merged",
-   "target_rel": "v1/attention/backends/gdn_attn.py"
   },
   "P65": {
    "merge_status": "not_merged",
@@ -236,10 +145,6 @@
    "merge_status": "not_merged",
    "target_rel": "config/speculative.py"
   },
-  "P78": {
-   "merge_status": "not_merged",
-   "target_rel": "v1/attention/backends/turboquant_attn.py"
-  },
   "P79b": {
    "merge_status": "not_merged",
    "target_rel": "v1/worker/gpu_model_runner.py"
@@ -248,10 +153,6 @@
    "merge_status": "not_merged",
    "target_rel": "v1/core/sched/scheduler.py"
   },
-  "P7b": {
-   "merge_status": "not_merged",
-   "target_rel": "model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py"
-  },
   "P81": {
    "merge_status": "not_merged",
    "target_rel": "model_executor/layers/quantization/utils/fp8_utils.py"
@@ -259,10 +160,6 @@
   "P82": {
    "merge_status": "not_merged",
    "target_rel": "v1/sample/rejection_sampler.py"
-  },
-  "P84": {
-   "merge_status": "not_merged",
-   "target_rel": "v1/core/sched/scheduler.py"
   },
   "P85": {
    "merge_status": "not_merged",
@@ -352,10 +249,6 @@
    "merge_status": "not_merged",
    "target_rel": "v1/worker/gpu_model_runner.py"
   },
-  "PN34": {
-   "merge_status": "not_merged",
-   "target_rel": "v1/worker/workspace.py"
-  },
   "PN346B": {
    "merge_status": "not_merged",
    "target_rel": "v1/core/kv_cache_coordinator.py"
@@ -444,10 +337,6 @@
    "merge_status": "not_merged",
    "target_rel": "v1/worker/gpu_worker.py"
   },
-  "PN54": {
-   "merge_status": "not_merged",
-   "target_rel": "model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py"
-  },
   "PN55": {
    "merge_status": "not_merged",
    "target_rel": "v1/worker/gpu_model_runner.py"
@@ -460,10 +349,6 @@
    "merge_status": "not_merged",
    "target_rel": "model_executor/layers/fla/ops/chunk.py"
   },
-  "PN67": {
-   "merge_status": "not_merged",
-   "target_rel": "v1/worker/gpu_input_batch.py"
-  },
   "PN77": {
    "merge_status": "not_merged",
    "target_rel": "model_executor/model_loader/utils.py"
@@ -471,21 +356,30 @@
   "PN8": {
    "merge_status": "not_merged",
    "target_rel": "model_executor/models/utils.py"
-  },
-  "PN82": {
-   "merge_status": "not_merged",
-   "target_rel": "v1/worker/gpu_model_runner.py"
   }
  },
  "pin": "0.23.1rc1.dev148+gb4c80ec0f",
  "rejected": [
   {
+   "anchor_head": "            self.num_accepted_tokens[:num_spec_decodes].copy",
+   "key": "P63::p63_fresh_flag",
+   "required": true,
+   "status": "retired",
+   "target_rel": "v1/attention/backends/gdn_attn.py"
+  },
+  {
+   "anchor_head": "    def build_for_cudagraph_capture(\n        self, common_at",
+   "key": "P63::p63_build_for_drafting_override",
+   "required": true,
+   "status": "retired",
+   "target_rel": "v1/attention/backends/gdn_attn.py"
+  },
+  {
+   "anchor_head": "            tensors = TensorDeserializer(\n                lo",
    "key": "PN80::lora_tensorizer_device",
-   "status": "version_gated",
-   "target_rel": "lora/lora_model.py",
-   "vrange": [
-    "<0.20.2rc1.dev93"
-   ]
+   "required": true,
+   "status": "retired",
+   "target_rel": "lora/lora_model.py"
   },
   {
    "key": "P77::p77_adaptive_propose",
@@ -497,40 +391,52 @@
    ]
   },
   {
+   "anchor_head": "        # Continuation or no flash_attn: per-request attenti",
+   "key": "P78::p78_site_b_capture_guard",
+   "required": false,
+   "status": "retired",
+   "target_rel": "v1/attention/backends/turboquant_attn.py"
+  },
+  {
+   "anchor_head": "    is_prefill: bool = False\n    num_decodes: int = 0  # num",
+   "key": "P78::p78_site_c_metadata_field",
+   "required": true,
+   "status": "retired",
+   "target_rel": "v1/attention/backends/turboquant_attn.py"
+  },
+  {
    "anchor_head": "        return TurboQuantMetadata(\n            seq_lens=cam.",
    "key": "P78::p78_site_d_builder_precompute",
    "required": true,
-   "status": "anchor_drift",
+   "status": "retired",
    "target_rel": "v1/attention/backends/turboquant_attn.py"
   },
   {
    "anchor_head": "            # Use CPU-side max to avoid GPU\u2192CPU sync from .i",
    "key": "P78::p78_site_e_forward_read",
    "required": true,
-   "status": "anchor_drift",
+   "status": "retired",
    "target_rel": "v1/attention/backends/turboquant_attn.py"
   },
   {
+   "anchor_head": "        if use_eagle and computed_blocks[0]:\n            # N",
    "key": "P83::p83_full_attention_skip_pop",
-   "status": "version_gated",
-   "target_rel": "v1/core/single_type_kv_cache_manager.py",
-   "vrange": [
-    "<0.22.1"
-   ]
+   "required": true,
+   "status": "retired",
+   "target_rel": "v1/core/single_type_kv_cache_manager.py"
   },
   {
+   "anchor_head": "        if use_eagle and computed_blocks[0]:\n            for",
    "key": "P83::p83_sliding_window_skip_pop",
-   "status": "version_gated",
-   "target_rel": "v1/core/single_type_kv_cache_manager.py",
-   "vrange": [
-    "<0.22.1"
-   ]
+   "required": false,
+   "status": "retired",
+   "target_rel": "v1/core/single_type_kv_cache_manager.py"
   },
   {
    "anchor_head": "            hash_block_size=self.block_size,\n",
    "key": "P84::p84_hash_block_size_env_override",
    "required": true,
-   "status": "anchor_drift",
+   "status": "retired",
    "target_rel": "v1/core/sched/scheduler.py"
   },
   {
@@ -546,12 +452,11 @@
    "target_rel": "model_executor/kernels/linear/mixed_precision/marlin.py"
   },
   {
+   "anchor_head": "    def _create_draft_vllm_config(self) -> VllmConfig:\n     ",
    "key": "PN9::pN9_create_draft_vllm_config",
-   "status": "version_gated",
-   "target_rel": "v1/spec_decode/llm_base_proposer.py",
-   "vrange": [
-    "<0.20.2rc1.dev9"
-   ]
+   "required": true,
+   "status": "retired",
+   "target_rel": "v1/spec_decode/llm_base_proposer.py"
   },
   {
    "key": "PN50::pn50_gdn_fused_proj",
@@ -575,16 +480,24 @@
    "target_rel": "v1/core/sched/scheduler.py"
   },
   {
+   "anchor_head": "        # is_prefilling: True if request is still in prefill",
+   "key": "PN82::pN82_mamba_cudagraph_prefill_zero",
+   "required": true,
+   "status": "retired",
+   "target_rel": "v1/worker/gpu_model_runner.py"
+  },
+  {
    "anchor_head": "        if attn_metadata.num_prefills > 0:\n            asser",
    "key": "PN54::pn54_ssm_state",
    "required": true,
-   "status": "anchor_drift",
+   "status": "retired",
    "target_rel": "model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py"
   },
   {
    "anchor_head": "        if hasattr(self, \"in_proj_qkv\"):\n            # LoRA ",
    "key": "PN54::pn54_lora_ba",
-   "status": "optional_absent",
+   "required": false,
+   "status": "retired",
    "target_rel": "model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py"
   },
   {
@@ -604,6 +517,13 @@
     ">=0.20.0",
     "<0.23.0"
    ]
+  },
+  {
+   "anchor_head": "            if self._locked:\n                raise Assertion",
+   "key": "PN34::pN34_workspace_lock_runtime_relax",
+   "required": true,
+   "status": "retired",
+   "target_rel": "v1/worker/workspace.py"
   },
   {
    "anchor_head": "        # 2.3: Process the remaining part (prefill chunk, or",
@@ -630,13 +550,11 @@
    ]
   },
   {
+   "anchor_head": "    assert NK == 1, \"NK > 1 is not supported yet\"\n    num_st",
    "key": "PN396::pn396_gdn_spec_decode_num_warps",
-   "status": "version_gated",
-   "target_rel": "model_executor/layers/fla/ops/fused_sigmoid_gating.py",
-   "vrange": [
-    ">=0.22.0",
-    "<0.23.0"
-   ]
+   "required": true,
+   "status": "retired",
+   "target_rel": "model_executor/layers/fla/ops/fused_sigmoid_gating.py"
   },
   {
    "anchor_head": "        CHUNK_SIZE=chunk_size,\n        USE_TD=use_td,\n      ",
@@ -669,12 +587,11 @@
    ]
   },
   {
+   "anchor_head": "        # Precompute get_token_id for when there is no valid",
    "key": "P94::p94_zero_alloc_backup_token_ids",
-   "status": "version_gated",
-   "target_rel": "v1/spec_decode/llm_base_proposer.py",
-   "vrange": [
-    "<0.20.2rc1.dev9"
-   ]
+   "required": true,
+   "status": "retired",
+   "target_rel": "v1/spec_decode/llm_base_proposer.py"
   },
   {
    "key": "PN110::pn110_free_blocks_dedup",
@@ -686,11 +603,32 @@
    ]
   },
   {
+   "anchor_head": "\n\n@dataclass\nclass EngineArgs:",
+   "key": "P4::p4_helper_fn",
+   "required": true,
+   "status": "retired",
+   "target_rel": "engine/arg_utils.py"
+  },
+  {
    "anchor_head": "        if resolved_cache_dtype.startswith(\"turboquant_\"):\n ",
    "key": "P4::p4_tq_block",
    "required": true,
-   "status": "anchor_drift",
+   "status": "retired",
    "target_rel": "engine/arg_utils.py"
+  },
+  {
+   "anchor_head": "        from vllm.v1.kv_cache_interface import (\n           ",
+   "key": "P6::p6_import_tqspec",
+   "required": true,
+   "status": "retired",
+   "target_rel": "platforms/interface.py"
+  },
+  {
+   "anchor_head": "        else:\n            attn_page_size_1_token = FullAtten",
+   "key": "P6::p6_tq_branch",
+   "required": true,
+   "status": "retired",
+   "target_rel": "platforms/interface.py"
   },
   {
    "key": "P7::p7_inproj_dual_stream",
@@ -705,23 +643,22 @@
    "anchor_head": "from vllm.distributed import get_tensor_model_parallel_world",
    "key": "P7b::p7b_import_time_register",
    "required": true,
-   "status": "anchor_drift",
+   "status": "retired",
    "target_rel": "model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py"
   },
   {
    "anchor_head": "            mixed_qkvz, _ = self.in_proj_qkvz(hidden_states)",
    "key": "P7b::p7b_inproj_via_custom_op",
    "required": true,
-   "status": "anchor_drift",
+   "status": "retired",
    "target_rel": "model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py"
   },
   {
+   "anchor_head": "                    stack.enter_context(patch(\"gc.collect\", ",
    "key": "PN13::pN13_lambda_arity",
-   "status": "version_gated",
-   "target_rel": "compilation/cuda_graph.py",
-   "vrange": [
-    "<0.20.2"
-   ]
+   "required": true,
+   "status": "retired",
+   "target_rel": "compilation/cuda_graph.py"
   },
   {
    "anchor_head": "            FP8_E4B15=fp8_e4b15,\n            num_warps=4,\n  ",
@@ -756,7 +693,7 @@
    "anchor_head": "        self.register_buffer(\n            \"_tq_mid_o_buf\",\n ",
    "key": "P36::p36_shared_decode_bufs",
    "required": true,
-   "status": "anchor_drift",
+   "status": "retired",
    "target_rel": "model_executor/layers/attention/attention.py"
   },
   {
@@ -781,14 +718,14 @@
    "anchor_head": "            or self.logitsprocs_need_output_token_ids\n      ",
    "key": "PN67::pn67_remove_not",
    "required": true,
-   "status": "anchor_drift",
+   "status": "retired",
    "target_rel": "v1/worker/gpu_input_batch.py"
   },
   {
    "anchor_head": "        return replace(\n            base,\n            attent",
    "key": "G4_05::dflash_backend_autoselect",
    "required": true,
-   "status": "anchor_drift",
+   "status": "retired",
    "target_rel": "v1/spec_decode/dflash.py"
   },
   {
