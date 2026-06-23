@@ -49,7 +49,7 @@ Release-type tags in the title give the shape of the release at a glance:
 
 | Tag | Date | Type | Summary |
 |---|---|---|---|
-| `[Unreleased]` | 2026-06-19 | dev | Pin promoted `dev101 → 0.23.1rc1.dev148+gb4c80ec0f` (live rig pin). MTP K=3→K=5 re-tune (Qwen, lossless): 35B **239.7 TPS** (+15.8%), 27B **127.4 TPS** (+8.2%); Gemma stays K=3. PN394 (#46047) + PN399 (#46067) promoted to PROD; PN353A (#44053) enabled in Qwen YAMLs. Gemma-4-31B kv-auto chat profile/preset (+69.6% chat TPS). G4_11 multi-turn fix. PN29+PN298 consolidated into one chunk_o wiring module + one registry entry (runtime-neutral; PN29 flag retained as alias). Registry 317; 55 default-on; 27 families; `make evidence` 63/63 |
+| `[Unreleased]` | 2026-06-19 | dev | Pin promoted `dev101 → 0.23.1rc1.dev148+gb4c80ec0f` (live rig pin). MTP K=3→K=5 re-tune (Qwen, lossless): 35B **239.7 TPS** (+15.8%), 27B **127.4 TPS** (+8.2%); Gemma stays K=3. PN394 (#46047) + PN399 (#46067) promoted to PROD; PN353A (#44053) enabled in Qwen YAMLs. Gemma-4-31B kv-auto chat profile/preset (+69.6% chat TPS). G4_11 multi-turn fix. PN29+PN298 consolidated into one chunk_o wiring module + one registry entry (runtime-neutral; PN29 flag retained as alias). Registry 317; 57 default-on; 27 families; `make evidence` 63/63 |
 
 ### v12.0.0 series — dev491 pin, Gemma-4 + native 31B MTP, audit hardening
 
@@ -107,7 +107,7 @@ Release-type tags in the title give the shape of the release at a glance:
 The current canonical baseline is the `[Unreleased]` line below on vLLM
 nightly pin `0.23.1rc1.dev148+gb4c80ec0f` (image
 `vllm/vllm-openai:nightly-b4c80ec0f`); the last cut tag is `v12.0.0`. 317
-patches in `PATCH_REGISTRY`, 55 default-ON, 27 families, `make evidence`
+patches in `PATCH_REGISTRY`, 57 default-ON, 27 families, `make evidence`
 63 / 63 gates green. (The PROD 35B service runs the dev148 pin; `dev101`
 is retained as the previous / rollback pin per the CLAUDE.md ≤2-pin policy.
 `sndr/version.py` carries the `.dev0` suffix in-tree; release tooling strips
@@ -144,7 +144,18 @@ it on publish — pyproject.toml holds the release version.)
   kv-auto (uniform fp16 KV, no TurboQuant, 32K ctx) delivers ~70.1 TPS chat
   (+69.6 % vs the TQ chat sibling's 41.4) AND better tool-call (7/7 vs 6/7),
   trading 64K → 32K context. Operator runs both profiles.
-- **G4_11 multi-turn chat-template fix** carried in the Gemma-4 family.
+- **Gemma chat-template fix — use the model's built-in HF template** (`225bfcac`).
+  The 4 AWQ Gemma ModelDefs — `gemma-4-26b-a4b-it-awq`,
+  `gemma-4-26b-a4b-it-awq-experimental`, `gemma-4-31b-it-awq`, and
+  `gemma-4-31b-it-awq-mtp-n8-code` — now set `chat_template: null` +
+  `GENESIS_ENABLE_G4_11_GEMMA4_CHAT_TEMPLATE_INSTALL=0`, so `compose()` emits no
+  `--chat-template` flag and vLLM falls through to the model's built-in HF
+  template. The custom G4_11 template broke tool-calls and chat quality — raw
+  `<start_of_turn>` token echo, an unreadable `<|channel>thought<channel|>`
+  format the gemma4 tool-parser couldn't read, and ZERO `tool_calls`
+  (finish=length). **Validated live on the rig:** 26B + 31B both give clean chat
+  AND a working `get_weather` tool-call. (The g4_11 patch module is untouched —
+  disabled by config.)
 - **5 retired-patch version-range provenance** records added.
 
 ### Migration notes
@@ -178,7 +189,7 @@ it on publish — pyproject.toml holds the release version.)
 
 #### Test suite — whole repo green
 
-- **`pytest tests/` → 12817 passed / 0 failed** (698 skipped, 1 documented xfail).
+- **`pytest tests/` → 12851 passed / 0 failed** (698 skipped, 1 documented xfail).
   Every pre-existing and churn-introduced failure was closed through a
   study → diagnose → adversarial-verify loop, not by weakening assertions.
 - **PN282 spec-decode acceptance metric — a REAL test-isolation bug, not the
@@ -203,6 +214,19 @@ it on publish — pyproject.toml holds the release version.)
   P3 so it must NOT be a drift marker — self-collision / false-skip guard pinned),
   PN388 dual-anchor drift, preset count-drift (23 → 24), and 5 obsolete P64
   design-intent tests (module consolidated).
+- **Installer smoke-test fail-class fix** (`24994ea1`):
+  `install._classify_failure` now buckets a `ModuleNotFoundError` (`no module
+  named …`) and a `cannot import name 'X' from 'vllm…'` ImportError as
+  `runtime_gap` rather than `wiring_bug`. Both are environment/version gaps (the
+  pin lacks the module, or the symbol moved in this pin), not install-blocking
+  internal regressions — the `cannot import name` rule is scoped to
+  vllm/torch/triton/flashinfer source modules so a genuine `from 'sndr…'` wiring
+  ImportError still classifies as `wiring_bug`.
+- **Allowlist documents the 4 G4_11=0 default-on overrides** (`430fd260`): the
+  Gemma chat-template fix disables `GENESIS_ENABLE_G4_11_GEMMA4_CHAT_TEMPLATE_INSTALL`
+  (a `default_on=True` patch) in the 4 AWQ Gemma ModelDefs; the default-on-mismatch
+  ratchet test now allowlists each override with the live-finding rationale so the
+  ratchet stays green.
 
 #### Security / hygiene
 
@@ -226,7 +250,7 @@ it on publish — pyproject.toml holds the release version.)
 
 #### Hardening verification
 
-- `pytest tests/` 12817 passed / 0 failed · `make audit` clean · `validate_all_models`
+- `pytest tests/` 12851 passed / 0 failed · `make audit` clean · `validate_all_models`
   0 bad · 25-preset composed `ModelConfig` byte-identical pre/post.
 
 ---

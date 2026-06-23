@@ -35,7 +35,7 @@ added as a registry patch.
 | Total PATCH_REGISTRY entries | **317** |
 | Tier=community (Apache 2.0, sndr) | **313** (all entries) |
 | Tier=engine (commercial, sndr_engine) | **0** (PN72 reclassified to community 2026-05-08; sndr_engine namespace reserved but empty) |
-| Default-on at boot | 54 |
+| Default-on at boot | 57 |
 | Lifecycle=experimental | 234 |
 | Lifecycle=legacy (pre-dispatcher) | 28 |
 | Lifecycle=retired | 34 |
