@@ -59,6 +59,17 @@ _LEGACY_HOME = Path.home() / ".genesis"  # back-compat with v7.x operators
 _MIN_PYTHON = (3, 10)
 _MIN_DISK_MB = 200
 
+# Canonical files a valid Genesis checkout must contain — the clone/update
+# sanity gate aborts ("missing ... — wrong pin?") if any is absent. v12
+# (2026-06-23): the overlay package moved vllm/sndr_core/ -> sndr/, so these
+# MUST track that rename or `sndr install` fatally fails on every clean v12
+# checkout. Guarded by tests/installer/test_install_canonical_files.py.
+_REQUIRED_GENESIS_FILES = (
+    "sndr/__init__.py",
+    "sndr/apply/orchestrator.py",
+    "sndr/compat/cli.py",
+)
+
 WORKLOADS = {
     "balanced":        "Default-safe — chat + occasional long ctx + tools",
     "long_context":    "Single long prompt (>50K), low concurrency",
@@ -396,13 +407,9 @@ def step_clone_or_update(
     head = _run_git(home, ["rev-parse", "--short", "HEAD"]).stdout.strip()
     _io.success(f"Genesis at {head} (ref: {pin['pin']})")
 
-    # Sanity — required canonical files
-    required = (
-        "vllm/sndr_core/__init__.py",
-        "vllm/sndr_core/apply/orchestrator.py",
-        "vllm/sndr_core/compat/cli.py",
-    )
-    for rel in required:
+    # Sanity — required canonical files (see _REQUIRED_GENESIS_FILES; these
+    # track the v12 vllm/sndr_core/ -> sndr/ package rename).
+    for rel in _REQUIRED_GENESIS_FILES:
         if not (home / rel).is_file():
             _io.fatal(f"Genesis tree at {pin['pin']!r} missing {rel} "
                       "— wrong pin?", 2)
