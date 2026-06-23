@@ -1073,6 +1073,25 @@ def render_profile_launcher(
     if spec_decode_arg:
         inner_run.append(spec_decode_arg.rstrip(' \\\n') + ' \\')
     inner_run.append(f'  --gpu-memory-utilization {cfg.gpu_memory_utilization} \\')
+    # B10 raw escape-hatch: the parent ModelDef's `extra_vllm_flags`
+    # ({flag: value}, keys start with `--`). These are the raw vLLM CLI
+    # flags this layered config does NOT already derive from a typed field
+    # (e.g. --num-gpu-blocks-override to cap the KV pool independently of
+    # the gpu-memory-utilization budget). Emitted verbatim, sorted for
+    # render determinism; an empty-string value emits the bare flag.
+    #
+    # Only model.extra_vllm_flags is emitted here — NOT the whole
+    # cfg.vllm_extra_args. compose() also folds the auto-derived
+    # --attention-backend (from backend_plan) and --enable-expert-parallel
+    # (gemma4_moe) into cfg.vllm_extra_args, but those have their own
+    # dedicated render branches above (attn_backend_arg) / are intentionally
+    # omitted from the profile launcher; iterating the full list would
+    # double-emit the backend flag and leak EP onto block-diffusion.
+    for _flag, _value in sorted(getattr(model, "extra_vllm_flags", {}).items()):
+        if _value != "":
+            inner_run.append(f'  {_flag} {_value} \\')
+        else:
+            inner_run.append(f'  {_flag} \\')
     inner_run.append(f'  --api-key {cfg.api_key} \\')
     # Stat logger: emit --disable-log-stats unless the rig/profile opted into
     # metrics (sizing.disable_log_stats=False). With it off, vLLM exposes live

@@ -18,15 +18,21 @@
 # RENDERED CORRECTLY (matches the validated hand-launcher):
 #   --tensor-parallel-size 2          (from hardware.n_gpus=2)
 #   --dtype bfloat16                  (model.dtype)
-#   --max-model-len 4096              (sizing_override)
+#   --max-model-len 131072            (sizing_override; 128K — see sizing block)
 #   --max-num-seqs 2                  (sizing_override)
-#   --gpu-memory-utilization 0.8      (sizing_override; "0.80" renders as 0.8)
-#   --attention-backend TRITON_ATTN   (backend_plan.target_default below)
+#   --max-num-batched-tokens 1024     (sizing_override; lowered with the KV cap)
+#   --gpu-memory-utilization 0.9      (sizing_override; "0.90" renders as 0.9)
+#   --num-gpu-blocks-override 8192    (parent ModelDef.extra_vllm_flags — THE
+#                                      KV-pool cap; emitted by the profile
+#                                      render path's extra_vllm_flags branch)
+#   --attention-backend TRITON_ATTN   (backend_plan.target_default below;
+#                                      the validated config used TRITON_ATTN)
 #   --served-model-name diffusiongemma
 #   --enable-auto-tool-choice --tool-call-parser gemma4
 #   --api-key genesis-local
 #   -e GENESIS_ENABLE_G4_26_DIFFUSIONGEMMA_TP_VOCAB=1
 #   -e GENESIS_ENABLE_PN_FP8MOE_KPAD=1
+#   -e GENESIS_PROFILE_RUN_CAP_M=1024 (system_env; matches max_num_batched_tokens)
 #   mounts: /nfs/genesis/models:/models:ro
 #           ${GENESIS_REPO}/sndr:.../dist-packages/sndr:ro   (plugin path)
 #
@@ -81,39 +87,72 @@ target_hardware: a5000-2x-24gbvram-16cpu-128gbram
 # apply to it) and matches the experimental status. Renders on port 8102.
 role: bench
 
-# ─── Runtime sizing — verbatim from the rig-validated launcher ─────────
+# ─── Runtime sizing — rig-validated high-util config (2026-06-23) ──────
 # sizing_override is full-replacement (compose uses profile.sizing_override
 # wholesale when set), so all fields are present even when only some differ
 # from the a5000-2x hardware defaults.
-#   max_model_len:            4096   (validated; small block-diffusion ctx)
-#   gpu_memory_utilization:   0.70   (2026-06-23: lowered 0.80 -> 0.70 after a
-#                                     live-reproduced OOM on the sndr.apply /
-#                                     render apply path. 0.80 is marginal for
-#                                     this checkpoint's post-load working set
-#                                     (FP8 MoE + the G4_26 full-vocab 262144
-#                                     embed all-gather at TP=2 + KV@4K): weights
-#                                     load sharded-balanced (~17 GiB/card) then
-#                                     post-load KV/profiling spikes GPU0 to
-#                                     22.77 GiB with only 97.94 MiB free and the
-#                                     next 256 MiB alloc OOMs. 0.70 boots +
-#                                     serves coherent with ~2.6 GiB/card
-#                                     headroom (validated live). NOTE: KPAD is
-#                                     load-bearing (init-crashes without it), so
-#                                     it is NOT the OOM cause — the util is.)
-#   max_num_seqs:             2      (validated)
-#   max_num_batched_tokens:   4096   (= max_model_len; chunked prefill on)
-#   enforce_eager:            true   (validated; block-diffusion sampler is
+#
+# VALIDATED CONFIG (rig agent, 2026-06-23): gpu_memory_utilization=0.90 +
+# max_model_len=131072 + num-gpu-blocks-override=8192 + TRITON_ATTN boots,
+# serves coherent ("Paris"), real util 94.3%, 1.4 GiB/card margin, Genesis
+# applied=43/failed=0. SUPERSEDES the gmu0.70 / 4K fallback from commit
+# 26d781c3 — the user wants this checkpoint at gmu 0.89-0.92 with max ctx.
+#
+# ROOT CAUSE of the prior gmu0.70 OOM was KV OVER-ALLOCATION, not an
+# activation spike. vLLM sizes the KV cache pool to FILL the
+# gpu-memory-utilization budget; at gmu0.90 the UNBOUNDED pool grabs all
+# the post-weight headroom for KV and the post-load block-diffusion working
+# set then has nowhere to go → OOM. The fix is NOT lowering the util — it is
+# CAPPING the KV pool with --num-gpu-blocks-override so the util budget keeps
+# headroom for the post-KV buffer. That flag lives in the parent ModelDef's
+# extra_vllm_flags (raw pass-through; emitted by the profile render path).
+#
+#   max_model_len:            131072  (128K — max SAFE ctx at gmu0.90. The
+#                                     ladder at gmu0.90: 131072 safe; 196608
+#                                     boots but only ~424 MiB free = unsafe
+#                                     edge; 262144 = OOM. 128K is a 32x jump
+#                                     over the old 4096 and serves block-
+#                                     diffusion long-context comfortably.)
+#   gpu_memory_utilization:   0.90    (was 0.70 — user wants 0.89-0.92;
+#                                     validated live at 0.90 → 94.3% real
+#                                     util, 1.4 GiB/card margin, boots +
+#                                     serves coherent. The KV pool no longer
+#                                     fills the whole 0.90 budget because
+#                                     num-gpu-blocks-override caps it.)
+#   num_gpu_blocks_override:  8192    (NOT a sizing field — set in the parent
+#                                     ModelDef.extra_vllm_flags. THE key
+#                                     lever: 8192 blocks × 16 tokens/block =
+#                                     131072 tokens, exactly max_model_len,
+#                                     so the KV pool is sized for the worst-
+#                                     case context and the rest of the 0.90
+#                                     budget stays free for the post-KV
+#                                     block-diffusion buffer.)
+#   max_num_seqs:             2       (unchanged)
+#   max_num_batched_tokens:   1024    (was 4096 — lowered with the KV-pool
+#                                     cap; chunked prefill on. Tracked by
+#                                     GENESIS_PROFILE_RUN_CAP_M=1024 in
+#                                     system_env per the P72 cap rule.)
+#   enforce_eager:            true    (unchanged; block-diffusion sampler is
 #                                     not cudagraph-safe. R7 (2026-06-17):
-#                                     the render path NOW emits
-#                                     --enforce-eager from this field.)
-#   enable_chunked_prefill:   true
-#   disable_custom_all_reduce:true   (render path emits it unconditionally
-#                                     anyway; benign at TP=2)
+#                                     the render path emits --enforce-eager
+#                                     from this field.)
+#   enable_chunked_prefill:   true    (unchanged)
+#   disable_custom_all_reduce:true    (unchanged; render path emits it
+#                                     unconditionally anyway; benign at TP=2)
+#
+# Attention backend: TRITON_ATTN (backend_plan.target_default below) — the
+# validated config launched with --attention-backend TRITON_ATTN.
+#
+# Block-diffusion caveat (model quality, NOT config): the block-diffusion
+# sampler can lose exact-long-string fidelity (verbatim recall of very long
+# literal spans) independent of context length. This is a property of the
+# diffusion decode, not of the sizing above; the gmu0.90 / 128K config does
+# not change it.
 sizing_override:
-  max_model_len: 4096
-  gpu_memory_utilization: 0.70  # 0.80 -> 0.70: 0.80 OOMs post-load on the render path (live-reproduced 2026-06-23); 0.70 boots+serves with headroom. See sizing comment above.
+  max_model_len: 131072  # was 4096 — max SAFE ctx at gmu0.90 (196608 unsafe-edge, 262144 OOM). 32x increase. See sizing comment above.
+  gpu_memory_utilization: 0.90  # was 0.70 — user wants 0.89-0.92; validated live at 0.90 = 94.3% real util, 1.4 GiB/card margin. KV pool capped by num-gpu-blocks-override so the budget keeps headroom.
   max_num_seqs: 2
-  max_num_batched_tokens: 4096
+  max_num_batched_tokens: 1024  # was 4096 — lowered with the KV-pool cap; GENESIS_PROFILE_RUN_CAP_M tracks it at 1024 (P72 cap rule).
   enable_chunked_prefill: true
   enforce_eager: true
   disable_custom_all_reduce: true
@@ -126,9 +165,17 @@ sizing_override:
 #                             now applies G4_26 + PN-FP8MOE-KPAD on disk so
 #                             the V2-runner plugin-ordering gap no longer
 #                             leaves them unapplied.
-#   VLLM_ALLOW_LONG_MAX_MODEL_LEN  permits the declared max_model_len.
+#   VLLM_ALLOW_LONG_MAX_MODEL_LEN  permits the declared max_model_len (131072).
 #   PYTORCH_CUDA_ALLOC_CONF   expandable segments for the FP8-MoE + vocab
-#                             all-gather working set at gpu_mem 0.80.
+#                             all-gather working set at gpu_mem 0.90.
+#   GENESIS_PROFILE_RUN_CAP_M  matches max_num_batched_tokens=1024 (lowered
+#                             from 4096 with the KV-pool cap). Per the P72
+#                             cap rule the profile_run M cap tracks
+#                             max_num_batched_tokens. Inert here unless P72
+#                             is enabled (this ModelDef does not set
+#                             GENESIS_ENABLE_P72_PROFILE_RUN_CAP), but kept
+#                             in sync so a future P72-on launch sizes
+#                             profile_run for the 1024-token chunk.
 # Profile-scoped so they do NOT leak onto the shared a5000-2x hardware YAML
 # (35B/27B must keep the V2 runner OFF). compose layers hw < model < profile.
 # NOTE: needs a non-PROD rig boot to confirm the config-rendered launcher
@@ -136,6 +183,7 @@ sizing_override:
 system_env:
   VLLM_USE_V2_MODEL_RUNNER: "1"
   VLLM_ALLOW_LONG_MAX_MODEL_LEN: "1"
+  GENESIS_PROFILE_RUN_CAP_M: "1024"
   PYTORCH_CUDA_ALLOC_CONF: "expandable_segments:True"
 
 # ─── Backend plan — drives the --attention-backend CLI flag ────────────
@@ -157,13 +205,15 @@ patches_delta:
   override: {}
 
 # ─── Override policy (CONFIG-UX.1) ─────────────────────────────────────
-# sizing_override reaches below hardware defaults (max_model_len 280000 →
-# 4096, gpu_memory_utilization 0.90 → 0.80). Class `bench` — this is the
+# sizing_override reaches below the hardware default max_model_len
+# (280000 → 131072) and keeps gpu_memory_utilization at the hardware
+# default 0.90 (raised back from the prior 0.70 fallback now that the KV
+# pool is capped by num-gpu-blocks-override). Class `bench` — this is the
 # experimental TP=2 bring-up profile; not production traffic until the
 # block-diffusion speed bench lands and status promotes to validated.
 override_policy:
   override_class: bench
-  reason: "DiffusionGemma 26B-A4B FP8 block-diffusion TP=2 bring-up; rig-validated coherent serve 2026-06-17 on 2× A5000 / dev491; small 4K ctx + lowered gpu_mem for the FP8 MoE + vocab all-gather working set; speed bench pending block-diffusion-aware harness"
+  reason: "DiffusionGemma 26B-A4B FP8 block-diffusion TP=2 bring-up; rig-validated high-util config 2026-06-23 on 2× A5000 / dev491 (gmu0.90 + 131072 ctx + num-gpu-blocks-override 8192 → 94.3% real util, 1.4 GiB/card margin, coherent serve); KV pool capped so the util budget keeps headroom for the post-KV block-diffusion buffer; speed bench pending block-diffusion-aware harness"
   evidence_refs: []
   evidence_visibility: public
   expires_at: '2026-09-17'

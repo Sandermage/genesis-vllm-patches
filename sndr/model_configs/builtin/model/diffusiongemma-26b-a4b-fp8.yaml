@@ -199,21 +199,35 @@ compose_hints:
   drafter_method: null      # NO drafter — block diffusion, not spec-decode
   drafter_id: null
 
-# ─── extra_vllm_flags — raw vLLM CLI escape hatch (empty by design) ────
+# ─── extra_vllm_flags — raw vLLM CLI escape hatch ──────────────────────
 # Generic pass-through map `{--flag: value}` (compose() emits each as
 # `--flag value`, or bare `--flag` for an empty-string value). Schema type
 # is dict[str,str] (schema_v2.py:349) — an empty MAP `{}` is the no-op form,
-# NOT an empty list. Empty here on purpose: every flag this model needs is
-# already derived from the structured fields above (model_path, dtype,
-# capabilities, requires) or documented in the header RENDER-PATH GAPS block
-# as an operator hand-add the V2 render path cannot yet express
-# (--enforce-eager, --generation-config vllm, the explicit Genesis apply
-# step, DiffusionGemma-specific system_env). Those are deliberately NOT
-# placed here because they require render semantics (eager sizing, a
-# different generation flag, an in-container apply step) that a plain
-# `--flag value` pass-through cannot carry. Add a raw flag here only when it
-# is a true one-off pass-through with no special render handling.
-extra_vllm_flags: {}
+# NOT an empty list. Most flags this model needs are already derived from
+# the structured fields above (model_path, dtype, capabilities, requires) or
+# documented in the header RENDER-PATH GAPS block as an operator hand-add the
+# V2 render path cannot yet express (--enforce-eager, --generation-config
+# vllm, the explicit Genesis apply step, DiffusionGemma-specific system_env).
+# Those are deliberately NOT placed here because they require render
+# semantics (eager sizing, a different generation flag, an in-container apply
+# step) that a plain `--flag value` pass-through cannot carry.
+#
+# --num-gpu-blocks-override (2026-06-23): THE key lever for the rig-validated
+# gmu0.90 / 131072-ctx config (see the diffusiongemma-tp2 profile sizing
+# header). vLLM sizes the KV pool to FILL the gpu-memory-utilization budget;
+# at gmu0.90 the unbounded pool over-allocates KV and OOMs the post-load
+# block-diffusion working set (root cause of the prior gmu0.70 fallback was
+# KV over-allocation, NOT an activation spike). Capping the pool to 8192
+# blocks × 16 tokens/block = 131072 tokens leaves the util budget with the
+# ~1.4 GiB/card headroom the rig agent measured (94.3% real util at boot).
+# It is a true raw pass-through with no special render handling, so it lives
+# here (the only such flag for this model). This model is used by exactly one
+# profile (diffusiongemma-tp2), so the model-level placement is effectively
+# per-profile. NOTE: the profile render path emits model.extra_vllm_flags
+# (cli/legacy/profile.py render_profile_launcher); verify the rendered
+# launcher carries `--num-gpu-blocks-override 8192`.
+extra_vllm_flags:
+  --num-gpu-blocks-override: '8192'
 
 notes:
   - "DiffusionGemma 26B-A4B-it FP8-dynamic — block-diffusion text model

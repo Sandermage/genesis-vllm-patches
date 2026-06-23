@@ -1078,6 +1078,44 @@ class TestEnforceEagerEmission:
         assert "--enforce-eager" in script
 
 
+class TestExtraVllmFlagsEmission:
+    """The profile render path emits the parent ModelDef's B10
+    `extra_vllm_flags` raw escape-hatch flags. Before this, the
+    serve-command builder dropped them entirely (it consumed the typed
+    sizing/capability fields but never the raw pass-through dict), so a
+    rig-validated flag like `--num-gpu-blocks-override` could not reach
+    the rendered launcher. Only the B10 dict is emitted here — the
+    auto-derived `--attention-backend` / `--enable-expert-parallel`
+    entries that compose() also folds into cfg.vllm_extra_args are
+    handled by their own dedicated render branches and must NOT be
+    double-emitted."""
+
+    def test_diffusiongemma_emits_num_gpu_blocks_override(self):
+        """diffusiongemma-tp2's parent ModelDef declares
+        `--num-gpu-blocks-override 8192` (caps the KV pool to 131072
+        tokens so the gmu0.90 util budget keeps headroom for the
+        post-KV block-diffusion buffer). The rendered launcher must
+        carry it verbatim."""
+        script = render_profile_launcher("diffusiongemma-tp2")
+        assert "--num-gpu-blocks-override 8192" in script
+
+    def test_no_double_attention_backend(self):
+        """`--attention-backend TRITON_ATTN` comes from the dedicated
+        backend_plan branch; emitting extra_vllm_flags must not produce a
+        second `--attention-backend` token (compose() also folds it into
+        cfg.vllm_extra_args, which we deliberately do NOT iterate here)."""
+        script = render_profile_launcher("diffusiongemma-tp2")
+        assert script.count("--attention-backend") == 1
+
+    def test_no_enable_expert_parallel_leak(self):
+        """compose() adds `--enable-expert-parallel` to cfg.vllm_extra_args
+        for gemma4_moe arch, but the validated DiffusionGemma launcher does
+        NOT use EP. Emitting only model.extra_vllm_flags (not the whole
+        cfg.vllm_extra_args) keeps EP out of the rendered launcher."""
+        script = render_profile_launcher("diffusiongemma-tp2")
+        assert "--enable-expert-parallel" not in script
+
+
 class TestNonGemmaProfilesUnaffected:
     """R2/R3/R7 must be additive for a non-Gemma profile: the only render
     delta vs the prior renderer is the (unconditional, idempotent) apply
