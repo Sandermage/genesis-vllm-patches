@@ -121,3 +121,143 @@ compose_hints:
   drafter_method: mtp
   drafter_id: gemma4-26b-a4b-assistant
   workload_hint: experimental
+
+# ─── Raw vLLM CLI escape hatch ─────────────────────────────────────────
+# Generic {flag: value} pass-through emitted by compose() into
+# cfg.vllm_extra_args as `--flag value` pairs (B10, schema_v2.py:339).
+# Keys MUST start with `--`. Empty {} BY DESIGN: this experimental overlay
+# needs no raw flags — every behavior knob it changes is derived from the
+# `patches`/`capabilities`/`chat_template` fields above (compose() already
+# emits --chat-template + --enable-expert-parallel for the gemma4_moe path).
+# Use this only for a one-off vLLM CLI flag with no dedicated config field.
+# NOTE: the schema field is dict[str, str]; an empty MAP is `{}`, not `[]`
+# (validate() iterates `.items()`, so a list would raise AttributeError).
+extra_vllm_flags: {}
+
+# ─── Operator notes ────────────────────────────────────────────────────
+notes:
+  - "Gemma 4 26B-A4B AWQ-4bit EXPERIMENTAL overlay on 1× / 2× A5000 (Ampere
+    SM 8.6, >=24 GiB VRAM). Diverges from the stable base
+    gemma-4-26b-a4b-it-awq.yaml on exactly two axes: it flips the
+    Marlin-K-dim guard (G4_02) OFF + routes K%64!=0 MoE GEMMs through the
+    Genesis Triton zero-pad kernel (G4_08), and flips the asymmetric-KV
+    guard (G4_13) OFF + selects per-layer-type KV-head counts (G4_18)."
+  - "STATUS: experimental. G4_08 (Marlin K-pad) and G4_18 (per-layer KV)
+    both carry implementation_status='partial' in PATCH_REGISTRY and have
+    NOT had a server boot+bench cycle on the 0.23.1 pin. Use the stable
+    base profile for production; this variant is a validation candidate
+    only. See header WARNING + GEMMA4_PATCH_OPTIMIZATION_PLAN_2026-05-17_RU
+    section P0 (move G4_08/G4_18 into this overlay until real validation)."
+  - "G4_18 CAVEAT (registry doc, dev491 audit): on vLLM >=0.22 the
+    get_num_kv_heads(self, parallel_config) signature dropped the layer_idx
+    kwarg, so the per-layer branch cannot fire and G4_18 falls through to
+    the original — it does NOT actually supersede G4_13 on that pin. The
+    G4_13-OFF flip here is therefore only safe once #40391 lands; treat the
+    G4_13/G4_18 swap as the headline thing this overlay exists to validate."
+  - "kv_cache_dtype=auto + spec_decode=null are intentional on this
+    ModelDef: MTP ownership lives in ProfileDef (Phase 7.G4.26B-A4B.
+    VARIANT-A-FIX), mirroring the canonical 26B base. The TQ-path /
+    spec-decode patches enabled below (PN116/PN118/PN119, PN33/P108) only
+    actually fire once a profile composes TQ KV + MTP K on top — on the
+    bare ModelDef their applies_to / spec-decode predicates self-skip."
+
+# ─── patches_attribution (Phase A backfill, 2026-06-22) ────────────────
+# Keyed by canonical registry patch ID (NOT env-flag name). Same taxonomy +
+# house style as the GOLD reference qwen3.6-27b-int4-autoround-tq-k8v4.yaml.
+# Evidence-based: each role is derived from the patch's PATCH_REGISTRY
+# entry (category + doc) and, where the same shared patch is attributed in
+# the gold qwen file, the SAME classification vocabulary.
+#
+# SCOPE: only P*/PN* IDs appear here. The Gemma-specific G4_* patches
+# (G4_01/02/03/04/08/09/11/12/13/14/16/18/23/25/67) CANNOT be keyed — the
+# schema's _check_patch_id regex `^P[N]?\d+...` rejects the `G4_` prefix
+# (schema_v2.py:68), exactly as the gold file omits its G4_61 entry. The
+# G4_* roles are documented inline in the `patches:` matrix comments above.
+#
+# load_bearing | suspected_regression -> `note` required
+# optional_perf                       -> `bench_evidence` required
+# defensive | no_op | unknown         -> no auxiliary field required
+patches_attribution:
+  PN33:
+    role: defensive
+    note: |
+      K-aware spec-decode warmup (vllm#37521, registry category
+      spec_decode, stable/full). On the bare ModelDef spec_decode=null so
+      it self-skips; defensive once a profile adds MTP K — closes the
+      eagle_prepare_* / TQ-workspace-grow OOM that a K=1 dummy warmup
+      causes (registry doc: "real correctness fix, not experimental").
+  PN35:
+    role: defensive
+    note: |
+      Skip the (max_num_tokens, hidden_size) inputs_embeds buffer for
+      text-only models (vllm#35975, perf_hotfix/stable). Registry: "no
+      regression possible" — the if-guard preserves the original
+      allocation for multimodal. Pure memory-headroom guard on the
+      borderline 24 GiB single-card path.
+  PN116:
+    role: defensive
+    note: |
+      tentative: TurboQuant prefill max_seq_len counter-regression fix
+      (corrects vllm#41434; registry category perf_hotfix, SM<9.0-gated).
+      On the GOLD TQ ModelDef this is load_bearing (-9.7% wall_TPS on
+      removal), but THIS overlay declares kv_cache_dtype=auto, so the
+      applies_to:{is_turboquant} predicate self-skips until a profile
+      composes TQ k8v4 KV on top. Classified defensive-for-now;
+      re-tag load_bearing if a TQ profile adopts this variant.
+  PN118:
+    role: defensive
+    note: |
+      tentative: TurboQuant workspace graceful-fallback (vllm#42551,
+      stability/experimental) — closes a first-decode AssertionError on
+      partial-TQ models. Inert on this auto-KV ModelDef; fires only under
+      a composed TQ k8v4 profile. Conservative defensive pending a TQ
+      bench on this variant.
+  PN119:
+    role: optional_perf
+    bench_evidence: >-
+      tentative: upstream vllm#40792 measured +16.5-27.2% TPS on A100/H100
+      at GQA-ratio in {4,8,24}; not yet benched on this auto-KV overlay
+      (TQ grouped-decode kernel only routes under a composed TQ k8v4
+      profile, so the win is unrealized on the bare ModelDef).
+    note: |
+      TurboQuant k8v4 GQA head-grouping decode kernel (kernel_perf,
+      experimental). Self-skips on the non-TQ auto path here.
+  PN286:
+    role: defensive
+    note: |
+      FA KV-cache layout revert for Ampere SM 8.6 (Genesis-original,
+      perf_hotfix). Strictly SM-8.6 gated and self-skips on TQ-only paths;
+      on the gold 27B MTP path it was measured NEUTRAL (TQ layers bypass
+      native FA) and +6.6% on the 35B native-FA path. Defensive insurance
+      for any native-FlashAttention layer this overlay routes on A5000.
+  P108:
+    role: defensive
+    note: |
+      MTP draft-loop stream synchronization (derived from vllm#42603,
+      registry upstream_pr_relationship=defensive_overlay). Backend-gated
+      to the FlashInfer family + cached first-call decision; a single
+      attribute read on non-racy backends. Closes a cudaErrorIllegalAddress
+      race in LLMBaseProposer.propose(); no-op without spec-decode active.
+  P109:
+    role: defensive
+    note: |
+      sampling_params vocab-range validators (vllm#42614, stability).
+      Bounces out-of-vocab stop_token_ids / logprob_token_ids with a clean
+      400 instead of OOB-ing the Triton bias kernel. Bit-identical for
+      valid inputs — defense-in-depth for the public OpenAI-compatible
+      serving surface.
+  PN110:
+    role: defensive
+    note: |
+      BlockPool.free_blocks deduplication (vllm#42615, stability/kv_cache).
+      Dedups by id(block) so a double-freed KVCacheBlock cannot
+      double-decrement ref_cnt. Composes cleanly with the PN95/PN96 cache
+      family; warns when duplicates are observed.
+  PN126:
+    role: defensive
+    bench_evidence: "TTFT spike 5-25s on first decode without warmup (boot-only cost)"
+    note: |
+      V1 decode + spec-decode kernel warmup orchestrator (Genesis-original,
+      perf_hotfix). Same role + bench anchor the GOLD qwen file assigns to
+      PN126 — pre-JITs decode kernels at boot so the first user request
+      does not eat a JIT spike.

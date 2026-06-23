@@ -112,6 +112,21 @@ package_versions:
     SNDR_DEV_INSTALL_RUNTIME_DEPS=1 is set inside the container (otherwise
     the wheel-baked runtime stack is used).
 
+# ─── Extra vLLM CLI flags (escape hatch) ───────────────────────────────
+# B10 (schema_v2.py:339) generic pass-through for raw vLLM `serve` flags
+# that this model needs but that have NO dedicated ModelDef field. Shape is
+# a {flag: value} MAPPING (NOT a list); keys MUST start with `--`; a flag
+# with an empty-string value is emitted bare (no argument). compose.py:548
+# appends each pair to cfg.vllm_extra_args after the targeted fields.
+# Empty by design here: this 35B PROD config derives every launch arg from
+# the typed fields above (kv_cache_dtype, max_model_len, spec_decode,
+# chat_template, override_generation_config, tensor-parallel, …) plus the
+# GENESIS_* patch env matrix below — nothing one-off remains to pass raw.
+# Declared explicitly (rather than omitted) so the escape hatch is visible
+# and self-documenting to operators; `{}` is byte-identical to the field
+# default, so this adds zero launch behavior.
+extra_vllm_flags: {}
+
 # ─── Canonical patches matrix (44 entries) ─────────────────────────────
 # Format: 'GENESIS_ENABLE_<PATCH_ID>': '1' enables; '0' or absent disables.
 patches:

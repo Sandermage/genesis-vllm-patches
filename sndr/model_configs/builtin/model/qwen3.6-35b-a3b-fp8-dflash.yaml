@@ -192,6 +192,17 @@ patches:
   GENESIS_ENABLE_PN133_MTP_EMPTY_OUTPUT_FIX: '1'     # vllm#42722 backport — MTP scheduler empty-output guard. NOTE: targets MTP scheduler — no-op on DFlash spec-decode path but cost zero — keep ON.
   # GENESIS_ENABLE_PN134_TORCH_COMPILE_FULLGRAPH_211: KEEP OFF — retired 2026-05-15 (-25% TPS bench regressor on hybrid_gdn_moe; affects ALL spec-decode paths including DFlash via Inductor cache blow-up).
 
+# ─── extra_vllm_flags — raw vLLM CLI escape hatch ──────────────────────
+# Generic pass-through for raw vLLM CLI flags that compose.py does NOT
+# already derive from this ModelDef (e.g. chat_template, override-generation
+# -config, spec-decode, KV dtype are all emitted from their dedicated fields,
+# so they MUST NOT be duplicated here). Schema: dict[str, str] keyed by
+# `--flag`; compose.py emits `--flag value` per entry (empty-string value =
+# bare flag). Empty {} by design — this DFlash variant needs no raw flags
+# beyond what the typed fields above already render. Add an entry only for a
+# flag with no dedicated ModelDef field.
+extra_vllm_flags: {}
+
 notes:
   - "Migrated from legacy a5000-2x-35b-fp8-dflash (2026-05-12; V1 source retired 2026-06-01 in V1 sunset #4). Needs separate
     Qwen3.6-35B-A3B-DFlash drafter checkpoint on host (/models/Qwen3.6-35B-A3B-DFlash)."
@@ -274,6 +285,36 @@ patches_attribution:
   PN24:
     role: load_bearing
     note: "DFlash aux-layer indexing in V1 gpu_model_runner."
+  PN275:
+    # registry: category=stability, "DFlash drafter VllmConfig max_cgs
+    # alignment (dev371 compat)". Headline patch UNIQUE to this DFlash
+    # variant; a hard ModelDef-level requirement of the dev371/dev148 boot
+    # (M6 commit 12d901a5). Without it the P95 (max_cudagraph_capture_size=8)
+    # vs P66 (cudagraph_capture_sizes=6) desync trips the cross-validator at
+    # vllm/config/vllm.py:1703-1715 during DFlash drafter VllmConfig rebuild,
+    # so the container fails to boot. Env-off byte-identical to upstream.
+    role: load_bearing
+    note: |
+      DFlash drafter max_cudagraph_capture_size alignment (dev371+ boot
+      fix). Closes the P95/P66 cudagraph-size desync the dev371 cross-
+      validator rejects on DFlash VllmConfig rebuilds. Hard requirement
+      of this pin; without it the container does not boot. Evidence:
+      P2_DFLASH_M5_RETRY_Q35_PASS_2026-05-21_RU.md (Q35-DFlash E2E PASS).
+  PN40:
+    # registry: category=spec_decode, "Spec-decode omnibus (A DFlash K-norm
+    # + B pool + C adaptive K + D sentinel)". Third member of the DFlash
+    # family triad (PN23/PN24 attributed above). Enabled here (=1) but NOT
+    # yet bench-verified on this config's env-flag matrix — the Wave 9/10
+    # comments mark the DFlash drafter path as mirroring the verified MTP
+    # neighbour conservatively. Classified defensive (no measured regression
+    # or perf claim for THIS config to anchor a stronger role).
+    role: defensive
+    note: |
+      tentative: DFlash 4-part spec-decode omnibus (K-norm + pool +
+      adaptive K + sentinel). Composes with MTP via the dispatcher gate.
+      Role for THIS DFlash variant is conservative — enabled symmetric to
+      the verified MTP sibling but not independently bench-verified on the
+      DFlash multi-conc matrix (re-bench before promoting to optional_perf).
   PN95:
     role: load_bearing
     note: |

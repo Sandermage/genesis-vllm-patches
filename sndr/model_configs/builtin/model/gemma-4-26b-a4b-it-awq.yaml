@@ -148,3 +148,142 @@ compose_hints:
   attention_arch: gemma4_moe
   drafter_method: mtp
   drafter_id: gemma4-26b-a4b-assistant
+
+# ─── Operator notes ────────────────────────────────────────────────────
+# Authoring metadata only — compose() does NOT forward ModelDef.notes into
+# the V1 ModelConfig (composed cfg.notes stays []), so these lines are
+# documentation, not a behaviour-affecting field. Matches the gold
+# qwen3.6-27b-int4-autoround-tq-k8v4.yaml notes style (one fact per entry).
+notes:
+  - "Gemma 4 26B-A4B-it AWQ-4bit (cyankiwi checkpoint) — 128-expert MoE,
+    top_k=8, A=4B active params. Single-card or 2× A5000 (SM 8.6 Ampere).
+    Asymmetric KV-heads (sliding=8, full=2). Status 🧪 Experimental: the
+    G4_NN family (Marlin K-pad + asymmetric KV) is NOT yet server-validated
+    on rig — bench numbers in the header are projected only."
+  - "MTP ownership lives in the ProfileDef, not here (Phase 7.G4.26B-A4B.
+    VARIANT-A-FIX 2026-05-23): capabilities.spec_decode=null and each
+    profile sets spec_decode_override per the WORKLOAD-GATE-POLICY
+    (free-chat/long-form/code/summarization → K=1; short structured-JSON /
+    tool_call → K=4). Mirrors the 31B AWQ ModelDef pattern."
+  - "dtype=bfloat16 is canonical for AWQ on SM 8.6 (audit 2026-05-17);
+    quantization=null lets vLLM detect from the compressed-tensors metadata.
+    chat_template points at the gemma4.jinja that G4_11 installs at boot —
+    G4_11 MUST stay enabled or the --chat-template path will not resolve."
+  - "Pin policy (CLAUDE.md): vllm_pin_required = dev148+gb4c80ec0f (PROMOTED
+    2026-06-19, drift-audited clean); dev101 (nightly-4c626633) is the
+    retained rollback. Do NOT bump without an explicit upgrade instruction.
+    Several G4_*/PN* flags carry dev491-bump re-decision notes inline below."
+
+# ─── Extra vLLM CLI flags (escape hatch) ───────────────────────────────
+# Generic {flag: value} pass-through that compose() emits verbatim into
+# cfg.vllm_extra_args (schema_v2.ModelDef.extra_vllm_flags, B10 2026-06-22).
+# Empty {} by design here: every vLLM flag this model needs is already
+# derived from typed fields (chat_template → --chat-template, the gemma4_moe
+# arch → --enable-expert-parallel via compose). Use this ONLY for one-off
+# raw flags that have no typed home. Must be a mapping ({}), NOT a list —
+# the field is dict[str, str] and a list would fail schema validation.
+extra_vllm_flags: {}
+
+# ── patches_attribution (gap backfill 2026-06-22) ──────────────────────
+# Keyed by registry patch ID (NOT env-flag name). Same taxonomy + house
+# style as the gold qwen3.6-27b-int4-autoround-tq-k8v4.yaml:
+#   load_bearing          → removal causes measurable regression (note req.)
+#   defensive             → correctness / crash / quality safety net
+#   optional_perf         → throughput win, gated on bench (bench_evidence req.)
+#   suspected_regression  → kept OUT or known regressor (note req.)
+#   no_op                 → enabled-but-inert for THIS model (the TQ-path
+#                           patches do not fire because no TurboQuant backend
+#                           is instantiated on the AWQ + kv_cache_dtype=auto
+#                           default path)
+#
+# SCOPE CONSTRAINT (why the G4_* family is absent here): the schema patch-ID
+# validator (schema_v2._check_patch_id) only accepts keys matching
+# ^P[N]?\d+...  — i.e. P* / PN* IDs. The Gemma-specific G4_* IDs (G4_01,
+# G4_08, G4_18, ...) are valid registry patch IDs but are NOT valid
+# patches_attribution keys, so adding them here would FAIL schema validate.
+# The gold qwen YAML hits the same wall and likewise attributes only P*/PN*
+# patches. The G4_* family is instead fully self-documented by the rich
+# per-flag comments above the `patches:` block (role + caveat + dev491
+# re-decision notes inline). This block therefore covers the 11 P*/PN*
+# patches in this config; all are enabled, so every entry uses an
+# asserting/no_op role and its env_flag is present in `patches` (AT-2 clean).
+# Validated via scripts/audit_patch_attribution.py.
+patches_attribution:
+  # ── TQ-path patches: enabled but INERT on this model's default path ──
+  # This AWQ checkpoint runs kv_cache_dtype=auto with no TurboQuant backend
+  # instantiated unless the operator opts into the G4_19 TQ stack, so the
+  # patches below prime the TQ path for future adoption without firing now.
+  PN116:
+    role: no_op
+    note: |
+      TurboQuant prefill max_seq_len fallback (regressor fix for
+      vllm#41434). Inert without an active TurboQuant prefill path; kept
+      for parity with the TQ-capable siblings.
+  PN118:
+    role: no_op
+    note: |
+      TurboQuant workspace graceful-fallback (vllm#42551). Only fires for
+      partial-TQ models on first decode; no TQ backend on this default
+      path, so inert here.
+  PN119:
+    role: no_op
+    note: |
+      TQ k8v4 GQA head-grouping decode kernel (vllm#40792). Only routes
+      traffic when a TurboQuant decode backend is active; this AWQ +
+      kv-auto model does not instantiate one by default, so inert here.
+  # ── MTP / general-purpose (enabled, active) ──
+  PN290:
+    role: defensive
+    note: |
+      Forces the num_accepted_tokens.gpu D2H copy blocking (vllm Issue
+      #41190) — crash-safe guard against a TP>1 + MTP cudaErrorIllegalAddress
+      race. Gemma-only here (dense, not GDN, so PN341 does not cover it).
+      Validated dev491 2026-06-16. ~0.3-0.6 ms blocking cost.
+  PN33:
+    role: defensive
+    note: |
+      K-aware spec-decode warmup (vllm#37521, extended to MTP/ngram).
+      Sizes the dummy sampler run to the real K so the KV-cache profile
+      does not over-estimate headroom (mid-stream OOM) and the workspace
+      lock does not fail when spec-decode grows beyond the warmup reserve.
+  PN35:
+    role: optional_perf
+    bench_evidence: "~64 MiB GPU + ~64 MiB pinned CPU reclaimed on text-only models (vllm#35975 backport: skips the (max_num_tokens, hidden_size) inputs_embeds buffer in gpu_model_runner + the spec-decode proposer)"
+    note: "Text-only inputs_embeds buffer skip; pure memory savings, no correctness change."
+  PN286:
+    role: defensive
+    note: |
+      FlashAttention KV-cache layout revert for Ampere SM 8.6 (vllm#42095
+      flipped the layout and regressed pre-Hopper). Self-skips on non-SM-8.6;
+      this 26B runs on A5000 SM 8.6 so the revert is active.
+  P108:
+    role: defensive
+    note: |
+      MTP draft-loop stream synchronization (derived from vllm#42603) —
+      defensive overlay closing a cudaErrorIllegalAddress race between the
+      draft input_ids/hidden_states writes and downstream attention kernels.
+  P109:
+    role: defensive
+    note: |
+      sampling_params vocab-range validators (vllm#42614) — validates
+      stop_token_ids / logprob_token_ids against vocab size so out-of-vocab
+      ids no longer OOB the V2 Triton bias kernel and crash the worker.
+  PN110:
+    role: defensive
+    note: |
+      BlockPool.free_blocks deduplication (vllm#42615) — de-dups by
+      id(block) so a double-freed KVCacheBlock (sliding-window + offload
+      race) cannot double-decrement ref_cnt or corrupt the free list.
+  PN126:
+    role: defensive
+    bench_evidence: "TTFT spike 5-25s on first decode without warmup (gold qwen3.6-27b attribution)"
+    note: |
+      V1 decode + spec-decode kernel warmup orchestrator — pre-JITs decode
+      kernels at boot to remove first-request JIT spikes. Boot-only cost.
+      Same role + evidence the gold attributes for this shared patch.
+  # NOTE: the 19 G4_* family patches in this config (G4_01/03/12 refusal
+  # guards; G4_04/09/11/14/16/23/25 fixes; G4_08/18 deep fixes; G4_67 TQ
+  # route; and the disabled G4_02/13/15/24/06/17) are intentionally NOT
+  # attributed here — schema_v2._check_patch_id rejects non-P*/PN* keys.
+  # Their role + caveats live in the inline comments above the `patches:`
+  # block, which is where the gemma4 family is self-documented.

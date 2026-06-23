@@ -105,6 +105,22 @@ package_versions:
     SNDR_DEV_INSTALL_RUNTIME_DEPS=1 is set inside the container (otherwise
     the wheel-baked runtime stack is used).
 
+# B10 (2026-06-22 schema field): generic escape hatch for raw vLLM CLI
+# flags this config needs but that compose.py does NOT already derive from
+# a structured field. compose.py emits each `--flag value` pair (value '' →
+# bare flag). Keys MUST start with `--`. Schema type is a MAP {flag: value},
+# NOT a list — an empty list `[]` fails ModelDef.validate() (`.items()`).
+# Empty by design here: every runtime flag this model needs is already
+# derived from a dedicated, semantics-carrying field —
+#   • --chat-template            ← chat_template (bind-mounted, line 42)
+#   • --override-generation-config ← override_generation_config (lines 48-51)
+#   • --tool-call-parser / --reasoning-parser / spec-decode / KV-dtype
+#                                ← capabilities (lines 54-63)
+#   • all GENESIS_* patch envs   ← patches matrix below
+# so nothing needs the raw pass-through. Add an entry only for a one-off
+# vLLM CLI flag with no structured home (then re-render the launcher).
+extra_vllm_flags: {}
+
 # ─── Canonical patches matrix (52 entries) ─────────────────────────────
 patches:
   # ── Spec-decode + structured-output safety net ──

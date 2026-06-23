@@ -144,6 +144,37 @@ patches:
   # cost (no 35B regression even when on). Padded region self-cancels.
   GENESIS_ENABLE_PN_FP8MOE_KPAD: '1'
 
+# ─── patches_attribution — INTENTIONALLY OMITTED (schema-blocked) ──────
+# The gold reference (qwen3.6-27b-int4-autoround-tq-k8v4.yaml) carries a
+# `patches_attribution:` map keyed by canonical registry patch ID (P67,
+# PN17, …). That map CANNOT be expressed for this model: the schema key
+# validator `_check_patch_id` (sndr/model_configs/schema_v2.py:71) enforces
+# the regex `^P[N]?[0-9]+[A-Za-z0-9_]*$`, which requires a digit
+# immediately after `P`/`PN`. THIS model's only two patches have canonical
+# registry IDs `G4_26` (starts with `G`) and `PN-FP8MOE-KPAD` (no digit
+# after `PN`) — both are REJECTED by that regex. Verified 2026-06-23:
+# constructing patches_attribution['G4_26'] raises
+#   SchemaError: patches_attribution['G4_26']='G4_26' must match pattern
+#   P[N]?\d+[A-Za-z0-9_]* (e.g. P67, P67b, PN119, PN16_V6).
+# So adding an attribution block here would FAIL ModelDef.validate() (it
+# would break the clean-audit invariant). Using a regex-mangled key would
+# break the registry cross-reference contract _check_patch_id exists to
+# enforce, and would not be a real attribution. The per-patch role +
+# evidence therefore live in the inline comments on the `patches:` block
+# above (both classify as load_bearing — the model does NOT boot/serve
+# coherently at TP=2 with either flag OFF; see reference_metrics + the
+# header RENDER-PATH GAPS block). Evidence basis, per patch:
+#   • G4_26          → registry category=correctness, family=gemma4,
+#                      backport of OPEN vllm PR #45774 (TP-vocab all-gather).
+#                      Gold-equivalent role: load_bearing (removal → engine
+#                      init crash "reduction dim mismatch" at TP=2).
+#   • PN-FP8MOE-KPAD → registry category=kernel, family=quantization.marlin,
+#                      backport of OPEN vllm#45703 (FP8 MoE tile pad).
+#                      Gold-equivalent role: load_bearing (removal → engine
+#                      init crash "Invalid thread config MKN=[16384,352,2816]").
+# RE-ENABLE this block ONLY after the schema regex is widened to accept
+# `G4_*` / hyphenated registry IDs (a separate, reviewed schema change).
+
 # ─── Reference metrics (coherent-serve receipt; speed pending) ─────────
 # Not a formal canonical baseline JSON (versions.reference_metrics_ref is
 # null). This is the qualitative validation receipt for the TP=2 config.
@@ -167,3 +198,41 @@ compose_hints:
   attention_arch: gemma4_moe
   drafter_method: null      # NO drafter — block diffusion, not spec-decode
   drafter_id: null
+
+# ─── extra_vllm_flags — raw vLLM CLI escape hatch (empty by design) ────
+# Generic pass-through map `{--flag: value}` (compose() emits each as
+# `--flag value`, or bare `--flag` for an empty-string value). Schema type
+# is dict[str,str] (schema_v2.py:349) — an empty MAP `{}` is the no-op form,
+# NOT an empty list. Empty here on purpose: every flag this model needs is
+# already derived from the structured fields above (model_path, dtype,
+# capabilities, requires) or documented in the header RENDER-PATH GAPS block
+# as an operator hand-add the V2 render path cannot yet express
+# (--enforce-eager, --generation-config vllm, the explicit Genesis apply
+# step, DiffusionGemma-specific system_env). Those are deliberately NOT
+# placed here because they require render semantics (eager sizing, a
+# different generation flag, an in-container apply step) that a plain
+# `--flag value` pass-through cannot carry. Add a raw flag here only when it
+# is a true one-off pass-through with no special render handling.
+extra_vllm_flags: {}
+
+notes:
+  - "DiffusionGemma 26B-A4B-it FP8-dynamic — block-diffusion text model
+    (NOT autoregressive). 128-expert MoE, A≈4B active params; HF arch
+    DiffusionGemmaForBlockDiffusion, compressed-tensors FP8-dynamic. Status:
+    🧪 Experimental."
+  - "Hardware: 2× A5000 (24 GB, Ampere SM 8.6), TP=2. Pin dev148
+    (0.23.1rc1.dev148+gb4c80ec0f), promoted 2026-06-19; dev101 = rollback.
+    Headline behaviour: TP=2 COHERENT serve validated (2026-06-17 on dev101,
+    re-confirmed drift-clean on dev148 2026-06-19). Speed PENDING — block
+    diffusion has no autoregressive per-token decode loop, so AR decode-TPOT
+    is N/A; throughput must be measured per generated block by a
+    block-diffusion-aware harness (not yet wired)."
+  - "Both Genesis flags below are default-OFF experimental in the registry
+    and are opted-in here ON PURPOSE: the model does NOT boot / serve
+    coherently at TP=2 without them. G4_26 = TP vocab-shard all-gather
+    (vllm#45774, correctness); PN-FP8MOE-KPAD = FP8 MoE N=352 tile-pad
+    (vllm#45703, kernel). Both classify load_bearing — see the patches block."
+  - "Render path is `sndr profile render-launchers diffusiongemma-tp2`
+    (profile diffusiongemma-tp2 → parent_model this ModelDef), NOT a
+    `preset`/`model-config` config. Four operator hand-adds are still
+    required after render — see the RENDER-PATH GAPS block in the header."

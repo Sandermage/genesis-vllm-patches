@@ -65,6 +65,30 @@ versions:
     and the trimmed patch needs a dflash boot+bench cycle)."
   reference_metrics_ref: null                    # no JSON baseline yet. dev371 quick bench (n=25): decode_TPOT 12.71 ms mean (CV 25.1%), TTFT 133.6 ms mean, wall_TPS 67.2 mean. Receipt: sndr_private/planning/bench_results/2026-05-21/P2_DFLASH_M4_RETRY4_M2f_PASS_2026-05-21_RU.md. NOT a formal canonical baseline — full sustained-methodology cycle still pending.
 
+# ─── Raw vLLM CLI escape hatch (B10, 2026-06-22) ───────────────────────
+# `extra_vllm_flags` is the generic pass-through for raw vLLM CLI flags
+# that are NOT derived from any other field in this config. compose()
+# emits each `{--flag: value}` entry as `--flag value` (empty-string
+# value → bare flag) into cfg.vllm_extra_args. The targeted fields above
+# (chat_template, override_generation_config) stay separate because they
+# carry extra render semantics (host mount / JSON encoding); plain
+# pass-through flags belong here. EMPTY BY DESIGN on this DFlash config —
+# every flag it needs is already derived from capabilities / requires /
+# patches, so there is nothing to add. NOTE: the schema type is
+# `dict[str, str]` (keys MUST start with `--`), so the empty value is the
+# empty MAPPING `{}` — not an empty list `[]`, which would crash
+# ModelDef.validate() / compose() (both call `.items()` on this field).
+extra_vllm_flags: {}
+
+# package_versions: INTENTIONALLY ABSENT on this config. The field defaults
+# to None and is forwarded verbatim into the composed V1 ModelConfig
+# (compose.py:657), so declaring it would change cfg.package_versions from
+# None to a populated block — a behavior change, not documentation. The TQ
+# sister (qwen3.6-27b-int4-autoround-tq-k8v4.yaml) DOES pin pandas/scipy/
+# xxhash because its V1 PROD predecessor carried those pins; this DFlash
+# ModelDef never did. Leave absent until a DFlash boot+bench cycle proves a
+# concrete runtime-dep need, then add it as a deliberate, validated change.
+
 # ─── Canonical patches matrix (30 entries) ─────────────────────────────
 # DFlash family with TQ kernel optimizations dropped (no TQ KV here).
 patches:

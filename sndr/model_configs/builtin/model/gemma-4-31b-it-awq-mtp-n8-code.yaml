@@ -79,13 +79,19 @@ patches:
   # ── Vision tower management (operator choice) ──
   GENESIS_ENABLE_G4_17_GEMMA4_VISION_SKIP: '0'
   # ── Genesis G4 TurboQuant KV cache wrapper-stack (256K unlock) ──
-  GENESIS_ENABLE_G4_19_GEMMA4_TURBOQUANT_KV: '1'             # vector-quant KV
-  GENESIS_ENABLE_G4_19B_GEMMA4_TQ_KV_SPEC: '1'               # memory accounting
+  # NOTE: this config runs kv_cache_dtype=auto (see capabilities above), so
+  # the TQ KV path is NOT the active KV backend. G4_19/G4_19B and the
+  # PN116/PN118/PN119 TQ-kernel patches below are mirrored from the default
+  # profile for matrix parity but self-gate to no-op under auto KV; G4_31 is
+  # the live exception (it guards the auto→fp8 KV override). See
+  # patches_attribution for the per-patch no_op rationale.
+  GENESIS_ENABLE_G4_19_GEMMA4_TURBOQUANT_KV: '1'             # vector-quant KV (TQ path only; no-op under auto KV)
+  GENESIS_ENABLE_G4_19B_GEMMA4_TQ_KV_SPEC: '1'               # memory accounting (TQ path only; no-op under auto KV)
   # Phase 7.G4.31B-MODELDEF.G4_19C-DEFAULT-OFF (2026-05-23):
   # mirrored from gemma-4-31b-it-awq.yaml — default '1' → '0' until
   # the Lloyd-Max codebook quality regression is resolved.
   GENESIS_ENABLE_G4_19C_ATTN_WRAP: '0'                       # round-trip wrapper OFF (codebook quality regression pending)
-  GENESIS_ENABLE_G4_31_TQ_DTYPE_PRESERVE: '1'                # AWQ kv_cache_scheme guard
+  GENESIS_ENABLE_G4_31_TQ_DTYPE_PRESERVE: '1'                # AWQ kv_cache_scheme guard — LIVE under auto KV: prevents vLLM silently rewriting kv_cache_dtype 'auto'→'fp8' from the AWQ checkpoint's kv_cache_scheme (G4_31 Arm 2)
   # ── PR #40914 backport — TQ K+1 spec-verify cudagraph fix ──
   GENESIS_ENABLE_G4_67_TQ_SPEC_VERIFY_ROUTE: '1'             # MORE relevant here: K=8 amplifies cudagraph stress
   # ── Qwen-applicable patches (MTP/general-purpose) ──
@@ -106,3 +112,126 @@ compose_hints:
   drafter_method: mtp
   drafter_id: gemma4-31b-assistant
   workload_hint: code
+
+# Escape hatch for raw vLLM CLI flags that are NOT derived from any field
+# above (model_path/quantization/dtype/capabilities/patches all map to flags
+# automatically). Empty by design: this config needs no out-of-band flag — the
+# MTP K=8 profile differs from the default profile only by
+# num_speculative_tokens, which the composer already emits from
+# capabilities.spec_decode. Keys (when present) must start with `--` and map
+# to string values (schema B10).
+extra_vllm_flags: {}
+
+notes:
+  - "Gemma 4 31B-it AWQ-4bit dense, MTP K=8 CODE profile. Sister to the
+    mtp_n4_default profile (gemma-4-31b-it-awq.yaml); the ONLY behavioural
+    delta is num_speculative_tokens 8 vs 4. Same checkpoint, same patch
+    matrix, same chat template."
+  - "Headline behaviour: MTP K=8 trades narrative for code throughput.
+    club-3090 public A/B (2× RTX 3090, 250W PCIe): 101/142 TPS @ K=8 =
+    code +9% / narrative -3% vs K=4. Use this profile ONLY for code/agent
+    endpoints; route prose/chat traffic to the K=4 default profile."
+  - "Hardware: 1× Ampere SM 8.6 minimum (min_cuda_capability [8,6],
+    min_total_vram_mib 30000 — ~14 GiB weights + ~8 GiB KV + larger draft
+    scratch for K=8). The 2× A5000 reference rig is NOT yet bench-validated
+    for this K=8 profile (status: Experimental); pending an A/B vs the K=4
+    sister. last_validated 2026-05-17 reflects matrix/structure review, not
+    a throughput receipt — reference_metrics_ref is null by design."
+  - "KV path is kv_cache_dtype=auto (NOT turboquant). The TurboQuant
+    wrapper-stack patches in the matrix (G4_19/G4_19B/G4_31/G4_67 and the
+    PN116/PN118/PN119 TQ-kernel patches) are mirrored verbatim from the
+    default profile for matrix parity; under auto KV their TQ decode/prefill
+    code paths are not instantiated, so most self-gate to no-op here. G4_31
+    is the exception that stays live (see its attribution note)."
+
+# ── patches_attribution ────────────────────────────────────────────────
+# Keyed by registry patch ID (P[N]?\d+ pattern — the schema rejects G4_*
+# keys, so Gemma-specific guards are documented inline in the patches: block
+# above, not here; same constraint the gold qwen3.6-27b reference observes).
+# Roles use the shared taxonomy: load_bearing | defensive | optional_perf |
+# suspected_regression | no_op | unknown. Evidence derived from each patch's
+# PATCH_REGISTRY entry (category + doc) and, where the same patch appears in
+# qwen3.6-27b-int4-autoround-tq-k8v4.yaml, that gold file's classification.
+# Entries cover the ENABLED P*/PN* patches; the TQ-kernel ones are marked
+# no_op (tentative) because this config runs kv_cache_dtype=auto.
+patches_attribution:
+  PN33:
+    role: defensive
+    note: |
+      K-aware MTP spec-decode warmup (registry: spec_decode; vllm#37521
+      extended to MTP). Pre-sizes eagle_prepare_* JIT shapes at boot so the
+      first request does not eat a kernel-compile spike. MORE relevant at
+      K=8 than at the default K=4 — the draft loop runs 8 candidate tokens,
+      so more spec-decode kernel variants need warming.
+  PN35:
+    role: defensive
+    note: |
+      Skip the inputs_embeds buffer for text-only requests (registry:
+      perf_hotfix; vllm#35975 backport). Gemma 4 is a vision-capable
+      checkpoint, so the skip only fires on the text-only path; defensive
+      rather than load_bearing because the saving is a small per-step buffer,
+      not a throughput driver, and the vision path is unaffected.
+  PN116:
+    role: no_op
+    note: |
+      tentative: TurboQuant prefill max_seq_len fallback (registry:
+      perf_hotfix; vllm#41434 regression fix). Patches
+      TurboQuantImpl.forward, which is only constructed on the
+      kv_cache_dtype=turboquant_* path. This config runs kv_cache_dtype=auto,
+      so the patched prefill code is not instantiated and the patch self-gates
+      to no-op. Kept in the matrix for parity with the default/TQ profiles.
+  PN118:
+    role: no_op
+    note: |
+      tentative: TurboQuant workspace graceful-fallback (registry: stability;
+      vllm#42551, P99-compatible). Guards the TQ decode WorkspaceManager grow
+      path; not exercised under kv_cache_dtype=auto where the TQ workspace is
+      not allocated. Harmless insurance mirrored from the default profile.
+  PN119:
+    role: no_op
+    note: |
+      tentative: TurboQuant k8v4 GQA head-grouping decode kernel (registry:
+      kernel_perf; vllm#40792). Only dispatched inside
+      triton_turboquant_decode_attention on the TQ KV path; with
+      kv_cache_dtype=auto that kernel is never selected, so no throughput
+      effect here. On the TQ-KV sister profiles this is a measured perf win
+      (+16.5-27.2% upstream on GQA-ratio 8); inert for this auto-KV config.
+  PN286:
+    role: defensive
+    note: |
+      FlashAttention KV-layout revert for Ampere SM 8.6 (registry:
+      perf_hotfix; closes #42095 MTP regression). Self-skips on non-SM-8.6
+      hardware. Defensive on this MTP path — protects the FA KV layout the
+      drafter+target share; no claimed win on this dense/auto-KV config.
+  P108:
+    role: defensive
+    note: |
+      MTP draft-loop stream synchronization (registry: spec_decode;
+      vllm#42603). Inserts a defensive stream sync around
+      LLMBaseProposer.propose() to close a cudaErrorIllegalAddress race
+      between the draft buffer writes and the FlashInfer attention kernels.
+      Registry P108 is a default_on defensive_overlay (backend-gated to the
+      FlashInfer family with operator override) — a pure correctness guard
+      with no throughput headline, which is why it is classified defensive.
+      Relevant on every MTP path, including this K=8 profile.
+  P109:
+    role: defensive
+    note: |
+      sampling_params vocab-range validators (registry: stability;
+      vllm#42614). Rejects out-of-range token ids before they reach the
+      sampler; pure guard, no throughput effect.
+  PN110:
+    role: defensive
+    note: |
+      BlockPool.free_blocks deduplication (registry: stability; vllm#42615).
+      Prevents a double-free of KV blocks in the V1 block pool; correctness
+      guard, no throughput effect.
+  PN126:
+    role: defensive
+    bench_evidence: "boot-only warmup; without it first-request TTFT eats a 5-25s JIT spike (gold 27B reference figure for the same patch)"
+    note: |
+      V1 decode + spec-decode kernel warmup orchestrator (registry:
+      perf_hotfix; Genesis-original). Pre-JITs decode/spec-decode kernels at
+      boot. Arch-agnostic, so it applies on this Gemma dense/auto-KV path the
+      same as on the TQ profiles. One-time boot cost, zero steady-state
+      overhead.

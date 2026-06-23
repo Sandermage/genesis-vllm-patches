@@ -149,6 +149,140 @@ patches:
   GENESIS_ENABLE_PN119: '0'               # Gemma 4 doesn't use upstream TQ — N/A on wrapper path
   GENESIS_ENABLE_PN126_V1_DECODE_WARMUP: '1'              # V1 decode + spec-decode warmup at boot (TTFT CV drop). no-op on this model: applies_to excludes it (bug-hunt D16); applies_to is the SoT
 
+# ─── extra_vllm_flags — raw vLLM CLI escape hatch ──────────────────────
+# B10 generic pass-through: a {flag: value} map (keys MUST start with `--`)
+# that compose() emits verbatim as `--flag value` AFTER the config-derived
+# args. Use ONLY for raw vLLM flags this layered config does not already
+# derive (dtype / quantization / chat-template / spec-decode / KV-dtype all
+# come from the fields above, NOT from here). Empty by design: this Gemma 4
+# ModelDef needs no out-of-band flags — every launch arg is composed from
+# the typed fields. Keep `{}` unless a genuinely un-modeled flag is needed.
+extra_vllm_flags: {}
+
+# ─── notes — operator-facing summary ───────────────────────────────────
+# Free-form list forwarded onto the composed ModelConfig for `sndr
+# model-config show` / `--explain`. Same convention as the 27B gold file.
+notes:
+  - "Gemma 4 31B-it AWQ-4bit (cyankiwi, compressed-tensors) on 2x A5000
+    (SM 8.6) at TP=2; also runs single-card A6000 48 GB. dtype=BF16 (AWQ
+    Marlin canonical on Ampere), quantization auto-detected from CT
+    metadata. Dense gemma4 attention (interleaved sliding+global+p-RoPE)."
+  - "Genesis G4_NN family carries the Gemma 4 enablement: Ampere refuse-
+    guards (G4_01/03/12/13), prefill chunker for >4K (G4_09), enhanced
+    chat-template install (G4_11), tool-call pad-strip (G4_14), vision
+    BF16 overflow fix (G4_23), FULL_AND_PIECEWISE cudagraph (G4_16), and
+    the G4-TurboQuant VQ KV stack (G4_19/19B/31) that unlocks 256K
+    context. G4_19C round-trip wrapper is OFF (codebook quality
+    regression pending)."
+  - "Status: experimental — bench figures are projected (~80-100 TPS dense
+    decode, MTP K=3); server validation pending (promote to Production
+    after verify-full + 5x5 n=25 + soak PASS). MTP is workload-conditional:
+    the default-role profile leaves spec_decode unset; the structured K=4
+    sibling profile carries the speculation workload. See the
+    GEMMA4_MTP_MODELDEF_MIGRATION_AUDIT_2026-05-20 record."
+
+# ── patches_attribution — structured rationale keyed by registry patch ID ─
+# Same taxonomy + house style as the 27B gold file
+# (qwen3.6-27b-int4-autoround-tq-k8v4.yaml). Roles:
+#   load_bearing  → measurable regression / breakage on removal (note req)
+#   defensive     → guard / correctness net, no perf headline
+#   optional_perf → throughput/memory win, opt-in (bench_evidence req)
+#   suspected_regression → kept OFF, removal-on-evidence (note req)
+#   no_op         → applies_to excludes this model OR self-skips here
+# Evidence per entry: PATCH_REGISTRY category/title + this config's own
+# per-line comments + the gold file's classification of shared patches.
+# Tentative roles are flagged "tentative:" rather than over-claiming.
+#
+# SCOPE: keys MUST match the schema_v2 patch-ID regex P[N]?\d+[A-Za-z0-9_]*
+# (validated by _check_patch_id). The Gemma-specific G4_* patches do NOT
+# match that pattern, so they CANNOT be attribution keys (same constraint
+# the gold file lives under — it attributes only P*/PN* ids). The G4_*
+# rationale therefore lives in the per-line patch comments above + the
+# `notes` block; only the P*/PN* patches are keyed below.
+patches_attribution:
+  # ── #41190 TP>1 + MTP D2H race guard — Gemma-ONLY (dense, NOT GDN) ──
+  PN290:
+    role: defensive
+    note: |
+      Forces the num_accepted_tokens.gpu D2H copy blocking so a TP=2 NCCL
+      collective cannot recycle the source tensor mid-flight (vllm#41190
+      IllegalAddress on TP>1 + MTP + multi-conc). Gemma 4 is DENSE, so the
+      Qwen-side PN341 GDN rewrite does NOT apply -> PN290 is the actual
+      guard here. Blocking-D2H is inherently crash-safe (validated dev491).
+  # ── Spec-decode / general-purpose (shared with qwen) ──
+  PN33:
+    role: defensive
+    note: |
+      MTP K-aware spec-decode warmup sizing (vllm#37521, extended to MTP/
+      ngram) — pre-sizes warmup so eagle_prepare_* JIT spikes do not hit
+      the first request. Registry PN33 is a lifecycle=stable correctness
+      fix (category spec_decode, default_on) that EXTENDS upstream #37521
+      beyond its use_eagle() gate to cover all spec-decode methods
+      (EAGLE/MTP/ngram/draft-model); disabling it carries real correctness
+      risk on the MTP/ngram paths, which is why it is classified defensive.
+  PN35:
+    role: defensive
+    note: |
+      Skips the inputs_embeds buffer for text-only models (vllm#35975).
+      Small boot-path saving; applies broadly (registry applies_to=None).
+      tentative: classified defensive (perf_hotfix category, no headline
+      bench number on this config).
+  P108:
+    role: defensive
+    note: |
+      MTP draft-loop stream synchronization (vllm#42603) — defensive sync
+      against a cudaErrorIllegalAddress race in the draft propose loop.
+      Gated to spec-decode methods (mtp/eagle/dflash); active under MTP.
+  P109:
+    role: defensive
+    note: |
+      sampling_params vocab-range validators (vllm#42614) — sampler safety
+      net. Same defensive role as on the 27B gold config.
+  PN110:
+    role: defensive
+    note: |
+      BlockPool.free_blocks deduplication (vllm#42615). Correctness/
+      stability net, no perf headline. INERT on the current pin: registry
+      applies_to caps it at vllm_version_range (>=0.20.0, <0.23.0), and
+      this config's vllm_pin_required is 0.23.1rc1.dev148 — above the
+      range — so PN110 self-skips at runtime here. Classification kept
+      defensive; the entry is retained for provenance and older-pin
+      rollback (it engages only on a <0.23.0 pin).
+  PN286:
+    role: defensive
+    note: |
+      FA KV-cache layout revert for Ampere SM 8.6 (closes #42095 MTP K=3
+      regression). Self-skips non-SM-8.6 hardware; on this 2x A5000 (8.6)
+      rig it is active. tentative: 27B notes it as in-TQ-group no-op on
+      that path, but Gemma here is on the dense FA path so it engages.
+  # ── No-op on THIS model (applies_to excludes it) ──
+  PN116:
+    role: no_op
+    note: |
+      TurboQuant prefill max_seq_len fallback (vllm#41434). Registry
+      applies_to={is_turboquant: True}; this Gemma config rides the G4_19
+      wrapper, NOT upstream TQ, so it is a no-op here (per the config
+      line: applies_to is the source of truth).
+  PN118:
+    role: no_op
+    note: |
+      TurboQuant workspace graceful-fallback (vllm#42551). Same
+      is_turboquant gate as PN116 -> no-op on this wrapper-path Gemma
+      config (applies_to is the source of truth).
+  PN119:
+    role: no_op
+    note: |
+      TurboQuant k8v4 GQA head-grouping kernel (vllm#40792). DISABLED (=0)
+      AND not applicable: Gemma 4 does not use upstream TQ (wrapper path),
+      so it is N/A here regardless of the flag.
+  PN126:
+    role: no_op
+    note: |
+      V1 decode + spec-decode kernel warmup orchestrator. Registry
+      applies_to lists Qwen3.5/3.6 archs, NOT gemma4, so it is a no-op on
+      this model (applies_to is the source of truth; the boot-time TTFT-CV
+      benefit it gives the 27B does not reach this config).
+
 # ─── Composition hints for the V1 ModelConfig compose() ────────────────
 compose_hints:
   family: gemma4

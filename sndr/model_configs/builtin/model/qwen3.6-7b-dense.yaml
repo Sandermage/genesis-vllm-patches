@@ -73,7 +73,23 @@ notes:
 # ── patches_attribution (Phase D backfill, 2026-05-16) ─────────────────
 # DENSE-only minimal baseline. The patches dict has only
 # GENESIS_OBSERVABILITY which is a *parameter* (not a toggle) — by
-# design it sits outside the attribution domain. Empty map is the
-# honest representation: this model exists to demonstrate the DENSE
-# Path A profile, not to ship a curated patch stack.
+# design it sits outside the attribution domain (it is NOT in
+# PATCH_REGISTRY, so there is no registry category/doc to attribute
+# from). Empty map is the honest representation: this model exists to
+# demonstrate the DENSE Path A profile, not to ship a curated patch
+# stack. Contrast with the GOLD reference
+# qwen3.6-27b-int4-autoround-tq-k8v4.yaml, whose patch matrix carries
+# 77 GENESIS_ENABLE_* toggles (69 enabled) backed by a 10-entry keyed
+# attribution block (load_bearing / defensive / etc.).
 patches_attribution: {}
+
+# ── extra_vllm_flags (escape hatch) ────────────────────────────────────
+# Generic pass-through for raw vLLM CLI flags that are NOT derived from
+# any other field in this config (schema_v2 B10, 2026-06-22). Schema type
+# is a {flag: value} MAP, not a list — each `--flag: value` pair is
+# emitted by compose() into cfg.vllm_extra_args; an empty-string value
+# emits a bare flag. Empty `{}` by design here: the DENSE Path A
+# community example needs nothing beyond the flags the composer already
+# derives from capabilities + sizing + patches. Keys MUST start with
+# `--`. (Note: the field is a dict, so the empty value is `{}`, not `[]`.)
+extra_vllm_flags: {}
