@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Daemon bridge to the SNDR license / sndr_engine tier status.
 
-Surfaces, read-only, what the licensing layer in ``vllm.sndr_core.license``
+Surfaces, read-only, what the licensing layer in ``sndr.license``
 already computes: whether the commercial ``vllm.sndr_engine`` overlay is
 installed, whether a valid Ed25519-signed license entitles the engine tier, the
 customer/expiry/tier from the token, and how many engine-tier patches that

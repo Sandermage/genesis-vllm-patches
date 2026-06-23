@@ -36,9 +36,9 @@ Usage:
     # Render to launch script (env block + vllm serve command)
     print(p.to_launch_script(model_path="/models/qwen3.6-27b"))
 
-CLI: `python3 -m vllm.sndr_core.compat.presets list`
-     `python3 -m vllm.sndr_core.compat.presets show a5000-2x-balanced`
-     `python3 -m vllm.sndr_core.compat.presets match --gpu rtx_a5000 --n-gpus 2 --workload balanced`
+CLI: `python3 -m sndr.compat.presets list`
+     `python3 -m sndr.compat.presets show a5000-2x-balanced`
+     `python3 -m sndr.compat.presets match --gpu rtx_a5000 --n-gpus 2 --workload balanced`
 
 Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
 """
@@ -970,7 +970,7 @@ def auto_match() -> Optional[Preset]:
 
 
 # ════════════════════════════════════════════════════════════════════
-# CLI: python3 -m vllm.sndr_core.compat.presets {list, show, match}
+# CLI: python3 -m sndr.compat.presets {list, show, match}
 # ════════════════════════════════════════════════════════════════════
 
 
@@ -1157,7 +1157,7 @@ def _cmd_auto(args: argparse.Namespace) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="python3 -m vllm.sndr_core.compat.presets",
+        prog="python3 -m sndr.compat.presets",
         description=(
             "Genesis curated preset matrix — "
             "(gpu × workload) → launch bundle"

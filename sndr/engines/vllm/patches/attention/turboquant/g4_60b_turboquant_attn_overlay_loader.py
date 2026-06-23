@@ -47,7 +47,7 @@ HOW TO BIND-MOUNT
 In launch script:
 
 ```bash
-OVL=${GENESIS_REPO}/vllm/sndr_core/integrations/attention/turboquant/overlays/pr42637
+OVL=${GENESIS_REPO}/sndr/engines/vllm/patches/attention/turboquant/overlays/pr42637
 docker run \
   -v ${OVL}/turboquant_attn.py:/usr/local/lib/python3.12/dist-packages/vllm/v1/attention/backends/turboquant_attn.py:ro \
   -v ${OVL}/triton_turboquant_decode.py:/usr/local/lib/python3.12/dist-packages/vllm/v1/attention/ops/triton_turboquant_decode.py:ro \

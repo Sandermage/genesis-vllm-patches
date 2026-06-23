@@ -2,9 +2,9 @@
 """Genesis doctor — single-command unified diagnostic.
 
 Usage:
-  python3 -m vllm.sndr_core.compat.doctor
-  python3 -m vllm.sndr_core.compat.doctor --json
-  python3 -m vllm.sndr_core.compat.doctor --explain PN14
+  python3 -m sndr.compat.doctor
+  python3 -m sndr.compat.doctor --json
+  python3 -m sndr.compat.doctor --explain PN14
 
 Sections:
   1. Hardware            — GPUs, compute capabilities
@@ -906,7 +906,7 @@ def collect_report(*, full: bool = False) -> dict[str, Any]:
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
-        prog="python3 -m vllm.sndr_core.compat.doctor",
+        prog="python3 -m sndr.compat.doctor",
         description="Genesis unified diagnostic — hardware + software + model "
                     "+ patches + validator + lifecycle.",
     )

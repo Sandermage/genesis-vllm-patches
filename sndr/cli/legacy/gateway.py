@@ -3,7 +3,7 @@
 
 Equivalent to:
 
-    python -m vllm.sndr_core.integrations.spec_decode.gateway
+    python -m sndr.engines.vllm.patches.spec_decode.gateway
 
 with operator-friendly argparse flags that map 1:1 onto the SNDR_GATEWAY_*
 env surface the gateway already reads.
@@ -14,7 +14,7 @@ What this wrapper does (intentionally narrow):
   * Lazy-import the gateway module (no FastAPI / uvicorn / httpx import
     at CLI registration time, so `sndr --help` and `sndr gateway --help`
     stay torch/vllm/uvicorn-free)
-  * Call ``vllm.sndr_core.integrations.spec_decode.gateway.app.main()``
+  * Call ``sndr.engines.vllm.patches.spec_decode.gateway.app.main()``
 
 What it does NOT do:
 
@@ -41,7 +41,7 @@ __all__ = ["add_argparser", "run_gateway"]
 
 
 # CLI flag → SNDR_GATEWAY_* env var name. Maps directly onto the env
-# surface documented in vllm/sndr_core/integrations/spec_decode/gateway/app.py
+# surface documented in sndr/engines/vllm/patches/spec_decode/gateway/app.py
 # (and the gateway README). Both the SNDR_* canonical and the legacy
 # GENESIS_GATEWAY_* aliases are read by the gateway via `get_sndr_env`;
 # this wrapper sets the SNDR_* canonical form.
@@ -63,7 +63,7 @@ def add_argparser(subparsers: Any) -> None:
         help="Run the SNDR spec-decode gateway (FastAPI reverse proxy).",
         description=(
             "Thin wrapper around "
-            "`python -m vllm.sndr_core.integrations.spec_decode.gateway`. "
+            "`python -m sndr.engines.vllm.patches.spec_decode.gateway`. "
             "CLI flags map onto SNDR_GATEWAY_* env vars 1:1. Flags "
             "override pre-existing env for the lifetime of this "
             "invocation."

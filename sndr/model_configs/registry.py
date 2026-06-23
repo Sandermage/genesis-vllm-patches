@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Registry — discover ModelConfigs from builtin/, community/, user/ dirs.
 
-Builtin (`vllm/sndr_core/model_configs/builtin/*.yaml`) ships with
+Builtin (`sndr/model_configs/builtin/*.yaml`) ships with
 the patcher. Community (`community/*.yaml`) is PR'd and reviewed.
 User (`~/.sndr/model_configs/*.yaml` or `$SNDR_MODEL_CONFIG_DIR`) is
 operator-local, never committed. Legacy `GENESIS_*` paths remain as

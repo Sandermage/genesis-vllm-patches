@@ -2,7 +2,7 @@
 """SNDR Core — resolve_vllm_file() forwarding.
 
 v10 (2026-05-07): canonical impl now lives at
-`vllm.sndr_core.detection.guards.resolve_vllm_file` — `vllm._genesis.guards`
+`sndr.engines.vllm.detection.guards.resolve_vllm_file` — `vllm._genesis.guards`
 is a sys.modules redirect to that module. The wiring tests monkey-patch
 `guards.vllm_install_root` and expect `resolve_vllm_file()` to honor
 the patch — which still works because both module names resolve to the

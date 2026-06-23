@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Pure-API layer for ``sndr patches prove`` — M.6.2.
 
-Wraps the artefact-writer in :mod:`vllm.sndr_core.proof` so non-CLI
+Wraps the artefact-writer in :mod:`sndr.proof` so non-CLI
 callers (tests, SDK) can run the static-check sweep with explicit
 parametrisation. Write paths are guarded by ``no_write`` — when ``True``
 the API performs the checks only, never touches the filesystem.
@@ -22,7 +22,7 @@ class ProveOneResult:
     check failed (we never persist "patch not found" as evidence).
     """
 
-    proof: Any  # vllm.sndr_core.proof.PatchProof
+    proof: Any  # sndr.proof.PatchProof
     artefact_path: Optional[Path]
     static_passed: bool
 

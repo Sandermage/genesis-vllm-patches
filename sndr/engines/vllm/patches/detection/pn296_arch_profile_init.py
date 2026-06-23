@@ -18,7 +18,7 @@ Genesis already has many env vars (e.g. `VLLM_MARLIN_FP32_REDUCE=0`)
 that operators must set MANUALLY in launcher to compensate. This patch:
 
 1. Detects the actual GPU at boot via
-   `vllm.sndr_core.detection.gpu_arch_profile.get_gpu_arch_profile()`.
+   `sndr.detection.gpu_arch_profile.get_gpu_arch_profile()`.
 
 2. Logs the full profile (1 line, easy to grep in operator logs).
 

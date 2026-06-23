@@ -49,4 +49,4 @@ def __getattr__(name: str):
     if name == "router_softmax":
         from sndr.engines.vllm.kernels_legacy.router_softmax import router_softmax as _fn
         return _fn
-    raise AttributeError(f"module 'vllm.sndr_core.kernels' has no attribute {name!r}")
+    raise AttributeError(f"module 'sndr.engines.vllm.kernels_legacy' has no attribute {name!r}")

@@ -461,7 +461,7 @@ def _format_plugin(plugin: dict[str, Any]) -> list[str]:
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
-        prog="python3 -m vllm.sndr_core.compat.plugins",
+        prog="python3 -m sndr.compat.plugins",
         description="Manage Genesis community plugin entry-points.",
     )
     sub = parser.add_subparsers(dest="cmd", required=True)

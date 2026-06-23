@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """C2 (UNIFIED_CONFIG plan 2026-05-09) — `sndr deps` subcommand trio.
 
-Wires the Tier 2 `vllm.sndr_core.deps` package (P3) to the user-facing
+Wires the Tier 2 `sndr.deps` package (P3) to the user-facing
 CLI. No install side effects in this module — `check` and `plan` are
 pure inspection; `--write-report` writes JSON+MD to a destination dir
 but never modifies the host's runtime stack.

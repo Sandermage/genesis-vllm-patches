@@ -29,10 +29,10 @@ from .verify import verify_live_rebinds  # noqa: F401
 # was the all-in-one entry. Tests historically did
 # `from sndr.apply import register_patch, run, ...`
 # After Stage-3 split + PR38 _genesis removal, the same symbols live on
-# `vllm.sndr_core.apply` (this package). Tests now import from here, but
+# `sndr.apply` (this package). Tests now import from here, but
 # some still reach for an `apply_all` *attribute* (the legacy module
 # object). Expose this package itself as `apply_all` so that pattern
-# keeps working — `getattr(vllm.sndr_core.apply, "apply_all")` returns
+# keeps working — `getattr(sndr.apply, "apply_all")` returns
 # this module, and `from sndr.apply import apply_all` rebinds
 # it as a local name.
 apply_all = _sys.modules[__name__]
@@ -55,7 +55,7 @@ def __getattr__(name):
         if hasattr(_per_patch_dispatch, name):
             return getattr(_per_patch_dispatch, name)
     raise AttributeError(
-        f"module 'vllm.sndr_core.apply' has no attribute {name!r}"
+        f"module 'sndr.apply' has no attribute {name!r}"
     )
 
 

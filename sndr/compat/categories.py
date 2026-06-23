@@ -12,9 +12,9 @@ is no separate manual table that could drift. Adding `category=...` to a
 new patch entry automatically makes it discoverable here.
 
 Also exposes a CLI:
-  python3 -m vllm.sndr_core.compat.categories
-  python3 -m vllm.sndr_core.compat.categories --category spec_decode
-  python3 -m vllm.sndr_core.compat.categories --json
+  python3 -m sndr.compat.categories
+  python3 -m sndr.compat.categories --category spec_decode
+  python3 -m sndr.compat.categories --json
 
 This is the **navigation surface for Phase 2** of the Compat Layer
 overhaul. The physical disk reorganization (moving wiring/patch_*.py
@@ -318,7 +318,7 @@ def _format_text(cats: dict[str, list[str]],
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
-        prog="python3 -m vllm.sndr_core.compat.categories",
+        prog="python3 -m sndr.compat.categories",
         description="Browse Genesis patches by category.",
     )
     parser.add_argument("--category", default=None,

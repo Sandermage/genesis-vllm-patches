@@ -1,14 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Genesis explain — `python3 -m vllm.sndr_core.compat.explain <patch_id>`.
+"""Genesis explain — `python3 -m sndr.compat.explain <patch_id>`.
 
 Produces a structured per-patch report — what the patch is, what it does,
 when it engages, what it depends on / conflicts with, what the upstream
 status is, and whether it would APPLY on the current system right now.
 
 Usage:
-  python3 -m vllm.sndr_core.compat.explain PN14
-  python3 -m vllm.sndr_core.compat.explain P67 --json
-  python3 -m vllm.sndr_core.compat.explain --list
+  python3 -m sndr.compat.explain PN14
+  python3 -m sndr.compat.explain P67 --json
+  python3 -m sndr.compat.explain --list
 
 This is the per-patch counterpart of `genesis doctor` — doctor shows
 the whole forest, explain zooms into one tree.
@@ -193,7 +193,7 @@ def format_explain_text(report: dict[str, Any]) -> list[str]:
         L.append(f"✗ {report['error']}")
         if "available_count" in report:
             L.append(f"  ({report['available_count']} patches in registry — "
-                     f"run `python3 -m vllm.sndr_core.compat.doctor` for the list)")
+                     f"run `python3 -m sndr.compat.doctor` for the list)")
         L.append("=" * 72)
         return L
 
@@ -319,13 +319,13 @@ def _list_patches() -> int:
         cat = meta.get("category", "—")
         print(f"  {pid:<8} [{cat:<22}] {title[:35]}")
     print("─" * 72)
-    print("Detail: python3 -m vllm.sndr_core.compat.explain <patch_id>")
+    print("Detail: python3 -m sndr.compat.explain <patch_id>")
     return 0
 
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
-        prog="python3 -m vllm.sndr_core.compat.explain",
+        prog="python3 -m sndr.compat.explain",
         description="Per-patch detailed explanation — what does this Genesis "
                     "patch do, when does it engage, what does it depend on?",
     )

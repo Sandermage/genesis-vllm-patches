@@ -31,7 +31,7 @@ from typing import Any, Optional
 log = logging.getLogger("genesis.pn95")
 
 _LOCK = threading.Lock()
-_TM: Optional[Any] = None  # vllm.sndr_core.cache.tier_manager.TierManager
+_TM: Optional[Any] = None  # sndr.cache.tier_manager.TierManager
 _LAST_GROUP_IDS_BY_HASH: dict = {}  # cleared on reset_for_tests
 
 

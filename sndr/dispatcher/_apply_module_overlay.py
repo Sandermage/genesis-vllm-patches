@@ -23,7 +23,7 @@ from typing import Any
 # 127 patches that today live in the monolithic legacy dispatcher.
 # When Stage 6 migrates a patch out, update its entry here (or
 # re-generate via `python3 scripts/discover_apply_modules.py --emit-py
-# vllm/sndr_core/dispatcher/_apply_module_overlay.py`).
+# sndr/dispatcher/_apply_module_overlay.py`).
 APPLY_MODULE_OVERLAY: dict[str, str] = {
     pid: "sndr.apply._per_patch_dispatch"
     for pid in (
@@ -54,7 +54,7 @@ APPLY_MODULE_OVERLAY: dict[str, str] = {
 
 
 def _has_integration_tree_module(patch_id: str) -> bool:
-    """Return True iff `vllm/sndr_core/integrations/<family>/<file>.py`
+    """Return True iff `sndr/engines/vllm/patches/<family>/<file>.py`
     exists for this patch. The auto-discovery in
     `dispatcher.spec._build_apply_module_map` will resolve that path —
     we MUST NOT shadow it with the generic legacy module.
@@ -66,7 +66,7 @@ def _has_integration_tree_module(patch_id: str) -> bool:
     """
     from pathlib import Path
     # parents[0]=dispatcher, [1]=sndr, [2]=repo-root; the wiring tree is the
-    # repo-root vllm/sndr_core/integrations/ shim tree (same anchor as
+    # repo-root sndr/engines/vllm/patches/ tree (same anchor as
     # dispatcher.spec._resolve_patches_dir / compat.categories._WIRING_DIR).
     integrations_dir = (
         Path(__file__).resolve().parents[2] / "sndr" / "engines" / "vllm" / "patches"

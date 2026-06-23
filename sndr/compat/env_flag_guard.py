@@ -181,7 +181,7 @@ def assert_no_typos(strict: bool | None = None) -> int:
 
 
 def main():
-    """CLI entry — `python -m vllm.sndr_core.compat.env_flag_guard`."""
+    """CLI entry — `python -m sndr.compat.env_flag_guard`."""
     n = assert_no_typos(strict=False)
     if n == 0:
         print("✓ Genesis env-flag guard: no typos detected")

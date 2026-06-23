@@ -1888,7 +1888,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "HF repos (froggeric / Sandermage / club-3090) and the "
             "operator had to know where to look and copy the .jinja by "
             "hand. PN127 bakes the enhanced template as a Genesis asset "
-            "(vllm/sndr_core/assets/chat_templates/qwen3.6_enhanced.jinja) "
+            "(sndr/assets/chat_templates/qwen3.6_enhanced.jinja) "
             "and at apply() copies it into a writable location "
             "(/tmp/genesis/chat_templates/ or GENESIS_CHAT_TEMPLATE_DIR). "
             "The operator receives the canonical path through a log line "
@@ -4987,7 +4987,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         # v11.3.0 bug fix: was tier="engine" which silently disabled the
         # patch on every boot via `_check_tier_gate` requiring the
         # commercial sndr_engine package. But the implementation lives
-        # at vllm/sndr_core/observability/genesis_process_info.py (public
+        # at sndr/observability/genesis_process_info.py (public
         # sndr_core, Apache 2.0, Genesis-original 2026-05-30 per credit
         # field below). It is community-tier code; tier="engine" was a
         # registry-side mistake that broke §6.H10 enterprise
@@ -7027,7 +7027,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "intrinsic limits (verified identical residual on dev371 "
             "base pin), NOT parser bugs. NOT a Genesis runtime patch "
             "— deployed entirely via the launcher's docker `-v` mount "
-            "of vllm/sndr_core/integrations/tool_parsing/"
+            "of sndr/engines/vllm/patches/tool_parsing/"
             "g4_t1_gemma4_tool_parser_pr42006_overlay.py over "
             "vllm/tool_parsers/gemma4_tool_parser.py. apply_module is "
             "the vendored file itself; the registry entry exists so "
@@ -7174,7 +7174,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "credit": (
             "Genesis-original Sprint 4 closure 2026-05-09 — deep fix for "
             "london_think failure class. Per-request stateful truncator "
-            "(vllm/sndr_core/middleware/think_streaming_truncator.py) wraps "
+            "(sndr/engines/vllm/middleware/think_streaming_truncator.py) wraps "
             "OpenAIServingChat.chat_completion_stream_generator via "
             "class-rebind. When a request has tools attached AND "
             "GENESIS_PN16_MAX_THINKING_STREAM_TOKENS > 0, counts "
@@ -8824,7 +8824,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
     # tool-call-parser pad-token (#39392), vision-tower text-only,
     # FP16 overflow (#40124), perf kernels (fused RMSNorm + softcap),
     # FULL_AND_PIECEWISE cudagraph mode parallel to PN125.
-    # Family: gemma4, location: vllm/sndr_core/integrations/gemma4/
+    # Family: gemma4, location: sndr/engines/vllm/patches/model_compat/gemma4/
     "G4_01": {
         "title": "Refuse FP8_BLOCK Gemma 4 checkpoint on Ampere SM 8.6 (closes vllm#39407 user pain)",
         "tier": "community",
@@ -9902,7 +9902,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "`_g4_19c_roundtrip_tensor` via torch.library.custom_op with a fake-"
             "tensor meta — see https://pytorch.org/tutorials/advanced/custom_ops"
             "_landing_page.html. P7b's import-time-cached opaque-op pattern is "
-            "the reference (vllm/sndr_core/integrations/attention/gdn/p7b_*.py). "
+            "the reference (sndr/engines/vllm/patches/attention/gdn/p7b_*.py). "
             "Until then, the TQ KV cache contract for gemma4 is INCOMPLETE on "
             "the hot path — TQ allocation happens (G4_19) and memory accounting "
             "is correct (G4_19B) but actual K/V round-tripping does not engage. "
@@ -10733,7 +10733,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "source": "genesis_original",
         "apply_module": "sndr.engines.vllm.patches.attention.turboquant.g4_68_tq_spec_cg_downgrade_overlay",
         "lifecycle": "experimental",
-        "credit": "Genesis-original verifier for the P65 v2 cudagraph downgrade inlined directly into the PR #42637 overlay file (vllm/sndr_core/integrations/attention/turboquant/overlays/pr42637/turboquant_attn.py). Stock P65 cannot apply because the overlay is bind-mounted read-only, so P65 v2 logic was inlined as `TurboQuantMetadataBuilder.get_cudagraph_support` classmethod returning AttentionCGSupport.UNIFORM_SINGLE_TOKEN_DECODE when speculative_config is active. G4_68 verifies the inline marker is present at boot and reports applied/error/skipped to the dispatcher. Companion to PN256 raw-K/V continuation route (also inlined in overlay). Restores target correctness for Gemma 4 + TurboQuant + MTP under default CUDA graph mode, but does NOT recover MTP speedup (acceptance remains 0% — see H8 follow-up). Diagnostic chain PN253-PN257a, 2026-05-18.",
+        "credit": "Genesis-original verifier for the P65 v2 cudagraph downgrade inlined directly into the PR #42637 overlay file (sndr/engines/vllm/patches/attention/turboquant/overlays/pr42637/turboquant_attn.py). Stock P65 cannot apply because the overlay is bind-mounted read-only, so P65 v2 logic was inlined as `TurboQuantMetadataBuilder.get_cudagraph_support` classmethod returning AttentionCGSupport.UNIFORM_SINGLE_TOKEN_DECODE when speculative_config is active. G4_68 verifies the inline marker is present at boot and reports applied/error/skipped to the dispatcher. Companion to PN256 raw-K/V continuation route (also inlined in overlay). Restores target correctness for Gemma 4 + TurboQuant + MTP under default CUDA graph mode, but does NOT recover MTP speedup (acceptance remains 0% — see H8 follow-up). Diagnostic chain PN253-PN257a, 2026-05-18.",
         "upstream_pr": None,
         "requires_patches": ["G4_60B"],
         "conflicts_with": [],
@@ -10839,7 +10839,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
 # ─── Legacy-register patch index (Entry 17 §6.8 P-2 documentation) ────
 # `_apply_module_overlay.APPLY_MODULE_OVERLAY` is the index of 127
 # patches that today still live in the monolithic
-# `vllm/sndr_core/apply/_per_patch_dispatch.py`. The patches-prove gate
+# `sndr/apply/_per_patch_dispatch.py`. The patches-prove gate
 # (§6.8 rule P-2) consults `apply._state.PATCH_REGISTRY` for legacy
 # register membership — Phase 10 migration moves each patch into
 # `integrations/<family>/<patch>.py`, and the integration-tree walk in

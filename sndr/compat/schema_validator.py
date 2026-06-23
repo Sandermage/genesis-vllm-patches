@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Genesis schema validator — `python3 -m vllm.sndr_core.compat.schema_validator`.
+"""Genesis schema validator — `python3 -m sndr.compat.schema_validator`.
 
 Validates each `PATCH_REGISTRY` entry against
 `schemas/patch_entry.schema.json`. Catches typos, missing required
@@ -389,7 +389,7 @@ def _format_issues(issues: list[SchemaIssue]) -> list[str]:
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
-        prog="python3 -m vllm.sndr_core.compat.schema_validator",
+        prog="python3 -m sndr.compat.schema_validator",
         description="Validate PATCH_REGISTRY against "
                     "schemas/patch_entry.schema.json",
     )

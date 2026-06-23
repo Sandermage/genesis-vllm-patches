@@ -227,7 +227,7 @@ def _container_command(cfg) -> list[str]:
 
     Etap 2.1 (audit 2026-05-12): previously compose/quadlet/k8s had
     independent command builders that diverged from bare-metal. Now
-    they all go through `vllm.sndr_core.model_configs.runtime_command`.
+    they all go through `sndr.model_configs.runtime_command`.
     """
     from sndr.model_configs.runtime_command import (
         build_runtime_command,

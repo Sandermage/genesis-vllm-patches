@@ -45,7 +45,7 @@ PN95_STATUS_HINTS: tuple[tuple[Callable[[dict[str, Any]], bool], str, str], ...]
         "warn",
         "Zero scheduler ticks recorded. Likely SITE5 anchor missed the "
         "vllm Scheduler.schedule() entry — re-apply via "
-        "`python3 -m vllm.sndr_core.apply` after a fresh container boot.",
+        "`python3 -m sndr.apply` after a fresh container boot.",
     ),
     (
         lambda s: s["ticks_pressure_check"] > 0

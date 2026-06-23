@@ -10,7 +10,7 @@
 # in their env matrix.
 #
 # Operator workflow:
-#   cd vllm/sndr_core/integrations/spec_decode/gateway/deploy
+#   cd sndr/engines/vllm/patches/spec_decode/gateway/deploy
 #   docker compose up -d default          # production posture: default alone
 #   curl http://localhost:8101/v1/models  # direct, no gateway
 #   docker compose up -d                  # add structured + gateway
@@ -107,7 +107,7 @@ services:
       VLLM_LOGGING_LEVEL: WARNING
       VLLM_ALLOW_LONG_MAX_MODEL_LEN: "1"
       # β′-A K=4 validated structured profile.
-      # Match keys with vllm/sndr_core/integrations/spec_decode/artifacts/
+      # Match keys with sndr/engines/vllm/patches/spec_decode/artifacts/
       # gemma4-31b-tq-mtp-structured-k4.json so guard verdict =
       # FUNCTIONALLY_VALIDATED.
       SNDR_ENABLE_G4_60A_TQ_SLIDING_SPEC: "1"

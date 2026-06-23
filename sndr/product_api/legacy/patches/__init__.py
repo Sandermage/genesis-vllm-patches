@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """``product_api.patches`` — pure-Python data layer for the ``sndr patches``
-CLI surface. See :mod:`vllm.sndr_core.product_api` for the package contract.
+CLI surface. See :mod:`sndr.product_api` for the package contract.
 
 M.6.1 ships read-only queries (listing, explain, doctor, diff-upstream,
 bundles). Later phases extend with proof / plan / pn95 helpers (M.6.2-3).

@@ -15,7 +15,7 @@ The v7.62.20 design installed only via `setattr(chunk_mod, ...)` from
 `vllm serve` (e.g. via the genesis_vllm_plugin entry point). But it
 DIES on the entrypoint pattern:
 
-    python3 -m vllm.sndr_core.apply       # apply runs in shell process
+    python3 -m sndr.apply       # apply runs in shell process
     exec vllm serve "$@"                          # exec REPLACES the process
 
 `exec` discards the Python state. The setattr is gone. Workers spawn
@@ -425,10 +425,10 @@ _P103_SELF_INSTALL_BLOCK = (
     "# at module-import time so the chunked-h wrapper survives any startup\n"
     "# mechanism: `exec vllm serve` from an entrypoint shell, worker\n"
     "# spawn, etc. The v7.62.20 setattr-only path died on the entrypoint\n"
-    "# pattern (`python3 -m vllm.sndr_core.apply && exec\n"
+    "# pattern (`python3 -m sndr.apply && exec\n"
     "# vllm serve`). See club-3090#19 finding 2 (2026-05-02).\n"
     "#\n"
-    "# Lazy import — if vllm.sndr_core isn't on sys.path (test env, partial\n"
+    "# Lazy import — if sndr isn't on sys.path (test env, partial\n"
     "# install), the try/except keeps chunk.py importable.\n"
     "try:\n"
     "    import os as _genesis_p103_os\n"

@@ -5,7 +5,7 @@ Sibling of PN248 (acceptance log trace). PN282 wraps the same Python
 orchestration function — ``vllm.v1.sample.rejection_sampler.rejection_sample``
 — but instead of writing a heavyweight log file it increments three
 Prometheus counters / gauge defined in
-``vllm.sndr_core.observability.spec_decode_metrics``:
+``sndr.observability.spec_decode_metrics``:
 
   sndr_spec_decode_accepted_per_call_total{k, profile}
   sndr_spec_decode_calls_total{profile}

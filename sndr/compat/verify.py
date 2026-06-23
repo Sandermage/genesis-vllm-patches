@@ -230,7 +230,7 @@ def _check_apply_all_importable() -> CheckResult:
         return CheckResult(
             "C3 apply package importable",
             PASS,
-            "vllm.sndr_core.apply imports OK",
+            "sndr.apply imports OK",
         )
     except ImportError as e:
         return CheckResult(
@@ -502,7 +502,7 @@ def _check_p103_self_install_hook() -> CheckResult:
         FAIL,
         "GENESIS_ENABLE_P103=1 but self-install hook absent from chunk.py",
         hint=(
-            "Run `python3 -m vllm.sndr_core.apply` once to "
+            "Run `python3 -m sndr.apply` once to "
             "install the hook. P103 will fail to fire in vllm workers "
             "without it."
         ),
@@ -651,7 +651,7 @@ def render_report(report: VerifyReport, *, verbose: bool = False) -> str:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="python3 -m vllm.sndr_core.compat.verify",
+        prog="python3 -m sndr.compat.verify",
         description="Genesis post-install smoke test",
     )
     g = parser.add_mutually_exclusive_group()

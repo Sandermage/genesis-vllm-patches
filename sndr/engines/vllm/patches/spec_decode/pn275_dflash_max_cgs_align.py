@@ -260,7 +260,7 @@ _PN275_SELF_INSTALL_BLOCK = (
     "# compilation_config.max_cudagraph_capture_size aligned with\n"
     "# max(cudagraph_capture_sizes) — dev371 cross-validator compat.\n"
     "# Survives any startup mechanism (exec vllm serve, worker spawn).\n"
-    "# Lazy import — if vllm.sndr_core isn't on sys.path (test env,\n"
+    "# Lazy import — if sndr isn't on sys.path (test env,\n"
     "# partial install), the try/except keeps this module importable.\n"
     "try:\n"
     "    import os as _genesis_pn275_os\n"

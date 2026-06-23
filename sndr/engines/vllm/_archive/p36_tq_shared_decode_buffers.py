@@ -103,7 +103,7 @@ def ensure_pool_registered() -> None:
     text patch is applied.
 
     The real TQ shared decode buffers are owned by
-    vllm.sndr_core.kernels.dequant_buffer.TurboQuantBufferManager via
+    sndr.engines.vllm.kernels_legacy.dequant_buffer.TurboQuantBufferManager via
     GenesisPreallocBuffer.get_or_create — that path is untouched.
 
     TurboQuantBufferManager hosts 11 internal sub-pools. The largest

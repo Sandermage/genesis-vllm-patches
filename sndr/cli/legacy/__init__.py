@@ -7,7 +7,7 @@ Subcommands surface (DA-006 audit closure 2026-05-08):
     sndr install [--dry-run] [-y] [--channel ...]   — setup wizard
     sndr launch [config_key] [--dry-run] [--port]   — render + apply + exec
 
-  Bridged from `vllm.sndr_core.compat.cli` (lazy-imported on first use):
+  Bridged from `sndr.compat.cli` (lazy-imported on first use):
     sndr doctor               — diagnostic / health-check
     sndr verify               — post-apply rebind verification
     sndr self-test            — structural sanity (matches CI gate)
@@ -37,7 +37,7 @@ compat module get imported. This keeps `sndr --help` cold-import-fast
 even though `compat.cli` pulls in heavier modules.
 
 Entry points:
-  python -m vllm.sndr_core.cli ...   # always works
+  python -m sndr.cli.legacy ...      # always works
   sndr ...                            # when installed via pip with console_scripts
 """
 from __future__ import annotations
@@ -94,7 +94,7 @@ __all__ = ["cli_main"]
 
 # Map of bridged subcommand → compat.cli subcommand name.
 # Entries here register a stub argparser that, on dispatch, delegates
-# to `vllm.sndr_core.compat.cli` with the original argv.
+# to `sndr.compat.cli` with the original argv.
 _BRIDGED: dict[str, str] = {
     "doctor": "doctor",
     "verify": "verify",
@@ -115,7 +115,7 @@ _BRIDGED: dict[str, str] = {
     # CONFIG-UX.3 (2026-05-24): `preset` graduated from bridged stub to
     # native CLI module (`cli/preset.py`). The compat.cli `preset`
     # subcommand remains reachable via direct invocation
-    # (`python -m vllm.sndr_core.compat.cli preset ...`) for back-compat,
+    # (`python -m sndr.compat.cli preset ...`) for back-compat,
     # but `sndr preset` now resolves to the native CLI.
     "init": "init",
     "pull": "pull",
@@ -140,13 +140,13 @@ def _add_bridged_argparser(subparsers, name: str, compat_cmd: str) -> None:
     """Register a stub argparser for a bridged subcommand."""
     p = subparsers.add_parser(
         name,
-        help=f"(bridged) → vllm.sndr_core.compat.cli {compat_cmd}",
+        help=f"(bridged) → sndr.compat.cli {compat_cmd}",
         description=(
             f"Bridged subcommand. Delegates to "
-            f"`vllm.sndr_core.compat.cli {compat_cmd}` — pass any "
+            f"`sndr.compat.cli {compat_cmd}` — pass any "
             f"flags/args after `sndr {name}` and they are forwarded "
             "verbatim. For full help, run "
-            f"`python -m vllm.sndr_core.compat.cli {compat_cmd} --help`."
+            f"`python -m sndr.compat.cli {compat_cmd} --help`."
         ),
         # Disable add_help so `--help` falls through to compat.cli.
         add_help=False,

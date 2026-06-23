@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Pure-API layer for ``sndr patches bench-attach`` — M.6.2.
 
-Thin wrapper over :func:`vllm.sndr_core.proof.bench_attach.attach_bench`
+Thin wrapper over :func:`sndr.proof.bench_attach.attach_bench`
 that returns a typed result with the post-write ``bench_delta`` dict
 loaded from the artefact. The underlying ``attach_bench`` raises
 ``BenchAttachError`` on operator-visible failure; this module re-exports
@@ -47,7 +47,7 @@ def attach_bench(
     """Attach ``bench_path`` (and optional ``baseline_path``) to the
     proof artefact for ``patch_id``.
 
-    Raises :class:`vllm.sndr_core.proof.bench_attach.BenchAttachError`
+    Raises :class:`sndr.proof.bench_attach.BenchAttachError`
     on operator-visible failure (missing file, unrecognised shape, etc.).
     """
     from sndr.proof import DEFAULT_PROOF_DIR, load_proof_artefact

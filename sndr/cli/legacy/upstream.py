@@ -230,7 +230,7 @@ def run_list(args: argparse.Namespace) -> int:
     print("sndr upstream list — KNOWN_GOOD_VLLM_PINS")
     print("─" * 50)
     if not allowlist:
-        print("  (allowlist empty — vllm.sndr_core.detection.guards not importable)")
+        print("  (allowlist empty — sndr.engines.vllm.detection.guards not importable)")
         return 0
     running = _running_pin()
     for i, pin in enumerate(allowlist):

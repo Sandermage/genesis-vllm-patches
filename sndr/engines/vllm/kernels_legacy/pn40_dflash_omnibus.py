@@ -829,7 +829,7 @@ def auto_disable_sub_kernel_for_method(
     log.warning(
         "[PN40 auto-disable] sub-%s disabled for %s: %s. Other spec methods "
         "unaffected. Manual reset via "
-        "vllm.sndr_core.kernels.pn40_dflash_omnibus.reset_auto_disable() "
+        "sndr.engines.vllm.kernels_legacy.pn40_dflash_omnibus.reset_auto_disable() "
         "to re-engage all.",
         sub_name, spec_method, reason,
     )

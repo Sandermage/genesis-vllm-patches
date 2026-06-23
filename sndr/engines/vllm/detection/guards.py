@@ -898,7 +898,7 @@ def genesis_no_patch_cache() -> bool:
 # monkey-patch contract requires both functions to share THIS module's
 # attribute lookup so test mocks affect both.
 #
-# vllm.sndr_core.locations.vllm_install AND vllm.sndr_core.locations.resolver
+# sndr.engines.vllm.locations.vllm_install AND sndr.engines.vllm.locations.resolver
 # remain as canonical-name re-exports OF the impls below. Import
 # `from sndr.engines.vllm.locations import resolve_vllm_file` continues to
 # work transparently. Test mocks against `guards.vllm_install_root`

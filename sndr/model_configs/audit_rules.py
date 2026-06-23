@@ -625,7 +625,7 @@ def _check_env_keys_exist(cfg) -> Optional[str]:
         known_flags.update(meta.get("env_flag_aliases") or ())
 
     # Tunable knobs (vs patch-enable flags) live in their own registry —
-    # see `vllm/sndr_core/runtime_tunables.py::TUNABLE_KNOBS` for the
+    # see `sndr/runtime_tunables.py::TUNABLE_KNOBS` for the
     # canonical list with type / default / doc per knob.
     from sndr.runtime_tunables import is_known_tunable
 

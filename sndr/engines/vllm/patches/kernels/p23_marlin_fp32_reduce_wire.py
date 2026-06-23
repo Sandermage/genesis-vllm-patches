@@ -7,7 +7,7 @@ decision — never propagated it into the live kernel. As a result the
 env override was inert at runtime even with all conditions met.
 
 This wire-apply landed 2026-06-04 after P23/P29 deep study confirmed:
-- Genesis env reader works correctly (`vllm/sndr_core/kernels/marlin_fp32_reduce.py`)
+- Genesis env reader works correctly (`sndr/engines/vllm/kernels_legacy/marlin_fp32_reduce.py`)
 - Platform guard correctly disables on SM 9.0+ (Hopper has native FP32 TCs)
 - BUT upstream `marlin_utils.py:36` `USE_FP32_REDUCE_DEFAULT = True` was
   module-level constant + `marlin_moe.py:158, 217` hardcoded the arg.

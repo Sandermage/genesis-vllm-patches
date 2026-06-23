@@ -38,7 +38,7 @@ init with the bare ``ValueError`` (no fallback search runs when an
 explicit backend was requested).
 
 The PR #42637 overlay file
-``vllm/sndr_core/integrations/attention/turboquant/overlays/pr42637/
+``sndr/engines/vllm/patches/attention/turboquant/overlays/pr42637/
 turboquant_attn.py`` (lines 221-223) adds the missing override
 explicitly. The β'-A hand-launcher bind-mounts that file at
 container start so the overlay class wins. The V2 compose path

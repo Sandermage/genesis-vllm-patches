@@ -14,7 +14,7 @@
 # │ from the legacy to the canonical name, this alias YAML can be    │
 # │ retired (separate cleanup task).                                  │
 # │                                                                   │
-# │ Canonical version: vllm/sndr_core/cache/pn95/tier_configs/       │
+# │ Canonical version: sndr/cache/pn95/tier_configs/                 │
 # │                    a5000-1x-pn95-long-ctx.yaml                   │
 # └──────────────────────────────────────────────────────────────────┘
 

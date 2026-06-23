@@ -22,7 +22,7 @@ bash ~/start_g4_betaA_k1.sh 4
 export GENESIS_GATEWAY_DEFAULT_URL=http://localhost:8101
 export GENESIS_GATEWAY_STRUCTURED_URL=http://localhost:8102
 export GENESIS_GATEWAY_PROFILE=gemma4-31b-tq-mtp-structured-k4
-python -m vllm.sndr_core.integrations.spec_decode.gateway
+python -m sndr.engines.vllm.patches.spec_decode.gateway
 
 # Terminal 4 — verify routing
 curl -X POST http://localhost:8100/v1/chat/completions \

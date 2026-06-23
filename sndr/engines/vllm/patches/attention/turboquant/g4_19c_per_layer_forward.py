@@ -60,7 +60,7 @@ _READ_FN: Optional[Callable] = None
 _BLOCK_SIZE: int = 128
 
 # Set True in ``setup()`` iff
-# ``vllm.sndr_core.kernels.g4_19c_roundtrip_customop._register_op_once()``
+# ``sndr.engines.vllm.kernels_legacy.g4_19c_roundtrip_customop._register_op_once()``
 # successfully registers ``torch.ops.genesis.g4_19c_roundtrip``. When
 # True, the hot-path dispatcher below routes through that opaque op,
 # giving Dynamo a proper ``fake_impl`` for FakeTensor shape inference

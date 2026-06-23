@@ -23,7 +23,7 @@ Verbs for the plan's §6.H trace surface:
 
 H6 surfaces the operator-facing question "what diagnostic traces exist
 and which are currently being written?" via the catalog at
-``vllm.sndr_core.observability.trace_catalog``. ``--container <name>``
+``sndr.observability.trace_catalog``. ``--container <name>``
 runs ``docker exec ls -l`` against the container's ``/tmp/`` and joins
 the result with the catalog so the output shows which traces are
 actually present and how big they are.
@@ -669,7 +669,7 @@ def summarize_generic(path: str, max_preview: int = 160) -> dict:
 
 
 # Pattern for the boot-log entries written by `python3 -m
-# vllm.sndr_core.apply`. Each line ends with `<PATCH_ID>: <STATUS>`
+# sndr.apply`. Each line ends with `<PATCH_ID>: <STATUS>`
 # (status ∈ {applied, skipped, failed}); flexible whitespace and
 # optional bracketed prefix `[Genesis]` tolerated.
 _BOOT_ENTRY_RE = re.compile(
@@ -725,7 +725,7 @@ def summarize_boot_log(path: str, max_preview: int = 160) -> dict:
 
 
 # PN248 trace format anchors. See
-# vllm/sndr_core/integrations/spec_decode/probes/pn248_acceptance_trace.py
+# sndr/engines/vllm/patches/spec_decode/probes/pn248_acceptance_trace.py
 # for the producer side; format is stable across patch versions.
 #
 # ENTER:   `[PN248 call=<N>] ENTER ... num_draft_tokens=[<a>, <b>, ...] ...`

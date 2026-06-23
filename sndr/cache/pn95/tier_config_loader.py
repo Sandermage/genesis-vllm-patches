@@ -4,7 +4,7 @@
 Background — V1→V2 architectural unblock (2026-06-01):
 
 Before this module, PN95 hooks loaded its tier_specs by calling the
-V1 ModelConfig loader (`vllm.sndr_core.model_configs.registry.get`)
+V1 ModelConfig loader (`sndr.model_configs.registry.get`)
 on a fully-populated V1 YAML that carried 100+ lines of launch args
 + hardware + tool-call config in addition to the `cache_config` block
 PN95 actually needed. That coupling blocked the V1 sunset of
@@ -14,10 +14,10 @@ PN95 actually needed. That coupling blocked the V1 sunset of
 This module separates concerns:
 
   - V2 deployment config (model + hardware + profile triplet) lives
-    in `vllm/sndr_core/model_configs/builtin/presets/example-2x-tier-
+    in `sndr/model_configs/builtin/presets/example-2x-tier-
     aware.yaml` etc.
   - PN95 tier_specs (the data PN95 actually reads at runtime) lives
-    in `vllm/sndr_core/cache/pn95/tier_configs/<key>.yaml`.
+    in `sndr/cache/pn95/tier_configs/<key>.yaml`.
 
 Resolution order in `hooks.py:lazy_init`:
 

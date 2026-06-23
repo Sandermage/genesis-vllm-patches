@@ -2,9 +2,9 @@
 PN95 stats JSON file as Prometheus text-exposition metrics.
 
 Usage:
-    python3 -m vllm.sndr_core.cli.pn95_prometheus
-    python3 -m vllm.sndr_core.cli.pn95_prometheus --port 9192 --path /tmp/pn95_stats.json
-    python3 -m vllm.sndr_core.cli.pn95_prometheus --once  # one-shot stdout dump
+    python3 -m sndr.cli.legacy.pn95_prometheus
+    python3 -m sndr.cli.legacy.pn95_prometheus --port 9192 --path /tmp/pn95_stats.json
+    python3 -m sndr.cli.legacy.pn95_prometheus --once  # one-shot stdout dump
 
 Pulls stats from the JSON dump that the in-process scheduler tick
 writes every GENESIS_PN95_STATS_INTERVAL ticks (default ~100). Refreshes

@@ -13,7 +13,7 @@ condition matrix:
 
 The registry is **source of truth** here in code. Per-config additions
 live in `cache_config.runtime_caveats` (NOT YET WIRED — Tier 4 future
-item). The matcher pulls host facts from `vllm.sndr_core.deps.checkers`.
+item). The matcher pulls host facts from `sndr.deps.checkers`.
 
 Public API:
   - `KNOWN_CAVEATS` — tuple of `Caveat` instances
@@ -36,7 +36,7 @@ class Caveat:
     """One known runtime condition + its match predicate.
 
     `match_fn(facts)` returns True iff the caveat applies. `facts` is
-    a dict — typically the output of `vllm.sndr_core.deps.checkers
+    a dict — typically the output of `sndr.deps.checkers
     .inspect_host()` augmented with operator-supplied keys (config_key,
     enabled_patches, etc.).
     """

@@ -54,7 +54,7 @@ def _env_path(*names: str) -> Optional[Path]:
 
 
 def _package_root() -> Path:
-    """Return absolute path to `vllm/sndr_core/` itself (this package).
+    """Return absolute path to `sndr/engines/vllm/` itself (this package).
 
     Used by other helpers to derive sibling paths like
     `vllm/sndr_core/integrations/` (v10 canonical) or the legacy
@@ -67,7 +67,7 @@ def _vllm_namespace_root() -> Path:
     """Return absolute path to `vllm/` (the namespace package parent).
 
     Examples:
-      `_package_root()`         → /repo/vllm/sndr_core
+      `_package_root()`         → /repo/sndr/engines/vllm
       `_vllm_namespace_root()`  → /repo/vllm
     """
     return _package_root().parent
@@ -445,7 +445,7 @@ def emit_env_shell(prefix: str = "GENESIS") -> str:
     """Render canonical path values as a sourcable shell snippet.
 
     Operator workflow (audit F-013 closure 2026-05-11):
-      1. Run `python3 -m vllm.sndr_core.locations.project_paths --emit-env > ~/.genesis_paths.env`
+      1. Run `python3 -m sndr.engines.vllm.locations.project_paths --emit-env > ~/.genesis_paths.env`
       2. In start-scripts: `source ~/.genesis_paths.env` BEFORE launching docker
       3. Docker mounts read the same canonical values:
            -v "${GENESIS_MODELS_DIR}":/models:ro

@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://github.com/Sandermage/genesis-vllm-patches/blob/main/vllm/sndr_core/cli/routing_schema.json",
+  "$id": "https://github.com/Sandermage/genesis-vllm-patches/blob/main/sndr/cli/legacy/routing_schema.json",
   "title": "Genesis Workload-Gate Routing Table",
   "description": "Contract emitted by `sndr routing-table --json`. Read by external callers (aggregators, proxies) at startup to dispatch incoming requests to the correct preset based on workload class, output length, concurrency mode, and model family. Schema v1 frozen 2026-05-23 by Phase 7.G4.WORKLOAD-GATE-POLICY.IMPLEMENT.",
   "type": "object",

@@ -4,10 +4,10 @@
 Reads a preset's Y7 `bootstrap` block + Y2 `package_sources` and orchestrates
 the install steps per declared scope. Composes:
 
-  - `vllm.sndr_core.deps.inspect_host()`     — what's already there
-  - `vllm.sndr_core.deps.plan_changes()`     — what needs to change
-  - `vllm.sndr_core.deps.sources.resolve_source()` — pick channel
-  - `vllm.sndr_core.deps.installers.apply()` — run installs (with safety)
+  - `sndr.deps.inspect_host()`     — what's already there
+  - `sndr.deps.plan_changes()`     — what needs to change
+  - `sndr.deps.sources.resolve_source()` — pick channel
+  - `sndr.deps.installers.apply()` — run installs (with safety)
 
 Subcommands:
   sndr bootstrap doctor <key>               — read-only diagnostic

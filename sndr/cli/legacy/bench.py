@@ -6,7 +6,7 @@ A/B harness. Phase 6 adds a structured `sndr bench` parent with:
 
   sndr bench validate <result.json> [--methodology <yaml>] [--json]
       Verify that a bench artefact JSON carries every mandatory field
-      named in `vllm/sndr_core/tools/bench_methodology.yaml`, matches the methodology
+      named in `sndr/extras/tools/bench_methodology.yaml`, matches the methodology
       fingerprint, and respects the warmup/measure/CV protocol.
       Exit 0 on pass, 1 on validation errors, 2 on internal errors.
 
@@ -59,7 +59,7 @@ def add_argparser(subparsers: Any) -> None:
         help="Validate a bench result JSON against the methodology contract (Phase 6).",
         description=(
             "Verify that a bench artefact JSON carries every mandatory field "
-            "named in `vllm/sndr_core/tools/bench_methodology.yaml`, matches the methodology "
+            "named in `sndr/extras/tools/bench_methodology.yaml`, matches the methodology "
             "fingerprint, and respects the warmup/measure/CV protocol."
         ),
     )
@@ -93,7 +93,7 @@ def load_methodology(path: Optional[Path] = None) -> dict:
 
     Wave 10 path resolution:
       1. Explicit `path` argument wins if provided.
-      2. Canonical: vllm/sndr_core/tools/bench_methodology.yaml.
+      2. Canonical: sndr/extras/tools/bench_methodology.yaml.
       3. Operator-side fallback: <repo-root>/tools/bench_methodology.yaml
          (legacy location for dev checkouts where the file was not yet
          moved into the package).
@@ -109,8 +109,8 @@ def load_methodology(path: Optional[Path] = None) -> dict:
     if not fp.is_file():
         raise FileNotFoundError(
             f"methodology file not found: {fp}. "
-            f"Phase 6 expects vllm/sndr_core/tools/bench_methodology.yaml "
-            f"(canonical sndr_core path). Operator-side fallback: "
+            f"Phase 6 expects sndr/extras/tools/bench_methodology.yaml "
+            f"(canonical sndr path). Operator-side fallback: "
             f"repo-root tools/bench_methodology.yaml."
         )
     import yaml

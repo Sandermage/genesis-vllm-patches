@@ -5,7 +5,7 @@
 PROBLEM
 ================================================================
 
-P65 (`vllm/sndr_core/integrations/attention/turboquant/p65_turboquant_
+P65 (`sndr/engines/vllm/patches/attention/turboquant/p65_turboquant_
 spec_cg_downgrade.py`) downgrades `TurboQuantMetadataBuilder._cudagraph_
 support` from `UNIFORM_BATCH` to `UNIFORM_SINGLE_TOKEN_DECODE` when
 `speculative_config` is active. It uses a `TextPatcher` against
@@ -42,7 +42,7 @@ G4_68 is NOT a monkey-patch. It is a **marker verifier** that:
      workaround is configured.
 
 The actual cudagraph downgrade lives **inline** in the overlay source at
-`vllm/sndr_core/integrations/attention/turboquant/overlays/pr42637/turboquant_
+`sndr/engines/vllm/patches/attention/turboquant/overlays/pr42637/turboquant_
 attn.py` (see the `[Genesis P65 v2 inlined for PR #42637 overlay]`
 comment block on `TurboQuantMetadataBuilder`). The raw-K/V continuation
 fix (PN256) lives in the same overlay inside `_prefill_attention()`.
@@ -103,7 +103,7 @@ DEPENDENCIES
 ================================================================
 
   * Companion to G4_60b (verifies the overlay file is bind-mounted).
-  * Conflicts with stock P65 (`vllm.sndr_core.integrations.attention.
+  * Conflicts with stock P65 (`sndr.engines.vllm.patches.attention.
     turboquant.p65_turboquant_spec_cg_downgrade`) only in that P65 will
     correctly self-skip with `read_only_mount` reason when the overlay
     is mounted — by design. G4_68 then takes over reporting.
@@ -131,9 +131,9 @@ SCOPE / LIMITATIONS
 REFERENCES
 ================================================================
 
-  * Stock P65 source: `vllm/sndr_core/integrations/attention/turboquant/
+  * Stock P65 source: `sndr/engines/vllm/patches/attention/turboquant/
     p65_turboquant_spec_cg_downgrade.py`
-  * Overlay source: `vllm/sndr_core/integrations/attention/turboquant/
+  * Overlay source: `sndr/engines/vllm/patches/attention/turboquant/
     overlays/pr42637/turboquant_attn.py` (search for
     `[Genesis P65 v2 inlined]`)
   * Diagnostic chain: PN253 → PN254 → PN255 → PN256 → PN257a (Genesis
@@ -203,7 +203,7 @@ def apply() -> tuple[str, str]:
             "not found — P65 v2 inline appears to be missing from the "
             "PR #42637 overlay source. Restore the "
             "[Genesis P65 v2 inlined] block on TurboQuantMetadataBuilder "
-            "in vllm/sndr_core/integrations/attention/turboquant/"
+            "in sndr/engines/vllm/patches/attention/turboquant/"
             "overlays/pr42637/turboquant_attn.py."
         )
 

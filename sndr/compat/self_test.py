@@ -17,9 +17,9 @@ Exit code:
   1 = at least one failure (operator action required)
 
 Usage:
-  python3 -m vllm.sndr_core.compat.self_test
-  python3 -m vllm.sndr_core.compat.self_test --json
-  python3 -m vllm.sndr_core.compat.self_test --quiet
+  python3 -m sndr.compat.self_test
+  python3 -m sndr.compat.self_test --json
+  python3 -m sndr.compat.self_test --quiet
 
 This is the "is Genesis itself working?" tool. Different from doctor,
 which is "is my SYSTEM healthy?". A doctor failure can be hardware /
@@ -331,7 +331,7 @@ def _format_check(c: dict[str, str]) -> str:
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
-        prog="python3 -m vllm.sndr_core.compat.self_test",
+        prog="python3 -m sndr.compat.self_test",
         description="Run Genesis structural self-tests.",
     )
     parser.add_argument("--json", action="store_true",

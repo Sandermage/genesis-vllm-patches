@@ -108,7 +108,7 @@ From the repo root on the host (VM 100, where this repo is checked out):
 
 ```bash
 docker cp \
-  "vllm/sndr_core/configs/moe_tuning/E=256,N=512,device_name=NVIDIA_RTX_A5000,dtype=fp8_w8a8,block_shape=[128,128].json" \
+  "sndr/configs/moe_tuning/E=256,N=512,device_name=NVIDIA_RTX_A5000,dtype=fp8_w8a8,block_shape=[128,128].json" \
   vllm-qwen:/usr/local/lib/python3.12/dist-packages/vllm/model_executor/layers/fused_moe/configs/
 ```
 
@@ -188,7 +188,7 @@ inline: **2-20%** depending on batch shape.
 ⚠ **Read the backend table above first.** Triton MoE configs only matter on
 Ada/Hopper/Blackwell where vLLM picks the Triton FP8 MoE backend. On Ampere
 consumer (3090, A5000), FP8 MoE goes through Marlin — see Genesis P17/P18 +
-PN64 in `vllm/sndr_core/kernels/marlin_tuning.py` instead.
+PN64 in `sndr/engines/vllm/kernels_legacy/marlin_tuning.py` instead.
 
 | GPU | SM | Backend on FP8 MoE | Target shape | Status |
 |---|---:|:-:|---|---|
@@ -224,7 +224,7 @@ GPU_OVERRIDE=NVIDIA_GeForce_RTX_3090 ./scripts/moe_lookup_helper.sh
 ```
 
 The wrapper detects the GPU, runs vLLM's autotuner inside the container,
-and writes the resulting JSON to `vllm/sndr_core/configs/moe_tuning/`.
+and writes the resulting JSON to `sndr/configs/moe_tuning/`.
 Then PR the file back to Genesis (or attach to a club-3090 issue) — we
 bundle it into the next release.
 

@@ -23,7 +23,7 @@ The legacy V1 `get()` path still resolves any operator-local YAMLs
 under `community/` or `user/` tiers and emits a DeprecationWarning
 for visibility; the builtin/ V1 layer is gone.
 
-CLI: `python3 -m vllm.sndr_core.compat.model_config_cli list/show/render/launch/verify`
+CLI: `python3 -m sndr.compat.model_config_cli list/show/render/launch/verify`
 """
 from .schema import (
     ModelConfig,

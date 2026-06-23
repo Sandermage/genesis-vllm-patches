@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""`python -m vllm.sndr_core.cli` entry point."""
+"""`python -m sndr.cli.legacy` entry point."""
 import sys
 
 from . import cli_main

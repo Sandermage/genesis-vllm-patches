@@ -4,7 +4,7 @@
 This is the second piece of PN26 (TQ unified perf pack). The first piece
 (centroids prebake) is in `patch_N26_tq_unified_perf.py`. This file wires
 the sparse-V tile-skip kernel forked in
-`vllm/sndr_core/kernels/triton_turboquant_decode_sparse_v.py` into the
+`sndr/engines/vllm/kernels_legacy/triton_turboquant_decode_sparse_v.py` into the
 runtime dispatch flow.
 
 Design — Genesis dispatcher wrapper (P40 pattern)
@@ -239,7 +239,7 @@ def apply() -> tuple[str, str]:
     if _baked_debug_skip:
         log.info(
             "[Genesis PN26 sparse_v] DEBUG_SKIP_CTR=1 — per-CTA atomic "
-            "counters enabled. Read via vllm.sndr_core.kernels."
+            "counters enabled. Read via sndr.engines.vllm.kernels_legacy."
             "triton_turboquant_decode_sparse_v.collect_skip_stats() "
             "after a request. Cost: ~50-100ns per CTA at epilogue (~0.05% "
             "kernel overhead, statistically indistinguishable from noise)."

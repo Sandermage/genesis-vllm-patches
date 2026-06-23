@@ -7,7 +7,7 @@ No "stuff scattered across launch scripts" — schema is the contract.
 M.5.1 (2026-05-27): sub-component dataclasses (HardwareSpec /
 SpecDecodeConfig / DockerConfig / … / CompatibilityMatrix /
 PatchAttribution — 23 classes in total) were relocated into the
-``vllm.sndr_core.model_configs.types`` package and re-exported below.
+``sndr.model_configs.types`` package and re-exported below.
 Historical import paths continue to resolve unchanged:
 
   * ``from sndr.model_configs.schema import HardwareSpec``
@@ -484,7 +484,7 @@ class ModelConfig:
         """Soft warnings for risky-but-not-invalid configurations.
 
         Thin delegation to
-        :func:`vllm.sndr_core.model_configs.model_config_audit.audit_model_config`
+        :func:`sndr.model_configs.model_config_audit.audit_model_config`
         — operator-visible message wording lives there.
         """
         from .model_config_audit import audit_model_config
@@ -502,7 +502,7 @@ class ModelConfig:
         """Render this config as an executable bash launch script.
 
         Thin delegation to
-        :func:`vllm.sndr_core.model_configs.emitters.render_launch_script`
+        :func:`sndr.model_configs.emitters.render_launch_script`
         — see that function for the full docstring + behaviour notes
         (P0-8 / F-016 history etc.).
         """
@@ -516,7 +516,7 @@ class ModelConfig:
         """vllm serve command parts (without exec/docker prefix).
 
         Thin delegation to
-        :func:`vllm.sndr_core.model_configs.emitters.build_vllm_cmd`.
+        :func:`sndr.model_configs.emitters.build_vllm_cmd`.
         Kept as a method for back-compat with existing internal callers.
         """
         from .emitters import build_vllm_cmd
@@ -533,7 +533,7 @@ class ModelConfig:
         """Render docker run command embedding the vllm serve.
 
         Thin delegation to
-        :func:`vllm.sndr_core.model_configs.emitters.build_docker_cmd`.
+        :func:`sndr.model_configs.emitters.build_docker_cmd`.
         """
         from .emitters import build_docker_cmd
 

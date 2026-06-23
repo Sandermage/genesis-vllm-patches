@@ -31,12 +31,12 @@ under ``integrations/`` (which is for patch code only).
 
 ```bash
 # vLLM default (MTP OFF, TQ-only, port 8101 by convention):
-python3 -m vllm.sndr_core.cli profile render-launchers gemma4-31b-tq-default \
+python3 -m sndr.cli.legacy profile render-launchers gemma4-31b-tq-default \
     > /tmp/start_gemma4_default.sh
 bash /tmp/start_gemma4_default.sh
 
 # vLLM structured (β′-A K=4, port 8102):
-python3 -m vllm.sndr_core.cli profile render-launchers gemma4-31b-tq-mtp-structured-k4 \
+python3 -m sndr.cli.legacy profile render-launchers gemma4-31b-tq-mtp-structured-k4 \
     > /tmp/start_gemma4_structured_k4.sh
 bash /tmp/start_gemma4_structured_k4.sh
 ```

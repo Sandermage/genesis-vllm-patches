@@ -2,9 +2,9 @@
 """Genesis migrate-vllm — pin-bump migration runbook generator.
 
 Usage:
-  python3 -m vllm.sndr_core.compat.migrate /path/to/upstream-vllm-clone
-  python3 -m vllm.sndr_core.compat.migrate /tmp/vllm --patches PN14,PN13,P67
-  python3 -m vllm.sndr_core.compat.migrate /tmp/vllm --json --out runbook.json
+  python3 -m sndr.compat.migrate /path/to/upstream-vllm-clone
+  python3 -m sndr.compat.migrate /tmp/vllm --patches PN14,PN13,P67
+  python3 -m sndr.compat.migrate /tmp/vllm --json --out runbook.json
 
 Reads each Genesis text-patch's anchor + upstream marker, checks
 against the target upstream-vllm tree, and produces a per-patch
@@ -383,7 +383,7 @@ def format_runbook_md(runbook: dict[str, Any]) -> str:
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
-        prog="python3 -m vllm.sndr_core.compat.migrate",
+        prog="python3 -m sndr.compat.migrate",
         description="Generate a pin-bump migration runbook for a target "
                     "upstream-vllm checkout.",
     )

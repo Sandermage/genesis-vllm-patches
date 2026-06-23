@@ -22,7 +22,7 @@ log = logging.getLogger("sndr.engines.vllm")
 class VllmEngine(EngineAdapter):
     """Engine adapter for vLLM (community tier).
 
-    Phase 1 implementation delegates to vllm.sndr_core helpers via try/except
+    Phase 1 implementation delegates to sndr helpers via try/except
     imports. Phases 2-4 progressively move the actual logic here.
     """
 
@@ -58,7 +58,7 @@ class VllmEngine(EngineAdapter):
     def resolve_file(self, relative_path: str) -> Path | None:
         """Resolve a path relative to the vllm install root.
 
-        Phase 1 delegates to vllm.sndr_core.detection.guards.resolve_vllm_file
+        Phase 1 delegates to sndr.engines.vllm.detection.guards.resolve_vllm_file
         for backward compatibility. Phase 3 will move this logic here.
         """
         # Try new path first (Phase 2+)

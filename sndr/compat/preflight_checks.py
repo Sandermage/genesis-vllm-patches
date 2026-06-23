@@ -366,7 +366,7 @@ def run_all_preflight_checks(
     discovered config) or from a start-script preflight call:
 
         # bash:
-        python3 -m vllm.sndr_core.compat.preflight_checks \\
+        python3 -m sndr.compat.preflight_checks \\
             --quantization auto_round \\
             --model /models/Qwen3.6-27B-int4-AutoRound
 

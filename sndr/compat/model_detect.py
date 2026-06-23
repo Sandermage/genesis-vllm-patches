@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Compat re-export shim — `vllm.sndr_core.compat.model_detect`.
+"""Compat re-export shim — `sndr.compat.model_detect`.
 
 See `compat/gpu_profile.py` for the migration rationale.
 

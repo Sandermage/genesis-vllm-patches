@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Pure-API layer for ``sndr patches proof-status`` — M.6.2.
 
-Wraps :func:`vllm.sndr_core.proof.summarize_proof_status` with explicit
+Wraps :func:`sndr.proof.summarize_proof_status` with explicit
 bucket-filter validation. Unknown bucket names raise
 :class:`UnknownBucketError` so the CLI renders the same operator
 message it did pre-M.6.2.
@@ -48,7 +48,7 @@ def proof_status(
     """Summarise patches' proof-artefact buckets, optionally filtered.
 
     Raises :class:`UnknownBucketError` if ``bucket_filter`` contains a
-    name not in :data:`vllm.sndr_core.proof.PROOF_STATUS_BUCKETS`.
+    name not in :data:`sndr.proof.PROOF_STATUS_BUCKETS`.
     """
     from sndr.proof import (
         DEFAULT_PROOF_DIR,

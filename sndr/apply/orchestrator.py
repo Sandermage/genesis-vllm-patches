@@ -692,7 +692,7 @@ def _run_via_specs(stats: PatchStats) -> None:
 
     This replaces the hand-written `_per_patch_dispatch.py` parking lot
     with a data-driven dispatch. Each PatchSpec's `apply_module` field
-    points at a canonical `vllm.sndr_core.integrations.<family>.<file>`
+    points at a canonical `sndr.engines.vllm.patches.<family>.<file>`
     module exposing `apply() -> tuple[str, str]`.
 
     Specs without `apply_module` are skipped with reason "no apply_module
@@ -716,7 +716,7 @@ def _run_via_specs(stats: PatchStats) -> None:
     # Default OFF — keeps current behavior (registry-insertion order).
     # When ON, dependencies apply BEFORE dependents, fixing 6 known
     # order violations at the v11.3.0 baseline. See
-    # vllm.sndr_core.dispatcher.spec.iter_patch_specs docstring.
+    # sndr.dispatcher.spec.iter_patch_specs docstring.
     _topo = _os_for_topo.environ.get(
         "SNDR_TOPO_SORT_SPECS", ""
     ).strip().lower() in ("1", "true", "yes", "on")

@@ -10,7 +10,7 @@ or generator close. The legacy CLI ``test_plan_restores_env_after_run``
 invariant is preserved.
 
 CLI rendering (banners, skip-reason grouping, resolver block, advisory
-block) stays in :mod:`vllm.sndr_core.cli.patches`; this module never
+block) stays in :mod:`sndr.cli.legacy.patches`; this module never
 prints.
 """
 from __future__ import annotations

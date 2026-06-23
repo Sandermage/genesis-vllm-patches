@@ -50,7 +50,7 @@
 #      pre-tool text).
 #
 # Deployment (operator) — bind-mount the file via launcher `-v`:
-#     -v $REPO/vllm/sndr_core/integrations/tool_parsing/q3_t1_qwen3coder_tool_parser_overlay.py:$TGT/tool_parsers/qwen3coder_tool_parser.py:ro
+#     -v $REPO/sndr/engines/vllm/patches/tool_parsing/q3_t1_qwen3coder_tool_parser_overlay.py:$TGT/tool_parsers/qwen3coder_tool_parser.py:ro
 #   where $TGT = /usr/local/lib/python3.12/dist-packages/vllm
 #   The rig launchers start_pn95_2xa5000_test.sh (27B) and
 #   start_35b_prod_wave8.sh (35B) mount the file as

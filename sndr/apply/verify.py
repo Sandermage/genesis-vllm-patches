@@ -84,7 +84,7 @@ def verify_live_rebinds() -> dict[str, Any]:
 
     # Runtime rebinds (set attrs on live vLLM classes/modules).
     # Each ID is resolved via `compat.categories.module_for` to its
-    # canonical `vllm.sndr_core.integrations.*` location.
+    # canonical `sndr.engines.vllm.patches.*` location.
     _check("P22")
     _check("P31")
     _check("P14")

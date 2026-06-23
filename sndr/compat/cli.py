@@ -148,9 +148,9 @@ def _print_help() -> None:
     print("  python3 -m sndr.compat.cli <subcommand> --help")
     print()
     print("The legacy per-module form continues to work, e.g.:")
-    print("  python3 -m vllm.sndr_core.compat.doctor")
-    print("  python3 -m vllm.sndr_core.compat.recipe show my-prod")
-    print("  python3 -m vllm.sndr_core.compat.update_channel check")
+    print("  python3 -m sndr.compat.doctor")
+    print("  python3 -m sndr.compat.recipe show my-prod")
+    print("  python3 -m sndr.compat.update_channel check")
 
 
 # ─── main() ─────────────────────────────────────────────────────────────

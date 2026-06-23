@@ -8,9 +8,9 @@ maintenance.
 
 Modules
 -------
-- doctor          : `python3 -m vllm.sndr_core.compat.doctor`
+- doctor          : `python3 -m sndr.compat.doctor`
                     Unified diagnostic report (hw + sw + model + patches)
-- init_wizard     : `python3 -m vllm.sndr_core.compat.init_wizard`
+- init_wizard     : `python3 -m sndr.compat.init_wizard`
                     First-run interactive setup
 - version_check   : version-range matching (vllm / torch / cuda / triton / driver)
 - predicates      : richer applies_to evaluator (AND / OR / NOT trees)

@@ -8,7 +8,7 @@ per operator-visible artifact (preset / profile / model / hardware /
 baseline).
 
 Source of truth remains:
-  - `vllm/sndr_core/model_configs/builtin/**/*.yaml` (V2 YAML tree)
+  - `sndr/model_configs/builtin/**/*.yaml` (V2 YAML tree)
   - `tests/integration/baselines/*.json` (committed public bench data)
 
 This module declares the schema only — no I/O, no parsing.

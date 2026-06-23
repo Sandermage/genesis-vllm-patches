@@ -379,7 +379,7 @@ class Flags:
     # MultiFilePatchTransaction. Setting the umbrella flag triggers
     # atomic apply of ALL sub-patches regardless of their individual
     # env flags. Idempotent — each TextPatcher's marker check ensures
-    # no double-apply. See vllm/sndr_core/bundles/ for orchestrators.
+    # no double-apply. See sndr/bundles/ for orchestrators.
     BUNDLE_TOOL_PARSING_QWEN3CODER = "BUNDLE_TOOL_PARSING_QWEN3CODER"
     BUNDLE_REASONING_QWEN3 = "BUNDLE_REASONING_QWEN3"
     BUNDLE_ATTENTION_GDN_SPEC = "BUNDLE_ATTENTION_GDN_SPEC"
@@ -422,7 +422,7 @@ class Flags:
     # backports (G4_04/05/06/18), deep fixes (G4_07/08/09/10), perf kernels
     # (G4_15/16/24), compatibility (G4_11/14), vision-tower management
     # (G4_17/23), and diagnostic (G4_25). Family lives at
-    # vllm/sndr_core/integrations/gemma4/. See FAMILY_README for the
+    # sndr/engines/vllm/patches/model_compat/gemma4/. See FAMILY_README for the
     # operator-facing rollout matrix.
     #
     # Implementation status snapshot per audit GEMMA4_PATCH_OPTIMIZATION_PLAN_2026-05-17_RU:
@@ -467,7 +467,7 @@ class Flags:
     # G4_19 — Genesis-original TurboQuant KV cache for Gemma 4 (256K unlock)
     # Companion to our Qwen 3.5/3.6 P67/PN116/PN118/PN119 stack — parallel
     # architecture pattern for gemma4 attention path. Implementation:
-    # vllm/sndr_core/integrations/gemma4/kernels/turboquant/.
+    # sndr/engines/vllm/patches/attention/turboquant/.
     G4_19_GEMMA4_TURBOQUANT_KV = "G4_19_GEMMA4_TURBOQUANT_KV"
     # G4_19b — compression-aware KV cache memory check for vLLM v1
     G4_19B_GEMMA4_TQ_KV_SPEC = "G4_19B_GEMMA4_TQ_KV_SPEC"
@@ -480,7 +480,7 @@ class Flags:
 
     # ── G4_60 series — PR42637 TurboQuant overlay (10 verifiers) ───────
     # Each entry is a marker verifier introspecting the bind-mounted
-    # overlay surface (vllm/sndr_core/integrations/attention/turboquant/
+    # overlay surface (sndr/engines/vllm/patches/attention/turboquant/
     # overlays/pr42637/). See module docstrings for runtime semantics.
     G4_60A_TQ_SLIDING_SPEC = "G4_60A_TQ_SLIDING_SPEC"
     G4_60B_TQ_ATTN_OVERLAY = "G4_60B_TQ_ATTN_OVERLAY"
@@ -758,7 +758,7 @@ def get_sndr_env(name: str, default: str | None = None,
             _deprecation_warned.add(name)
             try:
                 import logging as _logging
-                _logging.getLogger("vllm.sndr_core.env").warning(
+                _logging.getLogger("sndr.env").warning(
                     "%s is deprecated; rename to %s. The alias is "
                     "supported now but will be removed in a future "
                     "release.",
@@ -849,7 +849,7 @@ def is_meta_flag(flag: str) -> bool:
 
       2. Stage-7 bundle umbrella flags (BUNDLE_*) — orchestration flags
          that compose 2+ semantically-related patches via
-         MultiFilePatchTransaction (see vllm/sndr_core/bundles/). Setting
+         MultiFilePatchTransaction (see sndr/bundles/). Setting
          an umbrella flag triggers atomic apply of the bundle's
          sub-patches regardless of their individual env flags. They do
          NOT belong in PATCH_REGISTRY because they are orchestrators,

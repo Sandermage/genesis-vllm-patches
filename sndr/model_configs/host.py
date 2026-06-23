@@ -11,7 +11,7 @@ Variables recognized:
   hf_cache       — HuggingFace cache root (downloaded files)
   triton_cache   — Triton kernel cache (persistent across container restarts)
   compile_cache  — vLLM torch.compile cache (persistent compile artifacts)
-  sndr_src       — checkout of genesis-vllm-patches/vllm/sndr_core (RO mount
+  sndr_src       — checkout of genesis-vllm-patches/sndr (RO mount
                    source). `sndr_src` is the canonical variable name (v12);
                    `genesis_src` is accepted as a legacy alias for back-compat
                    with existing host.yaml files (key alias-in at load time;

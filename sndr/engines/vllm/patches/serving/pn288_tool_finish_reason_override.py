@@ -3,7 +3,7 @@
 (§1.3 of the unified plan, Phase B / dry-run scaffold).
 
 The decision logic lives in the companion middleware module
-``vllm.sndr_core.middleware.pn288_finish_reason_override``. This file
+``sndr.engines.vllm.middleware.pn288_finish_reason_override``. This file
 is the text-patch overlay that wires that logic into
 ``OpenAIServingChat._create_chat_completion`` at two anchors:
 
@@ -104,7 +104,7 @@ PN288_STREAMING_OLD = (
 PN288_STREAMING_NEW = (
     "                        # [Genesis PN288] args-validity-aware finish_reason\n"
     "                        # decision. Phase B (dry-run) by default — see\n"
-    "                        # vllm.sndr_core.middleware.pn288_finish_reason_override.\n"
+    "                        # sndr.engines.vllm.middleware.pn288_finish_reason_override.\n"
     "                        try:\n"
     "                            from sndr.engines.vllm.middleware.pn288_finish_reason_override import (  # noqa: E501\n"
     "                                decide_streaming_finish_reason as _genesis_pn288_decide_streaming,\n"
@@ -149,7 +149,7 @@ PN288_NONSTREAMING_OLD = (
 
 PN288_NONSTREAMING_NEW = (
     "            # [Genesis PN288] args-validity-aware bool. Phase B dry-run\n"
-    "            # default — see vllm.sndr_core.middleware.pn288_finish_reason_override.\n"
+    "            # default — see sndr.engines.vllm.middleware.pn288_finish_reason_override.\n"
     "            try:\n"
     "                from sndr.engines.vllm.middleware.pn288_finish_reason_override import (  # noqa: E501\n"
     "                    decide_non_streaming_is_tool_calls as _genesis_pn288_decide_non_streaming,\n"

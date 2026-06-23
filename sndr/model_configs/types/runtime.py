@@ -295,7 +295,7 @@ class ObservabilityConfig:
     """Y14 (UNIFIED_CONFIG plan 2026-05-09): observability declarations.
 
     Drives memory_trace + cudagraph dispatch tracking + per-patch
-    apply telemetry — all already exist in `vllm/sndr_core/observability/`.
+    apply telemetry — all already exist in `sndr/observability/`.
     This block makes them declarative per-config instead of pure env-var.
 
     Fields:

@@ -2,8 +2,8 @@
 """C1 (UNIFIED_CONFIG plan 2026-05-09) — `sndr doctor-system` extended host diagnostic.
 
 Composes:
-  - `vllm.sndr_core.deps.inspect_host()`   — full host inventory
-  - `vllm.sndr_core.caveats.match_caveats()` — runtime caveats matcher
+  - `sndr.deps.inspect_host()`   — full host inventory
+  - `sndr.caveats.match_caveats()` — runtime caveats matcher
   - vllm pin allowlist check
   - Optional Y11 upstream policy match (when --config given)
 

@@ -219,7 +219,7 @@ def assemble_manifest(
 
     Args:
       vllm_pin: vllm version string (`vllm.__version__` value)
-      genesis_pin: Genesis version (`vllm.sndr_core.version.SNDR_CORE_VERSION`)
+      genesis_pin: Genesis version (`sndr.version.SNDR_CORE_VERSION`)
       file_to_inputs: dict mapping relative_path -> (pristine_src, [patch_inputs])
 
     Returns: manifest dict ready for serialization. Files with no anchors
@@ -234,7 +234,7 @@ def assemble_manifest(
     return {
         "manifest_version": MANIFEST_SCHEMA_VERSION,
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "generated_by": "vllm.sndr_core.wiring.anchor_manifest.assemble_manifest",
+        "generated_by": "sndr.engines.vllm.wiring.anchor_manifest.assemble_manifest",
         "pins": {
             "vllm": str(vllm_pin),
             "genesis": str(genesis_pin),

@@ -6,8 +6,8 @@
 # │ Origin: extracted from V1 a5000-1x-tier-aware-pn95.yaml on        │
 # │ 2026-06-01 as part of the PN95 architectural unblock.             │
 # │                                                                   │
-# │ Loader: vllm/sndr_core/cache/pn95/tier_config_loader.load_by_key │
-# │ Reader: vllm/sndr_core/cache/pn95/hooks.py:lazy_init via         │
+# │ Loader: sndr/cache/pn95/tier_config_loader.load_by_key           │
+# │ Reader: sndr/cache/pn95/hooks.py:lazy_init via                   │
 # │         GENESIS_PN95_CONFIG_KEY env var                          │
 # │                                                                   │
 # │ Workload target: max_model_len 200K on ONE A5000 24 GB card via  │

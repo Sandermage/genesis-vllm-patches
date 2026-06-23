@@ -85,7 +85,7 @@ COMPATIBILITY
 ================================================================
 
 The hook signature ``apply_hook(serving, request)`` and import path
-``vllm.sndr_core.middleware.lazy_reasoner.apply_hook`` are unchanged.
+``sndr.engines.vllm.middleware.lazy_reasoner.apply_hook`` are unchanged.
 V2 is a behavioural refactor of the existing PN16 wiring text-patch.
 
 Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.

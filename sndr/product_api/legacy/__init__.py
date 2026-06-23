@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Genesis product API — pure-Python data layer behind the CLI.
 
-The CLI in :mod:`vllm.sndr_core.cli` is the **operator-facing presentation
+The CLI in :mod:`sndr.cli` is the **operator-facing presentation
 layer**. The functions and dataclasses in this package provide the
 underlying queries, simulations, and proof-artefact operations as a
 side-effect-disciplined Python API that any caller (CLI, tests, SDK

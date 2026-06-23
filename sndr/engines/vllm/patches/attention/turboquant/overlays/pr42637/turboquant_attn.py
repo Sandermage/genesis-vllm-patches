@@ -317,7 +317,7 @@ class TurboQuantMetadataBuilder(AttentionMetadataBuilder[TurboQuantMetadata]):
     """Builds TurboQuantMetadata from scheduler output."""
 
     # [Genesis P65 v2 inlined for PR #42637 overlay — see
-    # vllm/sndr_core/integrations/attention/turboquant/p65_turboquant_spec_cg_downgrade.py]
+    # sndr/engines/vllm/patches/attention/turboquant/p65_turboquant_spec_cg_downgrade.py]
     # Context-aware cudagraph support downgrade. Keep UNIFORM_BATCH as the
     # ClassVar default (full capabilities for non-spec-decode setups), and
     # override `get_cudagraph_support` classmethod to downgrade to

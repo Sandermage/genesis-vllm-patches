@@ -6,7 +6,7 @@ workstream (2026-05-22): ``integrations/model_compat/gemma4/``. The
 previous location ``integrations/gemma4/`` was retired for real
 code. It may now contain only the historical PR42637 overlay-path
 compatibility shim documented in
-``vllm/sndr_core/integrations/gemma4/README.md``.
+``sndr/engines/vllm/patches/gemma4/README.md``.
 
 This package owns ONLY patches whose technical area of influence
 is genuinely Gemma-4-specific and cannot be re-homed under a shared

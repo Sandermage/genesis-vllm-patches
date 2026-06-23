@@ -3,13 +3,13 @@
 
 Discovery layout (per § 4.4):
 
-  vllm/sndr_core/model_configs/builtin/
+  sndr/model_configs/builtin/
   ├── model/<id>.yaml         → ModelDef
   ├── hardware/<id>.yaml      → HardwareDef
   ├── profile/<id>.yaml       → ProfileDef
   └── presets/<alias>.yaml    → triplet {model, hardware, profile?, runtime?}
 
-  vllm/sndr_core/model_configs/community/
+  sndr/model_configs/community/
   ├── hardware/<id>.yaml      → HardwareDef (community-tier)
   └── profile/<id>.yaml       → ProfileDef (community-tier)
 

@@ -13,15 +13,15 @@ Emit-only contract. No engine surgery, no runtime hooks. The
 follow bench evidence from B1.1 / B1.2 / B2 / B3 / B4 verdicts);
 external consumers must NOT mutate it.
 
-Schema lives at ``vllm/sndr_core/cli/routing_schema.json`` (v1
+Schema lives at ``sndr/cli/legacy/routing_schema.json`` (v1
 frozen). Versioning policy: consumers must warn-and-degrade-
 gracefully on unknown schema versions, not crash.
 
 Usage:
 
-  python3 -m vllm.sndr_core.cli routing-table --json
-  python3 -m vllm.sndr_core.cli routing-table --json --out /tmp/routing.json
-  python3 -m vllm.sndr_core.cli routing-table --validate  # schema check
+  python3 -m sndr.cli.legacy routing-table --json
+  python3 -m sndr.cli.legacy routing-table --json --out /tmp/routing.json
+  python3 -m sndr.cli.legacy routing-table --validate  # schema check
 """
 from __future__ import annotations
 

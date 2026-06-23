@@ -1,4 +1,4 @@
-# `vllm/sndr_core/tools/` — package-internal tools
+# `sndr/extras/tools/` — package-internal tools
 
 This directory holds tools that **sndr_core imports at runtime**. Moving
 them inside the package makes `sndr_core` self-contained — no Python
@@ -17,8 +17,8 @@ fallbacks for older checkouts.
 
 | File | Imported by | Purpose |
 |---|---|---|
-| `genesis_bench_suite.py` | `vllm/sndr_core/compat/bench.py:_locate_bench_module()` | Main bench tool (1425 LOC). Loaded as a module via `importlib.util.spec_from_file_location` — keeps it runnable both standalone (`python3 …/genesis_bench_suite.py …`) and through the unified CLI (`python3 -m vllm.sndr_core.compat.cli bench …`). |
-| `bench_methodology.yaml` | `vllm/sndr_core/cli/bench.py:load_methodology()` | Phase 6 release-tier bench methodology contract. `bench-validate` reads it to verify result JSONs carry the mandatory fields. |
+| `genesis_bench_suite.py` | `sndr/compat/bench.py:_locate_bench_module()` | Main bench tool (1425 LOC). Loaded as a module via `importlib.util.spec_from_file_location` — keeps it runnable both standalone (`python3 …/genesis_bench_suite.py …`) and through the unified CLI (`python3 -m sndr.compat.cli bench …`). |
+| `bench_methodology.yaml` | `sndr/cli/legacy/bench.py:load_methodology()` | Phase 6 release-tier bench methodology contract. `bench-validate` reads it to verify result JSONs carry the mandatory fields. |
 
 ## Files that STAY in the repo-root `tools/`
 
@@ -37,7 +37,7 @@ are NOT imported by `sndr_core` at runtime:
 - `genesis_vllm_plugin/` — separate pip-installable plugin package (its own
   `pyproject.toml`); back-compat re-export shim for the v7.x era when the
   plugin lived outside sndr_core (canonical entry point is now
-  `vllm.sndr_core.plugin:register`)
+  `sndr.plugin:register`)
 - `examples/`, `external_probe/`, `memory_explain_calibration/`, `policies/` —
   examples + isolated helper artefacts
 
@@ -45,6 +45,6 @@ are NOT imported by `sndr_core` at runtime:
 
 When adding a new tool, choose its home by asking:
 
-1. Is it **imported at Python level from inside `vllm/sndr_core/`**? → place here.
+1. Is it **imported at Python level from inside `sndr/`**? → place here.
 2. Is it **referenced only as a string/docstring/install hint** from sndr_core? → root `tools/` is fine.
 3. Is it **operator-facing** (shell script, smoke probe, launch helper)? → root `tools/`.

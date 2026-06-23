@@ -2,9 +2,9 @@
 """Genesis models — list CLI.
 
 Usage:
-  python3 -m vllm.sndr_core.compat.models.list_cli
-  python3 -m vllm.sndr_core.compat.models.list_cli --status PROD
-  python3 -m vllm.sndr_core.compat.models.list_cli --json
+  python3 -m sndr.compat.models.list_cli
+  python3 -m sndr.compat.models.list_cli --status PROD
+  python3 -m sndr.compat.models.list_cli --json
 
 Author: Sandermage(Sander) Barzov Aleksandr.
 """
@@ -38,7 +38,7 @@ def _format_table(models) -> list[str]:
 
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(
-        prog="python3 -m vllm.sndr_core.compat.models.list_cli",
+        prog="python3 -m sndr.compat.models.list_cli",
         description="List Genesis-supported models",
     )
     p.add_argument("--status", choices=["PROD", "SUPPORTED", "EXPERIMENTAL", "PLANNED"],
@@ -76,7 +76,7 @@ def main(argv=None) -> int:
         print(line)
     print()
     print("To download a model:")
-    print("  python3 -m vllm.sndr_core.compat.models.pull <key>")
+    print("  python3 -m sndr.compat.models.pull <key>")
     print()
     return 0
 

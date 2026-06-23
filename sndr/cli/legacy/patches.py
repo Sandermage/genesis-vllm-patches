@@ -61,7 +61,7 @@ from typing import Any, Optional
 from . import _io
 
 # M.6.1–.3 (2026-05-27): pure-data query layer extracted to
-# ``vllm.sndr_core.product_api.patches``. This module is the thin
+# ``sndr.product_api.legacy.patches``. This module is the thin
 # argparse + rendering shell — every handler delegates to the API
 # layer and prints the result. See
 # ``sndr_private/planning/audits/M6_CLI_THIN_SHELL_R_2026-05-27_RU.md``.

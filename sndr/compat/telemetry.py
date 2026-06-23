@@ -41,16 +41,16 @@ What the report does NOT include
 Workflow
 ────────
   # See your status
-  python3 -m vllm.sndr_core.compat.telemetry status
+  python3 -m sndr.compat.telemetry status
 
   # Inspect what would be reported (works only when master gate open)
-  python3 -m vllm.sndr_core.compat.telemetry show
+  python3 -m sndr.compat.telemetry show
 
   # Manually collect + save a report
-  python3 -m vllm.sndr_core.compat.telemetry collect
+  python3 -m sndr.compat.telemetry collect
 
   # Clear local stash
-  python3 -m vllm.sndr_core.compat.telemetry clear
+  python3 -m sndr.compat.telemetry clear
 
 Note: network upload is deferred for now. Reports are written locally
 to GENESIS_TELEMETRY_DIR. A later release will add the actual upload
@@ -252,7 +252,7 @@ def _summarize_plugins() -> dict[str, Any]:
 def _detect_genesis_version() -> dict[str, str]:
     """Best-effort Genesis version + commit from local git.
 
-    Version is the single source of truth from `vllm.sndr_core.version`
+    Version is the single source of truth from `sndr.version`
     (so we don't drift across modules). Commit is short SHA from local
     git if available.
     """
@@ -398,7 +398,7 @@ def _format_status() -> list[str]:
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
-        prog="python3 -m vllm.sndr_core.compat.telemetry",
+        prog="python3 -m sndr.compat.telemetry",
         description="Manage Genesis opt-in anonymized telemetry.",
     )
     sub = parser.add_subparsers(dest="cmd", required=True)

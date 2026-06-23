@@ -90,7 +90,7 @@ TRACE_CATALOG: tuple[TraceSpec, ...] = (
         category="boot",
         description=(
             "Genesis patch-apply boot log — captured by the launcher "
-            "via `python3 -m vllm.sndr_core.apply 2>&1 | tee /tmp/"
+            "via `python3 -m sndr.apply 2>&1 | tee /tmp/"
             "genesis_boot.log` before `vllm serve` execs. Lists every "
             "patch's apply() result (applied / skipped / failed)."
         ),

@@ -26,7 +26,7 @@ Two sources of order:
 
 CLI:
 
-    python -m vllm.sndr_core.apply.shadow
+    python -m sndr.apply.shadow
 
 Author: Sandermage (Sander) Barzov Aleksandr.
 """
@@ -607,7 +607,7 @@ def format_diff(diff: ApplyOrderDiff) -> str:
 
 
 def main(argv: Optional[list[str]] = None) -> int:
-    """`python -m vllm.sndr_core.apply.shadow` entry point."""
+    """`python -m sndr.apply.shadow` entry point."""
     parser = argparse.ArgumentParser(
         description="Shadow comparison: PatchSpec apply order vs legacy"
     )

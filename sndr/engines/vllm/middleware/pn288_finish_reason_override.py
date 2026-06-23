@@ -39,7 +39,7 @@ Pure-Python decision logic, callable from the text-patched bodies of
 ``OpenAIServingChat._create_chat_completion`` at two anchors
 (streaming + non-streaming finish_reason assignment). The text patch
 itself lives in
-``vllm/sndr_core/integrations/serving/pn288_tool_finish_reason_override.py``
+``sndr/engines/vllm/patches/serving/pn288_tool_finish_reason_override.py``
 — this module hosts only the runtime logic so it can be unit-tested
 in isolation without applying the overlay.
 

@@ -54,7 +54,7 @@ def cached_load_manifest() -> Optional[dict]:
       - the manifest's pinned vllm/genesis versions don't match the
         installed versions
 
-    Pin verification: `vllm.__version__` AND `vllm.sndr_core.GENESIS_VERSION`
+    Pin verification: `vllm.__version__` AND `sndr.version.GENESIS_VERSION`
     are both checked against `manifest.pins.*`. Any mismatch returns None
     and falls through to legacy O(N×M) anchor scan in TextPatcher.
     """

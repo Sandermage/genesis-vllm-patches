@@ -60,7 +60,7 @@ ORDERING
 G4_72 must wrap AFTER G4_60g, so calling ``_ORIGINAL_GET_KV_CACHE_SPEC``
 on a non-drafter layer routes through G4_60g's TQ-first dispatch.
 The plugin apply-all sweep runs sequentially per env flag, so as long
-as the ``apply()`` order in ``vllm/sndr_core/__init__.py`` lists G4_60g
+as the ``apply()`` order in ``sndr/dispatcher/registry.py`` lists G4_60g
 before G4_72, this invariant holds.
 
 If G4_72 is enabled but G4_60g is not, fall through to whatever vanilla

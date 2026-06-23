@@ -162,7 +162,7 @@ def render_compression_env(profile: Optional[ProfileDef]) -> dict[str, str]:
     env that the existing G4_60K / PN247 reader honors.
 
     Currently the reader at
-    `vllm/sndr_core/integrations/gemma4/g4_60k_arg_utils.py:198`
+    `sndr/engines/vllm/patches/attention/turboquant/g4_60k_arg_utils.py:198`
     looks for ``GENESIS_G4_TQ_FORCE_SKIP_LAYERS`` directly. We emit
     BOTH the SNDR canonical form (forward-compatible operator surface)
     AND the GENESIS legacy alias (so the existing reader still picks

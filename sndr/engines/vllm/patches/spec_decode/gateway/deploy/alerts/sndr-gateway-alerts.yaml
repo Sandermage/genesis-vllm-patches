@@ -8,7 +8,7 @@
 # routing as needed.
 #
 # All rules query metrics defined in
-# vllm/sndr_core/integrations/spec_decode/gateway/metrics.py.
+# sndr/engines/vllm/patches/spec_decode/gateway/metrics.py.
 # Names use the SNDR canonical surface where available; genesis_* names
 # are referenced for back-compat. None of these rules trigger automated
 # action — they alert humans.

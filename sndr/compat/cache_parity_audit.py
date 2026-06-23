@@ -18,7 +18,7 @@ This audit module:
 2. Cross-references which `request.*` guards they each inspect
 3. Reports any path that LACKS a guard another path HAS
 
-Run via: `python3 -m vllm.sndr_core.compat.cache_parity_audit`
+Run via: `python3 -m sndr.compat.cache_parity_audit`
 or imported from doctor.
 
 Author: Sandermage 2026-05-04, pattern from vllm#41625 (joerowell).
@@ -143,7 +143,7 @@ def format_findings(findings: list[CachePathFinding]) -> list[str]:
 
 
 def main():
-    """CLI entry — `python -m vllm.sndr_core.compat.cache_parity_audit`."""
+    """CLI entry — `python -m sndr.compat.cache_parity_audit`."""
     findings = audit_prefix_cache_patches()
     for line in format_findings(findings):
         print(line)

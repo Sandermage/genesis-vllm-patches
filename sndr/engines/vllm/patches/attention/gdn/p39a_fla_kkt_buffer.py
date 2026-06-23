@@ -62,7 +62,7 @@ def ensure_pool_registered() -> None:
     no behavior change.
 
     The real FLA KKT `A` tensor (B, T, H, BT, fp32) is owned by
-    vllm.sndr_core.kernels.fla_kkt_buffer.FlaKktBufferManager via the
+    sndr.engines.vllm.kernels_legacy.fla_kkt_buffer.FlaKktBufferManager via the
     reserve-before-cudagraph pattern (P39b). Its allocation semantics
     are GROW-IN-PLACE + SLICE-ON-ACQUIRE keyed by (H, BT, device, dtype)
     — variable first two dims (B, T) → fixed last two — which matches

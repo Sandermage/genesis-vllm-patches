@@ -5,8 +5,8 @@ Detects hardware, asks about model preference, generates a personalized
 launch script.
 
 Usage:
-  python3 -m vllm.sndr_core.compat.init_wizard
-  python3 -m vllm.sndr_core.compat.init_wizard --non-interactive --model qwen3_6_27b_int4_autoround
+  python3 -m sndr.compat.init_wizard
+  python3 -m sndr.compat.init_wizard --non-interactive --model qwen3_6_27b_int4_autoround
 
 Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
 """
@@ -88,7 +88,7 @@ def _ask_yesno(prompt: str, default: bool = True) -> bool:
 
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(
-        prog="python3 -m vllm.sndr_core.compat.init_wizard",
+        prog="python3 -m sndr.compat.init_wizard",
         description="Genesis first-run setup — picks a model + generates "
                     "a launch script tailored to detected hardware.",
     )
@@ -115,7 +115,7 @@ def main(argv=None) -> int:
         print()
         print("Genesis is designed for vllm + CUDA. If you're testing the")
         print("CLI without GPU, you can still browse the model registry:")
-        print("  python3 -m vllm.sndr_core.compat.models.list_cli")
+        print("  python3 -m sndr.compat.models.list_cli")
         return 1
     print(f"  ✓ {num_gpus} GPU{'s' if num_gpus > 1 else ''}, "
           f"{vram_total:.1f} GB total VRAM"
@@ -185,7 +185,7 @@ def main(argv=None) -> int:
         print("  (skipping pull per --no-pull)")
         print()
         print("Manual steps:")
-        print(f"  python3 -m vllm.sndr_core.compat.models.pull {chosen.key} "
+        print(f"  python3 -m sndr.compat.models.pull {chosen.key} "
               f"--workload {workload}")
         return 0
 
@@ -195,7 +195,7 @@ def main(argv=None) -> int:
             default=True,
         ):
             print("  cancelled. Run later with:")
-            print(f"    python3 -m vllm.sndr_core.compat.models.pull {chosen.key}")
+            print(f"    python3 -m sndr.compat.models.pull {chosen.key}")
             return 0
 
     from sndr.compat.models.pull import main as pull_main

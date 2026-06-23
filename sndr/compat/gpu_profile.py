@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Compat re-export shim — `vllm.sndr_core.compat.gpu_profile`.
+"""Compat re-export shim — `sndr.compat.gpu_profile`.
 
 Genesis is moving detectors into the unified `compat/` package as part
 of the v8.0 reorganization. To avoid breaking any caller (including

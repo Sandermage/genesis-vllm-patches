@@ -142,7 +142,7 @@ def _collect_v2_keys() -> dict[str, dict[str, str]]:
 _POLICY_KEYS: dict[str, dict[str, str]] = {
     "GENESIS_VLLM_PIN_POLICY": {
         "source": "policy",
-        "owner_module": "vllm.sndr_core.detection.guards",
+        "owner_module": "sndr.engines.vllm.detection.guards",
         "description": "vllm pin enforcement mode (strict|warn|off)",
     },
     # Gemma 4 declarative profile fields (compression_plan,
@@ -153,7 +153,7 @@ _POLICY_KEYS: dict[str, dict[str, str]] = {
     # G4_76 (drafter KV-sharing disable toggle).
     "GENESIS_G4_TQ_FORCE_SKIP_LAYERS": {
         "source": "policy",
-        "owner_module": "vllm.sndr_core.integrations.model_compat.gemma4",
+        "owner_module": "sndr.engines.vllm.patches.model_compat.gemma4",
         "description": (
             "Comma-separated layer indices forced to native bf16 "
             "(skipped by TQ KV cache). Emitted by compose() from "
@@ -162,7 +162,7 @@ _POLICY_KEYS: dict[str, dict[str, str]] = {
     },
     "GENESIS_G4_09_CHUNK_SIZE": {
         "source": "policy",
-        "owner_module": "vllm.sndr_core.integrations.model_compat.gemma4",
+        "owner_module": "sndr.engines.vllm.patches.model_compat.gemma4",
         "description": (
             "Tunable SWA->global prefill chunk size for G4_09 (gemma4 "
             "sliding-window global-prefill chunker). Integer; read by "
@@ -173,7 +173,7 @@ _POLICY_KEYS: dict[str, dict[str, str]] = {
     },
     "SNDR_G4_TQ_FORCE_SKIP_LAYERS": {
         "source": "policy",
-        "owner_module": "vllm.sndr_core.integrations.model_compat.gemma4",
+        "owner_module": "sndr.engines.vllm.patches.model_compat.gemma4",
         "description": (
             "SNDR_-canonical alias of GENESIS_G4_TQ_FORCE_SKIP_LAYERS "
             "(one-release migration window)."
@@ -181,7 +181,7 @@ _POLICY_KEYS: dict[str, dict[str, str]] = {
     },
     "SNDR_ENABLE_G4_76_DISABLE_DRAFTER_KV_SHARING": {
         "source": "policy",
-        "owner_module": "vllm.sndr_core.integrations.model_compat.gemma4",
+        "owner_module": "sndr.engines.vllm.patches.model_compat.gemma4",
         "description": (
             "SNDR_-canonical alias of "
             "GENESIS_ENABLE_G4_76_DISABLE_DRAFTER_KV_SHARING. "

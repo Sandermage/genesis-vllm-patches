@@ -29,7 +29,7 @@ Every retired entry must have:
   - `superseded_by: "<other_pid>"` — names the replacement
   - `retired_waiver: True` + `credit` text — explains why retired without replacement
   - `vllm_version_range: ">=X,<Y"` — version window where active (for drift safety)
-- `apply_module` — pointing to `vllm.sndr_core.integrations._retired.<file>`
+- `apply_module` — pointing to `sndr.engines.vllm.patches._retired.<file>`
   (so `audit_registry_contract.py` can validate import path).
 
 ## Why keep registry entries (vs delete)?
@@ -50,11 +50,11 @@ Every retired entry must have:
 
 ## How to add a patch here
 
-1. `git mv vllm/sndr_core/integrations/<family>/<file>.py vllm/sndr_core/integrations/_retired/<file>.py`
+1. `git mv sndr/engines/vllm/patches/<family>/<file>.py sndr/engines/vllm/patches/_retired/<file>.py`
 2. Update registry entry:
    ```python
    "lifecycle": "retired",
-   "apply_module": "vllm.sndr_core.integrations._retired.<file>",
+   "apply_module": "sndr.engines.vllm.patches._retired.<file>",
    "superseded_by": "<other_pid>",  # or retired_waiver: True
    "vllm_version_range": ">=X,<Y",  # version window where active
    ```

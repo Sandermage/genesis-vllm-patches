@@ -82,7 +82,7 @@ def cmd_list(args) -> int:
         return 0
 
     if not configs:
-        print("(no configs found under vllm/sndr_core/model_configs/builtin/)")
+        print("(no configs found under sndr/model_configs/builtin/)")
         return 0
 
     # Split working configs from tested/QA configs. By default, tested
@@ -760,11 +760,11 @@ def _render_bare_metal(cfg, *, mode: str = "wheel") -> str:
     so production paths don't silently `pip install -e plugin || true`.
 
       • ``mode="wheel"`` (default, production): script verifies
-        ``vllm.sndr_core`` imports cleanly. NO ``pip install``. NO
+        ``sndr`` imports cleanly. NO ``pip install``. NO
         ``|| true`` masking. Hard-fails if the wheel isn't installed.
       • ``mode="dev"``: editable install of plugin source path, but
         WITHOUT ``|| true`` — error visible. PYTHONPATH set so live
-        edits to ``vllm/sndr_core/`` are picked up.
+        edits to ``sndr/`` are picked up.
       • ``mode="dev_legacy"``: legacy behavior with ``|| true`` for
         backward compatibility with operators relying on silent retry.
         Marked deprecated; emits a runtime WARN line.
@@ -818,7 +818,7 @@ def _render_bare_metal(cfg, *, mode: str = "wheel") -> str:
             "# Wheel mode (production): verify vllm-sndr-core importable WITHOUT",
             "# attempting any editable install. Fail-fast posture.",
             "python3 -c 'import sndr' || {",
-            "  echo \"ERROR: vllm.sndr_core not importable in this venv.\" >&2",
+            "  echo \"ERROR: sndr not importable in this venv.\" >&2",
             "  echo \"Install the wheel:  pip install vllm-sndr-core\" >&2",
             "  exit 1",
             "}",

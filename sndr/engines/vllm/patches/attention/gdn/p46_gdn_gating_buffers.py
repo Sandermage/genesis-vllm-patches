@@ -67,7 +67,7 @@ def ensure_pool_registered() -> None:
     no behavior change.
 
     The real GDN gating tensors (g / beta_output) are owned by
-    vllm.sndr_core.kernels.gdn_gating_buffer.GdnGatingBufferManager.
+    sndr.engines.vllm.kernels_legacy.gdn_gating_buffer.GdnGatingBufferManager.
     Allocation pattern is fixed-shape `(1, batch, num_heads)` keyed by
     (batch, num_heads, dtype, device) — every dim is part of the pool
     key so there are no variable dims. PersistentSlicePool with

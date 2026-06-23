@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Genesis lifecycle-audit — `python3 -m vllm.sndr_core.compat.lifecycle_audit_cli`.
+"""Genesis lifecycle-audit — `python3 -m sndr.compat.lifecycle_audit_cli`.
 
 Walks PATCH_REGISTRY and produces a per-state breakdown:
   - experimental — patches that may break (warn the operator)
@@ -15,9 +15,9 @@ Exit code:
   1 — at least one patch has an unknown / malformed lifecycle state
 
 Usage:
-  python3 -m vllm.sndr_core.compat.lifecycle_audit_cli
-  python3 -m vllm.sndr_core.compat.lifecycle_audit_cli --state deprecated
-  python3 -m vllm.sndr_core.compat.lifecycle_audit_cli --json --quiet
+  python3 -m sndr.compat.lifecycle_audit_cli
+  python3 -m sndr.compat.lifecycle_audit_cli --state deprecated
+  python3 -m sndr.compat.lifecycle_audit_cli --json --quiet
 
 Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
 """
@@ -30,7 +30,7 @@ import sys
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
-        prog="python3 -m vllm.sndr_core.compat.lifecycle_audit_cli",
+        prog="python3 -m sndr.compat.lifecycle_audit_cli",
         description="Audit lifecycle states across PATCH_REGISTRY.",
     )
     parser.add_argument("--state", choices=[

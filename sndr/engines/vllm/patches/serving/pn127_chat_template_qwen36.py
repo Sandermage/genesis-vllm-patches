@@ -62,7 +62,7 @@ Safety
     operator falls back to an explicit --chat-template path
   - Target: /tmp/genesis/chat_templates/qwen3.6_enhanced.jinja
     (or the GENESIS_CHAT_TEMPLATE_DIR override)
-  - Source: vllm.sndr_core.assets.chat_templates.qwen3.6_enhanced.jinja
+  - Source: sndr.assets.chat_templates.qwen3.6_enhanced.jinja
 
 Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
 Genesis-original 2026-05-15 — closes the club-3090#53 / club-3090#72

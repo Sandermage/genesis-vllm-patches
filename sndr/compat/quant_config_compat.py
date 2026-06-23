@@ -84,7 +84,7 @@ def warn_env_deprecated_quant_keys() -> int:
 
 
 def main():
-    """CLI entry — `python -m vllm.sndr_core.compat.quant_config_compat`."""
+    """CLI entry — `python -m sndr.compat.quant_config_compat`."""
     n = warn_env_deprecated_quant_keys()
     if n == 0:
         print("✓ No deprecated quant config keys in env")

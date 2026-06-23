@@ -24,11 +24,11 @@ Override channel without persisting via GENESIS_UPDATE_CHANNEL env.
 
 CLI
 ───
-  python3 -m vllm.sndr_core.compat.update_channel status
-  python3 -m vllm.sndr_core.compat.update_channel check
-  python3 -m vllm.sndr_core.compat.update_channel channel set beta
-  python3 -m vllm.sndr_core.compat.update_channel channel get
-  python3 -m vllm.sndr_core.compat.update_channel apply  # prints manual instr
+  python3 -m sndr.compat.update_channel status
+  python3 -m sndr.compat.update_channel check
+  python3 -m sndr.compat.update_channel channel set beta
+  python3 -m sndr.compat.update_channel channel get
+  python3 -m sndr.compat.update_channel apply  # prints manual instr
 
 Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
 """
@@ -331,8 +331,8 @@ def _format_check(result: dict[str, Any]) -> list[str]:
         L.append("  To pull the new version:")
         L.append("    git pull origin main")
         L.append("  Then verify:")
-        L.append("    python3 -m vllm.sndr_core.compat.doctor")
-        L.append("    python3 -m vllm.sndr_core.compat.schema_validator")
+        L.append("    python3 -m sndr.compat.doctor")
+        L.append("    python3 -m sndr.compat.schema_validator")
     elif result.get("update_available") is False:
         L.append("  ✓ Up-to-date — local commit matches upstream")
     else:
@@ -343,7 +343,7 @@ def _format_check(result: dict[str, Any]) -> list[str]:
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
-        prog="python3 -m vllm.sndr_core.compat.update_channel",
+        prog="python3 -m sndr.compat.update_channel",
         description="Genesis update channel — check + manage update channel.",
     )
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -404,9 +404,9 @@ def main(argv=None) -> int:
         print("  git pull origin main")
         print()
         print("Then verify your stack with:")
-        print("  python3 -m vllm.sndr_core.compat.doctor")
-        print("  python3 -m vllm.sndr_core.compat.schema_validator")
-        print("  python3 -m vllm.sndr_core.compat.lifecycle_audit_cli")
+        print("  python3 -m sndr.compat.doctor")
+        print("  python3 -m sndr.compat.schema_validator")
+        print("  python3 -m sndr.compat.lifecycle_audit_cli")
         return 0
 
     return 2

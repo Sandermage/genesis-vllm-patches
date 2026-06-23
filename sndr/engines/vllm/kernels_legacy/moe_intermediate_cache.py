@@ -55,7 +55,7 @@ Retirement
 Upstream intends to resolve this at the FusedMoE layer level rather than
 per-call (see PR #40655 pattern for the TQ decode case). When that lands
 for MoE intermediates, the `upstream_drift_markers` in
-`vllm/sndr_core/integrations/moe/p37_moe_intermediate_cache.py` will catch
+`sndr/engines/vllm/patches/moe/p37_moe_intermediate_cache.py` will catch
 the signature and skip.
 
 Author: Sandermage(Sander)-Barzov Aleksandr, Ukraine, Odessa

@@ -2962,7 +2962,7 @@ def _resolve_gui_static_dir():
         candidates.append(Path(env_dir))
     here = Path(__file__).resolve()
     candidates.append(here.parent / "web_static")
-    # repo layout: vllm/sndr_core/product_api/http_app.py -> parents[3] = repo root
+    # repo layout: sndr/product_api/legacy/http_app.py -> parents[3] = repo root
     if len(here.parents) >= 4:
         candidates.append(here.parents[3] / "gui" / "web" / "dist")
     for candidate in candidates:

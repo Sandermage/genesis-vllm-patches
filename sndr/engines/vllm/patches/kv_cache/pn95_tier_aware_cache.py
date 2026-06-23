@@ -2,7 +2,7 @@
 """PN95 v7.73.x — tier-aware KV cache wire-in (Path C, club-3090 #58).
 
 Two minimal text-patch anchors that route into the runtime singleton
-at `vllm/sndr_core/cache/_pn95_runtime.py`:
+at `sndr/cache/_pn95_runtime.py`:
 
   1. `vllm/v1/core/single_type_kv_cache_manager.py::cache_blocks` —
      after vLLM's `cache_full_blocks()` updates `num_cached_block`,

@@ -9,7 +9,7 @@ boot path BEFORE workers spawn:
   - If guard.allowed = False: sets ``vllm_config.speculative_config =
     None`` IN PLACE and logs the operator-facing reason.
 
-Default-on: this install runs automatically at ``vllm.sndr_core``
+Default-on: this install runs automatically at ``sndr``
 import. Escape hatch:
 
   GENESIS_DISABLE_SPEC_DECODE_SAFETY_GUARD=1

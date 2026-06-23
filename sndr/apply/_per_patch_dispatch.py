@@ -450,8 +450,8 @@ def apply_patch_4_tq_hybrid() -> PatchResult:
     Platform guard: NVIDIA CUDA (upstream TQ is CUDA-only).
 
     Wiring strategy: TEXT-PATCH at the source file. Must run BEFORE vllm
-    imports arg_utils — i.e. invoke via `python3 -m vllm.sndr_core.
-    apply_all` as a pre-step to `vllm serve`. Idempotent; safe on container
+    imports arg_utils — i.e. invoke via `python3 -m sndr.apply`
+    as a pre-step to `vllm serve`. Idempotent; safe on container
     recreate (re-applies on fresh image layer).
     """
     name = "P4 TurboQuant hybrid model support"
@@ -7295,7 +7295,7 @@ def apply_patch_1_2_fp8_dispatcher() -> PatchResult:
 # (G4_04/05/06/18), deep fixes (G4_07/08/09/10), perf kernels (G4_15/16/24),
 # compatibility (G4_11/14), vision-tower management (G4_17/23), and
 # diagnostic (G4_25).
-# Family location: vllm/sndr_core/integrations/gemma4/
+# Family location: sndr/engines/vllm/patches/gemma4/
 # See registry.py "G4_NN" entries for full per-patch metadata.
 
 
@@ -7306,7 +7306,7 @@ def _g4_dispatch_factory(name: str, module_attr: str, family_pkg: str = "gemma4"
     function:
       1. Honors _APPLY_MODE (dry-run support)
       2. Imports the wiring module from the named family package under
-         vllm.sndr_core.integrations (default: gemma4; overridden for
+         sndr.engines.vllm.patches (default: gemma4; overridden for
          patches that have been relocated to a technical-area family
          per Phase 3 — kv_cache, attention.turboquant, spec_decode).
       3. Calls its apply() and maps (status, reason) → PatchResult

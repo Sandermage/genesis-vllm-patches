@@ -2,10 +2,10 @@
 """Pure-API layer for ``sndr patches release-check`` — M.6.2.
 
 Thin wrapper around
-:func:`vllm.sndr_core.proof.release_check.evaluate_release` that builds
+:func:`sndr.proof.release_check.evaluate_release` that builds
 the :class:`ReleasePolicy` from explicit parameters and, when scope =
 ``"production-subset"``, derives the canonical hardened-release patch
-filter via :func:`vllm.sndr_core.proof.production_subset.get_production_subset`.
+filter via :func:`sndr.proof.production_subset.get_production_subset`.
 
 The result is the raw report dict (already a stable JSON shape consumed
 by ``audit-release-check`` + CLI ``--json`` output) wrapped in a small
@@ -63,12 +63,12 @@ def release_check(
 ) -> ReleaseCheckResult:
     """Evaluate the release-check policy.
 
-    Builds a :class:`vllm.sndr_core.proof.release_check.ReleasePolicy`
+    Builds a :class:`sndr.proof.release_check.ReleasePolicy`
     from explicit args. When ``patch_filter`` is unset and
     ``scope == "production-subset"``, the patch filter is widened to
     the canonical production scope.
 
-    Raises :class:`vllm.sndr_core.proof.release_check.ReleaseCheckError`
+    Raises :class:`sndr.proof.release_check.ReleaseCheckError`
     on invalid policy inputs.
     """
     from sndr.proof import DEFAULT_PROOF_DIR

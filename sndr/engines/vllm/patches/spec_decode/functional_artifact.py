@@ -15,7 +15,7 @@ env is required. ``GENESIS_*`` aliases still work via the
 ``get_sndr_env()`` resolver (with deprecation warning).
 
 Files live as JSON next to this module:
-  ``vllm/sndr_core/integrations/spec_decode/artifacts/<profile>.json``
+  ``sndr/engines/vllm/patches/spec_decode/artifacts/<profile>.json``
 
 Production policy stays conservative — an artifact is REQUIRED
 but not SUFFICIENT for production-default promotion. The artifact

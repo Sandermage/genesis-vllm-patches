@@ -9,7 +9,7 @@ at a nonexistent module and vllm would log a "plugin failed to load"
 warning.
 
 This module is the canonical entry point. The root pyproject now
-declares `genesis_v7 = "vllm.sndr_core.plugin:register"`.
+declares `genesis_v7 = "sndr.plugin:register"`.
 
 A separate `genesis_v7` shim package may still exist on hosts where
 operators installed the plugin via pip during the v7.x era; it

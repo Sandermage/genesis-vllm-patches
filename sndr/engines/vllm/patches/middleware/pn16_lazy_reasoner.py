@@ -2,7 +2,7 @@
 """Wiring for PN16 — lazy-reasoner request hook.
 
 Injects a hook call at the top of `OpenAIServingChat.create_chat_completion`
-that runs `vllm.sndr_core.middleware.lazy_reasoner.apply_hook(serving, request)`
+that runs `sndr.engines.vllm.middleware.lazy_reasoner.apply_hook(serving, request)`
 in a try/except. Anchor is non-overlapping with the P68/P69 hook (we anchor
 on the `# Streaming response` + `tokenizer = self.renderer.tokenizer` lines
 which sit immediately AFTER the P68/P69 injection point, so PN16 inserts

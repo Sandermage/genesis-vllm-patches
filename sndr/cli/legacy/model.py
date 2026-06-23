@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """C4 (UNIFIED_CONFIG plan 2026-05-09) — `sndr model` subcommand tree.
 
-Promotes `python3 -m vllm.sndr_core.compat.models.pull` to a first-class
+Promotes `python3 -m sndr.compat.models.pull` to a first-class
 CLI surface. Today this is a thin delegation; B4 (rewrite of pull using
 ModelConfig + artifacts.models block) is a separate larger refactor.
 
@@ -67,7 +67,7 @@ def add_argparser(subparsers: Any) -> None:
 
     # ── list-v2 (V2 layered registry — Wave 10 contract drift fix)
     # The V2 layered model registry lives in
-    # `vllm/sndr_core/model_configs/builtin/model/*.yaml`. Each file is a
+    # `sndr/model_configs/builtin/model/*.yaml`. Each file is a
     # ModelDef (schema_v2.py:ModelDef). Use this command to list them
     # separately from the V1 monolithic registry.
     p_list_v2 = sub.add_parser(

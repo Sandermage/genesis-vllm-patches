@@ -5,7 +5,7 @@ PR38 Day 4 (2026-05-08): introduces a typed contract that lifts the
 hand-rolled `_per_patch_dispatch.apply_patch_X` parking lot into a
 data-driven structure. Every `PATCH_REGISTRY` entry maps to one
 `PatchSpec`; the `apply_module` field is auto-derived by walking the
-canonical `vllm/sndr_core/integrations/<family>/p<id>_*.py` tree.
+canonical `sndr/engines/vllm/patches/<family>/p<id>_*.py` tree.
 
 Architecture
 ─────────────
@@ -820,7 +820,7 @@ def iter_patch_specs(
 #
 #   lifecycle=legacy       → pre-dispatcher patches; auto-apply via the
 #                            legacy text-patch wiring under
-#                            `vllm/sndr_core/wiring/`. The dispatcher
+#                            `sndr/engines/vllm/wiring/`. The dispatcher
 #                            does not need to know about them.
 #   lifecycle=coordinator  → bundle/forward-shim row (e.g. PN274). Has
 #                            no apply path of its own; coordinates

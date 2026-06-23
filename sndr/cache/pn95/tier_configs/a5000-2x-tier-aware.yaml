@@ -7,8 +7,8 @@
 # │ 2026-06-01 as part of the PN95 architectural unblock that lets   │
 # │ the V1 source file retire (V1 sunset gate).                       │
 # │                                                                   │
-# │ Loader: vllm/sndr_core/cache/pn95/tier_config_loader.load_by_key │
-# │ Reader: vllm/sndr_core/cache/pn95/hooks.py:lazy_init via         │
+# │ Loader: sndr/cache/pn95/tier_config_loader.load_by_key           │
+# │ Reader: sndr/cache/pn95/hooks.py:lazy_init via                   │
 # │         GENESIS_PN95_CONFIG_KEY env var                          │
 # │                                                                   │
 # │ This is the data PN95 actually reads at runtime. The V1 source   │

@@ -20,7 +20,7 @@
 # Deployment (operator) — mount as overlay via the launcher's docker
 # run `-v` flag:
 #
-#     -v $REPO/vllm/sndr_core/integrations/tool_parsing/g4_t1_gemma4_tool_parser_pr42006_overlay.py:$TGT/tool_parsers/gemma4_tool_parser.py:ro
+#     -v $REPO/sndr/engines/vllm/patches/tool_parsing/g4_t1_gemma4_tool_parser_pr42006_overlay.py:$TGT/tool_parsers/gemma4_tool_parser.py:ro
 #
 # (where $TGT = /usr/local/lib/python3.12/dist-packages/vllm). The
 # launcher start_gemma4-31b-tq-mtp-structured-k4.sh mounts a copy of this

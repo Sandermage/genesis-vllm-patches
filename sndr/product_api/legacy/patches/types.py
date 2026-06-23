@@ -47,7 +47,7 @@ class ExplainView:
 
     patch_id: str  # canonical-cased registry key
     meta: dict[str, Any]
-    spec: Any  # vllm.sndr_core.dispatcher.spec.PatchSpec (typed lazily)
+    spec: Any  # sndr.dispatcher.spec.PatchSpec (typed lazily)
     live_decision: Optional[tuple[bool, str]] = None
     live_decision_error: Optional[str] = None
 

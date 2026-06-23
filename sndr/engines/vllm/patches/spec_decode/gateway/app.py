@@ -2,7 +2,7 @@
 """app — FastAPI dispatcher entry point.
 
 Run with:
-    python -m vllm.sndr_core.integrations.spec_decode.gateway
+    python -m sndr.engines.vllm.patches.spec_decode.gateway
 
 Or imported and mounted into another app via ``create_app()``.
 

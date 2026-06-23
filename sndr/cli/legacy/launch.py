@@ -489,7 +489,7 @@ def _run_docker_pull(cfg) -> int:
 def _run_check_deps(cfg, key: str) -> int:
     """`--check-deps`: run host dep inspection and abort on missing required deps.
 
-    Uses the canonical `vllm.sndr_core.deps` planner — the same code path
+    Uses the canonical `sndr.deps` planner — the same code path
     that drives `sndr deps plan` — as the primary signal. Returns
     non-zero whenever `plan.blockers()` is non-empty (Docker / NVIDIA
     runtime / model directory / Python deps / vLLM pin).
