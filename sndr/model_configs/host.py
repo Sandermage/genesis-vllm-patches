@@ -98,10 +98,17 @@ _DEFAULT_CACHE_ROOT_CANDIDATES = [
     "/var/cache/genesis",
 ]
 
+# sndr_src — the overlay PACKAGE dir, RO-bind-mounted into the container's
+# dist-packages/sndr so `import sndr` resolves. v12 (2026-06-23): the package
+# moved vllm/sndr_core/ -> sndr/. The UNIFIED ROOT BUG fix (2026-06-22) below
+# correctly retargeted _DEFAULT_PLUGIN_SRC_CANDIDATES to the repo root but left
+# THESE pointing at the retired vllm/sndr_core subdir, so the auto-probed RO
+# mount source did not exist on a clean v12 checkout (operators had to set
+# sndr_src / SNDR_CORE_SRC by hand). Point at the v12 `sndr/` package dir.
 _DEFAULT_SNDR_SRC_CANDIDATES = [
-    str(Path.home() / "genesis-vllm-patches/vllm/sndr_core"),
-    "/opt/genesis-vllm-patches/vllm/sndr_core",
-    str(Path.home() / ".genesis/genesis-vllm-patches/vllm/sndr_core"),
+    str(Path.home() / "genesis-vllm-patches/sndr"),
+    "/opt/genesis-vllm-patches/sndr",
+    str(Path.home() / ".genesis/genesis-vllm-patches/sndr"),
 ]
 
 # Plugin source candidates — the directory the launch renderer bind-mounts

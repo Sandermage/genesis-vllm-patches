@@ -64,7 +64,7 @@ class _TierSpec:
     """Mirror of the tier shape `make_tier_manager` reads.
 
     The real schema lives in
-    `vllm/sndr_core/model_configs/types/cache_config.py:Tier` —
+    `sndr/model_configs/types/cache.py:CacheTier` —
     we only need a structural duck-type here, not strict validation,
     since `TierManager(cc.tiers, ...)` consumes attribute access.
     """
