@@ -6,7 +6,7 @@ watch:
   severity: P0-correctness
   local_patches:
   - PN400
-  action: port
+  action: drift-check  # reconciled 2026-06-23: PN400 IS the backport of fix_upstream vllm#45656 (port complete); drift-check until #45656 lands in our pin, then retire PN400.
   since: 2026-06-20
   notes: |
     REGRESSION IN dev148 (found by the /loop upstream sweep 2026-06-20).

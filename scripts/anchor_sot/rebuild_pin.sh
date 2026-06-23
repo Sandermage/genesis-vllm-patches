@@ -8,7 +8,7 @@
 #      sndr/engines/vllm/pins/<pin>/anchors.json (engine schema, round-trip verified)
 #
 # A bump becomes: boot the new pin, run this, commit the new pins/<pin>/anchors.json.
-# Run on sander@192.168.1.10.  Override CONTAINER/IMAGE/REPO via env.
+# Run on the inference rig host (over SSH).  Override CONTAINER/IMAGE/REPO via env.
 set -euo pipefail
 
 CONTAINER="${CONTAINER:-vllm-qwen3.6-35b-balanced-k3}"

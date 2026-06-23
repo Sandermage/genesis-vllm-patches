@@ -104,11 +104,23 @@ def apply() -> tuple[str, str]:
         result = original(*args, **kwargs)
 
         try:
-            if _orig_sig is None:
-                return result
-            _bound = _orig_sig.bind(*args, **kwargs)
-            _bound.apply_defaults()
-            max_spec_len = _bound.arguments["max_spec_len"]
+            # max_spec_len is read back ONLY to update the gauge for
+            # dashboard awareness; it is read best-effort and MUST NOT
+            # gate the counter emission. The accepted-per-request counts
+            # are derived purely from ``result`` + the placeholder
+            # constant, so they stay correct even when the bound
+            # signature does not surface ``max_spec_len`` by name (e.g.
+            # a *args-only wrapper, or a pin where the param was
+            # renamed/reordered such that bind() can't resolve it). When
+            # we cannot resolve it, default to 0 and still emit counters.
+            max_spec_len = 0
+            if _orig_sig is not None:
+                try:
+                    _bound = _orig_sig.bind(*args, **kwargs)
+                    _bound.apply_defaults()
+                    max_spec_len = _bound.arguments.get("max_spec_len", 0)
+                except (TypeError, ValueError):
+                    max_spec_len = 0
             # result shape: [B, max_spec_len + 1]
             # row[0] = bonus / recovered token
             # row[1:] = accepted draft IDs or PLACEHOLDER for rejected

@@ -343,11 +343,35 @@ class TestApply:
 
     def test_apply_skips_when_no_variant_matches(self, tmp_path, monkeypatch):
         """Required-at-least-one belt: if neither anchor variant matches
-        (drifted file), apply() skips without writing."""
-        drifted = PIN_SCHEDULER.replace(
-            "        if num_computed_tokens < max(",
-            "        if 1 and num_computed_tokens < max(",
+        (drifted file), apply() skips without writing.
+
+        The 2026-06-17 redesign NARROWED both anchors to the inner four-way
+        branch (``num_computed_tokens_after_sched = ...`` through
+        ``else: pass``), so a drift on the OUTER ``if num_computed_tokens <
+        max(...)`` guard no longer breaks the anchor — a variant would still
+        match and apply() would (correctly) apply. To exercise the belt the
+        drift must mutate the ACTUAL anchor text. We perturb the inner
+        branch's first line, which is the shared opening line of BOTH
+        ``PN388_PRISTINE_OLD`` and ``PN388_POST_P34_OLD``, so neither variant
+        matches. The line stays valid Python, so this isolates anchor drift
+        (not a syntax/compile failure)."""
+        anchor_line = (
+            "            num_computed_tokens_after_sched = "
+            "num_computed_tokens + num_new_tokens\n"
         )
+        # Sanity: the line we mutate really is the opening line of both
+        # narrowed anchor variants — otherwise the drift would be stale again.
+        assert anchor_line in m.PN388_PRISTINE_OLD
+        assert anchor_line in m.PN388_POST_P34_OLD
+        assert anchor_line in PIN_SCHEDULER
+        drifted = PIN_SCHEDULER.replace(
+            anchor_line,
+            "            num_computed_tokens_after_sched = "
+            "num_computed_tokens + num_new_tokens + 0  # drift\n",
+        )
+        # The mutated anchor breaks BOTH variants — neither shape matches.
+        assert m.PN388_PRISTINE_OLD not in drifted
+        assert m.PN388_POST_P34_OLD not in drifted
         target = _install_fake(tmp_path, monkeypatch, drifted)
         status, _reason = m.apply()
         assert status in ("skipped", "failed")
