@@ -38,10 +38,17 @@ fire for a Site-2-only drift; ``apply()`` adds an explicit pre-gate
 (``site2_anchor_present``) returning a structured skip BEFORE any write
 when neither Site 2 variant matches.
 
+2026-06-24 (pin bump -> 0.23.1rc1.dev301+g04c2a8dea): Site 1 re-anchored
+again. Upstream rewrote the ``MambaManager.cache_blocks`` loop body —
+the old ``if block.is_null: continue / assert block.block_hash is not
+None`` pair folded into ``if block.is_null or block.block_hash is None:
+continue`` plus a sparse-retention comment. ``P85_SITE1_OLD/NEW`` and the
+committed fixture's MambaManager.cache_blocks body were updated byte-
+exact to dev301 (em-dash preserved). Site 2 is unchanged (still matches).
+
 These tests verify, textually on the committed pristine fixture
 (``tests/legacy/pristine_fixtures/single_type_kv_cache_manager.py``,
-md5 99b46fa9f109e22ea2ba4a0dfeac1e87 — identical to
-/private/tmp/candidate_pin_current on the extraction host):
+md5 93fe087f893767edb2049647ed335c20 — dev301 Site 1 body):
   1. Site 1 anchor matches pristine exactly once and carries the
      retention_interval signature + forward
   2. Site 2 pristine variant matches pristine exactly once; post-PN346

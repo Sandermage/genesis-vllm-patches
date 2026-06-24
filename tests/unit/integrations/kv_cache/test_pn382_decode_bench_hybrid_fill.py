@@ -1,37 +1,38 @@
 # SPDX-License-Identifier: Apache-2.0
-"""TDD for PN382 — vendor of OPEN PR vllm#45080 (DecodeBenchConnector
-list/tuple KV fill) + two Genesis extensions.
+"""TDD for PN382 — override the MERGED-but-weaker vllm#45080
+(DecodeBenchConnector list/tuple KV fill) + two Genesis extensions.
 
-Upstream #45080 fixes the AttributeError crash on hybrid / linear-
-attention models: ``DecodeBenchConnectorWorker._fill_blocks`` assumed
-every layer's KV cache is a single block-indexed ``torch.Tensor`` and
-died on ``list.device`` for Mamba/GDN layers whose cache is a LIST of
-state tensors. Upstream then fills each state tensor IN ITS ENTIRETY.
+On pin 0.23.1rc1.dev301+g04c2a8dea, vllm#45080 has MERGED. Upstream's
+``DecodeBenchConnectorWorker._fill_blocks`` now DISPATCHES: block-indexed
+``torch.Tensor`` -> ``_fill_block_tensor`` (per block); a LIST/tuple of
+state tensors (Mamba/GDN) -> ``_fill_state_tensor`` filling each tensor
+IN ITS ENTIRETY (whole-pool). The crash fix is upstream-native now; the
+two Genesis extensions below are what upstream still LACKS.
 
 Genesis extensions (roadmap chunk-3 Theme D — verified against the
-pristine pin tree 0.22.1rc1.dev259+g303916e93):
+dev301 pristine tree):
 
-  1. PER-BLOCK fill for the list/tuple path. On this pin, MambaSpec
-     state tensors ARE block-indexed — ``gpu_model_runner.py`` builds
-     them with ``target_shape = (num_blocks, *shape)`` (verified in
-     the pristine tree, MambaSpec branch of the KV-cache initializer).
-     Upstream's whole-pool ``fill_()/normal_()`` would clobber the
-     recurrent state of every CONCURRENT request; the Genesis fill
-     touches only the requested block rows (same per-row fill as the
-     attention path).
-  2. REAL group_idx -> layer_names map. Upstream's
-     ``register_kv_caches`` maps ALL layers to group 0; on hybrid
-     models (full-attn group + Mamba group, e.g. Qwen3.6) that fills
-     Mamba state with the ATTENTION group's block ids and ignores the
-     Mamba group's own ids. PN382 threads ``kv_cache_config`` (already
-     handed to the connector ctor on this pin) into the worker and
-     builds the map from ``kv_cache_config.kv_cache_groups``.
+  1. PER-BLOCK fill for the list/tuple path. On dev301, MambaSpec state
+     tensors ARE block-indexed — ``gpu_model_runner.py`` builds them with
+     ``target_shape = (num_blocks, *shape)`` (verified live in the dev301
+     MambaSpec branch of the KV-cache initializer). Upstream's whole-pool
+     ``fill_()/normal_()`` would clobber the recurrent state of every
+     CONCURRENT request; sub4 REDIRECTS the merged list/tuple branch to
+     upstream's own per-block ``_fill_block_tensor(state_tensor,
+     block_ids)`` so only the requested block rows are touched (same
+     per-row fill as the attention path).
+  2. REAL group_idx -> layer_names map. Upstream's ``register_kv_caches``
+     still maps ALL layers to group 0; on hybrid models (full-attn group
+     + Mamba group, e.g. Qwen3.6) that fills Mamba state with the
+     ATTENTION group's block ids and ignores the Mamba group's own ids.
+     PN382 threads ``kv_cache_config`` (already handed to the connector
+     ctor on this pin) into the worker and builds the map from
+     ``kv_cache_config.kv_cache_groups``.
 
-These tests verify textually (portable embedded fixtures shaped like
-pin 0.22.1rc1.dev259+g303916e93), BEHAVIORALLY (the patched fixture is
-exec'd with a fake torch to prove the no-clobber contract), and
-opportunistically against the real pristine tree at
-/private/tmp/candidate_pin_current.
+These tests verify textually (portable embedded fixtures shaped like the
+merged dev301 source), BEHAVIORALLY (the patched fixture is exec'd with a
+fake torch to prove the no-clobber contract), and opportunistically
+against a real pristine tree if one is dumped to PIN_TREE.
 """
 from __future__ import annotations
 
@@ -41,7 +42,7 @@ from pathlib import Path
 
 import pytest
 
-PIN_TREE = Path("/private/tmp/candidate_pin_current/vllm")
+PIN_TREE = Path("/tmp/dev301_pristine_tree/vllm")
 PIN_CONNECTOR = (
     PIN_TREE
     / "distributed"
@@ -60,7 +61,7 @@ def _pn382():
 
 
 # ─────────────────────────────────────────────────────────────────────
-# Portable fixture — pristine-shaped regions (pin g303916e93)
+# Portable fixture — pristine-shaped regions (pin g04c2a8dea, #45080 merged)
 # ─────────────────────────────────────────────────────────────────────
 
 # Verbatim pristine regions (byte-parity with the pin is asserted in
@@ -116,41 +117,67 @@ GROUP_MAP_REGION = (
     "        )\n"
 )
 
+# dev301 (0.23.1rc1.dev301+g04c2a8dea): vllm#45080 MERGED. The fill is
+# now split — _fill_blocks DISPATCHES tensor -> _fill_block_tensor (per
+# block) and list/tuple -> _fill_state_tensor (WHOLE-POOL). PN382's
+# sub4 re-anchors the list/tuple branch and redirects it to the per-block
+# helper. This region carries the merged dispatch verbatim (the sub4
+# anchor matches the elif branch).
 FILL_REGION = (
-    "            # Convert block_ids to tensor on device\n"
-    "            block_ids_tensor = torch.tensor(\n"
-    "                block_ids, dtype=torch.long, device=kv_cache.device\n"
-    "            )\n"
-    "\n"
-    "            # Filter invalid block IDs\n"
-    "            valid_mask = block_ids_tensor < kv_cache.shape[0]\n"
-    "            valid_block_ids = block_ids_tensor[valid_mask]\n"
-    "\n"
-    "            if len(valid_block_ids) == 0:\n"
-    "                continue\n"
-    "\n"
-    "            # Create fill values - either constant or random\n"
-    "            block_shape = kv_cache.shape[1:]\n"
-    "            if self.fill_std > 0:\n"
-    "                # Random normal sampling\n"
-    "                fill_values = torch.normal(\n"
-    "                    mean=self.fill_mean,\n"
-    "                    std=self.fill_std,\n"
-    "                    size=(len(valid_block_ids),) + block_shape,\n"
-    "                    dtype=kv_cache.dtype,\n"
-    "                    device=kv_cache.device,\n"
-    "                )\n"
+    "            if isinstance(kv_cache, torch.Tensor):\n"
+    "                self._fill_block_tensor(kv_cache, block_ids)\n"
+    "            elif isinstance(kv_cache, (list, tuple)) and all(\n"
+    "                isinstance(t, torch.Tensor) for t in kv_cache\n"
+    "            ):\n"
+    "                for state_tensor in kv_cache:\n"
+    "                    self._fill_state_tensor(state_tensor)\n"
     "            else:\n"
-    "                # Constant fill value\n"
-    "                fill_values = torch.full(\n"
-    "                    (len(valid_block_ids),) + block_shape,\n"
-    "                    self.fill_mean,\n"
-    "                    dtype=kv_cache.dtype,\n"
-    "                    device=kv_cache.device,\n"
+    "                logger.warning_once(\n"
+    '                    "DecodeBenchConnector: skipping fill for layer %s whose KV "\n'
+    '                    "cache is %s, not a tensor or a list/tuple of tensors.",\n'
+    "                    layer_name,\n"
+    "                    type(kv_cache).__name__,\n"
     "                )\n"
+    "                continue\n"
+)
+
+# The two merged-upstream helper methods (#45080). PN382 leaves
+# _fill_block_tensor untouched and REUSES it from the redirected list
+# branch; _fill_state_tensor stays defined but is no longer called by
+# the GDN path after PN382 (the tensor-vs-list dispatch routes both to
+# per-block fill). Kept exec-able for the behavioral tests.
+FILL_HELPERS_REGION = (
+    "    def _fill_block_tensor(self, kv_cache, block_ids):\n"
+    "        block_ids_tensor = torch.tensor(\n"
+    "            block_ids, dtype=torch.long, device=kv_cache.device\n"
+    "        )\n"
+    "        valid_mask = block_ids_tensor < kv_cache.shape[0]\n"
+    "        valid_block_ids = block_ids_tensor[valid_mask]\n"
+    "        if len(valid_block_ids) == 0:\n"
+    "            return\n"
+    "        block_shape = kv_cache.shape[1:]\n"
+    "        if self.fill_std > 0:\n"
+    "            fill_values = torch.normal(\n"
+    "                mean=self.fill_mean,\n"
+    "                std=self.fill_std,\n"
+    "                size=(len(valid_block_ids),) + block_shape,\n"
+    "                dtype=kv_cache.dtype,\n"
+    "                device=kv_cache.device,\n"
+    "            )\n"
+    "        else:\n"
+    "            fill_values = torch.full(\n"
+    "                (len(valid_block_ids),) + block_shape,\n"
+    "                self.fill_mean,\n"
+    "                dtype=kv_cache.dtype,\n"
+    "                device=kv_cache.device,\n"
+    "            )\n"
+    "        kv_cache[valid_block_ids] = fill_values\n"
     "\n"
-    "            # Batch fill operation\n"
-    "            kv_cache[valid_block_ids] = fill_values\n"
+    "    def _fill_state_tensor(self, kv_cache):\n"
+    "        if self.fill_std > 0:\n"
+    "            kv_cache.normal_(mean=self.fill_mean, std=self.fill_std)\n"
+    "        else:\n"
+    "            kv_cache.fill_(self.fill_mean)\n"
 )
 
 
@@ -161,7 +188,7 @@ def _fake_pristine_connector() -> str:
     fakes (no real torch on this machine)."""
     return (
         "# fake decode_bench_connector.py - pristine-shaped regions"
-        " (pin g303916e93)\n"
+        " (pin g04c2a8dea, #45080 merged)\n"
         "\n"
         "\n"
         "class KVConnectorRole:\n"
@@ -199,6 +226,8 @@ def _fake_pristine_connector() -> str:
         "\n"
         "            kv_cache = self.kv_caches[layer_name]\n"
         "\n" + FILL_REGION
+        + "\n"
+        + FILL_HELPERS_REGION
     )
 
 
@@ -382,7 +411,10 @@ class TestEndToEndApply:
         ]
         out = target.read_text(encoding="utf-8")
         ast.parse(out)
-        assert "_pn382_targets" in out
+        # dev301 redirect: the merged list/tuple branch now routes each
+        # state tensor through the per-block helper with block_ids.
+        assert "self._fill_block_tensor(state_tensor, block_ids)" in out
+        assert "self._fill_state_tensor(state_tensor)" not in out
 
     def test_idempotent_on_second_apply(self, tmp_path, monkeypatch):
         monkeypatch.setenv("GENESIS_NO_PATCH_CACHE", "1")
@@ -511,14 +543,20 @@ class TestBehavior:
 class TestReplacementContract:
     def test_fill_keeps_per_block_indexing_for_states(self):
         """The list/tuple branch must keep the block-row indexing —
-        NEVER the whole-pool fill upstream uses."""
+        NEVER the whole-pool fill upstream uses. On dev301 (#45080 merged)
+        sub4 redirects the merged list/tuple branch from the whole-pool
+        ``_fill_state_tensor`` to upstream's own per-block
+        ``_fill_block_tensor(state_tensor, block_ids)``."""
         M = _pn382()
         subs = {sp.name: sp for sp in M.build_sub_patches()}
         repl = subs["pn382_hybrid_per_block_fill"].replacement
-        assert "isinstance(kv_cache, torch.Tensor)" in repl
+        # The redirected branch keeps the list/tuple shape and routes each
+        # state tensor through the PER-BLOCK helper with block_ids.
         assert "isinstance(kv_cache, (list, tuple))" in repl
-        assert "valid_block_ids" in repl
-        # Upstream whole-pool calls must not appear.
+        assert "self._fill_block_tensor(state_tensor, block_ids)" in repl
+        # The whole-pool call must be GONE from the emitted branch.
+        assert "self._fill_state_tensor(state_tensor)" not in repl
+        # And no direct whole-pool ops are introduced.
         assert ".fill_(" not in repl
         assert ".normal_(" not in repl
 
@@ -550,6 +588,17 @@ class TestReplacementContract:
 
 
 class TestSelfCollision:
+    # On dev301 (#45080 merged) PN382's post-fix drift marker is the
+    # per-block call it emits — an INTENTIONAL self-collision (PN399 /
+    # PN346 convention). It is allowlisted because the kernel checks the
+    # idempotency marker (Layer 2) BEFORE the drift markers (Layer 3), so
+    # the drift scan never reads PN382's own output on re-apply; on a
+    # fresh pin where upstream adopts per-block fill the marker fires and
+    # PN382 self-skips as obsolete. Exempt it here like the [Genesis one.
+    _ALLOWLISTED_SELF_COLLISION = (
+        "self._fill_block_tensor(state_tensor, block_ids)",
+    )
+
     def test_drift_markers_disjoint_from_emitted_text(self):
         M = _pn382()
         marker_line = f"# [Genesis wiring marker: {M.GENESIS_PN382_MARKER}]\n"
@@ -557,6 +606,8 @@ class TestSelfCollision:
         for dm in M._DRIFT_MARKERS:
             if dm.startswith("[Genesis"):
                 continue  # defended convention — exempt from the lint
+            if dm in self._ALLOWLISTED_SELF_COLLISION:
+                continue  # documented post-fix self-collision (see above)
             for repl in replacements:
                 assert dm not in repl, (dm, repl[:80])
             assert dm not in marker_line

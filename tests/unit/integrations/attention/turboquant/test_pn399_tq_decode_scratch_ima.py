@@ -441,11 +441,14 @@ def test_registry_pn399_after_pn118_and_dependency_wired():
         "PN118 first (sub-patches B/C anchor the PN118 box)"
     )
 
-    # Consolidated PN399 hard-depends on BOTH PN118 and PN353A (it anchors
-    # both their applied outputs to remove the now-dead reservations).
+    # PN399 still declares PN353A in requires_patches and is ordered after
+    # it (PN353A stays in the registry, only its lifecycle flipped to
+    # retired on dev301). On a pre-dev301 pin PN399 anchors PN353A's
+    # applied reserve block; on dev301 PN353A is upstream-native + retired
+    # so PN399 (default_off) skips cleanly. Ordering invariant unchanged.
     assert keys.index("PN399") > keys.index("PN353A"), (
         "PN399 must be placed AFTER PN353A so its applied reserve block "
-        "exists when PN399's C2 removal anchors it"
+        "exists when PN399's C2 removal anchors it (pre-dev301 pins)"
     )
 
     pn399_meta = PATCH_REGISTRY["PN399"]
@@ -461,8 +464,15 @@ def test_registry_pn399_after_pn118_and_dependency_wired():
 
     pn118_meta = PATCH_REGISTRY["PN118"]
     assert "PN399" in pn118_meta.get("composes_with", [])
+    # PN353A RETIRED on dev301 (vllm#44053 merged native — see PN353A
+    # registry note). PN399 was decoupled from PN353A's composes_with: on
+    # dev301 PN353A cannot apply (anchor matches 0x), so it no longer
+    # supplies a live reserve block for PN399's C2 anchor. PN399 keeps
+    # PN353A in requires_patches (default_off) and skips cleanly when the
+    # dependency is absent — verified by the after-chain skip semantics.
     pn353a_meta = PATCH_REGISTRY["PN353A"]
-    assert "PN399" in pn353a_meta.get("composes_with", [])
+    assert pn353a_meta["lifecycle"] == "retired"
+    assert "PN399" not in pn353a_meta.get("composes_with", [])
 
 
 def test_env_flag_registered():

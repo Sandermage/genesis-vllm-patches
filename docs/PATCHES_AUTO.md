@@ -4,7 +4,7 @@
 > Source of truth: `sndr/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-06-24T19:42:53Z
+Generated: 2026-06-24T21:37:21Z
 Total entries: **317**
 
 ## Statistics
@@ -14,10 +14,10 @@ Total entries: **317**
 
 ### By lifecycle
 - `lifecycle=coordinator`: **4**
-- `lifecycle=experimental`: **232**
+- `lifecycle=experimental`: **231**
 - `lifecycle=legacy`: **28**
 - `lifecycle=research`: **3**
-- `lifecycle=retired`: **36**
+- `lifecycle=retired`: **37**
 - `lifecycle=stable`: **14**
 
 ### Default-on at boot: **57** / 317
@@ -135,7 +135,7 @@ Total entries: **317**
 | **PN119** | `community` | `experimental` | ✓ | `GENESIS_ENABLE_PN119` | [#40792](https://github.com/vllm-project/vllm/pull/40792) | TurboQuant k8v4 GQA head grouping kernel (vllm#40792) |
 | **PN261** | `community` | `experimental` | · | `GENESIS_ENABLE_PN261_TQ_NATIVE_CACHE_ASSERT` | — | TQ native cache layout assert (opt-in guard; PR42637 overlay) |
 | **PN299E** | `community` | `experimental` | · | `GENESIS_ENABLE_PN299E` | — | KV cache writer arch-aware NUM_WARPS+NUM_STAGES cap (SM 8.6) |
-| **PN353A** | `community` | `experimental` | · | `GENESIS_ENABLE_PN353A` | [#44053](https://github.com/vllm-project/vllm/pull/44053) | TurboQuant MetadataBuilder workspace reserve (backport OPEN vllm#44053) |
+| **PN353A** | `community` | `retired` | · | `GENESIS_ENABLE_PN353A` | [#44053](https://github.com/vllm-project/vllm/pull/44053) | TurboQuant MetadataBuilder workspace reserve (backport OPEN vllm#44053) |
 | **PN353B** | `community` | `experimental` | · | `GENESIS_ENABLE_PN353B` | [#43747](https://github.com/vllm-project/vllm/pull/43747) | TurboQuant prefill CUDA-graph capture safety (backport OPEN vllm#43747, close... |
 | **PN399** | `community` | `experimental` | · | `GENESIS_ENABLE_PN399_TQ_DECODE_SCRATCH_IMA` | [#46067](https://github.com/vllm-project/vllm/pull/46067) | Consolidated single-owner TurboQuant decode-scratch fixed-buffer — fix CUDA I... |
 | **G4_19** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_19_GEMMA4_TURBOQUANT_KV` | [#38171](https://github.com/vllm-project/vllm/issues/38171) | Genesis G4-TurboQuant KV cache for Gemma 4 (3/4-bit VQ, unlocks 256K context ... |

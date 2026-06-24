@@ -33,7 +33,7 @@ historical reference only (no patcher registers against them anymore).
 | gpu_model_runner.py | ac61702177b286d0d7239050fd07cbbc | 7179 | v1 worker GPU model runner (PN33.Sub-1 + PN35.Sub-1 targets) |
 | llm_base_proposer.py | b2b5def581d27d4654e66d83b4ff4998 | 1638 | v1 spec-decode LLM base proposer (PN35.Sub-2 target) |
 | gemma4.py | ff843002c69f9d2aced01c99325e2b21 | 1721 | Gemma 4 model `load_weights._weight_iterator` (G4_04 Sub-1 target — AWQ MoE keys remap, vendors vllm#40886) |
-| single_type_kv_cache_manager.py | 99b46fa9f109e22ea2ba4a0dfeac1e87 | 1407 | v1 core single-type KV cache manager — MambaManager.cache_blocks + find_longest_cache_hit (P85 Site 1/Site 2 + PN346 targets; extracted 2026-06-11 from /private/tmp/candidate_pin_current, pin 0.22.1rc1.dev259+g303916e93) |
+| single_type_kv_cache_manager.py | 93fe087f893767edb2049647ed335c20 | 1407 | v1 core single-type KV cache manager — MambaManager.cache_blocks + find_longest_cache_hit (P85 Site 1/Site 2 + PN346 targets; extracted 2026-06-11 from /private/tmp/candidate_pin_current, pin 0.23.1rc1.dev301+g04c2a8dea (Site 1 body)) |
 
 ## Update procedure
 

@@ -1,55 +1,18 @@
 {
  "counts": {
-  "anchor_drift": 5,
-  "ok": 138,
+  "ok": 148,
   "optional_absent": 12,
-  "retired": 27,
+  "retired": 30,
   "upstream_merged": 1,
   "version_gated": 13
  },
  "coverage": {
-  "discovered": 196,
-  "ok": 138,
-  "rejected": 58
+  "discovered": 204,
+  "ok": 148,
+  "rejected": 56
  },
  "genesis_pin": "12.0.0.dev0",
- "genuine_anchor_drift": [
-  {
-   "anchor_head": "    def cache_blocks(\n        self,\n        request: Request",
-   "key": "P85::p85_mamba_cache_blocks_shadow",
-   "required": true,
-   "status": "anchor_drift",
-   "target_rel": "v1/core/single_type_kv_cache_manager.py"
-  },
-  {
-   "anchor_head": "_PARTIAL_PARAM_RE = re.compile(r\"<\\s*parameter\\s*=\\s*([^>]+)",
-   "key": "PN394::pn394_partial_param_value_group",
-   "required": true,
-   "status": "anchor_drift",
-   "target_rel": "parser/qwen3.py"
-  },
-  {
-   "anchor_head": "    def __init__(self, kv_cache_spec, layer_names, vllm_conf",
-   "key": "PN353A::pn353a_metadata_builder_reserve",
-   "required": true,
-   "status": "anchor_drift",
-   "target_rel": "v1/attention/backends/turboquant_attn.py"
-  },
-  {
-   "anchor_head": "        return gptq_marlin_moe_quant_config(\n            w1_",
-   "key": "PN400::pn400_marlin_moe_sym_zp_guard",
-   "required": true,
-   "status": "anchor_drift",
-   "target_rel": "model_executor/layers/quantization/auto_gptq.py"
-  },
-  {
-   "anchor_head": "            # Convert block_ids to tensor on device\n        ",
-   "key": "PN382::pn382_hybrid_per_block_fill",
-   "required": true,
-   "status": "anchor_drift",
-   "target_rel": "distributed/kv_transfer/kv_connector/v1/decode_bench_connector.py"
-  }
- ],
+ "genuine_anchor_drift": [],
  "merge_status": {
   "G4_04": {
    "merge_status": "not_merged",
@@ -298,10 +261,6 @@
    "merge_status": "not_merged",
    "target_rel": "model_executor/layers/fused_moe/fused_moe.py"
   },
-  "PN353A": {
-   "merge_status": "not_merged",
-   "target_rel": "v1/attention/backends/turboquant_attn.py"
-  },
   "PN353B": {
    "merge_status": "not_merged",
    "target_rel": "v1/attention/backends/turboquant_attn.py"
@@ -354,10 +313,6 @@
    "merge_status": "not_merged",
    "target_rel": "v1/sample/rejection_sampler.py"
   },
-  "PN394": {
-   "merge_status": "not_merged",
-   "target_rel": "parser/qwen3.py"
-  },
   "PN40": {
    "merge_status": "not_merged",
    "target_rel": "model_executor/models/qwen3_dflash.py"
@@ -365,10 +320,6 @@
   "PN40-classifier": {
    "merge_status": "not_merged",
    "target_rel": "entrypoints/openai/chat_completion/serving.py"
-  },
-  "PN400": {
-   "merge_status": "not_merged",
-   "target_rel": "model_executor/layers/quantization/auto_gptq.py"
   },
   "PN517": {
    "merge_status": "not_merged",
@@ -386,6 +337,14 @@
    "merge_status": "not_merged",
    "target_rel": "model_executor/layers/fla/ops/chunk.py"
   },
+  "PN71": {
+   "merge_status": "not_merged",
+   "target_rel": "parser/qwen3.py"
+  },
+  "PN73": {
+   "merge_status": "not_merged",
+   "target_rel": "entrypoints/chat_utils.py"
+  },
   "PN77": {
    "merge_status": "not_merged",
    "target_rel": "model_executor/model_loader/utils.py"
@@ -393,6 +352,22 @@
   "PN8": {
    "merge_status": "not_merged",
    "target_rel": "model_executor/models/utils.py"
+  },
+  "PN91": {
+   "merge_status": "not_merged",
+   "target_rel": "entrypoints/chat_utils.py"
+  },
+  "PN92": {
+   "merge_status": "not_merged",
+   "target_rel": "utils/import_utils.py"
+  },
+  "PN96": {
+   "merge_status": "not_merged",
+   "target_rel": "v1/core/block_pool.py"
+  },
+  "SNDR_WORKSPACE_001": {
+   "merge_status": "not_merged",
+   "target_rel": "v1/worker/workspace.py"
   }
  },
  "pin": "0.23.1rc1.dev301+g04c2a8dea",
@@ -477,13 +452,6 @@
    "target_rel": "v1/core/sched/scheduler.py"
   },
   {
-   "anchor_head": "    def cache_blocks(\n        self,\n        request: Request",
-   "key": "P85::p85_mamba_cache_blocks_shadow",
-   "required": true,
-   "status": "anchor_drift",
-   "target_rel": "v1/core/single_type_kv_cache_manager.py"
-  },
-  {
    "anchor_head": "        computed_blocks: tuple[list[KVCacheBlock], ...] = tu",
    "key": "P85::p85_mamba_find_longest_cache_hit_fine_post_pn346",
    "status": "optional_absent",
@@ -527,7 +495,7 @@
    "anchor_head": "_PARTIAL_PARAM_RE = re.compile(r\"<\\s*parameter\\s*=\\s*([^>]+)",
    "key": "PN394::pn394_partial_param_value_group",
    "required": true,
-   "status": "anchor_drift",
+   "status": "retired",
    "target_rel": "parser/qwen3.py"
   },
   {
@@ -623,7 +591,7 @@
    "anchor_head": "    def __init__(self, kv_cache_spec, layer_names, vllm_conf",
    "key": "PN353A::pn353a_metadata_builder_reserve",
    "required": true,
-   "status": "anchor_drift",
+   "status": "retired",
    "target_rel": "v1/attention/backends/turboquant_attn.py"
   },
   {
@@ -664,7 +632,7 @@
    "anchor_head": "        return gptq_marlin_moe_quant_config(\n            w1_",
    "key": "PN400::pn400_marlin_moe_sym_zp_guard",
    "required": true,
-   "status": "anchor_drift",
+   "status": "retired",
    "target_rel": "model_executor/layers/quantization/auto_gptq.py"
   },
   {
@@ -807,13 +775,6 @@
     ">=0.22.0",
     "<0.23.0"
    ]
-  },
-  {
-   "anchor_head": "            # Convert block_ids to tensor on device\n        ",
-   "key": "PN382::pn382_hybrid_per_block_fill",
-   "required": true,
-   "status": "anchor_drift",
-   "target_rel": "distributed/kv_transfer/kv_connector/v1/decode_bench_connector.py"
   }
  ]
 }

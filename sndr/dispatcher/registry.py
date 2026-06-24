@@ -5630,7 +5630,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "env_flag": "GENESIS_ENABLE_PN353A",
         "default_on": False,
         "apply_module": "sndr.engines.vllm.patches.attention.turboquant.pn353a_tq_builder_workspace_reserve",
-        "lifecycle": "experimental",
+        "lifecycle": "retired",
         "category": "stability",
         "credit": (
             "Genesis backport of OPEN vllm#44053 (Bot1822, 2026-06-04, "
@@ -5647,34 +5647,51 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         ),
         "upstream_pr": 44053,
         "upstream_pr_relationship": "backport",
-        # KEPT ACTIVE 2026-06-24 (pin bump dev148 -> dev301): #44053 is IN
-        # dev301 (the TQ MetadataBuilder reserve is fixed native on dev301;
-        # anchor drifted per the anchor-SOT regen) so #44053 supersedes this
-        # patch on its own. BUT NOT version-gated out: PN399.requires_patches
-        # includes PN353A (verified) — PN399 anchors PN353A's LIVE-applied
-        # reserve block. Coupled retirement waits for PN399's upstream
-        # (#46067). Range deliberately left open through <0.24.0 so PN353A
-        # stays applicable on dev301 and the PN399 chain does not break.
+        # RETIRED 2026-06-24 (pin bump dev148 -> dev301): vllm#44053 MERGED
+        # into dev301. The pristine dev301 turboquant_attn.py carries a
+        # NATIVE TurboQuantMetadataBuilder._reserve_workspace (lines ~205-
+        # 242) that is byte-equivalent in intent to this backport (same
+        # is_workspace_manager_initialized guard, same decode +
+        # continuation-prefill get_simultaneous reservations, same
+        # _CONTINUATION_DECODE_THRESHOLD=128). PN353A's anchor (3-line
+        # __init__ immediately followed by build_for_cudagraph_capture) now
+        # matches 0 times — the native reserve fills that gap — so the
+        # patch CANNOT apply on dev301 regardless of lifecycle, and a
+        # re-anchor would inject a DUPLICATE _reserve_workspace method.
+        # Iron rule #11 outcome (a): byte-identical upstream merge ->
+        # retire. PN399 (the only "dependent") is UNAFFECTED: it is
+        # default_off, is an after-chain patch whose sub-patches anchor on
+        # sibling-applied output (its C2 anchor expects PN353A's
+        # _genesis_pn353a_torch text, absent on pristine dev301), and its
+        # kernel apply is transactional — a missing required anchor SKIPS
+        # cleanly with zero writes. So coupling PN399 to PN353A's live
+        # output is moot on dev301 (PN353A could not apply anyway). Verified
+        # via bare-image apply() (returns skipped: required_anchor_missing)
+        # and live gpu_model_runner/dev301 pristine read. The previous
+        # "KEEP ACTIVE / coupled retirement waits for #46067" reasoning was
+        # self-defeating: a patch that cannot apply cannot anchor anything.
+        "lifecycle_changed": "2026-06-24 experimental -> retired (vllm#44053 merged in dev301)",
         "superseded_by": (
-            "vllm#44053 (MERGED, IN dev301 — TQ MetadataBuilder workspace "
-            "reserve is fixed native on dev301+; anchor drifted per the "
-            "anchor-SOT regen). RETAINED active on dev301: PN399."
-            "requires_patches anchors PN353A's live output, so coupled "
-            "retirement waits for PN399's upstream (#46067). NOT "
-            "version-gated out of dev301 — see applies_to range."
+            "vllm#44053 (MERGED, native in dev301 — TQ MetadataBuilder "
+            "workspace reserve fixed upstream; byte-equivalent intent). "
+            "PN353A anchor matches 0x on dev301 and cannot re-anchor "
+            "without duplicating the native method. PN399 (default_off, "
+            "after-chain) skips cleanly without PN353A's output."
         ),
         "applies_to": {
             "is_turboquant": True,
-            "vllm_version_range": (">=0.21.0", "<0.24.0"),
+            # Upper bound EXCLUDES dev301 (where #44053 landed). Same scheme
+            # as PN394/PN400. Routes to STATUS_RETIRED + version_gated in the
+            # anchor-SOT manifest (out of the genuine anchor_drift backlog).
+            "vllm_version_range": (">=0.21.0", "<0.23.1rc1.dev301"),
         },
         "implementation_status": "full",
-        "composes_with": ["PN118", "PN353B", "PN399"],  # PN399 (when ON)
-                                        # anchors PN353A's live output and
-                                        # removes ONLY the now-dead decode-
-                                        # scratch get_simultaneous reservation,
-                                        # keeping the continuation-prefill K/V
-                                        # reservation byte-intact. PN353A source
-                                        # is NOT edited.
+        "composes_with": ["PN118", "PN353B"],  # PN399 dropped from the
+                                        # compose list: on dev301 the TQ
+                                        # workspace reserve is upstream-native
+                                        # so PN353A no longer supplies output
+                                        # for PN399 to anchor. PN399 stays
+                                        # default_off and skips cleanly.
         "conflicts_with": [],
     },
     "PN353B": {

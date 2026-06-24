@@ -1670,7 +1670,7 @@
   {
     "patch_id": "PN353A",
     "family": "attention.turboquant",
-    "lifecycle": "experimental",
+    "lifecycle": "retired",
     "tier": "community",
     "default_on": false,
     "env_flag": "GENESIS_ENABLE_PN353A",

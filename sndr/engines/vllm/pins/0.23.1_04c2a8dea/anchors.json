@@ -113,6 +113,12 @@
    "patches": {
     "PN382": {
      "anchors": {
+      "pn382_hybrid_per_block_fill": {
+       "anchor_md5": "f9c2d2575692c92de342d9e9f94ea95d",
+       "byte_length": 243,
+       "byte_offset": 15021,
+       "replacement_md5": "07d02142c3f2d2e6e2f6999f96faae86"
+      },
       "pn382_real_group_map": {
        "anchor_md5": "8780dbe52a3afc75d30c62bb869228bd",
        "byte_length": 294,
@@ -136,6 +142,34 @@
     }
    },
    "size_bytes": 18114
+  },
+  "entrypoints/chat_utils.py": {
+   "md5_pristine": "f42f3b69f772b11800b95fe3dd1a57cf",
+   "patches": {
+    "PN73": {
+     "anchors": {
+      "pn73_tool_args_safe_normalize": {
+       "anchor_md5": "2609e1dbf50df2ed4b582ef131e6649c",
+       "byte_length": 392,
+       "byte_offset": 68023,
+       "replacement_md5": "1423d130953c3c39dd4a57b95ca0e99a"
+      }
+     },
+     "merge_status": "not_merged"
+    },
+    "PN91": {
+     "anchors": {
+      "pn72_developer_role_normalize": {
+       "anchor_md5": "7d538bf585729cf3f85c69bc4dace53b",
+       "byte_length": 64,
+       "byte_offset": 63491,
+       "replacement_md5": "5d673cc0a381a8b1ea6953adefe9acc4"
+      }
+     },
+     "merge_status": "not_merged"
+    }
+   },
+   "size_bytes": 71758
   },
   "entrypoints/openai/chat_completion/serving.py": {
    "md5_pristine": "c13d7d991397891bece8f639f8d64ee2",
@@ -471,16 +505,6 @@
    },
    "size_bytes": 68657
   },
-  "model_executor/layers/quantization/auto_gptq.py": {
-   "md5_pristine": "38e2674a5b163c5e5c198302bb4fad25",
-   "patches": {
-    "PN400": {
-     "anchors": {},
-     "merge_status": "not_merged"
-    }
-   },
-   "size_bytes": 30116
-  },
   "model_executor/layers/quantization/turboquant/centroids.py": {
    "md5_pristine": "0421d51facaf071dd25b505dae37da25",
    "patches": {
@@ -655,8 +679,15 @@
   "parser/qwen3.py": {
    "md5_pristine": "5f661e586539917c34b2f90ff3cbe37f",
    "patches": {
-    "PN394": {
-     "anchors": {},
+    "PN71": {
+     "anchors": {
+      "pn71_extract_reasoning_normalize": {
+       "anchor_md5": "449a158f6525f8a90d66024c9d3985da",
+       "byte_length": 307,
+       "byte_offset": 7070,
+       "replacement_md5": "a27d8be52aa1af80853d05c128f5dcbc"
+      }
+     },
      "merge_status": "not_merged"
     }
    },
@@ -747,6 +778,35 @@
     }
    },
    "size_bytes": 23135
+  },
+  "utils/import_utils.py": {
+   "md5_pristine": "47f6b6b994e7a8291b2df3641bc53894",
+   "patches": {
+    "PN92": {
+     "anchors": {
+      "pn92_deep_ep": {
+       "anchor_md5": "cdf7469bd33b3fab020854a4dee0d4b7",
+       "byte_length": 124,
+       "byte_offset": 13042,
+       "replacement_md5": "c86358e928a0ef313294c2f4e8aba144"
+      },
+      "pn92_mori": {
+       "anchor_md5": "c659150d2e6df4aab0d8905597528242",
+       "byte_length": 115,
+       "byte_offset": 16492,
+       "replacement_md5": "8957c69b391017aef74ae40c47a9369e"
+      },
+      "pn92_nixl_ep": {
+       "anchor_md5": "3f010970af580de4951268be59b36166",
+       "byte_length": 124,
+       "byte_offset": 15296,
+       "replacement_md5": "e6646465ff30630efc994465e8248153"
+      }
+     },
+     "merge_status": "not_merged"
+    }
+   },
+   "size_bytes": 16995
   },
   "v1/attention/backends/flashinfer.py": {
    "md5_pristine": "7c0d2cac7986e602bdb863d98c357c5b",
@@ -937,7 +997,7 @@
        "anchor_md5": "1e1ebaeb17b706162d88b24e370c1a77",
        "byte_length": 382,
        "byte_offset": 17354,
-       "replacement_md5": "717987258983371e70d3687d861c4d00"
+       "replacement_md5": "a2fdcde2c3777cc556967d1f827c78a1"
       }
      },
      "merge_status": "not_merged"
@@ -979,10 +1039,6 @@
        "replacement_md5": "4d92ecd7346d1cca7cc8f58e3bde86bf"
       }
      },
-     "merge_status": "not_merged"
-    },
-    "PN353A": {
-     "anchors": {},
      "merge_status": "not_merged"
     },
     "PN353B": {
@@ -1099,6 +1155,23 @@
    },
    "size_bytes": 41176
   },
+  "v1/core/block_pool.py": {
+   "md5_pristine": "2f6e2d8b8e4dbb883621f051d289a309",
+   "patches": {
+    "PN96": {
+     "anchors": {
+      "pn96_get_new_blocks_rescue": {
+       "anchor_md5": "6c333baf306edd89f67edde32c3e00ed",
+       "byte_length": 457,
+       "byte_offset": 22202,
+       "replacement_md5": "82fbbe8903e9087f55083abcd7cf5dca"
+      }
+     },
+     "merge_status": "not_merged"
+    }
+   },
+   "size_bytes": 28906
+  },
   "v1/core/kv_cache_coordinator.py": {
    "md5_pristine": "b673b4b57b2715092ff8e99e7dfd1269",
    "patches": {
@@ -1170,6 +1243,12 @@
    "patches": {
     "P85": {
      "anchors": {
+      "p85_mamba_cache_blocks_shadow": {
+       "anchor_md5": "5f3b587f33dcacb0e843b9cab4a9774a",
+       "byte_length": 1112,
+       "byte_offset": 55980,
+       "replacement_md5": "e000305e23572bb7438e12e572f807b8"
+      },
       "p85_mamba_find_longest_cache_hit_fine_pristine": {
        "anchor_md5": "6a3d134a155ad344f183a1c983157226",
        "byte_length": 1445,
@@ -1516,12 +1595,23 @@
       }
      },
      "merge_status": "not_merged"
+    },
+    "SNDR_WORKSPACE_001": {
+     "anchors": {
+      "sndr_ws001_grow_after_lock_anchor": {
+       "anchor_md5": "9698e5f1a6adf7e75db649e266364933",
+       "byte_length": 373,
+       "byte_offset": 5563,
+       "replacement_md5": "937ff3494ff24cf4f76a0e0a2f0ca924"
+      }
+     },
+     "merge_status": "not_merged"
     }
    },
    "size_bytes": 9937
   }
  },
- "generated_at": "2026-06-24T19:02:09Z",
+ "generated_at": "2026-06-24T20:48:50Z",
  "generated_by": "sndr.engines.vllm.anchor_manifest_gen.to_engine_manifest",
  "manifest_version": 1,
  "pins": {

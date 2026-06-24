@@ -1221,9 +1221,12 @@ class MambaManager(SingleTypeKVCacheManager):
             for block in self.req_to_blocks[request.request_id][
                 num_cached_blocks_before:num_cached_blocks_after
             ]:
-                if block.is_null:
+                # Skip null blocks (align-mode skipped states) and blocks that
+                # were not cached this step — with sparse retention
+                # (reachable_block_mask) the intermediate state snapshots carry
+                # no hash and must not be recorded as cached-this-step.
+                if block.is_null or block.block_hash is None:
                     continue
-                assert block.block_hash is not None
                 self.cached_blocks_this_step.add(block.block_hash)
 
     def new_step_starts(self) -> None:

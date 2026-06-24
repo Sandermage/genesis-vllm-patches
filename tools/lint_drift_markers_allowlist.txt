@@ -51,3 +51,17 @@
 # signal is upstream's own symbol names. Owner: Sander.
 _get_decode_scratch
 max_decode_cudagraph_batch
+
+# PN382 (vllm#45080 DecodeBenchConnector hybrid fill): on dev301 #45080 is
+# MERGED as the weaker whole-pool form, so the pre-merge markers
+# (`_fill_state_tensor` / `_fill_block_tensor`) became NATIVE and were
+# dropped. PN382 now OVERRIDES the merged form by redirecting the GDN
+# list/tuple branch to per-block fill; its post-fix drift marker is the
+# per-block call it emits — `self._fill_block_tensor(state_tensor,
+# block_ids)` — an INTENTIONAL self-collision (same class as PN399 above).
+# Benign by construction: TextPatcher checks the idempotency marker
+# (Layer 2, `Genesis PN382 vendor of vllm#45080 ... v1`) BEFORE the drift
+# markers (Layer 3), so the drift scan never reads PN382s own output on
+# re-apply. It only fires on a fresh pin where upstream adopts per-block
+# list fill, where it correctly self-skips. Owner: Sander.
+self._fill_block_tensor(state_tensor, block_ids)

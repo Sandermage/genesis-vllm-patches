@@ -176,3 +176,6 @@ sponsor-site/
 # controller orchestration workflow scripts (never commit)
 .*_wf.js
 *_wf.js
+
+# Anchor-SOT rebuild_pin.sh scratch (discovery + pristine dumps)
+.anchor_build/

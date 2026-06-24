@@ -1,24 +1,31 @@
 # SPDX-License-Identifier: Apache-2.0
-"""PN382 — vendor OPEN PR vllm#45080 (DecodeBenchConnector list/tuple
-KV fill) + two Genesis extensions.
+"""PN382 — override the MERGED-but-weaker vllm#45080 (DecodeBenchConnector
+list/tuple KV fill) with a per-block GDN fill + the real group map.
 
-Target: ``distributed/kv_transfer/kv_connector/v1/decode_bench_connector.py``
-on pin 0.22.1rc1.dev259+g303916e93 (anchors byte-verified count==1 on
-the pristine tree at /private/tmp/candidate_pin_current).
+Target: ``distributed/kv_transfer/kv_connector/v1/decode_bench_connector.py``.
+On pin 0.23.1rc1.dev301+g04c2a8dea, vllm#45080 has MERGED (the four
+anchors re-derived 2026-06-24, byte-verified count==1 on the live dev301
+pristine tree). The crash fix is now upstream-native; PN382 keeps the two
+Genesis extensions upstream still LACKS (per-block list fill + real group
+map). On the pre-merge pin (0.22.1rc1.dev259) PN382 vendored the whole
+PR; see git history for that form.
 
-WHY: ``DecodeBenchConnectorWorker._fill_blocks`` assumes every layer's
-KV cache is a single block-indexed ``torch.Tensor`` and dies with
-``AttributeError: 'list' object has no attribute 'device'`` on the
-FIRST decode batch for hybrid / linear-attention models — Mamba/GDN
-layers register a LIST of state tensors. That makes decode-TPOT-vs-
-depth benching (the DecodeBenchConnector's whole purpose: fill KV with
-dummy values to emulate deep prefill) IMPOSSIBLE on our GDN hybrids
-(Qwen3.6-35B-A3B / 27B). With PN382 the 8K/32K/128K/280K sweep profile
-(docs/BENCHMARKS.md, MTP off) runs in minutes.
+WHY: ``DecodeBenchConnectorWorker._fill_blocks`` originally assumed every
+layer's KV cache is a single block-indexed ``torch.Tensor`` and died with
+``AttributeError: 'list' object has no attribute 'device'`` on the FIRST
+decode batch for hybrid / linear-attention models — Mamba/GDN layers
+register a LIST of state tensors. That made decode-TPOT-vs-depth benching
+(the DecodeBenchConnector's whole purpose: fill KV with dummy values to
+emulate deep prefill) IMPOSSIBLE on our GDN hybrids (Qwen3.6-35B-A3B /
+27B). With PN382 the 8K/32K/128K/280K sweep profile (docs/BENCHMARKS.md,
+MTP off) runs in minutes.
 
-Upstream #45080 splits the fill: tensors keep the block-row fill;
-list/tuple caches get each state tensor filled IN ITS ENTIRETY
-(``fill_()`` / ``normal_()``).
+Upstream #45080 (now merged in dev301) splits the fill: tensors get the
+block-row fill via ``_fill_block_tensor``; list/tuple caches get each
+state tensor filled IN ITS ENTIRETY via ``_fill_state_tensor``
+(``fill_()`` / ``normal_()``) — the WEAKER whole-pool form. PN382 now
+REDIRECTS the list/tuple branch to upstream's own per-block
+``_fill_block_tensor(state_tensor, block_ids)`` (see Sub-fix 4).
 
 Genesis extensions (roadmap chunk-3 Theme D; iron rule #10 — adapt,
 don't blind-copy):
@@ -80,13 +87,23 @@ GENESIS_PN382_MARKER = (
 
 _CONNECTOR_REL = "distributed/kv_transfer/kv_connector/v1/decode_bench_connector.py"
 
-# Fires when vllm#45080 merges (the PR introduces these helper names);
-# our emitted identifiers are _pn382_* so the markers never match our
-# own output (tools/lint_drift_markers contract; asserted in tests).
+# vllm#45080 MERGED in dev301 as the WEAKER whole-pool form
+# (``_fill_state_tensor`` / ``_fill_block_tensor`` are now NATIVE — they
+# can no longer be upstream-merge drift markers, they'd auto-skip the
+# patch we still need). PN382 now OVERRIDES the merged-but-insufficient
+# upstream by redirecting the GDN list/tuple branch to per-block fill.
+# The drift marker is the FULL post-fix spelling we'd see only if
+# upstream LATER adopts per-block fill on the list path themselves
+# (``self._fill_block_tensor(state_tensor, block_ids)``). It is a
+# substring of PN382's own emitted replacement (PN399/PN346 self-
+# collision class) — harmless because the kernel checks the idempotency
+# marker (Layer 2) BEFORE the drift markers (Layer 3), so the drift scan
+# never reads PN382's own output on re-apply; on a fresh pin where
+# upstream adopted per-block fill, the marker fires and PN382 self-skips
+# as genuinely obsolete. Allowlisted in tools/lint_drift_markers.
 _DRIFT_MARKERS = (
     "[Genesis PN382",
-    "_fill_state_tensor",
-    "def _fill_block_tensor(",
+    "self._fill_block_tensor(state_tensor, block_ids)",
 )
 
 
@@ -159,106 +176,43 @@ PN382_GROUP_MAP_NEW = (
     "            self.group_to_layers = {0: list(kv_caches.keys())}\n"
 )
 
-# ─── Sub-fix 4: tensor-vs-list split with per-block state fill ────────
+# ─── Sub-fix 4: redirect the hybrid list/tuple path to PER-BLOCK fill ──
+#
+# v2 re-anchor (2026-06-24, pin 0.23.1rc1.dev301+g04c2a8dea): upstream
+# vllm#45080 MERGED — dev301 already splits the fill into
+# ``_fill_block_tensor`` (per-block, tensors) and ``_fill_state_tensor``
+# (WHOLE-POOL, list/tuple GDN/Mamba). Upstream's whole-pool fill is the
+# WEAKER form (its target was Kimi-Linear per-request buffers); on our
+# pin the GDN/Mamba state tensors are block-indexed
+# ``(num_blocks, *shape)`` (verified live in dev301 gpu_model_runner.py
+# MambaSpec branch: ``target_shape = (num_blocks, *shape)``), so the
+# whole-pool fill would clobber the recurrent state of every CONCURRENT
+# request mid-sweep. PN382 redirects the list/tuple branch to upstream's
+# OWN per-block helper ``_fill_block_tensor(state_tensor, block_ids)``,
+# filling only the requested block rows — same correctness as the
+# attention path, no concurrent-state clobber. Anchor matches the merged
+# dev301 dispatch (count==1 verified against the live pristine tree).
 PN382_FILL_OLD = (
-    "            # Convert block_ids to tensor on device\n"
-    "            block_ids_tensor = torch.tensor(\n"
-    "                block_ids, dtype=torch.long, device=kv_cache.device\n"
-    "            )\n"
-    "\n"
-    "            # Filter invalid block IDs\n"
-    "            valid_mask = block_ids_tensor < kv_cache.shape[0]\n"
-    "            valid_block_ids = block_ids_tensor[valid_mask]\n"
-    "\n"
-    "            if len(valid_block_ids) == 0:\n"
-    "                continue\n"
-    "\n"
-    "            # Create fill values - either constant or random\n"
-    "            block_shape = kv_cache.shape[1:]\n"
-    "            if self.fill_std > 0:\n"
-    "                # Random normal sampling\n"
-    "                fill_values = torch.normal(\n"
-    "                    mean=self.fill_mean,\n"
-    "                    std=self.fill_std,\n"
-    "                    size=(len(valid_block_ids),) + block_shape,\n"
-    "                    dtype=kv_cache.dtype,\n"
-    "                    device=kv_cache.device,\n"
-    "                )\n"
-    "            else:\n"
-    "                # Constant fill value\n"
-    "                fill_values = torch.full(\n"
-    "                    (len(valid_block_ids),) + block_shape,\n"
-    "                    self.fill_mean,\n"
-    "                    dtype=kv_cache.dtype,\n"
-    "                    device=kv_cache.device,\n"
-    "                )\n"
-    "\n"
-    "            # Batch fill operation\n"
-    "            kv_cache[valid_block_ids] = fill_values\n"
-)
-PN382_FILL_NEW = (
-    "            # [Genesis PN382 vendor of vllm#45080 + Genesis extension]\n"
-    "            # Attention layers store KV as one block-indexed\n"
-    "            # torch.Tensor (first dim num_blocks). Hybrid GDN/Mamba\n"
-    "            # layers store a LIST of state tensors; on this pin every\n"
-    "            # state tensor is ALSO block-indexed (gpu_model_runner\n"
-    "            # builds them as (num_blocks, *shape)), so the requested\n"
-    "            # block rows are filled PER TENSOR. Upstream #45080 fills\n"
-    "            # the whole state pool instead, which would clobber the\n"
-    "            # recurrent state of every concurrent request; the\n"
-    "            # per-block fill keeps neighbouring requests intact.\n"
-    "            # Anything else is skipped with a warning.\n"
-    "            if isinstance(kv_cache, torch.Tensor):\n"
-    "                _pn382_targets = (kv_cache,)\n"
-    "            elif isinstance(kv_cache, (list, tuple)) and kv_cache and all(\n"
+    "            elif isinstance(kv_cache, (list, tuple)) and all(\n"
     "                isinstance(t, torch.Tensor) for t in kv_cache\n"
     "            ):\n"
-    "                _pn382_targets = tuple(kv_cache)\n"
-    "            else:\n"
-    "                logger.warning_once(\n"
-    '                    "DecodeBenchConnector: skipping fill for layer %s "\n'
-    '                    "whose KV cache is %s, not a tensor or a non-empty "\n'
-    '                    "list/tuple of tensors.",\n'
-    "                    layer_name,\n"
-    "                    type(kv_cache).__name__,\n"
-    "                )\n"
-    "                continue\n"
-    "\n"
-    "            for _pn382_state in _pn382_targets:\n"
-    "                # Convert block_ids to tensor on device\n"
-    "                block_ids_tensor = torch.tensor(\n"
-    "                    block_ids, dtype=torch.long, device=_pn382_state.device\n"
-    "                )\n"
-    "\n"
-    "                # Filter invalid block IDs\n"
-    "                valid_mask = block_ids_tensor < _pn382_state.shape[0]\n"
-    "                valid_block_ids = block_ids_tensor[valid_mask]\n"
-    "\n"
-    "                if len(valid_block_ids) == 0:\n"
-    "                    continue\n"
-    "\n"
-    "                # Create fill values - either constant or random\n"
-    "                block_shape = _pn382_state.shape[1:]\n"
-    "                if self.fill_std > 0:\n"
-    "                    # Random normal sampling\n"
-    "                    fill_values = torch.normal(\n"
-    "                        mean=self.fill_mean,\n"
-    "                        std=self.fill_std,\n"
-    "                        size=(len(valid_block_ids),) + block_shape,\n"
-    "                        dtype=_pn382_state.dtype,\n"
-    "                        device=_pn382_state.device,\n"
-    "                    )\n"
-    "                else:\n"
-    "                    # Constant fill value\n"
-    "                    fill_values = torch.full(\n"
-    "                        (len(valid_block_ids),) + block_shape,\n"
-    "                        self.fill_mean,\n"
-    "                        dtype=_pn382_state.dtype,\n"
-    "                        device=_pn382_state.device,\n"
-    "                    )\n"
-    "\n"
-    "                # Batch fill operation\n"
-    "                _pn382_state[valid_block_ids] = fill_values\n"
+    "                for state_tensor in kv_cache:\n"
+    "                    self._fill_state_tensor(state_tensor)\n"
+)
+PN382_FILL_NEW = (
+    "            elif isinstance(kv_cache, (list, tuple)) and all(\n"
+    "                isinstance(t, torch.Tensor) for t in kv_cache\n"
+    "            ):\n"
+    "                # [Genesis PN382 vendor of vllm#45080 + Genesis extension]\n"
+    "                # Hybrid GDN/Mamba state tensors are block-indexed\n"
+    "                # (num_blocks, *shape) on this pin, so fill only the\n"
+    "                # requested block ROWS via upstream's own per-block\n"
+    "                # helper instead of the whole-pool _fill_state_tensor.\n"
+    "                # Whole-pool fill would clobber the recurrent state of\n"
+    "                # every concurrent request mid-sweep; per-block keeps\n"
+    "                # neighbouring requests intact (correctness-critical).\n"
+    "                for state_tensor in kv_cache:\n"
+    "                    self._fill_block_tensor(state_tensor, block_ids)\n"
 )
 
 

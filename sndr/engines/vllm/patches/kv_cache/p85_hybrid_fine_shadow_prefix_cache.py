@@ -204,14 +204,17 @@ GENESIS_P85_MARKER = "Genesis P85 hybrid fine-shadow prefix cache (vllm#38182 fo
 
 # ─── Site 1: MambaManager.cache_blocks adds shadow entries ────────────────
 #
-# v2 re-anchor (2026-06-11, pin 0.22.1rc1.dev259+g303916e93): upstream
-# widened the signature with `retention_interval` (pristine
-# v1/core/single_type_kv_cache_manager.py lines 1211-1229, byte-exact,
-# count==1 verified against the live pristine tree and
-# tests/legacy/pristine_fixtures/single_type_kv_cache_manager.py,
-# md5 99b46fa9f109e22ea2ba4a0dfeac1e87). P85 only APPENDS the shadow
-# registration block — the upstream body, including the
-# retention_interval forward, is preserved verbatim.
+# v3 re-anchor (2026-06-24, pin 0.23.1rc1.dev301+g04c2a8dea): upstream
+# rewrote the cache_blocks loop body — the old
+# ``if block.is_null: continue / assert block.block_hash is not None``
+# pair was folded into a single ``if block.is_null or block.block_hash
+# is None: continue`` plus a 4-line sparse-retention comment (pristine
+# v1/core/single_type_kv_cache_manager.py lines 1268-1287, byte-exact,
+# count==1 verified against the live dev301 pristine tree). The
+# ``retention_interval`` signature (v2 re-anchor, dev259) is unchanged.
+# P85 only APPENDS the shadow registration block — the upstream body
+# (including the new combined null/no-hash guard) is preserved verbatim,
+# em-dash included.
 
 _P85_SITE1_TAIL = "\n    def new_step_starts(self) -> None:\n"
 
@@ -229,9 +232,12 @@ _P85_SITE1_BODY = (
     "            for block in self.req_to_blocks[request.request_id][\n"
     "                num_cached_blocks_before:num_cached_blocks_after\n"
     "            ]:\n"
-    "                if block.is_null:\n"
+    "                # Skip null blocks (align-mode skipped states) and blocks that\n"
+    "                # were not cached this step — with sparse retention\n"
+    "                # (reachable_block_mask) the intermediate state snapshots carry\n"
+    "                # no hash and must not be recorded as cached-this-step.\n"
+    "                if block.is_null or block.block_hash is None:\n"
     "                    continue\n"
-    "                assert block.block_hash is not None\n"
     "                self.cached_blocks_this_step.add(block.block_hash)\n"
 )
 
