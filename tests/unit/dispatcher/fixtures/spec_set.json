@@ -1010,7 +1010,7 @@
   {
     "patch_id": "PN394",
     "family": "tool_parsing",
-    "lifecycle": "experimental",
+    "lifecycle": "retired",
     "tier": "community",
     "default_on": true,
     "env_flag": "GENESIS_ENABLE_PN394_QWEN3_PARTIAL_PARAM_LT_FIX",
@@ -2330,7 +2330,7 @@
   {
     "patch_id": "PN400",
     "family": "quantization",
-    "lifecycle": "experimental",
+    "lifecycle": "retired",
     "tier": "community",
     "default_on": false,
     "env_flag": "GENESIS_ENABLE_PN400",
@@ -3595,7 +3595,7 @@
     "default_on": false,
     "env_flag": "GENESIS_ENABLE_PN382_DECODE_BENCH_HYBRID_FILL",
     "has_upstream_pr": true,
-    "upstream_pr_relationship": "backport",
+    "upstream_pr_relationship": "related_not_superseding",
     "has_apply_module": true,
     "apply_module": "sndr.engines.vllm.patches.kv_cache.pn382_decode_bench_hybrid_fill"
   },
